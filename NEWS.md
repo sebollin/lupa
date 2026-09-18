@@ -8,14 +8,22 @@
   exhibe convierte lo que trae codificación declarada —latin1 o UTF-8—, declara
   como UTF-8 los bytes válidos sin declarar —R los escapa como <U+00F1> donde el
   locale no los represente— y deja los bytes restantes tal cual mientras
-  print.data.frame() pueda con ellos. **Bajo un locale UTF-8 la salida es
-  exactamente la de R**, medido en 11 formas de marco por 2 valores de
-  row.names por 3 anchos. Bajo un locale que no puede representar un carácter
+  print.data.frame() pueda con ellos. **Bajo un locale UTF-8 la salida es la
+  misma que la de R** —medido en 39 tipos de columna por 3 formas de row.names
+  por 3 anchos por 2 locales, 702 cruces— con una excepción que se sigue de lo
+  anterior y conviene tener presente: si una clase suya define un format() que
+  consulta Encoding(), va a ver la marca de la copia y no la del original, así
+  que puede decidir distinto. Bajo un locale que no puede representar un carácter
   la salida difiere a propósito, y para mejor: donde R publica los bytes
   escapados en octal, lupa publica el punto de código, <U+00F1>, que dice qué
   carácter era. Sólo cuando R no puede imprimir —una columna de listas con
   bytes inválidos, donde aborta en cualquier locale— se reintenta escapando con
-  el octal que el propio R usa, \377, y la tabla queda alineada también ahí. El octal no es un detalle: escapar como
+  el octal que el propio R usa, \377. Ese reintento transforma el marco
+  **entero**, no sólo la celda que impedía imprimir: duplica las barras de
+  todas las columnas, porque si no lo hiciera el byte escapado y el texto
+  literal de la misma forma publicarían lo mismo. Es el precio de que la
+  representación sea reversible, y sólo se paga en un marco que R no podía
+  imprimir de ninguna manera. El octal no es un detalle: escapar como
   <ff> hacía que el byte 0xff y el texto <ff> que un usuario puede escribir se
   publicaran iguales, y R los distingue. Eso no vuelve infalible a
   print(): si una clase del usuario tiene un format() que da error, ese error

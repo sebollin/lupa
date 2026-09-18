@@ -25,9 +25,13 @@ Printed results no longer fail because of encoding in any locale, LC_CTYPE = C
 included. The displayed copy converts whatever carries a declared encoding,
 declares as UTF-8 the valid undeclared bytes — R escapes them as <U+00F1>
 wherever the locale cannot represent them — and leaves the rest untouched for as
-long as R can print it. Under a UTF-8 locale the output is exactly R's; under one
-that cannot represent a character it differs on purpose, and for the better:
-where R escapes the bytes, lupa publishes the code point. Only where R cannot
+long as R can print it. Under a UTF-8 locale the output is the same as R's,
+unless one of your classes defines a format() that inspects Encoding(): that one
+sees the displayed copy's mark. Under a locale that cannot represent a character
+the output differs on purpose, and for the better: where R escapes the bytes,
+lupa publishes the code point. Like every escaped representation — R's included
+— that form is ambiguous with text that contains it literally; what does not
+change is the data, only how it is shown. Only where R cannot
 print does it retry with R's own octal form, \377, so the table stays aligned
 there too. That does
 not make printing infallible: if one of your classes has a format() method that

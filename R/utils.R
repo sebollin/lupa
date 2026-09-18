@@ -179,8 +179,11 @@
         # Si no, el byte 0xff y el texto `\377` que un usuario escribio
         # publican lo mismo y el escape deja de ser reversible: el mismo
         # defecto que tenia la forma `<ff>`, mudado al camino del reintento.
-        # Esto solo corre cuando R no pudo imprimir el marco tal cual, asi que
-        # el ruido extra no alcanza a ninguna salida que base pueda producir.
+        # Esto transforma el marco ENTERO, tambien las columnas que no tenian
+        # nada malo: una columna con el texto literal `\377` se publica con la
+        # barra duplicada aunque el byte invalido este en otra. Es el precio de
+        # que la representacion sea reversible, y solo se paga en un marco que
+        # R no podia imprimir de ninguna manera.
         # `useBytes` no es optativo: `gsub()` valida la codificacion antes de
         # operar y aborta justo sobre las cadenas invalidas, que son las que
         # este camino existe para atender.

@@ -106,6 +106,14 @@ test_that("los metodos print y los avisos no publican bytes crudos bajo C", {
       nombre = .sin_marca_n64("referencial_a\u00f1o")
     ))
   }
+  canales$marco <- function() print(marco_calidad(
+    .sin_marca_n64("marco_a\u00f1o"),
+    data.frame(
+      dimension = .sin_marca_n64("dimensi\u00f3n"),
+      factor = .sin_marca_n64("factor_\u00f1"),
+      stringsAsFactors = FALSE
+    )
+  ))
   canales$validadores <- function() print(pack_validadores(
     .sin_marca_n64("pack_a\u00f1o"),
     validadores = list(siempre = function(x) rep(TRUE, length(x))),
@@ -116,7 +124,7 @@ test_that("los metodos print y los avisos no publican bytes crudos bajo C", {
   # metodo que publica prosa y no lo agrega aca, este numero lo delata: una
   # guarda que no dice cuantos canales recorre no distingue "los recorri todos"
   # de "recorri los que conocia cuando la escribi".
-  expect_identical(length(canales), 10L)
+  expect_identical(length(canales), 11L)
 
   for (nombre in names(canales)) {
     prosa <- .prosa_bajo_c_n64(canales[[nombre]])
@@ -132,4 +140,32 @@ test_that("los metodos print y los avisos no publican bytes crudos bajo C", {
       info = paste0(nombre, " (stdout): ", substr(prosa$stdout, 1, 200))
     )
   }
+})
+
+test_that("todo metodo print que publica prosa pasa por el marcado", {
+  # La guarda de arriba corre once canales y los construye uno por uno, asi que
+  # envejece: un metodo nuevo no entra solo. Esta la complementa por el otro
+  # lado y no construye nada: lee los cuerpos desde el ESPACIO DE NOMBRES, no
+  # del arbol de fuentes. La primera version leia `../../NAMESPACE` y `../../R`
+  # y abortaba bajo `R CMD check`, donde las pruebas corren contra el paquete
+  # instalado y ese arbol no existe. Es la tercera vez que una prueba depende
+  # de la forma del arbol; desde el namespace anda en las dos vias.
+  ns <- asNamespace("lupa")
+  metodos <- grep("^print\\.", ls(ns, all.names = TRUE), value = TRUE)
+  expect_gt(length(metodos), 15L)
+
+  publica_prosa <- character()
+  sin_marcado <- character()
+  for (metodo in metodos) {
+    cuerpo <- paste(deparse(get(metodo, envir = ns)), collapse = "\n")
+    if (!grepl("cli_(text|h1|h2|dl|ul|alert|abort|warn)|cat_publicado", cuerpo)) next
+    publica_prosa <- c(publica_prosa, metodo)
+    marca <- grepl(
+      "marcar_objeto_para_exhibir|cat_publicado|print_data_frame_bytes", cuerpo
+    )
+    if (!marca) sin_marcado <- c(sin_marcado, metodo)
+  }
+
+  expect_gt(length(publica_prosa), 15L)
+  expect_identical(sin_marcado, character())
 })

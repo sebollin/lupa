@@ -25,9 +25,13 @@ Las salidas impresas ya no fallan por codificación en ningún locale, incluido
 LC_CTYPE = C. La copia que se exhibe convierte lo que trae codificación
 declarada, declara como UTF-8 los bytes válidos sin declarar —R los escapa como
 <U+00F1> donde el locale no los represente— y deja el resto tal cual mientras R
-pueda imprimirlo. Bajo un locale UTF-8 la salida es exactamente la de R; bajo
-uno que no puede representar un carácter difiere a propósito, y para mejor:
-donde R escapa los bytes, lupa publica el punto de código. Sólo cuando R no
+pueda imprimirlo. Bajo un locale UTF-8 la salida es la misma que la de R, salvo
+que una clase suya defina un format() que consulte Encoding(): ese verá la marca
+de la copia. Bajo un locale que no puede representar un carácter la salida
+difiere a propósito, y para mejor: donde R escapa los bytes, lupa publica el
+punto de código. Como toda representación escapada —también las de R— esa forma
+es ambigua con un texto que la contenga literalmente; lo que no cambia es el
+dato, sólo cómo se muestra. Sólo cuando R no
 puede imprimir se reintenta escapando con su propio octal, \377, y la tabla
 queda alineada también ahí.
 Imprimir no es infalible por eso: si una clase suya tiene un format() que da
