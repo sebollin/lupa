@@ -21,7 +21,11 @@
 }
 
 # R representa un byte que no puede mostrar con su octal -`\\377`-, y esa es la
-# forma que hay que usar. Elegir `<ff>` parecia mas legible y era un defecto:
+# forma que hay que usar. Se escapan SOLO los bytes que no forman una secuencia
+# UTF-8 valida, no todos los altos: una celda con texto acentuado y un byte roto
+# al final salia como puro ruido octal, mientras base conserva la parte legible
+# y escapa solo lo roto. Lo que queda despues de escapar ya es UTF-8 valido, y
+# por eso se declara. Elegir `<ff>` parecia mas legible y era un defecto:
 # un usuario puede escribir literalmente `A<ff>B`, y entonces su texto y el byte
 # crudo 0xff publicaban lo MISMO, con base distinguiendolos. Medido:
 #
@@ -35,11 +39,27 @@
   vapply(x, function(s) {
     if (is.na(s)) return(NA_character_)
     crudo <- charToRaw(s)
-    altos <- as.integer(crudo) > 127L
-    if (!any(altos)) return(s)
-    piezas <- character(length(crudo))
-    piezas[!altos] <- rawToChar(crudo[!altos], multiple = TRUE)
-    piezas[altos] <- sprintf("\\%03o", as.integer(crudo[altos]))
+    if (!length(crudo) || all(as.integer(crudo) < 128L)) return(s)
+    piezas <- character()
+    i <- 1L
+    n <- length(crudo)
+    while (i <= n) {
+      primero <- as.integer(crudo[[i]])
+      largo <- if (primero < 0x80L) 1L else
+               if (primero >= 0xC2L && primero <= 0xDFL) 2L else
+               if (primero >= 0xE0L && primero <= 0xEFL) 3L else
+               if (primero >= 0xF0L && primero <= 0xF4L) 4L else 0L
+      trozo <- if (largo > 0L && i + largo - 1L <= n) {
+        rawToChar(crudo[i:(i + largo - 1L)])
+      } else NULL
+      if (!is.null(trozo) && isTRUE(validUTF8(trozo))) {
+        piezas <- c(piezas, trozo)
+        i <- i + largo
+      } else {
+        piezas <- c(piezas, sprintf("\\%03o", primero))
+        i <- i + 1L
+      }
+    }
     paste0(piezas, collapse = "")
   }, character(1L), USE.NAMES = FALSE)
 }
@@ -85,12 +105,15 @@
   clave
 }
 
-# print.data.frame() delega las columnas de listas en toString(), que usa
-# strtrim() y puede abortar cuando una cadena UTF-8 sin marca llega bajo
-# LC_CTYPE = "C". La salida tabular del paquete no necesita alineacion para
-# ser util: necesita conservar los bytes que el usuario entrego. Este camino
-# evita conversiones de locale y sirve tambien para comparar la salida de
-# print() entre locales.
+# Convierte una celda a texto para componer una frase. Queda de la epoca del
+# volcado por bytes, que se DESCARTO: aquel comentario decia que la salida
+# tabular "no necesita alineacion para ser util", y hoy el paquete sostiene lo
+# contrario -la tabla se publica formateada, con `print.data.frame()`, y el
+# escape solo entra donde R no puede-. Una nota vieja es una afirmacion falsa,
+# asi que se corrige en vez de dejarse.
+#
+# Sobrevive porque `R/tablero-calidad.R` la usa para armar una frase, que es un
+# uso legitimo y distinto del que la motivo.
 .texto_celda_publicada <- function(x) {
   if (is.null(x) || !length(x)) return("")
   if (is.factor(x)) return(.texto_celda_publicada(as.character(x)))
@@ -131,10 +154,14 @@
 
 # print.data.frame() delega las columnas de listas en toString(), que usa
 # strtrim() y aborta cuando una cadena UTF-8 sin marca llega bajo
-# LC_CTYPE = "C". La causa no es la alineacion sino la marca: si la copia
-# que se exhibe declara UTF-8, R sabe que hacer con ella en cualquier locale
-# y la tabla formateada se conserva igual en los dos. El volcado por bytes
-# queda como ultimo recurso, para que imprimir no aborte nunca.
+# LC_CTYPE = "C". La causa no es la alineacion sino la marca: si la copia que
+# se exhibe declara UTF-8, R sabe que hacer con ella en cualquier locale y la
+# tabla formateada se conserva.
+#
+# NO hay volcado por bytes: existio como camino alternativo y se quito entero,
+# porque un camino que se elige "cuando fallo" termina tragandose fallos
+# ajenos. Lo que hay es un REINTENTO con los bytes rotos escapados, y si ese
+# tampoco puede, el error original se relanza.
 .marcar_para_exhibir <- function(x, escapar = TRUE) {
   if (is.character(x)) {
     # Tres casos, y el orden importa.
@@ -189,7 +216,12 @@
         # este camino existe para atender.
         trozo <- gsub("\\", "\\\\", trozo, fixed = TRUE, useBytes = TRUE)
         if (any(!validas)) {
-          trozo[!validas] <- .escapar_bytes_altos(trozo[!validas])
+          escapado <- .escapar_bytes_altos(trozo[!validas])
+          # Escapado solo lo roto, el resto ya es UTF-8 valido: se declara para
+          # que R publique los acentos que sobrevivieron y no sus bytes.
+          recuperado <- validUTF8(escapado)
+          if (any(recuperado)) Encoding(escapado[recuperado]) <- "UTF-8"
+          trozo[!validas] <- escapado
         }
       }
       x[resto] <- trozo

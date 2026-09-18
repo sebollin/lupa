@@ -683,3 +683,28 @@ test_that("el escape del reintento es reversible", {
   celdas <- trimws(sub("^[0-9]+ +[0-9]+ +", "", salida[-1L]))
   expect_length(unique(celdas), 2L)
 })
+
+test_that("el escape conserva el texto legible y solo escapa lo roto", {
+  escapar <- getFromNamespace(".escapar_bytes_altos", "lupa")
+  imprimir <- getFromNamespace(".print_data_frame_bytes", "lupa")
+
+  # Una celda con texto acentuado y un byte roto salia como puro ruido octal
+  # -`a\303\261o\377`- porque se escapaban todos los bytes altos. Base conserva
+  # la parte legible y escapa solo lo roto; ahora el paquete tambien, y lo que
+  # queda es UTF-8 valido, asi que se puede declarar.
+  legible <- rawToChar(charToRaw("a\u00f1o"))
+  mezcla <- paste0(legible, rawToChar(as.raw(0xffL)))
+  expect_false(validUTF8(mezcla))
+
+  escapada <- escapar(mezcla)
+  expect_true(validUTF8(escapada))
+  expect_true(grepl(legible, escapada, fixed = TRUE, useBytes = TRUE))
+  expect_true(grepl("377", escapada, fixed = TRUE))
+
+  # Y los tres valores distintos siguen publicando celdas distintas.
+  marco <- data.frame(n = 1:3)
+  marco$x <- I(list(rawToChar(as.raw(0xffL)), "\\377", mezcla))
+  salida <- capture.output(imprimir(marco))
+  celdas <- trimws(sub("^[0-9]+ +[0-9]+ +", "", salida[-1L]))
+  expect_length(unique(celdas), 3L)
+})
