@@ -21,6 +21,11 @@ cleanup on a copy, and follow changes over time. It is useful when a
 than one way, whether a missing value is hiding behind a code, or which rows
 need to be checked in the source system.
 
+Printed results keep the same formatted table even when the session uses
+LC_CTYPE = C, where printing used to abort: in that locale R escapes the
+characters it cannot represent as <U+00F1>. This includes the list columns in
+the propuesta_modelo returned by proponer_modelo(); comparing two identical
+profiles also stays silent in that locale.
 ## What does it tell me that `summary()` does not?
 
 `summary()` describes columns one at a time. `lupa` compares representations,

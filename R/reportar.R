@@ -418,7 +418,12 @@
 
 .clave_medida_reporte <- function(id_medicion, id_medida,
                                   metrica_instanciada) {
-  paste(id_medicion, id_medida, metrica_instanciada, sep = "\r")
+  .clave_bytes(do.call(paste, c(
+    lapply(
+      list(id_medicion, id_medida, metrica_instanciada), .clave_bytes
+    ),
+    sep = "\r"
+  )))
 }
 
 .desenlaces_reporte <- function(objetos) {

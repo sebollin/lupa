@@ -647,7 +647,7 @@
       typeof(prototipo[[i]])
     } else "character"
     if ("validos" %in% metricas) {
-      salida[[paste(campo, "conteos", sep = "\u001f")]] <-
+      salida[[.clave_par_identificador(campo, "conteos", sep = "\u001f")]] <-
         .iniciar_acumulador(
           campo, tipo, familia = "conteos",
           fuente_id = NA_character_, snapshot_id = NA_character_,
@@ -659,7 +659,7 @@
       campo, if (is.null(prototipo)) NULL else prototipo[i],
       if (is.null(tipos)) NULL else tipos[i]
     )) {
-      salida[[paste(campo, "longitudes", sep = "\u001f")]] <-
+      salida[[.clave_par_identificador(campo, "longitudes", sep = "\u001f")]] <-
         .iniciar_acumulador(
           campo, "character", familia = "longitudes",
           fuente_id = NA_character_, snapshot_id = NA_character_,
@@ -672,7 +672,7 @@
       if (!is.null(tipos) && i <= length(tipos)) tipos[[i]] else NA_character_
     )
     if (es_numerico && any(c("basicos", "desvio") %in% metricas)) {
-      salida[[paste(campo, "cuantitativos", sep = "\u001f")]] <-
+      salida[[.clave_par_identificador(campo, "cuantitativos", sep = "\u001f")]] <-
         .iniciar_acumulador(
           campo, tipo, familia = "cuantitativos",
           fuente_id = NA_character_, snapshot_id = NA_character_,
@@ -681,7 +681,7 @@
         )
     }
     if ("distintos" %in% metricas) {
-      salida[[paste(campo, "distintos", sep = "\u001f")]] <-
+      salida[[.clave_par_identificador(campo, "distintos", sep = "\u001f")]] <-
         .iniciar_acumulador(
           campo, tipo, familia = "distintos",
           fuente_id = NA_character_, snapshot_id = NA_character_,
@@ -840,7 +840,7 @@
     medicion = list(consulta_id = 1L, etapa = "dbfetch_bloques")
   )
   agregar <- function(nombre, grupo, familias) {
-    sobre <- acumuladores[[paste(campo, grupo, sep = "\u001f")]]
+    sobre <- acumuladores[[.clave_par_identificador(campo, grupo, sep = "\u001f")]]
     if (inherits(sobre, "acumulador_bloques")) sobre <- sobre$resultado
     metadatos <- .metadatos_sql_dbi(
       alcance = "tabla_completa", universo = "tabla_completa",
@@ -864,7 +864,7 @@
   }
   if ("validos" %in% metricas) {
     agregar("n_validos", "conteos", "validos")
-    conteos <- acumuladores[[paste(campo, "conteos", sep = "\u001f")]]
+    conteos <- acumuladores[[.clave_par_identificador(campo, "conteos", sep = "\u001f")]]
     sobre <- if (is.null(conteos)) NULL else if (
       inherits(conteos, "acumulador_bloques")
     ) conteos$resultado else conteos
@@ -899,7 +899,7 @@
     }
   }
   if ("distintos" %in% metricas_publicas) {
-    sobre <- acumuladores[[paste(campo, "distintos", sep = "\u001f")]]
+    sobre <- acumuladores[[.clave_par_identificador(campo, "distintos", sep = "\u001f")]]
     if (inherits(sobre, "acumulador_bloques")) sobre <- sobre$resultado
     metrica <- .resumen_metrica_bloques_dbi(sobre, "distintos", "n_distintos")
     fila$n_distintos <- metrica$valor
@@ -924,7 +924,7 @@
       )
     }
   }
-  cuantitativos <- acumuladores[[paste(campo, "cuantitativos", sep = "\u001f")]]
+  cuantitativos <- acumuladores[[.clave_par_identificador(campo, "cuantitativos", sep = "\u001f")]]
   sobre_cuantitativos <- if (inherits(cuantitativos, "acumulador_bloques")) {
     cuantitativos$resultado
   } else cuantitativos
@@ -973,7 +973,7 @@
       }
     }
   }
-  longitudes <- acumuladores[[paste(campo, "longitudes", sep = "\u001f")]]
+  longitudes <- acumuladores[[.clave_par_identificador(campo, "longitudes", sep = "\u001f")]]
   if (inherits(longitudes, "acumulador_bloques")) longitudes <- longitudes$resultado
   if (!is.null(longitudes) && identical(longitudes$estado, "calculado")) {
     fila$longitud_minima <- longitudes$resultado["minimo"]
@@ -993,7 +993,7 @@
   # Moda y mediana quedan como familias de valores no fusionables en I1. Si el
   # mapa exacto ya existe se publica la moda; la mediana se calcula solo sobre
   # un mapa no truncado y se declara como acotada por esa representacion.
-  distintos <- acumuladores[[paste(campo, "distintos", sep = "\u001f")]]
+  distintos <- acumuladores[[.clave_par_identificador(campo, "distintos", sep = "\u001f")]]
   if (inherits(distintos, "acumulador_bloques")) distintos <- distintos$resultado
   mapa <- if (is.null(distintos)) NULL else distintos$resultado
   mapa_truncado <- !is.null(distintos) && identical(distintos$estado, "cota")
@@ -1436,8 +1436,8 @@
   )
   agregados_costo <- list(conteos = stats::setNames(lapply(
     preparacion$campos, function(campo) {
-      sobre <- recorrido$sobres[[paste(campo, "conteos", sep = "\u001f")]]
-      mapa <- recorrido$sobres[[paste(campo, "distintos", sep = "\u001f")]]
+      sobre <- recorrido$sobres[[.clave_par_identificador(campo, "conteos", sep = "\u001f")]]
+      mapa <- recorrido$sobres[[.clave_par_identificador(campo, "distintos", sep = "\u001f")]]
       validos <- if (!is.null(sobre) && identical(sobre$estado, "calculado")) {
         list(ok = TRUE, valor = sobre$resultado$n_validos)
       } else NULL

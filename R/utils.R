@@ -63,6 +63,124 @@
   clave
 }
 
+# print.data.frame() delega las columnas de listas en toString(), que usa
+# strtrim() y puede abortar cuando una cadena UTF-8 sin marca llega bajo
+# LC_CTYPE = "C". La salida tabular del paquete no necesita alineacion para
+# ser util: necesita conservar los bytes que el usuario entrego. Este camino
+# evita conversiones de locale y sirve tambien para comparar la salida de
+# print() entre locales.
+.texto_celda_publicada <- function(x) {
+  if (is.null(x) || !length(x)) return("")
+  if (is.factor(x)) return(.texto_celda_publicada(as.character(x)))
+  if (is.data.frame(x)) return("<data.frame>")
+  if (is.function(x)) return("<funcion>")
+  if (is.list(x)) {
+    resultado <- paste(
+      vapply(x, .texto_celda_publicada, character(1L)), collapse = "; "
+    )
+    Encoding(resultado) <- "unknown"
+    return(resultado)
+  }
+  valores <- tryCatch(as.character(x), error = function(e) "<no representable>")
+  if (!length(valores)) return("")
+  valores[is.na(valores)] <- "NA"
+  resultado <- paste(valores, collapse = ", ")
+  Encoding(resultado) <- "unknown"
+  resultado
+}
+
+.cat_publicado_bytes <- function(...) {
+  partes <- lapply(list(...), function(parte) {
+    if (is.null(parte)) return(character())
+    parte <- as.character(parte)
+    Encoding(parte) <- "unknown"
+    parte
+  })
+  do.call(cat, c(partes, list(sep = "")))
+}
+
+# print.data.frame() delega las columnas de listas en toString(), que usa
+# strtrim() y aborta cuando una cadena UTF-8 sin marca llega bajo
+# LC_CTYPE = "C". La causa no es la alineacion sino la marca: si la copia
+# que se exhibe declara UTF-8, R sabe que hacer con ella en cualquier locale
+# y la tabla formateada se conserva igual en los dos. El volcado por bytes
+# queda como ultimo recurso, para que imprimir no aborte nunca.
+.marcar_para_exhibir <- function(x) {
+  if (is.character(x)) {
+    validas <- !is.na(iconv(x, from = "UTF-8", to = "UTF-8", sub = NA))
+    if (any(validas)) Encoding(x[validas]) <- "UTF-8"
+    return(x)
+  }
+  if (is.factor(x)) {
+    levels(x) <- .marcar_para_exhibir(levels(x))
+    return(x)
+  }
+  if (is.list(x)) {
+    atributos <- attributes(x)
+    cuerpo <- lapply(unclass(x), .marcar_para_exhibir)
+    if (!is.null(atributos)) attributes(cuerpo) <- atributos
+    return(cuerpo)
+  }
+  x
+}
+
+.data_frame_para_exhibir <- function(x) {
+  atributos <- attributes(x)
+  cuerpo <- lapply(unclass(x), .marcar_para_exhibir)
+  atributos$names <- .marcar_para_exhibir(atributos$names)
+  if (is.character(atributos$row.names)) {
+    atributos$row.names <- .marcar_para_exhibir(atributos$row.names)
+  }
+  attributes(cuerpo) <- atributos
+  cuerpo
+}
+
+.volcar_data_frame_bytes <- function(x, row.names = TRUE) {
+  mostrar_filas <- isTRUE(row.names)
+  etiquetas_filas <- if (mostrar_filas) as.character(base::row.names(x)) else {
+    if (is.character(row.names)) row.names else character()
+  }
+  nombres <- names(x)
+  if (is.null(nombres)) nombres <- paste0("V", seq_along(x))
+  encabezado <- if (mostrar_filas) c("", nombres) else nombres
+  linea <- paste(encabezado, collapse = "\t")
+  Encoding(linea) <- "unknown"
+  cat(linea, "\n", sep = "")
+  if (nrow(x)) {
+    for (i in seq_len(nrow(x))) {
+      fila <- vapply(x, function(columna) {
+        .texto_celda_publicada(columna[[i]])
+      }, character(1L))
+      if (mostrar_filas) fila <- c(etiquetas_filas[[i]], fila)
+      linea <- paste(fila, collapse = "\t")
+      Encoding(linea) <- "unknown"
+      cat(linea, "\n", sep = "")
+    }
+  }
+  invisible(x)
+}
+
+.print_data_frame_bytes <- function(x, row.names = TRUE, ...) {
+  if (!inherits(x, "data.frame")) {
+    stop("x debe ser un data.frame.", call. = FALSE)
+  }
+  salida <- tryCatch(
+    utils::capture.output(
+      print.data.frame(.data_frame_para_exhibir(x), row.names = row.names, ...)
+    ),
+    error = function(e) NULL
+  )
+  if (!is.null(salida)) {
+    if (length(salida)) {
+      Encoding(salida) <- "unknown"
+      cat(paste0(salida, "\n"), sep = "")
+    }
+    return(invisible(x))
+  }
+  .volcar_data_frame_bytes(x, row.names = row.names)
+  invisible(x)
+}
+
 # Los nombres son datos del usuario, y no se pueden comparar con `==`, `match()`
 # o `setdiff()` directamente: esas operaciones consultan `LC_CTYPE` cuando una
 # cadena UTF-8 llega con marca `unknown`. La marca no forma parte del nombre que
@@ -153,7 +271,12 @@
 }
 
 .clave_par_identificador <- function(a, b, sep = "|") {
-  paste(.nombres_para_operar(a), .nombres_para_operar(b), sep = sep)
+  # Un par de identificadores suele terminar como nombre de lista o clave de
+  # agrupacion. Normalizar cada componente y el resultado evita que `paste()`
+  # vuelva a consultar el locale al armar la cadena compuesta.
+  .clave_bytes(paste(
+    .clave_bytes(a), .clave_bytes(b), sep = sep
+  ))
 }
 
 # `make.unique()` se usa para claves internas y para nombres de listas. No se le

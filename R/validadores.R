@@ -592,9 +592,13 @@ validadores_uruguay <- function() {
 
 #' @export
 print.pack_validadores <- function(x, ...) {
-  cat("<pack_validadores>", attr(x, "nombre", exact = TRUE), "\n")
+  .cat_publicado_bytes(
+    "<pack_validadores> ", attr(x, "nombre", exact = TRUE), "\n"
+  )
   pais <- attr(x, "pais", exact = TRUE)
-  if (!is.null(pais)) cat("Pais:", pais, "\n")
-  cat("Validadores:", paste(names(x), collapse = ", "), "\n")
+  if (!is.null(pais)) .cat_publicado_bytes("Pais: ", pais, "\n")
+  .cat_publicado_bytes(
+    "Validadores: ", paste(names(x), collapse = ", "), "\n"
+  )
   invisible(x)
 }

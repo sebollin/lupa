@@ -4805,7 +4805,7 @@
         as.character(resumen$sql$sql[[indice_sql]])
       } else NA_character_
       registros[[length(registros) + 1L]] <- .registro_cobertura_dbi(
-        "corroboracion", paste(columna, metrica, sep = "::"),
+        "corroboracion", .clave_par_identificador(columna, metrica, sep = "::"),
         "divergencia", motivo, como_resolverlo, sentencia
       )
     }
@@ -10148,7 +10148,7 @@ print.plan_perfilado_dbi <- function(x, ...) {
       "Este objeto conserva la clase del plan pero no sus atributos;",
       "seguramente sea un subconjunto. Se imprime solo la tabla."
     ))
-    print.data.frame(x, ...)
+    .print_data_frame_bytes(x, ...)
     return(invisible(x))
   }
   cli::cli_h1("Plan de perfilado")
@@ -10410,7 +10410,7 @@ print.plan_perfilado_dbi <- function(x, ...) {
       "`supuesto_costo` y `supuesto`."
     )
   }
-  print.data.frame(as.data.frame(x), row.names = FALSE)
+  .print_data_frame_bytes(as.data.frame(x), row.names = FALSE)
   invisible(x)
 }
 

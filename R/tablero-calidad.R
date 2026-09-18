@@ -549,17 +549,17 @@ tablero_calidad <- function(medidas, agregaciones = NULL, umbrales = NULL,
 print.tablero_calidad <- function(x, ...) {
   cli::cli_h1("Tablero de calidad")
   visible <- .proteger_tablero_desenlaces(x, .desenlaces_de_objeto(x))
-  print.data.frame(visible, row.names = FALSE)
+  .print_data_frame_bytes(visible, row.names = FALSE)
   alcance <- attr(x, "alcance", exact = TRUE)
   if (inherits(alcance, "data.frame") && nrow(alcance)) {
     cli::cli_h2("Alcance del marco")
-    print(alcance, row.names = FALSE)
+    .print_data_frame_bytes(alcance, row.names = FALSE)
   }
   cobertura_metricas <- attr(x, "cobertura_metricas", exact = TRUE)
   if (inherits(cobertura_metricas, "data.frame") &&
       nrow(cobertura_metricas)) {
     cli::cli_h2("Cobertura de m\u00e9tricas")
-    print(cobertura_metricas, row.names = FALSE)
+    .print_data_frame_bytes(cobertura_metricas, row.names = FALSE)
   }
   invisible(x)
 }
@@ -860,11 +860,11 @@ print.indice_calidad <- function(x, ...) {
     cli::cli_dl(c("Valor" = format(x$valor, digits = 6)))
   }
   cli::cli_h2("Cobertura del \u00edndice")
-  print.data.frame(x$cobertura, row.names = FALSE)
+  .print_data_frame_bytes(x$cobertura, row.names = FALSE)
   if (inherits(x$cobertura_metricas, "data.frame") &&
       nrow(x$cobertura_metricas)) {
     cli::cli_h2("Cobertura de m\u00e9tricas")
-    print(x$cobertura_metricas, row.names = FALSE)
+    .print_data_frame_bytes(x$cobertura_metricas, row.names = FALSE)
   }
   # Sobre cuantas tablas de la coleccion declarada se calculo este numero. Se
   # imprime porque un indice es UN numero: si la cobertura vive solo en un
@@ -872,26 +872,33 @@ print.indice_calidad <- function(x, ...) {
   if (!is.null(x$cobertura_coleccion)) {
     cc <- x$cobertura_coleccion
     cli::cli_h2("Cobertura de la colecci\u00f3n")
-    cli::cli_dl(c(
+    etiquetas <- c(
       "Tablas declaradas" = as.character(cc$tablas_declaradas),
-      "En el n\u00famero" = as.character(cc$tablas_en_el_numero),
       "Sin medir" = if (length(cc$tablas_sin_medir)) {
         paste(cc$tablas_sin_medir, collapse = ", ")
       } else "ninguna"
-    ))
+    )
+    etiquetas <- c(
+      etiquetas,
+      stats::setNames(
+        as.character(cc$tablas_en_el_numero),
+        .texto_celda_publicada("En el n\u00famero")
+      )
+    )
+    cli::cli_dl(etiquetas)
     if (!is.null(cc$advertencia)) cli::cli_alert_warning(cc$advertencia)
   }
   if (nrow(x$dimensiones)) {
     cli::cli_h2("Dimensiones, pesos y aportes")
-    print.data.frame(x$dimensiones, row.names = FALSE)
+    .print_data_frame_bytes(x$dimensiones, row.names = FALSE)
   }
   if (nrow(x$invertidas)) {
     cli::cli_h2("Componentes de defecto invertidos")
-    print.data.frame(x$invertidas, row.names = FALSE)
+    .print_data_frame_bytes(x$invertidas, row.names = FALSE)
   }
   if (nrow(x$excluidas)) {
     cli::cli_h2("Componentes excluidos")
-    print.data.frame(x$excluidas, row.names = FALSE)
+    .print_data_frame_bytes(x$excluidas, row.names = FALSE)
   }
   cli::cli_alert_info(x$combinacion_interna)
   cli::cli_alert_warning(x$advertencia_universos)

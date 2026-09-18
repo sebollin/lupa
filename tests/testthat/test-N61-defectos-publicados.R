@@ -385,3 +385,137 @@ test_that("el p-valor publicado de Benford es inmune a scipen", {
   }
   expect_identical(evidencia(base), evidencia(alternativo))
 })
+
+.sin_marca_n63 <- function(x) {
+  vapply(x, function(valor) rawToChar(charToRaw(valor)), character(1L))
+}
+
+.fixture_n63_publicacion <- function() {
+  set.seed(7)
+  n <- 60L
+  datos <- data.frame(
+    id = seq_len(n),
+    texto = c(
+      rep(.sin_marca_n63("com\u00fan"), 30L), rep("comun", 25L),
+      .sin_marca_n63(c(
+        "ca\u00f1\u00f3n", "C\u00f1\u00f3n", "c\u00d1\u00f3n",
+        "c\u00e1\u00f1on", "flexi\u00f3n"
+      ))
+    ),
+    acentos = .sin_marca_n63(c(
+      rep("categor\u00eda", 40L), rep("categoria", 10L),
+      rep("d\u00fcr\u00fcm", 5L), rep("raz\u00f3n", 5L)
+    )),
+    orden_alf = .sin_marca_n63(rep(c(
+      "entidad_\u00e1\u00e9", "entidad_b", "entidad_\u00f1",
+      "entidad_z", "entidad_a"
+    ), 12L)),
+    fechas_txt = c(
+      rep("2024-01-15", 30L), rep("31/12/2023", 15L),
+      "2024-06-01", "01-ago-2024", rep("2024-12-31", 10L),
+      "2023-01-01", "no-fecha", NA_character_
+    ),
+    correos = c(
+      rep("usuario@ejemplo.uy", 50L), "sin-arroba", "otro@test.org",
+      .sin_marca_n63("m\u00e1l_acento@ejemplo.uy"), rep("a@b.c", 7L)
+    ),
+    numerico = c(rnorm(50L, 100, 20), rep(NA_real_, 10L)),
+    entero = c(seq_len(55L), rep(999L, 5L)),
+    stringsAsFactors = FALSE
+  )
+  names(datos)[names(datos) == "acentos"] <- .sin_marca_n63("categor\u00eda")
+  names(datos)[names(datos) == "orden_alf"] <- .sin_marca_n63("a\u00f1o_medici\u00f3n")
+  datos
+}
+
+.capturar_n63_publicacion <- function(locale) {
+  expect_true(.fijar_locale_n61(locale))
+  datos <- .fixture_n63_publicacion()
+  perfil <- suppressWarnings(perfilar(datos, muestra = Inf))
+  propuesta <- proponer_modelo(
+    perfil, datos = datos, max_valores_dominio = 5
+  )
+  avisos_print <- character()
+  salida <- withCallingHandlers(
+    capture.output(print(propuesta)),
+    warning = function(condicion) {
+      avisos_print <<- c(avisos_print, conditionMessage(condicion))
+      invokeRestart("muffleWarning")
+    }
+  )
+  sin_metodo <- tryCatch(
+    capture.output(print.data.frame(propuesta)),
+    error = function(condicion) NULL
+  )
+  avisos <- character()
+  cambios <- withCallingHandlers(
+    comparar_perfiles(perfil, perfil),
+    warning = function(condicion) {
+      avisos <<- c(avisos, conditionMessage(condicion))
+      invokeRestart("muffleWarning")
+    }
+  )
+  list(
+    salida = salida, avisos_print = avisos_print, sin_metodo = sin_metodo,
+    avisos = avisos, cambios = cambios
+  )
+}
+
+test_that("print de propuesta_modelo no aborta bajo C y conserva la tabla", {
+  categorias <- c("LC_CTYPE", "LC_COLLATE")
+  originales <- stats::setNames(
+    vapply(categorias, Sys.getlocale, character(1L)), categorias
+  )
+  on.exit(
+    for (categoria in categorias) {
+      suppressWarnings(Sys.setlocale(categoria, originales[[categoria]]))
+    },
+    add = TRUE
+  )
+  locale_utf8 <- .primer_locale_utf8_n61()
+  if (is.null(locale_utf8)) {
+    skip("no hay ningun locale UTF-8 disponible en esta maquina")
+  }
+
+  utf8 <- .capturar_n63_publicacion(locale_utf8)
+  bajo_c <- .capturar_n63_publicacion("C")
+
+  # El defecto era que print() abortaba bajo C. La prueba de cierre es que
+  # corra, sin avisos, y publicando la misma cantidad de filas que bajo UTF-8.
+  expect_gt(length(utf8$salida), 1L)
+  expect_identical(length(bajo_c$salida), length(utf8$salida))
+  expect_identical(utf8$avisos_print, character())
+  expect_identical(bajo_c$avisos_print, character())
+
+  # Y el arreglo no le quita el formato a quien nunca tuvo el problema: bajo
+  # UTF-8 la salida es exactamente la tabla alineada que produce R.
+  expect_false(is.null(utf8$sin_metodo))
+  expect_identical(utf8$salida, utf8$sin_metodo)
+
+  # Sigue siendo una tabla, no un volcado separado por tabuladores.
+  expect_false(any(grepl("\t", utf8$salida, fixed = TRUE)))
+  expect_false(any(grepl("\t", bajo_c$salida, fixed = TRUE)))
+})
+
+test_that("comparar_perfiles no avisa con perfiles identicos bajo C", {
+  categorias <- c("LC_CTYPE", "LC_COLLATE")
+  originales <- stats::setNames(
+    vapply(categorias, Sys.getlocale, character(1L)), categorias
+  )
+  on.exit(
+    for (categoria in categorias) {
+      suppressWarnings(Sys.setlocale(categoria, originales[[categoria]]))
+    },
+    add = TRUE
+  )
+  locale_utf8 <- .primer_locale_utf8_n61()
+  if (is.null(locale_utf8)) {
+    skip("no hay ningun locale UTF-8 disponible en esta maquina")
+  }
+
+  for (locale in c(locale_utf8, "C")) {
+    resultado <- .capturar_n63_publicacion(locale)
+    expect_equal(length(resultado$avisos), 0L, info = locale)
+    expect_equal(nrow(resultado$cambios), 0L, info = locale)
+  }
+})

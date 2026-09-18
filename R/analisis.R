@@ -539,11 +539,13 @@ print.analisis <- function(x, ...) {
     estado = names(conteos), factores = as.integer(conteos),
     stringsAsFactors = FALSE
   )
-  print(vista, row.names = FALSE)
+  .print_data_frame_bytes(vista, row.names = FALSE)
   if (nrow(x$advertencias)) {
     cli::cli_h2("Advertencias de alcance")
-    print(x$advertencias[c("componente", "tipo", "descripcion")],
-          row.names = FALSE)
+    .print_data_frame_bytes(
+      x$advertencias[c("componente", "tipo", "descripcion")],
+      row.names = FALSE
+    )
   }
   invisible(x)
 }

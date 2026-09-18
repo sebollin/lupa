@@ -137,7 +137,9 @@
     x[is.na(x)] <- ""
     x
   })
-  do.call(paste, c(unname(normalizada), sep = " | "))
+  .clave_bytes(do.call(paste, c(
+    unname(lapply(normalizada, .clave_bytes)), sep = " | "
+  )))
 }
 
 .referencial_filas_original_texto <- function(tabla, columnas) {
@@ -147,7 +149,9 @@
     texto[is.na(texto)] <- ""
     texto
   })
-  do.call(paste, c(unname(valores), sep = " | "))
+  .clave_bytes(do.call(paste, c(
+    unname(lapply(valores, .clave_bytes)), sep = " | "
+  )))
 }
 
 .referencial_proximidad <- function(filas_fallidas, texto_objetivo,
@@ -389,14 +393,22 @@ referencial <- function(datos, clave, valor = character(), completo = FALSE,
 #' @export
 print.referencial <- function(x, ...) {
   .validar_objeto_lupa(x, "referencial", "clave", "referencial()")
-  cat("Referencial:", x$nombre, "\n")
-  cat("  Filas:", nrow(x$datos), "\n")
-  cat("  Clave:", paste(x$clave, collapse = " + "), "\n")
+  .cat_publicado_bytes("Referencial: ", x$nombre, "\n")
+  .cat_publicado_bytes("  Filas: ", nrow(x$datos), "\n")
+  .cat_publicado_bytes(
+    "  Clave: ", paste(x$clave, collapse = " + "), "\n"
+  )
   if (length(x$valor)) {
-    cat("  Valores:", paste(x$valor, collapse = " + "), "\n")
+    .cat_publicado_bytes(
+      "  Valores: ", paste(x$valor, collapse = " + "), "\n"
+    )
   }
-  cat("  Completo:", if (x$completo) "s\u00ed" else "no", "\n")
-  if (x$completo) cat("  Alcance:", x$alcance, "\n")
+  .cat_publicado_bytes(
+    "  Completo: ", if (x$completo) "s\u00ed" else "no", "\n"
+  )
+  if (x$completo) {
+    .cat_publicado_bytes("  Alcance: ", x$alcance, "\n")
+  }
   invisible(x)
 }
 

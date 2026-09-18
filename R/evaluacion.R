@@ -495,7 +495,9 @@ perfiles_madurez <- function(metricas = NULL, umbrales = NULL) {
     ))
   }
   clave <- interaction(
-    evaluaciones$id_medicion, evaluaciones$perfil, evaluaciones$regla,
+    .nombres_para_operar(evaluaciones$id_medicion),
+    .nombres_para_operar(evaluaciones$perfil),
+    .nombres_para_operar(evaluaciones$regla),
     drop = TRUE, lex.order = TRUE
   )
   grupos <- split(seq_len(nrow(evaluaciones)), clave, drop = TRUE)
@@ -613,7 +615,8 @@ perfiles_madurez <- function(metricas = NULL, umbrales = NULL) {
 
 .resumir_evaluaciones_perfil <- function(evaluaciones) {
   clave <- interaction(
-    evaluaciones$id_medicion, evaluaciones$perfil,
+    .nombres_para_operar(evaluaciones$id_medicion),
+    .nombres_para_operar(evaluaciones$perfil),
     drop = TRUE, lex.order = TRUE
   )
   grupos <- split(seq_len(nrow(evaluaciones)), clave, drop = TRUE)
@@ -798,27 +801,29 @@ perfiles_madurez <- function(metricas = NULL, umbrales = NULL) {
   x
 }
 
+#' @export
 print.medicion <- function(x, ...) {
   visible <- .proteger_medicion_desenlaces(
     x, .desenlaces_de_objeto(x)
   )
-  print.data.frame(visible, ...)
+  .print_data_frame_bytes(visible, ...)
   invisible(x)
 }
 
+#' @export
 print.evaluacion_calidad <- function(x, ...) {
   cli::cli_h1("Evaluaci\u00f3n de calidad")
   cli::cli_h2("Evaluaciones de medidas")
-  print.data.frame(x$medidas, row.names = FALSE, ...)
+  .print_data_frame_bytes(x$medidas, row.names = FALSE, ...)
   cli::cli_h2("Evaluaciones de reglas")
-  print.data.frame(x$reglas, row.names = FALSE, ...)
+  .print_data_frame_bytes(x$reglas, row.names = FALSE, ...)
   cli::cli_h2("Perfiles de madurez")
-  print.data.frame(x$perfiles, row.names = FALSE, ...)
+  .print_data_frame_bytes(x$perfiles, row.names = FALSE, ...)
   desenlaces <- .desenlaces_de_objeto(x)
   if (!is.null(desenlaces)) {
     cli::cli_h2("Plan de desenlaces")
     protegido <- .proteger_evaluacion_desenlaces(x)
-    print.data.frame(protegido$desenlaces, row.names = FALSE, ...)
+    .print_data_frame_bytes(protegido$desenlaces, row.names = FALSE, ...)
   }
   invisible(x)
 }

@@ -1554,9 +1554,13 @@
   }, datos_columnas, columnas)
   # `unname()`: `lapply` conserva los nombres de columna, que son datos del
   # usuario. Una columna llamada `sep` chocaba con el formal de `paste`.
-  filas <- do.call(
-    paste, c(unname(lapply(valores, `[[`, "valores")), sep = " | ")
-  )
+  filas <- .clave_bytes(do.call(
+    paste,
+    c(
+      unname(lapply(valores, function(x) .clave_bytes(x$valores))),
+      sep = " | "
+    )
+  ))
   presentes <- Reduce(`|`, lapply(valores, `[[`, "presentes"),
                       init = rep(FALSE, nrow(datos)))
   fusiones <- if (!is.null(fusiones_precomputadas)) {

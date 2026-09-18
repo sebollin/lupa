@@ -13,7 +13,8 @@
     return(match(clave, unique(clave)))
   }
   as.integer(interaction(
-    factor(grupo), factor(y, exclude = NULL), drop = TRUE, lex.order = TRUE
+    factor(grupo), factor(.nombres_para_operar(y), exclude = NULL),
+    drop = TRUE, lex.order = TRUE
   ))
 }
 

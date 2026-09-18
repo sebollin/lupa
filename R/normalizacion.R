@@ -75,9 +75,15 @@ print.normalizacion_lupa <- function(x, ...) {
   cat("Perfil de normalizacion de lupa\n")
   pasos <- c("minusculas", "espacios", "acentos", "comillas", "puntuacion",
              "ligaduras", "ancho")
-  cat(paste0("  ", pasos, " = ", vapply(x[pasos], as.character, character(1L)),
-             collapse = "\n"), "\n", sep = "")
-  cat("  proteger = ", paste(x$proteger, collapse = ", "), "\n", sep = "")
+  .cat_publicado_bytes(
+    paste0(
+      "  ", pasos, " = ", vapply(x[pasos], as.character, character(1L)),
+      collapse = "\n"
+    ), "\n"
+  )
+  .cat_publicado_bytes(
+    "  proteger = ", paste(x$proteger, collapse = ", "), "\n"
+  )
   invisible(x)
 }
 .normalizacion_preset <- function(nombre) {

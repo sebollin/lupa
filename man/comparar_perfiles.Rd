@@ -36,6 +36,8 @@ Los nombres de columnas y las configuraciones que contienen texto del usuario
 se comparan por sus bytes, no por la marca de codificación ni por la
 intercalación del locale. Esto también vale cuando un perfil se guarda con
 \code{\link[=saveRDS]{saveRDS()}} y se relee bajo otro locale.
+Las claves internas que agrupan hallazgos también se normalizan por bytes;
+por eso dos perfiles idénticos no emiten avisos espurios bajo C.
 
 Las columnas que aparecen o desaparecen generan cambios estructurales de
 severidad \code{error}, pero no impiden comparar las columnas compartidas. Un

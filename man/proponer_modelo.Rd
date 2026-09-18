@@ -31,7 +31,10 @@ extensión.}
 }
 \value{
 Data frame S3 de clase \code{propuesta_modelo}; las columnas de listas
-contienen la configuración y los vínculos sin convertirlos en texto.
+contienen la configuración y los vínculos sin convertirlos en texto. Su
+método \code{print()} muestra la tabla formateada en cualquier locale, también
+bajo \code{LC_CTYPE = "C"}: ahí R escapa como \verb{<U+00F1>} los caracteres que el
+locale no puede representar, en vez de interrumpir la impresión.
 }
 \description{
 Construye el puente entre el examen de datos y la medición. El resultado no

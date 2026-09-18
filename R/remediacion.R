@@ -2631,7 +2631,7 @@ print.plan_limpieza <- function(x, ...) {
     "n_afectadas", "unidad_conteo", "orden", "estado", "recomendada",
     "destructiva", "aplicar"
   )]
-  print.data.frame(vista, row.names = FALSE)
+  .print_data_frame_bytes(vista, row.names = FALSE)
   invisible(x)
 }
 

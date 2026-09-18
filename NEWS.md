@@ -2,6 +2,14 @@
 
 ## Correcciones de cobertura y publicación
 
+- La publicación también es independiente del locale. Las propuestas de
+  proponer_modelo() y las tablas que muestran los métodos print.* ya no
+  abortan bajo LC_CTYPE = C cuando una columna de lista lleva nombres
+  acentuados. La tabla formateada se conserva igual en todos los locales; en
+  los que no pueden representar un carácter, R lo escapa como <U+00F1>. Además, la clave interna de comparar_perfiles() usa la
+  misma representación por bytes que el resto del paquete y dos perfiles
+  idénticos no emiten avisos espurios.
+
 - **El efecto observado ya no depende de la estimación del plan.** Una acción
   seleccionada que deja `n_cambiadas = 0` se registra como `fallida` aunque
   `n_afectadas` sea `NA`, cero o un número editado que no corresponde; el

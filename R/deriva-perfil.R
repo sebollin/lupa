@@ -304,9 +304,9 @@
     ))
   }
   columna <- ifelse(is.na(x$columna), "<tabla>", as.character(x$columna))
-  clave <- paste(
-    .nombres_para_operar(columna), x$tipo_hallazgo, sep = "\034"
-  )
+  clave <- .clave_bytes(paste(
+    .clave_bytes(columna), .clave_bytes(x$tipo_hallazgo), sep = "\034"
+  ))
   grupos <- split(seq_len(nrow(x)), clave, drop = TRUE)
   partes <- lapply(grupos, function(indices) {
     nivel <- match(as.character(x$severidad[indices]),
@@ -319,7 +319,7 @@
       evidencia = x$evidencia[[elegido]], stringsAsFactors = FALSE
     )
   })
-  resultado <- do.call(rbind, partes)
+  resultado <- do.call(rbind, unname(partes))
   rownames(resultado) <- NULL
   resultado
 }
@@ -351,6 +351,8 @@
 #' se comparan por sus bytes, no por la marca de codificación ni por la
 #' intercalación del locale. Esto también vale cuando un perfil se guarda con
 #' [saveRDS()] y se relee bajo otro locale.
+#' Las claves internas que agrupan hallazgos también se normalizan por bytes;
+#' por eso dos perfiles idénticos no emiten avisos espurios bajo C.
 #'
 #' Las columnas que aparecen o desaparecen generan cambios estructurales de
 #' severidad `error`, pero no impiden comparar las columnas compartidas. Un

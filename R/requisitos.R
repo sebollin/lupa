@@ -333,7 +333,8 @@ print.requisitos_motor <- function(x, ...) {
     "estado_biblioteca_sistema", "dialecto"
   )
   if (!all(necesarias %in% names(x))) {
-    return(print(as.data.frame(x), ...))
+    .print_data_frame_bytes(as.data.frame(x), ...)
+    return(invisible(x))
   }
   cli::cli_h1("Requisitos de motores")
   if (!nrow(x)) {

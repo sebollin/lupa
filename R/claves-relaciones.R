@@ -160,9 +160,12 @@
   if (!any(completos)) return(list(unicidad = FALSE, distintos = 0L))
   # `unname()`: `lapply` conserva los nombres, y un nombre de columna que
   # coincida con un formal de `paste` -`sep`, `recycle0`- aborta la corrida.
-  combinado <- do.call(
-    paste, c(unname(lapply(valores, `[`, completos)), sep = "\u001f")
-  )
+  combinado <- .clave_bytes(do.call(
+    paste, c(
+      unname(lapply(valores, function(x) .clave_bytes(x[completos]))),
+      sep = "\u001f"
+    )
+  ))
   list(
     unicidad = anyDuplicated(combinado) == 0L,
     distintos = length(unique(combinado))
@@ -309,9 +312,14 @@ detectar_claves <- function(datos, max_combinacion = 3, normalizar = NULL,
         if (length(indices) == 1L) {
           length(unique(datos[[indices[[1L]]]][completos]))
         } else {
-          combinado <- do.call(
-            paste, c(unname(lapply(seleccion, `[`, completos)),
-                                         sep = "\u001f"))
+          combinado <- .clave_bytes(do.call(
+            paste, c(
+              unname(lapply(seleccion, function(x) {
+                .clave_bytes(x[completos])
+              })),
+              sep = "\u001f"
+            )
+          ))
           length(unique(combinado))
         }
       } else 0L

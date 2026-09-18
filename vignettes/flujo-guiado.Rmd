@@ -52,6 +52,10 @@ propuesta[, c("metrica", "origen", "incluir", "estado")]
 En este ejemplo se confirma sólo la métrica de no nulidad; las demás
 propuestas, si aparecen, quedan fuera explícitamente.
 
+La propuesta se imprime como tabla formateada en cualquier locale, también
+bajo LC_CTYPE = C, donde antes la impresión abortaba al llegar a una columna de
+listas con nombres acentuados. En un locale que no puede representar un
+carácter, R lo escapa como <U+00F1> en vez de interrumpir.
 ```{r}
 propuesta$incluir <- propuesta$metrica == "NoNulo"
 stopifnot(any(propuesta$incluir))

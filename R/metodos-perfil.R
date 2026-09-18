@@ -47,7 +47,7 @@ print.perfil <- function(x, ...) {
       inferidos[candidatos], " (candidato)"
     )
   }
-  print(vista, row.names = FALSE)
+  .print_data_frame_bytes(vista, row.names = FALSE)
   invisible(x)
 }
 

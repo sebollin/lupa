@@ -107,7 +107,10 @@
 #' @param max_sugerencias Máximo de filas devueltas.
 #'
 #' @return Data frame S3 de clase `propuesta_modelo`; las columnas de listas
-#'   contienen la configuración y los vínculos sin convertirlos en texto.
+#'   contienen la configuración y los vínculos sin convertirlos en texto. Su
+#'   método `print()` muestra la tabla formateada en cualquier locale, también
+#'   bajo `LC_CTYPE = "C"`: ahí R escapa como `<U+00F1>` los caracteres que el
+#'   locale no puede representar, en vez de interrumpir la impresión.
 #' @export
 #'
 #' @seealso [perfilar()], [detectar_dependencias()], [modelo_desde_propuesta()],
@@ -317,6 +320,12 @@ proponer_modelo <- function(perfil, datos = NULL, relaciones = NULL,
   attr(resultado, "total_sugerencias") <- total
   attr(resultado, "truncado") <- total > nrow(resultado)
   resultado
+}
+
+#' @export
+print.propuesta_modelo <- function(x, ...) {
+  .print_data_frame_bytes(x, ...)
+  invisible(x)
 }
 
 #' Materializar una propuesta de modelo de calidad
