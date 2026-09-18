@@ -2521,10 +2521,14 @@ guiar_limpieza <- function(plan, datos, selector = NULL,
       if (no_hacer_recomendado) " (Recomendado)" else ""
     )
 
-    cli::cli_h2(paste("Decisi\u00f3n", grupo))
-    cli::cli_text(paste("Hallazgo:", acciones$hallazgo[[1L]]))
-    cli::cli_text(paste("Objeto afectado:",
-                        if (is.na(acciones$columna[[1L]])) "tabla" else acciones$columna[[1L]]))
+    cli::cli_h2(.marcar_para_exhibir(paste("Decisi\u00f3n", grupo)))
+    cli::cli_text(.marcar_para_exhibir(
+      paste("Hallazgo:", acciones$hallazgo[[1L]])
+    ))
+    cli::cli_text(.marcar_para_exhibir(paste(
+      "Objeto afectado:",
+      if (is.na(acciones$columna[[1L]])) "tabla" else acciones$columna[[1L]]
+    )))
     cantidades <- acciones$n_afectadas[is.finite(acciones$n_afectadas)]
     cantidad <- if (length(cantidades)) max(cantidades) else NA_real_
     unidades <- unique(as.character(acciones$unidad_conteo))
@@ -2534,23 +2538,25 @@ guiar_limpieza <- function(plan, datos, selector = NULL,
     } else {
       ""
     }
-    cli::cli_text(paste0("Cantidad estimada: ", cantidad, unidad))
+    cli::cli_text(.marcar_para_exhibir(paste0("Cantidad estimada: ", cantidad, unidad)))
     if (length(ejemplos)) {
-      cli::cli_text(paste("Ejemplos reales:", paste(ejemplos, collapse = "; ")))
+      cli::cli_text(.marcar_para_exhibir(paste(
+        "Ejemplos reales:", paste(ejemplos, collapse = "; ")
+      )))
     }
     for (k in elegibles) {
       marca <- if (acciones$recomendada[[k]]) " (Recomendado)" else ""
-      cli::cli_text(paste0(
+      cli::cli_text(.marcar_para_exhibir(paste0(
         k, ". ", acciones$estrategia[[k]], marca, " -- ",
         acciones$justificacion[[k]]
-      ))
+      )))
     }
     bloqueadas <- which(as.character(acciones$estado) == "bloqueada")
     for (k in bloqueadas) {
-      cli::cli_text(paste0(
+      cli::cli_text(.marcar_para_exhibir(paste0(
         "[bloqueada] ", acciones$estrategia[[k]], " -- ",
         acciones$justificacion[[k]]
-      ))
+      )))
     }
     explicacion_no_hacer <- if (no_hacer_recomendado) {
       paste0(
@@ -2560,7 +2566,9 @@ guiar_limpieza <- function(plan, datos, selector = NULL,
     } else {
       "No hacer nada conserva los datos y registra la omisi\u00f3n."
     }
-    cli::cli_text(paste0(etiqueta_no_hacer, " -- ", explicacion_no_hacer))
+    cli::cli_text(.marcar_para_exhibir(
+      paste0(etiqueta_no_hacer, " -- ", explicacion_no_hacer)
+    ))
 
     decision <- list(
       grupo = grupo, acciones = acciones, elegibles = elegibles,
@@ -2587,6 +2595,8 @@ guiar_limpieza <- function(plan, datos, selector = NULL,
 #' @export
 print.plan_limpieza <- function(x, ...) {
   .validar_objeto_lupa(x, "plan_limpieza", character(), "planificar_limpieza()")
+  original <- x
+  x <- .marcar_objeto_para_exhibir(x)
   cli::cli_h1("Plan de limpieza")
   cli::cli_alert_success(paste(sum(x$aplicar), "acciones activadas"))
   cli::cli_alert_info(paste(sum(!x$aplicar), "acciones desactivadas"))
@@ -2632,11 +2642,13 @@ print.plan_limpieza <- function(x, ...) {
     "destructiva", "aplicar"
   )]
   .print_data_frame_bytes(vista, row.names = FALSE)
-  invisible(x)
+  invisible(original)
 }
 
 #' @export
 print.resultado_limpieza <- function(x, ...) {
+  original <- x
+  x <- .marcar_objeto_para_exhibir(x)
   cli::cli_h1("Resultado de limpieza")
   ejecutadas <- if ("estado" %in% names(x$registro)) {
     sum(x$registro$estado == "ejecutada")
@@ -2660,5 +2672,5 @@ print.resultado_limpieza <- function(x, ...) {
       n_filas, "filas y", n_columnas, "columnas eliminadas"
     ))
   }
-  invisible(x)
+  invisible(original)
 }

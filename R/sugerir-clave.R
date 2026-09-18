@@ -220,11 +220,12 @@ sugerir_clave <- function(datos, maximo = 5L, umbral_casi = 0.95) {
 #' @export
 elegir_clave <- function(datos, maximo = 5L, umbral_casi = 0.95) {
   sugerencias <- sugerir_clave(datos, maximo = maximo, umbral_casi = umbral_casi)
+  sugerencias_texto <- .marcar_objeto_para_exhibir(sugerencias)
   if (!interactive()) {
     if (nrow(sugerencias)) {
       cli::cli_alert_info(paste0(
         "Sesi\u00f3n no interactiva: no se pregunta. Se habr\u00eda ofrecido ",
-        paste0("`", sugerencias$columna, "`", collapse = ", "),
+        paste0("`", sugerencias_texto$columna, "`", collapse = ", "),
         ". Usar `sugerir_clave()` y pasar la elegida a `perfilar(clave = ...)`."
       ))
     } else {
@@ -243,7 +244,9 @@ elegir_clave <- function(datos, maximo = 5L, umbral_casi = 0.95) {
   }
   cli::cli_h2("Cual es la clave de esta tabla?")
   for (i in seq_len(nrow(sugerencias))) {
-    cli::cli_text("{i}. {.field {sugerencias$columna[[i]]}} - {sugerencias$motivo[[i]]}")
+    cli::cli_text(
+      "{i}. {.field {sugerencias_texto$columna[[i]]}} - {sugerencias_texto$motivo[[i]]}"
+    )
   }
   otra <- nrow(sugerencias) + 1L
   cli::cli_text("{otra}. Otra (escribirla; separar con coma si son varias)")
@@ -269,7 +272,9 @@ elegir_clave <- function(datos, maximo = 5L, umbral_casi = 0.95) {
   faltan <- nombres[is.na(indices)]
   if (length(faltan)) {
     cli::cli_alert_danger(paste0(
-      "No existe en la tabla: ", paste0("`", faltan, "`", collapse = ", "), "."
+      "No existe en la tabla: ",
+      .marcar_para_exhibir(paste0("`", faltan, "`", collapse = ", ")),
+      "."
     ))
     return(NULL)
   }

@@ -57,7 +57,10 @@
 - Las sugerencias de ausencia estructural componen sus nombres con una copia
   marcada como UTF-8, sin cambiar los nombres publicados de la tabla; el código
   que se puede copiar y pegar queda igual bajo `LC_CTYPE = "C"`.
-
+- Las publicaciones por `cli` marcan en un único punto los textos UTF-8 válidos
+  que vienen de nombres, valores y motivos del usuario. Bajo `LC_CTYPE = "C"`
+  ya no se publican sus bytes crudos; los textos inválidos siguen su camino sin
+  ser marcados.
 - El histórico conserva el mismo desempate por fecha e identificador y la misma
   huella de configuración al cruzar locales; acumular una corrida persistida es
   idempotente y detectar deriva ya no emite avisos por sus claves internas.

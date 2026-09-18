@@ -812,6 +812,8 @@ print.medicion <- function(x, ...) {
 
 #' @export
 print.evaluacion_calidad <- function(x, ...) {
+  original <- x
+  x <- .marcar_objeto_para_exhibir(x)
   cli::cli_h1("Evaluaci\u00f3n de calidad")
   cli::cli_h2("Evaluaciones de medidas")
   .print_data_frame_bytes(x$medidas, row.names = FALSE, ...)
@@ -825,7 +827,7 @@ print.evaluacion_calidad <- function(x, ...) {
     protegido <- .proteger_evaluacion_desenlaces(x)
     .print_data_frame_bytes(protegido$desenlaces, row.names = FALSE, ...)
   }
-  invisible(x)
+  invisible(original)
 }
 
 #' Evaluar medidas, reglas y perfiles

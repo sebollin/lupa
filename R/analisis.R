@@ -516,6 +516,8 @@ analizar <- function(datos, nombre = .nombre_de_los_datos(substitute(datos)),
 
 #' @export
 print.analisis <- function(x, ...) {
+  original <- x
+  x <- .marcar_objeto_para_exhibir(x)
   cli::cli_h1(paste("Analisis de datos:", x$meta$nombre))
   cli::cli_dl(c(
     "Filas" = x$perfil$general$filas,
@@ -547,7 +549,7 @@ print.analisis <- function(x, ...) {
       row.names = FALSE
     )
   }
-  invisible(x)
+  invisible(original)
 }
 
 .descriptor_funcion <- function(propuesta, i, nombre) {

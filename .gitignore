@@ -14,3 +14,8 @@ tests/testthat/testthat-problems.rds
 # Sitio construido por pkgdown: se publica desde Actions a gh-pages, no viaja
 # en el repositorio ni en el tarball.
 docs/
+
+# Temporales de trabajo que a veces caen adentro del paquete en vez de en la
+# raiz del proyecto. `.Rbuildignore` ya los deja fuera del tarball; esto los
+# deja fuera del repositorio, que es lo que `git add -A` no distingue.
+notas-desarrollo/

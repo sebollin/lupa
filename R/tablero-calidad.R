@@ -547,6 +547,8 @@ tablero_calidad <- function(medidas, agregaciones = NULL, umbrales = NULL,
 
 #' @export
 print.tablero_calidad <- function(x, ...) {
+  original <- x
+  x <- .marcar_objeto_para_exhibir(x)
   cli::cli_h1("Tablero de calidad")
   visible <- .proteger_tablero_desenlaces(x, .desenlaces_de_objeto(x))
   .print_data_frame_bytes(visible, row.names = FALSE)
@@ -561,7 +563,7 @@ print.tablero_calidad <- function(x, ...) {
     cli::cli_h2("Cobertura de m\u00e9tricas")
     .print_data_frame_bytes(cobertura_metricas, row.names = FALSE)
   }
-  invisible(x)
+  invisible(original)
 }
 
 .validar_pesos_indice <- function(pesos, esperados, etiqueta = "pesos") {
@@ -853,6 +855,8 @@ indice_calidad <- function(medidas, pesos, pesos_internos = NULL, ...) {
 #' @export
 print.indice_calidad <- function(x, ...) {
   .validar_objeto_lupa(x, "indice_calidad", character(), "indice_calidad()")
+  original <- x
+  x <- .marcar_objeto_para_exhibir(x)
   cli::cli_h1("\u00cdndice de calidad declarado")
   if (is.na(x$valor)) {
     cli::cli_alert_warning(x$motivo)
@@ -902,5 +906,5 @@ print.indice_calidad <- function(x, ...) {
   }
   cli::cli_alert_info(x$combinacion_interna)
   cli::cli_alert_warning(x$advertencia_universos)
-  invisible(x)
+  invisible(original)
 }

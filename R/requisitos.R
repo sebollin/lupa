@@ -130,6 +130,7 @@
 
 .detener_error_requisito <- function(clase, lineas) {
   herencia <- if (grepl("dbi", clase, fixed = TRUE)) "lupa_error_dbi" else character()
+  lineas <- .marcar_objeto_para_exhibir(lineas)
   cli::cli_abort(
     lineas,
     class = c(clase, "lupa_error_requisito", herencia, "error", "condition")
@@ -336,10 +337,12 @@ print.requisitos_motor <- function(x, ...) {
     .print_data_frame_bytes(as.data.frame(x), ...)
     return(invisible(x))
   }
+  original <- x
+  x <- .marcar_objeto_para_exhibir(x)
   cli::cli_h1("Requisitos de motores")
   if (!nrow(x)) {
     cli::cli_text("No hay requisitos para el filtro indicado.")
-    return(invisible(x))
+    return(invisible(original))
   }
   for (i in seq_len(nrow(x))) {
     estado <- x$estado_paquete_r[[i]]
@@ -353,7 +356,7 @@ print.requisitos_motor <- function(x, ...) {
       " | dialecto: ", ifelse(is.na(x$dialecto[[i]]), "no aplica", x$dialecto[[i]])
     ))
   }
-  invisible(x)
+  invisible(original)
 }
 
 #' Consultar requisitos para conectarse a motores de bases

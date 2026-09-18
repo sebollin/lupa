@@ -494,6 +494,8 @@ coleccion <- function(conexion, tablas, nombre = NULL) {
 
 #' @export
 print.coleccion_lupa <- function(x, ...) {
+  original <- x
+  x <- .marcar_objeto_para_exhibir(x)
   cli::cli_text("Colecci\u00f3n declarada: {.strong {x$nombre}}")
   cli::cli_text("Motor: {x$motor}")
   cli::cli_text("Tablas declaradas: {x$n_declaradas}")
@@ -513,7 +515,7 @@ print.coleccion_lupa <- function(x, ...) {
   cli::cli_text(
     "La frontera es declarada: `lupa` no recorre el cat\u00e1logo."
   )
-  invisible(x)
+  invisible(original)
 }
 
 .cobertura_coleccion_vacia <- function() {
@@ -744,7 +746,8 @@ perfilar_coleccion <- function(coleccion, muestra = Inf,
     if (!is.null(barra_tablas)) {
       try(
         cli::cli_progress_update(
-          id = barra_tablas, set = i - 1L, status = identificador
+          id = barra_tablas, set = i - 1L,
+          status = .marcar_para_exhibir(identificador)
         ),
         silent = TRUE
       )
@@ -1066,6 +1069,8 @@ print.perfil_coleccion <- function(x, ...) {
   .validar_objeto_lupa(
     x, "perfil_coleccion", "resumen_coleccion", "perfilar_coleccion()"
   )
+  original <- x
+  x <- .marcar_objeto_para_exhibir(x)
   cli::cli_text("Perfil de colecci\u00f3n: {.strong {x$meta$nombre}}")
   cli::cli_text(
     "Tablas: {x$meta$n_perfiladas} perfiladas de {x$meta$n_declaradas} declaradas"
@@ -1086,7 +1091,7 @@ print.perfil_coleccion <- function(x, ...) {
     )
   }
   cli::cli_text("Sin lectura instant\u00e1nea: cada tabla trae su `momento`.")
-  invisible(x)
+  invisible(original)
 }
 
 # Las relaciones entre tablas son el punto donde el costo explota. Con 1.730

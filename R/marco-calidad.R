@@ -371,13 +371,15 @@ marco_cepal <- function() {
 
 #' @export
 print.marco_calidad <- function(x, ...) {
+  original <- x
+  x <- .marcar_objeto_para_exhibir(x)
   cli::cli_h2(x$nombre)
   cli::cli_dl(c(
     "Dimensiones" = length(.identificadores_unicos(x$factores$dimension)),
     "Factores" = nrow(x$factores),
     "Origen" = x$origen
   ))
-  invisible(x)
+  invisible(original)
 }
 
 #' @export

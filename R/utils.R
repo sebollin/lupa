@@ -124,6 +124,31 @@
   x
 }
 
+# La salida de `cli` no siempre recibe una columna: varios metodos interpolan
+# campos de un objeto, incluidos atributos que no forman parte del cuerpo de un
+# data.frame. Esta copia recorre cuerpo y atributos para que esos campos lleguen
+# declarados como UTF-8, sin cambiar el objeto que conserva el usuario.
+# La decision de que bytes son marcables vive en `.marcar_para_exhibir()`.
+.marcar_objeto_para_exhibir <- function(x) {
+  if (is.character(x) || is.factor(x)) {
+    return(.marcar_para_exhibir(x))
+  }
+  atributos <- attributes(x)
+  if (is.list(x)) {
+    cuerpo <- lapply(unclass(x), .marcar_objeto_para_exhibir)
+    if (!is.null(atributos)) {
+      atributos <- lapply(atributos, .marcar_objeto_para_exhibir)
+      attributes(cuerpo) <- atributos
+    }
+    return(cuerpo)
+  }
+  if (!is.null(atributos)) {
+    atributos <- lapply(atributos, .marcar_objeto_para_exhibir)
+    attributes(x) <- atributos
+  }
+  x
+}
+
 .data_frame_para_exhibir <- function(x) {
   atributos <- attributes(x)
   cuerpo <- lapply(unclass(x), .marcar_para_exhibir)

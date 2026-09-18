@@ -489,12 +489,12 @@
     " Fuentes de cardinalidad:",
     paste(proyeccion$fuentes_cardinalidad, collapse = ", "), "."
   ) else ""
-  cli::cli_alert_warning(paste0(
+  cli::cli_alert_warning(.marcar_para_exhibir(paste0(
     "Costo estimado de la moda: ~",
     .segundos_dbi(proyeccion$duracion_estimada_ms), " s para ",
     proyeccion$n_columnas, " columna(s). Fuente: ", proyeccion$fuente,
     ". Es una estimacion, no una medicion.", detalle_fuente, detalle
-  ))
+  )))
   invisible(TRUE)
 }
 
@@ -729,13 +729,13 @@
       proyeccion$duracion_estimada_ms < umbral_segundos * 1000) {
     return(invisible(FALSE))
   }
-  cli::cli_alert_warning(paste0(
+  cli::cli_alert_warning(.marcar_para_exhibir(paste0(
     "Costo estimado de la mediana: ~",
     .segundos_dbi(proyeccion$duracion_estimada_ms), " s para ",
     proyeccion$n_medianas, " mediana(s) sobre ",
     .entero_sql_dbi(proyeccion$n_filas), " filas. Fuente: ",
     proyeccion$fuente, ". ", proyeccion$motivo
-  ))
+  )))
   invisible(TRUE)
 }
 
@@ -851,13 +851,13 @@
       proyeccion$duracion_estimada_ms < umbral_segundos * 1000) {
     return(invisible(NULL))
   }
-  cli::cli_alert_warning(paste0(
+  cli::cli_alert_warning(.marcar_para_exhibir(paste0(
     "Costo estimado de `COUNT(DISTINCT)`: ~",
     .segundos_dbi(proyeccion$duracion_estimada_ms), " s para ",
     proyeccion$n_lotes, " lote(s). Fuente: ", proyeccion$fuente,
     ". Es una estimacion, no una medicion; el derrame real se informa",
     " despues si la instrumentacion del servidor lo permite."
-  ))
+  )))
   invisible(NULL)
 }
 
@@ -1463,7 +1463,7 @@
   etiqueta <- if (identical(familia, "COUNT(DISTINCT)")) "" else {
     paste0(" para ", familia)
   }
-  cli::cli_alert_warning(paste0(
+  cli::cli_alert_warning(.marcar_para_exhibir(paste0(
     "Derrame potencial estimado", etiqueta,
     " (es una estimacion, no una medicion): ",
     detalle, " supera el `work_mem` vigente de ", work_mem,
@@ -1473,7 +1473,7 @@
     "Subir `work_mem` en esta sesion por encima de ese tama\u00f1o puede evitar el",
     " derrame; lupa no modifica la configuracion. El derrame real, si ocurre,",
     " se informa despues mediante `pg_stat_statements`."
-  ))
+  )))
   invisible(TRUE)
 }
 
@@ -8611,7 +8611,7 @@
     if (!isTRUE(guardia_newid$aceptado) &&
         (is.null(presupuesto$avisar_costo_mediana) ||
          isTRUE(presupuesto$avisar_costo_mediana))) {
-      cli::cli_alert_warning(paste0(
+      cli::cli_alert_warning(.marcar_para_exhibir(paste0(
         "Mediana muestreada no disponible: ", guardia_newid$motivo,
         ". Proyeccion NEWID: ",
         if (is.finite(guardia_newid$proyeccion_newid_ms)) {
@@ -8620,7 +8620,7 @@
         " ms; n_total = ", .entero_sql_dbi(guardia_newid$n_total),
         ", fraccion = ", formatC(guardia_newid$fraccion,
                                   format = "f", digits = 3), "."
-      ))
+      )))
     }
   }
   medianas <- vector("list", length(columnas_medianas))
@@ -10151,6 +10151,8 @@ print.plan_perfilado_dbi <- function(x, ...) {
     .print_data_frame_bytes(x, ...)
     return(invisible(x))
   }
+  original <- x
+  x <- .marcar_objeto_para_exhibir(x)
   cli::cli_h1("Plan de perfilado")
   filas <- attr(x, "filas", exact = TRUE)
   filas_fuente <- attr(x, "filas_fuente", exact = TRUE)
@@ -10411,7 +10413,7 @@ print.plan_perfilado_dbi <- function(x, ...) {
     )
   }
   .print_data_frame_bytes(as.data.frame(x), row.names = FALSE)
-  invisible(x)
+  invisible(original)
 }
 
 # ---- Proteccion de datos personales -------------------------------------
@@ -12616,7 +12618,7 @@ perfilar_dbi <- function(conexion, tabla,
     presupuesto$guardia_newid <- guardia_newid
     if (!isTRUE(guardia_newid$aceptado)) {
       if (isTRUE(avisar_costo_mediana)) {
-        cli::cli_alert_warning(paste0(
+        cli::cli_alert_warning(.marcar_para_exhibir(paste0(
           "Mediana muestreada no disponible: ", guardia_newid$motivo,
           ". Proyeccion NEWID: ",
           if (is.finite(guardia_newid$proyeccion_newid_ms)) {
@@ -12626,7 +12628,7 @@ perfilar_dbi <- function(conexion, tabla,
           " ms; n_total = ", .entero_sql_dbi(guardia_newid$n_total),
           ", fraccion = ", formatC(guardia_newid$fraccion,
                                     format = "f", digits = 3), "."
-        ))
+        )))
       }
       preparacion$muestreo$disponible <- FALSE
       preparacion$muestreo$motivo <- guardia_newid$motivo
@@ -13172,6 +13174,8 @@ perfilar_dbi <- function(conexion, tabla,
 
 #' @export
 print.perfil_dbi <- function(x, ...) {
+  original <- x
+  x <- .marcar_objeto_para_exhibir(x)
   meta <- x$resumen_tabla$meta
   alcance <- if (identical(meta$alcance, "tabla_muestreada") ||
                  identical(meta$alcance_texto, "tabla_muestreada") ||
@@ -13331,5 +13335,5 @@ print.perfil_dbi <- function(x, ...) {
   cli::cli_text(
     "No se imprime ning\u00fan valor de celda: est\u00e1n en `resumen_tabla$columnas`."
   )
-  invisible(x)
+  invisible(original)
 }

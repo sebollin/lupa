@@ -17,7 +17,7 @@
   )
   modelo_n63 <- modelo(instancia)
   perfil_n63 <- perfil_evaluacion(
-    .n63_sin_marca("Básico"),
+    .n63_sin_marca("B\u00e1sico"),
     regla_evaluacion("Presente", function(x) x == 1)
   )
   crear_corrida <- function(id, valores) {
@@ -29,7 +29,7 @@
   }
   historico_calidad(
     crear_corrida("Zebra_2", c(1, 1, NA, NA)),
-    crear_corrida(.n63_sin_marca("año_1"), c(1, 1, 1, NA))
+    crear_corrida(.n63_sin_marca("a\u00f1o_1"), c(1, 1, 1, NA))
   )
 }
 
@@ -89,7 +89,7 @@
   if (identical(modo, "perfil")) {
     datos <- data.frame(
       texto = c(
-        rep(.n63_sin_marca("Básico"), 3L), "comun"
+        rep(.n63_sin_marca("B\u00e1sico"), 3L), "comun"
       ),
       stringsAsFactors = FALSE
     )

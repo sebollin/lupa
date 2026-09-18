@@ -99,6 +99,8 @@ senal_redundante <- function(columnas, ventana = 0, transformacion = NULL,
 
 #' @export
 print.senal_redundante <- function(x, ...) {
+  original <- x
+  x <- .marcar_objeto_para_exhibir(x)
   cli::cli_text("Se\u00f1al redundante: {.strong {x$nombre}}")
   cli::cli_text("Columnas: {paste(x$columnas, collapse = ', ')}")
   cli::cli_text("Ventana: {x$ventana}")
@@ -107,7 +109,7 @@ print.senal_redundante <- function(x, ...) {
       "Transformadas: {paste(names(x$transformacion), collapse = ', ')}"
     )
   }
-  invisible(x)
+  invisible(original)
 }
 
 .valores_senal <- function(datos, senal) {

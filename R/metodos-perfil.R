@@ -1,6 +1,8 @@
 #' @export
 print.perfil <- function(x, ...) {
   .validar_objeto_lupa(x, "perfil", "general", "perfilar()")
+  original <- x
+  x <- .marcar_objeto_para_exhibir(x)
   errores <- sum(x$hallazgos$severidad == "error")
   sospechosos <- sum(x$hallazgos$severidad == "sospechoso")
   correctos <- sum(x$hallazgos$severidad == "ok")
@@ -48,7 +50,7 @@ print.perfil <- function(x, ...) {
     )
   }
   .print_data_frame_bytes(vista, row.names = FALSE)
-  invisible(x)
+  invisible(original)
 }
 
 #' @export

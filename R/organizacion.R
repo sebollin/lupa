@@ -148,6 +148,8 @@ organizacion <- function(nombre, colecciones) {
 
 #' @export
 print.organizacion_lupa <- function(x, ...) {
+  original <- x
+  x <- .marcar_objeto_para_exhibir(x)
   cli::cli_text("Organizaci\u00f3n declarada: {.strong {x$nombre}}")
   cli::cli_text(
     "{x$n_declaradas} colecci{?\u00f3n/ones}: {.val {x$declaradas}}"
@@ -156,7 +158,7 @@ print.organizacion_lupa <- function(x, ...) {
     "La frontera es declarada: `lupa` no infiere a qu\u00e9 organismo pertenece ",
     "una base."
   )
-  invisible(x)
+  invisible(original)
 }
 
 .validar_organizacion_destino <- function(organizacion) {
