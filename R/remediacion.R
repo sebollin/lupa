@@ -265,7 +265,10 @@
 #' revisado de una omisión deliberada.
 #'
 #' `estado` distingue acciones `lista`, `bloqueada` e `informativa`; `orden`
-#' fija la secuencia reproducible. `n_afectadas` es la estimación del perfil
+#' fija la secuencia reproducible. Si dos acciones comparten el mismo `orden`,
+#' el empate lo resuelve `id_accion`, no la posición de la fila: reordenar el
+#' plan no cambia el resultado. Y un grupo marcado como `elegida` sin ninguna
+#' acción activa se rechaza, porque no es ni una elección ni una omisión. `n_afectadas` es la estimación del perfil
 #' sobre **lo que esta acción tocaría**, que puede ser menos que el conteo del
 #' hallazgo que la originó cuando la acción sólo cubre parte del caso: una
 #' columna con tres valores de codificación rota, de los cuales uno es
@@ -1185,6 +1188,19 @@ planificar_limpieza <- function(perfil, datos = NULL,
       stop(
         "El grupo '", grupo, "' tiene acciones incompatibles activas: ",
         paste(plan$estrategia[activas], collapse = ", "), ".",
+        call. = FALSE
+      )
+    }
+    decision <- unique(as.character(plan$decision_grupo[indices]))
+    decision <- decision[!is.na(decision)]
+    if (!length(activas) && identical(decision, "elegida")) {
+      # `decision_grupo` es la distincion entre una eleccion y una omision. Un
+      # grupo marcado como elegido y sin ninguna accion activa no es ninguna de
+      # las dos: es una edicion contradictoria, y el paquete ya rechaza las
+      # otras dos de esta familia en vez de adivinar cual gana.
+      stop(
+        "El grupo '", grupo, "' esta marcado como elegido y no tiene ninguna ",
+        "accion activa. Active la accion elegida o cambie la decision.",
         call. = FALSE
       )
     }
@@ -2193,7 +2209,16 @@ aplicar <- function(plan, datos, permitir_eliminacion = FALSE,
   }
   seleccion <- which(plan$aplicar)
   if (length(seleccion)) {
-    seleccion <- seleccion[order(plan$orden[seleccion], seleccion)]
+    # El desempate va por `id_accion`, que identifica a la accion y no cambia
+    # si el usuario reordena las filas del plan. Desempatar por el indice de
+    # fila hacia que el `orden` dejara de fijar una secuencia reproducible:
+    # con dos acciones empatadas sobre la misma columna, el mismo plan con las
+    # filas invertidas devolvia datos distintos -` A` contra `A`-, que es lo
+    # contrario de lo que promete `planificar_limpieza()`.
+    seleccion <- seleccion[order(
+      plan$orden[seleccion],
+      .clave_bytes(as.character(plan$id_accion[seleccion]))
+    )]
   }
   destructivas <- seleccion[
     plan$destructiva[seleccion] &

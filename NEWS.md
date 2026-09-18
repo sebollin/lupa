@@ -2,6 +2,18 @@
 
 ## Correcciones de cobertura y publicación
 
+- **El plan de limpieza ya no depende de cómo estén ordenadas sus filas.** Dos
+  acciones con el mismo `orden` desempataban por la posición de la fila, así
+  que el mismo plan con las filas invertidas devolvía **datos distintos**: una
+  corrida conservaba un espacio inicial y la otra no. Ahora el empate lo
+  resuelve `id_accion`, que no cambia al reordenar. Y un grupo marcado como
+  `elegida` sin ninguna acción activa se rechaza con un mensaje que dice qué
+  hacer, en vez de informar una elección que no eligió nada.
+
+- **`Encoding() == "bytes"` se respeta.** Esa marca no es una codificación más:
+  es la declaración de que el texto no se interprete. El paquete lo declaraba
+  UTF-8 y publicaba el carácter; ahora publica lo que publica R.
+
 - La publicación también es independiente del locale. Las propuestas de
   proponer_modelo() y las tablas que muestran los métodos print.* ya no fallan
   por codificación en ningún locale, incluido LC_CTYPE = C. La copia que se

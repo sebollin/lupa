@@ -70,7 +70,10 @@ explícita de conservar los datos. Esto permite separar un grupo aún no
 revisado de una omisión deliberada.
 
 \code{estado} distingue acciones \code{lista}, \code{bloqueada} e \code{informativa}; \code{orden}
-fija la secuencia reproducible. \code{n_afectadas} es la estimación del perfil
+fija la secuencia reproducible. Si dos acciones comparten el mismo \code{orden},
+el empate lo resuelve \code{id_accion}, no la posición de la fila: reordenar el
+plan no cambia el resultado. Y un grupo marcado como \code{elegida} sin ninguna
+acción activa se rechaza, porque no es ni una elección ni una omisión. \code{n_afectadas} es la estimación del perfil
 sobre \strong{lo que esta acción tocaría}, que puede ser menos que el conteo del
 hallazgo que la originó cuando la acción sólo cubre parte del caso: una
 columna con tres valores de codificación rota, de los cuales uno es

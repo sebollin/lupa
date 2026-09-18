@@ -183,9 +183,16 @@
     #
     # El resultado es que la tabla SIEMPRE se puede formatear, sin un camino
     # alternativo que, por existir, terminaba tragandose errores ajenos.
-    declarado <- Encoding(x) %in% c("latin1", "UTF-8") & !is.na(x)
+    marca <- Encoding(x)
+    # `Encoding() == "bytes"` NO es una codificacion mas: es la declaracion
+    # explicita de que eso no se interprete como texto. Marcarlo o convertirlo
+    # es desobedecerla. Base publica `a\xc3\xb1o` -los bytes escapados- y el
+    # paquete publicaba `a\u00f1o`, interpretando justo lo que se pidio no
+    # interpretar. Se devuelve intacto y R hace lo suyo.
+    intocable <- marca == "bytes" & !is.na(x)
+    declarado <- marca %in% c("latin1", "UTF-8") & !is.na(x)
     if (any(declarado)) x[declarado] <- enc2utf8(x[declarado])
-    resto <- !declarado & !is.na(x)
+    resto <- !declarado & !intocable & !is.na(x)
     if (any(resto)) {
       trozo <- x[resto]
       # Dos criterios y hacen falta los dos. `iconv()` acepta secuencias fuera
