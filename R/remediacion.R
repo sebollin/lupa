@@ -1137,6 +1137,18 @@ planificar_limpieza <- function(perfil, datos = NULL,
   if (!is.logical(plan$aplicar) || anyNA(plan$aplicar)) {
     stop("`plan$aplicar` debe ser un vector l\u00f3gico sin NA.", call. = FALSE)
   }
+  if (!is.character(plan$id_accion) || anyNA(plan$id_accion) ||
+      length(plan$id_accion) != nrow(plan)) {
+    # Se comprobaba que fueran unicos y no que fueran texto: vaciando la
+    # columna, el usuario recibia "los argumentos implican un numero diferente
+    # de filas: 0, 1" -un error interno de R al armar el registro- en vez del
+    # motivo del plan que el paquete promete.
+    stop(
+      "`plan$id_accion` debe ser un vector de texto sin NA, con un ",
+      "identificador por fila.",
+      call. = FALSE
+    )
+  }
   if (anyDuplicated(plan$id_accion)) {
     stop("`plan$id_accion` debe contener identificadores \u00fanicos.", call. = FALSE)
   }
@@ -1919,12 +1931,21 @@ planificar_limpieza <- function(perfil, datos = NULL,
         columna_2 = parametros$columna_2,
         stringsAsFactors = FALSE
       )
-      attr(datos, "columnas_duplicadas_marcadas") <- if (is.null(marcas)) {
+      combinadas <- if (is.null(marcas)) {
         nueva
       } else {
         unique(rbind(marcas, nueva))
       }
-      return(list(datos = datos, n = 1))
+      attr(datos, "columnas_duplicadas_marcadas") <- combinadas
+      # El conteo es el cambio REAL, no un 1 fijo. Con la marca ya puesta
+      # -dos acciones iguales en el mismo plan- `unique()` la descarta y no
+      # cambia nada, y devolver 1 informaba un efecto que no ocurrio. Con 0,
+      # el registro la marca `fallida`, que es lo que promete la documentacion
+      # para una accion seleccionada sin efecto.
+      return(list(
+        datos = datos,
+        n = if (identical(combinadas, marcas)) 0 else 1
+      ))
     }
     indice <- .indice_columna(datos, parametros$eliminar)
     retirada <- list(
@@ -2330,9 +2351,22 @@ aplicar <- function(plan, datos, permitir_eliminacion = FALSE,
   estructura
 }
 
+# La evidencia viaja EN EL PLAN, que el usuario edita y vuelve a entregar, asi
+# que no puede depender del locale del proceso que lo genero. `encodeString()`
+# si depende: el mismo valor salia `"\u00c1"` bajo un locale UTF-8 y
+# `"<U+00C1>"` bajo `C`, y dos personas obtenian planes distintos de los mismos
+# datos. Se arma el mismo texto sin consultar el locale: los bytes validos se
+# declaran, los rotos se escapan en octal, y se escapan a mano la barra, la
+# comilla y los controles que `encodeString()` escapaba.
 .texto_ejemplo <- function(x) {
   if (length(x) == 0L || is.na(x)) return("<NA>")
-  encodeString(as.character(x), quote = '"')
+  texto <- .clave_bytes(as.character(x))
+  texto <- gsub("\\", "\\\\", texto, fixed = TRUE, useBytes = TRUE)
+  texto <- gsub('"', '\\"', texto, fixed = TRUE, useBytes = TRUE)
+  texto <- gsub("\n", "\\n", texto, fixed = TRUE, useBytes = TRUE)
+  texto <- gsub("\r", "\\r", texto, fixed = TRUE, useBytes = TRUE)
+  texto <- gsub("\t", "\\t", texto, fixed = TRUE, useBytes = TRUE)
+  paste0('"', texto, '"')
 }
 
 .ejemplos_grupo <- function(acciones, datos, max_ejemplos = 5L,

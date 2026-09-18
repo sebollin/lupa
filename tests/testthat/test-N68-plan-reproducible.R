@@ -97,3 +97,74 @@ test_that("el consentimiento de eliminacion no se evade editando el plan", {
   resultado <- aplicar(activo, datos, permitir_eliminacion = TRUE)
   expect_lt(nrow(resultado$datos), nrow(datos))
 })
+
+test_that("una edicion del plan no deja escapar un error interno de R", {
+  datos <- data.frame(x = c(" A ", "B"), stringsAsFactors = FALSE)
+  plan <- planificar_limpieza(
+    perfilar(datos, muestra = Inf, analizar_dependencias = FALSE), datos
+  )
+  plan$aplicar <- FALSE
+  plan$aplicar[1L] <- TRUE
+
+  # Se comprobaba que los identificadores fueran unicos y no que fueran texto.
+  # Vaciando la columna, el usuario recibia "los argumentos implican un numero
+  # diferente de filas: 0, 1", un error interno de armar el registro.
+  for (roto in list(I(list(character(0))), seq_len(nrow(plan)),
+                    c(NA_character_, tail(plan$id_accion, -1L)))) {
+    alterado <- plan
+    alterado$id_accion <- roto
+    expect_error(aplicar(alterado, datos), "debe ser un vector de texto")
+  }
+  expect_silent(aplicar(plan, datos))
+})
+
+test_that("la evidencia del plan no depende del locale que lo genero", {
+  texto_ejemplo <- getFromNamespace(".texto_ejemplo", "lupa")
+  categorias <- c("LC_CTYPE", "LC_COLLATE")
+  originales <- stats::setNames(
+    vapply(categorias, Sys.getlocale, character(1L)), categorias
+  )
+  on.exit(
+    for (categoria in categorias) {
+      suppressWarnings(Sys.setlocale(categoria, originales[[categoria]]))
+    },
+    add = TRUE
+  )
+  locale_utf8 <- .primer_locale_utf8_n61()
+  if (is.null(locale_utf8)) skip("no hay ningun locale UTF-8 en esta maquina")
+
+  casos <- c(
+    rawToChar(charToRaw("\u00c1rbol")), rawToChar(charToRaw("ba\u00f1o")),
+    "con \"comilla\"", "con\\barra"
+  )
+  bytes_en <- function(locale) {
+    for (categoria in categorias) suppressWarnings(Sys.setlocale(categoria, locale))
+    lapply(vapply(casos, texto_ejemplo, character(1L)), charToRaw)
+  }
+
+  # La evidencia viaja EN el plan, que el usuario edita y vuelve a entregar:
+  # `encodeString()` la hacia depender del locale y dos personas obtenian
+  # planes distintos de los mismos datos.
+  expect_identical(bytes_en(locale_utf8), bytes_en("C"))
+})
+
+test_that("una accion repetida sin efecto se registra como fallida", {
+  datos <- data.frame(a = c("x", "y"), b = c("x", "y"), stringsAsFactors = FALSE)
+  plan <- planificar_limpieza(
+    perfilar(datos, muestra = Inf, analizar_dependencias = FALSE), datos
+  )
+  fila <- which(plan$estrategia == "marcar_columnas_duplicadas")
+  skip_if(!length(fila), "el plan generado no trae la marca de duplicadas")
+
+  repetida <- rbind(plan[fila, , drop = FALSE], plan[fila, , drop = FALSE])
+  repetida$id_accion <- c("manual-1", "manual-2")
+  repetida$grupo <- NA_character_
+  repetida$aplicar <- TRUE
+  class(repetida) <- class(plan)
+
+  resultado <- aplicar(repetida, datos)
+  # La segunda no cambia nada -la marca ya esta- y devolvia n = 1 fijo.
+  expect_identical(as.character(resultado$registro$estado), c("ejecutada", "fallida"))
+  expect_identical(resultado$registro$n_cambiadas, c(1, 0))
+  expect_match(resultado$registro$error[[2L]], "sin efecto")
+})
