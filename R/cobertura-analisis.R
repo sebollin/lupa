@@ -161,6 +161,19 @@ cobertura_analisis <- function(perfil, medicion = NULL,
     factores$motivo[indices] <-
       "La corrida contiene al menos una m\u00e9trica instanciada para este factor."
   }
+  # `medida` se asignaba por el mapa de capacidades del perfil, sin mirar si
+  # hubo observaciones: un perfil de CERO filas informaba "Completitud /
+  # Densidad: medida -- el perfil conto ausentes reales en todas las columnas",
+  # y no habia contado nada. El tablero corregia su propia vista, pero la
+  # cobertura que acompana al analisis seguia afirmando que se midio. Lo no
+  # medido tiene que aparecer como no medido en la capa donde se publica.
+  filas <- suppressWarnings(as.numeric(perfil$meta$filas_totales))
+  if (length(filas) == 1L && !is.na(filas) && filas == 0) {
+    sin_observaciones <- factores$estado == "medida"
+    factores$estado[sin_observaciones] <- "no_aplica"
+    factores$motivo[sin_observaciones] <-
+      "La tabla no tiene filas: no hubo nada que examinar para este factor."
+  }
   factores$estado <- factor(
     factores$estado,
     levels = c("medida", "no_declarada", "no_aplica", "fuera_de_alcance")

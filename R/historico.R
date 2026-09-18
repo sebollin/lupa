@@ -886,14 +886,28 @@ detectar_deriva_calidad <- function(historico, nivel = c("perfil", "regla"),
     # "mejora". Que la misma operacion se compare con tolerancia en un archivo y
     # sin ella en otro no es una decision: es una inconsistencia.
     tolerancia <- sqrt(.Machine$double.eps)
-    significativo <- abs(delta) >= umbral - tolerancia
+    # Y una magnitud por debajo del ruido de la coma flotante NO es un cambio,
+    # por chico que sea el umbral. Sin esta condicion, un `umbral` menor que la
+    # tolerancia -1e-20 es valido segun el contrato- volvia negativo el corte
+    # `umbral - tolerancia`, asi que un delta CERO entraba a la vez por la rama
+    # de "mejora" y por la de "error" mientras la descripcion decia que el
+    # resultado se habia mantenido. Tres afirmaciones incompatibles en la misma
+    # fila.
+    distinguible <- is.finite(delta) & abs(delta) > tolerancia
+    significativo <- distinguible & abs(delta) >= umbral - tolerancia
     direccion <- ifelse(
-      delta >= umbral - tolerancia, "mejora",
-      ifelse(delta <= -(umbral - tolerancia), "deterioro", "estable")
+      !distinguible, "estable",
+      ifelse(
+        delta >= umbral - tolerancia, "mejora",
+        ifelse(delta <= -(umbral - tolerancia), "deterioro", "estable")
+      )
     )
     severidad <- ifelse(
-      delta <= -(2 * umbral - tolerancia), "error",
-      ifelse(delta <= -(umbral - tolerancia), "sospechoso", "ok")
+      !distinguible, "ok",
+      ifelse(
+        delta <= -(2 * umbral - tolerancia), "error",
+        ifelse(delta <= -(umbral - tolerancia), "sospechoso", "ok")
+      )
     )
     regular <- data.frame(
       nivel = rep(nivel, length(a)), perfil = datos$perfil[a],

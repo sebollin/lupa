@@ -324,6 +324,25 @@
   resultado
 }
 
+# La regla de "alcanza el umbral", escrita UNA vez. Estaba escrita de dos
+# maneras en este mismo archivo: los faltantes y la cardinalidad comparaban con
+# tolerancia y el rango y los patrones sin ella, asi que dos pares que publican
+# la misma magnitud recibian veredictos distintos segun el aspecto. La
+# documentacion publica un unico umbral para todos.
+#
+# Dos condiciones, y la primera importa tanto como la segunda:
+#   - una magnitud por debajo del ruido de la coma flotante NO es un cambio,
+#     por chico que sea el umbral. Sin esto, un umbral menor que la tolerancia
+#     hacia que un delta CERO entrara por la rama de "significativo".
+#   - y el umbral se compara con tolerancia, porque 0,70 - 0,65 da
+#     0,049999999999999933 y 0,75 - 0,70 da 0,050000000000000044.
+.alcanza_umbral_deriva <- function(magnitud, umbral) {
+  tolerancia <- sqrt(.Machine$double.eps)
+  if (length(magnitud) != 1L || is.na(magnitud)) return(FALSE)
+  if (is.infinite(magnitud)) return(TRUE)
+  abs(magnitud) > tolerancia && abs(magnitud) >= umbral - tolerancia
+}
+
 #' Comparar dos perfiles y detectar deriva estructural
 #'
 #' Compara entregas sin exigir que tengan las mismas columnas. Devuelve cambios
@@ -492,13 +511,11 @@ comparar_perfiles <- function(anterior, actual, umbral_cambio = 0.05,
         # de `historico.R` ya decia que compararlo con tolerancia en un archivo
         # y sin ella en otro no es una decision sino una inconsistencia, y este
         # archivo era el otro.
-        tolerancia <- sqrt(.Machine$double.eps)
-        significativo <- is.finite(delta) &&
-          abs(delta) >= umbral_cambio - tolerancia
+        significativo <- .alcanza_umbral_deriva(delta, umbral_cambio)
         severidad <- if (!significativo || delta < 0) {
           "ok"
         } else if (aspecto == "faltantes" &&
-                   delta >= umbral_error - tolerancia) {
+                   .alcanza_umbral_deriva(delta, umbral_error)) {
           "error"
         } else {
           "sospechoso"
@@ -562,7 +579,7 @@ comparar_perfiles <- function(anterior, actual, umbral_cambio = 0.05,
         (is.null(rango_a) || is.null(rango_b) ||
          rango_a$texto != rango_b$texto || rango_a$tipo != rango_b$tipo)) {
       magnitud <- .magnitud_rango(rango_a, rango_b)
-      significativo <- is.infinite(magnitud) || magnitud >= umbral_cambio
+      significativo <- .alcanza_umbral_deriva(magnitud, umbral_cambio)
       agregar(
         columna, "rango", "modificado",
         if (significativo) "sospechoso" else "ok",
@@ -600,7 +617,11 @@ comparar_perfiles <- function(anterior, actual, umbral_cambio = 0.05,
         proporcion <- pb$proporcion[match(patron, claves_b)]
         agregar(
           columna, "patron", "aparecido",
-          if (proporcion >= umbral_error) "error" else "sospechoso",
+          if (.alcanza_umbral_deriva(proporcion, umbral_error)) {
+            "error"
+          } else {
+            "sospechoso"
+          },
           NA_character_, patron, delta = proporcion, significativo = TRUE,
           descripcion = "Apareci\u00f3 un patr\u00f3n de formato nuevo.",
           evidencia = paste0(
@@ -613,7 +634,11 @@ comparar_perfiles <- function(anterior, actual, umbral_cambio = 0.05,
         proporcion <- pa$proporcion[match(patron, claves_a)]
         agregar(
           columna, "patron", "desaparecido",
-          if (proporcion >= umbral_error) "error" else "sospechoso",
+          if (.alcanza_umbral_deriva(proporcion, umbral_error)) {
+            "error"
+          } else {
+            "sospechoso"
+          },
           patron, NA_character_, delta = -proporcion, significativo = TRUE,
           descripcion = "Desapareci\u00f3 un patr\u00f3n de formato anterior.",
           evidencia = paste0(
