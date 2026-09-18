@@ -139,8 +139,13 @@
   if (is.character(x)) {
     # Tres casos, y el orden importa.
     #
-    # 1. Lo que viene con codificacion DECLARADA -`latin1` o `UTF-8`- R lo
-    #    convierte sin perdida, asi que se convierte. Escaparlo destruia el
+    # 1. Lo que viene con codificacion DECLARADA -`latin1` o `UTF-8`- se
+    #    convierte con `enc2utf8()`, que es lo que hace R. "Sin perdida" seria
+    #    falso y no se afirma: medido sobre los 255 bytes, un `latin1`
+    #    declarado mapea 0x80 a U+20AC -tabla de CP1252, no de ISO-8859-1- y
+    #    convierte 0x81, 0x8D, 0x8F, 0x90 y 0x9D en el texto `<81>` y compania.
+    #    Base hace exactamente lo mismo: no es divergencia del paquete, es como
+    #    se comporta R, y el paquete lo sigue en vez de inventar otra cosa. Escaparlo destruia el
     #    caracter: con `latin1` declarado, base imprimia `año` bajo un
     #    locale UTF-8 y el paquete publicaba `a<f1>o`, que ademas desmentia la
     #    promesa de que bajo UTF-8 la salida es exactamente la de R.
@@ -156,15 +161,33 @@
     resto <- !declarado & !is.na(x)
     if (any(resto)) {
       trozo <- x[resto]
-      validas <- !is.na(iconv(trozo, from = "UTF-8", to = "UTF-8", sub = NA))
+      # Dos criterios y hacen falta los dos. `iconv()` acepta secuencias fuera
+      # del rango de Unicode -`F4 90 80 80`, mas alla de U+10FFFF- que
+      # `validUTF8()` rechaza, que es el criterio de R. Declarando UTF-8 con el
+      # de `iconv()` a secas, el paquete publicaba `<U+00110000>`: un punto de
+      # codigo que no existe.
+      validas <- validUTF8(trozo) &
+        !is.na(iconv(trozo, from = "UTF-8", to = "UTF-8", sub = NA))
       if (any(validas)) Encoding(trozo[validas]) <- "UTF-8"
       # El escape es el ULTIMO recurso y por eso es optativo: donde
       # `print.data.frame()` puede con los bytes tal cual, hay que dejarselos,
       # porque escapar de mas tambien es una diferencia. Medido: base publica
       # `A\xffB` en una columna simple y nosotros publicabamos `A\\377B`, con
       # la barra escapada dos veces.
-      if (escapar && any(!validas)) {
-        trozo[!validas] <- .escapar_bytes_altos(trozo[!validas])
+      if (escapar) {
+        # La barra se duplica en TODO el vector, no solo en lo que se escapa.
+        # Si no, el byte 0xff y el texto `\377` que un usuario escribio
+        # publican lo mismo y el escape deja de ser reversible: el mismo
+        # defecto que tenia la forma `<ff>`, mudado al camino del reintento.
+        # Esto solo corre cuando R no pudo imprimir el marco tal cual, asi que
+        # el ruido extra no alcanza a ninguna salida que base pueda producir.
+        # `useBytes` no es optativo: `gsub()` valida la codificacion antes de
+        # operar y aborta justo sobre las cadenas invalidas, que son las que
+        # este camino existe para atender.
+        trozo <- gsub("\\", "\\\\", trozo, fixed = TRUE, useBytes = TRUE)
+        if (any(!validas)) {
+          trozo[!validas] <- .escapar_bytes_altos(trozo[!validas])
+        }
       }
       x[resto] <- trozo
     }

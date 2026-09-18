@@ -25,9 +25,11 @@ Las salidas impresas ya no fallan por codificación en ningún locale, incluido
 LC_CTYPE = C. La copia que se exhibe convierte lo que trae codificación
 declarada, declara como UTF-8 los bytes válidos sin declarar —R los escapa como
 <U+00F1> donde el locale no los represente— y deja el resto tal cual mientras R
-pueda imprimirlo, de modo que la salida sea exactamente la suya. Sólo cuando R
-no puede se reintenta escapando con su propio octal, \377, y la tabla queda
-alineada también ahí.
+pueda imprimirlo. Bajo un locale UTF-8 la salida es exactamente la de R; bajo
+uno que no puede representar un carácter difiere a propósito, y para mejor:
+donde R escapa los bytes, lupa publica el punto de código. Sólo cuando R no
+puede imprimir se reintenta escapando con su propio octal, \377, y la tabla
+queda alineada también ahí.
 Imprimir no es infalible por eso: si una clase suya tiene un format() que da
 error, ese error le llega sin alterar. Esto incluye las columnas de listas de
 la propuesta_modelo que devuelve proponer_modelo(); comparar dos perfiles

@@ -8,11 +8,14 @@
   exhibe convierte lo que trae codificación declarada —latin1 o UTF-8—, declara
   como UTF-8 los bytes válidos sin declarar —R los escapa como <U+00F1> donde el
   locale no los represente— y deja los bytes restantes tal cual mientras
-  print.data.frame() pueda con ellos, que es el caso de una columna común: ahí
-  la salida es exactamente la de R. Sólo cuando R no puede —una columna de
-  listas con bytes inválidos, donde aborta en cualquier locale— se reintenta
-  escapando con el octal que el propio R usa para un byte irrepresentable,
-  \377, y la tabla queda alineada también en ese caso. El octal no es un detalle: escapar como
+  print.data.frame() pueda con ellos. **Bajo un locale UTF-8 la salida es
+  exactamente la de R**, medido en 11 formas de marco por 2 valores de
+  row.names por 3 anchos. Bajo un locale que no puede representar un carácter
+  la salida difiere a propósito, y para mejor: donde R publica los bytes
+  escapados en octal, lupa publica el punto de código, <U+00F1>, que dice qué
+  carácter era. Sólo cuando R no puede imprimir —una columna de listas con
+  bytes inválidos, donde aborta en cualquier locale— se reintenta escapando con
+  el octal que el propio R usa, \377, y la tabla queda alineada también ahí. El octal no es un detalle: escapar como
   <ff> hacía que el byte 0xff y el texto <ff> que un usuario puede escribir se
   publicaran iguales, y R los distingue. Eso no vuelve infalible a
   print(): si una clase del usuario tiene un format() que da error, ese error
@@ -21,13 +24,16 @@
   la clave interna de comparar_perfiles() usa la misma representación por bytes
   que el resto del paquete y dos perfiles idénticos no emiten avisos espurios.
 
-- **La prosa que el paquete escribe tampoco publica bytes crudos.** Los avisos
+- **Los métodos print y los avisos tampoco publican bytes crudos.** Los avisos
   y encabezados que componen texto del usuario —nombres de columna, de tabla,
   de fuente— lo declaran antes de publicarlo. Bajo LC_CTYPE = C ya no aparecen
   frases a medias, con el texto del paquete legible y el nombre del usuario en
   bytes: donde el locale no puede representar un carácter, se escapa como
-  <U+00F1> en toda la línea. Una prueba recorre los canales de prosa y falla si
-  encuentra un byte crudo.
+  <U+00F1> en toda la línea. Una prueba recorre diez canales —los métodos print
+  y los avisos— por las dos corrientes de salida y falla si encuentra un byte
+  crudo. **Los mensajes de error quedan fuera de ese alcance y lo dicen**: son
+  651 sitios y siguen publicando el nombre tal como el usuario lo entregó, que
+  es también como lo publica cualquier paquete de R.
 
 - **La configuración de una corrida se compara por bytes, como sus datos.** La
   comparación de filas de configuración de acumular_historico() usaba una

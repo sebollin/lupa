@@ -20,6 +20,12 @@
 
 .patron_bytes_crudos_n64 <- "<[0-9a-f][0-9a-f]>"
 
+# ALCANCE, declarado porque una guarda sin alcance declarado se lee como si
+# cubriera todo: esto mide los metodos `print.*` y los avisos. Los mensajes de
+# ERROR quedan afuera y no por olvido: son 651 sitios que interpolan texto, el
+# nombre que publican es el que el usuario entrego, y cualquier paquete de R
+# hace lo mismo. Medido y decidido, no omitido.
+#
 # La version anterior de esta guarda capturaba SOLO `stderr`, porque los canales
 # que conocia publicaban por `cli`. Cuatro metodos `print.*` publican prosa por
 # `stdout` con `cat()`, y para la guarda no existian: uno de ellos emitia bytes
@@ -53,7 +59,7 @@
   list(stderr = captura("message"), stdout = captura("output"))
 }
 
-test_that("la prosa del paquete no publica bytes crudos bajo C", {
+test_that("los metodos print y los avisos no publican bytes crudos bajo C", {
   columna <- .sin_marca_n64("a\u00f1o_medici\u00f3n")
   datos <- data.frame(x = c("a", "b", "a", "c"), stringsAsFactors = FALSE)
   names(datos) <- columna

@@ -25,8 +25,11 @@ Printed results no longer fail because of encoding in any locale, LC_CTYPE = C
 included. The displayed copy converts whatever carries a declared encoding,
 declares as UTF-8 the valid undeclared bytes — R escapes them as <U+00F1>
 wherever the locale cannot represent them — and leaves the rest untouched for as
-long as R can print it, so the output is exactly R's. Only where R cannot does it
-retry with R's own octal form, \377, so the table stays aligned there too. That does
+long as R can print it. Under a UTF-8 locale the output is exactly R's; under one
+that cannot represent a character it differs on purpose, and for the better:
+where R escapes the bytes, lupa publishes the code point. Only where R cannot
+print does it retry with R's own octal form, \377, so the table stays aligned
+there too. That does
 not make printing infallible: if one of your classes has a format() method that
 raises an error, that error reaches you unaltered. This includes the list
 columns in the propuesta_modelo returned by proponer_modelo(); comparing two

@@ -643,3 +643,43 @@ test_that("el error ajeno llega intacto aunque recorrer la columna tambien falle
   expect_error(capture.output(print.data.frame(doble)), "FORMATO_USUARIO_N63")
   expect_error(capture.output(imprimir(doble)), "FORMATO_USUARIO_N63")
 })
+
+test_that("la validez UTF-8 se decide con el criterio de R, no con el de iconv", {
+  marcar <- getFromNamespace(".marcar_para_exhibir", "lupa")
+  imprimir <- getFromNamespace(".print_data_frame_bytes", "lupa")
+
+  # `iconv()` acepta secuencias fuera del rango de Unicode que `validUTF8()`
+  # rechaza. Declarando UTF-8 con el criterio de iconv a secas, el paquete
+  # publicaba `<U+00110000>`: un punto de codigo que no existe.
+  fuera_de_rango <- rawToChar(as.raw(c(0xF4L, 0x90L, 0x80L, 0x80L)))
+  expect_false(validUTF8(fuera_de_rango))
+  expect_false(is.na(iconv(fuera_de_rango, "UTF-8", "UTF-8", sub = NA)))
+  expect_identical(Encoding(marcar(fuera_de_rango)), "unknown")
+
+  marco <- data.frame(v = fuera_de_rango, stringsAsFactors = FALSE)
+  expect_identical(
+    capture.output(imprimir(marco)),
+    capture.output(print.data.frame(marco))
+  )
+})
+
+test_that("el escape del reintento es reversible", {
+  imprimir <- getFromNamespace(".print_data_frame_bytes", "lupa")
+
+  # Dos valores distintos del usuario -el byte 0xff y el TEXTO literal que R
+  # usa para representarlo- tienen que publicar celdas distintas. Con el escape
+  # sin duplicar la barra publicaban la misma, que es el defecto que tenia la
+  # forma `<ff>` mudado al camino del reintento.
+  byte_crudo <- rawToChar(as.raw(0xffL))
+  texto_literal <- "\\377"
+  expect_false(identical(byte_crudo, texto_literal))
+
+  marco <- data.frame(n = 1:2)
+  marco$x <- I(list(byte_crudo, texto_literal))
+  # El reintento sólo se dispara donde `print.data.frame()` no puede.
+  expect_error(capture.output(print.data.frame(marco)))
+
+  salida <- capture.output(imprimir(marco))
+  celdas <- trimws(sub("^[0-9]+ +[0-9]+ +", "", salida[-1L]))
+  expect_length(unique(celdas), 2L)
+})
