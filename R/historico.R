@@ -621,7 +621,10 @@
 #'   atributo del mismo nombre permiten migraciones futuras. `nivel` corresponde
 #'   a `medida`, `evaluacion_medida`, `evaluacion_regla` o
 #'   `evaluacion_perfil`; una métrica sin valores se conserva como
-#'   `metrica_no_evaluada` con su motivo. El atributo
+#'   `metrica_no_evaluada` con su motivo, siempre que la medición tenga al
+#'   menos una medida. Una medición **enteramente** vacía —ninguna métrica
+#'   pudo aplicarse— no se acumula: se rechaza citando el motivo que `medir()`
+#'   declaró en `cobertura_metricas`, porque no hay corrida que registrar. El atributo
 #'   `configuracion_evaluacion` conserva, en una tabla plana separada, el
 #'   modelo, la aplicabilidad, el perfil y la identidad de tabla de cada corrida.
 #'
