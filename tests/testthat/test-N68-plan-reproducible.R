@@ -70,3 +70,30 @@ test_that("Encoding 'bytes' se publica como lo publica R", {
     capture.output(print.data.frame(marco))
   )
 })
+
+test_that("el consentimiento de eliminacion no se evade editando el plan", {
+  datos <- data.frame(x = c(NA, "a", NA, "b"), stringsAsFactors = FALSE)
+  plan <- planificar_limpieza(
+    perfilar(datos, muestra = Inf, analizar_dependencias = FALSE), datos
+  )
+  fila <- which(plan$estrategia == "eliminar_filas_ausentes")
+  skip_if(!length(fila), "el plan generado no trae la accion eliminatoria")
+
+  activo <- plan
+  activo$aplicar <- FALSE
+  activo$aplicar[fila] <- TRUE
+
+  # La puerta, tal como debe estar.
+  expect_error(aplicar(activo, datos), "permitir_eliminacion")
+
+  # Y la puerta editando la celda que el plan expone: `destructiva` es un
+  # hallazgo del paquete, no una decision. Combinarla con la estrategia en la
+  # condicion hacia que poner FALSE ahi borrara las filas sin consentimiento.
+  disfrazado <- activo
+  disfrazado$destructiva[fila] <- FALSE
+  expect_error(aplicar(disfrazado, datos), "permitir_eliminacion")
+
+  # Con el permiso explicito sigue corriendo, y elimina.
+  resultado <- aplicar(activo, datos, permitir_eliminacion = TRUE)
+  expect_lt(nrow(resultado$datos), nrow(datos))
+})

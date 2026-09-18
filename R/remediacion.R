@@ -2220,9 +2220,19 @@ aplicar <- function(plan, datos, permitir_eliminacion = FALSE,
       .clave_bytes(as.character(plan$id_accion[seleccion]))
     )]
   }
+  # La puerta del consentimiento deriva de la ESTRATEGIA, no de la celda
+  # `destructiva`. Combinarlas la volvia evitable con una edicion: poner
+  # `destructiva = FALSE` en una fila de `eliminar_filas_ausentes` borraba la
+  # mitad de las filas sin `permitir_eliminacion`. Que hace una accion lo sabe
+  # el paquete; el plan editado dice que se aplica, no que hace.
+  #
+  # Se probo tambien sellar las columnas de diagnostico y rechazar su edicion,
+  # y se RETIRO: editar `estado` es la palanca sancionada para correr una
+  # accion bloqueada, y editar `estrategia` es como se ejercita la rama no
+  # implementada. La huella cerraba un agujero que este cambio ya cierra en la
+  # raiz, y de paso silenciaba dos usos legitimos.
   destructivas <- seleccion[
-    plan$destructiva[seleccion] &
-      plan$estrategia[seleccion] %in% .estrategias_eliminatorias()
+    plan$estrategia[seleccion] %in% .estrategias_eliminatorias()
   ]
   if (length(destructivas) && !permitir_eliminacion) {
     stop(
