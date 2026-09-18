@@ -20,6 +20,30 @@
        na.rm = TRUE)
 }
 
+# R representa un byte que no puede mostrar con su octal -`\\377`-, y esa es la
+# forma que hay que usar. Elegir `<ff>` parecia mas legible y era un defecto:
+# un usuario puede escribir literalmente `A<ff>B`, y entonces su texto y el byte
+# crudo 0xff publicaban lo MISMO, con base distinguiendolos. Medido:
+#
+#   crudo 0xff    -> paquete `A<ff>B`   base `A\\377B`
+#   literal <ff>  -> paquete `A<ff>B`   base `A<ff>B`
+#
+# Con el octal la colision se reduce a la que tiene el propio R: sigue habiendo
+# ambiguedad si el usuario escribe literalmente `\\377`, y no mas que esa.
+# Se escapa aca y no con `encodeString()`, que consulta el locale.
+.escapar_bytes_altos <- function(x) {
+  vapply(x, function(s) {
+    if (is.na(s)) return(NA_character_)
+    crudo <- charToRaw(s)
+    altos <- as.integer(crudo) > 127L
+    if (!any(altos)) return(s)
+    piezas <- character(length(crudo))
+    piezas[!altos] <- rawToChar(crudo[!altos], multiple = TRUE)
+    piezas[altos] <- sprintf("\\%03o", as.integer(crudo[altos]))
+    paste0(piezas, collapse = "")
+  }, character(1L), USE.NAMES = FALSE)
+}
+
 .clave_bytes <- function(x) {
   crudo <- tryCatch(as.character(x), error = function(e) NULL)
   # En ASCII no hay marca ni conversion que pueda cambiar la representacion.
@@ -56,9 +80,7 @@
   }
   invalidos <- !validos
   if (any(invalidos)) {
-    clave[invalidos] <- iconv(
-      crudo[invalidos], from = "UTF-8", to = "UTF-8", sub = "byte"
-    )
+    clave[invalidos] <- .escapar_bytes_altos(crudo[invalidos])
   }
   clave
 }
@@ -89,12 +111,20 @@
   resultado
 }
 
-.cat_publicado_bytes <- function(...) {
+# Los cuatro metodos `print.*` que publican prosa por `stdout` pasan por aca.
+# Forzaba `Encoding <- "unknown"` -la politica del volcado por bytes, que se
+# descarto- y el resultado era prosa a medias bajo un locale que no puede
+# representar el texto: la etiqueta del paquete legible y el valor del usuario
+# en bytes crudos. Ahora rige la misma politica que el canal de `cli`: se
+# declara lo que se puede declarar y se escapa lo que no.
+#
+# La politica CONTRARIA -no marcar- sigue valiendo para los datos que el
+# paquete devuelve, porque ahi los bytes son del usuario. La diferencia es
+# quien habla: esto es el paquete, no el dato.
+.cat_publicado <- function(...) {
   partes <- lapply(list(...), function(parte) {
     if (is.null(parte)) return(character())
-    parte <- as.character(parte)
-    Encoding(parte) <- "unknown"
-    parte
+    .marcar_para_exhibir(as.character(parte))
   })
   do.call(cat, c(partes, list(sep = "")))
 }
@@ -105,27 +135,43 @@
 # que se exhibe declara UTF-8, R sabe que hacer con ella en cualquier locale
 # y la tabla formateada se conserva igual en los dos. El volcado por bytes
 # queda como ultimo recurso, para que imprimir no aborte nunca.
-.marcar_para_exhibir <- function(x) {
+.marcar_para_exhibir <- function(x, escapar = TRUE) {
   if (is.character(x)) {
-    # Dos casos y ninguno queda sin tratar. Lo que es UTF-8 valido se DECLARA
-    # UTF-8, y R lo escapa como <U+00F1> donde el locale no lo represente. Lo
-    # que no lo es no se puede declarar, asi que se escapa por bytes -<ff>-,
-    # que es ASCII y por lo tanto imprimible en cualquier locale y con la misma
-    # politica que `.clave_bytes()` ya usa adentro. El resultado es que la tabla
-    # SIEMPRE se puede formatear: no hace falta un camino alternativo que, por
-    # existir, terminaba tragandose errores ajenos.
-    validas <- !is.na(iconv(x, from = "UTF-8", to = "UTF-8", sub = NA))
-    if (any(validas)) Encoding(x[validas]) <- "UTF-8"
-    invalidas <- !validas & !is.na(x)
-    if (any(invalidas)) {
-      x[invalidas] <- iconv(
-        x[invalidas], from = "UTF-8", to = "UTF-8", sub = "byte"
-      )
+    # Tres casos, y el orden importa.
+    #
+    # 1. Lo que viene con codificacion DECLARADA -`latin1` o `UTF-8`- R lo
+    #    convierte sin perdida, asi que se convierte. Escaparlo destruia el
+    #    caracter: con `latin1` declarado, base imprimia `año` bajo un
+    #    locale UTF-8 y el paquete publicaba `a<f1>o`, que ademas desmentia la
+    #    promesa de que bajo UTF-8 la salida es exactamente la de R.
+    # 2. Lo que no declara nada pero SON bytes UTF-8 validos se declara UTF-8, y
+    #    R lo escapa como <U+00F1> donde el locale no lo represente.
+    # 3. Lo que queda no se puede declarar: se escapa con el octal que usa el
+    #    propio R, no con una forma inventada que el usuario pueda escribir.
+    #
+    # El resultado es que la tabla SIEMPRE se puede formatear, sin un camino
+    # alternativo que, por existir, terminaba tragandose errores ajenos.
+    declarado <- Encoding(x) %in% c("latin1", "UTF-8") & !is.na(x)
+    if (any(declarado)) x[declarado] <- enc2utf8(x[declarado])
+    resto <- !declarado & !is.na(x)
+    if (any(resto)) {
+      trozo <- x[resto]
+      validas <- !is.na(iconv(trozo, from = "UTF-8", to = "UTF-8", sub = NA))
+      if (any(validas)) Encoding(trozo[validas]) <- "UTF-8"
+      # El escape es el ULTIMO recurso y por eso es optativo: donde
+      # `print.data.frame()` puede con los bytes tal cual, hay que dejarselos,
+      # porque escapar de mas tambien es una diferencia. Medido: base publica
+      # `A\xffB` en una columna simple y nosotros publicabamos `A\\377B`, con
+      # la barra escapada dos veces.
+      if (escapar && any(!validas)) {
+        trozo[!validas] <- .escapar_bytes_altos(trozo[!validas])
+      }
+      x[resto] <- trozo
     }
     return(x)
   }
   if (is.factor(x)) {
-    levels(x) <- .marcar_para_exhibir(levels(x))
+    levels(x) <- .marcar_para_exhibir(levels(x), escapar)
     return(x)
   }
   # Un environment tiene semantica de REFERENCIA: escribirle los atributos
@@ -138,7 +184,7 @@
   }
   if (is.list(x)) {
     atributos <- attributes(x)
-    cuerpo <- lapply(unclass(x), .marcar_para_exhibir)
+    cuerpo <- lapply(unclass(x), .marcar_para_exhibir, escapar = escapar)
     if (!is.null(atributos)) attributes(cuerpo) <- atributos
     return(cuerpo)
   }
@@ -176,12 +222,12 @@
   x
 }
 
-.data_frame_para_exhibir <- function(x) {
+.data_frame_para_exhibir <- function(x, escapar = TRUE) {
   atributos <- attributes(x)
-  cuerpo <- lapply(unclass(x), .marcar_para_exhibir)
-  atributos$names <- .marcar_para_exhibir(atributos$names)
+  cuerpo <- lapply(unclass(x), .marcar_para_exhibir, escapar = escapar)
+  atributos$names <- .marcar_para_exhibir(atributos$names, escapar)
   if (is.character(atributos$row.names)) {
-    atributos$row.names <- .marcar_para_exhibir(atributos$row.names)
+    atributos$row.names <- .marcar_para_exhibir(atributos$row.names, escapar)
   }
   attributes(cuerpo) <- atributos
   cuerpo
@@ -192,16 +238,25 @@
   if (!inherits(x, "data.frame")) {
     stop("x debe ser un data.frame.", call. = FALSE)
   }
-  # No hay camino alternativo, y esa es la decision. `.marcar_para_exhibir()`
-  # deja la copia siempre imprimible -lo valido declarado UTF-8, lo invalido
-  # escapado por bytes-, asi que un fallo de `print.data.frame()` ya no puede
-  # ser de codificacion: es del usuario, y tiene que llegarle. Cuando existia un
-  # camino alternativo se tragaba el `format()` de una clase ajena y publicaba
-  # el valor crudo como si fuera el formateado, y acotarlo por la condicion no
-  # alcanzo: con bytes invalidos Y un `format()` que falla, la condicion se
-  # cumplia y el error se perdia igual.
-  salida <- utils::capture.output(
-    print.data.frame(.data_frame_para_exhibir(x), row.names = row.names, ...)
+  imprimir <- function(marco) utils::capture.output(
+    print.data.frame(marco, row.names = row.names, ...)
+  )
+  # Se intenta primero SIN escapar, para que donde `print.data.frame()` puede la
+  # salida sea exactamente la suya; escapar de mas tambien es una diferencia.
+  # Si no puede, se reintenta con los bytes invalidos escapados, que es el unico
+  # caso que no puede en ningun locale. Y si tampoco puede asi, el fallo no era
+  # de codificacion: es del usuario -su `format()`, su columna- y se relanza el
+  # error ORIGINAL, no el del segundo intento, que hablaria de otra cosa.
+  salida <- tryCatch(
+    imprimir(.data_frame_para_exhibir(x, escapar = FALSE)),
+    error = function(condicion) {
+      segunda <- tryCatch(
+        imprimir(.data_frame_para_exhibir(x, escapar = TRUE)),
+        error = function(otra) NULL
+      )
+      if (is.null(segunda)) stop(condicion)
+      segunda
+    }
   )
   if (length(salida)) {
     Encoding(salida) <- "unknown"

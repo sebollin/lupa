@@ -5,9 +5,16 @@
 - La publicación también es independiente del locale. Las propuestas de
   proponer_modelo() y las tablas que muestran los métodos print.* ya no fallan
   por codificación en ningún locale, incluido LC_CTYPE = C. La copia que se
-  exhibe declara como UTF-8 lo que es UTF-8 válido —R lo escapa como <U+00F1>
-  donde el locale no lo represente— y escapa por bytes lo que no lo es, como
-  <ff>: la tabla queda alineada también en ese caso. Eso no vuelve infalible a
+  exhibe convierte lo que trae codificación declarada —latin1 o UTF-8—, declara
+  como UTF-8 los bytes válidos sin declarar —R los escapa como <U+00F1> donde el
+  locale no los represente— y deja los bytes restantes tal cual mientras
+  print.data.frame() pueda con ellos, que es el caso de una columna común: ahí
+  la salida es exactamente la de R. Sólo cuando R no puede —una columna de
+  listas con bytes inválidos, donde aborta en cualquier locale— se reintenta
+  escapando con el octal que el propio R usa para un byte irrepresentable,
+  \377, y la tabla queda alineada también en ese caso. El octal no es un detalle: escapar como
+  <ff> hacía que el byte 0xff y el texto <ff> que un usuario puede escribir se
+  publicaran iguales, y R los distingue. Eso no vuelve infalible a
   print(): si una clase del usuario tiene un format() que da error, ese error
   le llega sin alterar, que es lo que corresponde. Y un format() que consulte
   Encoding() verá las marcas de la copia, no las del objeto original. Además,

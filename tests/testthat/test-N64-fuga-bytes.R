@@ -20,7 +20,12 @@
 
 .patron_bytes_crudos_n64 <- "<[0-9a-f][0-9a-f]>"
 
-.prosa_bajo_c_n64 <- function(expr) {
+# La version anterior de esta guarda capturaba SOLO `stderr`, porque los canales
+# que conocia publicaban por `cli`. Cuatro metodos `print.*` publican prosa por
+# `stdout` con `cat()`, y para la guarda no existian: uno de ellos emitia bytes
+# crudos y pasaba. Una guarda que mira una sola corriente no dice "no hay
+# fugas", dice "no hay fugas donde miro".
+.prosa_bajo_c_n64 <- function(f) {
   categorias <- c("LC_CTYPE", "LC_COLLATE")
   originales <- stats::setNames(
     vapply(categorias, Sys.getlocale, character(1L)), categorias
@@ -35,10 +40,17 @@
   if (!identical(Sys.getlocale("LC_CTYPE"), "C")) {
     skip("no se pudo fijar LC_CTYPE = C en esta maquina")
   }
-  paste(
-    capture.output(suppressWarnings(force(expr)), type = "message"),
-    collapse = " "
-  )
+  # Recibe la FUNCION y la llama, en vez de una expresion con `substitute()`:
+  # evaluar en `parent.frame(n)` depende de cuantos marcos hay en el medio y se
+  # rompe en cuanto la captura se anida. Dos errores de marco en instrumentos
+  # propios el mismo dia; este no tiene marcos que contar.
+  captura <- function(tipo) {
+    paste(
+      capture.output(suppressWarnings(f()), type = tipo),
+      collapse = " "
+    )
+  }
+  list(stderr = captura("message"), stdout = captura("output"))
 }
 
 test_that("la prosa del paquete no publica bytes crudos bajo C", {
@@ -72,11 +84,46 @@ test_that("la prosa del paquete no publica bytes crudos bajo C", {
     aviso_costo = function() avisar(proyeccion, TRUE, TRUE)
   )
 
+  # Los cuatro metodos que publican prosa por `stdout` salen del mismo auxiliar
+  # -`.cat_publicado()`-, asi que los cuatro entran aca. Se enumeraron desde el
+  # codigo, buscando quien publica, no desde los que se me ocurrieron.
+  canales$normalizacion <- function() print(normalizacion())
+  canales$inferencia <- function() print(inferir_tipo(c("1", "2", "3")))
+  canales$referencial <- function() {
+    tabla <- data.frame(
+      clave = c("a", "b"),
+      valor = c(.sin_marca_n64("raz\u00f3n"), .sin_marca_n64("a\u00f1o")),
+      stringsAsFactors = FALSE
+    )
+    print(referencial(
+      tabla, clave = "clave", valor = "valor",
+      nombre = .sin_marca_n64("referencial_a\u00f1o")
+    ))
+  }
+  canales$validadores <- function() print(pack_validadores(
+    .sin_marca_n64("pack_a\u00f1o"),
+    validadores = list(siempre = function(x) rep(TRUE, length(x))),
+    descripcion = .sin_marca_n64("descripci\u00f3n con acento")
+  ))
+
+  # El alcance de la guarda se declara y se cuenta. Si manana alguien agrega un
+  # metodo que publica prosa y no lo agrega aca, este numero lo delata: una
+  # guarda que no dice cuantos canales recorre no distingue "los recorri todos"
+  # de "recorri los que conocia cuando la escribi".
+  expect_identical(length(canales), 10L)
+
   for (nombre in names(canales)) {
-    prosa <- .prosa_bajo_c_n64(canales[[nombre]]())
+    prosa <- .prosa_bajo_c_n64(canales[[nombre]])
+    # Por `stderr` los bytes crudos llegan como TEXTO -`<c3>`-, porque cli los
+    # describe. Por `stdout` llegan como bytes de verdad. Son dos formas del
+    # mismo defecto y hacen falta las dos comprobaciones.
     expect_false(
-      grepl(.patron_bytes_crudos_n64, prosa, perl = TRUE),
-      info = paste0(nombre, ": ", substr(prosa, 1, 200))
+      grepl(.patron_bytes_crudos_n64, prosa$stderr, perl = TRUE),
+      info = paste0(nombre, " (stderr): ", substr(prosa$stderr, 1, 200))
+    )
+    expect_false(
+      grepl("[\x80-\xff]", prosa$stdout, useBytes = TRUE),
+      info = paste0(nombre, " (stdout): ", substr(prosa$stdout, 1, 200))
     )
   }
 })

@@ -55,8 +55,9 @@ propuestas, si aparecen, quedan fuera explícitamente.
 La propuesta ya no falla por codificación al imprimirse bajo LC_CTYPE = C,
 donde antes la impresión se cortaba al llegar a una columna de listas con
 nombres acentuados. En ese locale R escapa como <U+00F1> los caracteres que no
-puede representar, y lo que no es UTF-8 válido se escapa por bytes como <ff>:
-la tabla se conserva alineada en los dos casos.
+puede representar, y lo que no trae codificación declarada ni es UTF-8 válido
+se escapa con el octal de R, \377: la tabla se conserva alineada en los dos
+casos.
 ```{r}
 propuesta$incluir <- propuesta$metrica == "NoNulo"
 stopifnot(any(propuesta$incluir))

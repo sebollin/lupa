@@ -196,7 +196,7 @@ inferir_tipo <- function(x, umbral = 0.8, muestra = 1e5) {
 
 #' @export
 print.inferencia_tipo <- function(x, ...) {
-  .cat_publicado_bytes(
+  .cat_publicado(
     x$tipo, sprintf(
       " (%.1f%%; %d de %d valores compatibles)\n",
       100 * x$proporcion, x$compatibles, x$n_analizados

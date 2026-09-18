@@ -550,9 +550,12 @@ test_that("el ultimo recurso del impresor no se traga errores ajenos", {
 test_that("los bytes que no son UTF-8 validos se escapan y la tabla se conserva", {
   imprimir <- getFromNamespace(".print_data_frame_bytes", "lupa")
 
-  # Estos bytes no son UTF-8 valido, asi que no se pueden declarar. Se escapan
-  # por bytes -<ff>-, que es ASCII: la copia de exhibicion queda imprimible en
-  # cualquier locale y la tabla sigue siendo una tabla alineada, no un volcado.
+  # Estos bytes no son UTF-8 valido ni traen codificacion declarada, asi que se
+  # escapan con el octal que usa el propio R -`\\377`-, que es ASCII: la copia
+  # de exhibicion queda imprimible en cualquier locale y la tabla sigue siendo
+  # una tabla alineada, no un volcado. El octal, y no `<ff>`, porque esa forma
+  # la puede escribir el usuario y entonces dos valores distintos publicarian
+  # lo mismo.
   crudo <- rawToChar(as.raw(c(0x41L, 0xffL, 0x42L)))
   expect_false(all(validUTF8(crudo)))
   con_bytes_invalidos <- data.frame(n = 1L)
@@ -561,8 +564,19 @@ test_that("los bytes que no son UTF-8 validos se escapan y la tabla se conserva"
   expect_error(capture.output(print.data.frame(con_bytes_invalidos)))
   salida <- capture.output(imprimir(con_bytes_invalidos))
   expect_gt(length(salida), 1L)
-  expect_true(any(grepl("A<ff>B", salida, fixed = TRUE)))
+  expect_true(any(grepl("377", salida, fixed = TRUE)))
+  expect_false(any(grepl("A<ff>B", salida, fixed = TRUE)))
   expect_false(any(grepl("\t", salida, fixed = TRUE)))
+
+  # Y la afirmacion que vale mas que la forma del escape: donde
+  # `print.data.frame()` SI puede con los bytes tal cual, la salida es
+  # exactamente la suya. Escapar de mas tambien es una diferencia, y este
+  # expect es el que la ve.
+  columna_simple <- data.frame(v = crudo, stringsAsFactors = FALSE)
+  expect_identical(
+    capture.output(imprimir(columna_simple)),
+    capture.output(print.data.frame(columna_simple))
+  )
 })
 
 test_that("el error ajeno llega aunque tambien haya bytes invalidos", {

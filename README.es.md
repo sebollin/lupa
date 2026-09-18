@@ -22,9 +22,12 @@ un mismo hecho fue codificado de varias maneras, si un faltante se esconde
 detrás de un código o qué filas hay que revisar en el sistema de origen.
 
 Las salidas impresas ya no fallan por codificación en ningún locale, incluido
-LC_CTYPE = C. La copia que se exhibe declara como UTF-8 lo que es UTF-8 válido
-—R lo escapa como <U+00F1> donde el locale no lo represente— y escapa por bytes
-lo que no lo es, como <ff>, de modo que la tabla queda alineada también ahí.
+LC_CTYPE = C. La copia que se exhibe convierte lo que trae codificación
+declarada, declara como UTF-8 los bytes válidos sin declarar —R los escapa como
+<U+00F1> donde el locale no los represente— y deja el resto tal cual mientras R
+pueda imprimirlo, de modo que la salida sea exactamente la suya. Sólo cuando R
+no puede se reintenta escapando con su propio octal, \377, y la tabla queda
+alineada también ahí.
 Imprimir no es infalible por eso: si una clase suya tiene un format() que da
 error, ese error le llega sin alterar. Esto incluye las columnas de listas de
 la propuesta_modelo que devuelve proponer_modelo(); comparar dos perfiles

@@ -393,21 +393,21 @@ referencial <- function(datos, clave, valor = character(), completo = FALSE,
 #' @export
 print.referencial <- function(x, ...) {
   .validar_objeto_lupa(x, "referencial", "clave", "referencial()")
-  .cat_publicado_bytes("Referencial: ", x$nombre, "\n")
-  .cat_publicado_bytes("  Filas: ", nrow(x$datos), "\n")
-  .cat_publicado_bytes(
+  .cat_publicado("Referencial: ", x$nombre, "\n")
+  .cat_publicado("  Filas: ", nrow(x$datos), "\n")
+  .cat_publicado(
     "  Clave: ", paste(x$clave, collapse = " + "), "\n"
   )
   if (length(x$valor)) {
-    .cat_publicado_bytes(
+    .cat_publicado(
       "  Valores: ", paste(x$valor, collapse = " + "), "\n"
     )
   }
-  .cat_publicado_bytes(
+  .cat_publicado(
     "  Completo: ", if (x$completo) "s\u00ed" else "no", "\n"
   )
   if (x$completo) {
-    .cat_publicado_bytes("  Alcance: ", x$alcance, "\n")
+    .cat_publicado("  Alcance: ", x$alcance, "\n")
   }
   invisible(x)
 }

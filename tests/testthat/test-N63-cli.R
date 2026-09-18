@@ -130,13 +130,15 @@ test_that("el punto de marcado solo declara UTF-8 valido para cli", {
 
   expect_identical(charToRaw(resultado$valido), charToRaw(valido))
   expect_identical(Encoding(resultado$valido), "UTF-8")
-  # Lo que NO es UTF-8 valido no se puede declarar, asi que se escapa por bytes:
-  # `a<ff>o`, que es ASCII y por lo tanto publicable en cualquier locale. Antes
-  # se dejaba crudo, y con eso `cli` podia abortar en un locale UTF-8.
+  # Lo que NO es UTF-8 valido ni trae codificacion declarada se escapa con el
+  # octal de R -`a\\377o`-, que es ASCII y publicable en cualquier locale.
+  # Antes se dejaba crudo y `cli` podia abortar en un locale UTF-8; y antes de
+  # eso se escapaba como `<ff>`, forma que el usuario puede escribir.
+  escapar <- getFromNamespace(".escapar_bytes_altos", "lupa")
   expect_identical(
-    charToRaw(resultado$invalido),
-    charToRaw(iconv(invalido, from = "UTF-8", to = "UTF-8", sub = "byte"))
+    charToRaw(resultado$invalido), charToRaw(escapar(invalido))
   )
+  expect_true(grepl("\\377", resultado$invalido, fixed = TRUE))
   expect_true(all(as.integer(charToRaw(resultado$invalido)) < 128L))
   expect_identical(Encoding(resultado$invalido), Encoding(invalido))
 })
