@@ -160,6 +160,26 @@
   invisible(x)
 }
 
+.tiene_bytes_no_utf8 <- function(x) {
+  if (is.character(x)) {
+    if (!length(x)) return(FALSE)
+    return(any(!is.na(x) & is.na(iconv(x, from = "UTF-8", to = "UTF-8", sub = NA))))
+  }
+  if (is.factor(x)) return(.tiene_bytes_no_utf8(levels(x)))
+  if (is.list(x)) {
+    if (!length(x)) return(FALSE)
+    return(any(vapply(x, .tiene_bytes_no_utf8, logical(1L))))
+  }
+  FALSE
+}
+
+.data_frame_con_bytes_no_utf8 <- function(x) {
+  if (.tiene_bytes_no_utf8(names(x))) return(TRUE)
+  etiquetas <- attr(x, "row.names")
+  if (is.character(etiquetas) && .tiene_bytes_no_utf8(etiquetas)) return(TRUE)
+  .tiene_bytes_no_utf8(unclass(x))
+}
+
 .print_data_frame_bytes <- function(x, row.names = TRUE, ...) {
   if (!inherits(x, "data.frame")) {
     stop("x debe ser un data.frame.", call. = FALSE)
@@ -168,7 +188,24 @@
     utils::capture.output(
       print.data.frame(.data_frame_para_exhibir(x), row.names = row.names, ...)
     ),
-    error = function(e) NULL
+    error = function(condicion) {
+      # El volcado por bytes existe para UNA condicion: texto que no es UTF-8
+      # valido, donde print.data.frame() no puede en ningun locale. Acotarlo por
+      # "fallo" en vez de por esa condicion lo convierte en un silenciador: se
+      # tragaba el format() de una clase del usuario y publicaba el numero
+      # crudo como si fuera el valor formateado. El mensaje no sirve de
+      # criterio, porque R lo traduce; la condicion se decide sobre el dato.
+      # La condicion se evalua DENTRO del manejador, asi que no puede fallar:
+      # recorrer el marco usa `[[`, y si una clase ajena tira error ahi, ese
+      # error nuevo taparia al original -que es la causa que el usuario
+      # necesita-. Ante la duda no hay bytes invalidos que cubrir, y se
+      # relanza lo que paso de verdad.
+      invalidos <- tryCatch(
+        .data_frame_con_bytes_no_utf8(x), error = function(e) FALSE
+      )
+      if (!isTRUE(invalidos)) stop(condicion)
+      NULL
+    }
   )
   if (!is.null(salida)) {
     if (length(salida)) {

@@ -519,3 +519,69 @@ test_that("comparar_perfiles no avisa con perfiles identicos bajo C", {
     expect_equal(nrow(resultado$cambios), 0L, info = locale)
   }
 })
+
+test_that("el ultimo recurso del impresor no se traga errores ajenos", {
+  imprimir <- getFromNamespace(".print_data_frame_bytes", "lupa")
+
+  # El volcado por bytes existe para texto que no es UTF-8 valido. Acotado por
+  # "fallo" en vez de por esa condicion, se tragaba el format() de una clase
+  # del usuario y publicaba el valor crudo como si fuera el formateado.
+  registerS3method(
+    "format", "clase_rota_n63",
+    function(x, ...) stop("FORMATO_USUARIO_N63", call. = FALSE),
+    envir = environment()
+  )
+  con_formateador_roto <- data.frame(n = 1:2)
+  con_formateador_roto$c <- structure(c(10, 20), class = "clase_rota_n63")
+
+  expect_error(
+    capture.output(print.data.frame(con_formateador_roto)), "FORMATO_USUARIO_N63"
+  )
+  expect_error(
+    capture.output(imprimir(con_formateador_roto)), "FORMATO_USUARIO_N63"
+  )
+})
+
+test_that("el ultimo recurso si cubre los bytes que no son UTF-8 validos", {
+  imprimir <- getFromNamespace(".print_data_frame_bytes", "lupa")
+
+  # Estos bytes no son UTF-8 valido, asi que no se pueden marcar y
+  # print.data.frame() no puede con ellos en ningun locale. Ahi el volcado es
+  # el ultimo recurso honesto: publicar los bytes en vez de abortar.
+  crudo <- rawToChar(as.raw(c(0x61L, 0xf1L, 0x6fL)))
+  expect_false(all(validUTF8(crudo)))
+  con_bytes_invalidos <- data.frame(n = 1L)
+  con_bytes_invalidos[["valor"]] <- I(list(
+    rep(paste(rep(crudo, 30L), collapse = " "), 3L)
+  ))
+
+  expect_error(capture.output(print.data.frame(con_bytes_invalidos)))
+  salida <- capture.output(imprimir(con_bytes_invalidos))
+  expect_gt(length(salida), 1L)
+})
+
+test_that("el error ajeno llega intacto aunque recorrer la columna tambien falle", {
+  imprimir <- getFromNamespace(".print_data_frame_bytes", "lupa")
+
+  # La condicion que habilita el ultimo recurso se evalua dentro del manejador
+  # y recorre el marco con `[[`. Si esa clase tambien falla al indexarse, el
+  # error del recorrido tapaba la causa real: el usuario recibia
+  # INDEXACION_USUARIO en vez de FORMATO_USUARIO.
+  registerS3method(
+    "format", "explota_doble_n63",
+    function(x, ...) stop("FORMATO_USUARIO_N63", call. = FALSE),
+    envir = environment()
+  )
+  registerS3method(
+    "[[", "explota_doble_n63",
+    function(x, ...) stop("INDEXACION_USUARIO_N63", call. = FALSE),
+    envir = environment()
+  )
+  doble <- data.frame(n = 1:3)
+  doble$valor <- structure(
+    list("uno", "dos", "tres"), class = c("explota_doble_n63", "list")
+  )
+
+  expect_error(capture.output(print.data.frame(doble)), "FORMATO_USUARIO_N63")
+  expect_error(capture.output(imprimir(doble)), "FORMATO_USUARIO_N63")
+})

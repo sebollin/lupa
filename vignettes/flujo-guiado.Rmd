@@ -52,10 +52,12 @@ propuesta[, c("metrica", "origen", "incluir", "estado")]
 En este ejemplo se confirma sólo la métrica de no nulidad; las demás
 propuestas, si aparecen, quedan fuera explícitamente.
 
-La propuesta se imprime como tabla formateada en cualquier locale, también
-bajo LC_CTYPE = C, donde antes la impresión abortaba al llegar a una columna de
-listas con nombres acentuados. En un locale que no puede representar un
-carácter, R lo escapa como <U+00F1> en vez de interrumpir.
+La propuesta ya no aborta al imprimirse bajo LC_CTYPE = C, donde antes la
+impresión se cortaba al llegar a una columna de listas con nombres acentuados.
+En ese locale R escapa como <U+00F1> los caracteres que no puede representar y
+la tabla se conserva. Sólo cuando el texto no es UTF-8 válido —y ahí
+print.data.frame() no puede en ningún locale— se publican los bytes en vez de
+interrumpir.
 ```{r}
 propuesta$incluir <- propuesta$metrica == "NoNulo"
 stopifnot(any(propuesta$incluir))

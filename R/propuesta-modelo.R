@@ -108,9 +108,13 @@
 #'
 #' @return Data frame S3 de clase `propuesta_modelo`; las columnas de listas
 #'   contienen la configuración y los vínculos sin convertirlos en texto. Su
-#'   método `print()` muestra la tabla formateada en cualquier locale, también
-#'   bajo `LC_CTYPE = "C"`: ahí R escapa como `<U+00F1>` los caracteres que el
-#'   locale no puede representar, en vez de interrumpir la impresión.
+#'   método `print()` publica exactamente la tabla que produce
+#'   [print.data.frame()] siempre que ésta pueda producirla, también bajo
+#'   `LC_CTYPE = "C"`, donde R escapa como `<U+00F1>` los caracteres que el
+#'   locale no puede representar. Si el texto no es UTF-8 válido —el único caso
+#'   donde `print.data.frame()` no puede en ningún locale— publica los bytes en
+#'   vez de interrumpir, y esa salida ya no es la tabla alineada. Cualquier otro
+#'   error, por ejemplo el de un `format()` propio, llega intacto.
 #' @export
 #'
 #' @seealso [perfilar()], [detectar_dependencias()], [modelo_desde_propuesta()],

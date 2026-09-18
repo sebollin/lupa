@@ -21,11 +21,14 @@ cambios en el tiempo. Es útil cuando un `summary()` no alcanza para saber si
 un mismo hecho fue codificado de varias maneras, si un faltante se esconde
 detrás de un código o qué filas hay que revisar en el sistema de origen.
 
-Las salidas impresas muestran la misma tabla formateada aunque la sesión use
-LC_CTYPE = C, donde antes la impresión abortaba: en ese locale R escapa como
-<U+00F1> los caracteres que no puede representar. Esto incluye las columnas de
-listas de la propuesta_modelo que devuelve proponer_modelo(); comparar dos
-perfiles idénticos también permanece en silencio en ese locale.
+Las salidas impresas ya no abortan bajo LC_CTYPE = C, y donde
+print.data.frame() puede imprimir publican exactamente su tabla: en un locale
+que no puede representar un carácter, R lo escapa como <U+00F1>. Si el texto no
+es UTF-8 válido —el único caso donde print.data.frame() no puede en ningún
+locale— se publican los bytes en vez de interrumpir, y esa salida no es la
+tabla alineada. Esto incluye las columnas de listas de la propuesta_modelo que
+devuelve proponer_modelo(); comparar dos perfiles idénticos también permanece
+en silencio en ese locale.
 ## Qué te dice de tus datos que `summary()` no
 
 `summary()` describe las columnas una por una. `lupa` compara

@@ -32,9 +32,13 @@ extensión.}
 \value{
 Data frame S3 de clase \code{propuesta_modelo}; las columnas de listas
 contienen la configuración y los vínculos sin convertirlos en texto. Su
-método \code{print()} muestra la tabla formateada en cualquier locale, también
-bajo \code{LC_CTYPE = "C"}: ahí R escapa como \verb{<U+00F1>} los caracteres que el
-locale no puede representar, en vez de interrumpir la impresión.
+método \code{print()} publica exactamente la tabla que produce
+\code{\link[=print.data.frame]{print.data.frame()}} siempre que ésta pueda producirla, también bajo
+\code{LC_CTYPE = "C"}, donde R escapa como \verb{<U+00F1>} los caracteres que el
+locale no puede representar. Si el texto no es UTF-8 válido —el único caso
+donde \code{print.data.frame()} no puede en ningún locale— publica los bytes en
+vez de interrumpir, y esa salida ya no es la tabla alineada. Cualquier otro
+error, por ejemplo el de un \code{format()} propio, llega intacto.
 }
 \description{
 Construye el puente entre el examen de datos y la medición. El resultado no
