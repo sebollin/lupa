@@ -58,6 +58,10 @@
   marcada como UTF-8, sin cambiar los nombres publicados de la tabla; el código
   que se puede copiar y pegar queda igual bajo `LC_CTYPE = "C"`.
 
+- El histórico conserva el mismo desempate por fecha e identificador y la misma
+  huella de configuración al cruzar locales; acumular una corrida persistida es
+  idempotente y detectar deriva ya no emite avisos por sus claves internas.
+
 ## Texto declarado independiente del locale
 
 - **La resolución de factores y las agrupaciones por valores de texto ya no

@@ -505,11 +505,20 @@
   if (length(repetidos)) {
     iguales <- vapply(repetidos, function(i) {
       j <- coincidencias[[i]]
-      isTRUE(all.equal(
-        .seleccionar_columnas(anterior, .columnas_historico, filas = j),
-        .seleccionar_columnas(nuevo, .columnas_historico, filas = i),
-        check.attributes = FALSE
-      ))
+      lado_anterior <- .seleccionar_columnas(
+        anterior, .columnas_historico, filas = j
+      )
+      lado_nuevo <- .seleccionar_columnas(
+        nuevo, .columnas_historico, filas = i
+      )
+      for (nombre in intersect(names(lado_anterior), names(lado_nuevo))) {
+        if (is.character(lado_anterior[[nombre]]) &&
+            is.character(lado_nuevo[[nombre]])) {
+          lado_anterior[[nombre]] <- .clave_bytes(lado_anterior[[nombre]])
+          lado_nuevo[[nombre]] <- .clave_bytes(lado_nuevo[[nombre]])
+        }
+      }
+      isTRUE(all.equal(lado_anterior, lado_nuevo, check.attributes = FALSE))
     }, logical(1L))
     if (any(!iguales)) {
       stop(
@@ -582,7 +591,8 @@
 #'
 #' Crea un data frame plano y versionado con corridas producidas por [medir()] o
 #' [evaluar()]. `acumular_historico()` agrega objetos al mismo esquema y es
-#' idempotente cuando recibe otra vez registros idénticos.
+#' idempotente cuando recibe otra vez registros idénticos, incluso si el RDS se
+#' guardó o se vuelve a leer bajo otro locale.
 #'
 #' @param ... Objetos `medicion`, `evaluacion_calidad` o `historico_calidad`.
 #'   También puede darse una única lista que los contenga.
@@ -748,7 +758,9 @@ leer_historico <- function(archivo) {
 #' Detectar deriva en una serie de evaluaciones
 #'
 #' Compara corridas consecutivas, ordenadas por fecha dentro de cada perfil o
-#' regla, y marca cambios significativos en la escala `[0, 1]`.
+#' regla, y marca cambios significativos en la escala `[0, 1]`. Los empates de
+#' fecha se resuelven por los bytes de `id_medicion`, de modo que la misma
+#' secuencia persiste igual bajo cualquier locale.
 #'
 #' @param historico Objeto creado por [historico_calidad()].
 #' @param nivel `"perfil"` o `"regla"`.
@@ -802,12 +814,11 @@ detectar_deriva_calidad <- function(historico, nivel = c("perfil", "regla"),
   }
   configuraciones <- attr(historico, "configuracion_evaluacion", exact = TRUE)
   clave_configuracion <- function(ids, perfiles) {
-    paste(
-      .nombres_para_operar(as.character(ids)),
-      ifelse(
-        is.na(perfiles), "~", .nombres_para_operar(as.character(perfiles))
-      ), sep = "\034"
-    )
+    perfiles <- as.character(perfiles)
+    perfiles[is.na(perfiles)] <- "~"
+    .clave_bytes(paste(
+      .clave_bytes(as.character(ids)), .clave_bytes(perfiles), sep = "\034"
+    ))
   }
   claves_datos <- clave_configuracion(datos$id_medicion, datos$perfil)
   claves_configuraciones <- if (nrow(configuraciones)) {
@@ -820,18 +831,31 @@ detectar_deriva_calidad <- function(historico, nivel = c("perfil", "regla"),
   }
   identidad[is.na(identidad) | !nzchar(identidad)] <- "<sin_configuracion>"
   clave <- if (nivel == "perfil") {
-    .nombres_para_operar(datos$perfil)
+    .clave_bytes(as.character(datos$perfil))
   } else {
-    paste(
-      .nombres_para_operar(datos$perfil),
-      .nombres_para_operar(datos$regla), sep = "\034"
-    )
+    .clave_bytes(paste(
+      .clave_bytes(as.character(datos$perfil)),
+      .clave_bytes(as.character(datos$regla)), sep = "\034"
+    ))
   }
-  clave <- paste(clave, .nombres_para_operar(identidad), sep = "\034")
+  clave <- .clave_bytes(paste(
+    clave, .clave_bytes(as.character(identidad)), sep = "\034"
+  ))
   grupos <- split(seq_len(nrow(datos)), clave, drop = TRUE)
   partes <- lapply(grupos, function(indices) {
-    orden <- order(datos$fecha[indices], datos$id_medicion[indices])
-    indices <- indices[orden]
+    fechas <- as.numeric(datos$fecha[indices])
+    orden_fecha <- .orden_seguro(fechas)
+    indices <- indices[orden_fecha]
+    fechas <- fechas[orden_fecha]
+    grupos_fecha <- split(
+      seq_along(indices), cumsum(c(TRUE, diff(fechas) != 0)), drop = TRUE
+    )
+    indices <- unlist(lapply(grupos_fecha, function(posiciones) {
+      candidatos <- indices[posiciones]
+      candidatos[.orden_seguro(
+        .clave_bytes(as.character(datos$id_medicion[candidatos]))
+      )]
+    }), use.names = FALSE)
     if (length(indices) < 2L) return(vacio)
     a <- indices[-length(indices)]
     b <- indices[-1L]
@@ -944,7 +968,7 @@ detectar_deriva_calidad <- function(historico, nivel = c("perfil", "regla"),
     }
     regular
   })
-  resultado <- do.call(rbind, partes)
+  resultado <- do.call(rbind, unname(partes))
   resultado <- resultado[, columnas, drop = FALSE]
   resultado$severidad <- factor(
     resultado$severidad, levels = c("ok", "sospechoso", "error"),

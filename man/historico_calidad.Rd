@@ -31,7 +31,8 @@ modelo, la aplicabilidad, el perfil y la identidad de tabla de cada corrida.
 \description{
 Crea un data frame plano y versionado con corridas producidas por \code{\link[=medir]{medir()}} o
 \code{\link[=evaluar]{evaluar()}}. \code{acumular_historico()} agrega objetos al mismo esquema y es
-idempotente cuando recibe otra vez registros idénticos.
+idempotente cuando recibe otra vez registros idénticos, incluso si el RDS se
+guardó o se vuelve a leer bajo otro locale.
 }
 \details{
 El detalle predeterminado evita repetir una fila por celda y regla cuando el

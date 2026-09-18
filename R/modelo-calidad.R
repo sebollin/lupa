@@ -30,7 +30,7 @@
     valores <- as.character(x)
     faltantes <- is.na(valores)
     valores[faltantes] <- "<NA>"
-    valores[!faltantes] <- encodeString(valores[!faltantes])
+    valores[!faltantes] <- .clave_bytes(valores[!faltantes])
     return(paste0(typeof(x), "[", paste(valores, collapse = ","), "]"))
   }
   if (is.list(x)) {

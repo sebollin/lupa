@@ -26,7 +26,9 @@ informa como \code{error} pero no suprime la comparación.
 }
 \description{
 Compara corridas consecutivas, ordenadas por fecha dentro de cada perfil o
-regla, y marca cambios significativos en la escala \verb{[0, 1]}.
+regla, y marca cambios significativos en la escala \verb{[0, 1]}. Los empates de
+fecha se resuelven por los bytes de \code{id_medicion}, de modo que la misma
+secuencia persiste igual bajo cualquier locale.
 }
 \examples{
 # El ejemplo de historico_calidad() muestra cómo construir las corridas.
