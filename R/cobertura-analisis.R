@@ -152,15 +152,11 @@ cobertura_analisis <- function(perfil, medicion = NULL,
     factores$motivo[indices] <- "No se identificaron columnas de geometr\u00eda."
   }
 
-  if (!is.null(medicion)) {
-    medidos <- .identificadores_unicos(.clave_par_identificador(
-      medicion$dimension, medicion$factor
-    ))
-    indices <- .identificadores_en(claves, medidos)
-    factores$estado[indices] <- "medida"
-    factores$motivo[indices] <-
-      "La corrida contiene al menos una m\u00e9trica instanciada para este factor."
-  }
+  # ANTES del bloque de la medicion, no despues: puesta despues, esta guarda
+  # pisaba un factor que una medicion REAL habia marcado como medido y
+  # publicaba 'no hubo nada que examinar' sobre dos filas medidas. Lo que
+  # el perfil no pudo examinar no lo midio el perfil; si la corrida trae una
+  # metrica para ese factor, eso manda.
   # `medida` se asignaba por el mapa de capacidades del perfil, sin mirar si
   # hubo observaciones: un perfil de CERO filas informaba "Completitud /
   # Densidad: medida -- el perfil conto ausentes reales en todas las columnas",
@@ -173,6 +169,16 @@ cobertura_analisis <- function(perfil, medicion = NULL,
     factores$estado[sin_observaciones] <- "no_aplica"
     factores$motivo[sin_observaciones] <-
       "La tabla no tiene filas: no hubo nada que examinar para este factor."
+  }
+
+  if (!is.null(medicion)) {
+    medidos <- .identificadores_unicos(.clave_par_identificador(
+      medicion$dimension, medicion$factor
+    ))
+    indices <- .identificadores_en(claves, medidos)
+    factores$estado[indices] <- "medida"
+    factores$motivo[indices] <-
+      "La corrida contiene al menos una m\u00e9trica instanciada para este factor."
   }
   factores$estado <- factor(
     factores$estado,

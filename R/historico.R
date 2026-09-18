@@ -885,15 +885,19 @@ detectar_deriva_calidad <- function(historico, nivel = c("perfil", "regla"),
     # asi que dos pares que publican el mismo `delta = 0.05` recibian "estable" y
     # "mejora". Que la misma operacion se compare con tolerancia en un archivo y
     # sin ella en otro no es una decision: es una inconsistencia.
-    tolerancia <- sqrt(.Machine$double.eps)
-    # Y una magnitud por debajo del ruido de la coma flotante NO es un cambio,
+    tolerancia <- sqrt(.Machine$double.eps) * max(1, abs(umbral))
+    # Y una diferencia exactamente nula NO es un cambio,
     # por chico que sea el umbral. Sin esta condicion, un `umbral` menor que la
     # tolerancia -1e-20 es valido segun el contrato- volvia negativo el corte
     # `umbral - tolerancia`, asi que un delta CERO entraba a la vez por la rama
     # de "mejora" y por la de "error" mientras la descripcion decia que el
     # resultado se habia mantenido. Tres afirmaciones incompatibles en la misma
     # fila.
-    distinguible <- is.finite(delta) & abs(delta) > tolerancia
+    # Exactamente cero, no "por debajo del ruido": un piso absoluto borraba
+    # cambios legitimamente diminutos -un 1e-10 con `umbral = 1e-20`, que el
+    # contrato deja pedir-. Y la tolerancia del corte es relativa al umbral,
+    # para absorber el error de la resta sin mover el corte cuando es chico.
+    distinguible <- is.finite(delta) & delta != 0
     significativo <- distinguible & abs(delta) >= umbral - tolerancia
     direccion <- ifelse(
       !distinguible, "estable",

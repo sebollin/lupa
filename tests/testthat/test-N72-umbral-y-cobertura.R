@@ -86,3 +86,54 @@ test_that("un perfil sin filas no declara factores como medidos", {
   ))
   expect_gt(sum(cobertura_analisis(con_filas)$estado == "medida"), 0L)
 })
+
+test_that("la tolerancia no borra un cambio legitimamente diminuto", {
+  alcanza <- getFromNamespace(".alcanza_umbral_deriva", "lupa")
+
+  # La primera version de la guarda usaba un piso ABSOLUTO -"por debajo del
+  # ruido no es un cambio"- y con eso convertia en cero toda magnitud pequena,
+  # incluso cuando el usuario pidio `umbral = 0` y el cambio era real. La
+  # tolerancia estabiliza la comparacion contra el corte; no redefine la
+  # magnitud.
+  expect_true(alcanza(1e-10, 0))
+  expect_true(alcanza(1e-10, 1e-20))
+  # Y una diferencia exactamente nula sigue sin ser un cambio, con cualquier
+  # umbral: es el defecto que motivo la guarda.
+  expect_false(alcanza(0, 0))
+  expect_false(alcanza(0, 1e-20))
+  # El caso de la coma flotante, que es lo que la tolerancia vino a absorber.
+  expect_identical(alcanza(0.70 - 0.65, 0.05), alcanza(0.75 - 0.70, 0.05))
+  expect_true(alcanza(0.70 - 0.65, 0.05))
+  expect_false(alcanza(0.04, 0.05))
+})
+
+test_that("un perfil sin filas no desmiente una medicion real", {
+  nucleo <- metricas_nucleo()
+  instancia <- instanciar(
+    especializar(nucleo$NoNulo, nombre_especifico = "NN"), "t", "x"
+  )
+  vacio <- suppressWarnings(perfilar(
+    data.frame(x = character(0), stringsAsFactors = FALSE),
+    analizar_dependencias = FALSE, proteger_datos_personales = FALSE
+  ))
+  medicion <- medir(
+    modelo(instancia),
+    data.frame(x = c("A", NA), stringsAsFactors = FALSE), id_medicion = "m1"
+  )
+  expect_gt(nrow(medicion), 0L)
+
+  densidad <- function(cobertura) {
+    indice <- which(
+      cobertura$dimension == "Completitud" & grepl("Densidad", cobertura$factor)
+    )
+    skip_if(!length(indice), "el marco no trae Completitud/Densidad")
+    as.character(cobertura$estado[indice[[1L]]])
+  }
+
+  # Sin medicion, el perfil vacio no puede decir que midio.
+  expect_identical(densidad(cobertura_analisis(vacio)), "no_aplica")
+  # Pero con una medicion real encima, esa guarda no puede pisarla: puesta
+  # despues del bloque de la medicion, publicaba "no hubo nada que examinar"
+  # sobre dos filas medidas.
+  expect_identical(densidad(cobertura_analisis(vacio, medicion)), "medida")
+})

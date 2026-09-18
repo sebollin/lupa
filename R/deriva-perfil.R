@@ -337,10 +337,20 @@
 #   - y el umbral se compara con tolerancia, porque 0,70 - 0,65 da
 #     0,049999999999999933 y 0,75 - 0,70 da 0,050000000000000044.
 .alcanza_umbral_deriva <- function(magnitud, umbral) {
-  tolerancia <- sqrt(.Machine$double.eps)
+  # La tolerancia es RELATIVA al umbral: absorbe el error de la resta -0,70
+  # menos 0,65 da 0,049999999999999933- sin mover el corte cuando el umbral es
+  # chico o cero.
+  tolerancia <- sqrt(.Machine$double.eps) * max(1, abs(umbral))
   if (length(magnitud) != 1L || is.na(magnitud)) return(FALSE)
   if (is.infinite(magnitud)) return(TRUE)
-  abs(magnitud) > tolerancia && abs(magnitud) >= umbral - tolerancia
+  # Una diferencia EXACTAMENTE nula no es un cambio, con ningun umbral. Eso es
+  # lo unico que hay que excluir: la primera version usaba un piso ABSOLUTO
+  # -`abs(magnitud) > sqrt(.Machine$double.eps)`- y con eso borraba cambios
+  # legitimamente diminutos, como un 1e-10 con `umbral = 0`, que la API deja
+  # pedir. La tolerancia esta para estabilizar la comparacion CONTRA EL CORTE,
+  # no para redefinir como cero toda magnitud pequena.
+  if (magnitud == 0) return(FALSE)
+  abs(magnitud) >= umbral - tolerancia
 }
 
 #' Comparar dos perfiles y detectar deriva estructural
