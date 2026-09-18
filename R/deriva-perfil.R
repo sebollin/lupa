@@ -484,10 +484,21 @@ comparar_perfiles <- function(anterior, actual, umbral_cambio = 0.05,
       if (!aspecto %in% campos$comparables) next
       if (.distinto_deriva(a[[campo]], b[[campo]])) {
         delta <- b[[campo]] - a[[campo]]
-        significativo <- is.finite(delta) && abs(delta) >= umbral_cambio
+        # Con tolerancia, como `detectar_deriva_calidad()` en `historico.R` y
+        # `tablero-calidad.R` con los pesos. Sin ella la resta en coma flotante
+        # decide el veredicto: 0,65 -> 0,70 da 0,049999999999999933 y
+        # 0,70 -> 0,75 da 0,050000000000000044, asi que dos pares que publican
+        # el mismo `delta = 0,05` recibian veredictos distintos. El comentario
+        # de `historico.R` ya decia que compararlo con tolerancia en un archivo
+        # y sin ella en otro no es una decision sino una inconsistencia, y este
+        # archivo era el otro.
+        tolerancia <- sqrt(.Machine$double.eps)
+        significativo <- is.finite(delta) &&
+          abs(delta) >= umbral_cambio - tolerancia
         severidad <- if (!significativo || delta < 0) {
           "ok"
-        } else if (aspecto == "faltantes" && delta >= umbral_error) {
+        } else if (aspecto == "faltantes" &&
+                   delta >= umbral_error - tolerancia) {
           "error"
         } else {
           "sospechoso"

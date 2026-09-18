@@ -919,13 +919,27 @@ detectar_deriva_calidad <- function(historico, nivel = c("perfil", "regla"),
       # ni "cambio" ni "se mantuvo": el cero dice "no cambio" y el NA dice "no
       # se". Afirmar un cambio ahi es exactamente lo que el parrafo de arriba
       # prohibe, un caso mas adentro.
+      # Y decir "no se" no alcanza: hay que decir de QUE LADO. La version
+      # anterior culpaba siempre al resultado anterior, asi que cuando el NA
+      # venia de la corrida ACTUAL la fila se contradecia a si misma -publicaba
+      # `resultado_anterior = 0,8` al lado de "el resultado anterior no se
+      # evaluo"-. Paso los controles porque la deriva ordena por fecha y el
+      # espejo del par si salia bien.
       descripcion = ifelse(
-        is.na(delta),
-        "No se puede comparar: el resultado anterior no se evalu\u00f3.",
+        is.na(datos$resultado[a]) & is.na(datos$resultado[b]),
+        "No se puede comparar: ninguna de las dos corridas se evalu\u00f3.",
         ifelse(
-          abs(delta) <= sqrt(.Machine$double.eps),
-          "El resultado de la evaluaci\u00f3n se mantuvo.",
-          "Cambi\u00f3 el resultado de la evaluaci\u00f3n."
+          is.na(datos$resultado[a]),
+          "No se puede comparar: el resultado anterior no se evalu\u00f3.",
+          ifelse(
+            is.na(datos$resultado[b]),
+            "No se puede comparar: el resultado actual no se evalu\u00f3.",
+            ifelse(
+              abs(delta) <= sqrt(.Machine$double.eps),
+              "El resultado de la evaluaci\u00f3n se mantuvo.",
+              "Cambi\u00f3 el resultado de la evaluaci\u00f3n."
+            )
+          )
         )
       ),
       evidencia = NA_character_,
