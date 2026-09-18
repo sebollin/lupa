@@ -107,12 +107,33 @@
 # queda como ultimo recurso, para que imprimir no aborte nunca.
 .marcar_para_exhibir <- function(x) {
   if (is.character(x)) {
+    # Dos casos y ninguno queda sin tratar. Lo que es UTF-8 valido se DECLARA
+    # UTF-8, y R lo escapa como <U+00F1> donde el locale no lo represente. Lo
+    # que no lo es no se puede declarar, asi que se escapa por bytes -<ff>-,
+    # que es ASCII y por lo tanto imprimible en cualquier locale y con la misma
+    # politica que `.clave_bytes()` ya usa adentro. El resultado es que la tabla
+    # SIEMPRE se puede formatear: no hace falta un camino alternativo que, por
+    # existir, terminaba tragandose errores ajenos.
     validas <- !is.na(iconv(x, from = "UTF-8", to = "UTF-8", sub = NA))
     if (any(validas)) Encoding(x[validas]) <- "UTF-8"
+    invalidas <- !validas & !is.na(x)
+    if (any(invalidas)) {
+      x[invalidas] <- iconv(
+        x[invalidas], from = "UTF-8", to = "UTF-8", sub = "byte"
+      )
+    }
     return(x)
   }
   if (is.factor(x)) {
     levels(x) <- .marcar_para_exhibir(levels(x))
+    return(x)
+  }
+  # Un environment tiene semantica de REFERENCIA: escribirle los atributos
+  # marcados le cambia el objeto al usuario, no a una copia. Medido contra su
+  # control: `print()` de base deja la marca en `unknown` y este recorrido la
+  # pasaba a `UTF-8`. Lo mismo vale para lo que no se puede copiar por valor.
+  if (is.environment(x) || is.symbol(x) ||
+      typeof(x) %in% c("externalptr", "weakref")) {
     return(x)
   }
   if (is.list(x)) {
@@ -132,6 +153,12 @@
 .marcar_objeto_para_exhibir <- function(x) {
   if (is.character(x) || is.factor(x)) {
     return(.marcar_para_exhibir(x))
+  }
+  # Igual que en `.marcar_para_exhibir()`: una referencia no se copia, asi que
+  # escribirle los atributos marcados le cambia el objeto al usuario.
+  if (is.environment(x) || is.symbol(x) ||
+      typeof(x) %in% c("externalptr", "weakref")) {
+    return(x)
   }
   atributos <- attributes(x)
   if (is.list(x)) {
@@ -160,86 +187,26 @@
   cuerpo
 }
 
-.volcar_data_frame_bytes <- function(x, row.names = TRUE) {
-  mostrar_filas <- isTRUE(row.names)
-  etiquetas_filas <- if (mostrar_filas) as.character(base::row.names(x)) else {
-    if (is.character(row.names)) row.names else character()
-  }
-  nombres <- names(x)
-  if (is.null(nombres)) nombres <- paste0("V", seq_along(x))
-  encabezado <- if (mostrar_filas) c("", nombres) else nombres
-  linea <- paste(encabezado, collapse = "\t")
-  Encoding(linea) <- "unknown"
-  cat(linea, "\n", sep = "")
-  if (nrow(x)) {
-    for (i in seq_len(nrow(x))) {
-      fila <- vapply(x, function(columna) {
-        .texto_celda_publicada(columna[[i]])
-      }, character(1L))
-      if (mostrar_filas) fila <- c(etiquetas_filas[[i]], fila)
-      linea <- paste(fila, collapse = "\t")
-      Encoding(linea) <- "unknown"
-      cat(linea, "\n", sep = "")
-    }
-  }
-  invisible(x)
-}
-
-.tiene_bytes_no_utf8 <- function(x) {
-  if (is.character(x)) {
-    if (!length(x)) return(FALSE)
-    return(any(!is.na(x) & is.na(iconv(x, from = "UTF-8", to = "UTF-8", sub = NA))))
-  }
-  if (is.factor(x)) return(.tiene_bytes_no_utf8(levels(x)))
-  if (is.list(x)) {
-    if (!length(x)) return(FALSE)
-    return(any(vapply(x, .tiene_bytes_no_utf8, logical(1L))))
-  }
-  FALSE
-}
-
-.data_frame_con_bytes_no_utf8 <- function(x) {
-  if (.tiene_bytes_no_utf8(names(x))) return(TRUE)
-  etiquetas <- attr(x, "row.names")
-  if (is.character(etiquetas) && .tiene_bytes_no_utf8(etiquetas)) return(TRUE)
-  .tiene_bytes_no_utf8(unclass(x))
-}
 
 .print_data_frame_bytes <- function(x, row.names = TRUE, ...) {
   if (!inherits(x, "data.frame")) {
     stop("x debe ser un data.frame.", call. = FALSE)
   }
-  salida <- tryCatch(
-    utils::capture.output(
-      print.data.frame(.data_frame_para_exhibir(x), row.names = row.names, ...)
-    ),
-    error = function(condicion) {
-      # El volcado por bytes existe para UNA condicion: texto que no es UTF-8
-      # valido, donde print.data.frame() no puede en ningun locale. Acotarlo por
-      # "fallo" en vez de por esa condicion lo convierte en un silenciador: se
-      # tragaba el format() de una clase del usuario y publicaba el numero
-      # crudo como si fuera el valor formateado. El mensaje no sirve de
-      # criterio, porque R lo traduce; la condicion se decide sobre el dato.
-      # La condicion se evalua DENTRO del manejador, asi que no puede fallar:
-      # recorrer el marco usa `[[`, y si una clase ajena tira error ahi, ese
-      # error nuevo taparia al original -que es la causa que el usuario
-      # necesita-. Ante la duda no hay bytes invalidos que cubrir, y se
-      # relanza lo que paso de verdad.
-      invalidos <- tryCatch(
-        .data_frame_con_bytes_no_utf8(x), error = function(e) FALSE
-      )
-      if (!isTRUE(invalidos)) stop(condicion)
-      NULL
-    }
+  # No hay camino alternativo, y esa es la decision. `.marcar_para_exhibir()`
+  # deja la copia siempre imprimible -lo valido declarado UTF-8, lo invalido
+  # escapado por bytes-, asi que un fallo de `print.data.frame()` ya no puede
+  # ser de codificacion: es del usuario, y tiene que llegarle. Cuando existia un
+  # camino alternativo se tragaba el `format()` de una clase ajena y publicaba
+  # el valor crudo como si fuera el formateado, y acotarlo por la condicion no
+  # alcanzo: con bytes invalidos Y un `format()` que falla, la condicion se
+  # cumplia y el error se perdia igual.
+  salida <- utils::capture.output(
+    print.data.frame(.data_frame_para_exhibir(x), row.names = row.names, ...)
   )
-  if (!is.null(salida)) {
-    if (length(salida)) {
-      Encoding(salida) <- "unknown"
-      cat(paste0(salida, "\n"), sep = "")
-    }
-    return(invisible(x))
+  if (length(salida)) {
+    Encoding(salida) <- "unknown"
+    cat(paste0(salida, "\n"), sep = "")
   }
-  .volcar_data_frame_bytes(x, row.names = row.names)
   invisible(x)
 }
 

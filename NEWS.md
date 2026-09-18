@@ -3,16 +3,31 @@
 ## Correcciones de cobertura y publicación
 
 - La publicación también es independiente del locale. Las propuestas de
-  proponer_modelo() y las tablas que muestran los métodos print.* ya no
-  abortan bajo LC_CTYPE = C cuando una columna de lista lleva nombres
-  acentuados. Donde print.data.frame() puede imprimir, la salida es
-  exactamente la suya: en un locale que no puede representar un carácter, R lo
-  escapa como <U+00F1> y la tabla se conserva. Si el texto no es UTF-8 válido,
-  donde print.data.frame() no puede en ningún locale, se publican los bytes en
-  vez de abortar, y esa salida no es la tabla alineada. Cualquier otro error
-  —el format() de una clase propia, por ejemplo— llega intacto al usuario. Además, la clave interna de comparar_perfiles() usa la
-  misma representación por bytes que el resto del paquete y dos perfiles
-  idénticos no emiten avisos espurios.
+  proponer_modelo() y las tablas que muestran los métodos print.* ya no fallan
+  por codificación en ningún locale, incluido LC_CTYPE = C. La copia que se
+  exhibe declara como UTF-8 lo que es UTF-8 válido —R lo escapa como <U+00F1>
+  donde el locale no lo represente— y escapa por bytes lo que no lo es, como
+  <ff>: la tabla queda alineada también en ese caso. Eso no vuelve infalible a
+  print(): si una clase del usuario tiene un format() que da error, ese error
+  le llega sin alterar, que es lo que corresponde. Y un format() que consulte
+  Encoding() verá las marcas de la copia, no las del objeto original. Además,
+  la clave interna de comparar_perfiles() usa la misma representación por bytes
+  que el resto del paquete y dos perfiles idénticos no emiten avisos espurios.
+
+- **La prosa que el paquete escribe tampoco publica bytes crudos.** Los avisos
+  y encabezados que componen texto del usuario —nombres de columna, de tabla,
+  de fuente— lo declaran antes de publicarlo. Bajo LC_CTYPE = C ya no aparecen
+  frases a medias, con el texto del paquete legible y el nombre del usuario en
+  bytes: donde el locale no puede representar un carácter, se escapa como
+  <U+00F1> en toda la línea. Una prueba recorre los canales de prosa y falla si
+  encuentra un byte crudo.
+
+- **La configuración de una corrida se compara por bytes, como sus datos.** La
+  comparación de filas de configuración de acumular_historico() usaba una
+  igualdad que consulta la codificación: dos filas con los mismos bytes y
+  distinta marca —una leída de un archivo, otra recién calculada— se
+  consideraban distintas bajo un locale no UTF-8 y abortaban la acumulación
+  entera.
 
 - **El efecto observado ya no depende de la estimación del plan.** Una acción
   seleccionada que deja `n_cambiadas = 0` se registra como `fallida` aunque

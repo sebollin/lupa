@@ -108,13 +108,13 @@
 #'
 #' @return Data frame S3 de clase `propuesta_modelo`; las columnas de listas
 #'   contienen la configuración y los vínculos sin convertirlos en texto. Su
-#'   método `print()` publica exactamente la tabla que produce
-#'   [print.data.frame()] siempre que ésta pueda producirla, también bajo
-#'   `LC_CTYPE = "C"`, donde R escapa como `<U+00F1>` los caracteres que el
-#'   locale no puede representar. Si el texto no es UTF-8 válido —el único caso
-#'   donde `print.data.frame()` no puede en ningún locale— publica los bytes en
-#'   vez de interrumpir, y esa salida ya no es la tabla alineada. Cualquier otro
-#'   error, por ejemplo el de un `format()` propio, llega intacto.
+#'   método `print()` ya no falla por codificación en ningún locale: la copia
+#'   que se exhibe declara como UTF-8 lo que es UTF-8 válido —R lo escapa como
+#'   `<U+00F1>` donde el locale no lo represente— y escapa por bytes lo que no
+#'   lo es, como `<ff>`. Eso no convierte a `print()` en infalible: si una
+#'   clase suya tiene un método `format()` que da error, ese error le llega sin
+#'   alterar. Y un `format()` que consulte `Encoding()` verá las marcas de la
+#'   copia, no las del objeto original.
 #' @export
 #'
 #' @seealso [perfilar()], [detectar_dependencias()], [modelo_desde_propuesta()],

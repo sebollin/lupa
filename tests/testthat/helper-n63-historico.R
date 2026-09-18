@@ -39,7 +39,13 @@
   modo <- args[[1L]]
   locale <- args[[2L]]
   .n63_set_locale(locale)
-  pkgload::load_all("../..", quiet = TRUE)
+  # El hijo carga el paquete INSTALADO, no la fuente. Bajo `R CMD check` -que es
+  # la corrida que decide- ese instalado es exactamente el que check acaba de
+  # construir, y no arrastra una dependencia de desarrollo al paquete que viaja.
+  # Se imprime de donde salio para que un desajuste se vea en el fallo y no haya
+  # que adivinarlo; ver la leccion de medir contra la biblioteca equivocada.
+  suppressPackageStartupMessages(library(lupa))
+  cat("lib=", dirname(system.file(package = "lupa")), "\n", sep = "")
 
   if (identical(modo, "guardar")) {
     guardar_historico(.n63_crear_historico(), args[[3L]], sobrescribir = TRUE)

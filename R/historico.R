@@ -207,7 +207,23 @@
   for (clave in compartidas) {
     i <- match(clave, clave_nuevo)
     j <- match(clave, clave_anterior)
-    if (!isTRUE(all.equal(nuevo[i, , drop = FALSE], anterior[j, , drop = FALSE],
+    lado_nuevo <- nuevo[i, , drop = FALSE]
+    lado_anterior <- anterior[j, , drop = FALSE]
+    # La hermana de esta comparacion -la de filas de datos, en
+    # `.combinar_historico()`- normaliza por bytes sus columnas de texto, y esta
+    # se habia quedado con `all.equal()` plano. Dos filas con los mismos bytes y
+    # distinta marca de codificacion -que es lo que pasa cuando una viene de un
+    # RDS y la otra se acaba de calcular- se comparan distintas bajo un locale
+    # no UTF-8. Arreglar un lado de una comparacion y dejar el otro es como se
+    # cuelan estos defectos.
+    for (nombre in intersect(names(lado_anterior), names(lado_nuevo))) {
+      if (is.character(lado_anterior[[nombre]]) &&
+          is.character(lado_nuevo[[nombre]])) {
+        lado_anterior[[nombre]] <- .clave_bytes(lado_anterior[[nombre]])
+        lado_nuevo[[nombre]] <- .clave_bytes(lado_nuevo[[nombre]])
+      }
+    }
+    if (!isTRUE(all.equal(lado_nuevo, lado_anterior,
                          check.attributes = FALSE))) {
       stop(
         "Una corrida ya existente tiene una configuraci\u00f3n diferente: ",

@@ -32,13 +32,13 @@ extensión.}
 \value{
 Data frame S3 de clase \code{propuesta_modelo}; las columnas de listas
 contienen la configuración y los vínculos sin convertirlos en texto. Su
-método \code{print()} publica exactamente la tabla que produce
-\code{\link[=print.data.frame]{print.data.frame()}} siempre que ésta pueda producirla, también bajo
-\code{LC_CTYPE = "C"}, donde R escapa como \verb{<U+00F1>} los caracteres que el
-locale no puede representar. Si el texto no es UTF-8 válido —el único caso
-donde \code{print.data.frame()} no puede en ningún locale— publica los bytes en
-vez de interrumpir, y esa salida ya no es la tabla alineada. Cualquier otro
-error, por ejemplo el de un \code{format()} propio, llega intacto.
+método \code{print()} ya no falla por codificación en ningún locale: la copia
+que se exhibe declara como UTF-8 lo que es UTF-8 válido —R lo escapa como
+\verb{<U+00F1>} donde el locale no lo represente— y escapa por bytes lo que no
+lo es, como \verb{<ff>}. Eso no convierte a \code{print()} en infalible: si una
+clase suya tiene un método \code{format()} que da error, ese error le llega sin
+alterar. Y un \code{format()} que consulte \code{Encoding()} verá las marcas de la
+copia, no las del objeto original.
 }
 \description{
 Construye el puente entre el examen de datos y la medición. El resultado no

@@ -11,6 +11,21 @@
             setNames(rep(locale, length(categorias)), categorias))
 }
 
+# Los mismos textos que arman los objetos del fixture. Se enumeran aqui para
+# poder anclar el lado UTF-8 contra los bytes de entrada, sin normalizacion de
+# por medio.
+.textos_esperados_n63 <- function() {
+  # Solo los que estos metodos PUBLICAN. `print.marco_calidad()` muestra el
+  # conteo de dimensiones y de factores, no sus nombres, asi que `dimension` y
+  # `factor` no aparecen nunca y exigirlos seria una prueba que falla por el
+  # instrumento y no por el paquete. Medido antes de escribir la lista.
+  vapply(
+    c("se\u00f1al_medici\u00f3n", "organizaci\u00f3n", "tabla_a\u00f1o",
+      "marco_a\u00f1o", "origen_medici\u00f3n"),
+    .sin_marca_n63, character(1L), USE.NAMES = FALSE
+  )
+}
+
 .normalizar_escape_cli_n63 <- function(salida) {
   lapply(salida, function(linea) {
     reemplazar <- function(linea, patron, extraer) {
@@ -89,6 +104,19 @@ test_that("los textos de usuario que publica cli no vuelven a bytes crudos", {
       expect_false(grepl("<c3>|<b1>|<b3>", texto, perl = TRUE))
     }
   }
+  # La comparacion entre locales pasa por una normalizacion de escapes, y una
+  # normalizacion puede igualar cosas distintas: `a<U+00F1>o` escrito literal
+  # por el usuario y la `a\u00f1o` real quedan iguales. Por eso el lado UTF-8
+  # se ancla ademas contra los BYTES de entrada, que no pasan por ninguna
+  # normalizacion: si el paquete alterara el texto del usuario, este expect lo
+  # ve aunque el otro no.
+  texto_utf8 <- paste(unlist(salidas[[1L]]), collapse = "\n")
+  for (esperado in .textos_esperados_n63()) {
+    expect_true(
+      grepl(esperado, texto_utf8, fixed = TRUE, useBytes = TRUE),
+      info = esperado
+    )
+  }
   expect_identical(
     lapply(salidas[[1L]], .normalizar_escape_cli_n63),
     lapply(salidas[[2L]], .normalizar_escape_cli_n63)
@@ -102,6 +130,13 @@ test_that("el punto de marcado solo declara UTF-8 valido para cli", {
 
   expect_identical(charToRaw(resultado$valido), charToRaw(valido))
   expect_identical(Encoding(resultado$valido), "UTF-8")
-  expect_identical(charToRaw(resultado$invalido), charToRaw(invalido))
+  # Lo que NO es UTF-8 valido no se puede declarar, asi que se escapa por bytes:
+  # `a<ff>o`, que es ASCII y por lo tanto publicable en cualquier locale. Antes
+  # se dejaba crudo, y con eso `cli` podia abortar en un locale UTF-8.
+  expect_identical(
+    charToRaw(resultado$invalido),
+    charToRaw(iconv(invalido, from = "UTF-8", to = "UTF-8", sub = "byte"))
+  )
+  expect_true(all(as.integer(charToRaw(resultado$invalido)) < 128L))
   expect_identical(Encoding(resultado$invalido), Encoding(invalido))
 })

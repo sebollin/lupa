@@ -244,6 +244,11 @@ test_that("el formateo fijo respeta OutDec", {
 })
 
 test_that("la evidencia decimal usa una sola marca con OutDec", {
+  # La deteccion se apoya en stringdist, que esta en Suggests: bajo
+  # `_R_CHECK_DEPENDS_ONLY_=true` -que es como corre CRAN- no existe, no hay
+  # hallazgos, y la prueba indexaba vacio. Aparecio en el check, nunca en la
+  # suite local.
+  skip_if_not_installed("stringdist")
   opciones <- options(OutDec = ".")
   on.exit(options(opciones), add = TRUE)
   datos <- data.frame(
@@ -542,22 +547,61 @@ test_that("el ultimo recurso del impresor no se traga errores ajenos", {
   )
 })
 
-test_that("el ultimo recurso si cubre los bytes que no son UTF-8 validos", {
+test_that("los bytes que no son UTF-8 validos se escapan y la tabla se conserva", {
   imprimir <- getFromNamespace(".print_data_frame_bytes", "lupa")
 
-  # Estos bytes no son UTF-8 valido, asi que no se pueden marcar y
-  # print.data.frame() no puede con ellos en ningun locale. Ahi el volcado es
-  # el ultimo recurso honesto: publicar los bytes en vez de abortar.
-  crudo <- rawToChar(as.raw(c(0x61L, 0xf1L, 0x6fL)))
+  # Estos bytes no son UTF-8 valido, asi que no se pueden declarar. Se escapan
+  # por bytes -<ff>-, que es ASCII: la copia de exhibicion queda imprimible en
+  # cualquier locale y la tabla sigue siendo una tabla alineada, no un volcado.
+  crudo <- rawToChar(as.raw(c(0x41L, 0xffL, 0x42L)))
   expect_false(all(validUTF8(crudo)))
   con_bytes_invalidos <- data.frame(n = 1L)
-  con_bytes_invalidos[["valor"]] <- I(list(
-    rep(paste(rep(crudo, 30L), collapse = " "), 3L)
-  ))
+  con_bytes_invalidos[["valor"]] <- I(list(rep(crudo, 3L)))
 
   expect_error(capture.output(print.data.frame(con_bytes_invalidos)))
   salida <- capture.output(imprimir(con_bytes_invalidos))
   expect_gt(length(salida), 1L)
+  expect_true(any(grepl("A<ff>B", salida, fixed = TRUE)))
+  expect_false(any(grepl("\t", salida, fixed = TRUE)))
+})
+
+test_that("el error ajeno llega aunque tambien haya bytes invalidos", {
+  imprimir <- getFromNamespace(".print_data_frame_bytes", "lupa")
+
+  # El caso que tumbo la version anterior del arreglo: la condicion que
+  # habilitaba el camino alternativo -hay bytes invalidos- se cumplia, pero el
+  # error que habia disparado el fallo era del usuario. Ahora no hay camino
+  # alternativo, asi que no hay donde perderlo.
+  registerS3method(
+    "format", "ambos_n64",
+    function(x, ...) stop("ERROR_AJENO_N64", call. = FALSE),
+    envir = environment()
+  )
+  crudo <- rawToChar(as.raw(c(0x41L, 0xffL, 0x42L)))
+  mezcla <- data.frame(n = 1:3, stringsAsFactors = FALSE)
+  mezcla$invalido <- rep(crudo, 3L)
+  mezcla$roto <- structure(c(1, 2, 3), class = "ambos_n64")
+
+  expect_error(capture.output(imprimir(mezcla)), "ERROR_AJENO_N64")
+})
+
+test_that("imprimir no le cambia la marca a un objeto de referencia", {
+  marcar <- getFromNamespace(".marcar_objeto_para_exhibir", "lupa")
+
+  # Un environment no se copia: escribirle los atributos marcados le cambia el
+  # objeto al usuario. Medido contra su control, print() de base lo deja como
+  # estaba.
+  sin_marca <- rawToChar(charToRaw("a\u00f1o_medici\u00f3n"))
+  referencia <- new.env(parent = emptyenv())
+  attr(referencia, "texto") <- sin_marca
+  expect_identical(Encoding(attr(referencia, "texto")), "unknown")
+
+  invisible(marcar(referencia))
+  expect_identical(Encoding(attr(referencia, "texto")), "unknown")
+
+  anidado <- list(hoja = referencia)
+  invisible(marcar(anidado))
+  expect_identical(Encoding(attr(referencia, "texto")), "unknown")
 })
 
 test_that("el error ajeno llega intacto aunque recorrer la columna tambien falle", {

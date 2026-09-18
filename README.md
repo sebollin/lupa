@@ -21,14 +21,14 @@ cleanup on a copy, and follow changes over time. It is useful when a
 than one way, whether a missing value is hiding behind a code, or which rows
 need to be checked in the source system.
 
-Printed results no longer abort under LC_CTYPE = C, and wherever
-print.data.frame() can print they publish exactly its table: in a locale that
-cannot represent a character, R escapes it as <U+00F1>. When the text is not
-valid UTF-8 — the one case where print.data.frame() cannot print in any locale
-— the bytes are published instead of interrupting, and that output is no longer
-the aligned table. This includes the list columns in the propuesta_modelo
-returned by proponer_modelo(); comparing two identical profiles also stays
-silent in that locale.
+Printed results no longer fail because of encoding in any locale, LC_CTYPE = C
+included. The displayed copy declares as UTF-8 whatever is valid UTF-8 — R
+escapes it as <U+00F1> wherever the locale cannot represent it — and escapes
+the rest byte by byte, as <ff>, so the table stays aligned there too. That does
+not make printing infallible: if one of your classes has a format() method that
+raises an error, that error reaches you unaltered. This includes the list
+columns in the propuesta_modelo returned by proponer_modelo(); comparing two
+identical profiles also stays silent in that locale.
 ## What does it tell me that `summary()` does not?
 
 `summary()` describes columns one at a time. `lupa` compares representations,

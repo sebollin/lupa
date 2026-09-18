@@ -24,8 +24,10 @@
     "source('helper-n63-historico.R');",
     ".n63_child(commandArgs(trailingOnly = TRUE))"
   )
+  # `Rscript` a secas esta prohibido bajo `R CMD check` -Writing R Extensions,
+  # par. 1.6- y la suite local no lo ve: 56 fallos aparecieron solo en el check.
   salida <- system2(
-    "Rscript",
+    file.path(R.home("bin"), "Rscript"),
     c("-e", shQuote(expresion), "--args", modo, locale, ...),
     stdout = TRUE, stderr = TRUE
   )
@@ -40,8 +42,13 @@
 test_that("historico cruza locales en dos procesos y conserva el veredicto", {
   locale_utf8 <- .n63_locale_utf8()
   if (is.null(locale_utf8)) skip("no hay un locale UTF-8 disponible")
-  dir <- file.path("..", "..", "notas-desarrollo", ".trabajo-agente")
+  # Solo el directorio temporal de la sesion. Escribir en el arbol -aunque sea
+  # `../../notas-desarrollo`- deja restos que `R CMD check` denuncia como
+  # "non-standard things in the check directory", y ademas crea la carpeta
+  # dentro del repositorio del paquete.
+  dir <- tempfile("n63-historico-")
   dir.create(dir, recursive = TRUE, showWarnings = FALSE)
+  on.exit(unlink(dir, recursive = TRUE), add = TRUE)
   etiqueta <- paste0("n63-historico-", Sys.getpid())
   archivo_u8 <- file.path(dir, paste0(etiqueta, "-u8.rds"))
   archivo_c <- file.path(dir, paste0(etiqueta, "-c.rds"))
@@ -67,8 +74,13 @@ test_that("historico cruza locales en dos procesos y conserva el veredicto", {
 test_that("acumular acepta la propia corrida guardada en ambas direcciones", {
   locale_utf8 <- .n63_locale_utf8()
   if (is.null(locale_utf8)) skip("no hay un locale UTF-8 disponible")
-  dir <- file.path("..", "..", "notas-desarrollo", ".trabajo-agente")
+  # Solo el directorio temporal de la sesion. Escribir en el arbol -aunque sea
+  # `../../notas-desarrollo`- deja restos que `R CMD check` denuncia como
+  # "non-standard things in the check directory", y ademas crea la carpeta
+  # dentro del repositorio del paquete.
+  dir <- tempfile("n63-historico-")
   dir.create(dir, recursive = TRUE, showWarnings = FALSE)
+  on.exit(unlink(dir, recursive = TRUE), add = TRUE)
   etiqueta <- paste0("n63-acumular-", Sys.getpid())
   guardados <- file.path(dir, paste0(etiqueta, c("-u8.rds", "-c.rds")))
   propios <- file.path(dir, paste0(etiqueta, c("-propio-c.rds", "-propio-u8.rds")))
@@ -89,8 +101,13 @@ test_that("acumular acepta la propia corrida guardada en ambas direcciones", {
 test_that("comparar_perfiles conserva cero filas y cero avisos en ocho cruces", {
   locale_utf8 <- .n63_locale_utf8()
   if (is.null(locale_utf8)) skip("no hay un locale UTF-8 disponible")
-  dir <- file.path("..", "..", "notas-desarrollo", ".trabajo-agente")
+  # Solo el directorio temporal de la sesion. Escribir en el arbol -aunque sea
+  # `../../notas-desarrollo`- deja restos que `R CMD check` denuncia como
+  # "non-standard things in the check directory", y ademas crea la carpeta
+  # dentro del repositorio del paquete.
+  dir <- tempfile("n63-historico-")
   dir.create(dir, recursive = TRUE, showWarnings = FALSE)
+  on.exit(unlink(dir, recursive = TRUE), add = TRUE)
   etiqueta <- paste0("n63-perfiles-", Sys.getpid())
   archivos <- file.path(dir, paste0(etiqueta, c("-u8.rds", "-c.rds")))
   on.exit(unlink(archivos), add = TRUE)
@@ -105,4 +122,51 @@ test_that("comparar_perfiles conserva cero filas y cero avisos en ocho cruces", 
       )
     }
   }
+})
+
+test_that("la fila de configuracion se compara por bytes, como la de datos", {
+  # `8926292` le dio normalizacion por bytes a la comparacion de filas de DATOS
+  # y dejo la de filas de CONFIGURACION con `all.equal()` plano. Dos filas con
+  # los mismos bytes y distinta marca -lo que pasa cuando una viene de un RDS y
+  # la otra se acaba de calcular- se comparaban distintas bajo un locale no
+  # UTF-8, y eso aborta toda la acumulacion.
+  categorias <- c("LC_CTYPE", "LC_COLLATE")
+  originales <- stats::setNames(
+    vapply(categorias, Sys.getlocale, character(1L)), categorias
+  )
+  on.exit(
+    for (categoria in categorias) {
+      suppressWarnings(Sys.setlocale(categoria, originales[[categoria]]))
+    },
+    add = TRUE
+  )
+  for (categoria in categorias) suppressWarnings(Sys.setlocale(categoria, "C"))
+  if (!identical(Sys.getlocale("LC_CTYPE"), "C")) {
+    skip("no se pudo fijar LC_CTYPE = C en esta maquina")
+  }
+
+  sin_marca <- rawToChar(charToRaw("B\u00e1sico"))
+  con_marca <- sin_marca
+  Encoding(con_marca) <- "UTF-8"
+  expect_identical(charToRaw(sin_marca), charToRaw(con_marca))
+
+  fila <- function(perfil) {
+    data.frame(
+      id_medicion = "Zebra_2", perfil = perfil,
+      configuracion_modelo = rawToChar(charToRaw("modelo_a\u00f1o")),
+      stringsAsFactors = FALSE
+    )
+  }
+  cruda <- fila(sin_marca)
+  marcada <- fila(con_marca)
+
+  # El caso que hacia fallar la comparacion vieja.
+  expect_false(isTRUE(all.equal(cruda, marcada, check.attributes = FALSE)))
+
+  clave_bytes <- getFromNamespace(".clave_bytes", "lupa")
+  for (nombre in names(cruda)) {
+    cruda[[nombre]] <- clave_bytes(cruda[[nombre]])
+    marcada[[nombre]] <- clave_bytes(marcada[[nombre]])
+  }
+  expect_true(isTRUE(all.equal(cruda, marcada, check.attributes = FALSE)))
 })

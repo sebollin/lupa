@@ -43,6 +43,11 @@
 }
 
 test_that("la evidencia de duplicados conserva los bytes del nombre", {
+  # La deteccion se apoya en stringdist, que esta en Suggests: bajo
+  # `_R_CHECK_DEPENDS_ONLY_=true` -que es como corre CRAN- no existe, no hay
+  # hallazgos, y la prueba indexaba vacio. Aparecio en el check, nunca en la
+  # suite local.
+  skip_if_not_installed("stringdist")
   estado <- .localizar_n62()
   if (is.null(estado)) skip("no hay ningun locale UTF-8 disponible en esta maquina")
   on.exit(for (categoria in estado$categorias) {

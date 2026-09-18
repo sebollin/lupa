@@ -35,11 +35,14 @@
     round(proyeccion$celdas), big.mark = ".", decimal.mark = ",",
     scientific = FALSE, trim = TRUE
   )
-  cli::cli_alert_warning(paste0(
+  # `fuente` viene del usuario, asi que la frase entera pasa por el marcado
+  # antes de publicarse: sin eso, bajo `LC_CTYPE = C` salia `f_a<c3><b1>o`,
+  # los bytes crudos, mientras el texto del paquete salia legible.
+  cli::cli_alert_warning(.marcar_para_exhibir(paste0(
     "Costo estimado del perfilado de tabla ancha: ~", segundos,
     " s para ", celdas, " celdas. Fuente: ", proyeccion$fuente,
     ". Es una estimacion, no una medicion."
-  ))
+  )))
   invisible(NULL)
 }
 
