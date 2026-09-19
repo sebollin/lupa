@@ -12,7 +12,14 @@ perfil descriptivo sobre cuyos factores se informa cobertura.}
 
 \item{medicion}{\strong{Segundo argumento, opcional.} Objeto creado por
 \code{\link[=medir]{medir()}}, con métricas ejecutadas que pueden completar esa cobertura.
-No es un perfil creado por \code{\link[=perfilar]{perfilar()}}.}
+No es un perfil creado por \code{\link[=perfilar]{perfilar()}}.
+
+\strong{La correspondencia entre los dos objetos es suya, no del paquete.} La
+cobertura aparea por dimensión y factor, y no verifica que la medición
+provenga de la tabla que se perfiló: si le pasa una medición de otra
+tabla, el factor va a figurar como medido por esa corrida. El paquete no
+puede comprobarlo porque un perfil no guarda una identidad de tabla
+comparable con la entidad de la medición.}
 
 \item{modelo}{\strong{Tercer argumento.} Objeto creado por \code{\link[=marco_calidad]{marco_calidad()}} que
 actúa como referencia conceptual. El nombre enfatiza que no es el modelo

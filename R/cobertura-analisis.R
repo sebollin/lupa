@@ -86,6 +86,13 @@
 #' @param medicion **Segundo argumento, opcional.** Objeto creado por
 #'   [medir()], con métricas ejecutadas que pueden completar esa cobertura.
 #'   No es un perfil creado por [perfilar()].
+#'
+#'   **La correspondencia entre los dos objetos es suya, no del paquete.** La
+#'   cobertura aparea por dimensión y factor, y no verifica que la medición
+#'   provenga de la tabla que se perfiló: si le pasa una medición de otra
+#'   tabla, el factor va a figurar como medido por esa corrida. El paquete no
+#'   puede comprobarlo porque un perfil no guarda una identidad de tabla
+#'   comparable con la entidad de la medición.
 #' @param modelo **Tercer argumento.** Objeto creado por [marco_calidad()] que
 #'   actúa como referencia conceptual. El nombre enfatiza que no es el modelo
 #'   operativo creado por [modelo()] que recibe [medir()].
@@ -164,11 +171,32 @@ cobertura_analisis <- function(perfil, medicion = NULL,
   # cobertura que acompana al analisis seguia afirmando que se midio. Lo no
   # medido tiene que aparecer como no medido en la capa donde se publica.
   filas <- suppressWarnings(as.numeric(perfil$meta$filas_totales))
-  if (length(filas) == 1L && !is.na(filas) && filas == 0) {
+  sin_filas <- length(filas) == 1L && !is.na(filas) && filas == 0
+  # Y el otro modo de no haber examinado nada: hay filas, pero NINGUNA columna
+  # pudo resumirse -una columna matriz queda `desconocido` y sus resumenes en
+  # NA-. El estado salia `medida` igual, porque se asignaba desde el mapa de
+  # capacidades del marco sin consultar si el resumen existe. Los dos casos son
+  # el mismo: el perfil no midio, y decir que midio es la afirmacion que este
+  # paquete existe para no hacer.
+  faltantes <- if (is.data.frame(perfil$columnas) &&
+                   "n_faltantes" %in% names(perfil$columnas)) {
+    perfil$columnas$n_faltantes
+  } else {
+    NULL
+  }
+  sin_resumen <- !is.null(faltantes) && length(faltantes) > 0L &&
+    all(is.na(faltantes))
+  if (sin_filas || sin_resumen) {
     sin_observaciones <- factores$estado == "medida"
     factores$estado[sin_observaciones] <- "no_aplica"
-    factores$motivo[sin_observaciones] <-
+    factores$motivo[sin_observaciones] <- if (sin_filas) {
       "La tabla no tiene filas: no hubo nada que examinar para este factor."
+    } else {
+      paste0(
+        "Ninguna columna pudo resumirse: el perfil no obtuvo evidencia para ",
+        "este factor."
+      )
+    }
   }
 
   if (!is.null(medicion)) {

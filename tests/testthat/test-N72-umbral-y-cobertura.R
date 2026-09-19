@@ -137,3 +137,58 @@ test_that("un perfil sin filas no desmiente una medicion real", {
   # sobre dos filas medidas.
   expect_identical(densidad(cobertura_analisis(vacio, medicion)), "medida")
 })
+
+test_that("las cuatro columnas del veredicto de deriva comparten una regla", {
+  alcanza <- getFromNamespace(".alcanza_umbral_deriva", "lupa")
+
+  # `significativo` se arreglo con la tolerancia relativa y `direccion`,
+  # `severidad` y `descripcion` quedaron con los cortes viejos: una misma fila
+  # publicaba significativo TRUE, direccion "mejora", severidad "error" y "el
+  # resultado se mantuvo" sobre un DETERIORO diminuto. La direccion sale del
+  # signo, no de comparar el delta firmado contra un corte que puede ser
+  # negativo.
+  expect_true(alcanza(1e-20, 1e-20))
+  # Un deterioro de UN umbral no alcanza los dos: sospechoso, no error.
+  expect_false(alcanza(1e-20, 2e-20))
+  # Y la tolerancia escala con las magnitudes: con un piso fijo, el corte de
+  # dos umbrales tambien se cumplia y todo deterioro diminuto salia "error".
+  expect_true(alcanza(0.05, 0.05))
+  expect_false(alcanza(0.05, 0.10))
+})
+
+test_that("una columna que el perfil no pudo resumir no se declara medida", {
+  densidad <- function(perfil) {
+    cobertura <- cobertura_analisis(perfil)
+    indice <- which(
+      cobertura$dimension == "Completitud" & grepl("Densidad", cobertura$factor)
+    )
+    skip_if(!length(indice), "el marco no trae Completitud/Densidad")
+    as.character(cobertura$estado[indice[[1L]]])
+  }
+  perfilar_callado <- function(datos) {
+    suppressWarnings(perfilar(
+      datos, analizar_dependencias = FALSE, proteger_datos_personales = FALSE
+    ))
+  }
+
+  # Una columna matriz queda `desconocido` y sus resumenes en NA: hay filas,
+  # pero el perfil no obtuvo evidencia. El estado salia `medida` igual, porque
+  # se asignaba desde el mapa de capacidades sin consultar si el resumen existe.
+  sin_resumen <- perfilar_callado(data.frame(x = I(matrix(1:6, nrow = 3))))
+  expect_true(all(is.na(sin_resumen$columnas$n_faltantes)))
+  expect_identical(densidad(sin_resumen), "no_aplica")
+
+  # Los dos controles: sin filas tambien, y con datos normales sigue medida.
+  expect_identical(
+    densidad(perfilar_callado(
+      data.frame(x = character(0), stringsAsFactors = FALSE)
+    )),
+    "no_aplica"
+  )
+  expect_identical(
+    densidad(perfilar_callado(
+      data.frame(x = c("a", NA, "b"), stringsAsFactors = FALSE)
+    )),
+    "medida"
+  )
+})

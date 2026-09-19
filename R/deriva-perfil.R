@@ -340,7 +340,10 @@
   # La tolerancia es RELATIVA al umbral: absorbe el error de la resta -0,70
   # menos 0,65 da 0,049999999999999933- sin mover el corte cuando el umbral es
   # chico o cero.
-  tolerancia <- sqrt(.Machine$double.eps) * max(1, abs(umbral))
+  # Escala con las MAGNITUDES en juego, no con un piso de 1: el error de la
+  # resta es del orden de `eps * max(|a|, |b|)`, y un piso fijo se traga
+  # cambios reales cuando el umbral es diminuto.
+  tolerancia <- sqrt(.Machine$double.eps) * max(abs(magnitud), abs(umbral))
   if (length(magnitud) != 1L || is.na(magnitud)) return(FALSE)
   if (is.infinite(magnitud)) return(TRUE)
   # Una diferencia EXACTAMENTE nula no es un cambio, con ningun umbral. Eso es

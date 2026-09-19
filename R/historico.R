@@ -885,33 +885,39 @@ detectar_deriva_calidad <- function(historico, nivel = c("perfil", "regla"),
     # asi que dos pares que publican el mismo `delta = 0.05` recibian "estable" y
     # "mejora". Que la misma operacion se compare con tolerancia en un archivo y
     # sin ella en otro no es una decision: es una inconsistencia.
-    tolerancia <- sqrt(.Machine$double.eps) * max(1, abs(umbral))
-    # Y una diferencia exactamente nula NO es un cambio,
-    # por chico que sea el umbral. Sin esta condicion, un `umbral` menor que la
-    # tolerancia -1e-20 es valido segun el contrato- volvia negativo el corte
-    # `umbral - tolerancia`, asi que un delta CERO entraba a la vez por la rama
-    # de "mejora" y por la de "error" mientras la descripcion decia que el
-    # resultado se habia mantenido. Tres afirmaciones incompatibles en la misma
-    # fila.
-    # Exactamente cero, no "por debajo del ruido": un piso absoluto borraba
-    # cambios legitimamente diminutos -un 1e-10 con `umbral = 1e-20`, que el
-    # contrato deja pedir-. Y la tolerancia del corte es relativa al umbral,
-    # para absorber el error de la resta sin mover el corte cuando es chico.
-    distinguible <- is.finite(delta) & delta != 0
-    significativo <- distinguible & abs(delta) >= umbral - tolerancia
+    # UNA regla para las cuatro columnas que publican el veredicto. Estaban
+    # escritas por separado y dejaron de compartir semantica: `significativo`
+    # se arreglo con la tolerancia relativa y `direccion`, `severidad` y
+    # `descripcion` quedaron con los cortes viejos, asi que una misma fila
+    # publicaba significativo = TRUE, direccion "mejora", severidad "error" y
+    # "el resultado se mantuvo" sobre un DETERIORO diminuto.
+    #
+    # Dos decisiones, y las dos costaron una vuelta cada una:
+    #   - la direccion sale del SIGNO, no de comparar el delta firmado contra
+    #     `umbral - tolerancia`: con un umbral chico ese corte es negativo y un
+    #     delta negativo entraba por "mejora";
+    #   - la tolerancia escala con las MAGNITUDES en juego, no con un piso de 1.
+    #     El error de `b - a` es del orden de `eps * max(|a|, |b|)`; un piso fijo
+    #     se traga cambios reales cuando el umbral es diminuto.
+    alcanza <- function(corte) {
+      # `pmax`, no `max`: `delta` es un VECTOR -una fila por par- y `max()`
+      # colapsa el grupo entero. La tolerancia de cada fila salia del delta
+      # mas grande del grupo, y un solo delta `NA` -una medicion sin
+      # evaluar- dejaba el veredicto de TODAS las filas del grupo en `NA`:
+      # un deterioro de 0,9 a 0,7, cuatro veces el umbral, se publicaba con
+      # las cuatro columnas vacias. Una fila se decide con su propio delta,
+      # como ya lo hacia `.dentro_tolerancia_aritmetica()` con `pmax`.
+      tolerancia <- sqrt(.Machine$double.eps) *
+        pmax(abs(delta), abs(corte), na.rm = TRUE)
+      is.finite(delta) & delta != 0 & abs(delta) >= corte - tolerancia
+    }
+    significativo <- alcanza(umbral)
     direccion <- ifelse(
-      !distinguible, "estable",
-      ifelse(
-        delta >= umbral - tolerancia, "mejora",
-        ifelse(delta <= -(umbral - tolerancia), "deterioro", "estable")
-      )
+      !significativo, "estable", ifelse(delta > 0, "mejora", "deterioro")
     )
     severidad <- ifelse(
-      !distinguible, "ok",
-      ifelse(
-        delta <= -(2 * umbral - tolerancia), "error",
-        ifelse(delta <= -(umbral - tolerancia), "sospechoso", "ok")
-      )
+      !significativo | delta > 0, "ok",
+      ifelse(alcanza(2 * umbral), "error", "sospechoso")
     )
     regular <- data.frame(
       nivel = rep(nivel, length(a)), perfil = datos$perfil[a],
@@ -953,9 +959,12 @@ detectar_deriva_calidad <- function(historico, nivel = c("perfil", "regla"),
             is.na(datos$resultado[b]),
             "No se puede comparar: el resultado actual no se evalu\u00f3.",
             ifelse(
-              abs(delta) <= sqrt(.Machine$double.eps),
-              "El resultado de la evaluaci\u00f3n se mantuvo.",
-              "Cambi\u00f3 el resultado de la evaluaci\u00f3n."
+              # La misma regla que decide el veredicto, no un piso absoluto
+              # aparte: con un piso propio la descripcion decia "se mantuvo"
+              # sobre una fila que publicaba un cambio significativo.
+              significativo,
+              "Cambi\u00f3 el resultado de la evaluaci\u00f3n.",
+              "El resultado de la evaluaci\u00f3n se mantuvo."
             )
           )
         )
