@@ -36,8 +36,8 @@ grupos donde ningún diagnóstico tiene soporte.}
 \value{
 Data frame de clase \code{hallazgos_por_grupo} con las columnas de
 \code{hallazgos} de \code{\link[=perfilar]{perfilar()}} precedidas por \code{grupo} y \code{n_filas_grupo}. El
-atributo \code{cobertura_grupos} declara los grupos no perfilados y las columnas
-descartadas por grupo.
+atributo \code{cobertura_grupos} declara los grupos no perfilados, las columnas
+enteramente ausentes y las declaraciones recortadas por grupo.
 
 El atributo \code{etiquetas_personales} declara si la columna de agrupación
 lleva datos personales. Las etiquetas de grupo \strong{son} valores de esa
@@ -50,9 +50,16 @@ por una columna seudonimizada. El atributo queda vacío cuando la columna no
 lleva datos personales, y también cuando \code{proteger_datos_personales} es
 \code{FALSE}, porque entonces ya está declarado que se quieren los valores. Si el
 léxico no reconoce el nombre de la columna, decláresela con
-\code{columnas_personales}: ese argumento —como \code{columnas_opcionales}, \code{clave} y
-\code{aplicabilidad}— puede nombrar la columna de agrupación, y se recorta de lo
-que se envía a \code{\link[=perfilar]{perfilar()}} para cada grupo, donde esa columna ya no está.
+\code{columnas_personales}: ese argumento —como \code{columnas_opcionales}, \code{clave},
+\code{columnas_sin_ceros}, \code{columnas_no_negativas} y \code{aplicabilidad}— puede
+nombrar la columna de agrupación, y se recorta de lo que se envía a
+\code{\link[=perfilar]{perfilar()}} para cada grupo, donde esa columna ya no está. El recorte se
+publica por grupo en \code{cobertura_grupos$columnas_descartadas}, junto con el
+nombre de la declaración y el motivo. Para \code{aplicabilidad}, también se
+recorta una regla cuando alguna variable de su fórmula —según
+\code{all.vars()}— es una columna original ausente de la rebanada; las
+referencias que no son columnas originales se conservan como referencias
+posibles al entorno de la fórmula.
 
 El atributo \code{cobertura_diagnosticos} declara, \strong{por grupo}, los
 diagnósticos que no se evaluaron y por qué. Cada grupo se perfila por
@@ -72,8 +79,13 @@ dominios que no tienen nada que ver entre sí.
 Dentro de cada grupo se descartan las columnas enteramente ausentes antes de
 perfilar. En un modelo entidad-atributo-valor bien formado eso deja viva
 exactamente la columna de valor que corresponde al atributo del grupo, y es
-lo que evita informar como falta lo que es la forma del dato. El descarte se
-declara en la cobertura.
+lo que evita informar como falta lo que es la forma del dato. Las
+declaraciones que nombran columnas retiradas se recortan para ese grupo y el
+nombre de cada recorte, con su motivo, se declara en
+\code{cobertura_grupos$columnas_descartadas}. En \code{aplicabilidad} también se
+recorta una regla si \code{all.vars()} de su fórmula menciona una columna original
+que no está en la rebanada; una variable que no es columna de la tabla se
+conserva porque puede venir legítimamente del entorno de la fórmula.
 
 La función no adivina cuál es la columna de agrupación: la declara quien
 conoce el dato, igual que \code{\link[=perfilar]{perfilar()}} no adivina claves ni jerarquías.

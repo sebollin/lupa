@@ -9,8 +9,13 @@
 #' Dentro de cada grupo se descartan las columnas enteramente ausentes antes de
 #' perfilar. En un modelo entidad-atributo-valor bien formado eso deja viva
 #' exactamente la columna de valor que corresponde al atributo del grupo, y es
-#' lo que evita informar como falta lo que es la forma del dato. El descarte se
-#' declara en la cobertura.
+#' lo que evita informar como falta lo que es la forma del dato. Las
+#' declaraciones que nombran columnas retiradas se recortan para ese grupo y el
+#' nombre de cada recorte, con su motivo, se declara en
+#' `cobertura_grupos$columnas_descartadas`. En `aplicabilidad` también se
+#' recorta una regla si `all.vars()` de su fórmula menciona una columna original
+#' que no está en la rebanada; una variable que no es columna de la tabla se
+#' conserva porque puede venir legítimamente del entorno de la fórmula.
 #'
 #' La función no adivina cuál es la columna de agrupación: la declara quien
 #' conoce el dato, igual que [perfilar()] no adivina claves ni jerarquías.
@@ -39,8 +44,8 @@
 #'
 #' @return Data frame de clase `hallazgos_por_grupo` con las columnas de
 #'   `hallazgos` de [perfilar()] precedidas por `grupo` y `n_filas_grupo`. El
-#'   atributo `cobertura_grupos` declara los grupos no perfilados y las columnas
-#'   descartadas por grupo.
+#'   atributo `cobertura_grupos` declara los grupos no perfilados, las columnas
+#'   enteramente ausentes y las declaraciones recortadas por grupo.
 #'
 #'   El atributo `etiquetas_personales` declara si la columna de agrupación
 #'   lleva datos personales. Las etiquetas de grupo **son** valores de esa
@@ -53,9 +58,16 @@
 #'   lleva datos personales, y también cuando `proteger_datos_personales` es
 #'   `FALSE`, porque entonces ya está declarado que se quieren los valores. Si el
 #'   léxico no reconoce el nombre de la columna, decláresela con
-#'   `columnas_personales`: ese argumento —como `columnas_opcionales`, `clave` y
-#'   `aplicabilidad`— puede nombrar la columna de agrupación, y se recorta de lo
-#'   que se envía a [perfilar()] para cada grupo, donde esa columna ya no está.
+#'   `columnas_personales`: ese argumento —como `columnas_opcionales`, `clave`,
+#'   `columnas_sin_ceros`, `columnas_no_negativas` y `aplicabilidad`— puede
+#'   nombrar la columna de agrupación, y se recorta de lo que se envía a
+#'   [perfilar()] para cada grupo, donde esa columna ya no está. El recorte se
+#'   publica por grupo en `cobertura_grupos$columnas_descartadas`, junto con el
+#'   nombre de la declaración y el motivo. Para `aplicabilidad`, también se
+#'   recorta una regla cuando alguna variable de su fórmula —según
+#'   `all.vars()`— es una columna original ausente de la rebanada; las
+#'   referencias que no son columnas originales se conservan como referencias
+#'   posibles al entorno de la fórmula.
 #'
 #'   El atributo `cobertura_diagnosticos` declara, **por grupo**, los
 #'   diagnósticos que no se evaluaron y por qué. Cada grupo se perfila por
@@ -192,35 +204,9 @@ perfilar_por <- function(datos, por, clave = NULL, min_filas = 30L, ...) {
     }
   }
 
-  # La columna de agrupacion NO esta en la rebanada -se recorta antes de
-  # perfilar-, asi que un argumento que la nombre hace fallar a `perfilar()` con
-  # "nombra columnas inexistentes". Medido: fallan `columnas_personales`,
-  # `columnas_opcionales`, `clave` y `aplicabilidad`; `columnas_sin_ceros` y
-  # `columnas_no_negativas` no validan y no fallan.
-  #
-  # Nombrarla es legitimo -es una columna de la tabla que el usuario paso- y
-  # ademas es la unica forma de declarar que la columna de agrupacion lleva datos
-  # personales. Antes eso reventaba la corrida entera; ahora se recorta de lo que
-  # se reenvia, que es lo que significa: la declaracion vale para la tabla, y en
-  # la rebanada esa columna ya no esta.
-  extras_grupo <- extras
-  for (arg in c("columnas_personales", "columnas_opcionales", "clave",
-                "columnas_sin_ceros", "columnas_no_negativas")) {
-    if (arg %in% names(extras_grupo) && is.character(extras_grupo[[arg]])) {
-      extras_grupo[[arg]] <- extras_grupo[[arg]][
-        !(.nombres_para_operar(extras_grupo[[arg]]) %in%
-            .nombres_para_operar(por))
-      ]
-    }
-  }
-  if ("aplicabilidad" %in% names(extras_grupo) &&
-      !is.null(names(extras_grupo$aplicabilidad))) {
-    conservar <- !(.nombres_para_operar(names(extras_grupo$aplicabilidad)) %in%
-                     .nombres_para_operar(por))
-  extras_grupo$aplicabilidad <- extras_grupo$aplicabilidad[conservar]
-  }
-
-  # Y la `clave` declarada tiene que VIAJAR al perfilado de cada grupo. Era un
+  # La declaracion se recorta dentro de cada grupo, despues de retirar las
+  # columnas enteramente ausentes de su rebanada. La `clave` declarada tiene que
+  # VIAJAR al perfilado de cada grupo. Era un
   # argumento formal de esta funcion, asi que nunca llegaba a `extras` -que se
   # arma desde `...`- y el `perfilar()` de cada rebanada no sabia que esa columna
   # identifica filas. La unica guarda que quedaba en el camino agrupado era la de
@@ -231,11 +217,23 @@ perfilar_por <- function(datos, por, clave = NULL, min_filas = 30L, ...) {
   # publican cero. Declarada no hay nada que adivinar, y ademas el motivo pasa a
   # ser el hecho -"la clave fue declarada"- en vez de una deduccion que el
   # paquete no hizo.
-  if (!is.null(clave) && !("clave" %in% names(extras_grupo))) {
+  clave_recortada <- character()
+  if (!is.null(clave)) {
+    claves_por <- clave[
+      .nombres_para_operar(clave) %in% .nombres_para_operar(por)
+    ]
+    if (length(claves_por)) {
+      clave_recortada <- paste0(
+        claves_por,
+        " [clave: la columna de agrupacion no esta en la rebanada]"
+      )
+    }
+  }
+  if (!is.null(clave) && !("clave" %in% names(extras))) {
     clave_grupo <- clave[
       !(.nombres_para_operar(clave) %in% .nombres_para_operar(por))
     ]
-    if (length(clave_grupo)) extras_grupo$clave <- clave_grupo
+    if (length(clave_grupo)) extras$clave <- clave_grupo
   }
 
   indices_sin_por <- setdiff(seq_along(datos), indice_por)
@@ -347,6 +345,91 @@ perfilar_por <- function(datos, por, clave = NULL, min_filas = 30L, ...) {
         rebanada, which(!vacias | conservadas)
       )
     }
+    extras_grupo <- extras
+    recortes_declaracion <- clave_recortada
+    registrar_recorte <- function(texto) {
+      recortes_declaracion <<- c(recortes_declaracion, texto)
+    }
+
+    # Las declaraciones de columnas se validan contra la tabla original y se
+    # recortan contra la rebanada. Así un nombre que nunca existió sigue
+    # llegando a `perfilar()` para producir su error habitual, pero uno que sí
+    # existe y fue retirado por ausencia estructural no aborta la corrida.
+    for (arg in c("columnas_personales", "columnas_opcionales", "clave",
+                  "columnas_sin_ceros", "columnas_no_negativas")) {
+      if (!(arg %in% names(extras_grupo)) ||
+          !is.character(extras_grupo[[arg]])) next
+      declaradas <- extras_grupo[[arg]]
+      indices_original <- .indice_nombre(declaradas, names(datos))
+      indices_rebanada <- .indice_nombre(declaradas, names(rebanada))
+      recortar <- !is.na(indices_original) & is.na(indices_rebanada)
+      if (any(recortar)) {
+        for (indice in which(recortar)) {
+          registrar_recorte(paste0(
+            declaradas[[indice]], " [", arg,
+            ": la columna no esta en la rebanada]"
+          ))
+        }
+        extras_grupo[[arg]] <- declaradas[!recortar]
+      }
+    }
+
+    # El nombre del elemento de `aplicabilidad` no alcanza para saber si la
+    # regla puede viajar: la formula tambien puede mencionar la columna de
+    # agrupacion, que no esta en ninguna rebanada. `all.vars()` enumera esas
+    # referencias, pero los nombres que no son columnas de la tabla original
+    # se dejan intactos porque pueden vivir legitimamente en el entorno de la
+    # formula.
+    if ("aplicabilidad" %in% names(extras_grupo) &&
+        is.list(extras_grupo$aplicabilidad) &&
+        !is.null(names(extras_grupo$aplicabilidad))) {
+      reglas <- extras_grupo$aplicabilidad
+      nombres_reglas <- names(reglas)
+      indices_destino_original <- .indice_nombre(nombres_reglas, names(datos))
+      indices_destino_rebanada <- .indice_nombre(nombres_reglas, names(rebanada))
+      conservar <- rep(TRUE, length(reglas))
+      for (indice in seq_along(reglas)) {
+        # Un destino que nunca fue columna de la tabla original debe seguir
+        # llegando a `perfilar()` para que su validacion publique el error
+        # contractual; no se lo puede silenciar por otra variable ausente de
+        # la formula.
+        if (is.na(indices_destino_original[[indice]])) next
+        destino_falta <- !is.na(indices_destino_original[[indice]]) &&
+          is.na(indices_destino_rebanada[[indice]])
+        variables <- if (inherits(reglas[[indice]], "formula")) {
+          tryCatch(all.vars(reglas[[indice]]), error = function(e) character())
+        } else character()
+        indices_variables_original <- .indice_nombre(variables, names(datos))
+        indices_variables_rebanada <- .indice_nombre(variables, names(rebanada))
+        variables_faltantes <- variables[
+          !is.na(indices_variables_original) &
+            is.na(indices_variables_rebanada)
+        ]
+        if (!destino_falta && !length(variables_faltantes)) next
+        conservar[[indice]] <- FALSE
+        detalles <- character()
+        if (destino_falta) {
+          detalles <- c(detalles, "la columna declarada no esta en la rebanada")
+        }
+        if (length(variables_faltantes)) {
+          detalles <- c(
+            detalles,
+            paste0(
+              "la formula referencia ",
+              paste(unique(variables_faltantes), collapse = ", "),
+              ", ausente(s) de la rebanada"
+            )
+          )
+        }
+        registrar_recorte(paste0(
+          "aplicabilidad de `", nombres_reglas[[indice]], "` [",
+          paste(detalles, collapse = "; "), "]"
+        ))
+      }
+      extras_grupo$aplicabilidad <- reglas[conservar]
+    }
+
+    descartadas_publicadas <- c(descartables, recortes_declaracion)
     if (!ncol(rebanada)) {
       # El motivo dice cual de las dos cosas paso, porque no son la misma y
       # piden respuestas distintas. Con una tabla cuya unica columna es la de
@@ -361,10 +444,19 @@ perfilar_por <- function(datos, por, clave = NULL, min_filas = 30L, ...) {
           "tiene mas columnas que la de agrupacion."
         )
       }
+      if (length(recortes_declaracion)) {
+        motivo_grupo <- paste(
+          motivo_grupo,
+          paste0(
+            "Se recortaron ", length(recortes_declaracion),
+            " declaraciones porque no aplican a la rebanada."
+          )
+        )
+      }
       cobertura[[length(cobertura) + 1L]] <- data.frame(
         grupo = nombre_grupo, n_filas_grupo = length(filas),
         motivo = motivo_grupo,
-        columnas_descartadas = paste(descartables, collapse = ", "),
+        columnas_descartadas = paste(descartadas_publicadas, collapse = ", "),
         stringsAsFactors = FALSE
       )
       next
@@ -475,14 +567,31 @@ perfilar_por <- function(datos, por, clave = NULL, min_filas = 30L, ...) {
       )
       hallazgos[[length(hallazgos) + 1L]] <- fila
     }
-    if (length(descartables)) {
+    if (length(descartadas_publicadas)) {
+      motivo_descartes <- character()
+      if (length(descartables)) {
+        motivo_descartes <- c(
+          motivo_descartes,
+          paste0(
+            "Se descartaron ", length(descartables),
+            " columnas enteramente ausentes en este grupo antes de perfilar."
+          )
+        )
+      }
+      if (length(recortes_declaracion)) {
+        motivo_descartes <- c(
+          motivo_descartes,
+          paste0(
+            "Se recortaron ", length(recortes_declaracion),
+            " declaraciones porque nombraban columnas que no estan en la",
+            " rebanada."
+          )
+        )
+      }
       cobertura[[length(cobertura) + 1L]] <- data.frame(
         grupo = nombre_grupo, n_filas_grupo = length(filas),
-        motivo = paste0(
-          "Se descartaron ", length(descartables),
-          " columnas enteramente ausentes en este grupo antes de perfilar."
-        ),
-        columnas_descartadas = paste(descartables, collapse = ", "),
+        motivo = paste(motivo_descartes, collapse = " "),
+        columnas_descartadas = paste(descartadas_publicadas, collapse = ", "),
         stringsAsFactors = FALSE
       )
     }
