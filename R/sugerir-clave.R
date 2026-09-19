@@ -72,6 +72,8 @@
 #' oculta que identifica, porque es un hecho medido: se dice en el motivo y la
 #' columna queda al final del orden. Es el mismo criterio que aplica
 #' [detectar_claves()], consultado a la misma función.
+#' Las columnas compuestas —matrices o arreglos de más de una dimensión— no se
+#' ofrecen como claves ni reciben una tasa de valores distintos.
 #'
 #' @param datos Tabla a examinar.
 #' @param maximo Cuántas sugerencias devolver como máximo.
@@ -113,7 +115,8 @@ sugerir_clave <- function(datos, maximo = 5L, umbral_casi = 0.95) {
 
   filas <- lapply(names(datos), function(nombre) {
     x <- datos[[nombre]]
-    if (is.list(x) && !inherits(x, "POSIXlt")) return(NULL)
+    if (.es_columna_compuesta(x) ||
+        (is.list(x) && !inherits(x, "POSIXlt"))) return(NULL)
     n_validos <- sum(!is.na(x))
     if (!n_validos) return(NULL)
     distintos <- if (is.character(x) || is.factor(x)) {

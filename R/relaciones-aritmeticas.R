@@ -10,7 +10,13 @@
   # Una relacion aritmetica habla de magnitudes POR FILA, y una columna con
   # dimensiones no es una magnitud por fila. El paquete ya lo dice en la fila de
   # esa columna; esto lo hace valer en el analisis.
-  is.numeric(x) && is.null(dim(x)) &&
+  # `!.es_columna_compuesta(x)` y no `is.null(dim(x))`: un arreglo de UNA
+  # dimension -`I(array(x, 60))`- tiene `dim` y sigue siendo una magnitud por
+  # fila, con una fila por elemento. Excluirlo por tener `dim` dejaba al paquete
+  # con dos criterios otra vez: el perfil lo resumia como `doble` y Benford lo
+  # analizaba, mientras el alcance aritmetico lo excluia. La pregunta es si tiene
+  # MAS de una dimension, y esa pregunta ya esta escrita una sola vez.
+  is.numeric(x) && !.es_columna_compuesta(x) &&
     !inherits(x, c("Date", "POSIXt", "difftime", "integer64"))
 }
 

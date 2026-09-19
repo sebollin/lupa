@@ -1,5 +1,8 @@
 .es_clave <- function(datos, indices) {
   columnas <- lapply(indices, function(i) datos[[i]])
+  if (any(vapply(columnas, .es_columna_compuesta, logical(1L)))) {
+    return(FALSE)
+  }
   if (any(vapply(columnas, anyNA, logical(1L)))) {
     return(FALSE)
   }
@@ -15,6 +18,13 @@
 .min_filas_casi_clave <- 100L
 
 .resumen_tipo_candidato_clave <- function(x) {
+  if (.es_columna_compuesta(x)) {
+    return(list(
+      tipo_almacenamiento = typeof(x),
+      n_valores_fraccionarios_finitos = NA_integer_,
+      es_candidato = FALSE
+    ))
+  }
   es_doble_fraccionable <- is.double(x) && !inherits(x, "integer64")
   n_fraccionarios_finitos <- if (es_doble_fraccionable) {
     valores_dobles <- tryCatch(as.double(x), error = function(e) NULL)
@@ -64,7 +74,9 @@
   }
   rol <- as.character(rol[[1L]])
   vacio <- list(
-    es_casi_clave = FALSE, n_filas = length(x), n_distintos = NA_integer_,
+    es_casi_clave = FALSE,
+    n_filas = if (.es_columna_compuesta(x)) NROW(x) else length(x),
+    n_distintos = NA_integer_,
     tasa_distintos = NA_real_, n_valores_colisionados = NA_integer_,
     n_filas_en_colision = NA_integer_, n_duplicados_excedentes = NA_integer_,
     concentracion_colisiones = NA_real_, valores = character(),
@@ -77,7 +89,7 @@
     umbral_unicidad = umbral_unicidad,
     umbral_concentracion = umbral_concentracion
   )
-  if (is.matrix(x) || is.list(x) || !length(x)) return(vacio)
+  if (.es_columna_compuesta(x) || is.list(x) || !length(x)) return(vacio)
   if (!isTRUE(tipo_candidato$es_candidato)) return(vacio)
   ausentes <- tryCatch(is.na(x), error = function(e) NULL)
   if (is.null(ausentes) || length(ausentes) != length(x) || any(ausentes)) {
@@ -194,8 +206,9 @@
 #'
 #' Dos claves simples se marcan como redundantes cuando sus contenidos son
 #' idénticos —incluidas clase, atributos, ausencias y representación exacta—,
-#' aunque tengan nombres distintos. Las columnas matriciales o de lista no se
-#' interpretan como claves. Los pares también quedan en el atributo
+#' aunque tengan nombres distintos. Las columnas compuestas —matrices o
+#' arreglos de más de una dimensión— y las de lista no se interpretan como
+#' claves. Los pares también quedan en el atributo
 #' `claves_redundantes`.
 #'
 #' @param datos Objeto que hereda de `data.frame`.
@@ -233,7 +246,7 @@ detectar_claves <- function(datos, max_combinacion = 3, normalizar = NULL,
   casi_encontradas <- list()
   k <- 0L
   analizables <- which(!vapply(datos, function(x) {
-    is.list(x) || is.matrix(x) ||
+    is.list(x) || .es_columna_compuesta(x) ||
       !isTRUE(.resumen_tipo_candidato_clave(x)$es_candidato)
   }, logical(1L)))
   limite <- min(floor(max_combinacion), length(analizables))

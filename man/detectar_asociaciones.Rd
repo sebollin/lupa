@@ -51,7 +51,8 @@ curva. Pearson sigue siendo el valor por omisión porque es lo que la mayoría
 espera de una correlación, y el método elegido viaja en la columna \code{metodo}
 de la salida para que ninguna lectura dependa de recordar cuál se pidió.
 
-Se descartan constantes, fechas, listas, categóricas de cardinalidad alta y
+Se descartan constantes, fechas, listas, columnas compuestas —matrices o
+arreglos de más de una dimensión—, categóricas de cardinalidad alta y
 columnas posteriores a \code{max_columnas} antes de construir pares. Las
 dependencias funcionales exactas recibidas en \code{dependencias} no se repiten
 como asociaciones.

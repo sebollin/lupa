@@ -9,6 +9,7 @@
 
 .columna_candidata_benford <- function(x) {
   is.numeric(x) &&
+    !.es_columna_compuesta(x) &&
     !inherits(x, c("Date", "POSIXt", "difftime", "integer64")) &&
     sum(is.finite(x)) >= 50L
 }
@@ -104,8 +105,29 @@
   } else {
     NA_real_
   }
-  es_identificador <- identical(as.character(tipo_inferido), "identificador") ||
-    isTRUE(posible_identificador) || .parece_correlativo_benford(x)
+  # Las tres condiciones que excluyen a Benford por identificador se publicaban
+  # como una DISYUNCION -"parece un identificador (tipo_inferido,
+  # posible_identificador o secuencia correlativa)"- y el usuario no podia saber
+  # cual. Peor: medido sobre `c(1:2000, rep(500, 500))`, la cobertura invocaba
+  # ese motivo mientras el mismo perfil NO publicaba `posible_identificador` y en
+  # su lugar publicaba `valor_concentrado`. De las tres alternativas nombradas,
+  # dos eran falsas en esa salida. Lo que corresponde es nombrar el HECHO: el
+  # criterio del hallazgo y el de esta guarda no son el mismo -la guarda mira la
+  # columna cruda y el hallazgo la fila resumida, que ademas rechaza la moda
+  # acantilada- y por eso pueden diferir. Que difieran es defendible; publicar
+  # una razon que no ocurrio, no.
+  motivos_identificador <- c(
+    if (identical(as.character(tipo_inferido), "identificador")) {
+      "el tipo inferido es identificador"
+    },
+    if (isTRUE(posible_identificador)) {
+      "el perfil publico `posible_identificador`"
+    },
+    if (.parece_correlativo_benford(x)) {
+      "los valores forman una secuencia correlativa"
+    }
+  )
+  es_identificador <- length(motivos_identificador) > 0L
 
   fallas <- .precondiciones_benford(
     variacion, es_identificador, n_positivos, proporcion_positivos,
@@ -121,6 +143,7 @@
     proporcion_positivos = proporcion_positivos,
     ordenes_magnitud = ordenes,
     parece_identificador = es_identificador,
+    motivos_identificador = motivos_identificador,
     clave_declarada = isTRUE(clave_declarada)
   )
   if (length(fallas)) return(base)
@@ -169,8 +192,13 @@
       # Lo que si cubre el caso comun: si la columna declarada repite valores,
       # `clave_no_unica` lo informa con severidad `error`.
       "la clave fue declarada, asi que la columna identifica filas y no es una magnitud"
+    } else if (length(resultado$motivos_identificador)) {
+      paste0(
+        "parece un identificador: ",
+        paste(resultado$motivos_identificador, collapse = " y ")
+      )
     } else {
-      "parece un identificador (tipo_inferido, posible_identificador o secuencia correlativa)"
+      "parece un identificador"
     },
     observaciones_utilizables_insuficientes = paste0(
       "observaciones positivas utilizables ",

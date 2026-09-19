@@ -698,7 +698,7 @@
   if (inherits(x, "sfc")) {
     return(class(x)[[1L]])
   }
-  if (is.matrix(x)) {
+  if (.es_columna_compuesta(x)) {
     return("matriz")
   }
   if (inherits(x, "integer64")) {

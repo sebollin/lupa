@@ -1204,7 +1204,7 @@ print.normalizacion_lupa <- function(x, ...) {
     perfil <- .normalizacion_para_columna(resuelta, nombres[[i]])
     if (!.normalizacion_tiene_pasos(perfil)) return(NULL)
     x <- datos[[i]]
-    if (is.list(x) || is.matrix(x)) return(NULL)
+    if (is.list(x) || .es_columna_compuesta(x)) return(NULL)
     valores <- suppressWarnings(as.character(.texto_analizable(x)$valores))
     valores <- unique(valores[!is.na(valores)])
     .normalizacion_fusiones_vocabulario(

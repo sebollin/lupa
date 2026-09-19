@@ -383,8 +383,7 @@
 .conteos_filas_duplicadas <- function(datos) {
   columnas_no_compatibles <- vapply(
     datos,
-    function(columna) is.list(columna) || is.matrix(columna) ||
-      (is.array(columna) && length(dim(columna)) > 1L),
+    function(columna) is.list(columna) || .es_columna_compuesta(columna),
     logical(1L)
   )
   if (.tiene_metodo_duplicated_personalizado(datos)) {
@@ -790,9 +789,10 @@
 #' `n_faltantes_disfrazados`— dicen cuánto separa a los dos.
 #' Una columna de listas intenta contar sus valores distintos; si la clase no
 #' admite comparación, informa `NA` en lugar de afirmar cero.
-#' Las columnas matriciales se conservan como una unidad por fila: `n` informa
-#' las filas de la tabla, pero los estadísticos por valor quedan en `NA` y un
-#' hallazgo explica que deben separarse en columnas con semántica explícita.
+#' Las columnas compuestas —matrices o arreglos de más de una dimensión— se
+#' conservan como una unidad por fila: `n` informa las filas de la tabla, pero
+#' los estadísticos por valor quedan en `NA` y un hallazgo explica que deben
+#' separarse en columnas con semántica explícita.
 #' Cuando todos los valores válidos aparecen una sola vez **no hay moda**, y
 #' `moda` queda en `NA`. Lo que se publicaría es el ganador de un desempate de
 #' tantas vías como valores haya, y ese desempate sigue el orden de
@@ -818,8 +818,9 @@
 #' cinco.
 #'
 #' La ley de Benford se evalúa sólo en columnas numéricas con al menos 50
-#' valores finitos, para no agregar cobertura a columnas que ni siquiera son
-#' candidatas. Antes de comparar exige variación, que la columna no parezca un
+#' valores finitos; las columnas compuestas —matrices o arreglos de más de una
+#' dimensión— no son magnitudes por fila y quedan fuera del análisis. Antes de
+#' comparar exige variación, que la columna no parezca un
 #' identificador ni una secuencia correlativa, al menos 100 observaciones
 #' positivas utilizables, una proporción de positivos igual a 1 y tres órdenes
 #' de magnitud según `log10(max/min)`. Si falla alguna precondición no emite un
@@ -1522,7 +1523,7 @@
 #'   Si el conteo y la traza no coinciden, conserva el hallazgo y emite una
 #'   advertencia de clase `lupa_trazabilidad_incoherente`. La guarda compara el
 #'   total previo al truncado y respeta la unidad declarada.
-#'   Una matriz no analizada conserva en la traza todas sus filas. Si una
+#'   Una columna compuesta no analizada conserva en la traza todas sus filas. Si una
 #'   columna de listas se reconoce como constante pero no se puede contar su
 #'   frecuencia, el conteo afectado queda en NA y `cobertura_diagnosticos`
 #'   explica la no evaluación.

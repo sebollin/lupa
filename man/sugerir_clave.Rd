@@ -42,6 +42,8 @@ coordenada— puede identificar cada fila y aun así no ser una clave. No se
 oculta que identifica, porque es un hecho medido: se dice en el motivo y la
 columna queda al final del orden. Es el mismo criterio que aplica
 \code{\link[=detectar_claves]{detectar_claves()}}, consultado a la misma función.
+Las columnas compuestas —matrices o arreglos de más de una dimensión— no se
+ofrecen como claves ni reciben una tasa de valores distintos.
 }
 \examples{
 personas <- data.frame(

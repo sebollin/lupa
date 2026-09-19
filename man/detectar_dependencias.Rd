@@ -79,6 +79,8 @@ El descarte ocurre antes de construir agrupaciones. El valor predeterminado
 \code{umbral_casi_clave = 0.8} excluye determinantes con menos de 1,25 filas por
 valor distinto en promedio: aun si cumplen, suelen describir una casi-clave
 y no una regla reutilizable.
+Las columnas compuestas —matrices o arreglos de más de una dimensión— no se
+toman como determinantes ni dependientes: no son valores escalares por fila.
 
 El costo crece aproximadamente como \code{columnas^2 * filas}. \code{max_columnas}
 conserva las primeras columnas analizables, \code{max_comparaciones} limita el

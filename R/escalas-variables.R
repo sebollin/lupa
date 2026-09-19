@@ -44,11 +44,11 @@
 }
 
 .propuesta_escala <- function(x, tipo_implicito) {
-  if (is.matrix(x)) return(list(
+  if (.es_columna_compuesta(x)) return(list(
     escala = "desconocida", rol = "desconocido", confianza = NA_real_,
     confirmada = FALSE,
     evidencia = paste0(
-      "La columna es matricial; sus componentes deben separarse antes de ",
+      "La columna es compuesta; sus componentes deben separarse antes de ",
       "declarar una escala de medici\u00f3n."
     )
   ))

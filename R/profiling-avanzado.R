@@ -68,7 +68,7 @@
 }
 
 .frecuencias_columna <- function(x, max_valores, muestra, protegida) {
-  if (is.matrix(x) || (is.list(x) && !is.factor(x))) {
+  if (.es_columna_compuesta(x) || (is.list(x) && !is.factor(x))) {
     return(list(tabla = NULL, meta = c(
       analizados = 0, distintos = NA, mostrados = 0, truncado = FALSE,
       muestreado = FALSE, estado = "tipo_no_comparable"
@@ -204,7 +204,7 @@ distribucion_valores <- function(datos, perfil = NULL, max_valores = 20L,
       estado = as.character(meta[["estado"]]), stringsAsFactors = FALSE
     )
     x <- datos[[i]]
-    if (is.numeric(x) && !is.matrix(x) &&
+    if (is.numeric(x) && !.es_columna_compuesta(x) &&
         !inherits(x, c("Date", "POSIXt", "integer64"))) {
       muestra_x <- .muestrear_vector(x, limite)
       finitos <- muestra_x$valores[is.finite(muestra_x$valores)]
@@ -268,7 +268,7 @@ distribucion_valores <- function(datos, perfil = NULL, max_valores = 20L,
 
 .tipo_asociacion <- function(x, max_niveles) {
   if (inherits(x, c("Date", "POSIXt", "integer64")) || is.list(x) ||
-      is.matrix(x)) return(NA_character_)
+      .es_columna_compuesta(x)) return(NA_character_)
   if (is.character(x) || is.factor(x)) x <- .texto_analizable(x)$valores
   presentes <- x[!is.na(x)]
   distintos <- length(unique(presentes))
@@ -322,7 +322,8 @@ distribucion_valores <- function(datos, perfil = NULL, max_valores = 20L,
 #' espera de una correlación, y el método elegido viaja en la columna `metodo`
 #' de la salida para que ninguna lectura dependa de recordar cuál se pidió.
 #'
-#' Se descartan constantes, fechas, listas, categóricas de cardinalidad alta y
+#' Se descartan constantes, fechas, listas, columnas compuestas —matrices o
+#' arreglos de más de una dimensión—, categóricas de cardinalidad alta y
 #' columnas posteriores a `max_columnas` antes de construir pares. Las
 #' dependencias funcionales exactas recibidas en `dependencias` no se repiten
 #' como asociaciones.
@@ -363,10 +364,13 @@ detectar_asociaciones <- function(datos, dependencias = NULL, umbral = 0.3,
   max_columnas <- .validar_entero_positivo(max_columnas, "max_columnas")
   max_niveles <- .validar_entero_positivo(max_niveles, "max_niveles")
   max_pares <- .validar_entero_positivo(max_pares, "max_pares")
+  columnas_compuestas <- vapply(datos, .es_columna_compuesta, logical(1L))
   muestreo <- .muestrear_vector(seq_len(nrow(datos)), limite)
   muestra_datos <- datos[muestreo$valores, , drop = FALSE]
-  tipos <- vapply(muestra_datos, .tipo_asociacion, character(1L),
-                  max_niveles = max_niveles)
+  tipos <- vapply(seq_along(muestra_datos), function(i) {
+    if (columnas_compuestas[[i]]) return(NA_character_)
+    .tipo_asociacion(muestra_datos[[i]], max_niveles = max_niveles)
+  }, character(1L))
   analizables <- which(!is.na(tipos))
   seleccion <- utils::head(analizables, max_columnas)
   pares_posibles <- if (length(seleccion) >= 2L) choose(length(seleccion), 2L) else 0

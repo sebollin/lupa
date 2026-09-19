@@ -119,7 +119,7 @@
                                       validadores = list(),
                                       umbral_verificado = 0.9,
                                       muestra_validadores = 1000L) {
-  if (is.matrix(x)) {
+  if (.es_columna_compuesta(x)) {
     return(list(
       tipo = NA_character_, proporcion = NA_real_, fundamento = "",
       poder_discriminante = NA_character_, proteger = FALSE
@@ -634,7 +634,9 @@
   indices_sensibles <- .indice_nombre(sensibles, names(datos))
   valores <- unlist(lapply(unique(indices_sensibles[!is.na(indices_sensibles)]), function(indice) {
     x <- datos[[indice]]
-    if (is.data.frame(x) || is.matrix(x) || is.list(x)) return(character())
+    if (is.data.frame(x) || .es_columna_compuesta(x) || is.list(x)) {
+      return(character())
+    }
     crudos <- tryCatch(as.character(x), error = function(e) character())
     formateados <- tryCatch(c(
       format(x, digits = 15L, trim = TRUE, scientific = FALSE),

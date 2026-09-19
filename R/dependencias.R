@@ -156,6 +156,8 @@
 #' `umbral_casi_clave = 0.8` excluye determinantes con menos de 1,25 filas por
 #' valor distinto en promedio: aun si cumplen, suelen describir una casi-clave
 #' y no una regla reutilizable.
+#' Las columnas compuestas —matrices o arreglos de más de una dimensión— no se
+#' toman como determinantes ni dependientes: no son valores escalares por fila.
 #'
 #' El costo crece aproximadamente como `columnas^2 * filas`. `max_columnas`
 #' conserva las primeras columnas analizables, `max_comparaciones` limita el
@@ -261,7 +263,7 @@ detectar_dependencias <- function(datos, umbral = 0.995, muestra = 1e5,
   # en 'orderVector1'"- que aborta el perfil entero. Un tipo que no se puede
   # agrupar se declara, no revienta.
   analizables <- which(!vapply(datos, function(x) {
-    is.list(x) || is.matrix(x) || is.raw(x)
+    is.list(x) || .es_columna_compuesta(x) || is.raw(x)
   }, logical(1L)))
   seleccion <- utils::head(analizables, as.integer(max_columnas))
   # La desambiguacion es para nombres de trabajo, no para la salida: un sufijo

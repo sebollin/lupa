@@ -42,8 +42,9 @@ vectores \code{integer64} se tratan como enteros semánticos.
 \details{
 Dos claves simples se marcan como redundantes cuando sus contenidos son
 idénticos —incluidas clase, atributos, ausencias y representación exacta—,
-aunque tengan nombres distintos. Las columnas matriciales o de lista no se
-interpretan como claves. Los pares también quedan en el atributo
+aunque tengan nombres distintos. Las columnas compuestas —matrices o
+arreglos de más de una dimensión— y las de lista no se interpretan como
+claves. Los pares también quedan en el atributo
 \code{claves_redundantes}.
 }
 \examples{

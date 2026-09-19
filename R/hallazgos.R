@@ -1055,7 +1055,8 @@
   max_largo_valor <- .validar_largo_valor_duplicados(
     max_largo_valor, "max_largo_valor_vocabulario"
   )
-  if (!(is.character(x) || is.factor(x)) || is.matrix(x) || is.list(x)) {
+  if (!(is.character(x) || is.factor(x)) || .es_columna_compuesta(x) ||
+      is.list(x)) {
     return(NULL)
   }
   textos <- suppressWarnings(as.character(.texto_analizable(x)$valores))
@@ -2560,7 +2561,7 @@
     )
     if (!is.null(idx)) return(as.integer(idx))
   }
-  if (is.matrix(x)) {
+  if (.es_columna_compuesta(x)) {
     if (tipo == "tipo_compuesto_no_analizado") return(seq_len(NROW(x)))
     return(NULL)
   }
@@ -3583,7 +3584,20 @@
     # densidad 0,694. Las guardas lo trataban como numeracion y callaban dos
     # diagnosticos, y este hallazgo no disparaba, asi que **el perfil se
     # quedaba callado sobre dos pruebas sin decir nunca que habia detectado una
-    # numeracion**. Ahora las dos preguntas se contestan con el mismo criterio.
+    # numeracion**. Eso se cerro: la densidad 0,694 de aquel caso hoy se
+    # reconoce por las dos vias.
+    #
+    # Lo que NO es cierto -y el comentario lo afirmaba- es que las dos preguntas
+    # se contesten con el mismo criterio. No se contestan, y no pueden: esta mira
+    # la FILA RESUMIDA -y rechaza la moda acantilada, que es la firma de un
+    # centinela- y la guarda de Benford mira la COLUMNA CRUDA. Medido sobre
+    # `c(1:2000, rep(500, 500))`: la guarda contesta que si y este criterio que
+    # no, asi que el perfil publica `valor_concentrado` y ningun
+    # `posible_identificador` mientras la cobertura de Benford excluye la columna.
+    # Que difieran es defendible -son dos preguntas con dos propositos-; lo que
+    # no era defendible era el motivo publicado, que nombraba una disyuncion de
+    # tres condiciones sin decir cual, con dos de ellas falsas en esa salida. Eso
+    # se arreglo en `benford.R`: ahora el motivo nombra el hecho.
     if (isTRUE(n_validos > 1L) &&
         (fila$tipo_inferido == "identificador" ||
          isTRUE(fila$secuencia_entera_densa) ||

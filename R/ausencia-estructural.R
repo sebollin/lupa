@@ -55,7 +55,7 @@
 # columna que no corresponde se llena tanto con `NA` como con cadena vacia o
 # con "no corresponde", y las tres significan lo mismo para este patron.
 .mascara_ausencia_columna <- function(x, disfrazados, n) {
-  if (is.data.frame(x) || is.matrix(x)) return(NULL)
+  if (is.data.frame(x) || .es_columna_compuesta(x)) return(NULL)
   if (is.list(x)) {
     return(vapply(
       x,
@@ -181,7 +181,7 @@
 # por comparacion, y con doscientas columnas eso es la diferencia entre un
 # segundo y cuarenta.
 .preparar_determinante <- function(x, nombre, n) {
-  if (is.data.frame(x) || is.matrix(x) || is.list(x)) return(NULL)
+  if (is.data.frame(x) || .es_columna_compuesta(x) || is.list(x)) return(NULL)
   if (length(x) != n) return(NULL)
   usable <- !is.na(x)
   n_usables <- sum(usable)

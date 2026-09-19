@@ -489,7 +489,7 @@ observada y el argumento que se puede ajustar.
 Si el conteo y la traza no coinciden, conserva el hallazgo y emite una
 advertencia de clase \code{lupa_trazabilidad_incoherente}. La guarda compara el
 total previo al truncado y respeta la unidad declarada.
-Una matriz no analizada conserva en la traza todas sus filas. Si una
+Una columna compuesta no analizada conserva en la traza todas sus filas. Si una
 columna de listas se reconoce como constante pero no se puede contar su
 frecuencia, el conteo afectado queda en NA y \code{cobertura_diagnosticos}
 explica la no evaluación.
@@ -670,9 +670,10 @@ describir lo guardado y resumir lo que vale como dato, y los conteos
 \code{n_faltantes_disfrazados}— dicen cuánto separa a los dos.
 Una columna de listas intenta contar sus valores distintos; si la clase no
 admite comparación, informa \code{NA} en lugar de afirmar cero.
-Las columnas matriciales se conservan como una unidad por fila: \code{n} informa
-las filas de la tabla, pero los estadísticos por valor quedan en \code{NA} y un
-hallazgo explica que deben separarse en columnas con semántica explícita.
+Las columnas compuestas —matrices o arreglos de más de una dimensión— se
+conservan como una unidad por fila: \code{n} informa las filas de la tabla, pero
+los estadísticos por valor quedan en \code{NA} y un hallazgo explica que deben
+separarse en columnas con semántica explícita.
 Cuando todos los valores válidos aparecen una sola vez \strong{no hay moda}, y
 \code{moda} queda en \code{NA}. Lo que se publicaría es el ganador de un desempate de
 tantas vías como valores haya, y ese desempate sigue el orden de
@@ -698,8 +699,9 @@ columnas enteras pequeñas, donde el cociente puede quedar por debajo de
 cinco.
 
 La ley de Benford se evalúa sólo en columnas numéricas con al menos 50
-valores finitos, para no agregar cobertura a columnas que ni siquiera son
-candidatas. Antes de comparar exige variación, que la columna no parezca un
+valores finitos; las columnas compuestas —matrices o arreglos de más de una
+dimensión— no son magnitudes por fila y quedan fuera del análisis. Antes de
+comparar exige variación, que la columna no parezca un
 identificador ni una secuencia correlativa, al menos 100 observaciones
 positivas utilizables, una proporción de positivos igual a 1 y tres órdenes
 de magnitud según \code{log10(max/min)}. Si falla alguna precondición no emite un

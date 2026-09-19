@@ -235,7 +235,7 @@
     stop("`bloquear_por` debe nombrar una columna existente.", call. = FALSE)
   }
   x <- names(datos)[[.indice_nombre(x, names(datos))]]
-  if (is.matrix(datos[[x]]) || is.list(datos[[x]])) {
+  if (.es_columna_compuesta(datos[[x]]) || is.list(datos[[x]])) {
     stop("`bloquear_por` debe nombrar una columna atomica.", call. = FALSE)
   }
   x
@@ -1491,7 +1491,7 @@
   if (is.null(columnas)) {
     analizables <- vapply(datos, function(x) {
       (is.character(x) || is.factor(x)) &&
-        !is.matrix(x) && !is.list(x)
+        !.es_columna_compuesta(x) && !is.list(x)
     }, logical(1L))
     candidatas <- names(datos)[analizables]
     if (length(candidatas) > 2L) {
@@ -1527,7 +1527,9 @@
   }
   columnas <- names(datos)[indices]
   datos_columnas <- .seleccionar_columnas(datos, columnas)
-  if (any(vapply(datos_columnas, function(x) is.matrix(x) || is.list(x),
+  if (any(vapply(datos_columnas, function(x) {
+    .es_columna_compuesta(x) || is.list(x)
+  },
                  logical(1L)))) {
     stop("Las columnas aproximadas no pueden ser matrices ni listas.",
          call. = FALSE)
