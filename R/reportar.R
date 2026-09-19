@@ -152,7 +152,16 @@
 
 .resumen_severidades <- function(x, no_evaluados = 0L) {
   severidades <- as.character(x)
-  diagnosticos <- if (length(no_evaluados)) no_evaluados[[1L]] else 0L
+  # Una severidad `NA` es una fila SIN veredicto -la deriva publica eso cuando
+  # uno de los dos resultados no se evaluo- y las tres tarjetas la dejaban
+  # afuera con `na.rm = TRUE`: un informe de cinco filas mostraba "Errores 3,
+  # Sospechosos 0, Correctos 0" y ninguna tarjeta decia donde estaban las otras
+  # dos. Antes esas filas se contaban entre las correctas, que era peor; no
+  # contarlas en ningun lado tampoco es informar. La tarjeta "No evaluados" ya
+  # existia para los diagnosticos de cobertura: cuenta las dos cosas, que son
+  # la misma -no hay veredicto-, y asi las tarjetas suman las filas de la tabla.
+  diagnosticos <- (if (length(no_evaluados)) no_evaluados[[1L]] else 0L) +
+    sum(is.na(severidades))
   paste0(
     "<div class=\"tarjetas\">",
     .tarjeta_reporte("Errores", sum(severidades == "error", na.rm = TRUE), "error"),

@@ -192,3 +192,39 @@ test_that("una columna que el perfil no pudo resumir no se declara medida", {
     "medida"
   )
 })
+
+test_that("una cobertura parcial no se publica como completa", {
+  # `all(is.na(faltantes))` dejaba pasar el caso parcial: UN exito desactivaba
+  # la guarda entera. Una tabla con una columna resumible y dos columnas matriz
+  # publicaba "El perfil conto ausentes reales y disfrazados EN TODAS LAS
+  # COLUMNAS". Con dos de tres sin contar, esa frase es falsa: es la forma suave
+  # del defecto que el paquete existe para no cometer, informar como completo lo
+  # que es parcial.
+  armar <- function(n_matriz) {
+    d <- data.frame(dato = c("a", "b", NA, "c"), stringsAsFactors = FALSE)
+    for (i in seq_len(n_matriz)) d[[paste0("m", i)]] <- I(matrix(1:8, nrow = 4L))
+    d
+  }
+  densidad <- function(n_matriz) {
+    perfil <- suppressWarnings(perfilar(
+      armar(n_matriz), analizar_dependencias = FALSE,
+      proteger_datos_personales = FALSE
+    ))
+    cobertura <- cobertura_analisis(perfil)
+    cobertura[cobertura$factor == "Densidad", , drop = FALSE]
+  }
+
+  parcial <- densidad(2L)
+  skip_if(!nrow(parcial), "el marco no trae el factor Densidad")
+  # El factor SI se midio -en la columna que se pudo resumir-, asi que el estado
+  # se mantiene; lo que no puede es afirmar sobre las que no examino.
+  expect_identical(as.character(parcial$estado[[1L]]), "medida")
+  expect_false(grepl("en todas las columnas", parcial$motivo[[1L]]))
+  expect_match(as.character(parcial$motivo[[1L]]), "1 de 3 columnas")
+
+  # Control de los dos extremos, que son los que distinguen la guarda de una
+  # que siempre diga lo mismo.
+  completa <- densidad(0L)
+  expect_identical(as.character(completa$estado[[1L]]), "medida")
+  expect_match(as.character(completa$motivo[[1L]]), "en todas las columnas")
+})

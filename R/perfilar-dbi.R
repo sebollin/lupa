@@ -8026,6 +8026,20 @@
     ))
   }
 
+  # Cuando el lote de basicos se cae porque el motor devolvio un valor que no se
+  # puede leer como numero, lo que queda desmentido no es una metrica suelta: es
+  # que la columna sea de la magnitud que TODAS estas metricas suponen. La
+  # mediana y el desvio miden esa misma magnitud, se calculan en consultas
+  # aparte, y su guardia solo mira si el resultado es un numero finito. En
+  # SQLite -tipado dinamico: una columna declarada INTEGER puede contener
+  # texto- el motor no rechaza, coacciona el texto a 0 y devuelve 0. La fila
+  # publicaba `minimo = NA` con motivo "No se publica como calculada" al lado de
+  # `mediana = 0` en estado `calculado`, indistinguible de una mediana real de
+  # ceros, y el perfil de la muestra del MISMO objeto clasificaba la columna
+  # como texto. Un cero fabricado por coaccion no es una medicion.
+  magnitud_desmentida <- FALSE
+  motivo_magnitud <- NA_character_
+
   if ("basicos" %in% pedidas_numericas) {
     # `AVG(columna)` sin castear trunca en los motores con semantica entera.
     # Multiplicar por 1.0 promueve el tipo sin depender de un nombre de tipo
@@ -8066,6 +8080,8 @@
               "): probablemente la columna no es de la magnitud que estas ",
               "metricas suponen. No se publica como calculada."
             )
+            magnitud_desmentida <- TRUE
+            motivo_magnitud <- basicos$motivo
             leidos <- list()
             break
           }
@@ -8125,6 +8141,11 @@
       registros <- c(registros, list(.registro_sql_dbi(
         columna, "mediana", "omitido_por_privacidad", motivo_privacidad,
         NA_character_, metadatos = metadatos
+      )))
+    } else if (magnitud_desmentida) {
+      registros <- c(registros, list(.registro_sql_dbi(
+        columna, "mediana", "no_disponible", motivo_magnitud, NA_character_,
+        metadatos = metadatos
       )))
     } else if (!is.null(decisiones_costo) &&
                identical(decisiones_costo$mediana, FALSE)) {
@@ -8270,7 +8291,12 @@
   }
 
   if ("desvio" %in% pedidas_numericas) {
-    if (!sin_conteo && .numero_dbi(fila$n_validos) < 2) {
+    if (magnitud_desmentida) {
+      registros <- c(registros, list(.registro_sql_dbi(
+        columna, "desvio", "no_disponible", motivo_magnitud, NA_character_,
+        metadatos = metadatos
+      )))
+    } else if (!sin_conteo && .numero_dbi(fila$n_validos) < 2) {
       registros <- c(registros, list(.registro_sql_dbi(
         columna, "desvio", "no_aplica",
         "El desvio muestral requiere al menos dos valores no nulos.",

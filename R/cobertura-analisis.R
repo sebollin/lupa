@@ -184,8 +184,22 @@ cobertura_analisis <- function(perfil, medicion = NULL,
   } else {
     NULL
   }
+  resumidas <- if (is.null(faltantes)) NA_integer_ else sum(!is.na(faltantes))
+  total_columnas <- if (is.null(faltantes)) NA_integer_ else length(faltantes)
   sin_resumen <- !is.null(faltantes) && length(faltantes) > 0L &&
-    all(is.na(faltantes))
+    resumidas == 0L
+  # Y el tercer estado, que es el que faltaba: ALGUNAS columnas se resumieron y
+  # otras no. `all(is.na(...))` lo dejaba pasar entero -un unico exito
+  # desactivaba la guarda-, y entonces una tabla con una columna resumible y
+  # noventa y nueve columnas matriz publicaba "El perfil conto ausentes reales y
+  # disfrazados EN TODAS LAS COLUMNAS". Con 99 de 100 sin contar, esa frase es
+  # falsa, y es exactamente la forma suave del defecto que este paquete existe
+  # para no cometer: informar como completo lo que es parcial. El estado sigue
+  # siendo `medida` -el factor SI se midio, en las columnas que se pudieron
+  # resumir- y lo que cambia es que el motivo publica su alcance, como hacen
+  # los hallazgos con `n_evaluados`.
+  parcial <- !is.null(faltantes) && length(faltantes) > 0L &&
+    resumidas > 0L && resumidas < total_columnas
   if (sin_filas || sin_resumen) {
     sin_observaciones <- factores$estado == "medida"
     factores$estado[sin_observaciones] <- "no_aplica"
@@ -197,6 +211,14 @@ cobertura_analisis <- function(perfil, medicion = NULL,
         "este factor."
       )
     }
+  } else if (parcial) {
+    parciales <- factores$estado == "medida"
+    factores$motivo[parciales] <- paste0(
+      "Parcial: el perfil obtuvo resumen en ", resumidas, " de ",
+      total_columnas, " columnas. En las otras ",
+      total_columnas - resumidas,
+      " no hubo evidencia para este factor."
+    )
   }
 
   if (!is.null(medicion)) {

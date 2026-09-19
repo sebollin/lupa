@@ -500,6 +500,13 @@
 #'   el marco AGESIC cuando corresponde o el conjunto de factores medidos.
 #' @param cobertura Cobertura opcional creada por [cobertura_analisis()].
 #'
+#'   **La correspondencia entre esa cobertura y `medidas` es suya, no del
+#'   paquete**, igual que en [cobertura_analisis()]: el tablero cruza las dos
+#'   por dimensión y factor y reescribe el estado de un factor cuando la
+#'   medición lo cubre, sin verificar que las dos describan la misma tabla. Con
+#'   una cobertura de otro análisis, el factor va a figurar como medido por esta
+#'   corrida.
+#'
 #' @return Data frame S3 `tablero_calidad`. Los atributos `alcance` y
 #'   `cobertura` conservan los conteos y el detalle del marco.
 #' @export

@@ -794,6 +794,13 @@ leer_historico <- function(archivo) {
 #'   umbrales es `error`. `identidad_tabla` separa series de tablas distintas y
 #'   `aspecto` marca el resultado o un cambio de configuración; este último se
 #'   informa como `error` pero no suprime la comparación.
+#'
+#'   **Un par que no se puede comparar no recibe veredicto.** Si alguna de las
+#'   dos corridas no evaluó su resultado, `delta`, `cambio_absoluto`,
+#'   `significativo`, `direccion` y `severidad` quedan en `NA` —no en `estable`
+#'   ni en `ok`— y `descripcion` nombra de qué lado falta el resultado. Filtrar
+#'   por `severidad != "ok"` deja fuera esas filas a propósito: no son filas
+#'   sanas, son filas sin medición, y se encuentran con `is.na(significativo)`.
 #' @export
 #'
 #' @examples
@@ -911,7 +918,18 @@ detectar_deriva_calidad <- function(historico, nivel = c("perfil", "regla"),
         pmax(abs(delta), abs(corte), na.rm = TRUE)
       is.finite(delta) & delta != 0 & abs(delta) >= corte - tolerancia
     }
-    significativo <- alcanza(umbral)
+    # Un par donde uno de los dos resultados no se evaluo NO es un par estable:
+    # es un par que no se puede comparar. Publicaba `significativo = FALSE`,
+    # `direccion = "estable"` y `severidad = "ok"` -tres afirmaciones de salud-
+    # al lado de su propia `descripcion`, que decia "No se puede comparar: el
+    # resultado anterior no se evaluo". El usuario que filtra `severidad != "ok"`
+    # para encontrar problemas no veia esas filas: lo no medido quedaba contado
+    # entre lo sano. La convencion del paquete para lo desconocido ya estaba
+    # escrita -"los conteos desconocidos son NA, nunca cero"- y es la que se
+    # aplica: sin comparacion no hay veredicto, y `NA` lo dice.
+    comparable <- is.finite(delta)
+    significativo <- ifelse(comparable, alcanza(umbral), NA)
+    # Las dos columnas que siguen heredan el `NA` solas: `ifelse()` lo propaga.
     direccion <- ifelse(
       !significativo, "estable", ifelse(delta > 0, "mejora", "deterioro")
     )

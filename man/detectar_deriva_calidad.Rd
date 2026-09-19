@@ -23,6 +23,13 @@ deterioro de al menos un umbral es \code{sospechoso} y uno de al menos dos
 umbrales es \code{error}. \code{identidad_tabla} separa series de tablas distintas y
 \code{aspecto} marca el resultado o un cambio de configuración; este último se
 informa como \code{error} pero no suprime la comparación.
+
+\strong{Un par que no se puede comparar no recibe veredicto.} Si alguna de las
+dos corridas no evaluó su resultado, \code{delta}, \code{cambio_absoluto},
+\code{significativo}, \code{direccion} y \code{severidad} quedan en \code{NA} —no en \code{estable}
+ni en \code{ok}— y \code{descripcion} nombra de qué lado falta el resultado. Filtrar
+por \code{severidad != "ok"} deja fuera esas filas a propósito: no son filas
+sanas, son filas sin medición, y se encuentran con \code{is.na(significativo)}.
 }
 \description{
 Compara corridas consecutivas, ordenadas por fecha dentro de cada perfil o

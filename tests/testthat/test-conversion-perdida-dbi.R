@@ -102,3 +102,55 @@ test_that("la puerta de exactitud cubre el entero que redondea hacia el limite",
     c(10, 11, 2^53)
   )
 })
+
+test_that("la mediana y el desvio siguen a la magnitud que los basicos desmienten", {
+  skip_if_not_installed("DBI")
+  skip_if_not_installed("RSQLite")
+  con <- DBI::dbConnect(RSQLite::SQLite(), ":memory:")
+  on.exit(DBI::dbDisconnect(con), add = TRUE)
+  # Cuarto miembro de la misma familia, y el mas dificil de ver: aca el motor
+  # NO devuelve algo ilegible, devuelve un numero. SQLite tiene tipado dinamico,
+  # asi que una columna declarada INTEGER acepta texto, y en `AVG`/`STDEV` y en
+  # la mediana coacciona ese texto a 0. El lote de basicos lo cazaba por el
+  # `MIN` textual y degradaba; la mediana y el desvio se calculan en consultas
+  # aparte y su guardia solo mira si el resultado es finito. Cero lo es.
+  # Resultado publicado: `minimo = NA` con el motivo "No se publica como
+  # calculada" al lado de `mediana = 0` en estado `calculado`, indistinguible de
+  # una mediana real de ceros.
+  DBI::dbExecute(con, "CREATE TABLE t (mezcla INTEGER, num INTEGER)")
+  for (i in seq_len(3L)) {
+    DBI::dbExecute(con, sprintf(
+      "INSERT INTO t VALUES (%s, %d)",
+      shQuote(c("abc", "def", "ghi")[[i]]), i * 10L
+    ))
+  }
+
+  perfil <- perfilar_dbi(con, "t", universo = "tabla_completa",
+                         estrategia_mediana = "exacta",
+                         proteger_datos_personales = FALSE)
+  columnas <- as.data.frame(perfil$resumen_tabla$columnas)
+  mezcla <- columnas[columnas$columna == "mezcla", , drop = FALSE]
+  expect_equal(nrow(mezcla), 1L)
+  # Ninguna de las cuatro puede publicar un numero: no hay un solo valor
+  # numerico en la columna.
+  for (metrica in c("minimo", "media", "mediana", "desvio")) {
+    expect_true(is.na(mezcla[[metrica]][[1L]]), info = metrica)
+  }
+  registros <- as.data.frame(perfil$resumen_tabla$sql)
+  numericas <- registros[
+    registros$columna == "mezcla" &
+      registros$metrica %in% c("minimo", "mediana", "desvio"), , drop = FALSE
+  ]
+  expect_true(nrow(numericas) >= 3L)
+  expect_true(all(numericas$estado == "no_disponible"))
+  expect_true(any(grepl("no se pudo leer como numero", numericas$motivo)))
+
+  # Y la mitad de control, que es la que decide si la guarda mide o calla: una
+  # columna numerica de verdad, en la MISMA tabla y la misma corrida, sigue
+  # publicando sus cuatro cifras.
+  num <- columnas[columnas$columna == "num", , drop = FALSE]
+  expect_equal(num$minimo[[1L]], 10)
+  expect_equal(num$media[[1L]], 20)
+  expect_equal(num$mediana[[1L]], 20)
+  expect_equal(num$desvio[[1L]], 10)
+})

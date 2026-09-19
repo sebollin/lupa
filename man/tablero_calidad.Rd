@@ -26,7 +26,14 @@ instanciada. Se exige para cada \code{ratio_umbral} que no lo declare dentro de
 \item{marco}{Marco conceptual. Si se omite, usa el asociado a la medición,
 el marco AGESIC cuando corresponde o el conjunto de factores medidos.}
 
-\item{cobertura}{Cobertura opcional creada por \code{\link[=cobertura_analisis]{cobertura_analisis()}}.}
+\item{cobertura}{Cobertura opcional creada por \code{\link[=cobertura_analisis]{cobertura_analisis()}}.
+
+\strong{La correspondencia entre esa cobertura y \code{medidas} es suya, no del
+paquete}, igual que en \code{\link[=cobertura_analisis]{cobertura_analisis()}}: el tablero cruza las dos
+por dimensión y factor y reescribe el estado de un factor cuando la
+medición lo cubre, sin verificar que las dos describan la misma tabla. Con
+una cobertura de otro análisis, el factor va a figurar como medido por esta
+corrida.}
 }
 \value{
 Data frame S3 \code{tablero_calidad}. Los atributos \code{alcance} y

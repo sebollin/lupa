@@ -108,3 +108,84 @@ test_that("la fila del par sin evaluar dice que no se puede comparar", {
   expect_match(as.character(hacia$descripcion[[1L]]), "actual no se evalu")
   expect_match(as.character(desde$descripcion[[1L]]), "anterior no se evalu")
 })
+
+test_that("un par que no se puede comparar no publica veredicto", {
+  # La otra mitad del mismo defecto, y la mas cara: el par donde un resultado no
+  # se evaluo publicaba `significativo = FALSE`, `direccion = "estable"` y
+  # `severidad = "ok"` -tres afirmaciones de salud- al lado de su propia
+  # descripcion, que decia "No se puede comparar". El usuario que filtra
+  # `severidad != "ok"` para encontrar problemas no veia esas filas: lo no
+  # medido quedaba contado entre lo sano, en una serie de monitoreo.
+  # La convencion del paquete para lo desconocido ya estaba escrita -"los
+  # conteos desconocidos son NA, nunca cero"- y es la que se aplica.
+  c3 <- .n75_armar_corridas()
+  historico <- historico_calidad(
+    c3$buena, c3$mala, c3$sin_evaluar, c3$mala_final
+  )
+  hacia <- .n75_fila(historico, "m2", "m3")
+  desde <- .n75_fila(historico, "m3", "m4")
+  skip_if(!nrow(hacia) || !nrow(desde), "la deriva no produjo los pares con NA")
+
+  for (fila in list(hacia, desde)) {
+    expect_true(is.na(fila$delta[[1L]]))
+    expect_true(is.na(fila$significativo[[1L]]))
+    expect_true(is.na(fila$direccion[[1L]]))
+    expect_true(is.na(fila$severidad[[1L]]))
+    # Y la descripcion, que ya era correcta, lo sigue siendo.
+    expect_match(as.character(fila$descripcion[[1L]]), "No se puede comparar")
+  }
+
+  # La mitad de control: el par comparable del mismo historico conserva su
+  # veredicto completo. Una guarda que apague el veredicto de todos no sirve.
+  comparable <- .n75_fila(historico, "m1", "m2")
+  expect_true(isTRUE(comparable$significativo[[1L]]))
+  expect_identical(as.character(comparable$direccion[[1L]]), "deterioro")
+  expect_identical(as.character(comparable$severidad[[1L]]), "error")
+})
+
+test_that("las tarjetas del informe suman las filas de la tabla", {
+  # El informe resume la deriva en tres tarjetas contadas con `na.rm = TRUE`.
+  # Cuando la deriva empezo a publicar `NA` en la severidad de un par que no se
+  # puede comparar -que es lo correcto-, esas filas dejaron de contarse en
+  # ningun lado: un informe de cinco filas mostraba "Errores 3, Sospechosos 0,
+  # Correctos 0" y nada decia donde estaban las otras dos. Antes se contaban
+  # entre las correctas, que era peor. La tarjeta "No evaluados" ya existia.
+  c3 <- .n75_armar_corridas()
+  deriva <- suppressWarnings(detectar_deriva_calidad(
+    historico_calidad(c3$buena, c3$mala, c3$sin_evaluar, c3$mala_final),
+    umbral = 0.05
+  ))
+  sin_veredicto <- sum(is.na(deriva$severidad))
+  skip_if(sin_veredicto == 0L, "la deriva no produjo filas sin veredicto")
+
+  tarjetas <- function(objeto) {
+    ruta <- tempfile(fileext = ".html")
+    on.exit(unlink(ruta), add = TRUE)
+    invisible(reportar(objeto, archivo = ruta))
+    html <- paste(readLines(ruta, warn = FALSE), collapse = "")
+    etiquetas <- c("Errores", "Sospechosos", "Correctos", "No evaluados")
+    conteos <- vapply(etiquetas, function(etiqueta) {
+      patron <- paste0("<span>", etiqueta, "</span><strong>")
+      posicion <- regexpr(patron, html, fixed = TRUE)
+      if (posicion < 0L) return(NA_real_)
+      resto <- substr(html, posicion + attr(posicion, "match.length"),
+                      posicion + attr(posicion, "match.length") + 20L)
+      as.numeric(sub("</strong>.*$", "", resto))
+    }, numeric(1L))
+    conteos
+  }
+
+  conteos <- tarjetas(deriva)
+  expect_false(is.na(conteos[["No evaluados"]]))
+  expect_equal(conteos[["No evaluados"]], as.numeric(sin_veredicto))
+  expect_equal(sum(conteos, na.rm = TRUE), as.numeric(nrow(deriva)))
+
+  # Control: una deriva sin filas incomparables no inventa la tarjeta.
+  sin_na <- suppressWarnings(detectar_deriva_calidad(
+    historico_calidad(c3$buena, c3$mala), umbral = 0.05
+  ))
+  skip_if(any(is.na(sin_na$severidad)), "el control trajo filas sin veredicto")
+  conteos_control <- tarjetas(sin_na)
+  expect_true(is.na(conteos_control[["No evaluados"]]))
+  expect_equal(sum(conteos_control, na.rm = TRUE), as.numeric(nrow(sin_na)))
+})

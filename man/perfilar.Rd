@@ -1018,6 +1018,15 @@ en minúsculas; por eso \verb{12 kg} y \verb{13500 g} son unidades, mientras que
 \verb{12A} y \verb{13B} se tratan como códigos. Si hay más de una unidad observada,
 \code{unidades_mixtas} informa sus frecuencias y no convierte ni compara sus
 magnitudes. Una única unidad no genera ese hallazgo.
+\code{formatos_fecha_mixtos} compara representaciones dentro de una columna cuyo
+dominio es la fecha o la fecha-hora. Una fecha agregada adentro de una
+columna de horas del día —\verb{12/02/2011 6:55 a.m.} entre valores \verb{7:10 a.m.}—
+no produce ese hallazgo, porque la columna no es de fechas: aparece como
+\code{patron_raro}, que es lo que de verdad cambió. Decidir que esa columna sólo
+debe contener horas es una regla de dominio y el paquete no la supone.
+Del mismo modo, un número sin sufijo no cuenta como una segunda unidad: una
+columna que mezcla \code{5} con \verb{5 \%} observa una sola unidad y se informa como
+\code{numero_como_texto}, no como \code{unidades_mixtas}.
 \code{celdas_multivaluadas} es deliberadamente conservador: usa los patrones de
 \code{\link[=descubrir_patrones]{descubrir_patrones()}} y exige partes numéricas, alfanuméricas o
 identificadoras puntuadas homogéneas, compatibles con el patrón del resto de

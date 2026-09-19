@@ -1138,6 +1138,15 @@
 #' `12A` y `13B` se tratan como códigos. Si hay más de una unidad observada,
 #' `unidades_mixtas` informa sus frecuencias y no convierte ni compara sus
 #' magnitudes. Una única unidad no genera ese hallazgo.
+#' `formatos_fecha_mixtos` compara representaciones dentro de una columna cuyo
+#' dominio es la fecha o la fecha-hora. Una fecha agregada adentro de una
+#' columna de horas del día —`12/02/2011 6:55 a.m.` entre valores `7:10 a.m.`—
+#' no produce ese hallazgo, porque la columna no es de fechas: aparece como
+#' `patron_raro`, que es lo que de verdad cambió. Decidir que esa columna sólo
+#' debe contener horas es una regla de dominio y el paquete no la supone.
+#' Del mismo modo, un número sin sufijo no cuenta como una segunda unidad: una
+#' columna que mezcla `5` con `5 %` observa una sola unidad y se informa como
+#' `numero_como_texto`, no como `unidades_mixtas`.
 #' `celdas_multivaluadas` es deliberadamente conservador: usa los patrones de
 #' [descubrir_patrones()] y exige partes numéricas, alfanuméricas o
 #' identificadoras puntuadas homogéneas, compatibles con el patrón del resto de
