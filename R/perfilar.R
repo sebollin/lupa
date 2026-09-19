@@ -279,8 +279,7 @@
   }
   columnas_matriciales <- vapply(
     datos_base,
-    function(columna) is.matrix(columna) ||
-      (is.array(columna) && length(dim(columna)) > 1L),
+    .es_columna_compuesta,
     logical(1L)
   )
   if (any(columnas_matriciales)) {

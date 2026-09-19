@@ -30,6 +30,18 @@ Data frame con \code{marco}, \code{dimension}, \code{factor}, \code{estado}, \co
 \code{como_resolverlo}. \code{marco} identifica explícitamente la taxonomía contra la
 que se calculó la tabla. \code{estado} es un factor con niveles \code{"medida"},
 \code{"no_declarada"}, \code{"no_aplica"} y \code{"fuera_de_alcance"}.
+
+\strong{El \code{motivo} publica el alcance cuando el perfil resumió sólo parte de las
+columnas.} Si ninguna se pudo resumir, el \code{estado} es \code{"no_aplica"}; si se
+resumieron todas, el motivo lo dice; y si se resumieron algunas, el \code{estado}
+sigue siendo \code{"medida"} —el factor sí se midió, en las columnas que se
+pudieron resumir— y el motivo empieza con \code{"Parcial: "} y nombra cuántas de
+cuántas. Esas filas se encuentran con
+\code{grepl("^Parcial: ", cobertura$motivo)}. El \code{estado} no distingue el caso
+parcial a propósito: es un factor de cuatro niveles documentados que
+\code{\link[=tablero_calidad]{tablero_calidad()}} valida, y el grado —1 de 100 no es 99 de 100— no cabe
+en un nivel. El alcance viaja en el motivo, y \code{\link[=tablero_calidad]{tablero_calidad()}} lo
+conserva al cruzar la cobertura con su medición.
 }
 \description{
 Devuelve una fila por dimensión y factor del \code{\link[=marco_calidad]{marco_calidad()}} elegido.

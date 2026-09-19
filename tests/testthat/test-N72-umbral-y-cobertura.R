@@ -228,3 +228,57 @@ test_that("una cobertura parcial no se publica como completa", {
   expect_identical(as.character(completa$estado[[1L]]), "medida")
   expect_match(as.character(completa$motivo[[1L]]), "en todas las columnas")
 })
+
+test_that("el alcance parcial sobrevive al cruce del tablero", {
+  # La cobertura declaraba "Parcial: ... en 1 de 100 columnas" y la primera capa
+  # que la cruza lo tiraba: `tablero_calidad()` reescribia el motivo con un texto
+  # fijo, asi que publicaba "El tablero contiene al menos una metrica" -o "El
+  # perfil examino el factor"- con noventa y nueve columnas sin resumen. Declarar
+  # algo y que el consumidor siguiente lo tire es el defecto que este paquete
+  # persigue; el `n_evaluados` de los hallazgos no lo sufre porque viaja en su
+  # propia columna.
+  datos <- data.frame(num = c(1, 2, NA, 4))
+  for (i in seq_len(9L)) {
+    datos[[paste0("m", i)]] <- I(matrix(letters[1:8], nrow = 4L))
+  }
+  perfil <- suppressWarnings(perfilar(
+    datos, analizar_dependencias = FALSE, proteger_datos_personales = FALSE
+  ))
+  cobertura <- cobertura_analisis(perfil)
+  densidad <- cobertura[cobertura$factor == "Densidad", , drop = FALSE]
+  skip_if(!nrow(densidad), "el marco no trae el factor Densidad")
+  expect_match(as.character(densidad$motivo[[1L]]), "^Parcial: ")
+
+  nucleo <- metricas_nucleo()
+  medidas <- medir(
+    modelo(instanciar(
+      especializar(nucleo$NoNulo, nombre_especifico = "NNDensidad"), "t", "num"
+    )),
+    data.frame(num = c(1, 2, NA, 4))
+  )
+  cruzada <- as.data.frame(attr(
+    tablero_calidad(medidas, cobertura = cobertura), "cobertura", exact = TRUE
+  ))
+  fila <- cruzada[cruzada$factor == "Densidad", , drop = FALSE]
+  skip_if(!nrow(fila), "el tablero no conservo el factor Densidad")
+  # El motivo del tablero es el que manda, y el alcance de la capa anterior sigue
+  # ahi: la fila dice las dos cosas.
+  expect_match(as.character(fila$motivo[[1L]]), "1 de 10 columnas")
+
+  # Control: un perfil que resumio TODAS sus columnas no recibe una frase de
+  # alcance que no corresponde.
+  completo <- suppressWarnings(perfilar(
+    data.frame(num = c(1, 2, NA, 4), otro = c("a", "b", "c", "d")),
+    analizar_dependencias = FALSE, proteger_datos_personales = FALSE
+  ))
+  cruzada_completa <- as.data.frame(attr(
+    tablero_calidad(medidas, cobertura = cobertura_analisis(completo)),
+    "cobertura", exact = TRUE
+  ))
+  fila_completa <- cruzada_completa[
+    cruzada_completa$factor == "Densidad", , drop = FALSE
+  ]
+  if (nrow(fila_completa)) {
+    expect_false(grepl("obtuvo resumen en", fila_completa$motivo[[1L]]))
+  }
+})

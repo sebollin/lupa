@@ -535,6 +535,14 @@ el total del universo para escribir un porcentaje lo cuentan antes.
 lote, conservador por omisión porque una cardinalidad puede derramar mucho
 más que veinte agregados planos; la consulta exacta trae su
 \code{n_validos_guard} compañero.
+Cuando se pide \code{mediana} o \code{desvio} sin pedir \code{basicos}, cada columna que el
+esquema expone como numérica paga además una sonda propia de magnitud. Usa
+\code{MIN} para comprobar que el motor no está coaccionando texto a cero; la fila
+\code{sonda_magnitud} queda declarada en \code{resumen_tabla$sql}, con su estado y la
+etapa \code{sonda_magnitud}. Si la sonda no entra en \code{max_consultas}, las métricas
+dependientes quedan \code{no_disponible} con el motivo del presupuesto. Cuando
+\code{incluir_valores = FALSE}, el motivo no publica el valor que devolvió el
+motor.
 La proyección temporal no usa esos agregados planos: si hay más de un lote y
 \code{instrumentar = TRUE}, se mide el primer lote de distintos y, después de
 ejecutarlo, se multiplica su mediana por la cantidad total de lotes. El aviso
@@ -675,7 +683,9 @@ clasificación se toma del perfil de la muestra; si la muestra no se pudo
 leer, la protección se aplica a todas las columnas y \code{meta} lo declara.
 \code{incluir_valores = FALSE} va más lejos: no emite las consultas de moda ni de
 mediana y no informa mínimo ni máximo, útil cuando la tabla es un padrón y
-la moda de un identificador único es un documento real.
+la moda de un identificador único es un documento real. Si se pidió \code{desvio},
+la sonda de magnitud que ese cálculo necesita puede emitirse, pero su motivo
+nunca publica el valor devuelto por el motor.
 }
 
 \section{Progreso}{

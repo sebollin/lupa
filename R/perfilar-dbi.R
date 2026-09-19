@@ -6394,6 +6394,19 @@
   resultado
 }
 
+.sonda_magnitud_columna_dbi <- function(conexion, tabla_sql, columna_sql,
+                                        alias, presupuesto = NULL) {
+  sql <- paste0(
+    "SELECT MIN(", columna_sql, ") AS ", alias("magnitud"),
+    " FROM ", tabla_sql
+  )
+  resultado <- .escalar_dbi(
+    conexion, sql, "magnitud", presupuesto, etapa = "sonda_magnitud"
+  )
+  resultado$sql <- sql
+  resultado
+}
+
 .formas_desvio_dbi <- function(tabla_sql, columna_sql, alias) {
   media_sql <- paste0(
     "(SELECT AVG(", columna_sql, " * 1.0) FROM ", tabla_sql, ")"
@@ -8028,17 +8041,58 @@
 
   # Cuando el lote de basicos se cae porque el motor devolvio un valor que no se
   # puede leer como numero, lo que queda desmentido no es una metrica suelta: es
-  # que la columna sea de la magnitud que TODAS estas metricas suponen. La
-  # mediana y el desvio miden esa misma magnitud, se calculan en consultas
-  # aparte, y su guardia solo mira si el resultado es un numero finito. En
-  # SQLite -tipado dinamico: una columna declarada INTEGER puede contener
-  # texto- el motor no rechaza, coacciona el texto a 0 y devuelve 0. La fila
-  # publicaba `minimo = NA` con motivo "No se publica como calculada" al lado de
+  # que la columna sea de la magnitud que TODAS estas metricas suponen. Si no se
+  # pidieron basicos, la misma conclusion se prueba con la sonda de magnitud de
+  # abajo. La mediana y el desvio miden esa magnitud en consultas aparte, y su
+  # guardia solo mira si el resultado es un numero finito. En SQLite -tipado
+  # dinamico: una columna declarada INTEGER puede contener texto- el motor no
+  # rechaza, coacciona el texto a 0 y devuelve 0. La fila publicaba
+  # `minimo = NA` con motivo "No se publica como calculada" al lado de
   # `mediana = 0` en estado `calculado`, indistinguible de una mediana real de
   # ceros, y el perfil de la muestra del MISMO objeto clasificaba la columna
   # como texto. Un cero fabricado por coaccion no es una medicion.
   magnitud_desmentida <- FALSE
   motivo_magnitud <- NA_character_
+  magnitud_sondeada <- TRUE
+
+  mediana_conservada <- is.null(decisiones_costo) ||
+    isTRUE(decisiones_costo$mediana)
+  necesita_sonda_magnitud <- !("basicos" %in% pedidas_numericas) &&
+    ("desvio" %in% pedidas_numericas ||
+      ("mediana" %in% pedidas_numericas &&
+       isTRUE(incluir_valores) && mediana_conservada))
+
+  if (necesita_sonda_magnitud) {
+    sondeo <- .sonda_magnitud_columna_dbi(
+      conexion, tabla_sql, columna_sql, alias, presupuesto
+    )
+    if (isTRUE(sondeo$ok)) {
+      convertido <- .escalar_finito_dbi(sondeo$valor)
+      if (.valor_perdido_en_conversion_dbi(sondeo$valor, convertido)) {
+        valor <- if (isTRUE(incluir_valores)) paste0(
+          " (", utils::head(as.character(sondeo$valor[[1L]]), 1L), ")"
+        ) else ""
+        sondeo$ok <- FALSE
+        sondeo$motivo <- paste0(
+          "El motor devolvio un valor para la sonda de magnitud que no se pudo",
+          " leer como numero", valor,
+          ": probablemente la columna no es de la magnitud que estas",
+          " metricas suponen. No se publica como calculada."
+        )
+      } else if (.entero_perdido_en_conversion_dbi(sondeo$valor)) {
+        sondeo$ok <- FALSE
+        sondeo$motivo <- paste(
+          "El valor de la sonda de magnitud es un entero por encima de 2^53",
+          "y pasarlo a doble lo cambia; las metricas no se publican."
+        )
+      }
+    }
+    magnitud_sondeada <- isTRUE(sondeo$ok)
+    if (!magnitud_sondeada) motivo_magnitud <- sondeo$motivo
+    registros <- .registrar_resultado_dbi(
+      registros, columna, "sonda_magnitud", sondeo, metadatos = metadatos
+    )
+  }
 
   if ("basicos" %in% pedidas_numericas) {
     # `AVG(columna)` sin castear trunca en los motores con semantica entera.
@@ -8142,7 +8196,7 @@
         columna, "mediana", "omitido_por_privacidad", motivo_privacidad,
         NA_character_, metadatos = metadatos
       )))
-    } else if (magnitud_desmentida) {
+    } else if (!magnitud_sondeada || magnitud_desmentida) {
       registros <- c(registros, list(.registro_sql_dbi(
         columna, "mediana", "no_disponible", motivo_magnitud, NA_character_,
         metadatos = metadatos
@@ -8291,7 +8345,7 @@
   }
 
   if ("desvio" %in% pedidas_numericas) {
-    if (magnitud_desmentida) {
+    if (!magnitud_sondeada || magnitud_desmentida) {
       registros <- c(registros, list(.registro_sql_dbi(
         columna, "desvio", "no_disponible", motivo_magnitud, NA_character_,
         metadatos = metadatos
@@ -9084,6 +9138,17 @@
   if (!hay_planos) {
     clases[[length(clases) + 1L]] <- c(
       "total exacto (COUNT)", 1, "escanea la tabla completa"
+    )
+  }
+  n_sondas_magnitud <- if (
+    !("basicos" %in% metricas) &&
+      ("desvio" %in% metricas ||
+        ("mediana" %in% metricas && con_valores))
+  ) n_numericas else 0
+  if (n_sondas_magnitud > 0) {
+    clases[[length(clases) + 1L]] <- c(
+      "sonda de magnitud (MIN)", n_metricas(n_sondas_magnitud),
+      alcance_agregado
     )
   }
   if ("distintos" %in% metricas && n_distintos > 0) {
@@ -12019,6 +12084,14 @@ print.plan_perfilado_dbi <- function(x, ...) {
 #' lote, conservador por omisión porque una cardinalidad puede derramar mucho
 #' más que veinte agregados planos; la consulta exacta trae su
 #' `n_validos_guard` compañero.
+#' Cuando se pide `mediana` o `desvio` sin pedir `basicos`, cada columna que el
+#' esquema expone como numérica paga además una sonda propia de magnitud. Usa
+#' `MIN` para comprobar que el motor no está coaccionando texto a cero; la fila
+#' `sonda_magnitud` queda declarada en `resumen_tabla$sql`, con su estado y la
+#' etapa `sonda_magnitud`. Si la sonda no entra en `max_consultas`, las métricas
+#' dependientes quedan `no_disponible` con el motivo del presupuesto. Cuando
+#' `incluir_valores = FALSE`, el motivo no publica el valor que devolvió el
+#' motor.
 #' La proyección temporal no usa esos agregados planos: si hay más de un lote y
 #' `instrumentar = TRUE`, se mide el primer lote de distintos y, después de
 #' ejecutarlo, se multiplica su mediana por la cantidad total de lotes. El aviso
@@ -12155,7 +12228,9 @@ print.plan_perfilado_dbi <- function(x, ...) {
 #' leer, la protección se aplica a todas las columnas y `meta` lo declara.
 #' `incluir_valores = FALSE` va más lejos: no emite las consultas de moda ni de
 #' mediana y no informa mínimo ni máximo, útil cuando la tabla es un padrón y
-#' la moda de un identificador único es un documento real.
+#' la moda de un identificador único es un documento real. Si se pidió `desvio`,
+#' la sonda de magnitud que ese cálculo necesita puede emitirse, pero su motivo
+#' nunca publica el valor devuelto por el motor.
 #'
 #' @param conexion Conexión abierta compatible con DBI.
 #' @param tabla Nombre de tabla o un objeto aceptado por

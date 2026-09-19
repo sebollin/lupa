@@ -25,6 +25,13 @@
 #'   aunque estén enteramente ausentes. Importa: sin la clave de entidad, el
 #'   diagnóstico de filas duplicadas informa como duplicada cada repetición del
 #'   valor del atributo.
+#'
+#'   **La declaración viaja al perfilado de cada grupo**, igual que si se pasara
+#'   `clave` a [perfilar()]: la ley de Benford no corre sobre esas columnas y la
+#'   cobertura publica que la clave fue declarada, en vez de deducir que «parece
+#'   un identificador». Si la clave nombra la columna de agrupación, ese nombre
+#'   se recorta antes de reenviarlo, porque en la rebanada esa columna ya no
+#'   está.
 #' @param min_filas Grupos con menos filas que este número no se perfilan y se
 #'   declaran en la cobertura. El valor por omisión evita conclusiones sobre
 #'   grupos donde ningún diagnóstico tiene soporte.
@@ -211,6 +218,24 @@ perfilar_por <- function(datos, por, clave = NULL, min_filas = 30L, ...) {
     conservar <- !(.nombres_para_operar(names(extras_grupo$aplicabilidad)) %in%
                      .nombres_para_operar(por))
   extras_grupo$aplicabilidad <- extras_grupo$aplicabilidad[conservar]
+  }
+
+  # Y la `clave` declarada tiene que VIAJAR al perfilado de cada grupo. Era un
+  # argumento formal de esta funcion, asi que nunca llegaba a `extras` -que se
+  # arma desde `...`- y el `perfilar()` de cada rebanada no sabia que esa columna
+  # identifica filas. La unica guarda que quedaba en el camino agrupado era la de
+  # la INFERENCIA, que solo reconoce claves densas: sobre una clave repartida en
+  # un rango ancho -`sample(1:6000, 2000)`, lo normal en un padron- el paquete
+  # publicaba `desviacion_benford` sobre la columna que el usuario declaro como
+  # identidad, mientras que por la puerta de `perfilar()` los mismos datos
+  # publican cero. Declarada no hay nada que adivinar, y ademas el motivo pasa a
+  # ser el hecho -"la clave fue declarada"- en vez de una deduccion que el
+  # paquete no hizo.
+  if (!is.null(clave) && !("clave" %in% names(extras_grupo))) {
+    clave_grupo <- clave[
+      !(.nombres_para_operar(clave) %in% .nombres_para_operar(por))
+    ]
+    if (length(clave_grupo)) extras_grupo$clave <- clave_grupo
   }
 
   indices_sin_por <- setdiff(seq_along(datos), indice_por)

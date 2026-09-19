@@ -189,3 +189,55 @@ test_that("las tarjetas del informe suman las filas de la tabla", {
   expect_true(is.na(conteos_control[["No evaluados"]]))
   expect_equal(sum(conteos_control, na.rm = TRUE), as.numeric(nrow(sin_na)))
 })
+
+test_that("la clave declarada viaja al perfilado de cada grupo", {
+  # `perfilar()` excluye de Benford la columna que se DECLARA clave, y publica
+  # como motivo el hecho -"la clave fue declarada"- en vez de la inferencia.
+  # `perfilar_por()` recibia `clave` como formal y nunca lo reenviaba, asi que en
+  # el camino agrupado solo quedaba la guarda de la inferencia, que reconoce
+  # claves densas. Una clave repartida en un rango ancho -lo normal en un
+  # padron- perdia la forma de correlativo y el paquete publicaba
+  # `desviacion_benford` sobre la columna que el usuario declaro que identifica
+  # filas.
+  set.seed(42)
+  datos <- data.frame(
+    entidad = sample(1:6000, 2000),
+    atributo = rep(c("pais", "edad", "importe"), length.out = 2000),
+    valor = sample(c("UY", "AR"), 2000, TRUE),
+    stringsAsFactors = FALSE
+  )
+  benford_sobre <- function(hallazgos, columna) {
+    h <- as.data.frame(hallazgos)
+    if (!nrow(h)) return(0L)
+    sum(!is.na(h$columna) & h$columna == columna &
+          as.character(h$tipo_hallazgo) == "desviacion_benford")
+  }
+
+  con_clave <- suppressWarnings(perfilar_por(
+    datos, "atributo", clave = "entidad", min_filas = 30L,
+    analizar_dependencias = FALSE
+  ))
+  expect_equal(benford_sobre(con_clave, "entidad"), 0L)
+
+  # Y el motivo publicado es el HECHO, no la deduccion: publicar "parece un
+  # identificador" cuando la clave se declaro le atribuye al paquete una
+  # inferencia que no hizo.
+  cobertura <- as.data.frame(
+    attr(con_clave, "cobertura_diagnosticos", exact = TRUE)
+  )
+  if (nrow(cobertura) && "columna" %in% names(cobertura)) {
+    filas <- cobertura[!is.na(cobertura$columna) &
+                         cobertura$columna == "entidad", , drop = FALSE]
+    if (nrow(filas)) {
+      expect_true(any(grepl("clave fue declarada", filas$motivo)))
+    }
+  }
+
+  # La mitad de control, y sin esto el arreglo no vale: SIN declarar la clave, el
+  # hallazgo tiene que seguir apareciendo. Una guarda que apaga Benford en todos
+  # los casos arregla el falso positivo y silencia lo real.
+  sin_clave <- suppressWarnings(perfilar_por(
+    datos, "atributo", min_filas = 30L, analizar_dependencias = FALSE
+  ))
+  expect_gt(benford_sobre(sin_clave, "entidad"), 0L)
+})

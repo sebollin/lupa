@@ -1,3 +1,16 @@
+# Una columna con MAS DE UNA DIMENSION -una matriz o un arreglo guardados en un
+# `data.frame` con `I()`- no es una columna de valores por fila, y se resume
+# aparte. La regla estaba escrita dos veces y las dos versiones NO coincidian:
+# aca se preguntaba `is.matrix(x)`, que es FALSE para un arreglo de tres
+# dimensiones, mientras `perfilar()` si contaba los arreglos. Consecuencia
+# medida: sobre una tabla de CUATRO filas, la columna de un arreglo 4x2x2
+# publicaba `n = 16` -los elementos del arreglo-, `n_distintos = 16`,
+# `minimo 1`, `maximo 16`, y de ahi salia un hallazgo `posible_identificador`.
+# Una cifra cuya unidad no es la fila, publicada al lado del conteo de filas de
+# la tabla.
+.es_columna_compuesta <- function(x) {
+  is.matrix(x) || (is.array(x) && length(dim(x)) > 1L)
+}
 .moda_columna <- function(x, claves = NULL) {
   validos <- !is.na(x)
   # Dos ausencias distintas, y la diferencia importa: sin valores validos la
@@ -1940,7 +1953,7 @@
                               sentinelas_numericos,
                               aplicable = NULL,
                               cadenas_ausencia = NULL) {
-  if (is.matrix(x)) {
+  if (.es_columna_compuesta(x)) {
     return(.perfilar_columna_matriz(
       x, nombre, muestra, max_patrones, distinguir_mayusculas, expandir,
       umbral_patron_raro, sentinelas_numericos

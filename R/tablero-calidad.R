@@ -96,6 +96,24 @@
     cobertura <- as.data.frame(cobertura, stringsAsFactors = FALSE)
     cobertura$estado <- as.character(cobertura$estado)
   }
+  # El alcance que la capa anterior declaro tiene que SOBREVIVIR al cruce. La
+  # cobertura publica "Parcial: el perfil obtuvo resumen en N de M columnas"
+  # cuando el perfil no pudo resumir todas, y aca los dos caminos reescribian el
+  # motivo con un texto fijo: el tablero publicaba "El perfil examino el factor"
+  # con noventa y nueve columnas sin resumen. Es la forma exacta que este paquete
+  # persigue -declarar algo y que el consumidor siguiente lo tire-, y el
+  # `n_evaluados` de los hallazgos no la sufre porque viaja en su propia columna.
+  .conservar_alcance_parcial <- function(motivos_previos, motivo_nuevo) {
+    parcial <- !is.na(motivos_previos) & grepl("^Parcial: ", motivos_previos)
+    alcance <- sub("^Parcial: el perfil obtuvo resumen en ", "", motivos_previos)
+    alcance <- sub("\\. En las otras .*$", "", alcance)
+    ifelse(
+      parcial,
+      paste0(motivo_nuevo, " El perfil obtuvo resumen en ", alcance, "."),
+      motivo_nuevo
+    )
+  }
+
   if (nrow(tablero)) {
     claves_tablero <- .identificadores_unicos(.clave_par_identificador(
       tablero$dimension, tablero$factor, sep = "\r"
@@ -106,21 +124,27 @@
     medidas <- .identificadores_en(claves, claves_tablero)
     cobertura$estado[medidas] <- "medida"
     if ("motivo" %in% names(cobertura)) {
-      cobertura$motivo[medidas] <-
+      cobertura$motivo[medidas] <- .conservar_alcance_parcial(
+        cobertura$motivo[medidas],
         "El tablero contiene al menos una m\u00e9trica para este factor."
+      )
     }
     medidas_perfil <- cobertura$estado == "medida" & !medidas
     cobertura$estado[medidas_perfil] <- "no_declarada"
     if ("motivo" %in% names(cobertura)) {
-      cobertura$motivo[medidas_perfil] <-
+      cobertura$motivo[medidas_perfil] <- .conservar_alcance_parcial(
+        cobertura$motivo[medidas_perfil],
         "El perfil examin\u00f3 el factor, pero el tablero no contiene una m\u00e9trica."
+      )
     }
   } else {
     medidas_perfil <- cobertura$estado == "medida"
     cobertura$estado[medidas_perfil] <- "no_declarada"
     if ("motivo" %in% names(cobertura)) {
-      cobertura$motivo[medidas_perfil] <-
+      cobertura$motivo[medidas_perfil] <- .conservar_alcance_parcial(
+        cobertura$motivo[medidas_perfil],
         "El perfil examin\u00f3 el factor, pero el tablero no contiene una m\u00e9trica."
+      )
     }
   }
   cobertura$estado <- factor(

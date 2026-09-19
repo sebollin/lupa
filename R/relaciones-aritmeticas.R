@@ -1,5 +1,16 @@
 .es_columna_aritmetica <- function(x) {
-  is.numeric(x) &&
+  # `is.null(dim(x))`: una columna con dimensiones -una matriz o un arreglo
+  # guardados en un `data.frame` con `I()`- pasa `is.numeric()` y entraba al
+  # analisis. Dos consecuencias, las dos medidas:
+  #   - `perfilar()` ABORTA cuando la tabla trae una matriz y un arreglo de otra
+  #     dimension: `is.finite(x) & is.finite(y)` da "arreglos de dimension no
+  #     compatibles". Un aborto con datos legitimos del usuario.
+  #   - y con una sola matriz no aborta: publica una relacion aritmetica sobre
+  #     una columna que el mismo perfil declara `tipo_compuesto_no_analizado`.
+  # Una relacion aritmetica habla de magnitudes POR FILA, y una columna con
+  # dimensiones no es una magnitud por fila. El paquete ya lo dice en la fila de
+  # esa columna; esto lo hace valer en el analisis.
+  is.numeric(x) && is.null(dim(x)) &&
     !inherits(x, c("Date", "POSIXt", "difftime", "integer64"))
 }
 

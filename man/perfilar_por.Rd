@@ -18,7 +18,14 @@ columna trae ese mismo texto como valor real, los dos caen en un solo grupo
 \item{clave}{Nombres de columnas de identidad que se conservan en cada grupo
 aunque estén enteramente ausentes. Importa: sin la clave de entidad, el
 diagnóstico de filas duplicadas informa como duplicada cada repetición del
-valor del atributo.}
+valor del atributo.
+
+\strong{La declaración viaja al perfilado de cada grupo}, igual que si se pasara
+\code{clave} a \code{\link[=perfilar]{perfilar()}}: la ley de Benford no corre sobre esas columnas y la
+cobertura publica que la clave fue declarada, en vez de deducir que «parece
+un identificador». Si la clave nombra la columna de agrupación, ese nombre
+se recorta antes de reenviarlo, porque en la rebanada esa columna ya no
+está.}
 
 \item{min_filas}{Grupos con menos filas que este número no se perfilan y se
 declaran en la cobertura. El valor por omisión evita conclusiones sobre

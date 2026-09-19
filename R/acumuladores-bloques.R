@@ -2797,7 +2797,11 @@ bytes_retenidos <- function(acumulador) .bytes_retenidos(acumulador)
     return(list())
   }
   if (is.null(columnas)) {
-    columnas <- which(vapply(datos, is.numeric, logical(1L)))
+    # La MISMA regla que el camino en memoria, no un `is.numeric` pelado. Este
+    # gemelo elegia columnas con un criterio mas debil -aceptaba fechas,
+    # `integer64` y columnas con dimensiones-, asi que la misma tabla podia
+    # recibir dos conjuntos de columnas segun por que camino se la perfilara.
+    columnas <- which(vapply(datos, .es_columna_aritmetica, logical(1L)))
   }
   if (length(columnas) < 2L) return(list())
   pares <- utils::combn(columnas, 2L, simplify = FALSE)

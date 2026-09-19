@@ -154,3 +154,49 @@ test_that("la mediana y el desvio siguen a la magnitud que los basicos desmiente
   expect_equal(num$mediana[[1L]], 20)
   expect_equal(num$desvio[[1L]], 10)
 })
+
+test_that("el sondeo de magnitud cierra la puerta sin pedir basicos", {
+  skip_if_not_installed("DBI")
+  skip_if_not_installed("RSQLite")
+  con <- DBI::dbConnect(RSQLite::SQLite(), ":memory:")
+  on.exit(DBI::dbDisconnect(con), add = TRUE)
+  DBI::dbExecute(con, "CREATE TABLE t (mezcla INTEGER, num INTEGER)")
+  for (i in seq_len(3L)) {
+    DBI::dbExecute(con, sprintf(
+      "INSERT INTO t VALUES (%s, %d)",
+      shQuote(c("abc", "def", "ghi")[[i]]), i * 10L
+    ))
+  }
+
+  perfil <- perfilar_dbi(
+    con, "t", metricas = c("validos", "mediana", "desvio"),
+    universo = "tabla_completa", estrategia_mediana = "exacta",
+    proteger_datos_personales = FALSE
+  )
+  columnas <- as.data.frame(perfil$resumen_tabla$columnas)
+  mezcla <- columnas[columnas$columna == "mezcla", , drop = FALSE]
+  num <- columnas[columnas$columna == "num", , drop = FALSE]
+
+  expect_true(is.na(mezcla$mediana[[1L]]))
+  expect_true(is.na(mezcla$desvio[[1L]]))
+  expect_equal(num$mediana[[1L]], 20)
+  expect_equal(num$desvio[[1L]], 10)
+
+  registros <- as.data.frame(perfil$resumen_tabla$sql)
+  numericas <- registros[
+    registros$columna == "mezcla" &
+      registros$metrica %in% c("mediana", "desvio"), , drop = FALSE
+  ]
+  expect_true(nrow(numericas) >= 2L)
+  expect_true(all(numericas$estado == "no_disponible"))
+  expect_true(any(grepl("no se pudo leer como numero", numericas$motivo)))
+
+  sondeo <- registros[
+    registros$columna == "mezcla" &
+      registros$etapa == "sonda_magnitud", , drop = FALSE
+  ]
+  expect_equal(nrow(sondeo), 1L)
+  expect_equal(sondeo$estado[[1L]], "no_disponible")
+  expect_true(!is.na(sondeo$sql[[1L]]))
+  expect_true(grepl("MIN", sondeo$sql[[1L]], fixed = TRUE))
+})
