@@ -211,8 +211,38 @@
     if (!length(indice)) return(NA_character_)
     unname(nombres[[indice[[1L]]]])
   }
-  etiquetadas <- !is.null(etiquetas) &&
-    any(etiquetas %in% c("catalog", "schema", "table"))
+  # Una etiqueta que este paquete no modela -`database`, `column`, o cualquier
+  # otra- se descartaba EN SILENCIO: `DBI::Id(database = "db", table = "t")`
+  # quedaba como la tabla `t`, asi que la coleccion perfilaba una tabla distinta
+  # de la declarada sin decirlo. Y una etiqueta repetida perdia todas menos la
+  # primera. Se rechaza **nombrando la causa**, igual que el identificador de mas
+  # de tres componentes: el usuario tiene que poder ver que fue su declaracion y
+  # no un problema de permisos.
+  conocidas <- c("catalog", "schema", "table")
+  if (!is.null(etiquetas) && any(nzchar(etiquetas))) {
+    con_nombre <- etiquetas[nzchar(etiquetas)]
+    ajenas <- setdiff(con_nombre, conocidas)
+    if (length(ajenas)) {
+      stop(
+        "Un `DBI::Id` de la coleccion nombra componentes que `lupa` no modela: ",
+        paste(ajenas, collapse = ", "),
+        ". La identidad de una tabla es `catalog`, `schema` y `table`; si su ",
+        "motor usa otro nivel, decl\u00e1relo con ",
+        "`data.frame(catalogo = , esquema = , tabla = )`.",
+        call. = FALSE
+      )
+    }
+    repetidas <- unique(con_nombre[duplicated(con_nombre)])
+    if (length(repetidas)) {
+      stop(
+        "Un `DBI::Id` de la coleccion repite el componente ",
+        paste(repetidas, collapse = ", "),
+        ": no se puede saber cual de los dos nombra la tabla.",
+        call. = FALSE
+      )
+    }
+  }
+  etiquetadas <- !is.null(etiquetas) && any(etiquetas %in% conocidas)
   if (etiquetadas) {
     tabla <- por_etiqueta("table")
     if (is.na(tabla)) {

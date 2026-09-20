@@ -302,3 +302,52 @@ test_that("un DBI::Id se lee por etiqueta y no por posicion", {
   # Y un `schema` sin `table` sigue siendo un nombre que no nombra una tabla.
   expect_error(coleccion(con, DBI::Id(schema = "s"), nombre = "x"), "no nombra")
 })
+
+test_that("un DBI::Id con componentes que lupa no modela se rechaza nombrando la causa", {
+  skip_if_not_installed("DBI")
+  skip_if_not_installed("RSQLite")
+  # `DBI::Id(database = "db", table = "t")` se convertia EN SILENCIO en la tabla
+  # `t`: la coleccion perfilaba una tabla distinta de la declarada sin decirlo.
+  # Y una etiqueta repetida perdia todas menos la primera. El paquete ya tenia la
+  # doctrina escrita para el identificador de mas de tres componentes: se rechaza
+  # nombrando la causa, para que el usuario vea que fue su declaracion y no un
+  # problema de permisos.
+  con <- DBI::dbConnect(RSQLite::SQLite(), ":memory:")
+  on.exit(DBI::dbDisconnect(con), add = TRUE)
+
+  expect_error(
+    coleccion(con, DBI::Id(database = "db", table = "t"), nombre = "x"),
+    "no modela"
+  )
+  expect_error(
+    coleccion(con, DBI::Id(foo = "x", table = "t"), nombre = "x"),
+    "no modela"
+  )
+  expect_error(
+    coleccion(con, methods::new(
+      "Id", name = c(catalog = "c1", catalog = "c2", table = "t")
+    ), nombre = "x"),
+    "repite el componente"
+  )
+  # Y el mensaje nombra el componente, que es lo que lo hace accionable.
+  expect_error(
+    coleccion(con, DBI::Id(database = "db", table = "t"), nombre = "x"),
+    "database"
+  )
+
+  # La mitad de control: las cuatro formas legitimas y el respaldo posicional de
+  # un `Id` sin etiquetar siguen aceptandose. Un rechazo que se lleve puesto lo
+  # valido arregla el silencio y rompe el uso.
+  identificador <- function(id) {
+    as.character(as.data.frame(
+      coleccion(con, id, nombre = "x")$tablas
+    )$identificador[[1L]])
+  }
+  expect_identical(identificador(DBI::Id(catalog = "c", table = "t")), "c.t")
+  expect_identical(identificador(DBI::Id(schema = "s", table = "t")), "s.t")
+  expect_identical(
+    identificador(DBI::Id(catalog = "c", schema = "s", table = "t")), "c.s.t"
+  )
+  expect_identical(identificador(DBI::Id(table = "t")), "t")
+  expect_identical(identificador(methods::new("Id", name = c("s", "t"))), "s.t")
+})
