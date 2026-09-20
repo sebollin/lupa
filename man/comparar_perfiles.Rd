@@ -34,8 +34,26 @@ de comparabilidad y esa parte de la comparación se omite.
 
 Los nombres de columnas y las configuraciones que contienen texto del usuario
 se comparan por sus bytes, no por la marca de codificación ni por la
-intercalación del locale. Esto también vale cuando un perfil se guarda con
-\code{\link[=saveRDS]{saveRDS()}} y se relee bajo otro locale.
+intercalación del locale.
+
+Eso alcanza mientras los bytes lleguen intactos, y hay un caso en que no
+llegan y \strong{no depende de este paquete}: el formato RDS 3 —el de \code{\link[=saveRDS]{saveRDS()}}
+por omisión— anota la codificación nativa de quien escribe, y al leer
+\emph{traduce} desde ella el texto que no declara la suya. Un perfil guardado bajo
+\code{LC_CTYPE=C} y releído bajo otro locale puede volver con el texto cambiado;
+en Windows el cambio es silencioso, porque ahí la conversión no falla.
+
+Cuando eso pasa, el perfil releído \strong{está} alterado. La comparación informa
+lo que compara —tipo declarado, tipo inferido, faltantes, cardinalidad y
+rango, además de las configuraciones— y \strong{no todo cambio de texto toca uno de
+esos campos}: un valor que cambia conservando su forma de patrón y sus
+conteos, por ejemplo la moda de una columna, no aparece. Por eso el remedio
+no es confiar en la comparación para detectarlo.
+
+El remedio es una línea, \code{saveRDS(perfil, archivo, version = 2)}, porque ese
+formato no anota codificación nativa y por lo tanto no traduce nada. La
+persistencia propia del paquete —\code{\link[=guardar_historico]{guardar_historico()}} y
+\code{\link[=guardar_analisis]{guardar_analisis()}}— ya lo usa.
 Las claves internas que agrupan hallazgos también se normalizan por bytes;
 por eso dos perfiles idénticos no emiten avisos espurios bajo C.
 

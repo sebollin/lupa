@@ -89,7 +89,27 @@ test_that("el control: esta guarda distingue el formato 3 del 2", {
   saveRDS(list(x = texto), archivo, version = 3L)
   suppressWarnings(Sys.setlocale("LC_CTYPE", locale_utf8))
   con_formato_3 <- .n87_leer_con_avisos(function() readRDS(archivo))
-  expect_gt(length(con_formato_3$avisos), 0L)
+
+  # El control NO puede pedir el aviso, y esa correccion la pago una corrida de
+  # R-hub: en Windows `win_iconv` no falla al traducir, asi que R NO avisa -y
+  # devuelve los bytes cambiados-. La ausencia del aviso ES el defecto, no su
+  # ausencia de defecto. Medido sobre `293685f`:
+  #
+  #   Linux   : 1 aviso, bytes intactos  (la conversion falla y salva el dato)
+  #   Windows : 0 avisos, bytes cambiados (la conversion "funciona" y miente)
+  #
+  # Lo que vale en las dos plataformas es que el formato 3 NO ES SEGURO: o
+  # avisa, o cambia los bytes. Si algun dia dejara de hacer las dos cosas, este
+  # expect se pone rojo y avisa que la premisa del arreglo caduco.
+  formato_3_inseguro <- length(con_formato_3$avisos) > 0L ||
+    !identical(charToRaw(con_formato_3$valor$x), charToRaw(texto))
+  expect_true(
+    formato_3_inseguro,
+    info = paste0(
+      "el formato 3 no aviso y conservo los bytes: la premisa del arreglo ",
+      "-que traduce lo sin marca- ya no se cumple en esta plataforma"
+    )
+  )
 
   suppressWarnings(Sys.setlocale("LC_CTYPE", "C"))
   saveRDS(list(x = texto), archivo, version = 2L)

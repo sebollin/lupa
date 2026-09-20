@@ -1,7 +1,17 @@
 .html_utf8 <- function(x) {
   x <- as.character(x)
-  marcables <- !is.na(x) & Encoding(x) %in% c("unknown", "bytes") &
-    validUTF8(x)
+  # `bytes` NO entra aca, y antes entraba. Es la declaracion explicita de que
+  # eso no se interprete como texto; el reporte HTML lo marcaba UTF-8 y
+  # publicaba el caracter, mientras `print()` del mismo dato -y `test-N68`, que
+  # lo fija- publicaba `a\xc3\xb1o`. Dos salidas del paquete decian cosas
+  # distintas sobre el mismo valor.
+  #
+  # Se rinde con `format()`, que es lo que R usa para mostrarlo, y el resultado
+  # es ASCII: puede seguir al resto del camino sin que `enc2utf8()` aborte
+  # -sobre la marca `bytes` aborta, y debe hacerlo-.
+  crudos <- !is.na(x) & Encoding(x) == "bytes"
+  if (any(crudos)) x[crudos] <- format(x[crudos])
+  marcables <- !is.na(x) & Encoding(x) == "unknown" & validUTF8(x)
   if (any(marcables)) {
     declarados <- x[marcables]
     Encoding(declarados) <- "UTF-8"

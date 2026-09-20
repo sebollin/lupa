@@ -54,9 +54,14 @@ jobs:
           # volver a depender de la infraestructura que falla.
           d <- read.dcf("DESCRIPTION")
           campos <- intersect(c("Depends", "Imports", "Suggests", "LinkingTo"), colnames(d))
-          crudo <- unlist(strsplit(paste(d[1, campos], collapse = ","), ","))
-          # Cada entrada viene como "pkg (>= 1.2)"; queda el nombre solo.
-          nombres <- trimws(sub("[[:space:]]*\\(.*", "", crudo))
+          # Se borran los parentesis ANTES de partir por comas, y ese orden es el
+          # arreglo. `Imports: foo (>= 1.0, < 2.0)` es DCF legal, y partiendo
+          # primero quedaba "foo (>= 1.0" y "< 2.0)" como dos entradas: el paso
+          # terminaba corriendo install.packages("< 2.0)"), que falla, y la fila
+          # publicada listaba ese engendro entre los Suggests ausentes.
+          texto <- gsub("\\([^)]*\\)", "", paste(d[1, campos], collapse = ","))
+          crudo <- unlist(strsplit(texto, ","))
+          nombres <- trimws(crudo)
           nombres <- setdiff(nombres, c("R", "", NA))
           base_r <- rownames(installed.packages(priority = "base"))
           pedidos <- setdiff(unique(nombres), base_r)
@@ -93,7 +98,8 @@ jobs:
           # informaria "ausentes: ninguno" sobre un paquete que agrego uno.
           d <- read.dcf("DESCRIPTION")
           sug <- if ("Suggests" %in% colnames(d)) d[1, "Suggests"] else ""
-          sug <- trimws(sub("[[:space:]]*\\(.*", "", unlist(strsplit(sug, ","))))
+          # Mismo orden que arriba: parentesis fuera, despues las comas.
+          sug <- trimws(unlist(strsplit(gsub("\\([^)]*\\)", "", sug), ",")))
           sug <- setdiff(sug, c("", NA))
           ip <- rownames(installed.packages())
           cat("R:", R.version.string, "\n")

@@ -1655,6 +1655,22 @@
       valores <- suppressWarnings(
         as.character(.texto_analizable(datos[[columna]][filas])$valores)
       )
+      # La evidencia se PUBLICA, y `.texto_analizable()` es el camino de
+      # ANALISIS: marca UTF-8 lo declarado `bytes` cuando sus bytes son validos,
+      # a proposito, para que `tolower()`, `trimws()` y las expresiones
+      # regulares puedan trabajar. Eso es correcto ahi y no aca: publicar un
+      # valor declarado `bytes` como texto es interpretarlo, que es lo que esa
+      # marca prohibe y lo que `test-N68` fija para la impresion.
+      #
+      # Medido: un par entre `a\u00f1o` declarado `bytes` y el mismo texto
+      # declarado `UTF-8` publicaba `v=a\u00f1o` en las dos evidencias, mientras
+      # `print()` del mismo dato mostraba `a\xc3\xb1o` en una. Se devuelve el
+      # original para esas posiciones: R ya lo rinde como la consola.
+      crudo <- as.character(datos[[columna]][filas])
+      declarado_bytes <- !is.na(crudo) & Encoding(crudo) == "bytes"
+      if (any(declarado_bytes)) {
+        valores[declarado_bytes] <- crudo[declarado_bytes]
+      }
       valores[is.na(valores) | !length(valores)] <- "[ausente]"
       valores
     }

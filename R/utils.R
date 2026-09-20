@@ -35,6 +35,30 @@
 # Con el octal la colision se reduce a la que tiene el propio R: sigue habiendo
 # ambiguedad si el usuario escribe literalmente `\\377`, y no mas que esa.
 # Se escapa aca y no con `encodeString()`, que consulta el locale.
+# Escapa TODO byte alto, sin mirar si forma una secuencia UTF-8 valida.
+#
+# Se distingue de `.escapar_bytes_altos()` en eso justamente: aquel conserva lo
+# que es UTF-8 valido -porque su trabajo es rescatar texto legible de una
+# cadena con bytes rotos- y este NO puede conservarlo, porque su entrada son
+# bytes que alguien declaro que no se interpretaran. Si conservara la secuencia
+# valida, un valor declarado `bytes` y el mismo texto declarado `UTF-8` darian
+# la misma clave, que es el defecto que este helper existe para cerrar.
+.escapar_byte_a_byte <- function(x) {
+  vapply(x, function(s) {
+    if (is.na(s)) return(NA_character_)
+    crudo <- as.integer(charToRaw(s))
+    if (!length(crudo) || all(crudo < 128L)) return(s)
+    paste(
+      vapply(
+        crudo,
+        function(b) if (b < 128L) rawToChar(as.raw(b)) else sprintf("\\%03o", b),
+        character(1L)
+      ),
+      collapse = ""
+    )
+  }, character(1L), USE.NAMES = FALSE)
+}
+
 .escapar_bytes_altos <- function(x) {
   vapply(x, function(s) {
     if (is.na(s)) return(NA_character_)
@@ -126,7 +150,27 @@
   # debe hacerlo, porque son bytes que nadie declaro como texto.
   declarada <- !is.na(crudo) & Encoding(crudo) == "latin1"
   if (any(declarada)) crudo[declarada] <- enc2utf8(crudo[declarada])
-  validos <- !is.na(crudo) & validUTF8(crudo)
+
+  # `bytes` NO es una codificacion mas: es la declaracion explicita de que eso
+  # no se interprete como texto. El paquete la respeta al imprimir -lo fija
+  # `test-N68`, "se publica como lo publica R"- y esta clave la ignoraba:
+  # marcaba UTF-8 todo lo que fuera UTF-8 valido, viniera declarado o no.
+  #
+  # Medido sobre `c(utf8, bytes, "z", utf8)` con el mismo `a\u00f1o`:
+  #
+  #   unique() de R                     -> 3
+  #   n_distintos que publicaba el perfil -> 2
+  #   detectar_duplicados_aproximados()   -> 3 pares, donde hay 1
+  #
+  # y `print()` del propio paquete los muestra distintos. Tres salidas y dos
+  # respuestas sobre el mismo dato: la identidad fundia lo que la consola
+  # separaba, y lo publicado contradecia a `unique()` de R.
+  #
+  # Se escapa byte a byte y no con `.escapar_bytes_altos()`: aquel conserva las
+  # secuencias UTF-8 validas -su trabajo es rescatar texto legible- y conservar
+  # es justamente interpretar.
+  bytes_declarados <- !is.na(crudo) & Encoding(crudo) == "bytes"
+  validos <- !is.na(crudo) & !bytes_declarados & validUTF8(crudo)
   validos[is.na(validos)] <- FALSE
   clave <- crudo
   if (any(validos)) {
@@ -134,7 +178,10 @@
     Encoding(trozo) <- "UTF-8"
     clave[validos] <- trozo
   }
-  invalidos <- !validos
+  if (any(bytes_declarados)) {
+    clave[bytes_declarados] <- .escapar_byte_a_byte(crudo[bytes_declarados])
+  }
+  invalidos <- !validos & !bytes_declarados & !is.na(crudo)
   if (any(invalidos)) {
     clave[invalidos] <- .escapar_bytes_altos(crudo[invalidos])
   }

@@ -389,8 +389,13 @@
 #' *traduce* desde ella el texto que no declara la suya. Un perfil guardado bajo
 #' `LC_CTYPE=C` y releído bajo otro locale puede volver con el texto cambiado;
 #' en Windows el cambio es silencioso, porque ahí la conversión no falla.
-#' Cuando eso pasa, el perfil releído **está** alterado y la comparación informa
-#' la diferencia, que es lo correcto: su texto cambió de verdad.
+#'
+#' Cuando eso pasa, el perfil releído **está** alterado. La comparación informa
+#' lo que compara —tipo declarado, tipo inferido, faltantes, cardinalidad y
+#' rango, además de las configuraciones— y **no todo cambio de texto toca uno de
+#' esos campos**: un valor que cambia conservando su forma de patrón y sus
+#' conteos, por ejemplo la moda de una columna, no aparece. Por eso el remedio
+#' no es confiar en la comparación para detectarlo.
 #'
 #' El remedio es una línea, `saveRDS(perfil, archivo, version = 2)`, porque ese
 #' formato no anota codificación nativa y por lo tanto no traduce nada. La

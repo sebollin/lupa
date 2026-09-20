@@ -788,6 +788,23 @@ print.analisis <- function(x, ...) {
 #'   `analizar(conservar_datos = TRUE)`.
 #' @param proteger_datos_personales Si se protege toda evidencia derivada.
 #' @param sobrescribir Si se permite reemplazar un archivo existente.
+#' @details
+#' El archivo se escribe con el **formato RDS 2**, no con el 3 que `saveRDS()`
+#' usa por omisión. El 3 anota la codificación nativa de quien escribe y al leer
+#' *traduce* desde ella el texto que no declara la suya; en Windows esa
+#' traducción no falla y cambia los bytes en silencio, así que un análisis
+#' guardado bajo un locale y leído bajo otro podía volver con el texto alterado.
+#'
+#' Ese formato tiene un costo y conviene saberlo: **no conserva la
+#' representación compacta** de los vectores que R guarda así. Medido, una
+#' columna `1:1e6` ocupa 103 bytes con el formato 3 y 2.127.903 con el 2; con
+#' `incluir_datos = TRUE` sobre una tabla con una columna `id = seq_len(n)`, eso
+#' son unos 2 MB por cada millón de filas, y a escala la escritura puede exigir
+#' materializar en memoria lo que el formato 3 no materializa. Se eligió así
+#' porque un archivo más grande es visible y recuperable, y un texto corrompido
+#' en silencio no lo es. Quien prefiera la otra relación puede serializar el
+#' objeto por su cuenta.
+#'
 #' @param comprimir Compresión admitida por [saveRDS()]: un lógico, `"gzip"`,
 #'   `"bzip2"` o `"xz"`.
 #'
@@ -832,10 +849,24 @@ guardar_analisis <- function(x, archivo, incluir_datos = FALSE,
       anyNA(logicos)) {
     stop("Los controles de persistencia deben ser logicos.", call. = FALSE)
   }
-  compresiones <- c("FALSE", "TRUE", "gzip", "bzip2", "xz")
-  if (length(comprimir) != 1L || is.na(comprimir) ||
-      !as.character(comprimir) %in% compresiones) {
-    stop("`comprimir` no es un metodo admitido por saveRDS().", call. = FALSE)
+  # La lista incluia las CADENAS "TRUE" y "FALSE" y la comparacion se hacia
+  # sobre `as.character(comprimir)`, asi que `comprimir = "TRUE"` -la cadena-
+  # pasaba la validacion y `saveRDS()` la rechazaba despues con
+  # `invalid 'compress' argument: TRUE`, un error crudo de R. Una validacion
+  # existe para que ese error no llegue al usuario; esta lo dejaba pasar
+  # justamente en el caso que parece correcto.
+  #
+  # `saveRDS()` admite un logico o uno de los tres metodos por nombre. Se pide
+  # eso y no su impresion.
+  valido <- (is.logical(comprimir) && length(comprimir) == 1L &&
+               !is.na(comprimir)) ||
+    (is.character(comprimir) && length(comprimir) == 1L &&
+       !is.na(comprimir) && comprimir %in% c("gzip", "bzip2", "xz"))
+  if (!valido) {
+    stop(
+      "`comprimir` debe ser TRUE, FALSE o uno de \"gzip\", \"bzip2\" o \"xz\".",
+      call. = FALSE
+    )
   }
   # Usaba su propia copia, que no nombraba el directorio que falta: el usuario
   # leia "No existe el directorio de destino." sin saber cual.

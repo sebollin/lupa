@@ -56,6 +56,22 @@ La protección de datos personales con evidencia suficiente se vuelve a
 aplicar antes de escribir. Incluir datos que contienen columnas protegidas
 exige desactivar expresamente esa protección; una clasificación débil se
 conserva como información pero no activa esa restricción.
+
+El archivo se escribe con el \strong{formato RDS 2}, no con el 3 que \code{saveRDS()}
+usa por omisión. El 3 anota la codificación nativa de quien escribe y al leer
+\emph{traduce} desde ella el texto que no declara la suya; en Windows esa
+traducción no falla y cambia los bytes en silencio, así que un análisis
+guardado bajo un locale y leído bajo otro podía volver con el texto alterado.
+
+Ese formato tiene un costo y conviene saberlo: \strong{no conserva la
+representación compacta} de los vectores que R guarda así. Medido, una
+columna \code{1:1e6} ocupa 103 bytes con el formato 3 y 2.127.903 con el 2; con
+\code{incluir_datos = TRUE} sobre una tabla con una columna \code{id = seq_len(n)}, eso
+son unos 2 MB por cada millón de filas, y a escala la escritura puede exigir
+materializar en memoria lo que el formato 3 no materializa. Se eligió así
+porque un archivo más grande es visible y recuperable, y un texto corrompido
+en silencio no lo es. Quien prefiera la otra relación puede serializar el
+objeto por su cuenta.
 }
 \examples{
 a <- analizar(datos_administrativos, argumentos_perfil = list(

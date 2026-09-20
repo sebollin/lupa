@@ -10,6 +10,26 @@
   `elegida` sin ninguna acción activa se rechaza con un mensaje que dice qué
   hacer, en vez de informar una elección que no eligió nada.
 
+- **`Encoding() == "bytes"` se respeta también al decidir identidad y al
+  publicar.** Esa marca declara que el contenido no se interprete como texto, y
+  el paquete sólo la respetaba al imprimir: la clave de identidad, la
+  cardinalidad y la evidencia de duplicados la ignoraban. Sobre la misma
+  columna, `unique()` de R veía **3** valores distintos y `lupa` publicaba **2**,
+  mientras su propia consola los mostraba separados. Ahora la identidad los
+  separa —y `n_distintos` coincide con `unique()`—, la evidencia de duplicados
+  conserva la declaración —se publica `a\xc3\xb1o`, igual que en la consola— y
+  el reporte HTML deja de interpretarla. **Lo que no cambia, a propósito:** el
+  camino de *análisis* sigue marcando UTF-8 lo declarado `bytes` cuando sus
+  bytes son válidos, porque ahí —`tolower()`, `trimws()`, las expresiones
+  regulares— interpretar no pierde nada. La regla es por destino: interpretar
+  para analizar, no para publicar ni para decidir identidad.
+
+- **`guardar_analisis(comprimir = "TRUE")` se rechaza con el mensaje del
+  paquete.** La validación comparaba sobre `as.character()`, así que las
+  *cadenas* `"TRUE"` y `"FALSE"` la pasaban y `saveRDS()` las rechazaba después
+  con `invalid 'compress' argument`, un error crudo de R. Una validación existe
+  para que ese error no llegue al usuario.
+
 - **La persistencia del paquete ya no depende del locale que la escribió.** El
   formato RDS 3 —el que `saveRDS()` usa por omisión— anota en la cabecera la
   codificación nativa de quien escribe, y al leer **traduce** desde ella el

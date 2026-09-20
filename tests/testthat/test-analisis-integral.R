@@ -621,7 +621,14 @@ test_that("guardar y leer analisis aplican salvaguardas", {
   expect_error(guardar_analisis(data.frame(), archivo), "analizar")
   expect_error(guardar_analisis(resultado, ""), "ruta")
   expect_error(guardar_analisis(resultado, archivo, incluir_datos = NA), "logicos")
-  expect_error(guardar_analisis(resultado, archivo, comprimir = "zip"), "admitido")
+  # El ancla es `comprimir` y no la palabra del mensaje: lo que esta prueba
+  # sostiene es que el rechazo lo hace EL PAQUETE. `saveRDS()` tambien
+  # rechaza esto, pero con `invalid 'compress' argument`, un error crudo de
+  # R; que llegara ese era el defecto que se cerro con las cadenas "TRUE" y
+  # "FALSE", y un ancla sobre una palabra suelta del texto no lo distingue.
+  expect_error(
+    guardar_analisis(resultado, archivo, comprimir = "zip"), "`comprimir`"
+  )
   expect_error(guardar_analisis(
     resultado, file.path(tempfile(), "x.rds")
   ), "directorio")
