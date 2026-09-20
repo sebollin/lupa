@@ -119,6 +119,20 @@ suponerse.</p>
 aplicar antes de escribir. Incluir datos que contienen columnas protegidas
 exige desactivar expresamente esa protección; una clasificación débil se
 conserva como información pero no activa esa restricción.</p>
+<p>El archivo se escribe con el <strong>formato RDS 2</strong>, no con el 3 que <code><a href="https://rdrr.io/r/base/readRDS.html" class="external-link">saveRDS()</a></code>
+usa por omisión. El 3 anota la codificación nativa de quien escribe y al leer
+<em>traduce</em> desde ella el texto que no declara la suya; en Windows esa
+traducción no falla y cambia los bytes en silencio, así que un análisis
+guardado bajo un locale y leído bajo otro podía volver con el texto alterado.</p>
+<p>Ese formato tiene un costo y conviene saberlo: <strong>no conserva la
+representación compacta</strong> de los vectores que R guarda así. Medido, una
+columna <code>1:1e6</code> ocupa 103 bytes con el formato 3 y 2.127.903 con el 2; con
+<code>incluir_datos = TRUE</code> sobre una tabla con una columna <code>id = seq_len(n)</code>, eso
+son unos 2 MB por cada millón de filas, y a escala la escritura puede exigir
+materializar en memoria lo que el formato 3 no materializa. Se eligió así
+porque un archivo más grande es visible y recuperable, y un texto corrompido
+en silencio no lo es. Quien prefiera la otra relación puede serializar el
+objeto por su cuenta.</p>
     </div>
     <div class="section level2">
     <h2 id="see-also">See also<a class="anchor" aria-label="anchor" href="#see-also"></a></h2>

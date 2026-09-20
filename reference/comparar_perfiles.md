@@ -44,9 +44,31 @@ omite.
 
 Los nombres de columnas y las configuraciones que contienen texto del
 usuario se comparan por sus bytes, no por la marca de codificación ni
-por la intercalación del locale. Esto también vale cuando un perfil se
-guarda con [`saveRDS()`](https://rdrr.io/r/base/readRDS.html) y se relee
-bajo otro locale. Las claves internas que agrupan hallazgos también se
+por la intercalación del locale.
+
+Eso alcanza mientras los bytes lleguen intactos, y hay un caso en que no
+llegan y **no depende de este paquete**: el formato RDS 3 —el de
+[`saveRDS()`](https://rdrr.io/r/base/readRDS.html) por omisión— anota la
+codificación nativa de quien escribe, y al leer *traduce* desde ella el
+texto que no declara la suya. Un perfil guardado bajo `LC_CTYPE=C` y
+releído bajo otro locale puede volver con el texto cambiado; en Windows
+el cambio es silencioso, porque ahí la conversión no falla.
+
+Cuando eso pasa, el perfil releído **está** alterado. La comparación
+informa lo que compara —tipo declarado, tipo inferido, faltantes,
+cardinalidad y rango, además de las configuraciones— y **no todo cambio
+de texto toca uno de esos campos**: un valor que cambia conservando su
+forma de patrón y sus conteos, por ejemplo la moda de una columna, no
+aparece. Por eso el remedio no es confiar en la comparación para
+detectarlo.
+
+El remedio es una línea, `saveRDS(perfil, archivo, version = 2)`, porque
+ese formato no anota codificación nativa y por lo tanto no traduce nada.
+La persistencia propia del paquete
+—[`guardar_historico()`](https://sebollin.github.io/lupa/reference/guardar_historico.md)
+y
+[`guardar_analisis()`](https://sebollin.github.io/lupa/reference/persistir_analisis.md)—
+ya lo usa. Las claves internas que agrupan hallazgos también se
 normalizan por bytes; por eso dos perfiles idénticos no emiten avisos
 espurios bajo C.
 
