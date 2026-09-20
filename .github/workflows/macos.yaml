@@ -1,0 +1,110 @@
+# Comprueba el paquete en macOS sin pasar por pak.
+#
+# Existe porque la fila de macOS de la matriz de plataformas no se podia llenar:
+# el trabajo macos-latest de R-CMD-check.yaml nunca llego a correr las pruebas.
+# Moria antes, instalando dependencias, con
+#
+#   ! Cannot extract '.../knitr_1.52.tgz', unknown archive type.
+#
+# que es pak fallando al abrir un binario que el mismo acababa de bajar. El
+# paquete no participa de ese fallo: ocurre antes de que exista el tarball. Pero
+# el efecto practico era que macOS quedaba SIN MEDIR y la matriz no podia decir
+# otra cosa, porque una plataforma que no corrio no es una plataforma que paso.
+#
+# Este trabajo instala las dependencias con install.packages() -binarios de
+# CRAN, sin el paso de extraccion de pak- y corre el mismo R CMD check --as-cran
+# que el resto de la matriz. Si algun dia pak deja de fallar, este archivo sobra
+# y se borra; mientras tanto es la unica evidencia de macOS que tenemos.
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+  workflow_dispatch:
+
+name: macos.yaml
+
+permissions: read-all
+
+jobs:
+  macos:
+    runs-on: macos-latest
+    name: macos-latest (sin pak)
+
+    env:
+      GITHUB_PAT: ${{ secrets.GITHUB_TOKEN }}
+      R_KEEP_PKG_SOURCE: yes
+      _R_CHECK_FORCE_SUGGESTS_: false
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: r-lib/actions/setup-pandoc@v2
+
+      - uses: r-lib/actions/setup-r@v2
+        with:
+          r-version: 'release'
+          use-public-rspm: false
+
+      - name: Instalar dependencias sin pak
+        run: |
+          # Se lee el DESCRIPTION con read.dcf y se instala con
+          # install.packages(): binarios de CRAN, sin el paso de extraccion
+          # propio de pak que es el que rompe. No se usa remotes ni pak porque
+          # ninguno de los dos viene en un R recien instalado, y traerlos seria
+          # volver a depender de la infraestructura que falla.
+          d <- read.dcf("DESCRIPTION")
+          campos <- intersect(c("Depends", "Imports", "Suggests", "LinkingTo"), colnames(d))
+          crudo <- unlist(strsplit(paste(d[1, campos], collapse = ","), ","))
+          # Cada entrada viene como "pkg (>= 1.2)"; queda el nombre solo.
+          nombres <- trimws(sub("[[:space:]]*\\(.*", "", crudo))
+          nombres <- setdiff(nombres, c("R", "", NA))
+          base_r <- rownames(installed.packages(priority = "base"))
+          pedidos <- setdiff(unique(nombres), base_r)
+          cat("Dependencias declaradas:", paste(pedidos, collapse = " "), "\n")
+
+          # Se instalan de a uno y se informa cual falto, en vez de exigir que
+          # esten todos: algunos Suggests -duckdb, RPostgres, sf- pueden no
+          # tener binario para esta version de R, y el paquete declara que
+          # funciona sin ellos. Que falte uno no debe tumbar la comprobacion;
+          # que falte y no se diga, si seria un problema, porque la fila de la
+          # matriz estaria contando como completa una corrida parcial.
+          faltantes <- character()
+          for (pkg in c(pedidos, "rcmdcheck")) {
+            if (requireNamespace(pkg, quietly = TRUE)) next
+            try(install.packages(pkg), silent = TRUE)
+            if (!requireNamespace(pkg, quietly = TRUE)) faltantes <- c(faltantes, pkg)
+          }
+          if ("rcmdcheck" %in% faltantes) {
+            stop("Sin rcmdcheck no hay comprobacion que correr.")
+          }
+          if (length(faltantes)) {
+            cat("::warning::Sin instalar en macOS: ", paste(faltantes, collapse = ", "), "\n", sep = "")
+          }
+        shell: Rscript {0}
+
+      - name: Declarar que corrio
+        run: |
+          # La fila de la matriz necesita saber CON QUE se midio, no solo que
+          # dio verde: un check que salta la mitad de las pruebas por falta de
+          # Suggests no es el mismo hecho que uno que las corre todas.
+          #
+          # La lista de Suggests se vuelve a leer del DESCRIPTION en vez de
+          # escribirse aca: una copia a mano envejece en silencio y este paso
+          # informaria "ausentes: ninguno" sobre un paquete que agrego uno.
+          d <- read.dcf("DESCRIPTION")
+          sug <- if ("Suggests" %in% colnames(d)) d[1, "Suggests"] else ""
+          sug <- trimws(sub("[[:space:]]*\\(.*", "", unlist(strsplit(sug, ","))))
+          sug <- setdiff(sug, c("", NA))
+          ip <- rownames(installed.packages())
+          cat("R:", R.version.string, "\n")
+          cat("plataforma:", R.version$platform, "\n")
+          cat("Suggests presentes:", paste(intersect(sug, ip), collapse = " "), "\n")
+          cat("Suggests ausentes:", paste(setdiff(sug, ip), collapse = " "), "\n")
+        shell: Rscript {0}
+
+      - uses: r-lib/actions/check-r-package@v2
+        with:
+          upload-snapshots: true
+          args: 'c("--no-manual", "--as-cran")'
+          build_args: 'c("--no-manual")'
+          error-on: '"warning"'
