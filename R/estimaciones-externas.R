@@ -74,6 +74,17 @@ estadisticos_estimacion <- function() {
 #' no traiga simplemente no producen medidas: no se rellenan con ceros ni se
 #' estiman.
 #'
+#' **Una columna vacía tampoco produce medidas.** Un estadístico cuya columna
+#' está presente pero no trae ningún valor utilizable no es una estimación: no
+#' se publica con `resultado = NA`, porque eso sería informar como medido lo que
+#' nadie midió —y además deja la medición inservible, porque [evaluar()] la
+#' rechaza entera—. Esos estadísticos se declaran en el atributo
+#' `estadisticos_sin_valores`, separados de `estadisticos_ausentes`: no es lo
+#' mismo no mandar la columna que mandarla sin datos, y la acción de quien la
+#' preparó es distinta en cada caso. Dentro de una columna que sí trae datos, la
+#' celda vacía se descarta por la misma razón, y el resto de las estimaciones se
+#' publica.
+#'
 #' @param estimaciones Data frame con una fila por estimación y una columna por
 #'   estadístico. Los nombres reconocidos son los de
 #'   [estadisticos_estimacion()]; se puede renombrar con `columnas`.
@@ -178,7 +189,34 @@ medicion_desde_estimaciones <- function(estimaciones, entidad, fuente,
     vapply(catalogo$estadistico, function(x) !is.null(origen_de(x)),
            logical(1L)), , drop = FALSE
   ]
+  # Una columna que EXISTE pero no trae ningun valor utilizable no es una
+  # estimacion: publicaba una fila de medida con `resultado = NA`, que es
+  # informar como medido lo que nadie midio, y ademas dejaba la medicion
+  # inservible -`evaluar()` la rechaza entera por no respetar el tipo declarado-.
+  # La promesa escrita es que los estadisticos que la tabla no traiga «no
+  # producen medidas: no se rellenan con ceros ni se estiman», y una columna
+  # vacia no los trae. Se declara aparte de los ausentes, porque no es lo mismo
+  # no mandar la columna que mandarla sin datos: la accion del usuario es
+  # distinta.
+  con_valores <- vapply(presentes$estadistico, function(x) {
+    valores <- suppressWarnings(as.numeric(estimaciones[[origen_de(x)]]))
+    any(is.finite(valores))
+  }, logical(1L))
+  sin_valores <- presentes$estadistico[!con_valores]
+  presentes <- presentes[con_valores, , drop = FALSE]
   if (!nrow(presentes)) {
+    # Dos causas distintas y dos acciones distintas del usuario: o la columna no
+    # esta, o esta y viene vacia. Decir "no trae ningun estadistico reconocido"
+    # cuando SI se reconocieron las columnas manda a revisar los nombres, que es
+    # justamente lo que ya estaba bien.
+    if (length(sin_valores)) {
+      stop(
+        "`estimaciones` trae ", paste(sin_valores, collapse = ", "),
+        " pero sin ningun valor utilizable: no hay nada que medir. Una columna ",
+        "vacia no produce medidas, y no se rellena con ceros ni se estima.",
+        call. = FALSE
+      )
+    }
     stop(
       "`estimaciones` no trae ningun estadistico reconocido. Reconocidos: ",
       paste(catalogo$estadistico, collapse = ", "), ".", call. = FALSE
@@ -212,6 +250,8 @@ medicion_desde_estimaciones <- function(estimaciones, entidad, fuente,
       fila = seq_len(nrow(estimaciones)),
       objeto_medible = paste0(entidad, "$", etiquetas),
       resultado = as.numeric(valores),
+      # `.fila_utilizable` no viaja en la salida: marca las filas que se quedan.
+      .fila_utilizable = is.finite(suppressWarnings(as.numeric(valores))),
       agregacion = NA_character_,
       unidad = definicion$unidad,
       fuente = fuente,
@@ -219,10 +259,15 @@ medicion_desde_estimaciones <- function(estimaciones, entidad, fuente,
     )
   })
   salida <- do.call(rbind, filas)
+  # Y la celda vacia dentro de una columna que si trae datos tampoco es una
+  # medida: se cae la fila, no se publica con `NA`.
+  salida <- salida[salida$.fila_utilizable, , drop = FALSE]
+  salida$.fila_utilizable <- NULL
   rownames(salida) <- NULL
   attr(salida, "estadisticos_ausentes") <- .identificadores_setdiff(
-    catalogo$estadistico, presentes$estadistico
+    catalogo$estadistico, c(presentes$estadistico, sin_valores)
   )
+  attr(salida, "estadisticos_sin_valores") <- sin_valores
   attr(salida, "fuente") <- fuente
   class(salida) <- c("medicion_calidad", "data.frame")
   salida

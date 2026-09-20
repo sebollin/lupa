@@ -194,8 +194,16 @@
     limite_largo_valor_aplica = is.finite(max_largo_valor),
     columnas_excluidas_largo = paste(columnas_excluidas_largo, collapse = ", "),
     n_columnas_excluidas_largo = length(columnas_excluidas_largo),
+    # `NA` y no `0`: si no se midio ningun largo -porque no hay filas, porque no
+    # hay columnas comparables, o porque el tope es `Inf` y medirlos seria pagar
+    # un recorrido para no decidir nada- entonces no hay un maximo. Publicar `0`
+    # es publicar una medicion, y falsa. La doctrina estaba escrita a ciento
+    # veinte lineas de aca, en `.columnas_largas_duplicados()`, y este `else` la
+    # contradecia; el manual dice textualmente que con el tope en `Inf`
+    # `largo_maximo` vale `NA`, no cero.
     largo_maximo = if (!is.null(largo_combinado)) largo_combinado
-                   else if (length(largos_columnas)) max(largos_columnas) else 0,
+                   else if (length(largos_columnas)) max(largos_columnas)
+                   else NA_real_,
     razon = razon,
     stringsAsFactors = FALSE
   )

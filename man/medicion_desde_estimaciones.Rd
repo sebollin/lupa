@@ -54,6 +54,17 @@ Cada medida declara su procedencia en \code{fuente}, de modo que nadie lea el
 resultado como si \code{lupa} lo hubiera calculado. Los estadísticos que la tabla
 no traiga simplemente no producen medidas: no se rellenan con ceros ni se
 estiman.
+
+\strong{Una columna vacía tampoco produce medidas.} Un estadístico cuya columna
+está presente pero no trae ningún valor utilizable no es una estimación: no
+se publica con \code{resultado = NA}, porque eso sería informar como medido lo que
+nadie midió —y además deja la medición inservible, porque \code{\link[=evaluar]{evaluar()}} la
+rechaza entera—. Esos estadísticos se declaran en el atributo
+\code{estadisticos_sin_valores}, separados de \code{estadisticos_ausentes}: no es lo
+mismo no mandar la columna que mandarla sin datos, y la acción de quien la
+preparó es distinta en cada caso. Dentro de una columna que sí trae datos, la
+celda vacía se descarta por la misma razón, y el resto de las estimaciones se
+publica.
 }
 \examples{
 estimaciones <- data.frame(
