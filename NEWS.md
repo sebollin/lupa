@@ -10,6 +10,21 @@
   `elegida` sin ninguna acción activa se rechaza con un mensaje que dice qué
   hacer, en vez de informar una elección que no eligió nada.
 
+- **Lo que el paquete guarda ya no depende del locale que lo guardó.** El
+  formato RDS —el que usan `saveRDS()` y `guardar_historico()`— anota en la
+  cabecera la codificación nativa de quien escribió, y al leer **traduce desde
+  ella** las cadenas sin marca. Un perfil construido con `LC_CTYPE=C` anotaba
+  `ANSI_X3.4-1968`, y al leerlo en otra sesión R intentaba convertir: en Linux
+  la conversión falla y los bytes se salvan por el camino del error, pero en
+  Windows no falla —apaga el bit alto— y `Básico` se leía como `BC!sico`. Texto
+  plausible, silenciosamente distinto. Los objetos que se persisten —`perfil`,
+  `medicion`, `perfil_evaluacion`, `evaluacion_calidad` e `historico_calidad`—
+  ahora **declaran** UTF-8 el texto que ya lo es, sin cambiar un byte, y R deja
+  de intentar la traducción. Se declara **al sellar el objeto y no al recibirlo**:
+  bajo `C`, una cadena marcada y la misma sin marcar no son iguales para `==` ni
+  para `match()`, así que marcar en la entrada habría roto toda búsqueda por
+  nombre de columna.
+
 - **La identidad de un registro ya no depende de cómo R marcó su texto.** La
   clave que decide si dos registros son el mismo trataba una cadena marcada
   `latin1` como bytes inválidos y escapaba su contenido, así que el mismo texto

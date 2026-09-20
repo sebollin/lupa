@@ -141,6 +141,91 @@
   clave
 }
 
+# Declara UTF-8 el texto que YA es UTF-8, en todo el objeto y sin tocar un byte.
+#
+# Existe por una propiedad de la serializacion de R, no por una del paquete. El
+# formato RDS version 3 -el que usa `saveRDS()` por omision- guarda en la
+# cabecera la codificacion NATIVA de quien escribio, y al leer traduce desde
+# ella las cadenas SIN MARCA. Medido, escribiendo bajo `LC_CTYPE=C`:
+#
+#   cabecera del archivo: "ANSI_X3.4-1968"
+#   al leer bajo UTF-8  : input string 'B\u00e1sico' cannot be translated
+#                         from 'ANSI_X3.4-1968' to UTF-8, but is valid UTF-8
+#
+# En glibc esa traduccion FALLA, R nota que los bytes ya son UTF-8 validos y los
+# deja intactos: el dato se salva por el camino del error. En Windows
+# `win_iconv` desde esa codificacion NO falla -apaga el bit alto y devuelve
+# algo-, asi que el rescate nunca se dispara y `B\u00e1sico` se guarda como
+# `BC!sico`: `c3`->`43`, `a1`->`21`. Texto plausible, silenciosamente distinto.
+#
+# Consecuencia medida en R-hub Windows: `comparar_perfiles()` publicaba una
+# deriva de configuracion inexistente, y `acumular_historico()` rechazaba su
+# propia corrida guardada por un contenido que nadie habia cambiado.
+#
+# Una cadena MARCADA `UTF-8` no se traduce: R la guarda declarada y la lee
+# igual. Marcar no cambia un byte -declara lo que ya hay-, asi que el dato del
+# usuario sigue siendo el suyo.
+#
+# POR QUE AL SELLAR Y NO AL ENTRAR. Bajo `C`, marcar NO es inocuo para comparar:
+#
+#   marcada == sin marca -> FALSE      match(sin marca, marcada) -> NA
+#   unique(c(marcada, sin marca)) -> 2 elementos
+#
+# Marcar en la entrada dejaria los nombres del objeto marcados y los del usuario
+# sin marcar, y toda busqueda por nombre fallaria bajo `C`, en silencio. Por eso
+# el trabajo interno no se toca y se marca al final, cuando el objeto ya esta
+# armado: adentro se compara sin marca contra sin marca, y lo que sale -lo que
+# se serializa- va declarado.
+#
+# Lo que NO se toca, a proposito:
+#   - `bytes`: es la declaracion de que eso no se interprete como texto;
+#   - `latin1` y `UTF-8`: ya declaran, y RDS los respeta;
+#   - bytes que no son UTF-8 valido: declararlos UTF-8 seria mentir. Siguen
+#     expuestos a la traduccion, y no hay forma honesta de evitarlo sin saber
+#     en que codificacion estan.
+.marcar_texto_estable <- function(x) {
+  if (is.character(x)) {
+    if (!length(x)) return(x)
+    # El caso que domina -todo ASCII- se resuelve con una sola comprobacion
+    # vectorizada y no entra a `validUTF8()`.
+    if (.es_ascii(x)) return(x)
+    candidata <- !is.na(x) & Encoding(x) == "unknown"
+    if (any(candidata)) {
+      validas <- candidata
+      validas[candidata] <- validUTF8(x[candidata])
+      validas[is.na(validas)] <- FALSE
+      if (any(validas)) {
+        trozo <- x[validas]
+        Encoding(trozo) <- "UTF-8"
+        x[validas] <- trozo
+      }
+    }
+    return(x)
+  }
+  if (is.list(x)) {
+    # `is.list()` cubre el `data.frame`, que es donde vive casi todo el texto.
+    #
+    # Los `NULL` se saltean y no por prolijidad: `x[[i]] <- NULL` BORRA el
+    # elemento, la lista se encoge, y el indice siguiente se sale de rango. Un
+    # perfil trae campos nulos -`clave`, `dependencias` cuando no se pidieron-,
+    # asi que el recorrido abortaba con "subindice fuera de los limites".
+    for (i in seq_along(x)) {
+      if (is.null(x[[i]])) next
+      x[[i]] <- .marcar_texto_estable(x[[i]])
+    }
+  }
+  atributos <- attributes(x)
+  if (!is.null(atributos)) {
+    # `names` incluido: el nombre de una columna es texto del usuario y viaja
+    # en el mismo RDS. `class` y `row.names` no se tocan.
+    for (a in setdiff(names(atributos), c("class", "row.names"))) {
+      marcado <- .marcar_texto_estable(atributos[[a]])
+      attr(x, a) <- marcado
+    }
+  }
+  x
+}
+
 # Convierte una celda a texto para componer una frase. Queda de la epoca del
 # volcado por bytes, que se DESCARTO: aquel comentario decia que la salida
 # tabular "no necesita alineacion para ser util", y hoy el paquete sostiene lo

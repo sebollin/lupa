@@ -503,7 +503,9 @@
   class(x) <- c("historico_calidad", "data.frame")
   attr(x, "version_esquema") <- .version_esquema_historico
   attr(x, "configuracion_evaluacion") <- configuracion
-  x
+  # Se declara UTF-8 el texto que ya lo es, ahora que el objeto esta armado.
+  # Al sellar y no al entrar: ver `.marcar_texto_estable()` en `R/utils.R`.
+  .marcar_texto_estable(x)
 }
 
 .combinar_historico <- function(anterior, nuevo) {

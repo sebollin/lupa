@@ -917,5 +917,7 @@ agregar <- function(medidas, destino,
   # parcial: el mismo defecto que el paquete persigue, un piso mas arriba.
   resultado <- .heredar_cobertura_de_partes(resultado, medidas, destino)
   resultado <- .declarar_partes_sin_peso(resultado, medidas, destino, pesos)
-  resultado
+  # Se declara UTF-8 el texto que ya lo es, ahora que el objeto esta armado.
+  # Al sellar y no al entrar: ver `.marcar_texto_estable()` en `R/utils.R`.
+  .marcar_texto_estable(resultado)
 }

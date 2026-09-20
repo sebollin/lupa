@@ -1505,5 +1505,7 @@ medir <- function(modelo, datos, id_medicion = NULL, fecha = Sys.time(),
   attr(resultado, "configuracion_aplicabilidad") <-
     .texto_configuracion_calidad(aplicabilidad)
   class(resultado) <- c("medicion", "data.frame")
-  resultado
+  # Se declara UTF-8 el texto que ya lo es, ahora que el objeto esta armado.
+  # Al sellar y no al entrar: ver `.marcar_texto_estable()` en `R/utils.R`.
+  .marcar_texto_estable(resultado)
 }
