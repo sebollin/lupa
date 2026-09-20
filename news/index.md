@@ -13,24 +13,31 @@
   acción activa se rechaza con un mensaje que dice qué hacer, en vez de
   informar una elección que no eligió nada.
 
-- **Lo que el paquete guarda ya no depende del locale que lo guardó.**
-  El formato RDS —el que usan
-  [`saveRDS()`](https://rdrr.io/r/base/readRDS.html) y
-  [`guardar_historico()`](https://sebollin.github.io/lupa/reference/guardar_historico.md)—
-  anota en la cabecera la codificación nativa de quien escribió, y al
-  leer **traduce desde ella** las cadenas sin marca. Un perfil
-  construido con `LC_CTYPE=C` anotaba `ANSI_X3.4-1968`, y al leerlo en
-  otra sesión R intentaba convertir: en Linux la conversión falla y los
-  bytes se salvan por el camino del error, pero en Windows no falla
-  —apaga el bit alto— y `Básico` se leía como `BC!sico`. Texto
-  plausible, silenciosamente distinto. Los objetos que se persisten
-  —`perfil`, `medicion`, `perfil_evaluacion`, `evaluacion_calidad` e
-  `historico_calidad`— ahora **declaran** UTF-8 el texto que ya lo es,
-  sin cambiar un byte, y R deja de intentar la traducción. Se declara
-  **al sellar el objeto y no al recibirlo**: bajo `C`, una cadena
-  marcada y la misma sin marcar no son iguales para `==` ni para
-  [`match()`](https://rdrr.io/r/base/match.html), así que marcar en la
-  entrada habría roto toda búsqueda por nombre de columna.
+- **La persistencia del paquete ya no depende del locale que la
+  escribió.** El formato RDS 3 —el que
+  [`saveRDS()`](https://rdrr.io/r/base/readRDS.html) usa por omisión—
+  anota en la cabecera la codificación nativa de quien escribe, y al
+  leer **traduce** desde ella el texto que no declara la suya.
+  Escribiendo bajo `LC_CTYPE=C` anota `ANSI_X3.4-1968`; al releer, en
+  Linux la conversión falla y los bytes se salvan por el camino del
+  error, pero en Windows no falla —apaga el bit alto— y `Básico` vuelve
+  como `BC!sico`. Texto plausible, silenciosamente distinto:
+  [`acumular_historico()`](https://sebollin.github.io/lupa/reference/historico_calidad.md)
+  llegaba a rechazar su propia corrida guardada.
+  [`guardar_historico()`](https://sebollin.github.io/lupa/reference/guardar_historico.md)
+  y
+  [`guardar_analisis()`](https://sebollin.github.io/lupa/reference/persistir_analisis.md)
+  escriben ahora con `version = 2`, que no anota codificación nativa y
+  por lo tanto no traduce nada.
+
+  Para un perfil guardado con
+  [`saveRDS()`](https://rdrr.io/r/base/readRDS.html) el remedio es esa
+  misma línea —`saveRDS(perfil, archivo, version = 2)`—, y la
+  documentación de
+  [`comparar_perfiles()`](https://sebollin.github.io/lupa/reference/comparar_perfiles.md)
+  lo nombra. **Lo que el paquete no hace es disimularlo:** un perfil
+  releído con el texto cambiado *está* alterado, y la comparación
+  informa la diferencia en vez de igualarla.
 
 - **La identidad de un registro ya no depende de cómo R marcó su
   texto.** La clave que decide si dos registros son el mismo trataba una
