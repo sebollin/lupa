@@ -2024,8 +2024,21 @@
     # enmascarara tambien aca, `proteger_datos_personales = FALSE` dejaria de
     # obedecerse y el paquete ignoraria lo que el usuario acaba de pedirle. La
     # proteccion de `descubrir_patrones()` es para quien la llama suelta.
+    # Se pasa la columna ORIGINAL rendida para publicar, no `x_analisis`.
+    # `x_analisis` ya paso por `.texto_analizable()`, que marca UTF-8 lo
+    # declarado `bytes` -a proposito, para que las operaciones de texto
+    # trabajen-, asi que al llegar aca la declaracion ya no esta y el perfil
+    # publicaba el caracter en `patron` y en `ejemplos` mientras `print()` del
+    # mismo dato mostraba la forma escapada.
+    #
+    # `descubrir_patrones()` vuelve a analizar por dentro, asi que sobre todo lo
+    # que no lleva esa marca el resultado es el mismo.
+    # Solo cuando la columna ES texto. `x_analisis` puede ser character aunque
+    # `x` no lo sea -una columna-lista que `.texto_analizable()` aplano-, y ahi
+    # pasar el original hace que `descubrir_patrones()` lo rechace: "`x` debe
+    # ser un vector atomico". Lo atrapo la suite.
     descubrir_patrones(
-      x_analisis,
+      if (is.character(x) || is.factor(x)) .texto_publicable(x) else x_analisis,
       distinguir_mayusculas = distinguir_mayusculas,
       expandir = expandir,
       max_patrones = max_patrones,

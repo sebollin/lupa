@@ -86,6 +86,22 @@
     )))
   }
   textos <- .valores_relacion(valores)
+  # Cuantos se perdieron aca, ANTES de descartarlos. `.valores_relacion()`
+  # devuelve `NA` para lo que no puede comparar -bytes invalidos, sobre todo- y
+  # la linea siguiente los saca. La proporcion se calcula entonces sobre los
+  # que sobrevivieron, no sobre la columna.
+  #
+  # Sin esta cuenta el estado decia `calculada` igual, y el resultado se leia
+  # como completo: medido sobre una columna de cuatro filas con tres bytes
+  # invalidos, la tabla publicaba `z` con proporcion 1.00 cuando `z` es el 25%
+  # de la columna. Informar como completo lo que es parcial es exactamente lo
+  # que este paquete promete no hacer.
+  #
+  # Los numeros ya viajaban en `alcance` -`n_total` y `n_analizados`-; lo que
+  # faltaba era que el ESTADO los nombrara, como ya hace la cobertura del
+  # analisis con su tercer estado parcial.
+  descartados_no_comparables <- sum(is.na(textos)) - sum(is.na(valores))
+  if (descartados_no_comparables < 0L) descartados_no_comparables <- 0L
   textos <- textos[!is.na(textos)]
   if (!length(textos)) {
     return(list(tabla = data.frame(
@@ -111,7 +127,12 @@
   list(tabla = tabla, meta = c(
     analizados = length(textos), distintos = length(unicos),
     mostrados = length(seleccion), truncado = length(unicos) > length(seleccion),
-    muestreado = muestreo$muestreado, estado = "calculada"
+    muestreado = muestreo$muestreado,
+    estado = if (descartados_no_comparables > 0L) {
+      "calculada_parcial"
+    } else {
+      "calculada"
+    }
   ))
 }
 
@@ -121,6 +142,15 @@
 #' Cada columna se limita a `max_valores`; `alcance` declara cuántos valores se
 #' analizaron, cuántos distintos se observaron y si hubo muestreo o truncamiento.
 #' Los cuantiles se calculan sólo para números ordinarios finitos.
+#'
+#' **Las proporciones de `frecuencias` se calculan sobre los valores que se
+#' pudieron analizar, no sobre la columna entera**, y `alcance` dice cuántos
+#' fueron: `n_total` contra `n_analizados`. Cuando alguno no se pudo comparar
+#' —bytes inválidos, sobre todo— el `estado` de esa columna es
+#' `calculada_parcial` en vez de `calculada`, para que un resultado parcial no
+#' se lea como completo. Un `NA` no cuenta como descarte: es una ausencia
+#' declarada, no un valor que no se pudo analizar. Los otros estados posibles
+#' son `sin_valores`, `sin_valores_analizables` y `tipo_no_comparable`.
 #'
 #' Cuando una columna tiene evidencia suficiente para activar la protección de
 #' datos personales, sus frecuencias y niveles se conservan pero el valor

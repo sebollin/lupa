@@ -90,11 +90,45 @@
 
 .clave_bytes <- function(x) {
   crudo <- tryCatch(as.character(x), error = function(e) NULL)
+  # La barra invertida se escapa ANTES que nada, y ese orden es el arreglo.
+  #
+  # Sin este paso el escape describia una secuencia de bytes con un texto que el
+  # usuario puede escribir, y los dos daban la misma clave:
+  #
+  #   los bytes 61.c3.b1.6f declarados `bytes`      -> a\303\261o
+  #   el texto literal de diez ASCII "a\303\261o"   -> a\303\261o
+  #
+  # R los distingue -`==` da FALSE, `unique()` los cuenta aparte- y la clave los
+  # fundia: `perfilar()` publicaba `n_distintos = 2` donde `unique()` ve 3. Es la
+  # misma contradiccion que esta clave existe para cerrar, mudada al texto que
+  # DESCRIBE la secuencia. El comentario viejo la aceptaba como residual -"y no
+  # mas que esa"-; no era residual y no era una sola.
+  #
+  # Y va antes de la via rapida de ASCII, no despues. Puesto despues, la misma
+  # cadena daba DOS claves segun que la acompanara en el vector: sola -todo
+  # ASCII- salia por la via rapida sin escapar, y en un vector mixto se
+  # escapaba. Una clave decidida por la tanda y no por el valor.
+  if (!is.null(crudo)) {
+    escapables <- !is.na(crudo)
+    if (any(escapables)) {
+      # `useBytes = TRUE` por dos razones, las dos medidas. Primera: sin el,
+      # `gsub()` ABORTA sobre una cadena con bytes invalidos -"input string 1
+      # is invalid in this locale"- y `perfilar()` moria sobre una columna que
+      # el paquete sabe describir. Segunda: sin el, `gsub()` elige su estrategia
+      # segun QUE MAS haya en el vector, asi que la misma cadena podia salir de
+      # dos maneras segun sus vecinas. Lo que se escapa es un BYTE -0x5C-, no un
+      # caracter, y en UTF-8 ese byte no aparece como continuacion, asi que
+      # reemplazar por bytes es exacto. La marca se conserva: medido sobre
+      # `unknown`, `bytes`, `UTF-8` y `NA`.
+      crudo[escapables] <- gsub(
+        "\\", "\\\\", crudo[escapables], fixed = TRUE, useBytes = TRUE
+      )
+    }
+  }
   # En ASCII no hay marca ni conversion que pueda cambiar la representacion.
   # La sonda es vectorizada y se paga una sola vez; no se entra a `validUTF8()`
   # ni a `iconv()` para el caso que domina los perfiles.
   if (!is.null(crudo) && .es_ascii(crudo)) return(crudo)
-  if (is.null(crudo)) crudo <- tryCatch(as.character(x), error = function(e) NULL)
   if (is.null(crudo)) return(crudo)
   # `enc2utf8()` consulta `LC_CTYPE` cuando la cadena esta marcada `unknown`:
   # trata sus bytes como si estuvieran en la codificacion NATIVA, y bajo `C` lo
@@ -186,6 +220,40 @@
     clave[invalidos] <- .escapar_bytes_altos(crudo[invalidos])
   }
   clave
+}
+
+# Rinde un valor para PUBLICARLO. Lo declarado `bytes` pasa a la forma que R
+# muestra -`a\xc3\xb1o`-, que es ASCII; todo lo demas queda intacto.
+#
+# Existe porque `Encoding() == "bytes"` declara que eso no se interprete como
+# texto, y el paquete honraba esa declaracion en un solo lugar -la impresion,
+# que fija `test-N68`- mientras el resto la ignoraba. Tres consecuencias
+# medidas, todas sobre el mismo dato:
+#
+#   reportar()             abortaba: "number of characters is not computable in
+#                          bytes encoding" -`nchar(type = "chars")`-
+#   comparar_equivalencia() comparaba bien y su resultado NO se podia imprimir:
+#                          "width is not computable in bytes encoding"
+#   perfil$patrones        publicaba el CARACTER, mientras `print()` del mismo
+#                          dato mostraba la forma escapada
+#
+# Los tres son el mismo defecto: medir o mostrar como texto lo que se declaro
+# que no lo es. Rendido a su forma imprimible, `nchar()` funciona, el formateo
+# funciona y lo publicado coincide con la consola.
+#
+# `justify = "none"` no es un detalle: `format()` sobre un vector RELLENA a
+# ancho comun -medido: 23 bytes donde el valor tiene 10- y eso alteraria el
+# valor publicado.
+#
+# Lo que NO hace: tocar el camino de ANALISIS. `.texto_analizable()` sigue
+# marcando UTF-8 lo declarado `bytes` cuando sus bytes son validos, a proposito,
+# para que `tolower()`, `trimws()` y las expresiones regulares puedan trabajar.
+# La regla es por destino: interpretar para analizar, no para publicar.
+.texto_publicable <- function(x) {
+  if (!is.character(x) || !length(x)) return(x)
+  crudos <- !is.na(x) & Encoding(x) == "bytes"
+  if (any(crudos)) x[crudos] <- format(x[crudos], justify = "none")
+  x
 }
 
 # Convierte una celda a texto para componer una frase. Queda de la epoca del

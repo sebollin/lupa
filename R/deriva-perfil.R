@@ -1502,8 +1502,17 @@ comparar_equivalencia <- function(anterior, actual, tolerancia) {
     resultado <- data.frame(
       columna = vapply(salida, `[[`, character(1L), "columna"),
       campo = vapply(salida, `[[`, character(1L), "campo"),
-      valor_anterior = I(lapply(salida, `[[`, "valor_anterior")),
-      valor_actual = I(lapply(salida, `[[`, "valor_actual")),
+      # Se rinden para publicar: un valor declarado `bytes` dentro de una
+      # columna-lista hacia que `print()` del resultado abortara con "width is
+      # not computable in bytes encoding". La comparacion corria bien y el
+      # objeto no se podia mostrar ni exportar; bastaba con que UNO de los dos
+      # lados llevara la marca, aunque los bytes fueran identicos.
+      valor_anterior = I(lapply(
+        lapply(salida, `[[`, "valor_anterior"), .texto_publicable
+      )),
+      valor_actual = I(lapply(
+        lapply(salida, `[[`, "valor_actual"), .texto_publicable
+      )),
       diferencia_relativa = vapply(
         salida, `[[`, numeric(1L), "diferencia_relativa"
       ),

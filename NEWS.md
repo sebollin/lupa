@@ -10,6 +10,32 @@
   `elegida` sin ninguna acción activa se rechaza con un mensaje que dice qué
   hacer, en vez de informar una elección que no eligió nada.
 
+- **Una distribución que no pudo analizar todos los valores ya no se declara
+  completa.** Las proporciones de `distribucion_valores()` se calculan sobre los
+  valores que se pudieron comparar, y los que no —bytes inválidos, sobre todo—
+  se descartaban dejando el `estado` en `calculada`. Medido sobre una columna de
+  cuatro filas con tres inválidas, la tabla publicaba `z` con proporción **1.00**
+  cuando `z` es el 25 % de la columna. Ahora ese caso se declara
+  `calculada_parcial`, y la documentación dice sobre qué base están calculadas
+  las proporciones. Un `NA` no cuenta como descarte: es una ausencia declarada.
+
+- **`reportar()` ya no aborta, y el resultado de `comparar_equivalencia()` se
+  puede imprimir.** Los dos morían sobre un valor declarado `bytes` —`nchar()`
+  no puede medir caracteres ni ancho en esa codificación—, el primero con
+  «number of characters is not computable» y el segundo al `print()`, después de
+  comparar bien. Bastaba con que el valor fuera la moda de una columna, o con
+  que **un** lado de la comparación llevara la marca aunque los bytes fueran
+  idénticos. Los valores declarados se rinden ahora a la forma que muestra la
+  consola, que es ASCII, y con eso los patrones publicados también dejan de
+  interpretarlos.
+
+- **La clave de identidad es inyectiva.** El escape de un valor declarado
+  `bytes` producía un texto que el usuario puede escribir —los cuatro bytes de
+  `año` y el texto literal de diez caracteres que los describe daban la misma
+  clave—, así que `n_distintos` volvía a contradecir a `unique()` de R. Y, por
+  el orden en que se aplicaba, **la misma cadena daba dos claves según qué la
+  acompañara en el vector**. Las dos cosas están cerradas.
+
 - **`Encoding() == "bytes"` se respeta también al decidir identidad y al
   publicar.** Esa marca declara que el contenido no se interprete como texto, y
   el paquete sólo la respetaba al imprimir: la clave de identidad, la

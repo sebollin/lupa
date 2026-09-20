@@ -76,7 +76,18 @@ descubrir_patrones <- function(x,
   }
 
   muestra_x <- .muestrear_vector(x, muestra)
-  valores <- .texto_analizable(muestra_x$valores)$valores
+  # Lo declarado `bytes` se rinde a su forma imprimible ANTES de analizar, y no
+  # despues. `.texto_analizable()` lo marcaria UTF-8 -a proposito, para que
+  # `tolower()` y las expresiones regulares trabajen- y entonces la marca ya no
+  # estaria al publicar: el perfil mostraba `a\u00f1o` en `patron` y en
+  # `ejemplos` mientras `print()` del mismo dato mostraba `a\xc3\xb1o`. Dos
+  # salidas del paquete sobre el mismo valor.
+  #
+  # Rendido antes, el patron, los ejemplos y la consola dicen lo mismo, que es
+  # lo que corresponde para algo que se PUBLICA. Para un valor que su duenio
+  # declaro que no es texto, su forma imprimible es la unica lectura honesta.
+  # Sobre todo lo demas no cambia nada.
+  valores <- .texto_analizable(.texto_publicable(muestra_x$valores))$valores
   es_na <- is.na(valores)
   if (na.rm) {
     valores <- valores[!es_na]
@@ -200,10 +211,16 @@ descubrir_patrones <- function(x,
     nombres <- names(frecuencias)[indices]
     nombres[nombres == marcador_na] <- NA_character_
     data.frame(
-      patron = nombres,
+      # Los patrones y sus ejemplos se PUBLICAN, asi que un valor declarado
+      # `bytes` se rinde a la forma que muestra la consola en vez de
+      # interpretarse: el perfil publicaba el caracter mientras `print()` del
+      # mismo dato mostraba la forma escapada.
+      patron = .texto_publicable(nombres),
       n = as.integer(frecuencias[indices]),
       proporcion = proporciones[indices],
-      ejemplos = ejemplos_objetivo[match(indices, indices_objetivo)],
+      ejemplos = .texto_publicable(
+        ejemplos_objetivo[match(indices, indices_objetivo)]
+      ),
       stringsAsFactors = FALSE
     )
   }

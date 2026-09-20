@@ -81,6 +81,11 @@
   } else {
     texto <- as.character(x)
   }
+  # Se rinde ANTES de pegar y de medir: `nchar(type = "chars")` ABORTA sobre un
+  # valor declarado `bytes` -"number of characters is not computable"-, y el
+  # reporte entero no se generaba. Basta con que ese valor llegue a una celda,
+  # por ejemplo siendo la moda de una columna.
+  texto <- .texto_publicable(texto)
   texto <- paste(texto, collapse = ", ")
   if (nchar(texto, type = "chars") > max_caracteres) {
     texto <- paste0(substr(texto, 1L, max_caracteres - 1L), "\u2026")

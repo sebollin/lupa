@@ -40,6 +40,15 @@ analizaron, cuántos distintos se observaron y si hubo muestreo o truncamiento.
 Los cuantiles se calculan sólo para números ordinarios finitos.
 }
 \details{
+\strong{Las proporciones de \code{frecuencias} se calculan sobre los valores que se
+pudieron analizar, no sobre la columna entera}, y \code{alcance} dice cuántos
+fueron: \code{n_total} contra \code{n_analizados}. Cuando alguno no se pudo comparar
+—bytes inválidos, sobre todo— el \code{estado} de esa columna es
+\code{calculada_parcial} en vez de \code{calculada}, para que un resultado parcial no
+se lea como completo. Un \code{NA} no cuenta como descarte: es una ausencia
+declarada, no un valor que no se pudo analizar. Los otros estados posibles
+son \code{sin_valores}, \code{sin_valores_analizables} y \code{tipo_no_comparable}.
+
 Cuando una columna tiene evidencia suficiente para activar la protección de
 datos personales, sus frecuencias y niveles se conservan pero el valor
 concreto se reemplaza. Los cuantiles
