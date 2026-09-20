@@ -373,7 +373,7 @@
       .html_tabla(cobertura_metricas, Inf)
     )
   }
-  cobertura_coleccion <- attr(x, "cobertura_coleccion", exact = TRUE)
+  cobertura_coleccion <- .cobertura_coleccion_de(x)
   if (!is.null(cobertura_coleccion)) {
     resumen <- data.frame(
       tablas_declaradas = cobertura_coleccion$tablas_declaradas,

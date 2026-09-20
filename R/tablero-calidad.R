@@ -568,8 +568,23 @@ tablero_calidad <- function(medidas, agregaciones = NULL, umbrales = NULL,
 #
 # Es la misma forma que el alcance del resumen y sus lectores: declarar algo en
 # un objeto que el siguiente paso descarta es, para quien lee, no declararlo.
+# La cobertura de la coleccion puede estar en el atributo directo o, cuando el
+# numero SUBIO de nivel -a organizacion o mas arriba-, heredada adentro de
+# `cobertura_de_partes`. Los consumidores leian solo el atributo directo, asi que
+# un numero de organizacion publicaba su tablero, su indice y su informe SIN la
+# declaracion de que una de dos tablas quedo afuera, aunque el objeto la trajera.
+# `NEWS.md` dice que «la cobertura de una parte incompleta ya no se pierde al
+# subir de nivel»; se perdia en el consumidor, no en `agregar()`.
+.cobertura_coleccion_de <- function(x) {
+  directa <- attr(x, "cobertura_coleccion", exact = TRUE)
+  if (!is.null(directa)) return(directa)
+  partes <- attr(x, "cobertura_de_partes", exact = TRUE)
+  if (is.null(partes)) return(NULL)
+  partes[["cobertura_coleccion"]]
+}
+
 .con_cobertura_coleccion <- function(salida, origen) {
-  cobertura <- attr(origen, "cobertura_coleccion", exact = TRUE)
+  cobertura <- .cobertura_coleccion_de(origen)
   if (!is.null(cobertura)) {
     attr(salida, "cobertura_coleccion") <- cobertura
   }
@@ -633,7 +648,7 @@ print.tablero_calidad <- function(x, ...) {
   # tiraba: quien lo mira en pantalla no veia que el numero se calculo sobre una
   # parte de las tablas declaradas. El indice ya la imprimia; eran dos capas del
   # mismo paquete contestando distinto a la misma pregunta.
-  .imprimir_cobertura_coleccion(attr(x, "cobertura_coleccion", exact = TRUE))
+  .imprimir_cobertura_coleccion(.cobertura_coleccion_de(x))
   invisible(original)
 }
 
@@ -770,7 +785,7 @@ print.tablero_calidad <- function(x, ...) {
     # numero sale `NA` -eso esta bien, no hay nada que combinar- pero la
     # declaracion de que una de dos tablas quedo afuera se tiraba, y es
     # justamente cuando mas falta hace. Viaja en el tablero como atributo.
-    cobertura_coleccion = attr(tablero, "cobertura_coleccion", exact = TRUE),
+    cobertura_coleccion = .cobertura_coleccion_de(tablero),
     combinacion_interna = "No hubo componentes combinables.",
     advertencia_universos = paste0(
       "Los componentes salen de universos distintos (por ejemplo, celdas, ",
@@ -835,7 +850,7 @@ indice_calidad <- function(medidas, pesos, pesos_internos = NULL, ...) {
   # de `agregar()` o un tablero que ya la traiga-. Ver
   # `.con_cobertura_coleccion()`: la pieza que dice sobre cuantas tablas de la
   # coleccion se calculo el numero tiene que llegar hasta el ultimo consumidor.
-  cobertura_coleccion <- attr(medidas, "cobertura_coleccion", exact = TRUE)
+  cobertura_coleccion <- .cobertura_coleccion_de(medidas)
   tablero <- if (inherits(medidas, "analisis")) {
     tablero_calidad(medidas)
   } else if (inherits(medidas, "tablero_calidad")) {

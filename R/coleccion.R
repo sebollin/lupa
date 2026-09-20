@@ -196,6 +196,36 @@
       call. = FALSE
     )
   }
+  # DBI ETIQUETA sus componentes -`catalog`, `schema`, `table`- y hay que leer la
+  # etiqueta, no la posicion. `DBI::Id(catalog = "cat", table = "missing")` es
+  # una forma valida de dos componentes, y aparearla por posicion publicaba el
+  # catalogo en la columna `esquema`: la coleccion declaraba un esquema que el
+  # usuario nunca nombro, y la columna `catalogo` quedaba vacia. Medido.
+  #
+  # La posicion sigue valiendo como respaldo, porque un controlador puede
+  # devolver los componentes sin etiquetar; ahi la convencion de DBI es que las
+  # tres partes van de mayor a menor alcance.
+  por_etiqueta <- function(clave) {
+    if (is.null(etiquetas)) return(NA_character_)
+    indice <- which(etiquetas == clave)
+    if (!length(indice)) return(NA_character_)
+    unname(nombres[[indice[[1L]]]])
+  }
+  etiquetadas <- !is.null(etiquetas) &&
+    any(etiquetas %in% c("catalog", "schema", "table"))
+  if (etiquetadas) {
+    tabla <- por_etiqueta("table")
+    if (is.na(tabla)) {
+      stop(
+        "Un `DBI::Id` con `schema` y sin `table` no nombra una tabla.",
+        call. = FALSE
+      )
+    }
+    return(c(
+      catalogo = por_etiqueta("catalog"), esquema = por_etiqueta("schema"),
+      tabla = tabla
+    ))
+  }
   if (length(nombres) == 3L) {
     return(c(
       catalogo = unname(nombres[[1L]]), esquema = unname(nombres[[2L]]),
@@ -204,12 +234,6 @@
   }
   if (length(nombres) == 2L) {
     return(c(esquema = unname(nombres[[1L]]), tabla = unname(nombres[[2L]])))
-  }
-  if (!is.null(etiquetas) && identical(etiquetas[[1L]], "schema")) {
-    stop(
-      "Un `DBI::Id` con `schema` y sin `table` no nombra una tabla.",
-      call. = FALSE
-    )
   }
   c(esquema = NA_character_, tabla = unname(nombres[[1L]]))
 }

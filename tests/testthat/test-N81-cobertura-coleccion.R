@@ -194,3 +194,111 @@ test_that("la identidad con catalogo sobrevive a la frontera", {
   cobertura2 <- attr(agregado2, "cobertura_coleccion", exact = TRUE)
   expect_true("s.ausente" %in% as.character(cobertura2$tablas_sin_medir))
 })
+
+test_that("los seis alcances de cobertura se enumeran y tres explican la tabla", {
+  skip_if_not_installed("DBI")
+  skip_if_not_installed("RSQLite")
+  # La regla que elige el motivo publicado aceptaba dos alcances y el paquete
+  # produce SEIS. El que faltaba, `medicion_incompleta`, dice que la tabla se
+  # perfilo pero no se pudo medir la proporcion de ausentes en NINGUNA columna:
+  # explica de lleno que no pueda aportar, y caia al motivo generico.
+  con <- DBI::dbConnect(RSQLite::SQLite(), ":memory:")
+  on.exit(DBI::dbDisconnect(con), add = TRUE)
+  DBI::dbWriteTable(con, "incompleta", data.frame(a = 1:3, b = 4:6))
+  DBI::dbWriteTable(con, "otra", data.frame(a = c(1, NA, 3)))
+  # `metricas = "moda"` deja `prop_faltantes` desconocida en todas las columnas.
+  perfil <- suppressWarnings(perfilar_coleccion(
+    coleccion(con, data.frame(tabla = c("incompleta", "otra"),
+                              stringsAsFactors = FALSE), nombre = "c"),
+    metricas = "moda", bloque_muestra = "solo_agregados"
+  ))
+  cobertura <- as.data.frame(perfil$cobertura_coleccion)
+  expect_true("medicion_incompleta" %in% as.character(cobertura$alcance))
+
+  medida <- medir(
+    modelo(instanciar(especializar(metricas_nucleo()$NoNulo), "otra", "a")),
+    data.frame(a = c(1, NA, 3))
+  )
+  agregado <- agregar(
+    agregar(agregar(medida, "atributo", "ratio"),
+            "entidad", "promedio_ponderado", pesos = c("otra$a" = 1)),
+    "coleccion", "promedio_ponderado", pesos = c(otra = 1), coleccion = perfil
+  )
+  final <- attr(agregado, "cobertura_coleccion", exact = TRUE)
+  expect_true("incompleta" %in% as.character(final$tablas_sin_medir))
+  motivo <- as.character(final$motivo_sin_medir)[
+    as.character(final$tablas_sin_medir) == "incompleta"
+  ]
+  expect_match(motivo, "no se pudo medir la proporcion")
+  expect_false(grepl("No hay una medida de esta tabla", motivo, fixed = TRUE))
+})
+
+test_that("la cobertura sobrevive cuando el numero sube a organizacion", {
+  skip_if_not_installed("DBI")
+  skip_if_not_installed("RSQLite")
+  # Al subir de nivel la cobertura queda HEREDADA dentro de
+  # `cobertura_de_partes`, y los consumidores leian solo el atributo directo: el
+  # tablero, el indice y el informe de un numero de organizacion se publicaban
+  # sin la declaracion de que una de dos tablas quedo afuera.
+  con <- DBI::dbConnect(RSQLite::SQLite(), ":memory:")
+  on.exit(DBI::dbDisconnect(con), add = TRUE)
+  DBI::dbWriteTable(con, "good", data.frame(a = c(1, NA, 3)))
+  perfil <- suppressWarnings(perfilar_coleccion(
+    coleccion(con, c("good", "missing"), nombre = "catcase"),
+    bloque_muestra = "solo_agregados"
+  ))
+  medida <- medir(
+    modelo(instanciar(especializar(metricas_nucleo()$NoNulo), "good", "a")),
+    data.frame(a = c(1, NA, 3))
+  )
+  por_coleccion <- agregar(
+    agregar(agregar(medida, "atributo", "ratio"), "entidad", "promedio"),
+    "coleccion", "promedio_ponderado", pesos = c(good = 1), coleccion = perfil
+  )
+  por_organizacion <- agregar(
+    por_coleccion, "organizacion", "promedio_ponderado", pesos = c(good = 1),
+    organizacion = organizacion("org", c("catcase"))
+  )
+  tablero <- tablero_calidad(por_organizacion)
+  indice <- indice_calidad(por_organizacion, pesos = c(Completitud = 1))
+  expect_false(is.null(attr(tablero, "cobertura_coleccion", exact = TRUE)))
+  expect_false(is.null(indice$cobertura_coleccion))
+
+  ruta <- tempfile(fileext = ".html")
+  on.exit(unlink(ruta), add = TRUE)
+  invisible(reportar(por_organizacion, archivo = ruta))
+  html <- paste(readLines(ruta, warn = FALSE), collapse = "")
+  expect_true(grepl("missing", html, fixed = TRUE))
+})
+
+test_that("un DBI::Id se lee por etiqueta y no por posicion", {
+  skip_if_not_installed("DBI")
+  skip_if_not_installed("RSQLite")
+  # `DBI::Id(catalog = "cat", table = "t")` es una forma valida de DOS
+  # componentes, y aparearla por posicion publicaba el catalogo en la columna
+  # `esquema`: la coleccion declaraba un esquema que el usuario nunca nombro.
+  con <- DBI::dbConnect(RSQLite::SQLite(), ":memory:")
+  on.exit(DBI::dbDisconnect(con), add = TRUE)
+  partes <- function(id) {
+    f <- as.data.frame(coleccion(con, id, nombre = "x")$tablas)
+    c(catalogo = as.character(f$catalogo[[1L]]),
+      esquema = as.character(f$esquema[[1L]]),
+      tabla = as.character(f$tabla[[1L]]))
+  }
+  con_catalogo <- partes(DBI::Id(catalog = "cat", table = "t"))
+  expect_identical(unname(con_catalogo[["catalogo"]]), "cat")
+  expect_true(is.na(con_catalogo[["esquema"]]))
+
+  # Control: las otras tres formas no se mueven.
+  con_esquema <- partes(DBI::Id(schema = "s", table = "t"))
+  expect_true(is.na(con_esquema[["catalogo"]]))
+  expect_identical(unname(con_esquema[["esquema"]]), "s")
+  las_tres <- partes(DBI::Id(catalog = "c", schema = "s", table = "t"))
+  expect_identical(unname(las_tres[["catalogo"]]), "c")
+  expect_identical(unname(las_tres[["esquema"]]), "s")
+  sola <- partes(DBI::Id(table = "t"))
+  expect_true(is.na(sola[["catalogo"]]))
+  expect_true(is.na(sola[["esquema"]]))
+  # Y un `schema` sin `table` sigue siendo un nombre que no nombra una tabla.
+  expect_error(coleccion(con, DBI::Id(schema = "s"), nombre = "x"), "no nombra")
+})

@@ -320,7 +320,24 @@ transiciones_granularidad <- function() {
     # publicaba esa -medido-, que es peor que el generico. Sirven las que hablan
     # de la tabla entera: no se pudo perfilar (`tabla`) o no hay nada que medir
     # (`tabla_vacia`). Lo demas cae al generico, que al menos no desvia.
-    explican_la_tabla <- c("tabla", "tabla_vacia")
+    # Los SEIS alcances que `perfilar_coleccion()` puede emitir, y por que cada
+    # uno entra o no. La lista estaba a medias -faltaba `medicion_incompleta`- y
+    # la enumere despues de escribirla, que es al reves: una lista incompleta no
+    # se ve, porque el caso que falta cae al motivo generico sin hacer ruido.
+    #
+    #   tabla                 -> SI. No se pudo perfilar: no hay nada que aportar.
+    #   tabla_vacia           -> SI. Cero filas: no hay nada que medir.
+    #   medicion_incompleta   -> SI. Se perfilo pero no se pudo medir la
+    #                            proporcion de ausentes en NINGUNA columna. Es el
+    #                            analogo, a nivel coleccion, del perfil que no
+    #                            pudo resumir ninguna columna.
+    #   metricas              -> NO. Metricas sueltas rechazadas sobre una tabla
+    #                            que si se perfilo: es parcial, no total.
+    #   muestra_no_solicitada -> NO. Decision de configuracion; le toca tambien a
+    #                            las tablas que si se midieron.
+    #   muestra_no_disponible -> NO. Fallo la consulta de muestra y el resumen SQL
+    #                            sobrevivio: la tabla puede aportar igual.
+    explican_la_tabla <- c("tabla", "tabla_vacia", "medicion_incompleta")
     con_motivo <- if (is.null(faltantes$alcance)) {
       faltantes
     } else {
