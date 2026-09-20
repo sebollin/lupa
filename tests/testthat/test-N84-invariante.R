@@ -83,3 +83,35 @@ test_that("una estimacion vacia no se publica como medida", {
   expect_equal(nrow(completo), 2L)
   expect_equal(completo$resultado, c(0.1, 0.2))
 })
+
+test_that("un numero fraccionario o negativo no es un documento valido", {
+  # Los separadores que estos validadores admiten -punto, espacio, guion-
+  # existen porque una persona escribe `1.234.567-2`. En un `double`, el punto
+  # es el separador DECIMAL y el guion es el SIGNO. `as.character()` pierde esa
+  # diferencia y la limpieza los borraba como si fueran presentacion, asi que
+  # `1234567.2` se validaba como `12345672`: el paquete afirmaba que un numero
+  # fraccionario es una cedula.
+  expect_false(validar_ci_uy(1234567.2))
+  expect_false(validar_ci_uy(-12345672))
+  expect_false(validar_rut_uy(21100342001.7))
+  expect_false(validar_rut_uy(-211406340011))
+
+  # La mitad de control, y es la que define el arreglo: lo que SI es un
+  # documento sigue siendolo, por las dos vias de escritura.
+  expect_true(validar_ci_uy("1.234.567-2"))
+  expect_true(validar_ci_uy(12345672))
+  expect_true(validar_rut_uy("211003420017"))
+  expect_true(validar_rut_uy(211003420017))
+
+  # Y el contrato de los validadores no se mueve: ausente es `NA` -no `FALSE`-,
+  # el vector vacio devuelve vector vacio, y los demas validadores no cambian.
+  expect_true(is.na(validar_ci_uy(NA)))
+  expect_length(validar_ci_uy(character()), 0L)
+  expect_true(validar_luhn(4539578763621486))
+  expect_true(validar_correo("a@b.com"))
+  expect_true(validar_iso3166("UY"))
+
+  # Un numero entero grande escrito en notacion cientifica tampoco pasa por
+  # accidente: `as.character(1e20)` no es una cadena de digitos.
+  expect_false(validar_ci_uy(1e20))
+})

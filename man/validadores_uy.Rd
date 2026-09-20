@@ -27,6 +27,13 @@ dígito verificador módulo 11. El algoritmo operativo no está publicado por
 DGI como especificación normativa abierta; esta implementación se contrastó
 con la implementación pública de \code{python-stdnum} y con ejemplos públicos.
 Por eso valida estructura y dígito, no vigencia ni existencia registral.
+
+\strong{Los separadores son de la escritura, no del número.} Punto, espacio y
+guion se admiten porque una persona escribe \verb{1.234.567-2}; en un valor
+numérico el punto es el separador decimal y el guion es el signo, así que un
+número fraccionario o negativo devuelve \code{FALSE} —no se le quita la fracción
+ni el signo para hacerlo pasar—. Un número entero no negativo sí se valida,
+como cualquier otra escritura del mismo documento.
 }
 \examples{
 validar_ci_uy(c("1.234.567-2", "1.234.567-3"))

@@ -75,6 +75,19 @@
   }
   texto <- as.character(x)
   valido <- !is.na(texto) & validUTF8(texto)
+  # Un NUMERO no es una presentacion de documento. Los separadores que estos
+  # validadores admiten -punto, espacio, guion- existen porque una persona
+  # escribe `1.234.567-2`; en un `double`, el punto es el separador decimal y el
+  # guion es el signo. `as.character()` pierde esa diferencia y `.solo_digitos()`
+  # los borraba como si fueran presentacion: `1234567.2` se validaba como
+  # `12345672` y `-12345672` tambien, asi que el paquete afirmaba que un numero
+  # fraccionario o negativo es una cedula. Un valor presente que no puede ser un
+  # documento devuelve `FALSE`, que es lo que el contrato de estos validadores
+  # promete para todo valor presente que no lo cumple.
+  if (is.numeric(x)) {
+    representable <- is.na(x) | (is.finite(x) & x >= 0 & x == trunc(x))
+    valido <- valido & representable
+  }
   if (isTRUE(recortar)) texto[valido] <- trimws(texto[valido])
   list(texto = texto, valido = valido)
 }
@@ -415,6 +428,13 @@ validar_mod97 <- function(x) {
 #' DGI como especificación normativa abierta; esta implementación se contrastó
 #' con la implementación pública de `python-stdnum` y con ejemplos públicos.
 #' Por eso valida estructura y dígito, no vigencia ni existencia registral.
+#'
+#' **Los separadores son de la escritura, no del número.** Punto, espacio y
+#' guion se admiten porque una persona escribe `1.234.567-2`; en un valor
+#' numérico el punto es el separador decimal y el guion es el signo, así que un
+#' número fraccionario o negativo devuelve `FALSE` —no se le quita la fracción
+#' ni el signo para hacerlo pasar—. Un número entero no negativo sí se valida,
+#' como cualquier otra escritura del mismo documento.
 #'
 #' @inheritParams validar_iso3166
 #'
