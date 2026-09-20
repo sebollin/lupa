@@ -55,6 +55,16 @@ Objeto `distribuciones_perfil`, una lista con data frames `frecuencias`,
 
 ## Details
 
+**Las proporciones de `frecuencias` se calculan sobre los valores que se
+pudieron analizar, no sobre la columna entera**, y `alcance` dice
+cuántos fueron: `n_total` contra `n_analizados`. Cuando alguno no se
+pudo comparar —bytes inválidos, sobre todo— el `estado` de esa columna
+es `calculada_parcial` en vez de `calculada`, para que un resultado
+parcial no se lea como completo. Un `NA` no cuenta como descarte: es una
+ausencia declarada, no un valor que no se pudo analizar. Los otros
+estados posibles son `sin_valores`, `sin_valores_analizables` y
+`tipo_no_comparable`.
+
 Cuando una columna tiene evidencia suficiente para activar la protección
 de datos personales, sus frecuencias y niveles se conservan pero el
 valor concreto se reemplaza. Los cuantiles mantienen sus filas y

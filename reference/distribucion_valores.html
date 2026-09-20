@@ -104,7 +104,15 @@ clasificación activa protección automática. Véase <code><a href="perfilar.ht
     </div>
     <div class="section level2">
     <h2 id="details">Details<a class="anchor" aria-label="anchor" href="#details"></a></h2>
-    <p>Cuando una columna tiene evidencia suficiente para activar la protección de
+    <p><strong>Las proporciones de <code>frecuencias</code> se calculan sobre los valores que se
+pudieron analizar, no sobre la columna entera</strong>, y <code>alcance</code> dice cuántos
+fueron: <code>n_total</code> contra <code>n_analizados</code>. Cuando alguno no se pudo comparar
+—bytes inválidos, sobre todo— el <code>estado</code> de esa columna es
+<code>calculada_parcial</code> en vez de <code>calculada</code>, para que un resultado parcial no
+se lea como completo. Un <code>NA</code> no cuenta como descarte: es una ausencia
+declarada, no un valor que no se pudo analizar. Los otros estados posibles
+son <code>sin_valores</code>, <code>sin_valores_analizables</code> y <code>tipo_no_comparable</code>.</p>
+<p>Cuando una columna tiene evidencia suficiente para activar la protección de
 datos personales, sus frecuencias y niveles se conservan pero el valor
 concreto se reemplaza. Los cuantiles
 mantienen sus filas y probabilidades, pero <code>valor</code> queda en <code>NA</code> y <code>estado</code>
