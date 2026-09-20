@@ -105,6 +105,27 @@
   # dos criterios a proposito, porque lo que publica va despues a la impresion.
   # La clave no publica: compara. `validUTF8()` es el criterio de R, es mas
   # estricto, y es igual en todas las plataformas.
+  # Una cadena marcada `latin1` y la misma marcada `UTF-8` son EL MISMO TEXTO
+  # con bytes distintos, y esta clave decide si dos registros son el mismo. Sin
+  # este paso daban claves distintas -medido, bajo los dos locales-:
+  #
+  #   "B\u00e1sico" marcada UTF-8 o sin marca -> =B%C3%A1sico
+  #   "B\u00e1sico" marcada latin1            -> =B%5C341sico
+  #
+  # porque los bytes latin1 `42.e1.73...` no son UTF-8 valido, caian en el
+  # escape por bytes, y el texto quedaba descrito en vez de representado.
+  #
+  # Se convierte SOLO lo que declara su codificacion. Sobre `unknown` seria el
+  # error que el comentario de arriba documenta: `enc2utf8()` consultaria
+  # `LC_CTYPE` y bajo `C` devolveria `B<c3><a1>sico` -la descripcion de los
+  # bytes- dejando la marca en `unknown`, asi que ni siquiera se nota. Sobre
+  # `latin1` no consulta nada, porque la codificacion ya esta dicha: medido,
+  # da los mismos bytes bajo `es_UY.UTF-8` y bajo `C`.
+  #
+  # `bytes` queda afuera a proposito: `enc2utf8()` aborta sobre esa marca, y
+  # debe hacerlo, porque son bytes que nadie declaro como texto.
+  declarada <- !is.na(crudo) & Encoding(crudo) == "latin1"
+  if (any(declarada)) crudo[declarada] <- enc2utf8(crudo[declarada])
   validos <- !is.na(crudo) & validUTF8(crudo)
   validos[is.na(validos)] <- FALSE
   clave <- crudo

@@ -10,6 +10,16 @@
   `elegida` sin ninguna acción activa se rechaza con un mensaje que dice qué
   hacer, en vez de informar una elección que no eligió nada.
 
+- **La identidad de un registro ya no depende de cómo R marcó su texto.** La
+  clave que decide si dos registros son el mismo trataba una cadena marcada
+  `latin1` como bytes inválidos y escapaba su contenido, así que el mismo texto
+  daba dos claves según la marca —`=B%C3%A1sico` marcado UTF-8 o sin marcar,
+  `=B%5C341sico` marcado latin1—, bajo cualquier locale. Importa fuera del
+  laboratorio porque Windows marca `latin1` donde Linux no: `acumular_historico()`
+  podía rechazar, o duplicar, la misma corrida según la máquina que la guardó.
+  La copia que se **exhibe** ya convertía lo que trae codificación declarada; la
+  clave no. Era la misma pregunta contestada en dos lugares con dos criterios.
+
 - **`Encoding() == "bytes"` se respeta.** Esa marca no es una codificación más:
   es la declaración de que el texto no se interprete. El paquete lo declaraba
   UTF-8 y publicaba el carácter; ahora publica lo que publica R.
