@@ -228,10 +228,32 @@ test_that("la deriva de configuracion cruza saveRDS sin depender del locale", {
       readRDS(archivo), .perfil_n61_locale()
     )))
     configuracion <- startsWith(as.character(deriva$aspecto), "configuracion_")
+    # El `info` nombra QUE difirio, no solo que difirio algo: este fallo solo
+    # aparece en Windows y sin el detalle hay que gastar una corrida de veinte
+    # minutos por cada hipotesis. Se publican las columnas que identifican la
+    # fila, con los valores escapados para que el mensaje no dependa a su vez de
+    # la codificacion de la terminal que lo lee.
+    detalle <- if (any(configuracion)) {
+      filas <- deriva[configuracion, , drop = FALSE]
+      columnas <- intersect(
+        c("columna", "aspecto", "antes", "despues", "detalle", "descripcion"),
+        names(filas)
+      )
+      paste(
+        utils::capture.output(utils::str(
+          lapply(filas[, columnas, drop = FALSE], function(v) {
+            if (is.character(v)) encodeString(v) else v
+          }),
+          vec.len = 10L
+        )),
+        collapse = "\n"
+      )
+    } else ""
     expect_equal(
       sum(configuracion), 0L,
       info = paste0("guardado=", direccion[[1L]],
-                    ", comparado=", direccion[[2L]])
+                    ", comparado=", direccion[[2L]],
+                    if (nzchar(detalle)) paste0("\n", detalle) else "")
     )
   }
 })

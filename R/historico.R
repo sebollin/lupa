@@ -537,9 +537,44 @@
       isTRUE(all.equal(lado_anterior, lado_nuevo, check.attributes = FALSE))
     }, logical(1L))
     if (any(!iguales)) {
+      # El mensaje nombraba el registro y no QUE difiere, asi que quien lo
+      # recibe no sabe si le cambio un resultado, una fecha o una etiqueta. Y
+      # cuando el choque aparece solo en otra plataforma -medido en Windows, con
+      # una clave con tilde- la diferencia es lo unico que permite entenderlo sin
+      # gastar una corrida por hipotesis. Se publica el campo y los dos valores,
+      # escapados, para que el mensaje no dependa a su vez de la codificacion de
+      # quien lo lea.
+      primero <- repetidos[which(!iguales)[[1L]]]
+      lado_anterior <- .seleccionar_columnas(
+        anterior, .columnas_historico, filas = coincidencias[[primero]]
+      )
+      lado_nuevo <- .seleccionar_columnas(
+        nuevo, .columnas_historico, filas = primero
+      )
+      comunes <- intersect(names(lado_anterior), names(lado_nuevo))
+      difieren <- comunes[!vapply(comunes, function(nombre) {
+        isTRUE(all.equal(
+          lado_anterior[[nombre]], lado_nuevo[[nombre]],
+          check.attributes = FALSE
+        ))
+      }, logical(1L))]
+      detalle <- if (length(difieren)) {
+        paste0(
+          " Difieren: ",
+          paste(vapply(utils::head(difieren, 3L), function(nombre) {
+            paste0(
+              nombre, " (", encodeString(
+                as.character(lado_anterior[[nombre]])[[1L]], quote = "\""
+              ), " contra ", encodeString(
+                as.character(lado_nuevo[[nombre]])[[1L]], quote = "\""
+              ), ")"
+            )
+          }, character(1L)), collapse = "; "), "."
+        )
+      } else ""
       stop(
         "Un registro ya existente tiene contenido diferente: ",
-        nuevo$id_registro[repetidos[which(!iguales)[[1L]]]], ".",
+        nuevo$id_registro[primero], ".", detalle,
         call. = FALSE
       )
     }
