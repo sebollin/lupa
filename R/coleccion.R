@@ -520,7 +520,8 @@ print.coleccion_lupa <- function(x, ...) {
 
 .cobertura_coleccion_vacia <- function() {
   data.frame(
-    tabla = character(), esquema = character(), tipo = character(),
+    tabla = character(), esquema = character(), catalogo = character(),
+    tipo = character(),
     alcance = character(), motivo = character(), como_resolverlo = character(),
     stringsAsFactors = FALSE
   )
@@ -536,8 +537,16 @@ print.coleccion_lupa <- function(x, ...) {
 }
 
 .fila_cobertura_coleccion <- function(fila, alcance, motivo, como_resolverlo) {
+  # El `catalogo` viaja con la fila. Sin el, una tabla declarada como
+  # `cat.esq.tabla` que no se puede perfilar se publicaba en la frontera como
+  # `esq.tabla`: la identidad completa se caia justo en la tabla que fallo,
+  # mientras la que si se perfilo conservaba la suya. Dos mitades de la misma
+  # coleccion nombradas con criterios distintos, y el motivo asociado a un
+  # nombre que no es el declarado.
   data.frame(
-    tabla = fila$tabla, esquema = fila$esquema, tipo = fila$tipo,
+    tabla = fila$tabla, esquema = fila$esquema,
+    catalogo = if (is.null(fila$catalogo)) NA_character_ else fila$catalogo,
+    tipo = fila$tipo,
     alcance = alcance, motivo = motivo, como_resolverlo = como_resolverlo,
     stringsAsFactors = FALSE
   )
@@ -626,6 +635,12 @@ print.coleccion_lupa <- function(x, ...) {
 #' **no** retiene el perfil de la muestra de cada tabla, que es el objeto
 #' pesado: con cientos de tablas eso no entra en memoria. `conservar_perfiles`
 #' permite retenerlos cuando la colección es chica y se los necesita.
+#'
+#' Cada fila de `cobertura_coleccion` nombra la tabla con las tres partes de su
+#' identidad —`catalogo`, `esquema` y `tabla`—, las mismas que [coleccion()]
+#' declaró. Es lo que permite que el motivo siga pegado a la tabla cuando el
+#' número sube de nivel: sin el catálogo, una tabla declarada como
+#' `catalogo.esquema.tabla` se publicaba río abajo como `esquema.tabla`.
 #'
 #' **Lo que no se pudo medir se declara, y nunca a cero.** Una tabla que la
 #' credencial no puede leer, un objeto que no es una tabla base y una tabla

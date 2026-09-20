@@ -60,6 +60,12 @@ Conserva el resumen calculado en SQL sobre toda la tabla, que es acotado, y
 pesado: con cientos de tablas eso no entra en memoria. \code{conservar_perfiles}
 permite retenerlos cuando la colección es chica y se los necesita.
 
+Cada fila de \code{cobertura_coleccion} nombra la tabla con las tres partes de su
+identidad —\code{catalogo}, \code{esquema} y \code{tabla}—, las mismas que \code{\link[=coleccion]{coleccion()}}
+declaró. Es lo que permite que el motivo siga pegado a la tabla cuando el
+número sube de nivel: sin el catálogo, una tabla declarada como
+\code{catalogo.esquema.tabla} se publicaba río abajo como \code{esquema.tabla}.
+
 \strong{Lo que no se pudo medir se declara, y nunca a cero.} Una tabla que la
 credencial no puede leer, un objeto que no es una tabla base y una tabla
 vacía van a \code{cobertura_coleccion} con su motivo y su \code{como_resolverlo}. Un

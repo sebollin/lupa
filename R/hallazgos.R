@@ -3185,9 +3185,26 @@
   if (identical(declarado, inferido)) {
     return(TRUE)
   }
-  declarado %in% c("factor", "factor-ordenado", "texto") &&
-    inferido %in% c("texto", "identificador", "desconocido")
+  if (declarado %in% c("factor", "factor-ordenado", "texto") &&
+      inferido %in% c("texto", "identificador", "desconocido")) {
+    return(TRUE)
+  }
+  # Un `tipo_declarado` que NO pertenece al vocabulario comparable -porque es el
+  # nombre de una clase de R, como `difftime`, `hms` o `units`- no puede
+  # contradecir al tipo inferido: son dos afirmaciones sobre cosas distintas. Sin
+  # esto, publicar la clase real haria disparar un `tipo_declarado_distinto`
+  # falso en toda columna de duracion. Se comparan los tipos que el paquete
+  # produce; una clase ajena se declara y no se discute.
+  !(declarado %in% .VOCABULARIO_TIPOS_COMPARABLES)
 }
+
+# Los tipos que el paquete produce, y por lo tanto los unicos que puede comparar
+# entre si. Lo que cae afuera es el nombre de una clase de R que se publica tal
+# cual porque el dato la trae.
+.VOCABULARIO_TIPOS_COMPARABLES <- c(
+  "entero", "doble", "texto", "logico", "factor", "factor-ordenado",
+  "fecha", "fecha-hora", "integer64", "matriz", "identificador", "desconocido"
+)
 
 .hallazgos_columnas <- function(resultados, columnas,
                                 umbral_alta_cardinalidad,

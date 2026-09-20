@@ -576,6 +576,41 @@ tablero_calidad <- function(medidas, agregaciones = NULL, umbrales = NULL,
   salida
 }
 
+# Imprimir la cobertura de la coleccion. Vive en un solo lugar porque la hacen
+# falta dos objetos -el tablero y el indice- y escribir la misma regla dos veces
+# es de donde salieron la mitad de los defectos de este paquete.
+.imprimir_cobertura_coleccion <- function(cc) {
+  if (is.null(cc)) return(invisible(NULL))
+  cli::cli_h2("Cobertura de la colecci\u00f3n")
+  etiquetas <- c(
+    "Tablas declaradas" = as.character(cc$tablas_declaradas),
+    "Sin medir" = if (length(cc$tablas_sin_medir)) {
+      paste(cc$tablas_sin_medir, collapse = ", ")
+    } else "ninguna"
+  )
+  etiquetas <- c(
+    etiquetas,
+    stats::setNames(
+      as.character(cc$tablas_en_el_numero),
+      .texto_celda_publicada("En el n\u00famero")
+    )
+  )
+  cli::cli_dl(etiquetas)
+  # Y el motivo de cada tabla que quedo afuera: el nombre solo dice QUE falta,
+  # no por que, y una tabla que no existe y una tabla vacia no son el mismo
+  # problema. El objeto los distingue; la pantalla tambien tiene que hacerlo.
+  if (length(cc$tablas_sin_medir) &&
+      length(cc$motivo_sin_medir) == length(cc$tablas_sin_medir)) {
+    .print_data_frame_bytes(data.frame(
+      tabla = as.character(cc$tablas_sin_medir),
+      motivo = as.character(cc$motivo_sin_medir),
+      stringsAsFactors = FALSE
+    ), row.names = FALSE)
+  }
+  if (!is.null(cc$advertencia)) cli::cli_alert_warning(cc$advertencia)
+  invisible(NULL)
+}
+
 #' @export
 print.tablero_calidad <- function(x, ...) {
   original <- x
@@ -594,6 +629,11 @@ print.tablero_calidad <- function(x, ...) {
     cli::cli_h2("Cobertura de m\u00e9tricas")
     .print_data_frame_bytes(cobertura_metricas, row.names = FALSE)
   }
+  # El tablero LLEVA la cobertura de la coleccion como atributo y su impresion la
+  # tiraba: quien lo mira en pantalla no veia que el numero se calculo sobre una
+  # parte de las tablas declaradas. El indice ya la imprimia; eran dos capas del
+  # mismo paquete contestando distinto a la misma pregunta.
+  .imprimir_cobertura_coleccion(attr(x, "cobertura_coleccion", exact = TRUE))
   invisible(original)
 }
 
@@ -726,6 +766,11 @@ print.tablero_calidad <- function(x, ...) {
     pesos = numeric(), pesos_internos = numeric(), componentes = tablero[0, ],
     dimensiones = data.frame(), invertidas = tablero[0, ],
     excluidas = excluidas, nivel_pesos = "dimensi\u00f3n",
+    # El indice SIN componentes perdia la cobertura de la coleccion entera: el
+    # numero sale `NA` -eso esta bien, no hay nada que combinar- pero la
+    # declaracion de que una de dos tablas quedo afuera se tiraba, y es
+    # justamente cuando mas falta hace. Viaja en el tablero como atributo.
+    cobertura_coleccion = attr(tablero, "cobertura_coleccion", exact = TRUE),
     combinacion_interna = "No hubo componentes combinables.",
     advertencia_universos = paste0(
       "Los componentes salen de universos distintos (por ejemplo, celdas, ",
@@ -736,6 +781,14 @@ print.tablero_calidad <- function(x, ...) {
     tablero = tablero
   )
   class(resultado) <- "indice_calidad"
+  # Y tambien como atributo, no solo como elemento de la lista: `tablero_calidad()`
+  # la conserva como atributo, asi que un consumidor generico que lea
+  # `attr(x, "cobertura_coleccion")` -el mismo que funciona con el tablero- la
+  # perdia al llegar al indice, que es el ultimo consumidor. La declaracion viaja
+  # por las dos vias, que es lo que costaba cero y evitaba el agujero.
+  if (!is.null(resultado$cobertura_coleccion)) {
+    attr(resultado, "cobertura_coleccion") <- resultado$cobertura_coleccion
+  }
   resultado
 }
 
@@ -880,6 +933,14 @@ indice_calidad <- function(medidas, pesos, pesos_internos = NULL, ...) {
     tablero = tablero
   )
   class(resultado) <- "indice_calidad"
+  # Y tambien como atributo, no solo como elemento de la lista: `tablero_calidad()`
+  # la conserva como atributo, asi que un consumidor generico que lea
+  # `attr(x, "cobertura_coleccion")` -el mismo que funciona con el tablero- la
+  # perdia al llegar al indice, que es el ultimo consumidor. La declaracion viaja
+  # por las dos vias, que es lo que costaba cero y evitaba el agujero.
+  if (!is.null(resultado$cobertura_coleccion)) {
+    attr(resultado, "cobertura_coleccion") <- resultado$cobertura_coleccion
+  }
   resultado
 }
 
@@ -903,26 +964,9 @@ print.indice_calidad <- function(x, ...) {
   }
   # Sobre cuantas tablas de la coleccion declarada se calculo este numero. Se
   # imprime porque un indice es UN numero: si la cobertura vive solo en un
-  # atributo, quien lo lee en pantalla no la ve.
-  if (!is.null(x$cobertura_coleccion)) {
-    cc <- x$cobertura_coleccion
-    cli::cli_h2("Cobertura de la colecci\u00f3n")
-    etiquetas <- c(
-      "Tablas declaradas" = as.character(cc$tablas_declaradas),
-      "Sin medir" = if (length(cc$tablas_sin_medir)) {
-        paste(cc$tablas_sin_medir, collapse = ", ")
-      } else "ninguna"
-    )
-    etiquetas <- c(
-      etiquetas,
-      stats::setNames(
-        as.character(cc$tablas_en_el_numero),
-        .texto_celda_publicada("En el n\u00famero")
-      )
-    )
-    cli::cli_dl(etiquetas)
-    if (!is.null(cc$advertencia)) cli::cli_alert_warning(cc$advertencia)
-  }
+  # atributo, quien lo lee en pantalla no la ve. La misma regla la usa el
+  # tablero, asi que vive en un solo lugar.
+  .imprimir_cobertura_coleccion(x$cobertura_coleccion)
   if (nrow(x$dimensiones)) {
     cli::cli_h2("Dimensiones, pesos y aportes")
     .print_data_frame_bytes(x$dimensiones, row.names = FALSE)

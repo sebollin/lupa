@@ -716,6 +716,22 @@
   if (is.factor(x)) {
     return("factor")
   }
+  # El paquete ya se escribio esta leccion en `hallazgos.R`: `Date`, `POSIXct`,
+  # `difftime`, `integer64`, `units` y `hms` son todos `double` por debajo, y
+  # **enumerar las clases a mano deja afuera la proxima**. Aca la enumeracion
+  # dejaba afuera justamente a `difftime`: una columna de duraciones en minutos
+  # publicaba `tipo_declarado = "doble"`, que no es lo que la columna declara de
+  # si misma -y el paquete lo sabe, porque dos predicados la excluyen de Benford
+  # y de las relaciones aritmeticas por `inherits(x, "difftime")`-. Publicando la
+  # clase, la proxima entra sola.
+  #
+  # `AsIs` se descarta: `I()` es como el dato viajo dentro del `data.frame`, no
+  # una declaracion sobre el dato. Sin esto, `I(1:10)` pasaria de `entero` a
+  # `AsIs`, que no le dice nada a nadie.
+  clase_declarada <- setdiff(oldClass(x), "AsIs")
+  if (length(clase_declarada)) {
+    return(clase_declarada[[1L]])
+  }
   if (is.logical(x)) {
     return("logico")
   }

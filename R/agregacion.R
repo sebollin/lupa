@@ -306,16 +306,46 @@ transiciones_granularidad <- function() {
     # rechazadas sobre tablas que si se perfilaron. Aca interesan solo las que
     # faltan como tabla, y confiar en la deduplicacion posterior seria apoyarse
     # en un efecto lateral.
+    # El filtro por `alcance == "tabla"` decide cuales se DECLARAN, y esta bien:
+    # una tabla vacia si se perfilo, asi que no falta como tabla. Pero se
+    # llevaba tambien los MOTIVOS, y ahi perdia: si esa tabla despues no aporta
+    # una medida, su motivo especifico -"La tabla tiene cero filas: se leyo su
+    # estructura pero no hay nada que medir"- se reemplazaba por el generico "no
+    # hay una medida de esta tabla en la entrada". Las dos frases son ciertas y
+    # la segunda dice menos: una tabla que no existe y una tabla vacia no son el
+    # mismo problema, y el objeto de una capa antes las distinguia.
+    # Una tabla puede traer VARIAS filas de cobertura, y no todas explican por que
+    # no puede aportar: `muestra_no_solicitada` habla de la configuracion elegida
+    # y le toca hasta a las tablas que si se midieron. Quedarse con la primera
+    # publicaba esa -medido-, que es peor que el generico. Sirven las que hablan
+    # de la tabla entera: no se pudo perfilar (`tabla`) o no hay nada que medir
+    # (`tabla_vacia`). Lo demas cae al generico, que al menos no desvia.
+    explican_la_tabla <- c("tabla", "tabla_vacia")
+    con_motivo <- if (is.null(faltantes$alcance)) {
+      faltantes
+    } else {
+      faltantes[faltantes$alcance %in% explican_la_tabla, , drop = FALSE]
+    }
     if (!is.null(faltantes$alcance)) {
       faltantes <- faltantes[faltantes$alcance == "tabla", , drop = FALSE]
     }
-    ids_faltantes <- identificador(faltantes$esquema, faltantes$tabla)
+    # Con el catalogo: la identidad completa es `catalogo.esquema.tabla`, y
+    # reconstruirla sin el catalogo publica otra tabla.
+    ids_faltantes <- identificador(
+      faltantes$esquema, faltantes$tabla, faltantes$catalogo
+    )
+    ids_con_motivo <- identificador(
+      con_motivo$esquema, con_motivo$tabla, con_motivo$catalogo
+    )
+    primeros <- !duplicated(.nombres_para_operar(ids_con_motivo))
     return(list(
       nombre = coleccion$meta$nombre,
       declaradas = c(
         coleccion$resumen_coleccion$identificador, ids_faltantes
       ),
-      motivo_faltantes = stats::setNames(faltantes$motivo, ids_faltantes)
+      motivo_faltantes = stats::setNames(
+        con_motivo$motivo[primeros], ids_con_motivo[primeros]
+      )
     ))
   }
   stop(

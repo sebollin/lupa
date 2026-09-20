@@ -383,8 +383,25 @@
       } else "ninguna",
       stringsAsFactors = FALSE
     )
+    # El informe publicaba el NOMBRE de cada tabla sin medir y tiraba su MOTIVO,
+    # que el objeto si trae: quien lee el HTML -que es quien no abre R- veia que
+    # una tabla quedo afuera y no por que. Una tabla que no existe y una tabla
+    # vacia no son el mismo problema, y el objeto las distingue. La capa final no
+    # puede conservar menos que la que la alimenta.
+    sin_medir <- cobertura_coleccion$tablas_sin_medir
+    motivos <- cobertura_coleccion$motivo_sin_medir
+    detalle <- if (length(sin_medir) && length(motivos) == length(sin_medir)) {
+      .html_tabla(data.frame(
+        tabla = as.character(sin_medir),
+        motivo = as.character(motivos),
+        stringsAsFactors = FALSE
+      ), Inf)
+    } else ""
     partes <- c(partes,
       "<h3>Cobertura de la colecci\u00f3n</h3>", .html_tabla(resumen, Inf),
+      if (nzchar(detalle)) {
+        paste0("<h4>Tablas sin medir, y por qu\u00e9</h4>", detalle)
+      } else "",
       if (!is.null(cobertura_coleccion$advertencia)) {
         paste0("<p class=\"nota\">",
                .html_texto(cobertura_coleccion$advertencia), "</p>")
