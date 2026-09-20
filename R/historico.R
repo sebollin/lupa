@@ -503,9 +503,7 @@
   class(x) <- c("historico_calidad", "data.frame")
   attr(x, "version_esquema") <- .version_esquema_historico
   attr(x, "configuracion_evaluacion") <- configuracion
-  # Se declara UTF-8 el texto que ya lo es, ahora que el objeto esta armado.
-  # Al sellar y no al entrar: ver `.marcar_texto_estable()` en `R/utils.R`.
-  .marcar_texto_estable(x)
+  x
 }
 
 .combinar_historico <- function(anterior, nuevo) {
@@ -793,7 +791,30 @@ guardar_historico <- function(historico, archivo, sobrescribir = FALSE) {
   directorio <- .validar_destino_archivo(archivo, sobrescribir)
   temporal <- tempfile(".lupa-historico-", tmpdir = directorio)
   on.exit(unlink(temporal), add = TRUE)
-  saveRDS(historico, temporal, version = 3L)
+  # Version 2 y no 3, y no es una preferencia: es lo unico que conserva el texto.
+  #
+  # El formato 3 anota en la cabecera la codificacion NATIVA de quien escribe y
+  # al leer TRADUCE desde ella las cadenas sin marca. Escribiendo bajo
+  # `LC_CTYPE=C` la cabecera dice `ANSI_X3.4-1968`; al leer bajo UTF-8, glibc
+  # falla al traducir y R deja los bytes intactos -el dato se salva por el
+  # camino del error-, pero `win_iconv` NO falla: apaga el bit alto y devuelve
+  # algo. Medido en R-hub Windows, `B\u00e1sico` se leia como `BC!sico`, y
+  # `acumular_historico()` rechazaba su propia corrida guardada.
+  #
+  # Medido sobre los mismos bytes sin marca, escribiendo bajo `C` y leyendo bajo
+  # UTF-8:
+  #
+  #   version 3 -> cabecera con ANSI_X3.4-1968, 1 aviso de traduccion
+  #   version 2 -> sin campo de codificacion nativa, 0 avisos, bytes y marca
+  #                identicos
+  #
+  # La otra salida -declarar UTF-8 el texto al sellar el objeto- se probo y se
+  # DESCARTO: rompe la promesa de `test-N52`, que exige que un nombre publicado
+  # conserve bytes Y MARCA para poder indexar la tabla del usuario. Bajo `C`,
+  # una cadena marcada y la misma sin marcar no son iguales para `==` ni para
+  # `[[`. Conservar los bytes en el archivo cumple las dos; marcar cumple una y
+  # rompe la otra.
+  saveRDS(historico, temporal, version = 2L)
   if (!file.copy(temporal, archivo, overwrite = sobrescribir)) {
     stop("No se pudo guardar el hist\u00f3rico en el destino indicado.", call. = FALSE)
   }

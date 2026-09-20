@@ -222,7 +222,22 @@ test_that("la deriva de configuracion cruza saveRDS sin depender del locale", {
     guardado <- suppressWarnings(.perfil_n61_locale())
     archivo <- tempfile(fileext = ".rds")
     on.exit(unlink(archivo), add = TRUE)
-    saveRDS(guardado, archivo)
+    # `version = 2` y no el 3 por omision, y no es para que la prueba pase.
+    #
+    # El formato 3 anota en la cabecera la codificacion NATIVA de quien escribe
+    # y al leer TRADUCE desde ella las cadenas sin marca. Eso NO es algo que el
+    # paquete haga ni pueda evitar: lo hace `readRDS()`. En glibc la traduccion
+    # falla y los bytes se salvan; en Windows `win_iconv` no falla, apaga el bit
+    # alto, y `B\u00e1sico` vuelve como `BC!sico`. Un perfil asi leido esta
+    # CORRUPTO, y que `comparar_perfiles()` informe deriva sobre el es correcto:
+    # su texto cambio de verdad. Hacer que comparara igual seria esconderlo.
+    #
+    # Lo que el paquete SI garantiza -y lo que esta prueba mide- es que su
+    # propia persistencia no corrompe: `guardar_historico()` y
+    # `guardar_analisis()` escriben con `version = 2`, y para un perfil el
+    # remedio es esta misma linea, que la documentacion de `comparar_perfiles()`
+    # nombra.
+    saveRDS(guardado, archivo, version = 2L)
     expect_true(.fijar_locale_n61(direccion[[2L]]))
     deriva <- suppressWarnings(as.data.frame(comparar_perfiles(
       readRDS(archivo), .perfil_n61_locale()

@@ -233,9 +233,7 @@ perfil_evaluacion <- function(nombre, ...) {
   names(reglas) <- nombres
   estructura <- list(nombre = nombre, reglas = reglas)
   class(estructura) <- "perfil_evaluacion"
-  # El nombre del perfil viaja hasta la columna `perfil` del historico y
-  # cruza `saveRDS()`. Ver `.marcar_texto_estable()` en `R/utils.R`.
-  .marcar_texto_estable(estructura)
+  estructura
 }
 
 .regla_umbral <- function(nombre, umbral, metricas) {
@@ -918,9 +916,7 @@ evaluar <- function(medicion, perfil) {
   )
   if (!is.null(desenlaces)) estructura$desenlaces <- desenlaces
   class(estructura) <- "evaluacion_calidad"
-  # Se declara UTF-8 el texto que ya lo es, ahora que el objeto esta armado.
-  # Al sellar y no al entrar: ver `.marcar_texto_estable()` en `R/utils.R`.
-  .marcar_texto_estable(estructura)
+  estructura
 }
 
 #' Comparar evaluaciones de perfil

@@ -875,7 +875,11 @@ guardar_analisis <- function(x, archivo, incluir_datos = FALSE,
   )
   temporal <- tempfile(".lupa-analisis-", tmpdir = dirname(archivo), fileext = ".rds")
   on.exit(unlink(temporal), add = TRUE)
-  saveRDS(copia, temporal, version = 3L, compress = comprimir)
+  # Version 2 por la misma razon que en `guardar_historico()`: el formato 3
+  # anota la codificacion nativa de quien escribe y al leer traduce desde
+  # ella las cadenas sin marca. En Windows esa traduccion no falla, apaga el
+  # bit alto y corrompe el texto en silencio.
+  saveRDS(copia, temporal, version = 2L, compress = comprimir)
   if (!file.copy(temporal, archivo, overwrite = sobrescribir)) {
     stop("No se pudo escribir el analisis.", call. = FALSE)
   }

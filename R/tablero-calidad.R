@@ -433,9 +433,7 @@
     resultado$id_medicion, "-tablero-", sprintf("%06d", seq_len(nrow(resultado)))
   )
   class(resultado) <- c("medicion", "data.frame")
-  # Se declara UTF-8 el texto que ya lo es, ahora que el objeto esta armado.
-  # Al sellar y no al entrar: ver `.marcar_texto_estable()` en `R/utils.R`.
-  .marcar_texto_estable(resultado)
+  resultado
 }
 
 .preparar_tablero <- function(medidas, agregaciones = NULL, umbrales = NULL,

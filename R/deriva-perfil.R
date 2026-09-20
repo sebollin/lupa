@@ -381,8 +381,21 @@
 #'
 #' Los nombres de columnas y las configuraciones que contienen texto del usuario
 #' se comparan por sus bytes, no por la marca de codificación ni por la
-#' intercalación del locale. Esto también vale cuando un perfil se guarda con
-#' [saveRDS()] y se relee bajo otro locale.
+#' intercalación del locale.
+#'
+#' Eso alcanza mientras los bytes lleguen intactos, y hay un caso en que no
+#' llegan y **no depende de este paquete**: el formato RDS 3 —el de [saveRDS()]
+#' por omisión— anota la codificación nativa de quien escribe, y al leer
+#' *traduce* desde ella el texto que no declara la suya. Un perfil guardado bajo
+#' `LC_CTYPE=C` y releído bajo otro locale puede volver con el texto cambiado;
+#' en Windows el cambio es silencioso, porque ahí la conversión no falla.
+#' Cuando eso pasa, el perfil releído **está** alterado y la comparación informa
+#' la diferencia, que es lo correcto: su texto cambió de verdad.
+#'
+#' El remedio es una línea, `saveRDS(perfil, archivo, version = 2)`, porque ese
+#' formato no anota codificación nativa y por lo tanto no traduce nada. La
+#' persistencia propia del paquete —[guardar_historico()] y
+#' [guardar_analisis()]— ya lo usa.
 #' Las claves internas que agrupan hallazgos también se normalizan por bytes;
 #' por eso dos perfiles idénticos no emiten avisos espurios bajo C.
 #'

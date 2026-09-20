@@ -2407,7 +2407,5 @@ perfilar <- function(datos,
   }
   class(estructura) <- "perfil"
   if (proteger_datos_personales) estructura <- .proteger_perfil(estructura, datos)
-  # Se declara UTF-8 el texto que ya lo es, ahora que el objeto esta armado.
-  # Al sellar y no al entrar: ver `.marcar_texto_estable()` en `R/utils.R`.
-  .marcar_texto_estable(estructura)
+  estructura
 }
