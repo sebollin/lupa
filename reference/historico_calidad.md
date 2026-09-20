@@ -4,7 +4,8 @@ Crea un data frame plano y versionado con corridas producidas por
 [`medir()`](https://sebollin.github.io/lupa/reference/medir.md) o
 [`evaluar()`](https://sebollin.github.io/lupa/reference/evaluar.md).
 `acumular_historico()` agrega objetos al mismo esquema y es idempotente
-cuando recibe otra vez registros idénticos.
+cuando recibe otra vez registros idénticos, incluso si el RDS se guardó
+o se vuelve a leer bajo otro locale.
 
 ## Usage
 
@@ -37,10 +38,14 @@ Data frame S3 `historico_calidad`. La columna `version_esquema` y el
 atributo del mismo nombre permiten migraciones futuras. `nivel`
 corresponde a `medida`, `evaluacion_medida`, `evaluacion_regla` o
 `evaluacion_perfil`; una métrica sin valores se conserva como
-`metrica_no_evaluada` con su motivo. El atributo
-`configuracion_evaluacion` conserva, en una tabla plana separada, el
-modelo, la aplicabilidad, el perfil y la identidad de tabla de cada
-corrida.
+`metrica_no_evaluada` con su motivo, siempre que la medición tenga al
+menos una medida. Una medición **enteramente** vacía —ninguna métrica
+pudo aplicarse— no se acumula: se rechaza citando el motivo que
+[`medir()`](https://sebollin.github.io/lupa/reference/medir.md) declaró
+en `cobertura_metricas`, porque no hay corrida que registrar. El
+atributo `configuracion_evaluacion` conserva, en una tabla plana
+separada, el modelo, la aplicabilidad, el perfil y la identidad de tabla
+de cada corrida.
 
 ## Details
 

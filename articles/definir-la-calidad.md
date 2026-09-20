@@ -242,11 +242,11 @@ padron <- referencial(
 names(metricas_referencial())
 #> [1] "CorrectitudSemFuerte" "CorrectitudSemDebil"  "RatioCobertura"
 padron
-#> Referencial: referencial 
-#>   Filas: 2 
-#>   Clave: codigo 
-#>   Valores: nombre 
-#>   Completo: sí 
+#> Referencial: referencial
+#>   Filas: 2
+#>   Clave: codigo
+#>   Valores: nombre
+#>   Completo: sí
 #>   Alcance: departamentos incluidos en el ejemplo
 ```
 

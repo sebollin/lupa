@@ -42,6 +42,14 @@ las dos corridas usaron configuraciones de patrones diferentes, se
 informa un error de comparabilidad y esa parte de la comparación se
 omite.
 
+Los nombres de columnas y las configuraciones que contienen texto del
+usuario se comparan por sus bytes, no por la marca de codificación ni
+por la intercalación del locale. Esto también vale cuando un perfil se
+guarda con [`saveRDS()`](https://rdrr.io/r/base/readRDS.html) y se relee
+bajo otro locale. Las claves internas que agrupan hallazgos también se
+normalizan por bytes; por eso dos perfiles idénticos no emiten avisos
+espurios bajo C.
+
 Las columnas que aparecen o desaparecen generan cambios estructurales de
 severidad `error`, pero no impiden comparar las columnas compartidas. Un
 hallazgo de una columna retirada no se presenta como resuelto.

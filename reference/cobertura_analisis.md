@@ -31,6 +31,13 @@ cobertura_analisis(perfil, medicion = NULL, modelo = marco_agesic())
   perfil creado por
   [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md).
 
+  **La correspondencia entre los dos objetos es suya, no del paquete.**
+  La cobertura aparea por dimensión y factor, y no verifica que la
+  medición provenga de la tabla que se perfiló: si le pasa una medición
+  de otra tabla, el factor va a figurar como medido por esa corrida. El
+  paquete no puede comprobarlo porque un perfil no guarda una identidad
+  de tabla comparable con la entidad de la medición.
+
 - modelo:
 
   **Tercer argumento.** Objeto creado por
@@ -47,6 +54,21 @@ Data frame con `marco`, `dimension`, `factor`, `estado`, `motivo` y
 `como_resolverlo`. `marco` identifica explícitamente la taxonomía contra
 la que se calculó la tabla. `estado` es un factor con niveles
 `"medida"`, `"no_declarada"`, `"no_aplica"` y `"fuera_de_alcance"`.
+
+**El `motivo` publica el alcance cuando el perfil resumió sólo parte de
+las columnas.** Si ninguna se pudo resumir, el `estado` es
+`"no_aplica"`; si se resumieron todas, el motivo lo dice; y si se
+resumieron algunas, el `estado` sigue siendo `"medida"` —el factor sí se
+midió, en las columnas que se pudieron resumir— y el motivo empieza con
+`"Parcial: "` y nombra cuántas de cuántas. Esas filas se encuentran con
+`grepl("^Parcial: ", cobertura$motivo)`. El `estado` no distingue el
+caso parcial a propósito: es un factor de cuatro niveles documentados
+que
+[`tablero_calidad()`](https://sebollin.github.io/lupa/reference/tablero_calidad.md)
+valida, y el grado —1 de 100 no es 99 de 100— no cabe en un nivel. El
+alcance viaja en el motivo, y
+[`tablero_calidad()`](https://sebollin.github.io/lupa/reference/tablero_calidad.md)
+lo conserva al cruzar la cobertura con su medición.
 
 ## Details
 

@@ -2,6 +2,144 @@
 
 ## lupa 0.1.0
 
+### Correcciones de cobertura y publicación
+
+- **El plan de limpieza ya no depende de cómo estén ordenadas sus
+  filas.** Dos acciones con el mismo `orden` desempataban por la
+  posición de la fila, así que el mismo plan con las filas invertidas
+  devolvía **datos distintos**: una corrida conservaba un espacio
+  inicial y la otra no. Ahora el empate lo resuelve `id_accion`, que no
+  cambia al reordenar. Y un grupo marcado como `elegida` sin ninguna
+  acción activa se rechaza con un mensaje que dice qué hacer, en vez de
+  informar una elección que no eligió nada.
+
+- **`Encoding() == "bytes"` se respeta.** Esa marca no es una
+  codificación más: es la declaración de que el texto no se interprete.
+  El paquete lo declaraba UTF-8 y publicaba el carácter; ahora publica
+  lo que publica R.
+
+- La publicación también es independiente del locale. Las propuestas de
+  proponer_modelo() y las tablas que muestran los métodos print.\* ya no
+  fallan por codificación en ningún locale, incluido LC_CTYPE = C. La
+  copia que se exhibe convierte lo que trae codificación declarada
+  —latin1 o UTF-8—, declara como UTF-8 los bytes válidos sin declarar —R
+  los escapa como \<U+00F1\> donde el locale no los represente— y deja
+  los bytes restantes tal cual mientras print.data.frame() pueda con
+  ellos. **Bajo un locale UTF-8 la salida es la misma que la de R**
+  —medido en 39 tipos de columna por 3 formas de row.names por 3 anchos
+  por 2 locales, 702 cruces— con una excepción que se sigue de lo
+  anterior y conviene tener presente: si una clase suya define un
+  format() que consulta Encoding(), va a ver la marca de la copia y no
+  la del original, así que puede decidir distinto. Bajo un locale que no
+  puede representar un carácter la salida difiere a propósito, y para
+  mejor: donde R publica los bytes escapados en octal, lupa publica el
+  punto de código, \<U+00F1\>, que dice qué carácter era. Sólo cuando R
+  no puede imprimir —una columna de listas con bytes inválidos, donde
+  aborta en cualquier locale— se reintenta escapando con el octal que el
+  propio R usa, \377. Ese reintento transforma el marco **entero**, no
+  sólo la celda que impedía imprimir: duplica las barras de todas las
+  columnas, porque si no lo hiciera el byte escapado y el texto literal
+  de la misma forma publicarían lo mismo. Es el precio de que la
+  representación sea reversible, y sólo se paga en un marco que R no
+  podía imprimir de ninguna manera. El octal no es un detalle: escapar
+  como hacía que el byte 0xff y el texto que un usuario puede escribir
+  se publicaran iguales, y R los distingue. Eso no vuelve infalible a
+  print(): si una clase del usuario tiene un format() que da error, ese
+  error le llega sin alterar, que es lo que corresponde. Y un format()
+  que consulte Encoding() verá las marcas de la copia, no las del objeto
+  original. Además, la clave interna de comparar_perfiles() usa la misma
+  representación por bytes que el resto del paquete y dos perfiles
+  idénticos no emiten avisos espurios.
+
+- **Los métodos print y los avisos tampoco publican bytes crudos.** Los
+  avisos y encabezados que componen texto del usuario —nombres de
+  columna, de tabla, de fuente— lo declaran antes de publicarlo. Bajo
+  LC_CTYPE = C ya no aparecen frases a medias, con el texto del paquete
+  legible y el nombre del usuario en bytes: donde el locale no puede
+  representar un carácter, se escapa como \<U+00F1\> en toda la línea.
+  Una prueba recorre diez canales —los métodos print y los avisos— por
+  las dos corrientes de salida y falla si encuentra un byte crudo. **Los
+  mensajes de error quedan fuera de ese alcance y lo dicen**: son 651
+  sitios y siguen publicando el nombre tal como el usuario lo entregó,
+  que es también como lo publica cualquier paquete de R.
+
+- **La configuración de una corrida se compara por bytes, como sus
+  datos.** La comparación de filas de configuración de
+  acumular_historico() usaba una igualdad que consulta la codificación:
+  dos filas con los mismos bytes y distinta marca —una leída de un
+  archivo, otra recién calculada— se consideraban distintas bajo un
+  locale no UTF-8 y abortaban la acumulación entera.
+
+- **El efecto observado ya no depende de la estimación del plan.** Una
+  acción seleccionada que deja `n_cambiadas = 0` se registra como
+  `fallida` aunque `n_afectadas` sea `NA`, cero o un número editado que
+  no corresponde; el motivo distingue el efecto medido de la estimación
+  ausente. Se agregó una prueba sobre un plan editado que también cubre
+  acciones borradas y parámetros inválidos, y se auditó la capa
+  completa: de las construcciones de ausencia encontradas, sólo la
+  guarda de `.motivo_efecto_accion()` apagaba un control.
+
+- La normalización vectorial declara los bytes UTF-8 válidos antes de
+  aplicar los pasos optativos y transforma ligaduras por punto de
+  código. `ligaduras` y `ancho` cumplen ahora igual bajo
+  `LC_CTYPE = "C"` y bajo un locale UTF-8.
+
+- La evidencia que publica decimales fijos usa la misma marca de
+  `OutDec` que las columnas:
+  [`sprintf()`](https://rdrr.io/r/base/sprintf.html) ya no deja puntos
+  mezclados con comas en un mismo perfil.
+
+- El diagnóstico `casi_duplicados_vocabulario` queda documentado como
+  una evaluación independiente por columna. No se introduce un caché
+  transversal: la medición encontró tres pares, todos en columnas
+  pequeñas o constantes, en las tablas reales disponibles, y cada
+  columna conserva su propia cobertura y sus hallazgos.
+
+- `bloque_muestra = "solo_agregados"` ahora se respeta también con
+  `universo = "muestra_motor"`: los agregados siguen usando la relación
+  muestreada, pero no se leen filas ni se materializa un spool. El plan
+  y la corrida comparten esa decisión, y
+  `meta$materializacion`/`meta$bloques` dejan el estado `no_solicitado`
+  y `filas_vistas = 0` cuando corresponde.
+
+- Las lecturas DBI marcan como UTF-8 los bytes válidos antes de perfilar
+  o guardar texto; las comparaciones de `NoNulo`, `Formato` y
+  `ValoresPosiblesPorExtension` usan claves por bytes. La evidencia de
+  duplicados aproxima nombres y valores sin depender de `LC_CTYPE`,
+  mientras los nombres de columna publicados conservan sus bytes y su
+  marca de entrada.
+
+- Las secuencias `integer64` registran los métodos de `bit64` antes de
+  medirse aunque el paquete no esté adjunto; si `bit64` no está
+  instalado, sus cinco medidas quedan en `NA` y `cobertura_diagnosticos`
+  declara la no evaluación.
+
+- La moda y las constantes numéricas que se publican en texto usan
+  notación fija con la precisión completa, independiente de `scipen` y
+  de `digits`, y conservan `OutDec`.
+
+- La clasificación de posibles datos personales usa esa representación
+  fija, así que `scipen` y `digits` ya no cambian la clasificación ni
+  borran de `meta` los centinelas numéricos declarados. Las claves de
+  deriva e histórico comparan nombres y configuraciones por bytes,
+  incluso después de [`saveRDS()`](https://rdrr.io/r/base/readRDS.html)
+  y al cambiar de locale.
+
+- Las sugerencias de ausencia estructural componen sus nombres con una
+  copia marcada como UTF-8, sin cambiar los nombres publicados de la
+  tabla; el código que se puede copiar y pegar queda igual bajo
+  `LC_CTYPE = "C"`.
+
+- Las publicaciones por `cli` marcan en un único punto los textos UTF-8
+  válidos que vienen de nombres, valores y motivos del usuario. Bajo
+  `LC_CTYPE = "C"` ya no se publican sus bytes crudos; los textos
+  inválidos siguen su camino sin ser marcados.
+
+- El histórico conserva el mismo desempate por fecha e identificador y
+  la misma huella de configuración al cruzar locales; acumular una
+  corrida persistida es idempotente y detectar deriva ya no emite avisos
+  por sus claves internas.
+
 ### Texto declarado independiente del locale
 
 - **La resolución de factores y las agrupaciones por valores de texto ya

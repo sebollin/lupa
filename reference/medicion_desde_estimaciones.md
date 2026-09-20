@@ -74,6 +74,19 @@ resultado como si `lupa` lo hubiera calculado. Los estadísticos que la
 tabla no traiga simplemente no producen medidas: no se rellenan con
 ceros ni se estiman.
 
+**Una columna vacía tampoco produce medidas.** Un estadístico cuya
+columna está presente pero no trae ningún valor utilizable no es una
+estimación: no se publica con `resultado = NA`, porque eso sería
+informar como medido lo que nadie midió —y además deja la medición
+inservible, porque
+[`evaluar()`](https://sebollin.github.io/lupa/reference/evaluar.md) la
+rechaza entera—. Esos estadísticos se declaran en el atributo
+`estadisticos_sin_valores`, separados de `estadisticos_ausentes`: no es
+lo mismo no mandar la columna que mandarla sin datos, y la acción de
+quien la preparó es distinta en cada caso. Dentro de una columna que sí
+trae datos, la celda vacía se descarta por la misma razón, y el resto de
+las estimaciones se publica.
+
 ## See also
 
 [`estadisticos_estimacion()`](https://sebollin.github.io/lupa/reference/estadisticos_estimacion.md),
@@ -94,19 +107,19 @@ medicion_desde_estimaciones(
   fuente = "survey 4.4, diseno complejo declarado por el equipo"
 )
 #>                                                        id_medida
-#> 1           estimaciones-20260917T023238-ech2024-Estimacion-0001
-#> 2           estimaciones-20260917T023238-ech2024-Estimacion-0002
-#> 3 estimaciones-20260917T023238-ech2024-CoeficienteVariacion-0001
-#> 4 estimaciones-20260917T023238-ech2024-CoeficienteVariacion-0002
-#> 5        estimaciones-20260917T023238-ech2024-TamanoMuestra-0001
-#> 6        estimaciones-20260917T023238-ech2024-TamanoMuestra-0002
+#> 1           estimaciones-20260920T120135-ech2024-Estimacion-0001
+#> 2           estimaciones-20260920T120135-ech2024-Estimacion-0002
+#> 3 estimaciones-20260920T120135-ech2024-CoeficienteVariacion-0001
+#> 4 estimaciones-20260920T120135-ech2024-CoeficienteVariacion-0002
+#> 5        estimaciones-20260920T120135-ech2024-TamanoMuestra-0001
+#> 6        estimaciones-20260920T120135-ech2024-TamanoMuestra-0002
 #>                            id_medicion               fecha              metrica
-#> 1 estimaciones-20260917T023238-ech2024 2026-09-17 02:32:38           Estimacion
-#> 2 estimaciones-20260917T023238-ech2024 2026-09-17 02:32:38           Estimacion
-#> 3 estimaciones-20260917T023238-ech2024 2026-09-17 02:32:38 CoeficienteVariacion
-#> 4 estimaciones-20260917T023238-ech2024 2026-09-17 02:32:38 CoeficienteVariacion
-#> 5 estimaciones-20260917T023238-ech2024 2026-09-17 02:32:38        TamanoMuestra
-#> 6 estimaciones-20260917T023238-ech2024 2026-09-17 02:32:38        TamanoMuestra
+#> 1 estimaciones-20260920T120135-ech2024 2026-09-20 12:01:35           Estimacion
+#> 2 estimaciones-20260920T120135-ech2024 2026-09-20 12:01:35           Estimacion
+#> 3 estimaciones-20260920T120135-ech2024 2026-09-20 12:01:35 CoeficienteVariacion
+#> 4 estimaciones-20260920T120135-ech2024 2026-09-20 12:01:35 CoeficienteVariacion
+#> 5 estimaciones-20260920T120135-ech2024 2026-09-20 12:01:35        TamanoMuestra
+#> 6 estimaciones-20260920T120135-ech2024 2026-09-20 12:01:35        TamanoMuestra
 #>     metrica_especifica          metrica_instanciada dimension
 #> 1           Estimacion           Estimacion@ech2024 Precision
 #> 2           Estimacion           Estimacion@ech2024 Precision

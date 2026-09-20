@@ -111,9 +111,12 @@ columnas retiradas. Es <code>TRUE</code> de forma predeterminada.</p></dd>
 sincronizado y <code>eliminados</code>. El <code>registro</code> conserva <code>estado</code> (<code>ejecutada</code>
 o <code>fallida</code>), <code>error</code>, <code>n_no_reversibles</code> y la <code>justificacion</code> de cada
 acción seleccionada, incluso cuando una falla y las siguientes continúan.
-Si una acción seleccionada no produce ningún efecto cuando el plan estimaba
-alguno, se registra como <code>fallida</code> con el motivo y su copia no se incorpora
-al resultado.
+Si una acción seleccionada no produce ningún efecto, se registra como
+<code>fallida</code> con el motivo y su copia no se incorpora al resultado. La
+comprobación del efecto observa <code>n_cambiadas</code> aunque <code>n_afectadas</code> sea
+<code>NA</code> o haya sido editado: una acción seleccionada que no cambia nada queda
+<code>fallida</code>, porque la ausencia de efecto es observable sin depender de la
+estimación.
 Si una columna de entrada es un factor, las acciones que transforman su
 texto devuelven una columna <code>character</code>: no se reconstruyen los niveles
 originales, porque una limpieza puede introducir valores nuevos.</p>
@@ -134,7 +137,10 @@ agrega una fila ficticia para "no hacer nada": <code>decision_grupo</code> disti
 explícita de conservar los datos. Esto permite separar un grupo aún no
 revisado de una omisión deliberada.</p>
 <p><code>estado</code> distingue acciones <code>lista</code>, <code>bloqueada</code> e <code>informativa</code>; <code>orden</code>
-fija la secuencia reproducible. <code>n_afectadas</code> es la estimación del perfil
+fija la secuencia reproducible. Si dos acciones comparten el mismo <code>orden</code>,
+el empate lo resuelve <code>id_accion</code>, no la posición de la fila: reordenar el
+plan no cambia el resultado. Y un grupo marcado como <code>elegida</code> sin ninguna
+acción activa se rechaza, porque no es ni una elección ni una omisión. <code>n_afectadas</code> es la estimación del perfil
 sobre <strong>lo que esta acción tocaría</strong>, que puede ser menos que el conteo del
 hallazgo que la originó cuando la acción sólo cubre parte del caso: una
 columna con tres valores de codificación rota, de los cuales uno es
@@ -154,8 +160,8 @@ ausentes, <code>winsorizar_outliers</code> (orden 520) recorta dos valores donde
 estimaba siete. No es un desvío que ocultar: <code>orden</code>, <code>n_afectadas</code> y
 <code>n_cambiadas</code> se publican los tres, y compararlos es la forma de ver el
 efecto de la composición. Sólo el caso extremo —la acción no produce <strong>ningún</strong>
-efecto donde el plan estimaba alguno— se registra como <code>fallida</code> con su
-motivo.</p>
+efecto —también cuando el plan no trae una estimación válida— se registra
+como <code>fallida</code> con su motivo.</p>
 <p><strong>Esa comparación sólo lee composición cuando las dos cifras cuentan en la
 misma unidad.</strong> <code>n_afectadas</code> cuenta en la <code>unidad_conteo</code> que el plan
 declara y <code>n_cambiadas</code> cuenta lo que la acción tocó al aplicarse, que es

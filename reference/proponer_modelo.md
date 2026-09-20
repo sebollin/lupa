@@ -53,7 +53,23 @@ proponer_modelo(
 ## Value
 
 Data frame S3 de clase `propuesta_modelo`; las columnas de listas
-contienen la configuración y los vínculos sin convertirlos en texto.
+contienen la configuración y los vínculos sin convertirlos en texto. Su
+método [`print()`](https://rdrr.io/r/base/print.html) ya no falla por
+codificación en ningún locale: la copia que se exhibe convierte lo que
+trae codificación declarada, declara como UTF-8 los bytes válidos sin
+declarar —R los escapa como `<U+00F1>` donde el locale no los
+represente— y deja el resto tal cual mientras R pueda imprimirlo. Bajo
+un locale UTF-8 la salida es exactamente la de R; bajo uno que no puede
+representar un carácter difiere a propósito, publicando el punto de
+código donde R escaparía los bytes. Sólo cuando R no puede imprimir se
+reintenta con su propio octal, `\377`. Eso no convierte a
+[`print()`](https://rdrr.io/r/base/print.html) en infalible: si una
+clase suya tiene un método
+[`format()`](https://rdrr.io/r/base/format.html) que da error, ese error
+le llega sin alterar. Y un
+[`format()`](https://rdrr.io/r/base/format.html) que consulte
+[`Encoding()`](https://rdrr.io/r/base/Encoding.html) verá las marcas de
+la copia, no las del objeto original.
 
 ## Details
 

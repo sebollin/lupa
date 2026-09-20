@@ -134,6 +134,21 @@ Una comparación contra el mismo perfil produce cero cambios. Las
 columnas que sólo existen en un lado se informan como cambios
 estructurales; no hacen fallar la comparación de las demás.
 
+Las configuraciones que contienen nombres o texto del usuario se
+convierten en claves por bytes, no por la marca de codificación ni por
+la intercalación del locale. Por eso la comparación sigue siendo estable
+si el perfil se guarda con
+[`saveRDS()`](https://rdrr.io/r/base/readRDS.html) y se relee bajo otro
+locale.
+
+La misma regla alcanza la clave interna que agrupa hallazgos: dos
+perfiles idénticos no emiten avisos espurios bajo LC_CTYPE = C.
+
+La misma separación se usa al redactar sugerencias: los nombres de la
+tabla se conservan tal como llegaron y sólo la copia destinada al texto
+se marca como UTF-8. Así el código publicado no cambia al pasar de un
+locale UTF-8 a `C`.
+
 ``` r
 
 nrow(comparar_perfiles(perfil_enero, perfil_enero))

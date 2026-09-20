@@ -48,6 +48,15 @@ propuesta[, c("metrica", "origen", "incluir", "estado")]
 En este ejemplo se confirma sólo la métrica de no nulidad; las demás
 propuestas, si aparecen, quedan fuera explícitamente.
 
+La propuesta ya no falla por codificación al imprimirse bajo LC_CTYPE =
+C, donde antes la impresión se cortaba al llegar a una columna de listas
+con nombres acentuados. En ese locale R escapa como \<U+00F1\> los
+caracteres que no puede representar. Bajo un locale UTF-8 la salida es
+exactamente la de R; bajo uno que no puede, difiere a propósito y
+publica el punto de código. Lo que no trae codificación declarada ni es
+UTF-8 válido se escapa con el octal de R, \377: la tabla se conserva
+alineada en los dos casos.
+
 ``` r
 
 propuesta$incluir <- propuesta$metrica == "NoNulo"
@@ -95,7 +104,7 @@ perfil_para_evaluar <- perfil_evaluacion("Publicable", regla)
 evaluacion <- evaluar(medicion, perfil_para_evaluar)
 evaluacion$perfiles
 #>      id_medicion               fecha     perfil n_reglas resultado
-#> 1 ejemplo-guiado 2026-09-17 02:33:09 Publicable        1      0.75
+#> 1 ejemplo-guiado 2026-09-20 12:02:07 Publicable        1      0.75
 ```
 
 La evaluación aplica una condición a las medidas existentes. No vuelve a

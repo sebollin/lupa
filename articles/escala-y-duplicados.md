@@ -217,7 +217,7 @@ lsh <- detectar_duplicados_aproximados(
   max_resultados = 100
 )
 #> LSH: 4 candidatos previstos; referencia de 0,000 s (piso, no incluye firma ni cubetas;
-#> subir nucleos puede acortar esta etapa; hoy usa 2 hilos), medida con 24.332 pares en
+#> subir nucleos puede acortar esta etapa; hoy usa 2 hilos), medida con 24.080 pares en
 #> 0,051 s.
 exacto$pares[, c(
   "fila_1", "fila_2", "distancia", "tipo_par", "igualo_normalizar"
@@ -239,6 +239,11 @@ queda para los pares que siguen siendo similares. Un par parecido nunca
 se presenta como identidad y no se propone eliminar ni fusionar
 registros. Si `stringdist` no está disponible, el resultado declara que
 la comparación no se ejecutó en vez de fallar con un error críptico.
+
+El diagnóstico de casi duplicados del vocabulario se ejecuta por
+columna. Dos columnas con el mismo vocabulario conservan filas de
+cobertura y hallazgos separados; el costo puede repetirse para no
+mezclar sus frecuencias ni su alcance.
 
 Los duplicados exactos que informa
 [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md)
@@ -306,7 +311,7 @@ por_lotes$lotes[c(
   "directorio", "n_parciales", "bytes_totales", "reanudable", "perdida"
 )]
 #> $directorio
-#> [1] "/tmp/RtmpgQRBIR/lupa-lotes-22a76f97e708/lupa-lotes-22a7632b8d33"
+#> [1] "/tmp/RtmpVABeHE/lupa-lotes-22ca5f6fd7f5/lupa-lotes-22ca34e23d6a"
 #> 
 #> $n_parciales
 #> [1] 6

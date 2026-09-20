@@ -171,7 +171,10 @@ contexto y queda desactivado.</p>
 <span><span class="co">#&gt; 17                                                                     Eliminar una columna puede romper consumidores que dependan de su nombre aunque el contenido sea redundante.</span></span></code></pre></div>
 <p><code><a href="../reference/normalizacion.html">normalizacion()</a></code> permite declarar qué diferencias se
 ignoran al comparar. El perfil cambia sólo la representación de
-comparación; nunca modifica los datos.</p>
+comparación; nunca modifica los datos. Los pasos de ligaduras y ancho
+completo se aplican por punto de código y los bytes UTF-8 válidos se
+declaran antes de operar, así que cumplen igual bajo un locale UTF-8 y
+bajo <code>LC_CTYPE = "C"</code>.</p>
 <div class="sourceCode" id="cb3"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="../reference/normalizacion.html">normalizacion</a></span><span class="op">(</span>acentos <span class="op">=</span> <span class="cn">FALSE</span>, puntuacion <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span></span>
 <span><span class="co">#&gt; Perfil de normalizacion de lupa</span></span>
@@ -231,6 +234,11 @@ pendientes o riesgosas.</p>
 <span><span class="co">#&gt; 3 convertir_ausencias_textuales           1                  0                     0</span></span>
 <span><span class="co">#&gt; 4 convertir_ausencias_textuales           2                  0                     0</span></span>
 <span><span class="co">#&gt; 5    marcar_columnas_duplicadas           1                  0                     0</span></span></code></pre></div>
+<p>El plan se puede editar antes de aplicar: quitar una acción, corregir
+un parámetro o cambiar <code>n_afectadas</code> no altera la obligación
+de observar qué pasó. Si una acción seleccionada no cambia ningún valor,
+el registro dice <code>fallida</code> con su motivo, incluso cuando el
+estimado está ausente (<code>NA</code>).</p>
 <p>Las acciones destructivas nunca son recomendadas. Aunque el usuario
 las active en el plan, <code><a href="../reference/planificar_limpieza.html">aplicar()</a></code> exige además
 <code>permitir_eliminacion = TRUE</code>; lo retirado se conserva en

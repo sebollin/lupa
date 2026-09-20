@@ -2,12 +2,14 @@
 
 Calcula en SQL un resumen sobre la tabla completa o sobre una relación
 muestreada por el motor, según `universo`. Con
-`universo = "muestra_motor"` ejecuta una sola selección y la materializa
-en un spool externo de la sesión cliente; el resumen y
+`universo = "muestra_motor"` y `bloque_muestra = "con_muestra"`, ejecuta
+una sola selección y la materializa en un spool externo de la sesión
+cliente; el resumen y
 [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md)
-leen esa misma materialización. `bloque_muestra = "solo_agregados"`
-sigue omitiendo el objeto `perfil_muestra`, pero no vuelve a seleccionar
-filas.
+leen esa misma materialización. Con `bloque_muestra = "solo_agregados"`,
+el resumen usa la relación muestreada sin seleccionar filas para el
+cliente. `bloque_muestra = "solo_agregados"` sigue omitiendo el objeto
+`perfil_muestra`, pero no vuelve a seleccionar filas.
 
 ## Usage
 
@@ -166,7 +168,11 @@ perfilar_dbi(
 
   Qué bloques se solicitan: `"con_muestra"` (por omisión) calcula
   también `perfil_muestra`, o `"solo_agregados"` omite su lectura y
-  devuelve sólo los agregados SQL. La segunda opción no cambia el
+  devuelve sólo los agregados SQL. La decisión vale para los dos
+  universos: con `muestra_motor`, los agregados siguen usando la
+  relación muestreada, pero no se abre el spool ni se leen filas; la
+  corrida publica el estado `no_solicitado` y
+  `meta$bloques$filas_vistas = 0`. La segunda opción no cambia el
   alcance de esos agregados: eso lo decide `universo`.
 
 - max_consultas:
@@ -387,12 +393,16 @@ objeto `perfil` cuyo `meta$origen_dbi` declara tabla, conexión, SQL y
 alcance. `perfil_muestra` es `NULL` si la muestra no se pudo obtener o
 si se pidió `bloque_muestra = "solo_agregados"`;
 `resumen_tabla$cobertura` distingue esos casos con `no_disponible` y
-`no_solicitado`, respectivamente. `resumen_tabla$meta$clave` conserva
-siempre la respuesta del catálogo de la clave primaria: `columnas`,
-`fuente`, `motivo`, `garantia` y `estado`. `garantia` puede ser
-`garantizada`, `declarada_no_garantizada`, `desconocida` o
-`no_declarada`; `estado` conserva, cuando el motor los expone,
-`visible`, `restriccion_diferible`, `universo_incluye_descendientes` e
+`no_solicitado`, respectivamente. Cuando `universo = "muestra_motor"` y
+no se solicitó el bloque, la metadata además declara
+`meta$materializacion$estado = "no_solicitado"` y
+`meta$bloques$filas_vistas = 0`: las filas no se materializaron y luego
+se descartaron. `resumen_tabla$meta$clave` conserva siempre la respuesta
+del catálogo de la clave primaria: `columnas`, `fuente`, `motivo`,
+`garantia` y `estado`. `garantia` puede ser `garantizada`,
+`declarada_no_garantizada`, `desconocida` o `no_declarada`; `estado`
+conserva, cuando el motor los expone, `visible`,
+`restriccion_diferible`, `universo_incluye_descendientes` e
 `indice_no_unico`. Una consulta fallida queda diferenciada de una clave
 no declarada.
 
@@ -617,31 +627,38 @@ universo para escribir un porcentaje lo cuentan antes.
 `COUNT(DISTINCT ...)` queda en una clase separada y usa su propio tamaño
 de lote, conservador por omisión porque una cardinalidad puede derramar
 mucho más que veinte agregados planos; la consulta exacta trae su
-`n_validos_guard` compañero. La proyección temporal no usa esos
-agregados planos: si hay más de un lote y `instrumentar = TRUE`, se mide
-el primer lote de distintos y, después de ejecutarlo, se multiplica su
-mediana por la cantidad total de lotes. El aviso llega antes del segundo
-lote, en la unidad que se va a evitar; con un solo lote no hay nada que
-proyectar. Si la duración no se pudo medir, el resultado declara la
-proyección como no disponible. La moda tiene otro canal: después de cada
-moda medida se obtiene una tasa en ms por distinto y se usa para
-proyectar las modas pendientes. La cardinalidad se toma del agregado de
-la corrida, de una clave garantizada o de la estimación de catálogo que
-esté disponible; si falta, `meta$costo_moda` lo declara y no inventa un
-número. El aviso llega antes de la siguiente moda. La mediana se
-proyecta en ms por fila. La primera mediana medida en esta corrida sirve
-para proyectar las restantes y el aviso precede a ese trabajo. Si no
-existe una primera medición local para una mediana total, usa la
-referencia declarada de otra corrida de 68 ms por millón de filas. Si la
-consulta inicial que obtuvo las filas fue medida y resulta una cota
-mayor, se publica también esa cota de lectura —no como medición de
-mediana— para no subestimar una tabla grande recién cargada. Las dos
-proyecciones quedan separadas en `meta$costo_moda` y
-`meta$costo_mediana`; apagar el aviso no apaga su medición ni su
-metadata. Antes de la primera consulta exacta se estima, cuando
-PostgreSQL expone `pg_stats`, el tamaño de los hashes con `n_distinct`,
-`avg_width` y `pg_class.reltuples`; `SHOW work_mem` y, desde PostgreSQL
-13, `SHOW hash_mem_multiplier` dan el límite efectivo.
+`n_validos_guard` compañero. Cuando se pide `mediana` o `desvio` sin
+pedir `basicos`, cada columna que el esquema expone como numérica paga
+además una sonda propia de magnitud. Usa `MIN` para comprobar que el
+motor no está coaccionando texto a cero; la fila `sonda_magnitud` queda
+declarada en `resumen_tabla$sql`, con su estado y la etapa
+`sonda_magnitud`. Si la sonda no entra en `max_consultas`, las métricas
+dependientes quedan `no_disponible` con el motivo del presupuesto.
+Cuando `incluir_valores = FALSE`, el motivo no publica el valor que
+devolvió el motor. La proyección temporal no usa esos agregados planos:
+si hay más de un lote y `instrumentar = TRUE`, se mide el primer lote de
+distintos y, después de ejecutarlo, se multiplica su mediana por la
+cantidad total de lotes. El aviso llega antes del segundo lote, en la
+unidad que se va a evitar; con un solo lote no hay nada que proyectar.
+Si la duración no se pudo medir, el resultado declara la proyección como
+no disponible. La moda tiene otro canal: después de cada moda medida se
+obtiene una tasa en ms por distinto y se usa para proyectar las modas
+pendientes. La cardinalidad se toma del agregado de la corrida, de una
+clave garantizada o de la estimación de catálogo que esté disponible; si
+falta, `meta$costo_moda` lo declara y no inventa un número. El aviso
+llega antes de la siguiente moda. La mediana se proyecta en ms por fila.
+La primera mediana medida en esta corrida sirve para proyectar las
+restantes y el aviso precede a ese trabajo. Si no existe una primera
+medición local para una mediana total, usa la referencia declarada de
+otra corrida de 68 ms por millón de filas. Si la consulta inicial que
+obtuvo las filas fue medida y resulta una cota mayor, se publica también
+esa cota de lectura —no como medición de mediana— para no subestimar una
+tabla grande recién cargada. Las dos proyecciones quedan separadas en
+`meta$costo_moda` y `meta$costo_mediana`; apagar el aviso no apaga su
+medición ni su metadata. Antes de la primera consulta exacta se estima,
+cuando PostgreSQL expone `pg_stats`, el tamaño de los hashes con
+`n_distinct`, `avg_width` y `pg_class.reltuples`; `SHOW work_mem` y,
+desde PostgreSQL 13, `SHOW hash_mem_multiplier` dan el límite efectivo.
 `meta$estimacion_derrame` y `attr(meta$plan, "estimacion_derrame")`
 conservan el diagnóstico, siempre rotulado como estimación y nunca como
 derrame medido. Si supera el límite se avisa antes de pagar
@@ -765,7 +782,9 @@ muestra; si la muestra no se pudo leer, la protección se aplica a todas
 las columnas y `meta` lo declara. `incluir_valores = FALSE` va más
 lejos: no emite las consultas de moda ni de mediana y no informa mínimo
 ni máximo, útil cuando la tabla es un padrón y la moda de un
-identificador único es un documento real.
+identificador único es un documento real. Si se pidió `desvio`, la sonda
+de magnitud que ese cálculo necesita puede emitirse, pero su motivo
+nunca publica el valor devuelto por el motor.
 
 ## Progreso
 

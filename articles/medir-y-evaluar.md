@@ -44,6 +44,14 @@ documento$declaracion[c("nombre", "granularidad", "tipo_resultado")]
 La separación permite reutilizar la misma definición sobre entregas y
 columnas distintas.
 
+Al entrar a
+[`medir()`](https://sebollin.github.io/lupa/reference/medir.md), los
+valores de texto UTF-8 sin marca se declaran como UTF-8 para que los
+métodos de contrato no dependan de `LC_CTYPE`. Las comparaciones contra
+ausencias, diccionarios y dominios usan una clave por bytes; esto
+también alcanza configuraciones aprendidas que después se persisten con
+[`saveRDS()`](https://rdrr.io/r/base/readRDS.html).
+
 ### Una métrica propia de punta a punta
 
 El gancho `metodo` recibe una lista con nombre de tablas y la instancia

@@ -96,81 +96,35 @@ aplicabilidad y el perfil de evaluación que produjo el resultado.</p>
 <span class="r-in"><span><span class="va">medidas</span> <span class="op">&lt;-</span> <span class="fu"><a href="medir.html">medir</a></span><span class="op">(</span><span class="fu"><a href="modelo_calidad.html">modelo</a></span><span class="op">(</span><span class="va">instancia</span><span class="op">)</span>, <span class="fu"><a href="https://rdrr.io/r/base/data.frame.html" class="external-link">data.frame</a></span><span class="op">(</span>edad <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">20</span>, <span class="cn">NA</span>, <span class="fl">35</span><span class="op">)</span><span class="op">)</span><span class="op">)</span></span></span>
 <span class="r-in"><span><span class="va">regla</span> <span class="op">&lt;-</span> <span class="fu"><a href="reglas_evaluacion.html">regla_evaluacion</a></span><span class="op">(</span><span class="st">"Al menos 90%"</span>, <span class="kw">function</span><span class="op">(</span><span class="va">x</span><span class="op">)</span> <span class="va">x</span> <span class="op">&gt;</span> <span class="fl">0.9</span><span class="op">)</span></span></span>
 <span class="r-in"><span><span class="fu">evaluar</span><span class="op">(</span><span class="va">medidas</span>, <span class="fu"><a href="reglas_evaluacion.html">perfil_evaluacion</a></span><span class="op">(</span><span class="st">"Avanzado"</span>, <span class="va">regla</span><span class="op">)</span><span class="op">)</span></span></span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> $medidas</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>                                     id_medida</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 1 medicion-20260917T023234.622255-7507-000001</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 2 medicion-20260917T023234.622255-7507-000002</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 3 medicion-20260917T023234.622255-7507-000003</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>                            id_medicion               fecha   perfil</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 1 medicion-20260917T023234.622255-7507 2026-09-17 02:32:34 Avanzado</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 2 medicion-20260917T023234.622255-7507 2026-09-17 02:32:34 Avanzado</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 3 medicion-20260917T023234.622255-7507 2026-09-17 02:32:34 Avanzado</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>          regla  metrica_instanciada orientacion resultado</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 1 Al menos 90% NoNulo@personas.edad conformidad      TRUE</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 2 Al menos 90% NoNulo@personas.edad conformidad     FALSE</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 3 Al menos 90% NoNulo@personas.edad conformidad      TRUE</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> </span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> $reglas</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>                            id_medicion               fecha   perfil</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 1 medicion-20260917T023234.622255-7507 2026-09-17 02:32:34 Avanzado</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>          regla n_medidas resultado</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 1 Al menos 90%         3 0.6666667</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> </span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> $perfiles</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>                            id_medicion               fecha   perfil n_reglas</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 1 medicion-20260917T023234.622255-7507 2026-09-17 02:32:34 Avanzado        1</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>   resultado</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 1 0.6666667</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> </span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> attr(,"configuracion_modelo")</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> attr(,"configuracion_modelo")$version</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> [1] 1</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> </span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> attr(,"configuracion_modelo")$entidades</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> [1] "personas"</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> </span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> attr(,"configuracion_modelo")$metricas</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>                                                                                                                                                                                                      NoNulo@personas.edad </span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> "list{nombre=character[NoNulo@personas.edad];metrica=character[NoNulo];metrica_especifica=character[NoNulo];entidad=character[personas];atributos=character[edad];configuracion=list{valores_nulos=NULL;aplicable=NULL}}" </span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> </span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> attr(,"configuracion_aplicabilidad")</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> [1] "NULL"</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> attr(,"configuracion_perfil")</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> attr(,"configuracion_perfil")$version</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> [1] 1</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> </span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> attr(,"configuracion_perfil")$nombre</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> [1] "Avanzado"</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> </span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> attr(,"configuracion_perfil")$reglas</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>                                                                                                                                                     Al menos 90% </span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> "list{nombre=character[Al menos 90%];metricas=NULL;nivel=character[medida];proporcion_minima=NULL;desenlace=NULL;umbrales=NULL;condicion=function (x)  x &gt; 0.9}" </span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> </span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> attr(,"perfil_evaluacion")</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> $nombre</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> [1] "Avanzado"</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> </span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> $reglas</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> $reglas$`Al menos 90%`</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> $nombre</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> [1] "Al menos 90%"</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> </span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> $condicion</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> function (x) </span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> x &gt; 0.9</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> &lt;environment: 0x557669f4d5f8&gt;</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> </span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> $metricas</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> NULL</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> </span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> attr(,"class")</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> [1] "regla_evaluacion"</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> </span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> </span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> attr(,"class")</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> [1] "perfil_evaluacion"</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> attr(,"class")</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> [1] "evaluacion_calidad"</span>
+<span class="r-msg co"><span class="r-pr">#&gt;</span> </span>
+<span class="r-msg co"><span class="r-pr">#&gt;</span> <span style="color: #00BBBB;">──</span> <span style="font-weight: bold;">Evaluación de calidad</span> <span style="color: #00BBBB;">───────────────────────────────────────────────────────</span></span>
+<span class="r-msg co"><span class="r-pr">#&gt;</span> </span>
+<span class="r-msg co"><span class="r-pr">#&gt;</span> ── <span style="font-weight: bold;">Evaluaciones de medidas</span> ──</span>
+<span class="r-msg co"><span class="r-pr">#&gt;</span> </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>                                    id_medida</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>  medicion-20260920T120131.881542-7541-000001</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>  medicion-20260920T120131.881542-7541-000002</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>  medicion-20260920T120131.881542-7541-000003</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>                           id_medicion               fecha   perfil        regla</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>  medicion-20260920T120131.881542-7541 2026-09-20 12:01:31 Avanzado Al menos 90%</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>  medicion-20260920T120131.881542-7541 2026-09-20 12:01:31 Avanzado Al menos 90%</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>  medicion-20260920T120131.881542-7541 2026-09-20 12:01:31 Avanzado Al menos 90%</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>   metrica_instanciada orientacion resultado</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>  NoNulo@personas.edad conformidad      TRUE</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>  NoNulo@personas.edad conformidad     FALSE</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>  NoNulo@personas.edad conformidad      TRUE</span>
+<span class="r-msg co"><span class="r-pr">#&gt;</span> ── <span style="font-weight: bold;">Evaluaciones de reglas</span> ──</span>
+<span class="r-msg co"><span class="r-pr">#&gt;</span> </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>                           id_medicion               fecha   perfil        regla</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>  medicion-20260920T120131.881542-7541 2026-09-20 12:01:31 Avanzado Al menos 90%</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>  n_medidas resultado</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>          3 0.6666667</span>
+<span class="r-msg co"><span class="r-pr">#&gt;</span> ── <span style="font-weight: bold;">Perfiles de madurez</span> ──</span>
+<span class="r-msg co"><span class="r-pr">#&gt;</span> </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>                           id_medicion               fecha   perfil n_reglas</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>  medicion-20260920T120131.881542-7541 2026-09-20 12:01:31 Avanzado        1</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>  resultado</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>  0.6666667</span>
 </code></pre></div>
     </div>
   </main><aside class="col-md-3"><nav id="toc" aria-label="Table of contents"><h2>On this page</h2>

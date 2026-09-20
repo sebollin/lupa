@@ -345,6 +345,28 @@ perfil$cobertura_diagnosticos
 `lupa`: un diagnóstico que no pudo evaluarse queda identificado y no se
 confunde con la ausencia de hallazgos.
 
+En una columna `integer64`, `bit64` se carga de manera diferida si está
+instalado, para registrar sus métodos antes de medir la secuencia. Si no
+está instalado, las cinco medidas públicas de la secuencia quedan en
+`NA` y la tabla declara `secuencia_entera` como no evaluada, con `bit64`
+como dependencia. Cuando una cifra pasa a texto publicado, `lupa` usa
+notación fija independiente de `scipen` y de `digits` —se publica el
+valor completo— y conserva `OutDec`, que sigue siendo la marca decimal
+elegida por la sesión.
+
+Las sugerencias que propone el perfil para declarar una ausencia
+estructural marcan los nombres sólo en la copia usada para componer
+texto. El nombre de la tabla se conserva tal como llegó y el código
+publicado se puede copiar y pegar igual bajo `LC_CTYPE = "C"`, también
+cuando contiene tildes.
+
+La misma frontera de entrada se aplica a los valores: los bytes UTF-8
+válidos que llegan sin marca se declaran UTF-8 antes de ejecutar las
+métricas. Las comparaciones textuales de `NoNulo`, `Formato` y dominios
+posibles se hacen por bytes, así que una medición no cambia entre un
+locale UTF-8 y `C`; los nombres publicados siguen conservando los bytes
+y la marca con que llegó la tabla.
+
 ## Del diagnóstico al modelo
 
 [`proponer_modelo()`](https://sebollin.github.io/lupa/reference/proponer_modelo.md)
@@ -491,8 +513,14 @@ resultado$registro[, c("estrategia", "n_cambiadas")]
 #> 6    marcar_columnas_duplicadas           1
 ```
 
-El original permanece intacto. Para verificar el efecto se vuelve a
-perfilar el resultado.
+El original permanece intacto. El plan es editable: si se cambia una
+estimación o se la deja ausente,
+[`aplicar()`](https://sebollin.github.io/lupa/reference/planificar_limpieza.md)
+sigue verificando el efecto observado. Una acción seleccionada que no
+cambia ningún valor queda `fallida` con su motivo; no se publica como
+ejecutada por falta de estimación.
+
+Para verificar el efecto se vuelve a perfilar el resultado.
 
 ``` r
 
@@ -529,7 +557,7 @@ archivo <- reportar(
   titulo = "Calidad de la entrega de ejemplo"
 )
 basename(archivo)
-#> [1] "file226a6d518c6c.html"
+#> [1] "file228b4f6d5f39.html"
 unlink(c(archivo, archivo_rds))
 ```
 

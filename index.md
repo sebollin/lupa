@@ -16,7 +16,25 @@ answer whether the same fact was encoded in more than one way, whether a
 missing value is hiding behind a code, or which rows need to be checked
 in the source system.
 
-## What does it tell me that `summary()` does not?
+Printed results no longer fail because of encoding in any locale,
+LC_CTYPE = C included. The displayed copy converts whatever carries a
+declared encoding, declares as UTF-8 the valid undeclared bytes — R
+escapes them as \<U+00F1\> wherever the locale cannot represent them —
+and leaves the rest untouched for as long as R can print it. Under a
+UTF-8 locale the output is the same as R’s, unless one of your classes
+defines a format() that inspects Encoding(): that one sees the displayed
+copy’s mark. Under a locale that cannot represent a character the output
+differs on purpose, and for the better: where R escapes the bytes, lupa
+publishes the code point. Like every escaped representation — R’s
+included — that form is ambiguous with text that contains it literally;
+what does not change is the data, only how it is shown. Only where R
+cannot print does it retry with R’s own octal form, \377, so the table
+stays aligned there too. That does not make printing infallible: if one
+of your classes has a format() method that raises an error, that error
+reaches you unaltered. This includes the list columns in the
+propuesta_modelo returned by proponer_modelo(); comparing two identical
+profiles also stays silent in that locale. \## What does it tell me that
+[`summary()`](https://rdrr.io/r/base/summary.html) does not?
 
 [`summary()`](https://rdrr.io/r/base/summary.html) describes columns one
 at a time. `lupa` compares representations, crosses columns and rows,
@@ -377,6 +395,12 @@ equal. `pares$igualo_normalizar` marks the middle case. The
 corresponding scope counts are `n_pares_exactos`,
 `n_pares_exactos_normalizados`, and `n_pares_aproximados`.
 
+The `casi_duplicados_vocabulario` diagnostic runs per column. Even when
+two columns have the same vocabulary, each keeps its own coverage row
+and findings; the cost of comparing identical vocabularies may therefore
+repeat. This is deliberate, so frequencies and scope from different
+columns are never mixed.
+
 The result records the effective scope in `meta$muestra`,
 `meta$filas_analizadas`, and `meta$muestreo`; each column also records
 `n_filas_analizadas_tipo` and `muestreado_tipo_inferido`, while the
@@ -457,7 +481,11 @@ reading the sample fails, the object comes back with a complete
 `resumen_tabla`, `perfil_muestra = NULL`, and a coverage row carrying
 the reason. If the sample was not requested, coverage uses
 `no_solicitado`, which is not a failure; request only aggregates with
-`bloque_muestra = "solo_agregados"`.
+`bloque_muestra = "solo_agregados"`. This option is independent of
+`universo`: with `muestra_motor` the SQL aggregates still use the
+engine’s sampled relation, but no sample rows are fetched or
+materialized in the client spool. The coverage row is `no_solicitado`
+and the materialization metadata records `filas_vistas = 0`.
 
 **And it declares what the engine cannot do.** `sentinelas_numericos`,
 `aplicabilidad` and `columnas_opcionales` change what
@@ -568,22 +596,27 @@ without an alias; it identifies the data query. `muestra_id` is reserved
 for the materialized relationship and is published in
 `meta$materializacion`, never as a second name for the query identifier.
 
-For `universo = "muestra_motor"`, the engine selection is materialized
-exactly once in an external client-session spool. Its trailer verifies
-`muestra_id`, `snapshot_id`, `orden_id`, `n_filas`, `bytes` and checksum
-on reread. Every profile pass reads that spool; it never re-samples the
-engine. A chunk is checked against `max_bytes_materializacion` before
-writing, and an excess publishes `spool_presupuesto_excedido` plus
-`muestra_inestable:presupuesto_materializacion`, with no hybrid result.
-The spool does not write to the DBI connection or create temporary
-engine objects. `meta$materializacion` records backend, version,
-checksum, bytes and budget. The measured crossover is part of the
-declared cost, not a speed promise: against PostgreSQL 16 with 2 million
-rows, a 500,000-row sample took about 5.6 s with the spool versus 3.3 s
-when every pass re-sorted independently; the spool is chosen for
-identity and bounded reuse. Across 10,000, 100,000 and 500,000 rows,
-spool totals were 0.448, 1.684 and 5.598 s, while independent re-sorts
-were 0.814, 2.178 and 3.265 s (crossover between 100,000 and 500,000).
+For `universo = "muestra_motor"` with `bloque_muestra = "con_muestra"`,
+the engine selection is materialized exactly once in an external
+client-session spool. Its trailer verifies `muestra_id`, `snapshot_id`,
+`orden_id`, `n_filas`, `bytes` and checksum on reread. Every profile
+pass reads that spool; it never re-samples the engine. With
+`bloque_muestra = "solo_agregados"`, the SQL aggregates still use the
+sampled relation, but the row block is not selected, fetched or
+materialized. A chunk is checked against `max_bytes_materializacion`
+before writing, and an excess publishes `spool_presupuesto_excedido`
+plus `muestra_inestable:presupuesto_materializacion`, with no hybrid
+result. The spool does not write to the DBI connection or create
+temporary engine objects. `meta$materializacion` records backend,
+version, checksum, bytes and budget when a spool exists; the
+no-solicitud path records `estado = "no_solicitado"` and zero rows
+viewed. The measured crossover is part of the declared cost, not a speed
+promise: against PostgreSQL 16 with 2 million rows, a 500,000-row sample
+took about 5.6 s with the spool versus 3.3 s when every pass re-sorted
+independently; the spool is chosen for identity and bounded reuse.
+Across 10,000, 100,000 and 500,000 rows, spool totals were 0.448, 1.684
+and 5.598 s, while independent re-sorts were 0.814, 2.178 and 3.265 s
+(crossover between 100,000 and 500,000).
 
 The same SQL audit includes `memoria_trabajo`: `creciente`, `acotado`,
 or `NA`, to flag work that should not be recomputed incrementally over a
@@ -1094,6 +1127,25 @@ inside — compared four variants: crossing both signals gets all thirteen
 right and **never silences a real bad value**; density alone got eleven
 and silenced two. It lives in `test-ronda118.R`.
 
+For an `integer64` column, `bit64` is loaded lazily when it is installed
+so its methods are registered before measuring. If it is not installed,
+the five sequence measures are `NA` and `cobertura_diagnosticos` records
+that `secuencia_entera` could not be evaluated. Numeric values that
+become published text use fixed notation at full precision, independent
+of `scipen` and `digits`, while preserving `OutDec`.
+
+The same fixed representation drives personal-data classification, so
+`scipen` and `digits` cannot change that decision or erase declared
+numeric sentinels from `meta`. Drift and history keys compare names and
+configurations by bytes, including across a
+[`saveRDS()`](https://rdrr.io/r/base/readRDS.html) boundary and a
+changed locale.
+
+Structural-absence suggestions mark names only in the copy used to
+compose text. They preserve the table’s names exactly as received and
+publish copy-and-paste code identically under `LC_CTYPE = "C"`,
+including names with accents.
+
 **And what is not run is not switched off silently**: it leaves its row
 in `cobertura_diagnosticos` with the measured reason — what share of the
 integers the column covers, how many values would have been flagged, how
@@ -1340,7 +1392,10 @@ distinct values that collide — and changes ninety rows, and whoever
 decides needs to know which of the two they are reading. And
 [`aplicar()`](https://sebollin.github.io/lupa/reference/planificar_limpieza.md)
 **does not claim work it did not do**: an action whose effect turns out
-to be nil is recorded as `fallida` with its reason, not `ejecutada`.
+to be nil is recorded as `fallida` with its reason, not `ejecutada`,
+even when an edited plan has no valid `n_afectadas` estimate. The
+observed effect is the control; the estimate is evidence, not a switch
+that can turn it off.
 
 ## ✨ What lupa does in detail
 

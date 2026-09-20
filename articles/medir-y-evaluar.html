@@ -108,6 +108,12 @@ instanciar liga esa especialización a objetos concretos.</p>
 <span><span class="co">#&gt; [1] "booleano"</span></span></code></pre></div>
 <p>La separación permite reutilizar la misma definición sobre entregas y
 columnas distintas.</p>
+<p>Al entrar a <code><a href="../reference/medir.html">medir()</a></code>, los valores de texto UTF-8 sin
+marca se declaran como UTF-8 para que los métodos de contrato no
+dependan de <code>LC_CTYPE</code>. Las comparaciones contra ausencias,
+diccionarios y dominios usan una clave por bytes; esto también alcanza
+configuraciones aprendidas que después se persisten con
+<code><a href="https://rdrr.io/r/base/readRDS.html" class="external-link">saveRDS()</a></code>.</p>
 <div class="section level3">
 <h3 id="una-métrica-propia-de-punta-a-punta">Una métrica propia de punta a punta<a class="anchor" aria-label="anchor" href="#una-m%C3%A9trica-propia-de-punta-a-punta"></a>
 </h3>

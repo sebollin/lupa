@@ -56,11 +56,14 @@ aplicar(plan, datos, permitir_eliminacion = FALSE, conservar_eliminados = TRUE)
 `eliminados`. El `registro` conserva `estado` (`ejecutada` o `fallida`),
 `error`, `n_no_reversibles` y la `justificacion` de cada acción
 seleccionada, incluso cuando una falla y las siguientes continúan. Si
-una acción seleccionada no produce ningún efecto cuando el plan estimaba
-alguno, se registra como `fallida` con el motivo y su copia no se
-incorpora al resultado. Si una columna de entrada es un factor, las
-acciones que transforman su texto devuelven una columna `character`: no
-se reconstruyen los niveles originales, porque una limpieza puede
+una acción seleccionada no produce ningún efecto, se registra como
+`fallida` con el motivo y su copia no se incorpora al resultado. La
+comprobación del efecto observa `n_cambiadas` aunque `n_afectadas` sea
+`NA` o haya sido editado: una acción seleccionada que no cambia nada
+queda `fallida`, porque la ausencia de efecto es observable sin depender
+de la estimación. Si una columna de entrada es un factor, las acciones
+que transforman su texto devuelven una columna `character`: no se
+reconstruyen los niveles originales, porque una limpieza puede
 introducir valores nuevos.
 
 ## Details
@@ -82,13 +85,17 @@ representa una recomendación explícita de conservar los datos. Esto
 permite separar un grupo aún no revisado de una omisión deliberada.
 
 `estado` distingue acciones `lista`, `bloqueada` e `informativa`;
-`orden` fija la secuencia reproducible. `n_afectadas` es la estimación
-del perfil sobre **lo que esta acción tocaría**, que puede ser menos que
-el conteo del hallazgo que la originó cuando la acción sólo cubre parte
-del caso: una columna con tres valores de codificación rota, de los
-cuales uno es reparable, produce un hallazgo con `n_afectados = 3` y una
-acción `reparar_codificacion` con `n_afectadas = 1`. Las dos cifras son
-ciertas y cuentan cosas distintas. `unidad_conteo` dice si cuenta filas,
+`orden` fija la secuencia reproducible. Si dos acciones comparten el
+mismo `orden`, el empate lo resuelve `id_accion`, no la posición de la
+fila: reordenar el plan no cambia el resultado. Y un grupo marcado como
+`elegida` sin ninguna acción activa se rechaza, porque no es ni una
+elección ni una omisión. `n_afectadas` es la estimación del perfil sobre
+**lo que esta acción tocaría**, que puede ser menos que el conteo del
+hallazgo que la originó cuando la acción sólo cubre parte del caso: una
+columna con tres valores de codificación rota, de los cuales uno es
+reparable, produce un hallazgo con `n_afectados = 3` y una acción
+`reparar_codificacion` con `n_afectadas = 1`. Las dos cifras son ciertas
+y cuentan cosas distintas. `unidad_conteo` dice si cuenta filas,
 columnas o valores distintos —lo declara la acción cuando cuenta en una
 unidad propia, y sólo si no lo hace se hereda del hallazgo—. El registro
 informa `n_cambiadas` sobre los datos recibidos.
@@ -102,8 +109,8 @@ convirtiendo tres `-999` en ausentes, `winsorizar_outliers` (orden 520)
 recorta dos valores donde el plan estimaba siete. No es un desvío que
 ocultar: `orden`, `n_afectadas` y `n_cambiadas` se publican los tres, y
 compararlos es la forma de ver el efecto de la composición. Sólo el caso
-extremo —la acción no produce **ningún** efecto donde el plan estimaba
-alguno— se registra como `fallida` con su motivo.
+extremo —la acción no produce **ningún** efecto —también cuando el plan
+no trae una estimación válida— se registra como `fallida` con su motivo.
 
 **Esa comparación sólo lee composición cuando las dos cifras cuentan en
 la misma unidad.** `n_afectadas` cuenta en la `unidad_conteo` que el

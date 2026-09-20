@@ -52,7 +52,9 @@ se oculta que identifica, porque es un hecho medido: se dice en el
 motivo y la columna queda al final del orden. Es el mismo criterio que
 aplica
 [`detectar_claves()`](https://sebollin.github.io/lupa/reference/detectar_claves.md),
-consultado a la misma función.
+consultado a la misma función. Las columnas compuestas —matrices o
+arreglos de más de una dimensión— no se ofrecen como claves ni reciben
+una tasa de valores distintos.
 
 ## See also
 

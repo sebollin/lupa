@@ -180,7 +180,11 @@ plan_perfilado_dbi(
 
   Qué bloques se solicitan: `"con_muestra"` (por omisión) calcula
   también `perfil_muestra`, o `"solo_agregados"` omite su lectura y
-  devuelve sólo los agregados SQL. La segunda opción no cambia el
+  devuelve sólo los agregados SQL. La decisión vale para los dos
+  universos: con `muestra_motor`, los agregados siguen usando la
+  relación muestreada, pero no se abre el spool ni se leen filas; la
+  corrida publica el estado `no_solicitado` y
+  `meta$bloques$filas_vistas = 0`. La segunda opción no cambia el
   alcance de esos agregados: eso lo decide `universo`.
 
 - max_consultas:

@@ -475,7 +475,10 @@ declare una regla de dominio o use <code>FALSE</code> para desactivar este diagn
 <dd><p>Proporción máxima del vocabulario
 que puede abarcar el grupo mayor para entregar grupos de variantes. Por
 defecto es <code>0.5</code>; si se supera, el alcance declara que el diagnóstico no
-aplica en vez de entregar un bloque que abarque casi toda la columna.</p></dd>
+aplica en vez de entregar un bloque que abarque casi toda la columna.
+El diagnóstico se ejecuta por columna y no deduplica columnas con el mismo
+vocabulario: cada una conserva su propia fila de cobertura y sus propios
+hallazgos. El costo de comparar vocabularios idénticos puede repetirse.</p></dd>
 
 
 <dt id="arg-umbral-variante-rara-vocabulario">umbral_variante_rara_vocabulario<a class="anchor" aria-label="anchor" href="#arg-umbral-variante-rara-vocabulario"></a></dt>
@@ -644,7 +647,7 @@ observada y el argumento que se puede ajustar.
 Si el conteo y la traza no coinciden, conserva el hallazgo y emite una
 advertencia de clase <code>lupa_trazabilidad_incoherente</code>. La guarda compara el
 total previo al truncado y respeta la unidad declarada.
-Una matriz no analizada conserva en la traza todas sus filas. Si una
+Una columna compuesta no analizada conserva en la traza todas sus filas. Si una
 columna de listas se reconoce como constante pero no se puede contar su
 frecuencia, el conteo afectado queda en NA y <code>cobertura_diagnosticos</code>
 explica la no evaluación.
@@ -663,8 +666,9 @@ clasificables). Son categorías de evidencia, no veredictos de identidad.
 por diagnóstico que no pudo evaluarse o cuya enumeración quedó parcial y
 las columnas <code>diagnostico</code>,
 <code>columna</code>, <code>motivo</code>, <code>como_resolverlo</code> y <code>dependencia</code>. Incluye la falta de
-<code>stringdist</code>, <code>stringi</code>, <code>bit64</code> o <code>sf</code>, y las zonas horarias POSIXt sin
-declarar. Los patrones de frecuencia intermedia no se consideran desvios
+<code>stringdist</code>, <code>stringi</code>, <code>bit64</code> o <code>sf</code>, incluida la medición de secuencias
+<code>integer64</code> cuando falta <code>bit64</code>, y las zonas horarias POSIXt sin declarar.
+Los patrones de frecuencia intermedia no se consideran desvios
 del patron dominante: <code>patron_raro</code> es completo respecto de su criterio de
 rareza cuando no hay recorte de trazabilidad. Si el conjunto de nombres
 raros supera 5.000, <code>cobertura_diagnosticos</code> declara el recorte y su limite.
@@ -808,9 +812,10 @@ describir lo guardado y resumir lo que vale como dato, y los conteos
 <code>n_faltantes_disfrazados</code>— dicen cuánto separa a los dos.
 Una columna de listas intenta contar sus valores distintos; si la clase no
 admite comparación, informa <code>NA</code> en lugar de afirmar cero.
-Las columnas matriciales se conservan como una unidad por fila: <code>n</code> informa
-las filas de la tabla, pero los estadísticos por valor quedan en <code>NA</code> y un
-hallazgo explica que deben separarse en columnas con semántica explícita.
+Las columnas compuestas —matrices o arreglos de más de una dimensión— se
+conservan como una unidad por fila: <code>n</code> informa las filas de la tabla, pero
+los estadísticos por valor quedan en <code>NA</code> y un hallazgo explica que deben
+separarse en columnas con semántica explícita.
 Cuando todos los valores válidos aparecen una sola vez <strong>no hay moda</strong>, y
 <code>moda</code> queda en <code>NA</code>. Lo que se publicaría es el ganador de un desempate de
 tantas vías como valores haya, y ese desempate sigue el orden de
@@ -834,8 +839,9 @@ son las concentraciones por debajo de 15 % y los empates naturales en
 columnas enteras pequeñas, donde el cociente puede quedar por debajo de
 cinco.</p>
 <p>La ley de Benford se evalúa sólo en columnas numéricas con al menos 50
-valores finitos, para no agregar cobertura a columnas que ni siquiera son
-candidatas. Antes de comparar exige variación, que la columna no parezca un
+valores finitos; las columnas compuestas —matrices o arreglos de más de una
+dimensión— no son magnitudes por fila y quedan fuera del análisis. Antes de
+comparar exige variación, que la columna no parezca un
 identificador ni una secuencia correlativa, al menos 100 observaciones
 positivas utilizables, una proporción de positivos igual a 1 y tres órdenes
 de magnitud según <code>log10(max/min)</code>. Si falla alguna precondición no emite un
@@ -919,12 +925,22 @@ entrada tal como llegaron, con sus bytes <strong>y su marca de codificación</st
 significa que sirven para indexar esa misma tabla —<code>datos[[nombre]]</code>— sea
 cual sea el <code>LC_CTYPE</code> de la sesión. El paquete deriva una representación de
 trabajo para comparar y desambiguar internamente, pero no la publica: dos
-nombres con bytes distintos siguen siendo dos columnas distintas.</p>
+nombres con bytes distintos siguen siendo dos columnas distintas.
+Al componer texto publicado —en particular las sugerencias de
+<code>posible_ausencia_estructural</code>— usa una copia marcada como UTF-8 del nombre,
+sin modificar el nombre conservado en la tabla. Por eso una sugerencia como
+<code>perfilar(datos, aplicabilidad = list(entero = ~ categoría == "categoría"))</code>
+conserva el nombre real también bajo <code>LC_CTYPE = "C"</code> y se puede copiar y
+pegar.</p>
 <p>La identidad de la columna no depende de esa exclusión: <code>n_distintos</code>,
 <code>moda</code> y <code>frecuencia_moda</code> comparan la representación almacenada, que se
 puede distinguir sin decodificarla. Un valor ilegible cuenta como valor, y
 la moda que se publica es el valor original tal como llegó, sin
-reinterpretarlo.</p>
+reinterpretarlo. Cuando ese valor es numérico, su representación textual se
+formatea con notación fija, con la precisión completa e independiente de
+<code>scipen</code> y de <code>digits</code>; se conserva
+<code>OutDec</code>, porque esa marca decimal sí pertenece a la preferencia de locale
+de quien usa el paquete.</p>
 <p>Las columnas <code>sfc</code> declaran su CRS, los tipos concretos y la dimensión
 (<code>XY</code>, <code>XYZ</code>, <code>XYM</code> o <code>XYZM</code>), además de geometrías vacías, validez, dominio y
 caja envolvente. <code>POINT</code>/<code>MULTIPOINT</code>, <code>LINESTRING</code>/<code>MULTILINESTRING</code> y
@@ -1047,6 +1063,11 @@ limpia</strong>, para no llamar ausencia a un código válido. <code>densa</code
 a la cobertura del rango —<code>densidad_secuencia_entera</code> por encima de su
 umbral—; <code>moda_sobresale_secuencia_entera</code> es una señal independiente y no
 cambia los tres escudos de forma que dependen de la numeración.
+En una columna <code>integer64</code>, <code>bit64</code> se carga de manera diferida si está
+instalado para registrar sus métodos antes de medir. Si no está instalado,
+las cinco medidas públicas de la secuencia quedan en <code>NA</code> y
+<code>cobertura_diagnosticos</code> declara que <code>secuencia_entera</code> no se evaluó por
+falta de esa dependencia.
 La guarda vuelve a abrirse si un candidato presente queda fuera del rango de
 los valores restantes de la numeración, o si la frecuencia del candidato es
 la moda sobresaliente. Esta segunda señal se mide por el <strong>salto entre
@@ -1120,6 +1141,15 @@ en minúsculas; por eso <code>12 kg</code> y <code>13500 g</code> son unidades, 
 <code>12A</code> y <code>13B</code> se tratan como códigos. Si hay más de una unidad observada,
 <code>unidades_mixtas</code> informa sus frecuencias y no convierte ni compara sus
 magnitudes. Una única unidad no genera ese hallazgo.
+<code>formatos_fecha_mixtos</code> compara representaciones dentro de una columna cuyo
+dominio es la fecha o la fecha-hora. Una fecha agregada adentro de una
+columna de horas del día —<code>12/02/2011 6:55 a.m.</code> entre valores <code>7:10 a.m.</code>—
+no produce ese hallazgo, porque la columna no es de fechas: aparece como
+<code>patron_raro</code>, que es lo que de verdad cambió. Decidir que esa columna sólo
+debe contener horas es una regla de dominio y el paquete no la supone.
+Del mismo modo, un número sin sufijo no cuenta como una segunda unidad: una
+columna que mezcla <code>5</code> con <code>5 %</code> observa una sola unidad y se informa como
+<code>numero_como_texto</code>, no como <code>unidades_mixtas</code>.
 <code>celdas_multivaluadas</code> es deliberadamente conservador: usa los patrones de
 <code><a href="descubrir_patrones.html">descubrir_patrones()</a></code> y exige partes numéricas, alfanuméricas o
 identificadoras puntuadas homogéneas, compatibles con el patrón del resto de

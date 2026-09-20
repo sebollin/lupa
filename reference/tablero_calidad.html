@@ -91,7 +91,13 @@ el marco AGESIC cuando corresponde o el conjunto de factores medidos.</p></dd>
 
 
 <dt id="arg-cobertura">cobertura<a class="anchor" aria-label="anchor" href="#arg-cobertura"></a></dt>
-<dd><p>Cobertura opcional creada por <code><a href="cobertura_analisis.html">cobertura_analisis()</a></code>.</p></dd>
+<dd><p>Cobertura opcional creada por <code><a href="cobertura_analisis.html">cobertura_analisis()</a></code>.</p>
+<p><strong>La correspondencia entre esa cobertura y <code>medidas</code> es suya, no del
+paquete</strong>, igual que en <code><a href="cobertura_analisis.html">cobertura_analisis()</a></code>: el tablero cruza las dos
+por dimensión y factor y reescribe el estado de un factor cuando la
+medición lo cubre, sin verificar que las dos describan la misma tabla. Con
+una cobertura de otro análisis, el factor va a figurar como medido por esta
+corrida.</p></dd>
 
 </dl></div>
     <div class="section level2">

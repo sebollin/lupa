@@ -356,7 +356,7 @@ colisión.</p>
 <span>  max_resultados <span class="op">=</span> <span class="fl">100</span></span>
 <span><span class="op">)</span></span>
 <span><span class="co">#&gt; LSH: 4 candidatos previstos; referencia de 0,000 s (piso, no incluye firma ni cubetas;</span></span>
-<span><span class="co">#&gt; subir nucleos puede acortar esta etapa; hoy usa 2 hilos), medida con 24.332 pares en</span></span>
+<span><span class="co">#&gt; subir nucleos puede acortar esta etapa; hoy usa 2 hilos), medida con 24.080 pares en</span></span>
 <span><span class="co">#&gt; 0,051 s.</span></span>
 <span><span class="va">exacto</span><span class="op">$</span><span class="va">pares</span><span class="op">[</span>, <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span></span>
 <span>  <span class="st">"fila_1"</span>, <span class="st">"fila_2"</span>, <span class="st">"distancia"</span>, <span class="st">"tipo_par"</span>, <span class="st">"igualo_normalizar"</span></span>
@@ -377,6 +377,10 @@ siendo similares. Un par parecido nunca se presenta como identidad y no
 se propone eliminar ni fusionar registros. Si <code>stringdist</code> no
 está disponible, el resultado declara que la comparación no se ejecutó
 en vez de fallar con un error críptico.</p>
+<p>El diagnóstico de casi duplicados del vocabulario se ejecuta por
+columna. Dos columnas con el mismo vocabulario conservan filas de
+cobertura y hallazgos separados; el costo puede repetirse para no
+mezclar sus frecuencias ni su alcance.</p>
 <p>Los duplicados exactos que informa <code><a href="../reference/perfilar.html">perfilar()</a></code> siguen
 otra unidad: el hallazgo <code>filas_duplicadas</code> cuenta todas las
 filas que participan en grupos duplicados y las enumera en la traza. La
@@ -437,7 +441,7 @@ siendo exacta; sólo cambia cuánta memoria se usa a la vez.</p>
 <span>  <span class="st">"directorio"</span>, <span class="st">"n_parciales"</span>, <span class="st">"bytes_totales"</span>, <span class="st">"reanudable"</span>, <span class="st">"perdida"</span></span>
 <span><span class="op">)</span><span class="op">]</span></span>
 <span><span class="co">#&gt; $directorio</span></span>
-<span><span class="co">#&gt; [1] "/tmp/RtmpgQRBIR/lupa-lotes-22a76f97e708/lupa-lotes-22a7632b8d33"</span></span>
+<span><span class="co">#&gt; [1] "/tmp/RtmpVABeHE/lupa-lotes-22ca5f6fd7f5/lupa-lotes-22ca34e23d6a"</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; $n_parciales</span></span>
 <span><span class="co">#&gt; [1] 6</span></span>

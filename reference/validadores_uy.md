@@ -32,6 +32,14 @@ contrastó con la implementación pública de `python-stdnum` y con
 ejemplos públicos. Por eso valida estructura y dígito, no vigencia ni
 existencia registral.
 
+**Los separadores son de la escritura, no del número.** Punto, espacio y
+guion se admiten porque una persona escribe `1.234.567-2`; en un valor
+numérico el punto es el separador decimal y el guion es el signo, así
+que un número fraccionario o negativo devuelve `FALSE` —no se le quita
+la fracción ni el signo para hacerlo pasar—. Un número entero no
+negativo sí se valida, como cualquier otra escritura del mismo
+documento.
+
 ## References
 
 Poder Ejecutivo de Uruguay (1978). Decreto 501/978, artículo 2.

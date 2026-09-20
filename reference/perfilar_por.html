@@ -82,7 +82,13 @@ columna trae ese mismo texto como valor real, los dos caen en un solo grupo
 <dd><p>Nombres de columnas de identidad que se conservan en cada grupo
 aunque estén enteramente ausentes. Importa: sin la clave de entidad, el
 diagnóstico de filas duplicadas informa como duplicada cada repetición del
-valor del atributo.</p></dd>
+valor del atributo.</p>
+<p><strong>La declaración viaja al perfilado de cada grupo</strong>, igual que si se pasara
+<code>clave</code> a <code><a href="perfilar.html">perfilar()</a></code>: la ley de Benford no corre sobre esas columnas y la
+cobertura publica que la clave fue declarada, en vez de deducir que «parece
+un identificador». Si la clave nombra la columna de agrupación, ese nombre
+se recorta antes de reenviarlo, porque en la rebanada esa columna ya no
+está.</p></dd>
 
 
 <dt id="arg-min-filas">min_filas<a class="anchor" aria-label="anchor" href="#arg-min-filas"></a></dt>
@@ -99,8 +105,8 @@ grupos donde ningún diagnóstico tiene soporte.</p></dd>
     <h2 id="value">Value<a class="anchor" aria-label="anchor" href="#value"></a></h2>
     <p>Data frame de clase <code>hallazgos_por_grupo</code> con las columnas de
 <code>hallazgos</code> de <code><a href="perfilar.html">perfilar()</a></code> precedidas por <code>grupo</code> y <code>n_filas_grupo</code>. El
-atributo <code>cobertura_grupos</code> declara los grupos no perfilados y las columnas
-descartadas por grupo.</p>
+atributo <code>cobertura_grupos</code> declara los grupos no perfilados, las columnas
+enteramente ausentes y las declaraciones recortadas por grupo.</p>
 <p>El atributo <code>etiquetas_personales</code> declara si la columna de agrupación
 lleva datos personales. Las etiquetas de grupo <strong>son</strong> valores de esa
 columna, así que la salida los publica —en los hallazgos y en las dos
@@ -112,9 +118,16 @@ por una columna seudonimizada. El atributo queda vacío cuando la columna no
 lleva datos personales, y también cuando <code>proteger_datos_personales</code> es
 <code>FALSE</code>, porque entonces ya está declarado que se quieren los valores. Si el
 léxico no reconoce el nombre de la columna, decláresela con
-<code>columnas_personales</code>: ese argumento —como <code>columnas_opcionales</code>, <code>clave</code> y
-<code>aplicabilidad</code>— puede nombrar la columna de agrupación, y se recorta de lo
-que se envía a <code><a href="perfilar.html">perfilar()</a></code> para cada grupo, donde esa columna ya no está.</p>
+<code>columnas_personales</code>: ese argumento —como <code>columnas_opcionales</code>, <code>clave</code>,
+<code>columnas_sin_ceros</code>, <code>columnas_no_negativas</code> y <code>aplicabilidad</code>— puede
+nombrar la columna de agrupación, y se recorta de lo que se envía a
+<code><a href="perfilar.html">perfilar()</a></code> para cada grupo, donde esa columna ya no está. El recorte se
+publica por grupo en <code>cobertura_grupos$columnas_descartadas</code>, junto con el
+nombre de la declaración y el motivo. Para <code>aplicabilidad</code>, también se
+recorta una regla cuando alguna variable de su fórmula —según
+<code><a href="https://rdrr.io/r/base/allnames.html" class="external-link">all.vars()</a></code>— es una columna original ausente de la rebanada; las
+referencias que no son columnas originales se conservan como referencias
+posibles al entorno de la fórmula.</p>
 <p>El atributo <code>cobertura_diagnosticos</code> declara, <strong>por grupo</strong>, los
 diagnósticos que no se evaluaron y por qué. Cada grupo se perfila por
 separado, así que cada uno declina los suyos: una columna puede tener
@@ -127,8 +140,13 @@ no se miró.</p>
     <p>Dentro de cada grupo se descartan las columnas enteramente ausentes antes de
 perfilar. En un modelo entidad-atributo-valor bien formado eso deja viva
 exactamente la columna de valor que corresponde al atributo del grupo, y es
-lo que evita informar como falta lo que es la forma del dato. El descarte se
-declara en la cobertura.</p>
+lo que evita informar como falta lo que es la forma del dato. Las
+declaraciones que nombran columnas retiradas se recortan para ese grupo y el
+nombre de cada recorte, con su motivo, se declara en
+<code>cobertura_grupos$columnas_descartadas</code>. En <code>aplicabilidad</code> también se
+recorta una regla si <code><a href="https://rdrr.io/r/base/allnames.html" class="external-link">all.vars()</a></code> de su fórmula menciona una columna original
+que no está en la rebanada; una variable que no es columna de la tabla se
+conserva porque puede venir legítimamente del entorno de la fórmula.</p>
 <p>La función no adivina cuál es la columna de agrupación: la declara quien
 conoce el dato, igual que <code><a href="perfilar.html">perfilar()</a></code> no adivina claves ni jerarquías.</p>
     </div>

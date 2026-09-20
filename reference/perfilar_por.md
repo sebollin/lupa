@@ -35,6 +35,15 @@ perfilar_por(datos, por, clave = NULL, min_filas = 30L, ...)
   diagnóstico de filas duplicadas informa como duplicada cada repetición
   del valor del atributo.
 
+  **La declaración viaja al perfilado de cada grupo**, igual que si se
+  pasara `clave` a
+  [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md):
+  la ley de Benford no corre sobre esas columnas y la cobertura publica
+  que la clave fue declarada, en vez de deducir que «parece un
+  identificador». Si la clave nombra la columna de agrupación, ese
+  nombre se recorta antes de reenviarlo, porque en la rebanada esa
+  columna ya no está.
+
 - min_filas:
 
   Grupos con menos filas que este número no se perfilan y se declaran en
@@ -53,7 +62,8 @@ Data frame de clase `hallazgos_por_grupo` con las columnas de
 `hallazgos` de
 [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md)
 precedidas por `grupo` y `n_filas_grupo`. El atributo `cobertura_grupos`
-declara los grupos no perfilados y las columnas descartadas por grupo.
+declara los grupos no perfilados, las columnas enteramente ausentes y
+las declaraciones recortadas por grupo.
 
 El atributo `etiquetas_personales` declara si la columna de agrupación
 lleva datos personales. Las etiquetas de grupo **son** valores de esa
@@ -68,10 +78,18 @@ El atributo queda vacío cuando la columna no lleva datos personales, y
 también cuando `proteger_datos_personales` es `FALSE`, porque entonces
 ya está declarado que se quieren los valores. Si el léxico no reconoce
 el nombre de la columna, decláresela con `columnas_personales`: ese
-argumento —como `columnas_opcionales`, `clave` y `aplicabilidad`— puede
-nombrar la columna de agrupación, y se recorta de lo que se envía a
+argumento —como `columnas_opcionales`, `clave`, `columnas_sin_ceros`,
+`columnas_no_negativas` y `aplicabilidad`— puede nombrar la columna de
+agrupación, y se recorta de lo que se envía a
 [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md)
-para cada grupo, donde esa columna ya no está.
+para cada grupo, donde esa columna ya no está. El recorte se publica por
+grupo en `cobertura_grupos$columnas_descartadas`, junto con el nombre de
+la declaración y el motivo. Para `aplicabilidad`, también se recorta una
+regla cuando alguna variable de su fórmula —según
+[`all.vars()`](https://rdrr.io/r/base/allnames.html)— es una columna
+original ausente de la rebanada; las referencias que no son columnas
+originales se conservan como referencias posibles al entorno de la
+fórmula.
 
 El atributo `cobertura_diagnosticos` declara, **por grupo**, los
 diagnósticos que no se evaluaron y por qué. Cada grupo se perfila por
@@ -86,7 +104,14 @@ Dentro de cada grupo se descartan las columnas enteramente ausentes
 antes de perfilar. En un modelo entidad-atributo-valor bien formado eso
 deja viva exactamente la columna de valor que corresponde al atributo
 del grupo, y es lo que evita informar como falta lo que es la forma del
-dato. El descarte se declara en la cobertura.
+dato. Las declaraciones que nombran columnas retiradas se recortan para
+ese grupo y el nombre de cada recorte, con su motivo, se declara en
+`cobertura_grupos$columnas_descartadas`. En `aplicabilidad` también se
+recorta una regla si
+[`all.vars()`](https://rdrr.io/r/base/allnames.html) de su fórmula
+menciona una columna original que no está en la rebanada; una variable
+que no es columna de la tabla se conserva porque puede venir
+legítimamente del entorno de la fórmula.
 
 La función no adivina cuál es la columna de agrupación: la declara quien
 conoce el dato, igual que

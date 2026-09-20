@@ -24,7 +24,25 @@ para saber si un mismo hecho fue codificado de varias maneras, si un
 faltante se esconde detrás de un código o qué filas hay que revisar en
 el sistema de origen.
 
-## Qué te dice de tus datos que `summary()` no
+Las salidas impresas ya no fallan por codificación en ningún locale,
+incluido LC_CTYPE = C. La copia que se exhibe convierte lo que trae
+codificación declarada, declara como UTF-8 los bytes válidos sin
+declarar —R los escapa como \<U+00F1\> donde el locale no los
+represente— y deja el resto tal cual mientras R pueda imprimirlo. Bajo
+un locale UTF-8 la salida es la misma que la de R, salvo que una clase
+suya defina un format() que consulte Encoding(): ese verá la marca de la
+copia. Bajo un locale que no puede representar un carácter la salida
+difiere a propósito, y para mejor: donde R escapa los bytes, lupa
+publica el punto de código. Como toda representación escapada —también
+las de R— esa forma es ambigua con un texto que la contenga
+literalmente; lo que no cambia es el dato, sólo cómo se muestra. Sólo
+cuando R no puede imprimir se reintenta escapando con su propio octal,
+\377, y la tabla queda alineada también ahí. Imprimir no es infalible
+por eso: si una clase suya tiene un format() que da error, ese error le
+llega sin alterar. Esto incluye las columnas de listas de la
+propuesta_modelo que devuelve proponer_modelo(); comparar dos perfiles
+idénticos también permanece en silencio en ese locale. \## Qué te dice
+de tus datos que [`summary()`](https://rdrr.io/r/base/summary.html) no
 
 [`summary()`](https://rdrr.io/r/base/summary.html) describe las columnas
 una por una. `lupa` compara representaciones, cruza columnas y filas, y
@@ -389,6 +407,12 @@ similares. `pares$igualo_normalizar` marca el caso intermedio. Los
 conteos correspondientes en el alcance son `n_pares_exactos`,
 `n_pares_exactos_normalizados` y `n_pares_aproximados`.
 
+El diagnóstico `casi_duplicados_vocabulario` se ejecuta por columna.
+Aunque dos columnas tengan el mismo vocabulario, cada una conserva su
+propia fila de cobertura y sus propios hallazgos; el costo de comparar
+vocabularios idénticos puede repetirse. Es una decisión deliberada para
+no mezclar frecuencias ni alcances de columnas distintas.
+
 El resultado deja el alcance efectivo en `meta$muestra`,
 `meta$filas_analizadas` y `meta$muestreo`; cada columna también publica
 `n_filas_analizadas_tipo` y `muestreado_tipo_inferido`, y la tabla de
@@ -470,7 +494,12 @@ muestra falla, el objeto vuelve con `resumen_tabla` completo,
 `perfil_muestra = NULL` y una fila de cobertura con el motivo. Si no se
 pidió la muestra, la cobertura usa `no_solicitado`, que no es un fallo;
 se puede pedir sólo los agregados con
-`bloque_muestra = "solo_agregados"`.
+`bloque_muestra = "solo_agregados"`. Esta opción es independiente de
+`universo`: con `muestra_motor` los agregados SQL siguen usando la
+relación muestreada por el motor, pero no se seleccionan, leen ni
+materializan filas en el spool cliente. La cobertura queda en
+`no_solicitado` y la metadata de materialización declara
+`filas_vistas = 0`.
 
 **Y declara lo que el motor no puede hacer.** `sentinelas_numericos`,
 `aplicabilidad` y `columnas_opcionales` cambian lo que
@@ -587,17 +616,20 @@ consistencia comprobable. El campo heredado de consulta ahora se llama
 queda reservado para la relación materializada y se publica en
 `meta$materializacion`, nunca como segundo nombre del id de consulta.
 
-Con `universo = "muestra_motor"`, la selección del motor se materializa
-una sola vez en un spool externo de la sesión cliente. Su trailer
-verifica `muestra_id`, `snapshot_id`, `orden_id`, `n_filas`, `bytes` y
-checksum en la relectura. Todo el perfil lee ese spool; nunca vuelve a
-muestrear el motor. Cada chunk se compara con
-`max_bytes_materializacion` antes de escribir y un exceso publica
-`spool_presupuesto_excedido` junto con
+Con `universo = "muestra_motor"` y `bloque_muestra = "con_muestra"`, la
+selección del motor se materializa una sola vez en un spool externo de
+la sesión cliente. Su trailer verifica `muestra_id`, `snapshot_id`,
+`orden_id`, `n_filas`, `bytes` y checksum en la relectura. Todo el
+perfil lee ese spool; nunca vuelve a muestrear el motor. Con
+`bloque_muestra = "solo_agregados"`, los agregados SQL siguen usando la
+relación muestreada, pero no se selecciona, lee ni materializa el bloque
+de filas. Cada chunk se compara con `max_bytes_materializacion` antes de
+escribir y un exceso publica `spool_presupuesto_excedido` junto con
 `muestra_inestable:presupuesto_materializacion`, sin resultado híbrido.
 El spool no escribe en la conexión DBI ni crea objetos temporales del
 motor. `meta$materializacion` conserva backend, versión, checksum, bytes
-y presupuesto.
+y presupuesto cuando existe; el camino no solicitado declara
+`estado = "no_solicitado"` y cero filas vistas.
 
 El punto de cruce medido se declara como costo, no como promesa de
 velocidad: en PostgreSQL 16 y 2 millones de filas, una muestra de
@@ -1121,6 +1153,26 @@ malo adentro— comparó cuatro variantes: cruzar las dos señales acierta
 las trece y **no calla ningún dato malo real**; la densidad sola
 acertaba once y callaba dos. Está en `test-ronda118.R`.
 
+Para una columna `integer64`, `bit64` se carga de manera diferida cuando
+está instalado, para registrar sus métodos antes de medir. Si no está
+instalado, las cinco medidas de la secuencia quedan en `NA` y
+`cobertura_diagnosticos` registra que `secuencia_entera` no se pudo
+evaluar. Los valores numéricos que se vuelven texto publicado usan
+notación fija con la precisión completa, independiente de `scipen` y de
+`digits`, y conservan `OutDec`.
+
+La clasificación de posibles datos personales usa esa misma
+representación fija: `scipen` y `digits` no pueden cambiar la decisión
+ni borrar de `meta` los centinelas numéricos declarados. Las claves de
+deriva e histórico comparan nombres y configuraciones por bytes, incluso
+al cruzar [`saveRDS()`](https://rdrr.io/r/base/readRDS.html) y cambiar
+el locale.
+
+Las sugerencias de ausencia estructural marcan los nombres sólo en la
+copia que entra al texto. Conservan el nombre de la tabla tal como llegó
+y publican el código para copiar y pegar igual bajo `LC_CTYPE = "C"`,
+incluso cuando el nombre contiene tildes.
+
 **Y lo que no se corre no se apaga en silencio**: deja su fila en
 `cobertura_diagnosticos` con el motivo medido —qué porcentaje de los
 enteros cubre la columna, cuántos valores se habrían señalado, cuántas
@@ -1372,7 +1424,10 @@ valores distintos que colisionan— y cambia noventa filas, y quien decide
 tiene que saber cuál de las dos cosas está leyendo. Y
 [`aplicar()`](https://sebollin.github.io/lupa/reference/planificar_limpieza.md)
 **no dice haber hecho lo que no hizo**: una acción cuyo efecto resulta
-nulo queda `fallida` con su motivo, no `ejecutada`.
+nulo queda `fallida` con su motivo, no `ejecutada`, incluso cuando un
+plan editado no tiene una estimación válida en `n_afectadas`. El efecto
+observado es el control; la estimación es evidencia, no un interruptor
+que pueda apagarlo.
 
 ## ✨ Qué hace lupa en detalle
 

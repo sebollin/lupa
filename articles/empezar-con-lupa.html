@@ -391,6 +391,28 @@ estadístico de orden del momento.</p>
 <p><code>cobertura_diagnosticos</code> es la tabla que sostiene la regla
 central de <code>lupa</code>: un diagnóstico que no pudo evaluarse queda
 identificado y no se confunde con la ausencia de hallazgos.</p>
+<p>En una columna <code>integer64</code>, <code>bit64</code> se carga de
+manera diferida si está instalado, para registrar sus métodos antes de
+medir la secuencia. Si no está instalado, las cinco medidas públicas de
+la secuencia quedan en <code>NA</code> y la tabla declara
+<code>secuencia_entera</code> como no evaluada, con <code>bit64</code>
+como dependencia. Cuando una cifra pasa a texto publicado,
+<code>lupa</code> usa notación fija independiente de <code>scipen</code>
+y de <code>digits</code> —se publica el valor completo— y conserva
+<code>OutDec</code>, que sigue siendo la marca decimal elegida por la
+sesión.</p>
+<p>Las sugerencias que propone el perfil para declarar una ausencia
+estructural marcan los nombres sólo en la copia usada para componer
+texto. El nombre de la tabla se conserva tal como llegó y el código
+publicado se puede copiar y pegar igual bajo
+<code>LC_CTYPE = "C"</code>, también cuando contiene tildes.</p>
+<p>La misma frontera de entrada se aplica a los valores: los bytes UTF-8
+válidos que llegan sin marca se declaran UTF-8 antes de ejecutar las
+métricas. Las comparaciones textuales de <code>NoNulo</code>,
+<code>Formato</code> y dominios posibles se hacen por bytes, así que una
+medición no cambia entre un locale UTF-8 y <code>C</code>; los nombres
+publicados siguen conservando los bytes y la marca con que llegó la
+tabla.</p>
 </div>
 <div class="section level2">
 <h2 id="del-diagnóstico-al-modelo">Del diagnóstico al modelo<a class="anchor" aria-label="anchor" href="#del-diagn%C3%B3stico-al-modelo"></a>
@@ -525,8 +547,12 @@ dominio. Puede editarse como cualquier otro <code>data.frame</code>.</p>
 <span><span class="co">#&gt; 4 convertir_ausencias_textuales           2</span></span>
 <span><span class="co">#&gt; 5             recortar_espacios           1</span></span>
 <span><span class="co">#&gt; 6    marcar_columnas_duplicadas           1</span></span></code></pre></div>
-<p>El original permanece intacto. Para verificar el efecto se vuelve a
-perfilar el resultado.</p>
+<p>El original permanece intacto. El plan es editable: si se cambia una
+estimación o se la deja ausente, <code><a href="../reference/planificar_limpieza.html">aplicar()</a></code> sigue
+verificando el efecto observado. Una acción seleccionada que no cambia
+ningún valor queda <code>fallida</code> con su motivo; no se publica
+como ejecutada por falta de estimación.</p>
+<p>Para verificar el efecto se vuelve a perfilar el resultado.</p>
 <div class="sourceCode" id="cb12"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">perfil_despues</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/perfilar.html">perfilar</a></span><span class="op">(</span><span class="va">resultado</span><span class="op">$</span><span class="va">datos</span>, nombre <span class="op">=</span> <span class="st">"entrega normalizada"</span><span class="op">)</span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span></span>
@@ -558,7 +584,7 @@ temporal y luego los retira.</p>
 <span>  titulo <span class="op">=</span> <span class="st">"Calidad de la entrega de ejemplo"</span></span>
 <span><span class="op">)</span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/base/basename.html" class="external-link">basename</a></span><span class="op">(</span><span class="va">archivo</span><span class="op">)</span></span>
-<span><span class="co">#&gt; [1] "file226a6d518c6c.html"</span></span>
+<span><span class="co">#&gt; [1] "file228b4f6d5f39.html"</span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/base/unlink.html" class="external-link">unlink</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="va">archivo</span>, <span class="va">archivo_rds</span><span class="op">)</span><span class="op">)</span></span></code></pre></div>
 <p>Para profundizar en la arquitectura consulte
 <code><a href="../articles/definir-la-calidad.html">vignette("definir-la-calidad")</a></code>; para revisar decisiones de

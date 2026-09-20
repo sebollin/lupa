@@ -86,10 +86,10 @@ padron <- referencial(
   completo = TRUE, alcance = "departamentos del Uruguay"
 )
 padron
-#> Referencial: referencial 
-#>   Filas: 2 
-#>   Clave: codigo 
-#>   Valores: departamento 
-#>   Completo: sí 
-#>   Alcance: departamentos del Uruguay 
+#> Referencial: referencial
+#>   Filas: 2
+#>   Clave: codigo
+#>   Valores: departamento
+#>   Completo: sí
+#>   Alcance: departamentos del Uruguay
 ```

@@ -49,79 +49,33 @@ instancia <- instanciar(especifica, "personas", "edad")
 medidas <- medir(modelo(instancia), data.frame(edad = c(20, NA, 35)))
 regla <- regla_evaluacion("Al menos 90%", function(x) x > 0.9)
 evaluar(medidas, perfil_evaluacion("Avanzado", regla))
-#> $medidas
-#>                                     id_medida
-#> 1 medicion-20260917T023234.622255-7507-000001
-#> 2 medicion-20260917T023234.622255-7507-000002
-#> 3 medicion-20260917T023234.622255-7507-000003
-#>                            id_medicion               fecha   perfil
-#> 1 medicion-20260917T023234.622255-7507 2026-09-17 02:32:34 Avanzado
-#> 2 medicion-20260917T023234.622255-7507 2026-09-17 02:32:34 Avanzado
-#> 3 medicion-20260917T023234.622255-7507 2026-09-17 02:32:34 Avanzado
-#>          regla  metrica_instanciada orientacion resultado
-#> 1 Al menos 90% NoNulo@personas.edad conformidad      TRUE
-#> 2 Al menos 90% NoNulo@personas.edad conformidad     FALSE
-#> 3 Al menos 90% NoNulo@personas.edad conformidad      TRUE
 #> 
-#> $reglas
-#>                            id_medicion               fecha   perfil
-#> 1 medicion-20260917T023234.622255-7507 2026-09-17 02:32:34 Avanzado
-#>          regla n_medidas resultado
-#> 1 Al menos 90%         3 0.6666667
+#> ── Evaluación de calidad ───────────────────────────────────────────────────────
 #> 
-#> $perfiles
-#>                            id_medicion               fecha   perfil n_reglas
-#> 1 medicion-20260917T023234.622255-7507 2026-09-17 02:32:34 Avanzado        1
-#>   resultado
-#> 1 0.6666667
+#> ── Evaluaciones de medidas ──
 #> 
-#> attr(,"configuracion_modelo")
-#> attr(,"configuracion_modelo")$version
-#> [1] 1
+#>                                    id_medida
+#>  medicion-20260920T120131.881542-7541-000001
+#>  medicion-20260920T120131.881542-7541-000002
+#>  medicion-20260920T120131.881542-7541-000003
+#>                           id_medicion               fecha   perfil        regla
+#>  medicion-20260920T120131.881542-7541 2026-09-20 12:01:31 Avanzado Al menos 90%
+#>  medicion-20260920T120131.881542-7541 2026-09-20 12:01:31 Avanzado Al menos 90%
+#>  medicion-20260920T120131.881542-7541 2026-09-20 12:01:31 Avanzado Al menos 90%
+#>   metrica_instanciada orientacion resultado
+#>  NoNulo@personas.edad conformidad      TRUE
+#>  NoNulo@personas.edad conformidad     FALSE
+#>  NoNulo@personas.edad conformidad      TRUE
+#> ── Evaluaciones de reglas ──
 #> 
-#> attr(,"configuracion_modelo")$entidades
-#> [1] "personas"
+#>                           id_medicion               fecha   perfil        regla
+#>  medicion-20260920T120131.881542-7541 2026-09-20 12:01:31 Avanzado Al menos 90%
+#>  n_medidas resultado
+#>          3 0.6666667
+#> ── Perfiles de madurez ──
 #> 
-#> attr(,"configuracion_modelo")$metricas
-#>                                                                                                                                                                                                      NoNulo@personas.edad 
-#> "list{nombre=character[NoNulo@personas.edad];metrica=character[NoNulo];metrica_especifica=character[NoNulo];entidad=character[personas];atributos=character[edad];configuracion=list{valores_nulos=NULL;aplicable=NULL}}" 
-#> 
-#> attr(,"configuracion_aplicabilidad")
-#> [1] "NULL"
-#> attr(,"configuracion_perfil")
-#> attr(,"configuracion_perfil")$version
-#> [1] 1
-#> 
-#> attr(,"configuracion_perfil")$nombre
-#> [1] "Avanzado"
-#> 
-#> attr(,"configuracion_perfil")$reglas
-#>                                                                                                                                                     Al menos 90% 
-#> "list{nombre=character[Al menos 90%];metricas=NULL;nivel=character[medida];proporcion_minima=NULL;desenlace=NULL;umbrales=NULL;condicion=function (x)  x > 0.9}" 
-#> 
-#> attr(,"perfil_evaluacion")
-#> $nombre
-#> [1] "Avanzado"
-#> 
-#> $reglas
-#> $reglas$`Al menos 90%`
-#> $nombre
-#> [1] "Al menos 90%"
-#> 
-#> $condicion
-#> function (x) 
-#> x > 0.9
-#> <environment: 0x557669f4d5f8>
-#> 
-#> $metricas
-#> NULL
-#> 
-#> attr(,"class")
-#> [1] "regla_evaluacion"
-#> 
-#> 
-#> attr(,"class")
-#> [1] "perfil_evaluacion"
-#> attr(,"class")
-#> [1] "evaluacion_calidad"
+#>                           id_medicion               fecha   perfil n_reglas
+#>  medicion-20260920T120131.881542-7541 2026-09-20 12:01:31 Avanzado        1
+#>  resultado
+#>  0.6666667
 ```

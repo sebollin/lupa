@@ -1,7 +1,9 @@
 # Detectar deriva en una serie de evaluaciones
 
 Compara corridas consecutivas, ordenadas por fecha dentro de cada perfil
-o regla, y marca cambios significativos en la escala `[0, 1]`.
+o regla, y marca cambios significativos en la escala `[0, 1]`. Los
+empates de fecha se resuelven por los bytes de `id_medicion`, de modo
+que la misma secuencia persiste igual bajo cualquier locale.
 
 ## Usage
 
@@ -35,6 +37,14 @@ deterioro de al menos un umbral es `sospechoso` y uno de al menos dos
 umbrales es `error`. `identidad_tabla` separa series de tablas distintas
 y `aspecto` marca el resultado o un cambio de configuración; este último
 se informa como `error` pero no suprime la comparación.
+
+**Un par que no se puede comparar no recibe veredicto.** Si alguna de
+las dos corridas no evaluó su resultado, `delta`, `cambio_absoluto`,
+`significativo`, `direccion` y `severidad` quedan en `NA` —no en
+`estable` ni en `ok`— y `descripcion` nombra de qué lado falta el
+resultado. Filtrar por `severidad != "ok"` deja fuera esas filas a
+propósito: no son filas sanas, son filas sin medición, y se encuentran
+con `is.na(significativo)`.
 
 ## Examples
 

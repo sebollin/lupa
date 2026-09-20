@@ -71,9 +71,10 @@ que la mayoría espera de una correlación, y el método elegido viaja en
 la columna `metodo` de la salida para que ninguna lectura dependa de
 recordar cuál se pidió.
 
-Se descartan constantes, fechas, listas, categóricas de cardinalidad
-alta y columnas posteriores a `max_columnas` antes de construir pares.
-Las dependencias funcionales exactas recibidas en `dependencias` no se
+Se descartan constantes, fechas, listas, columnas compuestas —matrices o
+arreglos de más de una dimensión—, categóricas de cardinalidad alta y
+columnas posteriores a `max_columnas` antes de construir pares. Las
+dependencias funcionales exactas recibidas en `dependencias` no se
 repiten como asociaciones.
 
 ## See also

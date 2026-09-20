@@ -106,6 +106,9 @@ plan[, c("estrategia", "justificacion")]
 [`normalizacion()`](https://sebollin.github.io/lupa/reference/normalizacion.md)
 permite declarar qué diferencias se ignoran al comparar. El perfil
 cambia sólo la representación de comparación; nunca modifica los datos.
+Los pasos de ligaduras y ancho completo se aplican por punto de código y
+los bytes UTF-8 válidos se declaran antes de operar, así que cumplen
+igual bajo un locale UTF-8 y bajo `LC_CTYPE = "C"`.
 
 ``` r
 
@@ -174,6 +177,12 @@ resultado$registro[, c(
 #> 4 convertir_ausencias_textuales           2                  0                     0
 #> 5    marcar_columnas_duplicadas           1                  0                     0
 ```
+
+El plan se puede editar antes de aplicar: quitar una acción, corregir un
+parámetro o cambiar `n_afectadas` no altera la obligación de observar
+qué pasó. Si una acción seleccionada no cambia ningún valor, el registro
+dice `fallida` con su motivo, incluso cuando el estimado está ausente
+(`NA`).
 
 Las acciones destructivas nunca son recomendadas. Aunque el usuario las
 active en el plan,

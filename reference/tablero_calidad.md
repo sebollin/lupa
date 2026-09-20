@@ -46,6 +46,14 @@ tablero_calidad(
   Cobertura opcional creada por
   [`cobertura_analisis()`](https://sebollin.github.io/lupa/reference/cobertura_analisis.md).
 
+  **La correspondencia entre esa cobertura y `medidas` es suya, no del
+  paquete**, igual que en
+  [`cobertura_analisis()`](https://sebollin.github.io/lupa/reference/cobertura_analisis.md):
+  el tablero cruza las dos por dimensión y factor y reescribe el estado
+  de un factor cuando la medición lo cubre, sin verificar que las dos
+  describan la misma tabla. Con una cobertura de otro análisis, el
+  factor va a figurar como medido por esta corrida.
+
 ## Value
 
 Data frame S3 `tablero_calidad`. Los atributos `alcance` y `cobertura`

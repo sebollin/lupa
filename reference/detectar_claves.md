@@ -56,9 +56,10 @@ no una clave válida.
 
 Dos claves simples se marcan como redundantes cuando sus contenidos son
 idénticos —incluidas clase, atributos, ausencias y representación
-exacta—, aunque tengan nombres distintos. Las columnas matriciales o de
-lista no se interpretan como claves. Los pares también quedan en el
-atributo `claves_redundantes`.
+exacta—, aunque tengan nombres distintos. Las columnas compuestas
+—matrices o arreglos de más de una dimensión— y las de lista no se
+interpretan como claves. Los pares también quedan en el atributo
+`claves_redundantes`.
 
 ## See also
 

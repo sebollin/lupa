@@ -450,7 +450,10 @@ perfilar(
   Proporción máxima del vocabulario que puede abarcar el grupo mayor
   para entregar grupos de variantes. Por defecto es `0.5`; si se supera,
   el alcance declara que el diagnóstico no aplica en vez de entregar un
-  bloque que abarque casi toda la columna.
+  bloque que abarque casi toda la columna. El diagnóstico se ejecuta por
+  columna y no deduplica columnas con el mismo vocabulario: cada una
+  conserva su propia fila de cobertura y sus propios hallazgos. El costo
+  de comparar vocabularios idénticos puede repetirse.
 
 - umbral_variante_rara_vocabulario:
 
@@ -614,10 +617,10 @@ el hallazgo: `cobertura_diagnosticos` declara la no medicion, su
 proporcion observada y el argumento que se puede ajustar. Si el conteo y
 la traza no coinciden, conserva el hallazgo y emite una advertencia de
 clase `lupa_trazabilidad_incoherente`. La guarda compara el total previo
-al truncado y respeta la unidad declarada. Una matriz no analizada
-conserva en la traza todas sus filas. Si una columna de listas se
-reconoce como constante pero no se puede contar su frecuencia, el conteo
-afectado queda en NA y `cobertura_diagnosticos` explica la no
+al truncado y respeta la unidad declarada. Una columna compuesta no
+analizada conserva en la traza todas sus filas. Si una columna de listas
+se reconoce como constante pero no se puede contar su frecuencia, el
+conteo afectado queda en NA y `cobertura_diagnosticos` explica la no
 evaluación. Los índices no contienen valores. Usarlos para extraer filas
 de los datos originales puede volver a exponer datos personales; el
 paquete no realiza esa extracción y la protección de salidas no
@@ -633,14 +636,15 @@ veredictos de identidad. `cobertura_diagnosticos` es una tabla hermana
 de `hallazgos`, con una fila por diagnóstico que no pudo evaluarse o
 cuya enumeración quedó parcial y las columnas `diagnostico`, `columna`,
 `motivo`, `como_resolverlo` y `dependencia`. Incluye la falta de
-`stringdist`, `stringi`, `bit64` o `sf`, y las zonas horarias POSIXt sin
-declarar. Los patrones de frecuencia intermedia no se consideran desvios
-del patron dominante: `patron_raro` es completo respecto de su criterio
-de rareza cuando no hay recorte de trazabilidad. Si el conjunto de
-nombres raros supera 5.000, `cobertura_diagnosticos` declara el recorte
-y su limite. Quien decida automáticamente sobre un perfil debe revisar
-`nrow(perfil$cobertura_diagnosticos)` además de las severidades: un
-perfil sin hallazgos y con diagnósticos no evaluados no es un perfil
+`stringdist`, `stringi`, `bit64` o `sf`, incluida la medición de
+secuencias `integer64` cuando falta `bit64`, y las zonas horarias POSIXt
+sin declarar. Los patrones de frecuencia intermedia no se consideran
+desvios del patron dominante: `patron_raro` es completo respecto de su
+criterio de rareza cuando no hay recorte de trazabilidad. Si el conjunto
+de nombres raros supera 5.000, `cobertura_diagnosticos` declara el
+recorte y su limite. Quien decida automáticamente sobre un perfil debe
+revisar `nrow(perfil$cobertura_diagnosticos)` además de las severidades:
+un perfil sin hallazgos y con diagnósticos no evaluados no es un perfil
 limpio. Cuando una clave declarada no queda plenamente verificada,
 `meta$clave` conserva los estados de unicidad y ausencia de nulos, sus
 conteos y la semántica usada por la trazabilidad. Los tres responden
@@ -801,17 +805,18 @@ lo que vale como dato, y los conteos —`n_valores_excluidos_resumen`,
 `n_infinito_positivo`, `n_faltantes_disfrazados`— dicen cuánto separa a
 los dos. Una columna de listas intenta contar sus valores distintos; si
 la clase no admite comparación, informa `NA` en lugar de afirmar cero.
-Las columnas matriciales se conservan como una unidad por fila: `n`
-informa las filas de la tabla, pero los estadísticos por valor quedan en
-`NA` y un hallazgo explica que deben separarse en columnas con semántica
-explícita. Cuando todos los valores válidos aparecen una sola vez **no
-hay moda**, y `moda` queda en `NA`. Lo que se publicaría es el ganador
-de un desempate de tantas vías como valores haya, y ese desempate sigue
-el orden de ordenamiento, que depende de cómo esté guardada la columna:
-la misma columna `c(-5.5, -1, 0, 3.75)` daba `-5.5` como número y `-1`
-como texto. `frecuencia_moda` se conserva —vale 1, es cierto y es la
-evidencia de por qué la moda quedó callada—. Con un solo valor distinto
-sí hay moda, aunque su frecuencia sea 1: ahí no hay empate que resolver.
+Las columnas compuestas —matrices o arreglos de más de una dimensión— se
+conservan como una unidad por fila: `n` informa las filas de la tabla,
+pero los estadísticos por valor quedan en `NA` y un hallazgo explica que
+deben separarse en columnas con semántica explícita. Cuando todos los
+valores válidos aparecen una sola vez **no hay moda**, y `moda` queda en
+`NA`. Lo que se publicaría es el ganador de un desempate de tantas vías
+como valores haya, y ese desempate sigue el orden de ordenamiento, que
+depende de cómo esté guardada la columna: la misma columna
+`c(-5.5, -1, 0, 3.75)` daba `-5.5` como número y `-1` como texto.
+`frecuencia_moda` se conserva —vale 1, es cierto y es la evidencia de
+por qué la moda quedó callada—. Con un solo valor distinto sí hay moda,
+aunque su frecuencia sea 1: ahí no hay empate que resolver.
 
 Una columna numérica emite `valor_concentrado` como señal `sospechoso`
 cuando tiene al menos 20 valores válidos y 10 valores distintos, y su
@@ -829,20 +834,20 @@ empates naturales en columnas enteras pequeñas, donde el cociente puede
 quedar por debajo de cinco.
 
 La ley de Benford se evalúa sólo en columnas numéricas con al menos 50
-valores finitos, para no agregar cobertura a columnas que ni siquiera
-son candidatas. Antes de comparar exige variación, que la columna no
-parezca un identificador ni una secuencia correlativa, al menos 100
-observaciones positivas utilizables, una proporción de positivos igual a
-1 y tres órdenes de magnitud según `log10(max/min)`. Si falla alguna
-precondición no emite un hallazgo: la enumera en
-`cobertura_diagnosticos`. Si aplica, `meta$benford$resultados` conserva
-la distribución observada y esperada por primer dígito, el chi-cuadrado
-de Pearson, ocho grados de libertad y el valor p;
-`meta$benford$umbrales` publica todos los cortes. Un valor p menor que
-`0.01` genera `desviacion_benford` como señal descriptiva para revisar,
-no como evidencia de fraude o manipulación. Topes administrativos,
-redondeos, precios psicológicos y subsidios de monto fijo son
-explicaciones posibles.
+valores finitos; las columnas compuestas —matrices o arreglos de más de
+una dimensión— no son magnitudes por fila y quedan fuera del análisis.
+Antes de comparar exige variación, que la columna no parezca un
+identificador ni una secuencia correlativa, al menos 100 observaciones
+positivas utilizables, una proporción de positivos igual a 1 y tres
+órdenes de magnitud según `log10(max/min)`. Si falla alguna precondición
+no emite un hallazgo: la enumera en `cobertura_diagnosticos`. Si aplica,
+`meta$benford$resultados` conserva la distribución observada y esperada
+por primer dígito, el chi-cuadrado de Pearson, ocho grados de libertad y
+el valor p; `meta$benford$umbrales` publica todos los cortes. Un valor p
+menor que `0.01` genera `desviacion_benford` como señal descriptiva para
+revisar, no como evidencia de fraude o manipulación. Topes
+administrativos, redondeos, precios psicológicos y subsidios de monto
+fijo son explicaciones posibles.
 
 Las relaciones aritméticas se buscan sólo entre columnas numéricas
 declaradas y con variación: `Date`, `POSIXt`, `difftime`, `integer64`,
@@ -926,13 +931,22 @@ marca de codificación**. Eso significa que sirven para indexar esa misma
 tabla —`datos[[nombre]]`— sea cual sea el `LC_CTYPE` de la sesión. El
 paquete deriva una representación de trabajo para comparar y desambiguar
 internamente, pero no la publica: dos nombres con bytes distintos siguen
-siendo dos columnas distintas.
+siendo dos columnas distintas. Al componer texto publicado —en
+particular las sugerencias de `posible_ausencia_estructural`— usa una
+copia marcada como UTF-8 del nombre, sin modificar el nombre conservado
+en la tabla. Por eso una sugerencia como
+`perfilar(datos, aplicabilidad = list(entero = ~ categoría == "categoría"))`
+conserva el nombre real también bajo `LC_CTYPE = "C"` y se puede copiar
+y pegar.
 
 La identidad de la columna no depende de esa exclusión: `n_distintos`,
 `moda` y `frecuencia_moda` comparan la representación almacenada, que se
 puede distinguir sin decodificarla. Un valor ilegible cuenta como valor,
 y la moda que se publica es el valor original tal como llegó, sin
-reinterpretarlo.
+reinterpretarlo. Cuando ese valor es numérico, su representación textual
+se formatea con notación fija, con la precisión completa e independiente
+de `scipen` y de `digits`; se conserva `OutDec`, porque esa marca
+decimal sí pertenece a la preferencia de locale de quien usa el paquete.
 
 Las columnas `sfc` declaran su CRS, los tipos concretos y la dimensión
 (`XY`, `XYZ`, `XYM` o `XYZM`), además de geometrías vacías, validez,
@@ -1064,16 +1078,20 @@ La corazonada de centinelas numéricos se apaga sobre una **numeración
 limpia**, para no llamar ausencia a un código válido. `densa` responde
 sólo a la cobertura del rango —`densidad_secuencia_entera` por encima de
 su umbral—; `moda_sobresale_secuencia_entera` es una señal independiente
-y no cambia los tres escudos de forma que dependen de la numeración. La
-guarda vuelve a abrirse si un candidato presente queda fuera del rango
-de los valores restantes de la numeración, o si la frecuencia del
-candidato es la moda sobresaliente. Esta segunda señal se mide por el
-**salto entre frecuencias consecutivas**, ordenadas de mayor a menor y
-mirando sólo las primeras posiciones. Es el mismo idioma que
-`salto_de_escala_secuencia_entera` usa con los huecos: lo que delata a
-un centinela no es que su frecuencia sea grande, sino que haya un
-**acantilado** entre el grupo que sobresale y el resto de la
-distribución.
+y no cambia los tres escudos de forma que dependen de la numeración. En
+una columna `integer64`, `bit64` se carga de manera diferida si está
+instalado para registrar sus métodos antes de medir. Si no está
+instalado, las cinco medidas públicas de la secuencia quedan en `NA` y
+`cobertura_diagnosticos` declara que `secuencia_entera` no se evaluó por
+falta de esa dependencia. La guarda vuelve a abrirse si un candidato
+presente queda fuera del rango de los valores restantes de la
+numeración, o si la frecuencia del candidato es la moda sobresaliente.
+Esta segunda señal se mide por el **salto entre frecuencias
+consecutivas**, ordenadas de mayor a menor y mirando sólo las primeras
+posiciones. Es el mismo idioma que `salto_de_escala_secuencia_entera`
+usa con los huecos: lo que delata a un centinela no es que su frecuencia
+sea grande, sino que haya un **acantilado** entre el grupo que sobresale
+y el resto de la distribución.
 
 Comparar contra un valor concreto no alcanza, y cada intento lo rompió
 un caso distinto: contra el **segundo** valor, un señuelo legítimo y
@@ -1159,8 +1177,17 @@ minúsculas; por eso `12 kg` y `13500 g` son unidades, mientras que `12A`
 y `13B` se tratan como códigos. Si hay más de una unidad observada,
 `unidades_mixtas` informa sus frecuencias y no convierte ni compara sus
 magnitudes. Una única unidad no genera ese hallazgo.
-`celdas_multivaluadas` es deliberadamente conservador: usa los patrones
-de
+`formatos_fecha_mixtos` compara representaciones dentro de una columna
+cuyo dominio es la fecha o la fecha-hora. Una fecha agregada adentro de
+una columna de horas del día —`12/02/2011 6:55 a.m.` entre valores
+`7:10 a.m.`— no produce ese hallazgo, porque la columna no es de fechas:
+aparece como `patron_raro`, que es lo que de verdad cambió. Decidir que
+esa columna sólo debe contener horas es una regla de dominio y el
+paquete no la supone. Del mismo modo, un número sin sufijo no cuenta
+como una segunda unidad: una columna que mezcla `5` con `5 %` observa
+una sola unidad y se informa como `numero_como_texto`, no como
+`unidades_mixtas`. `celdas_multivaluadas` es deliberadamente
+conservador: usa los patrones de
 [`descubrir_patrones()`](https://sebollin.github.io/lupa/reference/descubrir_patrones.md)
 y exige partes numéricas, alfanuméricas o identificadoras puntuadas
 homogéneas, compatibles con el patrón del resto de la columna. No
