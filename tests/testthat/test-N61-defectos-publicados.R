@@ -652,8 +652,19 @@ test_that("la validez UTF-8 se decide con el criterio de R, no con el de iconv",
   # rechaza. Declarando UTF-8 con el criterio de iconv a secas, el paquete
   # publicaba `<U+00110000>`: un punto de codigo que no existe.
   fuera_de_rango <- rawToChar(as.raw(c(0xF4L, 0x90L, 0x80L, 0x80L)))
+  # `validUTF8()` es el criterio de R y contesta lo mismo en toda maquina.
   expect_false(validUTF8(fuera_de_rango))
-  expect_false(is.na(iconv(fuera_de_rango, "UTF-8", "UTF-8", sub = NA)))
+  # Lo que NO se puede afirmar es la respuesta de `iconv()`: no es el mismo
+  # programa en todas las plataformas. Con glibc esta secuencia se acepta -y por
+  # eso hacen falta los dos criterios para exhibir-, pero `win_iconv` la rechaza.
+  # Esta linea afirmaba la respuesta de glibc y se ponia roja en R-hub Windows:
+  # medido sobre `a7b5c89`. La premisa se informa, no se exige.
+  if (!is.na(iconv(fuera_de_rango, "UTF-8", "UTF-8", sub = NA))) {
+    succeed("iconv de esta maquina acepta la secuencia fuera de rango")
+  } else {
+    succeed("iconv de esta maquina la rechaza; el criterio de R decide igual")
+  }
+  # Y lo que el paquete hace no depende de eso: no la marca.
   expect_identical(Encoding(marcar(fuera_de_rango)), "unknown")
 
   marco <- data.frame(v = fuera_de_rango, stringsAsFactors = FALSE)
@@ -707,4 +718,46 @@ test_that("el escape conserva el texto legible y solo escapa lo roto", {
   salida <- capture.output(imprimir(marco))
   celdas <- trimws(sub("^[0-9]+ +[0-9]+ +", "", salida[-1L]))
   expect_length(unique(celdas), 3L)
+})
+
+test_that("la clave por bytes no consulta a iconv y no cambia con la plataforma", {
+  # Esta clave decide si dos registros son el mismo. `iconv()` no es el mismo
+  # programa en todas las maquinas -`win_iconv` rechaza secuencias que glibc
+  # acepta-, asi que usarlo como arbitro hacia que la MISMA cadena produjera
+  # claves distintas segun la plataforma. Medido en R-hub Windows sobre
+  # `a7b5c89`: la huella de configuracion cambiaba entre locales y
+  # `acumular_historico()` rechazaba su propia corrida guardada.
+  clave <- getFromNamespace(".clave_bytes", "lupa")
+
+  # La secuencia que separa a los dos criterios: glibc la acepta, R la rechaza.
+  fuera_de_rango <- rawToChar(as.raw(c(0xF4L, 0x90L, 0x80L, 0x80L)))
+  expect_false(validUTF8(fuera_de_rango))
+  # La clave la escapa, decida lo que decida el `iconv` de esta maquina.
+  expect_identical(clave(fuera_de_rango), "\\364\\220\\200\\200")
+
+  # Y la misma cadena da la misma clave venga marcada o sin marcar, que es lo
+  # que hace que un registro aparee consigo mismo despues de guardarse.
+  # El fuente va en ASCII: un literal acentuado rompio una vez toda tabla con
+  # tildes y nadie lo vio. La cadena se construye con el escape de R.
+  acentuado <- "B\u00e1sico"
+  sin_marca <- acentuado
+  Encoding(sin_marca) <- "unknown"
+  expect_identical(clave(acentuado), clave(sin_marca))
+
+  # El control: el ASCII no se toca y los valores ausentes siguen ausentes.
+  expect_identical(clave(c("Zebra_2", "Presente")), c("Zebra_2", "Presente"))
+  expect_true(is.na(clave(NA_character_)))
+
+  # Y la clave no depende del locale del lector: se mide en los dos y se
+  # restaura. Si el locale no se puede fijar, la mitad no se afloja: se saltea.
+  anterior <- Sys.getlocale("LC_CTYPE")
+  on.exit(suppressWarnings(Sys.setlocale("LC_CTYPE", anterior)), add = TRUE)
+  claves <- list()
+  for (destino in c("C", anterior)) {
+    fijado <- suppressWarnings(Sys.setlocale("LC_CTYPE", destino))
+    if (!nzchar(fijado)) next
+    claves[[destino]] <- clave(c(acentuado, sin_marca, fuera_de_rango))
+  }
+  skip_if(length(claves) < 2L, "no se pudieron fijar dos locales distintos")
+  expect_identical(claves[[1L]], claves[[2L]])
 })

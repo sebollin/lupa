@@ -85,13 +85,28 @@
   #
   # `validUTF8()` en cambio NO depende del locale: contesta `TRUE` en los dos.
   # Por eso una guarda que valide con el y convierta con `enc2utf8()` pasa la
-  # validacion y rompe el dato. `iconv()` con origen UTF-8 valida los bytes sin
-  # pedirle al locale que los interprete, y es lo unico que sirve aca.
-  convertido <- suppressWarnings(
-    tryCatch(iconv(crudo, from = "UTF-8", to = "UTF-8", sub = NA),
-             error = function(e) rep(NA_character_, length(crudo)))
-  )
-  validos <- !is.na(crudo) & !is.na(convertido)
+  # validacion y rompe el dato. Pero aca NO se convierte: se MARCA, y marcar no
+  # toca un byte.
+  #
+  # Y por eso el criterio tiene que ser `validUTF8()` y no `iconv()`. Esta clave
+  # decide si dos registros son el mismo, asi que tiene que dar lo mismo en toda
+  # maquina; `iconv()` no es el mismo programa en todas: `win_iconv` rechaza
+  # secuencias que glibc acepta. Medido en R-hub Windows sobre `a7b5c89`, con
+  # `LC_CTYPE=English_United States.utf8`:
+  #
+  #   - la huella de configuracion cambiaba entre `C` y un locale UTF-8, y
+  #     `comparar_perfiles()` publicaba una deriva de configuracion inexistente;
+  #   - `acumular_historico()` rechazaba su PROPIA corrida guardada, con
+  #     "un registro ya existente tiene contenido diferente" sobre una clave con
+  #     tilde -`Basico`-.
+  #
+  # Los dos salian de lo mismo: dos funciones contestando la misma pregunta con
+  # dos criterios. `.marcar_para_exhibir()` -que es la via de EXHIBIR- usa los
+  # dos criterios a proposito, porque lo que publica va despues a la impresion.
+  # La clave no publica: compara. `validUTF8()` es el criterio de R, es mas
+  # estricto, y es igual en todas las plataformas.
+  validos <- !is.na(crudo) & validUTF8(crudo)
+  validos[is.na(validos)] <- FALSE
   clave <- crudo
   if (any(validos)) {
     trozo <- crudo[validos]
