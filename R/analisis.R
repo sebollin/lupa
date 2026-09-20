@@ -858,13 +858,29 @@ guardar_analisis <- function(x, archivo, incluir_datos = FALSE,
   #
   # `saveRDS()` admite un logico o uno de los tres metodos por nombre. Se pide
   # eso y no su impresion.
+  # La lista depende de la VERSION de R y no puede escribirse fija: `saveRDS()`
+  # documenta `"zstd"` desde R 4.5, y este paquete declara `R (>= 4.1.0)`. Con
+  # la lista fija pasaba una de dos cosas segun donde se corriera: o se rechaza
+  # un metodo que R admite -cerrar de mas- o se admite uno que R no conoce y el
+  # error crudo vuelve a llegar al usuario, que es el defecto que esta
+  # validacion vino a cerrar.
+  #
+  # Un binario puede no traer `zstd` compilado aunque la version lo documente.
+  # Ese caso NO se filtra aca a proposito: `saveRDS()` responde
+  # "Zstd compression support was not included in this R binary", que dice
+  # exactamente que pasa y que hacer. Lo que no debe llegar es el error por
+  # confusion de tipo -`invalid 'compress' argument: TRUE` ante la CADENA
+  # "TRUE"-, que no le dice nada a nadie.
+  metodos <- c("gzip", "bzip2", "xz")
+  if (getRversion() >= "4.5.0") metodos <- c(metodos, "zstd")
   valido <- (is.logical(comprimir) && length(comprimir) == 1L &&
                !is.na(comprimir)) ||
     (is.character(comprimir) && length(comprimir) == 1L &&
-       !is.na(comprimir) && comprimir %in% c("gzip", "bzip2", "xz"))
+       !is.na(comprimir) && comprimir %in% metodos)
   if (!valido) {
     stop(
-      "`comprimir` debe ser TRUE, FALSE o uno de \"gzip\", \"bzip2\" o \"xz\".",
+      "`comprimir` debe ser TRUE, FALSE o uno de ",
+      paste(sprintf("\"%s\"", metodos), collapse = ", "), ".",
       call. = FALSE
     )
   }

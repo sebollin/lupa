@@ -54,14 +54,38 @@ jobs:
           # volver a depender de la infraestructura que falla.
           d <- read.dcf("DESCRIPTION")
           campos <- intersect(c("Depends", "Imports", "Suggests", "LinkingTo"), colnames(d))
-          # Se borran los parentesis ANTES de partir por comas, y ese orden es el
-          # arreglo. `Imports: foo (>= 1.0, < 2.0)` es DCF legal, y partiendo
-          # primero quedaba "foo (>= 1.0" y "< 2.0)" como dos entradas: el paso
-          # terminaba corriendo install.packages("< 2.0)"), que falla, y la fila
-          # publicada listaba ese engendro entre los Suggests ausentes.
-          texto <- gsub("\\([^)]*\\)", "", paste(d[1, campos], collapse = ","))
-          crudo <- unlist(strsplit(texto, ","))
-          nombres <- trimws(crudo)
+          # Los nombres se sacan recorriendo y contando parentesis, no con una
+          # expresion regular. Hubo dos intentos antes y los dos fallaron:
+          #
+          #   sub("[[:space:]]*\\(.*", "")  partia por comas primero, asi que
+          #       `foo (>= 1.0, < 2.0)` -DCF legal- daba las entradas "foo (>= 1.0"
+          #       y "< 2.0)", y el paso corria install.packages("< 2.0)").
+          #   gsub("\\([^)]*\\)", "")     borraba parentesis primero, pero `[^)]*`
+          #       NO cuenta anidamiento: paraba en el primer cierre. Arreglaba el
+          #       caso de arriba y ROMPIA dos que antes salian bien -dejaba un
+          #       ")" suelto como paquete, o el "(>= 1.0" entero-.
+          #
+          # Ninguna expresion regular hace esto: el anidamiento no es regular.
+          nombres_dependencias <- function(texto) {
+            caracteres <- strsplit(texto, "", fixed = TRUE)[[1L]]
+            profundidad <- 0L
+            entradas <- character()
+            actual <- character()
+            for (ch in caracteres) {
+              if (ch == "(") {
+                profundidad <- profundidad + 1L
+              } else if (ch == ")") {
+                profundidad <- max(0L, profundidad - 1L)
+              } else if (ch == "," && profundidad == 0L) {
+                entradas <- c(entradas, paste(actual, collapse = ""))
+                actual <- character()
+                next
+              }
+              if (profundidad == 0L && ch != ")") actual <- c(actual, ch)
+            }
+            trimws(c(entradas, paste(actual, collapse = "")))
+          }
+          nombres <- nombres_dependencias(paste(d[1, campos], collapse = ","))
           nombres <- setdiff(nombres, c("R", "", NA))
           base_r <- rownames(installed.packages(priority = "base"))
           pedidos <- setdiff(unique(nombres), base_r)
@@ -98,8 +122,38 @@ jobs:
           # informaria "ausentes: ninguno" sobre un paquete que agrego uno.
           d <- read.dcf("DESCRIPTION")
           sug <- if ("Suggests" %in% colnames(d)) d[1, "Suggests"] else ""
-          # Mismo orden que arriba: parentesis fuera, despues las comas.
-          sug <- trimws(unlist(strsplit(gsub("\\([^)]*\\)", "", sug), ",")))
+          # Los nombres se sacan recorriendo y contando parentesis, no con una
+          # expresion regular. Hubo dos intentos antes y los dos fallaron:
+          #
+          #   sub("[[:space:]]*\\(.*", "")  partia por comas primero, asi que
+          #       `foo (>= 1.0, < 2.0)` -DCF legal- daba las entradas "foo (>= 1.0"
+          #       y "< 2.0)", y el paso corria install.packages("< 2.0)").
+          #   gsub("\\([^)]*\\)", "")     borraba parentesis primero, pero `[^)]*`
+          #       NO cuenta anidamiento: paraba en el primer cierre. Arreglaba el
+          #       caso de arriba y ROMPIA dos que antes salian bien -dejaba un
+          #       ")" suelto como paquete, o el "(>= 1.0" entero-.
+          #
+          # Ninguna expresion regular hace esto: el anidamiento no es regular.
+          nombres_dependencias <- function(texto) {
+            caracteres <- strsplit(texto, "", fixed = TRUE)[[1L]]
+            profundidad <- 0L
+            entradas <- character()
+            actual <- character()
+            for (ch in caracteres) {
+              if (ch == "(") {
+                profundidad <- profundidad + 1L
+              } else if (ch == ")") {
+                profundidad <- max(0L, profundidad - 1L)
+              } else if (ch == "," && profundidad == 0L) {
+                entradas <- c(entradas, paste(actual, collapse = ""))
+                actual <- character()
+                next
+              }
+              if (profundidad == 0L && ch != ")") actual <- c(actual, ch)
+            }
+            trimws(c(entradas, paste(actual, collapse = "")))
+          }
+          sug <- nombres_dependencias(sug)
           sug <- setdiff(sug, c("", NA))
           ip <- rownames(installed.packages())
           cat("R:", R.version.string, "\n")

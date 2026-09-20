@@ -43,12 +43,14 @@ por omisión— anota la codificación nativa de quien escribe, y al leer
 \code{LC_CTYPE=C} y releído bajo otro locale puede volver con el texto cambiado;
 en Windows el cambio es silencioso, porque ahí la conversión no falla.
 
-Cuando eso pasa, el perfil releído \strong{está} alterado. La comparación informa
-lo que compara —tipo declarado, tipo inferido, faltantes, cardinalidad y
-rango, además de las configuraciones— y \strong{no todo cambio de texto toca uno de
-esos campos}: un valor que cambia conservando su forma de patrón y sus
-conteos, por ejemplo la moda de una columna, no aparece. Por eso el remedio
-no es confiar en la comparación para detectarlo.
+Cuando eso pasa, el perfil releído \strong{está} alterado, y conviene saber qué
+alcanza a ver esta función. Compara las \strong{propiedades medidas} de cada
+columna y los hallazgos, no los valores uno por uno: la columna \code{aspecto} del
+resultado nombra, fila por fila, qué se comparó. \strong{Un cambio de texto que no
+altera ninguna propiedad medida no aparece}: por ejemplo, si la moda de una
+columna pasa de \code{"Basico"} a \code{"Casico"} —mismo largo, misma forma de patrón,
+mismos conteos—, la comparación devuelve cero filas. Por eso el remedio ante
+una relectura sospechosa no es confiar en la comparación para detectarla.
 
 El remedio es una línea, \code{saveRDS(perfil, archivo, version = 2)}, porque ese
 formato no anota codificación nativa y por lo tanto no traduce nada. La
