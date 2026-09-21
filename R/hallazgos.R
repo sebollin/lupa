@@ -1027,6 +1027,18 @@
   )
 }
 
+# Devuelve la variante `j` del grupo TAL COMO LLEGO, con su marca. `variantes`
+# guarda la forma interpretada porque la traza indexa por valor contra el texto
+# analizado y `match()` aborta si un lado viene marcado `bytes`. Publicar y
+# aparear son dos usos distintos del mismo dato y por eso viajan en dos campos.
+.variante_publicable <- function(grupo, j) {
+  publicables <- grupo$variantes_publicables
+  if (is.null(publicables) || length(publicables) < j || is.na(publicables[[j]])) {
+    return(grupo$variantes[[j]])
+  }
+  publicables[[j]]
+}
+
 .grupos_casi_duplicados_vocabulario <- function(x, perfil, columna,
                                                 max_valores = 5000L,
                                                 max_pares = 2000000L,
@@ -1059,7 +1071,34 @@
       is.list(x)) {
     return(NULL)
   }
-  textos <- suppressWarnings(as.character(.texto_analizable(x)$valores))
+  .analizable_vocabulario <- .texto_analizable(x)
+  textos <- suppressWarnings(as.character(.analizable_vocabulario$valores))
+  # `textos` es la forma INTERPRETADA, y tiene que serlo: comparar
+  # vocabulario exige que `tolower()` y la normalizacion vean caracteres y
+  # no octetos sueltos. Pero lo que se PUBLICA no puede salir de ahi. Un
+  # valor declarado `bytes` se interpreta para analizarlo y despues se
+  # informaba ya interpretado, asi que el mismo valor salia de dos formas
+  # en el mismo objeto: la tabla del perfil publicaba `ni\xc3\xb1o` y la
+  # evidencia del hallazgo publicaba la enie armada. `valores_identidad`
+  # es el original con su marca, y de ahi salen las variantes que se
+  # informan. Analizar por la forma interpretada, publicar el original.
+  originales_vocabulario <- suppressWarnings(as.character(
+    .analizable_vocabulario$valores_identidad
+  ))
+  if (length(originales_vocabulario) != length(textos)) {
+    originales_vocabulario <- textos
+  }
+  # SOLO lo declarado `bytes` se publica desde el original. `latin1` no es lo
+  # mismo: ahi R conoce la codificacion y `.texto_analizable()` la convierte a
+  # UTF-8 sin perder nada, asi que la forma analizada ES la forma correcta de
+  # publicarla. Publicar el original tambien en ese caso hacia ABORTAR el
+  # render -`utf8ToInt()` devuelve `NA` sobre latin1, y el `if` que sigue
+  # recibia ese `NA`- sobre una columna latin1 corriente, que es de lo mas
+  # comun que hay en datos publicos de la region. El arreglo de un caso no
+  # puede romper el de al lado.
+  desde_original <- !is.na(originales_vocabulario) &
+    Encoding(originales_vocabulario) == "bytes"
+  originales_vocabulario[!desde_original] <- textos[!desde_original]
   if (is.null(excluir)) excluir <- rep(FALSE, length(textos))
   if (!is.logical(excluir) || length(excluir) != length(textos)) {
     stop("`excluir` debe ser una mascara logica del largo de `x`.", call. = FALSE)
@@ -1135,6 +1174,34 @@
   n_evaluados <- min(n_total, max_valores)
   crudos <- formas[seq_len(n_evaluados)]
   posicion <- match(presentes_texto, crudos)
+  # Un representante ORIGINAL por forma: el primer presente que cae en ella.
+  # Es el mismo apareo que usa la tabla de frecuencias -contar por la clave,
+  # publicar el valor-. Si alguna forma quedara sin representante, se informa
+  # la forma interpretada antes que nada: feo, pero no vacio.
+  presentes_publicables <- originales_vocabulario[presentes]
+  representante <- match(seq_len(n_evaluados), posicion)
+  publicables <- presentes_publicables[representante]
+  sin_representante <- is.na(publicables) & !is.na(crudos)
+  if (any(sin_representante)) publicables[sin_representante] <- crudos[sin_representante]
+  # Una forma puede juntar SECUENCIAS DE BYTES DISTINTAS: `ni<f1>o` declarado
+  # latin1 y `ni<c3><b1>o` declarado bytes se interpretan los dos como la misma
+  # palabra y se cuentan juntos, que es lo correcto porque el vocabulario se
+  # compara por caracteres. Pero entonces la etiqueta no puede ser la de UN
+  # original: publicar `ni\xc3\xb1o (3)` afirma que esa secuencia aparece tres
+  # veces cuando aparece una. Peor: cual de las dos se publicaba dependia de
+  # cual llegara primero, asi que las MISMAS filas en distinto orden daban
+  # etiquetas distintas. El conteo esta en unidad de caracteres, asi que la
+  # etiqueta solo puede bajar a unidad de bytes cuando toda la forma es una
+  # sola secuencia. Si no, se publica la forma interpretada, que es la unidad
+  # en la que se conto.
+  claves_publicables <- .clave_bytes(presentes_publicables)
+  clave_representante <- claves_publicables[representante][posicion]
+  mezcladas <- !is.na(posicion) & !is.na(claves_publicables) &
+    !is.na(clave_representante) & claves_publicables != clave_representante
+  if (any(mezcladas)) {
+    formas_mezcladas <- unique(posicion[mezcladas])
+    publicables[formas_mezcladas] <- crudos[formas_mezcladas]
+  }
   frecuencias <- tabulate(posicion[!is.na(posicion)], nbins = n_evaluados)
   normalizados <- .normalizacion_aplicar(crudos, perfil_columna)
   clases <- match(normalizados, unique(normalizados))
@@ -1538,7 +1605,7 @@
         valores[is.finite(valores)]
       } else numeric()
       list(
-        variantes = crudos[indices], frecuencias = frecuencias_grupo,
+        variantes = crudos[indices], variantes_publicables = publicables[indices], frecuencias = frecuencias_grupo,
         asimetria = max(frecuencias_grupo) / min(frecuencias_grupo),
         asimetria_minima = if (length(frecuencias_minoritarias)) {
           max(frecuencias_grupo) / max(frecuencias_minoritarias)
@@ -1662,7 +1729,7 @@
             "token_unico"
           } else "mixta"
         list(
-          variantes = crudos[indices], frecuencias = frecuencias_grupo,
+          variantes = crudos[indices], variantes_publicables = publicables[indices], frecuencias = frecuencias_grupo,
           asimetria = max(frecuencias_grupo) / min(frecuencias_grupo),
           distancia_minima = if (length(distancias_grupo)) {
             min(distancias_grupo)
@@ -1938,7 +2005,7 @@
     evidencia_grupos <- vapply(grupos_a_mostrar, function(grupo) {
       indices <- seq_len(min(length(grupo$variantes), max_variantes_mostradas))
       variantes <- paste(vapply(indices, function(j) {
-        paste0(.escapar_texto_visible(grupo$variantes[[j]]), " (",
+        paste0(.escapar_texto_visible(.variante_publicable(grupo, j)), " (",
                .formatear_numero_publicado(grupo$frecuencias[[j]]), ")")
       }, character(1L)), collapse = " / ")
       if (length(grupo$variantes) > max_variantes_mostradas) {
@@ -2166,7 +2233,7 @@
       evidencia_grupos <- vapply(grupos_a_mostrar, function(grupo) {
         indices <- seq_len(min(length(grupo$variantes), max_variantes_mostradas))
         variantes <- paste(vapply(indices, function(j) {
-          paste0(.escapar_texto_visible(grupo$variantes[[j]]), " (",
+          paste0(.escapar_texto_visible(.variante_publicable(grupo, j)), " (",
                  grupo$frecuencias[[j]], ")")
         }, character(1L)), collapse = " / ")
         distancia <- if (is.finite(grupo$distancia_minima)) {

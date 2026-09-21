@@ -1677,6 +1677,16 @@
 
 .escapar_texto_visible <- function(texto) {
   if (is.na(texto)) return(NA_character_)
+  # `Encoding(x) == "bytes"` es una declaracion de que el contenido NO debe
+  # interpretarse como texto, y esto es publicacion. Sin este paso el mismo
+  # valor salia de dos formas distintas EN EL MISMO OBJETO: la tabla del perfil
+  # lo publicaba `ni\xc3\xb1o` -marca intacta- y la evidencia del hallazgo lo
+  # publicaba `nino` con la enie armada, sin marca. Quien lee el informe no
+  # podia saber que eran el mismo valor, que es exactamente lo que el hallazgo
+  # le pide mirar antes de unificar. De paso, `utf8ToInt()` devuelve `NA` -no
+  # vacio- sobre lo que no decodifica, y el `if` de mas abajo recibiria ese
+  # `NA`: convertir antes deja esa rama sin entrada posible por esta via.
+  texto <- .texto_publicable(texto)
   codigos <- tryCatch(utf8ToInt(texto), error = function(e) integer())
   if (!length(codigos)) return("")
   partes <- vapply(codigos, function(codigo) {
