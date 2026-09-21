@@ -1724,7 +1724,10 @@
 .evidencia_texto_visible <- function(textos, mascara) {
   ejemplos <- utils::head(unique(textos[which(mascara)]), 6L)
   if (!length(ejemplos)) return("")
-  paste(vapply(ejemplos, .escapar_texto_visible, character(1L)), collapse = "; ")
+  paste0(
+    paste(vapply(ejemplos, .escapar_texto_visible, character(1L)), collapse = "; "),
+    .nota_escapes(ejemplos)
+  )
 }
 
 .stringi_disponible <- function() {
@@ -1905,8 +1908,9 @@
 
   list(
     n_espacios_borde = sum(espacios),
-    evidencia_espacios = paste(
-      .citar_publicable(ejemplos_espacios), collapse = "; "
+    evidencia_espacios = paste0(
+      paste(.citar_publicable(ejemplos_espacios), collapse = "; "),
+      .nota_escapes(ejemplos_espacios)
     ),
     n_variantes_mayusculas = length(variantes),
     evidencia_mayusculas = paste(

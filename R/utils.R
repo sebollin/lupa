@@ -261,6 +261,21 @@
 # para que `tolower()`, `trimws()` y las expresiones regulares puedan trabajar.
 # La regla es por destino: interpretar para analizar, no para publicar.
 .texto_publicable <- function(x) {
+  # Un factor guarda su texto en los NIVELES, asi que `is.character()` da FALSE
+  # y la columna salia de aca SIN RENDIR. Los mismos datos como factor y como
+  # character daban tablas distintas: la de patrones perdia las filas del valor
+  # declarado -cinco de veinte- y publicaba `proporcion = 1.000` para el unico
+  # patron que quedaba, o sea informaba como completo lo que era parcial. El
+  # paquete promete que el veredicto no depende de la forma fisica de la tabla.
+  #
+  # Se rinden los niveles y se devuelve un factor, que es lo que el llamador
+  # espera. Si dos niveles rinden a la misma cadena, `levels<-` los funde: es
+  # correcto, porque desde ese momento son indistinguibles al publicarlos.
+  if (is.factor(x)) {
+    if (!length(levels(x))) return(x)
+    levels(x) <- .texto_publicable(levels(x))
+    return(x)
+  }
   if (!is.character(x) || !length(x)) return(x)
   crudos <- !is.na(x) & Encoding(x) == "bytes"
   if (any(crudos)) x[crudos] <- format(x[crudos], justify = "none")
@@ -1519,5 +1534,39 @@
   codigos <- tryCatch(utf8ToInt(texto), error = function(e) NULL)
   if (is.null(codigos) || anyNA(codigos)) return(NULL)
   codigos
+}
+
+# TRUE si publicar estos valores exige escaparlos.
+#
+# La evidencia de un hallazgo y las tablas del perfil usan dos convenciones
+# distintas, y las dos son legitimas: la tabla muestra el valor, y la evidencia
+# lo ESCAPA para que el defecto se vea. Un `controles_invisibles` que publicara
+# el NBSP crudo mandaria a verificar a una superficie donde ese caracter se ve
+# como un espacio comun: el defecto que el hallazgo denuncia seria invisible
+# justo donde el lector va a buscarlo.
+#
+# Lo que el paquete no puede hacer es callar cual uso. Esto decide cuando
+# decirlo: sobre texto corriente no se agrega ruido, y sobre texto que si se
+# escapo se declara, para que nadie busque en sus datos un `<U+00A0>` literal.
+.hay_escapes_al_publicar <- function(x) {
+  if (!length(x)) return(FALSE)
+  x <- x[!is.na(x)]
+  if (!length(x)) return(FALSE)
+  any(vapply(x, function(texto) {
+    if (Encoding(texto) == "bytes") return(TRUE)
+    codigos <- .codigos_decodificables(texto)
+    if (is.null(codigos)) return(TRUE)
+    if (any(codigos %in% c(9L, 10L, 11L, 12L, 13L))) return(TRUE)
+    any(.codigos_control_invisible(codigos))
+  }, logical(1L), USE.NAMES = FALSE))
+}
+
+# La nota que declara la convencion, vacia cuando no hubo nada que escapar.
+.nota_escapes <- function(x) {
+  if (.hay_escapes_al_publicar(x)) {
+    " [valores escapados para que se vean; en los datos estan sin escapar]"
+  } else {
+    ""
+  }
 }
 

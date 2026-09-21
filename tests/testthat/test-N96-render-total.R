@@ -64,6 +64,17 @@ test_that("detectar_claves no aborta con una columna latin1 con colisiones", {
   expect_no_error(detectar_claves(columna(.n96_marcar(c(0x6e, 0x69, 0xc3, 0xb1, 0x6f), "bytes"))))
 })
 
+# ALCANCE de la promesa, medido y no supuesto. La evidencia y las tablas del
+# perfil usan dos convenciones distintas, y las dos son legitimas: la tabla
+# muestra el valor y la evidencia lo ESCAPA para que el defecto se vea. Un
+# `controles_invisibles` que publicara el NBSP crudo mandaria a verificar a una
+# superficie donde ese caracter se ve como un espacio comun.
+#
+# Asi que casar la cadena de la evidencia contra la tabla esta garantizado para
+# un valor declarado `bytes` -que es el caso que rompia- y NO lo esta para
+# controles, invisibles, comillas ni barras escritas por el usuario. Lo que el
+# paquete no puede hacer es callar cual convencion uso, y eso lo fija la prueba
+# de mas abajo.
 test_that("la evidencia de espacios publica la misma cadena que la tabla de patrones", {
   con_espacio <- .n96_marcar(c(0x63, 0x61, 0xc3, 0xb1, 0x6f, 0x20), "bytes")
   sin_espacio <- .n96_marcar(c(0x63, 0x61, 0xc3, 0xb1, 0x6f), "bytes")
@@ -118,3 +129,45 @@ test_that("citar un valor no vuelve a escapar lo ya rendido", {
   # Sobre texto corriente se sigue usando `encodeString`, que escapa comillas.
   expect_identical(lupa:::.citar_publicable("di \"hola\""), "\"di \\\"hola\\\"\"")
 })
+
+test_that("la evidencia declara cuando escapo los valores, y solo entonces", {
+  invisible_duro <- intToUtf8(0x00A0)
+  con_escapes <- hallazgos(perfilar(data.frame(
+    t = c(rep(paste0("x", invisible_duro, "y"), 8L), "a\tb", "ok", "OK", "z"),
+    stringsAsFactors = FALSE
+  )))
+  evidencias <- as.character(
+    con_escapes$evidencia[as.character(con_escapes$tipo) %in%
+                            c("controles_invisibles", "separadores_en_campo")]
+  )
+  expect_true(length(evidencias) >= 1L)
+  # Sin esta nota, el lector buscaria en sus datos un `<U+00A0>` literal.
+  for (e in evidencias) expect_true(grepl("escapados", e, fixed = TRUE))
+
+  # Y sobre texto corriente no se agrega ruido: la nota es una declaracion,
+  # no una muletilla.
+  corriente <- hallazgos(perfilar(data.frame(
+    t = c(rep("hola ", 4L), "chau", "Hola"), stringsAsFactors = FALSE
+  )))
+  for (e in as.character(corriente$evidencia)) {
+    expect_false(grepl("escapados", e, fixed = TRUE))
+  }
+})
+
+test_that("el detector de escapes mira el contenido, no la marca sola", {
+  marcar <- function(bytes, codificacion) {
+    s <- rawToChar(as.raw(bytes)); Encoding(s) <- codificacion; s
+  }
+  expect_false(lupa:::.hay_escapes_al_publicar(character()))
+  expect_false(lupa:::.hay_escapes_al_publicar(NA_character_))
+  expect_false(lupa:::.hay_escapes_al_publicar(c("hola", "chau")))
+  # Un acento corriente NO se escapa: no hay nada que declarar.
+  expect_false(lupa:::.hay_escapes_al_publicar(marcar(c(0x6e, 0x69, 0xc3, 0xb1, 0x6f), "unknown")))
+  expect_false(lupa:::.hay_escapes_al_publicar(marcar(c(0x6e, 0x69, 0xf1, 0x6f), "latin1")))
+  # Estos si.
+  expect_true(lupa:::.hay_escapes_al_publicar(marcar(c(0x6e, 0x69, 0xc3, 0xb1, 0x6f), "bytes")))
+  expect_true(lupa:::.hay_escapes_al_publicar(marcar(c(0x41, 0xff, 0x42), "bytes")))
+  expect_true(lupa:::.hay_escapes_al_publicar("a\tb"))
+  expect_true(lupa:::.hay_escapes_al_publicar(paste0("x", intToUtf8(0x00A0), "y")))
+})
+
