@@ -1368,13 +1368,43 @@ planificar_limpieza <- function(perfil, datos = NULL,
   list(datos = datos, n = sum(imputar))
 }
 
+# Cuenta las celdas que REALMENTE cambiaron, comparando bytes.
+#
+# `anterior != nuevo` compara TEXTO, y el texto distingue la marca de
+# codificacion: una celda declarada `bytes` que la accion no toco quedaba
+# contada como cambiada porque su marca difiere de la del resultado, aunque los
+# bytes fueran identicos. Medido: `eliminar_controles_invisibles` y
+# `normalizar_espacios_invisibles` informaban `n_cambiadas = 2` donde el plan
+# habia anunciado 1, sobre un dato donde solo una celda cambio.
+#
+# Que el paquete diga haber cambiado una celda que no cambio es informar como
+# hecho lo que no hizo, un piso mas arriba de lo que mide.
+#
+# Se confirma por bytes SOLO donde `!=` acuso, que es un conjunto chico: la
+# comprobacion cara no corre sobre la columna entera.
+.celdas_cambiadas <- function(anterior, nuevo) {
+  anterior <- as.character(anterior)
+  nuevo <- as.character(nuevo)
+  cambio <- !is.na(anterior) & (is.na(nuevo) | anterior != nuevo)
+  sospechosas <- which(cambio & !is.na(nuevo))
+  if (length(sospechosas)) {
+    iguales <- vapply(
+      sospechosas,
+      function(i) identical(charToRaw(anterior[[i]]), charToRaw(nuevo[[i]])),
+      logical(1L)
+    )
+    cambio[sospechosas[iguales]] <- FALSE
+  }
+  cambio
+}
+
 .recortar_texto <- function(x) {
   if (!is.character(x) && !is.factor(x)) {
     stop("El recorte de espacios requiere una columna de texto.", call. = FALSE)
   }
   anterior <- as.character(x)
   nuevo <- trimws(anterior)
-  mascara <- !is.na(anterior) & anterior != nuevo
+  mascara <- .celdas_cambiadas(anterior, nuevo)
   list(valor = nuevo, n = sum(mascara))
 }
 
@@ -1390,7 +1420,7 @@ planificar_limpieza <- function(perfil, datos = NULL,
     conservar <- !.codigos_control_eliminable(codigos)
     paste0(intToUtf8(codigos[conservar], multiple = TRUE), collapse = "")
   }, character(1L), USE.NAMES = FALSE)
-  cambio <- !is.na(anterior) & anterior != nuevo
+  cambio <- .celdas_cambiadas(anterior, nuevo)
   list(valor = .resultado_texto(x, nuevo), n = sum(cambio),
        n_no_reversibles = sum(cambio))
 }
@@ -1407,7 +1437,7 @@ planificar_limpieza <- function(perfil, datos = NULL,
     codigos[codigos %in% .codigos_espacios_invisibles] <- 32L
     paste0(intToUtf8(codigos, multiple = TRUE), collapse = "")
   }, character(1L), USE.NAMES = FALSE)
-  cambio <- !is.na(anterior) & anterior != nuevo
+  cambio <- .celdas_cambiadas(anterior, nuevo)
   list(valor = .resultado_texto(x, nuevo), n = sum(cambio),
        n_no_reversibles = sum(cambio))
 }
@@ -1442,7 +1472,7 @@ planificar_limpieza <- function(perfil, datos = NULL,
     regmatches(texto, list(coincidencias)) <- list(reemplazos)
     texto
   }, character(1L), USE.NAMES = FALSE)
-  list(valor = .resultado_texto(x, nuevo), n = sum(!is.na(anterior) & anterior != nuevo))
+  list(valor = .resultado_texto(x, nuevo), n = sum(.celdas_cambiadas(anterior, nuevo)))
 }
 
 .reemplazar_separadores <- function(x) {
@@ -1452,7 +1482,7 @@ planificar_limpieza <- function(perfil, datos = NULL,
   }
   anterior <- as.character(x)
   nuevo <- gsub("\\r\\n|[\\t\\n\\r\\f\\v]", " ", anterior, perl = TRUE)
-  list(valor = .resultado_texto(x, nuevo), n = sum(!is.na(anterior) & anterior != nuevo))
+  list(valor = .resultado_texto(x, nuevo), n = sum(.celdas_cambiadas(anterior, nuevo)))
 }
 
 .reparar_codificacion <- function(x, parametros) {
@@ -1607,7 +1637,7 @@ planificar_limpieza <- function(perfil, datos = NULL,
     reemplazar <- !is.na(indices) & !is.na(anterior)
     nuevo[reemplazar] <- as.character(diccionario[indices[reemplazar]])
   }
-  mascara <- !is.na(anterior) & anterior != nuevo
+  mascara <- .celdas_cambiadas(anterior, nuevo)
   list(valor = .resultado_texto(x, nuevo), n = sum(mascara))
 }
 
@@ -2440,7 +2470,14 @@ aplicar <- function(plan, datos, permitir_eliminacion = FALSE,
     return(utils::head(evidencia, max_ejemplos))
   }
   indice <- .indice_columna(datos, columna)
-  x <- datos[[indice]]
+  # Estos ejemplos se le MUESTRAN al usuario para que decida, asi que lo
+  # declarado `bytes` se rinde a la forma que publica la consola. Sin esto,
+  # `guiar_limpieza()` -que es exportada- moria con el error crudo de R "no se
+  # permite traduccion de cadenas con bytes de codificacion" al hacer
+  # `tolower()` sobre la columna cruda, y la corrida entera se perdia SIN
+  # declarar nada: a diferencia de `aplicar()`, que anota la falla en su
+  # registro, aca no quedaba rastro.
+  x <- .texto_publicable(datos[[indice]])
   if (identical(tipo, "mayusculas_inconsistentes")) {
     unicos <- unique(as.character(x[!is.na(x)]))
     base <- tolower(unicos)
