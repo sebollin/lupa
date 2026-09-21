@@ -46,7 +46,24 @@
 .texto_deriva <- function(x) {
   if (!length(x) || is.na(x)) return(NA_character_)
   if (is.numeric(x)) return(format(x, digits = 8L, trim = TRUE))
-  as.character(x)
+  texto <- as.character(x)
+  # Una diferencia que el canal no muestra es una diferencia que el lector no
+  # puede ver. Recortar espacios cambia el patron de `a+\a+9\a+9a ` a
+  # `a+\a+9\a+9a`, y la deriva informaba seis cambios con severidad `error`
+  # cuyos `valor_anterior` y `valor_actual` se imprimian IDENTICOS: el espacio
+  # final no se ve. Se cita el valor solo cuando hace falta -espacio al borde,
+  # cadena vacia, o algo que haya que escapar-, para que la diferencia se vea
+  # sin agregar ruido al resto.
+  # Los dos motivos para citar son distintos y no se pueden mezclar. Si hay algo
+  # que escapar, se rinde con el renderizador del paquete. Si lo unico que pasa
+  # es que el valor tiene un espacio al borde o esta vacio, se lo encierra entre
+  # comillas TAL CUAL: pasarlo por `encodeString()` duplicaria las barras del
+  # propio patron y la fila citada dejaria de casar con la que no lo esta.
+  if (.hay_escapes_al_publicar(texto)) return(.citar_publicable(texto))
+  if (!nzchar(texto) || !identical(texto, trimws(texto))) {
+    return(paste0('"', texto, '"'))
+  }
+  texto
 }
 
 .configuracion_patrones_perfil <- function(perfil) {

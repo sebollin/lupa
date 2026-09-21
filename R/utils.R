@@ -1497,14 +1497,29 @@
 # de un hallazgo con el de la tabla no podia: las dos cadenas difieren.
 .citar_publicable <- function(x) {
   if (!length(x)) return(character())
-  declarados <- !is.na(x) & Encoding(x) == "bytes"
   salida <- rep(NA_character_, length(x))
-  if (any(!declarados & !is.na(x))) {
-    otros <- !declarados & !is.na(x)
-    salida[otros] <- encodeString(x[otros], quote = '"')
-  }
-  if (any(declarados)) {
-    salida[declarados] <- paste0('"', .texto_publicable(x[declarados]), '"')
+  presentes <- which(!is.na(x))
+  for (i in presentes) {
+    texto <- x[[i]]
+    if (Encoding(texto) == "bytes") {
+      # Declarado: se rinde a su forma imprimible, que es la misma que publican
+      # `moda` y la tabla de patrones.
+      salida[[i]] <- paste0('"', .texto_publicable(texto), '"')
+      next
+    }
+    # `encodeString()` NO escapa un NBSP ni un espacio fino: los considera
+    # imprimibles y los deja crudos. Citar con el solo alcanzaba para las
+    # comillas y las barras, y devolvia `"x y"` con el NBSP intacto, o sea que
+    # la evidencia declaraba haber escapado algo que no habia escapado. Para
+    # eso esta el renderizador del paquete, que es el mismo que usa el resto de
+    # la evidencia.
+    if (.hay_escapes_al_publicar(texto)) {
+      visible <- .escapar_texto_visible(texto)
+      # El renderizador no escapa la comilla, y aca el valor va entre comillas.
+      salida[[i]] <- paste0('"', gsub('"', '\\"', visible, fixed = TRUE), '"')
+      next
+    }
+    salida[[i]] <- encodeString(texto, quote = '"')
   }
   salida
 }
