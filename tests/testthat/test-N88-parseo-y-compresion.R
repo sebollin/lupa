@@ -99,6 +99,12 @@ test_that("el parseo de dependencias sobrevive a los parentesis", {
   # error -`(foo), bar` daba solo `bar`- y un cierre suelto se tragaba. La
   # malformacion no tiene una sola forma, y la regla no depende de cual sea.
   expect_error(parsear("(foo), bar"), "sin nombre")
+  # Y el caso que APAGABA la guarda: una coma legal dentro de un parentesis
+  # desalineaba la cuenta contra la que se comparaba, asi que la comprobacion
+  # se saltaba sola justo con la entrada complicada. `bar` desaparecia de la
+  # lista de instalacion sin error y sin aviso.
+  expect_error(parsear("foo (>= 1.0, < 2.0), (bar), baz"), "sin nombre")
+  expect_error(parsear("(a), (b), c"), "sin nombre")
   expect_error(parsear("foo), bar"), "sin apertura")
 
   # Ninguna salida puede traer un parentesis: eso seria un nombre inventado.

@@ -71,9 +71,19 @@ jobs:
             profundidad <- 0L
             entradas <- character()
             actual <- character()
+            # `vio_algo` se lleva DENTRO del recorrido, y esa es la correccion.
+            # La version anterior comparaba la cuenta de entradas contra un
+            # corte ingenuo por comas, y una coma legal dentro de un parentesis
+            # desalinea las dos cuentas: la guarda se apagaba sola justo con la
+            # entrada complicada. Medido:
+            #   `foo (>= 1.0, < 2.0), (bar), baz` -> [foo] [] [baz], sin abortar
+            # y `bar` desaparecia de la lista de instalacion.
+            vio_algo <- FALSE
+            vistos <- logical()
             for (ch in caracteres) {
               if (ch == "(") {
                 profundidad <- profundidad + 1L
+                vio_algo <- TRUE
               } else if (ch == ")") {
                 # Un cierre sin apertura tambien es malformado, y antes se
                 # tragaba en silencio -`max(0L, ...)` lo absorbia-.
@@ -86,11 +96,15 @@ jobs:
                 profundidad <- profundidad - 1L
               } else if (ch == "," && profundidad == 0L) {
                 entradas <- c(entradas, paste(actual, collapse = ""))
+                vistos <- c(vistos, vio_algo)
                 actual <- character()
+                vio_algo <- FALSE
                 next
               }
+              if (!(ch %in% c(" ", "\t", "\n"))) vio_algo <- TRUE
               if (profundidad == 0L && ch != ")") actual <- c(actual, ch)
             }
+            vistos <- c(vistos, vio_algo)
             if (profundidad != 0L) {
               # Un parentesis sin cerrar NO se arregla en silencio. Antes, el
               # recorrido se tragaba lo que quedaba del campo; y como los campos
@@ -115,15 +129,12 @@ jobs:
             # envuelto y el cierre suelto- se arreglaban en silencio. Una
             # corrida verde que no midio lo que dice es peor que una roja, y eso
             # no depende de CUAL sea la malformacion.
-            crudas <- trimws(strsplit(texto, ",", fixed = TRUE)[[1L]])
-            if (length(crudas) == length(nombres)) {
-              perdidas <- nzchar(crudas) & !nzchar(nombres)
-              if (any(perdidas)) {
-                stop(
-                  "DESCRIPTION mal formado: entrada sin nombre de paquete en: ",
-                  paste(crudas[perdidas], collapse = " | "), call. = FALSE
-                )
-              }
+            perdidas <- vistos & !nzchar(nombres)
+            if (any(perdidas)) {
+              stop(
+                "DESCRIPTION mal formado: entrada sin nombre de paquete en: ",
+                texto, call. = FALSE
+              )
             }
             nombres
           }
@@ -185,9 +196,19 @@ jobs:
             profundidad <- 0L
             entradas <- character()
             actual <- character()
+            # `vio_algo` se lleva DENTRO del recorrido, y esa es la correccion.
+            # La version anterior comparaba la cuenta de entradas contra un
+            # corte ingenuo por comas, y una coma legal dentro de un parentesis
+            # desalinea las dos cuentas: la guarda se apagaba sola justo con la
+            # entrada complicada. Medido:
+            #   `foo (>= 1.0, < 2.0), (bar), baz` -> [foo] [] [baz], sin abortar
+            # y `bar` desaparecia de la lista de instalacion.
+            vio_algo <- FALSE
+            vistos <- logical()
             for (ch in caracteres) {
               if (ch == "(") {
                 profundidad <- profundidad + 1L
+                vio_algo <- TRUE
               } else if (ch == ")") {
                 # Un cierre sin apertura tambien es malformado, y antes se
                 # tragaba en silencio -`max(0L, ...)` lo absorbia-.
@@ -200,11 +221,15 @@ jobs:
                 profundidad <- profundidad - 1L
               } else if (ch == "," && profundidad == 0L) {
                 entradas <- c(entradas, paste(actual, collapse = ""))
+                vistos <- c(vistos, vio_algo)
                 actual <- character()
+                vio_algo <- FALSE
                 next
               }
+              if (!(ch %in% c(" ", "\t", "\n"))) vio_algo <- TRUE
               if (profundidad == 0L && ch != ")") actual <- c(actual, ch)
             }
+            vistos <- c(vistos, vio_algo)
             if (profundidad != 0L) {
               # Un parentesis sin cerrar NO se arregla en silencio. Antes, el
               # recorrido se tragaba lo que quedaba del campo; y como los campos
@@ -229,15 +254,12 @@ jobs:
             # envuelto y el cierre suelto- se arreglaban en silencio. Una
             # corrida verde que no midio lo que dice es peor que una roja, y eso
             # no depende de CUAL sea la malformacion.
-            crudas <- trimws(strsplit(texto, ",", fixed = TRUE)[[1L]])
-            if (length(crudas) == length(nombres)) {
-              perdidas <- nzchar(crudas) & !nzchar(nombres)
-              if (any(perdidas)) {
-                stop(
-                  "DESCRIPTION mal formado: entrada sin nombre de paquete en: ",
-                  paste(crudas[perdidas], collapse = " | "), call. = FALSE
-                )
-              }
+            perdidas <- vistos & !nzchar(nombres)
+            if (any(perdidas)) {
+              stop(
+                "DESCRIPTION mal formado: entrada sin nombre de paquete en: ",
+                texto, call. = FALSE
+              )
             }
             nombres
           }

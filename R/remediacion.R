@@ -1463,6 +1463,31 @@ planificar_limpieza <- function(perfil, datos = NULL,
   iteraciones <- parametros$max_iteraciones
   if (is.null(iteraciones)) iteraciones <- 20L
   anterior <- as.character(x)
+  # La reparacion tiene que ver LO MISMO que vio el perfil, o el paquete
+  # recomienda una accion que despues no puede ejecutar.
+  #
+  # `perfilar()` analiza sobre la forma saneada -`.texto_analizable()` marca
+  # UTF-8 lo declarado `bytes` cuando sus bytes son validos, a proposito- y
+  # sobre esa forma publica `n_codificacion_reparable` y el estado. La
+  # aplicacion trabajaba sobre la columna CRUDA, todavia declarada `bytes`, y
+  # ahi `.ftfy_decode_inconsistent_utf8()` muere en `nchar()` -que sobre esa
+  # marca no puede contar caracteres-.
+  #
+  # Medido: con mojibake declarado `bytes`, el perfil publicaba
+  # `reparable = 2`, estado `reparado`, y el plan una accion `recomendada` y
+  # activa con `n_afectadas = 2`; `aplicar()` la daba por `fallida` con
+  # `n_cambiadas = 0` y el dato quedaba intacto.
+  #
+  # Se marca, no se convierte: los bytes no cambian. Lo que no es UTF-8 valido
+  # queda como esta -no hay nada que interpretar ahi- y sigue contandose en
+  # `n_codificacion_invalida`.
+  crudos <- !is.na(anterior) & Encoding(anterior) == "bytes" &
+    validUTF8(anterior)
+  if (any(crudos)) {
+    marcados <- anterior[crudos]
+    Encoding(marcados) <- "UTF-8"
+    anterior[crudos] <- marcados
+  }
   unicos <- unique(anterior[!is.na(anterior)])
   resultados <- lapply(unicos, .ftfy_reparar_uno, max_iteraciones = iteraciones)
   indice <- match(anterior, unicos)
