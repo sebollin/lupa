@@ -19,7 +19,17 @@ jobs:
       fail-fast: false
       matrix:
         config:
-          - {os: macos-latest,   r: 'release'}
+          # macOS no esta en esta matriz y no es un olvido. El trabajo
+          # `macos-latest` moria siempre en `setup-r-dependencies`: `pak`
+          # baja un binario y despues no puede abrirlo (`Cannot extract ...
+          # unknown archive type`), asi que `R CMD check` no llegaba a
+          # correr ni una vez. Un trabajo que no corre el check no dice que
+          # el paquete pase ni que falle: no dice nada, y en rojo permanente
+          # ensena a mirar para otro lado cuando se ponga rojo alguno de
+          # los que si miden. macOS se mide en `macos.yaml`, que instala
+          # las dependencias con install.packages() sin pasar por `pak`.
+          # Si se vuelve a agregar aca, comprobar primero que el log del
+          # trabajo contenga `Status:`; si no lo contiene, no midio.
           - {os: windows-latest, r: 'release'}
           - {os: ubuntu-latest,   r: 'devel', http-user-agent: 'release'}
           - {os: ubuntu-latest,   r: 'release'}
