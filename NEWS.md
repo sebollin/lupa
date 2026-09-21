@@ -2,6 +2,27 @@
 
 ## Correcciones de cobertura y publicación
 
+- **La evidencia de un hallazgo publica el valor, no la forma con que se lo
+  analizó.** Comparar vocabulario exige interpretar el texto, y un valor
+  declarado `bytes` se marca UTF-8 antes de compararlo. Pero lo que se
+  informaba salía de esa forma interpretada, así que el mismo valor aparecía de
+  dos maneras dentro del mismo objeto: la tabla del perfil publicaba
+  `ni\xc3\xb1o` y la evidencia publicaba la eñe armada. Quien leía el informe
+  no podía saber que eran el mismo valor, que es justo lo que el hallazgo le
+  pide mirar antes de unificar. Dos fronteras quedan explícitas: `latin1` no es
+  `bytes` —ahí R conoce la codificación y la convierte sin pérdida—, y cuando
+  una forma junta **secuencias de bytes distintas** que se interpretan igual,
+  la etiqueta vuelve a la unidad en la que se contó, porque decir
+  `ni\xc3\xb1o (3)` afirmaría que esa secuencia aparece tres veces cuando
+  aparece una.
+
+- **La remediación de capitalización opera sobre caracteres, y la deriva
+  informa el patrón y no su clave.** `mayusculas`/`minusculas` recibían el
+  texto sin marcar, así que sobre un valor declarado `bytes` `toupper()` no
+  tenía cómo saber que eran caracteres y trabajaba sobre octetos sueltos. Y
+  `deriva_perfil()` publicaba la **clave** interna del patrón —escapada byte a
+  byte— en la columna donde el lector espera el patrón.
+
 - **El plan de limpieza ya no depende de cómo estén ordenadas sus filas.** Dos
   acciones con el mismo `orden` desempataban por la posición de la fila, así
   que el mismo plan con las filas invertidas devolvía **datos distintos**: una
