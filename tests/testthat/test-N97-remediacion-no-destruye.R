@@ -124,3 +124,50 @@ test_that("una marca bytes en la columna no decide el destino de sus vecinas", {
   )$valor
   expect_identical(enc2utf8(con_vecino[[1L]]), enc2utf8(sin_vecino[[1L]]))
 })
+
+test_that("una accion no toca las celdas que no necesita tocar", {
+  # El arreglo de mas arriba dejo de destruir el valor, pero pasaba TODA celda
+  # decodificable por `paste0(intToUtf8(...))`, asi que una celda `latin1` sin
+  # ningun control perdia su declaracion y sus bytes (`f1` -> `c3 b1`) al
+  # aplicar una accion que no tenia nada que hacer en ella. Y el registro no lo
+  # contaba, porque cuenta cambios de TEXTO y como texto era el mismo valor:
+  # un `n` que no es el numero de cosas que pasaron.
+  invisible_cero <- intToUtf8(0x200B)
+  limpia <- .n97_latin1()
+  columna <- c(limpia, paste0("otro", invisible_cero), limpia, "limpio")
+  datos <- data.frame(v = columna, id = seq_along(columna), stringsAsFactors = FALSE)
+
+  plan <- planificar_limpieza(perfilar(datos, analizar_dependencias = FALSE), datos)
+  elegida <- as.character(plan$estrategia) == "eliminar_controles_invisibles"
+  expect_true(any(elegida))
+  plan$aplicar <- elegida
+
+  resultado <- aplicar(plan, datos)
+  salida <- resultado$datos$v
+
+  # Las celdas sin control vuelven IDENTICAS, byte por byte y con su marca.
+  for (i in c(1L, 3L, 4L)) {
+    expect_identical(charToRaw(salida[[i]]), charToRaw(columna[[i]]),
+                     info = paste("celda", i))
+    expect_identical(Encoding(salida[[i]]), Encoding(columna[[i]]),
+                     info = paste("celda", i))
+  }
+  # Y la que si lo tenia se limpio.
+  expect_false(grepl(invisible_cero, salida[[2L]], fixed = TRUE))
+
+  # El numero informado es el numero de celdas que cambiaron.
+  registro <- as.data.frame(resultado$registro)
+  expect_equal(registro$n_cambiadas[[1L]], 1L)
+})
+
+test_that("normalizar espacios invisibles tampoco reescribe lo que no cambia", {
+  espacio_duro <- intToUtf8(0x00A0)
+  limpia <- .n97_latin1()
+  columna <- c(limpia, paste0("a", espacio_duro, "b"), limpia, "limpio")
+  antes <- lupa:::.normalizar_espacios_invisibles(columna)$valor
+  for (i in c(1L, 3L, 4L)) {
+    expect_identical(charToRaw(antes[[i]]), charToRaw(columna[[i]]),
+                     info = paste("celda", i))
+  }
+  expect_false(grepl(espacio_duro, antes[[2L]], fixed = TRUE))
+})

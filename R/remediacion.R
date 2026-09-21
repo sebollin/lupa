@@ -187,6 +187,19 @@
              " valores participan en una conversi\u00f3n no inyectiva")
     )
   }
+  # Sin esto la justificacion salia con un punto suelto adelante -"`. Se declara
+  # destructiva`"- porque el unico riesgo presente no tenia texto. Declarar algo
+  # destructivo sin decir por que deja al usuario sin nada que decidir.
+  if (isTRUE(evaluacion$n_redondeados > 0L)) {
+    riesgos <- c(
+      riesgos,
+      paste0(
+        evaluacion$n_redondeados,
+        " valores son enteros que no entran en un n\u00famero de doble ",
+        "precisi\u00f3n y se redondear\u00edan sin poder recuperarse"
+      )
+    )
+  }
   justificacion <- if (evaluacion$reversible) {
     "La conversi\u00f3n es ejecutable e inyectiva sobre todos los valores presentes."
   } else {
@@ -229,13 +242,62 @@
   if (numerico) {
     ceros <- !is.na(antes) & grepl("^0[0-9]", trimws(antes), perl = TRUE)
   }
-  riesgos <- colisionados | ceros
+  # Un entero por encima de 2^53 NO entra en un `double` sin redondear, y esa
+  # perdida no produce colision: `9007199254740993` se vuelve
+  # `9007199254740992` y ningun otro valor termina ahi, asi que la comprobacion
+  # de arriba -que compara representaciones textuales- no la ve. El plan
+  # publicaba entonces `reversible = TRUE`, `destructiva = FALSE` y
+  # `n_no_reversibles = 0` sobre un valor que habia destruido: ningun formato
+  # recupera el 3 perdido.
+  #
+  # Es la misma regla que ya aplica el perfil, que por encima de 2^53 se niega
+  # a medir la secuencia entera en vez de publicar un numero redondeado. Se
+  # mira el valor CONVERTIDO y no el texto de entrada, para que no dependa de
+  # como venia escrito -con puntos de miles, con signo o en notacion regional-.
+  #
+  # La comprobacion NO puede ser de magnitud. `9007199254740993` redondea a
+  # `9007199254740992`, que es 2^53 exacto, asi que `> 2^53` da FALSE sobre el
+  # unico valor que hay que atrapar: la guarda se prueba con el valor donde
+  # cambia. Se comparan los DIGITOS del original contra los del convertido, que
+  # es exacto y ademas no depende de como viniera escrito.
+  redondeados <- rep(FALSE, length(antes))
+  if (numerico) {
+    numeros <- suppressWarnings(as.numeric(convertido))
+    if (length(numeros) == length(antes)) {
+      enteros <- !is.na(numeros) & is.finite(numeros) & numeros == floor(numeros)
+      candidatos <- which(presentes & enteros)
+      if (length(candidatos)) {
+        # La comparacion NO puede depender del formato. Dos intentos fallaron
+        # por ahi: quitando todos los no-digitos, `2.000,00` da `200000`
+        # contra el `2000` convertido -seis pruebas de formatos regionales en
+        # rojo-, y recortando la parte decimal segun la convencion, `1.234`
+        # leido como separador de miles quedaba en `1`. Las dos veces el
+        # defecto fue hacer cirugia sobre el texto.
+        #
+        # Se comparan los digitos significativos: se quitan ceros de los dos
+        # bordes en los dos lados, y lo que queda tiene que coincidir. Eso no
+        # mira separadores ni convenciones, y aun asi distingue el unico caso
+        # que importa, que es un digito interior que cambio de valor.
+        significativos <- function(x) {
+          x <- gsub("[^0-9]", "", x)
+          x <- sub("^0+", "", x)
+          sub("0+$", "", x)
+        }
+        digitos_antes <- significativos(trimws(antes[candidatos]))
+        digitos_despues <- significativos(sprintf("%.0f", abs(numeros[candidatos])))
+        redondeados[candidatos] <- nzchar(digitos_antes) &
+          digitos_antes != digitos_despues
+      }
+    }
+  }
+  riesgos <- colisionados | ceros | redondeados
   list(
     inyectiva = !any(colisionados),
     reversible = !any(riesgos),
     n_no_reversibles = as.integer(sum(riesgos)),
     n_ceros_iniciales = as.integer(sum(ceros)),
-    n_colisionados = as.integer(sum(colisionados))
+    n_colisionados = as.integer(sum(colisionados)),
+    n_redondeados = as.integer(sum(redondeados))
   )
 }
 
@@ -490,9 +552,17 @@ planificar_limpieza <- function(perfil, datos = NULL,
       n_textuales <- fila$n_faltantes_disfrazados_textuales[[1L]]
       n_numericos <- fila$n_faltantes_disfrazados_numericos[[1L]]
       if (n_textuales > 0L) {
+        # La frase decia "pueden normalizarse SIN INFERIR EL DOMINIO", y eso
+        # es falso justo donde importa: decidir que `NA` es una ausencia y no
+        # el codigo de Namibia ES inferir el dominio. El catalogo reconoce el
+        # token, no el significado que tiene en esta columna, y el cambio no
+        # se puede deshacer. Se dice lo que el paquete sabe y se nombra la
+        # comprobacion que solo puede hacer quien conoce los datos.
         justificacion <- paste0(
           "Las representaciones textuales del cat\u00e1logo son marcadores ",
-          "expl\u00edcitos de ausencia y pueden normalizarse sin inferir el dominio."
+          "habituales de ausencia. El cambio no es reversible: confirmar que ",
+          "ninguno de esos textos sea un valor leg\u00edtimo de la columna ",
+          "-`NA` es el c\u00f3digo de Namibia, `NULL` puede ser un apellido-."
         )
         acciones <- .agregar_accion(acciones, .nueva_accion(
           columna, tipo, "convertir_ausencias_textuales", TRUE,
@@ -1436,6 +1506,14 @@ planificar_limpieza <- function(perfil, datos = NULL,
     codigos <- .codigos_decodificables(texto)
     if (is.null(codigos)) return(texto)
     conservar <- !.codigos_control_eliminable(codigos)
+    # Si no habia nada que quitar, se devuelve el texto TAL CUAL. Rearmarlo
+    # desde sus puntos de codigo lo reescribe en UTF-8 aunque no haya cambiado
+    # nada: una celda `latin1` sin ningun control perdia su declaracion y sus
+    # bytes (`f1` -> `c3 b1`) al aplicar una accion que no tenia nada que
+    # hacer en ella. Y el registro no lo contaba, porque cuenta cambios de
+    # texto y como texto era el mismo valor. Una accion de remediacion tiene
+    # que ser minima: lo que no necesita tocar, no se toca.
+    if (all(conservar)) return(texto)
     paste0(intToUtf8(codigos[conservar], multiple = TRUE), collapse = "")
   }, character(1L), USE.NAMES = FALSE)
   cambio <- .celdas_cambiadas(anterior, nuevo)
@@ -1455,7 +1533,11 @@ planificar_limpieza <- function(perfil, datos = NULL,
     if (is.na(texto)) return(NA_character_)
     codigos <- .codigos_decodificables(texto)
     if (is.null(codigos)) return(texto)
-    codigos[codigos %in% .codigos_espacios_invisibles] <- 32L
+    afectados <- codigos %in% .codigos_espacios_invisibles
+    # Mismo motivo que en `.quitar_controles_invisibles()`: sin nada que
+    # normalizar, el valor se devuelve intacto en vez de reescribirse.
+    if (!any(afectados)) return(texto)
+    codigos[afectados] <- 32L
     paste0(intToUtf8(codigos, multiple = TRUE), collapse = "")
   }, character(1L), USE.NAMES = FALSE)
   cambio <- .celdas_cambiadas(anterior, nuevo)
