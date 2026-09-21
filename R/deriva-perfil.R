@@ -647,8 +647,19 @@ comparar_perfiles <- function(anterior, actual, umbral_cambio = 0.05,
       pb <- .patrones_perfil(actual, indice_b)
       claves_a <- .clave_patron(pa$patron)
       claves_b <- .clave_patron(pb$patron)
+      # La clave APAREA; lo que se publica es el patron tal como lo publica el
+      # perfil. Publicando la clave, la fila de deriva sacaba el patron con la
+      # barra invertida duplicada -el escape que hace inyectiva a la clave- y
+      # no coincidia con el mismo patron en `perfil$patrones`. Contar y mostrar
+      # son dos preguntas distintas, tambien aca.
+      publicable <- function(clave, claves, tabla) {
+        posicion <- match(clave, claves)
+        if (is.na(posicion)) return(clave)
+        as.character(tabla$patron[[posicion]])
+      }
       for (patron in setdiff(claves_b, claves_a)) {
         proporcion <- pb$proporcion[match(patron, claves_b)]
+        patron <- publicable(patron, claves_b, pb)
         agregar(
           columna, "patron", "aparecido",
           if (.alcanza_umbral_deriva(proporcion, umbral_error)) {
@@ -666,6 +677,7 @@ comparar_perfiles <- function(anterior, actual, umbral_cambio = 0.05,
       }
       for (patron in setdiff(claves_a, claves_b)) {
         proporcion <- pa$proporcion[match(patron, claves_a)]
+        patron <- publicable(patron, claves_a, pa)
         agregar(
           columna, "patron", "desaparecido",
           if (.alcanza_umbral_deriva(proporcion, umbral_error)) {

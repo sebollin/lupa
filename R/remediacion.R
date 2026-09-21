@@ -1511,13 +1511,7 @@ planificar_limpieza <- function(perfil, datos = NULL,
   # Se marca, no se convierte: los bytes no cambian. Lo que no es UTF-8 valido
   # queda como esta -no hay nada que interpretar ahi- y sigue contandose en
   # `n_codificacion_invalida`.
-  crudos <- !is.na(anterior) & Encoding(anterior) == "bytes" &
-    validUTF8(anterior)
-  if (any(crudos)) {
-    marcados <- anterior[crudos]
-    Encoding(marcados) <- "UTF-8"
-    anterior[crudos] <- marcados
-  }
+  anterior <- .texto_para_transformar(anterior)
   unicos <- unique(anterior[!is.na(anterior)])
   resultados <- lapply(unicos, .ftfy_reparar_uno, max_iteraciones = iteraciones)
   indice <- match(anterior, unicos)
@@ -1610,11 +1604,39 @@ planificar_limpieza <- function(perfil, datos = NULL,
   as.character(nuevo)
 }
 
+# Deja el texto en la forma que el PERFIL analizo, para que lo que el plan
+# propone se pueda ejecutar sobre lo mismo que se midio.
+#
+# `perfilar()` analiza sobre la forma saneada -`.texto_analizable()` marca
+# UTF-8 lo declarado `bytes` cuando sus bytes son validos, a proposito, para que
+# `tolower()` y las expresiones regulares puedan trabajar- y sobre esa forma
+# publica sus cifras y arma el plan. Las acciones trabajaban sobre la columna
+# CRUDA, todavia declarada `bytes`, y ahi las mismas primitivas abortan: el
+# paquete recomendaba acciones que no podia ejecutar.
+#
+# Medido sobre una columna con mayusculas inconsistentes y un valor declarado:
+# `convertir_minusculas`, `convertir_titulo` y `convertir_mayusculas` quedaban
+# en `fallida` con `n_cambiadas = 0`, y `convertir_segun_diccionario` abortaba.
+#
+# Se MARCA, no se convierte: los bytes no cambian. Lo que no es UTF-8 valido
+# queda como esta -no hay nada que interpretar ahi- y sigue contandose en
+# `n_codificacion_invalida`.
+.texto_para_transformar <- function(x) {
+  texto <- as.character(x)
+  crudos <- !is.na(texto) & Encoding(texto) == "bytes" & validUTF8(texto)
+  if (any(crudos)) {
+    marcados <- texto[crudos]
+    Encoding(marcados) <- "UTF-8"
+    texto[crudos] <- marcados
+  }
+  texto
+}
+
 .transformar_capitalizacion <- function(x, estrategia, parametros) {
   if (!is.character(x) && !is.factor(x)) {
     stop("La capitalizaci\u00f3n requiere una columna de texto.", call. = FALSE)
   }
-  anterior <- as.character(x)
+  anterior <- .texto_para_transformar(x)
   if (identical(estrategia, "convertir_minusculas")) {
     nuevo <- tolower(anterior)
   } else if (identical(estrategia, "convertir_mayusculas")) {
