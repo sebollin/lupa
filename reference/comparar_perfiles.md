@@ -56,13 +56,15 @@ el cambio es silencioso, porque ahí la conversión no falla.
 
 Cuando eso pasa, el perfil releído **está** alterado, y conviene saber
 qué alcanza a ver esta función. Compara las **propiedades medidas** de
-cada columna y los hallazgos, no los valores uno por uno: la columna
-`aspecto` del resultado nombra, fila por fila, qué se comparó. **Un
-cambio de texto que no altera ninguna propiedad medida no aparece**: por
-ejemplo, si la moda de una columna pasa de `"Basico"` a `"Casico"`
-—mismo largo, misma forma de patrón, mismos conteos—, la comparación
-devuelve cero filas. Por eso el remedio ante una relectura sospechosa no
-es confiar en la comparación para detectarla.
+cada columna, los hallazgos, el alcance del resumen y las
+configuraciones declaradas —no los valores uno por uno—: la columna
+`aspecto` del resultado nombra, fila por fila, qué se comparó, y es la
+enumeración viva. **Un cambio de texto que no altera ninguna propiedad
+medida no aparece**: por ejemplo, si la moda de una columna pasa de
+`"Basico"` a `"Casico"` —mismo largo, misma forma de patrón, mismos
+conteos—, la comparación devuelve cero filas. Por eso el remedio ante
+una relectura sospechosa no es confiar en la comparación para
+detectarla.
 
 El remedio es una línea, `saveRDS(perfil, archivo, version = 2)`, porque
 ese formato no anota codificación nativa y por lo tanto no traduce nada.
