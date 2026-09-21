@@ -94,6 +94,12 @@ test_that("el parseo de dependencias sobrevive a los parentesis", {
   # es peor que una roja.
   expect_error(parsear("uno (>= 1.0, dos, tres"), "sin cerrar")
   expect_error(parsear("foo (>= 1.0, bar"), "sin cerrar")
+  # Y sus dos espejos, que la primera version de esta guarda no cubria: un
+  # nombre ENVUELTO en parentesis desaparecia de la lista de instalacion sin
+  # error -`(foo), bar` daba solo `bar`- y un cierre suelto se tragaba. La
+  # malformacion no tiene una sola forma, y la regla no depende de cual sea.
+  expect_error(parsear("(foo), bar"), "sin nombre")
+  expect_error(parsear("foo), bar"), "sin apertura")
 
   # Ninguna salida puede traer un parentesis: eso seria un nombre inventado.
   for (caso in c("foo (>= 1.0, < 2.0), bar", "foo (>= 1.0 (x), < 2.0), bar",

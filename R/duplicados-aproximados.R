@@ -1575,7 +1575,20 @@
   valores <- Map(function(x, columna) {
     # Reutilizar el saneamiento del perfil: los bytes UTF-8 invalidos no
     # deben abortar una comparacion ni entrar como evidencia.
-    salida <- suppressWarnings(as.character(.texto_analizable(x)$valores))
+    # Se rinde lo declarado `bytes` ANTES de analizar. `.texto_analizable()` lo
+    # marca UTF-8 -a proposito, para las operaciones de texto- y entonces dos
+    # valores que R separa quedan iguales aqui: la funcion publicaba los pares
+    # como `exacto_normalizado` con `igualo_normalizar = TRUE` **incluso con
+    # `normalizar = FALSE`**, donde no hay ningun mecanismo declarado para
+    # igualar textos. Medido: con texto corriente `normalizar = FALSE` da cero
+    # pares y `TRUE` da uno -como documenta el Rd-, y con un valor declarado
+    # `bytes` daba tres en los dos casos.
+    #
+    # Decidir si dos filas son la misma es decidir identidad, y ahi no se
+    # interpreta lo que se declaro que no es texto.
+    salida <- suppressWarnings(
+      as.character(.texto_analizable(.texto_publicable(x))$valores)
+    )
     presentes <- !is.na(salida) & nzchar(salida)
     salida[is.na(salida)] <- ""
     list(

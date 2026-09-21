@@ -57,7 +57,11 @@ test_that("la cardinalidad publicada coincide con unique() de R", {
 
 test_that("la evidencia publicada dice lo mismo que la consola", {
   skip_if_not_installed("stringdist")
-  valores <- c(.n87_utf8("a\u00f1o"), .n87_bytes("a\u00f1o"), "z",
+  # Las DOS primeras llevan la marca: asi el par existe sin depender de que lo
+  # declarado se funda con el texto, que es justamente lo que se dejo de hacer.
+  # Con el fixture anterior -una sola declarada- esta comprobacion paso a
+  # SALTEAR en silencio, y una guarda que saltea no mide nada.
+  valores <- c(.n87_bytes("a\u00f1o"), .n87_bytes("a\u00f1o"), "z",
                .n87_utf8("a\u00f1o"))
   datos <- data.frame(v = valores, stringsAsFactors = FALSE)
   resultado <- suppressWarnings(detectar_duplicados_aproximados(datos, "v"))
@@ -69,17 +73,19 @@ test_that("la evidencia publicada dice lo mismo que la consola", {
   # letra los encuentra en los dos casos, y eso no dice nada.
   evidencias <- c(resultado$pares$evidencia_1, resultado$pares$evidencia_2)
   filas <- c(resultado$pares$fila_1, resultado$pares$fila_2)
-  de_la_declarada <- evidencias[filas == 2L]
-  skip_if(!length(de_la_declarada),
-          "no se formo ningun par con la fila declarada `bytes`")
-  for (evidencia in de_la_declarada) {
+  # Que filas estan declaradas se deriva de los datos, no de un indice escrito
+  # a mano: con el fixture anterior el indice fijo dejo de describir el caso y
+  # la comprobacion empezo a fallar por su premisa, no por el paquete.
+  declaradas <- which(Encoding(valores) == "bytes")
+  de_declaradas <- evidencias[filas %in% declaradas]
+  expect_gt(length(de_declaradas), 0L)
+  for (evidencia in de_declaradas) {
     expect_identical(
       Encoding(evidencia), "bytes",
       info = paste("evidencia que perdio la declaracion:", evidencia)
     )
   }
-  de_las_otras <- evidencias[filas != 2L]
-  for (evidencia in de_las_otras) {
+  for (evidencia in evidencias[!(filas %in% declaradas)]) {
     expect_false(identical(Encoding(evidencia), "bytes"), info = evidencia)
   }
 })

@@ -75,7 +75,15 @@ jobs:
               if (ch == "(") {
                 profundidad <- profundidad + 1L
               } else if (ch == ")") {
-                profundidad <- max(0L, profundidad - 1L)
+                # Un cierre sin apertura tambien es malformado, y antes se
+                # tragaba en silencio -`max(0L, ...)` lo absorbia-.
+                if (profundidad == 0L) {
+                  stop(
+                    "DESCRIPTION mal formado: parentesis de cierre sin ",
+                    "apertura en: ", texto, call. = FALSE
+                  )
+                }
+                profundidad <- profundidad - 1L
               } else if (ch == "," && profundidad == 0L) {
                 entradas <- c(entradas, paste(actual, collapse = ""))
                 actual <- character()
@@ -99,7 +107,25 @@ jobs:
                 call. = FALSE
               )
             }
-            trimws(c(entradas, paste(actual, collapse = "")))
+            nombres <- trimws(c(entradas, paste(actual, collapse = "")))
+            # Una entrada que TENIA texto y se quedo sin nombre es un paquete
+            # que desaparece de la lista de instalacion: `(foo), bar` daba
+            # `bar` y `foo` se perdia sin error y sin aviso. La guarda anterior
+            # miraba solo el parentesis sin cerrar, y sus dos espejos -el nombre
+            # envuelto y el cierre suelto- se arreglaban en silencio. Una
+            # corrida verde que no midio lo que dice es peor que una roja, y eso
+            # no depende de CUAL sea la malformacion.
+            crudas <- trimws(strsplit(texto, ",", fixed = TRUE)[[1L]])
+            if (length(crudas) == length(nombres)) {
+              perdidas <- nzchar(crudas) & !nzchar(nombres)
+              if (any(perdidas)) {
+                stop(
+                  "DESCRIPTION mal formado: entrada sin nombre de paquete en: ",
+                  paste(crudas[perdidas], collapse = " | "), call. = FALSE
+                )
+              }
+            }
+            nombres
           }
           # Campo por campo y no pegados: si uno esta mal formado, el error dice
           # cual, y un problema en `Imports` no puede arrastrarse al `Suggests`.
@@ -163,7 +189,15 @@ jobs:
               if (ch == "(") {
                 profundidad <- profundidad + 1L
               } else if (ch == ")") {
-                profundidad <- max(0L, profundidad - 1L)
+                # Un cierre sin apertura tambien es malformado, y antes se
+                # tragaba en silencio -`max(0L, ...)` lo absorbia-.
+                if (profundidad == 0L) {
+                  stop(
+                    "DESCRIPTION mal formado: parentesis de cierre sin ",
+                    "apertura en: ", texto, call. = FALSE
+                  )
+                }
+                profundidad <- profundidad - 1L
               } else if (ch == "," && profundidad == 0L) {
                 entradas <- c(entradas, paste(actual, collapse = ""))
                 actual <- character()
@@ -187,7 +221,25 @@ jobs:
                 call. = FALSE
               )
             }
-            trimws(c(entradas, paste(actual, collapse = "")))
+            nombres <- trimws(c(entradas, paste(actual, collapse = "")))
+            # Una entrada que TENIA texto y se quedo sin nombre es un paquete
+            # que desaparece de la lista de instalacion: `(foo), bar` daba
+            # `bar` y `foo` se perdia sin error y sin aviso. La guarda anterior
+            # miraba solo el parentesis sin cerrar, y sus dos espejos -el nombre
+            # envuelto y el cierre suelto- se arreglaban en silencio. Una
+            # corrida verde que no midio lo que dice es peor que una roja, y eso
+            # no depende de CUAL sea la malformacion.
+            crudas <- trimws(strsplit(texto, ",", fixed = TRUE)[[1L]])
+            if (length(crudas) == length(nombres)) {
+              perdidas <- nzchar(crudas) & !nzchar(nombres)
+              if (any(perdidas)) {
+                stop(
+                  "DESCRIPTION mal formado: entrada sin nombre de paquete en: ",
+                  paste(crudas[perdidas], collapse = " | "), call. = FALSE
+                )
+              }
+            }
+            nombres
           }
           sug <- nombres_dependencias(sug)
           sug <- setdiff(sug, c("", NA))

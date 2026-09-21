@@ -109,6 +109,19 @@
   # analisis con su tercer estado parcial.
   descartados_no_comparables <- sum(is.na(textos)) - sum(is.na(valores))
   if (descartados_no_comparables < 0L) descartados_no_comparables <- 0L
+  # Se conserva el valor TAL COMO SE VA A PUBLICAR, apareado con su clave.
+  # `.valores_relacion()` termina en `.nombres_para_operar()`, que es la clave
+  # de identidad: sirve para AGRUPAR, no para mostrar. Publicando la clave, la
+  # tabla sacaba `a\\xc3\\xb1o` -con la barra duplicada por el escape de
+  # inyectividad de la clave- en vez de `a\xc3\xb1o`, y peor: la salida
+  # dependia de que mas hubiera en la columna, porque el escape solo se nota
+  # cuando el valor ya trae barras.
+  #
+  # Se cuenta por clave y se publica el valor. Son dos preguntas distintas.
+  # `as.character()` porque la columna publicada es de texto siempre: sobre una
+  # columna `raw`, `valores` es `raw` y `rbind()` de las tablas por columna
+  # aborta con "incompatible types (from integer to raw)". Lo atrapo la suite.
+  publicables <- as.character(valores)[!is.na(textos)]
   textos <- textos[!is.na(textos)]
   if (!length(textos)) {
     return(list(tabla = data.frame(
@@ -120,12 +133,15 @@
     )))
   }
   unicos <- unique(textos)
-  conteos <- tabulate(match(textos, unicos), nbins = length(unicos))
+  indices <- match(textos, unicos)
+  conteos <- tabulate(indices, nbins = length(unicos))
+  # El primer valor publicable de cada grupo, que es el que representa al grupo.
+  representantes <- publicables[match(seq_along(unicos), indices)]
   orden <- order(-conteos, seq_along(conteos))
   seleccion <- utils::head(orden, max_valores)
   tabla <- data.frame(
     valor = if (protegida) rep("[valor protegido]", length(seleccion)) else {
-      unicos[seleccion]
+      representantes[seleccion]
     },
     frecuencia = as.integer(conteos[seleccion]),
     proporcion = as.numeric(conteos[seleccion]) / length(textos),
