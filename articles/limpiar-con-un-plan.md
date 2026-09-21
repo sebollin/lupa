@@ -85,11 +85,11 @@ plan[, c("estrategia", "justificacion")]
 #> 17     eliminar_columna_duplicada
 #>                                                                                                                                                                       justificacion
 #> 1                                                                El perfil señala el problema, pero no contiene conocimiento suficiente del dominio para elegir una transformación.
-#> 2                                                   Las representaciones textuales del catálogo son marcadores explícitos de ausencia y pueden normalizarse sin inferir el dominio.
+#> 2                                                                                                                                                                 [valor protegido]
 #> 3                                                                El perfil señala el problema, pero no contiene conocimiento suficiente del dominio para elegir una transformación.
-#> 4                                                   Las representaciones textuales del catálogo son marcadores explícitos de ausencia y pueden normalizarse sin inferir el dominio.
+#> 4                                                                                                                                                                 [valor protegido]
 #> 5  La conversión no es ejecutable sobre los datos completos: Hay valores presentes que no responden a los formatos confirmados. Se conserva como acción destructiva no recomendada.
-#> 6                                                   Las representaciones textuales del catálogo son marcadores explícitos de ausencia y pueden normalizarse sin inferir el dominio.
+#> 6                                                                                                                                                                 [valor protegido]
 #> 7                                                                           Un sentinela numérico también puede ser un valor legítimo; requiere confirmar el diccionario del campo.
 #> 8                                                                          Un valor extremo puede ser correcto; la marca conserva el dato para que el dominio decida cómo tratarlo.
 #> 9                                                      Sustituye los extremos por los límites de Tukey y altera valores observados; sólo debe elegirse con justificación analítica.
