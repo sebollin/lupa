@@ -165,9 +165,17 @@ test_that("los patrones publicados no interpretan lo declarado `bytes`", {
 })
 
 test_that("una distribucion que descarto valores no se declara completa", {
-  roto <- .n89_bytes(c(0x41, 0xff, 0x62))
-  # Tres de cuatro filas no se pueden comparar: la tabla publicaba `z` con
-  # proporcion 1.00 -sobre los analizados- y el estado decia `calculada`.
+  # El caso parcial es el de bytes invalidos SIN declarar: eso es lo que
+  # `.valores_relacion()` no puede comparar y descarta. Tres de cuatro filas se
+  # pierden, y la tabla publicaba `z` con proporcion 1.00 -sobre los
+  # analizados- con el estado en `calculada`.
+  #
+  # Antes esta prueba usaba el valor DECLARADO `bytes`, y dejo de ser el caso
+  # parcial: desde que lo declarado se rinde a su forma imprimible, ya no se
+  # descarta sino que se publica -`A\xffB`-, con `n_analizados == n_total`. La
+  # regla que la prueba sostiene no cambio; cambio QUE se descarta, y el
+  # fixture tenia que seguirla.
+  roto <- rawToChar(as.raw(c(0x41, 0xff, 0x62)))
   parcial <- suppressWarnings(distribucion_valores(
     data.frame(r = c(roto, roto, "z", roto), stringsAsFactors = FALSE)
   ))
@@ -180,6 +188,24 @@ test_that("una distribucion que descarto valores no se declara completa", {
     data.frame(r = c("a", "a", "z", "b"), stringsAsFactors = FALSE)
   ))
   expect_identical(as.data.frame(completa$alcance)$estado[[1L]], "calculada")
+
+  # Y lo DECLARADO `bytes` con bytes invalidos tampoco es un descarte: se
+  # publica en la forma que muestra la consola, y la columna esta completa.
+  declarado <- .n89_bytes(c(0x41, 0xff, 0x62))
+  con_marca <- suppressWarnings(distribucion_valores(
+    data.frame(r = c(declarado, declarado, "z", declarado),
+               stringsAsFactors = FALSE)
+  ))
+  alcance_marca <- as.data.frame(con_marca$alcance)
+  expect_identical(alcance_marca$estado[[1L]], "calculada")
+  # `expect_equal` y no `identical`: `n_analizados` viaja como `numeric` y
+  # `n_total` como `integer`. Lo que se sostiene es que sean el MISMO numero, no
+  # que compartan tipo de almacenamiento.
+  expect_equal(
+    as.numeric(alcance_marca$n_analizados[[1L]]),
+    as.numeric(alcance_marca$n_total[[1L]])
+  )
+  expect_true(any(grepl("xff", con_marca$frecuencias$valor, fixed = TRUE)))
 
   # Y un `NA` NO es un descarte: es una ausencia declarada, que el perfil ya
   # informa por otro lado. Confundirlos seria declarar parcial lo que esta

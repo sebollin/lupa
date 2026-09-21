@@ -75,7 +75,14 @@
     )))
   }
   muestreo <- .muestrear_vector(x, muestra)
-  valores <- muestreo$valores[!is.na(muestreo$valores)]
+  # Lo declarado `bytes` se rinde a la forma que muestra la consola ANTES de
+  # contar. La tabla de frecuencias se PUBLICA -y de ahi pasa al HTML de
+  # `reportar()`, donde los bytes crudos dentro de un documento UTF-8 se
+  # renderizan como el caracter-, asi que interpretarlo aca rompia la
+  # declaracion en dos salidas a la vez. Medido: la tabla publicaba el
+  # caracter mientras `print()` del mismo dato mostraba la forma escapada.
+  valores <- .texto_publicable(muestreo$valores)
+  valores <- valores[!is.na(valores)]
   if (!length(valores)) {
     return(list(tabla = data.frame(
       valor = character(), frecuencia = integer(), proporcion = numeric(),

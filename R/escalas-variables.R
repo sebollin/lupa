@@ -283,7 +283,13 @@ clasificar_variables <- function(datos, perfil = NULL, metadatos = NULL,
     } else if (is.factor(x)) levels(x) else character()
     guardar_niveles <- propuesta$escala %in% c("nominal", "ordinal", "binaria")
     muestreo <- .muestrear_vector(x, limite)
-    muestra_segura <- .texto_analizable(muestreo$valores)$valores
+    # Rendido ANTES de analizar, no despues: `.texto_analizable()` marca UTF-8
+    # lo declarado `bytes` -a proposito- y entonces la declaracion ya no esta
+    # cuando estos niveles se publican. Rendirlos al sellar la tabla no alcanza
+    # porque para entonces el valor ya perdio la marca.
+    muestra_segura <- .texto_analizable(
+      .texto_publicable(muestreo$valores)
+    )$valores
     muestra_texto <- as.character(muestra_segura[!is.na(muestra_segura)])
     observados <- if (!guardar_niveles) {
       character()
@@ -352,9 +358,19 @@ clasificar_variables <- function(datos, perfil = NULL, metadatos = NULL,
     metricas_sugeridas = character(),
     stringsAsFactors = FALSE
   )
-  resultado$niveles_declarados <- I(niveles_declarados)
-  resultado$niveles_observados <- I(niveles_observados)
-  resultado$niveles_ausentes <- I(niveles_ausentes)
+  # Los tres son listas de valores del usuario que se PUBLICAN: viajan en el
+  # objeto, se imprimen y llegan al HTML de `reportar()`. Lo declarado `bytes`
+  # se rinde a la forma que muestra la consola. Sin esto, la celda del reporte
+  # decia `a\u00f1o` para un valor que `print()` publica como `a\xc3\xb1o`, y
+  # los bytes crudos quedaban incrustados en un documento UTF-8 -donde el
+  # navegador los renderiza como el caracter-.
+  #
+  # Aparecio despues de creer que `clasificar_variables()` estaba limpio: la
+  # comprobacion habia mirado solo las columnas de texto de primer nivel y estos
+  # son columnas-lista.
+  resultado$niveles_declarados <- I(lapply(niveles_declarados, .texto_publicable))
+  resultado$niveles_observados <- I(lapply(niveles_observados, .texto_publicable))
+  resultado$niveles_ausentes <- I(lapply(niveles_ausentes, .texto_publicable))
   rownames(resultado) <- NULL
   class(resultado) <- c("clasificacion_variables", "data.frame")
   resultado

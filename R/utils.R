@@ -51,7 +51,18 @@
     paste(
       vapply(
         crudo,
-        function(b) if (b < 128L) rawToChar(as.raw(b)) else sprintf("\\%03o", b),
+        # Hexadecimal y no octal, y eso es lo que separa esta clave de la de
+        # `.escapar_bytes_altos()`. Sobre una cadena TODA invalida las dos
+        # escapaban cada byte y daban el mismo resultado, asi que los mismos
+        # bytes declarados `bytes` y sin declarar terminaban con la misma clave
+        # -medido: `unique()` de R veia 3 valores y el perfil publicaba 1, y el
+        # hallazgo `constante` decia 3 filas con una traza que respaldaba 1-.
+        #
+        # `\xHH` no es una convencion inventada para desempatar: es COMO R
+        # imprime una cadena declarada `bytes` -`A\xffB`-, mientras que para los
+        # bytes rotos sin declarar usa el octal. La clave dice lo mismo que la
+        # consola, que es la regla que rige todo este camino.
+        function(b) if (b < 128L) rawToChar(as.raw(b)) else sprintf("\\x%02x", b),
         character(1L)
       ),
       collapse = ""

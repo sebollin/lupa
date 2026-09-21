@@ -85,9 +85,19 @@ test_that("el parseo de dependencias sobrevive a los parentesis", {
   expect_identical(limpiar(parsear("data.table, R.utils (>= 2.0)")),
                    c("data.table", "R.utils"))
   expect_identical(limpiar(parsear("R (>= 4.1.0), stats")), "stats")
+  # Un parentesis SIN CERRAR no se arregla en silencio: aborta nombrando el
+  # campo. Antes se tragaba lo que quedaba, y como los campos se pegaban con
+  # comas antes de parsear, se llevaba el `Suggests` entero -medido: cinco
+  # paquetes desaparecian-. Con `_R_CHECK_FORCE_SUGGESTS_: false` el check
+  # pasaba igual y la fila publicada decia que macOS estaba en verde midiendo
+  # mucho menos de lo que afirmaba. Una corrida verde que no midio lo que dice
+  # es peor que una roja.
+  expect_error(parsear("uno (>= 1.0, dos, tres"), "sin cerrar")
+  expect_error(parsear("foo (>= 1.0, bar"), "sin cerrar")
+
   # Ninguna salida puede traer un parentesis: eso seria un nombre inventado.
   for (caso in c("foo (>= 1.0, < 2.0), bar", "foo (>= 1.0 (x), < 2.0), bar",
-                 "foo (>= 1.0 and < 2.0 (y)), bar", "foo (>= 1.0, bar")) {
+                 "foo (>= 1.0 and < 2.0 (y)), bar")) {
     expect_false(
       any(grepl("[()]", parsear(caso))),
       info = paste("fabrico un nombre con parentesis sobre:", caso)

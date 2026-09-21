@@ -903,15 +903,28 @@ guardar_analisis <- function(x, archivo, incluir_datos = FALSE,
     copia$medicion, .desenlaces_de_objeto(copia), reemplazo = NA_real_,
     marcar_objeto = TRUE
   )
-  copia$detalle_medicion <- .proteger_medicion_desenlaces(
+  # `copia[["x"]] <- NULL` BORRA el elemento en vez de dejarlo en `NULL`, y
+  # estas tres asignaciones devuelven `NULL` cuando el componente no existe. El
+  # resultado: un analisis guardado perdia `detalle_medicion`, `evaluacion` y
+  # `datos` de sus NOMBRES -medido: 16 componentes al analizar, 13 en el
+  # archivo-, y la documentacion afirma, con esas palabras, que
+  # `meta$persistencia` es "el unico campo que un objeto leido tiene y el
+  # original no". No era cierto.
+  #
+  # `copia["x"] <- list(valor)` conserva el nombre con su `NULL`. El objeto
+  # leido tiene entonces la misma forma que el guardado, y la ausencia de datos
+  # se declara donde corresponde: en `meta$persistencia$datos_incluidos`.
+  copia["detalle_medicion"] <- list(.proteger_medicion_desenlaces(
     copia$detalle_medicion, .desenlaces_de_objeto(copia),
     reemplazo = NA_real_, marcar_objeto = TRUE
-  )
-  copia$tablero <- .proteger_tablero_desenlaces(
+  ))
+  copia["tablero"] <- list(.proteger_tablero_desenlaces(
     copia$tablero, .desenlaces_de_objeto(copia)
+  ))
+  copia["evaluacion"] <- list(
+    .proteger_evaluacion_desenlaces(copia$evaluacion)
   )
-  copia$evaluacion <- .proteger_evaluacion_desenlaces(copia$evaluacion)
-  if (!incluir_datos) copia$datos <- NULL
+  if (!incluir_datos) copia["datos"] <- list(NULL)
   propuesta <- .deshidratar_propuesta(copia$propuesta_modelo)
   copia$propuesta_modelo <- propuesta$propuesta
   copia$meta$persistencia <- list(

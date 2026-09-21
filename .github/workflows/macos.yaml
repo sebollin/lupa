@@ -83,9 +83,29 @@ jobs:
               }
               if (profundidad == 0L && ch != ")") actual <- c(actual, ch)
             }
+            if (profundidad != 0L) {
+              # Un parentesis sin cerrar NO se arregla en silencio. Antes, el
+              # recorrido se tragaba lo que quedaba del campo; y como los campos
+              # se pegaban con comas antes de parsear, se llevaba tambien el
+              # `Suggests` entero: medido, cinco paquetes desaparecian y el paso
+              # seguia. Con `_R_CHECK_FORCE_SUGGESTS_: false` el check pasaba
+              # igual y la fila publicada decia que macOS estaba en verde,
+              # midiendo mucho menos de lo que afirmaba.
+              #
+              # Una corrida verde que no midio lo que dice es peor que una
+              # roja. Se aborta y se nombra el campo.
+              stop(
+                "DESCRIPTION mal formado: parentesis sin cerrar en: ", texto,
+                call. = FALSE
+              )
+            }
             trimws(c(entradas, paste(actual, collapse = "")))
           }
-          nombres <- nombres_dependencias(paste(d[1, campos], collapse = ","))
+          # Campo por campo y no pegados: si uno esta mal formado, el error dice
+          # cual, y un problema en `Imports` no puede arrastrarse al `Suggests`.
+          nombres <- unlist(lapply(campos, function(campo) {
+            nombres_dependencias(d[1, campo])
+          }), use.names = FALSE)
           nombres <- setdiff(nombres, c("R", "", NA))
           base_r <- rownames(installed.packages(priority = "base"))
           pedidos <- setdiff(unique(nombres), base_r)
@@ -150,6 +170,22 @@ jobs:
                 next
               }
               if (profundidad == 0L && ch != ")") actual <- c(actual, ch)
+            }
+            if (profundidad != 0L) {
+              # Un parentesis sin cerrar NO se arregla en silencio. Antes, el
+              # recorrido se tragaba lo que quedaba del campo; y como los campos
+              # se pegaban con comas antes de parsear, se llevaba tambien el
+              # `Suggests` entero: medido, cinco paquetes desaparecian y el paso
+              # seguia. Con `_R_CHECK_FORCE_SUGGESTS_: false` el check pasaba
+              # igual y la fila publicada decia que macOS estaba en verde,
+              # midiendo mucho menos de lo que afirmaba.
+              #
+              # Una corrida verde que no midio lo que dice es peor que una
+              # roja. Se aborta y se nombra el campo.
+              stop(
+                "DESCRIPTION mal formado: parentesis sin cerrar en: ", texto,
+                call. = FALSE
+              )
             }
             trimws(c(entradas, paste(actual, collapse = "")))
           }
