@@ -100,3 +100,42 @@ test_that("convertir ausencias textuales no afirma que no infiere el dominio", {
   expect_true(grepl("no es reversible", justificacion, fixed = TRUE))
   expect_false(any(as.logical(plan$reversible[fila])))
 })
+
+test_that("la unidad no abre un agujero en la guarda de precision", {
+  # La guarda miraba el valor CONVERTIDO y solo si era entero. Con unidad `%`
+  # la conversion divide por 100, el resultado deja de ser entero y la guarda
+  # ni lo miraba -aunque `as.numeric()` ya habia perdido el digito AL
+  # PARSEAR-. La perdida ocurre al parsear, asi que ahi se mide: sobre el
+  # cuerpo numerico del original, antes de cualquier escalado.
+  for (caso in list(
+    c("9007199254740993%", "9007199254740995%", "1%", "2%"),
+    c("USD 9007199254740993", "USD 1", "USD 2", "USD 3")
+  )) {
+    armado <- .o01_plan(caso)
+    fila <- .o01_fila(armado$plan)
+    expect_true(length(fila) > 0L, info = caso[[1L]])
+    expect_false(any(as.logical(armado$plan$reversible[fila])), info = caso[[1L]])
+    expect_false(any(as.logical(armado$plan$recomendada[fila])), info = caso[[1L]])
+  }
+})
+
+test_that("las cuatro convenciones se cubren, no dos", {
+  # `sin_separadores` es la convencion de una columna de enteros con unidad, y
+  # enumerar de memoria la dejo fuera: la guarda se salteaba justo el caso que
+  # venia a atrapar. Un cuerpo sin ningun separador ya esta normalizado, venga
+  # la convencion que venga.
+  reversibles <- list(
+    c("1,5%", "2,5%", "3,5%", "4,5%"),
+    c("10%", "20%", "30%", "40%"),
+    c("USD 1,234.00", "USD 2,000.00"),
+    c("1.234,56", "2.000,00"),
+    c("1,234.56", "2,000.00")
+  )
+  for (caso in reversibles) {
+    armado <- .o01_plan(caso)
+    fila <- .o01_fila(armado$plan)
+    if (!length(fila)) next
+    expect_true(all(as.logical(armado$plan$reversible[fila])),
+                info = paste(caso, collapse = ","))
+  }
+})

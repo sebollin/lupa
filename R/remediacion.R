@@ -262,31 +262,61 @@
   # es exacto y ademas no depende de como viniera escrito.
   redondeados <- rep(FALSE, length(antes))
   if (numerico) {
-    numeros <- suppressWarnings(as.numeric(convertido))
-    if (length(numeros) == length(antes)) {
-      enteros <- !is.na(numeros) & is.finite(numeros) & numeros == floor(numeros)
-      candidatos <- which(presentes & enteros)
+    # La comprobacion va sobre el CUERPO numerico del original -lo que queda
+    # sacando moneda y unidad- y no sobre el valor convertido.
+    #
+    # Mirar el convertido dejaba un agujero: con unidad `%` la conversion
+    # divide por 100, el resultado deja de ser entero y la guarda ni lo miraba,
+    # aunque `as.numeric()` ya habia perdido el digito AL PARSEAR. El plan
+    # volvia a publicar `reversible = TRUE` y `n_no_reversibles = 0` sobre un
+    # valor destruido. La perdida ocurre al parsear, asi que ahi hay que
+    # medirla.
+    #
+    # Solo se miran cuerpos ENTEROS. En un decimal la representacion binaria
+    # es inexacta por naturaleza -`1234.56` vuelve `1234.5599999999999`- y
+    # compararlos acusaria a toda columna con decimales.
+    cuerpos <- tryCatch(.componentes_numero_texto(antes)$cuerpo,
+                        error = function(e) NULL)
+    if (!is.null(cuerpos) && length(cuerpos) == length(antes)) {
+      convencion <- parametros$convencion
+      if (is.null(convencion) || !length(convencion)) convencion <- "ambigua"
+      if (identical(convencion, "es-UY")) convencion <- "decimal_coma"
+      # Las convenciones son cuatro, no dos: `decimal_coma`, `decimal_punto`,
+      # `sin_separadores` y `ambigua`. Enumerar de memoria dejo fuera
+      # `sin_separadores` -la que usa una columna de enteros con unidad- y la
+      # guarda se saltaba justo el caso que venia a atrapar.
+      #
+      # Un cuerpo sin ningun separador YA esta normalizado, venga la
+      # convencion que venga, asi que se resuelve primero y no depende de
+      # haberlas enumerado bien.
+      sin_separador <- !grepl("[.,]", cuerpos)
+      normalizados <- rep(NA_character_, length(cuerpos))
+      normalizados[sin_separador] <- cuerpos[sin_separador]
+      con_separador <- !sin_separador
+      if (any(con_separador)) {
+        if (identical(convencion, "decimal_coma")) {
+          normalizados[con_separador] <-
+            gsub(".", "", cuerpos[con_separador], fixed = TRUE)
+        } else if (identical(convencion, "decimal_punto")) {
+          normalizados[con_separador] <-
+            gsub(",", "", cuerpos[con_separador], fixed = TRUE)
+        }
+      }
+      es_entero <- !is.na(normalizados) &
+        grepl("^[+-]?[0-9]+$", trimws(normalizados), perl = TRUE)
+      candidatos <- which(presentes & es_entero)
       if (length(candidatos)) {
-        # La comparacion NO puede depender del formato. Dos intentos fallaron
-        # por ahi: quitando todos los no-digitos, `2.000,00` da `200000`
-        # contra el `2000` convertido -seis pruebas de formatos regionales en
-        # rojo-, y recortando la parte decimal segun la convencion, `1.234`
-        # leido como separador de miles quedaba en `1`. Las dos veces el
-        # defecto fue hacer cirugia sobre el texto.
-        #
-        # Se comparan los digitos significativos: se quitan ceros de los dos
-        # bordes en los dos lados, y lo que queda tiene que coincidir. Eso no
-        # mira separadores ni convenciones, y aun asi distingue el unico caso
-        # que importa, que es un digito interior que cambio de valor.
         significativos <- function(x) {
           x <- gsub("[^0-9]", "", x)
           x <- sub("^0+", "", x)
           sub("0+$", "", x)
         }
-        digitos_antes <- significativos(trimws(antes[candidatos]))
-        digitos_despues <- significativos(sprintf("%.0f", abs(numeros[candidatos])))
-        redondeados[candidatos] <- nzchar(digitos_antes) &
-          digitos_antes != digitos_despues
+        valores <- suppressWarnings(as.numeric(trimws(normalizados[candidatos])))
+        vuelta <- ifelse(is.finite(valores), sprintf("%.0f", abs(valores)), NA_character_)
+        digitos_antes <- significativos(normalizados[candidatos])
+        digitos_vuelta <- significativos(vuelta)
+        redondeados[candidatos] <- !is.na(vuelta) & nzchar(digitos_antes) &
+          digitos_antes != digitos_vuelta
       }
     }
   }
