@@ -1683,11 +1683,29 @@
   # lo publicaba `ni\xc3\xb1o` -marca intacta- y la evidencia del hallazgo lo
   # publicaba `nino` con la enie armada, sin marca. Quien lee el informe no
   # podia saber que eran el mismo valor, que es exactamente lo que el hallazgo
-  # le pide mirar antes de unificar. De paso, `utf8ToInt()` devuelve `NA` -no
-  # vacio- sobre lo que no decodifica, y el `if` de mas abajo recibiria ese
-  # `NA`: convertir antes deja esa rama sin entrada posible por esta via.
+  # le pide mirar antes de unificar.
   texto <- .texto_publicable(texto)
+  # `latin1` NO es `bytes`: ahi R conoce la codificacion y `enc2utf8()` la
+  # convierte sin perder nada. Va antes de mirar `validUTF8()`, porque los
+  # bytes de un texto latin1 no son UTF-8 validos y sin convertirlos primero
+  # se los tomaria por indescifrables.
+  if (Encoding(texto) == "latin1") texto <- enc2utf8(texto)
+  # Y lo que aun no decodifica no se puede describir como caracteres. Antes se
+  # intentaba igual: `utf8ToInt()` devuelve `NA` -no vacio, no error- y ese
+  # `NA` llegaba al `if` de mas abajo y ABORTABA la corrida. Una columna
+  # `latin1` de un CSV viejo con valores repetidos tumbaba `detectar_claves()`
+  # entero. Se publica como lo imprime R, que es lo que ya hacen `moda` y la
+  # tabla de patrones para el mismo caso.
+  if (!validUTF8(texto)) {
+    Encoding(texto) <- "bytes"
+    texto <- .texto_publicable(texto)
+  }
   codigos <- tryCatch(utf8ToInt(texto), error = function(e) integer())
+  # Ultima red: si despues de todo lo anterior sigue sin decodificar, se
+  # devuelve el texto tal como se lo publica en vez de entrar al bucle con un
+  # `NA`. Devolver "" seria peor que abortar: afirmaria que el valor es la
+  # cadena vacia.
+  if (anyNA(codigos)) return(texto)
   if (!length(codigos)) return("")
   partes <- vapply(codigos, function(codigo) {
     if (codigo == 9L) return("\\t")
@@ -1755,6 +1773,16 @@
   }
   preparacion <- .texto_analizable(x)
   textos <- preparacion$valores
+  # Los seis tipos de evidencia de mas abajo PUBLICAN valores, y publicar no es
+  # analizar. Pasandoles `textos` -la forma interpretada- un mismo valor salia
+  # de dos formas en el mismo perfil: la tabla de patrones publicaba
+  # `ca\xc3\xb1\xc3\xb3n ` y el hallazgo `espacios_sobrantes` publicaba
+  # `"canon "` con los acentos armados. Quien lee el hallazgo y va a verificar
+  # contra la tabla no encuentra el valor que le mostraron. La regla es la
+  # misma que usan las variantes del vocabulario: lo declarado `bytes` se
+  # publica desde el original; para el resto, la forma analizada ES la
+  # publicable, porque en `latin1` R convierte sin perder nada.
+  publicables <- .vista_publicable(preparacion$valores_identidad, textos)
   vacio$n_codificacion_invalida <- length(preparacion$posiciones)
   if (length(preparacion$posiciones)) {
     mostradas <- utils::head(preparacion$posiciones, 8L)
@@ -1801,7 +1829,7 @@
   } else {
     espacios <- validos & textos != trimws(textos)
   }
-  ejemplos_espacios <- utils::head(unique(textos[espacios]), 6L)
+  ejemplos_espacios <- utils::head(unique(publicables[espacios]), 6L)
   # Los valores ASCII sin espacios, controles ni ampersands no pueden contener
   # invisibles Unicode, codificacion rota ni entidades HTML. En ese caso basta
   # con resolver la unica señal ASCII restante -variantes de mayusculas- y se
@@ -1816,17 +1844,17 @@
     .predicados_invisibles(vocabulario_predicados$valores)
     minusculas <- .normalizacion_minusculas_vector(unicos)
     colision <- duplicated(minusculas) | duplicated(minusculas, fromLast = TRUE)
-    variantes <- unicos[colision]
+    variantes <- .publicables_por_forma(unicos[colision], textos, publicables)
     vacio$n_variantes_mayusculas <- length(variantes)
     vacio$evidencia_mayusculas <- paste(
-      encodeString(utils::head(variantes, 6L), quote = '"'), collapse = "; "
+      .citar_publicable(utils::head(variantes, 6L)), collapse = "; "
     )
     vacio$n_variantes_unicode <- 0L
     return(vacio)
   }
   minusculas <- .normalizacion_minusculas_vector(unicos)
   colision <- duplicated(minusculas) | duplicated(minusculas, fromLast = TRUE)
-  variantes <- unicos[colision]
+  variantes <- .publicables_por_forma(unicos[colision], textos, publicables)
   solo_ascii <- !any(grepl("[^\\x01-\\x7F]", unicos, perl = TRUE))
   if (solo_ascii) {
     evidencia_unicode <- ""
@@ -1878,11 +1906,11 @@
   list(
     n_espacios_borde = sum(espacios),
     evidencia_espacios = paste(
-      encodeString(ejemplos_espacios, quote = '"'), collapse = "; "
+      .citar_publicable(ejemplos_espacios), collapse = "; "
     ),
     n_variantes_mayusculas = length(variantes),
     evidencia_mayusculas = paste(
-      encodeString(utils::head(variantes, 6L), quote = '"'), collapse = "; "
+      .citar_publicable(utils::head(variantes, 6L)), collapse = "; "
     ),
     n_variantes_unicode = n_variantes_unicode,
     evidencia_unicode = evidencia_unicode,
@@ -1897,17 +1925,17 @@
     n_codificacion_invalida = length(preparacion$posiciones),
     evidencia_codificacion_invalida = vacio$evidencia_codificacion_invalida,
     n_controles_invisibles = sum(controles, na.rm = TRUE),
-    evidencia_controles_invisibles = .evidencia_texto_visible(textos, controles),
+    evidencia_controles_invisibles = .evidencia_texto_visible(publicables, controles),
     n_invisibles_eliminables = sum(eliminables, na.rm = TRUE),
-    evidencia_invisibles_eliminables = .evidencia_texto_visible(textos, eliminables),
+    evidencia_invisibles_eliminables = .evidencia_texto_visible(publicables, eliminables),
     n_espacios_invisibles = sum(espacios_invisibles, na.rm = TRUE),
-    evidencia_espacios_invisibles = .evidencia_texto_visible(textos, espacios_invisibles),
+    evidencia_espacios_invisibles = .evidencia_texto_visible(publicables, espacios_invisibles),
     n_invisibles_significativos = sum(significativos, na.rm = TRUE),
-    evidencia_invisibles_significativos = .evidencia_texto_visible(textos, significativos),
+    evidencia_invisibles_significativos = .evidencia_texto_visible(publicables, significativos),
     n_entidades_html = sum(entidades, na.rm = TRUE),
-    evidencia_entidades_html = .evidencia_texto_visible(textos, entidades),
+    evidencia_entidades_html = .evidencia_texto_visible(publicables, entidades),
     n_separadores_en_campo = sum(saltos, na.rm = TRUE),
-    evidencia_separadores_en_campo = .evidencia_texto_visible(textos, saltos)
+    evidencia_separadores_en_campo = .evidencia_texto_visible(publicables, saltos)
   )
 }
 

@@ -1422,3 +1422,75 @@
   }
   tabla
 }
+
+# Para cada FORMA analizada, el valor original que la representa al publicarla.
+#
+# Publicar y analizar son dos usos distintos del mismo dato. Se analiza la
+# forma interpretada -comparar texto exige que `tolower()` vea caracteres y no
+# octetos- y se publica el original, porque `Encoding(x) == "bytes"` declara
+# que el contenido no debe interpretarse.
+#
+# La salvedad decide la correccion: una forma puede juntar SECUENCIAS DE BYTES
+# DISTINTAS -`ni<f1>o` en latin1 y `ni<c3><b1>o` en bytes se interpretan
+# igual- y se cuentan juntas, que es lo correcto porque el conteo es de
+# caracteres. Pero entonces la etiqueta no puede ser la de UN original:
+# publicar `ni\xc3\xb1o (3)` afirmaria que esa secuencia aparece tres veces
+# cuando aparece una, y cual se publicaba dependeria de cual llegara primero.
+# Cuando la forma no es homogenea se publica la forma interpretada, que es la
+# unidad en la que se conto. La homogeneidad se decide con `.clave_bytes()`,
+# que es el instrumento con el que el paquete ya decide identidad.
+#
+# `formas` son las formas analizadas distintas; `textos` y `publicables` son
+# dos vistas del MISMO vector de valores, de igual largo.
+.publicables_por_forma <- function(formas, textos, publicables) {
+  if (!length(formas)) return(formas)
+  indice <- match(textos, formas)
+  representante <- match(seq_along(formas), indice)
+  salida <- publicables[representante]
+  claves <- .clave_bytes(publicables)
+  clave_representante <- claves[representante][indice]
+  mezcladas <- !is.na(indice) & !is.na(claves) &
+    !is.na(clave_representante) & claves != clave_representante
+  if (any(mezcladas)) {
+    formas_mezcladas <- unique(indice[mezcladas])
+    salida[formas_mezcladas] <- formas[formas_mezcladas]
+  }
+  # Una forma sin representante no puede quedar vacia: se informa la forma
+  # interpretada, que es fea pero no miente.
+  sin_representante <- is.na(salida) & !is.na(formas)
+  if (any(sin_representante)) salida[sin_representante] <- formas[sin_representante]
+  salida
+}
+
+# La vista publicable de un vector: el original donde esta declarado `bytes`,
+# la forma analizada en todo lo demas. `latin1` NO entra: ahi R conoce la
+# codificacion y `.texto_analizable()` la convierte sin perder nada, asi que la
+# forma analizada ES la correcta para publicarla.
+.vista_publicable <- function(valores_identidad, textos) {
+  publicables <- suppressWarnings(as.character(valores_identidad))
+  if (length(publicables) != length(textos)) return(textos)
+  desde_original <- !is.na(publicables) & Encoding(publicables) == "bytes"
+  publicables[!desde_original] <- textos[!desde_original]
+  publicables
+}
+
+# Cita un valor para publicarlo entre comillas sin volver a escapar lo que ya
+# se rindio. `encodeString()` escapa la barra del propio `\xNN`, asi que un
+# valor declarado `bytes` salia `ca\\xc3\\xb1` en la evidencia mientras la
+# tabla de patrones -que sigue el precedente de rendirlo con
+# `.texto_publicable()`- publicaba `ca\xc3\xb1`. Quien quisiera casar el valor
+# de un hallazgo con el de la tabla no podia: las dos cadenas difieren.
+.citar_publicable <- function(x) {
+  if (!length(x)) return(character())
+  declarados <- !is.na(x) & Encoding(x) == "bytes"
+  salida <- rep(NA_character_, length(x))
+  if (any(!declarados & !is.na(x))) {
+    otros <- !declarados & !is.na(x)
+    salida[otros] <- encodeString(x[otros], quote = '"')
+  }
+  if (any(declarados)) {
+    salida[declarados] <- paste0('"', .texto_publicable(x[declarados]), '"')
+  }
+  salida
+}
+

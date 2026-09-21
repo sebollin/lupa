@@ -1082,23 +1082,9 @@
   # evidencia del hallazgo publicaba la enie armada. `valores_identidad`
   # es el original con su marca, y de ahi salen las variantes que se
   # informan. Analizar por la forma interpretada, publicar el original.
-  originales_vocabulario <- suppressWarnings(as.character(
-    .analizable_vocabulario$valores_identidad
-  ))
-  if (length(originales_vocabulario) != length(textos)) {
-    originales_vocabulario <- textos
-  }
-  # SOLO lo declarado `bytes` se publica desde el original. `latin1` no es lo
-  # mismo: ahi R conoce la codificacion y `.texto_analizable()` la convierte a
-  # UTF-8 sin perder nada, asi que la forma analizada ES la forma correcta de
-  # publicarla. Publicar el original tambien en ese caso hacia ABORTAR el
-  # render -`utf8ToInt()` devuelve `NA` sobre latin1, y el `if` que sigue
-  # recibia ese `NA`- sobre una columna latin1 corriente, que es de lo mas
-  # comun que hay en datos publicos de la region. El arreglo de un caso no
-  # puede romper el de al lado.
-  desde_original <- !is.na(originales_vocabulario) &
-    Encoding(originales_vocabulario) == "bytes"
-  originales_vocabulario[!desde_original] <- textos[!desde_original]
+  originales_vocabulario <- .vista_publicable(
+    .analizable_vocabulario$valores_identidad, textos
+  )
   if (is.null(excluir)) excluir <- rep(FALSE, length(textos))
   if (!is.logical(excluir) || length(excluir) != length(textos)) {
     stop("`excluir` debe ser una mascara logica del largo de `x`.", call. = FALSE)
