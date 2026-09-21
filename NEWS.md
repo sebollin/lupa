@@ -2,6 +2,30 @@
 
 ## Correcciones de cobertura y publicación
 
+- **Una acción recomendada ya no destruye el valor del usuario.**
+  `eliminar_controles_invisibles` y `normalizar_espacios_invisibles`
+  reemplazaban el valor por la cadena literal `"NA"` cuando no podían
+  decodificarlo: sobre una columna que mezcla `latin1` con UTF-8, tres de siete
+  valores. Y `recortar_espacios` convertía texto `latin1` válido en bytes
+  inválidos, porque `trimws()` sobre un vector que contiene una sola cadena
+  marcada `bytes` devuelve marcadas `bytes` también a las que viajaban al lado.
+  El perfil siguiente acusaba entonces una codificación rota en las filas que
+  la limpieza acababa de tocar. Ahora lo que no se puede leer se deja intacto,
+  y cada grupo de marca se transforma por separado.
+
+- **El perfil ya no depende de si la columna es `factor` o `character`.** Los
+  mismos datos daban tablas de patrones distintas: como factor, las filas del
+  valor declarado desaparecían y la proporción del patrón restante se
+  publicaba como `1.000` sobre el 75 % de la columna.
+
+- **La evidencia dice cuándo escapó los valores.** Las tablas del perfil
+  muestran el valor y la evidencia lo escapa para que el defecto se vea —un
+  espacio duro publicado crudo se ve como un espacio común—, y ahora el
+  hallazgo declara cuál convención usó, para que nadie busque en sus datos un
+  `<U+00A0>` literal. La deriva, por lo mismo, cita el valor cuando la
+  diferencia está sólo en los espacios del borde: antes informaba un cambio con
+  severidad `error` cuyos valores anterior y actual se imprimían idénticos.
+
 - **La evidencia de un hallazgo publica el valor, no la forma con que se lo
   analizó.** Comparar vocabulario exige interpretar el texto, y un valor
   declarado `bytes` se marca UTF-8 antes de compararlo. Pero lo que se
