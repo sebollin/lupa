@@ -1494,3 +1494,30 @@
   salida
 }
 
+# Los puntos de codigo de un texto, o NULL si no se puede decodificar.
+#
+# `utf8ToInt()` devuelve `NA` -no vacio, no error- sobre lo que no decodifica,
+# y ese `NA` no se queda quieto: en el render llegaba a un `if` y ABORTABA, y en
+# la remediacion `paste0(intToUtf8(NA), collapse = "")` producia la cadena
+# literal `"NA"`, que REEMPLAZABA el valor del usuario. Tres valores `latin1`
+# de una columna se volvian `"NA"` al aplicar una accion que el propio paquete
+# marca como recomendada.
+#
+# Rendir antes de decodificar cierra las dos. `latin1` se convierte sin perder
+# nada -R conoce la codificacion- y una cadena marcada `bytes` que ES UTF-8
+# valido se puede tratar sin perdida. Lo que queda no se puede describir como
+# caracteres, y para eso esta el `NULL`: quien llama decide, y lo unico que no
+# puede decidir es inventar un valor.
+.codigos_decodificables <- function(texto) {
+  if (is.na(texto)) return(NULL)
+  if (Encoding(texto) == "latin1") texto <- enc2utf8(texto)
+  if (validUTF8(texto)) {
+    if (Encoding(texto) == "bytes") Encoding(texto) <- "UTF-8"
+  } else {
+    return(NULL)
+  }
+  codigos <- tryCatch(utf8ToInt(texto), error = function(e) NULL)
+  if (is.null(codigos) || anyNA(codigos)) return(NULL)
+  codigos
+}
+

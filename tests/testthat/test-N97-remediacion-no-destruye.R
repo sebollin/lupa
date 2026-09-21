@@ -1,0 +1,126 @@
+# N97. Una accion recomendada no puede destruir el valor del usuario.
+#
+# Dos defectos medidos por la puerta publica, los dos sobre datos perfectamente
+# validos, y los dos con la misma raiz: `utf8ToInt()` devuelve `NA` -no vacio,
+# no error- sobre lo que no decodifica, y ese `NA` no se queda quieto.
+#
+#   * `eliminar_controles_invisibles` REEMPLAZABA el valor por la cadena
+#     literal "NA". `paste0(intToUtf8(NA), collapse = "")` la produce. Sobre
+#     una columna que mezcla `latin1` con UTF-8, tres de siete valores se
+#     volvian "NA" al aplicar una accion marcada `recomendada`.
+#
+#   * `recortar_espacios` convertia texto `latin1` VALIDO en bytes invalidos.
+#     `trimws()` sobre un vector que contiene una sola cadena marcada `bytes`
+#     devuelve marcadas `bytes` tambien a las `latin1` que viajaban al lado, y
+#     ahi su contenido deja de ser recuperable. El destino de una fila lo
+#     decidia lo que hubiera en el resto de la tanda.
+#
+# Los fixtures se construyen con `rawToChar(as.raw(...))`: la fuente del
+# paquete es ASCII y hay que poder elegir la marca.
+
+.n97_marcar <- function(bytes, codificacion) {
+  s <- rawToChar(as.raw(bytes))
+  Encoding(s) <- codificacion
+  s
+}
+
+# "cano" con la enie, en latin1 y en UTF-8 declarado `bytes`.
+.n97_latin1 <- function(cola = integer()) {
+  .n97_marcar(c(0x63, 0x61, 0xf1, 0x6f, cola), "latin1")
+}
+.n97_bytes <- function(cola = integer()) {
+  .n97_marcar(c(0x63, 0x61, 0xc3, 0xb1, 0x6f, cola), "bytes")
+}
+
+test_that("eliminar_controles_invisibles no reemplaza el valor por la cadena NA", {
+  invisible_cero <- intToUtf8(0x200B)
+  columna <- c(
+    rep(.n97_latin1(), 3L),
+    rep(paste0("otro", invisible_cero), 3L),
+    "limpio"
+  )
+  datos <- data.frame(v = columna, stringsAsFactors = FALSE)
+
+  plan <- planificar_limpieza(perfilar(datos), datos)
+  elegida <- as.character(plan$estrategia) == "eliminar_controles_invisibles"
+  # Si el paquete deja de recomendar esta accion, la prueba no mide: que falle.
+  expect_true(any(elegida))
+  plan$aplicar <- elegida
+
+  resultado <- aplicar(plan, datos)$datos$v
+
+  # Ningun valor puede haberse vuelto la cadena "NA": el usuario no la escribio.
+  expect_equal(sum(!is.na(resultado) & resultado == "NA"), 0L)
+  # Y el valor latin1 tiene que seguir siendo el mismo texto.
+  esperado <- enc2utf8(.n97_latin1())
+  expect_identical(enc2utf8(resultado[[1L]]), esperado)
+  # La accion tiene que seguir haciendo su trabajo sobre lo que si puede leer.
+  expect_false(grepl(invisible_cero, resultado[[4L]], fixed = TRUE))
+})
+
+test_that("recortar_espacios no convierte texto latin1 valido en bytes invalidos", {
+  columna <- c(
+    rep(.n97_latin1(0x20), 3L),
+    .n97_bytes(0x20),
+    rep("cano ", 2L),
+    "otro"
+  )
+  datos <- data.frame(v = columna, id = seq_along(columna), stringsAsFactors = FALSE)
+
+  plan <- planificar_limpieza(perfilar(datos), datos)
+  elegida <- as.character(plan$estrategia) == "recortar_espacios"
+  expect_true(any(elegida))
+  plan$aplicar <- elegida
+
+  resultado <- aplicar(plan, datos)$datos$v
+
+  # El contenido de las filas latin1 sigue siendo recuperable como texto.
+  esperado <- enc2utf8(.n97_latin1())
+  for (i in seq_len(3L)) {
+    expect_true(validUTF8(enc2utf8(resultado[[i]])), info = paste("fila", i))
+    expect_identical(enc2utf8(resultado[[i]]), esperado, info = paste("fila", i))
+  }
+  # La fila declarada `bytes` conserva su declaracion: nadie la interpreto.
+  expect_identical(Encoding(resultado[[4L]]), "bytes")
+  # Y el recorte ocurrio de verdad.
+  expect_false(grepl(" $", enc2utf8(resultado[[1L]])))
+
+  # El perfil de los datos limpiados no puede acusar una codificacion rota que
+  # la limpieza acaba de fabricar.
+  hallazgo <- hallazgos(perfilar(data.frame(v = resultado, stringsAsFactors = FALSE)))
+  expect_false(any(as.character(hallazgo$tipo) == "codificacion_invalida"))
+})
+
+test_that("el decodificador comun no devuelve NA ni inventa un valor", {
+  expect_null(lupa:::.codigos_decodificables(NA_character_))
+  # latin1 se convierte sin perder nada.
+  expect_identical(
+    lupa:::.codigos_decodificables(.n97_latin1()),
+    utf8ToInt(enc2utf8(.n97_latin1()))
+  )
+  # `bytes` que ES UTF-8 valido se puede tratar sin perdida.
+  expect_identical(
+    lupa:::.codigos_decodificables(.n97_bytes()),
+    utf8ToInt(enc2utf8(.n97_latin1()))
+  )
+  # Lo que no se puede leer devuelve NULL, que es lo unico honesto: quien llama
+  # decide, y lo que no puede es inventar un valor.
+  expect_null(lupa:::.codigos_decodificables(.n97_marcar(c(0x41, 0xff, 0x42), "bytes")))
+  expect_null(lupa:::.codigos_decodificables(.n97_marcar(c(0x63, 0x61, 0x66, 0xe9), "unknown")))
+  # Y nunca devuelve un vector con NA adentro.
+  for (caso in list("hola", .n97_latin1(), .n97_bytes(), intToUtf8(0x200B))) {
+    codigos <- lupa:::.codigos_decodificables(caso)
+    if (!is.null(codigos)) expect_false(anyNA(codigos))
+  }
+})
+
+test_that("una marca bytes en la columna no decide el destino de sus vecinas", {
+  # La misma fila latin1, con y sin el vecino declarado `bytes`.
+  con_vecino <- lupa:::.recortar_texto(
+    c(.n97_latin1(0x20), .n97_bytes(0x20), "otro ")
+  )$valor
+  sin_vecino <- lupa:::.recortar_texto(
+    c(.n97_latin1(0x20), "otro ")
+  )$valor
+  expect_identical(enc2utf8(con_vecino[[1L]]), enc2utf8(sin_vecino[[1L]]))
+})

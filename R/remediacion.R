@@ -1403,7 +1403,18 @@ planificar_limpieza <- function(perfil, datos = NULL,
     stop("El recorte de espacios requiere una columna de texto.", call. = FALSE)
   }
   anterior <- as.character(x)
-  nuevo <- trimws(anterior)
+  # `trimws()` sobre un vector que contiene UNA cadena marcada `bytes` devuelve
+  # marcadas `bytes` tambien a las `latin1` que viajaban al lado, y ahi su
+  # contenido deja de ser recuperable: un `ca<f1>o ` valido volvia como
+  # `ca<f1>o` declarado `bytes`, que ya no es UTF-8 valido. El destino de una
+  # fila lo decidia lo que hubiera en el resto de la tanda. Se recorta cada
+  # grupo por separado para que ninguna marca contamine a la vecina.
+  nuevo <- anterior
+  declarados <- !is.na(anterior) & Encoding(anterior) == "bytes"
+  if (any(!declarados)) nuevo[!declarados] <- trimws(anterior[!declarados])
+  if (any(declarados)) {
+    nuevo[declarados] <- trimws(anterior[declarados], whitespace = "[ \t\r\n]")
+  }
   mascara <- .celdas_cambiadas(anterior, nuevo)
   list(valor = nuevo, n = sum(mascara))
 }
@@ -1414,9 +1425,16 @@ planificar_limpieza <- function(perfil, datos = NULL,
          call. = FALSE)
   }
   anterior <- as.character(x)
+  # Lo que no se puede decodificar se DEJA COMO ESTA. Antes se lo recorria
+  # igual y `paste0(intToUtf8(NA), collapse = "")` devolvia la cadena `"NA"`,
+  # que reemplazaba el valor del usuario: sobre una columna que mezcla `latin1`
+  # con UTF-8, tres de siete valores se volvian `"NA"` al aplicar una accion
+  # marcada como recomendada. No tocarlo tambien es una respuesta, y es la
+  # unica honesta cuando no se puede leer el contenido.
   nuevo <- vapply(anterior, function(texto) {
     if (is.na(texto)) return(NA_character_)
-    codigos <- utf8ToInt(texto)
+    codigos <- .codigos_decodificables(texto)
+    if (is.null(codigos)) return(texto)
     conservar <- !.codigos_control_eliminable(codigos)
     paste0(intToUtf8(codigos[conservar], multiple = TRUE), collapse = "")
   }, character(1L), USE.NAMES = FALSE)
@@ -1431,9 +1449,12 @@ planificar_limpieza <- function(perfil, datos = NULL,
          call. = FALSE)
   }
   anterior <- as.character(x)
+  # Mismo motivo que en `.quitar_controles_invisibles()`: lo que no se puede
+  # decodificar se deja intacto en vez de reemplazarlo por la cadena `"NA"`.
   nuevo <- vapply(anterior, function(texto) {
     if (is.na(texto)) return(NA_character_)
-    codigos <- utf8ToInt(texto)
+    codigos <- .codigos_decodificables(texto)
+    if (is.null(codigos)) return(texto)
     codigos[codigos %in% .codigos_espacios_invisibles] <- 32L
     paste0(intToUtf8(codigos, multiple = TRUE), collapse = "")
   }, character(1L), USE.NAMES = FALSE)
