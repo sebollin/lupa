@@ -262,81 +262,38 @@
   # es exacto y ademas no depende de como viniera escrito.
   redondeados <- rep(FALSE, length(antes))
   if (numerico) {
-    # La comprobacion va sobre el CUERPO numerico del original -lo que queda
-    # sacando moneda y unidad- y no sobre el valor convertido.
-    #
-    # Mirar el convertido dejaba un agujero: con unidad `%` la conversion
-    # divide por 100, el resultado deja de ser entero y la guarda ni lo miraba,
-    # aunque `as.numeric()` ya habia perdido el digito AL PARSEAR. El plan
-    # volvia a publicar `reversible = TRUE` y `n_no_reversibles = 0` sobre un
-    # valor destruido. La perdida ocurre al parsear, asi que ahi hay que
-    # medirla.
-    #
-    # Solo se miran cuerpos ENTEROS. En un decimal la representacion binaria
-    # es inexacta por naturaleza -`1234.56` vuelve `1234.5599999999999`- y
-    # compararlos acusaria a toda columna con decimales.
-    cuerpos <- tryCatch(.componentes_numero_texto(antes)$cuerpo,
-                        error = function(e) NULL)
-    if (!is.null(cuerpos) && length(cuerpos) == length(antes)) {
-      convencion <- parametros$convencion
-      if (is.null(convencion) || !length(convencion)) convencion <- "ambigua"
-      if (identical(convencion, "es-UY")) convencion <- "decimal_coma"
-      # Las convenciones son cuatro, no dos: `decimal_coma`, `decimal_punto`,
-      # `sin_separadores` y `ambigua`. Enumerar de memoria dejo fuera
-      # `sin_separadores` -la que usa una columna de enteros con unidad- y la
-      # guarda se saltaba justo el caso que venia a atrapar.
-      #
-      # Un cuerpo sin ningun separador YA esta normalizado, venga la
-      # convencion que venga, asi que se resuelve primero y no depende de
-      # haberlas enumerado bien.
-      sin_separador <- !grepl("[.,]", cuerpos)
-      normalizados <- rep(NA_character_, length(cuerpos))
-      normalizados[sin_separador] <- cuerpos[sin_separador]
-      con_separador <- !sin_separador
-      if (any(con_separador)) {
-        if (identical(convencion, "decimal_coma")) {
-          normalizados[con_separador] <-
-            gsub(".", "", cuerpos[con_separador], fixed = TRUE)
-        } else if (identical(convencion, "decimal_punto")) {
-          normalizados[con_separador] <-
-            gsub(",", "", cuerpos[con_separador], fixed = TRUE)
-        }
-      }
-      significativos <- function(x) {
-        x <- gsub("[^0-9]", "", x)
-        x <- sub("^0+", "", x)
-        sub("0+$", "", x)
-      }
-      es_entero <- !is.na(normalizados) &
-        grepl("^[+-]?[0-9]+$", trimws(normalizados), perl = TRUE)
-      candidatos <- which(presentes & es_entero)
+    # La perdida ocurre al parsear, y se mide sobre el texto EXACTO que el
+    # conversor le pasa a `as.numeric()`: el que devuelve su propia
+    # normalizacion, antes de cualquier unidad. Esta guarda rearmaba antes ese
+    # texto por su cuenta, con una rama por formato, y en cinco rondas cada
+    # formato nuevo fue un agujero -entero plano, con `%`, cientifica, mantisa
+    # con coma, entero es-UY con `,0`-. Con la normalizacion compartida no hay
+    # formato que el conversor lea y la guarda no vea.
+    texto <- tryCatch(
+      if (identical(estrategia, "convertir_numero_regional")) {
+        .texto_regional_normalizado(original, parametros)$texto
+      } else {
+        .texto_tipo_normalizado(original)
+      },
+      error = function(e) NULL
+    )
+    if (!is.null(texto) && length(texto) == length(antes)) {
+      valores <- suppressWarnings(as.numeric(texto))
+      # Solo enteros: en un decimal la representacion binaria es inexacta por
+      # naturaleza -`1234.56` vuelve `1234.5599999999999`- y compararlos
+      # acusaria a toda columna con decimales.
+      candidatos <- which(presentes & !is.na(valores) & is.finite(valores) &
+                            valores == floor(valores))
       if (length(candidatos)) {
-        valores <- suppressWarnings(as.numeric(trimws(normalizados[candidatos])))
-        vuelta <- ifelse(is.finite(valores), sprintf("%.0f", abs(valores)), NA_character_)
-        digitos_antes <- significativos(normalizados[candidatos])
-        digitos_vuelta <- significativos(vuelta)
-        redondeados[candidatos] <- !is.na(vuelta) & nzchar(digitos_antes) &
-          digitos_antes != digitos_vuelta
-      }
-      # La notacion cientifica no pasa por la rama de arriba:
-      # `.componentes_numero_texto()` la marca incompatible y su cuerpo lleva
-      # la `e`, asi que `9.007199254740993e15` -que es 2^53 + 1, el valor
-      # exacto que esta guarda documenta atrapar- entraba por `convertir_tipo`
-      # y se redondeaba sin que nadie lo mirara. Los digitos que cuentan son
-      # los de la MANTISA; el exponente solo corre la coma.
-      cientificos <- which(
-        presentes & !is.na(cuerpos) &
-          grepl("^[+-]?([0-9]+[.]?[0-9]*|[.][0-9]+)[eE][+-]?[0-9]+$",
-                trimws(cuerpos), perl = TRUE)
-      )
-      if (length(cientificos)) {
-        valores <- suppressWarnings(as.numeric(trimws(cuerpos[cientificos])))
-        enteros_c <- is.finite(valores) & valores == floor(valores)
-        mantisas <- sub("[eE].*$", "", trimws(cuerpos[cientificos]))
-        vuelta <- ifelse(enteros_c, sprintf("%.0f", abs(valores)), NA_character_)
-        redondeados[cientificos] <- enteros_c &
-          nzchar(significativos(mantisas)) &
-          significativos(mantisas) != significativos(vuelta)
+        # Los digitos que cuentan son los de la mantisa: el exponente solo
+        # corre la coma. Sin ceros en ninguno de los dos bordes.
+        significativos <- function(x) {
+          x <- gsub("[^0-9]", "", sub("[eE].*$", "", x))
+          sub("0+$", "", sub("^0+", "", x))
+        }
+        antes_sig <- significativos(texto[candidatos])
+        despues_sig <- significativos(sprintf("%.0f", abs(valores[candidatos])))
+        redondeados[candidatos] <- nzchar(antes_sig) & antes_sig != despues_sig
       }
     }
   }
@@ -935,12 +892,27 @@ planificar_limpieza <- function(perfil, datos = NULL,
       if (is.null(n_participantes)) {
         n_participantes <- perfil$general$filas_duplicadas
       }
+      # La deteccion cuenta duplicados con `duplicated.data.frame()`, que
+      # tolera columnas-lista, pero el ejecutor agrupa por los codigos de
+      # `factor()`, que no las admite, y aborta. El plan recomendaba y activaba
+      # una accion que sobre esa tabla no podia ejecutarse nunca: la registraba
+      # `fallida` en cada corrida. Se bloquea y se dice por que, que es lo que
+      # el paquete ya hace con las conversiones que no puede comprobar.
+      con_lista <- inherits(perfil$columnas, "data.frame") &&
+        "tipo_declarado" %in% names(perfil$columnas) &&
+        any(as.character(perfil$columnas$tipo_declarado) == "lista")
+      motivo_lista <- paste0(
+        "La tabla tiene columnas de lista y el agrupamiento de duplicados no ",
+        "puede compararlas; la acci\u00f3n no se puede ejecutar sobre estos datos. ",
+        "Convertir o quitar las columnas de lista para agrupar las filas."
+      )
       acciones <- .agregar_accion(acciones, .nueva_accion(
-        NA_character_, tipo, "marcar_filas_duplicadas", TRUE,
-        paste0(
+        NA_character_, tipo, "marcar_filas_duplicadas", !con_lista,
+        if (con_lista) motivo_lista else paste0(
           "Marcar conserva todas las filas, identifica las repeticiones y ",
           "asigna un grupo a todos los registros que participan."
-        ), n_participantes, TRUE, estado = "lista", aplicar = TRUE,
+        ), n_participantes, TRUE,
+        estado = if (con_lista) "bloqueada" else "lista", aplicar = !con_lista,
         parametros = list(
           columna_marca = ".fila_duplicada",
           columna_grupo = ".grupo_duplicado"
@@ -950,10 +922,11 @@ planificar_limpieza <- function(perfil, datos = NULL,
       ))
       acciones <- .agregar_accion(acciones, .nueva_accion(
         NA_character_, tipo, "conservar_primera_duplicada", FALSE,
-        paste0(
+        if (con_lista) motivo_lista else paste0(
           "Conserva la primera aparici\u00f3n exacta y elimina las siguientes; ",
           "el orden de entrada pasa a determinar qu\u00e9 registro sobrevive."
-        ), perfil$general$filas_duplicadas, FALSE, estado = "lista",
+        ), perfil$general$filas_duplicadas, FALSE,
+        estado = if (con_lista) "bloqueada" else "lista",
         aplicar = FALSE, orden = 35L, grupo = grupo_hallazgo,
         decision_grupo = "recomendada",
         recomendacion_grupo = "marcar_filas_duplicadas",
@@ -1752,10 +1725,22 @@ planificar_limpieza <- function(perfil, datos = NULL,
        estados = estados)
 }
 
-.convertir_numero_regional <- function(x, parametros) {
-  if (!is.character(x) && !is.factor(x)) {
-    stop("La conversi\u00f3n regional requiere una columna de texto.", call. = FALSE)
-  }
+# El texto que `.convertir_numero_regional()` le pasa a `as.numeric()`, con
+# moneda y unidad sacadas y los separadores ya resueltos segun la convencion.
+#
+# Vive aparte porque la guarda de precision de `.evaluar_conversion()` necesita
+# exactamente este texto. Antes lo rearmaba por su cuenta a partir del original,
+# y cada formato que el conversor aceptaba era un agujero posible en la guarda:
+# en cinco rondas aparecieron cinco -entero plano, con `%`, notacion
+# cientifica, mantisa con coma, y entero es-UY con `,0` final-. Con una sola
+# normalizacion para los dos, lo que el conversor sabe leer la guarda lo ve.
+# El texto que `.convertir_tipo()` le pasa a `as.numeric()`. Aparte por el
+# mismo motivo que `.texto_regional_normalizado()`.
+.texto_tipo_normalizado <- function(x) {
+  sub(",", ".", trimws(as.character(x)), fixed = TRUE)
+}
+
+.texto_regional_normalizado <- function(x, parametros) {
   partes <- .componentes_numero_texto(x)
   presentes <- !is.na(x) & nzchar(trimws(as.character(x)))
   if (any(presentes & !partes$compatible)) {
@@ -1805,6 +1790,17 @@ planificar_limpieza <- function(perfil, datos = NULL,
   } else if (!identical(convencion, "sin_separadores")) {
     stop("La convenci\u00f3n num\u00e9rica no est\u00e1 confirmada.", call. = FALSE)
   }
+  list(texto = texto, presentes = presentes, partes = partes)
+}
+
+.convertir_numero_regional <- function(x, parametros) {
+  if (!is.character(x) && !is.factor(x)) {
+    stop("La conversi\u00f3n regional requiere una columna de texto.", call. = FALSE)
+  }
+  normalizado <- .texto_regional_normalizado(x, parametros)
+  texto <- normalizado$texto
+  presentes <- normalizado$presentes
+  partes <- normalizado$partes
   numero <- suppressWarnings(as.numeric(texto))
   if (any(presentes & (!is.finite(numero) | is.na(numero)))) {
     stop("No fue posible convertir todos los valores regionales.", call. = FALSE)
@@ -1936,7 +1932,7 @@ planificar_limpieza <- function(perfil, datos = NULL,
   if (identical(tipo, "logico")) {
     return(.convertir_logico(x))
   }
-  texto <- sub(",", ".", trimws(as.character(x)), fixed = TRUE)
+  texto <- .texto_tipo_normalizado(x)
   numero <- suppressWarnings(as.numeric(texto))
   if (any(presentes & (!is.finite(numero) | is.na(numero)))) {
     stop("Hay valores presentes que no pueden convertirse a n\u00famero.", call. = FALSE)

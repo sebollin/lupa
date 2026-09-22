@@ -184,3 +184,33 @@ test_that("las acciones que destruyen valores cuentan sus perdidas", {
                      info = estrategia)
   }
 })
+
+test_that("la guarda ve cualquier formato que el conversor sepa leer", {
+  # La guarda rearmaba el texto numerico por su cuenta, con una rama por
+  # formato, y en cinco rondas aparecieron cinco agujeros. Ahora compara
+  # contra la normalizacion del propio conversor. Estos dos eran los ultimos:
+  # una mantisa con coma decimal y un entero es-UY escrito con `,0`.
+  plan_de <- function(valores) {
+    datos <- data.frame(x = valores, stringsAsFactors = FALSE)
+    planificar_limpieza(perfilar(datos, analizar_dependencias = FALSE), datos)
+  }
+  for (caso in list(
+    c("9,0071992547409930e15", "1", "2", "3"),
+    c("9007199254740993,0", "1,5", "2,5")
+  )) {
+    plan <- plan_de(caso)
+    fila <- which(plan$estrategia %in% c("convertir_tipo", "convertir_numero_regional"))
+    expect_true(length(fila) > 0L, info = caso[[1L]])
+    expect_false(any(as.logical(plan$reversible[fila])), info = caso[[1L]])
+  }
+})
+
+test_that("el conversor y la guarda comparten la normalizacion", {
+  # Si alguien vuelve a darle a la guarda una normalizacion propia, esto no lo
+  # ve: lo ve que el conversor siga dando exactamente lo mismo. Se fija que la
+  # funcion compartida existe y que el conversor la usa.
+  cuerpo <- paste(deparse(lupa:::.convertir_numero_regional), collapse = "\n")
+  expect_true(grepl(".texto_regional_normalizado", cuerpo, fixed = TRUE))
+  cuerpo_tipo <- paste(deparse(lupa:::.convertir_tipo), collapse = "\n")
+  expect_true(grepl(".texto_tipo_normalizado", cuerpo_tipo, fixed = TRUE))
+})
