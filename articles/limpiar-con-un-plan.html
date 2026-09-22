@@ -90,7 +90,7 @@ filtrable y editable.</p>
 <span><span class="co">#&gt; 1  accion-0001       &lt;NA&gt;           cedula           revisar_cardinalidad       FALSE</span></span>
 <span><span class="co">#&gt; 2  accion-0002       &lt;NA&gt;           cedula  convertir_ausencias_textuales        TRUE</span></span>
 <span><span class="co">#&gt; 3  accion-0003       &lt;NA&gt; fecha_nacimiento           revisar_cardinalidad       FALSE</span></span>
-<span><span class="co">#&gt; 4  accion-0004       &lt;NA&gt; fecha_nacimiento  convertir_ausencias_textuales        TRUE</span></span>
+<span><span class="co">#&gt; 4  accion-0004       &lt;NA&gt; fecha_nacimiento  convertir_ausencias_textuales       FALSE</span></span>
 <span><span class="co">#&gt; 5  accion-0005       &lt;NA&gt; fecha_nacimiento     convertir_fecha_confirmada       FALSE</span></span>
 <span><span class="co">#&gt; 6  accion-0006       &lt;NA&gt;             sexo  convertir_ausencias_textuales        TRUE</span></span>
 <span><span class="co">#&gt; 7  accion-0007 grupo-0010          ingreso convertir_sentinelas_numericos       FALSE</span></span>
@@ -108,7 +108,7 @@ filtrable y editable.</p>
 <span><span class="co">#&gt; 1    FALSE         NA informativa</span></span>
 <span><span class="co">#&gt; 2     TRUE      FALSE       lista</span></span>
 <span><span class="co">#&gt; 3    FALSE         NA informativa</span></span>
-<span><span class="co">#&gt; 4     TRUE      FALSE       lista</span></span>
+<span><span class="co">#&gt; 4    FALSE      FALSE       lista</span></span>
 <span><span class="co">#&gt; 5    FALSE      FALSE   bloqueada</span></span>
 <span><span class="co">#&gt; 6     TRUE      FALSE       lista</span></span>
 <span><span class="co">#&gt; 7    FALSE      FALSE       lista</span></span>
@@ -231,9 +231,8 @@ pendientes o riesgosas.</p>
 <span><span class="co">#&gt;                      estrategia n_cambiadas n_filas_eliminadas n_columnas_eliminadas</span></span>
 <span><span class="co">#&gt; 1       marcar_filas_duplicadas           2                  0                     0</span></span>
 <span><span class="co">#&gt; 2 convertir_ausencias_textuales           1                  0                     0</span></span>
-<span><span class="co">#&gt; 3 convertir_ausencias_textuales           1                  0                     0</span></span>
-<span><span class="co">#&gt; 4 convertir_ausencias_textuales           2                  0                     0</span></span>
-<span><span class="co">#&gt; 5    marcar_columnas_duplicadas           1                  0                     0</span></span></code></pre></div>
+<span><span class="co">#&gt; 3 convertir_ausencias_textuales           2                  0                     0</span></span>
+<span><span class="co">#&gt; 4    marcar_columnas_duplicadas           1                  0                     0</span></span></code></pre></div>
 <p>El plan se puede editar antes de aplicar: quitar una acción, corregir
 un parámetro o cambiar <code>n_afectadas</code> no altera la obligación
 de observar qué pasó. Si una acción seleccionada no cambia ningún valor,

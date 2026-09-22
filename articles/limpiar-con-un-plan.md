@@ -18,7 +18,7 @@ plan[, c(
 #> 1  accion-0001       <NA>           cedula           revisar_cardinalidad       FALSE
 #> 2  accion-0002       <NA>           cedula  convertir_ausencias_textuales        TRUE
 #> 3  accion-0003       <NA> fecha_nacimiento           revisar_cardinalidad       FALSE
-#> 4  accion-0004       <NA> fecha_nacimiento  convertir_ausencias_textuales        TRUE
+#> 4  accion-0004       <NA> fecha_nacimiento  convertir_ausencias_textuales       FALSE
 #> 5  accion-0005       <NA> fecha_nacimiento     convertir_fecha_confirmada       FALSE
 #> 6  accion-0006       <NA>             sexo  convertir_ausencias_textuales        TRUE
 #> 7  accion-0007 grupo-0010          ingreso convertir_sentinelas_numericos       FALSE
@@ -36,7 +36,7 @@ plan[, c(
 #> 1    FALSE         NA informativa
 #> 2     TRUE      FALSE       lista
 #> 3    FALSE         NA informativa
-#> 4     TRUE      FALSE       lista
+#> 4    FALSE      FALSE       lista
 #> 5    FALSE      FALSE   bloqueada
 #> 6     TRUE      FALSE       lista
 #> 7    FALSE      FALSE       lista
@@ -173,9 +173,8 @@ resultado$registro[, c(
 #>                      estrategia n_cambiadas n_filas_eliminadas n_columnas_eliminadas
 #> 1       marcar_filas_duplicadas           2                  0                     0
 #> 2 convertir_ausencias_textuales           1                  0                     0
-#> 3 convertir_ausencias_textuales           1                  0                     0
-#> 4 convertir_ausencias_textuales           2                  0                     0
-#> 5    marcar_columnas_duplicadas           1                  0                     0
+#> 3 convertir_ausencias_textuales           2                  0                     0
+#> 4    marcar_columnas_duplicadas           1                  0                     0
 ```
 
 El plan se puede editar antes de aplicar: quitar una acción, corregir un
