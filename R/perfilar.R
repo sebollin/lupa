@@ -1226,6 +1226,16 @@
 #'   nada; sin declararlo son `0,730`, sale `faltantes` y el plan propone dos
 #'   acciones.
 #'
+#'   El universo también llega a la limpieza. El perfil guarda la regla, el plan
+#'   la lleva y [aplicar()] no toca las celdas que quedan fuera: una `S/D` en una
+#'   fila donde la columna no corresponde no se convierte en ausencia. Si la
+#'   regla da un valor indeterminado, la celda tampoco se toca. Las
+#'   conversiones de tipo son la excepción, porque una columna tiene un solo
+#'   tipo y no se puede convertir a medias: el plan declara en `n_afectadas` y
+#'   en la justificación que cambia la columna entera. Si el plan se aplica a
+#'   otros datos donde la regla no se puede evaluar, la acción falla y lo dice,
+#'   en vez de operar sobre toda la columna.
+#'
 #'   La medición contra un marco recibe la misma declaración: [medir()] acepta
 #'   `aplicabilidad` y recorta las filas antes de medir, así que el histórico y
 #'   la deriva —que consumen mediciones, no perfiles— heredan el número
@@ -2286,6 +2296,13 @@ perfilar <- function(datos,
     # cuando lo unico que cambio fue el argumento. La deriva ya declaraba la
     # comparabilidad para la politica de patrones y para la de centinelas; esta
     # era la tercera y faltaba.
+    # La REGLA, y no solo el nombre de la columna. Las acciones de limpieza la
+    # necesitan para no tocar filas fuera del universo, y `perfilar()` es el
+    # unico lugar que la recibe: sin guardarla aca no hay como reconstruirla al
+    # planificar ni al aplicar sobre otra entrega. Se evalua con
+    # `.evaluar_predicado_aplicabilidad()`, la misma funcion que usa el perfil,
+    # asi que la regla vive en un solo lugar.
+    reglas_aplicabilidad = if (is.null(aplicabilidad)) list() else aplicabilidad,
     declaracion_aplicabilidad = if (is.null(aplicabilidad)) {
       character()
     } else {

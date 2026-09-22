@@ -308,6 +308,106 @@
   )
 }
 
+# Las acciones que transforman CELDA por celda y conservan la clase de la
+# columna. Son las unicas que pueden respetar el universo aplicable: se aplican
+# y despues se devuelven a su valor las celdas de fuera. Las conversiones de
+# tipo no estan aca porque no se pueden aplicar a medias -una columna tiene un
+# solo tipo-, y para ellas el plan declara el alcance real.
+.estrategias_por_celda <- c(
+  "convertir_ausencias_textuales", "recortar_espacios",
+  "eliminar_controles_invisibles", "normalizar_espacios_invisibles",
+  "decodificar_entidades_html", "reemplazar_separadores",
+  "reparar_codificacion", "convertir_minusculas", "convertir_mayusculas",
+  "convertir_titulo", "convertir_segun_diccionario",
+  "convertir_sentinelas_numericos", "winsorizar_outliers"
+)
+.estrategias_cambio_de_tipo <- c(
+  "convertir_tipo", "convertir_numero_regional", "convertir_fecha_confirmada"
+)
+
+# Lleva la regla de aplicabilidad del perfil a las acciones del plan. Sin esto
+# la limpieza operaba sobre la columna entera aunque el usuario hubiera
+# declarado que una parte de las filas no le corresponde: una `S/D` en una fila
+# declarada fuera se volvia `NA`, y el plan que prometia 2 cambios hacia 4.
+.aplicabilidad_en_plan <- function(resultado, perfil) {
+  reglas <- perfil$meta$reglas_aplicabilidad
+  if (!length(reglas) || !nrow(resultado)) return(resultado)
+  for (i in seq_len(nrow(resultado))) {
+    columna <- resultado$columna[[i]]
+    if (is.na(columna) || !columna %in% names(reglas)) next
+    estrategia <- as.character(resultado$estrategia[[i]])
+    if (estrategia %in% .estrategias_por_celda) {
+      parametros <- resultado$parametros[[i]]
+      if (is.null(parametros)) parametros <- list()
+      parametros$aplicabilidad <- reglas[[columna]]
+      resultado$parametros[[i]] <- parametros
+    } else if (estrategia %in% .estrategias_cambio_de_tipo) {
+      # No se puede aplicar a medias: se declara el alcance real.
+      fila <- .fila_perfil(perfil, columna)
+      if (!is.null(fila) && all(c("n_aplicables", "n_faltantes",
+                                  "n_presentes_fuera_de_aplicabilidad") %in% names(fila))) {
+        fuera <- fila$n_presentes_fuera_de_aplicabilidad[[1L]]
+        if (isTRUE(fuera > 0L)) {
+          resultado$n_afectadas[[i]] <- fila$n_aplicables[[1L]] -
+            fila$n_faltantes[[1L]] + fuera
+          resultado$justificacion[[i]] <- paste0(
+            resultado$justificacion[[i]], " La conversi\u00f3n cambia la ",
+            "columna entera, incluidas ", fuera, " celdas fuera del universo ",
+            "aplicable: una columna tiene un solo tipo."
+          )
+        }
+      }
+    }
+  }
+  resultado
+}
+
+# Devuelve a su valor las celdas fuera del universo aplicable despues de que la
+# accion las transformo, y recuenta. Es un solo lugar para todos los ejecutores
+# por celda, en vez de una copia de esta logica en cada uno.
+.restringir_a_aplicabilidad <- function(ejecutada, anterior, accion) {
+  estrategia <- as.character(accion$estrategia[[1L]])
+  regla <- accion$parametros[[1L]]$aplicabilidad
+  columna <- accion$columna[[1L]]
+  if (is.null(regla) || !estrategia %in% .estrategias_por_celda ||
+      is.na(columna) || !columna %in% names(anterior)) {
+    return(ejecutada)
+  }
+  mascara <- tryCatch(
+    .evaluar_predicado_aplicabilidad(anterior, columna, regla),
+    error = function(e) e
+  )
+  if (inherits(mascara, "error")) {
+    # Sin poder evaluar la regla sobre estos datos no se puede respetar el
+    # universo, y tocar la columna entera seria justo el defecto.
+    ejecutada$error <- paste(
+      "No se pudo evaluar la regla de aplicabilidad sobre estos datos:",
+      conditionMessage(mascara)
+    )
+    return(ejecutada)
+  }
+  # Indeterminado es "no se sabe si corresponde": no se toca.
+  fuera <- is.na(mascara) | !mascara
+  if (!any(fuera)) return(ejecutada)
+  viejo <- anterior[[columna]]
+  nuevo <- ejecutada$datos[[columna]]
+  # Los ejecutores de texto devuelven `character` aunque la entrada sea factor;
+  # asignar el factor directo lo convertiria en sus codigos numericos.
+  restaurar <- viejo[fuera]
+  if (is.factor(restaurar) && !is.factor(nuevo)) restaurar <- as.character(restaurar)
+  nuevo[fuera] <- restaurar
+  ejecutada$datos[[columna]] <- nuevo
+  cambiadas <- sum(.celdas_cambiadas(viejo, nuevo))
+  n_anterior <- ejecutada$n
+  ejecutada$n <- cambiadas
+  # Si la accion contaba como irreversible cada cambio, sigue contando igual.
+  if (!is.null(ejecutada$n_no_reversibles) && isTRUE(ejecutada$n_no_reversibles > 0L) &&
+      isTRUE(ejecutada$n_no_reversibles == n_anterior)) {
+    ejecutada$n_no_reversibles <- cambiadas
+  }
+  ejecutada
+}
+
 #' Construir y aplicar un plan de limpieza auditable
 #'
 #' `planificar_limpieza()` transforma los hallazgos de un objeto `perfil` en un
@@ -1237,6 +1337,7 @@ planificar_limpieza <- function(perfil, datos = NULL,
       "pendiente", "recomendada", "desactivada", "elegida", "omitida"
     )
   )
+  resultado <- .aplicabilidad_en_plan(resultado, perfil)
   class(resultado) <- c("plan_limpieza", "data.frame")
   # El plan se arma desde `perfil$hallazgos`, asi que por construccion no puede
   # tener una accion para un diagnostico que no se evaluo. Quien trabaja desde
@@ -2596,6 +2697,9 @@ aplicar <- function(plan, datos, permitir_eliminacion = FALSE,
           error = conditionMessage(e), n = 0, n_no_reversibles = 0
         )
       )
+    }
+    if (is.null(ejecutada$error)) {
+      ejecutada <- .restringir_a_aplicabilidad(ejecutada, salida, accion)
     }
     if (is.null(ejecutada$error)) {
       motivo_efecto <- .motivo_efecto_accion(accion, ejecutada)

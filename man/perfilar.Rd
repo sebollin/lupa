@@ -154,6 +154,16 @@ proporción de faltantes es \verb{0,100}, no hay hallazgo y el plan no propone
 nada; sin declararlo son \verb{0,730}, sale \code{faltantes} y el plan propone dos
 acciones.
 
+El universo también llega a la limpieza. El perfil guarda la regla, el plan
+la lleva y \code{\link[=aplicar]{aplicar()}} no toca las celdas que quedan fuera: una \code{S/D} en una
+fila donde la columna no corresponde no se convierte en ausencia. Si la
+regla da un valor indeterminado, la celda tampoco se toca. Las
+conversiones de tipo son la excepción, porque una columna tiene un solo
+tipo y no se puede convertir a medias: el plan declara en \code{n_afectadas} y
+en la justificación que cambia la columna entera. Si el plan se aplica a
+otros datos donde la regla no se puede evaluar, la acción falla y lo dice,
+en vez de operar sobre toda la columna.
+
 La medición contra un marco recibe la misma declaración: \code{\link[=medir]{medir()}} acepta
 \code{aplicabilidad} y recorta las filas antes de medir, así que el histórico y
 la deriva —que consumen mediciones, no perfiles— heredan el número

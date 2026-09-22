@@ -2,6 +2,21 @@
 
 ## Correcciones de cobertura y publicación
 
+- **La aplicabilidad declarada llega a los diagnósticos de texto y a la
+  limpieza.** `perfilar(..., aplicabilidad = )` recortaba el universo de los
+  faltantes, pero los diagnósticos de texto seguían mirando la columna entera —
+  el paquete llegaba a avisar que un hallazgo contaba 6 y trazaba 4—, y las
+  acciones de limpieza modificaban también las filas declaradas fuera: una
+  `S/D` en una fila donde la columna no corresponde se volvía ausencia. Ahora
+  el perfil guarda la regla y [aplicar()] no toca las celdas de fuera. Las
+  conversiones de tipo, que no se pueden aplicar a media columna, lo declaran
+  en el plan.
+
+- **Una transformación de texto ya no depende de lo que haya en el resto de la
+  columna.** Un solo valor declarado `bytes` hacía que reemplazar separadores
+  dejara ilegibles las celdas `latin1` vecinas, y que pasar a minúsculas o
+  mayúsculas abortara.
+
 - **La conversión de marcadores de ausencia convierte exactamente lo que el
   hallazgo declara.** La acción usaba su propio catálogo y borraba además
   códigos que la detección había dejado fuera a propósito —`SD`, `NC` y `ND`,
