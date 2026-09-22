@@ -22,16 +22,14 @@ plan[, c(
 #> 5  accion-0005       <NA> fecha_nacimiento     convertir_fecha_confirmada       FALSE
 #> 6  accion-0006       <NA>             sexo  convertir_ausencias_textuales        TRUE
 #> 7  accion-0007 grupo-0010          ingreso convertir_sentinelas_numericos       FALSE
-#> 8  accion-0008 grupo-0011          ingreso                marcar_outliers        TRUE
-#> 9  accion-0009 grupo-0011          ingreso            winsorizar_outliers       FALSE
-#> 10 accion-0010       <NA>     departamento           revisar_cardinalidad       FALSE
-#> 11 accion-0011 grupo-0013             pais     eliminar_columna_constante       FALSE
-#> 12 accion-0012       <NA>           correo           revisar_cardinalidad       FALSE
-#> 13 accion-0013 grupo-0018             <NA>        marcar_filas_duplicadas        TRUE
-#> 14 accion-0014 grupo-0018             <NA>    conservar_primera_duplicada       FALSE
-#> 15 accion-0015 grupo-0018             <NA>         conservar_mas_completa       FALSE
-#> 16 accion-0016 grupo-0019       id_persona     marcar_columnas_duplicadas        TRUE
-#> 17 accion-0017 grupo-0019       id_persona     eliminar_columna_duplicada       FALSE
+#> 8  accion-0008       <NA>     departamento           revisar_cardinalidad       FALSE
+#> 9  accion-0009 grupo-0012             pais     eliminar_columna_constante       FALSE
+#> 10 accion-0010       <NA>           correo           revisar_cardinalidad       FALSE
+#> 11 accion-0011 grupo-0017             <NA>        marcar_filas_duplicadas        TRUE
+#> 12 accion-0012 grupo-0017             <NA>    conservar_primera_duplicada       FALSE
+#> 13 accion-0013 grupo-0017             <NA>         conservar_mas_completa       FALSE
+#> 14 accion-0014 grupo-0018       id_persona     marcar_columnas_duplicadas        TRUE
+#> 15 accion-0015 grupo-0018       id_persona     eliminar_columna_duplicada       FALSE
 #>    aplicar reversible      estado
 #> 1    FALSE         NA informativa
 #> 2     TRUE      FALSE       lista
@@ -40,16 +38,14 @@ plan[, c(
 #> 5    FALSE      FALSE   bloqueada
 #> 6     TRUE      FALSE       lista
 #> 7    FALSE      FALSE       lista
-#> 8    FALSE       TRUE       lista
+#> 8    FALSE         NA informativa
 #> 9    FALSE      FALSE       lista
 #> 10   FALSE         NA informativa
-#> 11   FALSE      FALSE       lista
-#> 12   FALSE         NA informativa
-#> 13    TRUE       TRUE       lista
-#> 14   FALSE      FALSE       lista
-#> 15   FALSE      FALSE   bloqueada
-#> 16    TRUE       TRUE       lista
-#> 17   FALSE      FALSE       lista
+#> 11    TRUE       TRUE       lista
+#> 12   FALSE      FALSE       lista
+#> 13   FALSE      FALSE   bloqueada
+#> 14    TRUE       TRUE       lista
+#> 15   FALSE      FALSE       lista
 ```
 
 ## Recomendaciones y decisiones de dominio
@@ -73,16 +69,14 @@ plan[, c("estrategia", "justificacion")]
 #> 5      convertir_fecha_confirmada
 #> 6   convertir_ausencias_textuales
 #> 7  convertir_sentinelas_numericos
-#> 8                 marcar_outliers
-#> 9             winsorizar_outliers
+#> 8            revisar_cardinalidad
+#> 9      eliminar_columna_constante
 #> 10           revisar_cardinalidad
-#> 11     eliminar_columna_constante
-#> 12           revisar_cardinalidad
-#> 13        marcar_filas_duplicadas
-#> 14    conservar_primera_duplicada
-#> 15         conservar_mas_completa
-#> 16     marcar_columnas_duplicadas
-#> 17     eliminar_columna_duplicada
+#> 11        marcar_filas_duplicadas
+#> 12    conservar_primera_duplicada
+#> 13         conservar_mas_completa
+#> 14     marcar_columnas_duplicadas
+#> 15     eliminar_columna_duplicada
 #>                                                                                                                                                                       justificacion
 #> 1                                                                El perfil señala el problema, pero no contiene conocimiento suficiente del dominio para elegir una transformación.
 #> 2                                                                                                                                                                 [valor protegido]
@@ -91,16 +85,14 @@ plan[, c("estrategia", "justificacion")]
 #> 5  La conversión no es ejecutable sobre los datos completos: Hay valores presentes que no responden a los formatos confirmados. Se conserva como acción destructiva no recomendada.
 #> 6                                                                                                                                                                 [valor protegido]
 #> 7                                                                           Un sentinela numérico también puede ser un valor legítimo; requiere confirmar el diccionario del campo.
-#> 8                                                                          Un valor extremo puede ser correcto; la marca conserva el dato para que el dominio decida cómo tratarlo.
-#> 9                                                      Sustituye los extremos por los límites de Tukey y altera valores observados; sólo debe elegirse con justificación analítica.
+#> 8                                                                El perfil señala el problema, pero no contiene conocimiento suficiente del dominio para elegir una transformación.
+#> 9                                                       Eliminarla pierde contexto potencial; dejarla es la recomendación hasta confirmar que no aporta significado administrativo.
 #> 10                                                               El perfil señala el problema, pero no contiene conocimiento suficiente del dominio para elegir una transformación.
-#> 11                                                      Eliminarla pierde contexto potencial; dejarla es la recomendación hasta confirmar que no aporta significado administrativo.
-#> 12                                                               El perfil señala el problema, pero no contiene conocimiento suficiente del dominio para elegir una transformación.
-#> 13                                                             Marcar conserva todas las filas, identifica las repeticiones y asigna un grupo a todos los registros que participan.
-#> 14                                                     Conserva la primera aparición exacta y elimina las siguientes; el orden de entrada pasa a determinar qué registro sobrevive.
-#> 15                                Requiere configurar una clave: entre duplicados exactos todas las filas tienen la misma completitud y esta opción sería equivalente a la primera.
-#> 16                                                                                                   La anotación conserva ambas columnas y registra explícitamente la redundancia.
-#> 17                                                                     Eliminar una columna puede romper consumidores que dependan de su nombre aunque el contenido sea redundante.
+#> 11                                                             Marcar conserva todas las filas, identifica las repeticiones y asigna un grupo a todos los registros que participan.
+#> 12                                                     Conserva la primera aparición exacta y elimina las siguientes; el orden de entrada pasa a determinar qué registro sobrevive.
+#> 13                                Requiere configurar una clave: entre duplicados exactos todas las filas tienen la misma completitud y esta opción sería equivalente a la primera.
+#> 14                                                                                                   La anotación conserva ambas columnas y registra explícitamente la redundancia.
+#> 15                                                                     Eliminar una columna puede romper consumidores que dependan de su nombre aunque el contenido sea redundante.
 ```
 
 [`normalizacion()`](https://sebollin.github.io/lupa/reference/normalizacion.md)
@@ -139,14 +131,12 @@ grupos <- plan[!is.na(plan$grupo), c(
 grupos
 #>         grupo                     estrategia recomendada aplicar decision_grupo
 #> 7  grupo-0010 convertir_sentinelas_numericos       FALSE   FALSE      pendiente
-#> 8  grupo-0011                marcar_outliers        TRUE   FALSE      pendiente
-#> 9  grupo-0011            winsorizar_outliers       FALSE   FALSE      pendiente
-#> 11 grupo-0013     eliminar_columna_constante       FALSE   FALSE    recomendada
-#> 13 grupo-0018        marcar_filas_duplicadas        TRUE    TRUE    recomendada
-#> 14 grupo-0018    conservar_primera_duplicada       FALSE   FALSE    recomendada
-#> 15 grupo-0018         conservar_mas_completa       FALSE   FALSE    recomendada
-#> 16 grupo-0019     marcar_columnas_duplicadas        TRUE    TRUE    recomendada
-#> 17 grupo-0019     eliminar_columna_duplicada       FALSE   FALSE    recomendada
+#> 9  grupo-0012     eliminar_columna_constante       FALSE   FALSE    recomendada
+#> 11 grupo-0017        marcar_filas_duplicadas        TRUE    TRUE    recomendada
+#> 12 grupo-0017    conservar_primera_duplicada       FALSE   FALSE    recomendada
+#> 13 grupo-0017         conservar_mas_completa       FALSE   FALSE    recomendada
+#> 14 grupo-0018     marcar_columnas_duplicadas        TRUE    TRUE    recomendada
+#> 15 grupo-0018     eliminar_columna_duplicada       FALSE   FALSE    recomendada
 ```
 
 El modo guiado es una capa opcional. Fuera de una sesión interactiva

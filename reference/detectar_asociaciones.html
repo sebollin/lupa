@@ -111,7 +111,12 @@ omisión, o <code>"spearman"</code> para asociación monótona sobre los rangos.
     <div class="section level2">
     <h2 id="value">Value<a class="anchor" aria-label="anchor" href="#value"></a></h2>
     <p>Data frame S3 <code>asociaciones_columnas</code>. Sus atributos declaran filas,
-columnas y pares examinados, omisiones por dependencia y truncamiento.</p>
+columnas y pares examinados, omisiones por dependencia y truncamiento.
+<code>pares_omitidos_medicion</code> conserva los pares que no se pudieron medir,
+junto con el motivo y la cantidad de filas completas disponible. Su
+atributo <code>cobertura_diagnosticos</code> tiene una fila por par omitido. Cuando
+<code><a href="analizar.html">analizar()</a></code> integra el resultado, esas filas se agregan a la cobertura
+del perfil.</p>
     </div>
     <div class="section level2">
     <h2 id="details">Details<a class="anchor" aria-label="anchor" href="#details"></a></h2>

@@ -27,10 +27,22 @@ comparar_equivalencia(anterior, actual, tolerancia)
   Número escalar no negativo y finito, declarado por quien llama. No
   tiene valor por omisión y se publica en cada fila.
 
+  **La tolerancia es mixta, no relativa.** La diferencia se divide por
+  el mayor de `1`, `|anterior|` y `|actual|`, que es la misma regla que
+  usa la detección de relaciones aritméticas: por debajo de magnitud 1
+  el divisor es 1 y la comparación pasa a ser absoluta, porque dividir
+  por casi cero convierte el ruido en un cambio del cien por ciento. Eso
+  tiene una consecuencia que conviene tener presente: una media que pasa
+  de `0,001` a `0,4` queda dentro de una tolerancia de `0,5`. Cuando la
+  escala usada fue la unidad y no el valor, el `motivo` de esa fila lo
+  dice (`dentro_de_tolerancia_escala_unidad`,
+  `fuera_de_tolerancia_escala_unidad`) y la columna publicada se llama
+  `diferencia_normalizada`, no «relativa».
+
 ## Value
 
 Un frame de clase `equivalencia_perfiles` con `columna`, `campo`,
-`valor_anterior`, `valor_actual`, `diferencia_relativa`, `veredicto`,
+`valor_anterior`, `valor_actual`, `diferencia_normalizada`, `veredicto`,
 `motivo`, `tipo_eje` y `tolerancia`. `veredicto` es un factor ordenado
 con niveles `identico < equivalente < materialmente_distinto`. Los
 atributos `campos_no_comparables`, `detalle_campos_no_comparables`,
@@ -102,10 +114,10 @@ actual <- data.frame(
   stringsAsFactors = FALSE
 )
 comparar_equivalencia(anterior, actual, tolerancia = 1e-9)
-#>   columna  campo valor_anterior valor_actual diferencia_relativa
-#> 1   monto  media             10 10.00000....        9.999113e-13
-#> 2   monto minimo              1            2                  NA
-#> 3   monto   moda              a            b                  NA
+#>   columna  campo valor_anterior valor_actual diferencia_normalizada
+#> 1   monto  media             10 10.00000....           9.999113e-13
+#> 2   monto minimo              1            2                     NA
+#> 3   monto   moda              a            b                     NA
 #>                veredicto               motivo tipo_eje tolerancia
 #> 1            equivalente dentro_de_tolerancia flotante      1e-09
 #> 2 materialmente_distinto           eje_exacto   exacto      1e-09

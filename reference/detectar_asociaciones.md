@@ -61,6 +61,11 @@ detectar_asociaciones(
 
 Data frame S3 `asociaciones_columnas`. Sus atributos declaran filas,
 columnas y pares examinados, omisiones por dependencia y truncamiento.
+`pares_omitidos_medicion` conserva los pares que no se pudieron medir,
+junto con el motivo y la cantidad de filas completas disponible. Su
+atributo `cobertura_diagnosticos` tiene una fila por par omitido. Cuando
+[`analizar()`](https://sebollin.github.io/lupa/reference/analizar.md)
+integra el resultado, esas filas se agregan a la cobertura del perfil.
 
 ## Details
 

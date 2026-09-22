@@ -94,16 +94,14 @@ filtrable y editable.</p>
 <span><span class="co">#&gt; 5  accion-0005       &lt;NA&gt; fecha_nacimiento     convertir_fecha_confirmada       FALSE</span></span>
 <span><span class="co">#&gt; 6  accion-0006       &lt;NA&gt;             sexo  convertir_ausencias_textuales        TRUE</span></span>
 <span><span class="co">#&gt; 7  accion-0007 grupo-0010          ingreso convertir_sentinelas_numericos       FALSE</span></span>
-<span><span class="co">#&gt; 8  accion-0008 grupo-0011          ingreso                marcar_outliers        TRUE</span></span>
-<span><span class="co">#&gt; 9  accion-0009 grupo-0011          ingreso            winsorizar_outliers       FALSE</span></span>
-<span><span class="co">#&gt; 10 accion-0010       &lt;NA&gt;     departamento           revisar_cardinalidad       FALSE</span></span>
-<span><span class="co">#&gt; 11 accion-0011 grupo-0013             pais     eliminar_columna_constante       FALSE</span></span>
-<span><span class="co">#&gt; 12 accion-0012       &lt;NA&gt;           correo           revisar_cardinalidad       FALSE</span></span>
-<span><span class="co">#&gt; 13 accion-0013 grupo-0018             &lt;NA&gt;        marcar_filas_duplicadas        TRUE</span></span>
-<span><span class="co">#&gt; 14 accion-0014 grupo-0018             &lt;NA&gt;    conservar_primera_duplicada       FALSE</span></span>
-<span><span class="co">#&gt; 15 accion-0015 grupo-0018             &lt;NA&gt;         conservar_mas_completa       FALSE</span></span>
-<span><span class="co">#&gt; 16 accion-0016 grupo-0019       id_persona     marcar_columnas_duplicadas        TRUE</span></span>
-<span><span class="co">#&gt; 17 accion-0017 grupo-0019       id_persona     eliminar_columna_duplicada       FALSE</span></span>
+<span><span class="co">#&gt; 8  accion-0008       &lt;NA&gt;     departamento           revisar_cardinalidad       FALSE</span></span>
+<span><span class="co">#&gt; 9  accion-0009 grupo-0012             pais     eliminar_columna_constante       FALSE</span></span>
+<span><span class="co">#&gt; 10 accion-0010       &lt;NA&gt;           correo           revisar_cardinalidad       FALSE</span></span>
+<span><span class="co">#&gt; 11 accion-0011 grupo-0017             &lt;NA&gt;        marcar_filas_duplicadas        TRUE</span></span>
+<span><span class="co">#&gt; 12 accion-0012 grupo-0017             &lt;NA&gt;    conservar_primera_duplicada       FALSE</span></span>
+<span><span class="co">#&gt; 13 accion-0013 grupo-0017             &lt;NA&gt;         conservar_mas_completa       FALSE</span></span>
+<span><span class="co">#&gt; 14 accion-0014 grupo-0018       id_persona     marcar_columnas_duplicadas        TRUE</span></span>
+<span><span class="co">#&gt; 15 accion-0015 grupo-0018       id_persona     eliminar_columna_duplicada       FALSE</span></span>
 <span><span class="co">#&gt;    aplicar reversible      estado</span></span>
 <span><span class="co">#&gt; 1    FALSE         NA informativa</span></span>
 <span><span class="co">#&gt; 2     TRUE      FALSE       lista</span></span>
@@ -112,16 +110,14 @@ filtrable y editable.</p>
 <span><span class="co">#&gt; 5    FALSE      FALSE   bloqueada</span></span>
 <span><span class="co">#&gt; 6     TRUE      FALSE       lista</span></span>
 <span><span class="co">#&gt; 7    FALSE      FALSE       lista</span></span>
-<span><span class="co">#&gt; 8    FALSE       TRUE       lista</span></span>
+<span><span class="co">#&gt; 8    FALSE         NA informativa</span></span>
 <span><span class="co">#&gt; 9    FALSE      FALSE       lista</span></span>
 <span><span class="co">#&gt; 10   FALSE         NA informativa</span></span>
-<span><span class="co">#&gt; 11   FALSE      FALSE       lista</span></span>
-<span><span class="co">#&gt; 12   FALSE         NA informativa</span></span>
-<span><span class="co">#&gt; 13    TRUE       TRUE       lista</span></span>
-<span><span class="co">#&gt; 14   FALSE      FALSE       lista</span></span>
-<span><span class="co">#&gt; 15   FALSE      FALSE   bloqueada</span></span>
-<span><span class="co">#&gt; 16    TRUE       TRUE       lista</span></span>
-<span><span class="co">#&gt; 17   FALSE      FALSE       lista</span></span></code></pre></div>
+<span><span class="co">#&gt; 11    TRUE       TRUE       lista</span></span>
+<span><span class="co">#&gt; 12   FALSE      FALSE       lista</span></span>
+<span><span class="co">#&gt; 13   FALSE      FALSE   bloqueada</span></span>
+<span><span class="co">#&gt; 14    TRUE       TRUE       lista</span></span>
+<span><span class="co">#&gt; 15   FALSE      FALSE       lista</span></span></code></pre></div>
 <div class="section level2">
 <h2 id="recomendaciones-y-decisiones-de-dominio">Recomendaciones y decisiones de dominio<a class="anchor" aria-label="anchor" href="#recomendaciones-y-decisiones-de-dominio"></a>
 </h2>
@@ -141,16 +137,14 @@ contexto y queda desactivado.</p>
 <span><span class="co">#&gt; 5      convertir_fecha_confirmada</span></span>
 <span><span class="co">#&gt; 6   convertir_ausencias_textuales</span></span>
 <span><span class="co">#&gt; 7  convertir_sentinelas_numericos</span></span>
-<span><span class="co">#&gt; 8                 marcar_outliers</span></span>
-<span><span class="co">#&gt; 9             winsorizar_outliers</span></span>
+<span><span class="co">#&gt; 8            revisar_cardinalidad</span></span>
+<span><span class="co">#&gt; 9      eliminar_columna_constante</span></span>
 <span><span class="co">#&gt; 10           revisar_cardinalidad</span></span>
-<span><span class="co">#&gt; 11     eliminar_columna_constante</span></span>
-<span><span class="co">#&gt; 12           revisar_cardinalidad</span></span>
-<span><span class="co">#&gt; 13        marcar_filas_duplicadas</span></span>
-<span><span class="co">#&gt; 14    conservar_primera_duplicada</span></span>
-<span><span class="co">#&gt; 15         conservar_mas_completa</span></span>
-<span><span class="co">#&gt; 16     marcar_columnas_duplicadas</span></span>
-<span><span class="co">#&gt; 17     eliminar_columna_duplicada</span></span>
+<span><span class="co">#&gt; 11        marcar_filas_duplicadas</span></span>
+<span><span class="co">#&gt; 12    conservar_primera_duplicada</span></span>
+<span><span class="co">#&gt; 13         conservar_mas_completa</span></span>
+<span><span class="co">#&gt; 14     marcar_columnas_duplicadas</span></span>
+<span><span class="co">#&gt; 15     eliminar_columna_duplicada</span></span>
 <span><span class="co">#&gt;                                                                                                                                                                       justificacion</span></span>
 <span><span class="co">#&gt; 1                                                                El perfil señala el problema, pero no contiene conocimiento suficiente del dominio para elegir una transformación.</span></span>
 <span><span class="co">#&gt; 2                                                                                                                                                                 [valor protegido]</span></span>
@@ -159,16 +153,14 @@ contexto y queda desactivado.</p>
 <span><span class="co">#&gt; 5  La conversión no es ejecutable sobre los datos completos: Hay valores presentes que no responden a los formatos confirmados. Se conserva como acción destructiva no recomendada.</span></span>
 <span><span class="co">#&gt; 6                                                                                                                                                                 [valor protegido]</span></span>
 <span><span class="co">#&gt; 7                                                                           Un sentinela numérico también puede ser un valor legítimo; requiere confirmar el diccionario del campo.</span></span>
-<span><span class="co">#&gt; 8                                                                          Un valor extremo puede ser correcto; la marca conserva el dato para que el dominio decida cómo tratarlo.</span></span>
-<span><span class="co">#&gt; 9                                                      Sustituye los extremos por los límites de Tukey y altera valores observados; sólo debe elegirse con justificación analítica.</span></span>
+<span><span class="co">#&gt; 8                                                                El perfil señala el problema, pero no contiene conocimiento suficiente del dominio para elegir una transformación.</span></span>
+<span><span class="co">#&gt; 9                                                       Eliminarla pierde contexto potencial; dejarla es la recomendación hasta confirmar que no aporta significado administrativo.</span></span>
 <span><span class="co">#&gt; 10                                                               El perfil señala el problema, pero no contiene conocimiento suficiente del dominio para elegir una transformación.</span></span>
-<span><span class="co">#&gt; 11                                                      Eliminarla pierde contexto potencial; dejarla es la recomendación hasta confirmar que no aporta significado administrativo.</span></span>
-<span><span class="co">#&gt; 12                                                               El perfil señala el problema, pero no contiene conocimiento suficiente del dominio para elegir una transformación.</span></span>
-<span><span class="co">#&gt; 13                                                             Marcar conserva todas las filas, identifica las repeticiones y asigna un grupo a todos los registros que participan.</span></span>
-<span><span class="co">#&gt; 14                                                     Conserva la primera aparición exacta y elimina las siguientes; el orden de entrada pasa a determinar qué registro sobrevive.</span></span>
-<span><span class="co">#&gt; 15                                Requiere configurar una clave: entre duplicados exactos todas las filas tienen la misma completitud y esta opción sería equivalente a la primera.</span></span>
-<span><span class="co">#&gt; 16                                                                                                   La anotación conserva ambas columnas y registra explícitamente la redundancia.</span></span>
-<span><span class="co">#&gt; 17                                                                     Eliminar una columna puede romper consumidores que dependan de su nombre aunque el contenido sea redundante.</span></span></code></pre></div>
+<span><span class="co">#&gt; 11                                                             Marcar conserva todas las filas, identifica las repeticiones y asigna un grupo a todos los registros que participan.</span></span>
+<span><span class="co">#&gt; 12                                                     Conserva la primera aparición exacta y elimina las siguientes; el orden de entrada pasa a determinar qué registro sobrevive.</span></span>
+<span><span class="co">#&gt; 13                                Requiere configurar una clave: entre duplicados exactos todas las filas tienen la misma completitud y esta opción sería equivalente a la primera.</span></span>
+<span><span class="co">#&gt; 14                                                                                                   La anotación conserva ambas columnas y registra explícitamente la redundancia.</span></span>
+<span><span class="co">#&gt; 15                                                                     Eliminar una columna puede romper consumidores que dependan de su nombre aunque el contenido sea redundante.</span></span></code></pre></div>
 <p><code><a href="../reference/normalizacion.html">normalizacion()</a></code> permite declarar qué diferencias se
 ignoran al comparar. El perfil cambia sólo la representación de
 comparación; nunca modifica los datos. Los pasos de ligaduras y ancho
@@ -202,14 +194,12 @@ nada”.</p>
 <span><span class="va">grupos</span></span>
 <span><span class="co">#&gt;         grupo                     estrategia recomendada aplicar decision_grupo</span></span>
 <span><span class="co">#&gt; 7  grupo-0010 convertir_sentinelas_numericos       FALSE   FALSE      pendiente</span></span>
-<span><span class="co">#&gt; 8  grupo-0011                marcar_outliers        TRUE   FALSE      pendiente</span></span>
-<span><span class="co">#&gt; 9  grupo-0011            winsorizar_outliers       FALSE   FALSE      pendiente</span></span>
-<span><span class="co">#&gt; 11 grupo-0013     eliminar_columna_constante       FALSE   FALSE    recomendada</span></span>
-<span><span class="co">#&gt; 13 grupo-0018        marcar_filas_duplicadas        TRUE    TRUE    recomendada</span></span>
-<span><span class="co">#&gt; 14 grupo-0018    conservar_primera_duplicada       FALSE   FALSE    recomendada</span></span>
-<span><span class="co">#&gt; 15 grupo-0018         conservar_mas_completa       FALSE   FALSE    recomendada</span></span>
-<span><span class="co">#&gt; 16 grupo-0019     marcar_columnas_duplicadas        TRUE    TRUE    recomendada</span></span>
-<span><span class="co">#&gt; 17 grupo-0019     eliminar_columna_duplicada       FALSE   FALSE    recomendada</span></span></code></pre></div>
+<span><span class="co">#&gt; 9  grupo-0012     eliminar_columna_constante       FALSE   FALSE    recomendada</span></span>
+<span><span class="co">#&gt; 11 grupo-0017        marcar_filas_duplicadas        TRUE    TRUE    recomendada</span></span>
+<span><span class="co">#&gt; 12 grupo-0017    conservar_primera_duplicada       FALSE   FALSE    recomendada</span></span>
+<span><span class="co">#&gt; 13 grupo-0017         conservar_mas_completa       FALSE   FALSE    recomendada</span></span>
+<span><span class="co">#&gt; 14 grupo-0018     marcar_columnas_duplicadas        TRUE    TRUE    recomendada</span></span>
+<span><span class="co">#&gt; 15 grupo-0018     eliminar_columna_duplicada       FALSE   FALSE    recomendada</span></span></code></pre></div>
 <p>El modo guiado es una capa opcional. Fuera de una sesión interactiva
 devuelve el plan sin bloquear; en una consola recorre sólo decisiones
 pendientes o riesgosas.</p>

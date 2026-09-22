@@ -35,7 +35,7 @@ perfil <- perfilar(datos_administrativos, analizar_dependencias = FALSE)
 if (requireNamespace("tibble", quietly = TRUE)) {
   tibble::as_tibble(perfil)
 }
-#> # A tibble: 10 × 113
+#> # A tibble: 10 × 114
 #>    columna          tipo_declarado tipo_inferido estado_tipo_inferido
 #>    <chr>            <chr>          <chr>         <chr>               
 #>  1 id_persona       doble          doble         NA                  
@@ -48,11 +48,11 @@ if (requireNamespace("tibble", quietly = TRUE)) {
 #>  8 correo           texto          texto         NA                  
 #>  9 id_copia         doble          doble         NA                  
 #> 10 id_tramite       texto          identificador NA                  
-#> # ℹ 109 more variables: proporcion_tipo_inferido <dbl>,
+#> # ℹ 110 more variables: proporcion_tipo_inferido <dbl>,
 #> #   n_filas_analizadas_tipo <int>, muestreado_tipo_inferido <lgl>, n <int>,
 #> #   n_aplicables <int>, n_no_aplica <int>, n_aplicabilidad_indeterminada <int>,
+#> #   n_presentes_en_aplicabilidad_indeterminada <int>,
 #> #   n_presentes_fuera_de_aplicabilidad <int>, n_faltantes <int>,
 #> #   prop_faltantes <dbl>, n_faltantes_disfrazados <int>,
-#> #   n_faltantes_disfrazados_textuales <int>,
-#> #   n_faltantes_disfrazados_numericos <int>, …
+#> #   n_faltantes_disfrazados_textuales <int>, …
 ```

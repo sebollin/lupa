@@ -73,9 +73,9 @@ y no había nada.
 ``` r
 perfil <- perfilar(datos_administrativos, analizar_dependencias = FALSE)
 nrow(hallazgos(perfil))
-#> [1] 23
+#> [1] 22
 n_filas(perfil)
 #> [1] 13
 nrow(cobertura(perfil))
-#> [1] 3
+#> [1] 7
 ```

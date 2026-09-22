@@ -15,6 +15,63 @@
 
 ### Correcciones de cobertura y publicación
 
+- **Los índices de un hallazgo por grupo apuntan a la tabla del
+  usuario.**
+  [`perfilar_por()`](https://sebollin.github.io/lupa/reference/perfilar_por.md)
+  perfila cada grupo sobre su rebanada y publicaba los índices de esa
+  rebanada con `localizador = "indice_fila"` y `alcance = "completo"`:
+  contra la tabla original señalaban filas inocentes. Ahora se traducen
+  al marco de la tabla que se pasó, que es el que la documentación
+  promete.
+
+- **Un análisis guardado sin datos ya no dice que los conserva.**
+  `guardar_analisis(incluir_datos = FALSE)` dejaba
+  `datos_conservados = TRUE` —el valor de cuando se creó el análisis— y
+  el informe del objeto releído publicaba «datos conservados: TRUE»
+  sobre un objeto cuyo `datos` es `NULL`.
+
+- **Lo indeterminado deja de contarse como «no corresponde».** La
+  documentación de `aplicabilidad` promete que las filas donde el
+  predicado no se puede determinar se declaran aparte; se contaban
+  además como valores presentes fuera del universo y disparaban el
+  hallazgo `valor_fuera_de_aplicabilidad`, cuya descripción —«la regla
+  declarada dice que no corresponde»— es falsa para una fila que no se
+  pudo decidir. Ahora esas filas se declaran en `cobertura_diagnosticos`
+  y la columna publica `n_presentes_en_aplicabilidad_indeterminada`. El
+  mismo hallazgo publicaba su universo al revés —«1000 afectados de 0
+  evaluados» con un universo aplicable vacío—: su denominador es ahora
+  el de las filas que podían producirlo.
+
+- **La equivalencia declara con qué escala decidió.**
+  [`comparar_equivalencia()`](https://sebollin.github.io/lupa/reference/comparar_equivalencia.md)
+  publicaba una columna llamada `diferencia_relativa` que por debajo de
+  magnitud 1 no es relativa: la tolerancia es mixta —la misma que usan
+  las relaciones aritméticas— y ahí el divisor es 1, así que una media
+  de `0,001` que pasa a `0,4` salía `equivalente` con tolerancia `0,5`.
+  El criterio se mantiene, porque dividir por casi cero convierte el
+  ruido en un cambio del cien por ciento; lo que cambia es que ya no
+  viaja callado: la columna se llama `diferencia_normalizada`, el
+  `motivo` dice cuándo la escala fue la unidad y la documentación lo
+  explica con ese caso.
+
+- **La evidencia de Benford publica su desglose.** Imprimía
+  `1:NA/NA; … 9:NA/NA` en todas las corridas, al lado de un chi-cuadrado
+  con su p-valor: pasaba las nueve proporciones juntas a un formateador
+  que devolvía `NA` para cualquier vector. Los dos formateadores de
+  publicación ahora devuelven un vector cuando reciben un vector, así
+  que ninguna evidencia vuelve a quedarse sin números sin que nadie se
+  entere.
+
+- **Lo que no se puede medir ya no se publica como medido.** Tukey
+  declara un IQR cero o menos de 20 valores en la cobertura; las
+  asociaciones conservan los pares sin filas completas o con medidas no
+  finitas; y
+  [`perfilar_por()`](https://sebollin.github.io/lupa/reference/perfilar_por.md)
+  mueve a cobertura los centinelas que solo aparecen por partir una
+  columna `integer64`. Las acciones de marcar o eliminar ausentes
+  respetan el universo declarado por `aplicabilidad` y fallan sin tocar
+  datos si no pueden evaluarlo.
+
 - **Los enteros anchos que llegan como doble ya no se publican como
   exactos.**
   [`perfilar_dbi()`](https://sebollin.github.io/lupa/reference/perfilar_dbi.md)

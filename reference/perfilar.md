@@ -195,12 +195,13 @@ perfilar(
   declararlo son `0,730`, sale `faltantes` y el plan propone dos
   acciones.
 
-  El universo también llega a la limpieza. El perfil guarda la regla, el
+  El universo tambien llega a la limpieza. El perfil guarda la regla, el
   plan la lleva y
   [`aplicar()`](https://sebollin.github.io/lupa/reference/planificar_limpieza.md)
   no toca las celdas que quedan fuera: una `S/D` en una fila donde la
-  columna no corresponde no se convierte en ausencia. Si la regla da un
-  valor indeterminado, la celda tampoco se toca. Las conversiones de
+  columna no corresponde no se convierte en ausencia, y las acciones que
+  marcan o eliminan filas solo consideran ese universo. Si la regla da
+  un valor indeterminado, la celda tampoco se toca. Las conversiones de
   tipo son la excepción, porque una columna tiene un solo tipo y no se
   puede convertir a medias: el plan declara en `n_afectadas` y en la
   justificación que cambia la columna entera. Si el plan se aplica a
@@ -795,6 +796,12 @@ descarta lo que no puede leer en los dos casos—,
 `estado_resumen_cuantitativo = "calculados_sobre_valores"` declaran ese
 alcance parcial.
 
+Los limites de Tukey se publican solo cuando hay al menos 20 valores
+finitos y el recorrido intercuartilico es positivo. Si falta alguna
+condicion, `n_outliers` queda en `NA` y `cobertura_diagnosticos` explica
+el motivo y como reunir evidencia suficiente; un IQR cero no convierte
+una categoria minoritaria en outlier.
+
 El paquete distingue lo que el usuario **declara** de lo que él mismo
 **sospecha**, y esa distinción gobierna los resúmenes. Cuando se
 reemplaza `sentinelas_numericos`, esos valores son una declaración de
@@ -1222,9 +1229,9 @@ perfil
 #> 
 #> ── Perfil de datos: datos_administrativos ──────────────────────────────────────
 #> ✖ 5 hallazgos con severidad error
-#> ! 10 hallazgos sospechosos
+#> ! 9 hallazgos sospechosos
 #> ✔ 8 hallazgos informativos ok
-#> ℹ 3 diagnosticos no evaluados
+#> ℹ 7 diagnosticos no evaluados
 #> 
 #> ── Resumen general ──
 #> 
@@ -1238,15 +1245,15 @@ perfil
 #> ── Resumen por columna ──
 #> 
 #>           columna tipo_inferido prop_faltantes_totales n_distintos n_outliers
-#>        id_persona         doble             0.00000000          11          0
+#>        id_persona         doble             0.00000000          11         NA
 #>            cedula         texto             0.07692308          11         NA
-#>  fecha_nacimiento         fecha             0.07692308          12          0
+#>  fecha_nacimiento         fecha             0.07692308          12         NA
 #>              sexo         texto             0.15384615           4         NA
-#>           ingreso         doble             0.07692308          12          4
+#>           ingreso         doble             0.07692308          12         NA
 #>      departamento         texto             0.00000000          11         NA
 #>              pais         texto             0.00000000           1         NA
 #>            correo         texto             0.00000000          12         NA
-#>          id_copia         doble             0.00000000          11          0
+#>          id_copia         doble             0.00000000          11         NA
 #>        id_tramite identificador             0.00000000          12         NA
 summary(perfil)
 #>             columna tipo_declarado tipo_inferido estado_tipo_inferido
@@ -1282,6 +1289,17 @@ summary(perfil)
 #> 8            13           0                             0
 #> 9            13           0                             0
 #> 10           13           0                             0
+#>    n_presentes_en_aplicabilidad_indeterminada
+#> 1                                           0
+#> 2                                           0
+#> 3                                           0
+#> 4                                           0
+#> 5                                           0
+#> 6                                           0
+#> 7                                           0
+#> 8                                           0
+#> 9                                           0
+#> 10                                          0
 #>    n_presentes_fuera_de_aplicabilidad n_faltantes prop_faltantes
 #> 1                                   0           0              0
 #> 2                                   0           0              0
@@ -1426,15 +1444,15 @@ summary(perfil)
 #> 9                               NA                           0       0
 #> 10                              NA                           0      NA
 #>    n_negativos n_outliers centinela_valor centinela_repeticiones
-#> 1            0          0              NA                     NA
+#> 1            0         NA              NA                     NA
 #> 2           NA         NA              NA                     NA
-#> 3            0          0              NA                     NA
+#> 3            0         NA              NA                     NA
 #> 4           NA         NA              NA                     NA
-#> 5            2          4              NA                     NA
+#> 5            2         NA              NA                     NA
 #> 6           NA         NA              NA                     NA
 #> 7           NA         NA              NA                     NA
 #> 8           NA         NA              NA                     NA
-#> 9            0          0              NA                     NA
+#> 9            0         NA              NA                     NA
 #> 10          NA         NA              NA                     NA
 #>    densidad_sin_centinela n_nan n_infinito_positivo n_infinito_negativo
 #> 1                      NA     0                   0                   0

@@ -73,13 +73,23 @@ campo y lado en <code>campos_protegidos</code>.</p>
 
 <dt id="arg-tolerancia">tolerancia<a class="anchor" aria-label="anchor" href="#arg-tolerancia"></a></dt>
 <dd><p>Número escalar no negativo y finito, declarado por quien
-llama. No tiene valor por omisión y se publica en cada fila.</p></dd>
+llama. No tiene valor por omisión y se publica en cada fila.</p>
+<p><strong>La tolerancia es mixta, no relativa.</strong> La diferencia se divide por el
+mayor de <code>1</code>, <code>|anterior|</code> y <code>|actual|</code>, que es la misma regla que usa la
+detección de relaciones aritméticas: por debajo de magnitud 1 el divisor es
+1 y la comparación pasa a ser absoluta, porque dividir por casi cero
+convierte el ruido en un cambio del cien por ciento. Eso tiene una
+consecuencia que conviene tener presente: una media que pasa de <code>0,001</code> a
+<code>0,4</code> queda dentro de una tolerancia de <code>0,5</code>. Cuando la escala usada fue
+la unidad y no el valor, el <code>motivo</code> de esa fila lo dice
+(<code>dentro_de_tolerancia_escala_unidad</code>, <code>fuera_de_tolerancia_escala_unidad</code>)
+y la columna publicada se llama <code>diferencia_normalizada</code>, no «relativa».</p></dd>
 
 </dl></div>
     <div class="section level2">
     <h2 id="value">Value<a class="anchor" aria-label="anchor" href="#value"></a></h2>
     <p>Un frame de clase <code>equivalencia_perfiles</code> con <code>columna</code>, <code>campo</code>,
-<code>valor_anterior</code>, <code>valor_actual</code>, <code>diferencia_relativa</code>, <code>veredicto</code>,
+<code>valor_anterior</code>, <code>valor_actual</code>, <code>diferencia_normalizada</code>, <code>veredicto</code>,
 <code>motivo</code>, <code>tipo_eje</code> y <code>tolerancia</code>. <code>veredicto</code> es un factor ordenado con
 niveles <code>identico &lt; equivalente &lt; materialmente_distinto</code>. Los atributos
 <code>campos_no_comparables</code>, <code>detalle_campos_no_comparables</code>,
@@ -144,10 +154,10 @@ que es lo más importante que hay para informar en ese caso.</p>
 <span class="r-in"><span>  stringsAsFactors <span class="op">=</span> <span class="cn">FALSE</span></span></span>
 <span class="r-in"><span><span class="op">)</span></span></span>
 <span class="r-in"><span><span class="fu">comparar_equivalencia</span><span class="op">(</span><span class="va">anterior</span>, <span class="va">actual</span>, tolerancia <span class="op">=</span> <span class="fl">1e-9</span><span class="op">)</span></span></span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>   columna  campo valor_anterior valor_actual diferencia_relativa</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 1   monto  media             10 10.00000....        9.999113e-13</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 2   monto minimo              1            2                  NA</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 3   monto   moda              a            b                  NA</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>   columna  campo valor_anterior valor_actual diferencia_normalizada</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 1   monto  media             10 10.00000....           9.999113e-13</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 2   monto minimo              1            2                     NA</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 3   monto   moda              a            b                     NA</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>                veredicto               motivo tipo_eje tolerancia</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> 1            equivalente dentro_de_tolerancia flotante      1e-09</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> 2 materialmente_distinto           eje_exacto   exacto      1e-09</span>

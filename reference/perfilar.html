@@ -237,9 +237,10 @@ con universo de trescientas, treinta de ellas vacías: declarándolo, la
 proporción de faltantes es <code>0,100</code>, no hay hallazgo y el plan no propone
 nada; sin declararlo son <code>0,730</code>, sale <code>faltantes</code> y el plan propone dos
 acciones.</p>
-<p>El universo también llega a la limpieza. El perfil guarda la regla, el plan
+<p>El universo tambien llega a la limpieza. El perfil guarda la regla, el plan
 la lleva y <code><a href="planificar_limpieza.html">aplicar()</a></code> no toca las celdas que quedan fuera: una <code>S/D</code> en una
-fila donde la columna no corresponde no se convierte en ausencia. Si la
+fila donde la columna no corresponde no se convierte en ausencia, y las
+acciones que marcan o eliminan filas solo consideran ese universo. Si la
 regla da un valor indeterminado, la celda tampoco se toca. Las
 conversiones de tipo son la excepción, porque una columna tiene un solo
 tipo y no se puede convertir a medias: el plan declara en <code>n_afectadas</code> y
@@ -800,6 +801,11 @@ no, porque la conversión descarta lo que no puede leer en los dos casos—,
 <code>n_valores_excluidos_resumen</code> y
 <code>estado_resumen_cuantitativo = "calculados_sobre_valores"</code> declaran ese
 alcance parcial.</p>
+<p>Los limites de Tukey se publican solo cuando hay al menos 20 valores finitos
+y el recorrido intercuartilico es positivo. Si falta alguna condicion,
+<code>n_outliers</code> queda en <code>NA</code> y <code>cobertura_diagnosticos</code> explica el motivo y
+como reunir evidencia suficiente; un IQR cero no convierte una categoria
+minoritaria en outlier.</p>
 <p>El paquete distingue lo que el usuario <strong>declara</strong> de lo que él mismo
 <strong>sospecha</strong>, y esa distinción gobierna los resúmenes. Cuando se reemplaza
 <code>sentinelas_numericos</code>, esos valores son una declaración de ausencia y salen
@@ -1179,9 +1185,9 @@ quedan en la evidencia del hallazgo.</p>
 <span class="r-msg co"><span class="r-pr">#&gt;</span> </span>
 <span class="r-msg co"><span class="r-pr">#&gt;</span> <span style="color: #00BBBB;">──</span> <span style="font-weight: bold;">Perfil de datos: datos_administrativos</span> <span style="color: #00BBBB;">──────────────────────────────────────</span></span>
 <span class="r-msg co"><span class="r-pr">#&gt;</span> <span style="color: #BB0000;">✖</span> 5 hallazgos con severidad error</span>
-<span class="r-msg co"><span class="r-pr">#&gt;</span> <span style="color: #BBBB00;">!</span> 10 hallazgos sospechosos</span>
+<span class="r-msg co"><span class="r-pr">#&gt;</span> <span style="color: #BBBB00;">!</span> 9 hallazgos sospechosos</span>
 <span class="r-msg co"><span class="r-pr">#&gt;</span> <span style="color: #00BB00;">✔</span> 8 hallazgos informativos ok</span>
-<span class="r-msg co"><span class="r-pr">#&gt;</span> <span style="color: #00BBBB;">ℹ</span> 3 diagnosticos no evaluados</span>
+<span class="r-msg co"><span class="r-pr">#&gt;</span> <span style="color: #00BBBB;">ℹ</span> 7 diagnosticos no evaluados</span>
 <span class="r-msg co"><span class="r-pr">#&gt;</span> </span>
 <span class="r-msg co"><span class="r-pr">#&gt;</span> ── <span style="font-weight: bold;">Resumen general</span> ──</span>
 <span class="r-msg co"><span class="r-pr">#&gt;</span> </span>
@@ -1195,15 +1201,15 @@ quedan en la evidencia del hallazgo.</p>
 <span class="r-msg co"><span class="r-pr">#&gt;</span> ── <span style="font-weight: bold;">Resumen por columna</span> ──</span>
 <span class="r-msg co"><span class="r-pr">#&gt;</span> </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>           columna tipo_inferido prop_faltantes_totales n_distintos n_outliers</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>        id_persona         doble             0.00000000          11          0</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>        id_persona         doble             0.00000000          11         NA</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>            cedula         texto             0.07692308          11         NA</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>  fecha_nacimiento         fecha             0.07692308          12          0</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>  fecha_nacimiento         fecha             0.07692308          12         NA</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>              sexo         texto             0.15384615           4         NA</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>           ingreso         doble             0.07692308          12          4</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>           ingreso         doble             0.07692308          12         NA</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>      departamento         texto             0.00000000          11         NA</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>              pais         texto             0.00000000           1         NA</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>            correo         texto             0.00000000          12         NA</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>          id_copia         doble             0.00000000          11          0</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>          id_copia         doble             0.00000000          11         NA</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>        id_tramite identificador             0.00000000          12         NA</span>
 <span class="r-in"><span><span class="fu"><a href="https://rdrr.io/r/base/summary.html" class="external-link">summary</a></span><span class="op">(</span><span class="va">perfil</span><span class="op">)</span></span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>             columna tipo_declarado tipo_inferido estado_tipo_inferido</span>
@@ -1239,6 +1245,17 @@ quedan en la evidencia del hallazgo.</p>
 <span class="r-out co"><span class="r-pr">#&gt;</span> 8            13           0                             0</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> 9            13           0                             0</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> 10           13           0                             0</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>    n_presentes_en_aplicabilidad_indeterminada</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 1                                           0</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 2                                           0</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 3                                           0</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 4                                           0</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 5                                           0</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 6                                           0</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 7                                           0</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 8                                           0</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 9                                           0</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 10                                          0</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>    n_presentes_fuera_de_aplicabilidad n_faltantes prop_faltantes</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> 1                                   0           0              0</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> 2                                   0           0              0</span>
@@ -1383,15 +1400,15 @@ quedan en la evidencia del hallazgo.</p>
 <span class="r-out co"><span class="r-pr">#&gt;</span> 9                               NA                           0       0</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> 10                              NA                           0      NA</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>    n_negativos n_outliers centinela_valor centinela_repeticiones</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 1            0          0              NA                     NA</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 1            0         NA              NA                     NA</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> 2           NA         NA              NA                     NA</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 3            0          0              NA                     NA</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 3            0         NA              NA                     NA</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> 4           NA         NA              NA                     NA</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 5            2          4              NA                     NA</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 5            2         NA              NA                     NA</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> 6           NA         NA              NA                     NA</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> 7           NA         NA              NA                     NA</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> 8           NA         NA              NA                     NA</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 9            0          0              NA                     NA</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 9            0         NA              NA                     NA</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> 10          NA         NA              NA                     NA</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>    densidad_sin_centinela n_nan n_infinito_positivo n_infinito_negativo</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> 1                      NA     0                   0                   0</span>
