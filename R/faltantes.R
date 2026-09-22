@@ -165,3 +165,32 @@ sentinelas_naniar <- c(-9, -99, -999, -9999, 9999, 66, 77, 88)
     mascara_numerica = mascara_numerica & !mascara_textual
   )
 }
+
+# Los marcadores que la evidencia de `faltantes_disfrazados` publica.
+#
+# El formato lo produce este mismo archivo: `"<marcador> (<n>)"` unidos por
+# `"; "`. Se lee de ahi porque `planificar_limpieza()` puede recibir el perfil
+# SIN los datos, y entonces no hay con que recalcularlos.
+.marcadores_disfrazados <- function(evidencia) {
+  if (is.null(evidencia) || !length(evidencia)) return(character())
+  evidencia <- as.character(evidencia)[[1L]]
+  if (is.na(evidencia) || !nzchar(evidencia)) return(character())
+  partes <- strsplit(evidencia, "; ", fixed = TRUE)[[1L]]
+  trimws(sub("\\s*\\([0-9]+\\)$", "", partes))
+}
+
+# Un marcador que PODRIA ser un valor legitimo de la columna.
+#
+# `NA` es el codigo ISO de Namibia, `NULL` puede ser un apellido, `SD` puede
+# ser un departamento. Nadie, en cambio, escribe `S/D`, `sin dato`, `-` o `?`
+# como dato: llevan puntuacion o espacios y por eso no se confunden.
+#
+# La distincion decide CONDUCTA y no solo texto: la ronda anterior corrigio la
+# justificacion para que pidiera confirmar el dominio, y el plan seguia
+# marcandose `recomendada` y autoaplicandose. Cambiar la frase no cambia lo que
+# el paquete hace.
+.marcador_puede_ser_valor <- function(marcadores) {
+  if (!length(marcadores)) return(FALSE)
+  any(grepl("^[[:alpha:]]+$", marcadores))
+}
+

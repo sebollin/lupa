@@ -43,7 +43,16 @@ test_that("la unidad del hallazgo viaja al plan y al modo guiado", {
 })
 
 test_that("un efecto nulo no se registra como ejecutado", {
-  datos <- data.frame(x = c(" NA ", NA, "x"), stringsAsFactors = FALSE)
+  # El marcador es `N/A` y no `NA`, y eso no es cosmetico. Esta prueba mide que
+  # una accion SIN EFECTO se registre `fallida`; el marcador es solo el
+  # mecanismo: la conversion de ausencias lo vuelve `NA` primero y asi al
+  # recorte no le queda nada que hacer. Desde que `NA` se trata como un valor
+  # que podria ser legitimo -es el codigo de Namibia, ver
+  # `test-O02-confirmar-dominio.R`- esa conversion ya no se aplica sola sobre
+  # `NA`, y el mecanismo dejaba de funcionar aunque la promesa siguiera
+  # intacta. `N/A` lleva puntuacion, nadie lo escribe como dato, y se sigue
+  # aplicando solo.
+  datos <- data.frame(x = c(" N/A ", NA, "x"), stringsAsFactors = FALSE)
   plan <- planificar_limpieza(perfilar(datos), datos)
   resultado <- aplicar(plan, datos)
   recorte <- resultado$registro$estrategia == "recortar_espacios"

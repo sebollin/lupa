@@ -594,11 +594,29 @@ planificar_limpieza <- function(perfil, datos = NULL,
           "ninguno de esos textos sea un valor leg\u00edtimo de la columna ",
           "-`NA` es el c\u00f3digo de Namibia, `NULL` puede ser un apellido-."
         )
+        marcadores <- .marcadores_disfrazados(hallazgo$evidencia[[1L]])
+        confirmar <- .marcador_puede_ser_valor(marcadores)
+        if (confirmar) {
+          justificacion <- paste0(
+            "Uno de los textos detectados (",
+            paste(marcadores[grepl("^[[:alpha:]]+$", marcadores)], collapse = ", "),
+            ") podr\u00eda ser un valor leg\u00edtimo de la columna: `NA` es el ",
+            "c\u00f3digo de Namibia, `NULL` puede ser un apellido. El cambio no ",
+            "es reversible y el paquete no puede decidirlo, as\u00ed que la ",
+            "acci\u00f3n queda para activar a mano."
+          )
+        }
         acciones <- .agregar_accion(acciones, .nueva_accion(
-          columna, tipo, "convertir_ausencias_textuales", TRUE,
+          columna, tipo, "convertir_ausencias_textuales", !confirmar,
           justificacion, n_textuales, FALSE,
           estado = estado_columna,
-          aplicar = identical(estado_columna, "lista"),
+          # `aplicar` se calcula aparte de `recomendada`, asi que no alcanza
+          # con no recomendarla: sin esto la accion se autoaplicaba igual.
+          aplicar = !confirmar && identical(estado_columna, "lista"),
+          # La documentacion del paquete dice que una accion destructiva
+          # requiere que el usuario la active explicitamente. Esto es
+          # exactamente eso.
+          destructiva = confirmar,
           parametros = list(valores = .cadenas_na()), orden = 100L
         ))
       }
