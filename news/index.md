@@ -4,6 +4,28 @@
 
 ### Correcciones de cobertura y publicación
 
+- **La conversión de marcadores de ausencia convierte exactamente lo que
+  el hallazgo declara.** La acción usaba su propio catálogo y borraba
+  además códigos que la detección había dejado fuera a propósito —`SD`,
+  `NC` y `ND`, que en una columna de estados de EE.UU. son Dakota del
+  Sur, Carolina del Norte y Dakota del Norte—. Y abortaba si la columna
+  tenía un solo valor declarado `bytes`.
+
+- **La comprobación de pérdida de precisión reconoce cualquier formato
+  que el conversor sepa leer**, incluidos la notación científica y los
+  números con coma decimal, en vez de una lista de formatos que se
+  quedaba corta.
+
+- **El plan ya no recomienda acciones que no se pueden ejecutar.**
+  Marcar filas duplicadas sobre una tabla con columnas de lista queda
+  bloqueado con el motivo, en vez de recomendarse y fallar en cada
+  corrida.
+
+- **La deriva ya no declara resuelto lo que el perfil nuevo no evaluó**
+  por falta de un paquete opcional en la geometría (validez y dominio de
+  coordenadas), y las acciones que destruyen valores —centinelas
+  numéricos, winsorización— cuentan sus pérdidas en el registro.
+
 - **Una conversión que redondea ya no se declara reversible.**
   `convertir_numero_regional` convertía `9007199254740993` en
   `9007199254740992` —un entero por encima de 2^53 no entra en un número
