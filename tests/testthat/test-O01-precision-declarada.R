@@ -165,3 +165,22 @@ test_that("la notacion cientifica no se escapa de la guarda de precision", {
   expect_true(length(fila) > 0L)
   expect_true(all(as.logical(exacto$reversible[fila])))
 })
+
+test_that("las acciones que destruyen valores cuentan sus perdidas", {
+  # Un centinela `-999` que pasa a `NA` y un extremo recortado al limite ya no
+  # se pueden recuperar. El registro informaba `n_no_reversibles = 0` porque
+  # los ejecutores no lo devolvian y `aplicar()` completa con cero.
+  datos <- data.frame(x = c(10, 11, 12, -999, -999, 13, 14, 15, 16, 1e6),
+                      id = seq_len(10L))
+  plan <- planificar_limpieza(perfilar(datos, analizar_dependencias = FALSE), datos)
+  for (estrategia in c("convertir_sentinelas_numericos", "winsorizar_outliers")) {
+    expect_true(estrategia %in% plan$estrategia, info = estrategia)
+    solo <- plan
+    solo$aplicar <- solo$estrategia == estrategia
+    registro <- aplicar(solo, datos)$registro
+    fila <- registro[registro$estrategia == estrategia, , drop = FALSE]
+    expect_true(fila$n_cambiadas > 0L, info = estrategia)
+    expect_identical(as.integer(fila$n_no_reversibles), as.integer(fila$n_cambiadas),
+                     info = estrategia)
+  }
+})

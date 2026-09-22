@@ -652,7 +652,13 @@ planificar_limpieza <- function(perfil, datos = NULL,
           # requiere que el usuario la active explicitamente. Esto es
           # exactamente eso.
           destructiva = confirmar,
-          parametros = list(valores = .cadenas_na()), orden = 100L
+          # La lista incluye lo declarado: si no, acotar contra ella dejaria
+          # afuera un marcador que el usuario declaro.
+          parametros = list(
+            valores = unique(c(.cadenas_na(),
+                               tolower(trimws(as.character(declarados))))),
+            cadenas_ausencia = declarados
+          ), orden = 100L
         ))
       }
       if (n_numericos > 0L) {
@@ -1440,8 +1446,33 @@ planificar_limpieza <- function(perfil, datos = NULL,
   if (!is.character(x) && !is.factor(x)) {
     stop("La normalizaci\u00f3n textual requiere una columna de texto.", call. = FALSE)
   }
-  normalizados <- tolower(trimws(as.character(x)))
-  mascara <- !is.na(x) & normalizados %in% parametros$valores
+  # Se convierte EXACTAMENTE lo que el detector conto, y no lo que diga un
+  # catalogo propio. Antes este ejecutor tenia su propia logica y se habia
+  # separado de la deteccion por dos lados:
+  #
+  #   * el detector saca `sd`, `nc` y `nd` del catalogo cuando la columna tiene
+  #     diez o mas valores distintos -para no confundirlos con codigos-, y el
+  #     ejecutor usaba el catalogo COMPLETO. Sobre una columna de estados de
+  #     EE.UU. el hallazgo declaraba 4 celdas y la accion borraba 7, entre
+  #     ellas Dakota del Sur, Carolina del Norte y Dakota del Norte;
+  #   * el detector normaliza con `.texto_analizable()`, que tolera valores
+  #     marcados `bytes`, y el ejecutor hacia `tolower()` sobre la columna
+  #     cruda, que ABORTA con uno solo: la accion se recomendaba y era
+  #     imposible de ejecutar.
+  #
+  # Una regla escrita dos veces. Ahora hay una sola, la del detector, y la
+  # lista del plan solo puede ACOTAR: quien edita el plan puede convertir
+  # menos, nunca mas de lo que se detecto.
+  deteccion <- .detectar_faltantes_disfrazados(
+    x, detectar_sentinelas_numericos = FALSE,
+    cadenas_ausencia = parametros$cadenas_ausencia
+  )
+  mascara <- deteccion$mascara_textual
+  if (length(parametros$valores)) {
+    normalizados <- tolower(trimws(.texto_analizable(x)$valores))
+    mascara <- mascara & !is.na(normalizados) &
+      normalizados %in% tolower(trimws(as.character(parametros$valores)))
+  }
   if (is.factor(x)) x <- as.character(x)
   x[mascara] <- NA
   list(valor = x, n = sum(mascara))
@@ -2249,7 +2280,11 @@ planificar_limpieza <- function(perfil, datos = NULL,
   if (identical(estrategia, "convertir_sentinelas_numericos")) {
     cambio <- .reemplazar_sentinelas_numericos(x, parametros)
     datos[[indice]] <- cambio$valor
-    return(list(datos = datos, n = cambio$n))
+    # Cada celda cambiada pierde su valor original y ningun formato lo
+    # recupera. El registro informaba `n_no_reversibles = 0` porque este
+    # ejecutor no lo devolvia y `aplicar()` completa con cero: las mismas
+    # perdidas que ya se cuentan en `convertir_ausencias_textuales`.
+    return(list(datos = datos, n = cambio$n, n_no_reversibles = cambio$n))
   }
   if (startsWith(estrategia, "imputar_dependencia_funcional__")) {
     return(.imputar_dependencia(datos, parametros))
@@ -2337,7 +2372,11 @@ planificar_limpieza <- function(perfil, datos = NULL,
   if (identical(estrategia, "winsorizar_outliers")) {
     cambio <- .winsorizar_outliers(x)
     datos[[indice]] <- cambio$valor
-    return(list(datos = datos, n = cambio$n))
+    # Cada celda cambiada pierde su valor original y ningun formato lo
+    # recupera. El registro informaba `n_no_reversibles = 0` porque este
+    # ejecutor no lo devolvia y `aplicar()` completa con cero: las mismas
+    # perdidas que ya se cuentan en `convertir_ausencias_textuales`.
+    return(list(datos = datos, n = cambio$n, n_no_reversibles = cambio$n))
   }
   if (estrategia %in% c(
     "convertir_minusculas", "convertir_titulo", "convertir_mayusculas",

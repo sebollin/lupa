@@ -55,19 +55,47 @@ test_that("cada nombre de la cobertura casa con un hallazgo, esta mapeado o no p
   expect_true("outliers" %in% tipos)
   expect_gt(length(tipos), 20L)
 
-  diagnosticos <- unique(regmatches(
-    todo, gregexpr('\\.nuevo_diagnostico_no_evaluado\\(\\s*"[a-z_]+"', todo, perl = TRUE)
-  )[[1L]])
-  diagnosticos <- unique(sub('^.*"([a-z_]+)"$', "\\1", diagnosticos))
-  expect_true("proximidad_vocabulario" %in% diagnosticos)
+  # TRES constructores declaran cobertura, no uno. La primera version de esta
+  # guarda miraba solo `.nuevo_diagnostico_no_evaluado` y veia 17 de 54
+  # declaraciones: `validez_geometria`, escrita con `agregar_cobertura()`, se
+  # desencontraba de `geometria_invalida` sin que esto se enterara. Una guarda
+  # con un punto ciego es peor que ninguna, porque da confianza.
+  constructores <- c(
+    "\\.nuevo_diagnostico_no_evaluado", "agregar_cobertura",
+    "\\.registro_cobertura_dbi"
+  )
+  diagnosticos <- character()
+  for (constructor in constructores) {
+    encontrados <- regmatches(
+      todo, gregexpr(paste0(constructor, '\\(\\s*"[a-z_]+"'), todo, perl = TRUE)
+    )[[1L]]
+    # Cada constructor tiene que aportar algo: si uno deja de encontrarse, la
+    # sonda dejo de leerlo, y eso no puede pasar en silencio.
+    expect_gt(length(encontrados), 0L, label = constructor)
+    diagnosticos <- c(diagnosticos, sub('^.*"([a-z_]+)"$', "\\1", encontrados))
+  }
+  diagnosticos <- unique(diagnosticos)
+  expect_true(all(c("proximidad_vocabulario", "validez_geometria") %in% diagnosticos))
 
   mapeados <- names(lupa:::.hallazgos_por_diagnostico)
   # Declaran cobertura sin producir un hallazgo propio: no hay nada con que
   # desencontrarse. `texto_no_descifrable` en particular NO se mapea: avisa
   # que ciertos valores quedaron fuera de TODOS los diagnosticos de texto, y
   # atarlo a uno solo seria falso.
-  sin_hallazgo <- c("relacion_aritmetica_columnas", "texto_no_descifrable",
-                    "dependencias_funcionales", "comparar_equivalencia")
+  sin_hallazgo <- c(
+    "relacion_aritmetica_columnas", "texto_no_descifrable",
+    "dependencias_funcionales", "comparar_equivalencia",
+    # Notas PARCIALES: el chequeo se hizo, sobre menos valores o menos
+    # dimensiones. No declinan un hallazgo entero.
+    "resumen_cuantitativo", "dimensiones_geometria_no_evaluadas",
+    # Una de tres condiciones de `posible_identificador`: sin ella el hallazgo
+    # igual puede salir por las otras dos. Mapearla haria decir `no_evaluado`
+    # sobre algo que tal vez se resolvio, y mapear de mas tambien miente.
+    "secuencia_entera",
+    # Notas de proceso de la lectura por DBI, sin hallazgo propio.
+    "consistencia", "corroboracion", "fuente_bloques", "perfil_muestra",
+    "resumen_tabla"
+  )
 
   huerfanos <- setdiff(diagnosticos, c(tipos, mapeados, sin_hallazgo))
   expect_identical(huerfanos, character())
@@ -84,5 +112,17 @@ test_that("las dos listas de la familia del vocabulario dicen lo mismo", {
   expect_setequal(
     lupa:::.diagnosticos_relacion_textual,
     lupa:::.hallazgos_por_diagnostico$proximidad_vocabulario
+  )
+})
+
+test_that("la geometria declinada se mapea a los hallazgos que suprime", {
+  mapa <- lupa:::.hallazgos_por_diagnostico
+  expect_identical(mapa$validez_geometria, "geometria_invalida")
+  expect_identical(mapa$dominio_geometria, "coordenada_fuera_dominio")
+  # Sin perfil geometrico no se evalua ninguno.
+  expect_setequal(
+    mapa$perfil_geometria,
+    c("coordenada_fuera_dominio", "crs_no_declarado", "geometria_invalida",
+      "geometria_vacia", "tipos_geometria_mixtos")
   )
 })

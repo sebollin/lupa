@@ -366,7 +366,17 @@
   proximidad_vocabulario = c(
     "casi_duplicados_vocabulario", "variantes_equifrecuentes_vocabulario"
   ),
-  ley_benford = "desviacion_benford"
+  ley_benford = "desviacion_benford",
+  # La geometria se declina con `agregar_cobertura()`, un constructor que la
+  # primera version de la guarda no miraba: `validez_geometria` contra
+  # `geometria_invalida` salio "resuelto" aun con la validez sin evaluar.
+  validez_geometria = "geometria_invalida",
+  dominio_geometria = "coordenada_fuera_dominio",
+  # Sin perfil geometrico no se evalua NINGUNO de los hallazgos de geometria.
+  perfil_geometria = c(
+    "coordenada_fuera_dominio", "crs_no_declarado", "geometria_invalida",
+    "geometria_vacia", "tipos_geometria_mixtos"
+  )
 )
 
 .diagnosticos_declinados_deriva <- function(perfil) {
