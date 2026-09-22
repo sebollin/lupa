@@ -1103,20 +1103,40 @@
 # `OutDec = ","`, `scipen = -5` y `digits = 3` a la vez sale `3,5` y
 # `123456,789012345`.
 .formatear_numero_publicado <- function(x) {
-  if (length(x) != 1L || is.na(x)) return(NA_character_)
-  format(x, scientific = FALSE, trim = TRUE, digits = 15)
+  # Misma razon que en `.formatear_decimal_publicado()`: un vector devolvia
+  # `NA` y quien llamaba publicaba ese `NA` como si fuera el numero.
+  if (!length(x)) return(character())
+  salida <- rep(NA_character_, length(x))
+  utiles <- !is.na(x)
+  if (any(utiles)) {
+    salida[utiles] <- format(
+      x[utiles], scientific = FALSE, trim = TRUE, digits = 15
+    )
+  }
+  salida
 }
 
 # `sprintf()` usa el formateador de C y por eso ignora `OutDec`. Los números
 # que viven dentro de una evidencia tienen que usar la misma marca que las
 # columnas publicadas; `formatC()` conserva la precisión fija y respeta esa
 # opción. `digits` es el número de decimales, no el de cifras significativas.
+# Vectorizado a proposito. La guarda `length(x) != 1L` devolvia `NA` para
+# CUALQUIER vector, y el llamador no se enteraba: la evidencia de Benford pasaba
+# las nueve proporciones juntas y publicaba `1:NA/NA; ... 9:NA/NA` en TODA
+# corrida, al lado de un chi-cuadrado con su p-valor. Un formateador que calla
+# asi convierte cada llamada nueva en un defecto silencioso; ahora un vector
+# devuelve un vector y solo los `NA` de la entrada salen `NA`.
 .formatear_decimal_publicado <- function(x, digits = 3L, signo = FALSE) {
-  if (length(x) != 1L || is.na(x)) return(NA_character_)
-  formatC(
-    x, format = "f", digits = as.integer(digits),
-    flag = if (isTRUE(signo)) "+" else ""
-  )
+  if (!length(x)) return(character())
+  salida <- rep(NA_character_, length(x))
+  utiles <- !is.na(x)
+  if (any(utiles)) {
+    salida[utiles] <- formatC(
+      x[utiles], format = "f", digits = as.integer(digits),
+      flag = if (isTRUE(signo)) "+" else ""
+    )
+  }
+  salida
 }
 
 # ¿La clase de `x` sabe convertirse a texto por sí misma? Si define un método

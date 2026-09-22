@@ -10,6 +10,23 @@
 
 ## Correcciones de cobertura y publicación
 
+- **La equivalencia declara con qué escala decidió.** `comparar_equivalencia()`
+  publicaba una columna llamada `diferencia_relativa` que por debajo de
+  magnitud 1 no es relativa: la tolerancia es mixta —la misma que usan las
+  relaciones aritméticas— y ahí el divisor es 1, así que una media de `0,001`
+  que pasa a `0,4` salía `equivalente` con tolerancia `0,5`. El criterio se
+  mantiene, porque dividir por casi cero convierte el ruido en un cambio del
+  cien por ciento; lo que cambia es que ya no viaja callado: la columna se
+  llama `diferencia_normalizada`, el `motivo` dice cuándo la escala fue la
+  unidad y la documentación lo explica con ese caso.
+
+- **La evidencia de Benford publica su desglose.** Imprimía
+  `1:NA/NA; … 9:NA/NA` en todas las corridas, al lado de un chi-cuadrado con su
+  p-valor: pasaba las nueve proporciones juntas a un formateador que devolvía
+  `NA` para cualquier vector. Los dos formateadores de publicación ahora
+  devuelven un vector cuando reciben un vector, así que ninguna evidencia
+  vuelve a quedarse sin números sin que nadie se entere.
+
 - **Lo que no se puede medir ya no se publica como medido.** Tukey declara un
   IQR cero o menos de 20 valores en la cobertura; las asociaciones conservan
   los pares sin filas completas o con medidas no finitas; y `perfilar_por()`

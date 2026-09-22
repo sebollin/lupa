@@ -36,12 +36,16 @@ test_that("comparar_equivalencia cumple los 14 casos de la especificacion", {
     list(campo = "media", anterior = NA_real_, actual = 0,
          tolerancia = 1e-14, veredicto = "materialmente_distinto",
          motivo = "faltante_un_lado", eje = "flotante"),
+    # Los dos casos de abajo comparan magnitudes menores que uno, asi que la
+    # escala de la tolerancia mixta es la unidad y no el valor: el motivo lo
+    # declara con su sufijo. El veredicto no cambia; lo que cambio es que la
+    # fila dice con que escala se decidio.
     list(campo = "media", anterior = 3.8e-10, actual = 0,
          tolerancia = 1e-14, veredicto = "materialmente_distinto",
-         motivo = "fuera_de_tolerancia", eje = "flotante"),
+         motivo = "fuera_de_tolerancia_escala_unidad", eje = "flotante"),
     list(campo = "media", anterior = 3.8e-10, actual = 0,
          tolerancia = 1e-8, veredicto = "equivalente",
-         motivo = "dentro_de_tolerancia", eje = "flotante"),
+         motivo = "dentro_de_tolerancia_escala_unidad", eje = "flotante"),
     list(campo = "minimo", anterior = 1, actual = 2, tolerancia = 2,
          veredicto = "materialmente_distinto", motivo = "eje_exacto",
          eje = "exacto"),

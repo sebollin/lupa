@@ -1324,13 +1324,13 @@ comparar_perfiles <- function(anterior, actual, umbral_cambio = 0.05,
       veredicto = if (identical(a, b)) "identico" else "equivalente",
       motivo = if (identical(a, b)) "igualdad_exacta" else
         "faltante_misma_clase",
-      diferencia_relativa = NA_real_
+      diferencia_normalizada = NA_real_
     ))
   }
   if (xor(faltante_a, faltante_b)) {
     return(list(
       veredicto = "materialmente_distinto", motivo = "faltante_un_lado",
-      diferencia_relativa = NA_real_
+      diferencia_normalizada = NA_real_
     ))
   }
   if (.infinito_equivalencia(a) || .infinito_equivalencia(b)) {
@@ -1338,7 +1338,7 @@ comparar_perfiles <- function(anterior, actual, umbral_cambio = 0.05,
     return(list(
       veredicto = if (igual) "identico" else "materialmente_distinto",
       motivo = if (igual) "igualdad_exacta" else "infinito",
-      diferencia_relativa = NA_real_
+      diferencia_normalizada = NA_real_
     ))
   }
 
@@ -1347,7 +1347,7 @@ comparar_perfiles <- function(anterior, actual, umbral_cambio = 0.05,
     return(list(
       veredicto = if (igual) "identico" else "materialmente_distinto",
       motivo = if (igual) "igualdad_exacta" else paste0("eje_", tipo_eje),
-      diferencia_relativa = NA_real_
+      diferencia_normalizada = NA_real_
     ))
   }
   if (!is.numeric(a) || !is.numeric(b) ||
@@ -1357,22 +1357,31 @@ comparar_perfiles <- function(anterior, actual, umbral_cambio = 0.05,
       call. = FALSE
     )
   }
-  diferencia_relativa <- suppressWarnings(
-    abs(a - b) / pmax(1, abs(a), abs(b))
-  )
+  # La tolerancia es MIXTA -la misma que usa la deteccion de relaciones
+  # aritmeticas-: la diferencia se divide por el mayor de 1, |a| y |b|. Por
+  # debajo de magnitud 1 el divisor es 1 y la comparacion es ABSOLUTA, que es lo
+  # correcto cerca de cero -dividir por casi nada convierte el ruido en un
+  # cambio del 100%- y lo que hay que DECIR: una media de 0,001 que pasa a 0,4
+  # queda dentro de una tolerancia de 0,5, y el veredicto `equivalente` viajaba
+  # solo, con una columna llamada `diferencia_relativa` que ahi no era relativa.
+  # Ahora la columna se llama por lo que es y el motivo declara la escala.
+  escala <- pmax(1, abs(a), abs(b))
+  escala_unidad <- isTRUE(escala == 1)
+  diferencia_normalizada <- suppressWarnings(abs(a - b) / escala)
   if (igual) {
     return(list(
       veredicto = "identico", motivo = "igualdad_exacta",
-      diferencia_relativa = as.numeric(diferencia_relativa)
+      diferencia_normalizada = as.numeric(diferencia_normalizada)
     ))
   }
   dentro <- .dentro_tolerancia_aritmetica(a, b, tolerancia)
+  motivo <- if (isTRUE(dentro)) "dentro_de_tolerancia" else "fuera_de_tolerancia"
+  if (escala_unidad) motivo <- paste0(motivo, "_escala_unidad")
   list(
     veredicto = if (isTRUE(dentro)) "equivalente" else
       "materialmente_distinto",
-    motivo = if (isTRUE(dentro)) "dentro_de_tolerancia" else
-      "fuera_de_tolerancia",
-    diferencia_relativa = as.numeric(diferencia_relativa)
+    motivo = motivo,
+    diferencia_normalizada = as.numeric(diferencia_normalizada)
   )
 }
 
@@ -1389,8 +1398,19 @@ comparar_perfiles <- function(anterior, actual, umbral_cambio = 0.05,
 #' @param tolerancia Número escalar no negativo y finito, declarado por quien
 #'   llama. No tiene valor por omisión y se publica en cada fila.
 #'
+#'   **La tolerancia es mixta, no relativa.** La diferencia se divide por el
+#'   mayor de `1`, `|anterior|` y `|actual|`, que es la misma regla que usa la
+#'   detección de relaciones aritméticas: por debajo de magnitud 1 el divisor es
+#'   1 y la comparación pasa a ser absoluta, porque dividir por casi cero
+#'   convierte el ruido en un cambio del cien por ciento. Eso tiene una
+#'   consecuencia que conviene tener presente: una media que pasa de `0,001` a
+#'   `0,4` queda dentro de una tolerancia de `0,5`. Cuando la escala usada fue
+#'   la unidad y no el valor, el `motivo` de esa fila lo dice
+#'   (`dentro_de_tolerancia_escala_unidad`, `fuera_de_tolerancia_escala_unidad`)
+#'   y la columna publicada se llama `diferencia_normalizada`, no «relativa».
+#'
 #' @return Un frame de clase `equivalencia_perfiles` con `columna`, `campo`,
-#'   `valor_anterior`, `valor_actual`, `diferencia_relativa`, `veredicto`,
+#'   `valor_anterior`, `valor_actual`, `diferencia_normalizada`, `veredicto`,
 #'   `motivo`, `tipo_eje` y `tolerancia`. `veredicto` es un factor ordenado con
 #'   niveles `identico < equivalente < materialmente_distinto`. Los atributos
 #'   `campos_no_comparables`, `detalle_campos_no_comparables`,
@@ -1622,7 +1642,7 @@ comparar_equivalencia <- function(anterior, actual, tolerancia) {
       salida[[k]] <- list(
         columna = columna, campo = campo,
         valor_anterior = a, valor_actual = b,
-        diferencia_relativa = comparacion$diferencia_relativa,
+        diferencia_normalizada = comparacion$diferencia_normalizada,
         veredicto = comparacion$veredicto, motivo = comparacion$motivo,
         tipo_eje = tipo_eje[[1L]], tolerancia = tolerancia
       )
@@ -1643,8 +1663,8 @@ comparar_equivalencia <- function(anterior, actual, tolerancia) {
       valor_actual = I(lapply(
         lapply(salida, `[[`, "valor_actual"), .texto_publicable
       )),
-      diferencia_relativa = vapply(
-        salida, `[[`, numeric(1L), "diferencia_relativa"
+      diferencia_normalizada = vapply(
+        salida, `[[`, numeric(1L), "diferencia_normalizada"
       ),
       veredicto = vapply(salida, `[[`, character(1L), "veredicto"),
       motivo = vapply(salida, `[[`, character(1L), "motivo"),
@@ -1656,7 +1676,7 @@ comparar_equivalencia <- function(anterior, actual, tolerancia) {
     resultado <- data.frame(
       columna = character(), campo = character(),
       valor_anterior = I(list()), valor_actual = I(list()),
-      diferencia_relativa = numeric(), veredicto = character(),
+      diferencia_normalizada = numeric(), veredicto = character(),
       motivo = character(), tipo_eje = character(), tolerancia = numeric(),
       stringsAsFactors = FALSE
     )

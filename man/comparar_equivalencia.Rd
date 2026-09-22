@@ -11,11 +11,22 @@ comparar_equivalencia(anterior, actual, tolerancia)
 \code{perfil_dbi} de \code{\link[=perfilar_dbi]{perfilar_dbi()}} o directamente un frame \code{columnas}.}
 
 \item{tolerancia}{Número escalar no negativo y finito, declarado por quien
-llama. No tiene valor por omisión y se publica en cada fila.}
+llama. No tiene valor por omisión y se publica en cada fila.
+
+\strong{La tolerancia es mixta, no relativa.} La diferencia se divide por el
+mayor de \code{1}, \verb{|anterior|} y \verb{|actual|}, que es la misma regla que usa la
+detección de relaciones aritméticas: por debajo de magnitud 1 el divisor es
+1 y la comparación pasa a ser absoluta, porque dividir por casi cero
+convierte el ruido en un cambio del cien por ciento. Eso tiene una
+consecuencia que conviene tener presente: una media que pasa de \verb{0,001} a
+\verb{0,4} queda dentro de una tolerancia de \verb{0,5}. Cuando la escala usada fue
+la unidad y no el valor, el \code{motivo} de esa fila lo dice
+(\code{dentro_de_tolerancia_escala_unidad}, \code{fuera_de_tolerancia_escala_unidad})
+y la columna publicada se llama \code{diferencia_normalizada}, no «relativa».}
 }
 \value{
 Un frame de clase \code{equivalencia_perfiles} con \code{columna}, \code{campo},
-\code{valor_anterior}, \code{valor_actual}, \code{diferencia_relativa}, \code{veredicto},
+\code{valor_anterior}, \code{valor_actual}, \code{diferencia_normalizada}, \code{veredicto},
 \code{motivo}, \code{tipo_eje} y \code{tolerancia}. \code{veredicto} es un factor ordenado con
 niveles \verb{identico < equivalente < materialmente_distinto}. Los atributos
 \code{campos_no_comparables}, \code{detalle_campos_no_comparables},
