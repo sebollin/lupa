@@ -1603,11 +1603,30 @@
 # que no se puede leer.
 .aplicar_por_marca <- function(x, en_texto, en_bytes = NULL) {
   if (!is.character(x) || !length(x)) return(en_texto(x))
-  declarados <- !is.na(x) & Encoding(x) == "bytes"
-  if (!any(declarados)) return(en_texto(x))
+  marca <- Encoding(x)
+  # Lo ilegible no es solo lo declarado `bytes`. `read.csv()` sin
+  # `fileEncoding` sobre un archivo latin1 -el caso mas comun del mundo real-
+  # deja los bytes en cadenas SIN MARCA, y en una sesion UTF-8 eso tampoco es
+  # texto valido: `trimws()` moria con "input string 3 is invalid UTF-8" y la
+  # accion que el plan recomienda y aplica solo quedaba `fallida`. En una sesion
+  # que no es UTF-8, "sin marca" es la codificacion nativa y si es legible.
+  sesion_utf8 <- isTRUE(l10n_info()[["UTF-8"]])
+  ilegibles <- !is.na(x) & (
+    marca == "bytes" | (sesion_utf8 & marca == "unknown" & !validUTF8(x))
+  )
+  if (!any(ilegibles)) return(en_texto(x))
   salida <- x
-  if (any(!declarados)) salida[!declarados] <- en_texto(x[!declarados])
-  if (!is.null(en_bytes)) salida[declarados] <- en_bytes(x[declarados])
+  if (any(!ilegibles)) salida[!ilegibles] <- en_texto(x[!ilegibles])
+  if (!is.null(en_bytes)) {
+    v <- x[ilegibles]
+    # Se marcan `bytes` solo mientras se transforman, para que las expresiones
+    # regulares los traten byte a byte. Despues vuelven con la marca con que
+    # llegaron: lo que vino sin marca no pasa a estar declarado `bytes`.
+    Encoding(v) <- "bytes"
+    transformados <- en_bytes(v)
+    Encoding(transformados) <- marca[ilegibles]
+    salida[ilegibles] <- transformados
+  }
   salida
 }
 

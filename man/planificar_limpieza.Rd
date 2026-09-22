@@ -122,6 +122,13 @@ sin que eso sea una pérdida. Sin \code{datos} no se puede hacer la comprobació
 la acción queda bloqueada. Cuando no es reversible se marca \code{destructiva}, no
 se activa por defecto y el registro conserva \code{n_no_reversibles} y la
 justificación de la decisión.
+\code{convertir_numero_regional} sólo se recomienda si todos los valores
+presentes comparten convención decimal, unidad y moneda. Un valor con \verb{\%}
+se divide por 100 y queda como proporción en \verb{[0, 1]}, la escala con que el
+paquete publica toda proporción; una unidad o un símbolo de moneda dejan de
+formar parte del valor y quedan en \code{parametros}. La justificación lo dice
+cuando ocurre. Una columna que mezcla \code{5} con \verb{5 \%} no se convierte: habría
+que decidir si el número sin \verb{\%} está en la misma escala.
 La acción de codificación prueba las tablas congeladas de varias
 codificaciones y deja en \code{estado_reparacion} uno de \code{reparado},
 \code{reparado_parcialmente} o \code{no_se_pudo}. Una reparación parcial no se activa

@@ -325,6 +325,71 @@
   "convertir_tipo", "convertir_numero_regional", "convertir_fecha_confirmada"
 )
 
+# Lo que la conversion regional hace ademas de cambiar el tipo. Un `%` se
+# divide por 100: sin decirlo, "10%" pasaba a 0.1 con una justificacion que
+# aseguraba que la columna se convertia "sin elegir entre interpretaciones".
+.nota_unidad_numero <- function(parametros) {
+  unidad <- parametros$unidad
+  moneda <- parametros$moneda
+  nota <- character()
+  if (length(unidad) == 1L && !is.na(unidad) && nzchar(unidad)) {
+    nota <- c(nota, if (identical(unidad, "%")) {
+      paste0(
+        " Los valores con \"%\" se dividen por 100 y quedan como proporci\u00f3n ",
+        "en [0, 1]."
+      )
+    } else {
+      paste0(
+        " La unidad ", encodeString(unidad, quote = "\""), " deja de formar ",
+        "parte del valor; queda en los par\u00e1metros."
+      )
+    })
+  }
+  if (length(moneda) == 1L && !is.na(moneda) && nzchar(moneda)) {
+    nota <- c(nota, paste0(
+      " El s\u00edmbolo ", encodeString(moneda, quote = "\""), " deja de formar ",
+      "parte del valor; queda en los par\u00e1metros."
+    ))
+  }
+  paste(nota, collapse = "")
+}
+
+# Por que una columna de numeros como texto no se convierte. Se decia siempre
+# que faltaba evidencia para distinguir el separador decimal del de miles,
+# tambien en `5` junto a `5 %`, que no tiene separadores: el motivo publicado
+# no era el motivo.
+.motivo_numero_no_seguro <- function(fila) {
+  # Un perfil de base de datos o guardado por una version anterior puede no
+  # traer estos campos, o traerlos vacios: se leen sin suponer que estan, y lo
+  # que no se sabe no se afirma.
+  convencion <- fila[["numero_texto_convencion"]]
+  proporcion <- fila[["proporcion_numeros_texto"]]
+  convencion <- if (length(convencion)) as.character(convencion[[1L]]) else NA_character_
+  proporcion <- if (length(proporcion)) as.numeric(proporcion[[1L]]) else NA_real_
+  if (isTRUE(convencion %in% c("ambigua", "mixta"))) {
+    paste0(
+      "La columna no aporta evidencia suficiente para distinguir el ",
+      "separador decimal del separador de miles."
+    )
+  } else if (isTRUE(proporcion < 1)) {
+    paste0(
+      "Hay valores presentes que no responden al formato num\u00e9rico de ",
+      "la columna; convertirlos exigir\u00eda decidir qu\u00e9 hacer con ellos."
+    )
+  } else if (isTRUE(proporcion == 1)) {
+    paste0(
+      "La columna mezcla unidades o monedas, o valores con y sin ellas; ",
+      "convertirla exigir\u00eda decidir si un n\u00famero sin unidad est\u00e1 en ",
+      "la misma escala que los dem\u00e1s."
+    )
+  } else {
+    paste0(
+      "La conversi\u00f3n exige que todos los valores presentes compartan ",
+      "convenci\u00f3n decimal, unidad y moneda, y el perfil no lo acredita."
+    )
+  }
+}
+
 # Lleva la regla de aplicabilidad del perfil a las acciones del plan. Sin esto
 # la limpieza operaba sobre la columna entera aunque el usuario hubiera
 # declarado que una parte de las filas no le corresponde: una `S/D` en una fila
@@ -498,6 +563,13 @@
 #' la acción queda bloqueada. Cuando no es reversible se marca `destructiva`, no
 #' se activa por defecto y el registro conserva `n_no_reversibles` y la
 #' justificación de la decisión.
+#' `convertir_numero_regional` sólo se recomienda si todos los valores
+#' presentes comparten convención decimal, unidad y moneda. Un valor con `%`
+#' se divide por 100 y queda como proporción en `[0, 1]`, la escala con que el
+#' paquete publica toda proporción; una unidad o un símbolo de moneda dejan de
+#' formar parte del valor y quedan en `parametros`. La justificación lo dice
+#' cuando ocurre. Una columna que mezcla `5` con `5 %` no se convierte: habría
+#' que decidir si el número sin `%` está en la misma escala.
 #' La acción de codificación prueba las tablas congeladas de varias
 #' codificaciones y deja en `estado_reparacion` uno de `reparado`,
 #' `reparado_parcialmente` o `no_se_pudo`. Una reparación parcial no se activa
@@ -880,17 +952,19 @@ planificar_limpieza <- function(perfil, datos = NULL,
           paste0(
             "La columna usa una convenci\u00f3n decimal coherente (",
             fila$numero_texto_convencion[[1L]],
-            ") y puede convertirse sin elegir entre interpretaciones."
+            ") y puede convertirse sin elegir entre interpretaciones.",
+            .nota_unidad_numero(parametros_numero)
           )
         } else if (seguro) {
           comprobacion_numero$justificacion
         } else {
-          paste0(
-            "La columna no aporta evidencia suficiente para distinguir el ",
-            "separador decimal del separador de miles."
-          )
+          .motivo_numero_no_seguro(fila)
         },
-        fila$n_numeros_texto[[1L]], comprobacion_numero$reversible,
+        # Cuenta valores presentes, como las otras dos conversiones de tipo:
+        # heredaba `n_numeros_texto`, que solo cuenta los que tienen
+        # separadores, y el plan prometia 11 donde la conversion cambiaba los
+        # 20 -una columna cambia de tipo entera, tambien el "7"-.
+        fila$n[[1L]] - fila$n_faltantes[[1L]], comprobacion_numero$reversible,
         estado = if (seguro && comprobacion_numero$verificable) {
           estado_columna
         } else if (seguro) "bloqueada" else estado_columna,
@@ -901,6 +975,7 @@ planificar_limpieza <- function(perfil, datos = NULL,
           n_no_reversibles = comprobacion_numero$n_no_reversibles,
           motivo_no_reversible = comprobacion_numero$justificacion
         )),
+        unidad_conteo = "valor",
         destructiva = seguro && !conversion_numero_segura,
         orden = 320L
       ))
@@ -2461,7 +2536,10 @@ planificar_limpieza <- function(perfil, datos = NULL,
     evaluacion <- .evaluar_conversion(
       x, cambio$valor, estrategia, parametros
     )
-    return(list(datos = datos, n = cambio$n,
+    # Mismo conteo que las otras dos conversiones de tipo: contaba solo los
+    # valores no vacios, asi que un `""` que la conversion vuelve `NA` no
+    # figuraba entre los cambios.
+    return(list(datos = datos, n = .n_valores_cambiados(x, cambio$valor),
                 n_no_reversibles = evaluacion$n_no_reversibles))
   }
   if (identical(estrategia, "marcar_filas_ausentes")) {

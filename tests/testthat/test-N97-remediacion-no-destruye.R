@@ -207,3 +207,57 @@ test_that("ningun ejecutor de texto deja que un valor bytes decida el destino de
     expect_identical(Encoding(con_vecino[[2L]]), "bytes", info = nombre)
   }
 })
+
+test_that("lo que llega sin marca y no es UTF-8 no hace fallar la accion", {
+  # El caso mas comun del mundo real: un CSV guardado en latin1 y leido con
+  # `read.csv()` sin `fileEncoding` deja los bytes en cadenas SIN MARCA. La
+  # separacion de mas arriba miraba solo la marca `bytes`, asi que esas
+  # cadenas iban por la rama de texto y `trimws()` moria con "input string 3
+  # is invalid UTF-8": la accion que el plan recomienda y aplica solo quedaba
+  # `fallida`. En una sesion que no es UTF-8, "sin marca" es la codificacion
+  # nativa y es legible: ahi el caso no existe.
+  skip_if_not(isTRUE(l10n_info()[["UTF-8"]]), "solo en una sesion UTF-8")
+  # "Paysandu" con la u acentuada en latin1, sin marca y con un espacio al final.
+  sin_marca <- .n97_marcar(c(0x50, 0x61, 0x79, 0x73, 0x61, 0x6e, 0x64, 0xfa, 0x20),
+                           "unknown")
+  expect_false(validUTF8(sin_marca))
+  columna <- c("Montevideo ", " Salto", sin_marca, "Rivera", "Montevideo", "Salto")
+  datos <- data.frame(ciudad = columna, stringsAsFactors = FALSE)
+
+  plan <- planificar_limpieza(perfilar(datos), datos)
+  elegida <- as.character(plan$estrategia) == "recortar_espacios"
+  expect_true(any(elegida))
+  plan$aplicar <- elegida
+  resultado <- aplicar(plan, datos)
+  registro <- as.data.frame(resultado$registro)
+  expect_identical(as.character(registro$estado), "ejecutada")
+
+  salida <- resultado$datos$ciudad
+  expect_identical(salida[[1L]], "Montevideo")
+  # La celda ilegible se recorta byte a byte y vuelve con la marca que traia:
+  # no pasa a estar declarada `bytes` porque la limpieza la haya tocado.
+  expect_identical(charToRaw(salida[[3L]]), head(charToRaw(sin_marca), -1L))
+  expect_identical(Encoding(salida[[3L]]), "unknown")
+
+  # Los otros ejecutores de texto tampoco pueden morir por ella, ni cambiar
+  # por ella el destino de sus vecinas.
+  casos <- list(
+    separadores = list(c(0x61, 0x09, 0x62),
+                       function(x) lupa:::.reemplazar_separadores(x)$valor),
+    minusculas = list(c(0x41, 0x42), function(x)
+      lupa:::.transformar_capitalizacion(x, "convertir_minusculas", list())$valor),
+    mayusculas = list(c(0x61, 0x62), function(x)
+      lupa:::.transformar_capitalizacion(x, "convertir_mayusculas", list())$valor),
+    titulo = list(c(0x61, 0x62), function(x)
+      lupa:::.transformar_capitalizacion(x, "convertir_titulo", list())$valor)
+  )
+  for (nombre in names(casos)) {
+    celda <- rawToChar(as.raw(casos[[nombre]][[1L]]))
+    transformar <- casos[[nombre]][[2L]]
+    con_vecino <- transformar(c(celda, sin_marca))
+    sin_vecino <- transformar(celda)
+    expect_false(identical(sin_vecino[[1L]], celda), info = nombre)
+    expect_identical(con_vecino[[1L]], sin_vecino[[1L]], info = nombre)
+    expect_identical(Encoding(con_vecino[[2L]]), "unknown", info = nombre)
+  }
+})
