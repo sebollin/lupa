@@ -75,3 +75,14 @@ test_that("cada nombre de la cobertura casa con un hallazgo, esta mapeado o no p
   # Y lo mapeado apunta a hallazgos que existen.
   expect_true(all(unlist(lupa:::.hallazgos_por_diagnostico) %in% tipos))
 })
+
+test_that("las dos listas de la familia del vocabulario dicen lo mismo", {
+  # `.hallazgos_por_diagnostico` cuelga dos hallazgos de
+  # `proximidad_vocabulario` y `.diagnosticos_relacion_textual` nombraba uno
+  # solo: `variantes_equifrecuentes_vocabulario` quedaba afuera del motivo de
+  # `no_evaluado` por cambio de tipo. Una regla escrita dos veces.
+  expect_setequal(
+    lupa:::.diagnosticos_relacion_textual,
+    lupa:::.hallazgos_por_diagnostico$proximidad_vocabulario
+  )
+})

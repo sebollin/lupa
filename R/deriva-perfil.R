@@ -249,7 +249,13 @@
 # La direccion opuesta no tiene este problema, y se midio: una columna que pasa
 # de numero a texto se vuelve a inferir como numerica y `outliers` sigue
 # corriendo.
-.diagnosticos_relacion_textual <- c("casi_duplicados_vocabulario")
+# Tiene que coincidir con lo que `.hallazgos_por_diagnostico` cuelga de
+# `proximidad_vocabulario`: son los hallazgos de la misma familia, y una lista
+# que nombra a uno y deja al hermano afuera es una regla escrita dos veces. Una
+# prueba exige que coincidan.
+.diagnosticos_relacion_textual <- c(
+  "casi_duplicados_vocabulario", "variantes_equifrecuentes_vocabulario"
+)
 
 # Los hallazgos de esos diagnosticos, en columnas que en el perfil nuevo ya no
 # son texto, como `columna tipo`.
