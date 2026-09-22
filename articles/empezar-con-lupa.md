@@ -461,7 +461,7 @@ plan[, c(
 #> 1        <NA> codigo_usuario           revisar_cardinalidad       FALSE   FALSE
 #> 2        <NA> codigo_usuario  convertir_ausencias_textuales        TRUE    TRUE
 #> 3        <NA>   fecha_evento           revisar_cardinalidad       FALSE   FALSE
-#> 4        <NA>   fecha_evento  convertir_ausencias_textuales        TRUE    TRUE
+#> 4        <NA>   fecha_evento  convertir_ausencias_textuales       FALSE   FALSE
 #> 5        <NA>   fecha_evento     convertir_fecha_confirmada       FALSE   FALSE
 #> 6        <NA>          canal  convertir_ausencias_textuales        TRUE    TRUE
 #> 7        <NA>          canal              recortar_espacios        TRUE    TRUE
@@ -507,10 +507,9 @@ resultado$registro[, c("estrategia", "n_cambiadas")]
 #>                      estrategia n_cambiadas
 #> 1       marcar_filas_duplicadas           2
 #> 2 convertir_ausencias_textuales           1
-#> 3 convertir_ausencias_textuales           1
-#> 4 convertir_ausencias_textuales           2
-#> 5             recortar_espacios           1
-#> 6    marcar_columnas_duplicadas           1
+#> 3 convertir_ausencias_textuales           2
+#> 4             recortar_espacios           1
+#> 5    marcar_columnas_duplicadas           1
 ```
 
 El original permanece intacto. El plan es editable: si se cambia una
@@ -530,7 +529,7 @@ c(
   despues = nrow(perfil_despues$hallazgos)
 )
 #>   antes despues 
-#>      24      21
+#>      24      22
 ```
 
 ## Un archivo para compartir
@@ -557,7 +556,7 @@ archivo <- reportar(
   titulo = "Calidad de la entrega de ejemplo"
 )
 basename(archivo)
-#> [1] "file227968afc9bf.html"
+#> [1] "file23467e63143b.html"
 unlink(c(archivo, archivo_rds))
 ```
 

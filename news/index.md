@@ -4,6 +4,25 @@
 
 ### Correcciones de cobertura y publicación
 
+- **Una conversión que redondea ya no se declara reversible.**
+  `convertir_numero_regional` convertía `9007199254740993` en
+  `9007199254740992` —un entero por encima de 2^53 no entra en un número
+  de doble precisión— y el plan la publicaba recomendada, reversible y
+  con cero cambios irreversibles. Ahora la pérdida se mide al parsear el
+  número, antes de aplicar cualquier unidad o moneda, y la acción queda
+  para activar a mano con el motivo escrito.
+
+- **Un marcador de ausencia que podría ser un dato ya no se convierte
+  solo.** `NA` es el código de Namibia y `NULL` puede ser un apellido:
+  la acción que los convierte en ausencias queda para activar a mano
+  cuando el marcador es una palabra suelta. Los que llevan puntuación o
+  espacios —`S/D`, `sin dato`— se siguen aplicando solos.
+
+- **La deriva distingue lo que se resolvió de lo que se dejó de mirar al
+  cambiar el tipo.** Cuando una columna pasa de texto a número, los
+  casi-duplicados de vocabulario dejan de evaluarse; antes se informaban
+  como resueltos, y ahora como no evaluados.
+
 - **Una acción recomendada ya no destruye el valor del usuario.**
   `eliminar_controles_invisibles` y `normalizar_espacios_invisibles`
   reemplazaban el valor por la cadena literal `"NA"` cuando no podían
