@@ -66,8 +66,8 @@ detectar_deriva_calidad(historico, umbral = 0.05)
 #> 1 perfil Operativo  <NA>         entrega                enero     2026-01-31
 #>   resultado_anterior id_medicion_actual fecha_actual resultado_actual delta
 #> 1                  0            febrero   2026-02-28                1     1
-#>   cambio_absoluto significativo direccion severidad   aspecto
-#> 1               1          TRUE    mejora        ok resultado
+#>   cambio_absoluto significativo direccion severidad cambio   aspecto
+#> 1               1          TRUE    mejora        ok   <NA> resultado
 #>                             descripcion evidencia
 #> 1 Cambió el resultado de la evaluación.      <NA>
 ```

@@ -35,8 +35,9 @@ Data frame `deriva_calidad` con una fila por par de corridas
 consecutivas. Una mejora significativa conserva severidad `ok`; un
 deterioro de al menos un umbral es `sospechoso` y uno de al menos dos
 umbrales es `error`. `identidad_tabla` separa series de tablas distintas
-y `aspecto` marca el resultado o un cambio de configuración; este último
-se informa como `error` pero no suprime la comparación.
+y `aspecto` marca el resultado o un cambio de configuracion; `cambio`
+usa `no_comparable` cuando una configuracion del modelo impide comparar
+las corridas.
 
 **Un par que no se puede comparar no recibe veredicto.** Si alguna de
 las dos corridas no evaluó su resultado, `delta`, `cambio_absoluto`,

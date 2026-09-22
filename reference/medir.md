@@ -103,7 +103,9 @@ medirse por falta de valores en su universo, no crea filas ni ceros:
 deja el motivo en el atributo `cobertura_metricas`. También conserva
 `configuracion_modelo` y `configuracion_aplicabilidad`, descripciones de
 la política usada para que una deriva posterior pueda distinguir modelo
-de datos.
+de datos. Si el modelo declara un marco, la medición conserva tambien
+`marco_calidad`; la configuracion del modelo registra su nombre, sus
+pares dimension-factor y el `tipo_resultado` de cada metrica.
 
 ## Examples
 
@@ -113,13 +115,13 @@ especifica <- especializar(nucleo$NoNulo, nombre_especifico = "NoNuloEdad")
 instancia <- instanciar(especifica, "personas", "edad")
 medir(modelo(instancia), data.frame(edad = c(20, NA, 35)))
 #>                                     id_medida
-#> 1 medicion-20260922T200304.595879-7619-000001
-#> 2 medicion-20260922T200304.595879-7619-000002
-#> 3 medicion-20260922T200304.595879-7619-000003
+#> 1 medicion-20260922T212933.813481-7494-000001
+#> 2 medicion-20260922T212933.813481-7494-000002
+#> 3 medicion-20260922T212933.813481-7494-000003
 #>                            id_medicion               fecha metrica
-#> 1 medicion-20260922T200304.595879-7619 2026-09-22 20:03:04  NoNulo
-#> 2 medicion-20260922T200304.595879-7619 2026-09-22 20:03:04  NoNulo
-#> 3 medicion-20260922T200304.595879-7619 2026-09-22 20:03:04  NoNulo
+#> 1 medicion-20260922T212933.813481-7494 2026-09-22 21:29:33  NoNulo
+#> 2 medicion-20260922T212933.813481-7494 2026-09-22 21:29:33  NoNulo
+#> 3 medicion-20260922T212933.813481-7494 2026-09-22 21:29:33  NoNulo
 #>   metrica_especifica      metrica_instanciada   dimension   factor orientacion
 #> 1         NoNuloEdad NoNuloEdad@personas.edad Completitud Densidad conformidad
 #> 2         NoNuloEdad NoNuloEdad@personas.edad Completitud Densidad conformidad

@@ -84,8 +84,9 @@ operativamente visibles.</p></dd>
 consecutivas. Una mejora significativa conserva severidad <code>ok</code>; un
 deterioro de al menos un umbral es <code>sospechoso</code> y uno de al menos dos
 umbrales es <code>error</code>. <code>identidad_tabla</code> separa series de tablas distintas y
-<code>aspecto</code> marca el resultado o un cambio de configuración; este último se
-informa como <code>error</code> pero no suprime la comparación.</p>
+<code>aspecto</code> marca el resultado o un cambio de configuracion; <code>cambio</code> usa
+<code>no_comparable</code> cuando una configuracion del modelo impide comparar las
+corridas.</p>
 <p><strong>Un par que no se puede comparar no recibe veredicto.</strong> Si alguna de las
 dos corridas no evaluó su resultado, <code>delta</code>, <code>cambio_absoluto</code>,
 <code>significativo</code>, <code>direccion</code> y <code>severidad</code> quedan en <code>NA</code> —no en <code>estable</code>

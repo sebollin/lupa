@@ -44,8 +44,8 @@ pudo aplicarse— no se acumula: se rechaza citando el motivo que
 [`medir()`](https://sebollin.github.io/lupa/reference/medir.md) declaró
 en `cobertura_metricas`, porque no hay corrida que registrar. El
 atributo `configuracion_evaluacion` conserva, en una tabla plana
-separada, el modelo, la aplicabilidad, el perfil y la identidad de tabla
-de cada corrida.
+separada, el modelo, su marco y sus tipos, la aplicabilidad, el perfil y
+la identidad de tabla de cada corrida.
 
 ## Details
 
