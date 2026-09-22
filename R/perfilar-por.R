@@ -338,6 +338,26 @@ perfilar_por <- function(datos, por, clave = NULL, min_filas = 30L, ...) {
     }
   }
 
+  # Los indices de la traza salen de perfilar la REBANADA, asi que son
+  # posiciones dentro del grupo. Publicados tal cual, con `localizador =
+  # "indice_fila"` y `alcance = "completo"`, apuntan contra la tabla que el
+  # usuario tiene -la unica que tiene- a filas inocentes: en un grupo de 102
+  # filas, el hallazgo de las filas 199 a 202 salia como 99 a 102. `filas`
+  # tiene las posiciones originales de cada grupo, que es justo lo que falta.
+  .traza_en_la_tabla_original <- function(trazas, filas_originales) {
+    if (!is.list(trazas) || !length(trazas)) return(trazas)
+    lapply(trazas, function(traza) {
+      if (!is.list(traza) || !length(traza$indices_fila)) return(traza)
+      indices <- traza$indices_fila
+      validos <- !is.na(indices) & indices >= 1L &
+        indices <= length(filas_originales)
+      traducidos <- rep(NA_integer_, length(indices))
+      traducidos[validos] <- as.integer(filas_originales[indices[validos]])
+      traza$indices_fila <- traducidos
+      traza
+    })
+  }
+
   for (indice_grupo in seq_along(grupos)) {
     nombre_grupo <- names(grupos)[[indice_grupo]]
     filas <- grupos[[indice_grupo]]
@@ -600,6 +620,9 @@ perfilar_por <- function(datos, por, clave = NULL, min_filas = 30L, ...) {
       )
     }
     if (nrow(perfil$hallazgos)) {
+      perfil$hallazgos$trazabilidad <- .traza_en_la_tabla_original(
+        perfil$hallazgos$trazabilidad, filas
+      )
       fila <- cbind(
         data.frame(
           grupo = nombre_grupo, n_filas_grupo = length(filas),

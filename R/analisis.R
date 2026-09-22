@@ -933,7 +933,15 @@ guardar_analisis <- function(x, archivo, incluir_datos = FALSE,
   copia["evaluacion"] <- list(
     .proteger_evaluacion_desenlaces(copia$evaluacion)
   )
-  if (!incluir_datos) copia["datos"] <- list(NULL)
+  if (!incluir_datos) {
+    copia["datos"] <- list(NULL)
+    # `datos_conservados` describe al OBJETO, y el objeto que se guarda sin
+    # datos no los conserva. Quedaba en TRUE -el valor de cuando se creo el
+    # analisis- y el informe HTML del objeto releido publicaba "datos
+    # conservados: TRUE" sobre un objeto cuyo `datos` es NULL y cuya propia
+    # persistencia declara `datos_incluidos = FALSE`.
+    copia$meta$datos_conservados <- FALSE
+  }
   propuesta <- .deshidratar_propuesta(copia$propuesta_modelo)
   copia$propuesta_modelo <- propuesta$propuesta
   copia$meta$persistencia <- list(

@@ -10,6 +10,28 @@
 
 ## Correcciones de cobertura y publicación
 
+- **Los índices de un hallazgo por grupo apuntan a la tabla del usuario.**
+  `perfilar_por()` perfila cada grupo sobre su rebanada y publicaba los índices
+  de esa rebanada con `localizador = "indice_fila"` y `alcance = "completo"`:
+  contra la tabla original señalaban filas inocentes. Ahora se traducen al
+  marco de la tabla que se pasó, que es el que la documentación promete.
+
+- **Un análisis guardado sin datos ya no dice que los conserva.**
+  `guardar_analisis(incluir_datos = FALSE)` dejaba `datos_conservados = TRUE`
+  —el valor de cuando se creó el análisis— y el informe del objeto releído
+  publicaba «datos conservados: TRUE» sobre un objeto cuyo `datos` es `NULL`.
+
+- **Lo indeterminado deja de contarse como «no corresponde».** La
+  documentación de `aplicabilidad` promete que las filas donde el predicado no
+  se puede determinar se declaran aparte; se contaban además como valores
+  presentes fuera del universo y disparaban el hallazgo
+  `valor_fuera_de_aplicabilidad`, cuya descripción —«la regla declarada dice que
+  no corresponde»— es falsa para una fila que no se pudo decidir. Ahora esas
+  filas se declaran en `cobertura_diagnosticos` y la columna publica
+  `n_presentes_en_aplicabilidad_indeterminada`. El mismo hallazgo publicaba su
+  universo al revés —«1000 afectados de 0 evaluados» con un universo aplicable
+  vacío—: su denominador es ahora el de las filas que podían producirlo.
+
 - **La equivalencia declara con qué escala decidió.** `comparar_equivalencia()`
   publicaba una columna llamada `diferencia_relativa` que por debajo de
   magnitud 1 no es relativa: la tolerancia es mixta —la misma que usan las

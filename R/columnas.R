@@ -2039,9 +2039,15 @@
   } else {
     # `as.logical()` borraria el conteo de indeterminados que viaja como
     # atributo, y la fila volveria a confundir "no corresponde" con "no se sabe".
+    # La mascara POR FILA viaja por el mismo motivo y se perdia en el mismo
+    # lugar: se reponen las dos, o el arreglo de mas abajo no ve nada.
     indeterminados <- attr(aplicable, "n_indeterminados", exact = TRUE)
+    por_fila <- attr(aplicable, "indeterminados_por_fila", exact = TRUE)
     convertida <- as.logical(aplicable)
     attr(convertida, "n_indeterminados") <- indeterminados
+    if (!is.null(por_fila) && length(por_fila) == length(convertida)) {
+      attr(convertida, "indeterminados_por_fila") <- por_fila
+    }
     convertida
   }
   geometria <- .perfilar_geometria(x)
@@ -2212,8 +2218,17 @@
   n_no_aplica <- n - n_aplicables - n_indeterminados
   n_faltantes <- sum(is.na(x) & aplicable)
   # Un valor presente donde la regla dice que no corresponde es un hallazgo por
-  # derecho propio, no algo para descartar en silencio.
-  n_presentes_fuera <- sum(!is.na(x) & !aplicable)
+  # derecho propio, no algo para descartar en silencio. Las filas donde el
+  # predicado NO SE PUDO DECIDIR no entran: ahi la regla no dice que no
+  # corresponda, dice que no sabe, y contarlas aca las publicaba como error
+  # ajeno a lo que la propia fila declara una columna antes.
+  indeterminado_por_fila <- attr(aplicable, "indeterminados_por_fila", exact = TRUE)
+  if (is.null(indeterminado_por_fila) ||
+      length(indeterminado_por_fila) != length(aplicable)) {
+    indeterminado_por_fila <- rep(FALSE, length(aplicable))
+  }
+  n_presentes_fuera <- sum(!is.na(x) & !aplicable & !indeterminado_por_fila)
+  n_presentes_indeterminadas <- sum(!is.na(x) & indeterminado_por_fila)
   n_codificacion_invalida <- length(preparacion_texto$posiciones)
   # La identidad describe la representacion almacenada: los bytes invalidos
   # se pueden distinguir sin decodificarlos y no son faltantes. Los analisis
@@ -2300,6 +2315,7 @@
     n_aplicables = n_aplicables,
     n_no_aplica = n_no_aplica,
     n_aplicabilidad_indeterminada = n_indeterminados,
+    n_presentes_en_aplicabilidad_indeterminada = n_presentes_indeterminadas,
     n_presentes_fuera_de_aplicabilidad = n_presentes_fuera,
     n_faltantes = n_faltantes,
     prop_faltantes = if (n_aplicables) n_faltantes / n_aplicables else NA_real_,
@@ -2468,6 +2484,7 @@
   fila$n <- NROW(x)
   enteros_na <- c(
     "n_aplicables", "n_no_aplica", "n_aplicabilidad_indeterminada",
+    "n_presentes_en_aplicabilidad_indeterminada",
     "n_presentes_fuera_de_aplicabilidad",
     "n_faltantes", "n_faltantes_disfrazados",
     "n_faltantes_disfrazados_textuales",

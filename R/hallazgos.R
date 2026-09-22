@@ -2429,6 +2429,14 @@
       fila$n_aplicables[[1L]] < fila$n[[1L]]) {
     n <- as.numeric(fila$n_aplicables[[1L]])
   }
+  # `valor_fuera_de_aplicabilidad` cuenta filas de AFUERA del universo, asi que
+  # su denominador no es el universo aplicable: con una regla que deja el
+  # universo vacio publicaba "1000 afectados de 0 evaluados". Las filas que
+  # pudieron producir este error son las que la regla declaro no aplicables.
+  if (identical(tipo, "valor_fuera_de_aplicabilidad") &&
+      !is.null(fila$n_no_aplica) && isTRUE(is.finite(fila$n_no_aplica[[1L]]))) {
+    n <- as.numeric(fila$n_no_aplica[[1L]])
+  }
   # Y el mismo razonamiento para los diagnosticos que se calculan SOBRE EL
   # RESUMEN CUANTITATIVO: sus numeros salen de los valores que llegaron a
   # numero, asi que su denominador es ese subconjunto y no la columna entera.
@@ -2586,7 +2594,13 @@
   if (identical(tipo, "valor_fuera_de_aplicabilidad")) {
     aplicable <- resultado$aplicable
     if (is.null(aplicable)) return(NULL)
-    return(which(!is.na(x) & !aplicable))
+    # Las filas indeterminadas no son filas fuera del universo: la regla no
+    # dijo que no, dijo que no sabe.
+    indeterminado <- attr(aplicable, "indeterminados_por_fila", exact = TRUE)
+    if (is.null(indeterminado) || length(indeterminado) != length(aplicable)) {
+      indeterminado <- rep(FALSE, length(aplicable))
+    }
+    return(which(!is.na(x) & !aplicable & !indeterminado))
   }
   # La condicion es que el analisis de geometria haya dejado sus indices, no que
   # la columna sea un objeto `sfc`. Estaba al reves, y eso descartaba una traza
@@ -3758,6 +3772,27 @@
         ),
         "Revisar si es texto libre, un identificador o una categor\u00eda mal normalizada."
       ))
+    }
+
+    # Lo que no se pudo decidir se declara, en vez de contarse como error: si
+    # hay valores presentes en filas donde el predicado quedo indeterminado, el
+    # diagnostico no pudo evaluarse sobre ellas y eso es una cobertura, no un
+    # hallazgo.
+    if (!is.null(fila$n_presentes_en_aplicabilidad_indeterminada) &&
+        isTRUE(fila$n_presentes_en_aplicabilidad_indeterminada > 0L)) {
+      agregar_cobertura(
+        "valor_fuera_de_aplicabilidad", nombre,
+        paste0(
+          "En ", fila$n_presentes_en_aplicabilidad_indeterminada,
+          " filas con valor presente el predicado de aplicabilidad no se pudo ",
+          "determinar, asi que no se sabe si esos valores corresponden al ",
+          "universo o no."
+        ),
+        paste0(
+          "Completar las columnas de las que depende la regla, o declarar una ",
+          "regla que no dependa de valores ausentes."
+        )
+      )
     }
 
     # El espejo del faltante falso: un valor presente donde la regla declarada

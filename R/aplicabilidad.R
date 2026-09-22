@@ -195,6 +195,18 @@
     # perfil no los confunda con filas donde la columna no corresponde: no
     # saber no es lo mismo que no aplicar.
     attr(mascara, "n_indeterminados") <- indeterminados
+    # Y la mascara POR FILA tambien, porque el conteo solo no alcanza: quien
+    # cuenta "valores presentes fuera del universo" necesita saber CUALES filas
+    # son indeterminadas para no tragarselas. Sin esto, las filas donde el
+    # predicado no se pudo decidir se contaban dos veces -como indeterminadas,
+    # bien, y como presentes fuera del universo, mal- y disparaban un hallazgo
+    # que dice "la regla declarada dice que no corresponde", que sobre una fila
+    # indeterminada es falso.
+    attr(mascara, "indeterminados_por_fila") <- if (indeterminados > 0L) {
+      is.na(crudo)
+    } else {
+      rep(FALSE, length(mascara))
+    }
     mascaras[[i]] <- mascara
     reglas[[length(reglas) + 1L]] <- data.frame(
       columna = columna, origen = origen, regla = regla,
