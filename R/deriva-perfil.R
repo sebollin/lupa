@@ -233,6 +233,48 @@
   declaracion_clave = c("clave_no_unica", "clave_con_ausentes")
 )
 
+# Diagnosticos que comparan valores ENTRE SI y que solo corren sobre texto.
+#
+# Cuando una columna pasa de texto a numero, los diagnosticos de texto dejan de
+# correr sobre ella. Para la mayoria eso es una resolucion de verdad: un numero
+# no puede tener espacios sobrantes, mayusculas inconsistentes ni controles
+# invisibles, asi que el problema dejo de existir. Pero un diagnostico que
+# mira la RELACION entre valores no desaparece con el tipo: `1200` y `1201`
+# siguen ahi despues de convertirlos, solo que nadie los volvio a comparar.
+#
+# Medido el 2026-09-21: el plan recomendado convertia `"1200%"`/`"1201%"` a
+# numero -ninguna accion atendia los casi duplicados- y la deriva informaba
+# `casi_duplicados_vocabulario` como **resuelto, severidad ok**.
+#
+# La direccion opuesta no tiene este problema, y se midio: una columna que pasa
+# de numero a texto se vuelve a inferir como numerica y `outliers` sigue
+# corriendo.
+.diagnosticos_relacion_textual <- c("casi_duplicados_vocabulario")
+
+# Los hallazgos de esos diagnosticos, en columnas que en el perfil nuevo ya no
+# son texto, como `columna tipo`.
+.declinados_por_cambio_de_tipo <- function(anterior, actual) {
+  columnas_a <- anterior$columnas
+  columnas_b <- actual$columnas
+  if (!inherits(columnas_a, "data.frame") || !inherits(columnas_b, "data.frame") ||
+      !all(c("columna", "tipo_declarado") %in% names(columnas_a)) ||
+      !all(c("columna", "tipo_declarado") %in% names(columnas_b))) {
+    return(character())
+  }
+  es_texto <- function(tipo) {
+    tolower(as.character(tipo)) %in% c("texto", "character", "factor", "categoria")
+  }
+  nombres_a <- .nombres_para_operar(columnas_a$columna)
+  nombres_b <- .nombres_para_operar(columnas_b$columna)
+  comunes <- intersect(nombres_a, nombres_b)
+  dejaron <- comunes[
+    es_texto(columnas_a$tipo_declarado[match(comunes, nombres_a)]) &
+      !es_texto(columnas_b$tipo_declarado[match(comunes, nombres_b)])
+  ]
+  if (!length(dejaron)) return(character())
+  as.vector(outer(dejaron, .diagnosticos_relacion_textual, paste))
+}
+
 .declinados_por_declaracion_retirada <- function(anterior, actual) {
   declinados <- character()
   for (declaracion in names(.hallazgos_por_declaracion)) {
@@ -890,7 +932,8 @@ comparar_perfiles <- function(anterior, actual, umbral_cambio = 0.05,
   # esa misma tabla, "no se evaluaron los limites de Tukey".
   declinados_ahora <- c(
     .diagnosticos_declinados_deriva(actual),
-    .declinados_por_declaracion_retirada(anterior, actual)
+    .declinados_por_declaracion_retirada(anterior, actual),
+    .declinados_por_cambio_de_tipo(anterior, actual)
   )
   for (clave in resueltos) {
     x <- hallazgos_a[match(clave, hallazgos_a$clave), , drop = FALSE]
@@ -906,13 +949,22 @@ comparar_perfiles <- function(anterior, actual, umbral_cambio = 0.05,
     # encontrar nada y va a concluir que el aviso esta de mas.
     por_declaracion <- clave_declinacion %in%
       .declinados_por_declaracion_retirada(anterior, actual)
+    por_tipo <- clave_declinacion %in%
+      .declinados_por_cambio_de_tipo(anterior, actual)
     agregar(
       if (x$columna == "<tabla>") NA_character_ else x$columna,
       "hallazgo",
       if (declinado) "no_evaluado" else "resuelto",
       if (declinado) "sospechoso" else "ok",
       x$tipo_hallazgo, NA_character_,
-      descripcion = if (por_declaracion) {
+      descripcion = if (por_tipo) {
+        paste(
+          "La columna dej\u00f3 de ser texto y este diagn\u00f3stico compara valores",
+          "de texto entre s\u00ed, as\u00ed que no se volvi\u00f3 a evaluar: los valores",
+          "que lo dispararon pueden seguir ah\u00ed. Dejar de mirar no es lo mismo",
+          "que arreglar."
+        )
+      } else if (por_declaracion) {
         paste(
           "El diagn\u00f3stico no se evalu\u00f3 en el perfil nuevo porque ya no se",
           "declar\u00f3 lo que lo habilita, as\u00ed que no se sabe si el hallazgo sigue:",
