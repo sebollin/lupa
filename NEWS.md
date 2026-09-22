@@ -1,5 +1,13 @@
 # lupa 0.1.0
 
+## Correcciones de marco y deriva
+
+- `medir()` conserva el marco declarado por el modelo y `tablero_calidad()` lo
+  reutiliza para publicar la cobertura completa. El historico guarda tambien
+  el nombre y los pares dimension-factor del marco, junto con el
+  `tipo_resultado` de cada metrica. Si cambia el marco o un tipo, la deriva lo
+  declara `no_comparable` con severidad `error` y explica el motivo.
+
 ## Correcciones de cobertura y publicación
 
 - **Los enteros anchos que llegan como doble ya no se publican como exactos.**

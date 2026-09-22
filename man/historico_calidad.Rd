@@ -29,7 +29,8 @@ menos una medida. Una medición \strong{enteramente} vacía —ninguna métrica
 pudo aplicarse— no se acumula: se rechaza citando el motivo que \code{medir()}
 declaró en \code{cobertura_metricas}, porque no hay corrida que registrar. El atributo
 \code{configuracion_evaluacion} conserva, en una tabla plana separada, el
-modelo, la aplicabilidad, el perfil y la identidad de tabla de cada corrida.
+modelo, su marco y sus tipos, la aplicabilidad, el perfil y la identidad
+de tabla de cada corrida.
 }
 \description{
 Crea un data frame plano y versionado con corridas producidas por \code{\link[=medir]{medir()}} o

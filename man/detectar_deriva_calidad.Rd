@@ -21,8 +21,9 @@ Data frame \code{deriva_calidad} con una fila por par de corridas
 consecutivas. Una mejora significativa conserva severidad \code{ok}; un
 deterioro de al menos un umbral es \code{sospechoso} y uno de al menos dos
 umbrales es \code{error}. \code{identidad_tabla} separa series de tablas distintas y
-\code{aspecto} marca el resultado o un cambio de configuración; este último se
-informa como \code{error} pero no suprime la comparación.
+\code{aspecto} marca el resultado o un cambio de configuracion; \code{cambio} usa
+\code{no_comparable} cuando una configuracion del modelo impide comparar las
+corridas.
 
 \strong{Un par que no se puede comparar no recibe veredicto.} Si alguna de las
 dos corridas no evaluó su resultado, \code{delta}, \code{cambio_absoluto},

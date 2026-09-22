@@ -44,6 +44,14 @@
   paste0(class(x)[[1L]], ":", as.character(x))
 }
 
+.configuracion_marco_calidad <- function(marco) {
+  if (!inherits(marco, "marco_calidad")) return(NULL)
+  list(
+    nombre = marco$nombre,
+    factores = .seleccionar_columnas(marco$factores, c("dimension", "factor"))
+  )
+}
+
 .configuracion_modelo_calidad <- function(modelo) {
   if (!inherits(modelo, "modelo_calidad")) return(NULL)
   metricas <- vapply(modelo$metricas, function(instancia) {
@@ -61,7 +69,21 @@
                       use.names = FALSE)
   entidades <- .identificadores_unicos(entidades)
   entidades <- .identificadores_ordenados(entidades)
-  list(version = 1L, entidades = entidades, metricas = metricas)
+  tipos_resultado <- vapply(
+    modelo$metricas,
+    function(instancia) instancia$declaracion$tipo_resultado,
+    character(1L)
+  )
+  names(tipos_resultado) <- vapply(
+    modelo$metricas, `[[`, character(1L), "nombre"
+  )
+  list(
+    version = 2L,
+    entidades = entidades,
+    marco = .configuracion_marco_calidad(modelo$marco),
+    metricas = metricas,
+    tipos_resultado = tipos_resultado
+  )
 }
 
 .indices_filas_modelo <- function(tabla) {
@@ -1378,7 +1400,9 @@ metricas_nucleo <- function() {
 #'   el motivo en el atributo `cobertura_metricas`. También conserva
 #'   `configuracion_modelo` y `configuracion_aplicabilidad`, descripciones de la
 #'   política usada para que una deriva posterior pueda distinguir modelo de
-#'   datos.
+#'   datos. Si el modelo declara un marco, la medición conserva tambien
+#'   `marco_calidad`; la configuracion del modelo registra su nombre, sus pares
+#'   dimension-factor y el `tipo_resultado` de cada metrica.
 #' @export
 #'
 #' @examples
@@ -1502,6 +1526,9 @@ medir <- function(modelo, datos, id_medicion = NULL, fecha = Sys.time(),
     attr(resultado, "cobertura_metricas") <- do.call(rbind, coberturas)
   }
   attr(resultado, "configuracion_modelo") <- .configuracion_modelo_calidad(modelo)
+  if (inherits(modelo$marco, "marco_calidad")) {
+    attr(resultado, "marco_calidad") <- modelo$marco
+  }
   attr(resultado, "configuracion_aplicabilidad") <-
     .texto_configuracion_calidad(aplicabilidad)
   class(resultado) <- c("medicion", "data.frame")

@@ -63,7 +63,8 @@
 
 .columnas_configuracion_historico <- c(
   "id_medicion", "fecha", "perfil", "identidad_tabla",
-  "configuracion_modelo", "configuracion_aplicabilidad",
+  "configuracion_modelo", "configuracion_marco",
+  "configuracion_tipos_resultado", "configuracion_aplicabilidad",
   "configuracion_perfil"
 )
 
@@ -72,6 +73,8 @@
     id_medicion = character(), fecha = as.POSIXct(character(), tz = "UTC"),
     perfil = character(), identidad_tabla = character(),
     configuracion_modelo = character(),
+    configuracion_marco = character(),
+    configuracion_tipos_resultado = character(),
     configuracion_aplicabilidad = character(),
     configuracion_perfil = character(), stringsAsFactors = FALSE
   )
@@ -97,12 +100,32 @@
       collapse = "+"
     ))
   } else NA_character_
+  marco <- if (is.list(configuracion_modelo)) {
+    configuracion_modelo$marco
+  } else {
+    NULL
+  }
+  tipos_resultado <- if (is.list(configuracion_modelo)) {
+    configuracion_modelo$tipos_resultado
+  } else {
+    NULL
+  }
   data.frame(
     id_medicion = ids, fecha = .fecha_utc(fechas), perfil = as.character(perfiles),
     identidad_tabla = rep(entidades, length.out = length(ids)),
     configuracion_modelo = rep(
       if (is.null(configuracion_modelo)) NA_character_ else
         .clave_bytes(.texto_configuracion_calidad(configuracion_modelo)),
+      length.out = length(ids)
+    ),
+    configuracion_marco = rep(
+      if (is.null(marco)) NA_character_ else
+        .clave_bytes(.texto_configuracion_calidad(marco)),
+      length.out = length(ids)
+    ),
+    configuracion_tipos_resultado = rep(
+      if (is.null(tipos_resultado)) NA_character_ else
+        .clave_bytes(.texto_configuracion_calidad(tipos_resultado)),
       length.out = length(ids)
     ),
     configuracion_aplicabilidad = rep(
@@ -170,11 +193,12 @@
 
 .validar_configuraciones_historico <- function(x) {
   if (is.null(x)) return(.configuraciones_historico_vacias())
-  if (!inherits(x, "data.frame") ||
-      !all(.columnas_configuracion_historico %in% names(x))) {
+  if (!inherits(x, "data.frame")) {
     stop("La configuraci\u00f3n del hist\u00f3rico no cumple su esquema tabular.",
          call. = FALSE)
   }
+  ausentes <- setdiff(.columnas_configuracion_historico, names(x))
+  for (nombre in ausentes) x[[nombre]] <- NA_character_
   x <- x[.columnas_configuracion_historico]
   if (nrow(x) && (
     anyNA(x$id_medicion) || any(!nzchar(x$id_medicion)) || anyNA(x$fecha) ||
@@ -661,7 +685,8 @@
 #'   pudo aplicarse— no se acumula: se rechaza citando el motivo que `medir()`
 #'   declaró en `cobertura_metricas`, porque no hay corrida que registrar. El atributo
 #'   `configuracion_evaluacion` conserva, en una tabla plana separada, el
-#'   modelo, la aplicabilidad, el perfil y la identidad de tabla de cada corrida.
+#'   modelo, su marco y sus tipos, la aplicabilidad, el perfil y la identidad
+#'   de tabla de cada corrida.
 #'
 #' @details
 #' El detalle predeterminado evita repetir una fila por celda y regla cuando el
@@ -850,8 +875,9 @@ leer_historico <- function(archivo) {
 #'   consecutivas. Una mejora significativa conserva severidad `ok`; un
 #'   deterioro de al menos un umbral es `sospechoso` y uno de al menos dos
 #'   umbrales es `error`. `identidad_tabla` separa series de tablas distintas y
-#'   `aspecto` marca el resultado o un cambio de configuración; este último se
-#'   informa como `error` pero no suprime la comparación.
+#'   `aspecto` marca el resultado o un cambio de configuracion; `cambio` usa
+#'   `no_comparable` cuando una configuracion del modelo impide comparar las
+#'   corridas.
 #'
 #'   **Un par que no se puede comparar no recibe veredicto.** Si alguna de las
 #'   dos corridas no evaluó su resultado, `delta`, `cambio_absoluto`,
@@ -877,7 +903,8 @@ detectar_deriva_calidad <- function(historico, nivel = c("perfil", "regla"),
     "nivel", "perfil", "regla", "identidad_tabla",
     "id_medicion_anterior", "fecha_anterior", "resultado_anterior",
     "id_medicion_actual", "fecha_actual", "resultado_actual", "delta",
-    "cambio_absoluto", "significativo", "direccion", "severidad", "aspecto",
+    "cambio_absoluto", "significativo", "direccion", "severidad", "cambio",
+    "aspecto",
     "descripcion", "evidencia"
   )
   vacio <- data.frame(
@@ -889,7 +916,8 @@ detectar_deriva_calidad <- function(historico, nivel = c("perfil", "regla"),
     fecha_actual = as.POSIXct(character(), tz = "UTC"),
     resultado_actual = numeric(), delta = numeric(), cambio_absoluto = numeric(),
     significativo = logical(), direccion = character(), severidad = character(),
-    aspecto = character(), descripcion = character(), evidencia = character(),
+    cambio = character(), aspecto = character(), descripcion = character(),
+    evidencia = character(),
     stringsAsFactors = FALSE
   )
   if (!nrow(datos)) {
@@ -1004,7 +1032,8 @@ detectar_deriva_calidad <- function(historico, nivel = c("perfil", "regla"),
       id_medicion_actual = datos$id_medicion[b], fecha_actual = datos$fecha[b],
       resultado_actual = datos$resultado[b], delta = delta,
       cambio_absoluto = abs(delta), significativo = significativo,
-      direccion = direccion, severidad = severidad, aspecto = "resultado",
+      direccion = direccion, severidad = severidad, cambio = NA_character_,
+      aspecto = "resultado",
       # La fila existe por cada par consecutivo, cambie o no, asi que el texto
       # no puede afirmar un cambio: con dos corridas identicas decia "Cambio el
       # resultado" al lado de `delta = 0`, y una descripcion que contradice a su
@@ -1051,6 +1080,29 @@ detectar_deriva_calidad <- function(historico, nivel = c("perfil", "regla"),
     if (!nrow(configuraciones)) return(regular)
     anterior_configuracion <- indices_configuracion[a]
     actual_configuracion <- indices_configuracion[b]
+    diferencias_componente <- function(campo) {
+      anterior <- rep(NA_character_, length(a))
+      actual <- rep(NA_character_, length(b))
+      validos_a <- !is.na(anterior_configuracion)
+      validos_b <- !is.na(actual_configuracion)
+      anterior[validos_a] <- configuraciones[[campo]][
+        anterior_configuracion[validos_a]
+      ]
+      actual[validos_b] <- configuraciones[[campo]][
+        actual_configuracion[validos_b]
+      ]
+      distintos <- (is.na(anterior) & !is.na(actual)) |
+        (!is.na(anterior) & is.na(actual)) |
+        (!is.na(anterior) & !is.na(actual) & anterior != actual)
+      distintos[is.na(distintos)] <- FALSE
+      distintos
+    }
+    marco_cambiado <- diferencias_componente("configuracion_marco")
+    tipos_cambiados <- diferencias_componente("configuracion_tipos_resultado")
+    modelo_no_comparable <- marco_cambiado | tipos_cambiados
+    if (any(modelo_no_comparable)) {
+      regular <- regular[!modelo_no_comparable, , drop = FALSE]
+    }
     campos <- c(
       modelo = "configuracion_modelo",
       aplicabilidad = "configuracion_aplicabilidad",
@@ -1079,16 +1131,32 @@ detectar_deriva_calidad <- function(historico, nivel = c("perfil", "regla"),
         fecha_actual = datos$fecha[b[i]], resultado_actual = NA_real_,
         delta = NA_real_, cambio_absoluto = NA_real_, significativo = TRUE,
         direccion = "configuracion", severidad = "error",
+        cambio = if (nombre == "modelo") "no_comparable" else NA_character_,
         aspecto = paste0("configuracion_", nombre),
         descripcion = paste(
           switch(
             nombre,
-            modelo = "Cambi\u00f3 el modelo de calidad de la corrida;",
-            aplicabilidad = "Cambi\u00f3 la aplicabilidad de la corrida;",
-            perfil = "Cambi\u00f3 el perfil de evaluaci\u00f3n de la corrida;"
+            modelo = if (marco_cambiado[i] && tipos_cambiados[i]) {
+              "Cambio el marco y el tipo_resultado de una o mas metricas de la corrida;"
+            } else if (marco_cambiado[i]) {
+              "Cambio el marco de calidad de la corrida;"
+            } else if (tipos_cambiados[i]) {
+              "Cambio el tipo_resultado de una o mas metricas de la corrida;"
+            } else {
+              "Cambio el modelo de calidad de la corrida;"
+            },
+            aplicabilidad = "Cambio la aplicabilidad de la corrida;",
+            perfil = "Cambio el perfil de evaluacion de la corrida;"
           ),
-          "se mantienen las comparaciones para que la deriva de datos no quede",
-          "oculta."
+          if (nombre == "modelo" &&
+              (marco_cambiado[i] || tipos_cambiados[i])) {
+            "no se publica la comparacion del resultado."
+          } else {
+            paste(
+              "se mantienen las comparaciones para que la deriva de datos no",
+              "quede oculta."
+            )
+          }
         ),
         evidencia = paste0(
           "Anterior: ", ifelse(is.na(anterior[i]), "no declarada", anterior[i]),

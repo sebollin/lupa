@@ -73,7 +73,9 @@ medirse por falta de valores en su universo, no crea filas ni ceros: deja
 el motivo en el atributo \code{cobertura_metricas}. También conserva
 \code{configuracion_modelo} y \code{configuracion_aplicabilidad}, descripciones de la
 política usada para que una deriva posterior pueda distinguir modelo de
-datos.
+datos. Si el modelo declara un marco, la medición conserva tambien
+\code{marco_calidad}; la configuracion del modelo registra su nombre, sus pares
+dimension-factor y el \code{tipo_resultado} de cada metrica.
 }
 \description{
 Ejecuta todas las métricas instanciadas de un \code{modelo_calidad}. Cada fila es

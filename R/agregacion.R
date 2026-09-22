@@ -885,7 +885,8 @@ agregar <- function(medidas, destino,
   # Es la misma forma que la cobertura de coleccion y que el alcance de los
   # resumenes: la declaracion existe y el paso siguiente la tira.
   for (nombre_atributo in c(
-    "configuracion_modelo", "configuracion_aplicabilidad", "cobertura_metricas"
+    "configuracion_modelo", "configuracion_aplicabilidad", "cobertura_metricas",
+    "marco_calidad"
   )) {
     valor_atributo <- attr(medidas, nombre_atributo, exact = TRUE)
     if (!is.null(valor_atributo)) attr(resultado, nombre_atributo) <- valor_atributo
