@@ -133,3 +133,43 @@ test_that("el perfil guarda la regla y sobrevive a guardarlo", {
   )
   expect_identical(perfilar(datos)$meta$reglas_aplicabilidad, list())
 })
+
+test_that("la regla se evalua sobre los datos originales, no sobre los ya modificados", {
+  # Una accion previa del mismo plan cambiaba la columna de la que depende la
+  # regla: quitarle el invisible a `cat` la volvia "x", la regla `cat == "x"`
+  # metia la fila 3 en el universo, y el recorte tocaba justo la celda que el
+  # perfil habia declarado fuera. El registro lo daba por ejecutado.
+  invisible_cero <- intToUtf8(0x200B)
+  datos <- data.frame(
+    cat = c("x", "x", paste0("x", invisible_cero)),
+    val = c(" A ", " B ", " C "),
+    stringsAsFactors = FALSE
+  )
+  perfil <- perfilar(datos, aplicabilidad = list(val = ~cat == "x"))
+  plan <- planificar_limpieza(perfil)
+  plan$estado <- "lista"
+  plan$aplicar <- TRUE
+  resultado <- aplicar(plan, datos, permitir_eliminacion = TRUE)
+  expect_identical(resultado$datos$val[[3L]], " C ")
+  recorte <- resultado$registro$estrategia == "recortar_espacios"
+  expect_equal(resultado$registro$n_cambiadas[recorte], 2L)
+})
+
+test_that("despues de eliminar filas, una accion por celda con regla falla y lo dice", {
+  # La mascara de los originales ya no se alinea con las filas que quedan.
+  # Tocar la columna entera seria el defecto; se falla con un motivo que dice
+  # que hacer.
+  datos <- data.frame(activo = c("si", "si", "si", "no"),
+                      val = c(" A ", " A ", " B ", " C "),
+                      stringsAsFactors = FALSE)
+  plan <- planificar_limpieza(
+    perfilar(datos, aplicabilidad = list(val = ~activo == "si")), datos
+  )
+  plan$aplicar <- plan$estrategia %in% c("conservar_primera_duplicada", "recortar_espacios")
+  plan$estado[plan$aplicar] <- "lista"
+  resultado <- aplicar(plan, datos, permitir_eliminacion = TRUE)
+  recorte <- resultado$registro$estrategia == "recortar_espacios"
+  expect_identical(as.character(resultado$registro$estado[recorte]), "fallida")
+  expect_true(grepl("eliminar filas", as.character(resultado$registro$error[recorte]),
+                    fixed = TRUE))
+})

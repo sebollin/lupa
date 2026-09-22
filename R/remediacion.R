@@ -365,7 +365,8 @@
 # Devuelve a su valor las celdas fuera del universo aplicable despues de que la
 # accion las transformo, y recuenta. Es un solo lugar para todos los ejecutores
 # por celda, en vez de una copia de esta logica en cada uno.
-.restringir_a_aplicabilidad <- function(ejecutada, anterior, accion) {
+.restringir_a_aplicabilidad <- function(ejecutada, anterior, accion,
+                                        original = anterior) {
   estrategia <- as.character(accion$estrategia[[1L]])
   regla <- accion$parametros[[1L]]$aplicabilidad
   columna <- accion$columna[[1L]]
@@ -373,8 +374,24 @@
       is.na(columna) || !columna %in% names(anterior)) {
     return(ejecutada)
   }
+  # La regla se evalua sobre los datos ORIGINALES, no sobre `anterior`. El
+  # universo lo define el perfil, que se calculo sobre los originales. Evaluada
+  # sobre el estado ya modificado, una accion previa podia cambiar la columna
+  # de la que depende la regla -quitarle un invisible a `cat` y volverla "x"- y
+  # meter en el universo una fila que el perfil habia declarado fuera: el
+  # recorte tocaba justo esa celda y el registro lo daba por ejecutado.
+  if (nrow(original) != nrow(anterior)) {
+    # Una accion previa elimino filas y la mascara de los originales ya no se
+    # alinea con las que quedan. Rastrear cuales sobrevivieron seria fragil;
+    # tocar la columna entera seria el defecto. Se falla y se dice.
+    ejecutada$error <- paste(
+      "No se puede respetar la aplicabilidad despues de eliminar filas:",
+      "aplique las acciones por celda antes de las que eliminan filas."
+    )
+    return(ejecutada)
+  }
   mascara <- tryCatch(
-    .evaluar_predicado_aplicabilidad(anterior, columna, regla),
+    .evaluar_predicado_aplicabilidad(original, columna, regla),
     error = function(e) e
   )
   if (inherits(mascara, "error")) {
@@ -2711,7 +2728,7 @@ aplicar <- function(plan, datos, permitir_eliminacion = FALSE,
       )
     }
     if (is.null(ejecutada$error)) {
-      ejecutada <- .restringir_a_aplicabilidad(ejecutada, salida, accion)
+      ejecutada <- .restringir_a_aplicabilidad(ejecutada, salida, accion, datos)
     }
     if (is.null(ejecutada$error)) {
       motivo_efecto <- .motivo_efecto_accion(accion, ejecutada)
