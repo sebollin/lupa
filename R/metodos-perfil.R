@@ -15,6 +15,21 @@ print.perfil <- function(x, ...) {
   cli::cli_alert_warning(.cli_literal(paste(sospechosos, "hallazgos sospechosos")))
   cli::cli_alert_success(.cli_literal(paste(correctos, "hallazgos informativos ok")))
   cli::cli_alert_info(.cli_literal(paste(no_evaluados, "diagnosticos no evaluados")))
+  # Lo que se midio sobre la muestra se dice aca, donde se lee el veredicto: un
+  # "0 hallazgos sospechosos" sobre 10 de 10.000 filas no es lo mismo que sobre
+  # la tabla, y la consola no lo mencionaba en ninguna parte.
+  analizadas <- original$meta$filas_analizadas
+  if (isTRUE(original$meta$muestreo) && length(analizadas) == 1L &&
+      is.finite(analizadas) && analizadas < original$general$filas) {
+    cli::cli_alert_info(.cli_literal(paste0(
+      "Patrones, tipos, formatos de fecha y dependencias sobre una muestra de ",
+      format(analizadas, big.mark = ".", decimal.mark = ",", scientific = FALSE),
+      " de ",
+      format(original$general$filas, big.mark = ".", decimal.mark = ",",
+             scientific = FALSE),
+      " filas: sus conteos son de la muestra"
+    )))
+  }
 
   cli::cli_h2("Resumen general")
   cli::cli_dl(.cli_literal(c(

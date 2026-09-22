@@ -3859,8 +3859,9 @@
     if (isTRUE(attr(resultado$formatos, "formatos_mixtos")) &&
         fila$tipo_inferido %in% c("fecha", "fecha-hora")) {
       evidencia <- paste0(
-        resultado$formatos$formato, " (", resultado$formatos$n, ")",
-        collapse = "; "
+        paste0(resultado$formatos$formato, " (", resultado$formatos$n, ")",
+               collapse = "; "),
+        .nota_conteo_muestral(resultado$formatos)
       )
       agregar(.nuevo_hallazgo(
         nombre, "formatos_fecha_mixtos", "error",
@@ -4083,7 +4084,8 @@
           if (is.na(n_excluidos)) "NA" else as.character(n_excluidos),
           " filas (umbral_patron_raro=",
           .formatear_decimal_publicado(umbral_patron_raro),
-          ")"
+          ")",
+          .nota_conteo_muestral(resultado$patrones)
         ),
         "Revisar los valores concretos y validar el formato esperado."
       ))

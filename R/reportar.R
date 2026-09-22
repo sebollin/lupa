@@ -46,6 +46,22 @@
   gsub("\n", "<br>", gsub("\r\n?", "\n", x, perl = TRUE), fixed = TRUE)
 }
 
+# La misma nota que ya lleva la seccion de patrones: los conteos de formatos de
+# fecha tambien salen de la muestra, y la tabla los publicaba sin decirlo.
+.nota_formatos_muestreados <- function(formatos) {
+  if (!is.list(formatos) || !length(formatos)) return("")
+  muestreados <- Filter(function(f) isTRUE(attr(f, "muestreado", exact = TRUE)) &&
+                          is.data.frame(f) && nrow(f), formatos)
+  if (!length(muestreados)) return("")
+  primero <- muestreados[[1L]]
+  paste0(
+    "<p class=\"nota\">Formatos estimados sobre ",
+    .html_texto(attr(primero, "analizados", exact = TRUE)), " de ",
+    .html_texto(attr(primero, "total", exact = TRUE)),
+    " valores: los conteos son de la muestra.</p>"
+  )
+}
+
 .resumir_valor_reporte <- function(x, max_caracteres = 240L) {
   if (is.null(x) || !length(x)) return("")
   if (is.function(x)) return("<funci\u00f3n>")
@@ -327,6 +343,7 @@
     },
     nota_columnas_patron,
     "<h3>Formatos de fecha</h3>", .html_tabla(tabla_formatos, max_filas),
+    .nota_formatos_muestreados(x$formatos_fecha),
     "<h3>Dependencias funcionales</h3>",
     .html_tabla(dependencias, max_filas), nota_dependencias,
     if (!is.null(x$duplicados_aproximados)) {

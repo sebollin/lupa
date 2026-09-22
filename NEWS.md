@@ -25,6 +25,15 @@
   De paso, un nombre de columna declarado `bytes` ya no aborta la impresión
   del plan ni deja escapada la frase del paquete que lo rodea.
 
+- **Lo que se cuenta sobre la muestra dice que es de la muestra.** Patrones y
+  formatos de fecha se descubren sobre una muestra, pero sus hallazgos
+  publicaban los conteos como cifras de la tabla —`n_afectados = 2` donde la
+  tabla tenía 10, `%d/%m/%Y (50)` donde tenía 5.000—, y la consola imprimía el
+  veredicto sin mencionar la muestra. Ahora la evidencia lo declara, igual que
+  ya lo hacía `tipo_declarado_distinto`; `print()` del perfil dice sobre
+  cuántas filas trabajó, y el reporte anota la muestra también en los formatos
+  de fecha.
+
 - **Lo que la muestra fabrica ya no se publica como propiedad de la tabla.**
   Las dependencias se buscan sobre una muestra sistemática, y los descartes
   por casi-clave se decidían sobre esa muestra: con los datos agrupados en

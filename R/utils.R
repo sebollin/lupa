@@ -1510,6 +1510,26 @@
   salida
 }
 
+# Declara que unos conteos salieron de la muestra y no de la columna entera.
+# Patrones y formatos de fecha se descubren sobre una muestra -lo documenta
+# `perfilar()`-, pero sus hallazgos publicaban `n_afectados = 2` y
+# `%d/%m/%Y (50)` como cifras de la tabla cuando la tabla tenia 10 y 5.000, sin
+# decirlo en la evidencia ni en la consola. `tipo_declarado_distinto` ya lo
+# decia con esta forma; ahora lo dicen todos los que cuentan sobre la muestra.
+.nota_conteo_muestral <- function(objeto) {
+  if (!isTRUE(attr(objeto, "muestreado", exact = TRUE))) return("")
+  analizados <- attr(objeto, "analizados", exact = TRUE)
+  total <- attr(objeto, "total", exact = TRUE)
+  if (!length(analizados) || !length(total)) {
+    return("; medido sobre una muestra, no sobre la columna entera: los conteos son de la muestra")
+  }
+  paste0(
+    "; medido sobre una muestra de ", .miles_trabajo(analizados), " de ",
+    .miles_trabajo(total), " valores, no sobre la columna entera: los ",
+    "conteos son de la muestra"
+  )
+}
+
 # Texto para la PLANTILLA de una llamada a cli. cli lee su primer argumento como
 # plantilla de glue: todo `{...}` adentro es una expresion que se EVALUA. El
 # paquete armaba ese argumento con `paste()` e incluia texto del usuario
