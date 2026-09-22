@@ -345,6 +345,17 @@ comprobación no se corrió sobre la muestra y por qué, con \code{diagnostico},
 \code{\link[=perfilar]{perfilar()}}. Un motor que rechaza una columna aparece en la primera; una
 prueba estadística que no corresponde a esa columna, en la segunda. Comparten
 la palabra y no el vocabulario, así que conviene mirar cuál se está leyendo.
+Si una columna declarada como entero de 64 bits o mas ancho llega como doble
+y contiene un valor con valor absoluto de al menos 2^53, \code{resumen_tabla}
+deja sus metricas de magnitud en \code{no_disponible}. Para la muestra, la
+seleccion SQL trae esas columnas como texto y, si \code{bit64} esta instalado,
+las convierte a \code{integer64} antes de perfilar: \code{n_distintos}, la moda y los
+diagnosticos por identidad conservan los valores exactos. Los estadisticos
+de magnitud por encima de 2^53 siguen usando
+\code{estado_resumen_cuantitativo = "omitidos_precision"}, como en memoria. Si
+falta \code{bit64}, la columna queda como texto y \code{cobertura_diagnosticos} explica
+la limitacion y recomienda instalarlo o pedir \code{integer64} al conectar. Las
+columnas declaradas como \code{double}, \code{real} o \code{float} no entran en esta guarda.
 Si se omite el bloque con \code{bloque_muestra = "solo_agregados"}, la cobertura
 usa el estado \code{no_solicitado}: no es un fallo ni se cuenta como una métrica
 no disponible. En \code{muestra_motor}, la selección materializada se hace una

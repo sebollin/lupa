@@ -2,6 +2,18 @@
 
 ## Correcciones de cobertura y publicación
 
+- **Los enteros anchos que llegan como doble ya no se publican como exactos.**
+  `perfilar_dbi()` reconoce BIGINT y tipos decimales de escala cero con
+  precision potencialmente peligrosa. Si el driver entrega un valor de al
+  menos 2^53 como doble, `resumen_tabla` deja las metricas de magnitud en
+  `no_disponible`. La muestra trae esas columnas como texto y las convierte a
+  `integer64` cuando `bit64` esta disponible, para que los distintos y los
+  diagnosticos de identidad sean exactos; sin `bit64` quedan como texto y la
+  cobertura publica el remedio. Los estadisticos de magnitud de la muestra
+  usan `omitidos_precision`. Pedir `integer64` al conectar tambien conserva la
+  medicion exacta. Los `double`, `real` y `float` declarados siguen tratandose
+  como dobles.
+
 - **El texto del usuario ya no se ejecuta al imprimirse.** Los mensajes de
   consola pasaban por la plantilla de cli, que evalúa todo `{...}`, y el
   paquete la armaba con texto del usuario: `perfilar(d, nombre =

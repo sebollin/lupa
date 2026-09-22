@@ -1669,7 +1669,8 @@
         preparacion$orden_muestra,
       fuente$orden_expresiones, preparacion$dialecto, n_total,
       preparacion$presupuesto, .info_conexion_dbi(conexion),
-      argumentos_muestra, muestreo = NULL, tipos_declarados = preparacion$tipos,
+      argumentos_muestra, muestreo = NULL, prototipo = preparacion$prototipo,
+      tipos_declarados = preparacion$tipos,
       trazador = trazador, max_celdas_muestra = max_celdas_muestra,
       max_bytes_muestra = max_bytes_muestra
     )

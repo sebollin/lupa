@@ -489,9 +489,13 @@
 .plan_materializacion_spool_dbi <- function(conexion, preparacion,
                                             max_bytes_materializacion) {
   candidato <- preparacion$muestreo$candidato
+  proyeccion_muestra <- .campos_sql_muestra_dbi(
+    conexion, preparacion$campos, preparacion$campos_sql,
+    preparacion$prototipo, preparacion$tipos, preparacion$dialecto
+  )
   fuente <- if (!is.null(candidato)) tryCatch(
     .fuente_muestreada_dbi(
-      preparacion$tabla_sql, preparacion$campos_sql,
+      preparacion$tabla_sql, proyeccion_muestra$campos_sql,
       preparacion$muestra_motor, preparacion$n_total,
       preparacion$dialecto, preparacion$muestreo
     ), error = function(e) NULL
@@ -635,6 +639,11 @@
                                       max_bytes_materializacion, argumentos) {
   presupuesto <- preparacion$presupuesto
   campos <- as.character(preparacion$campos)
+  proyeccion_muestra <- .campos_sql_muestra_dbi(
+    conexion, preparacion$campos, preparacion$campos_sql,
+    preparacion$prototipo, preparacion$tipos, preparacion$dialecto
+  )
+  columnas_castadas <- proyeccion_muestra$columnas_castadas
   info_conexion <- .info_conexion_dbi(conexion)
   backend <- .BACKEND_SPOOL_MUESTRA_DBI
   consulta_n <- if (!is.null(preparacion$conteo)) {
@@ -668,7 +677,7 @@
   } else {
     fuente <- tryCatch(
       .fuente_muestreada_dbi(
-        preparacion$tabla_sql, preparacion$campos_sql,
+        preparacion$tabla_sql, proyeccion_muestra$campos_sql,
         preparacion$muestra_motor, n_total, preparacion$dialecto,
         preparacion$muestreo
       ),
@@ -777,7 +786,10 @@
                              campos), stringsAsFactors = FALSE)
     }
   } else NULL
-  datos <- datos_materializados
+  conversion_muestra <- .convertir_enteros_ancho_muestra_dbi(
+    datos_materializados, columnas_castadas
+  )
+  datos <- conversion_muestra$datos
   if (!is.null(datos) && is.finite(preparacion$muestra) &&
       nrow(datos) > preparacion$muestra) {
     # El recorte diagnostico es una lectura local del mismo spool; no vuelve a
@@ -820,6 +832,12 @@
     motivo <- paste0("muestra_vacia:", metodo_vacio, "_sin_filas")
   }
   if (!is.null(perfil)) {
+    if (nrow(conversion_muestra$cobertura)) {
+      perfil$cobertura_diagnosticos <- rbind(
+        perfil$cobertura_diagnosticos, conversion_muestra$cobertura
+      )
+      rownames(perfil$cobertura_diagnosticos) <- NULL
+    }
     perfil$meta$filas_analizadas <- as.numeric(nrow(datos))
     perfil$meta$alcance <- list(
       universo_id = "muestra_motor",

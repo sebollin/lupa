@@ -2386,6 +2386,18 @@
   format(round(as.numeric(n)), scientific = FALSE, trim = TRUE)
 }
 
+# La muestra debe conservar los digitos antes de llegar a R. MySQL y MariaDB
+# requieren CHAR en CAST; los demas motores cubiertos aceptan VARCHAR.
+.cast_entero_ancho_texto_dbi <- function(expr, alias, conexion = NULL) {
+  senas <- if (is.null(conexion)) "" else .senas_conexion_dbi(conexion)
+  tipo_texto <- if (grepl("mysql|mariadb", senas, perl = TRUE)) {
+    "CHAR"
+  } else {
+    "VARCHAR"
+  }
+  paste0("CAST(", expr, " AS ", tipo_texto, ") AS ", alias)
+}
+
 .dialectos_dbi <- function() {
   list(
     limit = list(
@@ -2398,6 +2410,7 @@
       ),
       alias_tabla = function(nombre) paste0(" AS ", nombre),
       mediana_escalar = list(resto = "%", division = "/"),
+      cast_entero_ancho_texto = .cast_entero_ancho_texto_dbi,
       limitar = function(sql, n, salto = 0) {
         paste0(
           sql, " LIMIT ", .entero_sql_dbi(n),
@@ -2414,6 +2427,7 @@
       patron = "sql server|microsoft sql|sqlserver|mssql|tsql|sybase",
       alias_tabla = function(nombre) paste0(" AS ", nombre),
       mediana_escalar = NULL,
+      cast_entero_ancho_texto = .cast_entero_ancho_texto_dbi,
       limitar = function(sql, n, salto = 0) {
         if (salto > 0) {
           return(paste0(
@@ -2434,6 +2448,7 @@
       patron = "oracle|db2|informix|derby|hsqldb|\\bh2\\b",
       alias_tabla = function(nombre) paste0(" ", nombre),
       mediana_escalar = NULL,
+      cast_entero_ancho_texto = .cast_entero_ancho_texto_dbi,
       limitar = function(sql, n, salto = 0) {
         paste0(
           sql,
@@ -2452,6 +2467,7 @@
       patron = "oracle",
       alias_tabla = function(nombre) paste0(" ", nombre),
       mediana_escalar = NULL,
+      cast_entero_ancho_texto = .cast_entero_ancho_texto_dbi,
       limitar = function(sql, n, salto = 0) {
         if (salto > 0) return(NULL)
         paste0(
@@ -2470,6 +2486,7 @@
       patron = NA_character_,
       alias_tabla = function(nombre) paste0(" AS ", nombre),
       mediana_escalar = NULL,
+      cast_entero_ancho_texto = .cast_entero_ancho_texto_dbi,
       limitar = function(sql, n, salto = 0) NULL,
       muestreo = c("tablesample_reservoir", "tablesample_system",
                    "tablesample_bernoulli", "tablesample_percent", "random_limit")
@@ -5684,14 +5701,46 @@
 .PATRON_TIPO_NUMERICO_DBI <- paste0(
   "^(decimal|numeric|number|int|integer|int2|int4|int8|bigint|smallint|",
   "tinyint|mediumint|float|float4|float8|double|real|money|smallmoney|",
-  "binary_float|binary_double|integer64|int64)$"
+  "binary_float|binary_double|integer64|int64|bigserial|hugeint|ubigint|",
+  "bigintunsigned)$"
 )
 
 .tipo_declarado_numerico_dbi <- function(tipo) {
   if (is.null(tipo) || !length(tipo) || is.na(tipo[[1L]])) return(FALSE)
   limpio <- tolower(trimws(sub("\\(.*", "", as.character(tipo[[1L]]))))
-  limpio <- gsub("[[:space:]]+", "", limpio)
+  limpio <- gsub("[[:space:]_-]+", "", limpio)
   grepl(.PATRON_TIPO_NUMERICO_DBI, limpio, perl = TRUE)
+}
+
+# Algunos controladores exponen BIGINT como `integer` y otros conservan el
+# nombre original. La guarda solo se usa sobre valores grandes: si el tipo es
+# de 32 bits, no puede alcanzar el umbral y no se produce un falso positivo.
+.tipo_declarado_entero_ancho_dbi <- function(tipo) {
+  if (is.null(tipo) || !length(tipo) || is.na(tipo[[1L]])) return(FALSE)
+  limpio <- tolower(trimws(as.character(tipo[[1L]])))
+  limpio <- gsub("[[:space:]_-]+", "", limpio)
+  base <- sub("\\(.*", "", limpio)
+  if (base %in% c(
+    "integer", "int", "int2", "int4", "int8", "int64", "smallint",
+    "bigint", "bigserial", "hugeint", "ubigint", "bigintunsigned",
+    "integer64"
+  )) {
+    return(TRUE)
+  }
+  if (!grepl("^(decimal|numeric|number)\\(", limpio, perl = TRUE)) {
+    return(FALSE)
+  }
+  contenido <- sub("^[^(]+\\(", "", limpio)
+  contenido <- sub("\\)$", "", contenido)
+  partes <- strsplit(contenido, ",", fixed = TRUE)[[1L]]
+  precision <- suppressWarnings(as.numeric(partes[[1L]]))
+  escala <- if (length(partes) >= 2L) {
+    suppressWarnings(as.numeric(partes[[2L]]))
+  } else {
+    0
+  }
+  isTRUE(is.finite(precision) && precision > 15 &&
+    is.finite(escala) && escala == 0)
 }
 
 # Un tipo temporal declarado por el motor manda sobre lo que diga el prototipo.
@@ -5807,15 +5856,49 @@
 # pierde exactitud al pasar a doble, y el maximo publicado seria un numero que
 # no esta en la columna. Se comprueba con la vuelta completa, que no depende de
 # donde caiga el redondeo.
-.entero_perdido_en_conversion_dbi <- function(crudo) {
+.remedio_entero_doble_dbi <- function() {
+  paste(
+    "Conectar pidiendo `integer64`: usar `bigint = \"integer64\"` en",
+    "RSQLite o `duckdb(bigint = \"integer64\")` en duckdb."
+  )
+}
+
+.motivo_entero_doble_dbi <- function(metrica = NULL, prefijo = NULL) {
+  inicio <- if (!is.null(prefijo) && length(prefijo) && !is.na(prefijo)) {
+    as.character(prefijo)
+  } else if (!is.null(metrica) && length(metrica) && !is.na(metrica)) {
+    paste0("El valor de `", metrica, "` ")
+  } else {
+    "La sonda de magnitud "
+  }
+  paste(
+    paste0(
+      inicio,
+      "es un entero de 64 bits que el driver entrego como doble;"
+    ),
+    "un valor con valor absoluto de al menos 2^53 puede haber perdido",
+    "exactitud. No se publica como calculada.",
+    .remedio_entero_doble_dbi()
+  )
+}
+
+.entero_perdido_en_conversion_dbi <- function(
+    crudo, tipo_declarado = NA_character_) {
   if (is.null(crudo) || !length(crudo)) return(FALSE)
   original <- crudo[[1L]]
-  if (!inherits(original, "integer64") || is.na(original)) return(FALSE)
-  if (!.bit64_disponible_dbi()) return(FALSE)
-  regreso <- tryCatch(
-    bit64::as.integer64(as.numeric(original)), error = function(e) NULL
-  )
-  is.null(regreso) || is.na(regreso) || regreso != original
+  if (is.na(original)) return(FALSE)
+  if (inherits(original, "integer64")) {
+    if (!.bit64_disponible_dbi()) return(FALSE)
+    regreso <- tryCatch(
+      bit64::as.integer64(as.numeric(original)), error = function(e) NULL
+    )
+    return(is.null(regreso) || is.na(regreso) || regreso != original)
+  }
+  if (!is.double(original) ||
+      !.tipo_declarado_entero_ancho_dbi(tipo_declarado)) {
+    return(FALSE)
+  }
+  isTRUE(is.finite(original) && abs(original) >= .MAX_ENTERO_EXACTO_DBI)
 }
 
 .metricas_omitidas_dbi <- function(registros, columna, metricas, estado,
@@ -8079,12 +8162,11 @@
           ": probablemente la columna no es de la magnitud que estas",
           " metricas suponen. No se publica como calculada."
         )
-      } else if (.entero_perdido_en_conversion_dbi(sondeo$valor)) {
+      } else if (.entero_perdido_en_conversion_dbi(
+        sondeo$valor, tipo_declarado
+      )) {
         sondeo$ok <- FALSE
-        sondeo$motivo <- paste(
-          "El valor de la sonda de magnitud es un entero por encima de 2^53",
-          "y pasarlo a doble lo cambia; las metricas no se publican."
-        )
+        sondeo$motivo <- .motivo_entero_doble_dbi()
       }
     }
     magnitud_sondeada <- isTRUE(sondeo$ok)
@@ -8139,13 +8221,11 @@
             leidos <- list()
             break
           }
-          if (.entero_perdido_en_conversion_dbi(celda$valor)) {
+          if (.entero_perdido_en_conversion_dbi(
+            celda$valor, tipo_declarado
+          )) {
             basicos$ok <- FALSE
-            basicos$motivo <- paste0(
-              "El valor de `", metrica, "` es un entero por encima de 2^53 y ",
-              "pasarlo a doble lo cambia: el numero publicado no estaria en la ",
-              "columna. No se publica como calculada."
-            )
+            basicos$motivo <- .motivo_entero_doble_dbi(metrica)
             leidos <- list()
             break
           }
@@ -9010,6 +9090,30 @@
   )
 }
 
+# DuckDB entrega `numeric` en `dbColumnInfo()` cuando la conexion pide dobles,
+# aunque la tabla declare BIGINT o DECIMAL. `DESCRIBE` conserva esa declaracion
+# y permite distinguirla de REAL, FLOAT y DOUBLE sin mirar los valores.
+.tipos_declarados_duckdb_dbi <- function(
+    conexion, tabla_sql, campos, tipos, presupuesto) {
+  if (!inherits(conexion, "duckdb_connection")) return(tipos)
+  consulta <- .consultar_dbi(
+    conexion, paste0("DESCRIBE ", tabla_sql), presupuesto,
+    etapa = "esquema"
+  )
+  if (!isTRUE(consulta$ok) || !is.data.frame(consulta$datos)) return(tipos)
+  datos <- consulta$datos
+  if (!all(c("column_name", "column_type") %in% names(datos))) return(tipos)
+  salida <- if (is.null(tipos)) rep(NA_character_, length(campos)) else tipos
+  if (length(salida) < length(campos)) {
+    length(salida) <- length(campos)
+  }
+  for (i in seq_along(campos)) {
+    posicion <- .indice_nombre(campos[[i]], datos$column_name)
+    if (!is.na(posicion)) salida[[i]] <- as.character(datos$column_type[[posicion]])
+  }
+  salida
+}
+
 .esquema_dbi <- function(conexion, tabla_sql, campos, presupuesto) {
   campos_sql <- vapply(campos, function(campo) {
     as.character(DBI::dbQuoteIdentifier(conexion, campo))
@@ -9017,9 +9121,12 @@
   sql <- .sql_esquema_dbi(tabla_sql, campos_sql)
   esquema <- .leer_esquema_dbi(conexion, sql, presupuesto)
   if (esquema$ok) {
+    tipos <- .tipos_declarados_duckdb_dbi(
+      conexion, tabla_sql, campos, esquema$tipos, presupuesto
+    )
     return(list(
       campos = campos, campos_sql = campos_sql, prototipo = esquema$datos,
-      tipos = esquema$tipos, sql = sql, ilegibles = character(),
+      tipos = tipos, sql = sql, ilegibles = character(),
       motivos = list(), sondeo = FALSE
     ))
   }
@@ -9057,6 +9164,9 @@
   }
   names(prototipos) <- legibles
   prototipo <- prototipos
+  tipos <- .tipos_declarados_duckdb_dbi(
+    conexion, tabla_sql, legibles, tipos, presupuesto
+  )
   list(
     campos = legibles, campos_sql = legibles_sql, prototipo = prototipo,
     tipos = tipos, sql = .sql_esquema_dbi(tabla_sql, legibles_sql),
@@ -10841,10 +10951,139 @@ print.plan_perfilado_dbi <- function(x, ...) {
   perfil
 }
 
+.prototipo_campo_muestra_dbi <- function(prototipo, campo, posicion) {
+  if (is.null(prototipo) || !length(prototipo)) return(NULL)
+  indice <- if (!is.null(names(prototipo))) {
+    .indice_nombre(campo, names(prototipo))
+  } else {
+    posicion
+  }
+  if (is.na(indice) || indice > length(prototipo)) return(NULL)
+  prototipo[[indice]]
+}
+
+.conexion_entrega_bigint_como_doble_dbi <- function(conexion) {
+  bigint <- attr(conexion, "bigint", exact = TRUE)
+  if (is.null(bigint) || !length(bigint) || is.na(bigint[[1L]])) {
+    informacion <- tryCatch(DBI::dbGetInfo(conexion), error = function(e) NULL)
+    bigint <- if (is.null(informacion)) NULL else informacion$bigint
+  }
+  if (is.null(bigint) || !length(bigint) || is.na(bigint[[1L]])) {
+    return(FALSE)
+  }
+  identical(tolower(as.character(bigint[[1L]])), "numeric")
+}
+
+.campos_sql_muestra_dbi <- function(
+    conexion, campos, campos_sql, prototipo, tipos_declarados, dialecto) {
+  if (is.null(dialecto$cast_entero_ancho_texto)) {
+    return(list(
+      campos_sql = campos_sql, columnas_castadas = character()
+    ))
+  }
+  castadas <- vapply(seq_along(campos), function(i) {
+    prototipo_campo <- .prototipo_campo_muestra_dbi(
+      prototipo, campos[[i]], i
+    )
+    tipo <- if (!is.null(tipos_declarados) && i <= length(tipos_declarados)) {
+      tipos_declarados[[i]]
+    } else {
+      NA_character_
+    }
+    prototipo_doble <- (is.double(prototipo_campo) ||
+      (is.integer(prototipo_campo) &&
+        .conexion_entrega_bigint_como_doble_dbi(conexion))) &&
+      !inherits(prototipo_campo, "integer64")
+    .tipo_declarado_entero_ancho_dbi(tipo) &&
+      prototipo_doble
+  }, logical(1L))
+  expresiones <- campos_sql
+  if (any(castadas)) {
+    expresiones[castadas] <- vapply(which(castadas), function(i) {
+      dialecto$cast_entero_ancho_texto(
+        campos_sql[[i]], campos_sql[[i]], conexion
+      )
+    }, character(1L))
+  }
+  list(
+    campos_sql = expresiones,
+    columnas_castadas = as.character(campos[castadas])
+  )
+}
+
+.convertir_enteros_ancho_muestra_dbi <- function(
+    datos, columnas_castadas) {
+  cobertura <- .cobertura_diagnosticos_vacia()
+  if (!is.data.frame(datos) || !length(columnas_castadas)) {
+    return(list(datos = datos, cobertura = cobertura))
+  }
+  for (columna in intersect(columnas_castadas, names(datos))) {
+    posicion <- match(columna, names(datos))
+    if (.bit64_disponible_dbi()) {
+      texto <- as.character(datos[[posicion]])
+      convertido <- tryCatch(
+        suppressWarnings(bit64::as.integer64(texto)),
+        error = function(e) NULL
+      )
+      texto_convertido <- if (!is.null(convertido)) {
+        tryCatch(
+          bit64::as.character.integer64(convertido),
+          error = function(e) NULL
+        )
+      } else {
+        NULL
+      }
+      conversion_exacta <- !is.null(convertido) &&
+        !is.null(texto_convertido) &&
+        length(texto_convertido) == length(texto) &&
+        all(
+          (is.na(texto) & is.na(texto_convertido)) |
+            (!is.na(texto) & !is.na(texto_convertido) &
+               texto == texto_convertido)
+        )
+      if (isTRUE(conversion_exacta)) {
+        cabe_entero <- all(
+          is.na(convertido) |
+            (convertido >= -2147483648 & convertido <= 2147483647)
+        )
+        datos[[posicion]] <- if (isTRUE(cabe_entero)) {
+          as.integer(convertido)
+        } else {
+          convertido
+        }
+        next
+      }
+      motivo <- paste0(
+        "No se pudo convertir a `integer64` la columna `", columna,
+        "` que se trajo como texto; la columna queda como texto."
+      )
+    } else {
+      motivo <- paste0(
+        "La columna `", columna,
+        "` se trajo como texto para conservar los digitos exactos, pero",
+        " falta el paquete opcional `bit64` para convertirla a `integer64`."
+      )
+    }
+    cobertura <- rbind(
+      cobertura,
+      .nuevo_diagnostico_no_evaluado(
+        "entero64_como_texto", columna, motivo,
+        paste(
+          "Instalar `bit64` para convertirla a `integer64`, o pedir el tipo",
+          "`integer64` al conectar si el controlador lo admite."
+        ),
+        "bit64"
+      )
+    )
+  }
+  list(datos = datos, cobertura = cobertura)
+}
+
 .bloque_muestra_dbi <- function(conexion, tabla, tabla_sql, campos, campos_sql,
                                 muestra, muestra_motor, orden_muestra, orden_sql, dialecto,
                                 n_total, presupuesto, info_conexion,
                                 argumentos, muestreo = NULL,
+                                prototipo = NULL,
                                 tipos_declarados = NULL,
                                 trazador = NULL,
                                 max_celdas_muestra = .MAX_CELDAS_MUESTRA,
@@ -10892,13 +11131,18 @@ print.plan_perfilado_dbi <- function(x, ...) {
   )
   n_obtener <- alcance$filas_efectivas
   usa_muestreo <- !is.null(muestreo) && isTRUE(muestreo$disponible)
+  proyeccion_muestra <- .campos_sql_muestra_dbi(
+    conexion, campos, campos_sql, prototipo, tipos_declarados, dialecto
+  )
+  campos_sql_muestra <- proyeccion_muestra$campos_sql
+  columnas_castadas <- proyeccion_muestra$columnas_castadas
   # La receta de la lectura estaba escrita una sola vez y el reintento la
   # rehacia a mano, asi que perdia por el camino el muestreo del motor: volvia a
   # una lectura de primeras filas mientras `metodo` seguia declarando
   # `TABLESAMPLE`. Ahora la arma la misma funcion para cualquier subconjunto de
   # columnas, y lo que se declara sale de lo que se emitio.
   armar_muestra_dbi <- function(indices, filas_solicitadas = n_obtener) {
-    sub_sql <- campos_sql[indices]
+    sub_sql <- campos_sql_muestra[indices]
     origen <- if (usa_muestreo) {
       .fuente_muestreada_dbi(
         tabla_sql, sub_sql, muestra_motor, n_total, dialecto,
@@ -10961,7 +11205,7 @@ print.plan_perfilado_dbi <- function(x, ...) {
   sondear_muestra_dbi <- function(indices) {
     if (!length(indices)) return(TRUE)
     base <- paste0(
-      "SELECT ", paste(campos_sql[indices], collapse = ", "),
+      "SELECT ", paste(campos_sql_muestra[indices], collapse = ", "),
       " FROM ", tabla_sql
     )
     recorte <- dialecto$limitar(base, 1, 0)
@@ -11170,6 +11414,10 @@ print.plan_perfilado_dbi <- function(x, ...) {
       filas <- recuperado$armado$filas
       campos <- campos[recuperado$quedan]
       campos_sql <- campos_sql[recuperado$quedan]
+      campos_sql_muestra <- campos_sql_muestra[recuperado$quedan]
+      columnas_castadas <- intersect(
+        columnas_castadas, campos
+      )
       # `muestreo_meta` se arma antes de leer, asi que sin esto quedaba
       # congelado con la lectura que fallo: declaraba haber leido la columna
       # que justamente no se pudo leer, y publicaba el SQL original en vez
@@ -11244,6 +11492,10 @@ print.plan_perfilado_dbi <- function(x, ...) {
     return(list(perfil = NULL, cobertura = cobertura, muestreo = muestreo_meta))
   }
   datos_muestra <- consulta$datos
+  conversion_muestra <- .convertir_enteros_ancho_muestra_dbi(
+    datos_muestra, columnas_castadas
+  )
+  datos_muestra <- conversion_muestra$datos
   n_obtenidas <- nrow(datos_muestra)
   alcance$filas_efectivas <- as.numeric(n_obtenidas)
   alcance$celdas_efectivas <- alcance$filas_efectivas * length(campos_sql)
@@ -11314,6 +11566,12 @@ print.plan_perfilado_dbi <- function(x, ...) {
       sql_muestra
     ))
     return(list(perfil = NULL, cobertura = cobertura, muestreo = muestreo_meta))
+  }
+  if (nrow(conversion_muestra$cobertura)) {
+    perfil$cobertura_diagnosticos <- rbind(
+      perfil$cobertura_diagnosticos, conversion_muestra$cobertura
+    )
+    rownames(perfil$cobertura_diagnosticos) <- NULL
   }
   perfil$meta$filas_analizadas <- alcance$filas_efectivas
   perfil$meta$muestreo <- n_obtenidas < .numero_dbi(n_total)
@@ -11901,6 +12159,17 @@ print.plan_perfilado_dbi <- function(x, ...) {
 #' [perfilar()]. Un motor que rechaza una columna aparece en la primera; una
 #' prueba estadística que no corresponde a esa columna, en la segunda. Comparten
 #' la palabra y no el vocabulario, así que conviene mirar cuál se está leyendo.
+#' Si una columna declarada como entero de 64 bits o mas ancho llega como doble
+#' y contiene un valor con valor absoluto de al menos 2^53, `resumen_tabla`
+#' deja sus metricas de magnitud en `no_disponible`. Para la muestra, la
+#' seleccion SQL trae esas columnas como texto y, si `bit64` esta instalado,
+#' las convierte a `integer64` antes de perfilar: `n_distintos`, la moda y los
+#' diagnosticos por identidad conservan los valores exactos. Los estadisticos
+#' de magnitud por encima de 2^53 siguen usando
+#' `estado_resumen_cuantitativo = "omitidos_precision"`, como en memoria. Si
+#' falta `bit64`, la columna queda como texto y `cobertura_diagnosticos` explica
+#' la limitacion y recomienda instalarlo o pedir `integer64` al conectar. Las
+#' columnas declaradas como `double`, `real` o `float` no entran en esta guarda.
 #' Si se omite el bloque con `bloque_muestra = "solo_agregados"`, la cobertura
 #' usa el estado `no_solicitado`: no es un fallo ni se cuenta como una métrica
 #' no disponible. En `muestra_motor`, la selección materializada se hace una
@@ -13068,7 +13337,7 @@ perfilar_dbi <- function(conexion, tabla,
       preparacion$orden_muestra,
       preparacion$orden_sql, preparacion$dialecto, preparacion$n_total,
       presupuesto, info_conexion, argumentos_muestra,
-      muestreo = muestreo_meta,
+      muestreo = muestreo_meta, prototipo = preparacion$prototipo,
       tipos_declarados = preparacion$tipos, trazador = trazador,
       max_celdas_muestra = max_celdas_muestra,
       max_bytes_muestra = max_bytes_muestra
