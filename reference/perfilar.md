@@ -195,6 +195,18 @@ perfilar(
   declararlo son `0,730`, sale `faltantes` y el plan propone dos
   acciones.
 
+  El universo también llega a la limpieza. El perfil guarda la regla, el
+  plan la lleva y
+  [`aplicar()`](https://sebollin.github.io/lupa/reference/planificar_limpieza.md)
+  no toca las celdas que quedan fuera: una `S/D` en una fila donde la
+  columna no corresponde no se convierte en ausencia. Si la regla da un
+  valor indeterminado, la celda tampoco se toca. Las conversiones de
+  tipo son la excepción, porque una columna tiene un solo tipo y no se
+  puede convertir a medias: el plan declara en `n_afectadas` y en la
+  justificación que cambia la columna entera. Si el plan se aplica a
+  otros datos donde la regla no se puede evaluar, la acción falla y lo
+  dice, en vez de operar sobre toda la columna.
+
   La medición contra un marco recibe la misma declaración:
   [`medir()`](https://sebollin.github.io/lupa/reference/medir.md) acepta
   `aplicabilidad` y recorta las filas antes de medir, así que el

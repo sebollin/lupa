@@ -55,9 +55,15 @@ aplicar(plan, datos, permitir_eliminacion = FALSE, conservar_eliminados = TRUE)
 `datos`, `registro`, `plan_aplicado`, el `plan` sincronizado y
 `eliminados`. El `registro` conserva `estado` (`ejecutada` o `fallida`),
 `error`, `n_no_reversibles` y la `justificacion` de cada acción
-seleccionada, incluso cuando una falla y las siguientes continúan. Si
-una acción seleccionada no produce ningún efecto, se registra como
-`fallida` con el motivo y su copia no se incorpora al resultado. La
+seleccionada, incluso cuando una falla y las siguientes continúan.
+`n_no_reversibles` cuenta las celdas cuyo VALOR se perdió y no se puede
+recuperar desde el resultado: un centinela `-999` que pasa a ausencia,
+un extremo recortado a su límite, un marcador de ausencia convertido, o
+un número que se redondeó al convertirlo. No cuenta los cambios de forma
+que dejan el valor en su lugar —recortar espacios, reemplazar
+separadores o cambiar mayúsculas—, aunque tampoco se puedan deshacer tal
+cual. Si una acción seleccionada no produce ningún efecto, se registra
+como `fallida` con el motivo y su copia no se incorpora al resultado. La
 comprobación del efecto observa `n_cambiadas` aunque `n_afectadas` sea
 `NA` o haya sido editado: una acción seleccionada que no cambia nada
 queda `fallida`, porque la ausencia de efecto es observable sin depender
@@ -137,16 +143,22 @@ varias codificaciones y deja en `estado_reparacion` uno de `reparado`,
 `reparado_parcialmente` o `no_se_pudo`. Una reparación parcial no se
 activa automáticamente: debe revisarse y seleccionarse de forma
 explícita. La estrategia se llama `reparar_codificacion` y no limita el
-motor a latin-1. Si se marca una acción que no está `lista`, `aplicar()`
-aborta antes de modificar la copia y enumera las filas problemáticas.
-Una acción que sí está lista pero falla se registra con su error y no
-impide aplicar las siguientes: cada una conserva atomicidad sobre su
-propia columna o tabla. Las acciones que efectivamente eliminan filas o
-columnas requieren además `permitir_eliminacion = TRUE`; una conversión
-`destructiva` requiere selección explícita y deja la pérdida
-cuantificada. Por defecto, el resultado conserva lo retirado en
-`eliminados`; use `conservar_eliminados = FALSE` para evitar ese costo
-de memoria.
+motor a latin-1. Unos mismos bytes pueden recibir dos diagnósticos:
+`c2 80` es a la vez un carácter de control C1 y la huella de un `€` de
+Windows-1252 leído como latin-1. Cuando el plan propone reparar la
+codificación y eliminar ese control, manda la reparación —corre primero
+y restituye el `€`—, y la eliminación queda sin nada que hacer. Es la
+lectura habitual en texto real; en el caso raro de un control C1
+genuino, la reparación lo convierte en `€`. Si se marca una acción que
+no está `lista`, `aplicar()` aborta antes de modificar la copia y
+enumera las filas problemáticas. Una acción que sí está lista pero falla
+se registra con su error y no impide aplicar las siguientes: cada una
+conserva atomicidad sobre su propia columna o tabla. Las acciones que
+efectivamente eliminan filas o columnas requieren además
+`permitir_eliminacion = TRUE`; una conversión `destructiva` requiere
+selección explícita y deja la pérdida cuantificada. Por defecto, el
+resultado conserva lo retirado en `eliminados`; use
+`conservar_eliminados = FALSE` para evitar ese costo de memoria.
 
 Los hallazgos `controles_invisibles`, `entidades_html` y
 `separadores_en_campo` tienen acciones separadas. La detección de

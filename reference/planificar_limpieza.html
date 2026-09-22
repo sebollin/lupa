@@ -111,6 +111,12 @@ columnas retiradas. Es <code>TRUE</code> de forma predeterminada.</p></dd>
 sincronizado y <code>eliminados</code>. El <code>registro</code> conserva <code>estado</code> (<code>ejecutada</code>
 o <code>fallida</code>), <code>error</code>, <code>n_no_reversibles</code> y la <code>justificacion</code> de cada
 acción seleccionada, incluso cuando una falla y las siguientes continúan.
+<code>n_no_reversibles</code> cuenta las celdas cuyo VALOR se perdió y no se puede
+recuperar desde el resultado: un centinela <code>-999</code> que pasa a ausencia, un
+extremo recortado a su límite, un marcador de ausencia convertido, o un
+número que se redondeó al convertirlo. No cuenta los cambios de forma que
+dejan el valor en su lugar —recortar espacios, reemplazar separadores o
+cambiar mayúsculas—, aunque tampoco se puedan deshacer tal cual.
 Si una acción seleccionada no produce ningún efecto, se registra como
 <code>fallida</code> con el motivo y su copia no se incorpora al resultado. La
 comprobación del efecto observa <code>n_cambiadas</code> aunque <code>n_afectadas</code> sea
@@ -186,6 +192,12 @@ codificaciones y deja en <code>estado_reparacion</code> uno de <code>reparado</c
 <code>reparado_parcialmente</code> o <code>no_se_pudo</code>. Una reparación parcial no se activa
 automáticamente: debe revisarse y seleccionarse de forma explícita. La
 estrategia se llama <code>reparar_codificacion</code> y no limita el motor a latin-1.
+Unos mismos bytes pueden recibir dos diagnósticos: <code>c2 80</code> es a la vez un
+carácter de control C1 y la huella de un <code>€</code> de Windows-1252 leído como
+latin-1. Cuando el plan propone reparar la codificación y eliminar ese
+control, manda la reparación —corre primero y restituye el <code>€</code>—, y la
+eliminación queda sin nada que hacer. Es la lectura habitual en texto real;
+en el caso raro de un control C1 genuino, la reparación lo convierte en <code>€</code>.
 Si se marca una acción que no está <code>lista</code>, <code>aplicar()</code> aborta antes de
 modificar la copia y enumera las filas problemáticas. Una acción que sí está
 lista pero falla se registra con su error y no impide aplicar las siguientes:
