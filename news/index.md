@@ -4,6 +4,40 @@
 
 ### Correcciones de cobertura y publicación
 
+- **El texto del usuario ya no se ejecuta al imprimirse.** Los mensajes
+  de consola pasaban por la plantilla de cli, que evalúa todo `{...}`, y
+  el paquete la armaba con texto del usuario:
+  `perfilar(d, nombre = "tabla{1+1}")` se imprimía `tabla2`, y una
+  columna llamada `tasa{Sys.getenv("USER")}` se imprimía con el nombre
+  del usuario al mostrar el plan. El encabezado de un CSV podía ejecutar
+  código en la sesión de quien lo analizaba. Ahora ese texto se publica
+  literal, y una prueba recorre todas las funciones del paquete para que
+  ningún mensaje nuevo vuelva a armarse así. De paso, un nombre de
+  columna declarado `bytes` ya no aborta la impresión del plan ni deja
+  escapada la frase del paquete que lo rodea.
+
+- **Lo que la muestra fabrica ya no se publica como propiedad de la
+  tabla.** Las dependencias se buscan sobre una muestra sistemática, y
+  los descartes por casi-clave se decidían sobre esa muestra: con los
+  datos agrupados en filas consecutivas, la muestra toma una fila por
+  grupo, el determinante parece una clave y la dependencia desaparece.
+  La tabla vacía se leía como «no hay dependencias». Ahora los descartes
+  se verifican sobre la columna completa, y si sólo la muestra los
+  produjo el motivo lo dice (`casi_clave_solo_en_muestra`) y el perfil
+  lo declara en `cobertura_diagnosticos`.
+
+- **Una columna constante de fecha-hora ya no acusa al paquete.** La
+  traza del hallazgo `constante` comparaba el texto del vector con el de
+  la moda, que en fecha-hora lleva la zona: salía vacía y el perfil
+  avisaba «Es un problema de `lupa`» sobre datos corrientes.
+
+- **[`reportar()`](https://sebollin.github.io/lupa/reference/reportar.md)
+  ya no aborta con texto sin marca que no es UTF-8**, el que deja
+  [`read.csv()`](https://rdrr.io/r/utils/read.table.html) sin
+  `fileEncoding` sobre un archivo latin1. Se publica como lo muestra la
+  consola, igual que el texto declarado `bytes`; y un nombre de columna
+  así se cita igual en la evidencia, tenga o no la marca.
+
 - **La aplicabilidad declarada llega a los diagnósticos de texto y a la
   limpieza.** `perfilar(..., aplicabilidad = )` recortaba el universo de
   los faltantes, pero los diagnósticos de texto seguían mirando la
@@ -21,8 +55,11 @@
   marca que no es UTF-8 —el que deja
   [`read.csv()`](https://rdrr.io/r/utils/read.table.html) sin
   `fileEncoding` sobre un archivo latin1—: recortar espacios, una acción
-  recomendada y aplicada sola, fallaba. Esas celdas se transforman ahora
-  byte a byte y conservan la marca con que llegaron.
+  recomendada y aplicada sola, fallaba. Esas celdas quedan ahora
+  intactas, con su marca —el perfil no las mide y las informa como
+  codificación inválida—, y la acción transforma las demás. Lo mismo
+  vale para las declaradas `bytes` que no decodifican, que el recorte
+  alcanzaba igual: el plan estimaba 1 y el registro contaba 3.
 
 - **La conversión de números con formato regional dice lo que hace y
   cuenta lo que cambia.** El plan estimaba sólo los valores con
@@ -62,7 +99,18 @@
   de doble precisión— y el plan la publicaba recomendada, reversible y
   con cero cambios irreversibles. Ahora la pérdida se mide al parsear el
   número, antes de aplicar cualquier unidad o moneda, y la acción queda
-  para activar a mano con el motivo escrito.
+  para activar a mano con el motivo escrito. Lo mismo vale para los
+  decimales, que la comprobación no miraba: `33.333333333333333333%`
+  tiene veinte cifras y un número de doble precisión guarda diecisiete.
+  Un decimal se compara con la precisión con que vino escrito, así que
+  una columna común con decimales no se acusa.
+
+- **Toda conversión que pierde valores se marca `destructiva`.** La
+  marca se calculaba sólo cuando la columna era segura: en una que
+  mezcla `10%` con `0.1`, el plan medía cinco valores irrecuperables y
+  decía «Se declara destructiva» en su motivo, pero la marca quedaba en
+  `FALSE`. Activada a mano, el aviso de acciones destructivas no
+  aparecía y el registro repetía `FALSE`.
 
 - **Un marcador de ausencia que podría ser un dato ya no se convierte
   solo.** `NA` es el código de Namibia y `NULL` puede ser un apellido:

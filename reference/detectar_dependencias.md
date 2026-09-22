@@ -115,6 +115,17 @@ segundos: permite que el tope efectivo de pares baje cuando la tabla
 tiene muchas filas. Los atributos del resultado declaran todos los
 recortes.
 
+Una muestra conserva cada fila entera, pero no la cantidad de filas por
+valor: sobre datos agrupados en filas consecutivas, la muestra
+sistemática toma una fila de cada grupo y el determinante parece una
+clave. Por eso los descartes por casi-clave y casi-constante se
+verifican sobre la columna completa; si sólo la muestra los produjo, el
+motivo es `casi_clave_solo_en_muestra` o
+`casi_constante_solo_en_muestra`, la columna sigue fuera —evaluarla
+sobre esa muestra daría dependencias exactas sin evidencia— y
+[`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md) lo
+declara en `cobertura_diagnosticos`.
+
 ## See also
 
 [`detectar_claves()`](https://sebollin.github.io/lupa/reference/detectar_claves.md),

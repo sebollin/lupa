@@ -131,15 +131,18 @@ no dice nada sobre la composición: medido sobre
 recupera uniendo el registro con el plan por `id_accion`, que los dos
 publican. `reversible` indica si la conversión conserva la identidad de
 cada valor. Las conversiones se comprueban sobre todos los valores de
-`datos`: las numéricas bloquean ceros iniciales y colisiones no
-inyectivas, mientras que fechas, fechas-hora y lógicos sólo bloquean
-conversiones no ejecutables o no inyectivas. Las fechas pueden cambiar a
-la representación canónica del tipo sin que eso sea una pérdida. Sin
-`datos` no se puede hacer la comprobación y la acción queda bloqueada.
-Cuando no es reversible se marca `destructiva`, no se activa por defecto
-y el registro conserva `n_no_reversibles` y la justificación de la
-decisión. `convertir_numero_regional` sólo se recomienda si todos los
-valores presentes comparten convención decimal, unidad y moneda. Un
+`datos`: las numéricas bloquean ceros iniciales, colisiones no
+inyectivas y valores con más cifras significativas de las que guarda un
+número de doble precisión —un decimal se compara con la precisión con
+que vino escrito—, mientras que fechas, fechas-hora y lógicos sólo
+bloquean conversiones no ejecutables o no inyectivas. Las fechas pueden
+cambiar a la representación canónica del tipo sin que eso sea una
+pérdida. Sin `datos` no se puede hacer la comprobación y la acción queda
+bloqueada. Cuando se ejecuta y no es reversible se marca `destructiva`
+—también si la columna no era segura y se activa a mano—, no se activa
+por defecto y el registro conserva `n_no_reversibles` y la justificación
+de la decisión. `convertir_numero_regional` sólo se recomienda si todos
+los valores presentes comparten convención decimal, unidad y moneda. Un
 valor con `%` se divide por 100 y queda como proporción en `[0, 1]`, la
 escala con que el paquete publica toda proporción; una unidad o un
 símbolo de moneda dejan de formar parte del valor y quedan en
@@ -157,12 +160,19 @@ Cuando el plan propone reparar la codificación y eliminar ese control,
 manda la reparación —corre primero y restituye el `€`—, y la eliminación
 queda sin nada que hacer. Es la lectura habitual en texto real; en el
 caso raro de un control C1 genuino, la reparación lo convierte en `€`.
-Si se marca una acción que no está `lista`, `aplicar()` aborta antes de
-modificar la copia y enumera las filas problemáticas. Una acción que sí
-está lista pero falla se registra con su error y no impide aplicar las
-siguientes: cada una conserva atomicidad sobre su propia columna o
-tabla. Las acciones que efectivamente eliminan filas o columnas
-requieren además `permitir_eliminacion = TRUE`; una conversión
+Una celda cuyo texto no se puede leer —declarada `bytes` con bytes que
+no son UTF-8, o sin marca en una sesión UTF-8, que es lo que deja
+[`read.csv()`](https://rdrr.io/r/utils/read.table.html) sin
+`fileEncoding` sobre un archivo latin1— no se transforma: el perfil no
+la midió y la informa como `codificacion_invalida`, cuyo remedio es
+volver a leer la fuente declarando su codificación. Las acciones de
+texto trabajan sobre las demás celdas de la columna y cuentan sólo lo
+que cambiaron. Si se marca una acción que no está `lista`, `aplicar()`
+aborta antes de modificar la copia y enumera las filas problemáticas.
+Una acción que sí está lista pero falla se registra con su error y no
+impide aplicar las siguientes: cada una conserva atomicidad sobre su
+propia columna o tabla. Las acciones que efectivamente eliminan filas o
+columnas requieren además `permitir_eliminacion = TRUE`; una conversión
 `destructiva` requiere selección explícita y deja la pérdida
 cuantificada. Por defecto, el resultado conserva lo retirado en
 `eliminados`; use `conservar_eliminados = FALSE` para evitar ese costo
