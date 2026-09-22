@@ -138,27 +138,35 @@ la representación canónica del tipo sin que eso sea una pérdida. Sin
 `datos` no se puede hacer la comprobación y la acción queda bloqueada.
 Cuando no es reversible se marca `destructiva`, no se activa por defecto
 y el registro conserva `n_no_reversibles` y la justificación de la
-decisión. La acción de codificación prueba las tablas congeladas de
-varias codificaciones y deja en `estado_reparacion` uno de `reparado`,
-`reparado_parcialmente` o `no_se_pudo`. Una reparación parcial no se
-activa automáticamente: debe revisarse y seleccionarse de forma
-explícita. La estrategia se llama `reparar_codificacion` y no limita el
-motor a latin-1. Unos mismos bytes pueden recibir dos diagnósticos:
-`c2 80` es a la vez un carácter de control C1 y la huella de un `€` de
-Windows-1252 leído como latin-1. Cuando el plan propone reparar la
-codificación y eliminar ese control, manda la reparación —corre primero
-y restituye el `€`—, y la eliminación queda sin nada que hacer. Es la
-lectura habitual en texto real; en el caso raro de un control C1
-genuino, la reparación lo convierte en `€`. Si se marca una acción que
-no está `lista`, `aplicar()` aborta antes de modificar la copia y
-enumera las filas problemáticas. Una acción que sí está lista pero falla
-se registra con su error y no impide aplicar las siguientes: cada una
-conserva atomicidad sobre su propia columna o tabla. Las acciones que
-efectivamente eliminan filas o columnas requieren además
-`permitir_eliminacion = TRUE`; una conversión `destructiva` requiere
-selección explícita y deja la pérdida cuantificada. Por defecto, el
-resultado conserva lo retirado en `eliminados`; use
-`conservar_eliminados = FALSE` para evitar ese costo de memoria.
+decisión. `convertir_numero_regional` sólo se recomienda si todos los
+valores presentes comparten convención decimal, unidad y moneda. Un
+valor con `%` se divide por 100 y queda como proporción en `[0, 1]`, la
+escala con que el paquete publica toda proporción; una unidad o un
+símbolo de moneda dejan de formar parte del valor y quedan en
+`parametros`. La justificación lo dice cuando ocurre. Una columna que
+mezcla `5` con `5 %` no se convierte: habría que decidir si el número
+sin `%` está en la misma escala. La acción de codificación prueba las
+tablas congeladas de varias codificaciones y deja en `estado_reparacion`
+uno de `reparado`, `reparado_parcialmente` o `no_se_pudo`. Una
+reparación parcial no se activa automáticamente: debe revisarse y
+seleccionarse de forma explícita. La estrategia se llama
+`reparar_codificacion` y no limita el motor a latin-1. Unos mismos bytes
+pueden recibir dos diagnósticos: `c2 80` es a la vez un carácter de
+control C1 y la huella de un `€` de Windows-1252 leído como latin-1.
+Cuando el plan propone reparar la codificación y eliminar ese control,
+manda la reparación —corre primero y restituye el `€`—, y la eliminación
+queda sin nada que hacer. Es la lectura habitual en texto real; en el
+caso raro de un control C1 genuino, la reparación lo convierte en `€`.
+Si se marca una acción que no está `lista`, `aplicar()` aborta antes de
+modificar la copia y enumera las filas problemáticas. Una acción que sí
+está lista pero falla se registra con su error y no impide aplicar las
+siguientes: cada una conserva atomicidad sobre su propia columna o
+tabla. Las acciones que efectivamente eliminan filas o columnas
+requieren además `permitir_eliminacion = TRUE`; una conversión
+`destructiva` requiere selección explícita y deja la pérdida
+cuantificada. Por defecto, el resultado conserva lo retirado en
+`eliminados`; use `conservar_eliminados = FALSE` para evitar ese costo
+de memoria.
 
 Los hallazgos `controles_invisibles`, `entidades_html` y
 `separadores_en_campo` tienen acciones separadas. La detección de

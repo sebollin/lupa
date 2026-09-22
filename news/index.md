@@ -17,7 +17,22 @@
 - **Una transformación de texto ya no depende de lo que haya en el resto
   de la columna.** Un solo valor declarado `bytes` hacía que reemplazar
   separadores dejara ilegibles las celdas `latin1` vecinas, y que pasar
-  a minúsculas o mayúsculas abortara.
+  a minúsculas o mayúsculas abortara. Lo mismo pasaba con el texto sin
+  marca que no es UTF-8 —el que deja
+  [`read.csv()`](https://rdrr.io/r/utils/read.table.html) sin
+  `fileEncoding` sobre un archivo latin1—: recortar espacios, una acción
+  recomendada y aplicada sola, fallaba. Esas celdas se transforman ahora
+  byte a byte y conservan la marca con que llegaron.
+
+- **La conversión de números con formato regional dice lo que hace y
+  cuenta lo que cambia.** El plan estimaba sólo los valores con
+  separadores y el registro contaba todos —11 contra 20 en la misma
+  columna—; ahora los dos cuentan valores presentes, como las otras
+  conversiones de tipo. Una columna de `"10%"` pasaba a `0.1` sin
+  decirlo: la justificación declara ahora la división por 100 y la
+  unidad o el símbolo de moneda que dejan de formar parte del valor. Y
+  una columna que no se convierte publica su motivo real, en vez de
+  atribuirlo siempre a la ambigüedad de los separadores.
 
 - **La conversión de marcadores de ausencia convierte exactamente lo que
   el hallazgo declara.** La acción usaba su propio catálogo y borraba

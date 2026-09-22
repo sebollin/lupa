@@ -187,6 +187,13 @@ sin que eso sea una pérdida. Sin <code>datos</code> no se puede hacer la compro
 la acción queda bloqueada. Cuando no es reversible se marca <code>destructiva</code>, no
 se activa por defecto y el registro conserva <code>n_no_reversibles</code> y la
 justificación de la decisión.
+<code>convertir_numero_regional</code> sólo se recomienda si todos los valores
+presentes comparten convención decimal, unidad y moneda. Un valor con <code>%</code>
+se divide por 100 y queda como proporción en <code>[0, 1]</code>, la escala con que el
+paquete publica toda proporción; una unidad o un símbolo de moneda dejan de
+formar parte del valor y quedan en <code>parametros</code>. La justificación lo dice
+cuando ocurre. Una columna que mezcla <code>5</code> con <code>5 %</code> no se convierte: habría
+que decidir si el número sin <code>%</code> está en la misma escala.
 La acción de codificación prueba las tablas congeladas de varias
 codificaciones y deja en <code>estado_reparacion</code> uno de <code>reparado</code>,
 <code>reparado_parcialmente</code> o <code>no_se_pudo</code>. Una reparación parcial no se activa
