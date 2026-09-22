@@ -676,7 +676,24 @@ test_that("un cambio de normalizacion se declara y no pasa por mejora", {
 
   # Y sigue reportando la desaparicion del hallazgo: la fila nueva no la tapa,
   # la explica.
-  expect_true(any(comparacion$cambio == "resuelto"))
+  #
+  # COMO se reporta depende de si corrio el camino que podia encontrarlo. Con
+  # la normalizacion apagada, lo unico que agrupa `Jose`/`jose`/`JOSE` es la
+  # distancia de edicion, y esa necesita `stringdist`. Con el paquete, corre y no
+  # encuentra: `resuelto`. Sin el, no corre, y la cobertura lo declina: decir
+  # `resuelto` seria afirmar una mejora que nadie midio, asi que es
+  # `no_evaluado`. Esta prueba afirmaba `resuelto` sin condicion y fallaba sin
+  # `stringdist` en cuanto la deriva empezo a leer esa declinacion; lo que
+  # promete es que la desaparicion se reporte, y eso se exige para la fila
+  # exacta del hallazgo, no para "alguna fila resuelta".
+  fila_hallazgo <- comparacion[
+    comparacion$aspecto == "hallazgo" &
+      comparacion$valor_anterior == "casi_duplicados_vocabulario", ,
+    drop = FALSE
+  ]
+  expect_equal(nrow(fila_hallazgo), 1L)
+  esperado <- if (lupa:::.stringdist_disponible()) "resuelto" else "no_evaluado"
+  expect_identical(as.character(fila_hallazgo$cambio), esperado)
 })
 
 test_that("la misma normalizacion no inventa una fila de configuracion", {

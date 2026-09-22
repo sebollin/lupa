@@ -29,6 +29,11 @@
 }
 
 test_that("un diagnostico de relacion que dejo de correr por el tipo no se declara resuelto", {
+  # `1200` contra `1201` es un casi duplicado por distancia de edicion, que
+  # necesita `stringdist`. Sin el, el hallazgo no aparece en el primer perfil y
+  # no hay nada que pueda volverse `no_evaluado`: la premisa no se cumple. Esta
+  # prueba lo asumia y fallaba en `R CMD check` con los Suggests ausentes.
+  skip_if_not(lupa:::.stringdist_disponible(), "sin 'stringdist' no hay casi duplicados por distancia")
   datos <- data.frame(
     v = c(rep("1200%", 8L), "1201%", rep("3400%", 8L), "3401%", "10%", "20%"),
     id = seq_len(20L), stringsAsFactors = FALSE
