@@ -34,6 +34,12 @@ columnas retiradas. Es \code{TRUE} de forma predeterminada.}
 sincronizado y \code{eliminados}. El \code{registro} conserva \code{estado} (\code{ejecutada}
 o \code{fallida}), \code{error}, \code{n_no_reversibles} y la \code{justificacion} de cada
 acción seleccionada, incluso cuando una falla y las siguientes continúan.
+\code{n_no_reversibles} cuenta las celdas cuyo VALOR se perdió y no se puede
+recuperar desde el resultado: un centinela \code{-999} que pasa a ausencia, un
+extremo recortado a su límite, un marcador de ausencia convertido, o un
+número que se redondeó al convertirlo. No cuenta los cambios de forma que
+dejan el valor en su lugar —recortar espacios, reemplazar separadores o
+cambiar mayúsculas—, aunque tampoco se puedan deshacer tal cual.
 Si una acción seleccionada no produce ningún efecto, se registra como
 \code{fallida} con el motivo y su copia no se incorpora al resultado. La
 comprobación del efecto observa \code{n_cambiadas} aunque \code{n_afectadas} sea
@@ -121,6 +127,12 @@ codificaciones y deja en \code{estado_reparacion} uno de \code{reparado},
 \code{reparado_parcialmente} o \code{no_se_pudo}. Una reparación parcial no se activa
 automáticamente: debe revisarse y seleccionarse de forma explícita. La
 estrategia se llama \code{reparar_codificacion} y no limita el motor a latin-1.
+Unos mismos bytes pueden recibir dos diagnósticos: \verb{c2 80} es a la vez un
+carácter de control C1 y la huella de un \verb{€} de Windows-1252 leído como
+latin-1. Cuando el plan propone reparar la codificación y eliminar ese
+control, manda la reparación —corre primero y restituye el \verb{€}—, y la
+eliminación queda sin nada que hacer. Es la lectura habitual en texto real;
+en el caso raro de un control C1 genuino, la reparación lo convierte en \verb{€}.
 Si se marca una acción que no está \code{lista}, \code{aplicar()} aborta antes de
 modificar la copia y enumera las filas problemáticas. Una acción que sí está
 lista pero falla se registra con su error y no impide aplicar las siguientes:
