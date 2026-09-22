@@ -4,6 +4,20 @@
 
 ### Correcciones de cobertura y publicación
 
+- **Los enteros anchos que llegan como doble ya no se publican como
+  exactos.**
+  [`perfilar_dbi()`](https://sebollin.github.io/lupa/reference/perfilar_dbi.md)
+  reconoce BIGINT y tipos decimales de escala cero con precision
+  potencialmente peligrosa. Si el driver entrega un valor de al menos
+  2^53 como doble, `resumen_tabla` deja las metricas de magnitud en
+  `no_disponible`. La muestra trae esas columnas como texto y las
+  convierte a `integer64` cuando `bit64` esta disponible, para que los
+  distintos y los diagnosticos de identidad sean exactos; sin `bit64`
+  quedan como texto y la cobertura publica el remedio. Los estadisticos
+  de magnitud de la muestra usan `omitidos_precision`. Pedir `integer64`
+  al conectar tambien conserva la medicion exacta. Los `double`, `real`
+  y `float` declarados siguen tratandose como dobles.
+
 - **El texto del usuario ya no se ejecuta al imprimirse.** Los mensajes
   de consola pasaban por la plantilla de cli, que evalúa todo `{...}`, y
   el paquete la armaba con texto del usuario:
@@ -15,6 +29,17 @@
   ningún mensaje nuevo vuelva a armarse así. De paso, un nombre de
   columna declarado `bytes` ya no aborta la impresión del plan ni deja
   escapada la frase del paquete que lo rodea.
+
+- **Lo que se cuenta sobre la muestra dice que es de la muestra.**
+  Patrones y formatos de fecha se descubren sobre una muestra, pero sus
+  hallazgos publicaban los conteos como cifras de la tabla
+  —`n_afectados = 2` donde la tabla tenía 10, `%d/%m/%Y (50)` donde
+  tenía 5.000—, y la consola imprimía el veredicto sin mencionar la
+  muestra. Ahora la evidencia lo declara, igual que ya lo hacía
+  `tipo_declarado_distinto`;
+  [`print()`](https://rdrr.io/r/base/print.html) del perfil dice sobre
+  cuántas filas trabajó, y el reporte anota la muestra también en los
+  formatos de fecha.
 
 - **Lo que la muestra fabrica ya no se publica como propiedad de la
   tabla.** Las dependencias se buscan sobre una muestra sistemática, y

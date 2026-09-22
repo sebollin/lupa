@@ -434,11 +434,23 @@ muestra y por qué, con `diagnostico`, `columna`, `motivo` y
 Un motor que rechaza una columna aparece en la primera; una prueba
 estadística que no corresponde a esa columna, en la segunda. Comparten
 la palabra y no el vocabulario, así que conviene mirar cuál se está
-leyendo. Si se omite el bloque con `bloque_muestra = "solo_agregados"`,
-la cobertura usa el estado `no_solicitado`: no es un fallo ni se cuenta
-como una métrica no disponible. En `muestra_motor`, la selección
-materializada se hace una sola vez antes de las pasadas; el spool se
-relee y se verifica mediante su trailer. Un trailer ausente publica
+leyendo. Si una columna declarada como entero de 64 bits o mas ancho
+llega como doble y contiene un valor con valor absoluto de al menos
+2^53, `resumen_tabla` deja sus metricas de magnitud en `no_disponible`.
+Para la muestra, la seleccion SQL trae esas columnas como texto y, si
+`bit64` esta instalado, las convierte a `integer64` antes de perfilar:
+`n_distintos`, la moda y los diagnosticos por identidad conservan los
+valores exactos. Los estadisticos de magnitud por encima de 2^53 siguen
+usando `estado_resumen_cuantitativo = "omitidos_precision"`, como en
+memoria. Si falta `bit64`, la columna queda como texto y
+`cobertura_diagnosticos` explica la limitacion y recomienda instalarlo o
+pedir `integer64` al conectar. Las columnas declaradas como `double`,
+`real` o `float` no entran en esta guarda. Si se omite el bloque con
+`bloque_muestra = "solo_agregados"`, la cobertura usa el estado
+`no_solicitado`: no es un fallo ni se cuenta como una métrica no
+disponible. En `muestra_motor`, la selección materializada se hace una
+sola vez antes de las pasadas; el spool se relee y se verifica mediante
+su trailer. Un trailer ausente publica
 `spool_incompleto:trailer_ausente`; un trailer o checksum que no
 coincide publica `spool_checksum_invalido`.
 
