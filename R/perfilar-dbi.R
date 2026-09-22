@@ -489,12 +489,12 @@
     " Fuentes de cardinalidad:",
     paste(proyeccion$fuentes_cardinalidad, collapse = ", "), "."
   ) else ""
-  cli::cli_alert_warning(.marcar_para_exhibir(paste0(
+  cli::cli_alert_warning(.cli_literal(.marcar_para_exhibir(paste0(
     "Costo estimado de la moda: ~",
     .segundos_dbi(proyeccion$duracion_estimada_ms), " s para ",
     proyeccion$n_columnas, " columna(s). Fuente: ", proyeccion$fuente,
     ". Es una estimacion, no una medicion.", detalle_fuente, detalle
-  )))
+  ))))
   invisible(TRUE)
 }
 
@@ -729,13 +729,13 @@
       proyeccion$duracion_estimada_ms < umbral_segundos * 1000) {
     return(invisible(FALSE))
   }
-  cli::cli_alert_warning(.marcar_para_exhibir(paste0(
+  cli::cli_alert_warning(.cli_literal(.marcar_para_exhibir(paste0(
     "Costo estimado de la mediana: ~",
     .segundos_dbi(proyeccion$duracion_estimada_ms), " s para ",
     proyeccion$n_medianas, " mediana(s) sobre ",
     .entero_sql_dbi(proyeccion$n_filas), " filas. Fuente: ",
     proyeccion$fuente, ". ", proyeccion$motivo
-  )))
+  ))))
   invisible(TRUE)
 }
 
@@ -851,13 +851,13 @@
       proyeccion$duracion_estimada_ms < umbral_segundos * 1000) {
     return(invisible(NULL))
   }
-  cli::cli_alert_warning(.marcar_para_exhibir(paste0(
+  cli::cli_alert_warning(.cli_literal(.marcar_para_exhibir(paste0(
     "Costo estimado de `COUNT(DISTINCT)`: ~",
     .segundos_dbi(proyeccion$duracion_estimada_ms), " s para ",
     proyeccion$n_lotes, " lote(s). Fuente: ", proyeccion$fuente,
     ". Es una estimacion, no una medicion; el derrame real se informa",
     " despues si la instrumentacion del servidor lo permite."
-  )))
+  ))))
   invisible(NULL)
 }
 
@@ -1463,7 +1463,7 @@
   etiqueta <- if (identical(familia, "COUNT(DISTINCT)")) "" else {
     paste0(" para ", familia)
   }
-  cli::cli_alert_warning(.marcar_para_exhibir(paste0(
+  cli::cli_alert_warning(.cli_literal(.marcar_para_exhibir(paste0(
     "Derrame potencial estimado", etiqueta,
     " (es una estimacion, no una medicion): ",
     detalle, " supera el `work_mem` vigente de ", work_mem,
@@ -1473,7 +1473,7 @@
     "Subir `work_mem` en esta sesion por encima de ese tama\u00f1o puede evitar el",
     " derrame; lupa no modifica la configuracion. El derrame real, si ocurre,",
     " se informa despues mediante `pg_stat_statements`."
-  )))
+  ))))
   invisible(TRUE)
 }
 
@@ -8691,7 +8691,7 @@
     if (!isTRUE(guardia_newid$aceptado) &&
         (is.null(presupuesto$avisar_costo_mediana) ||
          isTRUE(presupuesto$avisar_costo_mediana))) {
-      cli::cli_alert_warning(.marcar_para_exhibir(paste0(
+      cli::cli_alert_warning(.cli_literal(.marcar_para_exhibir(paste0(
         "Mediana muestreada no disponible: ", guardia_newid$motivo,
         ". Proyeccion NEWID: ",
         if (is.finite(guardia_newid$proyeccion_newid_ms)) {
@@ -8700,7 +8700,7 @@
         " ms; n_total = ", .entero_sql_dbi(guardia_newid$n_total),
         ", fraccion = ", formatC(guardia_newid$fraccion,
                                   format = "f", digits = 3), "."
-      )))
+      ))))
     }
   }
   medianas <- vector("list", length(columnas_medianas))
@@ -10235,10 +10235,10 @@ print.plan_perfilado_dbi <- function(x, ...) {
   # un plan: se imprime la tabla y se dice por que falta el resto.
   total <- attr(x, "total", exact = TRUE)
   if (is.null(total)) {
-    cli::cli_alert_warning(paste(
+    cli::cli_alert_warning(.cli_literal(paste(
       "Este objeto conserva la clase del plan pero no sus atributos;",
       "seguramente sea un subconjunto. Se imprime solo la tabla."
-    ))
+    )))
     .print_data_frame_bytes(x, ...)
     return(invisible(x))
   }
@@ -10256,12 +10256,12 @@ print.plan_perfilado_dbi <- function(x, ...) {
   } else {
     paste0(.miles_dbi(total), " consultas")
   }
-  cli::cli_alert_info(paste0(
+  cli::cli_alert_info(.cli_literal(paste0(
     cuenta, " sobre ",
     texto_filas, " y ",
     .miles_dbi(attr(x, "columnas", exact = TRUE)), " columnas (dialecto ",
     attr(x, "dialecto", exact = TRUE), ")"
-  ))
+  )))
   spool_plan <- attr(x, "materializacion", exact = TRUE)
   if (is.list(spool_plan)) {
     cli::cli_text(
@@ -10392,16 +10392,16 @@ print.plan_perfilado_dbi <- function(x, ...) {
       memoria$referencias$variacion,
       "; esa variaci\u00f3n es justamente el motivo por el que no se estima."
     )
-    cli::cli_text(memoria$distincion)
-    cli::cli_text(memoria$reparto_observado)
+    cli::cli_text(.cli_literal(memoria$distincion))
+    cli::cli_text(.cli_literal(memoria$reparto_observado))
   }
   magnitud <- attr(x, "magnitud", exact = TRUE)
   if (is.null(magnitud)) magnitud <- "desconocida"
   if (identical(magnitud, "desconocida")) {
-    cli::cli_alert_warning(paste(
+    cli::cli_alert_warning(.cli_literal(paste(
       "No se pudo estimar el trabajo: falta el n\u00famero de filas.",
       "El conteo de consultas sigue siendo v\u00e1lido."
-    ))
+    )))
     # Los supuestos NO se imprimen aca: el bloque final ya los imprime para
     # toda magnitud distinta de "baja", y "desconocida" lo es. Este sitio los
     # duplicaba: el plan mostraba dos veces los mismos dos parrafos, y un texto
@@ -10437,9 +10437,9 @@ print.plan_perfilado_dbi <- function(x, ...) {
     # justo donde la decision importa.
     if (identical(magnitud, "alta") || identical(magnitud, "media")) {
       if (identical(magnitud, "alta")) {
-        cli::cli_alert_danger(paste0("Trabajo estimado alto: ", trabajo))
+        cli::cli_alert_danger(.cli_literal(paste0("Trabajo estimado alto: ", trabajo)))
       } else {
-        cli::cli_alert_warning(paste0("Trabajo estimado medio: ", trabajo))
+        cli::cli_alert_warning(.cli_literal(paste0("Trabajo estimado medio: ", trabajo)))
       }
       cli::cli_text("Para acotarlo, sin cambiar nada m\u00e1s:")
       palancas <- c(
@@ -10459,14 +10459,14 @@ print.plan_perfilado_dbi <- function(x, ...) {
           )
         )
       }
-      cli::cli_ul(palancas)
+      cli::cli_ul(.cli_literal(palancas))
     } else {
-      cli::cli_alert_success(paste0("Trabajo estimado bajo: ", trabajo))
+      cli::cli_alert_success(.cli_literal(paste0("Trabajo estimado bajo: ", trabajo)))
     }
   }
   supuesto_distintos <- attr(x, "supuesto_costo_distintos", exact = TRUE)
   if (!is.null(supuesto_distintos)) {
-    cli::cli_text(supuesto_distintos)
+    cli::cli_text(.cli_literal(supuesto_distintos))
   }
   # `muestra = Inf` -lo que viene por omision- trae la tabla entera a R. Es lo
   # correcto para un analisis de calidad: los diagnosticos que miran los valores
@@ -10494,9 +10494,9 @@ print.plan_perfilado_dbi <- function(x, ...) {
   # la palabra "techo" viaja con el conteo en todos los casos.
   if (!identical(magnitud, "baja")) {
     supuesto <- attr(x, "supuesto_costo", exact = TRUE)
-    if (!is.null(supuesto)) cli::cli_text(supuesto)
+    if (!is.null(supuesto)) cli::cli_text(.cli_literal(supuesto))
     techo <- attr(x, "supuesto", exact = TRUE)
-    if (!is.null(techo)) cli::cli_text(techo)
+    if (!is.null(techo)) cli::cli_text(.cli_literal(techo))
   } else {
     cli::cli_text(
       "Los supuestos de la cuenta est\u00e1n en los atributos ",
@@ -12719,7 +12719,7 @@ perfilar_dbi <- function(conexion, tabla,
     presupuesto$guardia_newid <- guardia_newid
     if (!isTRUE(guardia_newid$aceptado)) {
       if (isTRUE(avisar_costo_mediana)) {
-        cli::cli_alert_warning(.marcar_para_exhibir(paste0(
+        cli::cli_alert_warning(.cli_literal(.marcar_para_exhibir(paste0(
           "Mediana muestreada no disponible: ", guardia_newid$motivo,
           ". Proyeccion NEWID: ",
           if (is.finite(guardia_newid$proyeccion_newid_ms)) {
@@ -12729,7 +12729,7 @@ perfilar_dbi <- function(conexion, tabla,
           " ms; n_total = ", .entero_sql_dbi(guardia_newid$n_total),
           ", fraccion = ", formatC(guardia_newid$fraccion,
                                     format = "f", digits = 3), "."
-        )))
+        ))))
       }
       preparacion$muestreo$disponible <- FALSE
       preparacion$muestreo$motivo <- guardia_newid$motivo
@@ -13291,7 +13291,7 @@ print.perfil_dbi <- function(x, ...) {
     "Resumen de {alcance}: {nrow(x$resumen_tabla$columnas)} columnas sobre {meta$filas} filas"
   )
   texto_clave <- .texto_clave_dbi(meta$clave)
-  if (!is.null(texto_clave)) cli::cli_text(texto_clave)
+  if (!is.null(texto_clave)) cli::cli_text(.cli_literal(texto_clave))
   estados <- table(x$resumen_tabla$sql$estado)
   if (length(estados)) {
     detalle <- paste0(names(estados), " ", as.integer(estados), collapse = ", ")
@@ -13320,14 +13320,14 @@ print.perfil_dbi <- function(x, ...) {
           "; esto no demuestra que no haya derrame"
         )
       }
-      cli::cli_text(paste0(
+      cli::cli_text(.cli_literal(paste0(
         "Derrame estimado (no medido): ", detalle_estimacion,
         ". Fuente: `", estimacion$fuente, "`."
-      ))
+      )))
     } else {
-      cli::cli_text(paste0(
+      cli::cli_text(.cli_literal(paste0(
         "Derrame estimado: no se pudo estimar (", estimacion$motivo, ")."
-      ))
+      )))
     }
   }
   for (familia in c("moda", "mediana")) {
@@ -13348,11 +13348,11 @@ print.perfil_dbi <- function(x, ...) {
     } else if (identical(estimacion_familia$estado, "estimado")) {
       paste("no supera el limite de decision", limite)
     } else estimacion_familia$motivo
-    cli::cli_text(paste0(
+    cli::cli_text(.cli_literal(paste0(
       "Derrame estimado de ", familia, " (no medido): ", detalle,
       ". Metodo/forma: ", estimacion_familia$metodo, "/",
       estimacion_familia$forma, ". Fuente: `", estimacion_familia$fuente, "`."
-    ))
+    )))
   }
   derrame <- meta$derrame
   if (!is.null(derrame) && !identical(derrame$estado, "no_solicitado")) {

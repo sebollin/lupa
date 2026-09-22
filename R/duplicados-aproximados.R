@@ -1152,7 +1152,7 @@
   mensaje_tiempo <- .texto_tiempo_lsh(estimacion, nucleos)
   if (isTRUE(interactive())) {
     # nocov start: la salida visual sólo existe en una sesión interactiva.
-    cli::cli_alert_info(mensaje_tiempo)
+    cli::cli_alert_info(.cli_literal(mensaje_tiempo))
     # nocov end
   } else {
     .emitir_tiempo_lsh(mensaje_tiempo)

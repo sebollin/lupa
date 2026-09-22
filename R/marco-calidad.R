@@ -373,12 +373,12 @@ marco_cepal <- function() {
 print.marco_calidad <- function(x, ...) {
   original <- x
   x <- .marcar_objeto_para_exhibir(x)
-  cli::cli_h2(x$nombre)
-  cli::cli_dl(c(
+  cli::cli_h2(.cli_literal(x$nombre))
+  cli::cli_dl(.cli_literal(c(
     "Dimensiones" = length(.identificadores_unicos(x$factores$dimension)),
     "Factores" = nrow(x$factores),
     "Origen" = x$origen
-  ))
+  )))
   invisible(original)
 }
 

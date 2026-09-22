@@ -233,6 +233,20 @@
   clave
 }
 
+# Lo que llega SIN MARCA y no es UTF-8 valido, en una sesion UTF-8. Es lo que
+# deja `read.csv()` sin `fileEncoding` sobre un archivo latin1, el caso mas
+# comun del mundo real, y no es texto: `nchar()`, `trimws()` y las expresiones
+# regulares abortan sobre eso. El paquete lo trataba como texto porque solo
+# miraba la marca `bytes`, y el mismo defecto aparecio en dos sitios de la
+# misma ronda -la limpieza y el reporte-: por eso la regla vive en un solo
+# lugar. En una sesion que no es UTF-8, "sin marca" es la codificacion nativa y
+# si es legible.
+.sin_marca_ilegible <- function(x) {
+  if (!is.character(x) || !length(x)) return(logical(length(x)))
+  !is.na(x) & Encoding(x) == "unknown" & isTRUE(l10n_info()[["UTF-8"]]) &
+    !validUTF8(x)
+}
+
 # Rinde un valor para PUBLICARLO. Lo declarado `bytes` pasa a la forma que R
 # muestra -`a\xc3\xb1o`-, que es ASCII; todo lo demas queda intacto.
 #
@@ -279,6 +293,25 @@
   if (!is.character(x) || !length(x)) return(x)
   crudos <- !is.na(x) & Encoding(x) == "bytes"
   if (any(crudos)) x[crudos] <- format(x[crudos], justify = "none")
+  x
+}
+
+# Publica lo sin marca que no es UTF-8 como lo muestra la consola: `caf\xe9`.
+# Es SOLO para los sumideros de publicacion -el reporte, la consola-, donde sin
+# esto `nchar()` y glue abortaban sobre un perfil que el propio paquete habia
+# producido. `.texto_publicable()` NO lo hace, y a proposito: corre tambien
+# antes de medir, y el camino de analisis descarta esos valores y declara el
+# alcance parcial -`test-N89` lo fija-, porque sin marca no se sabe que bytes
+# son. Se probo ponerlo alli y cuatro pruebas lo tumbaron: los valores pasaban a
+# contarse como texto en patrones, duplicados y distribuciones.
+.publicar_sin_marca_ilegible <- function(x) {
+  if (!is.character(x) || !length(x)) return(x)
+  sin_marca <- .sin_marca_ilegible(x)
+  if (any(sin_marca)) {
+    declarados <- x[sin_marca]
+    Encoding(declarados) <- "bytes"
+    x[sin_marca] <- format(declarados, justify = "none")
+  }
   x
 }
 
@@ -1477,6 +1510,34 @@
   salida
 }
 
+# Texto para la PLANTILLA de una llamada a cli. cli lee su primer argumento como
+# plantilla de glue: todo `{...}` adentro es una expresion que se EVALUA. El
+# paquete armaba ese argumento con `paste()` e incluia texto del usuario
+# -nombres de columna, el `nombre` de la tabla, valores de ejemplo, nombres de
+# tablas de una coleccion-, asi que `perfilar(d, nombre = "tabla{1+1}")` se
+# imprimia `tabla2`, y una columna llamada `tasa{Sys.getenv("USER")}` se
+# imprimia con el nombre del usuario: el encabezado de un CSV ejecutaba codigo
+# al imprimir el plan. Y un nombre declarado `bytes` abortaba la impresion,
+# porque glue lo traduce.
+#
+# Se rinde para exhibir y se duplican las llaves, que es como cli escribe una
+# llave literal. Ninguna plantilla compuesta del paquete lleva marcado propio;
+# el marcado (`{.code x}`) va en plantillas literales con el valor como
+# variable, y esas no pasan por aca: glue no vuelve a leer lo que sustituye.
+.cli_literal <- function(x) {
+  if (is.null(x) || !length(x)) return(character())
+  nombres <- names(x)
+  # Primero se rinde lo que no es texto -declarado `bytes`, o sin marca y no
+  # UTF-8- como lo muestra la consola: `.marcar_para_exhibir()` deja la marca
+  # `bytes` a proposito, para `print.data.frame()`, y glue aborta al traducirla.
+  x <- .marcar_para_exhibir(
+    .publicar_sin_marca_ilegible(.texto_publicable(as.character(x)))
+  )
+  x <- gsub("}", "}}", gsub("{", "{{", x, fixed = TRUE), fixed = TRUE)
+  names(x) <- nombres
+  x
+}
+
 # La vista publicable de un vector: el original donde esta declarado `bytes`,
 # la forma analizada en todo lo demas. `latin1` NO entra: ahi R conoce la
 # codificacion y `.texto_analizable()` la convierte sin perder nada, asi que la
@@ -1604,28 +1665,25 @@
 .aplicar_por_marca <- function(x, en_texto, en_bytes = NULL) {
   if (!is.character(x) || !length(x)) return(en_texto(x))
   marca <- Encoding(x)
+  presentes <- !is.na(x)
+  declarados <- presentes & marca == "bytes"
   # Lo ilegible no es solo lo declarado `bytes`. `read.csv()` sin
   # `fileEncoding` sobre un archivo latin1 -el caso mas comun del mundo real-
   # deja los bytes en cadenas SIN MARCA, y en una sesion UTF-8 eso tampoco es
   # texto valido: `trimws()` moria con "input string 3 is invalid UTF-8" y la
-  # accion que el plan recomienda y aplica solo quedaba `fallida`. En una sesion
-  # que no es UTF-8, "sin marca" es la codificacion nativa y si es legible.
-  sesion_utf8 <- isTRUE(l10n_info()[["UTF-8"]])
-  ilegibles <- !is.na(x) & (
-    marca == "bytes" | (sesion_utf8 & marca == "unknown" & !validUTF8(x))
-  )
-  if (!any(ilegibles)) return(en_texto(x))
+  # accion que el plan recomienda y aplica sola quedaba `fallida`.
+  aparte <- declarados | .sin_marca_ilegible(x)
+  if (!any(aparte)) return(en_texto(x))
   salida <- x
-  if (any(!ilegibles)) salida[!ilegibles] <- en_texto(x[!ilegibles])
-  if (!is.null(en_bytes)) {
-    v <- x[ilegibles]
-    # Se marcan `bytes` solo mientras se transforman, para que las expresiones
-    # regulares los traten byte a byte. Despues vuelven con la marca con que
-    # llegaron: lo que vino sin marca no pasa a estar declarado `bytes`.
-    Encoding(v) <- "bytes"
-    transformados <- en_bytes(v)
-    Encoding(transformados) <- marca[ilegibles]
-    salida[ilegibles] <- transformados
+  if (any(!aparte)) salida[!aparte] <- en_texto(x[!aparte])
+  # Por bytes se transforma solo lo que el perfil midio: lo declarado `bytes`
+  # cuyos bytes son UTF-8 valido. Lo que no decodifica queda intacto, como ya
+  # lo deja `eliminar_controles_invisibles`: el perfil no lo midio -lo informa
+  # como `codificacion_invalida`, con el remedio de releer la fuente- y
+  # recortarlo igual hacia que el plan estimara 1 y el registro contara 3.
+  por_bytes <- declarados & validUTF8(x)
+  if (!is.null(en_bytes) && any(por_bytes)) {
+    salida[por_bytes] <- en_bytes(x[por_bytes])
   }
   salida
 }

@@ -195,8 +195,8 @@
       riesgos,
       paste0(
         evaluacion$n_redondeados,
-        " valores son enteros que no entran en un n\u00famero de doble ",
-        "precisi\u00f3n y se redondear\u00edan sin poder recuperarse"
+        " valores tienen m\u00e1s cifras de las que guarda un n\u00famero de ",
+        "doble precisi\u00f3n y se redondear\u00edan sin poder recuperarse"
       )
     )
   }
@@ -279,21 +279,36 @@
     )
     if (!is.null(texto) && length(texto) == length(antes)) {
       valores <- suppressWarnings(as.numeric(texto))
-      # Solo enteros: en un decimal la representacion binaria es inexacta por
-      # naturaleza -`1234.56` vuelve `1234.5599999999999`- y compararlos
-      # acusaria a toda columna con decimales.
-      candidatos <- which(presentes & !is.na(valores) & is.finite(valores) &
-                            valores == floor(valores))
-      if (length(candidatos)) {
-        # Los digitos que cuentan son los de la mantisa: el exponente solo
-        # corre la coma. Sin ceros en ninguno de los dos bordes.
-        significativos <- function(x) {
-          x <- gsub("[^0-9]", "", sub("[eE].*$", "", x))
-          sub("0+$", "", sub("^0+", "", x))
-        }
-        antes_sig <- significativos(texto[candidatos])
-        despues_sig <- significativos(sprintf("%.0f", abs(valores[candidatos])))
-        redondeados[candidatos] <- nzchar(antes_sig) & antes_sig != despues_sig
+      finitos <- presentes & !is.na(valores) & is.finite(valores)
+      # Los digitos que cuentan son los de la mantisa: el exponente solo
+      # corre la coma. Sin ceros en ninguno de los dos bordes.
+      significativos <- function(x) {
+        x <- gsub("[^0-9]", "", sub("[eE].*$", "", x))
+        sub("0+$", "", sub("^0+", "", x))
+      }
+      # Un entero se compara contra su valor exacto: por encima de 2^53 el
+      # `double` guarda otro entero.
+      enteros <- which(finitos & valores == floor(valores))
+      if (length(enteros)) {
+        antes_sig <- significativos(texto[enteros])
+        despues_sig <- significativos(sprintf("%.0f", abs(valores[enteros])))
+        redondeados[enteros] <- nzchar(antes_sig) & antes_sig != despues_sig
+      }
+      # Un decimal se compara con la precision con que VINO ESCRITO. Esta guarda
+      # miraba solo enteros, porque compararlos contra la expansion binaria
+      # -`1234.56` es `1234.5599999999999...`- acusaria a toda columna con
+      # decimales. Pero a su propia precision todo decimal de hasta 15 cifras
+      # significativas vuelve exacto, y lo que no vuelve es perdida real:
+      # `33.333333333333333333%` -20 cifras- se publicaba reversible y el
+      # `double` solo guarda 17.
+      decimales <- which(finitos & valores != floor(valores))
+      if (length(decimales)) {
+        antes_sig <- significativos(texto[decimales])
+        cifras <- pmax(1L, nchar(antes_sig))
+        despues_sig <- significativos(
+          sprintf("%.*g", cifras, abs(valores[decimales]))
+        )
+        redondeados[decimales] <- nzchar(antes_sig) & antes_sig != despues_sig
       }
     }
   }
@@ -324,6 +339,17 @@
 .estrategias_cambio_de_tipo <- c(
   "convertir_tipo", "convertir_numero_regional", "convertir_fecha_confirmada"
 )
+
+# Una conversion que se ejecuto sobre los datos y perdio algo es destructiva,
+# sea o no segura la columna. La marca se calculaba solo cuando la columna era
+# segura: sobre `10%` junto a `0.1` -que no lo es- el plan media cinco valores
+# irrecuperables, su propio motivo decia "Se declara destructiva", y la marca
+# quedaba en FALSE. Activada a mano, el aviso de acciones destructivas no
+# aparecia y el registro repetia FALSE. Lo que no se pudo ejecutar no cuenta:
+# una columna ambigua que solo espera configuracion no destruye nada.
+.perdida_medida <- function(comprobacion) {
+  isTRUE(comprobacion$ejecutable) && isFALSE(comprobacion$reversible)
+}
 
 # Lo que la conversion regional hace ademas de cambiar el tipo. Un `%` se
 # divide por 100: sin decirlo, "10%" pasaba a 0.1 con una justificacion que
@@ -556,11 +582,14 @@
 #' los dos publican. `reversible`
 #' indica si la conversión conserva la identidad de cada valor. Las
 #' conversiones se comprueban sobre todos los valores de `datos`: las numéricas
-#' bloquean ceros iniciales y colisiones no inyectivas, mientras que fechas,
+#' bloquean ceros iniciales, colisiones no inyectivas y valores con más cifras
+#' significativas de las que guarda un número de doble precisión —un decimal se
+#' compara con la precisión con que vino escrito—, mientras que fechas,
 #' fechas-hora y lógicos sólo bloquean conversiones no ejecutables o no
 #' inyectivas. Las fechas pueden cambiar a la representación canónica del tipo
 #' sin que eso sea una pérdida. Sin `datos` no se puede hacer la comprobación y
-#' la acción queda bloqueada. Cuando no es reversible se marca `destructiva`, no
+#' la acción queda bloqueada. Cuando se ejecuta y no es reversible se marca
+#' `destructiva` —también si la columna no era segura y se activa a mano—, no
 #' se activa por defecto y el registro conserva `n_no_reversibles` y la
 #' justificación de la decisión.
 #' `convertir_numero_regional` sólo se recomienda si todos los valores
@@ -581,6 +610,12 @@
 #' control, manda la reparación —corre primero y restituye el `€`—, y la
 #' eliminación queda sin nada que hacer. Es la lectura habitual en texto real;
 #' en el caso raro de un control C1 genuino, la reparación lo convierte en `€`.
+#' Una celda cuyo texto no se puede leer —declarada `bytes` con bytes que no
+#' son UTF-8, o sin marca en una sesión UTF-8, que es lo que deja [read.csv()]
+#' sin `fileEncoding` sobre un archivo latin1— no se transforma: el perfil no la
+#' midió y la informa como `codificacion_invalida`, cuyo remedio es volver a leer
+#' la fuente declarando su codificación. Las acciones de texto trabajan sobre las
+#' demás celdas de la columna y cuentan sólo lo que cambiaron.
 #' Si se marca una acción que no está `lista`, `aplicar()` aborta antes de
 #' modificar la copia y enumera las filas problemáticas. Una acción que sí está
 #' lista pero falla se registra con su error y no impide aplicar las siguientes:
@@ -976,7 +1011,8 @@ planificar_limpieza <- function(perfil, datos = NULL,
           motivo_no_reversible = comprobacion_numero$justificacion
         )),
         unidad_conteo = "valor",
-        destructiva = seguro && !conversion_numero_segura,
+        destructiva = (seguro && !conversion_numero_segura) ||
+          .perdida_medida(comprobacion_numero),
         orden = 320L
       ))
     } else if (identical(tipo, "formato_fecha_ambiguo")) {
@@ -1037,7 +1073,8 @@ planificar_limpieza <- function(perfil, datos = NULL,
         # Cuenta valores presentes, no columnas ni filas: se declara aca en
         # vez de heredar la unidad del hallazgo, que habla de otra cosa.
         unidad_conteo = "valor",
-        destructiva = seguro && !conversion_fecha_segura,
+        destructiva = (seguro && !conversion_fecha_segura) ||
+          .perdida_medida(comprobacion_fecha),
         orden = 300L
       ))
     } else if (identical(tipo, "tipo_declarado_distinto") && !is.null(fila) &&
@@ -1092,7 +1129,8 @@ planificar_limpieza <- function(perfil, datos = NULL,
         grupo = grupo_hallazgo,
         decision_grupo = if (recomendar) "recomendada" else "pendiente",
         recomendacion_grupo = if (recomendar) "convertir_tipo" else NA_character_,
-        destructiva = base_tipo_seguro && !recomendar
+        destructiva = (base_tipo_seguro && !recomendar) ||
+          .perdida_medida(comprobacion_tipo)
       ))
     } else if (identical(tipo, "filas_duplicadas")) {
       n_participantes <- perfil$general$filas_en_grupos_duplicados
@@ -3117,14 +3155,14 @@ guiar_limpieza <- function(plan, datos, selector = NULL,
       if (no_hacer_recomendado) " (Recomendado)" else ""
     )
 
-    cli::cli_h2(.marcar_para_exhibir(paste("Decisi\u00f3n", grupo)))
-    cli::cli_text(.marcar_para_exhibir(
+    cli::cli_h2(.cli_literal(.marcar_para_exhibir(paste("Decisi\u00f3n", grupo))))
+    cli::cli_text(.cli_literal(.marcar_para_exhibir(
       paste("Hallazgo:", acciones$hallazgo[[1L]])
-    ))
-    cli::cli_text(.marcar_para_exhibir(paste(
+    )))
+    cli::cli_text(.cli_literal(.marcar_para_exhibir(paste(
       "Objeto afectado:",
       if (is.na(acciones$columna[[1L]])) "tabla" else acciones$columna[[1L]]
-    )))
+    ))))
     cantidades <- acciones$n_afectadas[is.finite(acciones$n_afectadas)]
     cantidad <- if (length(cantidades)) max(cantidades) else NA_real_
     unidades <- unique(as.character(acciones$unidad_conteo))
@@ -3134,25 +3172,25 @@ guiar_limpieza <- function(plan, datos, selector = NULL,
     } else {
       ""
     }
-    cli::cli_text(.marcar_para_exhibir(paste0("Cantidad estimada: ", cantidad, unidad)))
+    cli::cli_text(.cli_literal(.marcar_para_exhibir(paste0("Cantidad estimada: ", cantidad, unidad))))
     if (length(ejemplos)) {
-      cli::cli_text(.marcar_para_exhibir(paste(
+      cli::cli_text(.cli_literal(.marcar_para_exhibir(paste(
         "Ejemplos reales:", paste(ejemplos, collapse = "; ")
-      )))
+      ))))
     }
     for (k in elegibles) {
       marca <- if (acciones$recomendada[[k]]) " (Recomendado)" else ""
-      cli::cli_text(.marcar_para_exhibir(paste0(
+      cli::cli_text(.cli_literal(.marcar_para_exhibir(paste0(
         k, ". ", acciones$estrategia[[k]], marca, " -- ",
         acciones$justificacion[[k]]
-      )))
+      ))))
     }
     bloqueadas <- which(as.character(acciones$estado) == "bloqueada")
     for (k in bloqueadas) {
-      cli::cli_text(.marcar_para_exhibir(paste0(
+      cli::cli_text(.cli_literal(.marcar_para_exhibir(paste0(
         "[bloqueada] ", acciones$estrategia[[k]], " -- ",
         acciones$justificacion[[k]]
-      )))
+      ))))
     }
     explicacion_no_hacer <- if (no_hacer_recomendado) {
       paste0(
@@ -3162,9 +3200,9 @@ guiar_limpieza <- function(plan, datos, selector = NULL,
     } else {
       "No hacer nada conserva los datos y registra la omisi\u00f3n."
     }
-    cli::cli_text(.marcar_para_exhibir(
+    cli::cli_text(.cli_literal(.marcar_para_exhibir(
       paste0(etiqueta_no_hacer, " -- ", explicacion_no_hacer)
-    ))
+    )))
 
     decision <- list(
       grupo = grupo, acciones = acciones, elegibles = elegibles,
@@ -3194,24 +3232,24 @@ print.plan_limpieza <- function(x, ...) {
   original <- x
   x <- .marcar_objeto_para_exhibir(x)
   cli::cli_h1("Plan de limpieza")
-  cli::cli_alert_success(paste(sum(x$aplicar), "acciones activadas"))
-  cli::cli_alert_info(paste(sum(!x$aplicar), "acciones desactivadas"))
+  cli::cli_alert_success(.cli_literal(paste(sum(x$aplicar), "acciones activadas")))
+  cli::cli_alert_info(.cli_literal(paste(sum(!x$aplicar), "acciones desactivadas")))
   n_destructivas <- sum(x$aplicar & x$destructiva)
   n_eliminatorias <- sum(
     x$aplicar & x$destructiva &
       x$estrategia %in% .estrategias_eliminatorias()
   )
   if (n_destructivas) {
-    cli::cli_alert_danger(paste(
+    cli::cli_alert_danger(.cli_literal(paste(
       n_destructivas,
       "acciones destructivas activas; revise la p\u00e9rdida declarada"
-    ))
+    )))
   }
   if (n_eliminatorias) {
-    cli::cli_alert_danger(paste(
+    cli::cli_alert_danger(.cli_literal(paste(
       n_eliminatorias,
       "acciones eliminatorias activas; requieren un segundo consentimiento"
-    ))
+    )))
   }
   # Lo que no se evaluo se dice aca, no solo en el perfil. Un plan que enumera
   # acciones sin avisar que sobre tal columna no se miro invita a leerlo como si
@@ -3219,7 +3257,7 @@ print.plan_limpieza <- function(x, ...) {
   cobertura <- attr(x, "cobertura_diagnosticos", exact = TRUE)
   if (inherits(cobertura, "data.frame") && nrow(cobertura)) {
     columnas <- unique(as.character(cobertura$columna))
-    cli::cli_alert_warning(paste0(
+    cli::cli_alert_warning(.cli_literal(paste0(
       nrow(cobertura),
       if (nrow(cobertura) == 1L) {
         " diagn\u00f3stico no se evalu\u00f3"
@@ -3227,10 +3265,13 @@ print.plan_limpieza <- function(x, ...) {
         " diagn\u00f3sticos no se evaluaron"
       },
       " y por eso no hay acci\u00f3n para ellos, en: ",
-      paste(columnas, collapse = ", "),
+      # Los nombres se rinden ANTES de pegarlos: `paste()` marca `bytes` la
+      # frase entera si un nombre lo esta, y la frase del paquete salia
+      # `diagn\xc3\xb3sticos`, escapada junto con el nombre.
+      paste(.texto_publicable(columnas), collapse = ", "),
       ". El motivo medido de cada uno esta en ",
       "`attr(plan, \"cobertura_diagnosticos\")`."
-    ))
+    )))
   }
   vista <- x[c(
     "id_accion", "grupo", "columna", "estrategia", "decision_grupo",
@@ -3256,17 +3297,17 @@ print.resultado_limpieza <- function(x, ...) {
   } else {
     0L
   }
-  cli::cli_alert_success(paste(ejecutadas, "acciones ejecutadas"))
+  cli::cli_alert_success(.cli_literal(paste(ejecutadas, "acciones ejecutadas")))
   if (fallidas) {
-    cli::cli_alert_danger(paste(fallidas, "acciones fallidas; revise `registro$error`"))
+    cli::cli_alert_danger(.cli_literal(paste(fallidas, "acciones fallidas; revise `registro$error`")))
   }
-  cli::cli_text(paste(sum(x$registro$n_cambiadas), "celdas o marcas afectadas"))
+  cli::cli_text(.cli_literal(paste(sum(x$registro$n_cambiadas), "celdas o marcas afectadas")))
   n_filas <- sum(x$registro$n_filas_eliminadas)
   n_columnas <- sum(x$registro$n_columnas_eliminadas)
   if (n_filas || n_columnas) {
-    cli::cli_alert_warning(paste(
+    cli::cli_alert_warning(.cli_literal(paste(
       n_filas, "filas y", n_columnas, "columnas eliminadas"
-    ))
+    )))
   }
   invisible(original)
 }

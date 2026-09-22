@@ -10,14 +10,14 @@ print.perfil <- function(x, ...) {
     nrow(x$cobertura_diagnosticos)
   } else 0L
 
-  cli::cli_h1(paste("Perfil de datos:", x$meta$nombre))
-  cli::cli_alert_danger(paste(errores, "hallazgos con severidad error"))
-  cli::cli_alert_warning(paste(sospechosos, "hallazgos sospechosos"))
-  cli::cli_alert_success(paste(correctos, "hallazgos informativos ok"))
-  cli::cli_alert_info(paste(no_evaluados, "diagnosticos no evaluados"))
+  cli::cli_h1(.cli_literal(paste("Perfil de datos:", x$meta$nombre)))
+  cli::cli_alert_danger(.cli_literal(paste(errores, "hallazgos con severidad error")))
+  cli::cli_alert_warning(.cli_literal(paste(sospechosos, "hallazgos sospechosos")))
+  cli::cli_alert_success(.cli_literal(paste(correctos, "hallazgos informativos ok")))
+  cli::cli_alert_info(.cli_literal(paste(no_evaluados, "diagnosticos no evaluados")))
 
   cli::cli_h2("Resumen general")
-  cli::cli_dl(c(
+  cli::cli_dl(.cli_literal(c(
     "Filas" = format(
       x$general$filas, big.mark = ".", decimal.mark = ",", scientific = FALSE
     ),
@@ -30,7 +30,7 @@ print.perfil <- function(x, ...) {
     "Memoria" = format(
       structure(x$general$memoria_bytes, class = "object_size"), units = "auto"
     )
-  ))
+  )))
 
   cli::cli_h2("Resumen por columna")
   vista <- x$columnas[c(

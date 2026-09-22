@@ -168,6 +168,15 @@
 #' que el tope efectivo de pares baje cuando la tabla tiene muchas filas. Los
 #' atributos del resultado declaran todos los recortes.
 #'
+#' Una muestra conserva cada fila entera, pero no la cantidad de filas por
+#' valor: sobre datos agrupados en filas consecutivas, la muestra sistemática
+#' toma una fila de cada grupo y el determinante parece una clave. Por eso los
+#' descartes por casi-clave y casi-constante se verifican sobre la columna
+#' completa; si sólo la muestra los produjo, el motivo es
+#' `casi_clave_solo_en_muestra` o `casi_constante_solo_en_muestra`, la columna
+#' sigue fuera —evaluarla sobre esa muestra daría dependencias exactas sin
+#' evidencia— y [perfilar()] lo declara en `cobertura_diagnosticos`.
+#'
 #' @param datos Tabla que se desea examinar.
 #' @param umbral Cumplimiento mínimo en `[0, 1]`.
 #' @param muestra Máximo de filas; `Inf` desactiva el muestreo.
@@ -279,7 +288,7 @@ detectar_dependencias <- function(datos, umbral = 0.995, muestra = 1e5,
     datos, seleccion, filas = muestreo$valores
   )
   normalizados <- lapply(muestra_datos, .valores_relacion)
-  estadisticas <- lapply(normalizados, function(x) {
+  estadistica <- function(x) {
     presentes <- x[!is.na(x)]
     n <- length(presentes)
     if (!n) {
@@ -297,7 +306,8 @@ detectar_dependencias <- function(datos, umbral = 0.995, muestra = 1e5,
       es_clave = length(unicos) == n,
       n_distintos = length(unicos)
   )
-  })
+  }
+  estadisticas <- lapply(normalizados, estadistica)
   motivos <- vapply(estadisticas, function(x) {
     if (x$n < min_observaciones) return("soporte_insuficiente")
     if (x$proporcion_moda >= umbral_casi_constante) return("casi_constante")
@@ -307,6 +317,30 @@ detectar_dependencias <- function(datos, umbral = 0.995, muestra = 1e5,
     }
     ""
   }, character(1L))
+  # Los motivos se deciden sobre la MUESTRA, y ni la tasa de distintos ni la
+  # proporcion modal sobreviven al submuestreo. Sobre datos agrupados en
+  # corridas consecutivas -`1,1,2,2,...`- la muestra sistematica toma una fila
+  # por grupo y el determinante parece una clave; sobre `a,b,a,b` toma solo `a`
+  # y la columna parece constante. El descarte se publicaba con el motivo de la
+  # TABLA, y la tabla de dependencias vacia se leia como "no hay dependencias"
+  # cuando la tabla completa si la tenia. Evaluar el par sobre esa muestra no
+  # arreglaria nada -cada grupo tendria una sola fila y la dependencia saldria
+  # exacta sin evidencia-, asi que el descarte se mantiene y se dice por que:
+  # se verifica sobre la columna completa, una pasada O(n) por columna, y si la
+  # tabla no cumple el criterio el motivo lo declara.
+  if (isTRUE(muestreo$muestreado)) {
+    for (i in which(motivos %in% c("casi_clave", "casi_constante"))) {
+      completa <- estadistica(.valores_relacion(.subset2(datos, seleccion[[i]])))
+      if (identical(motivos[[i]], "casi_constante") &&
+          !isTRUE(completa$proporcion_moda >= umbral_casi_constante)) {
+        motivos[[i]] <- "casi_constante_solo_en_muestra"
+      } else if (identical(motivos[[i]], "casi_clave") &&
+                 !isTRUE(completa$es_clave) &&
+                 !isTRUE(completa$tasa_distintos >= umbral_casi_clave)) {
+        motivos[[i]] <- "casi_clave_solo_en_muestra"
+      }
+    }
+  }
   determinantes <- which(!nzchar(motivos))
   dependientes_variables <- vapply(
     estadisticas, function(x) x$n_distintos > 1L, logical(1L)
@@ -467,8 +501,14 @@ detectar_dependencias <- function(datos, umbral = 0.995, muestra = 1e5,
   presupuesto_agotado <- isTRUE(attr(
     dependencias, "presupuesto_agotado", exact = TRUE
   ))
+  descartadas <- attr(dependencias, "columnas_descartadas", exact = TRUE)
+  por_muestra <- if (is.data.frame(descartadas) && nrow(descartadas)) {
+    descartadas[grepl("_solo_en_muestra$", descartadas$motivo), , drop = FALSE]
+  } else {
+    data.frame(columna = character(), motivo = character())
+  }
   if (!truncado_columnas && !presupuesto_agotado &&
-      !length(no_analizables)) {
+      !length(no_analizables) && !nrow(por_muestra)) {
     return(NULL)
   }
   omitidas <- attr(dependencias, "columnas_omitidas", exact = TRUE)
@@ -476,6 +516,9 @@ detectar_dependencias <- function(datos, umbral = 0.995, muestra = 1e5,
   tope <- attr(dependencias, "max_columnas", exact = TRUE)
   diagnostico_columna <- if (length(omitidas)) {
     paste(omitidas, collapse = ",")
+  } else if (nrow(por_muestra) && !truncado_columnas &&
+             !length(no_analizables)) {
+    paste(por_muestra$columna, collapse = ",")
   } else {
     paste(analizadas, collapse = ",")
   }
@@ -503,6 +546,22 @@ detectar_dependencias <- function(datos, umbral = 0.995, muestra = 1e5,
       "Aumentar `max_columnas_dependencias` o perfilar por bloques si las ",
       "columnas omitidas deben intervenir. La selecci\u00f3n es por posici\u00f3n, ",
       "as\u00ed que reordenar las columnas cambia cu\u00e1les entran."
+    ))
+  }
+  if (nrow(por_muestra)) {
+    motivos <- c(motivos, paste0(
+      "La muestra de ", attr(dependencias, "filas_analizadas", exact = TRUE),
+      " filas hizo parecer clave o constante a columnas que en la tabla ",
+      "completa no lo son, y se descartaron: ",
+      paste0(por_muestra$columna, " (", por_muestra$motivo, ")", collapse = ", "),
+      ". Sus dependencias no se evaluaron: que no aparezcan no significa que no ",
+      "las haya."
+    ))
+    soluciones <- c(soluciones, paste0(
+      "Perfilar con `muestra = Inf` -o llamar a `detectar_dependencias()` con ",
+      "`muestra = Inf`- si la tabla lo permite. Pasa cuando los datos vienen ",
+      "agrupados en filas consecutivas y la muestra, que es sistematica, toma ",
+      "una fila de cada grupo."
     ))
   }
   if (presupuesto_agotado) {

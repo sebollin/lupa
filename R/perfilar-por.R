@@ -200,7 +200,7 @@ perfilar_por <- function(datos, por, clave = NULL, min_filas = 30L, ...) {
         ),
         stringsAsFactors = FALSE
       )
-      cli::cli_alert_warning(.marcar_para_exhibir(etiquetas_personales$motivo))
+      cli::cli_alert_warning(.cli_literal(.marcar_para_exhibir(etiquetas_personales$motivo)))
     }
   }
 

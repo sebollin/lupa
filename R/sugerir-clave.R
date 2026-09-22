@@ -226,11 +226,11 @@ elegir_clave <- function(datos, maximo = 5L, umbral_casi = 0.95) {
   sugerencias_texto <- .marcar_objeto_para_exhibir(sugerencias)
   if (!interactive()) {
     if (nrow(sugerencias)) {
-      cli::cli_alert_info(paste0(
+      cli::cli_alert_info(.cli_literal(paste0(
         "Sesi\u00f3n no interactiva: no se pregunta. Se habr\u00eda ofrecido ",
         paste0("`", sugerencias_texto$columna, "`", collapse = ", "),
         ". Usar `sugerir_clave()` y pasar la elegida a `perfilar(clave = ...)`."
-      ))
+      )))
     } else {
       cli::cli_alert_info(
         "Sesi\u00f3n no interactiva, y ninguna columna se acerca a ser clave."
@@ -274,11 +274,11 @@ elegir_clave <- function(datos, maximo = 5L, umbral_casi = 0.95) {
   indices <- .indice_nombre(nombres, names(datos))
   faltan <- nombres[is.na(indices)]
   if (length(faltan)) {
-    cli::cli_alert_danger(paste0(
+    cli::cli_alert_danger(.cli_literal(paste0(
       "No existe en la tabla: ",
       .marcar_para_exhibir(paste0("`", faltan, "`", collapse = ", ")),
       "."
-    ))
+    )))
     return(NULL)
   }
   names(datos)[indices]

@@ -234,10 +234,14 @@ test_that("lo que llega sin marca y no es UTF-8 no hace fallar la accion", {
 
   salida <- resultado$datos$ciudad
   expect_identical(salida[[1L]], "Montevideo")
-  # La celda ilegible se recorta byte a byte y vuelve con la marca que traia:
-  # no pasa a estar declarada `bytes` porque la limpieza la haya tocado.
-  expect_identical(charToRaw(salida[[3L]]), head(charToRaw(sin_marca), -1L))
+  # La celda ilegible queda intacta, con su marca. Se la recortaba byte a byte,
+  # pero el perfil no la mide -la informa como `codificacion_invalida`- y el
+  # plan estimaba 2 donde el registro contaba 3. La accion toca lo que el
+  # perfil midio.
+  expect_identical(charToRaw(salida[[3L]]), charToRaw(sin_marca))
   expect_identical(Encoding(salida[[3L]]), "unknown")
+  fila_plan <- plan$estrategia == "recortar_espacios"
+  expect_equal(registro$n_cambiadas, plan$n_afectadas[fila_plan])
 
   # Los otros ejecutores de texto tampoco pueden morir por ella, ni cambiar
   # por ella el destino de sus vecinas.
@@ -260,4 +264,25 @@ test_that("lo que llega sin marca y no es UTF-8 no hace fallar la accion", {
     expect_identical(con_vecino[[1L]], sin_vecino[[1L]], info = nombre)
     expect_identical(Encoding(con_vecino[[2L]]), "unknown", info = nombre)
   }
+})
+
+test_that("una celda declarada bytes que no decodifica tampoco se toca", {
+  # La misma regla para lo declarado: se recorta por bytes lo que es UTF-8
+  # valido -el perfil lo mide-, y lo que no decodifica queda como estaba.
+  valido <- .n97_marcar(c(0x63, 0x61, 0xc3, 0xb1, 0x6f, 0x20), "bytes")
+  roto <- .n97_marcar(c(0x50, 0x61, 0x79, 0xfa, 0x20), "bytes")
+  columna <- c(valido, roto, "Salto ", "Rivera", "Salto", "Rivera")
+  datos <- data.frame(ciudad = columna, stringsAsFactors = FALSE)
+  plan <- planificar_limpieza(perfilar(datos), datos = datos)
+  elegida <- as.character(plan$estrategia) == "recortar_espacios"
+  expect_true(any(elegida))
+  plan$aplicar <- elegida
+  resultado <- aplicar(plan, datos)
+  salida <- resultado$datos$ciudad
+  expect_identical(charToRaw(salida[[1L]]), head(charToRaw(valido), -1L))
+  expect_identical(Encoding(salida[[1L]]), "bytes")
+  expect_identical(charToRaw(salida[[2L]]), charToRaw(roto))
+  expect_identical(Encoding(salida[[2L]]), "bytes")
+  registro <- as.data.frame(resultado$registro)
+  expect_equal(registro$n_cambiadas, plan$n_afectadas[elegida])
 })

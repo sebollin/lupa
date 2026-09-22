@@ -610,7 +610,7 @@ tablero_calidad <- function(medidas, agregaciones = NULL, umbrales = NULL,
       .texto_celda_publicada("En el n\u00famero")
     )
   )
-  cli::cli_dl(etiquetas)
+  cli::cli_dl(.cli_literal(etiquetas))
   # Y el motivo de cada tabla que quedo afuera: el nombre solo dice QUE falta,
   # no por que, y una tabla que no existe y una tabla vacia no son el mismo
   # problema. El objeto los distingue; la pantalla tambien tiene que hacerlo.
@@ -622,7 +622,7 @@ tablero_calidad <- function(medidas, agregaciones = NULL, umbrales = NULL,
       stringsAsFactors = FALSE
     ), row.names = FALSE)
   }
-  if (!is.null(cc$advertencia)) cli::cli_alert_warning(cc$advertencia)
+  if (!is.null(cc$advertencia)) cli::cli_alert_warning(.cli_literal(cc$advertencia))
   invisible(NULL)
 }
 
@@ -966,9 +966,9 @@ print.indice_calidad <- function(x, ...) {
   x <- .marcar_objeto_para_exhibir(x)
   cli::cli_h1("\u00cdndice de calidad declarado")
   if (is.na(x$valor)) {
-    cli::cli_alert_warning(x$motivo)
+    cli::cli_alert_warning(.cli_literal(x$motivo))
   } else {
-    cli::cli_dl(c("Valor" = format(x$valor, digits = 6)))
+    cli::cli_dl(.cli_literal(c("Valor" = format(x$valor, digits = 6))))
   }
   cli::cli_h2("Cobertura del \u00edndice")
   .print_data_frame_bytes(x$cobertura, row.names = FALSE)
@@ -994,7 +994,7 @@ print.indice_calidad <- function(x, ...) {
     cli::cli_h2("Componentes excluidos")
     .print_data_frame_bytes(x$excluidas, row.names = FALSE)
   }
-  cli::cli_alert_info(x$combinacion_interna)
-  cli::cli_alert_warning(x$advertencia_universos)
+  cli::cli_alert_info(.cli_literal(x$combinacion_interna))
+  cli::cli_alert_warning(.cli_literal(x$advertencia_universos))
   invisible(original)
 }

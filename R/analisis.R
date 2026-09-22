@@ -518,8 +518,8 @@ analizar <- function(datos, nombre = .nombre_de_los_datos(substitute(datos)),
 print.analisis <- function(x, ...) {
   original <- x
   x <- .marcar_objeto_para_exhibir(x)
-  cli::cli_h1(paste("Analisis de datos:", x$meta$nombre))
-  cli::cli_dl(c(
+  cli::cli_h1(.cli_literal(paste("Analisis de datos:", x$meta$nombre)))
+  cli::cli_dl(.cli_literal(c(
     "Filas" = x$perfil$general$filas,
     "Columnas" = x$perfil$general$columnas,
     "Hallazgos del perfil" = nrow(x$perfil$hallazgos),
@@ -532,7 +532,7 @@ print.analisis <- function(x, ...) {
     } else {
       "no conservado"
     }
-  ))
+  )))
   cli::cli_h2("Tablero de calidad")
   print(tablero_calidad(x))
   cli::cli_h2("Cobertura conceptual")

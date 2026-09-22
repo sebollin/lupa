@@ -132,7 +132,7 @@
   herencia <- if (grepl("dbi", clase, fixed = TRUE)) "lupa_error_dbi" else character()
   lineas <- .marcar_objeto_para_exhibir(lineas)
   cli::cli_abort(
-    lineas,
+    .cli_literal(lineas),
     class = c(clase, "lupa_error_requisito", herencia, "error", "condition")
   )
 }
@@ -348,13 +348,13 @@ print.requisitos_motor <- function(x, ...) {
     estado <- x$estado_paquete_r[[i]]
     sistema <- x$estado_biblioteca_sistema[[i]]
     paquete <- if (is.na(x$paquete_r[[i]])) "no aplica" else x$paquete_r[[i]]
-    cli::cli_text(paste0(
+    cli::cli_text(.cli_literal(paste0(
       x$motor[[i]],
       if (!is.na(x$version[[i]])) paste0(" ", x$version[[i]]) else "",
       " | R `", paquete, "`: ", estado,
       " | biblioteca del sistema: ", sistema,
       " | dialecto: ", ifelse(is.na(x$dialecto[[i]]), "no aplica", x$dialecto[[i]])
-    ))
+    )))
   }
   invisible(original)
 }

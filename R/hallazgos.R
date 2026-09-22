@@ -2662,10 +2662,13 @@
   idx <- switch(
     tipo,
     tipo_compuesto_no_analizado = seq_len(n),
-    constante = tryCatch(
-      which(!is.na(x) & as.character(x) == as.character(fila$moda[[1L]])),
-      error = function(e) NULL
-    ),
+    # Las filas afectadas de una columna constante son todas las no ausentes: el
+    # unico valor distinto las ocupa por definicion, la misma regla que ya rige
+    # arriba para las columnas de lista. Comparar el texto contra la moda fallaba
+    # en fecha-hora -`as.character()` del vector no lleva la zona y la moda
+    # publicada si-, la traza salia vacia y el paquete se acusaba a si mismo de
+    # una incoherencia en cualquier columna constante de fecha-hora.
+    constante = which(!is.na(x)),
     valor_concentrado = {
       concentracion <- resultado$valor_concentrado
       if (!is.list(concentracion)) {
@@ -4896,8 +4899,11 @@
   }
   nombres_problematicos <- .nombres_columnas_problematicos(nombres_texto)
   if (nrow(nombres_problematicos)) {
+    # El original se cita con el citador del paquete: `encodeString()` escapa la
+    # barra de su propio `\xNN` y un nombre declarado `bytes` salia `"caf\\xe9"`
+    # mientras el mismo nombre sin marca salia `"caf\xe9"`.
     evidencia <- paste0(
-      encodeString(nombres_problematicos$original, quote = '"'),
+      .citar_publicable(nombres_problematicos$original),
       " -> ",
       encodeString(nombres_problematicos$propuesto, quote = '"'),
       collapse = "; "

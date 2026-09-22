@@ -115,11 +115,14 @@ del plan se recupera uniendo el registro con el plan por \code{id_accion}, que
 los dos publican. \code{reversible}
 indica si la conversión conserva la identidad de cada valor. Las
 conversiones se comprueban sobre todos los valores de \code{datos}: las numéricas
-bloquean ceros iniciales y colisiones no inyectivas, mientras que fechas,
+bloquean ceros iniciales, colisiones no inyectivas y valores con más cifras
+significativas de las que guarda un número de doble precisión —un decimal se
+compara con la precisión con que vino escrito—, mientras que fechas,
 fechas-hora y lógicos sólo bloquean conversiones no ejecutables o no
 inyectivas. Las fechas pueden cambiar a la representación canónica del tipo
 sin que eso sea una pérdida. Sin \code{datos} no se puede hacer la comprobación y
-la acción queda bloqueada. Cuando no es reversible se marca \code{destructiva}, no
+la acción queda bloqueada. Cuando se ejecuta y no es reversible se marca
+\code{destructiva} —también si la columna no era segura y se activa a mano—, no
 se activa por defecto y el registro conserva \code{n_no_reversibles} y la
 justificación de la decisión.
 \code{convertir_numero_regional} sólo se recomienda si todos los valores
@@ -140,6 +143,12 @@ latin-1. Cuando el plan propone reparar la codificación y eliminar ese
 control, manda la reparación —corre primero y restituye el \verb{€}—, y la
 eliminación queda sin nada que hacer. Es la lectura habitual en texto real;
 en el caso raro de un control C1 genuino, la reparación lo convierte en \verb{€}.
+Una celda cuyo texto no se puede leer —declarada \code{bytes} con bytes que no
+son UTF-8, o sin marca en una sesión UTF-8, que es lo que deja \code{\link[=read.csv]{read.csv()}}
+sin \code{fileEncoding} sobre un archivo latin1— no se transforma: el perfil no la
+midió y la informa como \code{codificacion_invalida}, cuyo remedio es volver a leer
+la fuente declarando su codificación. Las acciones de texto trabajan sobre las
+demás celdas de la columna y cuentan sólo lo que cambiaron.
 Si se marca una acción que no está \code{lista}, \code{aplicar()} aborta antes de
 modificar la copia y enumera las filas problemáticas. Una acción que sí está
 lista pero falla se registra con su error y no impide aplicar las siguientes:

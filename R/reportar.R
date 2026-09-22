@@ -9,7 +9,15 @@
   # Se rinde con `format()`, que es lo que R usa para mostrarlo, y el resultado
   # es ASCII: puede seguir al resto del camino sin que `enc2utf8()` aborte
   # -sobre la marca `bytes` aborta, y debe hacerlo-.
+  # Lo sin marca que no es UTF-8 tampoco es texto: se rinde como lo declarado.
   crudos <- !is.na(x) & Encoding(x) == "bytes"
+  sin_marca <- .sin_marca_ilegible(x)
+  if (any(sin_marca)) {
+    declarados <- x[sin_marca]
+    Encoding(declarados) <- "bytes"
+    x[sin_marca] <- declarados
+    crudos <- crudos | sin_marca
+  }
   if (any(crudos)) x[crudos] <- format(x[crudos])
   marcables <- !is.na(x) & Encoding(x) == "unknown" & validUTF8(x)
   if (any(marcables)) {
@@ -85,7 +93,7 @@
   # valor declarado `bytes` -"number of characters is not computable"-, y el
   # reporte entero no se generaba. Basta con que ese valor llegue a una celda,
   # por ejemplo siendo la moda de una columna.
-  texto <- .texto_publicable(texto)
+  texto <- .publicar_sin_marca_ilegible(.texto_publicable(texto))
   texto <- paste(texto, collapse = ", ")
   if (nchar(texto, type = "chars") > max_caracteres) {
     texto <- paste0(substr(texto, 1L, max_caracteres - 1L), "\u2026")
