@@ -130,3 +130,19 @@ test_that("la lectura de marcadores y la decision de ambiguedad", {
   # Lo declarado no cuenta como ambiguo.
   expect_identical(ambiguos(c("sd", "nc"), declarados = c("SD", "NC")), character())
 })
+
+test_that("un plan aplicado a otra entrega no convierte marcadores que nunca vio", {
+  # La lista del plan acotaba al CATALOGO completo. Un plan hecho sobre una
+  # entrega y aplicado a otra convertia un `NULL` -que puede ser un apellido-
+  # que no aparecia en la primera, sin pasar por la guarda de ambiguedad, que
+  # corre al planificar.
+  primera <- data.frame(v = c("S/D", "S/D", "-", "-", "N/A", "N/A", "ok", "x"),
+                        stringsAsFactors = FALSE)
+  plan <- planificar_limpieza(perfilar(primera, analizar_dependencias = FALSE))
+  segunda <- data.frame(v = c("S/D", "S/D", "-", "-", "NULL", "ok", "x", "y"),
+                        stringsAsFactors = FALSE)
+  resultado <- aplicar(plan, segunda)$datos$v
+  expect_true("NULL" %in% resultado)
+  # Lo observado si se convierte.
+  expect_equal(sum(is.na(resultado)), 4L)
+})

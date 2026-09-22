@@ -609,10 +609,13 @@ planificar_limpieza <- function(perfil, datos = NULL,
           # requiere que el usuario la active explicitamente. Esto es
           # exactamente eso.
           destructiva = confirmar,
-          # La lista incluye lo declarado: si no, acotar contra ella dejaria
-          # afuera un marcador que el usuario declaro.
+          # La lista acota a lo OBSERVADO, no al catalogo. Con el catalogo
+          # completo, un plan hecho sobre una entrega y aplicado a otra
+          # convertia marcadores que nunca aparecieron -un `NULL` que puede ser
+          # un apellido- sin pasar por la guarda de ambiguedad, que corre al
+          # planificar. Lo declarado se suma porque el usuario lo afirmo.
           parametros = list(
-            valores = unique(c(.cadenas_na(),
+            valores = unique(c(leidos$marcadores,
                                tolower(trimws(as.character(declarados))))),
             cadenas_ausencia = declarados
           ), orden = 100L
@@ -1566,12 +1569,10 @@ planificar_limpieza <- function(perfil, datos = NULL,
   # `ca<f1>o` declarado `bytes`, que ya no es UTF-8 valido. El destino de una
   # fila lo decidia lo que hubiera en el resto de la tanda. Se recorta cada
   # grupo por separado para que ninguna marca contamine a la vecina.
-  nuevo <- anterior
-  declarados <- !is.na(anterior) & Encoding(anterior) == "bytes"
-  if (any(!declarados)) nuevo[!declarados] <- trimws(anterior[!declarados])
-  if (any(declarados)) {
-    nuevo[declarados] <- trimws(anterior[declarados], whitespace = "[ \t\r\n]")
-  }
+  nuevo <- .aplicar_por_marca(
+    anterior, trimws,
+    function(v) trimws(v, whitespace = "[ \t\r\n]")
+  )
   mascara <- .celdas_cambiadas(anterior, nuevo)
   list(valor = nuevo, n = sum(mascara))
 }
@@ -1671,7 +1672,12 @@ planificar_limpieza <- function(perfil, datos = NULL,
          call. = FALSE)
   }
   anterior <- as.character(x)
-  nuevo <- gsub("\\r\\n|[\\t\\n\\r\\f\\v]", " ", anterior, perl = TRUE)
+  patron <- "\\r\\n|[\\t\\n\\r\\f\\v]"
+  nuevo <- .aplicar_por_marca(
+    anterior,
+    function(v) gsub(patron, " ", v, perl = TRUE),
+    function(v) gsub(patron, " ", v, perl = TRUE, useBytes = TRUE)
+  )
   list(valor = .resultado_texto(x, nuevo), n = sum(.celdas_cambiadas(anterior, nuevo)))
 }
 
@@ -1851,13 +1857,13 @@ planificar_limpieza <- function(perfil, datos = NULL,
   }
   anterior <- .texto_para_transformar(x)
   if (identical(estrategia, "convertir_minusculas")) {
-    nuevo <- tolower(anterior)
+    nuevo <- .aplicar_por_marca(anterior, tolower)
   } else if (identical(estrategia, "convertir_mayusculas")) {
-    nuevo <- toupper(anterior)
+    nuevo <- .aplicar_por_marca(anterior, toupper)
   } else if (identical(estrategia, "convertir_titulo")) {
-    nuevo <- gsub(
-      "\\b([[:alpha:]])", "\\U\\1", tolower(anterior), perl = TRUE
-    )
+    nuevo <- .aplicar_por_marca(anterior, function(v) gsub(
+      "\\b([[:alpha:]])", "\\U\\1", tolower(v), perl = TRUE
+    ))
   } else {
     diccionario <- parametros$diccionario
     if (is.null(diccionario) || !is.atomic(diccionario) ||

@@ -171,3 +171,39 @@ test_that("normalizar espacios invisibles tampoco reescribe lo que no cambia", {
   }
   expect_false(grepl(espacio_duro, antes[[2L]], fixed = TRUE))
 })
+
+test_that("ningun ejecutor de texto deja que un valor bytes decida el destino de sus vecinos", {
+  # Una operacion vectorizada sobre un vector con UN valor marcado `bytes`
+  # cambia de modo para todo el vector: `gsub(perl = TRUE)` devolvia ilegible
+  # la celda `latin1` de al lado y `tolower()`/`toupper()` abortaban. Se habia
+  # arreglado en el recorte con una copia propia y el defecto seguia en los
+  # otros. La primera medicion de estos ejecutores dio "ok" porque el dato no
+  # tenia nada que cada uno cambiara: por eso esta prueba exige, ademas, que
+  # la celda efectivamente cambie.
+  enie <- c(0x63, 0x61, 0xf1, 0x6f)
+  roto <- .n97_marcar(c(0x72, 0x6f, 0x74, 0x6f, 0xff, 0x20), "bytes")
+  casos <- list(
+    recortar = list(c(enie, 0x20), function(x) lupa:::.recortar_texto(x)$valor),
+    separadores = list(c(enie, 0x09, 0x64),
+                       function(x) lupa:::.reemplazar_separadores(x)$valor),
+    minusculas = list(c(0x43, 0x41, 0xd1, 0x4f), function(x)
+      lupa:::.transformar_capitalizacion(x, "convertir_minusculas", list())$valor),
+    mayusculas = list(enie, function(x)
+      lupa:::.transformar_capitalizacion(x, "convertir_mayusculas", list())$valor),
+    titulo = list(enie, function(x)
+      lupa:::.transformar_capitalizacion(x, "convertir_titulo", list())$valor)
+  )
+  for (nombre in names(casos)) {
+    celda <- .n97_marcar(casos[[nombre]][[1L]], "latin1")
+    transformar <- casos[[nombre]][[2L]]
+    con_vecino <- transformar(c(celda, roto, "ok"))
+    sin_vecino <- transformar(c(celda, "ok"))
+    # El ejecutor tiene que haber hecho algo: si no, esto no mide nada.
+    expect_false(identical(enc2utf8(sin_vecino[[1L]]), enc2utf8(celda)), info = nombre)
+    # Y el vecino no puede cambiar el resultado.
+    expect_identical(enc2utf8(con_vecino[[1L]]), enc2utf8(sin_vecino[[1L]]), info = nombre)
+    expect_true(validUTF8(enc2utf8(con_vecino[[1L]])), info = nombre)
+    # Lo que no se puede leer conserva su declaracion.
+    expect_identical(Encoding(con_vecino[[2L]]), "bytes", info = nombre)
+  }
+})

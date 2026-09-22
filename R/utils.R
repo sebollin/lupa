@@ -1585,3 +1585,29 @@
   }
 }
 
+# Aplica una transformacion de texto sin que la marca de un valor decida el
+# destino de sus vecinos.
+#
+# Una operacion vectorizada sobre un vector que contiene UN valor marcado
+# `bytes` cambia de modo para todo el vector: `trimws()` y `gsub(perl = TRUE)`
+# devuelven marcadas `bytes` tambien a las celdas `latin1` de al lado -y ahi su
+# contenido deja de ser legible-, y `tolower()`/`toupper()` ABORTAN. Pasaba en
+# tres ejecutores distintos; en el primero se arreglo con una copia propia de
+# esta logica y en los otros dos quedo el defecto, porque una regla escrita en
+# un solo sitio no protege a los demas.
+#
+# `en_texto` se aplica a lo que no esta declarado `bytes`, que asi viaja solo.
+# `en_bytes` se aplica a lo declarado `bytes`, y solo sirve para operaciones
+# que no necesitan leer el texto -recortar o reemplazar caracteres ASCII-. Si
+# es `NULL`, lo declarado se deja intacto: no se puede pasar a minusculas lo
+# que no se puede leer.
+.aplicar_por_marca <- function(x, en_texto, en_bytes = NULL) {
+  if (!is.character(x) || !length(x)) return(en_texto(x))
+  declarados <- !is.na(x) & Encoding(x) == "bytes"
+  if (!any(declarados)) return(en_texto(x))
+  salida <- x
+  if (any(!declarados)) salida[!declarados] <- en_texto(x[!declarados])
+  if (!is.null(en_bytes)) salida[declarados] <- en_bytes(x[declarados])
+  salida
+}
+
