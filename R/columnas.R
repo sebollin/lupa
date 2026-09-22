@@ -2230,7 +2230,17 @@
     vocabulario = vocabulario_fecha,
     valores_preparados = x_analisis
   )
-  diagnostico_texto <- .diagnosticar_texto(x, vocabulario = vocabulario_texto)
+  # Los diagnosticos de texto miran solo el universo aplicable, como ya lo
+  # hacen el analisis y la identidad de mas arriba. Recibian la columna CRUDA
+  # mientras su `vocabulario` venia armado sobre `x_analisis`, ya enmascarado:
+  # dos vistas distintas en la misma llamada. Con `aplicabilidad` declarada,
+  # `espacios_sobrantes` contaba la columna entera y trazaba solo lo aplicable,
+  # y el paquete disparaba su propia alarma -"cuenta 6 y traza 4"-. Se marca
+  # como ausente en vez de recortar, por el mismo motivo que arriba: para que
+  # los indices de fila sigan alineados con la tabla.
+  x_texto <- x
+  if (!all(aplicable)) x_texto[!aplicable] <- NA
+  diagnostico_texto <- .diagnosticar_texto(x_texto, vocabulario = vocabulario_texto)
   vocabulario_numeros <- if (
     is.null(vocabulario_texto) &&
       (is.character(x_analisis) || is.factor(x_analisis))
