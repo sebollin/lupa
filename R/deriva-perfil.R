@@ -21,6 +21,14 @@
   if (!inherits(x, "perfil") || !inherits(x$columnas, "data.frame") ||
       !is.list(x$patrones) || !inherits(x$hallazgos, "data.frame") ||
       is.null(x$meta$fecha_hora)) {
+    if (inherits(x, "perfil_dbi")) {
+      stop(
+        "`", nombre, "` es un objeto de `perfilar_dbi()`: para comparar dos ",
+        "entregas pase su perfil de muestra, `", nombre, "$perfil_muestra`. ",
+        "El resumen SQL de la tabla completa no es un perfil.",
+        call. = FALSE
+      )
+    }
     stop("`", nombre, "` debe ser un objeto producido por perfilar().",
          call. = FALSE)
   }

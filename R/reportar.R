@@ -847,6 +847,16 @@
     clase <- .clase_objeto_reporte(x)
     if (!is.na(clase)) {
       salida[[length(salida) + 1L]] <<- x
+    } else if (inherits(x, "perfil_dbi")) {
+      # Sin esto, el objeto de `perfilar_dbi()` caia en la rama de lista, se
+      # recorria por dentro y el error salia sobre alguno de sus componentes:
+      # el usuario leia una enumeracion de clases que no le decia que hacer.
+      stop(
+        "Un objeto de `perfilar_dbi()` no se reporta entero: pase su perfil ",
+        "de muestra, `x$perfil_muestra`. El resumen SQL de la tabla completa ",
+        "esta en `x$resumen_tabla` y no es un perfil.",
+        call. = FALSE
+      )
     } else if (is.list(x) && !inherits(x, "data.frame")) {
       for (elemento in x) recorrer(elemento)
     } else {

@@ -25,6 +25,13 @@
   De paso, un nombre de columna declarado `bytes` ya no aborta la impresión
   del plan ni deja escapada la frase del paquete que lo rodea.
 
+- **Las puertas que no aceptan un perfil de base de datos dicen qué hacer.**
+  `reportar()` recorría el objeto de `perfilar_dbi()` como una lista y
+  terminaba culpando a alguno de sus componentes; `comparar_perfiles()` pedía
+  «un objeto producido por `perfilar()`». Ahora los dos nombran el camino:
+  el perfil está en `$perfil_muestra`, y el resumen SQL de la tabla completa no
+  es un perfil.
+
 - **Lo que se cuenta sobre la muestra dice que es de la muestra.** Patrones y
   formatos de fecha se descubren sobre una muestra, pero sus hallazgos
   publicaban los conteos como cifras de la tabla —`n_afectados = 2` donde la
