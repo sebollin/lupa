@@ -96,7 +96,7 @@ test_that("se detectan identificadores, patrones raros y outliers", {
   datos <- data.frame(
     id = sprintf("ID%03d", 1:100),
     codigo = c(rep("AB123", 99), "MAL!"),
-    valor = c(rep(10, 99), 10000),
+    valor = c(1:99, 10000),
     stringsAsFactors = FALSE
   )
   resultado <- perfilar(datos)

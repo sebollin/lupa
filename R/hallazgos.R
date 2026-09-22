@@ -3312,6 +3312,16 @@
     n_validos <- fila$n_aplicables - fila$n_faltantes
 
     geometria <- resultado$geometria
+    estado_outliers <- resultado$cuantitativo$estado_outliers
+    if (identical(estado_outliers, "no_evaluado")) {
+      agregar_cobertura(
+        "outliers", nombre, resultado$cuantitativo$motivo_outliers,
+        paste(
+          "Reunir al menos 20 valores finitos con variacion, o declarar otro",
+          "criterio de distancia antes de interpretar outliers."
+        )
+      )
+    }
     if (isTRUE(resultado$secuencia_entera$no_evaluada)) {
       agregar_cobertura(
         "secuencia_entera", nombre,

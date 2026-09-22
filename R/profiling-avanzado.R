@@ -393,6 +393,11 @@ distribucion_valores <- function(datos, perfil = NULL, max_valores = 20L,
 #'
 #' @return Data frame S3 `asociaciones_columnas`. Sus atributos declaran filas,
 #'   columnas y pares examinados, omisiones por dependencia y truncamiento.
+#'   `pares_omitidos_medicion` conserva los pares que no se pudieron medir,
+#'   junto con el motivo y la cantidad de filas completas disponible. Su
+#'   atributo `cobertura_diagnosticos` tiene una fila por par omitido. Cuando
+#'   [analizar()] integra el resultado, esas filas se agregan a la cobertura
+#'   del perfil.
 #' @export
 #' @seealso [detectar_dependencias()], [analizar()]
 #'
@@ -430,6 +435,8 @@ detectar_asociaciones <- function(datos, dependencias = NULL, umbral = 0.3,
   filas <- list()
   k <- 0L
   omitidos_dependencia <- 0L
+  omitidos_medicion <- list()
+  k_omitidos_medicion <- 0L
   if (length(seleccion) >= 2L) {
     combinaciones <- utils::combn(seleccion, 2L)
     for (p in seq_len(ncol(combinaciones))) {
@@ -446,9 +453,6 @@ detectar_asociaciones <- function(datos, dependencias = NULL, umbral = 0.3,
       if (is.character(x) || is.factor(x)) x <- .texto_analizable(x)$valores
       if (is.character(y) || is.factor(y)) y <- .texto_analizable(y)$valores
       completos <- !is.na(x) & !is.na(y)
-      if (sum(completos) < 3L) next
-      x <- x[completos]
-      y <- y[completos]
       metodo <- if (tipos[[i]] == "numerica" && tipos[[j]] == "numerica") {
         if (identical(metodo_numerico, "spearman")) {
           "spearman_absoluto"
@@ -460,14 +464,42 @@ detectar_asociaciones <- function(datos, dependencias = NULL, umbral = 0.3,
       } else {
         "eta2"
       }
-      valor <- switch(
-        metodo,
-        pearson_absoluto = abs(stats::cor(x, y)),
-        spearman_absoluto = abs(stats::cor(x, y, method = "spearman")),
-        cramer_v = .cramer_v(x, y),
-        eta2 = if (tipos[[i]] == "categorica") .eta2(x, y) else .eta2(y, x)
+      n_completos <- sum(completos)
+      if (n_completos < 3L) {
+        k_omitidos_medicion <- k_omitidos_medicion + 1L
+        omitidos_medicion[[k_omitidos_medicion]] <- data.frame(
+          columna_1 = a, columna_2 = b, tipo_1 = tipos[[i]],
+          tipo_2 = tipos[[j]], metodo = metodo,
+          n_pares_completos = as.integer(n_completos),
+          motivo = paste0(
+            "Pocas filas completas para medir el par: hay ", n_completos,
+            " y se requieren al menos 3."
+          ), stringsAsFactors = FALSE
+        )
+        next
+      }
+      x <- x[completos]
+      y <- y[completos]
+      valor <- tryCatch(switch(
+          metodo,
+          pearson_absoluto = abs(stats::cor(x, y)),
+          spearman_absoluto = abs(stats::cor(x, y, method = "spearman")),
+          cramer_v = .cramer_v(x, y),
+          eta2 = if (tipos[[i]] == "categorica") .eta2(x, y) else .eta2(y, x)
+        ), error = function(e) NA_real_
       )
-      if (!is.finite(valor) || valor < umbral) next
+      if (!is.finite(valor)) {
+        k_omitidos_medicion <- k_omitidos_medicion + 1L
+        omitidos_medicion[[k_omitidos_medicion]] <- data.frame(
+          columna_1 = a, columna_2 = b, tipo_1 = tipos[[i]],
+          tipo_2 = tipos[[j]], metodo = metodo,
+          n_pares_completos = as.integer(n_completos),
+          motivo = "La medida de asociacion no fue finita.",
+          stringsAsFactors = FALSE
+        )
+        next
+      }
+      if (valor < umbral) next
       k <- k + 1L
       filas[[k]] <- data.frame(
         columna_1 = a, columna_2 = b, tipo_1 = tipos[[i]], tipo_2 = tipos[[j]],
@@ -518,6 +550,32 @@ detectar_asociaciones <- function(datos, dependencias = NULL, umbral = 0.3,
   } else 0
   attr(resultado, "pares_posibles") <- pares_posibles
   attr(resultado, "pares_omitidos_dependencia") <- omitidos_dependencia
+  attr(resultado, "pares_omitidos_medicion") <- if (
+    length(omitidos_medicion)
+  ) {
+    do.call(rbind, omitidos_medicion)
+  } else {
+    data.frame(
+      columna_1 = character(), columna_2 = character(), tipo_1 = character(),
+      tipo_2 = character(), metodo = character(), n_pares_completos = integer(),
+      motivo = character(), stringsAsFactors = FALSE
+    )
+  }
+  omitidos <- attr(resultado, "pares_omitidos_medicion", exact = TRUE)
+  attr(resultado, "cobertura_diagnosticos") <- if (nrow(omitidos)) {
+    data.frame(
+      diagnostico = "asociaciones",
+      columna = paste(omitidos$columna_1, omitidos$columna_2, sep = " / "),
+      motivo = omitidos$motivo,
+      como_resolverlo = paste(
+        "Completar al menos 3 filas para el par y revisar que la medida sea",
+        "finita antes de interpretar que no hay asociacion."
+      ),
+      dependencia = NA_character_, stringsAsFactors = FALSE
+    )
+  } else {
+    .cobertura_diagnosticos_vacia()
+  }
   attr(resultado, "total_informadas") <- total_informadas
   attr(resultado, "truncado_columnas") <- length(analizables) > length(seleccion)
   attr(resultado, "truncado") <- total_informadas > nrow(resultado)

@@ -339,6 +339,9 @@
 .estrategias_cambio_de_tipo <- c(
   "convertir_tipo", "convertir_numero_regional", "convertir_fecha_confirmada"
 )
+.estrategias_por_fila <- c(
+  "marcar_filas_ausentes", "eliminar_filas_ausentes"
+)
 
 # Una conversion que se ejecuto sobre los datos y perdio algo es destructiva,
 # sea o no segura la columna. La marca se calculaba solo cuando la columna era
@@ -428,6 +431,11 @@
     if (is.na(columna) || !columna %in% names(reglas)) next
     estrategia <- as.character(resultado$estrategia[[i]])
     if (estrategia %in% .estrategias_por_celda) {
+      parametros <- resultado$parametros[[i]]
+      if (is.null(parametros)) parametros <- list()
+      parametros$aplicabilidad <- reglas[[columna]]
+      resultado$parametros[[i]] <- parametros
+    } else if (estrategia %in% .estrategias_por_fila) {
       parametros <- resultado$parametros[[i]]
       if (is.null(parametros)) parametros <- list()
       parametros$aplicabilidad <- reglas[[columna]]
@@ -2411,7 +2419,29 @@ planificar_limpieza <- function(perfil, datos = NULL,
   as.integer(sum(is.na(b) | a != b))
 }
 
-.ejecutar_accion <- function(datos, accion) {
+.mascara_aplicabilidad_accion <- function(datos, columna, parametros) {
+  regla <- parametros$aplicabilidad
+  if (is.null(regla)) return(rep(TRUE, nrow(datos)))
+  mascara <- tryCatch(
+    .evaluar_predicado_aplicabilidad(datos, columna, regla),
+    error = function(e) e
+  )
+  if (inherits(mascara, "error")) {
+    stop(
+      "No se pudo respetar la aplicabilidad de `", columna, "`: ",
+      conditionMessage(mascara), call. = FALSE
+    )
+  }
+  if (length(mascara) != nrow(datos)) {
+    stop(
+      "No se pudo respetar la aplicabilidad de `", columna,
+      "`: la regla no devolvio una marca por fila.", call. = FALSE
+    )
+  }
+  !is.na(mascara) & mascara
+}
+
+.ejecutar_accion <- function(datos, accion, original = datos) {
   estrategia <- accion$estrategia[[1L]]
   parametros <- accion$parametros[[1L]]
   columna <- accion$columna[[1L]]
@@ -2581,12 +2611,26 @@ planificar_limpieza <- function(perfil, datos = NULL,
                 n_no_reversibles = evaluacion$n_no_reversibles))
   }
   if (identical(estrategia, "marcar_filas_ausentes")) {
-    marca <- is.na(x)
+    aplicable <- .mascara_aplicabilidad_accion(original, columna, parametros)
+    if (length(aplicable) != length(x)) {
+      stop(
+        "No se pudo respetar la aplicabilidad despues de eliminar filas.",
+        call. = FALSE
+      )
+    }
+    marca <- is.na(x) & aplicable
     datos <- .agregar_marca(datos, parametros$columna_marca, marca)
     return(list(datos = datos, n = sum(marca)))
   }
   if (identical(estrategia, "eliminar_filas_ausentes")) {
-    eliminar <- is.na(x)
+    aplicable <- .mascara_aplicabilidad_accion(original, columna, parametros)
+    if (length(aplicable) != length(x)) {
+      stop(
+        "No se pudo respetar la aplicabilidad despues de eliminar filas.",
+        call. = FALSE
+      )
+    }
+    eliminar <- is.na(x) & aplicable
     retiradas <- .filtrar_filas(datos, eliminar)
     datos <- .filtrar_filas(datos, !eliminar)
     return(list(
@@ -2837,7 +2881,7 @@ aplicar <- function(plan, datos, permitir_eliminacion = FALSE,
       list(error = motivo_parametros, n = 0, n_no_reversibles = 0)
     } else {
       tryCatch(
-        .ejecutar_accion(.copiar_datos(salida), accion),
+        .ejecutar_accion(.copiar_datos(salida), accion, original = datos),
         error = function(e) list(
           error = conditionMessage(e), n = 0, n_no_reversibles = 0
         )

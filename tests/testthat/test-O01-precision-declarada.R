@@ -170,8 +170,8 @@ test_that("las acciones que destruyen valores cuentan sus perdidas", {
   # Un centinela `-999` que pasa a `NA` y un extremo recortado al limite ya no
   # se pueden recuperar. El registro informaba `n_no_reversibles = 0` porque
   # los ejecutores no lo devolvian y `aplicar()` completa con cero.
-  datos <- data.frame(x = c(10, 11, 12, -999, -999, 13, 14, 15, 16, 1e6),
-                      id = seq_len(10L))
+  valores <- c(10:28, -999, -999, 1e6)
+  datos <- data.frame(x = valores, id = seq_along(valores))
   plan <- planificar_limpieza(perfilar(datos, analizar_dependencias = FALSE), datos)
   for (estrategia in c("convertir_sentinelas_numericos", "winsorizar_outliers")) {
     expect_true(estrategia %in% plan$estrategia, info = estrategia)

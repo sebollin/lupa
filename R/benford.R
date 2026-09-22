@@ -66,7 +66,31 @@
 # magnitud -0,00005 para montos entre 9 y 9.999.999-. La unicidad no sirve: un
 # monto tambien es casi unico.
 
+.parece_correlativo_integer64 <- function(x) {
+  if (!inherits(x, "integer64") || !.bit64_disponible()) return(FALSE)
+  presentes <- x[!is.na(x)]
+  if (length(presentes) < 2L) return(FALSE)
+  distintos <- sort(unique(presentes))
+  if (length(distintos) < .MIN_DISTINTOS_NUMERACION) return(FALSE)
+  uno <- bit64::as.integer64(1)
+  rango <- max(distintos) - min(distintos) + uno
+  limite_doble <- bit64::as.integer64("9007199254740991")
+  if (rango <= 0 || rango > limite_doble) return(FALSE)
+  if (length(distintos) / as.numeric(rango) < .MIN_DENSIDAD_NUMERACION) {
+    return(FALSE)
+  }
+  huecos <- diff(distintos)
+  huecos_doble <- suppressWarnings(as.numeric(huecos))
+  if (any(!is.finite(huecos_doble))) return(FALSE)
+  tipico <- stats::median(huecos_doble)
+  if (!is.finite(tipico) || tipico <= 0) tipico <- 1
+  !(length(distintos) >= 3L &&
+      max(huecos_doble) >= .FACTOR_SALTO_ESCALA * tipico &&
+      max(huecos_doble) > 1)
+}
+
 .parece_correlativo_benford <- function(x) {
+  if (inherits(x, "integer64")) return(.parece_correlativo_integer64(x))
   if (!is.numeric(x)) return(FALSE)
   valores <- as.numeric(x[is.finite(x)])
   if (length(valores) < 2L) return(FALSE)

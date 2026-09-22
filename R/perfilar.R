@@ -767,6 +767,12 @@
 #' `estado_resumen_cuantitativo = "calculados_sobre_valores"` declaran ese
 #' alcance parcial.
 #'
+#' Los limites de Tukey se publican solo cuando hay al menos 20 valores finitos
+#' y el recorrido intercuartilico es positivo. Si falta alguna condicion,
+#' `n_outliers` queda en `NA` y `cobertura_diagnosticos` explica el motivo y
+#' como reunir evidencia suficiente; un IQR cero no convierte una categoria
+#' minoritaria en outlier.
+#'
 #' El paquete distingue lo que el usuario **declara** de lo que él mismo
 #' **sospecha**, y esa distinción gobierna los resúmenes. Cuando se reemplaza
 #' `sentinelas_numericos`, esos valores son una declaración de ausencia y salen
@@ -1226,9 +1232,10 @@
 #'   nada; sin declararlo son `0,730`, sale `faltantes` y el plan propone dos
 #'   acciones.
 #'
-#'   El universo también llega a la limpieza. El perfil guarda la regla, el plan
+#'   El universo tambien llega a la limpieza. El perfil guarda la regla, el plan
 #'   la lleva y [aplicar()] no toca las celdas que quedan fuera: una `S/D` en una
-#'   fila donde la columna no corresponde no se convierte en ausencia. Si la
+#'   fila donde la columna no corresponde no se convierte en ausencia, y las
+#'   acciones que marcan o eliminan filas solo consideran ese universo. Si la
 #'   regla da un valor indeterminado, la celda tampoco se toca. Las
 #'   conversiones de tipo son la excepción, porque una columna tiene un solo
 #'   tipo y no se puede convertir a medias: el plan declara en `n_afectadas` y

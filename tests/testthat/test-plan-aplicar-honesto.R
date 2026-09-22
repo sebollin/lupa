@@ -229,8 +229,8 @@ test_that("la imputacion conserva el dependiente protegido sin publicar el mapa"
   expect_equal(resultado$datos$nombre[[12L]], "Beto")
 })
 
-test_that("winsorizar deja sin outliers el perfil de una columna chica", {
-  datos <- data.frame(x = c(1, 2, 3, 100))
+test_that("winsorizar deja sin outliers el perfil con soporte suficiente", {
+  datos <- data.frame(x = c(1:20, 100))
   perfil <- perfilar(datos, muestra = Inf, analizar_dependencias = FALSE)
   plan <- planificar_limpieza(perfil, datos)
   elegido <- activar_una_accion_honesta(plan, "winsorizar_outliers")

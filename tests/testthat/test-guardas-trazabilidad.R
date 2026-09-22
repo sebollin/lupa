@@ -62,7 +62,7 @@ test_that("la guarda es bidireccional y consciente de la unidad", {
 })
 
 test_that("la guarda avisa un hallazgo severo sin afectados", {
-  datos <- data.frame(x = c(rep(1, 20L), 1000))
+  datos <- data.frame(x = c(1:20, 1000))
   perfil <- perfilar(
     datos, analizar_dependencias = FALSE,
     proteger_datos_personales = FALSE, casi_duplicados_vocabulario = FALSE
@@ -78,7 +78,7 @@ test_that("la guarda avisa un hallazgo severo sin afectados", {
 })
 
 test_that("la guarda conserva el hallazgo cuando la traza queda separada", {
-  datos <- data.frame(x = c(rep(1, 20L), 1000))
+  datos <- data.frame(x = c(1:20, 1000))
   perfil <- perfilar(
     datos, analizar_dependencias = FALSE,
     proteger_datos_personales = FALSE, casi_duplicados_vocabulario = FALSE

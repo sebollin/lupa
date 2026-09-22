@@ -106,7 +106,7 @@ test_that("una fecha ambigua queda bloqueada y no ofrece interpretación", {
 })
 
 test_that("los extremos sólo se marcan cuando se activa la propuesta", {
-  datos <- data.frame(valor = c(rep(1, 20), 100))
+  datos <- data.frame(valor = c(1:20, 100))
   plan <- planificar_limpieza(perfilar(datos))
   indice <- which(plan$estrategia == "marcar_outliers")
 
@@ -321,7 +321,7 @@ test_that("las precondiciones impiden conversiones parciales y marcas pisadas", 
     fallo_conversion$registro$estrategia == "convertir_tipo"
   ], "no pueden convertirse")
 
-  extremos <- data.frame(valor = c(rep(1, 20), 100))
+  extremos <- data.frame(valor = c(1:20, 100))
   plan_extremos <- planificar_limpieza(perfilar(extremos))
   plan_extremos$aplicar[plan_extremos$estrategia == "marcar_outliers"] <- TRUE
   extremos$.outlier_valor <- FALSE

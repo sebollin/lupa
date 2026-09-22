@@ -199,7 +199,7 @@ test_that("los diagnosticos textuales nombran sus celdas exactas", {
 
 test_that("los hallazgos numericos y temporales comparten los indices medidos", {
   n <- 100L
-  atipicos <- rep("10", n)
+  atipicos <- as.character(seq_len(n))
   atipicos[c(8L, 71L)] <- c("1000", "-1000")
   no_finitos <- rep("1", n)
   no_finitos[c(12L, 35L)] <- c("Inf", "-Inf")

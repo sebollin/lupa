@@ -812,6 +812,7 @@
     n_fechas_resumidas = NA_integer_,
     n_fechas_excluidas_granularidad = NA_integer_,
     n_valores_excluidos_resumen = NA_integer_,
+    estado_outliers = "no_aplica", motivo_outliers = NA_character_,
     estado_resumen_cuantitativo = estado
   )
 }
@@ -961,6 +962,13 @@
     cuantitativos$estado
   } else vacio$estado_resumen_cuantitativo
   if (!length(valores)) {
+    if (cuantitativos$clase %in% c("numero", "integer64")) {
+      vacio$estado_outliers <- "no_evaluado"
+      vacio$motivo_outliers <- paste(
+        "No se evaluaron los limites de Tukey porque no hay valores finitos;",
+        "se requieren al menos 20 valores finitos y un IQR positivo."
+      )
+    }
     return(vacio)
   }
 
@@ -996,11 +1004,28 @@
     valores, iqr, sentinelas_numericos,
     q1 = cuartiles[[1L]], q3 = cuartiles[[2L]]
   )
-  if (is.finite(iqr)) {
+  if (length(valores) < 20L) {
+    n_outliers <- NA_integer_
+    estado_outliers <- "no_evaluado"
+    motivo_outliers <- paste0(
+      "No se evaluaron los limites de Tukey: hay ", length(valores),
+      " valores finitos y se requieren al menos 20. Reunir mas observaciones",
+      " o declarar otro criterio antes de interpretar outliers."
+    )
+  } else if (!is.finite(iqr) || iqr <= 0) {
+    n_outliers <- NA_integer_
+    estado_outliers <- "no_evaluado"
+    motivo_outliers <- paste(
+      "No se evaluaron los limites de Tukey porque el recorrido",
+      "intercuartilico es cero; no hay una distancia distributiva que medir.",
+      "Reunir valores con variacion o declarar otro criterio antes de",
+      "interpretar outliers."
+    )
+  } else {
     n_outliers <- sum(valores < cuartiles[[1L]] - 1.5 * iqr |
       valores > cuartiles[[2L]] + 1.5 * iqr)
-  } else {
-    n_outliers <- 0L
+    estado_outliers <- "evaluado"
+    motivo_outliers <- NA_character_
   }
 
   if (identical(cuantitativos$clase, "numero")) {
@@ -1013,6 +1038,7 @@
       n_outliers = n_outliers, centinela_valor = centinela$valor,
       centinela_repeticiones = centinela$n,
       densidad_sin_centinela = centinela$densidad_sin_centinela,
+      estado_outliers = estado_outliers, motivo_outliers = motivo_outliers,
       n_nan = as.integer(n_nan),
       n_infinito_positivo = as.integer(n_infinito_positivo),
       n_infinito_negativo = as.integer(n_infinito_negativo),
@@ -1033,6 +1059,7 @@
     n_ceros = 0L, n_negativos = 0L, n_outliers = n_outliers,
     centinela_valor = centinela$valor, centinela_repeticiones = centinela$n,
     densidad_sin_centinela = centinela$densidad_sin_centinela,
+    estado_outliers = estado_outliers, motivo_outliers = motivo_outliers,
     n_nan = as.integer(n_nan),
     n_infinito_positivo = as.integer(n_infinito_positivo),
     n_infinito_negativo = as.integer(n_infinito_negativo),
@@ -2414,6 +2441,7 @@
     multivaluados = multivaluados,
     valor_concentrado = valor_concentrado,
     geometria = geometria,
+    cuantitativo = cuantitativo,
     sentinelas_numericos_declarados = sentinelas_declarados,
     # La mascara viaja con el resultado para que la trazabilidad pueda nombrar
     # las filas del hallazgo de valor fuera de aplicabilidad.

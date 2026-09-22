@@ -61,7 +61,7 @@ test_that("el catálogo crea alternativas excluyentes y decisiones explícitas",
   expect_true(is.na(accion_numerica$recomendacion_grupo))
 
   extremos <- planificar_limpieza(perfilar(data.frame(
-    x = c(rep(1, 20), 100)
+    x = c(1:20, 100)
   )))
   acciones_extremos <- extremos[extremos$hallazgo == "outliers", , drop = FALSE]
   expect_setequal(acciones_extremos$estrategia, c(
@@ -286,7 +286,7 @@ test_that("los grupos resueltos sin destrucción no se vuelven a preguntar", {
 })
 
 test_that("las estrategias no destructivas alternativas se ejecutan", {
-  extremos <- data.frame(valor = c(rep(1, 20), 100))
+  extremos <- data.frame(valor = c(1:20, 100))
   plan_extremos <- activar_estrategia(
     planificar_limpieza(perfilar(extremos)), "winsorizar_outliers"
   )
@@ -509,7 +509,7 @@ test_that("los ejemplos guiados se calculan sobre los datos recibidos", {
     columnas = data.frame(a = 1:3, b = 1:3),
     nombres = structure(data.frame(x = 1:2), names = " nombre +"),
     numericos = data.frame(x = c(999, 1:9)),
-    extremos = data.frame(x = c(rep(1, 20), 100)),
+    extremos = data.frame(x = c(1:20, 100)),
     ausentes = data.frame(x = c(1, NA, 2)),
     constante = data.frame(x = rep("UY", 3))
   )

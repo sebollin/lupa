@@ -56,7 +56,8 @@ test_that("Inf desactiva ambos topes de la muestra", {
   )
 
   expect_equal(perfil$meta$muestra_efectiva, 4)
-  expect_equal(nrow(perfil$cobertura_diagnosticos), 0L)
+  expect_false(any(perfil$cobertura_diagnosticos$diagnostico ==
+                   "muestra_perfilado"))
 })
 
 test_that("un tope de celdas menor que una fila se rechaza explicitamente", {

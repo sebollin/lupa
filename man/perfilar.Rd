@@ -154,9 +154,10 @@ proporción de faltantes es \verb{0,100}, no hay hallazgo y el plan no propone
 nada; sin declararlo son \verb{0,730}, sale \code{faltantes} y el plan propone dos
 acciones.
 
-El universo también llega a la limpieza. El perfil guarda la regla, el plan
+El universo tambien llega a la limpieza. El perfil guarda la regla, el plan
 la lleva y \code{\link[=aplicar]{aplicar()}} no toca las celdas que quedan fuera: una \code{S/D} en una
-fila donde la columna no corresponde no se convierte en ausencia. Si la
+fila donde la columna no corresponde no se convierte en ausencia, y las
+acciones que marcan o eliminan filas solo consideran ese universo. Si la
 regla da un valor indeterminado, la celda tampoco se toca. Las
 conversiones de tipo son la excepción, porque una columna tiene un solo
 tipo y no se puede convertir a medias: el plan declara en \code{n_afectadas} y
@@ -657,6 +658,12 @@ no, porque la conversión descarta lo que no puede leer en los dos casos—,
 \code{n_valores_excluidos_resumen} y
 \code{estado_resumen_cuantitativo = "calculados_sobre_valores"} declaran ese
 alcance parcial.
+
+Los limites de Tukey se publican solo cuando hay al menos 20 valores finitos
+y el recorrido intercuartilico es positivo. Si falta alguna condicion,
+\code{n_outliers} queda en \code{NA} y \code{cobertura_diagnosticos} explica el motivo y
+como reunir evidencia suficiente; un IQR cero no convierte una categoria
+minoritaria en outlier.
 
 El paquete distingue lo que el usuario \strong{declara} de lo que él mismo
 \strong{sospecha}, y esa distinción gobierna los resúmenes. Cuando se reemplaza

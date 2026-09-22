@@ -67,6 +67,11 @@ separado, así que cada uno declina los suyos: una columna puede tener
 bastantes filas en un grupo y muy pocas en otro. Sin esa tabla, un grupo sin
 hallazgos se lee como un grupo sano, cuando puede ser un grupo sobre el que
 no se miró.
+
+Las senales de numeracion densa y de identificacion se miden tambien sobre
+columnas \code{integer64} con comparaciones exactas. Si un grupo vuelve a
+conjeturar un centinela por la particion, el hallazgo se mueve a esta
+cobertura y no se publica como defecto del grupo.
 }
 \description{
 Aplica \code{\link[=perfilar]{perfilar()}} a cada grupo de filas por separado y devuelve los

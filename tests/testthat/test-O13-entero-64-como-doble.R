@@ -88,7 +88,9 @@ test_that("un BIGINT chico conserva el calculo", {
   expect_equal(fila_muestra$maximo, 42)
   expect_false(identical(fila_muestra$tipo_declarado, "texto"))
   expect_identical(fila_muestra$estado_resumen_cuantitativo, "calculados")
-  expect_false(nrow(perfil$perfil_muestra$cobertura_diagnosticos) > 0L)
+  cobertura <- perfil$perfil_muestra$cobertura_diagnosticos
+  expect_true(any(cobertura$diagnostico == "outliers"))
+  expect_match(cobertura$motivo[cobertura$diagnostico == "outliers"], "20")
 })
 
 test_that("sin bit64 el BIGINT de la muestra queda como texto y se declara", {

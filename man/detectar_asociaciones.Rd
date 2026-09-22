@@ -36,6 +36,11 @@ omisión, o \code{"spearman"} para asociación monótona sobre los rangos.}
 \value{
 Data frame S3 \code{asociaciones_columnas}. Sus atributos declaran filas,
 columnas y pares examinados, omisiones por dependencia y truncamiento.
+\code{pares_omitidos_medicion} conserva los pares que no se pudieron medir,
+junto con el motivo y la cantidad de filas completas disponible. Su
+atributo \code{cobertura_diagnosticos} tiene una fila por par omitido. Cuando
+\code{\link[=analizar]{analizar()}} integra el resultado, esas filas se agregan a la cobertura
+del perfil.
 }
 \description{
 Calcula Pearson —o Spearman, si se pide— entre numéricas, V de Cramér entre

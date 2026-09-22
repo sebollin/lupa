@@ -35,7 +35,8 @@ test_that("las coordenadas imposibles se miden contra el CRS declarado", {
   expect_equal(nuevos$n_afectados, 1)
   expect_equal(nuevos$unidad_conteo, "geometria")
   expect_equal(nuevos$trazabilidad[[1L]]$indices_fila, 4L)
-  expect_equal(nrow(perfil$cobertura_diagnosticos), 0L)
+  expect_false(any(perfil$cobertura_diagnosticos$diagnostico ==
+                   "perfil_geometria"))
 })
 
 test_that("sin CRS no se inventa un dominio", {
@@ -55,7 +56,8 @@ test_that("sin CRS no se inventa un dominio", {
   expect_equal(fila$n_geometrias_invalidas, 0L)
   expect_true("crs_no_declarado" %in% perfil$hallazgos$tipo_hallazgo)
   expect_false("coordenada_fuera_dominio" %in% perfil$hallazgos$tipo_hallazgo)
-  expect_equal(nrow(perfil$cobertura_diagnosticos), 0L)
+  expect_false(any(perfil$cobertura_diagnosticos$diagnostico ==
+                   "perfil_geometria"))
 })
 
 test_that("se declaran invalidez, vacios y tipos geometricos mixtos", {
@@ -123,9 +125,12 @@ test_that("sin sf la geometria queda en cobertura y no en hallazgos", {
 
   expect_true(all(vapply(fila[campos], function(x) is.na(x[[1L]]), logical(1L))))
   expect_equal(nrow(perfil$hallazgos), 0L)
-  expect_equal(nrow(perfil$cobertura_diagnosticos), 1L)
-  expect_equal(perfil$cobertura_diagnosticos$diagnostico, "perfil_geometria")
-  expect_equal(perfil$cobertura_diagnosticos$dependencia, "sf")
+  cobertura_geometria <- perfil$cobertura_diagnosticos[
+    perfil$cobertura_diagnosticos$diagnostico == "perfil_geometria", ,
+    drop = FALSE
+  ]
+  expect_equal(nrow(cobertura_geometria), 1L)
+  expect_equal(cobertura_geometria$dependencia, "sf")
 })
 
 test_that("una tabla sin geometria conserva NA sin ruido", {
@@ -143,7 +148,8 @@ test_that("una tabla sin geometria conserva NA sin ruido", {
 
   expect_true(all(vapply(perfil$columnas[campos], function(x) all(is.na(x)),
                          logical(1L))))
-  expect_equal(nrow(perfil$cobertura_diagnosticos), 0L)
+  expect_false(any(perfil$cobertura_diagnosticos$diagnostico ==
+                   "perfil_geometria"))
   expect_false(any(perfil$hallazgos$tipo_hallazgo %in% c(
     "crs_no_declarado", "geometria_invalida", "geometria_vacia",
     "coordenada_fuera_dominio", "tipos_geometria_mixtos"

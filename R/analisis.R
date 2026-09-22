@@ -355,6 +355,15 @@ analizar <- function(datos, nombre = .nombre_de_los_datos(substitute(datos)),
     max_columnas_asociacion, max_niveles_asociacion, max_pares_asociacion,
     metodo_numerico = metodo_asociacion_numerica
   )
+  cobertura_asociaciones <- attr(
+    asociaciones, "cobertura_diagnosticos", exact = TRUE
+  )
+  if (inherits(cobertura_asociaciones, "data.frame") &&
+      nrow(cobertura_asociaciones)) {
+    perfil$cobertura_diagnosticos <- rbind(
+      perfil$cobertura_diagnosticos, cobertura_asociaciones
+    )
+  }
   temporal <- analizar_tiempo(
     datos, perfil, calendario = calendario, frecuencia_dias = frecuencia_dias,
     max_huecos = max_huecos, max_columnas = max_columnas_temporales

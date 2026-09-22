@@ -10,6 +10,13 @@
 
 ## Correcciones de cobertura y publicación
 
+- **Lo que no se puede medir ya no se publica como medido.** Tukey declara un
+  IQR cero o menos de 20 valores en la cobertura; las asociaciones conservan
+  los pares sin filas completas o con medidas no finitas; y `perfilar_por()`
+  mueve a cobertura los centinelas que solo aparecen por partir una columna
+  `integer64`. Las acciones de marcar o eliminar ausentes respetan el universo
+  declarado por `aplicabilidad` y fallan sin tocar datos si no pueden evaluarlo.
+
 - **Los enteros anchos que llegan como doble ya no se publican como exactos.**
   `perfilar_dbi()` reconoce BIGINT y tipos decimales de escala cero con
   precision potencialmente peligrosa. Si el driver entrega un valor de al

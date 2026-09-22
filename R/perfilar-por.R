@@ -75,6 +75,11 @@
 #'   bastantes filas en un grupo y muy pocas en otro. Sin esa tabla, un grupo sin
 #'   hallazgos se lee como un grupo sano, cuando puede ser un grupo sobre el que
 #'   no se miró.
+#'
+#'   Las senales de numeracion densa y de identificacion se miden tambien sobre
+#'   columnas `integer64` con comparaciones exactas. Si un grupo vuelve a
+#'   conjeturar un centinela por la particion, el hallazgo se mueve a esta
+#'   cobertura y no se publica como defecto del grupo.
 #' @export
 #' @seealso [perfilar()], [cobertura_analisis()]
 #'
@@ -286,14 +291,22 @@ perfilar_por <- function(datos, por, clave = NULL, min_filas = 30L, ...) {
   # a la cobertura con el motivo verdadero: ni se publica ni se calla.
   columnas_identificadoras <- character()
   columnas_densas <- character()
+  columnas_centinales_no_evaluables <- character()
   hay_centinelas_declarados <- length(
     .sentinelas_numericos_declarados(extras$sentinelas_numericos)
   ) > 0L
   for (nombre_columna in nombres_sin_por) {
     valores <- datos[[nombre_columna]]
-    if (!is.numeric(valores) || inherits(valores, "integer64")) next
+    es_integer64 <- inherits(valores, "integer64")
+    if (!is.numeric(valores) && !es_integer64) next
     presentes <- valores[!is.na(valores)]
     if (!length(presentes)) next
+    if (es_integer64 && !.bit64_disponible()) {
+      columnas_centinales_no_evaluables <- c(
+        columnas_centinales_no_evaluables, nombre_columna
+      )
+      next
+    }
     # La senal es la MISMA que usa la guarda de Benford, calculada sobre la
     # columna entera en vez de sobre la rebanada. Un primer intento uso
     # `tasa_distintos >= 0.9`, y el control lo tumbo: los importes reales son
@@ -303,10 +316,23 @@ perfilar_por <- function(datos, por, clave = NULL, min_filas = 30L, ...) {
     if (isTRUE(.parece_correlativo_benford(valores))) {
       columnas_identificadoras <- c(columnas_identificadoras, nombre_columna)
     }
-    secuencia <- tryCatch(
-      .resumen_secuencia_entera(valores, list(tipo = "entero"), NULL),
-      error = function(e) NULL
-    )
+    secuencia <- if (es_integer64) {
+      distintos <- sort(unique(presentes))
+      rango <- max(distintos) - min(distintos) + bit64::as.integer64(1)
+      limite_doble <- bit64::as.integer64("9007199254740991")
+      densidad <- if (rango > limite_doble) 0 else {
+        length(distintos) / as.numeric(rango)
+      }
+      list(
+        densa = length(distintos) >= 20L && densidad >= 0.8,
+        no_evaluada = FALSE
+      )
+    } else {
+      tryCatch(
+        .resumen_secuencia_entera(valores, list(tipo = "entero"), NULL),
+        error = function(e) NULL
+      )
+    }
     if (isTRUE(secuencia$densa)) {
       columnas_densas <- c(columnas_densas, nombre_columna)
     }
@@ -554,6 +580,22 @@ perfilar_por <- function(datos, por, clave = NULL, min_filas = 30L, ...) {
           "sobre una numeraci\u00f3n el paquete no conjetura centinelas para no",
           "llamar faltante a un c\u00f3digo v\u00e1lido. Los huecos del grupo son de la",
           "partici\u00f3n, no de la columna."
+        )
+      )
+    }
+    if (nrow(perfil$hallazgos) &&
+        length(columnas_centinales_no_evaluables)) {
+      mover_a_cobertura(
+        perfil$hallazgos$tipo_hallazgo %in% c(
+          "faltantes_disfrazados", "posible_centinela_numerico"
+        ) &
+          .nombres_para_operar(perfil$hallazgos$columna) %in%
+            .nombres_para_operar(columnas_centinales_no_evaluables),
+        "centinelas_numericos",
+        paste(
+          "No se pudo medir la numeracion de la columna `integer64` sin su",
+          "soporte exacto; el hallazgo del grupo no se publica para no",
+          "conjeturar sobre una medida incompleta."
         )
       )
     }
