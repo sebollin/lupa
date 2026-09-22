@@ -343,15 +343,39 @@
   )
 }
 
+# El nombre con que la cobertura declina un diagnostico no siempre es el del
+# hallazgo que ese diagnostico produce. La cobertura dice
+# `proximidad_vocabulario` y el hallazgo se llama `casi_duplicados_vocabulario`,
+# asi que la clave de declinacion nunca casaba: un diagnostico que el perfil
+# nuevo declinaba POR ESCRITO -"no se evaluo la proximidad del vocabulario"- se
+# informaba **resuelto, severidad ok**, con `Norte` y `norte` todavia en la
+# columna. El primer motivo de `no_evaluado` no disparaba nunca para esta
+# familia.
+#
+# Los nombres que ya coinciden no necesitan entrada, y los que no producen
+# hallazgo propio tampoco. Una prueba recorre TODOS los nombres que la
+# cobertura escribe y exige que cada uno caiga en alguno de los tres casos,
+# para que un diagnostico nuevo no se desencuentre en silencio.
+.hallazgos_por_diagnostico <- list(
+  proximidad_vocabulario = c(
+    "casi_duplicados_vocabulario", "variantes_equifrecuentes_vocabulario"
+  ),
+  ley_benford = "desviacion_benford"
+)
+
 .diagnosticos_declinados_deriva <- function(perfil) {
   cobertura <- perfil$cobertura_diagnosticos
   if (!inherits(cobertura, "data.frame") || !nrow(cobertura) ||
         !all(c("columna", "diagnostico") %in% names(cobertura))) {
     return(character())
   }
-  .clave_declinacion_deriva(
-    as.character(cobertura$columna), as.character(cobertura$diagnostico)
-  )
+  diagnosticos <- as.character(cobertura$diagnostico)
+  columnas <- as.character(cobertura$columna)
+  unlist(lapply(seq_along(diagnosticos), function(i) {
+    tipos <- .hallazgos_por_diagnostico[[diagnosticos[[i]]]]
+    if (is.null(tipos)) tipos <- diagnosticos[[i]]
+    .clave_declinacion_deriva(rep(columnas[[i]], length(tipos)), tipos)
+  }), use.names = FALSE)
 }
 
 .resumir_hallazgos_deriva <- function(perfil) {

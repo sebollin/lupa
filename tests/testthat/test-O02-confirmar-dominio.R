@@ -68,21 +68,65 @@ test_that("la justificacion nombra el marcador que obligo a confirmar", {
   expect_true(grepl("Namibia", justificacion, fixed = TRUE))
 })
 
-test_that("los marcadores se leen de la evidencia que el propio paquete publica", {
-  leer <- lupa:::.marcadores_disfrazados
-  expect_identical(leer("NA (3)"), "NA")
-  expect_identical(leer("NC (59); SD (7)"), c("NC", "SD"))
-  expect_identical(leer(""), character())
-  expect_identical(leer(NA_character_), character())
-  expect_identical(leer(NULL), character())
-  # Un marcador con espacio adentro no se parte.
-  expect_identical(leer("sin dato (4)"), "sin dato")
+test_that("un marcador ambiguo escondido por la evidencia recortada se ve igual", {
+  # La evidencia se recorta a los seis marcadores mas frecuentes. La primera
+  # version de la regla la leia de ahi, y un `NA` poco frecuente -Namibia-
+  # quedaba fuera de la vista: la conversion se autoaplicaba y lo destruia.
+  columna <- c(rep("S/D", 3L), rep("-", 2L), rep("?", 2L), rep(".", 2L),
+               rep("..", 2L), rep("N/D", 2L), "NA", rep("B", 4L))
+  datos <- data.frame(x = columna, stringsAsFactors = FALSE)
+  perfil <- perfilar(datos, analizar_dependencias = FALSE)
 
-  decide <- lupa:::.marcador_puede_ser_valor
-  expect_true(decide("NA"))
-  expect_true(decide(c("S/D", "NULL")))
-  expect_false(decide("S/D"))
-  expect_false(decide("sin dato"))
-  expect_false(decide("-"))
-  expect_false(decide(character()))
+  # Con los datos, que es lo habitual, se ve el marcador escondido.
+  plan <- planificar_limpieza(perfil, datos)
+  fila <- .o02_fila(plan)
+  expect_true(length(fila) > 0L)
+  expect_false(any(as.logical(plan$aplicar[fila])))
+  resultado <- aplicar(plan, datos)$datos$x
+  expect_identical(resultado[[which(columna == "NA")]], "NA")
+
+  # Sin los datos no se puede ver, pero SI se puede saber que la evidencia vino
+  # recortada: los conteos no suman el total. Y entonces se pide confirmar.
+  solo_perfil <- planificar_limpieza(perfil)
+  fila <- .o02_fila(solo_perfil)
+  expect_true(length(fila) > 0L)
+  expect_false(any(as.logical(solo_perfil$aplicar[fila])))
+})
+
+test_that("lo que el usuario declara como ausencia no se le discute", {
+  # La deteccion ya deja pasar lo declarado porque el paquete no tiene con que
+  # contradecir a quien conoce el dato. El plan no puede pedirle despues que
+  # confirme lo que acaba de afirmar.
+  for (caso in list(
+    list(valores = c("SD", "SD", "SD", "NC", "NC", rep("B", 5L)), declarados = c("SD", "NC")),
+    list(valores = c("NA1", "NA1", "NA1", rep("B", 4L)), declarados = "NA1")
+  )) {
+    datos <- data.frame(x = caso$valores, stringsAsFactors = FALSE)
+    perfil <- perfilar(datos, cadenas_ausencia = caso$declarados,
+                       analizar_dependencias = FALSE)
+    plan <- planificar_limpieza(perfil, datos)
+    fila <- .o02_fila(plan)
+    expect_true(length(fila) > 0L, info = caso$declarados[[1L]])
+    expect_true(all(as.logical(plan$aplicar[fila])), info = caso$declarados[[1L]])
+  }
+})
+
+test_that("la lectura de marcadores y la decision de ambiguedad", {
+  leer <- lupa:::.marcadores_de_ausencia
+  # Desde los datos: completa, y en minusculas como los compara el catalogo.
+  desde_datos <- leer(c("NA", "B", "S/D", NA), "ignorada", 2L)
+  expect_true(desde_datos$completa)
+  expect_setequal(desde_datos$marcadores, c("na", "s/d"))
+  # Desde la evidencia: completa solo si los conteos suman el total.
+  expect_true(leer(NULL, "S/D (3); N/D (2)", 5L)$completa)
+  expect_false(leer(NULL, "S/D (3); N/D (2)", 6L)$completa)
+  expect_false(leer(NULL, "", 3L)$completa)
+  expect_identical(leer(NULL, "sin dato (4)", 4L)$marcadores, "sin dato")
+
+  ambiguos <- lupa:::.marcadores_ambiguos
+  expect_identical(ambiguos(c("na", "s/d")), "na")
+  expect_identical(ambiguos(c("na1", "-")), "na1")
+  expect_identical(ambiguos(c("sin dato", "s/d", "?")), character())
+  # Lo declarado no cuenta como ambiguo.
+  expect_identical(ambiguos(c("sd", "nc"), declarados = c("SD", "NC")), character())
 })

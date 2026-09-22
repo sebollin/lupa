@@ -139,3 +139,29 @@ test_that("las cuatro convenciones se cubren, no dos", {
                 info = paste(caso, collapse = ","))
   }
 })
+
+test_that("la notacion cientifica no se escapa de la guarda de precision", {
+  # `.componentes_numero_texto()` marca la notacion cientifica como
+  # incompatible y su cuerpo lleva la `e`, asi que `9.007199254740993e15` -que
+  # es 2^53 + 1, el valor exacto que esta guarda documenta atrapar- entraba por
+  # `convertir_tipo` y se redondeaba sin que nadie lo mirara.
+  plan_de <- function(valores) {
+    datos <- data.frame(x = valores, stringsAsFactors = FALSE)
+    planificar_limpieza(perfilar(datos, analizar_dependencias = FALSE), datos)
+  }
+  conversion <- function(plan) {
+    which(plan$estrategia %in% c("convertir_tipo", "convertir_numero_regional"))
+  }
+
+  roto <- plan_de(rep(c("9.007199254740993e15", "9.007199254740994e15"), c(3L, 2L)))
+  fila <- conversion(roto)
+  expect_true(length(fila) > 0L)
+  expect_false(any(as.logical(roto$reversible[fila])))
+  expect_false(any(as.logical(roto$recomendada[fila])))
+
+  # Y 2^53 escrito en cientifica ES representable: no se acusa.
+  exacto <- plan_de(rep(c("9.007199254740992e15", "1e3"), c(3L, 2L)))
+  fila <- conversion(exacto)
+  expect_true(length(fila) > 0L)
+  expect_true(all(as.logical(exacto$reversible[fila])))
+})

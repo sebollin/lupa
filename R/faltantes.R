@@ -166,31 +166,52 @@ sentinelas_naniar <- c(-9, -99, -999, -9999, 9999, 66, 77, 88)
   )
 }
 
-# Los marcadores que la evidencia de `faltantes_disfrazados` publica.
+# Los marcadores de ausencia que hay en una columna, y si la lista es completa.
 #
-# El formato lo produce este mismo archivo: `"<marcador> (<n>)"` unidos por
-# `"; "`. Se lee de ahi porque `planificar_limpieza()` puede recibir el perfil
-# SIN los datos, y entonces no hay con que recalcularlos.
-.marcadores_disfrazados <- function(evidencia) {
-  if (is.null(evidencia) || !length(evidencia)) return(character())
-  evidencia <- as.character(evidencia)[[1L]]
-  if (is.na(evidencia) || !nzchar(evidencia)) return(character())
-  partes <- strsplit(evidencia, "; ", fixed = TRUE)[[1L]]
-  trimws(sub("\\s*\\([0-9]+\\)$", "", partes))
+# La primera version los leia de la EVIDENCIA del hallazgo, y la evidencia se
+# recorta a los seis marcadores mas frecuentes: un `NA` poco frecuente -el
+# codigo de Namibia- quedaba fuera de la vista y la conversion se autoaplicaba
+# igual, destruyendolo. Ahora se leen de los DATOS cuando estan, que es lo
+# habitual. La evidencia queda de respaldo para cuando `planificar_limpieza()`
+# recibe el perfil solo, y ahi se detecta si vino recortada: si los conteos
+# que muestra no suman el total de textuales, hay marcadores que no se ven, y
+# `completa = FALSE` obliga a quien llama a ser prudente.
+.marcadores_de_ausencia <- function(columna_datos, evidencia, n_textuales,
+                                    declarados = character()) {
+  catalogo <- unique(c(.cadenas_na(), tolower(trimws(as.character(declarados)))))
+  if (!is.null(columna_datos) && (is.character(columna_datos) ||
+                                  is.factor(columna_datos))) {
+    textos <- .texto_analizable(columna_datos)$valores
+    normalizados <- unique(tolower(trimws(textos[!is.na(textos)])))
+    return(list(marcadores = normalizados[normalizados %in% catalogo],
+                completa = TRUE))
+  }
+  if (is.null(evidencia) || !length(evidencia) || is.na(evidencia[[1L]]) ||
+      !nzchar(evidencia[[1L]])) {
+    return(list(marcadores = character(), completa = FALSE))
+  }
+  partes <- strsplit(as.character(evidencia)[[1L]], "; ", fixed = TRUE)[[1L]]
+  marcadores <- tolower(trimws(sub("\\s*\\([0-9]+\\)$", "", partes)))
+  conteos <- suppressWarnings(as.integer(sub("^.*\\(([0-9]+)\\)$", "\\1", partes)))
+  completa <- !anyNA(conteos) && !is.na(n_textuales) &&
+    sum(conteos) >= n_textuales
+  list(marcadores = marcadores, completa = completa)
 }
 
-# Un marcador que PODRIA ser un valor legitimo de la columna.
+# Si alguno de esos marcadores podria ser un valor legitimo de la columna.
 #
-# `NA` es el codigo ISO de Namibia, `NULL` puede ser un apellido, `SD` puede
-# ser un departamento. Nadie, en cambio, escribe `S/D`, `sin dato`, `-` o `?`
-# como dato: llevan puntuacion o espacios y por eso no se confunden.
+# `NA` es el codigo ISO de Namibia, `NULL` puede ser un apellido. Nadie, en
+# cambio, escribe `S/D`, `sin dato`, `-` o `?` como dato: llevan puntuacion o
+# espacios y no se confunden. El criterio es alfanumerico y no solo alfabetico:
+# un codigo como `NA1` es tan plausible como `NA`.
 #
-# La distincion decide CONDUCTA y no solo texto: la ronda anterior corrigio la
-# justificacion para que pidiera confirmar el dominio, y el plan seguia
-# marcandose `recomendada` y autoaplicandose. Cambiar la frase no cambia lo que
-# el paquete hace.
-.marcador_puede_ser_valor <- function(marcadores) {
-  if (!length(marcadores)) return(FALSE)
-  any(grepl("^[[:alpha:]]+$", marcadores))
+# Lo que el usuario DECLARO en `cadenas_ausencia` no se discute. La deteccion
+# ya dice que lo declarado atraviesa la guarda del vocabulario porque el
+# paquete no tiene con que contradecir a quien conoce el dato, y el plan no
+# puede contradecirlo despues: pedirle que confirme lo que acaba de afirmar.
+.marcadores_ambiguos <- function(marcadores, declarados = character()) {
+  if (!length(marcadores)) return(character())
+  propios <- setdiff(marcadores, tolower(trimws(as.character(declarados))))
+  propios[grepl("^[[:alnum:]]+$", propios)]
 }
 

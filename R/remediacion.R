@@ -302,21 +302,41 @@
             gsub(",", "", cuerpos[con_separador], fixed = TRUE)
         }
       }
+      significativos <- function(x) {
+        x <- gsub("[^0-9]", "", x)
+        x <- sub("^0+", "", x)
+        sub("0+$", "", x)
+      }
       es_entero <- !is.na(normalizados) &
         grepl("^[+-]?[0-9]+$", trimws(normalizados), perl = TRUE)
       candidatos <- which(presentes & es_entero)
       if (length(candidatos)) {
-        significativos <- function(x) {
-          x <- gsub("[^0-9]", "", x)
-          x <- sub("^0+", "", x)
-          sub("0+$", "", x)
-        }
         valores <- suppressWarnings(as.numeric(trimws(normalizados[candidatos])))
         vuelta <- ifelse(is.finite(valores), sprintf("%.0f", abs(valores)), NA_character_)
         digitos_antes <- significativos(normalizados[candidatos])
         digitos_vuelta <- significativos(vuelta)
         redondeados[candidatos] <- !is.na(vuelta) & nzchar(digitos_antes) &
           digitos_antes != digitos_vuelta
+      }
+      # La notacion cientifica no pasa por la rama de arriba:
+      # `.componentes_numero_texto()` la marca incompatible y su cuerpo lleva
+      # la `e`, asi que `9.007199254740993e15` -que es 2^53 + 1, el valor
+      # exacto que esta guarda documenta atrapar- entraba por `convertir_tipo`
+      # y se redondeaba sin que nadie lo mirara. Los digitos que cuentan son
+      # los de la MANTISA; el exponente solo corre la coma.
+      cientificos <- which(
+        presentes & !is.na(cuerpos) &
+          grepl("^[+-]?([0-9]+[.]?[0-9]*|[.][0-9]+)[eE][+-]?[0-9]+$",
+                trimws(cuerpos), perl = TRUE)
+      )
+      if (length(cientificos)) {
+        valores <- suppressWarnings(as.numeric(trimws(cuerpos[cientificos])))
+        enteros_c <- is.finite(valores) & valores == floor(valores)
+        mantisas <- sub("[eE].*$", "", trimws(cuerpos[cientificos]))
+        vuelta <- ifelse(enteros_c, sprintf("%.0f", abs(valores)), NA_character_)
+        redondeados[cientificos] <- enteros_c &
+          nzchar(significativos(mantisas)) &
+          significativos(mantisas) != significativos(vuelta)
       }
     }
   }
@@ -594,17 +614,32 @@ planificar_limpieza <- function(perfil, datos = NULL,
           "ninguno de esos textos sea un valor leg\u00edtimo de la columna ",
           "-`NA` es el c\u00f3digo de Namibia, `NULL` puede ser un apellido-."
         )
-        marcadores <- .marcadores_disfrazados(hallazgo$evidencia[[1L]])
-        confirmar <- .marcador_puede_ser_valor(marcadores)
+        declarados <- perfil$meta$cadenas_ausencia
+        leidos <- .marcadores_de_ausencia(
+          if (!is.null(datos) && columna %in% names(datos)) datos[[columna]] else NULL,
+          hallazgo$evidencia[[1L]], n_textuales, declarados
+        )
+        ambiguos <- .marcadores_ambiguos(leidos$marcadores, declarados)
+        # Sin los datos y con la evidencia recortada, no se puede saber si hay
+        # un marcador ambiguo fuera de la vista: se pide confirmar.
+        confirmar <- length(ambiguos) > 0L || !isTRUE(leidos$completa)
         if (confirmar) {
-          justificacion <- paste0(
-            "Uno de los textos detectados (",
-            paste(marcadores[grepl("^[[:alpha:]]+$", marcadores)], collapse = ", "),
-            ") podr\u00eda ser un valor leg\u00edtimo de la columna: `NA` es el ",
-            "c\u00f3digo de Namibia, `NULL` puede ser un apellido. El cambio no ",
-            "es reversible y el paquete no puede decidirlo, as\u00ed que la ",
-            "acci\u00f3n queda para activar a mano."
-          )
+          justificacion <- if (length(ambiguos)) {
+            paste0(
+              "Uno de los textos detectados (", paste(ambiguos, collapse = ", "),
+              ") podr\u00eda ser un valor leg\u00edtimo de la columna: `NA` es el ",
+              "c\u00f3digo de Namibia, `NULL` puede ser un apellido. El cambio no ",
+              "es reversible y el paquete no puede decidirlo, as\u00ed que la ",
+              "acci\u00f3n queda para activar a mano."
+            )
+          } else {
+            paste0(
+              "La evidencia muestra s\u00f3lo los marcadores m\u00e1s frecuentes y ",
+              "no se recibieron los datos para ver el resto: puede haber uno que ",
+              "sea un valor leg\u00edtimo de la columna. El cambio no es ",
+              "reversible, as\u00ed que la acci\u00f3n queda para activar a mano."
+            )
+          }
         }
         acciones <- .agregar_accion(acciones, .nueva_accion(
           columna, tipo, "convertir_ausencias_textuales", !confirmar,
@@ -2204,7 +2239,12 @@ planificar_limpieza <- function(perfil, datos = NULL,
   if (identical(estrategia, "convertir_ausencias_textuales")) {
     cambio <- .reemplazar_ausencias_textuales(x, parametros)
     datos[[indice]] <- cambio$valor
-    return(list(datos = datos, n = cambio$n))
+    # Cada celda que se convierte en ausencia pierde el texto que tenia: `S/D`
+    # o `N/A` no quedan en ningun lado. El plan ya declara la accion
+    # `reversible = FALSE`, pero el registro informaba `n_no_reversibles = 0`
+    # porque este ejecutor no lo devolvia y `aplicar()` completa con cero: dos
+    # perdidas reales y ninguna cuantificada. Aca todo cambio es irreversible.
+    return(list(datos = datos, n = cambio$n, n_no_reversibles = cambio$n))
   }
   if (identical(estrategia, "convertir_sentinelas_numericos")) {
     cambio <- .reemplazar_sentinelas_numericos(x, parametros)
