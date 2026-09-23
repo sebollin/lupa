@@ -916,6 +916,11 @@ evaluar <- function(medicion, perfil) {
   )
   if (!is.null(desenlaces)) estructura$desenlaces <- desenlaces
   class(estructura) <- "evaluacion_calidad"
+  # La marca de si la fecha la declaro quien llama viaja con la evaluacion:
+  # `comparar_evaluaciones()` la necesita para saber si las dos fechas son una
+  # serie o dos relojes de la misma sesion.
+  attr(estructura, "fecha_declarada") <-
+    isTRUE(attr(medicion, "fecha_declarada", exact = TRUE))
   estructura
 }
 
@@ -943,6 +948,16 @@ comparar_evaluaciones <- function(anterior, actual) {
       length(.identificadores_unicos(b$id_medicion)) != 1L) {
     stop("Cada evaluaci\u00f3n debe contener una sola corrida.", call. = FALSE)
   }
+  # La misma razon que en `comparar_perfiles()`: con las corridas cambiadas, el
+  # delta publicado dice que bajo lo que subio, y la fila llama "anterior" a la
+  # fecha mas nueva.
+  .exigir_orden_temporal(
+    if (nrow(a)) a$fecha[[1L]] else NULL,
+    if (nrow(b)) b$fecha[[1L]] else NULL,
+    "comparar_evaluaciones()",
+    declaradas = isTRUE(attr(anterior, "fecha_declarada", exact = TRUE)) &&
+      isTRUE(attr(actual, "fecha_declarada", exact = TRUE))
+  )
   a <- a[c("perfil", "id_medicion", "fecha", "resultado")]
   b <- b[c("perfil", "id_medicion", "fecha", "resultado")]
   a$perfil_operativo <- .nombres_para_operar(a$perfil)

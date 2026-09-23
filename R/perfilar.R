@@ -1706,6 +1706,7 @@ perfilar <- function(datos,
     1
   }
   normalizacion_resuelta <- .resolver_normalizacion(normalizar)
+  fecha_declarada <- !missing(fecha)
   fecha_hora <- tryCatch(.fecha_utc(fecha), error = function(e) NA)
   if (length(fecha_hora) != 1L || is.na(fecha_hora) ||
       !is.finite(as.numeric(fecha_hora))) {
@@ -2278,6 +2279,12 @@ perfilar <- function(datos,
   meta <- list(
     nombre = nombre,
     fecha_hora = fecha_hora,
+    # `fecha` es la hora de LA CORRIDA, y por omision es `Sys.time()`: dos
+    # perfiles hechos en la misma sesion quedan a segundos uno del otro, en el
+    # orden en que se corrieron, que no dice nada sobre las entregas. Se
+    # registra si la declaro quien llama, porque es la unica forma de saber si
+    # las dos fechas son una serie -y recien ahi tiene sentido exigir el orden-.
+    fecha_declarada = fecha_declarada,
     version = .version_paquete(),
     entrada_convertida = entrada_convertida,
     columnas_personales_declaradas = names(columnas_personales),

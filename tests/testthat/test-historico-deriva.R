@@ -581,7 +581,11 @@ test_that("un perfil sin un campo declara la no comparabilidad y no aborta", {
     x = c(1, 2, 3, 4, 9), t = c("a", "b", "z", "c", "b"),
     stringsAsFactors = FALSE
   )
-  actual <- perfilar(d2)
+  # Las fechas van declaradas: el escenario es "el perfil viejo no trae un
+  # campo", no "cual de los dos se construyo primero". Sin declararlas, `viejo`
+  # se arma dentro del bucle y queda fechado DESPUES que `actual`, que es lo que
+  # la guarda de orden rechaza -con razon-.
+  actual <- perfilar(d2, fecha = as.POSIXct("2026-02-01", tz = "UTC"))
 
   esperado <- c(
     tasa_distintos = "cardinalidad", n_distintos = "cardinalidad",
@@ -590,7 +594,7 @@ test_that("un perfil sin un campo declara la no comparabilidad y no aborta", {
     maximo_fecha = "rango"
   )
   for (campo in names(esperado)) {
-    viejo <- perfilar(d1)
+    viejo <- perfilar(d1, fecha = as.POSIXct("2026-01-01", tz = "UTC"))
     viejo$columnas <- viejo$columnas[
       , setdiff(names(viejo$columnas), campo), drop = FALSE
     ]
@@ -612,7 +616,7 @@ test_that("un perfil sin un campo declara la no comparabilidad y no aborta", {
 
   # La fila declarada dice de que lado falta, que es lo que permite entender
   # que el problema es la version del perfil y no los datos.
-  viejo <- perfilar(d1)
+  viejo <- perfilar(d1, fecha = as.POSIXct("2026-01-01", tz = "UTC"))
   viejo$columnas <- viejo$columnas[
     , setdiff(names(viejo$columnas), "tasa_distintos"), drop = FALSE
   ]

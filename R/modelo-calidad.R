@@ -1420,6 +1420,7 @@ medir <- function(modelo, datos, id_medicion = NULL, fecha = Sys.time(),
   if (length(fecha) != 1L || is.na(fecha)) {
     stop("`fecha` debe contener una fecha y hora v\u00e1lida.", call. = FALSE)
   }
+  fecha_declarada <- !missing(fecha)
   fecha <- as.POSIXct(fecha)
   if (!is.logical(proteger_datos_personales) ||
       length(proteger_datos_personales) != 1L ||
@@ -1525,6 +1526,11 @@ medir <- function(modelo, datos, id_medicion = NULL, fecha = Sys.time(),
   if (length(coberturas)) {
     attr(resultado, "cobertura_metricas") <- do.call(rbind, coberturas)
   }
+  # Igual que en `perfilar()`: la fecha por omision es la hora de la corrida, y
+  # dos mediciones de la misma sesion no son una serie. Se registra si la
+  # declaro quien llama, para que la comparacion pueda exigir el orden solo
+  # cuando las dos fechas significan algo.
+  attr(resultado, "fecha_declarada") <- fecha_declarada
   attr(resultado, "configuracion_modelo") <- .configuracion_modelo_calidad(modelo)
   if (inherits(modelo$marco, "marco_calidad")) {
     attr(resultado, "marco_calidad") <- modelo$marco

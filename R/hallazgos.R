@@ -3148,6 +3148,13 @@
 .advertir_incoherencias_trazabilidad <- function(hallazgos, datos = NULL,
                                                  nombres = NULL) {
   if (!nrow(hallazgos)) return(invisible(hallazgos))
+  # Sin `severidad` no se puede decidir: la guarda salta los hallazgos
+  # informativos -que cuentan cero por definicion- comparando ese campo, y sin
+  # el acusaria a todos. Desde que esta guarda corre tambien al PUBLICAR, le
+  # llegan objetos a los que les falta una columna, y acusar sin el campo que
+  # decide es una acusacion falsa.
+  campos <- c("severidad", "n_afectados", "unidad_conteo", "trazabilidad")
+  if (!all(campos %in% names(hallazgos))) return(invisible(hallazgos))
   problemas <- character()
   for (i in seq_len(nrow(hallazgos))) {
     severidad <- as.character(hallazgos$severidad[[i]])

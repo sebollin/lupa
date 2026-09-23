@@ -476,6 +476,38 @@
   abs(magnitud) >= umbral - tolerancia
 }
 
+# Los dos objetos llevan su medicion fechada y la comparacion publica esas
+# fechas en cada fila. Con los argumentos cambiados, la direccion publicada es
+# la contraria de la serie medida -un hallazgo que se agravo sale `atenuado`, un
+# patron que aparecio sale `desaparecido`- y la afirmacion contradice a las
+# fechas de su propia fila. No se puede adivinar cual quiso poner quien llama:
+# se para temprano y se dice como arreglarlo. Si alguna fecha falta o las dos
+# son iguales, no hay nada que verificar y sigue como siempre.
+.exigir_orden_temporal <- function(fecha_anterior, fecha_actual, funcion,
+                                   declaradas = TRUE) {
+  # Solo cuando las dos fechas las declaro quien llama: la de omision es la hora
+  # de la corrida, y con dos perfiles hechos en la misma sesion el orden de los
+  # relojes no dice nada. Lo atrapo la suite, sobre pruebas que perfilan dos
+  # veces seguidas sin declarar fecha.
+  if (!isTRUE(declaradas)) return(invisible(NULL))
+  validas <- function(x) length(x) == 1L && !is.na(x) && is.finite(as.numeric(x))
+  if (!validas(fecha_anterior) || !validas(fecha_actual)) return(invisible(NULL))
+  # Se compara a la resolucion que el paquete PUBLICA -el segundo-, no a la del
+  # reloj: dos perfiles hechos en el mismo segundo no son una serie, y la guarda
+  # los rechazaba con un mensaje que imprimia dos veces la misma fecha. Lo
+  # atrapo la suite, sobre una prueba que perfila dos veces seguidas.
+  anterior_seg <- trunc(as.numeric(fecha_anterior))
+  actual_seg <- trunc(as.numeric(fecha_actual))
+  if (anterior_seg <= actual_seg) return(invisible(NULL))
+  stop(
+    "`anterior` esta fechado despues que `actual` (",
+    format(fecha_anterior, "%Y-%m-%d %H:%M:%S"), " contra ",
+    format(fecha_actual, "%Y-%m-%d %H:%M:%S"), "), asi que ", funcion,
+    " publicaria la direccion del cambio al reves. Invierta los argumentos.",
+    call. = FALSE
+  )
+}
+
 #' Comparar dos perfiles y detectar deriva estructural
 #'
 #' Compara entregas sin exigir que tengan las mismas columnas. Devuelve cambios
@@ -558,6 +590,11 @@ comparar_perfiles <- function(anterior, actual, umbral_cambio = 0.05,
                               umbral_error = 0.20) {
   anterior <- .validar_perfil_deriva(anterior, "anterior")
   actual <- .validar_perfil_deriva(actual, "actual")
+  .exigir_orden_temporal(
+    anterior$meta$fecha_hora, actual$meta$fecha_hora, "comparar_perfiles()",
+    declaradas = isTRUE(anterior$meta$fecha_declarada) &&
+      isTRUE(actual$meta$fecha_declarada)
+  )
   umbrales <- c(umbral_cambio, umbral_error)
   if (!is.numeric(umbrales) || anyNA(umbrales) ||
       any(!is.finite(umbrales)) || any(umbrales < 0 | umbrales > 1) ||

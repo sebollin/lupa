@@ -237,6 +237,12 @@
     stringsAsFactors = FALSE
   )
   hallazgos <- x$hallazgos
+  # El informe es la superficie donde un hallazgo editado a mano circula fuera
+  # del equipo: la misma guarda que corre al construirlo y al publicarlo por
+  # `hallazgos()` tiene que correr aca.
+  if (inherits(hallazgos, "data.frame")) {
+    .advertir_incoherencias_trazabilidad(hallazgos)
+  }
   severidades <- if ("severidad" %in% names(hallazgos)) hallazgos$severidad else {
     character()
   }

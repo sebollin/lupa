@@ -228,6 +228,14 @@ hallazgos <- function(x, ...) {
     }
     return(.hallazgos_sin_filas())
   }
+  # La guarda de coherencia corre cuando los hallazgos se construyen, y no
+  # volvia a correr cuando se PUBLICAN. Un objeto editado a mano despues de
+  # perfilar -`n_afectados <- 0` sobre un hallazgo cuya trazabilidad sigue
+  # nombrando dos filas- salia por esta puerta y por el informe sin que nada
+  # dijera que la cifra y su respaldo no coinciden. El mensaje de la guarda ya
+  # contempla ese caso: dice que, si se modifico el objeto a mano, esa es la
+  # causa mas probable.
+  .advertir_incoherencias_trazabilidad(salida)
   salida
 }
 
