@@ -77,22 +77,22 @@ plan[, c("estrategia", "justificacion")]
 #> 13         conservar_mas_completa
 #> 14     marcar_columnas_duplicadas
 #> 15     eliminar_columna_duplicada
-#>                                                                                                                                                                       justificacion
-#> 1                                                                El perfil señala el problema, pero no contiene conocimiento suficiente del dominio para elegir una transformación.
-#> 2                                                                                                                                                                 [valor protegido]
-#> 3                                                                El perfil señala el problema, pero no contiene conocimiento suficiente del dominio para elegir una transformación.
-#> 4                                                                                                                                                                 [valor protegido]
-#> 5  La conversión no es ejecutable sobre los datos completos: Hay valores presentes que no responden a los formatos confirmados. Se conserva como acción destructiva no recomendada.
-#> 6                                                                                                                                                                 [valor protegido]
-#> 7                                                                           Un sentinela numérico también puede ser un valor legítimo; requiere confirmar el diccionario del campo.
-#> 8                                                                El perfil señala el problema, pero no contiene conocimiento suficiente del dominio para elegir una transformación.
-#> 9                                                       Eliminarla pierde contexto potencial; dejarla es la recomendación hasta confirmar que no aporta significado administrativo.
-#> 10                                                               El perfil señala el problema, pero no contiene conocimiento suficiente del dominio para elegir una transformación.
-#> 11                                                             Marcar conserva todas las filas, identifica las repeticiones y asigna un grupo a todos los registros que participan.
-#> 12                                                     Conserva la primera aparición exacta y elimina las siguientes; el orden de entrada pasa a determinar qué registro sobrevive.
-#> 13                                Requiere configurar una clave: entre duplicados exactos todas las filas tienen la misma completitud y esta opción sería equivalente a la primera.
-#> 14                                                                                                   La anotación conserva ambas columnas y registra explícitamente la redundancia.
-#> 15                                                                     Eliminar una columna puede romper consumidores que dependan de su nombre aunque el contenido sea redundante.
+#>                                                                                                                                                                                                                                             justificacion
+#> 1                                                                                                                                      El perfil señala el problema, pero no contiene conocimiento suficiente del dominio para elegir una transformación.
+#> 2                                                                                                                                                                                                                                       [valor protegido]
+#> 3                                                                                                                                      El perfil señala el problema, pero no contiene conocimiento suficiente del dominio para elegir una transformación.
+#> 4                                                                                                                                                                                                                                       [valor protegido]
+#> 5                                                                        La conversión no es ejecutable sobre los datos completos: Hay valores presentes que no responden a los formatos confirmados. Se conserva como acción destructiva no recomendada.
+#> 6                                                                                                                                                                                                                                       [valor protegido]
+#> 7                                                                                                                                                 Un sentinela numérico también puede ser un valor legítimo; requiere confirmar el diccionario del campo.
+#> 8                                                                                                                                      El perfil señala el problema, pero no contiene conocimiento suficiente del dominio para elegir una transformación.
+#> 9                                                                                                                             Eliminarla pierde contexto potencial; dejarla es la recomendación hasta confirmar que no aporta significado administrativo.
+#> 10                                                                                                                                     El perfil señala el problema, pero no contiene conocimiento suficiente del dominio para elegir una transformación.
+#> 11 Marcar conserva todas las filas, identifica las repeticiones y asigna un grupo a todos los registros que participan. No elimina filas; mientras las marcas esten incluidas, un perfil posterior no vuelve a contar esas filas como duplicadas exactas.
+#> 12                                                                                                                           Conserva la primera aparición exacta y elimina las siguientes; el orden de entrada pasa a determinar qué registro sobrevive.
+#> 13                                                                                                      Requiere configurar una clave: entre duplicados exactos todas las filas tienen la misma completitud y esta opción sería equivalente a la primera.
+#> 14                                                                                                                                                                         La anotación conserva ambas columnas y registra explícitamente la redundancia.
+#> 15                                                                                                                                           Eliminar una columna puede romper consumidores que dependan de su nombre aunque el contenido sea redundante.
 ```
 
 [`normalizacion()`](https://sebollin.github.io/lupa/reference/normalizacion.md)

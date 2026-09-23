@@ -212,7 +212,11 @@ recibidos con el soporte declarado, sin publicar sus valores.
 reproduce la semántica de
 [`duplicated()`](https://rdrr.io/r/base/duplicated.html) y marca sólo
 las apariciones posteriores; `.grupo_duplicado` identifica a **todas**
-las filas que participan en cada grupo de contenido idéntico.
+las filas que participan en cada grupo de contenido idéntico. Marcar no
+elimina filas: con las dos columnas incluidas, un perfil posterior
+tampoco vuelve a contar esas filas como duplicadas exactas, porque las
+marcas las distinguen. Para saber si los duplicados siguen en la tabla
+hay que quitar las columnas de marca antes de perfilarla.
 
 El orden operativo se aparta deliberadamente de la secuencia dimensional
 frescura–completitud–exactitud–consistencia–unicidad sugerida por el

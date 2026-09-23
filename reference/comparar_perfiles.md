@@ -86,6 +86,13 @@ en su `cobertura_diagnosticos`—, el cambio se informa como `no_evaluado`
 con severidad `sospechoso`, porque no se sabe si el hallazgo sigue:
 dejar de mirar no es lo mismo que arreglar.
 
+Los hallazgos que cuentan filas de la tabla y no pertenecen a una
+columna concreta tampoco se declaran resueltos si aparecieron o
+desaparecieron columnas entre las corridas: cambio el universo que
+define esas filas. En ese caso se publica `no_comparable`, con severidad
+`error`, y se nombran las columnas cambiadas. Con las mismas columnas,
+el veredicto `resuelto` se conserva.
+
 ## See also
 
 [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md),

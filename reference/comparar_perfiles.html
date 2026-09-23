@@ -119,6 +119,12 @@ diagnóstico volvió a evaluarse. Si el perfil nuevo lo declinó —y lo dice en
 su <code>cobertura_diagnosticos</code>—, el cambio se informa como <code>no_evaluado</code> con
 severidad <code>sospechoso</code>, porque no se sabe si el hallazgo sigue: dejar de
 mirar no es lo mismo que arreglar.</p>
+<p>Los hallazgos que cuentan filas de la tabla y no pertenecen a una columna
+concreta tampoco se declaran resueltos si aparecieron o desaparecieron
+columnas entre las corridas: cambio el universo que define esas filas. En
+ese caso se publica <code>no_comparable</code>, con severidad <code>error</code>, y se nombran las
+columnas cambiadas. Con las mismas columnas, el veredicto <code>resuelto</code> se
+conserva.</p>
     </div>
     <div class="section level2">
     <h2 id="see-also">See also<a class="anchor" aria-label="anchor" href="#see-also"></a></h2>

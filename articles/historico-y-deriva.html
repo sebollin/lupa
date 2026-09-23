@@ -174,11 +174,11 @@ tipos, ausencias, cardinalidad, rangos, patrones y hallazgos.</p>
 <span><span class="op">)</span></span>
 <span><span class="va">deriva</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/comparar_perfiles.html">comparar_perfiles</a></span><span class="op">(</span><span class="va">perfil_enero</span>, <span class="va">perfil_febrero</span><span class="op">)</span></span>
 <span><span class="va">deriva</span><span class="op">[</span>, <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"columna"</span>, <span class="st">"aspecto"</span>, <span class="st">"cambio"</span>, <span class="st">"severidad"</span><span class="op">)</span><span class="op">]</span></span>
-<span><span class="co">#&gt;         columna      aspecto     cambio  severidad</span></span>
-<span><span class="co">#&gt; 1 nueva_columna      columna  aparecida      error</span></span>
-<span><span class="co">#&gt; 2        cedula cardinalidad modificado sospechoso</span></span>
-<span><span class="co">#&gt; 3 nueva_columna     hallazgo  aparecido sospechoso</span></span>
-<span><span class="co">#&gt; 4          &lt;NA&gt;     hallazgo   resuelto         ok</span></span></code></pre></div>
+<span><span class="co">#&gt;         columna      aspecto        cambio  severidad</span></span>
+<span><span class="co">#&gt; 1 nueva_columna      columna     aparecida      error</span></span>
+<span><span class="co">#&gt; 2        cedula cardinalidad    modificado sospechoso</span></span>
+<span><span class="co">#&gt; 3 nueva_columna     hallazgo     aparecido sospechoso</span></span>
+<span><span class="co">#&gt; 4          &lt;NA&gt;     hallazgo no_comparable      error</span></span></code></pre></div>
 <p>Una comparación contra el mismo perfil produce cero cambios. Las
 columnas que sólo existen en un lado se informan como cambios
 estructurales; no hacen fallar la comparación de las demás.</p>

@@ -252,7 +252,11 @@ sin publicar sus valores.</p>
 <p><code>marcar_filas_duplicadas</code> añade dos columnas. <code>.fila_duplicada</code> reproduce la
 semántica de <code><a href="https://rdrr.io/r/base/duplicated.html" class="external-link">duplicated()</a></code> y marca sólo las apariciones posteriores;
 <code>.grupo_duplicado</code> identifica a <strong>todas</strong> las filas que participan en cada
-grupo de contenido idéntico.</p>
+grupo de contenido idéntico. Marcar no elimina filas: con las dos columnas
+incluidas, un perfil posterior tampoco vuelve a contar esas filas como
+duplicadas exactas, porque las marcas las distinguen. Para saber si los
+duplicados siguen en la tabla hay que quitar las columnas de marca antes de
+perfilarla.</p>
 <p>El orden operativo se aparta deliberadamente de la secuencia dimensional
 frescura–completitud–exactitud–consistencia–unicidad sugerida por el marco.
 Primero marca duplicados sin borrar, luego normaliza ausencias y texto, y

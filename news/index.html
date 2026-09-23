@@ -44,8 +44,9 @@
 <h2 class="pkg-version" data-toc-text="0.1.0" id="lupa-010">lupa 0.1.0<a class="anchor" aria-label="anchor" href="#lupa-010"></a></h2>
 <div class="section level3">
 <h3 id="correcciones-de-marco-y-deriva-0-1-0">Correcciones de marco y deriva<a class="anchor" aria-label="anchor" href="#correcciones-de-marco-y-deriva-0-1-0"></a></h3>
-<ul><li>
-<code><a href="../reference/medir.html">medir()</a></code> conserva el marco declarado por el modelo y <code><a href="../reference/tablero_calidad.html">tablero_calidad()</a></code> lo reutiliza para publicar la cobertura completa. El historico guarda tambien el nombre y los pares dimension-factor del marco, junto con el <code>tipo_resultado</code> de cada metrica. Si cambia el marco o un tipo, la deriva lo declara <code>no_comparable</code> con severidad <code>error</code> y explica el motivo.</li>
+<ul><li><p><code><a href="../reference/medir.html">medir()</a></code> conserva el marco declarado por el modelo y <code><a href="../reference/tablero_calidad.html">tablero_calidad()</a></code> lo reutiliza para publicar la cobertura completa. El historico guarda tambien el nombre y los pares dimension-factor del marco, junto con el <code>tipo_resultado</code> de cada metrica. Si cambia el marco o un tipo, la deriva lo declara <code>no_comparable</code> con severidad <code>error</code> y explica el motivo.</p></li>
+<li><p>La deriva ya no declara resuelto un hallazgo que cuenta filas de la tabla si cambiaron las columnas: publica <code>no_comparable</code> con severidad <code>error</code> y nombra las columnas aparecidas o desaparecidas. La documentacion de <code>marcar_filas_duplicadas</code> aclara que la marca no elimina filas y que sus columnas hacen que un perfil posterior no vuelva a contarlas como duplicadas.</p></li>
+<li><p>Un analisis releido declara en sus advertencias y junto a la propuesta que esta se volvio a derivar sin las funciones de reglas sustituidas, por lo que puede no coincidir con la decision original, que se conserva.</p></li>
 </ul></div>
 <div class="section level3">
 <h3 id="correcciones-de-cobertura-y-publicación-0-1-0">Correcciones de cobertura y publicación<a class="anchor" aria-label="anchor" href="#correcciones-de-cobertura-y-publicaci%C3%B3n-0-1-0"></a></h3>

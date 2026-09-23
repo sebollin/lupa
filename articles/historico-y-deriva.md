@@ -123,11 +123,11 @@ perfil_febrero <- perfilar(
 )
 deriva <- comparar_perfiles(perfil_enero, perfil_febrero)
 deriva[, c("columna", "aspecto", "cambio", "severidad")]
-#>         columna      aspecto     cambio  severidad
-#> 1 nueva_columna      columna  aparecida      error
-#> 2        cedula cardinalidad modificado sospechoso
-#> 3 nueva_columna     hallazgo  aparecido sospechoso
-#> 4          <NA>     hallazgo   resuelto         ok
+#>         columna      aspecto        cambio  severidad
+#> 1 nueva_columna      columna     aparecida      error
+#> 2        cedula cardinalidad    modificado sospechoso
+#> 3 nueva_columna     hallazgo     aparecido sospechoso
+#> 4          <NA>     hallazgo no_comparable      error
 ```
 
 Una comparación contra el mismo perfil produce cero cambios. Las

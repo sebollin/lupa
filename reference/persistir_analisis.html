@@ -111,7 +111,9 @@ evidencia salió protegida (<code>evidencia_protegida</code>) y cuántas funcion
 sustituyeron por su descripción (<code>funciones_sustituidas</code>). Es el único
 campo que un objeto leído tiene y el original no: lo que se guarda no es
 idéntico a lo que se analizó, y esa diferencia se declara en vez de
-suponerse.</p>
+suponerse. Al leer, si hubo funciones sustituidas, <code>advertencias</code> agrega
+una fila que declara que la propuesta se volvio a derivar sin ellas y que
+puede no coincidir con la decision original, que se conserva.</p>
     </div>
     <div class="section level2">
     <h2 id="details">Details<a class="anchor" aria-label="anchor" href="#details"></a></h2>
