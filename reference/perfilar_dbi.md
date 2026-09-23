@@ -791,12 +791,17 @@ personales, se ocultan sus estadísticos de orden y sus momentos, se
 sanean los datos de conexión y el SQL guardado no contiene ningún valor
 derivado de los datos. La clasificación se toma del perfil de la
 muestra; si la muestra no se pudo leer, la protección se aplica a todas
-las columnas y `meta` lo declara. `incluir_valores = FALSE` va más
-lejos: no emite las consultas de moda ni de mediana y no informa mínimo
-ni máximo, útil cuando la tabla es un padrón y la moda de un
-identificador único es un documento real. Si se pidió `desvio`, la sonda
-de magnitud que ese cálculo necesita puede emitirse, pero su motivo
-nunca publica el valor devuelto por el motor.
+las columnas y `meta` lo declara. Si la muestra se recorta, la
+clasificación personal sólo cubre esas filas: las cifras de valor del
+resumen SQL completo quedan marcadas en `resumen_tabla$cobertura` y, con
+la protección activa, se ocultan hasta que la clasificación cubra el
+mismo alcance. La corroboración no repite esas cifras dudosas en su
+anotación. `incluir_valores = FALSE` va más lejos: no emite las
+consultas de moda ni de mediana y no informa mínimo ni máximo, útil
+cuando la tabla es un padrón y la moda de un identificador único es un
+documento real. Si se pidió `desvio`, la sonda de magnitud que ese
+cálculo necesita puede emitirse, pero su motivo nunca publica el valor
+devuelto por el motor.
 
 ## Progreso
 

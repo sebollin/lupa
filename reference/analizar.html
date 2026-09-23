@@ -207,7 +207,9 @@ para asociación monótona sobre los rangos, que no supone linealidad.</p></dd>
 <dd><p>Si el objeto retiene una copia de la entrada. Es
 <code>FALSE</code> por omisión para limitar tamaño y exposición. Con protección activa,
 las columnas personales de esa copia también se enmascaran; para conservar
-sus valores debe usarse <code>proteger_datos_personales = FALSE</code>.</p></dd>
+sus valores debe usarse <code>proteger_datos_personales = FALSE</code> al crear el
+analisis y al guardarlo. La opcion del guardado no recupera valores que el
+analisis ya enmascaro.</p></dd>
 
 
 <dt id="arg-proteger-datos-personales">proteger_datos_personales<a class="anchor" aria-label="anchor" href="#arg-proteger-datos-personales"></a></dt>
@@ -229,9 +231,10 @@ deliberadas. La entrada puede ser una matriz de dos dimensiones: se la pasa
 a <code><a href="perfilar.html">perfilar()</a></code> sin convertir, para que sea él quien la convierta y lo
 declare en <code>meta$entrada_convertida</code>. Y cuando una columna temporal
 pertenece a una columna protegida, <code>temporal$resumen</code> gana la columna
-<code>proteccion_temporal</code> —que <code><a href="analizar_tiempo.html">analizar_tiempo()</a></code> no produce— con el texto
-<code>[rangos y huecos protegidos]</code>: la protección se aplica y se declara en la
-misma tabla donde faltan los valores.</p>
+<code>proteccion_temporal</code> con el texto <code>[rangos y huecos protegidos]</code>: la
+protección se aplica y se declara en la misma tabla donde faltan los
+valores. La llamada directa a <code><a href="analizar_tiempo.html">analizar_tiempo()</a></code> respeta la misma
+declaración cuando recibe ese <code>perfil</code>.</p>
     </div>
     <div class="section level2">
     <h2 id="details">Details<a class="anchor" aria-label="anchor" href="#details"></a></h2>

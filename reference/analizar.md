@@ -169,7 +169,9 @@ analizar(
   Si el objeto retiene una copia de la entrada. Es `FALSE` por omisión
   para limitar tamaño y exposición. Con protección activa, las columnas
   personales de esa copia también se enmascaran; para conservar sus
-  valores debe usarse `proteger_datos_personales = FALSE`.
+  valores debe usarse `proteger_datos_personales = FALSE` al crear el
+  analisis y al guardarlo. La opcion del guardado no recupera valores
+  que el analisis ya enmascaro.
 
 - proteger_datos_personales:
 
@@ -194,10 +196,11 @@ la pasa a
 sin convertir, para que sea él quien la convierta y lo declare en
 `meta$entrada_convertida`. Y cuando una columna temporal pertenece a una
 columna protegida, `temporal$resumen` gana la columna
-`proteccion_temporal` —que
+`proteccion_temporal` con el texto `[rangos y huecos protegidos]`: la
+protección se aplica y se declara en la misma tabla donde faltan los
+valores. La llamada directa a
 [`analizar_tiempo()`](https://sebollin.github.io/lupa/reference/analizar_tiempo.md)
-no produce— con el texto `[rangos y huecos protegidos]`: la protección
-se aplica y se declara en la misma tabla donde faltan los valores.
+respeta la misma declaración cuando recibe ese `perfil`.
 
 ## Details
 

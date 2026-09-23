@@ -79,7 +79,13 @@ Una columna mixta —días y meses— **sí** se resume, sobre sus fechas
 completas. Sólo cuando ningún formato confirmado nombra un día no hay
 serie diaria que construir; entonces la columna no aparece en `resumen`,
 y se declara en los atributos `columnas_omitidas` y
-`columnas_sin_serie_diaria` en vez de desaparecer.
+`columnas_sin_serie_diaria` en vez de desaparecer. Si se recibe un
+`perfil` que declara proteccion para una columna temporal, sus rangos y
+huecos se protegen tambien en esta llamada directa, con el mismo texto
+que usa
+[`analizar()`](https://sebollin.github.io/lupa/reference/analizar.md).
+Sin `perfil` no hay una declaracion que leer y el resumen conserva sus
+fechas.
 
 ## See also
 

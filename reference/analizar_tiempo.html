@@ -138,7 +138,11 @@ declarada y se informa como faltante, no como valor que no se pudo leer.</p>
 completas. Sólo cuando ningún formato confirmado nombra un día no hay serie
 diaria que construir; entonces la columna no aparece en <code>resumen</code>, y se
 declara en los atributos <code>columnas_omitidas</code> y <code>columnas_sin_serie_diaria</code>
-en vez de desaparecer.</p>
+en vez de desaparecer.
+Si se recibe un <code>perfil</code> que declara proteccion para una columna temporal,
+sus rangos y huecos se protegen tambien en esta llamada directa, con el
+mismo texto que usa <code><a href="analizar.html">analizar()</a></code>. Sin <code>perfil</code> no hay una declaracion que
+leer y el resumen conserva sus fechas.</p>
     </div>
     <div class="section level2">
     <h2 id="see-also">See also<a class="anchor" aria-label="anchor" href="#see-also"></a></h2>

@@ -823,6 +823,11 @@ sus estadísticos de orden y sus momentos, se sanean los datos de conexión y
 el SQL guardado no contiene ningún valor derivado de los datos. La
 clasificación se toma del perfil de la muestra; si la muestra no se pudo
 leer, la protección se aplica a todas las columnas y <code>meta</code> lo declara.
+Si la muestra se recorta, la clasificación personal sólo cubre esas filas:
+las cifras de valor del resumen SQL completo quedan marcadas en
+<code>resumen_tabla$cobertura</code> y, con la protección activa, se ocultan hasta que
+la clasificación cubra el mismo alcance. La corroboración no repite esas
+cifras dudosas en su anotación.
 <code>incluir_valores = FALSE</code> va más lejos: no emite las consultas de moda ni de
 mediana y no informa mínimo ni máximo, útil cuando la tabla es un padrón y
 la moda de un identificador único es un documento real. Si se pidió <code>desvio</code>,

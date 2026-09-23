@@ -27,6 +27,37 @@
 
 ### Correcciones de cobertura y publicación
 
+- **Comparar al revés ya no publica la dirección al revés.**
+  [`comparar_perfiles()`](https://sebollin.github.io/lupa/reference/comparar_perfiles.md)
+  y
+  [`comparar_evaluaciones()`](https://sebollin.github.io/lupa/reference/comparar_evaluaciones.md)
+  publican en cada fila la fecha de cada corrida, pero no las miraban:
+  con los argumentos cambiados, un hallazgo que se agravó salía
+  `atenuado`, un patrón que apareció salía `desaparecido` y un delta que
+  subió salía negativo, contradiciendo a las fechas de la propia fila.
+  Ahora paran con un error que nombra las dos fechas y dice que hay que
+  invertir los argumentos. La exigencia corre **sólo cuando las dos
+  fechas las declaró quien llama** —`perfilar(fecha = )`,
+  `medir(fecha = )`—, que es como se construye una serie: la fecha por
+  omisión es la hora de la corrida, y dos perfiles hechos en la misma
+  sesión no son una serie. El perfil publica en `meta$fecha_declarada`
+  cuál de los dos casos es.
+
+- **Un hallazgo editado a mano no se publica en silencio.** La guarda
+  que compara lo que un hallazgo afirma con las filas que lo respaldan
+  corría al construir el perfil y no al publicarlo: un objeto con
+  `n_afectados` cambiado a mano salía por
+  [`hallazgos()`](https://sebollin.github.io/lupa/reference/accesores_perfil.md)
+  y por el informe sin que nada dijera que la cifra y su respaldo no
+  coinciden. Ahora la guarda corre también en esas dos puertas.
+
+- **La clasificación personal DBI declara su alcance.** Si el perfil de
+  muestra queda recortado, los valores del resumen SQL completo se
+  marcan en `resumen_tabla$cobertura`, se protegen con la politica
+  activa y no se repiten en la corroboracion como si la muestra hubiera
+  cubierto toda la tabla. Con una muestra completa no cambia ninguna
+  cifra.
+
 - **[`perfilar_por()`](https://sebollin.github.io/lupa/reference/perfilar_por.md)
   documenta que `muestra` acota dentro de cada grupo.** Los argumentos
   que acotan el trabajo viajan a cada grupo, así que con `muestra = 100`
