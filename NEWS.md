@@ -20,6 +20,11 @@
 
 ## Correcciones de cobertura y publicación
 
+- **El motivo publicado distingue presupuesto de capacidad en las sondas DBI.**
+  Si `max_consultas` bloquea una sonda, la cobertura conserva el mensaje del
+  tope declarado; si el motor rechaza la consulta, se mantiene el motivo de
+  capacidad.
+
 - **Los índices de un hallazgo por grupo apuntan a la tabla del usuario.**
   `perfilar_por()` perfila cada grupo sobre su rebanada y publicaba los índices
   de esa rebanada con `localizador = "indice_fila"` y `alcance = "completo"`:

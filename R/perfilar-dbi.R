@@ -2367,6 +2367,16 @@
   )
 }
 
+# Una sonda puede fallar por el motor o no haberse emitido por falta de saldo.
+# Se conserva esta causa desde la consulta bloqueada para no publicarla luego
+# como una incapacidad que el motor nunca informo.
+.consulta_bloqueada_por_presupuesto_dbi <- function(resultado, presupuesto) {
+  if (isTRUE(resultado$ok) || is.null(presupuesto)) return(FALSE)
+  motivo <- resultado$motivo
+  length(motivo) == 1L && !is.na(motivo) &&
+    identical(as.character(motivo), .motivo_presupuesto_dbi(presupuesto))
+}
+
 # ---- Adaptador de dialecto ----------------------------------------------
 #
 # Acotar filas no es SQL estandar. `LIMIT` no existe en SQL Server ni en
@@ -2703,6 +2713,7 @@
   alias <- as.character(DBI::dbQuoteIdentifier(conexion, "lupa_sonda"))
   sondas <- character()
   aceptada <- NULL
+  presupuesto_bloqueado <- FALSE
   for (candidato in candidatos) {
     if (identical(candidato$tipo, "tablesample_filas")) {
       sql <- paste0(
@@ -2733,6 +2744,8 @@
         prueba <- .consultar_dbi(
           conexion, sql, presupuesto, etapa = "sonda_muestreo"
         )
+        presupuesto_bloqueado <- presupuesto_bloqueado ||
+          .consulta_bloqueada_por_presupuesto_dbi(prueba, presupuesto)
         if (is.null(aceptada) && isTRUE(prueba$ok) && !is.null(acotada)) {
           aceptada <- candidato
           aceptada$funciones <- list(funcion)
@@ -2744,12 +2757,18 @@
     prueba <- .consultar_dbi(
       conexion, sql, presupuesto, etapa = "sonda_muestreo"
     )
+    presupuesto_bloqueado <- presupuesto_bloqueado ||
+      .consulta_bloqueada_por_presupuesto_dbi(prueba, presupuesto)
     if (is.null(aceptada) && isTRUE(prueba$ok)) aceptada <- candidato
   }
   if (is.null(aceptada)) {
     return(list(
       disponible = FALSE, candidato = NULL, sondas = sondas,
-      motivo = "capacidad_no_aceptada:sonda_muestreo"
+      motivo = if (presupuesto_bloqueado) {
+        .motivo_presupuesto_dbi(presupuesto)
+      } else {
+        "capacidad_no_aceptada:sonda_muestreo"
+      }
     ))
   }
   list(
@@ -2860,6 +2879,7 @@
   candidatos <- .candidatos_mediana_escalar_dbi(conexion, dialecto)
   sondas <- character()
   elegida <- NULL
+  presupuesto_bloqueado <- FALSE
   for (candidato in candidatos) {
     alias <- as.character(DBI::dbQuoteIdentifier(conexion, "mediana"))
     sql <- candidato$sonda(alias, materializar = materializar)
@@ -2867,6 +2887,8 @@
     prueba <- .consultar_dbi(
       conexion, sql, presupuesto, etapa = "sonda_mediana_escalar"
     )
+    presupuesto_bloqueado <- presupuesto_bloqueado ||
+      .consulta_bloqueada_por_presupuesto_dbi(prueba, presupuesto)
     if (!isTRUE(prueba$ok)) next
     celda <- .valor_campo_dbi(prueba$datos, "mediana")
     if (!isTRUE(celda$ok)) next
@@ -2886,6 +2908,8 @@
           "` no declara una forma de mediana con subconsulta escalar; se",
           " conserva la via de dos consultas."
         )
+      } else if (presupuesto_bloqueado) {
+        .motivo_presupuesto_dbi(presupuesto)
       } else {
         paste(
           "El motor no acepto la mediana con subconsulta escalar o no",
@@ -2975,12 +2999,15 @@
   sondas <- character()
   elegida <- NULL
   control_negativo_ok <- FALSE
+  presupuesto_bloqueado <- FALSE
   for (candidato in candidatos) {
     sql <- candidato$sonda(alias)
     sondas <- c(sondas, sql)
     positiva <- .consultar_dbi(
       conexion, sql, presupuesto, etapa = "sonda_mediana_cte_ventana"
     )
+    presupuesto_bloqueado <- presupuesto_bloqueado ||
+      .consulta_bloqueada_por_presupuesto_dbi(positiva, presupuesto)
     celda <- if (isTRUE(positiva$ok)) {
       .valor_campo_dbi(positiva$datos, "mediana")
     } else {
@@ -2997,7 +3024,9 @@
       conexion, sql_negativa, presupuesto,
       etapa = "sonda_mediana_cte_ventana_control_negativo"
     )
-    control_negativo_ok <- !isTRUE(negativa$ok)
+    presupuesto_bloqueado <- presupuesto_bloqueado ||
+      .consulta_bloqueada_por_presupuesto_dbi(negativa, presupuesto)
+    control_negativo_ok <- !isTRUE(negativa$ok) && !presupuesto_bloqueado
     if (is.null(elegida) && valor_ok && control_negativo_ok) {
       elegida <- candidato
     }
@@ -3006,7 +3035,11 @@
     disponible = !is.null(elegida), candidato = elegida, sondas = sondas,
     control_negativo = control_negativo_ok,
     motivo = if (is.null(elegida)) {
-      "capacidad_no_aceptada:sonda_mediana_cte_ventana"
+      if (presupuesto_bloqueado) {
+        .motivo_presupuesto_dbi(presupuesto)
+      } else {
+        "capacidad_no_aceptada:sonda_mediana_cte_ventana"
+      }
     } else {
       "La sonda de la CTE de ventanas devolvio 2,5 y su control negativo fallo."
     }
@@ -3054,6 +3087,7 @@
   candidatos <- .candidatos_moda_guardian_dbi(conexion, dialecto)
   sondas <- character()
   elegida <- NULL
+  presupuesto_bloqueado <- FALSE
   for (candidato in candidatos) {
     sql <- candidato$sonda()
     sondas <- c(sondas, sql)
@@ -3061,6 +3095,8 @@
       conexion, sql, presupuesto, filas = 1L,
       etapa = "sonda_moda_guardian"
     )
+    presupuesto_bloqueado <- presupuesto_bloqueado ||
+      .consulta_bloqueada_por_presupuesto_dbi(prueba, presupuesto)
     if (!isTRUE(prueba$ok)) next
     valor <- .valor_campo_dbi(prueba$datos, "valor")
     frecuencia <- .valor_campo_dbi(prueba$datos, "frecuencia")
@@ -3079,6 +3115,8 @@
     motivo = if (is.null(elegida)) {
       if (!length(candidatos)) {
         "El adaptador no declara una forma de moda con guardian; se conserva la consulta actual sin guardian."
+      } else if (presupuesto_bloqueado) {
+        .motivo_presupuesto_dbi(presupuesto)
       } else {
         paste(
           "El motor rechazo la forma de moda con guardian o no devolvio el",
@@ -3193,12 +3231,15 @@
   sondas <- character()
   motivos_motor <- character()
   elegida <- NULL
+  presupuesto_bloqueado <- FALSE
   for (candidato in candidatos) {
     sql <- candidato$sonda(alias)
     sondas <- c(sondas, sql)
     prueba <- .consultar_dbi(
       conexion, sql, presupuesto, etapa = "sonda_mediana_consolidada"
     )
+    presupuesto_bloqueado <- presupuesto_bloqueado ||
+      .consulta_bloqueada_por_presupuesto_dbi(prueba, presupuesto)
     if (is.null(elegida) && isTRUE(prueba$ok)) elegida <- candidato
     if (!isTRUE(prueba$ok)) {
       motivo <- if (is.null(prueba$motivo) || !length(prueba$motivo) ||
@@ -3230,7 +3271,11 @@
   resultado <- list(
     disponible = !is.null(elegida), candidato = elegida, sondas = sondas,
     motivo = if (is.null(elegida)) {
-      motivo_sin_candidato
+      if (presupuesto_bloqueado) {
+        .motivo_presupuesto_dbi(presupuesto)
+      } else {
+        motivo_sin_candidato
+      }
     } else {
       paste0("El motor acepto `", elegida$nombre,
              "` para consolidar medianas.")
@@ -3385,6 +3430,7 @@
   alias <- as.character(DBI::dbQuoteIdentifier(conexion, "lupa_sonda"))
   sondas <- character()
   elegida <- NULL
+  presupuesto_bloqueado <- FALSE
   for (candidato in candidatos) {
     sql <- candidato$sonda(alias)
     if (.es_oracle_dbi(conexion) &&
@@ -3395,12 +3441,18 @@
     resultado <- .consultar_dbi(
       conexion, sql, presupuesto, etapa = "sonda_aproximacion"
     )
+    presupuesto_bloqueado <- presupuesto_bloqueado ||
+      .consulta_bloqueada_por_presupuesto_dbi(resultado, presupuesto)
     if (is.null(elegida) && isTRUE(resultado$ok)) elegida <- candidato
   }
   list(
     disponible = !is.null(elegida), candidato = elegida, sondas = sondas,
     motivo = if (is.null(elegida)) {
-      paste0("El motor no acepto una funcion aproximada para `", tipo, "`.")
+      if (presupuesto_bloqueado) {
+        .motivo_presupuesto_dbi(presupuesto)
+      } else {
+        paste0("El motor no acepto una funcion aproximada para `", tipo, "`.")
+      }
     } else {
       paste0("El motor acepto `", elegida$nombre, "` para `", tipo, "`.")
     }
@@ -3560,6 +3612,7 @@
     ))
   }
   sondas <- character()
+  presupuesto_bloqueado <- FALSE
   for (nombre in .orden_dialectos_dbi(conexion)) {
     candidato <- dialectos[[nombre]]
     if (identical(nombre, "portable")) break
@@ -3569,6 +3622,8 @@
     resultado <- .consultar_dbi(
       conexion, sql, presupuesto, etapa = "sonda_dialecto"
     )
+    presupuesto_bloqueado <- presupuesto_bloqueado ||
+      .consulta_bloqueada_por_presupuesto_dbi(resultado, presupuesto)
     if (resultado$ok) {
       return(list(
         dialecto = candidato, sondas = sondas, declarado = FALSE,
@@ -3581,10 +3636,14 @@
   }
   list(
     dialecto = dialectos$portable, sondas = sondas, declarado = FALSE,
-    motivo = paste(
-      "Ningun dialecto de limite conocido paso la sonda; las filas se acotan",
-      "en el cliente con dbSendQuery() y dbFetch(n)."
-    )
+    motivo = if (presupuesto_bloqueado) {
+      .motivo_presupuesto_dbi(presupuesto)
+    } else {
+      paste(
+        "Ningun dialecto de limite conocido paso la sonda; las filas se acotan",
+        "en el cliente con dbSendQuery() y dbFetch(n)."
+      )
+    }
   )
 }
 
@@ -5421,8 +5480,14 @@
         !is.null(preparacion$muestreo) &&
         !isTRUE(preparacion$muestreo$disponible)) {
       motivo <- preparacion$muestreo$motivo
+      motivo_presupuesto <- !is.null(preparacion$presupuesto) &&
+        length(motivo) == 1L && !is.na(motivo) &&
+        identical(
+          as.character(motivo),
+          .motivo_presupuesto_dbi(preparacion$presupuesto)
+        )
       if (length(motivo) != 1L || is.na(motivo) ||
-          !grepl("^[a-z_]+:[a-z_]+", motivo)) {
+          (!grepl("^[a-z_]+:[a-z_]+", motivo) && !motivo_presupuesto)) {
         motivo <- "capacidad_no_aceptada:sonda_muestreo"
       }
       return(list(
@@ -5470,7 +5535,11 @@
       return(list(
         estrategia_solicitada = solicitada,
         estrategia_resuelta = "no_disponible", estado = "no_disponible",
-        motivo = "capacidad_no_aceptada:sonda_mediana_cte_ventana",
+        motivo = if (length(cte$motivo) == 1L && !is.na(cte$motivo)) {
+          cte$motivo
+        } else {
+          "capacidad_no_aceptada:sonda_mediana_cte_ventana"
+        },
         sondas = cte$sondas
       ))
     }
