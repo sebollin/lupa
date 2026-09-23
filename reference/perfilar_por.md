@@ -54,7 +54,12 @@ perfilar_por(datos, por, clave = NULL, min_filas = 30L, ...)
 
   Argumentos enviados a
   [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md)
-  para cada grupo.
+  para cada grupo. Los que acotan el trabajo —`muestra` entre ellos— se
+  aplican **dentro de cada grupo**, no sobre la tabla entera: con
+  `muestra = 100` y grupos de 500 filas, los diagnósticos que muestrean
+  miran 100 de cada grupo. El alcance viaja en la evidencia de cada
+  hallazgo, que declara sobre cuántos valores se midió; `n_filas_grupo`
+  sigue siendo el tamaño del grupo, no el de la muestra.
 
 ## Value
 

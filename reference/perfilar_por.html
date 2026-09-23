@@ -98,7 +98,13 @@ grupos donde ningún diagnóstico tiene soporte.</p></dd>
 
 
 <dt id="arg--">...<a class="anchor" aria-label="anchor" href="#arg--"></a></dt>
-<dd><p>Argumentos enviados a <code><a href="perfilar.html">perfilar()</a></code> para cada grupo.</p></dd>
+<dd><p>Argumentos enviados a <code><a href="perfilar.html">perfilar()</a></code> para cada grupo. Los que
+acotan el trabajo —<code>muestra</code> entre ellos— se aplican <strong>dentro de cada
+grupo</strong>, no sobre la tabla entera: con <code>muestra = 100</code> y grupos de 500
+filas, los diagnósticos que muestrean miran 100 de cada grupo. El alcance
+viaja en la evidencia de cada hallazgo, que declara sobre cuántos valores
+se midió; <code>n_filas_grupo</code> sigue siendo el tamaño del grupo, no el de la
+muestra.</p></dd>
 
 </dl></div>
     <div class="section level2">
