@@ -67,6 +67,19 @@
   )
 }
 
+.columnas_temporales_protegidas <- function(perfil) {
+  if (inherits(perfil, "perfil") && is.data.frame(perfil$columnas) &&
+      all(c("columna", "dato_personal_protegido") %in%
+          names(perfil$columnas))) {
+    protegidas <- perfil$columnas$columna[
+      !is.na(perfil$columnas$dato_personal_protegido) &
+        as.logical(perfil$columnas$dato_personal_protegido)
+    ]
+    return(unique(as.character(protegidas)))
+  }
+  .columnas_personales_protegidas(perfil)
+}
+
 .frecuencias_columna <- function(x, max_valores, muestra, protegida) {
   if (.es_columna_compuesta(x) || (is.list(x) && !is.factor(x))) {
     return(list(tabla = NULL, meta = c(
@@ -692,6 +705,10 @@ detectar_asociaciones <- function(datos, dependencias = NULL, umbral = 0.3,
 #'   diaria que construir; entonces la columna no aparece en `resumen`, y se
 #'   declara en los atributos `columnas_omitidas` y `columnas_sin_serie_diaria`
 #'   en vez de desaparecer.
+#'   Si se recibe un `perfil` que declara proteccion para una columna temporal,
+#'   sus rangos y huecos se protegen tambien en esta llamada directa, con el
+#'   mismo texto que usa [analizar()]. Sin `perfil` no hay una declaracion que
+#'   leer y el resumen conserva sus fechas.
 #' @export
 #' @seealso [detectar_formatos_fecha()], [analizar()]
 #'
@@ -905,5 +922,23 @@ analizar_tiempo <- function(datos, perfil = NULL, columnas = NULL,
     character()
   } else abandonadas
   attr(resultado, "truncado") <- length(columnas_totales) > length(columnas)
+  protegidas <- .columnas_temporales_protegidas(perfil)
+  if (length(protegidas) && nrow(resultado$resumen)) {
+    indices_protegidos <- .nombres_para_operar(resultado$resumen$columna) %in%
+      .nombres_para_operar(protegidas)
+    resultado$resumen$fecha_minima[indices_protegidos] <- as.Date(NA)
+    resultado$resumen$fecha_maxima[indices_protegidos] <- as.Date(NA)
+    if (!"proteccion_temporal" %in% names(resultado$resumen)) {
+      resultado$resumen$proteccion_temporal <- rep(
+        NA_character_, nrow(resultado$resumen)
+      )
+    }
+    resultado$resumen$proteccion_temporal[indices_protegidos] <-
+      "[rangos y huecos protegidos]"
+    resultado$huecos <- resultado$huecos[
+      !(.nombres_para_operar(resultado$huecos$columna) %in%
+          .nombres_para_operar(protegidas)), , drop = FALSE
+    ]
+  }
   resultado
 }

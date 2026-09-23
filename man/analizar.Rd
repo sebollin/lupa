@@ -100,7 +100,9 @@ para asociación monótona sobre los rangos, que no supone linealidad.}
 \item{conservar_datos}{Si el objeto retiene una copia de la entrada. Es
 \code{FALSE} por omisión para limitar tamaño y exposición. Con protección activa,
 las columnas personales de esa copia también se enmascaran; para conservar
-sus valores debe usarse \code{proteger_datos_personales = FALSE}.}
+sus valores debe usarse \code{proteger_datos_personales = FALSE} al crear el
+analisis y al guardarlo. La opcion del guardado no recupera valores que el
+analisis ya enmascaro.}
 
 \item{proteger_datos_personales}{Si perfiles y resúmenes ocultan valores de
 columnas cuya clasificación activa protección automática, incluidos
@@ -117,9 +119,10 @@ deliberadas. La entrada puede ser una matriz de dos dimensiones: se la pasa
 a \code{\link[=perfilar]{perfilar()}} sin convertir, para que sea él quien la convierta y lo
 declare en \code{meta$entrada_convertida}. Y cuando una columna temporal
 pertenece a una columna protegida, \code{temporal$resumen} gana la columna
-\code{proteccion_temporal} —que \code{\link[=analizar_tiempo]{analizar_tiempo()}} no produce— con el texto
-\verb{[rangos y huecos protegidos]}: la protección se aplica y se declara en la
-misma tabla donde faltan los valores.
+\code{proteccion_temporal} con el texto \verb{[rangos y huecos protegidos]}: la
+protección se aplica y se declara en la misma tabla donde faltan los
+valores. La llamada directa a \code{\link[=analizar_tiempo]{analizar_tiempo()}} respeta la misma
+declaración cuando recibe ese \code{perfil}.
 }
 \description{
 Es la puerta de entrada al recorrido de \code{lupa}. Construye el perfil, las

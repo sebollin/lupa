@@ -221,7 +221,9 @@
 #' @param conservar_datos Si el objeto retiene una copia de la entrada. Es
 #'   `FALSE` por omisión para limitar tamaño y exposición. Con protección activa,
 #'   las columnas personales de esa copia también se enmascaran; para conservar
-#'   sus valores debe usarse `proteger_datos_personales = FALSE`.
+#'   sus valores debe usarse `proteger_datos_personales = FALSE` al crear el
+#'   analisis y al guardarlo. La opcion del guardado no recupera valores que el
+#'   analisis ya enmascaro.
 #' @param proteger_datos_personales Si perfiles y resúmenes ocultan valores de
 #'   columnas cuya clasificación activa protección automática, incluidos
 #'   estadísticos de orden, cuantiles y rangos temporales.
@@ -235,9 +237,10 @@
 #'   a [perfilar()] sin convertir, para que sea él quien la convierta y lo
 #'   declare en `meta$entrada_convertida`. Y cuando una columna temporal
 #'   pertenece a una columna protegida, `temporal$resumen` gana la columna
-#'   `proteccion_temporal` —que [analizar_tiempo()] no produce— con el texto
-#'   `[rangos y huecos protegidos]`: la protección se aplica y se declara en la
-#'   misma tabla donde faltan los valores.
+#'   `proteccion_temporal` con el texto `[rangos y huecos protegidos]`: la
+#'   protección se aplica y se declara en la misma tabla donde faltan los
+#'   valores. La llamada directa a [analizar_tiempo()] respeta la misma
+#'   declaración cuando recibe ese `perfil`.
 #' @export
 #' @seealso [guardar_analisis()], [reportar()], [cobertura_analisis()]
 #'
@@ -935,7 +938,11 @@ guardar_analisis <- function(x, archivo, incluir_datos = FALSE,
   sensibles <- .columnas_personales_protegidas(x$perfil)
   if (incluir_datos && proteger_datos_personales && length(sensibles)) {
     stop(
-      "Incluir datos personales exige `proteger_datos_personales = FALSE` de forma explicita.",
+      paste(
+        "Incluir datos personales exige crear el analisis con",
+        "`proteger_datos_personales = FALSE` en `analizar()` y usar la misma",
+        "opcion al guardar; el guardado no recupera valores ya protegidos."
+      ),
       call. = FALSE
     )
   }
@@ -976,10 +983,14 @@ guardar_analisis <- function(x, archivo, incluir_datos = FALSE,
   }
   propuesta <- .deshidratar_propuesta(copia$propuesta_modelo)
   copia$propuesta_modelo <- propuesta$propuesta
+  proteccion_analisis <- is.list(x$perfil$meta) && isTRUE(
+    x$perfil$meta$proteger_datos_personales
+  )
   copia$meta$persistencia <- list(
     version_esquema = .version_esquema_analisis,
     datos_incluidos = incluir_datos,
-    evidencia_protegida = proteger_datos_personales,
+    evidencia_protegida = isTRUE(proteger_datos_personales) ||
+      proteccion_analisis,
     funciones_sustituidas = propuesta$n_funciones
   )
   temporal <- tempfile(".lupa-analisis-", tmpdir = dirname(archivo), fileext = ".rds")

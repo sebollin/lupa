@@ -20,6 +20,12 @@
 
 ## Correcciones de cobertura y publicación
 
+- **La clasificación personal DBI declara su alcance.** Si el perfil de muestra
+  queda recortado, los valores del resumen SQL completo se marcan en
+  `resumen_tabla$cobertura`, se protegen con la politica activa y no se repiten
+  en la corroboracion como si la muestra hubiera cubierto toda la tabla. Con
+  una muestra completa no cambia ninguna cifra.
+
 - **`perfilar_por()` documenta que `muestra` acota dentro de cada grupo.** Los
   argumentos que acotan el trabajo viajan a cada grupo, así que con
   `muestra = 100` y grupos de 500 filas los diagnósticos que muestrean miran

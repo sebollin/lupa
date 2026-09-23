@@ -51,6 +51,10 @@ completas. Sólo cuando ningún formato confirmado nombra un día no hay serie
 diaria que construir; entonces la columna no aparece en \code{resumen}, y se
 declara en los atributos \code{columnas_omitidas} y \code{columnas_sin_serie_diaria}
 en vez de desaparecer.
+Si se recibe un \code{perfil} que declara proteccion para una columna temporal,
+sus rangos y huecos se protegen tambien en esta llamada directa, con el
+mismo texto que usa \code{\link[=analizar]{analizar()}}. Sin \code{perfil} no hay una declaracion que
+leer y el resumen conserva sus fechas.
 }
 \description{
 Para cada columna temporal propone una frecuencia en días. La confianza es

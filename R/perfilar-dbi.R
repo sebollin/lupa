@@ -4428,6 +4428,83 @@
   )
 }
 
+# La clasificacion personal de la muestra no alcanza a justificar valores del
+# resumen SQL cuando la muestra quedo recortada. Se reutiliza `cobertura` para
+# decirlo junto a cada cifra de valor, sin copiar el valor que se protege.
+.cobertura_clasificacion_personal_parcial_dbi <- function(resumen, perfil) {
+  vacia <- .cobertura_dbi_vacia()
+  salida_vacia <- list(columnas = character(), cobertura = vacia)
+  if (!is.list(resumen) || !is.list(perfil) ||
+      !is.data.frame(resumen$columnas) || !is.data.frame(perfil$columnas)) {
+    return(salida_vacia)
+  }
+  total <- .numero_corroboracion_dbi(resumen$meta$filas)
+  observado <- .numero_corroboracion_dbi(perfil$meta$filas_analizadas)
+  if (length(total) != 1L || !is.finite(total) || total < 0 ||
+      length(observado) != 1L || !is.finite(observado) || observado < 0 ||
+      observado >= total) {
+    return(salida_vacia)
+  }
+  tope <- as.character(perfil$meta$tope_que_mando)
+  if (length(tope) != 1L || is.na(tope) ||
+      !(tope %in% c("celdas", "bytes"))) {
+    # Una muestra elegida por el usuario tambien puede ser parcial, pero no es
+    # la degradacion que esta cobertura debe atribuir a los topes de lectura.
+    return(salida_vacia)
+  }
+  campos <- intersect(
+    c("moda", "minimo", "maximo", "media", "mediana",
+      "minimo_exacto", "maximo_exacto"),
+    names(resumen$columnas)
+  )
+  if (!length(campos) || !nrow(resumen$columnas)) return(salida_vacia)
+  utilizable <- function(valor) {
+    if (length(valor) != 1L || is.na(valor)) return(FALSE)
+    if (is.character(valor)) return(nzchar(valor))
+    TRUE
+  }
+  tiene_cifra <- vapply(seq_len(nrow(resumen$columnas)), function(i) {
+    any(vapply(campos, function(campo) {
+      utilizable(resumen$columnas[[campo]][[i]])
+    }, logical(1L)))
+  }, logical(1L))
+  if (!any(tiene_cifra)) return(salida_vacia)
+  nombres <- as.character(resumen$columnas$columna[tiene_cifra])
+  nombres <- nombres[!is.na(nombres) & nzchar(nombres)]
+  if (!length(nombres)) return(salida_vacia)
+  texto_filas <- function(valor) format(
+    valor, scientific = FALSE, trim = TRUE
+  )
+  registros <- list()
+  for (i in which(tiene_cifra)) {
+    columna <- as.character(resumen$columnas$columna[[i]])
+    campos_columna <- campos[vapply(campos, function(campo) {
+      utilizable(resumen$columnas[[campo]][[i]])
+    }, logical(1L))]
+    for (campo in campos_columna) {
+      registros[[length(registros) + 1L]] <- .registro_cobertura_dbi(
+        "resumen_tabla", paste0(columna, "::", campo), "degradado",
+        paste0(
+          "La clasificacion automatica de datos personales cubrio solo ",
+          texto_filas(observado), " de ", texto_filas(total),
+          " filas. La cifra SQL de `", columna, "::", campo,
+          "` cubre la tabla completa y no se puede justificar con esa",
+          " clasificacion parcial."
+        ),
+        paste(
+          "Aumentar `max_celdas_muestra` o `max_bytes_muestra`, o usar `Inf`,",
+          "para que la clasificacion cubra las filas publicadas."
+        ),
+        NA_character_
+      )
+    }
+  }
+  list(
+    columnas = unique(nombres),
+    cobertura = if (length(registros)) do.call(rbind, registros) else vacia
+  )
+}
+
 .registro_cobertura_dbi <- function(bloque, elemento, estado, motivo,
                                     como_resolverlo, sql = NA_character_) {
   data.frame(
@@ -4898,11 +4975,38 @@
   }
   resumen <- resultado$resumen_tabla
   perfil <- resultado$perfil_muestra
-  protegidas <- if (isTRUE(resumen$meta$proteccion_personal$aplicada)) {
-    .columnas_personales_protegidas(perfil$datos_personales)
-  } else {
-    character()
+  parcial <- .cobertura_clasificacion_personal_parcial_dbi(resumen, perfil)
+  proteccion <- resumen$meta$proteccion_personal
+  desactivada <- is.list(proteccion) && identical(
+    as.character(proteccion$base), "desactivada por el usuario"
+  )
+  clasificadas <- .columnas_personales_protegidas(perfil$datos_personales)
+  if (length(parcial$columnas) && !desactivada) {
+    resumen <- .proteger_resumen_dbi(
+      resumen, unique(c(clasificadas, parcial$columnas)),
+      "perfil_muestra_parcial", perfil
+    )
   }
+  if (length(parcial$columnas)) {
+    if (!is.list(resumen$meta$proteccion_personal)) {
+      resumen$meta$proteccion_personal <- list()
+    }
+    resumen$meta$proteccion_personal$columnas_clasificacion_dudosa <-
+      parcial$columnas
+    cobertura <- resumen$cobertura
+    resumen$cobertura <- if (is.null(cobertura) || !nrow(cobertura)) {
+      parcial$cobertura
+    } else {
+      rbind(cobertura, parcial$cobertura)
+    }
+    rownames(resumen$cobertura) <- NULL
+  }
+  protegidas <- unique(c(
+    if (isTRUE(resumen$meta$proteccion_personal$aplicada)) {
+      clasificadas
+    } else character(),
+    parcial$columnas
+  ))
   corroboracion <- .cobertura_corroboracion_bloques_dbi(
     resumen, perfil, protegidas = protegidas
   )
@@ -12564,6 +12668,11 @@ print.plan_perfilado_dbi <- function(x, ...) {
 #' el SQL guardado no contiene ningún valor derivado de los datos. La
 #' clasificación se toma del perfil de la muestra; si la muestra no se pudo
 #' leer, la protección se aplica a todas las columnas y `meta` lo declara.
+#' Si la muestra se recorta, la clasificación personal sólo cubre esas filas:
+#' las cifras de valor del resumen SQL completo quedan marcadas en
+#' `resumen_tabla$cobertura` y, con la protección activa, se ocultan hasta que
+#' la clasificación cubra el mismo alcance. La corroboración no repite esas
+#' cifras dudosas en su anotación.
 #' `incluir_valores = FALSE` va más lejos: no emite las consultas de moda ni de
 #' mediana y no informa mínimo ni máximo, útil cuando la tabla es un padrón y
 #' la moda de un identificador único es un documento real. Si se pidió `desvio`,
