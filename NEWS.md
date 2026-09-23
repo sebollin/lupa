@@ -20,6 +20,12 @@
 
 ## Correcciones de cobertura y publicación
 
+- **`perfilar_por()` documenta que `muestra` acota dentro de cada grupo.** Los
+  argumentos que acotan el trabajo viajan a cada grupo, así que con
+  `muestra = 100` y grupos de 500 filas los diagnósticos que muestrean miran
+  100 de cada grupo. El alcance ya viajaba en la evidencia de cada hallazgo;
+  lo que faltaba era decirlo donde se lee la función.
+
 - **El motivo publicado distingue presupuesto de capacidad en las sondas DBI.**
   Si `max_consultas` bloquea una sonda, la cobertura conserva el mensaje del
   tope declarado; si el motor rechaza la consulta, se mantiene el motivo de

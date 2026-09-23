@@ -31,7 +31,13 @@ está.}
 declaran en la cobertura. El valor por omisión evita conclusiones sobre
 grupos donde ningún diagnóstico tiene soporte.}
 
-\item{...}{Argumentos enviados a \code{\link[=perfilar]{perfilar()}} para cada grupo.}
+\item{...}{Argumentos enviados a \code{\link[=perfilar]{perfilar()}} para cada grupo. Los que
+acotan el trabajo —\code{muestra} entre ellos— se aplican \strong{dentro de cada
+grupo}, no sobre la tabla entera: con \code{muestra = 100} y grupos de 500
+filas, los diagnósticos que muestrean miran 100 de cada grupo. El alcance
+viaja en la evidencia de cada hallazgo, que declara sobre cuántos valores
+se midió; \code{n_filas_grupo} sigue siendo el tamaño del grupo, no el de la
+muestra.}
 }
 \value{
 Data frame de clase \code{hallazgos_por_grupo} con las columnas de

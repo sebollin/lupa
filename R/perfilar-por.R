@@ -40,7 +40,13 @@
 #' @param min_filas Grupos con menos filas que este número no se perfilan y se
 #'   declaran en la cobertura. El valor por omisión evita conclusiones sobre
 #'   grupos donde ningún diagnóstico tiene soporte.
-#' @param ... Argumentos enviados a [perfilar()] para cada grupo.
+#' @param ... Argumentos enviados a [perfilar()] para cada grupo. Los que
+#'   acotan el trabajo —`muestra` entre ellos— se aplican **dentro de cada
+#'   grupo**, no sobre la tabla entera: con `muestra = 100` y grupos de 500
+#'   filas, los diagnósticos que muestrean miran 100 de cada grupo. El alcance
+#'   viaja en la evidencia de cada hallazgo, que declara sobre cuántos valores
+#'   se midió; `n_filas_grupo` sigue siendo el tamaño del grupo, no el de la
+#'   muestra.
 #'
 #' @return Data frame de clase `hallazgos_por_grupo` con las columnas de
 #'   `hallazgos` de [perfilar()] precedidas por `grupo` y `n_filas_grupo`. El
