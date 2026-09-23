@@ -42,7 +42,9 @@ evidencia salió protegida (\code{evidencia_protegida}) y cuántas funciones se
 sustituyeron por su descripción (\code{funciones_sustituidas}). Es el único
 campo que un objeto leído tiene y el original no: lo que se guarda no es
 idéntico a lo que se analizó, y esa diferencia se declara en vez de
-suponerse.
+suponerse. Al leer, si hubo funciones sustituidas, \code{advertencias} agrega
+una fila que declara que la propuesta se volvio a derivar sin ellas y que
+puede no coincidir con la decision original, que se conserva.
 }
 \description{
 Persiste un objeto \code{\link[=analizar]{analizar()}} en RDS con número de esquema. Los datos de

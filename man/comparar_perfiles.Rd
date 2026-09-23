@@ -69,6 +69,13 @@ diagnóstico volvió a evaluarse. Si el perfil nuevo lo declinó —y lo dice en
 su \code{cobertura_diagnosticos}—, el cambio se informa como \code{no_evaluado} con
 severidad \code{sospechoso}, porque no se sabe si el hallazgo sigue: dejar de
 mirar no es lo mismo que arreglar.
+
+Los hallazgos que cuentan filas de la tabla y no pertenecen a una columna
+concreta tampoco se declaran resueltos si aparecieron o desaparecieron
+columnas entre las corridas: cambio el universo que define esas filas. En
+ese caso se publica \code{no_comparable}, con severidad \code{error}, y se nombran las
+columnas cambiadas. Con las mismas columnas, el veredicto \code{resuelto} se
+conserva.
 }
 \examples{
 anterior <- perfilar(data.frame(codigo = c("AA1", "AA2")),

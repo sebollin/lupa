@@ -709,6 +709,21 @@
   )
 }
 
+.nota_propuesta_releida <- function(x) {
+  if (!inherits(x$advertencias, "data.frame") ||
+      !all(c("tipo", "descripcion") %in% names(x$advertencias))) {
+    return("")
+  }
+  aviso <- x$advertencias[
+    as.character(x$advertencias$tipo) ==
+      "persistencia_funciones_sustituidas", , drop = FALSE
+  ]
+  if (!nrow(aviso)) return("")
+  paste0(
+    "<p class=\"nota\">", .html_texto(aviso$descripcion[[1L]]), "</p>"
+  )
+}
+
 .seccion_analisis <- function(x, max_filas, max_patrones,
                               proteger_datos_personales) {
   if (proteger_datos_personales) x <- .proteger_analisis(x)
@@ -786,6 +801,7 @@
   )
   propuesta <- paste0(
     "<section><h2>Propuesta de modelo</h2>",
+    .nota_propuesta_releida(x),
     "<p class=\"nota\">",
     if (isTRUE(x$meta$propuesta_confirmada)) {
       "La selecci\u00f3n de medici\u00f3n fue confirmada por quien realiz\u00f3 el an\u00e1lisis. "

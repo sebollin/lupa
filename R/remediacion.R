@@ -665,7 +665,11 @@
 #' `marcar_filas_duplicadas` añade dos columnas. `.fila_duplicada` reproduce la
 #' semántica de [duplicated()] y marca sólo las apariciones posteriores;
 #' `.grupo_duplicado` identifica a **todas** las filas que participan en cada
-#' grupo de contenido idéntico.
+#' grupo de contenido idéntico. Marcar no elimina filas: con las dos columnas
+#' incluidas, un perfil posterior tampoco vuelve a contar esas filas como
+#' duplicadas exactas, porque las marcas las distinguen. Para saber si los
+#' duplicados siguen en la tabla hay que quitar las columnas de marca antes de
+#' perfilarla.
 #'
 #' El orden operativo se aparta deliberadamente de la secuencia dimensional
 #' frescura–completitud–exactitud–consistencia–unicidad sugerida por el marco.
@@ -1163,7 +1167,9 @@ planificar_limpieza <- function(perfil, datos = NULL,
         NA_character_, tipo, "marcar_filas_duplicadas", !con_lista,
         if (con_lista) motivo_lista else paste0(
           "Marcar conserva todas las filas, identifica las repeticiones y ",
-          "asigna un grupo a todos los registros que participan."
+          "asigna un grupo a todos los registros que participan. No elimina ",
+          "filas; mientras las marcas esten incluidas, un perfil posterior no ",
+          "vuelve a contar esas filas como duplicadas exactas."
         ), n_participantes, TRUE,
         estado = if (con_lista) "bloqueada" else "lista", aplicar = !con_lista,
         parametros = list(

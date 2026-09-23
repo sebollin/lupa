@@ -602,6 +602,36 @@ print.analisis <- function(x, ...) {
   list(propuesta = propuesta, n_funciones = n_funciones)
 }
 
+.advertencia_persistencia_propuesta <- function(x) {
+  persistencia <- x$meta$persistencia
+  if (!is.list(persistencia)) return(NULL)
+  sustituidas <- suppressWarnings(as.numeric(persistencia$funciones_sustituidas))
+  if (length(sustituidas) != 1L || !is.finite(sustituidas) || sustituidas <= 0) {
+    return(NULL)
+  }
+  if (inherits(x$advertencias, "data.frame") &&
+      "tipo" %in% names(x$advertencias) &&
+      any(as.character(x$advertencias$tipo) ==
+          "persistencia_funciones_sustituidas")) {
+    return(NULL)
+  }
+  data.frame(
+    componente = "modelo",
+    tipo = "persistencia_funciones_sustituidas",
+    severidad = factor(
+      "sospechoso", levels = c("ok", "sospechoso", "error"), ordered = TRUE
+    ),
+    descripcion = paste0(
+      "El analisis fue releido despues de sustituir ", sustituidas,
+      " funcion(es) de reglas por descriptores. La propuesta se volvio a ",
+      "derivar sin esas funciones y puede no coincidir con la decision de ",
+      "medicion registrada en la corrida original; la decision original se ",
+      "conserva."
+    ),
+    stringsAsFactors = FALSE
+  )
+}
+
 .hidratar_propuesta <- function(propuesta, datos) {
   if (!inherits(propuesta, "propuesta_modelo")) return(propuesta)
   for (i in seq_len(nrow(propuesta))) {
@@ -826,7 +856,9 @@ print.analisis <- function(x, ...) {
 #'   sustituyeron por su descripción (`funciones_sustituidas`). Es el único
 #'   campo que un objeto leído tiene y el original no: lo que se guarda no es
 #'   idéntico a lo que se analizó, y esa diferencia se declara en vez de
-#'   suponerse.
+#'   suponerse. Al leer, si hubo funciones sustituidas, `advertencias` agrega
+#'   una fila que declara que la propuesta se volvio a derivar sin ellas y que
+#'   puede no coincidir con la decision original, que se conserva.
 #' @seealso [analizar()], [reportar()], [guardar_historico()]
 #'
 #' @examples
@@ -977,5 +1009,9 @@ leer_analisis <- function(archivo) {
     stop("La version del esquema de analisis no es compatible.", call. = FALSE)
   }
   x$propuesta_modelo <- .hidratar_propuesta(x$propuesta_modelo, x$datos)
+  advertencia <- .advertencia_persistencia_propuesta(x)
+  if (!is.null(advertencia)) {
+    x$advertencias <- rbind(x$advertencias, advertencia)
+  }
   x
 }

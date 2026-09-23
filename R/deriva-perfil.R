@@ -402,12 +402,21 @@
   }), use.names = FALSE)
 }
 
+.hallazgo_cuenta_filas_tabla <- function(fila) {
+  if (!all(c("columna", "unidad_conteo") %in% names(fila))) return(FALSE)
+  unidad <- as.character(fila$unidad_conteo[[1L]])
+  tabla <- is.na(fila$columna[[1L]]) ||
+    identical(as.character(fila$columna[[1L]]), "<tabla>")
+  isTRUE(identical(unidad, "fila")) && isTRUE(tabla)
+}
+
 .resumir_hallazgos_deriva <- function(perfil) {
   x <- perfil$hallazgos
   if (!nrow(x)) {
     return(data.frame(
       clave = character(), columna = character(), tipo_hallazgo = character(),
-      severidad = character(), evidencia = character(), stringsAsFactors = FALSE
+      severidad = character(), evidencia = character(),
+      unidad_conteo = character(), stringsAsFactors = FALSE
     ))
   }
   columna <- ifelse(is.na(x$columna), "<tabla>", as.character(x$columna))
@@ -423,7 +432,11 @@
       clave = clave[[elegido]], columna = columna[[elegido]],
       tipo_hallazgo = x$tipo_hallazgo[[elegido]],
       severidad = as.character(x$severidad[[elegido]]),
-      evidencia = x$evidencia[[elegido]], stringsAsFactors = FALSE
+      evidencia = x$evidencia[[elegido]],
+      unidad_conteo = if ("unidad_conteo" %in% names(x)) {
+        as.character(x$unidad_conteo[[elegido]])
+      } else NA_character_,
+      stringsAsFactors = FALSE
     )
   })
   resultado <- do.call(rbind, unname(partes))
@@ -523,6 +536,13 @@
 #' su `cobertura_diagnosticos`—, el cambio se informa como `no_evaluado` con
 #' severidad `sospechoso`, porque no se sabe si el hallazgo sigue: dejar de
 #' mirar no es lo mismo que arreglar.
+#'
+#' Los hallazgos que cuentan filas de la tabla y no pertenecen a una columna
+#' concreta tampoco se declaran resueltos si aparecieron o desaparecieron
+#' columnas entre las corridas: cambio el universo que define esas filas. En
+#' ese caso se publica `no_comparable`, con severidad `error`, y se nombran las
+#' columnas cambiadas. Con las mismas columnas, el veredicto `resuelto` se
+#' conserva.
 #'
 #' @export
 #' @seealso [perfilar()], [detectar_deriva_calidad()], [reportar()],
@@ -983,10 +1003,42 @@ comparar_perfiles <- function(anterior, actual, umbral_cambio = 0.05,
     .declinados_por_declaracion_retirada(anterior, actual),
     .declinados_por_cambio_de_tipo(anterior, actual)
   )
+  nombres_columnas_cambiadas <- c(
+    if (length(aparecidas)) {
+      paste0("aparecieron: ", paste(
+        mapa_b$original[match(aparecidas, mapa_b$clave)], collapse = ", "
+      ))
+    },
+    if (length(desaparecidas)) {
+      paste0("desaparecieron: ", paste(
+        mapa_a$original[match(desaparecidas, mapa_a$clave)], collapse = ", "
+      ))
+    }
+  )
+  motivo_columnas_cambiadas <- if (length(nombres_columnas_cambiadas)) {
+    paste(nombres_columnas_cambiadas, collapse = "; ")
+  } else ""
   for (clave in resueltos) {
     x <- hallazgos_a[match(clave, hallazgos_a$clave), , drop = FALSE]
     if (x$columna != "<tabla>" &&
         !.nombres_para_operar(x$columna) %in% nombres_actuales) next
+    if (.hallazgo_cuenta_filas_tabla(x) &&
+        nzchar(motivo_columnas_cambiadas)) {
+      agregar(
+        NA_character_, "hallazgo", "no_comparable", "error",
+        x$tipo_hallazgo, NA_character_,
+        descripcion = paste0(
+          "El hallazgo cuenta filas de la tabla, pero no se puede decidir si",
+          " se resolvio porque cambio el universo de columnas: ",
+          motivo_columnas_cambiadas, "."
+        ),
+        evidencia = paste0(
+          x$evidencia, " No se compara como resuelto: ",
+          motivo_columnas_cambiadas, "."
+        )
+      )
+      next
+    }
     clave_declinacion <- .clave_declinacion_deriva(
       x$columna, x$tipo_hallazgo
     )

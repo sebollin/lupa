@@ -190,7 +190,11 @@ sin publicar sus valores.
 \code{marcar_filas_duplicadas} añade dos columnas. \code{.fila_duplicada} reproduce la
 semántica de \code{\link[=duplicated]{duplicated()}} y marca sólo las apariciones posteriores;
 \code{.grupo_duplicado} identifica a \strong{todas} las filas que participan en cada
-grupo de contenido idéntico.
+grupo de contenido idéntico. Marcar no elimina filas: con las dos columnas
+incluidas, un perfil posterior tampoco vuelve a contar esas filas como
+duplicadas exactas, porque las marcas las distinguen. Para saber si los
+duplicados siguen en la tabla hay que quitar las columnas de marca antes de
+perfilarla.
 
 El orden operativo se aparta deliberadamente de la secuencia dimensional
 frescura–completitud–exactitud–consistencia–unicidad sugerida por el marco.

@@ -8,6 +8,16 @@
   `tipo_resultado` de cada metrica. Si cambia el marco o un tipo, la deriva lo
   declara `no_comparable` con severidad `error` y explica el motivo.
 
+- La deriva ya no declara resuelto un hallazgo que cuenta filas de la tabla si
+  cambiaron las columnas: publica `no_comparable` con severidad `error` y
+  nombra las columnas aparecidas o desaparecidas. La documentacion de
+  `marcar_filas_duplicadas` aclara que la marca no elimina filas y que sus
+  columnas hacen que un perfil posterior no vuelva a contarlas como duplicadas.
+
+- Un analisis releido declara en sus advertencias y junto a la propuesta que
+  esta se volvio a derivar sin las funciones de reglas sustituidas, por lo que
+  puede no coincidir con la decision original, que se conserva.
+
 ## Correcciones de cobertura y publicación
 
 - **Los índices de un hallazgo por grupo apuntan a la tabla del usuario.**
