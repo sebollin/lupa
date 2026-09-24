@@ -30,9 +30,12 @@ sql_perfil(x, ...)
 \code{columnas()}, un \code{data.frame} con una fila por columna de la tabla
 perfilada y sus métricas y diagnósticos; \code{cobertura()} devuelve la tabla de
 diagnósticos no evaluados; \code{n_filas()} devuelve el conteo de filas del
-alcance, o \code{NA} con su motivo cuando el objeto no lo conoce. El significado
-de cada campo de \code{columnas()} se explica por familias en los detalles de
-\code{\link[=perfilar]{perfilar()}}.
+alcance, o un vector con un conteo por tabla para una colección. Devuelve
+\code{NA} con su motivo cuando el objeto no conoce el conteo. El significado de
+cada campo de \code{columnas()} se explica por familias en los detalles de
+\code{\link[=perfilar]{perfilar()}}. \code{sql_perfil()} devuelve la tabla de consultas emitidas;
+sobre una colección incluye la identidad de la tabla y conserva las
+consultas aunque no se retengan los perfiles completos.
 }
 \description{
 \code{perfilar()}, \code{perfilar_dbi()} y \code{perfilar_coleccion()} devuelven objetos con

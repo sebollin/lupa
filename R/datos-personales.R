@@ -349,7 +349,17 @@
       attr(proporcion, "totales", exact = TRUE) %||% NA_integer_
     ),
     fundamento = fundamento,
-    poder_discriminante = poder, proteger = proteger
+    poder_discriminante = poder, proteger = proteger,
+    # La proporcion que decide `verificado` viajaba solo en la decision: una
+    # columna con el 90 % de los documentos validos -el umbral- publicaba
+    # exactamente lo mismo que una con el 100 %. El paquete ya se escribio la
+    # regla en otra guarda: "el motivo tiene que nombrar el numero que decidio,
+    # y decir de donde sale".
+    proporcion_verificada = if (is.finite(proporcion_verificada)) {
+      as.numeric(proporcion_verificada)
+    } else {
+      NA_real_
+    }
   )
 }
 
@@ -439,6 +449,7 @@
         valores_totales = NA_integer_,
         fundamento = "declarado con `columnas_personales`",
         poder_discriminante = "declarado",
+        proporcion_verificada = NA_real_,
         proteger = TRUE,
         stringsAsFactors = FALSE
       ))
@@ -453,6 +464,9 @@
       columna = nombres[[i]],
       tipo = clasificacion$tipo,
       proporcion_compatible = as.numeric(clasificacion$proporcion),
+      proporcion_verificada = as.numeric(
+        clasificacion$proporcion_verificada %||% NA_real_
+      ),
       valores_evaluados = clasificacion$valores_evaluados %||% NA_integer_,
       valores_totales = clasificacion$valores_totales %||% NA_integer_,
       fundamento = clasificacion$fundamento,
@@ -464,7 +478,7 @@
   filas <- filas[!vapply(filas, is.null, logical(1L))]
   resultado <- if (length(filas)) do.call(rbind, filas) else data.frame(
     columna = character(), tipo = character(),
-    proporcion_compatible = numeric(),
+    proporcion_compatible = numeric(), proporcion_verificada = numeric(),
     valores_evaluados = integer(), valores_totales = integer(),
     fundamento = character(),
     poder_discriminante = character(), proteger = logical(),

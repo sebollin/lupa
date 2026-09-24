@@ -194,9 +194,12 @@ as_tibble.perfil <- function(x, ...) {
 #'   `columnas()`, un `data.frame` con una fila por columna de la tabla
 #'   perfilada y sus métricas y diagnósticos; `cobertura()` devuelve la tabla de
 #'   diagnósticos no evaluados; `n_filas()` devuelve el conteo de filas del
-#'   alcance, o `NA` con su motivo cuando el objeto no lo conoce. El significado
-#'   de cada campo de `columnas()` se explica por familias en los detalles de
-#'   [perfilar()].
+#'   alcance, o un vector con un conteo por tabla para una colección. Devuelve
+#'   `NA` con su motivo cuando el objeto no conoce el conteo. El significado de
+#'   cada campo de `columnas()` se explica por familias en los detalles de
+#'   [perfilar()]. `sql_perfil()` devuelve la tabla de consultas emitidas;
+#'   sobre una colección incluye la identidad de la tabla y conserva las
+#'   consultas aunque no se retengan los perfiles completos.
 #' @export
 #' @name accesores_perfil
 #' @seealso [perfilar()], [perfilar_dbi()], [perfilar_coleccion()]
@@ -262,13 +265,9 @@ n_filas <- function(x, ...) {
   if (inherits(x, "perfil")) return(x$general$filas)
   if (inherits(x, "perfil_dbi")) return(x$resumen_tabla$meta$filas)
   if (inherits(x, "perfil_coleccion")) {
-    filas <- x$resumen_coleccion$filas
-    if (is.null(filas)) {
-      # Una coleccion no tiene "un" numero de filas, y sumarlas seria inventar
-      # un total que ninguna tabla tiene.
-      return(NA_real_)
-    }
-    return(filas)
+    # Una coleccion tiene un conteo por tabla, no un total de una relacion
+    # unica. Devolver el vector conserva el dato sin inventar una suma.
+    return(as.numeric(x$resumen_coleccion$n_filas))
   }
   NA_real_
 }

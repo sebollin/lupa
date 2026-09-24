@@ -148,7 +148,14 @@ se mide ningun largo y \code{largo_maximo} vale \code{NA}, no cero.
 }
 \value{
 Lista de clase \code{estimacion_costo_lupa} con los campos de la
-estimación, \code{alcance}, \code{disponible} y \code{razon}.
+estimación, \code{alcance}, \code{disponible} y \code{razon}. En el camino exacto,
+\code{alcance} declara además \strong{la corrida que se está estimando}:
+\code{modo_comparacion} es el mismo que publicará
+\code{\link[=detectar_duplicados_aproximados]{detectar_duplicados_aproximados()}} con esos argumentos —\code{exhaustiva_por_bloques}
+o \code{muestreada_por_bloques}—, y \code{filas_previstas}, \code{filas_totales} y
+\code{estrategia_prevista} dicen sobre cuántas filas se va a comparar y con qué
+selección. Una estimación que anunciara un recorrido exhaustivo sobre una
+corrida que va a muestrear no serviría para decidir.
 }
 \description{
 Construye las firmas y calcula el pronóstico de candidatos sin recorrer las

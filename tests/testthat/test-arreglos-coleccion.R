@@ -146,10 +146,18 @@ test_that("un agregado rechazado por el motor llega a la coleccion sin conservar
 
   # La linea de resumen tambien sube a `cobertura_coleccion`, que es la promesa
   # literal del roxygen de perfilar_coleccion().
-  fila <- liviano$cobertura_coleccion
+  fila <- liviano$cobertura_coleccion[
+    liviano$cobertura_coleccion$alcance == "metricas", , drop = FALSE
+  ]
   expect_equal(nrow(fila), 1L)
   expect_equal(fila$alcance, "metricas")
-  expect_true(grepl("rechazo", fila$motivo, fixed = TRUE))
+  # El resumen dice CUANTOS no se calcularon y, cuando el motivo es uno solo,
+  # cual es. No afirma la causa por su cuenta: el mismo recorte puede venir de
+  # un presupuesto declarado por quien llama, y decia "El motor rechazo" igual.
+  expect_true(grepl("No se calcularon", fila$motivo, fixed = TRUE))
+  expect_true(grepl(rechazadas$motivo, fila$motivo, fixed = TRUE))
+  # Y el motivo del motor sigue entero en el detalle por columna y metrica.
+  expect_true(grepl("motor", rechazadas$motivo, ignore.case = TRUE))
   # Pero no cuenta como tabla sin perfilar: la tabla se perfilo, incompleta.
   expect_equal(liviano$meta$n_sin_perfilar, 0L)
   expect_equal(liviano$meta$n_con_metricas_rechazadas, 1L)

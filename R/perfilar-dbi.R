@@ -4878,6 +4878,13 @@
     as.character(perfil$columnas$columna)
   )
   registros <- list()
+  # Las comparaciones que DIFIEREN y no se declaran divergencia porque la
+  # muestra es parcial. Se cuentan para no callarlas: el README promete que la
+  # corroboracion "no calla que no coinciden", y con una muestra parcial la
+  # cobertura salia vacia -medido: moda `a` 90 veces contra `b` 10 veces, cero
+  # filas-. La regla de no llamarlas divergencia es correcta y se conserva; lo
+  # que faltaba era decir que hubo diferencias que no se pudieron corroborar.
+  no_corroboradas <- list()
   for (columna in unique(nombres)) {
     if (.nombres_para_operar(columna) %in% .nombres_para_operar(protegidas)) {
       next
@@ -4915,7 +4922,13 @@
       } else {
         FALSE
       }
-      if (!isTRUE(difiere)) next
+      if (!isTRUE(difiere)) {
+        if (!completa && isTRUE(comparacion$difiere)) {
+          no_corroboradas[[length(no_corroboradas) + 1L]] <-
+            .clave_par_identificador(columna, metrica, sep = "::")
+        }
+        next
+      }
       valor_sql <- .texto_corroboracion_dbi(a_crudo)
       valor_muestra <- .texto_corroboracion_dbi(b_crudo)
       detalle_muestra <- paste(
@@ -4963,8 +4976,31 @@
       )
     }
   }
+  if (length(no_corroboradas)) {
+    claves <- unlist(no_corroboradas, use.names = FALSE)
+    registros[[length(registros) + 1L]] <- .registro_cobertura_dbi(
+      "corroboracion", paste(claves, collapse = ", "),
+      "no_corroborada",
+      paste0(
+        "Hay ", length(claves), " comparaciones entre `resumen_tabla` y ",
+        "`perfil_muestra` que no coinciden y no se declaran divergencia: la ",
+        "muestra cubre ", format(observado, scientific = FALSE, trim = TRUE),
+        " de ", format(total, scientific = FALSE, trim = TRUE),
+        " filas, y una diferencia ordinaria de momentos, mediana, moda o ",
+        "conteos es esperable en una submuestra."
+      ),
+      paste(
+        "Repetir con `muestra = Inf` para cubrir el 100% y decidir si la",
+        "diferencia persiste. No extrapolar ni reemplazar un bloque por el otro."
+      ),
+      NA_character_
+    )
+  }
   salida <- if (length(registros)) do.call(rbind, registros) else vacia
-  meta$divergencias <- as.integer(nrow(salida))
+  meta$divergencias <- as.integer(sum(
+    as.character(salida$estado) == "divergencia"
+  ))
+  meta$no_corroboradas <- as.integer(length(no_corroboradas))
   list(cobertura = salida, meta = meta)
 }
 

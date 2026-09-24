@@ -1931,10 +1931,29 @@
        is.infinite(muestra) &&
        (is.infinite(max_pares) || max_pares >= 50000000L)))) {
     dentro <- n_pares_comparados
+    # `modo_comparacion` decia "exhaustiva_por_bloques" siempre, y la corrida
+    # con los MISMOS argumentos podia ser muestreada. Medido sobre 5000 filas
+    # con `max_pares = 100000`: la estimacion prometia exhaustiva y la corrida
+    # comparo 447 filas de 5000, declarandose `muestreada_por_bloques`. Una
+    # estimacion es una promesa sobre la corrida; si no la cumple no sirve para
+    # decidir nada.
+    #
+    # No hay que recalcular nada: `indices` y `estrategia_salida` son los mismos
+    # que va a usar la corrida, y ya estan resueltos unas lineas mas arriba. Se
+    # publica ademas cuantas filas va a mirar, que es lo que cambia la respuesta.
     alcance <- data.frame(
-      modo_comparacion = "exhaustiva_por_bloques",
+      modo_comparacion = if (usar_lsh) {
+        "lsh_minhash"
+      } else if (length(indices) >= nrow(datos)) {
+        "exhaustiva_por_bloques"
+      } else {
+        "muestreada_por_bloques"
+      },
       candidatos_previstos = dentro,
       pares_alcanzables = dentro,
+      filas_previstas = length(indices),
+      filas_totales = nrow(datos),
+      estrategia_prevista = estrategia_salida,
       nucleos_usados = nucleos,
       stringsAsFactors = FALSE
     )
@@ -2591,7 +2610,14 @@ detectar_duplicados_aproximados <- function(
 #' @param directorio_lotes Se acepta por simetría y no se crea ni se usa al
 #'   estimar.
 #' @return Lista de clase `estimacion_costo_lupa` con los campos de la
-#'   estimación, `alcance`, `disponible` y `razon`.
+#'   estimación, `alcance`, `disponible` y `razon`. En el camino exacto,
+#'   `alcance` declara además **la corrida que se está estimando**:
+#'   `modo_comparacion` es el mismo que publicará
+#'   [detectar_duplicados_aproximados()] con esos argumentos —`exhaustiva_por_bloques`
+#'   o `muestreada_por_bloques`—, y `filas_previstas`, `filas_totales` y
+#'   `estrategia_prevista` dicen sobre cuántas filas se va a comparar y con qué
+#'   selección. Una estimación que anunciara un recorrido exhaustivo sobre una
+#'   corrida que va a muestrear no serviría para decidir.
 #' @export
 #' @seealso [detectar_duplicados_aproximados()]
 #'

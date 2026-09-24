@@ -89,6 +89,17 @@ números anteriores se lean con su alcance.
 la base puede cambiar entre ellas: una tabla puede truncarse después de que se
 contaron sus filas. Por eso cada fila declara el \code{momento} en que se midió y
 \code{meta$snapshot} declara que no lo hubo.
+
+Cada fila de \code{resumen_coleccion} trae \code{universo}, que nombra el universo de
+las metricas SQL que alimentan sus agregados. En particular, con
+\code{universo = "muestra_motor"}, \code{n_filas} sigue siendo el conteo de la tabla
+completa pero las proporciones observadas declaran que provienen de la
+muestra, en vez de presentarse como cifras de la tabla entera.
+
+\code{meta$lecturas} conserva el SQL emitido por las tablas perfiladas, con su
+identidad, aunque \code{conservar_perfiles = FALSE}. \code{sql_perfil()} lo devuelve
+como una tabla unica; los perfiles completos siguen disponibles por tabla
+cuando se pidio conservarlos.
 }
 \examples{
 if (requireNamespace("RSQLite", quietly = TRUE) &&

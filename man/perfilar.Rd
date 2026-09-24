@@ -1008,7 +1008,9 @@ genérica y también determina la etiqueta de tipo;
 apoyan mutuamente; se protege;
 \item \code{verificado}: al menos tres valores distintos y al menos el 90\% cumple uno
 de los validadores personales configurados; se protege incluso sin un
-nombre orientador. El pack uruguayo es el predeterminado, pero puede
+nombre orientador. La proporción medida —la que se compara contra ese
+umbral— se publica en \code{proporcion_verificada}, para que una columna con el
+90\% no se lea igual que una con el 100\%. El pack uruguayo es el predeterminado, pero puede
 reemplazarse por un \code{pack_validadores()} de otro país o desactivarse con
 \code{FALSE}. La tolerancia del 10\% permite tipeos aislados sin convertir una
 columna real en una salida pública; el umbral es configurable.

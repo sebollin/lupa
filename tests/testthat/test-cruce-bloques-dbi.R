@@ -125,10 +125,20 @@ test_that("una submuestra no convierte sus diferencias esperables en fallos", {
     con, "datos_cruce", muestra = 5L, orden_muestra = "x",
     proteger_datos_personales = FALSE, analizar_dependencias = FALSE
   ))
-  divergencias <- resultado$resumen_tabla$cobertura
-  divergencias <- divergencias[divergencias$bloque == "corroboracion", , drop = FALSE]
+  corroboracion <- resultado$resumen_tabla$cobertura
+  corroboracion <- corroboracion[corroboracion$bloque == "corroboracion", ,
+                                 drop = FALSE]
+  divergencias <- corroboracion[corroboracion$estado == "divergencia", ,
+                                drop = FALSE]
 
+  # Ninguna diferencia esperable se convierte en divergencia...
   expect_equal(nrow(divergencias), 0L)
+  # ...y tampoco se callan: la fila declara cuantas no se pudieron corroborar.
+  declaradas <- corroboracion[corroboracion$estado == "no_corroborada", ,
+                              drop = FALSE]
+  expect_equal(nrow(declaradas), 1L)
+  expect_true(grepl("no se declaran divergencia", declaradas$motivo[[1L]],
+                    fixed = TRUE))
   expect_equal(
     resultado$resumen_tabla$meta$corroboracion_bloques$estado,
     "muestra_parcial"

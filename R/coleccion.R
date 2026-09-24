@@ -679,6 +679,41 @@ print.coleccion_lupa <- function(x, ...) {
   )
 }
 
+# Las divergencias de corroboracion no son un agregado SQL rechazado: son una
+# diferencia declarada entre dos bloques del mismo perfil. Si se descarta el
+# perfil, igual tienen que conservarse por columna y metrica para no convertir
+# una evidencia publicada en silencio.
+.cobertura_divergencias_metricas <- function(registro, fila) {
+  vacia <- .cobertura_metricas_vacia()
+  if (!is.data.frame(registro) || !nrow(registro) ||
+      !all(c("bloque", "elemento", "estado", "motivo",
+             "como_resolverlo") %in% names(registro))) {
+    return(vacia)
+  }
+  indices <- which(
+    as.character(registro$bloque) == "corroboracion" &
+      as.character(registro$estado) == "divergencia"
+  )
+  if (!length(indices)) return(vacia)
+  elemento <- as.character(registro$elemento[indices])
+  tiene_metrica <- grepl("::", elemento, fixed = TRUE)
+  columna <- rep(NA_character_, length(elemento))
+  metrica <- elemento
+  columna[tiene_metrica] <- sub("::.*$", "", elemento[tiene_metrica])
+  metrica[tiene_metrica] <- sub("^.*::", "", elemento[tiene_metrica])
+  data.frame(
+    tabla = rep(fila$tabla, length(indices)),
+    esquema = rep(fila$esquema, length(indices)),
+    identificador = rep(fila$identificador, length(indices)),
+    columna = columna,
+    metrica = metrica,
+    estado = as.character(registro$estado[indices]),
+    motivo = as.character(registro$motivo[indices]),
+    como_resolverlo = as.character(registro$como_resolverlo[indices]),
+    stringsAsFactors = FALSE
+  )
+}
+
 #' Perfilar una colección declarada
 #'
 #' Recorre las tablas declaradas en [coleccion()] y devuelve **una fila por
@@ -719,6 +754,17 @@ print.coleccion_lupa <- function(x, ...) {
 #' la base puede cambiar entre ellas: una tabla puede truncarse después de que se
 #' contaron sus filas. Por eso cada fila declara el `momento` en que se midió y
 #' `meta$snapshot` declara que no lo hubo.
+#'
+#' Cada fila de `resumen_coleccion` trae `universo`, que nombra el universo de
+#' las metricas SQL que alimentan sus agregados. En particular, con
+#' `universo = "muestra_motor"`, `n_filas` sigue siendo el conteo de la tabla
+#' completa pero las proporciones observadas declaran que provienen de la
+#' muestra, en vez de presentarse como cifras de la tabla entera.
+#'
+#' `meta$lecturas` conserva el SQL emitido por las tablas perfiladas, con su
+#' identidad, aunque `conservar_perfiles = FALSE`. `sql_perfil()` lo devuelve
+#' como una tabla unica; los perfiles completos siguen disponibles por tabla
+#' cuando se pidio conservarlos.
 #'
 #' @param coleccion Objeto creado por [coleccion()].
 #' @param muestra Filas solicitadas por tabla para el bloque en memoria. Por
@@ -792,9 +838,11 @@ perfilar_coleccion <- function(coleccion, muestra = Inf,
   inicio <- Sys.time()
   cobertura <- list()
   metricas <- list()
+  lecturas <- list()
   resumenes <- list()
   perfiles <- list()
   n_metricas_no_medidas <- 0
+  n_divergencias <- 0L
   filas_metricas <- 0
   metricas_truncadas <- FALSE
 
@@ -892,6 +940,16 @@ perfilar_coleccion <- function(coleccion, muestra = Inf,
         n_columnas = nrow(resumen$columnas),
         # Se lee ANTES de descartar el perfil: es la unica oportunidad.
         sql = resumen$sql,
+        cobertura_tabla = if (is.data.frame(resumen$cobertura)) {
+          resumen$cobertura
+        } else {
+          .cobertura_dbi_vacia()
+        },
+        universo = if (is.null(resumen$meta$universo)) {
+          NA_character_
+        } else {
+          as.character(resumen$meta$universo)
+        },
         cobertura_muestra = rbind(resumen$cobertura[
           resumen$cobertura$bloque == "perfil_muestra", , drop = FALSE
         ], cobertura_filas_analizadas)
@@ -932,6 +990,36 @@ perfilar_coleccion <- function(coleccion, muestra = Inf,
     if (!is.na(estado_metricas$no_medidas)) {
       n_metricas_no_medidas <- n_metricas_no_medidas + estado_metricas$no_medidas
     }
+    divergencias_metricas <- .cobertura_divergencias_metricas(
+      piezas$cobertura_tabla, fila
+    )
+    if (nrow(divergencias_metricas)) {
+      n_divergencias <- n_divergencias + nrow(divergencias_metricas)
+      cobertura[[length(cobertura) + 1L]] <- .fila_cobertura_coleccion(
+        fila, "divergencias",
+        paste0(
+          "El perfil interno declaro ", nrow(divergencias_metricas),
+          " divergencia(s) entre sus bloques. El detalle por columna y",
+          " metrica queda en `cobertura_metricas`."
+        ),
+        paste(
+          "Revisar la divergencia y repetir bajo una lectura consistente si",
+          "se necesita decidir cual valor representa al dato."
+        )
+      )
+    }
+
+    if (is.data.frame(piezas$sql) && nrow(piezas$sql)) {
+      lecturas[[length(lecturas) + 1L]] <- cbind(
+        data.frame(
+          tabla = rep(fila$tabla, nrow(piezas$sql)),
+          esquema = rep(fila$esquema, nrow(piezas$sql)),
+          identificador = rep(identificador, nrow(piezas$sql)),
+          stringsAsFactors = FALSE
+        ),
+        piezas$sql
+      )
+    }
 
     resumenes[[length(resumenes) + 1L]] <- data.frame(
       tabla = fila$tabla,
@@ -948,6 +1036,7 @@ perfilar_coleccion <- function(coleccion, muestra = Inf,
       n_metricas_declaradas = estado_metricas$n,
       n_metricas_calculadas = estado_metricas$calculadas,
       n_metricas_no_disponibles = estado_metricas$no_disponibles,
+      universo = piezas$universo,
       muestra_solicitada = if (identical(bloque_muestra, "con_muestra")) {
         as.numeric(muestra)
       } else NA_real_,
@@ -1015,36 +1104,74 @@ perfilar_coleccion <- function(coleccion, muestra = Inf,
       ejemplos <- utils::head(
         paste0(rechazadas$columna, "/", rechazadas$metrica), 3L
       )
+      # El resumen NO puede atribuir la causa. Decia "El motor rechazo N de M
+      # agregados", y medido con `max_consultas = 3` ninguna consulta la
+      # rechazo el motor: se emitieron exactamente las tres que el presupuesto
+      # del usuario permitia, y el motivo real -"se agoto el presupuesto
+      # declarado en `max_consultas`"- estaba una tabla mas abajo. La fila que
+      # resume no puede desmentir a la que detalla.
+      motivos <- unique(as.character(rechazadas$motivo))
+      motivos <- motivos[!is.na(motivos) & nzchar(motivos)]
       cobertura[[length(cobertura) + 1L]] <- .fila_cobertura_coleccion(
         fila, "metricas",
         paste0(
-          "El motor rechazo ", estado_metricas$no_disponibles, " de ",
+          "No se calcularon ", estado_metricas$no_disponibles, " de ",
           estado_metricas$n, " agregados de esta tabla (por ejemplo ",
-          paste(ejemplos, collapse = ", "),
-          "). La tabla se perfilo, pero no completa."
+          paste(ejemplos, collapse = ", "), "). ",
+          if (length(motivos) == 1L) {
+            paste0("Motivo: ", motivos[[1L]], " ")
+          } else if (length(motivos) > 1L) {
+            paste0(
+              "Los motivos no son uno solo: hay ", length(motivos),
+              " distintos, por columna y metrica. "
+            )
+          } else {
+            ""
+          },
+          "La tabla se perfilo, pero no completa."
         ),
         paste(
           "El detalle por columna y metrica esta en `cobertura_metricas`, con",
-          "el motivo que devolvio el motor."
+          "el motivo de cada uno: puede ser el motor, un tipo que no admite el",
+          "agregado o un presupuesto declarado que se agoto."
         )
       )
     }
 
     if (!identical(cobertura_metricas, "ninguna") &&
-        is.data.frame(piezas$sql) && nrow(piezas$sql)) {
+        ((is.data.frame(piezas$sql) && nrow(piezas$sql)) ||
+         nrow(divergencias_metricas))) {
       seleccion <- if (identical(cobertura_metricas, "completa")) {
         piezas$sql
       } else {
         estado_metricas$detalle
       }
       if (!is.null(seleccion) && nrow(seleccion)) {
+        seleccion <- seleccion[, c("columna", "metrica", "estado", "motivo"),
+                               drop = FALSE]
+      } else {
+        seleccion <- data.frame(
+          columna = character(), metrica = character(), estado = character(),
+          motivo = character(), stringsAsFactors = FALSE
+        )
+      }
+      seleccion$como_resolverlo <- rep(NA_character_, nrow(seleccion))
+      if (nrow(divergencias_metricas)) {
+        seleccion <- rbind(
+          divergencias_metricas[, c(
+            "columna", "metrica", "estado", "motivo", "como_resolverlo"
+          ), drop = FALSE],
+          seleccion
+        )
+      }
+      if (nrow(seleccion)) {
         disponibles <- max(0, tope_cobertura_metricas - filas_metricas)
         if (nrow(seleccion) > disponibles) {
           seleccion <- seleccion[seq_len(disponibles), , drop = FALSE]
           metricas_truncadas <- TRUE
         }
       }
-      if (!is.null(seleccion) && nrow(seleccion)) {
+      if (nrow(seleccion)) {
         filas_metricas <- filas_metricas + nrow(seleccion)
         metricas[[length(metricas) + 1L]] <- data.frame(
           tabla = rep(fila$tabla, nrow(seleccion)),
@@ -1054,7 +1181,11 @@ perfilar_coleccion <- function(coleccion, muestra = Inf,
           metrica = as.character(seleccion$metrica),
           estado = as.character(seleccion$estado),
           motivo = as.character(seleccion$motivo),
-          como_resolverlo = .como_resolver_metrica(as.character(seleccion$estado)),
+          como_resolverlo = ifelse(
+            is.na(seleccion$como_resolverlo),
+            .como_resolver_metrica(as.character(seleccion$estado)),
+            as.character(seleccion$como_resolverlo)
+          ),
           stringsAsFactors = FALSE
         )
       }
@@ -1072,6 +1203,7 @@ perfilar_coleccion <- function(coleccion, muestra = Inf,
       prop_faltantes_maxima = numeric(), n_columnas_sin_faltantes = numeric(),
       n_columnas_medidas = numeric(), n_metricas_declaradas = numeric(),
       n_metricas_calculadas = numeric(), n_metricas_no_disponibles = numeric(),
+      universo = character(),
       muestra_solicitada = numeric(), muestra_analizada = numeric(),
       momento = as.POSIXct(character()), stringsAsFactors = FALSE
     )
@@ -1085,6 +1217,11 @@ perfilar_coleccion <- function(coleccion, muestra = Inf,
     do.call(rbind, metricas)
   } else {
     .cobertura_metricas_vacia()
+  }
+  tabla_lecturas <- if (length(lecturas)) {
+    do.call(rbind, lecturas)
+  } else {
+    NULL
   }
   rownames(resumen_coleccion) <- NULL
   rownames(cobertura_coleccion) <- NULL
@@ -1108,6 +1245,8 @@ perfilar_coleccion <- function(coleccion, muestra = Inf,
       n_vacias = sum(alcance %in% "tabla_vacia"),
       n_con_metricas_rechazadas = sum(alcance %in% "metricas"),
       n_metricas_no_medidas = n_metricas_no_medidas,
+      n_divergencias = n_divergencias,
+      lecturas = tabla_lecturas,
       cobertura_metricas_modo = cobertura_metricas,
       cobertura_metricas_truncada = metricas_truncadas,
       tope_cobertura_metricas = tope_cobertura_metricas,
@@ -1122,8 +1261,8 @@ perfilar_coleccion <- function(coleccion, muestra = Inf,
       nota_cobertura = paste(
         "Donde no hubo medicion va NA, nunca 0 ni -Inf.",
         "`n_columnas_medidas` declara sobre cuantas columnas se conoce la",
-        "proporcion de ausentes, y `cobertura_metricas` que agregado no se",
-        "pudo calcular en cada columna."
+        "proporcion de ausentes, `cobertura_metricas` que agregado no se",
+        "pudo calcular y que divergencia se declaro en cada columna."
       ),
       frontera = "declarada por el usuario"
     )
@@ -1156,7 +1295,9 @@ print.perfil_coleccion <- function(x, ...) {
   }
   if (isTRUE(x$meta$n_con_metricas_rechazadas > 0)) {
     cli::cli_text(
-      "Con agregados rechazados por el motor: {x$meta$n_con_metricas_rechazadas} (ver `cobertura_metricas`)"
+      # "rechazados por el motor" atribuia la causa sin saberla: el recorte
+      # puede venir del presupuesto declarado por quien llama.
+      "Con agregados no calculados: {x$meta$n_con_metricas_rechazadas} (ver `cobertura_metricas`)"
     )
   }
   cli::cli_text("Sin lectura instant\u00e1nea: cada tabla trae su `momento`.")
