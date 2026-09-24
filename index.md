@@ -370,11 +370,14 @@ does not count as a number — `NaN`, `Inf`, text the conversion cannot
 read, and the sentinels declared in `sentinelas_numericos` — and when it
 does, it says so: `n_valores_excluidos_resumen` counts them,
 `estado_resumen_cuantitativo` stops saying `"calculados"`, and
-`cobertura_diagnosticos` gets its row. None of that depends on sampling
-being on. By default, `muestra = 1e5` limits pattern discovery, type
-inference, date-format discovery, and the common sample used to search
-for functional dependencies. Set another limit or `Inf` to change or
-disable that sampling.
+`cobertura_diagnosticos` gets its row. The breakdown of the non-finite
+values stays in `n_nan`, `n_infinito_positivo` and
+`n_infinito_negativo`, and when no usable value survives the state says
+`"sin_valores"` instead of claiming it computed anything. None of that
+depends on sampling being on. By default, `muestra = 1e5` limits pattern
+discovery, type inference, date-format discovery, and the common sample
+used to search for functional dependencies. Set another limit or `Inf`
+to change or disable that sampling.
 
 For inferred temporal types, `estado_tipo_inferido` distinguishes
 `confirmado`, `candidato`, and `NA`; a 100% compatible ambiguous date

@@ -383,8 +383,11 @@ la conversión no puede leer y los centinelas que se declaran en
 `sentinelas_numericos`—, y cuando lo hace lo dice:
 `n_valores_excluidos_resumen` los cuenta, `estado_resumen_cuantitativo`
 deja de decir `"calculados"` y `cobertura_diagnosticos` recibe su fila.
-Eso no depende de que haya muestreo. Por omisión, `muestra = 1e5` limita
-el descubrimiento de patrones, la inferencia de tipos, la detección de
+El desglose de los no finitos queda en `n_nan`, `n_infinito_positivo` y
+`n_infinito_negativo`, y si no sobrevive ningún valor utilizable el
+estado dice `"sin_valores"` en vez de afirmar que calculó algo. Eso no
+depende de que haya muestreo. Por omisión, `muestra = 1e5` limita el
+descubrimiento de patrones, la inferencia de tipos, la detección de
 formatos de fecha y la muestra común con que se buscan dependencias
 funcionales. Otro límite o `Inf` cambia o desactiva ese muestreo.
 

@@ -28,6 +28,13 @@
   hallazgos medidos para los que no propone accion porque su columna
   comparte nombre con otra, y lo avisa al imprimirse.
 
+- Los valores presentes que no son finitos -`NaN`, `Inf`, `-Inf`-
+  cuentan como excluidos del resumen cuantitativo, como los dos README
+  ya prometian: `n_valores_excluidos_resumen` los suma, el estado pasa a
+  `calculados_sobre_valores` y `cobertura_diagnosticos` recibe su fila
+  con el desglose. Una columna sin un solo valor utilizable publica
+  `sin_valores` en vez de `calculados` con todo en `NA`.
+
 - El denominador de `outliers`, `ceros_no_permitidos` y
   `negativos_no_permitidos` descuenta tambien los ausentes comunes, no
   solo los valores que no pudieron convertirse: una columna de mil filas
