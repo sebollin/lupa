@@ -111,3 +111,72 @@ test_that("recortar espacios no anuncia una perdida que no tiene", {
                         drop = FALSE]
   expect_equal(ejecutada$n_no_reversibles[[1L]], 0)
 })
+
+test_that("los presentes no finitos cuentan como excluidos del resumen", {
+  # Los dos README prometen que un resumen que deja afuera `NaN` o `Inf` lo
+  # dice: los cuenta en `n_valores_excluidos_resumen` y el estado deja de decir
+  # "calculados". Con 28 finitos, un `Inf` y un `-Inf` decia `calculados` y
+  # `0` excluidos, con el minimo y la media ya calculados sin ellos.
+  set.seed(272)
+  datos <- data.frame(x = c(stats::rnorm(28), Inf, -Inf), id = seq_len(30L))
+
+  perfil <- perfilar(datos, analizar_dependencias = FALSE)
+  fila <- perfil$columnas[perfil$columnas$columna == "x", , drop = FALSE]
+
+  expect_equal(as.character(fila$estado_resumen_cuantitativo[[1L]]),
+               "calculados_sobre_valores")
+  expect_equal(fila$n_valores_excluidos_resumen[[1L]], 2L)
+  expect_equal(fila$n_infinito_positivo[[1L]], 1L)
+  expect_equal(fila$n_infinito_negativo[[1L]], 1L)
+  expect_true(is.finite(fila$minimo[[1L]]))
+
+  # Y queda declarado donde el paquete declara lo que no midio, con el desglose.
+  cobertura <- perfil$cobertura_diagnosticos
+  cobertura <- cobertura[cobertura$diagnostico == "resumen_cuantitativo", ,
+                         drop = FALSE]
+  expect_equal(nrow(cobertura), 1L)
+  expect_match(cobertura$motivo[[1L]], "no finitos", fixed = TRUE)
+  expect_false(grepl("no pudo convertir", cobertura$motivo[[1L]], fixed = TRUE))
+})
+
+test_that("una columna sin un solo valor utilizable no dice calculados", {
+  casos <- list(
+    todo_inf = rep(Inf, 30L),
+    todo_nan = rep(NaN, 30L),
+    todo_na = rep(NA_real_, 30L)
+  )
+  for (nombre in names(casos)) {
+    datos <- data.frame(x = casos[[nombre]], id = seq_len(30L))
+    perfil <- perfilar(datos, analizar_dependencias = FALSE)
+    fila <- perfil$columnas[perfil$columnas$columna == "x", , drop = FALSE]
+
+    expect_equal(as.character(fila$estado_resumen_cuantitativo[[1L]]),
+                 "sin_valores", info = nombre)
+    expect_true(is.na(fila$minimo[[1L]]), info = nombre)
+    expect_true(is.na(fila$media[[1L]]), info = nombre)
+  }
+
+  # Control: con valores utilizables el estado sigue siendo `calculados`.
+  set.seed(273)
+  datos <- data.frame(x = stats::rnorm(30L), id = seq_len(30L))
+  perfil <- perfilar(datos, analizar_dependencias = FALSE)
+  fila <- perfil$columnas[perfil$columnas$columna == "x", , drop = FALSE]
+  expect_equal(as.character(fila$estado_resumen_cuantitativo[[1L]]),
+               "calculados")
+  expect_equal(fila$n_valores_excluidos_resumen[[1L]], 0L)
+})
+
+test_that("un centinela declarado sigue contandose como antes", {
+  # Control de la cuenta nueva: lo que ya se excluia no cambia de numero.
+  set.seed(274)
+  datos <- data.frame(x = c(stats::rnorm(90), rep(-999, 10L)),
+                      id = seq_len(100L))
+
+  perfil <- perfilar(datos, analizar_dependencias = FALSE,
+                     sentinelas_numericos = -999)
+  fila <- perfil$columnas[perfil$columnas$columna == "x", , drop = FALSE]
+
+  expect_equal(fila$n_valores_excluidos_resumen[[1L]], 10L)
+  expect_equal(as.character(fila$estado_resumen_cuantitativo[[1L]]),
+               "calculados_sobre_valores")
+})

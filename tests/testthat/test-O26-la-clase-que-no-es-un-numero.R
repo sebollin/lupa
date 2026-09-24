@@ -2,14 +2,38 @@
 # trataba por el nombre de su clase -o por no tener nombre ninguno- y una es un
 # hallazgo medido que el plan dejaba caer sin decirlo.
 
-test_that("una columna Period no mata a perfilar y queda declarada", {
-  skip_if_not_installed("lubridate")
-  valores <- as.integer(c(1:40, 41:80))
-  # Con una relacion entre las dos columnas peladas, el perfil publica el
-  # alcance del diagnostico; ahi se lee que la tercera quedo afuera y por que.
-  datos <- data.frame(neto = as.numeric(valores))
-  datos$total <- datos$neto * 1.22
-  datos$plazo <- lubridate::days(valores)
+# La clase de este archivo reproduce el mecanismo de las dos que abortaban de
+# verdad, sin agregarle una dependencia al paquete para probarlo: declara una
+# clase, responde TRUE a `is.numeric()`, se conserva al subconjuntarse y su
+# division reconstruye el objeto, asi que una division no entera muere en la
+# validez. Es lo que hace `lubridate::Period` -"invalid class Period object:
+# periods must have integer values"- y, por otra via, `units` -"both operands of
+# the expression should be units objects"-.
+#
+# Va aca y no en un helper: los metodos S4 definidos en un helper no sobreviven
+# al despacho desde el espacio de nombres del paquete -"invalid object
+# (non-function) used as method"-. El fixture sin aritmetica, que alcanza para
+# las pruebas que solo miden la declaracion, esta en el helper.
+setClass("lupaCantidadEntera", contains = "numeric",
+         validity = function(object) {
+           if (any(object@.Data != round(object@.Data))) {
+             "lupaCantidadEntera debe tener valores enteros"
+           } else {
+             TRUE
+           }
+         })
+setMethod("[", "lupaCantidadEntera", function(x, i, ...) {
+  new("lupaCantidadEntera", x@.Data[i])
+})
+setMethod("/", signature("lupaCantidadEntera", "lupaCantidadEntera"),
+          function(e1, e2) new("lupaCantidadEntera", e1@.Data / e2@.Data))
+setMethod("/", signature("lupaCantidadEntera", "numeric"),
+          function(e1, e2) new("lupaCantidadEntera", e1@.Data / e2))
+
+test_that("una columna numerica con clase propia no mata a perfilar", {
+  valores <- as.numeric(1:60)
+  datos <- data.frame(neto = valores, total = valores * 1.22)
+  datos$cantidad <- new("lupaCantidadEntera", valores)
 
   perfil <- perfilar(datos, analizar_dependencias = FALSE)
 
@@ -17,38 +41,55 @@ test_that("una columna Period no mata a perfilar y queda declarada", {
   expect_equal(sum(perfil$hallazgos$tipo_hallazgo ==
                      "relacion_aritmetica_columnas"), 1L)
   alcance <- perfil$meta$aritmetica_columnas
-  expect_false("plazo" %in% alcance$columnas_numericas)
-  expect_true("Period" %in% alcance$clases_excluidas)
-  expect_equal(unname(alcance$columnas_excluidas_por_clase[["plazo"]]), "Period")
+  expect_false("cantidad" %in% alcance$columnas_numericas)
+  expect_true("lupaCantidadEntera" %in% alcance$clases_excluidas)
+  expect_equal(unname(alcance$columnas_excluidas_por_clase[["cantidad"]]),
+               "lupaCantidadEntera")
 
   cobertura <- perfil$cobertura_diagnosticos
   fila <- cobertura[
     cobertura$diagnostico == "relacion_aritmetica_columnas" &
-      cobertura$columna == "plazo", ,
+      cobertura$columna == "cantidad", ,
     drop = FALSE
   ]
   expect_equal(nrow(fila), 1L)
-  expect_match(fila$motivo[[1L]], "Period", fixed = TRUE)
+  expect_match(fila$motivo[[1L]], "lupaCantidadEntera", fixed = TRUE)
   expect_match(fila$como_resolverlo[[1L]], "as.numeric()", fixed = TRUE)
 })
 
-test_that("una columna units tampoco aborta y Benford la declara", {
-  skip_if_not_installed("units")
-  set.seed(126)
-  valores <- round(stats::runif(120, 1, 9999), 2)
-  datos <- data.frame(base = valores * 2)
-  datos$distancia <- units::set_units(valores, "m")
+test_that("la columna que se excluye es la que haria abortar la busqueda", {
+  # La mitad que prueba que el fixture es una trampa de verdad: si el criterio
+  # dejara entrar la columna, la busqueda proporcional muere. Sin esto, el
+  # bloque anterior no se distingue de uno que mide una clase inofensiva.
+  valores <- as.numeric(1:60)
+  datos <- data.frame(base = valores * 3)
+  datos$cantidad <- new("lupaCantidadEntera", valores)
+
+  expect_false(lupa:::.es_columna_aritmetica(datos$cantidad))
+  expect_error(
+    lupa:::.hallazgo_proporcional(datos, c(1L, 2L), 0.9, 3L, 1e-8, names(datos)),
+    "lupaCantidadEntera"
+  )
+})
+
+test_that("Benford declara la columna con clase y no la analiza", {
+  valores <- as.numeric(c(1:120))
+  datos <- data.frame(id = seq_len(120L))
+  datos$cantidad <- new("lupaCantidadEntera", valores)
 
   perfil <- perfilar(datos, analizar_dependencias = FALSE)
-
-  expect_equal(nrow(perfil$columnas), 2L)
   cobertura <- perfil$cobertura_diagnosticos
   benford <- cobertura[
-    cobertura$diagnostico == "ley_benford" & cobertura$columna == "distancia", ,
+    cobertura$diagnostico == "ley_benford" & cobertura$columna == "cantidad", ,
     drop = FALSE
   ]
+
   expect_equal(nrow(benford), 1L)
-  expect_match(benford$motivo[[1L]], "units", fixed = TRUE)
+  expect_match(benford$motivo[[1L]], "lupaCantidadEntera", fixed = TRUE)
+  expect_false(any(
+    perfil$hallazgos$tipo_hallazgo == "desviacion_benford" &
+      perfil$hallazgos$columna == "cantidad"
+  ))
 })
 
 test_that("las columnas numericas peladas siguen entrando al analisis", {

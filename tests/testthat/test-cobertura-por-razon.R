@@ -12,7 +12,7 @@
 # que la rama se ejecute de verdad en vez de saltearse cuando el paquete está
 # instalado.
 
-# Las veinte razones conocidas por las que `lupa` puede declarar que no
+# Las veinticuatro razones conocidas por las que `lupa` puede declarar que no
 # midió. El inventario se compara contra el vocabulario que el paquete produce
 # de verdad, en la última prueba del archivo: la versión anterior decía que una
 # razón nueva hacía fallar esa prueba, y no era cierto —contaba el inventario
@@ -38,6 +38,10 @@
   "outliers__pocos_valores_finitos",
   "outliers__iqr_cero",
   "outliers__parece_identificador",
+  "resumen_cuantitativo__valores_no_convertidos",
+  "resumen_cuantitativo__valores_no_finitos",
+  "resumen_cuantitativo__centinelas_declarados",
+  "resumen_cuantitativo__dias_de_mes",
   "patron_raro__dominante_insuficiente"
 )
 
@@ -218,19 +222,18 @@ test_that("el catálogo de razones conocidas está completo", {
   # sumarla acá, esta lista deja de describir el comportamiento real. No se
   # puede leer `R/` desde un paquete instalado, así que la comprobación es de
   # forma: cada razón declarada nombra un diagnóstico y una causa.
-  expect_length(.razones_de_cobertura, 20L)
+  expect_length(.razones_de_cobertura, 24L)
   partes <- strsplit(.razones_de_cobertura, "__", fixed = TRUE)
   expect_true(all(lengths(partes) == 2L))
   diagnosticos <- unique(vapply(partes, `[[`, character(1L), 1L))
-  expect_length(diagnosticos, 13L)
+  expect_length(diagnosticos, 14L)
 })
 
 test_that("una columna numérica con clase declarada se declara dos veces", {
-  skip_if_not_installed("units")
   set.seed(214)
-  valores <- round(stats::runif(120, 1, 9999), 2)
+  valores <- as.numeric(seq_len(120L))
   datos <- data.frame(neto = valores, total = valores * 1.22)
-  datos$distancia <- units::set_units(valores, "m")
+  datos$distancia <- .columna_con_clase_numerica(valores)
 
   perfil <- perfilar(datos, analizar_dependencias = FALSE)
 
@@ -239,13 +242,13 @@ test_that("una columna numérica con clase declarada se declara dos veces", {
   aritmetica <- .fila_cobertura(perfil, "relacion_aritmetica_columnas")
   aritmetica <- aritmetica[aritmetica$columna == "distancia", , drop = FALSE]
   expect_equal(nrow(aritmetica), 1L)
-  expect_true(grepl("units", aritmetica$motivo[[1L]], fixed = TRUE))
+  expect_true(grepl("lupaMagnitud", aritmetica$motivo[[1L]], fixed = TRUE))
   expect_true(nzchar(aritmetica$como_resolverlo[[1L]]))
 
   benford <- .fila_cobertura(perfil, "ley_benford")
   benford <- benford[benford$columna == "distancia", , drop = FALSE]
   expect_equal(nrow(benford), 1L)
-  expect_true(grepl("units", benford$motivo[[1L]], fixed = TRUE))
+  expect_true(grepl("lupaMagnitud", benford$motivo[[1L]], fixed = TRUE))
 
   # Y la mitad que mide: las dos columnas peladas sí se analizaron.
   expect_true("relacion_aritmetica_columnas" %in%
@@ -313,6 +316,50 @@ test_that("las cuatro razones por las que no se evaluan outliers se declaran", {
                 as.character(perfil_medido$hallazgos$tipo_hallazgo))
 })
 
+test_that("el resumen cuantitativo declara por que quedo corto", {
+  # Tres de las cuatro razones se miden aca; la cuarta -texto que no convierte-
+  # la mide `test-alcance-sin-muestreo.R` sobre su propia tabla.
+  set.seed(218)
+  casos <- list(
+    valores_no_finitos = list(
+      datos = data.frame(x = c(stats::rnorm(28), Inf, -Inf), id = seq_len(30L)),
+      args = list(),
+      clave = "no finitos"
+    ),
+    centinelas_declarados = list(
+      datos = data.frame(x = c(stats::rnorm(90), rep(-999, 10L)),
+                         id = seq_len(100L)),
+      args = list(sentinelas_numericos = -999),
+      clave = "dejo afuera"
+    ),
+    dias_de_mes = list(
+      datos = data.frame(f = c(rep("2024-01-15", 20L), rep("2024-02", 10L)),
+                         stringsAsFactors = FALSE),
+      args = list(),
+      clave = "resumen cuantitativo"
+    )
+  )
+  for (nombre in names(casos)) {
+    caso <- casos[[nombre]]
+    perfil <- do.call(perfilar, c(
+      list(caso$datos, analizar_dependencias = FALSE,
+           proteger_datos_personales = FALSE),
+      caso$args
+    ))
+    fila <- .fila_cobertura(perfil, "resumen_cuantitativo")
+    expect_equal(nrow(fila), 1L, info = nombre)
+    expect_true(grepl(caso$clave, fila$motivo[[1L]], fixed = TRUE), info = nombre)
+    expect_true(nzchar(fila$como_resolverlo[[1L]]), info = nombre)
+  }
+
+  # Control: una columna entera de numeros finitos no declara nada.
+  set.seed(219)
+  completa <- data.frame(x = stats::rnorm(50L), id = seq_len(50L))
+  perfil <- perfilar(completa, analizar_dependencias = FALSE,
+                     proteger_datos_personales = FALSE)
+  expect_equal(nrow(.fila_cobertura(perfil, "resumen_cuantitativo")), 0L)
+})
+
 test_that("el inventario de razones se mide contra lo que el paquete produce", {
   # Esta es la prueba que la frase de arriba prometía y no existía. No puede
   # enumerar razones -varias comparten constructor y el motivo es prosa-, pero
@@ -325,16 +372,22 @@ test_that("el inventario de razones se mide contra lo que el paquete produce", {
   set.seed(216)
   valores <- round(stats::runif(120, 1, 9999), 2)
   con_clase <- data.frame(neto = valores, total = valores * 1.22)
-  if (requireNamespace("units", quietly = TRUE)) {
-    con_clase$distancia <- units::set_units(valores, "m")
-  }
+  con_clase$distancia <- .columna_con_clase_numerica(round(valores))
   anchas <- as.data.frame(replicate(21L, stats::rnorm(200L)))
   tablas <- list(
     con_clase,
     anchas,
     data.frame(a = c(1, 2), b = c(2, 4)),
     data.frame(v = c(rep("Montevideo", 6L), rep("Montevido", 4L)),
-               stringsAsFactors = FALSE)
+               stringsAsFactors = FALSE),
+    # Con valores no finitos y con fechas de mes: la primera version de esta
+    # bateria no las traia y por eso no vio `resumen_cuantitativo`, que ya
+    # existia sin estar inventariado. Una bateria que solo pasa por lo comodo
+    # es una guarda que no mide.
+    data.frame(x = c(stats::rnorm(28), Inf, -Inf), id = seq_len(30L)),
+    data.frame(f = c(rep("2024-01-15", 20L), rep("2024-02", 10L)),
+               stringsAsFactors = FALSE),
+    data.frame(x = rep(Inf, 30L), id = seq_len(30L))
   )
   vistos <- character()
   for (tabla in tablas) {

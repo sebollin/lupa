@@ -942,6 +942,23 @@
   n_infinito_negativo <- if (is.numeric(valores)) {
     sum(is.infinite(valores) & valores < 0, na.rm = TRUE)
   } else 0L
+  # Los presentes que no son finitos tampoco entraron al resumen, y hasta aca
+  # no se contaban como excluidos. Los dos README prometen lo contrario con
+  # todas las letras -"un resumen cuantitativo sigue dejando afuera lo que no
+  # vale como numero -`NaN`, `Inf`, ...- y cuando lo hace lo dice:
+  # `n_valores_excluidos_resumen` los cuenta, `estado_resumen_cuantitativo`
+  # deja de decir `calculados`"-. Medido sobre 28 finitos con un `Inf` y un
+  # `-Inf`: `n_valores_excluidos_resumen = 0`, estado `calculados`, y el minimo
+  # y la media ya calculados sin ellos.
+  #
+  # `n_nan` y `n_infinito_*` siguen publicando el desglose; esto agrega el
+  # total, que es lo que el resto del paquete lee para declarar el alcance.
+  n_no_finitos <- as.integer(n_nan + n_infinito_positivo + n_infinito_negativo)
+  if (identical(cuantitativos$clase, "numero") && n_no_finitos > 0L) {
+    n_excluidos_resumen <- as.integer(n_excluidos_resumen + n_no_finitos)
+    cuantitativos$n_valores_excluidos_resumen <- n_excluidos_resumen
+    cuantitativos$estado <- "calculados_sobre_valores"
+  }
   valores <- valores[is.finite(valores)]
   vacio <- .resumen_vacio_cuantitativo(if (
     identical(cuantitativos$clase, "ninguna")) "no_aplica" else "sin_valores"
@@ -962,6 +979,19 @@
     cuantitativos$estado
   } else vacio$estado_resumen_cuantitativo
   if (!length(valores)) {
+    # Sin un solo valor utilizable no se calculo nada, y el estado que venia
+    # describe la columna entera: `calculados`, o `calculados_sobre_valores` si
+    # algo quedo afuera. `sin_valores` ya existia en
+    # `.resumen_vacio_cuantitativo()` y esta rama lo pisaba dos lineas antes,
+    # asi que por este camino no se publicaba nunca: una columna de treinta
+    # `Inf` salia `calculados` con el minimo, el maximo y la media en `NA`.
+    vacio$estado_resumen_cuantitativo <- if (
+      identical(cuantitativos$clase, "ninguna")
+    ) {
+      "no_aplica"
+    } else {
+      "sin_valores"
+    }
     if (cuantitativos$clase %in% c("numero", "integer64")) {
       vacio$estado_outliers <- "no_evaluado"
       vacio$motivo_outliers <- paste(

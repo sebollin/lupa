@@ -2289,6 +2289,24 @@
   salida
 }
 
+.detalle_no_finitos_resumen <- function(fila) {
+  # El desglose sale de los campos que el perfil ya publica, para que el motivo
+  # y la fila de la columna digan el mismo numero.
+  leer <- function(nombre) {
+    if (!nombre %in% names(fila)) return(0)
+    valor <- suppressWarnings(as.numeric(fila[[nombre]][[1L]]))
+    if (length(valor) != 1L || !is.finite(valor)) 0 else valor
+  }
+  no_finitos <- leer("n_nan") + leer("n_infinito_positivo") +
+    leer("n_infinito_negativo")
+  if (no_finitos <= 0) return("")
+  paste0(
+    ", de los cuales ", .formatear_numero_publicado(no_finitos),
+    if (no_finitos == 1) " es un valor no finito" else " son valores no finitos",
+    " (`NaN`, `Inf` o `-Inf`)"
+  )
+}
+
 .conteo_hallazgo_columna <- function(tipo, fila, resultado, n_validos) {
   n <- if (length(fila$n) && is.finite(fila$n[[1L]])) {
     as.numeric(fila$n[[1L]])
@@ -4002,7 +4020,14 @@
           "El resumen cuantitativo se calculo sobre ", resumidas_texto,
           " valores y dejo afuera ",
           .formatear_numero_publicado(n_excluidas_resumen),
-          " valores presentes que no pudo convertir; el tipo o formato se",
+          # "que no pudo convertir" era cierto cuando lo unico que quedaba
+          # afuera era texto ilegible. Desde que los presentes no finitos se
+          # cuentan como excluidos -un `Inf` convierte perfecto y no se puede
+          # usar-, la frase describia mal la mitad de los casos. Se dice lo que
+          # el resumen hizo, y el desglose cuando hay no finitos.
+          " valores presentes que no pudo usar",
+          .detalle_no_finitos_resumen(fila),
+          "; el tipo o formato se",
           " descubrio sobre una muestra de ",
           .formatear_numero_publicado(analizados), " de ",
           .formatear_numero_publicado(total),
