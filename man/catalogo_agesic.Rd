@@ -49,6 +49,13 @@ define el marco. \verb{OportunidadAtributo*}, en cambio, sigue las tablas 16.29 
 conservan como \verb{GradoOportunidadAtributo*} y no figuran como entradas del
 catálogo. \code{RatioDensidadPonderada} usa \code{ratio_umbral}, porque su medida base
 es real y \code{ratio} sólo es válido para medidas booleanas.
+
+\code{implementacion} publica una receta, no una expresión que se evalúe sola: en
+las entradas \code{via_agregacion}, \code{m} es la medición ya tomada de la métrica
+base que nombra \code{metrica_lupa} y \code{u} el umbral que elige quien agrega. Son
+los dos únicos nombres libres que aparecen, y ninguno se inventa aquí: \code{m}
+sale de \code{\link[=medir]{medir()}} y \code{u} es una decisión de política —cuánta densidad se
+considera suficiente— que el paquete no toma por nadie.
 }
 \examples{
 catalogo <- catalogo_agesic()

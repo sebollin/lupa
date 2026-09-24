@@ -24,7 +24,11 @@ instanciada. Se exige para cada \code{ratio_umbral} que no lo declare dentro de
 \code{agregaciones}.}
 
 \item{marco}{Marco conceptual. Si se omite, usa el asociado a la medición,
-el marco AGESIC cuando corresponde o el conjunto de factores medidos.}
+el marco AGESIC cuando corresponde o el conjunto de factores medidos —los
+tres caminos contienen lo que se publica—. Un marco declarado puede no
+contener los pares medidos: no se rechaza, porque informar contra la
+taxonomía propia es un uso previsto, pero lo que queda afuera se cuenta en
+\code{medidos_fuera_del_marco} y se nombra en \code{pares_fuera_del_marco}.}
 
 \item{cobertura}{Cobertura opcional creada por \code{\link[=cobertura_analisis]{cobertura_analisis()}}.
 
@@ -37,7 +41,8 @@ corrida.}
 }
 \value{
 Data frame S3 \code{tablero_calidad}. Los atributos \code{alcance} y
-\code{cobertura} conservan los conteos y el detalle del marco.
+\code{cobertura} conservan los conteos y el detalle del marco, y
+\code{pares_fuera_del_marco} nombra los pares medidos que ese marco no declara.
 }
 \description{
 Resume una corrida en una fila por métrica y objeto. Las métricas
@@ -49,6 +54,15 @@ aplica cuando se declara también el umbral correspondiente.
 El objeto conserva la cobertura completa del marco: factores medidos, sin
 métrica declarada, no aplicables y fuera de alcance. \code{\link[=print]{print()}} muestra
 ambos elementos para que unas pocas filas nunca se lean como cobertura total.
+
+Esa cobertura se cuenta sobre los factores \strong{del marco}, así que una medida
+cuyo par dimensión-factor el marco no declara no entra en ninguna de sus
+casillas. Eso es legítimo —declarar el marco propio y medir con las métricas
+de \code{lupa} es un flujo previsto, y la cobertura de ese marco puede satisfacerse
+por \code{perfil_mide}—, pero leer «se midieron 0 factores de este marco» al lado
+de una fila con valor parece una contradicción del objeto. Por eso el alcance
+publica además \code{medidos_fuera_del_marco}, que \strong{no} suma con las otras cuatro
+casillas, y el atributo \code{pares_fuera_del_marco} los nombra.
 }
 \examples{
 nucleo <- metricas_nucleo()

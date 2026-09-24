@@ -33,11 +33,17 @@
 test_that("la identidad no funde lo declarado `bytes` con el mismo texto", {
   crudo <- .n87_bytes("a\u00f1o")
   texto <- .n87_utf8("a\u00f1o")
-  # R mismo los separa; la clave tiene que decir lo mismo que R.
-  expect_false(crudo == texto)
-  expect_false(identical(.clave_bytes(crudo), .clave_bytes(texto)))
-  # Y la clave de lo declarado `bytes` no puede contener el caracter: si lo
-  # contuviera seria porque se interpreto.
+  # Las dos cadenas NO se comparan entre si: en el minimo declarado -R 4.1-
+  # tanto `==` como `identical()` traducen, y traducir una cadena `bytes` no
+  # esta permitido ("translating strings with bytes encoding is not allowed").
+  # La prueba medía una cosa en R 4.6 y abortaba en 4.1, que es el piso que el
+  # paquete declara soportar.
+  #
+  # Lo que el paquete promete es sobre la CLAVE, y ahi se compara por bytes
+  # crudos, que no traducen en ninguna version.
+  expect_false(identical(Encoding(crudo), Encoding(texto)))
+  expect_false(identical(charToRaw(.clave_bytes(crudo)),
+                         charToRaw(.clave_bytes(texto))))
   expect_false(grepl("\u00f1", .clave_bytes(crudo), fixed = TRUE))
   expect_no_error(.escapar_clave(crudo))
 })

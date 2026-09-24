@@ -817,6 +817,13 @@
 #' catálogo. `RatioDensidadPonderada` usa `ratio_umbral`, porque su medida base
 #' es real y `ratio` sólo es válido para medidas booleanas.
 #'
+#' `implementacion` publica una receta, no una expresión que se evalúe sola: en
+#' las entradas `via_agregacion`, `m` es la medición ya tomada de la métrica
+#' base que nombra `metrica_lupa` y `u` el umbral que elige quien agrega. Son
+#' los dos únicos nombres libres que aparecen, y ninguno se inventa aquí: `m`
+#' sale de [medir()] y `u` es una decisión de política —cuánta densidad se
+#' considera suficiente— que el paquete no toma por nadie.
+#'
 #' @references [AGESIC (2020)](https://www.gub.uy/agencia-gobierno-electronico-sociedad-informacion-conocimiento/).
 #'   *Marco de trabajo para la Gestión de la Calidad
 #'   de Datos en Gobierno Digital*, versión 1.6, capítulo 16, Presidencia de la

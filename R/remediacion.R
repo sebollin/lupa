@@ -1481,7 +1481,21 @@ planificar_limpieza <- function(perfil, datos = NULL,
         ceros_no_permitidos = "revisar_ceros",
         negativos_no_permitidos = "revisar_negativos"
       )
-      n <- if (is.null(fila)) NA_real_ else fila$n[[1L]]
+      # El numero que se publica tiene que ser el de la UNIDAD que se publica.
+      # Aca se pasaba `fila$n` -las filas de la columna- y la unidad se hereda
+      # del hallazgo: sobre una tabla de 7 columnas, la accion de
+      # `alta_cardinalidad` publicaba `n_afectadas = 80` con
+      # `unidad_conteo = "columna"` mientras su hallazgo declaraba 1 columna.
+      # Ninguna lectura salva ese par: ni 80 columnas existen, ni la unidad es
+      # de filas. Estas tres acciones son informativas -no tocan nada-, asi que
+      # lo que corresponde es el alcance que midio el hallazgo que las origino.
+      n <- if (!is.null(hallazgo) && "n_afectados" %in% names(hallazgo)) {
+        suppressWarnings(as.numeric(hallazgo$n_afectados[[1L]]))
+      } else if (is.null(fila)) {
+        NA_real_
+      } else {
+        fila$n[[1L]]
+      }
       acciones <- .agregar_accion(acciones, .nueva_accion(
         columna, tipo, estrategias[[tipo]], FALSE,
         paste0(
@@ -1968,10 +1982,18 @@ planificar_limpieza <- function(perfil, datos = NULL,
   # cero irreversibles.
   cambiadas <- .celdas_cambiadas(anterior, nuevo)
   if (!any(cambiadas)) return(cambiadas)
-  antes <- as.character(anterior)
-  despues <- as.character(nuevo)
+  # Se compara sobre la CLAVE por bytes, no sobre las cadenas. En el minimo
+  # declarado -R 4.1- `duplicated()` y `split()` sobre una cadena marcada
+  # `bytes` abortan con "translating strings with bytes encoding is not
+  # allowed", y esta regla corre sobre columnas de texto que pueden traer esa
+  # marca. La clave ademas separa dos cadenas de los mismos bytes con marcas
+  # distintas, que es lo que el paquete ya decidio en otro lado.
+  antes <- .clave_bytes(as.character(anterior))
+  despues <- .clave_bytes(as.character(nuevo))
   # Volverse ausente es perder el valor aunque no colapse con nadie.
   perdidas <- cambiadas & is.na(despues) & !is.na(antes)
+  # `.clave_bytes()` conserva los `NA`, asi que la cuenta de ausencias sigue
+  # saliendo de la clave sin mirar el original.
   # Solo pueden colapsar los valores nuevos que se REPITEN, asi que la particion
   # se limita a esos: sobre una columna de valores distintos -el caso comun- no
   # se arma ningun grupo. Partir la columna entera costaba por columna y por
@@ -3201,11 +3223,12 @@ aplicar <- function(plan, datos, permitir_eliminacion = FALSE,
     problema <- .nombres_columnas_problematicos(names(datos))
     originales <- vapply(problema$original, .texto_ejemplo, character(1L))
     propuestos <- vapply(problema$propuesto, .texto_ejemplo, character(1L))
-    return(utils::head(paste(originales, "->", propuestos), max_ejemplos))
+    return(.recortar_ejemplos(paste(originales, "->", propuestos),
+                              max_ejemplos))
   }
   if (is.na(columna)) {
     evidencia <- unique(acciones$evidencia[nzchar(acciones$evidencia)])
-    return(utils::head(evidencia, max_ejemplos))
+    return(.recortar_ejemplos(evidencia, max_ejemplos))
   }
   indice <- .indice_columna(datos, columna)
   # Estos ejemplos se le MUESTRAN al usuario para que decida, asi que lo
@@ -3233,7 +3256,21 @@ aplicar <- function(plan, datos, permitir_eliminacion = FALSE,
   } else {
     valores <- x[!is.na(x)]
   }
-  utils::head(unique(vapply(valores, .texto_ejemplo, character(1L))), max_ejemplos)
+  .recortar_ejemplos(
+    unique(vapply(valores, .texto_ejemplo, character(1L))), max_ejemplos
+  )
+}
+
+# El recorte viaja con su total. `guiar_limpieza()` mostraba cinco ejemplos de
+# cuarenta sin decirlo, mientras el paquete declara cada recorte en sus
+# informes y -desde esta misma vuelta- en sus impresiones. Una lista recortada
+# que no dice que lo es se lee como la lista entera, y aca se lee justo antes
+# de decidir si aplicar una accion.
+.recortar_ejemplos <- function(valores, max_ejemplos) {
+  total <- length(valores)
+  recortados <- utils::head(valores, max_ejemplos)
+  attr(recortados, "total_ejemplos") <- total
+  recortados
 }
 
 .grupos_para_guiar <- function(plan) {
@@ -3409,8 +3446,15 @@ guiar_limpieza <- function(plan, datos, selector = NULL,
     }
     cli::cli_text(.cli_literal(.marcar_para_exhibir(paste0("Cantidad estimada: ", cantidad, unidad))))
     if (length(ejemplos)) {
-      cli::cli_text(.cli_literal(.marcar_para_exhibir(paste(
-        "Ejemplos reales:", paste(ejemplos, collapse = "; ")
+      total_ejemplos <- attr(ejemplos, "total_ejemplos", exact = TRUE)
+      cuantos <- if (length(total_ejemplos) == 1L &&
+                     isTRUE(total_ejemplos > length(ejemplos))) {
+        paste0(" (", length(ejemplos), " de ", total_ejemplos, ")")
+      } else {
+        ""
+      }
+      cli::cli_text(.cli_literal(.marcar_para_exhibir(paste0(
+        "Ejemplos reales", cuantos, ": ", paste(ejemplos, collapse = "; ")
       ))))
     }
     for (k in elegibles) {

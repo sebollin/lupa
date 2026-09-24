@@ -155,7 +155,7 @@
   cobertura
 }
 
-.alcance_tablero <- function(cobertura) {
+.alcance_tablero <- function(cobertura, fuera_del_marco = character()) {
   estados <- if (is.null(cobertura)) character() else as.character(cobertura$estado)
   data.frame(
     factores_marco = length(estados),
@@ -163,6 +163,11 @@
     sin_metrica_declarada = sum(estados == "no_declarada"),
     no_aplican = sum(estados == "no_aplica"),
     fuera_de_alcance = sum(estados == "fuera_de_alcance"),
+    # No es una casilla del marco -no suma con las cuatro anteriores-: cuenta
+    # los pares que el tablero publica y este marco no declara. Sin este numero,
+    # `factores_medidos: 0` al lado de una fila con valor se lee como una
+    # contradiccion del objeto.
+    medidos_fuera_del_marco = length(fuera_del_marco),
     stringsAsFactors = FALSE
   )
 }
@@ -436,6 +441,30 @@
   resultado
 }
 
+# La cobertura se cuenta sobre los factores DEL MARCO, asi que una medida cuyo
+# par dimension-factor el marco no declara no entra en ninguna casilla: el
+# objeto publicaba una fila con valor y, al lado, "se midieron 0 factores de
+# este marco". Las dos cosas eran ciertas y juntas se leen como una
+# contradiccion.
+#
+# Negarse no corresponde: declarar el marco propio y medir con las metricas de
+# `lupa` es un flujo documentado -la vinieta de inicio lo hace, y su cobertura
+# se satisface por `perfil_mide`, no por el par de la metrica-. Lo que faltaba
+# era contar lo que queda afuera, que es lo mismo que el paquete hace en cada
+# silencio que declara.
+.pares_fuera_del_marco <- function(tablero, marco) {
+  if (!inherits(tablero, "data.frame") || !nrow(tablero)) return(character())
+  if (!inherits(marco, "marco_calidad")) return(character())
+  declarados <- .clave_par_identificador(
+    marco$factores$dimension, marco$factores$factor
+  )
+  pares <- .clave_par_identificador(tablero$dimension, tablero$factor)
+  declarable <- !is.na(tablero$dimension) & !is.na(tablero$factor)
+  .identificadores_unicos(
+    pares[declarable & !.identificadores_en(pares, declarados)]
+  )
+}
+
 .preparar_tablero <- function(medidas, agregaciones = NULL, umbrales = NULL,
                               marco = NULL, cobertura = NULL) {
   cobertura_metricas <- attr(medidas, "cobertura_metricas", exact = TRUE)
@@ -482,11 +511,15 @@
   )
   class(tablero) <- c("tablero_calidad", "data.frame")
   marco_elegido <- .marco_para_tablero(medidas, marco)
+  fuera_del_marco <- .pares_fuera_del_marco(tablero, marco_elegido)
   cobertura_tablero <- .cobertura_para_tablero(
     tablero, cobertura, marco_elegido
   )
   attr(tablero, "cobertura") <- cobertura_tablero
-  attr(tablero, "alcance") <- .alcance_tablero(cobertura_tablero)
+  attr(tablero, "alcance") <- .alcance_tablero(
+    cobertura_tablero, fuera_del_marco
+  )
+  attr(tablero, "pares_fuera_del_marco") <- fuera_del_marco
   attr(tablero, "marco_calidad") <- marco_elegido
   if (inherits(cobertura_metricas, "data.frame") &&
       nrow(cobertura_metricas)) {
@@ -513,6 +546,15 @@
 #' métrica declarada, no aplicables y fuera de alcance. [print()] muestra
 #' ambos elementos para que unas pocas filas nunca se lean como cobertura total.
 #'
+#' Esa cobertura se cuenta sobre los factores **del marco**, así que una medida
+#' cuyo par dimensión-factor el marco no declara no entra en ninguna de sus
+#' casillas. Eso es legítimo —declarar el marco propio y medir con las métricas
+#' de `lupa` es un flujo previsto, y la cobertura de ese marco puede satisfacerse
+#' por `perfil_mide`—, pero leer «se midieron 0 factores de este marco» al lado
+#' de una fila con valor parece una contradicción del objeto. Por eso el alcance
+#' publica además `medidos_fuera_del_marco`, que **no** suma con las otras cuatro
+#' casillas, y el atributo `pares_fuera_del_marco` los nombra.
+#'
 #' @param medidas Objeto creado por [medir()] o [agregar()].
 #' @param agregaciones `NULL`, una agregación para todas las métricas, un
 #'   vector con nombres de métrica instanciada o un data frame con
@@ -521,7 +563,11 @@
 #'   instanciada. Se exige para cada `ratio_umbral` que no lo declare dentro de
 #'   `agregaciones`.
 #' @param marco Marco conceptual. Si se omite, usa el asociado a la medición,
-#'   el marco AGESIC cuando corresponde o el conjunto de factores medidos.
+#'   el marco AGESIC cuando corresponde o el conjunto de factores medidos —los
+#'   tres caminos contienen lo que se publica—. Un marco declarado puede no
+#'   contener los pares medidos: no se rechaza, porque informar contra la
+#'   taxonomía propia es un uso previsto, pero lo que queda afuera se cuenta en
+#'   `medidos_fuera_del_marco` y se nombra en `pares_fuera_del_marco`.
 #' @param cobertura Cobertura opcional creada por [cobertura_analisis()].
 #'
 #'   **La correspondencia entre esa cobertura y `medidas` es suya, no del
@@ -532,7 +578,8 @@
 #'   corrida.
 #'
 #' @return Data frame S3 `tablero_calidad`. Los atributos `alcance` y
-#'   `cobertura` conservan los conteos y el detalle del marco.
+#'   `cobertura` conservan los conteos y el detalle del marco, y
+#'   `pares_fuera_del_marco` nombra los pares medidos que ese marco no declara.
 #' @export
 #' @seealso [medir()], [agregar()], [indice_calidad()]
 #'
@@ -637,6 +684,19 @@ print.tablero_calidad <- function(x, ...) {
   if (inherits(alcance, "data.frame") && nrow(alcance)) {
     cli::cli_h2("Alcance del marco")
     .print_data_frame_bytes(alcance, row.names = FALSE)
+  }
+  fuera_del_marco <- attr(x, "pares_fuera_del_marco", exact = TRUE)
+  if (length(fuera_del_marco)) {
+    cli::cli_alert_warning(.cli_literal(paste0(
+      length(fuera_del_marco),
+      if (length(fuera_del_marco) == 1L) {
+        " par dimensi\u00f3n-factor medido no est\u00e1 declarado en este marco"
+      } else {
+        " pares dimensi\u00f3n-factor medidos no est\u00e1n declarados en este marco"
+      },
+      ": ", paste(.texto_publicable(fuera_del_marco), collapse = ", "),
+      ". No entran en la cobertura de arriba."
+    )))
   }
   cobertura_metricas <- attr(x, "cobertura_metricas", exact = TRUE)
   if (inherits(cobertura_metricas, "data.frame") &&

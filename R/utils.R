@@ -1762,7 +1762,17 @@
   # recortarlo igual hacia que el plan estimara 1 y el registro contara 3.
   por_bytes <- declarados & validUTF8(x)
   if (!is.null(en_bytes) && any(por_bytes)) {
-    salida[por_bytes] <- en_bytes(x[por_bytes])
+    transformados <- en_bytes(x[por_bytes])
+    # La marca se vuelve a poner en vez de confiar en que la operacion la
+    # conserve. En el minimo declarado -R 4.1- no la conserva: medido, sobre
+    # una celda `bytes` cuyos bytes son UTF-8 valido, `trimws()` y
+    # `gsub(fixed = TRUE, useBytes = TRUE)` devuelven la cadena recortada como
+    # `unknown`, mientras en R 4.6 sale `bytes`. Una celda que el paquete
+    # declara no interpretada pasaba a ser texto sin marca, que es justo lo que
+    # `.aplicar_por_marca()` existe para impedir, y solo en la version que el
+    # `DESCRIPTION` declara soportar.
+    Encoding(transformados) <- "bytes"
+    salida[por_bytes] <- transformados
   }
   salida
 }
