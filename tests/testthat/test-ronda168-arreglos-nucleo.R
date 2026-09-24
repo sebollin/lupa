@@ -13,7 +13,7 @@ test_that("F-1 y F-6 protegen las dos formas de la media temporal", {
   expect_equal(protegido$desvio, claro$desvio)
   expect_equal(
     protegido$detalle_proteccion_personal,
-    "[estadisticos de orden y momentos protegidos]"
+    "[estadisticos de orden y la media protegidos]"
   )
   expect_equal(protegido$minimo_fecha, "[valor protegido]")
   expect_equal(protegido$maximo_fecha, "[valor protegido]")
@@ -119,6 +119,6 @@ test_that("F-6 conserva el desvio numerico y protege la media", {
   expect_true(is.finite(perfil$desvio))
   expect_equal(
     perfil$detalle_proteccion_personal,
-    "[estadisticos de orden y momentos protegidos]"
+    "[estadisticos de orden y la media protegidos]"
   )
 })

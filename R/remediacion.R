@@ -3531,6 +3531,10 @@ print.plan_limpieza <- function(x, ...) {
     "destructiva", "aplicar"
   )]
   .print_data_frame_bytes(vista, row.names = FALSE)
+  # Lo que esta impresion oculta es justamente `evidencia` y `justificacion`,
+  # que son lo que se lee para decidir si aplicar una accion. Un recorte que no
+  # se declara se lee como la tabla entera.
+  .avisar_campos_no_mostrados(vista, x, "as.data.frame(plan)")
   invisible(original)
 }
 

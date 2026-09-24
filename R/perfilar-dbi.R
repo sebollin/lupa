@@ -10948,7 +10948,7 @@ print.plan_perfilado_dbi <- function(x, ...) {
       columnas$detalle_proteccion_personal <- NA_character_
     }
     columnas$detalle_proteccion_personal[oculto] <-
-      "[estadisticos de orden y momentos protegidos]"
+      "[estadisticos de orden y la media protegidos]"
   }
   resumen$columnas <- columnas
   # Y el piso sobre TODO el resumen, no solo sobre las columnas protegidas: un

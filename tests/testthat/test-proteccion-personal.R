@@ -88,7 +88,7 @@ test_that("analizar protege valores crudos de los cuatro tipos personales", {
   expect_true(all(is.na(columnas$media[documentos])))
   expect_true(all(
     columnas$detalle_proteccion_personal[documentos] ==
-      "[estadisticos de orden y momentos protegidos]"
+      "[estadisticos de orden y la media protegidos]"
   ))
   expect_true(all(
     columnas$minimo_fecha[nacimiento] == "[valor protegido]"
@@ -198,6 +198,10 @@ test_that("protege momentos de nacimiento y fallecimiento y conserva desvios", {
   expect_true(all(is.na(columnas$maximo[fechas])))
   expect_true(all(is.na(columnas$media[fechas])))
   expect_true(all(is.na(columnas$mediana[fechas])))
+  # El desvio se conserva -"F-6 conserva el desvio numerico y protege la
+  # media"- y lo que se corrigio fue la etiqueta, que decia "momentos
+  # protegidos" mientras publicaba uno: la media, que junto al desvio
+  # reconstruiria los valores, si se enmascara.
   expect_equal(
     columnas$desvio[fechas],
     c(
@@ -207,7 +211,7 @@ test_that("protege momentos de nacimiento y fallecimiento y conserva desvios", {
   )
   expect_equal(
     columnas$detalle_proteccion_personal[fechas],
-    rep("[estadisticos de orden y momentos protegidos]", 2L)
+    rep("[estadisticos de orden y la media protegidos]", 2L)
   )
 })
 

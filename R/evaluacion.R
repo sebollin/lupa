@@ -788,7 +788,8 @@ perfiles_madurez <- function(metricas = NULL, umbrales = NULL) {
   x
 }
 
-.proteger_evaluacion_desenlaces <- function(x) {
+.proteger_evaluacion_desenlaces <- function(x, reemplazo = "[valor suprimido]",
+                                            incluir_medidas = TRUE) {
   if (!inherits(x$desenlaces, "data.frame") ||
       !nrow(x$desenlaces) || !"valor_medido" %in% names(x$desenlaces)) {
     return(x)
@@ -797,6 +798,37 @@ perfiles_madurez <- function(metricas = NULL, umbrales = NULL) {
   if (any(suprimidas)) {
     x$desenlaces$valor_medido <- as.character(x$desenlaces$valor_medido)
     x$desenlaces$valor_medido[suprimidas] <- "[valor suprimido]"
+  }
+  # `desenlace = "suprimir"` declara que las medidas que no cumplen la
+  # condicion **no deben publicarse**, y aca se enmascaraba solo su
+  # `valor_medido`. Medido sobre un informe: la tabla de desenlaces mostraba
+  # `[valor suprimido]` y, dos secciones mas abajo, la tabla de medidas
+  # publicaba el resultado de la MISMA medida -"no"-. Enmascarar el valor y
+  # publicar el desenlace es suprimir a medias.
+  #
+  # Se usa el mismo auxiliar que la medicion, con su mismo idioma: en el objeto
+  # que se guarda el resultado va `NA` -para que quien lo consuma siga viendo un
+  # numero y no un texto- y en lo que se publica va la marca.
+  # Solo en lo que se PUBLICA. En el objeto que se guarda la tabla `medidas`
+  # no tiene donde llevar la marca -no trae `objeto_medible`, que es como el
+  # historico reconoce una supresion legitima-, asi que enmascarar ahi dejaria
+  # un `NA` indistinguible de una medida que falta.
+  if (isTRUE(incluir_medidas) && any(suprimidas) &&
+      inherits(x$medidas, "data.frame") &&
+      "resultado" %in% names(x$medidas)) {
+    filas <- .filas_desenlaces(x$medidas, x$desenlaces)
+    if (any(filas)) {
+      if (length(reemplazo) == 1L && is.na(reemplazo)) {
+        # `NA` **del tipo que ya tiene**: la tabla `medidas` valida su contrato
+        # y `resultado` es logico; convertirla a numerico -como hace el auxiliar
+        # de la medicion, donde el resultado SI es numerico- la rompe al leerla
+        # desde el historico.
+        x$medidas$resultado[filas] <- NA
+      } else {
+        x$medidas$resultado <- as.character(x$medidas$resultado)
+        x$medidas$resultado[filas] <- as.character(reemplazo)
+      }
+    }
   }
   x
 }
@@ -813,6 +845,9 @@ print.medicion <- function(x, ...) {
 #' @export
 print.evaluacion_calidad <- function(x, ...) {
   original <- x
+  # La tabla de medidas se imprime entera, asi que una medida suprimida
+  # publicaba su resultado tambien por esta puerta.
+  x <- .proteger_evaluacion_desenlaces(x)
   x <- .marcar_objeto_para_exhibir(x)
   cli::cli_h1("Evaluaci\u00f3n de calidad")
   cli::cli_h2("Evaluaciones de medidas")

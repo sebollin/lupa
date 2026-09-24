@@ -40,7 +40,7 @@ conserva todas sus columnas.}
 \item{podar}{Si se aplican las podas que cambiarían lo informado —tipos
 incompatibles y cardinalidades imposibles—, tal como en
 \code{\link[=detectar_relaciones]{detectar_relaciones()}}. \code{FALSE} por omisión; la poda cierta por rangos
-disjuntos se aplica siempre porque no cambia ninguna fila.}
+disjuntos del universo se aplica siempre porque no cambia ninguna fila.}
 
 \item{tope_memoria_mb}{Presupuesto de memoria para resultados de relaciones,
 en megabytes. Al agotarse, las combinaciones pendientes se declaran en
@@ -77,6 +77,9 @@ diccionario de datos.
 
 Las columnas candidatas se podan antes de materializar cada comparación. Las
 podas quedan declaradas en \code{cobertura_podas}, con su motivo y conteo.
+La poda cierta por rangos usa \code{MIN} y \code{MAX} sobre el universo completo de
+cada tabla, no sobre las filas de la muestra. Si el motor no puede entregar
+ese rango, la comparación sigue sin aplicar esa poda.
 
 El campo \code{detalle} de una poda por rangos disjuntos \strong{no publica extremos que
 identifiquen}: si el mínimo o el máximo de un lado llega al piso de la

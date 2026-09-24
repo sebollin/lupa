@@ -11,7 +11,8 @@ detectar_relaciones(
   columnas_candidatas = NULL,
   umbral_cobertura = 0.9,
   podar = FALSE,
-  tope_memoria_mb = Inf
+  tope_memoria_mb = Inf,
+  .rangos = NULL
 )
 }
 \arguments{
@@ -34,6 +35,10 @@ aplica la poda cierta, que no cambia ninguna fila.}
 \item{tope_memoria_mb}{Presupuesto de memoria para las filas comparadas, en
 megabytes. Las combinaciones pendientes se declaran como podas cuando se
 alcanza; \code{Inf} no limita el procesamiento.}
+
+\item{.rangos}{Uso interno de \code{\link[=relaciones_coleccion]{relaciones_coleccion()}}. Lista nombrada por
+\code{tabla1} y \code{tabla2}, con rangos y su origen para cada columna. La poda por
+rangos solo acepta rangos de la columna completa o del universo DBI.}
 }
 \value{
 Data frame con \code{columna_tabla1}, \code{columna_tabla2}, \code{cardinalidad}
@@ -59,10 +64,11 @@ tablas de treinta columnas son novecientas combinaciones por par de tablas, y
 declarar cuáles pueden participar es lo que lo vuelve manejable.
 
 \strong{Hay dos clases de poda y el paquete no las trata igual.} Dos columnas de
-la misma familia con rangos numéricos disjuntos no comparten ningún valor, y
-eso se sabe sin comparar: la fila sale como siempre —\code{sin_coincidencias}, con
-cobertura cero— y la comparación se ahorra. Esa poda está siempre activa
-porque no cambia lo que el objeto informa.
+la misma familia con rangos numéricos disjuntos, medidos sobre la columna
+completa o sobre el universo DBI, no comparten ningún valor, y eso se sabe sin
+comparar: la fila sale como siempre —\code{sin_coincidencias}, con cobertura
+cero— y la comparación se ahorra. Esa poda está siempre activa porque no
+cambia lo que el objeto informa.
 
 Las otras dos sí lo cambiarían. Familias distintas parece decisivo y no lo
 es: una columna de texto puede guardar \code{"2020-01-05"} y coincidir con una de

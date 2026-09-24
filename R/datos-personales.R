@@ -981,6 +981,17 @@
   # dos ecuaciones con dos incognitas y devuelven **27 y 599.917 exactos**,
   # mientras `minimo` y `maximo` salian en NA como corresponde. Proteger el
   # minimo y el maximo y dejar publicado su rango no protege nada.
+  # `desvio` NO esta en esta lista, y es una decision tomada -la prueba que la
+  # fija se llama "F-6 conserva el desvio numerico y protege la media"-: una
+  # dispersion no identifica a nadie y la media, que junto con ella
+  # reconstruiria los valores, si se enmascara. Lo que estaba mal era la
+  # ETIQUETA, que decia "momentos protegidos" mientras publicaba uno.
+  #
+  # Una lista de campos a ocultar falla ABIERTA: el campo que se agregue manana
+  # se publica salvo que alguien se acuerde de anotarlo aca. Por eso viaja una
+  # prueba que no lee esta lista: perfila una columna protegida de magnitudes
+  # conocidas y exige que ningun campo publicado traiga una magnitud de la
+  # columna, con `desvio` como unica excepcion declarada.
   campos_numericos <- intersect(
     c(
       "minimo", "maximo", "mediana", "media", "centinela_valor",
@@ -1061,7 +1072,7 @@
   columnas$detalle_proteccion_personal[tenia_momento & !tenia_orden] <-
     "[momentos protegidos]"
   columnas$detalle_proteccion_personal[tenia_orden & tenia_momento] <-
-    "[estadisticos de orden y momentos protegidos]"
+    "[estadisticos de orden y la media protegidos]"
   for (i in intersect(which(indices_columnas), seq_along(patrones))) {
     if (.nombres_para_operar(columnas$columna[[i]]) %in%
         .nombres_para_operar(sensibles) &&

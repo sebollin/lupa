@@ -406,11 +406,22 @@ detectar_claves <- function(datos, max_combinacion = 3, normalizar = NULL,
   c(minimo = min(valores), maximo = max(valores))
 }
 
-.resumir_columna_relacion <- function(x, muestra) {
+.rango_relacion_sin_evidencia <- function() {
+  c(minimo = NA_real_, maximo = NA_real_)
+}
+
+.resumir_columna_relacion <- function(x, muestra, rango = NULL,
+                                      origen_rango = NULL) {
   valores <- .valores_relacion(x)
   valores_muestra <- .muestrear_vector(valores, muestra)$valores
   valores_completos <- valores[!is.na(valores)]
   familia <- .familia_relacion(x)
+  if (is.null(origen_rango)) {
+    # En memoria `x` es la columna completa; en una coleccion el rango llega
+    # separado y declara si proviene del universo o si no pudo medirse.
+    rango <- .rango_relacion(x, familia)
+    origen_rango <- "columna_completa"
+  }
   # `unique()` se calculaba dos veces sobre la columna entera, una por cada
   # campo, y esta funcion corre una vez por columna de cada una de las dos
   # tablas, asi que el sobrecosto se multiplica por el ancho. Medido sobre
@@ -422,7 +433,8 @@ detectar_claves <- function(datos, max_combinacion = 3, normalizar = NULL,
     unico = anyDuplicated(valores_completos) == 0L,
     n_distintos = length(unicos),
     familia = familia,
-    rango = .rango_relacion(x, familia)
+    rango = rango,
+    origen_rango = origen_rango
   )
 }
 
@@ -471,10 +483,11 @@ detectar_claves <- function(datos, max_combinacion = 3, normalizar = NULL,
 
 # Hay dos clases de poda y no se pueden tratar igual.
 #
-# Una es **cierta**: dos columnas de la misma familia con rangos numericos
-# disjuntos no comparten ningun valor, y eso se sabe sin comparar. La respuesta
-# es la misma que daria la comparacion —cero comunes, cobertura cero—, asi que
-# saltearla es puro ahorro y la fila sale igual que siempre.
+# Una es **cierta**: dos columnas de la misma familia, con rangos numericos
+# disjuntos y medidos sobre el mismo universo, no comparten ningun valor, y eso
+# se sabe sin comparar. La respuesta es la misma que daria la comparacion
+# -cero comunes, cobertura cero-, asi que saltearla es puro ahorro y la fila
+# sale igual que siempre.
 #
 # La otra **no lo es**. Familias distintas parece decisivo y no lo es: una
 # columna de texto puede guardar `"2020-01-05"` y coincidir con una de fecha, y
@@ -485,6 +498,10 @@ detectar_claves <- function(datos, max_combinacion = 3, normalizar = NULL,
 # su motivo en vez de desaparecer.
 .poda_cierta_relacion <- function(x, y) {
   if (!identical(x$familia, y$familia)) return(NULL)
+  if (!all(c(x$origen_rango, y$origen_rango) %in%
+           c("columna_completa", "universo_db"))) {
+    return(NULL)
+  }
   rango_x <- x$rango
   rango_y <- y$rango
   if (!all(is.finite(c(rango_x, rango_y)))) return(NULL)
@@ -586,10 +603,11 @@ detectar_claves <- function(datos, max_combinacion = 3, normalizar = NULL,
 #' declarar cuáles pueden participar es lo que lo vuelve manejable.
 #'
 #' **Hay dos clases de poda y el paquete no las trata igual.** Dos columnas de
-#' la misma familia con rangos numéricos disjuntos no comparten ningún valor, y
-#' eso se sabe sin comparar: la fila sale como siempre —`sin_coincidencias`, con
-#' cobertura cero— y la comparación se ahorra. Esa poda está siempre activa
-#' porque no cambia lo que el objeto informa.
+#' la misma familia con rangos numéricos disjuntos, medidos sobre la columna
+#' completa o sobre el universo DBI, no comparten ningún valor, y eso se sabe sin
+#' comparar: la fila sale como siempre —`sin_coincidencias`, con cobertura
+#' cero— y la comparación se ahorra. Esa poda está siempre activa porque no
+#' cambia lo que el objeto informa.
 #'
 #' Las otras dos sí lo cambiarían. Familias distintas parece decisivo y no lo
 #' es: una columna de texto puede guardar `"2020-01-05"` y coincidir con una de
@@ -621,6 +639,9 @@ detectar_claves <- function(datos, max_combinacion = 3, normalizar = NULL,
 #' @param tope_memoria_mb Presupuesto de memoria para las filas comparadas, en
 #'   megabytes. Las combinaciones pendientes se declaran como podas cuando se
 #'   alcanza; `Inf` no limita el procesamiento.
+#' @param .rangos Uso interno de [relaciones_coleccion()]. Lista nombrada por
+#'   `tabla1` y `tabla2`, con rangos y su origen para cada columna. La poda por
+#'   rangos solo acepta rangos de la columna completa o del universo DBI.
 #'
 #' @return Data frame con `columna_tabla1`, `columna_tabla2`, `cardinalidad`
 #'   —`1:1`, `1:m`, `m:1`, `m:m`, `sin_coincidencias` o `sin_comparar`—,
@@ -641,7 +662,7 @@ detectar_relaciones <- function(tabla1, tabla2, muestra = 1e5,
                                 columnas_candidatas = NULL,
                                 umbral_cobertura = 0.9,
                                 podar = FALSE,
-                                tope_memoria_mb = Inf) {
+                                tope_memoria_mb = Inf, .rangos = NULL) {
   if (!inherits(tabla1, "data.frame") || !inherits(tabla2, "data.frame")) {
     stop("`tabla1` y `tabla2` deben heredar de data.frame.", call. = FALSE)
   }
@@ -665,13 +686,52 @@ detectar_relaciones <- function(tabla1, tabla2, muestra = 1e5,
   candidatas <- .resolver_columnas_candidatas_relacion(
     columnas_candidatas, nombres_1, nombres_2
   )
+  if (!is.null(.rangos) && (!is.list(.rangos) ||
+      !all(c("tabla1", "tabla2") %in% names(.rangos)))) {
+    stop(
+      "`.rangos` debe declarar entradas `tabla1` y `tabla2`.",
+      call. = FALSE
+    )
+  }
+  rango_de <- function(lado, nombre) {
+    if (is.null(.rangos)) return(NULL)
+    disponibles <- .rangos[[lado]]
+    especificacion <- if (is.list(disponibles)) {
+      disponibles[[nombre]]
+    } else NULL
+    if (is.list(especificacion) &&
+        !is.null(especificacion$rango) &&
+        !is.null(especificacion$origen)) {
+      return(especificacion)
+    }
+    list(
+      rango = .rango_relacion_sin_evidencia(),
+      origen = "no_disponible"
+    )
+  }
   indices_1 <- .indice_nombre(candidatas$tabla1, nombres_1)
   indices_2 <- .indice_nombre(candidatas$tabla2, nombres_2)
   columnas_1 <- lapply(indices_1, function(i) {
-    .resumir_columna_relacion(tabla1[[i]], limite_muestra)
+    especificacion <- rango_de("tabla1", nombres_1[[i]])
+    if (is.null(especificacion)) {
+      .resumir_columna_relacion(tabla1[[i]], limite_muestra)
+    } else {
+      .resumir_columna_relacion(
+        tabla1[[i]], limite_muestra, especificacion$rango,
+        especificacion$origen
+      )
+    }
   })
   columnas_2 <- lapply(indices_2, function(i) {
-    .resumir_columna_relacion(tabla2[[i]], limite_muestra)
+    especificacion <- rango_de("tabla2", nombres_2[[i]])
+    if (is.null(especificacion)) {
+      .resumir_columna_relacion(tabla2[[i]], limite_muestra)
+    } else {
+      .resumir_columna_relacion(
+        tabla2[[i]], limite_muestra, especificacion$rango,
+        especificacion$origen
+      )
+    }
   })
   filas <- list()
   podas <- list()
@@ -712,8 +772,8 @@ detectar_relaciones <- function(tabla1, tabla2, muestra = 1e5,
           motivo = cierta$motivo, detalle = cierta$detalle,
           stringsAsFactors = FALSE
         )
-        # Rangos disjuntos de la misma familia: la respuesta se conoce sin
-        # comparar, y es la misma. Se informa igual que siempre.
+        # Rangos disjuntos de la misma familia y del mismo universo: la
+        # respuesta se conoce sin comparar, y es la misma.
         filas[[length(filas) + 1L]] <- data.frame(
           columna_tabla1 = nombre_1, columna_tabla2 = nombre_2,
           cardinalidad = "sin_coincidencias", n_valores_comunes = 0L,

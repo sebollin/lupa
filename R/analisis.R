@@ -473,7 +473,7 @@ analizar <- function(datos, nombre = .nombre_de_los_datos(substitute(datos)),
       attr(tablero, "desenlaces") <- desenlaces
       tablero <- .proteger_tablero_desenlaces(tablero, desenlaces)
     }
-    evaluacion <- .proteger_evaluacion_desenlaces(evaluacion)
+    evaluacion <- .proteger_evaluacion_desenlaces(evaluacion, incluir_medidas = FALSE)
   }
   seleccion_confirmada <- if (!is.null(propuesta_confirmada)) {
     which(propuesta_confirmada$incluir &
@@ -970,7 +970,7 @@ guardar_analisis <- function(x, archivo, incluir_datos = FALSE,
     copia$tablero, .desenlaces_de_objeto(copia)
   ))
   copia["evaluacion"] <- list(
-    .proteger_evaluacion_desenlaces(copia$evaluacion)
+    .proteger_evaluacion_desenlaces(copia$evaluacion, incluir_medidas = FALSE)
   )
   if (!incluir_datos) {
     copia["datos"] <- list(NULL)

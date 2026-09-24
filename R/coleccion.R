@@ -1671,6 +1671,32 @@ estimar_costo_coleccion <- function(coleccion, pares = NULL,
   columnas
 }
 
+# Convierte los extremos que devuelve DBI a la representacion de la relacion.
+# Si el motor no devuelve un valor convertible, el rango queda sin evidencia.
+.rango_desde_agregados_coleccion <- function(minimo, maximo, plantilla,
+                                             familia) {
+  rango <- tryCatch({
+    valores <- c(minimo, maximo)
+    if (familia == "fecha") {
+      valores <- if (inherits(plantilla, "Date")) {
+        as.Date(as.character(valores))
+      } else {
+        suppressWarnings(as.Date(as.character(valores)))
+      }
+    } else if (familia == "fecha-hora") {
+      valores <- if (is.numeric(valores)) {
+        as.POSIXct(as.numeric(valores), origin = "1970-01-01", tz = "UTC")
+      } else {
+        suppressWarnings(as.POSIXct(as.character(valores), tz = "UTC"))
+      }
+    } else {
+      valores <- suppressWarnings(as.numeric(valores))
+    }
+    .rango_relacion(valores, familia)
+  }, error = function(e) NULL)
+  if (is.null(rango) || !all(is.finite(rango))) NULL else rango
+}
+
 # Lector con cache. `leer()` se llamaba DOS VECES POR PAR, sin cache: dos pares
 # que comparten una tabla la leian dos veces, y con veinte pares sobre cinco
 # tablas se pagaban cuarenta lecturas para cinco tablas distintas.
@@ -1682,10 +1708,12 @@ estimar_costo_coleccion <- function(coleccion, pares = NULL,
 .lector_tablas_coleccion <- function(conexion, coleccion, muestra, orden,
                                      tope_cache_mb, columnas_candidatas = NULL) {
   cache <- new.env(parent = emptyenv())
+  cache_rangos <- new.env(parent = emptyenv())
   bitacora <- list()
   usados_mb <- 0
   lecturas <- 0
   reutilizaciones <- 0
+  consultas_rangos <- 0L
   cache_completa <- TRUE
 
   referencia_de <- function(identificador) {
@@ -1718,6 +1746,97 @@ estimar_costo_coleccion <- function(coleccion, pares = NULL,
     indice <- .indice_identificador(identificador, names(columnas_candidatas))
     columnas <- if (is.na(indice)) NULL else columnas_candidatas[[indice]]
     if (is.null(columnas)) NULL else as.character(columnas)
+  }
+
+  rangos_universo <- function(identificador, datos) {
+    cache_key <- .nombres_para_operar(identificador)
+    if (exists(cache_key, envir = cache_rangos, inherits = FALSE)) {
+      return(get(cache_key, envir = cache_rangos, inherits = FALSE))
+    }
+    nombres <- candidatas_de(identificador)
+    if (is.null(nombres)) nombres <- names(datos)
+    nombres <- .identificadores_unicos(nombres[nombres %in% names(datos)])
+    sin_evidencia <- function(origen, motivo = NA_character_) {
+      list(
+        rango = .rango_relacion_sin_evidencia(), origen = origen,
+        motivo = motivo
+      )
+    }
+    salida <- stats::setNames(
+      lapply(nombres, function(nombre) sin_evidencia("no_aplicable")),
+      nombres
+    )
+    familias <- vapply(
+      nombres, function(nombre) .familia_relacion(datos[[nombre]]),
+      character(1L)
+    )
+    medibles <- which(familias %in% c("numerica", "fecha", "fecha-hora"))
+    if (length(medibles)) {
+      referencia <- referencia_de(identificador)
+      tabla_sql <- tryCatch(
+        as.character(DBI::dbQuoteIdentifier(conexion, referencia)),
+        error = function(e) NA_character_
+      )
+      alias_minimos <- paste0("lupa_rango_", seq_along(medibles), "_min")
+      alias_maximos <- paste0("lupa_rango_", seq_along(medibles), "_max")
+      expresiones <- unlist(lapply(seq_along(medibles), function(k) {
+        nombre <- nombres[[medibles[[k]]]]
+        columna_sql <- tryCatch(
+          as.character(DBI::dbQuoteIdentifier(conexion, nombre)),
+          error = function(e) NA_character_
+        )
+        c(
+          paste0("MIN(", columna_sql, ") AS ", alias_minimos[[k]]),
+          paste0("MAX(", columna_sql, ") AS ", alias_maximos[[k]])
+        )
+      }))
+      sql_rangos <- paste0(
+        "SELECT ", paste(expresiones, collapse = ", "), " FROM ", tabla_sql
+      )
+      resultado <- tryCatch({
+        consultas_rangos <<- consultas_rangos + 1L
+        DBI::dbGetQuery(conexion, sql_rangos)
+      }, error = function(e) e)
+      if (inherits(resultado, "condition") || !nrow(resultado)) {
+        motivo <- if (inherits(resultado, "condition")) {
+          conditionMessage(resultado)
+        } else {
+          "la consulta de rangos no devolvio una fila"
+        }
+        for (k in medibles) {
+          salida[[nombres[[k]]]] <- sin_evidencia(
+            "no_disponible", paste0("MIN/MAX: ", motivo)
+          )
+        }
+      } else {
+        for (k in seq_along(medibles)) {
+          indice <- medibles[[k]]
+          nombre <- nombres[[indice]]
+          extremos <- tryCatch(
+            c(
+              resultado[[alias_minimos[[k]]]][[1L]],
+              resultado[[alias_maximos[[k]]]][[1L]]
+            ),
+            error = function(e) NULL
+          )
+          rango <- if (is.null(extremos)) NULL else {
+            .rango_desde_agregados_coleccion(
+              extremos[[1L]], extremos[[2L]], datos[[nombre]],
+              familias[[indice]]
+            )
+          }
+          salida[[nombre]] <- if (is.null(rango)) {
+            sin_evidencia("no_disponible", "MIN/MAX no convertible")
+          } else {
+            list(
+              rango = rango, origen = "universo_db", consulta = sql_rangos
+            )
+          }
+        }
+      }
+    }
+    assign(cache_key, salida, envir = cache_rangos)
+    salida
   }
 
   leer <- function(identificador) {
@@ -1816,6 +1935,7 @@ estimar_costo_coleccion <- function(coleccion, pares = NULL,
 
   list(
     leer = leer,
+    rangos_universo = rangos_universo,
     bitacora = function() {
       if (length(bitacora)) {
         salida <- do.call(rbind, bitacora)
@@ -1833,6 +1953,7 @@ estimar_costo_coleccion <- function(coleccion, pares = NULL,
     estado = function() {
       list(
         lecturas = lecturas, reutilizaciones = reutilizaciones,
+        consultas_rangos = consultas_rangos,
         tablas_en_cache = length(ls(cache)), memoria_cache_mb = usados_mb,
         cache_completa = cache_completa
       )
@@ -1867,6 +1988,9 @@ estimar_costo_coleccion <- function(coleccion, pares = NULL,
 #'
 #' Las columnas candidatas se podan antes de materializar cada comparación. Las
 #' podas quedan declaradas en `cobertura_podas`, con su motivo y conteo.
+#' La poda cierta por rangos usa `MIN` y `MAX` sobre el universo completo de
+#' cada tabla, no sobre las filas de la muestra. Si el motor no puede entregar
+#' ese rango, la comparación sigue sin aplicar esa poda.
 #'
 #' El campo `detalle` de una poda por rangos disjuntos **no publica extremos que
 #' identifiquen**: si el mínimo o el máximo de un lado llega al piso de la
@@ -1897,7 +2021,7 @@ estimar_costo_coleccion <- function(coleccion, pares = NULL,
 #' @param podar Si se aplican las podas que cambiarían lo informado —tipos
 #'   incompatibles y cardinalidades imposibles—, tal como en
 #'   [detectar_relaciones()]. `FALSE` por omisión; la poda cierta por rangos
-#'   disjuntos se aplica siempre porque no cambia ninguna fila.
+#'   disjuntos del universo se aplica siempre porque no cambia ninguna fila.
 #' @seealso [coleccion()], [estimar_costo_coleccion()], [detectar_relaciones()]
 #'
 #' @examples
@@ -2009,13 +2133,18 @@ relaciones_coleccion <- function(coleccion, pares, muestra = 1e4,
     } else {
       columnas_candidatas[[t2]]
     }
+    rangos <- list(
+      tabla1 = lector$rangos_universo(t1, d1),
+      tabla2 = lector$rangos_universo(t2, d2)
+    )
     relacion <- tryCatch(
       detectar_relaciones(
         d1, d2, columnas_candidatas = list(candidatas_1, candidatas_2),
         umbral_cobertura = umbral_cobertura, podar = podar,
         tope_memoria_mb = if (is.finite(tope_memoria_mb)) {
           max(0, tope_memoria_mb - memoria_resultado_mb)
-        } else Inf
+        } else Inf,
+        .rangos = rangos
       ), error = function(e) e
     )
     if (inherits(relacion, "condition")) {
@@ -2112,6 +2241,7 @@ relaciones_coleccion <- function(coleccion, pares, muestra = 1e4,
       memoria_resultado_mb = memoria_resultado_mb,
       combinaciones_comparadas = combinaciones_comparadas,
       combinaciones_podadas = nrow(cobertura_podas),
+      consultas_rangos = estado$consultas_rangos,
       columnas_candidatas = columnas_candidatas,
       podas_por_motivo = if (nrow(cobertura_podas)) {
         as.list(table(cobertura_podas$motivo))

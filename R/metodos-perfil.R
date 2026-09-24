@@ -65,7 +65,27 @@ print.perfil <- function(x, ...) {
     )
   }
   .print_data_frame_bytes(vista, row.names = FALSE)
+  # El mismo paquete declara cada recorte en sus informes -"Se muestran 2 de 6
+  # filas"- y esta impresion mostraba cinco campos de ciento catorce sin decir
+  # nada. Una tabla recortada que no dice que lo es se lee como la tabla
+  # entera, y aca se lee mal justo donde el perfil es mas ancho.
+  .avisar_campos_no_mostrados(vista, x$columnas, "columnas()")
   invisible(original)
+}
+
+# Un solo lugar para el aviso, porque lo usan varias impresiones y el texto
+# tiene que ser el mismo en todas.
+.avisar_campos_no_mostrados <- function(vista, completo, accesor) {
+  if (!inherits(completo, "data.frame") || !inherits(vista, "data.frame")) {
+    return(invisible(NULL))
+  }
+  faltan <- setdiff(names(completo), names(vista))
+  if (!length(faltan)) return(invisible(NULL))
+  cli::cli_alert_info(.cli_literal(paste0(
+    "Se muestran ", ncol(vista), " de ", ncol(completo),
+    " campos; los dem\u00e1s est\u00e1n en `", accesor, "`."
+  )))
+  invisible(NULL)
 }
 
 #' @export
