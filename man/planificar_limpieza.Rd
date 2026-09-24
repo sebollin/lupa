@@ -37,9 +37,15 @@ acción seleccionada, incluso cuando una falla y las siguientes continúan.
 \code{n_no_reversibles} cuenta las celdas cuyo VALOR se perdió y no se puede
 recuperar desde el resultado: un centinela \code{-999} que pasa a ausencia, un
 extremo recortado a su límite, un marcador de ausencia convertido, o un
-número que se redondeó al convertirlo. No cuenta los cambios de forma que
-dejan el valor en su lugar —recortar espacios, reemplazar separadores o
-cambiar mayúsculas—, aunque tampoco se puedan deshacer tal cual.
+número que se redondeó al convertirlo. Las acciones que \strong{normalizan la
+escritura} —recortar espacios, quitar un invisible de transporte,
+reemplazar separadores o cambiar mayúsculas— dejan el valor en su lugar y
+no cuentan, \strong{salvo cuando la normalización fusiona valores que eran
+distintos}: ahí lo que los separaba no queda en ningún lado y esas celdas
+sí se cuentan. El criterio se mide sobre el resultado, no por el nombre de
+la acción: quitar un guion suave de \verb{PRO<U+00AD>DUCTO-A} no pierde nada,
+y quitar un espacio de ancho cero que distinguía dos claves fusiona las
+dos.
 Si una acción seleccionada no produce ningún efecto, se registra como
 \code{fallida} con el motivo y su copia no se incorpora al resultado. La
 comprobación del efecto observa \code{n_cambiadas} aunque \code{n_afectadas} sea

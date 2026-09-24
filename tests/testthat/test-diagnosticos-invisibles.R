@@ -157,11 +157,16 @@ test_that("sólo los controles se recomiendan y las acciones registran cambios",
     ],
     c(1, 1, 1)
   )
+  # Quitar el control no colapso este valor con ningun otro: `AB` sigue siendo
+  # distinguible de todo lo demas, asi que no se perdio el valor de la celda.
+  # El conteo declaraba 1 por regla de accion -toda celda modificada-, y esa
+  # regla no distingue este caso del que SI pierde: con claves marcadas por un
+  # espacio de ancho cero, la misma accion fusiona cinco claves en tres.
   expect_equal(
     resultado$registro$n_no_reversibles[
       resultado$registro$estrategia == "eliminar_controles_invisibles"
     ],
-    1
+    0
   )
 })
 
@@ -192,7 +197,8 @@ test_that("los invisibles Unicode se clasifican sin borrar ZWJ ni ZWNJ", {
   registro_espacio <- resultado$registro[
     resultado$registro$estrategia == "normalizar_espacios_invisibles", , drop = FALSE
   ]
-  expect_equal(registro_espacio$n_no_reversibles, 1)
+  # Mismo criterio: `A B` no colapso con ninguna otra fila.
+  expect_equal(registro_espacio$n_no_reversibles, 0)
   expect_true(registro_espacio$destructiva)
 })
 

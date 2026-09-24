@@ -836,9 +836,15 @@
 #'   `n_no_reversibles` cuenta las celdas cuyo VALOR se perdió y no se puede
 #'   recuperar desde el resultado: un centinela `-999` que pasa a ausencia, un
 #'   extremo recortado a su límite, un marcador de ausencia convertido, o un
-#'   número que se redondeó al convertirlo. No cuenta los cambios de forma que
-#'   dejan el valor en su lugar —recortar espacios, reemplazar separadores o
-#'   cambiar mayúsculas—, aunque tampoco se puedan deshacer tal cual.
+#'   número que se redondeó al convertirlo. Las acciones que **normalizan la
+#'   escritura** —recortar espacios, quitar un invisible de transporte,
+#'   reemplazar separadores o cambiar mayúsculas— dejan el valor en su lugar y
+#'   no cuentan, **salvo cuando la normalización fusiona valores que eran
+#'   distintos**: ahí lo que los separaba no queda en ningún lado y esas celdas
+#'   sí se cuentan. El criterio se mide sobre el resultado, no por el nombre de
+#'   la acción: quitar un guion suave de `PRO<U+00AD>DUCTO-A` no pierde nada,
+#'   y quitar un espacio de ancho cero que distinguía dos claves fusiona las
+#'   dos.
 #'   Si una acción seleccionada no produce ningún efecto, se registra como
 #'   `fallida` con el motivo y su copia no se incorpora al resultado. La
 #'   comprobación del efecto observa `n_cambiadas` aunque `n_afectadas` sea
@@ -1029,8 +1035,9 @@ planificar_limpieza <- function(perfil, datos = NULL,
             "Los controles C0/C1 y los invisibles Unicode de transporte no ",
             "aportan contenido de negocio y pueden romper cruces, ",
             "comparaciones y exportes. Los ZWJ/ZWNJ se conservan. Quitar el ",
-            "car\u00e1cter no deja forma de reconstruir la celda como estaba: el ",
-            "registro cuenta cada celda modificada en `n_no_reversibles`."
+            "car\u00e1cter no se puede deshacer: si al quitarlo dos valores que ",
+            "eran distintos quedan iguales, el registro cuenta esas celdas en ",
+            "`n_no_reversibles`."
           ), n_eliminables, FALSE,
           estado = estado_columna,
           aplicar = identical(estado_columna, "lista"), orden = 195L
@@ -1941,6 +1948,56 @@ planificar_limpieza <- function(perfil, datos = NULL,
   cambio
 }
 
+.celdas_que_pierden_valor <- function(anterior, nuevo) {
+  # Cuando una accion NORMALIZA la escritura -recortar espacios, quitar un
+  # control invisible, unificar mayusculas-, el valor sigue en su lugar y la
+  # documentacion la exime del conteo por nombre. Pero la misma accion pierde
+  # informacion cuando **colapsa valores que eran distintos**: ahi lo que los
+  # separaba no esta en ningun lado.
+  #
+  # Medido, las dos mitades: quitar un guion suave de `PRO<U+00AD>DUCTO-A` deja
+  # las celdas identicas a su forma canonica y el cruce contra el catalogo
+  # encuentra los cinco valores -no se perdio nada, y el registro contaba 4-; y
+  # con claves marcadas por un espacio de ancho cero, la misma accion colapsa
+  # cinco claves distintas en tres y fabrica dos duplicados que no existian
+  # -ahi si se perdio, y contaba igual-. Una regla por accion no puede acertar
+  # en los dos casos. Esta se mide sobre el resultado.
+  #
+  # `recortar_espacios` tenia el defecto simetrico: sobre `" ana "` y `"ana"`
+  # los dos quedan `"ana"` -de cuatro distintos a tres- y el registro publicaba
+  # cero irreversibles.
+  cambiadas <- .celdas_cambiadas(anterior, nuevo)
+  if (!any(cambiadas)) return(cambiadas)
+  antes <- as.character(anterior)
+  despues <- as.character(nuevo)
+  # Volverse ausente es perder el valor aunque no colapse con nadie.
+  perdidas <- cambiadas & is.na(despues) & !is.na(antes)
+  # Solo pueden colapsar los valores nuevos que se REPITEN, asi que la particion
+  # se limita a esos: sobre una columna de valores distintos -el caso comun- no
+  # se arma ningun grupo. Partir la columna entera costaba por columna y por
+  # accion, y este paquete ya se cuido de eso en el resumen cuantitativo.
+  comparables <- !is.na(despues)
+  repetidos <- comparables &
+    (duplicated(despues) | duplicated(despues, fromLast = TRUE))
+  candidatos <- which(repetidos)
+  if (length(candidatos)) {
+    grupos <- split(candidatos, despues[candidatos])
+    for (grupo in grupos) {
+      if (length(grupo) < 2L) next
+      # Colapsan si los valores ORIGINALES del grupo no eran todos iguales.
+      #
+      # Se marca solo la celda que TENIA valor: si una celda ausente pasa a
+      # valer lo mismo que otra -una imputacion-, no perdio nada, gano un
+      # valor, y la accion que lo hizo ya declara lo suyo.
+      if (length(unique(antes[grupo])) > 1L) {
+        perdidas[grupo] <- perdidas[grupo] |
+          (cambiadas[grupo] & !is.na(antes[grupo]))
+      }
+    }
+  }
+  perdidas
+}
+
 .recortar_texto <- function(x) {
   if (!is.character(x) && !is.factor(x)) {
     stop("El recorte de espacios requiere una columna de texto.", call. = FALSE)
@@ -1957,7 +2014,8 @@ planificar_limpieza <- function(perfil, datos = NULL,
     function(v) trimws(v, whitespace = "[ \t\r\n]")
   )
   mascara <- .celdas_cambiadas(anterior, nuevo)
-  list(valor = nuevo, n = sum(mascara))
+  list(valor = nuevo, n = sum(mascara),
+       n_no_reversibles = sum(.celdas_que_pierden_valor(anterior, nuevo)))
 }
 
 .quitar_controles_invisibles <- function(x) {
@@ -1989,7 +2047,7 @@ planificar_limpieza <- function(perfil, datos = NULL,
   }, character(1L), USE.NAMES = FALSE)
   cambio <- .celdas_cambiadas(anterior, nuevo)
   list(valor = .resultado_texto(x, nuevo), n = sum(cambio),
-       n_no_reversibles = sum(cambio))
+       n_no_reversibles = sum(.celdas_que_pierden_valor(anterior, nuevo)))
 }
 
 .normalizar_espacios_invisibles <- function(x) {
@@ -2013,7 +2071,7 @@ planificar_limpieza <- function(perfil, datos = NULL,
   }, character(1L), USE.NAMES = FALSE)
   cambio <- .celdas_cambiadas(anterior, nuevo)
   list(valor = .resultado_texto(x, nuevo), n = sum(cambio),
-       n_no_reversibles = sum(cambio))
+       n_no_reversibles = sum(.celdas_que_pierden_valor(anterior, nuevo)))
 }
 
 .entidad_html_reemplazo <- function(entidad) {
@@ -2699,7 +2757,8 @@ planificar_limpieza <- function(perfil, datos = NULL,
   if (identical(estrategia, "recortar_espacios")) {
     cambio <- .recortar_texto(x)
     datos[[indice]] <- cambio$valor
-    return(list(datos = datos, n = cambio$n))
+    return(list(datos = datos, n = cambio$n,
+                n_no_reversibles = cambio$n_no_reversibles))
   }
   if (identical(estrategia, "eliminar_controles_invisibles")) {
     cambio <- .quitar_controles_invisibles(x)

@@ -1,5 +1,15 @@
 # lupa 0.1.0
 
+## La perdida se mide en el resultado
+
+- `n_no_reversibles` contaba por accion: toda celda que la accion tocaba, o
+  ninguna. Ahora una celda cuenta como perdida cuando la transformacion la deja
+  indistinguible de otra que era distinta, o cuando la deja ausente. Quitar un
+  guion suave de `PRO<U+00AD>DUCTO-A` deja el valor en su forma canonica y no
+  cuenta; quitar un espacio de ancho cero que separaba dos claves las fusiona y
+  si cuenta. `recortar_espacios` tenia el defecto simetrico: dejaba `" ana "` y
+  `"ana"` en un solo valor y publicaba cero irreversibles.
+
 ## Colecciones: alcance y trazabilidad de las lecturas
 
 - Cada fila de `resumen_coleccion` declara el `universo` de las metricas que

@@ -71,6 +71,10 @@ test_that("los ceros y negativos no permitidos descuentan los ausentes", {
 })
 
 test_that("la accion que quita un caracter declara lo que el registro cuenta", {
+  # La justificacion nombra el conteo, y el conteo es condicional: cuenta las
+  # celdas que al quitar el caracter quedan iguales a otra que era distinta.
+  # La primera version de esta prueba exigia que contara siempre, que era la
+  # regla por accion; `test-O35` mide las dos mitades.
   datos <- data.frame(
     x = rep(c("dato", paste0("otro", intToUtf8(1)), "tres", "cuatro"), 25),
     stringsAsFactors = FALSE
@@ -85,13 +89,17 @@ test_that("la accion que quita un caracter declara lo que el registro cuenta", {
   expect_equal(nrow(fila), 1L)
   expect_true(fila$aplicar[[1L]])
   expect_match(fila$justificacion[[1L]], "n_no_reversibles", fixed = TRUE)
+  expect_match(fila$justificacion[[1L]], "quedan iguales", fixed = TRUE)
 
   registro <- suppressMessages(aplicar(plan, datos))$registro
   ejecutada <- registro[
     registro$estrategia == "eliminar_controles_invisibles", ,
     drop = FALSE
   ]
-  expect_true(ejecutada$n_no_reversibles[[1L]] > 0L)
+  # Aca `otro<control>` no colapsa con ninguna otra fila: el valor no se
+  # perdio y el conteo lo dice.
+  expect_equal(ejecutada$n_cambiadas[[1L]], 25)
+  expect_equal(ejecutada$n_no_reversibles[[1L]], 0)
 })
 
 test_that("recortar espacios no anuncia una perdida que no tiene", {
