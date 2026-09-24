@@ -45,10 +45,14 @@ sql_perfil(x, ...)
 `columnas()`, un `data.frame` con una fila por columna de la tabla
 perfilada y sus métricas y diagnósticos; `cobertura()` devuelve la tabla
 de diagnósticos no evaluados; `n_filas()` devuelve el conteo de filas
-del alcance, o `NA` con su motivo cuando el objeto no lo conoce. El
+del alcance, o un vector con un conteo por tabla para una colección.
+Devuelve `NA` con su motivo cuando el objeto no conoce el conteo. El
 significado de cada campo de `columnas()` se explica por familias en los
 detalles de
 [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md).
+`sql_perfil()` devuelve la tabla de consultas emitidas; sobre una
+colección incluye la identidad de la tabla y conserva las consultas
+aunque no se retengan los perfiles completos.
 
 ## Details
 

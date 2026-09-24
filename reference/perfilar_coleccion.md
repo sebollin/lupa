@@ -113,6 +113,18 @@ consultas y la base puede cambiar entre ellas: una tabla puede truncarse
 después de que se contaron sus filas. Por eso cada fila declara el
 `momento` en que se midió y `meta$snapshot` declara que no lo hubo.
 
+Cada fila de `resumen_coleccion` trae `universo`, que nombra el universo
+de las metricas SQL que alimentan sus agregados. En particular, con
+`universo = "muestra_motor"`, `n_filas` sigue siendo el conteo de la
+tabla completa pero las proporciones observadas declaran que provienen
+de la muestra, en vez de presentarse como cifras de la tabla entera.
+
+`meta$lecturas` conserva el SQL emitido por las tablas perfiladas, con
+su identidad, aunque `conservar_perfiles = FALSE`.
+[`sql_perfil()`](https://sebollin.github.io/lupa/reference/accesores_perfil.md)
+lo devuelve como una tabla unica; los perfiles completos siguen
+disponibles por tabla cuando se pidio conservarlos.
+
 ## See also
 
 [`coleccion()`](https://sebollin.github.io/lupa/reference/coleccion.md),

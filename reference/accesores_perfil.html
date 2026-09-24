@@ -92,9 +92,12 @@ avisa, y lo que sigue calcula sobre nada.</p>
 <code>columnas()</code>, un <code>data.frame</code> con una fila por columna de la tabla
 perfilada y sus métricas y diagnósticos; <code>cobertura()</code> devuelve la tabla de
 diagnósticos no evaluados; <code>n_filas()</code> devuelve el conteo de filas del
-alcance, o <code>NA</code> con su motivo cuando el objeto no lo conoce. El significado
-de cada campo de <code>columnas()</code> se explica por familias en los detalles de
-<code><a href="perfilar.html">perfilar()</a></code>.</p>
+alcance, o un vector con un conteo por tabla para una colección. Devuelve
+<code>NA</code> con su motivo cuando el objeto no conoce el conteo. El significado de
+cada campo de <code>columnas()</code> se explica por familias en los detalles de
+<code><a href="perfilar.html">perfilar()</a></code>. <code>sql_perfil()</code> devuelve la tabla de consultas emitidas;
+sobre una colección incluye la identidad de la tabla y conserva las
+consultas aunque no se retengan los perfiles completos.</p>
     </div>
     <div class="section level2">
     <h2 id="details">Details<a class="anchor" aria-label="anchor" href="#details"></a></h2>

@@ -43,6 +43,19 @@
     <div class="section level2">
 <h2 class="pkg-version" data-toc-text="0.1.0" id="lupa-010">lupa 0.1.0<a class="anchor" aria-label="anchor" href="#lupa-010"></a></h2>
 <div class="section level3">
+<h3 id="colecciones-alcance-y-trazabilidad-de-las-lecturas-0-1-0">Colecciones: alcance y trazabilidad de las lecturas<a class="anchor" aria-label="anchor" href="#colecciones-alcance-y-trazabilidad-de-las-lecturas-0-1-0"></a></h3>
+<ul><li><p>Cada fila de <code>resumen_coleccion</code> declara el <code>universo</code> de las metricas que alimentan sus agregados, para no confundir un conteo de la tabla completa con proporciones observadas sobre <code>muestra_motor</code>.</p></li>
+<li><p>Las divergencias de corroboracion y el SQL de cada tabla se conservan al subir un perfil a una coleccion, aun cuando <code>conservar_perfiles = FALSE</code>.</p></li>
+<li><p><code><a href="../reference/accesores_perfil.html">n_filas()</a></code> devuelve el vector de conteos por tabla para una coleccion; <code><a href="../reference/accesores_perfil.html">sql_perfil()</a></code> devuelve la tabla de lecturas acumuladas.</p></li>
+<li><p>El resumen de la coleccion dejo de atribuirle al motor un recorte que puede venir del presupuesto declarado por quien llama: dice cuantos agregados no se calcularon y, cuando el motivo es uno solo, cual es. Con <code>max_consultas = 3</code> ninguna consulta la rechaza el motor.</p></li>
+<li>
+<p><code><a href="../reference/estimar_costo.html">estimar_costo()</a></code> declara la corrida que esta estimando: <code>modo_comparacion</code> es el que publicara <code><a href="../reference/detectar_duplicados_aproximados.html">detectar_duplicados_aproximados()</a></code> con esos argumentos, y <code>filas_previstas</code>, <code>filas_totales</code> y <code>estrategia_prevista</code> dicen sobre cuantas filas se va a comparar. Antes afirmaba <code>exhaustiva_por_bloques</code> siempre, y con los mismos argumentos la corrida podia comparar 447 filas de</p>
+<ol start="5000" style="list-style-type: decimal"><li>
+</li></ol></li>
+<li><p>La corroboracion entre los dos bloques de <code><a href="../reference/perfilar_dbi.html">perfilar_dbi()</a></code> ya no se calla cuando la muestra es parcial: las diferencias que no se declaran divergencia -porque una submuestra difiere por muestreo- quedan en una fila de cobertura <code>no_corroborada</code> que dice cuantas son y sobre que fraccion de filas.</p></li>
+<li><p>La clasificacion de datos personales publica <code>proporcion_verificada</code>, la proporcion de valores que paso el validador y que decide <code>poder_discriminante = "verificado"</code> contra su umbral. Una columna con el 90 % de las cedulas validas -el umbral- publicaba lo mismo que una con el 100 %.</p></li>
+</ul></div>
+<div class="section level3">
 <h3 id="columnas-con-clase-propia-y-silencios-del-plan-0-1-0">Columnas con clase propia y silencios del plan<a class="anchor" aria-label="anchor" href="#columnas-con-clase-propia-y-silencios-del-plan-0-1-0"></a></h3>
 <ul><li><p><code><a href="../reference/perfilar.html">perfilar()</a></code> ya no aborta sobre una columna cuya clase responde <code>TRUE</code> a <code><a href="https://rdrr.io/r/base/numeric.html" class="external-link">is.numeric()</a></code> pero no hace la aritmetica de un doble. Las relaciones aritmeticas y la ley de Benford se buscan ahora entre columnas numericas sin clase declarada, en vez de excluir una lista fija de clases, y cada columna numerica que queda afuera por su clase se declara en <code>cobertura_diagnosticos</code> con su clase y con como evaluarla. <code>meta$aritmetica_columnas</code> publica las clases medidas en la tabla.</p></li>
 <li><p>Contar filas duplicadas sobre una tabla que combina una columna con dimensiones y una columna de listas ya no aborta: el aplanado de columnas compuestas esta escrito una sola vez y arma la tabla sin coaccionar las listas.</p></li>

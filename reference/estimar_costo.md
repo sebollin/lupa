@@ -208,7 +208,15 @@ estimar_costo(
 ## Value
 
 Lista de clase `estimacion_costo_lupa` con los campos de la estimación,
-`alcance`, `disponible` y `razon`.
+`alcance`, `disponible` y `razon`. En el camino exacto, `alcance`
+declara además **la corrida que se está estimando**: `modo_comparacion`
+es el mismo que publicará
+[`detectar_duplicados_aproximados()`](https://sebollin.github.io/lupa/reference/detectar_duplicados_aproximados.md)
+con esos argumentos —`exhaustiva_por_bloques` o
+`muestreada_por_bloques`—, y `filas_previstas`, `filas_totales` y
+`estrategia_prevista` dicen sobre cuántas filas se va a comparar y con
+qué selección. Una estimación que anunciara un recorrido exhaustivo
+sobre una corrida que va a muestrear no serviría para decidir.
 
 ## Details
 

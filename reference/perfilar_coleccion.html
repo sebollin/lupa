@@ -149,6 +149,15 @@ números anteriores se lean con su alcance.</p>
 la base puede cambiar entre ellas: una tabla puede truncarse después de que se
 contaron sus filas. Por eso cada fila declara el <code>momento</code> en que se midió y
 <code>meta$snapshot</code> declara que no lo hubo.</p>
+<p>Cada fila de <code>resumen_coleccion</code> trae <code>universo</code>, que nombra el universo de
+las metricas SQL que alimentan sus agregados. En particular, con
+<code>universo = "muestra_motor"</code>, <code>n_filas</code> sigue siendo el conteo de la tabla
+completa pero las proporciones observadas declaran que provienen de la
+muestra, en vez de presentarse como cifras de la tabla entera.</p>
+<p><code>meta$lecturas</code> conserva el SQL emitido por las tablas perfiladas, con su
+identidad, aunque <code>conservar_perfiles = FALSE</code>. <code><a href="accesores_perfil.html">sql_perfil()</a></code> lo devuelve
+como una tabla unica; los perfiles completos siguen disponibles por tabla
+cuando se pidio conservarlos.</p>
     </div>
     <div class="section level2">
     <h2 id="see-also">See also<a class="anchor" aria-label="anchor" href="#see-also"></a></h2>

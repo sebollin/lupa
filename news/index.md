@@ -2,6 +2,50 @@
 
 ## lupa 0.1.0
 
+### Colecciones: alcance y trazabilidad de las lecturas
+
+- Cada fila de `resumen_coleccion` declara el `universo` de las metricas
+  que alimentan sus agregados, para no confundir un conteo de la tabla
+  completa con proporciones observadas sobre `muestra_motor`.
+
+- Las divergencias de corroboracion y el SQL de cada tabla se conservan
+  al subir un perfil a una coleccion, aun cuando
+  `conservar_perfiles = FALSE`.
+
+- [`n_filas()`](https://sebollin.github.io/lupa/reference/accesores_perfil.md)
+  devuelve el vector de conteos por tabla para una coleccion;
+  [`sql_perfil()`](https://sebollin.github.io/lupa/reference/accesores_perfil.md)
+  devuelve la tabla de lecturas acumuladas.
+
+- El resumen de la coleccion dejo de atribuirle al motor un recorte que
+  puede venir del presupuesto declarado por quien llama: dice cuantos
+  agregados no se calcularon y, cuando el motivo es uno solo, cual es.
+  Con `max_consultas = 3` ninguna consulta la rechaza el motor.
+
+- [`estimar_costo()`](https://sebollin.github.io/lupa/reference/estimar_costo.md)
+  declara la corrida que esta estimando: `modo_comparacion` es el que
+  publicara
+  [`detectar_duplicados_aproximados()`](https://sebollin.github.io/lupa/reference/detectar_duplicados_aproximados.md)
+  con esos argumentos, y `filas_previstas`, `filas_totales` y
+  `estrategia_prevista` dicen sobre cuantas filas se va a comparar.
+  Antes afirmaba `exhaustiva_por_bloques` siempre, y con los mismos
+  argumentos la corrida podia comparar 447 filas de
+
+  5000. 
+
+- La corroboracion entre los dos bloques de
+  [`perfilar_dbi()`](https://sebollin.github.io/lupa/reference/perfilar_dbi.md)
+  ya no se calla cuando la muestra es parcial: las diferencias que no se
+  declaran divergencia -porque una submuestra difiere por muestreo-
+  quedan en una fila de cobertura `no_corroborada` que dice cuantas son
+  y sobre que fraccion de filas.
+
+- La clasificacion de datos personales publica `proporcion_verificada`,
+  la proporcion de valores que paso el validador y que decide
+  `poder_discriminante = "verificado"` contra su umbral. Una columna con
+  el 90 % de las cedulas validas -el umbral- publicaba lo mismo que una
+  con el 100 %.
+
 ### Columnas con clase propia y silencios del plan
 
 - [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md)
