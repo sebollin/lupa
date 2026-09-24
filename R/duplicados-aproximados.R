@@ -2301,6 +2301,13 @@
 #' no afirma que los valores guardados sean iguales y tampoco oculta la causa
 #' de la coincidencia bajo `duplicados_aproximados`.
 #'
+#' Una fila cuyos valores en las columnas comparadas son **todos** ausentes o
+#' cadena vacía no entra en la comparación: no hay texto que medir, y dos filas
+#' vacías no son un duplicado sino dos ausencias. `alcance$n_filas_validas`
+#' cuenta las que sí entraron —contra `n_filas_total`— y, si no quedan dos,
+#' `razon` lo dice. Una cadena vacía **sí** es una clave válida en
+#' `bloquear_por`: ahí no se compara su texto, se agrupa por él.
+#'
 #' En `alcance`, `n_pares_exactos` cuenta solo textos guardados iguales,
 #' `n_pares_exactos_normalizados` cuenta coincidencias producidas por la
 #' normalizacion y `n_pares_aproximados` cuenta los pares restantes. Son
@@ -2412,7 +2419,15 @@
 #'
 #' @param datos Tabla con una fila por entidad observada.
 #' @param columnas Columnas atomicas a combinar. `NULL` aplica la seleccion
-#'   automatica descrita arriba; no se incluyen matrices ni listas.
+#'   automatica descrita arriba; no se incluyen matrices ni listas. **El orden
+#'   forma parte de la comparación**: los valores de cada fila se miden
+#'   concatenados en el orden declarado, así que `c("nombre", "domicilio")` y
+#'   `c("domicilio", "nombre")` son dos comparaciones distintas y pueden
+#'   publicar pares distintos con el mismo umbral —medido: 6 pares contra 10
+#'   sobre las mismas cinco filas—. Con `NULL`, el orden es el que tienen las
+#'   columnas en `datos`. El objeto publica en `columnas` el vector que usó, en
+#'   ese orden, así que el resultado se puede rehacer; declararlo a mano lo
+#'   vuelve independiente de cómo estén ordenadas las columnas del archivo.
 #' @param metodo Medida admitida por `stringdist::stringdistmatrix()`. Por
 #'   defecto, `"jw"`.
 #' @param p Factor de prefijo de Jaro--Winkler, entre 0 y 0.25. Por defecto
@@ -2459,7 +2474,15 @@
 #'   cada paso. Una lista nombrada puede resolver perfiles por columna. `NULL`
 #'   hereda el perfil guardado en `perfil`; si no se recibe uno, usa `TRUE`.
 #'   La normalización cambia sólo la representación usada para comparar, no los
-#'   datos guardados. El umbral se aplica sobre esa cadena normalizada. El
+#'   datos guardados. El umbral se aplica sobre esa cadena normalizada. La
+#'   **descomposición canónica se aplica siempre**, también con `FALSE`: no es
+#'   un paso configurable sino lo que hace que dos escrituras del mismo texto
+#'   —`café` precompuesto y `café` con acento combinante— sean el mismo texto.
+#'   Como la distancia se mide sobre esa forma, un acento cuenta como un
+#'   carácter aparte: con `normalizar = FALSE`, `café` y `cafe` distan `0.04`
+#'   —y entran en un umbral de `0.1`—, mientras la misma distancia sobre las
+#'   cadenas tal como se guardaron daría `0.117`. Para reproducir un número
+#'   publicado hay que descomponer primero. El
 #'   informe de fusiones sólo se calcula cuando algún paso configurable está
 #'   activo; con `FALSE` se omite. Si se entrega `perfil`, se reutiliza su
 #'   informe ya calculado.

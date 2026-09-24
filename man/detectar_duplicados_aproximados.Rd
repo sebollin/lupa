@@ -36,7 +36,15 @@ detectar_duplicados_aproximados(
 \item{datos}{Tabla con una fila por entidad observada.}
 
 \item{columnas}{Columnas atomicas a combinar. \code{NULL} aplica la seleccion
-automatica descrita arriba; no se incluyen matrices ni listas.}
+automatica descrita arriba; no se incluyen matrices ni listas. \strong{El orden
+forma parte de la comparación}: los valores de cada fila se miden
+concatenados en el orden declarado, así que \code{c("nombre", "domicilio")} y
+\code{c("domicilio", "nombre")} son dos comparaciones distintas y pueden
+publicar pares distintos con el mismo umbral —medido: 6 pares contra 10
+sobre las mismas cinco filas—. Con \code{NULL}, el orden es el que tienen las
+columnas en \code{datos}. El objeto publica en \code{columnas} el vector que usó, en
+ese orden, así que el resultado se puede rehacer; declararlo a mano lo
+vuelve independiente de cómo estén ordenadas las columnas del archivo.}
 
 \item{metodo}{Medida admitida por \code{stringdist::stringdistmatrix()}. Por
 defecto, \code{"jw"}.}
@@ -68,7 +76,15 @@ activa puntuación, ligaduras y ancho, y \code{\link[=normalizacion]{normalizaci
 cada paso. Una lista nombrada puede resolver perfiles por columna. \code{NULL}
 hereda el perfil guardado en \code{perfil}; si no se recibe uno, usa \code{TRUE}.
 La normalización cambia sólo la representación usada para comparar, no los
-datos guardados. El umbral se aplica sobre esa cadena normalizada. El
+datos guardados. El umbral se aplica sobre esa cadena normalizada. La
+\strong{descomposición canónica se aplica siempre}, también con \code{FALSE}: no es
+un paso configurable sino lo que hace que dos escrituras del mismo texto
+—\code{café} precompuesto y \code{café} con acento combinante— sean el mismo texto.
+Como la distancia se mide sobre esa forma, un acento cuenta como un
+carácter aparte: con \code{normalizar = FALSE}, \code{café} y \code{cafe} distan \code{0.04}
+—y entran en un umbral de \code{0.1}—, mientras la misma distancia sobre las
+cadenas tal como se guardaron daría \code{0.117}. Para reproducir un número
+publicado hay que descomponer primero. El
 informe de fusiones sólo se calcula cuando algún paso configurable está
 activo; con \code{FALSE} se omite. Si se entrega \code{perfil}, se reutiliza su
 informe ya calculado.}
@@ -196,6 +212,13 @@ comillas, el objeto conserva esta distincion tanto en \code{pares} como en los
 hallazgos. \code{duplicados_exactos_normalizados} es un tipo de hallazgo propio:
 no afirma que los valores guardados sean iguales y tampoco oculta la causa
 de la coincidencia bajo \code{duplicados_aproximados}.
+
+Una fila cuyos valores en las columnas comparadas son \strong{todos} ausentes o
+cadena vacía no entra en la comparación: no hay texto que medir, y dos filas
+vacías no son un duplicado sino dos ausencias. \code{alcance$n_filas_validas}
+cuenta las que sí entraron —contra \code{n_filas_total}— y, si no quedan dos,
+\code{razon} lo dice. Una cadena vacía \strong{sí} es una clave válida en
+\code{bloquear_por}: ahí no se compara su texto, se agrupa por él.
 
 En \code{alcance}, \code{n_pares_exactos} cuenta solo textos guardados iguales,
 \code{n_pares_exactos_normalizados} cuenta coincidencias producidas por la

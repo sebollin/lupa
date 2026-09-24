@@ -13873,7 +13873,26 @@ print.perfil_dbi <- function(x, ...) {
   }
   if (n_cobertura) {
     cli::cli_text(
-      "Cobertura: {n_cobertura} anotaci{?\u00f3n/ones} en `resumen_tabla$cobertura`"
+      "Cobertura de m\u00e9tricas SQL: {n_cobertura} anotaci{?\u00f3n/ones} en `resumen_tabla$cobertura`"
+    )
+  }
+  # El objeto tiene DOS coberturas y esta impresion solo nombraba una. La otra
+  # -que diagnosticos no se evaluaron sobre la muestra- es la que contesta "y
+  # de lo demas, se miro todo?", y quedaba invisible: `cobertura()` sobre un
+  # perfil DBI devuelve la de metricas SQL, asi que ni el accesor ni la
+  # impresion la mostraban. Un perfil con tres diagnosticos sin evaluar se leia
+  # como un perfil sin silencios.
+  diagnosticos_muestra <- if (is.null(x$perfil_muestra)) {
+    NULL
+  } else {
+    x$perfil_muestra$cobertura_diagnosticos
+  }
+  if (inherits(diagnosticos_muestra, "data.frame") &&
+      nrow(diagnosticos_muestra)) {
+    n_diagnosticos <- nrow(diagnosticos_muestra)
+    cli::cli_text(
+      "Diagn\u00f3sticos no evaluados sobre la muestra: {n_diagnosticos}, ",
+      "en `perfil_muestra$cobertura_diagnosticos`"
     )
   }
   proteccion <- meta$proteccion_personal

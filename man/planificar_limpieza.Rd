@@ -22,7 +22,11 @@ concordantes por valor determinante para proponer una imputación.}
 contrato. Puede filtrarse y editarse antes de aplicarlo.}
 
 \item{permitir_eliminacion}{Segundo consentimiento obligatorio para ejecutar
-acciones que eliminan filas o columnas.}
+acciones que eliminan filas o columnas. Sin él, una acción eliminatoria
+seleccionada hace que \code{aplicar()} \strong{se niegue antes de tocar nada}: no se
+ejecuta ninguna acción del plan —tampoco las que no eliminan— y no hay
+registro, porque no hubo ejecución. El error nombra las acciones y los dos
+caminos: dar el consentimiento, o desactivarlas y aplicar el resto.}
 
 \item{conservar_eliminados}{Si se conservan en el resultado las filas y
 columnas retiradas. Es \code{TRUE} de forma predeterminada.}

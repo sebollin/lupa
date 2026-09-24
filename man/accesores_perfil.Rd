@@ -29,7 +29,10 @@ sql_perfil(x, ...)
 \code{hallazgos()} devuelve un \code{data.frame} con una fila por hallazgo;
 \code{columnas()}, un \code{data.frame} con una fila por columna de la tabla
 perfilada y sus métricas y diagnósticos; \code{cobertura()} devuelve la tabla de
-diagnósticos no evaluados; \code{n_filas()} devuelve el conteo de filas del
+diagnósticos no evaluados —y, sobre un \code{perfil_dbi}, la de \strong{métricas
+SQL}, que es la cobertura de ese objeto: sus diagnósticos no evaluados
+viajan en \code{x$perfil_muestra$cobertura_diagnosticos}, con el esquema de
+\code{\link[=perfilar]{perfilar()}}, y la impresión del perfil los declara—; \code{n_filas()} devuelve el conteo de filas del
 alcance, o un vector con un conteo por tabla para una colección. Devuelve
 \code{NA} con su motivo cuando el objeto no conoce el conteo. El significado de
 cada campo de \code{columnas()} se explica por familias en los detalles de

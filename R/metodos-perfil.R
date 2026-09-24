@@ -213,7 +213,10 @@ as_tibble.perfil <- function(x, ...) {
 #' @return `hallazgos()` devuelve un `data.frame` con una fila por hallazgo;
 #'   `columnas()`, un `data.frame` con una fila por columna de la tabla
 #'   perfilada y sus métricas y diagnósticos; `cobertura()` devuelve la tabla de
-#'   diagnósticos no evaluados; `n_filas()` devuelve el conteo de filas del
+#'   diagnósticos no evaluados —y, sobre un `perfil_dbi`, la de **métricas
+#'   SQL**, que es la cobertura de ese objeto: sus diagnósticos no evaluados
+#'   viajan en `x$perfil_muestra$cobertura_diagnosticos`, con el esquema de
+#'   [perfilar()], y la impresión del perfil los declara—; `n_filas()` devuelve el conteo de filas del
 #'   alcance, o un vector con un conteo por tabla para una colección. Devuelve
 #'   `NA` con su motivo cuando el objeto no conoce el conteo. El significado de
 #'   cada campo de `columnas()` se explica por familias en los detalles de

@@ -2104,6 +2104,33 @@ planificar_limpieza <- function(perfil, datos = NULL,
   perdidas
 }
 
+# El criterio de `n_no_reversibles` esta escrito en la documentacion: "se mide
+# sobre el RESULTADO, no por el nombre de la accion". Los ejecutores que no
+# devuelven la cuenta la dejaban en cero y `aplicar()` publicaba "0
+# irreversibles" sobre columnas donde tres valores distintos habian quedado en
+# uno. Medido sobre `ana|ANA|beto`: `convertir_mayusculas` funde dos celdas y
+# publicaba 0, mientras `eliminar_controles_invisibles` -que pasa por
+# `.celdas_que_pierden_valor()`- publicaba 1 con la misma fusion. Comparten la
+# clase de operacion y contestaban distinto.
+#
+# Se mide aca, en la puerta comun, y no en cada ejecutor: asi la cuenta cubre
+# tambien a la proxima estrategia que se agregue sin devolver el campo. Los
+# ejecutores que SI la devuelven -las conversiones, los centinelas, la
+# winsorizacion- conservan la suya, porque miden perdidas que no son fusion.
+.perdidas_al_aplicar <- function(anterior, nuevo, columna) {
+  if (length(columna) != 1L || is.na(columna)) return(0L)
+  if (!is.data.frame(anterior) || !is.data.frame(nuevo)) return(0L)
+  indice_anterior <- .indice_nombre(columna, names(anterior))
+  indice_nuevo <- .indice_nombre(columna, names(nuevo))
+  if (is.na(indice_anterior) || is.na(indice_nuevo)) return(0L)
+  x <- anterior[[indice_anterior]]
+  y <- nuevo[[indice_nuevo]]
+  # Una accion que quita filas cambia el largo: su perdida se cuenta en
+  # `n_filas_eliminadas`, no celda por celda.
+  if (length(x) != length(y)) return(0L)
+  as.integer(sum(.celdas_que_pierden_valor(x, y)))
+}
+
 .recortar_texto <- function(x) {
   if (!is.character(x) && !is.factor(x)) {
     stop("El recorte de espacios requiere una columna de texto.", call. = FALSE)
@@ -3102,7 +3129,11 @@ planificar_limpieza <- function(perfil, datos = NULL,
 
 #' @rdname planificar_limpieza
 #' @param permitir_eliminacion Segundo consentimiento obligatorio para ejecutar
-#'   acciones que eliminan filas o columnas.
+#'   acciones que eliminan filas o columnas. Sin él, una acción eliminatoria
+#'   seleccionada hace que `aplicar()` **se niegue antes de tocar nada**: no se
+#'   ejecuta ninguna acción del plan —tampoco las que no eliminan— y no hay
+#'   registro, porque no hubo ejecución. El error nombra las acciones y los dos
+#'   caminos: dar el consentimiento, o desactivarlas y aplicar el resto.
 #' @param conservar_eliminados Si se conservan en el resultado las filas y
 #'   columnas retiradas. Es `TRUE` de forma predeterminada.
 #' @export
@@ -3152,10 +3183,18 @@ aplicar <- function(plan, datos, permitir_eliminacion = FALSE,
     plan$estrategia[seleccion] %in% .estrategias_eliminatorias()
   ]
   if (length(destructivas) && !permitir_eliminacion) {
+    # La negativa se explica entera: que no corrio NADA -ni las acciones
+    # benignas que estaban seleccionadas- y cuales son los dos caminos. Decir
+    # solo "requiere permitir_eliminacion" deja abierta la lectura de que lo
+    # demas si se aplico, y el objeto que lo desmentiria -el registro- no
+    # existe, porque esta negativa ocurre antes de tocar nada.
     stop(
       "El plan contiene acciones destructivas y requiere ",
       "`permitir_eliminacion = TRUE`: ",
-      paste(plan$estrategia[destructivas], collapse = ", "), ".",
+      paste(plan$estrategia[destructivas], collapse = ", "), ". ",
+      "No se aplic\u00f3 ninguna acci\u00f3n y `datos` qued\u00f3 intacto; ",
+      "vuelva a llamar con el consentimiento, o desactive esas acciones ",
+      "-`plan$aplicar[...] <- FALSE`- para aplicar el resto.",
       call. = FALSE
     )
   }
@@ -3165,6 +3204,8 @@ aplicar <- function(plan, datos, permitir_eliminacion = FALSE,
   eliminados <- list(filas = list(), columnas = list())
   for (j in seq_along(seleccion)) {
     accion <- plan[seleccion[[j]], , drop = FALSE]
+    # El estado de ESTE momento, para medir despues lo que la accion perdio.
+    estado_previo <- salida
     clave <- if (inherits(salida, "data.table") &&
                  requireNamespace("data.table", quietly = TRUE)) {
       data.table::key(salida)
@@ -3208,7 +3249,11 @@ aplicar <- function(plan, datos, permitir_eliminacion = FALSE,
       destructiva = accion$destructiva[[1L]],
       n_cambiadas = as.numeric(if (fallo) 0 else ejecutada$n),
       n_no_reversibles = as.numeric(if (fallo) 0 else {
-        if (is.null(ejecutada$n_no_reversibles)) 0 else ejecutada$n_no_reversibles
+        if (is.null(ejecutada$n_no_reversibles)) {
+          .perdidas_al_aplicar(estado_previo, salida, accion$columna[[1L]])
+        } else {
+          ejecutada$n_no_reversibles
+        }
       }),
       justificacion = as.character(accion$justificacion[[1L]]),
       estado = if (fallo) "fallida" else "ejecutada",

@@ -1,5 +1,56 @@
 # lupa 0.1.0
 
+## La perdida se mide en la puerta comun
+
+- `n_no_reversibles` promete contar las celdas cuyo valor se perdio, y la
+  documentacion fija el criterio: se mide sobre el resultado, no por el nombre
+  de la accion. No se medía. Los ejecutores que no devolvian la cuenta la
+  dejaban en cero, asi que `convertir_mayusculas`, `convertir_minusculas`,
+  `convertir_titulo`, `convertir_segun_diccionario`,
+  `decodificar_entidades_html`, `reemplazar_separadores` y
+  `reparar_codificacion` publicaban "0 irreversibles" sobre columnas donde dos
+  valores distintos habian quedado en uno. Medido sobre `ana | ANA | Ana |
+  beto`: la mayuscula funde dos celdas y el registro decia 0, mientras
+  `eliminar_controles_invisibles` decia 1 con la misma fusion. Ahora la cuenta
+  se toma en la puerta comun -comparando la columna antes y despues-, asi que
+  alcanza tambien a la proxima estrategia que se agregue sin devolverla; las
+  que si la devuelven conservan la suya, porque miden perdidas que no son
+  fusion.
+
+- `aplicar()` se niega cuando el plan trae una accion eliminatoria sin
+  `permitir_eliminacion = TRUE`, y esa negativa alcanza a todo el plan: las
+  acciones benignas seleccionadas tampoco corren, y no hay registro porque no
+  hubo ejecucion. El mensaje decia solo que hacia falta el consentimiento.
+  Ahora dice que no se aplico nada, que los datos quedaron intactos y cuales
+  son los dos caminos; la pagina de `aplicar()` lo declara igual.
+
+- Un `perfil_dbi` trae dos coberturas y su impresion nombraba una. La otra
+  -que diagnosticos no se evaluaron sobre la muestra- quedaba invisible,
+  porque `cobertura()` sobre ese objeto devuelve la de metricas SQL. La
+  impresion la declara ahora con su cuenta y su ruta, y la pagina de los
+  accesores dice cual devuelve cada uno.
+
+- `detectar_duplicados_aproximados(normalizar = FALSE)` compara igual las
+  formas canonicamente descompuestas -es lo que hace que dos escrituras del
+  mismo texto sean el mismo texto-, y eso cambia la distancia: `cafe` con
+  tilde y `cafe` distan 0.04 descompuestas y 0.117 tal como se guardaron, asi
+  que el par entra o no en un umbral de 0.1 segun cual se mida. La conducta es
+  la correcta y no cambia; lo que faltaba era decirlo en la pagina de la
+  funcion, que enumeraba los pasos configurables y callaba el que siempre
+  corre. Una prueba fija que la cifra publicada se reproduzca desde las formas
+  descompuestas.
+
+- La misma funcion mide la distancia sobre los valores **concatenados**, asi
+  que el orden en que se combinan las columnas cambia el resultado: sobre las
+  mismas cinco filas, `c("nombre", "domicilio")` publica 6 pares y
+  `c("domicilio", "nombre")` publica 10, con el mismo umbral. Declarar
+  `columnas` vuelve el resultado independiente de como esten ordenadas en el
+  archivo -y sin declararlas manda ese orden-; el objeto publica el vector que
+  uso, asi que la corrida se puede rehacer. Ahora lo dice la pagina de la
+  funcion, que tambien declara que una fila sin texto comparable -todos sus
+  valores ausentes o vacios- no entra en la comparacion, mientras una cadena
+  vacia si es clave valida en `bloquear_por`.
+
 ## El plan declara los tres huecos, no dos
 
 - El plan promete declarar lo que no cubre y declaraba dos huecos: el
