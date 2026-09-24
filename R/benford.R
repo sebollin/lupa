@@ -8,9 +8,14 @@
 }
 
 .columna_candidata_benford <- function(x) {
-  is.numeric(x) &&
+  # `.es_numerico_pelado(x)` en vez de la lista de cuatro clases: la lista
+  # dejaba entrar a `units` y a `lubridate::Period`, y `.primer_digito_
+  # significativo()` ABORTA con las dos -"both operands of the expression
+  # should be units objects" y "Incompatible classes: <numeric> ^ <Period>"-,
+  # porque `10 ^ (log10(x) - exponente)` ejecuta la aritmetica de la clase. El
+  # criterio y su porque estan escritos una sola vez, en `utils.R`.
+  .es_numerico_pelado(x) &&
     !.es_columna_compuesta(x) &&
-    !inherits(x, c("Date", "POSIXt", "difftime", "integer64")) &&
     sum(is.finite(x)) >= 50L
 }
 
@@ -268,15 +273,21 @@
   # No se amplia el alcance de Benford a `integer64` -eso cambiaria conducta
   # estadistica y merece su propia vuelta-: se declara la no evaluacion, que es
   # lo que faltaba.
+  #
+  # La misma leccion, una vuelta despues: `inherits(x, "integer64")` volvia a
+  # ser una lista de una sola clase, y `units`, `Period` o `haven_labelled`
+  # quedaban en el mismo silencio del que este comentario habla. La pregunta es
+  # si la columna es numerica y trae clase declarada, no cual clase es.
   excluidas_por_tipo <- which(vapply(datos, function(x) {
-    inherits(x, "integer64") && sum(is.finite(x)) >= 50L
+    .es_numerica_con_clase(x) && !.es_columna_compuesta(x) &&
+      sum(is.finite(x)) >= 50L
   }, logical(1L)))
   cobertura_tipo <- lapply(excluidas_por_tipo, function(i) {
     .nuevo_diagnostico_no_evaluado(
       "ley_benford", names(datos)[[i]],
       paste0(
-        "La columna se guarda como `integer64` y el diagnostico no se evalua ",
-        "sobre ese tipo."
+        "La columna se guarda como `", .clase_declarada_columna(datos[[i]]),
+        "` y el diagnostico no se evalua sobre ese tipo."
       ),
       paste0(
         "No leer la ausencia de hallazgo como conformidad. Para evaluar Benford ",

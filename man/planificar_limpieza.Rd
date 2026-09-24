@@ -121,10 +121,35 @@ compara con la precisión con que vino escrito—, mientras que fechas,
 fechas-hora y lógicos sólo bloquean conversiones no ejecutables o no
 inyectivas. Las fechas pueden cambiar a la representación canónica del tipo
 sin que eso sea una pérdida. Sin \code{datos} no se puede hacer la comprobación y
-la acción queda bloqueada. Cuando se ejecuta y no es reversible se marca
-\code{destructiva} —también si la columna no era segura y se activa a mano—, no
-se activa por defecto y el registro conserva \code{n_no_reversibles} y la
-justificación de la decisión.
+la acción queda bloqueada. Cuando \strong{una conversión de tipo} se ejecuta y no
+es reversible se marca \code{destructiva} —también si la columna no era segura y
+se activa a mano—, no se activa por defecto y el registro conserva
+\code{n_no_reversibles} y la justificación de la decisión.
+
+\code{destructiva} no es sinónimo de "pierde algo": marca las acciones que el
+usuario tiene que activar a mano —las que retiran filas o columnas y las
+conversiones que pierden representación— y por eso ninguna acción
+\code{destructiva} puede estar \code{recomendada}. Hay acciones recomendadas que sí
+pierden el valor de una celda: \code{convertir_ausencias_textuales} cambia un
+marcador por \code{NA} y \code{eliminar_controles_invisibles} quita un carácter. Esas
+lo dicen en su justificación y el registro las cuantifica en
+\code{n_no_reversibles}; leer \code{destructiva = FALSE} no significa que no se haya
+perdido nada, sino que el paquete pudo recomendar la acción sin conocer el
+dominio.
+Sobre una columna \strong{factor} las acciones por celda devuelven texto: el
+resultado no puede ser un factor incompleto, así que el orden declarado y los
+niveles sin observaciones no se conservan. La justificación de la acción lo
+dice, y si el factor es ordenado la acción queda recomendada pero \strong{sin
+activar}, porque conservar el orden es una decisión del dominio.
+
+Dos atributos del plan declaran lo que el plan no cubre.
+\code{cobertura_diagnosticos} trae los diagnósticos que el perfil no pudo
+evaluar, para que leer tres acciones no se confunda con "lo demás está
+bien". \code{hallazgos_sin_accion_por_columna_ambigua} trae los hallazgos medidos
+que no produjeron acción porque su columna comparte nombre con otra y no hay
+forma de saber sobre cuál actuaría la limpieza; el remedio es normalizar los
+nombres y volver a perfilar. Los dos se imprimen con el plan.
+
 \code{convertir_numero_regional} sólo se recomienda si todos los valores
 presentes comparten convención decimal, unidad y moneda. Un valor con \verb{\%}
 se divide por 100 y queda como proporción en \verb{[0, 1]}, la escala con que el

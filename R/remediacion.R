@@ -102,6 +102,49 @@
   if (.accion_columna_ambigua(perfil, columna)) "bloqueada" else estado
 }
 
+.hallazgos_sin_accion_por_columna_ambigua <- function(perfil) {
+  # El plan se arma desde `perfil$hallazgos`, y una columna cuyo nombre aparece
+  # mas de una vez no se puede identificar: `.fila_perfil()` devuelve NULL y
+  # NINGUNA rama del planificador llega a proponer su accion. Medido sobre una
+  # tabla con dos columnas llamadas igual y espacios al borde en las dos: el
+  # perfil publica los dos hallazgos `espacios_sobrantes`, el plan publica solo
+  # las dos estrategias de nombres, y la cobertura sale vacia. Con los nombres
+  # distintos, la misma tabla produce las dos acciones de recorte.
+  #
+  # Es el reverso exacto de lo que ya esta escrito donde la cobertura se cuelga
+  # del plan: ahi el silencio era un diagnostico que no se evaluo, aca es un
+  # hallazgo medido que no encontro accion. Se declara en la misma puerta donde
+  # se decide que limpiar, porque leer el plan y no ver la accion se lee como
+  # "no hay nada que hacer".
+  hallazgos <- perfil$hallazgos
+  vacio <- data.frame(
+    hallazgo = character(), columna = character(), motivo = character(),
+    como_resolverlo = character(), stringsAsFactors = FALSE
+  )
+  if (!inherits(hallazgos, "data.frame") || !nrow(hallazgos)) return(vacio)
+  ambiguos <- which(!is.na(hallazgos$columna) & vapply(
+    hallazgos$columna,
+    function(columna) .accion_columna_ambigua(perfil, columna),
+    logical(1L)
+  ))
+  if (!length(ambiguos)) return(vacio)
+  data.frame(
+    hallazgo = as.character(hallazgos$tipo_hallazgo[ambiguos]),
+    columna = as.character(hallazgos$columna[ambiguos]),
+    motivo = paste0(
+      "El nombre de columna se repite en la tabla, as\u00ed que no hay forma de ",
+      "saber sobre cu\u00e1l de ellas act\u00faa la limpieza: el plan no propone acci\u00f3n ",
+      "para este hallazgo."
+    ),
+    como_resolverlo = paste0(
+      "Aplicar `normalizar_nombres` -o renombrar las columnas a mano- y volver ",
+      "a perfilar: con nombres distintos el plan propone las acciones de este ",
+      "hallazgo."
+    ),
+    stringsAsFactors = FALSE
+  )
+}
+
 .es_fecha_ambigua <- function(perfil, columna) {
   any(
     .nombres_para_operar(perfil$hallazgos$columna) %in%
@@ -323,9 +366,17 @@
   )
 }
 
-# Las acciones que transforman CELDA por celda y conservan la clase de la
-# columna. Son las unicas que pueden respetar el universo aplicable: se aplican
-# y despues se devuelven a su valor las celdas de fuera. Las conversiones de
+# Las acciones que transforman CELDA por celda. Son las unicas que pueden
+# respetar el universo aplicable: se aplican y despues se devuelven a su valor
+# las celdas de fuera.
+#
+# Este comentario decia que conservan la clase de la columna, y sobre un FACTOR
+# no es cierto: todas devuelven texto -`.resultado_texto()` lo decide en un solo
+# lugar, a proposito, para no dejar un factor incompleto-. La afirmacion falsa
+# se quedo escrita mientras el plan recomendaba y ACTIVABA `recortar_espacios`
+# sobre un factor ordenado, publicando `destructiva = FALSE`; la columna volvia
+# `character`, sin orden y sin los niveles sin observaciones. Lo que el usuario
+# lee ahora lo dice: ver `.declarar_texto_en_columna_factor()`. Las conversiones de
 # tipo no estan aca porque no se pueden aplicar a medias -una columna tiene un
 # solo tipo-, y para ellas el plan declara el alcance real.
 .estrategias_por_celda <- c(
@@ -336,6 +387,51 @@
   "convertir_titulo", "convertir_segun_diccionario",
   "convertir_sentinelas_numericos", "winsorizar_outliers"
 )
+.declarar_texto_en_columna_factor <- function(plan, perfil) {
+  # Una sola vez para todas las acciones por celda, y no una por estrategia: lo
+  # que cambia la clase no es la estrategia sino la columna, y el contrato de
+  # devolver texto esta escrito en un solo lugar. Enumerar las nueve ramas del
+  # planificador que aceptan un factor era enumerar sitios; la pregunta es si la
+  # columna declara un factor.
+  #
+  # Donde se declara: en la justificacion, que es lo que se lee para decidir. Y
+  # si el factor declara un ORDEN, la accion queda recomendada pero sin activar,
+  # con el mismo idioma que ya usan las acciones contextuales del plan: el orden
+  # es algo que el usuario declaro y que el texto no puede llevar, asi que la
+  # decision es suya.
+  if (!nrow(plan)) return(plan)
+  for (j in seq_len(nrow(plan))) {
+    if (!plan$estrategia[[j]] %in% .estrategias_por_celda) next
+    columna <- plan$columna[[j]]
+    if (is.na(columna)) next
+    fila <- .fila_perfil(perfil, columna)
+    if (is.null(fila)) next
+    if (!as.character(fila$tipo_declarado[[1L]]) %in%
+          c("factor", "factor-ordenado")) {
+      next
+    }
+    ordenado <- identical(as.character(fila$tipo_declarado[[1L]]),
+                          "factor-ordenado")
+    plan$justificacion[[j]] <- paste0(
+      plan$justificacion[[j]],
+      " La columna es un factor", if (ordenado) " ordenado" else "",
+      " y la acci\u00f3n devuelve texto: ",
+      if (ordenado) "el orden declarado y " else "",
+      "los niveles sin observaciones no se conservan.",
+      if (ordenado) {
+        paste0(
+          " Queda recomendada pero sin activar: conservar el orden es una ",
+          "decisi\u00f3n del dominio."
+        )
+      } else {
+        ""
+      }
+    )
+    if (ordenado) plan$aplicar[[j]] <- FALSE
+  }
+  plan
+}
+
 .estrategias_cambio_de_tipo <- c(
   "convertir_tipo", "convertir_numero_regional", "convertir_fecha_confirmada"
 )
@@ -596,10 +692,35 @@
 #' fechas-hora y lógicos sólo bloquean conversiones no ejecutables o no
 #' inyectivas. Las fechas pueden cambiar a la representación canónica del tipo
 #' sin que eso sea una pérdida. Sin `datos` no se puede hacer la comprobación y
-#' la acción queda bloqueada. Cuando se ejecuta y no es reversible se marca
-#' `destructiva` —también si la columna no era segura y se activa a mano—, no
-#' se activa por defecto y el registro conserva `n_no_reversibles` y la
-#' justificación de la decisión.
+#' la acción queda bloqueada. Cuando **una conversión de tipo** se ejecuta y no
+#' es reversible se marca `destructiva` —también si la columna no era segura y
+#' se activa a mano—, no se activa por defecto y el registro conserva
+#' `n_no_reversibles` y la justificación de la decisión.
+#'
+#' `destructiva` no es sinónimo de "pierde algo": marca las acciones que el
+#' usuario tiene que activar a mano —las que retiran filas o columnas y las
+#' conversiones que pierden representación— y por eso ninguna acción
+#' `destructiva` puede estar `recomendada`. Hay acciones recomendadas que sí
+#' pierden el valor de una celda: `convertir_ausencias_textuales` cambia un
+#' marcador por `NA` y `eliminar_controles_invisibles` quita un carácter. Esas
+#' lo dicen en su justificación y el registro las cuantifica en
+#' `n_no_reversibles`; leer `destructiva = FALSE` no significa que no se haya
+#' perdido nada, sino que el paquete pudo recomendar la acción sin conocer el
+#' dominio.
+#' Sobre una columna **factor** las acciones por celda devuelven texto: el
+#' resultado no puede ser un factor incompleto, así que el orden declarado y los
+#' niveles sin observaciones no se conservan. La justificación de la acción lo
+#' dice, y si el factor es ordenado la acción queda recomendada pero **sin
+#' activar**, porque conservar el orden es una decisión del dominio.
+#'
+#' Dos atributos del plan declaran lo que el plan no cubre.
+#' `cobertura_diagnosticos` trae los diagnósticos que el perfil no pudo
+#' evaluar, para que leer tres acciones no se confunda con "lo demás está
+#' bien". `hallazgos_sin_accion_por_columna_ambigua` trae los hallazgos medidos
+#' que no produjeron acción porque su columna comparte nombre con otra y no hay
+#' forma de saber sobre cuál actuaría la limpieza; el remedio es normalizar los
+#' nombres y volver a perfilar. Los dos se imprimen con el plan.
+#'
 #' `convertir_numero_regional` sólo se recomienda si todos los valores
 #' presentes comparten convención decimal, unidad y moneda. Un valor con `%`
 #' se divide por 100 y queda como proporción en `[0, 1]`, la escala con que el
@@ -907,7 +1028,9 @@ planificar_limpieza <- function(perfil, datos = NULL,
           paste0(
             "Los controles C0/C1 y los invisibles Unicode de transporte no ",
             "aportan contenido de negocio y pueden romper cruces, ",
-            "comparaciones y exportes. Los ZWJ/ZWNJ se conservan."
+            "comparaciones y exportes. Los ZWJ/ZWNJ se conservan. Quitar el ",
+            "car\u00e1cter no deja forma de reconstruir la celda como estaba: el ",
+            "registro cuenta cada celda modificada en `n_no_reversibles`."
           ), n_eliminables, FALSE,
           estado = estado_columna,
           aplicar = identical(estado_columna, "lista"), orden = 195L
@@ -1483,6 +1606,7 @@ planificar_limpieza <- function(perfil, datos = NULL,
       }
     }
   }
+  resultado <- .declarar_texto_en_columna_factor(resultado, perfil)
   resultado$estado <- factor(
     resultado$estado,
     levels = c("lista", "bloqueada", "informativa")
@@ -1508,6 +1632,8 @@ planificar_limpieza <- function(perfil, datos = NULL,
   } else {
     .cobertura_diagnosticos_vacia()
   }
+  attr(resultado, "hallazgos_sin_accion_por_columna_ambigua") <-
+    .hallazgos_sin_accion_por_columna_ambigua(perfil)
   .proteger_plan_limpieza(resultado, perfil, datos)
 }
 
@@ -3321,6 +3447,23 @@ print.plan_limpieza <- function(x, ...) {
       paste(.texto_publicable(columnas), collapse = ", "),
       ". El motivo medido de cada uno esta en ",
       "`attr(plan, \"cobertura_diagnosticos\")`."
+    )))
+  }
+  sin_accion <- attr(x, "hallazgos_sin_accion_por_columna_ambigua",
+                     exact = TRUE)
+  if (inherits(sin_accion, "data.frame") && nrow(sin_accion)) {
+    cli::cli_alert_warning(.cli_literal(paste0(
+      nrow(sin_accion),
+      if (nrow(sin_accion) == 1L) {
+        " hallazgo medido no tiene acci\u00f3n"
+      } else {
+        " hallazgos medidos no tienen acci\u00f3n"
+      },
+      " porque su columna comparte nombre con otra, en: ",
+      paste(.texto_publicable(unique(as.character(sin_accion$columna))),
+            collapse = ", "),
+      ". El detalle esta en ",
+      "`attr(plan, \"hallazgos_sin_accion_por_columna_ambigua\")`."
     )))
   }
   vista <- x[c(

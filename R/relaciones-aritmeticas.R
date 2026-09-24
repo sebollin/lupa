@@ -16,8 +16,12 @@
   # con dos criterios otra vez: el perfil lo resumia como `doble` y Benford lo
   # analizaba, mientras el alcance aritmetico lo excluia. La pregunta es si tiene
   # MAS de una dimension, y esa pregunta ya esta escrita una sola vez.
-  is.numeric(x) && !.es_columna_compuesta(x) &&
-    !inherits(x, c("Date", "POSIXt", "difftime", "integer64"))
+  # `.es_numerico_pelado(x)` en vez de la lista `Date`/`POSIXt`/`difftime`/
+  # `integer64` que estaba aca: la lista dejaba entrar a `lubridate::Period` y a
+  # `units`, y con esas dos el cociente `respuesta / base` de
+  # `.hallazgo_proporcional()` ABORTABA `perfilar()`. El criterio esta escrito
+  # una sola vez, en `utils.R`, con el porque.
+  .es_numerico_pelado(x) && !.es_columna_compuesta(x)
 }
 
 .texto_tolerancia_aritmetica <- function(tolerancia) {
@@ -56,6 +60,30 @@
                                           max_columnas) {
   n_numericas <- length(numericas)
   n_analizadas <- length(seleccion)
+  # Las clases que quedaron fuera se MIDEN sobre esta tabla. Publicar la lista
+  # fija `Date`/`POSIXt`/`difftime`/`integer64` era publicar el criterio viejo:
+  # el de ahora no es una lista sino la pregunta de si la columna trae clase
+  # declarada, y la lista fija no nombraba ni a `units` ni a `Period`.
+  fuera <- setdiff(seq_along(datos), numericas)
+  clases <- vapply(fuera, function(i) {
+    x <- datos[[i]]
+    if (is.numeric(x) || inherits(x, c("Date", "POSIXt", "difftime"))) {
+      .clase_declarada_columna(x)
+    } else {
+      NA_character_
+    }
+  }, character(1L))
+  clases_excluidas <- unique(clases[!is.na(clases)])
+  # Las numericas con clase se declaran una por una en la cobertura: son las
+  # que un lector esperaria ver analizadas -el perfil publica su minimo, su
+  # maximo y su media- y la exclusion silenciosa las dejaba sin rastro.
+  con_clase <- fuera[vapply(fuera, function(i) .es_numerica_con_clase(datos[[i]]),
+                            logical(1L))]
+  excluidas_por_clase <- stats::setNames(
+    vapply(con_clase, function(i) .clase_declarada_columna(datos[[i]]),
+           character(1L)),
+    names(datos)[con_clase]
+  )
   identidades <- function(n) if (n < 3L) 0 else 3 * choose(n, 3L)
   pares <- function(n) if (n < 2L) 0 else choose(n, 2L)
   list(
@@ -76,7 +104,8 @@
       "max(1, |observado|, |esperado|)"
     ),
     minimo_filas_comparables = as.integer(min_filas),
-    clases_excluidas = c("Date", "POSIXt", "difftime", "integer64")
+    clases_excluidas = clases_excluidas,
+    columnas_excluidas_por_clase = excluidas_por_clase
   )
 }
 
@@ -87,6 +116,7 @@
   # Solo se declara cuando habia algo que buscar: si no hay combinaciones de
   # columnas numericas candidatas, no hay diagnostico que dejar de evaluar y
   # anunciarlo seria ruido en vez de alcance.
+  filas <- list()
   habia_que_buscar <- alcance$identidades_aditivas_posibles > 0 ||
     alcance$pares_proporcionales_posibles > 0
   sin_filas <- habia_que_buscar &&
@@ -109,11 +139,15 @@
         " filas, o bajar `min_filas_aritmetica`."
       )
     )
-    if (!isTRUE(alcance$truncado)) return(faltante)
+    if (!isTRUE(alcance$truncado)) filas <- c(filas, list(faltante))
   }
-  if (!isTRUE(alcance$truncado)) return(.cobertura_diagnosticos_vacia())
+  filas <- c(filas, .cobertura_clases_aritmetica(alcance))
+  if (!isTRUE(alcance$truncado)) {
+    if (!length(filas)) return(.cobertura_diagnosticos_vacia())
+    return(do.call(rbind, filas))
+  }
   omitidas <- alcance$columnas_omitidas
-  .nuevo_diagnostico_no_evaluado(
+  filas <- c(filas, list(.nuevo_diagnostico_no_evaluado(
     "relacion_aritmetica_columnas",
     paste(omitidas, collapse = ","),
     paste0(
@@ -128,7 +162,34 @@
       "Aumentar `max_columnas_aritmetica` o perfilar por bloques si las ",
       "columnas omitidas deben intervenir en el diagn\u00f3stico."
     )
-  )
+  )))
+  do.call(rbind, filas)
+}
+
+.cobertura_clases_aritmetica <- function(alcance) {
+  # Una columna que el perfil resume como numero -publica su minimo, su maximo
+  # y su media- y que no entra a este diagnostico tiene que decir por que. Sin
+  # esto, la ausencia de relacion aritmetica sobre una columna `units` o
+  # `integer64` se leia como "se busco y no hay".
+  excluidas <- alcance$columnas_excluidas_por_clase
+  if (!length(excluidas)) return(list())
+  lapply(seq_along(excluidas), function(i) {
+    .nuevo_diagnostico_no_evaluado(
+      "relacion_aritmetica_columnas",
+      names(excluidas)[[i]],
+      paste0(
+        "La columna declara la clase `", excluidas[[i]],
+        "` y la b\u00fasqueda de relaciones aritm\u00e9ticas s\u00f3lo opera sobre ",
+        "n\u00fameros sin clase: sumar o dividir valores de esa clase no es la ",
+        "aritm\u00e9tica de un doble."
+      ),
+      paste0(
+        "No leer la ausencia de relaci\u00f3n como ausencia de relaci\u00f3n. Para ",
+        "evaluarla, convertir la columna a `double` -por ejemplo con ",
+        "`as.numeric()`- si su magnitud entra en ese tipo."
+      )
+    )
+  })
 }
 
 .evidencia_filas_aritmetica <- function(datos, indices, columnas, esperado,

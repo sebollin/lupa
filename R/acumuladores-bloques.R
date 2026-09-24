@@ -1075,7 +1075,23 @@
       columnas[[length(columnas) + 1L]] <- columna
     }
   }
-  as.data.frame(columnas, check.names = FALSE, stringsAsFactors = FALSE)
+  # `as.data.frame(columnas)` no sirve para volver a armar la tabla: si alguna
+  # columna es una LISTA con un elemento `NULL`, `as.data.frame.list()` recursa
+  # sobre ella y ABORTA -"los argumentos implican un numero diferente de filas:
+  # 2, 0"-. Medido: una tabla con una columna matriz y una columna de lista con
+  # un `NULL` adentro mataba `perfilar()` al contar filas duplicadas, con datos
+  # que el usuario puede construir sin hacer nada raro.
+  #
+  # Las columnas ya tienen el largo de la tabla -las componentes de la matriz
+  # tambien-, asi que armar el `data.frame` por estructura no coacciona ninguna
+  # y no hay nada que verificar. Los nombres no se usan: las dos vias que
+  # consumen esto comparan columnas por posicion.
+  structure(
+    columnas,
+    names = paste0("v", seq_along(columnas)),
+    class = "data.frame",
+    row.names = seq_len(nrow(datos))
+  )
 }
 
 .fila_igual_R <- function(datos, i, representantes, j) {

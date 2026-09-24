@@ -277,30 +277,11 @@
   } else {
     datos
   }
-  columnas_matriciales <- vapply(
-    datos_base,
-    .es_columna_compuesta,
-    logical(1L)
-  )
-  if (any(columnas_matriciales)) {
-    columnas <- list()
-    for (i in seq_along(datos_base)) {
-      columna <- datos_base[[i]]
-      if (columnas_matriciales[[i]]) {
-        componentes <- as.data.frame(
-          unclass(columna), stringsAsFactors = FALSE
-        )
-        for (j in seq_along(componentes)) {
-          columnas[[length(columnas) + 1L]] <- componentes[[j]]
-        }
-      } else {
-        columnas[[length(columnas) + 1L]] <- columna
-      }
-    }
-    datos_base <- as.data.frame(
-      columnas, check.names = FALSE, stringsAsFactors = FALSE
-    )
-  }
+  # Aplanar las columnas con dimensiones estaba escrito dos veces, aca y en
+  # `.expandir_datos_identidad()`, y las dos copias abortaban igual ante una
+  # columna de lista con un `NULL`. Ahora la regla esta una sola vez, donde ya
+  # tenia nombre.
+  datos_base <- .expandir_datos_identidad(datos_base)
 
   duplicadas_adelante <- tryCatch(
     base::duplicated.data.frame(datos_base),
@@ -838,9 +819,15 @@
 #' como evidencia de fraude o manipulación. Topes administrativos, redondeos,
 #' precios psicológicos y subsidios de monto fijo son explicaciones posibles.
 #'
-#' Las relaciones aritméticas se buscan sólo entre columnas numéricas
-#' declaradas y con variación: `Date`, `POSIXt`, `difftime`, `integer64`, texto
-#' numérico y columnas constantes no participan. Cada relación requiere al
+#' Las relaciones aritméticas se buscan sólo entre columnas numéricas **sin
+#' clase declarada** y con variación: una columna que declara una clase propia
+#' —`Date`, `POSIXt`, `difftime`, `integer64`, `units`, `lubridate::Period` o
+#' cualquier otra— no participa, porque sumarla o dividirla no es la aritmética
+#' de un doble; el texto numérico y las columnas constantes tampoco. Las
+#' columnas que R declara numéricas y quedan fuera por su clase se declaran una
+#' por una en `cobertura_diagnosticos`, y `meta$aritmetica_columnas` publica las
+#' clases medidas en esta tabla. La ley de Benford sigue el mismo criterio y la
+#' misma declaración. Cada relación requiere al
 #' menos tres filas con valores finitos en todas las columnas involucradas;
 #' los `NA`, `NaN` e infinitos quedan fuera del universo que publica la
 #' evidencia. Para cada terna se prueban las tres orientaciones de una identidad

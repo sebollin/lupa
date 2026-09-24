@@ -12,8 +12,12 @@
 # que la rama se ejecute de verdad en vez de saltearse cuando el paquete está
 # instalado.
 
-# Las catorce razones conocidas por las que `lupa` puede declarar que no midió.
-# Si aparece una nueva y no se agrega acá, la última prueba del archivo falla.
+# Las veinte razones conocidas por las que `lupa` puede declarar que no
+# midió. El inventario se compara contra el vocabulario que el paquete produce
+# de verdad, en la última prueba del archivo: la versión anterior decía que una
+# razón nueva hacía fallar esa prueba, y no era cierto —contaba el inventario
+# contra sí mismo—. La razón de Benford por tipo declarado existía desde antes
+# de que se escribiera esa frase y no estaba en la lista.
 .razones_de_cobertura <- c(
   "normalizacion_unicode__falta_stringi",
   "proximidad_vocabulario__falta_stringdist",
@@ -28,6 +32,12 @@
   "zona_horaria_fecha_hora__sin_tz_declarada",
   "ley_benford__supuestos_no_se_cumplen",
   "relacion_aritmetica_columnas__busqueda_limitada",
+  "relacion_aritmetica_columnas__clase_declarada",
+  "ley_benford__clase_declarada",
+  "outliers__sin_valores_finitos",
+  "outliers__pocos_valores_finitos",
+  "outliers__iqr_cero",
+  "outliers__parece_identificador",
   "patron_raro__dominante_insuficiente"
 )
 
@@ -208,11 +218,138 @@ test_that("el catálogo de razones conocidas está completo", {
   # sumarla acá, esta lista deja de describir el comportamiento real. No se
   # puede leer `R/` desde un paquete instalado, así que la comprobación es de
   # forma: cada razón declarada nombra un diagnóstico y una causa.
-  expect_length(.razones_de_cobertura, 14L)
+  expect_length(.razones_de_cobertura, 20L)
   partes <- strsplit(.razones_de_cobertura, "__", fixed = TRUE)
   expect_true(all(lengths(partes) == 2L))
   diagnosticos <- unique(vapply(partes, `[[`, character(1L), 1L))
-  expect_length(diagnosticos, 12L)
+  expect_length(diagnosticos, 13L)
+})
+
+test_that("una columna numérica con clase declarada se declara dos veces", {
+  skip_if_not_installed("units")
+  set.seed(214)
+  valores <- round(stats::runif(120, 1, 9999), 2)
+  datos <- data.frame(neto = valores, total = valores * 1.22)
+  datos$distancia <- units::set_units(valores, "m")
+
+  perfil <- perfilar(datos, analizar_dependencias = FALSE)
+
+  # Las dos razones: ni las relaciones aritméticas ni Benford operan sobre una
+  # columna que declara una clase, y las dos lo dicen.
+  aritmetica <- .fila_cobertura(perfil, "relacion_aritmetica_columnas")
+  aritmetica <- aritmetica[aritmetica$columna == "distancia", , drop = FALSE]
+  expect_equal(nrow(aritmetica), 1L)
+  expect_true(grepl("units", aritmetica$motivo[[1L]], fixed = TRUE))
+  expect_true(nzchar(aritmetica$como_resolverlo[[1L]]))
+
+  benford <- .fila_cobertura(perfil, "ley_benford")
+  benford <- benford[benford$columna == "distancia", , drop = FALSE]
+  expect_equal(nrow(benford), 1L)
+  expect_true(grepl("units", benford$motivo[[1L]], fixed = TRUE))
+
+  # Y la mitad que mide: las dos columnas peladas sí se analizaron.
+  expect_true("relacion_aritmetica_columnas" %in%
+                as.character(perfil$hallazgos$tipo_hallazgo))
+})
+
+test_that("una columna integer64 declara la razón de Benford por su tipo", {
+  skip_if_not_installed("bit64")
+  set.seed(215)
+  datos <- data.frame(id = seq_len(120))
+  datos$grande <- bit64::as.integer64(round(stats::runif(120, 1, 999999)))
+
+  perfil <- perfilar(datos, analizar_dependencias = FALSE)
+  fila <- .fila_cobertura(perfil, "ley_benford")
+  fila <- fila[fila$columna == "grande", , drop = FALSE]
+
+  expect_equal(nrow(fila), 1L)
+  expect_true(grepl("integer64", fila$motivo[[1L]], fixed = TRUE))
+})
+
+test_that("las cuatro razones por las que no se evaluan outliers se declaran", {
+  casos <- list(
+    sin_valores_finitos = list(
+      datos = data.frame(x = rep(Inf, 30L), id = seq_len(30L)),
+      clave = "no hay valores finitos"
+    ),
+    pocos_valores_finitos = list(
+      datos = data.frame(x = as.numeric(1:10), id = seq_len(10L)),
+      clave = "se requieren al menos 20"
+    ),
+    iqr_cero = list(
+      datos = data.frame(x = c(rep(0, 90L), rep(1, 10L)), id = seq_len(100L)),
+      clave = "recorrido"
+    )
+  )
+  for (nombre in names(casos)) {
+    caso <- casos[[nombre]]
+    perfil <- perfilar(caso$datos, analizar_dependencias = FALSE,
+                       proteger_datos_personales = FALSE)
+    fila <- .fila_cobertura(perfil, "outliers")
+    fila <- fila[fila$columna == "x", , drop = FALSE]
+    expect_equal(nrow(fila), 1L, info = nombre)
+    expect_true(grepl(caso$clave, fila$motivo[[1L]], fixed = TRUE), info = nombre)
+    expect_true(nzchar(fila$como_resolverlo[[1L]]), info = nombre)
+    expect_false("outliers" %in% as.character(perfil$hallazgos$tipo_hallazgo),
+                 info = nombre)
+  }
+
+  # La cuarta razon: una numeracion densa con un centinela. Aca el conteo SI
+  # existe, y lo que se declara es que no se interpreta como distancia.
+  denso <- data.frame(id_padron = c(1:1000, rep(9999, 15L)))
+  perfil <- perfilar(denso, analizar_dependencias = FALSE,
+                     proteger_datos_personales = FALSE)
+  fila <- .fila_cobertura(perfil, "outliers")
+  expect_equal(nrow(fila), 1L)
+  expect_true(grepl("enteros", fila$motivo[[1L]], fixed = TRUE))
+
+  # Control: una columna con variacion y suficientes valores mide y no declara.
+  set.seed(217)
+  normal <- data.frame(x = c(stats::rnorm(100L), 50), id = seq_len(101L))
+  perfil_medido <- perfilar(normal, analizar_dependencias = FALSE,
+                            proteger_datos_personales = FALSE)
+  expect_equal(nrow(.fila_cobertura(perfil_medido, "outliers")), 0L)
+  expect_true("outliers" %in%
+                as.character(perfil_medido$hallazgos$tipo_hallazgo))
+})
+
+test_that("el inventario de razones se mide contra lo que el paquete produce", {
+  # Esta es la prueba que la frase de arriba prometía y no existía. No puede
+  # enumerar razones -varias comparten constructor y el motivo es prosa-, pero
+  # sí puede exigir que todo DIAGNÓSTICO declarado esté inventariado: una razón
+  # nueva sobre un diagnóstico nuevo cae acá.
+  registrados <- unique(vapply(
+    strsplit(.razones_de_cobertura, "__", fixed = TRUE),
+    `[[`, character(1L), 1L
+  ))
+  set.seed(216)
+  valores <- round(stats::runif(120, 1, 9999), 2)
+  con_clase <- data.frame(neto = valores, total = valores * 1.22)
+  if (requireNamespace("units", quietly = TRUE)) {
+    con_clase$distancia <- units::set_units(valores, "m")
+  }
+  anchas <- as.data.frame(replicate(21L, stats::rnorm(200L)))
+  tablas <- list(
+    con_clase,
+    anchas,
+    data.frame(a = c(1, 2), b = c(2, 4)),
+    data.frame(v = c(rep("Montevideo", 6L), rep("Montevido", 4L)),
+               stringsAsFactors = FALSE)
+  )
+  vistos <- character()
+  for (tabla in tablas) {
+    perfil <- suppressWarnings(perfilar(
+      tabla, analizar_dependencias = FALSE, proteger_datos_personales = FALSE
+    ))
+    vistos <- c(vistos, as.character(perfil$cobertura_diagnosticos$diagnostico))
+  }
+  vistos <- unique(vistos)
+
+  # Que la batería haya declarado algo: un inventario comparado con la nada
+  # pasa siempre y no mide.
+  expect_gt(length(vistos), 2L)
+  expect_true(all(vistos %in% registrados),
+              info = paste(setdiff(vistos, registrados), collapse = ", "))
 })
 
 test_that("los grupos bajo el piso de asimetría se declaran, no desaparecen", {

@@ -904,6 +904,45 @@
   )
 }
 
+.es_numerico_pelado <- function(x) {
+  # Un numero pelado es un `integer` o un `double` SIN clase declarada. El
+  # paquete ya se escribio esta leccion dos veces -en `.n_subnormales()` y aca
+  # abajo en `.tipo_declarado()`-: `Date`, `POSIXct`, `difftime`, `integer64`,
+  # `units` y `hms` son todos `double` por debajo, y ENUMERAR LAS CLASES A MANO
+  # DEJA AFUERA LA PROXIMA. La proxima llego, y no fue una cifra mal publicada
+  # sino un ABORTO con datos legitimos: `is.numeric()` es TRUE para
+  # `lubridate::Period` y para `units`, asi que las dos entraban a la busqueda
+  # de relaciones proporcionales, y ahi el cociente entre dos columnas ejecuta
+  # la aritmetica de la clase: "invalid class Period object: periods must have
+  # integer values" y "both operands of the expression should be units
+  # objects". `perfilar()` moria sobre una tabla que el usuario podia construir
+  # sin hacer nada raro.
+  #
+  # Preguntar por la clase -y no por una lista de clases- cubre a las que hoy
+  # existen y a las que se inventen manana, porque lo que estos diagnosticos
+  # necesitan no es "algo que responda `is.numeric()`" sino una magnitud que
+  # sume y divida como un doble.
+  #
+  # `AsIs` se descarta por la misma razon que en `.tipo_declarado()`: `I()` es
+  # como el dato viajo dentro del `data.frame`, no una declaracion sobre el
+  # dato.
+  is.numeric(x) && !length(setdiff(oldClass(x), "AsIs"))
+}
+
+.clase_declarada_columna <- function(x) {
+  clase <- setdiff(oldClass(x), "AsIs")
+  if (length(clase)) clase[[1L]] else NA_character_
+}
+
+.es_numerica_con_clase <- function(x) {
+  # Las columnas que R declara numericas pero traen una clase propia. Son las
+  # que quedan fuera de los diagnosticos que necesitan un numero pelado, y por
+  # eso hay que DECLARARLAS: la exclusion silenciosa es la que hacia que la
+  # misma columna produjera una fila de cobertura guardada como `entero` y nada
+  # guardada como `integer64`.
+  is.numeric(x) && !.es_numerico_pelado(x)
+}
+
 .tipo_declarado <- function(x) {
   if (inherits(x, "sfc")) {
     return(class(x)[[1L]])

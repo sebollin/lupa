@@ -2451,16 +2451,26 @@
   # `cobertura_diagnosticos`; lo que faltaba era que el propio hallazgo lo
   # respetara, porque nadie que lee una fila de `hallazgos` esta obligado a
   # cruzarla con otra tabla.
+  #
+  # La guarda estaba, y no corria en el caso mas comun de todos: exigia
+  # `n_valores_excluidos_resumen > 0`, que es el caso del texto que no
+  # convierte, y dejaba afuera los `NA` de siempre. Medido: mil filas con
+  # cincuenta ausentes y ningun valor no convertible publicaban
+  # `n_evaluados = 1000` sobre los 950 valores que entraron al resumen, con
+  # `n_faltantes = 50` en la misma corrida. La condicion es si algo NO llego al
+  # resumen, y los ausentes son la primera forma de no llegar.
   sobre_resumen <- c("outliers", "ceros_no_permitidos", "negativos_no_permitidos")
   if (tipo %in% sobre_resumen && identical(unidad, "fila") &&
-      !is.null(fila$n_valores_excluidos_resumen) &&
-      isTRUE(is.finite(fila$n_valores_excluidos_resumen[[1L]])) &&
-      fila$n_valores_excluidos_resumen[[1L]] > 0L &&
       isTRUE(is.finite(n))) {
-    faltantes <- if (isTRUE(is.finite(fila$n_faltantes[[1L]]))) {
+    excluidos <- if (!is.null(fila$n_valores_excluidos_resumen) &&
+                     isTRUE(is.finite(fila$n_valores_excluidos_resumen[[1L]]))) {
+      fila$n_valores_excluidos_resumen[[1L]]
+    } else 0L
+    faltantes <- if (!is.null(fila$n_faltantes) &&
+                     isTRUE(is.finite(fila$n_faltantes[[1L]]))) {
       fila$n_faltantes[[1L]]
     } else 0L
-    entraron <- n - faltantes - fila$n_valores_excluidos_resumen[[1L]]
+    entraron <- n - faltantes - excluidos
     if (isTRUE(is.finite(entraron)) && entraron > 0) n <- as.numeric(entraron)
   }
   list(n_evaluados = n, n_afectados = afectados, unidad_conteo = unidad)

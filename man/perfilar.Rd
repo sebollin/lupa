@@ -730,9 +730,15 @@ p; \code{meta$benford$umbrales} publica todos los cortes. Un valor p menor que
 como evidencia de fraude o manipulación. Topes administrativos, redondeos,
 precios psicológicos y subsidios de monto fijo son explicaciones posibles.
 
-Las relaciones aritméticas se buscan sólo entre columnas numéricas
-declaradas y con variación: \code{Date}, \code{POSIXt}, \code{difftime}, \code{integer64}, texto
-numérico y columnas constantes no participan. Cada relación requiere al
+Las relaciones aritméticas se buscan sólo entre columnas numéricas \strong{sin
+clase declarada} y con variación: una columna que declara una clase propia
+—\code{Date}, \code{POSIXt}, \code{difftime}, \code{integer64}, \code{units}, \code{lubridate::Period} o
+cualquier otra— no participa, porque sumarla o dividirla no es la aritmética
+de un doble; el texto numérico y las columnas constantes tampoco. Las
+columnas que R declara numéricas y quedan fuera por su clase se declaran una
+por una en \code{cobertura_diagnosticos}, y \code{meta$aritmetica_columnas} publica las
+clases medidas en esta tabla. La ley de Benford sigue el mismo criterio y la
+misma declaración. Cada relación requiere al
 menos tres filas con valores finitos en todas las columnas involucradas;
 los \code{NA}, \code{NaN} e infinitos quedan fuera del universo que publica la
 evidencia. Para cada terna se prueban las tres orientaciones de una identidad
