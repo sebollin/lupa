@@ -2,6 +2,48 @@
 
 ## lupa 0.1.0
 
+### La capa de modelado declara sus limites
+
+- [`comparar_equivalencia()`](https://sebollin.github.io/lupa/reference/comparar_equivalencia.md)
+  publica `no_comparable` cuando un campo no tiene valor medible en
+  ambos lados o solo lo tiene en uno, y lo cuenta separado de
+  `identico`.
+- [`perfiles_madurez()`](https://sebollin.github.io/lupa/reference/reglas_evaluacion.md)
+  no juzga contra \[0, 1\] una medida que no sea una proporcion segun su
+  tipo, su unidad o sus valores observados.
+- [`agregar()`](https://sebollin.github.io/lupa/reference/agregar.md)
+  deja visible cuando `conjuntoEntidades` hace un promedio sin pesos y
+  no conoce el alcance de sus partes. Desde `coleccion` siguen siendo
+  obligatorios los pesos porque la frontera declarada exige decidir
+  cuanto aporta cada tabla.
+- [`granularidades()`](https://sebollin.github.io/lupa/reference/granularidades.md)
+  distingue que un nivel sea medible de que tenga una transicion de
+  agregacion. `conjuntoAtributos` conserva `implementada = TRUE`, pero
+  declara que no es agregable con el grafo disponible.
+
+### Lo que se publica y lo que se declara proteger
+
+- La etiqueta de una columna personal protegida decia
+  `[estadisticos de orden y momentos protegidos]` y publicaba un
+  momento: el desvio. La decision de conservarlo esta tomada -una
+  dispersion no identifica a nadie y la media si se enmascara-, asi que
+  lo que se corrigio es la etiqueta, que ahora dice
+  `[estadisticos de orden y la media protegidos]`. Viaja ademas una
+  prueba que no lee la lista de campos a ocultar: perfila una columna
+  protegida con magnitudes conocidas y exige que ningun campo publicado
+  las traiga, con el desvio como unica excepcion declarada.
+
+- `desenlace = "suprimir"` declara que una medida no debe publicarse, y
+  el informe enmascaraba solo su `valor_medido`: dos secciones mas
+  abajo, la tabla de medidas publicaba su resultado. Ahora el resultado
+  tambien se enmascara al publicar -en el informe y en la impresion-, y
+  el objeto guardado no cambia.
+
+- Los metodos `print` del perfil y del plan declaran cuantos campos
+  muestran de los que el objeto tiene, y donde estan los demas. El del
+  plan ocultaba en silencio `evidencia` y `justificacion`, que son lo
+  que se lee para decidir si aplicar una accion.
+
 ### La perdida se mide en el resultado
 
 - `n_no_reversibles` contaba por accion: toda celda que la accion
@@ -14,6 +56,13 @@
   `"ana"` en un solo valor y publicaba cero irreversibles.
 
 ### Colecciones: alcance y trazabilidad de las lecturas
+
+- La poda cierta por rangos en
+  [`relaciones_coleccion()`](https://sebollin.github.io/lupa/reference/relaciones_coleccion.md)
+  usa `MIN` y `MAX` del universo completo de cada tabla. Un rango
+  calculado solo sobre la muestra ya no puede publicar
+  `sin_coincidencias`; si el motor no entrega el agregado, el par se
+  compara sin esa poda.
 
 - Cada fila de `resumen_coleccion` declara el `universo` de las metricas
   que alimentan sus agregados, para no confundir un conteo de la tabla

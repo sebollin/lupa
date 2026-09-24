@@ -349,20 +349,34 @@ siendo evidencia para revisar.</p>
 <p><code><a href="../reference/granularidades.html">granularidades()</a></code> y
 <code><a href="../reference/granularidades.html">transiciones_granularidad()</a></code> no analizan las tablas.
 Devuelven el vocabulario de niveles en que se puede medir y el grafo de
-agregaciones admitidas.</p>
+agregaciones admitidas. Las dos cosas no son la misma: un nivel puede
+estar implementado para medir y no ser alcanzable por ninguna
+transición, así que la tabla publica <code>agregable</code> con su
+motivo en vez de dejar que el lector lo suponga.</p>
 <div class="sourceCode" id="cb12"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="../reference/granularidades.html">granularidades</a></span><span class="op">(</span><span class="op">)</span></span>
-<span><span class="co">#&gt;    nivel           granularidad           relacional implementada</span></span>
-<span><span class="co">#&gt; 1      1      instanciaAtributo                celda         TRUE</span></span>
-<span><span class="co">#&gt; 2      2               atributo              columna         TRUE</span></span>
-<span><span class="co">#&gt; 3      3      conjuntoAtributos conjunto de columnas         TRUE</span></span>
-<span><span class="co">#&gt; 4      4       instanciaEntidad                tupla         TRUE</span></span>
-<span><span class="co">#&gt; 5      5                entidad                tabla         TRUE</span></span>
-<span><span class="co">#&gt; 6      6      conjuntoEntidades   conjunto de tablas         TRUE</span></span>
-<span><span class="co">#&gt; 7      7              coleccion        base de datos         TRUE</span></span>
-<span><span class="co">#&gt; 8      8    conjuntoColecciones                 &lt;NA&gt;         TRUE</span></span>
-<span><span class="co">#&gt; 9      9           organizacion                 &lt;NA&gt;         TRUE</span></span>
-<span><span class="co">#&gt; 10    10 conjuntoOrganizaciones                 &lt;NA&gt;         TRUE</span></span>
+<span><span class="co">#&gt;    nivel           granularidad           relacional implementada agregable</span></span>
+<span><span class="co">#&gt; 1      1      instanciaAtributo                celda         TRUE      TRUE</span></span>
+<span><span class="co">#&gt; 2      2               atributo              columna         TRUE      TRUE</span></span>
+<span><span class="co">#&gt; 3      3      conjuntoAtributos conjunto de columnas         TRUE     FALSE</span></span>
+<span><span class="co">#&gt; 4      4       instanciaEntidad                tupla         TRUE      TRUE</span></span>
+<span><span class="co">#&gt; 5      5                entidad                tabla         TRUE      TRUE</span></span>
+<span><span class="co">#&gt; 6      6      conjuntoEntidades   conjunto de tablas         TRUE      TRUE</span></span>
+<span><span class="co">#&gt; 7      7              coleccion        base de datos         TRUE      TRUE</span></span>
+<span><span class="co">#&gt; 8      8    conjuntoColecciones                 &lt;NA&gt;         TRUE      TRUE</span></span>
+<span><span class="co">#&gt; 9      9           organizacion                 &lt;NA&gt;         TRUE      TRUE</span></span>
+<span><span class="co">#&gt; 10    10 conjuntoOrganizaciones                 &lt;NA&gt;         TRUE      TRUE</span></span>
+<span><span class="co">#&gt;                                               motivo_agregacion</span></span>
+<span><span class="co">#&gt; 1                                                          &lt;NA&gt;</span></span>
+<span><span class="co">#&gt; 2                                                          &lt;NA&gt;</span></span>
+<span><span class="co">#&gt; 3  No hay transiciones de agregacion hacia ni desde este nivel.</span></span>
+<span><span class="co">#&gt; 4                                                          &lt;NA&gt;</span></span>
+<span><span class="co">#&gt; 5                                                          &lt;NA&gt;</span></span>
+<span><span class="co">#&gt; 6                                                          &lt;NA&gt;</span></span>
+<span><span class="co">#&gt; 7                                                          &lt;NA&gt;</span></span>
+<span><span class="co">#&gt; 8                                                          &lt;NA&gt;</span></span>
+<span><span class="co">#&gt; 9                                                          &lt;NA&gt;</span></span>
+<span><span class="co">#&gt; 10                                                         &lt;NA&gt;</span></span>
 <span><span class="fu"><a href="../reference/granularidades.html">transiciones_granularidad</a></span><span class="op">(</span><span class="op">)</span></span>
 <span><span class="co">#&gt;              origen                destino                fuente</span></span>
 <span><span class="co">#&gt; 1 instanciaAtributo               atributo                 marco</span></span>

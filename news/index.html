@@ -43,13 +43,31 @@
     <div class="section level2">
 <h2 class="pkg-version" data-toc-text="0.1.0" id="lupa-010">lupa 0.1.0<a class="anchor" aria-label="anchor" href="#lupa-010"></a></h2>
 <div class="section level3">
+<h3 id="la-capa-de-modelado-declara-sus-limites-0-1-0">La capa de modelado declara sus limites<a class="anchor" aria-label="anchor" href="#la-capa-de-modelado-declara-sus-limites-0-1-0"></a></h3>
+<ul><li>
+<code><a href="../reference/comparar_equivalencia.html">comparar_equivalencia()</a></code> publica <code>no_comparable</code> cuando un campo no tiene valor medible en ambos lados o solo lo tiene en uno, y lo cuenta separado de <code>identico</code>.</li>
+<li>
+<code><a href="../reference/reglas_evaluacion.html">perfiles_madurez()</a></code> no juzga contra [0, 1] una medida que no sea una proporcion segun su tipo, su unidad o sus valores observados.</li>
+<li>
+<code><a href="../reference/agregar.html">agregar()</a></code> deja visible cuando <code>conjuntoEntidades</code> hace un promedio sin pesos y no conoce el alcance de sus partes. Desde <code>coleccion</code> siguen siendo obligatorios los pesos porque la frontera declarada exige decidir cuanto aporta cada tabla.</li>
+<li>
+<code><a href="../reference/granularidades.html">granularidades()</a></code> distingue que un nivel sea medible de que tenga una transicion de agregacion. <code>conjuntoAtributos</code> conserva <code>implementada = TRUE</code>, pero declara que no es agregable con el grafo disponible.</li>
+</ul></div>
+<div class="section level3">
+<h3 id="lo-que-se-publica-y-lo-que-se-declara-proteger-0-1-0">Lo que se publica y lo que se declara proteger<a class="anchor" aria-label="anchor" href="#lo-que-se-publica-y-lo-que-se-declara-proteger-0-1-0"></a></h3>
+<ul><li><p>La etiqueta de una columna personal protegida decia <code>[estadisticos de orden y momentos protegidos]</code> y publicaba un momento: el desvio. La decision de conservarlo esta tomada -una dispersion no identifica a nadie y la media si se enmascara-, asi que lo que se corrigio es la etiqueta, que ahora dice <code>[estadisticos de orden y la media protegidos]</code>. Viaja ademas una prueba que no lee la lista de campos a ocultar: perfila una columna protegida con magnitudes conocidas y exige que ningun campo publicado las traiga, con el desvio como unica excepcion declarada.</p></li>
+<li><p><code>desenlace = "suprimir"</code> declara que una medida no debe publicarse, y el informe enmascaraba solo su <code>valor_medido</code>: dos secciones mas abajo, la tabla de medidas publicaba su resultado. Ahora el resultado tambien se enmascara al publicar -en el informe y en la impresion-, y el objeto guardado no cambia.</p></li>
+<li><p>Los metodos <code>print</code> del perfil y del plan declaran cuantos campos muestran de los que el objeto tiene, y donde estan los demas. El del plan ocultaba en silencio <code>evidencia</code> y <code>justificacion</code>, que son lo que se lee para decidir si aplicar una accion.</p></li>
+</ul></div>
+<div class="section level3">
 <h3 id="la-perdida-se-mide-en-el-resultado-0-1-0">La perdida se mide en el resultado<a class="anchor" aria-label="anchor" href="#la-perdida-se-mide-en-el-resultado-0-1-0"></a></h3>
 <ul><li>
 <code>n_no_reversibles</code> contaba por accion: toda celda que la accion tocaba, o ninguna. Ahora una celda cuenta como perdida cuando la transformacion la deja indistinguible de otra que era distinta, o cuando la deja ausente. Quitar un guion suave de <code>PRO&lt;U+00AD&gt;DUCTO-A</code> deja el valor en su forma canonica y no cuenta; quitar un espacio de ancho cero que separaba dos claves las fusiona y si cuenta. <code>recortar_espacios</code> tenia el defecto simetrico: dejaba <code>" ana "</code> y <code>"ana"</code> en un solo valor y publicaba cero irreversibles.</li>
 </ul></div>
 <div class="section level3">
 <h3 id="colecciones-alcance-y-trazabilidad-de-las-lecturas-0-1-0">Colecciones: alcance y trazabilidad de las lecturas<a class="anchor" aria-label="anchor" href="#colecciones-alcance-y-trazabilidad-de-las-lecturas-0-1-0"></a></h3>
-<ul><li><p>Cada fila de <code>resumen_coleccion</code> declara el <code>universo</code> de las metricas que alimentan sus agregados, para no confundir un conteo de la tabla completa con proporciones observadas sobre <code>muestra_motor</code>.</p></li>
+<ul><li><p>La poda cierta por rangos en <code><a href="../reference/relaciones_coleccion.html">relaciones_coleccion()</a></code> usa <code>MIN</code> y <code>MAX</code> del universo completo de cada tabla. Un rango calculado solo sobre la muestra ya no puede publicar <code>sin_coincidencias</code>; si el motor no entrega el agregado, el par se compara sin esa poda.</p></li>
+<li><p>Cada fila de <code>resumen_coleccion</code> declara el <code>universo</code> de las metricas que alimentan sus agregados, para no confundir un conteo de la tabla completa con proporciones observadas sobre <code>muestra_motor</code>.</p></li>
 <li><p>Las divergencias de corroboracion y el SQL de cada tabla se conservan al subir un perfil a una coleccion, aun cuando <code>conservar_perfiles = FALSE</code>.</p></li>
 <li><p><code><a href="../reference/accesores_perfil.html">n_filas()</a></code> devuelve el vector de conteos por tabla para una coleccion; <code><a href="../reference/accesores_perfil.html">sql_perfil()</a></code> devuelve la tabla de lecturas acumuladas.</p></li>
 <li><p>El resumen de la coleccion dejo de atribuirle al motor un recorte que puede venir del presupuesto declarado por quien llama: dice cuantos agregados no se calcularon y, cuando el motivo es uno solo, cual es. Con <code>max_consultas = 3</code> ninguna consulta la rechaza el motor.</p></li>

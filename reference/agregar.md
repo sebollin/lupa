@@ -107,6 +107,14 @@ estar en `[0, 1]` y sumar uno dentro de cada objeto de destino. La
 columna `orientacion` se conserva sin invertir el resultado: un ratio de
 una métrica de defecto sigue siendo la proporción de defectos.
 
+Cuando el destino es `conjuntoEntidades`, `promedio` combina las partes
+sin pesos porque las medidas de nivel `entidad` no llevan su cantidad de
+filas. El resultado lo declara en `advertencia_agregacion`: es un
+promedio sin pesos y `agregar()` no conoce el alcance de cada parte. En
+`coleccion`, la frontera se declara y por eso sólo se admite
+`promedio_ponderado`: sin pesos no se puede decidir cuanto debe aportar
+cada tabla de esa coleccion.
+
 No existe una transición hacia factor, dimensión o modelo: esos campos
 son taxonómicos y esta función no calcula un índice global.
 
@@ -119,13 +127,13 @@ instancia <- instanciar(especifica, "personas", "edad")
 medidas <- medir(modelo(instancia), data.frame(edad = c(20, NA, 35)))
 agregar(medidas, "atributo", "ratio")
 #>                                               id_medida
-#> 1 medicion-20260924T101104.198091-7654-agg-ratio-000001
+#> 1 medicion-20260924T115551.053676-7499-agg-ratio-000001
 #>                            id_medicion               fecha metrica
-#> 1 medicion-20260924T101104.198091-7654 2026-09-24 10:11:04  NoNulo
+#> 1 medicion-20260924T115551.053676-7499 2026-09-24 11:55:51  NoNulo
 #>   metrica_especifica   metrica_instanciada   dimension   factor orientacion
 #> 1             NoNulo agregada:ratio:NoNulo Completitud Densidad conformidad
 #>   granularidad tipo_resultado  entidad atributo fila objeto_medible resultado
 #> 1     atributo           real personas     edad   NA  personas$edad 0.6666667
-#>   agregacion
-#> 1      ratio
+#>   agregacion advertencia_agregacion
+#> 1      ratio                   <NA>
 ```

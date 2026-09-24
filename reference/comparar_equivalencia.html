@@ -98,6 +98,8 @@ y <code>resumen</code> declaran, respectivamente, los campos omitidos, los motiv
 estructurales de esos campos, las columnas presentes en un solo lado o
 con tipos incompatibles, los diagnósticos que no se pudieron evaluar, los
 campos omitidos por protección y el conteo de cada veredicto.
+Un campo sin valor medible en ambos lados, o con valor en un solo lado,
+queda en la tabla con veredicto <code>no_comparable</code> y no suma como acuerdo.
 <code>campos_protegidos</code> es un data frame con las columnas <code>columna</code>, <code>campo</code> y
 <code>lado</code>; este último toma los valores <code>anterior</code> y <code>actual</code>.</p>
     </div>

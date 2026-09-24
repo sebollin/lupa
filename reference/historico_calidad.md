@@ -44,8 +44,11 @@ pudo aplicarse— no se acumula: se rechaza citando el motivo que
 [`medir()`](https://sebollin.github.io/lupa/reference/medir.md) declaró
 en `cobertura_metricas`, porque no hay corrida que registrar. El
 atributo `configuracion_evaluacion` conserva, en una tabla plana
-separada, el modelo, su marco y sus tipos, la aplicabilidad, el perfil y
-la identidad de tabla de cada corrida.
+separada, el modelo, su marco y sus tipos, la aplicabilidad, el perfil,
+la identidad de tabla y **la fecha** de cada corrida. Acumular una
+corrida con un `id_medicion` ya presente exige que todo eso coincida, la
+fecha incluida: dos entregas distintas son dos corridas, y el error
+nombra en qué difieren.
 
 ## Details
 

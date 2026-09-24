@@ -58,17 +58,28 @@ acepta las transiciones de granularidad declaradas.
 ``` r
 
 granularidades()
-#>    nivel           granularidad           relacional implementada
-#> 1      1      instanciaAtributo                celda         TRUE
-#> 2      2               atributo              columna         TRUE
-#> 3      3      conjuntoAtributos conjunto de columnas         TRUE
-#> 4      4       instanciaEntidad                tupla         TRUE
-#> 5      5                entidad                tabla         TRUE
-#> 6      6      conjuntoEntidades   conjunto de tablas         TRUE
-#> 7      7              coleccion        base de datos         TRUE
-#> 8      8    conjuntoColecciones                 <NA>         TRUE
-#> 9      9           organizacion                 <NA>         TRUE
-#> 10    10 conjuntoOrganizaciones                 <NA>         TRUE
+#>    nivel           granularidad           relacional implementada agregable
+#> 1      1      instanciaAtributo                celda         TRUE      TRUE
+#> 2      2               atributo              columna         TRUE      TRUE
+#> 3      3      conjuntoAtributos conjunto de columnas         TRUE     FALSE
+#> 4      4       instanciaEntidad                tupla         TRUE      TRUE
+#> 5      5                entidad                tabla         TRUE      TRUE
+#> 6      6      conjuntoEntidades   conjunto de tablas         TRUE      TRUE
+#> 7      7              coleccion        base de datos         TRUE      TRUE
+#> 8      8    conjuntoColecciones                 <NA>         TRUE      TRUE
+#> 9      9           organizacion                 <NA>         TRUE      TRUE
+#> 10    10 conjuntoOrganizaciones                 <NA>         TRUE      TRUE
+#>                                               motivo_agregacion
+#> 1                                                          <NA>
+#> 2                                                          <NA>
+#> 3  No hay transiciones de agregacion hacia ni desde este nivel.
+#> 4                                                          <NA>
+#> 5                                                          <NA>
+#> 6                                                          <NA>
+#> 7                                                          <NA>
+#> 8                                                          <NA>
+#> 9                                                          <NA>
+#> 10                                                         <NA>
 transiciones_granularidad()
 #>              origen                destino                fuente
 #> 1 instanciaAtributo               atributo                 marco

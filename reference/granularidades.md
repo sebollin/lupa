@@ -1,12 +1,17 @@
 # Granularidades y transiciones de agregación
 
 `granularidades()` declara los diez niveles del marco, y los diez se
-miden. Los cuatro de arriba —colección, conjunto de colecciones,
-organización y conjunto de organizaciones— sólo cuando el usuario
-**declara la frontera**: qué tablas componen una colección, qué bases un
-conjunto, qué colecciones una organización, qué organizaciones un
-conjunto. `lupa` no infiere ninguna de las cuatro, porque ninguna está
-en los datos.
+miden. La columna `implementada` significa que se puede instanciar una
+metrica y medir ese nivel. La columna `agregable` es distinta: indica
+que el grafo ofrece al menos una transicion de agregacion hacia o desde
+el nivel. Por eso `conjuntoAtributos` puede estar implementado para
+medir una metrica y a la vez no ser agregable con las transiciones
+disponibles; `motivo_agregacion` deja esa razon escrita. Los cuatro de
+arriba —colección, conjunto de colecciones, organización y conjunto de
+organizaciones— sólo cuando el usuario **declara la frontera**: qué
+tablas componen una colección, qué bases un conjunto, qué colecciones
+una organización, qué organizaciones un conjunto. `lupa` no infiere
+ninguna de las cuatro, porque ninguna está en los datos.
 
 ## Usage
 
@@ -41,17 +46,28 @@ no exhaustiva.
 
 ``` r
 granularidades()
-#>    nivel           granularidad           relacional implementada
-#> 1      1      instanciaAtributo                celda         TRUE
-#> 2      2               atributo              columna         TRUE
-#> 3      3      conjuntoAtributos conjunto de columnas         TRUE
-#> 4      4       instanciaEntidad                tupla         TRUE
-#> 5      5                entidad                tabla         TRUE
-#> 6      6      conjuntoEntidades   conjunto de tablas         TRUE
-#> 7      7              coleccion        base de datos         TRUE
-#> 8      8    conjuntoColecciones                 <NA>         TRUE
-#> 9      9           organizacion                 <NA>         TRUE
-#> 10    10 conjuntoOrganizaciones                 <NA>         TRUE
+#>    nivel           granularidad           relacional implementada agregable
+#> 1      1      instanciaAtributo                celda         TRUE      TRUE
+#> 2      2               atributo              columna         TRUE      TRUE
+#> 3      3      conjuntoAtributos conjunto de columnas         TRUE     FALSE
+#> 4      4       instanciaEntidad                tupla         TRUE      TRUE
+#> 5      5                entidad                tabla         TRUE      TRUE
+#> 6      6      conjuntoEntidades   conjunto de tablas         TRUE      TRUE
+#> 7      7              coleccion        base de datos         TRUE      TRUE
+#> 8      8    conjuntoColecciones                 <NA>         TRUE      TRUE
+#> 9      9           organizacion                 <NA>         TRUE      TRUE
+#> 10    10 conjuntoOrganizaciones                 <NA>         TRUE      TRUE
+#>                                               motivo_agregacion
+#> 1                                                          <NA>
+#> 2                                                          <NA>
+#> 3  No hay transiciones de agregacion hacia ni desde este nivel.
+#> 4                                                          <NA>
+#> 5                                                          <NA>
+#> 6                                                          <NA>
+#> 7                                                          <NA>
+#> 8                                                          <NA>
+#> 9                                                          <NA>
+#> 10                                                         <NA>
 transiciones_granularidad()
 #>              origen                destino                fuente
 #> 1 instanciaAtributo               atributo                 marco
