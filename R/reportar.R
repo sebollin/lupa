@@ -706,13 +706,43 @@
     ),
     stringsAsFactors = FALSE
   )
+  # Lo que el plan declara que NO cubre tiene que viajar tambien aca. El
+  # informe publicaba "Acciones propuestas: 5" y nada mas: un hallazgo medido
+  # que no produjo accion quedaba invisible justo en la salida que se manda a
+  # otra persona. La declaracion vale en todas las salidas, no solo en la
+  # impresion de consola.
   paste0(
     "<section><h2>Plan de limpieza</h2>",
     "<p>El plan es una propuesta editable; este informe no aplica cambios.</p>",
     .html_tabla(resumen, Inf),
     "<h3>Acciones y justificaci\u00f3n</h3>", .html_tabla(x, max_filas),
+    .html_huecos_plan(x, max_filas),
     "</section>"
   )
+}
+
+.html_huecos_plan <- function(x, max_filas) {
+  partes <- character()
+  sin_accion <- attr(x, "hallazgos_sin_accion", exact = TRUE)
+  if (inherits(sin_accion, "data.frame") && nrow(sin_accion)) {
+    partes <- c(partes, paste0(
+      "<h3>Hallazgos medidos sin acci\u00f3n</h3>",
+      "<p>El perfil los midi\u00f3 y el plan no propone una acci\u00f3n para ",
+      "ellos: leer las acciones de arriba no dice que lo dem\u00e1s est\u00e9 ",
+      "bien.</p>",
+      .html_tabla(sin_accion, max_filas)
+    ))
+  }
+  ambiguos <- attr(x, "hallazgos_sin_accion_por_columna_ambigua", exact = TRUE)
+  if (inherits(ambiguos, "data.frame") && nrow(ambiguos)) {
+    partes <- c(partes, paste0(
+      "<h3>Hallazgos sin acci\u00f3n por columna ambigua</h3>",
+      "<p>Su columna comparte nombre con otra, as\u00ed que no hay forma de ",
+      "saber sobre cu\u00e1l actuar\u00eda la limpieza.</p>",
+      .html_tabla(ambiguos, max_filas)
+    ))
+  }
+  paste(partes, collapse = "")
 }
 
 .nota_propuesta_releida <- function(x) {

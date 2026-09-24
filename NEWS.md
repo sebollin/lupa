@@ -1,5 +1,24 @@
 # lupa 0.1.0
 
+## El plan declara los tres huecos, no dos
+
+- El plan promete declarar lo que no cubre y declaraba dos huecos: el
+  diagnostico que el perfil no pudo evaluar y el hallazgo cuya columna comparte
+  nombre con otra. Faltaba el tercero, el mas silencioso: el hallazgo que el
+  perfil midio, con su columna identificada, que ninguna accion del plan
+  atiende. Medido sobre las dos tablas del paquete y dos fixtures:
+  `patron_raro`, `casi_duplicados_vocabulario` y `relacion_orden_columnas` no
+  tienen estrategia en el plan, y `faltantes` y `tipo_declarado_distinto`
+  tienen una que puede no proponer nada. Leer el plan se leia como "no hay nada
+  que hacer ahi". Ahora viajan en `attr(plan, "hallazgos_sin_accion")` con su
+  motivo medido -si la misma columna recibio otras acciones, lo dice, sin
+  afirmar que alguna cubra el hallazgo-, la impresion los anuncia y el informe
+  HTML los publica en su propia seccion.
+
+- Ese atributo copia la sugerencia del hallazgo, asi que pasa por la misma
+  proteccion de datos personales que el resto del plan: un atributo nuevo no
+  puede ser la puerta por la que sale un valor que las columnas ya no publican.
+
 ## El marco que se publica contiene lo que se publica
 
 - El tablero publicaba una fila con valor y, al lado, un alcance que decia "se

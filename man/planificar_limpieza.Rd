@@ -148,13 +148,19 @@ niveles sin observaciones no se conservan. La justificación de la acción lo
 dice, y si el factor es ordenado la acción queda recomendada pero \strong{sin
 activar}, porque conservar el orden es una decisión del dominio.
 
-Dos atributos del plan declaran lo que el plan no cubre.
+Tres atributos del plan declaran lo que el plan no cubre.
 \code{cobertura_diagnosticos} trae los diagnósticos que el perfil no pudo
 evaluar, para que leer tres acciones no se confunda con "lo demás está
 bien". \code{hallazgos_sin_accion_por_columna_ambigua} trae los hallazgos medidos
 que no produjeron acción porque su columna comparte nombre con otra y no hay
 forma de saber sobre cuál actuaría la limpieza; el remedio es normalizar los
-nombres y volver a perfilar. Los dos se imprimen con el plan.
+nombres y volver a perfilar. \code{hallazgos_sin_accion} trae el resto: los
+hallazgos que el perfil midió, con su columna identificada, y que ninguna
+acción del plan atiende —porque el plan no tiene una estrategia para ese
+tipo, o porque la que tiene necesitaba una condición que no se cumplió—. Su
+\code{motivo} dice si la misma columna recibió otras acciones, sin afirmar que
+alguna cubra el hallazgo: eso es una decisión del dominio. Los tres se
+imprimen con el plan.
 
 \code{convertir_numero_regional} sólo se recomienda si todos los valores
 presentes comparten convención decimal, unidad y moneda. Un valor con \verb{\%}

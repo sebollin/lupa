@@ -145,6 +145,82 @@
   )
 }
 
+.hallazgos_sin_accion_declarados <- function(perfil, plan, ambiguos) {
+  # El plan promete declarar lo que no cubre, y declaraba dos huecos: el
+  # diagnostico que no se evaluo y el hallazgo cuya columna es ambigua. Falta el
+  # tercero, que es el mas silencioso: el hallazgo que el perfil SI midio, con
+  # su columna identificada, y que ninguna rama del planificador convierte en
+  # accion. Medido sobre cuatro tablas -las dos del paquete y dos fixtures-:
+  # `patron_raro`, `casi_duplicados_vocabulario` y `relacion_orden_columnas` no
+  # tienen rama, y `faltantes` y `tipo_declarado_distinto` tienen una que puede
+  # no proponer nada. En todos los casos el plan se leia como "no hay nada que
+  # hacer ahi".
+  #
+  # El motivo no adivina la causa: mide si la misma columna recibio otras
+  # acciones y lo dice, para que quien lee decida si eso cubre el hallazgo.
+  vacio <- data.frame(
+    hallazgo = character(), columna = character(), severidad = character(),
+    motivo = character(), como_resolverlo = character(),
+    stringsAsFactors = FALSE
+  )
+  hallazgos <- perfil$hallazgos
+  if (!inherits(hallazgos, "data.frame") || !nrow(hallazgos)) return(vacio)
+  # Un hallazgo `ok` no espera accion: describe una propiedad medida, no un
+  # problema.
+  candidatos <- which(as.character(hallazgos$severidad) != "ok")
+  if (!length(candidatos)) return(vacio)
+  claves_plan <- .clave_par_identificador(
+    as.character(plan$columna), as.character(plan$hallazgo)
+  )
+  claves <- .clave_par_identificador(
+    as.character(hallazgos$columna[candidatos]),
+    as.character(hallazgos$tipo_hallazgo[candidatos])
+  )
+  sin_accion <- candidatos[!.identificadores_en(claves, claves_plan)]
+  if (length(sin_accion) && inherits(ambiguos, "data.frame") &&
+      nrow(ambiguos)) {
+    ya_declarados <- .clave_par_identificador(
+      as.character(ambiguos$columna), as.character(ambiguos$hallazgo)
+    )
+    claves_sin <- .clave_par_identificador(
+      as.character(hallazgos$columna[sin_accion]),
+      as.character(hallazgos$tipo_hallazgo[sin_accion])
+    )
+    sin_accion <- sin_accion[!.identificadores_en(claves_sin, ya_declarados)]
+  }
+  if (!length(sin_accion)) return(vacio)
+  motivos <- vapply(sin_accion, function(i) {
+    columna <- as.character(hallazgos$columna[[i]])
+    estrategias <- if (is.na(columna)) character() else {
+      unicas <- .identificadores_unicos(as.character(
+        plan$estrategia[.identificadores_en(as.character(plan$columna), columna)]
+      ))
+      unicas[!is.na(unicas)]
+    }
+    if (length(estrategias)) {
+      paste0(
+        "El plan no propone una acci\u00f3n para este hallazgo. Sobre la misma ",
+        "columna s\u00ed propone: ", paste(estrategias, collapse = ", "),
+        "; si alguna lo cubre, es una decisi\u00f3n del dominio, no una ",
+        "correspondencia que el paquete haya medido."
+      )
+    } else {
+      paste0(
+        "El plan no propone ninguna acci\u00f3n para este hallazgo ni para el ",
+        "resto de esta columna."
+      )
+    }
+  }, character(1L))
+  data.frame(
+    hallazgo = as.character(hallazgos$tipo_hallazgo[sin_accion]),
+    columna = as.character(hallazgos$columna[sin_accion]),
+    severidad = as.character(hallazgos$severidad[sin_accion]),
+    motivo = motivos,
+    como_resolverlo = as.character(hallazgos$sugerencia[sin_accion]),
+    stringsAsFactors = FALSE
+  )
+}
+
 .es_fecha_ambigua <- function(perfil, columna) {
   any(
     .nombres_para_operar(perfil$hallazgos$columna) %in%
@@ -713,13 +789,19 @@
 #' dice, y si el factor es ordenado la acción queda recomendada pero **sin
 #' activar**, porque conservar el orden es una decisión del dominio.
 #'
-#' Dos atributos del plan declaran lo que el plan no cubre.
+#' Tres atributos del plan declaran lo que el plan no cubre.
 #' `cobertura_diagnosticos` trae los diagnósticos que el perfil no pudo
 #' evaluar, para que leer tres acciones no se confunda con "lo demás está
 #' bien". `hallazgos_sin_accion_por_columna_ambigua` trae los hallazgos medidos
 #' que no produjeron acción porque su columna comparte nombre con otra y no hay
 #' forma de saber sobre cuál actuaría la limpieza; el remedio es normalizar los
-#' nombres y volver a perfilar. Los dos se imprimen con el plan.
+#' nombres y volver a perfilar. `hallazgos_sin_accion` trae el resto: los
+#' hallazgos que el perfil midió, con su columna identificada, y que ninguna
+#' acción del plan atiende —porque el plan no tiene una estrategia para ese
+#' tipo, o porque la que tiene necesitaba una condición que no se cumplió—. Su
+#' `motivo` dice si la misma columna recibió otras acciones, sin afirmar que
+#' alguna cubra el hallazgo: eso es una decisión del dominio. Los tres se
+#' imprimen con el plan.
 #'
 #' `convertir_numero_regional` sólo se recomienda si todos los valores
 #' presentes comparten convención decimal, unidad y moneda. Un valor con `%`
@@ -1653,8 +1735,10 @@ planificar_limpieza <- function(perfil, datos = NULL,
   } else {
     .cobertura_diagnosticos_vacia()
   }
-  attr(resultado, "hallazgos_sin_accion_por_columna_ambigua") <-
-    .hallazgos_sin_accion_por_columna_ambigua(perfil)
+  ambiguos <- .hallazgos_sin_accion_por_columna_ambigua(perfil)
+  attr(resultado, "hallazgos_sin_accion_por_columna_ambigua") <- ambiguos
+  attr(resultado, "hallazgos_sin_accion") <-
+    .hallazgos_sin_accion_declarados(perfil, resultado, ambiguos)
   .proteger_plan_limpieza(resultado, perfil, datos)
 }
 
@@ -3567,6 +3651,22 @@ print.plan_limpieza <- function(x, ...) {
             collapse = ", "),
       ". El detalle esta en ",
       "`attr(plan, \"hallazgos_sin_accion_por_columna_ambigua\")`."
+    )))
+  }
+  sin_rama <- attr(x, "hallazgos_sin_accion", exact = TRUE)
+  if (inherits(sin_rama, "data.frame") && nrow(sin_rama)) {
+    cli::cli_alert_warning(.cli_literal(paste0(
+      nrow(sin_rama),
+      if (nrow(sin_rama) == 1L) {
+        " hallazgo medido no tiene acci\u00f3n en el plan"
+      } else {
+        " hallazgos medidos no tienen acci\u00f3n en el plan"
+      },
+      ", en: ",
+      paste(.texto_publicable(unique(as.character(sin_rama$columna))),
+            collapse = ", "),
+      ". El motivo de cada uno esta en ",
+      "`attr(plan, \"hallazgos_sin_accion\")`."
     )))
   }
   vista <- x[c(

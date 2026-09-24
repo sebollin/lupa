@@ -890,6 +890,16 @@
       cobertura, valores
     )
   }
+  # Este atributo copia la sugerencia del hallazgo, que es texto del paquete
+  # pero puede nombrar un valor de la columna. Enmascararlo aqui es lo que
+  # impide que un atributo nuevo publique lo que las columnas del plan ya no
+  # publican.
+  sin_accion <- attr(plan, "hallazgos_sin_accion", exact = TRUE)
+  if (inherits(sin_accion, "data.frame")) {
+    attr(plan, "hallazgos_sin_accion") <- .proteger_textos_salida(
+      sin_accion, valores
+    )
+  }
   # `guiar_limpieza()` vuelve a consultar los datos de origen para construir
   # ejemplos. Llevar sólo los nombres de columnas permite enmascararlos en esa
   # salida sin serializar ni publicar los valores protegidos.
