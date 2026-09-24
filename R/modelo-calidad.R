@@ -104,6 +104,35 @@
 
 .orientaciones_metricas <- c("conformidad", "defecto", "no_aplica")
 
+.unidad_metrica_acotada <- function(unidad) {
+  if (is.na(unidad) || !nzchar(trimws(unidad))) return(NA)
+  tolower(trimws(unidad)) %in% c("proporcion", "proportion")
+}
+
+.medidas_no_acotadas_01 <- function(x) {
+  n <- nrow(x)
+  if (!n || !"tipo_resultado" %in% names(x)) {
+    return(rep(FALSE, n))
+  }
+  tipo <- as.character(x$tipo_resultado)
+  no_acotado_por_tipo <- !is.na(tipo) & !tipo %in% c("booleano", "real")
+  no_acotado_por_unidad <- rep(FALSE, n)
+  if ("unidad" %in% names(x)) {
+    unidad <- as.character(x$unidad)
+    declarada <- !is.na(unidad) & nzchar(trimws(unidad))
+    acotada <- vapply(unidad, .unidad_metrica_acotada, logical(1L))
+    no_acotado_por_unidad <- declarada & !acotada
+  }
+  fuera_de_rango <- rep(FALSE, n)
+  if ("resultado" %in% names(x) && is.numeric(x$resultado)) {
+    resultado <- as.numeric(x$resultado)
+    observado <- !is.na(resultado)
+    fuera_de_rango <- observado &
+      (!is.finite(resultado) | resultado < 0 | resultado > 1)
+  }
+  no_acotado_por_tipo | no_acotado_por_unidad | fuera_de_rango
+}
+
 .validar_orientacion <- function(orientacion, tipo_resultado) {
   if (!.es_texto_escalar(orientacion) ||
       !orientacion %in% .orientaciones_metricas) {
@@ -128,7 +157,7 @@
   orientacion
 }
 
-.orientacion_medidas <- function(x) {
+.orientacion_declarada_medidas <- function(x) {
   if (!"orientacion" %in% names(x)) return(rep(NA_character_, nrow(x)))
   orientacion <- as.character(x$orientacion)
   invalidas <- !is.na(orientacion) &
@@ -136,6 +165,17 @@
   if (any(invalidas)) {
     stop("La medicion contiene orientaciones no reconocidas.", call. = FALSE)
   }
+  orientacion
+}
+
+.orientacion_medidas <- function(x) {
+  orientacion <- .orientacion_declarada_medidas(x)
+  # La orientacion declarada no alcanza para decidir si un umbral de madurez
+  # en [0, 1] tiene sentido. Se conserva la declaracion original en la tabla,
+  # pero toda lectura operativa reconoce tambien el tipo, la unidad y los
+  # valores observados que no forman una proporcion.
+  no_acotadas <- .medidas_no_acotadas_01(x)
+  orientacion[no_acotadas] <- "no_aplica"
   orientacion
 }
 

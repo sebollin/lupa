@@ -42,7 +42,7 @@ test_that("F-2 omite del comparador los campos de un lado protegido", {
   expect_true(all(c("moda", "minimo", "maximo", "media", "mediana") %in%
                   campos$campo))
   expect_identical(levels(comparacion$veredicto), c(
-    "identico", "equivalente", "materialmente_distinto"
+    "identico", "equivalente", "materialmente_distinto", "no_comparable"
   ))
 })
 

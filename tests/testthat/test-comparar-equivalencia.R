@@ -26,16 +26,18 @@ test_that("comparar_equivalencia cumple los 14 casos de la especificacion", {
     list(campo = "media", anterior = Inf, actual = Inf, tolerancia = 1e-14,
          veredicto = "identico", motivo = "igualdad_exacta", eje = "flotante"),
     list(campo = "media", anterior = NA_real_, actual = NaN,
-         tolerancia = 1e-14, veredicto = "equivalente",
-         motivo = "faltante_misma_clase", eje = "flotante"),
+         tolerancia = 1e-14, veredicto = "no_comparable",
+         motivo = "sin_valor_medible_en_ambos", eje = "flotante"),
     list(campo = "media", anterior = NaN, actual = NaN, tolerancia = 1e-14,
-         veredicto = "identico", motivo = "igualdad_exacta", eje = "flotante"),
+         veredicto = "no_comparable",
+         motivo = "sin_valor_medible_en_ambos", eje = "flotante"),
     list(campo = "media", anterior = NA_real_, actual = NA_real_,
-         tolerancia = 1e-14, veredicto = "identico", motivo = "igualdad_exacta",
+         tolerancia = 1e-14, veredicto = "no_comparable",
+         motivo = "sin_valor_medible_en_ambos",
          eje = "flotante"),
     list(campo = "media", anterior = NA_real_, actual = 0,
-         tolerancia = 1e-14, veredicto = "materialmente_distinto",
-         motivo = "faltante_un_lado", eje = "flotante"),
+         tolerancia = 1e-14, veredicto = "no_comparable",
+         motivo = "valor_medible_en_un_solo_lado", eje = "flotante"),
     # Los dos casos de abajo comparan magnitudes menores que uno, asi que la
     # escala de la tolerancia mixta es la unidad y no el valor: el motivo lo
     # declara con su sufijo. El veredicto no cambia; lo que cambio es que la
@@ -88,21 +90,27 @@ test_that("comparar_equivalencia cubre clases y valores limite", {
     list(campo = "n", anterior = 1L, actual = 1.0, tolerancia = 0,
          veredicto = "identico", motivo = "igualdad_exacta"),
     list(campo = "n", anterior = NA_integer_, actual = NA_real_, tolerancia = 0,
-         veredicto = "equivalente", motivo = "faltante_misma_clase"),
+         veredicto = "no_comparable",
+         motivo = "sin_valor_medible_en_ambos"),
     list(campo = "media", anterior = nan_a, actual = nan_b, tolerancia = 0,
-         veredicto = "identico", motivo = "igualdad_exacta"),
+         veredicto = "no_comparable",
+         motivo = "sin_valor_medible_en_ambos"),
     list(campo = "media", anterior = NaN, actual = Inf, tolerancia = 0,
-         veredicto = "materialmente_distinto", motivo = "faltante_un_lado"),
+         veredicto = "no_comparable",
+         motivo = "valor_medible_en_un_solo_lado"),
     list(campo = "moda", anterior = NA_character_, actual = NA_character_,
-         tolerancia = 0, veredicto = "identico", motivo = "igualdad_exacta"),
+         tolerancia = 0, veredicto = "no_comparable",
+         motivo = "sin_valor_medible_en_ambos"),
     list(campo = "moda", anterior = NA_character_, actual = "a", tolerancia = 0,
-         veredicto = "materialmente_distinto", motivo = "faltante_un_lado"),
+         veredicto = "no_comparable",
+         motivo = "valor_medible_en_un_solo_lado"),
     list(campo = "minimo_fecha", anterior = NA_character_,
-         actual = NA_character_, tolerancia = 0, veredicto = "identico",
-         motivo = "igualdad_exacta"),
+         actual = NA_character_, tolerancia = 0, veredicto = "no_comparable",
+         motivo = "sin_valor_medible_en_ambos"),
     list(campo = "minimo_fecha", anterior = NA_character_,
          actual = "2020-01-01", tolerancia = 0,
-         veredicto = "materialmente_distinto", motivo = "faltante_un_lado")
+         veredicto = "no_comparable",
+         motivo = "valor_medible_en_un_solo_lado")
   )
   for (i in seq_along(casos)) {
     resultado <- .comparar_caso_equivalencia(casos[[i]])
@@ -132,11 +140,12 @@ test_that("la equivalencia usa la interseccion y declara campos no comparables",
     c("tipo_inferido", "campo_nuevo")
   )
   expect_identical(levels(resultado$veredicto), c(
-    "identico", "equivalente", "materialmente_distinto"
+    "identico", "equivalente", "materialmente_distinto", "no_comparable"
   ))
   expect_true(is.ordered(resultado$veredicto))
   expect_identical(attr(resultado, "resumen"), c(
-    identico = 1L, equivalente = 0L, materialmente_distinto = 0L
+    identico = 1L, equivalente = 0L, materialmente_distinto = 0L,
+    no_comparable = 0L
   ))
 })
 

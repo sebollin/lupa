@@ -73,6 +73,13 @@ sumar uno dentro de cada objeto de destino. La columna \code{orientacion} se
 conserva sin invertir el resultado: un ratio de una métrica de defecto sigue
 siendo la proporción de defectos.
 
+Cuando el destino es \code{conjuntoEntidades}, \code{promedio} combina las partes sin
+pesos porque las medidas de nivel \code{entidad} no llevan su cantidad de filas.
+El resultado lo declara en \code{advertencia_agregacion}: es un promedio sin pesos
+y \code{agregar()} no conoce el alcance de cada parte. En \code{coleccion}, la frontera
+se declara y por eso sólo se admite \code{promedio_ponderado}: sin pesos no se
+puede decidir cuanto debe aportar cada tabla de esa coleccion.
+
 No existe una transición hacia factor, dimensión o modelo: esos campos son
 taxonómicos y esta función no calcula un índice global.
 }

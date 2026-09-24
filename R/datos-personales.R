@@ -1258,6 +1258,20 @@
     perfil$hallazgos, perfil$datos_personales
   )
   perfil$columnas <- protegidos$columnas
+  # `dato_personal_protegido` dice si el valor **quedo** protegido -asi esta
+  # escrito donde se fija al perfilar-, y esta funcion es la que lo protege.
+  # Cuando corre sobre un perfil hecho SIN proteccion -por ejemplo al escribir
+  # con `guardar_analisis()`, que vuelve a aplicarla antes de guardar- los
+  # valores salian enmascarados y la marca seguia en `FALSE`: el objeto decia
+  # "no hay columnas protegidas" al lado de una moda `[valor protegido]`, y
+  # quien filtra por la marca no encontraba nada que el archivo si ocultaba.
+  if ("dato_personal_protegido" %in% names(perfil$columnas) &&
+      inherits(perfil$datos_personales, "data.frame")) {
+    protegidas <- .nombres_para_operar(perfil$columnas$columna) %in%
+      .nombres_para_operar(.columnas_personales_protegidas(perfil))
+    perfil$columnas$dato_personal_protegido <-
+      as.logical(perfil$columnas$dato_personal_protegido) | protegidas
+  }
   perfil$patrones <- protegidos$patrones
   perfil$dependencias <- protegidos$dependencias
   perfil$hallazgos <- protegidos$hallazgos

@@ -353,6 +353,29 @@
   resumen[resumen$patron %in% nombres, , drop = FALSE]
 }
 
+# El esquema de la tabla de hallazgos, en un solo lugar. Estaba escrito inline
+# aca y `perfilar_por()` armaba el suyo con dos columnas, asi que sin hallazgos
+# el objeto por grupo perdia once: la forma dependia del contenido y quien lo
+# consumia no podia distinguir "no se miro" de "salio limpio".
+.hallazgos_vacios <- function() {
+  data.frame(
+    columna = character(), tipo_hallazgo = character(),
+    # El mismo factor ordenado que lleva la tabla con filas: si el vacio
+    # trajera texto, `rbind` de los dos degradaria la severidad a caracter y
+    # el orden `ok < sospechoso < error` se perderia sin aviso.
+    severidad = factor(
+      character(), levels = c("ok", "sospechoso", "error"), ordered = TRUE
+    ),
+    descripcion = character(),
+    evidencia = character(), sugerencia = character(),
+    n_evaluados = numeric(), n_afectados = numeric(),
+    unidad_conteo = character(),
+    estado_reparacion = character(),
+    trazabilidad = I(list()),
+    stringsAsFactors = FALSE
+  )
+}
+
 .nuevo_diagnostico_no_evaluado <- function(diagnostico, columna, motivo,
                                            como_resolverlo,
                                            dependencia = NA_character_) {
@@ -5060,16 +5083,7 @@
   if (length(hallazgos)) {
     resultado <- do.call(rbind, hallazgos)
   } else {
-    resultado <- data.frame(
-      columna = character(), tipo_hallazgo = character(),
-      severidad = character(), descripcion = character(),
-      evidencia = character(), sugerencia = character(),
-      n_evaluados = numeric(), n_afectados = numeric(),
-      unidad_conteo = character(),
-      estado_reparacion = character(),
-      trazabilidad = I(list()),
-      stringsAsFactors = FALSE
-    )
+    resultado <- .hallazgos_vacios()
   }
   resultado$severidad <- factor(
     resultado$severidad,

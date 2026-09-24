@@ -1410,15 +1410,14 @@ comparar_perfiles <- function(anterior, actual, umbral_cambio = 0.05,
   faltante_b <- .faltante_equivalencia(b)
   if (faltante_a && faltante_b) {
     return(list(
-      veredicto = if (identical(a, b)) "identico" else "equivalente",
-      motivo = if (identical(a, b)) "igualdad_exacta" else
-        "faltante_misma_clase",
+      veredicto = "no_comparable",
+      motivo = "sin_valor_medible_en_ambos",
       diferencia_normalizada = NA_real_
     ))
   }
   if (xor(faltante_a, faltante_b)) {
     return(list(
-      veredicto = "materialmente_distinto", motivo = "faltante_un_lado",
+      veredicto = "no_comparable", motivo = "valor_medible_en_un_solo_lado",
       diferencia_normalizada = NA_real_
     ))
   }
@@ -1508,6 +1507,8 @@ comparar_perfiles <- function(anterior, actual, umbral_cambio = 0.05,
 #'   estructurales de esos campos, las columnas presentes en un solo lado o
 #'   con tipos incompatibles, los diagnósticos que no se pudieron evaluar, los
 #'   campos omitidos por protección y el conteo de cada veredicto.
+#'   Un campo sin valor medible en ambos lados, o con valor en un solo lado,
+#'   queda en la tabla con veredicto `no_comparable` y no suma como acuerdo.
 #'   `campos_protegidos` es un data frame con las columnas `columna`, `campo` y
 #'   `lado`; este último toma los valores `anterior` y `actual`.
 #'
@@ -1645,7 +1646,9 @@ comparar_equivalencia <- function(anterior, actual, tolerancia) {
     )
   }
   campos_protegidos <- .campos_protegidos_equivalencia_vacios()
-  niveles <- c("identico", "equivalente", "materialmente_distinto")
+  niveles <- c(
+    "identico", "equivalente", "materialmente_distinto", "no_comparable"
+  )
   salida <- list()
   k <- 0L
   for (clave in columnas) {

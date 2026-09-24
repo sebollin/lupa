@@ -198,7 +198,10 @@ tiempo$propuestas
 
 `granularidades()` y `transiciones_granularidad()` no analizan las tablas.
 Devuelven el vocabulario de niveles en que se puede medir y el grafo de
-agregaciones admitidas.
+agregaciones admitidas. Las dos cosas no son la misma: un nivel puede estar
+implementado para medir y no ser alcanzable por ninguna transición, así que la
+tabla publica `agregable` con su motivo en vez de dejar que el lector lo
+suponga.
 
 ```{r granularidad}
 granularidades()

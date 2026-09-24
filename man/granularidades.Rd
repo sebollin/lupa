@@ -14,6 +14,12 @@ Data frames con niveles o aristas del grafo de granularidad.
 }
 \description{
 \code{granularidades()} declara los diez niveles del marco, y los diez se miden.
+La columna \code{implementada} significa que se puede instanciar una metrica y
+medir ese nivel. La columna \code{agregable} es distinta: indica que el grafo
+ofrece al menos una transicion de agregacion hacia o desde el nivel. Por eso
+\code{conjuntoAtributos} puede estar implementado para medir una metrica y a la
+vez no ser agregable con las transiciones disponibles; \code{motivo_agregacion}
+deja esa razon escrita.
 Los cuatro de arriba —colección, conjunto de colecciones, organización y
 conjunto de organizaciones— sólo cuando el usuario \strong{declara la frontera}:
 qué tablas componen una colección, qué bases un conjunto, qué colecciones una

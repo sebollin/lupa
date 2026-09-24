@@ -298,6 +298,13 @@ perfilar_por <- function(datos, por, clave = NULL, min_filas = 30L, ...) {
   columnas_identificadoras <- character()
   columnas_densas <- character()
   columnas_centinales_no_evaluables <- character()
+  # El centinela que conjetura la COLUMNA ENTERA, por columna. Sin esto no se
+  # puede distinguir el centinela que un grupo conjetura POR LA PARTICION -el
+  # que la documentacion promete mover a la cobertura- del que la columna ya
+  # tenia. Medido: sobre una columna donde la tabla entera conjetura `-9999`,
+  # un grupo conjeturaba `-999` y el hallazgo salia publicado como defecto del
+  # grupo, con la cobertura vacia.
+  centinelas_de_la_columna <- list()
   hay_centinelas_declarados <- length(
     .sentinelas_numericos_declarados(extras$sentinelas_numericos)
   ) > 0L
@@ -312,6 +319,22 @@ perfilar_por <- function(datos, por, clave = NULL, min_filas = 30L, ...) {
         columnas_centinales_no_evaluables, nombre_columna
       )
       next
+    }
+    # Se usa el mismo conjeturador que el perfil, sobre la columna entera: no
+    # se reimplementa la regla, se la llama con otro universo.
+    finitos <- suppressWarnings(as.numeric(presentes))
+    finitos <- finitos[is.finite(finitos)]
+    if (length(finitos) >= 20L) {
+      cuartiles <- stats::quantile(
+        finitos, probs = c(0.25, 0.75), names = FALSE, type = 7
+      )
+      centinela_entero <- .centinela_por_tres_senales(
+        finitos, cuartiles[[2L]] - cuartiles[[1L]],
+        extras$sentinelas_numericos,
+        q1 = cuartiles[[1L]], q3 = cuartiles[[2L]]
+      )
+      centinelas_de_la_columna[[nombre_columna]] <-
+        suppressWarnings(as.numeric(centinela_entero$valor))
     }
     # La senal es la MISMA que usa la guarda de Benford, calculada sobre la
     # columna entera en vez de sobre la rebanada. Un primer intento uso
@@ -609,6 +632,39 @@ perfilar_por <- function(datos, por, clave = NULL, min_filas = 30L, ...) {
         )
       )
     }
+    if (nrow(perfil$hallazgos) && length(centinelas_de_la_columna)) {
+      # Un grupo que conjetura OTRO centinela que la columna entera lo esta
+      # conjeturando por la particion: es exactamente el caso que la
+      # documentacion promete mover a la cobertura. El que coincide con el de
+      # la columna no se toca: ese no es de la particion.
+      por_particion <- vapply(seq_len(nrow(perfil$hallazgos)), function(i) {
+        if (!identical(
+          as.character(perfil$hallazgos$tipo_hallazgo[[i]]),
+          "posible_centinela_numerico"
+        )) {
+          return(FALSE)
+        }
+        nombre <- as.character(perfil$hallazgos$columna[[i]])
+        de_la_columna <- centinelas_de_la_columna[[nombre]]
+        if (is.null(de_la_columna)) return(FALSE)
+        indice <- .indice_nombre(nombre, perfil$columnas$columna)
+        if (is.na(indice)) return(FALSE)
+        del_grupo <- suppressWarnings(
+          as.numeric(perfil$columnas$centinela_valor[[indice]])
+        )
+        if (!isTRUE(is.finite(del_grupo))) return(FALSE)
+        !isTRUE(is.finite(de_la_columna)) || !isTRUE(del_grupo == de_la_columna)
+      }, logical(1L))
+      mover_a_cobertura(
+        por_particion,
+        "centinelas_numericos",
+        paste(
+          "El grupo conjetura un centinela distinto del que conjetura la",
+          "columna entera: la diferencia es de la partici\u00f3n, no de la",
+          "columna, y lo que una columna ES no depende de qu\u00e9 filas se miren."
+        )
+      )
+    }
     if (nrow(perfil$hallazgos) &&
         length(columnas_centinales_no_evaluables)) {
       mover_a_cobertura(
@@ -671,8 +727,18 @@ perfilar_por <- function(datos, por, clave = NULL, min_filas = 30L, ...) {
   salida <- if (length(hallazgos)) {
     do.call(rbind, hallazgos)
   } else {
-    data.frame(
-      grupo = character(), n_filas_grupo = integer(), stringsAsFactors = FALSE
+    # El esquema NO depende del contenido. Sin hallazgos, la salida se quedaba
+    # en `grupo` y `n_filas_grupo`: dos columnas en vez de trece, con la misma
+    # clase. Quien lo consume no podia distinguir "no se miro" de "salio
+    # limpio" por la forma del objeto -`x$tipo_hallazgo` devolvia NULL y
+    # `x[, "columna"]` rompia-, y la documentacion promete las columnas de
+    # `hallazgos()` precedidas por las dos del grupo, sin condicionarlo.
+    cbind(
+      data.frame(
+        grupo = character(), n_filas_grupo = integer(),
+        stringsAsFactors = FALSE
+      ),
+      .hallazgos_vacios()
     )
   }
   rownames(salida) <- NULL

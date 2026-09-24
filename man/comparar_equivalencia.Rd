@@ -35,6 +35,8 @@ y \code{resumen} declaran, respectivamente, los campos omitidos, los motivos
 estructurales de esos campos, las columnas presentes en un solo lado o
 con tipos incompatibles, los diagnósticos que no se pudieron evaluar, los
 campos omitidos por protección y el conteo de cada veredicto.
+Un campo sin valor medible en ambos lados, o con valor en un solo lado,
+queda en la tabla con veredicto \code{no_comparable} y no suma como acuerdo.
 \code{campos_protegidos} es un data frame con las columnas \code{columna}, \code{campo} y
 \code{lado}; este último toma los valores \code{anterior} y \code{actual}.
 }

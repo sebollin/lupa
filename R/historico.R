@@ -249,9 +249,37 @@
     }
     if (!isTRUE(all.equal(lado_nuevo, lado_anterior,
                          check.attributes = FALSE))) {
+      # El mensaje decia "configuracion diferente" sin nombrar que difiere, y
+      # el caso mas comun es que no difiera ninguna configuracion: reusar el
+      # mismo `id_medicion` en dos entregas de meses distintos choca por la
+      # FECHA, que es parte de la identidad de la corrida. Acusar a la
+      # configuracion manda a revisar el modelo, el marco y la aplicabilidad
+      # cuando lo unico distinto es el dia.
+      distintos <- character()
+      for (nombre in intersect(names(lado_anterior), names(lado_nuevo))) {
+        if (!isTRUE(all.equal(lado_nuevo[[nombre]], lado_anterior[[nombre]],
+                              check.attributes = FALSE))) {
+          distintos <- c(distintos, nombre)
+        }
+      }
+      detalle <- if (length(distintos)) {
+        paste0(
+          " Difiere en: ", paste(distintos, collapse = ", "), ".",
+          if ("fecha" %in% distintos) {
+            paste0(
+              " La fecha es parte de la identidad de la corrida: para una",
+              " entrega nueva, usar otro `id_medicion`."
+            )
+          } else {
+            ""
+          }
+        )
+      } else {
+        ""
+      }
       stop(
-        "Una corrida ya existente tiene una configuraci\u00f3n diferente: ",
-        nuevo$id_medicion[[i]], ".", call. = FALSE
+        "Una corrida ya existente no coincide con la que se quiere acumular: ",
+        nuevo$id_medicion[[i]], ".", detalle, call. = FALSE
       )
     }
   }
@@ -685,8 +713,10 @@
 #'   pudo aplicarse— no se acumula: se rechaza citando el motivo que `medir()`
 #'   declaró en `cobertura_metricas`, porque no hay corrida que registrar. El atributo
 #'   `configuracion_evaluacion` conserva, en una tabla plana separada, el
-#'   modelo, su marco y sus tipos, la aplicabilidad, el perfil y la identidad
-#'   de tabla de cada corrida.
+#'   modelo, su marco y sus tipos, la aplicabilidad, el perfil, la identidad
+#'   de tabla y **la fecha** de cada corrida. Acumular una corrida con un
+#'   `id_medicion` ya presente exige que todo eso coincida, la fecha incluida:
+#'   dos entregas distintas son dos corridas, y el error nombra en qué difieren.
 #'
 #' @details
 #' El detalle predeterminado evita repetir una fila por celda y regla cuando el

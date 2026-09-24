@@ -15,6 +15,15 @@
   # `lupa` no infiere ninguna de las cuatro. Que esten implementadas no obliga a
   # usarlas: un analisis sin organizacion detras se detiene donde corresponda.
   implementada = rep(TRUE, 10L),
+  # `implementada` declara que el nivel se puede medir. `agregable` declara
+  # que el grafo ofrece al menos una entrada o salida para ese nivel; son
+  # capacidades distintas y no se deben resumir en una sola etiqueta.
+  agregable = c(TRUE, TRUE, FALSE, TRUE, TRUE, TRUE, TRUE, TRUE, TRUE, TRUE),
+  motivo_agregacion = c(
+    rep(NA_character_, 2L),
+    "No hay transiciones de agregacion hacia ni desde este nivel.",
+    rep(NA_character_, 7L)
+  ),
   stringsAsFactors = FALSE
 )
 
@@ -132,6 +141,12 @@
 #' Granularidades y transiciones de agregación
 #'
 #' `granularidades()` declara los diez niveles del marco, y los diez se miden.
+#' La columna `implementada` significa que se puede instanciar una metrica y
+#' medir ese nivel. La columna `agregable` es distinta: indica que el grafo
+#' ofrece al menos una transicion de agregacion hacia o desde el nivel. Por eso
+#' `conjuntoAtributos` puede estar implementado para medir una metrica y a la
+#' vez no ser agregable con las transiciones disponibles; `motivo_agregacion`
+#' deja esa razon escrita.
 #' Los cuatro de arriba —colección, conjunto de colecciones, organización y
 #' conjunto de organizaciones— sólo cuando el usuario **declara la frontera**:
 #' qué tablas componen una colección, qué bases un conjunto, qué colecciones una
@@ -185,7 +200,7 @@ transiciones_granularidad <- function() {
     .error_medicion_sin_medidas(medidas, "medidas", "`medir()` o `agregar()`")
   }
   medidas <- .tabla_base(medidas)
-  medidas$orientacion <- .orientacion_medidas(medidas)
+  medidas$orientacion <- .orientacion_declarada_medidas(medidas)
   campos_unicos <- c(
     "id_medicion", "metrica", "metrica_especifica", "granularidad",
     "tipo_resultado", "orientacion"
@@ -205,6 +220,7 @@ transiciones_granularidad <- function() {
       any(medidas$resultado < 0 | medidas$resultado > 1)) {
     stop("Los resultados que se agregan deben estar en [0, 1].", call. = FALSE)
   }
+  medidas$orientacion <- .orientacion_medidas(medidas)
   medidas
 }
 
@@ -507,6 +523,16 @@ transiciones_granularidad <- function() {
   resultado
 }
 
+.advertencia_agregacion <- function(medidas, destino, funcion) {
+  if (destino != "conjuntoEntidades" || funcion != "promedio") {
+    return(NA_character_)
+  }
+  paste0(
+    "promedio_sin_pesos: el alcance de cada parte no es conocido por agregar()",
+    "."
+  )
+}
+
 .heredar_cobertura_de_partes <- function(resultado, medidas, destino) {
   atributos <- c(
     "cobertura_coleccion", "cobertura_conjunto_colecciones",
@@ -569,6 +595,13 @@ transiciones_granularidad <- function() {
 #' sumar uno dentro de cada objeto de destino. La columna `orientacion` se
 #' conserva sin invertir el resultado: un ratio de una métrica de defecto sigue
 #' siendo la proporción de defectos.
+#'
+#' Cuando el destino es `conjuntoEntidades`, `promedio` combina las partes sin
+#' pesos porque las medidas de nivel `entidad` no llevan su cantidad de filas.
+#' El resultado lo declara en `advertencia_agregacion`: es un promedio sin pesos
+#' y `agregar()` no conoce el alcance de cada parte. En `coleccion`, la frontera
+#' se declara y por eso sólo se admite `promedio_ponderado`: sin pesos no se
+#' puede decidir cuanto debe aportar cada tabla de esa coleccion.
 #'
 #' No existe una transición hacia factor, dimensión o modelo: esos campos son
 #' taxonómicos y esta función no calcula un índice global.
@@ -859,6 +892,9 @@ agregar <- function(medidas, destino,
       objeto_medible = .objeto_agregado(medidas, indices, destino),
       resultado = valor,
       agregacion = funcion,
+      advertencia_agregacion = .advertencia_agregacion(
+        medidas, destino, funcion
+      ),
       stringsAsFactors = FALSE
     )
   })
@@ -872,7 +908,7 @@ agregar <- function(medidas, destino,
     "id_medida", "id_medicion", "fecha", "metrica", "metrica_especifica",
     "metrica_instanciada", "dimension", "factor", "orientacion", "granularidad",
     "tipo_resultado", "entidad", "atributo", "fila", "objeto_medible",
-    "resultado", "agregacion"
+    "resultado", "agregacion", "advertencia_agregacion"
   )]
   class(resultado) <- c("medicion", "data.frame")
   # `cobertura_metricas` viaja con el numero, igual que las dos configuraciones.
