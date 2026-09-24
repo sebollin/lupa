@@ -64,8 +64,8 @@ relaciones_coleccion(
   Si se aplican las podas que cambiarían lo informado —tipos
   incompatibles y cardinalidades imposibles—, tal como en
   [`detectar_relaciones()`](https://sebollin.github.io/lupa/reference/detectar_relaciones.md).
-  `FALSE` por omisión; la poda cierta por rangos disjuntos se aplica
-  siempre porque no cambia ninguna fila.
+  `FALSE` por omisión; la poda cierta por rangos disjuntos del universo
+  se aplica siempre porque no cambia ninguna fila.
 
 - tope_memoria_mb:
 
@@ -103,7 +103,9 @@ confirmar contra el diccionario de datos.
 
 Las columnas candidatas se podan antes de materializar cada comparación.
 Las podas quedan declaradas en `cobertura_podas`, con su motivo y
-conteo.
+conteo. La poda cierta por rangos usa `MIN` y `MAX` sobre el universo
+completo de cada tabla, no sobre las filas de la muestra. Si el motor no
+puede entregar ese rango, la comparación sigue sin aplicar esa poda.
 
 El campo `detalle` de una poda por rangos disjuntos **no publica
 extremos que identifiquen**: si el mínimo o el máximo de un lado llega

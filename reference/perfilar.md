@@ -1263,6 +1263,7 @@ perfil
 #>            correo         texto             0.00000000          12         NA
 #>          id_copia         doble             0.00000000          11         NA
 #>        id_tramite identificador             0.00000000          12         NA
+#> ℹ Se muestran 5 de 114 campos; los demás están en `columnas()`.
 summary(perfil)
 #>             columna tipo_declarado tipo_inferido estado_tipo_inferido
 #> 1        id_persona          doble         doble                 <NA>
@@ -1551,9 +1552,9 @@ summary(perfil)
 #> 9                NA         <NA>        NA        NA        NA        NA
 #> 10               NA         <NA>        NA        NA        NA        NA
 #>                      detalle_proteccion_personal n_blancos n_espacios_borde
-#> 1  [estadisticos de orden y momentos protegidos]         0                0
+#> 1  [estadisticos de orden y la media protegidos]         0                0
 #> 2             [estadisticos de orden protegidos]         0                0
-#> 3  [estadisticos de orden y momentos protegidos]         0                0
+#> 3  [estadisticos de orden y la media protegidos]         0                0
 #> 4                                           <NA>         1                0
 #> 5                                           <NA>         0                0
 #> 6                                           <NA>         0                0

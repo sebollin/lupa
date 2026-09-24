@@ -66,7 +66,8 @@ escoger la dirección PK/FK sin imponerla de antemano.</p>
 <span>  columnas_candidatas <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  umbral_cobertura <span class="op">=</span> <span class="fl">0.9</span>,</span>
 <span>  podar <span class="op">=</span> <span class="cn">FALSE</span>,</span>
-<span>  tope_memoria_mb <span class="op">=</span> <span class="cn">Inf</span></span>
+<span>  tope_memoria_mb <span class="op">=</span> <span class="cn">Inf</span>,</span>
+<span>  .rangos <span class="op">=</span> <span class="cn">NULL</span></span>
 <span><span class="op">)</span></span></code></pre></div>
     </div>
 
@@ -105,6 +106,12 @@ aplica la poda cierta, que no cambia ninguna fila.</p></dd>
 megabytes. Las combinaciones pendientes se declaran como podas cuando se
 alcanza; <code>Inf</code> no limita el procesamiento.</p></dd>
 
+
+<dt id="arg--rangos">.rangos<a class="anchor" aria-label="anchor" href="#arg--rangos"></a></dt>
+<dd><p>Uso interno de <code><a href="relaciones_coleccion.html">relaciones_coleccion()</a></code>. Lista nombrada por
+<code>tabla1</code> y <code>tabla2</code>, con rangos y su origen para cada columna. La poda por
+rangos solo acepta rangos de la columna completa o del universo DBI.</p></dd>
+
 </dl></div>
     <div class="section level2">
     <h2 id="value">Value<a class="anchor" aria-label="anchor" href="#value"></a></h2>
@@ -124,10 +131,11 @@ sabe que no pueden participar. El costo crece con el producto de anchos: dos
 tablas de treinta columnas son novecientas combinaciones por par de tablas, y
 declarar cuáles pueden participar es lo que lo vuelve manejable.</p>
 <p><strong>Hay dos clases de poda y el paquete no las trata igual.</strong> Dos columnas de
-la misma familia con rangos numéricos disjuntos no comparten ningún valor, y
-eso se sabe sin comparar: la fila sale como siempre —<code>sin_coincidencias</code>, con
-cobertura cero— y la comparación se ahorra. Esa poda está siempre activa
-porque no cambia lo que el objeto informa.</p>
+la misma familia con rangos numéricos disjuntos, medidos sobre la columna
+completa o sobre el universo DBI, no comparten ningún valor, y eso se sabe sin
+comparar: la fila sale como siempre —<code>sin_coincidencias</code>, con cobertura
+cero— y la comparación se ahorra. Esa poda está siempre activa porque no
+cambia lo que el objeto informa.</p>
 <p>Las otras dos sí lo cambiarían. Familias distintas parece decisivo y no lo
 es: una columna de texto puede guardar <code>"2020-01-05"</code> y coincidir con una de
 fecha. Y una cardinalidad imposible no dice que no haya coincidencias, dice

@@ -17,7 +17,8 @@ detectar_relaciones(
   columnas_candidatas = NULL,
   umbral_cobertura = 0.9,
   podar = FALSE,
-  tope_memoria_mb = Inf
+  tope_memoria_mb = Inf,
+  .rangos = NULL
 )
 ```
 
@@ -55,6 +56,14 @@ detectar_relaciones(
   combinaciones pendientes se declaran como podas cuando se alcanza;
   `Inf` no limita el procesamiento.
 
+- .rangos:
+
+  Uso interno de
+  [`relaciones_coleccion()`](https://sebollin.github.io/lupa/reference/relaciones_coleccion.md).
+  Lista nombrada por `tabla1` y `tabla2`, con rangos y su origen para
+  cada columna. La poda por rangos solo acepta rangos de la columna
+  completa o del universo DBI.
+
 ## Value
 
 Data frame con `columna_tabla1`, `columna_tabla2`, `cardinalidad`
@@ -75,8 +84,9 @@ par de tablas, y declarar cuáles pueden participar es lo que lo vuelve
 manejable.
 
 **Hay dos clases de poda y el paquete no las trata igual.** Dos columnas
-de la misma familia con rangos numéricos disjuntos no comparten ningún
-valor, y eso se sabe sin comparar: la fila sale como siempre
+de la misma familia con rangos numéricos disjuntos, medidos sobre la
+columna completa o sobre el universo DBI, no comparten ningún valor, y
+eso se sabe sin comparar: la fila sale como siempre
 —`sin_coincidencias`, con cobertura cero— y la comparación se ahorra.
 Esa poda está siempre activa porque no cambia lo que el objeto informa.
 

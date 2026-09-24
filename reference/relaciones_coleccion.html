@@ -108,7 +108,7 @@ conserva todas sus columnas.</p></dd>
 <dd><p>Si se aplican las podas que cambiarían lo informado —tipos
 incompatibles y cardinalidades imposibles—, tal como en
 <code><a href="detectar_relaciones.html">detectar_relaciones()</a></code>. <code>FALSE</code> por omisión; la poda cierta por rangos
-disjuntos se aplica siempre porque no cambia ninguna fila.</p></dd>
+disjuntos del universo se aplica siempre porque no cambia ninguna fila.</p></dd>
 
 
 <dt id="arg-tope-memoria-mb">tope_memoria_mb<a class="anchor" aria-label="anchor" href="#arg-tope-memoria-mb"></a></dt>
@@ -140,7 +140,10 @@ declara ese alcance: una relación candidata sobre una muestra <strong>no es una
 clave foránea comprobada</strong>, es un indicio que hay que confirmar contra el
 diccionario de datos.</p>
 <p>Las columnas candidatas se podan antes de materializar cada comparación. Las
-podas quedan declaradas en <code>cobertura_podas</code>, con su motivo y conteo.</p>
+podas quedan declaradas en <code>cobertura_podas</code>, con su motivo y conteo.
+La poda cierta por rangos usa <code>MIN</code> y <code>MAX</code> sobre el universo completo de
+cada tabla, no sobre las filas de la muestra. Si el motor no puede entregar
+ese rango, la comparación sigue sin aplicar esa poda.</p>
 <p>El campo <code>detalle</code> de una poda por rangos disjuntos <strong>no publica extremos que
 identifiquen</strong>: si el mínimo o el máximo de un lado llega al piso de la
 protección —seis caracteres o más—, ese rango sale como <code>[valor protegido]</code>.
