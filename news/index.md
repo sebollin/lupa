@@ -2,6 +2,44 @@
 
 ## lupa 0.1.0
 
+### Columnas con clase propia y silencios del plan
+
+- [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md)
+  ya no aborta sobre una columna cuya clase responde `TRUE` a
+  [`is.numeric()`](https://rdrr.io/r/base/numeric.html) pero no hace la
+  aritmetica de un doble. Las relaciones aritmeticas y la ley de Benford
+  se buscan ahora entre columnas numericas sin clase declarada, en vez
+  de excluir una lista fija de clases, y cada columna numerica que queda
+  afuera por su clase se declara en `cobertura_diagnosticos` con su
+  clase y con como evaluarla. `meta$aritmetica_columnas` publica las
+  clases medidas en la tabla.
+
+- Contar filas duplicadas sobre una tabla que combina una columna con
+  dimensiones y una columna de listas ya no aborta: el aplanado de
+  columnas compuestas esta escrito una sola vez y arma la tabla sin
+  coaccionar las listas.
+
+- Sobre una columna factor, las acciones de limpieza por celda declaran
+  en su justificacion que devuelven texto y que el orden y los niveles
+  sin observaciones no se conservan. Si el factor es ordenado, la accion
+  queda recomendada pero sin activar.
+
+- El plan declara en `hallazgos_sin_accion_por_columna_ambigua` los
+  hallazgos medidos para los que no propone accion porque su columna
+  comparte nombre con otra, y lo avisa al imprimirse.
+
+- El denominador de `outliers`, `ceros_no_permitidos` y
+  `negativos_no_permitidos` descuenta tambien los ausentes comunes, no
+  solo los valores que no pudieron convertirse: una columna de mil filas
+  con cincuenta `NA` publica `n_evaluados = 950`.
+
+- `eliminar_controles_invisibles` declara en su justificacion que quitar
+  el caracter no deja forma de reconstruir la celda y que el registro
+  cuenta cada una en `n_no_reversibles`. La documentacion de
+  [`planificar_limpieza()`](https://sebollin.github.io/lupa/reference/planificar_limpieza.md)
+  precisa que `destructiva` marca las acciones que hay que activar a
+  mano y no equivale a “no se perdio nada”.
+
 ### Correcciones de marco y deriva
 
 - [`medir()`](https://sebollin.github.io/lupa/reference/medir.md)

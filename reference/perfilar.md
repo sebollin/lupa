@@ -868,32 +868,38 @@ revisar, no como evidencia de fraude o manipulación. Topes
 administrativos, redondeos, precios psicológicos y subsidios de monto
 fijo son explicaciones posibles.
 
-Las relaciones aritméticas se buscan sólo entre columnas numéricas
-declaradas y con variación: `Date`, `POSIXt`, `difftime`, `integer64`,
-texto numérico y columnas constantes no participan. Cada relación
-requiere al menos tres filas con valores finitos en todas las columnas
-involucradas; los `NA`, `NaN` e infinitos quedan fuera del universo que
-publica la evidencia. Para cada terna se prueban las tres orientaciones
-de una identidad aditiva; esto cubre sumas y sus restas equivalentes sin
-informar tres veces la misma igualdad. En pares proporcionales, `k` es
-la mediana de los cocientes finitos cuya base no es cero, pero el
-cumplimiento se evalúa después también en las filas con base cero. Si
-una identidad aditiva ya relaciona una terna, se omiten las
-proporcionalidades redundantes entre su total y sus sumandos; se
-conserva la proporcionalidad entre los dos sumandos. Una regularidad
-completa se informa con severidad `"ok"`; si alcanza el umbral pero
-tiene discrepancias, sigue el criterio de las relaciones de orden y es
-`"sospechoso"`. Todo esto describe evidencia observada: no declara una
-regla del dominio ni autoriza una corrección. Los valores de texto que
-no forman UTF-8 válido tampoco se convierten: se cuentan, se excluyen de
-los análisis textuales y generan un hallazgo con sus posiciones. Los
-diagnósticos de invisibles incluyen controles C0/C1, espacios Unicode,
-marcas direccionales, BOM y otros caracteres de transporte. La evidencia
-los muestra como puntos de código; los espacios Unicode se detectan
-aunque sólo se normalizan mediante una acción explícita, y ZWJ/ZWNJ se
-informan pero se conservan porque pueden ser semánticos. La comparación
-de duplicados con `normalizar = TRUE` aplica estas mismas clases sin
-borrar ZWJ/ZWNJ.
+Las relaciones aritméticas se buscan sólo entre columnas numéricas **sin
+clase declarada** y con variación: una columna que declara una clase
+propia —`Date`, `POSIXt`, `difftime`, `integer64`, `units`,
+`lubridate::Period` o cualquier otra— no participa, porque sumarla o
+dividirla no es la aritmética de un doble; el texto numérico y las
+columnas constantes tampoco. Las columnas que R declara numéricas y
+quedan fuera por su clase se declaran una por una en
+`cobertura_diagnosticos`, y `meta$aritmetica_columnas` publica las
+clases medidas en esta tabla. La ley de Benford sigue el mismo criterio
+y la misma declaración. Cada relación requiere al menos tres filas con
+valores finitos en todas las columnas involucradas; los `NA`, `NaN` e
+infinitos quedan fuera del universo que publica la evidencia. Para cada
+terna se prueban las tres orientaciones de una identidad aditiva; esto
+cubre sumas y sus restas equivalentes sin informar tres veces la misma
+igualdad. En pares proporcionales, `k` es la mediana de los cocientes
+finitos cuya base no es cero, pero el cumplimiento se evalúa después
+también en las filas con base cero. Si una identidad aditiva ya
+relaciona una terna, se omiten las proporcionalidades redundantes entre
+su total y sus sumandos; se conserva la proporcionalidad entre los dos
+sumandos. Una regularidad completa se informa con severidad `"ok"`; si
+alcanza el umbral pero tiene discrepancias, sigue el criterio de las
+relaciones de orden y es `"sospechoso"`. Todo esto describe evidencia
+observada: no declara una regla del dominio ni autoriza una corrección.
+Los valores de texto que no forman UTF-8 válido tampoco se convierten:
+se cuentan, se excluyen de los análisis textuales y generan un hallazgo
+con sus posiciones. Los diagnósticos de invisibles incluyen controles
+C0/C1, espacios Unicode, marcas direccionales, BOM y otros caracteres de
+transporte. La evidencia los muestra como puntos de código; los espacios
+Unicode se detectan aunque sólo se normalizan mediante una acción
+explícita, y ZWJ/ZWNJ se informan pero se conservan porque pueden ser
+semánticos. La comparación de duplicados con `normalizar = TRUE` aplica
+estas mismas clases sin borrar ZWJ/ZWNJ.
 
 Un valor `double` **subnormal** —distinto de cero y menor que
 `.Machine$double.xmin` en valor absoluto, unos 2,2e-308— casi siempre

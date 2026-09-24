@@ -138,30 +138,57 @@ que vino escrito—, mientras que fechas, fechas-hora y lógicos sólo
 bloquean conversiones no ejecutables o no inyectivas. Las fechas pueden
 cambiar a la representación canónica del tipo sin que eso sea una
 pérdida. Sin `datos` no se puede hacer la comprobación y la acción queda
-bloqueada. Cuando se ejecuta y no es reversible se marca `destructiva`
-—también si la columna no era segura y se activa a mano—, no se activa
-por defecto y el registro conserva `n_no_reversibles` y la justificación
-de la decisión. `convertir_numero_regional` sólo se recomienda si todos
-los valores presentes comparten convención decimal, unidad y moneda. Un
-valor con `%` se divide por 100 y queda como proporción en `[0, 1]`, la
-escala con que el paquete publica toda proporción; una unidad o un
-símbolo de moneda dejan de formar parte del valor y quedan en
-`parametros`. La justificación lo dice cuando ocurre. Una columna que
-mezcla `5` con `5 %` no se convierte: habría que decidir si el número
-sin `%` está en la misma escala. La acción de codificación prueba las
-tablas congeladas de varias codificaciones y deja en `estado_reparacion`
-uno de `reparado`, `reparado_parcialmente` o `no_se_pudo`. Una
-reparación parcial no se activa automáticamente: debe revisarse y
-seleccionarse de forma explícita. La estrategia se llama
-`reparar_codificacion` y no limita el motor a latin-1. Unos mismos bytes
-pueden recibir dos diagnósticos: `c2 80` es a la vez un carácter de
-control C1 y la huella de un `€` de Windows-1252 leído como latin-1.
-Cuando el plan propone reparar la codificación y eliminar ese control,
-manda la reparación —corre primero y restituye el `€`—, y la eliminación
-queda sin nada que hacer. Es la lectura habitual en texto real; en el
-caso raro de un control C1 genuino, la reparación lo convierte en `€`.
-Una celda cuyo texto no se puede leer —declarada `bytes` con bytes que
-no son UTF-8, o sin marca en una sesión UTF-8, que es lo que deja
+bloqueada. Cuando **una conversión de tipo** se ejecuta y no es
+reversible se marca `destructiva` —también si la columna no era segura y
+se activa a mano—, no se activa por defecto y el registro conserva
+`n_no_reversibles` y la justificación de la decisión.
+
+`destructiva` no es sinónimo de "pierde algo": marca las acciones que el
+usuario tiene que activar a mano —las que retiran filas o columnas y las
+conversiones que pierden representación— y por eso ninguna acción
+`destructiva` puede estar `recomendada`. Hay acciones recomendadas que
+sí pierden el valor de una celda: `convertir_ausencias_textuales` cambia
+un marcador por `NA` y `eliminar_controles_invisibles` quita un
+carácter. Esas lo dicen en su justificación y el registro las cuantifica
+en `n_no_reversibles`; leer `destructiva = FALSE` no significa que no se
+haya perdido nada, sino que el paquete pudo recomendar la acción sin
+conocer el dominio. Sobre una columna **factor** las acciones por celda
+devuelven texto: el resultado no puede ser un factor incompleto, así que
+el orden declarado y los niveles sin observaciones no se conservan. La
+justificación de la acción lo dice, y si el factor es ordenado la acción
+queda recomendada pero **sin activar**, porque conservar el orden es una
+decisión del dominio.
+
+Dos atributos del plan declaran lo que el plan no cubre.
+`cobertura_diagnosticos` trae los diagnósticos que el perfil no pudo
+evaluar, para que leer tres acciones no se confunda con "lo demás está
+bien". `hallazgos_sin_accion_por_columna_ambigua` trae los hallazgos
+medidos que no produjeron acción porque su columna comparte nombre con
+otra y no hay forma de saber sobre cuál actuaría la limpieza; el remedio
+es normalizar los nombres y volver a perfilar. Los dos se imprimen con
+el plan.
+
+`convertir_numero_regional` sólo se recomienda si todos los valores
+presentes comparten convención decimal, unidad y moneda. Un valor con
+`%` se divide por 100 y queda como proporción en `[0, 1]`, la escala con
+que el paquete publica toda proporción; una unidad o un símbolo de
+moneda dejan de formar parte del valor y quedan en `parametros`. La
+justificación lo dice cuando ocurre. Una columna que mezcla `5` con
+`5 %` no se convierte: habría que decidir si el número sin `%` está en
+la misma escala. La acción de codificación prueba las tablas congeladas
+de varias codificaciones y deja en `estado_reparacion` uno de
+`reparado`, `reparado_parcialmente` o `no_se_pudo`. Una reparación
+parcial no se activa automáticamente: debe revisarse y seleccionarse de
+forma explícita. La estrategia se llama `reparar_codificacion` y no
+limita el motor a latin-1. Unos mismos bytes pueden recibir dos
+diagnósticos: `c2 80` es a la vez un carácter de control C1 y la huella
+de un `€` de Windows-1252 leído como latin-1. Cuando el plan propone
+reparar la codificación y eliminar ese control, manda la reparación
+—corre primero y restituye el `€`—, y la eliminación queda sin nada que
+hacer. Es la lectura habitual en texto real; en el caso raro de un
+control C1 genuino, la reparación lo convierte en `€`. Una celda cuyo
+texto no se puede leer —declarada `bytes` con bytes que no son UTF-8, o
+sin marca en una sesión UTF-8, que es lo que deja
 [`read.csv()`](https://rdrr.io/r/utils/read.table.html) sin
 `fileEncoding` sobre un archivo latin1— no se transforma: el perfil no
 la midió y la informa como `codificacion_invalida`, cuyo remedio es
