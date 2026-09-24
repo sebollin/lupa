@@ -285,8 +285,8 @@ resultado
 #> 
 #>  factores_marco factores_medidos sin_metrica_declarada no_aplican
 #>              17                4                     8          4
-#>  fuera_de_alcance
-#>                 1
+#>  fuera_de_alcance medidos_fuera_del_marco
+#>                 1                       0
 #> ── Cobertura conceptual ──
 #> 
 #>            estado factores

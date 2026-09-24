@@ -43,6 +43,21 @@
     <div class="section level2">
 <h2 class="pkg-version" data-toc-text="0.1.0" id="lupa-010">lupa 0.1.0<a class="anchor" aria-label="anchor" href="#lupa-010"></a></h2>
 <div class="section level3">
+<h3 id="el-marco-que-se-publica-contiene-lo-que-se-publica-0-1-0">El marco que se publica contiene lo que se publica<a class="anchor" aria-label="anchor" href="#el-marco-que-se-publica-contiene-lo-que-se-publica-0-1-0"></a></h3>
+<ul><li><p>El tablero publicaba una fila con valor y, al lado, un alcance que decia “se midieron 0 factores de este marco”. Las dos cosas eran ciertas: la cobertura se cuenta sobre los factores del marco declarado, y una medida cuyo par dimension-factor ese marco no declara no entra en ninguna casilla -medir con las metricas del paquete e informar contra ISO/IEC 25012, por ejemplo-. Juntas se leen como una contradiccion del objeto. Ahora el alcance publica <code>medidos_fuera_del_marco</code>, que no suma con las otras cuatro casillas, el atributo <code>pares_fuera_del_marco</code> los nombra y la impresion lo dice. Informar contra el marco propio sigue siendo posible: es el flujo de la vinieta de inicio, donde la cobertura del marco se satisface por <code>perfil_mide</code>.</p></li>
+<li><p>El catalogo de AGESIC publica en <code>implementacion</code> una receta, no una expresion que se evalue sola. La documentacion declara ahora sus dos unicos nombres libres -<code>m</code>, la medicion ya tomada de la metrica base, y <code>u</code>, el umbral que elige quien agrega- y una prueba exige que no aparezca un tercero y que la receta, con esos dos ligados, devuelva el ratio que nombra.</p></li>
+</ul></div>
+<div class="section level3">
+<h3 id="un-recorte-dice-cuantos-son-y-cada-numero-dice-en-que-unidad-cuenta-0-1-0">Un recorte dice cuantos son, y cada numero dice en que unidad cuenta<a class="anchor" aria-label="anchor" href="#un-recorte-dice-cuantos-son-y-cada-numero-dice-en-que-unidad-cuenta-0-1-0"></a></h3>
+<ul><li><p><code><a href="../reference/guiar_limpieza.html">guiar_limpieza()</a></code> mostraba cinco ejemplos de cuarenta sin decir que eran cinco de cuarenta, justo antes de que alguien decida si aplica la accion. Cada recorte viaja ahora con su total y la pantalla lo declara.</p></li>
+<li><p>Las acciones informativas -<code>revisar_cardinalidad</code>, <code>revisar_ceros</code>, <code>revisar_negativos</code>- publicaban la cantidad de filas de la columna junto a la unidad <code>columna</code> que heredan del hallazgo: sobre una tabla de 80 filas y 7 columnas se leia <code>n_afectadas = 80</code> con <code>unidad_conteo = "columna"</code>. Ninguna lectura salvaba ese par. Ahora publican el alcance que midio el hallazgo que las origino.</p></li>
+</ul></div>
+<div class="section level3">
+<h3 id="el-minimo-declarado-se-comporta-como-el-declarado-0-1-0">El minimo declarado se comporta como el declarado<a class="anchor" aria-label="anchor" href="#el-minimo-declarado-se-comporta-como-el-declarado-0-1-0"></a></h3>
+<ul><li><p>En R 4.1 -el minimo que declara el <code>DESCRIPTION</code>- una celda marcada <code>bytes</code> dejaba de estarlo al normalizar: <code><a href="https://rdrr.io/r/base/trimws.html" class="external-link">trimws()</a></code> y <code>gsub(fixed = TRUE, useBytes = TRUE)</code> devuelven ahi la cadena sin marca, mientras en versiones recientes la conservan. La marca se vuelve a poner en vez de confiar en la operacion.</p></li>
+<li><p>Por la misma via, la cuenta de celdas que pierden valor compara claves por bytes: en esa version <code><a href="https://rdrr.io/r/base/duplicated.html" class="external-link">duplicated()</a></code> y <code><a href="https://rdrr.io/r/base/split.html" class="external-link">split()</a></code> sobre una cadena marcada abortan con “translating strings with bytes encoding is not allowed”.</p></li>
+</ul></div>
+<div class="section level3">
 <h3 id="la-capa-de-modelado-declara-sus-limites-0-1-0">La capa de modelado declara sus limites<a class="anchor" aria-label="anchor" href="#la-capa-de-modelado-declara-sus-limites-0-1-0"></a></h3>
 <ul><li>
 <code><a href="../reference/comparar_equivalencia.html">comparar_equivalencia()</a></code> publica <code>no_comparable</code> cuando un campo no tiene valor medible en ambos lados o solo lo tiene en uno, y lo cuenta separado de <code>identico</code>.</li>

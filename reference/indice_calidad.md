@@ -74,8 +74,8 @@ indice_calidad(medidas)
 #> 
 #>  factores_marco factores_medidos sin_metrica_declarada no_aplican
 #>              17                2                    10          0
-#>  fuera_de_alcance
-#>                 5
+#>  fuera_de_alcance medidos_fuera_del_marco
+#>                 5                       0
 # Pesos propios de este ejemplo, no del paquete:
 indice_calidad(
   medidas,

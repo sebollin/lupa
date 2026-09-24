@@ -2,6 +2,58 @@
 
 ## lupa 0.1.0
 
+### El marco que se publica contiene lo que se publica
+
+- El tablero publicaba una fila con valor y, al lado, un alcance que
+  decia “se midieron 0 factores de este marco”. Las dos cosas eran
+  ciertas: la cobertura se cuenta sobre los factores del marco
+  declarado, y una medida cuyo par dimension-factor ese marco no declara
+  no entra en ninguna casilla -medir con las metricas del paquete e
+  informar contra ISO/IEC 25012, por ejemplo-. Juntas se leen como una
+  contradiccion del objeto. Ahora el alcance publica
+  `medidos_fuera_del_marco`, que no suma con las otras cuatro casillas,
+  el atributo `pares_fuera_del_marco` los nombra y la impresion lo dice.
+  Informar contra el marco propio sigue siendo posible: es el flujo de
+  la vinieta de inicio, donde la cobertura del marco se satisface por
+  `perfil_mide`.
+
+- El catalogo de AGESIC publica en `implementacion` una receta, no una
+  expresion que se evalue sola. La documentacion declara ahora sus dos
+  unicos nombres libres -`m`, la medicion ya tomada de la metrica base,
+  y `u`, el umbral que elige quien agrega- y una prueba exige que no
+  aparezca un tercero y que la receta, con esos dos ligados, devuelva el
+  ratio que nombra.
+
+### Un recorte dice cuantos son, y cada numero dice en que unidad cuenta
+
+- [`guiar_limpieza()`](https://sebollin.github.io/lupa/reference/guiar_limpieza.md)
+  mostraba cinco ejemplos de cuarenta sin decir que eran cinco de
+  cuarenta, justo antes de que alguien decida si aplica la accion. Cada
+  recorte viaja ahora con su total y la pantalla lo declara.
+
+- Las acciones informativas -`revisar_cardinalidad`, `revisar_ceros`,
+  `revisar_negativos`- publicaban la cantidad de filas de la columna
+  junto a la unidad `columna` que heredan del hallazgo: sobre una tabla
+  de 80 filas y 7 columnas se leia `n_afectadas = 80` con
+  `unidad_conteo = "columna"`. Ninguna lectura salvaba ese par. Ahora
+  publican el alcance que midio el hallazgo que las origino.
+
+### El minimo declarado se comporta como el declarado
+
+- En R 4.1 -el minimo que declara el `DESCRIPTION`- una celda marcada
+  `bytes` dejaba de estarlo al normalizar:
+  [`trimws()`](https://rdrr.io/r/base/trimws.html) y
+  `gsub(fixed = TRUE, useBytes = TRUE)` devuelven ahi la cadena sin
+  marca, mientras en versiones recientes la conservan. La marca se
+  vuelve a poner en vez de confiar en la operacion.
+
+- Por la misma via, la cuenta de celdas que pierden valor compara claves
+  por bytes: en esa version
+  [`duplicated()`](https://rdrr.io/r/base/duplicated.html) y
+  [`split()`](https://rdrr.io/r/base/split.html) sobre una cadena
+  marcada abortan con “translating strings with bytes encoding is not
+  allowed”.
+
 ### La capa de modelado declara sus limites
 
 - [`comparar_equivalencia()`](https://sebollin.github.io/lupa/reference/comparar_equivalencia.md)

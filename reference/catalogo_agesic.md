@@ -59,6 +59,15 @@ variantes continuas del curso CPAP se conservan como
 `RatioDensidadPonderada` usa `ratio_umbral`, porque su medida base es
 real y `ratio` sólo es válido para medidas booleanas.
 
+`implementacion` publica una receta, no una expresión que se evalúe
+sola: en las entradas `via_agregacion`, `m` es la medición ya tomada de
+la métrica base que nombra `metrica_lupa` y `u` el umbral que elige
+quien agrega. Son los dos únicos nombres libres que aparecen, y ninguno
+se inventa aquí: `m` sale de
+[`medir()`](https://sebollin.github.io/lupa/reference/medir.md) y `u` es
+una decisión de política —cuánta densidad se considera suficiente— que
+el paquete no toma por nadie.
+
 ## References
 
 [AGESIC

@@ -224,7 +224,9 @@ que no significa nada.</p>
 <span><span class="co">#&gt;     Unicidad No-duplicación EntidadDuplicada  0.50     defecto    filas</span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/base/attr.html" class="external-link">attr</a></span><span class="op">(</span><span class="va">tablero</span>, <span class="st">"alcance"</span><span class="op">)</span></span>
 <span><span class="co">#&gt;   factores_marco factores_medidos sin_metrica_declarada no_aplican fuera_de_alcance</span></span>
-<span><span class="co">#&gt; 1              3                2                     1          0                0</span></span></code></pre></div>
+<span><span class="co">#&gt; 1              3                2                     1          0                0</span></span>
+<span><span class="co">#&gt;   medidos_fuera_del_marco</span></span>
+<span><span class="co">#&gt; 1                       0</span></span></code></pre></div>
 <p>Sin <code>pesos</code>, no hay número:
 <code>indice_calidad(tablero)</code> devuelve el tablero. Los pesos no
 pertenecen a <code>lupa</code>; los declara el usuario según la decisión
@@ -246,6 +248,8 @@ tablero.</p>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt;  factores_marco factores_medidos sin_metrica_declarada no_aplican fuera_de_alcance</span></span>
 <span><span class="co">#&gt;               3                2                     1          0                0</span></span>
+<span><span class="co">#&gt;  medidos_fuera_del_marco</span></span>
+<span><span class="co">#&gt;                        0</span></span>
 <span></span>
 <span><span class="co"># Pesos elegidos para este ejemplo; no son valores predeterminados de lupa.</span></span>
 <span><span class="va">pesos_ejemplo</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span>Completitud <span class="op">=</span> <span class="fl">0.6</span>, Unicidad <span class="op">=</span> <span class="fl">0.4</span><span class="op">)</span></span>

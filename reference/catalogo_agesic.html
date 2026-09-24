@@ -90,6 +90,12 @@ define el marco. <code>OportunidadAtributo*</code>, en cambio, sigue las tablas 
 conservan como <code>GradoOportunidadAtributo*</code> y no figuran como entradas del
 catálogo. <code>RatioDensidadPonderada</code> usa <code>ratio_umbral</code>, porque su medida base
 es real y <code>ratio</code> sólo es válido para medidas booleanas.</p>
+<p><code>implementacion</code> publica una receta, no una expresión que se evalúe sola: en
+las entradas <code>via_agregacion</code>, <code>m</code> es la medición ya tomada de la métrica
+base que nombra <code>metrica_lupa</code> y <code>u</code> el umbral que elige quien agrega. Son
+los dos únicos nombres libres que aparecen, y ninguno se inventa aquí: <code>m</code>
+sale de <code><a href="medir.html">medir()</a></code> y <code>u</code> es una decisión de política —cuánta densidad se
+considera suficiente— que el paquete no toma por nadie.</p>
     </div>
     <div class="section level2">
     <h2 id="references">References<a class="anchor" aria-label="anchor" href="#references"></a></h2>

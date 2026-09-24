@@ -168,6 +168,8 @@ tablero[, c(
 attr(tablero, "alcance")
 #>   factores_marco factores_medidos sin_metrica_declarada no_aplican fuera_de_alcance
 #> 1              3                2                     1          0                0
+#>   medidos_fuera_del_marco
+#> 1                       0
 ```
 
 Sin `pesos`, no hay número: `indice_calidad(tablero)` devuelve el
@@ -192,6 +194,8 @@ indice_sin_pesos
 #> 
 #>  factores_marco factores_medidos sin_metrica_declarada no_aplican fuera_de_alcance
 #>               3                2                     1          0                0
+#>  medidos_fuera_del_marco
+#>                        0
 
 # Pesos elegidos para este ejemplo; no son valores predeterminados de lupa.
 pesos_ejemplo <- c(Completitud = 0.6, Unicidad = 0.4)

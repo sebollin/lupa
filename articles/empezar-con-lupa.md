@@ -101,6 +101,9 @@ analisis$tablero
 #> 
 #>  factores_marco factores_medidos sin_metrica_declarada no_aplican fuera_de_alcance
 #>               3                0                     3          0                0
+#>  medidos_fuera_del_marco
+#>                        4
+#> ! 4 pares dimensión-factor medidos no están declarados en este marco: Unicidad|No-duplicación, Completitud|Densidad, Exactitud|Correctitud sintáctica, Consistencia|Integridad de dominio. No entran en la cobertura de arriba.
 ```
 
 Los hallazgos son datos. Se pueden filtrar, ordenar o exportar sin
@@ -566,7 +569,7 @@ archivo <- reportar(
   titulo = "Calidad de la entrega de ejemplo"
 )
 basename(archivo)
-#> [1] "file2262241c0e70.html"
+#> [1] "file22544ce53a3e.html"
 unlink(c(archivo, archivo_rds))
 ```
 

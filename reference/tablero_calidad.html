@@ -87,7 +87,11 @@ instanciada. Se exige para cada <code>ratio_umbral</code> que no lo declare dent
 
 <dt id="arg-marco">marco<a class="anchor" aria-label="anchor" href="#arg-marco"></a></dt>
 <dd><p>Marco conceptual. Si se omite, usa el asociado a la medición,
-el marco AGESIC cuando corresponde o el conjunto de factores medidos.</p></dd>
+el marco AGESIC cuando corresponde o el conjunto de factores medidos —los
+tres caminos contienen lo que se publica—. Un marco declarado puede no
+contener los pares medidos: no se rechaza, porque informar contra la
+taxonomía propia es un uso previsto, pero lo que queda afuera se cuenta en
+<code>medidos_fuera_del_marco</code> y se nombra en <code>pares_fuera_del_marco</code>.</p></dd>
 
 
 <dt id="arg-cobertura">cobertura<a class="anchor" aria-label="anchor" href="#arg-cobertura"></a></dt>
@@ -103,13 +107,22 @@ corrida.</p></dd>
     <div class="section level2">
     <h2 id="value">Value<a class="anchor" aria-label="anchor" href="#value"></a></h2>
     <p>Data frame S3 <code>tablero_calidad</code>. Los atributos <code>alcance</code> y
-<code>cobertura</code> conservan los conteos y el detalle del marco.</p>
+<code>cobertura</code> conservan los conteos y el detalle del marco, y
+<code>pares_fuera_del_marco</code> nombra los pares medidos que ese marco no declara.</p>
     </div>
     <div class="section level2">
     <h2 id="details">Details<a class="anchor" aria-label="anchor" href="#details"></a></h2>
     <p>El objeto conserva la cobertura completa del marco: factores medidos, sin
 métrica declarada, no aplicables y fuera de alcance. <code><a href="https://rdrr.io/r/base/print.html" class="external-link">print()</a></code> muestra
 ambos elementos para que unas pocas filas nunca se lean como cobertura total.</p>
+<p>Esa cobertura se cuenta sobre los factores <strong>del marco</strong>, así que una medida
+cuyo par dimensión-factor el marco no declara no entra en ninguna de sus
+casillas. Eso es legítimo —declarar el marco propio y medir con las métricas
+de <code>lupa</code> es un flujo previsto, y la cobertura de ese marco puede satisfacerse
+por <code>perfil_mide</code>—, pero leer «se midieron 0 factores de este marco» al lado
+de una fila con valor parece una contradicción del objeto. Por eso el alcance
+publica además <code>medidos_fuera_del_marco</code>, que <strong>no</strong> suma con las otras cuatro
+casillas, y el atributo <code>pares_fuera_del_marco</code> los nombra.</p>
     </div>
     <div class="section level2">
     <h2 id="see-also">See also<a class="anchor" aria-label="anchor" href="#see-also"></a></h2>
@@ -133,8 +146,8 @@ ambos elementos para que unas pocas filas nunca se lean como cobertura total.</p
 <span class="r-msg co"><span class="r-pr">#&gt;</span> </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>  factores_marco factores_medidos sin_metrica_declarada no_aplican</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>              17                1                    11          0</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>  fuera_de_alcance</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>                 5</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>  fuera_de_alcance medidos_fuera_del_marco</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>                 5                       0</span>
 </code></pre></div>
     </div>
   </main><aside class="col-md-3"><nav id="toc" aria-label="Table of contents"><h2>On this page</h2>
