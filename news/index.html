@@ -43,6 +43,11 @@
     <div class="section level2">
 <h2 class="pkg-version" data-toc-text="0.1.0" id="lupa-010">lupa 0.1.0<a class="anchor" aria-label="anchor" href="#lupa-010"></a></h2>
 <div class="section level3">
+<h3 id="la-perdida-se-mide-en-el-resultado-0-1-0">La perdida se mide en el resultado<a class="anchor" aria-label="anchor" href="#la-perdida-se-mide-en-el-resultado-0-1-0"></a></h3>
+<ul><li>
+<code>n_no_reversibles</code> contaba por accion: toda celda que la accion tocaba, o ninguna. Ahora una celda cuenta como perdida cuando la transformacion la deja indistinguible de otra que era distinta, o cuando la deja ausente. Quitar un guion suave de <code>PRO&lt;U+00AD&gt;DUCTO-A</code> deja el valor en su forma canonica y no cuenta; quitar un espacio de ancho cero que separaba dos claves las fusiona y si cuenta. <code>recortar_espacios</code> tenia el defecto simetrico: dejaba <code>" ana "</code> y <code>"ana"</code> en un solo valor y publicaba cero irreversibles.</li>
+</ul></div>
+<div class="section level3">
 <h3 id="colecciones-alcance-y-trazabilidad-de-las-lecturas-0-1-0">Colecciones: alcance y trazabilidad de las lecturas<a class="anchor" aria-label="anchor" href="#colecciones-alcance-y-trazabilidad-de-las-lecturas-0-1-0"></a></h3>
 <ul><li><p>Cada fila de <code>resumen_coleccion</code> declara el <code>universo</code> de las metricas que alimentan sus agregados, para no confundir un conteo de la tabla completa con proporciones observadas sobre <code>muestra_motor</code>.</p></li>
 <li><p>Las divergencias de corroboracion y el SQL de cada tabla se conservan al subir un perfil a una coleccion, aun cuando <code>conservar_perfiles = FALSE</code>.</p></li>

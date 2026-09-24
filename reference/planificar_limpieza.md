@@ -59,18 +59,23 @@ seleccionada, incluso cuando una falla y las siguientes continúan.
 `n_no_reversibles` cuenta las celdas cuyo VALOR se perdió y no se puede
 recuperar desde el resultado: un centinela `-999` que pasa a ausencia,
 un extremo recortado a su límite, un marcador de ausencia convertido, o
-un número que se redondeó al convertirlo. No cuenta los cambios de forma
-que dejan el valor en su lugar —recortar espacios, reemplazar
-separadores o cambiar mayúsculas—, aunque tampoco se puedan deshacer tal
-cual. Si una acción seleccionada no produce ningún efecto, se registra
-como `fallida` con el motivo y su copia no se incorpora al resultado. La
-comprobación del efecto observa `n_cambiadas` aunque `n_afectadas` sea
-`NA` o haya sido editado: una acción seleccionada que no cambia nada
-queda `fallida`, porque la ausencia de efecto es observable sin depender
-de la estimación. Si una columna de entrada es un factor, las acciones
-que transforman su texto devuelven una columna `character`: no se
-reconstruyen los niveles originales, porque una limpieza puede
-introducir valores nuevos.
+un número que se redondeó al convertirlo. Las acciones que **normalizan
+la escritura** —recortar espacios, quitar un invisible de transporte,
+reemplazar separadores o cambiar mayúsculas— dejan el valor en su lugar
+y no cuentan, **salvo cuando la normalización fusiona valores que eran
+distintos**: ahí lo que los separaba no queda en ningún lado y esas
+celdas sí se cuentan. El criterio se mide sobre el resultado, no por el
+nombre de la acción: quitar un guion suave de `PRO<U+00AD>DUCTO-A` no
+pierde nada, y quitar un espacio de ancho cero que distinguía dos claves
+fusiona las dos. Si una acción seleccionada no produce ningún efecto, se
+registra como `fallida` con el motivo y su copia no se incorpora al
+resultado. La comprobación del efecto observa `n_cambiadas` aunque
+`n_afectadas` sea `NA` o haya sido editado: una acción seleccionada que
+no cambia nada queda `fallida`, porque la ausencia de efecto es
+observable sin depender de la estimación. Si una columna de entrada es
+un factor, las acciones que transforman su texto devuelven una columna
+`character`: no se reconstruyen los niveles originales, porque una
+limpieza puede introducir valores nuevos.
 
 ## Details
 
