@@ -122,7 +122,15 @@ calibracion fina. Ambos argumentos se pueden cambiar.</p>
 
 <dt id="arg-columnas">columnas<a class="anchor" aria-label="anchor" href="#arg-columnas"></a></dt>
 <dd><p>Columnas atomicas a combinar. <code>NULL</code> aplica la seleccion
-automatica descrita arriba; no se incluyen matrices ni listas.</p></dd>
+automatica descrita arriba; no se incluyen matrices ni listas. <strong>El orden
+forma parte de la comparación</strong>: los valores de cada fila se miden
+concatenados en el orden declarado, así que <code>c("nombre", "domicilio")</code> y
+<code>c("domicilio", "nombre")</code> son dos comparaciones distintas y pueden
+publicar pares distintos con el mismo umbral —medido: 6 pares contra 10
+sobre las mismas cinco filas—. Con <code>NULL</code>, el orden es el que tienen las
+columnas en <code>datos</code>. El objeto publica en <code>columnas</code> el vector que usó, en
+ese orden, así que el resultado se puede rehacer; declararlo a mano lo
+vuelve independiente de cómo estén ordenadas las columnas del archivo.</p></dd>
 
 
 <dt id="arg-metodo">metodo<a class="anchor" aria-label="anchor" href="#arg-metodo"></a></dt>
@@ -168,7 +176,15 @@ activa puntuación, ligaduras y ancho, y <code><a href="normalizacion.html">norm
 cada paso. Una lista nombrada puede resolver perfiles por columna. <code>NULL</code>
 hereda el perfil guardado en <code>perfil</code>; si no se recibe uno, usa <code>TRUE</code>.
 La normalización cambia sólo la representación usada para comparar, no los
-datos guardados. El umbral se aplica sobre esa cadena normalizada. El
+datos guardados. El umbral se aplica sobre esa cadena normalizada. La
+<strong>descomposición canónica se aplica siempre</strong>, también con <code>FALSE</code>: no es
+un paso configurable sino lo que hace que dos escrituras del mismo texto
+—<code>café</code> precompuesto y <code>café</code> con acento combinante— sean el mismo texto.
+Como la distancia se mide sobre esa forma, un acento cuenta como un
+carácter aparte: con <code>normalizar = FALSE</code>, <code>café</code> y <code>cafe</code> distan <code>0.04</code>
+—y entran en un umbral de <code>0.1</code>—, mientras la misma distancia sobre las
+cadenas tal como se guardaron daría <code>0.117</code>. Para reproducir un número
+publicado hay que descomponer primero. El
 informe de fusiones sólo se calcula cuando algún paso configurable está
 activo; con <code>FALSE</code> se omite. Si se entrega <code>perfil</code>, se reutiliza su
 informe ya calculado.</p></dd>
@@ -315,6 +331,12 @@ comillas, el objeto conserva esta distincion tanto en <code>pares</code> como en
 hallazgos. <code>duplicados_exactos_normalizados</code> es un tipo de hallazgo propio:
 no afirma que los valores guardados sean iguales y tampoco oculta la causa
 de la coincidencia bajo <code>duplicados_aproximados</code>.</p>
+<p>Una fila cuyos valores en las columnas comparadas son <strong>todos</strong> ausentes o
+cadena vacía no entra en la comparación: no hay texto que medir, y dos filas
+vacías no son un duplicado sino dos ausencias. <code>alcance$n_filas_validas</code>
+cuenta las que sí entraron —contra <code>n_filas_total</code>— y, si no quedan dos,
+<code>razon</code> lo dice. Una cadena vacía <strong>sí</strong> es una clave válida en
+<code>bloquear_por</code>: ahí no se compara su texto, se agrupa por él.</p>
 <p>En <code>alcance</code>, <code>n_pares_exactos</code> cuenta solo textos guardados iguales,
 <code>n_pares_exactos_normalizados</code> cuenta coincidencias producidas por la
 normalizacion y <code>n_pares_aproximados</code> cuenta los pares restantes. Son

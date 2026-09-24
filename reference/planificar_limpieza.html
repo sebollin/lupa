@@ -95,7 +95,11 @@ contrato. Puede filtrarse y editarse antes de aplicarlo.</p></dd>
 
 <dt id="arg-permitir-eliminacion">permitir_eliminacion<a class="anchor" aria-label="anchor" href="#arg-permitir-eliminacion"></a></dt>
 <dd><p>Segundo consentimiento obligatorio para ejecutar
-acciones que eliminan filas o columnas.</p></dd>
+acciones que eliminan filas o columnas. Sin él, una acción eliminatoria
+seleccionada hace que <code>aplicar()</code> <strong>se niegue antes de tocar nada</strong>: no se
+ejecuta ninguna acción del plan —tampoco las que no eliminan— y no hay
+registro, porque no hubo ejecución. El error nombra las acciones y los dos
+caminos: dar el consentimiento, o desactivarlas y aplicar el resto.</p></dd>
 
 
 <dt id="arg-conservar-eliminados">conservar_eliminados<a class="anchor" aria-label="anchor" href="#arg-conservar-eliminados"></a></dt>

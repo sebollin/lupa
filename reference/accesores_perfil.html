@@ -91,7 +91,10 @@ avisa, y lo que sigue calcula sobre nada.</p>
     <p><code>hallazgos()</code> devuelve un <code>data.frame</code> con una fila por hallazgo;
 <code>columnas()</code>, un <code>data.frame</code> con una fila por columna de la tabla
 perfilada y sus métricas y diagnósticos; <code>cobertura()</code> devuelve la tabla de
-diagnósticos no evaluados; <code>n_filas()</code> devuelve el conteo de filas del
+diagnósticos no evaluados —y, sobre un <code>perfil_dbi</code>, la de <strong>métricas
+SQL</strong>, que es la cobertura de ese objeto: sus diagnósticos no evaluados
+viajan en <code>x$perfil_muestra$cobertura_diagnosticos</code>, con el esquema de
+<code><a href="perfilar.html">perfilar()</a></code>, y la impresión del perfil los declara—; <code>n_filas()</code> devuelve el conteo de filas del
 alcance, o un vector con un conteo por tabla para una colección. Devuelve
 <code>NA</code> con su motivo cuando el objeto no conoce el conteo. El significado de
 cada campo de <code>columnas()</code> se explica por familias en los detalles de

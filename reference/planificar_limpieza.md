@@ -41,7 +41,12 @@ aplicar(plan, datos, permitir_eliminacion = FALSE, conservar_eliminados = TRUE)
 - permitir_eliminacion:
 
   Segundo consentimiento obligatorio para ejecutar acciones que eliminan
-  filas o columnas.
+  filas o columnas. Sin él, una acción eliminatoria seleccionada hace
+  que `aplicar()` **se niegue antes de tocar nada**: no se ejecuta
+  ninguna acción del plan —tampoco las que no eliminan— y no hay
+  registro, porque no hubo ejecución. El error nombra las acciones y los
+  dos caminos: dar el consentimiento, o desactivarlas y aplicar el
+  resto.
 
 - conservar_eliminados:
 
