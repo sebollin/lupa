@@ -10,15 +10,20 @@
 tabla_o54 <- function() {
   set.seed(54)
   n <- 60
-  data.frame(
+  tabla <- data.frame(
     magnitud = runif(n, 1, 5000),
-    con_clase = .columna_con_clase_numerica(seq_len(n) * 3),
     fecha = as.Date("2020-01-01") + seq_len(n),
     hora = as.POSIXct("2020-01-01 00:00:00", tz = "UTC") + seq_len(n) * 3600,
     duracion = as.difftime(seq_len(n), units = "hours"),
     texto = paste0("v", seq_len(n)),
     stringsAsFactors = FALSE
   )
+  # La columna con clase propia se ASIGNA: en el minimo declarado -R 4.1-
+  # `data.frame()` no puede convertir una clase desconocida y aborta con "cannot
+  # coerce class". El objeto que la prueba necesita es el mismo; lo que cambia es
+  # por donde entra.
+  tabla$con_clase <- .columna_con_clase_numerica(seq_len(n) * 3)
+  tabla
 }
 
 cobertura_benford_o54 <- function(perfil) {

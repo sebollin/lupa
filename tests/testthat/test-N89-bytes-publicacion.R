@@ -38,11 +38,28 @@ test_that("la clave es inyectiva: la secuencia y el texto que la describe difier
   secuencia <- .n89_bytes(.N89_SECUENCIA)
   descripcion <- rawToChar(as.raw(.N89_DESCRIPCION))
 
-  # R los distingue; la clave tiene que decir lo mismo que R.
-  expect_false(secuencia == descripcion)
+  # La clave tiene que distinguirlos, y eso se mide sin pedirle nada a R sobre
+  # cadenas marcadas: `charToRaw()` no traduce.
+  expect_false(identical(charToRaw(secuencia), charToRaw(descripcion)))
   expect_false(identical(.clave_bytes(secuencia), .clave_bytes(descripcion)))
 
   valores <- c(secuencia, descripcion, .n89_utf8(.N89_SECUENCIA), "z")
+  # Los cuatro son distintos entre si, y la clave tiene que contar cuatro.
+  expect_identical(length(unique(.clave_bytes(valores))), 4L)
+
+  # Y la clave tiene que decir lo mismo que R **cuando R puede decirlo**: en el
+  # minimo declarado -4.1- `unique()` y `==` sobre una cadena marcada `bytes`
+  # abortan con "translating strings with bytes encoding is not allowed", asi
+  # que la comparacion contra R no es medible ahi. Se comprueba midiendo, no por
+  # numero de version, y el salto declara por que.
+  puede_comparar <- !inherits(
+    try(c(unique(valores), secuencia == descripcion), silent = TRUE),
+    "try-error"
+  )
+  if (!puede_comparar) {
+    skip("esta version de R no admite `unique()` ni `==` sobre `bytes`")
+  }
+  expect_false(secuencia == descripcion)
   expect_identical(
     length(unique(.clave_bytes(valores))), length(unique(valores))
   )
@@ -95,6 +112,16 @@ test_that("la cardinalidad publicada coincide con unique() de R", {
     fecha = as.POSIXct("2026-09-17", tz = "UTC"),
     analizar_dependencias = FALSE, proteger_datos_personales = FALSE
   ))
+  # Los cuatro valores son distintos entre si -dos secuencias de bytes, el texto
+  # que describe a una de ellas y una `z`-, asi que la cardinalidad publicada es
+  # cuatro. Eso se afirma siempre.
+  expect_identical(perfil$columnas$n_distintos[[1L]], 4L)
+
+  # Y se contrasta contra `unique()` de R cuando esta version lo permite: en 4.1
+  # aborta sobre una cadena marcada `bytes`.
+  if (inherits(try(unique(valores), silent = TRUE), "try-error")) {
+    skip("esta version de R no admite `unique()` sobre `bytes`")
+  }
   expect_identical(perfil$columnas$n_distintos[[1L]], length(unique(valores)))
 })
 

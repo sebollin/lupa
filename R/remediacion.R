@@ -2033,7 +2033,17 @@ planificar_limpieza <- function(perfil, datos = NULL,
 .celdas_cambiadas <- function(anterior, nuevo) {
   anterior <- as.character(anterior)
   nuevo <- as.character(nuevo)
-  cambio <- !is.na(anterior) & (is.na(nuevo) | anterior != nuevo)
+  # `!=` sobre una cadena marcada `bytes` ABORTA en el minimo declarado -R 4.1-
+  # con "translating strings with bytes encoding is not allowed", y en 4.6 no.
+  # Mientras esta funcion solo se llamaba desde los tres ejecutores de texto el
+  # camino con marca no llegaba aca; desde que la perdida se mide en la puerta
+  # comun, si. Se compara por la clave de bytes, que es lo que el paquete ya usa
+  # para esto y no traduce nada. La comparacion por `charToRaw` de mas abajo se
+  # conserva: distingue dos cadenas de los mismos bytes con marcas distintas.
+  clave_anterior <- .clave_bytes(anterior)
+  clave_nueva <- .clave_bytes(nuevo)
+  cambio <- !is.na(anterior) &
+    (is.na(nuevo) | clave_anterior != clave_nueva)
   sospechosas <- which(cambio & !is.na(nuevo))
   if (length(sospechosas)) {
     iguales <- vapply(
