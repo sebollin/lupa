@@ -2,6 +2,27 @@
 
 ## lupa 0.1.0
 
+### La medicion de la perdida no puede abortar en el minimo declarado
+
+- Medir la perdida en la puerta comun -la vuelta anterior- llevo la
+  comparacion de celdas a un camino nuevo:
+  [`aplicar()`](https://sebollin.github.io/lupa/reference/planificar_limpieza.md)
+  sobre una columna marcada `bytes` **abortaba** en R 4.1 -el minimo que
+  declara el `DESCRIPTION`- con “translating strings with bytes encoding
+  is not allowed”, porque `.celdas_cambiadas()` compara con `!=` y esa
+  version no traduce una cadena marcada. En 4.6 no aborta, asi que la
+  suite local no lo veia: lo encontro el contenedor del minimo. La
+  comparacion pasa ahora por la clave de bytes, que es lo que el paquete
+  ya usa para esto y no traduce nada.
+
+- Dos pruebas del paquete pedian a R lo mismo que el paquete evita:
+  [`unique()`](https://rdrr.io/r/base/unique.html) y `==` sobre una
+  cadena marcada `bytes`, que en 4.1 abortan. Ahora afirman siempre la
+  cardinalidad medida y contrastan contra
+  [`unique()`](https://rdrr.io/r/base/unique.html) de R **cuando esa
+  version lo permite**, comprobandolo midiendo en vez de por numero de
+  version, y el salto declara el motivo.
+
 ### Lo que el perfil concluye, y quien puede declarar un dato personal
 
 - Un entero escrito como **texto** por encima de 2^53 publicaba el
