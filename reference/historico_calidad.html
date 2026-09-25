@@ -87,7 +87,11 @@ atributo del mismo nombre permiten migraciones futuras. <code>nivel</code> corre
 a <code>medida</code>, <code>evaluacion_medida</code>, <code>evaluacion_regla</code> o
 <code>evaluacion_perfil</code>; una métrica sin valores se conserva como
 <code>metrica_no_evaluada</code> con su motivo, siempre que la medición tenga al
-menos una medida. Una medición <strong>enteramente</strong> vacía —ninguna métrica
+menos una medida. Una medida que una regla declaró <code>desenlace = "suprimir"</code>
+no publica su valor <strong>tampoco aquí</strong>: su fila deja <code>resultado</code> en <code>NA</code> y
+marca <code>objeto_medible</code> con <code>[valor suprimido]</code>, en los dos niveles donde esa
+medida aparece —<code>medida</code> y <code>evaluacion_medida</code>—, porque esta tabla está
+pensada para exportarse. Una medición <strong>enteramente</strong> vacía —ninguna métrica
 pudo aplicarse— no se acumula: se rechaza citando el motivo que <code><a href="medir.html">medir()</a></code>
 declaró en <code>cobertura_metricas</code>, porque no hay corrida que registrar. El atributo
 <code>configuracion_evaluacion</code> conserva, en una tabla plana separada, el

@@ -39,8 +39,13 @@ atributo del mismo nombre permiten migraciones futuras. `nivel`
 corresponde a `medida`, `evaluacion_medida`, `evaluacion_regla` o
 `evaluacion_perfil`; una métrica sin valores se conserva como
 `metrica_no_evaluada` con su motivo, siempre que la medición tenga al
-menos una medida. Una medición **enteramente** vacía —ninguna métrica
-pudo aplicarse— no se acumula: se rechaza citando el motivo que
+menos una medida. Una medida que una regla declaró
+`desenlace = "suprimir"` no publica su valor **tampoco aquí**: su fila
+deja `resultado` en `NA` y marca `objeto_medible` con
+`[valor suprimido]`, en los dos niveles donde esa medida aparece
+—`medida` y `evaluacion_medida`—, porque esta tabla está pensada para
+exportarse. Una medición **enteramente** vacía —ninguna métrica pudo
+aplicarse— no se acumula: se rechaza citando el motivo que
 [`medir()`](https://sebollin.github.io/lupa/reference/medir.md) declaró
 en `cobertura_metricas`, porque no hay corrida que registrar. El
 atributo `configuracion_evaluacion` conserva, en una tabla plana

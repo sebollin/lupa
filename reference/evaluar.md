@@ -36,9 +36,15 @@ Objeto `evaluacion_calidad` con tres data frames filtrables: `medidas`,
 además `desenlaces`, un plan que identifica las medidas incumplidas, el
 valor medido, el motivo y la regla que lo produjo. Cuando una métrica no
 pudo medirse, conserva `cobertura_metricas` y deja en `NA` el resumen
-afectado, en lugar de tratar la ausencia como éxito. Conserva además, en
-atributos, la configuración del modelo, la aplicabilidad y el perfil de
-evaluación que produjo el resultado.
+afectado, en lugar de tratar la ausencia como éxito. Y cuando una regla
+**declara** una métrica que la medición no trae —ninguna medida de
+ella—, el veredicto cubre menos de lo que la regla dice: eso se avisa al
+evaluar y queda en el atributo `cobertura_reglas`, con la métrica, el
+motivo y cómo resolverlo. Si **ninguna** de las métricas declaradas por
+una regla tiene medidas, `evaluar()` se niega y nombra las solicitadas y
+las disponibles. Conserva además, en atributos, la configuración del
+modelo, la aplicabilidad y el perfil de evaluación que produjo el
+resultado.
 
 ## Examples
 
@@ -55,13 +61,13 @@ evaluar(medidas, perfil_evaluacion("Avanzado", regla))
 #> ── Evaluaciones de medidas ──
 #> 
 #>                                    id_medida
-#>  medicion-20260925T025226.350657-8086-000001
-#>  medicion-20260925T025226.350657-8086-000002
-#>  medicion-20260925T025226.350657-8086-000003
+#>  medicion-20260925T032248.951703-7368-000001
+#>  medicion-20260925T032248.951703-7368-000002
+#>  medicion-20260925T032248.951703-7368-000003
 #>                           id_medicion               fecha   perfil        regla
-#>  medicion-20260925T025226.350657-8086 2026-09-25 02:52:26 Avanzado Al menos 90%
-#>  medicion-20260925T025226.350657-8086 2026-09-25 02:52:26 Avanzado Al menos 90%
-#>  medicion-20260925T025226.350657-8086 2026-09-25 02:52:26 Avanzado Al menos 90%
+#>  medicion-20260925T032248.951703-7368 2026-09-25 03:22:48 Avanzado Al menos 90%
+#>  medicion-20260925T032248.951703-7368 2026-09-25 03:22:48 Avanzado Al menos 90%
+#>  medicion-20260925T032248.951703-7368 2026-09-25 03:22:48 Avanzado Al menos 90%
 #>   metrica_instanciada orientacion resultado
 #>  NoNulo@personas.edad conformidad      TRUE
 #>  NoNulo@personas.edad conformidad     FALSE
@@ -69,13 +75,13 @@ evaluar(medidas, perfil_evaluacion("Avanzado", regla))
 #> ── Evaluaciones de reglas ──
 #> 
 #>                           id_medicion               fecha   perfil        regla
-#>  medicion-20260925T025226.350657-8086 2026-09-25 02:52:26 Avanzado Al menos 90%
+#>  medicion-20260925T032248.951703-7368 2026-09-25 03:22:48 Avanzado Al menos 90%
 #>  n_medidas resultado
 #>          3 0.6666667
 #> ── Perfiles de madurez ──
 #> 
 #>                           id_medicion               fecha   perfil n_reglas
-#>  medicion-20260925T025226.350657-8086 2026-09-25 02:52:26 Avanzado        1
+#>  medicion-20260925T032248.951703-7368 2026-09-25 03:22:48 Avanzado        1
 #>  resultado
 #>  0.6666667
 ```

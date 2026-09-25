@@ -2,6 +2,34 @@
 
 ## lupa 0.1.0
 
+### La regla declara mas de lo que el veredicto cubre, y el historico lo respeta
+
+- Una regla de evaluacion **declara** las metricas que evalua. Si alguna
+  no tiene medidas en la medicion, el veredicto cubre menos de lo que la
+  regla dice: medido, una regla sobre dos metricas -una nunca
+  instanciada- publicaba `n_medidas = 3, resultado = 1`, identico a la
+  regla que declara solo la que existe, mientras el propio objeto
+  conservaba en su configuracion que la regla declaraba dos. La
+  maquinaria del silencio declarado existia para el borde -si NINGUNA
+  coincide,
+  [`evaluar()`](https://sebollin.github.io/lupa/reference/evaluar.md) se
+  niega nombrando solicitadas y disponibles- y la coincidencia parcial
+  pasaba sin nombrar nada. Ahora se avisa al evaluar, queda en
+  `attr(evaluacion, "cobertura_reglas")` con su motivo y la impresion lo
+  declara.
+
+- `desenlace = "suprimir"` declara que una medida no debe publicarse, y
+  la impresion y el informe lo sostienen.
+  `historico_calidad(ev, detalle = "completo")` -la tabla que la
+  documentacion presenta como exportable con
+  [`write.csv()`](https://rdrr.io/r/utils/write.table.html)- publicaba
+  su valor: dos salidas del mismo objeto con politicas opuestas sobre la
+  misma medida, y la que se exporta era la que no la respetaba. Ahora
+  esa fila deja `resultado` en `NA` y marca `objeto_medible` con
+  `[valor suprimido]`, que es la convencion que esta tabla ya usaba para
+  el nivel `medida`; el objeto guardado sigue conservando el valor, como
+  esta documentado.
+
 ### La medicion de la perdida no puede abortar en el minimo declarado
 
 - Medir la perdida en la puerta comun -la vuelta anterior- llevo la
