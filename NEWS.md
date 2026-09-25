@@ -1,5 +1,16 @@
 # lupa 0.1.0
 
+## `perfilar()` no aborta sobre una columna con marca en el minimo declarado
+
+- `.diagnosticar_texto()` deduplicaba los ejemplos de espacios sobrantes con
+  `unique()`, y esa operacion **aborta** en R 4.1 -el minimo que declara el
+  `DESCRIPTION`- sobre una cadena marcada `bytes`: `perfilar()` se caia sobre una
+  columna `latin1` valida. Ahora deduplica por la clave de bytes. Y el barrido
+  que lo comprueba no mira ese sitio: pasa toda la API publica -perfilar,
+  analizar, planificar, guiar, aplicar, reportar, perfilar_por, duplicados,
+  patrones, formatos, deriva- por una tabla cuyas columnas de texto llevan la
+  marca, dentro del contenedor del minimo.
+
 ## La regla declara mas de lo que el veredicto cubre, y el historico lo respeta
 
 - Una regla de evaluacion **declara** las metricas que evalua. Si alguna no tiene

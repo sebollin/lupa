@@ -1990,7 +1990,14 @@
   } else {
     espacios <- validos & textos != trimws(textos)
   }
-  ejemplos_espacios <- utils::head(unique(publicables[espacios]), 6L)
+  # `unique()` sobre una cadena marcada `bytes` ABORTA en el minimo declarado -R
+  # 4.1- con "translating strings with bytes encoding is not allowed", y estos
+  # ejemplos salen de la columna del usuario, que puede traer esa marca. Medido:
+  # `perfilar()` se caia ahi sobre una columna `latin1` valida. Se deduplica por
+  # la clave de bytes, que no traduce.
+  ejemplos_espacios <- utils::head(
+    .identificadores_unicos(publicables[espacios]), 6L
+  )
   # Los valores ASCII sin espacios, controles ni ampersands no pueden contener
   # invisibles Unicode, codificacion rota ni entidades HTML. En ese caso basta
   # con resolver la unica señal ASCII restante -variantes de mayusculas- y se
