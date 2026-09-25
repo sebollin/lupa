@@ -12,7 +12,8 @@ detectar_discordancias(
   datos,
   senales,
   max_ejemplos = 5L,
-  proteger_datos_personales = TRUE
+  proteger_datos_personales = TRUE,
+  columnas_personales = character()
 )
 ```
 
@@ -36,7 +37,20 @@ detectar_discordancias(
 
   Si los valores de las columnas clasificadas como dato personal se
   enmascaran en `evidencia`. `TRUE` por omisión; el número de fila y el
-  nombre de la columna se conservan igual.
+  nombre de la columna se conservan igual. La clasificación se hace aquí
+  por léxico y por forma —esta función no recibe un perfil—, así que lo
+  que sólo quien conoce los datos sabe personal entra por
+  `columnas_personales`.
+
+- columnas_personales:
+
+  Columnas que traen datos personales, declaradas con la misma forma que
+  acepta
+  [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md):
+  nombres de columna, o un vector con nombre donde el nombre es la
+  columna y el valor es el tipo. Sin ella, una columna que el léxico no
+  reconoce —un legajo interno— publica sus valores en `evidencia`. Sólo
+  tiene efecto con `proteger_datos_personales = TRUE`.
 
 ## Value
 

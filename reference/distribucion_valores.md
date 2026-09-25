@@ -15,7 +15,8 @@ distribucion_valores(
   max_valores = 20L,
   probabilidades = c(0, 0.25, 0.5, 0.75, 1),
   muestra = 1e+05,
-  proteger_datos_personales = TRUE
+  proteger_datos_personales = TRUE,
+  columnas_personales = character()
 )
 ```
 
@@ -47,6 +48,22 @@ distribucion_valores(
   Si se ocultan valores de columnas cuya clasificación activa protección
   automática. Véase
   [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md).
+  Con `perfil`, se respeta la clasificación de ese perfil —incluido lo
+  que su usuario declaró—; sin `perfil`, la clasificación se rehace aquí
+  por léxico y por forma, y lo declarado entra por
+  `columnas_personales`.
+
+- columnas_personales:
+
+  Columnas que traen datos personales, declaradas con la misma forma que
+  acepta
+  [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md):
+  nombres de columna, o un vector con nombre donde el nombre es la
+  columna y el valor es el tipo. **Es el único camino cuando no se pasa
+  `perfil`**: sin perfil, la clasificación corre por léxico y por forma,
+  así que una columna que sólo quien la conoce sabe personal —una edad,
+  un legajo interno— se publicaría entera. Sólo tiene efecto con
+  `proteger_datos_personales = TRUE`.
 
 ## Value
 

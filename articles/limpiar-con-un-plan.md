@@ -177,7 +177,36 @@ Las acciones destructivas nunca son recomendadas. Aunque el usuario las
 active en el plan,
 [`aplicar()`](https://sebollin.github.io/lupa/reference/planificar_limpieza.md)
 exige además `permitir_eliminacion = TRUE`; lo retirado se conserva en
-`resultado$eliminados` salvo decisión contraria.
+`resultado$eliminados` salvo decisión contraria. Sin ese consentimiento
+la llamada se niega **antes de tocar nada**: no corre ninguna acción del
+plan, tampoco las que no eliminan, y el error dice cuáles son los dos
+caminos.
+
+`n_no_reversibles` no se lee por el nombre de la acción sino por lo que
+quedó en el resultado: una normalización que funde dos valores que eran
+distintos —pasar `ana` y `ANA` a `ANA`— cuenta esas celdas, porque lo
+que las separaba no quedó en ningún lado.
+
+## Lo que el plan no cubre lo dice
+
+Leer tres acciones no significa que lo demás esté bien, así que el plan
+declara sus huecos en tres atributos: `cobertura_diagnosticos` —los
+diagnósticos que el perfil no pudo evaluar—,
+`hallazgos_sin_accion_por_columna_ambigua` —los hallazgos cuya columna
+comparte nombre con otra, así que no hay forma de saber sobre cuál
+actuaría la limpieza— y `hallazgos_sin_accion` —los hallazgos que el
+perfil midió y que ninguna acción atiende, con el motivo medido de cada
+uno—. La impresión del plan los anuncia y el informe HTML les da su
+propia sección.
+
+``` r
+
+sin_accion <- attr(plan, "hallazgos_sin_accion")
+sin_accion[, c("hallazgo", "columna", "severidad")]
+#>                  hallazgo          columna  severidad
+#> 1 tipo_declarado_distinto fecha_nacimiento sospechoso
+#> 2               faltantes             sexo sospechoso
+```
 
 ## Imputar por una dependencia
 

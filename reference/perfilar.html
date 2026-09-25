@@ -351,7 +351,12 @@ documentos de la protegida con sólo repetirlos: una copia con nombre
 neutro, un texto libre que los contuviera, o los estadísticos de orden de
 una columna clasificada con poder discriminante <code>debil</code>. El vocabulario
 corto no entra en el piso: <code>"S/D"</code> sigue publicándose donde describe a una
-columna que no es personal.
+columna que no es personal. El piso tiene <strong>una excepción declarada</strong>, y es
+la única: <code><a href="perfilar_por.html">perfilar_por()</a></code> agrupando <em>por</em> una columna personal publica sus
+valores como etiquetas de grupo, porque la etiqueta es el eje del
+resultado y sin ella los grupos no se distinguen. No ocurre en silencio
+—avisa al ejecutar y lo declara en <code>etiquetas_personales</code>— y el remedio es
+agrupar por una columna seudonimizada.
 El piso alcanza además la <strong>forma sin separadores</strong>: <code>"771.771-01"</code> es el
 mismo documento que <code>"77177101"</code>, y la celda entera se enmascara. Y lo
 aplican también <code><a href="analizar.html">analizar()</a></code> y <code><a href="distribucion_valores.html">distribucion_valores()</a></code>, que antes
@@ -872,10 +877,15 @@ clase declarada</strong> y con variación: una columna que declara una clase pro
 —<code>Date</code>, <code>POSIXt</code>, <code>difftime</code>, <code>integer64</code>, <code>units</code>, <code>lubridate::Period</code> o
 cualquier otra— no participa, porque sumarla o dividirla no es la aritmética
 de un doble; el texto numérico y las columnas constantes tampoco. Las
-columnas que R declara numéricas y quedan fuera por su clase se declaran una
-por una en <code>cobertura_diagnosticos</code>, y <code>meta$aritmetica_columnas</code> publica las
-clases medidas en esta tabla. La ley de Benford sigue el mismo criterio y la
-misma declaración. Cada relación requiere al
+columnas que <strong>R declara numéricas</strong> —<code><a href="https://rdrr.io/r/base/numeric.html" class="external-link">is.numeric()</a></code> verdadero— y quedan
+fuera por su clase se declaran una por una en <code>cobertura_diagnosticos</code>:
+<code>integer64</code>, <code>units</code>, <code>lubridate::Period</code>, <code>haven_labelled</code>. Las de tiempo no
+entran en esa declaración porque R <strong>no</strong> las declara numéricas
+—<code>is.numeric(Sys.Date())</code> es <code>FALSE</code>— y porque no son magnitudes para estos
+diagnósticos: una fecha, una hora o una duración quedan fuera del mismo modo
+que una columna de texto, sin fila propia. <code>meta$aritmetica_columnas</code> publica
+las clases medidas en esta tabla. La ley de Benford sigue el mismo criterio y
+la misma declaración. Cada relación requiere al
 menos tres filas con valores finitos en todas las columnas involucradas;
 los <code>NA</code>, <code>NaN</code> e infinitos quedan fuera del universo que publica la
 evidencia. Para cada terna se prueban las tres orientaciones de una identidad

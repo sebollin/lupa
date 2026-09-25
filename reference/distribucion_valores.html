@@ -62,7 +62,8 @@ Los cuantiles se calculan sólo para números ordinarios finitos.</p>
 <span>  max_valores <span class="op">=</span> <span class="fl">20L</span>,</span>
 <span>  probabilidades <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">0</span>, <span class="fl">0.25</span>, <span class="fl">0.5</span>, <span class="fl">0.75</span>, <span class="fl">1</span><span class="op">)</span>,</span>
 <span>  muestra <span class="op">=</span> <span class="fl">1e+05</span>,</span>
-<span>  proteger_datos_personales <span class="op">=</span> <span class="cn">TRUE</span></span>
+<span>  proteger_datos_personales <span class="op">=</span> <span class="cn">TRUE</span>,</span>
+<span>  columnas_personales <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/character.html" class="external-link">character</a></span><span class="op">(</span><span class="op">)</span></span>
 <span><span class="op">)</span></span></code></pre></div>
     </div>
 
@@ -93,7 +94,20 @@ clasificación de posibles datos personales.</p></dd>
 
 <dt id="arg-proteger-datos-personales">proteger_datos_personales<a class="anchor" aria-label="anchor" href="#arg-proteger-datos-personales"></a></dt>
 <dd><p>Si se ocultan valores de columnas cuya
-clasificación activa protección automática. Véase <code><a href="perfilar.html">perfilar()</a></code>.</p></dd>
+clasificación activa protección automática. Véase <code><a href="perfilar.html">perfilar()</a></code>. Con
+<code>perfil</code>, se respeta la clasificación de ese perfil —incluido lo que su
+usuario declaró—; sin <code>perfil</code>, la clasificación se rehace aquí por léxico
+y por forma, y lo declarado entra por <code>columnas_personales</code>.</p></dd>
+
+
+<dt id="arg-columnas-personales">columnas_personales<a class="anchor" aria-label="anchor" href="#arg-columnas-personales"></a></dt>
+<dd><p>Columnas que traen datos personales, declaradas
+con la misma forma que acepta <code><a href="perfilar.html">perfilar()</a></code>: nombres de columna, o un vector
+con nombre donde el nombre es la columna y el valor es el tipo. <strong>Es el
+único camino cuando no se pasa <code>perfil</code></strong>: sin perfil, la clasificación
+corre por léxico y por forma, así que una columna que sólo quien la conoce
+sabe personal —una edad, un legajo interno— se publicaría entera. Sólo
+tiene efecto con <code>proteger_datos_personales = TRUE</code>.</p></dd>
 
 </dl></div>
     <div class="section level2">

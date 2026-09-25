@@ -231,7 +231,35 @@ estimado está ausente (<code>NA</code>).</p>
 <p>Las acciones destructivas nunca son recomendadas. Aunque el usuario
 las active en el plan, <code><a href="../reference/planificar_limpieza.html">aplicar()</a></code> exige además
 <code>permitir_eliminacion = TRUE</code>; lo retirado se conserva en
-<code>resultado$eliminados</code> salvo decisión contraria.</p>
+<code>resultado$eliminados</code> salvo decisión contraria. Sin ese
+consentimiento la llamada se niega <strong>antes de tocar nada</strong>:
+no corre ninguna acción del plan, tampoco las que no eliminan, y el
+error dice cuáles son los dos caminos.</p>
+<p><code>n_no_reversibles</code> no se lee por el nombre de la acción
+sino por lo que quedó en el resultado: una normalización que funde dos
+valores que eran distintos —pasar <code>ana</code> y <code>ANA</code> a
+<code>ANA</code>— cuenta esas celdas, porque lo que las separaba no
+quedó en ningún lado.</p>
+</div>
+<div class="section level2">
+<h2 id="lo-que-el-plan-no-cubre-lo-dice">Lo que el plan no cubre lo dice<a class="anchor" aria-label="anchor" href="#lo-que-el-plan-no-cubre-lo-dice"></a>
+</h2>
+<p>Leer tres acciones no significa que lo demás esté bien, así que el
+plan declara sus huecos en tres atributos:
+<code>cobertura_diagnosticos</code> —los diagnósticos que el perfil no
+pudo evaluar—, <code>hallazgos_sin_accion_por_columna_ambigua</code>
+—los hallazgos cuya columna comparte nombre con otra, así que no hay
+forma de saber sobre cuál actuaría la limpieza— y
+<code>hallazgos_sin_accion</code> —los hallazgos que el perfil midió y
+que ninguna acción atiende, con el motivo medido de cada uno—. La
+impresión del plan los anuncia y el informe HTML les da su propia
+sección.</p>
+<div class="sourceCode" id="cb7"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">sin_accion</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/attr.html" class="external-link">attr</a></span><span class="op">(</span><span class="va">plan</span>, <span class="st">"hallazgos_sin_accion"</span><span class="op">)</span></span>
+<span><span class="va">sin_accion</span><span class="op">[</span>, <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"hallazgo"</span>, <span class="st">"columna"</span>, <span class="st">"severidad"</span><span class="op">)</span><span class="op">]</span></span>
+<span><span class="co">#&gt;                  hallazgo          columna  severidad</span></span>
+<span><span class="co">#&gt; 1 tipo_declarado_distinto fecha_nacimiento sospechoso</span></span>
+<span><span class="co">#&gt; 2               faltantes             sexo sospechoso</span></span></code></pre></div>
 </div>
 <div class="section level2">
 <h2 id="imputar-por-una-dependencia">Imputar por una dependencia<a class="anchor" aria-label="anchor" href="#imputar-por-una-dependencia"></a>
@@ -241,7 +269,7 @@ propios datos, pero sigue siendo una regularidad observada en una
 entrega. Puede representar una regla real o un error sistemático. Por
 eso la acción se ofrece con mapa y soporte, pero no queda recomendada ni
 activa.</p>
-<div class="sourceCode" id="cb7"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb8"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">datos</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/data.frame.html" class="external-link">data.frame</a></span><span class="op">(</span></span>
 <span>  codigo <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/rep.html" class="external-link">rep</a></span><span class="op">(</span><span class="fl">1</span><span class="op">:</span><span class="fl">3</span>, each <span class="op">=</span> <span class="fl">4</span><span class="op">)</span>,</span>
 <span>  descripcion <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/rep.html" class="external-link">rep</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"A"</span>, <span class="st">"B"</span>, <span class="st">"C"</span><span class="op">)</span>, each <span class="op">=</span> <span class="fl">4</span><span class="op">)</span>,</span>
@@ -263,7 +291,7 @@ activa.</p>
 <p>Después de confirmar la regla, el usuario activa una alternativa y
 registra la decisión. La dependencia vuelve a validarse al aplicar el
 plan.</p>
-<div class="sourceCode" id="cb8"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb9"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">plan_fd</span><span class="op">$</span><span class="va">aplicar</span><span class="op">[</span><span class="va">imputacion</span><span class="op">[</span><span class="fl">1</span><span class="op">]</span><span class="op">]</span> <span class="op">&lt;-</span> <span class="cn">TRUE</span></span>
 <span><span class="va">plan_fd</span><span class="op">$</span><span class="va">decision_grupo</span><span class="op">[</span><span class="va">imputacion</span><span class="op">[</span><span class="fl">1</span><span class="op">]</span><span class="op">]</span> <span class="op">&lt;-</span> <span class="st">"elegida"</span></span>
 <span><span class="va">resultado_fd</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/planificar_limpieza.html">aplicar</a></span><span class="op">(</span><span class="va">plan_fd</span>, <span class="va">datos</span><span class="op">)</span></span>

@@ -321,9 +321,16 @@ perfilar(
   libre que los contuviera, o los estadísticos de orden de una columna
   clasificada con poder discriminante `debil`. El vocabulario corto no
   entra en el piso: `"S/D"` sigue publicándose donde describe a una
-  columna que no es personal. El piso alcanza además la **forma sin
-  separadores**: `"771.771-01"` es el mismo documento que `"77177101"`,
-  y la celda entera se enmascara. Y lo aplican también
+  columna que no es personal. El piso tiene **una excepción declarada**,
+  y es la única:
+  [`perfilar_por()`](https://sebollin.github.io/lupa/reference/perfilar_por.md)
+  agrupando *por* una columna personal publica sus valores como
+  etiquetas de grupo, porque la etiqueta es el eje del resultado y sin
+  ella los grupos no se distinguen. No ocurre en silencio —avisa al
+  ejecutar y lo declara en `etiquetas_personales`— y el remedio es
+  agrupar por una columna seudonimizada. El piso alcanza además la
+  **forma sin separadores**: `"771.771-01"` es el mismo documento que
+  `"77177101"`, y la celda entera se enmascara. Y lo aplican también
   [`analizar()`](https://sebollin.github.io/lupa/reference/analizar.md)
   y
   [`distribucion_valores()`](https://sebollin.github.io/lupa/reference/distribucion_valores.md),
@@ -873,15 +880,21 @@ clase declarada** y con variación: una columna que declara una clase
 propia —`Date`, `POSIXt`, `difftime`, `integer64`, `units`,
 `lubridate::Period` o cualquier otra— no participa, porque sumarla o
 dividirla no es la aritmética de un doble; el texto numérico y las
-columnas constantes tampoco. Las columnas que R declara numéricas y
+columnas constantes tampoco. Las columnas que **R declara numéricas**
+—[`is.numeric()`](https://rdrr.io/r/base/numeric.html) verdadero— y
 quedan fuera por su clase se declaran una por una en
-`cobertura_diagnosticos`, y `meta$aritmetica_columnas` publica las
-clases medidas en esta tabla. La ley de Benford sigue el mismo criterio
-y la misma declaración. Cada relación requiere al menos tres filas con
-valores finitos en todas las columnas involucradas; los `NA`, `NaN` e
-infinitos quedan fuera del universo que publica la evidencia. Para cada
-terna se prueban las tres orientaciones de una identidad aditiva; esto
-cubre sumas y sus restas equivalentes sin informar tres veces la misma
+`cobertura_diagnosticos`: `integer64`, `units`, `lubridate::Period`,
+`haven_labelled`. Las de tiempo no entran en esa declaración porque R
+**no** las declara numéricas —`is.numeric(Sys.Date())` es `FALSE`— y
+porque no son magnitudes para estos diagnósticos: una fecha, una hora o
+una duración quedan fuera del mismo modo que una columna de texto, sin
+fila propia. `meta$aritmetica_columnas` publica las clases medidas en
+esta tabla. La ley de Benford sigue el mismo criterio y la misma
+declaración. Cada relación requiere al menos tres filas con valores
+finitos en todas las columnas involucradas; los `NA`, `NaN` e infinitos
+quedan fuera del universo que publica la evidencia. Para cada terna se
+prueban las tres orientaciones de una identidad aditiva; esto cubre
+sumas y sus restas equivalentes sin informar tres veces la misma
 igualdad. En pares proporcionales, `k` es la mediana de los cocientes
 finitos cuya base no es cero, pero el cumplimiento se evalúa después
 también en las filas con base cero. Si una identidad aditiva ya
