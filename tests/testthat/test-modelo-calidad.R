@@ -641,7 +641,10 @@ test_that("los pesos con nombre se emparejan y no se leen por posicion", {
   sobrante <- stats::setNames(
     c(0.4, 0.4, 0.2), c(as.character(por_entidad$objeto_medible), "inventada")
   )
-  expect_error(ponderar(sobrante), "Sobran pesos para: inventada")
+  # El mensaje entrecomilla cada parte -una parte de nivel alto se llama
+  # `t1, t3` y una lista separada por comas nombraria dos-, asi que se exige el
+  # nombre dentro del mensaje, no el formato exacto.
+  expect_error(ponderar(sobrante), "Sobran pesos para: .*inventada")
   # Sin nombres, el mensaje de largo sigue siendo el que corresponde.
   expect_error(ponderar(c(0.5)), "una entrada en \\[0, 1\\] por medida")
   expect_error(

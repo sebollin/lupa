@@ -419,6 +419,23 @@
       .html_tabla(cobertura_metricas, Inf)
     )
   }
+  # Una regla que declara mas metricas de las que la medicion trae deja su hueco
+  # en `cobertura_reglas`. La consola lo avisa y lo imprime desde la vuelta
+  # anterior; el informe -que es el que se manda a otra persona- publicaba el
+  # `resultado` de la regla y nada mas, asi que el veredicto se leia como
+  # completo. Una declaracion vale en todas las salidas, no solo en la primera.
+  cobertura_reglas <- attr(x, "cobertura_reglas", exact = TRUE)
+  if (inherits(cobertura_reglas, "data.frame") && nrow(cobertura_reglas)) {
+    partes <- c(partes,
+      "<h3>Cobertura de las reglas</h3>",
+      paste0(
+        "<p class=\"nota\">Estas m\u00e9tricas est\u00e1n declaradas por una regla y ",
+        "esta medici\u00f3n no trae ninguna medida de ellas: el veredicto de esa ",
+        "regla cubre menos de lo que la regla dice.</p>"
+      ),
+      .html_tabla(cobertura_reglas, Inf)
+    )
+  }
   cobertura_coleccion <- .cobertura_coleccion_de(x)
   if (!is.null(cobertura_coleccion)) {
     resumen <- data.frame(

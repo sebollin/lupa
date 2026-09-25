@@ -886,6 +886,14 @@ print.medicion <- function(x, ...) {
     x, .desenlaces_de_objeto(x)
   )
   .print_data_frame_bytes(visible, ...)
+  # La medicion agregada a `coleccion` LLEVA la cobertura de esa coleccion como
+  # atributo y esta impresion la tiraba: sobre tres tablas declaradas con una que
+  # no se pudo leer, la fila publica `entidad = tres_tablas`, `resultado = 0.625`
+  # -el promedio de dos- y `advertencia_agregacion = NA`, sin nada que diga que
+  # falta una. Es la tercera capa con la misma pregunta: el indice ya la imprimia
+  # y el tablero se arreglo en su vuelta; esta quedaba muda, y es la que se mira
+  # primero despues de agregar.
+  .imprimir_cobertura_coleccion(.cobertura_coleccion_de(x))
   invisible(x)
 }
 

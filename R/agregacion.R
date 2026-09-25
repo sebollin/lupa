@@ -806,17 +806,52 @@ agregar <- function(medidas, destino,
           "posici\u00f3n.", call. = FALSE
         )
       }
+      # Se acepta cualquiera de las DOS identidades que la medida publica: el
+      # `objeto_medible` -que en los niveles altos es la lista de partes unida
+      # con coma, una construccion interna- y la `entidad`, que es el nombre que
+      # el usuario DECLARO al armar la frontera. Medido al agregar dos
+      # colecciones a una organizacion: los pesos escritos `c(padron_a = 0.5,
+      # padron_b = 0.5)` -los mismos nombres que `organizacion(colecciones =)`
+      # exige- se rechazaban, y habia que escribir `c("t1, t3" = 0.5, ...)`, que
+      # nadie declaro en ningun lado. La frontera y sus pesos tienen que hablar
+      # el mismo idioma.
       partes_medidas <- as.character(medidas$objeto_medible)
-      faltan <- .identificadores_setdiff(partes_medidas, names(pesos))
-      sobran <- .identificadores_setdiff(names(pesos), partes_medidas)
+      entidades_medidas <- if ("entidad" %in% names(medidas)) {
+        as.character(medidas$entidad)
+      } else {
+        rep(NA_character_, length(partes_medidas))
+      }
+      por_objeto <- !length(.identificadores_setdiff(partes_medidas, names(pesos)))
+      partes_elegidas <- if (!por_objeto &&
+                             !anyNA(entidades_medidas) &&
+                             !length(.identificadores_setdiff(
+                               entidades_medidas, names(pesos)
+                             ))) {
+        entidades_medidas
+      } else {
+        partes_medidas
+      }
+      faltan <- .identificadores_setdiff(partes_elegidas, names(pesos))
+      sobran <- .identificadores_setdiff(names(pesos), partes_elegidas)
       if (length(faltan) || length(sobran)) {
+        # Los nombres se entrecomillan: en los niveles altos una parte se llama
+        # `t1, t3`, y una lista separada por comas de nombres que llevan comas
+        # nombra cuatro cosas donde hay dos.
+        entre_comillas <- function(x) paste0("`", x, "`", collapse = ", ")
         stop(
           if (length(faltan)) {
-            paste0("Faltan pesos para: ", paste(faltan, collapse = ", "), ".")
+            paste0("Faltan pesos para: ", entre_comillas(faltan), ".")
           } else "",
           if (length(faltan) && length(sobran)) " " else "",
           if (length(sobran)) {
-            paste0("Sobran pesos para: ", paste(sobran, collapse = ", "), ".")
+            paste0("Sobran pesos para: ", entre_comillas(sobran), ".")
+          } else "",
+          if (!anyNA(entidades_medidas) &&
+              length(.identificadores_setdiff(entidades_medidas, partes_medidas))) {
+            paste0(
+              " Se aceptan los nombres de ", entre_comillas(partes_medidas),
+              " o los de ", entre_comillas(entidades_medidas), "."
+            )
           } else "",
           call. = FALSE
         )
@@ -827,7 +862,7 @@ agregar <- function(medidas, destino,
              paste(unique(names(pesos)[duplicated(claves_pesos)]),
                    collapse = ", "), ".", call. = FALSE)
       }
-      pesos <- unname(pesos[.indice_identificador(partes_medidas, names(pesos))])
+      pesos <- unname(pesos[.indice_identificador(partes_elegidas, names(pesos))])
     }
     if (!is.numeric(pesos) || length(pesos) != nrow(medidas) || anyNA(pesos) ||
         any(!is.finite(pesos)) || any(pesos < 0 | pesos > 1)) {
