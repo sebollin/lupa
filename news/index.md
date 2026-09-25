@@ -2,6 +2,21 @@
 
 ## lupa 0.1.0
 
+### La metrica dice cuantas midio de cuantas
+
+- Una metrica por celda mide **solo** las celdas con valor: sobre cuatro
+  celdas con una ausente publica tres medidas, el agregado se calcula
+  sobre esas tres y nada decia cuantas quedaron afuera. El extremo
+  estaba cubierto -sin ningun valor, la metrica va a
+  `cobertura_metricas` con `sin_valores`- y el caso parcial pasaba en
+  silencio: el tablero publicaba `valor = 0.667` con
+  `universo = "celdas"`, que no se distingue de un 0.667 sobre las
+  cuatro. Ahora la medicion publica `alcance_medidas` -cuantas midio, de
+  cuantas y en que unidad-, viaja al tablero y se declara en las tres
+  salidas: la impresion de la medicion, la del tablero y el informe
+  HTML. Los dos estados siguen separados, porque son afirmaciones
+  distintas: «no se pudo medir» y «se midio una parte».
+
 ### La frontera y sus pesos hablan el mismo idioma, y el informe publica el hueco
 
 - La medicion agregada a `coleccion` **lleva** la cobertura de esa
