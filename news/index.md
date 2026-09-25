@@ -2,6 +2,33 @@
 
 ## lupa 0.1.0
 
+### La frontera y sus pesos hablan el mismo idioma, y el informe publica el hueco
+
+- La medicion agregada a `coleccion` **lleva** la cobertura de esa
+  coleccion como atributo y su impresion la tiraba: sobre tres tablas
+  declaradas con una que no se pudo leer, la fila publica
+  `entidad = tres_tablas` y el promedio de **dos**, con
+  `advertencia_agregacion = NA`. El indice ya imprimia esa cobertura y
+  el tablero se arreglo en su vuelta; esta era la tercera capa con la
+  misma pregunta, y la primera que se mira despues de agregar.
+
+- Los pesos de `promedio_ponderado` se emparejaban solo contra
+  `objeto_medible`, que en los niveles altos es la lista de partes unida
+  con coma -una construccion interna-. Asi que al agregar dos
+  colecciones a una organizacion, los pesos escritos
+  `c(padron_a = 0.5, padron_b = 0.5)` -los mismos nombres que
+  `organizacion(colecciones = )` exige- se rechazaban, y habia que
+  escribir `c("t1, t3" = 0.5, ...)`, que nadie declaro en ningun lado.
+  Ahora se acepta cualquiera de las dos identidades, y el error
+  entrecomilla cada parte: dos partes llamadas `t1, t3` y `u1, u2` se
+  leian como cuatro nombres separados por coma.
+
+- El informe HTML publica ahora `cobertura_reglas`: una regla que
+  declara una metrica que la medicion no trae dejaba su hueco en el
+  objeto y en la consola -desde la vuelta anterior- mientras el
+  documento que se manda a otra persona publicaba `resultado = 0.9` y
+  nada mas. El veredicto se leia como completo.
+
 ### `perfilar()` no aborta sobre una columna con marca en el minimo declarado
 
 - `.diagnosticar_texto()` deduplicaba los ejemplos de espacios sobrantes
