@@ -894,6 +894,27 @@ print.medicion <- function(x, ...) {
   # y el tablero se arreglo en su vuelta; esta quedaba muda, y es la que se mira
   # primero despues de agregar.
   .imprimir_cobertura_coleccion(.cobertura_coleccion_de(x))
+  # Una metrica por celda que midio menos celdas de las que hay en el universo
+  # aplicable lo declara en `alcance_medidas`, y esta impresion es donde se lee
+  # el numero: el promedio de tres celdas de cuatro no se distingue del de cuatro
+  # sin este renglon.
+  alcance_medidas <- attr(x, "alcance_medidas", exact = TRUE)
+  if (inherits(alcance_medidas, "data.frame") && nrow(alcance_medidas)) {
+    cli::cli_alert_warning(.cli_literal(paste0(
+      nrow(alcance_medidas),
+      if (nrow(alcance_medidas) == 1L) {
+        " m\u00e9trica midi\u00f3 menos de lo que hay en su universo aplicable"
+      } else {
+        " m\u00e9tricas midieron menos de lo que hay en su universo aplicable"
+      },
+      ": ",
+      paste(paste0(
+        alcance_medidas$metrica_instanciada, " ", alcance_medidas$medidas,
+        " de ", alcance_medidas$en_el_universo, " ", alcance_medidas$unidad, "s"
+      ), collapse = "; "),
+      ". El detalle esta en `attr(medicion, \"alcance_medidas\")`."
+    )))
+  }
   invisible(x)
 }
 

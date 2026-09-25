@@ -1321,6 +1321,55 @@ metricas_nucleo <- function() {
   )
 }
 
+# Una metrica por celda o por fila mide SOLO las celdas con valor: una columna
+# con un ausente publica una medida menos, el promedio se calcula sobre las que
+# midio y nada dice cuantas quedaron afuera. El extremo si esta cubierto -si no
+# hay ningun valor, la metrica va a `cobertura_metricas` con `sin_valores`-, y el
+# caso parcial pasaba en silencio. Medido: `Formato` sobre cuatro celdas con una
+# ausente publica tres medidas y `cobertura_metricas` vacio; el tablero publica
+# el promedio de tres con `universo = "celdas"`.
+#
+# Se declara en un atributo -no en una columna nueva ni en `cobertura_metricas`-
+# porque las dos cosas tienen consumidores que leen "no se pudo medir" donde esto
+# dice "se midio una parte", y son afirmaciones distintas.
+.alcance_medidas_instancia <- function(tablas_instancia, instancia, n_medidas) {
+  granularidad <- as.character(instancia$declaracion$granularidad)[1L]
+  if (!granularidad %in% c("instanciaAtributo", "instanciaEntidad")) {
+    return(NULL)
+  }
+  tabla <- tablas_instancia[[instancia$entidad]]
+  if (!inherits(tabla, "data.frame")) return(NULL)
+  atributos <- instancia$atributos
+  esperadas <- if (identical(granularidad, "instanciaAtributo")) {
+    if (!length(atributos)) return(NULL)
+    nrow(tabla) * length(atributos)
+  } else {
+    nrow(tabla)
+  }
+  if (!is.finite(esperadas) || esperadas <= 0 || n_medidas >= esperadas) {
+    return(NULL)
+  }
+  data.frame(
+    metrica_instanciada = instancia$nombre,
+    entidad = instancia$entidad,
+    atributo = if (length(atributos)) {
+      paste(atributos, collapse = ", ")
+    } else NA_character_,
+    unidad = if (identical(granularidad, "instanciaAtributo")) {
+      "celda"
+    } else "fila",
+    en_el_universo = as.numeric(esperadas),
+    medidas = as.numeric(n_medidas),
+    motivo = paste0(
+      "La m\u00e9trica midi\u00f3 ", n_medidas, " de ", esperadas,
+      " en el universo aplicable: las que no tienen valor no producen medida y ",
+      "no cuentan como incumplimiento. El agregado se calcula sobre las medidas ",
+      "publicadas."
+    ),
+    stringsAsFactors = FALSE
+  )
+}
+
 # Resuelve el universo aplicable de cada tabla una sola vez, para no repetir el
 # trabajo por cada metrica que toque la misma columna.
 .mascaras_aplicabilidad_medicion <- function(tablas, aplicabilidad) {
@@ -1437,7 +1486,13 @@ metricas_nucleo <- function() {
 #'   que trabajan con un vocabulario o un alcance parcial agregan un atributo
 #'   `alcance_metricas` con sus conteos y límites. Si una métrica no puede
 #'   medirse por falta de valores en su universo, no crea filas ni ceros: deja
-#'   el motivo en el atributo `cobertura_metricas`. También conserva
+#'   el motivo en el atributo `cobertura_metricas`. Y cuando **sí** pudo medirse
+#'   pero sobre **menos** elementos de los que hay en su universo aplicable —una
+#'   métrica por celda no mide la celda vacía, que no produce medida ni cuenta
+#'   como incumplimiento—, el atributo `alcance_medidas` publica cuántos midió de
+#'   cuántos, con su unidad: sin ese número, el agregado de tres celdas de cuatro
+#'   no se distingue del de cuatro. Viaja al tablero, se imprime con la medición y
+#'   se publica en el informe. También conserva
 #'   `configuracion_modelo` y `configuracion_aplicabilidad`, descripciones de la
 #'   política usada para que una deriva posterior pueda distinguir modelo de
 #'   datos. Si el modelo declara un marco, la medición conserva tambien
@@ -1498,6 +1553,7 @@ medir <- function(modelo, datos, id_medicion = NULL, fecha = Sys.time(),
   # resolvedor que usa `perfilar()`. Sin declaracion no cambia nada.
   aplicables <- .mascaras_aplicabilidad_medicion(tablas, aplicabilidad)
   coberturas <- list()
+  alcances_medidas <- list()
   partes <- lapply(modelo$metricas, function(instancia) {
     tablas_instancia <- .recortar_tablas_aplicables(
       tablas, aplicables, instancia
@@ -1517,6 +1573,12 @@ medir <- function(modelo, datos, id_medicion = NULL, fecha = Sys.time(),
       )
     }
     n <- nrow(salida)
+    if (n) {
+      parcial <- .alcance_medidas_instancia(tablas_instancia, instancia, n)
+      if (!is.null(parcial)) {
+        alcances_medidas[[length(alcances_medidas) + 1L]] <<- parcial
+      }
+    }
     list(
       salida = data.frame(
       id_medicion = rep(id_medicion, n),
@@ -1565,6 +1627,11 @@ medir <- function(modelo, datos, id_medicion = NULL, fecha = Sys.time(),
   }
   if (length(coberturas)) {
     attr(resultado, "cobertura_metricas") <- do.call(rbind, coberturas)
+  }
+  if (length(alcances_medidas)) {
+    alcance_parcial <- do.call(rbind, alcances_medidas)
+    rownames(alcance_parcial) <- NULL
+    attr(resultado, "alcance_medidas") <- alcance_parcial
   }
   # Igual que en `perfilar()`: la fecha por omision es la hora de la corrida, y
   # dos mediciones de la misma sesion no son una serie. Se registra si la

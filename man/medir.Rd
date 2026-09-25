@@ -70,7 +70,13 @@ alto expresa defecto o si esa lectura no aplica. Algunas métricas
 que trabajan con un vocabulario o un alcance parcial agregan un atributo
 \code{alcance_metricas} con sus conteos y límites. Si una métrica no puede
 medirse por falta de valores en su universo, no crea filas ni ceros: deja
-el motivo en el atributo \code{cobertura_metricas}. También conserva
+el motivo en el atributo \code{cobertura_metricas}. Y cuando \strong{sí} pudo medirse
+pero sobre \strong{menos} elementos de los que hay en su universo aplicable —una
+métrica por celda no mide la celda vacía, que no produce medida ni cuenta
+como incumplimiento—, el atributo \code{alcance_medidas} publica cuántos midió de
+cuántos, con su unidad: sin ese número, el agregado de tres celdas de cuatro
+no se distingue del de cuatro. Viaja al tablero, se imprime con la medición y
+se publica en el informe. También conserva
 \code{configuracion_modelo} y \code{configuracion_aplicabilidad}, descripciones de la
 política usada para que una deriva posterior pueda distinguir modelo de
 datos. Si el modelo declara un marco, la medición conserva tambien

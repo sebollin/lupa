@@ -424,6 +424,19 @@
   # anterior; el informe -que es el que se manda a otra persona- publicaba el
   # `resultado` de la regla y nada mas, asi que el veredicto se leia como
   # completo. Una declaracion vale en todas las salidas, no solo en la primera.
+  alcance_medidas <- attr(x, "alcance_medidas", exact = TRUE)
+  if (inherits(alcance_medidas, "data.frame") && nrow(alcance_medidas)) {
+    partes <- c(partes,
+      "<h3>Alcance de las medidas</h3>",
+      paste0(
+        "<p class=\"nota\">Estas m\u00e9tricas midieron menos elementos de los ",
+        "que hay en su universo aplicable: lo que no tiene valor no produce ",
+        "medida y no cuenta como incumplimiento. El agregado se calcula sobre ",
+        "las medidas publicadas.</p>"
+      ),
+      .html_tabla(alcance_medidas, Inf)
+    )
+  }
   cobertura_reglas <- attr(x, "cobertura_reglas", exact = TRUE)
   if (inherits(cobertura_reglas, "data.frame") && nrow(cobertura_reglas)) {
     partes <- c(partes,

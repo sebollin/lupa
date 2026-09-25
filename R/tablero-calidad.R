@@ -468,6 +468,7 @@
 .preparar_tablero <- function(medidas, agregaciones = NULL, umbrales = NULL,
                               marco = NULL, cobertura = NULL) {
   cobertura_metricas <- attr(medidas, "cobertura_metricas", exact = TRUE)
+  alcance_medidas <- attr(medidas, "alcance_medidas", exact = TRUE)
   desenlaces <- .desenlaces_de_objeto(medidas)
   medidas <- .validar_medidas_tablero(medidas)
   ya_agregadas <- all(!is.na(medidas$agregacion)) &&
@@ -525,12 +526,21 @@
       nrow(cobertura_metricas)) {
     attr(tablero, "cobertura_metricas") <- cobertura_metricas
   }
+  # El alcance parcial de una metrica -midio 3 de 4 celdas- viaja al tablero,
+  # que es donde el numero se publica: `valor = 0.667` con `universo = celdas` no
+  # se distingue de un 0.667 sobre las cuatro.
+  if (inherits(alcance_medidas, "data.frame") && nrow(alcance_medidas)) {
+    attr(tablero, "alcance_medidas") <- alcance_medidas
+  }
   tablero <- .proteger_tablero_desenlaces(tablero, desenlaces)
   attr(agregada, "cobertura_tablero") <- cobertura_tablero
   attr(agregada, "marco_calidad") <- marco_elegido
   if (inherits(cobertura_metricas, "data.frame") &&
       nrow(cobertura_metricas)) {
     attr(agregada, "cobertura_metricas") <- cobertura_metricas
+  }
+  if (inherits(alcance_medidas, "data.frame") && nrow(alcance_medidas)) {
+    attr(agregada, "alcance_medidas") <- alcance_medidas
   }
   list(tablero = tablero, medicion = agregada)
 }
@@ -703,6 +713,11 @@ print.tablero_calidad <- function(x, ...) {
       nrow(cobertura_metricas)) {
     cli::cli_h2("Cobertura de m\u00e9tricas")
     .print_data_frame_bytes(cobertura_metricas, row.names = FALSE)
+  }
+  alcance_medidas <- attr(x, "alcance_medidas", exact = TRUE)
+  if (inherits(alcance_medidas, "data.frame") && nrow(alcance_medidas)) {
+    cli::cli_h2("Alcance de las medidas")
+    .print_data_frame_bytes(alcance_medidas, row.names = FALSE)
   }
   # El tablero LLEVA la cobertura de la coleccion como atributo y su impresion la
   # tiraba: quien lo mira en pantalla no veia que el numero se calculo sobre una
