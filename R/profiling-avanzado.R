@@ -203,7 +203,17 @@
 #' @param probabilidades Probabilidades de los cuantiles, en `[0, 1]`.
 #' @param muestra Máximo de filas por columna; `Inf` desactiva el muestreo.
 #' @param proteger_datos_personales Si se ocultan valores de columnas cuya
-#'   clasificación activa protección automática. Véase [perfilar()].
+#'   clasificación activa protección automática. Véase [perfilar()]. Con
+#'   `perfil`, se respeta la clasificación de ese perfil —incluido lo que su
+#'   usuario declaró—; sin `perfil`, la clasificación se rehace aquí por léxico
+#'   y por forma, y lo declarado entra por `columnas_personales`.
+#' @param columnas_personales Columnas que traen datos personales, declaradas
+#'   con la misma forma que acepta [perfilar()]: nombres de columna, o un vector
+#'   con nombre donde el nombre es la columna y el valor es el tipo. **Es el
+#'   único camino cuando no se pasa `perfil`**: sin perfil, la clasificación
+#'   corre por léxico y por forma, así que una columna que sólo quien la conoce
+#'   sabe personal —una edad, un legajo interno— se publicaría entera. Sólo
+#'   tiene efecto con `proteger_datos_personales = TRUE`.
 #'
 #' @return Objeto `distribuciones_perfil`, una lista con data frames
 #'   `frecuencias`, `cuantiles` y `alcance`. Todas las proporciones están en
@@ -217,7 +227,8 @@
 distribucion_valores <- function(datos, perfil = NULL, max_valores = 20L,
                                  probabilidades = c(0, 0.25, 0.5, 0.75, 1),
                                  muestra = 1e5,
-                                 proteger_datos_personales = TRUE) {
+                                 proteger_datos_personales = TRUE,
+                                 columnas_personales = character()) {
   .validar_datos_tabla(datos)
   .validar_perfil_de(perfil, datos)
   datos <- .tabla_base(datos)
@@ -235,8 +246,18 @@ distribucion_valores <- function(datos, perfil = NULL, max_valores = 20L,
       is.na(proteger_datos_personales)) {
     stop("`proteger_datos_personales` debe ser TRUE o FALSE.", call. = FALSE)
   }
+  # La declaracion del usuario tiene que poder entrar por ESTA puerta tambien.
+  # Sin perfil, la clasificacion corre por lexico y por forma: una columna que
+  # solo el usuario sabe personal -`edad`, un legajo interno- se publicaba
+  # entera, con sus veinte valores mas frecuentes y su maximo exacto, aunque
+  # `perfilar(columnas_personales = ...)` la enmascare. `medir()` ya aceptaba la
+  # declaracion; esta no, y el usuario no tenia como declararla.
+  columnas_personales <- .normalizar_columnas_personales(
+    columnas_personales, names(datos)
+  )
   personales <- if (proteger_datos_personales) {
-    .columnas_personales_rapidas(datos, perfil)
+    .columnas_personales_rapidas(datos, perfil,
+                                 declaradas = columnas_personales)
   } else character()
   frecuencias <- list()
   cuantiles <- list()

@@ -254,7 +254,12 @@ documentos de la protegida con sólo repetirlos: una copia con nombre
 neutro, un texto libre que los contuviera, o los estadísticos de orden de
 una columna clasificada con poder discriminante \code{debil}. El vocabulario
 corto no entra en el piso: \code{"S/D"} sigue publicándose donde describe a una
-columna que no es personal.
+columna que no es personal. El piso tiene \strong{una excepción declarada}, y es
+la única: \code{\link[=perfilar_por]{perfilar_por()}} agrupando \emph{por} una columna personal publica sus
+valores como etiquetas de grupo, porque la etiqueta es el eje del
+resultado y sin ella los grupos no se distinguen. No ocurre en silencio
+—avisa al ejecutar y lo declara en \code{etiquetas_personales}— y el remedio es
+agrupar por una columna seudonimizada.
 El piso alcanza además la \strong{forma sin separadores}: \code{"771.771-01"} es el
 mismo documento que \code{"77177101"}, y la celda entera se enmascara. Y lo
 aplican también \code{\link[=analizar]{analizar()}} y \code{\link[=distribucion_valores]{distribucion_valores()}}, que antes
@@ -735,10 +740,15 @@ clase declarada} y con variación: una columna que declara una clase propia
 —\code{Date}, \code{POSIXt}, \code{difftime}, \code{integer64}, \code{units}, \code{lubridate::Period} o
 cualquier otra— no participa, porque sumarla o dividirla no es la aritmética
 de un doble; el texto numérico y las columnas constantes tampoco. Las
-columnas que R declara numéricas y quedan fuera por su clase se declaran una
-por una en \code{cobertura_diagnosticos}, y \code{meta$aritmetica_columnas} publica las
-clases medidas en esta tabla. La ley de Benford sigue el mismo criterio y la
-misma declaración. Cada relación requiere al
+columnas que \strong{R declara numéricas} —\code{is.numeric()} verdadero— y quedan
+fuera por su clase se declaran una por una en \code{cobertura_diagnosticos}:
+\code{integer64}, \code{units}, \code{lubridate::Period}, \code{haven_labelled}. Las de tiempo no
+entran en esa declaración porque R \strong{no} las declara numéricas
+—\code{is.numeric(Sys.Date())} es \code{FALSE}— y porque no son magnitudes para estos
+diagnósticos: una fecha, una hora o una duración quedan fuera del mismo modo
+que una columna de texto, sin fila propia. \code{meta$aritmetica_columnas} publica
+las clases medidas en esta tabla. La ley de Benford sigue el mismo criterio y
+la misma declaración. Cada relación requiere al
 menos tres filas con valores finitos en todas las columnas involucradas;
 los \code{NA}, \code{NaN} e infinitos quedan fuera del universo que publica la
 evidencia. Para cada terna se prueban las tres orientaciones de una identidad

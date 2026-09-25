@@ -204,7 +204,17 @@
 #'   los niveles ausentes de factores y metadatos se verifican sobre toda la
 #'   columna.
 #' @param proteger_datos_personales Si se ocultan niveles concretos de columnas
-#'   cuya clasificación activa protección automática. Véase [perfilar()].
+#'   cuya clasificación activa protección automática. Véase [perfilar()]. Con
+#'   `perfil`, se respeta la clasificación de ese perfil; sin `perfil`, se
+#'   rehace aquí por léxico y por forma, y lo declarado entra por
+#'   `columnas_personales`.
+#' @param columnas_personales Columnas que traen datos personales, declaradas
+#'   con la misma forma que acepta [perfilar()]: nombres de columna, o un vector
+#'   con nombre donde el nombre es la columna y el valor es el tipo. **Es el
+#'   único camino cuando no se pasa `perfil`**: sin perfil, la clasificación
+#'   corre por léxico y por forma, así que una columna que sólo quien la conoce
+#'   sabe personal —una edad, un legajo interno— se publicaría entera. Sólo
+#'   tiene efecto con `proteger_datos_personales = TRUE`.
 #'
 #' @return Data frame S3 `clasificacion_variables`, editable y filtrable.
 #' @export
@@ -219,7 +229,8 @@
 clasificar_variables <- function(datos, perfil = NULL, metadatos = NULL,
                                   max_niveles = 100L,
                                   muestra = 1e5,
-                                  proteger_datos_personales = TRUE) {
+                                  proteger_datos_personales = TRUE,
+                                  columnas_personales = character()) {
   .validar_datos_tabla(datos)
   .validar_perfil_de(perfil, datos)
   datos <- .tabla_base(datos)
@@ -233,8 +244,15 @@ clasificar_variables <- function(datos, perfil = NULL, metadatos = NULL,
   }
   metadatos <- .normalizar_metadatos_variables(metadatos, names(datos))
   nombres_metadatos <- .nombres_para_operar(metadatos$columna)
+  # Igual que en `distribucion_valores()`: sin perfil, la declaracion del
+  # usuario es el unico camino para proteger una columna que el lexico no
+  # reconoce, y esta puerta no la aceptaba.
+  columnas_personales <- .normalizar_columnas_personales(
+    columnas_personales, names(datos)
+  )
   personales <- if (proteger_datos_personales) {
-    .columnas_personales_rapidas(datos, perfil)
+    .columnas_personales_rapidas(datos, perfil,
+                                 declaradas = columnas_personales)
   } else character()
   filas <- vector("list", ncol(datos))
   niveles_declarados <- niveles_observados <- niveles_ausentes <-

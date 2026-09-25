@@ -1,5 +1,57 @@
 # lupa 0.1.0
 
+## Lo que el perfil concluye, y quien puede declarar un dato personal
+
+- Un entero escrito como **texto** por encima de 2^53 publicaba el redondeo como
+  si fuera el dato: sobre `9007199254740993/4/5` -tres impares- el resumen decia
+  `minimo = 9007199254740992` y `maximo = 9007199254740996`, dos valores que
+  ninguna fila contiene, con `estado_resumen_cuantitativo = "calculados"`. La
+  misma columna guardada como `integer64` recibia la respuesta correcta desde el
+  primer dia -medidas en `NA`, extremos exactos y `omitidos_precision`-: un dato,
+  dos caminos, dos respuestas. Ahora el camino del texto da la misma que el del
+  entero, y las comparaciones se hacen por longitud y en orden de bytes, no con
+  el `<` del locale.
+
+- `n_valores_excluidos_resumen` promete contar todo valor presente que no
+  sostiene el resumen y que, siempre que ese total sea mayor que cero, el perfil
+  agregue una fila `resumen_cuantitativo` a la cobertura. La fila se decidia por
+  una **lista de dos estados** -los del resumen parcial-, asi que el resumen que
+  no se pudo calcular quedaba sin declarar: tres fechas ambiguas publicaban 3
+  excluidos con la cobertura vacia. Ahora manda el numero, como dice la promesa,
+  y el motivo distingue "no se pudo calcular" de "se calculo sobre N".
+
+- Una columna de periodos mensuales publicaba `NA` en ese campo mientras contaba
+  tres en `n_fechas_excluidas_granularidad`. Y una columna con tres fechas de dia
+  ambiguas mas un periodo de mes publicaba `granularidad_incompleta`, un estado
+  que la documentacion define para columnas expresadas **solo** como mes y anio:
+  culpaba a la granularidad de un bloqueo que era de la ambiguedad dia/mes. Las
+  dos cosas quedan medidas y nombradas.
+
+- `columnas_personales` es el mecanismo que el paquete ofrece para declarar
+  personal una columna que su lexico no reconoce -una edad, un legajo interno-.
+  `medir()` ya lo aceptaba; `distribucion_valores()`, `clasificar_variables()` y
+  `detectar_discordancias()` no, y sin perfil la clasificacion corre solo por
+  lexico y por forma: `distribucion_valores(datos)` publicaba los veinte valores
+  mas frecuentes y el maximo exacto de una columna que
+  `perfilar(columnas_personales = ...)` enmascara. Las tres puertas aceptan
+  ahora la declaracion, y sus paginas dicen que sin perfil ni declaracion la
+  proteccion alcanza solo a lo que la forma delata.
+
+- La pagina de `perfilar()` describia un piso absoluto -"no se publica en ninguna
+  parte"- y `perfilar_por()` publica las etiquetas de grupo cuando se agrupa por
+  una columna personal, con aviso y con su atributo. Era la unica excepcion y no
+  estaba nombrada ahi: ahora si.
+
+- La misma pagina enumeraba `Date`, `POSIXt` y `difftime` junto a `integer64`,
+  `units` y `Period` y prometia en la misma oracion una fila de cobertura para
+  "las columnas que R declara numericas". `is.numeric()` es FALSE para las tres
+  primeras, asi que no la reciben -y no corresponde que la reciban: no son
+  magnitudes para Benford, igual que una columna de texto-. El texto lo dice
+  ahora sin que el lector tenga que probar `is.numeric(Sys.Date())`.
+
+- La vinieta del plan de limpieza declara los tres huecos del plan y como se
+  cuenta `n_no_reversibles`.
+
 ## La perdida se mide en la puerta comun
 
 - `n_no_reversibles` promete contar las celdas cuyo valor se perdio, y la

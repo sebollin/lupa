@@ -3991,11 +3991,18 @@
     } else {
       0
     }
+    # La fila se decidia por una LISTA de estados, y la promesa esta escrita
+    # sobre el NUMERO: "siempre que ese total sea mayor que cero, el perfil
+    # agrega una fila `resumen_cuantitativo`". Medido: tres fechas ambiguas
+    # publicaban `n_valores_excluidos_resumen = 3` con estado `sin_valores` y la
+    # cobertura vacia, y una columna de periodos mensuales hacia lo mismo. Los
+    # dos estados que la lista nombraba son los del resumen PARCIAL; el del
+    # resumen que no se pudo calcular quedaba afuera, que es justo donde el
+    # silencio se lee como conformidad.
     estado_parcial <- fila$estado_resumen_cuantitativo[[1L]] %in% c(
       "calculados_sobre_dias", "calculados_sobre_valores"
     )
-    if (isTRUE(estado_parcial) && is.finite(n_excluidas_resumen) &&
-        n_excluidas_resumen > 0) {
+    if (is.finite(n_excluidas_resumen) && n_excluidas_resumen > 0) {
       analizados <- attr(resultado$formatos, "analizados", exact = TRUE)
       total <- attr(resultado$formatos, "total", exact = TRUE)
       if (is.null(analizados) || !length(analizados) ||
@@ -4037,11 +4044,22 @@
       } else {
         .formatear_numero_publicado(resumidas)
       }
+      # Cuando no se calculo nada, decir "se calculo sobre 0 valores" describe
+      # mal lo que paso: no hubo resumen, y eso es lo que hay que declarar.
+      encabezado <- if (!isTRUE(estado_parcial) ||
+                        (length(resumidas) == 1L && !is.na(resumidas) &&
+                         resumidas == 0)) {
+        "El resumen cuantitativo no se pudo calcular y dejo afuera "
+      } else {
+        paste0(
+          "El resumen cuantitativo se calculo sobre ", resumidas_texto,
+          " valores y dejo afuera "
+        )
+      }
       agregar_cobertura(
         "resumen_cuantitativo", nombre,
         paste0(
-          "El resumen cuantitativo se calculo sobre ", resumidas_texto,
-          " valores y dejo afuera ",
+          encabezado,
           .formatear_numero_publicado(n_excluidas_resumen),
           # "que no pudo convertir" era cierto cuando lo unico que quedaba
           # afuera era texto ilegible. Desde que los presentes no finitos se

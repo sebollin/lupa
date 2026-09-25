@@ -165,7 +165,15 @@ print.senal_redundante <- function(x, ...) {
 #' @param max_ejemplos Máximo de filas concretas que se citan como evidencia.
 #' @param proteger_datos_personales Si los valores de las columnas clasificadas
 #'   como dato personal se enmascaran en `evidencia`. `TRUE` por omisión; el
-#'   número de fila y el nombre de la columna se conservan igual.
+#'   número de fila y el nombre de la columna se conservan igual. La
+#'   clasificación se hace aquí por léxico y por forma —esta función no recibe un
+#'   perfil—, así que lo que sólo quien conoce los datos sabe personal entra por
+#'   `columnas_personales`.
+#' @param columnas_personales Columnas que traen datos personales, declaradas
+#'   con la misma forma que acepta [perfilar()]: nombres de columna, o un vector
+#'   con nombre donde el nombre es la columna y el valor es el tipo. Sin ella, una columna que el léxico no reconoce
+#'   —un legajo interno— publica sus valores en `evidencia`. Sólo
+#'   tiene efecto con `proteger_datos_personales = TRUE`.
 #'
 #' @return Data frame con una fila por señal: `senal`, `columnas`, `n_filas`,
 #'   `n_evaluadas`, `n_discordantes`, `proporcion`, `ventana` y `evidencia`.
@@ -187,9 +195,13 @@ print.senal_redundante <- function(x, ...) {
 #' )
 #' detectar_discordancias(d, senal_redundante(c("anio_fiscal", "anio_archivo")))
 detectar_discordancias <- function(datos, senales, max_ejemplos = 5L,
-                                   proteger_datos_personales = TRUE) {
+                                   proteger_datos_personales = TRUE,
+                                   columnas_personales = character()) {
   .validar_datos_tabla(datos)
   datos <- .tabla_base(datos)
+  columnas_personales <- .normalizar_columnas_personales(
+    columnas_personales, names(datos)
+  )
   if (inherits(senales, "senal_redundante")) senales <- list(senales)
   if (!is.list(senales) || !length(senales) ||
       !all(vapply(senales, inherits, logical(1L), "senal_redundante"))) {
@@ -267,7 +279,10 @@ detectar_discordancias <- function(datos, senales, max_ejemplos = 5L,
     # La primitiva concentra las selecciones de tablas de entrada; seleccionar a
     # mano con `[, , drop = FALSE]` esta topeado y auditado por `test-ronda160`.
     personales <- if (isTRUE(proteger_datos_personales)) {
-      .columnas_personales_rapidas(.seleccionar_columnas(datos, senal$columnas))
+      .columnas_personales_rapidas(
+        .seleccionar_columnas(datos, senal$columnas),
+        declaradas = columnas_personales
+      )
     } else {
       character()
     }

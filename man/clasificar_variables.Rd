@@ -10,7 +10,8 @@ clasificar_variables(
   metadatos = NULL,
   max_niveles = 100L,
   muestra = 1e+05,
-  proteger_datos_personales = TRUE
+  proteger_datos_personales = TRUE,
+  columnas_personales = character()
 )
 }
 \arguments{
@@ -27,7 +28,18 @@ los niveles ausentes de factores y metadatos se verifican sobre toda la
 columna.}
 
 \item{proteger_datos_personales}{Si se ocultan niveles concretos de columnas
-cuya clasificación activa protección automática. Véase \code{\link[=perfilar]{perfilar()}}.}
+cuya clasificación activa protección automática. Véase \code{\link[=perfilar]{perfilar()}}. Con
+\code{perfil}, se respeta la clasificación de ese perfil; sin \code{perfil}, se
+rehace aquí por léxico y por forma, y lo declarado entra por
+\code{columnas_personales}.}
+
+\item{columnas_personales}{Columnas que traen datos personales, declaradas
+con la misma forma que acepta \code{\link[=perfilar]{perfilar()}}: nombres de columna, o un vector
+con nombre donde el nombre es la columna y el valor es el tipo. \strong{Es el
+único camino cuando no se pasa \code{perfil}}: sin perfil, la clasificación
+corre por léxico y por forma, así que una columna que sólo quien la conoce
+sabe personal —una edad, un legajo interno— se publicaría entera. Sólo
+tiene efecto con \code{proteger_datos_personales = TRUE}.}
 }
 \value{
 Data frame S3 \code{clasificacion_variables}, editable y filtrable.

@@ -824,10 +824,15 @@
 #' —`Date`, `POSIXt`, `difftime`, `integer64`, `units`, `lubridate::Period` o
 #' cualquier otra— no participa, porque sumarla o dividirla no es la aritmética
 #' de un doble; el texto numérico y las columnas constantes tampoco. Las
-#' columnas que R declara numéricas y quedan fuera por su clase se declaran una
-#' por una en `cobertura_diagnosticos`, y `meta$aritmetica_columnas` publica las
-#' clases medidas en esta tabla. La ley de Benford sigue el mismo criterio y la
-#' misma declaración. Cada relación requiere al
+#' columnas que **R declara numéricas** —`is.numeric()` verdadero— y quedan
+#' fuera por su clase se declaran una por una en `cobertura_diagnosticos`:
+#' `integer64`, `units`, `lubridate::Period`, `haven_labelled`. Las de tiempo no
+#' entran en esa declaración porque R **no** las declara numéricas
+#' —`is.numeric(Sys.Date())` es `FALSE`— y porque no son magnitudes para estos
+#' diagnósticos: una fecha, una hora o una duración quedan fuera del mismo modo
+#' que una columna de texto, sin fila propia. `meta$aritmetica_columnas` publica
+#' las clases medidas en esta tabla. La ley de Benford sigue el mismo criterio y
+#' la misma declaración. Cada relación requiere al
 #' menos tres filas con valores finitos en todas las columnas involucradas;
 #' los `NA`, `NaN` e infinitos quedan fuera del universo que publica la
 #' evidencia. Para cada terna se prueban las tres orientaciones de una identidad
@@ -1374,7 +1379,12 @@
 #'   neutro, un texto libre que los contuviera, o los estadísticos de orden de
 #'   una columna clasificada con poder discriminante `debil`. El vocabulario
 #'   corto no entra en el piso: `"S/D"` sigue publicándose donde describe a una
-#'   columna que no es personal.
+#'   columna que no es personal. El piso tiene **una excepción declarada**, y es
+#'   la única: [perfilar_por()] agrupando *por* una columna personal publica sus
+#'   valores como etiquetas de grupo, porque la etiqueta es el eje del
+#'   resultado y sin ella los grupos no se distinguen. No ocurre en silencio
+#'   —avisa al ejecutar y lo declara en `etiquetas_personales`— y el remedio es
+#'   agrupar por una columna seudonimizada.
 #'   El piso alcanza además la **forma sin separadores**: `"771.771-01"` es el
 #'   mismo documento que `"77177101"`, y la celda entera se enmascara. Y lo
 #'   aplican también [analizar()] y [distribucion_valores()], que antes

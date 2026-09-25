@@ -134,6 +134,65 @@
   .resumen_longitudes_bloques(x)
 }
 
+# Un entero escrito como TEXTO por encima de 2^53 no sobrevive al doble, y el
+# resumen publicaba el redondeo como si fuera el dato: sobre la columna
+# `c("9007199254740993", "9007199254740994", "9007199254740995")` -tres impares-
+# se publicaba `minimo = 9007199254740992` y `maximo = 9007199254740996`, dos
+# valores que NINGUNA fila contiene, con `estado_resumen_cuantitativo =
+# "calculados"`. La decision ya estaba tomada para `integer64` -medidas en `NA`,
+# extremos exactos como texto y `omitidos_precision`- y este camino la esquivaba
+# por llegar como texto. Es la misma columna y ahora recibe la misma respuesta.
+#
+# Las comparaciones se hacen por longitud y con `method = "radix"`: comparar
+# decimales con `<` depende del locale, y este paquete ya se quemo con eso.
+.extremos_enteros_texto_fuera_de_precision <- function(texto, tipo) {
+  if (!identical(as.character(tipo)[1L], "entero")) return(NULL)
+  presentes <- texto[!is.na(texto) & nzchar(texto)]
+  if (!length(presentes)) return(NULL)
+  # Solo enteros escritos sin nada mas: si la columna trae decimales, notacion
+  # cientifica o separadores, no es este caso y no se toca.
+  if (!all(grepl("^[+-]?[0-9]+$", presentes))) return(NULL)
+  sin_mas <- sub("^\\+", "", presentes)
+  negativos <- startsWith(sin_mas, "-")
+  digitos <- sub("^-", "", sin_mas)
+  digitos <- sub("^0+(?=[0-9])", "", digitos, perl = TRUE)
+  limite <- "9007199254740991"
+  largo <- nchar(digitos)
+  excede <- any(largo > nchar(limite))
+  if (!excede) {
+    iguales <- digitos[largo == nchar(limite)]
+    if (length(iguales)) {
+      mayor <- sort(c(iguales, limite), method = "radix",
+                    decreasing = TRUE)[[1L]]
+      excede <- !identical(mayor, limite)
+    }
+  }
+  if (!excede) return(NULL)
+  mayor_magnitud <- function(v) {
+    v[order(nchar(v), v, method = "radix", decreasing = TRUE)][[1L]]
+  }
+  menor_magnitud <- function(v) {
+    v[order(nchar(v), v, method = "radix")][[1L]]
+  }
+  positivos <- digitos[!negativos]
+  magnitudes_negativas <- digitos[negativos]
+  maximo <- if (length(positivos)) {
+    mayor_magnitud(positivos)
+  } else {
+    paste0("-", menor_magnitud(magnitudes_negativas))
+  }
+  minimo <- if (length(magnitudes_negativas)) {
+    paste0("-", mayor_magnitud(magnitudes_negativas))
+  } else {
+    menor_magnitud(positivos)
+  }
+  list(
+    minimo_exacto = minimo, maximo_exacto = maximo,
+    n_ceros = as.integer(sum(digitos == "0")),
+    n_negativos = as.integer(sum(negativos))
+  )
+}
+
 .valores_cuantitativos <- function(x, inferencia, formatos,
                                    meses_texto = NULL, vocabulario = NULL,
                                    valores_preparados = NULL) {
@@ -193,6 +252,10 @@
                   n_fechas_resumidas = NA_integer_,
                   n_fechas_excluidas_granularidad = NA_integer_,
                   n_valores_excluidos_resumen = n_excluidas,
+                  fuera_de_precision =
+                    .extremos_enteros_texto_fuera_de_precision(
+                      texto, inferencia$tipo
+                    ),
                   estado = if (n_excluidas > 0L) {
                     "calculados_sobre_valores"
                   } else "calculados"))
@@ -205,7 +268,20 @@
       } else character()
       tiene_mes <- any(granularidades == "mes")
       tiene_dia <- any(granularidades == "dia")
-      if (tiene_mes && !tiene_dia) {
+      # `granularidad_incompleta` esta definido para "una columna de periodos
+      # expresados SOLO como mes y ano", y se aplicaba mirando unicamente los
+      # formatos CONFIRMADOS: una columna con tres fechas `03/04/2023` -dia,
+      # ambiguas, candidatas- y un `01/2023` caia aca y publicaba ese estado,
+      # culpando a la granularidad de un bloqueo que era de la ambiguedad
+      # dia/mes. Si hay formatos de dia aunque sean candidatos, la columna no es
+      # de periodos mensuales y sigue el camino general, donde lo que no se pudo
+      # leer se cuenta y se declara.
+      granularidades_candidatas <- if (is.data.frame(formatos) &&
+          all(c("granularidad", "estado") %in% names(formatos))) {
+        formatos$granularidad[formatos$estado == "candidato"]
+      } else character()
+      tiene_dia_candidato <- any(granularidades_candidatas == "dia")
+      if (tiene_mes && !tiene_dia && !tiene_dia_candidato) {
         valores <- trimws(as.character(x))
         presentes <- !is.na(valores) & nzchar(valores)
         return(list(
@@ -217,7 +293,13 @@
             sum(formatos$n[formatos$estado == "confirmado" &
               formatos$granularidad == "mes"], na.rm = TRUE)
           },
-          n_valores_excluidos_resumen = NA_integer_
+          # El campo general cuenta TODO valor presente que no sostiene el
+          # resumen -la documentacion lo dice con esas palabras, "sea un periodo
+          # de mes o un texto que ningun formato pudo leer"- y aca quedaba en
+          # `NA`: una columna de periodos mensuales publicaba `NA` excluidos
+          # mientras `n_fechas_excluidas_granularidad` contaba tres. No depende
+          # del muestreo: en esta rama ningun valor presente entra al resumen.
+          n_valores_excluidos_resumen = as.integer(sum(presentes))
         ))
       }
       fechas <- .parsear_fechas(
@@ -909,6 +991,25 @@
       cuantitativos$valores,
       sentinelas_numericos = sentinelas_declarados
     ))
+  }
+  # La misma respuesta que `integer64` para el mismo dato escrito como texto:
+  # las medidas quedan en `NA` -porque el doble no las puede sostener-, los
+  # extremos salen exactos y el estado lo declara.
+  if (!is.null(cuantitativos$fuera_de_precision)) {
+    fuera <- cuantitativos$fuera_de_precision
+    salida <- .resumen_vacio_cuantitativo("omitidos_precision")
+    salida$minimo_exacto <- fuera$minimo_exacto
+    salida$maximo_exacto <- fuera$maximo_exacto
+    salida$n_ceros <- fuera$n_ceros
+    salida$n_negativos <- fuera$n_negativos
+    salida$n_valores_excluidos_resumen <- as.integer(
+      if (is.null(cuantitativos$n_valores_excluidos_resumen)) {
+        0L
+      } else {
+        cuantitativos$n_valores_excluidos_resumen
+      }
+    )
+    return(salida)
   }
   valores_originales <- cuantitativos$valores
   mascara_sentinelas <- if (identical(cuantitativos$clase, "numero")) {
