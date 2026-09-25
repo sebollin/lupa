@@ -422,6 +422,53 @@ perfiles_madurez <- function(metricas = NULL, umbrales = NULL) {
   do.call(condicion, c(list(resultado), extra))
 }
 
+# Una regla DECLARA las metricas que evalua. Si alguna no tiene medidas en esta
+# medicion, el veredicto de la regla cubre menos de lo que la regla dice cubrir,
+# y eso tiene que decirse. Medido: una regla sobre dos metricas -una nunca
+# instanciada- publicaba `n_medidas = 3, resultado = 1`, identico a la regla que
+# declara solo la que existe, mientras el propio objeto conservaba en su
+# configuracion que la regla declaraba dos.
+#
+# La maquinaria del silencio declarado ya existia para el caso extremo: si
+# NINGUNA metrica de la regla coincide, `evaluar()` se niega y nombra solicitadas
+# y disponibles. La coincidencia parcial pasaba sin nombrar nada, que es la forma
+# en que este paquete falla: la guarda mira el borde y no la propiedad.
+.cobertura_reglas_evaluacion <- function(medicion, perfil) {
+  vacio <- data.frame(
+    regla = character(), metrica_instanciada = character(),
+    estado = character(), motivo = character(),
+    como_resolverlo = character(), stringsAsFactors = FALSE
+  )
+  disponibles <- .identificadores_unicos(medicion$metrica_instanciada)
+  partes <- lapply(perfil$reglas, function(regla) {
+    if (is.null(regla$metricas) || !length(regla$metricas)) return(NULL)
+    sin_medidas <- .identificadores_setdiff(regla$metricas, disponibles)
+    if (!length(sin_medidas)) return(NULL)
+    declaradas <- length(.identificadores_unicos(regla$metricas))
+    data.frame(
+      regla = rep(as.character(regla$nombre), length(sin_medidas)),
+      metrica_instanciada = as.character(sin_medidas),
+      estado = rep("sin_medidas", length(sin_medidas)),
+      motivo = rep(paste0(
+        "La regla declara ", declaradas,
+        " m\u00e9trica(s) y esta medici\u00f3n no trae ninguna medida de esta: ",
+        "el veredicto cubre ", declaradas - length(sin_medidas), " de ",
+        declaradas, "."
+      ), length(sin_medidas)),
+      como_resolverlo = rep(paste0(
+        "Instanciar y medir esa m\u00e9trica antes de evaluar, o declarar la regla ",
+        "sobre las m\u00e9tricas que la medici\u00f3n trae."
+      ), length(sin_medidas)),
+      stringsAsFactors = FALSE
+    )
+  })
+  partes <- Filter(Negate(is.null), partes)
+  if (!length(partes)) return(vacio)
+  salida <- do.call(rbind, partes)
+  rownames(salida) <- NULL
+  salida
+}
+
 .evaluar_regla_medidas <- function(medicion, perfil, regla) {
   seleccion <- if (is.null(regla$metricas)) {
     rep(TRUE, nrow(medicion))
@@ -862,6 +909,24 @@ print.evaluacion_calidad <- function(x, ...) {
     protegido <- .proteger_evaluacion_desenlaces(x)
     .print_data_frame_bytes(protegido$desenlaces, row.names = FALSE, ...)
   }
+  # Una regla cuyo veredicto cubre menos de lo que declara se dice al imprimir,
+  # no solo en un atributo: leer `resultado = 1` sin saber que una de las dos
+  # metricas declaradas no tenia medidas es leer una aprobacion que nadie midio.
+  cobertura_reglas <- attr(original, "cobertura_reglas", exact = TRUE)
+  if (inherits(cobertura_reglas, "data.frame") && nrow(cobertura_reglas)) {
+    cli::cli_alert_warning(.cli_literal(paste0(
+      nrow(cobertura_reglas),
+      if (nrow(cobertura_reglas) == 1L) {
+        " m\u00e9trica declarada por una regla no tiene medidas"
+      } else {
+        " m\u00e9tricas declaradas por las reglas no tienen medidas"
+      },
+      " en esta medici\u00f3n: ",
+      paste(unique(as.character(cobertura_reglas$metrica_instanciada)),
+            collapse = ", "),
+      ". El detalle esta en `attr(evaluacion, \"cobertura_reglas\")`."
+    )))
+  }
   invisible(original)
 }
 
@@ -886,6 +951,12 @@ print.evaluacion_calidad <- function(x, ...) {
 #'   incumplidas, el valor medido, el motivo y la regla que lo produjo.
 #'   Cuando una métrica no pudo medirse, conserva `cobertura_metricas` y deja
 #'   en `NA` el resumen afectado, en lugar de tratar la ausencia como éxito.
+#'   Y cuando una regla **declara** una métrica que la medición no trae —ninguna
+#'   medida de ella—, el veredicto cubre menos de lo que la regla dice: eso se
+#'   avisa al evaluar y queda en el atributo `cobertura_reglas`, con la métrica,
+#'   el motivo y cómo resolverlo. Si **ninguna** de las métricas declaradas por
+#'   una regla tiene medidas, `evaluar()` se niega y nombra las solicitadas y las
+#'   disponibles.
 #'   Conserva además, en atributos, la configuración del modelo, la
 #'   aplicabilidad y el perfil de evaluación que produjo el resultado.
 #' @export
@@ -941,6 +1012,20 @@ evaluar <- function(medicion, perfil) {
   attr(estructura, "configuracion_perfil") <-
     .configuracion_perfil_evaluacion(perfil)
   attr(estructura, "perfil_evaluacion") <- perfil
+  cobertura_reglas <- .cobertura_reglas_evaluacion(medicion, perfil)
+  if (nrow(cobertura_reglas)) {
+    attr(estructura, "cobertura_reglas") <- cobertura_reglas
+    warning(
+      "El veredicto de ",
+      length(.identificadores_unicos(cobertura_reglas$regla)),
+      " regla(s) cubre menos m\u00e9tricas de las que la regla declara: ",
+      paste(unique(paste0(
+        cobertura_reglas$regla, " sin ", cobertura_reglas$metrica_instanciada
+      )), collapse = "; "),
+      ". El detalle esta en `attr(evaluacion, \"cobertura_reglas\")`.",
+      call. = FALSE
+    )
+  }
   cobertura <- attr(medicion, "cobertura_metricas", exact = TRUE)
   if (inherits(cobertura, "data.frame") && nrow(cobertura)) {
     estructura$cobertura_metricas <- cobertura

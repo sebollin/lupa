@@ -25,7 +25,11 @@ atributo del mismo nombre permiten migraciones futuras. \code{nivel} corresponde
 a \code{medida}, \code{evaluacion_medida}, \code{evaluacion_regla} o
 \code{evaluacion_perfil}; una métrica sin valores se conserva como
 \code{metrica_no_evaluada} con su motivo, siempre que la medición tenga al
-menos una medida. Una medición \strong{enteramente} vacía —ninguna métrica
+menos una medida. Una medida que una regla declaró \code{desenlace = "suprimir"}
+no publica su valor \strong{tampoco aquí}: su fila deja \code{resultado} en \code{NA} y
+marca \code{objeto_medible} con \verb{[valor suprimido]}, en los dos niveles donde esa
+medida aparece —\code{medida} y \code{evaluacion_medida}—, porque esta tabla está
+pensada para exportarse. Una medición \strong{enteramente} vacía —ninguna métrica
 pudo aplicarse— no se acumula: se rechaza citando el motivo que \code{medir()}
 declaró en \code{cobertura_metricas}, porque no hay corrida que registrar. El atributo
 \code{configuracion_evaluacion} conserva, en una tabla plana separada, el

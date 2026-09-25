@@ -438,9 +438,49 @@
     partes <- c(partes, list(.parte_historico_metricas_no_evaluadas(cobertura)))
   }
   resultado <- do.call(rbind, partes)
+  resultado <- .enmascarar_suprimidas_historico(resultado, x)
   attr(resultado, "configuracion_evaluacion") <-
     .configuracion_historico_evaluacion(x)
   resultado
+}
+
+# `desenlace = "suprimir"` declara que las medidas que no cumplen la condicion NO
+# DEBEN PUBLICARSE, y la impresion y el informe lo sostienen enmascarando el
+# valor. El historico no: es un data frame que la documentacion presenta como
+# exportable directamente con `write.csv()`, y publicaba la fila de la medida
+# suprimida con su numero -medido: `evaluacion_medida MS1-000002 resultado = 0`-.
+# Dos salidas del mismo objeto con politicas opuestas sobre la misma medida, y la
+# que se exporta era la que no la respetaba.
+#
+# La convencion ya existe en esta tabla para el nivel `medida`: `resultado` en
+# `NA` y `[valor suprimido]` en `objeto_medible`, que es lo que la validacion
+# reconoce. Se aplica igual al nivel `evaluacion_medida`, sin cambiar el esquema
+# ni su version.
+.enmascarar_suprimidas_historico <- function(historico, evaluacion) {
+  desenlaces <- .desenlaces_de_objeto(evaluacion)
+  if (!inherits(desenlaces, "data.frame") || !nrow(desenlaces) ||
+      !all(c("id_medida", "desenlace") %in% names(desenlaces))) {
+    return(historico)
+  }
+  suprimidas <- desenlaces[
+    as.character(desenlaces$desenlace) == "suprimir", , drop = FALSE
+  ]
+  if (!nrow(suprimidas)) return(historico)
+  objetivo <- !is.na(historico$id_medida) &
+    .identificadores_en(historico$id_medida, suprimidas$id_medida) &
+    as.character(historico$nivel) %in% c("medida", "evaluacion_medida")
+  if (!any(objetivo)) return(historico)
+  historico$resultado[objetivo] <- NA_real_
+  historico$objeto_medible <- as.character(historico$objeto_medible)
+  ya_marcadas <- !is.na(historico$objeto_medible) &
+    grepl("[valor suprimido]", historico$objeto_medible, fixed = TRUE)
+  nuevas <- objetivo & !ya_marcadas
+  historico$objeto_medible[nuevas] <- ifelse(
+    is.na(historico$objeto_medible[nuevas]),
+    "[valor suprimido]",
+    paste0(historico$objeto_medible[nuevas], " [valor suprimido]")
+  )
+  historico
 }
 
 .parte_historico_metricas_no_evaluadas <- function(cobertura) {
@@ -507,7 +547,11 @@
            niveles_evaluacion & .identificadores_en(
              x$id_medicion, ids_incompletos
            ) |
-           x$nivel == "medida" & valores_suprimidos
+           # La supresion declarada vale en los dos niveles donde una medida
+           # aparece: la medida cruda y su evaluacion. Antes solo se admitia en
+           # `medida`, asi que enmascarar la evaluacion -que es lo que el
+           # historico completo exporta- chocaba con esta misma validacion.
+           x$nivel %in% c("medida", "evaluacion_medida") & valores_suprimidos
        )))) {
     stop("El hist\u00f3rico contiene identificadores, fechas o resultados inv\u00e1lidos.",
          call. = FALSE)
@@ -709,7 +753,11 @@
 #'   a `medida`, `evaluacion_medida`, `evaluacion_regla` o
 #'   `evaluacion_perfil`; una métrica sin valores se conserva como
 #'   `metrica_no_evaluada` con su motivo, siempre que la medición tenga al
-#'   menos una medida. Una medición **enteramente** vacía —ninguna métrica
+#'   menos una medida. Una medida que una regla declaró `desenlace = "suprimir"`
+#'   no publica su valor **tampoco aquí**: su fila deja `resultado` en `NA` y
+#'   marca `objeto_medible` con `[valor suprimido]`, en los dos niveles donde esa
+#'   medida aparece —`medida` y `evaluacion_medida`—, porque esta tabla está
+#'   pensada para exportarse. Una medición **enteramente** vacía —ninguna métrica
 #'   pudo aplicarse— no se acumula: se rechaza citando el motivo que `medir()`
 #'   declaró en `cobertura_metricas`, porque no hay corrida que registrar. El atributo
 #'   `configuracion_evaluacion` conserva, en una tabla plana separada, el

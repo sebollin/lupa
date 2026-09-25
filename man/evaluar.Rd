@@ -23,6 +23,12 @@ contiene además \code{desenlaces}, un plan que identifica las medidas
 incumplidas, el valor medido, el motivo y la regla que lo produjo.
 Cuando una métrica no pudo medirse, conserva \code{cobertura_metricas} y deja
 en \code{NA} el resumen afectado, en lugar de tratar la ausencia como éxito.
+Y cuando una regla \strong{declara} una métrica que la medición no trae —ninguna
+medida de ella—, el veredicto cubre menos de lo que la regla dice: eso se
+avisa al evaluar y queda en el atributo \code{cobertura_reglas}, con la métrica,
+el motivo y cómo resolverlo. Si \strong{ninguna} de las métricas declaradas por
+una regla tiene medidas, \code{evaluar()} se niega y nombra las solicitadas y las
+disponibles.
 Conserva además, en atributos, la configuración del modelo, la
 aplicabilidad y el perfil de evaluación que produjo el resultado.
 }
