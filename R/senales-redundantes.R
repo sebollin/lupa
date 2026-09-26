@@ -49,10 +49,19 @@
 #' años, `ventana = 1` acepta un año de diferencia. La unidad no se adivina; es
 #' la del resultado de la transformación.
 #'
+#' La ventana **sólo gobierna una comparación numérica**. Si alguna de las
+#' columnas comparadas no es numérica —fechas, texto, factores—, la comparación es
+#' de igualdad exacta sobre el texto y la ventana no se aplica: eso queda dicho en
+#' la evidencia (`comparacion textual exacta`) y, si se declaró una ventana mayor
+#' que cero, se avisa al medir. Para comparar fechas con tolerancia hay que
+#' llevarlas con `transformacion` a un número en la unidad de la ventana.
+#'
 #' @param columnas Nombres de al menos dos columnas que codifican el mismo
 #'   hecho.
 #' @param ventana Tolerancia máxima admitida entre los valores, en las unidades
-#'   del valor comparado. Por omisión `0`: coincidencia exacta.
+#'   del valor comparado. Por omisión `0`: coincidencia exacta. Sólo se aplica si
+#'   todas las columnas comparadas son numéricas; con fechas o texto la
+#'   comparación es de igualdad exacta y se avisa.
 #' @param transformacion Lista opcional con nombres de columna y funciones que
 #'   las llevan a una escala comparable.
 #' @param nombre Etiqueta de la señal. Por omisión, las columnas unidas.
@@ -254,6 +263,22 @@ detectar_discordancias <- function(datos, senales, max_ejemplos = 5L,
     }
     comparables <- lapply(valores, function(x) x[completos])
     numericos <- all(vapply(comparables, is.numeric, logical(1L)))
+    # La ventana solo puede gobernar una comparacion numerica, y un `Date` no es
+    # `is.numeric()`: la fila publicaba `ventana = 1` al lado de una comparacion
+    # por igualdad exacta. Medido, dos columnas `Date` a un dia con `ventana = 1`
+    # dan `n_discordantes = 2` y el control numerico con las mismas distancias da
+    # 0. La evidencia ya lo declaraba -"comparacion textual exacta"-; el aviso es
+    # para quien lee la tabla y no la evidencia.
+    if (!numericos && senal$ventana > 0) {
+      warning(
+        "La se\u00f1al `", senal$nombre, "` declara `ventana = ", senal$ventana,
+        "` y sus columnas no son num\u00e9ricas: se compar\u00f3 por igualdad exacta y ",
+        "la ventana no se aplic\u00f3. Para comparar fechas con tolerancia, ",
+        "transformarlas a un n\u00famero en la unidad de la ventana con ",
+        "`transformacion`.",
+        call. = FALSE
+      )
+    }
     discordante <- if (numericos) {
       extremos <- do.call(pmax, comparables) - do.call(pmin, comparables)
       extremos > senal$ventana

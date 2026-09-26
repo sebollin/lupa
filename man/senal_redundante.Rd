@@ -11,7 +11,9 @@ senal_redundante(columnas, ventana = 0, transformacion = NULL, nombre = NULL)
 hecho.}
 
 \item{ventana}{Tolerancia máxima admitida entre los valores, en las unidades
-del valor comparado. Por omisión \code{0}: coincidencia exacta.}
+del valor comparado. Por omisión \code{0}: coincidencia exacta. Sólo se aplica si
+todas las columnas comparadas son numéricas; con fechas o texto la
+comparación es de igualdad exacta y se avisa.}
 
 \item{transformacion}{Lista opcional con nombres de columna y funciones que
 las llevan a una escala comparable.}
@@ -40,6 +42,13 @@ de la misma longitud.
 \code{ventana} es la tolerancia, \strong{en las unidades del valor transformado}: con
 años, \code{ventana = 1} acepta un año de diferencia. La unidad no se adivina; es
 la del resultado de la transformación.
+
+La ventana \strong{sólo gobierna una comparación numérica}. Si alguna de las
+columnas comparadas no es numérica —fechas, texto, factores—, la comparación es
+de igualdad exacta sobre el texto y la ventana no se aplica: eso queda dicho en
+la evidencia (\verb{comparacion textual exacta}) y, si se declaró una ventana mayor
+que cero, se avisa al medir. Para comparar fechas con tolerancia hay que
+llevarlas con \code{transformacion} a un número en la unidad de la ventana.
 }
 \examples{
 senal_redundante(c("anio_fiscal", "anio_archivo"))
