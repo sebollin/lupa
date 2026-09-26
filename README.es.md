@@ -249,7 +249,10 @@ delimitador de una geometría protegida, cuyos cuatro `bbox_*` quedan en `NA` co
 `bbox_alcance = "no_publicado_por_geometria_protegida"`. En todos los casos se
 conserva la señal y se oculta el valor: el ejemplo sigue mostrando qué filas
 coinciden y en qué columnas, y el hallazgo de ausencia estructural se sigue
-emitiendo sin nombrar el umbral. Lo vigila un barrido que recorre los tipos de
+emitiendo sin nombrar el umbral. Los valores se reemplazan **de más largo a más
+corto**, así que un valor protegido que es prefijo de otro —`Maria Nunez` y
+`Maria Nunez de Castro` en la misma columna— no deja publicada la cola del más
+largo. Lo vigila un barrido que recorre los tipos de
 hallazgo y comprueba primero que cada uno se haya emitido.
 
 **El perfilado no toca los datos.** Ninguna función de análisis altera la tabla
@@ -1303,7 +1306,12 @@ no un interruptor que pueda apagarlo.
 - Permite que cada proyecto defina su marco de calidad, sin imponer un puntaje
   global.
 - Mide y evalúa métricas, escalas, reglas de validez y dominios referenciales
-  explícitos.
+  explícitos. Un contrato al que le falta un campo **se abstiene y declara cuál**
+  en `cobertura_metricas`, en lugar de abortar la medición de las demás métricas;
+  y toda métrica que compara la columna con un valor temporal declarado **avisa si
+  las dos puntas no son de la misma clase**, porque un `Date` se ancla a la
+  medianoche UTC y un `POSIXct` vale por su instante, y mezclarlos cambia el
+  número sin que se vea.
 - Produce planes de limpieza editables, aplica sólo acciones elegidas sobre una
   copia y conserva un registro de auditoría.
 - Encuentra duplicados aproximados con teselas exactas, MinHash/LSH determinista,

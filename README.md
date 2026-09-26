@@ -242,7 +242,9 @@ geometry, whose four `bbox_*` fields become `NA` with
 `bbox_alcance = "no_publicado_por_geometria_protegida"`. In every case the
 signal is kept and the value hidden: the example still shows which rows match
 and in which columns, and the structural-absence finding is still raised without
-naming the threshold. A sweep over the finding types watches this, checking
+naming the threshold. Values are replaced **longest first**, so a protected value
+that is a prefix of another —`Maria Nunez` and `Maria Nunez de Castro` in the same
+column— does not leave the longer one's tail published. A sweep over the finding types watches this, checking
 first that each one was actually raised.
 
 **Profiling never touches your data.** No analysis function alters the table it
@@ -1270,7 +1272,12 @@ evidence, not a switch that can turn it off.
 - Lets a project define its own quality framework instead of forcing a global
   score.
 - Measures and evaluates explicit metrics, scales, validity rules, and
-  referential domains.
+  referential domains. A contract that is missing a field **abstains and says
+  which field** in `cobertura_metricas`, instead of aborting the measurement of
+  every other metric; and any metric comparing a column against a declared
+  temporal value **warns when the two ends are not of the same class**, because a
+  `Date` is anchored to UTC midnight while a `POSIXct` stands for its instant, and
+  mixing them changes the number invisibly.
 - Produces editable cleanup plans, applies only selected actions to a copy, and
   keeps an audit log.
 - Finds approximate duplicates with exact tiles, deterministic MinHash/LSH,

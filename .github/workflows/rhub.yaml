@@ -54,6 +54,17 @@ jobs:
     container:
       image: ${{ matrix.config.container }}
 
+    env:
+      # `skip_on_cran()` se saltea cuando `NOT_CRAN` no vale "true". r-hub es uno
+      # de los entornos que NOSOTROS controlamos y existe para encontrar defectos,
+      # asi que aca corre la suite ENTERA: sin esto, las 19 pruebas marcadas no se
+      # ejercitan en ninguna plataforma mas que en la maquina de desarrollo.
+      #
+      # El que representa la mirada de CRAN -incluido el reloj- es win-builder, y
+      # el check local en configuracion de granja: `Suggests` instalados y sin
+      # `NOT_CRAN`. Ver PENDIENTES 2.452.
+      NOT_CRAN: true
+
     steps:
       - uses: r-hub/actions/checkout@v1
       - uses: r-hub/actions/platform-info@v1
@@ -78,6 +89,17 @@ jobs:
       fail-fast: false
       matrix:
         config: ${{ fromJson(needs.setup.outputs.platforms) }}
+
+    env:
+      # `skip_on_cran()` se saltea cuando `NOT_CRAN` no vale "true". r-hub es uno
+      # de los entornos que NOSOTROS controlamos y existe para encontrar defectos,
+      # asi que aca corre la suite ENTERA: sin esto, las 19 pruebas marcadas no se
+      # ejercitan en ninguna plataforma mas que en la maquina de desarrollo.
+      #
+      # El que representa la mirada de CRAN -incluido el reloj- es win-builder, y
+      # el check local en configuracion de granja: `Suggests` instalados y sin
+      # `NOT_CRAN`. Ver PENDIENTES 2.452.
+      NOT_CRAN: true
 
     steps:
       - uses: r-hub/actions/checkout@v1

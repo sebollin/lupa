@@ -1,5 +1,27 @@
 # lupa 0.1.0
 
+## La suite dice en que archivo va mientras trabaja
+
+- `tests/testthat.R` corre ahora con el reporte del check **y** uno de progreso, asi
+  que el `testthat.Rout` del `.Rcheck` trae una linea por archivo con su tiempo:
+
+  ```
+  v |        178 | afirmaciones [3.0s]
+  v |      2  54 | normalizacion
+  ```
+
+  Por que importa: el reporte del check no imprime nada hasta el final, y el
+  2026-09-26 el check de win-builder en R-devel murio con
+  «Check process probably crashed or hung up for 20 minutes ... killed» mientras las
+  pruebas seguian corriendo. Una linea por archivo distingue «esta trabajando» de
+  «se colgo», y de paso deja el reparto del tiempo por archivo en cada corrida de
+  cada plataforma, que es lo que hacia falta para saber donde recortar.
+
+- Que el reporte del check siga haciendo fallar al check **no se da por hecho**: se
+  comprueba corriendo `R CMD check` sobre una copia del paquete con una prueba que
+  debe fallar -da `Status: 1 ERROR`- y otra vez sin ella. Un reporte de progreso que
+  se comiera los fallos seria mucho peor que una suite lenta.
+
 ## El enmascarado de la salida agrupa las hojas
 
 - Proteger una salida recorria cada hoja de texto por separado y pagaba en cada una
