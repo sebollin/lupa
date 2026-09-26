@@ -43,6 +43,16 @@
     <div class="section level2">
 <h2 class="pkg-version" data-toc-text="0.1.0" id="lupa-010">lupa 0.1.0<a class="anchor" aria-label="anchor" href="#lupa-010"></a></h2>
 <div class="section level3">
+<h3 id="la-suite-dice-en-que-archivo-va-mientras-trabaja-0-1-0">La suite dice en que archivo va mientras trabaja<a class="anchor" aria-label="anchor" href="#la-suite-dice-en-que-archivo-va-mientras-trabaja-0-1-0"></a></h3>
+<ul><li>
+<p><code>tests/testthat.R</code> corre ahora con el reporte del check <strong>y</strong> uno de progreso, asi que el <code>testthat.Rout</code> del <code>.Rcheck</code> trae una linea por archivo con su tiempo:</p>
+<pre><code>v |        178 | afirmaciones [3.0s]
+v |      2  54 | normalizacion</code></pre>
+<p>Por que importa: el reporte del check no imprime nada hasta el final, y el 2026-09-26 el check de win-builder en R-devel murio con «Check process probably crashed or hung up for 20 minutes … killed» mientras las pruebas seguian corriendo. Una linea por archivo distingue «esta trabajando» de «se colgo», y de paso deja el reparto del tiempo por archivo en cada corrida de cada plataforma, que es lo que hacia falta para saber donde recortar.</p>
+</li>
+<li><p>Que el reporte del check siga haciendo fallar al check <strong>no se da por hecho</strong>: se comprueba corriendo <code>R CMD check</code> sobre una copia del paquete con una prueba que debe fallar -da <code>Status: 1 ERROR</code>- y otra vez sin ella. Un reporte de progreso que se comiera los fallos seria mucho peor que una suite lenta.</p></li>
+</ul></div>
+<div class="section level3">
 <h3 id="el-enmascarado-de-la-salida-agrupa-las-hojas-0-1-0">El enmascarado de la salida agrupa las hojas<a class="anchor" aria-label="anchor" href="#el-enmascarado-de-la-salida-agrupa-las-hojas-0-1-0"></a></h3>
 <ul><li>
 <p>Proteger una salida recorria cada hoja de texto por separado y pagaba en cada una el bucle completo sobre los valores protegidos: un <code>gsub</code> por valor, que cuesta lo mismo sobre una cadena que sobre diez mil. Medido, publicar 4.754 hallazgos costaba <strong>42.794 llamadas</strong> al reemplazo con una mediana de <strong>un solo texto por llamada</strong>, y la culpable era <code>hallazgos$trazabilidad</code>, una columna-lista con una entrada por hallazgo y nueve hojas en cada entrada.</p>
