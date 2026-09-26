@@ -1,5 +1,28 @@
 # lupa 0.1.0
 
+## Lo que no se declaro no es parte del modelo
+
+- `detectar_deriva_calidad()` existe para que una serie no confunda un cambio de
+  datos con un cambio de modelo, y hacia justo eso en el caso mas comun: seguir el
+  mismo modelo en el tiempo. `vigencia()` trae `fecha_acceso = Sys.time()` por
+  omision, asi que dos corridas del MISMO codigo llevaban dos configuraciones
+  distintas. Medido, dos corridas separadas 1,2 segundos publicaban:
+
+  ```
+  aspecto = configuracion_modelo   cambio = no_comparable   severidad = error
+  ```
+
+  sin que hubiera cambiado nada. Ahora el contrato registra que campos recibio
+  declarados y la comparacion no mira los otros: dos corridas del mismo modelo
+  comparan **identicas**, y declarar `fecha_acceso` lo devuelve a la comparacion,
+  asi que cambiarlo **si** sigue siendo un cambio de modelo.
+
+- La prueba exige las dos mitades -que dos corridas iguales comparen iguales y que
+  dos momentos declarados distintos NO comparen iguales- y ademas comprueba que los
+  dos momentos crudos difieran: la serializacion no lleva fracciones de segundo, asi
+  que dos llamadas dentro del mismo segundo habrian pasado la prueba **tambien sin
+  el arreglo**.
+
 ## La suite dice en que archivo va mientras trabaja
 
 - `tests/testthat.R` corre ahora con el reporte del check **y** uno de progreso, asi

@@ -63,6 +63,33 @@ vigencia <- function(columna_actualizacion, fecha_acceso = Sys.time(),
                      fecha_ultimo_cambio = NULL, fecha_limite = NULL,
                      inicio_intervalo = NULL, fin_intervalo = NULL,
                      frecuencia_cambio = NULL) {
+  # Lo que quien llama no declaro no es parte del modelo. `fecha_acceso` vale
+  # `Sys.time()` por omision, asi que dos corridas del MISMO modelo traian dos
+  # valores distintos y `detectar_deriva_calidad()` lo leia como un cambio de
+  # modelo, con severidad `error`. Medido: dos corridas separadas 1,2 s daban
+  # `no_comparable` en `configuracion_modelo` sin que cambiara nada.
+  #
+  # Se registra que campos NO vinieron declarados, preguntando por cada formal en
+  # vez de escribir la lista: un campo nuevo queda cubierto sin tocar esto. Va en
+  # un atributo y no en un elemento de la lista, porque `$` hace coincidencia
+  # parcial y un elemento nuevo puede capturar un acceso existente.
+  #
+  # ESTO VA PRIMERO, y no es cuestion de orden de lectura: `missing()` deja de ser
+  # TRUE en cuanto se le ASIGNA al argumento, y mas abajo se reasigna
+  # `fecha_acceso <- .validar_fecha_contrato(fecha_acceso, ...)`. Calculado al
+  # final, el conjunto salia vacio para `fecha_acceso` y el arreglo no arreglaba
+  # nada: lo atrapo el control que exige que dos corridas del mismo modelo
+  # comparen iguales.
+  entorno <- environment()
+  sin_declarar <- Filter(
+    function(nombre) eval(call("missing", as.name(nombre)), entorno),
+    setdiff(names(formals(sys.function())), "...")
+  )
+  if ("frecuencia_cambio" %in% sin_declarar) {
+    # Se guarda convertido a segundos y con otro nombre, asi que el conjunto se
+    # registra con los nombres GUARDADOS.
+    sin_declarar <- c(sin_declarar, "frecuencia_cambio_segundos")
+  }
   if (!.es_texto_escalar(columna_actualizacion)) {
     stop("`columna_actualizacion` debe ser un nombre no vac\u00edo.", call. = FALSE)
   }
@@ -109,6 +136,7 @@ vigencia <- function(columna_actualizacion, fecha_acceso = Sys.time(),
     fin_intervalo = fin_intervalo,
     frecuencia_cambio_segundos = frecuencia_segundos
   )
+  attr(estructura, "campos_sin_declarar") <- sin_declarar
   class(estructura) <- "vigencia_datos"
   estructura
 }

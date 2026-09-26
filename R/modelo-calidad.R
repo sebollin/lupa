@@ -33,10 +33,24 @@
     valores[!faltantes] <- .clave_bytes(valores[!faltantes])
     return(paste0(typeof(x), "[", paste(valores, collapse = ","), "]"))
   }
+  # Un contrato de vigencia se serializa igual que cualquier lista -mismo
+  # envoltorio `list{...}`, mismo orden, para que un historico guardado antes de
+  # este cambio siga comparando identico-, salvo en los campos que quien llama NO
+  # declaro: ahi va una marca en lugar del valor. Sin esto, el `Sys.time()` por
+  # omision de `fecha_acceso` hacia que dos corridas del mismo modelo se leyeran
+  # como un cambio de modelo.
+  sin_declarar <- if (inherits(x, "vigencia_datos")) {
+    attr(x, "campos_sin_declarar", exact = TRUE)
+  } else {
+    NULL
+  }
   if (is.list(x)) {
     nombres <- names(x)
     if (is.null(nombres)) nombres <- rep("", length(x))
     partes <- vapply(seq_along(x), function(i) {
+      if (nombres[[i]] %in% sin_declarar) {
+        return(paste0(nombres[[i]], "=<sin declarar>"))
+      }
       paste0(nombres[[i]], "=", .texto_configuracion_calidad(x[[i]]))
     }, character(1L))
     return(paste0("list{", paste(partes, collapse = ";"), "}"))
