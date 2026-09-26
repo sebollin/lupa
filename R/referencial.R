@@ -434,6 +434,30 @@ print.referencial <- function(x, ...) {
   referencia
 }
 
+# El apareo contra un padron pasa por TEXTO: una columna `Date` contra una clave
+# `POSIXct` no coincide con ninguna fila, y la metrica publica que la entidad no
+# existe en el referencial. Medido sobre tres fechas: `0 0 0` con la clave del
+# padron declarada como instantes y `1 1 0` con la misma clave como fechas de
+# calendario. Es la misma propiedad que en las metricas de frescura y en los
+# dominios: comparar temporales de clases distintas. Se declara por par de
+# columnas -atributo ligado contra columna del padron, en el orden en que se
+# aparean-, porque una clave puede tener varias columnas y solo una mezclar.
+.declarar_mezcla_referencial <- function(nombre_metrica, atributos, objetivo,
+                                         referencia, columnas_referencia) {
+  n <- min(length(atributos), length(columnas_referencia), ncol(objetivo))
+  for (i in seq_len(n)) {
+    .declarar_mezcla_de_husos(
+      nombre_metrica, atributos[[i]], objetivo[[i]],
+      list(referencia[[columnas_referencia[[i]]]]),
+      consecuencia = paste0(
+        "as\u00ed que la fila no coincide con ninguna del padr\u00f3n y la m\u00e9trica ",
+        "publica que la entidad no est\u00e1 en el referencial"
+      )
+    )
+  }
+  invisible(NULL)
+}
+
 # Los dos metodos de correctitud referencial -el fuerte, que exige que la clave
 # exista en el referencial, y el debil, que ademas compara los valores- eran la
 # misma funcion escrita dos veces: 48 de sus 68 lineas coincidian y lo unico que
@@ -455,6 +479,10 @@ print.referencial <- function(x, ...) {
   filas <- which(presentes)
   perfil <- .referencial_normalizacion(instancia, referencia)
   objetivo_presente <- objetivo[presentes, , drop = FALSE]
+  .declarar_mezcla_referencial(
+    instancia$declaracion$nombre, instancia$atributos, objetivo_presente,
+    valores_referencia, columnas_referencia
+  )
   usa_normalizacion <- !is.null(instancia$configuracion$normalizar) ||
     !is.null(referencia$normalizar)
   if (usa_normalizacion) {
@@ -549,6 +577,10 @@ print.referencial <- function(x, ...) {
     referencia$datos, referencia$clave
   )
   perfil <- .referencial_normalizacion(instancia, referencia)
+  .declarar_mezcla_referencial(
+    instancia$declaracion$nombre, instancia$atributos, objetivo,
+    referencia_clave, referencia$clave
+  )
   usa_normalizacion <- !is.null(instancia$configuracion$normalizar) ||
     !is.null(referencia$normalizar)
   if (usa_normalizacion) {

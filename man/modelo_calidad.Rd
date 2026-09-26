@@ -184,6 +184,18 @@ de duración cero se rechaza porque no define el cociente. Todas estas
 métricas omiten los valores \code{NA}: su ausencia corresponde a completitud y no
 genera una segunda medida de incumplimiento.
 
+\strong{Toda métrica que compara la columna con un valor temporal declarado avisa
+cuando las dos puntas no son de la misma clase.} Un \code{Date} se ancla a la
+medianoche UTC y un \code{POSIXct} vale por su instante, así que mezclarlos cambia
+el número sin que se vea: la fila que cae exactamente en un límite cambia de
+veredicto con el huso de la sesión, y en las comparaciones por conjunto
+—\code{valores_nulos} de \code{NoNulo}, \code{diccionario} de \code{Formato}, el dominio de
+\code{ValoresPosiblesPorExtension}, el rango de \code{ValoresPosiblesPorComprension} y la
+clave de un \code{\link[=referencial]{referencial()}}— ningún valor coincide con ninguno: la métrica
+publicaría un incumplimiento que no existe, o —peor, en \code{NoNulo}— una
+completitud perfecta sobre una columna llena de ausencias disfrazadas.
+Declarar las dos puntas en la misma clase deja el número estable.
+
 \strong{Desviación documentada del marco:} en \code{DensidadPonderada}, un atributo
 más crítico recibe un coeficiente mayor y, si falta, produce una penalización
 mayor. El texto del marco indica acercar a cero el coeficiente de mayor

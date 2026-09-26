@@ -915,6 +915,29 @@ print.medicion <- function(x, ...) {
       ". El detalle esta en `attr(medicion, \"alcance_medidas\")`."
     )))
   }
+  # Y la metrica que NO se pudo medir. Es la cuarta capa con la misma pregunta -el
+  # tablero ya imprime esta tabla, el historico la registra como fila y `evaluar()`
+  # deja `NA`-, y era la unica que quedaba muda, justo la que se mira primero
+  # despues de medir: sobre un modelo de dos metricas se leian las dos medidas de
+  # una y nada decia que la otra no midio. Cuando ninguna midio era peor todavia,
+  # porque lo unico que se imprimia era el encabezado de un cuadro vacio.
+  #
+  # Se imprime el motivo y no solo el nombre, como en la cobertura de la
+  # coleccion: el nombre dice QUE falto, no por que, y "sin valores en el
+  # universo" y "el contrato no trae el campo" no son el mismo problema.
+  cobertura_metricas <- attr(x, "cobertura_metricas", exact = TRUE)
+  if (inherits(cobertura_metricas, "data.frame") && nrow(cobertura_metricas)) {
+    cli::cli_h2("Cobertura de m\u00e9tricas")
+    .print_data_frame_bytes(
+      .seleccionar_columnas(
+        cobertura_metricas, c("metrica_instanciada", "estado", "motivo")
+      ),
+      row.names = FALSE
+    )
+    cli::cli_alert_info(.cli_literal(paste0(
+      "C\u00f3mo resolver cada una: `attr(medicion, \"cobertura_metricas\")`."
+    )))
+  }
   invisible(x)
 }
 

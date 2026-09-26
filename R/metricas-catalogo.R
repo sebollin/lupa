@@ -67,6 +67,18 @@
       "ValoresPosiblesPorComprension"
     )
   } else {
+    # Un rango de otra clase que la columna no corre el numero: lo vacia. R avisa
+    # a su manera -«Metodos incompatibles ("Ops.Date", "Ops.POSIXt")»-, que no
+    # dice que hacer, y el resultado es `0 0 0` contra el `1 1 0` del mismo rango
+    # declarado como fechas de calendario.
+    .declarar_mezcla_de_husos(
+      instancia$declaracion$nombre, atributo, valores,
+      list(config$minimo, config$maximo),
+      consecuencia = paste0(
+        "as\u00ed que el rango no se puede comparar con la columna y la m\u00e9trica ",
+        "publica que ning\u00fan valor lo cumple"
+      )
+    )
     izquierda <- if (config$inclusivo[[1L]]) {
       valores >= config$minimo
     } else {
@@ -510,6 +522,14 @@
 
 .metodo_oportunidad_fecha <- function(tablas, instancia) {
   datos <- .datos_oportunidad(tablas, instancia)
+  # La misma guarda que las metricas por entidad. Medido con una columna `Date` y
+  # un `fecha_limite` `POSIXct` leido sin huso, la fila que cae EXACTAMENTE en el
+  # limite daba `1 1 0` con `TZ=UTC` y `1 0 0` con `TZ=Asia/Tokyo`, sin que nada
+  # lo dijera: cuatro metricas avisaban y sus cuatro gemelas por atributo no.
+  .declarar_mezcla_de_husos(
+    instancia$declaracion$nombre, datos$atributo, datos$x,
+    list(instancia$configuracion$fecha_limite)
+  )
   limite <- .fecha_para_filas(
     instancia$configuracion$fecha_limite, datos$filas, length(datos$x),
     "fecha_limite"
@@ -520,6 +540,10 @@
 .metodo_oportunidad_intervalo <- function(tablas, instancia) {
   datos <- .datos_oportunidad(tablas, instancia)
   config <- instancia$configuracion
+  .declarar_mezcla_de_husos(
+    instancia$declaracion$nombre, datos$atributo, datos$x,
+    list(config$inicio_vigencia, config$fin_vigencia)
+  )
   inicio <- .fecha_para_filas(
     config$inicio_vigencia, datos$filas, length(datos$x), "inicio_vigencia"
   )
@@ -536,6 +560,12 @@
                                       inicio_nombre, fin_nombre) {
   datos <- .datos_oportunidad(tablas, instancia)
   config <- instancia$configuracion
+  # Aca la mezcla pesa dos veces: la entrega se compara con el inicio Y la
+  # duracion `fin - inicio` escala el resultado.
+  .declarar_mezcla_de_husos(
+    instancia$declaracion$nombre, datos$atributo, datos$x,
+    list(config[[inicio_nombre]], config[[fin_nombre]])
+  )
   inicio <- .fecha_para_filas(
     config[[inicio_nombre]], datos$filas, length(datos$x), inicio_nombre
   )
@@ -746,7 +776,12 @@
     ),
     OportunidadEntPorFecha = metrica(
       "OportunidadEntPorFecha",
-      "Indica si una entidad fue actualizada antes de su fecha l\u00edmite.",
+      # La descripcion decia "antes de" y el calculo es `<=`: la fila exactamente
+      # en el limite sale oportuna. La gemela por atributo ya declara "hasta la
+      # fecha limite inclusive" y el catalogo de la tabla 16.29 dice "entrega
+      # hasta Tf, inclusive", asi que la conducta es la correcta -entregar EL dia
+      # del plazo es a tiempo- y la que mentia era la descripcion publicada.
+      "Indica si una entidad fue actualizada hasta su fecha l\u00edmite inclusive.",
       "instanciaEntidad", "booleano", propiedades = "vigencia",
       dimension = "Frescura", factor = "Oportunidad",
       metodo = .metodo_oportunidad_entidad_fecha,

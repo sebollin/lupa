@@ -454,6 +454,18 @@
 #' métricas omiten los valores `NA`: su ausencia corresponde a completitud y no
 #' genera una segunda medida de incumplimiento.
 #'
+#' **Toda métrica que compara la columna con un valor temporal declarado avisa
+#' cuando las dos puntas no son de la misma clase.** Un `Date` se ancla a la
+#' medianoche UTC y un `POSIXct` vale por su instante, así que mezclarlos cambia
+#' el número sin que se vea: la fila que cae exactamente en un límite cambia de
+#' veredicto con el huso de la sesión, y en las comparaciones por conjunto
+#' —`valores_nulos` de `NoNulo`, `diccionario` de `Formato`, el dominio de
+#' `ValoresPosiblesPorExtension`, el rango de `ValoresPosiblesPorComprension` y la
+#' clave de un [referencial()]— ningún valor coincide con ninguno: la métrica
+#' publicaría un incumplimiento que no existe, o —peor, en `NoNulo`— una
+#' completitud perfecta sobre una columna llena de ausencias disfrazadas.
+#' Declarar las dos puntas en la misma clase deja el número estable.
+#'
 #' **Desviación documentada del marco:** en `DensidadPonderada`, un atributo
 #' más crítico recibe un coeficiente mayor y, si falta, produce una penalización
 #' mayor. El texto del marco indica acercar a cero el coeficiente de mayor
@@ -928,6 +940,18 @@ modelo <- function(..., marco = NULL) {
   ausente <- is.na(x)
   valores_nulos <- instancia$configuracion$valores_nulos
   if (length(valores_nulos)) {
+    # El centinela de otra clase temporal que la columna es el peor caso de la
+    # familia: no coincide con nada y la metrica de COMPLETITUD publica que no
+    # falta nada. Medido sobre una columna `Date` con `1900-01-01` como ausencia
+    # disfrazada: `1 1 1` con el centinela declarado `POSIXct` y `1 0 1` con el
+    # mismo centinela como fecha de calendario.
+    .declarar_mezcla_de_husos(
+      instancia$declaracion$nombre, atributo, x, list(valores_nulos),
+      consecuencia = paste0(
+        "as\u00ed que el centinela no coincide con ning\u00fan valor y la m\u00e9trica publica ",
+        "como presentes las ausencias disfrazadas"
+      )
+    )
     es_texto <- is.character(x) || is.factor(x) ||
       is.character(valores_nulos) || is.factor(valores_nulos)
     coincide <- if (es_texto) {
@@ -972,6 +996,16 @@ modelo <- function(..., marco = NULL) {
       config$expresion_regular, as.character(valores), perl = TRUE
     )
   } else if (!is.null(config$diccionario)) {
+    # Un diccionario temporal de otra clase que la columna no coincide con ningun
+    # valor: medido, `0 0 0` con el diccionario declarado como instantes y `1 1 0`
+    # con el mismo diccionario como fechas -o como texto-.
+    .declarar_mezcla_de_husos(
+      instancia$declaracion$nombre, atributo, valores, list(config$diccionario),
+      consecuencia = paste0(
+        "as\u00ed que ning\u00fan valor coincide con el diccionario y la m\u00e9trica publica ",
+        "un incumplimiento que no existe"
+      )
+    )
     if (texto || is.character(config$diccionario) ||
         is.factor(config$diccionario)) {
       diccionario <- .texto_analizable(config$diccionario)$valores
@@ -1001,6 +1035,20 @@ modelo <- function(..., marco = NULL) {
   filas <- .indices_filas_modelo(tabla)[!is.na(x)]
   valores <- x[!is.na(x)]
   dominio <- instancia$configuracion$valores
+  # Un dominio temporal de otra clase que la columna no desplaza el numero: lo
+  # rompe. `%in%` compara `Date` contra `POSIXct` por su texto, no coincide
+  # ninguno, y la metrica publica que NINGUN valor esta en el dominio. Medido:
+  # `0 0 0` con el dominio como instantes y `1 1 0` con el mismo dominio como
+  # fechas. Lo encontro el recorrido del catalogo, no una revision de este
+  # archivo: la propiedad es "comparar temporales de clases distintas", y aparece
+  # en metricas que no tienen nada que ver entre si.
+  .declarar_mezcla_de_husos(
+    instancia$declaracion$nombre, atributo, valores, list(dominio),
+    consecuencia = paste0(
+      "as\u00ed que un valor que S\u00cd est\u00e1 en el dominio no coincide con ninguno y la ",
+      "m\u00e9trica publica un incumplimiento que no existe"
+    )
+  )
   if (texto || is.character(dominio) || is.factor(dominio)) {
     dominio <- .texto_analizable(dominio)$valores
     resultado <- .clave_bytes(valores) %in% .clave_bytes(dominio)
@@ -1249,6 +1297,45 @@ metricas_nucleo <- function() {
   salida_validada
 }
 
+# Una metrica que necesita un campo del contrato y no lo tiene SE ABSTIENE. La
+# documentacion lo promete con esas palabras -"cada metrica valida los campos que
+# necesita y se abstiene si faltan"- y las cuatro metricas ligadas a `vigencia()`
+# llamaban `stop()`: `medir()` abortaba entero y no devolvia nada, ni filas, ni
+# ceros, ni cobertura. Medido sobre un modelo de dos metricas -una de frescura sin
+# su campo y `NoNulo`-, la corrida moria y la segunda tampoco se medía.
+#
+# Abstenerse es devolver cero filas CON su motivo: `medir()` ya sabe convertir una
+# salida vacia en una fila de `cobertura_metricas`, y esto le agrega la razon
+# exacta en vez del motivo genérico.
+.abstener_metodo <- function(instancia, motivo, como_resolverlo) {
+  tipo <- as.character(instancia$declaracion$tipo_resultado)[1L]
+  vacio <- if (identical(tipo, "booleano")) logical(0) else numeric(0)
+  salida <- data.frame(
+    resultado = vacio, entidad = character(), atributo = character(),
+    fila = integer(), objeto = character(), stringsAsFactors = FALSE
+  )
+  attr(salida, "abstencion") <- list(
+    motivo = motivo, como_resolverlo = como_resolverlo
+  )
+  salida
+}
+
+.cobertura_metrica_abstenida <- function(instancia, id_medicion, fecha,
+                                         abstencion) {
+  data.frame(
+    id_medicion = as.character(id_medicion), fecha = as.POSIXct(fecha),
+    metrica = instancia$declaracion$nombre,
+    metrica_especifica = instancia$nombre_especifico,
+    metrica_instanciada = instancia$nombre,
+    entidad = paste(instancia$entidad, collapse = "+"),
+    atributo = paste(instancia$atributos, collapse = "+"),
+    estado = "contrato_incompleto",
+    motivo = as.character(abstencion$motivo),
+    como_resolverlo = as.character(abstencion$como_resolverlo),
+    stringsAsFactors = FALSE
+  )
+}
+
 .cobertura_metrica_no_evaluada <- function(tablas, instancia, id_medicion,
                                            fecha) {
   entidad <- instancia$entidad[[1L]]
@@ -1485,8 +1572,10 @@ metricas_nucleo <- function() {
 #'   alto expresa defecto o si esa lectura no aplica. Algunas métricas
 #'   que trabajan con un vocabulario o un alcance parcial agregan un atributo
 #'   `alcance_metricas` con sus conteos y límites. Si una métrica no puede
-#'   medirse por falta de valores en su universo, no crea filas ni ceros: deja
-#'   el motivo en el atributo `cobertura_metricas`. Y cuando **sí** pudo medirse
+#'   medirse —porque su universo no tiene valores, o porque su contrato no trae un
+#'   campo que necesita—, no crea filas ni ceros: deja el motivo y cómo
+#'   resolverlo en el atributo `cobertura_metricas`, con un estado que distingue
+#'   las dos causas. Y cuando **sí** pudo medirse
 #'   pero sobre **menos** elementos de los que hay en su universo aplicable —una
 #'   métrica por celda no mide la celda vacía, que no produce medida ni cuenta
 #'   como incumplimiento—, el atributo `alcance_medidas` publica cuántos midió de
@@ -1558,13 +1647,21 @@ medir <- function(modelo, datos, id_medicion = NULL, fecha = Sys.time(),
     tablas_instancia <- .recortar_tablas_aplicables(
       tablas, aplicables, instancia
     )
-    salida <- .validar_salida_medicion(
-      instancia$metodo(tablas_instancia, instancia), instancia
-    )
+    # La abstencion viaja en un atributo de la salida CRUDA: `.tabla_base()` la
+    # normaliza y podria perderlo, asi que se lee antes de validar.
+    cruda <- instancia$metodo(tablas_instancia, instancia)
+    abstencion <- attr(cruda, "abstencion", exact = TRUE)
+    salida <- .validar_salida_medicion(cruda, instancia)
     if (!nrow(salida)) {
-      coberturas[[length(coberturas) + 1L]] <<- .cobertura_metrica_no_evaluada(
-        tablas_instancia, instancia, id_medicion, fecha
-      )
+      coberturas[[length(coberturas) + 1L]] <<- if (!is.null(abstencion)) {
+        .cobertura_metrica_abstenida(
+          instancia, id_medicion, fecha, abstencion
+        )
+      } else {
+        .cobertura_metrica_no_evaluada(
+          tablas_instancia, instancia, id_medicion, fecha
+        )
+      }
     } else if (isTRUE(proteger_datos_personales)) {
       salida <- .proteger_salida_referencial(
         salida, tablas_instancia, instancia,

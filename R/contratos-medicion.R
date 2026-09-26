@@ -13,7 +13,17 @@
 #' `vigencia()` reúne el contrato temporal que las métricas de actualidad y
 #' oportunidad no pueden inferir de los datos: columna de actualización,
 #' fecha de acceso, último cambio conocido, fecha límite, intervalo y frecuencia
-#' esperada. Cada métrica valida los campos que necesita y se abstiene si faltan.
+#' esperada. Cada métrica valida los campos que necesita y se abstiene si faltan:
+#' declara en `cobertura_metricas` cuál falta y cómo declararlo, en lugar de
+#' abortar la medición de las demás métricas.
+#'
+#' Las dos puntas de cada comparación tienen que ser de la **misma clase**. Un
+#' `Date` se ancla a la medianoche UTC y un `POSIXct` vale por su instante, así
+#' que mezclarlos puede hacer contar como tarde una actualización del día del
+#' límite, y si el `POSIXct` se leyó sin huso el resultado depende de la sesión.
+#' Cuando una métrica compara clases distintas lo avisa. Como `fecha_acceso` vale
+#' `Sys.time()` por omisión, con una columna `Date` conviene declararlo también
+#' como `Date`: `fecha_acceso = Sys.Date()`.
 #'
 #' `escala()` declara el error de un instrumento o de otra escala experta. Con
 #' error absoluto, `Escala` calcula `1 - error / abs(valor)` y acota el resultado
@@ -22,7 +32,9 @@
 #'
 #' @param columna_actualizacion Nombre de la columna Date o POSIXt que registra
 #'   la última actualización de cada fila.
-#' @param fecha_acceso Momento de acceso usado para estimar actualidad.
+#' @param fecha_acceso Momento de acceso usado para estimar actualidad. De la
+#'   misma clase que la columna de actualización: con una columna `Date`,
+#'   `Sys.Date()` en lugar del `Sys.time()` por omisión.
 #' @param fecha_ultimo_cambio Fecha conocida del último cambio en el mundo real;
 #'   puede ser escalar o tener una entrada por fila.
 #' @param fecha_limite Fecha límite escalar o por fila para oportunidad.
@@ -180,6 +192,56 @@ escala <- function(error, tipo = c("absoluto", "relativo")) {
   )
 }
 
+# `Date` y `POSIXct` no se comparan en la misma escala: `.fecha_numerica()` ancla
+# un `Date` a la medianoche UTC y un `POSIXct` a su instante. Mezclarlos cambia el
+# veredicto de una forma que no es obvia: una actualizacion hecha EL DIA del
+# limite pero despues de las 00:00 UTC cuenta como tarde, y si la columna se
+# parseo sin huso el resultado depende ademas de la sesion. Medido, la misma
+# corrida sobre los mismos datos y el mismo contrato: con `TZ=UTC` los resultados
+# son `1 0 0`, con `TZ=America/Montevideo` `0 0 0` y con `TZ=Asia/Tokyo` `1 0 0`.
+#
+# El paquete no puede adivinar lo que el usuario quiso -la decision de anclaje es
+# suya y la ambiguedad del parseo es del dato-, pero si puede ver la mezcla y
+# declararla. Es la misma senal que `perfilar()` publica en
+# `fecha_civil_distinta_utc`, en la puerta donde se mide contra un contrato.
+#
+# Se mira SOLO lo que la metrica compara: el contrato trae `fecha_acceso` con la
+# hora de la corrida aunque la metrica no la use, y mirarla entera hacia avisar
+# sobre una comparacion Date-Date que no mezcla nada.
+#
+# La consecuencia se pasa como texto porque no es la misma en todas las metricas:
+# en las de frescura una entrega del dia del limite puede contar como tarde; en un
+# dominio por extension, un valor que SI esta en el dominio no coincide con
+# ninguno y la metrica publica un incumplimiento que no existe. Medido sobre tres
+# fechas: `0 0 0` con el dominio declarado como instantes y `1 1 0` con el mismo
+# dominio como fechas de calendario.
+.declarar_mezcla_de_husos <- function(nombre_metrica, columna, x, fechas,
+                                      consecuencia = NULL) {
+  if (is.null(consecuencia)) {
+    consecuencia <- paste0(
+      "as\u00ed que una actualizaci\u00f3n del d\u00eda del l\u00edmite puede contar como tarde, ",
+      "y si el `POSIXct` se ley\u00f3 sin huso el resultado depende de la sesi\u00f3n"
+    )
+  }
+  clase_temporal <- function(v) {
+    if (inherits(v, "Date")) "Date" else if (inherits(v, "POSIXt")) "POSIXt" else
+      NA_character_
+  }
+  clases <- c(clase_temporal(x),
+              vapply(fechas, clase_temporal, character(1L), USE.NAMES = FALSE))
+  clases <- clases[!is.na(clases)]
+  if (length(unique(clases)) < 2L) return(invisible(FALSE))
+  warning(
+    nombre_metrica, " compara una fecha de calendario con un instante: la ",
+    "columna `", columna, "` y el contrato mezclan `Date` -que se ancla a la ",
+    "medianoche UTC- con `POSIXct`, ", consecuencia,
+    ". Declarar las dos puntas en la misma clase ",
+    "-o con `tz` expl\u00edcito en las dos- deja el n\u00famero estable.",
+    call. = FALSE
+  )
+  invisible(TRUE)
+}
+
 .actualizaciones_vigencia <- function(tablas, instancia) {
   if (length(instancia$entidad) != 1L) {
     stop(instancia$declaracion$nombre, " requiere una entidad.", call. = FALSE)
@@ -203,12 +265,20 @@ escala <- function(error, tipo = c("absoluto", "relativo")) {
   datos <- .actualizaciones_vigencia(tablas, instancia)
   contrato <- datos$contrato
   if (!is.null(contrato$fecha_ultimo_cambio)) {
+    .declarar_mezcla_de_husos(
+      "DesactualizacionPorFecha", datos$columna,
+      datos$tabla[[datos$columna]], list(contrato$fecha_ultimo_cambio)
+    )
     cambio <- .fecha_para_filas(
       contrato$fecha_ultimo_cambio, datos$filas, datos$n,
       "fecha_ultimo_cambio"
     )
     atraso <- pmax(0, cambio - datos$actualizacion)
   } else if (!is.null(contrato$frecuencia_cambio_segundos)) {
+    .declarar_mezcla_de_husos(
+      "DesactualizacionPorFecha", datos$columna,
+      datos$tabla[[datos$columna]], list(contrato$fecha_acceso)
+    )
     acceso <- .fecha_para_filas(
       contrato$fecha_acceso, datos$filas, datos$n, "fecha_acceso"
     )
@@ -216,10 +286,18 @@ escala <- function(error, tipo = c("absoluto", "relativo")) {
                       length.out = length(datos$filas))
     atraso <- pmax(0, acceso - datos$actualizacion - frecuencia)
   } else {
-    stop(
-      "DesactualizacionPorFecha exige `fecha_ultimo_cambio` o `frecuencia_cambio`.",
-      call. = FALSE
-    )
+    return(.abstener_metodo(
+      instancia,
+      paste0(
+        "DesactualizacionPorFecha no se midi\u00f3: el contrato de vigencia no ",
+        "trae `fecha_ultimo_cambio` ni `frecuencia_cambio`, y sin uno de los dos ",
+        "no hay con qu\u00e9 calcular el atraso."
+      ),
+      paste0(
+        "Declarar `fecha_ultimo_cambio` o `frecuencia_cambio` en `vigencia()`. ",
+        "Una m\u00e9trica que se abstiene no se interpreta como cero."
+      )
+    ))
   }
   .salida_metodo(
     atraso / 86400, datos$entidad, datos$columna, datos$filas,
@@ -231,8 +309,23 @@ escala <- function(error, tipo = c("absoluto", "relativo")) {
   datos <- .actualizaciones_vigencia(tablas, instancia)
   frecuencia <- datos$contrato$frecuencia_cambio_segundos
   if (is.null(frecuencia)) {
-    stop("DesactualizacionPorCambios exige `frecuencia_cambio`.", call. = FALSE)
+    return(.abstener_metodo(
+      instancia,
+      paste0(
+        "DesactualizacionPorCambios no se midi\u00f3: el contrato de vigencia no ",
+        "trae `frecuencia_cambio`, que es la unidad en la que esta m\u00e9trica ",
+        "cuenta."
+      ),
+      paste0(
+        "Declarar `frecuencia_cambio` en `vigencia()`. Una m\u00e9trica que se ",
+        "abstiene no se interpreta como cero."
+      )
+    ))
   }
+  .declarar_mezcla_de_husos(
+    "DesactualizacionPorCambios", datos$columna,
+    datos$tabla[[datos$columna]], list(datos$contrato$fecha_acceso)
+  )
   acceso <- .fecha_para_filas(
     datos$contrato$fecha_acceso, datos$filas, datos$n, "fecha_acceso"
   )
@@ -249,9 +342,24 @@ escala <- function(error, tipo = c("absoluto", "relativo")) {
   contrato <- datos$contrato
   if (intervalo) {
     if (is.null(contrato$inicio_intervalo) || is.null(contrato$fin_intervalo)) {
-      stop("OportunidadEntPorIntervalo exige un intervalo en vigencia().",
-           call. = FALSE)
+      return(.abstener_metodo(
+        instancia,
+        paste0(
+          "OportunidadEntPorIntervalo no se midi\u00f3: el contrato de vigencia ",
+          "no trae el intervalo -`inicio_intervalo` y `fin_intervalo`- contra el ",
+          "que se compara la actualizaci\u00f3n."
+        ),
+        paste0(
+          "Declarar el intervalo en `vigencia()`. Una m\u00e9trica que se ",
+          "abstiene no se interpreta como cero."
+        )
+      ))
     }
+    .declarar_mezcla_de_husos(
+      "OportunidadEntPorIntervalo", datos$columna,
+      datos$tabla[[datos$columna]],
+      list(contrato$inicio_intervalo, contrato$fin_intervalo)
+    )
     inicio <- .fecha_para_filas(
       contrato$inicio_intervalo, datos$filas, datos$n, "inicio_intervalo"
     )
@@ -261,9 +369,23 @@ escala <- function(error, tipo = c("absoluto", "relativo")) {
     resultado <- datos$actualizacion >= inicio & datos$actualizacion <= fin
   } else {
     if (is.null(contrato$fecha_limite)) {
-      stop("OportunidadEntPorFecha exige `fecha_limite` en vigencia().",
-           call. = FALSE)
+      return(.abstener_metodo(
+        instancia,
+        paste0(
+          "OportunidadEntPorFecha no se midi\u00f3: el contrato de vigencia no ",
+          "trae `fecha_limite`, que es la fecha contra la que se compara la ",
+          "actualizaci\u00f3n."
+        ),
+        paste0(
+          "Declarar `fecha_limite` en `vigencia()`. Una m\u00e9trica que se ",
+          "abstiene no se interpreta como cero."
+        )
+      ))
     }
+    .declarar_mezcla_de_husos(
+      "OportunidadEntPorFecha", datos$columna,
+      datos$tabla[[datos$columna]], list(contrato$fecha_limite)
+    )
     limite <- .fecha_para_filas(
       contrato$fecha_limite, datos$filas, datos$n, "fecha_limite"
     )

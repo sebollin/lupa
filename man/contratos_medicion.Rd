@@ -22,7 +22,9 @@ escala(error, tipo = c("absoluto", "relativo"))
 \item{columna_actualizacion}{Nombre de la columna Date o POSIXt que registra
 la última actualización de cada fila.}
 
-\item{fecha_acceso}{Momento de acceso usado para estimar actualidad.}
+\item{fecha_acceso}{Momento de acceso usado para estimar actualidad. De la
+misma clase que la columna de actualización: con una columna \code{Date},
+\code{Sys.Date()} en lugar del \code{Sys.time()} por omisión.}
 
 \item{fecha_ultimo_cambio}{Fecha conocida del último cambio en el mundo real;
 puede ser escalar o tener una entrada por fila.}
@@ -46,9 +48,19 @@ examinan datos.
 \code{vigencia()} reúne el contrato temporal que las métricas de actualidad y
 oportunidad no pueden inferir de los datos: columna de actualización,
 fecha de acceso, último cambio conocido, fecha límite, intervalo y frecuencia
-esperada. Cada métrica valida los campos que necesita y se abstiene si faltan.
+esperada. Cada métrica valida los campos que necesita y se abstiene si faltan:
+declara en \code{cobertura_metricas} cuál falta y cómo declararlo, en lugar de
+abortar la medición de las demás métricas.
 }
 \details{
+Las dos puntas de cada comparación tienen que ser de la \strong{misma clase}. Un
+\code{Date} se ancla a la medianoche UTC y un \code{POSIXct} vale por su instante, así
+que mezclarlos puede hacer contar como tarde una actualización del día del
+límite, y si el \code{POSIXct} se leyó sin huso el resultado depende de la sesión.
+Cuando una métrica compara clases distintas lo avisa. Como \code{fecha_acceso} vale
+\code{Sys.time()} por omisión, con una columna \code{Date} conviene declararlo también
+como \code{Date}: \code{fecha_acceso = Sys.Date()}.
+
 \code{escala()} declara el error de un instrumento o de otra escala experta. Con
 error absoluto, \code{Escala} calcula \code{1 - error / abs(valor)} y acota el resultado
 a \verb{[0, 1]}; con error relativo calcula \code{1 - error}. No se aprende el error de

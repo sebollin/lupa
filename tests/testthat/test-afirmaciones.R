@@ -1,3 +1,21 @@
+# `?contratos_medicion` promete que cada metrica "valida los campos que necesita
+# y se abstiene si faltan": el campo ausente se declara, no se lleva puesta la
+# corrida. Esta bateria exige las dos mitades de esa promesa -que la medicion no
+# aborte y que la declaracion NOMBRE el campo que falta, que es el unico dato con
+# el que quien llama puede completar el contrato-, porque exigir solo la primera
+# dejaria pasar una abstencion muda.
+abstiene_nombrando_el_campo <- function(instancia, campos) {
+  medicion <- medir(modelo(instancia), data.frame(f = as.Date("2026-01-01")))
+  expect_equal(nrow(medicion), 0L)
+  cobertura <- attr(medicion, "cobertura_metricas", exact = TRUE)
+  expect_equal(nrow(cobertura), 1L)
+  expect_identical(as.character(cobertura$estado), "contrato_incompleto")
+  for (campo in campos) {
+    expect_true(grepl(campo, cobertura$motivo[[1L]], fixed = TRUE), info = campo)
+  }
+  expect_true(nzchar(cobertura$como_resolverlo[[1L]]))
+}
+
 test_that("la ambigüedad día-mes se conserva con tres separadores", {
   for (separador in c("/", "-", ".")) {
     valores <- paste0(c("03", "05"), separador, c("04", "06"),
@@ -219,25 +237,18 @@ test_that("las métricas con contrato se abstienen ante datos o insumos inválid
     especializar(nucleo$DesactualizacionPorCambios,
                   vigencia = sin_frecuencia), "t", "x"
   )
-  expect_error(
-    medir(modelo(inst_cambios), data.frame(f = as.Date("2026-01-01"))),
-    "frecuencia_cambio"
-  )
+  abstiene_nombrando_el_campo(inst_cambios, "frecuencia_cambio")
   inst_fecha <- instanciar(
     especializar(nucleo$OportunidadEntPorFecha,
                   vigencia = sin_frecuencia), "t"
   )
-  expect_error(
-    medir(modelo(inst_fecha), data.frame(f = as.Date("2026-01-01"))),
-    "fecha_limite"
-  )
+  abstiene_nombrando_el_campo(inst_fecha, "fecha_limite")
   inst_intervalo <- instanciar(
     especializar(nucleo$OportunidadEntPorIntervalo,
                   vigencia = sin_frecuencia), "t"
   )
-  expect_error(
-    medir(modelo(inst_intervalo), data.frame(f = as.Date("2026-01-01"))),
-    "intervalo"
+  abstiene_nombrando_el_campo(
+    inst_intervalo, c("inicio_intervalo", "fin_intervalo")
   )
   contrato_numero <- vigencia("f", fecha_acceso = as.Date("2026-02-01"),
                               frecuencia_cambio = 1)
@@ -265,12 +276,8 @@ test_that("las métricas con contrato se abstienen ante datos o insumos inválid
     especializar(nucleo$DesactualizacionPorFecha,
                   vigencia = sin_referencia), "t", "x"
   )
-  expect_error(
-    medir(
-      modelo(instancia_sin_referencia),
-      data.frame(f = as.Date("2026-01-01"))
-    ),
-    "fecha_ultimo_cambio.*frecuencia_cambio"
+  abstiene_nombrando_el_campo(
+    instancia_sin_referencia, c("fecha_ultimo_cambio", "frecuencia_cambio")
   )
 })
 
