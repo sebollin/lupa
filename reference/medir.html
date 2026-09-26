@@ -133,8 +133,10 @@ Los booleanos se almacenan como <code>0</code> y <code>1</code> en la columna co
 alto expresa defecto o si esa lectura no aplica. Algunas métricas
 que trabajan con un vocabulario o un alcance parcial agregan un atributo
 <code>alcance_metricas</code> con sus conteos y límites. Si una métrica no puede
-medirse por falta de valores en su universo, no crea filas ni ceros: deja
-el motivo en el atributo <code>cobertura_metricas</code>. Y cuando <strong>sí</strong> pudo medirse
+medirse —porque su universo no tiene valores, o porque su contrato no trae un
+campo que necesita—, no crea filas ni ceros: deja el motivo y cómo
+resolverlo en el atributo <code>cobertura_metricas</code>, con un estado que distingue
+las dos causas. Y cuando <strong>sí</strong> pudo medirse
 pero sobre <strong>menos</strong> elementos de los que hay en su universo aplicable —una
 métrica por celda no mide la celda vacía, que no produce medida ni cuenta
 como incumplimiento—, el atributo <code>alcance_medidas</code> publica cuántos midió de
@@ -155,13 +157,13 @@ dimension-factor y el <code>tipo_resultado</code> de cada metrica.</p>
 <span class="r-in"><span><span class="va">instancia</span> <span class="op">&lt;-</span> <span class="fu"><a href="modelo_calidad.html">instanciar</a></span><span class="op">(</span><span class="va">especifica</span>, <span class="st">"personas"</span>, <span class="st">"edad"</span><span class="op">)</span></span></span>
 <span class="r-in"><span><span class="fu">medir</span><span class="op">(</span><span class="fu"><a href="modelo_calidad.html">modelo</a></span><span class="op">(</span><span class="va">instancia</span><span class="op">)</span>, <span class="fu"><a href="https://rdrr.io/r/base/data.frame.html" class="external-link">data.frame</a></span><span class="op">(</span>edad <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">20</span>, <span class="cn">NA</span>, <span class="fl">35</span><span class="op">)</span><span class="op">)</span><span class="op">)</span></span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>                                     id_medida</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 1 medicion-20260925T225843.741533-7521-000001</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 2 medicion-20260925T225843.741533-7521-000002</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 3 medicion-20260925T225843.741533-7521-000003</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 1 medicion-20260926T093021.992345-7447-000001</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 2 medicion-20260926T093021.992345-7447-000002</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 3 medicion-20260926T093021.992345-7447-000003</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>                            id_medicion               fecha metrica</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 1 medicion-20260925T225843.741533-7521 2026-09-25 22:58:43  NoNulo</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 2 medicion-20260925T225843.741533-7521 2026-09-25 22:58:43  NoNulo</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 3 medicion-20260925T225843.741533-7521 2026-09-25 22:58:43  NoNulo</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 1 medicion-20260926T093021.992345-7447 2026-09-26 09:30:21  NoNulo</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 2 medicion-20260926T093021.992345-7447 2026-09-26 09:30:21  NoNulo</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 3 medicion-20260926T093021.992345-7447 2026-09-26 09:30:21  NoNulo</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>   metrica_especifica      metrica_instanciada   dimension   factor orientacion</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> 1         NoNuloEdad NoNuloEdad@personas.edad Completitud Densidad conformidad</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> 2         NoNuloEdad NoNuloEdad@personas.edad Completitud Densidad conformidad</span>

@@ -239,6 +239,20 @@ cociente. Todas estas métricas omiten los valores `NA`: su ausencia
 corresponde a completitud y no genera una segunda medida de
 incumplimiento.
 
+**Toda métrica que compara la columna con un valor temporal declarado
+avisa cuando las dos puntas no son de la misma clase.** Un `Date` se
+ancla a la medianoche UTC y un `POSIXct` vale por su instante, así que
+mezclarlos cambia el número sin que se vea: la fila que cae exactamente
+en un límite cambia de veredicto con el huso de la sesión, y en las
+comparaciones por conjunto —`valores_nulos` de `NoNulo`, `diccionario`
+de `Formato`, el dominio de `ValoresPosiblesPorExtension`, el rango de
+`ValoresPosiblesPorComprension` y la clave de un
+[`referencial()`](https://sebollin.github.io/lupa/reference/referencial.md)—
+ningún valor coincide con ninguno: la métrica publicaría un
+incumplimiento que no existe, o —peor, en `NoNulo`— una completitud
+perfecta sobre una columna llena de ausencias disfrazadas. Declarar las
+dos puntas en la misma clase deja el número estable.
+
 **Desviación documentada del marco:** en `DensidadPonderada`, un
 atributo más crítico recibe un coeficiente mayor y, si falta, produce
 una penalización mayor. El texto del marco indica acercar a cero el
@@ -324,13 +338,13 @@ instancia <- instanciar(no_nulo, entidad = "personas", atributos = "edad")
 modelo_calidad <- modelo(instancia)
 medir(modelo_calidad, data.frame(edad = c(20, NA, 35)))
 #>                                     id_medida
-#> 1 medicion-20260925T225844.104819-7521-000001
-#> 2 medicion-20260925T225844.104819-7521-000002
-#> 3 medicion-20260925T225844.104819-7521-000003
+#> 1 medicion-20260926T093022.374914-7447-000001
+#> 2 medicion-20260926T093022.374914-7447-000002
+#> 3 medicion-20260926T093022.374914-7447-000003
 #>                            id_medicion               fecha metrica
-#> 1 medicion-20260925T225844.104819-7521 2026-09-25 22:58:44  NoNulo
-#> 2 medicion-20260925T225844.104819-7521 2026-09-25 22:58:44  NoNulo
-#> 3 medicion-20260925T225844.104819-7521 2026-09-25 22:58:44  NoNulo
+#> 1 medicion-20260926T093022.374914-7447 2026-09-26 09:30:22  NoNulo
+#> 2 medicion-20260926T093022.374914-7447 2026-09-26 09:30:22  NoNulo
+#> 3 medicion-20260926T093022.374914-7447 2026-09-26 09:30:22  NoNulo
 #>   metrica_especifica      metrica_instanciada   dimension   factor orientacion
 #> 1         NoNuloEdad NoNuloEdad@personas.edad Completitud Densidad conformidad
 #> 2         NoNuloEdad NoNuloEdad@personas.edad Completitud Densidad conformidad
@@ -381,13 +395,13 @@ medir(
   data.frame(origen = c("sistema_a", "", NA), stringsAsFactors = FALSE)
 )
 #>                                     id_medida
-#> 1 medicion-20260925T225844.113249-7521-000001
-#> 2 medicion-20260925T225844.113249-7521-000002
-#> 3 medicion-20260925T225844.113249-7521-000003
+#> 1 medicion-20260926T093022.383381-7447-000001
+#> 2 medicion-20260926T093022.383381-7447-000002
+#> 3 medicion-20260926T093022.383381-7447-000003
 #>                            id_medicion               fecha         metrica
-#> 1 medicion-20260925T225844.113249-7521 2026-09-25 22:58:44 OrigenDeclarado
-#> 2 medicion-20260925T225844.113249-7521 2026-09-25 22:58:44 OrigenDeclarado
-#> 3 medicion-20260925T225844.113249-7521 2026-09-25 22:58:44 OrigenDeclarado
+#> 1 medicion-20260926T093022.383381-7447 2026-09-26 09:30:22 OrigenDeclarado
+#> 2 medicion-20260926T093022.383381-7447 2026-09-26 09:30:22 OrigenDeclarado
+#> 3 medicion-20260926T093022.383381-7447 2026-09-26 09:30:22 OrigenDeclarado
 #>   metrica_especifica            metrica_instanciada    dimension
 #> 1    OrigenDeclarado OrigenDeclarado@entrega.origen Trazabilidad
 #> 2    OrigenDeclarado OrigenDeclarado@entrega.origen Trazabilidad
@@ -419,11 +433,11 @@ medir(
   data.frame(fecha = as.Date(c("2026-06-29", "2026-07-01")))
 )
 #>                                     id_medida
-#> 1 medicion-20260925T225844.119401-7521-000001
-#> 2 medicion-20260925T225844.119401-7521-000002
+#> 1 medicion-20260926T093022.389863-7447-000001
+#> 2 medicion-20260926T093022.389863-7447-000002
 #>                            id_medicion               fecha
-#> 1 medicion-20260925T225844.119401-7521 2026-09-25 22:58:44
-#> 2 medicion-20260925T225844.119401-7521 2026-09-25 22:58:44
+#> 1 medicion-20260926T093022.389863-7447 2026-09-26 09:30:22
+#> 2 medicion-20260926T093022.389863-7447 2026-09-26 09:30:22
 #>                       metrica metrica_especifica           metrica_instanciada
 #> 1 OportunidadAtributoPorFecha     EntregaATiempo EntregaATiempo@entregas.fecha
 #> 2 OportunidadAtributoPorFecha     EntregaATiempo EntregaATiempo@entregas.fecha

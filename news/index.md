@@ -2,6 +2,89 @@
 
 ## lupa 0.1.0
 
+### Un contrato incompleto se abstiene, no se lleva la corrida
+
+- [`?contratos_medicion`](https://sebollin.github.io/lupa/reference/contratos_medicion.md)
+  promete que «cada metrica valida los campos que necesita y **se
+  abstiene** si faltan». Las cuatro metricas ligadas a
+  [`vigencia()`](https://sebollin.github.io/lupa/reference/contratos_medicion.md)
+  -`OportunidadEntPorFecha`, `OportunidadEntPorIntervalo`,
+  `DesactualizacionPorFecha` y `DesactualizacionPorCambios`- llamaban
+  [`stop()`](https://rdrr.io/r/base/stop.html), y
+  [`medir()`](https://sebollin.github.io/lupa/reference/medir.md)
+  abortaba entero: sobre un modelo de dos metricas, una sin su campo se
+  llevaba puesta la medicion de la otra y no quedaba ni un objeto que
+  mirar. Ahora se abstienen: la medicion trae las demas medidas y
+  `cobertura_metricas` publica una fila con estado
+  `contrato_incompleto`, el campo que falta y como declararlo.
+  [`evaluar()`](https://sebollin.github.io/lupa/reference/evaluar.md)
+  deja el resumen en `NA`, que es lo que ya hacia con cualquier metrica
+  no medida.
+
+- Mezclar una fecha de calendario con un instante cambia el veredicto
+  sin que se vea: un `Date` se ancla a la medianoche UTC y un `POSIXct`
+  vale por su instante, asi que una actualizacion del **dia** del limite
+  puede contar como tarde, y si el `POSIXct` se leyo sin huso el
+  resultado depende de la sesion. Medido con los mismos datos y el mismo
+  contrato: `1 0 0` con `TZ=UTC` y `0 0 0` con `TZ=America/Montevideo`.
+  Ahora las cuatro metricas avisan cuando la columna y el campo del
+  contrato que comparan no son de la misma clase, y explican como dejar
+  el numero estable. Cuando las dos puntas son de la misma clase no
+  avisa nada.
+
+- La impresion de la medicion declara ahora las metricas que **no** se
+  pudieron medir, con su estado y su motivo. Era la cuarta capa con la
+  misma pregunta -el tablero ya imprimia esa tabla, el historico la
+  registra como fila y
+  [`evaluar()`](https://sebollin.github.io/lupa/reference/evaluar.md)
+  deja `NA`- y la unica que quedaba muda, justo la que se mira primero
+  despues de medir: sobre un modelo de dos metricas se leian las dos
+  medidas de una y nada decia que la otra no habia medido. Y cuando
+  ninguna midio -un caso que antes no existia, porque
+  [`medir()`](https://sebollin.github.io/lupa/reference/medir.md)
+  abortaba-, lo unico que se imprimia era el encabezado de un cuadro
+  vacio.
+
+- Y el aviso no era de cuatro metricas sino de una propiedad: **comparar
+  temporales de clases distintas**. Un recorrido de los catalogos -en
+  vez de una revision de los archivos que ya conocia- encontro **once
+  sitios mas**, cada uno medido contra su control. Las cuatro gemelas
+  **por atributo** -`OportunidadAtributoPorFecha`,
+  `OportunidadAtributoPorIntervalo` y las dos de
+  `GradoOportunidadAtributo*`- comparaban igual y callaban: medido con
+  una columna `Date` y un `fecha_limite` `POSIXct` leido sin huso, la
+  fila que cae exactamente en el limite daba `1 1 0` con `TZ=UTC` y
+  `1 0 0` con `TZ=Asia/Tokyo`, sin un aviso. Y un recorrido del catalogo
+  -en vez de una revision de los archivos que ya conocia- encontro una
+  novena, que no tiene nada que ver con la frescura: las comparaciones
+  POR CONJUNTO, que no tienen nada que ver con la frescura y fallan mas
+  fuerte todavia, porque ahi la mezcla no corre el numero: lo vacia.
+  Medido, `0 0 0` contra el `1 1 0` del control en
+  `ValoresPosiblesPorExtension` -dominio-,
+  `ValoresPosiblesPorComprension` -rango-, `Formato` -diccionario- y las
+  tres metricas referenciales -clave del padron-, donde la cobertura
+  daba `0` en vez de `1`. Y el peor de todos: `NoNulo` con un centinela
+  `POSIXct` sobre una columna `Date` con `1900-01-01` como ausencia
+  disfrazada publicaba `1 1 1` -no falta nada-, contra el `1 0 1` del
+  mismo centinela declarado como fecha. Una metrica de completitud
+  informando completitud perfecta sobre una columna llena de ausencias.
+
+  Las quince avisan ahora, con la consecuencia escrita para lo que cada
+  una hace. Y la prueba que lo sostiene recorre los catalogos, prueba
+  cada combinacion de propiedades que los validadores aceptan y fija el
+  resultado de cada par (metrica, propiedades, columna), **incluidos los
+  pares donde la guarda calla a proposito**: una columna numerica contra
+  una declaracion temporal no es la confusion entre calendario e
+  instante. Una metrica nueva que compare fechas aparece como un par que
+  no esta en la tabla y la prueba falla.
+
+- La semantica publicada de `OportunidadEntPorFecha` decia «antes de su
+  fecha limite» y el calculo es `<=`: la fila exactamente en el limite
+  salia oportuna. La gemela por atributo ya declaraba «hasta la fecha
+  limite inclusive» y el catalogo dice «entrega hasta Tf, inclusive»,
+  asi que la conducta era la correcta -entregar el dia del plazo es a
+  tiempo- y la descripcion la que mentia. Se corrigio la descripcion.
+
 ### La metrica dice cuantas midio de cuantas
 
 - Una metrica por celda mide **solo** las celdas con valor: sobre cuatro

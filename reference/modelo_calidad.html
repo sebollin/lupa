@@ -263,6 +263,17 @@ margen de utilidad queda. Exigen que <code>t3</code> sea posterior a <code>t2</c
 de duración cero se rechaza porque no define el cociente. Todas estas
 métricas omiten los valores <code>NA</code>: su ausencia corresponde a completitud y no
 genera una segunda medida de incumplimiento.</p>
+<p><strong>Toda métrica que compara la columna con un valor temporal declarado avisa
+cuando las dos puntas no son de la misma clase.</strong> Un <code>Date</code> se ancla a la
+medianoche UTC y un <code>POSIXct</code> vale por su instante, así que mezclarlos cambia
+el número sin que se vea: la fila que cae exactamente en un límite cambia de
+veredicto con el huso de la sesión, y en las comparaciones por conjunto
+—<code>valores_nulos</code> de <code>NoNulo</code>, <code>diccionario</code> de <code>Formato</code>, el dominio de
+<code>ValoresPosiblesPorExtension</code>, el rango de <code>ValoresPosiblesPorComprension</code> y la
+clave de un <code><a href="referencial.html">referencial()</a></code>— ningún valor coincide con ninguno: la métrica
+publicaría un incumplimiento que no existe, o —peor, en <code>NoNulo</code>— una
+completitud perfecta sobre una columna llena de ausencias disfrazadas.
+Declarar las dos puntas en la misma clase deja el número estable.</p>
 <p><strong>Desviación documentada del marco:</strong> en <code>DensidadPonderada</code>, un atributo
 más crítico recibe un coeficiente mayor y, si falta, produce una penalización
 mayor. El texto del marco indica acercar a cero el coeficiente de mayor
@@ -331,13 +342,13 @@ oportunidad implementada bajo los nombres <code>GradoOportunidadAtributo*</code>
 <span class="r-in"><span><span class="va">modelo_calidad</span> <span class="op">&lt;-</span> <span class="fu">modelo</span><span class="op">(</span><span class="va">instancia</span><span class="op">)</span></span></span>
 <span class="r-in"><span><span class="fu"><a href="medir.html">medir</a></span><span class="op">(</span><span class="va">modelo_calidad</span>, <span class="fu"><a href="https://rdrr.io/r/base/data.frame.html" class="external-link">data.frame</a></span><span class="op">(</span>edad <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">20</span>, <span class="cn">NA</span>, <span class="fl">35</span><span class="op">)</span><span class="op">)</span><span class="op">)</span></span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>                                     id_medida</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 1 medicion-20260925T225844.104819-7521-000001</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 2 medicion-20260925T225844.104819-7521-000002</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 3 medicion-20260925T225844.104819-7521-000003</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 1 medicion-20260926T093022.374914-7447-000001</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 2 medicion-20260926T093022.374914-7447-000002</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 3 medicion-20260926T093022.374914-7447-000003</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>                            id_medicion               fecha metrica</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 1 medicion-20260925T225844.104819-7521 2026-09-25 22:58:44  NoNulo</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 2 medicion-20260925T225844.104819-7521 2026-09-25 22:58:44  NoNulo</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 3 medicion-20260925T225844.104819-7521 2026-09-25 22:58:44  NoNulo</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 1 medicion-20260926T093022.374914-7447 2026-09-26 09:30:22  NoNulo</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 2 medicion-20260926T093022.374914-7447 2026-09-26 09:30:22  NoNulo</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 3 medicion-20260926T093022.374914-7447 2026-09-26 09:30:22  NoNulo</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>   metrica_especifica      metrica_instanciada   dimension   factor orientacion</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> 1         NoNuloEdad NoNuloEdad@personas.edad Completitud Densidad conformidad</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> 2         NoNuloEdad NoNuloEdad@personas.edad Completitud Densidad conformidad</span>
@@ -388,13 +399,13 @@ oportunidad implementada bajo los nombres <code>GradoOportunidadAtributo*</code>
 <span class="r-in"><span>  <span class="fu"><a href="https://rdrr.io/r/base/data.frame.html" class="external-link">data.frame</a></span><span class="op">(</span>origen <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"sistema_a"</span>, <span class="st">""</span>, <span class="cn">NA</span><span class="op">)</span>, stringsAsFactors <span class="op">=</span> <span class="cn">FALSE</span><span class="op">)</span></span></span>
 <span class="r-in"><span><span class="op">)</span></span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>                                     id_medida</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 1 medicion-20260925T225844.113249-7521-000001</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 2 medicion-20260925T225844.113249-7521-000002</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 3 medicion-20260925T225844.113249-7521-000003</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 1 medicion-20260926T093022.383381-7447-000001</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 2 medicion-20260926T093022.383381-7447-000002</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 3 medicion-20260926T093022.383381-7447-000003</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>                            id_medicion               fecha         metrica</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 1 medicion-20260925T225844.113249-7521 2026-09-25 22:58:44 OrigenDeclarado</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 2 medicion-20260925T225844.113249-7521 2026-09-25 22:58:44 OrigenDeclarado</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 3 medicion-20260925T225844.113249-7521 2026-09-25 22:58:44 OrigenDeclarado</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 1 medicion-20260926T093022.383381-7447 2026-09-26 09:30:22 OrigenDeclarado</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 2 medicion-20260926T093022.383381-7447 2026-09-26 09:30:22 OrigenDeclarado</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 3 medicion-20260926T093022.383381-7447 2026-09-26 09:30:22 OrigenDeclarado</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>   metrica_especifica            metrica_instanciada    dimension</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> 1    OrigenDeclarado OrigenDeclarado@entrega.origen Trazabilidad</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> 2    OrigenDeclarado OrigenDeclarado@entrega.origen Trazabilidad</span>
@@ -426,11 +437,11 @@ oportunidad implementada bajo los nombres <code>GradoOportunidadAtributo*</code>
 <span class="r-in"><span>  <span class="fu"><a href="https://rdrr.io/r/base/data.frame.html" class="external-link">data.frame</a></span><span class="op">(</span>fecha <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/as.Date.html" class="external-link">as.Date</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"2026-06-29"</span>, <span class="st">"2026-07-01"</span><span class="op">)</span><span class="op">)</span><span class="op">)</span></span></span>
 <span class="r-in"><span><span class="op">)</span></span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>                                     id_medida</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 1 medicion-20260925T225844.119401-7521-000001</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 2 medicion-20260925T225844.119401-7521-000002</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 1 medicion-20260926T093022.389863-7447-000001</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 2 medicion-20260926T093022.389863-7447-000002</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>                            id_medicion               fecha</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 1 medicion-20260925T225844.119401-7521 2026-09-25 22:58:44</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 2 medicion-20260925T225844.119401-7521 2026-09-25 22:58:44</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 1 medicion-20260926T093022.389863-7447 2026-09-26 09:30:22</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 2 medicion-20260926T093022.389863-7447 2026-09-26 09:30:22</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>                       metrica metrica_especifica           metrica_instanciada</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> 1 OportunidadAtributoPorFecha     EntregaATiempo EntregaATiempo@entregas.fecha</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> 2 OportunidadAtributoPorFecha     EntregaATiempo EntregaATiempo@entregas.fecha</span>

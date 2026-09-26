@@ -4,7 +4,8 @@
 oportunidad no pueden inferir de los datos: columna de actualización,
 fecha de acceso, último cambio conocido, fecha límite, intervalo y
 frecuencia esperada. Cada métrica valida los campos que necesita y se
-abstiene si faltan.
+abstiene si faltan: declara en `cobertura_metricas` cuál falta y cómo
+declararlo, en lugar de abortar la medición de las demás métricas.
 
 ## Usage
 
@@ -31,7 +32,10 @@ escala(error, tipo = c("absoluto", "relativo"))
 
 - fecha_acceso:
 
-  Momento de acceso usado para estimar actualidad.
+  Momento de acceso usado para estimar actualidad. De la misma clase que
+  la columna de actualización: con una columna `Date`,
+  [`Sys.Date()`](https://rdrr.io/r/base/Sys.time.html) en lugar del
+  [`Sys.time()`](https://rdrr.io/r/base/Sys.time.html) por omisión.
 
 - fecha_ultimo_cambio:
 
@@ -65,6 +69,16 @@ objeto `escala_medicion`. Ambos son contratos de configuración y no
 examinan datos.
 
 ## Details
+
+Las dos puntas de cada comparación tienen que ser de la **misma clase**.
+Un `Date` se ancla a la medianoche UTC y un `POSIXct` vale por su
+instante, así que mezclarlos puede hacer contar como tarde una
+actualización del día del límite, y si el `POSIXct` se leyó sin huso el
+resultado depende de la sesión. Cuando una métrica compara clases
+distintas lo avisa. Como `fecha_acceso` vale
+[`Sys.time()`](https://rdrr.io/r/base/Sys.time.html) por omisión, con
+una columna `Date` conviene declararlo también como `Date`:
+`fecha_acceso = Sys.Date()`.
 
 `escala()` declara el error de un instrumento o de otra escala experta.
 Con error absoluto, `Escala` calcula `1 - error / abs(valor)` y acota el
