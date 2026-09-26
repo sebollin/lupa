@@ -2,6 +2,41 @@
 
 ## lupa 0.1.0
 
+### La cola del valor protegido mas largo ya no se publica
+
+- El enmascarado de la salida sustituia los valores protegidos **uno por
+  uno, en el orden de la lista**, y un valor que es PREFIJO de otro
+  dejaba publicada la cola del largo. Medido con
+  `c("Maria Nunez", "Maria Nunez de Castro")` sobre el texto
+  `"beneficiaria: Maria Nunez de Castro"`:
+
+      antes:  beneficiaria: [valor protegido] de Castro
+      ahora:  beneficiaria: [valor protegido]
+
+  Los nueve caracteres que quedaban afuera pasan el piso con el que el
+  propio paquete decide que un valor identifica -seis-, asi que era una
+  fuga con la regla de casa. Y no era un caso de laboratorio: los
+  valores salen de las celdas de las columnas protegidas **en el orden
+  de las filas**, de modo que cual llegaba primero dependia de como
+  estuviera ordenada la tabla. Ahora se sustituyen de mas largo a mas
+  corto y el resultado no depende del orden de la lista.
+
+- Un valor repetido en esa lista se sustituia dos veces, y si el valor
+  aparece dentro del marcador la segunda pasada lo corrompia: con
+  `prot`, `dato [valor protegido]` se volvia
+  `dato [valor [valor protegido]egido]`, con `egido` publicado afuera.
+  Se sustituye una sola vez cada valor.
+
+- La prueba que sostiene esto incluye una guarda que no cubre el defecto
+  arreglado sino **el arreglo que no se hizo**: reemplazar el bucle por
+  una alternancia de expresion regular es la optimizacion obvia -el
+  bucle cuesta cientos de `gsub` por llamada- y, medida, **dejaba de
+  enmascarar el texto marcado `latin1`**, porque armar el patron traduce
+  a UTF-8 y entonces una letra acentuada tiene dos bytes en el patron y
+  uno en el sujeto. La prueba fija el enmascarado sobre texto `latin1`,
+  sobre bytes que no son UTF-8 valido y sobre UTF-8, para que esa
+  regresion no pueda entrar en silencio.
+
 ### Un contrato incompleto se abstiene, no se lleva la corrida
 
 - [`?contratos_medicion`](https://sebollin.github.io/lupa/reference/contratos_medicion.md)
