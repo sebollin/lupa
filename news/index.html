@@ -43,6 +43,15 @@
     <div class="section level2">
 <h2 class="pkg-version" data-toc-text="0.1.0" id="lupa-010">lupa 0.1.0<a class="anchor" aria-label="anchor" href="#lupa-010"></a></h2>
 <div class="section level3">
+<h3 id="el-enmascarado-de-la-salida-agrupa-las-hojas-0-1-0">El enmascarado de la salida agrupa las hojas<a class="anchor" aria-label="anchor" href="#el-enmascarado-de-la-salida-agrupa-las-hojas-0-1-0"></a></h3>
+<ul><li>
+<p>Proteger una salida recorria cada hoja de texto por separado y pagaba en cada una el bucle completo sobre los valores protegidos: un <code>gsub</code> por valor, que cuesta lo mismo sobre una cadena que sobre diez mil. Medido, publicar 4.754 hallazgos costaba <strong>42.794 llamadas</strong> al reemplazo con una mediana de <strong>un solo texto por llamada</strong>, y la culpable era <code>hallazgos$trazabilidad</code>, una columna-lista con una entrada por hallazgo y nueve hojas en cada entrada.</p>
+<p>Ahora el recorrido se hace en dos pasadas -cosechar las hojas, reemplazar una vez sobre el vector entero, repartir- y el mismo caso hace <strong>2 llamadas</strong>. La llamada que tardaba <strong>158 s</strong> tarda <strong>11 s</strong>, con los mismos 6.204 pares publicados.</p>
+</li>
+<li><p>El recorrido es el MISMO en las dos pasadas, asi que los atributos anidados se siguen protegiendo igual y las hojas se visitan en el mismo orden. Que la salida no cambie no se da por hecho: la prueba la compara contra una implementacion de referencia hoja por hoja, escrita en el propio archivo de prueba, sobre un perfil, un plan, una columna-lista y un objeto con atributos anidados.</p></li>
+<li><p>La otra mitad de la prueba fija la propiedad que lo hace rapido: <strong>la cantidad de llamadas no crece con la cantidad de hojas</strong>. Con cuarenta veces mas entradas, el mismo numero de llamadas. No se mide tiempo: un umbral de segundos medido en una maquina no transfiere a otra.</p></li>
+</ul></div>
+<div class="section level3">
 <h3 id="la-cola-del-valor-protegido-mas-largo-ya-no-se-publica-0-1-0">La cola del valor protegido mas largo ya no se publica<a class="anchor" aria-label="anchor" href="#la-cola-del-valor-protegido-mas-largo-ya-no-se-publica-0-1-0"></a></h3>
 <ul><li>
 <p>El enmascarado de la salida sustituia los valores protegidos <strong>uno por uno, en el orden de la lista</strong>, y un valor que es PREFIJO de otro dejaba publicada la cola del largo. Medido con <code>c("Maria Nunez", "Maria Nunez de Castro")</code> sobre el texto <code>"beneficiaria: Maria Nunez de Castro"</code>:</p>

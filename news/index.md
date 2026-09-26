@@ -2,6 +2,33 @@
 
 ## lupa 0.1.0
 
+### El enmascarado de la salida agrupa las hojas
+
+- Proteger una salida recorria cada hoja de texto por separado y pagaba
+  en cada una el bucle completo sobre los valores protegidos: un `gsub`
+  por valor, que cuesta lo mismo sobre una cadena que sobre diez mil.
+  Medido, publicar 4.754 hallazgos costaba **42.794 llamadas** al
+  reemplazo con una mediana de **un solo texto por llamada**, y la
+  culpable era `hallazgos$trazabilidad`, una columna-lista con una
+  entrada por hallazgo y nueve hojas en cada entrada.
+
+  Ahora el recorrido se hace en dos pasadas -cosechar las hojas,
+  reemplazar una vez sobre el vector entero, repartir- y el mismo caso
+  hace **2 llamadas**. La llamada que tardaba **158 s** tarda **11 s**,
+  con los mismos 6.204 pares publicados.
+
+- El recorrido es el MISMO en las dos pasadas, asi que los atributos
+  anidados se siguen protegiendo igual y las hojas se visitan en el
+  mismo orden. Que la salida no cambie no se da por hecho: la prueba la
+  compara contra una implementacion de referencia hoja por hoja, escrita
+  en el propio archivo de prueba, sobre un perfil, un plan, una
+  columna-lista y un objeto con atributos anidados.
+
+- La otra mitad de la prueba fija la propiedad que lo hace rapido: **la
+  cantidad de llamadas no crece con la cantidad de hojas**. Con cuarenta
+  veces mas entradas, el mismo numero de llamadas. No se mide tiempo: un
+  umbral de segundos medido en una maquina no transfiere a otra.
+
 ### La cola del valor protegido mas largo ya no se publica
 
 - El enmascarado de la salida sustituia los valores protegidos **uno por
