@@ -43,6 +43,15 @@
     <div class="section level2">
 <h2 class="pkg-version" data-toc-text="0.1.0" id="lupa-010">lupa 0.1.0<a class="anchor" aria-label="anchor" href="#lupa-010"></a></h2>
 <div class="section level3">
+<h3 id="lo-que-no-se-declaro-no-es-parte-del-modelo-0-1-0">Lo que no se declaro no es parte del modelo<a class="anchor" aria-label="anchor" href="#lo-que-no-se-declaro-no-es-parte-del-modelo-0-1-0"></a></h3>
+<ul><li>
+<p><code><a href="../reference/detectar_deriva_calidad.html">detectar_deriva_calidad()</a></code> existe para que una serie no confunda un cambio de datos con un cambio de modelo, y hacia justo eso en el caso mas comun: seguir el mismo modelo en el tiempo. <code><a href="../reference/contratos_medicion.html">vigencia()</a></code> trae <code>fecha_acceso = Sys.time()</code> por omision, asi que dos corridas del MISMO codigo llevaban dos configuraciones distintas. Medido, dos corridas separadas 1,2 segundos publicaban:</p>
+<pre><code>aspecto = configuracion_modelo   cambio = no_comparable   severidad = error</code></pre>
+<p>sin que hubiera cambiado nada. Ahora el contrato registra que campos recibio declarados y la comparacion no mira los otros: dos corridas del mismo modelo comparan <strong>identicas</strong>, y declarar <code>fecha_acceso</code> lo devuelve a la comparacion, asi que cambiarlo <strong>si</strong> sigue siendo un cambio de modelo.</p>
+</li>
+<li><p>La prueba exige las dos mitades -que dos corridas iguales comparen iguales y que dos momentos declarados distintos NO comparen iguales- y ademas comprueba que los dos momentos crudos difieran: la serializacion no lleva fracciones de segundo, asi que dos llamadas dentro del mismo segundo habrian pasado la prueba <strong>tambien sin el arreglo</strong>.</p></li>
+</ul></div>
+<div class="section level3">
 <h3 id="la-suite-dice-en-que-archivo-va-mientras-trabaja-0-1-0">La suite dice en que archivo va mientras trabaja<a class="anchor" aria-label="anchor" href="#la-suite-dice-en-que-archivo-va-mientras-trabaja-0-1-0"></a></h3>
 <ul><li>
 <p><code>tests/testthat.R</code> corre ahora con el reporte del check <strong>y</strong> uno de progreso, asi que el <code>testthat.Rout</code> del <code>.Rcheck</code> trae una linea por archivo con su tiempo:</p>
