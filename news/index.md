@@ -2,6 +2,30 @@
 
 ## lupa 0.1.0
 
+### La ventana que no puede gobernar se declara
+
+- `senal_redundante(ventana = )` promete una tolerancia, y en
+  [`detectar_discordancias()`](https://sebollin.github.io/lupa/reference/detectar_discordancias.md)
+  esa tolerancia **solo se aplica si todas las columnas comparadas son
+  numericas**. Un `Date` no es
+  [`is.numeric()`](https://rdrr.io/r/base/numeric.html), asi que las
+  columnas temporales caian en la rama de igualdad exacta y la ventana
+  declarada no se usaba: medido, dos columnas `Date` a un dia de
+  distancia con `ventana = 1` publicaban `n_discordantes = 2`, contra 0
+  del control numerico con las mismas distancias, y la fila publicaba
+  `ventana = 1` al lado de una comparacion que no la habia usado.
+
+  Ahora se avisa, y el aviso dice que hacer: llevar las fechas con
+  `transformacion` a un numero en la unidad de la ventana. El numero
+  publicado **no** cambia -inventar una tolerancia sobre fechas seria
+  definir algo que el paquete no define- y la evidencia ya lo declaraba
+  con `comparacion textual exacta`. La documentacion de `ventana` lo
+  dice ahora en el `@param`, donde se lee antes de usarlo.
+
+- La prueba incluye el camino que el aviso recomienda: con
+  `transformacion` a numero, la ventana gobierna y no hay aviso. Un
+  consejo que no funcionara seria peor que el silencio.
+
 ### Lo que no se declaro no es parte del modelo
 
 - [`detectar_deriva_calidad()`](https://sebollin.github.io/lupa/reference/detectar_deriva_calidad.md)

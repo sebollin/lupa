@@ -73,7 +73,9 @@ hecho.</p></dd>
 
 <dt id="arg-ventana">ventana<a class="anchor" aria-label="anchor" href="#arg-ventana"></a></dt>
 <dd><p>Tolerancia máxima admitida entre los valores, en las unidades
-del valor comparado. Por omisión <code>0</code>: coincidencia exacta.</p></dd>
+del valor comparado. Por omisión <code>0</code>: coincidencia exacta. Sólo se aplica si
+todas las columnas comparadas son numéricas; con fechas o texto la
+comparación es de igualdad exacta y se avisa.</p></dd>
 
 
 <dt id="arg-transformacion">transformacion<a class="anchor" aria-label="anchor" href="#arg-transformacion"></a></dt>
@@ -101,6 +103,12 @@ de la misma longitud.</p>
 <p><code>ventana</code> es la tolerancia, <strong>en las unidades del valor transformado</strong>: con
 años, <code>ventana = 1</code> acepta un año de diferencia. La unidad no se adivina; es
 la del resultado de la transformación.</p>
+<p>La ventana <strong>sólo gobierna una comparación numérica</strong>. Si alguna de las
+columnas comparadas no es numérica —fechas, texto, factores—, la comparación es
+de igualdad exacta sobre el texto y la ventana no se aplica: eso queda dicho en
+la evidencia (<code>comparacion textual exacta</code>) y, si se declaró una ventana mayor
+que cero, se avisa al medir. Para comparar fechas con tolerancia hay que
+llevarlas con <code>transformacion</code> a un número en la unidad de la ventana.</p>
     </div>
     <div class="section level2">
     <h2 id="see-also">See also<a class="anchor" aria-label="anchor" href="#see-also"></a></h2>

@@ -23,7 +23,9 @@ senal_redundante(columnas, ventana = 0, transformacion = NULL, nombre = NULL)
 - ventana:
 
   Tolerancia máxima admitida entre los valores, en las unidades del
-  valor comparado. Por omisión `0`: coincidencia exacta.
+  valor comparado. Por omisión `0`: coincidencia exacta. Sólo se aplica
+  si todas las columnas comparadas son numéricas; con fechas o texto la
+  comparación es de igualdad exacta y se avisa.
 
 - transformacion:
 
@@ -51,6 +53,14 @@ entera y devuelve un vector de la misma longitud.
 `ventana` es la tolerancia, **en las unidades del valor transformado**:
 con años, `ventana = 1` acepta un año de diferencia. La unidad no se
 adivina; es la del resultado de la transformación.
+
+La ventana **sólo gobierna una comparación numérica**. Si alguna de las
+columnas comparadas no es numérica —fechas, texto, factores—, la
+comparación es de igualdad exacta sobre el texto y la ventana no se
+aplica: eso queda dicho en la evidencia (`comparacion textual exacta`)
+y, si se declaró una ventana mayor que cero, se avisa al medir. Para
+comparar fechas con tolerancia hay que llevarlas con `transformacion` a
+un número en la unidad de la ventana.
 
 ## See also
 

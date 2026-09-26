@@ -43,6 +43,14 @@
     <div class="section level2">
 <h2 class="pkg-version" data-toc-text="0.1.0" id="lupa-010">lupa 0.1.0<a class="anchor" aria-label="anchor" href="#lupa-010"></a></h2>
 <div class="section level3">
+<h3 id="la-ventana-que-no-puede-gobernar-se-declara-0-1-0">La ventana que no puede gobernar se declara<a class="anchor" aria-label="anchor" href="#la-ventana-que-no-puede-gobernar-se-declara-0-1-0"></a></h3>
+<ul><li>
+<p><code>senal_redundante(ventana = )</code> promete una tolerancia, y en <code><a href="../reference/detectar_discordancias.html">detectar_discordancias()</a></code> esa tolerancia <strong>solo se aplica si todas las columnas comparadas son numericas</strong>. Un <code>Date</code> no es <code><a href="https://rdrr.io/r/base/numeric.html" class="external-link">is.numeric()</a></code>, asi que las columnas temporales caian en la rama de igualdad exacta y la ventana declarada no se usaba: medido, dos columnas <code>Date</code> a un dia de distancia con <code>ventana = 1</code> publicaban <code>n_discordantes = 2</code>, contra 0 del control numerico con las mismas distancias, y la fila publicaba <code>ventana = 1</code> al lado de una comparacion que no la habia usado.</p>
+<p>Ahora se avisa, y el aviso dice que hacer: llevar las fechas con <code>transformacion</code> a un numero en la unidad de la ventana. El numero publicado <strong>no</strong> cambia -inventar una tolerancia sobre fechas seria definir algo que el paquete no define- y la evidencia ya lo declaraba con <code>comparacion textual exacta</code>. La documentacion de <code>ventana</code> lo dice ahora en el <code>@param</code>, donde se lee antes de usarlo.</p>
+</li>
+<li><p>La prueba incluye el camino que el aviso recomienda: con <code>transformacion</code> a numero, la ventana gobierna y no hay aviso. Un consejo que no funcionara seria peor que el silencio.</p></li>
+</ul></div>
+<div class="section level3">
 <h3 id="lo-que-no-se-declaro-no-es-parte-del-modelo-0-1-0">Lo que no se declaro no es parte del modelo<a class="anchor" aria-label="anchor" href="#lo-que-no-se-declaro-no-es-parte-del-modelo-0-1-0"></a></h3>
 <ul><li>
 <p><code><a href="../reference/detectar_deriva_calidad.html">detectar_deriva_calidad()</a></code> existe para que una serie no confunda un cambio de datos con un cambio de modelo, y hacia justo eso en el caso mas comun: seguir el mismo modelo en el tiempo. <code><a href="../reference/contratos_medicion.html">vigencia()</a></code> trae <code>fecha_acceso = Sys.time()</code> por omision, asi que dos corridas del MISMO codigo llevaban dos configuraciones distintas. Medido, dos corridas separadas 1,2 segundos publicaban:</p>
