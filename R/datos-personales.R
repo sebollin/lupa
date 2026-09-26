@@ -750,6 +750,30 @@
 
 .reemplazar_valores_protegidos <- function(x, valores) {
   if (!is.character(x) || !length(valores)) return(x)
+  # DE MAS LARGO A MAS CORTO, y una sola vez cada uno. Las dos cosas arreglan una
+  # fuga medida con el piso del propio paquete -seis caracteres identifican-:
+  #
+  # Sustituyendo valor por valor EN EL ORDEN DE LA LISTA, un valor protegido que
+  # es prefijo de otro deja publicada la cola del largo. Medido con
+  # `c("Maria Nunez", "Maria Nunez de Castro")` sobre
+  # `"beneficiaria: Maria Nunez de Castro"`:
+  #
+  #   antes:  beneficiaria: [valor protegido] de Castro   <- 9 caracteres afuera
+  #   ahora:  beneficiaria: [valor protegido]
+  #
+  # Y no era un caso de laboratorio: los valores salen de las celdas de las
+  # columnas protegidas EN EL ORDEN DE LAS FILAS, asi que cual va primero depende
+  # de como este ordenada la tabla.
+  #
+  # El `unique()` cierra otra: repetir un valor lo sustituye dos veces, y si ese
+  # valor aparece dentro del marcador -`protegido`, por ejemplo- la segunda pasada
+  # corrompe el marcador y anida `[valor [valor protegido]]`.
+  #
+  # El orden NO se toca en `.reemplazar_variantes_separadas()`: alli las agujas
+  # solo se buscan para enmascarar el elemento entero, y cual case primero no
+  # cambia el resultado.
+  valores <- unique(valores)
+  valores <- valores[order(-nchar(valores, type = "bytes"))]
   for (valor in valores) {
     largo <- nchar(valor, type = "bytes")
     if (is.na(largo) || !largo) next
