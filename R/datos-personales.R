@@ -803,37 +803,80 @@
 # que no sean valores de celda. Los parametros del plan tienen un recorrido
 # adicional para quitar tambien valores numericos que todavia no se volvieron
 # texto.
-.proteger_textos_salida <- function(x, valores) {
-  if (!length(valores)) return(x)
+# EL RECORRIDO, separado de lo que se hace con cada hoja. Lo usan las dos pasadas
+# de `.proteger_textos_salida()`, asi que las dos visitan las mismas hojas en el
+# mismo orden por construccion -y los atributos se siguen protegiendo igual-.
+.recorrer_textos_salida <- function(x, aplicar) {
   atributos <- attributes(x)
   estructurales <- c("names", "class", "row.names", "dim", "dimnames")
   adicionales <- setdiff(names(atributos), estructurales)
   for (atributo in adicionales) {
-    attr(x, atributo) <- .proteger_textos_salida(
-      attr(x, atributo, exact = TRUE), valores
+    attr(x, atributo) <- .recorrer_textos_salida(
+      attr(x, atributo, exact = TRUE), aplicar
     )
   }
   if (inherits(x, "data.frame")) {
     for (j in seq_along(x)) {
       columna <- x[[j]]
       if (is.character(columna)) {
-        x[[j]] <- .reemplazar_valores_protegidos(columna, valores)
+        x[[j]] <- aplicar(columna)
       } else if (is.factor(columna)) {
-        levels(columna) <- .reemplazar_valores_protegidos(
-          levels(columna), valores
-        )
+        levels(columna) <- aplicar(levels(columna))
         x[[j]] <- columna
       } else if (is.list(columna)) {
-        x[[j]] <- lapply(columna, .proteger_textos_salida, valores = valores)
+        x[[j]] <- lapply(columna, .recorrer_textos_salida, aplicar = aplicar)
       }
     }
     return(x)
   }
   if (is.list(x)) {
-    x[] <- lapply(x, .proteger_textos_salida, valores = valores)
+    x[] <- lapply(x, .recorrer_textos_salida, aplicar = aplicar)
     return(x)
   }
-  .reemplazar_valores_protegidos(x, valores)
+  if (is.character(x)) return(aplicar(x))
+  x
+}
+
+# DOS PASADAS: cosechar las hojas de texto, reemplazar UNA vez sobre el vector
+# entero, repartir.
+#
+# Por que. El reemplazo recorre cada valor protegido con un `gsub`, asi que cuesta
+# lo mismo sobre una cadena que sobre diez mil; pagarlo por hoja es lo que hacia
+# que publicar 4.754 hallazgos costara 42.794 llamadas -el 99% de las del objeto-
+# con una mediana de UN texto por llamada. La culpable medida es
+# `hallazgos$trazabilidad`, una columna-lista con una entrada por hallazgo y nueve
+# hojas en cada entrada.
+#
+# Localizarlo costo tres intentos, y los tres errores fueron del instrumento: las
+# tres primeras pilas apuntaban al `perfilar()` interno -que cuesta 1 s de 176-,
+# contar en un entorno con asignacion compleja dio cero, y recien una muestra
+# uniforme al 2 % dijo que el 99 % venia de aca.
+#
+# Lo que NO se hace: tocar el motor de coincidencia. Cambiar el bucle por una
+# alternancia de expresion regular es mas rapido y, medido, DEJA DE ENMASCARAR el
+# texto marcado `latin1` -armar el patron traduce a UTF-8-. Aca no se cambia ni
+# `fixed = TRUE` ni la codificacion: solo se agrupa.
+.proteger_textos_salida <- function(x, valores) {
+  if (!length(valores)) return(x)
+  cofre <- new.env(parent = emptyenv())
+  cofre$hojas <- list()
+  invisible(.recorrer_textos_salida(x, function(hoja) {
+    cofre$hojas[[length(cofre$hojas) + 1L]] <- hoja
+    hoja
+  }))
+  if (!length(cofre$hojas)) return(x)
+  protegidas <- .reemplazar_valores_protegidos(
+    unlist(cofre$hojas, use.names = FALSE), valores
+  )
+  cofre$desde <- 0L
+  .recorrer_textos_salida(x, function(hoja) {
+    tramo <- protegidas[cofre$desde + seq_along(hoja)]
+    cofre$desde <- cofre$desde + length(hoja)
+    # Los atributos de la hoja -nombres, sobre todo- los pierde el corte del
+    # vector y hay que devolverlos.
+    attributes(tramo) <- attributes(hoja)
+    tramo
+  })
 }
 
 .proteger_numeros_parametros <- function(x, valores) {
