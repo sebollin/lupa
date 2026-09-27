@@ -60,23 +60,54 @@
 
 .configuracion_marco_calidad <- function(marco) {
   if (!inherits(marco, "marco_calidad")) return(NULL)
-  list(
-    nombre = marco$nombre,
-    factores = .seleccionar_columnas(marco$factores, c("dimension", "factor"))
+  factores <- .seleccionar_columnas(marco$factores, c("dimension", "factor"))
+  # Los pares dimension/factor son un CONJUNTO declarado: el orden en que se
+  # escriben es un artefacto de la declaracion. Se ordenan aca, en la DESCRIPCION
+  # del modelo, y no en el marco, que conserva su orden para presentar la
+  # cobertura. Sin esto, declarar los mismos dos pares al reves daba otra
+  # `configuracion_modelo` y la deriva publicaba un cambio de modelo sobre un
+  # resultado identico.
+  orden <- order(
+    .clave_par_identificador(factores$dimension, factores$factor),
+    method = "radix"
   )
+  factores <- factores[orden, , drop = FALSE]
+  row.names(factores) <- NULL
+  list(nombre = marco$nombre, factores = factores)
 }
 
 .configuracion_modelo_calidad <- function(modelo) {
   if (!inherits(modelo, "modelo_calidad")) return(NULL)
   metricas <- vapply(modelo$metricas, function(instancia) {
-    .texto_configuracion_calidad(list(
+    descripcion <- list(
       nombre = instancia$nombre,
       metrica = instancia$declaracion$nombre,
       metrica_especifica = instancia$nombre_especifico,
       entidad = instancia$entidad,
       atributos = instancia$atributos,
       configuracion = instancia$configuracion
-    ))
+    )
+    # El metodo de medicion entra SOLO si lo declaro quien llama, y ese criterio
+    # no es una comodidad: medir con otro metodo es medir otra cosa, y sin esto
+    # dos corridas con metodos distintos daban `configuracion_modelo identica` y
+    # la serie publicaba el cambio como `aspecto = resultado` -un deterioro de los
+    # DATOS-. El metodo por omision de la metrica queda afuera porque es del
+    # paquete: serializar su texto haria que cada version nueva de lupa acusara un
+    # cambio de modelo en toda serie existente, y su identidad ya viaja en el
+    # nombre de la metrica. La ausencia del campo es la declaracion de que no se
+    # declaro; `metodo = NULL` no es una opcion que quien llama pueda elegir.
+    #
+    # Limite conocido y escrito, en las dos direcciones: se compara el arbol
+    # sintactico de la funcion, asi que dos metodos con el mismo cuerpo y
+    # entornos distintos se leen IGUALES, y el mismo metodo escrito
+    # `function(x) x > 0` o `function(x) { x > 0 }` se lee DISTINTO, porque las
+    # llaves son parte del arbol. R no puede decidir equivalencia de funciones,
+    # asi que no hay tercera opcion; y es la conducta que el paquete ya tenia
+    # para las reglas de un `perfil_evaluacion`, no una decision nueva de aca.
+    if (isTRUE(instancia$metodo_declarado)) {
+      descripcion$metodo <- instancia$metodo
+    }
+    .texto_configuracion_calidad(descripcion)
   }, character(1L))
   names(metricas) <- vapply(modelo$metricas, `[[`, character(1L), "nombre")
   entidades <- unlist(lapply(modelo$metricas, `[[`, "entidad"),
@@ -91,6 +122,25 @@
   names(tipos_resultado) <- vapply(
     modelo$metricas, `[[`, character(1L), "nombre"
   )
+  # Un modelo es un CONJUNTO de metricas: el orden en que se declaran es un
+  # artefacto de la declaracion, la misma regla que el paquete ya fija para las
+  # politicas de `normalizacion(proteger=)` y para los pesos de `agregar()`.
+  # Medido: los mismos dos instrumentos declarados al reves dan el resultado
+  # identico -delta 0- y daban dos configuraciones distintas, asi que la deriva
+  # publicaba `configuracion_modelo / no_comparable` con severidad error sobre un
+  # modelo que no habia cambiado.
+  #
+  # Los `atributos` de cada instancia NO se ordenan, y la diferencia esta medida,
+  # no supuesta: la regla recibe las columnas EN EL ORDEN de `atributos` -ver
+  # `.metodo_regla_intra()`-, de modo que reordenarlos cambia el resultado
+  # (0,0,0 contra 1,0,0 en el control de la prueba). Ahi el orden no es un
+  # artefacto de como se escribio: es parte del modelo, y la descripcion tiene
+  # que distinguirlo.
+  orden <- order(.clave_bytes(names(metricas)), method = "radix")
+  metricas <- metricas[orden]
+  tipos_resultado <- tipos_resultado[
+    order(.clave_bytes(names(tipos_resultado)), method = "radix")
+  ]
   list(
     version = 2L,
     entidades = entidades,
@@ -693,6 +743,11 @@ instanciar <- function(metrica_especifica, entidad, atributos = character(),
       "' est\u00e1 declarada pero todav\u00eda no se puede instanciar.", call. = FALSE
     )
   }
+  # Se pregunta por la LLAMADA antes de reemplazar: una vez puesto el valor por
+  # omision, `metodo` ya no distingue quien lo puso. `NULL` significa "no lo
+  # declaro quien llama" en las dos vias -llamada directa y fabrica especifica,
+  # que reenvia `metodo = NULL`-.
+  metodo_declarado <- !is.null(metodo)
   if (is.null(metodo)) {
     metodo <- attr(metrica_especifica, "metodo_predeterminado", exact = TRUE)
   }
@@ -719,7 +774,8 @@ instanciar <- function(metrica_especifica, entidad, atributos = character(),
     entidad = entidad,
     atributos = atributos,
     referencial = referencial,
-    metodo = metodo
+    metodo = metodo,
+    metodo_declarado = metodo_declarado
   )
   class(estructura) <- "metrica_instanciada"
   estructura
@@ -1601,6 +1657,16 @@ metricas_nucleo <- function() {
 #'   datos. Si el modelo declara un marco, la medición conserva tambien
 #'   `marco_calidad`; la configuracion del modelo registra su nombre, sus pares
 #'   dimension-factor y el `tipo_resultado` de cada metrica.
+#'
+#'   Esa descripcion es **insensible al orden de la declaracion**: declarar las
+#'   mismas metricas, o los mismos pares del marco, en otro orden no cambia el
+#'   modelo, porque un modelo es un conjunto de instrumentos y un marco un
+#'   conjunto de pares. El orden de los `atributos` de una instancia **sí** es
+#'   parte del modelo, porque el metodo recibe las columnas en ese orden. Y el
+#'   `metodo` de medicion entra en la descripcion solo si lo declaro quien
+#'   llama: el metodo por omision de una metrica es del paquete y su identidad ya
+#'   viaja en el nombre de la metrica, de modo que un cambio interno de lupa no
+#'   se lee como un cambio del modelo del usuario.
 #' @export
 #'
 #' @examples

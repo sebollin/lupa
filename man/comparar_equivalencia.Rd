@@ -43,7 +43,10 @@ queda en la tabla con veredicto \code{no_comparable} y no suma como acuerdo.
 \description{
 Compara por intersección los campos registrados de dos perfiles y devuelve
 una fila por cada par de columna y campo. Los campos que no tienen un eje
-registrado no se comparan y quedan declarados en \code{campos_no_comparables}.
+registrado no se comparan y quedan declarados en \code{campos_no_comparables}, y
+lo mismo pasa con un campo registrado que uno de los dos lados no mide: se
+declara ahi, con el motivo \code{campo_solo_en_anterior} o \code{campo_solo_en_actual}
+en \code{detalle_campos_no_comparables} y una fila en \code{cobertura_diagnosticos}.
 Los campos bajo protección tampoco se comparan: se declaran por columna,
 campo y lado en \code{campos_protegidos}.
 }

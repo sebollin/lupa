@@ -1,5 +1,32 @@
 # lupa 0.1.0
 
+## Modelo y deriva: que cuenta como un cambio de modelo
+
+- La descripcion del modelo que viaja con cada medicion
+  (`configuracion_modelo`) ya no depende del **orden en que se declaro**.
+  Declarar las mismas metricas al revés, o los mismos pares dimension-factor de
+  un marco, producia dos descripciones distintas y una serie publicaba
+  `configuracion_modelo / no_comparable` con severidad error sobre resultados
+  identicos. El orden de los `atributos` de una instancia sigue contando, y es
+  una diferencia medida: el metodo recibe las columnas en ese orden, asi que
+  reordenarlos cambia lo que se mide.
+- El `metodo` de medicion que declara quien llama en `instanciar()` pasa a ser
+  parte del modelo. Dos corridas con metodos distintos daban la misma
+  `configuracion_modelo` y la deriva atribuia la diferencia a los **datos**
+  (`aspecto = resultado`). El metodo por omision de cada metrica **no** entra en
+  la descripcion: es del paquete, y serializarlo haria que cada version nueva de
+  lupa acusara un cambio de modelo en toda serie existente.
+- `comparar_equivalencia()` declara el campo registrado que uno de los dos lados
+  no mide. Antes desaparecia de la salida entera -sin fila, sin
+  `campos_no_comparables`, sin diagnostico- y el `resumen` contaba los campos
+  comparados como si fueran el universo completo. Ahora queda en
+  `campos_no_comparables`, con motivo `campo_solo_en_anterior` o
+  `campo_solo_en_actual` en `detalle_campos_no_comparables` y su fila en
+  `cobertura_diagnosticos`.
+- Nota para series ya guardadas durante el desarrollo: las tres cosas cambian la
+  huella de `configuracion_modelo`, de modo que un historico anterior puede
+  mostrar un cambio de modelo en el limite entre las dos versiones.
+
 ## Los estadisticos declaran su universo, y una columna exotica no rompe el analisis
 
 - **`distribucion_valores()` y `analizar()` ya no mueren** sobre una columna cuya

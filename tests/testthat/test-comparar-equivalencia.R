@@ -135,9 +135,20 @@ test_that("la equivalencia usa la interseccion y declara campos no comparables",
   resultado <- comparar_equivalencia(anterior, actual, tolerancia = 0)
 
   expect_equal(resultado$campo, "media")
+  # `mediana` esta en `anterior` y no en `actual`: es un campo REGISTRADO que no
+  # se puede comparar, y hasta el 2026-09-27 no aparecia en ninguna parte de la
+  # salida -ni fila, ni esta lista, ni el detalle-, asi que el `resumen` contaba
+  # el universo comparado como si fuera el universo entero. Esta prueba fijaba
+  # ese silencio; ahora exige que se declare, con su motivo en
+  # `detalle_campos_no_comparables` -ver test-O72-.
   expect_setequal(
     attr(resultado, "campos_no_comparables"),
-    c("tipo_inferido", "campo_nuevo")
+    c("tipo_inferido", "campo_nuevo", "mediana")
+  )
+  detalle <- attr(resultado, "detalle_campos_no_comparables")
+  expect_identical(
+    as.character(detalle$motivo[as.character(detalle$campo) == "mediana"]),
+    "campo_solo_en_anterior"
   )
   expect_identical(levels(resultado$veredicto), c(
     "identico", "equivalente", "materialmente_distinto", "no_comparable"

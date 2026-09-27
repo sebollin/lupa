@@ -84,6 +84,16 @@ política usada para que una deriva posterior pueda distinguir modelo de
 datos. Si el modelo declara un marco, la medición conserva tambien
 \code{marco_calidad}; la configuracion del modelo registra su nombre, sus pares
 dimension-factor y el \code{tipo_resultado} de cada metrica.
+
+Esa descripcion es \strong{insensible al orden de la declaracion}: declarar las
+mismas metricas, o los mismos pares del marco, en otro orden no cambia el
+modelo, porque un modelo es un conjunto de instrumentos y un marco un
+conjunto de pares. El orden de los \code{atributos} de una instancia \strong{sí} es
+parte del modelo, porque el metodo recibe las columnas en ese orden. Y el
+\code{metodo} de medicion entra en la descripcion solo si lo declaro quien
+llama: el metodo por omision de una metrica es del paquete y su identidad ya
+viaja en el nombre de la metrica, de modo que un cambio interno de lupa no
+se lee como un cambio del modelo del usuario.
 }
 \description{
 Ejecuta todas las métricas instanciadas de un \code{modelo_calidad}. Cada fila es

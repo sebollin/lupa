@@ -1477,7 +1477,10 @@ comparar_perfiles <- function(anterior, actual, umbral_cambio = 0.05,
 #'
 #' Compara por intersección los campos registrados de dos perfiles y devuelve
 #' una fila por cada par de columna y campo. Los campos que no tienen un eje
-#' registrado no se comparan y quedan declarados en `campos_no_comparables`.
+#' registrado no se comparan y quedan declarados en `campos_no_comparables`, y
+#' lo mismo pasa con un campo registrado que uno de los dos lados no mide: se
+#' declara ahi, con el motivo `campo_solo_en_anterior` o `campo_solo_en_actual`
+#' en `detalle_campos_no_comparables` y una fila en `cobertura_diagnosticos`.
 #' Los campos bajo protección tampoco se comparan: se declaran por columna,
 #' campo y lado en `campos_protegidos`.
 #'
@@ -1644,6 +1647,47 @@ comparar_equivalencia <- function(anterior, actual, tolerancia) {
     registrar_no_comparable(
       columna, "actual", "columna_solo_en_actual"
     )
+  }
+  # Lo mismo que las dos vueltas de arriba hacen con una columna presente en un
+  # solo lado, pero para un CAMPO. Un campo registrado que existe en un lado y no
+  # en el otro se caia de las dos listas: no entraba en `campos` -que es la
+  # interseccion- ni en `campos_no_comparables` -que solo recogia los campos sin
+  # eje registrado-, asi que no aparecia en ninguna parte de la salida y el
+  # `resumen` contaba el universo comparado como si fuera el universo entero.
+  # Es el invariante central: el silencio se declara.
+  declarar_campo_de_un_lado <- function(campo, lado) {
+    campos_no_comparables <<- unique(c(campos_no_comparables, campo))
+    motivo <- paste0("campo_solo_en_", lado)
+    # `columna = NA_character_` porque no falta en una columna: falta en el
+    # resumen entero, y atribuirselo a una columna seria inventar un alcance.
+    detalle_campos_no_comparables <<- rbind(
+      detalle_campos_no_comparables,
+      data.frame(columna = NA_character_, campo = campo, motivo = motivo,
+                 stringsAsFactors = FALSE)
+    )
+    cobertura_diagnosticos <<- rbind(
+      cobertura_diagnosticos,
+      .nuevo_diagnostico_no_evaluado(
+        "comparar_equivalencia", NA_character_,
+        paste0("no_comparable: ", motivo, ": ", campo),
+        paste0(
+          "Medir el campo '", campo, "' en las dos corridas para que se pueda ",
+          "comparar."
+        )
+      )
+    )
+  }
+  campos_solo_anterior <- setdiff(
+    setdiff(names(anterior), "columna"), names(actual)
+  )
+  campos_solo_actual <- setdiff(
+    setdiff(names(actual), "columna"), names(anterior)
+  )
+  for (campo in intersect(campos_solo_anterior, campos_registrados)) {
+    declarar_campo_de_un_lado(campo, "anterior")
+  }
+  for (campo in intersect(campos_solo_actual, campos_registrados)) {
+    declarar_campo_de_un_lado(campo, "actual")
   }
   campos_protegidos <- .campos_protegidos_equivalencia_vacios()
   niveles <- c(
