@@ -799,17 +799,30 @@
   # esta guarda media la celda cruda y daba OK sin tapar el fragmento.
   digitos_aguja <- unique(unlist(corridas_largas(agujas), use.names = FALSE))
   if (length(digitos_aguja) && !all(golpea)) {
-    digitos_pajar <- corridas_largas(pajar)
-    contiene <- function(corridas) {
-      if (!length(corridas)) return(FALSE)
-      any(vapply(corridas, function(corrida) {
-        any(vapply(digitos_aguja, function(aguja) {
-          grepl(corrida, aguja, fixed = TRUE, useBytes = TRUE) ||
-            grepl(aguja, corrida, fixed = TRUE, useBytes = TRUE)
-        }, logical(1L)))
-      }, logical(1L)))
+    corridas_pajar <- corridas_largas(pajar)
+    planas <- unlist(corridas_pajar, use.names = FALSE)
+    if (length(planas)) {
+      # Se pregunta en UNA direccion: si la corrida de la celda esta contenida en la
+      # de una aguja, que es el documento sin su verificador. La direccion contraria
+      # -la aguja dentro de la corrida- ya la cubre la comparacion alfanumerica de
+      # arriba, porque una aguja de digitos normaliza a digitos y la celda que la
+      # contiene la contiene tambien ahi. Medido antes de sacarla.
+      #
+      # Las agujas se concatenan con un separador que NO puede aparecer en una
+      # corrida de digitos, asi que una corrida no puede casar cruzando dos agujas y
+      # una sola busqueda por corrida alcanza. Sin esto la regla preguntaba celda por
+      # celda contra aguja por aguja -8.000 x 200 x 2 llamadas- y el enmascarador
+      # pasaba de 0,05 s a 2,9 s sobre ese tamano.
+      concatenadas <- paste(digitos_aguja, collapse = "|")
+      unicas <- unique(planas)
+      contenidas <- unicas[vapply(unicas, function(corrida) {
+        grepl(corrida, concatenadas, fixed = TRUE, useBytes = TRUE)
+      }, logical(1L))]
+      if (length(contenidas)) {
+        indice_celda <- rep(seq_along(corridas_pajar), lengths(corridas_pajar))
+        golpea[unique(indice_celda[planas %in% contenidas])] <- TRUE
+      }
     }
-    golpea <- golpea | vapply(digitos_pajar, contiene, logical(1L))
   }
   if (any(golpea)) x[candidatas][golpea] <- "[valor protegido]"
   x

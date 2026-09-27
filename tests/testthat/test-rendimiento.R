@@ -1,14 +1,24 @@
 test_that("un millón de valores se perfila en pocos segundos", {
   skip_on_cran()
   skip_on_ci()
-  invisible(perfilar(data.frame(codigo = "AB1234")))
   datos <- data.frame(
     codigo = rep(c("AB1234", "CD5678", "EF9012", "GH3456"), length.out = 1e6)
   )
+  # El calentamiento tiene que ser del MISMO tamaño que la medición. Con una tabla
+  # de una fila, la primera corrida grande pagaba sola el costo de arranque
+  # -asignación, compilación de los closures, hilos de data.table-: medido el
+  # 2026-09-27, 8,42 s la primera y 5,92 y 5,80 las siguientes, con el techo en 8.
+  # Así que esta guarda se ponía roja por el arranque y no por el algoritmo, y una
+  # guarda que falla sola se termina ignorando, que es el peor estado posible.
+  #
+  # Ahora se miden las dos cosas, cada una con su techo y su nombre: el régimen
+  # -que es lo que la frase "se perfila en pocos segundos" promete- y el arranque,
+  # porque si un día cuesta el doble eso es un hallazgo y no ruido.
+  primera <- system.time(invisible(perfilar(datos)))[["elapsed"]]
+  en_regimen <- system.time(invisible(perfilar(datos)))[["elapsed"]]
 
-  tiempo <- system.time(resultado <- perfilar(datos))[["elapsed"]]
-
-  expect_lt(unname(tiempo), 8)
+  expect_lt(unname(en_regimen), 8)
+  expect_lt(unname(primera), 15)
 })
 
 test_that("un millón de valores activa el muestreo declarado", {
@@ -233,4 +243,41 @@ test_that("texto libre conserva memoria y resumen de patrones", {
     function(x) nrow(attr(x, "resumen_patrones")) <= 7L,
     logical(1L)
   )))
+})
+
+test_that("el enmascarado de variantes no crece con la cantidad de agujas", {
+  skip_on_cran()
+  skip_on_ci()
+  # La regla que compara corridas de digitos -para que la cedula sin su verificador
+  # no se publique- preguntaba celda por celda contra aguja por aguja: sobre 8.000
+  # celdas y 400 agujas tardaba 11,8 s, y con 40 veces mas agujas costaba 32 veces
+  # mas. Concatenar las agujas con un separador que no puede aparecer en una corrida
+  # de digitos deja una sola busqueda por corrida, y el costo deja de depender de
+  # cuantas agujas haya.
+  #
+  # Se afirma sobre la RAZON y no sobre un tiempo absoluto: un techo en segundos
+  # medido en esta maquina no transfiere -ya paso en este mismo archivo, con la
+  # maquina cargada-, mientras la razon entre dos mediciones del mismo proceso si.
+  set.seed(3)
+  n <- 8000L
+  pajar <- paste("nota", sample(letters, n, TRUE), sample(100000:999999, n, TRUE))
+  agujas <- sprintf(
+    "%d.%03d.%03d-%d", sample(1:5, 400, TRUE), sample(100:999, 400, TRUE),
+    sample(100:999, 400, TRUE), sample(0:9, 400, TRUE)
+  )
+  medir <- function(cuantas) {
+    unas <- agujas[seq_len(cuantas)]
+    # Una vuelta corta primero, para no medir la carga del paquete.
+    invisible(lupa:::.reemplazar_variantes_separadas(pajar[1:100], unas))
+    min(replicate(3, system.time(
+      invisible(lupa:::.reemplazar_variantes_separadas(pajar, unas))
+    )[["elapsed"]]))
+  }
+
+  con_diez <- medir(10L)
+  con_cuatrocientas <- medir(400L)
+
+  # Cuarenta veces mas agujas: medido, la razon queda en 1,5 con la version que
+  # concatena y en 32,5 con la que preguntaba una por una.
+  expect_lt(con_cuatrocientas / max(con_diez, 1e-6), 5)
 })
