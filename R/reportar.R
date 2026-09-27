@@ -744,10 +744,25 @@
 
 .seccion_deriva <- function(x, max_filas, titulo) {
   severidades <- if ("severidad" %in% names(x)) x$severidad else character()
+  # Lo que la deriva declara que NO pudo comparar viaja tambien aca, por la misma
+  # razon que lo hace el plan de limpieza dos funciones mas abajo: la declaracion
+  # vale en todas las salidas, no solo en la impresion. Una tabla de deriva vacia
+  # porque no hay con que comparar y una vacia porque nada cambio son la misma
+  # pantalla, y la diferencia es justo lo que el lector necesita.
+  cobertura <- attr(x, "cobertura_diagnosticos", exact = TRUE)
+  declaracion <- if (inherits(cobertura, "data.frame") && nrow(cobertura)) {
+    paste0(
+      "<h3>Lo que no se pudo comparar</h3>",
+      "<p class=\"nota\">Su ausencia no es conformidad.</p>",
+      .html_tabla(cobertura, max_filas)
+    )
+  } else {
+    ""
+  }
   paste0(
     "<section><h2>", titulo, "</h2>",
     .resumen_severidades(severidades),
-    .html_tabla(x, max_filas), "</section>"
+    .html_tabla(x, max_filas), declaracion, "</section>"
   )
 }
 

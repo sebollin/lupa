@@ -85,6 +85,12 @@ test_that("cada nombre de la cobertura casa con un hallazgo, esta mapeado o no p
   sin_hallazgo <- c(
     "relacion_aritmetica_columnas", "texto_no_descifrable",
     "dependencias_funcionales", "comparar_equivalencia",
+    # `detectar_deriva_calidad` declara que una serie de UNA sola medicion no tiene
+    # par que comparar. Es una nota de la capa de comparacion, igual que
+    # `comparar_equivalencia`: no declina un hallazgo del perfil, porque la deriva no
+    # produce hallazgos. Esta sonda lo atrapo el mismo dia en que se agrego el
+    # motivo, que es justo para lo que existe.
+    "detectar_deriva_calidad",
     # Notas PARCIALES: el chequeo se hizo, sobre menos valores o menos
     # dimensiones. No declinan un hallazgo entero.
     "resumen_cuantitativo", "dimensiones_geometria_no_evaluadas",

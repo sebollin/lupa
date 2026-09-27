@@ -2500,7 +2500,23 @@
   # `n_evaluados = 1000` sobre los 950 valores que entraron al resumen, con
   # `n_faltantes = 50` en la misma corrida. La condicion es si algo NO llego al
   # resumen, y los ausentes son la primera forma de no llegar.
-  sobre_resumen <- c("outliers", "ceros_no_permitidos", "negativos_no_permitidos")
+  # La pregunta que decide si un tipo entra en esta lista, escrita para que la
+  # proxima incorporacion no dependa de acordarse: **¿los numeros de este
+  # diagnostico salen de los valores que llegaron al resumen cuantitativo?** Si la
+  # respuesta es si, su denominador es ese subconjunto. `filas_duplicadas` no entra
+  # y no debe: cuenta filas, no valores convertidos. `patron_raro`, `faltantes` y
+  # `faltantes_disfrazados` tampoco: miran la columna entera, y por eso pueden
+  # publicar un denominador distinto en la misma columna sin contradecirse.
+  #
+  # `posible_centinela_numerico` faltaba, y se notaba mirando dos filas hermanas:
+  # sobre la misma columna y en la misma corrida, `ceros_no_permitidos` y `outliers`
+  # publicaban `n_evaluados = 26` y el centinela publicaba 28, contando como
+  # evaluadas dos filas -una ausente y una no convertible- donde su deteccion no
+  # miro nada. Su valor y sus repeticiones salen del resumen, igual que los otros.
+  sobre_resumen <- c(
+    "outliers", "ceros_no_permitidos", "negativos_no_permitidos",
+    "posible_centinela_numerico"
+  )
   if (tipo %in% sobre_resumen && identical(unidad, "fila") &&
       isTRUE(is.finite(n))) {
     excluidos <- if (!is.null(fila$n_valores_excluidos_resumen) &&
@@ -4154,7 +4170,14 @@
     } else {
       NA_real_
     }
-    if (is.finite(proporcion_dominante) && nrow(patrones) > 1L &&
+    # `nrow(patrones) > 1L` sobraba y callaba el caso mas claro: con veinte valores
+    # en cinco patrones y ninguno dominante -el mayor ocupa 0,25 contra un umbral de
+    # 0,5- el resumen que llega aca tiene UNA fila, asi que la condicion no se
+    # cumplia y el perfil sali­a sin hallazgo y con `cobertura_diagnosticos` VACIA.
+    # El README y una vinieta prometen que en ese caso la ausencia se declara. Que el
+    # resumen traiga una fila o cinco no cambia el hecho que se declara: que el
+    # patron dominante no alcanza el umbral.
+    if (is.finite(proporcion_dominante) &&
         proporcion_dominante < umbral_patron_dominante) {
       agregar_cobertura(
         "patron_raro", nombre,
@@ -4771,6 +4794,14 @@
     inter_anio_dia * length(indices$mes) -
     inter_mes_dia * length(indices$anio) + 2 * inter_todos
   hallados <- character()
+  # Las columnas involucradas viajan por POSICION. Antes el conteo se derivaba
+  # partiendo el TEXTO de la evidencia por `+` y recortando lo que sigue a un
+  # parentesis, asi que un nombre de columna legal rompia el conteo en las dos
+  # direcciones: con `anio+bis` el hallazgo publicaba `n_afectados = 4` sobre una
+  # tabla de TRES columnas -rompiendo `n_afectados <= n_evaluados`, que es imposible
+  # con un conteo honesto-, y con `anio (provisorio)` el recorte lo fundia con la
+  # columna `anio` real y subcontaba. El dato no se saca de una impresion.
+  posiciones_halladas <- integer()
   evaluados <- 0L
   agotado <- FALSE
   for (anio in indices$anio) {
@@ -4802,6 +4833,7 @@
             " + ", nombres[[posicion[[1L]]]], " (",
             .formatear_decimal_publicado(proporcion), " v\u00e1lidas)"
           ))
+          posiciones_halladas <- c(posiciones_halladas, posicion)
         }
       }
       if (agotado) break
@@ -4810,6 +4842,7 @@
   }
   list(
     hallados = unique(hallados),
+    columnas = sort(unique(posiciones_halladas)),
     alcance = list(
       n_candidatos_posibles = as.numeric(posibles),
       n_candidatos_evaluados = as.numeric(evaluados),
@@ -5065,9 +5098,9 @@
   }
   fechas_partidas <- .detectar_fecha_partida(datos, nombres_texto)
   if (length(fechas_partidas$hallados)) {
-    columnas_partidas <- unique(trimws(unlist(strsplit(
-      sub("\\s*\\(.*$", "", fechas_partidas$hallados), "\\+"
-    ))))
+    # El conteo sale de las posiciones que el detector encontro, no de partir el
+    # texto de la evidencia: ver el comentario en `.detectar_fecha_partida()`.
+    columnas_partidas <- fechas_partidas$columnas
     hallazgos[[length(hallazgos) + 1L]] <- .nuevo_hallazgo(
       NA_character_, "fecha_partida_columnas", "sospechoso",
       "La tabla parece representar una fecha mediante columnas separadas de a\u00f1o, mes y d\u00eda.",

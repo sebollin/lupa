@@ -1032,6 +1032,7 @@ detectar_deriva_calidad <- function(historico, nivel = c("perfil", "regla"),
     clave, .clave_bytes(as.character(identidad)), sep = "\034"
   ))
   grupos <- split(seq_len(nrow(datos)), clave, drop = TRUE)
+  sin_par <- list()
   partes <- lapply(grupos, function(indices) {
     fechas <- as.numeric(datos$fecha[indices])
     orden_fecha <- .orden_seguro(fechas)
@@ -1046,7 +1047,39 @@ detectar_deriva_calidad <- function(historico, nivel = c("perfil", "regla"),
         .clave_bytes(as.character(datos$id_medicion[candidatos]))
       )]
     }), use.names = FALSE)
-    if (length(indices) < 2L) return(vacio)
+    if (length(indices) < 2L) {
+      # Un grupo con UNA sola medicion no tiene par que comparar, y hasta aca
+      # devolvia el marco vacio sin decirlo: la salida quedaba en cero filas y sin
+      # ningun atributo -ni uno-, asi que para quien lee una deriva vacia porque no
+      # hay con que comparar y una deriva vacia porque nada cambio son la misma
+      # pantalla. Es lo que el paquete escribe en todos los otros lugares: su
+      # ausencia no es conformidad.
+      #
+      # Se declara con el mecanismo que la capa vecina ya usa para esto:
+      # `comparar_equivalencia()` publica `cobertura_diagnosticos` cuando no puede
+      # comparar. Salio de leer los descartes de una refutacion, que lo habia
+      # anotado como "observacion menor" con el motivo de que el objeto no traia
+      # ningun motivo publicable. Eso describia el defecto, no lo excusaba.
+      sin_par[[length(sin_par) + 1L]] <<- .nuevo_diagnostico_no_evaluado(
+        "detectar_deriva_calidad",
+        # Legible, no una clave: este campo lo lee una persona. Las claves de
+        # bytes son para agrupar, no para publicar.
+        if (nivel == "regla") {
+          paste0(
+            as.character(datos$perfil[[indices[[1L]]]]), " / ",
+            as.character(datos$regla[[indices[[1L]]]])
+          )
+        } else {
+          as.character(datos$perfil[[indices[[1L]]]])
+        },
+        "no_comparable: una sola medicion en la serie",
+        paste0(
+          "Acumular al menos dos mediciones del mismo perfil -y de la misma tabla- ",
+          "para que haya un par que comparar."
+        )
+      )
+      return(vacio)
+    }
     a <- indices[-length(indices)]
     b <- indices[-1L]
     delta <- datos$resultado[b] - datos$resultado[a]
@@ -1257,6 +1290,11 @@ detectar_deriva_calidad <- function(historico, nivel = c("perfil", "regla"),
     ordered = TRUE
   )
   rownames(resultado) <- NULL
+  attr(resultado, "cobertura_diagnosticos") <- if (length(sin_par)) {
+    do.call(rbind, sin_par)
+  } else {
+    .cobertura_diagnosticos_vacia()
+  }
   class(resultado) <- c("deriva_calidad", "data.frame")
   resultado
 }

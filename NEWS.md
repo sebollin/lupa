@@ -1,5 +1,32 @@
 # lupa 0.1.0
 
+## Conteos que describen lo que miraron, y una deriva que dice cuando no pudo comparar
+
+- **El conteo de `fecha_partida_columnas` ya no sale de partir su propia evidencia.**
+  Con una tabla de TRES columnas llamadas `anio+bis`, `mes` y `dia`, el hallazgo
+  publicaba `n_afectados = 4` y `n_evaluados = 3` en unidad `columna`:
+  `n_afectados > n_evaluados`, que es imposible con un conteo honesto. El 4 salia de
+  partir el texto de la evidencia por `+`. La variante con parentesis subcontaba, por
+  el recorte que fundia `anio (provisorio)` con la columna `anio` real. Ahora las
+  columnas involucradas viajan por posicion desde el detector.
+- **Sin patron dominante suficiente, la ausencia se declara.** El README y una
+  vinieta prometen que si ningun patron dominante alcanza el umbral, eso queda en
+  `cobertura_diagnosticos`. Con veinte valores en cinco patrones y el mayor en 0,25
+  contra un umbral de 0,5, la salida no tenia ni hallazgo ni cobertura: la condicion
+  exigia mas de una fila en el resumen de patrones, y el resumen que llega trae una.
+- **`posible_centinela_numerico` declara el universo donde de verdad mira.** Sobre la
+  misma columna y en la misma corrida, `ceros_no_permitidos` y `outliers` publicaban
+  `n_evaluados = 26` -28 filas menos una ausente y una no convertible- y el centinela
+  publicaba 28. Su deteccion corre sobre el resumen cuantitativo, igual que la de sus
+  hermanos. Los diagnosticos que miran la columna entera -`patron_raro`,
+  `faltantes`, `filas_duplicadas`- siguen en 28, que es su universo real.
+- **Una deriva vacia dice si fue porque nada cambio o porque no habia con que
+  comparar.** `detectar_deriva_calidad()` sobre una serie de una sola medicion
+  devolvia cero filas y ningun atributo, y el informe imprimia la seccion vacia sin
+  decir que no habia par. Ahora el objeto publica `cobertura_diagnosticos` con el
+  motivo y el informe lo muestra, con la misma frase que el resto del paquete: su
+  ausencia no es conformidad.
+
 ## La cadena que se compara es la que el objeto declara
 
 - **Dos columnas de texto con el mismo nombre ya no se comparan en silencio.** El
