@@ -2334,6 +2334,18 @@
   n <- if (length(fila$n) && is.finite(fila$n[[1L]])) {
     as.numeric(fila$n[[1L]])
   } else NA_real_
+  # `tipos_geometria_mixtos` habla de la COLUMNA -sus geometrias son de tipos
+  # mixtos-, asi que su universo es el universo APLICABLE: las filas que la regla
+  # dejo afuera no son parte ni del denominador ni del numerador. Se ajusta `n`
+  # ANTES del `switch`, que es lo que usa para los dos, para no escribir la misma
+  # resta en dos lugares. Medido: publicaba "cuenta 7 y traza 5" con el aviso del
+  # paquete contra si mismo; sin universo declarado `n_no_aplica` es cero y nada se
+  # mueve. El universo sale de dos campos que la fila ya publica, igual que lo hace
+  # `valor_fuera_de_aplicabilidad` mas abajo.
+  if (identical(tipo, "tipos_geometria_mixtos") && isTRUE(is.finite(n)) &&
+      !is.null(fila$n_no_aplica) && isTRUE(is.finite(fila$n_no_aplica[[1L]]))) {
+    n <- n - as.numeric(fila$n_no_aplica[[1L]])
+  }
   afectados <- switch(
     tipo,
     # Las filas donde esta el valor centinela: se contaron al detectarlo, asi
@@ -2644,7 +2656,8 @@
 
 .indices_hallazgo_columna <- function(tipo, x, fila, resultado,
                                       expandir = FALSE,
-                                      distinguir_mayusculas = TRUE) {
+                                      distinguir_mayusculas = TRUE,
+                                      aplicable = NULL) {
   ## Las filas donde esta el valor centinela. Se conoce cual es -el perfil lo
   ## midio- asi que decir cuantas son y no cuales seria contarlas sin
   ## nombrarlas, que es la incoherencia que la guarda de trazabilidad persigue.
@@ -2714,6 +2727,22 @@
   n <- length(x)
   if (!n) return(integer())
   texto <- tryCatch(.texto_analizable(x)$valores, error = function(e) NULL)
+  # El universo aplicable entra ACA, antes de formar los grupos, y no despues
+  # recortando el resultado. Recortar deja la traza nombrando filas que el conteo
+  # no cuenta: medido, con `A`, `a` y `c` aplicables y `c`, `C` fuera del universo,
+  # `mayusculas_inconsistentes` contaba 2 valores distintos y citaba `"A"; "a"`,
+  # mientras la traza nombraba las filas 1, 2 y 3 -la 3 vale `c`, que colisiona con
+  # la `C` de una fila NO aplicable-. Dos universos en la misma fila del hallazgo, y
+  # el propio paquete disparando su alarma de trazabilidad incoherente sobre un
+  # perfil intacto.
+  #
+  # Es el mismo paso que `columnas.R` ya hace antes de diagnosticar el texto, y por
+  # el mismo motivo: se marca como ausente en vez de recortar el vector, para que
+  # los indices de fila sigan alineados con la tabla.
+  if (!is.null(texto) && !is.null(aplicable) &&
+      length(aplicable) == length(texto) && !all(aplicable)) {
+    texto[!aplicable] <- NA
+  }
   cuantitativos <- NULL
   cuantitativos_evaluados <- FALSE
   obtener_cuantitativos <- function() {
@@ -3077,7 +3106,8 @@
   if (is.na(indice)) return(.trazabilidad_vacia(limite = limite))
   indices <- .indices_hallazgo_columna(
     tipo, datos[[indice]], resultados[[indice]]$fila,
-    resultados[[indice]], expandir, distinguir_mayusculas
+    resultados[[indice]], expandir, distinguir_mayusculas,
+    aplicable = resultados[[indice]]$aplicable
   )
   # Si se declaro un universo aplicable, la traza no puede nombrar filas que
   # quedaron fuera: el conteo ya las excluye y nombrarlas igual produce la
@@ -3166,11 +3196,15 @@
       )
     }
   }
-  .advertir_incoherencias_trazabilidad(hallazgos, datos, nombres)
+  .advertir_incoherencias_trazabilidad(
+    hallazgos, datos, nombres,
+    aplicables = lapply(resultados, `[[`, "aplicable")
+  )
   hallazgos
 }
 
-.indices_unidades_valor_distinto <- function(tipo, x, trazabilidad) {
+.indices_unidades_valor_distinto <- function(tipo, x, trazabilidad,
+                                            aplicable = NULL) {
   if (tipo %in% c(
       "casi_duplicados_vocabulario", "variantes_equifrecuentes_vocabulario"
     )) {
@@ -3192,6 +3226,13 @@
     error = function(e) NULL
   )
   if (is.null(textos)) return(NULL)
+  # La guarda tiene que recomputar sobre EL MISMO universo que la traza, o acusa una
+  # incoherencia que no existe. Es la otra mitad del par: si las dos mitades no
+  # miran lo mismo, el aviso dispara aunque las dos esten bien por separado.
+  if (!is.null(aplicable) && length(aplicable) == length(textos) &&
+      !all(aplicable)) {
+    textos[!aplicable] <- NA_character_
+  }
   presentes <- !is.na(textos)
   unicos <- unique(textos[presentes])
   if (tipo == "mayusculas_inconsistentes") {
@@ -3213,7 +3254,8 @@
 }
 
 .advertir_incoherencias_trazabilidad <- function(hallazgos, datos = NULL,
-                                                 nombres = NULL) {
+                                                 nombres = NULL,
+                                                 aplicables = NULL) {
   if (!nrow(hallazgos)) return(invisible(hallazgos))
   # Sin `severidad` no se puede decidir: la guarda salta los hallazgos
   # informativos -que cuentan cero por definicion- comparando ese campo, y sin
@@ -3273,7 +3315,12 @@
       esperados <- if (!is.na(indice_columna)) {
         .indices_unidades_valor_distinto(
           as.character(hallazgos$tipo_hallazgo[[i]]),
-          datos[[indice_columna]], traza
+          datos[[indice_columna]], traza,
+          aplicable = if (is.list(aplicables)) {
+            aplicables[[indice_columna]]
+          } else {
+            NULL
+          }
         )
       } else NULL
       if (!is.null(esperados)) {

@@ -881,17 +881,78 @@
   metricas
 }
 
+# Los cinco campos de indices, en un solo lugar: los leen el remapeo y el recorte
+# al universo aplicable, y si cada uno los escribiera por su lado, agregar un
+# diagnostico con indices dejaria a uno de los dos sin enterarse.
+.CAMPOS_INDICES_GEOMETRIA <- c(
+  "indices_vacias", "indices_invalidas", "indices_fuera_de_dominio",
+  "indices_validez_no_evaluados", "indices_dominio_no_evaluados"
+)
+
 # Las metricas se calculan sobre la `sfc` efectiva; los indices que viajan a la
 # trazabilidad tienen que apuntar a las filas de la columna original.
 .remapear_indices_geometria <- function(salida, posiciones) {
   if (is.null(posiciones)) return(salida)
-  campos <- c(
-    "indices_vacias", "indices_invalidas", "indices_fuera_de_dominio",
-    "indices_validez_no_evaluados", "indices_dominio_no_evaluados"
-  )
-  for (campo in campos) {
+  for (campo in .CAMPOS_INDICES_GEOMETRIA) {
     salida[[campo]] <- as.integer(posiciones[salida[[campo]]])
   }
+  salida
+}
+
+# El universo aplicable gobierna TODOS los conteos, y las metricas de geometria se
+# calculan antes de que la mascara exista: `.perfilar_geometria()` corre sobre la
+# columna cruda. Medido: con seis geometrias y dos declaradas fuera del universo,
+# `coordenada_fuera_dominio` publicaba tres afectadas y la traza -que si recorta-
+# nombraba una, y el propio paquete avisaba de la incoherencia sobre un perfil
+# intacto. El camino de texto ya respetaba el universo; el de geometria no.
+#
+# Se recorta POR INDICES, que es la unica forma de conservar las coordenadas de la
+# tabla original, y cada contador se recalcula de su recorte.
+.restringir_geometria_al_universo <- function(salida, aplicable) {
+  if (is.null(aplicable) || all(aplicable)) return(salida)
+  aplicables <- which(aplicable)
+  contadores <- c(
+    indices_vacias = "n_geometrias_vacias",
+    indices_invalidas = "n_geometrias_invalidas",
+    indices_fuera_de_dominio = "n_fuera_de_dominio",
+    indices_validez_no_evaluados = "n_validez_no_evaluados",
+    indices_dominio_no_evaluados = "n_dominio_no_evaluados"
+  )
+  for (campo in .CAMPOS_INDICES_GEOMETRIA) {
+    indices <- salida[[campo]]
+    conservados <- if (length(indices)) {
+      as.integer(indices[indices %in% aplicables])
+    } else {
+      integer()
+    }
+    salida[[campo]] <- conservados
+    contador <- contadores[[campo]]
+    if (!is.null(salida[[contador]]) && !is.na(salida[[contador]])) {
+      salida[[contador]] <- length(conservados)
+    }
+  }
+  # `n_geometrias` es el universo, y los dos "evaluados" se derivan de el: los
+  # aplicables menos los que no se pudieron evaluar y son aplicables. No hay que
+  # inventar nada, porque de esos dos si hay conjunto de indices.
+  if (!is.null(salida$n_geometrias) && !is.na(salida$n_geometrias)) {
+    salida$n_geometrias <- length(aplicables)
+  }
+  if (!is.null(salida$n_validez_evaluados) && !is.na(salida$n_validez_evaluados)) {
+    salida$n_validez_evaluados <- as.integer(
+      length(aplicables) - length(salida$indices_validez_no_evaluados)
+    )
+  }
+  if (!is.null(salida$n_dominio_evaluados) && !is.na(salida$n_dominio_evaluados)) {
+    salida$n_dominio_evaluados <- as.integer(
+      length(aplicables) - length(salida$indices_dominio_no_evaluados)
+    )
+  }
+  # Y los tres que NO se recortan, porque no cuentan filas de un universo sino
+  # TRABAJO hecho: `n_bbox_evaluados`, `n_geometrias_analizadas` y
+  # `n_vertices_analizados` describen cuanto se analizo, y el analisis corrio antes
+  # de que el universo existiera. Dejarlos como se midieron y decirlo es mas honesto
+  # que recortarlos a ojo: no hay conjunto de indices del que derivarlos. Queda
+  # escrito en `?perfilar`, junto a los campos.
   salida
 }
 

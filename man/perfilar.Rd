@@ -884,6 +884,17 @@ cero. Sin CRS,
 supone EPSG:4326. Si falta el paquete opcional \code{sf}, todos esos campos quedan
 en \code{NA}, no se emite un hallazgo geométrico y \code{cobertura_diagnosticos}
 registra la dependencia ausente.
+
+\strong{Con un universo aplicable declarado}, los conteos y los índices de geometría se
+restringen a ese universo, igual que el resto del perfilado: una geometría que la
+regla dejó afuera no cuenta como vacía, ni como inválida, ni como fuera de dominio,
+y \code{n_geometrias}, \code{n_dominio_evaluados} y \code{n_validez_evaluados} describen el
+universo. Tres campos son la excepción y conviene saber por qué:
+\code{n_bbox_evaluados}, \code{n_geometrias_analizadas} y \code{n_vertices_analizados} cuentan
+\strong{el trabajo que se hizo}, no filas de un universo —el análisis geométrico corre
+sobre la columna entera, porque necesita su CRS y sus tipos—, así que se publican
+tal como se midieron. Recortarlos a ojo sería inventar un número: no hay conjunto
+de índices del que derivarlos.
 El argumento \code{normalizar} declara el perfil de comparación que se conserva
 en \code{meta$normalizacion}; cambia sólo la representación usada para comparar,
 no el texto guardado. \code{TRUE} usa el perfil predeterminado, \code{FALSE} desactiva

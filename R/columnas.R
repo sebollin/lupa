@@ -2211,6 +2211,13 @@
     convertida
   }
   geometria <- .perfilar_geometria(x)
+  # El analisis de geometria corre sobre la columna cruda -no puede ser de otro
+  # modo: necesita la `sfc` entera para leer su CRS y sus tipos- asi que el universo
+  # aplicable se aplica despues, sobre sus conteos y sus indices. Ver
+  # `.restringir_geometria_al_universo()`.
+  if (!all(aplicable)) {
+    geometria <- .restringir_geometria_al_universo(geometria, aplicable)
+  }
   preparacion_texto <- .texto_analizable(x)
   x_analisis <- preparacion_texto$valores
   # La columna tal cual, para lo que compara por igualdad en vez de leer texto.
