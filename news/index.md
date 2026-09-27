@@ -23,6 +23,24 @@
   bytes que no son UTF-8 validos. La comparacion por corridas se limita
   a digitos: aplicada al texto taparia una palabra corriente por
   compartir un tramo con un apellido.
+- **Y esa comparacion por corridas no cuesta lo que costaba.** La
+  primera version preguntaba celda por celda contra aguja por aguja:
+  sobre 8.000 celdas y 400 agujas tardaba 11,8 s, y con cuarenta veces
+  mas agujas costaba treinta y dos veces mas. Las agujas se concatenan
+  con un separador que no puede aparecer en una corrida de digitos, asi
+  que una sola busqueda por corrida alcanza y el costo deja de depender
+  de cuantas agujas haya: 0,10 s sobre el mismo tamano, contra 0,05 s
+  antes de que la regla existiera. Lo vigila una prueba que afirma sobre
+  la RAZON entre dos mediciones del mismo proceso y no sobre un techo en
+  segundos. El tiempo de `checking tests` no se movio con la
+  optimizacion, asi que el costo de la funcion no era lo que lo
+  explicaba.
+- **La guarda del millon de valores medía el arranque y no el
+  algoritmo.** Su calentamiento era una tabla de una fila, asi que la
+  primera corrida grande pagaba sola el costo de arranque -8,42 s contra
+  5,92 y 5,80 las siguientes, con el techo en 8- y la prueba se ponia
+  roja sin que nada hubiera empeorado. Ahora mide el regimen y el
+  arranque por separado, cada uno con su techo.
 - **Una seccion que no se puede armar se declara y ya no mata el
   informe.** Un `historico_calidad` al que le faltaba una columna
   abortaba el documento ENTERO -perfil y mediciones incluidos- con el
