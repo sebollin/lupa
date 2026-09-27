@@ -723,12 +723,22 @@ filas. En los resúmenes que convierten texto con el tipo o formato
 descubierto en esa muestra, los valores presentes que no se pueden
 convertir no se ocultan: `n_fechas_excluidas_granularidad` los cuenta
 para fechas y `n_valores_excluidos_resumen` para números, y el estado
-deja de ser un cálculo completo. Por eso `meta$filas_analizadas`
-describe el máximo usado por los análisis muestreados, no el alcance del
-perfil completo. En cada fila de `columnas`, `n_filas_analizadas_tipo` y
-`muestreado_tipo_inferido` declaran el alcance concreto de
-`proporcion_tipo_inferido`; no debe interpretarse esa proporción como si
-hubiera usado necesariamente toda la columna.
+deja de ser un cálculo completo. `n_valores_excluidos_resumen` cuenta
+también los valores **no finitos** que el resumen deja afuera, y lo hace
+en cualquier clase: una columna de fechas con un `Inf` publica
+`n_valores_excluidos_resumen = 1`, `n_fechas_resumidas` sin contarlo y
+el estado `"calculados_sobre_valores"`. Y para las longitudes de texto,
+`n_longitudes_resumidas` declara sobre cuántos valores se calcularon
+`longitud_minima`, `longitud_maxima` y `longitud_media`:
+[`nchar()`](https://rdrr.io/r/base/nchar.html) no puede medir un valor
+cuyos bytes no son UTF-8 válido, y ése queda fuera del promedio. La
+causa viaja aparte, en `n_codificacion_invalida`. Por eso
+`meta$filas_analizadas` describe el máximo usado por los análisis
+muestreados, no el alcance del perfil completo. En cada fila de
+`columnas`, `n_filas_analizadas_tipo` y `muestreado_tipo_inferido`
+declaran el alcance concreto de `proporcion_tipo_inferido`; no debe
+interpretarse esa proporción como si hubiera usado necesariamente toda
+la columna.
 
 Cuando el tipo inferido es `"fecha"` o `"fecha-hora"`,
 `estado_tipo_inferido` declara además cómo quedó establecida esa
@@ -1276,7 +1286,7 @@ perfil
 #>            correo         texto             0.00000000          12         NA
 #>          id_copia         doble             0.00000000          11         NA
 #>        id_tramite identificador             0.00000000          12         NA
-#> ℹ Se muestran 5 de 114 campos; los demás están en `columnas()`.
+#> ℹ Se muestran 5 de 115 campos; los demás están en `columnas()`.
 summary(perfil)
 #>             columna tipo_declarado tipo_inferido estado_tipo_inferido
 #> 1        id_persona          doble         doble                 <NA>
@@ -1421,83 +1431,83 @@ summary(perfil)
 #> 8                              20 [valor protegido]               2
 #> 9                              20                 1               2
 #> 10                             20             TR001               2
-#>    longitud_minima longitud_maxima longitud_media minimo  maximo        media
-#> 1               NA              NA             NA     NA      NA           NA
-#> 2                3              11       9.692308     NA      NA           NA
-#> 3                4              10       9.384615     NA      NA           NA
-#> 4                0               3       1.076923     NA      NA           NA
-#> 5               NA              NA             NA    -99 9999999 7.900192e+05
-#> 6                5              10       7.461538     NA      NA           NA
-#> 7                2               2       2.000000     NA      NA           NA
-#> 8               10              26      23.923077     NA      NA           NA
-#> 9               NA              NA             NA      1      11 5.923077e+00
-#> 10               5               5       5.000000     NA      NA           NA
-#>    mediana       desvio minimo_exacto maximo_exacto      minimo_fecha
-#> 1       NA 3.546396e+00          <NA>          <NA>              <NA>
-#> 2       NA           NA          <NA>          <NA>              <NA>
-#> 3       NA 1.191710e+08          <NA>          <NA> [valor protegido]
-#> 4       NA           NA          <NA>          <NA>              <NA>
-#> 5    29900 2.767287e+06          <NA>          <NA>              <NA>
-#> 6       NA           NA          <NA>          <NA>              <NA>
-#> 7       NA           NA          <NA>          <NA>              <NA>
-#> 8       NA           NA          <NA>          <NA>              <NA>
-#> 9        6 3.546396e+00          <NA>          <NA>              <NA>
-#> 10      NA           NA          <NA>          <NA>              <NA>
-#>         maximo_fecha       media_fecha     mediana_fecha n_fechas_resumidas
-#> 1               <NA>              <NA>              <NA>                 NA
-#> 2               <NA>              <NA>              <NA>                 NA
-#> 3  [valor protegido] [valor protegido] [valor protegido]                 11
-#> 4               <NA>              <NA>              <NA>                 NA
-#> 5               <NA>              <NA>              <NA>                 NA
-#> 6               <NA>              <NA>              <NA>                 NA
-#> 7               <NA>              <NA>              <NA>                 NA
-#> 8               <NA>              <NA>              <NA>                 NA
-#> 9               <NA>              <NA>              <NA>                 NA
-#> 10              <NA>              <NA>              <NA>                 NA
-#>    n_fechas_excluidas_granularidad n_valores_excluidos_resumen n_ceros
-#> 1                               NA                           0       0
-#> 2                               NA                           0      NA
-#> 3                                0                           2       0
-#> 4                               NA                           0      NA
-#> 5                               NA                           0       1
-#> 6                               NA                           0      NA
-#> 7                               NA                           0      NA
-#> 8                               NA                           0      NA
-#> 9                               NA                           0       0
-#> 10                              NA                           0      NA
-#>    n_negativos n_outliers centinela_valor centinela_repeticiones
-#> 1            0         NA              NA                     NA
-#> 2           NA         NA              NA                     NA
-#> 3            0         NA              NA                     NA
-#> 4           NA         NA              NA                     NA
-#> 5            2         NA              NA                     NA
-#> 6           NA         NA              NA                     NA
-#> 7           NA         NA              NA                     NA
-#> 8           NA         NA              NA                     NA
-#> 9            0         NA              NA                     NA
-#> 10          NA         NA              NA                     NA
-#>    densidad_sin_centinela n_nan n_infinito_positivo n_infinito_negativo
-#> 1                      NA     0                   0                   0
-#> 2                      NA     0                   0                   0
-#> 3                      NA     0                   0                   0
-#> 4                      NA     0                   0                   0
-#> 5                      NA     0                   0                   0
-#> 6                      NA     0                   0                   0
-#> 7                      NA     0                   0                   0
-#> 8                      NA     0                   0                   0
-#> 9                      NA     0                   0                   0
-#> 10                     NA     0                   0                   0
-#>    estado_resumen_cuantitativo zona_horaria_origen
-#> 1                   calculados                <NA>
-#> 2                    no_aplica                <NA>
-#> 3     calculados_sobre_valores                <NA>
-#> 4                    no_aplica                <NA>
-#> 5                   calculados                <NA>
-#> 6                    no_aplica                <NA>
-#> 7                    no_aplica                <NA>
-#> 8                    no_aplica                <NA>
-#> 9                   calculados                <NA>
-#> 10                   no_aplica                <NA>
+#>    longitud_minima longitud_maxima longitud_media n_longitudes_resumidas minimo
+#> 1               NA              NA             NA                     NA     NA
+#> 2                3              11       9.692308                     13     NA
+#> 3                4              10       9.384615                     13     NA
+#> 4                0               3       1.076923                     13     NA
+#> 5               NA              NA             NA                     NA    -99
+#> 6                5              10       7.461538                     13     NA
+#> 7                2               2       2.000000                     13     NA
+#> 8               10              26      23.923077                     13     NA
+#> 9               NA              NA             NA                     NA      1
+#> 10               5               5       5.000000                     13     NA
+#>     maximo        media mediana       desvio minimo_exacto maximo_exacto
+#> 1       NA           NA      NA 3.546396e+00          <NA>          <NA>
+#> 2       NA           NA      NA           NA          <NA>          <NA>
+#> 3       NA           NA      NA 1.191710e+08          <NA>          <NA>
+#> 4       NA           NA      NA           NA          <NA>          <NA>
+#> 5  9999999 7.900192e+05   29900 2.767287e+06          <NA>          <NA>
+#> 6       NA           NA      NA           NA          <NA>          <NA>
+#> 7       NA           NA      NA           NA          <NA>          <NA>
+#> 8       NA           NA      NA           NA          <NA>          <NA>
+#> 9       11 5.923077e+00       6 3.546396e+00          <NA>          <NA>
+#> 10      NA           NA      NA           NA          <NA>          <NA>
+#>         minimo_fecha      maximo_fecha       media_fecha     mediana_fecha
+#> 1               <NA>              <NA>              <NA>              <NA>
+#> 2               <NA>              <NA>              <NA>              <NA>
+#> 3  [valor protegido] [valor protegido] [valor protegido] [valor protegido]
+#> 4               <NA>              <NA>              <NA>              <NA>
+#> 5               <NA>              <NA>              <NA>              <NA>
+#> 6               <NA>              <NA>              <NA>              <NA>
+#> 7               <NA>              <NA>              <NA>              <NA>
+#> 8               <NA>              <NA>              <NA>              <NA>
+#> 9               <NA>              <NA>              <NA>              <NA>
+#> 10              <NA>              <NA>              <NA>              <NA>
+#>    n_fechas_resumidas n_fechas_excluidas_granularidad
+#> 1                  NA                              NA
+#> 2                  NA                              NA
+#> 3                  11                               0
+#> 4                  NA                              NA
+#> 5                  NA                              NA
+#> 6                  NA                              NA
+#> 7                  NA                              NA
+#> 8                  NA                              NA
+#> 9                  NA                              NA
+#> 10                 NA                              NA
+#>    n_valores_excluidos_resumen n_ceros n_negativos n_outliers centinela_valor
+#> 1                            0       0           0         NA              NA
+#> 2                            0      NA          NA         NA              NA
+#> 3                            2       0           0         NA              NA
+#> 4                            0      NA          NA         NA              NA
+#> 5                            0       1           2         NA              NA
+#> 6                            0      NA          NA         NA              NA
+#> 7                            0      NA          NA         NA              NA
+#> 8                            0      NA          NA         NA              NA
+#> 9                            0       0           0         NA              NA
+#> 10                           0      NA          NA         NA              NA
+#>    centinela_repeticiones densidad_sin_centinela n_nan n_infinito_positivo
+#> 1                      NA                     NA     0                   0
+#> 2                      NA                     NA     0                   0
+#> 3                      NA                     NA     0                   0
+#> 4                      NA                     NA     0                   0
+#> 5                      NA                     NA     0                   0
+#> 6                      NA                     NA     0                   0
+#> 7                      NA                     NA     0                   0
+#> 8                      NA                     NA     0                   0
+#> 9                      NA                     NA     0                   0
+#> 10                     NA                     NA     0                   0
+#>    n_infinito_negativo estado_resumen_cuantitativo zona_horaria_origen
+#> 1                    0                  calculados                <NA>
+#> 2                    0                   no_aplica                <NA>
+#> 3                    0    calculados_sobre_valores                <NA>
+#> 4                    0                   no_aplica                <NA>
+#> 5                    0                  calculados                <NA>
+#> 6                    0                   no_aplica                <NA>
+#> 7                    0                   no_aplica                <NA>
+#> 8                    0                   no_aplica                <NA>
+#> 9                    0                  calculados                <NA>
+#> 10                   0                   no_aplica                <NA>
 #>    n_filas_fecha_civil_distinta_utc fecha_civil_distinta_utc
 #> 1                                NA                       NA
 #> 2                                NA                       NA

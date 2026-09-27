@@ -90,6 +90,15 @@ probabilidades, pero `valor` queda en `NA` y `estado` informa
 coincidir exactamente con una observación. Esta protección es
 independiente de la usada al construir el perfil.
 
+Hay clases que R declara numéricas y cuyo cuantil interpolado no se
+puede calcular, porque su aritmética rechaza el producto por una
+fracción —`lubridate::Period` es una—. Esas columnas **no interrumpen el
+análisis**: conservan sus filas con `valor` en `NA` y el `estado`
+`"no_interpolable:<clase>"`, que nombra la clase que no se pudo
+interpolar. La condición se mide intentando el cálculo, no enumerando
+clases, así que una clase nueva con la misma limitación queda cubierta
+sin tocar el código.
+
 ## See also
 
 [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md),

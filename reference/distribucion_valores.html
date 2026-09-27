@@ -133,6 +133,13 @@ mantienen sus filas y probabilidades, pero <code>valor</code> queda en <code>NA<
 informa <code>"valor_protegido"</code>: un cuantil, especialmente en tablas pequeñas,
 puede coincidir exactamente con una observación. Esta protección es
 independiente de la usada al construir el perfil.</p>
+<p>Hay clases que R declara numéricas y cuyo cuantil interpolado no se puede
+calcular, porque su aritmética rechaza el producto por una fracción
+—<code>lubridate::Period</code> es una—. Esas columnas <strong>no interrumpen el análisis</strong>:
+conservan sus filas con <code>valor</code> en <code>NA</code> y el <code>estado</code>
+<code>"no_interpolable:&lt;clase&gt;"</code>, que nombra la clase que no se pudo interpolar. La
+condición se mide intentando el cálculo, no enumerando clases, así que una clase
+nueva con la misma limitación queda cubierta sin tocar el código.</p>
     </div>
     <div class="section level2">
     <h2 id="see-also">See also<a class="anchor" aria-label="anchor" href="#see-also"></a></h2>

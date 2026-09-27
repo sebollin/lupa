@@ -2,6 +2,47 @@
 
 ## lupa 0.1.0
 
+### Los estadisticos declaran su universo, y una columna exotica no rompe el analisis
+
+- **[`distribucion_valores()`](https://sebollin.github.io/lupa/reference/distribucion_valores.md)
+  y
+  [`analizar()`](https://sebollin.github.io/lupa/reference/analizar.md)
+  ya no mueren** sobre una columna cuya clase R declara numerica pero
+  cuyo cuantil interpolado no se puede calcular -`lubridate::Period` es
+  una: su aritmetica rechaza el producto por una fraccion-. La guarda
+  excluia por una LISTA de clases y esa columna se llevaba puesto el
+  analisis entero, mientras
+  [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md)
+  sobre la misma tabla sobrevivia. Ahora la condicion se MIDE intentando
+  el calculo: la columna conserva sus filas con `valor` en `NA` y estado
+  `"no_interpolable:<clase>"`, y una clase nueva con la misma limitacion
+  queda cubierta sin tocar el codigo.
+
+- **Una fecha no finita se declara excluida, y en las dos clases.** Con
+  un `Inf` en una columna de fechas, el resumen se calculaba sobre los
+  finitos y la fila publicaba `n_valores_excluidos_resumen = 0` con
+  estado `calculados`. Ademas el conteo de fechas resumidas estaba
+  escrito dos veces -`sum(!is.na(x))` para `Date`, `sum(is.finite(x))`
+  para `POSIXt`- y sobre el mismo dato una decia 3 y la otra 2. Ahora
+  las dos dicen 2 y las dos declaran la exclusion.
+
+- **`integer64` sin ningun valor que sobreviva dice `sin_valores`.** Con
+  todos los valores declarados centinela publicaba
+  `calculados_sobre_valores` junto a `minimo`, `media` y `desvio` en
+  `NA`: el estado se escribia apenas habia excluidos, antes de saber si
+  quedaba algo. La rama de dobles sobre el mismo dato ya decia
+  `sin_valores`.
+
+- **Las longitudes de texto declaran su universo.**
+  [`nchar()`](https://rdrr.io/r/base/nchar.html) no puede medir un valor
+  cuyos bytes no son UTF-8 valido, y esos se descartaban sin contarlos:
+  con tres valores, uno invalido, la fila publicaba
+  `longitud_media = 4.5` -el promedio de DOS- y ningun campo lo decia.
+  El campo nuevo `n_longitudes_resumidas` declara sobre cuantos se
+  calcularon, igual que `n_fechas_resumidas` declara el universo del
+  resumen de fecha; la causa ya viajaba aparte en
+  `n_codificacion_invalida`.
+
 ### La ventana que no puede gobernar se declara
 
 - `senal_redundante(ventana = )` promete una tolerancia, y en
