@@ -11,9 +11,22 @@ perfilar_por(datos, por, clave = NULL, min_filas = 30L, ...)
 
 \item{por}{Nombre de una columna atómica cuyos valores definen los grupos.
 Los ausentes forman un grupo propio, con la etiqueta \code{"(ausente)"}. Si la
-columna trae ese mismo texto como valor real, los dos caen en un solo grupo
-—no se pierde ninguna fila— y la colisión se declara en
-\code{cobertura_grupos}, con cuántas filas aporta cada una.}
+columna trae ese mismo texto como valor real \strong{y además hay ausentes}, los
+dos caen en un solo grupo —no se pierde ninguna fila— y la colisión se
+declara en \code{cobertura_grupos}, con cuántas filas aporta cada una. Sin
+ausentes no hay colisión y no se declara ninguna.
+
+La etiqueta de cada grupo \strong{vuelve a su valor}. En una columna de dobles,
+\code{as.character()} usa 15 cifras significativas y dos valores distintos pueden
+escribirse igual —\code{1e17} y \code{1e17 + 32} dan los dos \code{"1e+17"}—; en ese caso la
+etiqueta lleva las cifras que hacen falta para distinguirlos
+(\code{"1.0000000000000003e+17"}), de modo que cada grupo corresponde a un valor y
+\code{as.numeric()} de la etiqueta recupera ese valor exacto. Para la enorme
+mayoría de los números la etiqueta es la de siempre.
+
+Si la columna es un \strong{factor}, un nivel declarado sin ninguna fila es un
+grupo de cero filas: no se perfila y se declara en \code{cobertura_grupos}, igual
+que cualquier grupo por debajo de \code{min_filas}.}
 
 \item{clave}{Nombres de columnas de identidad que se conservan en cada grupo
 aunque estén enteramente ausentes. Importa: sin la clave de entidad, el
@@ -43,7 +56,18 @@ muestra.}
 Data frame de clase \code{hallazgos_por_grupo} con las columnas de
 \code{hallazgos} de \code{\link[=perfilar]{perfilar()}} precedidas por \code{grupo} y \code{n_filas_grupo}. El
 atributo \code{cobertura_grupos} declara los grupos no perfilados, las columnas
-enteramente ausentes y las declaraciones recortadas por grupo.
+enteramente ausentes y las declaraciones recortadas por grupo. Su columna
+lógica \code{grupo_perfilado} dice de qué clase de grupo habla cada fila: hay
+filas sobre grupos que \strong{sí} se perfilaron —la colisión de \code{"(ausente)"},
+las columnas descartadas— y filas sobre grupos que no. Sin esa distinción
+\code{n_filas_grupo} no se podía sumar, porque un grupo perfilado aparecía en los
+hallazgos y otra vez en la cobertura.
+
+\strong{Cómo reconciliar las filas.} Hay una fila por grupo y motivo, así que un
+grupo puede aparecer más de una vez; la cuenta se hace sobre grupos
+distintos. La suma de \code{n_filas_grupo} sobre los grupos distintos —los
+perfilados, que están en los hallazgos y en las filas con
+\code{grupo_perfilado = TRUE}, más los no perfilados— da las filas de la tabla.
 
 El atributo \code{etiquetas_personales} declara si la columna de agrupación
 lleva datos personales. Las etiquetas de grupo \strong{son} valores de esa

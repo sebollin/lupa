@@ -1141,6 +1141,32 @@
 # paquete en español para esta region `3,5` es lo correcto. Comprobado que con
 # `OutDec = ","`, `scipen = -5` y `digits = 3` a la vez sale `3,5` y
 # `123456,789012345`.
+# La etiqueta de un grupo no es un numero PUBLICADO: es un identificador, y tiene
+# que volver al valor del que salio. `as.character()` sobre un doble usa 15 cifras
+# significativas, que no alcanzan para distinguir dos dobles distintos: `1e17` y
+# `1e17 + 32` dan los dos "1e+17", y `perfilar_por()` los fundia en un solo grupo de
+# 80 filas cuyos numeros no correspondian a ninguno de los dos -20 filas duplicadas
+# contra 14 y 6 de cada valor por separado-, sin declarar la fusion.
+#
+# No se reusa `.formatear_numero_publicado()` porque contesta otra pregunta -"como se
+# muestra este numero", con 15 cifras y sin notacion cientifica- y las dos respuestas
+# no pueden ser la misma: una etiqueta que no vuelve al valor no identifica al grupo.
+#
+# Se busca la forma MAS CORTA que vuelve: 15 cifras si alcanzan -y alcanzan para la
+# enorme mayoria, asi que `0.1` sigue siendo `"0.1"`-, y si no, 16 y 17. Con 17 cifras
+# significativas todo doble finito vuelve exacto.
+.etiqueta_numero_reversible <- function(x) {
+  salida <- as.character(x)
+  if (!is.double(x)) return(salida)
+  for (digitos in c(16L, 17L)) {
+    vuelve <- suppressWarnings(as.numeric(salida))
+    faltan <- !is.na(x) & is.finite(x) & (is.na(vuelve) | vuelve != x)
+    if (!any(faltan)) break
+    salida[faltan] <- sprintf(paste0("%.", digitos, "g"), x[faltan])
+  }
+  salida
+}
+
 .formatear_numero_publicado <- function(x) {
   # Misma razon que en `.formatear_decimal_publicado()`: un vector devolvia
   # `NA` y quien llamaba publicaba ese `NA` como si fuera el numero.

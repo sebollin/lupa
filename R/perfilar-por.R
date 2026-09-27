@@ -23,9 +23,22 @@
 #' @param datos Data frame a perfilar.
 #' @param por Nombre de una columna atómica cuyos valores definen los grupos.
 #'   Los ausentes forman un grupo propio, con la etiqueta `"(ausente)"`. Si la
-#'   columna trae ese mismo texto como valor real, los dos caen en un solo grupo
-#'   —no se pierde ninguna fila— y la colisión se declara en
-#'   `cobertura_grupos`, con cuántas filas aporta cada una.
+#'   columna trae ese mismo texto como valor real **y además hay ausentes**, los
+#'   dos caen en un solo grupo —no se pierde ninguna fila— y la colisión se
+#'   declara en `cobertura_grupos`, con cuántas filas aporta cada una. Sin
+#'   ausentes no hay colisión y no se declara ninguna.
+#'
+#'   La etiqueta de cada grupo **vuelve a su valor**. En una columna de dobles,
+#'   `as.character()` usa 15 cifras significativas y dos valores distintos pueden
+#'   escribirse igual —`1e17` y `1e17 + 32` dan los dos `"1e+17"`—; en ese caso la
+#'   etiqueta lleva las cifras que hacen falta para distinguirlos
+#'   (`"1.0000000000000003e+17"`), de modo que cada grupo corresponde a un valor y
+#'   `as.numeric()` de la etiqueta recupera ese valor exacto. Para la enorme
+#'   mayoría de los números la etiqueta es la de siempre.
+#'
+#'   Si la columna es un **factor**, un nivel declarado sin ninguna fila es un
+#'   grupo de cero filas: no se perfila y se declara en `cobertura_grupos`, igual
+#'   que cualquier grupo por debajo de `min_filas`.
 #' @param clave Nombres de columnas de identidad que se conservan en cada grupo
 #'   aunque estén enteramente ausentes. Importa: sin la clave de entidad, el
 #'   diagnóstico de filas duplicadas informa como duplicada cada repetición del
@@ -51,7 +64,18 @@
 #' @return Data frame de clase `hallazgos_por_grupo` con las columnas de
 #'   `hallazgos` de [perfilar()] precedidas por `grupo` y `n_filas_grupo`. El
 #'   atributo `cobertura_grupos` declara los grupos no perfilados, las columnas
-#'   enteramente ausentes y las declaraciones recortadas por grupo.
+#'   enteramente ausentes y las declaraciones recortadas por grupo. Su columna
+#'   lógica `grupo_perfilado` dice de qué clase de grupo habla cada fila: hay
+#'   filas sobre grupos que **sí** se perfilaron —la colisión de `"(ausente)"`,
+#'   las columnas descartadas— y filas sobre grupos que no. Sin esa distinción
+#'   `n_filas_grupo` no se podía sumar, porque un grupo perfilado aparecía en los
+#'   hallazgos y otra vez en la cobertura.
+#'
+#'   **Cómo reconciliar las filas.** Hay una fila por grupo y motivo, así que un
+#'   grupo puede aparecer más de una vez; la cuenta se hace sobre grupos
+#'   distintos. La suma de `n_filas_grupo` sobre los grupos distintos —los
+#'   perfilados, que están en los hallazgos y en las filas con
+#'   `grupo_perfilado = TRUE`, más los no perfilados— da las filas de la tabla.
 #'
 #'   El atributo `etiquetas_personales` declara si la columna de agrupación
 #'   lleva datos personales. Las etiquetas de grupo **son** valores de esa
@@ -130,14 +154,25 @@ perfilar_por <- function(datos, por, clave = NULL, min_filas = 30L, ...) {
     stop("`min_filas` debe ser un entero positivo.", call. = FALSE)
   }
 
-  etiquetas <- as.character(datos[[por]])
+  # La etiqueta sale del VALOR y tiene que volver a el: con `as.character()` dos
+  # dobles distintos que se escriben igual caian en un solo grupo, y el perfil
+  # publicado no correspondia a ninguno de los dos. Ver
+  # `.etiqueta_numero_reversible()`.
+  etiquetas <- .etiqueta_numero_reversible(datos[[por]])
   ausentes <- is.na(datos[[por]])
   # Los ausentes forman un grupo propio con esta etiqueta. Si la columna trae el
   # literal `"(ausente)"` como valor real, los dos caen en el mismo grupo: no se
   # pierde ninguna fila, pero se publica un grupo que junta dos cosas distintas
   # sin decirlo. No se cambia la etiqueta -es la que documenta la funcion y la
   # que la gente lee- sino que se declara la colision, que es lo que faltaba.
+  # Una colision necesita LAS DOS COSAS. `colision` cuenta las filas cuyo valor real
+  # es el literal; sin ausentes no hay dos cosas bajo una etiqueta, y la declaracion
+  # salía igual afirmando "junta 0 fila(s) con la columna de agrupacion ausente y 40
+  # fila(s) cuyo valor real es el texto `(ausente)`. Son dos cosas distintas". Una
+  # declaracion que se dispara sin el hecho que declara es una afirmacion falsa, y
+  # justo dentro del libro de cobertura, que existe para poder confiar en el.
   colision <- sum(!ausentes & etiquetas == "(ausente)")
+  hay_colision <- colision > 0L && any(ausentes)
   etiquetas[ausentes] <- "(ausente)"
   etiquetas_operativas <- .nombres_para_operar(etiquetas)
   niveles_operativos <- unique(etiquetas_operativas)
@@ -251,9 +286,24 @@ perfilar_por <- function(datos, por, clave = NULL, min_filas = 30L, ...) {
   nombres_sin_por <- names(datos)[indices_sin_por]
   hallazgos <- list()
   cobertura <- list()
-  if (colision > 0L) {
-    cobertura[[length(cobertura) + 1L]] <- data.frame(
+  grupos_perfilados <- character()
+  indice_colision <- 0L
+  if (hay_colision) {
+    indice_colision <- length(cobertura) + 1L
+    cobertura[[indice_colision]] <- data.frame(
       grupo = "(ausente)",
+      # `grupo_perfilado` distingue las filas que hablan de un grupo que SI se
+      # perfilo -esta, y la de columnas descartadas- de las que hablan de uno que no.
+      # Sin esa distincion, `n_filas_grupo` no se puede sumar: el grupo aparecia en
+      # `hallazgos` y aca, las dos veces con sus 40 filas, y el libro daba 120 sobre
+      # 80 filas reales. Quien use la tabla para verificar que no se pierde ninguna
+      # fila -el uso que esta funcion promete- suma las filas de los grupos NO
+      # perfilados y eso tiene que cerrar contra las filas de la tabla.
+      # Se pone al final, cuando se sabe: ver mas abajo. Aca no se puede afirmar,
+      # porque el grupo `(ausente)` puede quedar por debajo de `min_filas` -o sin
+      # ninguna columna que perfilar- y entonces NO se perfila. La primera version
+      # la dejaba fija en TRUE y era falsa justo en ese caso.
+      grupo_perfilado = NA,
       n_filas_grupo = length(grupos[["(ausente)"]]),
       motivo = paste0(
         "El grupo `(ausente)` junta ", sum(ausentes), " fila(s) con la columna ",
@@ -263,6 +313,34 @@ perfilar_por <- function(datos, por, clave = NULL, min_filas = 30L, ...) {
       ),
       columnas_descartadas = NA_character_, stringsAsFactors = FALSE
     )
+  }
+  # Un nivel DECLARADO sin filas es un grupo de cero filas, o sea por debajo de
+  # cualquier `min_filas` -que ni acepta 0-, y `min_filas` promete que lo que queda
+  # por debajo se declara y no se omite sin decirlo. Los grupos se arman sobre los
+  # valores OBSERVADOS, asi que un nivel sin observaciones no llegaba nunca a esa
+  # rama: medido, con niveles `A, B, C, D` y filas solo en `A` y `B`, la salida decia
+  # `n_grupos = 2` y las DOS tablas de cobertura quedaban vacias, de modo que nada
+  # explicaba la diferencia entre los cuatro niveles que la columna declara y los dos
+  # grupos que publica. El disparador es cualquier factor rebanado o leido con
+  # niveles de mas.
+  #
+  # `n_grupos` sigue contando los grupos con filas, que es lo que la funcion perfila;
+  # los niveles sin filas quedan en la cobertura, que es donde se leen las ausencias.
+  if (is.factor(datos[[por]])) {
+    declarados <- levels(datos[[por]])
+    sin_filas <- declarados[
+      !(.nombres_para_operar(declarados) %in% niveles_operativos)
+    ]
+    for (nivel in sin_filas) {
+      cobertura[[length(cobertura) + 1L]] <- data.frame(
+        grupo = nivel, grupo_perfilado = FALSE, n_filas_grupo = 0L,
+        motivo = paste0(
+          "El nivel `", nivel, "` esta declarado en la columna de agrupacion y no ",
+          "tiene ninguna fila: no se perfilo."
+        ),
+        columnas_descartadas = NA_character_, stringsAsFactors = FALSE
+      )
+    }
   }
   cobertura_diagnosticos <- list()
 
@@ -392,7 +470,8 @@ perfilar_por <- function(datos, por, clave = NULL, min_filas = 30L, ...) {
     filas <- grupos[[indice_grupo]]
     if (length(filas) < min_filas) {
       cobertura[[length(cobertura) + 1L]] <- data.frame(
-        grupo = nombre_grupo, n_filas_grupo = length(filas),
+        grupo = nombre_grupo, grupo_perfilado = FALSE,
+        n_filas_grupo = length(filas),
         motivo = paste0(
           "El grupo tiene ", length(filas), " filas y `min_filas` es ",
           min_filas, ": no se perfilo."
@@ -529,13 +608,15 @@ perfilar_por <- function(datos, por, clave = NULL, min_filas = 30L, ...) {
         )
       }
       cobertura[[length(cobertura) + 1L]] <- data.frame(
-        grupo = nombre_grupo, n_filas_grupo = length(filas),
+        grupo = nombre_grupo, grupo_perfilado = FALSE,
+        n_filas_grupo = length(filas),
         motivo = motivo_grupo,
         columnas_descartadas = paste(descartadas_publicadas, collapse = ", "),
         stringsAsFactors = FALSE
       )
       next
     }
+    grupos_perfilados <- c(grupos_perfilados, nombre_grupo)
     perfil <- do.call(perfilar, c(list(rebanada), extras_grupo))
     # Cada grupo se perfila por separado, asi que cada uno declina sus propios
     # diagnosticos: una columna puede tener bastantes filas en un grupo y muy
@@ -716,7 +797,8 @@ perfilar_por <- function(datos, por, clave = NULL, min_filas = 30L, ...) {
         )
       }
       cobertura[[length(cobertura) + 1L]] <- data.frame(
-        grupo = nombre_grupo, n_filas_grupo = length(filas),
+        grupo = nombre_grupo, grupo_perfilado = TRUE,
+        n_filas_grupo = length(filas),
         motivo = paste(motivo_descartes, collapse = " "),
         columnas_descartadas = paste(descartadas_publicadas, collapse = ", "),
         stringsAsFactors = FALSE
@@ -724,6 +806,10 @@ perfilar_por <- function(datos, por, clave = NULL, min_filas = 30L, ...) {
     }
   }
 
+  if (indice_colision > 0L) {
+    cobertura[[indice_colision]]$grupo_perfilado <-
+      "(ausente)" %in% grupos_perfilados
+  }
   salida <- if (length(hallazgos)) {
     do.call(rbind, hallazgos)
   } else {
@@ -746,7 +832,8 @@ perfilar_por <- function(datos, por, clave = NULL, min_filas = 30L, ...) {
     do.call(rbind, cobertura)
   } else {
     data.frame(
-      grupo = character(), n_filas_grupo = integer(), motivo = character(),
+      grupo = character(), grupo_perfilado = logical(),
+      n_filas_grupo = integer(), motivo = character(),
       columnas_descartadas = character(), stringsAsFactors = FALSE
     )
   }

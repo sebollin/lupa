@@ -1,5 +1,37 @@
 # lupa 0.1.0
 
+## El libro de cobertura por grupos cierra, y la etiqueta de un grupo vuelve a su valor
+
+- **`cobertura_grupos` reconcilia con las filas de la tabla.** El grupo
+  `"(ausente)"` aparecia en los hallazgos **y** en la cobertura, las dos veces con
+  sus 40 filas, asi que la suma daba 120 sobre 80 filas reales y quien usaba la tabla
+  para verificar que no se pierde ninguna fila -el uso que la funcion promete- no
+  podia. La columna logica nueva `grupo_perfilado` dice de que clase de grupo habla
+  cada fila, y el `@return` escribe como se hace la cuenta: sobre grupos distintos,
+  porque hay una fila por grupo y motivo.
+- **La marca de esa fila se mide.** Si el grupo fusionado queda por debajo de
+  `min_filas` no se perfila, y la fila lo dice; la primera version del arreglo la
+  dejaba fija en `TRUE` y era falsa justo en ese caso.
+- **La colision de `"(ausente)"` ya no se declara cuando no hay colision.** Con el
+  literal `(ausente)` como valor real y cero ausentes, la cobertura publicaba «junta
+  0 fila(s) con la columna de agrupacion ausente y 40 fila(s) cuyo valor real es el
+  texto `(ausente)`. Son dos cosas distintas bajo una sola etiqueta»: una afirmacion
+  falsa dentro del libro que existe para poder confiar en el. La condicion mira ahora
+  las dos cosas que una colision necesita.
+- **Un nivel de factor declarado sin ninguna fila se declara.** Con niveles
+  `A, B, C, D` y filas solo en `A` y `B`, la salida decia `n_grupos = 2` y las dos
+  tablas de cobertura quedaban vacias: nada explicaba la diferencia entre los cuatro
+  niveles que la columna declara y los dos grupos que publica. Un nivel sin filas es
+  un grupo de cero filas, o sea por debajo de cualquier `min_filas`, y `min_filas`
+  promete que eso se declara.
+- **La etiqueta de un grupo vuelve a su valor.** `as.character()` sobre un doble usa
+  15 cifras significativas: `1e17` y `1e17 + 32` daban los dos `"1e+17"` y caian en
+  un solo grupo de 80 filas cuyos numeros no correspondian a ninguno de los dos -20
+  filas duplicadas contra 14 y 6 de cada valor por separado-. Ahora la etiqueta lleva
+  las cifras que hacen falta para distinguirlos y `as.numeric()` de la etiqueta
+  recupera el valor exacto. Para la enorme mayoria de los numeros la etiqueta es la
+  de siempre: `0.1` sigue siendo `"0.1"`.
+
 ## El informe no publica el valor que viajaba unido, y la remediacion declara lo que cambia
 
 - **El piso de datos personales se quedaba sin agujas y el informe publicaba tres
