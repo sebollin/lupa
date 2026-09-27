@@ -701,6 +701,33 @@
 }
 
 .seccion_historico <- function(x, max_filas) {
+  # Un historico al que le falta una columna mataba el informe ENTERO -perfil y
+  # mediciones incluidos- con el mensaje de R base que sale de `order(NULL)`:
+  # "argumento 1 no es un vector". Ni la seccion, ni el campo, ni que hacer.
+  #
+  # El subset es legitimo y el objeto CONSERVA su clase, asi que `reportar()` lo
+  # acepta y recien revienta adentro. Recorri las clases reportables quitandoles
+  # una columna por vez: de las tabulares, `medicion` aguanta las 17 y un
+  # `plan_limpieza` recortado PIERDE su clase, asi que ahi el usuario ya recibe el
+  # mensaje deliberado de "esto no es un objeto reportable". El historico es el
+  # unico que pasa la puerta roto, y son cinco de sus veintidos columnas.
+  #
+  # No se arma una version parcial de la seccion: se declara que no se pudo armar
+  # y se nombra el campo que falta, que es lo que el paquete hace en cada lugar
+  # donde no puede medir. Una omision se informa DENTRO del informe.
+  requeridas <- c("fecha", "id_medicion", "nivel", "perfil", "resultado")
+  faltantes <- setdiff(requeridas, names(x))
+  if (length(faltantes)) {
+    return(paste0(
+      "<section><h2>Hist\u00f3rico de calidad</h2>",
+      "<p class=\"meta\">Esta secci\u00f3n no se pudo armar: al hist\u00f3rico le ",
+      "falta(n) la(s) columna(s) ",
+      .html_texto(paste(faltantes, collapse = ", ")),
+      ". Su ausencia no es conformidad. Para armarla, reportar el objeto que ",
+      "devuelve <code>historico_calidad()</code> sin quitarle columnas.</p>",
+      "</section>"
+    ))
+  }
   x <- x[order(
     x$fecha, .nombres_para_operar(x$id_medicion), x$nivel, method = "radix"
   ), , drop = FALSE]
@@ -1105,6 +1132,11 @@
 #' medidas incluidas en el documento. El enmascarado se hace sobre copias y no
 #' modifica los objetos recibidos.
 #'
+#' Una seccion que no se puede armar **se declara dentro del informe** y no lo
+#' interrumpe: si a un `historico_calidad` le faltan campos que su seccion
+#' necesita -`fecha`, `id_medicion`, `nivel`, `perfil` o `resultado`-, la seccion
+#' dice cuales faltan y el resto del documento se escribe igual.
+#'
 #' @param x Un objeto compatible o una lista de objetos compatibles.
 #' @param ... Objetos adicionales de clase `analisis`, `perfil`, `medicion`,
 #'   `evaluacion_calidad`, `historico_calidad`, `deriva_perfil`,
@@ -1125,6 +1157,15 @@
 #'   Las coincidencias debiles se informan sin suprimir. Para ver valores
 #'   concretos deben haberse conservado tambien con
 #'   `perfilar(..., proteger_datos_personales = FALSE)`.
+#'
+#'   El enmascarado alcanza tres formas del mismo valor: la exacta, la que solo
+#'   difiere en separadores o en la caja de sus letras ASCII, y la que comparte
+#'   con un valor protegido una corrida de seis digitos o mas -un documento sin
+#'   su digito verificador, por ejemplo-. La comparacion por corridas se limita a
+#'   digitos a proposito: aplicada al texto taparia una palabra corriente por
+#'   compartir un tramo con un apellido, y eso silencia contenido del informe en
+#'   vez de proteger un dato. Una variante que solo difiere en la caja de una
+#'   letra **acentuada** no se pliega.
 #'
 #' @return La ruta normalizada del archivo, de forma invisible.
 #' @export

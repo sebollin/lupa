@@ -1,5 +1,46 @@
 # lupa 0.1.0
 
+## El informe no publica el valor que viajaba unido, y la remediacion declara lo que cambia
+
+- **El piso de datos personales se quedaba sin agujas y el informe publicaba tres
+  de cuatro cedulas con su proteccion puesta.** La cosecha tomaba la celda
+  `ejemplos` completa, y esa celda trae hasta tres valores unidos con `" | "`: la
+  aguja era la cadena unida, que no existe en ninguna otra parte de la salida, asi
+  que el reemplazo no encontraba nada. Ahora la cosecha separa los valores. Con
+  documentos numericos el mismo camino ya funcionaba -las agujas llegan por
+  `minimo` y `maximo`-, y por eso las pruebas que reportaban un perfil abierto
+  pasaban sin ver la fuga.
+- **El enmascarado reconoce dos formas mas del mismo valor.** La que solo difiere
+  en la caja de sus letras ASCII -el mismo nombre en minusculas dentro de un texto
+  libre se publicaba mientras la forma canonica quedaba tapada- y la que comparte
+  con un valor protegido una corrida de seis digitos o mas, como una cedula sin su
+  verificador. El plegado de caja no usa `toupper()`, que aborta sobre bytes que no
+  son UTF-8 validos. La comparacion por corridas se limita a digitos: aplicada al
+  texto taparia una palabra corriente por compartir un tramo con un apellido.
+- **Una seccion que no se puede armar se declara y ya no mata el informe.** Un
+  `historico_calidad` al que le faltaba una columna abortaba el documento ENTERO
+  -perfil y mediciones incluidos- con el mensaje de R base "argumento 1 no es un
+  vector". Ahora la seccion nombra los campos que faltan y el resto se escribe. Es
+  el unico objeto reportable que pasaba la puerta roto: `medicion` aguanta que le
+  falte cualquiera de sus diecisiete columnas y un `plan_limpieza` recortado pierde
+  su clase, de modo que ahi el mensaje ya era el deliberado.
+- **`winsorizar_outliers` sobre una columna entera declara que deja de ser
+  entera.** Los limites de Tukey son cuartiles: la columna salia `numeric` con la
+  fila diciendo `destructiva = FALSE` y ningun campo del registro nombrando el
+  tipo, mientras la misma accion sobre `Date` sale `bloqueada`. Ahora se marca
+  `destructiva`, la justificacion lo dice y `parametros` publica `tipo_original` y
+  `tipo_resultante`. Sobre una columna doble no cambia nada.
+- **`guiar_limpieza()` devuelve el plan sin cambios tambien cuando esta editado.**
+  En el camino no interactivo y sin `selector` reescribia `decision_grupo` de
+  `recomendada` a `desactivada`: afirmaba que quien llama habia desactivado la
+  recomendacion cuando solo la habia desmarcado, y esa afirmacion viajaba con el
+  plan. La sincronizacion pasa a correr despues de la puerta de salida.
+- **El registro cuenta las celdas que cambiaron de codificacion** en
+  `n_codificacion_normalizada`. Una accion de texto sobre celdas `latin1` devuelve
+  UTF-8 solo en las que toca, asi que la columna puede quedar con marcas mixtas: el
+  valor es el mismo y los bytes no. No se convierte la columna entera a proposito,
+  porque eso tocaria celdas que el plan no declaro como cambiadas.
+
 ## Modelo y deriva: que cuenta como un cambio de modelo
 
 - La descripcion del modelo que viaja con cada medicion

@@ -255,6 +255,16 @@ corto**, así que un valor protegido que es prefijo de otro —`Maria Nunez` y
 largo. Lo vigila un barrido que recorre los tipos de
 hallazgo y comprueba primero que cada uno se haya emitido.
 
+**El piso reconoce tres formas del mismo valor**: la exacta, la que sólo difiere
+en separadores o en la caja de sus letras ASCII, y la que comparte con un valor
+protegido una corrida de seis dígitos o más —una cédula sin su verificador—. Y
+separa los valores que una celda de `ejemplos` publica **unidos**: sin eso, un
+documento que sólo viajaba dentro de un texto libre se publicaba entero, porque
+la aguja era la cadena unida y esa cadena no existe en ninguna otra parte de la
+salida. La comparación por corridas se limita a dígitos a propósito: aplicada al
+texto taparía una palabra corriente por compartir un tramo con un apellido, y eso
+silencia contenido del informe en vez de proteger un dato.
+
 **El perfilado no toca los datos.** Ninguna función de análisis altera la tabla
 que recibe —ni sus valores, ni sus tipos, ni sus nombres, ni sus atributos—,
 incluidos los `data.table`, que R permite modificar por referencia. La única

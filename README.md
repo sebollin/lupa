@@ -247,6 +247,16 @@ that is a prefix of another —`Maria Nunez` and `Maria Nunez de Castro` in the 
 column— does not leave the longer one's tail published. A sweep over the finding types watches this, checking
 first that each one was actually raised.
 
+**The floor recognises three shapes of the same value**: the exact one, the one
+that differs only in separators or in the case of its ASCII letters, and the one
+that shares a run of six or more digits with a protected value —an ID without its
+check digit—. It also splits the values an `ejemplos` cell publishes **joined**:
+without that, a document that only travelled inside a free-text column was
+published in full, because the needle was the joined string and that string exists
+nowhere else in the output. The run comparison is limited to digits on purpose:
+applied to text it would mask an ordinary word for sharing a stretch with a
+surname, and that silences report content instead of protecting a datum.
+
 **Profiling never touches your data.** No analysis function alters the table it
 receives — not its values, its types, its names, or its attributes — including
 `data.table` inputs, which R allows to be modified by reference. Only the

@@ -708,6 +708,27 @@
   if (is.list(meta) && length(meta$sentinelas_numericos)) {
     valores <- c(valores, as.character(meta$sentinelas_numericos))
   }
+  # Las celdas de `ejemplos` no traen UN valor: traen hasta tres UNIDOS con
+  # `.SEPARADOR_EJEMPLOS`. Una aguja que es la cadena unida no existe en ningun
+  # otro lado de la salida, asi que el reemplazo no encontraba nada y el piso se
+  # quedaba sin agujas. Medido: con documentos de TEXTO -la moda y los extremos
+  # en `NA`, de modo que la celda unida es el UNICO portador del valor- el
+  # informe publicaba tres de cuatro cedulas CON su proteccion puesta. Con
+  # documentos numericos el mismo camino funciona, porque las agujas llegan por
+  # `minimo` y `maximo`; por eso las dos pruebas de la suite que reportan un
+  # perfil abierto pasaban sin ver nada.
+  #
+  # Se agregan las partes ADEMAS de la cadena entera, que tambien aparece tal
+  # cual en la celda que la origino. `useBytes = TRUE` porque este paquete
+  # trabaja con codificaciones rotas y sin eso `strsplit()` avisa "input string
+  # is invalid in this locale" por cada valor sin marca. El piso de seis
+  # caracteres lo aplica `.valores_identificantes()` mas adelante, asi que una
+  # parte corta no enmascara media tabla.
+  partes <- unlist(
+    strsplit(valores, .SEPARADOR_EJEMPLOS, fixed = TRUE, useBytes = TRUE),
+    use.names = FALSE
+  )
+  valores <- c(valores, partes)
   valores <- unique(valores[!is.na(valores) & nzchar(valores)])
   valores[order(nchar(valores, type = "bytes"), decreasing = TRUE,
                 method = "radix")]
@@ -728,7 +749,15 @@
   # o mas-, y ademas se exige que su forma normalizada conserve ese largo: sin
   # eso, un valor corto tras normalizar enmascararia media tabla.
   if (!is.character(x) || !length(valores)) return(x)
-  normalizar <- function(v) gsub("[^[:alnum:]]", "", v, useBytes = TRUE)
+  # La caja tambien es cosmetica, y mas que el separador: el mismo nombre en
+  # minusculas dentro de un texto libre se publicaba mientras la forma canonica
+  # quedaba enmascarada en todo el informe. Se pliega SOLO el ASCII y con
+  # `perl = TRUE, useBytes = TRUE`: `toupper()` ABORTA -"invalid multibyte
+  # string"- sobre una cadena cuyos bytes no son UTF-8 validos, y este paquete
+  # trabaja justamente con esas. Queda escrito el limite: una variante que
+  # difiere en la caja de una letra ACENTUADA no se pliega.
+  plegar <- function(v) gsub("([a-z])", "\\U\\1", v, perl = TRUE, useBytes = TRUE)
+  normalizar <- function(v) plegar(gsub("[^[:alnum:]]", "", v, useBytes = TRUE))
   agujas <- unique(normalizar(valores))
   agujas <- agujas[
     !is.na(agujas) &
@@ -743,6 +772,44 @@
     golpea <- golpea |
       grepl(aguja, pajar, fixed = TRUE, useBytes = TRUE)
     if (all(golpea)) break
+  }
+  # Y los DIGITOS aparte, que es donde la variante no es cosmetica sino PARCIAL:
+  # la cedula sin su verificador -"4.123.456" frente a "4.123.456-7"- normaliza a
+  # "4123456", que NO contiene a "41234567", asi que la regla de arriba no la ve
+  # por ninguna de sus dos puntas. Medido: los tres fragmentos se publicaban con
+  # la proteccion doble puesta. Se comparan las corridas de digitos de la celda
+  # contra las de la aguja, en las dos direcciones, y solo de seis digitos para
+  # arriba, que es el mismo piso que usa el resto de esta capa.
+  #
+  # Limitado a DIGITOS a proposito. La misma regla sobre texto -tapar una celda
+  # que comparte seis caracteres con un valor protegido- taparia una palabra
+  # corriente por compartir un tramo con un apellido, y eso silencia contenido
+  # real del informe en vez de proteger un dato. Ver la mitad de control de la
+  # prueba, que exige que una celda ajena siga publicandose.
+  corridas_largas <- function(v) {
+    piezas <- regmatches(v, gregexpr("[0-9]+", v, useBytes = TRUE))
+    lapply(piezas, function(p) {
+      p[!is.na(p) & nchar(p, type = "bytes") >= .MIN_LARGO_VALOR_IDENTIFICANTE]
+    })
+  }
+  # Las corridas se sacan de la forma NORMALIZADA, no de la cruda, y eso no es un
+  # detalle: en la celda cruda "caja 4.123.456" los puntos parten el numero en
+  # corridas de 1, 3 y 3 digitos -ninguna llega al piso de seis- y la regla no veia
+  # nada. Sobre "caja4123456" la corrida es "4123456" y si. La primera version de
+  # esta guarda media la celda cruda y daba OK sin tapar el fragmento.
+  digitos_aguja <- unique(unlist(corridas_largas(agujas), use.names = FALSE))
+  if (length(digitos_aguja) && !all(golpea)) {
+    digitos_pajar <- corridas_largas(pajar)
+    contiene <- function(corridas) {
+      if (!length(corridas)) return(FALSE)
+      any(vapply(corridas, function(corrida) {
+        any(vapply(digitos_aguja, function(aguja) {
+          grepl(corrida, aguja, fixed = TRUE, useBytes = TRUE) ||
+            grepl(aguja, corrida, fixed = TRUE, useBytes = TRUE)
+        }, logical(1L)))
+      }, logical(1L)))
+    }
+    golpea <- golpea | vapply(digitos_pajar, contiene, logical(1L))
   }
   if (any(golpea)) x[candidatas][golpea] <- "[valor protegido]"
   x

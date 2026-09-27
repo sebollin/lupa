@@ -32,7 +32,9 @@ El mismo \code{plan_limpieza} recibido, con la columna de decisión
 sincronizada según lo elegido, y sin ejecutar ninguna acción sobre los
 datos: cambia qué acciones quedan marcadas para \code{aplicar()}, no la
 tabla. En una sesión no interactiva y sin \code{selector}, devuelve el plan
-sin cambios.
+sin cambios: \strong{también un plan ya editado}, cuyo \code{decision_grupo} se
+conserva tal como lo recibió. La sincronización de decisiones corre en el
+camino interactivo y en \code{\link[=aplicar]{aplicar()}}, no en la puerta de salida.
 }
 \description{
 Recorre los grupos pendientes y aquellos que contienen alternativas

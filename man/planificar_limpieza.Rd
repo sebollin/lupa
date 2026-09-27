@@ -38,6 +38,9 @@ columnas retiradas. Es \code{TRUE} de forma predeterminada.}
 sincronizado y \code{eliminados}. El \code{registro} conserva \code{estado} (\code{ejecutada}
 o \code{fallida}), \code{error}, \code{n_no_reversibles} y la \code{justificacion} de cada
 acción seleccionada, incluso cuando una falla y las siguientes continúan.
+\code{n_codificacion_normalizada} cuenta, por acción, las celdas cuya \strong{marca de
+codificación} cambió: es el caso de una acción de texto sobre celdas
+\code{latin1}, cuyo valor se conserva y cuyos bytes no.
 \code{n_no_reversibles} cuenta las celdas cuyo VALOR se perdió y no se puede
 recuperar desde el resultado: un centinela \code{-999} que pasa a ausencia, un
 extremo recortado a su límite, un marcador de ausencia convertido, o un
@@ -138,7 +141,10 @@ se activa a mano—, no se activa por defecto y el registro conserva
 
 \code{destructiva} no es sinónimo de "pierde algo": marca las acciones que el
 usuario tiene que activar a mano —las que retiran filas o columnas y las
-conversiones que pierden representación— y por eso ninguna acción
+conversiones que pierden representación, como \code{winsorizar_outliers} sobre una
+columna \strong{entera}, donde los límites de Tukey son cuartiles y la columna queda
+en doble precisión: la justificación lo dice y \code{parametros} publica
+\code{tipo_original} y \code{tipo_resultante}— y por eso ninguna acción
 \code{destructiva} puede estar \code{recomendada}. Hay acciones recomendadas que sí
 pierden el valor de una celda: \code{convertir_ausencias_textuales} cambia un
 marcador por \code{NA} y \code{eliminar_controles_invisibles} quita un carácter. Esas
@@ -190,6 +196,15 @@ sin \code{fileEncoding} sobre un archivo latin1— no se transforma: el perfil n
 midió y la informa como \code{codificacion_invalida}, cuyo remedio es volver a leer
 la fuente declarando su codificación. Las acciones de texto trabajan sobre las
 demás celdas de la columna y cuentan sólo lo que cambiaron.
+
+Una celda \code{latin1} \strong{sí} se transforma —ahí R conoce la codificación y la
+convierte sin pérdida—, y el resultado queda marcado \code{UTF-8}. Como la acción
+toca sólo las celdas que cambia, una columna \code{latin1} puede quedar con marcas
+\strong{mixtas}: las celdas transformadas en \code{UTF-8} y las intactas en \code{latin1}. El
+valor es el mismo, pero los bytes no, así que el registro lo cuenta en
+\code{n_codificacion_normalizada} en vez de dejarlo implícito. No se convierte la
+columna entera a propósito: eso tocaría celdas que el plan no declaró como
+cambiadas y haría mentir a \code{n_cambiadas} por el otro lado.
 Si se marca una acción que no está \code{lista}, \code{aplicar()} aborta antes de
 modificar la copia y enumera las filas problemáticas. Una acción que sí está
 lista pero falla se registra con su error y no impide aplicar las siguientes:

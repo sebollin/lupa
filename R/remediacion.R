@@ -775,7 +775,10 @@
 #'
 #' `destructiva` no es sinónimo de "pierde algo": marca las acciones que el
 #' usuario tiene que activar a mano —las que retiran filas o columnas y las
-#' conversiones que pierden representación— y por eso ninguna acción
+#' conversiones que pierden representación, como `winsorizar_outliers` sobre una
+#' columna **entera**, donde los límites de Tukey son cuartiles y la columna queda
+#' en doble precisión: la justificación lo dice y `parametros` publica
+#' `tipo_original` y `tipo_resultante`— y por eso ninguna acción
 #' `destructiva` puede estar `recomendada`. Hay acciones recomendadas que sí
 #' pierden el valor de una celda: `convertir_ausencias_textuales` cambia un
 #' marcador por `NA` y `eliminar_controles_invisibles` quita un carácter. Esas
@@ -827,6 +830,15 @@
 #' midió y la informa como `codificacion_invalida`, cuyo remedio es volver a leer
 #' la fuente declarando su codificación. Las acciones de texto trabajan sobre las
 #' demás celdas de la columna y cuentan sólo lo que cambiaron.
+#'
+#' Una celda `latin1` **sí** se transforma —ahí R conoce la codificación y la
+#' convierte sin pérdida—, y el resultado queda marcado `UTF-8`. Como la acción
+#' toca sólo las celdas que cambia, una columna `latin1` puede quedar con marcas
+#' **mixtas**: las celdas transformadas en `UTF-8` y las intactas en `latin1`. El
+#' valor es el mismo, pero los bytes no, así que el registro lo cuenta en
+#' `n_codificacion_normalizada` en vez de dejarlo implícito. No se convierte la
+#' columna entera a propósito: eso tocaría celdas que el plan no declaró como
+#' cambiadas y haría mentir a `n_cambiadas` por el otro lado.
 #' Si se marca una acción que no está `lista`, `aplicar()` aborta antes de
 #' modificar la copia y enumera las filas problemáticas. Una acción que sí está
 #' lista pero falla se registra con su error y no impide aplicar las siguientes:
@@ -915,6 +927,9 @@
 #'   sincronizado y `eliminados`. El `registro` conserva `estado` (`ejecutada`
 #'   o `fallida`), `error`, `n_no_reversibles` y la `justificacion` de cada
 #'   acción seleccionada, incluso cuando una falla y las siguientes continúan.
+#'   `n_codificacion_normalizada` cuenta, por acción, las celdas cuya **marca de
+#'   codificación** cambió: es el caso de una acción de texto sobre celdas
+#'   `latin1`, cuyo valor se conserva y cuyos bytes no.
 #'   `n_no_reversibles` cuenta las celdas cuyo VALOR se perdió y no se puede
 #'   recuperar desde el resultado: un centinela `-999` que pasa a ausencia, un
 #'   extremo recortado a su límite, un marcador de ausencia convertido, o un
@@ -1417,6 +1432,19 @@ planificar_limpieza <- function(perfil, datos = NULL,
     } else if (identical(tipo, "outliers") && !is.null(fila)) {
       winsor_disponible <- fila$tipo_inferido[[1L]] %in% c("entero", "doble") &&
         isTRUE(fila$proporcion_tipo_inferido[[1L]] == 1)
+      # Los limites de Tukey son CUARTILES, no enteros: sobre una columna entera
+      # la sustitucion devuelve dobles y la columna deja de ser entera. Medido:
+      # `integer` entraba y salia `numeric` con la fila diciendo
+      # `destructiva = FALSE`, la justificacion hablando solo de valores y
+      # ninguno de los diecisiete campos del registro nombrando el tipo -mientras
+      # la MISMA accion sobre `Date` sale `bloqueada`, o sea que el plan si mira
+      # el tipo cuando le importa-. La definicion de `destructiva` de este mismo
+      # archivo incluye "una conversion que pierde representacion, aunque no
+      # elimine filas o columnas", asi que esto es una de ellas: se marca y se
+      # dice, igual que la de factor -> texto. No cambia lo que hay que consentir:
+      # `permitir_eliminacion` se exige solo a lo que retira filas o columnas, y
+      # esta accion ya requeria activacion explicita.
+      winsor_pierde_entero <- identical(fila$tipo_inferido[[1L]], "entero")
       acciones <- .agregar_accion(acciones, .nueva_accion(
         columna, tipo, "marcar_outliers", TRUE,
         paste0(
@@ -1435,13 +1463,29 @@ planificar_limpieza <- function(perfil, datos = NULL,
         columna, tipo, "winsorizar_outliers", FALSE,
         paste0(
           "Sustituye los extremos por los l\u00edmites de Tukey y altera valores ",
-          "observados; s\u00f3lo debe elegirse con justificaci\u00f3n anal\u00edtica."
+          "observados; s\u00f3lo debe elegirse con justificaci\u00f3n anal\u00edtica.",
+          if (winsor_pierde_entero) {
+            paste0(
+              " Los l\u00edmites de Tukey son cuartiles, as\u00ed que la columna deja ",
+              "de ser entera y queda en doble precisi\u00f3n."
+            )
+          } else {
+            ""
+          }
         ), fila$n_outliers[[1L]], FALSE,
         estado = if (winsor_disponible) estado_columna else "bloqueada",
         aplicar = FALSE,
-        parametros = list(regla = "Tukey 1,5 x IQR"), orden = 520L,
+        parametros = c(
+          list(regla = "Tukey 1,5 x IQR"),
+          if (winsor_pierde_entero) {
+            list(tipo_resultante = "doble", tipo_original = "entero")
+          } else {
+            list()
+          }
+        ), orden = 520L,
         grupo = grupo_hallazgo, decision_grupo = "pendiente",
-        recomendacion_grupo = "marcar_outliers"
+        recomendacion_grupo = "marcar_outliers",
+        destructiva = winsor_pierde_entero
       ))
     } else if (identical(tipo, "nombres_columnas_problematicos")) {
       nombres <- perfil$columnas$columna
@@ -2127,6 +2171,34 @@ planificar_limpieza <- function(perfil, datos = NULL,
 # tambien a la proxima estrategia que se agregue sin devolver el campo. Los
 # ejecutores que SI la devuelven -las conversiones, los centinelas, la
 # winsorizacion- conservan la suya, porque miden perdidas que no son fusion.
+# Una accion de texto sobre celdas `latin1` devuelve UTF-8, y SOLO en las celdas
+# que toco: la columna queda con marcas mixtas -medido, `UTF-8, latin1, UTF-8`- y
+# el destino de la marca de cada celda lo decide su contenido, no una politica.
+# El valor semantico se conserva -este paquete trata `latin1` como convertible sin
+# perdida, y eso esta escrito y decidido-, pero el registro publicaba
+# `n_cambiadas = 2`, `n_no_reversibles = 0` y NADA sobre la codificacion, mientras
+# los bytes de una celda pasaban de `e9` a `c3 a9`.
+#
+# Se declara en vez de convertir la columna entera: convertir tocaria celdas que
+# el plan no declaro como cambiadas, y entonces `n_cambiadas` mentiria por el otro
+# lado. La eleccion es deliberada y queda escrita para que no se lea como olvido.
+#
+# Se mide en la MISMA puerta comun que las perdidas, no en cada ejecutor, asi la
+# cuenta cubre tambien a la proxima estrategia de texto que se agregue.
+.codificaciones_normalizadas <- function(anterior, nuevo, columna) {
+  if (length(columna) != 1L || is.na(columna)) return(0L)
+  if (!is.data.frame(anterior) || !is.data.frame(nuevo)) return(0L)
+  indice_anterior <- .indice_nombre(columna, names(anterior))
+  indice_nuevo <- .indice_nombre(columna, names(nuevo))
+  if (is.na(indice_anterior) || is.na(indice_nuevo)) return(0L)
+  x <- anterior[[indice_anterior]]
+  y <- nuevo[[indice_nuevo]]
+  if (!is.character(x) || !is.character(y) || length(x) != length(y)) {
+    return(0L)
+  }
+  as.integer(sum(Encoding(x) != Encoding(y)))
+}
+
 .perdidas_al_aplicar <- function(anterior, nuevo, columna) {
   if (length(columna) != 1L || is.na(columna)) return(0L)
   if (!is.data.frame(anterior) || !is.data.frame(nuevo)) return(0L)
@@ -3023,6 +3095,11 @@ planificar_limpieza <- function(perfil, datos = NULL,
     n_no_reversibles = numeric(), justificacion = character(),
     estado = character(), error = character(),
     estado_reparacion = character(),
+    # El registro VACIO tiene que tener la misma forma que el lleno: si le falta
+    # una columna, `rbind()` de una corrida sin acciones contra una con acciones
+    # falla o -peor- deja la tabla con una columna que aparece y desaparece
+    # segun si hubo algo que aplicar.
+    n_codificacion_normalizada = numeric(),
     n_filas_eliminadas = numeric(), n_columnas_eliminadas = numeric(),
     fecha_hora = as.POSIXct(character(), tz = "UTC"),
     stringsAsFactors = FALSE
@@ -3273,6 +3350,15 @@ aplicar <- function(plan, datos, permitir_eliminacion = FALSE,
           as.character(accion$estado_reparacion[[1L]])
         } else NA_character_
       } else as.character(ejecutada$estado_reparacion),
+      n_codificacion_normalizada = as.numeric(
+        if (fallo) {
+          0
+        } else {
+          .codificaciones_normalizadas(
+            estado_previo, salida, accion$columna[[1L]]
+          )
+        }
+      ),
       n_filas_eliminadas = as.numeric(
         if (is.null(ejecutada$n_filas_eliminadas)) 0 else ejecutada$n_filas_eliminadas
       ),
@@ -3490,7 +3576,9 @@ aplicar <- function(plan, datos, permitir_eliminacion = FALSE,
 #'   sincronizada según lo elegido, y sin ejecutar ninguna acción sobre los
 #'   datos: cambia qué acciones quedan marcadas para `aplicar()`, no la
 #'   tabla. En una sesión no interactiva y sin `selector`, devuelve el plan
-#'   sin cambios.
+#'   sin cambios: **también un plan ya editado**, cuyo `decision_grupo` se
+#'   conserva tal como lo recibió. La sincronización de decisiones corre en el
+#'   camino interactivo y en [aplicar()], no en la puerta de salida.
 #' @export
 #' @seealso [planificar_limpieza()], [aplicar()]
 #'
@@ -3505,8 +3593,18 @@ guiar_limpieza <- function(plan, datos, selector = NULL,
   .validar_plan_limpieza(plan)
   plan <- .tabla_base(plan)
   if (era_plan) class(plan) <- unique(c("plan_limpieza", class(plan)))
-  plan <- .sincronizar_decisiones(plan)
+  # La sincronizacion va DESPUES de la puerta de salida. La documentacion promete
+  # dos veces -y el ejemplo del roxygen lo ilustra con `identical()`- que en una
+  # sesion no interactiva y sin `selector` se devuelve el plan sin cambios, y con
+  # un plan EDITADO -la edicion que esta misma capa invita a hacer- no era cierto:
+  # `.sincronizar_decisiones()` reescribia `decision_grupo` de `recomendada` a
+  # `desactivada`, que en la taxonomia del paquete es otro estado -dice que el
+  # usuario desactivo la recomendacion cuando solo la desmarco- y esa afirmacion
+  # viaja con el plan si se guarda o se aplica. Medido: la unica columna que
+  # cambiaba era `decision_grupo`, y con el plan sin editar `identical()` daba
+  # TRUE, que es por lo que el ejemplo pasaba.
   if (is.null(selector) && !interactive()) return(plan)
+  plan <- .sincronizar_decisiones(plan)
   if (!is.null(selector) && !is.function(selector)) {
     stop("`selector` debe ser una funci\u00f3n.", call. = FALSE)
   }

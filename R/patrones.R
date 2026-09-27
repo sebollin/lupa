@@ -1,3 +1,10 @@
+# Una celda de `ejemplos` no lleva UN valor: lleva hasta tres unidos con este
+# separador. Lo lee tambien el piso de datos personales, que tiene que poder
+# deshacer la union para cosechar cada valor como aguja: si el separador estuviera
+# escrito en los dos lados, cambiarlo en uno dejaria al otro buscando lo que ya no
+# existe, sin que nada fallara.
+.SEPARADOR_EJEMPLOS <- " | "
+
 ## Tope de valores que se miran para decidir si los ejemplos se publican.
 ## Es `muestra_validadores`, el mismo que el paquete ya usa para clasificar.
 .MUESTRA_CLASIFICACION_PATRONES <- 1000L
@@ -168,7 +175,8 @@ descubrir_patrones <- function(x,
       ejemplos_objetivo[indices_grupo] <- vapply(
         textos_por_patron,
         function(valores_grupo) {
-          paste(utils::head(unique(valores_grupo), 3L), collapse = " | ")
+          paste(utils::head(unique(valores_grupo), 3L),
+                collapse = .SEPARADOR_EJEMPLOS)
         },
         character(1L)
       )

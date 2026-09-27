@@ -44,7 +44,16 @@ estadisticos de orden, cuantiles y rangos temporales de columnas
 cuya clasificacion activa proteccion automatica. Es \code{TRUE} por defecto.
 Las coincidencias debiles se informan sin suprimir. Para ver valores
 concretos deben haberse conservado tambien con
-\code{perfilar(..., proteger_datos_personales = FALSE)}.}
+\code{perfilar(..., proteger_datos_personales = FALSE)}.
+
+El enmascarado alcanza tres formas del mismo valor: la exacta, la que solo
+difiere en separadores o en la caja de sus letras ASCII, y la que comparte
+con un valor protegido una corrida de seis digitos o mas -un documento sin
+su digito verificador, por ejemplo-. La comparacion por corridas se limita a
+digitos a proposito: aplicada al texto taparia una palabra corriente por
+compartir un tramo con un apellido, y eso silencia contenido del informe en
+vez de proteger un dato. Una variante que solo difiere en la caja de una
+letra \strong{acentuada} no se pliega.}
 }
 \value{
 La ruta normalizada del archivo, de forma invisible.
@@ -63,6 +72,11 @@ planes. Si una evaluacion contiene desenlaces de supresion declarados por
 reglas, el reporte enmascara su \code{valor_medido} y el \code{resultado} de las mismas
 medidas incluidas en el documento. El enmascarado se hace sobre copias y no
 modifica los objetos recibidos.
+
+Una seccion que no se puede armar \strong{se declara dentro del informe} y no lo
+interrumpe: si a un \code{historico_calidad} le faltan campos que su seccion
+necesita -\code{fecha}, \code{id_medicion}, \code{nivel}, \code{perfil} o \code{resultado}-, la seccion
+dice cuales faltan y el resto del documento se escribe igual.
 }
 \examples{
 perfil <- perfilar(datos_administrativos)
