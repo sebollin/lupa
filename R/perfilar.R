@@ -673,7 +673,15 @@
 #' muestra, los valores presentes que no se pueden convertir no se ocultan:
 #' `n_fechas_excluidas_granularidad` los cuenta para fechas y
 #' `n_valores_excluidos_resumen` para números, y el estado deja de ser un
-#' cálculo completo. Por eso
+#' cálculo completo. `n_valores_excluidos_resumen` cuenta también los valores **no
+#' finitos** que el resumen deja afuera, y lo hace en cualquier clase: una columna
+#' de fechas con un `Inf` publica `n_valores_excluidos_resumen = 1`,
+#' `n_fechas_resumidas` sin contarlo y el estado
+#' `"calculados_sobre_valores"`. Y para las longitudes de texto,
+#' `n_longitudes_resumidas` declara sobre cuántos valores se calcularon
+#' `longitud_minima`, `longitud_maxima` y `longitud_media`: `nchar()` no puede medir
+#' un valor cuyos bytes no son UTF-8 válido, y ése queda fuera del promedio. La causa
+#' viaja aparte, en `n_codificacion_invalida`. Por eso
 #' `meta$filas_analizadas` describe el máximo usado por los análisis muestreados,
 #' no el alcance del perfil completo.
 #' En cada fila de `columnas`, `n_filas_analizadas_tipo` y

@@ -129,7 +129,8 @@
 
 .resumen_longitud <- function(x) {
   if (!is.character(x) && !is.factor(x)) {
-    return(c(minimo = NA_real_, maximo = NA_real_, media = NA_real_))
+    return(c(minimo = NA_real_, maximo = NA_real_, media = NA_real_,
+             n_resumidas = NA_real_))
   }
   .resumen_longitudes_bloques(x)
 }
@@ -202,8 +203,13 @@
                 n_fechas_excluidas_granularidad = 0L))
   }
   if (inherits(x, "Date")) {
+    # `is.finite()` y no `!is.na()`: una fecha puede ser `Inf` -`f[2] <- Inf` sobre
+    # un `Date` alcanza- y el resumen la deja afuera, asi que contarla como
+    # resumida publica un universo que no se midio. La rama `POSIXt` de arriba ya
+    # usaba `is.finite()`: era la misma pregunta contestada con dos expresiones, y
+    # sobre el mismo dato una decia 2 y la otra 3.
     return(list(valores = as.numeric(x) * 86400, clase = "fecha",
-                n_fechas_resumidas = sum(!is.na(x)),
+                n_fechas_resumidas = sum(is.finite(x)),
                 n_fechas_excluidas_granularidad = 0L))
   }
   if (inherits(x, "integer64")) {
@@ -916,7 +922,16 @@
     vacio$estado_resumen_cuantitativo <- "calculados_sobre_valores"
   }
   validos <- !is.na(x)
-  if (!any(validos)) return(vacio)
+  if (!any(validos)) {
+    # El estado se escribia arriba, apenas habia excluidos, ANTES de saber si
+    # quedaba algo: con seis centinelas de seis valores publicaba
+    # `calculados_sobre_valores` junto a `minimo`, `media` y `desvio` en `NA`. El
+    # README fija el enunciado -"si no sobrevive ningun valor utilizable el estado
+    # dice `sin_valores` en vez de afirmar que calculo algo"- y la rama `double`
+    # sobre el mismo dato ya lo decia: era la misma pregunta contestada dos veces.
+    vacio$estado_resumen_cuantitativo <- "sin_valores"
+    return(vacio)
+  }
   if (!.bit64_disponible()) {
     vacio$estado_resumen_cuantitativo <- "requiere_bit64"
     return(vacio)
@@ -1055,7 +1070,14 @@
   # `n_nan` y `n_infinito_*` siguen publicando el desglose; esto agrega el
   # total, que es lo que el resto del paquete lee para declarar el alcance.
   n_no_finitos <- as.integer(n_nan + n_infinito_positivo + n_infinito_negativo)
-  if (identical(cuantitativos$clase, "numero") && n_no_finitos > 0L) {
+  # La condicion miraba `clase == "numero"`, y el descarte de la linea siguiente
+  # -`valores[is.finite(valores)]`- NO mira la clase: pasa para todas. Con una
+  # fecha `Inf`, el resumen se calculaba sobre los finitos y la fila publicaba
+  # `n_valores_excluidos_resumen = 0` con estado `calculados`, en las DOS clases
+  # temporales. Lo que decide es si quedo algo afuera, no de que clase es la
+  # columna; para `integer64` y para las columnas sin resumen el total de no
+  # finitos es cero, asi que ahi no cambia nada.
+  if (n_no_finitos > 0L) {
     n_excluidos_resumen <- as.integer(n_excluidos_resumen + n_no_finitos)
     cuantitativos$n_valores_excluidos_resumen <- n_excluidos_resumen
     cuantitativos$estado <- "calculados_sobre_valores"
@@ -2487,6 +2509,12 @@
     longitud_minima = unname(longitudes[["minimo"]]),
     longitud_maxima = unname(longitudes[["maximo"]]),
     longitud_media = unname(longitudes[["media"]]),
+    # El universo de las tres de arriba: sobre cuantos valores se calcularon.
+    # `nchar()` no puede medir un valor cuyos bytes no son UTF-8 valido, y esos
+    # quedaban afuera sin que nada lo dijera. Se declara igual que
+    # `n_fechas_resumidas` declara el del resumen de fecha; la CAUSA viaja aparte,
+    # en `n_codificacion_invalida`.
+    n_longitudes_resumidas = as.integer(unname(longitudes[["n_resumidas"]])),
     minimo = cuantitativo$minimo,
     maximo = cuantitativo$maximo,
     media = cuantitativo$media,

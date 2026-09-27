@@ -133,8 +133,8 @@ test_that("el perfil completo declara el alcance de la muestra", {
   ## `n_presentes_en_aplicabilidad_indeterminada` se suma al esquema: un valor
   ## presente en una fila cuyo predicado no se pudo decidir no es un valor fuera
   ## del universo, y ahora se cuenta aparte.
-  expect_equal(ncol(perfil$columnas), 114L)
-  expect_equal(ncol(perfil$columnas) - 1L, 113L)
+  expect_equal(ncol(perfil$columnas), 115L)
+  expect_equal(ncol(perfil$columnas) - 1L, 114L)
   expect_true(all(perfil$columnas$n == 1000L))
   expect_equal(alcance$filas_solicitadas, 1000)
   expect_equal(alcance$filas_obtenidas, 1000)

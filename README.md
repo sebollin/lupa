@@ -314,7 +314,7 @@ linked vignettes are the detailed manual. This table is the short map:
 | Task | Main functions | Read more |
 | --- | --- | --- |
 | Look at data for the first time | `perfilar()`, `analizar()`, `distribucion_valores()`, `detectar_asociaciones()`, `analizar_tiempo()`, `clasificar_variables()`, `inferir_tipo()`, `descubrir_patrones()`, `detectar_formatos_fecha()`, `sentinelas_naniar` | [Getting started](https://sebollin.github.io/lupa/articles/empezar-con-lupa.html) |
-| Profile against a database | `perfilar_dbi()` — full-table SQL aggregates plus, by default, a 113-analytic-field profile from a declared sample; `bloque_muestra = "solo_agregados"` requests only aggregates | [Profiling a database](https://sebollin.github.io/lupa/articles/perfilar-una-base.html) |
+| Profile against a database | `perfilar_dbi()` — full-table SQL aggregates plus, by default, a 114-analytic-field profile from a declared sample; `bloque_muestra = "solo_agregados"` requests only aggregates | [Profiling a database](https://sebollin.github.io/lupa/articles/perfilar-una-base.html) |
 | Find undeclared structure | `detectar_claves()`, `detectar_relaciones()`, `detectar_dependencias()`, `granularidades()`, `transiciones_granularidad()` | [Undeclared structure](https://sebollin.github.io/lupa/articles/estructura-no-declarada.html) |
 | Define quality | `marco_calidad()`, `marco_agesic()`, `marco_iso25012()`, `marco_cepal()`, `catalogo_agesic()`, `metrica()`, `especializar()`, `instanciar()`, `modelo()`, `metricas_nucleo()`, `metricas_referencial()`, `proponer_modelo()`, `modelo_desde_propuesta()`, `perfiles_madurez()`, `cobertura_analisis()` | [Define quality](https://sebollin.github.io/lupa/articles/definir-la-calidad.html) |
 | Measure and evaluate | `medir()`, `agregar()`, `tablero_calidad()`, `indice_calidad()` with project weights, `evaluar()`, `regla_evaluacion()` with the user-declared instruction `desenlace = "suprimir"` (not a factory threshold), `perfil_evaluacion()`, `escala()`, `referencial()`, `vigencia()` | [Measure and evaluate](https://sebollin.github.io/lupa/articles/medir-y-evaluar.html) |
@@ -337,7 +337,13 @@ declared in `sentinelas_numericos` — and when it does, it says so:
 saying `"calculados"`, and `cobertura_diagnosticos` gets its row. The breakdown of
 the non-finite values stays in `n_nan`, `n_infinito_positivo` and
 `n_infinito_negativo`, and when no usable value survives the state says
-`"sin_valores"` instead of claiming it computed anything. None of that
+`"sin_valores"` instead of claiming it computed anything —and it says so for an
+`integer64` column just as for a double one—. The exclusion of non-finite values is
+declared **in every class**: a date column holding an `Inf` publishes
+`n_valores_excluidos_resumen = 1` and does not count it among the summarised dates.
+Text lengths declare their own universe through `n_longitudes_resumidas`, because
+`nchar()` cannot measure a value whose bytes are not valid UTF-8 and that one stays
+out of the average. None of that
 depends on sampling being on. By default, `muestra = 1e5` limits
 pattern discovery, type inference, date-format discovery, and the common sample
 used to search for functional dependencies. Set another limit or `Inf` to

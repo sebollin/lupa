@@ -196,6 +196,14 @@
 #' puede coincidir exactamente con una observación. Esta protección es
 #' independiente de la usada al construir el perfil.
 #'
+#' Hay clases que R declara numéricas y cuyo cuantil interpolado no se puede
+#' calcular, porque su aritmética rechaza el producto por una fracción
+#' —`lubridate::Period` es una—. Esas columnas **no interrumpen el análisis**:
+#' conservan sus filas con `valor` en `NA` y el `estado`
+#' `"no_interpolable:<clase>"`, que nombra la clase que no se pudo interpolar. La
+#' condición se mide intentando el cálculo, no enumerando clases, así que una clase
+#' nueva con la misma limitación queda cubierta sin tocar el código.
+#'
 #' @param datos Tabla que se desea examinar.
 #' @param perfil Perfil opcional de los mismos datos; evita repetir la
 #'   clasificación de posibles datos personales.
@@ -296,21 +304,47 @@ distribucion_valores <- function(datos, perfil = NULL, max_valores = 20L,
       muestra_x <- .muestrear_vector(x, limite)
       finitos <- muestra_x$valores[is.finite(muestra_x$valores)]
       if (length(finitos)) {
-        valores_q <- stats::quantile(
-          finitos, probs = probabilidades, names = FALSE, type = 7
-        )
         protegida <- .nombres_para_operar(nombre) %in%
           .nombres_para_operar(personales)
         q <- q + 1L
-        cuantiles[[q]] <- data.frame(
-          columna = nombre, probabilidad = probabilidades,
-          valor = if (protegida) {
-            rep(NA_real_, length(valores_q))
-          } else as.numeric(valores_q),
-          n_analizados = length(finitos), muestreado = muestra_x$muestreado,
-          estado = if (protegida) "valor_protegido" else "calculado",
-          stringsAsFactors = FALSE
+        # La condicion de arriba excluye por una LISTA de clases -`Date`, `POSIXt`,
+        # `integer64`- y por eso dejaba pasar a `lubridate::Period`, que es
+        # `is.numeric()`: `quantile(type = 7)` interpola multiplicando por una
+        # fraccion y lubridate rechaza el producto -"periods must have integer
+        # values"-, asi que UNA columna exotica se llevaba puesto
+        # `distribucion_valores()` y con el a `analizar()` entero. `perfilar()`
+        # sobre la misma tabla sobrevivia.
+        #
+        # Lo que decide no es la clase sino si la interpolacion SE PUEDE hacer, y
+        # eso se mide intentandola. La politica ya estaba escrita para el orden en
+        # `columnas.R`: "es peor que ordenar, pero mucho mejor que romper el perfil
+        # entero por una columna exotica". Aca es lo mismo: se declara el estado y
+        # la clase que no se pudo interpolar, y el analisis sigue.
+        valores_q <- tryCatch(
+          stats::quantile(
+            finitos, probs = probabilidades, names = FALSE, type = 7
+          ),
+          error = function(e) e
         )
+        if (inherits(valores_q, "condition")) {
+          cuantiles[[q]] <- data.frame(
+            columna = nombre, probabilidad = probabilidades,
+            valor = rep(NA_real_, length(probabilidades)),
+            n_analizados = length(finitos), muestreado = muestra_x$muestreado,
+            estado = paste0("no_interpolable:", class(x)[[1L]]),
+            stringsAsFactors = FALSE
+          )
+        } else {
+          cuantiles[[q]] <- data.frame(
+            columna = nombre, probabilidad = probabilidades,
+            valor = if (protegida) {
+              rep(NA_real_, length(valores_q))
+            } else as.numeric(valores_q),
+            n_analizados = length(finitos), muestreado = muestra_x$muestreado,
+            estado = if (protegida) "valor_protegido" else "calculado",
+            stringsAsFactors = FALSE
+          )
+        }
       }
     }
   }

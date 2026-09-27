@@ -324,7 +324,7 @@ viñetas enlazadas son el manual detallado. Esta tabla es el mapa breve:
 | Tarea | Funciones principales | Para leer más |
 | --- | --- | --- |
 | Mirar los datos por primera vez | `perfilar()`, `analizar()`, `distribucion_valores()`, `detectar_asociaciones()`, `analizar_tiempo()`, `clasificar_variables()`, `inferir_tipo()`, `descubrir_patrones()`, `detectar_formatos_fecha()`, `sentinelas_naniar` | [Empezar con lupa](https://sebollin.github.io/lupa/articles/empezar-con-lupa.html) |
-| Perfilar contra una base | `perfilar_dbi()` — agregados SQL de toda la tabla y, por omisión, un perfil de 113 campos analíticos sobre una muestra declarada; `bloque_muestra = "solo_agregados"` permite pedir sólo los agregados | [Perfilar una base](https://sebollin.github.io/lupa/articles/perfilar-una-base.html) |
+| Perfilar contra una base | `perfilar_dbi()` — agregados SQL de toda la tabla y, por omisión, un perfil de 114 campos analíticos sobre una muestra declarada; `bloque_muestra = "solo_agregados"` permite pedir sólo los agregados | [Perfilar una base](https://sebollin.github.io/lupa/articles/perfilar-una-base.html) |
 | Encontrar estructura no declarada | `detectar_claves()`, `detectar_relaciones()`, `detectar_dependencias()`, `granularidades()`, `transiciones_granularidad()` | [Estructura no declarada](https://sebollin.github.io/lupa/articles/estructura-no-declarada.html) |
 | Definir la calidad | `marco_calidad()`, `marco_agesic()`, `marco_iso25012()`, `marco_cepal()`, `catalogo_agesic()`, `metrica()`, `especializar()`, `instanciar()`, `modelo()`, `metricas_nucleo()`, `metricas_referencial()`, `proponer_modelo()`, `modelo_desde_propuesta()`, `perfiles_madurez()`, `cobertura_analisis()` | [Definir la calidad](https://sebollin.github.io/lupa/articles/definir-la-calidad.html) |
 | Medir y evaluar | `medir()`, `agregar()`, `tablero_calidad()`, `indice_calidad()` con pesos del proyecto, `evaluar()`, `regla_evaluacion()` con la instrucción `desenlace = "suprimir"` declarada por quien usa el paquete (no un umbral de fábrica), `perfil_evaluacion()`, `escala()`, `referencial()`, `vigencia()` | [Medir y evaluar](https://sebollin.github.io/lupa/articles/medir-y-evaluar.html) |
@@ -347,7 +347,12 @@ dice: `n_valores_excluidos_resumen` los cuenta, `estado_resumen_cuantitativo` de
 de decir `"calculados"` y `cobertura_diagnosticos` recibe su fila. El desglose de
 los no finitos queda en `n_nan`, `n_infinito_positivo` y `n_infinito_negativo`, y
 si no sobrevive ningún valor utilizable el estado dice `"sin_valores"` en vez de
-afirmar que calculó algo. Eso no depende
+afirmar que calculó algo —y lo dice igual en una columna `integer64` que en una de
+dobles—. La exclusión de los no finitos se declara **en cualquier clase**: una
+columna de fechas con un `Inf` publica `n_valores_excluidos_resumen = 1` y no lo
+cuenta entre las fechas resumidas. Y las longitudes de texto declaran su propio
+universo con `n_longitudes_resumidas`, porque `nchar()` no puede medir un valor cuyos
+bytes no son UTF-8 válido y ése queda fuera del promedio. Eso no depende
 de que haya muestreo. Por omisión,
 `muestra = 1e5` limita el descubrimiento de patrones, la inferencia de tipos, la
 detección de formatos de fecha y la muestra común con que se buscan dependencias

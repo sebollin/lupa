@@ -589,7 +589,15 @@ resúmenes que convierten texto con el tipo o formato descubierto en esa
 muestra, los valores presentes que no se pueden convertir no se ocultan:
 \code{n_fechas_excluidas_granularidad} los cuenta para fechas y
 \code{n_valores_excluidos_resumen} para números, y el estado deja de ser un
-cálculo completo. Por eso
+cálculo completo. \code{n_valores_excluidos_resumen} cuenta también los valores \strong{no
+finitos} que el resumen deja afuera, y lo hace en cualquier clase: una columna
+de fechas con un \code{Inf} publica \code{n_valores_excluidos_resumen = 1},
+\code{n_fechas_resumidas} sin contarlo y el estado
+\code{"calculados_sobre_valores"}. Y para las longitudes de texto,
+\code{n_longitudes_resumidas} declara sobre cuántos valores se calcularon
+\code{longitud_minima}, \code{longitud_maxima} y \code{longitud_media}: \code{nchar()} no puede medir
+un valor cuyos bytes no son UTF-8 válido, y ése queda fuera del promedio. La causa
+viaja aparte, en \code{n_codificacion_invalida}. Por eso
 \code{meta$filas_analizadas} describe el máximo usado por los análisis muestreados,
 no el alcance del perfil completo.
 En cada fila de \code{columnas}, \code{n_filas_analizadas_tipo} y

@@ -66,7 +66,7 @@ test_that("las familias acotadas conservan el resultado por bloques", {
     logical(1L)
   )))
   expect_identical(longitudes[[1L]]$resultado,
-                   c(minimo = 1, maximo = 4, media = 7 / 3))
+                   c(minimo = 1, maximo = 4, media = 7 / 3, n_resumidas = 3))
 })
 
 test_that("el mapa central usa la igualdad de R y conserva ordinales", {

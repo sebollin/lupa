@@ -531,10 +531,22 @@
   if (!is.character(x) && !is.factor(x)) {
     return(.marcar_fallo_acumulador(acumulador, "longitudes_no_textuales"))
   }
-  longitudes <- nchar(as.character(x), type = "chars", allowNA = TRUE)
-  longitudes <- longitudes[!is.na(bloque$aplicable) & bloque$aplicable]
-  longitudes <- longitudes[!is.na(longitudes)]
+  aplica <- !is.na(bloque$aplicable) & bloque$aplicable
+  longitudes <- nchar(as.character(x)[aplica], type = "chars", allowNA = TRUE)
+  # Lo que se CUENTA aca es sobre cuantos valores se calculo la longitud, y eso es
+  # lo que declara el universo: `nchar()` devuelve `NA` cuando no puede medir el
+  # valor -bytes que no son UTF-8 valido-, y esos se descartaban sin que ningun
+  # campo dijera cuantos quedaron afuera. Con tres valores, uno invalido, la fila
+  # publicaba `longitud_media = 4.5` -el promedio de DOS- y `n` decia 3.
+  #
+  # NO se publica un conteo de "no medibles" aparte, y el motivo es que en esta capa
+  # no se puede medir sin mentir: dentro de `perfilar()` la columna llega despues de
+  # `.texto_analizable()`, que ya reemplazo el valor invalido por `NA`, asi que un
+  # valor no medible es indistinguible de una ausencia. El primer intento los conto
+  # juntos y un fixture de la suite con un `NA_character_` lo delato. La causa ya
+  # viaja aparte, en `n_codificacion_invalida`, medida sobre la columna cruda.
   estado <- acumulador$estado_familia
+  longitudes <- longitudes[!is.na(longitudes)]
   if (length(longitudes)) {
     estado$n <- estado$n + length(longitudes)
     estado$suma <- estado$suma + sum(longitudes)
@@ -1634,10 +1646,11 @@
       }
     },
     longitudes = if (!estado$n) {
-      c(minimo = NA_real_, maximo = NA_real_, media = NA_real_)
+      c(minimo = NA_real_, maximo = NA_real_, media = NA_real_,
+        n_resumidas = 0)
     } else {
       c(minimo = estado$minimo, maximo = estado$maximo,
-        media = estado$suma / estado$n)
+        media = estado$suma / estado$n, n_resumidas = estado$n)
     },
     distintos = if (isTRUE(estado$truncado)) NULL else {
       orden <- order(estado$primeros)
