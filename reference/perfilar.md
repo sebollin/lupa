@@ -1030,8 +1030,21 @@ fuera de dominio son cero. Sin CRS, `n_fuera_de_dominio` queda en `NA` y
 se emite `crs_no_declarado`: nunca se supone EPSG:4326. Si falta el
 paquete opcional `sf`, todos esos campos quedan en `NA`, no se emite un
 hallazgo geométrico y `cobertura_diagnosticos` registra la dependencia
-ausente. El argumento `normalizar` declara el perfil de comparación que
-se conserva en `meta$normalizacion`; cambia sólo la representación usada
+ausente.
+
+**Con un universo aplicable declarado**, los conteos y los índices de
+geometría se restringen a ese universo, igual que el resto del
+perfilado: una geometría que la regla dejó afuera no cuenta como vacía,
+ni como inválida, ni como fuera de dominio, y `n_geometrias`,
+`n_dominio_evaluados` y `n_validez_evaluados` describen el universo.
+Tres campos son la excepción y conviene saber por qué:
+`n_bbox_evaluados`, `n_geometrias_analizadas` y `n_vertices_analizados`
+cuentan **el trabajo que se hizo**, no filas de un universo —el análisis
+geométrico corre sobre la columna entera, porque necesita su CRS y sus
+tipos—, así que se publican tal como se midieron. Recortarlos a ojo
+sería inventar un número: no hay conjunto de índices del que derivarlos.
+El argumento `normalizar` declara el perfil de comparación que se
+conserva en `meta$normalizacion`; cambia sólo la representación usada
 para comparar, no el texto guardado. `TRUE` usa el perfil
 predeterminado, `FALSE` desactiva sus pasos configurables, `"amplio"`
 activa los tres pliegues optativos y

@@ -2,6 +2,36 @@
 
 ## lupa 0.1.0
 
+### El universo aplicable manda en el conteo Y en la traza
+
+- **La geometria no cuenta fuera del universo declarado.** Con seis
+  geometrias y dos declaradas fuera del universo,
+  `coordenada_fuera_dominio` publicaba tres afectadas y la traza -que si
+  recortaba- nombraba una:
+  [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md)
+  emitia su propio aviso `lupa_trazabilidad_incoherente` -«es un
+  problema de `lupa`, no de sus datos»- sobre un perfil intacto. El
+  analisis geometrico corre sobre la columna entera porque necesita su
+  CRS y sus tipos, asi que el universo se aplica despues, **por
+  indices**, y cada contador se recalcula de su recorte.
+  `tipos_geometria_mixtos`, que habla de la columna, cuenta ahora las
+  geometrias del universo.
+- **Y la traza de mayusculas no nombra de mas.** El otro lado del mismo
+  defecto: los grupos de caja se formaban sobre la columna cruda y se
+  recortaban despues, asi que la traza nombraba una fila cuyo valor el
+  conteo no contaba ni la evidencia citaba -colisionaba con un valor de
+  una fila NO aplicable-. Ahora se forman sobre el universo, y la guarda
+  de coherencia recomputa sobre el mismo universo: si las dos mitades no
+  miran lo mismo, el aviso dispara aunque las dos esten bien por
+  separado.
+- **Tres campos de geometria quedan declarados como lo que son.**
+  `n_bbox_evaluados`, `n_geometrias_analizadas` y
+  `n_vertices_analizados` cuentan el **trabajo hecho**, no filas de un
+  universo, y no hay conjunto de indices del que derivarlos: se publican
+  tal como se midieron y
+  [`?perfilar`](https://sebollin.github.io/lupa/reference/perfilar.md)
+  lo dice. Recortarlos a ojo seria inventar un numero.
+
 ### Conteos que describen lo que miraron, y una deriva que dice cuando no pudo comparar
 
 - **El conteo de `fecha_partida_columnas` ya no sale de partir su propia
