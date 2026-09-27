@@ -1262,7 +1262,7 @@ perfil
 #> ✖ 5 hallazgos con severidad error
 #> ! 9 hallazgos sospechosos
 #> ✔ 8 hallazgos informativos ok
-#> ℹ 7 diagnosticos no evaluados
+#> ℹ 8 diagnosticos no evaluados
 #> 
 #> ── Resumen general ──
 #> 

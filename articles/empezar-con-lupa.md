@@ -324,29 +324,32 @@ perfil$cobertura_diagnosticos
 #> 1               outliers  id_registro
 #> 2               outliers fecha_evento
 #> 3   resumen_cuantitativo fecha_evento
-#> 4               outliers        monto
-#> 5               outliers     id_copia
-#> 6 proximidad_vocabulario         zona
-#> 7 proximidad_vocabulario     contacto
-#> 8 proximidad_vocabulario    id_evento
+#> 4            patron_raro fecha_evento
+#> 5               outliers        monto
+#> 6               outliers     id_copia
+#> 7 proximidad_vocabulario         zona
+#> 8 proximidad_vocabulario     contacto
+#> 9 proximidad_vocabulario    id_evento
 #>                                                                                                                                                                                                                                                                                                                                                                                                                                                 motivo
 #> 1                                                                                                                                                                                                                                                                            No se evaluaron los limites de Tukey: hay 13 valores finitos y se requieren al menos 20. Reunir mas observaciones o declarar otro criterio antes de interpretar outliers.
 #> 2                                                                                                                                                                                                                                                                            No se evaluaron los limites de Tukey: hay 11 valores finitos y se requieren al menos 20. Reunir mas observaciones o declarar otro criterio antes de interpretar outliers.
 #> 3                                                                                                                                                                                                                                                                          El resumen cuantitativo se calculo sobre 11 valores y dejo afuera 2 valores presentes que no pudo usar; el tipo o formato se descubrio sobre una muestra de 13 de 13 filas.
-#> 4                                                                                                                                                                                                                                                                            No se evaluaron los limites de Tukey: hay 13 valores finitos y se requieren al menos 20. Reunir mas observaciones o declarar otro criterio antes de interpretar outliers.
+#> 4                                                                                                                                                                                                                                                                                                               No se evaluo patron_raro porque el patron dominante ocupa 0.385 de los valores analizados; es menor que umbral_patron_dominante=0.500.
 #> 5                                                                                                                                                                                                                                                                            No se evaluaron los limites de Tukey: hay 13 valores finitos y se requieren al menos 20. Reunir mas observaciones o declarar otro criterio antes de interpretar outliers.
-#> 6 1 grupo de valores cercanos no se informo porque su asimetria de frecuencias quedo por debajo de 2: las formas son casi igual de comunes y no se puede distinguir una errata sistematica de dos valores legitimamente parecidos. 1 grupo de formas cercanas no se formo porque sus frecuencias fueron parecidas: el criterio de variante rara no pudo distinguir una forma correcta de otra. Se identificaron 1 pares cercanos con asimetria <= 2.0.
-#> 7                                                                                                                                                                                                                                                                                                                                                                    El grupo candidato mayor abarca 0.917 del vocabulario y el diagnostico no aplica.
-#> 8                                                                                                                                                                                                                                                                                                                                                                    El grupo candidato mayor abarca 1.000 del vocabulario y el diagnostico no aplica.
+#> 6                                                                                                                                                                                                                                                                            No se evaluaron los limites de Tukey: hay 13 valores finitos y se requieren al menos 20. Reunir mas observaciones o declarar otro criterio antes de interpretar outliers.
+#> 7 1 grupo de valores cercanos no se informo porque su asimetria de frecuencias quedo por debajo de 2: las formas son casi igual de comunes y no se puede distinguir una errata sistematica de dos valores legitimamente parecidos. 1 grupo de formas cercanas no se formo porque sus frecuencias fueron parecidas: el criterio de variante rara no pudo distinguir una forma correcta de otra. Se identificaron 1 pares cercanos con asimetria <= 2.0.
+#> 8                                                                                                                                                                                                                                                                                                                                                                    El grupo candidato mayor abarca 0.917 del vocabulario y el diagnostico no aplica.
+#> 9                                                                                                                                                                                                                                                                                                                                                                    El grupo candidato mayor abarca 1.000 del vocabulario y el diagnostico no aplica.
 #>                                                                                                                                                                                                                                                                                               como_resolverlo
 #> 1                                                                                                                                                                                      Reunir al menos 20 valores finitos con variacion, o declarar otro criterio de distancia antes de interpretar outliers.
 #> 2                                                                                                                                                                                      Reunir al menos 20 valores finitos con variacion, o declarar otro criterio de distancia antes de interpretar outliers.
 #> 3                                                                                                                                                                                                      Revisar los valores fuera de la muestra y confirmar el tipo o formato antes de usar el rango completo.
-#> 4                                                                                                                                                                                      Reunir al menos 20 valores finitos con variacion, o declarar otro criterio de distancia antes de interpretar outliers.
+#> 4                                                                                                                                                                                   Revisar la variabilidad de la columna o ajustar umbral_patron_dominante (valor actual: 0.500) antes de volver a perfilar.
 #> 5                                                                                                                                                                                      Reunir al menos 20 valores finitos con variacion, o declarar otro criterio de distancia antes de interpretar outliers.
-#> 6 Bajar `min_asimetria_vocabulario` si en esta columna interesan las variantes de frecuencia pareja, sabiendo que aumenta el ruido. Activar un detector de formas equifrecuentes con conocimiento del dominio, o revisar los pares manualmente; no se puede elegir una forma correcta solo por su frecuencia.
-#> 7                                                                                                                                                                                  Usar una regla de dominio especifica para la columna o ajustar el criterio de agrupacion con conocimiento del vocabulario.
+#> 6                                                                                                                                                                                      Reunir al menos 20 valores finitos con variacion, o declarar otro criterio de distancia antes de interpretar outliers.
+#> 7 Bajar `min_asimetria_vocabulario` si en esta columna interesan las variantes de frecuencia pareja, sabiendo que aumenta el ruido. Activar un detector de formas equifrecuentes con conocimiento del dominio, o revisar los pares manualmente; no se puede elegir una forma correcta solo por su frecuencia.
 #> 8                                                                                                                                                                                  Usar una regla de dominio especifica para la columna o ajustar el criterio de agrupacion con conocimiento del vocabulario.
+#> 9                                                                                                                                                                                  Usar una regla de dominio especifica para la columna o ajustar el criterio de agrupacion con conocimiento del vocabulario.
 #>   dependencia
 #> 1        <NA>
 #> 2        <NA>
@@ -356,6 +359,7 @@ perfil$cobertura_diagnosticos
 #> 6        <NA>
 #> 7        <NA>
 #> 8        <NA>
+#> 9        <NA>
 ```
 
 `cobertura_diagnosticos` es la tabla que sostiene la regla central de
@@ -569,7 +573,7 @@ archivo <- reportar(
   titulo = "Calidad de la entrega de ejemplo"
 )
 basename(archivo)
-#> [1] "file226f6bd44ff2.html"
+#> [1] "file21a6363b580f.html"
 unlink(c(archivo, archivo_rds))
 ```
 
