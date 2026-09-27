@@ -278,10 +278,10 @@ Lo que se descartó queda declarado:
 ``` r
 
 head(attr(por_grupo, "cobertura_grupos"), 3)
-#>    grupo n_filas_grupo
-#> 1   pais           300
-#> 2   edad           300
-#> 3 correo           300
+#>    grupo grupo_perfilado n_filas_grupo
+#> 1   pais            TRUE           300
+#> 2   edad            TRUE           300
+#> 3 correo            TRUE           300
 #>                                                                            motivo
 #> 1 Se descartaron 1 columnas enteramente ausentes en este grupo antes de perfilar.
 #> 2 Se descartaron 1 columnas enteramente ausentes en este grupo antes de perfilar.

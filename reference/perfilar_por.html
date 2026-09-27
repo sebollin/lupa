@@ -73,9 +73,20 @@ dominios que no tienen nada que ver entre sí.</p>
 <dt id="arg-por">por<a class="anchor" aria-label="anchor" href="#arg-por"></a></dt>
 <dd><p>Nombre de una columna atómica cuyos valores definen los grupos.
 Los ausentes forman un grupo propio, con la etiqueta <code>"(ausente)"</code>. Si la
-columna trae ese mismo texto como valor real, los dos caen en un solo grupo
-—no se pierde ninguna fila— y la colisión se declara en
-<code>cobertura_grupos</code>, con cuántas filas aporta cada una.</p></dd>
+columna trae ese mismo texto como valor real <strong>y además hay ausentes</strong>, los
+dos caen en un solo grupo —no se pierde ninguna fila— y la colisión se
+declara en <code>cobertura_grupos</code>, con cuántas filas aporta cada una. Sin
+ausentes no hay colisión y no se declara ninguna.</p>
+<p>La etiqueta de cada grupo <strong>vuelve a su valor</strong>. En una columna de dobles,
+<code><a href="https://rdrr.io/r/base/character.html" class="external-link">as.character()</a></code> usa 15 cifras significativas y dos valores distintos pueden
+escribirse igual —<code>1e17</code> y <code>1e17 + 32</code> dan los dos <code>"1e+17"</code>—; en ese caso la
+etiqueta lleva las cifras que hacen falta para distinguirlos
+(<code>"1.0000000000000003e+17"</code>), de modo que cada grupo corresponde a un valor y
+<code><a href="https://rdrr.io/r/base/numeric.html" class="external-link">as.numeric()</a></code> de la etiqueta recupera ese valor exacto. Para la enorme
+mayoría de los números la etiqueta es la de siempre.</p>
+<p>Si la columna es un <strong>factor</strong>, un nivel declarado sin ninguna fila es un
+grupo de cero filas: no se perfila y se declara en <code>cobertura_grupos</code>, igual
+que cualquier grupo por debajo de <code>min_filas</code>.</p></dd>
 
 
 <dt id="arg-clave">clave<a class="anchor" aria-label="anchor" href="#arg-clave"></a></dt>
@@ -112,7 +123,17 @@ muestra.</p></dd>
     <p>Data frame de clase <code>hallazgos_por_grupo</code> con las columnas de
 <code>hallazgos</code> de <code><a href="perfilar.html">perfilar()</a></code> precedidas por <code>grupo</code> y <code>n_filas_grupo</code>. El
 atributo <code>cobertura_grupos</code> declara los grupos no perfilados, las columnas
-enteramente ausentes y las declaraciones recortadas por grupo.</p>
+enteramente ausentes y las declaraciones recortadas por grupo. Su columna
+lógica <code>grupo_perfilado</code> dice de qué clase de grupo habla cada fila: hay
+filas sobre grupos que <strong>sí</strong> se perfilaron —la colisión de <code>"(ausente)"</code>,
+las columnas descartadas— y filas sobre grupos que no. Sin esa distinción
+<code>n_filas_grupo</code> no se podía sumar, porque un grupo perfilado aparecía en los
+hallazgos y otra vez en la cobertura.</p>
+<p><strong>Cómo reconciliar las filas.</strong> Hay una fila por grupo y motivo, así que un
+grupo puede aparecer más de una vez; la cuenta se hace sobre grupos
+distintos. La suma de <code>n_filas_grupo</code> sobre los grupos distintos —los
+perfilados, que están en los hallazgos y en las filas con
+<code>grupo_perfilado = TRUE</code>, más los no perfilados— da las filas de la tabla.</p>
 <p>El atributo <code>etiquetas_personales</code> declara si la columna de agrupación
 lleva datos personales. Las etiquetas de grupo <strong>son</strong> valores de esa
 columna, así que la salida los publica —en los hallazgos y en las dos

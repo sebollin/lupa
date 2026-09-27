@@ -24,9 +24,25 @@ perfilar_por(datos, por, clave = NULL, min_filas = 30L, ...)
 
   Nombre de una columna atómica cuyos valores definen los grupos. Los
   ausentes forman un grupo propio, con la etiqueta `"(ausente)"`. Si la
-  columna trae ese mismo texto como valor real, los dos caen en un solo
-  grupo —no se pierde ninguna fila— y la colisión se declara en
-  `cobertura_grupos`, con cuántas filas aporta cada una.
+  columna trae ese mismo texto como valor real **y además hay
+  ausentes**, los dos caen en un solo grupo —no se pierde ninguna fila—
+  y la colisión se declara en `cobertura_grupos`, con cuántas filas
+  aporta cada una. Sin ausentes no hay colisión y no se declara ninguna.
+
+  La etiqueta de cada grupo **vuelve a su valor**. En una columna de
+  dobles, [`as.character()`](https://rdrr.io/r/base/character.html) usa
+  15 cifras significativas y dos valores distintos pueden escribirse
+  igual —`1e17` y `1e17 + 32` dan los dos `"1e+17"`—; en ese caso la
+  etiqueta lleva las cifras que hacen falta para distinguirlos
+  (`"1.0000000000000003e+17"`), de modo que cada grupo corresponde a un
+  valor y [`as.numeric()`](https://rdrr.io/r/base/numeric.html) de la
+  etiqueta recupera ese valor exacto. Para la enorme mayoría de los
+  números la etiqueta es la de siempre.
+
+  Si la columna es un **factor**, un nivel declarado sin ninguna fila es
+  un grupo de cero filas: no se perfila y se declara en
+  `cobertura_grupos`, igual que cualquier grupo por debajo de
+  `min_filas`.
 
 - clave:
 
@@ -68,7 +84,19 @@ Data frame de clase `hallazgos_por_grupo` con las columnas de
 [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md)
 precedidas por `grupo` y `n_filas_grupo`. El atributo `cobertura_grupos`
 declara los grupos no perfilados, las columnas enteramente ausentes y
-las declaraciones recortadas por grupo.
+las declaraciones recortadas por grupo. Su columna lógica
+`grupo_perfilado` dice de qué clase de grupo habla cada fila: hay filas
+sobre grupos que **sí** se perfilaron —la colisión de `"(ausente)"`, las
+columnas descartadas— y filas sobre grupos que no. Sin esa distinción
+`n_filas_grupo` no se podía sumar, porque un grupo perfilado aparecía en
+los hallazgos y otra vez en la cobertura.
+
+**Cómo reconciliar las filas.** Hay una fila por grupo y motivo, así que
+un grupo puede aparecer más de una vez; la cuenta se hace sobre grupos
+distintos. La suma de `n_filas_grupo` sobre los grupos distintos —los
+perfilados, que están en los hallazgos y en las filas con
+`grupo_perfilado = TRUE`, más los no perfilados— da las filas de la
+tabla.
 
 El atributo `etiquetas_personales` declara si la columna de agrupación
 lleva datos personales. Las etiquetas de grupo **son** valores de esa
