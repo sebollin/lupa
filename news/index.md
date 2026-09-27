@@ -2,6 +2,47 @@
 
 ## lupa 0.1.0
 
+### La cadena que se compara es la que el objeto declara
+
+- **Dos columnas de texto con el mismo nombre ya no se comparan en
+  silencio.** El camino explicito rechaza los nombres repetidos, pero el
+  automatico tomaba `names(datos)` sin deduplicar y la seleccion los
+  resuelve con [`match()`](https://rdrr.io/r/base/match.html): comparaba
+  la PRIMERA columna contra si misma, publicaba evidencia con valores
+  que la segunda no tiene y un `exacto` a distancia 0 donde la distancia
+  de los valores reales -0,162- no llega al umbral. Es la tabla que
+  produce `read.csv(check.names = FALSE)` sobre un archivo con
+  encabezados repetidos. No se compara un subconjunto: se declara en
+  `razon` y no se compara nada, igual que cuando una columna queda
+  afuera por su largo.
+- **Un valor declarado `bytes` ya no se iguala al literal de su
+  escape.** El rendido de publicacion lo convierte en `a\xc3\xb1o`, que
+  es una cadena que se puede teclear: el valor no textual y ese literal
+  de diez caracteres quedaban identicos y el par salia
+  `exacto_normalizado` con `igualo_normalizar = TRUE` **incluso con
+  `normalizar = FALSE`**, donde no hay ningun mecanismo declarado para
+  igualar textos. Ahora se rinde con la clave de bytes, que escapa la
+  barra invertida antes que nada y por eso distingue los dos. El mismo
+  texto en UTF-8 y en `latin1` sigue siendo el mismo valor.
+- **El separador de concatenacion no puede salir de un valor.**
+  `c1 = "x | y", c2 = "z"` y `c1 = "x", c2 = "y | z"` producian la misma
+  cadena `"x | y | z"`: dos filas que **no comparten ningun valor**
+  salian `exacto_normalizado` a distancia 0, mientras el informe de
+  fusiones del propio objeto declaraba que ningun paso de normalizacion
+  habia fundido nada. Ahora cada `|` dentro de un valor se escribe `\|`,
+  y la clave de bytes se aplica una sola vez -la segunda aplicacion
+  volvia a escapar lo que la primera habia puesto-, asi que **la
+  distancia de una comparacion de varias columnas se rehace con la
+  receta que el manual publica**.
+- **El limite de la descomposicion canonica queda escrito.** El manual
+  prometia que “se aplica siempre” y daba la receta “hay que descomponer
+  primero”; la tabla cubre el subconjunto latino, asi que fuera de el
+  dos escrituras canonicamente equivalentes no colapsan -el mismo nombre
+  griego en NFC y NFD sale `aproximado` a 0,124- y la receta da otro
+  numero. Ahora dice hasta donde llega y como se rehace cada caso. Lo
+  sostiene una prueba, no el texto: si la tabla se amplia, se pone en
+  rojo.
+
 ### El libro de cobertura por grupos cierra, y la etiqueta de un grupo vuelve a su valor
 
 - **`cobertura_grupos` reconcilia con las filas de la tabla.** El grupo

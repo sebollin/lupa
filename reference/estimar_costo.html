@@ -103,7 +103,23 @@ publicar pares distintos con el mismo umbral —medido: 6 pares contra 10
 sobre las mismas cinco filas—. Con <code>NULL</code>, el orden es el que tienen las
 columnas en <code>datos</code>. El objeto publica en <code>columnas</code> el vector que usó, en
 ese orden, así que el resultado se puede rehacer; declararlo a mano lo
-vuelve independiente de cómo estén ordenadas las columnas del archivo.</p></dd>
+vuelve independiente de cómo estén ordenadas las columnas del archivo.</p>
+<p><strong>Cómo se concatena, para poder rehacer la distancia.</strong> Los valores se unen
+con <code>" | "</code> y cada <code>|</code> que haya dentro de un valor se escribe <code>\|</code>. El escape
+no es cosmético: sin él, <code>c1 = "x | y", c2 = "z"</code> y <code>c1 = "x", c2 = "y | z"</code>
+producían la misma cadena y dos filas que <strong>no comparten ningún valor</strong> salían
+<code>exacto_normalizado</code> a distancia <code>0</code>. Con el escape, la distancia publicada de
+una comparación de varias columnas se rehace así:</p>
+<p></p><div class="sourceCode r"><pre><code><span><span class="va">escapar</span> <span class="op">&lt;-</span> <span class="kw">function</span><span class="op">(</span><span class="va">v</span><span class="op">)</span> <span class="fu"><a href="https://rdrr.io/r/base/grep.html" class="external-link">gsub</a></span><span class="op">(</span><span class="st">"|"</span>, <span class="st">"\\|"</span>, <span class="va">v</span>, fixed <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span></span>
+<span><span class="va">fila</span> <span class="op">&lt;-</span> <span class="kw">function</span><span class="op">(</span><span class="va">i</span><span class="op">)</span> <span class="fu"><a href="https://rdrr.io/r/base/paste.html" class="external-link">paste</a></span><span class="op">(</span><span class="fu">escapar</span><span class="op">(</span><span class="va">datos</span><span class="op">$</span><span class="va">c1</span><span class="op">[</span><span class="va">i</span><span class="op">]</span><span class="op">)</span>, <span class="fu">escapar</span><span class="op">(</span><span class="va">datos</span><span class="op">$</span><span class="va">c2</span><span class="op">[</span><span class="va">i</span><span class="op">]</span><span class="op">)</span>, sep <span class="op">=</span> <span class="st">" | "</span><span class="op">)</span></span>
+<span><span class="fu">stringdist</span><span class="fu">::</span><span class="fu"><a href="https://rdrr.io/pkg/stringdist/man/stringdist.html" class="external-link">stringdist</a></span><span class="op">(</span><span class="fu">fila</span><span class="op">(</span><span class="fl">1</span><span class="op">)</span>, <span class="fu">fila</span><span class="op">(</span><span class="fl">2</span><span class="op">)</span>, method <span class="op">=</span> <span class="st">"jw"</span>, p <span class="op">=</span> <span class="fl">0.1</span><span class="op">)</span></span></code></pre><p></p></div>
+<p>Si la columna es un factor o tiene marca <code>bytes</code>, la cadena comparada es la
+clave de bytes del valor —lo que distingue un valor no textual del literal de
+su escape—; para texto corriente esa clave es el valor tal cual.</p>
+<p>Si dos columnas de texto <strong>tienen el mismo nombre</strong>, la comparación no corre:
+identifica las columnas por nombre y no podría decir cuál compara. No se
+compara un subconjunto —sacar una columna cambia el significado de la
+comparación—: el objeto sale sin pares, con el motivo en <code>razon</code>.</p></dd>
 
 
 <dt id="arg-metodo">metodo<a class="anchor" aria-label="anchor" href="#arg-metodo"></a></dt>
@@ -150,14 +166,24 @@ cada paso. Una lista nombrada puede resolver perfiles por columna. <code>NULL</c
 hereda el perfil guardado en <code>perfil</code>; si no se recibe uno, usa <code>TRUE</code>.
 La normalización cambia sólo la representación usada para comparar, no los
 datos guardados. El umbral se aplica sobre esa cadena normalizada. La
-<strong>descomposición canónica se aplica siempre</strong>, también con <code>FALSE</code>: no es
-un paso configurable sino lo que hace que dos escrituras del mismo texto
-—<code>café</code> precompuesto y <code>café</code> con acento combinante— sean el mismo texto.
+<strong>descomposición canónica no es un paso configurable</strong>: corre también con
+<code>FALSE</code>, y es lo que hace que dos escrituras del mismo texto —<code>café</code>
+precompuesto y <code>café</code> con acento combinante— sean el mismo texto.
 Como la distancia se mide sobre esa forma, un acento cuenta como un
 carácter aparte: con <code>normalizar = FALSE</code>, <code>café</code> y <code>cafe</code> distan <code>0.04</code>
 —y entran en un umbral de <code>0.1</code>—, mientras la misma distancia sobre las
 cadenas tal como se guardaron daría <code>0.117</code>. Para reproducir un número
-publicado hay que descomponer primero. El
+publicado hay que descomponer primero.</p>
+<p><strong>Hasta dónde llega esa descomposición.</strong> La tabla que usa <code>lupa</code> cubre el
+<strong>subconjunto latino</strong> —el mismo límite que declara <code><a href="normalizacion.html">normalizacion()</a></code>—, así que
+fuera de él dos escrituras canónicamente equivalentes <strong>no</strong> colapsan: medido,
+el mismo nombre griego en NFC y en NFD sale <code>aproximado</code> a <code>0.124</code> donde <code>café</code>
+precompuesto y descompuesto salen <code>exacto_normalizado</code> a <code>0</code>. No es un
+descuido de la comparación: es el alcance de la tabla, y se dice acá porque
+afecta la receta de reproducción. Para un texto fuera del subconjunto latino,
+el número publicado se rehace <strong>sin</strong> descomponer, sobre los valores tal como
+están guardados. Si necesita que colapsen, normalice la entrada a una sola
+forma antes de comparar —por ejemplo con <code><a href="https://rdrr.io/pkg/stringi/man/stri_trans_nf.html" class="external-link">stringi::stri_trans_nfc()</a></code>—. El
 informe de fusiones sólo se calcula cuando algún paso configurable está
 activo; con <code>FALSE</code> se omite. Si se entrega <code>perfil</code>, se reutiliza su
 informe ya calculado.</p></dd>

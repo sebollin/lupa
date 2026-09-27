@@ -67,6 +67,29 @@ detectar_duplicados_aproximados(
   declararlo a mano lo vuelve independiente de cómo estén ordenadas las
   columnas del archivo.
 
+  **Cómo se concatena, para poder rehacer la distancia.** Los valores se
+  unen con `" | "` y cada `|` que haya dentro de un valor se escribe
+  `\|`. El escape no es cosmético: sin él, `c1 = "x | y", c2 = "z"` y
+  `c1 = "x", c2 = "y | z"` producían la misma cadena y dos filas que
+  **no comparten ningún valor** salían `exacto_normalizado` a distancia
+  `0`. Con el escape, la distancia publicada de una comparación de
+  varias columnas se rehace así:
+
+      escapar <- function(v) gsub("|", "\\|", v, fixed = TRUE)
+      fila <- function(i) paste(escapar(datos$c1[i]), escapar(datos$c2[i]), sep = " | ")
+      stringdist::stringdist(fila(1), fila(2), method = "jw", p = 0.1)
+
+  Si la columna es un factor o tiene marca `bytes`, la cadena comparada
+  es la clave de bytes del valor —lo que distingue un valor no textual
+  del literal de su escape—; para texto corriente esa clave es el valor
+  tal cual.
+
+  Si dos columnas de texto **tienen el mismo nombre**, la comparación no
+  corre: identifica las columnas por nombre y no podría decir cuál
+  compara. No se compara un subconjunto —sacar una columna cambia el
+  significado de la comparación—: el objeto sale sin pares, con el
+  motivo en `razon`.
+
 - metodo:
 
   Medida admitida por
@@ -115,17 +138,32 @@ detectar_duplicados_aproximados(
   por columna. `NULL` hereda el perfil guardado en `perfil`; si no se
   recibe uno, usa `TRUE`. La normalización cambia sólo la representación
   usada para comparar, no los datos guardados. El umbral se aplica sobre
-  esa cadena normalizada. La **descomposición canónica se aplica
-  siempre**, también con `FALSE`: no es un paso configurable sino lo que
-  hace que dos escrituras del mismo texto —`café` precompuesto y `café`
-  con acento combinante— sean el mismo texto. Como la distancia se mide
-  sobre esa forma, un acento cuenta como un carácter aparte: con
+  esa cadena normalizada. La **descomposición canónica no es un paso
+  configurable**: corre también con `FALSE`, y es lo que hace que dos
+  escrituras del mismo texto —`café` precompuesto y `café` con acento
+  combinante— sean el mismo texto. Como la distancia se mide sobre esa
+  forma, un acento cuenta como un carácter aparte: con
   `normalizar = FALSE`, `café` y `cafe` distan `0.04` —y entran en un
   umbral de `0.1`—, mientras la misma distancia sobre las cadenas tal
   como se guardaron daría `0.117`. Para reproducir un número publicado
-  hay que descomponer primero. El informe de fusiones sólo se calcula
-  cuando algún paso configurable está activo; con `FALSE` se omite. Si
-  se entrega `perfil`, se reutiliza su informe ya calculado.
+  hay que descomponer primero.
+
+  **Hasta dónde llega esa descomposición.** La tabla que usa `lupa`
+  cubre el **subconjunto latino** —el mismo límite que declara
+  [`normalizacion()`](https://sebollin.github.io/lupa/reference/normalizacion.md)—,
+  así que fuera de él dos escrituras canónicamente equivalentes **no**
+  colapsan: medido, el mismo nombre griego en NFC y en NFD sale
+  `aproximado` a `0.124` donde `café` precompuesto y descompuesto salen
+  `exacto_normalizado` a `0`. No es un descuido de la comparación: es el
+  alcance de la tabla, y se dice acá porque afecta la receta de
+  reproducción. Para un texto fuera del subconjunto latino, el número
+  publicado se rehace **sin** descomponer, sobre los valores tal como
+  están guardados. Si necesita que colapsen, normalice la entrada a una
+  sola forma antes de comparar —por ejemplo con
+  [`stringi::stri_trans_nfc()`](https://rdrr.io/pkg/stringi/man/stri_trans_nf.html)—.
+  El informe de fusiones sólo se calcula cuando algún paso configurable
+  está activo; con `FALSE` se omite. Si se entrega `perfil`, se
+  reutiliza su informe ya calculado.
 
 - perfil:
 
