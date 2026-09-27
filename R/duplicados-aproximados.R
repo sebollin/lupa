@@ -1586,11 +1586,43 @@
     #
     # Decidir si dos filas son la misma es decidir identidad, y ahi no se
     # interpreta lo que se declaro que no es texto.
-    salida <- suppressWarnings(
+    # Se rinde con `.clave_bytes()` y NO con el rendido de publicacion. El rendido
+    # de publicacion convierte un valor `bytes` en su literal escapado
+    # -`a\xc3\xb1o`-, que es una cadena que un usuario puede TECLEAR: el valor no
+    # textual y ese literal de diez caracteres quedaban identicos y el par salia
+    # `exacto_normalizado` con `igualo_normalizar = TRUE` incluso con
+    # `normalizar = FALSE`, o sea la misma forma que el comentario de arriba
+    # describe como corregida. `.clave_bytes()` escapa la barra invertida ANTES que
+    # nada -por esto mismo- asi que el literal recibe `a\\xc3\\xb1o` y los dos se
+    # distinguen. Medido: mantiene iguales UTF-8 y `latin1` del mismo texto, que es
+    # la equivalencia que el manual promete.
+    # Dos preguntas distintas sobre el mismo valor, y por eso dos pasadas.
+    #
+    # LA VALIDEZ se mide sobre el valor tal como llego: una celda cuyos bytes no son
+    # UTF-8 valido y cuya codificacion nadie declaro no se puede leer, no entra en la
+    # comparacion y eso queda declarado en `n_filas_validas`. Medirla sobre la clave
+    # de bytes la haria entrar, porque la clave de un valor ilegible es una cadena
+    # ASCII perfectamente comparable: seria comparar el ESCAPE como si fuera el
+    # texto, que es justo lo que la nota de abajo dice no hacer. Lo atrapo la prueba
+    # que ya existia para esto.
+    #
+    # LA CLAVE se saca con `.clave_bytes()` y no con el rendido de publicacion. El
+    # rendido convierte un valor `bytes` en su literal escapado -`a\xc3\xb1o`-, que
+    # es una cadena que se puede teclear: el valor no textual y ese literal de diez
+    # caracteres quedaban identicos y el par salia `exacto_normalizado` con
+    # `igualo_normalizar = TRUE` incluso con `normalizar = FALSE`, o sea la misma
+    # forma que el comentario de arriba describe como corregida. `.clave_bytes()`
+    # escapa la barra invertida ANTES que nada -por esto mismo-, asi que el literal
+    # recibe `a\\xc3\\xb1o` y los dos se distinguen. Y mantiene iguales UTF-8 y
+    # `latin1` del mismo texto, que es la equivalencia que el manual promete.
+    legible <- suppressWarnings(
       as.character(.texto_analizable(.texto_publicable(x))$valores)
     )
-    presentes <- !is.na(salida) & nzchar(salida)
-    salida[is.na(salida)] <- ""
+    salida <- suppressWarnings(
+      as.character(.texto_analizable(.clave_bytes(x))$valores)
+    )
+    presentes <- !is.na(legible) & nzchar(legible)
+    salida[is.na(legible) | is.na(salida)] <- ""
     list(
       valores = .normalizacion_aplicar(
         salida, .normalizacion_para_columna(normalizacion_resuelta, columna)
@@ -1600,13 +1632,32 @@
   }, datos_columnas, columnas)
   # `unname()`: `lapply` conserva los nombres de columna, que son datos del
   # usuario. Una columna llamada `sep` chocaba con el formal de `paste`.
-  filas <- .clave_bytes(do.call(
+  # El separador tiene que ser imposible de producir desde un valor. Con `" | "` a
+  # secas, `c1 = "x | y", c2 = "z"` y `c1 = "x", c2 = "y | z"` daban los dos
+  # `"x | y | z"`: dos filas que NO comparten ningun valor salian
+  # `exacto_normalizado` a distancia 0, mientras el propio informe de fusiones del
+  # objeto declaraba que ningun paso de normalizacion habia fundido nada -el objeto
+  # desmintiendo su propia clasificacion-. `.clave_bytes()` ya escapo la barra
+  # invertida, asi que escapar la barra vertical despues deja una sola forma de leer
+  # la cadena y el separador vuelve a separar.
+  # Y la clave de bytes se aplica UNA vez, por valor, no otra vez sobre la cadena
+  # ya pegada: la segunda aplicacion volvia a escapar las barras invertidas que la
+  # primera habia puesto, y entonces la cadena comparada no se podia rehacer con
+  # ninguna receta que no fuera esta funcion. Despues de la primera aplicacion los
+  # valores ya son ASCII, asi que el pegado no necesita normalizarse de nuevo.
+  #
+  # La receta publicada queda entonces en una linea, y es la que documenta el Rd:
+  # cada valor con su `|` escapado como `\|`, unidos con `" | "`.
+  escapar_separador <- function(v) gsub("|", "\\|", v, fixed = TRUE)
+  filas <- do.call(
     paste,
     c(
-      unname(lapply(valores, function(x) .clave_bytes(x$valores))),
+      unname(lapply(valores, function(x) {
+        escapar_separador(.clave_bytes(x$valores))
+      })),
       sep = " | "
     )
-  ))
+  )
   presentes <- Reduce(`|`, lapply(valores, `[[`, "presentes"),
                       init = rep(FALSE, nrow(datos)))
   fusiones <- if (!is.null(fusiones_precomputadas)) {
@@ -1797,6 +1848,43 @@
       max_resultados, disponible = FALSE, bloque = bloque, p = p,
       razon = "No esta instalado el paquete opcional 'stringdist'.",
       nucleos_usados = nucleos, max_largo_valor = max_largo_valor
+    )
+    if (!is.null(resumen_bloqueo)) {
+      resultado$alcance <- cbind(resultado$alcance, resumen_bloqueo$alcance)
+    }
+    resultado$normalizacion <- .normalizacion_salida(normalizacion_resuelta)
+    return(resultado)
+  }
+  # Dos columnas de texto con el MISMO nombre. El camino explicito las rechaza
+  # -"`columnas` debe nombrar columnas atomicas existentes y sin repetir"-, pero el
+  # automatico tomaba `names(datos)` sin deduplicar y `.seleccionar_columnas()`
+  # resuelve los nombres con `match()`: los dos `txt` se volvian el indice 1 dos
+  # veces, o sea la PRIMERA columna comparada contra si misma. Medido: publicaba
+  # `columnas = txt/txt`, evidencia `txt=ana; txt=ana` para las dos filas -el valor
+  # de la segunda columna no aparecia en ninguna parte- y `tipo_par = "exacto"` a
+  # distancia 0, cuando la distancia de los valores reales es 0,162 y el par no
+  # llega al umbral. Un falso positivo silencioso sobre una tabla que
+  # `read.csv(check.names = FALSE)` produce sola.
+  #
+  # No se compara un subconjunto: se declara y no se compara nada, que es lo que el
+  # paquete ya hace cuando una columna queda afuera por su largo -"como las columnas
+  # se comparan juntas, no se compararon sus filas"-. Sacar una columna cambia el
+  # significado de la comparacion, no la recorta.
+  nombres_repetidos <- unique(columnas[duplicated(columnas)])
+  if (length(nombres_repetidos)) {
+    motivo <- paste0(
+      "Hay columnas de texto con el mismo nombre (",
+      paste0("`", nombres_repetidos, "`", collapse = ", "),
+      "): la comparacion identifica las columnas por nombre, asi que no se puede ",
+      "decir cual de ellas se compara. No se compararon sus filas. Renombre las ",
+      "repetidas -por ejemplo con `names(datos) <- make.unique(names(datos))`- y ",
+      "vuelva a comparar."
+    )
+    resultado <- .vacio_duplicados_aproximados(
+      nrow(datos), columnas, metodo, umbral, muestra, max_pares,
+      max_resultados, disponible = .stringdist_disponible(), bloque = bloque,
+      p = p, razon = motivo, nucleos_usados = nucleos,
+      max_largo_valor = max_largo_valor
     )
     if (!is.null(resumen_bloqueo)) {
       resultado$alcance <- cbind(resultado$alcance, resumen_bloqueo$alcance)
@@ -2428,6 +2516,28 @@
 #'   columnas en `datos`. El objeto publica en `columnas` el vector que usó, en
 #'   ese orden, así que el resultado se puede rehacer; declararlo a mano lo
 #'   vuelve independiente de cómo estén ordenadas las columnas del archivo.
+#'
+#'   **Cómo se concatena, para poder rehacer la distancia.** Los valores se unen
+#'   con `" | "` y cada `|` que haya dentro de un valor se escribe `\|`. El escape
+#'   no es cosmético: sin él, `c1 = "x | y", c2 = "z"` y `c1 = "x", c2 = "y | z"`
+#'   producían la misma cadena y dos filas que **no comparten ningún valor** salían
+#'   `exacto_normalizado` a distancia `0`. Con el escape, la distancia publicada de
+#'   una comparación de varias columnas se rehace así:
+#'
+#'   ```r
+#'   escapar <- function(v) gsub("|", "\\|", v, fixed = TRUE)
+#'   fila <- function(i) paste(escapar(datos$c1[i]), escapar(datos$c2[i]), sep = " | ")
+#'   stringdist::stringdist(fila(1), fila(2), method = "jw", p = 0.1)
+#'   ```
+#'
+#'   Si la columna es un factor o tiene marca `bytes`, la cadena comparada es la
+#'   clave de bytes del valor —lo que distingue un valor no textual del literal de
+#'   su escape—; para texto corriente esa clave es el valor tal cual.
+#'
+#'   Si dos columnas de texto **tienen el mismo nombre**, la comparación no corre:
+#'   identifica las columnas por nombre y no podría decir cuál compara. No se
+#'   compara un subconjunto —sacar una columna cambia el significado de la
+#'   comparación—: el objeto sale sin pares, con el motivo en `razon`.
 #' @param metodo Medida admitida por `stringdist::stringdistmatrix()`. Por
 #'   defecto, `"jw"`.
 #' @param p Factor de prefijo de Jaro--Winkler, entre 0 y 0.25. Por defecto
@@ -2475,14 +2585,25 @@
 #'   hereda el perfil guardado en `perfil`; si no se recibe uno, usa `TRUE`.
 #'   La normalización cambia sólo la representación usada para comparar, no los
 #'   datos guardados. El umbral se aplica sobre esa cadena normalizada. La
-#'   **descomposición canónica se aplica siempre**, también con `FALSE`: no es
-#'   un paso configurable sino lo que hace que dos escrituras del mismo texto
-#'   —`café` precompuesto y `café` con acento combinante— sean el mismo texto.
+#'   **descomposición canónica no es un paso configurable**: corre también con
+#'   `FALSE`, y es lo que hace que dos escrituras del mismo texto —`café`
+#'   precompuesto y `café` con acento combinante— sean el mismo texto.
 #'   Como la distancia se mide sobre esa forma, un acento cuenta como un
 #'   carácter aparte: con `normalizar = FALSE`, `café` y `cafe` distan `0.04`
 #'   —y entran en un umbral de `0.1`—, mientras la misma distancia sobre las
 #'   cadenas tal como se guardaron daría `0.117`. Para reproducir un número
-#'   publicado hay que descomponer primero. El
+#'   publicado hay que descomponer primero.
+#'
+#'   **Hasta dónde llega esa descomposición.** La tabla que usa `lupa` cubre el
+#'   **subconjunto latino** —el mismo límite que declara [normalizacion()]—, así que
+#'   fuera de él dos escrituras canónicamente equivalentes **no** colapsan: medido,
+#'   el mismo nombre griego en NFC y en NFD sale `aproximado` a `0.124` donde `café`
+#'   precompuesto y descompuesto salen `exacto_normalizado` a `0`. No es un
+#'   descuido de la comparación: es el alcance de la tabla, y se dice acá porque
+#'   afecta la receta de reproducción. Para un texto fuera del subconjunto latino,
+#'   el número publicado se rehace **sin** descomponer, sobre los valores tal como
+#'   están guardados. Si necesita que colapsen, normalice la entrada a una sola
+#'   forma antes de comparar —por ejemplo con `stringi::stri_trans_nfc()`—. El
 #'   informe de fusiones sólo se calcula cuando algún paso configurable está
 #'   activo; con `FALSE` se omite. Si se entrega `perfil`, se reutiliza su
 #'   informe ya calculado.

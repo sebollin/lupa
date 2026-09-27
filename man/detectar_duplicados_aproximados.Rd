@@ -44,7 +44,28 @@ publicar pares distintos con el mismo umbral —medido: 6 pares contra 10
 sobre las mismas cinco filas—. Con \code{NULL}, el orden es el que tienen las
 columnas en \code{datos}. El objeto publica en \code{columnas} el vector que usó, en
 ese orden, así que el resultado se puede rehacer; declararlo a mano lo
-vuelve independiente de cómo estén ordenadas las columnas del archivo.}
+vuelve independiente de cómo estén ordenadas las columnas del archivo.
+
+\strong{Cómo se concatena, para poder rehacer la distancia.} Los valores se unen
+con \code{" | "} y cada \code{|} que haya dentro de un valor se escribe \verb{\\|}. El escape
+no es cosmético: sin él, \verb{c1 = "x | y", c2 = "z"} y \verb{c1 = "x", c2 = "y | z"}
+producían la misma cadena y dos filas que \strong{no comparten ningún valor} salían
+\code{exacto_normalizado} a distancia \code{0}. Con el escape, la distancia publicada de
+una comparación de varias columnas se rehace así:
+
+\if{html}{\out{<div class="sourceCode r">}}\preformatted{escapar <- function(v) gsub("|", "\\\\|", v, fixed = TRUE)
+fila <- function(i) paste(escapar(datos$c1[i]), escapar(datos$c2[i]), sep = " | ")
+stringdist::stringdist(fila(1), fila(2), method = "jw", p = 0.1)
+}\if{html}{\out{</div>}}
+
+Si la columna es un factor o tiene marca \code{bytes}, la cadena comparada es la
+clave de bytes del valor —lo que distingue un valor no textual del literal de
+su escape—; para texto corriente esa clave es el valor tal cual.
+
+Si dos columnas de texto \strong{tienen el mismo nombre}, la comparación no corre:
+identifica las columnas por nombre y no podría decir cuál compara. No se
+compara un subconjunto —sacar una columna cambia el significado de la
+comparación—: el objeto sale sin pares, con el motivo en \code{razon}.}
 
 \item{metodo}{Medida admitida por \code{stringdist::stringdistmatrix()}. Por
 defecto, \code{"jw"}.}
@@ -77,14 +98,25 @@ cada paso. Una lista nombrada puede resolver perfiles por columna. \code{NULL}
 hereda el perfil guardado en \code{perfil}; si no se recibe uno, usa \code{TRUE}.
 La normalización cambia sólo la representación usada para comparar, no los
 datos guardados. El umbral se aplica sobre esa cadena normalizada. La
-\strong{descomposición canónica se aplica siempre}, también con \code{FALSE}: no es
-un paso configurable sino lo que hace que dos escrituras del mismo texto
-—\code{café} precompuesto y \code{café} con acento combinante— sean el mismo texto.
+\strong{descomposición canónica no es un paso configurable}: corre también con
+\code{FALSE}, y es lo que hace que dos escrituras del mismo texto —\code{café}
+precompuesto y \code{café} con acento combinante— sean el mismo texto.
 Como la distancia se mide sobre esa forma, un acento cuenta como un
 carácter aparte: con \code{normalizar = FALSE}, \code{café} y \code{cafe} distan \code{0.04}
 —y entran en un umbral de \code{0.1}—, mientras la misma distancia sobre las
 cadenas tal como se guardaron daría \code{0.117}. Para reproducir un número
-publicado hay que descomponer primero. El
+publicado hay que descomponer primero.
+
+\strong{Hasta dónde llega esa descomposición.} La tabla que usa \code{lupa} cubre el
+\strong{subconjunto latino} —el mismo límite que declara \code{\link[=normalizacion]{normalizacion()}}—, así que
+fuera de él dos escrituras canónicamente equivalentes \strong{no} colapsan: medido,
+el mismo nombre griego en NFC y en NFD sale \code{aproximado} a \code{0.124} donde \code{café}
+precompuesto y descompuesto salen \code{exacto_normalizado} a \code{0}. No es un
+descuido de la comparación: es el alcance de la tabla, y se dice acá porque
+afecta la receta de reproducción. Para un texto fuera del subconjunto latino,
+el número publicado se rehace \strong{sin} descomponer, sobre los valores tal como
+están guardados. Si necesita que colapsen, normalice la entrada a una sola
+forma antes de comparar —por ejemplo con \code{stringi::stri_trans_nfc()}—. El
 informe de fusiones sólo se calcula cuando algún paso configurable está
 activo; con \code{FALSE} se omite. Si se entrega \code{perfil}, se reutiliza su
 informe ya calculado.}
