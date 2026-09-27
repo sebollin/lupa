@@ -3,8 +3,12 @@
 Compara por intersección los campos registrados de dos perfiles y
 devuelve una fila por cada par de columna y campo. Los campos que no
 tienen un eje registrado no se comparan y quedan declarados en
-`campos_no_comparables`. Los campos bajo protección tampoco se comparan:
-se declaran por columna, campo y lado en `campos_protegidos`.
+`campos_no_comparables`, y lo mismo pasa con un campo registrado que uno
+de los dos lados no mide: se declara ahi, con el motivo
+`campo_solo_en_anterior` o `campo_solo_en_actual` en
+`detalle_campos_no_comparables` y una fila en `cobertura_diagnosticos`.
+Los campos bajo protección tampoco se comparan: se declaran por columna,
+campo y lado en `campos_protegidos`.
 
 ## Usage
 

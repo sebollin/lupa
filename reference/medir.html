@@ -148,6 +148,15 @@ política usada para que una deriva posterior pueda distinguir modelo de
 datos. Si el modelo declara un marco, la medición conserva tambien
 <code>marco_calidad</code>; la configuracion del modelo registra su nombre, sus pares
 dimension-factor y el <code>tipo_resultado</code> de cada metrica.</p>
+<p>Esa descripcion es <strong>insensible al orden de la declaracion</strong>: declarar las
+mismas metricas, o los mismos pares del marco, en otro orden no cambia el
+modelo, porque un modelo es un conjunto de instrumentos y un marco un
+conjunto de pares. El orden de los <code>atributos</code> de una instancia <strong>sí</strong> es
+parte del modelo, porque el metodo recibe las columnas en ese orden. Y el
+<code>metodo</code> de medicion entra en la descripcion solo si lo declaro quien
+llama: el metodo por omision de una metrica es del paquete y su identidad ya
+viaja en el nombre de la metrica, de modo que un cambio interno de lupa no
+se lee como un cambio del modelo del usuario.</p>
     </div>
 
     <div class="section level2">
@@ -157,13 +166,13 @@ dimension-factor y el <code>tipo_resultado</code> de cada metrica.</p>
 <span class="r-in"><span><span class="va">instancia</span> <span class="op">&lt;-</span> <span class="fu"><a href="modelo_calidad.html">instanciar</a></span><span class="op">(</span><span class="va">especifica</span>, <span class="st">"personas"</span>, <span class="st">"edad"</span><span class="op">)</span></span></span>
 <span class="r-in"><span><span class="fu">medir</span><span class="op">(</span><span class="fu"><a href="modelo_calidad.html">modelo</a></span><span class="op">(</span><span class="va">instancia</span><span class="op">)</span>, <span class="fu"><a href="https://rdrr.io/r/base/data.frame.html" class="external-link">data.frame</a></span><span class="op">(</span>edad <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">20</span>, <span class="cn">NA</span>, <span class="fl">35</span><span class="op">)</span><span class="op">)</span><span class="op">)</span></span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>                                     id_medida</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 1 medicion-20260927T063150.358808-7525-000001</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 2 medicion-20260927T063150.358808-7525-000002</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 3 medicion-20260927T063150.358808-7525-000003</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 1 medicion-20260927T073651.812990-7550-000001</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 2 medicion-20260927T073651.812990-7550-000002</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 3 medicion-20260927T073651.812990-7550-000003</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>                            id_medicion               fecha metrica</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 1 medicion-20260927T063150.358808-7525 2026-09-27 06:31:50  NoNulo</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 2 medicion-20260927T063150.358808-7525 2026-09-27 06:31:50  NoNulo</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 3 medicion-20260927T063150.358808-7525 2026-09-27 06:31:50  NoNulo</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 1 medicion-20260927T073651.812990-7550 2026-09-27 07:36:51  NoNulo</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 2 medicion-20260927T073651.812990-7550 2026-09-27 07:36:51  NoNulo</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 3 medicion-20260927T073651.812990-7550 2026-09-27 07:36:51  NoNulo</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>   metrica_especifica      metrica_instanciada   dimension   factor orientacion</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> 1         NoNuloEdad NoNuloEdad@personas.edad Completitud Densidad conformidad</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> 2         NoNuloEdad NoNuloEdad@personas.edad Completitud Densidad conformidad</span>

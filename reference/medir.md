@@ -115,6 +115,16 @@ de datos. Si el modelo declara un marco, la medición conserva tambien
 `marco_calidad`; la configuracion del modelo registra su nombre, sus
 pares dimension-factor y el `tipo_resultado` de cada metrica.
 
+Esa descripcion es **insensible al orden de la declaracion**: declarar
+las mismas metricas, o los mismos pares del marco, en otro orden no
+cambia el modelo, porque un modelo es un conjunto de instrumentos y un
+marco un conjunto de pares. El orden de los `atributos` de una instancia
+**sí** es parte del modelo, porque el metodo recibe las columnas en ese
+orden. Y el `metodo` de medicion entra en la descripcion solo si lo
+declaro quien llama: el metodo por omision de una metrica es del paquete
+y su identidad ya viaja en el nombre de la metrica, de modo que un
+cambio interno de lupa no se lee como un cambio del modelo del usuario.
+
 ## Examples
 
 ``` r
@@ -123,13 +133,13 @@ especifica <- especializar(nucleo$NoNulo, nombre_especifico = "NoNuloEdad")
 instancia <- instanciar(especifica, "personas", "edad")
 medir(modelo(instancia), data.frame(edad = c(20, NA, 35)))
 #>                                     id_medida
-#> 1 medicion-20260927T063150.358808-7525-000001
-#> 2 medicion-20260927T063150.358808-7525-000002
-#> 3 medicion-20260927T063150.358808-7525-000003
+#> 1 medicion-20260927T073651.812990-7550-000001
+#> 2 medicion-20260927T073651.812990-7550-000002
+#> 3 medicion-20260927T073651.812990-7550-000003
 #>                            id_medicion               fecha metrica
-#> 1 medicion-20260927T063150.358808-7525 2026-09-27 06:31:50  NoNulo
-#> 2 medicion-20260927T063150.358808-7525 2026-09-27 06:31:50  NoNulo
-#> 3 medicion-20260927T063150.358808-7525 2026-09-27 06:31:50  NoNulo
+#> 1 medicion-20260927T073651.812990-7550 2026-09-27 07:36:51  NoNulo
+#> 2 medicion-20260927T073651.812990-7550 2026-09-27 07:36:51  NoNulo
+#> 3 medicion-20260927T073651.812990-7550 2026-09-27 07:36:51  NoNulo
 #>   metrica_especifica      metrica_instanciada   dimension   factor orientacion
 #> 1         NoNuloEdad NoNuloEdad@personas.edad Completitud Densidad conformidad
 #> 2         NoNuloEdad NoNuloEdad@personas.edad Completitud Densidad conformidad
