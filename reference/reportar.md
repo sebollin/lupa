@@ -70,6 +70,16 @@ reportar(
   haberse conservado tambien con
   `perfilar(..., proteger_datos_personales = FALSE)`.
 
+  El enmascarado alcanza tres formas del mismo valor: la exacta, la que
+  solo difiere en separadores o en la caja de sus letras ASCII, y la que
+  comparte con un valor protegido una corrida de seis digitos o mas -un
+  documento sin su digito verificador, por ejemplo-. La comparacion por
+  corridas se limita a digitos a proposito: aplicada al texto taparia
+  una palabra corriente por compartir un tramo con un apellido, y eso
+  silencia contenido del informe en vez de proteger un dato. Una
+  variante que solo difiere en la caja de una letra **acentuada** no se
+  pliega.
+
 ## Value
 
 La ruta normalizada del archivo, de forma invisible.
@@ -83,6 +93,12 @@ aplica planes. Si una evaluacion contiene desenlaces de supresion
 declarados por reglas, el reporte enmascara su `valor_medido` y el
 `resultado` de las mismas medidas incluidas en el documento. El
 enmascarado se hace sobre copias y no modifica los objetos recibidos.
+
+Una seccion que no se puede armar **se declara dentro del informe** y no
+lo interrumpe: si a un `historico_calidad` le faltan campos que su
+seccion necesita -`fecha`, `id_medicion`, `nivel`, `perfil` o
+`resultado`-, la seccion dice cuales faltan y el resto del documento se
+escribe igual.
 
 ## See also
 

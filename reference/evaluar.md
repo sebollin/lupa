@@ -61,13 +61,13 @@ evaluar(medidas, perfil_evaluacion("Avanzado", regla))
 #> ── Evaluaciones de medidas ──
 #> 
 #>                                    id_medida
-#>  medicion-20260927T073648.015951-7550-000001
-#>  medicion-20260927T073648.015951-7550-000002
-#>  medicion-20260927T073648.015951-7550-000003
+#>  medicion-20260927T091736.391365-7526-000001
+#>  medicion-20260927T091736.391365-7526-000002
+#>  medicion-20260927T091736.391365-7526-000003
 #>                           id_medicion               fecha   perfil        regla
-#>  medicion-20260927T073648.015951-7550 2026-09-27 07:36:48 Avanzado Al menos 90%
-#>  medicion-20260927T073648.015951-7550 2026-09-27 07:36:48 Avanzado Al menos 90%
-#>  medicion-20260927T073648.015951-7550 2026-09-27 07:36:48 Avanzado Al menos 90%
+#>  medicion-20260927T091736.391365-7526 2026-09-27 09:17:36 Avanzado Al menos 90%
+#>  medicion-20260927T091736.391365-7526 2026-09-27 09:17:36 Avanzado Al menos 90%
+#>  medicion-20260927T091736.391365-7526 2026-09-27 09:17:36 Avanzado Al menos 90%
 #>   metrica_instanciada orientacion resultado
 #>  NoNulo@personas.edad conformidad      TRUE
 #>  NoNulo@personas.edad conformidad     FALSE
@@ -75,13 +75,13 @@ evaluar(medidas, perfil_evaluacion("Avanzado", regla))
 #> ── Evaluaciones de reglas ──
 #> 
 #>                           id_medicion               fecha   perfil        regla
-#>  medicion-20260927T073648.015951-7550 2026-09-27 07:36:48 Avanzado Al menos 90%
+#>  medicion-20260927T091736.391365-7526 2026-09-27 09:17:36 Avanzado Al menos 90%
 #>  n_medidas resultado
 #>          3 0.6666667
 #> ── Perfiles de madurez ──
 #> 
 #>                           id_medicion               fecha   perfil n_reglas
-#>  medicion-20260927T073648.015951-7550 2026-09-27 07:36:48 Avanzado        1
+#>  medicion-20260927T091736.391365-7526 2026-09-27 09:17:36 Avanzado        1
 #>  resultado
 #>  0.6666667
 ```

@@ -61,13 +61,16 @@ aplicar(plan, datos, permitir_eliminacion = FALSE, conservar_eliminados = TRUE)
 `eliminados`. El `registro` conserva `estado` (`ejecutada` o `fallida`),
 `error`, `n_no_reversibles` y la `justificacion` de cada acción
 seleccionada, incluso cuando una falla y las siguientes continúan.
-`n_no_reversibles` cuenta las celdas cuyo VALOR se perdió y no se puede
-recuperar desde el resultado: un centinela `-999` que pasa a ausencia,
-un extremo recortado a su límite, un marcador de ausencia convertido, o
-un número que se redondeó al convertirlo. Las acciones que **normalizan
-la escritura** —recortar espacios, quitar un invisible de transporte,
-reemplazar separadores o cambiar mayúsculas— dejan el valor en su lugar
-y no cuentan, **salvo cuando la normalización fusiona valores que eran
+`n_codificacion_normalizada` cuenta, por acción, las celdas cuya **marca
+de codificación** cambió: es el caso de una acción de texto sobre celdas
+`latin1`, cuyo valor se conserva y cuyos bytes no. `n_no_reversibles`
+cuenta las celdas cuyo VALOR se perdió y no se puede recuperar desde el
+resultado: un centinela `-999` que pasa a ausencia, un extremo recortado
+a su límite, un marcador de ausencia convertido, o un número que se
+redondeó al convertirlo. Las acciones que **normalizan la escritura**
+—recortar espacios, quitar un invisible de transporte, reemplazar
+separadores o cambiar mayúsculas— dejan el valor en su lugar y no
+cuentan, **salvo cuando la normalización fusiona valores que eran
 distintos**: ahí lo que los separaba no queda en ningún lado y esas
 celdas sí se cuentan. El criterio se mide sobre el resultado, no por el
 nombre de la acción: quitar un guion suave de `PRO<U+00AD>DUCTO-A` no
@@ -155,19 +158,22 @@ se activa a mano—, no se activa por defecto y el registro conserva
 
 `destructiva` no es sinónimo de "pierde algo": marca las acciones que el
 usuario tiene que activar a mano —las que retiran filas o columnas y las
-conversiones que pierden representación— y por eso ninguna acción
-`destructiva` puede estar `recomendada`. Hay acciones recomendadas que
-sí pierden el valor de una celda: `convertir_ausencias_textuales` cambia
-un marcador por `NA` y `eliminar_controles_invisibles` quita un
-carácter. Esas lo dicen en su justificación y el registro las cuantifica
-en `n_no_reversibles`; leer `destructiva = FALSE` no significa que no se
-haya perdido nada, sino que el paquete pudo recomendar la acción sin
-conocer el dominio. Sobre una columna **factor** las acciones por celda
-devuelven texto: el resultado no puede ser un factor incompleto, así que
-el orden declarado y los niveles sin observaciones no se conservan. La
-justificación de la acción lo dice, y si el factor es ordenado la acción
-queda recomendada pero **sin activar**, porque conservar el orden es una
-decisión del dominio.
+conversiones que pierden representación, como `winsorizar_outliers`
+sobre una columna **entera**, donde los límites de Tukey son cuartiles y
+la columna queda en doble precisión: la justificación lo dice y
+`parametros` publica `tipo_original` y `tipo_resultante`— y por eso
+ninguna acción `destructiva` puede estar `recomendada`. Hay acciones
+recomendadas que sí pierden el valor de una celda:
+`convertir_ausencias_textuales` cambia un marcador por `NA` y
+`eliminar_controles_invisibles` quita un carácter. Esas lo dicen en su
+justificación y el registro las cuantifica en `n_no_reversibles`; leer
+`destructiva = FALSE` no significa que no se haya perdido nada, sino que
+el paquete pudo recomendar la acción sin conocer el dominio. Sobre una
+columna **factor** las acciones por celda devuelven texto: el resultado
+no puede ser un factor incompleto, así que el orden declarado y los
+niveles sin observaciones no se conservan. La justificación de la acción
+lo dice, y si el factor es ordenado la acción queda recomendada pero
+**sin activar**, porque conservar el orden es una decisión del dominio.
 
 Tres atributos del plan declaran lo que el plan no cubre.
 `cobertura_diagnosticos` trae los diagnósticos que el perfil no pudo
@@ -209,16 +215,26 @@ sin marca en una sesión UTF-8, que es lo que deja
 la midió y la informa como `codificacion_invalida`, cuyo remedio es
 volver a leer la fuente declarando su codificación. Las acciones de
 texto trabajan sobre las demás celdas de la columna y cuentan sólo lo
-que cambiaron. Si se marca una acción que no está `lista`, `aplicar()`
-aborta antes de modificar la copia y enumera las filas problemáticas.
-Una acción que sí está lista pero falla se registra con su error y no
-impide aplicar las siguientes: cada una conserva atomicidad sobre su
-propia columna o tabla. Las acciones que efectivamente eliminan filas o
-columnas requieren además `permitir_eliminacion = TRUE`; una conversión
-`destructiva` requiere selección explícita y deja la pérdida
-cuantificada. Por defecto, el resultado conserva lo retirado en
-`eliminados`; use `conservar_eliminados = FALSE` para evitar ese costo
-de memoria.
+que cambiaron.
+
+Una celda `latin1` **sí** se transforma —ahí R conoce la codificación y
+la convierte sin pérdida—, y el resultado queda marcado `UTF-8`. Como la
+acción toca sólo las celdas que cambia, una columna `latin1` puede
+quedar con marcas **mixtas**: las celdas transformadas en `UTF-8` y las
+intactas en `latin1`. El valor es el mismo, pero los bytes no, así que
+el registro lo cuenta en `n_codificacion_normalizada` en vez de dejarlo
+implícito. No se convierte la columna entera a propósito: eso tocaría
+celdas que el plan no declaró como cambiadas y haría mentir a
+`n_cambiadas` por el otro lado. Si se marca una acción que no está
+`lista`, `aplicar()` aborta antes de modificar la copia y enumera las
+filas problemáticas. Una acción que sí está lista pero falla se registra
+con su error y no impide aplicar las siguientes: cada una conserva
+atomicidad sobre su propia columna o tabla. Las acciones que
+efectivamente eliminan filas o columnas requieren además
+`permitir_eliminacion = TRUE`; una conversión `destructiva` requiere
+selección explícita y deja la pérdida cuantificada. Por defecto, el
+resultado conserva lo retirado en `eliminados`; use
+`conservar_eliminados = FALSE` para evitar ese costo de memoria.
 
 Los hallazgos `controles_invisibles`, `entidades_html` y
 `separadores_en_campo` tienen acciones separadas. La detección de

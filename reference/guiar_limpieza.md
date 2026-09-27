@@ -51,7 +51,11 @@ sincronizada según lo elegido, y sin ejecutar ninguna acción sobre los
 datos: cambia qué acciones quedan marcadas para
 [`aplicar()`](https://sebollin.github.io/lupa/reference/planificar_limpieza.md),
 no la tabla. En una sesión no interactiva y sin `selector`, devuelve el
-plan sin cambios.
+plan sin cambios: **también un plan ya editado**, cuyo `decision_grupo`
+se conserva tal como lo recibió. La sincronización de decisiones corre
+en el camino interactivo y en
+[`aplicar()`](https://sebollin.github.io/lupa/reference/planificar_limpieza.md),
+no en la puerta de salida.
 
 ## Details
 

@@ -115,6 +115,9 @@ columnas retiradas. Es <code>TRUE</code> de forma predeterminada.</p></dd>
 sincronizado y <code>eliminados</code>. El <code>registro</code> conserva <code>estado</code> (<code>ejecutada</code>
 o <code>fallida</code>), <code>error</code>, <code>n_no_reversibles</code> y la <code>justificacion</code> de cada
 acción seleccionada, incluso cuando una falla y las siguientes continúan.
+<code>n_codificacion_normalizada</code> cuenta, por acción, las celdas cuya <strong>marca de
+codificación</strong> cambió: es el caso de una acción de texto sobre celdas
+<code>latin1</code>, cuyo valor se conserva y cuyos bytes no.
 <code>n_no_reversibles</code> cuenta las celdas cuyo VALOR se perdió y no se puede
 recuperar desde el resultado: un centinela <code>-999</code> que pasa a ausencia, un
 extremo recortado a su límite, un marcador de ausencia convertido, o un
@@ -202,7 +205,10 @@ se activa a mano—, no se activa por defecto y el registro conserva
 <code>n_no_reversibles</code> y la justificación de la decisión.</p>
 <p><code>destructiva</code> no es sinónimo de "pierde algo": marca las acciones que el
 usuario tiene que activar a mano —las que retiran filas o columnas y las
-conversiones que pierden representación— y por eso ninguna acción
+conversiones que pierden representación, como <code>winsorizar_outliers</code> sobre una
+columna <strong>entera</strong>, donde los límites de Tukey son cuartiles y la columna queda
+en doble precisión: la justificación lo dice y <code>parametros</code> publica
+<code>tipo_original</code> y <code>tipo_resultante</code>— y por eso ninguna acción
 <code>destructiva</code> puede estar <code>recomendada</code>. Hay acciones recomendadas que sí
 pierden el valor de una celda: <code>convertir_ausencias_textuales</code> cambia un
 marcador por <code>NA</code> y <code>eliminar_controles_invisibles</code> quita un carácter. Esas
@@ -251,7 +257,15 @@ son UTF-8, o sin marca en una sesión UTF-8, que es lo que deja <code><a href="h
 sin <code>fileEncoding</code> sobre un archivo latin1— no se transforma: el perfil no la
 midió y la informa como <code>codificacion_invalida</code>, cuyo remedio es volver a leer
 la fuente declarando su codificación. Las acciones de texto trabajan sobre las
-demás celdas de la columna y cuentan sólo lo que cambiaron.
+demás celdas de la columna y cuentan sólo lo que cambiaron.</p>
+<p>Una celda <code>latin1</code> <strong>sí</strong> se transforma —ahí R conoce la codificación y la
+convierte sin pérdida—, y el resultado queda marcado <code>UTF-8</code>. Como la acción
+toca sólo las celdas que cambia, una columna <code>latin1</code> puede quedar con marcas
+<strong>mixtas</strong>: las celdas transformadas en <code>UTF-8</code> y las intactas en <code>latin1</code>. El
+valor es el mismo, pero los bytes no, así que el registro lo cuenta en
+<code>n_codificacion_normalizada</code> en vez de dejarlo implícito. No se convierte la
+columna entera a propósito: eso tocaría celdas que el plan no declaró como
+cambiadas y haría mentir a <code>n_cambiadas</code> por el otro lado.
 Si se marca una acción que no está <code>lista</code>, <code>aplicar()</code> aborta antes de
 modificar la copia y enumera las filas problemáticas. Una acción que sí está
 lista pero falla se registra con su error y no impide aplicar las siguientes:

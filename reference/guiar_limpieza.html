@@ -102,7 +102,9 @@ registrada como una decisión de omitir.</p></dd>
 sincronizada según lo elegido, y sin ejecutar ninguna acción sobre los
 datos: cambia qué acciones quedan marcadas para <code><a href="planificar_limpieza.html">aplicar()</a></code>, no la
 tabla. En una sesión no interactiva y sin <code>selector</code>, devuelve el plan
-sin cambios.</p>
+sin cambios: <strong>también un plan ya editado</strong>, cuyo <code>decision_grupo</code> se
+conserva tal como lo recibió. La sincronización de decisiones corre en el
+camino interactivo y en <code><a href="planificar_limpieza.html">aplicar()</a></code>, no en la puerta de salida.</p>
     </div>
     <div class="section level2">
     <h2 id="details">Details<a class="anchor" aria-label="anchor" href="#details"></a></h2>
