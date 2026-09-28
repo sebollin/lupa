@@ -481,7 +481,11 @@ prueba estadística que no corresponde a esa columna, en la segunda. Comparten
 la palabra y no el vocabulario, así que conviene mirar cuál se está leyendo.
 Si una columna declarada como entero de 64 bits o mas ancho llega como doble
 y contiene un valor con valor absoluto de al menos 2^53, <code>resumen_tabla</code>
-deja sus metricas de magnitud en <code>no_disponible</code>. Para la muestra, la
+deja sus metricas de magnitud en <code>no_disponible</code>. <strong>Las siete</strong>: <code>minimo</code>,
+<code>maximo</code>, <code>media</code>, <code>n_ceros</code>, <code>n_negativos</code>, <code>mediana</code> y <code>desvio</code>. La condicion
+es de la columna y no de la metrica, aunque las dos ultimas se calculen en otras
+consultas; lo que el motor cuenta con exactitud -<code>n_distintos</code>, la moda- se sigue
+publicando. Para la muestra, la
 seleccion SQL trae esas columnas como texto y, si <code>bit64</code> esta instalado,
 las convierte a <code>integer64</code> antes de perfilar: <code>n_distintos</code>, la moda y los
 diagnosticos por identidad conservan los valores exactos. Los estadisticos

@@ -437,8 +437,12 @@ la palabra y no el vocabulario, así que conviene mirar cuál se está
 leyendo. Si una columna declarada como entero de 64 bits o mas ancho
 llega como doble y contiene un valor con valor absoluto de al menos
 2^53, `resumen_tabla` deja sus metricas de magnitud en `no_disponible`.
-Para la muestra, la seleccion SQL trae esas columnas como texto y, si
-`bit64` esta instalado, las convierte a `integer64` antes de perfilar:
+**Las siete**: `minimo`, `maximo`, `media`, `n_ceros`, `n_negativos`,
+`mediana` y `desvio`. La condicion es de la columna y no de la metrica,
+aunque las dos ultimas se calculen en otras consultas; lo que el motor
+cuenta con exactitud -`n_distintos`, la moda- se sigue publicando. Para
+la muestra, la seleccion SQL trae esas columnas como texto y, si `bit64`
+esta instalado, las convierte a `integer64` antes de perfilar:
 `n_distintos`, la moda y los diagnosticos por identidad conservan los
 valores exactos. Los estadisticos de magnitud por encima de 2^53 siguen
 usando `estado_resumen_cuantitativo = "omitidos_precision"`, como en

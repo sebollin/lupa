@@ -1013,6 +1013,10 @@ cero. Sin CRS,
 supone EPSG:4326. Si falta el paquete opcional <code>sf</code>, todos esos campos quedan
 en <code>NA</code>, no se emite un hallazgo geométrico y <code>cobertura_diagnosticos</code>
 registra la dependencia ausente.</p>
+<p>Una columna cuyos valores son <code>data.frame</code> o matriz —lo que devuelve un driver al
+leer un <code>STRUCT</code>— declara <code>n</code> en <strong>filas</strong>, como cualquier otra: tiene tantos
+valores como la tabla, y lo que no se puede es analizarlos como texto, que se
+declara aparte en <code>cobertura_diagnosticos</code>.</p>
 <p><strong>Con un universo aplicable declarado</strong>, los conteos y los índices de geometría se
 restringen a ese universo, igual que el resto del perfilado: una geometría que la
 regla dejó afuera no cuenta como vacía, ni como inválida, ni como fuera de dominio,
