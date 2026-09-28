@@ -885,6 +885,11 @@ supone EPSG:4326. Si falta el paquete opcional \code{sf}, todos esos campos qued
 en \code{NA}, no se emite un hallazgo geométrico y \code{cobertura_diagnosticos}
 registra la dependencia ausente.
 
+Una columna cuyos valores son \code{data.frame} o matriz —lo que devuelve un driver al
+leer un \code{STRUCT}— declara \code{n} en \strong{filas}, como cualquier otra: tiene tantos
+valores como la tabla, y lo que no se puede es analizarlos como texto, que se
+declara aparte en \code{cobertura_diagnosticos}.
+
 \strong{Con un universo aplicable declarado}, los conteos y los índices de geometría se
 restringen a ese universo, igual que el resto del perfilado: una geometría que la
 regla dejó afuera no cuenta como vacía, ni como inválida, ni como fuera de dominio,

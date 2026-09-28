@@ -969,6 +969,11 @@
 #' en `NA`, no se emite un hallazgo geométrico y `cobertura_diagnosticos`
 #' registra la dependencia ausente.
 #'
+#' Una columna cuyos valores son `data.frame` o matriz —lo que devuelve un driver al
+#' leer un `STRUCT`— declara `n` en **filas**, como cualquier otra: tiene tantos
+#' valores como la tabla, y lo que no se puede es analizarlos como texto, que se
+#' declara aparte en `cobertura_diagnosticos`.
+#'
 #' **Con un universo aplicable declarado**, los conteos y los índices de geometría se
 #' restringen a ese universo, igual que el resto del perfilado: una geometría que la
 #' regla dejó afuera no cuenta como vacía, ni como inválida, ni como fuera de dominio,

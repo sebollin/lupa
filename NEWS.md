@@ -1,5 +1,22 @@
 # lupa 0.1.0
 
+## La magnitud que perdio exactitud no se publica, y una columna compuesta cuenta filas
+
+- **El entero de 64 bits que llega como doble deja las SIETE metricas de magnitud en
+  `no_disponible`.** El manual lo prometia y la guarda recorria cinco: `mediana` y
+  `desvio` se calculan en otras consultas y salian `calculado` en la misma corrida
+  donde `minimo`, `maximo`, `media`, `n_ceros` y `n_negativos` salian
+  `no_disponible`. Con `UBIGINT` cerca del tope eso publicaba `mediana = 2^64` -un
+  numero que no esta en la columna- y `desvio = 0` sobre una columna cuyo desvio real
+  es 1,29. La condicion es de la columna, no de la metrica. Lo que el motor cuenta
+  con exactitud -`n_distintos`, la moda- se sigue publicando.
+- **Una columna cuyos valores son `data.frame` o matriz cuenta filas, no campos.**
+  `length()` de un `data.frame` es su numero de columnas, asi que una columna
+  `STRUCT(a, b)` sobre una tabla de tres filas publicaba `n = 2` mientras
+  `general$filas` decia 3. Por DBI, el bloque de muestra discrepaba del resumen SQL
+  sin que nada declarara la diferencia. Tambien alinea `n` con la mascara del
+  universo aplicable, que llega con el largo de la tabla.
+
 ## El universo aplicable manda en el conteo Y en la traza
 
 - **La geometria no cuenta fuera del universo declarado.** Con seis geometrias y dos

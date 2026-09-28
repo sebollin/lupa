@@ -2195,7 +2195,9 @@
     sentinelas_numericos
   )
   aplicable <- if (is.null(aplicable)) {
-    rep(TRUE, length(x))
+    # `NROW()`, por la misma razon que `n`: una columna compuesta tiene tantas filas
+    # como la tabla, no tantas como campos.
+    rep(TRUE, NROW(x))
   } else {
     # `as.logical()` borraria el conteo de indeterminados que viaja como
     # atributo, y la fila volveria a confundir "no corresponde" con "no se sabe".
@@ -2373,7 +2375,18 @@
     x_analisis, rol = rol_propuesto, tipo_implicito = inferencia$tipo,
     disfrazados = faltantes_disfrazados$mascara
   )
-  n <- length(x)
+  # `NROW()` y no `length()`. Para un vector son lo mismo; para una columna cuyo
+  # valor es un `data.frame` -lo que devuelve un driver al leer un `STRUCT`- o una
+  # matriz, `length()` cuenta sus CAMPOS y no sus filas: medido, una columna
+  # `STRUCT(a, b)` sobre una tabla de tres filas publicaba `n = 2` mientras
+  # `general$filas` decia 3, y por DBI el bloque de muestra discrepaba del resumen
+  # SQL sin que nada declarara la diferencia. La columna tiene tres valores; lo que
+  # no se puede es analizarlos como texto, y eso ya se declara aparte.
+  #
+  # Ademas alinea `n` con la mascara del universo, que llega con el largo de la
+  # TABLA: con `aplicabilidad` declarada sobre una columna compuesta, `n` y
+  # `sum(aplicable)` describian universos de distinto tamano.
+  n <- NROW(x)
   # El universo aplicable. Sin declaracion, toda la columna aplica y todo lo de
   # abajo se reduce al comportamiento de siempre. Con declaracion, las filas
   # donde la columna no corresponde salen del denominador: un ausente por

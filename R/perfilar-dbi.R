@@ -8435,6 +8435,23 @@
           )) {
             basicos$ok <- FALSE
             basicos$motivo <- .motivo_entero_doble_dbi(metrica)
+            # La condicion es de la COLUMNA, no de la metrica: si un valor de al
+            # menos 2^53 llego como doble, TODAS las metricas de magnitud de esa
+            # columna perdieron exactitud, no solo las cinco que este bucle
+            # recorre. `mediana` y `desvio` se calculan en otras consultas y
+            # salian `calculado` en la misma corrida donde `minimo`, `maximo`,
+            # `media`, `n_ceros` y `n_negativos` salian `no_disponible`. Medido
+            # con `UBIGINT`: los cuatro valores redondean al mismo doble y se
+            # publicaba `mediana = 2^64` -que no esta en la columna- y
+            # `desvio = 0` sobre una columna cuyo desvio real es 1,29, mientras
+            # el motor contaba `n_distintos = 4`.
+            #
+            # Se usa el mismo mecanismo que la rama de arriba, y de paso queda
+            # dicho lo que significa: `magnitud_desmentida` no es "la magnitud es
+            # otra" sino "las metricas de magnitud de esta columna no se publican
+            # como calculadas", y ahora tiene dos causas.
+            magnitud_desmentida <- TRUE
+            motivo_magnitud <- .motivo_entero_doble_dbi()
             leidos <- list()
             break
           }
@@ -12370,7 +12387,11 @@ print.plan_perfilado_dbi <- function(x, ...) {
 #' la palabra y no el vocabulario, así que conviene mirar cuál se está leyendo.
 #' Si una columna declarada como entero de 64 bits o mas ancho llega como doble
 #' y contiene un valor con valor absoluto de al menos 2^53, `resumen_tabla`
-#' deja sus metricas de magnitud en `no_disponible`. Para la muestra, la
+#' deja sus metricas de magnitud en `no_disponible`. **Las siete**: `minimo`,
+#' `maximo`, `media`, `n_ceros`, `n_negativos`, `mediana` y `desvio`. La condicion
+#' es de la columna y no de la metrica, aunque las dos ultimas se calculen en otras
+#' consultas; lo que el motor cuenta con exactitud -`n_distintos`, la moda- se sigue
+#' publicando. Para la muestra, la
 #' seleccion SQL trae esas columnas como texto y, si `bit64` esta instalado,
 #' las convierte a `integer64` antes de perfilar: `n_distintos`, la moda y los
 #' diagnosticos por identidad conservan los valores exactos. Los estadisticos
