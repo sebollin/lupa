@@ -82,10 +82,20 @@ test_that("la tabla de columnas dice en que unidad estan sus cifras", {
   expect_equal(unidad_de("kg"), "kg")
   expect_equal(unidad_de("kmh"), "km/h")
   expect_equal(unidad_de("m2"), "m^2")
-  # `difftime` se abstiene del resumen y su unidad viaja igual: la abstencion no
-  # es un motivo para callar lo que la columna declara.
-  expect_true(is.na(columnas$media[[which(columnas$columna == "dias")]]))
+  # `difftime` PUBLICA sus estadisticos en su unidad declarada. Se abstenia
+  # mientras no habia donde publicar la unidad, y era el unico que lo hacia:
+  # `Date` y `POSIXt` publican `desvio` en segundos desde antes. Esta afirmacion
+  # decia lo contrario cuando se escribio, y cambio por decision del 2026-09-29.
+  expect_equal(columnas$media[[which(columnas$columna == "dias")]], 2)
+  expect_equal(columnas$minimo[[which(columnas$columna == "dias")]], 1)
+  expect_equal(columnas$maximo[[which(columnas$columna == "dias")]], 3)
   expect_equal(unidad_de("dias"), "days")
+  expect_equal(
+    as.character(
+      columnas$estado_resumen_cuantitativo[[which(columnas$columna == "dias")]]
+    ),
+    "calculados"
+  )
   # Fecha y fecha-hora publican `desvio` en segundos, que hasta ahora solo estaba
   # dicho en prosa en la documentacion.
   expect_equal(unidad_de("fecha"), "segundos")
@@ -93,6 +103,28 @@ test_that("la tabla de columnas dice en que unidad estan sus cifras", {
   # Y donde no hay unidad, el campo no inventa una.
   expect_true(is.na(unidad_de("texto")))
   expect_true(is.na(unidad_de("id")))
+})
+
+test_that("difftime publica en la unidad que declara, no en segundos", {
+  # Convertir a segundos publicaria un numero que no esta en la columna. Las dos
+  # columnas guardan los mismos instantes y declaran unidades distintas: las
+  # cifras tienen que salir distintas y cada una con su unidad.
+  datos <- data.frame(
+    dias = as.difftime(c(1, 2, 3, 10), units = "days"),
+    minutos = as.difftime(c(30, 60, 90, 120), units = "mins")
+  )
+  columnas <- as.data.frame(perfilar(datos)$columnas)
+  fila <- function(nombre) columnas[columnas$columna == nombre, , drop = FALSE]
+  expect_equal(fila("dias")$media, mean(c(1, 2, 3, 10)))
+  expect_equal(fila("dias")$desvio, stats::sd(c(1, 2, 3, 10)))
+  expect_equal(fila("dias")$unidad, "days")
+  expect_equal(fila("minutos")$media, mean(c(30, 60, 90, 120)))
+  expect_equal(fila("minutos")$unidad, "mins")
+  # Y el tipo declarado sigue diciendo que es una duracion: el resumen se publica
+  # sin disfrazar la columna de numero pelado.
+  expect_equal(unique(as.character(columnas$tipo_declarado[
+    columnas$columna %in% c("dias", "minutos")
+  ])), "difftime")
 })
 
 test_that("la regla de la unidad del resumen cubre las clases que publican segundos", {

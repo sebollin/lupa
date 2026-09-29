@@ -148,21 +148,63 @@ test_that("los presentes no finitos cuentan como excluidos del resumen", {
 })
 
 test_that("una columna sin un solo valor utilizable no dice calculados", {
+  # Los tres casos comparten que no se calculo nada, y NO comparten por que: la
+  # de treinta `Inf` tiene treinta valores presentes -`n_faltantes = 0`,
+  # `n_distintos = 1`- y ninguno sirve; las de `NaN` y `NA` no tienen ninguno,
+  # porque el paquete cuenta el `NaN` como ausente. Un solo nombre para las dos
+  # afirmaciones era falso en la primera. El estado los separa y el campo que
+  # decide es `n_faltantes`, que es la nocion de presencia del paquete.
   casos <- list(
-    todo_inf = rep(Inf, 30L),
-    todo_nan = rep(NaN, 30L),
-    todo_na = rep(NA_real_, 30L)
+    todo_inf = list(valores = rep(Inf, 30L), estado = "sin_valores_utilizables",
+                    presentes = 30L),
+    todo_nan = list(valores = rep(NaN, 30L), estado = "sin_valores",
+                    presentes = 0L),
+    todo_na = list(valores = rep(NA_real_, 30L), estado = "sin_valores",
+                   presentes = 0L)
   )
   for (nombre in names(casos)) {
-    datos <- data.frame(x = casos[[nombre]], id = seq_len(30L))
+    caso <- casos[[nombre]]
+    datos <- data.frame(x = caso$valores, id = seq_len(30L))
     perfil <- perfilar(datos, analizar_dependencias = FALSE)
     fila <- perfil$columnas[perfil$columnas$columna == "x", , drop = FALSE]
 
     expect_equal(as.character(fila$estado_resumen_cuantitativo[[1L]]),
-                 "sin_valores", info = nombre)
+                 caso$estado, info = nombre)
+    # El estado tiene que coincidir con el conteo de presentes de la MISMA fila:
+    # si no, la fila se contradiria a si misma.
+    expect_equal(fila$n[[1L]] - fila$n_faltantes[[1L]], caso$presentes,
+                 info = nombre)
     expect_true(is.na(fila$minimo[[1L]]), info = nombre)
     expect_true(is.na(fila$media[[1L]]), info = nombre)
   }
+
+  # Y la otra puerta de la misma afirmacion: los centinelas se llevan todos los
+  # valores de una columna que SI los tenia.
+  con_centinelas <- perfilar(
+    data.frame(x = rep(-999, 6L), id = seq_len(6L)),
+    sentinelas_numericos = -999, analizar_dependencias = FALSE
+  )
+  fila_centinelas <- con_centinelas$columnas[
+    con_centinelas$columnas$columna == "x", , drop = FALSE
+  ]
+  expect_equal(
+    as.character(fila_centinelas$estado_resumen_cuantitativo[[1L]]),
+    "sin_valores_utilizables"
+  )
+  expect_equal(fila_centinelas$n_valores_excluidos_resumen[[1L]], 6L)
+
+  # Y una columna vacia, que es el caso donde `sin_valores` si es cierto.
+  vacia <- perfilar(
+    data.frame(x = numeric(0), id = integer(0)), analizar_dependencias = FALSE
+  )
+  expect_equal(
+    as.character(
+      vacia$columnas$estado_resumen_cuantitativo[
+        vacia$columnas$columna == "x"
+      ][[1L]]
+    ),
+    "sin_valores"
+  )
 
   # Control: con valores utilizables el estado sigue siendo `calculados`.
   set.seed(273)

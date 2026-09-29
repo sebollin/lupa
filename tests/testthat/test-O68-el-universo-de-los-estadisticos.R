@@ -91,11 +91,17 @@ test_that("una fecha no finita se cuenta como excluida en las dos clases", {
   expect_equal(con_na$estado_resumen_cuantitativo, "calculados")
 })
 
-test_that("integer64 sin ningun valor que sobreviva dice sin_valores", {
+test_that("integer64 sin ningun valor que sobreviva lo dice igual que double", {
   skip_if_not_installed("bit64")
   # El estado se escribia apenas habia excluidos, ANTES de saber si quedaba algo:
   # con seis centinelas de seis publicaba `calculados_sobre_valores` junto a cuatro
-  # `NA`. La rama `double` sobre el mismo dato ya decia `sin_valores`.
+  # `NA`. La rama `double` sobre el mismo dato ya decia que no habia con que.
+  #
+  # El literal cambio el 2026-09-29 -de `sin_valores` a `sin_valores_utilizables`-
+  # porque la columna TENIA seis valores y los centinelas se los llevaron: decir
+  # "sin valores" de ella contradecia su propia fila, que publica
+  # `n_valores_excluidos_resumen = 6`. Lo que esta prueba protege y no cambio es
+  # que las dos vias contesten LO MISMO sobre el mismo dato.
   grande <- data.frame(k = bit64::as.integer64(rep(-99, 6)))
   doble <- data.frame(k = rep(-99, 6))
   de <- function(datos) {
@@ -104,7 +110,7 @@ test_that("integer64 sin ningun valor que sobreviva dice sin_valores", {
   }
   fila64 <- de(grande)
   filad <- de(doble)
-  expect_equal(fila64$estado_resumen_cuantitativo, "sin_valores")
+  expect_equal(fila64$estado_resumen_cuantitativo, "sin_valores_utilizables")
   expect_equal(fila64$estado_resumen_cuantitativo,
                filad$estado_resumen_cuantitativo)
   expect_true(is.na(fila64$media))

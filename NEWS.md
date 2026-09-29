@@ -1,5 +1,36 @@
 # lupa 0.1.0
 
+## Cuatro decisiones tomadas: difftime publica, las hermanas se igualan y el estado se parte en dos
+
+- **`difftime` publica sus estadisticos en la unidad que declara.** Era el unico que se
+  abstenia -todo en `NA` y `no_aplica`- y su motivo escrito era que sin unidad publicada
+  no se publica el numero. Con el campo `unidad` ese motivo dejo de valer, y `Date` y
+  `POSIXt` publicaban `desvio` en segundos desde antes: seguir absteniendose era la
+  inconsistencia. Una columna de minutos publica `media = 75` con `unidad = "mins"`, en
+  la unidad DECLARADA y sin convertir a segundos, porque convertirlos publicaria un
+  numero que no esta en la columna.
+- **`estado_resumen_cuantitativo` distingue dos afirmaciones que compartian un
+  nombre.** `sin_valores` era cierto de una columna vacia y de una de puros `NA`, y
+  FALSO de una de treinta `Inf` -que publica `n_faltantes = 0` y `n_distintos = 1`- y de
+  una donde los centinelas se llevaron todos los valores: ahi habia valores y ninguno
+  servia. Medido: cinco situaciones distintas publicaban `sin_valores` y en tres el
+  nombre mentia. Ahora esas tres publican `sin_valores_utilizables`, y la presencia se
+  define igual que en `n_faltantes` -que cuenta el `NaN` como ausente-, para que dos
+  campos de la misma fila no cuenten cosas distintas.
+- **`normalizar_espacios_invisibles` se trata como su hermana.** Las dos estan en la
+  misma rama del planificador y se trataban al reves: `eliminar_controles_invisibles`
+  se recomendaba y se activaba sola, y esta era destructiva y exigia confirmacion.
+  Convertir un espacio Unicode en un espacio comun deja un espacio -es cambio de forma,
+  no de valor- y el paquete recomienda y activa `recortar_espacios`, que quita espacios
+  enteros. La confirmacion tendria sentido si alguna pudiera tocar un invisible
+  SIGNIFICATIVO, y ninguna puede: sus conjuntos de codigos son disjuntos del de ZWJ y
+  ZWNJ, y eso lo sostiene una prueba. `reversible` sigue en `FALSE` en las dos -quitar o
+  convertir un caracter no se deshace- y lo que se pierde de verdad, dos valores
+  distintos que quedan iguales, lo sigue contando `n_no_reversibles`.
+- **Que la moda no se compare en `comparar_perfiles()` queda escrito como decision**, no
+  como pendiente: es un valor y no una propiedad medida, y cambia con cualquier
+  corrimiento normal de los datos.
+
 ## La unidad viaja al lado de la cifra, y la comparacion la ve
 
 - **La tabla de columnas publica `unidad`.** Cuatro columnas medidas en unidades

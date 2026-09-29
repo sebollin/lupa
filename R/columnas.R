@@ -217,6 +217,27 @@
                 n_fechas_resumidas = NA_integer_,
                 n_fechas_excluidas_granularidad = NA_integer_))
   }
+  # `difftime` se abstenia del resumen entero -todo en `NA` y
+  # `estado_resumen_cuantitativo = "no_aplica"`-, y el motivo escrito era que sin
+  # una unidad publicada no se publica el numero. Con el campo `unidad` ese motivo
+  # ya no vale: la fila publica `days`, `hours` o lo que la columna declare al lado
+  # de sus cifras.
+  #
+  # Era ademas el unico que se abstenia: `Date` y `POSIXt` publican `desvio` en
+  # segundos desde antes. Seguir absteniendose era la inconsistencia, no la
+  # prudencia. `is.numeric()` da FALSE sobre un `difftime`, asi que sin esta rama
+  # caia hasta `clase = "ninguna"`.
+  #
+  # Los valores van en la unidad DECLARADA por la columna, sin convertir a
+  # segundos: convertirlos publicaria un numero que no esta en la columna, y la
+  # unidad que viaja es la que `.unidad_del_resumen()` lee del mismo atributo.
+  if (inherits(x, "difftime")) {
+    return(list(valores = as.numeric(x), clase = "numero",
+                n_fechas_resumidas = NA_integer_,
+                n_fechas_excluidas_granularidad = NA_integer_,
+                n_valores_excluidos_resumen = 0L,
+                estado = "calculados"))
+  }
   if (is.numeric(x)) {
     return(list(valores = as.numeric(x), clase = "numero",
                 n_fechas_resumidas = NA_integer_,
@@ -916,6 +937,7 @@
     rep(FALSE, length(x))
   }
   n_excluidos <- as.integer(sum(mascara_sentinelas))
+  n_presentes_integer64 <- as.integer(sum(!is.na(x)))
   vacio$n_valores_excluidos_resumen <- n_excluidos
   if (n_excluidos > 0L) {
     x <- x[!mascara_sentinelas]
@@ -923,13 +945,19 @@
   }
   validos <- !is.na(x)
   if (!any(validos)) {
+    # La misma distincion que en la rama `double`: si la columna TENIA valores y
+    # los centinelas se los llevaron todos, `sin_valores` es falso.
     # El estado se escribia arriba, apenas habia excluidos, ANTES de saber si
     # quedaba algo: con seis centinelas de seis valores publicaba
     # `calculados_sobre_valores` junto a `minimo`, `media` y `desvio` en `NA`. El
     # README fija el enunciado -"si no sobrevive ningun valor utilizable el estado
     # dice `sin_valores` en vez de afirmar que calculo algo"- y la rama `double`
     # sobre el mismo dato ya lo decia: era la misma pregunta contestada dos veces.
-    vacio$estado_resumen_cuantitativo <- "sin_valores"
+    vacio$estado_resumen_cuantitativo <- if (n_presentes_integer64 > 0L) {
+      "sin_valores_utilizables"
+    } else {
+      "sin_valores"
+    }
     return(vacio)
   }
   if (!.bit64_disponible()) {
@@ -1027,6 +1055,13 @@
     return(salida)
   }
   valores_originales <- cuantitativos$valores
+  # Cuantos valores PRESENTES tenia la columna antes de excluir nada. "Presente"
+  # se define igual que en `n_faltantes`, que es la nocion del paquete: medido,
+  # una columna de cinco `NaN` publica `n_faltantes = 5` y `n_distintos = 0`
+  # -el `NaN` cuenta como ausente- y una de cinco `Inf` publica
+  # `n_faltantes = 0` y `n_distintos = 1`. Inventar otra definicion aca haria
+  # que dos campos de la misma fila contaran cosas distintas.
+  n_presentes_resumen <- as.integer(sum(!is.na(valores_originales)))
   mascara_sentinelas <- if (identical(cuantitativos$clase, "numero")) {
     .mascara_sentinelas_resumen(
       valores_originales, sentinelas_declarados
@@ -1108,10 +1143,17 @@
     # `.resumen_vacio_cuantitativo()` y esta rama lo pisaba dos lineas antes,
     # asi que por este camino no se publicaba nunca: una columna de treinta
     # `Inf` salia `calculados` con el minimo, el maximo y la media en `NA`.
+    # Dos afirmaciones distintas, que compartian un nombre. `sin_valores` era
+    # cierto de una columna vacia y de una de puros `NA`, y FALSO de una de
+    # treinta `Inf` -hay treinta valores, ninguno sirve- y de una donde los
+    # centinelas se llevaron todo. Medido: cinco situaciones publicaban
+    # `sin_valores`, y en tres el nombre mentia.
     vacio$estado_resumen_cuantitativo <- if (
       identical(cuantitativos$clase, "ninguna")
     ) {
       "no_aplica"
+    } else if (n_presentes_resumen > 0L) {
+      "sin_valores_utilizables"
     } else {
       "sin_valores"
     }

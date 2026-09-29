@@ -189,9 +189,23 @@ test_that("los invisibles Unicode se clasifican sin borrar ZWJ ni ZWNJ", {
   plan <- planificar_limpieza(perfil, datos)
   expect_true(any(plan$estrategia == "eliminar_controles_invisibles"))
   expect_true(any(plan$estrategia == "normalizar_espacios_invisibles"))
-  expect_false(plan$aplicar[plan$estrategia == "normalizar_espacios_invisibles"])
-  expect_true(plan$destructiva[plan$estrategia == "normalizar_espacios_invisibles"])
-  plan$aplicar[plan$estrategia == "normalizar_espacios_invisibles"] <- TRUE
+  # Las dos hermanas de esta rama se trataban al reves: `eliminar_controles_`
+  # se recomendaba y se activaba sola y `normalizar_espacios_` era destructiva y
+  # exigia confirmacion. Se igualaron el 2026-09-29, por decision de Sebastian y
+  # con el argumento medido: normalizar un espacio Unicode deja un espacio -es
+  # cambio de forma, no de valor-, y el paquete recomienda y activa
+  # `recortar_espacios`, que quita espacios enteros.
+  for (hermana in c(
+    "eliminar_controles_invisibles", "normalizar_espacios_invisibles"
+  )) {
+    cual <- plan$estrategia == hermana
+    expect_true(plan$recomendada[cual], info = hermana)
+    expect_false(plan$destructiva[cual], info = hermana)
+    expect_true(plan$aplicar[cual], info = hermana)
+    # `reversible` sigue en FALSE: quitar o convertir un caracter no se deshace.
+    # Lo que ya no se afirma es que destruya el VALOR.
+    expect_false(plan$reversible[cual], info = hermana)
+  }
   resultado <- aplicar(plan, datos, permitir_eliminacion = TRUE)
   expect_identical(resultado$datos$texto, c("A B", "CD", "E\u200cF", "G\u200dH", "IJ"))
   registro_espacio <- resultado$registro[
@@ -199,7 +213,31 @@ test_that("los invisibles Unicode se clasifican sin borrar ZWJ ni ZWNJ", {
   ]
   # Mismo criterio: `A B` no colapso con ninguna otra fila.
   expect_equal(registro_espacio$n_no_reversibles, 0)
-  expect_true(registro_espacio$destructiva)
+  expect_false(registro_espacio$destructiva)
+
+  # Y la guarda que sostiene la decision, en vez de un comentario: la
+  # confirmacion tendria sentido si alguna de las dos acciones pudiera tocar un
+  # invisible SIGNIFICATIVO -un ZWJ o un ZWNJ, que cambian la forma de una
+  # palabra-, y ninguna puede, porque sus conjuntos de codigos son disjuntos del
+  # de los significativos. Si alguien agrega uno ahi, esto falla.
+  expect_equal(
+    intersect(
+      lupa:::.codigos_espacios_invisibles,
+      lupa:::.codigos_invisibles_significativos
+    ),
+    integer(0)
+  )
+  expect_equal(
+    intersect(
+      lupa:::.codigos_invisibles_eliminables,
+      lupa:::.codigos_invisibles_significativos
+    ),
+    integer(0)
+  )
+  # Y el control de que la guarda mide algo: los significativos existen y esta
+  # columna los tiene, intactos despues de aplicar las dos acciones.
+  expect_length(lupa:::.codigos_invisibles_significativos, 2L)
+  expect_true(any(grepl(intToUtf8(0x200D), resultado$datos$texto, fixed = TRUE)))
 })
 
 test_that("la comparación normalizada trata espacios y basura sin tocar ZWJ", {

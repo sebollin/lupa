@@ -637,6 +637,15 @@ Una columna cuyo año se expresa con dos dígitos se informa con su
 \code{23} puede ser 1923 o 2023, y elegir el siglo para calcular un rango sería
 inventarlo. El hallazgo \code{anio_de_dos_digitos} señala esas columnas, y el
 rango aparece una vez que el usuario resuelve la ambigüedad.
+Cuando no sobrevive ningún valor utilizable, el estado distingue \strong{dos
+afirmaciones que no son la misma}: \code{"sin_valores"} dice que la columna no tenía
+ningún valor presente —vacía, o todo \code{NA}— y \code{"sin_valores_utilizables"} dice que
+sí los tenía y ninguno servía para el resumen. Una columna de treinta \code{Inf} es el
+segundo caso y no el primero: publica \code{n_faltantes = 0} y \code{n_distintos = 1},
+así que decir «sin valores» de ella contradiría a su propia fila. La otra puerta
+del segundo caso son los centinelas que se llevan todos los valores. La
+presencia se define igual que en \code{n_faltantes}, que cuenta el \code{NaN} como
+ausente: una columna de treinta \code{NaN} es \code{"sin_valores"}.
 }
 \section{La unidad viaja al lado de la cifra}{
 
@@ -654,9 +663,13 @@ idénticas: \code{units::set_units(c(1, 2, 3), "m")} y la misma en \code{"km"} d
 decir que eran segundos. Por clase:
 \itemize{
 \item \code{units} y \code{difftime}: la unidad declarada, en forma canónica (\code{km/h}, \code{m^2},
-\code{kg*m/s^2}). \code{difftime} sigue absteniéndose del resumen cuantitativo, y su
-unidad se publica igual: abstenerse no es motivo para callar lo que la
-columna declara.
+\code{kg*m/s^2}). \code{difftime} \strong{publica sus estadísticos en esa unidad}: una
+columna de minutos publica \code{media = 75} con \code{unidad = "mins"}. Se abstuvo
+mientras no existía dónde publicar la unidad —un \code{75} sin decir de qué no es
+una medida—, y era el único que se abstenia: \code{Date} y \code{POSIXt} publican
+\code{desvio} en segundos desde antes. Los valores van en la unidad declarada por
+la columna, sin convertir a segundos: convertirlos publicaría un número que
+no está en la columna.
 \item \code{Period}, \code{Duration}, \code{Date} y \code{POSIXt}: \code{"segundos"}, que es la unidad en la
 que sale \code{desvio} y que antes sólo estaba dicha en prosa.
 \item el resto: \code{NA}. El campo no inventa una unidad donde no hay ninguna.

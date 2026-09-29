@@ -1141,15 +1141,35 @@ planificar_limpieza <- function(perfil, datos = NULL,
         ))
       }
       if (isTRUE(n_espacios > 0L)) {
+        # Esta accion y su hermana `eliminar_controles_invisibles` estan en la
+        # MISMA rama y se trataban al reves: una se recomendaba y se activaba
+        # sola, y esta era destructiva y exigia confirmacion. La asimetria no
+        # tenia sostén: convertir un espacio Unicode en un espacio comun deja un
+        # espacio -es un cambio de forma, no de valor-, y el paquete recomienda y
+        # activa `recortar_espacios`, que QUITA espacios enteros. La regla del
+        # 2026-09-22 es que solo cuenta la perdida de VALOR.
+        #
+        # La confirmacion tendria sentido si la accion pudiera tocar un invisible
+        # SIGNIFICATIVO -un ZWJ o un ZWNJ, que cambian la forma de una palabra-,
+        # y no puede: `.codigos_espacios_invisibles` no los contiene, igual que
+        # `.codigos_invisibles_eliminables`. Eso lo sostiene una prueba, no este
+        # comentario.
+        #
+        # Lo que se pierde de verdad -dos valores distintos que quedan iguales-
+        # lo sigue contando `n_no_reversibles`, y medido sin colision publica 0.
         acciones <- .agregar_accion(acciones, .nueva_accion(
-          columna, tipo, "normalizar_espacios_invisibles", FALSE,
+          columna, tipo, "normalizar_espacios_invisibles", TRUE,
           paste0(
             "Los espacios Unicode se convierten a un espacio comun para ",
-            "comparar y exportar; se pierde la distincion del espacio original, ",
-            "por lo que la accion es destructiva y requiere confirmacion."
+            "comparar y exportar. Queda un espacio, asi que el valor sigue ah\u00ed ",
+            "con otra forma; lo que se pierde es la distincion del espacio ",
+            "original. No toca los invisibles significativos -ZWJ y ZWNJ-, que ",
+            "no estan en su conjunto. Si al normalizar dos valores que eran ",
+            "distintos quedan iguales, el registro cuenta esas celdas en ",
+            "`n_no_reversibles`."
           ), n_espacios, FALSE,
-          estado = estado_columna, aplicar = FALSE, orden = 206L,
-          destructiva = TRUE
+          estado = estado_columna,
+          aplicar = identical(estado_columna, "lista"), orden = 206L
         ))
       }
     } else if (identical(tipo, "entidades_html") && !is.null(fila)) {

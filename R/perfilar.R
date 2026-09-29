@@ -721,6 +721,16 @@
 #' `23` puede ser 1923 o 2023, y elegir el siglo para calcular un rango sería
 #' inventarlo. El hallazgo `anio_de_dos_digitos` señala esas columnas, y el
 #' rango aparece una vez que el usuario resuelve la ambigüedad.
+#' Cuando no sobrevive ningún valor utilizable, el estado distingue **dos
+#' afirmaciones que no son la misma**: `"sin_valores"` dice que la columna no tenía
+#' ningún valor presente —vacía, o todo `NA`— y `"sin_valores_utilizables"` dice que
+#' sí los tenía y ninguno servía para el resumen. Una columna de treinta `Inf` es el
+#' segundo caso y no el primero: publica `n_faltantes = 0` y `n_distintos = 1`,
+#' así que decir «sin valores» de ella contradiría a su propia fila. La otra puerta
+#' del segundo caso son los centinelas que se llevan todos los valores. La
+#' presencia se define igual que en `n_faltantes`, que cuenta el `NaN` como
+#' ausente: una columna de treinta `NaN` es `"sin_valores"`.
+#'
 #' @section La unidad viaja al lado de la cifra:
 #'
 #' El campo `unidad` dice **en qué unidad están las cifras que la fila publica**
@@ -736,9 +746,13 @@
 #' decir que eran segundos. Por clase:
 #'
 #' - `units` y `difftime`: la unidad declarada, en forma canónica (`km/h`, `m^2`,
-#'   `kg*m/s^2`). `difftime` sigue absteniéndose del resumen cuantitativo, y su
-#'   unidad se publica igual: abstenerse no es motivo para callar lo que la
-#'   columna declara.
+#'   `kg*m/s^2`). `difftime` **publica sus estadísticos en esa unidad**: una
+#'   columna de minutos publica `media = 75` con `unidad = "mins"`. Se abstuvo
+#'   mientras no existía dónde publicar la unidad —un `75` sin decir de qué no es
+#'   una medida—, y era el único que se abstenia: `Date` y `POSIXt` publican
+#'   `desvio` en segundos desde antes. Los valores van en la unidad declarada por
+#'   la columna, sin convertir a segundos: convertirlos publicaría un número que
+#'   no está en la columna.
 #' - `Period`, `Duration`, `Date` y `POSIXt`: `"segundos"`, que es la unidad en la
 #'   que sale `desvio` y que antes sólo estaba dicha en prosa.
 #' - el resto: `NA`. El campo no inventa una unidad donde no hay ninguna.

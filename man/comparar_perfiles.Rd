@@ -60,6 +60,12 @@ persistencia propia del paquete —\code{\link[=guardar_historico]{guardar_histo
 Las claves internas que agrupan hallazgos también se normalizan por bytes;
 por eso dos perfiles idénticos no emiten avisos espurios bajo C.
 
+Que la \strong{moda} no se compare es una \strong{decisión}, no un pendiente: la moda es
+un valor, no una propiedad medida, y cambia con cualquier corrimiento normal de
+los datos, así que compararla llenaría la deriva de filas que no son deterioro.
+Quien necesite detectar una relectura corrompida tiene el remedio de una línea
+que está dos párrafos más abajo, que la evita en lugar de detectarla.
+
 Entre las propiedades comparadas está la \strong{unidad} en la que la columna
 publica sus cifras, con la misma severidad que un cambio de tipo: dos entregas
 con los mismos valores y la unidad cambiada de \code{m} a \code{km} son un cambio real

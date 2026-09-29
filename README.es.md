@@ -356,9 +356,13 @@ y los centinelas que se declaran en `sentinelas_numericos`—, y cuando lo hace 
 dice: `n_valores_excluidos_resumen` los cuenta, `estado_resumen_cuantitativo` deja
 de decir `"calculados"` y `cobertura_diagnosticos` recibe su fila. El desglose de
 los no finitos queda en `n_nan`, `n_infinito_positivo` y `n_infinito_negativo`, y
-si no sobrevive ningún valor utilizable el estado dice `"sin_valores"` en vez de
-afirmar que calculó algo —y lo dice igual en una columna `integer64` que en una de
-dobles—. La exclusión de los no finitos se declara **en cualquier clase**: una
+si no sobrevive ningún valor utilizable el estado lo dice en vez de afirmar que
+calculó algo, y **distingue dos casos que no son el mismo**: `"sin_valores"` cuando
+la columna no tenía ningún valor presente —vacía, o todo `NA`— y
+`"sin_valores_utilizables"` cuando sí los tenía y ninguno servía, como una columna
+de treinta `Inf` —que publica `n_faltantes = 0` y `n_distintos = 1`— o una donde los
+centinelas se llevaron todo. Lo dice igual en una columna `integer64` que en una de
+dobles. La exclusión de los no finitos se declara **en cualquier clase**: una
 columna de fechas con un `Inf` publica `n_valores_excluidos_resumen = 1` y no lo
 cuenta entre las fechas resumidas. Y las longitudes de texto declaran su propio
 universo con `n_longitudes_resumidas`, porque `nchar()` no puede medir un valor cuyos
