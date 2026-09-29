@@ -2,6 +2,66 @@
 
 ## lupa 0.1.0
 
+### Lo que abrio publicar la unidad: el NaN con dos signos, una cifra restada dos veces y una duracion muda
+
+- **El `NaN` se contaba con signos opuestos en dos canales de la misma
+  fila.** Una columna de treinta `NaN` publica `n_faltantes = 30` y
+  `n_distintos = 0` -el paquete cuenta el `NaN` como ausente- y al mismo
+  tiempo una fila de cobertura que hablaba de «30 valores PRESENTES que
+  no pudo usar». El conteo no cambia -los dos README prometen que
+  `n_valores_excluidos_resumen` cuenta los no finitos- y lo que se
+  corrige es la afirmacion de presencia: el desglose separa ahora los
+  infinitos «presentes y no utilizables» de los `NaN` «que la columna
+  cuenta como ausentes», conservando el termino paraguas «valores no
+  finitos».
+- **Y ahi habia una cifra publicada equivocada.** El motivo decia «se
+  calculo sobre 27 valores» donde los finitos son 28: la formula era
+  `aplicables - faltantes - excluidos` y el `NaN` esta en los dos
+  ultimos, asi que se restaba dos veces. Con dos `NaN` publicaba 26.
+  Comprobado contra el conteo a mano en cinco configuraciones.
+- **La comparacion de perfiles fabricaba un cambio de unidad que nunca
+  ocurrio.** Trataba igual dos casos distintos: con unidad en los dos
+  lados -`m` contra `km`- el mismo numero significa otra cosa y eso
+  sigue siendo `error`; con `NA` en uno de los dos lo que cambio es si
+  la columna DECLARA su unidad, y afirmar que «el mismo numero significa
+  otra cosa» es falso cuando la entrega anterior no publicaba ninguna
+  cifra. Ese caso sale `sospechoso` con su propia redaccion, en las dos
+  direcciones.
+- **`unidad` se publicaba sobre columnas que no publican ninguna
+  cifra.** El atributo `units` lo lleva cualquier clase: un `factor` con
+  `attr(x, "units") <- "kg"` publicaba `unidad = "kg"` junto a
+  `media = NA`. El campo promete decir en que unidad estan las cifras
+  que la fila publica, asi que se calla cuando no publica ninguna. El
+  discriminador es `estado_resumen_cuantitativo == "no_aplica"` y no una
+  lista de clases: una columna `units` de puros `NA` si declara su
+  unidad, porque su clase se resume.
+- **`difftime` quedaba mudo en tres diagnosticos.** Con las MISMAS
+  cifras, la columna `doble` publicaba
+  `n_faltantes_disfrazados_numericos = 2` y la `difftime` publicaba 0,
+  las dos con la misma media distorsionada; y `difftime` tampoco recibia
+  fila de cobertura en `ley_benford` ni en
+  `relacion_aritmetica_columnas`, mientras `units` la recibe en las dos.
+  Una sola causa: [`is.numeric()`](https://rdrr.io/r/base/numeric.html)
+  responde FALSE sobre un `difftime`, y el predicado general del paquete
+  -escrito para no enumerar clases- descansa en el, asi que esa clase se
+  caia por el hueco entre «numerico pelado» y «numerico con clase».
+  Importa desde que `difftime` publica `media` como cualquier numero:
+  ahi su silencio dejo de ser legible. El criterio de la declaracion
+  pasa a ser si la fila publica cifras cuantitativas; `Date` y `POSIXt`
+  siguen afuera a proposito, porque su resumen sale en `media_fecha` y
+  no como numero pelado.
+- **Una fila podia identificar una tabla y traer los datos de otra.** El
+  adaptador de colecciones de otra generacion recalculaba
+  `identificador` y `referencia` solo cuando FALTABAN, asi que una copia
+  guardada que ya no corresponde a su nombre se usaba tal cual: con una
+  `referencia` que apunta a `t2`, el perfil publicaba `tabla = t1` con
+  `n_filas = 7`, que son las filas de t2. En silencio. Ahora lo derivado
+  se deriva siempre -el nombre es la declaracion y esas dos columnas son
+  consecuencia suya-, y medido antes de cambiarlo: sobre un objeto sano
+  derivar da identico a lo guardado. De paso, la regla estaba escrita
+  dos veces y ya habia divergido; queda en una sola funcion con una
+  prueba que falla si alguien vuelve a duplicarla.
+
 ### Cuatro decisiones tomadas: difftime publica, las hermanas se igualan y el estado se parte en dos
 
 - **`difftime` publica sus estadisticos en la unidad que declara.** Era

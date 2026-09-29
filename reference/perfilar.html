@@ -816,8 +816,23 @@ la columna, sin convertir a segundos: convertirlos publicaría un número que
 no está en la columna.</p></li>
 <li><p><code>Period</code>, <code>Duration</code>, <code>Date</code> y <code>POSIXt</code>: <code>"segundos"</code>, que es la unidad en la
 que sale <code>desvio</code> y que antes sólo estaba dicha en prosa.</p></li>
+<li><p>cualquier otra columna que <strong>declare</strong> un atributo <code>units</code> —eso circula como
+metadato en datos importados— publica lo declarado, porque sus cifras están
+en esa unidad.</p></li>
 <li><p>el resto: <code>NA</code>. El campo no inventa una unidad donde no hay ninguna.</p></li>
-</ul><p>Y <code><a href="comparar_perfiles.html">comparar_perfiles()</a></code> compara este campo como un aspecto propio, con la
+</ul><p><strong>Y se calla cuando la fila no publica ninguna cifra cuantitativa</strong>, o sea
+cuando <code>estado_resumen_cuantitativo</code> vale <code>"no_aplica"</code>: el atributo <code>units</code> lo
+puede llevar cualquier clase, y un <code>factor</code> con <code>attr(x, "units") &lt;- "kg"</code>
+publicaba <code>unidad = "kg"</code> al lado de <code>media = NA</code>. Una unidad de cifras que no
+existen no contesta la pregunta del campo. El discriminador es ese estado y no
+una lista de clases, así que una columna <code>units</code> de puros <code>NA</code> <strong>sí</strong> declara
+su unidad: su clase se resume, y la unidad dice en qué estarían sus cifras.</p>
+<p>Si una columna declara <strong>más de una</strong> unidad —un atributo <code>units</code> de largo
+mayor que uno, que ningún objeto <code>units</code> produce pero un dato importado sí—,
+el campo las publica todas separadas por coma. Ese valor no es una unidad: dice
+que la declaración está mal. Quedarse con la primera sería elegir una por el
+usuario, que es el defecto que este campo vino a cerrar.</p>
+<p>Y <code><a href="comparar_perfiles.html">comparar_perfiles()</a></code> compara este campo como un aspecto propio, con la
 severidad de un cambio de tipo: publicar la unidad sin compararla dejaba en pie
 el defecto entero, porque el problema era que <strong>una entrega donde cambió la
 unidad no mostraba cambio</strong>.</p>
@@ -924,13 +939,20 @@ clase declarada</strong> y con variación: una columna que declara una clase pro
 —<code>Date</code>, <code>POSIXt</code>, <code>difftime</code>, <code>integer64</code>, <code>units</code>, <code>lubridate::Period</code> o
 cualquier otra— no participa, porque sumarla o dividirla no es la aritmética
 de un doble; el texto numérico y las columnas constantes tampoco. Las
-columnas que <strong>R declara numéricas</strong> —<code><a href="https://rdrr.io/r/base/numeric.html" class="external-link">is.numeric()</a></code> verdadero— y quedan
-fuera por su clase se declaran una por una en <code>cobertura_diagnosticos</code>:
-<code>integer64</code>, <code>units</code>, <code>lubridate::Period</code>, <code>haven_labelled</code>. Las de tiempo no
-entran en esa declaración porque R <strong>no</strong> las declara numéricas
-—<code>is.numeric(Sys.Date())</code> es <code>FALSE</code>— y porque no son magnitudes para estos
-diagnósticos: una fecha, una hora o una duración quedan fuera del mismo modo
-que una columna de texto, sin fila propia. <code>meta$aritmetica_columnas</code> publica
+Las columnas que <strong>publican cifras cuantitativas</strong> y quedan fuera por su clase
+se declaran una por una en <code>cobertura_diagnosticos</code>: <code>integer64</code>, <code>units</code>,
+<code>lubridate::Period</code>, <code>haven_labelled</code> y <code>difftime</code>. El criterio <strong>no</strong> es
+<code><a href="https://rdrr.io/r/base/numeric.html" class="external-link">is.numeric()</a></code> —que responde <code>FALSE</code> sobre un <code>difftime</code>— sino si la fila
+publica <code>minimo</code>, <code>maximo</code> y <code>media</code> como números: ahí la ausencia de hallazgo
+se lee como conformidad y por eso hay que declararla. <code>difftime</code> entró en esa
+categoría cuando dejó de abstenerse del resumen cuantitativo, y sin declararlo
+quedaba mudo en los dos diagnósticos mientras <code>units</code> los declaraba —la misma
+columna, con las mismas cifras, tratada de dos maneras—.</p>
+<p>Una <strong>fecha</strong> y una <strong>hora</strong> no entran en esa declaración, y eso es deliberado:
+no publican <code>media</code> como número pelado —su resumen sale en <code>media_fecha</code> y
+compañía—, así que su silencio se lee distinto, y no son magnitudes para estos
+diagnósticos. Quedan fuera del mismo modo que una columna de texto, sin fila
+propia. <code>meta$aritmetica_columnas</code> publica
 las clases medidas en esta tabla. La ley de Benford sigue el mismo criterio y
 la misma declaración. Cada relación requiere al
 menos tres filas con valores finitos en todas las columnas involucradas;
