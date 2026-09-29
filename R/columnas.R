@@ -2606,7 +2606,24 @@
     # columnas `units` distintas -`kg`, `km/h`, `m^2`, `kg*m/s^2`- publicaban la
     # MISMA fila, y un `Period` de dos dias publicaba `172800` sin decir que eran
     # segundos. Ver `.unidad_del_resumen()`.
-    unidad = .unidad_del_resumen(x),
+    #
+    # Y se calla cuando la fila no publica NINGUNA cifra cuantitativa, que es lo
+    # que el campo promete calificar. El atributo `units` circula como metadato en
+    # datos importados y lo lleva cualquier clase: medido, un `factor` con
+    # `attr(x, "units") <- "kg"` publicaba `unidad = "kg"` junto a `media = NA` y
+    # `estado_resumen_cuantitativo = "no_aplica"`. Una unidad de cifras que no
+    # existen no contesta la pregunta del campo.
+    #
+    # El discriminador es `no_aplica` -"esta clase no se resume"- y no una lista
+    # de clases: una columna `units` de puros `NA` sigue declarando su unidad,
+    # porque su clase SI se resume y la unidad dice en que estarian sus cifras.
+    unidad = if (identical(
+      cuantitativo$estado_resumen_cuantitativo, "no_aplica"
+    )) {
+      NA_character_
+    } else {
+      .unidad_del_resumen(x)
+    },
     zona_horaria_origen = zona_horaria_origen,
     n_filas_fecha_civil_distinta_utc = n_filas_fecha_civil_distinta_utc,
     fecha_civil_distinta_utc = if (is.na(n_filas_fecha_civil_distinta_utc)) {

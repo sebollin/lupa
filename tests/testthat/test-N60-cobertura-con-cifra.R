@@ -18,7 +18,13 @@ test_that("el motivo de cobertura trae su cifra y no un hueco", {
   motivo <- fila$motivo[[1L]]
   # cuatro valores resumidos: 5 aplicables, 0 faltantes, 1 excluido
   expect_match(motivo, "se calculo sobre 4 valores", fixed = TRUE)
-  expect_match(motivo, "dejo afuera 1 valores", fixed = TRUE)
+  # El sustantivo cambio el 2026-09-29 -de "valores" a "celdas"- porque el texto
+  # afirmaba que lo excluido eran valores PRESENTES, y sobre una columna de puros
+  # `NaN` eso contradecia a su propia fila. De paso quedo la concordancia, que
+  # antes decia "1 valores". Lo que esta prueba protege es que la CIFRA este y no
+  # haya un hueco donde va.
+  expect_match(motivo, "dejo afuera 1 celda que no pudo usar", fixed = TRUE)
+  expect_false(grepl("  ", motivo, fixed = TRUE))
 })
 
 test_that("ningun motivo de cobertura deja un hueco donde va una cifra", {

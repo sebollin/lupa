@@ -477,18 +477,37 @@
   }
   # Los dos derivados se recalculan con las MISMAS funciones con que se arman en
   # `coleccion()`: recalcularlos a mano aca seria una segunda copia de la regla.
-  if (!"identificador" %in% names(tablas)) {
-    tablas$identificador <- .identificadores_tabla(
-      tablas$esquema, tablas$tabla, tablas$catalogo
+  # Lo derivado se DERIVA SIEMPRE, no solo cuando falta.
+  #
+  # Antes se recalculaba unicamente si la columna estaba ausente, y una copia
+  # guardada que ya no corresponde a su nombre se usaba tal cual. Medido: una
+  # coleccion cuya `referencia` apunta a `t2` mientras `tabla` dice `t1` publica
+  # la fila `tabla = t1` con `n_filas = 7`, que son las filas de t2. La fila
+  # identifica una tabla y trae los datos de otra, en silencio, que es la peor
+  # categoria de respuesta. Lo mismo con un `identificador` inconsistente.
+  #
+  # El nombre -`catalogo`, `esquema`, `tabla`- es la DECLARACION; `identificador`
+  # y `referencia` son consecuencia suya. Una consecuencia guardada no puede
+  # ganarle a la declaracion de la que sale.
+  #
+  # Comprobado que sobre un objeto sano derivar es identico a lo guardado, asi
+  # que esto no cambia ninguna coleccion bien formada.
+  .derivar_columnas_coleccion(tablas)
+}
+
+# Las dos columnas derivadas, en UN solo lugar. El constructor y el adaptador
+# tenian cada uno su copia, y ya habian divergido: la del adaptador armaba
+# `referencia` sin el `I()` que usa el constructor.
+.derivar_columnas_coleccion <- function(tablas) {
+  tablas$identificador <- .identificadores_tabla(
+    tablas$esquema, tablas$tabla, tablas$catalogo
+  )
+  tablas$referencia <- I(lapply(
+    seq_len(nrow(tablas)),
+    function(i) .referencia_de_partes(
+      tablas$esquema[[i]], tablas$tabla[[i]], tablas$catalogo[[i]]
     )
-  }
-  if (!"referencia" %in% names(tablas)) {
-    tablas$referencia <- lapply(seq_len(nrow(tablas)), function(i) {
-      .referencia_de_partes(
-        tablas$esquema[[i]], tablas$tabla[[i]], tablas$catalogo[[i]]
-      )
-    })
-  }
+  ))
   tablas
 }
 
@@ -596,15 +615,7 @@ coleccion <- function(conexion, tablas, nombre = NULL) {
   if (!is.null(nombre) && !.es_texto_escalar(nombre)) {
     stop("`nombre` debe ser NULL o una cadena no vacia.", call. = FALSE)
   }
-  declaradas$identificador <- .identificadores_tabla(
-    declaradas$esquema, declaradas$tabla, declaradas$catalogo
-  )
-  declaradas$referencia <- I(lapply(
-    seq_len(nrow(declaradas)),
-    function(i) .referencia_de_partes(
-      declaradas$esquema[[i]], declaradas$tabla[[i]], declaradas$catalogo[[i]]
-    )
-  ))
+  declaradas <- .derivar_columnas_coleccion(declaradas)
   estructura <- list(
     nombre = if (is.null(nombre)) "coleccion" else nombre,
     conexion = conexion,

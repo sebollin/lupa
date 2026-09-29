@@ -706,22 +706,49 @@ comparar_perfiles <- function(anterior, actual, umbral_cambio = 0.05,
       c("tipo_declarado", "tipo_inferido", "unidad"), campos$comparables
     )
     for (campo in tipos_comparables) {
-      if (.distinto_deriva(a[[campo]], b[[campo]])) {
-        agregar(
-          columna, campo, "modificado", "error", a[[campo]], b[[campo]],
-          descripcion = if (identical(campo, "unidad")) {
-            paste0(
-              "Cambi\u00f3 la unidad en la que la columna publica sus cifras: el ",
-              "mismo n\u00famero significa otra cosa."
-            )
-          } else {
-            paste0(
-              "Cambi\u00f3 el ", gsub("_", " ", campo, fixed = TRUE),
-              " de la columna."
-            )
-          }
+      if (!.distinto_deriva(a[[campo]], b[[campo]])) next
+      # La unidad tiene DOS casos y no uno, y tratarlos igual publicaba una
+      # afirmacion falsa. Con unidad en los dos lados -`m` contra `km`-, el mismo
+      # numero significa otra cosa y eso es `error`. Con `NA` en uno de los dos,
+      # lo que cambio es si la columna DECLARA su unidad, y ahi la frase "el
+      # mismo numero significa otra cosa" puede ser falsa: si la entrega anterior
+      # no publicaba ninguna cifra -como una columna que se abstenia del resumen-,
+      # no hay ningun numero que haya cambiado de significado.
+      unidad_en_los_dos <- identical(campo, "unidad") &&
+        !is.na(a[[campo]][[1L]]) && !is.na(b[[campo]][[1L]])
+      severidad <- if (identical(campo, "unidad") && !unidad_en_los_dos) {
+        "sospechoso"
+      } else {
+        "error"
+      }
+      descripcion <- if (identical(campo, "unidad")) {
+        if (unidad_en_los_dos) {
+          paste0(
+            "Cambi\u00f3 la unidad en la que la columna publica sus cifras: el ",
+            "mismo n\u00famero significa otra cosa."
+          )
+        } else if (is.na(a[[campo]][[1L]])) {
+          paste0(
+            "La columna pas\u00f3 a declarar su unidad; antes no declaraba ninguna. ",
+            "No es un cambio de las cifras sino de lo que la entrega declara ",
+            "sobre ellas."
+          )
+        } else {
+          paste0(
+            "La columna dej\u00f3 de declarar su unidad. No es un cambio de las ",
+            "cifras sino de lo que la entrega declara sobre ellas."
+          )
+        }
+      } else {
+        paste0(
+          "Cambi\u00f3 el ", gsub("_", " ", campo, fixed = TRUE),
+          " de la columna."
         )
       }
+      agregar(
+        columna, campo, "modificado", severidad, a[[campo]], b[[campo]],
+        descripcion = descripcion
+      )
     }
     for (especificacion in list(
       c(campo = "prop_faltantes_totales", aspecto = "faltantes"),

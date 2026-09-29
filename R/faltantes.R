@@ -127,11 +127,33 @@ sentinelas_naniar <- c(-9, -99, -999, -9999, 9999, 66, 77, 88)
     mascara <- mascara_textual | mascara_numerica
     etiquetas <- textos[mascara]
     etiquetas[trimws(etiquetas) == ""] <- "<blanco>"
-  } else if (is.numeric(x) && !inherits(x, c("Date", "POSIXt"))) {
+  } else if (
+    (is.numeric(x) || inherits(x, c("difftime", "units"))) &&
+      !inherits(x, c("Date", "POSIXt"))
+  ) {
+    # `is.numeric()` da FALSE sobre un `difftime` y sobre un `units`, asi que las
+    # dos clases quedaban fuera de la deteccion sin que nada lo dijera. Medido con
+    # las MISMAS cifras en dos columnas: la `doble` publicaba
+    # `n_faltantes_disfrazados_numericos = 2` y la `difftime` publicaba 0, las dos
+    # con la misma `media = -1758` distorsionada por el `-9999`. Es la regresion
+    # que abrio el dia que `difftime` dejo de abstenerse del resumen: entro a la
+    # maquinaria cuantitativa por una puerta y no por esta.
+    #
+    # `Date` y `POSIXt` siguen afuera a proposito: un `-9999` en un calendario es
+    # una fecha de 1942, no un codigo de ausencia.
+    #
+    # `integer64` tampoco entra, y NO por olvido: `unclass()` de un `integer64` es
+    # un `double` cuyos bits son el entero, asi que comparar contra la lista de
+    # centinelas compararia basura. Esa clase necesita su propia comparacion y
+    # queda declarada como pendiente, no resuelta a medias.
+    #
+    # La comparacion se hace sobre el numero, que es donde viven los centinelas:
+    # `as.numeric()` de un `difftime` de minutos da los minutos.
+    numero <- suppressWarnings(as.numeric(x))
     mascara_numerica <- detectar_sentinelas_numericos &
-      !is.na(x) & x %in% numeros_na
+      !is.na(numero) & numero %in% numeros_na
     mascara <- mascara_numerica
-    etiquetas <- as.character(x[mascara])
+    etiquetas <- as.character(numero[mascara])
   } else {
     etiquetas <- character()
   }

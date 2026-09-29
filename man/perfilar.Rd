@@ -672,8 +672,25 @@ la columna, sin convertir a segundos: convertirlos publicaría un número que
 no está en la columna.
 \item \code{Period}, \code{Duration}, \code{Date} y \code{POSIXt}: \code{"segundos"}, que es la unidad en la
 que sale \code{desvio} y que antes sólo estaba dicha en prosa.
+\item cualquier otra columna que \strong{declare} un atributo \code{units} —eso circula como
+metadato en datos importados— publica lo declarado, porque sus cifras están
+en esa unidad.
 \item el resto: \code{NA}. El campo no inventa una unidad donde no hay ninguna.
 }
+
+\strong{Y se calla cuando la fila no publica ninguna cifra cuantitativa}, o sea
+cuando \code{estado_resumen_cuantitativo} vale \code{"no_aplica"}: el atributo \code{units} lo
+puede llevar cualquier clase, y un \code{factor} con \code{attr(x, "units") <- "kg"}
+publicaba \code{unidad = "kg"} al lado de \code{media = NA}. Una unidad de cifras que no
+existen no contesta la pregunta del campo. El discriminador es ese estado y no
+una lista de clases, así que una columna \code{units} de puros \code{NA} \strong{sí} declara
+su unidad: su clase se resume, y la unidad dice en qué estarían sus cifras.
+
+Si una columna declara \strong{más de una} unidad —un atributo \code{units} de largo
+mayor que uno, que ningún objeto \code{units} produce pero un dato importado sí—,
+el campo las publica todas separadas por coma. Ese valor no es una unidad: dice
+que la declaración está mal. Quedarse con la primera sería elegir una por el
+usuario, que es el defecto que este campo vino a cerrar.
 
 Y \code{\link[=comparar_perfiles]{comparar_perfiles()}} compara este campo como un aspecto propio, con la
 severidad de un cambio de tipo: publicar la unidad sin compararla dejaba en pie
@@ -791,13 +808,21 @@ clase declarada} y con variación: una columna que declara una clase propia
 —\code{Date}, \code{POSIXt}, \code{difftime}, \code{integer64}, \code{units}, \code{lubridate::Period} o
 cualquier otra— no participa, porque sumarla o dividirla no es la aritmética
 de un doble; el texto numérico y las columnas constantes tampoco. Las
-columnas que \strong{R declara numéricas} —\code{is.numeric()} verdadero— y quedan
-fuera por su clase se declaran una por una en \code{cobertura_diagnosticos}:
-\code{integer64}, \code{units}, \code{lubridate::Period}, \code{haven_labelled}. Las de tiempo no
-entran en esa declaración porque R \strong{no} las declara numéricas
-—\code{is.numeric(Sys.Date())} es \code{FALSE}— y porque no son magnitudes para estos
-diagnósticos: una fecha, una hora o una duración quedan fuera del mismo modo
-que una columna de texto, sin fila propia. \code{meta$aritmetica_columnas} publica
+Las columnas que \strong{publican cifras cuantitativas} y quedan fuera por su clase
+se declaran una por una en \code{cobertura_diagnosticos}: \code{integer64}, \code{units},
+\code{lubridate::Period}, \code{haven_labelled} y \code{difftime}. El criterio \strong{no} es
+\code{is.numeric()} —que responde \code{FALSE} sobre un \code{difftime}— sino si la fila
+publica \code{minimo}, \code{maximo} y \code{media} como números: ahí la ausencia de hallazgo
+se lee como conformidad y por eso hay que declararla. \code{difftime} entró en esa
+categoría cuando dejó de abstenerse del resumen cuantitativo, y sin declararlo
+quedaba mudo en los dos diagnósticos mientras \code{units} los declaraba —la misma
+columna, con las mismas cifras, tratada de dos maneras—.
+
+Una \strong{fecha} y una \strong{hora} no entran en esa declaración, y eso es deliberado:
+no publican \code{media} como número pelado —su resumen sale en \code{media_fecha} y
+compañía—, así que su silencio se lee distinto, y no son magnitudes para estos
+diagnósticos. Quedan fuera del mismo modo que una columna de texto, sin fila
+propia. \code{meta$aritmetica_columnas} publica
 las clases medidas en esta tabla. La ley de Benford sigue el mismo criterio y
 la misma declaración. Cada relación requiere al
 menos tres filas con valores finitos en todas las columnas involucradas;

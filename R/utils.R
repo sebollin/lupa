@@ -940,7 +940,24 @@
   # eso hay que DECLARARLAS: la exclusion silenciosa es la que hacia que la
   # misma columna produjera una fila de cobertura guardada como `entero` y nada
   # guardada como `integer64`.
-  is.numeric(x) && !.es_numerico_pelado(x)
+  # `is.numeric()` responde FALSE sobre un `difftime`, asi que esa clase no era ni
+  # "pelada" ni "con clase": se caia por el hueco entre las dos y NINGUN
+  # diagnostico la declaraba. Medido con la misma columna en tres clases: `units`
+  # recibia su fila de cobertura en `ley_benford` y en
+  # `relacion_aritmetica_columnas`, el `doble` recibia la de Benford, y el
+  # `difftime` no recibia ninguna.
+  #
+  # Importa desde que `difftime` publica `minimo`, `maximo` y `media` como
+  # cualquier numero: el silencio dejo de ser legible. Un lector que ve las cifras
+  # espera que los diagnosticos numericos hayan corrido, y la regla del paquete es
+  # que un diagnostico que no corre se declara.
+  #
+  # `Date` y `POSIXt` quedan afuera A PROPOSITO y no por olvido: tambien son
+  # numeros con clase, pero no publican `media` como numero pelado, asi que su
+  # silencio se lee distinto, y agregarlas pondria una fila de cobertura en casi
+  # todo perfil con fechas. Eso es una decision de salida publicada y esta anotada
+  # como tal, no resuelta de costado.
+  (is.numeric(x) || inherits(x, "difftime")) && !.es_numerico_pelado(x)
 }
 
 .tipo_declarado <- function(x) {

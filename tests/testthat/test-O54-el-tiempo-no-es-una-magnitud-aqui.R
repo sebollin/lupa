@@ -1,11 +1,20 @@
-# La documentacion promete una fila de cobertura para "las columnas que R
-# declara numericas y quedan fuera por su clase". Una fecha, una hora o una
-# duracion NO entran ahi -`is.numeric(Sys.Date())` es FALSE- y no generan fila,
-# igual que una columna de texto. La frase enumeraba `Date`, `POSIXt` y
+# La documentacion promete una fila de cobertura para las columnas que quedan
+# fuera de un diagnostico por su clase. La frase enumeraba `Date`, `POSIXt` y
 # `difftime` junto a `integer64` y prometia la declaracion en la misma oracion,
-# asi que quien la leia esperaba cuatro filas y recibia una. Se precisó el
-# texto; esta prueba fija la regla que el texto ahora describe, para que no se
-# separen.
+# asi que quien la leia esperaba cuatro filas y recibia una. Se precisó el texto;
+# esta prueba fija la regla que el texto describe, para que no se separen.
+#
+# El 2026-09-29 la regla CAMBIO, y el criterio con ella. Era `is.numeric()`, que
+# responde FALSE sobre un `difftime`; ahora es si la fila **publica cifras
+# cuantitativas**. `difftime` cambio de categoria el dia que dejo de abstenerse
+# del resumen: publica `minimo`, `maximo` y `media` como cualquier numero, y ahi
+# la ausencia de hallazgo se lee como conformidad. Medido antes de cambiarlo: con
+# las mismas cifras, `units` recibia su fila en `ley_benford` y en
+# `relacion_aritmetica_columnas` y `difftime` no recibia ninguna.
+#
+# Una fecha y una hora siguen fuera, y eso NO es olvido: no publican `media` como
+# numero pelado -su resumen sale en `media_fecha` y compania-, asi que su silencio
+# se lee distinto. Esta prueba fija las dos mitades.
 
 tabla_o54 <- function() {
   set.seed(54)
@@ -40,9 +49,10 @@ test_that("la clase numerica declarada recibe su fila y el tiempo no", {
   expect_true("con_clase" %in% columnas_declaradas)
   expect_true(any(grepl("lupaMagnitud", filas$motivo, fixed = TRUE)))
 
-  # Las de tiempo y el texto quedan fuera sin fila: no son magnitudes aqui.
-  expect_false(any(c("fecha", "hora", "duracion", "texto") %in%
-                     columnas_declaradas))
+  # La duracion TAMBIEN se declara: publica cifras cuantitativas.
+  expect_true("duracion" %in% columnas_declaradas)
+  # El calendario y el texto quedan fuera sin fila: no son magnitudes aqui.
+  expect_false(any(c("fecha", "hora", "texto") %in% columnas_declaradas))
 
   # El control de que la prueba mide algo: la columna numerica pelada SI es
   # candidata, asi que su ausencia o presencia depende de las precondiciones y
@@ -64,7 +74,8 @@ test_that("la regla es la misma para la aritmetica entre columnas", {
 
   if (nrow(aritmetica)) {
     columnas <- as.character(aritmetica$columna)
-    expect_false(any(c("fecha", "hora", "duracion") %in% columnas))
+    expect_true("duracion" %in% columnas)
+    expect_false(any(c("fecha", "hora") %in% columnas))
   } else {
     expect_equal(nrow(aritmetica), 0L)
   }

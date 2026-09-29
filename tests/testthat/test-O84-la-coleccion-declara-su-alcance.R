@@ -192,3 +192,74 @@ test_that("lo que no se puede completar se rechaza nombrando la columna", {
   expect_error(perfilar_coleccion(declarada), "`tabla`")
   expect_error(perfilar_coleccion(declarada), "no se puede completar")
 })
+
+test_that("lo derivado se deriva siempre, aunque el objeto traiga una copia vieja", {
+  # `identificador` y `referencia` son consecuencia del nombre -`catalogo`,
+  # `esquema`, `tabla`-, y una consecuencia guardada no puede ganarle a la
+  # declaracion de la que sale. Antes se recalculaban solo cuando FALTABAN, asi
+  # que una copia desactualizada se usaba tal cual: la fila publicaba
+  # `tabla = t1` con las filas de t2, o sea identificaba una tabla y traia los
+  # datos de otra, en silencio.
+  con <- .o84_conexion()
+  on.exit(DBI::dbDisconnect(con), add = TRUE)
+  DBI::dbWriteTable(con, "t1", data.frame(x = 1:3))
+  DBI::dbWriteTable(con, "t2", data.frame(x = 1:7))
+  declarada <- coleccion(con, c("t1", "t2"))
+
+  # Control primero: sobre un objeto sano, derivar no cambia nada.
+  sana <- suppressWarnings(perfilar_coleccion(declarada))
+  filas_sanas <- as.data.frame(sana$resumen_coleccion)
+  expect_equal(
+    filas_sanas$n_filas[filas_sanas$tabla == "t1"], 3
+  )
+  expect_equal(
+    filas_sanas$n_filas[filas_sanas$tabla == "t2"], 7
+  )
+
+  una_tabla <- function() {
+    recortada <- declarada
+    recortada$tablas <- recortada$tablas[1, , drop = FALSE]
+    recortada
+  }
+  # `referencia` apuntando a otra tabla.
+  con_referencia_vieja <- una_tabla()
+  con_referencia_vieja$tablas$referencia <- I(list(
+    declarada$tablas$referencia[[2L]]
+  ))
+  perfilada <- suppressWarnings(perfilar_coleccion(con_referencia_vieja))
+  publicada <- as.data.frame(perfilada$resumen_coleccion)
+  expect_equal(publicada$tabla, "t1")
+  # La cifra que importa: 3 son las filas de t1; 7 serian las de t2.
+  expect_equal(publicada$n_filas, 3)
+
+  # `identificador` inconsistente con el nombre.
+  con_identificador_viejo <- una_tabla()
+  con_identificador_viejo$tablas$identificador <- "viejo.t1"
+  perfilada2 <- suppressWarnings(
+    perfilar_coleccion(con_identificador_viejo)
+  )
+  publicada2 <- as.data.frame(perfilada2$resumen_coleccion)
+  expect_equal(publicada2$tabla, "t1")
+  expect_equal(publicada2$n_filas, 3)
+})
+
+test_that("el constructor y el adaptador derivan con la misma funcion", {
+  # Tenian cada uno su copia y ya habian divergido -una armaba `referencia` sin
+  # el `I()` de la otra-. La prueba fija que derivar sobre lo que el constructor
+  # produjo es identico a lo que el constructor produjo: si alguien vuelve a
+  # escribir la regla dos veces, esto falla.
+  con <- .o84_conexion()
+  on.exit(DBI::dbDisconnect(con), add = TRUE)
+  DBI::dbWriteTable(con, "mi tabla", data.frame(x = 1:2))
+  DBI::dbWriteTable(con, "otra", data.frame(x = 1:2))
+  declarada <- coleccion(con, c("mi tabla", "otra"))
+  vuelta <- lupa:::.derivar_columnas_coleccion(declarada$tablas)
+  expect_identical(
+    as.character(vuelta$identificador),
+    as.character(declarada$tablas$identificador)
+  )
+  expect_identical(
+    lapply(vuelta$referencia, identity),
+    lapply(declarada$tablas$referencia, identity)
+  )
+})

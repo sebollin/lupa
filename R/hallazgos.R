@@ -2320,13 +2320,50 @@
     valor <- suppressWarnings(as.numeric(fila[[nombre]][[1L]]))
     if (length(valor) != 1L || !is.finite(valor)) 0 else valor
   }
-  no_finitos <- leer("n_nan") + leer("n_infinito_positivo") +
-    leer("n_infinito_negativo")
+  n_nan <- leer("n_nan")
+  infinitos <- leer("n_infinito_positivo") + leer("n_infinito_negativo")
+  no_finitos <- n_nan + infinitos
   if (no_finitos <= 0) return("")
+  # El `NaN` se separa del resto de los no finitos a proposito: es el unico que la
+  # columna cuenta como AUSENTE -`n_faltantes` y `n_distintos` lo tratan asi-,
+  # mientras un `Inf` cuenta como presente. Sin la distincion, el motivo llamaba
+  # "valores presentes" a un total que mezclaba los dos, y sobre una columna de
+  # puros `NaN` decia que habia treinta presentes mientras la misma fila publicaba
+  # `n_faltantes = 30`.
+  # El termino paraguas -"valores no finitos"- se CONSERVA, porque es el
+  # vocabulario que los dos README publican y por el que tres pruebas buscan esta
+  # fila. Lo que se agrega es el desglose que faltaba, que es donde vive la
+  # distincion de presencia.
+  detalle <- c(
+    if (infinitos > 0) {
+      paste0(
+        .formatear_numero_publicado(infinitos),
+        if (infinitos == 1) {
+          " infinito (`Inf` o `-Inf`), presente y no utilizable"
+        } else {
+          " infinitos (`Inf` o `-Inf`), presentes y no utilizables"
+        }
+      )
+    },
+    if (n_nan > 0) {
+      paste0(
+        .formatear_numero_publicado(n_nan),
+        if (n_nan == 1) {
+          " `NaN`, que la columna cuenta como ausente"
+        } else {
+          " `NaN`, que la columna cuenta como ausentes"
+        }
+      )
+    }
+  )
   paste0(
-    ", de los cuales ", .formatear_numero_publicado(no_finitos),
-    if (no_finitos == 1) " es un valor no finito" else " son valores no finitos",
-    " (`NaN`, `Inf` o `-Inf`)"
+    ", de las cuales ", .formatear_numero_publicado(no_finitos),
+    if (no_finitos == 1) {
+      " es un valor no finito"
+    } else {
+      " son valores no finitos"
+    },
+    ": ", paste(detalle, collapse = " y ")
   )
 }
 
@@ -4093,10 +4130,22 @@
         }
         aplicables <- .primer_finito(fila$n_aplicables)
         faltantes <- .primer_finito(fila$n_faltantes)
+        # El `NaN` estaba restado DOS veces: cuenta en `n_faltantes` -la columna
+        # lo trata como ausente- y tambien en `n_valores_excluidos_resumen`, que
+        # cuenta todo lo que el resumen dejo afuera. Medido: veintiocho unos con
+        # un `NaN` y un `Inf` publicaban "se calculo sobre 27 valores" cuando los
+        # finitos son 28, y con dos `NaN` publicaban 26. La cifra es la unica cosa
+        # que esta fila de cobertura aporta.
+        #
+        # Lo que esta en los dos conjuntos es exactamente `n_nan`, asi que se
+        # descuenta una vez. Comprobado contra el conteo a mano en los cinco casos
+        # -solo `NaN`, solo infinitos, mezcla, centinelas, y centinelas con `NaN`-.
+        nan_fila <- .primer_finito(fila$n_nan)
+        if (is.na(nan_fila)) nan_fila <- 0
         if (is.na(aplicables) || is.na(faltantes)) {
           NA_real_
         } else {
-          aplicables - faltantes - n_excluidas_resumen
+          aplicables - faltantes - max(0, n_excluidas_resumen - nan_fila)
         }
       }
       # Y si aun asi no hay cifra, se DICE, en vez de dejar el hueco: informar
@@ -4129,7 +4178,17 @@
           # cuentan como excluidos -un `Inf` convierte perfecto y no se puede
           # usar-, la frase describia mal la mitad de los casos. Se dice lo que
           # el resumen hizo, y el desglose cuando hay no finitos.
-          " valores presentes que no pudo usar",
+          #
+          # Y la palabra "presentes" solo va cuando la fila declara alguno: sin
+          # ninguno, lo que quedo afuera son celdas que la columna cuenta como
+          # ausentes -`NaN`-, y llamarlas presentes es la contradiccion que
+          # cerro esta linea. El conteo NO cambia: los dos README prometen que
+          # `n_valores_excluidos_resumen` cuenta los no finitos, y eso sigue.
+          if (n_excluidas_resumen == 1) {
+            " celda que no pudo usar"
+          } else {
+            " celdas que no pudo usar"
+          },
           .detalle_no_finitos_resumen(fila),
           "; el tipo o formato se",
           " descubrio sobre una muestra de ",
