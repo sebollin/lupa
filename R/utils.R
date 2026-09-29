@@ -1803,3 +1803,52 @@
   salida
 }
 
+# La unidad declarada de una columna, en UNA sola forma y sin perder nada.
+#
+# Un objeto `units` guarda la unidad en un `symbolic_units`, que es una lista con
+# `numerator` y `denominator`, y el numerador es un VECTOR. Leerlo con `[[1L]]`
+# tenia dos consecuencias medidas sobre la API publica:
+#
+#   - `km/h` publicaba `km`: no una unidad ausente, una unidad EQUIVOCADA, con la
+#     misma forma que la correcta. Una velocidad se leia como una distancia.
+#   - `m^2` guarda `c("m", "m")` y `kg*m/s^2` guarda `c("kg", "m")`: con largo 2
+#     la fila de esa columna pasaba a tener dos filas y `clasificar_variables()`
+#     moria con "replacement has 2 rows, data has 3".
+#
+# `as.character()` sobre el `symbolic_units` devuelve siempre un solo valor y en
+# forma canonica -`km/h`, `m^2`, `kg*m/s^2`, `1/s`-. `format()` queda descartado
+# porque devuelve `m, m`, que no es una unidad, y `deparse_unit()` pierde
+# legibilidad (`m2`).
+#
+# Ningun fixture del paquete usaba un objeto `units` de verdad -todos declaraban
+# `attr(x, "units") <- "kg"`, una cadena de largo 1, donde `[[1L]]` acierta-, asi
+# que las dos puertas eran invisibles para la suite entera.
+.unidad_declarada <- function(x) {
+  valor <- attr(x, "units", exact = TRUE)
+  if (is.null(valor)) return(NA_character_)
+  texto <- tryCatch(as.character(valor), error = function(e) NA_character_)
+  texto <- texto[!is.na(texto) & nzchar(texto)]
+  if (!length(texto)) return(NA_character_)
+  texto <- unique(texto)
+  # Mas de una unidad declarada no es una unidad: se publican todas, porque
+  # quedarse con la primera es exactamente el defecto que esto cierra.
+  if (length(texto) == 1L) texto else paste(texto, collapse = ", ")
+}
+
+# La unidad en la que esta expresado el resumen cuantitativo de una columna.
+#
+# Contesta UNA pregunta: en que unidad estan las cifras que la fila publica. Para
+# `units` y `difftime` es la unidad declarada; para `Period`, `Date` y `POSIXt` es
+# el segundo, que es la unidad en la que hoy sale `desvio` y que hasta ahora solo
+# estaba dicha en prosa. Donde no hay ninguna, queda `NA`: el campo no inventa.
+#
+# Sin este campo, `set_units(c(1,2,3), "m")` y `"km"` publicaban filas IDENTICAS
+# -`media = 2`, `desvio = 1`- y un `Period` de dos dias publicaba `172800` sin
+# decir que eran segundos.
+.unidad_del_resumen <- function(x) {
+  if (inherits(x, c("units", "difftime"))) return(.unidad_declarada(x))
+  if (inherits(x, c("Period", "Duration", "Date", "POSIXt"))) {
+    return("segundos")
+  }
+  .unidad_declarada(x)
+}

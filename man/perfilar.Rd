@@ -637,6 +637,36 @@ Una columna cuyo año se expresa con dos dígitos se informa con su
 \code{23} puede ser 1923 o 2023, y elegir el siglo para calcular un rango sería
 inventarlo. El hallazgo \code{anio_de_dos_digitos} señala esas columnas, y el
 rango aparece una vez que el usuario resuelve la ambigüedad.
+}
+\section{La unidad viaja al lado de la cifra}{
+
+
+El campo \code{unidad} dice \strong{en qué unidad están las cifras que la fila publica}
+—\code{minimo}, \code{maximo}, \code{media}, \code{mediana}, \code{desvio}—, y queda en \code{NA} cuando la
+columna no declara ninguna. Es una sola pregunta, y por eso no se confunde con
+\code{numero_texto_unidad}, que es la unidad que un valor de texto traía pegada al
+número (\code{"12 kg"}), ni con la \code{unidad} de \code{\link[=clasificar_variables]{clasificar_variables()}}, que es la
+unidad \strong{declarada} del dato.
+
+Sin este campo, cuatro columnas medidas en unidades distintas publicaban filas
+idénticas: \code{units::set_units(c(1, 2, 3), "m")} y la misma en \code{"km"} dan las dos
+\code{media = 2} y \code{desvio = 1}, y un \code{Period} de dos días publicaba \code{172800} sin
+decir que eran segundos. Por clase:
+\itemize{
+\item \code{units} y \code{difftime}: la unidad declarada, en forma canónica (\code{km/h}, \code{m^2},
+\code{kg*m/s^2}). \code{difftime} sigue absteniéndose del resumen cuantitativo, y su
+unidad se publica igual: abstenerse no es motivo para callar lo que la
+columna declara.
+\item \code{Period}, \code{Duration}, \code{Date} y \code{POSIXt}: \code{"segundos"}, que es la unidad en la
+que sale \code{desvio} y que antes sólo estaba dicha en prosa.
+\item el resto: \code{NA}. El campo no inventa una unidad donde no hay ninguna.
+}
+
+Y \code{\link[=comparar_perfiles]{comparar_perfiles()}} compara este campo como un aspecto propio, con la
+severidad de un cambio de tipo: publicar la unidad sin compararla dejaba en pie
+el defecto entero, porque el problema era que \strong{una entrega donde cambió la
+unidad no mostraba cambio}.
+
 Una columna de períodos expresados sólo como mes y año informa la
 \code{granularidad} \code{"mes"} en \code{formatos_fecha} y deja los resúmenes de fecha en
 \code{NA} con \code{estado_resumen_cuantitativo = "granularidad_incompleta"}: asignar
@@ -1095,6 +1125,7 @@ la columna. No interpreta comas en nombres o direcciones como listas; el
 delimitador, la cantidad de celdas y la distribución de valores por celda
 quedan en la evidencia del hallazgo.
 }
+
 \examples{
 perfil <- perfilar(datos_administrativos)
 perfil

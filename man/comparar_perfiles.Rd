@@ -60,6 +60,13 @@ persistencia propia del paquete —\code{\link[=guardar_historico]{guardar_histo
 Las claves internas que agrupan hallazgos también se normalizan por bytes;
 por eso dos perfiles idénticos no emiten avisos espurios bajo C.
 
+Entre las propiedades comparadas está la \strong{unidad} en la que la columna
+publica sus cifras, con la misma severidad que un cambio de tipo: dos entregas
+con los mismos valores y la unidad cambiada de \code{m} a \code{km} son un cambio real
+—la cifra dejó de significar lo mismo— y antes devolvían cero filas. Un perfil
+guardado antes de que ese campo existiera no hace mentir la comparación: esa
+parte se declara \strong{no comparable}, como el resto de los campos ausentes.
+
 Las columnas que aparecen o desaparecen generan cambios estructurales de
 severidad \code{error}, pero no impiden comparar las columnas compartidas. Un
 hallazgo de una columna retirada no se presenta como resuelto.

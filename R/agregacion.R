@@ -489,14 +489,125 @@ transiciones_granularidad <- function() {
   salida
 }
 
+# El alcance de las medidas se REEXPRESA en la clave del agregado; no se arrastra
+# tal cual.
+#
+# La tabla que pone `medir()` esta indexada por `metrica_instanciada` -por
+# ejemplo `Formato@t.cod`- y el agregado renombra la metrica a
+# `agregada:ratio:Formato`, asi que la tabla arrastrada quedaba cierta sobre una
+# clave que no aparece en ninguna fila del objeto: lo atrapo la prueba que exigia
+# `alcance$metrica_instanciada %in% resultado$metrica_instanciada`, y era FALSE.
+# Una declaracion que no se puede atribuir a ninguna fila no cumple la promesa,
+# que es distinguir el agregado de tres celdas del de cuatro.
+#
+# Se suma por grupo -el MISMO `grupos` con el que se calculo cada numero- y se
+# exige que la unidad sea unica dentro del grupo: sumar celdas con filas daria un
+# total que no esta en ninguna unidad. Cuando no lo es, se declara la mezcla en
+# lugar de sumar.
+.alcance_agregado <- function(alcance, medidas, resultado, grupos) {
+  if (is.null(alcance) || !NROW(alcance)) return(NULL)
+  clave_alcance <- .nombres_para_operar(
+    as.character(alcance$metrica_instanciada)
+  )
+  filas <- lapply(seq_along(grupos), function(k) {
+    instancias <- .nombres_para_operar(
+      .identificadores_unicos(medidas$metrica_instanciada[grupos[[k]]])
+    )
+    cuales <- clave_alcance %in% instancias
+    if (!any(cuales)) return(NULL)
+    unidades <- unique(as.character(alcance$unidad[cuales]))
+    homogenea <- length(unidades) == 1L
+    medidas_grupo <- if (homogenea) sum(alcance$medidas[cuales]) else NA_real_
+    universo_grupo <- if (homogenea) {
+      sum(alcance$en_el_universo[cuales])
+    } else NA_real_
+    data.frame(
+      metrica_instanciada = resultado$metrica_instanciada[[k]],
+      entidad = resultado$entidad[[k]],
+      atributo = resultado$atributo[[k]],
+      unidad = if (homogenea) unidades else NA_character_,
+      en_el_universo = universo_grupo,
+      medidas = medidas_grupo,
+      motivo = if (homogenea) {
+        paste0(
+          "El agregado se calcul\u00f3 sobre ", medidas_grupo, " de ",
+          universo_grupo, " ", unidades, " del universo aplicable: las que no ",
+          "tienen valor no producen medida y no cuentan como incumplimiento."
+        )
+      } else {
+        paste0(
+          "Las partes declaran unidades distintas (",
+          paste(unidades, collapse = ", "), "): no se suman, porque el total ",
+          "no estar\u00eda en ninguna unidad."
+        )
+      },
+      stringsAsFactors = FALSE
+    )
+  })
+  filas <- filas[!vapply(filas, is.null, logical(1L))]
+  if (!length(filas)) return(NULL)
+  do.call(rbind, filas)
+}
+
+# Lo que una agregacion arrastra de la medicion que la alimenta, y lo que NO.
+#
+# Las dos listas viven juntas y la suite las recorre contra los atributos que
+# `medir()` pone de verdad: si aparece uno que no esta en ninguna, la prueba
+# falla y hay que decidir. Antes esto era una sola lista dentro de `agregar()`,
+# y tres atributos se perdieron de a uno -`cobertura_metricas`, despues
+# `alcance_medidas` y `fecha_declarada`- cada vez con el mismo diagnostico
+# escrito al lado: la declaracion existe y el paso siguiente la tira.
+.ATRIBUTOS_TRASLADADOS_AGREGACION <- c(
+  "configuracion_modelo", "configuracion_aplicabilidad", "cobertura_metricas",
+  "marco_calidad",
+  # Una fila por metrica instanciada, con `entidad` y `atributo`: apareo con las
+  # filas del agregado y sigue siendo cierto de las medidas que lo alimentaron.
+  "alcance_medidas",
+  # Sin esto la guarda del orden temporal se apaga y el delta sale con el signo
+  # al reves. Ver `.exigir_orden_temporal()`.
+  "fecha_declarada"
+)
+
+# Los que a proposito NO viajan, cada uno con su motivo. Estar aca es una
+# decision declarada, no un olvido.
+.ATRIBUTOS_NO_TRASLADADOS_AGREGACION <- c(
+  # Las coberturas de frontera las calcula `agregar()` para SU destino, con las
+  # partes que entraron a ESTE numero: arrastrar la del paso anterior publicaria
+  # la cobertura de otro universo.
+  "cobertura_coleccion", "cobertura_conjunto_colecciones",
+  "cobertura_organizacion", "cobertura_conjunto_organizaciones"
+)
+
 # Una agregacion hereda lo que sus partes declararon. Sin esto, la cobertura de
 # cada organizacion se perdia al armar el conjunto y el numero de arriba salia
 # diciendo que estaba completo.
 # Una parte con peso cero entra al numero sin aportarle nada, y la cobertura la
 # contaba como si hubiera entrado. No es falso -entro- pero leerlo sin saber que
 # no pesa es leer otra cosa. Se declara.
-.declarar_partes_sin_peso <- function(resultado, medidas, destino, pesos) {
+.declarar_partes_sin_peso <- function(resultado, medidas, destino, pesos,
+                                      etiquetas = NULL) {
   if (is.null(pesos)) return(resultado)
+  # `etiquetas` es la parte a la que corresponde cada peso -entidad u objeto
+  # medible, segun con que nombres se declararon-. Sin ella el peso publicado no
+  # vuelve a su parte, y la declaracion del peso cero nombraba `medidas$entidad`
+  # incluso cuando los pesos se habian declarado por objeto.
+  if (is.null(etiquetas)) etiquetas <- medidas$entidad
+  # Los pesos son del que llama y se PUBLICAN: sin ellos en el objeto, el numero
+  # no se puede rehacer, que es justo lo que el nivel promete.
+  publicados <- pesos
+  names(publicados) <- as.character(etiquetas)
+  attr(resultado, "pesos_declarados") <- publicados
+  sin_peso <- .identificadores_unicos(
+    etiquetas[!is.na(pesos) & pesos == 0]
+  )
+  if (!length(sin_peso)) return(resultado)
+  # La declaracion se decide por la PROPIEDAD -"alguna parte pesa cero"- y no por
+  # el destino. Antes colgaba de un atributo de cobertura, y en los destinos que
+  # no tienen ninguno -`conjuntoEntidades`, entre otros- no habia donde colgarla:
+  # el peso cero entraba al numero, quedaba contado en la identidad de la fila
+  # (`entidad = "t1, t2"`) y nada lo decia. Medido: el MISMO peso cero se
+  # declaraba a nivel `coleccion` y se callaba a nivel `conjuntoEntidades`.
+  attr(resultado, "partes_con_peso_cero") <- sin_peso
   propio <- switch(
     destino,
     organizacion = "cobertura_organizacion",
@@ -505,13 +616,11 @@ transiciones_granularidad <- function() {
     conjuntoColecciones = "cobertura_conjunto_colecciones",
     NULL
   )
+  # Y donde hay cobertura de frontera, la declaracion tambien entra ahi, porque
+  # es la que se imprime y la que viaja al informe.
   if (is.null(propio) || is.null(attr(resultado, propio, exact = TRUE))) {
     return(resultado)
   }
-  sin_peso <- .identificadores_unicos(
-    medidas$entidad[!is.na(pesos) & pesos == 0]
-  )
-  if (!length(sin_peso)) return(resultado)
   cobertura <- attr(resultado, propio, exact = TRUE)
   cobertura$partes_con_peso_cero <- sin_peso
   cobertura$advertencia <- paste0(
@@ -590,11 +699,51 @@ transiciones_granularidad <- function() {
 #' contra el grafo de `transiciones_granularidad()`.
 #'
 #' `ratio` sólo acepta medidas booleanas. `ratio_umbral` sólo acepta medidas
-#' reales. Los promedios aceptan ambos tipos y siempre producen resultado real
-#' en `[0, 1]`. Para el promedio ponderado, los pesos deben estar en `[0, 1]` y
-#' sumar uno dentro de cada objeto de destino. La columna `orientacion` se
-#' conserva sin invertir el resultado: un ratio de una métrica de defecto sigue
-#' siendo la proporción de defectos.
+#' reales. Los promedios aceptan **esos dos tipos y ningún otro**, y siempre
+#' producen resultado real en `[0, 1]`. Los tres tipos no acotados
+#' —`numero_real`, `entero` y `duracion`— se rechazan nombrando la métrica que
+#' los declara: el promedio de una duración en días es un número de días, y
+#' publicarlo como resultado real en `[0, 1]` lo presentaría como una
+#' proporción. La guarda es por **tipo declarado**, no por el valor observado:
+#' antes una duración de `0,25` y `0,75` días pasaba y la misma métrica con
+#' `1,5` días abortaba, así que el mismo modelo cambiaba de conducta según los
+#' datos que le tocaran. Para el promedio ponderado, los pesos deben estar en
+#' `[0, 1]` y sumar uno dentro de cada objeto de destino. La columna
+#' `orientacion` se conserva sin invertir el resultado: un ratio de una métrica
+#' de defecto sigue siendo la proporción de defectos.
+#'
+#' @section Lo que el agregado conserva de la medición:
+#'
+#' Una agregación hereda lo que sus partes declararon: `configuracion_modelo`,
+#' `configuracion_aplicabilidad`, `cobertura_metricas`, `marco_calidad` y
+#' `fecha_declarada` viajan en el objeto. Lo último no es decorativo: sin
+#' `fecha_declarada`, la guarda que impide comparar dos entregas en orden
+#' invertido queda desactivada y [comparar_evaluaciones()] publicaría el delta
+#' con el signo al revés.
+#'
+#' `alcance_medidas` —«midió tres celdas de cuatro»— también viaja, pero
+#' **reexpresado en la clave del agregado**: la tabla que publica [medir()] está
+#' indexada por `metrica_instanciada` (`Formato@t.cod`) y el agregado renombra la
+#' métrica (`agregada:ratio:Formato`), así que arrastrarla tal cual dejaba una
+#' declaración que no se podía atribuir a ninguna fila. Los conteos se **suman**
+#' por objeto de destino, y sólo cuando todas las partes declaran la misma
+#' unidad; si no, la fila declara la mezcla en lugar de publicar un total que no
+#' estaría en ninguna unidad.
+#'
+#' Las coberturas de frontera (`cobertura_coleccion` y sus hermanas) **no** se
+#' arrastran: cada agregación calcula la de su propio destino con las partes que
+#' entraron a ese número.
+#'
+#' @section Los pesos se publican:
+#'
+#' Cuando hay `pesos`, el objeto los publica en `pesos_declarados`, con el nombre
+#' de la parte que recibió cada uno, de modo que el número se pueda rehacer con
+#' lo que el objeto trae. Y si alguna parte entró con peso cero, se declara en
+#' `partes_con_peso_cero`: entró al número sin aportarle nada, queda contada en
+#' la identidad de la fila y leerlo sin saberlo es leer otra cosa. La
+#' declaración depende de que **haya** un peso cero, no del destino: antes sólo
+#' existía en los cuatro destinos que tienen cobertura de frontera, y en
+#' `conjuntoEntidades` el mismo peso cero pasaba en silencio.
 #'
 #' Cuando el destino es `conjuntoEntidades`, `promedio` combina las partes sin
 #' pesos porque las medidas de nivel `entidad` no llevan su cantidad de filas.
@@ -786,6 +935,32 @@ agregar <- function(medidas, destino,
     stop("`ratio_umbral` s\u00f3lo admite m\u00e9tricas de resultado real.",
          call. = FALSE)
   }
+  # Los tres tipos no acotados -`numero_real`, `entero`, `duracion`- no admiten
+  # ninguna de las cuatro agregaciones normalizadas, y eso lo promete `metrica()`.
+  # `ratio` y `ratio_umbral` lo cumplian por su guarda de tipo; `promedio` y
+  # `promedio_ponderado` no tenian ninguna, y pasaban.
+  #
+  # La confusion estaba escrita en el comentario de la guarda de `ratio`: "la
+  # hermana `promedio` si rechaza lo que sale de su rango". Rechaza VALORES, no
+  # tipos, asi que la conducta dependia del dato: una duracion de 0,25 y 0,75
+  # dias se promediaba y se publicaba como `tipo_resultado = "real"` -o sea, como
+  # una proporcion-, y la misma metrica con 1,5 dias abortaba por el rango. El
+  # mismo modelo cambiaba de conducta segun los numeros que le tocaran.
+  #
+  # Medido sobre la matriz de cuatro agregaciones por cinco tipos, con los
+  # valores dentro de [0, 1] para que la guarda por valor no tapara la de tipo:
+  # las dos puertas eran `promedio` y `promedio_ponderado`.
+  if (funcion %in% c("promedio", "promedio_ponderado") &&
+      !tipo %in% c("booleano", "real")) {
+    stop(
+      "`", funcion, "` no admite m\u00e9tricas de resultado '", tipo,
+      "': son valores no acotados y el promedio los publicar\u00eda como una ",
+      "proporci\u00f3n en [0, 1]. La m\u00e9trica es '",
+      paste(.identificadores_unicos(medidas$metrica_instanciada),
+            collapse = "', '"),
+      "'.", call. = FALSE
+    )
+  }
   if (funcion == "ratio_umbral") {
     if (!is.numeric(umbral) || length(umbral) != 1L || is.na(umbral) ||
         !is.finite(umbral) || umbral < 0 || umbral > 1) {
@@ -862,6 +1037,12 @@ agregar <- function(medidas, destino,
              paste(unique(names(pesos)[duplicated(claves_pesos)]),
                    collapse = ", "), ".", call. = FALSE)
       }
+      # Se guarda la parte a la que corresponde cada peso ANTES de que el
+      # alineado borre los nombres: un peso publicado sin la etiqueta que
+      # vuelve a su parte no se puede leer ni rehacer. Y la etiqueta es
+      # `partes_elegidas`, que segun el caso son las entidades o los objetos
+      # medibles: usar `medidas$entidad` a ciegas nombraba otra cosa.
+      etiquetas_pesos <- partes_elegidas
       pesos <- unname(pesos[.indice_identificador(partes_elegidas, names(pesos))])
     }
     if (!is.numeric(pesos) || length(pesos) != nrow(medidas) || anyNA(pesos) ||
@@ -869,6 +1050,7 @@ agregar <- function(medidas, destino,
       stop("`pesos` debe tener una entrada en [0, 1] por medida.", call. = FALSE)
     }
   }
+  if (!exists("etiquetas_pesos", inherits = FALSE)) etiquetas_pesos <- NULL
   grupos <- .indices_grupos_agregacion(medidas, destino)
   if (funcion == "promedio_ponderado") {
     sumas <- vapply(grupos, function(i) sum(pesos[i]), numeric(1L))
@@ -955,13 +1137,28 @@ agregar <- function(medidas, destino,
   #
   # Es la misma forma que la cobertura de coleccion y que el alcance de los
   # resumenes: la declaracion existe y el paso siguiente la tira.
-  for (nombre_atributo in c(
-    "configuracion_modelo", "configuracion_aplicabilidad", "cobertura_metricas",
-    "marco_calidad"
-  )) {
+  #
+  # Y la lista era la guarda, que es lo que fallo dos veces mas: `alcance_medidas`
+  # -"midio 3 de 4 celdas"- y `fecha_declarada` quedaron afuera de la lista que
+  # arreglaba al hermano. El segundo no es una etiqueta: `.exigir_orden_temporal()`
+  # empieza con `if (!isTRUE(declaradas)) return()`, asi que sin el atributo la
+  # guarda del orden temporal se APAGA. Medido: las mismas dos fechas declaradas
+  # en orden invertido detienen `comparar_evaluaciones()` por el camino de
+  # `medir()` y publican `delta = -1` por el camino de `agregar()`.
+  #
+  # `.ATRIBUTOS_TRASLADADOS_AGREGACION` y `.ATRIBUTOS_NO_TRASLADADOS_AGREGACION`
+  # se declaran juntos a proposito: la suite recorre los atributos que `medir()`
+  # pone de verdad y exige que cada uno este en una de las dos listas, asi que un
+  # atributo nuevo no puede volver a perderse en silencio.
+  for (nombre_atributo in .ATRIBUTOS_TRASLADADOS_AGREGACION) {
     valor_atributo <- attr(medidas, nombre_atributo, exact = TRUE)
     if (!is.null(valor_atributo)) attr(resultado, nombre_atributo) <- valor_atributo
   }
+  # Y el alcance, que es el unico que no viaja igual: se reexpresa en la clave del
+  # agregado. Ver `.alcance_agregado()`.
+  attr(resultado, "alcance_medidas") <- .alcance_agregado(
+    attr(medidas, "alcance_medidas", exact = TRUE), medidas, resultado, grupos
+  )
   if (identical(destino, "coleccion")) {
     attr(resultado, "cobertura_coleccion") <- .cobertura_agregacion_coleccion(
       coleccion, medidas$entidad
@@ -988,6 +1185,8 @@ agregar <- function(medidas, destino,
   # completo**, y decir cobertura 1 seria informar como completo lo que es
   # parcial: el mismo defecto que el paquete persigue, un piso mas arriba.
   resultado <- .heredar_cobertura_de_partes(resultado, medidas, destino)
-  resultado <- .declarar_partes_sin_peso(resultado, medidas, destino, pesos)
+  resultado <- .declarar_partes_sin_peso(
+    resultado, medidas, destino, pesos, etiquetas_pesos
+  )
   resultado
 }

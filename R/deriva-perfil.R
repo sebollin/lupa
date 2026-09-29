@@ -336,7 +336,13 @@
     tipo_inferido = "tipo_inferido",
     faltantes = "prop_faltantes_totales",
     cardinalidad = c("tasa_distintos", "n_distintos"),
-    rango = c("minimo", "maximo", "minimo_fecha", "maximo_fecha")
+    rango = c("minimo", "maximo", "minimo_fecha", "maximo_fecha"),
+    # La unidad es la otra mitad del arreglo de la unidad que no viajaba: el
+    # campo en la tabla de columnas, sin un aspecto que lo compare, dejaba el
+    # defecto en pie. Medido antes de escribirlo: con `unidad` puesto a mano en
+    # las dos entregas -`m` contra `km`-, la deriva solo informaba el rango, que
+    # es exactamente "una entrega donde cambio la unidad no muestra cambio".
+    unidad = "unidad"
   )
   nombres_a <- names(anterior$columnas)
   nombres_b <- names(actual$columnas)
@@ -559,6 +565,13 @@
 #' Las claves internas que agrupan hallazgos también se normalizan por bytes;
 #' por eso dos perfiles idénticos no emiten avisos espurios bajo C.
 #'
+#' Entre las propiedades comparadas está la **unidad** en la que la columna
+#' publica sus cifras, con la misma severidad que un cambio de tipo: dos entregas
+#' con los mismos valores y la unidad cambiada de `m` a `km` son un cambio real
+#' —la cifra dejó de significar lo mismo— y antes devolvían cero filas. Un perfil
+#' guardado antes de que ese campo existiera no hace mentir la comparación: esa
+#' parte se declara **no comparable**, como el resto de los campos ausentes.
+#'
 #' Las columnas que aparecen o desaparecen generan cambios estructurales de
 #' severidad `error`, pero no impiden comparar las columnas compartidas. Un
 #' hallazgo de una columna retirada no se presenta como resuelto.
@@ -678,17 +691,29 @@ comparar_perfiles <- function(anterior, actual, umbral_cambio = 0.05,
     indice_b <- mapa_b$indice[match(columna, mapa_b$clave)]
     a <- anterior$columnas[indice_a, , drop = FALSE]
     b <- actual$columnas[indice_b, , drop = FALSE]
+    # `unidad` va con los tipos y no con los conteos: es texto y se compara por
+    # igualdad, no por delta. Y va con severidad `error` por el mismo motivo que
+    # `tipo_declarado` -es el precedente del aspecto hermano-: un cambio de unidad
+    # hace que la misma cifra signifique otra cosa, que es exactamente lo que
+    # `set_units(c(1,2,3), "m")` y `"km"` demostraban al publicar filas identicas.
     tipos_comparables <- intersect(
-      c("tipo_declarado", "tipo_inferido"), campos$comparables
+      c("tipo_declarado", "tipo_inferido", "unidad"), campos$comparables
     )
     for (campo in tipos_comparables) {
       if (.distinto_deriva(a[[campo]], b[[campo]])) {
         agregar(
           columna, campo, "modificado", "error", a[[campo]], b[[campo]],
-          descripcion = paste0(
-            "Cambi\u00f3 el ", gsub("_", " ", campo, fixed = TRUE),
-            " de la columna."
-          )
+          descripcion = if (identical(campo, "unidad")) {
+            paste0(
+              "Cambi\u00f3 la unidad en la que la columna publica sus cifras: el ",
+              "mismo n\u00famero significa otra cosa."
+            )
+          } else {
+            paste0(
+              "Cambi\u00f3 el ", gsub("_", " ", campo, fixed = TRUE),
+              " de la columna."
+            )
+          }
         )
       }
     }

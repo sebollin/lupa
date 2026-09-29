@@ -51,6 +51,18 @@ elección queda siempre en la columna \code{agregacion}. \code{ratio_umbral} só
 aplica cuando se declara también el umbral correspondiente.
 }
 \details{
+\strong{La identidad de cada celda son tres columnas: \code{metrica_instanciada},
+\code{entidad} y \code{objeto}.} No alcanza con \code{metrica} y \code{objeto}, porque \code{metrica}
+es el nombre genérico: dos tablas con una columna del mismo nombre, o dos
+especializaciones de la misma genérica sobre la misma columna, publicaban dos
+filas con la \strong{misma} identidad y valores distintos, y rehacer la celda con
+las claves publicadas mezclaba las medidas de las dos sin reproducir ninguna.
+\code{metrica_instanciada} sola tampoco alcanza: sobre un agregado vale
+\verb{agregada:<funcion>:<metrica>} para todas las filas, y ahí la entidad es lo
+único que separa. Cuando hay varias entidades, \code{objeto} además nombra la
+tabla —\code{cod (tabla: t1)}—, en el mismo idioma con el que la granularidad de
+tabla ya publicaba \code{(tabla: t1)}.
+
 El objeto conserva la cobertura completa del marco: factores medidos, sin
 métrica declarada, no aplicables y fuera de alcance. \code{\link[=print]{print()}} muestra
 ambos elementos para que unas pocas filas nunca se lean como cobertura total.

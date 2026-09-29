@@ -349,8 +349,10 @@ clasificar_variables <- function(datos, perfil = NULL, metadatos = NULL,
     unidad <- if (nrow(meta) && "unidad" %in% names(meta)) {
       as.character(meta$unidad[[1L]])
     } else {
-      valor <- attr(x, "units", exact = TRUE)
-      if (is.null(valor)) NA_character_ else as.character(valor[[1L]])
+      # `.unidad_declarada()` y no `attr(...)[[1L]]`: el numerador de un
+      # `symbolic_units` es un vector, y leer su primer elemento publicaba `km`
+      # para una columna en `km/h` y hacia abortar la funcion entera con `m^2`.
+      .unidad_declarada(x)
     }
     filas[[i]] <- data.frame(
       columna = nombre, tipo_almacenamiento = .tipo_declarado(x),

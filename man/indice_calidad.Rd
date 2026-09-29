@@ -33,6 +33,16 @@ declarar una ponderación completa que sume uno dentro de esa dimensión.
 No existe un promedio interno por omisión. El resultado conserva el tablero,
 ambas capas de pesos, las inversiones, las exclusiones, los universos y la
 cobertura del marco.
+
+\code{advertencia_universos} \strong{se calcula de los universos que el propio objeto
+publica}, no es un texto fijo. Con un solo universo lo nombra y dice que las
+unidades son comparables; con varios dice cuántos son y nombra, por universo,
+qué componentes caen en cada uno; sin componentes no afirma nada sobre
+universos. Antes era una sola frase idéntica en toda corrida, que afirmaba
+«salen de universos distintos» incluso cuando los tres componentes publicaban
+\code{universo = "celdas"} —una afirmación que el mismo objeto desmentía en su
+columna \code{universo}— y que no nombraba nunca ningún componente, que es
+justamente lo que prometía declarar.
 }
 \examples{
 nucleo <- metricas_nucleo()

@@ -70,7 +70,8 @@ Suggests:
     stringdist,
     stringi,
     testthat (>= 3.1.7),
-    tibble
+    tibble,
+    units
 VignetteBuilder: knitr
 Config/testthat/edition: 3
 Config/roxygen2/version: 8.0.0

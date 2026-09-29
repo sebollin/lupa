@@ -9,7 +9,8 @@
                            cobertura_metricas = NULL) {
   resultado <- data.frame(
     componente = character(), dimension = character(), factor = character(),
-    metrica = character(), objeto = character(), valor = numeric(),
+    metrica = character(), metrica_instanciada = character(),
+    entidad = character(), objeto = character(), valor = numeric(),
     orientacion = character(), agregacion = character(), umbral = numeric(),
     universo = character(), stringsAsFactors = FALSE
   )
@@ -353,7 +354,18 @@
 
 .objeto_tablero <- function(medidas, i, destino, varias_entidades) {
   primero <- i[[1L]]
-  if (destino == "atributo") return(medidas$atributo[[primero]])
+  if (destino == "atributo") {
+    # La convencion ya estaba escrita en la rama de `entidad`, que nombra la
+    # tabla cuando hay varias -`(tabla: t1)`-, y esta rama recibia
+    # `varias_entidades` sin usarlo. Con dos tablas que tienen una columna del
+    # mismo nombre, la etiqueta publicada era `cod` para las dos.
+    if (varias_entidades) {
+      return(paste0(
+        medidas$atributo[[primero]], " (tabla: ", medidas$entidad[[primero]], ")"
+      ))
+    }
+    return(medidas$atributo[[primero]])
+  }
   if (destino == "entidad") {
     if (varias_entidades) {
       return(paste0("(tabla: ", medidas$entidad[[primero]], ")"))
@@ -361,6 +373,47 @@
     return("(tabla)")
   }
   medidas$objeto_medible[[primero]]
+}
+
+# El texto de universos del indice era FIJO: afirmaba "los componentes salen de
+# universos distintos" en toda corrida, incluso con los tres componentes en
+# `celdas`, e incluso por la rama "no hubo componentes combinables", donde no hay
+# ningun componente del que afirmar nada. Y la promesa era declarar QUE
+# componentes tienen universos distintos: el texto fijo no nombraba ninguno.
+#
+# El dato para decir la verdad lo publica el propio tablero, en la columna
+# `universo` de cada componente. La mentira era conservadora -sobre-declaraba
+# heterogeneidad- pero era una afirmacion falsa que el mismo objeto desmentia.
+.advertencia_universos <- function(componentes) {
+  universos <- if (is.null(componentes) || !NROW(componentes)) {
+    character()
+  } else {
+    as.character(componentes$universo)
+  }
+  presentes <- unique(universos[!is.na(universos) & nzchar(universos)])
+  if (!length(presentes)) {
+    return(paste0(
+      "No hay componentes en el \u00edndice, as\u00ed que no se afirma nada sobre sus ",
+      "universos."
+    ))
+  }
+  if (length(presentes) == 1L) {
+    return(paste0(
+      "Los ", NROW(componentes), " componentes salen del mismo universo (",
+      presentes, "), as\u00ed que el \u00edndice combina unidades comparables. Los pesos ",
+      "siguen siendo los que declar\u00f3 quien lo solicit\u00f3."
+    ))
+  }
+  por_universo <- vapply(presentes, function(u) {
+    cuales <- !is.na(universos) & universos == u
+    paste0(u, ": ", paste(componentes$componente[cuales], collapse = ", "))
+  }, character(1L))
+  paste0(
+    "Los componentes salen de ", length(presentes),
+    " universos distintos, as\u00ed que el \u00edndice combina unidades que no son ",
+    "comparables y s\u00f3lo lo hace porque quien lo solicit\u00f3 declar\u00f3 los pesos. ",
+    "Por universo: ", paste(por_universo, collapse = "; "), "."
+  )
 }
 
 .universo_tablero <- function(granularidad) {
@@ -502,6 +555,19 @@
     dimension = agregada$dimension,
     factor = agregada$factor,
     metrica = agregada$metrica,
+    # La identidad publicada era `(metrica, objeto)` y `metrica` es el nombre
+    # GENERICO: dos especializaciones de la misma generica sobre la misma columna
+    # -medido: `DosDigitos@t.cod` y `Alfabetico@t.cod`- publicaban las dos filas
+    # como `(Formato, cod)`, y dos entidades con la misma columna tambien. Con la
+    # identidad incompleta, rehacer la celda con las claves publicadas mezclaba
+    # las medidas de las dos y no reproducia ninguna: el promedio de las seis
+    # daba 0,667 contra celdas de 1,0 y 0,5.
+    #
+    # `metrica_instanciada` sola no alcanza: en un tablero armado sobre un
+    # agregado vale `agregada:ratio:Formato` para todas las filas, asi que la
+    # entidad tambien se publica. Las dos mas `objeto` son la clave completa.
+    metrica_instanciada = agregada$metrica_instanciada,
+    entidad = agregada$entidad,
     objeto = objetos,
     valor = agregada$resultado,
     orientacion = agregada$orientacion,
@@ -551,6 +617,18 @@
 #' booleanas usan `ratio` por omisión y las reales usan `promedio`; la
 #' elección queda siempre en la columna `agregacion`. `ratio_umbral` sólo se
 #' aplica cuando se declara también el umbral correspondiente.
+#'
+#' **La identidad de cada celda son tres columnas: `metrica_instanciada`,
+#' `entidad` y `objeto`.** No alcanza con `metrica` y `objeto`, porque `metrica`
+#' es el nombre genérico: dos tablas con una columna del mismo nombre, o dos
+#' especializaciones de la misma genérica sobre la misma columna, publicaban dos
+#' filas con la **misma** identidad y valores distintos, y rehacer la celda con
+#' las claves publicadas mezclaba las medidas de las dos sin reproducir ninguna.
+#' `metrica_instanciada` sola tampoco alcanza: sobre un agregado vale
+#' `agregada:<funcion>:<metrica>` para todas las filas, y ahí la entidad es lo
+#' único que separa. Cuando hay varias entidades, `objeto` además nombra la
+#' tabla —`cod (tabla: t1)`—, en el mismo idioma con el que la granularidad de
+#' tabla ya publicaba `(tabla: t1)`.
 #'
 #' El objeto conserva la cobertura completa del marco: factores medidos, sin
 #' métrica declarada, no aplicables y fuera de alcance. [print()] muestra
@@ -862,11 +940,7 @@ print.tablero_calidad <- function(x, ...) {
     # justamente cuando mas falta hace. Viaja en el tablero como atributo.
     cobertura_coleccion = .cobertura_coleccion_de(tablero),
     combinacion_interna = "No hubo componentes combinables.",
-    advertencia_universos = paste0(
-      "Los componentes salen de universos distintos (por ejemplo, celdas, ",
-      "valores con formato reconocible y filas). El \u00edndice s\u00f3lo los combina ",
-      "porque quien lo solicit\u00f3 declar\u00f3 los pesos."
-    ),
+    advertencia_universos = .advertencia_universos(tablero[0, ]),
     motivo = motivo,
     tablero = tablero
   )
@@ -893,6 +967,16 @@ print.tablero_calidad <- function(x, ...) {
 #' No existe un promedio interno por omisión. El resultado conserva el tablero,
 #' ambas capas de pesos, las inversiones, las exclusiones, los universos y la
 #' cobertura del marco.
+#'
+#' `advertencia_universos` **se calcula de los universos que el propio objeto
+#' publica**, no es un texto fijo. Con un solo universo lo nombra y dice que las
+#' unidades son comparables; con varios dice cuántos son y nombra, por universo,
+#' qué componentes caen en cada uno; sin componentes no afirma nada sobre
+#' universos. Antes era una sola frase idéntica en toda corrida, que afirmaba
+#' «salen de universos distintos» incluso cuando los tres componentes publicaban
+#' `universo = "celdas"` —una afirmación que el mismo objeto desmentía en su
+#' columna `universo`— y que no nombraba nunca ningún componente, que es
+#' justamente lo que prometía declarar.
 #'
 #' @param medidas Medición, tablero o análisis de `lupa`.
 #' @param pesos Vector numérico nombrado por dimensión, en `[0, 1]` y con
@@ -1010,11 +1094,7 @@ indice_calidad <- function(medidas, pesos, pesos_internos = NULL, ...) {
       "Dentro de cada dimensi\u00f3n se usa un solo componente o los ",
       "pesos_internos declarados; entre dimensiones se usan `pesos`."
     ),
-    advertencia_universos = paste0(
-      "Los componentes salen de universos distintos (por ejemplo, celdas, ",
-      "valores con formato reconocible y filas). El \u00edndice s\u00f3lo los combina ",
-      "porque quien lo solicit\u00f3 declar\u00f3 los pesos."
-    ),
+    advertencia_universos = .advertencia_universos(componentes),
     motivo = NULL,
     # La cobertura de la coleccion viaja hasta aca: el indice publica un solo
     # numero, y decir sobre cuantas de las tablas declaradas se calculo es la
@@ -1070,6 +1150,16 @@ print.indice_calidad <- function(x, ...) {
     .print_data_frame_bytes(x$excluidas, row.names = FALSE)
   }
   cli::cli_alert_info(.cli_literal(x$combinacion_interna))
-  cli::cli_alert_warning(.cli_literal(x$advertencia_universos))
+  # El icono sigue al contenido: con un solo universo el texto no advierte nada,
+  # dice que las unidades son comparables. Imprimirlo como advertencia leia como
+  # un problema donde no hay ninguno, que es la otra mitad del texto fijo.
+  universos_distintos <- length(unique(
+    as.character(x$componentes$universo)[!is.na(x$componentes$universo)]
+  )) > 1L
+  if (universos_distintos) {
+    cli::cli_alert_warning(.cli_literal(x$advertencia_universos))
+  } else {
+    cli::cli_alert_info(.cli_literal(x$advertencia_universos))
+  }
   invisible(original)
 }

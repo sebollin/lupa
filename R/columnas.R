@@ -2560,6 +2560,11 @@
     n_infinito_positivo = cuantitativo$n_infinito_positivo,
     n_infinito_negativo = cuantitativo$n_infinito_negativo,
     estado_resumen_cuantitativo = cuantitativo$estado_resumen_cuantitativo,
+    # La unidad viaja al lado de las cifras que califica. Sin ella, cuatro
+    # columnas `units` distintas -`kg`, `km/h`, `m^2`, `kg*m/s^2`- publicaban la
+    # MISMA fila, y un `Period` de dos dias publicaba `172800` sin decir que eran
+    # segundos. Ver `.unidad_del_resumen()`.
+    unidad = .unidad_del_resumen(x),
     zona_horaria_origen = zona_horaria_origen,
     n_filas_fecha_civil_distinta_utc = n_filas_fecha_civil_distinta_utc,
     fecha_civil_distinta_utc = if (is.na(n_filas_fecha_civil_distinta_utc)) {
@@ -2704,6 +2709,9 @@
   fila$media_fecha <- NA_character_
   fila$mediana_fecha <- NA_character_
   fila$estado_resumen_cuantitativo <- "tipo_compuesto_no_analizado"
+  # Una matriz puede llevar unidad declarada aunque su resumen no se calcule: la
+  # unidad se publica igual, como en `difftime`.
+  fila$unidad <- .unidad_del_resumen(x)
   fila$zona_horaria_origen <- NA_character_
   fila$n_filas_fecha_civil_distinta_utc <- NA_integer_
   fila$fecha_civil_distinta_utc <- NA

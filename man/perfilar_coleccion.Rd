@@ -15,7 +15,18 @@ perfilar_coleccion(
 )
 }
 \arguments{
-\item{coleccion}{Objeto creado por \code{\link[=coleccion]{coleccion()}}.}
+\item{coleccion}{Objeto creado por \code{\link[=coleccion]{coleccion()}}.
+Una colección \strong{guardada por una versión anterior} se perfila igual. El objeto
+fue creciendo —\code{catalogo}, \code{tipo}, \code{declaracion}— y las columnas que a un
+objeto viejo le faltan se completan con el valor que significa «esta colección
+no lo declaró», mientras \code{identificador} y \code{referencia}, que son derivados, se
+recalculan con las mismas funciones que los arman. Lo único que no se puede
+inventar es \code{tabla}, que es el nombre mismo: su ausencia se rechaza nombrando
+la columna. Antes faltaba cualquiera de seis columnas y la corrida entera
+moría con un error de \code{data.frame()} que no nombraba ni la columna ni la
+tabla —o, sin \code{referencia}, perfilaba \strong{cero} tablas sin abortar—, y eso
+contradice la decisión de que ante un fallo parcial se devuelve lo medido con
+su alcance declarado.}
 
 \item{muestra}{Filas solicitadas por tabla para el bloque en memoria. Por
 omision \code{Inf}: cada tabla se trae entera. El resumen por tabla se calcula en

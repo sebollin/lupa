@@ -415,15 +415,87 @@
 
 # Una coleccion guardada antes de que existiera la columna `catalogo` se
 # deserializa bien, pero al perfilarla fallaba: el codigo nuevo la lee y no esta.
-# Medido: sin este adaptador el objeto viejo se lee y no se puede perfilar.
+# Medido: sin ese adaptador el objeto viejo se lee y no se puede perfilar.
 #
-# Se completa con `NA`, que es exactamente lo que significa -esa coleccion se
-# declaro sin catalogos- y deja el identificador igual al que tenia.
-.completar_catalogo_coleccion <- function(tablas) {
-  if (inherits(tablas, "data.frame") && !"catalogo" %in% names(tablas)) {
-    tablas$catalogo <- rep(NA_character_, nrow(tablas))
+# Y `catalogo` NO era la unica. Un recorrido sobre las siete columnas de una
+# coleccion recien creada, quitandolas de a una, encontro cinco puertas mas:
+#
+#   sin `esquema`       -> aborta con "los argumentos implican un numero
+#                          diferente de filas"
+#   sin `tabla`         -> aborta igual
+#   sin `tipo`          -> aborta igual
+#   sin `identificador` -> aborta igual
+#   sin `referencia`    -> **perfila CERO tablas sin abortar**, que es peor
+#
+# Ninguno daba un motivo declarado: el `stop()` venia de `data.frame()` al armar
+# la fila de cobertura, con la corrida entera perdida, y eso es justo lo que la
+# decision 6 del nivel prohibe -"ante un fallo PARCIAL se devuelve lo medido con
+# su alcance declarado, nunca el todo descartado"-.
+#
+# Las tres clases se tratan distinto, porque son tres cosas distintas:
+#
+#   1. lo que se puede COMPLETAR con el valor que significa "esta coleccion no lo
+#      declaro": `catalogo`, `tipo` y `declaracion`;
+#   2. lo que es DERIVADO y se puede recalcular de las tres partes del nombre:
+#      `identificador` y `referencia`;
+#   3. lo que no se puede inventar -`tabla`, que es el nombre mismo-: se rechaza
+#      nombrando la columna que falta, en vez de morir dentro de `data.frame()`.
+#
+# `esquema` va en la primera clase y no en la tercera por el mismo argumento con
+# que se completo `catalogo`: `NA` es exactamente lo que significa -"esta
+# coleccion se declaro sin esquemas"- y deja el identificador igual al que el
+# objeto viejo tenia, porque se calculo sin esquema. Tratarlo de otra manera que
+# a su hermano seria una inconsistencia, no una decision.
+.COLUMNAS_COMPLETABLES_COLECCION <- list(
+  catalogo = NA_character_,
+  esquema = NA_character_,
+  # Antes de que la columna existiera, todo objeto declarado era una tabla.
+  tipo = "tabla",
+  declaracion = NA_character_
+)
+
+.COLUMNAS_EXIGIDAS_COLECCION <- "tabla"
+
+.completar_columnas_coleccion <- function(tablas) {
+  if (!inherits(tablas, "data.frame")) return(tablas)
+  faltan <- setdiff(.COLUMNAS_EXIGIDAS_COLECCION, names(tablas))
+  if (length(faltan)) {
+    stop(
+      "La coleccion declarada no tiene la columna ",
+      paste0("`", faltan, "`", collapse = ", "),
+      ", que es parte del nombre de la tabla y no se puede completar. ",
+      "Vuelva a declararla con coleccion().",
+      call. = FALSE
+    )
+  }
+  for (columna in names(.COLUMNAS_COMPLETABLES_COLECCION)) {
+    if (!columna %in% names(tablas)) {
+      tablas[[columna]] <- rep(
+        .COLUMNAS_COMPLETABLES_COLECCION[[columna]], nrow(tablas)
+      )
+    }
+  }
+  # Los dos derivados se recalculan con las MISMAS funciones con que se arman en
+  # `coleccion()`: recalcularlos a mano aca seria una segunda copia de la regla.
+  if (!"identificador" %in% names(tablas)) {
+    tablas$identificador <- .identificadores_tabla(
+      tablas$esquema, tablas$tabla, tablas$catalogo
+    )
+  }
+  if (!"referencia" %in% names(tablas)) {
+    tablas$referencia <- lapply(seq_len(nrow(tablas)), function(i) {
+      .referencia_de_partes(
+        tablas$esquema[[i]], tablas$tabla[[i]], tablas$catalogo[[i]]
+      )
+    })
   }
   tablas
+}
+
+# Se conserva el nombre viejo porque describe lo que hacia y hay codigo que lo
+# llama; ahora completa todas las columnas completables, no solo el catalogo.
+.completar_catalogo_coleccion <- function(tablas) {
+  .completar_columnas_coleccion(tablas)
 }
 
 #' Declarar la frontera de una colección
@@ -767,6 +839,18 @@ print.coleccion_lupa <- function(x, ...) {
 #' cuando se pidio conservarlos.
 #'
 #' @param coleccion Objeto creado por [coleccion()].
+#' Una colección **guardada por una versión anterior** se perfila igual. El objeto
+#' fue creciendo —`catalogo`, `tipo`, `declaracion`— y las columnas que a un
+#' objeto viejo le faltan se completan con el valor que significa «esta colección
+#' no lo declaró», mientras `identificador` y `referencia`, que son derivados, se
+#' recalculan con las mismas funciones que los arman. Lo único que no se puede
+#' inventar es `tabla`, que es el nombre mismo: su ausencia se rechaza nombrando
+#' la columna. Antes faltaba cualquiera de seis columnas y la corrida entera
+#' moría con un error de `data.frame()` que no nombraba ni la columna ni la
+#' tabla —o, sin `referencia`, perfilaba **cero** tablas sin abortar—, y eso
+#' contradice la decisión de que ante un fallo parcial se devuelve lo medido con
+#' su alcance declarado.
+#'
 #' @param muestra Filas solicitadas por tabla para el bloque en memoria. Por
 #'   omision `Inf`: cada tabla se trae entera. El resumen por tabla se calcula en
 #'   el motor y no depende de esto; lo que depende son los diagnosticos que miran
@@ -834,7 +918,10 @@ perfilar_coleccion <- function(coleccion, muestra = Inf,
   tope_cobertura_metricas <- as.numeric(tope_cobertura_metricas)
   conexion <- coleccion$conexion
   .validar_conexion_dbi(conexion, accion = "perfilar una coleccion")
-  declaradas <- coleccion$tablas
+  # Un objeto de otra generacion del esquema se completa antes de leerlo: el
+  # paquete ya establecio ese precedente para `catalogo`, y el recorrido mostro
+  # que habia cinco columnas mas en el mismo estado.
+  declaradas <- .completar_columnas_coleccion(coleccion$tablas)
   inicio <- Sys.time()
   cobertura <- list()
   metricas <- list()
@@ -1608,6 +1695,8 @@ estimar_costo_coleccion <- function(coleccion, pares = NULL,
     cobertura_tabla1_en_tabla2 = numeric(),
     cobertura_tabla2_en_tabla1 = numeric(),
     filas_leidas_1 = numeric(), filas_leidas_2 = numeric(),
+    filas_totales_1 = numeric(), filas_totales_2 = numeric(),
+    muestreado_1 = logical(), muestreado_2 = logical(),
     momento = as.POSIXct(character()), stringsAsFactors = FALSE
   )
 }
@@ -1705,6 +1794,26 @@ estimar_costo_coleccion <- function(coleccion, pares = NULL,
 # **todos** los pares caian a `sin_comparar` -honesto, e inutil-. Ahora el
 # `LIMIT` es el primer intento y `dbSendQuery()` + `dbFetch(n = )`, que es
 # DBI puro y acota la lectura en el cliente, es la reserva.
+# El alcance de la lectura de una tabla, sacado de la bitacora del lector: la
+# tabla leyo `filas_leidas` y el total es `filas_totales` -o `NA` cuando la
+# lectura quedo truncada, que es cuando `muestreado` vale TRUE-. Se busca por
+# identificador normalizado, no por igualdad de cadena.
+.alcance_lectura_tabla <- function(bitacora, tabla) {
+  vacio <- list(filas_totales = NA_real_, muestreado = NA)
+  if (is.null(bitacora) || !NROW(bitacora)) return(vacio)
+  cuales <- which(
+    .nombres_para_operar(as.character(bitacora$tabla)) ==
+      .nombres_para_operar(as.character(tabla))
+  )
+  cuales <- cuales[!is.na(bitacora$ok[cuales]) & bitacora$ok[cuales]]
+  if (!length(cuales)) return(vacio)
+  fila <- cuales[[1L]]
+  list(
+    filas_totales = as.numeric(bitacora$filas_totales[[fila]]),
+    muestreado = as.logical(bitacora$muestreado[[fila]])
+  )
+}
+
 .lector_tablas_coleccion <- function(conexion, coleccion, muestra, orden,
                                      tope_cache_mb, columnas_candidatas = NULL) {
   cache <- new.env(parent = emptyenv())
@@ -1869,9 +1978,19 @@ estimar_costo_coleccion <- function(coleccion, pares = NULL,
       )
     } else ""
     momento <- Sys.time()
+    # Se pide UNA fila mas que el tope. Con eso la lectura contesta exacto la
+    # pregunta que faltaba -"¿de cuantas?"-: si vuelven `muestra + 1` filas, la
+    # tabla tiene mas y la lectura esta truncada; si vuelven menos o iguales, la
+    # lectura es completa y las filas leidas SON el total de la tabla.
+    #
+    # Antes el objeto publicaba `filas_leidas = 10000` sobre una tabla de 300.000
+    # y el total no aparecia en ninguna ruta del objeto, asi que una cobertura de
+    # 0,1 no se distinguia de "10.000 filas de 10.000". La alternativa era un
+    # `COUNT(*)` por tabla, que en un motor grande cuesta mucho mas que una fila.
+    tope_lectura <- if (is.finite(muestra)) muestra + 1 else muestra
     sql_limite <- paste0(
       "SELECT ", seleccion_sql, " FROM ", tabla_sql, orden_sql,
-      " LIMIT ", format(muestra, scientific = FALSE)
+      " LIMIT ", format(tope_lectura, scientific = FALSE)
     )
     resultado <- tryCatch(
       list(datos = .marcar_utf8_tabla(DBI::dbGetQuery(conexion, sql_limite)),
@@ -1888,7 +2007,7 @@ estimar_costo_coleccion <- function(coleccion, pares = NULL,
       resultado <- tryCatch({
         consulta <- DBI::dbSendQuery(conexion, sql_llano)
         on.exit(DBI::dbClearResult(consulta), add = TRUE)
-        list(datos = .marcar_utf8_tabla(DBI::dbFetch(consulta, n = muestra)),
+        list(datos = .marcar_utf8_tabla(DBI::dbFetch(consulta, n = tope_lectura)),
              sql = sql_llano,
              via = "fetch_acotado")
       }, error = function(e) e)
@@ -1910,15 +2029,27 @@ estimar_costo_coleccion <- function(coleccion, pares = NULL,
       )
       bitacora[[length(bitacora) + 1L]] <<- data.frame(
         tabla = identificador, sql = NA_character_, via = NA_character_,
-        filas_leidas = NA_real_, orden_declarado = length(columnas_orden) > 0L,
+        filas_leidas = NA_real_, filas_totales = NA_real_, muestreado = NA,
+        orden_declarado = length(columnas_orden) > 0L,
         momento = momento, ok = FALSE,
         motivo = motivo, stringsAsFactors = FALSE
       )
       return(simpleError(motivo))
     }
+    # La fila de sobra no viaja al resultado: sirvio para saber si habia mas.
+    truncada <- is.finite(muestra) && nrow(resultado$datos) > muestra
+    if (truncada) {
+      resultado$datos <- resultado$datos[seq_len(muestra), , drop = FALSE]
+    }
     bitacora[[length(bitacora) + 1L]] <<- data.frame(
       tabla = identificador, sql = resultado$sql, via = resultado$via,
       filas_leidas = as.numeric(nrow(resultado$datos)),
+      # `filas_totales` es el total de la tabla cuando la lectura fue completa, y
+      # `NA` cuando quedo truncada: ahi lo unico que se sabe es que hay mas de
+      # `muestra`, y publicar el tope como si fuera el total seria la mentira que
+      # esto viene a cerrar.
+      filas_totales = if (truncada) NA_real_ else as.numeric(nrow(resultado$datos)),
+      muestreado = truncada,
       orden_declarado = length(columnas_orden) > 0L,
       momento = momento, ok = TRUE, motivo = NA_character_,
       stringsAsFactors = FALSE
@@ -1944,7 +2075,8 @@ estimar_costo_coleccion <- function(coleccion, pares = NULL,
       } else {
         data.frame(
           tabla = character(), sql = character(), via = character(),
-          filas_leidas = numeric(), orden_declarado = logical(),
+          filas_leidas = numeric(), filas_totales = numeric(),
+          muestreado = logical(), orden_declarado = logical(),
           momento = as.POSIXct(character()), ok = logical(),
           motivo = character(), stringsAsFactors = FALSE
         )
@@ -1986,6 +2118,23 @@ estimar_costo_coleccion <- function(coleccion, pares = NULL,
 #' clave foránea comprobada**, es un indicio que hay que confirmar contra el
 #' diccionario de datos.
 #'
+#' **El alcance se declara por par y en la fila.** Cada relación publica
+#' `filas_leidas_1`/`filas_leidas_2` —cuántas se compararon—, y además
+#' `filas_totales_1`/`filas_totales_2` y `muestreado_1`/`muestreado_2`: cuando la
+#' lectura fue completa, el total de la tabla es exacto; cuando quedó truncada,
+#' el total va `NA` y `muestreado` vale `TRUE`, porque lo único que se sabe es
+#' que hay más filas que el tope. Publicar el tope como si fuera el total sería
+#' decir que se leyó todo. Para saberlo se pide **una fila más** que el tope, que
+#' cuesta mucho menos que un `COUNT(*)` por tabla y contesta exacto; esa fila de
+#' sobra no viaja al resultado.
+#'
+#' Antes, lo único que sobrevivía eran los atributos de [detectar_relaciones()]
+#' del **primer** par publicado —`rbind()` conserva los del primer argumento—,
+#' con etiquetas `tabla1`/`tabla2` que no nombran a ningún par: con dos pares
+#' decían `muestreado = FALSE` mientras el segundo había leído 10.000 filas de
+#' 20.000. Esos atributos ya no viajan en `relaciones`; lo que decían vive en las
+#' columnas, una por par, y el conteo de pares en `meta`, que cuenta todos.
+#'
 #' Las columnas candidatas se podan antes de materializar cada comparación. Las
 #' podas quedan declaradas en `cobertura_podas`, con su motivo y conteo.
 #' La poda cierta por rangos usa `MIN` y `MAX` sobre el universo completo de
@@ -2004,7 +2153,14 @@ estimar_costo_coleccion <- function(coleccion, pares = NULL,
 #' @param columnas_candidatas Lista nombrada por identificador de tabla. Cada
 #'   vector declara las columnas que pueden participar; una tabla no nombrada
 #'   conserva todas sus columnas.
-#' @param muestra Filas traídas por tabla para comparar.
+#' @param muestra Filas traídas por tabla para comparar, y **el mismo tope con
+#'   que se calcula cada cobertura**: se reenvía a [detectar_relaciones()]. Sin
+#'   reenviarlo valía el tope por omisión de esa función, así que con
+#'   `muestra > 1e5` el objeto publicaba como evidencia las filas leídas y
+#'   calculaba la cobertura sobre un submuestreo que no declaraba en ningún
+#'   campo: la fila llegaba a contradecirse a sí misma, con `n_valores_comunes`
+#'   contado sobre la lectura entera junto a una cobertura calculada sobre la
+#'   mitad.
 #' @param umbral_cobertura Cobertura mínima para informar una relación.
 #' @param orden Columnas para `ORDER BY`: un vector de texto que se aplica a
 #'   todas las tablas, o una lista nombrada por identificador de tabla. Sin él
@@ -2140,6 +2296,19 @@ relaciones_coleccion <- function(coleccion, pares, muestra = 1e4,
     relacion <- tryCatch(
       detectar_relaciones(
         d1, d2, columnas_candidatas = list(candidatas_1, candidatas_2),
+        # `muestra` se REENVIA. Sin esto valia el defecto de
+        # `detectar_relaciones()` -1e5- y con `muestra > 1e5` la coleccion leia
+        # mas filas de las que la cobertura usaba: el objeto publicaba
+        # `filas_leidas_1 = 200000` y `meta$muestra_por_tabla = 2e5` como
+        # evidencia, y la cobertura se calculaba sobre un submuestreo de 1e5 que
+        # no se declaraba en ningun campo documentado.
+        #
+        # Medido: sobre las 200.000 filas que el objeto decia haber comparado la
+        # cobertura es 0,499995 y el objeto publicaba 0, y la fila se contradecia
+        # a si misma -`n_valores_comunes = 99999` junto a `cobertura = 0`-. Quien
+        # llama declaro `muestra` y la funcion la ignoraba para el calculo
+        # mientras la publicaba como alcance.
+        muestra = muestra,
         umbral_cobertura = umbral_cobertura, podar = podar,
         tope_memoria_mb = if (is.finite(tope_memoria_mb)) {
           max(0, tope_memoria_mb - memoria_resultado_mb)
@@ -2186,6 +2355,19 @@ relaciones_coleccion <- function(coleccion, pares, muestra = 1e4,
     candidatas$tabla_2 <- t2
     candidatas$filas_leidas_1 <- nrow(d1)
     candidatas$filas_leidas_2 <- nrow(d2)
+    # El alcance se publica POR PAR y en la fila, no como atributo del objeto.
+    # Antes lo unico que sobrevivia eran los atributos de `detectar_relaciones()`
+    # del PRIMER par publicado -`do.call(rbind, ...)` conserva los del primer
+    # argumento-, con etiquetas `tabla1`/`tabla2` que no nombran a ningun par:
+    # medido, con dos pares publicados decian `filas_totales = c(5, 5)` y
+    # `muestreado = c(FALSE, FALSE)` mientras el segundo par habia leido 10.000
+    # filas de 20.000, y `n_pares_totales` contaba uno de dos.
+    alcance_1 <- .alcance_lectura_tabla(lector$bitacora(), t1)
+    alcance_2 <- .alcance_lectura_tabla(lector$bitacora(), t2)
+    candidatas$filas_totales_1 <- alcance_1$filas_totales
+    candidatas$filas_totales_2 <- alcance_2$filas_totales
+    candidatas$muestreado_1 <- alcance_1$muestreado
+    candidatas$muestreado_2 <- alcance_2$muestreado
     candidatas$momento <- momento
     encontradas[[length(encontradas) + 1L]] <- candidatas
     memoria_resultado_mb <- memoria_resultado_mb +
@@ -2193,7 +2375,18 @@ relaciones_coleccion <- function(coleccion, pares, muestra = 1e4,
   }
 
   relaciones <- if (length(encontradas)) {
-    do.call(rbind, encontradas)
+    unidas <- do.call(rbind, encontradas)
+    # Y los atributos heredados del primer par se retiran: describen UN par y se
+    # leian como si describieran el objeto entero. Lo que dicen ahora vive en las
+    # columnas `filas_totales_*` y `muestreado_*`, una por par, y el conteo de
+    # pares vive en `meta`, que si cuenta todos.
+    for (sobrante in c(
+      "filas_totales", "filas_analizadas", "muestreado", "n_pares_totales",
+      "n_pares_comparados", "n_pares_podados", "podas", "memoria_resultado_mb"
+    )) {
+      attr(unidas, sobrante) <- NULL
+    }
+    unidas
   } else {
     .relaciones_coleccion_vacias()
   }

@@ -25,10 +25,16 @@ test_that("el tablero declara filas, agregaciones, orientacion y alcance", {
 
   expect_s3_class(tablero, "tablero_calidad")
   expect_equal(nrow(tablero), 3L)
+  # El vocabulario publicado gano `metrica_instanciada` y `entidad` en la ronda
+  # O83: la identidad `(metrica, objeto)` era incompleta -`metrica` es el nombre
+  # GENERICO- y dos celdas distintas podian publicar la misma. Esta afirmacion es
+  # la que atrapo el cambio, que es para lo que existe: el conjunto de columnas
+  # del tablero es una promesa y crece a proposito.
   expect_equal(
     names(tablero),
     c(
-      "componente", "dimension", "factor", "metrica", "objeto", "valor",
+      "componente", "dimension", "factor", "metrica", "metrica_instanciada",
+      "entidad", "objeto", "valor",
       "orientacion", "agregacion", "umbral", "universo"
     )
   )

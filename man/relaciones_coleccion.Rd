@@ -22,7 +22,14 @@ relaciones_coleccion(
 \item{pares}{Data frame con columnas \code{tabla_1} y \code{tabla_2}. Cero filas es una
 declaración válida de «ningún par».}
 
-\item{muestra}{Filas traídas por tabla para comparar.}
+\item{muestra}{Filas traídas por tabla para comparar, y \strong{el mismo tope con
+que se calcula cada cobertura}: se reenvía a \code{\link[=detectar_relaciones]{detectar_relaciones()}}. Sin
+reenviarlo valía el tope por omisión de esa función, así que con
+\code{muestra > 1e5} el objeto publicaba como evidencia las filas leídas y
+calculaba la cobertura sobre un submuestreo que no declaraba en ningún
+campo: la fila llegaba a contradecirse a sí misma, con \code{n_valores_comunes}
+contado sobre la lectura entera junto a una cobertura calculada sobre la
+mitad.}
 
 \item{umbral_cobertura}{Cobertura mínima para informar una relación.}
 
@@ -74,6 +81,23 @@ Cada par se compara sobre una muestra de filas de cada tabla, y el resultado
 declara ese alcance: una relación candidata sobre una muestra \strong{no es una
 clave foránea comprobada}, es un indicio que hay que confirmar contra el
 diccionario de datos.
+
+\strong{El alcance se declara por par y en la fila.} Cada relación publica
+\code{filas_leidas_1}/\code{filas_leidas_2} —cuántas se compararon—, y además
+\code{filas_totales_1}/\code{filas_totales_2} y \code{muestreado_1}/\code{muestreado_2}: cuando la
+lectura fue completa, el total de la tabla es exacto; cuando quedó truncada,
+el total va \code{NA} y \code{muestreado} vale \code{TRUE}, porque lo único que se sabe es
+que hay más filas que el tope. Publicar el tope como si fuera el total sería
+decir que se leyó todo. Para saberlo se pide \strong{una fila más} que el tope, que
+cuesta mucho menos que un \verb{COUNT(*)} por tabla y contesta exacto; esa fila de
+sobra no viaja al resultado.
+
+Antes, lo único que sobrevivía eran los atributos de \code{\link[=detectar_relaciones]{detectar_relaciones()}}
+del \strong{primer} par publicado —\code{rbind()} conserva los del primer argumento—,
+con etiquetas \code{tabla1}/\code{tabla2} que no nombran a ningún par: con dos pares
+decían \code{muestreado = FALSE} mientras el segundo había leído 10.000 filas de
+20.000. Esos atributos ya no viajan en \code{relaciones}; lo que decían vive en las
+columnas, una por par, y el conteo de pares en \code{meta}, que cuenta todos.
 
 Las columnas candidatas se podan antes de materializar cada comparación. Las
 podas quedan declaradas en \code{cobertura_podas}, con su motivo y conteo.
