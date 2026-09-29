@@ -2,6 +2,164 @@
 
 ## lupa 0.1.0
 
+### La unidad viaja al lado de la cifra, y la comparacion la ve
+
+- **La tabla de columnas publica `unidad`.** Cuatro columnas medidas en
+  unidades distintas publicaban filas IDENTICAS:
+  `set_units(c(1,2,3), "m")` y la misma en `"km"`, `"m^2"` o
+  `"kg*m/s^2"` daban todas `media = 2` y `desvio = 1`, y un `Period` de
+  dos dias publicaba `172800` sin decir que eran segundos. El campo
+  contesta una sola pregunta -en que unidad estan las cifras que la fila
+  publica- y queda en `NA` donde no hay ninguna: no inventa. `difftime`
+  sigue absteniendose del resumen y su unidad viaja igual, porque
+  abstenerse no es motivo para callar lo que la columna declara. Para
+  `Date` y `POSIXt` publica `segundos`, que es la unidad de `desvio` y
+  que hasta ahora solo estaba dicha en prosa.
+- **Y
+  [`comparar_perfiles()`](https://sebollin.github.io/lupa/reference/comparar_perfiles.md)
+  lo compara como un aspecto propio.** El campo solo no cerraba nada: el
+  defecto era que «una entrega donde cambio la unidad no muestra
+  cambio», y medido antes de escribirlo, con la unidad puesta a mano en
+  las dos entregas, la comparacion seguia devolviendo cero filas porque
+  su lista de aspectos es cerrada. Ahora un cambio de `m` a `km` con los
+  mismos valores sale con severidad `error`, la misma que un cambio de
+  tipo, y un perfil guardado antes de que el campo existiera declara la
+  parte como no comparable en vez de mentir.
+- **[`clasificar_variables()`](https://sebollin.github.io/lupa/reference/clasificar_variables.md)
+  publicaba la unidad equivocada, y con unidades compuestas abortaba.**
+  La unidad de un objeto `units` vive en un `symbolic_units` cuyo
+  NUMERADOR es un vector: leerlo con `[[1L]]` publicaba `km` para una
+  columna en `km/h` -no una unidad ausente, una equivocada, con la misma
+  forma que la correcta- y con `m^2` -que guarda `c("m", "m")`- devolvia
+  dos valores, con lo que la fila de esa columna pasaba a tener dos
+  filas y la funcion entera moria con «replacement has 2 rows, data has
+  3», sin devolver ni las columnas que si podia clasificar. Ningun
+  fixture del paquete usaba un objeto `units` de verdad -todos
+  declaraban `attr(x, "units") <- "kg"`, una cadena de largo 1, donde
+  `[[1L]]` acierta-, asi que las dos puertas eran invisibles para la
+  suite entera. La regla vive ahora en un solo lugar, compartido con la
+  tabla de columnas.
+
+### La coleccion declara con que alcance calculo cada numero
+
+- **La cobertura de una relacion se calculaba sobre menos filas de las
+  que el objeto publicaba como evidencia.**
+  [`relaciones_coleccion()`](https://sebollin.github.io/lupa/reference/relaciones_coleccion.md)
+  no le reenviaba `muestra` a
+  [`detectar_relaciones()`](https://sebollin.github.io/lupa/reference/detectar_relaciones.md),
+  asi que con `muestra > 1e5` valia el tope por omision de esa funcion:
+  el objeto publicaba `filas_leidas_1 = 200000` y
+  `meta$muestra_por_tabla = 2e5`, y la cobertura salia de un submuestreo
+  de 1e5 que no se declaraba en ningun campo documentado. La fila
+  llegaba a contradecirse a si misma: `n_valores_comunes = 99999`,
+  contado sobre la lectura entera, junto a `cobertura = 0`, calculada
+  sobre la mitad. Medido: sobre las 200.000 filas que la fila declara,
+  la cobertura es 0,499995.
+- **Cada par declara su propio alcance, y aparece el total de la
+  tabla.** El total no estaba en NINGUNA ruta del objeto -una cobertura
+  de 0,1 sobre 10.000 filas leidas no se distinguia de «10.000 de
+  10.000»-, y lo unico que sobrevivia eran los atributos del PRIMER par
+  publicado, con etiquetas que no nombran a ninguno: con dos pares
+  decian `muestreado = FALSE` mientras el segundo habia leido 10.000
+  filas de 20.000. Ahora cada fila publica `filas_totales_*` y
+  `muestreado_*`, y para saberlo se pide UNA fila mas que el tope -mucho
+  mas barato que un `COUNT(*)` por tabla, y exacto-: si vuelve, la
+  lectura esta truncada y el total va `NA`; si no, las filas leidas SON
+  el total. La fila de sobra no viaja al resultado.
+- **Una coleccion guardada por una version anterior se perfila igual.**
+  El paquete ya habia arreglado esto para `catalogo` y el recorrido
+  encontro SEIS columnas en el mismo estado: sin `tipo`, `esquema`,
+  `identificador` o `declaracion` la corrida entera moria con un error
+  de [`data.frame()`](https://rdrr.io/r/base/data.frame.html) -«los
+  argumentos implican un numero diferente de filas»- que no nombraba ni
+  la columna ni la tabla, y sin `referencia` perfilaba CERO tablas sin
+  abortar, que es peor. Ahora lo completable se completa con el valor
+  que significa «no se declaro», lo derivado se recalcula con las mismas
+  funciones que lo arman, y lo que no se puede inventar -`tabla`- se
+  rechaza nombrando la columna. El arreglo es por recorrido y la suite
+  quita cada columna de a una.
+
+### La celda del tablero dice de quien es, y el indice deja de afirmar lo que desmiente
+
+- **La identidad de la celda era incompleta y dos celdas distintas
+  publicaban la misma.** El tablero publicaba `(metrica, objeto)` y
+  `metrica` es el nombre GENERICO, asi que dos tablas con una columna
+  del mismo nombre -o dos especializaciones de la misma generica sobre
+  la misma columna- salian como dos filas con identica identidad y
+  valores distintos: rehacer la celda con las claves publicadas tomaba
+  las medidas de las dos y daba 0,667 contra celdas de 1,0 y 0,5. Ahora
+  se publican `metrica_instanciada` y `entidad`. La instancia sola no
+  alcanzaba: sobre un agregado vale `agregada:ratio:<metrica>` para
+  todas las filas, y ahi la entidad es lo unico que separa. Y para quien
+  lee, con varias entidades `objeto` nombra la tabla
+  -`cod (tabla: t1)`-, en el mismo idioma con el que la granularidad de
+  tabla ya publicaba `(tabla: t1)`: la convencion estaba escrita y la
+  rama que colisionaba recibia el dato sin usarlo.
+- **`advertencia_universos` se calcula, ya no es una frase fija.**
+  Afirmaba «los componentes salen de universos distintos» en toda
+  corrida, incluso con los tres componentes publicando
+  `universo = "celdas"` -una afirmacion que el propio objeto desmentia
+  en su columna `universo`- e incluso por la rama «no hubo componentes
+  combinables», donde no hay ningun componente del que afirmar nada. Y
+  no nombraba nunca ningun componente, que era justo lo que prometia
+  declarar. Ahora: con un solo universo lo nombra y dice que las
+  unidades son comparables; con varios dice cuantos son y nombra los
+  componentes de cada uno; sin componentes no afirma nada. La impresion
+  sigue al contenido: advertencia solo cuando hay heterogeneidad.
+
+### El agregado no puede tirar lo que la medicion declaro, y el promedio mira el tipo
+
+- **La guarda del orden temporal se apagaba al agregar.**
+  [`agregar()`](https://sebollin.github.io/lupa/reference/agregar.md)
+  arrastraba los atributos de la medicion con una lista escrita a mano,
+  y en esa lista faltaba `fecha_declarada`. `.exigir_orden_temporal()`
+  empieza con `if (!isTRUE(declaradas)) return()`, asi que sin el
+  atributo la guarda volvia en silencio: las mismas dos entregas con
+  fecha declarada e invertida DETENIAN
+  [`comparar_evaluaciones()`](https://sebollin.github.io/lupa/reference/comparar_evaluaciones.md)
+  por el camino de
+  [`medir()`](https://sebollin.github.io/lupa/reference/medir.md) y
+  publicaban `delta = -1` por el camino de
+  [`agregar()`](https://sebollin.github.io/lupa/reference/agregar.md)
+  -el delta con el signo al reves, que es exactamente lo que esa guarda
+  existe para impedir-. Ahora las dos listas -lo que viaja y lo que a
+  proposito no viaja, con su motivo- se declaran juntas y la suite
+  RECORRE los atributos que
+  [`medir()`](https://sebollin.github.io/lupa/reference/medir.md) pone
+  de verdad: un atributo nuevo que no este decidido en ninguna de las
+  dos hace fallar la prueba. La lista ya habia sido la guarda tres
+  veces.
+- **`alcance_medidas` viaja al agregado y al tablero, reexpresado en su
+  clave.** El «midio tres celdas de cuatro» moria en el primer salto,
+  asi que el tablero publicaba `0,667` sin nada que lo distinguiera del
+  `0,667` sobre cuatro. Arrastrarlo tal cual no alcanzaba: la tabla esta
+  indexada por `metrica_instanciada` -`Formato@t.cod`- y el agregado
+  renombra la metrica a `agregada:ratio:Formato`, con lo que la
+  declaracion no se podia atribuir a ninguna fila. Los conteos se suman
+  por objeto de destino y solo cuando todas las partes declaran la misma
+  unidad; si no, la fila declara la mezcla en vez de publicar un total
+  que no estaria en ninguna unidad.
+- **`promedio` y `promedio_ponderado` rechazan los tres tipos no
+  acotados.**
+  [`metrica()`](https://sebollin.github.io/lupa/reference/modelo_calidad.md)
+  promete que `numero_real`, `entero` y `duracion` no admiten las cuatro
+  agregaciones normalizadas. `ratio` y `ratio_umbral` lo cumplian con su
+  guarda de tipo; los dos promedios no tenian ninguna y la unica guarda
+  era por VALOR -«deben estar en \[0, 1\]»-. Una duracion de 0,25 y 0,75
+  dias se promediaba y se publicaba como `tipo_resultado = "real"`, o
+  sea como una proporcion, y la misma metrica con 1,5 dias abortaba: el
+  mismo modelo cambiaba de conducta segun los datos que le tocaran. El
+  mensaje nombra la metrica que lo viola.
+- **Los pesos se publican y el peso cero se declara en todos los
+  destinos.** El objeto trae `pesos_declarados` con el nombre de la
+  parte que recibio cada peso, asi que el numero se rehace con lo que el
+  objeto publica. Y `partes_con_peso_cero` se decide por la propiedad
+  -«alguna parte pesa cero»- y no por el destino: antes colgaba de un
+  atributo de cobertura de frontera, y en `conjuntoEntidades`, que no
+  tiene ninguno, el mismo peso cero que a nivel coleccion se declaraba
+  pasaba en silencio, contado en la identidad de la fila
+  (`entidad = "t1, t2"`) sin aportar al numero.
+
 ### La magnitud que perdio exactitud no se publica, y una columna compuesta cuenta filas
 
 - **El entero de 64 bits que llega como doble deja las SIETE metricas de

@@ -36,7 +36,15 @@ relaciones_coleccion(
 
 - muestra:
 
-  Filas traídas por tabla para comparar.
+  Filas traídas por tabla para comparar, y **el mismo tope con que se
+  calcula cada cobertura**: se reenvía a
+  [`detectar_relaciones()`](https://sebollin.github.io/lupa/reference/detectar_relaciones.md).
+  Sin reenviarlo valía el tope por omisión de esa función, así que con
+  `muestra > 1e5` el objeto publicaba como evidencia las filas leídas y
+  calculaba la cobertura sobre un submuestreo que no declaraba en ningún
+  campo: la fila llegaba a contradecirse a sí misma, con
+  `n_valores_comunes` contado sobre la lectura entera junto a una
+  cobertura calculada sobre la mitad.
 
 - umbral_cobertura:
 
@@ -100,6 +108,27 @@ Cada par se compara sobre una muestra de filas de cada tabla, y el
 resultado declara ese alcance: una relación candidata sobre una muestra
 **no es una clave foránea comprobada**, es un indicio que hay que
 confirmar contra el diccionario de datos.
+
+**El alcance se declara por par y en la fila.** Cada relación publica
+`filas_leidas_1`/`filas_leidas_2` —cuántas se compararon—, y además
+`filas_totales_1`/`filas_totales_2` y `muestreado_1`/`muestreado_2`:
+cuando la lectura fue completa, el total de la tabla es exacto; cuando
+quedó truncada, el total va `NA` y `muestreado` vale `TRUE`, porque lo
+único que se sabe es que hay más filas que el tope. Publicar el tope
+como si fuera el total sería decir que se leyó todo. Para saberlo se
+pide **una fila más** que el tope, que cuesta mucho menos que un
+`COUNT(*)` por tabla y contesta exacto; esa fila de sobra no viaja al
+resultado.
+
+Antes, lo único que sobrevivía eran los atributos de
+[`detectar_relaciones()`](https://sebollin.github.io/lupa/reference/detectar_relaciones.md)
+del **primer** par publicado
+—[`rbind()`](https://rdrr.io/r/base/cbind.html) conserva los del primer
+argumento—, con etiquetas `tabla1`/`tabla2` que no nombran a ningún par:
+con dos pares decían `muestreado = FALSE` mientras el segundo había
+leído 10.000 filas de 20.000. Esos atributos ya no viajan en
+`relaciones`; lo que decían vive en las columnas, una por par, y el
+conteo de pares en `meta`, que cuenta todos.
 
 Las columnas candidatas se podan antes de materializar cada comparación.
 Las podas quedan declaradas en `cobertura_podas`, con su motivo y

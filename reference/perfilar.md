@@ -775,14 +775,47 @@ Una columna cuyo año se expresa con dos dígitos se informa con su
 omisión: `23` puede ser 1923 o 2023, y elegir el siglo para calcular un
 rango sería inventarlo. El hallazgo `anio_de_dos_digitos` señala esas
 columnas, y el rango aparece una vez que el usuario resuelve la
-ambigüedad. Una columna de períodos expresados sólo como mes y año
-informa la `granularidad` `"mes"` en `formatos_fecha` y deja los
-resúmenes de fecha en `NA` con
-`estado_resumen_cuantitativo = "granularidad_incompleta"`: asignar el
-día 1 para obtener un mínimo o una media también sería inventar un dato.
-Si esos períodos son minoritarios dentro de una columna que también
-contiene fechas con día, los resúmenes se calculan sólo sobre las fechas
-completas y declaran
+ambigüedad.
+
+## La unidad viaja al lado de la cifra
+
+El campo `unidad` dice **en qué unidad están las cifras que la fila
+publica** —`minimo`, `maximo`, `media`, `mediana`, `desvio`—, y queda en
+`NA` cuando la columna no declara ninguna. Es una sola pregunta, y por
+eso no se confunde con `numero_texto_unidad`, que es la unidad que un
+valor de texto traía pegada al número (`"12 kg"`), ni con la `unidad` de
+[`clasificar_variables()`](https://sebollin.github.io/lupa/reference/clasificar_variables.md),
+que es la unidad **declarada** del dato.
+
+Sin este campo, cuatro columnas medidas en unidades distintas publicaban
+filas idénticas: `units::set_units(c(1, 2, 3), "m")` y la misma en
+`"km"` dan las dos `media = 2` y `desvio = 1`, y un `Period` de dos días
+publicaba `172800` sin decir que eran segundos. Por clase:
+
+- `units` y `difftime`: la unidad declarada, en forma canónica (`km/h`,
+  `m^2`, `kg*m/s^2`). `difftime` sigue absteniéndose del resumen
+  cuantitativo, y su unidad se publica igual: abstenerse no es motivo
+  para callar lo que la columna declara.
+
+- `Period`, `Duration`, `Date` y `POSIXt`: `"segundos"`, que es la
+  unidad en la que sale `desvio` y que antes sólo estaba dicha en prosa.
+
+- el resto: `NA`. El campo no inventa una unidad donde no hay ninguna.
+
+Y
+[`comparar_perfiles()`](https://sebollin.github.io/lupa/reference/comparar_perfiles.md)
+compara este campo como un aspecto propio, con la severidad de un cambio
+de tipo: publicar la unidad sin compararla dejaba en pie el defecto
+entero, porque el problema era que **una entrega donde cambió la unidad
+no mostraba cambio**.
+
+Una columna de períodos expresados sólo como mes y año informa la
+`granularidad` `"mes"` en `formatos_fecha` y deja los resúmenes de fecha
+en `NA` con `estado_resumen_cuantitativo = "granularidad_incompleta"`:
+asignar el día 1 para obtener un mínimo o una media también sería
+inventar un dato. Si esos períodos son minoritarios dentro de una
+columna que también contiene fechas con día, los resúmenes se calculan
+sólo sobre las fechas completas y declaran
 `estado_resumen_cuantitativo = "calculados_sobre_dias"`, junto con
 `n_fechas_resumidas` y `n_fechas_excluidas_granularidad`. El mínimo y el
 máximo son entonces condicionales al subconjunto con día; no representan
@@ -1305,7 +1338,7 @@ perfil
 #>            correo         texto             0.00000000          12         NA
 #>          id_copia         doble             0.00000000          11         NA
 #>        id_tramite identificador             0.00000000          12         NA
-#> ℹ Se muestran 5 de 115 campos; los demás están en `columnas()`.
+#> ℹ Se muestran 5 de 116 campos; los demás están en `columnas()`.
 summary(perfil)
 #>             columna tipo_declarado tipo_inferido estado_tipo_inferido
 #> 1        id_persona          doble         doble                 <NA>
@@ -1516,17 +1549,17 @@ summary(perfil)
 #> 8                      NA                     NA     0                   0
 #> 9                      NA                     NA     0                   0
 #> 10                     NA                     NA     0                   0
-#>    n_infinito_negativo estado_resumen_cuantitativo zona_horaria_origen
-#> 1                    0                  calculados                <NA>
-#> 2                    0                   no_aplica                <NA>
-#> 3                    0    calculados_sobre_valores                <NA>
-#> 4                    0                   no_aplica                <NA>
-#> 5                    0                  calculados                <NA>
-#> 6                    0                   no_aplica                <NA>
-#> 7                    0                   no_aplica                <NA>
-#> 8                    0                   no_aplica                <NA>
-#> 9                    0                  calculados                <NA>
-#> 10                   0                   no_aplica                <NA>
+#>    n_infinito_negativo estado_resumen_cuantitativo unidad zona_horaria_origen
+#> 1                    0                  calculados   <NA>                <NA>
+#> 2                    0                   no_aplica   <NA>                <NA>
+#> 3                    0    calculados_sobre_valores   <NA>                <NA>
+#> 4                    0                   no_aplica   <NA>                <NA>
+#> 5                    0                  calculados   <NA>                <NA>
+#> 6                    0                   no_aplica   <NA>                <NA>
+#> 7                    0                   no_aplica   <NA>                <NA>
+#> 8                    0                   no_aplica   <NA>                <NA>
+#> 9                    0                  calculados   <NA>                <NA>
+#> 10                   0                   no_aplica   <NA>                <NA>
 #>    n_filas_fecha_civil_distinta_utc fecha_civil_distinta_utc
 #> 1                                NA                       NA
 #> 2                                NA                       NA

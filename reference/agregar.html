@@ -134,11 +134,55 @@ que nadie nombró.</p></dd>
     <div class="section level2">
     <h2 id="details">Details<a class="anchor" aria-label="anchor" href="#details"></a></h2>
     <p><code>ratio</code> sólo acepta medidas booleanas. <code>ratio_umbral</code> sólo acepta medidas
-reales. Los promedios aceptan ambos tipos y siempre producen resultado real
-en <code>[0, 1]</code>. Para el promedio ponderado, los pesos deben estar en <code>[0, 1]</code> y
-sumar uno dentro de cada objeto de destino. La columna <code>orientacion</code> se
-conserva sin invertir el resultado: un ratio de una métrica de defecto sigue
-siendo la proporción de defectos.</p>
+reales. Los promedios aceptan <strong>esos dos tipos y ningún otro</strong>, y siempre
+producen resultado real en <code>[0, 1]</code>. Los tres tipos no acotados
+—<code>numero_real</code>, <code>entero</code> y <code>duracion</code>— se rechazan nombrando la métrica que
+los declara: el promedio de una duración en días es un número de días, y
+publicarlo como resultado real en <code>[0, 1]</code> lo presentaría como una
+proporción. La guarda es por <strong>tipo declarado</strong>, no por el valor observado:
+antes una duración de <code>0,25</code> y <code>0,75</code> días pasaba y la misma métrica con
+<code>1,5</code> días abortaba, así que el mismo modelo cambiaba de conducta según los
+datos que le tocaran. Para el promedio ponderado, los pesos deben estar en
+<code>[0, 1]</code> y sumar uno dentro de cada objeto de destino. La columna
+<code>orientacion</code> se conserva sin invertir el resultado: un ratio de una métrica
+de defecto sigue siendo la proporción de defectos.</p>
+    </div>
+    <div class="section level2">
+    <h2 id="lo-que-el-agregado-conserva-de-la-medici-n">Lo que el agregado conserva de la medición<a class="anchor" aria-label="anchor" href="#lo-que-el-agregado-conserva-de-la-medici-n"></a></h2>
+
+
+
+<p>Una agregación hereda lo que sus partes declararon: <code>configuracion_modelo</code>,
+<code>configuracion_aplicabilidad</code>, <code>cobertura_metricas</code>, <code>marco_calidad</code> y
+<code>fecha_declarada</code> viajan en el objeto. Lo último no es decorativo: sin
+<code>fecha_declarada</code>, la guarda que impide comparar dos entregas en orden
+invertido queda desactivada y <code><a href="comparar_evaluaciones.html">comparar_evaluaciones()</a></code> publicaría el delta
+con el signo al revés.</p>
+<p><code>alcance_medidas</code> —«midió tres celdas de cuatro»— también viaja, pero
+<strong>reexpresado en la clave del agregado</strong>: la tabla que publica <code><a href="medir.html">medir()</a></code> está
+indexada por <code>metrica_instanciada</code> (<code>Formato@t.cod</code>) y el agregado renombra la
+métrica (<code>agregada:ratio:Formato</code>), así que arrastrarla tal cual dejaba una
+declaración que no se podía atribuir a ninguna fila. Los conteos se <strong>suman</strong>
+por objeto de destino, y sólo cuando todas las partes declaran la misma
+unidad; si no, la fila declara la mezcla en lugar de publicar un total que no
+estaría en ninguna unidad.</p>
+<p>Las coberturas de frontera (<code>cobertura_coleccion</code> y sus hermanas) <strong>no</strong> se
+arrastran: cada agregación calcula la de su propio destino con las partes que
+entraron a ese número.</p>
+    </div>
+    <div class="section level2">
+    <h2 id="los-pesos-se-publican">Los pesos se publican<a class="anchor" aria-label="anchor" href="#los-pesos-se-publican"></a></h2>
+
+
+
+<p>Cuando hay <code>pesos</code>, el objeto los publica en <code>pesos_declarados</code>, con el nombre
+de la parte que recibió cada uno, de modo que el número se pueda rehacer con
+lo que el objeto trae. Y si alguna parte entró con peso cero, se declara en
+<code>partes_con_peso_cero</code>: entró al número sin aportarle nada, queda contada en
+la identidad de la fila y leerlo sin saberlo es leer otra cosa. La
+declaración depende de que <strong>haya</strong> un peso cero, no del destino: antes sólo
+existía en los cuatro destinos que tienen cobertura de frontera, y en
+<code>conjuntoEntidades</code> el mismo peso cero pasaba en silencio.</p>
 <p>Cuando el destino es <code>conjuntoEntidades</code>, <code>promedio</code> combina las partes sin
 pesos porque las medidas de nivel <code>entidad</code> no llevan su cantidad de filas.
 El resultado lo declara en <code>advertencia_agregacion</code>: es un promedio sin pesos
@@ -157,9 +201,9 @@ taxonómicos y esta función no calcula un índice global.</p>
 <span class="r-in"><span><span class="va">medidas</span> <span class="op">&lt;-</span> <span class="fu"><a href="medir.html">medir</a></span><span class="op">(</span><span class="fu"><a href="modelo_calidad.html">modelo</a></span><span class="op">(</span><span class="va">instancia</span><span class="op">)</span>, <span class="fu"><a href="https://rdrr.io/r/base/data.frame.html" class="external-link">data.frame</a></span><span class="op">(</span>edad <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">20</span>, <span class="cn">NA</span>, <span class="fl">35</span><span class="op">)</span><span class="op">)</span><span class="op">)</span></span></span>
 <span class="r-in"><span><span class="fu">agregar</span><span class="op">(</span><span class="va">medidas</span>, <span class="st">"atributo"</span>, <span class="st">"ratio"</span><span class="op">)</span></span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>                                               id_medida</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 1 medicion-20260928T223829.029073-7527-agg-ratio-000001</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 1 medicion-20260929T014842.005622-7593-agg-ratio-000001</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>                            id_medicion               fecha metrica</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 1 medicion-20260928T223829.029073-7527 2026-09-28 22:38:29  NoNulo</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 1 medicion-20260929T014842.005622-7593 2026-09-29 01:48:42  NoNulo</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>   metrica_especifica   metrica_instanciada   dimension   factor orientacion</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> 1             NoNulo agregada:ratio:NoNulo Completitud Densidad conformidad</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>   granularidad tipo_resultado  entidad atributo fila objeto_medible resultado</span>

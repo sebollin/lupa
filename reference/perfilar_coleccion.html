@@ -69,7 +69,18 @@ no se solicitó.</p>
 
 
 <dl><dt id="arg-coleccion">coleccion<a class="anchor" aria-label="anchor" href="#arg-coleccion"></a></dt>
-<dd><p>Objeto creado por <code><a href="coleccion.html">coleccion()</a></code>.</p></dd>
+<dd><p>Objeto creado por <code><a href="coleccion.html">coleccion()</a></code>.
+Una colección <strong>guardada por una versión anterior</strong> se perfila igual. El objeto
+fue creciendo —<code>catalogo</code>, <code>tipo</code>, <code>declaracion</code>— y las columnas que a un
+objeto viejo le faltan se completan con el valor que significa «esta colección
+no lo declaró», mientras <code>identificador</code> y <code>referencia</code>, que son derivados, se
+recalculan con las mismas funciones que los arman. Lo único que no se puede
+inventar es <code>tabla</code>, que es el nombre mismo: su ausencia se rechaza nombrando
+la columna. Antes faltaba cualquiera de seis columnas y la corrida entera
+moría con un error de <code><a href="https://rdrr.io/r/base/data.frame.html" class="external-link">data.frame()</a></code> que no nombraba ni la columna ni la
+tabla —o, sin <code>referencia</code>, perfilaba <strong>cero</strong> tablas sin abortar—, y eso
+contradice la decisión de que ante un fallo parcial se devuelve lo medido con
+su alcance declarado.</p></dd>
 
 
 <dt id="arg-muestra">muestra<a class="anchor" aria-label="anchor" href="#arg-muestra"></a></dt>

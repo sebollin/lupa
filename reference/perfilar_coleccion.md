@@ -25,6 +25,19 @@ perfilar_coleccion(
 
   Objeto creado por
   [`coleccion()`](https://sebollin.github.io/lupa/reference/coleccion.md).
+  Una colección **guardada por una versión anterior** se perfila igual.
+  El objeto fue creciendo —`catalogo`, `tipo`, `declaracion`— y las
+  columnas que a un objeto viejo le faltan se completan con el valor que
+  significa «esta colección no lo declaró», mientras `identificador` y
+  `referencia`, que son derivados, se recalculan con las mismas
+  funciones que los arman. Lo único que no se puede inventar es `tabla`,
+  que es el nombre mismo: su ausencia se rechaza nombrando la columna.
+  Antes faltaba cualquiera de seis columnas y la corrida entera moría
+  con un error de
+  [`data.frame()`](https://rdrr.io/r/base/data.frame.html) que no
+  nombraba ni la columna ni la tabla —o, sin `referencia`, perfilaba
+  **cero** tablas sin abortar—, y eso contradice la decisión de que ante
+  un fallo parcial se devuelve lo medido con su alcance declarado.
 
 - muestra:
 

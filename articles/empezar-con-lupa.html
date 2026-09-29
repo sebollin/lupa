@@ -146,17 +146,28 @@ presume que examinar equivale a medir.</p>
 <span><span class="co">#&gt;  componente-0008    Exactitud Correctitud sintáctica                     Formato</span></span>
 <span><span class="co">#&gt;  componente-0009    Exactitud Correctitud sintáctica                     Formato</span></span>
 <span><span class="co">#&gt;  componente-0010 Consistencia  Integridad de dominio ValoresPosiblesPorExtension</span></span>
-<span><span class="co">#&gt;          objeto     valor orientacion agregacion umbral universo</span></span>
-<span><span class="co">#&gt;         (tabla) 0.1538462     defecto      ratio     NA    filas</span></span>
-<span><span class="co">#&gt;           canal 1.0000000 conformidad      ratio     NA   celdas</span></span>
-<span><span class="co">#&gt;  codigo_usuario 1.0000000 conformidad      ratio     NA   celdas</span></span>
-<span><span class="co">#&gt;    fecha_evento 1.0000000 conformidad      ratio     NA   celdas</span></span>
-<span><span class="co">#&gt;           monto 1.0000000 conformidad      ratio     NA   celdas</span></span>
-<span><span class="co">#&gt;        contacto 0.8461538 conformidad      ratio     NA   celdas</span></span>
-<span><span class="co">#&gt;       id_evento 1.0000000 conformidad      ratio     NA   celdas</span></span>
-<span><span class="co">#&gt;         sistema 1.0000000 conformidad      ratio     NA   celdas</span></span>
-<span><span class="co">#&gt;            zona 1.0000000 conformidad      ratio     NA   celdas</span></span>
-<span><span class="co">#&gt;            zona 1.0000000 conformidad      ratio     NA   celdas</span></span>
+<span><span class="co">#&gt;  metrica_instanciada            entidad         objeto     valor orientacion agregacion</span></span>
+<span><span class="co">#&gt;      sugerencia-0001 entrega de ejemplo        (tabla) 0.1538462     defecto      ratio</span></span>
+<span><span class="co">#&gt;      sugerencia-0002 entrega de ejemplo          canal 1.0000000 conformidad      ratio</span></span>
+<span><span class="co">#&gt;      sugerencia-0003 entrega de ejemplo codigo_usuario 1.0000000 conformidad      ratio</span></span>
+<span><span class="co">#&gt;      sugerencia-0004 entrega de ejemplo   fecha_evento 1.0000000 conformidad      ratio</span></span>
+<span><span class="co">#&gt;      sugerencia-0005 entrega de ejemplo          monto 1.0000000 conformidad      ratio</span></span>
+<span><span class="co">#&gt;      sugerencia-0006 entrega de ejemplo       contacto 0.8461538 conformidad      ratio</span></span>
+<span><span class="co">#&gt;      sugerencia-0007 entrega de ejemplo      id_evento 1.0000000 conformidad      ratio</span></span>
+<span><span class="co">#&gt;      sugerencia-0008 entrega de ejemplo        sistema 1.0000000 conformidad      ratio</span></span>
+<span><span class="co">#&gt;      sugerencia-0009 entrega de ejemplo           zona 1.0000000 conformidad      ratio</span></span>
+<span><span class="co">#&gt;      sugerencia-0010 entrega de ejemplo           zona 1.0000000 conformidad      ratio</span></span>
+<span><span class="co">#&gt;  umbral universo</span></span>
+<span><span class="co">#&gt;      NA    filas</span></span>
+<span><span class="co">#&gt;      NA   celdas</span></span>
+<span><span class="co">#&gt;      NA   celdas</span></span>
+<span><span class="co">#&gt;      NA   celdas</span></span>
+<span><span class="co">#&gt;      NA   celdas</span></span>
+<span><span class="co">#&gt;      NA   celdas</span></span>
+<span><span class="co">#&gt;      NA   celdas</span></span>
+<span><span class="co">#&gt;      NA   celdas</span></span>
+<span><span class="co">#&gt;      NA   celdas</span></span>
+<span><span class="co">#&gt;      NA   celdas</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; ── <span style="font-weight: bold;">Alcance del marco</span> ──</span></span>
 <span><span class="co">#&gt; </span></span>
@@ -600,7 +611,7 @@ temporal y luego los retira.</p>
 <span>  titulo <span class="op">=</span> <span class="st">"Calidad de la entrega de ejemplo"</span></span>
 <span><span class="op">)</span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/base/basename.html" class="external-link">basename</a></span><span class="op">(</span><span class="va">archivo</span><span class="op">)</span></span>
-<span><span class="co">#&gt; [1] "file22804e88b7cc.html"</span></span>
+<span><span class="co">#&gt; [1] "file22c0d9bfc51.html"</span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/base/unlink.html" class="external-link">unlink</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="va">archivo</span>, <span class="va">archivo_rds</span><span class="op">)</span><span class="op">)</span></span></code></pre></div>
 <p>Para profundizar en la arquitectura consulte
 <code><a href="../articles/definir-la-calidad.html">vignette("definir-la-calidad")</a></code>; para revisar decisiones de

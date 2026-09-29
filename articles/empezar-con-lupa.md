@@ -85,17 +85,28 @@ analisis$tablero
 #>  componente-0008    Exactitud Correctitud sintáctica                     Formato
 #>  componente-0009    Exactitud Correctitud sintáctica                     Formato
 #>  componente-0010 Consistencia  Integridad de dominio ValoresPosiblesPorExtension
-#>          objeto     valor orientacion agregacion umbral universo
-#>         (tabla) 0.1538462     defecto      ratio     NA    filas
-#>           canal 1.0000000 conformidad      ratio     NA   celdas
-#>  codigo_usuario 1.0000000 conformidad      ratio     NA   celdas
-#>    fecha_evento 1.0000000 conformidad      ratio     NA   celdas
-#>           monto 1.0000000 conformidad      ratio     NA   celdas
-#>        contacto 0.8461538 conformidad      ratio     NA   celdas
-#>       id_evento 1.0000000 conformidad      ratio     NA   celdas
-#>         sistema 1.0000000 conformidad      ratio     NA   celdas
-#>            zona 1.0000000 conformidad      ratio     NA   celdas
-#>            zona 1.0000000 conformidad      ratio     NA   celdas
+#>  metrica_instanciada            entidad         objeto     valor orientacion agregacion
+#>      sugerencia-0001 entrega de ejemplo        (tabla) 0.1538462     defecto      ratio
+#>      sugerencia-0002 entrega de ejemplo          canal 1.0000000 conformidad      ratio
+#>      sugerencia-0003 entrega de ejemplo codigo_usuario 1.0000000 conformidad      ratio
+#>      sugerencia-0004 entrega de ejemplo   fecha_evento 1.0000000 conformidad      ratio
+#>      sugerencia-0005 entrega de ejemplo          monto 1.0000000 conformidad      ratio
+#>      sugerencia-0006 entrega de ejemplo       contacto 0.8461538 conformidad      ratio
+#>      sugerencia-0007 entrega de ejemplo      id_evento 1.0000000 conformidad      ratio
+#>      sugerencia-0008 entrega de ejemplo        sistema 1.0000000 conformidad      ratio
+#>      sugerencia-0009 entrega de ejemplo           zona 1.0000000 conformidad      ratio
+#>      sugerencia-0010 entrega de ejemplo           zona 1.0000000 conformidad      ratio
+#>  umbral universo
+#>      NA    filas
+#>      NA   celdas
+#>      NA   celdas
+#>      NA   celdas
+#>      NA   celdas
+#>      NA   celdas
+#>      NA   celdas
+#>      NA   celdas
+#>      NA   celdas
+#>      NA   celdas
 #> 
 #> ── Alcance del marco ──
 #> 
@@ -573,7 +584,7 @@ archivo <- reportar(
   titulo = "Calidad de la entrega de ejemplo"
 )
 basename(archivo)
-#> [1] "file22804e88b7cc.html"
+#> [1] "file22c0d9bfc51.html"
 unlink(c(archivo, archivo_rds))
 ```
 

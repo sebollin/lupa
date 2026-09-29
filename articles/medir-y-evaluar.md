@@ -183,12 +183,12 @@ indice_sin_pesos <- indice_calidad(tablero)
 indice_sin_pesos
 #> 
 #> ── Tablero de calidad ────────────────────────────────────────────────────────────────────
-#>       componente   dimension         factor          metrica  objeto valor orientacion
-#>  componente-0001 Completitud       Densidad           NoNulo  codigo  0.75 conformidad
-#>  componente-0002    Unicidad No-duplicación EntidadDuplicada (tabla)  0.50     defecto
-#>  agregacion umbral universo
-#>       ratio     NA   celdas
-#>       ratio     NA    filas
+#>       componente   dimension         factor          metrica     metrica_instanciada
+#>  componente-0001 Completitud       Densidad           NoNulo    NoNulo@padron.codigo
+#>  componente-0002    Unicidad No-duplicación EntidadDuplicada EntidadDuplicada@padron
+#>  entidad  objeto valor orientacion agregacion umbral universo
+#>   padron  codigo  0.75 conformidad      ratio     NA   celdas
+#>   padron (tabla)  0.50     defecto      ratio     NA    filas
 #> 
 #> ── Alcance del marco ──
 #> 
@@ -215,12 +215,14 @@ indice
 #>  Completitud  0.75  0.6   0.45 un componente; sin paso intermedio
 #>     Unicidad  0.50  0.4   0.20 un componente; sin paso intermedio
 #> ── Componentes de defecto invertidos ──
-#>       componente dimension         factor          metrica  objeto valor orientacion
-#>  componente-0002  Unicidad No-duplicación EntidadDuplicada (tabla)   0.5     defecto
-#>  agregacion umbral universo transformacion valor_indice peso_interno
-#>       ratio     NA    filas      1 - valor          0.5            1
+#>       componente dimension         factor          metrica     metrica_instanciada
+#>  componente-0002  Unicidad No-duplicación EntidadDuplicada EntidadDuplicada@padron
+#>  entidad  objeto valor orientacion agregacion umbral universo transformacion valor_indice
+#>   padron (tabla)   0.5     defecto      ratio     NA    filas      1 - valor          0.5
+#>  peso_interno
+#>             1
 #> ℹ Dentro de cada dimensión se usa un solo componente o los pesos_internos declarados; entre dimensiones se usan `pesos`.
-#> ! Los componentes salen de universos distintos (por ejemplo, celdas, valores con formato reconocible y filas). El índice sólo los combina porque quien lo solicitó declaró los pesos.
+#> ! Los componentes salen de 2 universos distintos, así que el índice combina unidades que no son comparables y sólo lo hace porque quien lo solicitó declaró los pesos. Por universo: celdas: componente-0001; filas: componente-0002.
 indice$cobertura
 #>   factores_marco factores_en_indice                                          factores
 #> 1              3                  2 Completitud / Densidad; Unicidad / No-duplicación

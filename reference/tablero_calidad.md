@@ -67,6 +67,19 @@ nombra los pares medidos que ese marco no declara.
 
 ## Details
 
+**La identidad de cada celda son tres columnas: `metrica_instanciada`,
+`entidad` y `objeto`.** No alcanza con `metrica` y `objeto`, porque
+`metrica` es el nombre genérico: dos tablas con una columna del mismo
+nombre, o dos especializaciones de la misma genérica sobre la misma
+columna, publicaban dos filas con la **misma** identidad y valores
+distintos, y rehacer la celda con las claves publicadas mezclaba las
+medidas de las dos sin reproducir ninguna. `metrica_instanciada` sola
+tampoco alcanza: sobre un agregado vale `agregada:<funcion>:<metrica>`
+para todas las filas, y ahí la entidad es lo único que separa. Cuando
+hay varias entidades, `objeto` además nombra la tabla
+—`cod (tabla: t1)`—, en el mismo idioma con el que la granularidad de
+tabla ya publicaba `(tabla: t1)`.
+
 El objeto conserva la cobertura completa del marco: factores medidos,
 sin métrica declarada, no aplicables y fuera de alcance.
 [`print()`](https://rdrr.io/r/base/print.html) muestra ambos elementos
@@ -97,10 +110,10 @@ medidas <- medir(modelo(instancia), data.frame(edad = c(20, NA, 35)))
 tablero_calidad(medidas)
 #> 
 #> ── Tablero de calidad ──────────────────────────────────────────────────────────
-#>       componente   dimension   factor metrica objeto     valor orientacion
-#>  componente-0001 Completitud Densidad  NoNulo   edad 0.6666667 conformidad
-#>  agregacion umbral universo
-#>       ratio     NA   celdas
+#>       componente   dimension   factor metrica  metrica_instanciada  entidad
+#>  componente-0001 Completitud Densidad  NoNulo NoNulo@personas.edad personas
+#>  objeto     valor orientacion agregacion umbral universo
+#>    edad 0.6666667 conformidad      ratio     NA   celdas
 #> 
 #> ── Alcance del marco ──
 #> 

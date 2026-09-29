@@ -112,7 +112,18 @@ corrida.</p></dd>
     </div>
     <div class="section level2">
     <h2 id="details">Details<a class="anchor" aria-label="anchor" href="#details"></a></h2>
-    <p>El objeto conserva la cobertura completa del marco: factores medidos, sin
+    <p><strong>La identidad de cada celda son tres columnas: <code>metrica_instanciada</code>,
+<code>entidad</code> y <code>objeto</code>.</strong> No alcanza con <code>metrica</code> y <code>objeto</code>, porque <code>metrica</code>
+es el nombre genérico: dos tablas con una columna del mismo nombre, o dos
+especializaciones de la misma genérica sobre la misma columna, publicaban dos
+filas con la <strong>misma</strong> identidad y valores distintos, y rehacer la celda con
+las claves publicadas mezclaba las medidas de las dos sin reproducir ninguna.
+<code>metrica_instanciada</code> sola tampoco alcanza: sobre un agregado vale
+<code>agregada:&lt;funcion&gt;:&lt;metrica&gt;</code> para todas las filas, y ahí la entidad es lo
+único que separa. Cuando hay varias entidades, <code>objeto</code> además nombra la
+tabla —<code>cod (tabla: t1)</code>—, en el mismo idioma con el que la granularidad de
+tabla ya publicaba <code>(tabla: t1)</code>.</p>
+<p>El objeto conserva la cobertura completa del marco: factores medidos, sin
 métrica declarada, no aplicables y fuera de alcance. <code><a href="https://rdrr.io/r/base/print.html" class="external-link">print()</a></code> muestra
 ambos elementos para que unas pocas filas nunca se lean como cobertura total.</p>
 <p>Esa cobertura se cuenta sobre los factores <strong>del marco</strong>, así que una medida
@@ -137,10 +148,10 @@ casillas, y el atributo <code>pares_fuera_del_marco</code> los nombra.</p>
 <span class="r-in"><span><span class="fu">tablero_calidad</span><span class="op">(</span><span class="va">medidas</span><span class="op">)</span></span></span>
 <span class="r-msg co"><span class="r-pr">#&gt;</span> </span>
 <span class="r-msg co"><span class="r-pr">#&gt;</span> <span style="color: #00BBBB;">──</span> <span style="font-weight: bold;">Tablero de calidad</span> <span style="color: #00BBBB;">──────────────────────────────────────────────────────────</span></span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>       componente   dimension   factor metrica objeto     valor orientacion</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>  componente-0001 Completitud Densidad  NoNulo   edad 0.6666667 conformidad</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>  agregacion umbral universo</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>       ratio     NA   celdas</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>       componente   dimension   factor metrica  metrica_instanciada  entidad</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>  componente-0001 Completitud Densidad  NoNulo NoNulo@personas.edad personas</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>  objeto     valor orientacion agregacion umbral universo</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>    edad 0.6666667 conformidad      ratio     NA   celdas</span>
 <span class="r-msg co"><span class="r-pr">#&gt;</span> </span>
 <span class="r-msg co"><span class="r-pr">#&gt;</span> ── <span style="font-weight: bold;">Alcance del marco</span> ──</span>
 <span class="r-msg co"><span class="r-pr">#&gt;</span> </span>

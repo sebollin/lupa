@@ -256,30 +256,30 @@ resultado
 #>  componente-0009    Exactitud Correctitud sintáctica
 #>  componente-0010    Exactitud Correctitud sintáctica
 #>  componente-0011 Consistencia  Integridad de dominio
-#>                      metrica           objeto     valor orientacion agregacion
-#>             EntidadDuplicada          (tabla) 0.1538462     defecto      ratio
-#>                       NoNulo           cedula 1.0000000 conformidad      ratio
-#>                       NoNulo fecha_nacimiento 1.0000000 conformidad      ratio
-#>                       NoNulo          ingreso 1.0000000 conformidad      ratio
-#>                       NoNulo             sexo 1.0000000 conformidad      ratio
-#>                      Formato           correo 0.8461538 conformidad      ratio
-#>                      Formato     departamento 0.9230769 conformidad      ratio
-#>                      Formato       id_tramite 1.0000000 conformidad      ratio
-#>                      Formato             pais 1.0000000 conformidad      ratio
-#>                      Formato             sexo 0.8461538 conformidad      ratio
-#>  ValoresPosiblesPorExtension             sexo 1.0000000 conformidad      ratio
-#>  umbral universo
-#>      NA    filas
-#>      NA   celdas
-#>      NA   celdas
-#>      NA   celdas
-#>      NA   celdas
-#>      NA   celdas
-#>      NA   celdas
-#>      NA   celdas
-#>      NA   celdas
-#>      NA   celdas
-#>      NA   celdas
+#>                      metrica metrica_instanciada               entidad
+#>             EntidadDuplicada     sugerencia-0001 datos_administrativos
+#>                       NoNulo     sugerencia-0002 datos_administrativos
+#>                       NoNulo     sugerencia-0003 datos_administrativos
+#>                       NoNulo     sugerencia-0004 datos_administrativos
+#>                       NoNulo     sugerencia-0005 datos_administrativos
+#>                      Formato     sugerencia-0006 datos_administrativos
+#>                      Formato     sugerencia-0007 datos_administrativos
+#>                      Formato     sugerencia-0008 datos_administrativos
+#>                      Formato     sugerencia-0009 datos_administrativos
+#>                      Formato     sugerencia-0010 datos_administrativos
+#>  ValoresPosiblesPorExtension     sugerencia-0011 datos_administrativos
+#>            objeto     valor orientacion agregacion umbral universo
+#>           (tabla) 0.1538462     defecto      ratio     NA    filas
+#>            cedula 1.0000000 conformidad      ratio     NA   celdas
+#>  fecha_nacimiento 1.0000000 conformidad      ratio     NA   celdas
+#>           ingreso 1.0000000 conformidad      ratio     NA   celdas
+#>              sexo 1.0000000 conformidad      ratio     NA   celdas
+#>            correo 0.8461538 conformidad      ratio     NA   celdas
+#>      departamento 0.9230769 conformidad      ratio     NA   celdas
+#>        id_tramite 1.0000000 conformidad      ratio     NA   celdas
+#>              pais 1.0000000 conformidad      ratio     NA   celdas
+#>              sexo 0.8461538 conformidad      ratio     NA   celdas
+#>              sexo 1.0000000 conformidad      ratio     NA   celdas
 #> 
 #> ── Alcance del marco ──
 #> 

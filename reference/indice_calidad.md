@@ -47,6 +47,17 @@ No existe un promedio interno por omisión. El resultado conserva el
 tablero, ambas capas de pesos, las inversiones, las exclusiones, los
 universos y la cobertura del marco.
 
+`advertencia_universos` **se calcula de los universos que el propio
+objeto publica**, no es un texto fijo. Con un solo universo lo nombra y
+dice que las unidades son comparables; con varios dice cuántos son y
+nombra, por universo, qué componentes caen en cada uno; sin componentes
+no afirma nada sobre universos. Antes era una sola frase idéntica en
+toda corrida, que afirmaba «salen de universos distintos» incluso cuando
+los tres componentes publicaban `universo = "celdas"` —una afirmación
+que el mismo objeto desmentía en su columna `universo`— y que no
+nombraba nunca ningún componente, que es justamente lo que prometía
+declarar.
+
 ## See also
 
 [`tablero_calidad()`](https://sebollin.github.io/lupa/reference/tablero_calidad.md)
@@ -63,12 +74,15 @@ medidas <- medir(modelo(instancias), data.frame(codigo = c("A", "B", "B")))
 indice_calidad(medidas)
 #> 
 #> ── Tablero de calidad ──────────────────────────────────────────────────────────
-#>       componente   dimension         factor          metrica  objeto     valor
-#>  componente-0001 Completitud       Densidad           NoNulo  codigo 1.0000000
-#>  componente-0002    Unicidad No-duplicación EntidadDuplicada (tabla) 0.6666667
-#>  orientacion agregacion umbral universo
-#>  conformidad      ratio     NA   celdas
-#>      defecto      ratio     NA    filas
+#>       componente   dimension         factor          metrica
+#>  componente-0001 Completitud       Densidad           NoNulo
+#>  componente-0002    Unicidad No-duplicación EntidadDuplicada
+#>      metrica_instanciada entidad  objeto     valor orientacion agregacion
+#>     NoNulo@padron.codigo  padron  codigo 1.0000000 conformidad      ratio
+#>  EntidadDuplicada@padron  padron (tabla) 0.6666667     defecto      ratio
+#>  umbral universo
+#>      NA   celdas
+#>      NA    filas
 #> 
 #> ── Alcance del marco ──
 #> 
@@ -97,12 +111,12 @@ indice_calidad(
 #>     Unicidad 0.3333333  0.4 0.1333333 un componente; sin paso intermedio
 #> ── Componentes de defecto invertidos ──
 #> 
-#>       componente dimension         factor          metrica  objeto     valor
-#>  componente-0002  Unicidad No-duplicación EntidadDuplicada (tabla) 0.6666667
-#>  orientacion agregacion umbral universo transformacion valor_indice
-#>      defecto      ratio     NA    filas      1 - valor    0.3333333
-#>  peso_interno
-#>             1
+#>       componente dimension         factor          metrica
+#>  componente-0002  Unicidad No-duplicación EntidadDuplicada
+#>      metrica_instanciada entidad  objeto     valor orientacion agregacion
+#>  EntidadDuplicada@padron  padron (tabla) 0.6666667     defecto      ratio
+#>  umbral universo transformacion valor_indice peso_interno
+#>      NA    filas      1 - valor    0.3333333            1
 #> ℹ Dentro de cada dimensión se usa un solo componente o los pesos_internos declarados; entre dimensiones se usan `pesos`.
-#> ! Los componentes salen de universos distintos (por ejemplo, celdas, valores con formato reconocible y filas). El índice sólo los combina porque quien lo solicitó declaró los pesos.
+#> ! Los componentes salen de 2 universos distintos, así que el índice combina unidades que no son comparables y sólo lo hace porque quien lo solicitó declaró los pesos. Por universo: celdas: componente-0001; filas: componente-0002.
 ```

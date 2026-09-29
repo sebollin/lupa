@@ -80,7 +80,14 @@ declaración válida de «ningún par».</p></dd>
 
 
 <dt id="arg-muestra">muestra<a class="anchor" aria-label="anchor" href="#arg-muestra"></a></dt>
-<dd><p>Filas traídas por tabla para comparar.</p></dd>
+<dd><p>Filas traídas por tabla para comparar, y <strong>el mismo tope con
+que se calcula cada cobertura</strong>: se reenvía a <code><a href="detectar_relaciones.html">detectar_relaciones()</a></code>. Sin
+reenviarlo valía el tope por omisión de esa función, así que con
+<code>muestra &gt; 1e5</code> el objeto publicaba como evidencia las filas leídas y
+calculaba la cobertura sobre un submuestreo que no declaraba en ningún
+campo: la fila llegaba a contradecirse a sí misma, con <code>n_valores_comunes</code>
+contado sobre la lectura entera junto a una cobertura calculada sobre la
+mitad.</p></dd>
 
 
 <dt id="arg-umbral-cobertura">umbral_cobertura<a class="anchor" aria-label="anchor" href="#arg-umbral-cobertura"></a></dt>
@@ -139,6 +146,21 @@ columnas de orden hace la lectura repetible.</p>
 declara ese alcance: una relación candidata sobre una muestra <strong>no es una
 clave foránea comprobada</strong>, es un indicio que hay que confirmar contra el
 diccionario de datos.</p>
+<p><strong>El alcance se declara por par y en la fila.</strong> Cada relación publica
+<code>filas_leidas_1</code>/<code>filas_leidas_2</code> —cuántas se compararon—, y además
+<code>filas_totales_1</code>/<code>filas_totales_2</code> y <code>muestreado_1</code>/<code>muestreado_2</code>: cuando la
+lectura fue completa, el total de la tabla es exacto; cuando quedó truncada,
+el total va <code>NA</code> y <code>muestreado</code> vale <code>TRUE</code>, porque lo único que se sabe es
+que hay más filas que el tope. Publicar el tope como si fuera el total sería
+decir que se leyó todo. Para saberlo se pide <strong>una fila más</strong> que el tope, que
+cuesta mucho menos que un <code>COUNT(*)</code> por tabla y contesta exacto; esa fila de
+sobra no viaja al resultado.</p>
+<p>Antes, lo único que sobrevivía eran los atributos de <code><a href="detectar_relaciones.html">detectar_relaciones()</a></code>
+del <strong>primer</strong> par publicado —<code><a href="https://rdrr.io/r/base/cbind.html" class="external-link">rbind()</a></code> conserva los del primer argumento—,
+con etiquetas <code>tabla1</code>/<code>tabla2</code> que no nombran a ningún par: con dos pares
+decían <code>muestreado = FALSE</code> mientras el segundo había leído 10.000 filas de
+20.000. Esos atributos ya no viajan en <code>relaciones</code>; lo que decían vive en las
+columnas, una por par, y el conteo de pares en <code>meta</code>, que cuenta todos.</p>
 <p>Las columnas candidatas se podan antes de materializar cada comparación. Las
 podas quedan declaradas en <code>cobertura_podas</code>, con su motivo y conteo.
 La poda cierta por rangos usa <code>MIN</code> y <code>MAX</code> sobre el universo completo de

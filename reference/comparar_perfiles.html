@@ -111,6 +111,12 @@ persistencia propia del paquete —<code><a href="guardar_historico.html">guarda
 <code><a href="persistir_analisis.html">guardar_analisis()</a></code>— ya lo usa.
 Las claves internas que agrupan hallazgos también se normalizan por bytes;
 por eso dos perfiles idénticos no emiten avisos espurios bajo C.</p>
+<p>Entre las propiedades comparadas está la <strong>unidad</strong> en la que la columna
+publica sus cifras, con la misma severidad que un cambio de tipo: dos entregas
+con los mismos valores y la unidad cambiada de <code>m</code> a <code>km</code> son un cambio real
+—la cifra dejó de significar lo mismo— y antes devolvían cero filas. Un perfil
+guardado antes de que ese campo existiera no hace mentir la comparación: esa
+parte se declara <strong>no comparable</strong>, como el resto de los campos ausentes.</p>
 <p>Las columnas que aparecen o desaparecen generan cambios estructurales de
 severidad <code>error</code>, pero no impiden comparar las columnas compartidas. Un
 hallazgo de una columna retirada no se presenta como resuelto.</p>

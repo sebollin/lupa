@@ -237,12 +237,12 @@ tablero.</p>
 <span><span class="va">indice_sin_pesos</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; <span style="color: #00BBBB;">──</span> <span style="font-weight: bold;">Tablero de calidad</span> <span style="color: #00BBBB;">────────────────────────────────────────────────────────────────────</span></span></span>
-<span><span class="co">#&gt;       componente   dimension         factor          metrica  objeto valor orientacion</span></span>
-<span><span class="co">#&gt;  componente-0001 Completitud       Densidad           NoNulo  codigo  0.75 conformidad</span></span>
-<span><span class="co">#&gt;  componente-0002    Unicidad No-duplicación EntidadDuplicada (tabla)  0.50     defecto</span></span>
-<span><span class="co">#&gt;  agregacion umbral universo</span></span>
-<span><span class="co">#&gt;       ratio     NA   celdas</span></span>
-<span><span class="co">#&gt;       ratio     NA    filas</span></span>
+<span><span class="co">#&gt;       componente   dimension         factor          metrica     metrica_instanciada</span></span>
+<span><span class="co">#&gt;  componente-0001 Completitud       Densidad           NoNulo    NoNulo@padron.codigo</span></span>
+<span><span class="co">#&gt;  componente-0002    Unicidad No-duplicación EntidadDuplicada EntidadDuplicada@padron</span></span>
+<span><span class="co">#&gt;  entidad  objeto valor orientacion agregacion umbral universo</span></span>
+<span><span class="co">#&gt;   padron  codigo  0.75 conformidad      ratio     NA   celdas</span></span>
+<span><span class="co">#&gt;   padron (tabla)  0.50     defecto      ratio     NA    filas</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; ── <span style="font-weight: bold;">Alcance del marco</span> ──</span></span>
 <span><span class="co">#&gt; </span></span>
@@ -269,12 +269,14 @@ tablero.</p>
 <span><span class="co">#&gt;  Completitud  0.75  0.6   0.45 un componente; sin paso intermedio</span></span>
 <span><span class="co">#&gt;     Unicidad  0.50  0.4   0.20 un componente; sin paso intermedio</span></span>
 <span><span class="co">#&gt; ── <span style="font-weight: bold;">Componentes de defecto invertidos</span> ──</span></span>
-<span><span class="co">#&gt;       componente dimension         factor          metrica  objeto valor orientacion</span></span>
-<span><span class="co">#&gt;  componente-0002  Unicidad No-duplicación EntidadDuplicada (tabla)   0.5     defecto</span></span>
-<span><span class="co">#&gt;  agregacion umbral universo transformacion valor_indice peso_interno</span></span>
-<span><span class="co">#&gt;       ratio     NA    filas      1 - valor          0.5            1</span></span>
+<span><span class="co">#&gt;       componente dimension         factor          metrica     metrica_instanciada</span></span>
+<span><span class="co">#&gt;  componente-0002  Unicidad No-duplicación EntidadDuplicada EntidadDuplicada@padron</span></span>
+<span><span class="co">#&gt;  entidad  objeto valor orientacion agregacion umbral universo transformacion valor_indice</span></span>
+<span><span class="co">#&gt;   padron (tabla)   0.5     defecto      ratio     NA    filas      1 - valor          0.5</span></span>
+<span><span class="co">#&gt;  peso_interno</span></span>
+<span><span class="co">#&gt;             1</span></span>
 <span><span class="co">#&gt; <span style="color: #00BBBB;">ℹ</span> Dentro de cada dimensión se usa un solo componente o los pesos_internos declarados; entre dimensiones se usan `pesos`.</span></span>
-<span><span class="co">#&gt; <span style="color: #BBBB00;">!</span> Los componentes salen de universos distintos (por ejemplo, celdas, valores con formato reconocible y filas). El índice sólo los combina porque quien lo solicitó declaró los pesos.</span></span>
+<span><span class="co">#&gt; <span style="color: #BBBB00;">!</span> Los componentes salen de 2 universos distintos, así que el índice combina unidades que no son comparables y sólo lo hace porque quien lo solicitó declaró los pesos. Por universo: celdas: componente-0001; filas: componente-0002.</span></span>
 <span><span class="va">indice</span><span class="op">$</span><span class="va">cobertura</span></span>
 <span><span class="co">#&gt;   factores_marco factores_en_indice                                          factores</span></span>
 <span><span class="co">#&gt; 1              3                  2 Completitud / Densidad; Unicidad / No-duplicación</span></span>

@@ -91,6 +91,15 @@ declarar una ponderación completa que sume uno dentro de esa dimensión.
 No existe un promedio interno por omisión. El resultado conserva el tablero,
 ambas capas de pesos, las inversiones, las exclusiones, los universos y la
 cobertura del marco.</p>
+<p><code>advertencia_universos</code> <strong>se calcula de los universos que el propio objeto
+publica</strong>, no es un texto fijo. Con un solo universo lo nombra y dice que las
+unidades son comparables; con varios dice cuántos son y nombra, por universo,
+qué componentes caen en cada uno; sin componentes no afirma nada sobre
+universos. Antes era una sola frase idéntica en toda corrida, que afirmaba
+«salen de universos distintos» incluso cuando los tres componentes publicaban
+<code>universo = "celdas"</code> —una afirmación que el mismo objeto desmentía en su
+columna <code>universo</code>— y que no nombraba nunca ningún componente, que es
+justamente lo que prometía declarar.</p>
     </div>
     <div class="section level2">
     <h2 id="see-also">See also<a class="anchor" aria-label="anchor" href="#see-also"></a></h2>
@@ -108,12 +117,15 @@ cobertura del marco.</p>
 <span class="r-in"><span><span class="fu">indice_calidad</span><span class="op">(</span><span class="va">medidas</span><span class="op">)</span></span></span>
 <span class="r-msg co"><span class="r-pr">#&gt;</span> </span>
 <span class="r-msg co"><span class="r-pr">#&gt;</span> <span style="color: #00BBBB;">──</span> <span style="font-weight: bold;">Tablero de calidad</span> <span style="color: #00BBBB;">──────────────────────────────────────────────────────────</span></span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>       componente   dimension         factor          metrica  objeto     valor</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>  componente-0001 Completitud       Densidad           NoNulo  codigo 1.0000000</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>  componente-0002    Unicidad No-duplicación EntidadDuplicada (tabla) 0.6666667</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>  orientacion agregacion umbral universo</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>  conformidad      ratio     NA   celdas</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>      defecto      ratio     NA    filas</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>       componente   dimension         factor          metrica</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>  componente-0001 Completitud       Densidad           NoNulo</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>  componente-0002    Unicidad No-duplicación EntidadDuplicada</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>      metrica_instanciada entidad  objeto     valor orientacion agregacion</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>     NoNulo@padron.codigo  padron  codigo 1.0000000 conformidad      ratio</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>  EntidadDuplicada@padron  padron (tabla) 0.6666667     defecto      ratio</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>  umbral universo</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>      NA   celdas</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>      NA    filas</span>
 <span class="r-msg co"><span class="r-pr">#&gt;</span> </span>
 <span class="r-msg co"><span class="r-pr">#&gt;</span> ── <span style="font-weight: bold;">Alcance del marco</span> ──</span>
 <span class="r-msg co"><span class="r-pr">#&gt;</span> </span>
@@ -142,14 +154,14 @@ cobertura del marco.</p>
 <span class="r-out co"><span class="r-pr">#&gt;</span>     Unicidad 0.3333333  0.4 0.1333333 un componente; sin paso intermedio</span>
 <span class="r-msg co"><span class="r-pr">#&gt;</span> ── <span style="font-weight: bold;">Componentes de defecto invertidos</span> ──</span>
 <span class="r-msg co"><span class="r-pr">#&gt;</span> </span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>       componente dimension         factor          metrica  objeto     valor</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>  componente-0002  Unicidad No-duplicación EntidadDuplicada (tabla) 0.6666667</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>  orientacion agregacion umbral universo transformacion valor_indice</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>      defecto      ratio     NA    filas      1 - valor    0.3333333</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>  peso_interno</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>             1</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>       componente dimension         factor          metrica</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>  componente-0002  Unicidad No-duplicación EntidadDuplicada</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>      metrica_instanciada entidad  objeto     valor orientacion agregacion</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>  EntidadDuplicada@padron  padron (tabla) 0.6666667     defecto      ratio</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>  umbral universo transformacion valor_indice peso_interno</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>      NA    filas      1 - valor    0.3333333            1</span>
 <span class="r-msg co"><span class="r-pr">#&gt;</span> <span style="color: #00BBBB;">ℹ</span> Dentro de cada dimensión se usa un solo componente o los pesos_internos declarados; entre dimensiones se usan `pesos`.</span>
-<span class="r-msg co"><span class="r-pr">#&gt;</span> <span style="color: #BBBB00;">!</span> Los componentes salen de universos distintos (por ejemplo, celdas, valores con formato reconocible y filas). El índice sólo los combina porque quien lo solicitó declaró los pesos.</span>
+<span class="r-msg co"><span class="r-pr">#&gt;</span> <span style="color: #BBBB00;">!</span> Los componentes salen de 2 universos distintos, así que el índice combina unidades que no son comparables y sólo lo hace porque quien lo solicitó declaró los pesos. Por universo: celdas: componente-0001; filas: componente-0002.</span>
 </code></pre></div>
     </div>
   </main><aside class="col-md-3"><nav id="toc" aria-label="Table of contents"><h2>On this page</h2>
