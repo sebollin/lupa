@@ -1050,7 +1050,23 @@ agregar <- function(medidas, destino,
       stop("`pesos` debe tener una entrada en [0, 1] por medida.", call. = FALSE)
     }
   }
+  # Por la via POSICIONAL -documentada: "sin nombres se leen por posicion"- no hay
+  # `partes_elegidas`, y la etiqueta caia al defecto `medidas$entidad`. Sobre un
+  # origen `instancia*`, donde la misma entidad ocupa varias filas, eso publicaba
+  # seis pesos con DOS nombres: `t1=0.1, t1=0.2, t1=0.3, t1=0.4, t3=0.6, t3=0.4`.
+  # Alinear por el nombre publicado -el unico camino que la promesa declara- daba
+  # 0,9 contra el 0,8 publicado, y `partes_con_peso_cero` nombraba una entidad que
+  # si habia aportado con sus otras filas.
+  #
+  # La etiqueta correcta es la misma que usa la via nombrada cuando los pesos son
+  # por objeto: `objeto_medible`, que es unico por fila. No se elige por defecto
+  # `entidad` porque la pregunta es "¿de que parte es este peso?", y con pesos por
+  # posicion la parte es la FILA.
   if (!exists("etiquetas_pesos", inherits = FALSE)) etiquetas_pesos <- NULL
+  if (!is.null(pesos) && is.null(etiquetas_pesos) &&
+      "objeto_medible" %in% names(medidas)) {
+    etiquetas_pesos <- as.character(medidas$objeto_medible)
+  }
   grupos <- .indices_grupos_agregacion(medidas, destino)
   if (funcion == "promedio_ponderado") {
     sumas <- vapply(grupos, function(i) sum(pesos[i]), numeric(1L))

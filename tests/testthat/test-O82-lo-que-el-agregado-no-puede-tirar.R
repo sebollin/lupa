@@ -330,3 +330,52 @@ test_that("con unidades distintas en un grupo el alcance declara y no suma", {
   expect_match(reexpresado$motivo, "celda")
   expect_match(reexpresado$motivo, "fila")
 })
+
+test_that("los pesos por posicion publican una etiqueta que vuelve a su parte", {
+  # La via posicional esta documentada -"sin nombres se leen por posicion"- y su
+  # etiqueta caia al defecto `medidas$entidad`. Sobre un origen `instancia*`, donde
+  # la misma entidad ocupa varias filas, eso publicaba seis pesos con DOS nombres,
+  # y alinear por el nombre publicado -el unico camino que la promesa declara- daba
+  # otro numero que el publicado.
+  nucleo <- metricas_nucleo()
+  no_nulo <- especializar(nucleo$NoNulo, nombre_especifico = "NoNuloO82p")
+  medidas <- medir(
+    modelo(list(
+      instanciar(no_nulo, "t1", "v"), instanciar(no_nulo, "t3", "v")
+    )),
+    list(t1 = data.frame(v = c(1, NA, 2, 3)), t3 = data.frame(v = c(4, NA))),
+    id_medicion = "o82pos"
+  )
+  por_fila <- agregar(medidas, "instanciaEntidad", "promedio")
+  expect_equal(nrow(por_fila), 6L)
+  # La entidad se repite: es justo lo que hacia inservible la etiqueta.
+  expect_equal(length(unique(as.character(por_fila$entidad))), 2L)
+
+  agregado <- agregar(
+    por_fila, "entidad", "promedio_ponderado",
+    pesos = c(0.1, 0.2, 0.3, 0.4, 0.6, 0.4)
+  )
+  pesos <- attr(agregado, "pesos_declarados", exact = TRUE)
+  # Una etiqueta por fila, todas distintas.
+  expect_length(pesos, 6L)
+  expect_equal(length(unique(names(pesos))), 6L)
+
+  # Y la prueba que importa: el numero se rehace con lo que el objeto publica.
+  rehecho <- tapply(
+    por_fila$resultado * pesos[as.character(por_fila$objeto_medible)],
+    as.character(por_fila$entidad), sum
+  )
+  esperado <- rehecho[as.character(agregado$entidad)]
+  expect_equal(unname(as.numeric(esperado)), agregado$resultado)
+
+  # El peso cero nombra la FILA que no aporto, no la entidad que si aporto con
+  # sus otras filas.
+  con_cero <- agregar(
+    por_fila, "entidad", "promedio_ponderado",
+    pesos = c(0, 0.25, 0.35, 0.4, 0.6, 0.4)
+  )
+  sin_peso <- attr(con_cero, "partes_con_peso_cero", exact = TRUE)
+  expect_length(sin_peso, 1L)
+  expect_false(identical(sin_peso, "t1"))
+  expect_true(sin_peso %in% as.character(por_fila$objeto_medible))
+})

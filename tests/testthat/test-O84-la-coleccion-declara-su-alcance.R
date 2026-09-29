@@ -263,3 +263,52 @@ test_that("el constructor y el adaptador derivan con la misma funcion", {
     lapply(declarada$tablas$referencia, identity)
   )
 })
+
+test_that("dos declaraciones que colapsan al mismo identificador se rechazan", {
+  # El identificador se publica como "la identidad de la tabla" y pegar las partes
+  # con `.` no es inyectivo: la tabla literal `m1.d` -declarada con `esquema = NA`,
+  # que es la forma documentada para nombres con puntos- y la tabla `d` del esquema
+  # `m1` dan la MISMA cadena. `perfilar_coleccion()` igual lee bien cada fila
+  # porque recorre por `referencia`; lo que queda ambiguo es todo lo que resuelve
+  # por identificador con `match()`, que se queda con el primero sin avisar.
+  con <- .o84_conexion()
+  on.exit(DBI::dbDisconnect(con), add = TRUE)
+  DBI::dbExecute(con, 'CREATE TABLE "m1.d" (id INTEGER)')
+  DBI::dbExecute(con, 'INSERT INTO "m1.d" VALUES (1),(2),(3)')
+  DBI::dbExecute(con, 'ATTACH DATABASE ":memory:" AS m1')
+  DBI::dbExecute(con, "CREATE TABLE m1.d (id INTEGER)")
+  DBI::dbExecute(con, "INSERT INTO m1.d VALUES (7),(8)")
+
+  declaradas <- data.frame(
+    esquema = c(NA, "m1"), tabla = c("m1.d", "d"), stringsAsFactors = FALSE
+  )
+  # El mensaje nombra las DOS declaraciones que chocan: sin eso, con veinte tablas
+  # no se sabe cual cambiar.
+  expect_error(coleccion(con, declaradas), "mismo identificador")
+  expect_error(coleccion(con, declaradas), "esquema `m1`")
+  expect_error(coleccion(con, declaradas), "tabla `m1.d`")
+
+  # Control: cada una por separado se declara sin problema. El formato del
+  # identificador no cambio; lo que se rechaza es tenerlas JUNTAS, que es donde la
+  # ambiguedad muerde.
+  expect_s3_class(
+    coleccion(con, data.frame(
+      esquema = NA, tabla = "m1.d", stringsAsFactors = FALSE
+    )),
+    "coleccion_lupa"
+  )
+  expect_s3_class(
+    coleccion(con, data.frame(
+      esquema = "m1", tabla = "d", stringsAsFactors = FALSE
+    )),
+    "coleccion_lupa"
+  )
+
+  # Y el control de que la guarda no rechaza lo normal.
+  DBI::dbWriteTable(con, "t1", data.frame(x = 1:2))
+  DBI::dbWriteTable(con, "t2", data.frame(x = 1:2))
+  normal <- coleccion(con, c("t1", "t2"))
+  expect_equal(
+    as.character(normal$tablas$identificador), c("t1", "t2")
+  )
+})

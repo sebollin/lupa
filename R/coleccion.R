@@ -508,6 +508,41 @@
       tablas$esquema[[i]], tablas$tabla[[i]], tablas$catalogo[[i]]
     )
   ))
+  # El identificador se publica como "la identidad de la tabla", y pegar las
+  # partes con `.` NO es inyectivo: la tabla literal `m1.d` -declarada con
+  # `esquema = NA`, que es la forma documentada para nombres con puntos- y la
+  # tabla `d` del esquema `m1` producen la MISMA cadena `m1.d`.
+  #
+  # `perfilar_coleccion()` igual lee bien cada fila, porque recorre por
+  # `referencia`; lo que queda ambiguo es todo lo que resuelve POR identificador
+  # con `match()`, que se queda con el primero y no avisa: la frontera de
+  # `agregar(destino = "coleccion")`, los pares de `relaciones_coleccion()` y la
+  # cobertura. Una de las dos tablas no tiene forma de ser nombrada.
+  #
+  # Se rechaza nombrando el choque, en vez de cambiar el formato del identificador
+  # -que es salida publicada- o de dejar la ambiguedad en silencio. Despues de la
+  # deduplicacion por `catalogo+esquema+tabla`, un identificador repetido significa
+  # siempre dos declaraciones DISTINTAS que colapsan a la misma identidad.
+  repetidos <- unique(
+    as.character(tablas$identificador)[duplicated(as.character(tablas$identificador))]
+  )
+  if (length(repetidos)) {
+    cuales <- which(as.character(tablas$identificador) %in% repetidos)
+    detalle <- paste0(
+      "`", as.character(tablas$identificador)[cuales], "` <- esquema ",
+      ifelse(is.na(tablas$esquema[cuales]), "NA",
+             paste0("`", tablas$esquema[cuales], "`")),
+      " + tabla `", tablas$tabla[cuales], "`",
+      collapse = "; "
+    )
+    stop(
+      "Dos tablas declaradas distintas producen el mismo identificador, asi que ",
+      "una no se podria nombrar: ", detalle,
+      ". Declare la que tiene el punto en el nombre con su esquema real, o ",
+      "renombre una de las dos en la base.",
+      call. = FALSE
+    )
+  }
   tablas
 }
 
@@ -2452,18 +2487,53 @@ relaciones_coleccion <- function(coleccion, pares, muestra = 1e4,
       } else list(),
       lecturas = bitacora,
       orden_declarado = orden,
-      estable = !is.null(orden),
-      nota_orden = if (is.null(orden)) {
-        paste(
-          "Sin `orden`, una lectura acotada devuelve un subconjunto arbitrario:",
-          "el resultado no es repetible entre corridas ni entre motores."
-        )
-      } else {
-        paste(
-          "Se declaro `orden`: la lectura es repetible mientras las columnas",
-          "de orden identifiquen las filas de forma unica."
-        )
-      },
+      # `estable` sale de la BITACORA -si cada lectura llevo `ORDER BY`- y no de
+      # si el argumento vino. Miraba `!is.null(orden)`, que es una pregunta
+      # distinta: medido con `orden = list(t11 = "id")` sobre dos tablas, la
+      # lectura de `t09` salia sin `ORDER BY` -la bitacora lo declaraba con
+      # `orden_declarado = FALSE`- y el objeto publicaba `estable = TRUE`. Y con
+      # `orden = list("id")` -una lista sin nombres- NINGUNA tabla recibia orden y
+      # `estable` seguia en `TRUE`. El objeto se contradecia a si mismo: el dato
+      # correcto ya estaba en la bitacora, dos campos mas arriba.
+      #
+      # Sin ninguna lectura exitosa no se afirma que sea repetible: no hay nada
+      # de lo que afirmarlo.
+      estable = local({
+        realizadas <- if (NROW(bitacora)) {
+          which(!is.na(bitacora$ok) & bitacora$ok)
+        } else integer()
+        length(realizadas) > 0L &&
+          all(bitacora$orden_declarado[realizadas])
+      }),
+      nota_orden = local({
+        realizadas <- if (NROW(bitacora)) {
+          which(!is.na(bitacora$ok) & bitacora$ok)
+        } else integer()
+        sin_orden <- realizadas[!bitacora$orden_declarado[realizadas]]
+        if (!length(realizadas)) {
+          "No hubo ninguna lectura, asi que no se afirma nada sobre su repetibilidad."
+        } else if (!length(sin_orden)) {
+          paste(
+            "Se declaro `orden` para todas las tablas leidas: la lectura es",
+            "repetible mientras las columnas de orden identifiquen las filas de",
+            "forma unica."
+          )
+        } else if (length(sin_orden) == length(realizadas)) {
+          paste(
+            "Ninguna lectura llevo `ORDER BY`, asi que una lectura acotada",
+            "devuelve un subconjunto arbitrario: el resultado no es repetible",
+            "entre corridas ni entre motores."
+          )
+        } else {
+          paste0(
+            "Solo parte de las tablas se leyo con `ORDER BY`. Sin orden, la ",
+            "lectura de ",
+            paste0("`", bitacora$tabla[sin_orden], "`", collapse = ", "),
+            " devuelve un subconjunto arbitrario, asi que el resultado no es ",
+            "repetible."
+          )
+        }
+      }),
       alcance = paste(
         "Cada par se comparo sobre una muestra de filas de cada tabla. Una",
         "relacion candidata sobre una muestra no es una clave foranea",
