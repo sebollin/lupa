@@ -781,7 +781,16 @@ puerta describe lo que tiene delante, y lo que tiene delante es distinto.</p>
 <code>maximo_fecha</code>, <code>media_fecha</code> y <code>mediana_fecha</code> en <code>NA</code>. No es una omisión:
 <code>23</code> puede ser 1923 o 2023, y elegir el siglo para calcular un rango sería
 inventarlo. El hallazgo <code>anio_de_dos_digitos</code> señala esas columnas, y el
-rango aparece una vez que el usuario resuelve la ambigüedad.</p>
+rango aparece una vez que el usuario resuelve la ambigüedad.
+Cuando no sobrevive ningún valor utilizable, el estado distingue <strong>dos
+afirmaciones que no son la misma</strong>: <code>"sin_valores"</code> dice que la columna no tenía
+ningún valor presente —vacía, o todo <code>NA</code>— y <code>"sin_valores_utilizables"</code> dice que
+sí los tenía y ninguno servía para el resumen. Una columna de treinta <code>Inf</code> es el
+segundo caso y no el primero: publica <code>n_faltantes = 0</code> y <code>n_distintos = 1</code>,
+así que decir «sin valores» de ella contradiría a su propia fila. La otra puerta
+del segundo caso son los centinelas que se llevan todos los valores. La
+presencia se define igual que en <code>n_faltantes</code>, que cuenta el <code>NaN</code> como
+ausente: una columna de treinta <code>NaN</code> es <code>"sin_valores"</code>.</p>
     </div>
     <div class="section level2">
     <h2 id="la-unidad-viaja-al-lado-de-la-cifra">La unidad viaja al lado de la cifra<a class="anchor" aria-label="anchor" href="#la-unidad-viaja-al-lado-de-la-cifra"></a></h2>
@@ -798,9 +807,13 @@ unidad <strong>declarada</strong> del dato.</p>
 idénticas: <code>units::set_units(c(1, 2, 3), "m")</code> y la misma en <code>"km"</code> dan las dos
 <code>media = 2</code> y <code>desvio = 1</code>, y un <code>Period</code> de dos días publicaba <code>172800</code> sin
 decir que eran segundos. Por clase:</p><ul><li><p><code>units</code> y <code>difftime</code>: la unidad declarada, en forma canónica (<code>km/h</code>, <code>m^2</code>,
-<code>kg*m/s^2</code>). <code>difftime</code> sigue absteniéndose del resumen cuantitativo, y su
-unidad se publica igual: abstenerse no es motivo para callar lo que la
-columna declara.</p></li>
+<code>kg*m/s^2</code>). <code>difftime</code> <strong>publica sus estadísticos en esa unidad</strong>: una
+columna de minutos publica <code>media = 75</code> con <code>unidad = "mins"</code>. Se abstuvo
+mientras no existía dónde publicar la unidad —un <code>75</code> sin decir de qué no es
+una medida—, y era el único que se abstenia: <code>Date</code> y <code>POSIXt</code> publican
+<code>desvio</code> en segundos desde antes. Los valores van en la unidad declarada por
+la columna, sin convertir a segundos: convertirlos publicaría un número que
+no está en la columna.</p></li>
 <li><p><code>Period</code>, <code>Duration</code>, <code>Date</code> y <code>POSIXt</code>: <code>"segundos"</code>, que es la unidad en la
 que sale <code>desvio</code> y que antes sólo estaba dicha en prosa.</p></li>
 <li><p>el resto: <code>NA</code>. El campo no inventa una unidad donde no hay ninguna.</p></li>

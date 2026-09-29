@@ -400,12 +400,17 @@ la conversión no puede leer y los centinelas que se declaran en
 deja de decir `"calculados"` y `cobertura_diagnosticos` recibe su fila.
 El desglose de los no finitos queda en `n_nan`, `n_infinito_positivo` y
 `n_infinito_negativo`, y si no sobrevive ningún valor utilizable el
-estado dice `"sin_valores"` en vez de afirmar que calculó algo —y lo
-dice igual en una columna `integer64` que en una de dobles—. La
-exclusión de los no finitos se declara **en cualquier clase**: una
-columna de fechas con un `Inf` publica `n_valores_excluidos_resumen = 1`
-y no lo cuenta entre las fechas resumidas. Y las longitudes de texto
-declaran su propio universo con `n_longitudes_resumidas`, porque
+estado lo dice en vez de afirmar que calculó algo, y **distingue dos
+casos que no son el mismo**: `"sin_valores"` cuando la columna no tenía
+ningún valor presente —vacía, o todo `NA`— y `"sin_valores_utilizables"`
+cuando sí los tenía y ninguno servía, como una columna de treinta `Inf`
+—que publica `n_faltantes = 0` y `n_distintos = 1`— o una donde los
+centinelas se llevaron todo. Lo dice igual en una columna `integer64`
+que en una de dobles. La exclusión de los no finitos se declara **en
+cualquier clase**: una columna de fechas con un `Inf` publica
+`n_valores_excluidos_resumen = 1` y no lo cuenta entre las fechas
+resumidas. Y las longitudes de texto declaran su propio universo con
+`n_longitudes_resumidas`, porque
 [`nchar()`](https://rdrr.io/r/base/nchar.html) no puede medir un valor
 cuyos bytes no son UTF-8 válido y ése queda fuera del promedio. Eso no
 depende de que haya muestreo. Por omisión, `muestra = 1e5` limita el

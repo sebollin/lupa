@@ -388,12 +388,17 @@ does, it says so: `n_valores_excluidos_resumen` counts them,
 `cobertura_diagnosticos` gets its row. The breakdown of the non-finite
 values stays in `n_nan`, `n_infinito_positivo` and
 `n_infinito_negativo`, and when no usable value survives the state says
-`"sin_valores"` instead of claiming it computed anything —and it says so
-for an `integer64` column just as for a double one—. The exclusion of
-non-finite values is declared **in every class**: a date column holding
-an `Inf` publishes `n_valores_excluidos_resumen = 1` and does not count
-it among the summarised dates. Text lengths declare their own universe
-through `n_longitudes_resumidas`, because
+so instead of claiming it computed anything, and it **tells two
+different cases apart**: `"sin_valores"` when the column held no present
+value at all —empty, or all `NA`— and `"sin_valores_utilizables"` when
+it did hold values and none of them was usable, as in a column of thirty
+`Inf` —which publishes `n_faltantes = 0` and `n_distintos = 1`— or one
+whose sentinels took every value. It says so for an `integer64` column
+just as for a double one. The exclusion of non-finite values is declared
+**in every class**: a date column holding an `Inf` publishes
+`n_valores_excluidos_resumen = 1` and does not count it among the
+summarised dates. Text lengths declare their own universe through
+`n_longitudes_resumidas`, because
 [`nchar()`](https://rdrr.io/r/base/nchar.html) cannot measure a value
 whose bytes are not valid UTF-8 and that one stays out of the average.
 None of that depends on sampling being on. By default, `muestra = 1e5`
