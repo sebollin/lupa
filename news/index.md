@@ -2,6 +2,30 @@
 
 ## lupa 0.1.0
 
+### La proteccion de datos personales enmascaraba nombres de columna
+
+- **Un nombre de columna ya no se enmascara, aunque un valor protegido
+  caiga dentro de el.** Lo encontro una evaluacion sobre una base real
+  de 4.244.471 filas: la proteccion reemplazaba el valor protegido en
+  TODA la salida, incluidos los campos que guardan nombres de columna,
+  asi que `fecha_nacimiento` salio publicada como
+  `fecha_[valor protegido]`. Las dos guardas que comparan los nombres
+  del perfil con los de los datos abortaban
+  [`planificar_limpieza()`](https://sebollin.github.io/lupa/reference/planificar_limpieza.md)
+  y
+  [`analizar()`](https://sebollin.github.io/lupa/reference/analizar.md),
+  y bastaba UN valor entre millones. El laboratorio no lo habia
+  reproducido: ninguna prueba ponia un valor personal que coincidiera
+  con un pedazo de un nombre.
+- **La proteccion va por campo, y el campo se reconoce por su
+  contenido.** No podia ser «proteger los nombres en todas partes»: en
+  el caso minimo que lo reproduce, el VALOR `"documento"` es igual al
+  NOMBRE de columna `documento`, y proteger el nombre en todos lados
+  dejaba de enmascarar la moda de esa columna y filtraba el valor. Un
+  campo es de nombres si todos sus valores son nombres de la entrada,
+  solos o unidos por los separadores del paquete; una lista de campos
+  escrita a mano se habria quedado corta con el primero que se agregara.
+
 ### La cifra que se rompio tres veces por ser una resta, y una identidad que se verifica
 
 - **«Se calculo sobre N valores» ahora se CUENTA donde se calcula el

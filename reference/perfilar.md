@@ -311,18 +311,31 @@ perfilar(
   atribuirse sí se enmascara en toda la salida: un hallazgo de filas
   duplicadas muestra filas enteras, y los componentes que describen la
   tabla —`general`, la cobertura, los formatos de fecha— no son de
-  ninguna columna en particular. Ese alcance tiene un **piso**: un valor
-  de una columna protegida que identifique —seis caracteres o más, el
-  mismo corte con el que la batería de fugas decide qué cuenta como
-  filtración— no se publica en ninguna parte, tenga o no columna a la
-  que atribuirse, y también en los campos numéricos. Sin ese piso, una
-  columna que el clasificador no marcó publicaba los documentos de la
-  protegida con sólo repetirlos: una copia con nombre neutro, un texto
-  libre que los contuviera, o los estadísticos de orden de una columna
-  clasificada con poder discriminante `debil`. El vocabulario corto no
-  entra en el piso: `"S/D"` sigue publicándose donde describe a una
-  columna que no es personal. El piso tiene **una excepción declarada**,
-  y es la única:
+  ninguna columna en particular. Los **nombres de columna** nunca se
+  enmascaran, aunque un valor protegido aparezca dentro de uno: un
+  nombre es estructura, existía antes y aparte del dato, y el paquete lo
+  necesita para cruzar el perfil con los datos. Se enmascaraban, y en
+  una base real `fecha_nacimiento` salió publicada como
+  `fecha_[valor protegido]`:
+  [`planificar_limpieza()`](https://sebollin.github.io/lupa/reference/planificar_limpieza.md)
+  y
+  [`analizar()`](https://sebollin.github.io/lupa/reference/analizar.md)
+  abortaban porque los nombres del perfil ya no coincidían con los de
+  los datos. Un campo se reconoce como de nombres por su **contenido**
+  —todos sus valores son nombres de la entrada, solos o unidos—, así que
+  la protección de los valores no se afloja: si un valor protegido es
+  igual a un nombre de columna, su moda sigue tapada. Ese alcance tiene
+  un **piso**: un valor de una columna protegida que identifique —seis
+  caracteres o más, el mismo corte con el que la batería de fugas decide
+  qué cuenta como filtración— no se publica en ninguna parte, tenga o no
+  columna a la que atribuirse, y también en los campos numéricos. Sin
+  ese piso, una columna que el clasificador no marcó publicaba los
+  documentos de la protegida con sólo repetirlos: una copia con nombre
+  neutro, un texto libre que los contuviera, o los estadísticos de orden
+  de una columna clasificada con poder discriminante `debil`. El
+  vocabulario corto no entra en el piso: `"S/D"` sigue publicándose
+  donde describe a una columna que no es personal. El piso tiene **una
+  excepción declarada**, y es la única:
   [`perfilar_por()`](https://sebollin.github.io/lupa/reference/perfilar_por.md)
   agrupando *por* una columna personal publica sus valores como
   etiquetas de grupo, porque la etiqueta es el eje del resultado y sin
