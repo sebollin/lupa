@@ -392,7 +392,8 @@ transiciones_granularidad <- function() {
 # no se midio. El peso de la tabla ausente desaparece en vez de manifestar la
 # falta de cobertura. Por eso la cobertura viaja pegada al numero, igual que en
 # indice_calidad().
-.cobertura_agregacion_coleccion <- function(frontera, entidades_medidas) {
+.cobertura_agregacion_coleccion <- function(frontera, entidades_medidas,
+                                            cobertura_metricas = NULL) {
   declaradas <- .identificadores_unicos(frontera$declaradas)
   medidas <- .identificadores_unicos(entidades_medidas)
   sin_medir <- .identificadores_setdiff(declaradas, medidas)
@@ -402,6 +403,31 @@ transiciones_granularidad <- function() {
   motivos <- unname(frontera$motivo_faltantes[indices_sin_medir])
   motivos[is.na(motivos)] <-
     "No hay una medida de esta tabla en la entrada; no se midio en este alcance."
+  # Con una frontera de `coleccion()` -una lista de nombres, sin perfil- el motivo
+  # era siempre el generico, y una tabla VACIA y una que no existe salian con la
+  # misma frase. Pero la medicion SI sabe por que no aporto una tabla que estaba en
+  # el modelo: lo dejo en `cobertura_metricas` -"la entidad `b` tiene cero filas"-,
+  # y ese atributo viaja hasta aca. Se usa donde el motivo es el generico, y solo
+  # el de la tabla que no aporto. Una tabla que no esta en el modelo sigue con el
+  # generico, que es cierto: la entrada no trae nada de ella y no se sabe mas.
+  generico <- c(
+    "No hay una medida de esta tabla en la entrada.",
+    "No hay una medida de esta tabla en la entrada; no se midio en este alcance."
+  )
+  if (inherits(cobertura_metricas, "data.frame") && nrow(cobertura_metricas) &&
+      all(c("entidad", "motivo") %in% names(cobertura_metricas))) {
+    for (i in which(motivos %in% generico)) {
+      fila <- .indice_identificador(
+        sin_medir[[i]], as.character(cobertura_metricas$entidad)
+      )
+      if (!is.na(fila)) {
+        motivos[[i]] <- paste0(
+          "Ninguna m\u00e9trica de esta tabla aport\u00f3 una medida. ",
+          as.character(cobertura_metricas$motivo[[fila]])
+        )
+      }
+    }
+  }
   list(
     coleccion = frontera$nombre,
     tablas_declaradas = length(declaradas),
@@ -1177,7 +1203,8 @@ agregar <- function(medidas, destino,
   )
   if (identical(destino, "coleccion")) {
     attr(resultado, "cobertura_coleccion") <- .cobertura_agregacion_coleccion(
-      coleccion, medidas$entidad
+      coleccion, medidas$entidad,
+      attr(medidas, "cobertura_metricas", exact = TRUE)
     )
   }
   if (identical(destino, "conjuntoColecciones")) {

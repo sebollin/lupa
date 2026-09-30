@@ -1240,6 +1240,21 @@ plus Cramér's V and eta squared, each row declaring its method and its
 assumption. Both are exported, so you can call them on their own without paying
 for the whole route.
 
+**What it costs on millions of rows.** `perfilar()` and `analizar()` work in
+memory, and on tables of millions of rows they are not a quick pass. These are
+measured reference data, **not a prediction** —a single, dated evaluation
+(2026-09-29) on production databases this repository cannot reproduce—: on two
+tables of between 3.5 and 4.5 million rows and about twenty columns,
+`perfilar()` took between 50 and 60 minutes and `analizar()` between 45 and 100,
+with a memory peak of about 74 GB on a 121 GB machine. That does not fit on an
+ordinary machine. At that scale, profile a sample of the table and call the
+pieces of `analizar()` you need on their own. [perfilar_dbi()] computes the
+aggregates inside the engine and brings back only a sample, but in that same
+evaluation, with its defaults, the server closed the connection on both tables;
+the cause is under diagnosis and, until it is known, it cannot be recommended
+at that scale. The sample `perfilar()` takes by itself is systematic and has no
+randomness, so the same profile is reproduced on the same data.
+
 ## 🚦 Severities and automation
 
 `severidad` is an **ordered factor**: `ok < sospechoso < error`.

@@ -448,8 +448,9 @@
 #'
 #' [medir()] hace cumplir el contrato: rechaza la salida sin esas columnas, con
 #' un `resultado` fuera de su tipo, con más de una observación para el mismo
-#' objeto, con una `entidad` que no está ligada a la instancia, o con `fila`
-#' ausente en una métrica por celda o por fila. Si el método **aborta**, en
+#' objeto, con una `entidad` que no está ligada a la instancia, con un
+#' `atributo` que no es una columna de las tablas que recibió el método, o con
+#' `fila` ausente en una métrica por celda o por fila. Si el método **aborta**, en
 #' cambio, la métrica queda `no_medible` en `cobertura_metricas` y las demás se
 #' miden igual.
 #'
@@ -1405,7 +1406,7 @@ metricas_nucleo <- function() {
   lapply(datos, .normalizar_columnas_texto)
 }
 
-.validar_salida_medicion <- function(salida, instancia) {
+.validar_salida_medicion <- function(salida, instancia, tablas = NULL) {
   requeridas <- c("resultado", "entidad", "atributo", "fila", "objeto")
   if (!inherits(salida, "data.frame") || !all(requeridas %in% names(salida))) {
     stop(
@@ -1449,12 +1450,11 @@ metricas_nucleo <- function() {
   # La parte SEMANTICA del contrato de `metodo` (`?modelo_calidad`), que hasta
   # aca solo se declaraba: un metodo que devolvia dos filas por celda publicaba
   # seis medidas para tres celdas, y `agregar(, "ratio")` daba 0,5 donde la
-  # respuesta es 0,667, sin ninguna senal. Se hacen cumplir las tres clausulas que
-  # un recorrido de la suite -650 llamadas, 44 metricas- mostro que ningun metodo
-  # del paquete viola: la entidad es una de las ligadas, una medida por celda o
-  # por fila dice que fila mide, y hay una sola observacion por objeto. La del
-  # atributo NO se exige: las metricas de vigencia publican la columna del
-  # contrato, que no esta entre los atributos ligados, y eso es correcto.
+  # respuesta es 0,667, sin ninguna senal. Se hacen cumplir las cuatro clausulas,
+  # y un recorrido de la suite -650 llamadas, 44 metricas- mostro que ningun
+  # metodo del paquete viola ninguna: la entidad es una de las ligadas, el
+  # atributo es una columna de lo que recibio, una medida por celda o por fila
+  # dice que fila mide, y hay una sola observacion por objeto.
   if (nrow(salida)) {
     entidades <- as.character(salida$entidad)
     ajenas <- is.na(entidades) | !.identificadores_en(entidades, instancia$entidad)
@@ -1474,6 +1474,31 @@ metricas_nucleo <- function() {
         " sin `fila`: cada una tiene que decir qu\u00e9 fila mide.",
         call. = FALSE
       )
+    }
+    # La cuarta clausula, el atributo. NO se compara contra `instancia$atributos`:
+    # las metricas de vigencia publican con razon la columna del contrato, que no
+    # esta ligada, y `CorrectitudSemDebil` publica `dni+nombre`. Se compara contra
+    # las COLUMNAS de las tablas que recibio el metodo, que es la pregunta que el
+    # contrato hace -"nombre de la columna"-: el metodo no puede haber medido una
+    # columna que no le llego. El valor entero se busca primero, porque un nombre
+    # de columna puede llevar un `+`.
+    if (!is.null(tablas)) {
+      columnas <- unlist(lapply(tablas, names), use.names = FALSE)
+      atributos <- unique(as.character(salida$atributo))
+      atributos <- atributos[!is.na(atributos)]
+      es_columna <- function(valor) {
+        if (!is.na(.indice_nombre(valor, columnas))) return(TRUE)
+        partes <- strsplit(valor, "+", fixed = TRUE)[[1L]]
+        length(partes) > 1L && !anyNA(.indice_nombre(partes, columnas))
+      }
+      ajenos <- atributos[!vapply(atributos, es_columna, logical(1L))]
+      if (length(ajenos)) {
+        stop(
+          "El m\u00e9todo de ", instancia$nombre, " devolvi\u00f3 medidas de un ",
+          "atributo que no es una columna de las tablas que recibi\u00f3: `",
+          ajenos[[1L]], "`.", call. = FALSE
+        )
+      }
     }
     clave <- .clave_bytes(paste(
       .clave_bytes(entidades), .clave_bytes(as.character(salida$atributo)),
@@ -1947,7 +1972,7 @@ medir <- function(modelo, datos, id_medicion = NULL, fecha = Sys.time(),
       }
     )
     abstencion <- attr(cruda, "abstencion", exact = TRUE)
-    salida <- .validar_salida_medicion(cruda, instancia)
+    salida <- .validar_salida_medicion(cruda, instancia, tablas_instancia)
     if (!nrow(salida)) {
       coberturas[[length(coberturas) + 1L]] <<- if (!is.null(abstencion)) {
         .cobertura_metrica_abstenida(

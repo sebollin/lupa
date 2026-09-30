@@ -1274,6 +1274,22 @@ una relación monótona que no es lineal—, más V de Cramér y eta cuadrado, y
 fila declara su método y su supuesto. Las dos están exportadas, así que se
 pueden llamar sueltas sin pagar el recorrido entero.
 
+**Lo que cuesta sobre millones de filas.** `perfilar()` y `analizar()` trabajan
+en memoria, y sobre tablas de millones de filas no son una pasada rápida. Son
+datos de referencia medidos, **no una predicción** —una evaluación única y
+fechada (2026-09-29) sobre bases de producción que este repositorio no puede
+rehacer—: sobre dos tablas de entre 3,5 y 4,5 millones de filas y una veintena
+de columnas, `perfilar()` tardó entre 50 y 60 minutos y `analizar()` entre 45 y
+100, con un pico de memoria de unos 74 GB en una máquina de 121. En una máquina
+común eso no entra. Para esa escala conviene perfilar una muestra de la tabla y
+llamar sueltas las piezas de `analizar()` que hagan falta. [perfilar_dbi()]
+calcula los agregados en el motor y trae sólo una muestra, pero en esa misma
+evaluación, con sus valores por omisión, el servidor cortó la conexión sobre las
+dos tablas; la causa está en diagnóstico y, hasta tenerla, no se puede
+recomendar para esa escala. La muestra que `perfilar()` toma por su cuenta es
+sistemática y sin azar, así que el mismo perfil se rehace sobre los mismos
+datos.
+
 ## 🚦 Severidades y automatización
 
 `severidad` es un **factor ordenado**: `ok < sospechoso < error`.
