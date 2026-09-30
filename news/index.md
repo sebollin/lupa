@@ -6,7 +6,7 @@
 
 - **Un nombre de columna ya no se enmascara, aunque un valor protegido
   caiga dentro de el.** Lo encontro una evaluacion sobre una base real
-  de 4.244.471 filas: la proteccion reemplazaba el valor protegido en
+  de millones de filas: la proteccion reemplazaba el valor protegido en
   TODA la salida, incluidos los campos que guardan nombres de columna,
   asi que `fecha_nacimiento` salio publicada como
   `fecha_[valor protegido]`. Las dos guardas que comparan los nombres
