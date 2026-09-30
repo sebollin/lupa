@@ -1405,20 +1405,20 @@ and
 work in memory, and on tables of millions of rows they are not a quick
 pass. These are measured reference data, **not a prediction** —a single,
 dated evaluation (2026-09-29) on production databases this repository
-cannot reproduce—: on two tables of between 3.5 and 4.5 million rows and
-about twenty columns,
+cannot reproduce—: on three tables of between 3.7 and 4.3 million rows
+and 7 to 19 columns,
 [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md)
-took between 50 and 60 minutes and
+took between 14 and 59 minutes, and the **same call** repeated on the
+same table took 53 and 29;
 [`analizar()`](https://sebollin.github.io/lupa/reference/analizar.md)
-between 45 and 100, with a memory peak of about 74 GB on a 121 GB
-machine. That does not fit on an ordinary machine. At that scale,
-profile a sample of the table and call the pieces of
+finished in 20 minutes on the 7-column table and in 97 on a 13-column
+one. The cost depends on the columns and their content as much as on the
+rows, and it varies between runs, so the figure does not extrapolate. At
+that scale, profile a sample of the table and call the pieces of
 [`analizar()`](https://sebollin.github.io/lupa/reference/analizar.md)
 you need on their own. \[perfilar_dbi()\] computes the aggregates inside
-the engine and brings back only a sample, but in that same evaluation,
-with its defaults, the server closed the connection on both tables; the
-cause is under diagnosis and, until it is known, it cannot be
-recommended at that scale. The sample
+the engine and brings back only a sample, but in that evaluation it was
+never measured on those tables. The sample
 [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md)
 takes by itself is systematic and has no randomness, so the same profile
 is reproduced on the same data.
