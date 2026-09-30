@@ -796,6 +796,14 @@ así que decir «sin valores» de ella contradiría a su propia fila. La otra pu
 del segundo caso son los centinelas que se llevan todos los valores. La
 presencia se define igual que en <code>n_faltantes</code>, que cuenta el <code>NaN</code> como
 ausente: una columna de treinta <code>NaN</code> es <code>"sin_valores"</code>.</p>
+<p><strong>La <code>media</code> se acumula por bloques y puede diferir de <code><a href="https://rdrr.io/r/base/mean.html" class="external-link">mean()</a></code> en los últimos
+bits; la <code>mediana</code> es exacta.</strong> El paquete no promete exactitud bit a bit para
+la media —sí para la mediana, que se calcula con <code><a href="https://rdrr.io/r/stats/median.html" class="external-link">median()</a></code> sobre el vector
+entero y por eso no se reemplazó por el cuantil 0,5—. Medido: sobre veinte mil
+valores de <code>1e12</code> y veinte mil de <code>1e-6</code> la diferencia es de <code>6,1e-05</code>, y sobre
+treinta mil valores con signo del orden de <code>1e9</code> es de <code>2,3e-10</code>; con valores de
+magnitud parecida no hay diferencia en ningún bit. Quien rehaga <code><a href="https://rdrr.io/r/base/mean.html" class="external-link">mean()</a></code> sobre
+una columna grande y vea otro último dígito está viendo esto y no un error.</p>
     </div>
     <div class="section level2">
     <h2 id="la-unidad-viaja-al-lado-de-la-cifra">La unidad viaja al lado de la cifra<a class="anchor" aria-label="anchor" href="#la-unidad-viaja-al-lado-de-la-cifra"></a></h2>

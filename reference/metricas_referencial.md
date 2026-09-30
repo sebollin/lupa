@@ -58,11 +58,11 @@ fuerte <- instanciar(especializar(m$CorrectitudSemFuerte),
   "personas", "id", referencial = ref)
 medir(modelo(fuerte), data.frame(id = c(1, 4)))
 #>                                     id_medida
-#> 1 medicion-20260930T004556.098917-7701-000001
-#> 2 medicion-20260930T004556.098917-7701-000002
+#> 1 medicion-20260930T044426.968225-7691-000001
+#> 2 medicion-20260930T044426.968225-7691-000002
 #>                            id_medicion               fecha              metrica
-#> 1 medicion-20260930T004556.098917-7701 2026-09-30 00:45:56 CorrectitudSemFuerte
-#> 2 medicion-20260930T004556.098917-7701 2026-09-30 00:45:56 CorrectitudSemFuerte
+#> 1 medicion-20260930T044426.968225-7691 2026-09-30 04:44:26 CorrectitudSemFuerte
+#> 2 medicion-20260930T044426.968225-7691 2026-09-30 04:44:26 CorrectitudSemFuerte
 #>     metrica_especifica              metrica_instanciada dimension
 #> 1 CorrectitudSemFuerte CorrectitudSemFuerte@personas.id Exactitud
 #> 2 CorrectitudSemFuerte CorrectitudSemFuerte@personas.id Exactitud
