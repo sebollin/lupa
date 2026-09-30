@@ -935,7 +935,7 @@
       # necesita para cruzar el perfil con los datos, y un nombre no filtra el
       # valor que casualmente contiene -existia antes y aparte del dato-.
       # Enmascararlos rompia las dos guardas que comparan nombres: medido en una
-      # base real de 4.244.471 filas, `fecha_nacimiento` salia publicada como
+      # base real de millones de filas, `fecha_nacimiento` salia publicada como
       # `fecha_[valor protegido]` y `planificar_limpieza()` y `analizar()`
       # abortaban. Se saltean en las DOS pasadas, asi que las hojas siguen
       # alineadas: la decision depende solo del contenido original.

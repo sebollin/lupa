@@ -1,7 +1,7 @@
 # Un nombre de columna es estructura, no un dato: la proteccion no puede
 # enmascararlo, y tampoco puede dejar de enmascarar un valor por proteger nombres.
 #
-# Lo encontro una evaluacion sobre una base real de 4.244.471 filas: la proteccion
+# Lo encontro una evaluacion sobre una base real de millones de filas: la proteccion
 # de datos personales enmascaraba tambien los NOMBRES de columna cuando un valor
 # protegido aparecia dentro de un nombre. `fecha_nacimiento` salia publicada como
 # `fecha_[valor protegido]`, y las dos guardas que comparan los nombres del perfil
