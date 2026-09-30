@@ -2,6 +2,71 @@
 
 ## lupa 0.1.0
 
+### La cifra que se rompio tres veces por ser una resta, y una identidad que se verifica
+
+- **«Se calculo sobre N valores» ahora se CUENTA donde se calcula el
+  resumen.** Se derivaba como `aplicables - faltantes - excluidos` y se
+  rompio tres veces por eso: el `NaN` esta en dos de los tres sumandos y
+  se restaba dos veces; el arreglo de eso -descontar `n_nan` una vez-
+  supuso que todo `NaN` esta en `n_faltantes`, y eso es falso para un
+  `"NaN"` de TEXTO, porque `is.na("NaN")` es FALSE y la columna lo
+  cuenta como presente. Medido: `c("10","20","NaN","30","40")` publicaba
+  «sobre 5» con `media = 25`, que es el promedio de cuatro. Una cifra
+  derivada de otras tres hereda todas sus definiciones de presencia;
+  contarla en el unico lugar que sabe cuantos valores uso la vuelve una
+  medicion.
+- **El desglose dejo de afirmar como cuenta la columna lo que quedo
+  afuera.** Decia «`NaN`, que la columna cuenta como ausente» y eso es
+  falso para el `NaN` de texto, donde la misma fila publica
+  `n_faltantes = 0`. Quien cuenta la presencia es `n_faltantes`, que
+  esta en la misma fila. Los infinitos si declaran presencia, porque un
+  `Inf` siempre esta presente.
+- **`unidad` se calla tambien en las columnas compuestas.** La rama de
+  tipos compuestos escribe su propio estado
+  -`tipo_compuesto_no_analizado`- y publicaba la unidad sin condicion,
+  esquivando un discriminador que miraba solo `no_aplica`: una matriz
+  con `attr(m, "units") <- "kg"` publicaba `unidad = "kg"` junto a
+  `media = NA`, la forma exacta que el arreglo anterior habia venido a
+  cerrar. Los dos estados que significan «esta clase no produce resumen»
+  estan ahora nombrados en un solo lugar.
+- **La identidad de la celda del tablero se usa para AGRUPAR, y se
+  verifica.** Las granularidades sin rama propia agrupaban solo por
+  `objeto_medible`: dos entidades con el mismo objeto se fundian en una
+  celda con la entidad de la primera y el promedio de las dos -medido,
+  `0.5` donde habia un 0 y un 1-. Y la ruta de mediciones ya agregadas
+  convertia cada fila en celda sin verificar nada, asi que dos filas con
+  el mismo trio salian como dos celdas de identidad identica con valores
+  0,9 y 0,3. Ahora la entidad entra en la clave de agrupacion y la
+  unicidad se comprueba, nombrando las celdas que chocan.
+- **Los pesos por posicion publican una etiqueta que vuelve a su
+  parte.** La via posicional esta documentada, pero la etiqueta solo se
+  armaba en la rama de pesos nombrados y caia al defecto
+  `medidas$entidad`: sobre un origen `instancia*`, seis pesos con dos
+  nombres. Rehacer el numero por el nombre publicado daba 0,9 contra el
+  0,8 publicado, y `partes_con_peso_cero` nombraba una entidad que si
+  habia aportado con sus otras filas. Ahora la etiqueta es
+  `objeto_medible`, unica por fila.
+- **Dos declaraciones distintas ya no colapsan al mismo identificador.**
+  La tabla literal `m1.d` -declarada con `esquema = NA`, la forma
+  documentada para nombres con puntos- y la tabla `d` del esquema `m1`
+  producen la misma cadena, y todo lo que resuelve por identificador se
+  quedaba con la primera sin avisar. Se rechaza al declarar, nombrando
+  las dos que chocan.
+- **`meta$estable` sale de la bitacora y no de si el argumento vino.**
+  Con `orden = list(t11 = "id")` sobre dos tablas, la lectura de `t09`
+  salia sin `ORDER BY` -la bitacora lo declaraba- y el objeto publicaba
+  `estable = TRUE`; con una lista sin nombres, ninguna tabla recibia
+  orden y `estable` seguia en `TRUE`. Ahora hay cuatro formas de
+  `nota_orden`, y la parcial nombra las tablas que quedaron sin orden.
+- **Y `sin_valores` se lee contra el universo que el resumen mide.** Un
+  refutador denuncio que el estado contradice `n - n_faltantes` con
+  aplicabilidad declarada y propuso cambiarlo; medirlo mostro que el
+  estado es correcto y que lo incompleto era la relacion documentada:
+  con aplicabilidad, la que se cumple es `n_aplicables - n_faltantes`, y
+  los valores de afuera del universo se declaran en
+  `n_presentes_fuera_de_aplicabilidad`. Se corrigio la promesa y la
+  prueba, no el estado.
+
 ### Lo que abrio publicar la unidad: el NaN con dos signos, una cifra restada dos veces y una duracion muda
 
 - **El `NaN` se contaba con signos opuestos en dos canales de la misma

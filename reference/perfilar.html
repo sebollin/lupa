@@ -784,8 +784,13 @@ inventarlo. El hallazgo <code>anio_de_dos_digitos</code> señala esas columnas, 
 rango aparece una vez que el usuario resuelve la ambigüedad.
 Cuando no sobrevive ningún valor utilizable, el estado distingue <strong>dos
 afirmaciones que no son la misma</strong>: <code>"sin_valores"</code> dice que la columna no tenía
-ningún valor presente —vacía, o todo <code>NA</code>— y <code>"sin_valores_utilizables"</code> dice que
-sí los tenía y ninguno servía para el resumen. Una columna de treinta <code>Inf</code> es el
+ningún valor presente <strong>en el universo que el resumen mide</strong> —vacía, todo <code>NA</code>,
+o con la aplicabilidad declarada dejando ese universo sin valores— y
+<code>"sin_valores_utilizables"</code> dice que sí los tenía y ninguno servía para el
+resumen. La relación que se cumple con la fila es
+<code>n_aplicables - n_faltantes</code>, no <code>n - n_faltantes</code>: con aplicabilidad declarada
+los valores de afuera del universo se declaran en
+<code>n_presentes_fuera_de_aplicabilidad</code> y no cuentan para este estado. Una columna de treinta <code>Inf</code> es el
 segundo caso y no el primero: publica <code>n_faltantes = 0</code> y <code>n_distintos = 1</code>,
 así que decir «sin valores» de ella contradiría a su propia fila. La otra puerta
 del segundo caso son los centinelas que se llevan todos los valores. La
