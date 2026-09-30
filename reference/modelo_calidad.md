@@ -298,8 +298,9 @@ medido y, como mínimo, estas columnas:
 [`medir()`](https://sebollin.github.io/lupa/reference/medir.md) hace
 cumplir el contrato: rechaza la salida sin esas columnas, con un
 `resultado` fuera de su tipo, con más de una observación para el mismo
-objeto, con una `entidad` que no está ligada a la instancia, o con
-`fila` ausente en una métrica por celda o por fila. Si el método
+objeto, con una `entidad` que no está ligada a la instancia, con un
+`atributo` que no es una columna de las tablas que recibió el método, o
+con `fila` ausente en una métrica por celda o por fila. Si el método
 **aborta**, en cambio, la métrica queda `no_medible` en
 `cobertura_metricas` y las demás se miden igual.
 
@@ -346,13 +347,13 @@ instancia <- instanciar(no_nulo, entidad = "personas", atributos = "edad")
 modelo_calidad <- modelo(instancia)
 medir(modelo_calidad, data.frame(edad = c(20, NA, 35)))
 #>                                     id_medida
-#> 1 medicion-20260930T192753.529280-7935-000001
-#> 2 medicion-20260930T192753.529280-7935-000002
-#> 3 medicion-20260930T192753.529280-7935-000003
+#> 1 medicion-20260930T221644.903303-7612-000001
+#> 2 medicion-20260930T221644.903303-7612-000002
+#> 3 medicion-20260930T221644.903303-7612-000003
 #>                            id_medicion               fecha metrica
-#> 1 medicion-20260930T192753.529280-7935 2026-09-30 19:27:53  NoNulo
-#> 2 medicion-20260930T192753.529280-7935 2026-09-30 19:27:53  NoNulo
-#> 3 medicion-20260930T192753.529280-7935 2026-09-30 19:27:53  NoNulo
+#> 1 medicion-20260930T221644.903303-7612 2026-09-30 22:16:44  NoNulo
+#> 2 medicion-20260930T221644.903303-7612 2026-09-30 22:16:44  NoNulo
+#> 3 medicion-20260930T221644.903303-7612 2026-09-30 22:16:44  NoNulo
 #>   metrica_especifica      metrica_instanciada   dimension   factor orientacion
 #> 1         NoNuloEdad NoNuloEdad@personas.edad Completitud Densidad conformidad
 #> 2         NoNuloEdad NoNuloEdad@personas.edad Completitud Densidad conformidad
@@ -403,13 +404,13 @@ medir(
   data.frame(origen = c("sistema_a", "", NA), stringsAsFactors = FALSE)
 )
 #>                                     id_medida
-#> 1 medicion-20260930T192753.538727-7935-000001
-#> 2 medicion-20260930T192753.538727-7935-000002
-#> 3 medicion-20260930T192753.538727-7935-000003
+#> 1 medicion-20260930T221644.912199-7612-000001
+#> 2 medicion-20260930T221644.912199-7612-000002
+#> 3 medicion-20260930T221644.912199-7612-000003
 #>                            id_medicion               fecha         metrica
-#> 1 medicion-20260930T192753.538727-7935 2026-09-30 19:27:53 OrigenDeclarado
-#> 2 medicion-20260930T192753.538727-7935 2026-09-30 19:27:53 OrigenDeclarado
-#> 3 medicion-20260930T192753.538727-7935 2026-09-30 19:27:53 OrigenDeclarado
+#> 1 medicion-20260930T221644.912199-7612 2026-09-30 22:16:44 OrigenDeclarado
+#> 2 medicion-20260930T221644.912199-7612 2026-09-30 22:16:44 OrigenDeclarado
+#> 3 medicion-20260930T221644.912199-7612 2026-09-30 22:16:44 OrigenDeclarado
 #>   metrica_especifica            metrica_instanciada    dimension
 #> 1    OrigenDeclarado OrigenDeclarado@entrega.origen Trazabilidad
 #> 2    OrigenDeclarado OrigenDeclarado@entrega.origen Trazabilidad
@@ -441,11 +442,11 @@ medir(
   data.frame(fecha = as.Date(c("2026-06-29", "2026-07-01")))
 )
 #>                                     id_medida
-#> 1 medicion-20260930T192753.545510-7935-000001
-#> 2 medicion-20260930T192753.545510-7935-000002
+#> 1 medicion-20260930T221644.918885-7612-000001
+#> 2 medicion-20260930T221644.918885-7612-000002
 #>                            id_medicion               fecha
-#> 1 medicion-20260930T192753.545510-7935 2026-09-30 19:27:53
-#> 2 medicion-20260930T192753.545510-7935 2026-09-30 19:27:53
+#> 1 medicion-20260930T221644.918885-7612 2026-09-30 22:16:44
+#> 2 medicion-20260930T221644.918885-7612 2026-09-30 22:16:44
 #>                       metrica metrica_especifica           metrica_instanciada
 #> 1 OportunidadAtributoPorFecha     EntregaATiempo EntregaATiempo@entregas.fecha
 #> 2 OportunidadAtributoPorFecha     EntregaATiempo EntregaATiempo@entregas.fecha

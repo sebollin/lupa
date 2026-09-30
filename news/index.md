@@ -9,11 +9,26 @@
   rechaza la salida con mas de una observacion para el mismo objeto, con
   una entidad no ligada o sin `fila` en una metrica por celda o por
   fila. Medido: un metodo que devolvia dos filas por celda hacia que
-  `agregar(, "ratio")` diera 0,5 donde la respuesta es 0,667. Un
-  recorrido de la suite -650 llamadas, 44 metricas- mostro que ningun
-  metodo del paquete viola esas tres; la clausula del atributo no se
-  exige, porque las metricas de vigencia publican con razon la columna
-  del contrato.
+  `agregar(, "ratio")` diera 0,5 donde la respuesta es 0,667. Y rechaza
+  un atributo que no es una columna de las tablas que el metodo recibio.
+  No se compara contra los atributos LIGADOS: las metricas de vigencia
+  publican con razon la columna del contrato, y `CorrectitudSemDebil`
+  publica `dni+nombre`. Un recorrido de la suite -650 llamadas, 44
+  metricas- mostro que ningun metodo del paquete viola ninguna de las
+  cuatro.
+- **La cobertura de una coleccion dice por que falta cada tabla.** Con
+  una frontera de
+  [`coleccion()`](https://sebollin.github.io/lupa/reference/coleccion.md),
+  una tabla vacia y una que no estaba en la entrada recibian el mismo
+  motivo generico, aunque la medicion sabia que la vacia tenia cero
+  filas: lo dejo en `cobertura_metricas`, y ahora ese motivo viaja a la
+  cobertura.
+- **El README dice lo que cuesta la escala.** Sobre dos tablas de entre
+  3,5 y 4,5 millones de filas, medidas en una evaluacion externa,
+  [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md)
+  tardo entre 50 y 60 minutos y
+  [`analizar()`](https://sebollin.github.io/lupa/reference/analizar.md)
+  entre 45 y 100, con un pico de 74 GB.
 - **`alcance_medidas` cuenta el universo de la metrica.** Con la
   propiedad `aplicable` de `NoNulo`, una metrica que midio sus tres
   filas aplicables publicaba «midio 3 de 4 en el universo aplicable». Y
