@@ -446,6 +446,13 @@
 #' * `fila`: posición de la fila o `NA_integer_` para resultados agregados;
 #' * `objeto`: etiqueta legible y estable del objeto medido.
 #'
+#' [medir()] hace cumplir el contrato: rechaza la salida sin esas columnas, con
+#' un `resultado` fuera de su tipo, con más de una observación para el mismo
+#' objeto, con una `entidad` que no está ligada a la instancia, o con `fila`
+#' ausente en una métrica por celda o por fila. Si el método **aborta**, en
+#' cambio, la métrica queda `no_medible` en `cobertura_metricas` y las demás se
+#' miden igual.
+#'
 #' Las columnas adicionales se descartan. Un `metodo` pasado a [instanciar()]
 #' reemplaza el predeterminado sólo para esa instancia. El ejemplo ejecutable
 #' muestra la cadena genérica → específica → instanciada completa.
@@ -751,6 +758,20 @@ instanciar <- function(metrica_especifica, entidad, atributos = character(),
   if (is.null(metodo)) {
     metodo <- attr(metrica_especifica, "metodo_predeterminado", exact = TRUE)
   }
+  # `metodo` aca es la FUNCION que mide. `EntidadContradictoria` declara ademas
+  # una PROPIEDAD `metodo` -la medida de distancia, "jw" o "lv"-, y quien pasaba
+  # `metodo = "lv"` al instanciar recibia "la instancia requiere un metodo de
+  # medicion": un mensaje sobre otra cosa. Las propiedades se fijan al
+  # especializar; se dice eso, con el nombre de la metrica.
+  if (metodo_declarado && !is.function(metodo) &&
+      .identificadores_en("metodo", declaracion$propiedades)) {
+    stop(
+      "En `instanciar()`, `metodo` es la funci\u00f3n que mide. `",
+      declaracion$nombre, "` tiene adem\u00e1s una propiedad `metodo`, y las ",
+      "propiedades se fijan al especializar: `especializar(metrica, metodo = ",
+      "...)`.", call. = FALSE
+    )
+  }
   if (!is.function(metodo)) {
     stop("La instancia requiere un `metodo` de medici\u00f3n.", call. = FALSE)
   }
@@ -813,6 +834,55 @@ propiedades_metrica <- function(x) {
   )
 }
 
+# Un modelo es un CONJUNTO de instrumentos, y la guarda de arriba lo hacia
+# cumplir por el nombre: dos instancias del MISMO instrumento pasaban si quien
+# llama le ponia otro nombre a una, y la medicion publicaba cada celda dos veces
+# sin decirlo. La identidad es lo que se mide y como: la metrica, su
+# configuracion, las entidades, los atributos, el referencial y el metodo si se
+# declaro. El nombre -de la instancia o de la especializacion- es una etiqueta.
+#
+# Se compara con `identical()` sobre los objetos y NO sobre su descripcion en
+# texto. La descripcion lee iguales dos reglas con el mismo cuerpo y entornos
+# distintos -`function(x) x > u` con `u = 1` y con `u = 2`-, y aca eso no seria
+# una comparacion laxa sino un rechazo falso de un modelo legitimo.
+.rechazar_instrumentos_repetidos <- function(metricas) {
+  if (length(metricas) < 2L) return(invisible(NULL))
+  clave <- vapply(metricas, function(x) {
+    .clave_bytes(paste(
+      .clave_bytes(as.character(x$declaracion$nombre)),
+      .clave_bytes(paste(x$entidad, collapse = "\r")),
+      .clave_bytes(paste(x$atributos, collapse = "\r")),
+      sep = "\034"
+    ))
+  }, character(1L))
+  mismo <- function(a, b) {
+    identical(a$configuracion, b$configuracion, ignore.srcref = TRUE) &&
+      identical(a$referencial, b$referencial) &&
+      identical(isTRUE(a$metodo_declarado), isTRUE(b$metodo_declarado)) &&
+      (!isTRUE(a$metodo_declarado) ||
+         identical(a$metodo, b$metodo, ignore.srcref = TRUE))
+  }
+  for (indices in split(seq_along(metricas), clave)) {
+    if (length(indices) < 2L) next
+    for (k in seq_along(indices)[-1L]) {
+      for (m in seq_len(k - 1L)) {
+        a <- metricas[[indices[[m]]]]
+        b <- metricas[[indices[[k]]]]
+        if (mismo(a, b)) {
+          stop(
+            "`", a$nombre, "` y `", b$nombre, "` son el mismo instrumento: la ",
+            "misma m\u00e9trica con la misma configuraci\u00f3n sobre la misma ",
+            "entidad y los mismos atributos. Un modelo es un conjunto, y la ",
+            "medici\u00f3n publicar\u00eda cada objeto dos veces. Declarar una sola.",
+            call. = FALSE
+          )
+        }
+      }
+    }
+  }
+  invisible(NULL)
+}
+
 #' @rdname modelo_calidad
 #' @export
 modelo <- function(..., marco = NULL) {
@@ -829,6 +899,7 @@ modelo <- function(..., marco = NULL) {
   if (anyDuplicated(.nombres_para_operar(nombres))) {
     stop("Los nombres de las m\u00e9tricas instanciadas deben ser \u00fanicos.", call. = FALSE)
   }
+  .rechazar_instrumentos_repetidos(metricas)
   if (!is.null(marco)) {
     if (!inherits(marco, "marco_calidad")) {
       stop("`marco` debe provenir de marco_calidad().", call. = FALSE)
@@ -976,6 +1047,34 @@ modelo <- function(..., marco = NULL) {
   )
 }
 
+# Las filas del universo que la METRICA declara con su propiedad `aplicable`. Una
+# sola funcion para las dos preguntas que dependen de ese universo: que mide
+# `NoNulo` y cuantos objetos habia para medir. Cuando la segunda lo resolvia por
+# su cuenta con `nrow()`, `alcance_medidas` publicaba "midio 3 de 4 en el
+# universo aplicable" sobre una metrica que midio su universo entero -3 de 3-, y
+# el mismo universo declarado por `aplicabilidad` en `medir()` no publicaba nada.
+.mascara_aplicable_instancia <- function(tabla, instancia,
+                                         entidad = instancia$entidad[[1L]]) {
+  n <- nrow(tabla)
+  aplicable <- instancia$configuracion$aplicable
+  if (is.null(aplicable)) return(rep(TRUE, n))
+  crudo <- eval(aplicable[[2L]], envir = tabla, enclos = environment(aplicable))
+  if (!is.logical(crudo)) {
+    stop(
+      "`aplicable` debe dar un valor logico y dio ", class(crudo)[[1L]], ".",
+      call. = FALSE
+    )
+  }
+  if (length(crudo) == 1L) crudo <- rep(crudo, n)
+  if (length(crudo) != n) {
+    stop(
+      "`aplicable` dio ", length(crudo), " valores y la entidad `", entidad,
+      "` tiene ", n, " filas.", call. = FALSE
+    )
+  }
+  !is.na(crudo) & crudo
+}
+
 .metodo_no_nulo <- function(tablas, instancia) {
   .validar_vinculo(instancia, 1L, 1L)
   entidad <- instancia$entidad[[1L]]
@@ -987,23 +1086,8 @@ modelo <- function(..., marco = NULL) {
   # universo es la tabla entera y esto no cambia nada. Con `aplicable`, las
   # filas donde la columna no corresponde salen del denominador en vez de
   # contarse como incompletas: es el mismo criterio que `perfilar()`.
-  aplicable <- instancia$configuracion$aplicable
-  if (!is.null(aplicable)) {
-    crudo <- eval(aplicable[[2L]], envir = tabla, enclos = environment(aplicable))
-    if (!is.logical(crudo)) {
-      stop(
-        "`aplicable` debe dar un valor logico y dio ", class(crudo)[[1L]], ".",
-        call. = FALSE
-      )
-    }
-    if (length(crudo) == 1L) crudo <- rep(crudo, length(x))
-    if (length(crudo) != length(x)) {
-      stop(
-        "`aplicable` dio ", length(crudo), " valores y la entidad `", entidad,
-        "` tiene ", length(x), " filas.", call. = FALSE
-      )
-    }
-    dentro <- !is.na(crudo) & crudo
+  dentro <- .mascara_aplicable_instancia(tabla, instancia, entidad)
+  if (!all(dentro)) {
     filas <- filas[dentro]
     x <- x[dentro]
   }
@@ -1362,6 +1446,50 @@ metricas_nucleo <- function() {
     stop("Una m\u00e9trica de duraci\u00f3n debe devolver valores finitos no negativos.",
          call. = FALSE)
   }
+  # La parte SEMANTICA del contrato de `metodo` (`?modelo_calidad`), que hasta
+  # aca solo se declaraba: un metodo que devolvia dos filas por celda publicaba
+  # seis medidas para tres celdas, y `agregar(, "ratio")` daba 0,5 donde la
+  # respuesta es 0,667, sin ninguna senal. Se hacen cumplir las tres clausulas que
+  # un recorrido de la suite -650 llamadas, 44 metricas- mostro que ningun metodo
+  # del paquete viola: la entidad es una de las ligadas, una medida por celda o
+  # por fila dice que fila mide, y hay una sola observacion por objeto. La del
+  # atributo NO se exige: las metricas de vigencia publican la columna del
+  # contrato, que no esta entre los atributos ligados, y eso es correcto.
+  if (nrow(salida)) {
+    entidades <- as.character(salida$entidad)
+    ajenas <- is.na(entidades) | !.identificadores_en(entidades, instancia$entidad)
+    if (any(ajenas)) {
+      stop(
+        "El m\u00e9todo de ", instancia$nombre, " devolvi\u00f3 medidas de una ",
+        "entidad que no est\u00e1 ligada a la instancia: `",
+        entidades[ajenas][[1L]], "`.", call. = FALSE
+      )
+    }
+    granularidad <- as.character(instancia$declaracion$granularidad)[1L]
+    if (granularidad %in% c("instanciaAtributo", "instanciaEntidad") &&
+        anyNA(salida$fila)) {
+      stop(
+        "El m\u00e9todo de ", instancia$nombre, " devolvi\u00f3 medidas por ",
+        if (identical(granularidad, "instanciaAtributo")) "celda" else "fila",
+        " sin `fila`: cada una tiene que decir qu\u00e9 fila mide.",
+        call. = FALSE
+      )
+    }
+    clave <- .clave_bytes(paste(
+      .clave_bytes(entidades), .clave_bytes(as.character(salida$atributo)),
+      .clave_bytes(as.character(salida$fila)),
+      .clave_bytes(as.character(salida$objeto)), sep = "\034"
+    ))
+    if (anyDuplicated(clave)) {
+      stop(
+        "El m\u00e9todo de ", instancia$nombre, " devolvi\u00f3 m\u00e1s de una ",
+        "observaci\u00f3n para el mismo objeto medido (`",
+        as.character(salida$objeto)[duplicated(clave)][[1L]], "`). El contrato ",
+        "pide exactamente una por objeto: repetida, pesa doble en todo agregado.",
+        call. = FALSE
+      )
+    }
+  }
   salida_validada <- .seleccionar_columnas(salida, requeridas)
   attr(salida_validada, "alcance") <- attr(salida, "alcance", exact = TRUE)
   salida_validada
@@ -1377,15 +1505,21 @@ metricas_nucleo <- function() {
 # Abstenerse es devolver cero filas CON su motivo: `medir()` ya sabe convertir una
 # salida vacia en una fila de `cobertura_metricas`, y esto le agrega la razon
 # exacta en vez del motivo genérico.
-.abstener_metodo <- function(instancia, motivo, como_resolverlo) {
+.abstener_metodo <- function(instancia, motivo, como_resolverlo,
+                             estado = "contrato_incompleto") {
   tipo <- as.character(instancia$declaracion$tipo_resultado)[1L]
   vacio <- if (identical(tipo, "booleano")) logical(0) else numeric(0)
   salida <- data.frame(
     resultado = vacio, entidad = character(), atributo = character(),
     fila = integer(), objeto = character(), stringsAsFactors = FALSE
   )
+  # El estado viaja con la abstencion porque no todas son la misma afirmacion:
+  # `contrato_incompleto` dice que al contrato de la metrica le falta un campo, y
+  # `no_medible` que el contrato esta completo y son los DATOS los que no admiten
+  # la metrica. Publicar `contrato_incompleto` para el segundo caso habria sido
+  # falso.
   attr(salida, "abstencion") <- list(
-    motivo = motivo, como_resolverlo = como_resolverlo
+    motivo = motivo, como_resolverlo = como_resolverlo, estado = estado
   )
   salida
 }
@@ -1399,7 +1533,11 @@ metricas_nucleo <- function() {
     metrica_instanciada = instancia$nombre,
     entidad = paste(instancia$entidad, collapse = "+"),
     atributo = paste(instancia$atributos, collapse = "+"),
-    estado = "contrato_incompleto",
+    estado = if (is.null(abstencion$estado)) {
+      "contrato_incompleto"
+    } else {
+      as.character(abstencion$estado)
+    },
     motivo = as.character(abstencion$motivo),
     como_resolverlo = as.character(abstencion$como_resolverlo),
     stringsAsFactors = FALSE
@@ -1409,7 +1547,12 @@ metricas_nucleo <- function() {
 .cobertura_metrica_no_evaluada <- function(tablas, instancia, id_medicion,
                                            fecha) {
   entidad <- instancia$entidad[[1L]]
-  entidades_ligadas <- .identificadores_intersect(instancia$entidad, names(tablas))
+  # "Dependiente" es la segunda entidad de una metrica entre dos, y nada mas. Se
+  # buscaba entre TODAS las ligadas, la principal incluida, asi que `NoNulo` sobre
+  # una tabla vacia publicaba "la entidad dependiente `t`" -una palabra de
+  # `ReglaIntegridadInterEntidad`- en una metrica que no tiene dependiente. La
+  # principal vacia es el caso de abajo: un alcance vacio.
+  entidades_ligadas <- .identificadores_intersect(instancia$entidad[-1L], names(tablas))
   indices_entidades <- .indice_identificador(entidades_ligadas, names(tablas))
   entidades_vacias <- entidades_ligadas[vapply(
     tablas[indices_entidades], function(tabla) !nrow(tabla), logical(1L)
@@ -1497,14 +1640,52 @@ metricas_nucleo <- function() {
   tabla <- tablas_instancia[[instancia$entidad]]
   if (!inherits(tabla, "data.frame")) return(NULL)
   atributos <- instancia$atributos
+  # El universo es el de la METRICA, no la tabla: `medir()` ya recorto por su
+  # `aplicabilidad`, y aca se recorta ademas por la propiedad `aplicable` que la
+  # metrica declara. Si la mascara no se puede resolver, el metodo ya lo habria
+  # dicho y aca no se afirma un universo.
+  dentro <- tryCatch(
+    .mascara_aplicable_instancia(tabla, instancia),
+    error = function(e) NULL
+  )
+  if (is.null(dentro)) return(NULL)
+  filas_universo <- sum(dentro)
   esperadas <- if (identical(granularidad, "instanciaAtributo")) {
     if (!length(atributos)) return(NULL)
-    nrow(tabla) * length(atributos)
+    filas_universo * length(atributos)
   } else {
-    nrow(tabla)
+    filas_universo
   }
   if (!is.finite(esperadas) || esperadas <= 0 || n_medidas >= esperadas) {
     return(NULL)
+  }
+  # "Las que no tienen valor no producen medida" es una CAUSA, y se afirma solo
+  # si las cuentas la sostienen: un metodo propio que mide cinco filas de diez por
+  # decision suya recibia ese motivo sin tener un solo ausente.
+  indices <- .indice_nombre(atributos, names(tabla))
+  sin_valor <- if (length(atributos) && !anyNA(indices)) {
+    celdas <- lapply(indices, function(i) is.na(tabla[[i]])[dentro])
+    if (identical(granularidad, "instanciaAtributo")) {
+      sum(vapply(celdas, sum, numeric(1L)))
+    } else {
+      sum(Reduce(`|`, celdas))
+    }
+  } else NA_real_
+  no_medidas <- esperadas - n_medidas
+  causa <- if (!is.na(sin_valor) && sin_valor == no_medidas) {
+    paste0(
+      ": las que no tienen valor no producen medida y no cuentan como ",
+      "incumplimiento."
+    )
+  } else {
+    paste0(
+      "; las otras ", no_medidas, " no produjeron medida y no cuentan como ",
+      "incumplimiento",
+      if (!is.na(sin_valor)) {
+        paste0(" (", sin_valor, " de ellas sin valor)")
+      } else "",
+      "."
+    )
   }
   data.frame(
     metrica_instanciada = instancia$nombre,
@@ -1519,9 +1700,8 @@ metricas_nucleo <- function() {
     medidas = as.numeric(n_medidas),
     motivo = paste0(
       "La m\u00e9trica midi\u00f3 ", n_medidas, " de ", esperadas,
-      " en el universo aplicable: las que no tienen valor no producen medida y ",
-      "no cuentan como incumplimiento. El agregado se calcula sobre las medidas ",
-      "publicadas."
+      " en el universo aplicable", causa, " El agregado se calcula sobre las ",
+      "medidas publicadas."
     ),
     stringsAsFactors = FALSE
   )
@@ -1642,10 +1822,15 @@ metricas_nucleo <- function() {
 #'   alto expresa defecto o si esa lectura no aplica. Algunas métricas
 #'   que trabajan con un vocabulario o un alcance parcial agregan un atributo
 #'   `alcance_metricas` con sus conteos y límites. Si una métrica no puede
-#'   medirse —porque su universo no tiene valores, o porque su contrato no trae un
-#'   campo que necesita—, no crea filas ni ceros: deja el motivo y cómo
-#'   resolverlo en el atributo `cobertura_metricas`, con un estado que distingue
-#'   las dos causas. Y cuando **sí** pudo medirse
+#'   medirse, no crea filas ni ceros: deja el motivo y cómo resolverlo en el
+#'   atributo `cobertura_metricas`, con un estado que distingue tres causas:
+#'   `sin_valores` cuando su universo no tiene valores, `contrato_incompleto`
+#'   cuando su contrato no trae un campo que necesita, y `no_medible` cuando su
+#'   método falló sobre estos datos —una columna sin dos valores para
+#'   `ErrorEstandar`, un atributo que la tabla no trae, una regla que devuelve
+#'   `NA`—. En el último caso el motivo conserva el mensaje del método y `medir()`
+#'   **avisa**: la falla ya no se lleva la medición de las demás métricas, pero
+#'   tampoco queda muda. Y cuando **sí** pudo medirse
 #'   pero sobre **menos** elementos de los que hay en su universo aplicable —una
 #'   métrica por celda no mide la celda vacía, que no produce medida ni cuenta
 #'   como incumplimiento—, el atributo `alcance_medidas` publica cuántos midió de
@@ -1729,7 +1914,38 @@ medir <- function(modelo, datos, id_medicion = NULL, fecha = Sys.time(),
     )
     # La abstencion viaja en un atributo de la salida CRUDA: `.tabla_base()` la
     # normaliza y podria perderlo, asi que se lee antes de validar.
-    cruda <- instancia$metodo(tablas_instancia, instancia)
+    # El metodo se llama DENTRO de un `tryCatch`. Sin el, cualquier `stop()` de un
+    # metodo mataba la corrida ENTERA -ni filas, ni coberturas, ni la medicion de
+    # las demas metricas del modelo-, y `?medir` promete lo contrario: una metrica
+    # que no puede medirse deja su motivo en `cobertura_metricas`. Medido: un
+    # modelo con `NoNulo` y `ErrorEstandar` sobre una columna de un solo valor
+    # moria con "ErrorEstandar requiere al menos dos valores numericos validos" y
+    # se llevaba la medicion de `NoNulo`. Lo mismo `Escala`, las dos
+    # `OportunidadAtributoPor*`, un atributo mal escrito al instanciar y una
+    # expresion regular invalida al especializar.
+    #
+    # Se envuelve la LLAMADA y no se reescriben los cinco metodos: es la propiedad
+    # -"un metodo que falla no puede tumbar a los demas"- y cubre tambien las
+    # metricas que el usuario escribe con `metrica(metodo = ...)`, que tenian la
+    # misma puerta. El mensaje del metodo es el motivo, y ya dice que falta.
+    cruda <- tryCatch(
+      instancia$metodo(tablas_instancia, instancia),
+      error = function(e) {
+        .abstener_metodo(
+          instancia,
+          motivo = paste0(
+            "La m\u00e9trica `", instancia$nombre, "` no se midi\u00f3 sobre ",
+            "estos datos: ", conditionMessage(e)
+          ),
+          como_resolverlo = paste(
+            "Revisar que el atributo ligado exista y tenga el tipo y la cantidad",
+            "de valores que la m\u00e9trica requiere. Una m\u00e9trica que no se",
+            "midi\u00f3 no se interpreta como cero."
+          ),
+          estado = "no_medible"
+        )
+      }
+    )
     abstencion <- attr(cruda, "abstencion", exact = TRUE)
     salida <- .validar_salida_medicion(cruda, instancia)
     if (!nrow(salida)) {
@@ -1804,6 +2020,30 @@ medir <- function(modelo, datos, id_medicion = NULL, fecha = Sys.time(),
   }
   if (length(coberturas)) {
     attr(resultado, "cobertura_metricas") <- do.call(rbind, coberturas)
+    # Un metodo que fallo antes abortaba `medir()` con su error, y el error era la
+    # unica senal. Ahora la corrida sigue, y sin este aviso el mismo defecto de
+    # configuracion -un atributo mal escrito, un referencial sin declarar completo-
+    # quedaria en un atributo que nadie esta obligado a mirar: la medicion saldria
+    # con menos filas y en silencio. `sin_valores` y `contrato_incompleto` no avisan
+    # porque son estados del universo o del contrato que el usuario declaro; este
+    # es un error, y se dice. Aviso de R base y no de cli: el mensaje trae texto del
+    # metodo, y cli lo evaluaria como plantilla.
+    cobertura <- attr(resultado, "cobertura_metricas", exact = TRUE)
+    fallidas <- cobertura$estado == "no_medible"
+    if (any(fallidas)) {
+      # "las demas siguieron" solo si HAY otras: con una metrica sola la frase
+      # afirmaria algo que no paso.
+      otras <- length(modelo$metricas) > sum(fallidas)
+      warning(
+        sum(fallidas), " m\u00e9trica(s) no se midieron porque su m\u00e9todo ",
+        "fall\u00f3",
+        if (otras) "; la corrida sigui\u00f3 con las dem\u00e1s del modelo" else "",
+        ". ",
+        paste(cobertura$motivo[fallidas], collapse = " "),
+        " El detalle est\u00e1 en `attr(medicion, \"cobertura_metricas\")`.",
+        call. = FALSE
+      )
+    }
   }
   if (length(alcances_medidas)) {
     alcance_parcial <- do.call(rbind, alcances_medidas)

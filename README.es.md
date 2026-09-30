@@ -1330,7 +1330,9 @@ no un interruptor que pueda apagarlo.
 - Mide y evalúa métricas, escalas, reglas de validez y dominios referenciales
   explícitos. Un contrato al que le falta un campo **se abstiene y declara cuál**
   en `cobertura_metricas`, en lugar de abortar la medición de las demás métricas;
-  y toda métrica que compara la columna con un valor temporal declarado **avisa si
+  una métrica cuyo método falla sobre los datos —una columna sin dos valores para
+  `ErrorEstandar`, un atributo que la tabla no trae— queda **`no_medible`**, con
+  el mensaje del método y un aviso, y las demás se miden igual; y toda métrica que compara la columna con un valor temporal declarado **avisa si
   las dos puntas no son de la misma clase**, porque un `Date` se ancla a la
   medianoche UTC y un `POSIXct` vale por su instante, y mezclarlos cambia el
   número sin que se vea.

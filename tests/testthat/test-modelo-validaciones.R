@@ -112,10 +112,10 @@ test_that("se validan instancias, modelos y vínculos", {
   expect_error(
     medir(modelo(instancia), list(t = 1:3)), "lista con nombre"
   )
-  expect_error(
+  .expect_no_medible(
     medir(modelo(instancia), data.frame(y = 1)), "atributo ligado"
   )
-  expect_error(
+  .expect_no_medible(
     medir(
       modelo(instanciar(no_nulo, c("t", "otra"), "x")),
       list(t = data.frame(x = 1), otra = data.frame(x = 1))
@@ -155,17 +155,22 @@ test_that("se validan las configuraciones de las métricas del núcleo", {
   )
 })
 
+# Los errores de configuracion que se detectan al MEDIR -un atributo que la tabla
+# no trae, una regla que devuelve NA, datos que la metrica no admite- ya no
+# abortan la corrida: la metrica queda `no_medible`, con el mensaje del metodo
+# como motivo, y `medir()` avisa. Lo que sigue abortando es lo que se valida
+# antes del metodo -los argumentos de `medir()`- y despues -la forma de la salida-.
 test_that("se validan los contratos de los métodos de medición", {
   nucleo <- metricas_nucleo()
   intra <- especializar(
     nucleo$ReglaIntegridadIntraEntidad,
     regla = function(x) rep(TRUE, nrow(x))
   )
-  expect_error(
+  .expect_no_medible(
     medir(modelo(instanciar(intra, "t")), data.frame(x = 1:2)),
     "al menos un atributo"
   )
-  expect_error(
+  .expect_no_medible(
     medir(modelo(instanciar(intra, "t", "y")), data.frame(x = 1:2)),
     "No se encontraron"
   )
@@ -173,14 +178,14 @@ test_that("se validan los contratos de los métodos de medición", {
     nucleo$ReglaIntegridadIntraEntidad,
     regla = function(x) rep(NA, nrow(x))
   )
-  expect_error(
+  .expect_no_medible(
     medir(modelo(instanciar(intra_mala, "t", "x")), data.frame(x = 1:2)),
     "l.*gico sin NA"
   )
 
   error <- instanciar(especializar(nucleo$ErrorEstandar), "t", "x")
-  expect_error(medir(modelo(error), data.frame(x = letters[1:3])), "num.*rico")
-  expect_error(medir(modelo(error), data.frame(x = c(1, NA))), "al menos dos")
+  .expect_no_medible(medir(modelo(error), data.frame(x = letters[1:3])), "num.*rico")
+  .expect_no_medible(medir(modelo(error), data.frame(x = c(1, NA))), "al menos dos")
   constante <- medir(modelo(error), data.frame(x = c(2, 2)))
   expect_equal(constante$resultado, 0)
 

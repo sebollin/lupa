@@ -271,7 +271,7 @@ test_that("la cobertura de la coleccion llega hasta el tablero y el indice", {
 })
 
 # `medir()` declara en `cobertura_metricas` las metricas que NO se pudieron
-# medir y por que -"la entidad dependiente `b` tiene cero filas"-, y `agregar()`
+# medir y por que -"la entidad `b` tiene cero filas"-, y `agregar()`
 # lo descartaba en el primer salto: solo copiaba `configuracion_modelo` y
 # `configuracion_aplicabilidad`. De ahi en mas esa tabla era invisible y el
 # conjunto se reportaba como si nunca hubiera existido.

@@ -489,10 +489,26 @@
 }
 
 .seccion_medicion <- function(x, max_filas) {
+  # Una medicion recortada conserva su clase y pasa la puerta del informe. Sin su
+  # `id_medicion`, `length(unique(NULL))` es cero y la seccion publicaba "2 medidas
+  # en 0 corrida(s)" al lado de una tabla con dos filas: un numero que el objeto no
+  # sostiene. Es la misma puerta que `.seccion_historico()` ya cierra -declarar el
+  # campo que falta-, y de las diecisiete columnas es la unica que alimenta una
+  # cifra de la seccion.
+  corridas <- if ("id_medicion" %in% names(x)) {
+    paste0(
+      " medidas en ", .html_texto(length(.identificadores_unicos(x$id_medicion))),
+      " corrida(s)."
+    )
+  } else {
+    paste0(
+      " medidas. La cantidad de corridas no se puede establecer: a la ",
+      "medici\u00f3n le falta la columna <code>id_medicion</code>."
+    )
+  }
   paste0(
     "<section><h2>Medidas de calidad</h2>",
-    "<p class=\"meta\">", .html_texto(nrow(x)), " medidas en ",
-    .html_texto(length(.identificadores_unicos(x$id_medicion))), " corrida(s).</p>",
+    "<p class=\"meta\">", .html_texto(nrow(x)), corridas, "</p>",
     .html_tabla(x, max_filas),
     .seccion_coberturas_del_objeto(x), "</section>"
   )
@@ -687,14 +703,51 @@
     .nombres_para_operar(perfiles$perfil), perfiles$fecha,
     .nombres_para_operar(perfiles$id_medicion), method = "radix"
   ), ]
+  # El delta sale de `detectar_deriva_calidad()` y no de un `diff()` propio. El
+  # `diff()` era la misma regla escrita dos veces, y la copia no sabia lo que la
+  # original decide: la deriva declara NO COMPARABLE un par con cambio de marco o
+  # de `tipo_resultado` -"no se publica la comparacion del resultado"- y esta
+  # tabla publicaba igual su delta, dos secciones mas abajo y sin marca. Medido:
+  # r1 (marco A) -> r2 (marco B) salia con `-0.667` al lado de esa declaracion.
+  # La copia tampoco separaba las tablas: la deriva compara dentro de la misma
+  # tabla y el `diff()` restaba corridas de tablas distintas bajo el mismo perfil.
+  #
+  # `comparacion` dice por que un delta falta, con la palabra de la deriva; y
+  # `comparado_con`, contra que corrida se resto, que ya no es siempre la fila de
+  # arriba.
   perfiles$delta <- NA_real_
-  grupos <- split(
-    seq_len(nrow(perfiles)), .nombres_para_operar(perfiles$perfil), drop = TRUE
+  perfiles$comparado_con <- NA_character_
+  perfiles$comparacion <- NA_character_
+  deriva <- tryCatch(
+    as.data.frame(detectar_deriva_calidad(x, nivel = "perfil")),
+    error = function(e) e
   )
-  for (indices in grupos) {
-    if (length(indices) > 1L) {
-      perfiles$delta[indices[-1L]] <- diff(perfiles$resultado[indices])
+  if (inherits(deriva, "error")) {
+    perfiles$comparacion <- paste0(
+      "La evoluci\u00f3n no se pudo calcular: ", conditionMessage(deriva)
+    )
+  } else if (nrow(deriva)) {
+    clave <- function(perfil, id) {
+      .clave_bytes(paste(
+        .clave_bytes(as.character(perfil)), .clave_bytes(as.character(id)),
+        sep = "\034"
+      ))
     }
+    claves <- clave(perfiles$perfil, perfiles$id_medicion)
+    claves_deriva <- clave(deriva$perfil, deriva$id_medicion_actual)
+    regular <- which(deriva$aspecto == "resultado")
+    i <- regular[match(claves, claves_deriva[regular])]
+    perfiles$delta <- deriva$delta[i]
+    perfiles$comparado_con <- as.character(deriva$id_medicion_anterior[i])
+    perfiles$comparacion <- as.character(deriva$descripcion[i])
+    no_comparable <- which(deriva$cambio %in% "no_comparable")
+    j <- no_comparable[match(claves, claves_deriva[no_comparable])]
+    con_corte <- !is.na(j)
+    perfiles$delta[con_corte] <- NA_real_
+    perfiles$comparado_con[con_corte] <- as.character(
+      deriva$id_medicion_anterior[j[con_corte]]
+    )
+    perfiles$comparacion[con_corte] <- as.character(deriva$descripcion[j[con_corte]])
   }
   rownames(perfiles) <- NULL
   perfiles

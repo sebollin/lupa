@@ -65,22 +65,22 @@ test_that("correctitud fuerte y débil conservan semánticas distintas", {
     especializar(m$CorrectitudSemDebil), "personas", c("id", "nombre"),
     referencial = sin_valores
   )
-  expect_error(medir(modelo(debil_invalida), datos), "valores asociados")
+  .expect_no_medible(medir(modelo(debil_invalida), datos), "valores asociados")
   enlace_malo <- instanciar(
     especializar(m$CorrectitudSemFuerte), "personas", c("id", "nombre"),
     referencial = ref
   )
-  expect_error(medir(modelo(enlace_malo), datos), "requiere 1")
+  .expect_no_medible(medir(modelo(enlace_malo), datos), "requiere 1")
   fuerte_faltante <- instanciar(
     especializar(m$CorrectitudSemFuerte), "personas", "ausente",
     referencial = ref
   )
-  expect_error(medir(modelo(fuerte_faltante), datos), "No se encontraron")
+  .expect_no_medible(medir(modelo(fuerte_faltante), datos), "No se encontraron")
   debil_faltante <- instanciar(
     especializar(m$CorrectitudSemDebil), "personas", c("id", "ausente"),
     referencial = ref
   )
-  expect_error(medir(modelo(debil_faltante), datos), "No se encontraron")
+  .expect_no_medible(medir(modelo(debil_faltante), datos), "No se encontraron")
 })
 
 test_that("la cobertura exige completitud y no se infla con duplicados", {
@@ -98,8 +98,8 @@ test_that("la cobertura exige completitud y no se infla con duplicados", {
   instancia_parcial <- instanciar(
     especializar(metrica), "personas", "id", referencial = parcial
   )
-  expect_error(medir(modelo(instancia_parcial), tabla), "declarado completo")
-  expect_error(
+  .expect_no_medible(medir(modelo(instancia_parcial), tabla), "declarado completo")
+  .expect_no_medible(
     medir(modelo(instanciar(especializar(metrica), "personas", "id")), tabla),
     "referencial"
   )
@@ -113,7 +113,7 @@ test_that("la cobertura exige completitud y no se infla con duplicados", {
   cobertura_faltante <- instanciar(
     especializar(metrica), "personas", "ausente", referencial = completo
   )
-  expect_error(medir(modelo(cobertura_faltante), tabla), "No se encontraron")
+  .expect_no_medible(medir(modelo(cobertura_faltante), tabla), "No se encontraron")
 })
 
 test_that("los auxiliares referenciales validan dimensiones y tablas vacías", {

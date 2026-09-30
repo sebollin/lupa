@@ -302,7 +302,7 @@ test_that("las configuraciones nuevas rechazan contratos invalidos", {
   predicado_malo <- instancia_nueva(
     comprension, "x", predicado = function(x) rep(TRUE, length(x) + 1L)
   )
-  expect_error(
+  .expect_no_medible(
     medir(modelo(predicado_malo), data.frame(x = 1:2)), "longitud 2"
   )
 
@@ -321,7 +321,7 @@ test_that("las configuraciones nuevas rechazan contratos invalidos", {
   validador_malo <- instancia_nueva(
     desactualizacion, "x", validador = function(x) rep(NA, length(x))
   )
-  expect_error(
+  .expect_no_medible(
     medir(modelo(validador_malo), data.frame(x = "a")), "sin NA"
   )
 })
@@ -329,23 +329,23 @@ test_that("las configuraciones nuevas rechazan contratos invalidos", {
 test_that("los vinculos y fechas nuevas se validan", {
   nucleo <- metricas_nucleo()
   atributo <- instancia_nueva(nucleo$AtributoDuplicado, c("a", "b"))
-  expect_error(
+  .expect_no_medible(
     medir(modelo(atributo), data.frame(a = 1, b = 1)), "requiere 1"
   )
   conjunto <- instancia_nueva(nucleo$ConjuntoAtributosDuplicado, "a")
-  expect_error(
+  .expect_no_medible(
     medir(modelo(conjunto), data.frame(a = 1)), "al menos 2"
   )
   repetido <- instancia_nueva(
     nucleo$ConjuntoAtributosDuplicado, c("a", "a")
   )
-  expect_error(
+  .expect_no_medible(
     medir(modelo(repetido), data.frame(a = 1)), "distinto"
   )
   faltante <- instancia_nueva(
     nucleo$ConjuntoAtributosDuplicado, c("a", "b")
   )
-  expect_error(
+  .expect_no_medible(
     medir(modelo(faltante), data.frame(a = 1)), "No se encontraron"
   )
   entidad_con_atributo <- instancia_nueva(nucleo$EntidadDuplicada, "a")
@@ -390,7 +390,7 @@ test_that("los vinculos y fechas nuevas se validan", {
     fecha_solicitud = as.Date("2026-01-01"),
     fecha_fin_utilidad = as.Date("2026-01-02")
   )
-  expect_error(
+  .expect_no_medible(
     medir(modelo(numerica), data.frame(entrega = 1)), "Date o POSIXt"
   )
   fechas_cortas <- instancia_nueva(
@@ -398,7 +398,7 @@ test_that("los vinculos y fechas nuevas se validan", {
     fecha_solicitud = as.Date(c("2026-01-01", "2026-01-02")),
     fecha_fin_utilidad = as.Date(c("2026-01-03", "2026-01-04"))
   )
-  expect_error(
+  .expect_no_medible(
     medir(
       modelo(fechas_cortas),
       data.frame(entrega = as.Date(rep("2026-01-02", 3L)))
@@ -419,7 +419,7 @@ test_that("los vinculos y fechas nuevas se validan", {
     oportunidad_marco, "entrega",
     fecha_limite = as.Date(c("2026-01-01", "2026-01-02"))
   )
-  expect_error(
+  .expect_no_medible(
     medir(
       modelo(limite_corto),
       data.frame(entrega = as.Date(rep("2026-01-01", 3L)))
@@ -471,19 +471,19 @@ test_that("los coeficientes de densidad se validan", {
     "nombres"
   )
   sin_atributos <- instancia_nueva(densidad, coeficientes = 1)
-  expect_error(
+  .expect_no_medible(
     medir(modelo(sin_atributos), data.frame(a = 1)), "al menos 1"
   )
   nombres_malos <- instancia_nueva(
     densidad, c("a", "b"), coeficientes = c(a = 0.5, c = 0.5)
   )
-  expect_error(
+  .expect_no_medible(
     medir(modelo(nombres_malos), data.frame(a = 1, b = 2)), "coincidir"
   )
   longitud_mala <- instancia_nueva(
     densidad, c("a", "b"), coeficientes = 1
   )
-  expect_error(
+  .expect_no_medible(
     medir(modelo(longitud_mala), data.frame(a = 1, b = 2)), "un coeficiente"
   )
 })

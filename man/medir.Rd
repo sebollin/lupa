@@ -69,10 +69,15 @@ Los booleanos se almacenan como \code{0} y \code{1} en la columna común \code{r
 alto expresa defecto o si esa lectura no aplica. Algunas métricas
 que trabajan con un vocabulario o un alcance parcial agregan un atributo
 \code{alcance_metricas} con sus conteos y límites. Si una métrica no puede
-medirse —porque su universo no tiene valores, o porque su contrato no trae un
-campo que necesita—, no crea filas ni ceros: deja el motivo y cómo
-resolverlo en el atributo \code{cobertura_metricas}, con un estado que distingue
-las dos causas. Y cuando \strong{sí} pudo medirse
+medirse, no crea filas ni ceros: deja el motivo y cómo resolverlo en el
+atributo \code{cobertura_metricas}, con un estado que distingue tres causas:
+\code{sin_valores} cuando su universo no tiene valores, \code{contrato_incompleto}
+cuando su contrato no trae un campo que necesita, y \code{no_medible} cuando su
+método falló sobre estos datos —una columna sin dos valores para
+\code{ErrorEstandar}, un atributo que la tabla no trae, una regla que devuelve
+\code{NA}—. En el último caso el motivo conserva el mensaje del método y \code{medir()}
+\strong{avisa}: la falla ya no se lleva la medición de las demás métricas, pero
+tampoco queda muda. Y cuando \strong{sí} pudo medirse
 pero sobre \strong{menos} elementos de los que hay en su universo aplicable —una
 métrica por celda no mide la celda vacía, que no produce medida ni cuenta
 como incumplimiento—, el atributo \code{alcance_medidas} publica cuántos midió de

@@ -213,6 +213,13 @@ test_that("toda metrica temporal de los catalogos declara la mezcla de clases", 
       }
     )
     if (inherits(medicion, "try-error")) return(NULL)
+    # Una metrica cuyo metodo fallo ya no aborta `medir()`: queda `no_medible`.
+    # Para este recorrido es lo mismo que antes era el error -la metrica no llego
+    # a comparar fechas- y se cuenta como no ejercida, no como muda.
+    cobertura <- attr(medicion, "cobertura_metricas", exact = TRUE)
+    if (!is.null(cobertura) && any(cobertura$estado == "no_medible")) {
+      return(NULL)
+    }
     any(grepl("fecha de calendario con un instante", avisos))
   }
 

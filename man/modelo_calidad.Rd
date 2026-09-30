@@ -229,6 +229,13 @@ tipos homónimos;
 \item \code{objeto}: etiqueta legible y estable del objeto medido.
 }
 
+\code{\link[=medir]{medir()}} hace cumplir el contrato: rechaza la salida sin esas columnas, con
+un \code{resultado} fuera de su tipo, con más de una observación para el mismo
+objeto, con una \code{entidad} que no está ligada a la instancia, o con \code{fila}
+ausente en una métrica por celda o por fila. Si el método \strong{aborta}, en
+cambio, la métrica queda \code{no_medible} en \code{cobertura_metricas} y las demás se
+miden igual.
+
 Las columnas adicionales se descartan. Un \code{metodo} pasado a \code{\link[=instanciar]{instanciar()}}
 reemplaza el predeterminado sólo para esa instancia. El ejemplo ejecutable
 muestra la cadena genérica → específica → instanciada completa.

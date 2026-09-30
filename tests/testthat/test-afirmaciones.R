@@ -204,22 +204,22 @@ test_that("las métricas con contrato se abstienen ante datos o insumos inválid
   escala_inst <- function(contrato, atributo = "x") {
     instanciar(especializar(nucleo$Escala, escala = contrato), "t", atributo)
   }
-  expect_error(
+  .expect_no_medible(
     medir(modelo(escala_inst(escala(0.1))), data.frame(x = letters[1:2])),
     "num.*rico ordinario"
   )
-  expect_error(
+  .expect_no_medible(
     medir(modelo(escala_inst(escala(0.1))), data.frame(x = c(1, Inf))),
     "no finitos"
   )
-  expect_error(
+  .expect_no_medible(
     medir(
       modelo(escala_inst(escala(function(x) c(-1, 0)))),
       data.frame(x = c(1, 2))
     ),
     "no devolvi.*"
   )
-  expect_error(
+  .expect_no_medible(
     medir(
       modelo(escala_inst(escala(function(x) rep(2, length(x)), "relativo"))),
       data.frame(x = c(1, 2))
@@ -256,7 +256,7 @@ test_that("las métricas con contrato se abstienen ante datos o insumos inválid
     especializar(nucleo$DesactualizacionPorFecha,
                   vigencia = contrato_numero), "t", "x"
   )
-  expect_error(
+  .expect_no_medible(
     medir(modelo(instancia_tipo), data.frame(f = 1:2)),
     "Date o POSIXt"
   )

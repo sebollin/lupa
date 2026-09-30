@@ -155,9 +155,16 @@ cobertura_analisis <- function(perfil, medicion = NULL,
   factores$estado[medidas_perfil] <- "medida"
   factores$motivo[medidas_perfil] <-
     "El profiling autom\u00e1tico examina evidencia de este factor."
-  factores$motivo[.identificadores_en(claves, "Completitud|Densidad")] <-
+  # Los dos motivos que precisan QUE examino el perfil valen solo donde el perfil
+  # mide el factor. Se asignaban por clave, sin mirar el estado: un marco propio
+  # con `Densidad` y `perfil_mide = FALSE` publicaba `no_declarada` al lado de "el
+  # perfil conto ausentes reales y disfrazados", un par que se contradice. En
+  # `marco_agesic()` no se veia porque esos dos pares traen `perfil_mide = TRUE`.
+  factores$motivo[medidas_perfil &
+                    .identificadores_en(claves, "Completitud|Densidad")] <-
     "El perfil cont\u00f3 ausentes reales y disfrazados en todas las columnas."
-  factores$motivo[.identificadores_en(claves, "Unicidad|No-duplicaci\u00f3n")] <-
+  factores$motivo[medidas_perfil &
+                    .identificadores_en(claves, "Unicidad|No-duplicaci\u00f3n")] <-
     "El perfil examin\u00f3 duplicaci\u00f3n de valores, columnas y filas exactas."
 
   if (!.perfil_tiene_tiempo(perfil)) {
