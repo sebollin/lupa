@@ -555,6 +555,8 @@ test_that("ratio sigue agregando lo que medir() produce", {
   booleanas <- 0L
   for (nombre in names(metricas_nucleo())) {
     for (columna in names(tabla)) {
+      # Una metrica que no admite la columna ya no aborta: queda `no_medible` y
+      # `medir()` avisa. Para este recorrido es lo mismo que antes era el error.
       medida <- tryCatch(
         medir(
           modelo(instanciar(
@@ -562,7 +564,11 @@ test_that("ratio sigue agregando lo que medir() produce", {
           )),
           tabla
         ),
-        error = function(e) NULL
+        error = function(e) NULL,
+        warning = function(w) {
+          if (grepl("no se midieron porque su m", conditionMessage(w),
+                    fixed = TRUE)) NULL else stop(w)
+        }
       )
       if (is.null(medida)) next
       if (!identical(unique(medida$tipo_resultado), "booleano")) next

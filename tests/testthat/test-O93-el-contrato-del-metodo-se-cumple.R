@@ -25,7 +25,7 @@ test_that("una entidad no ligada se rechaza", {
     data.frame(resultado = TRUE, entidad = "fantasma", atributo = "x",
                fila = NA_integer_, objeto = "fantasma$x")
   }
-  expect_error(.o93_medir(fantasma), "no está ligada")
+  expect_error(.o93_medir(fantasma), "no est\u00e1 ligada")
 })
 
 test_that("una medida por celda sin fila se rechaza", {

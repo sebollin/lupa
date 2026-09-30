@@ -7,7 +7,7 @@ test_that("un marco propio que el perfil no mide no recibe el motivo de medido",
   # disfrazados". En `marco_agesic()` no se ve porque esos pares traen
   # `perfil_mide = TRUE`.
   factores <- marco_agesic()$factores
-  factores <- factores[factores$factor %in% c("Densidad", "No-duplicación"),
+  factores <- factores[factores$factor %in% c("Densidad", "No-duplicaci\u00f3n"),
                        c("dimension", "factor")]
   expect_equal(nrow(factores), 2L)
   perfil <- suppressWarnings(perfilar(
