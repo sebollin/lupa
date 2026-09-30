@@ -1462,11 +1462,14 @@ that can turn it off.
 - Measures and evaluates explicit metrics, scales, validity rules, and
   referential domains. A contract that is missing a field **abstains and
   says which field** in `cobertura_metricas`, instead of aborting the
-  measurement of every other metric; and any metric comparing a column
-  against a declared temporal value **warns when the two ends are not of
-  the same class**, because a `Date` is anchored to UTC midnight while a
-  `POSIXct` stands for its instant, and mixing them changes the number
-  invisibly.
+  measurement of every other metric; a metric whose method fails on the
+  data —a column without two values for `ErrorEstandar`, an attribute
+  the table does not have— becomes **`no_medible`**, with the method’s
+  message and a warning, and the others are still measured; and any
+  metric comparing a column against a declared temporal value **warns
+  when the two ends are not of the same class**, because a `Date` is
+  anchored to UTC midnight while a `POSIXct` stands for its instant, and
+  mixing them changes the number invisibly.
 - Produces editable cleanup plans, applies only selected actions to a
   copy, and keeps an audit log.
 - Finds approximate duplicates with exact tiles, deterministic

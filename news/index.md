@@ -2,6 +2,68 @@
 
 ## lupa 0.1.0
 
+### Ronda 8: el modelo de calidad y el informe dicen lo que sostienen
+
+- **El contrato de `metodo` se hace cumplir, no solo se declara.**
+  [`medir()`](https://sebollin.github.io/lupa/reference/medir.md)
+  rechaza la salida con mas de una observacion para el mismo objeto, con
+  una entidad no ligada o sin `fila` en una metrica por celda o por
+  fila. Medido: un metodo que devolvia dos filas por celda hacia que
+  `agregar(, "ratio")` diera 0,5 donde la respuesta es 0,667. Un
+  recorrido de la suite -650 llamadas, 44 metricas- mostro que ningun
+  metodo del paquete viola esas tres; la clausula del atributo no se
+  exige, porque las metricas de vigencia publican con razon la columna
+  del contrato.
+- **`alcance_medidas` cuenta el universo de la metrica.** Con la
+  propiedad `aplicable` de `NoNulo`, una metrica que midio sus tres
+  filas aplicables publicaba «midio 3 de 4 en el universo aplicable». Y
+  la causa «las que no tienen valor no producen medida» se afirma solo
+  si las cuentas la sostienen.
+- **[`modelo()`](https://sebollin.github.io/lupa/reference/modelo_calidad.md)
+  rechaza el mismo instrumento declarado dos veces** con otro nombre: la
+  medicion publicaba cada celda dos veces. Se compara con
+  [`identical()`](https://rdrr.io/r/base/identical.html) y no por texto,
+  para no rechazar dos reglas con el mismo cuerpo y entornos distintos.
+- **La evolucion del historico en el informe sale de la deriva.** Un
+  [`diff()`](https://rdrr.io/r/base/diff.html) propio publicaba el delta
+  de un par que la deriva declara no comparable -«no se publica la
+  comparacion del resultado»- dos secciones mas abajo.
+- **Una medicion sin `id_medicion` ya no publica «0 corrida(s)».**
+- Dos motivos que contradecian a su estado:
+  [`cobertura_analisis()`](https://sebollin.github.io/lupa/reference/cobertura_analisis.md)
+  sobre un marco propio que el perfil no mide, y «la entidad
+  dependiente» en metricas que no tienen dependiente. Y pasar la
+  propiedad `metodo` de `EntidadContradictoria` al instanciar dice ahora
+  donde se fija.
+
+### Un metodo que falla ya no se lleva la medicion de las demas metricas
+
+- **[`medir()`](https://sebollin.github.io/lupa/reference/medir.md) no
+  aborta cuando el metodo de una metrica falla.**
+  [`?medir`](https://sebollin.github.io/lupa/reference/medir.md)
+  prometia que una metrica que no puede medirse deja su motivo en
+  `cobertura_metricas`, y cinco metodos del catalogo llamaban
+  [`stop()`](https://rdrr.io/r/base/stop.html): `ErrorEstandar` sobre
+  una columna sin dos valores, `Escala` con valores no finitos, las dos
+  `OportunidadAtributoPor*` sobre una columna que no es fecha, y
+  cualquier metrica con un atributo que la tabla no trae. El error
+  mataba la corrida entera, y con ella la medicion de las otras metricas
+  del modelo. Ahora la metrica queda en `cobertura_metricas` con el
+  estado nuevo **`no_medible`**, el motivo conserva el mensaje del
+  metodo, y las demas se miden igual.
+- **Se envuelve la llamada, no los cinco metodos.** La propiedad es «un
+  metodo que falla no tumba a los demas», y asi alcanza tambien a los
+  metodos que escribe el usuario, que tenian la misma puerta.
+- **Es un estado nuevo y no `contrato_incompleto`**, porque no dice lo
+  mismo: el contrato esta completo y son los datos los que no admiten la
+  metrica.
+- **Y [`medir()`](https://sebollin.github.io/lupa/reference/medir.md)
+  avisa.** El error era la unica senal; sin el aviso, un atributo mal
+  escrito habria dejado una medicion con menos filas y en silencio. Lo
+  que se valida antes del metodo -los argumentos de
+  [`medir()`](https://sebollin.github.io/lupa/reference/medir.md)- y
+  despues -la forma de su salida- sigue abortando.
+
 ### La proteccion de datos personales enmascaraba nombres de columna
 
 - **Un nombre de columna ya no se enmascara, aunque un valor protegido

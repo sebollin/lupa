@@ -43,6 +43,30 @@
     <div class="section level2">
 <h2 class="pkg-version" data-toc-text="0.1.0" id="lupa-010">lupa 0.1.0<a class="anchor" aria-label="anchor" href="#lupa-010"></a></h2>
 <div class="section level3">
+<h3 id="ronda-el-modelo-de-calidad-y-el-informe-dicen-lo-que-sostienen-0-1-0">Ronda 8: el modelo de calidad y el informe dicen lo que sostienen<a class="anchor" aria-label="anchor" href="#ronda-el-modelo-de-calidad-y-el-informe-dicen-lo-que-sostienen-0-1-0"></a></h3>
+<ul><li>
+<strong>El contrato de <code>metodo</code> se hace cumplir, no solo se declara.</strong> <code><a href="../reference/medir.html">medir()</a></code> rechaza la salida con mas de una observacion para el mismo objeto, con una entidad no ligada o sin <code>fila</code> en una metrica por celda o por fila. Medido: un metodo que devolvia dos filas por celda hacia que <code>agregar(, "ratio")</code> diera 0,5 donde la respuesta es 0,667. Un recorrido de la suite -650 llamadas, 44 metricas- mostro que ningun metodo del paquete viola esas tres; la clausula del atributo no se exige, porque las metricas de vigencia publican con razon la columna del contrato.</li>
+<li>
+<strong><code>alcance_medidas</code> cuenta el universo de la metrica.</strong> Con la propiedad <code>aplicable</code> de <code>NoNulo</code>, una metrica que midio sus tres filas aplicables publicaba «midio 3 de 4 en el universo aplicable». Y la causa «las que no tienen valor no producen medida» se afirma solo si las cuentas la sostienen.</li>
+<li>
+<strong><code><a href="../reference/modelo_calidad.html">modelo()</a></code> rechaza el mismo instrumento declarado dos veces</strong> con otro nombre: la medicion publicaba cada celda dos veces. Se compara con <code><a href="https://rdrr.io/r/base/identical.html" class="external-link">identical()</a></code> y no por texto, para no rechazar dos reglas con el mismo cuerpo y entornos distintos.</li>
+<li>
+<strong>La evolucion del historico en el informe sale de la deriva.</strong> Un <code><a href="https://rdrr.io/r/base/diff.html" class="external-link">diff()</a></code> propio publicaba el delta de un par que la deriva declara no comparable -«no se publica la comparacion del resultado»- dos secciones mas abajo.</li>
+<li><strong>Una medicion sin <code>id_medicion</code> ya no publica «0 corrida(s)».</strong></li>
+<li>Dos motivos que contradecian a su estado: <code><a href="../reference/cobertura_analisis.html">cobertura_analisis()</a></code> sobre un marco propio que el perfil no mide, y «la entidad dependiente» en metricas que no tienen dependiente. Y pasar la propiedad <code>metodo</code> de <code>EntidadContradictoria</code> al instanciar dice ahora donde se fija.</li>
+</ul></div>
+<div class="section level3">
+<h3 id="un-metodo-que-falla-ya-no-se-lleva-la-medicion-de-las-demas-metricas-0-1-0">Un metodo que falla ya no se lleva la medicion de las demas metricas<a class="anchor" aria-label="anchor" href="#un-metodo-que-falla-ya-no-se-lleva-la-medicion-de-las-demas-metricas-0-1-0"></a></h3>
+<ul><li>
+<strong><code><a href="../reference/medir.html">medir()</a></code> no aborta cuando el metodo de una metrica falla.</strong> <code><a href="../reference/medir.html">?medir</a></code> prometia que una metrica que no puede medirse deja su motivo en <code>cobertura_metricas</code>, y cinco metodos del catalogo llamaban <code><a href="https://rdrr.io/r/base/stop.html" class="external-link">stop()</a></code>: <code>ErrorEstandar</code> sobre una columna sin dos valores, <code>Escala</code> con valores no finitos, las dos <code>OportunidadAtributoPor*</code> sobre una columna que no es fecha, y cualquier metrica con un atributo que la tabla no trae. El error mataba la corrida entera, y con ella la medicion de las otras metricas del modelo. Ahora la metrica queda en <code>cobertura_metricas</code> con el estado nuevo <strong><code>no_medible</code></strong>, el motivo conserva el mensaje del metodo, y las demas se miden igual.</li>
+<li>
+<strong>Se envuelve la llamada, no los cinco metodos.</strong> La propiedad es «un metodo que falla no tumba a los demas», y asi alcanza tambien a los metodos que escribe el usuario, que tenian la misma puerta.</li>
+<li>
+<strong>Es un estado nuevo y no <code>contrato_incompleto</code></strong>, porque no dice lo mismo: el contrato esta completo y son los datos los que no admiten la metrica.</li>
+<li>
+<strong>Y <code><a href="../reference/medir.html">medir()</a></code> avisa.</strong> El error era la unica senal; sin el aviso, un atributo mal escrito habria dejado una medicion con menos filas y en silencio. Lo que se valida antes del metodo -los argumentos de <code><a href="../reference/medir.html">medir()</a></code>- y despues -la forma de su salida- sigue abortando.</li>
+</ul></div>
+<div class="section level3">
 <h3 id="la-proteccion-de-datos-personales-enmascaraba-nombres-de-columna-0-1-0">La proteccion de datos personales enmascaraba nombres de columna<a class="anchor" aria-label="anchor" href="#la-proteccion-de-datos-personales-enmascaraba-nombres-de-columna-0-1-0"></a></h3>
 <ul><li>
 <strong>Un nombre de columna ya no se enmascara, aunque un valor protegido caiga dentro de el.</strong> Lo encontro una evaluacion sobre una base real de millones de filas: la proteccion reemplazaba el valor protegido en TODA la salida, incluidos los campos que guardan nombres de columna, asi que <code>fecha_nacimiento</code> salio publicada como <code>fecha_[valor protegido]</code>. Las dos guardas que comparan los nombres del perfil con los de los datos abortaban <code><a href="../reference/planificar_limpieza.html">planificar_limpieza()</a></code> y <code><a href="../reference/analizar.html">analizar()</a></code>, y bastaba UN valor entre millones. El laboratorio no lo habia reproducido: ninguna prueba ponia un valor personal que coincidiera con un pedazo de un nombre.</li>
