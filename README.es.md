@@ -1278,17 +1278,17 @@ pueden llamar sueltas sin pagar el recorrido entero.
 en memoria, y sobre tablas de millones de filas no son una pasada rápida. Son
 datos de referencia medidos, **no una predicción** —una evaluación única y
 fechada (2026-09-29) sobre bases de producción que este repositorio no puede
-rehacer—: sobre dos tablas de entre 3,5 y 4,5 millones de filas y una veintena
-de columnas, `perfilar()` tardó entre 50 y 60 minutos y `analizar()` entre 45 y
-100, con un pico de memoria de unos 74 GB en una máquina de 121. En una máquina
-común eso no entra. Para esa escala conviene perfilar una muestra de la tabla y
-llamar sueltas las piezas de `analizar()` que hagan falta. [perfilar_dbi()]
-calcula los agregados en el motor y trae sólo una muestra, pero en esa misma
-evaluación, con sus valores por omisión, el servidor cortó la conexión sobre las
-dos tablas; la causa está en diagnóstico y, hasta tenerla, no se puede
-recomendar para esa escala. La muestra que `perfilar()` toma por su cuenta es
-sistemática y sin azar, así que el mismo perfil se rehace sobre los mismos
-datos.
+rehacer—: sobre tres tablas de entre 3,7 y 4,3 millones de filas y de 7 a 19
+columnas, `perfilar()` tardó entre 14 y 59 minutos, y la **misma llamada**
+repetida sobre la misma tabla tardó 53 y 29; `analizar()` terminó en 20 minutos
+sobre la de 7 columnas y en 97 sobre una de 13. El costo depende de las columnas
+y de su contenido tanto como de las filas, y varía entre corridas, así que la
+cifra no se extrapola. Para esa escala conviene perfilar una muestra de la tabla
+y llamar sueltas las piezas de `analizar()` que hagan falta. [perfilar_dbi()]
+calcula los agregados en el motor y trae sólo una muestra, pero en esa
+evaluación no llegó a medirse sobre esas tablas. La muestra que `perfilar()`
+toma por su cuenta es sistemática y sin azar, así que el mismo perfil se rehace
+sobre los mismos datos.
 
 ## 🚦 Severidades y automatización
 

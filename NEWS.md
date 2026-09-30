@@ -15,9 +15,11 @@
   de `coleccion()`, una tabla vacia y una que no estaba en la entrada recibian el
   mismo motivo generico, aunque la medicion sabia que la vacia tenia cero filas: lo
   dejo en `cobertura_metricas`, y ahora ese motivo viaja a la cobertura.
-- **El README dice lo que cuesta la escala.** Sobre dos tablas de entre 3,5 y 4,5
-  millones de filas, medidas en una evaluacion externa, `perfilar()` tardo entre 50 y
-  60 minutos y `analizar()` entre 45 y 100, con un pico de 74 GB.
+- **El README dice lo que cuesta la escala.** Sobre tres tablas de entre 3,7 y 4,3
+  millones de filas, medidas en una evaluacion externa, `perfilar()` tardo entre 14 y
+  59 minutos -y la misma llamada, repetida, 53 y 29- y `analizar()` 20 y 97. Solo lo
+  que sostienen los datos entregados: un pico de memoria que se informo aparte no
+  quedo registrado en ellos y no se publica.
 - **`alcance_medidas` cuenta el universo de la metrica.** Con la propiedad
   `aplicable` de `NoNulo`, una metrica que midio sus tres filas aplicables publicaba
   «midio 3 de 4 en el universo aplicable». Y la causa «las que no tienen valor no
