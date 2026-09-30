@@ -348,8 +348,10 @@ saying `"calculados"`, and `cobertura_diagnosticos` gets its row. The breakdown 
 the non-finite values stays in `n_nan`, `n_infinito_positivo` and
 `n_infinito_negativo`, and when no usable value survives the state says so
 instead of claiming it computed anything, and it **tells two different cases
-apart**: `"sin_valores"` when the column held no present value at all —empty, or all
-`NA`— and `"sin_valores_utilizables"` when it did hold values and none of them was
+apart**: `"sin_valores"` when the column held no present value **in the universe the
+summary measures** —empty, all `NA`, or with declared applicability leaving that
+universe without values, in which case the ones outside are declared in
+`n_presentes_fuera_de_aplicabilidad`— and `"sin_valores_utilizables"` when it did hold values and none of them was
 usable, as in a column of thirty `Inf` —which publishes `n_faltantes = 0` and
 `n_distintos = 1`— or one whose sentinels took every value. It says so for an
 `integer64` column just as for a double one. The exclusion of non-finite values is

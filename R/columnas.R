@@ -907,6 +907,26 @@
   )
 }
 
+# Los estados que significan "esta clase NO produce resumen cuantitativo". Es la
+# condicion con la que el campo `unidad` se calla: una unidad de cifras que no
+# existen no contesta la pregunta del campo.
+#
+# Son dos y no uno, y eso costo un defecto: la rama principal miraba solo
+# `no_aplica`, y la de columnas compuestas escribe su propio estado
+# -`tipo_compuesto_no_analizado`- y publicaba la unidad sin condicion. Medido: una
+# matriz con `attr(m, "units") <- "kg"` publicaba `unidad = "kg"` junto a
+# `media = NA`, que es la forma exacta que el arreglo del `factor` habia venido a
+# cerrar; la columna de listas, cuyo estado SI es `no_aplica`, salia callada. El
+# comentario que lo justificaba decia "como en `difftime`", y esa analogia se
+# vencio el mismo dia: `difftime` publica cifras desde que dejo de abstenerse.
+#
+# Es un vocabulario CERRADO del paquete -no una lista de clases-, asi que
+# enumerarlo aca es la forma correcta; lo que no puede volver a pasar es que la
+# condicion se escriba dos veces y una se quede corta.
+.ESTADOS_SIN_RESUMEN_CUANTITATIVO <- c(
+  "no_aplica", "tipo_compuesto_no_analizado"
+)
+
 .resumen_vacio_cuantitativo <- function(estado = "no_aplica") {
   list(
     minimo = NA_real_, maximo = NA_real_, media = NA_real_,
@@ -1055,12 +1075,24 @@
     return(salida)
   }
   valores_originales <- cuantitativos$valores
-  # Cuantos valores PRESENTES tenia la columna antes de excluir nada. "Presente"
-  # se define igual que en `n_faltantes`, que es la nocion del paquete: medido,
-  # una columna de cinco `NaN` publica `n_faltantes = 5` y `n_distintos = 0`
-  # -el `NaN` cuenta como ausente- y una de cinco `Inf` publica
-  # `n_faltantes = 0` y `n_distintos = 1`. Inventar otra definicion aca haria
-  # que dos campos de la misma fila contaran cosas distintas.
+  # Cuantos valores PRESENTES tenia la columna antes de excluir nada, **en el
+  # universo que el resumen mide**. "Presente" se define igual que en
+  # `n_faltantes`, que es la nocion del paquete: medido, una columna de cinco
+  # `NaN` publica `n_faltantes = 5` y `n_distintos = 0` -el `NaN` cuenta como
+  # ausente- y una de cinco `Inf` publica `n_faltantes = 0` y `n_distintos = 1`.
+  # Inventar otra definicion aca haria que dos campos de la misma fila contaran
+  # cosas distintas.
+  #
+  # El universo importa y la primera version de este comentario lo omitia: `x` ya
+  # llega con las filas fuera de la aplicabilidad declarada marcadas como
+  # ausentes, asi que la relacion que se cumple es
+  # `n_aplicables - n_faltantes`, NO `n - n_faltantes`. Medido con
+  # `aplicabilidad = list(v = ~ FALSE)` sobre cinco valores: `n_aplicables = 0`,
+  # `n_faltantes = 0`, y el estado sale `sin_valores` -correcto, porque en el
+  # universo que se resume no hay ningun valor presente-, mientras la fila
+  # declara los cinco en `n_presentes_fuera_de_aplicabilidad`. Un refutador leyo
+  # esto como una contradiccion y propuso `sin_valores_utilizables`; medirlo
+  # mostro que eso seria lo falso.
   n_presentes_resumen <- as.integer(sum(!is.na(valores_originales)))
   mascara_sentinelas <- if (identical(cuantitativos$clase, "numero")) {
     .mascara_sentinelas_resumen(
@@ -1240,7 +1272,14 @@
       n_fechas_resumidas = NA_integer_,
       n_fechas_excluidas_granularidad = NA_integer_,
       n_valores_excluidos_resumen = cuantitativos$n_valores_excluidos_resumen,
-      estado_resumen_cuantitativo = cuantitativos$estado
+      estado_resumen_cuantitativo = cuantitativos$estado,
+      # Ver el comentario de `n_resumidos` en la lista del final de esta misma
+      # funcion. ESTA lista y esa son dos copias de casi el mismo conjunto de
+      # campos -la de aca es la via numerica, la otra la temporal-, y agregar el
+      # campo a una sola fue lo que hizo que la primera version de este arreglo
+      # publicara "un numero que no se pudo establecer" en los seis casos
+      # medidos. Si se toca una, hay que tocar la otra.
+      n_resumidos = length(valores)
     ))
   }
 
@@ -1271,7 +1310,24 @@
     ) cuantitativos$n_valores_excluidos_resumen else NA_integer_,
     estado_resumen_cuantitativo = if (!is.null(cuantitativos$estado)) {
       cuantitativos$estado
-    } else "calculados"
+    } else "calculados",
+    # Cuantos valores entraron al resumen, CONTADOS aca, donde se calculan.
+    #
+    # La fila de cobertura publicaba esta cifra derivandola con aritmetica sobre
+    # otros tres campos -`aplicables - faltantes - excluidos`- y por eso se
+    # rompio DOS veces: primero porque el `NaN` estaba en dos de los tres
+    # sumandos y se restaba dos veces, y despues porque el arreglo de eso supuso
+    # que todo `NaN` esta en `n_faltantes`, que es falso para un `"NaN"` de
+    # TEXTO -`is.na("NaN")` es FALSE, asi que la columna lo cuenta como presente-
+    # y la cifra salia sobrestimada. Medido: `c("10","20","NaN","30","40")`
+    # publicaba "se calculo sobre 5" con `media = 25`, que es el promedio de
+    # cuatro valores.
+    #
+    # Una cifra derivada de otras tres hereda todas sus definiciones de
+    # presencia. Contarla en el unico lugar que sabe cuantos valores uso -este-
+    # la vuelve una medicion. No se publica en la fila: viaja en el resultado de
+    # la columna para que la cobertura la lea.
+    n_resumidos = length(valores)
   )
 }
 
@@ -2617,9 +2673,10 @@
     # El discriminador es `no_aplica` -"esta clase no se resume"- y no una lista
     # de clases: una columna `units` de puros `NA` sigue declarando su unidad,
     # porque su clase SI se resume y la unidad dice en que estarian sus cifras.
-    unidad = if (identical(
-      cuantitativo$estado_resumen_cuantitativo, "no_aplica"
-    )) {
+    unidad = if (
+      cuantitativo$estado_resumen_cuantitativo %in%
+        .ESTADOS_SIN_RESUMEN_CUANTITATIVO
+    ) {
       NA_character_
     } else {
       .unidad_del_resumen(x)
@@ -2768,9 +2825,17 @@
   fila$media_fecha <- NA_character_
   fila$mediana_fecha <- NA_character_
   fila$estado_resumen_cuantitativo <- "tipo_compuesto_no_analizado"
-  # Una matriz puede llevar unidad declarada aunque su resumen no se calcule: la
-  # unidad se publica igual, como en `difftime`.
-  fila$unidad <- .unidad_del_resumen(x)
+  # Una columna compuesta no publica ninguna cifra cuantitativa, asi que su unidad
+  # se calla, igual que en la rama principal. La version anterior la publicaba
+  # "como en `difftime`", y esa analogia dejo de valer el dia que `difftime`
+  # empezo a publicar cifras.
+  fila$unidad <- if (
+    fila$estado_resumen_cuantitativo %in% .ESTADOS_SIN_RESUMEN_CUANTITATIVO
+  ) {
+    NA_character_
+  } else {
+    .unidad_del_resumen(x)
+  }
   fila$zona_horaria_origen <- NA_character_
   fila$n_filas_fecha_civil_distinta_utc <- NA_integer_
   fila$fecha_civil_distinta_utc <- NA

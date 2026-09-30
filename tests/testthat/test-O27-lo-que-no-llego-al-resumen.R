@@ -170,10 +170,15 @@ test_that("una columna sin un solo valor utilizable no dice calculados", {
 
     expect_equal(as.character(fila$estado_resumen_cuantitativo[[1L]]),
                  caso$estado, info = nombre)
-    # El estado tiene que coincidir con el conteo de presentes de la MISMA fila:
-    # si no, la fila se contradiria a si misma.
-    expect_equal(fila$n[[1L]] - fila$n_faltantes[[1L]], caso$presentes,
-                 info = nombre)
+    # El estado tiene que coincidir con el conteo de presentes de la MISMA fila,
+    # **en el universo que el resumen mide**: si no, la fila se contradiria a si
+    # misma. La primera version de esta afirmacion usaba `n - n_faltantes`, que
+    # omite la aplicabilidad declarada y solo coincide cuando no hay ninguna; el
+    # bloque de abajo cubre ese caso para que la omision no vuelva.
+    expect_equal(
+      fila$n_aplicables[[1L]] - fila$n_faltantes[[1L]], caso$presentes,
+      info = nombre
+    )
     expect_true(is.na(fila$minimo[[1L]]), info = nombre)
     expect_true(is.na(fila$media[[1L]]), info = nombre)
   }
@@ -192,6 +197,45 @@ test_that("una columna sin un solo valor utilizable no dice calculados", {
     "sin_valores_utilizables"
   )
   expect_equal(fila_centinelas$n_valores_excluidos_resumen[[1L]], 6L)
+
+  # Con aplicabilidad declarada, el universo que el resumen mide es otro, y el
+  # estado se lee contra ESE universo. Son los casos que faltaban.
+  universo_vacio <- perfilar(
+    data.frame(v = c(1, 2, 3, 4, 5)),
+    aplicabilidad = list(v = ~ FALSE), analizar_dependencias = FALSE
+  )
+  fila_vacio <- universo_vacio$columnas[
+    universo_vacio$columnas$columna == "v", , drop = FALSE
+  ]
+  # Cinco valores en la columna y CERO en el universo: `sin_valores` es cierto de
+  # lo que el resumen mide, y los cinco quedan declarados aparte.
+  expect_equal(fila_vacio$n[[1L]], 5)
+  expect_equal(fila_vacio$n_aplicables[[1L]], 0)
+  expect_equal(fila_vacio$n_presentes_fuera_de_aplicabilidad[[1L]], 5)
+  expect_equal(
+    as.character(fila_vacio$estado_resumen_cuantitativo[[1L]]), "sin_valores"
+  )
+  expect_equal(
+    fila_vacio$n_aplicables[[1L]] - fila_vacio$n_faltantes[[1L]], 0
+  )
+
+  # Y el caso que SI es `sin_valores_utilizables` con aplicabilidad: el universo
+  # tiene valores presentes y ninguno es finito.
+  con_infinitos <- perfilar(
+    data.frame(v = c(Inf, Inf, 3, 4, 5), g = c(1, 1, 2, 2, 2)),
+    aplicabilidad = list(v = ~ g == 1), analizar_dependencias = FALSE
+  )
+  fila_infinitos <- con_infinitos$columnas[
+    con_infinitos$columnas$columna == "v", , drop = FALSE
+  ]
+  expect_equal(fila_infinitos$n_aplicables[[1L]], 2)
+  expect_equal(
+    fila_infinitos$n_aplicables[[1L]] - fila_infinitos$n_faltantes[[1L]], 2
+  )
+  expect_equal(
+    as.character(fila_infinitos$estado_resumen_cuantitativo[[1L]]),
+    "sin_valores_utilizables"
+  )
 
   # Y una columna vacia, que es el caso donde `sin_valores` si es cierto.
   vacia <- perfilar(
@@ -229,4 +273,85 @@ test_that("un centinela declarado sigue contandose como antes", {
   expect_equal(fila$n_valores_excluidos_resumen[[1L]], 10L)
   expect_equal(as.character(fila$estado_resumen_cuantitativo[[1L]]),
                "calculados_sobre_valores")
+})
+
+test_that("la cifra del motivo se cuenta, no se deriva restando", {
+  # Esta cifra se rompio TRES veces por ser una resta:
+  #
+  #   1. `aplicables - faltantes - excluidos`: el `NaN` esta en dos de los tres
+  #      sumandos y se restaba dos veces (28 finitos publicaban 27).
+  #   2. descontar `n_nan` una vez: supone que todo `NaN` esta en `n_faltantes`, y
+  #      un `"NaN"` de TEXTO no lo esta -`is.na("NaN")` es FALSE-, asi que la
+  #      cifra salia sobrestimada (4 finitos publicaban 5).
+  #   3. ahora se CUENTA donde se calcula el resumen.
+  #
+  # El control de cada caso es la media, que sale por otro camino: si el resumen
+  # uso N valores, la media es la de esos N.
+  casos <- list(
+    texto_nan = list(
+      datos = data.frame(v = c("10", "20", "NaN", "30", "40"),
+                         stringsAsFactors = FALSE),
+      usados = 4, media = 25
+    ),
+    nan_nativo = list(
+      datos = data.frame(v = c(10, 20, NaN, 30, 40)), usados = 4, media = 25
+    ),
+    nan_e_infinito = list(
+      datos = data.frame(v = c(rep(1, 28), NaN, Inf)), usados = 28, media = 1
+    ),
+    dos_nan = list(
+      datos = data.frame(v = c(rep(1, 28), NaN, NaN)), usados = 28, media = 1
+    ),
+    infinito_solo = list(
+      datos = data.frame(v = c(10, 20, 30, 40, Inf)), usados = 4, media = 25
+    )
+  )
+  for (nombre in names(casos)) {
+    caso <- casos[[nombre]]
+    perfil <- perfilar(caso$datos, analizar_dependencias = FALSE)
+    fila <- perfil$columnas[perfil$columnas$columna == "v", , drop = FALSE]
+    cobertura <- perfil$cobertura_diagnosticos
+    motivo <- cobertura$motivo[
+      as.character(cobertura$diagnostico) == "resumen_cuantitativo"
+    ]
+    expect_length(motivo, 1L)
+    expect_match(
+      motivo[[1L]],
+      paste0("se calculo sobre ", caso$usados, " valores"),
+      fixed = TRUE, info = nombre
+    )
+    # El otro camino: la media es la de esos valores y de ningun otro numero.
+    expect_equal(fila$media[[1L]], caso$media, info = nombre)
+  }
+})
+
+test_that("el desglose no afirma como cuenta la columna lo que dejo afuera", {
+  # Decia "`NaN`, que la columna cuenta como ausente", y eso es falso cuando el
+  # `NaN` llega como texto: la fila publica `n_faltantes = 0` y `n_distintos = 5`.
+  # Quien cuenta la presencia es `n_faltantes`, que esta en la misma fila.
+  de_texto <- perfilar(
+    data.frame(v = c("10", "20", "NaN", "30", "40"), stringsAsFactors = FALSE),
+    analizar_dependencias = FALSE
+  )
+  fila <- de_texto$columnas[de_texto$columnas$columna == "v", , drop = FALSE]
+  expect_equal(fila$n_faltantes[[1L]], 0)
+  expect_equal(fila$n_nan[[1L]], 1L)
+  motivo <- de_texto$cobertura_diagnosticos$motivo[
+    as.character(de_texto$cobertura_diagnosticos$diagnostico) ==
+      "resumen_cuantitativo"
+  ]
+  expect_false(grepl("cuenta como ausente", motivo[[1L]], fixed = TRUE))
+  # Lo que si dice, porque es cierto de los dos casos.
+  expect_match(motivo[[1L]], "1 `NaN`", fixed = TRUE)
+  expect_match(motivo[[1L]], "valor no finito", fixed = TRUE)
+
+  # Y el infinito si declara presencia, porque un `Inf` siempre esta presente.
+  con_infinito <- perfilar(
+    data.frame(v = c(10, 20, 30, 40, Inf)), analizar_dependencias = FALSE
+  )
+  motivo_inf <- con_infinito$cobertura_diagnosticos$motivo[
+    as.character(con_infinito$cobertura_diagnosticos$diagnostico) ==
+      "resumen_cuantitativo"
+  ]
+  expect_match(motivo_inf[[1L]], "presente y no utilizable", fixed = TRUE)
 })

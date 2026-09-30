@@ -358,7 +358,10 @@ de decir `"calculados"` y `cobertura_diagnosticos` recibe su fila. El desglose d
 los no finitos queda en `n_nan`, `n_infinito_positivo` y `n_infinito_negativo`, y
 si no sobrevive ningún valor utilizable el estado lo dice en vez de afirmar que
 calculó algo, y **distingue dos casos que no son el mismo**: `"sin_valores"` cuando
-la columna no tenía ningún valor presente —vacía, o todo `NA`— y
+la columna no tenía ningún valor presente **en el universo que el resumen mide**
+—vacía, todo `NA`, o con la aplicabilidad declarada dejando ese universo sin
+valores, caso en el que los de afuera se declaran en
+`n_presentes_fuera_de_aplicabilidad`— y
 `"sin_valores_utilizables"` cuando sí los tenía y ninguno servía, como una columna
 de treinta `Inf` —que publica `n_faltantes = 0` y `n_distintos = 1`— o una donde los
 centinelas se llevaron todo. Lo dice igual en una columna `integer64` que en una de

@@ -2346,14 +2346,14 @@
       )
     },
     if (n_nan > 0) {
-      paste0(
-        .formatear_numero_publicado(n_nan),
-        if (n_nan == 1) {
-          " `NaN`, que la columna cuenta como ausente"
-        } else {
-          " `NaN`, que la columna cuenta como ausentes"
-        }
-      )
+      # El desglose dice QUE quedo afuera y no como lo cuenta la columna. La
+      # version anterior afirmaba "que la columna cuenta como ausente", y eso es
+      # falso cuando el `NaN` llega como TEXTO: `is.na("NaN")` es FALSE, asi que
+      # la fila publica `n_faltantes = 0` y `n_distintos = 5`. Medido sobre
+      # `c("10","20","NaN","30","40")`. Como quien cuenta la presencia es
+      # `n_faltantes`, que esta en la misma fila, el desglose no necesita
+      # repetirlo -y repetirlo mal era una contradiccion nueva-.
+      paste0(.formatear_numero_publicado(n_nan), " `NaN`")
     }
   )
   paste0(
@@ -4120,32 +4120,30 @@
       # cobertura existe para declarar CUANTO se midio, asi que perder ese numero
       # es perder lo unico que la fila aporta. No rompia nada ni avisaba: por eso
       # sobrevivio.
+      # La cifra se LEE de donde se calculo el resumen, no se deriva restando.
+      #
+      # Se derivaba como `aplicables - faltantes - excluidos` y se rompio dos
+      # veces por eso. Primero el `NaN` estaba en dos de los tres sumandos y se
+      # restaba dos veces: veintiocho unos con un `NaN` y un `Inf` publicaban "se
+      # calculo sobre 27" cuando los finitos son 28. Despues, el arreglo de eso
+      # -descontar `n_nan` una vez- supuso que todo `NaN` esta en `n_faltantes`, y
+      # eso es falso para un `"NaN"` de TEXTO: `is.na("NaN")` es FALSE, asi que la
+      # columna lo cuenta como presente y la cifra salia sobrestimada. Medido:
+      # `c("10","20","NaN","30","40")` publicaba "sobre 5" con `media = 25`, que
+      # es el promedio de cuatro.
+      #
+      # Una cifra derivada de otras tres hereda todas sus definiciones de
+      # presencia, y este numero es lo unico que esta fila aporta. Ahora
+      # `.resumen_cuantitativo()` publica `n_resumidos` -el largo del vector que
+      # resumio- y aca se lee. Las fechas siguen con su propio conteo, que ya se
+      # contaba en el origen por el mismo motivo.
       resumidas <- if (fila$tipo_inferido %in% c("fecha", "fecha-hora")) {
         fila$n_fechas_resumidas[[1L]]
       } else {
-        .primer_finito <- function(x) {
-          if (is.null(x) || !length(x)) return(NA_real_)
-          v <- suppressWarnings(as.numeric(x[[1L]]))
-          if (length(v) != 1L || !is.finite(v)) NA_real_ else v
-        }
-        aplicables <- .primer_finito(fila$n_aplicables)
-        faltantes <- .primer_finito(fila$n_faltantes)
-        # El `NaN` estaba restado DOS veces: cuenta en `n_faltantes` -la columna
-        # lo trata como ausente- y tambien en `n_valores_excluidos_resumen`, que
-        # cuenta todo lo que el resumen dejo afuera. Medido: veintiocho unos con
-        # un `NaN` y un `Inf` publicaban "se calculo sobre 27 valores" cuando los
-        # finitos son 28, y con dos `NaN` publicaban 26. La cifra es la unica cosa
-        # que esta fila de cobertura aporta.
-        #
-        # Lo que esta en los dos conjuntos es exactamente `n_nan`, asi que se
-        # descuenta una vez. Comprobado contra el conteo a mano en los cinco casos
-        # -solo `NaN`, solo infinitos, mezcla, centinelas, y centinelas con `NaN`-.
-        nan_fila <- .primer_finito(fila$n_nan)
-        if (is.na(nan_fila)) nan_fila <- 0
-        if (is.na(aplicables) || is.na(faltantes)) {
-          NA_real_
-        } else {
-          aplicables - faltantes - max(0, n_excluidas_resumen - nan_fila)
+        contado <- resultado$cuantitativo$n_resumidos
+        if (is.null(contado) || !length(contado)) NA_real_ else {
+          valor <- suppressWarnings(as.numeric(contado[[1L]]))
+          if (length(valor) != 1L || !is.finite(valor)) NA_real_ else valor
         }
       }
       # Y si aun asi no hay cifra, se DICE, en vez de dejar el hueco: informar

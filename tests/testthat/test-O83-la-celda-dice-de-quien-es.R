@@ -158,3 +158,76 @@ test_that("con universos distintos el texto nombra cada uno y sus componentes", 
   expect_false(grepl("universos distintos", sin))
   expect_match(sin, "no se afirma nada")
 })
+
+.o83_medicion_armada <- function(granularidad, entidades, objetos, valores,
+                                 instanciada, agregacion = NA_character_,
+                                 tipo = "booleano") {
+  # Se parte de una medicion real y se le cambian los campos: armar el data.frame
+  # a mano dejaria fuera columnas que el validador exige, y el objeto tiene que
+  # ser el que el paquete acepta.
+  nucleo <- metricas_nucleo()
+  no_nulo <- especializar(nucleo$NoNulo, nombre_especifico = "NoNuloO83e")
+  base <- as.data.frame(
+    medir(
+      modelo(instanciar(no_nulo, "t1", "v")), data.frame(v = c(1, NA)),
+      id_medicion = "o83e"
+    )
+  )[1, , drop = FALSE]
+  armada <- base[rep(1L, length(valores)), , drop = FALSE]
+  armada$granularidad <- granularidad
+  armada$metrica_instanciada <- instanciada
+  armada$entidad <- entidades
+  armada$objeto_medible <- objetos
+  armada$tipo_resultado <- tipo
+  armada$resultado <- valores
+  armada$agregacion <- agregacion
+  armada$atributo <- NA_character_
+  armada$fila <- NA_integer_
+  armada$id_medida <- paste0("o83e-", seq_along(valores))
+  class(armada) <- c("medicion", "data.frame")
+  armada
+}
+
+test_that("la agrupacion usa la identidad entera, no solo el objeto", {
+  # Para las granularidades sin rama propia, la clave era SOLO `objeto_medible`, y
+  # la celda publicaba la entidad de la primera fila del grupo: dos entidades con
+  # el mismo objeto se fundian en UNA celda con `valor = 0.5` -el promedio de 0 y
+  # 1- y la identidad de la segunda no quedaba en ninguna columna. Agrupar por
+  # menos de lo que se publica como identidad es fundir dos cosas que el objeto
+  # declara distintas.
+  armada <- .o83_medicion_armada(
+    "conjuntoAtributos", c("padron", "secundario"), "c1, c2", c(0, 1),
+    "NoNuloO83e@ca"
+  )
+  tablero <- as.data.frame(tablero_calidad(armada))
+  expect_equal(nrow(tablero), 2L)
+  expect_setequal(tablero$entidad, c("padron", "secundario"))
+  # Cada celda conserva SU valor: fundirlas publicaba el promedio.
+  expect_equal(
+    tablero$valor[tablero$entidad == "padron"], 0
+  )
+  expect_equal(
+    tablero$valor[tablero$entidad == "secundario"], 1
+  )
+  expect_false(any(abs(tablero$valor - 0.5) < 1e-9))
+})
+
+test_that("dos celdas con la misma identidad se rechazan nombrando el caso", {
+  # La ruta de mediciones YA agregadas convertia cada fila en celda sin verificar
+  # nada: dos filas con la misma metrica instanciada, la misma entidad y el mismo
+  # objeto salian como dos celdas de identidad identica y valores 0,9 y 0,3, que
+  # es el defecto exacto que la documentacion cita como ejemplo.
+  armada <- .o83_medicion_armada(
+    "coleccion", "padron", "t1, t3", c(0.9, 0.3),
+    "agregada:promedio:NoNuloO83e", agregacion = "promedio", tipo = "real"
+  )
+  expect_error(tablero_calidad(armada), "misma identidad")
+  # El mensaje nombra los valores que chocan: sin eso no se sabe cual revisar.
+  expect_error(tablero_calidad(armada), "0.9")
+
+  # Control: una sola fila por identidad pasa, asi que la guarda no rechaza la
+  # ruta legitima.
+  una <- armada[1L, , drop = FALSE]
+  class(una) <- c("medicion", "data.frame")
+  expect_equal(nrow(as.data.frame(tablero_calidad(una))), 1L)
+})

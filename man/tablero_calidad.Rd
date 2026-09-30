@@ -63,6 +63,19 @@ las claves publicadas mezclaba las medidas de las dos sin reproducir ninguna.
 tabla —\code{cod (tabla: t1)}—, en el mismo idioma con el que la granularidad de
 tabla ya publicaba \code{(tabla: t1)}.
 
+Ese trío es la clave con la que se \strong{agrupan} las medidas, y no sólo la que se
+publica: agrupar por menos de lo que se declara como identidad funde dos cosas
+que el objeto dice distintas. Antes, las granularidades sin rama propia
+—\code{conjuntoAtributos} entre ellas— agrupaban sólo por el objeto, y dos entidades
+con el mismo objeto salían como \strong{una} celda con la entidad de la primera y el
+promedio de las dos.
+
+Y la unicidad \strong{se verifica}: si dos celdas quedaran con el mismo trío, la
+función falla nombrando las dos y sus valores, en lugar de publicar dos filas
+con la misma identidad. Se rechaza en vez de quedarse con una porque dos
+valores distintos para la misma identidad es una contradicción de la entrada, y
+elegir uno sería elegir por quien llama.
+
 El objeto conserva la cobertura completa del marco: factores medidos, sin
 métrica declarada, no aplicables y fuera de alcance. \code{\link[=print]{print()}} muestra
 ambos elementos para que unas pocas filas nunca se lean como cobertura total.

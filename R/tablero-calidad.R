@@ -339,7 +339,21 @@
     ),
     instanciaEntidad = addNA(as.factor(.nombres_para_operar(medidas$entidad))),
     entidad = addNA(as.factor(.nombres_para_operar(medidas$entidad))),
-    factor(.nombres_para_operar(medidas$objeto_medible), exclude = NULL)
+    # El resto de las granularidades agrupaba SOLO por `objeto_medible`, y la
+    # celda publica la entidad de la primera fila del grupo. Medido a
+    # `conjuntoAtributos` con dos medidas del mismo `objeto_medible` y entidades
+    # `padron` y `secundario`: las dos se fundian en UNA celda con
+    # `entidad = padron` y `valor = 0.5` -el promedio de 0 y 1-, y la identidad
+    # de `secundario` no quedaba en ninguna columna del objeto.
+    #
+    # La entidad entra a la clave porque la promesa dice que es parte de la
+    # identidad de la celda: agrupar por menos de lo que se publica como
+    # identidad es fundir dos cosas que el objeto declara distintas.
+    interaction(
+      addNA(as.factor(.nombres_para_operar(medidas$entidad))),
+      factor(.nombres_para_operar(medidas$objeto_medible), exclude = NULL),
+      drop = TRUE, lex.order = TRUE
+    )
   )
 }
 
@@ -577,6 +591,39 @@
     stringsAsFactors = FALSE
   )
   class(tablero) <- c("tablero_calidad", "data.frame")
+  # La identidad publicada tiene que ser UNICA, que es lo que la documentacion
+  # afirma. Las dos rutas -agrupar medidas y publicar una medicion ya agregada-
+  # llegan aca, asi que la guarda va en el unico lugar por el que pasan las dos:
+  # la ruta ya-agregada convertia cada fila en celda sin verificar nada, y dos
+  # filas con el mismo `id_medicion`, la misma metrica instanciada, la misma
+  # entidad y el mismo objeto salian como dos celdas con identidad identica y
+  # valores 0,9 y 0,3 -el defecto exacto que la promesa cita como ejemplo-.
+  #
+  # Se rechaza nombrando el caso en vez de deduplicar: dos valores distintos para
+  # la misma identidad es una contradiccion de la ENTRADA, y elegir uno seria
+  # elegir por el usuario.
+  clave_celda <- paste(
+    .nombres_para_operar(tablero$metrica_instanciada),
+    .nombres_para_operar(tablero$entidad),
+    .nombres_para_operar(tablero$objeto),
+    sep = "\r"
+  )
+  if (anyDuplicated(clave_celda)) {
+    repetidas <- unique(clave_celda[duplicated(clave_celda)])
+    cuales <- which(clave_celda %in% repetidas)
+    stop(
+      "Dos celdas del tablero tendrian la misma identidad, y la identidad de ",
+      "una celda son `metrica_instanciada`, `entidad` y `objeto`: ",
+      paste0(
+        "`", tablero$metrica_instanciada[cuales], "` + `",
+        tablero$entidad[cuales], "` + `", tablero$objeto[cuales],
+        "` (valor ", format(tablero$valor[cuales]), ")",
+        collapse = "; "
+      ),
+      ". Revise que las medidas provengan de una sola corrida.",
+      call. = FALSE
+    )
+  }
   marco_elegido <- .marco_para_tablero(medidas, marco)
   fuera_del_marco <- .pares_fuera_del_marco(tablero, marco_elegido)
   cobertura_tablero <- .cobertura_para_tablero(
@@ -629,6 +676,19 @@
 #' único que separa. Cuando hay varias entidades, `objeto` además nombra la
 #' tabla —`cod (tabla: t1)`—, en el mismo idioma con el que la granularidad de
 #' tabla ya publicaba `(tabla: t1)`.
+#'
+#' Ese trío es la clave con la que se **agrupan** las medidas, y no sólo la que se
+#' publica: agrupar por menos de lo que se declara como identidad funde dos cosas
+#' que el objeto dice distintas. Antes, las granularidades sin rama propia
+#' —`conjuntoAtributos` entre ellas— agrupaban sólo por el objeto, y dos entidades
+#' con el mismo objeto salían como **una** celda con la entidad de la primera y el
+#' promedio de las dos.
+#'
+#' Y la unicidad **se verifica**: si dos celdas quedaran con el mismo trío, la
+#' función falla nombrando las dos y sus valores, en lugar de publicar dos filas
+#' con la misma identidad. Se rechaza en vez de quedarse con una porque dos
+#' valores distintos para la misma identidad es una contradicción de la entrada, y
+#' elegir uno sería elegir por quien llama.
 #'
 #' El objeto conserva la cobertura completa del marco: factores medidos, sin
 #' métrica declarada, no aplicables y fuera de alcance. [print()] muestra

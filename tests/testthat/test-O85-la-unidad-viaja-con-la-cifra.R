@@ -207,3 +207,39 @@ test_that("una entrega sin el campo declara que no se puede comparar", {
   expect_equal(nrow(fila), 1L)
   expect_match(as.character(fila$descripcion), "no se compara")
 })
+
+test_that("una columna compuesta no publica unidad, aunque la declare", {
+  # El campo se calla cuando la fila no publica cifras, y la rama de columnas
+  # compuestas escribe su propio estado -`tipo_compuesto_no_analizado`- asi que
+  # esquivaba el discriminador, que miraba solo `no_aplica`. Medido: una matriz
+  # con `attr(m, "units") <- "kg"` publicaba `unidad = "kg"` junto a `media = NA`,
+  # que es la forma exacta que el arreglo del `factor` habia venido a cerrar.
+  matriz <- matrix(1:12, nrow = 4)
+  attr(matriz, "units") <- "kg"
+  lista <- I(list(1, 2, 3, 4))
+  attr(lista, "units") <- "kg"
+  datos <- data.frame(id = 1:4)
+  datos$mat <- I(matriz)
+  datos$lst <- lista
+  columnas <- as.data.frame(
+    perfilar(datos, analizar_dependencias = FALSE)$columnas
+  )
+  fila <- function(nombre) columnas[columnas$columna == nombre, , drop = FALSE]
+
+  # Los dos estados que significan "esta clase no produce resumen", los dos
+  # callados. La primera version del arreglo cubria uno solo.
+  expect_equal(
+    as.character(fila("mat")$estado_resumen_cuantitativo),
+    "tipo_compuesto_no_analizado"
+  )
+  expect_true(is.na(fila("mat")$unidad))
+  expect_equal(
+    as.character(fila("lst")$estado_resumen_cuantitativo), "no_aplica"
+  )
+  expect_true(is.na(fila("lst")$unidad))
+  # Y los dos estados estan nombrados en un solo lugar.
+  expect_setequal(
+    lupa:::.ESTADOS_SIN_RESUMEN_CUANTITATIVO,
+    c("no_aplica", "tipo_compuesto_no_analizado")
+  )
+})

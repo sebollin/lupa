@@ -639,8 +639,13 @@ inventarlo. El hallazgo \code{anio_de_dos_digitos} señala esas columnas, y el
 rango aparece una vez que el usuario resuelve la ambigüedad.
 Cuando no sobrevive ningún valor utilizable, el estado distingue \strong{dos
 afirmaciones que no son la misma}: \code{"sin_valores"} dice que la columna no tenía
-ningún valor presente —vacía, o todo \code{NA}— y \code{"sin_valores_utilizables"} dice que
-sí los tenía y ninguno servía para el resumen. Una columna de treinta \code{Inf} es el
+ningún valor presente \strong{en el universo que el resumen mide} —vacía, todo \code{NA},
+o con la aplicabilidad declarada dejando ese universo sin valores— y
+\code{"sin_valores_utilizables"} dice que sí los tenía y ninguno servía para el
+resumen. La relación que se cumple con la fila es
+\code{n_aplicables - n_faltantes}, no \code{n - n_faltantes}: con aplicabilidad declarada
+los valores de afuera del universo se declaran en
+\code{n_presentes_fuera_de_aplicabilidad} y no cuentan para este estado. Una columna de treinta \code{Inf} es el
 segundo caso y no el primero: publica \code{n_faltantes = 0} y \code{n_distintos = 1},
 así que decir «sin valores» de ella contradiría a su propia fila. La otra puerta
 del segundo caso son los centinelas que se llevan todos los valores. La
