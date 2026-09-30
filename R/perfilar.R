@@ -736,6 +736,15 @@
 #' presencia se define igual que en `n_faltantes`, que cuenta el `NaN` como
 #' ausente: una columna de treinta `NaN` es `"sin_valores"`.
 #'
+#' **La `media` se acumula por bloques y puede diferir de `mean()` en los últimos
+#' bits; la `mediana` es exacta.** El paquete no promete exactitud bit a bit para
+#' la media —sí para la mediana, que se calcula con `median()` sobre el vector
+#' entero y por eso no se reemplazó por el cuantil 0,5—. Medido: sobre veinte mil
+#' valores de `1e12` y veinte mil de `1e-6` la diferencia es de `6,1e-05`, y sobre
+#' treinta mil valores con signo del orden de `1e9` es de `2,3e-10`; con valores de
+#' magnitud parecida no hay diferencia en ningún bit. Quien rehaga `mean()` sobre
+#' una columna grande y vea otro último dígito está viendo esto y no un error.
+#'
 #' @section La unidad viaja al lado de la cifra:
 #'
 #' El campo `unidad` dice **en qué unidad están las cifras que la fila publica**

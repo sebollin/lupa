@@ -651,6 +651,15 @@ así que decir «sin valores» de ella contradiría a su propia fila. La otra pu
 del segundo caso son los centinelas que se llevan todos los valores. La
 presencia se define igual que en \code{n_faltantes}, que cuenta el \code{NaN} como
 ausente: una columna de treinta \code{NaN} es \code{"sin_valores"}.
+
+\strong{La \code{media} se acumula por bloques y puede diferir de \code{mean()} en los últimos
+bits; la \code{mediana} es exacta.} El paquete no promete exactitud bit a bit para
+la media —sí para la mediana, que se calcula con \code{median()} sobre el vector
+entero y por eso no se reemplazó por el cuantil 0,5—. Medido: sobre veinte mil
+valores de \code{1e12} y veinte mil de \code{1e-6} la diferencia es de \verb{6,1e-05}, y sobre
+treinta mil valores con signo del orden de \code{1e9} es de \verb{2,3e-10}; con valores de
+magnitud parecida no hay diferencia en ningún bit. Quien rehaga \code{mean()} sobre
+una columna grande y vea otro último dígito está viendo esto y no un error.
 }
 \section{La unidad viaja al lado de la cifra}{
 
