@@ -1474,6 +1474,16 @@
 #'   sí se enmascara en toda la salida: un hallazgo de filas duplicadas muestra
 #'   filas enteras, y los componentes que describen la tabla —`general`, la
 #'   cobertura, los formatos de fecha— no son de ninguna columna en particular.
+#'   Los **nombres de columna** nunca se enmascaran, aunque un valor protegido
+#'   aparezca dentro de uno: un nombre es estructura, existía antes y aparte
+#'   del dato, y el paquete lo necesita para cruzar el perfil con los datos.
+#'   Se enmascaraban, y en una base real `fecha_nacimiento` salió publicada
+#'   como `fecha_[valor protegido]`: [planificar_limpieza()] y [analizar()]
+#'   abortaban porque los nombres del perfil ya no coincidían con los de los
+#'   datos. Un campo se reconoce como de nombres por su **contenido** —todos sus
+#'   valores son nombres de la entrada, solos o unidos—, así que la protección
+#'   de los valores no se afloja: si un valor protegido es igual a un nombre de
+#'   columna, su moda sigue tapada.
 #'   Ese alcance tiene un **piso**: un valor de una columna protegida que
 #'   identifique —seis caracteres o más, el mismo corte con el que la batería de
 #'   fugas decide qué cuenta como filtración— no se publica en ninguna parte,

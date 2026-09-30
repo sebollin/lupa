@@ -804,7 +804,12 @@ print.analisis <- function(x, ...) {
   if (length(identificantes)) {
     derivados <- setdiff(names(x), c("datos", "perfil", "meta"))
     for (parte in derivados) {
-      x[[parte]] <- .proteger_textos_salida(x[[parte]], identificantes)
+      x[[parte]] <- .proteger_textos_salida(
+        x[[parte]], identificantes,
+        intocables = if (!is.null(x$perfil$columnas$columna)) {
+          as.character(x$perfil$columnas$columna)
+        } else names(x$datos)
+      )
       x[[parte]] <- .proteger_numeros_parametros(x[[parte]], identificantes)
     }
   }

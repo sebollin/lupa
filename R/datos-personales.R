@@ -886,31 +886,81 @@
 # EL RECORRIDO, separado de lo que se hace con cada hoja. Lo usan las dos pasadas
 # de `.proteger_textos_salida()`, asi que las dos visitan las mismas hojas en el
 # mismo orden por construccion -y los atributos se siguen protegiendo igual-.
-.recorrer_textos_salida <- function(x, aplicar) {
+# ¿Esta columna de una tabla de salida guarda NOMBRES DE COLUMNA de la entrada?
+#
+# Se decide por el CONTENIDO y no por el nombre del campo: lo es si todos sus
+# valores no vacios son nombres de la entrada, solos o unidos por los separadores
+# que el paquete usa para las referencias a varias columnas -`, `, `+`, ` | `-.
+# Una lista de campos escrita a mano -`columna`, `determinante`, `dependiente`...-
+# se habria quedado corta con el primero que se agregara, que es la forma en que
+# este paquete ya perdio varias guardas.
+#
+# Y no puede ser "proteger los nombres de columna en todas partes": medido sobre
+# el caso que lo destapo, el VALOR `"documento"` es igual al NOMBRE de columna
+# `documento`, asi que proteger el nombre en todos lados dejaba de enmascarar
+# `columnas$moda = "documento"` y filtraba el valor. La proteccion va por campo.
+.es_columna_de_nombres <- function(x, nombres) {
+  if (!length(nombres) || !length(x)) return(FALSE)
+  valores <- as.character(x)
+  valores <- valores[!is.na(valores) & nzchar(valores)]
+  if (!length(valores)) return(FALSE)
+  claves <- .nombres_para_operar(nombres)
+  exactos <- .nombres_para_operar(valores) %in% claves
+  if (all(exactos)) return(TRUE)
+  # Los que no son un nombre exacto se prueban como referencia a varios: se
+  # parten por los separadores del paquete y cada pieza tiene que ser un nombre.
+  # Primero el valor entero, porque un nombre de columna puede llevar una coma.
+  restantes <- valores[!exactos]
+  compuestos <- vapply(restantes, function(v) {
+    piezas <- strsplit(v, "\\s*(,|\\+|\\|)\\s*", perl = TRUE)[[1L]]
+    piezas <- piezas[nzchar(piezas)]
+    length(piezas) > 1L && all(.nombres_para_operar(piezas) %in% claves)
+  }, logical(1L), USE.NAMES = FALSE)
+  all(compuestos)
+}
+
+.recorrer_textos_salida <- function(x, aplicar, intocables = character()) {
   atributos <- attributes(x)
   estructurales <- c("names", "class", "row.names", "dim", "dimnames")
   adicionales <- setdiff(names(atributos), estructurales)
   for (atributo in adicionales) {
     attr(x, atributo) <- .recorrer_textos_salida(
-      attr(x, atributo, exact = TRUE), aplicar
+      attr(x, atributo, exact = TRUE), aplicar, intocables
     )
   }
   if (inherits(x, "data.frame")) {
     for (j in seq_along(x)) {
       columna <- x[[j]]
+      # Los campos que guardan nombres de columna son ESTRUCTURA: el paquete los
+      # necesita para cruzar el perfil con los datos, y un nombre no filtra el
+      # valor que casualmente contiene -existia antes y aparte del dato-.
+      # Enmascararlos rompia las dos guardas que comparan nombres: medido en una
+      # base real de 4.244.471 filas, `fecha_nacimiento` salia publicada como
+      # `fecha_[valor protegido]` y `planificar_limpieza()` y `analizar()`
+      # abortaban. Se saltean en las DOS pasadas, asi que las hojas siguen
+      # alineadas: la decision depende solo del contenido original.
+      if ((is.character(columna) || is.factor(columna)) &&
+          .es_columna_de_nombres(columna, intocables)) {
+        next
+      }
       if (is.character(columna)) {
         x[[j]] <- aplicar(columna)
       } else if (is.factor(columna)) {
         levels(columna) <- aplicar(levels(columna))
         x[[j]] <- columna
       } else if (is.list(columna)) {
-        x[[j]] <- lapply(columna, .recorrer_textos_salida, aplicar = aplicar)
+        x[[j]] <- lapply(
+          columna, .recorrer_textos_salida,
+          aplicar = aplicar, intocables = intocables
+        )
       }
     }
     return(x)
   }
   if (is.list(x)) {
-    x[] <- lapply(x, .recorrer_textos_salida, aplicar = aplicar)
+    x[] <- lapply(
+      x, .recorrer_textos_salida, aplicar = aplicar, intocables = intocables
+    )
     return(x)
   }
   if (is.character(x)) return(aplicar(x))
@@ -936,14 +986,14 @@
 # alternancia de expresion regular es mas rapido y, medido, DEJA DE ENMASCARAR el
 # texto marcado `latin1` -armar el patron traduce a UTF-8-. Aca no se cambia ni
 # `fixed = TRUE` ni la codificacion: solo se agrupa.
-.proteger_textos_salida <- function(x, valores) {
+.proteger_textos_salida <- function(x, valores, intocables = character()) {
   if (!length(valores)) return(x)
   cofre <- new.env(parent = emptyenv())
   cofre$hojas <- list()
   invisible(.recorrer_textos_salida(x, function(hoja) {
     cofre$hojas[[length(cofre$hojas) + 1L]] <- hoja
     hoja
-  }))
+  }, intocables))
   if (!length(cofre$hojas)) return(x)
   protegidas <- .reemplazar_valores_protegidos(
     unlist(cofre$hojas, use.names = FALSE), valores
@@ -956,7 +1006,7 @@
     # vector y hay que devolverlos.
     attributes(tramo) <- attributes(hoja)
     tramo
-  })
+  }, intocables)
 }
 
 .proteger_numeros_parametros <- function(x, valores) {
@@ -1024,7 +1074,10 @@
     attr(plan, "columnas_datos_personales_protegidas") <- sensibles
     return(plan)
   }
-  plan <- .proteger_textos_salida(plan, valores)
+  nombres_entrada <- if (!is.null(perfil$columnas$columna)) {
+    as.character(perfil$columnas$columna)
+  } else character()
+  plan <- .proteger_textos_salida(plan, valores, intocables = nombres_entrada)
   if ("parametros" %in% names(plan) && is.list(plan$parametros)) {
     plan$parametros <- I(lapply(
       plan$parametros,
@@ -1510,7 +1563,11 @@
   # valor cuyo largo no se puede medir, protegerlo es el lado seguro: es una
   # funcion de privacidad y el valor por omision tiene que ser cerrado.
   identificantes <- .valores_identificantes(valores)
-  perfil <- .proteger_textos_salida(perfil, identificantes)
+  # Los nombres se toman ANTES de enmascarar: son los de la entrada.
+  perfil <- .proteger_textos_salida(
+    perfil, identificantes,
+    intocables = as.character(perfil$columnas$columna)
+  )
   # Y lo mismo sobre los campos NUMERICOS, que el barrido de texto no toca.
   # Sin esto el piso quedaba a medias: medido, una columna copia clasificada
   # `documento_identidad` con poder discriminante debil -asi que no se protege-

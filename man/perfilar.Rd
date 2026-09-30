@@ -245,6 +245,16 @@ revela nada de la cédula. Lo que \strong{no} tiene columna a la que atribuirse
 sí se enmascara en toda la salida: un hallazgo de filas duplicadas muestra
 filas enteras, y los componentes que describen la tabla —\code{general}, la
 cobertura, los formatos de fecha— no son de ninguna columna en particular.
+Los \strong{nombres de columna} nunca se enmascaran, aunque un valor protegido
+aparezca dentro de uno: un nombre es estructura, existía antes y aparte
+del dato, y el paquete lo necesita para cruzar el perfil con los datos.
+Se enmascaraban, y en una base real \code{fecha_nacimiento} salió publicada
+como \verb{fecha_[valor protegido]}: \code{\link[=planificar_limpieza]{planificar_limpieza()}} y \code{\link[=analizar]{analizar()}}
+abortaban porque los nombres del perfil ya no coincidían con los de los
+datos. Un campo se reconoce como de nombres por su \strong{contenido} —todos sus
+valores son nombres de la entrada, solos o unidos—, así que la protección
+de los valores no se afloja: si un valor protegido es igual a un nombre de
+columna, su moda sigue tapada.
 Ese alcance tiene un \strong{piso}: un valor de una columna protegida que
 identifique —seis caracteres o más, el mismo corte con el que la batería de
 fugas decide qué cuenta como filtración— no se publica en ninguna parte,
