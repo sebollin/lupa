@@ -43,6 +43,12 @@
     <div class="section level2">
 <h2 class="pkg-version" data-toc-text="0.1.0" id="lupa-010">lupa 0.1.0<a class="anchor" aria-label="anchor" href="#lupa-010"></a></h2>
 <div class="section level3">
+<h3 id="un-metodo-propio-que-mide-fuera-de-su-universo-0-1-0">Un metodo propio que mide fuera de su universo<a class="anchor" aria-label="anchor" href="#un-metodo-propio-que-mide-fuera-de-su-universo-0-1-0"></a></h3>
+<ul><li>
+<strong><code><a href="../reference/medir.html">medir()</a></code> no publica las medidas de un metodo propio que caen fuera del universo que su metrica declara con <code>aplicable</code>.</strong> Se publicaban, entraban en el agregado y <code>alcance_medidas</code> decia «midio 4 de 5 en el universo aplicable» cuando adentro se habian medido 3. Es una salida que no cumple el contrato de <code>metodo</code>, como una <code>fila</code> que no existe: la metrica queda <code>no_medible</code>, con aviso y con las filas de afuera citadas en el motivo.</li>
+<li>Un metodo que no devuelve ninguna medida sobre un universo <strong>con</strong> valores deja la metrica <code>no_medible</code>, con aviso. Se publicaba <code>sin_valores</code> con «aportar valores no nulos», que <code><a href="../reference/medir.html">?medir</a></code> define como un universo sin valores.</li>
+</ul></div>
+<div class="section level3">
 <h3 id="ronda-b-la-proteccion-de-datos-personales-refutada-otra-vez-0-1-0">Ronda 18-B: la proteccion de datos personales, refutada otra vez<a class="anchor" aria-label="anchor" href="#ronda-b-la-proteccion-de-datos-personales-refutada-otra-vez-0-1-0"></a></h3>
 <ul><li>
 <strong>La sugerencia de una ausencia estructural no publica el criterio de una columna protegida.</strong> Si la columna que falta por diseño tambien era personal -un documento, un numero de jubilacion-, la sugerencia salia con <code>aplicabilidad = list(rut = ~ pila == "Ana")</code> o <code>~ edad &gt;= 66</code> aunque <code>pila</code> y <code>edad</code> estuvieran protegidas: la evidencia se tapaba antes de que la proteccion de la ausencia la leyera. Lo mismo con un nombre de columna con acento grave.</li>

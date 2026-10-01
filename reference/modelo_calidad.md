@@ -300,9 +300,12 @@ cumplir el contrato: una salida sin esas columnas, con un `resultado`
 fuera de su tipo, con más de una observación para el mismo objeto, con
 una `entidad` que no está ligada a la instancia, con un `atributo` que
 no es una columna de las tablas que recibió el método —o varias unidas
-con `+`—, o con una `fila` que no es una posición entera o que falta en
-una métrica por celda o por fila, deja la métrica `no_medible` en
-`cobertura_metricas`, igual que un método que **aborta**:
+con `+`—, con una `fila` que no es una posición entera o que falta en
+una métrica por celda o por fila, o con una `fila` fuera del universo
+que la métrica declara con su propiedad `aplicable` —una métrica con
+`aplicable` mide sólo ese universo, y `alcance_medidas` cuenta sobre
+él—, deja la métrica `no_medible` en `cobertura_metricas`, igual que un
+método que **aborta**:
 [`medir()`](https://sebollin.github.io/lupa/reference/medir.md) avisa y
 las demás métricas se miden igual.
 
@@ -356,13 +359,13 @@ instancia <- instanciar(no_nulo, entidad = "personas", atributos = "edad")
 modelo_calidad <- modelo(instancia)
 medir(modelo_calidad, data.frame(edad = c(20, NA, 35)))
 #>                                     id_medida
-#> 1 medicion-20261001T222049.584352-7619-000001
-#> 2 medicion-20261001T222049.584352-7619-000002
-#> 3 medicion-20261001T222049.584352-7619-000003
+#> 1 medicion-20261001T230500.440319-7628-000001
+#> 2 medicion-20261001T230500.440319-7628-000002
+#> 3 medicion-20261001T230500.440319-7628-000003
 #>                            id_medicion               fecha metrica
-#> 1 medicion-20261001T222049.584352-7619 2026-10-01 22:20:49  NoNulo
-#> 2 medicion-20261001T222049.584352-7619 2026-10-01 22:20:49  NoNulo
-#> 3 medicion-20261001T222049.584352-7619 2026-10-01 22:20:49  NoNulo
+#> 1 medicion-20261001T230500.440319-7628 2026-10-01 23:05:00  NoNulo
+#> 2 medicion-20261001T230500.440319-7628 2026-10-01 23:05:00  NoNulo
+#> 3 medicion-20261001T230500.440319-7628 2026-10-01 23:05:00  NoNulo
 #>   metrica_especifica      metrica_instanciada   dimension   factor orientacion
 #> 1         NoNuloEdad NoNuloEdad@personas.edad Completitud Densidad conformidad
 #> 2         NoNuloEdad NoNuloEdad@personas.edad Completitud Densidad conformidad
@@ -413,13 +416,13 @@ medir(
   data.frame(origen = c("sistema_a", "", NA), stringsAsFactors = FALSE)
 )
 #>                                     id_medida
-#> 1 medicion-20261001T222049.593316-7619-000001
-#> 2 medicion-20261001T222049.593316-7619-000002
-#> 3 medicion-20261001T222049.593316-7619-000003
+#> 1 medicion-20261001T230500.449284-7628-000001
+#> 2 medicion-20261001T230500.449284-7628-000002
+#> 3 medicion-20261001T230500.449284-7628-000003
 #>                            id_medicion               fecha         metrica
-#> 1 medicion-20261001T222049.593316-7619 2026-10-01 22:20:49 OrigenDeclarado
-#> 2 medicion-20261001T222049.593316-7619 2026-10-01 22:20:49 OrigenDeclarado
-#> 3 medicion-20261001T222049.593316-7619 2026-10-01 22:20:49 OrigenDeclarado
+#> 1 medicion-20261001T230500.449284-7628 2026-10-01 23:05:00 OrigenDeclarado
+#> 2 medicion-20261001T230500.449284-7628 2026-10-01 23:05:00 OrigenDeclarado
+#> 3 medicion-20261001T230500.449284-7628 2026-10-01 23:05:00 OrigenDeclarado
 #>   metrica_especifica            metrica_instanciada    dimension
 #> 1    OrigenDeclarado OrigenDeclarado@entrega.origen Trazabilidad
 #> 2    OrigenDeclarado OrigenDeclarado@entrega.origen Trazabilidad
@@ -451,11 +454,11 @@ medir(
   data.frame(fecha = as.Date(c("2026-06-29", "2026-07-01")))
 )
 #>                                     id_medida
-#> 1 medicion-20261001T222049.601168-7619-000001
-#> 2 medicion-20261001T222049.601168-7619-000002
+#> 1 medicion-20261001T230500.457231-7628-000001
+#> 2 medicion-20261001T230500.457231-7628-000002
 #>                            id_medicion               fecha
-#> 1 medicion-20261001T222049.601168-7619 2026-10-01 22:20:49
-#> 2 medicion-20261001T222049.601168-7619 2026-10-01 22:20:49
+#> 1 medicion-20261001T230500.457231-7628 2026-10-01 23:05:00
+#> 2 medicion-20261001T230500.457231-7628 2026-10-01 23:05:00
 #>                       metrica metrica_especifica           metrica_instanciada
 #> 1 OportunidadAtributoPorFecha     EntregaATiempo EntregaATiempo@entregas.fecha
 #> 2 OportunidadAtributoPorFecha     EntregaATiempo EntregaATiempo@entregas.fecha
