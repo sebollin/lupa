@@ -71,7 +71,14 @@ medir(
 - proteger_datos_personales:
 
   Si se enmascaran los candidatos de proximidad que corresponden a
-  columnas personales. Por omisión `TRUE`.
+  columnas personales. Por omisión `TRUE`. También gobierna lo que
+  escribe un método propio: si alguna tabla recibida tiene columnas
+  personales, su etiqueta `objeto` se reemplaza por la canónica del
+  paquete (`tabla$columna[fila]`), y los valores de esas columnas se
+  enmascaran en el motivo de una métrica `no_medible`. La protección
+  alcanza a lo que `medir()` recibe: un valor que un método trae de otro
+  lado —una tabla que no se le pasó a `medir()`— no se puede reconocer,
+  y publicarlo es responsabilidad de quien escribe el método.
 
 - columnas_personales:
 
@@ -141,13 +148,13 @@ especifica <- especializar(nucleo$NoNulo, nombre_especifico = "NoNuloEdad")
 instancia <- instanciar(especifica, "personas", "edad")
 medir(modelo(instancia), data.frame(edad = c(20, NA, 35)))
 #>                                     id_medida
-#> 1 medicion-20261001T023808.649989-7403-000001
-#> 2 medicion-20261001T023808.649989-7403-000002
-#> 3 medicion-20261001T023808.649989-7403-000003
+#> 1 medicion-20261001T032135.798571-7610-000001
+#> 2 medicion-20261001T032135.798571-7610-000002
+#> 3 medicion-20261001T032135.798571-7610-000003
 #>                            id_medicion               fecha metrica
-#> 1 medicion-20261001T023808.649989-7403 2026-10-01 02:38:08  NoNulo
-#> 2 medicion-20261001T023808.649989-7403 2026-10-01 02:38:08  NoNulo
-#> 3 medicion-20261001T023808.649989-7403 2026-10-01 02:38:08  NoNulo
+#> 1 medicion-20261001T032135.798571-7610 2026-10-01 03:21:35  NoNulo
+#> 2 medicion-20261001T032135.798571-7610 2026-10-01 03:21:35  NoNulo
+#> 3 medicion-20261001T032135.798571-7610 2026-10-01 03:21:35  NoNulo
 #>   metrica_especifica      metrica_instanciada   dimension   factor orientacion
 #> 1         NoNuloEdad NoNuloEdad@personas.edad Completitud Densidad conformidad
 #> 2         NoNuloEdad NoNuloEdad@personas.edad Completitud Densidad conformidad

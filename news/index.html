@@ -43,6 +43,13 @@
     <div class="section level2">
 <h2 class="pkg-version" data-toc-text="0.1.0" id="lupa-010">lupa 0.1.0<a class="anchor" aria-label="anchor" href="#lupa-010"></a></h2>
 <div class="section level3">
+<h3 id="ronda-lo-que-publica-un-metodo-propio-0-1-0">Ronda 10: lo que publica un metodo propio<a class="anchor" aria-label="anchor" href="#ronda-lo-que-publica-un-metodo-propio-0-1-0"></a></h3>
+<ul><li>
+<strong>Una <code>fila</code> que no existe deja la metrica <code>no_medible</code>.</strong> Sin recorte por <code>aplicabilidad</code> no habia tope: <code>fila = 99</code> sobre cuatro filas se publicaba como medida y viajaba al historico, y una posicion mayor que 2^31 salia <code>NA</code> despues de la validacion.</li>
+<li>
+<strong>La etiqueta <code>objeto</code> de un metodo propio no publica un valor personal.</strong> Con la proteccion activa y columnas personales en las tablas que recibe <code><a href="../reference/medir.html">medir()</a></code>, se reemplaza por la etiqueta canonica del paquete (<code>tabla$columna[fila]</code>): barrerla contra los valores protegidos no escala a millones de filas. Un valor que el metodo trae de otro lado -una tabla que no recibio <code><a href="../reference/medir.html">medir()</a></code>- no se puede reconocer, y queda documentado como responsabilidad de quien escribe el metodo.</li>
+</ul></div>
+<div class="section level3">
 <h3 id="ronda-el-contrato-de-medir-y-lo-que-aplica-el-plan-de-limpieza-0-1-0">Ronda 9: el contrato de <code>medir()</code> y lo que aplica el plan de limpieza<a class="anchor" aria-label="anchor" href="#ronda-el-contrato-de-medir-y-lo-que-aplica-el-plan-de-limpieza-0-1-0"></a></h3>
 <ul><li>
 <strong>Una salida que no cumple el contrato de <code>metodo</code> deja la metrica <code>no_medible</code></strong>, igual que un metodo que aborta, en lugar de abortar <code><a href="../reference/medir.html">medir()</a></code> entero y llevarse la medicion de las demas.</li>

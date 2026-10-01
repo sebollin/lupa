@@ -2,6 +2,24 @@
 
 ## lupa 0.1.0
 
+### Ronda 10: lo que publica un metodo propio
+
+- **Una `fila` que no existe deja la metrica `no_medible`.** Sin recorte
+  por `aplicabilidad` no habia tope: `fila = 99` sobre cuatro filas se
+  publicaba como medida y viajaba al historico, y una posicion mayor que
+  2^31 salia `NA` despues de la validacion.
+- **La etiqueta `objeto` de un metodo propio no publica un valor
+  personal.** Con la proteccion activa y columnas personales en las
+  tablas que recibe
+  [`medir()`](https://sebollin.github.io/lupa/reference/medir.md), se
+  reemplaza por la etiqueta canonica del paquete
+  (`tabla$columna[fila]`): barrerla contra los valores protegidos no
+  escala a millones de filas. Un valor que el metodo trae de otro lado
+  -una tabla que no recibio
+  [`medir()`](https://sebollin.github.io/lupa/reference/medir.md)- no se
+  puede reconocer, y queda documentado como responsabilidad de quien
+  escribe el metodo.
+
 ### Ronda 9: el contrato de `medir()` y lo que aplica el plan de limpieza
 
 - **Una salida que no cumple el contrato de `metodo` deja la metrica

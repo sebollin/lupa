@@ -107,7 +107,14 @@ consumen mediciones, así que heredan el número que salga de acá.</p>
 
 <dt id="arg-proteger-datos-personales">proteger_datos_personales<a class="anchor" aria-label="anchor" href="#arg-proteger-datos-personales"></a></dt>
 <dd><p>Si se enmascaran los candidatos de
-proximidad que corresponden a columnas personales. Por omisión <code>TRUE</code>.</p></dd>
+proximidad que corresponden a columnas personales. Por omisión <code>TRUE</code>.
+También gobierna lo que escribe un método propio: si alguna tabla recibida
+tiene columnas personales, su etiqueta <code>objeto</code> se reemplaza por la
+canónica del paquete (<code>tabla$columna[fila]</code>), y los valores de esas
+columnas se enmascaran en el motivo de una métrica <code>no_medible</code>. La
+protección alcanza a lo que <code>medir()</code> recibe: un valor que un método trae
+de otro lado —una tabla que no se le pasó a <code>medir()</code>— no se puede
+reconocer, y publicarlo es responsabilidad de quien escribe el método.</p></dd>
 
 
 <dt id="arg-columnas-personales">columnas_personales<a class="anchor" aria-label="anchor" href="#arg-columnas-personales"></a></dt>
@@ -173,13 +180,13 @@ se lee como un cambio del modelo del usuario.</p>
 <span class="r-in"><span><span class="va">instancia</span> <span class="op">&lt;-</span> <span class="fu"><a href="modelo_calidad.html">instanciar</a></span><span class="op">(</span><span class="va">especifica</span>, <span class="st">"personas"</span>, <span class="st">"edad"</span><span class="op">)</span></span></span>
 <span class="r-in"><span><span class="fu">medir</span><span class="op">(</span><span class="fu"><a href="modelo_calidad.html">modelo</a></span><span class="op">(</span><span class="va">instancia</span><span class="op">)</span>, <span class="fu"><a href="https://rdrr.io/r/base/data.frame.html" class="external-link">data.frame</a></span><span class="op">(</span>edad <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">20</span>, <span class="cn">NA</span>, <span class="fl">35</span><span class="op">)</span><span class="op">)</span><span class="op">)</span></span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>                                     id_medida</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 1 medicion-20261001T023808.649989-7403-000001</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 2 medicion-20261001T023808.649989-7403-000002</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 3 medicion-20261001T023808.649989-7403-000003</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 1 medicion-20261001T032135.798571-7610-000001</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 2 medicion-20261001T032135.798571-7610-000002</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 3 medicion-20261001T032135.798571-7610-000003</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>                            id_medicion               fecha metrica</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 1 medicion-20261001T023808.649989-7403 2026-10-01 02:38:08  NoNulo</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 2 medicion-20261001T023808.649989-7403 2026-10-01 02:38:08  NoNulo</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 3 medicion-20261001T023808.649989-7403 2026-10-01 02:38:08  NoNulo</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 1 medicion-20261001T032135.798571-7610 2026-10-01 03:21:35  NoNulo</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 2 medicion-20261001T032135.798571-7610 2026-10-01 03:21:35  NoNulo</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 3 medicion-20261001T032135.798571-7610 2026-10-01 03:21:35  NoNulo</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>   metrica_especifica      metrica_instanciada   dimension   factor orientacion</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> 1         NoNuloEdad NoNuloEdad@personas.edad Completitud Densidad conformidad</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> 2         NoNuloEdad NoNuloEdad@personas.edad Completitud Densidad conformidad</span>
