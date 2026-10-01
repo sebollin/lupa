@@ -1,5 +1,37 @@
 # lupa 0.1.0
 
+## `analizar()` sobre millones de filas: el detalle de la medicion ya no se arma entero
+
+- **`analizar()` mide metrica por metrica.** Sin `conservar_detalle_medicion`, media
+  todo el modelo junto y materializaba una fila por celda y por metrica antes de
+  agregar: en una tabla de 19 columnas, 21 filas de medida por fila de datos. Sobre
+  4,24 millones de filas eso mato el proceso con 103 GB en una evaluacion real. Ahora
+  cada metrica se mide, se agrega y se descarta antes de la siguiente. Medido en
+  100.000 filas: de 2,41 GB a 1,00 GB de pico, y de 325 a 241 segundos. El
+  resultado es identico: se comparo contra el camino de siempre, que sigue vivo con
+  `conservar_detalle_medicion = TRUE`.
+- **Si ninguna metrica produce medidas, `analizar()` ya no aborta.** Tiraba el
+  perfil, el plan y todo lo demas; ahora el tablero sale vacio con el motivo de cada
+  metrica en `cobertura_metricas`, y si se pidio evaluar, avisa que no evaluo.
+
+## La proteccion de datos personales tapaba numeros que son estructura
+
+- **Un conteo, un indice de fila o un tamano ya no se tapan por coincidir con un
+  valor protegido.** El piso numerico tapaba cualquier numero cuya representacion
+  fuera un valor protegido. En una base real de millones de filas, los
+  `indices_fila` de una traza que coincidian con un documento quedaban en `NA` y
+  lupa se acusaba a si misma -«total de traza no coincide con sus indices»-; y en
+  `perfilar_dbi()` una columna `id = 1..n` hacia que el conteo `n` saliera `NA` en
+  todas las columnas. Es la misma propiedad que ya habia roto los nombres de
+  columna.
+- **La lista es de estructura, no de valores**, asi que falla cerrada: un campo
+  nuevo que no este en ella se sigue tapando. Salio de recorrer los 271 campos
+  numericos que publican `perfilar()`, `perfilar_dbi()` y `analizar()`. Lo que
+  puede llevar un valor de la tabla -minimo, maximo, media, mediana, valor,
+  coordenadas- se sigue tapando. En la prosa de un motivo, un numero que coincide
+  con un valor protegido tambien se sigue tapando: ahi no se puede distinguir un
+  conteo de un dato, y el numero verdadero viaja en su campo.
+
 ## Ronda 8: el modelo de calidad y el informe dicen lo que sostienen
 
 - **El contrato de `metodo` se hace cumplir, no solo se declara.** `medir()` rechaza

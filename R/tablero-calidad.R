@@ -444,10 +444,16 @@
   )
 }
 
-.agregar_medidas_tablero <- function(medidas, configuracion) {
+.agregar_medidas_tablero <- function(medidas, configuracion,
+                                     varias_entidades = NULL) {
   partes <- list()
   metricas <- .identificadores_unicos(medidas$metrica_instanciada)
-  varias_entidades <- length(.identificadores_unicos(medidas$entidad)) > 1L
+  # Se puede recibir de afuera porque `analizar()` agrega metrica por metrica:
+  # ahi `medidas` trae UNA instancia, y la etiqueta del objeto depende de si la
+  # medicion ENTERA tiene varias entidades.
+  if (is.null(varias_entidades)) {
+    varias_entidades <- length(.identificadores_unicos(medidas$entidad)) > 1L
+  }
   for (nombre in metricas) {
     filas_metrica <- which(
       .identificadores_en(medidas$metrica_instanciada, nombre)
@@ -558,6 +564,20 @@
     )
     .agregar_medidas_tablero(medidas, configuracion)
   }
+  .armar_tablero(
+    agregada, medidas, marco = marco, cobertura = cobertura,
+    cobertura_metricas = cobertura_metricas, alcance_medidas = alcance_medidas,
+    desenlaces = desenlaces
+  )
+}
+
+# El segundo paso de `.preparar_tablero()`, separado del primero -agregar- para
+# que `analizar()` pueda llegar aca con medidas que agrego metrica por metrica
+# sin haber materializado nunca el detalle entero. `medidas` solo se usa para
+# inferir el marco cuando no se declara.
+.armar_tablero <- function(agregada, medidas, marco = NULL, cobertura = NULL,
+                           cobertura_metricas = NULL, alcance_medidas = NULL,
+                           desenlaces = NULL) {
   varias_entidades <- length(.identificadores_unicos(agregada$entidad)) > 1L
   objetos <- vapply(seq_len(nrow(agregada)), function(i) {
     .objeto_tablero(

@@ -1009,10 +1009,49 @@
   }, intocables)
 }
 
+# Los campos numericos que son ESTRUCTURA -cuentan, ubican o configuran- y no un
+# dato: un conteo, un indice de fila, un tamano, un tiempo, una proporcion, un
+# umbral. El piso numerico tapaba cualquier numero cuya representacion fuera un
+# valor protegido, y con eso rompia la estructura por coincidencia. Medido: los
+# `indices_fila` de una traza que coincidian con un documento protegido quedaban
+# en NA y lupa se acusaba a si misma -"total de traza no coincide con sus
+# indices"-, en una base real de millones de filas; y en `perfilar_dbi()` una
+# columna `id = 1..n` hacia que el conteo `n` saliera NA en todas las columnas.
+# Es la misma propiedad que ya rompio los nombres de columna: la proteccion
+# reemplaza por coincidencia de valor cosas que no son celdas.
+#
+# La lista es de ESTRUCTURA, no de valores, y eso decide para que lado falla: un
+# campo nuevo que no este aca se sigue tapando. Salio de recorrer los 271 campos
+# numericos que publican `perfilar()`, `perfilar_dbi()` y `analizar()`; lo que
+# puede llevar un valor de la tabla -`minimo`, `maximo`, `media`, `mediana`,
+# `valor`, `resultado`, `rango`, `desvio`, `centinela_valor`, las coordenadas- no
+# esta, y tampoco lo que se deriva de valores, como `ordenes_magnitud`.
+.PATRON_NUMERICO_DE_ESTRUCTURA <- paste0(
+  "^(n|n_.+|indices_.+|fila|filas|filas_.+|total|.+_totales|valores_evaluados|",
+  "pares_.+|celdas|celdas_.+|columnas|columnas_.+|lote|lotes_.+|tamano_.+|",
+  ".+_bytes|bytes_.+|memoria_.+|.+_ms|duracion_estimada_.+|umbral|umbral_.+|",
+  "max_.+|min_.+|minimo_filas|minimo_observaciones_utilizables|",
+  "minima_proporcion_positivos|prop_.+|proporcion|proporcion_.+|fraccion|",
+  "tasa_.+|version_.+|consulta_id|id_consulta|consultas_.+|emitidas|",
+  "llamadas_.+|bloques_.+|muestra|muestra_.+|presupuesto|mostrados|frecuencia|",
+  "frecuencia_.+|absoluta|relativa|longitud_.+|centinela_repeticiones)$"
+)
+
+# Solo una HOJA numerica se saltea, nunca un contenedor: el perfil tiene un
+# componente que se llama `columnas`, y saltearlo por el nombre dejaba sin tapar
+# la tabla entera -el `minimo` de una columna copia volvia a publicar documentos-.
+# Lo atrapo la prueba que ya cuidaba esa filtracion.
+.es_numero_de_estructura <- function(nombre, valor) {
+  !is.null(nombre) && length(nombre) == 1L && !is.na(nombre) &&
+    is.numeric(valor) && !is.list(valor) &&
+    grepl(.PATRON_NUMERICO_DE_ESTRUCTURA, nombre)
+}
+
 .proteger_numeros_parametros <- function(x, valores) {
   if (!length(valores)) return(x)
   if (inherits(x, "data.frame")) {
     for (j in seq_along(x)) {
+      if (.es_numero_de_estructura(names(x)[[j]], x[[j]])) next
       if (is.list(x[[j]])) {
         x[[j]] <- lapply(x[[j]], .proteger_numeros_parametros,
                          valores = valores)
@@ -1023,7 +1062,13 @@
     return(x)
   }
   if (is.list(x)) {
-    x[] <- lapply(x, .proteger_numeros_parametros, valores = valores)
+    nombres <- names(x)
+    for (i in seq_along(x)) {
+      if (!is.null(nombres) && .es_numero_de_estructura(nombres[[i]], x[[i]])) {
+        next
+      }
+      x[i] <- list(.proteger_numeros_parametros(x[[i]], valores))
+    }
     return(x)
   }
   if (!is.numeric(x) || inherits(x, c("Date", "POSIXt"))) return(x)

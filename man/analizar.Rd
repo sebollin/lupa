@@ -66,7 +66,14 @@ así que el perfil y el tablero cuentan el mismo dato de la misma manera.}
 \code{FALSE} para conservar el comportamiento descriptivo anterior.}
 
 \item{conservar_detalle_medicion}{Si se retienen las medidas fila a fila.
-Es \code{FALSE} por omisión: el tablero y la medición agregada permanecen.}
+Es \code{FALSE} por omisión: el tablero y la medición agregada permanecen, y la
+medición se hace métrica por métrica, agregando cada una antes de pasar a
+la siguiente, así que el detalle entero no existe nunca a la vez. Con
+\code{TRUE} el detalle es parte del resultado y su memoria crece con las filas
+por las métricas: una tabla de 19 columnas producía 21 filas de medida por
+fila de datos. Si ninguna métrica del modelo produce medidas, el tablero
+sale vacío y lleva el motivo de cada una en \code{cobertura_metricas}, en lugar
+de abortar el análisis.}
 
 \item{muestra}{Límite de filas para perfil, distribuciones y enumeración de
 niveles observados.}

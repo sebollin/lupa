@@ -201,7 +201,14 @@
 #'   `"lista"` cuando no se recibe un modelo o una propuesta confirmada. Use
 #'   `FALSE` para conservar el comportamiento descriptivo anterior.
 #' @param conservar_detalle_medicion Si se retienen las medidas fila a fila.
-#'   Es `FALSE` por omisión: el tablero y la medición agregada permanecen.
+#'   Es `FALSE` por omisión: el tablero y la medición agregada permanecen, y la
+#'   medición se hace métrica por métrica, agregando cada una antes de pasar a
+#'   la siguiente, así que el detalle entero no existe nunca a la vez. Con
+#'   `TRUE` el detalle es parte del resultado y su memoria crece con las filas
+#'   por las métricas: una tabla de 19 columnas producía 21 filas de medida por
+#'   fila de datos. Si ninguna métrica del modelo produce medidas, el tablero
+#'   sale vacío y lleva el motivo de cada una en `cobertura_metricas`, en lugar
+#'   de abortar el análisis.
 #' @param muestra Límite de filas para perfil, distribuciones y enumeración de
 #'   niveles observados.
 #' @param muestra_asociacion Límite común de filas para asociaciones.
@@ -428,30 +435,73 @@ analizar <- function(datos, nombre = .nombre_de_los_datos(substitute(datos)),
   aplicabilidad_declarada <- if (is.list(argumentos_perfil)) {
     argumentos_perfil[["aplicabilidad"]]
   } else NULL
-  detalle_medicion <- if (!is.null(modelo_elegido)) {
-    medir(modelo_elegido, datos, id_medicion = id_medicion, fecha = fecha,
-          aplicabilidad = aplicabilidad_declarada)
-  } else NULL
-  if (!is.null(perfil_evaluacion) && is.null(detalle_medicion)) {
+  # Sin `conservar_detalle_medicion`, el detalle no se devuelve, y tampoco se
+  # arma entero: se mide y se agrega METRICA POR METRICA. Medirlo todo junto
+  # materializaba una fila por celda y por metrica antes de agregar -21 filas de
+  # medida por fila de datos en una tabla de 19 columnas-, y sobre 4,24 millones
+  # de filas eso mato el proceso con 103 GB en una evaluacion real. Medido en
+  # 100.000 filas: `analizar()` 2,41 GB, y 0,95 GB sin medir. Con el detalle
+  # pedido se sigue el camino de siempre, porque ahi el detalle ES el resultado.
+  detalle_medicion <- NULL
+  agregado <- NULL
+  if (!is.null(modelo_elegido)) {
+    if (conservar_detalle_medicion) {
+      detalle_medicion <- medir(
+        modelo_elegido, datos, id_medicion = id_medicion, fecha = fecha,
+        aplicabilidad = aplicabilidad_declarada
+      )
+    } else {
+      agregado <- .medir_y_agregar_por_metrica(
+        modelo_elegido, datos, id_medicion = id_medicion, fecha = fecha,
+        aplicabilidad = aplicabilidad_declarada
+      )
+      if (is.null(agregado$agregada)) detalle_medicion <- agregado$vacia
+    }
+  }
+  if (!is.null(perfil_evaluacion) && is.null(detalle_medicion) &&
+      is.null(agregado)) {
     stop("`perfil_evaluacion` requiere una medici\u00f3n activa.",
          call. = FALSE)
   }
   cobertura <- cobertura_analisis(
-    perfil, detalle_medicion, modelo = marco_elegido
+    perfil,
+    if (!is.null(agregado$agregada)) agregado$agregada else detalle_medicion,
+    modelo = marco_elegido
   )
-  preparado <- if (!is.null(detalle_medicion)) {
+  preparado <- if (!is.null(agregado$agregada)) {
+    .armar_tablero(
+      agregado$agregada, agregado$agregada, marco = marco_elegido,
+      cobertura = cobertura,
+      cobertura_metricas = agregado$cobertura_metricas,
+      alcance_medidas = agregado$alcance_medidas
+    )
+  } else if (!is.null(detalle_medicion) && nrow(detalle_medicion)) {
     .preparar_tablero(
       detalle_medicion, marco = marco_elegido, cobertura = cobertura
     )
   } else {
-    list(
-      tablero = .tablero_vacio(cobertura = cobertura, marco = marco_elegido),
-      medicion = NULL
-    )
+    # Un modelo donde NINGUNA metrica produjo medidas -todas sin valores o con su
+    # metodo fallido- hacia abortar `analizar()` entero en el tablero, y con el se
+    # perdian el perfil, el plan y todo lo demas ya calculado. Es la misma puerta
+    # que `medir()` cerro para una metrica: lo que no se pudo medir se declara.
+    # El tablero sale vacio y lleva el motivo de cada metrica.
+    vacio <- .tablero_vacio(cobertura = cobertura, marco = marco_elegido)
+    motivos <- attr(detalle_medicion, "cobertura_metricas", exact = TRUE)
+    if (inherits(motivos, "data.frame") && nrow(motivos)) {
+      attr(vacio, "cobertura_metricas") <- motivos
+    }
+    list(tablero = vacio, medicion = NULL)
   }
   medicion <- preparado$medicion
   tablero <- preparado$tablero
-  evaluacion <- if (!is.null(perfil_evaluacion)) {
+  evaluacion <- if (!is.null(perfil_evaluacion) && is.null(medicion)) {
+    warning(
+      "No se evalu\u00f3 `perfil_evaluacion`: ninguna m\u00e9trica del modelo ",
+      "produjo medidas. El motivo de cada una est\u00e1 en ",
+      "`attr(resultado$tablero, \"cobertura_metricas\")`.", call. = FALSE
+    )
+    NULL
+  } else if (!is.null(perfil_evaluacion)) {
     evaluar(medicion, perfil_evaluacion)
   } else NULL
   desenlaces <- .desenlaces_de_objeto(evaluacion)
@@ -1030,4 +1080,82 @@ leer_analisis <- function(archivo) {
     x$advertencias <- rbind(x$advertencias, advertencia)
   }
   x
+}
+
+# Mide y agrega una metrica por vez, para que el pico de memoria sea el de UNA
+# metrica y no el de todas. Devuelve lo mismo que agregar el detalle entero con
+# `.preparar_tablero()`: la agregacion agrupa por `metrica_instanciada`, asi que
+# hacerla por partes no cambia ningun grupo. Dos cosas dependen de la medicion
+# ENTERA y se resuelven al final: si hay varias entidades -cambia la etiqueta del
+# objeto-, y el aviso de las metricas cuyo metodo fallo, que `medir()` emite una
+# vez sobre el modelo y aca se emitiria una vez por metrica.
+#
+# Si ninguna metrica produjo medidas, devuelve la medicion vacia -con la
+# cobertura de todas- para que `analizar()` siga el camino de siempre.
+.medir_y_agregar_por_metrica <- function(modelo_completo, datos, id_medicion, fecha,
+                                         aplicabilidad = NULL) {
+  if (is.null(id_medicion)) id_medicion <- .nuevo_id_medicion(fecha)
+  partes <- list()
+  coberturas <- list()
+  alcances <- list()
+  entidades <- character()
+  vacia <- NULL
+  for (instancia in modelo_completo$metricas) {
+    sola <- modelo(list(instancia), marco = modelo_completo$marco)
+    medidas <- withCallingHandlers(
+      medir(sola, datos, id_medicion = id_medicion, fecha = fecha,
+            aplicabilidad = aplicabilidad),
+      warning = function(w) {
+        if (grepl("no se midieron porque su m", conditionMessage(w),
+                  fixed = TRUE)) {
+          invokeRestart("muffleWarning")
+        }
+      }
+    )
+    cobertura <- attr(medidas, "cobertura_metricas", exact = TRUE)
+    if (inherits(cobertura, "data.frame") && nrow(cobertura)) {
+      coberturas[[length(coberturas) + 1L]] <- cobertura
+    }
+    alcance <- attr(medidas, "alcance_medidas", exact = TRUE)
+    if (inherits(alcance, "data.frame") && nrow(alcance)) {
+      alcances[[length(alcances) + 1L]] <- alcance
+    }
+    if (!nrow(medidas)) {
+      vacia <- medidas
+      next
+    }
+    validadas <- .validar_medidas_tablero(medidas)
+    configuracion <- .configuracion_agregaciones(validadas, NULL, NULL)
+    entidades <- .identificadores_unicos(c(entidades, validadas$entidad))
+    partes[[length(partes) + 1L]] <- list(
+      una = .agregar_medidas_tablero(validadas, configuracion,
+                                     varias_entidades = FALSE),
+      varias = .agregar_medidas_tablero(validadas, configuracion,
+                                        varias_entidades = TRUE)
+    )
+    rm(medidas, validadas)
+  }
+  cobertura_metricas <- if (length(coberturas)) do.call(rbind, coberturas)
+  alcance_medidas <- if (length(alcances)) {
+    unidos <- do.call(rbind, alcances)
+    rownames(unidos) <- NULL
+    unidos
+  }
+  .avisar_no_medibles(cobertura_metricas, length(modelo_completo$metricas))
+  if (!length(partes)) {
+    attr(vacia, "cobertura_metricas") <- cobertura_metricas
+    attr(vacia, "alcance_medidas") <- alcance_medidas
+    return(list(agregada = NULL, vacia = vacia))
+  }
+  cual <- if (length(entidades) > 1L) "varias" else "una"
+  agregada <- do.call(rbind, lapply(partes, `[[`, cual))
+  rownames(agregada) <- NULL
+  agregada$id_medida <- paste0(
+    agregada$id_medicion, "-tablero-", sprintf("%06d", seq_len(nrow(agregada)))
+  )
+  class(agregada) <- c("medicion", "data.frame")
+  list(
+    agregada = agregada, cobertura_metricas = cobertura_metricas,
+    alcance_medidas = alcance_medidas
+  )
 }

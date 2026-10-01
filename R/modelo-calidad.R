@@ -1520,6 +1520,30 @@ metricas_nucleo <- function() {
   salida_validada
 }
 
+# El aviso de `medir()` sobre las metricas cuyo metodo fallo, en un solo lugar:
+# `analizar()` mide metrica por metrica para no materializar el detalle entero, y
+# tiene que emitir el MISMO aviso, una sola vez, sobre el modelo completo.
+.avisar_no_medibles <- function(cobertura, n_metricas) {
+  if (!inherits(cobertura, "data.frame") || !nrow(cobertura)) {
+    return(invisible(NULL))
+  }
+  fallidas <- cobertura$estado == "no_medible"
+  if (!any(fallidas)) return(invisible(NULL))
+  # "las demas siguieron" solo si HAY otras: con una metrica sola la frase
+  # afirmaria algo que no paso.
+  otras <- n_metricas > sum(fallidas)
+  warning(
+    sum(fallidas), " m\u00e9trica(s) no se midieron porque su m\u00e9todo ",
+    "fall\u00f3",
+    if (otras) "; la corrida sigui\u00f3 con las dem\u00e1s del modelo" else "",
+    ". ",
+    paste(cobertura$motivo[fallidas], collapse = " "),
+    " El detalle est\u00e1 en `attr(medicion, \"cobertura_metricas\")`.",
+    call. = FALSE
+  )
+  invisible(NULL)
+}
+
 # Una metrica que necesita un campo del contrato y no lo tiene SE ABSTIENE. La
 # documentacion lo promete con esas palabras -"cada metrica valida los campos que
 # necesita y se abstiene si faltan"- y las cuatro metricas ligadas a `vigencia()`
@@ -2053,22 +2077,10 @@ medir <- function(modelo, datos, id_medicion = NULL, fecha = Sys.time(),
     # porque son estados del universo o del contrato que el usuario declaro; este
     # es un error, y se dice. Aviso de R base y no de cli: el mensaje trae texto del
     # metodo, y cli lo evaluaria como plantilla.
-    cobertura <- attr(resultado, "cobertura_metricas", exact = TRUE)
-    fallidas <- cobertura$estado == "no_medible"
-    if (any(fallidas)) {
-      # "las demas siguieron" solo si HAY otras: con una metrica sola la frase
-      # afirmaria algo que no paso.
-      otras <- length(modelo$metricas) > sum(fallidas)
-      warning(
-        sum(fallidas), " m\u00e9trica(s) no se midieron porque su m\u00e9todo ",
-        "fall\u00f3",
-        if (otras) "; la corrida sigui\u00f3 con las dem\u00e1s del modelo" else "",
-        ". ",
-        paste(cobertura$motivo[fallidas], collapse = " "),
-        " El detalle est\u00e1 en `attr(medicion, \"cobertura_metricas\")`.",
-        call. = FALSE
-      )
-    }
+    .avisar_no_medibles(
+      attr(resultado, "cobertura_metricas", exact = TRUE),
+      length(modelo$metricas)
+    )
   }
   if (length(alcances_medidas)) {
     alcance_parcial <- do.call(rbind, alcances_medidas)
