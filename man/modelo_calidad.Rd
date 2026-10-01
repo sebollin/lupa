@@ -229,13 +229,19 @@ tipos homónimos;
 \item \code{objeto}: etiqueta legible y estable del objeto medido.
 }
 
-\code{\link[=medir]{medir()}} hace cumplir el contrato: rechaza la salida sin esas columnas, con
-un \code{resultado} fuera de su tipo, con más de una observación para el mismo
+\code{\link[=medir]{medir()}} hace cumplir el contrato: una salida sin esas columnas, con un
+\code{resultado} fuera de su tipo, con más de una observación para el mismo
 objeto, con una \code{entidad} que no está ligada a la instancia, con un
-\code{atributo} que no es una columna de las tablas que recibió el método, o con
-\code{fila} ausente en una métrica por celda o por fila. Si el método \strong{aborta}, en
-cambio, la métrica queda \code{no_medible} en \code{cobertura_metricas} y las demás se
-miden igual.
+\code{atributo} que no es una columna de las tablas que recibió el método —o
+varias unidas con \code{+}—, o con una \code{fila} que no es una posición entera o que
+falta en una métrica por celda o por fila, deja la métrica \code{no_medible} en
+\code{cobertura_metricas}, igual que un método que \strong{aborta}: \code{medir()} avisa y
+las demás métricas se miden igual.
+
+\code{fila} es la posición en la tabla que \strong{recibe} el método. Con
+\code{aplicabilidad}, \code{\link[=medir]{medir()}} le pasa la tabla recortada al universo aplicable, y
+traduce las \code{fila} de un método propio a la posición en la tabla original; la
+etiqueta \code{objeto} queda como la escribió el método.
 
 Las columnas adicionales se descartan. Un \code{metodo} pasado a \code{\link[=instanciar]{instanciar()}}
 reemplaza el predeterminado sólo para esa instancia. El ejemplo ejecutable

@@ -156,10 +156,10 @@ test_that("se validan las configuraciones de las métricas del núcleo", {
 })
 
 # Los errores de configuracion que se detectan al MEDIR -un atributo que la tabla
-# no trae, una regla que devuelve NA, datos que la metrica no admite- ya no
-# abortan la corrida: la metrica queda `no_medible`, con el mensaje del metodo
-# como motivo, y `medir()` avisa. Lo que sigue abortando es lo que se valida
-# antes del metodo -los argumentos de `medir()`- y despues -la forma de la salida-.
+# no trae, una regla que devuelve NA, datos que la metrica no admite, una salida
+# que no cumple el contrato de `metodo`- ya no abortan la corrida: la metrica
+# queda `no_medible`, con el mensaje como motivo, y `medir()` avisa. Lo que sigue
+# abortando es lo que se valida antes de medir: los argumentos de `medir()`.
 test_that("se validan los contratos de los métodos de medición", {
   nucleo <- metricas_nucleo()
   intra <- especializar(
@@ -196,14 +196,14 @@ test_that("se validan los contratos de los métodos de medición", {
   instancia_mala <- instanciar(
     especializar(generica), "t", "x", metodo = mala_salida
   )
-  expect_error(medir(modelo(instancia_mala), data.frame(x = 1:2)),
-               "debe devolver un data frame")
+  .expect_no_medible(medir(modelo(instancia_mala), data.frame(x = 1:2)),
+                     "debe devolver un data frame")
 
   salida_real_invalida <- function(tablas, instancia) data.frame(
     resultado = 2, entidad = "t", atributo = "x", fila = NA_integer_,
     objeto = "t$x"
   )
-  expect_error(
+  .expect_no_medible(
     medir(modelo(instanciar(
       especializar(generica), "t", "x", metodo = salida_real_invalida
     )), data.frame(x = 1:2)),

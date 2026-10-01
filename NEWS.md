@@ -1,5 +1,32 @@
 # lupa 0.1.0
 
+## Ronda 9: el contrato de `medir()` y lo que aplica el plan de limpieza
+
+- **Una salida que no cumple el contrato de `metodo` deja la metrica `no_medible`**,
+  igual que un metodo que aborta, en lugar de abortar `medir()` entero y llevarse la
+  medicion de las demas.
+- **El atributo compuesto se reconoce aunque una columna traiga `+` en el nombre**:
+  se busca si el valor se puede cortar en columnas recibidas. Antes, `a+b+c+v` con
+  una columna `a+b` se rechazaba siendo legitimo.
+- **`fila` tiene que ser una posicion entera.** Un factor publicaba sus codigos y un
+  texto salia `NA`, la clausula que la validacion decia hacer cumplir.
+- **Con `aplicabilidad`, la `fila` de un metodo propio se traduce a la tabla
+  original.** El metodo recibe la tabla recortada y escribia posiciones del recorte:
+  la medicion decia fila 6 cuando habia medido la 9.
+- **El motivo de una metrica `no_medible` pasa por la proteccion de datos
+  personales**: trae el mensaje del metodo, que puede incluir un valor de la tabla.
+- **`modelo()` reconoce el mismo instrumento con los centinelas en otro orden**
+  (`valores_nulos`, `diccionario`, `valores`, que se usan como conjunto). En las
+  propiedades donde el orden importa, como `coeficientes`, no.
+- **La clave de duplicados no se confunde con un separador dentro de un nombre**, y
+  **un universo vacio ya no se publica como una tabla de cero filas**.
+- **`guiar_limpieza()` conserva la regla de aplicabilidad** al agregar el
+  diccionario: la reemplazaba y el plan guiado convertia la columna entera.
+- **`n_no_reversibles` se recuenta sobre el resultado restaurado**: contaba perdidas
+  que la restauracion del universo ya habia deshecho.
+- **`eliminar_filas_ausentes` funciona despues de otra eliminacion** cuando no hay
+  regla de aplicabilidad; fallaba culpando a una regla que el plan no declaraba.
+
 ## `analizar()` sobre millones de filas: el detalle de la medicion ya no se arma entero
 
 - **`analizar()` mide metrica por metrica.** Sin `conservar_detalle_medicion`, media

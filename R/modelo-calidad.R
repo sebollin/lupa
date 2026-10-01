@@ -446,13 +446,19 @@
 #' * `fila`: posición de la fila o `NA_integer_` para resultados agregados;
 #' * `objeto`: etiqueta legible y estable del objeto medido.
 #'
-#' [medir()] hace cumplir el contrato: rechaza la salida sin esas columnas, con
-#' un `resultado` fuera de su tipo, con más de una observación para el mismo
+#' [medir()] hace cumplir el contrato: una salida sin esas columnas, con un
+#' `resultado` fuera de su tipo, con más de una observación para el mismo
 #' objeto, con una `entidad` que no está ligada a la instancia, con un
-#' `atributo` que no es una columna de las tablas que recibió el método, o con
-#' `fila` ausente en una métrica por celda o por fila. Si el método **aborta**, en
-#' cambio, la métrica queda `no_medible` en `cobertura_metricas` y las demás se
-#' miden igual.
+#' `atributo` que no es una columna de las tablas que recibió el método —o
+#' varias unidas con `+`—, o con una `fila` que no es una posición entera o que
+#' falta en una métrica por celda o por fila, deja la métrica `no_medible` en
+#' `cobertura_metricas`, igual que un método que **aborta**: `medir()` avisa y
+#' las demás métricas se miden igual.
+#'
+#' `fila` es la posición en la tabla que **recibe** el método. Con
+#' `aplicabilidad`, [medir()] le pasa la tabla recortada al universo aplicable, y
+#' traduce las `fila` de un método propio a la posición en la tabla original; la
+#' etiqueta `objeto` queda como la escribió el método.
 #'
 #' Las columnas adicionales se descartan. Un `metodo` pasado a [instanciar()]
 #' reemplaza el predeterminado sólo para esa instancia. El ejemplo ejecutable
@@ -856,8 +862,28 @@ propiedades_metrica <- function(x) {
       sep = "\034"
     ))
   }, character(1L))
+  # Tres propiedades se usan como PERTENENCIA -`x %in% valores_nulos`-, asi que
+  # su orden no cambia lo que se mide: `c("", "NA")` y `c("NA", "")` miden lo
+  # mismo y la guarda los dejaba pasar, duplicando cada celda. Solo esas tres: en
+  # `coeficientes`, `inclusivo` y las fechas por fila el orden SI importa, y
+  # tratarlas como conjunto rechazaria un modelo legitimo.
+  como_conjunto <- function(configuracion) {
+    for (propiedad in intersect(
+      names(configuracion), c("diccionario", "valores", "valores_nulos")
+    )) {
+      v <- configuracion[[propiedad]]
+      if (is.atomic(v) && length(v)) {
+        v <- v[!duplicated(v)]
+        configuracion[[propiedad]] <- v[order(
+          .clave_bytes(as.character(v)), method = "radix"
+        )]
+      }
+    }
+    configuracion
+  }
   mismo <- function(a, b) {
-    identical(a$configuracion, b$configuracion, ignore.srcref = TRUE) &&
+    identical(como_conjunto(a$configuracion), como_conjunto(b$configuracion),
+              ignore.srcref = TRUE) &&
       identical(a$referencial, b$referencial) &&
       identical(isTRUE(a$metodo_declarado), isTRUE(b$metodo_declarado)) &&
       (!isTRUE(a$metodo_declarado) ||
@@ -1406,6 +1432,90 @@ metricas_nucleo <- function() {
   lapply(datos, .normalizar_columnas_texto)
 }
 
+# Un atributo publicado es una columna recibida, o varias unidas con `+` -la forma
+# de `CorrectitudSemDebil`-. Como un nombre de columna puede LLEVAR un `+`, partir
+# por cada `+` y exigir que cada pedazo sea columna rechazaba `a+b+c` con una
+# columna que se llama `a+b`. Se busca si el valor se puede cortar en tramos
+# consecutivos que sean, cada uno, una columna.
+.atributo_de_columnas <- function(valor, columnas) {
+  if (!is.na(.indice_nombre(valor, columnas))) return(TRUE)
+  # El centinela conserva los pedazos vacios del final, que `strsplit()` tira.
+  partes <- strsplit(paste0(valor, "\001"), "+", fixed = TRUE)[[1L]]
+  partes[[length(partes)]] <- sub("\001$", "", partes[[length(partes)]])
+  k <- length(partes)
+  if (k < 2L) return(FALSE)
+  alcanzable <- c(TRUE, rep(FALSE, k))
+  for (fin in seq_len(k)) {
+    for (inicio in seq_len(fin)) {
+      if (alcanzable[[inicio]] && !is.na(.indice_nombre(
+        paste(partes[inicio:fin], collapse = "+"), columnas
+      ))) {
+        alcanzable[[fin + 1L]] <- TRUE
+        break
+      }
+    }
+  }
+  alcanzable[[k + 1L]]
+}
+
+# Si el metodo es del paquete: sus `fila` ya son posiciones de la tabla ORIGINAL,
+# porque leen `.indices_filas_modelo()`. Un metodo del usuario no conoce ese
+# atributo interno y escribe posiciones de la tabla que recibio.
+.metodo_del_paquete <- function(metodo) {
+  is.function(metodo) &&
+    identical(topenv(environment(metodo)), asNamespace("lupa"))
+}
+
+# Con `aplicabilidad`, `medir()` le pasa al metodo la tabla RECORTADA, y un metodo
+# del usuario que escribe `fila` con `which()` publicaba posiciones del recorte:
+# la medicion decia fila 6 cuando habia medido la 9. Se traducen a la tabla del
+# usuario con los indices que el recorte dejo anotados.
+.filas_a_la_tabla_original <- function(salida, tablas, instancia) {
+  for (entidad in unique(as.character(salida$entidad))) {
+    indice <- .indice_identificador(entidad, names(tablas))
+    if (is.na(indice)) next
+    originales <- attr(tablas[[indice]], "lupa_indices_fila_originales",
+                       exact = TRUE)
+    if (is.null(originales)) next
+    filas <- which(as.character(salida$entidad) == entidad & !is.na(salida$fila))
+    if (any(salida$fila[filas] > length(originales))) {
+      stop(
+        "El m\u00e9todo de ", instancia$nombre, " devolvi\u00f3 una `fila` mayor que ",
+        "las ", length(originales), " filas que recibi\u00f3 de `", entidad,
+        "`: `fila` es la posici\u00f3n en la tabla que recibe el m\u00e9todo.",
+        call. = FALSE
+      )
+    }
+    salida$fila[filas] <- originales[salida$fila[filas]]
+  }
+  salida
+}
+
+# El motivo de `no_medible` trae el mensaje del METODO, que puede incluir un valor
+# de la tabla -`stop(sprintf("valor invalido: %s", x))` es practica comun-. Antes
+# de esta ronda ese mensaje iba solo a la consola de quien corria; ahora es un
+# dato publicado -atributo, impresion, historico, informe- y tiene que pasar por
+# la misma proteccion que todo lo demas.
+.proteger_motivo_no_medible <- function(motivo, tablas, declaradas, validadores) {
+  valores <- character()
+  for (tabla in tablas) {
+    if (!inherits(tabla, "data.frame") || !nrow(tabla)) next
+    personales <- tryCatch(
+      .columnas_personales_rapidas(
+        tabla, declaradas = declaradas, validadores = validadores
+      ),
+      error = function(e) character()
+    )
+    indices <- .indice_nombre(personales, names(tabla))
+    for (i in indices[!is.na(indices)]) {
+      valores <- c(valores, unique(as.character(tabla[[i]])))
+    }
+  }
+  identificantes <- .valores_identificantes(valores)
+  if (!length(identificantes)) return(motivo)
+  .proteger_textos_salida(motivo, identificantes)
+}
+
 .validar_salida_medicion <- function(salida, instancia, tablas = NULL) {
   requeridas <- c("resultado", "entidad", "atributo", "fila", "objeto")
   if (!inherits(salida, "data.frame") || !all(requeridas %in% names(salida))) {
@@ -1456,6 +1566,30 @@ metricas_nucleo <- function() {
   # atributo es una columna de lo que recibio, una medida por celda o por fila
   # dice que fila mide, y hay una sola observacion por objeto.
   if (nrow(salida)) {
+    # `fila` es una POSICION: un entero desde 1, o NA donde la medida no es de una
+    # fila. Se verifica antes de que `medir()` la convierta con `as.integer()`: un
+    # factor pasaba y se publicaban sus CODIGOS -el metodo decia 10, 20, 30 y la
+    # medicion 1, 2, 3- y un texto no numerico pasaba y salia NA, la clausula
+    # exacta que esta funcion dice hacer cumplir.
+    fila <- salida$fila
+    fila_valida <- (is.numeric(fila) && !is.factor(fila)) ||
+      (is.logical(fila) && all(is.na(fila)))
+    if (!fila_valida) {
+      stop(
+        "El m\u00e9todo de ", instancia$nombre, " devolvi\u00f3 `fila` de clase `",
+        class(fila)[[1L]], "`: tiene que ser la posici\u00f3n entera de la fila.",
+        call. = FALSE
+      )
+    }
+    presentes <- fila[!is.na(fila)]
+    if (length(presentes) &&
+        (any(!is.finite(presentes)) || any(presentes < 1) ||
+         any(presentes != floor(presentes)))) {
+      stop(
+        "El m\u00e9todo de ", instancia$nombre, " devolvi\u00f3 una `fila` que no ",
+        "es una posici\u00f3n entera desde 1.", call. = FALSE
+      )
+    }
     entidades <- as.character(salida$entidad)
     ajenas <- is.na(entidades) | !.identificadores_en(entidades, instancia$entidad)
     if (any(ajenas)) {
@@ -1486,12 +1620,8 @@ metricas_nucleo <- function() {
       columnas <- unlist(lapply(tablas, names), use.names = FALSE)
       atributos <- unique(as.character(salida$atributo))
       atributos <- atributos[!is.na(atributos)]
-      es_columna <- function(valor) {
-        if (!is.na(.indice_nombre(valor, columnas))) return(TRUE)
-        partes <- strsplit(valor, "+", fixed = TRUE)[[1L]]
-        length(partes) > 1L && !anyNA(.indice_nombre(partes, columnas))
-      }
-      ajenos <- atributos[!vapply(atributos, es_columna, logical(1L))]
+      ajenos <- atributos[!vapply(atributos, .atributo_de_columnas, logical(1L),
+                                  columnas = columnas)]
       if (length(ajenos)) {
         stop(
           "El m\u00e9todo de ", instancia$nombre, " devolvi\u00f3 medidas de un ",
@@ -1500,11 +1630,18 @@ metricas_nucleo <- function() {
         )
       }
     }
-    clave <- .clave_bytes(paste(
-      .clave_bytes(entidades), .clave_bytes(as.character(salida$atributo)),
-      .clave_bytes(as.character(salida$fila)),
-      .clave_bytes(as.character(salida$objeto)), sep = "\034"
-    ))
+    # Cada componente lleva delante su LARGO en bytes, y asi la union no es
+    # ambigua aunque un nombre traiga el separador: con `\034` dentro de un nombre
+    # -`a` + `b\034c` contra `a\034b` + `c`- dos objetos distintos daban la misma
+    # clave y una salida legitima se rechazaba como repetida.
+    componente <- function(x) {
+      x <- .clave_bytes(as.character(x))
+      paste0(nchar(x, type = "bytes"), ":", x)
+    }
+    clave <- paste(
+      componente(entidades), componente(salida$atributo),
+      componente(salida$fila), componente(salida$objeto), sep = "\034"
+    )
     if (anyDuplicated(clave)) {
       stop(
         "El m\u00e9todo de ", instancia$nombre, " devolvi\u00f3 m\u00e1s de una ",
@@ -1593,8 +1730,15 @@ metricas_nucleo <- function() {
   )
 }
 
+.filas_originales_entidad <- function(tablas, entidad) {
+  if (is.null(tablas)) return(0L)
+  indice <- .indice_identificador(entidad, names(tablas))
+  if (is.na(indice) || !inherits(tablas[[indice]], "data.frame")) return(0L)
+  nrow(tablas[[indice]])
+}
+
 .cobertura_metrica_no_evaluada <- function(tablas, instancia, id_medicion,
-                                           fecha) {
+                                           fecha, tablas_originales = NULL) {
   entidad <- instancia$entidad[[1L]]
   # "Dependiente" es la segunda entidad de una metrica entre dos, y nada mas. Se
   # buscaba entre TODAS las ligadas, la principal incluida, asi que `NoNulo` sobre
@@ -1616,11 +1760,36 @@ metricas_nucleo <- function() {
       entidades_vacias[[1L]], "` tiene cero filas. No hay nada que medir;",
       " no es un alcance vac\u00edo."
     )
+  } else if (!is.null(tabla) && !nrow(tabla) &&
+             .filas_originales_entidad(tablas_originales, entidad) > 0L) {
+    # La tabla RECORTADA quedo vacia, no la del usuario: decia "la entidad tiene
+    # cero filas" sobre una entidad de tres, porque esta funcion recibe las tablas
+    # ya recortadas por `aplicabilidad`.
+    motivo <- paste0(
+      sujeto, " no se pudo medir: el universo aplicable de la entidad `", entidad,
+      "` qued\u00f3 vac\u00edo -ninguna de sus ",
+      .filas_originales_entidad(tablas_originales, entidad),
+      " filas cumple la regla de `aplicabilidad`-. No hay nada que medir; no es ",
+      "un fallo, es un alcance vac\u00edo."
+    )
   } else if (is.null(tabla) || !nrow(tabla)) {
     motivo <- paste0(
       sujeto, " no se pudo medir: la entidad `", entidad,
       "` tiene cero filas. No hay nada que medir; no es un fallo, es un",
       " alcance vac\u00edo."
+    )
+  } else if (!is.null(instancia$configuracion$aplicable) && !any(tryCatch(
+    .mascara_aplicable_instancia(tabla, instancia),
+    error = function(e) TRUE
+  ))) {
+    # Y el mismo caso con el universo que declara la METRICA: con la propiedad
+    # `aplicable` de `NoNulo` excluyendo todas las filas, decia "su metodo no
+    # devolvio ninguna medida".
+    motivo <- paste0(
+      sujeto, " no se pudo medir: el universo que la m\u00e9trica declara con ",
+      "`aplicable` qued\u00f3 vac\u00edo -ninguna de las ", nrow(tabla),
+      " filas lo cumple-. No hay nada que medir; no es un fallo, es un alcance ",
+      "vac\u00edo."
     )
   } else if (length(instancia$atributos)) {
     indices_atributos <- .indice_nombre(instancia$atributos, names(tabla))
@@ -1730,7 +1899,10 @@ metricas_nucleo <- function() {
     paste0(
       "; las otras ", no_medidas, " no produjeron medida y no cuentan como ",
       "incumplimiento",
-      if (!is.na(sin_valor)) {
+      # Solo si cierra: un metodo que mide filas FUERA del universo deja menos no
+      # medidas que celdas sin valor, y la frase decia "las otras 1 ... (2 de
+      # ellas sin valor)".
+      if (!is.na(sin_valor) && sin_valor <= no_medidas) {
         paste0(" (", sin_valor, " de ellas sin valor)")
       } else "",
       "."
@@ -1877,9 +2049,11 @@ metricas_nucleo <- function() {
 #'   cuando su contrato no trae un campo que necesita, y `no_medible` cuando su
 #'   método falló sobre estos datos —una columna sin dos valores para
 #'   `ErrorEstandar`, un atributo que la tabla no trae, una regla que devuelve
-#'   `NA`—. En el último caso el motivo conserva el mensaje del método y `medir()`
-#'   **avisa**: la falla ya no se lleva la medición de las demás métricas, pero
-#'   tampoco queda muda. Y cuando **sí** pudo medirse
+#'   `NA`— o devolvió una salida que no cumple el contrato de `metodo`. En el
+#'   último caso el motivo conserva el mensaje del método, con los valores de las
+#'   columnas personales enmascarados si `proteger_datos_personales = TRUE`, y
+#'   `medir()` **avisa**: la falla ya no se lleva la medición de las demás
+#'   métricas, pero tampoco queda muda. Y cuando **sí** pudo medirse
 #'   pero sobre **menos** elementos de los que hay en su universo aplicable —una
 #'   métrica por celda no mide la celda vacía, que no produce medida ni cuenta
 #'   como incumplimiento—, el atributo `alcance_medidas` publica cuántos midió de
@@ -1977,26 +2151,52 @@ medir <- function(modelo, datos, id_medicion = NULL, fecha = Sys.time(),
     # -"un metodo que falla no puede tumbar a los demas"- y cubre tambien las
     # metricas que el usuario escribe con `metrica(metodo = ...)`, que tenian la
     # misma puerta. El mensaje del metodo es el motivo, y ya dice que falta.
-    cruda <- tryCatch(
-      instancia$metodo(tablas_instancia, instancia),
-      error = function(e) {
-        .abstener_metodo(
-          instancia,
-          motivo = paste0(
-            "La m\u00e9trica `", instancia$nombre, "` no se midi\u00f3 sobre ",
-            "estos datos: ", conditionMessage(e)
-          ),
-          como_resolverlo = paste(
-            "Revisar que el atributo ligado exista y tenga el tipo y la cantidad",
-            "de valores que la m\u00e9trica requiere. Una m\u00e9trica que no se",
-            "midi\u00f3 no se interpreta como cero."
-          ),
-          estado = "no_medible"
+    no_medible <- function(causa, mensaje) {
+      motivo <- paste0(
+        "La m\u00e9trica `", instancia$nombre, "` no se midi\u00f3", causa, ": ",
+        mensaje
+      )
+      if (isTRUE(proteger_datos_personales)) {
+        motivo <- .proteger_motivo_no_medible(
+          motivo, tablas_instancia, columnas_personales, validadores_personales
         )
       }
+      .abstener_metodo(
+        instancia, motivo = motivo,
+        como_resolverlo = paste(
+          "Revisar que el atributo ligado exista y tenga el tipo y la cantidad",
+          "de valores que la m\u00e9trica requiere, y si el m\u00e9todo es propio,",
+          "que cumpla el contrato de `metodo` (?modelo_calidad). Una m\u00e9trica",
+          "que no se midi\u00f3 no se interpreta como cero."
+        ),
+        estado = "no_medible"
+      )
+    }
+    cruda <- tryCatch(
+      instancia$metodo(tablas_instancia, instancia),
+      error = function(e) no_medible(" sobre estos datos", conditionMessage(e))
     )
     abstencion <- attr(cruda, "abstencion", exact = TRUE)
-    salida <- .validar_salida_medicion(cruda, instancia, tablas_instancia)
+    # La validacion tambien va adentro: una salida que no cumple el contrato es un
+    # metodo que fallo, y abortar `medir()` entero por eso se llevaba la medicion
+    # de las demas metricas -lo mismo que la llamada envuelta ya evitaba-. Medido:
+    # un atributo legitimo que la validacion no reconocia mataba la corrida.
+    salida <- tryCatch({
+      validada <- .validar_salida_medicion(cruda, instancia, tablas_instancia)
+      if (nrow(validada) && !.metodo_del_paquete(instancia$metodo)) {
+        validada <- .filas_a_la_tabla_original(
+          validada, tablas_instancia, instancia
+        )
+      }
+      validada
+    }, error = function(e) {
+      vacia <- no_medible(
+        ": su m\u00e9todo devolvi\u00f3 una salida que no cumple el contrato",
+        conditionMessage(e)
+      )
+      abstencion <<- attr(vacia, "abstencion", exact = TRUE)
+      .validar_salida_medicion(vacia, instancia)
+    })
     if (!nrow(salida)) {
       coberturas[[length(coberturas) + 1L]] <<- if (!is.null(abstencion)) {
         .cobertura_metrica_abstenida(
@@ -2004,7 +2204,8 @@ medir <- function(modelo, datos, id_medicion = NULL, fecha = Sys.time(),
         )
       } else {
         .cobertura_metrica_no_evaluada(
-          tablas_instancia, instancia, id_medicion, fecha
+          tablas_instancia, instancia, id_medicion, fecha,
+          tablas_originales = tablas
         )
       }
     } else if (isTRUE(proteger_datos_personales)) {

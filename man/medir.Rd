@@ -75,9 +75,11 @@ atributo \code{cobertura_metricas}, con un estado que distingue tres causas:
 cuando su contrato no trae un campo que necesita, y \code{no_medible} cuando su
 método falló sobre estos datos —una columna sin dos valores para
 \code{ErrorEstandar}, un atributo que la tabla no trae, una regla que devuelve
-\code{NA}—. En el último caso el motivo conserva el mensaje del método y \code{medir()}
-\strong{avisa}: la falla ya no se lleva la medición de las demás métricas, pero
-tampoco queda muda. Y cuando \strong{sí} pudo medirse
+\code{NA}— o devolvió una salida que no cumple el contrato de \code{metodo}. En el
+último caso el motivo conserva el mensaje del método, con los valores de las
+columnas personales enmascarados si \code{proteger_datos_personales = TRUE}, y
+\code{medir()} \strong{avisa}: la falla ya no se lleva la medición de las demás
+métricas, pero tampoco queda muda. Y cuando \strong{sí} pudo medirse
 pero sobre \strong{menos} elementos de los que hay en su universo aplicable —una
 métrica por celda no mide la celda vacía, que no produce medida ni cuenta
 como incumplimiento—, el atributo \code{alcance_medidas} publica cuántos midió de

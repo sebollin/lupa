@@ -679,6 +679,7 @@
   if (!any(fuera)) return(ejecutada)
   viejo <- anterior[[columna]]
   nuevo <- ejecutada$datos[[columna]]
+  sin_restaurar <- nuevo
   # Los ejecutores de texto devuelven `character` aunque la entrada sea factor;
   # asignar el factor directo lo convertiria en sus codigos numericos.
   restaurar <- viejo[fuera]
@@ -688,10 +689,27 @@
   cambiadas <- sum(.celdas_cambiadas(viejo, nuevo))
   n_anterior <- ejecutada$n
   ejecutada$n <- cambiadas
-  # Si la accion contaba como irreversible cada cambio, sigue contando igual.
-  if (!is.null(ejecutada$n_no_reversibles) && isTRUE(ejecutada$n_no_reversibles > 0L) &&
-      isTRUE(ejecutada$n_no_reversibles == n_anterior)) {
-    ejecutada$n_no_reversibles <- cambiadas
+  # Las irreversibles se recuentan con la MISMA regla con que la accion las conto,
+  # y la regla se reconoce por su resultado, no por el nombre de la accion. Si el
+  # conteo coincidia con medir la perdida sobre el resultado -recortar espacios,
+  # quitar invisibles: pierden valor solo cuando dos valores colapsan-, se vuelve
+  # a medir sobre el resultado restaurado: una celda devuelta a su valor ya no
+  # colapsa con nadie. Medido: `" y"` fuera del universo colisionaba con `"y"`,
+  # se restauraba, y el registro seguia contando 1 irreversible sobre un
+  # resultado sin ninguna perdida. Si contaba como irreversible CADA cambio -una
+  # imputacion no se distingue del dato-, sigue contando cada cambio.
+  if (!is.null(ejecutada$n_no_reversibles) &&
+      isTRUE(ejecutada$n_no_reversibles > 0L)) {
+    por_resultado <- sum(.celdas_que_pierden_valor(viejo, sin_restaurar))
+    ejecutada$n_no_reversibles <- if (
+      isTRUE(ejecutada$n_no_reversibles == por_resultado)
+    ) {
+      sum(.celdas_que_pierden_valor(viejo, nuevo))
+    } else if (isTRUE(ejecutada$n_no_reversibles == n_anterior)) {
+      cambiadas
+    } else {
+      min(ejecutada$n_no_reversibles, cambiadas)
+    }
   }
   ejecutada
 }
@@ -3037,7 +3055,16 @@ planificar_limpieza <- function(perfil, datos = NULL,
                 n_no_reversibles = evaluacion$n_no_reversibles))
   }
   if (identical(estrategia, "marcar_filas_ausentes")) {
-    aplicable <- .mascara_aplicabilidad_accion(original, columna, parametros)
+    # Sin regla de aplicabilidad no hay nada que alinear: todas las filas
+    # actuales aplican. La mascara se pedia igual sobre los ORIGINALES, y despues
+    # de que otra accion eliminara filas -conservar la primera duplicada, que el
+    # propio plan ordena antes- el largo no coincidia y la accion fallaba
+    # culpando a una aplicabilidad que el plan no declaraba.
+    aplicable <- if (is.null(parametros$aplicabilidad)) {
+      rep(TRUE, length(x))
+    } else {
+      .mascara_aplicabilidad_accion(original, columna, parametros)
+    }
     if (length(aplicable) != length(x)) {
       stop(
         "No se pudo respetar la aplicabilidad despues de eliminar filas.",
@@ -3049,7 +3076,16 @@ planificar_limpieza <- function(perfil, datos = NULL,
     return(list(datos = datos, n = sum(marca)))
   }
   if (identical(estrategia, "eliminar_filas_ausentes")) {
-    aplicable <- .mascara_aplicabilidad_accion(original, columna, parametros)
+    # Sin regla de aplicabilidad no hay nada que alinear: todas las filas
+    # actuales aplican. La mascara se pedia igual sobre los ORIGINALES, y despues
+    # de que otra accion eliminara filas -conservar la primera duplicada, que el
+    # propio plan ordena antes- el largo no coincidia y la accion fallaba
+    # culpando a una aplicabilidad que el plan no declaraba.
+    aplicable <- if (is.null(parametros$aplicabilidad)) {
+      rep(TRUE, length(x))
+    } else {
+      .mascara_aplicabilidad_accion(original, columna, parametros)
+    }
     if (length(aplicable) != length(x)) {
       stop(
         "No se pudo respetar la aplicabilidad despues de eliminar filas.",
@@ -3662,9 +3698,16 @@ guiar_limpieza <- function(plan, datos, selector = NULL,
       acciones$estrategia == "convertir_segun_diccionario"
     )
     if (length(indice_diccionario) && !is.null(diccionario)) {
-      plan$parametros[[indices[indice_diccionario]]] <- list(
-        diccionario = diccionario
-      )
+      # Se AGREGA el diccionario a los parametros que la accion ya traia, no se
+      # los reemplaza: reemplazarlos tiraba la regla de `aplicabilidad`, y el plan
+      # guiado convertia la columna entera, incluidas las filas que el plan
+      # declaraba fuera del universo.
+      for (i in indices[indice_diccionario]) {
+        parametros <- plan$parametros[[i]]
+        if (!is.list(parametros)) parametros <- list()
+        parametros$diccionario <- diccionario
+        plan$parametros[[i]] <- parametros
+      }
       plan$estado[indices[indice_diccionario]] <- "lista"
       acciones <- plan[indices, , drop = FALSE]
     }

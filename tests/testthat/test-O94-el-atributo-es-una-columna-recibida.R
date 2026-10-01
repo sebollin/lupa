@@ -16,9 +16,9 @@
         data.frame(x = c(1, 2), y = c(3, 4), `a+b` = 1:2, check.names = FALSE))
 }
 
-test_that("un atributo que no es columna de lo recibido se rechaza", {
-  expect_error(.o94_medir("columna_inexistente"), "no es una columna")
-  expect_error(.o94_medir("x+fantasma"), "no es una columna")
+test_that("un atributo que no es columna de lo recibido deja la metrica no medible", {
+  .expect_no_medible(.o94_medir("columna_inexistente"), "no es una columna")
+  .expect_no_medible(.o94_medir("x+fantasma"), "no es una columna")
 })
 
 test_that("el control: columnas recibidas, ligadas o no, y unidas por `+`", {
