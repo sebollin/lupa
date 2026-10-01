@@ -55,10 +55,10 @@ valida por sus dígitos: el doble `12000000` se lee como `"12000000"`
 aunque `scipen` lo imprima en notación científica. `NaN` es ausente y
 devuelve `NA`, igual que en el resto del paquete. Las letras se pasan a
 mayúsculas sólo dentro de ASCII:
-[`toupper()`](https://rdrr.io/r/base/chartr.html) convierte `ſ` en `S` y
-`ı` en `I`, y con eso `"ſe"` pasaba por un código ISO; ahora es
-inválido. Y la marca de codificación del texto —`latin1` o UTF-8— no
-cambia la respuesta.
+[`toupper()`](https://rdrr.io/r/base/chartr.html) convierte la s larga
+(U+017F) en `S` y la i sin punto (U+0131) en `I`, y con eso una s larga
+seguida de `e` pasaba por un código ISO; ahora es inválida. Y la marca
+de codificación del texto —`latin1` o UTF-8— no cambia la respuesta.
 
 `validar_correo()` comprueba un subconjunto práctico y deliberadamente
 conservador de la sintaxis `addr-spec`: parte local de puntos y

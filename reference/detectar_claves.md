@@ -61,6 +61,11 @@ exacta—, aunque tengan nombres distintos. Las columnas compuestas
 interpretan como claves. Los pares también quedan en el atributo
 `claves_redundantes`.
 
+Una columna cuyo nombre se repite en la tabla no se analiza: una clave
+se publica por el nombre de sus columnas, y ese nombre no diría cuál de
+las dos identifica. Se avisa, y los nombres quedan en el atributo
+`columnas_nombre_repetido`.
+
 ## See also
 
 [`detectar_dependencias()`](https://sebollin.github.io/lupa/reference/detectar_dependencias.md),

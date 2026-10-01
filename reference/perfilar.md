@@ -1335,7 +1335,9 @@ protección. Cada clasificación declara `poder_discriminante` y
   ejemplo `telefono`, `fecha_nacimiento` o `fecha_fallecimiento`); se
   protege aunque sus valores no se puedan validar. El nombre tiene
   prioridad sobre una forma numérica genérica y también determina la
-  etiqueta de tipo;
+  etiqueta de tipo. También es `medio` una columna que trae correos
+  completos sin que sean la mayoría de sus valores: un correo es un
+  correo aunque esté solo, y la columna se protege;
 
 - `alto`: una forma muy específica, como un correo, o nombre y forma se
   apoyan mutuamente; se protege;

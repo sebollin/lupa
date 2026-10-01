@@ -56,6 +56,15 @@ consultado a la misma función. Las columnas compuestas —matrices o
 arreglos de más de una dimensión— no se ofrecen como claves ni reciben
 una tasa de valores distintos.
 
+Una columna cuyo nombre se repite en la tabla no se mide: la clave se
+pasa a
+[`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md)
+por nombre, y ese nombre no dice cuál de las dos es. Aparece al final,
+fuera de `maximo`, con `identifica`, `sin_faltantes` y `tasa_distintos`
+en `NA` y el motivo;
+[`elegir_clave()`](https://sebollin.github.io/lupa/reference/elegir_clave.md)
+no la ofrece.
+
 ## See also
 
 [`detectar_claves()`](https://sebollin.github.io/lupa/reference/detectar_claves.md)

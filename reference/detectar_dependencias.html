@@ -138,7 +138,9 @@ documentan el presupuesto de comparaciones. <code>trabajo_estimado</code>,
 <code>trabajo_comparado</code>, <code>trabajo_sin_comparar</code>, <code>unidad_trabajo</code> y
 <code>max_trabajo</code> documentan el presupuesto por filas. <code>columnas_descartadas</code>
 es un data frame que explica por qué una columna no se usó como
-determinante.</p>
+determinante. Una columna cuyo nombre se repite en la tabla no entra en
+ninguna dependencia, de ningún lado, y se descarta con el motivo
+<code>nombre_repetido</code>: la fila diría <code>k -&gt; k</code> sin decir cuál columna es cuál.</p>
     </div>
     <div class="section level2">
     <h2 id="details">Details<a class="anchor" aria-label="anchor" href="#details"></a></h2>

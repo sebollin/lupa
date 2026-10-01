@@ -30,13 +30,13 @@ y `unidad`.
 ``` r
 estadisticos_estimacion()
 #>   estadistico               metrica tipo_resultado orientacion
-#> 1        stat            Estimacion           real   no_aplica
-#> 2          se         ErrorEstandar           real     defecto
-#> 3          cv  CoeficienteVariacion           real     defecto
+#> 1        stat            Estimacion    numero_real   no_aplica
+#> 2          se         ErrorEstandar    numero_real     defecto
+#> 3          cv  CoeficienteVariacion    numero_real     defecto
 #> 4           n         TamanoMuestra         entero conformidad
-#> 5          df        GradosLibertad           real conformidad
-#> 6        deff          EfectoDiseno           real     defecto
-#> 7         ess TamanoMuestraEfectivo           real conformidad
+#> 5          df        GradosLibertad    numero_real conformidad
+#> 6        deff          EfectoDiseno    numero_real     defecto
+#> 7         ess TamanoMuestraEfectivo    numero_real conformidad
 #>                    unidad
 #> 1 unidad de la estimacion
 #> 2 unidad de la estimacion

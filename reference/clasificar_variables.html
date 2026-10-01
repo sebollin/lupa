@@ -123,7 +123,11 @@ Debe contener <code>columna</code> y puede incluir <code>escala</code>, <code>ro
 son nominal, ordinal, discreta, continua, binaria, temporal y desconocida.</p>
 <p>Los niveles declarados y observados se conservan como columnas de lista. Los
 niveles ausentes son una observación, no prueba de error. Si la evidencia de
-dato personal activa la protección, los niveles concretos se protegen.</p>
+dato personal activa la protección, los niveles concretos se protegen. Sólo
+las escalas nominal, ordinal y binaria guardan niveles observados; en las
+demás, <code>n_niveles_observados</code> es <code>NA</code>, porque la cifra no aplica.</p>
+<p>Una columna numérica sin ningún valor finito —sólo <code>Inf</code> o <code>-Inf</code>— queda
+<code>desconocida</code>: <code>Inf</code> no es un entero ni un estado.</p>
     </div>
     <div class="section level2">
     <h2 id="see-also">See also<a class="anchor" aria-label="anchor" href="#see-also"></a></h2>

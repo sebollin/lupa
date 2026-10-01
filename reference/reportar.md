@@ -36,7 +36,8 @@ reportar(
 - archivo:
 
   Ruta de salida. De forma predeterminada crea un archivo en
-  [`tempdir()`](https://rdrr.io/r/base/tempfile.html).
+  [`tempdir()`](https://rdrr.io/r/base/tempfile.html). Una ruta que ya
+  es un directorio se rechaza.
 
 - sobrescribir:
 

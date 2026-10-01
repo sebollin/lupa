@@ -1264,7 +1264,9 @@ con importes, facturas y códigos; se informa pero no se ocultan valores;</p></l
 <li><p><code>medio</code>: el nombre de la columna expresa una categoría personal (por
 ejemplo <code>telefono</code>, <code>fecha_nacimiento</code> o <code>fecha_fallecimiento</code>); se protege aunque sus valores no
 se puedan validar. El nombre tiene prioridad sobre una forma numérica
-genérica y también determina la etiqueta de tipo;</p></li>
+genérica y también determina la etiqueta de tipo. También es <code>medio</code> una
+columna que trae correos completos sin que sean la mayoría de sus valores:
+un correo es un correo aunque esté solo, y la columna se protege;</p></li>
 <li><p><code>alto</code>: una forma muy específica, como un correo, o nombre y forma se
 apoyan mutuamente; se protege;</p></li>
 <li><p><code>verificado</code>: al menos tres valores distintos y al menos el 90% cumple uno

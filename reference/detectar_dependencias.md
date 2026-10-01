@@ -87,7 +87,10 @@ documentan el presupuesto de comparaciones. `trabajo_estimado`,
 `trabajo_comparado`, `trabajo_sin_comparar`, `unidad_trabajo` y
 `max_trabajo` documentan el presupuesto por filas.
 `columnas_descartadas` es un data frame que explica por qué una columna
-no se usó como determinante.
+no se usó como determinante. Una columna cuyo nombre se repite en la
+tabla no entra en ninguna dependencia, de ningún lado, y se descarta con
+el motivo `nombre_repetido`: la fila diría `k -> k` sin decir cuál
+columna es cuál.
 
 ## Details
 

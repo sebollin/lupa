@@ -3,7 +3,10 @@
 Generaliza un vector de texto mediante la convención del *Pattern
 Finder* de DataCleaner: `9` representa un dígito, `a` una letra
 minúscula y `A` una letra mayúscula. Los símbolos y espacios se
-conservan literalmente.
+conservan literalmente. Las tres clases valen en cualquier escritura: un
+dígito arábigo-índico es `9` y una `é` es `a`, de modo que el patrón no
+publica letras del valor; una letra sin mayúscula ni minúscula —árabe,
+CJK— cuenta como `a`.
 
 ## Usage
 
@@ -64,7 +67,8 @@ descubrir_patrones(
 Un data frame de clase `patrones` con patrón, frecuencia, proporción y
 ejemplos. Los **ejemplos no se publican** cuando la forma de los valores
 alcanza por sí sola para clasificarlos como dato personal —un correo,
-por ejemplo—: salen como `[valor protegido]`. Acá llega un vector
+por ejemplo, aunque los correos no sean la mayoría del vector—: salen
+como `[valor protegido]`, los de todos los patrones. Acá llega un vector
 suelto, sin nombre de columna, así que la vía por nombre no está
 disponible; un número de ocho dígitos **sí** se publica, porque su forma
 sola no alcanza para afirmar que es un documento. Los atributos `total`,

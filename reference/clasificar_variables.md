@@ -80,7 +80,12 @@ temporal y desconocida.
 Los niveles declarados y observados se conservan como columnas de lista.
 Los niveles ausentes son una observación, no prueba de error. Si la
 evidencia de dato personal activa la protección, los niveles concretos
-se protegen.
+se protegen. Sólo las escalas nominal, ordinal y binaria guardan niveles
+observados; en las demás, `n_niveles_observados` es `NA`, porque la
+cifra no aplica.
+
+Una columna numérica sin ningún valor finito —sólo `Inf` o `-Inf`— queda
+`desconocida`: `Inf` no es un entero ni un estado.
 
 ## See also
 

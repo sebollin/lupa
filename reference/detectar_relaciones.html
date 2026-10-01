@@ -143,6 +143,14 @@ que no alcanzan <code>umbral_cobertura</code>, que es otra cosa. Por eso van det
 <code>podar = TRUE</code>, y cuando se aplican <strong>el par no desaparece</strong>: sale con
 <code>cardinalidad = "sin_comparar"</code>, coberturas <code>NA</code> y su motivo en <code>motivo_poda</code>.
 Un par que no se evaluó no es un par sin relación.</p>
+<p>Dos pares no se comparan nunca, con <code>podar</code> o sin él, porque la comparación
+no daría una respuesta sino una falsa. Si una tabla tiene dos columnas con el
+mismo nombre, el nombre no dice cuál de las dos es: sus pares salen
+<code>sin_comparar</code> con <code>motivo_poda = "nombre_repetido"</code>. Y una fecha contra una
+fecha-hora no comparte escritura —<code>2020-01-01</code> contra <code>2020-01-01 00:00:00</code>—, así
+que ningún valor coincidiría aunque fueran los mismos días: el par sale con
+<code>motivo_poda = "fecha_contra_instante"</code>. Convertir una de las dos a la clase de
+la otra, con <code>tz</code> explícito, y volver a comparar.</p>
 <p>Todas las podas, de las dos clases, quedan además en el atributo <code>podas</code> con
 su motivo y su detalle.</p>
 <p>Cuando una tabla supera <code>muestra</code>, la función estima cada cobertura con una

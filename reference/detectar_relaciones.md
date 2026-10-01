@@ -99,6 +99,16 @@ no desaparece**: sale con `cardinalidad = "sin_comparar"`, coberturas
 `NA` y su motivo en `motivo_poda`. Un par que no se evaluó no es un par
 sin relación.
 
+Dos pares no se comparan nunca, con `podar` o sin él, porque la
+comparación no daría una respuesta sino una falsa. Si una tabla tiene
+dos columnas con el mismo nombre, el nombre no dice cuál de las dos es:
+sus pares salen `sin_comparar` con `motivo_poda = "nombre_repetido"`. Y
+una fecha contra una fecha-hora no comparte escritura —`2020-01-01`
+contra `2020-01-01 00:00:00`—, así que ningún valor coincidiría aunque
+fueran los mismos días: el par sale con
+`motivo_poda = "fecha_contra_instante"`. Convertir una de las dos a la
+clase de la otra, con `tz` explícito, y volver a comparar.
+
 Todas las podas, de las dos clases, quedan además en el atributo `podas`
 con su motivo y su detalle.
 

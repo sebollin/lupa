@@ -87,6 +87,16 @@ quien la preparó es distinta en cada caso. Dentro de una columna que sí
 trae datos, la celda vacía se descarta por la misma razón, y el resto de
 las estimaciones se publica.
 
+**Una celda que no es una estimación también se descarta, y se
+declara.** Un texto que no es un número, o un número fuera del dominio
+de su estadístico —un tamaño de muestra que no es un entero no negativo;
+un error estándar, un coeficiente de variación, unos grados de libertad,
+un efecto de diseño o un tamaño efectivo negativos— no se publica: se
+avisa y queda en el atributo `celdas_descartadas`, con la métrica, la
+celda, el valor recibido y el motivo (`no_numerica` o
+`fuera_de_dominio`). Una columna `factor` se lee por el texto de sus
+niveles, no por sus códigos.
+
 ## See also
 
 [`estadisticos_estimacion()`](https://sebollin.github.io/lupa/reference/estadisticos_estimacion.md),
@@ -107,19 +117,19 @@ medicion_desde_estimaciones(
   fuente = "survey 4.4, diseno complejo declarado por el equipo"
 )
 #>                                                        id_medida
-#> 1           estimaciones-20261001T081333-ech2024-Estimacion-0001
-#> 2           estimaciones-20261001T081333-ech2024-Estimacion-0002
-#> 3 estimaciones-20261001T081333-ech2024-CoeficienteVariacion-0001
-#> 4 estimaciones-20261001T081333-ech2024-CoeficienteVariacion-0002
-#> 5        estimaciones-20261001T081333-ech2024-TamanoMuestra-0001
-#> 6        estimaciones-20261001T081333-ech2024-TamanoMuestra-0002
+#> 1           estimaciones-20261001T095141-ech2024-Estimacion-0001
+#> 2           estimaciones-20261001T095141-ech2024-Estimacion-0002
+#> 3 estimaciones-20261001T095141-ech2024-CoeficienteVariacion-0001
+#> 4 estimaciones-20261001T095141-ech2024-CoeficienteVariacion-0002
+#> 5        estimaciones-20261001T095141-ech2024-TamanoMuestra-0001
+#> 6        estimaciones-20261001T095141-ech2024-TamanoMuestra-0002
 #>                            id_medicion               fecha              metrica
-#> 1 estimaciones-20261001T081333-ech2024 2026-10-01 08:13:33           Estimacion
-#> 2 estimaciones-20261001T081333-ech2024 2026-10-01 08:13:33           Estimacion
-#> 3 estimaciones-20261001T081333-ech2024 2026-10-01 08:13:33 CoeficienteVariacion
-#> 4 estimaciones-20261001T081333-ech2024 2026-10-01 08:13:33 CoeficienteVariacion
-#> 5 estimaciones-20261001T081333-ech2024 2026-10-01 08:13:33        TamanoMuestra
-#> 6 estimaciones-20261001T081333-ech2024 2026-10-01 08:13:33        TamanoMuestra
+#> 1 estimaciones-20261001T095141-ech2024 2026-10-01 09:51:41           Estimacion
+#> 2 estimaciones-20261001T095141-ech2024 2026-10-01 09:51:41           Estimacion
+#> 3 estimaciones-20261001T095141-ech2024 2026-10-01 09:51:41 CoeficienteVariacion
+#> 4 estimaciones-20261001T095141-ech2024 2026-10-01 09:51:41 CoeficienteVariacion
+#> 5 estimaciones-20261001T095141-ech2024 2026-10-01 09:51:41        TamanoMuestra
+#> 6 estimaciones-20261001T095141-ech2024 2026-10-01 09:51:41        TamanoMuestra
 #>     metrica_especifica          metrica_instanciada dimension
 #> 1           Estimacion           Estimacion@ech2024 Precision
 #> 2           Estimacion           Estimacion@ech2024 Precision
@@ -128,10 +138,10 @@ medicion_desde_estimaciones(
 #> 5        TamanoMuestra        TamanoMuestra@ech2024 Precision
 #> 6        TamanoMuestra        TamanoMuestra@ech2024 Precision
 #>                 factor orientacion      granularidad tipo_resultado entidad
-#> 1           Estimacion   no_aplica conjuntoEntidades           real ech2024
-#> 2           Estimacion   no_aplica conjuntoEntidades           real ech2024
-#> 3 CoeficienteVariacion     defecto conjuntoEntidades           real ech2024
-#> 4 CoeficienteVariacion     defecto conjuntoEntidades           real ech2024
+#> 1           Estimacion   no_aplica conjuntoEntidades    numero_real ech2024
+#> 2           Estimacion   no_aplica conjuntoEntidades    numero_real ech2024
+#> 3 CoeficienteVariacion     defecto conjuntoEntidades    numero_real ech2024
+#> 4 CoeficienteVariacion     defecto conjuntoEntidades    numero_real ech2024
 #> 5        TamanoMuestra conformidad conjuntoEntidades         entero ech2024
 #> 6        TamanoMuestra conformidad conjuntoEntidades         entero ech2024
 #>     atributo fila     objeto_medible resultado agregacion

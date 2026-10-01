@@ -32,7 +32,8 @@ leer_analisis(archivo)
 
 - archivo:
 
-  Ruta del archivo RDS.
+  Ruta del archivo RDS. Una ruta que ya es un directorio se rechaza: el
+  archivo va dentro, con su nombre.
 
 - incluir_datos:
 

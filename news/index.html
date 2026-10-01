@@ -43,6 +43,39 @@
     <div class="section level2">
 <h2 class="pkg-version" data-toc-text="0.1.0" id="lupa-010">lupa 0.1.0<a class="anchor" aria-label="anchor" href="#lupa-010"></a></h2>
 <div class="section level3">
+<h3 id="ronda-claves-relaciones-y-el-referencial-0-1-0">Ronda 15: claves, relaciones y el referencial<a class="anchor" aria-label="anchor" href="#ronda-claves-relaciones-y-el-referencial-0-1-0"></a></h3>
+<ul><li>
+<strong>El referencial empareja numeros por su valor.</strong> Pasaba los valores a texto con 15 cifras: <code>0.1 + 0.2</code> y <code>0.3</code> coincidian, y <code>CorrectitudSemFuerte</code> declaraba conforme un identificador que el padron no tenia; y el mismo numero guardado como entero en una tabla y como doble en la otra -<code>100000L</code> y <code>1e5</code>- no se encontraba. <code>EntidadDuplicada</code> tenia el mismo defecto: dos claves dobles distintas eran la misma entidad.</li>
+<li>
+<strong><code><a href="../reference/detectar_claves.html">detectar_claves()</a></code> no prueba columnas que su propio filtro excluyo.</strong> Con una sola columna analizable que no era la primera, <code><a href="https://rdrr.io/r/utils/combn.html" class="external-link">combn()</a></code> probaba todas las anteriores, y un importe con decimales o una columna lista salian como clave.</li>
+<li>
+<strong>Una columna cuyo nombre se repite no se mide como si fuera otra.</strong> <code><a href="../reference/sugerir_clave.html">sugerir_clave()</a></code> publicaba la segunda con las cifras de la primera, <code><a href="../reference/detectar_relaciones.html">detectar_relaciones()</a></code> le atribuia una relacion que no existe y <code><a href="../reference/detectar_dependencias.html">detectar_dependencias()</a></code> publicaba <code>k -&gt; k</code>. Ahora no se analizan y se declaran: una fila sin cifras en <code><a href="../reference/sugerir_clave.html">sugerir_clave()</a></code> (y <code><a href="../reference/elegir_clave.html">elegir_clave()</a></code> no la ofrece), un aviso en <code><a href="../reference/detectar_claves.html">detectar_claves()</a></code>, el par <code>sin_comparar</code> con <code>motivo_poda = "nombre_repetido"</code> en <code><a href="../reference/detectar_relaciones.html">detectar_relaciones()</a></code>, y el motivo <code>nombre_repetido</code> en las dependencias, que <code><a href="../reference/perfilar.html">perfilar()</a></code> declara en su cobertura.</li>
+<li>
+<strong><code><a href="../reference/detectar_relaciones.html">detectar_relaciones()</a></code> no compara una fecha con una fecha-hora.</strong> Las dos escrituras no coinciden nunca, y la fila decia <code>sin_coincidencias</code> con cobertura 0 sobre los mismos dias. Sale <code>sin_comparar</code>, con <code>motivo_poda = "fecha_contra_instante"</code>.</li>
+</ul></div>
+<div class="section level3">
+<h3 id="ronda-el-historico-entre-sesiones-0-1-0">Ronda 16: el historico entre sesiones<a class="anchor" aria-label="anchor" href="#ronda-el-historico-entre-sesiones-0-1-0"></a></h3>
+<ul><li>
+<strong>La configuracion de una corrida no depende de como imprime la sesion.</strong> En R 4.6, <code><a href="https://rdrr.io/r/base/character.html" class="external-link">as.character()</a></code> de un doble depende de <code>scipen</code> (<code>1e+07</code> o <code>10000000</code>) y de <code>OutDec</code> (<code>0,5</code>). La configuracion se guardaba asi: la misma corrida medida con otro <code>scipen</code> no se podia acumular, y la deriva publicaba como error un cambio de configuracion que no ocurrio. Ahora se escribe con las opciones por omision, lo que conserva lo ya guardado. Las etiquetas de numeros de <code><a href="../reference/perfilar_por.html">perfilar_por()</a></code> y el emparejamiento del referencial tampoco dependen de esas opciones.</li>
+<li>
+<strong><code><a href="../reference/guardar_historico.html">guardar_historico()</a></code>, <code><a href="../reference/persistir_analisis.html">guardar_analisis()</a></code> y <code><a href="../reference/reportar.html">reportar()</a></code> rechazan un destino que es un directorio.</strong> El archivo quedaba adentro con nombre de temporal y la funcion devolvia la ruta del directorio.</li>
+<li>
+<strong>La deriva no dice que cambio un tipo cuando cambio el conjunto de metricas</strong>, y no afirma en una fila que se mantienen las comparaciones que otra fila retiro. El diagnostico de una serie sin par nombra su tabla.</li>
+</ul></div>
+<div class="section level3">
+<h3 id="ronda-segunda-parte-estimaciones-senales-patrones-y-correos-0-1-0">Ronda 15, segunda parte: estimaciones, senales, patrones y correos<a class="anchor" aria-label="anchor" href="#ronda-segunda-parte-estimaciones-senales-patrones-y-correos-0-1-0"></a></h3>
+<ul><li>
+<strong>Una columna con correos se protege aunque no sean la mayoria.</strong> La forma de correo protegia solo si el 80 % de los valores lo eran: una columna de nombre neutro con 70 correos y 30 textos publicaba las direcciones enteras en los ejemplos de sus patrones, en <code><a href="../reference/perfilar.html">perfilar()</a></code> y en <code><a href="../reference/descubrir_patrones.html">descubrir_patrones()</a></code>.</li>
+<li>
+<strong><code><a href="../reference/medicion_desde_estimaciones.html">medicion_desde_estimaciones()</a></code> produce una medicion que <code><a href="../reference/evaluar.html">evaluar()</a></code> acepta.</strong> Declaraba <code>real</code> -una proporcion en [0, 1]- para la estimacion, el error estandar, el coeficiente de variacion y los demas, y <code><a href="../reference/evaluar.html">evaluar()</a></code> rechazaba entera cualquier medicion con una estimacion mayor que 1. Ahora son <code>numero_real</code>. Ademas lee un factor por el texto de sus niveles -antes publicaba sus codigos como estimaciones- y descarta, con aviso y en <code>attr(, "celdas_descartadas")</code>, las celdas que no son numeros o estan fuera del dominio de su estadistico (un tamano de muestra de 0,5; un error estandar negativo).</li>
+<li>
+<strong>La evidencia de <code><a href="../reference/detectar_discordancias.html">detectar_discordancias()</a></code> no se contradice.</strong> Con <code>max_ejemplos = 0</code> decia “sin filas discordantes” al lado de <code>n_discordantes = 2</code>; y dos dobles distintos que se escriben igual con 15 cifras se citan con las cifras que los distinguen.</li>
+<li>
+<strong><code><a href="../reference/clasificar_variables.html">clasificar_variables()</a></code> no llama entero a <code>Inf</code></strong>: una columna sin valores finitos queda <code>desconocida</code>. Y <code>n_niveles_observados</code> es <code>NA</code>, no 0, en las escalas que no guardan niveles.</li>
+<li>
+<strong>Un patron no publica letras ni digitos del valor.</strong> <code><a href="../reference/descubrir_patrones.html">descubrir_patrones()</a></code> dejaba literales los digitos y las letras no ASCII -“José” daba <code>Aa+é</code>-. Ahora valen las clases de Unicode, con el mismo resultado bajo cualquier locale.</li>
+</ul></div>
+<div class="section level3">
 <h3 id="ronda-fechas-validadores-y-perfil-por-grupos-0-1-0">Ronda 14: fechas, validadores y perfil por grupos<a class="anchor" aria-label="anchor" href="#ronda-fechas-validadores-y-perfil-por-grupos-0-1-0"></a></h3>
 <ul><li>
 <strong>Una fecha que la deteccion excluye no entra en el resumen.</strong> En <code>%Y%m%d</code>, un <code>99991231</code> quedaba fuera del formato -el rango admitido es 1800 a 2100- pero el perfil lo publicaba como <code>maximo_fecha</code>. Ahora la deteccion y el resumen usan la misma regla de validez, que tambien rechaza el segundo 60 y no deja salir el aviso crudo de <code><a href="https://rdrr.io/r/base/strptime.html" class="external-link">strptime()</a></code> ante un huso imposible.</li>

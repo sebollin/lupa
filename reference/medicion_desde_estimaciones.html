@@ -129,6 +129,14 @@ mismo no mandar la columna que mandarla sin datos, y la acción de quien la
 preparó es distinta en cada caso. Dentro de una columna que sí trae datos, la
 celda vacía se descarta por la misma razón, y el resto de las estimaciones se
 publica.</p>
+<p><strong>Una celda que no es una estimación también se descarta, y se declara.</strong> Un
+texto que no es un número, o un número fuera del dominio de su estadístico
+—un tamaño de muestra que no es un entero no negativo; un error estándar, un
+coeficiente de variación, unos grados de libertad, un efecto de diseño o un
+tamaño efectivo negativos— no se publica: se avisa y queda en el atributo
+<code>celdas_descartadas</code>, con la métrica, la celda, el valor recibido y el motivo
+(<code>no_numerica</code> o <code>fuera_de_dominio</code>). Una columna <code>factor</code> se lee por el texto
+de sus niveles, no por sus códigos.</p>
     </div>
     <div class="section level2">
     <h2 id="see-also">See also<a class="anchor" aria-label="anchor" href="#see-also"></a></h2>
@@ -148,19 +156,19 @@ publica.</p>
 <span class="r-in"><span>  fuente <span class="op">=</span> <span class="st">"survey 4.4, diseno complejo declarado por el equipo"</span></span></span>
 <span class="r-in"><span><span class="op">)</span></span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>                                                        id_medida</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 1           estimaciones-20261001T081333-ech2024-Estimacion-0001</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 2           estimaciones-20261001T081333-ech2024-Estimacion-0002</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 3 estimaciones-20261001T081333-ech2024-CoeficienteVariacion-0001</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 4 estimaciones-20261001T081333-ech2024-CoeficienteVariacion-0002</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 5        estimaciones-20261001T081333-ech2024-TamanoMuestra-0001</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 6        estimaciones-20261001T081333-ech2024-TamanoMuestra-0002</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 1           estimaciones-20261001T095141-ech2024-Estimacion-0001</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 2           estimaciones-20261001T095141-ech2024-Estimacion-0002</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 3 estimaciones-20261001T095141-ech2024-CoeficienteVariacion-0001</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 4 estimaciones-20261001T095141-ech2024-CoeficienteVariacion-0002</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 5        estimaciones-20261001T095141-ech2024-TamanoMuestra-0001</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 6        estimaciones-20261001T095141-ech2024-TamanoMuestra-0002</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>                            id_medicion               fecha              metrica</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 1 estimaciones-20261001T081333-ech2024 2026-10-01 08:13:33           Estimacion</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 2 estimaciones-20261001T081333-ech2024 2026-10-01 08:13:33           Estimacion</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 3 estimaciones-20261001T081333-ech2024 2026-10-01 08:13:33 CoeficienteVariacion</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 4 estimaciones-20261001T081333-ech2024 2026-10-01 08:13:33 CoeficienteVariacion</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 5 estimaciones-20261001T081333-ech2024 2026-10-01 08:13:33        TamanoMuestra</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 6 estimaciones-20261001T081333-ech2024 2026-10-01 08:13:33        TamanoMuestra</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 1 estimaciones-20261001T095141-ech2024 2026-10-01 09:51:41           Estimacion</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 2 estimaciones-20261001T095141-ech2024 2026-10-01 09:51:41           Estimacion</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 3 estimaciones-20261001T095141-ech2024 2026-10-01 09:51:41 CoeficienteVariacion</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 4 estimaciones-20261001T095141-ech2024 2026-10-01 09:51:41 CoeficienteVariacion</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 5 estimaciones-20261001T095141-ech2024 2026-10-01 09:51:41        TamanoMuestra</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 6 estimaciones-20261001T095141-ech2024 2026-10-01 09:51:41        TamanoMuestra</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>     metrica_especifica          metrica_instanciada dimension</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> 1           Estimacion           Estimacion@ech2024 Precision</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> 2           Estimacion           Estimacion@ech2024 Precision</span>
@@ -169,10 +177,10 @@ publica.</p>
 <span class="r-out co"><span class="r-pr">#&gt;</span> 5        TamanoMuestra        TamanoMuestra@ech2024 Precision</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> 6        TamanoMuestra        TamanoMuestra@ech2024 Precision</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>                 factor orientacion      granularidad tipo_resultado entidad</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 1           Estimacion   no_aplica conjuntoEntidades           real ech2024</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 2           Estimacion   no_aplica conjuntoEntidades           real ech2024</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 3 CoeficienteVariacion     defecto conjuntoEntidades           real ech2024</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 4 CoeficienteVariacion     defecto conjuntoEntidades           real ech2024</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 1           Estimacion   no_aplica conjuntoEntidades    numero_real ech2024</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 2           Estimacion   no_aplica conjuntoEntidades    numero_real ech2024</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 3 CoeficienteVariacion     defecto conjuntoEntidades    numero_real ech2024</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 4 CoeficienteVariacion     defecto conjuntoEntidades    numero_real ech2024</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> 5        TamanoMuestra conformidad conjuntoEntidades         entero ech2024</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> 6        TamanoMuestra conformidad conjuntoEntidades         entero ech2024</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>     atributo fila     objeto_medible resultado agregacion</span>

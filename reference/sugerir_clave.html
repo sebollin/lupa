@@ -98,6 +98,10 @@ columna queda al final del orden. Es el mismo criterio que aplica
 <code><a href="detectar_claves.html">detectar_claves()</a></code>, consultado a la misma función.
 Las columnas compuestas —matrices o arreglos de más de una dimensión— no se
 ofrecen como claves ni reciben una tasa de valores distintos.</p>
+<p>Una columna cuyo nombre se repite en la tabla no se mide: la clave se pasa a
+<code><a href="perfilar.html">perfilar()</a></code> por nombre, y ese nombre no dice cuál de las dos es. Aparece al
+final, fuera de <code>maximo</code>, con <code>identifica</code>, <code>sin_faltantes</code> y
+<code>tasa_distintos</code> en <code>NA</code> y el motivo; <code><a href="elegir_clave.html">elegir_clave()</a></code> no la ofrece.</p>
     </div>
     <div class="section level2">
     <h2 id="see-also">See also<a class="anchor" aria-label="anchor" href="#see-also"></a></h2>

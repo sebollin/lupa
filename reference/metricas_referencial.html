@@ -107,9 +107,17 @@ Son definiciones: no miden hasta que se las instancia.</p>
     </div>
     <div class="section level2">
     <h2 id="details">Details<a class="anchor" aria-label="anchor" href="#details"></a></h2>
-    <p>Los valores ausentes no generan medidas de correctitud: corresponden a la
+    <p>Los números se emparejan por su valor. El mismo número guardado como entero
+en una tabla y como doble en la otra coincide —<code>100000L</code> y <code>1e5</code>—, y dos
+dobles distintos no coinciden aunque se escriban igual con 15 cifras
+—<code>0.1 + 0.2</code> y <code>0.3</code>—. Lo mismo vale para <code><a href="modelo_calidad.html">metricas_nucleo()</a></code> cuando compara
+filas por sus atributos, como en <code>EntidadDuplicada</code>.</p>
+<p>Los valores ausentes no generan medidas de correctitud: corresponden a la
 dimensión Completitud. La cobertura ignora claves ausentes en el objetivo y
-no permite que duplicados inflen el resultado.</p>
+no permite que duplicados inflen el resultado. Sobre un referencial sin
+claves, <code>RatioCobertura</code> no se mide: la cobertura de un universo vacío no es
+una proporción, y la métrica queda <code>sin_valores</code> con ese motivo, igual que
+cuando la entidad no tiene filas.</p>
     </div>
     <div class="section level2">
     <h2 id="see-also">See also<a class="anchor" aria-label="anchor" href="#see-also"></a></h2>
@@ -127,11 +135,11 @@ no permite que duplicados inflen el resultado.</p>
 <span class="r-in"><span>  <span class="st">"personas"</span>, <span class="st">"id"</span>, referencial <span class="op">=</span> <span class="va">ref</span><span class="op">)</span></span></span>
 <span class="r-in"><span><span class="fu"><a href="medir.html">medir</a></span><span class="op">(</span><span class="fu"><a href="modelo_calidad.html">modelo</a></span><span class="op">(</span><span class="va">fuerte</span><span class="op">)</span>, <span class="fu"><a href="https://rdrr.io/r/base/data.frame.html" class="external-link">data.frame</a></span><span class="op">(</span>id <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">1</span>, <span class="fl">4</span><span class="op">)</span><span class="op">)</span><span class="op">)</span></span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>                                     id_medida</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 1 medicion-20261001T081333.382283-7694-000001</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 2 medicion-20261001T081333.382283-7694-000002</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 1 medicion-20261001T095141.974818-7692-000001</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 2 medicion-20261001T095141.974818-7692-000002</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>                            id_medicion               fecha              metrica</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 1 medicion-20261001T081333.382283-7694 2026-10-01 08:13:33 CorrectitudSemFuerte</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 2 medicion-20261001T081333.382283-7694 2026-10-01 08:13:33 CorrectitudSemFuerte</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 1 medicion-20261001T095141.974818-7692 2026-10-01 09:51:41 CorrectitudSemFuerte</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 2 medicion-20261001T095141.974818-7692 2026-10-01 09:51:41 CorrectitudSemFuerte</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>     metrica_especifica              metrica_instanciada dimension</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> 1 CorrectitudSemFuerte CorrectitudSemFuerte@personas.id Exactitud</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> 2 CorrectitudSemFuerte CorrectitudSemFuerte@personas.id Exactitud</span>

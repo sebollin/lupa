@@ -36,9 +36,19 @@ un `referencial`. Son definiciones: no miden hasta que se las instancia.
 
 ## Details
 
+Los números se emparejan por su valor. El mismo número guardado como
+entero en una tabla y como doble en la otra coincide —`100000L` y
+`1e5`—, y dos dobles distintos no coinciden aunque se escriban igual con
+15 cifras —`0.1 + 0.2` y `0.3`—. Lo mismo vale para
+[`metricas_nucleo()`](https://sebollin.github.io/lupa/reference/modelo_calidad.md)
+cuando compara filas por sus atributos, como en `EntidadDuplicada`.
+
 Los valores ausentes no generan medidas de correctitud: corresponden a
 la dimensión Completitud. La cobertura ignora claves ausentes en el
-objetivo y no permite que duplicados inflen el resultado.
+objetivo y no permite que duplicados inflen el resultado. Sobre un
+referencial sin claves, `RatioCobertura` no se mide: la cobertura de un
+universo vacío no es una proporción, y la métrica queda `sin_valores`
+con ese motivo, igual que cuando la entidad no tiene filas.
 
 ## See also
 
@@ -58,11 +68,11 @@ fuerte <- instanciar(especializar(m$CorrectitudSemFuerte),
   "personas", "id", referencial = ref)
 medir(modelo(fuerte), data.frame(id = c(1, 4)))
 #>                                     id_medida
-#> 1 medicion-20261001T081333.382283-7694-000001
-#> 2 medicion-20261001T081333.382283-7694-000002
+#> 1 medicion-20261001T095141.974818-7692-000001
+#> 2 medicion-20261001T095141.974818-7692-000002
 #>                            id_medicion               fecha              metrica
-#> 1 medicion-20261001T081333.382283-7694 2026-10-01 08:13:33 CorrectitudSemFuerte
-#> 2 medicion-20261001T081333.382283-7694 2026-10-01 08:13:33 CorrectitudSemFuerte
+#> 1 medicion-20261001T095141.974818-7692 2026-10-01 09:51:41 CorrectitudSemFuerte
+#> 2 medicion-20261001T095141.974818-7692 2026-10-01 09:51:41 CorrectitudSemFuerte
 #>     metrica_especifica              metrica_instanciada dimension
 #> 1 CorrectitudSemFuerte CorrectitudSemFuerte@personas.id Exactitud
 #> 2 CorrectitudSemFuerte CorrectitudSemFuerte@personas.id Exactitud

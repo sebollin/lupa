@@ -2,6 +2,107 @@
 
 ## lupa 0.1.0
 
+### Ronda 15: claves, relaciones y el referencial
+
+- **El referencial empareja numeros por su valor.** Pasaba los valores a
+  texto con 15 cifras: `0.1 + 0.2` y `0.3` coincidian, y
+  `CorrectitudSemFuerte` declaraba conforme un identificador que el
+  padron no tenia; y el mismo numero guardado como entero en una tabla y
+  como doble en la otra -`100000L` y `1e5`- no se encontraba.
+  `EntidadDuplicada` tenia el mismo defecto: dos claves dobles distintas
+  eran la misma entidad.
+- **[`detectar_claves()`](https://sebollin.github.io/lupa/reference/detectar_claves.md)
+  no prueba columnas que su propio filtro excluyo.** Con una sola
+  columna analizable que no era la primera,
+  [`combn()`](https://rdrr.io/r/utils/combn.html) probaba todas las
+  anteriores, y un importe con decimales o una columna lista salian como
+  clave.
+- **Una columna cuyo nombre se repite no se mide como si fuera otra.**
+  [`sugerir_clave()`](https://sebollin.github.io/lupa/reference/sugerir_clave.md)
+  publicaba la segunda con las cifras de la primera,
+  [`detectar_relaciones()`](https://sebollin.github.io/lupa/reference/detectar_relaciones.md)
+  le atribuia una relacion que no existe y
+  [`detectar_dependencias()`](https://sebollin.github.io/lupa/reference/detectar_dependencias.md)
+  publicaba `k -> k`. Ahora no se analizan y se declaran: una fila sin
+  cifras en
+  [`sugerir_clave()`](https://sebollin.github.io/lupa/reference/sugerir_clave.md)
+  (y
+  [`elegir_clave()`](https://sebollin.github.io/lupa/reference/elegir_clave.md)
+  no la ofrece), un aviso en
+  [`detectar_claves()`](https://sebollin.github.io/lupa/reference/detectar_claves.md),
+  el par `sin_comparar` con `motivo_poda = "nombre_repetido"` en
+  [`detectar_relaciones()`](https://sebollin.github.io/lupa/reference/detectar_relaciones.md),
+  y el motivo `nombre_repetido` en las dependencias, que
+  [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md)
+  declara en su cobertura.
+- **[`detectar_relaciones()`](https://sebollin.github.io/lupa/reference/detectar_relaciones.md)
+  no compara una fecha con una fecha-hora.** Las dos escrituras no
+  coinciden nunca, y la fila decia `sin_coincidencias` con cobertura 0
+  sobre los mismos dias. Sale `sin_comparar`, con
+  `motivo_poda = "fecha_contra_instante"`.
+
+### Ronda 16: el historico entre sesiones
+
+- **La configuracion de una corrida no depende de como imprime la
+  sesion.** En R 4.6,
+  [`as.character()`](https://rdrr.io/r/base/character.html) de un doble
+  depende de `scipen` (`1e+07` o `10000000`) y de `OutDec` (`0,5`). La
+  configuracion se guardaba asi: la misma corrida medida con otro
+  `scipen` no se podia acumular, y la deriva publicaba como error un
+  cambio de configuracion que no ocurrio. Ahora se escribe con las
+  opciones por omision, lo que conserva lo ya guardado. Las etiquetas de
+  numeros de
+  [`perfilar_por()`](https://sebollin.github.io/lupa/reference/perfilar_por.md)
+  y el emparejamiento del referencial tampoco dependen de esas opciones.
+- **[`guardar_historico()`](https://sebollin.github.io/lupa/reference/guardar_historico.md),
+  [`guardar_analisis()`](https://sebollin.github.io/lupa/reference/persistir_analisis.md)
+  y
+  [`reportar()`](https://sebollin.github.io/lupa/reference/reportar.md)
+  rechazan un destino que es un directorio.** El archivo quedaba adentro
+  con nombre de temporal y la funcion devolvia la ruta del directorio.
+- **La deriva no dice que cambio un tipo cuando cambio el conjunto de
+  metricas**, y no afirma en una fila que se mantienen las comparaciones
+  que otra fila retiro. El diagnostico de una serie sin par nombra su
+  tabla.
+
+### Ronda 15, segunda parte: estimaciones, senales, patrones y correos
+
+- **Una columna con correos se protege aunque no sean la mayoria.** La
+  forma de correo protegia solo si el 80 % de los valores lo eran: una
+  columna de nombre neutro con 70 correos y 30 textos publicaba las
+  direcciones enteras en los ejemplos de sus patrones, en
+  [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md)
+  y en
+  [`descubrir_patrones()`](https://sebollin.github.io/lupa/reference/descubrir_patrones.md).
+- **[`medicion_desde_estimaciones()`](https://sebollin.github.io/lupa/reference/medicion_desde_estimaciones.md)
+  produce una medicion que
+  [`evaluar()`](https://sebollin.github.io/lupa/reference/evaluar.md)
+  acepta.** Declaraba `real` -una proporcion en \[0, 1\]- para la
+  estimacion, el error estandar, el coeficiente de variacion y los
+  demas, y
+  [`evaluar()`](https://sebollin.github.io/lupa/reference/evaluar.md)
+  rechazaba entera cualquier medicion con una estimacion mayor que 1.
+  Ahora son `numero_real`. Ademas lee un factor por el texto de sus
+  niveles -antes publicaba sus codigos como estimaciones- y descarta,
+  con aviso y en `attr(, "celdas_descartadas")`, las celdas que no son
+  numeros o estan fuera del dominio de su estadistico (un tamano de
+  muestra de 0,5; un error estandar negativo).
+- **La evidencia de
+  [`detectar_discordancias()`](https://sebollin.github.io/lupa/reference/detectar_discordancias.md)
+  no se contradice.** Con `max_ejemplos = 0` decia “sin filas
+  discordantes” al lado de `n_discordantes = 2`; y dos dobles distintos
+  que se escriben igual con 15 cifras se citan con las cifras que los
+  distinguen.
+- **[`clasificar_variables()`](https://sebollin.github.io/lupa/reference/clasificar_variables.md)
+  no llama entero a `Inf`**: una columna sin valores finitos queda
+  `desconocida`. Y `n_niveles_observados` es `NA`, no 0, en las escalas
+  que no guardan niveles.
+- **Un patron no publica letras ni digitos del valor.**
+  [`descubrir_patrones()`](https://sebollin.github.io/lupa/reference/descubrir_patrones.md)
+  dejaba literales los digitos y las letras no ASCII -“José” daba
+  `Aa+é`-. Ahora valen las clases de Unicode, con el mismo resultado
+  bajo cualquier locale.
+
 ### Ronda 14: fechas, validadores y perfil por grupos
 
 - **Una fecha que la deteccion excluye no entra en el resumen.** En

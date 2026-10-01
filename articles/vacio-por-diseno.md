@@ -239,10 +239,12 @@ largo <- data.frame(
 plano <- perfilar(largo, analizar_dependencias = FALSE)
 table(as.character(plano$hallazgos$tipo_hallazgo))
 #> 
-#>            alta_cardinalidad  casi_duplicados_vocabulario                    faltantes 
-#>                            1                            1                            2 
-#>    mayusculas_inconsistentes posible_ausencia_estructural        posible_identificador 
-#>                            1                            2                            2
+#>            alta_cardinalidad  casi_duplicados_vocabulario        dato_personal_posible 
+#>                            1                            1                            1 
+#>                    faltantes    mayusculas_inconsistentes posible_ausencia_estructural 
+#>                            2                            1                            2 
+#>        posible_identificador 
+#>                            2
 ```
 
 Por grupo, cada atributo se perfila contra su propio dominio. Las

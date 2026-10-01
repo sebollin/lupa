@@ -320,10 +320,12 @@ resultado no describe a ninguno.</p>
 <span><span class="va">plano</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/perfilar.html">perfilar</a></span><span class="op">(</span><span class="va">largo</span>, analizar_dependencias <span class="op">=</span> <span class="cn">FALSE</span><span class="op">)</span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/base/table.html" class="external-link">table</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/character.html" class="external-link">as.character</a></span><span class="op">(</span><span class="va">plano</span><span class="op">$</span><span class="va">hallazgos</span><span class="op">$</span><span class="va">tipo_hallazgo</span><span class="op">)</span><span class="op">)</span></span>
 <span><span class="co">#&gt; </span></span>
-<span><span class="co">#&gt;            alta_cardinalidad  casi_duplicados_vocabulario                    faltantes </span></span>
-<span><span class="co">#&gt;                            1                            1                            2 </span></span>
-<span><span class="co">#&gt;    mayusculas_inconsistentes posible_ausencia_estructural        posible_identificador </span></span>
-<span><span class="co">#&gt;                            1                            2                            2</span></span></code></pre></div>
+<span><span class="co">#&gt;            alta_cardinalidad  casi_duplicados_vocabulario        dato_personal_posible </span></span>
+<span><span class="co">#&gt;                            1                            1                            1 </span></span>
+<span><span class="co">#&gt;                    faltantes    mayusculas_inconsistentes posible_ausencia_estructural </span></span>
+<span><span class="co">#&gt;                            2                            1                            2 </span></span>
+<span><span class="co">#&gt;        posible_identificador </span></span>
+<span><span class="co">#&gt;                            2</span></span></code></pre></div>
 <p>Por grupo, cada atributo se perfila contra su propio dominio. Las
 columnas enteramente ausentes dentro del grupo se descartan antes de
 perfilar, y ése es el paso que desactiva el faltante falso.</p>
