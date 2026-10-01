@@ -1184,11 +1184,20 @@ cuentan **el trabajo que se hizo**, no filas de un universo —el análisis
 geométrico corre sobre la columna entera, porque necesita su CRS y sus
 tipos—, así que se publican tal como se midieron. Recortarlos a ojo
 sería inventar un número: no hay conjunto de índices del que derivarlos.
-El argumento `normalizar` declara el perfil de comparación que se
-conserva en `meta$normalizacion`; cambia sólo la representación usada
-para comparar, no el texto guardado. `TRUE` usa el perfil
-predeterminado, `FALSE` desactiva sus pasos configurables, `"amplio"`
-activa los tres pliegues optativos y
+
+**Una columna de texto puede ser una geometría.** Se reconoce como WKT o
+WKB (crudo o hexadecimal) cuando la mayoría de una muestra de 20 valores
+tiene esa forma; si después hay valores que no se pueden convertir, la
+pérdida se declara en `motivo_representacion`. Esa columna se sigue
+perfilando como texto en lo que toca a su escritura —espacios,
+codificación, invisibles—, pero no recibe los diagnósticos que leen los
+valores como palabras o como claves —la proximidad de vocabulario,
+`posible_identificador`, `patron_raro`—: `cobertura_diagnosticos`
+declara que no aplican. El argumento `normalizar` declara el perfil de
+comparación que se conserva en `meta$normalizacion`; cambia sólo la
+representación usada para comparar, no el texto guardado. `TRUE` usa el
+perfil predeterminado, `FALSE` desactiva sus pasos configurables,
+`"amplio"` activa los tres pliegues optativos y
 [`normalizacion()`](https://sebollin.github.io/lupa/reference/normalizacion.md)
 permite declararlos. También admite una lista nombrada por columna.
 `meta$normalizacion_fusiones` informa, para cada paso activo, la

@@ -54,13 +54,17 @@
 <strong><code><a href="../reference/detectar_relaciones.html">detectar_relaciones()</a></code> no compara una fecha con una fecha-hora.</strong> Las dos escrituras no coinciden nunca, y la fila decia <code>sin_coincidencias</code> con cobertura 0 sobre los mismos dias. Sale <code>sin_comparar</code>, con <code>motivo_poda = "fecha_contra_instante"</code>.</li>
 </ul></div>
 <div class="section level3">
-<h3 id="ronda-el-historico-entre-sesiones-0-1-0">Ronda 16: el historico entre sesiones<a class="anchor" aria-label="anchor" href="#ronda-el-historico-entre-sesiones-0-1-0"></a></h3>
+<h3 id="ronda-el-historico-entre-sesiones-y-las-geometrias-0-1-0">Ronda 16: el historico entre sesiones y las geometrias<a class="anchor" aria-label="anchor" href="#ronda-el-historico-entre-sesiones-y-las-geometrias-0-1-0"></a></h3>
 <ul><li>
 <strong>La configuracion de una corrida no depende de como imprime la sesion.</strong> En R 4.6, <code><a href="https://rdrr.io/r/base/character.html" class="external-link">as.character()</a></code> de un doble depende de <code>scipen</code> (<code>1e+07</code> o <code>10000000</code>) y de <code>OutDec</code> (<code>0,5</code>). La configuracion se guardaba asi: la misma corrida medida con otro <code>scipen</code> no se podia acumular, y la deriva publicaba como error un cambio de configuracion que no ocurrio. Ahora se escribe con las opciones por omision, lo que conserva lo ya guardado. Las etiquetas de numeros de <code><a href="../reference/perfilar_por.html">perfilar_por()</a></code> y el emparejamiento del referencial tampoco dependen de esas opciones.</li>
 <li>
 <strong><code><a href="../reference/guardar_historico.html">guardar_historico()</a></code>, <code><a href="../reference/persistir_analisis.html">guardar_analisis()</a></code> y <code><a href="../reference/reportar.html">reportar()</a></code> rechazan un destino que es un directorio.</strong> El archivo quedaba adentro con nombre de temporal y la funcion devolvia la ruta del directorio.</li>
 <li>
 <strong>La deriva no dice que cambio un tipo cuando cambio el conjunto de metricas</strong>, y no afirma en una fila que se mantienen las comparaciones que otra fila retiro. El diagnostico de una serie sin par nombra su tabla.</li>
+<li>
+<strong><code>aplicabilidad</code> sobre una columna de geometria.</strong> <code><a href="../reference/perfilar.html">perfilar()</a></code> y <code><a href="../reference/analizar.html">analizar()</a></code> abortaban si la regla dejaba afuera la primera fila de una <code>sfc</code>, y en las demas posiciones las filas excluidas se volvian geometrias vacias que contaban como un valor mas (<code>tasa_distintos = 1.5</code>). Ahora se recortan al universo.</li>
+<li>
+<strong>Una geometria escrita como texto no recibe diagnosticos de palabras.</strong> Una columna WKT o WKB reconocida recibia ademas la proximidad de vocabulario, <code>posible_identificador</code> y <code>patron_raro</code>; ahora no, y la cobertura lo declara. Y se reconoce por mayoria de la muestra: un solo valor corrupto dejaba de reconocerla, segun donde cayera.</li>
 </ul></div>
 <div class="section level3">
 <h3 id="ronda-segunda-parte-estimaciones-senales-patrones-y-correos-0-1-0">Ronda 15, segunda parte: estimaciones, senales, patrones y correos<a class="anchor" aria-label="anchor" href="#ronda-segunda-parte-estimaciones-senales-patrones-y-correos-0-1-0"></a></h3>

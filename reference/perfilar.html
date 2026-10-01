@@ -1133,7 +1133,15 @@ universo. Tres campos son la excepción y conviene saber por qué:
 <strong>el trabajo que se hizo</strong>, no filas de un universo —el análisis geométrico corre
 sobre la columna entera, porque necesita su CRS y sus tipos—, así que se publican
 tal como se midieron. Recortarlos a ojo sería inventar un número: no hay conjunto
-de índices del que derivarlos.
+de índices del que derivarlos.</p>
+<p><strong>Una columna de texto puede ser una geometría.</strong> Se reconoce como WKT o WKB
+(crudo o hexadecimal) cuando la mayoría de una muestra de 20 valores tiene esa
+forma; si después hay valores que no se pueden convertir, la pérdida se declara
+en <code>motivo_representacion</code>. Esa columna se sigue perfilando como texto en lo que
+toca a su escritura —espacios, codificación, invisibles—, pero no recibe los
+diagnósticos que leen los valores como palabras o como claves —la proximidad de
+vocabulario, <code>posible_identificador</code>, <code>patron_raro</code>—: <code>cobertura_diagnosticos</code>
+declara que no aplican.
 El argumento <code>normalizar</code> declara el perfil de comparación que se conserva
 en <code>meta$normalizacion</code>; cambia sólo la representación usada para comparar,
 no el texto guardado. <code>TRUE</code> usa el perfil predeterminado, <code>FALSE</code> desactiva
