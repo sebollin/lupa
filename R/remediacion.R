@@ -1311,10 +1311,18 @@ planificar_limpieza <- function(perfil, datos = NULL,
       confirmados <- if (is.null(formatos)) character() else {
         formatos$formato[formatos$estado == "confirmado"]
       }
+      # Con dos formatos confirmados que leen distinto el mismo valor -`01/12`
+      # como 1 de diciembre y como 12 de enero-, convertir es elegir. La accion
+      # se marcaba `lista` con la justificacion "sin elegir entre candidatos
+      # ambiguos", y la conversion resolvia el empate por la fila mas numerosa.
+      ambiguos <- if ("n_ambiguos" %in% names(formatos)) {
+        sum(formatos$n_ambiguos[formatos$estado == "confirmado"], na.rm = TRUE)
+      } else 0
       seguro <- length(confirmados) >= 2L &&
         !any(formatos$estado != "confirmado") &&
         isTRUE(fila$proporcion_tipo_inferido[[1L]] == 1) &&
-        !.accion_columna_ambigua(perfil, columna)
+        !.accion_columna_ambigua(perfil, columna) &&
+        ambiguos == 0
       estado <- if (seguro) "lista" else "bloqueada"
       justificacion <- if (seguro) {
         paste0(
@@ -1324,7 +1332,8 @@ planificar_limpieza <- function(perfil, datos = NULL,
       } else {
         paste0(
           "La conversi\u00f3n no es segura porque queda alg\u00fan formato candidato, ",
-          "hay valores incompatibles o la columna no se identifica de manera \u00fanica."
+          "hay valores incompatibles, hay valores que los formatos confirmados leen ",
+          "como fechas distintas, o la columna no se identifica de manera \u00fanica."
         )
       }
       destino <- if (any(grepl("%H", confirmados, fixed = TRUE))) {

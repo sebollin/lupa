@@ -656,6 +656,13 @@ Una columna cuyo año se expresa con dos dígitos se informa con su
 \code{23} puede ser 1923 o 2023, y elegir el siglo para calcular un rango sería
 inventarlo. El hallazgo \code{anio_de_dos_digitos} señala esas columnas, y el
 rango aparece una vez que el usuario resuelve la ambigüedad.
+Lo mismo vale para un valor que dos formatos confirmados de la misma columna
+leen distinto: en una columna que tiene \code{13/06/2020} y \code{06/30/2020}, el valor
+\code{01/12/2020} puede ser el 1 de diciembre o el 12 de enero, y no se decide por
+la mayoría. Queda fuera del rango, y \code{\link[=planificar_limpieza]{planificar_limpieza()}} bloquea la
+conversión de la columna mientras queden valores así. El resumen de fechas
+usa la misma regla de validez que la detección: un \code{99991231} que el formato
+\verb{\%Y\%m\%d} no admite tampoco llega a \code{maximo_fecha}.
 Cuando no sobrevive ningún valor utilizable, el estado distingue \strong{dos
 afirmaciones que no son la misma}: \code{"sin_valores"} dice que la columna no tenía
 ningún valor presente \strong{en el universo que el resumen mide} —vacía, todo \code{NA},

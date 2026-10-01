@@ -20,7 +20,10 @@
 #' La función no adivina cuál es la columna de agrupación: la declara quien
 #' conoce el dato, igual que [perfilar()] no adivina claves ni jerarquías.
 #'
-#' @param datos Data frame a perfilar.
+#' @param datos Data frame a perfilar. Sus nombres de columna tienen que ser
+#'   distintos: cada grupo se arma por nombre, y con dos columnas iguales se
+#'   perfilaría una en lugar de la otra. Si los hay, la función se detiene;
+#'   renómbrelas, por ejemplo con `names(datos) <- make.unique(names(datos))`.
 #' @param por Nombre de una columna atómica cuyos valores definen los grupos.
 #'   Los ausentes forman un grupo propio, con la etiqueta `"(ausente)"`. Si la
 #'   columna trae ese mismo texto como valor real **y además hay ausentes**, los
@@ -36,9 +39,17 @@
 #'   `as.numeric()` de la etiqueta recupera ese valor exacto. Para la enorme
 #'   mayoría de los números la etiqueta es la de siempre.
 #'
+#'   Lo mismo vale para las otras clases: un `integer64` se etiqueta con sus
+#'   cifras exactas, aun por encima de 2^53; un complejo, con sus dos partes;
+#'   una fecha, con su escritura `AAAA-MM-DD`, y una fecha-hora, con la suya
+#'   hasta el microsegundo y el huso de la columna —no con su número de días o
+#'   de segundos—.
+#'
 #'   Si la columna es un **factor**, un nivel declarado sin ninguna fila es un
 #'   grupo de cero filas: no se perfila y se declara en `cobertura_grupos`, igual
-#'   que cualquier grupo por debajo de `min_filas`.
+#'   que cualquier grupo por debajo de `min_filas`. Eso incluye un nivel
+#'   llamado `"(ausente)"` sin filas cuando la columna también tiene `NA`: los
+#'   `NA` se perfilan como su propio grupo, y el nivel vacío se declara aparte.
 #' @param clave Nombres de columnas de identidad que se conservan en cada grupo
 #'   aunque estén enteramente ausentes. Importa: sin la clave de entidad, el
 #'   diagnóstico de filas duplicadas informa como duplicada cada repetición del
@@ -51,7 +62,9 @@
 #'   se recorta antes de reenviarlo, porque en la rebanada esa columna ya no
 #'   está.
 #' @param min_filas Grupos con menos filas que este número no se perfilan y se
-#'   declaran en la cobertura. El valor por omisión evita conclusiones sobre
+#'   declaran en la cobertura. Tiene que ser un entero positivo: un valor
+#'   fraccionario se rechaza, en vez de truncarlo y perfilar un grupo que
+#'   estaba por debajo del umbral. El valor por omisión evita conclusiones sobre
 #'   grupos donde ningún diagnóstico tiene soporte.
 #' @param ... Argumentos enviados a [perfilar()] para cada grupo. Los que
 #'   acotan el trabajo —`muestra` entre ellos— se aplican **dentro de cada
@@ -76,6 +89,10 @@
 #'   distintos. La suma de `n_filas_grupo` sobre los grupos distintos —los
 #'   perfilados, que están en los hallazgos y en las filas con
 #'   `grupo_perfilado = TRUE`, más los no perfilados— da las filas de la tabla.
+#'   Para que la cuenta cierre, un grupo perfilado que no produjo ningún
+#'   hallazgo también tiene su fila en `cobertura_grupos`, con
+#'   `grupo_perfilado = TRUE` y ese motivo: si no, no estaría en ninguna de las
+#'   dos tablas.
 #'
 #'   El atributo `etiquetas_personales` declara si la columna de agrupación
 #'   lleva datos personales. Las etiquetas de grupo **son** valores de esa
@@ -126,6 +143,18 @@ perfilar_por <- function(datos, por, clave = NULL, min_filas = 30L, ...) {
     stop("`datos` debe ser un data frame.", call. = FALSE)
   }
   datos <- .tabla_base(datos)
+  # Con dos columnas del MISMO nombre -lo que da `fread()` sobre un CSV con un
+  # encabezado repetido- la rebanada de cada grupo se arma por nombre, asi que la
+  # primera se perfilaba dos veces y la segunda nunca: un `columnas_duplicadas`
+  # falso y un 75 % de faltantes callado. Se dice en la entrada.
+  repetidos <- unique(names(datos)[duplicated(.nombres_para_operar(names(datos)))])
+  if (length(repetidos)) {
+    stop(
+      "`datos` tiene nombres de columna repetidos: ",
+      paste(repetidos, collapse = ", "), ". `perfilar_por()` arma cada grupo ",
+      "por nombre y no puede distinguirlas; renombrarlas antes.", call. = FALSE
+    )
+  }
   if (!is.character(por) || length(por) != 1L || is.na(por)) {
     stop("`por` debe ser el nombre de una sola columna.", call. = FALSE)
   }
@@ -149,17 +178,24 @@ perfilar_por <- function(datos, por, clave = NULL, min_filas = 30L, ...) {
     }
     clave <- names(datos)[indices_clave]
   }
-  min_filas <- as.integer(min_filas)
-  if (length(min_filas) != 1L || is.na(min_filas) || min_filas < 1L) {
+  # Un `min_filas` fraccionario se truncaba sin decirlo: con 10,7 se perfilaba un
+  # grupo de 10 filas. Los otros parametros enteros del paquete rechazan la
+  # fraccion; este tambien.
+  if (!is.numeric(min_filas) || length(min_filas) != 1L || is.na(min_filas) ||
+      min_filas < 1 || min_filas != trunc(min_filas)) {
     stop("`min_filas` debe ser un entero positivo.", call. = FALSE)
   }
+  min_filas <- as.integer(min_filas)
 
   # La etiqueta sale del VALOR y tiene que volver a el: con `as.character()` dos
   # dobles distintos que se escriben igual caian en un solo grupo, y el perfil
   # publicado no correspondia a ninguno de los dos. Ver
   # `.etiqueta_numero_reversible()`.
   etiquetas <- .etiqueta_numero_reversible(datos[[por]])
-  ausentes <- is.na(datos[[por]])
+  # Un factor con `NA` como NIVEL (`addNA()`, `exclude = NULL`) da `is.na()`
+  # FALSE en esas filas y `as.character()` NA: la etiqueta quedaba NA y
+  # `perfilar_por()` abortaba con un error interno de nombres. Son ausentes.
+  ausentes <- is.na(datos[[por]]) | is.na(etiquetas)
   # Los ausentes forman un grupo propio con esta etiqueta. Si la columna trae el
   # literal `"(ausente)"` como valor real, los dos caen en el mismo grupo: no se
   # pierde ninguna fila, pero se publica un grupo que junta dos cosas distintas
@@ -287,6 +323,7 @@ perfilar_por <- function(datos, por, clave = NULL, min_filas = 30L, ...) {
   hallazgos <- list()
   cobertura <- list()
   grupos_perfilados <- character()
+  filas_perfilados <- integer()
   indice_colision <- 0L
   if (hay_colision) {
     indice_colision <- length(cobertura) + 1L
@@ -328,8 +365,13 @@ perfilar_por <- function(datos, por, clave = NULL, min_filas = 30L, ...) {
   # los niveles sin filas quedan en la cobertura, que es donde se leen las ausencias.
   if (is.factor(datos[[por]])) {
     declarados <- levels(datos[[por]])
+    declarados <- declarados[!is.na(declarados)]
+    # Contados sobre los VALORES, no sobre las etiquetas de grupo: un nivel
+    # `"(ausente)"` sin filas quedaba tapado por el grupo de los ausentes, que
+    # lleva esa misma etiqueta.
+    observados <- unique(as.character(datos[[por]][!ausentes]))
     sin_filas <- declarados[
-      !(.nombres_para_operar(declarados) %in% niveles_operativos)
+      !(.nombres_para_operar(declarados) %in% .nombres_para_operar(observados))
     ]
     for (nivel in sin_filas) {
       cobertura[[length(cobertura) + 1L]] <- data.frame(
@@ -617,6 +659,7 @@ perfilar_por <- function(datos, por, clave = NULL, min_filas = 30L, ...) {
       next
     }
     grupos_perfilados <- c(grupos_perfilados, nombre_grupo)
+    filas_perfilados <- c(filas_perfilados, length(filas))
     perfil <- do.call(perfilar, c(list(rebanada), extras_grupo))
     # Cada grupo se perfila por separado, asi que cada uno declina sus propios
     # diagnosticos: una columna puede tener bastantes filas en un grupo y muy
@@ -809,6 +852,26 @@ perfilar_por <- function(datos, por, clave = NULL, min_filas = 30L, ...) {
   if (indice_colision > 0L) {
     cobertura[[indice_colision]]$grupo_perfilado <-
       "(ausente)" %in% grupos_perfilados
+  }
+  # Un grupo perfilado SIN hallazgos no aparecia en ninguna de las dos tablas, y
+  # la reconciliacion que la documentacion promete -la suma de `n_filas_grupo`
+  # sobre los grupos distintos da las filas de la tabla- no cerraba: daba 0 o 40
+  # contra 80. Se publica con una fila que lo dice.
+  con_hallazgos <- unique(unlist(lapply(hallazgos, function(h) {
+    as.character(h$grupo)
+  })))
+  con_fila <- unique(unlist(lapply(cobertura, function(fila) {
+    as.character(fila$grupo[fila$grupo_perfilado %in% TRUE])
+  })))
+  for (k in seq_along(grupos_perfilados)) {
+    nombre <- grupos_perfilados[[k]]
+    if (nombre %in% c(con_hallazgos, con_fila)) next
+    cobertura[[length(cobertura) + 1L]] <- data.frame(
+      grupo = nombre, grupo_perfilado = TRUE,
+      n_filas_grupo = filas_perfilados[[k]],
+      motivo = "El grupo se perfilo y no produjo hallazgos.",
+      columnas_descartadas = NA_character_, stringsAsFactors = FALSE
+    )
   }
   salida <- if (length(hallazgos)) {
     do.call(rbind, hallazgos)

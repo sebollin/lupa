@@ -33,7 +33,9 @@ guion se admiten porque una persona escribe \verb{1.234.567-2}; en un valor
 numérico el punto es el separador decimal y el guion es el signo, así que un
 número fraccionario o negativo devuelve \code{FALSE} —no se le quita la fracción
 ni el signo para hacerlo pasar—. Un número entero no negativo sí se valida,
-como cualquier otra escritura del mismo documento.
+como cualquier otra escritura del mismo documento, y por sus dígitos: el
+doble \code{12000000} es la cédula \code{"12000000"} aunque \code{scipen} lo imprima en
+notación científica. \code{NaN} es ausente y devuelve \code{NA}.
 }
 \examples{
 validar_ci_uy(c("1.234.567-2", "1.234.567-3"))

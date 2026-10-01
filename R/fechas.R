@@ -26,8 +26,21 @@
         anios >= 1800L & anios <= 2100L & meses >= 1L & meses <= 12L
     } else {
       preparados <- .preparar_fecha_parseo(valores, formato)
-      convertido <- strptime(preparados, format = formato, tz = "UTC")
+      # `strptime()` avisa en ingles sobre un huso fuera de +/-14:00 y devuelve
+      # NA: el aviso salia crudo de `perfilar()`, sin nombrar la columna. El NA
+      # ya dice que el valor no es una fecha.
+      convertido <- suppressWarnings(
+        strptime(preparados, format = formato, tz = "UTC")
+      )
       valido_convertido <- !is.na(convertido)
+      # Y acepta segundos hasta 61 -los intercalares-, que despues normaliza al
+      # minuto siguiente: `23:59:60` del 2024-01-31 se publicaba como el
+      # 1 de febrero, un dia que nadie escribio. Un segundo 60 o 61 no es una
+      # hora que `POSIXct` pueda guardar sin cambiarla.
+      if (grepl("%S", formato, fixed = TRUE) || grepl("%T", formato, fixed = TRUE)) {
+        valido_convertido <- valido_convertido & !is.na(convertido$sec) &
+          convertido$sec < 60
+      }
       if (startsWith(formato, "%Y%m%d")) {
         anios <- suppressWarnings(as.integer(substr(valores, 1L, 4L)))
         valido_convertido <- valido_convertido &
@@ -362,6 +375,7 @@
 #' igual que las fechas compactas, exigen un año entre 1800 y 2100.
 #' El formato compacto `%Y%m%d` exige un año entre 1800 y 2100 para evitar que
 #' identificadores de ocho dígitos se clasifiquen parcialmente como fechas.
+#' Una hora con segundo 60 no se acepta: R la leería como el minuto siguiente.
 #'
 #' @param x Vector de texto, fechas o fechas-hora.
 #' @param muestra Máximo de valores que se analizan.
@@ -701,20 +715,42 @@ detectar_formatos_fecha <- function(x, muestra = 1e5) {
     formatos$estado == "confirmado" & granularidades != "mes"
   ]
   especificaciones <- .especificaciones_fecha()
+  # Dos cambios, y los dos sacan una regla escrita dos veces.
+  #
+  # La VALIDEZ es la misma de la deteccion -`.es_fecha_valida()`-. Esta copia
+  # convertia todo lo que `strptime()` aceptaba, sin el filtro de ano del formato
+  # compacto: `99991231` -que la deteccion y la documentacion excluyen- entraba al
+  # resumen como `maximo_fecha = 9999-12-31`.
+  #
+  # Y un valor se convierte solo si los formatos confirmados que lo leen
+  # COINCIDEN. Antes ganaba el primero de la tabla -el de mas filas, y en empate
+  # el que va primero alfabeticamente-, asi que en una columna con `13/06/2020` y
+  # `06/30/2020` el `01/12/2020` era el 1 de diciembre o el 12 de enero segun una
+  # fila que no tenia nada que ver. Si dos formatos lo leen distinto, queda sin
+  # convertir: elegir seria inventar.
+  elegida <- rep(NA_real_, length(formas))
+  conflicto <- rep(FALSE, length(formas))
   for (formato in confirmados) {
     indice_especificacion <- match(formato, especificaciones$formato)
     if (is.na(indice_especificacion)) next
     patron <- especificaciones$expresion[[indice_especificacion]]
-    pendientes <- is.na(convertidas) & grepl(patron, formas, perl = TRUE)
-    if (!any(pendientes)) {
-      next
-    }
-    preparados <- .preparar_fecha_parseo(formas[pendientes], formato)
-    convertido <- strptime(preparados, format = formato, tz = "UTC")
-    valido <- !is.na(convertido)
-    indices <- which(pendientes)[valido]
-    convertidas[indices] <- as.POSIXct(convertido[valido], tz = "UTC")
+    aplica <- is.na(convertidas) & grepl(patron, formas, perl = TRUE)
+    if (!any(aplica)) next
+    validos <- .es_fecha_valida(formas[aplica], formato, patron)
+    if (!any(validos)) next
+    preparados <- .preparar_fecha_parseo(formas[aplica][validos], formato)
+    convertido <- as.numeric(as.POSIXct(suppressWarnings(
+      strptime(preparados, format = formato, tz = "UTC")
+    ), tz = "UTC"))
+    indices <- which(aplica)[validos]
+    choca <- !is.na(elegida[indices]) & !is.na(convertido) &
+      elegida[indices] != convertido
+    conflicto[indices[choca]] <- TRUE
+    toma <- is.na(elegida[indices]) & !is.na(convertido)
+    elegida[indices[toma]] <- convertido[toma]
   }
+  usar <- is.na(convertidas) & !is.na(elegida) & !conflicto
+  convertidas[usar] <- as.POSIXct(elegida[usar], origin = "1970-01-01", tz = "UTC")
   if (length(posiciones)) salida[posiciones] <- convertidas[indices_vocabulario]
   salida
 }

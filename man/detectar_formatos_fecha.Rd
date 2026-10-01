@@ -35,6 +35,7 @@ dos dígitos sigue siendo candidato. Los formatos escritos de mes y año,
 igual que las fechas compactas, exigen un año entre 1800 y 2100.
 El formato compacto \verb{\%Y\%m\%d} exige un año entre 1800 y 2100 para evitar que
 identificadores de ocho dígitos se clasifiquen parcialmente como fechas.
+Una hora con segundo 60 no se acepta: R la leería como el minuto siguiente.
 }
 \examples{
 detectar_formatos_fecha(c("2020-01-31", "31/01/2020"))

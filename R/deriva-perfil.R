@@ -1578,7 +1578,11 @@ comparar_perfiles <- function(anterior, actual, umbral_cambio = 0.05,
       diferencia_normalizada = as.numeric(diferencia_normalizada)
     ))
   }
-  dentro <- .dentro_tolerancia_aritmetica(a, b, tolerancia)
+  # El veredicto sale de la MISMA cifra que se publica. Calculado como
+  # `d <= tol * s` y publicado como `d / s`, en el borde la fila decia
+  # `equivalente` al lado de una `diferencia_normalizada` mayor que la tolerancia
+  # -y la aritmetica exacta confirma que estaba fuera-.
+  dentro <- isTRUE(diferencia_normalizada <= tolerancia)
   motivo <- if (isTRUE(dentro)) "dentro_de_tolerancia" else "fuera_de_tolerancia"
   if (escala_unidad) motivo <- paste0(motivo, "_escala_unidad")
   list(

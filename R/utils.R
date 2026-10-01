@@ -1173,6 +1173,25 @@
 # enorme mayoria, asi que `0.1` sigue siendo `"0.1"`-, y si no, 16 y 17. Con 17 cifras
 # significativas todo doble finito vuelve exacto.
 .etiqueta_numero_reversible <- function(x) {
+  # Tres clases que `is.double()` da por dobles y no lo son para esto: un
+  # `integer64` guarda sus bits en un doble -`sprintf()` los leia crudos y la
+  # etiqueta salia `4.45e-308`-, y una fecha o fecha-hora salia como su numero de
+  # dias o de segundos. Cada una tiene su escritura reversible.
+  if (inherits(x, "integer64")) return(as.character(x))
+  if (inherits(x, "Date")) return(as.character(x))
+  if (inherits(x, "POSIXt")) {
+    return(format(as.POSIXct(x), format = "%Y-%m-%d %H:%M:%OS6", usetz = TRUE))
+  }
+  # Y el complejo no entraba: `as.character()` le da 15 cifras a cada parte y
+  # `1e17` y `1e17 + 32` caian en un solo grupo, el defecto que esta funcion
+  # cerro para los dobles.
+  if (is.complex(x)) {
+    real <- .etiqueta_numero_reversible(Re(x))
+    imaginaria <- .etiqueta_numero_reversible(Im(x))
+    salida <- paste0(real, ifelse(Im(x) < 0, "", "+"), imaginaria, "i")
+    salida[is.na(x)] <- NA_character_
+    return(salida)
+  }
   salida <- as.character(x)
   if (!is.double(x)) return(salida)
   for (digitos in c(16L, 17L)) {

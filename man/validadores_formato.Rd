@@ -48,6 +48,14 @@ sintaxis y el valor es inválido. Un espacio en el medio no se recorta en
 ningún validador.
 }
 \details{
+La respuesta es sobre el dato, no sobre cómo lo escribe R. Un número se valida
+por sus dígitos: el doble \code{12000000} se lee como \code{"12000000"} aunque \code{scipen}
+lo imprima en notación científica. \code{NaN} es ausente y devuelve \code{NA}, igual que
+en el resto del paquete. Las letras se pasan a mayúsculas sólo dentro de ASCII:
+\code{toupper()} convierte \code{ſ} en \code{S} y \code{ı} en \code{I}, y con eso \code{"ſe"} pasaba por
+un código ISO; ahora es inválido. Y la marca de codificación del texto
+—\code{latin1} o UTF-8— no cambia la respuesta.
+
 \code{validar_correo()} comprueba un subconjunto práctico y deliberadamente
 conservador de la sintaxis \code{addr-spec}: parte local de puntos y caracteres
 ASCII habituales, seguida por un dominio DNS con al menos un punto. No

@@ -668,16 +668,19 @@ test_that("la cobertura por grupo distingue por que no quedo nada que perfilar",
   expect_true(all(grepl("enteramente ausentes", cobertura2$motivo)))
   expect_true(all(cobertura2$columnas_descartadas == "x"))
 
-  # Y un caso normal no genera cobertura ninguna.
+  # Y un caso normal no declara nada que no se haya perfilado: sus unicas filas
+  # son las de los grupos perfilados SIN hallazgos, que estan ahi desde la ronda
+  # 14 para que cierre la reconciliacion que la documentacion promete -sin ellas,
+  # un grupo limpio no aparecia en ninguna tabla y la suma de filas no daba-.
   normal <- data.frame(
     zona = c("a", "a", "b", "b"), x = c(1, 2, 3, 4), stringsAsFactors = FALSE
   )
-  expect_equal(
-    nrow(as.data.frame(
-      attr(perfilar_por(normal, por = "zona", min_filas = 1), "cobertura_grupos")
-    )),
-    0L
+  cobertura3 <- as.data.frame(
+    attr(perfilar_por(normal, por = "zona", min_filas = 1), "cobertura_grupos")
   )
+  expect_true(all(cobertura3$grupo_perfilado))
+  expect_true(all(cobertura3$motivo == "El grupo se perfilo y no produjo hallazgos."))
+  expect_equal(sum(cobertura3$n_filas_grupo), nrow(normal))
 })
 
 # Lo que una columna ES no depende de que filas se miren, y partir la tabla crea

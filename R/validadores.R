@@ -69,11 +69,39 @@
   ), " ", fixed = TRUE
 )[[1L]]
 
+# Mayusculas sobre las letras ASCII y nada mas. `toupper()` sigue al locale y
+# lleva `ſ` a `S` e `ı` a `I`: `validar_iso3166("ſe")` daba TRUE en una sesion
+# UTF-8 y FALSE bajo C, la misma cadena con dos respuestas.
+.mayusculas_ascii <- function(x) {
+  chartr(paste(letters, collapse = ""), paste(LETTERS, collapse = ""), x)
+}
+
 .texto_validador <- function(x, recortar = TRUE) {
   if (!is.atomic(x) || is.list(x)) {
     stop("`x` debe ser un vector atomico.", call. = FALSE)
   }
   texto <- as.character(x)
+  if (is.double(x) && !inherits(x, "integer64")) {
+    # Un numero se valida por sus digitos, no por su impresion: `as.character()`
+    # escribe `12000000` como `"1.2e+07"` -y con `scipen` negativo, cualquier
+    # numero-, asi que una cedula valida como doble daba FALSE y como texto o
+    # entero, TRUE. Solo los enteros representables se escriben asi; los demas
+    # se rechazan abajo.
+    entero <- is.finite(x) & x == trunc(x) & abs(x) < 2^53
+    texto[entero] <- sprintf("%.0f", x[entero])
+    # `NaN` es ausente para el paquete -`n_faltantes` lo cuenta-, y
+    # `as.character(NaN)` es `"NaN"`, que se trataba como un valor presente.
+    texto[is.nan(x)] <- NA_character_
+  }
+  if (is.character(x)) {
+    # El texto marcado `latin1` es el mismo texto que su version UTF-8 -R los
+    # da por `identical()`-, pero sus bytes no son UTF-8 valido y la guarda de
+    # abajo lo rechazaba: una URL con `ñ` era valida o no segun como se leyo el
+    # archivo. Sobre texto marcado `latin1`, `enc2utf8()` traduce sin mirar el
+    # locale.
+    marcados <- !is.na(texto) & Encoding(texto) == "latin1"
+    if (any(marcados)) texto[marcados] <- enc2utf8(texto[marcados])
+  }
   valido <- !is.na(texto) & validUTF8(texto)
   # Un NUMERO no es una presentacion de documento. Los separadores que estos
   # validadores admiten -punto, espacio, guion- existen porque una persona
@@ -114,6 +142,14 @@
 #' `validar_url()`, donde un espacio literal en cualquier posición rompe la
 #' sintaxis y el valor es inválido. Un espacio en el medio no se recorta en
 #' ningún validador.
+#'
+#' La respuesta es sobre el dato, no sobre cómo lo escribe R. Un número se valida
+#' por sus dígitos: el doble `12000000` se lee como `"12000000"` aunque `scipen`
+#' lo imprima en notación científica. `NaN` es ausente y devuelve `NA`, igual que
+#' en el resto del paquete. Las letras se pasan a mayúsculas sólo dentro de ASCII:
+#' `toupper()` convierte `ſ` en `S` y `ı` en `I`, y con eso `"ſe"` pasaba por
+#' un código ISO; ahora es inválido. Y la marca de codificación del texto
+#' —`latin1` o UTF-8— no cambia la respuesta.
 #'
 #' `validar_correo()` comprueba un subconjunto práctico y deliberadamente
 #' conservador de la sintaxis `addr-spec`: parte local de puntos y caracteres
@@ -352,14 +388,14 @@ validar_iso3166 <- function(x, tipo = c("alpha2", "alpha3", "numerico")) {
   codigos <- if (identical(tipo, "alpha2")) .codigos_iso3166_alpha2 else {
     .codigos_iso3166_alpha3
   }
-  .resultado_validador_vector(x, function(valor) toupper(valor) %in% codigos)
+  .resultado_validador_vector(x, function(valor) .mayusculas_ascii(valor) %in% codigos)
 }
 
 #' @rdname validadores_formato
 #' @export
 validar_iso4217 <- function(x) {
   .resultado_validador_vector(
-    x, function(valor) toupper(valor) %in% .codigos_iso4217
+    x, function(valor) .mayusculas_ascii(valor) %in% .codigos_iso4217
   )
 }
 
@@ -412,7 +448,7 @@ validar_luhn <- function(x) {
 }
 
 .resto_mod97 <- function(valor) {
-  caracteres <- strsplit(toupper(valor), "", fixed = TRUE)[[1L]]
+  caracteres <- strsplit(.mayusculas_ascii(valor), "", fixed = TRUE)[[1L]]
   if (!length(caracteres) || any(!grepl("^[A-Z0-9]$", caracteres))) {
     return(NA_integer_)
   }
@@ -453,7 +489,9 @@ validar_mod97 <- function(x) {
 #' numérico el punto es el separador decimal y el guion es el signo, así que un
 #' número fraccionario o negativo devuelve `FALSE` —no se le quita la fracción
 #' ni el signo para hacerlo pasar—. Un número entero no negativo sí se valida,
-#' como cualquier otra escritura del mismo documento.
+#' como cualquier otra escritura del mismo documento, y por sus dígitos: el
+#' doble `12000000` es la cédula `"12000000"` aunque `scipen` lo imprima en
+#' notación científica. `NaN` es ausente y devuelve `NA`.
 #'
 #' @inheritParams validar_iso3166
 #'
@@ -599,7 +637,7 @@ pack_validadores <- function(nombre, validadores, pais = NULL,
       stop("`pais` debe ser un codigo ISO 3166 alpha-2 vigente o NULL.",
            call. = FALSE)
     }
-    pais <- toupper(pais)
+    pais <- .mayusculas_ascii(pais)
   }
   if (!is.null(descripcion) && (!is.character(descripcion) ||
       length(descripcion) != 1L || is.na(descripcion) || !nzchar(descripcion))) {

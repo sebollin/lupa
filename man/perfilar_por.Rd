@@ -7,7 +7,10 @@
 perfilar_por(datos, por, clave = NULL, min_filas = 30L, ...)
 }
 \arguments{
-\item{datos}{Data frame a perfilar.}
+\item{datos}{Data frame a perfilar. Sus nombres de columna tienen que ser
+distintos: cada grupo se arma por nombre, y con dos columnas iguales se
+perfilaría una en lugar de la otra. Si los hay, la función se detiene;
+renómbrelas, por ejemplo con \code{names(datos) <- make.unique(names(datos))}.}
 
 \item{por}{Nombre de una columna atómica cuyos valores definen los grupos.
 Los ausentes forman un grupo propio, con la etiqueta \code{"(ausente)"}. Si la
@@ -24,9 +27,17 @@ etiqueta lleva las cifras que hacen falta para distinguirlos
 \code{as.numeric()} de la etiqueta recupera ese valor exacto. Para la enorme
 mayoría de los números la etiqueta es la de siempre.
 
+Lo mismo vale para las otras clases: un \code{integer64} se etiqueta con sus
+cifras exactas, aun por encima de 2^53; un complejo, con sus dos partes;
+una fecha, con su escritura \code{AAAA-MM-DD}, y una fecha-hora, con la suya
+hasta el microsegundo y el huso de la columna —no con su número de días o
+de segundos—.
+
 Si la columna es un \strong{factor}, un nivel declarado sin ninguna fila es un
 grupo de cero filas: no se perfila y se declara en \code{cobertura_grupos}, igual
-que cualquier grupo por debajo de \code{min_filas}.}
+que cualquier grupo por debajo de \code{min_filas}. Eso incluye un nivel
+llamado \code{"(ausente)"} sin filas cuando la columna también tiene \code{NA}: los
+\code{NA} se perfilan como su propio grupo, y el nivel vacío se declara aparte.}
 
 \item{clave}{Nombres de columnas de identidad que se conservan en cada grupo
 aunque estén enteramente ausentes. Importa: sin la clave de entidad, el
@@ -41,7 +52,9 @@ se recorta antes de reenviarlo, porque en la rebanada esa columna ya no
 está.}
 
 \item{min_filas}{Grupos con menos filas que este número no se perfilan y se
-declaran en la cobertura. El valor por omisión evita conclusiones sobre
+declaran en la cobertura. Tiene que ser un entero positivo: un valor
+fraccionario se rechaza, en vez de truncarlo y perfilar un grupo que
+estaba por debajo del umbral. El valor por omisión evita conclusiones sobre
 grupos donde ningún diagnóstico tiene soporte.}
 
 \item{...}{Argumentos enviados a \code{\link[=perfilar]{perfilar()}} para cada grupo. Los que
@@ -68,6 +81,10 @@ grupo puede aparecer más de una vez; la cuenta se hace sobre grupos
 distintos. La suma de \code{n_filas_grupo} sobre los grupos distintos —los
 perfilados, que están en los hallazgos y en las filas con
 \code{grupo_perfilado = TRUE}, más los no perfilados— da las filas de la tabla.
+Para que la cuenta cierre, un grupo perfilado que no produjo ningún
+hallazgo también tiene su fila en \code{cobertura_grupos}, con
+\code{grupo_perfilado = TRUE} y ese motivo: si no, no estaría en ninguna de las
+dos tablas.
 
 El atributo \code{etiquetas_personales} declara si la columna de agrupación
 lleva datos personales. Las etiquetas de grupo \strong{son} valores de esa
