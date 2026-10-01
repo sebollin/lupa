@@ -446,7 +446,7 @@
     "La proyeccion usa la mediana de las tasas ms por distinto de las modas",
     "medidas en esta corrida y la multiplica por la cardinalidad disponible",
     "de las columnas pendientes. Fuentes de cardinalidad:",
-    paste(unique(fuentes_disponibles), collapse = ", "), ".",
+    paste0(paste(unique(fuentes_disponibles), collapse = ", "), "."),
     if (length(sin_cardinalidad)) paste(
       "No incluye las columnas sin cardinalidad:", paste(sin_cardinalidad, collapse = ", "),
       "por lo que es parcial."
@@ -483,11 +483,11 @@
   }
   detalle <- if (length(proyeccion$columnas_sin_cardinalidad)) paste(
     " La proyeccion es parcial porque no hay cardinalidad para:",
-    paste(proyeccion$columnas_sin_cardinalidad, collapse = ", "), "."
+    paste0(paste(proyeccion$columnas_sin_cardinalidad, collapse = ", "), ".")
   ) else ""
   detalle_fuente <- if (length(proyeccion$fuentes_cardinalidad)) paste(
     " Fuentes de cardinalidad:",
-    paste(proyeccion$fuentes_cardinalidad, collapse = ", "), "."
+    paste0(paste(proyeccion$fuentes_cardinalidad, collapse = ", "), ".")
   ) else ""
   cli::cli_alert_warning(.cli_literal(.marcar_para_exhibir(paste0(
     "Costo estimado de la moda: ~",
@@ -1463,11 +1463,26 @@
   etiqueta <- if (identical(familia, "COUNT(DISTINCT)")) "" else {
     paste0(" para ", familia)
   }
+  # En la moda y la mediana el metodo puede ser solo de cada lote: el campo de la
+  # estimacion llegaba vacio y el aviso decia "Metodo: ." -medido en la tercera
+  # evaluacion real, siete veces-. Manda el de la estimacion cuando lo hay
+  # -`por_columna` dice algo que ningun lote dice-, y si falta, el de los lotes
+  # que avisan.
+  sin_valor <- function(v) {
+    is.null(v) || !length(v) || is.na(v[[1L]]) || !nzchar(v[[1L]])
+  }
+  metodo <- estimacion$metodo
+  if (sin_valor(metodo) && "metodo" %in% names(lotes)) {
+    de_lotes <- unique(as.character(lotes$metodo[indices]))
+    de_lotes <- de_lotes[!is.na(de_lotes) & nzchar(de_lotes)]
+    if (length(de_lotes)) metodo <- paste(de_lotes, collapse = ", ")
+  }
+  if (sin_valor(metodo)) metodo <- "no determinado"
   cli::cli_alert_warning(.cli_literal(.marcar_para_exhibir(paste0(
     "Derrame potencial estimado", etiqueta,
     " (es una estimacion, no una medicion): ",
     detalle, " supera el `work_mem` vigente de ", work_mem,
-    ". Metodo: ", estimacion$metodo, ". Limite de decision: ", limite,
+    ". Metodo: ", metodo, ". Limite de decision: ", limite,
     ". Denominador: con ",
     .denominador_derrame_dbi(estimacion), ". ",
     "Subir `work_mem` en esta sesion por encima de ese tama\u00f1o puede evitar el",
@@ -10964,12 +10979,23 @@ print.plan_perfilado_dbi <- function(x, ...) {
   campos <- intersect(
     c("minimo", "maximo", "mediana", "media"), names(columnas)
   )
-  oculto <- rep(FALSE, nrow(columnas))
-  for (campo in campos) {
-    tapar <- indices & !is.na(columnas[[campo]])
-    oculto <- oculto | tapar
-    columnas[[campo]][tapar] <- NA_real_
+  # Se lleva aparte lo que se tapo de orden y de momento, para que el detalle
+  # diga lo mismo que dice `perfilar()` sobre la misma columna: el motor escribia
+  # siempre "estadisticos de orden y la media" aunque la media no estuviera, y la
+  # comparacion entre las dos puertas marcaba el campo como distinto sin que la
+  # proteccion lo fuera -en la tercera evaluacion real, en cuatro corridas-.
+  oculto_orden <- rep(FALSE, nrow(columnas))
+  oculto_momento <- rep(FALSE, nrow(columnas))
+  tapar_campo <- function(campo, filas) {
+    tapar <- filas & !is.na(columnas[[campo]])
+    if (identical(campo, "media")) {
+      oculto_momento <<- oculto_momento | tapar
+    } else {
+      oculto_orden <<- oculto_orden | tapar
+    }
+    columnas[[campo]][tapar] <<- NA_real_
   }
+  for (campo in campos) tapar_campo(campo, indices)
   # Y las columnas que COMPARTEN TIPO PERSONAL con una protegida, aunque su
   # poder discriminante sea debil y no se protejan. Por esta puerta el piso por
   # valor no puede cerrarlas: `perfilar()` tapa el `minimo` de una copia porque
@@ -11000,18 +11026,18 @@ print.plan_perfilado_dbi <- function(x, ...) {
     indices_hermanas <- .nombres_para_operar(columnas$columna) %in%
       .nombres_para_operar(hermanas)
     if (any(indices_hermanas)) {
-      for (campo in campos) {
-        tapar <- indices_hermanas & !is.na(columnas[[campo]])
-        oculto <- oculto | tapar
-        columnas[[campo]][tapar] <- NA_real_
-      }
+      for (campo in campos) tapar_campo(campo, indices_hermanas)
     }
   }
-  if (any(oculto)) {
+  if (any(oculto_orden | oculto_momento)) {
     if (!"detalle_proteccion_personal" %in% names(columnas)) {
       columnas$detalle_proteccion_personal <- NA_character_
     }
-    columnas$detalle_proteccion_personal[oculto] <-
+    columnas$detalle_proteccion_personal[oculto_orden & !oculto_momento] <-
+      "[estadisticos de orden protegidos]"
+    columnas$detalle_proteccion_personal[oculto_momento & !oculto_orden] <-
+      "[momentos protegidos]"
+    columnas$detalle_proteccion_personal[oculto_orden & oculto_momento] <-
       "[estadisticos de orden y la media protegidos]"
   }
   resumen$columnas <- columnas

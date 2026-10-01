@@ -1520,6 +1520,13 @@
 #'   valores son nombres de la entrada, solos o unidos—, así que la protección
 #'   de los valores no se afloja: si un valor protegido es igual a un nombre de
 #'   columna, su moda sigue tapada.
+#'   Lo mismo vale para el **vocabulario del paquete**: un tipo de hallazgo, una
+#'   severidad, una estrategia o el nombre de un diagnóstico no se enmascaran
+#'   aunque contengan un valor protegido. Se enmascaraban: en una base real, un
+#'   nombre de persona contenido en `faltantes_disfrazados` dejó seis hallazgos
+#'   con el tipo `[valor protegido]`, y el plan sin ninguna acción para ellos. La
+#'   regla es la misma, por campo y por contenido: un campo cuyos valores son
+#'   todos vocabulario del propio objeto queda afuera, uno que mezcla no.
 #'   Ese alcance tiene un **piso**: un valor de una columna protegida que
 #'   identifique —seis caracteres o más, el mismo corte con el que la batería de
 #'   fugas decide qué cuenta como filtración— no se publica en ninguna parte,
@@ -1536,7 +1543,13 @@
 #'   —avisa al ejecutar y lo declara en `etiquetas_personales`— y el remedio es
 #'   agrupar por una columna seudonimizada.
 #'   El piso alcanza además la **forma sin separadores**: `"771.771-01"` es el
-#'   mismo documento que `"77177101"`, y la celda entera se enmascara. Y lo
+#'   mismo documento que `"77177101"`, y la celda entera se enmascara, siempre
+#'   que la variante no tenga una letra pegada antes o después. Sin esa condición,
+#'   con los nombres de millones de personas como valores protegidos, alguno
+#'   aparecía cruzando palabras de la prosa del paquete y tapaba descripciones y
+#'   sugerencias enteras, también de columnas no personales. Lo que deja de
+#'   taparse es un valor pegado a otras letras y escrito con separadores; el valor
+#'   exacto, en cualquier posición, se sigue tapando. Y lo
 #'   aplican también [analizar()] y [distribucion_valores()], que antes
 #'   protegían sólo por columna y publicaban lo que `perfilar()` tapaba sobre la
 #'   misma tabla.

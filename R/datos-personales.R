@@ -748,6 +748,27 @@
                 method = "radix")]
 }
 
+# Si la aguja -alfanumerica y en mayusculas ASCII- aparece en el texto original
+# sin una LETRA pegada antes ni despues, con cualquier separador entre sus
+# caracteres. El limite es de letras y no de alfanumericos a proposito: lo que se
+# quiere dejar de tapar es un tramo de letras que cruza palabras de la prosa, y un
+# digito pegado no es eso. Con limite alfanumerico se escapaba
+# "maria.nunez123@correo.uy" frente al nombre protegido "Maria Nunez", que antes
+# se tapaba. Ante un texto que no se puede examinar, TRUE: es una funcion de
+# privacidad y el valor por omision tiene que ser cerrado.
+.variante_en_limites <- function(aguja, textos) {
+  caracteres <- strsplit(aguja, "", useBytes = TRUE)[[1L]]
+  patron <- paste0(
+    "(?i)(?<![[:alpha:]])",
+    paste(caracteres, collapse = "[^[:alnum:]]*"),
+    "(?![[:alpha:]])"
+  )
+  tryCatch(
+    grepl(patron, textos, perl = TRUE, useBytes = TRUE),
+    error = function(e) rep(TRUE, length(textos))
+  )
+}
+
 .reemplazar_variantes_separadas <- function(x, valores) {
   # El reemplazo de arriba busca la cadena EXACTA, asi que el mismo documento
   # escrito con separadores se le escapa: `"771.771-01"` no contiene
@@ -781,11 +802,28 @@
   candidatas <- !is.na(x) & x != "[valor protegido]"
   if (!any(candidatas)) return(x)
   pajar <- normalizar(x[candidatas])
+  crudos <- x[candidatas]
   golpea <- rep(FALSE, length(pajar))
+  # La forma sin separadores CONTIENE a la aguja, y ademas la aguja tiene que caer
+  # sin letras pegadas en el texto original: no puede empezar ni terminar a mitad
+  # de una palabra. Sin eso, la prosa del paquete se tapaba entera
+  # por azar: con los nombres de millones de personas como agujas, alguno de seis
+  # letras aparece cruzando palabras -"...COLUMNACONTIENE..."-, y en una base real
+  # quedaron tapadas 38 de 64 descripciones y 37 de 64 sugerencias, tambien de
+  # columnas que no eran personales. Lo que la regla existe para atrapar sigue
+  # cayendo en limites: "771.771-01" contra el documento 77177101, "Maria Nunez"
+  # contra el nombre escrito junto. Lo que se deja de tapar es un valor pegado a
+  # otras letras SIN separador y ademas escrito con separadores; el valor exacto
+  # en cualquier posicion lo sigue tapando `.reemplazar_valores_protegidos()`.
   for (aguja in agujas) {
-    golpea <- golpea |
-      grepl(aguja, pajar, fixed = TRUE, useBytes = TRUE)
-    if (all(golpea)) break
+    pendientes <- which(!golpea)
+    if (!length(pendientes)) break
+    contiene <- pendientes[
+      grepl(aguja, pajar[pendientes], fixed = TRUE, useBytes = TRUE)
+    ]
+    if (length(contiene)) {
+      golpea[contiene] <- .variante_en_limites(aguja, crudos[contiene])
+    }
   }
   # Y los DIGITOS aparte, que es donde la variante no es cosmetica sino PARCIAL:
   # la cedula sin su verificador -"4.123.456" frente a "4.123.456-7"- normaliza a
@@ -933,6 +971,70 @@
   all(compuestos)
 }
 
+# El VOCABULARIO del paquete es estructura, igual que los nombres de columna: un
+# tipo de hallazgo, una severidad, una estrategia, un estado o el nombre de un
+# diagnostico o de una metrica no son datos de nadie, los escribio el paquete. El
+# barrido los trataba como cualquier texto, y como enmascara por CONTENIDO -una
+# celda que, sin separadores y en mayusculas, contiene un valor protegido de seis
+# caracteres o mas se tapa entera-, bastaba un nombre de persona contenido en
+# `faltantes_disfrazados` para que el tipo saliera `[valor protegido]`. Medido en
+# la tercera evaluacion real, sobre tres columnas de nombres de persona: seis
+# hallazgos sin tipo; y reproducido aca, el plan quedaba ademas SIN NINGUNA
+# accion para ellos, porque ninguna estrategia casa con un tipo que no se lee.
+#
+# La decision sigue siendo por campo y por contenido, la misma de los nombres
+# (`.es_columna_de_nombres()`): se recolecta lo que el objeto trae en sus campos
+# de vocabulario y un campo cuyos valores son TODOS de ahi queda afuera del
+# barrido. Un campo que mezcla vocabulario y valores, no. La lista de nombres de
+# campo solo decide DE DONDE se recolecta: un campo de vocabulario que falte aca
+# se sigue barriendo, que es el lado seguro para la privacidad.
+.CAMPOS_DE_VOCABULARIO <- c(
+  "tipo_hallazgo", "hallazgo", "estrategia", "severidad", "severidad_origen",
+  "estado", "estado_reparacion", "estado_tipo_inferido", "unidad_conteo",
+  "decision_grupo", "diagnostico", "metrica", "metrica_especifica",
+  "dimension", "factor", "orientacion", "granularidad", "tipo_resultado",
+  "agregacion", "componente", "tipo", "cambio", "aspecto", "direccion", "nivel"
+)
+
+.vocabulario_de_objeto <- function(x, profundidad = 0L) {
+  if (profundidad > 6L || is.null(x)) return(character())
+  vocabulario <- character()
+  adicionales <- setdiff(
+    names(attributes(x)), c("names", "class", "row.names", "dim", "dimnames")
+  )
+  for (atributo in adicionales) {
+    vocabulario <- c(vocabulario, .vocabulario_de_objeto(
+      attr(x, atributo, exact = TRUE), profundidad + 1L
+    ))
+  }
+  if (inherits(x, "data.frame")) {
+    for (campo in intersect(names(x), .CAMPOS_DE_VOCABULARIO)) {
+      columna <- x[[campo]]
+      if (is.factor(columna)) {
+        vocabulario <- c(vocabulario, levels(columna))
+      } else if (is.character(columna)) {
+        vocabulario <- c(vocabulario, columna)
+      }
+    }
+    for (columna in x) {
+      if (is.list(columna) && !is.data.frame(columna)) {
+        for (elemento in columna) {
+          if (is.list(elemento)) {
+            vocabulario <- c(vocabulario,
+                             .vocabulario_de_objeto(elemento, profundidad + 1L))
+          }
+        }
+      }
+    }
+  } else if (is.list(x)) {
+    for (elemento in x) {
+      vocabulario <- c(vocabulario, .vocabulario_de_objeto(elemento, profundidad + 1L))
+    }
+  }
+  vocabulario <- vocabulario[!is.na(vocabulario) & nzchar(vocabulario)]
+  unique(vocabulario)
+}
+
 .recorrer_textos_salida <- function(x, aplicar, intocables = character()) {
   atributos <- attributes(x)
   estructurales <- c("names", "class", "row.names", "dim", "dimnames")
@@ -1002,6 +1104,7 @@
 # `fixed = TRUE` ni la codificacion: solo se agrupa.
 .proteger_textos_salida <- function(x, valores, intocables = character()) {
   if (!length(valores)) return(x)
+  intocables <- c(intocables, .vocabulario_de_objeto(x))
   cofre <- new.env(parent = emptyenv())
   cofre$hojas <- list()
   invisible(.recorrer_textos_salida(x, function(hoja) {
