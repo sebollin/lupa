@@ -296,13 +296,22 @@ medido y, como mínimo, estas columnas:
 - `objeto`: etiqueta legible y estable del objeto medido.
 
 [`medir()`](https://sebollin.github.io/lupa/reference/medir.md) hace
-cumplir el contrato: rechaza la salida sin esas columnas, con un
-`resultado` fuera de su tipo, con más de una observación para el mismo
-objeto, con una `entidad` que no está ligada a la instancia, con un
-`atributo` que no es una columna de las tablas que recibió el método, o
-con `fila` ausente en una métrica por celda o por fila. Si el método
-**aborta**, en cambio, la métrica queda `no_medible` en
-`cobertura_metricas` y las demás se miden igual.
+cumplir el contrato: una salida sin esas columnas, con un `resultado`
+fuera de su tipo, con más de una observación para el mismo objeto, con
+una `entidad` que no está ligada a la instancia, con un `atributo` que
+no es una columna de las tablas que recibió el método —o varias unidas
+con `+`—, o con una `fila` que no es una posición entera o que falta en
+una métrica por celda o por fila, deja la métrica `no_medible` en
+`cobertura_metricas`, igual que un método que **aborta**:
+[`medir()`](https://sebollin.github.io/lupa/reference/medir.md) avisa y
+las demás métricas se miden igual.
+
+`fila` es la posición en la tabla que **recibe** el método. Con
+`aplicabilidad`,
+[`medir()`](https://sebollin.github.io/lupa/reference/medir.md) le pasa
+la tabla recortada al universo aplicable, y traduce las `fila` de un
+método propio a la posición en la tabla original; la etiqueta `objeto`
+queda como la escribió el método.
 
 Las columnas adicionales se descartan. Un `metodo` pasado a
 `instanciar()` reemplaza el predeterminado sólo para esa instancia. El
@@ -347,13 +356,13 @@ instancia <- instanciar(no_nulo, entidad = "personas", atributos = "edad")
 modelo_calidad <- modelo(instancia)
 medir(modelo_calidad, data.frame(edad = c(20, NA, 35)))
 #>                                     id_medida
-#> 1 medicion-20261001T004633.357129-7418-000001
-#> 2 medicion-20261001T004633.357129-7418-000002
-#> 3 medicion-20261001T004633.357129-7418-000003
+#> 1 medicion-20261001T023808.932073-7403-000001
+#> 2 medicion-20261001T023808.932073-7403-000002
+#> 3 medicion-20261001T023808.932073-7403-000003
 #>                            id_medicion               fecha metrica
-#> 1 medicion-20261001T004633.357129-7418 2026-10-01 00:46:33  NoNulo
-#> 2 medicion-20261001T004633.357129-7418 2026-10-01 00:46:33  NoNulo
-#> 3 medicion-20261001T004633.357129-7418 2026-10-01 00:46:33  NoNulo
+#> 1 medicion-20261001T023808.932073-7403 2026-10-01 02:38:08  NoNulo
+#> 2 medicion-20261001T023808.932073-7403 2026-10-01 02:38:08  NoNulo
+#> 3 medicion-20261001T023808.932073-7403 2026-10-01 02:38:08  NoNulo
 #>   metrica_especifica      metrica_instanciada   dimension   factor orientacion
 #> 1         NoNuloEdad NoNuloEdad@personas.edad Completitud Densidad conformidad
 #> 2         NoNuloEdad NoNuloEdad@personas.edad Completitud Densidad conformidad
@@ -404,13 +413,13 @@ medir(
   data.frame(origen = c("sistema_a", "", NA), stringsAsFactors = FALSE)
 )
 #>                                     id_medida
-#> 1 medicion-20261001T004633.364150-7418-000001
-#> 2 medicion-20261001T004633.364150-7418-000002
-#> 3 medicion-20261001T004633.364150-7418-000003
+#> 1 medicion-20261001T023808.939064-7403-000001
+#> 2 medicion-20261001T023808.939064-7403-000002
+#> 3 medicion-20261001T023808.939064-7403-000003
 #>                            id_medicion               fecha         metrica
-#> 1 medicion-20261001T004633.364150-7418 2026-10-01 00:46:33 OrigenDeclarado
-#> 2 medicion-20261001T004633.364150-7418 2026-10-01 00:46:33 OrigenDeclarado
-#> 3 medicion-20261001T004633.364150-7418 2026-10-01 00:46:33 OrigenDeclarado
+#> 1 medicion-20261001T023808.939064-7403 2026-10-01 02:38:08 OrigenDeclarado
+#> 2 medicion-20261001T023808.939064-7403 2026-10-01 02:38:08 OrigenDeclarado
+#> 3 medicion-20261001T023808.939064-7403 2026-10-01 02:38:08 OrigenDeclarado
 #>   metrica_especifica            metrica_instanciada    dimension
 #> 1    OrigenDeclarado OrigenDeclarado@entrega.origen Trazabilidad
 #> 2    OrigenDeclarado OrigenDeclarado@entrega.origen Trazabilidad
@@ -442,11 +451,11 @@ medir(
   data.frame(fecha = as.Date(c("2026-06-29", "2026-07-01")))
 )
 #>                                     id_medida
-#> 1 medicion-20261001T004633.369249-7418-000001
-#> 2 medicion-20261001T004633.369249-7418-000002
+#> 1 medicion-20261001T023808.944287-7403-000001
+#> 2 medicion-20261001T023808.944287-7403-000002
 #>                            id_medicion               fecha
-#> 1 medicion-20261001T004633.369249-7418 2026-10-01 00:46:33
-#> 2 medicion-20261001T004633.369249-7418 2026-10-01 00:46:33
+#> 1 medicion-20261001T023808.944287-7403 2026-10-01 02:38:08
+#> 2 medicion-20261001T023808.944287-7403 2026-10-01 02:38:08
 #>                       metrica metrica_especifica           metrica_instanciada
 #> 1 OportunidadAtributoPorFecha     EntregaATiempo EntregaATiempo@entregas.fecha
 #> 2 OportunidadAtributoPorFecha     EntregaATiempo EntregaATiempo@entregas.fecha

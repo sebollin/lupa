@@ -105,20 +105,23 @@ atributo `cobertura_metricas`, con un estado que distingue tres causas:
 cuando su contrato no trae un campo que necesita, y `no_medible` cuando
 su método falló sobre estos datos —una columna sin dos valores para
 `ErrorEstandar`, un atributo que la tabla no trae, una regla que
-devuelve `NA`—. En el último caso el motivo conserva el mensaje del
-método y `medir()` **avisa**: la falla ya no se lleva la medición de las
-demás métricas, pero tampoco queda muda. Y cuando **sí** pudo medirse
-pero sobre **menos** elementos de los que hay en su universo aplicable
-—una métrica por celda no mide la celda vacía, que no produce medida ni
-cuenta como incumplimiento—, el atributo `alcance_medidas` publica
-cuántos midió de cuántos, con su unidad: sin ese número, el agregado de
-tres celdas de cuatro no se distingue del de cuatro. Viaja al tablero,
-se imprime con la medición y se publica en el informe. También conserva
-`configuracion_modelo` y `configuracion_aplicabilidad`, descripciones de
-la política usada para que una deriva posterior pueda distinguir modelo
-de datos. Si el modelo declara un marco, la medición conserva tambien
-`marco_calidad`; la configuracion del modelo registra su nombre, sus
-pares dimension-factor y el `tipo_resultado` de cada metrica.
+devuelve `NA`— o devolvió una salida que no cumple el contrato de
+`metodo`. En el último caso el motivo conserva el mensaje del método,
+con los valores de las columnas personales enmascarados si
+`proteger_datos_personales = TRUE`, y `medir()` **avisa**: la falla ya
+no se lleva la medición de las demás métricas, pero tampoco queda muda.
+Y cuando **sí** pudo medirse pero sobre **menos** elementos de los que
+hay en su universo aplicable —una métrica por celda no mide la celda
+vacía, que no produce medida ni cuenta como incumplimiento—, el atributo
+`alcance_medidas` publica cuántos midió de cuántos, con su unidad: sin
+ese número, el agregado de tres celdas de cuatro no se distingue del de
+cuatro. Viaja al tablero, se imprime con la medición y se publica en el
+informe. También conserva `configuracion_modelo` y
+`configuracion_aplicabilidad`, descripciones de la política usada para
+que una deriva posterior pueda distinguir modelo de datos. Si el modelo
+declara un marco, la medición conserva tambien `marco_calidad`; la
+configuracion del modelo registra su nombre, sus pares dimension-factor
+y el `tipo_resultado` de cada metrica.
 
 Esa descripcion es **insensible al orden de la declaracion**: declarar
 las mismas metricas, o los mismos pares del marco, en otro orden no
@@ -138,13 +141,13 @@ especifica <- especializar(nucleo$NoNulo, nombre_especifico = "NoNuloEdad")
 instancia <- instanciar(especifica, "personas", "edad")
 medir(modelo(instancia), data.frame(edad = c(20, NA, 35)))
 #>                                     id_medida
-#> 1 medicion-20261001T004633.058080-7418-000001
-#> 2 medicion-20261001T004633.058080-7418-000002
-#> 3 medicion-20261001T004633.058080-7418-000003
+#> 1 medicion-20261001T023808.649989-7403-000001
+#> 2 medicion-20261001T023808.649989-7403-000002
+#> 3 medicion-20261001T023808.649989-7403-000003
 #>                            id_medicion               fecha metrica
-#> 1 medicion-20261001T004633.058080-7418 2026-10-01 00:46:33  NoNulo
-#> 2 medicion-20261001T004633.058080-7418 2026-10-01 00:46:33  NoNulo
-#> 3 medicion-20261001T004633.058080-7418 2026-10-01 00:46:33  NoNulo
+#> 1 medicion-20261001T023808.649989-7403 2026-10-01 02:38:08  NoNulo
+#> 2 medicion-20261001T023808.649989-7403 2026-10-01 02:38:08  NoNulo
+#> 3 medicion-20261001T023808.649989-7403 2026-10-01 02:38:08  NoNulo
 #>   metrica_especifica      metrica_instanciada   dimension   factor orientacion
 #> 1         NoNuloEdad NoNuloEdad@personas.edad Completitud Densidad conformidad
 #> 2         NoNuloEdad NoNuloEdad@personas.edad Completitud Densidad conformidad

@@ -43,6 +43,29 @@
     <div class="section level2">
 <h2 class="pkg-version" data-toc-text="0.1.0" id="lupa-010">lupa 0.1.0<a class="anchor" aria-label="anchor" href="#lupa-010"></a></h2>
 <div class="section level3">
+<h3 id="ronda-el-contrato-de-medir-y-lo-que-aplica-el-plan-de-limpieza-0-1-0">Ronda 9: el contrato de <code>medir()</code> y lo que aplica el plan de limpieza<a class="anchor" aria-label="anchor" href="#ronda-el-contrato-de-medir-y-lo-que-aplica-el-plan-de-limpieza-0-1-0"></a></h3>
+<ul><li>
+<strong>Una salida que no cumple el contrato de <code>metodo</code> deja la metrica <code>no_medible</code></strong>, igual que un metodo que aborta, en lugar de abortar <code><a href="../reference/medir.html">medir()</a></code> entero y llevarse la medicion de las demas.</li>
+<li>
+<strong>El atributo compuesto se reconoce aunque una columna traiga <code>+</code> en el nombre</strong>: se busca si el valor se puede cortar en columnas recibidas. Antes, <code>a+b+c+v</code> con una columna <code>a+b</code> se rechazaba siendo legitimo.</li>
+<li>
+<strong><code>fila</code> tiene que ser una posicion entera.</strong> Un factor publicaba sus codigos y un texto salia <code>NA</code>, la clausula que la validacion decia hacer cumplir.</li>
+<li>
+<strong>Con <code>aplicabilidad</code>, la <code>fila</code> de un metodo propio se traduce a la tabla original.</strong> El metodo recibe la tabla recortada y escribia posiciones del recorte: la medicion decia fila 6 cuando habia medido la 9.</li>
+<li>
+<strong>El motivo de una metrica <code>no_medible</code> pasa por la proteccion de datos personales</strong>: trae el mensaje del metodo, que puede incluir un valor de la tabla.</li>
+<li>
+<strong><code><a href="../reference/modelo_calidad.html">modelo()</a></code> reconoce el mismo instrumento con los centinelas en otro orden</strong> (<code>valores_nulos</code>, <code>diccionario</code>, <code>valores</code>, que se usan como conjunto). En las propiedades donde el orden importa, como <code>coeficientes</code>, no.</li>
+<li>
+<strong>La clave de duplicados no se confunde con un separador dentro de un nombre</strong>, y <strong>un universo vacio ya no se publica como una tabla de cero filas</strong>.</li>
+<li>
+<strong><code><a href="../reference/guiar_limpieza.html">guiar_limpieza()</a></code> conserva la regla de aplicabilidad</strong> al agregar el diccionario: la reemplazaba y el plan guiado convertia la columna entera.</li>
+<li>
+<strong><code>n_no_reversibles</code> se recuenta sobre el resultado restaurado</strong>: contaba perdidas que la restauracion del universo ya habia deshecho.</li>
+<li>
+<strong><code>eliminar_filas_ausentes</code> funciona despues de otra eliminacion</strong> cuando no hay regla de aplicabilidad; fallaba culpando a una regla que el plan no declaraba.</li>
+</ul></div>
+<div class="section level3">
 <h3 id="analizar-sobre-millones-de-filas-el-detalle-de-la-medicion-ya-no-se-arma-entero-0-1-0">
 <code>analizar()</code> sobre millones de filas: el detalle de la medicion ya no se arma entero<a class="anchor" aria-label="anchor" href="#analizar-sobre-millones-de-filas-el-detalle-de-la-medicion-ya-no-se-arma-entero-0-1-0"></a></h3>
 <ul><li>
