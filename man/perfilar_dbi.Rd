@@ -522,6 +522,28 @@ rechaza la sonda. En ese caso el mensaje del motor queda en
 \code{meta$mediana_consolidada$motivo}, y se conserva la mediana por columna.
 }
 
+\section{Lo que el motor guarda distinto que R}{
+
+El resumen SQL describe lo que el motor tiene delante, y en tres casos eso no
+es lo mismo que la tabla en R:
+\itemize{
+\item \strong{Fechas en SQLite.} SQLite no tiene tipo fecha: RSQLite guarda un \code{Date}
+como número de días desde 1970 y un \code{POSIXct} como segundos, y sin más
+información el motor los describe como números —\code{minimo = 17956}—. Con
+\code{DBI::dbConnect(RSQLite::SQLite(), ..., extended_types = TRUE)} la columna
+se declara temporal y \code{perfilar_dbi()} no le aplica agregados
+cuantitativos, y lo dice.
+\item \strong{\code{NaN} en duckdb.} duckdb conserva \code{NaN} como un valor: lo cuenta como
+presente y distinto, y responde \code{MAX} y \code{AVG} con \code{NaN}. En R, \code{NaN} cuenta
+como ausente. Los conteos pueden diferir por eso, y una métrica que el motor
+respondió con \code{NaN} no se publica: queda \code{no_disponible} con su motivo.
+\item \strong{La media en coma flotante.} Cada lado suma a su modo; sobre una columna
+que mezcla magnitudes muy distintas —\code{1e20} junto a \code{1}— las medias pueden
+diferir entre motores y con la de R, y ninguna es la exacta. La
+corroboración cruzada lo declara cuando compara las dos.
+}
+}
+
 \section{Costo}{
 
 Los agregados de una tabla ancha se emiten por lotes; \code{muestra} acota lo que

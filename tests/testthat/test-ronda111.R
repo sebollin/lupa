@@ -194,8 +194,12 @@ test_that("no_aplica se excluye y un tablero entero no produce indice", {
     data.frame(x = c(1, 2, 4)), id_medicion = "no-aplica-r111"
   )
   adicional <- medidas
+  base <- .medidas_r111()
   adicional$id_medicion[] <- "ronda-111"
-  combinadas <- rbind(.medidas_r111(), adicional)
+  # Y la misma fecha: una corrida es un `id_medicion` y una `fecha`, y con dos
+  # fechas el tablero rechaza la mezcla desde la ronda 11.
+  adicional$fecha[] <- base$fecha[[1L]]
+  combinadas <- rbind(base, adicional)
   class(combinadas) <- c("medicion", "data.frame")
   mixto <- indice_calidad(
     combinadas,

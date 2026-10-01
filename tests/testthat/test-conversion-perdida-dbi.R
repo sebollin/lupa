@@ -198,5 +198,7 @@ test_that("el sondeo de magnitud cierra la puerta sin pedir basicos", {
   expect_equal(nrow(sondeo), 1L)
   expect_equal(sondeo$estado[[1L]], "no_disponible")
   expect_true(!is.na(sondeo$sql[[1L]]))
-  expect_true(grepl("MIN", sondeo$sql[[1L]], fixed = TRUE))
+  # `MAX` y no `MIN`: en SQLite el texto se ordena despues de los numeros, y en
+  # duckdb y PostgreSQL el `NaN` despues de todo numero. Ver la ronda 11.
+  expect_true(grepl("MAX", sondeo$sql[[1L]], fixed = TRUE))
 })

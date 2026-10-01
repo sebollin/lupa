@@ -201,8 +201,11 @@ transiciones_granularidad <- function() {
   }
   medidas <- .tabla_base(medidas)
   medidas$orientacion <- .orientacion_declarada_medidas(medidas)
+  # `fecha` tambien: `medir()` pone UNA por corrida, y dos corridas con el mismo
+  # `id_medicion` y fechas distintas se mezclaban en silencio -el agregado
+  # publicaba una sola fecha para medidas de dos momentos-.
   campos_unicos <- c(
-    "id_medicion", "metrica", "metrica_especifica", "granularidad",
+    "id_medicion", "fecha", "metrica", "metrica_especifica", "granularidad",
     "tipo_resultado", "orientacion"
   )
   no_unicos <- campos_unicos[vapply(
@@ -532,13 +535,22 @@ transiciones_granularidad <- function() {
 # lugar de sumar.
 .alcance_agregado <- function(alcance, medidas, resultado, grupos) {
   if (is.null(alcance) || !NROW(alcance)) return(NULL)
-  clave_alcance <- .nombres_para_operar(
-    as.character(alcance$metrica_instanciada)
-  )
+  # El alcance se empareja con las medidas del grupo por el PAR metrica y
+  # entidad, no por la metrica sola. Desde el segundo nivel todas las entidades
+  # comparten el nombre de la metrica agregada -`agregada:ratio:Formato`-, y
+  # emparejar por el nombre le atribuia a cada entidad la suma de todas: "6 de 8"
+  # en cada una cuando cada una midio 3 de 4, y se duplicaba en cada nivel.
+  par <- function(metrica, entidad) {
+    .clave_bytes(paste(
+      .nombres_para_operar(as.character(metrica)),
+      .nombres_para_operar(as.character(entidad)), sep = "\r"
+    ))
+  }
+  clave_alcance <- par(alcance$metrica_instanciada, alcance$entidad)
   filas <- lapply(seq_along(grupos), function(k) {
-    instancias <- .nombres_para_operar(
-      .identificadores_unicos(medidas$metrica_instanciada[grupos[[k]]])
-    )
+    instancias <- unique(par(
+      medidas$metrica_instanciada[grupos[[k]]], medidas$entidad[grupos[[k]]]
+    ))
     cuales <- clave_alcance %in% instancias
     if (!any(cuales)) return(NULL)
     unidades <- unique(as.character(alcance$unidad[cuales]))

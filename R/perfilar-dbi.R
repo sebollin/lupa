@@ -4950,7 +4950,9 @@
           paste(
             "La cobertura es 100%; la diferencia supera la tolerancia o",
             "un lado quedo en NA. Puede deberse al motor, al controlador,",
-            "a la conversion o a que las lecturas no compartieron snapshot."
+            "a la conversion, a que las lecturas no compartieron snapshot,",
+            "o -en una media- a la suma en coma flotante cuando la columna",
+            "mezcla magnitudes muy distintas, que cada lado acumula a su modo."
           )
         } else detalle_muestra,
         " No se elige un ganador: ambos valores quedan publicados."
@@ -6057,8 +6059,23 @@
 .valor_perdido_en_conversion_dbi <- function(crudo, convertido) {
   if (is.null(crudo) || !length(crudo)) return(FALSE)
   original <- crudo[[1L]]
-  if (is.null(original) || !length(original) || is.na(original)) return(FALSE)
+  # `NaN` no es "el motor no devolvio nada": duckdb conserva el `NaN` como valor
+  # y responde `MAX` y `AVG` con `NaN`. `is.na(NaN)` es TRUE, y la guarda lo
+  # tomaba por un nulo: se publicaba `calculado` con valor `NA`.
+  es_nan <- is.numeric(original) && isTRUE(is.nan(original))
+  if (is.null(original) || !length(original) ||
+      (is.na(original) && !es_nan)) return(FALSE)
   !isTRUE(is.finite(convertido))
+}
+
+.motivo_nan_dbi <- function(que) {
+  paste0(
+    "El motor respondio `NaN` para ", if (identical(que, "la sonda de magnitud"))
+      que else paste0("`", que, "`"),
+    ": la columna guarda valores `NaN` y el motor los cuenta como valores -en ",
+    "`MAX`, `AVG` y el orden de la mediana-, mientras que en R son ausentes. ",
+    "Las metricas de magnitud de esta columna no se publican como calculadas."
+  )
 }
 
 # Y el mismo cuidado con los enteros grandes: un `integer64` por encima de 2^53
@@ -6688,8 +6705,14 @@
 
 .sonda_magnitud_columna_dbi <- function(conexion, tabla_sql, columna_sql,
                                         alias, presupuesto = NULL) {
+  # `MAX` y no `MIN`: el valor que delata que la columna no es de la magnitud
+  # que se supone queda AL FINAL del orden en los motores que importan. En
+  # duckdb y PostgreSQL `NaN` es mayor que todo numero, y con `MIN` una columna
+  # con `NaN` pasaba la sonda y la mediana se calculaba contandolo; en SQLite el
+  # texto se ordena despues de los numeros, asi que `MIN` de una columna INTEGER
+  # con texto devolvia un numero y tampoco lo veia.
   sql <- paste0(
-    "SELECT MIN(", columna_sql, ") AS ", alias("magnitud"),
+    "SELECT MAX(", columna_sql, ") AS ", alias("magnitud"),
     " FROM ", tabla_sql
   )
   resultado <- .escalar_dbi(
@@ -8360,7 +8383,14 @@
     )
     if (isTRUE(sondeo$ok)) {
       convertido <- .escalar_finito_dbi(sondeo$valor)
-      if (.valor_perdido_en_conversion_dbi(sondeo$valor, convertido)) {
+      # Un `NaN` en la sonda: la columna es numerica y el motor guarda `NaN`
+      # como valor. Se retiene la magnitud con ese motivo, no con el generico.
+      sonda_nan <- is.numeric(sondeo$valor[[1L]]) &&
+        isTRUE(is.nan(sondeo$valor[[1L]]))
+      if (sonda_nan) {
+        sondeo$ok <- FALSE
+        sondeo$motivo <- .motivo_nan_dbi("la sonda de magnitud")
+      } else if (.valor_perdido_en_conversion_dbi(sondeo$valor, convertido)) {
         valor <- if (isTRUE(incluir_valores)) paste0(
           " (", utils::head(as.character(sondeo$valor[[1L]]), 1L), ")"
         ) else ""
@@ -8416,6 +8446,23 @@
           .conteo_dbi(celda$valor)
         } else {
           convertido <- .escalar_finito_dbi(celda$valor)
+          crudo_nan <- is.numeric(celda$valor[[1L]]) &&
+            isTRUE(is.nan(celda$valor[[1L]]))
+          if (crudo_nan) {
+            # Un `NaN` del motor no dice que la columna sea de otra magnitud: es
+            # numerica y guarda `NaN` como un valor -duckdb lo hace-, y el motor
+            # lo incluye en `MAX`, `AVG` y en el orden de la mediana -la ubica al
+            # final-, mientras R lo cuenta como ausente. El motivo generico de
+            # abajo culpaba a la magnitud. Se retienen igual TODAS las metricas
+            # de magnitud de la columna -medido: sin retenerla, la mediana del
+            # motor salia 3 contra 2,5 en R-, pero con el motivo verdadero.
+            basicos$ok <- FALSE
+            basicos$motivo <- .motivo_nan_dbi(metrica)
+            magnitud_desmentida <- TRUE
+            motivo_magnitud <- basicos$motivo
+            leidos <- list()
+            break
+          }
           if (.valor_perdido_en_conversion_dbi(celda$valor, convertido)) {
             basicos$ok <- FALSE
             basicos$motivo <- paste0(
@@ -12555,6 +12602,25 @@ print.plan_perfilado_dbi <- function(x, ...) {
 #' conocidos de que no se active: la funcion no esta disponible o el motor
 #' rechaza la sonda. En ese caso el mensaje del motor queda en
 #' `meta$mediana_consolidada$motivo`, y se conserva la mediana por columna.
+#'
+#' @section Lo que el motor guarda distinto que R:
+#' El resumen SQL describe lo que el motor tiene delante, y en tres casos eso no
+#' es lo mismo que la tabla en R:
+#'
+#' * **Fechas en SQLite.** SQLite no tiene tipo fecha: RSQLite guarda un `Date`
+#'   como número de días desde 1970 y un `POSIXct` como segundos, y sin más
+#'   información el motor los describe como números —`minimo = 17956`—. Con
+#'   `DBI::dbConnect(RSQLite::SQLite(), ..., extended_types = TRUE)` la columna
+#'   se declara temporal y `perfilar_dbi()` no le aplica agregados
+#'   cuantitativos, y lo dice.
+#' * **`NaN` en duckdb.** duckdb conserva `NaN` como un valor: lo cuenta como
+#'   presente y distinto, y responde `MAX` y `AVG` con `NaN`. En R, `NaN` cuenta
+#'   como ausente. Los conteos pueden diferir por eso, y una métrica que el motor
+#'   respondió con `NaN` no se publica: queda `no_disponible` con su motivo.
+#' * **La media en coma flotante.** Cada lado suma a su modo; sobre una columna
+#'   que mezcla magnitudes muy distintas —`1e20` junto a `1`— las medias pueden
+#'   diferir entre motores y con la de R, y ninguna es la exacta. La
+#'   corroboración cruzada lo declara cuando compara las dos.
 #'
 #' @section Costo:
 #' Los agregados de una tabla ancha se emiten por lotes; `muestra` acota lo que

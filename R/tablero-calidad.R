@@ -185,8 +185,14 @@
     .error_medicion_sin_medidas(medidas, "medidas", "`medir()` o `agregar()`")
   }
   medidas <- .tabla_base(medidas)
-  if (length(.identificadores_unicos(medidas$id_medicion)) != 1L) {
-    stop("El tablero admite una sola corrida de medici\u00f3n.", call. = FALSE)
+  # Una corrida es un `id_medicion` Y una `fecha`: con el mismo id y dos fechas
+  # entraban dos corridas al tablero sin que nada lo dijera.
+  if (length(.identificadores_unicos(medidas$id_medicion)) != 1L ||
+      length(unique(medidas$fecha)) > 1L) {
+    stop(
+      "El tablero admite una sola corrida de medici\u00f3n: las medidas traen ",
+      "m\u00e1s de un `id_medicion` o m\u00e1s de una `fecha`.", call. = FALSE
+    )
   }
   suprimidas <- if ("objeto_medible" %in% names(medidas)) {
     !is.na(medidas$objeto_medible) & grepl(
