@@ -972,6 +972,64 @@ comparar_perfiles <- function(anterior, actual, umbral_cambio = 0.05,
     )
   }
 
+  # `cadenas_ausencia` es la gemela textual de los centinelas numericos: las dos
+  # redefinen que cuenta como ausente. No se comparaba, y con los MISMOS datos y
+  # la lista declarada en una sola corrida la deriva publicaba los faltantes
+  # bajando de 0,305 a 0 y el hallazgo "resuelto" con severidad `ok` -una mejora
+  # que no ocurrio-, o en la otra direccion un deterioro con severidad `error`.
+  # Se declara con su propia fila, igual que la politica gemela.
+  cadenas <- function(x) {
+    x <- x$meta$cadenas_ausencia
+    if (is.null(x) || !length(x)) return(character())
+    sort(unique(as.character(x)))
+  }
+  cadenas_a <- cadenas(anterior)
+  cadenas_b <- cadenas(actual)
+  if (!identical(cadenas_a, cadenas_b)) {
+    ocultas <- anyNA(cadenas_a) || anyNA(cadenas_b)
+    agregar(
+      NA_character_, "configuracion_cadenas_ausencia",
+      if (ocultas) "no_comparable" else "modificado",
+      if (ocultas) "sospechoso" else "error",
+      if (length(cadenas_a)) paste(cadenas_a, collapse = "; ") else "ninguna",
+      if (length(cadenas_b)) paste(cadenas_b, collapse = "; ") else "ninguna",
+      descripcion = paste(
+        "Cambi\u00f3 la lista de cadenas que se declaran como ausencia; se",
+        "mantienen las comparaciones, pero las diferencias de faltantes y de",
+        "hallazgos de ausencia pueden venir de esta pol\u00edtica y no de los datos."
+      ),
+      evidencia = paste(
+        "Para comparar los datos, correr las dos con la misma",
+        "`cadenas_ausencia`."
+      )
+    )
+  }
+
+  # Y el tamano de la tabla. La cardinalidad se compara por TASA, asi que una
+  # tabla que duplica sus filas con valores nuevos deja la tasa igual y la deriva
+  # no publicaba nada del crecimiento, aunque el perfil lo trae y la propia
+  # evidencia de otras filas lo imprimia. Perder filas es sospechoso; ganarlas se
+  # declara sin alarma.
+  filas_a <- anterior$meta$filas_totales
+  filas_b <- actual$meta$filas_totales
+  if (is.numeric(filas_a) && is.numeric(filas_b) && length(filas_a) == 1L &&
+      length(filas_b) == 1L && !is.na(filas_a) && !is.na(filas_b) &&
+      filas_a != filas_b) {
+    agregar(
+      NA_character_, "filas", "modificado",
+      if (filas_b < filas_a) "sospechoso" else "ok",
+      filas_a, filas_b, delta = filas_b - filas_a,
+      cambio_relativo = if (filas_a > 0) (filas_b - filas_a) / filas_a else NA_real_,
+      significativo = TRUE,
+      descripcion = if (filas_b < filas_a) {
+        "La tabla tiene menos filas que en la corrida anterior."
+      } else {
+        "La tabla tiene m\u00e1s filas que en la corrida anterior."
+      },
+      evidencia = paste0("Filas: ", filas_a, " -> ", filas_b, ".")
+    )
+  }
+
   # Comparar un perfil protegido contra uno sin proteger publicaba los valores
   # que el lado protegido oculta, y la diferencia se leia como deriva del dato
   # cuando lo que cambio es la politica. No es una fuga -quien corre esa

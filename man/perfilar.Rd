@@ -927,6 +927,15 @@ mirar. \code{n_codificacion_invalida} sigue contando esos valores y el hallazgo
 \code{codificacion_invalida}, de severidad \code{error}, sigue declarando que se
 excluyeron.
 
+Esas cifras \strong{no son una partición}. \code{n_codificacion_rota} cuenta cada valor
+afectado una sola vez; \code{n_codificacion_reparable} y
+\code{n_codificacion_reparable_parcialmente}, los que el motor reparó del todo o
+en parte; \code{n_codificacion_irreparable}, los que traen el carácter de
+reemplazo \code{U+FFFD}, cuyo original ya no está; y \code{n_codificacion_no_se_pudo},
+los que el motor reconoce como mal convertidos y no pudo reparar. Un valor
+con \code{U+FFFD} suele contar en las dos últimas, así que sumarlas no da
+\code{n_codificacion_rota}.
+
 Los \strong{nombres de columna} que el perfil publica —en \code{columnas$columna} y en
 todo lo que nombre una columna: claves, relaciones, dependencias, hallazgos,
 patrones, el plan de remediación y el reporte— son los nombres de la tabla de

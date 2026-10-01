@@ -719,12 +719,18 @@ names(.ftfy_tablas_bytes) <- c(
   reparables <- !is.na(reparados) & !is.na(valores) & reparados != valores & estados == "reparado"
   parciales <- !is.na(reparados) & !is.na(valores) & reparados != valores & estados == "reparado_parcialmente"
   irreparables <- !is.na(valores) & grepl("\uFFFD", valores, fixed = TRUE)
-  afectados <- reparables | parciales | irreparables
+  # El motor puede reconocer un texto mal convertido y no poder repararlo sin que
+  # traiga el caracter de reemplazo. Quedaba fuera de los afectados: el perfil
+  # publicaba `n_codificacion_no_se_pudo = 1` y `estado = "no_se_pudo"`, y sin
+  # embargo ningun hallazgo ni accion. Ahora cuenta, una sola vez por valor.
+  no_se_pudo <- !is.na(valores) & !is.na(estados) & estados == "no_se_pudo"
+  afectados <- reparables | parciales | irreparables | no_se_pudo
   ejemplos <- utils::head(which(afectados), 5L)
   evidencia <- if (!length(ejemplos)) "" else paste(vapply(ejemplos, function(i) {
     origen <- encodeString(valores[[i]], quote = '"')
     if (reparables[[i]] || parciales[[i]]) paste0(origen, " -> ", encodeString(reparados[[i]], quote = '"'), " [", estados[[i]], "]")
-    else paste0(origen, " (contiene un caracter de reemplazo irrecuperable)")
+    else if (irreparables[[i]]) paste0(origen, " (contiene un caracter de reemplazo irrecuperable)")
+    else paste0(origen, " (mal convertido; el motor no pudo repararlo)")
   }, character(1L)), collapse = "; ")
   list(n = sum(afectados), n_reparables = sum(reparables),
        n_reparables_parcialmente = sum(parciales), n_irreparables = sum(irreparables),

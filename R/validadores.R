@@ -109,7 +109,11 @@
 #' existencia de un país, moneda, buzón o entidad emisora. Los códigos se
 #' contrastan con copias locales de las listas vigentes al preparar esta
 #' versión del paquete. Los valores ausentes devuelven `NA`; todo valor presente
-#' que no cumple el contrato devuelve `FALSE`.
+#' que no cumple el contrato devuelve `FALSE`. Los espacios **al borde** se
+#' recortan antes de validar —son ruido de captura, no parte del dato—, salvo en
+#' `validar_url()`, donde un espacio literal en cualquier posición rompe la
+#' sintaxis y el valor es inválido. Un espacio en el medio no se recorta en
+#' ningún validador.
 #'
 #' `validar_correo()` comprueba un subconjunto práctico y deliberadamente
 #' conservador de la sintaxis `addr-spec`: parte local de puntos y caracteres
@@ -194,6 +198,12 @@ NULL
       !grepl(":", host, fixed = TRUE)) return(FALSE)
   posiciones_compresion <- gregexpr("::", host, fixed = TRUE)[[1L]]
   if (sum(posiciones_compresion > 0L) > 1L) return(FALSE)
+  # Tres `:` seguidos no son una compresion mas un separador: no son nada. Y un
+  # `:` suelto al borde tampoco. `strsplit()` tira los grupos vacios, asi que
+  # `:::` quedaba en cero grupos "comprimidos" y pasaba como `::`.
+  if (grepl(":::", host, fixed = TRUE) ||
+      grepl("^:[^:]", host, perl = TRUE) ||
+      grepl("[^:]:$", host, perl = TRUE)) return(FALSE)
   comprimido <- grepl("::", host, fixed = TRUE)
   grupos <- strsplit(host, ":", fixed = TRUE)[[1L]]
   grupos <- grupos[nzchar(grupos)]
@@ -225,6 +235,12 @@ NULL
   if (!nzchar(host_sin_punto_final) || nchar(host, type = "bytes") > 253L) {
     return(FALSE)
   }
+  # Una etiqueta vacia -dos puntos seguidos, o un punto al borde despues de
+  # quitar el de la raiz- no es un nombre. `strsplit()` tira el campo vacio del
+  # FINAL, asi que `ejemplo.uy..` pasaba y `ejemplo...` no.
+  if (grepl("..", host_sin_punto_final, fixed = TRUE) ||
+      startsWith(host_sin_punto_final, ".") ||
+      endsWith(host_sin_punto_final, ".")) return(FALSE)
   etiquetas <- strsplit(host_sin_punto_final, ".", fixed = TRUE)[[1L]]
   all(nchar(etiquetas, type = "bytes") <= 63L) &&
     all(grepl(
@@ -269,6 +285,9 @@ NULL
     sub("^.*@", "", autoridad, perl = TRUE)
   } else autoridad
   if (grepl("@", host_puerto, fixed = TRUE)) return(FALSE)
+  # `@` es un delimitador: dentro del usuario va codificado (RFC 3986, 3.2.1).
+  # Se tomaba el host despues del ULTIMO `@` y `a@b` quedaba de usuario.
+  if (grepl("@", usuario, fixed = TRUE)) return(FALSE)
   if (nzchar(usuario) && !.url_componentes_validos(usuario)) return(FALSE)
 
   puerto <- ""
@@ -457,7 +476,17 @@ validar_mod97 <- function(x) {
 #' validar_rut_uy(c("21 100 342 0017", "21 030 367 0014"))
 NULL
 
-.solo_digitos <- function(valor) gsub("[.[:space:]-]", "", valor, perl = TRUE)
+# Los separadores se quitan sólo ENTRE dígitos. Un guion o un punto al borde no
+# es un separador de la escritura: es un signo o una fracción, y la
+# documentación promete que un número negativo o fraccionario no pasa.
+# `"-12345672"` quedaba en `"12345672"` y era una cédula válida, mientras
+# `-12345672` como número se rechazaba.
+.solo_digitos <- function(valor) {
+  al_borde <- !is.na(valor) & grepl("^[.-]|[.-]$", valor, perl = TRUE)
+  digitos <- gsub("[.[:space:]-]", "", valor, perl = TRUE)
+  digitos[al_borde] <- NA_character_
+  digitos
+}
 
 .ci_uy_vector <- function(valor) {
   resultado <- rep(FALSE, length(valor))

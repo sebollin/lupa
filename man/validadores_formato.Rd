@@ -41,7 +41,11 @@ Estas funciones son puras y vectorizadas: no consultan la red ni prueban la
 existencia de un país, moneda, buzón o entidad emisora. Los códigos se
 contrastan con copias locales de las listas vigentes al preparar esta
 versión del paquete. Los valores ausentes devuelven \code{NA}; todo valor presente
-que no cumple el contrato devuelve \code{FALSE}.
+que no cumple el contrato devuelve \code{FALSE}. Los espacios \strong{al borde} se
+recortan antes de validar —son ruido de captura, no parte del dato—, salvo en
+\code{validar_url()}, donde un espacio literal en cualquier posición rompe la
+sintaxis y el valor es inválido. Un espacio en el medio no se recorta en
+ningún validador.
 }
 \details{
 \code{validar_correo()} comprueba un subconjunto práctico y deliberadamente
