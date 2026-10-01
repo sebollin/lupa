@@ -615,6 +615,30 @@ motivos conocidos de que no se active: la funcion no esta disponible o
 el motor rechaza la sonda. En ese caso el mensaje del motor queda en
 `meta$mediana_consolidada$motivo`, y se conserva la mediana por columna.
 
+## Lo que el motor guarda distinto que R
+
+El resumen SQL describe lo que el motor tiene delante, y en tres casos
+eso no es lo mismo que la tabla en R:
+
+- **Fechas en SQLite.** SQLite no tiene tipo fecha: RSQLite guarda un
+  `Date` como número de días desde 1970 y un `POSIXct` como segundos, y
+  sin más información el motor los describe como números
+  —`minimo = 17956`—. Con
+  `DBI::dbConnect(RSQLite::SQLite(), ..., extended_types = TRUE)` la
+  columna se declara temporal y `perfilar_dbi()` no le aplica agregados
+  cuantitativos, y lo dice.
+
+- **`NaN` en duckdb.** duckdb conserva `NaN` como un valor: lo cuenta
+  como presente y distinto, y responde `MAX` y `AVG` con `NaN`. En R,
+  `NaN` cuenta como ausente. Los conteos pueden diferir por eso, y una
+  métrica que el motor respondió con `NaN` no se publica: queda
+  `no_disponible` con su motivo.
+
+- **La media en coma flotante.** Cada lado suma a su modo; sobre una
+  columna que mezcla magnitudes muy distintas —`1e20` junto a `1`— las
+  medias pueden diferir entre motores y con la de R, y ninguna es la
+  exacta. La corroboración cruzada lo declara cuando compara las dos.
+
 ## Costo
 
 Los agregados de una tabla ancha se emiten por lotes; `muestra` acota lo

@@ -2,6 +2,30 @@
 
 ## lupa 0.1.0
 
+### Ronda 11: el motor contra la memoria, y los agregados encadenados
+
+- **El alcance de un agregado de segundo nivel es el de cada entidad.**
+  Se emparejaba por el nombre de la metrica, que desde el segundo nivel
+  comparten todas las entidades, y cada una recibia la suma de todas: «6
+  de 8» donde cada una midio 3 de 4, y se duplicaba en cada nivel.
+- **Una corrida es un `id_medicion` y una `fecha`.** Dos corridas con el
+  mismo id y fechas distintas se mezclaban en
+  [`agregar()`](https://sebollin.github.io/lupa/reference/agregar.md) y
+  en el tablero sin aviso.
+- **Un `NaN` del motor no se publica como una cifra calculada.** duckdb
+  conserva `NaN` como valor y respondia `MAX` y `AVG` con `NaN`: salian
+  en `NA` con estado `calculado`. Ahora las metricas de magnitud de esa
+  columna quedan `no_disponible` con el motivo verdadero -antes culpaba
+  a la magnitud de la columna-, y la mediana tambien: el motor ordenaba
+  el `NaN` como el mayor valor.
+- **La sonda de magnitud usa `MAX`**, que ve un `NaN` en duckdb y
+  PostgreSQL y un texto colado en una columna numerica de SQLite; con
+  `MIN` no veia ninguno de los dos.
+- [`?perfilar_dbi`](https://sebollin.github.io/lupa/reference/perfilar_dbi.md)
+  declara lo que el motor guarda distinto que R: las fechas en SQLite
+  -con el remedio, `extended_types = TRUE`-, el `NaN` en duckdb y la
+  media en coma flotante sobre magnitudes muy distintas.
+
 ### Ronda 10: lo que publica un metodo propio
 
 - **Una `fila` que no existe deja la metrica `no_medible`.** Sin recorte

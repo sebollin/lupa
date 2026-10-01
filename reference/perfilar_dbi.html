@@ -656,6 +656,26 @@ rechaza la sonda. En ese caso el mensaje del motor queda en
 <code>meta$mediana_consolidada$motivo</code>, y se conserva la mediana por columna.</p>
     </div>
     <div class="section level2">
+    <h2 id="lo-que-el-motor-guarda-distinto-que-r">Lo que el motor guarda distinto que R<a class="anchor" aria-label="anchor" href="#lo-que-el-motor-guarda-distinto-que-r"></a></h2>
+
+
+<p>El resumen SQL describe lo que el motor tiene delante, y en tres casos eso no
+es lo mismo que la tabla en R:</p><ul><li><p><strong>Fechas en SQLite.</strong> SQLite no tiene tipo fecha: RSQLite guarda un <code>Date</code>
+como número de días desde 1970 y un <code>POSIXct</code> como segundos, y sin más
+información el motor los describe como números —<code>minimo = 17956</code>—. Con
+<code>DBI::dbConnect(RSQLite::SQLite(), ..., extended_types = TRUE)</code> la columna
+se declara temporal y <code>perfilar_dbi()</code> no le aplica agregados
+cuantitativos, y lo dice.</p></li>
+<li><p><strong><code>NaN</code> en duckdb.</strong> duckdb conserva <code>NaN</code> como un valor: lo cuenta como
+presente y distinto, y responde <code>MAX</code> y <code>AVG</code> con <code>NaN</code>. En R, <code>NaN</code> cuenta
+como ausente. Los conteos pueden diferir por eso, y una métrica que el motor
+respondió con <code>NaN</code> no se publica: queda <code>no_disponible</code> con su motivo.</p></li>
+<li><p><strong>La media en coma flotante.</strong> Cada lado suma a su modo; sobre una columna
+que mezcla magnitudes muy distintas —<code>1e20</code> junto a <code>1</code>— las medias pueden
+diferir entre motores y con la de R, y ninguna es la exacta. La
+corroboración cruzada lo declara cuando compara las dos.</p></li>
+</ul></div>
+    <div class="section level2">
     <h2 id="costo">Costo<a class="anchor" aria-label="anchor" href="#costo"></a></h2>
 
 

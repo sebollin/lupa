@@ -43,6 +43,19 @@
     <div class="section level2">
 <h2 class="pkg-version" data-toc-text="0.1.0" id="lupa-010">lupa 0.1.0<a class="anchor" aria-label="anchor" href="#lupa-010"></a></h2>
 <div class="section level3">
+<h3 id="ronda-el-motor-contra-la-memoria-y-los-agregados-encadenados-0-1-0">Ronda 11: el motor contra la memoria, y los agregados encadenados<a class="anchor" aria-label="anchor" href="#ronda-el-motor-contra-la-memoria-y-los-agregados-encadenados-0-1-0"></a></h3>
+<ul><li>
+<strong>El alcance de un agregado de segundo nivel es el de cada entidad.</strong> Se emparejaba por el nombre de la metrica, que desde el segundo nivel comparten todas las entidades, y cada una recibia la suma de todas: «6 de 8» donde cada una midio 3 de 4, y se duplicaba en cada nivel.</li>
+<li>
+<strong>Una corrida es un <code>id_medicion</code> y una <code>fecha</code>.</strong> Dos corridas con el mismo id y fechas distintas se mezclaban en <code><a href="../reference/agregar.html">agregar()</a></code> y en el tablero sin aviso.</li>
+<li>
+<strong>Un <code>NaN</code> del motor no se publica como una cifra calculada.</strong> duckdb conserva <code>NaN</code> como valor y respondia <code>MAX</code> y <code>AVG</code> con <code>NaN</code>: salian en <code>NA</code> con estado <code>calculado</code>. Ahora las metricas de magnitud de esa columna quedan <code>no_disponible</code> con el motivo verdadero -antes culpaba a la magnitud de la columna-, y la mediana tambien: el motor ordenaba el <code>NaN</code> como el mayor valor.</li>
+<li>
+<strong>La sonda de magnitud usa <code>MAX</code></strong>, que ve un <code>NaN</code> en duckdb y PostgreSQL y un texto colado en una columna numerica de SQLite; con <code>MIN</code> no veia ninguno de los dos.</li>
+<li>
+<code><a href="../reference/perfilar_dbi.html">?perfilar_dbi</a></code> declara lo que el motor guarda distinto que R: las fechas en SQLite -con el remedio, <code>extended_types = TRUE</code>-, el <code>NaN</code> en duckdb y la media en coma flotante sobre magnitudes muy distintas.</li>
+</ul></div>
+<div class="section level3">
 <h3 id="ronda-lo-que-publica-un-metodo-propio-0-1-0">Ronda 10: lo que publica un metodo propio<a class="anchor" aria-label="anchor" href="#ronda-lo-que-publica-un-metodo-propio-0-1-0"></a></h3>
 <ul><li>
 <strong>Una <code>fila</code> que no existe deja la metrica <code>no_medible</code>.</strong> Sin recorte por <code>aplicabilidad</code> no habia tope: <code>fila = 99</code> sobre cuatro filas se publicaba como medida y viajaba al historico, y una posicion mayor que 2^31 salia <code>NA</code> despues de la validacion.</li>
