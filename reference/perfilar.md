@@ -1309,15 +1309,18 @@ una columna `integer64`, `bit64` se carga de manera diferida si está
 instalado para registrar sus métodos antes de medir. Si no está
 instalado, las cinco medidas públicas de la secuencia quedan en `NA` y
 `cobertura_diagnosticos` declara que `secuencia_entera` no se evaluó por
-falta de esa dependencia. La guarda vuelve a abrirse si un candidato
-presente queda fuera del rango de los valores restantes de la
-numeración, o si la frecuencia del candidato es la moda sobresaliente.
-Esta segunda señal se mide por el **salto entre frecuencias
-consecutivas**, ordenadas de mayor a menor y mirando sólo las primeras
-posiciones. Es el mismo idioma que `salto_de_escala_secuencia_entera`
-usa con los huecos: lo que delata a un centinela no es que su frecuencia
-sea grande, sino que haya un **acantilado** entre el grupo que sobresale
-y el resto de la distribución.
+falta de esa dependencia. Lo mismo pasa si la columna tiene valores por
+encima de 2^53: en un doble se redondean, la densidad no se mide sobre
+números redondeados, y la secuencia queda en `NA` y declarada, no como
+«no densa». La guarda vuelve a abrirse si un candidato presente queda
+fuera del rango de los valores restantes de la numeración, o si la
+frecuencia del candidato es la moda sobresaliente. Esta segunda señal se
+mide por el **salto entre frecuencias consecutivas**, ordenadas de mayor
+a menor y mirando sólo las primeras posiciones. Es el mismo idioma que
+`salto_de_escala_secuencia_entera` usa con los huecos: lo que delata a
+un centinela no es que su frecuencia sea grande, sino que haya un
+**acantilado** entre el grupo que sobresale y el resto de la
+distribución.
 
 Comparar contra un valor concreto no alcanza, y cada intento lo rompió
 un caso distinto: contra el **segundo** valor, un señuelo legítimo y
