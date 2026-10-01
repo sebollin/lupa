@@ -1087,6 +1087,15 @@
 #' sobre la columna entera, porque necesita su CRS y sus tipos—, así que se publican
 #' tal como se midieron. Recortarlos a ojo sería inventar un número: no hay conjunto
 #' de índices del que derivarlos.
+#'
+#' **Una columna de texto puede ser una geometría.** Se reconoce como WKT o WKB
+#' (crudo o hexadecimal) cuando la mayoría de una muestra de 20 valores tiene esa
+#' forma; si después hay valores que no se pueden convertir, la pérdida se declara
+#' en `motivo_representacion`. Esa columna se sigue perfilando como texto en lo que
+#' toca a su escritura —espacios, codificación, invisibles—, pero no recibe los
+#' diagnósticos que leen los valores como palabras o como claves —la proximidad de
+#' vocabulario, `posible_identificador`, `patron_raro`—: `cobertura_diagnosticos`
+#' declara que no aplican.
 #' El argumento `normalizar` declara el perfil de comparación que se conserva
 #' en `meta$normalizacion`; cambia sólo la representación usada para comparar,
 #' no el texto guardado. `TRUE` usa el perfil predeterminado, `FALSE` desactiva
@@ -2261,6 +2270,13 @@ perfilar <- function(datos,
   )
   if (is.null(cobertura_diagnosticos)) {
     cobertura_diagnosticos <- .cobertura_diagnosticos_vacia()
+  }
+  retiro_geometria <- .retirar_hallazgos_texto_de_geometria(hallazgos, columnas)
+  hallazgos <- retiro_geometria$hallazgos
+  if (nrow(retiro_geometria$cobertura)) {
+    cobertura_diagnosticos <- rbind(
+      cobertura_diagnosticos, retiro_geometria$cobertura
+    )
   }
   cobertura_muestra <- .cobertura_muestra_perfilado(alcance_muestra)
   if (nrow(cobertura_muestra)) {

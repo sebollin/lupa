@@ -2333,7 +2333,18 @@
   # recortarse para que los indices de fila sigan alineados con la tabla.
   if (!all(aplicable)) {
     x_analisis[!aplicable] <- NA
-    x_identidad[!aplicable] <- NA
+    if (inherits(x_identidad, "sfc")) {
+      # Una geometria no admite `NA`: `sf` convierte la asignacion en una
+      # geometria VACIA -`POINT EMPTY`, con `is.na()` en FALSE-, que cuenta como
+      # un valor mas (`tasa_distintos = 1.5` sobre dos geometrias aplicables), y
+      # sobre la primera fila aborta -"object(s) should be of class 'sfg'"-. Aca
+      # `x_identidad` solo alimenta la inferencia, que sale de la clase, y
+      # agregados que no miran posiciones; los conteos por fila de la geometria
+      # ya se restringieron arriba. Se recorta a las filas aplicables.
+      x_identidad <- x_identidad[aplicable]
+    } else {
+      x_identidad[!aplicable] <- NA
+    }
   }
   # El perfilado conserva el resultado intermedio sólo durante esta llamada;
   # la función exportada `inferir_tipo()` nunca devuelve ese caché.
@@ -2559,7 +2570,16 @@
   # como ausente en vez de recortar, por el mismo motivo que arriba: para que
   # los indices de fila sigan alineados con la tabla.
   x_texto <- x
-  if (!all(aplicable)) x_texto[!aplicable] <- NA
+  if (!all(aplicable)) {
+    # Una geometria no admite `NA` -ver arriba, `x_identidad`- y los
+    # diagnosticos de texto la tratan igual que a una columna de ausentes
+    # (medido: mismo resultado), asi que se le pasa eso.
+    if (inherits(x_texto, "sfc")) {
+      x_texto <- rep(NA_character_, length(x_texto))
+    } else {
+      x_texto[!aplicable] <- NA
+    }
+  }
   diagnostico_texto <- .diagnosticar_texto(x_texto, vocabulario = vocabulario_texto)
   vocabulario_numeros <- if (
     is.null(vocabulario_texto) &&

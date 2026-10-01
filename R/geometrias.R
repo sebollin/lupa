@@ -546,11 +546,21 @@
   muestra[validUTF8(muestra)]
 }
 
+# Se reconoce por MAYORIA de la muestra, no por unanimidad. Con unanimidad, un
+# solo valor corrupto dejaba de reconocer la columna -tres WKT validos y una
+# basura se perfilaban como texto y `cobertura_analisis()` decia "no se
+# identificaron columnas de geometria"-, y como la muestra es de 20, la respuesta
+# dependia de si la basura caia en ella: con mil WKT y una basura afuera, la
+# columna si se reconocia y la perdida se declaraba. Lo que no convierte lo
+# declara la conversion, igual en los dos casos.
+.mayoria_geometria <- function(es_geometria) {
+  length(es_geometria) > 0L && mean(es_geometria) > 0.5
+}
+
 .parece_wkt <- function(x) {
   if (!is.character(x)) return(FALSE)
   muestra <- .muestra_texto_geometria(x)
-  length(muestra) > 0L &&
-    all(grepl(.patron_wkt, muestra, perl = TRUE, ignore.case = TRUE))
+  .mayoria_geometria(grepl(.patron_wkt, muestra, perl = TRUE, ignore.case = TRUE))
 }
 
 .parece_wkb_hexadecimal <- function(x) {
@@ -558,9 +568,11 @@
   muestra <- .muestra_texto_geometria(x)
   if (!length(muestra)) return(FALSE)
   largos <- nchar(muestra, type = "bytes")
-  all(largos >= 18L) && all(largos %% 2L == 0L) &&
-    all(grepl("^[0-9A-Fa-f]+$", muestra, perl = TRUE)) &&
-    all(substr(muestra, 1L, 2L) %in% c("00", "01"))
+  .mayoria_geometria(
+    largos >= 18L & largos %% 2L == 0L &
+      grepl("^[0-9A-Fa-f]+$", muestra, perl = TRUE) &
+      substr(muestra, 1L, 2L) %in% c("00", "01")
+  )
 }
 
 # Esta guarda lee solo el encabezado, no intenta validar el cuerpo recursivo de
@@ -1117,4 +1129,59 @@
     salida$motivo_dominio <- "La columna no declara un CRS."
   }
   salida
+}
+
+# Una columna de texto que el paquete RECONOCIO como geometria -WKT, WKB o su
+# forma hexadecimal- se sigue perfilando como texto: sus espacios sobrantes, su
+# codificacion o sus invisibles son defectos reales de esa escritura. Pero tres
+# diagnosticos leen los valores como palabras o como claves, y sobre una
+# geometria no dicen nada: `POINT (0 0)` y `POINT (1 1)` no son variantes de un
+# vocabulario, un WKB en hexadecimal no es un identificador de negocio y la forma
+# de unas coordenadas no es un patron raro. Los mismos tres puntos como `sfc`
+# daban un solo hallazgo; como WKT, ademas ruido de texto. Se retiran y se
+# declaran en la cobertura, con el nombre del diagnostico.
+.retirar_hallazgos_texto_de_geometria <- function(hallazgos, columnas) {
+  sin_cambios <- list(
+    hallazgos = hallazgos, cobertura = .cobertura_diagnosticos_vacia()
+  )
+  if (!nrow(hallazgos) || is.null(columnas$representacion_geometria)) {
+    return(sin_cambios)
+  }
+  geometricas <- columnas$columna[!is.na(columnas$representacion_geometria)]
+  if (!length(geometricas)) return(sin_cambios)
+  diagnostico_de <- c(
+    casi_duplicados_vocabulario = "proximidad_vocabulario",
+    variantes_equifrecuentes_vocabulario = "proximidad_vocabulario",
+    posible_identificador = "posible_identificador",
+    patron_raro = "patron_raro"
+  )
+  retirar <- hallazgos$tipo_hallazgo %in% names(diagnostico_de) &
+    .nombres_para_operar(hallazgos$columna) %in% .nombres_para_operar(geometricas)
+  if (!any(retirar)) return(sin_cambios)
+  retirados <- hallazgos[retirar, c("columna", "tipo_hallazgo"), drop = FALSE]
+  retirados$diagnostico <- unname(diagnostico_de[retirados$tipo_hallazgo])
+  retirados <- retirados[!duplicated(retirados[, c("columna", "diagnostico")]), ,
+                         drop = FALSE]
+  representacion <- columnas$representacion_geometria[
+    match(.nombres_para_operar(retirados$columna),
+          .nombres_para_operar(columnas$columna))
+  ]
+  cobertura <- do.call(rbind, lapply(seq_len(nrow(retirados)), function(i) {
+    .nuevo_diagnostico_no_evaluado(
+      retirados$diagnostico[[i]], retirados$columna[[i]],
+      paste0(
+        "La columna es una geometria escrita como texto (", representacion[[i]],
+        "): sus valores no son palabras ni claves, y este diagnostico de texto ",
+        "no aplica."
+      ),
+      paste(
+        "Convertirla con `sf::st_as_sfc()` para perfilarla como geometria. Los",
+        "diagnosticos de la escritura -espacios, codificacion, invisibles- se",
+        "siguen publicando."
+      )
+    )
+  }))
+  hallazgos <- hallazgos[!retirar, , drop = FALSE]
+  rownames(hallazgos) <- NULL
+  list(hallazgos = hallazgos, cobertura = cobertura)
 }

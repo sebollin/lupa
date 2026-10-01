@@ -24,7 +24,7 @@
   sobre los mismos dias. Sale `sin_comparar`, con
   `motivo_poda = "fecha_contra_instante"`.
 
-## Ronda 16: el historico entre sesiones
+## Ronda 16: el historico entre sesiones y las geometrias
 
 - **La configuracion de una corrida no depende de como imprime la sesion.** En R
   4.6, `as.character()` de un doble depende de `scipen` (`1e+07` o `10000000`) y
@@ -40,6 +40,15 @@
 - **La deriva no dice que cambio un tipo cuando cambio el conjunto de metricas**,
   y no afirma en una fila que se mantienen las comparaciones que otra fila
   retiro. El diagnostico de una serie sin par nombra su tabla.
+- **`aplicabilidad` sobre una columna de geometria.** `perfilar()` y `analizar()`
+  abortaban si la regla dejaba afuera la primera fila de una `sfc`, y en las demas
+  posiciones las filas excluidas se volvian geometrias vacias que contaban como un
+  valor mas (`tasa_distintos = 1.5`). Ahora se recortan al universo.
+- **Una geometria escrita como texto no recibe diagnosticos de palabras.** Una
+  columna WKT o WKB reconocida recibia ademas la proximidad de vocabulario,
+  `posible_identificador` y `patron_raro`; ahora no, y la cobertura lo declara.
+  Y se reconoce por mayoria de la muestra: un solo valor corrupto dejaba de
+  reconocerla, segun donde cayera.
 
 ## Ronda 15, segunda parte: estimaciones, senales, patrones y correos
 
