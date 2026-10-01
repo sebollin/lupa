@@ -9,12 +9,46 @@
   if (is.numeric(x) && !inherits(x, c("Date", "POSIXt"))) {
     opciones <- options(OutDec = ".")
     on.exit(options(opciones), add = TRUE)
-    textos <- vapply(
-      seq_along(x), function(i) .formatear_numero_publicado(x[[i]]),
-      character(1L), USE.NAMES = FALSE
-    )
+    textos <- if (is.double(x) && !inherits(x, "integer64") || is.integer(x)) {
+      .formatear_numeros_uno_a_uno(x)
+    } else {
+      vapply(
+        seq_along(x), function(i) .formatear_numero_publicado(x[[i]]),
+        character(1L), USE.NAMES = FALSE
+      )
+    }
   }
   trimws(textos)
+}
+
+# Lo mismo que `.formatear_numero_publicado()` valor por valor -15 cifras, sin
+# notacion cientifica, cada numero con sus propias cifras- pero en una pasada.
+# Se llamaba una vez POR VALOR: en una tabla de 200.000 filas, el 20 % del tiempo
+# de `perfilar()` se iba en formatear numeros para clasificarlos como dato
+# personal. `as.character()` con `scipen` alto da el mismo texto -medido sobre
+# 1,3 millones de valores de todas las magnitudes y signos: cero diferencias-,
+# salvo en los valores no nulos por debajo de 1e-4, donde `format()` deja ceros
+# finales; esos, pocos, siguen por el camino de uno en uno. Un `integer64` no
+# entra aca: `as.double()` lo redondearia.
+.formatear_numeros_uno_a_uno <- function(x) {
+  salida <- rep(NA_character_, length(x))
+  utiles <- !is.na(x)
+  if (!any(utiles)) return(salida)
+  valores <- as.double(x[utiles]) + 0
+  # `OutDec` NO se toca aca: quien llama decide la marca -la clasificacion la fija
+  # en "." y la cosecha de valores protegidos usa la de la sesion, que es con la
+  # que salen publicados-. `as.character()` y `format()` la respetan las dos.
+  opciones <- options(scipen = 999)
+  on.exit(options(opciones), add = TRUE)
+  texto <- as.character(valores)
+  chicos <- is.finite(valores) & valores != 0 & abs(valores) < 1e-4
+  if (any(chicos)) {
+    texto[chicos] <- vapply(
+      valores[chicos], .formatear_numero_publicado, character(1L)
+    )
+  }
+  salida[utiles] <- texto
+  salida
 }
 
 # La proporcion se calcula sobre los valores que se pueden juzgar -un blanco no
@@ -655,6 +689,34 @@
 # arman prosa con valores de filas; si una queda fuera, el dato llega igual a
 # `hallazgos`, al HTML o al plan. Este es el inventario de representaciones que
 # puede publicar una salida sin conservar la columna original.
+# `.texto_valor()` sobre cada elemento, en una pasada por clase. Se llamaba una
+# vez POR CELDA de cada columna protegida: sobre 200.000 filas, 13 de los 44
+# segundos de la proteccion. Las clases que no se reconocen siguen por el camino
+# de uno en uno.
+.texto_valor_vector <- function(x) {
+  if (!length(x)) return(character())
+  if (inherits(x, "POSIXt")) {
+    salida <- format(x, "%Y-%m-%d %H:%M:%S UTC", tz = "UTC")
+    salida[is.na(x)] <- NA_character_
+    return(salida)
+  }
+  if (inherits(x, "Date")) {
+    salida <- format(x, "%Y-%m-%d")
+    salida[is.na(x)] <- NA_character_
+    return(salida)
+  }
+  if ((is.double(x) && !inherits(x, "integer64") && is.null(attr(x, "class"))) ||
+      (is.integer(x) && is.null(attr(x, "class")))) {
+    return(.formatear_numeros_uno_a_uno(x))
+  }
+  if (is.character(x) || is.factor(x) || is.logical(x)) {
+    salida <- as.character(x)
+    salida[is.na(x)] <- NA_character_
+    return(salida)
+  }
+  vapply(seq_along(x), function(i) .texto_valor(x[i]), character(1L))
+}
+
 .valores_publicables_protegidos <- function(datos, sensibles) {
   if (!inherits(datos, "data.frame") || !length(sensibles)) {
     return(character())
@@ -669,7 +731,7 @@
     formateados <- tryCatch(c(
       format(x, digits = 15L, trim = TRUE, scientific = FALSE),
       format(x, digits = 8L, trim = TRUE, scientific = FALSE),
-      vapply(seq_along(x), function(i) .texto_valor(x[i]), character(1L))
+      .texto_valor_vector(x)
     ), error = function(e) character())
     c(crudos, formateados)
   }), use.names = FALSE)
@@ -816,6 +878,13 @@
   if (!any(candidatas)) return(x)
   pajar <- normalizar(x[candidatas])
   crudos <- sin_tildes(x[candidatas])
+  # La regla de digitos de mas abajo compara en la direccion contraria -la corrida
+  # de la celda DENTRO de la aguja, que es el documento sin su verificador-, y
+  # ahi el comienzo de la aguja no tiene por que aparecer: usa todas.
+  agujas_todas <- agujas
+  agujas <- .valores_que_pueden_aparecer(
+    agujas, pajar, .MIN_LARGO_VALOR_IDENTIFICANTE
+  )
   limites <- rep_len(as.logical(exigir_limites), length(x))[candidatas]
   limites[is.na(limites)] <- FALSE
   golpea <- rep(FALSE, length(pajar))
@@ -871,7 +940,7 @@
   # corridas de 1, 3 y 3 digitos -ninguna llega al piso de seis- y la regla no veia
   # nada. Sobre "caja4123456" la corrida es "4123456" y si. La primera version de
   # esta guarda media la celda cruda y daba OK sin tapar el fragmento.
-  digitos_aguja <- unique(unlist(corridas_largas(agujas), use.names = FALSE))
+  digitos_aguja <- unique(unlist(corridas_largas(agujas_todas), use.names = FALSE))
   if (length(digitos_aguja) && !all(golpea)) {
     corridas_pajar <- corridas_largas(pajar)
     planas <- unlist(corridas_pajar, use.names = FALSE)
@@ -902,6 +971,47 @@
   x
 }
 
+# Prefiltro para las dos reglas de reemplazo. Su costo era el producto de la
+# cantidad de valores protegidos por la cantidad de textos de la salida -cada
+# valor recorria todos los textos-, y en una base real los dos crecen con las
+# filas: sobre 200.000 filas, la proteccion era la mitad de `perfilar()`. Si un
+# valor aparece dentro de un texto, sus primeros `k` bytes aparecen como un tramo
+# de `k` bytes de ese texto: se arma una vez el conjunto de esos tramos y solo se
+# buscan los valores cuyo comienzo esta en el. Nunca descarta una coincidencia
+# verdadera. Se trabaja en BYTES, igual que los `gsub(useBytes = TRUE)` que
+# reemplazan, para no depender de la marca de codificacion; el byte nulo separa
+# los textos y no puede formar parte de un valor.
+.tramos_bytes <- function(textos, k) {
+  textos <- textos[!is.na(textos)]
+  if (!length(textos)) return(numeric())
+  bytes <- as.integer(unlist(
+    lapply(textos, function(texto) c(charToRaw(texto), as.raw(0L))),
+    use.names = FALSE
+  ))
+  n <- length(bytes) - k + 1L
+  if (n < 1L) return(numeric())
+  clave <- numeric(n)
+  for (j in seq_len(k)) clave <- clave * 256 + bytes[j:(j + n - 1L)]
+  unique(clave)
+}
+
+.comienzo_bytes <- function(valores, k) {
+  potencias <- 256^((k - 1L):0L)
+  vapply(valores, function(valor) {
+    sum(as.integer(charToRaw(valor)[seq_len(k)]) * potencias)
+  }, numeric(1L), USE.NAMES = FALSE)
+}
+
+.valores_que_pueden_aparecer <- function(valores, textos, k) {
+  largos <- nchar(valores, type = "bytes", allowNA = TRUE)
+  largos_ok <- !is.na(largos) & largos >= k
+  if (!any(largos_ok)) return(valores)
+  presentes <- .tramos_bytes(textos, k)
+  posibles <- !largos_ok
+  posibles[largos_ok] <- .comienzo_bytes(valores[largos_ok], k) %in% presentes
+  valores[posibles]
+}
+
 .reemplazar_valores_protegidos <- function(x, valores, exigir_limites = FALSE) {
   if (!is.character(x) || !length(valores)) return(x)
   # DE MAS LARGO A MAS CORTO, y una sola vez cada uno. Las dos cosas arreglan una
@@ -928,6 +1038,10 @@
   # cambia el resultado.
   valores <- unique(valores)
   valores <- valores[order(-nchar(valores, type = "bytes"))]
+  # La regla de variantes recibe TODOS los valores: el prefiltro de aca mira la
+  # escritura exacta, y una variante no la comparte.
+  todos <- valores
+  valores <- .valores_que_pueden_aparecer(valores, x, 3L)
   for (valor in valores) {
     largo <- nchar(valor, type = "bytes")
     if (is.na(largo) || !largo) next
@@ -949,7 +1063,7 @@
       x <- gsub(valor, "[valor protegido]", x, fixed = TRUE, useBytes = TRUE)
     }
   }
-  x <- .reemplazar_variantes_separadas(x, valores, exigir_limites)
+  x <- .reemplazar_variantes_separadas(x, todos, exigir_limites)
   x
 }
 

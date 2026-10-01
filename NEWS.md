@@ -1,5 +1,18 @@
 # lupa 0.1.0
 
+## La proteccion de datos personales, mas rapida
+
+- **`perfilar()` tarda la mitad sobre tablas grandes con datos personales.** Sobre
+  una tabla sintetica de 19 columnas, de 354 a 188 s en 800.000 filas. La
+  proteccion formateaba los numeros y textos valor por valor, y cada valor
+  protegido recorria todos los textos de la salida; ahora se formatea en una
+  pasada por clase y un prefiltro por bytes descarta de entrada los valores que no
+  pueden aparecer. El resultado es identico -medido sobre perfiles, planes y con
+  coma decimal-.
+- La clasificacion y la proteccion de datos personales figuran como etapas en la
+  medicion de tiempos de `perfilar_dbi()`: corrian fuera de toda etapa, y sobre
+  800.000 filas eran tres cuartos del tiempo sin atribuir.
+
 ## Ronda 18: la proteccion de datos personales, refutada
 
 - **El nombre de una persona dentro de un texto libre de otra columna se

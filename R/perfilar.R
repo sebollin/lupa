@@ -2375,12 +2375,19 @@ perfilar <- function(datos,
     )
     rownames(hallazgos) <- NULL
   }
-  datos_personales <- .detectar_datos_personales(
-    datos, nombres, resultados,
-    validadores = validadores_personales,
-    umbral_verificado = umbral_documento_verificado,
-    muestra_validadores = muestra_validadores,
-    declaradas = columnas_personales
+  # La clasificacion y la proteccion de datos personales corrian FUERA de las
+  # etapas que registra el trazador: medido sobre 800.000 filas, tres cuartos del
+  # tiempo de `perfilar()` no figuraban en ninguna etapa, y sobre la base real de
+  # 4,2 millones no se podia saber donde se iba la hora.
+  datos_personales <- .medir_etapa_dbi(
+    trazador_tiempos, "clasificacion_datos_personales",
+    .detectar_datos_personales(
+      datos, nombres, resultados,
+      validadores = validadores_personales,
+      umbral_verificado = umbral_documento_verificado,
+      muestra_validadores = muestra_validadores,
+      declaradas = columnas_personales
+    )
   )
   indice_personal <- .indice_nombre(
     columnas$columna, datos_personales$columna
@@ -2615,6 +2622,10 @@ perfilar <- function(datos,
     )]
   }
   class(estructura) <- "perfil"
-  if (proteger_datos_personales) estructura <- .proteger_perfil(estructura, datos)
+  estructura <- .medir_etapa_dbi(
+    trazador_tiempos, "proteccion_datos_personales",
+    if (proteger_datos_personales) .proteger_perfil(estructura, datos) else estructura,
+    activa = proteger_datos_personales
+  )
   estructura
 }
