@@ -67,7 +67,10 @@ dominios que no tienen nada que ver entre sí.</p>
 
 
 <dl><dt id="arg-datos">datos<a class="anchor" aria-label="anchor" href="#arg-datos"></a></dt>
-<dd><p>Data frame a perfilar.</p></dd>
+<dd><p>Data frame a perfilar. Sus nombres de columna tienen que ser
+distintos: cada grupo se arma por nombre, y con dos columnas iguales se
+perfilaría una en lugar de la otra. Si los hay, la función se detiene;
+renómbrelas, por ejemplo con <code>names(datos) &lt;- make.unique(names(datos))</code>.</p></dd>
 
 
 <dt id="arg-por">por<a class="anchor" aria-label="anchor" href="#arg-por"></a></dt>
@@ -84,9 +87,16 @@ etiqueta lleva las cifras que hacen falta para distinguirlos
 (<code>"1.0000000000000003e+17"</code>), de modo que cada grupo corresponde a un valor y
 <code><a href="https://rdrr.io/r/base/numeric.html" class="external-link">as.numeric()</a></code> de la etiqueta recupera ese valor exacto. Para la enorme
 mayoría de los números la etiqueta es la de siempre.</p>
+<p>Lo mismo vale para las otras clases: un <code>integer64</code> se etiqueta con sus
+cifras exactas, aun por encima de 2^53; un complejo, con sus dos partes;
+una fecha, con su escritura <code>AAAA-MM-DD</code>, y una fecha-hora, con la suya
+hasta el microsegundo y el huso de la columna —no con su número de días o
+de segundos—.</p>
 <p>Si la columna es un <strong>factor</strong>, un nivel declarado sin ninguna fila es un
 grupo de cero filas: no se perfila y se declara en <code>cobertura_grupos</code>, igual
-que cualquier grupo por debajo de <code>min_filas</code>.</p></dd>
+que cualquier grupo por debajo de <code>min_filas</code>. Eso incluye un nivel
+llamado <code>"(ausente)"</code> sin filas cuando la columna también tiene <code>NA</code>: los
+<code>NA</code> se perfilan como su propio grupo, y el nivel vacío se declara aparte.</p></dd>
 
 
 <dt id="arg-clave">clave<a class="anchor" aria-label="anchor" href="#arg-clave"></a></dt>
@@ -104,7 +114,9 @@ está.</p></dd>
 
 <dt id="arg-min-filas">min_filas<a class="anchor" aria-label="anchor" href="#arg-min-filas"></a></dt>
 <dd><p>Grupos con menos filas que este número no se perfilan y se
-declaran en la cobertura. El valor por omisión evita conclusiones sobre
+declaran en la cobertura. Tiene que ser un entero positivo: un valor
+fraccionario se rechaza, en vez de truncarlo y perfilar un grupo que
+estaba por debajo del umbral. El valor por omisión evita conclusiones sobre
 grupos donde ningún diagnóstico tiene soporte.</p></dd>
 
 
@@ -133,7 +145,11 @@ hallazgos y otra vez en la cobertura.</p>
 grupo puede aparecer más de una vez; la cuenta se hace sobre grupos
 distintos. La suma de <code>n_filas_grupo</code> sobre los grupos distintos —los
 perfilados, que están en los hallazgos y en las filas con
-<code>grupo_perfilado = TRUE</code>, más los no perfilados— da las filas de la tabla.</p>
+<code>grupo_perfilado = TRUE</code>, más los no perfilados— da las filas de la tabla.
+Para que la cuenta cierre, un grupo perfilado que no produjo ningún
+hallazgo también tiene su fila en <code>cobertura_grupos</code>, con
+<code>grupo_perfilado = TRUE</code> y ese motivo: si no, no estaría en ninguna de las
+dos tablas.</p>
 <p>El atributo <code>etiquetas_personales</code> declara si la columna de agrupación
 lleva datos personales. Las etiquetas de grupo <strong>son</strong> valores de esa
 columna, así que la salida los publica —en los hallazgos y en las dos

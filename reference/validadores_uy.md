@@ -38,7 +38,9 @@ numérico el punto es el separador decimal y el guion es el signo, así
 que un número fraccionario o negativo devuelve `FALSE` —no se le quita
 la fracción ni el signo para hacerlo pasar—. Un número entero no
 negativo sí se valida, como cualquier otra escritura del mismo
-documento.
+documento, y por sus dígitos: el doble `12000000` es la cédula
+`"12000000"` aunque `scipen` lo imprima en notación científica. `NaN` es
+ausente y devuelve `NA`.
 
 ## References
 

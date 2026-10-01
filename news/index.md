@@ -2,6 +2,44 @@
 
 ## lupa 0.1.0
 
+### Ronda 14: fechas, validadores y perfil por grupos
+
+- **Una fecha que la deteccion excluye no entra en el resumen.** En
+  `%Y%m%d`, un `99991231` quedaba fuera del formato -el rango admitido
+  es 1800 a 2100- pero el perfil lo publicaba como `maximo_fecha`. Ahora
+  la deteccion y el resumen usan la misma regla de validez, que tambien
+  rechaza el segundo 60 y no deja salir el aviso crudo de
+  [`strptime()`](https://rdrr.io/r/base/strptime.html) ante un huso
+  imposible.
+- **Una fecha que los dos formatos confirmados leen distinto no se
+  convierte.** En una columna mixta d/m y m/d, `01/12/2020` quedaba en
+  el formato de la mayoria, y agregar una fila que no estaba en ningun
+  extremo movia el rango cinco meses. Ahora queda sin convertir, y el
+  plan bloquea la conversion mientras haya ambiguos.
+- **Los validadores responden por el dato y no por su escritura en R.**
+  Un doble se valida por sus digitos (`12000000` era una cedula
+  invalida, y con `scipen` lo era cualquiera); las mayusculas son solo
+  ASCII ([`toupper()`](https://rdrr.io/r/base/chartr.html) volvia `ſe`
+  un codigo ISO); una URL marcada `latin1` vale lo mismo que en UTF-8, y
+  `NaN` es ausente.
+- **[`perfilar_por()`](https://sebollin.github.io/lupa/reference/perfilar_por.md)
+  etiqueta cada grupo con su valor.** Un `integer64` por encima de 2^53
+  salia con los bits crudos (`4.45e-308`), un complejo fundia dos
+  valores, y una fecha o fecha-hora se etiquetaba con su numero de dias
+  o de segundos.
+- **[`perfilar_por()`](https://sebollin.github.io/lupa/reference/perfilar_por.md)
+  declara todo lo que no perfila.** Un grupo perfilado sin hallazgos
+  aparece en `cobertura_grupos`, para que la reconciliacion de filas
+  cierre; un nivel `(ausente)` declarado y vacio se declara aunque haya
+  `NA`; un factor con `NA` como nivel ya no aborta. Los nombres de
+  columna repetidos y un `min_filas` fraccionario se rechazan con un
+  error claro.
+- **El veredicto de
+  [`comparar_equivalencia()`](https://sebollin.github.io/lupa/reference/comparar_equivalencia.md)
+  sale de la diferencia que publica.** En el borde, las dos cuentas
+  diferian en el ultimo bit, y la misma fila decia `equivalente` con una
+  diferencia mayor que la tolerancia.
+
 ### Ronda 13: reparacion de texto, validadores y deriva entre perfiles
 
 - **[`validar_url()`](https://sebollin.github.io/lupa/reference/validadores_formato.md)

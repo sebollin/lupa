@@ -43,6 +43,21 @@
     <div class="section level2">
 <h2 class="pkg-version" data-toc-text="0.1.0" id="lupa-010">lupa 0.1.0<a class="anchor" aria-label="anchor" href="#lupa-010"></a></h2>
 <div class="section level3">
+<h3 id="ronda-fechas-validadores-y-perfil-por-grupos-0-1-0">Ronda 14: fechas, validadores y perfil por grupos<a class="anchor" aria-label="anchor" href="#ronda-fechas-validadores-y-perfil-por-grupos-0-1-0"></a></h3>
+<ul><li>
+<strong>Una fecha que la deteccion excluye no entra en el resumen.</strong> En <code>%Y%m%d</code>, un <code>99991231</code> quedaba fuera del formato -el rango admitido es 1800 a 2100- pero el perfil lo publicaba como <code>maximo_fecha</code>. Ahora la deteccion y el resumen usan la misma regla de validez, que tambien rechaza el segundo 60 y no deja salir el aviso crudo de <code><a href="https://rdrr.io/r/base/strptime.html" class="external-link">strptime()</a></code> ante un huso imposible.</li>
+<li>
+<strong>Una fecha que los dos formatos confirmados leen distinto no se convierte.</strong> En una columna mixta d/m y m/d, <code>01/12/2020</code> quedaba en el formato de la mayoria, y agregar una fila que no estaba en ningun extremo movia el rango cinco meses. Ahora queda sin convertir, y el plan bloquea la conversion mientras haya ambiguos.</li>
+<li>
+<strong>Los validadores responden por el dato y no por su escritura en R.</strong> Un doble se valida por sus digitos (<code>12000000</code> era una cedula invalida, y con <code>scipen</code> lo era cualquiera); las mayusculas son solo ASCII (<code><a href="https://rdrr.io/r/base/chartr.html" class="external-link">toupper()</a></code> volvia <code>ſe</code> un codigo ISO); una URL marcada <code>latin1</code> vale lo mismo que en UTF-8, y <code>NaN</code> es ausente.</li>
+<li>
+<strong><code><a href="../reference/perfilar_por.html">perfilar_por()</a></code> etiqueta cada grupo con su valor.</strong> Un <code>integer64</code> por encima de 2^53 salia con los bits crudos (<code>4.45e-308</code>), un complejo fundia dos valores, y una fecha o fecha-hora se etiquetaba con su numero de dias o de segundos.</li>
+<li>
+<strong><code><a href="../reference/perfilar_por.html">perfilar_por()</a></code> declara todo lo que no perfila.</strong> Un grupo perfilado sin hallazgos aparece en <code>cobertura_grupos</code>, para que la reconciliacion de filas cierre; un nivel <code>(ausente)</code> declarado y vacio se declara aunque haya <code>NA</code>; un factor con <code>NA</code> como nivel ya no aborta. Los nombres de columna repetidos y un <code>min_filas</code> fraccionario se rechazan con un error claro.</li>
+<li>
+<strong>El veredicto de <code><a href="../reference/comparar_equivalencia.html">comparar_equivalencia()</a></code> sale de la diferencia que publica.</strong> En el borde, las dos cuentas diferian en el ultimo bit, y la misma fila decia <code>equivalente</code> con una diferencia mayor que la tolerancia.</li>
+</ul></div>
+<div class="section level3">
 <h3 id="ronda-reparacion-de-texto-validadores-y-deriva-entre-perfiles-0-1-0">Ronda 13: reparacion de texto, validadores y deriva entre perfiles<a class="anchor" aria-label="anchor" href="#ronda-reparacion-de-texto-validadores-y-deriva-entre-perfiles-0-1-0"></a></h3>
 <ul><li>
 <strong><code><a href="../reference/validadores_formato.html">validar_url()</a></code> rechaza tres formas que no son sintaxis</strong>: <code>[:::]</code> como host IPv6, un host con una etiqueta vacia al final (<code>ejemplo.uy..</code>) y una <code>@</code> sin codificar dentro del usuario.</li>

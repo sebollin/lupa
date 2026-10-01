@@ -82,7 +82,9 @@ guion se admiten porque una persona escribe <code>1.234.567-2</code>; en un valo
 numérico el punto es el separador decimal y el guion es el signo, así que un
 número fraccionario o negativo devuelve <code>FALSE</code> —no se le quita la fracción
 ni el signo para hacerlo pasar—. Un número entero no negativo sí se valida,
-como cualquier otra escritura del mismo documento.</p>
+como cualquier otra escritura del mismo documento, y por sus dígitos: el
+doble <code>12000000</code> es la cédula <code>"12000000"</code> aunque <code>scipen</code> lo imprima en
+notación científica. <code>NaN</code> es ausente y devuelve <code>NA</code>.</p>
     </div>
     <div class="section level2">
     <h2 id="references">References<a class="anchor" aria-label="anchor" href="#references"></a></h2>

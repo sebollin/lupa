@@ -18,7 +18,11 @@ perfilar_por(datos, por, clave = NULL, min_filas = 30L, ...)
 
 - datos:
 
-  Data frame a perfilar.
+  Data frame a perfilar. Sus nombres de columna tienen que ser
+  distintos: cada grupo se arma por nombre, y con dos columnas iguales
+  se perfilaría una en lugar de la otra. Si los hay, la función se
+  detiene; renómbrelas, por ejemplo con
+  `names(datos) <- make.unique(names(datos))`.
 
 - por:
 
@@ -39,10 +43,18 @@ perfilar_por(datos, por, clave = NULL, min_filas = 30L, ...)
   etiqueta recupera ese valor exacto. Para la enorme mayoría de los
   números la etiqueta es la de siempre.
 
+  Lo mismo vale para las otras clases: un `integer64` se etiqueta con
+  sus cifras exactas, aun por encima de 2^53; un complejo, con sus dos
+  partes; una fecha, con su escritura `AAAA-MM-DD`, y una fecha-hora,
+  con la suya hasta el microsegundo y el huso de la columna —no con su
+  número de días o de segundos—.
+
   Si la columna es un **factor**, un nivel declarado sin ninguna fila es
   un grupo de cero filas: no se perfila y se declara en
   `cobertura_grupos`, igual que cualquier grupo por debajo de
-  `min_filas`.
+  `min_filas`. Eso incluye un nivel llamado `"(ausente)"` sin filas
+  cuando la columna también tiene `NA`: los `NA` se perfilan como su
+  propio grupo, y el nivel vacío se declara aparte.
 
 - clave:
 
@@ -63,8 +75,10 @@ perfilar_por(datos, por, clave = NULL, min_filas = 30L, ...)
 - min_filas:
 
   Grupos con menos filas que este número no se perfilan y se declaran en
-  la cobertura. El valor por omisión evita conclusiones sobre grupos
-  donde ningún diagnóstico tiene soporte.
+  la cobertura. Tiene que ser un entero positivo: un valor fraccionario
+  se rechaza, en vez de truncarlo y perfilar un grupo que estaba por
+  debajo del umbral. El valor por omisión evita conclusiones sobre
+  grupos donde ningún diagnóstico tiene soporte.
 
 - ...:
 
@@ -96,7 +110,10 @@ un grupo puede aparecer más de una vez; la cuenta se hace sobre grupos
 distintos. La suma de `n_filas_grupo` sobre los grupos distintos —los
 perfilados, que están en los hallazgos y en las filas con
 `grupo_perfilado = TRUE`, más los no perfilados— da las filas de la
-tabla.
+tabla. Para que la cuenta cierre, un grupo perfilado que no produjo
+ningún hallazgo también tiene su fila en `cobertura_grupos`, con
+`grupo_perfilado = TRUE` y ese motivo: si no, no estaría en ninguna de
+las dos tablas.
 
 El atributo `etiquetas_personales` declara si la columna de agrupación
 lleva datos personales. Las etiquetas de grupo **son** valores de esa

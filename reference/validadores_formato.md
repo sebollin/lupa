@@ -50,6 +50,16 @@ Vector lógico de la misma longitud que `x`.
 
 ## Details
 
+La respuesta es sobre el dato, no sobre cómo lo escribe R. Un número se
+valida por sus dígitos: el doble `12000000` se lee como `"12000000"`
+aunque `scipen` lo imprima en notación científica. `NaN` es ausente y
+devuelve `NA`, igual que en el resto del paquete. Las letras se pasan a
+mayúsculas sólo dentro de ASCII:
+[`toupper()`](https://rdrr.io/r/base/chartr.html) convierte `ſ` en `S` y
+`ı` en `I`, y con eso `"ſe"` pasaba por un código ISO; ahora es
+inválido. Y la marca de codificación del texto —`latin1` o UTF-8— no
+cambia la respuesta.
+
 `validar_correo()` comprueba un subconjunto práctico y deliberadamente
 conservador de la sintaxis `addr-spec`: parte local de puntos y
 caracteres ASCII habituales, seguida por un dominio DNS con al menos un
