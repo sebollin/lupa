@@ -1134,6 +1134,9 @@ instalado para registrar sus métodos antes de medir. Si no está instalado,
 las cinco medidas públicas de la secuencia quedan en \code{NA} y
 \code{cobertura_diagnosticos} declara que \code{secuencia_entera} no se evaluó por
 falta de esa dependencia.
+Lo mismo pasa si la columna tiene valores por encima de 2^53: en un doble se
+redondean, la densidad no se mide sobre números redondeados, y la secuencia
+queda en \code{NA} y declarada, no como «no densa».
 La guarda vuelve a abrirse si un candidato presente queda fuera del rango de
 los valores restantes de la numeración, o si la frecuencia del candidato es
 la moda sobresaliente. Esta segunda señal se mide por el \strong{salto entre

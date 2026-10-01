@@ -201,6 +201,22 @@
   ))
 }
 
+# Una comparacion que se publica tiene que leerse verdadera: 2,99957 con tres
+# decimales es "3.000", y el motivo decia "ordenes de magnitud 3.000 < 3". Se
+# agregan decimales hasta que el valor y el umbral se distingan.
+.decimal_frente_a_umbral <- function(valor, umbral, digits = 3L) {
+  if (!isTRUE(is.finite(valor)) || !isTRUE(is.finite(umbral)) ||
+      valor == umbral) {
+    return(.formatear_decimal_publicado(valor, digits))
+  }
+  for (d in seq.int(digits, 15L)) {
+    if (round(valor, d) != round(umbral, d)) {
+      return(.formatear_decimal_publicado(valor, d))
+    }
+  }
+  .formatear_decimal_publicado(valor, 15L)
+}
+
 .motivo_no_aplica_benford <- function(resultado, umbrales) {
   # «Parece un identificador» y «se declaro como clave» son dos afirmaciones
   # distintas: la primera es una inferencia del paquete y la segunda un hecho que
@@ -237,14 +253,18 @@
     ),
     proporcion_positivos_insuficiente = paste0(
       "proporcion de positivos ",
-      .formatear_decimal_publicado(resultado$proporcion_positivos),
+      .decimal_frente_a_umbral(
+        resultado$proporcion_positivos, umbrales$minima_proporcion_positivos
+      ),
       " < ",
       .formatear_decimal_publicado(umbrales$minima_proporcion_positivos)
     ),
     ordenes_magnitud_insuficientes = paste0(
       "ordenes de magnitud log10(max/min) ",
       if (is.finite(resultado$ordenes_magnitud)) {
-        .formatear_decimal_publicado(resultado$ordenes_magnitud)
+        .decimal_frente_a_umbral(
+          resultado$ordenes_magnitud, umbrales$minimo_ordenes_magnitud
+        )
       } else {
         "no calculables"
       },

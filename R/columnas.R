@@ -487,6 +487,19 @@
     # unico caso donde se porta bien.
     if (length(finitos) &&
         any(suppressWarnings(abs(as.numeric(finitos))) > 2^53)) {
+      # No se mide, y eso se DECLARA, igual que cuando falta `bit64`: devolvia
+      # `vacio` y publicaba tres veredictos `FALSE` -"no es densa", "sin salto",
+      # "sin moda sobresaliente"- sobre una numeracion que podia ser densa de
+      # verdad, sin fila en la cobertura. Medido con 9e18 + 1..1000.
+      vacio$densa <- NA
+      vacio$salto_de_escala <- NA
+      vacio$moda_sobresale <- NA
+      vacio$no_evaluada <- TRUE
+      vacio$motivo_no_evaluada <- paste(
+        "No se evaluo la secuencia entera: hay valores por encima de 2^53, que",
+        "en un doble se redondean, y no se mide una densidad sobre numeros",
+        "redondeados."
+      )
       return(vacio)
     }
     valores <- suppressWarnings(as.numeric(valores))

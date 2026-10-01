@@ -1191,6 +1191,9 @@
 #' las cinco medidas públicas de la secuencia quedan en `NA` y
 #' `cobertura_diagnosticos` declara que `secuencia_entera` no se evaluó por
 #' falta de esa dependencia.
+#' Lo mismo pasa si la columna tiene valores por encima de 2^53: en un doble se
+#' redondean, la densidad no se mide sobre números redondeados, y la secuencia
+#' queda en `NA` y declarada, no como «no densa».
 #' La guarda vuelve a abrirse si un candidato presente queda fuera del rango de
 #' los valores restantes de la numeración, o si la frecuencia del candidato es
 #' la moda sobresaliente. Esta segunda señal se mide por el **salto entre

@@ -4627,17 +4627,29 @@
     }
 
     if (identical(fila$estado_resumen_cuantitativo, "omitidos_precision")) {
+      # Llega tambien una columna de TEXTO con enteros grandes, y decir "la
+      # columna integer64" describia un almacenamiento que no es el suyo.
+      es_integer64 <- identical(as.character(fila$tipo_declarado), "integer64")
       agregar(.nuevo_hallazgo(
         nombre, "integer64_fuera_precision_double", "sospechoso",
         paste0(
-          "La columna integer64 excede el rango de enteros exactamente ",
+          if (es_integer64) "La columna integer64 excede" else
+            "Los enteros de la columna exceden",
+          " el rango de enteros exactamente ",
           "representables por double; se omiten estad\u00edsticos aproximados."
         ),
         paste0(
           "M\u00ednimo exacto: ", fila$minimo_exacto,
           "; m\u00e1ximo exacto: ", fila$maximo_exacto
         ),
-        "Conservar la clase integer64 y usar los extremos exactos informados."
+        if (es_integer64) {
+          "Conservar la clase integer64 y usar los extremos exactos informados."
+        } else {
+          paste(
+            "No convertirla a double: leerla como integer64 o dejarla como texto,",
+            "y usar los extremos exactos informados."
+          )
+        }
       ))
     } else if (identical(fila$estado_resumen_cuantitativo, "requiere_bit64")) {
       agregar_cobertura(

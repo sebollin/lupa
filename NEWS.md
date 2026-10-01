@@ -1,5 +1,15 @@
 # lupa 0.1.0
 
+## Ronda 17: los diagnosticos numericos
+
+- **Una numeracion por encima de 2^53 no se publica como no densa.** La secuencia
+  entera no se mide sobre numeros redondeados, pero publicaba tres veredictos
+  `FALSE` sin declarar nada. Ahora quedan en `NA`, con su fila en la cobertura,
+  igual que cuando falta `bit64`.
+- El hallazgo de enteros fuera de la precision de un doble decia «la columna
+  integer64» tambien sobre una columna de texto; y el motivo de Benford publicaba
+  «3.000 < 3» sobre 2,9996.
+
 ## Tercera evaluacion sobre bases reales
 
 - **La proteccion de datos personales no borra el vocabulario del paquete.** La
