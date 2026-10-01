@@ -49,7 +49,14 @@ consumen mediciones, así que heredan el número que salga de acá.
 Sin declaración toda la tabla aplica y el resultado es el de siempre.}
 
 \item{proteger_datos_personales}{Si se enmascaran los candidatos de
-proximidad que corresponden a columnas personales. Por omisión \code{TRUE}.}
+proximidad que corresponden a columnas personales. Por omisión \code{TRUE}.
+También gobierna lo que escribe un método propio: si alguna tabla recibida
+tiene columnas personales, su etiqueta \code{objeto} se reemplaza por la
+canónica del paquete (\code{tabla$columna[fila]}), y los valores de esas
+columnas se enmascaran en el motivo de una métrica \code{no_medible}. La
+protección alcanza a lo que \code{medir()} recibe: un valor que un método trae
+de otro lado —una tabla que no se le pasó a \code{medir()}— no se puede
+reconocer, y publicarlo es responsabilidad de quien escribe el método.}
 
 \item{columnas_personales}{Columnas que traen datos personales, declaradas
 con la misma forma que acepta \code{\link[=perfilar]{perfilar()}}: nombres de columna, o un

@@ -1491,6 +1491,40 @@ metricas_nucleo <- function() {
   salida
 }
 
+# La etiqueta `objeto` de un metodo PROPIO es texto que escribe su autor, y
+# `medir()` la publicaba tal cual: un metodo que citaba el documento de la fila
+# que reviso lo publicaba en la medicion, el historico y el informe, aunque la
+# columna estuviera declarada personal. Barrerla contra los valores protegidos
+# no escala -millones de valores por millones de etiquetas-, asi que con la
+# proteccion activa y alguna columna personal en las tablas recibidas se
+# reemplaza por la etiqueta canonica del paquete, que nunca lleva un valor. Los
+# metodos del paquete no escriben valores en `objeto`, y los referenciales ya
+# tienen su propia proteccion.
+.objeto_canonico <- function(salida) {
+  entidad <- as.character(salida$entidad)
+  atributo <- as.character(salida$atributo)
+  fila <- salida$fila
+  con_atributo <- !is.na(atributo) & nzchar(atributo)
+  ifelse(
+    !is.na(fila),
+    ifelse(con_atributo, paste0(entidad, "$", atributo, "[", fila, "]"),
+           paste0(entidad, "[", fila, ",]")),
+    ifelse(con_atributo, paste0(entidad, "$", atributo), entidad)
+  )
+}
+
+.tablas_con_columnas_personales <- function(tablas, declaradas, validadores) {
+  any(vapply(tablas, function(tabla) {
+    if (!inherits(tabla, "data.frame") || !nrow(tabla)) return(FALSE)
+    length(tryCatch(
+      .columnas_personales_rapidas(
+        tabla, declaradas = declaradas, validadores = validadores
+      ),
+      error = function(e) character()
+    )) > 0L
+  }, logical(1L)))
+}
+
 # El motivo de `no_medible` trae el mensaje del METODO, que puede incluir un valor
 # de la tabla -`stop(sprintf("valor invalido: %s", x))` es practica comun-. Antes
 # de esta ronda ese mensaje iba solo a la consola de quien corria; ahora es un
@@ -1589,6 +1623,29 @@ metricas_nucleo <- function() {
         "El m\u00e9todo de ", instancia$nombre, " devolvi\u00f3 una `fila` que no ",
         "es una posici\u00f3n entera desde 1.", call. = FALSE
       )
+    }
+    # Y la posicion tiene que EXISTIR. Sin tope, `fila = 99` sobre cuatro filas se
+    # publicaba como medida -y viajaba al historico- cuando no habia recorte, y
+    # `fila = 3e9` pasaba y `as.integer()` la volvia NA despues de esta guarda. El
+    # tope es la tabla original: los metodos del paquete escriben posiciones
+    # originales aun sobre una tabla recortada; los propios se verifican contra el
+    # recorte al traducirlos.
+    if (!is.null(tablas) && length(presentes)) {
+      for (entidad in unique(as.character(salida$entidad))) {
+        indice <- .indice_identificador(entidad, names(tablas))
+        if (is.na(indice) || !inherits(tablas[[indice]], "data.frame")) next
+        originales <- attr(tablas[[indice]], "lupa_indices_fila_originales",
+                           exact = TRUE)
+        tope <- if (length(originales)) max(originales) else nrow(tablas[[indice]])
+        filas_entidad <- fila[as.character(salida$entidad) == entidad]
+        if (any(filas_entidad[!is.na(filas_entidad)] > tope)) {
+          stop(
+            "El m\u00e9todo de ", instancia$nombre, " devolvi\u00f3 una `fila` mayor ",
+            "que las ", tope, " filas de `", entidad, "`: la posici\u00f3n no existe.",
+            call. = FALSE
+          )
+        }
+      }
     }
     entidades <- as.character(salida$entidad)
     ajenas <- is.na(entidades) | !.identificadores_en(entidades, instancia$entidad)
@@ -2036,6 +2093,13 @@ metricas_nucleo <- function() {
 #'   medición usa el léxico por omisión.
 #' @param proteger_datos_personales Si se enmascaran los candidatos de
 #'   proximidad que corresponden a columnas personales. Por omisión `TRUE`.
+#'   También gobierna lo que escribe un método propio: si alguna tabla recibida
+#'   tiene columnas personales, su etiqueta `objeto` se reemplaza por la
+#'   canónica del paquete (`tabla$columna[fila]`), y los valores de esas
+#'   columnas se enmascaran en el motivo de una métrica `no_medible`. La
+#'   protección alcanza a lo que `medir()` recibe: un valor que un método trae
+#'   de otro lado —una tabla que no se le pasó a `medir()`— no se puede
+#'   reconocer, y publicarlo es responsabilidad de quien escribe el método.
 #'
 #' @return Data frame S3 de clase `medicion`, con una fila por objeto medido.
 #'   Los booleanos se almacenan como `0` y `1` en la columna común `resultado`.
@@ -2209,6 +2273,12 @@ medir <- function(modelo, datos, id_medicion = NULL, fecha = Sys.time(),
         )
       }
     } else if (isTRUE(proteger_datos_personales)) {
+      if (!.metodo_del_paquete(instancia$metodo) &&
+          .tablas_con_columnas_personales(
+            tablas_instancia, columnas_personales, validadores_personales
+          )) {
+        salida$objeto <- .objeto_canonico(salida)
+      }
       salida <- .proteger_salida_referencial(
         salida, tablas_instancia, instancia,
         declaradas = columnas_personales,
