@@ -1,5 +1,39 @@
 # lupa 0.1.0
 
+## Ronda 18: la proteccion de datos personales, refutada
+
+- **El nombre de una persona dentro de un texto libre de otra columna se
+  enmascara aunque este pegado a otras letras.** La tercera evaluacion habia
+  llevado a exigir limites de palabra en toda la salida, para no tapar la prosa
+  del paquete; una refutacion mostro que asi se publicaba
+  `juanperezsrl@correo.uy` frente al titular protegido. Los limites se exigen
+  ahora solo en la prosa del paquete -descripcion, sugerencia, motivo-, y en los
+  valores vuelve la regla fuerte.
+- **Una variante sin tildes del nombre protegido se enmascara.** `juan.perez` se
+  publicaba frente a «Juan Perez» con tilde: las agujas conservaban la letra
+  acentuada. Ahora se comparan transliteradas, sin depender del locale.
+- Queda documentado por que el vocabulario -tipos de hallazgo, estrategias,
+  nombres de diagnostico y los factores de un marco propio- no se enmascara
+  aunque coincida con un valor protegido: es estructura, como los nombres de
+  columna, y no dice nada de ninguna fila.
+
+## Ronda 17, normalizacion de texto
+
+- **La eñe y la dieresis se protegen tambien en mayuscula.** `AÑO` se normalizaba
+  a `ano` y `año` a `año`: `CAÑADA` no encontraba a `Cañada` en el referencial, y
+  `PEÑA` se juntaba con `Pena` en vez de con `Peña`.
+- **Bajar a minusculas no depende del locale.** Fuera del latin se usaba
+  `tolower()`: el cirilico, el griego y el latin de ancho completo se bajaban en
+  un locale UTF-8 y no bajo `C`, y `detectar_claves()` daba otro veredicto. Un mapa
+  explicito cubre ahora esos alfabetos; lo que queda afuera se conserva.
+- `detectar_claves()` cuenta como distintos dos textos con bytes invalidos
+  distintos -antes eran uno, igual a un vacio-, y una clave compuesta no se
+  confunde con un valor que trae el caracter separador.
+- La ligadura de s larga y t es «st»; las comillas de cierre dan la misma clave
+  por los dos caminos de la normalizacion; y el referencial escapa la barra al
+  pegar sus filas, para que su evidencia de proximidad no publique «distancia 0»
+  junto a un veredicto que dice que la fila no esta.
+
 ## Ronda 17: los diagnosticos numericos
 
 - **Una numeracion por encima de 2^53 no se publica como no densa.** La secuencia

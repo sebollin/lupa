@@ -160,7 +160,10 @@ test_that("la clase token_unico evita llamar errata a un codigo", {
 
 test_that("la normalizacion no afirma identidad en la descripcion", {
   perfil <- perfilar(
-    data.frame(nombre = c(rep("LA PE\u00d1A", 10L), rep("LA PENA", 5L))),
+    # Antes era "LA PE\u00d1A" contra "LA PENA", y solo coincidian porque la \u00d1
+    # mayuscula perdia su proteccion -un defecto, corregido en la ronda 17-. Las
+    # tildes de la e no estan protegidas: ahi la forma normalizada si coincide.
+    data.frame(nombre = c(rep("JOS\u00c9 P\u00c9REZ", 10L), rep("JOSE PEREZ", 5L))),
     analizar_dependencias = FALSE, proteger_datos_personales = FALSE
   )
   hallazgo <- perfil$hallazgos[

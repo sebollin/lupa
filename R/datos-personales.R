@@ -769,7 +769,8 @@
   )
 }
 
-.reemplazar_variantes_separadas <- function(x, valores) {
+.reemplazar_variantes_separadas <- function(x, valores,
+                                           exigir_limites = FALSE) {
   # El reemplazo de arriba busca la cadena EXACTA, asi que el mismo documento
   # escrito con separadores se le escapa: `"771.771-01"` no contiene
   # `"77177101"`. Lo encontro una refutacion externa.
@@ -792,7 +793,19 @@
   # trabaja justamente con esas. Queda escrito el limite: una variante que
   # difiere en la caja de una letra ACENTUADA no se pliega.
   plegar <- function(v) gsub("([a-z])", "\\U\\1", v, perl = TRUE, useBytes = TRUE)
-  normalizar <- function(v) plegar(gsub("[^[:alnum:]]", "", v, useBytes = TRUE))
+  # Y la tilde tambien es cosmetica: "juan.perez" frente al nombre protegido
+  # "Juan Perez" con tilde se publicaba, porque la aguja conservaba la letra
+  # acentuada y la celda escrita sin ella no la contenia -medido en una
+  # refutacion, junto con "marianunez123@" frente a "Maria Nunez" con tildes-.
+  # Agujas y celdas se transliteran a ASCII con el mapa del paquete, que no
+  # depende del locale, despues de marcar lo que ya es UTF-8 valido.
+  sin_tildes <- function(v) {
+    v <- .textos_para_plegar(as.character(v))
+    tryCatch(.transliterar_ascii(v), error = function(e) v)
+  }
+  normalizar <- function(v) {
+    plegar(gsub("[^[:alnum:]]", "", sin_tildes(v), useBytes = TRUE))
+  }
   agujas <- unique(normalizar(valores))
   agujas <- agujas[
     !is.na(agujas) &
@@ -802,19 +815,24 @@
   candidatas <- !is.na(x) & x != "[valor protegido]"
   if (!any(candidatas)) return(x)
   pajar <- normalizar(x[candidatas])
-  crudos <- x[candidatas]
+  crudos <- sin_tildes(x[candidatas])
+  limites <- rep_len(as.logical(exigir_limites), length(x))[candidatas]
+  limites[is.na(limites)] <- FALSE
   golpea <- rep(FALSE, length(pajar))
-  # La forma sin separadores CONTIENE a la aguja, y ademas la aguja tiene que caer
-  # sin letras pegadas en el texto original: no puede empezar ni terminar a mitad
-  # de una palabra. Sin eso, la prosa del paquete se tapaba entera
+  # La forma sin separadores CONTIENE a la aguja. En la PROSA del paquete -los
+  # campos de `.CAMPOS_DE_PROSA`, y solo esos- se exige ademas que la aguja caiga
+  # sin letras pegadas en el texto: no puede empezar ni terminar a mitad de una
+  # palabra. Sin eso, la prosa del paquete se tapaba entera
   # por azar: con los nombres de millones de personas como agujas, alguno de seis
   # letras aparece cruzando palabras -"...COLUMNACONTIENE..."-, y en una base real
   # quedaron tapadas 38 de 64 descripciones y 37 de 64 sugerencias, tambien de
   # columnas que no eran personales. Lo que la regla existe para atrapar sigue
   # cayendo en limites: "771.771-01" contra el documento 77177101, "Maria Nunez"
-  # contra el nombre escrito junto. Lo que se deja de tapar es un valor pegado a
-  # otras letras SIN separador y ademas escrito con separadores; el valor exacto
-  # en cualquier posicion lo sigue tapando `.reemplazar_valores_protegidos()`.
+  # contra el nombre escrito junto. Fuera de la prosa no se exige: un valor del
+  # usuario -un ejemplo, una moda, una evidencia- con el nombre pegado a otras
+  # letras es justo lo que hay que tapar. Medido en una refutacion:
+  # "juanperezsrl@correo.uy" frente al titular protegido se publicaba en los
+  # ejemplos de los patrones cuando la regla de limites valia en todas partes.
   for (aguja in agujas) {
     pendientes <- which(!golpea)
     if (!length(pendientes)) break
@@ -822,7 +840,11 @@
       grepl(aguja, pajar[pendientes], fixed = TRUE, useBytes = TRUE)
     ]
     if (length(contiene)) {
-      golpea[contiene] <- .variante_en_limites(aguja, crudos[contiene])
+      con_limites <- contiene[limites[contiene]]
+      golpea[setdiff(contiene, con_limites)] <- TRUE
+      if (length(con_limites)) {
+        golpea[con_limites] <- .variante_en_limites(aguja, crudos[con_limites])
+      }
     }
   }
   # Y los DIGITOS aparte, que es donde la variante no es cosmetica sino PARCIAL:
@@ -880,7 +902,7 @@
   x
 }
 
-.reemplazar_valores_protegidos <- function(x, valores) {
+.reemplazar_valores_protegidos <- function(x, valores, exigir_limites = FALSE) {
   if (!is.character(x) || !length(valores)) return(x)
   # DE MAS LARGO A MAS CORTO, y una sola vez cada uno. Las dos cosas arreglan una
   # fuga medida con el piso del propio paquete -seis caracteres identifican-:
@@ -927,7 +949,7 @@
       x <- gsub(valor, "[valor protegido]", x, fixed = TRUE, useBytes = TRUE)
     }
   }
-  x <- .reemplazar_variantes_separadas(x, valores)
+  x <- .reemplazar_variantes_separadas(x, valores, exigir_limites)
   x
 }
 
@@ -996,6 +1018,15 @@
   "agregacion", "componente", "tipo", "cambio", "aspecto", "direccion", "nivel"
 )
 
+# La PROSA del paquete: los campos que explican un diagnostico con frases. En
+# ellos la regla de variantes exige limites de palabra -ver
+# `.reemplazar_variantes_separadas()`-; en cualquier otro campo, no. Un campo de
+# prosa que falte aca se barre con la regla fuerte, que es el lado seguro.
+.CAMPOS_DE_PROSA <- c(
+  "descripcion", "sugerencia", "motivo", "como_resolverlo", "justificacion",
+  "recomendacion_grupo"
+)
+
 .vocabulario_de_objeto <- function(x, profundidad = 0L) {
   if (profundidad > 6L || is.null(x)) return(character())
   vocabulario <- character()
@@ -1035,13 +1066,17 @@
   unique(vocabulario)
 }
 
-.recorrer_textos_salida <- function(x, aplicar, intocables = character()) {
+# `aplicar` recibe la hoja y el nombre del campo de donde viene -la columna, el
+# elemento de lista o el atributo, heredado hacia adentro-, para que el barrido
+# pueda tratar distinto la prosa del paquete y los valores.
+.recorrer_textos_salida <- function(x, aplicar, intocables = character(),
+                                    campo = NULL) {
   atributos <- attributes(x)
   estructurales <- c("names", "class", "row.names", "dim", "dimnames")
   adicionales <- setdiff(names(atributos), estructurales)
   for (atributo in adicionales) {
     attr(x, atributo) <- .recorrer_textos_salida(
-      attr(x, atributo, exact = TRUE), aplicar, intocables
+      attr(x, atributo, exact = TRUE), aplicar, intocables, campo = atributo
     )
   }
   if (inherits(x, "data.frame")) {
@@ -1059,27 +1094,38 @@
           .es_columna_de_nombres(columna, intocables)) {
         next
       }
+      nombre_columna <- names(x)[[j]]
       if (is.character(columna)) {
-        x[[j]] <- aplicar(columna)
+        x[[j]] <- aplicar(columna, nombre_columna)
       } else if (is.factor(columna)) {
-        levels(columna) <- aplicar(levels(columna))
+        levels(columna) <- aplicar(levels(columna), nombre_columna)
         x[[j]] <- columna
       } else if (is.list(columna)) {
         x[[j]] <- lapply(
           columna, .recorrer_textos_salida,
-          aplicar = aplicar, intocables = intocables
+          aplicar = aplicar, intocables = intocables, campo = nombre_columna
         )
       }
     }
     return(x)
   }
   if (is.list(x)) {
-    x[] <- lapply(
-      x, .recorrer_textos_salida, aplicar = aplicar, intocables = intocables
-    )
+    nombres <- names(x)
+    for (i in seq_along(x)) {
+      propio <- if (!is.null(nombres) && !is.na(nombres[[i]]) &&
+                    nzchar(nombres[[i]])) nombres[[i]] else campo
+      elemento <- .recorrer_textos_salida(
+        x[[i]], aplicar = aplicar, intocables = intocables, campo = propio
+      )
+      if (is.null(elemento)) {
+        x[i] <- list(NULL)
+      } else {
+        x[[i]] <- elemento
+      }
+    }
     return(x)
   }
-  if (is.character(x)) return(aplicar(x))
+  if (is.character(x)) return(aplicar(x, campo))
   x
 }
 
@@ -1107,16 +1153,21 @@
   intocables <- c(intocables, .vocabulario_de_objeto(x))
   cofre <- new.env(parent = emptyenv())
   cofre$hojas <- list()
-  invisible(.recorrer_textos_salida(x, function(hoja) {
+  cofre$prosa <- list()
+  invisible(.recorrer_textos_salida(x, function(hoja, campo) {
     cofre$hojas[[length(cofre$hojas) + 1L]] <- hoja
+    cofre$prosa[[length(cofre$prosa) + 1L]] <- rep(
+      !is.null(campo) && campo %in% .CAMPOS_DE_PROSA, length(hoja)
+    )
     hoja
   }, intocables))
   if (!length(cofre$hojas)) return(x)
   protegidas <- .reemplazar_valores_protegidos(
-    unlist(cofre$hojas, use.names = FALSE), valores
+    unlist(cofre$hojas, use.names = FALSE), valores,
+    exigir_limites = unlist(cofre$prosa, use.names = FALSE)
   )
   cofre$desde <- 0L
-  .recorrer_textos_salida(x, function(hoja) {
+  .recorrer_textos_salida(x, function(hoja, campo) {
     tramo <- protegidas[cofre$desde + seq_along(hoja)]
     cofre$desde <- cofre$desde + length(hoja)
     # Los atributos de la hoja -nombres, sobre todo- los pierde el corte del

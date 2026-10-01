@@ -141,9 +141,9 @@ test_that("las llamadas al reemplazo no crecen con la cantidad de hojas", {
   contar <- function(objeto) {
     cuenta <- 0L
     local_mocked_bindings(
-      .reemplazar_valores_protegidos = function(x, valores) {
+      .reemplazar_valores_protegidos = function(x, valores, ...) {
         cuenta <<- cuenta + 1L
-        original(x, valores)
+        original(x, valores, ...)
       },
       .package = "lupa"
     )
@@ -179,7 +179,7 @@ test_that("una salida grande de duplicados se protege con pocas llamadas", {
   cuenta <- 0L
   original <- lupa:::.reemplazar_valores_protegidos
   local_mocked_bindings(
-    .reemplazar_valores_protegidos = function(x, valores) {
+    .reemplazar_valores_protegidos = function(x, valores, ...) {
       cuenta <<- cuenta + 1L
       original(x, valores)
     },

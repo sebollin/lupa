@@ -907,7 +907,10 @@
   # `.transliterar_ascii()` ya saco los acentos, pero `tolower()` sigue
   # dependiendo del locale: bajo `tr_TR` la `I` baja a `U+0131` y la clave
   # canonica cambia. El ayudante fija la `I` antes de delegar.
-  gsub("[^[:alnum:]]", "", .normalizacion_minusculas_vector(y))
+  # Y las letras se reconocen por su clase Unicode, no con `[:alnum:]`: bajo
+  # `LC_CTYPE=C` esa clase es solo ASCII y borraba toda palabra griega o
+  # cirilica, que quedaba en una clave vacia igual a las demas.
+  gsub("[^\\p{L}\\p{N}]", "", .normalizacion_minusculas_vector(y), perl = TRUE)
 }
 
 # De un grupo de formas, cuantas son la dominante escrita de otra manera.

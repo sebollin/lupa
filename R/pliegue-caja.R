@@ -36,6 +36,38 @@
   `1E9E` = 0x00DF
 )
 
+# Fuera del latin, el pliegue caia en `tolower()`, que depende del locale: bajo
+# un locale UTF-8 bajaba el cirilico y el griego, y bajo `C` no, asi que
+# `detectar_claves()` sobre {MOSKVA, moskva} en cirilico daba un veredicto
+# distinto segun la sesion -medido sobre 584 pares mayuscula/minuscula: 3 fallan
+# en UTF-8 y 303 bajo `C`-. Se agregan al mapa, por rangos, los alfabetos con caja
+# mas usados -griego, cirilico, armenio y el latin de ancho completo-; lo que
+# queda afuera se CONSERVA en cualquier locale, como promete el pliegue.
+.MAPA_MINUSCULAS_OTROS_ALFABETOS <- local({
+  pares <- function(desde, hasta, salto) {
+    mayusculas <- seq.int(desde, hasta)
+    stats::setNames(mayusculas + salto, sprintf("%04X", mayusculas))
+  }
+  alternos <- function(desde, hasta) {
+    mayusculas <- seq.int(desde, hasta, by = 2L)
+    stats::setNames(mayusculas + 1L, sprintf("%04X", mayusculas))
+  }
+  c(
+    # Griego: las mayusculas basicas y las acentuadas.
+    pares(0x0391, 0x03A1, 32L), pares(0x03A3, 0x03AB, 32L),
+    c(`0386` = 0x03AC, `0388` = 0x03AD, `0389` = 0x03AE, `038A` = 0x03AF,
+      `038C` = 0x03CC, `038E` = 0x03CD, `038F` = 0x03CE),
+    # Cirilico basico y sus extensiones de a pares.
+    pares(0x0410, 0x042F, 32L), pares(0x0400, 0x040F, 80L),
+    alternos(0x0460, 0x0480), alternos(0x048A, 0x04BE),
+    c(`04C0` = 0x04CF), alternos(0x04C1, 0x04CD), alternos(0x04D0, 0x052E),
+    # Armenio.
+    pares(0x0531, 0x0556, 48L),
+    # Latin de ancho completo y la schwa.
+    pares(0xFF21, 0xFF3A, 32L), c(`018F` = 0x0259)
+  )
+})
+
 # Deja el vector en un estado que las operaciones Unicode puedan leer sin
 # depender del locale.
 # Los que ya son UTF-8 valido se MARCAN -conserva los acentos, que es lo que el
@@ -60,13 +92,13 @@
 }
 
 .normalizacion_minusculas_vector <- local({
+  mapa <- c(.MAPA_MINUSCULAS_ACENTUADAS, .MAPA_MINUSCULAS_OTROS_ALFABETOS)
   origen <- paste0(
-    intToUtf8(strtoi(names(.MAPA_MINUSCULAS_ACENTUADAS), base = 16L),
-              multiple = TRUE),
+    intToUtf8(strtoi(names(mapa), base = 16L), multiple = TRUE),
     collapse = ""
   )
   destino <- paste0(
-    intToUtf8(unname(.MAPA_MINUSCULAS_ACENTUADAS), multiple = TRUE),
+    intToUtf8(unname(mapa), multiple = TRUE),
     collapse = ""
   )
   function(textos) {
@@ -84,8 +116,10 @@
     # funcion existe para hacer. Hay que MARCAR lo que ya es UTF-8 valido, y
     # reparar solo lo que no lo es.
     textos <- .textos_para_plegar(textos)
-    # El ASCII I se fija antes de delegar lo que no esta en el mapa: evita que
-    # un locale turco convierta una comparacion reproducible en U+0131.
-    tolower(chartr("I", "i", chartr(origen, destino, textos)))
+    # El ASCII se baja con `chartr()`, no con `tolower()`: lo que no esta en el
+    # mapa se conserva igual en cualquier locale, y la `I` no se vuelve U+0131
+    # bajo un locale turco.
+    chartr("ABCDEFGHIJKLMNOPQRSTUVWXYZ", "abcdefghijklmnopqrstuvwxyz",
+           chartr(origen, destino, textos))
   }
 })

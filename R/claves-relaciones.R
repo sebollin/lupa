@@ -158,9 +158,31 @@
   evidencia
 }
 
+# Una clave compuesta se pega con un separador que ningun valor puede producir.
+# `.clave_bytes()` deja pasar U+001F tal cual, asi que un valor que lo traia
+# fingia un separador: con `c1 = "a<US>b", c2 = "c"` y `c1 = "a", c2 = "b<US>c"`,
+# cuatro filas distintas se contaban tres. Se escapa como `\x1f`, que no se
+# confunde con un valor porque `.clave_bytes()` ya duplico las barras invertidas.
+# Es la receta de `duplicados-aproximados.R`, escrita una vez para los dos sitios
+# de esta funcion.
+.pegar_clave_compuesta <- function(valores) {
+  .clave_bytes(do.call(paste, c(
+    unname(lapply(valores, function(x) {
+      gsub("\u001f", "\\x1f", .clave_bytes(x), fixed = TRUE)
+    })),
+    sep = "\u001f"
+  )))
+}
+
 .resumen_clave_normalizada <- function(datos, indices, nombres, normalizacion) {
   valores <- lapply(indices, function(i) {
-    x <- suppressWarnings(as.character(.texto_analizable(datos[[i]])$valores))
+    columna <- datos[[i]]
+    # Dos textos con bytes invalidos DISTINTOS -lo que deja un `read.csv()` de un
+    # archivo latin1 sin declarar- se volvian `NA` y despues `""`: se contaban
+    # como uno solo, e igual a un vacio. Se escapan antes, como en
+    # `duplicados-aproximados.R`.
+    if (is.character(columna)) columna <- .clave_bytes(columna)
+    x <- suppressWarnings(as.character(.texto_analizable(columna)$valores))
     x[is.na(x)] <- ""
     .normalizacion_aplicar(
       x, .normalizacion_para_columna(normalizacion, nombres[[i]])
@@ -172,12 +194,7 @@
   if (!any(completos)) return(list(unicidad = FALSE, distintos = 0L))
   # `unname()`: `lapply` conserva los nombres, y un nombre de columna que
   # coincida con un formal de `paste` -`sep`, `recycle0`- aborta la corrida.
-  combinado <- .clave_bytes(do.call(
-    paste, c(
-      unname(lapply(valores, function(x) .clave_bytes(x[completos]))),
-      sep = "\u001f"
-    )
-  ))
+  combinado <- .pegar_clave_compuesta(lapply(valores, function(x) x[completos]))
   list(
     unicidad = anyDuplicated(combinado) == 0L,
     distintos = length(unique(combinado))
@@ -341,14 +358,9 @@ detectar_claves <- function(datos, max_combinacion = 3, normalizar = NULL,
         if (length(indices) == 1L) {
           length(unique(datos[[indices[[1L]]]][completos]))
         } else {
-          combinado <- .clave_bytes(do.call(
-            paste, c(
-              unname(lapply(seleccion, function(x) {
-                .clave_bytes(x[completos])
-              })),
-              sep = "\u001f"
-            )
-          ))
+          combinado <- .pegar_clave_compuesta(
+            lapply(seleccion, function(x) x[completos])
+          )
           length(unique(combinado))
         }
       } else 0L

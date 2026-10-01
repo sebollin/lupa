@@ -6,23 +6,40 @@
 # y en una base real quedaron tapadas 38 de 64 descripciones, tambien de
 # columnas que no eran personales.
 
-test_that("una variante se tapa sin letras pegadas, y la prosa no", {
+test_that("en la prosa la variante exige limites; en los valores, no", {
   casos <- c(
     correo = "contactar a maria.nunez123@correo.uy",
     separado = "beneficiaria: maria.nunez",
     documento = "caja 771.771-01",
+    pegado = "correo marianunezsrl@correo.uy",
+    sin_tildes = "mailto juan.perez@correo.uy",
     prosa = "La columna contiene valores con un formato distinto"
   )
-  valores <- c("Maria Nunez", "77177101", "ACONTI", "UMNACO")
-  tapado <- lupa:::.reemplazar_variantes_separadas(casos, valores) ==
-    "[valor protegido]"
+  valores <- c("Maria Nunez", "77177101", "ACONTI", "UMNACO",
+               "Juan P\u00e9rez")
+  prosa <- names(casos) == "prosa"
+  tapado <- lupa:::.reemplazar_variantes_separadas(
+    casos, valores, exigir_limites = prosa
+  ) == "[valor protegido]"
   names(tapado) <- names(casos)
   # Lo que la regla existe para atrapar sigue tapado.
   expect_true(tapado[["correo"]])
   expect_true(tapado[["separado"]])
   expect_true(tapado[["documento"]])
-  # Antes: la prosa se tapaba porque "ACONTI" cruza "columna contiene".
+  # Fuera de la prosa no hace falta limite: el nombre pegado a otras letras es
+  # un valor de una persona. Una refutacion lo encontro publicado cuando la
+  # regla de limites valia en todas partes.
+  expect_true(tapado[["pegado"]])
+  # Y la tilde es cosmetica: antes "juan.perez" se publicaba frente a "Juan
+  # Perez" con tilde.
+  expect_true(tapado[["sin_tildes"]])
+  # En la prosa del paquete, "ACONTI" cruzando "columna contiene" no tapa.
   expect_false(tapado[["prosa"]])
+  # Control: la misma prosa como valor si se tapa -la regla fuerte-.
+  expect_true(
+    lupa:::.reemplazar_variantes_separadas(casos[["prosa"]], valores) ==
+      "[valor protegido]"
+  )
 })
 
 test_that("con muchos nombres protegidos, la prosa de otras columnas se lee", {

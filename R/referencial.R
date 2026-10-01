@@ -140,9 +140,7 @@
     x[is.na(x)] <- ""
     x
   })
-  .clave_bytes(do.call(paste, c(
-    unname(lapply(normalizada, .clave_bytes)), sep = " | "
-  )))
+  .pegar_fila_referencial(normalizada)
 }
 
 .referencial_filas_original_texto <- function(tabla, columnas) {
@@ -152,8 +150,21 @@
     texto[is.na(texto)] <- ""
     texto
   })
+  .pegar_fila_referencial(valores)
+}
+
+# La fila se pega con `" | "`, y un valor que traia esa barra fingia otro
+# corte: `x | y` y `z` contra `x` e `y | z` daban la misma cadena, y la evidencia
+# de proximidad publicaba "distancia 0" junto a un veredicto que decia que la fila
+# no estaba. Se escapa la barra en cada valor, como en `duplicados-aproximados.R`:
+# `.clave_bytes()` ya duplico las barras invertidas, asi que `\|` se lee de una
+# sola manera.
+.pegar_fila_referencial <- function(valores) {
   .clave_bytes(do.call(paste, c(
-    unname(lapply(valores, .clave_bytes)), sep = " | "
+    unname(lapply(valores, function(x) {
+      gsub("|", "\\|", .clave_bytes(x), fixed = TRUE)
+    })),
+    sep = " | "
   )))
 }
 

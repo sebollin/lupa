@@ -5,13 +5,18 @@
 #' de sus marcas son siempre activos para que NFC y NFD sean equivalentes en el
 #' subconjunto latino cubierto por lupa. Los pasos optativos de ligaduras y ancho
 #' completo tambien se aplican por punto de codigo, despues de declarar como
-#' UTF-8 los bytes validos, por lo que no dependen de `LC_CTYPE`.
+#' UTF-8 los bytes validos, por lo que no dependen de `LC_CTYPE`. Bajar a
+#' minusculas tampoco depende del locale: usa un mapa explicito para el latin
+#' acentuado, el griego, el cirilico, el armenio y el ancho completo, y lo que
+#' queda fuera de ese mapa se conserva.
 #'
 #' @param minusculas,espacios,acentos,comillas,puntuacion,ligaduras,ancho
 #'   Activan el paso correspondiente.
 #' @param proteger Grafemas cuyas marcas deben conservarse al quitar acentos.
 #'   Puede incluir una base seguida de una o más marcas combinantes, como
 #'   la secuencia `g` seguida por una tilde combinante para la letra guaraní.
+#'   Se declaran en minúscula y valen también en mayúscula: la eñe de `PEÑA` se
+#'   conserva igual que la de `peña`.
 #' @return Objeto de clase `normalizacion_lupa`: una lista con un elemento
 #'   logico por paso -`minusculas`, `espacios`, `acentos`, `comillas`,
 #'   `puntuacion`, `ligaduras`, `ancho`- y el vector `proteger` con los
@@ -22,7 +27,9 @@
 #' # El perfil por omisión: minúsculas, espacios, acentos y comillas.
 #' normalizacion()
 #'
-#' # Comparar sin quitar acentos, para que "canon" y "cañón" no se fusionen.
+#' # Comparar sin quitar acentos, para que "papa" y "papá" no se fusionen. La
+#' # eñe y la diéresis ya están protegidas en el perfil por omisión: "pena" y
+#' # "peña" no se fusionan nunca.
 #' perfil <- normalizacion(acentos = FALSE)
 #' perfil$acentos
 #'
@@ -746,8 +753,27 @@ print.normalizacion_lupa <- function(x, ...) {
   }
   salida
 }
+# Lo protegido se declara en minuscula -`n` con tilde, `u` con dieresis- y se
+# comparaba tal cual contra el texto, ANTES de bajar la caja: la mayuscula no
+# casaba y perdia la marca. "AÑO" daba "ano" mientras "año" daba "año", asi que
+# `CAÑADA` no encontraba a `Cañada` en el referencial y `PEÑA` se juntaba con
+# `Pena` en vez de con `Peña`. Se agrega la variante mayuscula de cada grafema
+# cuya base es una letra ASCII, sin `toupper()`, que depende del locale.
+.proteger_en_ambas_cajas <- function(proteger) {
+  if (!length(proteger)) return(proteger)
+  variantes <- vapply(proteger, function(x) {
+    codigos <- .normalizacion_ordenar(.normalizacion_descomponer(utf8ToInt(x)))
+    base <- codigos[[1L]]
+    if (base >= 97L && base <= 122L) {
+      codigos[[1L]] <- base - 32L
+      .normalizacion_a_texto(codigos)
+    } else NA_character_
+  }, character(1L), USE.NAMES = FALSE)
+  unique(c(proteger, variantes[!is.na(variantes)]))
+}
+
 .normalizacion_protecciones <- function(perfil) {
-  lapply(perfil$proteger, function(x) {
+  lapply(.proteger_en_ambas_cajas(perfil$proteger), function(x) {
     codigos <- .normalizacion_ordenar(
       .normalizacion_descomponer(utf8ToInt(x))
     )
@@ -805,7 +831,7 @@ print.normalizacion_lupa <- function(x, ...) {
 .normalizacion_ligaduras <- function(codigos) {
   mapa <- list("64256" = c(102L, 102L), "64257" = c(102L, 105L),
                "64258" = c(102L, 108L), "64259" = c(102L, 102L, 105L),
-               "64260" = c(102L, 102L, 108L), "64261" = c(383L),
+               "64260" = c(102L, 102L, 108L), "64261" = c(115L, 116L),
                "64262" = c(115L, 116L))
   unlist(lapply(codigos, function(x) {
     valor <- mapa[[as.character(x)]]
@@ -917,7 +943,7 @@ print.normalizacion_lupa <- function(x, ...) {
     return(list(textos = textos, marcadores = character(),
                 colision = rep(FALSE, length(textos))))
   }
-  grafemas <- vapply(perfil$proteger, function(x) {
+  grafemas <- vapply(.proteger_en_ambas_cajas(perfil$proteger), function(x) {
     .normalizacion_a_texto(.normalizacion_ordenar(
       .normalizacion_descomponer(utf8ToInt(x))
     ))
@@ -992,13 +1018,14 @@ print.normalizacion_lupa <- function(x, ...) {
            "\\x{201E}\\x{2039}])(?=", letra, ")"),
     "\\1", textos, perl = TRUE
   )
+  # Las de cierre y los apostrofos en UNA sola pasada. En dos, la segunda veia lo
+  # que la primera ya habia borrado: en "abc" seguido de una comilla simple y una
+  # doble de cierre, la primera quitaba la doble y la segunda, ahora al final, la
+  # simple; el recorrido escalar decide sobre el texto original y conserva la
+  # simple. Los dos caminos daban claves distintas para el mismo valor.
   textos <- gsub(
-    paste0("(*UTF)(?<=", letra, ")[\"\\x{00BB}\\x{2019}",
-           "\\x{201D}\\x{201F}\\x{203A}](?=$| )"),
-    "", textos, perl = TRUE
-  )
-  textos <- gsub(
-    paste0("(*UTF)(?<=", letra, ")[\\x{0027}\\x{2019}\\x{201A}](?=$| )"),
+    paste0("(*UTF)(?<=", letra, ")[\"\\x{00BB}\\x{2019}\\x{201D}\\x{201F}",
+           "\\x{203A}\\x{0027}\\x{201A}](?=$| )"),
     "", textos, perl = TRUE
   )
   gsub("[\u2019\u201A\u201B]", "'", textos, fixed = FALSE)
