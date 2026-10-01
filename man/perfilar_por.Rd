@@ -97,7 +97,10 @@ por una columna seudonimizada. Lo mismo, con tipo
 \code{contiene_valor_protegido}, cuando la columna de agrupación no es personal
 pero alguna etiqueta contiene un valor protegido de otra columna —un
 proveedor \code{juanperezsrl} junto a un titular protegido «Juan Perez»—: la
-etiqueta se publica igual, y \code{n_grupos} cuenta cuántas lo contienen. El
+etiqueta se publica igual, y \code{n_grupos} cuenta cuántas lo contienen. Cada
+grupo se perfila sobre sus filas, pero la salida entera se barre además con
+los valores protegidos de toda la tabla: el titular que en la columna
+protegida sólo aparece en un grupo no se publica en la evidencia de otro. El
 atributo queda vacío cuando ninguna etiqueta lleva datos personales, y
 también cuando \code{proteger_datos_personales} es
 \code{FALSE}, porque entonces ya está declarado que se quieren los valores. Si el

@@ -127,54 +127,63 @@
 # Pliegue para COMPARAR un valor protegido con sus variantes, que no es el de la
 # normalizacion: alla se conservan los acentos -`papa` y `papá` son palabras
 # distintas-, y aca todo lo cosmetico se pliega porque el error caro es publicar
-# el nombre de una persona. Una refutacion midio que la proteccion se escapaba
-# fuera del latin occidental: el nombre vietnamita escrito sin sus marcas, el
-# griego o el cirilico en mayusculas, el armenio, el ancho completo. La
-# comparacion iba por bytes y el pliegue de caja era solo ASCII.
+# el nombre de una persona. Dos refutaciones midieron por donde se escapaba:
+# fuera del latin occidental (vietnamita sin marcas, griego, cirilico, armenio y
+# georgiano en otra caja, ancho completo y medio ancho, ligaduras, letras
+# matematicas), con el valor en otra codificacion, y con el valor ESCAPADO, que
+# es como el paquete publica un espacio duro o un salto de linea.
 #
 # Lo que hace, en este orden:
 #
-#   1. Todo pasa a UTF-8 valido. Lo marcado `latin1` se convierte; lo que no
-#      declara codificacion y es UTF-8 valido se marca, y lo que no lo es se LEE
-#      COMO LATIN1. Esto ultimo es la otra mitad del arreglo: un nombre
-#      protegido en latin1 sin marca no se reconocia en la misma celda escrita en
-#      UTF-8, porque la reparacion por bytes lo dejaba como `Jos<e9>`. Latin1
-#      asigna un caracter a cada byte, asi que nunca falla, y es la lectura
-#      correcta para lo que viene de Windows o de un CSV viejo.
-#   2. El ancho completo pasa a ASCII.
-#   3. Las letras con diacriticos fuera de Latin-1 y Latin Extended-A pasan a su
-#      base con `.MAPA_DIACRITICOS`, y las de adentro con la transliteracion.
-#   4. Se baja la caja con el mapa del paquete, que no depende del locale, y la
-#      sigma final se iguala a la sigma.
+#   1. Deshace los escapes con que el paquete publica lo que no se ve
+#      (`.desescapar_para_comparar()`): el barrido compara el valor crudo contra
+#      el texto ya publicado, y en ese texto un espacio duro es `<U+00A0>`.
+#   2. Todo pasa a UTF-8 valido. Lo marcado `latin1` se convierte; lo que no
+#      declara codificacion y es UTF-8 valido se marca; y en lo que no lo es se
+#      conservan las secuencias UTF-8 validas y cada byte suelto se lee como
+#      CP1252 (`.reparar_utf8_por_byte()`). Leer la celda ENTERA como latin1
+#      rompia las letras validas de una celda con un solo byte cortado, y latin1
+#      convierte en controles los bytes 0x80-0x9F que en CP1252 -lo que escribe
+#      Windows- son letras de apellidos: `s` y `z` con caron, `oe`.
+#   3. Cada letra o digito pasa a su forma plegada con el mapa generado de
+#      Unicode (`data-raw/mapa_pliegue_comparar.R`): caja, compatibilidad y
+#      marcas en un paso.
+#   4. La transliteracion del paquete y el pliegue ASCII terminan lo que el
+#      mapa deja: `ae` por la ligadura, `o` por la O con trazo.
 .plegar_para_comparar <- local({
-  origen_diacriticos <- paste0(
-    intToUtf8(strtoi(names(.MAPA_DIACRITICOS), base = 16L), multiple = TRUE),
+  origen_uno <- paste0(
+    intToUtf8(strtoi(names(.PLIEGUE_COMPARAR_UNO), base = 16L), multiple = TRUE),
     collapse = ""
   )
-  destino_diacriticos <- paste0(
-    intToUtf8(unname(.MAPA_DIACRITICOS), multiple = TRUE),
+  destino_uno <- paste0(
+    intToUtf8(unname(.PLIEGUE_COMPARAR_UNO), multiple = TRUE),
     collapse = ""
   )
-  origen_ancho <- paste0(
-    intToUtf8(c(0xFF01:0xFF5E, 0x3000), multiple = TRUE),
-    collapse = ""
+  fuentes_varios <- strtoi(names(.PLIEGUE_COMPARAR_VARIOS), base = 16L)
+  destinos_varios <- vapply(
+    strsplit(unname(.PLIEGUE_COMPARAR_VARIOS), " ", fixed = TRUE),
+    function(hex) intToUtf8(strtoi(hex, base = 16L)),
+    character(1L)
   )
-  destino_ancho <- paste0(
-    intToUtf8(c(0x0021:0x007E, 0x0020), multiple = TRUE),
-    collapse = ""
+  clase_varios <- paste0(
+    "[", paste0(intToUtf8(fuentes_varios, multiple = TRUE), collapse = ""), "]"
   )
   sigma_final <- intToUtf8(0x03C2)
   sigma <- intToUtf8(0x03C3)
   function(textos) {
     textos <- as.character(textos)
     if (!length(textos)) return(textos)
+    textos <- .desescapar_para_comparar(textos)
     marcas <- Encoding(textos)
     presentes <- !is.na(textos)
     en_latin1 <- presentes & marcas == "latin1"
     if (any(en_latin1)) {
       textos[en_latin1] <- iconv(textos[en_latin1], from = "latin1", to = "UTF-8")
     }
-    sin_marca <- presentes & marcas %in% c("unknown", "bytes")
+    # Tambien lo marcado UTF-8 que no lo es: `paste0()` de un texto UTF-8 con un
+    # byte suelto marca el resultado como UTF-8, y `chartr()` aborta sobre el.
+    sin_marca <- presentes & (marcas %in% c("unknown", "bytes") |
+                                (marcas == "UTF-8" & !validUTF8(textos)))
     if (any(sin_marca)) {
       validos <- sin_marca & validUTF8(textos)
       if (any(validos)) {
@@ -184,15 +193,112 @@
       }
       invalidos <- sin_marca & !validos
       if (any(invalidos)) {
-        textos[invalidos] <- iconv(
-          textos[invalidos], from = "latin1", to = "UTF-8"
-        )
+        textos[invalidos] <- .reparar_utf8_por_byte(textos[invalidos])
       }
     }
-    textos <- chartr(origen_ancho, destino_ancho, textos)
-    textos <- chartr(origen_diacriticos, destino_diacriticos, textos)
+    textos <- chartr(origen_uno, destino_uno, textos)
+    con_varios <- presentes & grepl(clase_varios, textos, perl = TRUE)
+    if (any(con_varios)) {
+      textos[con_varios] <- vapply(textos[con_varios], function(texto) {
+        puntos <- utf8ToInt(texto)
+        if (anyNA(puntos)) return(texto)
+        partes <- intToUtf8(puntos, multiple = TRUE)
+        cuales <- match(puntos, fuentes_varios)
+        partes[!is.na(cuales)] <- destinos_varios[cuales[!is.na(cuales)]]
+        paste0(partes, collapse = "")
+      }, character(1L), USE.NAMES = FALSE)
+    }
     textos <- .transliterar_ascii(textos)
     textos <- .normalizacion_minusculas_vector(textos)
     gsub(sigma_final, sigma, textos, fixed = TRUE)
+  }
+})
+
+# Las formas con que el paquete publica lo que no se ve, vueltas a lo que eran:
+# `<U+00A0>` y ` ` al caracter, `\xe9` y `<lupa-byte:E9>` al byte, y los
+# controles escritos `\n`, `\t` -que al comparar son separadores- a un espacio.
+# Solo para comparar: el texto publicado no se toca. Se aplica a las agujas y a
+# las celdas por igual, asi que un valor que de verdad contiene `<U+00A0>` como
+# texto se compara igual de los dos lados.
+.desescapar_para_comparar <- local({
+  patron <- paste0(
+    "<U\\+[0-9A-Fa-f]{4,6}>|<lupa-byte:[0-9A-Fa-f]+>|",
+    "\\\\x[0-9A-Fa-f]{2}|\\\\u[0-9A-Fa-f]{4}|\\\\U[0-9A-Fa-f]{8}|",
+    "\\\\[ntrvf\"\\\\]"
+  )
+  como_bytes <- function(x) rawToChar(charToRaw(x))
+  decodificar <- function(token) {
+    if (startsWith(token, "<lupa-byte:")) {
+      hex <- substr(token, 12L, nchar(token) - 1L)
+      if (nchar(hex) %% 2L) return(" ")
+      bytes <- strtoi(substring(
+        hex, seq(1L, nchar(hex), 2L), seq(2L, nchar(hex), 2L)
+      ), base = 16L)
+      bytes[bytes == 0L] <- 32L
+      return(rawToChar(as.raw(bytes)))
+    }
+    if (startsWith(token, "<U+")) {
+      codigo <- strtoi(substr(token, 4L, nchar(token) - 1L), base = 16L)
+    } else if (startsWith(token, "\\x")) {
+      byte <- strtoi(substr(token, 3L, 4L), base = 16L)
+      return(rawToChar(as.raw(if (byte == 0L) 32L else byte)))
+    } else if (startsWith(token, "\\u") || startsWith(token, "\\U")) {
+      codigo <- strtoi(substr(token, 3L, nchar(token)), base = 16L)
+    } else {
+      letra <- substr(token, 2L, 2L)
+      return(if (letra %in% c("\"", "\\")) letra else " ")
+    }
+    if (is.na(codigo) || codigo <= 0L || codigo > 0x10FFFF ||
+        (codigo >= 0xD800 && codigo <= 0xDFFF)) {
+      return(" ")
+    }
+    como_bytes(intToUtf8(codigo))
+  }
+  function(textos) {
+    con <- !is.na(textos) &
+      grepl(patron, textos, perl = TRUE, useBytes = TRUE)
+    if (!any(con)) return(textos)
+    elegidos <- textos[con]
+    Encoding(elegidos) <- "bytes"
+    coincidencias <- gregexpr(patron, elegidos, perl = TRUE, useBytes = TRUE)
+    regmatches(elegidos, coincidencias) <- lapply(
+      regmatches(elegidos, coincidencias),
+      function(tokens) vapply(tokens, decodificar, character(1L), USE.NAMES = FALSE)
+    )
+    elegidos <- vapply(elegidos, como_bytes, character(1L), USE.NAMES = FALSE)
+    textos[con] <- elegidos
+    textos
+  }
+})
+
+# Lo que no es UTF-8 valido, sin tirar lo que si lo es: `iconv()` de UTF-8 a
+# UTF-8 marca cada byte invalido como `<xx>`, y cada uno se lee como CP1252 -o
+# latin1 en los cinco bytes que CP1252 no define-. Una celda con un solo byte
+# cortado conserva asi sus letras validas.
+.reparar_utf8_por_byte <- local({
+  tabla <- NULL
+  function(textos) {
+    if (is.null(tabla)) {
+      tabla <<- vapply(0x80:0xFF, function(byte) {
+        crudo <- rawToChar(as.raw(byte))
+        cp1252 <- iconv(crudo, from = "CP1252", to = "UTF-8")
+        if (is.na(cp1252)) cp1252 <- intToUtf8(byte)
+        cp1252
+      }, character(1L))
+    }
+    Encoding(textos) <- "bytes"
+    marcados <- iconv(textos, from = "UTF-8", to = "UTF-8", sub = "byte")
+    coincidencias <- gregexpr("<[0-9a-f]{2}>", marcados, useBytes = TRUE)
+    regmatches(marcados, coincidencias) <- lapply(
+      regmatches(marcados, coincidencias),
+      function(tokens) {
+        tabla[strtoi(substr(tokens, 2L, 3L), base = 16L) - 127L]
+      }
+    )
+    salida <- vapply(marcados, function(x) rawToChar(charToRaw(x)),
+                     character(1L), USE.NAMES = FALSE)
+    validos <- validUTF8(salida)
+    Encoding(salida[validos]) <- "UTF-8"
+    salida
   }
 })

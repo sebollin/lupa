@@ -10925,7 +10925,8 @@ print.plan_perfilado_dbi <- function(x, ...) {
 }
 
 .proteger_resumen_dbi <- function(resumen, sensibles, base_clasificacion,
-                                  perfil_muestra = NULL) {
+                                  perfil_muestra = NULL,
+                                  valores_muestra = character()) {
   resumen$meta$proteccion_personal <- list(
     aplicada = length(sensibles) > 0,
     base = base_clasificacion,
@@ -10956,7 +10957,10 @@ print.plan_perfilado_dbi <- function(x, ...) {
         # distintos ni la moda ni los tres primeros ejemplos alcanzan -el
         # `maximo` de una copia numerica es el ultimo documento, que no esta en
         # ninguno de los dos-.
-        .valores_publicables_protegidos(perfil_muestra$datos, sensibles),
+        valores_muestra,
+        .valores_publicables_protegidos(
+          perfil_muestra[["datos", exact = TRUE]], sensibles
+        ),
         .valores_perfil_protegidos(
           perfil_muestra$columnas, perfil_muestra$patrones,
           perfil_muestra$datos_personales, perfil_muestra$meta
@@ -11912,7 +11916,23 @@ print.plan_perfilado_dbi <- function(x, ...) {
     solo_lectura = TRUE,
     objetos_temporales = FALSE
   )
-  list(perfil = perfil, cobertura = cobertura, muestreo = muestreo_meta)
+  # Los valores de las columnas protegidas se cosechan aca, que es el unico lugar
+  # donde la muestra esta a la vista: el perfil que sale ya esta protegido y no
+  # conserva los datos. La proteccion del resumen los necesita para tapar, en las
+  # columnas que no son personales, el valor de una persona que es su moda o su
+  # minimo. Antes se buscaban en `perfil_muestra$datos`, que no existe: `$` hacia
+  # coincidencia parcial con `datos_personales` y no salia ningun valor, de modo
+  # que solo la moda SQL de la columna protegida contaba como protegida. Medido en
+  # una refutacion: el titular que era la moda de otra columna se publicaba en el
+  # resumen y en la corroboracion cruzada. Viajan en el bloque, nunca en el perfil.
+  valores_protegidos <- tryCatch(
+    .valores_identificantes(.valores_publicables_protegidos(
+      datos_muestra, .columnas_personales_protegidas(perfil$datos_personales)
+    )),
+    error = function(e) character()
+  )
+  list(perfil = perfil, cobertura = cobertura, muestreo = muestreo_meta,
+       valores_protegidos = valores_protegidos)
 }
 
 # ---- Portones ------------------------------------------------------------
@@ -13748,7 +13768,8 @@ perfilar_dbi <- function(conexion, tabla,
       resumen <- .proteger_resumen_dbi(
         resumen,
         .columnas_personales_protegidas(bloque$perfil$datos_personales),
-        "perfil_muestra", bloque$perfil
+        "perfil_muestra", bloque$perfil,
+        valores_muestra = bloque$valores_protegidos
       )
     }
   } else {

@@ -850,6 +850,8 @@
   # o mas-, y ademas se exige que su forma normalizada conserve ese largo: sin
   # eso, un valor corto tras normalizar enmascararia media tabla.
   if (!is.character(x) || !length(valores)) return(x)
+  apartado <- .apartar_marcas_paquete(x)
+  x <- apartado$x
   # La caja, la tilde y la codificacion tambien son cosmeticas. El mismo nombre
   # en minusculas dentro de un texto libre se publicaba mientras la forma
   # canonica quedaba enmascarada en todo el informe; "juan.perez" se publicaba
@@ -880,9 +882,10 @@
   agujas <- agujas[
     !is.na(agujas) & (is.na(largos) | largos >= .MIN_LARGO_VALOR_IDENTIFICANTE)
   ]
-  if (!length(agujas)) return(x)
+  if (!length(agujas)) return(.reponer_marcas_paquete(x, apartado))
   candidatas <- !is.na(x) & x != "[valor protegido]"
-  if (!any(candidatas)) return(x)
+  if (!any(candidatas)) return(.reponer_marcas_paquete(x, apartado))
+  palabras_paquete <- .LEXICO_PAQUETE$palabras
   crudos <- plegar(x[candidatas])
   pajar <- sin_separadores(crudos)
   # La regla de digitos de mas abajo compara en la direccion contraria -la corrida
@@ -942,7 +945,13 @@
       con_limites <- contiene[limites[contiene]]
       golpea[setdiff(contiene, con_limites)] <- TRUE
       if (length(con_limites)) {
-        golpea[con_limites] <- .variante_en_limites(aguja, crudos[con_limites])
+        # Una palabra del paquete en su propia prosa no es un valor: solo cuenta
+        # si aparece citada, que se mira abajo.
+        golpea[con_limites] <- if (aguja %in% palabras_paquete) {
+          FALSE
+        } else {
+          .variante_en_limites(aguja, crudos[con_limites])
+        }
         en_cita <- con_limites[!golpea[con_limites]]
         en_cita <- en_cita[
           grepl(aguja, citado[en_cita], fixed = TRUE, useBytes = TRUE)
@@ -983,41 +992,38 @@
       p[!is.na(p) & nchar(p, type = "bytes") >= .MIN_LARGO_VALOR_IDENTIFICANTE]
     })
   }
-  # Las corridas se sacan de la forma NORMALIZADA, no de la cruda, y eso no es un
-  # detalle: en la celda cruda "caja 4.123.456" los puntos parten el numero en
-  # corridas de 1, 3 y 3 digitos -ninguna llega al piso de seis- y la regla no veia
-  # nada. Sobre "caja4123456" la corrida es "4123456" y si. La primera version de
-  # esta guarda media la celda cruda y daba OK sin tapar el fragmento.
-  # Primero las corridas de las celdas, que son pocas: si ninguna llega al piso no
-  # hay nada que comparar y las de las agujas, que pueden ser millones, no se
-  # calculan.
-  corridas_pajar <- if (!all(golpea)) corridas_largas(pajar) else list()
+  # Las corridas de la celda se arman uniendo SOLO los separadores de adentro de
+  # un numero -punto, guion, barra o espacio entre dos digitos-, no la forma sin
+  # ningun separador. Es la mitad de lo que hace falta y no menos: en la celda
+  # cruda "caja 4.123.456" los puntos parten el numero en corridas de 1, 3 y 3
+  # digitos y la regla no veia nada -la primera version de esta guarda media asi
+  # y daba OK sin tapar el fragmento-; y sin ningun separador, dos conteos
+  # vecinos se pegaban en uno -"(199985); - (100114)" daba "199985100114"-.
+  #
+  # Y se pregunta por EL documento sin su verificador, no por cualquier tramo de
+  # seis cifras: con un millon de cedulas protegidas casi todo numero de seis
+  # cifras esta adentro de alguna, y la regla tapaba las evidencias que citan
+  # conteos de filas -4 de 6 en una tabla de un millon, medido en una
+  # refutacion-. Un conteo que coincide con un documento entero sin su ultimo
+  # digito se sigue tapando: ahi no se puede distinguir, y se falla cerrado.
+  # Pertenecer a un conjunto, ademas, se pregunta con `%in%` y no con una busqueda
+  # por corrida.
+  corridas_pajar <- if (!all(golpea)) {
+    corridas_largas(gsub(
+      "(?<=[0-9])[-./ ](?=[0-9])", "", crudos, perl = TRUE
+    ))
+  } else list()
   planas <- unlist(corridas_pajar, use.names = FALSE)
-  digitos_aguja <- if (length(planas)) {
-    unique(unlist(corridas_largas(agujas_todas), use.names = FALSE))
-  } else character()
-  if (length(digitos_aguja)) {
-    if (length(planas)) {
-      # Se pregunta en UNA direccion: si la corrida de la celda esta contenida en la
-      # de una aguja, que es el documento sin su verificador. La direccion contraria
-      # -la aguja dentro de la corrida- ya la cubre la comparacion alfanumerica de
-      # arriba, porque una aguja de digitos normaliza a digitos y la celda que la
-      # contiene la contiene tambien ahi. Medido antes de sacarla.
-      #
-      # Las agujas se concatenan con un separador que NO puede aparecer en una
-      # corrida de digitos, asi que una corrida no puede casar cruzando dos agujas y
-      # una sola busqueda por corrida alcanza. Sin esto la regla preguntaba celda por
-      # celda contra aguja por aguja -8.000 x 200 x 2 llamadas- y el enmascarador
-      # pasaba de 0,05 s a 2,9 s sobre ese tamano.
-      concatenadas <- paste(digitos_aguja, collapse = "|")
-      unicas <- unique(planas)
-      contenidas <- unicas[vapply(unicas, function(corrida) {
-        grepl(corrida, concatenadas, fixed = TRUE, useBytes = TRUE)
-      }, logical(1L))]
-      if (length(contenidas)) {
-        indice_celda <- rep(seq_along(corridas_pajar), lengths(corridas_pajar))
-        golpea[unique(indice_celda[planas %in% contenidas])] <- TRUE
-      }
+  if (length(planas)) {
+    digitos_aguja <- unique(unlist(corridas_largas(agujas_todas), use.names = FALSE))
+    sin_verificador <- substr(digitos_aguja, 1L, nchar(digitos_aguja) - 1L)
+    documentos <- unique(c(
+      digitos_aguja,
+      sin_verificador[nchar(sin_verificador) >= .MIN_LARGO_VALOR_IDENTIFICANTE]
+    ))
+    if (length(documentos)) {
+      indice_celda <- rep(seq_along(corridas_pajar), lengths(corridas_pajar))
+      golpea[unique(indice_celda[planas %in% documentos])] <- TRUE
     }
   }
   con_cita <- which(lengths(agujas_citadas) > 0L & !golpea)
@@ -1041,7 +1047,7 @@
     }
   }
   if (any(golpea)) x[candidatas][golpea] <- "[valor protegido]"
-  x
+  .reponer_marcas_paquete(x, apartado)
 }
 
 # Prefiltro para las dos reglas de reemplazo. Su costo era el producto de la
@@ -1100,6 +1106,75 @@
   valores[posibles]
 }
 
+# Las marcas del paquete -`<blanco>`, `grupo_maximo`, ver `.LEXICO_PAQUETE`- se
+# apartan antes de comparar y se reponen despues: son estructura, y un apellido
+# `Blanco` protegido tapaba toda evidencia que dijera `<blanco>`. Se reemplazan
+# por un caracter de control que la normalizacion borra; un texto que ya lo
+# trae no se toca.
+.apartar_marcas_paquete <- function(x) {
+  sin_cambios <- list(x = x, indices = integer(), guardadas = list(),
+                      codificaciones = character())
+  marcas <- .LEXICO_PAQUETE$marcas
+  if (!is.character(x) || !length(x) || !length(marcas)) return(sin_cambios)
+  patron <- "<[a-z_]+>|[a-z0-9]+(_[a-z0-9]+)+"
+  indices <- which(
+    !is.na(x) & grepl("<[a-z_]+>|[a-z0-9]_[a-z0-9]", x, perl = TRUE,
+                      useBytes = TRUE) &
+      !grepl("\001", x, fixed = TRUE, useBytes = TRUE)
+  )
+  if (!length(indices)) return(sin_cambios)
+  elegidos <- x[indices]
+  codificaciones <- Encoding(elegidos)
+  coincidencias <- gregexpr(patron, elegidos, perl = TRUE, useBytes = TRUE)
+  tokens <- regmatches(elegidos, coincidencias)
+  guardadas <- lapply(tokens, function(t) t[t %in% marcas])
+  con_marca <- lengths(guardadas) > 0L
+  if (!any(con_marca)) return(sin_cambios)
+  regmatches(elegidos, coincidencias) <- lapply(tokens, function(t) {
+    ifelse(t %in% marcas, "\001", t)
+  })
+  x[indices[con_marca]] <- elegidos[con_marca]
+  list(x = x, indices = indices[con_marca], guardadas = guardadas[con_marca],
+       codificaciones = codificaciones[con_marca])
+}
+
+.reponer_marcas_paquete <- function(x, apartado) {
+  if (!length(apartado$indices)) return(x)
+  for (k in seq_along(apartado$indices)) {
+    i <- apartado$indices[[k]]
+    texto <- x[[i]]
+    if (is.na(texto) || !grepl("\001", texto, fixed = TRUE, useBytes = TRUE)) next
+    partes <- strsplit(texto, "\001", fixed = TRUE, useBytes = TRUE)[[1L]]
+    if (endsWith(texto, "\001")) partes <- c(partes, "")
+    marcas <- apartado$guardadas[[k]]
+    huecos <- length(partes) - 1L
+    marcas <- c(marcas, rep("", max(0L, huecos - length(marcas))))[seq_len(huecos)]
+    texto <- paste0(c(rbind(partes[-length(partes)], marcas), partes[length(partes)]),
+                    collapse = "")
+    Encoding(texto) <- apartado$codificaciones[[k]]
+    x[[i]] <- texto
+  }
+  x
+}
+
+# Los valores protegidos de una sola palabra que el paquete tambien escribe en
+# su prosa -`Maximo`, `Patron`, `Constante`-, segun su forma plegada.
+.valores_que_son_palabras_del_paquete <- function(valores) {
+  palabras <- .LEXICO_PAQUETE$palabras
+  if (!length(valores) || !length(palabras)) return(character())
+  candidatos <- valores[
+    !is.na(valores) &
+      !grepl("[[:space:][:digit:][:punct:]]", valores, useBytes = TRUE) &
+      nchar(valores, type = "bytes") <= 80L
+  ]
+  if (!length(candidatos)) return(character())
+  plegados <- tryCatch(
+    gsub("[^\\p{L}\\p{N}]", "", .plegar_para_comparar(candidatos), perl = TRUE),
+    error = function(e) rep(NA_character_, length(candidatos))
+  )
+  candidatos[!is.na(plegados) & plegados %in% palabras]
+}
+
 .reemplazar_valores_protegidos <- function(x, valores, exigir_limites = FALSE) {
   if (!is.character(x) || !length(valores)) return(x)
   # DE MAS LARGO A MAS CORTO, y una sola vez cada uno. Las dos cosas arreglan una
@@ -1129,30 +1204,50 @@
   # La regla de variantes recibe TODOS los valores: el prefiltro de aca mira la
   # escritura exacta, y una variante no la comparte.
   todos <- valores
-  valores <- .valores_que_pueden_aparecer(valores, x, 3L)
-  for (valor in valores) {
-    largo <- nchar(valor, type = "bytes")
-    if (is.na(largo) || !largo) next
-    if (largo < 3L) {
-      escapado <- gsub(
-        "([][{}()+*^$|\\\\?.])", "\\\\\\1", valor,
-        fixed = FALSE, useBytes = TRUE
-      )
-      patron <- paste0(
-        "(?<![[:alnum:]_])", escapado, "(?![[:alnum:]_])"
-      )
-      x <- tryCatch(
-        gsub(patron, "[valor protegido]", x, perl = TRUE, useBytes = TRUE),
-        error = function(e) gsub(
-          valor, "[valor protegido]", x, fixed = TRUE, useBytes = TRUE
+  apartado <- .apartar_marcas_paquete(x)
+  x <- apartado$x
+  exacta <- function(textos, valores) {
+    valores <- .valores_que_pueden_aparecer(valores, textos, 3L)
+    for (valor in valores) {
+      largo <- nchar(valor, type = "bytes")
+      if (is.na(largo) || !largo) next
+      if (largo < 3L) {
+        escapado <- gsub(
+          "([][{}()+*^$|\\\\?.])", "\\\\\\1", valor,
+          fixed = FALSE, useBytes = TRUE
         )
-      )
-    } else {
-      x <- gsub(valor, "[valor protegido]", x, fixed = TRUE, useBytes = TRUE)
+        patron <- paste0(
+          "(?<![[:alnum:]_])", escapado, "(?![[:alnum:]_])"
+        )
+        textos <- tryCatch(
+          gsub(patron, "[valor protegido]", textos, perl = TRUE, useBytes = TRUE),
+          error = function(e) gsub(
+            valor, "[valor protegido]", textos, fixed = TRUE, useBytes = TRUE
+          )
+        )
+      } else {
+        textos <- gsub(valor, "[valor protegido]", textos, fixed = TRUE,
+                       useBytes = TRUE)
+      }
     }
+    textos
+  }
+  # En la prosa del paquete, un valor de una sola palabra que el paquete tambien
+  # escribe no se busca tal cual: "Patron dominante" es su texto. Lo citado
+  # entre comillas lo sigue tapando la regla de variantes, con la regla fuerte.
+  limites <- rep_len(as.logical(exigir_limites), length(x))
+  limites[is.na(limites)] <- FALSE
+  del_paquete <- if (any(limites)) {
+    .valores_que_son_palabras_del_paquete(valores)
+  } else character()
+  if (length(del_paquete)) {
+    x[limites] <- exacta(x[limites], setdiff(valores, del_paquete))
+    x[!limites] <- exacta(x[!limites], valores)
+  } else {
+    x <- exacta(x, valores)
   }
   x <- .reemplazar_variantes_separadas(x, todos, exigir_limites)
-  x
+  .reponer_marcas_paquete(x, apartado)
 }
 
 # Recorre la parte textual de una salida sin convertir estadisticos numericos
@@ -1883,7 +1978,23 @@
   ]
   if (!length(valores)) return(character())
   largos <- nchar(valores, type = "chars", allowNA = TRUE)
-  valores[is.na(largos) | largos >= .MIN_LARGO_VALOR_IDENTIFICANTE]
+  valores <- valores[is.na(largos) | largos >= .MIN_LARGO_VALOR_IDENTIFICANTE]
+  # Una fecha de calendario sola no identifica, aunque tenga diez caracteres: en
+  # una tabla de miles de personas casi todo dia es el cumpleanos de alguien. Con
+  # la fecha de nacimiento protegida, el piso tapaba la media, la mediana, el
+  # minimo y la moda de TODAS las demas columnas de fechas -doce estadisticos con
+  # 50.000 personas, medido en una refutacion- y el umbral de fecha de una
+  # sugerencia, que no son la fecha de nadie. La columna de fechas se sigue
+  # protegiendo entera, por columna; lo que sale del piso es la busqueda de sus
+  # valores en el resto de la salida. Una fecha con hora si queda: con segundos
+  # vuelve a ser casi unica.
+  dia <- "(0?[1-9]|[12][0-9]|3[01])"
+  mes <- "(0?[1-9]|1[0-2])"
+  fecha <- paste0(
+    "^([0-9]{4}[-/.]", mes, "[-/.]", dia, "|", dia, "[-/.]", mes, "[-/.][0-9]{4}|",
+    mes, "[-/.]", dia, "[-/.][0-9]{4})$"
+  )
+  valores[!grepl(fecha, valores, perl = TRUE, useBytes = TRUE)]
 }
 
 

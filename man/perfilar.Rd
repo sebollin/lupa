@@ -286,23 +286,40 @@ protegido de otra columna. No ocurre en silencio —avisa al ejecutar y lo
 declara en \code{etiquetas_personales}— y el remedio es agrupar por una columna
 seudonimizada.
 El piso alcanza además la \strong{forma sin separadores}: \code{"771.771-01"} es el
-mismo documento que \code{"77177101"}, y la celda entera se enmascara. Las
-tildes y la caja también son cosméticas: \code{juan.perez} se enmascara frente
-al nombre protegido «Juan Pérez», y el nombre pegado a otras letras dentro
-de un correo o un alias, también. Vale también fuera del latín
-occidental —el vietnamita escrito sin sus marcas, el griego, el cirílico y
-el armenio en otra caja, el ancho completo— y con el valor en otra
-codificación: lo que no la declara y no es UTF-8 válido se lee como latin1
-al comparar. En la \strong{prosa del paquete} —descripción,
-sugerencia, motivo, cómo resolverlo, justificación— se exige además que la
-variante no tenga una letra pegada antes o después: con los nombres de
-millones de personas como valores protegidos, alguno aparecía cruzando
-palabras de esas frases y las tapaba enteras, también en columnas no
-personales. Lo que esa prosa cita entre comillas dobles —el nivel de un
+mismo documento que \code{"77177101"}, y la celda entera se enmascara; y en los
+dígitos, el documento \strong{sin su verificador} —\code{"4.123.456"} frente a
+\code{"4.123.456-7"}—, no cualquier tramo de seis cifras que caiga dentro de uno:
+con un millón de cédulas protegidas casi todo número de seis cifras lo hace,
+y se tapaban los conteos de filas. Las tildes, la caja y la escritura
+también son cosméticas: \code{juan.perez} se enmascara frente al nombre protegido
+«Juan Pérez», y el nombre pegado a otras letras dentro de un correo o un
+alias, también. La comparación usa un pliegue generado de Unicode —caja de
+todo alfabeto, letras con y sin diacríticos, ligaduras, ancho completo y
+medio ancho, letras matemáticas—, deshace los escapes con que el paquete
+publica lo que no se ve (un espacio duro sale \verb{<U+00A0>}), y lee lo que no
+es UTF-8 válido byte por byte como CP1252, conservando las secuencias
+válidas. \strong{Una fecha de calendario sola no entra en el piso}: en una tabla
+de miles de personas casi todo día es el cumpleaños de alguien, y con la
+fecha de nacimiento protegida se tapaban los estadísticos de todas las demás
+columnas de fechas. La columna de fechas protegida se sigue protegiendo
+entera; una fecha con hora sí cuenta. En la \strong{prosa del paquete}
+—descripción, sugerencia, motivo, cómo resolverlo, justificación— se exige
+además que la variante no tenga una letra pegada antes o después: con los
+nombres de millones de personas como valores protegidos, alguno aparecía
+cruzando palabras de esas frases y las tapaba enteras, también en columnas
+no personales. Lo que esa prosa cita entre comillas dobles —el nivel de un
 determinante en la sugerencia de \code{posible_ausencia_estructural}— no es
 prosa sino un valor: se compara con la regla de los valores y se tapa sólo
 la cita, para que la sugerencia se siga leyendo. Y si el determinante es una
-columna protegida, la sugerencia no reproduce el criterio. Y lo
+columna protegida, la sugerencia no reproduce el criterio. \strong{Las palabras y
+las marcas del propio paquete no se tapan}: con columnas de nombre y de
+apellido separadas, los valores protegidos son palabras sueltas, y algunas
+lo son también del paquete —\code{Blanco} frente a la marca \verb{<blanco>},
+\code{Máximo} frente a la clave \code{grupo_maximo}, \code{Patrón} en «el patrón
+dominante»—. El léxico se calcula al instalar, desde las cadenas del código
+del paquete: sus marcas no se comparan en ningún campo, y sus palabras no se
+tapan en su prosa salvo dentro de una cita. El nombre completo en el texto
+de otra columna se sigue tapando. Y lo
 aplican también \code{\link[=analizar]{analizar()}} y \code{\link[=distribucion_valores]{distribucion_valores()}}, que antes
 protegían sólo por columna y publicaban lo que \code{perfilar()} tapaba sobre la
 misma tabla.}

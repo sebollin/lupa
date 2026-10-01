@@ -105,7 +105,10 @@
 #'   `contiene_valor_protegido`, cuando la columna de agrupación no es personal
 #'   pero alguna etiqueta contiene un valor protegido de otra columna —un
 #'   proveedor `juanperezsrl` junto a un titular protegido «Juan Perez»—: la
-#'   etiqueta se publica igual, y `n_grupos` cuenta cuántas lo contienen. El
+#'   etiqueta se publica igual, y `n_grupos` cuenta cuántas lo contienen. Cada
+#'   grupo se perfila sobre sus filas, pero la salida entera se barre además con
+#'   los valores protegidos de toda la tabla: el titular que en la columna
+#'   protegida sólo aparece en un grupo no se publica en la evidencia de otro. El
 #'   atributo queda vacío cuando ninguna etiqueta lleva datos personales, y
 #'   también cuando `proteger_datos_personales` es
 #'   `FALSE`, porque entonces ya está declarado que se quieren los valores. Si el
@@ -250,6 +253,7 @@ perfilar_por <- function(datos, por, clave = NULL, min_filas = 30L, ...) {
     isTRUE(eval(formals(perfilar)$proteger_datos_personales))
   }
   etiquetas_personales <- NULL
+  valores_otras <- character()
   if (proteger) {
     # El clasificador RAPIDO, no `perfilar()`. La primera version sondeaba con
     # `perfilar()` para no duplicar la regla, y medida sobre una columna de
@@ -274,6 +278,24 @@ perfilar_por <- function(datos, por, clave = NULL, min_filas = 30L, ...) {
       clasificada <- data.frame(columna = por, tipo = "declarada_por_el_usuario",
                                 stringsAsFactors = FALSE)
     }
+    # Los valores protegidos de las DEMAS columnas, sobre la tabla entera. Sirven
+    # para dos cosas: avisar si una etiqueta de grupo lleva uno, y barrer la
+    # salida al final. Cada grupo se perfila sobre su rebanada y solo conoce los
+    # protegidos de sus filas, asi que el titular que en la columna protegida esta
+    # solo en el grupo A se publicaba exacto en la evidencia del grupo B -medido
+    # en una refutacion-, mientras `perfilar()` sobre la misma tabla lo tapa.
+    indices_otras <- setdiff(seq_along(datos), indice_por)
+    otras <- .seleccionar_columnas(datos, names(datos)[indices_otras])
+    sensibles_otras <- tryCatch(
+      .columnas_personales_rapidas(
+        otras, declaradas = declaradas,
+        validadores = extras$validadores_personales
+      ),
+      error = function(e) character()
+    )
+    valores_otras <- .valores_identificantes(
+      .valores_publicables_protegidos(otras, sensibles_otras)
+    )
     if (!is.null(clasificada) && nrow(clasificada)) {
       etiquetas_personales <- data.frame(
         columna = por,
@@ -298,18 +320,6 @@ perfilar_por <- function(datos, por, clave = NULL, min_filas = 30L, ...) {
       # aca en silencio: se avisa y se declara. Las etiquetas son valores, asi
       # que se comparan con la regla fuerte, la de los valores y no la de la
       # prosa.
-      indices_otras <- setdiff(seq_along(datos), indice_por)
-      otras <- .seleccionar_columnas(datos, names(datos)[indices_otras])
-      sensibles_otras <- tryCatch(
-        .columnas_personales_rapidas(
-          otras, declaradas = declaradas,
-          validadores = extras$validadores_personales
-        ),
-        error = function(e) character()
-      )
-      valores_otras <- .valores_identificantes(
-        .valores_publicables_protegidos(otras, sensibles_otras)
-      )
       etiquetas_grupo <- names(grupos)
       if (length(valores_otras) && length(etiquetas_grupo)) {
         tapadas <- .reemplazar_valores_protegidos(etiquetas_grupo, valores_otras)
@@ -972,6 +982,16 @@ perfilar_por <- function(datos, por, clave = NULL, min_filas = 30L, ...) {
                n_grupos = integer(), motivo = character(),
                stringsAsFactors = FALSE)
   } else etiquetas_personales
+  # El barrido con los protegidos de la tabla entera. Las etiquetas de grupo y los
+  # nombres de columna quedan afuera: las etiquetas se publican por decision
+  # -son el eje, y lo declara `etiquetas_personales`- y los nombres son
+  # estructura.
+  if (length(valores_otras)) {
+    salida <- .proteger_textos_salida(
+      salida, valores_otras,
+      intocables = c(names(grupos), as.character(names(datos)))
+    )
+  }
   class(salida) <- c("hallazgos_por_grupo", "data.frame")
   salida
 }
