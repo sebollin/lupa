@@ -689,6 +689,13 @@
 #' `proporcion_tipo_inferido`; no debe interpretarse esa proporción como si
 #' hubiera usado necesariamente toda la columna.
 #'
+#' El tipo se **infiere** de los valores sólo en las columnas de texto: en las
+#' demás es el tipo con que R las guarda —lógico, entero, doble, fecha—, que no
+#' depende de los valores. Por eso una columna no textual sin ningún valor
+#' conserva su tipo de almacenamiento, con `proporcion_tipo_inferido` en `NA`
+#' porque ningún valor lo midió, y una columna de texto sin valores queda
+#' `"desconocido"`, porque ahí no hay nada de qué inferirlo.
+#'
 #' Cuando el tipo inferido es `"fecha"` o `"fecha-hora"`,
 #' `estado_tipo_inferido` declara además cómo quedó establecida esa lectura:
 #' `"confirmado"` si todo formato con casamientos es inequívoco, y
@@ -1356,7 +1363,9 @@
 #'   se reparten las filas sin pisarse, se emite `posible_ausencia_estructural`
 #'   con severidad `ok`, la evidencia medida y la línea exacta que habría que
 #'   escribir para declararlo. Sugiere; no decide. Las columnas ya declaradas
-#'   quedan fuera del examen.
+#'   quedan fuera del examen. La regla tiene que cumplirse en al menos el 99 % de
+#'   las filas: una que un solo caso rompe por debajo de ese corte no se publica,
+#'   porque ofrecer la línea para declararla sería afirmar de más.
 #'
 #'   Con el mismo argumento viaja `regla_silencia_ausencia`, también `ok`: avisa
 #'   cuando una columna declarada opcional o con universo propio sigue casi

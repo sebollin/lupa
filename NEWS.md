@@ -1,5 +1,19 @@
 # lupa 0.1.0
 
+## Ronda 12: lo que afirma el perfil, y el informe que lo comparte
+
+- **Una columna vacia escrita con dos formas de ausencia cuenta lo mismo en todos
+  lados.** El hallazgo `constante` decia «los 4 que hay» en la descripcion, contaba
+  3 -la frecuencia de la forma mas comun- y trazaba 4, y el paquete se acusaba a si
+  mismo sobre datos sin tocar. Ahora cuenta todas las formas, y la evidencia lo dice.
+- **El informe dice que una dependencia se midio sobre la muestra.** El objeto y la
+  consola lo declaraban; el HTML publicaba «exacta» sobre una tabla grande donde la
+  relacion se cumplia en la mitad de las filas, porque la muestra solo veia las que
+  la cumplian.
+- `?perfilar` declara dos decisiones que no estaban escritas: el tipo de una columna
+  no textual es el de almacenamiento aunque no tenga valores, y la ausencia
+  estructural se publica solo si la regla se cumple en el 99 % de las filas.
+
 ## Ronda 11: el motor contra la memoria, y los agregados encadenados
 
 - **El alcance de un agregado de segundo nivel es el de cada entidad.** Se emparejaba

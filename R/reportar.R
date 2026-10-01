@@ -317,6 +317,23 @@
   } else {
     ""
   }
+  # La muestra tambien se declara aca. El objeto y la consola la decian; el
+  # informe -lo que se comparte- publicaba "exacta" sobre una tabla de 200.000
+  # filas donde la relacion se cumplia en la mitad, porque la muestra solo veia
+  # las filas que la cumplian.
+  if (isTRUE(attr(dependencias, "muestreado", exact = TRUE))) {
+    nota_dependencias <- paste0(
+      nota_dependencias,
+      "<p class=\"nota\">Las dependencias se buscaron sobre una muestra de ",
+      .html_texto(format(attr(dependencias, "filas_analizadas", exact = TRUE),
+                         big.mark = ".", decimal.mark = ",", scientific = FALSE)),
+      " de ",
+      .html_texto(format(attr(dependencias, "filas_totales", exact = TRUE),
+                         big.mark = ".", decimal.mark = ",", scientific = FALSE)),
+      " filas: el cumplimiento y la exactitud son los de la muestra, no los de ",
+      "la tabla entera.</p>"
+    )
+  }
   paste0(
     "<section><h2>Perfil de datos: ", .html_texto(x$meta$nombre), "</h2>",
     "<p class=\"meta\">Corrida: ",

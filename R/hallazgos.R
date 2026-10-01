@@ -2397,11 +2397,20 @@
       as.numeric(resultado$estructura_no_analizada$filas)
     } else NA_real_,
     constante = {
-      # El hallazgo solo se emite cuando n_distintos == 1, asi que el unico
-      # valor ocupa todas las filas validas: la frecuencia es conocible por
-      # definicion aunque no se haya podido contar sobre la columna.
+      # La variante "columna vacia escrita de otra forma" puede tener VARIAS
+      # formas de ausencia, y lo que cuentan su descripcion y su traza son todas.
+      # Contar la frecuencia de la moda daba 3 al lado de "los 4 que hay".
+      # (Sin `return()`: adentro de una rama de `switch()` sale de la funcion
+      # entera, no de la rama.)
+      disfrazados <- suppressWarnings(as.numeric(fila$n_faltantes_disfrazados))
       frecuencia <- as.numeric(fila$frecuencia_moda)
-      if (length(frecuencia) && isTRUE(is.finite(frecuencia))) {
+      if (length(disfrazados) && isTRUE(is.finite(disfrazados)) &&
+          disfrazados > 0 && isTRUE(disfrazados >= n_validos)) {
+        disfrazados
+      } else if (length(frecuencia) && isTRUE(is.finite(frecuencia))) {
+        # Si no, el hallazgo solo se emite cuando n_distintos == 1, asi que el
+        # unico valor ocupa todas las filas validas: la frecuencia es conocible
+        # por definicion aunque no se haya podido contar sobre la columna.
         frecuencia
       } else {
         as.numeric(n_validos)
@@ -3728,7 +3737,15 @@
           "que hay dicen ausencia sin estar codificados como NA, asi que es una",
           "columna vacia escrita de otra forma, no una columna constante."
         ),
-        paste0("Valor unico: ", fila$moda, "; frecuencia: ", fila$frecuencia_moda),
+        # La evidencia cuenta lo MISMO que la descripcion y la traza: todas las
+        # formas de ausencia. Con dos formas -`""` y `" "`- decia "Valor unico:
+        # ; frecuencia: 3" al lado de "los 4 que hay", y el paquete se acusaba a
+        # si mismo sobre datos sin tocar.
+        paste0(
+          fila$n_faltantes_disfrazados, " de ", n_validos, " valores dicen ",
+          "ausencia; el mas frecuente: \"", fila$moda, "\" (",
+          fila$frecuencia_moda, ")"
+        ),
         paste(
           "Convertir esos valores a NA antes de decidir si la columna aporta",
           "algo; `faltantes_disfrazados` los enumera."

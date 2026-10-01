@@ -181,7 +181,9 @@ valor de otra columna decide qué filas tienen ésta, o cuando dos columnas
 se reparten las filas sin pisarse, se emite \code{posible_ausencia_estructural}
 con severidad \code{ok}, la evidencia medida y la línea exacta que habría que
 escribir para declararlo. Sugiere; no decide. Las columnas ya declaradas
-quedan fuera del examen.
+quedan fuera del examen. La regla tiene que cumplirse en al menos el 99 \% de
+las filas: una que un solo caso rompe por debajo de ese corte no se publica,
+porque ofrecer la línea para declararla sería afirmar de más.
 
 Con el mismo argumento viaja \code{regla_silencia_ausencia}, también \code{ok}: avisa
 cuando una columna declarada opcional o con universo propio sigue casi
@@ -614,6 +616,13 @@ En cada fila de \code{columnas}, \code{n_filas_analizadas_tipo} y
 \code{muestreado_tipo_inferido} declaran el alcance concreto de
 \code{proporcion_tipo_inferido}; no debe interpretarse esa proporción como si
 hubiera usado necesariamente toda la columna.
+
+El tipo se \strong{infiere} de los valores sólo en las columnas de texto: en las
+demás es el tipo con que R las guarda —lógico, entero, doble, fecha—, que no
+depende de los valores. Por eso una columna no textual sin ningún valor
+conserva su tipo de almacenamiento, con \code{proporcion_tipo_inferido} en \code{NA}
+porque ningún valor lo midió, y una columna de texto sin valores queda
+\code{"desconocido"}, porque ahí no hay nada de qué inferirlo.
 
 Cuando el tipo inferido es \code{"fecha"} o \code{"fecha-hora"},
 \code{estado_tipo_inferido} declara además cómo quedó establecida esa lectura:
