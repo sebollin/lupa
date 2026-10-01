@@ -43,6 +43,26 @@
     <div class="section level2">
 <h2 class="pkg-version" data-toc-text="0.1.0" id="lupa-010">lupa 0.1.0<a class="anchor" aria-label="anchor" href="#lupa-010"></a></h2>
 <div class="section level3">
+<h3 id="ronda-la-proteccion-de-datos-personales-por-las-dos-caras-0-1-0">Ronda 19: la proteccion de datos personales, por las dos caras<a class="anchor" aria-label="anchor" href="#ronda-la-proteccion-de-datos-personales-por-las-dos-caras-0-1-0"></a></h3>
+<p>Diez hallazgos de una refutacion con dos encargos: que un valor protegido se publique, y que la proteccion tape lo que no es un valor de nadie.</p>
+<ul><li>
+<strong>Un valor protegido con un caracter que el paquete escapa no se publica escapado.</strong> Un nombre con un espacio duro, un salto de linea o un espacio de ancho cero salia como <code>Juan&lt;U+00A0&gt;Perez</code> en las evidencias de otra columna: el barrido comparaba el valor crudo con el texto ya escapado. Ahora deshace los escapes antes de comparar, tambien el <code>&lt;lupa-byte:...&gt;</code> con que se citaba un nivel que no es UTF-8.</li>
+<li>
+<strong><code><a href="../reference/perfilar_por.html">perfilar_por()</a></code> barre su salida con los valores protegidos de la tabla entera.</strong> Cada grupo se perfila sobre su rebanada, y el titular que en la columna protegida estaba solo en otro grupo se publicaba exacto. Las etiquetas de grupo se siguen publicando, como esta documentado.</li>
+<li>
+<strong><code><a href="../reference/perfilar_dbi.html">perfilar_dbi()</a></code> tapa en el resumen el valor de una persona que es moda o extremo de otra columna.</strong> Buscaba los valores en <code>perfil_muestra$datos</code>, que no existe: <code>$</code> hacia coincidencia parcial con <code>datos_personales</code> y no salia ninguno. Ahora se cosechan de la muestra al leerla.</li>
+<li>
+<strong>El pliegue con que se comparan las variantes cubre la caja de todo alfabeto y la compatibilidad de Unicode</strong>: ligaduras, ancho completo y medio ancho, letras matematicas, mayusculas del latin extendido y el georgiano. Sale de un mapa generado (<code>data-raw/mapa_pliegue_comparar.R</code>), que reemplaza al de la ronda 18-B.</li>
+<li>
+<strong>Un valor en CP1252, o una celda con un solo byte roto, se reconoce.</strong> Lo que no es UTF-8 valido conserva sus secuencias validas y cada byte suelto se lee como CP1252, que es lo que escribe Windows: leer la celda entera como latin1 convertia en controles las letras de apellidos checos y polacos, y rompia las letras validas de una celda cortada.</li>
+<li>
+<strong>Las palabras y las marcas del propio paquete no se tapan.</strong> Con columnas de nombre y de apellido separadas, <code>Blanco</code> tapaba toda evidencia con la marca <code>&lt;blanco&gt;</code>, <code>Maximo</code> la que llevaba la clave <code>grupo_maximo</code>, y <code>Patron</code> o <code>Constante</code> descripciones enteras. El lexico del paquete se calcula al instalar, desde las cadenas de su propio codigo: sus marcas no se comparan en ningun campo, y sus palabras no se tapan en su prosa salvo dentro de una cita.</li>
+<li>
+<strong>La regla de digitos busca el documento sin su verificador, no cualquier tramo de seis cifras.</strong> Con un millon de cedulas protegidas tapaba las evidencias que citan conteos de filas, y pegaba dos conteos vecinos en un solo numero.</li>
+<li>
+<strong>Una fecha de calendario sola no entra en el piso de la proteccion.</strong> Con la fecha de nacimiento protegida, la media, la mediana y los extremos de las demas columnas de fechas coincidian con el cumpleanos de alguien y salian tapados. La columna protegida se sigue protegiendo entera.</li>
+</ul></div>
+<div class="section level3">
 <h3 id="un-metodo-propio-que-mide-fuera-de-su-universo-0-1-0">Un metodo propio que mide fuera de su universo<a class="anchor" aria-label="anchor" href="#un-metodo-propio-que-mide-fuera-de-su-universo-0-1-0"></a></h3>
 <ul><li>
 <strong><code><a href="../reference/medir.html">medir()</a></code> no publica las medidas de un metodo propio que caen fuera del universo que su metrica declara con <code>aplicable</code>.</strong> Se publicaban, entraban en el agregado y <code>alcance_medidas</code> decia «midio 4 de 5 en el universo aplicable» cuando adentro se habian medido 3. Es una salida que no cumple el contrato de <code>metodo</code>, como una <code>fila</code> que no existe: la metrica queda <code>no_medible</code>, con aviso y con las filas de afuera citadas en el motivo.</li>

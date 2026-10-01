@@ -2,6 +2,58 @@
 
 ## lupa 0.1.0
 
+### Ronda 19: la proteccion de datos personales, por las dos caras
+
+Diez hallazgos de una refutacion con dos encargos: que un valor
+protegido se publique, y que la proteccion tape lo que no es un valor de
+nadie.
+
+- **Un valor protegido con un caracter que el paquete escapa no se
+  publica escapado.** Un nombre con un espacio duro, un salto de linea o
+  un espacio de ancho cero salia como `Juan<U+00A0>Perez` en las
+  evidencias de otra columna: el barrido comparaba el valor crudo con el
+  texto ya escapado. Ahora deshace los escapes antes de comparar,
+  tambien el `<lupa-byte:...>` con que se citaba un nivel que no es
+  UTF-8.
+- **[`perfilar_por()`](https://sebollin.github.io/lupa/reference/perfilar_por.md)
+  barre su salida con los valores protegidos de la tabla entera.** Cada
+  grupo se perfila sobre su rebanada, y el titular que en la columna
+  protegida estaba solo en otro grupo se publicaba exacto. Las etiquetas
+  de grupo se siguen publicando, como esta documentado.
+- **[`perfilar_dbi()`](https://sebollin.github.io/lupa/reference/perfilar_dbi.md)
+  tapa en el resumen el valor de una persona que es moda o extremo de
+  otra columna.** Buscaba los valores en `perfil_muestra$datos`, que no
+  existe: `$` hacia coincidencia parcial con `datos_personales` y no
+  salia ninguno. Ahora se cosechan de la muestra al leerla.
+- **El pliegue con que se comparan las variantes cubre la caja de todo
+  alfabeto y la compatibilidad de Unicode**: ligaduras, ancho completo y
+  medio ancho, letras matematicas, mayusculas del latin extendido y el
+  georgiano. Sale de un mapa generado
+  (`data-raw/mapa_pliegue_comparar.R`), que reemplaza al de la ronda
+  18-B.
+- **Un valor en CP1252, o una celda con un solo byte roto, se
+  reconoce.** Lo que no es UTF-8 valido conserva sus secuencias validas
+  y cada byte suelto se lee como CP1252, que es lo que escribe Windows:
+  leer la celda entera como latin1 convertia en controles las letras de
+  apellidos checos y polacos, y rompia las letras validas de una celda
+  cortada.
+- **Las palabras y las marcas del propio paquete no se tapan.** Con
+  columnas de nombre y de apellido separadas, `Blanco` tapaba toda
+  evidencia con la marca `<blanco>`, `Maximo` la que llevaba la clave
+  `grupo_maximo`, y `Patron` o `Constante` descripciones enteras. El
+  lexico del paquete se calcula al instalar, desde las cadenas de su
+  propio codigo: sus marcas no se comparan en ningun campo, y sus
+  palabras no se tapan en su prosa salvo dentro de una cita.
+- **La regla de digitos busca el documento sin su verificador, no
+  cualquier tramo de seis cifras.** Con un millon de cedulas protegidas
+  tapaba las evidencias que citan conteos de filas, y pegaba dos conteos
+  vecinos en un solo numero.
+- **Una fecha de calendario sola no entra en el piso de la proteccion.**
+  Con la fecha de nacimiento protegida, la media, la mediana y los
+  extremos de las demas columnas de fechas coincidian con el cumpleanos
+  de alguien y salian tapados. La columna protegida se sigue protegiendo
+  entera.
+
 ### Un metodo propio que mide fuera de su universo
 
 - **[`medir()`](https://sebollin.github.io/lupa/reference/medir.md) no
