@@ -450,8 +450,11 @@
 #' `resultado` fuera de su tipo, con más de una observación para el mismo
 #' objeto, con una `entidad` que no está ligada a la instancia, con un
 #' `atributo` que no es una columna de las tablas que recibió el método —o
-#' varias unidas con `+`—, o con una `fila` que no es una posición entera o que
-#' falta en una métrica por celda o por fila, deja la métrica `no_medible` en
+#' varias unidas con `+`—, con una `fila` que no es una posición entera o que
+#' falta en una métrica por celda o por fila, o con una `fila` fuera del
+#' universo que la métrica declara con su propiedad `aplicable` —una métrica con
+#' `aplicable` mide sólo ese universo, y `alcance_medidas` cuenta sobre él—,
+#' deja la métrica `no_medible` en
 #' `cobertura_metricas`, igual que un método que **aborta**: `medir()` avisa y
 #' las demás métricas se miden igual.
 #'
@@ -1470,6 +1473,53 @@ metricas_nucleo <- function() {
 # del usuario que escribe `fila` con `which()` publicaba posiciones del recorte:
 # la medicion decia fila 6 cuando habia medido la 9. Se traducen a la tabla del
 # usuario con los indices que el recorte dejo anotados.
+# Una metrica que declara su universo con `aplicable` mide solo ese universo: es
+# lo que hacen los metodos del paquete, y es lo que `alcance_medidas` afirma al
+# contar "midio 4 de 5 en el universo aplicable". Un metodo propio que medía
+# tambien filas de afuera publicaba esas medidas, las metia en el agregado y el
+# alcance las contaba como de adentro: medido en una refutacion, "4 de 5" cuando
+# adentro se habian medido 3. Es una salida que no cumple el contrato, igual que
+# una `fila` que no existe, y deja la metrica `no_medible` con el motivo. Se
+# verifica en la tabla que RECIBIO el metodo, antes de traducir las posiciones a
+# la original; las que caen fuera de esa tabla las rechaza la traduccion.
+.verificar_filas_aplicables <- function(salida, tablas, instancia) {
+  if (is.null(instancia$configuracion$aplicable)) return(invisible(NULL))
+  granularidad <- as.character(instancia$declaracion$granularidad)[1L]
+  if (!granularidad %in% c("instanciaAtributo", "instanciaEntidad")) {
+    return(invisible(NULL))
+  }
+  entidad <- instancia$entidad[[1L]]
+  indice <- .indice_identificador(entidad, names(tablas))
+  if (is.na(indice) || !inherits(tablas[[indice]], "data.frame")) {
+    return(invisible(NULL))
+  }
+  dentro <- tryCatch(
+    .mascara_aplicable_instancia(tablas[[indice]], instancia, entidad),
+    error = function(e) NULL
+  )
+  if (is.null(dentro) || all(dentro)) return(invisible(NULL))
+  fila <- salida$fila
+  propias <- .identificadores_en(as.character(salida$entidad), entidad) &
+    !is.na(fila) & fila >= 1 & fila <= length(dentro)
+  fuera <- sort(unique(fila[propias][!dentro[fila[propias]]]))
+  if (length(fuera)) {
+    # Se citan en la tabla del usuario, que es como se publican las demas.
+    originales <- attr(tablas[[indice]], "lupa_indices_fila_originales",
+                       exact = TRUE)
+    if (length(originales)) fuera <- originales[fuera]
+    stop(
+      "El m\u00e9todo de ", instancia$nombre, " devolvi\u00f3 medidas de ",
+      length(fuera), if (length(fuera) == 1L) " fila" else " filas",
+      " fuera del universo que la m\u00e9trica declara con `aplicable` -",
+      "`fila` ", paste(utils::head(fuera, 5L), collapse = ", "),
+      if (length(fuera) > 5L) ", ..." else "",
+      "-. Una m\u00e9trica con `aplicable` mide s\u00f3lo ese universo.",
+      call. = FALSE
+    )
+  }
+  invisible(NULL)
+}
+
 .filas_a_la_tabla_original <- function(salida, tablas, instancia) {
   for (entidad in unique(as.character(salida$entidad))) {
     indice <- .indice_identificador(entidad, names(tablas))
@@ -1811,6 +1861,7 @@ metricas_nucleo <- function() {
   tabla <- if (is.na(indice_entidad)) NULL else tablas[[indice_entidad]]
   nombre <- instancia$nombre
   sujeto <- paste0("la m\u00e9trica `", nombre, "`")
+  sin_medidas <- FALSE
   if (length(entidades_vacias)) {
     motivo <- paste0(
       sujeto, " no se pudo medir: la entidad dependiente `",
@@ -1863,16 +1914,40 @@ metricas_nucleo <- function() {
         " fallo, es un alcance vac\u00edo."
       )
     } else {
+      sin_medidas <- TRUE
       paste0(
         sujeto, " no se pudo medir: su m\u00e9todo no devolvi\u00f3 ninguna medida",
         " para el universo recibido."
       )
     }
   } else {
+    sin_medidas <- TRUE
     motivo <- paste0(
       sujeto, " no se pudo medir: su m\u00e9todo no devolvi\u00f3 ninguna medida",
       " para el universo recibido."
     )
+  }
+  # Esas dos ramas publicaban `sin_valores` con "aportar valores no nulos", y el
+  # universo SI tenia valores: era el metodo el que no midio. `?medir` define
+  # `sin_valores` como un universo sin valores, asi que la etiqueta afirmaba algo
+  # falso. Es `no_medible`, y `medir()` avisa por ese estado. Ningun metodo del
+  # paquete llega aca en las pruebas de `medir()` -medido recorriendolas con la
+  # funcion envuelta-: es la puerta de un metodo propio.
+  if (sin_medidas) {
+    return(data.frame(
+      id_medicion = as.character(id_medicion), fecha = as.POSIXct(fecha),
+      metrica = instancia$declaracion$nombre,
+      metrica_especifica = instancia$nombre_especifico,
+      metrica_instanciada = instancia$nombre,
+      entidad = paste(instancia$entidad, collapse = "+"),
+      atributo = paste(instancia$atributos, collapse = "+"),
+      estado = "no_medible", motivo = motivo,
+      como_resolverlo = paste(
+        "Revisar el m\u00e9todo: el universo tiene valores y no devolvi\u00f3",
+        "ninguna medida. Una m\u00e9trica que no se midi\u00f3 no se interpreta",
+        "como cero."
+      ), stringsAsFactors = FALSE
+    ))
   }
   data.frame(
     id_medicion = as.character(id_medicion), fecha = as.POSIXct(fecha),
@@ -2113,8 +2188,9 @@ metricas_nucleo <- function() {
 #'   cuando su contrato no trae un campo que necesita, y `no_medible` cuando su
 #'   método falló sobre estos datos —una columna sin dos valores para
 #'   `ErrorEstandar`, un atributo que la tabla no trae, una regla que devuelve
-#'   `NA`— o devolvió una salida que no cumple el contrato de `metodo`. En el
-#'   último caso el motivo conserva el mensaje del método, con los valores de las
+#'   `NA`—, devolvió una salida que no cumple el contrato de `metodo`, o no
+#'   devolvió ninguna medida sobre un universo que sí tiene valores. Cuando el
+#'   método falló, el motivo conserva su mensaje, con los valores de las
 #'   columnas personales enmascarados si `proteger_datos_personales = TRUE`, y
 #'   `medir()` **avisa**: la falla ya no se lleva la medición de las demás
 #'   métricas, pero tampoco queda muda. Y cuando **sí** pudo medirse
@@ -2248,6 +2324,7 @@ medir <- function(modelo, datos, id_medicion = NULL, fecha = Sys.time(),
     salida <- tryCatch({
       validada <- .validar_salida_medicion(cruda, instancia, tablas_instancia)
       if (nrow(validada) && !.metodo_del_paquete(instancia$metodo)) {
+        .verificar_filas_aplicables(validada, tablas_instancia, instancia)
         validada <- .filas_a_la_tabla_original(
           validada, tablas_instancia, instancia
         )

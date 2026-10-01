@@ -233,8 +233,11 @@ tipos homónimos;
 \code{resultado} fuera de su tipo, con más de una observación para el mismo
 objeto, con una \code{entidad} que no está ligada a la instancia, con un
 \code{atributo} que no es una columna de las tablas que recibió el método —o
-varias unidas con \code{+}—, o con una \code{fila} que no es una posición entera o que
-falta en una métrica por celda o por fila, deja la métrica \code{no_medible} en
+varias unidas con \code{+}—, con una \code{fila} que no es una posición entera o que
+falta en una métrica por celda o por fila, o con una \code{fila} fuera del
+universo que la métrica declara con su propiedad \code{aplicable} —una métrica con
+\code{aplicable} mide sólo ese universo, y \code{alcance_medidas} cuenta sobre él—,
+deja la métrica \code{no_medible} en
 \code{cobertura_metricas}, igual que un método que \strong{aborta}: \code{medir()} avisa y
 las demás métricas se miden igual.
 

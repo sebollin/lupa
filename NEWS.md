@@ -1,5 +1,17 @@
 # lupa 0.1.0
 
+## Un metodo propio que mide fuera de su universo
+
+- **`medir()` no publica las medidas de un metodo propio que caen fuera del
+  universo que su metrica declara con `aplicable`.** Se publicaban, entraban en
+  el agregado y `alcance_medidas` decia «midio 4 de 5 en el universo aplicable»
+  cuando adentro se habian medido 3. Es una salida que no cumple el contrato de
+  `metodo`, como una `fila` que no existe: la metrica queda `no_medible`, con
+  aviso y con las filas de afuera citadas en el motivo.
+- Un metodo que no devuelve ninguna medida sobre un universo **con** valores deja
+  la metrica `no_medible`, con aviso. Se publicaba `sin_valores` con «aportar
+  valores no nulos», que `?medir` define como un universo sin valores.
+
 ## Ronda 18-B: la proteccion de datos personales, refutada otra vez
 
 - **La sugerencia de una ausencia estructural no publica el criterio de una
