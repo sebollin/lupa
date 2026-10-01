@@ -265,7 +265,9 @@ valor de otra columna decide qué filas tienen ésta, o cuando dos columnas
 se reparten las filas sin pisarse, se emite <code>posible_ausencia_estructural</code>
 con severidad <code>ok</code>, la evidencia medida y la línea exacta que habría que
 escribir para declararlo. Sugiere; no decide. Las columnas ya declaradas
-quedan fuera del examen.</p>
+quedan fuera del examen. La regla tiene que cumplirse en al menos el 99 % de
+las filas: una que un solo caso rompe por debajo de ese corte no se publica,
+porque ofrecer la línea para declararla sería afirmar de más.</p>
 <p>Con el mismo argumento viaja <code>regla_silencia_ausencia</code>, también <code>ok</code>: avisa
 cuando una columna declarada opcional o con universo propio sigue casi
 vacía dentro de ese universo. La declaración funcionó y por eso el perfil
@@ -763,6 +765,12 @@ En cada fila de <code>columnas</code>, <code>n_filas_analizadas_tipo</code> y
 <code>muestreado_tipo_inferido</code> declaran el alcance concreto de
 <code>proporcion_tipo_inferido</code>; no debe interpretarse esa proporción como si
 hubiera usado necesariamente toda la columna.</p>
+<p>El tipo se <strong>infiere</strong> de los valores sólo en las columnas de texto: en las
+demás es el tipo con que R las guarda —lógico, entero, doble, fecha—, que no
+depende de los valores. Por eso una columna no textual sin ningún valor
+conserva su tipo de almacenamiento, con <code>proporcion_tipo_inferido</code> en <code>NA</code>
+porque ningún valor lo midió, y una columna de texto sin valores queda
+<code>"desconocido"</code>, porque ahí no hay nada de qué inferirlo.</p>
 <p>Cuando el tipo inferido es <code>"fecha"</code> o <code>"fecha-hora"</code>,
 <code>estado_tipo_inferido</code> declara además cómo quedó establecida esa lectura:
 <code>"confirmado"</code> si todo formato con casamientos es inequívoco, y
