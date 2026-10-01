@@ -336,6 +336,20 @@
       proteger <- FALSE
     }
   }
+  # Un correo no necesita ser mayoria para ser un correo. La rama de arriba pide
+  # que lo sean el 80 % de los valores -una columna de correos-, y una columna de
+  # nombre neutro con 70 correos y 30 textos se perfilaba sin proteger: los
+  # ejemplos de sus patrones publicaban las direcciones enteras. El paquete ya
+  # dice por que un correo se protege por su forma y un numero de ocho digitos no:
+  # "su forma no deja dudas". Eso vale para cada valor, no para la mayoria. Es un
+  # piso que falla cerrado: se aplica solo si nada de lo anterior protegio.
+  if (!proteger && is.finite(proporcion_correo) && proporcion_correo > 0) {
+    tipo <- "correo"
+    proporcion <- proporcion_correo
+    fundamento <- "valores con forma de correo, aunque no dominen la columna"
+    poder <- "medio"
+    proteger <- TRUE
+  }
   list(
     tipo = tipo, proporcion = proporcion,
     # Sobre cuantos valores se calculo esa proporcion. Un blanco no tiene forma

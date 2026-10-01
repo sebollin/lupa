@@ -12,7 +12,8 @@ leer_historico(archivo)
 \arguments{
 \item{historico}{Objeto creado por \code{\link[=historico_calidad]{historico_calidad()}}.}
 
-\item{archivo}{Ruta del archivo RDS.}
+\item{archivo}{Ruta del archivo RDS. Una ruta que ya es un directorio se
+rechaza: el archivo va dentro, con su nombre.}
 
 \item{sobrescribir}{Si se permite reemplazar un archivo existente.}
 }

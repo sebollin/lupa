@@ -16,7 +16,10 @@
 #'
 #' Generaliza un vector de texto mediante la convención del *Pattern Finder*
 #' de DataCleaner: `9` representa un dígito, `a` una letra minúscula y `A` una
-#' letra mayúscula. Los símbolos y espacios se conservan literalmente.
+#' letra mayúscula. Los símbolos y espacios se conservan literalmente. Las tres
+#' clases valen en cualquier escritura: un dígito arábigo-índico es `9` y una
+#' `é` es `a`, de modo que el patrón no publica letras del valor; una letra sin
+#' mayúscula ni minúscula —árabe, CJK— cuenta como `a`.
 #'
 #' El cálculo aplica reemplazos vectorizados sobre el vector completo. Si el
 #' vector supera `muestra`, usa una muestra sistemática reproducible y registra
@@ -38,7 +41,8 @@
 #' @return Un data frame de clase `patrones` con patrón, frecuencia, proporción
 #'   y ejemplos. Los **ejemplos no se publican** cuando la forma de los valores
 #'   alcanza por sí sola para clasificarlos como dato personal —un correo, por
-#'   ejemplo—: salen como `[valor protegido]`. Acá llega un vector suelto, sin
+#'   ejemplo, aunque los correos no sean la mayoría del vector—: salen como
+#'   `[valor protegido]`, los de todos los patrones. Acá llega un vector suelto, sin
 #'   nombre de columna, así que la vía por nombre no está disponible; un número
 #'   de ocho dígitos **sí** se publica, porque su forma sola no alcanza para
 #'   afirmar que es un documento. Los atributos `total`, `analizados`, `filas_analizadas` y
@@ -263,12 +267,31 @@ descubrir_patrones <- function(x,
 # publicaba igual y su trazabilidad salia vacia **sin ningun error**.
 .generalizar_a_patron <- function(x, distinguir_mayusculas = TRUE,
                                   expandir = FALSE) {
-  x <- gsub("[[:digit:]]", "9", x, perl = TRUE)
+  # Clases de Unicode y no POSIX: con `perl = TRUE`, `[[:digit:]]` y
+  # `[[:lower:]]` son solo ASCII, y un digito arabigo-indico, una `\u00e9` o una
+  # `\u00c9` quedaban literales en el patron -"Jos\u00e9" daba `Aa+\u00e9`, que es
+  # publicar el valor en vez de su forma-. Una letra sin caso -arabe, CJK- es una
+  # letra, y una titular (`\u01c5`) cuenta como mayuscula.
+  #
+  # Las clases de Unicode necesitan que PCRE lea el texto como UTF-8. Bajo un
+  # locale que no es UTF-8, un texto SIN MARCA entra en modo bytes y `\p{Lu}`
+  # leia el primer byte de una `\u00e9` como `\u00c3`: el patron salia distinto
+  # bajo `C` que bajo UTF-8, y roto. Se marca UTF-8 lo que sin marca ya lo es.
+  x <- as.character(x)
+  sin_marca <- !is.na(x) & Encoding(x) == "unknown" &
+    grepl("[^\\001-\\177]", x, useBytes = TRUE, perl = TRUE)
+  if (any(sin_marca)) {
+    validos <- sin_marca
+    validos[sin_marca] <- validUTF8(x[sin_marca])
+    Encoding(x)[validos] <- "UTF-8"
+  }
+  x <- gsub("\\p{Nd}", "9", x, perl = TRUE)
   if (isTRUE(distinguir_mayusculas)) {
-    x <- gsub("[[:lower:]]", "a", x, perl = TRUE)
-    x <- gsub("[[:upper:]]", "A", x, perl = TRUE)
+    x <- gsub("\\p{Ll}", "a", x, perl = TRUE)
+    x <- gsub("[\\p{Lu}\\p{Lt}]", "A", x, perl = TRUE)
+    x <- gsub("[\\p{Lm}\\p{Lo}]", "a", x, perl = TRUE)
   } else {
-    x <- gsub("[[:alpha:]]", "a", x, perl = TRUE)
+    x <- gsub("\\p{L}", "a", x, perl = TRUE)
   }
   if (!isTRUE(expandir)) {
     x <- gsub("9{2,}", "9+", x, perl = TRUE)

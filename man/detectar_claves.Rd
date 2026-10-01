@@ -46,6 +46,11 @@ aunque tengan nombres distintos. Las columnas compuestas —matrices o
 arreglos de más de una dimensión— y las de lista no se interpretan como
 claves. Los pares también quedan en el atributo
 \code{claves_redundantes}.
+
+Una columna cuyo nombre se repite en la tabla no se analiza: una clave se
+publica por el nombre de sus columnas, y ese nombre no diría cuál de las dos
+identifica. Se avisa, y los nombres quedan en el atributo
+\code{columnas_nombre_repetido}.
 }
 \examples{
 detectar_claves(data.frame(id = 1:4, grupo = c("a", "a", "b", "b")))

@@ -311,20 +311,40 @@ detectar_discordancias <- function(datos, senales, max_ejemplos = 5L,
     } else {
       character()
     }
+    dobles <- all(vapply(valores, function(x) {
+      is.double(x) && !inherits(x, c("integer64", "Date", "POSIXt", "difftime"))
+    }, logical(1L)))
     detalle <- if (length(ejemplos)) {
       paste(vapply(ejemplos, function(fila) {
-        partes <- vapply(seq_along(senal$columnas), function(k) {
-          nombre <- senal$columnas[[k]]
-          texto <- if (.nombres_para_operar(nombre) %in%
-                       .nombres_para_operar(personales)) {
-            "[valor protegido]"
-          } else {
-            .texto_valor(valores[[k]][fila])
-          }
-          paste0(nombre, "=", texto)
+        textos <- vapply(seq_along(senal$columnas), function(k) {
+          .texto_valor(valores[[k]][fila])
         }, character(1L))
+        # Dos dobles distintos que se escriben igual con 15 cifras -`0.1 + 0.2` y
+        # `0.3`- citaban `a=0.3; b=0.3` en una fila declarada discordante, y quien
+        # leia no podia rehacer el veredicto. Si la fila tiene mas valores que
+        # escrituras, se citan con las cifras que los distinguen.
+        if (dobles) {
+          numeros <- vapply(valores, function(x) x[[fila]], numeric(1L))
+          if (length(unique(numeros)) > length(unique(textos))) {
+            textos <- .etiqueta_numero_reversible(numeros)
+          }
+        }
+        protegidas <- .nombres_para_operar(senal$columnas) %in%
+          .nombres_para_operar(personales)
+        textos[protegidas] <- "[valor protegido]"
+        partes <- paste0(senal$columnas, "=", textos)
         paste0("fila ", fila, ": ", paste(partes, collapse = "; "))
       }, character(1L)), collapse = " | ")
+    } else if (length(indices)) {
+      # Con `max_ejemplos = 0` no se cita ninguna fila, y la evidencia decia "sin
+      # filas discordantes" al lado de `n_discordantes = 2` en la misma fila.
+      paste0(
+        length(indices),
+        if (length(indices) == 1L) {
+          " fila discordante, no citada"
+        } else " filas discordantes, ninguna citada",
+        " (`max_ejemplos = ", max_ejemplos, "`)"
+      )
     } else {
       "sin filas discordantes"
     }

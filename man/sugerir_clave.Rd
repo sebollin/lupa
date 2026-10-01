@@ -44,6 +44,11 @@ columna queda al final del orden. Es el mismo criterio que aplica
 \code{\link[=detectar_claves]{detectar_claves()}}, consultado a la misma función.
 Las columnas compuestas —matrices o arreglos de más de una dimensión— no se
 ofrecen como claves ni reciben una tasa de valores distintos.
+
+Una columna cuyo nombre se repite en la tabla no se mide: la clave se pasa a
+\code{\link[=perfilar]{perfilar()}} por nombre, y ese nombre no dice cuál de las dos es. Aparece al
+final, fuera de \code{maximo}, con \code{identifica}, \code{sin_faltantes} y
+\code{tasa_distintos} en \code{NA} y el motivo; \code{\link[=elegir_clave]{elegir_clave()}} no la ofrece.
 }
 \examples{
 personas <- data.frame(

@@ -45,8 +45,10 @@ test_that("una serie de una sola medicion declara que no hay par que comparar", 
   expect_identical(as.character(cobertura$diagnostico), "detectar_deriva_calidad")
   expect_match(as.character(cobertura$motivo), "una sola medicion")
   expect_match(as.character(cobertura$como_resolverlo), "dos mediciones")
-  # El objeto nombrado es legible, no una clave de bytes.
-  expect_identical(as.character(cobertura$columna), "Basico")
+  # El objeto nombrado es legible, no una clave de bytes, y nombra la tabla:
+  # la serie es perfil Y tabla, y dos tablas con el mismo perfil daban dos
+  # diagnosticos identicos.
+  expect_identical(as.character(cobertura$columna), "Basico [personas]")
 })
 
 test_that("con dos mediciones no se declara nada de mas", {

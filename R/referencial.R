@@ -29,7 +29,10 @@
   if (!nrow(datos)) return(integer())
   if (!ncol(datos)) return(rep.int(1L, nrow(datos)))
   factores <- lapply(datos, function(x) {
-    factor(.valores_relacion(x), exclude = NULL)
+    # Los niveles de `factor()` salen de `as.character()`, que funde dos dobles
+    # distintos -`0.1 + 0.2` y `0.3`- y separa el mismo numero escrito como
+    # entero y como doble -`100000L` y `1e5`-. Ver `.texto_identidad()`.
+    factor(.texto_identidad(.valores_relacion(x)), exclude = NULL)
   })
   as.integer(do.call(
     interaction, c(factores, list(drop = TRUE, lex.order = TRUE))
@@ -121,7 +124,7 @@
   indices <- .indice_nombre(columnas, names(tabla))
   columnas <- names(tabla)[indices]
   salida <- lapply(columnas, function(columna) {
-    texto <- suppressWarnings(as.character(.valores_relacion(tabla[[columna]])))
+    texto <- suppressWarnings(.texto_identidad(.valores_relacion(tabla[[columna]])))
     .normalizacion_aplicar(
       texto, .normalizacion_para_columna(perfil, columna)
     )
@@ -145,7 +148,7 @@
 .referencial_filas_original_texto <- function(tabla, columnas) {
   if (!nrow(tabla)) return(character())
   valores <- lapply(columnas, function(columna) {
-    texto <- suppressWarnings(as.character(.valores_relacion(tabla[[columna]])))
+    texto <- suppressWarnings(.texto_identidad(.valores_relacion(tabla[[columna]])))
     texto[is.na(texto)] <- ""
     texto
   })
@@ -576,6 +579,25 @@ print.referencial <- function(x, ...) {
   referencia_clave <- .seleccionar_columnas(
     referencia$datos, referencia$clave
   )
+  # Sobre un referencial sin claves la cobertura es 0/0. Publicaba 1 -cobertura
+  # perfecta, y el tablero la contaba como tal-. El paquete ya declara
+  # `sin_valores` cuando la ENTIDAD no tiene filas -"no es un fallo, es un
+  # alcance vacio"-, y este es el mismo alcance vacio del otro lado.
+  if (!nrow(referencia_clave)) {
+    return(.abstener_metodo(
+      instancia,
+      motivo = paste0(
+        "El referencial `", referencia$nombre, "` no tiene claves: la ",
+        "cobertura de un universo vac\u00edo no es una proporci\u00f3n. No es un ",
+        "fallo, es un alcance vac\u00edo."
+      ),
+      como_resolverlo = paste(
+        "Revisar que el padr\u00f3n se haya cargado completo; si de verdad no",
+        "tiene claves, no hay cobertura que medir."
+      ),
+      estado = "sin_valores"
+    ))
+  }
   perfil <- .referencial_normalizacion(instancia, referencia)
   .declarar_mezcla_referencial(
     instancia$declaracion$nombre, instancia$atributos, objetivo,
@@ -591,7 +613,7 @@ print.referencial <- function(x, ...) {
   } else {
     cubiertas <- .filas_en_referencial(referencia_clave, objetivo)
   }
-  resultado <- if (nrow(referencia_clave)) mean(cubiertas) else 1
+  resultado <- mean(cubiertas)
   salida <- .salida_metodo(
     resultado, entidad, paste(instancia$atributos, collapse = "+"), NA_integer_,
     paste0(entidad, " respecto de ", referencia$nombre)
@@ -626,9 +648,18 @@ print.referencial <- function(x, ...) {
 #' comparados; así el límite no depende del orden ni de la frecuencia de las
 #' filas.
 #'
+#' Los números se emparejan por su valor. El mismo número guardado como entero
+#' en una tabla y como doble en la otra coincide —`100000L` y `1e5`—, y dos
+#' dobles distintos no coinciden aunque se escriban igual con 15 cifras
+#' —`0.1 + 0.2` y `0.3`—. Lo mismo vale para [metricas_nucleo()] cuando compara
+#' filas por sus atributos, como en `EntidadDuplicada`.
+#'
 #' Los valores ausentes no generan medidas de correctitud: corresponden a la
 #' dimensión Completitud. La cobertura ignora claves ausentes en el objetivo y
-#' no permite que duplicados inflen el resultado.
+#' no permite que duplicados inflen el resultado. Sobre un referencial sin
+#' claves, `RatioCobertura` no se mide: la cobertura de un universo vacío no es
+#' una proporción, y la métrica queda `sin_valores` con ese motivo, igual que
+#' cuando la entidad no tiene filas.
 #'
 #' @return Lista con tres objetos `metrica_generica` —`CorrectitudSemFuerte`,
 #'   `CorrectitudSemDebil` y `RatioCobertura`—, listos para instanciar contra un

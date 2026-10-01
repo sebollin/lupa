@@ -32,9 +32,18 @@ comparados; así el límite no depende del orden ni de la frecuencia de las
 filas.
 }
 \details{
+Los números se emparejan por su valor. El mismo número guardado como entero
+en una tabla y como doble en la otra coincide —\code{100000L} y \code{1e5}—, y dos
+dobles distintos no coinciden aunque se escriban igual con 15 cifras
+—\code{0.1 + 0.2} y \code{0.3}—. Lo mismo vale para \code{\link[=metricas_nucleo]{metricas_nucleo()}} cuando compara
+filas por sus atributos, como en \code{EntidadDuplicada}.
+
 Los valores ausentes no generan medidas de correctitud: corresponden a la
 dimensión Completitud. La cobertura ignora claves ausentes en el objetivo y
-no permite que duplicados inflen el resultado.
+no permite que duplicados inflen el resultado. Sobre un referencial sin
+claves, \code{RatioCobertura} no se mide: la cobertura de un universo vacío no es
+una proporción, y la métrica queda \code{sin_valores} con ese motivo, igual que
+cuando la entidad no tiene filas.
 }
 \examples{
 ref <- referencial(

@@ -52,8 +52,9 @@ La respuesta es sobre el dato, no sobre cómo lo escribe R. Un número se valida
 por sus dígitos: el doble \code{12000000} se lee como \code{"12000000"} aunque \code{scipen}
 lo imprima en notación científica. \code{NaN} es ausente y devuelve \code{NA}, igual que
 en el resto del paquete. Las letras se pasan a mayúsculas sólo dentro de ASCII:
-\code{toupper()} convierte \code{ſ} en \code{S} y \code{ı} en \code{I}, y con eso \code{"ſe"} pasaba por
-un código ISO; ahora es inválido. Y la marca de codificación del texto
+\code{toupper()} convierte la s larga (U+017F) en \code{S} y la i sin punto (U+0131) en
+\code{I}, y con eso una s larga seguida de \code{e} pasaba por un código ISO; ahora es
+inválida. Y la marca de codificación del texto
 —\code{latin1} o UTF-8— no cambia la respuesta.
 
 \code{validar_correo()} comprueba un subconjunto práctico y deliberadamente

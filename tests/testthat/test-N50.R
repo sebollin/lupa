@@ -83,8 +83,14 @@ test_that("N50.2: desambiguar no publica columnas inexistentes", {
     )
     if (!identical(puesto, locale)) next
     datos <- .datos_nombre_N50(dos = TRUE)
-    claves <- lupa::detectar_claves(datos, max_combinacion = 1L)
+    # Las dos columnas se llaman igual -el mismo texto, una marcada y otra no-:
+    # ninguna se puede publicar como clave por su nombre, y se avisa.
+    expect_warning(
+      claves <- lupa::detectar_claves(datos, max_combinacion = 1L),
+      "repetido"
+    )
     expect_true(all(claves$columnas %in% names(datos)), info = locale)
+    expect_equal(nrow(claves), 0L, info = locale)
     perfil <- lupa::perfilar(
       datos, analizar_dependencias = FALSE,
       casi_duplicados_vocabulario = FALSE,

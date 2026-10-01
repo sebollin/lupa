@@ -40,7 +40,8 @@ entero después, respetando ahí la declaración del usuario.}
 Un data frame de clase \code{patrones} con patrón, frecuencia, proporción
 y ejemplos. Los \strong{ejemplos no se publican} cuando la forma de los valores
 alcanza por sí sola para clasificarlos como dato personal —un correo, por
-ejemplo—: salen como \verb{[valor protegido]}. Acá llega un vector suelto, sin
+ejemplo, aunque los correos no sean la mayoría del vector—: salen como
+\verb{[valor protegido]}, los de todos los patrones. Acá llega un vector suelto, sin
 nombre de columna, así que la vía por nombre no está disponible; un número
 de ocho dígitos \strong{sí} se publica, porque su forma sola no alcanza para
 afirmar que es un documento. Los atributos \code{total}, \code{analizados}, \code{filas_analizadas} y
@@ -61,7 +62,10 @@ no es rara y que por eso quedan fuera del hallazgo.
 \description{
 Generaliza un vector de texto mediante la convención del \emph{Pattern Finder}
 de DataCleaner: \code{9} representa un dígito, \code{a} una letra minúscula y \code{A} una
-letra mayúscula. Los símbolos y espacios se conservan literalmente.
+letra mayúscula. Los símbolos y espacios se conservan literalmente. Las tres
+clases valen en cualquier escritura: un dígito arábigo-índico es \code{9} y una
+\code{é} es \code{a}, de modo que el patrón no publica letras del valor; una letra sin
+mayúscula ni minúscula —árabe, CJK— cuenta como \code{a}.
 }
 \details{
 El cálculo aplica reemplazos vectorizados sobre el vector completo. Si el

@@ -109,7 +109,14 @@ test_that("la cobertura exige completitud y no se infla con duplicados", {
   cobertura_vacia <- instanciar(
     especializar(metrica), "personas", "id", referencial = vacio
   )
-  expect_equal(medir(modelo(cobertura_vacia), data.frame(id = integer()))$resultado, 1)
+  # Sobre un universo sin claves la cobertura es 0/0: no se publica 1 -una
+  # cobertura perfecta que el tablero contaba como tal- sino `sin_valores`, la
+  # misma regla que cuando la entidad no tiene filas.
+  medicion_vacia <- medir(modelo(cobertura_vacia), data.frame(id = integer()))
+  expect_equal(nrow(medicion_vacia), 0L)
+  expect_identical(
+    as.character(attr(medicion_vacia, "cobertura_metricas")$estado), "sin_valores"
+  )
   cobertura_faltante <- instanciar(
     especializar(metrica), "personas", "ausente", referencial = completo
   )

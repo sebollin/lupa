@@ -59,7 +59,9 @@ documentan el presupuesto de comparaciones. \code{trabajo_estimado},
 \code{trabajo_comparado}, \code{trabajo_sin_comparar}, \code{unidad_trabajo} y
 \code{max_trabajo} documentan el presupuesto por filas. \code{columnas_descartadas}
 es un data frame que explica por qué una columna no se usó como
-determinante.
+determinante. Una columna cuyo nombre se repite en la tabla no entra en
+ninguna dependencia, de ningún lado, y se descarta con el motivo
+\code{nombre_repetido}: la fila diría \code{k -> k} sin decir cuál columna es cuál.
 }
 \description{
 Busca pares ordenados \code{determinante -> dependiente}. El cumplimiento es la

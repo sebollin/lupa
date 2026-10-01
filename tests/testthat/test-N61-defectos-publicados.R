@@ -519,6 +519,12 @@ test_that("print de propuesta_modelo no aborta bajo C y conserva la tabla", {
     skip("no hay ningun locale UTF-8 disponible en esta maquina")
   }
 
+  # Bajo C cada letra acentuada se imprime `<U+00F3>`: las lineas son mas anchas
+  # y la tabla se parte en mas bloques. Contar LINEAS con el ancho de la consola
+  # media eso, no las filas: la prueba paso o fallo segun el contenido de una
+  # justificacion. Con un ancho que no parte la tabla, una linea es una fila.
+  ancho <- options(width = 10000L)
+  on.exit(options(ancho), add = TRUE)
   utf8 <- .capturar_n63_publicacion(locale_utf8)
   bajo_c <- .capturar_n63_publicacion("C")
 

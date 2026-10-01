@@ -12,6 +12,14 @@
   if (!dir.exists(directorio)) {
     stop("No existe el directorio de destino: ", directorio, ".", call. = FALSE)
   }
+  # Un directorio no es un archivo que se pueda reemplazar: `file.copy()` copiaba
+  # el temporal ADENTRO, con su nombre de temporal, y la funcion devolvia la ruta
+  # del directorio como si ahi estuviera lo guardado. Y sin `sobrescribir`, el
+  # mensaje mandaba justamente a ese camino.
+  if (dir.exists(archivo)) {
+    stop("`archivo` es un directorio: ", archivo, ". Indicar la ruta de un ",
+         "archivo dentro de \u00e9l.", call. = FALSE)
+  }
   if (file.exists(archivo) && !sobrescribir) {
     stop("El archivo ya existe; use `sobrescribir = TRUE` para reemplazarlo.",
          call. = FALSE)
@@ -869,7 +877,8 @@ acumular_historico <- function(historico, ...,
 #' reemplaza un archivo existente salvo consentimiento explícito.
 #'
 #' @param historico Objeto creado por [historico_calidad()].
-#' @param archivo Ruta del archivo RDS.
+#' @param archivo Ruta del archivo RDS. Una ruta que ya es un directorio se
+#'   rechaza: el archivo va dentro, con su nombre.
 #' @param sobrescribir Si se permite reemplazar un archivo existente.
 #'
 #' @return `guardar_historico()` devuelve invisiblemente la ruta normalizada;
@@ -1064,14 +1073,23 @@ detectar_deriva_calidad <- function(historico, nivel = c("perfil", "regla"),
         "detectar_deriva_calidad",
         # Legible, no una clave: este campo lo lee una persona. Las claves de
         # bytes son para agrupar, no para publicar.
-        if (nivel == "regla") {
-          paste0(
-            as.character(datos$perfil[[indices[[1L]]]]), " / ",
-            as.character(datos$regla[[indices[[1L]]]])
-          )
-        } else {
-          as.character(datos$perfil[[indices[[1L]]]])
-        },
+        #
+        # Y con la tabla: la serie se agrupa por perfil Y tabla, y dos tablas
+        # medidas con el mismo perfil publicaban dos diagnosticos identicos, sin
+        # decir a cual le faltaba el par.
+        paste0(
+          if (nivel == "regla") {
+            paste0(
+              as.character(datos$perfil[[indices[[1L]]]]), " / ",
+              as.character(datos$regla[[indices[[1L]]]])
+            )
+          } else {
+            as.character(datos$perfil[[indices[[1L]]]])
+          },
+          if (!identical(identidad[[indices[[1L]]]], "<sin_configuracion>")) {
+            paste0(" [", identidad[[indices[[1L]]]], "]")
+          } else ""
+        ),
         "no_comparable: una sola medicion en la serie",
         paste0(
           "Acumular al menos dos mediciones del mismo perfil -y de la misma tabla- ",
@@ -1247,27 +1265,46 @@ detectar_deriva_calidad <- function(historico, nivel = c("perfil", "regla"),
         descripcion = paste(
           switch(
             nombre,
-            modelo = if (marco_cambiado[i] && tipos_cambiados[i]) {
-              "Cambio el marco y el tipo_resultado de una o mas metricas de la corrida;"
-            } else if (marco_cambiado[i]) {
-              "Cambio el marco de calidad de la corrida;"
-            } else if (tipos_cambiados[i]) {
-              "Cambio el tipo_resultado de una o mas metricas de la corrida;"
-            } else {
-              "Cambio el modelo de calidad de la corrida;"
-            },
+            # Los tipos se guardan como un solo vector, sin el nombre de la
+            # metrica: cambian igual si una metrica cambio de tipo que si el
+            # modelo gano o perdio una. Decia "cambio el tipo_resultado" sobre
+            # un modelo de dos metricas booleanas contra uno de una.
+            # `i` puede traer varios pares: todo lo que decide el texto va
+            # vectorizado. Con `if` sobre el vector, dos pares a la vez
+            # abortaban la deriva entera.
+            modelo = ifelse(
+              marco_cambiado[i] & tipos_cambiados[i],
+              paste(
+                "Cambio el marco y el tipo_resultado de una metrica o el",
+                "conjunto de metricas del modelo;"
+              ),
+              ifelse(
+                marco_cambiado[i], "Cambio el marco de calidad de la corrida;",
+                ifelse(
+                  tipos_cambiados[i],
+                  paste(
+                    "Cambio el tipo_resultado de una metrica o el conjunto de",
+                    "metricas del modelo;"
+                  ),
+                  "Cambio el modelo de calidad de la corrida;"
+                )
+              )
+            ),
             aplicabilidad = "Cambio la aplicabilidad de la corrida;",
             perfil = "Cambio el perfil de evaluacion de la corrida;"
           ),
-          if (nombre == "modelo" &&
-              (marco_cambiado[i] || tipos_cambiados[i])) {
-            "no se publica la comparacion del resultado."
-          } else {
+          ifelse(
+            marco_cambiado[i] | tipos_cambiados[i],
+            if (nombre == "modelo") {
+              "no se publica la comparacion del resultado."
+            } else {
+              "la comparacion no se publica porque tambien cambio el modelo."
+            },
             paste(
               "se mantienen las comparaciones para que la deriva de datos no",
               "quede oculta."
             )
-          }
+          )
         ),
         evidencia = paste0(
           "Anterior: ", ifelse(is.na(anterior[i]), "no declarada", anterior[i]),

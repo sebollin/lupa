@@ -206,7 +206,9 @@
 #'   `trabajo_comparado`, `trabajo_sin_comparar`, `unidad_trabajo` y
 #'   `max_trabajo` documentan el presupuesto por filas. `columnas_descartadas`
 #'   es un data frame que explica por qué una columna no se usó como
-#'   determinante.
+#'   determinante. Una columna cuyo nombre se repite en la tabla no entra en
+#'   ninguna dependencia, de ningún lado, y se descarta con el motivo
+#'   `nombre_repetido`: la fila diría `k -> k` sin decir cuál columna es cuál.
 #' @export
 #'
 #' @seealso [detectar_claves()], [proponer_modelo()], [perfilar()]
@@ -341,10 +343,15 @@ detectar_dependencias <- function(datos, umbral = 0.995, muestra = 1e5,
       }
     }
   }
+  # Una columna cuyo nombre se repite no entra en ninguna dependencia, de ningun
+  # lado: la fila decia `k -> k` dos veces y no habia forma de saber que el
+  # primer `k` era una columna y el segundo otra. Se descarta con su motivo.
+  repetidos_seleccion <- .nombres_repetidos(nombres)[seleccion]
+  motivos[repetidos_seleccion] <- "nombre_repetido"
   determinantes <- which(!nzchar(motivos))
   dependientes_variables <- vapply(
     estadisticas, function(x) x$n_distintos > 1L, logical(1L)
-  )
+  ) & !repetidos_seleccion
   comparaciones_posibles <- if (length(determinantes)) {
     sum(vapply(determinantes, function(i) {
       sum(dependientes_variables[seq_along(seleccion)] &
@@ -507,8 +514,12 @@ detectar_dependencias <- function(datos, umbral = 0.995, muestra = 1e5,
   } else {
     data.frame(columna = character(), motivo = character())
   }
+  repetidas <- if (is.data.frame(descartadas) && nrow(descartadas)) {
+    columnas_repetidas <- descartadas$columna[descartadas$motivo == "nombre_repetido"]
+    columnas_repetidas[!duplicated(.nombres_para_operar(columnas_repetidas))]
+  } else character()
   if (!truncado_columnas && !presupuesto_agotado &&
-      !length(no_analizables) && !nrow(por_muestra)) {
+      !length(no_analizables) && !nrow(por_muestra) && !length(repetidas)) {
     return(NULL)
   }
   omitidas <- attr(dependencias, "columnas_omitidas", exact = TRUE)
@@ -519,6 +530,9 @@ detectar_dependencias <- function(datos, umbral = 0.995, muestra = 1e5,
   } else if (nrow(por_muestra) && !truncado_columnas &&
              !length(no_analizables)) {
     paste(por_muestra$columna, collapse = ",")
+  } else if (length(repetidas) && !truncado_columnas &&
+             !length(no_analizables)) {
+    paste(repetidas, collapse = ",")
   } else {
     paste(analizadas, collapse = ",")
   }
@@ -533,6 +547,17 @@ detectar_dependencias <- function(datos, umbral = 0.995, muestra = 1e5,
     soluciones <- c(soluciones, paste0(
       "Convertir la columna a un tipo comparable si tiene que intervenir en ",
       "el diagn\u00f3stico; el tope de columnas no cambia esto."
+    ))
+  }
+  if (length(repetidas)) {
+    motivos <- c(motivos, paste0(
+      "No se buscaron dependencias en las columnas cuyo nombre se repite: ",
+      paste(repetidas, collapse = ", "), ". Una dependencia se publica por ",
+      "nombre, y ese nombre no dice cu\u00e1l de las columnas es."
+    ))
+    soluciones <- c(soluciones, paste0(
+      "Renombrarlas -por ejemplo con `names(datos) <- make.unique(names(datos))`- ",
+      "y volver a perfilar."
     ))
   }
   if (truncado_columnas) {

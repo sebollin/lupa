@@ -211,6 +211,11 @@
 #' claves. Los pares también quedan en el atributo
 #' `claves_redundantes`.
 #'
+#' Una columna cuyo nombre se repite en la tabla no se analiza: una clave se
+#' publica por el nombre de sus columnas, y ese nombre no diría cuál de las dos
+#' identifica. Se avisa, y los nombres quedan en el atributo
+#' `columnas_nombre_repetido`.
+#'
 #' @param datos Objeto que hereda de `data.frame`.
 #' @param max_combinacion Máximo de columnas por combinación, entre 1 y 3.
 #' @param normalizar Perfil de comparación. `NULL` hereda el perfil de
@@ -245,7 +250,10 @@ detectar_claves <- function(datos, max_combinacion = 3, normalizar = NULL,
   encontradas <- list()
   casi_encontradas <- list()
   k <- 0L
-  analizables <- which(!vapply(datos, function(x) {
+  # Una columna cuyo nombre se repite no entra: la clave se publica por nombre, y
+  # ese nombre no dice cual de las dos identifica. Se declara y se avisa.
+  repetidos <- .nombres_repetidos(nombres)
+  analizables <- which(!repetidos & !vapply(datos, function(x) {
     is.list(x) || .es_columna_compuesta(x) ||
       !isTRUE(.resumen_tipo_candidato_clave(x)$es_candidato)
   }, logical(1L)))
@@ -253,7 +261,15 @@ detectar_claves <- function(datos, max_combinacion = 3, normalizar = NULL,
 
   if (nrow(datos) > 0L && limite > 0L) {
     for (tamano in seq_len(limite)) {
-      combinaciones <- utils::combn(analizables, tamano, simplify = FALSE)
+      # `combn()` sobre un solo numero `k` combina `seq_len(k)`: con una sola
+      # columna analizable en la posicion 3, probaba como clave las columnas 1 y
+      # 2, que el filtro habia excluido -un importe con decimales, una lista-, y
+      # la respuesta dependia del orden de las columnas.
+      combinaciones <- if (length(analizables) == 1L) {
+        list(analizables)
+      } else {
+        utils::combn(analizables, tamano, simplify = FALSE)
+      }
       for (combinacion in combinaciones) {
         contiene_clave <- any(vapply(encontradas, function(clave) {
           all(clave %in% combinacion)
@@ -370,6 +386,20 @@ detectar_claves <- function(datos, max_combinacion = 3, normalizar = NULL,
   class(resultado) <- c("claves_candidatas", "data.frame")
   attr(resultado, "claves_redundantes") <- redundantes
   attr(resultado, "normalizacion") <- .normalizacion_resumen(normalizacion_resuelta)
+  sin_analizar <- nombres[repetidos]
+  sin_analizar <- sin_analizar[!duplicated(.nombres_para_operar(sin_analizar))]
+  attr(resultado, "columnas_nombre_repetido") <- sin_analizar
+  if (length(sin_analizar)) {
+    warning(
+      "No se buscaron claves en ", length(sin_analizar), " nombre",
+      if (length(sin_analizar) > 1L) "s" else "", " de columna repetido",
+      if (length(sin_analizar) > 1L) "s" else "", " (",
+      paste0("`", .marcar_para_exhibir(sin_analizar), "`", collapse = ", "),
+      "): una clave se nombra por sus columnas, y ese nombre no dice cual es. ",
+      "Renombrarlas -por ejemplo con `make.unique()`- y volver a buscar.",
+      call. = FALSE
+    )
+  }
   resultado
 }
 
@@ -617,6 +647,15 @@ detectar_claves <- function(datos, max_combinacion = 3, normalizar = NULL,
 #' `cardinalidad = "sin_comparar"`, coberturas `NA` y su motivo en `motivo_poda`.
 #' Un par que no se evaluó no es un par sin relación.
 #'
+#' Dos pares no se comparan nunca, con `podar` o sin él, porque la comparación
+#' no daría una respuesta sino una falsa. Si una tabla tiene dos columnas con el
+#' mismo nombre, el nombre no dice cuál de las dos es: sus pares salen
+#' `sin_comparar` con `motivo_poda = "nombre_repetido"`. Y una fecha contra una
+#' fecha-hora no comparte escritura —`2020-01-01` contra `2020-01-01 00:00:00`—, así
+#' que ningún valor coincidiría aunque fueran los mismos días: el par sale con
+#' `motivo_poda = "fecha_contra_instante"`. Convertir una de las dos a la clase de
+#' la otra, con `tz` explícito, y volver a comparar.
+#'
 #' Todas las podas, de las dos clases, quedan además en el atributo `podas` con
 #' su motivo y su detalle.
 #'
@@ -686,6 +725,11 @@ detectar_relaciones <- function(tabla1, tabla2, muestra = 1e5,
   candidatas <- .resolver_columnas_candidatas_relacion(
     columnas_candidatas, nombres_1, nombres_2
   )
+  # Un nombre que la tabla repite aparece una sola vez entre las candidatas: sus
+  # pares no se comparan -ver abajo- y dos filas iguales no dirian mas.
+  candidatas <- lapply(candidatas, function(nombres) {
+    nombres[!duplicated(.nombres_para_operar(nombres))]
+  })
   if (!is.null(.rangos) && (!is.list(.rangos) ||
       !all(c("tabla1", "tabla2") %in% names(.rangos)))) {
     stop(
@@ -739,12 +783,58 @@ detectar_relaciones <- function(tabla1, tabla2, muestra = 1e5,
   comparadas <- 0L
   presupuesto_agotado <- FALSE
 
+  repetido_1 <- .nombres_repetidos(nombres_1)[indices_1]
+  repetido_2 <- .nombres_repetidos(nombres_2)[indices_2]
   for (i in seq_along(indices_1)) {
     x <- columnas_1[[i]]
     for (j in seq_along(indices_2)) {
       y <- columnas_2[[j]]
       nombre_1 <- candidatas$tabla1[[i]]
       nombre_2 <- candidatas$tabla2[[j]]
+      # Dos pares que no se pueden comparar, con `podar` o sin el, porque la
+      # respuesta de la comparacion seria falsa y no solo cara:
+      #
+      # - un nombre que su tabla repite: la columna se buscaba por nombre y
+      #   siempre salia la primera, asi que la fila de la segunda publicaba la
+      #   relacion de la primera -`1:1` con un valor comun donde el cruce real
+      #   es vacio-;
+      # - una fecha contra una fecha-hora: `Date` se compara como `2020-01-01` y
+      #   `POSIXct` como `2020-01-01 00:00:00`, ningun valor coincide nunca, y la
+      #   fila decia `sin_coincidencias` con cobertura 0 sobre los mismos dias.
+      #   `CorrectitudSemFuerte` ya avisa esta mezcla; aca se declara en la fila.
+      no_comparable <- if (repetido_1[[i]] || repetido_2[[j]]) {
+        list(
+          motivo = "nombre_repetido",
+          detalle = paste0(
+            "la tabla tiene mas de una columna con ese nombre y no se puede ",
+            "decir cual se compara; renombrarlas con `make.unique()`"
+          )
+        )
+      } else if (setequal(c(x$familia, y$familia), c("fecha", "fecha-hora"))) {
+        list(
+          motivo = "fecha_contra_instante",
+          detalle = paste0(
+            "una fecha de calendario y un instante no comparten escritura; ",
+            "convertir una de las dos a la clase de la otra, con `tz` ",
+            "explicito, y volver a comparar"
+          )
+        )
+      } else NULL
+      if (!is.null(no_comparable)) {
+        podas[[length(podas) + 1L]] <- data.frame(
+          columna_tabla1 = nombre_1, columna_tabla2 = nombre_2,
+          motivo = no_comparable$motivo, detalle = no_comparable$detalle,
+          stringsAsFactors = FALSE
+        )
+        filas[[length(filas) + 1L]] <- data.frame(
+          columna_tabla1 = nombre_1, columna_tabla2 = nombre_2,
+          cardinalidad = "sin_comparar", n_valores_comunes = NA_integer_,
+          cobertura_tabla1_en_tabla2 = NA_real_,
+          cobertura_tabla2_en_tabla1 = NA_real_,
+          motivo_poda = no_comparable$motivo, stringsAsFactors = FALSE
+        )
+        next
+      }
       poda <- if (isTRUE(podar)) {
         .poda_relacion(x, y, umbral_cobertura)
       } else NULL

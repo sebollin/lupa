@@ -24,7 +24,7 @@ reportar(
 \code{deriva_calidad}, \code{plan_limpieza} o \code{duplicados_aproximados}.}
 
 \item{archivo}{Ruta de salida. De forma predeterminada crea un archivo en
-\code{tempdir()}.}
+\code{tempdir()}. Una ruta que ya es un directorio se rechaza.}
 
 \item{sobrescribir}{Si se permite reemplazar un archivo existente.}
 

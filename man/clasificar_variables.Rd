@@ -58,7 +58,12 @@ son nominal, ordinal, discreta, continua, binaria, temporal y desconocida.
 
 Los niveles declarados y observados se conservan como columnas de lista. Los
 niveles ausentes son una observación, no prueba de error. Si la evidencia de
-dato personal activa la protección, los niveles concretos se protegen.
+dato personal activa la protección, los niveles concretos se protegen. Sólo
+las escalas nominal, ordinal y binaria guardan niveles observados; en las
+demás, \code{n_niveles_observados} es \code{NA}, porque la cifra no aplica.
+
+Una columna numérica sin ningún valor finito —sólo \code{Inf} o \code{-Inf}— queda
+\code{desconocida}: \code{Inf} no es un entero ni un estado.
 }
 \examples{
 d <- data.frame(

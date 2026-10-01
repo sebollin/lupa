@@ -75,6 +75,11 @@
 #' Las columnas compuestas —matrices o arreglos de más de una dimensión— no se
 #' ofrecen como claves ni reciben una tasa de valores distintos.
 #'
+#' Una columna cuyo nombre se repite en la tabla no se mide: la clave se pasa a
+#' [perfilar()] por nombre, y ese nombre no dice cuál de las dos es. Aparece al
+#' final, fuera de `maximo`, con `identifica`, `sin_faltantes` y
+#' `tasa_distintos` en `NA` y el motivo; [elegir_clave()] no la ofrece.
+#'
 #' @param datos Tabla a examinar.
 #' @param maximo Cuántas sugerencias devolver como máximo.
 #' @param umbral_casi Proporción de valores distintos a partir de la cual una
@@ -113,8 +118,16 @@ sugerir_clave <- function(datos, maximo = 5L, umbral_casi = 0.95) {
   )
   if (!ncol(datos) || !nrow(datos)) return(vacio)
 
-  filas <- lapply(names(datos), function(nombre) {
-    x <- datos[[nombre]]
+  # Una columna cuyo nombre se repite no se puede proponer: la clave se pasa a
+  # `perfilar()` por nombre, y ese nombre no dice cual de las dos es. Ademas
+  # `datos[[nombre]]` devolvia siempre la primera, y la fila de la segunda salia
+  # con las cifras de la primera: `identifica = TRUE` y `tasa_distintos = 1`
+  # sobre una columna con duplicados. Se mide por posicion y las repetidas se
+  # declaran en una fila propia, sin cifras.
+  repetidos <- .nombres_repetidos(names(datos))
+  filas <- lapply(which(!repetidos), function(indice) {
+    nombre <- names(datos)[[indice]]
+    x <- datos[[indice]]
     if (.es_columna_compuesta(x) ||
         (is.list(x) && !inherits(x, "POSIXlt"))) return(NULL)
     n_validos <- sum(!is.na(x))
@@ -140,7 +153,34 @@ sugerir_clave <- function(datos, maximo = 5L, umbral_casi = 0.95) {
     )
   })
   filas <- filas[!vapply(filas, is.null, logical(1L))]
-  if (!length(filas)) return(vacio)
+  nombres_repetidos <- names(datos)[repetidos]
+  nombres_repetidos <- nombres_repetidos[
+    !duplicated(.nombres_para_operar(nombres_repetidos))
+  ]
+  repetidas <- data.frame(
+    columna = nombres_repetidos,
+    identifica = rep(NA, length(nombres_repetidos)),
+    sin_faltantes = rep(NA, length(nombres_repetidos)),
+    tasa_distintos = rep(NA_real_, length(nombres_repetidos)),
+    parecido_nombre = as.integer(vapply(
+      nombres_repetidos, .puntaje_nombre_clave, numeric(1L)
+    )),
+    motivo = vapply(nombres_repetidos, function(nombre) {
+      paste0(
+        "no se midio: hay ", sum(.nombres_para_operar(names(datos)) ==
+                                   .nombres_para_operar(nombre)),
+        " columnas con este nombre y por nombre no se puede elegir ninguna; ",
+        "renombrarlas -por ejemplo con `names(datos) <- make.unique(names(datos))`- ",
+        "y volver a sugerir"
+      )
+    }, character(1L), USE.NAMES = FALSE),
+    stringsAsFactors = FALSE
+  )
+  if (!length(filas)) {
+    if (!nrow(repetidas)) return(vacio)
+    rownames(repetidas) <- NULL
+    return(repetidas)
+  }
   salida <- do.call(rbind, filas)
 
   # El orden: primero las que identifican, despues las que no tienen ausentes,
@@ -190,11 +230,15 @@ sugerir_clave <- function(datos, maximo = 5L, umbral_casi = 0.95) {
   }, character(1L))
 
   salida <- utils::head(salida, as.integer(maximo))
-  rownames(salida) <- NULL
-  salida[, c(
+  salida <- salida[, c(
     "columna", "identifica", "sin_faltantes", "tasa_distintos",
     "parecido_nombre", "motivo"
   )]
+  # Las repetidas van al final y fuera de `maximo`: no son candidatas, son lo que
+  # no se pudo medir, y un tope no puede callarlas.
+  salida <- rbind(salida, repetidas)
+  rownames(salida) <- NULL
+  salida
 }
 
 #' Elegir la clave entre las sugeridas
@@ -224,6 +268,21 @@ sugerir_clave <- function(datos, maximo = 5L, umbral_casi = 0.95) {
 elegir_clave <- function(datos, maximo = 5L, umbral_casi = 0.95) {
   sugerencias <- sugerir_clave(datos, maximo = maximo, umbral_casi = umbral_casi)
   sugerencias_texto <- .marcar_objeto_para_exhibir(sugerencias)
+  # Las filas sin medir -columnas cuyo nombre se repite- no se ofrecen: elegirlas
+  # devolveria un nombre que no dice cual columna es. Se nombran aparte.
+  medidas <- !is.na(sugerencias$identifica)
+  no_ofrecidas <- sugerencias_texto$columna[!medidas]
+  sugerencias <- sugerencias[medidas, , drop = FALSE]
+  sugerencias_texto <- sugerencias_texto[medidas, , drop = FALSE]
+  if (length(no_ofrecidas)) {
+    cli::cli_alert_warning(.cli_literal(paste0(
+      "No se ofrece",
+      if (length(no_ofrecidas) > 1L) "n " else " ",
+      paste0("`", no_ofrecidas, "`", collapse = ", "),
+      ": hay m\u00e1s de una columna con ese nombre. Renombrarlas antes de ",
+      "elegir la clave."
+    )))
+  }
   if (!interactive()) {
     if (nrow(sugerencias)) {
       cli::cli_alert_info(.cli_literal(paste0(

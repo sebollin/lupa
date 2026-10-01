@@ -1227,7 +1227,7 @@
 #'   `evaluacion_calidad`, `historico_calidad`, `deriva_perfil`,
 #'   `deriva_calidad`, `plan_limpieza` o `duplicados_aproximados`.
 #' @param archivo Ruta de salida. De forma predeterminada crea un archivo en
-#'   `tempdir()`.
+#'   `tempdir()`. Una ruta que ya es un directorio se rechaza.
 #' @param sobrescribir Si se permite reemplazar un archivo existente.
 #' @param titulo Titulo visible del reporte.
 #' @param fecha Fecha y hora de generacion, inyectable para obtener resultados

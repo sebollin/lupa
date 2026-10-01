@@ -1154,7 +1154,9 @@ con importes, facturas y códigos; se informa pero no se ocultan valores;
 \item \code{medio}: el nombre de la columna expresa una categoría personal (por
 ejemplo \code{telefono}, \code{fecha_nacimiento} o \code{fecha_fallecimiento}); se protege aunque sus valores no
 se puedan validar. El nombre tiene prioridad sobre una forma numérica
-genérica y también determina la etiqueta de tipo;
+genérica y también determina la etiqueta de tipo. También es \code{medio} una
+columna que trae correos completos sin que sean la mayoría de sus valores:
+un correo es un correo aunque esté solo, y la columna se protege;
 \item \code{alto}: una forma muy específica, como un correo, o nombre y forma se
 apoyan mutuamente; se protege;
 \item \code{verificado}: al menos tres valores distintos y al menos el 90\% cumple uno

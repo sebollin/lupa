@@ -20,7 +20,8 @@ leer_analisis(archivo)
 \arguments{
 \item{x}{Objeto creado por \code{\link[=analizar]{analizar()}}.}
 
-\item{archivo}{Ruta del archivo RDS.}
+\item{archivo}{Ruta del archivo RDS. Una ruta que ya es un directorio se
+rechaza: el archivo va dentro, con su nombre.}
 
 \item{incluir_datos}{Si se persiste la copia de los datos conservada por
 \code{analizar(conservar_datos = TRUE)}.}

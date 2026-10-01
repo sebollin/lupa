@@ -880,7 +880,8 @@ print.analisis <- function(x, ...) {
 #' conserva como información pero no activa esa restricción.
 #'
 #' @param x Objeto creado por [analizar()].
-#' @param archivo Ruta del archivo RDS.
+#' @param archivo Ruta del archivo RDS. Una ruta que ya es un directorio se
+#'   rechaza: el archivo va dentro, con su nombre.
 #' @param incluir_datos Si se persiste la copia de los datos conservada por
 #'   `analizar(conservar_datos = TRUE)`.
 #' @param proteger_datos_personales Si se protege toda evidencia derivada.

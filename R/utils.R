@@ -1172,6 +1172,21 @@
 # Se busca la forma MAS CORTA que vuelve: 15 cifras si alcanzan -y alcanzan para la
 # enorme mayoria, asi que `0.1` sigue siendo `"0.1"`-, y si no, 16 y 17. Con 17 cifras
 # significativas todo doble finito vuelve exacto.
+# `as.character()` sobre un doble depende de dos opciones de la sesion: `scipen`
+# -`1e+07` o `10000000`- y `OutDec` -`0,5`-. Lo demas no la mueve (medido:
+# `digits` y `width` no). Lo que se guarda, se compara entre sesiones o se publica
+# como clave no puede depender de como imprime la sesion que lo escribio: dos
+# corridas identicas medidas con otro `scipen` no se podian acumular -"Difiere en:
+# configuracion_perfil"- y la deriva publicaba un cambio de configuracion como
+# error. Se fijan las dos en sus valores por omision, que reproduce la escritura
+# de siempre: lo guardado con las opciones por omision sigue coincidiendo.
+.caracter_por_omision <- function(x) {
+  if (!is.double(x) || inherits(x, "integer64")) return(as.character(x))
+  opciones <- options(scipen = 0, OutDec = ".")
+  on.exit(options(opciones), add = TRUE)
+  as.character(x)
+}
+
 .etiqueta_numero_reversible <- function(x) {
   # Tres clases que `is.double()` da por dobles y no lo son para esto: un
   # `integer64` guarda sus bits en un doble -`sprintf()` los leia crudos y la
@@ -1192,7 +1207,7 @@
     salida[is.na(x)] <- NA_character_
     return(salida)
   }
-  salida <- as.character(x)
+  salida <- .caracter_por_omision(x)
   if (!is.double(x)) return(salida)
   for (digitos in c(16L, 17L)) {
     vuelve <- suppressWarnings(as.numeric(salida))
@@ -1201,6 +1216,38 @@
     salida[faltan] <- sprintf(paste0("%.", digitos, "g"), x[faltan])
   }
   salida
+}
+
+# Texto que identifica un valor para emparejarlo con otro: dos valores iguales dan
+# el mismo texto aunque los guarden clases distintas, y dos distintos dan textos
+# distintos. `as.character()` -y `factor()`, que lo usa para sus niveles- no cumple
+# ninguna de las dos: escribe 15 cifras, asi que `0.1 + 0.2` y `0.3` daban los dos
+# "0.3" y el referencial declaraba conforme un identificador que el padron no
+# tenia; y elige la notacion por clase, asi que `1e5` da "1e+05" y `100000L` da
+# "100000", y el mismo numero guardado como entero en una tabla y como doble en la
+# otra no se encontraba.
+#
+# Un doble entero se escribe con todas sus cifras, como un entero o un `integer64`
+# -hasta 2^63, el mayor `integer64`-; uno con fraccion, con la etiqueta mas corta
+# que vuelve a el. El cero negativo es el cero.
+.texto_identidad <- function(x) {
+  if (inherits(x, "integer64")) return(as.character(x))
+  if (!is.double(x) || inherits(x, c("Date", "POSIXt"))) {
+    return(as.character(x))
+  }
+  salida <- .etiqueta_numero_reversible(x)
+  enteros <- !is.na(x) & is.finite(x) & x == trunc(x) & abs(x) < 2^63
+  # `+ 0` lleva el cero negativo al positivo: `sprintf()` escribe "-0".
+  salida[enteros] <- sprintf("%.0f", x[enteros] + 0)
+  salida
+}
+
+# Que nombres de columna aparecen mas de una vez, comparados por contenido como en
+# el resto del paquete. Marca TODAS las apariciones, no solo las segundas: ninguna
+# de las dos columnas se puede nombrar sin ambiguedad.
+.nombres_repetidos <- function(nombres) {
+  clave <- .nombres_para_operar(nombres)
+  duplicated(clave) | duplicated(clave, fromLast = TRUE)
 }
 
 .formatear_numero_publicado <- function(x) {

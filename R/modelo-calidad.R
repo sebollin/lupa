@@ -27,7 +27,7 @@
     ))
   }
   if (is.atomic(x)) {
-    valores <- as.character(x)
+    valores <- .caracter_por_omision(x)
     faltantes <- is.na(valores)
     valores[faltantes] <- "<NA>"
     valores[!faltantes] <- .clave_bytes(valores[!faltantes])

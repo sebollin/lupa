@@ -19,8 +19,13 @@
       "TamanoMuestra", "GradosLibertad", "EfectoDiseno",
       "TamanoMuestraEfectivo"
     ),
+    # `real` es una proporcion en [0, 1] y una estimacion no lo es: una media de
+    # ingresos, un total, 30 grados de libertad o un coeficiente de variacion de
+    # 1,5 se declaraban `real` y `evaluar()` rechazaba la medicion entera. Las
+    # pruebas no lo veian porque sus estimaciones eran proporciones.
     tipo_resultado = c(
-      "real", "real", "real", "entero", "real", "real", "real"
+      "numero_real", "numero_real", "numero_real", "entero", "numero_real",
+      "numero_real", "numero_real"
     ),
     orientacion = c(
       "no_aplica", "defecto", "defecto",
@@ -31,6 +36,30 @@
       "casos", "grados", "razon", "casos"
     ),
     stringsAsFactors = FALSE
+  )
+}
+
+# El valor numerico de una columna de estimaciones. Un factor se lee por su texto:
+# `as.numeric()` sobre un factor devuelve el CODIGO del nivel, y una columna
+# `factor(c("0.42", "0.38"))` -lo que da `read.csv(stringsAsFactors = TRUE)`- se
+# publicaba como las estimaciones 2 y 1.
+.valores_estimacion <- function(valores) {
+  if (is.factor(valores)) valores <- as.character(valores)
+  suppressWarnings(as.numeric(valores))
+}
+
+# Que valores finitos caben en el dominio de cada estadistico. Un tamano de
+# muestra es un entero no negativo y un error estandar, un coeficiente de
+# variacion, unos grados de libertad, un efecto de diseno o un tamano efectivo no
+# son negativos. Fuera de eso no hay estimacion que publicar: `TamanoMuestra =
+# 0.5` contradecia su propio `tipo_resultado = "entero"` y `evaluar()` rechazaba
+# la medicion ENTERA, incluidas las estimaciones validas.
+.en_dominio_estimacion <- function(estadistico, x) {
+  switch(
+    estadistico,
+    n = x >= 0 & x == floor(x),
+    se = , cv = , df = , deff = , ess = x >= 0,
+    rep(TRUE, length(x))
   )
 }
 
@@ -84,6 +113,15 @@ estadisticos_estimacion <- function() {
 #' preparó es distinta en cada caso. Dentro de una columna que sí trae datos, la
 #' celda vacía se descarta por la misma razón, y el resto de las estimaciones se
 #' publica.
+#'
+#' **Una celda que no es una estimación también se descarta, y se declara.** Un
+#' texto que no es un número, o un número fuera del dominio de su estadístico
+#' —un tamaño de muestra que no es un entero no negativo; un error estándar, un
+#' coeficiente de variación, unos grados de libertad, un efecto de diseño o un
+#' tamaño efectivo negativos— no se publica: se avisa y queda en el atributo
+#' `celdas_descartadas`, con la métrica, la celda, el valor recibido y el motivo
+#' (`no_numerica` o `fuera_de_dominio`). Una columna `factor` se lee por el texto
+#' de sus niveles, no por sus códigos.
 #'
 #' @param estimaciones Data frame con una fila por estimación y una columna por
 #'   estadístico. Los nombres reconocidos son los de
@@ -199,7 +237,7 @@ medicion_desde_estimaciones <- function(estimaciones, entidad, fuente,
   # no mandar la columna que mandarla sin datos: la accion del usuario es
   # distinta.
   con_valores <- vapply(presentes$estadistico, function(x) {
-    valores <- suppressWarnings(as.numeric(estimaciones[[origen_de(x)]]))
+    valores <- .valores_estimacion(estimaciones[[origen_de(x)]])
     any(is.finite(valores))
   }, logical(1L))
   sin_valores <- presentes$estadistico[!con_valores]
@@ -229,7 +267,18 @@ medicion_desde_estimaciones <- function(estimaciones, entidad, fuente,
   )
   filas <- lapply(seq_len(nrow(presentes)), function(k) {
     definicion <- presentes[k, , drop = FALSE]
-    valores <- estimaciones[[origen_de(definicion$estadistico)]]
+    crudos <- estimaciones[[origen_de(definicion$estadistico)]]
+    valores <- .valores_estimacion(crudos)
+    finitos <- is.finite(valores)
+    en_dominio <- finitos &
+      .en_dominio_estimacion(definicion$estadistico, valores) %in% TRUE
+    # Una celda vacia se cae en silencio -lo documentado-; una con algo que no es
+    # un numero, o con un numero fuera del dominio, se cae y se declara.
+    presentes_crudos <- !is.na(crudos) & nzchar(trimws(as.character(crudos)))
+    motivo_descarte <- ifelse(
+      en_dominio | !presentes_crudos, NA_character_,
+      ifelse(finitos, "fuera_de_dominio", "no_numerica")
+    )
     data.frame(
       id_medida = sprintf(
         "%s-%s-%04d", id_medicion, definicion$metrica,
@@ -249,9 +298,12 @@ medicion_desde_estimaciones <- function(estimaciones, entidad, fuente,
       atributo = etiquetas,
       fila = seq_len(nrow(estimaciones)),
       objeto_medible = paste0(entidad, "$", etiquetas),
-      resultado = as.numeric(valores),
-      # `.fila_utilizable` no viaja en la salida: marca las filas que se quedan.
-      .fila_utilizable = is.finite(suppressWarnings(as.numeric(valores))),
+      resultado = valores,
+      # `.fila_utilizable` y `.motivo_descarte` no viajan en la salida: marcan
+      # las filas que se quedan y por que se cae cada una de las otras.
+      .fila_utilizable = en_dominio,
+      .motivo_descarte = motivo_descarte,
+      .valor_crudo = as.character(crudos),
       agregacion = NA_character_,
       unidad = definicion$unidad,
       fuente = fuente,
@@ -261,13 +313,38 @@ medicion_desde_estimaciones <- function(estimaciones, entidad, fuente,
   salida <- do.call(rbind, filas)
   # Y la celda vacia dentro de una columna que si trae datos tampoco es una
   # medida: se cae la fila, no se publica con `NA`.
+  descartadas <- salida[!is.na(salida$.motivo_descarte), , drop = FALSE]
+  celdas_descartadas <- data.frame(
+    metrica = descartadas$metrica, atributo = descartadas$atributo,
+    valor = descartadas$.valor_crudo, motivo = descartadas$.motivo_descarte,
+    stringsAsFactors = FALSE
+  )
+  rownames(celdas_descartadas) <- NULL
   salida <- salida[salida$.fila_utilizable, , drop = FALSE]
   salida$.fila_utilizable <- NULL
+  salida$.motivo_descarte <- NULL
+  salida$.valor_crudo <- NULL
   rownames(salida) <- NULL
+  if (nrow(celdas_descartadas)) {
+    warning(
+      "Se descartaron ", nrow(celdas_descartadas), " celda",
+      if (nrow(celdas_descartadas) > 1L) "s" else "",
+      " que no son una estimaci\u00f3n: ",
+      sum(celdas_descartadas$motivo == "no_numerica"), " no num\u00e9rica",
+      if (sum(celdas_descartadas$motivo == "no_numerica") != 1L) "s" else "",
+      " y ", sum(celdas_descartadas$motivo == "fuera_de_dominio"),
+      " fuera del dominio de su estad\u00edstico (un tama\u00f1o de muestra es un ",
+      "entero no negativo; un error est\u00e1ndar, un coeficiente de variaci\u00f3n, ",
+      "unos grados de libertad, un efecto de dise\u00f1o y un tama\u00f1o efectivo ",
+      "no son negativos). Est\u00e1n en `attr(, \"celdas_descartadas\")`.",
+      call. = FALSE
+    )
+  }
   attr(salida, "estadisticos_ausentes") <- .identificadores_setdiff(
     catalogo$estadistico, c(presentes$estadistico, sin_valores)
   )
   attr(salida, "estadisticos_sin_valores") <- sin_valores
+  attr(salida, "celdas_descartadas") <- celdas_descartadas
   attr(salida, "fuente") <- fuente
   class(salida) <- c("medicion_calidad", "data.frame")
   salida

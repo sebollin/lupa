@@ -129,6 +129,19 @@
       "escala de medicion."
     )
   ))
+  # `Inf == floor(Inf)` es TRUE por la aritmetica de los dobles, no porque `Inf`
+  # sea un entero: una columna de solo `Inf` salia `discreta` con "Los valores son
+  # enteros", y una con `-Inf` e `Inf`, `binaria` con "dos estados". Sin un valor
+  # finito no hay escala que inferir.
+  if (is.double(x) && !inherits(x, "integer64") &&
+      !any(is.finite(presentes))) return(list(
+    escala = "desconocida", rol = "desconocido", confianza = NA_real_,
+    confirmada = FALSE,
+    evidencia = paste0(
+      "La columna no tiene ningun valor finito -solo `Inf` o `-Inf`-: no hay ",
+      "con que inferir una escala de medicion."
+    )
+  ))
   if (tipo_implicito == "identificador") return(list(
     escala = "nominal", rol = "identificador", confianza = 0.9,
     confirmada = FALSE,
@@ -144,8 +157,11 @@
     confirmada = FALSE,
     evidencia = "Se observaron dos estados; pueden ser codigos y requieren confirmacion."
   ))
-  if (is.integer(x) || (is.numeric(x) && length(presentes) &&
-      all(presentes == floor(presentes)))) return(list(
+  finitos <- if (is.double(x) && !inherits(x, "integer64")) {
+    presentes[is.finite(presentes)]
+  } else presentes
+  if (is.integer(x) || (is.numeric(x) && length(finitos) &&
+      all(finitos == floor(finitos)))) return(list(
     escala = "discreta", rol = "medida", confianza = 0.65,
     confirmada = FALSE,
     evidencia = "Los valores son enteros; tambien podrian ser codigos nominales."
@@ -194,7 +210,12 @@
 #'
 #' Los niveles declarados y observados se conservan como columnas de lista. Los
 #' niveles ausentes son una observación, no prueba de error. Si la evidencia de
-#' dato personal activa la protección, los niveles concretos se protegen.
+#' dato personal activa la protección, los niveles concretos se protegen. Sólo
+#' las escalas nominal, ordinal y binaria guardan niveles observados; en las
+#' demás, `n_niveles_observados` es `NA`, porque la cifra no aplica.
+#'
+#' Una columna numérica sin ningún valor finito —sólo `Inf` o `-Inf`— queda
+#' `desconocida`: `Inf` no es un entero ni un estado.
 #'
 #' @param datos Tabla que se desea clasificar.
 #' @param perfil Perfil opcional de los mismos datos.
@@ -324,8 +345,11 @@ clasificar_variables <- function(datos, perfil = NULL, metadatos = NULL,
     ausentes <- declarados[!presentes_declarados]
     observados <- unique(c(declarados[presentes_declarados], observados))
     n_declarados <- length(declarados)
+    # Una escala que no guarda niveles no los cuenta: publicaba 0 para una columna
+    # `1, 2, 3`, que se lee como "ningun nivel observado". `NA` dice que la cifra
+    # no aplica.
     n_observados <- if (!guardar_niveles) {
-      0L
+      NA_integer_
     } else if (!is.null(perfil)) {
       perfil$columnas$n_distintos[[i]]
     } else if (is.factor(x)) {

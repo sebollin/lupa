@@ -65,6 +65,15 @@ mismo no mandar la columna que mandarla sin datos, y la acción de quien la
 preparó es distinta en cada caso. Dentro de una columna que sí trae datos, la
 celda vacía se descarta por la misma razón, y el resto de las estimaciones se
 publica.
+
+\strong{Una celda que no es una estimación también se descarta, y se declara.} Un
+texto que no es un número, o un número fuera del dominio de su estadístico
+—un tamaño de muestra que no es un entero no negativo; un error estándar, un
+coeficiente de variación, unos grados de libertad, un efecto de diseño o un
+tamaño efectivo negativos— no se publica: se avisa y queda en el atributo
+\code{celdas_descartadas}, con la métrica, la celda, el valor recibido y el motivo
+(\code{no_numerica} o \code{fuera_de_dominio}). Una columna \code{factor} se lee por el texto
+de sus niveles, no por sus códigos.
 }
 \examples{
 estimaciones <- data.frame(
