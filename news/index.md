@@ -2,6 +2,30 @@
 
 ## lupa 0.1.0
 
+### Tercera evaluacion sobre bases reales
+
+- **La proteccion de datos personales no borra el vocabulario del
+  paquete.** La proteccion enmascara por contenido, y un nombre de
+  persona contenido en `faltantes_disfrazados` dejaba el tipo del
+  hallazgo como `[valor protegido]`: en una base real, seis hallazgos
+  sin tipo y, reproducido, el plan sin ninguna accion para ellos. Los
+  tipos de hallazgo, las severidades, las estrategias y los nombres de
+  diagnostico o de metrica son estructura, como los nombres de columna,
+  y ya no se enmascaran. La proteccion de los valores no cambia.
+- **La prosa del paquete no se tapa por azar.** La forma sin separadores
+  de un valor protegido tapaba la celda entera donde apareciera, y con
+  los nombres de millones de personas alguno aparecia cruzando palabras:
+  en esa misma base, 38 de 64 descripciones y 37 de 64 sugerencias
+  tapadas, tambien de columnas que no eran personales. Ahora la variante
+  tiene que estar sin letras pegadas; el documento escrito con
+  separadores y el nombre dentro de un correo se siguen tapando.
+- **[`perfilar_dbi()`](https://sebollin.github.io/lupa/reference/perfilar_dbi.md)
+  dice lo mismo que
+  [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md)
+  sobre lo que protege.** El motor escribia siempre “estadisticos de
+  orden y la media protegidos”, aunque no hubiera media; y sus avisos de
+  derrame decian “Metodo: .” en la moda y la mediana.
+
 ### Ronda 15: claves, relaciones y el referencial
 
 - **El referencial empareja numeros por su valor.** Pasaba los valores a

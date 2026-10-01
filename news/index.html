@@ -43,6 +43,15 @@
     <div class="section level2">
 <h2 class="pkg-version" data-toc-text="0.1.0" id="lupa-010">lupa 0.1.0<a class="anchor" aria-label="anchor" href="#lupa-010"></a></h2>
 <div class="section level3">
+<h3 id="tercera-evaluacion-sobre-bases-reales-0-1-0">Tercera evaluacion sobre bases reales<a class="anchor" aria-label="anchor" href="#tercera-evaluacion-sobre-bases-reales-0-1-0"></a></h3>
+<ul><li>
+<strong>La proteccion de datos personales no borra el vocabulario del paquete.</strong> La proteccion enmascara por contenido, y un nombre de persona contenido en <code>faltantes_disfrazados</code> dejaba el tipo del hallazgo como <code>[valor protegido]</code>: en una base real, seis hallazgos sin tipo y, reproducido, el plan sin ninguna accion para ellos. Los tipos de hallazgo, las severidades, las estrategias y los nombres de diagnostico o de metrica son estructura, como los nombres de columna, y ya no se enmascaran. La proteccion de los valores no cambia.</li>
+<li>
+<strong>La prosa del paquete no se tapa por azar.</strong> La forma sin separadores de un valor protegido tapaba la celda entera donde apareciera, y con los nombres de millones de personas alguno aparecia cruzando palabras: en esa misma base, 38 de 64 descripciones y 37 de 64 sugerencias tapadas, tambien de columnas que no eran personales. Ahora la variante tiene que estar sin letras pegadas; el documento escrito con separadores y el nombre dentro de un correo se siguen tapando.</li>
+<li>
+<strong><code><a href="../reference/perfilar_dbi.html">perfilar_dbi()</a></code> dice lo mismo que <code><a href="../reference/perfilar.html">perfilar()</a></code> sobre lo que protege.</strong> El motor escribia siempre “estadisticos de orden y la media protegidos”, aunque no hubiera media; y sus avisos de derrame decian “Metodo: .” en la moda y la mediana.</li>
+</ul></div>
+<div class="section level3">
 <h3 id="ronda-claves-relaciones-y-el-referencial-0-1-0">Ronda 15: claves, relaciones y el referencial<a class="anchor" aria-label="anchor" href="#ronda-claves-relaciones-y-el-referencial-0-1-0"></a></h3>
 <ul><li>
 <strong>El referencial empareja numeros por su valor.</strong> Pasaba los valores a texto con 15 cifras: <code>0.1 + 0.2</code> y <code>0.3</code> coincidian, y <code>CorrectitudSemFuerte</code> declaraba conforme un identificador que el padron no tenia; y el mismo numero guardado como entero en una tabla y como doble en la otra -<code>100000L</code> y <code>1e5</code>- no se encontraba. <code>EntidadDuplicada</code> tenia el mismo defecto: dos claves dobles distintas eran la misma entidad.</li>
