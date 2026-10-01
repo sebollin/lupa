@@ -43,17 +43,28 @@ test_that("una geometria escrita como WKT no recibe diagnosticos de palabras", {
   expect_false(any(p$hallazgos$tipo_hallazgo %in% c(
     "casi_duplicados_vocabulario", "posible_identificador", "patron_raro"
   )))
+  # Control: un texto comun sigue recibiendo el diagnostico de vocabulario.
+  texto <- suppressWarnings(perfilar(data.frame(
+    zona = c(rep("Norte", 30), rep("norte", 2), rep("Sur", 30))
+  )))
+  expect_true("casi_duplicados_vocabulario" %in% texto$hallazgos$tipo_hallazgo)
+})
+
+test_that("el retiro de los diagnosticos de palabras se declara", {
+  # Sin `stringdist` la proximidad no se evalua y se declara por esa causa; sin
+  # `sf` no hay hallazgos geometricos. Lo documentado en los dos casos, asi que
+  # esta mitad necesita los dos paquetes.
+  skip_if_not_installed("sf")
+  skip_if_not_installed("stringdist")
+  p <- suppressWarnings(perfilar(
+    data.frame(wkt = c("POINT (0 0)", "POINT (1 1)", "POINT (200 0)"))
+  ))
   expect_true("crs_no_declarado" %in% p$hallazgos$tipo_hallazgo)
   cobertura <- p$cobertura_diagnosticos
   declarada <- cobertura[cobertura$columna == "wkt" &
                            cobertura$diagnostico == "proximidad_vocabulario", ]
   expect_equal(nrow(declarada), 1L)
   expect_match(declarada$motivo, "geometria escrita como texto", fixed = TRUE)
-  # Control: un texto comun sigue recibiendo el diagnostico de vocabulario.
-  texto <- suppressWarnings(perfilar(data.frame(
-    zona = c(rep("Norte", 30), rep("norte", 2), rep("Sur", 30))
-  )))
-  expect_true("casi_duplicados_vocabulario" %in% texto$hallazgos$tipo_hallazgo)
 })
 
 test_that("una columna WKT con un valor corrupto se reconoce y declara la perdida", {
