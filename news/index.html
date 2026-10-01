@@ -43,6 +43,18 @@
     <div class="section level2">
 <h2 class="pkg-version" data-toc-text="0.1.0" id="lupa-010">lupa 0.1.0<a class="anchor" aria-label="anchor" href="#lupa-010"></a></h2>
 <div class="section level3">
+<h3 id="ronda-reparacion-de-texto-validadores-y-deriva-entre-perfiles-0-1-0">Ronda 13: reparacion de texto, validadores y deriva entre perfiles<a class="anchor" aria-label="anchor" href="#ronda-reparacion-de-texto-validadores-y-deriva-entre-perfiles-0-1-0"></a></h3>
+<ul><li>
+<strong><code><a href="../reference/validadores_formato.html">validar_url()</a></code> rechaza tres formas que no son sintaxis</strong>: <code>[:::]</code> como host IPv6, un host con una etiqueta vacia al final (<code>ejemplo.uy..</code>) y una <code>@</code> sin codificar dentro del usuario.</li>
+<li>
+<strong>Un documento uruguayo con un separador al borde no es un documento.</strong> Los separadores se quitan solo entre digitos: <code>"-12345672"</code> era una cedula valida aunque la documentacion promete no quitar el signo para hacerlo pasar.</li>
+<li>
+<strong>Un texto mal convertido que el motor no puede reparar produce su hallazgo.</strong> Si no traia el caracter de reemplazo quedaba fuera de <code>n_codificacion_rota</code>, y el perfil publicaba <code>n_codificacion_no_se_pudo = 1</code> sin hallazgo ni accion.</li>
+<li>
+<strong>La deriva declara un cambio de <code>cadenas_ausencia</code> y un cambio de tamano.</strong> Con los mismos datos, declarar la lista en una sola corrida publicaba una mejora o un deterioro que no ocurrieron; y una tabla que duplicaba sus filas no dejaba rastro en la deriva.</li>
+<li>Documentado: las cifras de codificacion no son una particion; la decodificacion de entidades HTML quita una capa; los validadores recortan los espacios al borde, salvo <code><a href="../reference/validadores_formato.html">validar_url()</a></code>.</li>
+</ul></div>
+<div class="section level3">
 <h3 id="ronda-lo-que-afirma-el-perfil-y-el-informe-que-lo-comparte-0-1-0">Ronda 12: lo que afirma el perfil, y el informe que lo comparte<a class="anchor" aria-label="anchor" href="#ronda-lo-que-afirma-el-perfil-y-el-informe-que-lo-comparte-0-1-0"></a></h3>
 <ul><li>
 <strong>Una columna vacia escrita con dos formas de ausencia cuenta lo mismo en todos lados.</strong> El hallazgo <code>constante</code> decia «los 4 que hay» en la descripcion, contaba 3 -la frecuencia de la forma mas comun- y trazaba 4, y el paquete se acusaba a si mismo sobre datos sin tocar. Ahora cuenta todas las formas, y la evidencia lo dice.</li>

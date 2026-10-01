@@ -248,13 +248,17 @@ NBSP) a un espacio ASCII, no se recomienda por defecto y registra la
 pérdida de reversibilidad. `decodificar_entidades_html` cubre las
 entidades con nombre comunes en español y referencias numéricas válidas,
 pero no se activa sola porque un ampersand puede ser contenido legítimo.
-`reemplazar_separadores` convierte tabulaciones, saltos de línea,
-avances de página y tabulaciones verticales (`\\t`, `\\n`, `\\r`,
-`\\r\\n`, `\\f` y `\\v`) en un espacio y también requiere una decisión
-explícita. Las tres acciones registran el número de valores cambiados.
-Una comparación aproximada con `normalizar = TRUE` usa estas mismas
-clases: colapsa espacios y omite basura de transporte, pero conserva
-ZWJ/ZWNJ.
+Decodifica **una capa**: un texto codificado dos veces —`&amp;amp;`—
+queda en `&amp;`, y el perfil del resultado lo vuelve a señalar. No se
+itera hasta el fondo porque no se puede distinguir una doble
+codificación de un texto que quería decir `&amp;`: la segunda capa se
+decide viéndola. `reemplazar_separadores` convierte tabulaciones, saltos
+de línea, avances de página y tabulaciones verticales (`\\t`, `\\n`,
+`\\r`, `\\r\\n`, `\\f` y `\\v`) en un espacio y también requiere una
+decisión explícita. Las tres acciones registran el número de valores
+cambiados. Una comparación aproximada con `normalizar = TRUE` usa estas
+mismas clases: colapsa espacios y omite basura de transporte, pero
+conserva ZWJ/ZWNJ.
 
 Las imputaciones por dependencia funcional se ofrecen desactivadas.
 Aunque una dependencia exacta permite deducir un valor sin usar media,

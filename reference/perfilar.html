@@ -1049,6 +1049,14 @@ afirmaría no haber encontrado nada, y lo cierto es que no hubo nada que
 mirar. <code>n_codificacion_invalida</code> sigue contando esos valores y el hallazgo
 <code>codificacion_invalida</code>, de severidad <code>error</code>, sigue declarando que se
 excluyeron.</p>
+<p>Esas cifras <strong>no son una partición</strong>. <code>n_codificacion_rota</code> cuenta cada valor
+afectado una sola vez; <code>n_codificacion_reparable</code> y
+<code>n_codificacion_reparable_parcialmente</code>, los que el motor reparó del todo o
+en parte; <code>n_codificacion_irreparable</code>, los que traen el carácter de
+reemplazo <code>U+FFFD</code>, cuyo original ya no está; y <code>n_codificacion_no_se_pudo</code>,
+los que el motor reconoce como mal convertidos y no pudo reparar. Un valor
+con <code>U+FFFD</code> suele contar en las dos últimas, así que sumarlas no da
+<code>n_codificacion_rota</code>.</p>
 <p>Los <strong>nombres de columna</strong> que el perfil publica —en <code>columnas$columna</code> y en
 todo lo que nombre una columna: claves, relaciones, dependencias, hallazgos,
 patrones, el plan de remediación y el reporte— son los nombres de la tabla de

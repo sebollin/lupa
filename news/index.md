@@ -2,6 +2,29 @@
 
 ## lupa 0.1.0
 
+### Ronda 13: reparacion de texto, validadores y deriva entre perfiles
+
+- **[`validar_url()`](https://sebollin.github.io/lupa/reference/validadores_formato.md)
+  rechaza tres formas que no son sintaxis**: `[:::]` como host IPv6, un
+  host con una etiqueta vacia al final (`ejemplo.uy..`) y una `@` sin
+  codificar dentro del usuario.
+- **Un documento uruguayo con un separador al borde no es un
+  documento.** Los separadores se quitan solo entre digitos:
+  `"-12345672"` era una cedula valida aunque la documentacion promete no
+  quitar el signo para hacerlo pasar.
+- **Un texto mal convertido que el motor no puede reparar produce su
+  hallazgo.** Si no traia el caracter de reemplazo quedaba fuera de
+  `n_codificacion_rota`, y el perfil publicaba
+  `n_codificacion_no_se_pudo = 1` sin hallazgo ni accion.
+- **La deriva declara un cambio de `cadenas_ausencia` y un cambio de
+  tamano.** Con los mismos datos, declarar la lista en una sola corrida
+  publicaba una mejora o un deterioro que no ocurrieron; y una tabla que
+  duplicaba sus filas no dejaba rastro en la deriva.
+- Documentado: las cifras de codificacion no son una particion; la
+  decodificacion de entidades HTML quita una capa; los validadores
+  recortan los espacios al borde, salvo
+  [`validar_url()`](https://sebollin.github.io/lupa/reference/validadores_formato.md).
+
 ### Ronda 12: lo que afirma el perfil, y el informe que lo comparte
 
 - **Una columna vacia escrita con dos formas de ausencia cuenta lo mismo

@@ -3,11 +3,19 @@
 existencia de un país, moneda, buzón o entidad emisora. Los códigos se
 contrastan con copias locales de las listas vigentes al preparar esta
 versión del paquete. Los valores ausentes devuelven NA; todo valor presente
-que no cumple el contrato devuelve FALSE."><meta property="og:description" content="Estas funciones son puras y vectorizadas: no consultan la red ni prueban la
+que no cumple el contrato devuelve FALSE. Los espacios al borde se
+recortan antes de validar —son ruido de captura, no parte del dato—, salvo en
+validar_url(), donde un espacio literal en cualquier posición rompe la
+sintaxis y el valor es inválido. Un espacio en el medio no se recorta en
+ningún validador."><meta property="og:description" content="Estas funciones son puras y vectorizadas: no consultan la red ni prueban la
 existencia de un país, moneda, buzón o entidad emisora. Los códigos se
 contrastan con copias locales de las listas vigentes al preparar esta
 versión del paquete. Los valores ausentes devuelven NA; todo valor presente
-que no cumple el contrato devuelve FALSE."><meta property="og:image" content="https://sebollin.github.io/lupa/logo.png"></head><body>
+que no cumple el contrato devuelve FALSE. Los espacios al borde se
+recortan antes de validar —son ruido de captura, no parte del dato—, salvo en
+validar_url(), donde un espacio literal en cualquier posición rompe la
+sintaxis y el valor es inválido. Un espacio en el medio no se recorta en
+ningún validador."><meta property="og:image" content="https://sebollin.github.io/lupa/logo.png"></head><body>
     <a href="#main" class="visually-hidden-focusable">Skip to contents</a>
 
 
@@ -54,7 +62,11 @@ que no cumple el contrato devuelve FALSE."><meta property="og:image" content="ht
 existencia de un país, moneda, buzón o entidad emisora. Los códigos se
 contrastan con copias locales de las listas vigentes al preparar esta
 versión del paquete. Los valores ausentes devuelven <code>NA</code>; todo valor presente
-que no cumple el contrato devuelve <code>FALSE</code>.</p>
+que no cumple el contrato devuelve <code>FALSE</code>. Los espacios <strong>al borde</strong> se
+recortan antes de validar —son ruido de captura, no parte del dato—, salvo en
+<code>validar_url()</code>, donde un espacio literal en cualquier posición rompe la
+sintaxis y el valor es inválido. Un espacio en el medio no se recorta en
+ningún validador.</p>
     </div>
 
     <div class="section level2">

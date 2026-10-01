@@ -285,7 +285,11 @@ ZWJ/ZWNJ. <code>normalizar_espacios_invisibles</code> colapsa espacios Unicode (
 NBSP) a un espacio ASCII, no se recomienda por defecto y registra la pérdida
 de reversibilidad. <code>decodificar_entidades_html</code> cubre las entidades
 con nombre comunes en español y referencias numéricas válidas, pero no se
-activa sola porque un ampersand puede ser contenido legítimo.
+activa sola porque un ampersand puede ser contenido legítimo. Decodifica
+<strong>una capa</strong>: un texto codificado dos veces —<code>&amp;amp;amp;</code>— queda en <code>&amp;amp;</code>,
+y el perfil del resultado lo vuelve a señalar. No se itera hasta el fondo
+porque no se puede distinguir una doble codificación de un texto que quería
+decir <code>&amp;amp;</code>: la segunda capa se decide viéndola.
 <code>reemplazar_separadores</code> convierte tabulaciones, saltos de línea, avances de
 página y tabulaciones verticales (<code>\\t</code>, <code>\\n</code>, <code>\\r</code>, <code>\\r\\n</code>, <code>\\f</code> y <code>\\v</code>)
 en un espacio y también requiere una decisión explícita. Las tres acciones

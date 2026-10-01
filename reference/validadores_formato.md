@@ -4,7 +4,11 @@ Estas funciones son puras y vectorizadas: no consultan la red ni prueban
 la existencia de un país, moneda, buzón o entidad emisora. Los códigos
 se contrastan con copias locales de las listas vigentes al preparar esta
 versión del paquete. Los valores ausentes devuelven `NA`; todo valor
-presente que no cumple el contrato devuelve `FALSE`.
+presente que no cumple el contrato devuelve `FALSE`. Los espacios **al
+borde** se recortan antes de validar —son ruido de captura, no parte del
+dato—, salvo en `validar_url()`, donde un espacio literal en cualquier
+posición rompe la sintaxis y el valor es inválido. Un espacio en el
+medio no se recorta en ningún validador.
 
 ## Usage
 
