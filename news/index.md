@@ -2,6 +2,38 @@
 
 ## lupa 0.1.0
 
+### Ronda 18-B: la proteccion de datos personales, refutada otra vez
+
+- **La sugerencia de una ausencia estructural no publica el criterio de
+  una columna protegida.** Si la columna que falta por diseño tambien
+  era personal -un documento, un numero de jubilacion-, la sugerencia
+  salia con `aplicabilidad = list(rut = ~ pila == "Ana")` o
+  `~ edad >= 66` aunque `pila` y `edad` estuvieran protegidas: la
+  evidencia se tapaba antes de que la proteccion de la ausencia la
+  leyera. Lo mismo con un nombre de columna con acento grave.
+- **Un valor citado entre comillas en la prosa del paquete se compara
+  como un valor.** El nivel de un determinante que no es personal
+  -`proveedor == "juanperezsrl"`- llevaba el nombre del titular
+  protegido pegado a otras letras, y en la prosa se exigen limites de
+  palabra. Ahora se tapa la cita, y la sugerencia se sigue leyendo. Los
+  niveles citados escapan comillas y barras: un nivel con comillas daba
+  una sugerencia que no era codigo de R valido.
+- **[`perfilar_por()`](https://sebollin.github.io/lupa/reference/perfilar_por.md)
+  avisa si una etiqueta de grupo lleva un valor protegido de otra
+  columna**, y lo declara en `etiquetas_personales` con tipo
+  `contiene_valor_protegido`. La etiqueta se sigue publicando, igual que
+  cuando la columna de agrupacion es personal: es el eje del resultado.
+- **Las variantes de un nombre protegido se reconocen fuera del latin
+  occidental**: el vietnamita escrito sin sus marcas, el griego, el
+  cirilico y el armenio en otra caja, y el ancho completo. La
+  comparacion iba por bytes y el pliegue de caja era solo ASCII. Un mapa
+  de diacriticos generado de la descomposicion de Unicode
+  (`data-raw/mapa_diacriticos.R`) y el pliegue de caja del paquete, que
+  no depende del locale, la hacen por caracteres.
+- **Un nombre protegido en latin1 sin marca se reconoce en la misma
+  celda escrita en UTF-8.** Lo que no declara codificacion y no es UTF-8
+  valido se lee como latin1 al comparar.
+
 ### La proteccion de datos personales, mas rapida
 
 - **[`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md)

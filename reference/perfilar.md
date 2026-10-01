@@ -354,19 +354,30 @@ perfilar(
   [`perfilar_por()`](https://sebollin.github.io/lupa/reference/perfilar_por.md)
   agrupando *por* una columna personal publica sus valores como
   etiquetas de grupo, porque la etiqueta es el eje del resultado y sin
-  ella los grupos no se distinguen. No ocurre en silencio —avisa al
-  ejecutar y lo declara en `etiquetas_personales`— y el remedio es
-  agrupar por una columna seudonimizada. El piso alcanza además la
-  **forma sin separadores**: `"771.771-01"` es el mismo documento que
-  `"77177101"`, y la celda entera se enmascara. Las tildes y la caja
-  también son cosméticas: `juan.perez` se enmascara frente al nombre
-  protegido «Juan Pérez», y el nombre pegado a otras letras dentro de un
-  correo o un alias, también. En la **prosa del paquete** —descripción,
-  sugerencia, motivo, cómo resolverlo, justificación— se exige además
-  que la variante no tenga una letra pegada antes o después: con los
-  nombres de millones de personas como valores protegidos, alguno
-  aparecía cruzando palabras de esas frases y las tapaba enteras,
-  también en columnas no personales. Y lo aplican también
+  ella los grupos no se distinguen. Lo mismo cuando la columna de
+  agrupación no es personal pero alguna etiqueta contiene un valor
+  protegido de otra columna. No ocurre en silencio —avisa al ejecutar y
+  lo declara en `etiquetas_personales`— y el remedio es agrupar por una
+  columna seudonimizada. El piso alcanza además la **forma sin
+  separadores**: `"771.771-01"` es el mismo documento que `"77177101"`,
+  y la celda entera se enmascara. Las tildes y la caja también son
+  cosméticas: `juan.perez` se enmascara frente al nombre protegido «Juan
+  Pérez», y el nombre pegado a otras letras dentro de un correo o un
+  alias, también. Vale también fuera del latín occidental —el vietnamita
+  escrito sin sus marcas, el griego, el cirílico y el armenio en otra
+  caja, el ancho completo— y con el valor en otra codificación: lo que
+  no la declara y no es UTF-8 válido se lee como latin1 al comparar. En
+  la **prosa del paquete** —descripción, sugerencia, motivo, cómo
+  resolverlo, justificación— se exige además que la variante no tenga
+  una letra pegada antes o después: con los nombres de millones de
+  personas como valores protegidos, alguno aparecía cruzando palabras de
+  esas frases y las tapaba enteras, también en columnas no personales.
+  Lo que esa prosa cita entre comillas dobles —el nivel de un
+  determinante en la sugerencia de `posible_ausencia_estructural`— no es
+  prosa sino un valor: se compara con la regla de los valores y se tapa
+  sólo la cita, para que la sugerencia se siga leyendo. Y si el
+  determinante es una columna protegida, la sugerencia no reproduce el
+  criterio. Y lo aplican también
   [`analizar()`](https://sebollin.github.io/lupa/reference/analizar.md)
   y
   [`distribucion_valores()`](https://sebollin.github.io/lupa/reference/distribucion_valores.md),
