@@ -6,7 +6,10 @@ canonica y el orden de sus marcas son siempre activos para que NFC y NFD
 sean equivalentes en el subconjunto latino cubierto por lupa. Los pasos
 optativos de ligaduras y ancho completo tambien se aplican por punto de
 codigo, despues de declarar como UTF-8 los bytes validos, por lo que no
-dependen de `LC_CTYPE`.
+dependen de `LC_CTYPE`. Bajar a minusculas tampoco depende del locale:
+usa un mapa explicito para el latin acentuado, el griego, el cirilico,
+el armenio y el ancho completo, y lo que queda fuera de ese mapa se
+conserva.
 
 ## Usage
 
@@ -34,6 +37,8 @@ normalizacion(
   Grafemas cuyas marcas deben conservarse al quitar acentos. Puede
   incluir una base seguida de una o más marcas combinantes, como la
   secuencia `g` seguida por una tilde combinante para la letra guaraní.
+  Se declaran en minúscula y valen también en mayúscula: la eñe de
+  `PEÑA` se conserva igual que la de `peña`.
 
 ## Value
 
@@ -58,7 +63,9 @@ normalizacion()
 #>   ancho = FALSE
 #>   proteger = ñ, ü, g̃
 
-# Comparar sin quitar acentos, para que "canon" y "cañón" no se fusionen.
+# Comparar sin quitar acentos, para que "papa" y "papá" no se fusionen. La
+# eñe y la diéresis ya están protegidas en el perfil por omisión: "pena" y
+# "peña" no se fusionan nunca.
 perfil <- normalizacion(acentos = FALSE)
 perfil$acentos
 #> [1] FALSE

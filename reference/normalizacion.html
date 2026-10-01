@@ -4,12 +4,18 @@ nunca modifica los datos de entrada. La descomposicion canonica y el orden
 de sus marcas son siempre activos para que NFC y NFD sean equivalentes en el
 subconjunto latino cubierto por lupa. Los pasos optativos de ligaduras y ancho
 completo tambien se aplican por punto de codigo, despues de declarar como
-UTF-8 los bytes validos, por lo que no dependen de LC_CTYPE."><meta property="og:description" content="La normalizacion afecta unicamente la representacion usada para comparar;
+UTF-8 los bytes validos, por lo que no dependen de LC_CTYPE. Bajar a
+minusculas tampoco depende del locale: usa un mapa explicito para el latin
+acentuado, el griego, el cirilico, el armenio y el ancho completo, y lo que
+queda fuera de ese mapa se conserva."><meta property="og:description" content="La normalizacion afecta unicamente la representacion usada para comparar;
 nunca modifica los datos de entrada. La descomposicion canonica y el orden
 de sus marcas son siempre activos para que NFC y NFD sean equivalentes en el
 subconjunto latino cubierto por lupa. Los pasos optativos de ligaduras y ancho
 completo tambien se aplican por punto de codigo, despues de declarar como
-UTF-8 los bytes validos, por lo que no dependen de LC_CTYPE."><meta property="og:image" content="https://sebollin.github.io/lupa/logo.png"></head><body>
+UTF-8 los bytes validos, por lo que no dependen de LC_CTYPE. Bajar a
+minusculas tampoco depende del locale: usa un mapa explicito para el latin
+acentuado, el griego, el cirilico, el armenio y el ancho completo, y lo que
+queda fuera de ese mapa se conserva."><meta property="og:image" content="https://sebollin.github.io/lupa/logo.png"></head><body>
     <a href="#main" class="visually-hidden-focusable">Skip to contents</a>
 
 
@@ -57,7 +63,10 @@ nunca modifica los datos de entrada. La descomposicion canonica y el orden
 de sus marcas son siempre activos para que NFC y NFD sean equivalentes en el
 subconjunto latino cubierto por lupa. Los pasos optativos de ligaduras y ancho
 completo tambien se aplican por punto de codigo, despues de declarar como
-UTF-8 los bytes validos, por lo que no dependen de <code>LC_CTYPE</code>.</p>
+UTF-8 los bytes validos, por lo que no dependen de <code>LC_CTYPE</code>. Bajar a
+minusculas tampoco depende del locale: usa un mapa explicito para el latin
+acentuado, el griego, el cirilico, el armenio y el ancho completo, y lo que
+queda fuera de ese mapa se conserva.</p>
     </div>
 
     <div class="section level2">
@@ -85,7 +94,9 @@ UTF-8 los bytes validos, por lo que no dependen de <code>LC_CTYPE</code>.</p>
 <dt id="arg-proteger">proteger<a class="anchor" aria-label="anchor" href="#arg-proteger"></a></dt>
 <dd><p>Grafemas cuyas marcas deben conservarse al quitar acentos.
 Puede incluir una base seguida de una o más marcas combinantes, como
-la secuencia <code>g</code> seguida por una tilde combinante para la letra guaraní.</p></dd>
+la secuencia <code>g</code> seguida por una tilde combinante para la letra guaraní.
+Se declaran en minúscula y valen también en mayúscula: la eñe de <code>PEÑA</code> se
+conserva igual que la de <code>peña</code>.</p></dd>
 
 </dl></div>
     <div class="section level2">
@@ -111,7 +122,9 @@ no toca los datos, y la descomposicion canonica se aplica siempre.</p>
 <span class="r-out co"><span class="r-pr">#&gt;</span>   ancho = FALSE</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>   proteger = ñ, ü, g̃</span>
 <span class="r-in"><span></span></span>
-<span class="r-in"><span><span class="co"># Comparar sin quitar acentos, para que "canon" y "cañón" no se fusionen.</span></span></span>
+<span class="r-in"><span><span class="co"># Comparar sin quitar acentos, para que "papa" y "papá" no se fusionen. La</span></span></span>
+<span class="r-in"><span><span class="co"># eñe y la diéresis ya están protegidas en el perfil por omisión: "pena" y</span></span></span>
+<span class="r-in"><span><span class="co"># "peña" no se fusionan nunca.</span></span></span>
 <span class="r-in"><span><span class="va">perfil</span> <span class="op">&lt;-</span> <span class="fu">normalizacion</span><span class="op">(</span>acentos <span class="op">=</span> <span class="cn">FALSE</span><span class="op">)</span></span></span>
 <span class="r-in"><span><span class="va">perfil</span><span class="op">$</span><span class="va">acentos</span></span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> [1] FALSE</span>

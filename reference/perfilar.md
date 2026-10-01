@@ -328,25 +328,29 @@ perfilar(
   —todos sus valores son nombres de la entrada, solos o unidos—, así que
   la protección de los valores no se afloja: si un valor protegido es
   igual a un nombre de columna, su moda sigue tapada. Lo mismo vale para
-  el **vocabulario del paquete**: un tipo de hallazgo, una severidad,
-  una estrategia o el nombre de un diagnóstico no se enmascaran aunque
-  contengan un valor protegido. Se enmascaraban: en una base real, un
-  nombre de persona contenido en `faltantes_disfrazados` dejó seis
-  hallazgos con el tipo `[valor protegido]`, y el plan sin ninguna
-  acción para ellos. La regla es la misma, por campo y por contenido: un
-  campo cuyos valores son todos vocabulario del propio objeto queda
-  afuera, uno que mezcla no. Ese alcance tiene un **piso**: un valor de
-  una columna protegida que identifique —seis caracteres o más, el mismo
-  corte con el que la batería de fugas decide qué cuenta como
-  filtración— no se publica en ninguna parte, tenga o no columna a la
-  que atribuirse, y también en los campos numéricos. Sin ese piso, una
-  columna que el clasificador no marcó publicaba los documentos de la
-  protegida con sólo repetirlos: una copia con nombre neutro, un texto
-  libre que los contuviera, o los estadísticos de orden de una columna
-  clasificada con poder discriminante `debil`. El vocabulario corto no
-  entra en el piso: `"S/D"` sigue publicándose donde describe a una
-  columna que no es personal. El piso tiene **una excepción declarada**,
-  y es la única:
+  el **vocabulario**: un tipo de hallazgo, una severidad, una
+  estrategia, el nombre de un diagnóstico o de una métrica, o el de un
+  factor de un marco que declaró el usuario, no se enmascaran aunque
+  coincidan con un valor protegido o lo contengan. El principio es el de
+  los nombres de columna: son estructura, no salen de las celdas, y
+  publicarlos no dice nada de ninguna fila —el tipo `constante` aparece
+  porque otra columna es constante, no porque alguien se apellide así—.
+  Se enmascaraban: en una base real, un nombre de persona contenido en
+  `faltantes_disfrazados` dejó seis hallazgos con el tipo
+  `[valor protegido]`, y el plan sin ninguna acción para ellos. La regla
+  es por campo y por contenido: un campo cuyos valores son todos
+  vocabulario del propio objeto queda afuera, uno que mezcla no. Ese
+  alcance tiene un **piso**: un valor de una columna protegida que
+  identifique —seis caracteres o más, el mismo corte con el que la
+  batería de fugas decide qué cuenta como filtración— no se publica en
+  ninguna parte, tenga o no columna a la que atribuirse, y también en
+  los campos numéricos. Sin ese piso, una columna que el clasificador no
+  marcó publicaba los documentos de la protegida con sólo repetirlos:
+  una copia con nombre neutro, un texto libre que los contuviera, o los
+  estadísticos de orden de una columna clasificada con poder
+  discriminante `debil`. El vocabulario corto no entra en el piso:
+  `"S/D"` sigue publicándose donde describe a una columna que no es
+  personal. El piso tiene **una excepción declarada**, y es la única:
   [`perfilar_por()`](https://sebollin.github.io/lupa/reference/perfilar_por.md)
   agrupando *por* una columna personal publica sus valores como
   etiquetas de grupo, porque la etiqueta es el eje del resultado y sin
@@ -354,14 +358,15 @@ perfilar(
   ejecutar y lo declara en `etiquetas_personales`— y el remedio es
   agrupar por una columna seudonimizada. El piso alcanza además la
   **forma sin separadores**: `"771.771-01"` es el mismo documento que
-  `"77177101"`, y la celda entera se enmascara, siempre que la variante
-  no tenga una letra pegada antes o después. Sin esa condición, con los
+  `"77177101"`, y la celda entera se enmascara. Las tildes y la caja
+  también son cosméticas: `juan.perez` se enmascara frente al nombre
+  protegido «Juan Pérez», y el nombre pegado a otras letras dentro de un
+  correo o un alias, también. En la **prosa del paquete** —descripción,
+  sugerencia, motivo, cómo resolverlo, justificación— se exige además
+  que la variante no tenga una letra pegada antes o después: con los
   nombres de millones de personas como valores protegidos, alguno
-  aparecía cruzando palabras de la prosa del paquete y tapaba
-  descripciones y sugerencias enteras, también de columnas no
-  personales. Lo que deja de taparse es un valor pegado a otras letras y
-  escrito con separadores; el valor exacto, en cualquier posición, se
-  sigue tapando. Y lo aplican también
+  aparecía cruzando palabras de esas frases y las tapaba enteras,
+  también en columnas no personales. Y lo aplican también
   [`analizar()`](https://sebollin.github.io/lupa/reference/analizar.md)
   y
   [`distribucion_valores()`](https://sebollin.github.io/lupa/reference/distribucion_valores.md),
