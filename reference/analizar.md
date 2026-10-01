@@ -106,7 +106,14 @@ analizar(
 - conservar_detalle_medicion:
 
   Si se retienen las medidas fila a fila. Es `FALSE` por omisión: el
-  tablero y la medición agregada permanecen.
+  tablero y la medición agregada permanecen, y la medición se hace
+  métrica por métrica, agregando cada una antes de pasar a la siguiente,
+  así que el detalle entero no existe nunca a la vez. Con `TRUE` el
+  detalle es parte del resultado y su memoria crece con las filas por
+  las métricas: una tabla de 19 columnas producía 21 filas de medida por
+  fila de datos. Si ninguna métrica del modelo produce medidas, el
+  tablero sale vacío y lleva el motivo de cada una en
+  `cobertura_metricas`, en lugar de abortar el análisis.
 
 - muestra:
 

@@ -145,7 +145,14 @@ así que el perfil y el tablero cuentan el mismo dato de la misma manera.</p></d
 
 <dt id="arg-conservar-detalle-medicion">conservar_detalle_medicion<a class="anchor" aria-label="anchor" href="#arg-conservar-detalle-medicion"></a></dt>
 <dd><p>Si se retienen las medidas fila a fila.
-Es <code>FALSE</code> por omisión: el tablero y la medición agregada permanecen.</p></dd>
+Es <code>FALSE</code> por omisión: el tablero y la medición agregada permanecen, y la
+medición se hace métrica por métrica, agregando cada una antes de pasar a
+la siguiente, así que el detalle entero no existe nunca a la vez. Con
+<code>TRUE</code> el detalle es parte del resultado y su memoria crece con las filas
+por las métricas: una tabla de 19 columnas producía 21 filas de medida por
+fila de datos. Si ninguna métrica del modelo produce medidas, el tablero
+sale vacío y lleva el motivo de cada una en <code>cobertura_metricas</code>, en lugar
+de abortar el análisis.</p></dd>
 
 
 <dt id="arg-muestra">muestra<a class="anchor" aria-label="anchor" href="#arg-muestra"></a></dt>
