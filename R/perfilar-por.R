@@ -101,8 +101,13 @@
 #'   enmascaran aquí porque la etiqueta es el eje del resultado y sin ella los
 #'   grupos no se distinguen; pero tampoco ocurre en silencio: se avisa al
 #'   ejecutar y queda declarado en el objeto. Para que no se publiquen, agrupe
-#'   por una columna seudonimizada. El atributo queda vacío cuando la columna no
-#'   lleva datos personales, y también cuando `proteger_datos_personales` es
+#'   por una columna seudonimizada. Lo mismo, con tipo
+#'   `contiene_valor_protegido`, cuando la columna de agrupación no es personal
+#'   pero alguna etiqueta contiene un valor protegido de otra columna —un
+#'   proveedor `juanperezsrl` junto a un titular protegido «Juan Perez»—: la
+#'   etiqueta se publica igual, y `n_grupos` cuenta cuántas lo contienen. El
+#'   atributo queda vacío cuando ninguna etiqueta lleva datos personales, y
+#'   también cuando `proteger_datos_personales` es
 #'   `FALSE`, porque entonces ya está declarado que se quieren los valores. Si el
 #'   léxico no reconoce el nombre de la columna, decláresela con
 #'   `columnas_personales`: ese argumento —como `columnas_opcionales`, `clave`,
@@ -283,6 +288,51 @@ perfilar_por <- function(datos, por, clave = NULL, min_filas = 30L, ...) {
         stringsAsFactors = FALSE
       )
       cli::cli_alert_warning(.cli_literal(.marcar_para_exhibir(etiquetas_personales$motivo)))
+    } else {
+      # La columna de agrupacion no es personal, pero una etiqueta puede llevar
+      # adentro el valor de otra que si lo es: con el titular "Juan Perez"
+      # protegido, agrupar por un proveedor "juanperezsrl" publicaba esa etiqueta
+      # sin aviso, mientras `perfilar()` sobre la misma tabla la tapa en la moda y
+      # en los ejemplos del proveedor. Lo encontro una refutacion. Se decide igual
+      # que arriba -la etiqueta se publica porque es el eje- y por eso tampoco
+      # aca en silencio: se avisa y se declara. Las etiquetas son valores, asi
+      # que se comparan con la regla fuerte, la de los valores y no la de la
+      # prosa.
+      indices_otras <- setdiff(seq_along(datos), indice_por)
+      otras <- .seleccionar_columnas(datos, names(datos)[indices_otras])
+      sensibles_otras <- tryCatch(
+        .columnas_personales_rapidas(
+          otras, declaradas = declaradas,
+          validadores = extras$validadores_personales
+        ),
+        error = function(e) character()
+      )
+      valores_otras <- .valores_identificantes(
+        .valores_publicables_protegidos(otras, sensibles_otras)
+      )
+      etiquetas_grupo <- names(grupos)
+      if (length(valores_otras) && length(etiquetas_grupo)) {
+        tapadas <- .reemplazar_valores_protegidos(etiquetas_grupo, valores_otras)
+        cambiadas <- !vapply(seq_along(etiquetas_grupo), function(i) {
+          identical(charToRaw(etiquetas_grupo[[i]]), charToRaw(tapadas[[i]]))
+        }, logical(1L))
+        if (any(cambiadas)) {
+          etiquetas_personales <- data.frame(
+            columna = por,
+            tipo = "contiene_valor_protegido",
+            n_grupos = sum(cambiadas),
+            motivo = paste0(
+              sum(cambiadas), " etiqueta(s) de grupo de `", por, "` contienen ",
+              "un valor de una columna protegida. `perfilar()` lo enmascara; ",
+              "aca no, porque la etiqueta es el eje del resultado. La salida ",
+              "lleva esas etiquetas: agrupe por una columna seudonimizada si no ",
+              "deben publicarse."
+            ),
+            stringsAsFactors = FALSE
+          )
+          cli::cli_alert_warning(.cli_literal(.marcar_para_exhibir(etiquetas_personales$motivo)))
+        }
+      }
     }
   }
 
@@ -913,8 +963,10 @@ perfilar_por <- function(datos, por, clave = NULL, min_filas = 30L, ...) {
   }
   attr(salida, "n_grupos") <- length(grupos)
   attr(salida, "columna_grupo") <- por
-  # Vacia cuando la columna de agrupacion no lleva datos personales, o cuando la
-  # proteccion se desactivo: en ese caso el usuario ya declaro que los quiere.
+  # Vacia cuando ninguna etiqueta lleva datos personales -ni la columna de
+  # agrupacion es personal ni sus etiquetas contienen un valor protegido de otra-,
+  # o cuando la proteccion se desactivo: en ese caso el usuario ya declaro que los
+  # quiere.
   attr(salida, "etiquetas_personales") <- if (is.null(etiquetas_personales)) {
     data.frame(columna = character(), tipo = character(),
                n_grupos = integer(), motivo = character(),

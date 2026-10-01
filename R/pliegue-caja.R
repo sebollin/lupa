@@ -123,3 +123,76 @@
            chartr(origen, destino, textos))
   }
 })
+
+# Pliegue para COMPARAR un valor protegido con sus variantes, que no es el de la
+# normalizacion: alla se conservan los acentos -`papa` y `papá` son palabras
+# distintas-, y aca todo lo cosmetico se pliega porque el error caro es publicar
+# el nombre de una persona. Una refutacion midio que la proteccion se escapaba
+# fuera del latin occidental: el nombre vietnamita escrito sin sus marcas, el
+# griego o el cirilico en mayusculas, el armenio, el ancho completo. La
+# comparacion iba por bytes y el pliegue de caja era solo ASCII.
+#
+# Lo que hace, en este orden:
+#
+#   1. Todo pasa a UTF-8 valido. Lo marcado `latin1` se convierte; lo que no
+#      declara codificacion y es UTF-8 valido se marca, y lo que no lo es se LEE
+#      COMO LATIN1. Esto ultimo es la otra mitad del arreglo: un nombre
+#      protegido en latin1 sin marca no se reconocia en la misma celda escrita en
+#      UTF-8, porque la reparacion por bytes lo dejaba como `Jos<e9>`. Latin1
+#      asigna un caracter a cada byte, asi que nunca falla, y es la lectura
+#      correcta para lo que viene de Windows o de un CSV viejo.
+#   2. El ancho completo pasa a ASCII.
+#   3. Las letras con diacriticos fuera de Latin-1 y Latin Extended-A pasan a su
+#      base con `.MAPA_DIACRITICOS`, y las de adentro con la transliteracion.
+#   4. Se baja la caja con el mapa del paquete, que no depende del locale, y la
+#      sigma final se iguala a la sigma.
+.plegar_para_comparar <- local({
+  origen_diacriticos <- paste0(
+    intToUtf8(strtoi(names(.MAPA_DIACRITICOS), base = 16L), multiple = TRUE),
+    collapse = ""
+  )
+  destino_diacriticos <- paste0(
+    intToUtf8(unname(.MAPA_DIACRITICOS), multiple = TRUE),
+    collapse = ""
+  )
+  origen_ancho <- paste0(
+    intToUtf8(c(0xFF01:0xFF5E, 0x3000), multiple = TRUE),
+    collapse = ""
+  )
+  destino_ancho <- paste0(
+    intToUtf8(c(0x0021:0x007E, 0x0020), multiple = TRUE),
+    collapse = ""
+  )
+  sigma_final <- intToUtf8(0x03C2)
+  sigma <- intToUtf8(0x03C3)
+  function(textos) {
+    textos <- as.character(textos)
+    if (!length(textos)) return(textos)
+    marcas <- Encoding(textos)
+    presentes <- !is.na(textos)
+    en_latin1 <- presentes & marcas == "latin1"
+    if (any(en_latin1)) {
+      textos[en_latin1] <- iconv(textos[en_latin1], from = "latin1", to = "UTF-8")
+    }
+    sin_marca <- presentes & marcas %in% c("unknown", "bytes")
+    if (any(sin_marca)) {
+      validos <- sin_marca & validUTF8(textos)
+      if (any(validos)) {
+        marcados <- textos[validos]
+        Encoding(marcados) <- "UTF-8"
+        textos[validos] <- marcados
+      }
+      invalidos <- sin_marca & !validos
+      if (any(invalidos)) {
+        textos[invalidos] <- iconv(
+          textos[invalidos], from = "latin1", to = "UTF-8"
+        )
+      }
+    }
+    textos <- chartr(origen_ancho, destino_ancho, textos)
+    textos <- chartr(origen_diacriticos, destino_diacriticos, textos)
+    textos <- .transliterar_ascii(textos)
+    textos <- .normalizacion_minusculas_vector(textos)
+    gsub(sigma_final, sigma, textos, fixed = TRUE)
+  }
+})

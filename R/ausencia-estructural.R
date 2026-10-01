@@ -114,6 +114,14 @@
 }
 
 .texto_valores_nivel <- function(valores) {
+  # Un nivel con comillas o barras daba una sugerencia que no es codigo de R
+  # valido, y ademas la proteccion de datos personales reconoce lo citado en la
+  # prosa por esas comillas. Se escapan en bytes -el nivel puede no ser UTF-8
+  # valido- y se repone la marca, que `useBytes` borra al reemplazar: lo agregado
+  # son barras ASCII y no cambia la codificacion.
+  marcas <- Encoding(valores)
+  valores <- gsub("([\"\\\\])", "\\\\\\1", valores, useBytes = TRUE)
+  Encoding(valores) <- marcas
   entrecomillados <- paste0("\"", valores, "\"")
   if (length(valores) == 1L) return(entrecomillados)
   paste0("c(", paste(entrecomillados, collapse = ", "), ")")

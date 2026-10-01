@@ -280,19 +280,29 @@ corto no entra en el piso: \code{"S/D"} sigue publicándose donde describe a una
 columna que no es personal. El piso tiene \strong{una excepción declarada}, y es
 la única: \code{\link[=perfilar_por]{perfilar_por()}} agrupando \emph{por} una columna personal publica sus
 valores como etiquetas de grupo, porque la etiqueta es el eje del
-resultado y sin ella los grupos no se distinguen. No ocurre en silencio
-—avisa al ejecutar y lo declara en \code{etiquetas_personales}— y el remedio es
-agrupar por una columna seudonimizada.
+resultado y sin ella los grupos no se distinguen. Lo mismo cuando la
+columna de agrupación no es personal pero alguna etiqueta contiene un valor
+protegido de otra columna. No ocurre en silencio —avisa al ejecutar y lo
+declara en \code{etiquetas_personales}— y el remedio es agrupar por una columna
+seudonimizada.
 El piso alcanza además la \strong{forma sin separadores}: \code{"771.771-01"} es el
 mismo documento que \code{"77177101"}, y la celda entera se enmascara. Las
 tildes y la caja también son cosméticas: \code{juan.perez} se enmascara frente
 al nombre protegido «Juan Pérez», y el nombre pegado a otras letras dentro
-de un correo o un alias, también. En la \strong{prosa del paquete} —descripción,
+de un correo o un alias, también. Vale también fuera del latín
+occidental —el vietnamita escrito sin sus marcas, el griego, el cirílico y
+el armenio en otra caja, el ancho completo— y con el valor en otra
+codificación: lo que no la declara y no es UTF-8 válido se lee como latin1
+al comparar. En la \strong{prosa del paquete} —descripción,
 sugerencia, motivo, cómo resolverlo, justificación— se exige además que la
 variante no tenga una letra pegada antes o después: con los nombres de
 millones de personas como valores protegidos, alguno aparecía cruzando
 palabras de esas frases y las tapaba enteras, también en columnas no
-personales. Y lo
+personales. Lo que esa prosa cita entre comillas dobles —el nivel de un
+determinante en la sugerencia de \code{posible_ausencia_estructural}— no es
+prosa sino un valor: se compara con la regla de los valores y se tapa sólo
+la cita, para que la sugerencia se siga leyendo. Y si el determinante es una
+columna protegida, la sugerencia no reproduce el criterio. Y lo
 aplican también \code{\link[=analizar]{analizar()}} y \code{\link[=distribucion_valores]{distribucion_valores()}}, que antes
 protegían sólo por columna y publicaban lo que \code{perfilar()} tapaba sobre la
 misma tabla.}

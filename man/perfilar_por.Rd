@@ -93,8 +93,13 @@ tablas de cobertura— aunque \code{\link[=perfilar]{perfilar()}} enmascare esa 
 enmascaran aquí porque la etiqueta es el eje del resultado y sin ella los
 grupos no se distinguen; pero tampoco ocurre en silencio: se avisa al
 ejecutar y queda declarado en el objeto. Para que no se publiquen, agrupe
-por una columna seudonimizada. El atributo queda vacío cuando la columna no
-lleva datos personales, y también cuando \code{proteger_datos_personales} es
+por una columna seudonimizada. Lo mismo, con tipo
+\code{contiene_valor_protegido}, cuando la columna de agrupación no es personal
+pero alguna etiqueta contiene un valor protegido de otra columna —un
+proveedor \code{juanperezsrl} junto a un titular protegido «Juan Perez»—: la
+etiqueta se publica igual, y \code{n_grupos} cuenta cuántas lo contienen. El
+atributo queda vacío cuando ninguna etiqueta lleva datos personales, y
+también cuando \code{proteger_datos_personales} es
 \code{FALSE}, porque entonces ya está declarado que se quieren los valores. Si el
 léxico no reconoce el nombre de la columna, decláresela con
 \code{columnas_personales}: ese argumento —como \code{columnas_opcionales}, \code{clave},

@@ -810,23 +810,26 @@
                 method = "radix")]
 }
 
-# Si la aguja -alfanumerica y en mayusculas ASCII- aparece en el texto original
-# sin una LETRA pegada antes ni despues, con cualquier separador entre sus
-# caracteres. El limite es de letras y no de alfanumericos a proposito: lo que se
-# quiere dejar de tapar es un tramo de letras que cruza palabras de la prosa, y un
-# digito pegado no es eso. Con limite alfanumerico se escapaba
-# "maria.nunez123@correo.uy" frente al nombre protegido "Maria Nunez", que antes
-# se tapaba. Ante un texto que no se puede examinar, TRUE: es una funcion de
-# privacidad y el valor por omision tiene que ser cerrado.
+# Si la aguja -una forma ya plegada por `.plegar_para_comparar()`, sin nada que no
+# sea letra o digito- aparece en el texto plegado sin una LETRA pegada antes ni
+# despues, con cualquier separador entre sus caracteres. El limite es de letras y
+# no de alfanumericos a proposito: lo que se quiere dejar de tapar es un tramo de
+# letras que cruza palabras de la prosa, y un digito pegado no es eso. Con limite
+# alfanumerico se escapaba "maria.nunez123@correo.uy" frente al nombre protegido
+# "Maria Nunez", que antes se tapaba. La aguja se parte por CARACTERES y las
+# clases son de Unicode: partida por bytes, una letra griega o cirilica quedaba
+# cortada al medio y el separador opcional se metia entre sus bytes. Ante un texto
+# que no se puede examinar, TRUE: es una funcion de privacidad y el valor por
+# omision tiene que ser cerrado.
 .variante_en_limites <- function(aguja, textos) {
-  caracteres <- strsplit(aguja, "", useBytes = TRUE)[[1L]]
+  caracteres <- intToUtf8(utf8ToInt(aguja), multiple = TRUE)
   patron <- paste0(
-    "(?i)(?<![[:alpha:]])",
-    paste(caracteres, collapse = "[^[:alnum:]]*"),
-    "(?![[:alpha:]])"
+    "(?<!\\p{L})",
+    paste(caracteres, collapse = "[^\\p{L}\\p{N}]*"),
+    "(?!\\p{L})"
   )
   tryCatch(
-    grepl(patron, textos, perl = TRUE, useBytes = TRUE),
+    grepl(patron, textos, perl = TRUE),
     error = function(e) rep(TRUE, length(textos))
   )
 }
@@ -847,37 +850,41 @@
   # o mas-, y ademas se exige que su forma normalizada conserve ese largo: sin
   # eso, un valor corto tras normalizar enmascararia media tabla.
   if (!is.character(x) || !length(valores)) return(x)
-  # La caja tambien es cosmetica, y mas que el separador: el mismo nombre en
-  # minusculas dentro de un texto libre se publicaba mientras la forma canonica
-  # quedaba enmascarada en todo el informe. Se pliega SOLO el ASCII y con
-  # `perl = TRUE, useBytes = TRUE`: `toupper()` ABORTA -"invalid multibyte
-  # string"- sobre una cadena cuyos bytes no son UTF-8 validos, y este paquete
-  # trabaja justamente con esas. Queda escrito el limite: una variante que
-  # difiere en la caja de una letra ACENTUADA no se pliega.
-  plegar <- function(v) gsub("([a-z])", "\\U\\1", v, perl = TRUE, useBytes = TRUE)
-  # Y la tilde tambien es cosmetica: "juan.perez" frente al nombre protegido
-  # "Juan Perez" con tilde se publicaba, porque la aguja conservaba la letra
-  # acentuada y la celda escrita sin ella no la contenia -medido en una
-  # refutacion, junto con "marianunez123@" frente a "Maria Nunez" con tildes-.
-  # Agujas y celdas se transliteran a ASCII con el mapa del paquete, que no
-  # depende del locale, despues de marcar lo que ya es UTF-8 valido.
-  sin_tildes <- function(v) {
-    v <- .textos_para_plegar(as.character(v))
-    tryCatch(.transliterar_ascii(v), error = function(e) v)
+  # La caja, la tilde y la codificacion tambien son cosmeticas. El mismo nombre
+  # en minusculas dentro de un texto libre se publicaba mientras la forma
+  # canonica quedaba enmascarada en todo el informe; "juan.perez" se publicaba
+  # frente al protegido "Juan Perez" con tilde; y una refutacion lo midio despues
+  # fuera del latin occidental -vietnamita sin marcas, griego y cirilico en
+  # mayusculas, ancho completo- y con el protegido en latin1 sin marca frente a la
+  # celda en UTF-8. Agujas y celdas pasan por `.plegar_para_comparar()`, que deja
+  # todo en UTF-8 valido y no depende del locale, y despues se les saca lo que no
+  # es letra ni digito con clases de Unicode. Antes eso se hacia por bytes y una
+  # letra no latina perdia la mayoria de los suyos: la comparacion era por azar.
+  plegar <- function(v) {
+    tryCatch(
+      .plegar_para_comparar(v),
+      error = function(e) .textos_para_plegar(as.character(v))
+    )
   }
-  normalizar <- function(v) {
-    plegar(gsub("[^[:alnum:]]", "", sin_tildes(v), useBytes = TRUE))
+  sin_separadores <- function(v) {
+    tryCatch(
+      gsub("[^\\p{L}\\p{N}]", "", v, perl = TRUE),
+      error = function(e) gsub("[^[:alnum:]]", "", v, useBytes = TRUE)
+    )
   }
+  normalizar <- function(v) sin_separadores(plegar(v))
   agujas <- unique(normalizar(valores))
+  # El piso se cuenta en CARACTERES, como en `.valores_identificantes()`: en bytes,
+  # un nombre cirilico de cuatro letras pasaba el piso de seis.
+  largos <- nchar(agujas, type = "chars", allowNA = TRUE)
   agujas <- agujas[
-    !is.na(agujas) &
-      nchar(agujas, type = "bytes") >= .MIN_LARGO_VALOR_IDENTIFICANTE
+    !is.na(agujas) & (is.na(largos) | largos >= .MIN_LARGO_VALOR_IDENTIFICANTE)
   ]
   if (!length(agujas)) return(x)
   candidatas <- !is.na(x) & x != "[valor protegido]"
   if (!any(candidatas)) return(x)
-  pajar <- normalizar(x[candidatas])
-  crudos <- sin_tildes(x[candidatas])
+  crudos <- plegar(x[candidatas])
+  pajar <- sin_separadores(crudos)
   # La regla de digitos de mas abajo compara en la direccion contraria -la corrida
   # de la celda DENTRO de la aguja, que es el documento sin su verificador-, y
   # ahi el comienzo de la aguja no tiene por que aparecer: usa todas.
@@ -887,6 +894,29 @@
   )
   limites <- rep_len(as.logical(exigir_limites), length(x))[candidatas]
   limites[is.na(limites)] <- FALSE
+  # Lo que la prosa cita entre comillas dobles no es prosa: es un valor de celda
+  # que el paquete incrusta, como los niveles de un determinante en la sugerencia
+  # de `posible_ausencia_estructural` -`~ proveedor == "juanperezsrl"`-. Ahi vale
+  # la regla fuerte. Medido en una refutacion: con el titular "Juan Perez"
+  # protegido, ese nivel salia entero porque la aguja esta pegada a "srl". Se tapa
+  # solo lo citado, no el texto entero, para que la sugerencia se siga leyendo.
+  # Las citas se buscan en el texto ORIGINAL y no en el transliterado: la
+  # transliteracion puede convertir comillas tipograficas en comillas rectas, y
+  # entonces las citas de uno y otro no se corresponden.
+  patron_cita <- "\"(?:[^\"\\\\]|\\\\.)*\""
+  citas <- vector("list", length(pajar))
+  citado <- rep("", length(pajar))
+  if (any(limites)) {
+    citas[limites] <- regmatches(
+      x[candidatas][limites],
+      gregexpr(patron_cita, x[candidatas][limites], perl = TRUE, useBytes = TRUE)
+    )
+    citado[limites] <- vapply(citas[limites], function(partes) {
+      if (!length(partes)) return("")
+      paste(normalizar(partes), collapse = " ")
+    }, character(1L))
+  }
+  agujas_citadas <- vector("list", length(pajar))
   golpea <- rep(FALSE, length(pajar))
   # La forma sin separadores CONTIENE a la aguja. En la PROSA del paquete -los
   # campos de `.CAMPOS_DE_PROSA`, y solo esos- se exige ademas que la aguja caiga
@@ -913,6 +943,11 @@
       golpea[setdiff(contiene, con_limites)] <- TRUE
       if (length(con_limites)) {
         golpea[con_limites] <- .variante_en_limites(aguja, crudos[con_limites])
+        en_cita <- con_limites[!golpea[con_limites]]
+        en_cita <- en_cita[
+          grepl(aguja, citado[en_cita], fixed = TRUE, useBytes = TRUE)
+        ]
+        agujas_citadas[en_cita] <- lapply(agujas_citadas[en_cita], c, aguja)
       }
     }
   }
@@ -929,8 +964,21 @@
   # corriente por compartir un tramo con un apellido, y eso silencia contenido
   # real del informe en vez de proteger un dato. Ver la mitad de control de la
   # prueba, que exige que una celda ajena siga publicandose.
+  # Extraer las corridas con `gregexpr()` sobre todas las agujas costaba 6,6 s
+  # con 600.000 valores protegidos -medido en `perfilar_por()`, que compara tres
+  # etiquetas-. Casi todas son solo digitos -un documento, un telefono- o no
+  # tienen ninguno -un nombre-: esas se resuelven sin expresiones, y solo las
+  # mezcladas pasan por `gregexpr()`.
   corridas_largas <- function(v) {
-    piezas <- regmatches(v, gregexpr("[0-9]+", v, useBytes = TRUE))
+    piezas <- vector("list", length(v))
+    solo_digitos <- !is.na(v) & grepl("^[0-9]+$", v, useBytes = TRUE)
+    piezas[solo_digitos] <- as.list(v[solo_digitos])
+    mezcladas <- which(!solo_digitos & !is.na(v) & grepl("[0-9]", v, useBytes = TRUE))
+    if (length(mezcladas)) {
+      piezas[mezcladas] <- regmatches(
+        v[mezcladas], gregexpr("[0-9]+", v[mezcladas], useBytes = TRUE)
+      )
+    }
     lapply(piezas, function(p) {
       p[!is.na(p) & nchar(p, type = "bytes") >= .MIN_LARGO_VALOR_IDENTIFICANTE]
     })
@@ -940,10 +988,15 @@
   # corridas de 1, 3 y 3 digitos -ninguna llega al piso de seis- y la regla no veia
   # nada. Sobre "caja4123456" la corrida es "4123456" y si. La primera version de
   # esta guarda media la celda cruda y daba OK sin tapar el fragmento.
-  digitos_aguja <- unique(unlist(corridas_largas(agujas_todas), use.names = FALSE))
-  if (length(digitos_aguja) && !all(golpea)) {
-    corridas_pajar <- corridas_largas(pajar)
-    planas <- unlist(corridas_pajar, use.names = FALSE)
+  # Primero las corridas de las celdas, que son pocas: si ninguna llega al piso no
+  # hay nada que comparar y las de las agujas, que pueden ser millones, no se
+  # calculan.
+  corridas_pajar <- if (!all(golpea)) corridas_largas(pajar) else list()
+  planas <- unlist(corridas_pajar, use.names = FALSE)
+  digitos_aguja <- if (length(planas)) {
+    unique(unlist(corridas_largas(agujas_todas), use.names = FALSE))
+  } else character()
+  if (length(digitos_aguja)) {
     if (length(planas)) {
       # Se pregunta en UNA direccion: si la corrida de la celda esta contenida en la
       # de una aguja, que es el documento sin su verificador. La direccion contraria
@@ -965,6 +1018,26 @@
         indice_celda <- rep(seq_along(corridas_pajar), lengths(corridas_pajar))
         golpea[unique(indice_celda[planas %in% contenidas])] <- TRUE
       }
+    }
+  }
+  con_cita <- which(lengths(agujas_citadas) > 0L & !golpea)
+  if (length(con_cita)) {
+    indices_x <- which(candidatas)[con_cita]
+    for (j in seq_along(con_cita)) {
+      texto <- x[[indices_x[[j]]]]
+      marca <- Encoding(texto)
+      coincidencias <- gregexpr(patron_cita, texto, perl = TRUE, useBytes = TRUE)
+      partes <- regmatches(texto, coincidencias)[[1L]]
+      normalizadas <- normalizar(partes)
+      tapar <- vapply(normalizadas, function(parte) {
+        any(vapply(agujas_citadas[[con_cita[[j]]]], function(aguja) {
+          grepl(aguja, parte, fixed = TRUE, useBytes = TRUE)
+        }, logical(1L)))
+      }, logical(1L), USE.NAMES = FALSE)
+      partes[tapar] <- "\"[valor protegido]\""
+      regmatches(texto, coincidencias) <- list(partes)
+      Encoding(texto) <- marca
+      x[[indices_x[[j]]]] <- texto
     }
   }
   if (any(golpea)) x[candidatas][golpea] <- "[valor protegido]"
@@ -995,11 +1068,26 @@
   unique(clave)
 }
 
+# Recibe valores de `k` bytes o mas. Los primeros `k` bytes de todos se toman con
+# una sola expresion en modo bytes -`(?s)` para que el punto cruce un salto de
+# linea- y se pegan: una llamada por valor costaba 2 s sobre 600.000 valores. Si
+# algun valor no diera `k` bytes, el pegado se desalinearia; ahi se vuelve al
+# camino de a uno.
 .comienzo_bytes <- function(valores, k) {
   potencias <- 256^((k - 1L):0L)
-  vapply(valores, function(valor) {
-    sum(as.integer(charToRaw(valor)[seq_len(k)]) * potencias)
-  }, numeric(1L), USE.NAMES = FALSE)
+  if (!length(valores)) return(numeric())
+  prefijos <- sub(
+    paste0("(?s)^(.{", k, "}).*$"), "\\1", valores,
+    perl = TRUE, useBytes = TRUE
+  )
+  Encoding(prefijos) <- "bytes"
+  bytes <- as.integer(charToRaw(paste(prefijos, collapse = "")))
+  if (length(bytes) != k * length(valores)) {
+    return(vapply(valores, function(valor) {
+      sum(as.integer(charToRaw(valor)[seq_len(k)]) * potencias)
+    }, numeric(1L), USE.NAMES = FALSE))
+  }
+  colSums(matrix(bytes, nrow = k) * potencias)
 }
 
 .valores_que_pueden_aparecer <- function(valores, textos, k) {
@@ -1439,22 +1527,32 @@
   indices <- which(hallazgos$tipo_hallazgo ==
                      "posible_ausencia_estructural")
   if (!length(indices)) return(hallazgos)
+  # El determinante se reconoce comparando el comienzo de la evidencia con cada
+  # nombre protegido, y no extrayendolo con una expresion: un nombre con un
+  # acento grave dentro cortaba la extraccion y la sugerencia salia entera, con
+  # los niveles o el corte de la columna protegida.
+  textos_sensibles <- unique(c(
+    .marcar_utf8_textos(as.character(sensibles)),
+    as.character(sensibles)
+  ))
   for (i in indices) {
     evidencia <- as.character(hallazgos$evidencia[[i]])
-    encontrado <- regexec("^`([^`]*)` predice", evidencia, perl = TRUE)
-    partes <- regmatches(evidencia, encontrado)[[1L]]
-    determinante <- if (length(partes) >= 2L) partes[[2L]] else NA_character_
-    if (is.na(determinante) ||
-        !.nombres_para_operar(determinante) %in%
-          .nombres_para_operar(sensibles)) next
+    if (is.na(evidencia)) next
+    prefijos <- paste0("`", textos_sensibles, "` predice ")
+    coinciden <- which(startsWith(evidencia, prefijos))
+    if (!length(coinciden)) next
+    candidatos <- textos_sensibles[coinciden]
+    determinante <- candidatos[[which.max(nchar(candidatos, type = "bytes"))]]
     inicio <- sub("\\. La columna corresponde.*$", "", evidencia)
-    if (identical(inicio, evidencia)) next
+    if (identical(inicio, evidencia)) inicio <- NA_character_
     tipo_criterio <- if (grepl("por un umbral", evidencia, fixed = TRUE)) {
       "un umbral"
     } else {
       "niveles"
     }
-    hallazgos$evidencia[[i]] <- paste0(
+    hallazgos$evidencia[[i]] <- if (is.na(inicio)) {
+      "[evidencia protegida]"
+    } else paste0(
       inicio,
       ". La columna corresponde segun ", tipo_criterio,
       " de `", determinante,
@@ -1640,6 +1738,13 @@
            logical(1L))
   indices_hallazgos <- !is.na(hallazgos$columna) &
     hallazgos$tipo_hallazgo != "dato_personal_posible" & coincide
+  # La ausencia estructural es una señal válida aunque el determinante sea
+  # personal. Se conserva la predicción y su precisión, pero no el corte ni los
+  # niveles que permitirían reconstruir valores de la columna protegida.
+  # Corre antes de tapar la evidencia, porque reconoce el determinante en ella:
+  # si la dependiente tambien era personal, la evidencia ya estaba tapada y la
+  # sugerencia salia con los niveles o el corte del determinante.
+  hallazgos <- .proteger_ausencia_estructural(hallazgos, sensibles)
   hallazgos$evidencia[indices_hallazgos] <- "[evidencia protegida]"
   # La evidencia se tapaba y la descripcion no, y hay hallazgos que nombran un
   # valor de celda ahi adentro: `posible_centinela_numerico` decia "El valor
@@ -1667,10 +1772,6 @@
   # no solo en los de las columnas sensibles: la clave no pertenece a la
   # columna del hallazgo, viaja con la fila.
   hallazgos <- .proteger_claves_trazabilidad(hallazgos, sensibles)
-  # La ausencia estructural es una señal válida aunque el determinante sea
-  # personal. Se conserva la predicción y su precisión, pero no el corte ni los
-  # niveles que permitirían reconstruir valores de la columna protegida.
-  hallazgos <- .proteger_ausencia_estructural(hallazgos, sensibles)
   if (nrow(dependencias)) {
     indices_dependencias <-
       .nombres_para_operar(dependencias$determinante) %in%
