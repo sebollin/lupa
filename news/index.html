@@ -43,6 +43,11 @@
     <div class="section level2">
 <h2 class="pkg-version" data-toc-text="0.1.0" id="lupa-010">lupa 0.1.0<a class="anchor" aria-label="anchor" href="#lupa-010"></a></h2>
 <div class="section level3">
+<h3 id="la-cuarta-evaluacion-real-0-1-0">La cuarta evaluacion real<a class="anchor" aria-label="anchor" href="#la-cuarta-evaluacion-real-0-1-0"></a></h3>
+<ul><li>
+<strong>Un nombre de columna no se tapa aunque contenga un valor protegido.</strong> Con “Segundo” -un nombre de pila corriente- protegido, la columna <code>segundo_nombre</code> salia <code>[valor protegido]_nombre</code> en los hallazgos sin accion del plan, en <code>columnas_analizadas</code> y en la SQL guardada de <code><a href="../reference/perfilar_dbi.html">perfilar_dbi()</a></code>: el hallazgo declarado dejaba de corresponder a su columna y la SQL nombraba una que no existe. Los nombres son estructura en todas las salidas, tambien cuando un texto los escribe entre comillas; salvo el que es, el mismo, un valor protegido.</li>
+</ul></div>
+<div class="section level3">
 <h3 id="ronda-el-informe-html-0-1-0">Ronda 21: el informe HTML<a class="anchor" aria-label="anchor" href="#ronda-el-informe-html-0-1-0"></a></h3>
 <p>Una refutacion del informe de <code><a href="../reference/reportar.html">reportar()</a></code> encontro siete defectos.</p>
 <ul><li>

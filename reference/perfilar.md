@@ -327,15 +327,22 @@ perfilar(
   los datos. Un campo se reconoce como de nombres por su **contenido**
   —todos sus valores son nombres de la entrada, solos o unidos—, así que
   la protección de los valores no se afloja: si un valor protegido es
-  igual a un nombre de columna, su moda sigue tapada. Lo mismo vale para
-  el **vocabulario**: un tipo de hallazgo, una severidad, una
-  estrategia, el nombre de un diagnóstico o de una métrica, o el de un
-  factor de un marco que declaró el usuario, no se enmascaran aunque
-  coincidan con un valor protegido o lo contengan. El principio es el de
-  los nombres de columna: son estructura, no salen de las celdas, y
-  publicarlos no dice nada de ninguna fila —el tipo `constante` aparece
-  porque otra columna es constante, no porque alguien se apellide así—.
-  Se enmascaraban: en una base real, un nombre de persona contenido en
+  igual a un nombre de columna, su moda sigue tapada. Y un texto que
+  nombra una columna entre comillas —la prosa del paquete, la SQL que
+  guarda
+  [`perfilar_dbi()`](https://sebollin.github.io/lupa/reference/perfilar_dbi.md)—
+  la conserva entera: con «Segundo» protegido, `segundo_nombre` salía
+  `[valor protegido]_nombre` en los hallazgos sin acción del plan y en
+  la SQL. Un nombre que es él mismo un valor protegido, con otra caja o
+  con otros separadores, no se exceptúa. Lo mismo vale para el
+  **vocabulario**: un tipo de hallazgo, una severidad, una estrategia,
+  el nombre de un diagnóstico o de una métrica, o el de un factor de un
+  marco que declaró el usuario, no se enmascaran aunque coincidan con un
+  valor protegido o lo contengan. El principio es el de los nombres de
+  columna: son estructura, no salen de las celdas, y publicarlos no dice
+  nada de ninguna fila —el tipo `constante` aparece porque otra columna
+  es constante, no porque alguien se apellide así—. Se enmascaraban: en
+  una base real, un nombre de persona contenido en
   `faltantes_disfrazados` dejó seis hallazgos con el tipo
   `[valor protegido]`, y el plan sin ninguna acción para ellos. La regla
   es por campo y por contenido: un campo cuyos valores son todos

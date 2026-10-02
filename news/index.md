@@ -2,6 +2,19 @@
 
 ## lupa 0.1.0
 
+### La cuarta evaluacion real
+
+- **Un nombre de columna no se tapa aunque contenga un valor
+  protegido.** Con “Segundo” -un nombre de pila corriente- protegido, la
+  columna `segundo_nombre` salia `[valor protegido]_nombre` en los
+  hallazgos sin accion del plan, en `columnas_analizadas` y en la SQL
+  guardada de
+  [`perfilar_dbi()`](https://sebollin.github.io/lupa/reference/perfilar_dbi.md):
+  el hallazgo declarado dejaba de corresponder a su columna y la SQL
+  nombraba una que no existe. Los nombres son estructura en todas las
+  salidas, tambien cuando un texto los escribe entre comillas; salvo el
+  que es, el mismo, un valor protegido.
+
 ### Ronda 21: el informe HTML
 
 Una refutacion del informe de
