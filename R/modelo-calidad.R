@@ -2020,6 +2020,20 @@ metricas_nucleo <- function() {
   )
 }
 
+# El `id_medida` lleva escrita su metrica instanciada y se numera DENTRO de ella.
+# Se numeraba en la llamada -`M-000001`, `M-000002`-, y una corrida armada por
+# partes con el mismo `id_medicion`, que `rbind()` une desde la ronda 22, repetia
+# los identificadores: `evaluar()` y `historico_calidad()` la rechazaban como una
+# medicion unida consigo misma. La misma metrica medida dos veces en la corrida
+# sigue repitiendo, que es lo que esas guardas buscan. Medido en la ronda 23.
+.ids_medida <- function(id_medicion, metrica_instanciada, prefijo = "") {
+  if (!length(metrica_instanciada)) return(character())
+  clave <- as.character(metrica_instanciada)
+  clave[is.na(clave)] <- "NA"
+  numero <- stats::ave(seq_along(clave), clave, FUN = seq_along)
+  paste0(id_medicion, "-", prefijo, clave, "-", sprintf("%06d", numero))
+}
+
 # Una metrica por celda o por fila mide SOLO las celdas con valor: una columna
 # con un ausente publica una medida menos, el promedio se calcula sobre las que
 # midio y nada dice cuantas quedaron afuera. El extremo si esta cubierto -si no
@@ -2199,7 +2213,12 @@ metricas_nucleo <- function() {
 #'   que faltan y cuáles se recibieron. Una tabla que el modelo no pide **se
 #'   ignora**: no hace falta que la lista coincida exactamente con las entidades,
 #'   sólo que no falte ninguna.
-#' @param id_medicion Identificador de corrida. Si se omite, se genera uno.
+#' @param id_medicion Identificador de corrida. Si se omite, se genera uno. Cada
+#'   medida lleva un `id_medida` que lo antepone a su métrica instanciada y la
+#'   numera dentro de ella —`M-NoNulo@t.x-000001`—: una corrida armada por partes
+#'   con el mismo `id_medicion` y unida con `rbind()` no repite identificadores,
+#'   y la misma métrica medida dos veces en la corrida sí, que es lo que
+#'   [evaluar()] y [historico_calidad()] rechazan.
 #' @param fecha Fecha y hora de la corrida. Se guarda en UTC; un texto
 #'   —`"2026-03-01"` o `"2026-03-01 09:30:00"`— se lee en UTC, no en el huso de
 #'   la sesión, así que la misma llamada registra el mismo instante en cualquier
@@ -2464,11 +2483,7 @@ medir <- function(modelo, datos, id_medicion = NULL, fecha = Sys.time(),
   partes <- lapply(partes, `[[`, "salida")
   resultado <- do.call(rbind, partes)
   rownames(resultado) <- NULL
-  resultado$id_medida <- if (nrow(resultado)) {
-    paste0(id_medicion, "-", sprintf("%06d", seq_len(nrow(resultado))))
-  } else {
-    character()
-  }
+  resultado$id_medida <- .ids_medida(id_medicion, resultado$metrica_instanciada)
   resultado <- resultado[c(
     "id_medida", "id_medicion", "fecha", "metrica", "metrica_especifica",
     "metrica_instanciada", "dimension", "factor", "orientacion", "granularidad",

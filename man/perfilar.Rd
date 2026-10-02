@@ -295,37 +295,48 @@ mismo documento que \code{"77177101"}, y la celda entera se enmascara. En los
 dígitos se busca \strong{el documento en cada número del texto}, con cualquier
 agrupación: un número une grupos de dígitos con espacios, guiones o puntos
 —también con un espacio a cada lado—, y con barras, comas sin espacio,
-apóstrofos, dos puntos, barras verticales, signos más, puntos medios o
-paréntesis pegados, y se tapa la celda si grupos contiguos forman un
-documento protegido —\code{"2901 1234"}, \code{"099 12 34 56"}, \code{"(2) 487 1234"},
-\code{"4111 1111 1111 1111"}, \code{"01.23.45.67.89"}—, también con ceros a la
-izquierda, con los guiones, espacios e invisibles de Unicode o escrito con
-dígitos arábigo-índicos, persas o devanagari. Una fecha con hora protegida
-se reconoce escrita en otro formato. El documento \strong{parcial}, de siete
-cifras o más, se busca con más cuidado porque es el que coincide por azar:
-sin su verificador, fuera de la parte de un decimal (\code{"4.123.456"} frente a
+apóstrofos, signos más, puntos medios o paréntesis pegados, y se tapa la
+celda si grupos contiguos forman un documento protegido —\code{"2901 1234"},
+\code{"099 12 34 56"}, \code{"(2) 487 1234"}, \code{"4111 1111 1111 1111"},
+\code{"01.23.45.67.89"}—, también con ceros a la izquierda, con los guiones,
+espacios e invisibles de Unicode y los parecidos más comunes del punto, la
+coma y la barra, o escrito con dígitos arábigo-índicos, persas o
+devanagari. Los dos puntos y la barra vertical \strong{no} unen: una razón
+\code{"494:2714"} o una lista \code{"12|345|6789"} no es un documento, y un documento
+escrito así no se reconoce. Una fecha con hora protegida se reconoce escrita
+con \code{T}, \code{Z}, espacio o coma, con día y mes en cualquier orden, con la hora
+separada por puntos o en la forma compacta \code{"20240627T212425"}; no en
+palabras, con a.m./p.m. ni con el año en dos cifras. El documento
+\strong{parcial}, de siete cifras o más, se busca con más cuidado porque es el
+que coincide por azar: sin su verificador, fuera de la parte de un decimal
+y de un número con forma de dirección IPv4 (\code{"4.123.456"} frente a
 \code{"4.123.456-7"}, el verificador mal tipeado, el documento seguido de un
-año), y sin su primer dígito sólo detrás de un comodín (\code{"*.123.456-7"},
-\code{"X.012.345-8"}); un número redondo (\verb{1.000.000}) no cuenta como parcial.
-Es un \strong{decimal} el número cuyo último signo es un punto o una coma con
-otra cantidad de cifras que tres, y antes un entero o miles separados con
-otro signo: \code{"4.123.456,7"} es un importe, \code{"4.123.456.7"} no. Una fecha
-con un año entre 1800 y 2199, una hora —con su fracción de segundo—, una
-dirección IPv4, un ISBN, una lista separada por comas y la parte decimal de
-un número no son documentos. En la prosa del paquete los números son
-conteos suyos, y ahí la regla mira sólo lo que la prosa cita entre comillas
-y el código que sugiere entre comillas invertidas, y tapa la cita o el
-número, no la frase. \strong{El parcial tiene un costo, medido}: un número
-entero de siete cifras que coincide con un documento protegido sin su
-verificador no se distingue de él, y se tapa. Con un millón de cédulas,
-300.000 teléfonos fijos y 300.000 celulares protegidos, eso le pasó a
-uno de cada cinco conteos de siete cifras en ejemplos, modas y evidencia,
-y a dos de cada cien enteros de ocho cifras, que coinciden con un documento
-entero; las coordenadas, los p-valores, los importes con decimales, las
-horas, las direcciones IP, los ISBN y las listas separadas por comas no se
-taparon. Lo mismo vale, por la misma razón, para un número escrito con
-espacios entre sus miles, una lista separada por espacios, un rango
-\code{"a - b"} o una versión \code{"v4.16.4302"}: se unen como el documento. La medición se rehace con
+año), y sin su primer dígito sólo detrás de un asterisco o una equis
+(\code{"*.123.456-7"}, \code{"X.012.345-8"}); un número redondo (\verb{1.000.000}) no
+cuenta como parcial. Es un \strong{decimal} el número cuyo último signo es un
+punto o una coma con otra cantidad de cifras que tres, y antes un entero o
+miles separados con otro signo: \code{"4.123.456,7"} es un importe,
+\code{"4.123.456.7"} no; su parte decimal no se pega al resto cuando es la de un
+importe con miles o la de un decimal suelto —una coordenada, un par
+lat lon—, pero sí cuando el número es otra cosa, como \code{"(02) 901.1234"}.
+Una fecha con un año entre 1800 y 2100, una hora —con su fracción de
+segundo—, un ISBN y una lista separada por comas no son documentos. En la
+prosa del paquete los números son conteos suyos, y ahí la regla mira sólo
+lo que la prosa cita entre comillas y el código que sugiere entre comillas
+invertidas, y tapa la cita o el número, no la frase. \strong{El parcial tiene un
+costo, medido}: un número entero de siete cifras que coincide con un
+documento protegido sin su verificador no se distingue de él, y se tapa.
+Con un millón de cédulas, 300.000 teléfonos fijos y 300.000 celulares
+protegidos, eso le pasó a uno de cada cinco números de siete cifras en
+ejemplos, modas y evidencia —en cualquier escritura: con puntos o
+apóstrofos de miles, con un guion, tras un numeral; tras un asterisco, a
+uno de cada cuatro—, y a uno o dos de cada cien enteros de ocho cifras, que
+coinciden con un documento entero; las coordenadas, los p-valores, los
+importes con decimales, las horas, los ISBN, las listas separadas por
+comas o por barras verticales y las razones no se taparon, y una dirección
+IP sólo cuando coincide entera. Lo mismo vale, por la misma razón, para una
+lista separada por espacios, un rango \code{"a - b"} o una versión
+\code{"v4.16.4302"}: se unen como el documento. La medición se rehace con
 \code{data-raw/medir_tapado_de_mas.R}.
 Las tildes, la caja y la escritura también son cosméticas: \code{juan.perez} se
 enmascara frente al nombre protegido

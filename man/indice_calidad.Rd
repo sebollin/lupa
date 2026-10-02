@@ -34,6 +34,10 @@ No existe un promedio interno por omisión. El resultado conserva el tablero,
 ambas capas de pesos, las inversiones, las exclusiones, los universos y la
 cobertura del marco.
 
+Una métrica sin dimensión no entra al índice: se excluye con su motivo, como
+las de orientación \code{no_aplica}. Un peso para una dimensión cuyas métricas se
+excluyeron se rechaza diciéndolo.
+
 \code{advertencia_universos} \strong{se calcula de los universos que el propio objeto
 publica}, no es un texto fijo. Con un solo universo lo nombra y dice que las
 unidades son comparables; con varios dice cuántos son y nombra, por universo,

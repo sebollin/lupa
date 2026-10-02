@@ -25,7 +25,8 @@ test_that("el informe no publica el resultado de una medida suprimida", {
   suppressMessages(reportar(evaluacion, archivo = destino))
   html <- paste(readLines(destino, warn = FALSE), collapse = " ")
   filas <- unlist(strsplit(html, "<tr", fixed = TRUE))
-  filas <- filas[grepl(suprimida, filas, fixed = TRUE)]
+  # Como lo escribe el informe: el `@` del identificador va escapado.
+  filas <- filas[grepl(lupa:::.html_escapar(suprimida), filas, fixed = TRUE)]
 
   expect_true(length(filas) >= 1L)
   # Ninguna fila del informe que nombre la medida puede traer su desenlace.

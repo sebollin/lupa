@@ -1151,8 +1151,8 @@ leer_analisis <- function(archivo) {
   cual <- if (length(entidades) > 1L) "varias" else "una"
   agregada <- do.call(rbind, lapply(partes, `[[`, cual))
   rownames(agregada) <- NULL
-  agregada$id_medida <- paste0(
-    agregada$id_medicion, "-tablero-", sprintf("%06d", seq_len(nrow(agregada)))
+  agregada$id_medida <- .ids_medida(
+    agregada$id_medicion, agregada$metrica_instanciada, "tablero-"
   )
   class(agregada) <- c("medicion", "data.frame")
   list(

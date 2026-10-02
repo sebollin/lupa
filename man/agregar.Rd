@@ -97,7 +97,21 @@ métrica (\code{agregada:ratio:Formato}), así que arrastrarla tal cual dejaba u
 declaración que no se podía atribuir a ninguna fila. Los conteos se \strong{suman}
 por objeto de destino, y sólo cuando todas las partes declaran la misma
 unidad; si no, la fila declara la mezcla en lugar de publicar un total que no
-estaría en ninguna unidad.
+estaría en ninguna unidad. Las partes \strong{completas} también suman —una
+columna de 6 de 6 junto a una de 5 de 6 da 11 de 12—, y en un destino por
+fila (\code{instanciaEntidad}) cada fila cuenta sus propias celdas: se declaran
+sólo las incompletas, con su número de fila en el motivo.
+
+Una medida repetida —el mismo \code{id_medida} dos veces, como deja una medición
+unida consigo misma— se rechaza, como en \code{\link[=evaluar]{evaluar()}}. El \code{id_medida} de cada
+fila agregada nombra lo que agrega —destino, función, métrica y objeto, como
+\code{M-agg-atributo-ratio-NoNulo@t.x}—, así que dos partes agregadas por separado
+se pueden unir y subir de nivel, y el mismo agregado repetido sigue
+repitiendo su identificador. Un valor que no se
+puede agregar se rechaza nombrando la métrica y la causa: un tipo no
+acotado, una medida ausente o suprimida, o un valor fuera de \verb{[0, 1]}.
+\code{umbral} sólo se acepta con \code{ratio_umbral}, y el borde se compara con
+tolerancia de redondeo: \code{1 - 0.9} alcanza el umbral \code{0.1}.
 
 Las coberturas de frontera (\code{cobertura_coleccion} y sus hermanas) \strong{no} se
 arrastran: cada agregación calcula la de su propio destino con las partes que

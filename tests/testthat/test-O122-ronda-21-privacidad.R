@@ -40,7 +40,8 @@ test_that("un numero protegido se reconoce con cualquier agrupacion", {
   expect_true(.tapa_O122("(2) 487 1234", "24871234"))
   expect_true(.tapa_O122("4111 1111 1111 1111", "4111111111111111"))
   expect_true(.tapa_O122("CI 4 . 123 . 456-7", "4.123.456-7"))
-  expect_true(.tapa_O122("CI 3:456:789-0", "34567890"))
+  # Los dos puntos dejaron de unir en la ronda 23: una razon "494:2714" se tapaba
+  # como documento. Ver O127.
   expect_true(.tapa_O122(paste0("CI 1", intToUtf8(0xb7), "987", intToUtf8(0xb7), "654-3"),
                          "19876543"))
   # Y de punta a punta, una columna por escritura.

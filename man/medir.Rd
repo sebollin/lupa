@@ -31,7 +31,12 @@ que faltan y cuáles se recibieron. Una tabla que el modelo no pide \strong{se
 ignora}: no hace falta que la lista coincida exactamente con las entidades,
 sólo que no falte ninguna.}
 
-\item{id_medicion}{Identificador de corrida. Si se omite, se genera uno.}
+\item{id_medicion}{Identificador de corrida. Si se omite, se genera uno. Cada
+medida lleva un \code{id_medida} que lo antepone a su métrica instanciada y la
+numera dentro de ella —\code{M-NoNulo@t.x-000001}—: una corrida armada por partes
+con el mismo \code{id_medicion} y unida con \code{rbind()} no repite identificadores,
+y la misma métrica medida dos veces en la corrida sí, que es lo que
+\code{\link[=evaluar]{evaluar()}} y \code{\link[=historico_calidad]{historico_calidad()}} rechazan.}
 
 \item{fecha}{Fecha y hora de la corrida. Se guarda en UTC; un texto
 —\code{"2026-03-01"} o \code{"2026-03-01 09:30:00"}— se lee en UTC, no en el huso de

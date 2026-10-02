@@ -218,10 +218,42 @@ transiciones_granularidad <- function() {
       call. = FALSE
     )
   }
+  # Una medida repetida se contaba dos veces, y dos datos con el mismo
+  # identificador salian como UNA celda mezclada. `evaluar()` ya lo rechazaba:
+  # mismo criterio. Medido en la ronda 23.
+  if ("id_medida" %in% names(medidas)) {
+    repetidas <- duplicated(.nombres_para_operar(as.character(medidas$id_medida)))
+    if (any(repetidas)) {
+      stop(
+        "Las medidas repiten `id_medida` -la primera, `",
+        as.character(medidas$id_medida)[which(repetidas)[[1L]]], "`-: cada ",
+        "medida se cuenta una vez. Una medici\u00f3n unida consigo misma, o dos ",
+        "corridas con el mismo `id_medicion`, la repiten.", call. = FALSE
+      )
+    }
+  }
   if (!is.numeric(medidas$resultado) || anyNA(medidas$resultado) ||
       any(!is.finite(medidas$resultado)) ||
       any(medidas$resultado < 0 | medidas$resultado > 1)) {
-    stop("Los resultados que se agregan deben estar en [0, 1].", call. = FALSE)
+    # El mensaje nombra la metrica y la causa: decia solo "[0, 1]", y la misma
+    # metrica no acotada daba otro mensaje segun sus valores -con 0 y 0 la
+    # guarda por tipo, con 0 y 91 esta-. Medido en la ronda 23.
+    nombres <- if ("metrica_instanciada" %in% names(medidas)) {
+      medidas$metrica_instanciada
+    } else medidas$metrica_especifica
+    tipo <- as.character(medidas$tipo_resultado[[1L]])
+    causa <- if (!is.numeric(medidas$resultado) || anyNA(medidas$resultado)) {
+      "trae resultados ausentes -una medida suprimida o que no se midi\u00f3-, que no se agregan"
+    } else if (!tipo %in% c("booleano", "real")) {
+      paste0("es de resultado '", tipo, "': valores no acotados, no una proporci\u00f3n")
+    } else {
+      "trae valores fuera de ese rango"
+    }
+    stop(
+      "Los resultados que se agregan deben estar en [0, 1]: la m\u00e9trica '",
+      paste(.identificadores_unicos(as.character(nombres)), collapse = "', '"),
+      "' ", causa, ".", call. = FALSE
+    )
   }
   medidas$orientacion <- .orientacion_medidas(medidas)
   medidas
@@ -260,7 +292,9 @@ transiciones_granularidad <- function() {
   switch(
     funcion,
     ratio = mean(valores == 1),
-    ratio_umbral = mean(valores >= umbral),
+    # Con tolerancia de redondeo: `1 - 0.9` da 0,0999...9, que se imprime 0,1 y
+    # no alcanzaba el umbral 0,1. Medido en la ronda 23.
+    ratio_umbral = mean(valores >= umbral - 64 * .Machine$double.eps),
     promedio = mean(valores),
     promedio_ponderado = sum(valores * pesos)
   )
@@ -540,32 +574,52 @@ transiciones_granularidad <- function() {
   # comparten el nombre de la metrica agregada -`agregada:ratio:Formato`-, y
   # emparejar por el nombre le atribuia a cada entidad la suma de todas: "6 de 8"
   # en cada una cuando cada una midio 3 de 4, y se duplicaba en cada nivel.
-  par <- function(metrica, entidad) {
+  #
+  # Y por el ATRIBUTO cuando lo hay: desde el segundo nivel las filas de dos
+  # columnas comparten metrica y entidad, y sin el atributo no se distinguian.
+  par <- function(metrica, entidad, atributo) {
+    atributo <- as.character(atributo)
+    atributo[is.na(atributo)] <- ""
     .clave_bytes(paste(
       .nombres_para_operar(as.character(metrica)),
-      .nombres_para_operar(as.character(entidad)), sep = "\r"
+      .nombres_para_operar(as.character(entidad)),
+      .nombres_para_operar(atributo), sep = "\r"
     ))
   }
-  clave_alcance <- par(alcance$metrica_instanciada, alcance$entidad)
-  filas <- lapply(seq_along(grupos), function(k) {
-    instancias <- unique(par(
-      medidas$metrica_instanciada[grupos[[k]]], medidas$entidad[grupos[[k]]]
-    ))
-    cuales <- clave_alcance %in% instancias
-    if (!any(cuales)) return(NULL)
-    unidades <- unique(as.character(alcance$unidad[cuales]))
+  # Las partes COMPLETAS del paso anterior viajan aparte, en un atributo de esta
+  # misma tabla: no se publican como alcance parcial, pero el paso siguiente las
+  # necesita para sumar.
+  completas_previas <- attr(alcance, "completas", exact = TRUE)
+  if (inherits(completas_previas, "data.frame") && nrow(completas_previas)) {
+    comunes <- intersect(names(alcance), names(completas_previas))
+    alcance <- rbind(
+      .seleccionar_columnas(alcance, comunes),
+      .seleccionar_columnas(completas_previas, comunes)
+    )
+  }
+  clave_alcance <- par(alcance$metrica_instanciada, alcance$entidad, alcance$atributo)
+  clave_medidas <- par(medidas$metrica_instanciada, medidas$entidad, medidas$atributo)
+  unidades_declaradas <- unique(as.character(alcance$unidad))
+  # A una FILA -`instanciaEntidad` desde celdas- no se le atribuye el alcance
+  # de la columna entera: cada fila cuenta cuantas de las instancias de su tabla
+  # tienen medida en ella, y se declaran las que no estan completas. Antes las
+  # filas completas decian "5 de 6" -lo de la columna- y la unica parcial no
+  # decia nada. Medido en la ronda 23.
+  por_fila <- identical(as.character(resultado$granularidad[[1L]]), "instanciaEntidad") &&
+    all(as.character(medidas$granularidad) == "instanciaAtributo")
+  instancias_por_entidad <- tapply(
+    clave_medidas, .nombres_para_operar(as.character(medidas$entidad)),
+    function(v) length(unique(v))
+  )
+  fila_alcance <- function(k, medidas_grupo, universo_grupo, unidades) {
     homogenea <- length(unidades) == 1L
-    medidas_grupo <- if (homogenea) sum(alcance$medidas[cuales]) else NA_real_
-    universo_grupo <- if (homogenea) {
-      sum(alcance$en_el_universo[cuales])
-    } else NA_real_
     data.frame(
       metrica_instanciada = resultado$metrica_instanciada[[k]],
       entidad = resultado$entidad[[k]],
       atributo = resultado$atributo[[k]],
       unidad = if (homogenea) unidades else NA_character_,
-      en_el_universo = universo_grupo,
-      medidas = medidas_grupo,
+      en_el_universo = if (homogenea) universo_grupo else NA_real_,
+      medidas = if (homogenea) medidas_grupo else NA_real_,
       motivo = if (homogenea) {
         paste0(
           "El agregado se calcul\u00f3 sobre ", medidas_grupo, " de ",
@@ -581,10 +635,72 @@ transiciones_granularidad <- function() {
       },
       stringsAsFactors = FALSE
     )
+  }
+  filas <- lapply(seq_along(grupos), function(k) {
+    indices <- grupos[[k]]
+    if (por_fila) {
+      entidad <- .nombres_para_operar(as.character(medidas$entidad[indices[[1L]]]))
+      esperadas <- unname(instancias_por_entidad[entidad])
+      presentes <- length(unique(clave_medidas[indices]))
+      if (is.na(esperadas)) return(NULL)
+      salida <- fila_alcance(k, presentes, esperadas, unidades_declaradas)
+      if (presentes >= esperadas) {
+        attr(salida, "completa") <- TRUE
+      } else if ("fila" %in% names(resultado) && !is.na(resultado$fila[[k]])) {
+        salida$motivo <- paste0("Fila ", resultado$fila[[k]], ": ", salida$motivo)
+      }
+      return(salida)
+    }
+    instancias <- unique(clave_medidas[indices])
+    declaradas <- instancias[instancias %in% clave_alcance]
+    if (!length(declaradas)) {
+      # Completa: se guarda para el paso siguiente, no se publica.
+      completa <- fila_alcance(k, length(indices), length(indices),
+                               unidades_declaradas[1L])
+      attr(completa, "completa") <- TRUE
+      return(completa)
+    }
+    cuales <- clave_alcance %in% declaradas
+    unidades <- unique(as.character(alcance$unidad[cuales]))
+    # Las instancias COMPLETAS del grupo no tienen fila de alcance -`medir()`
+    # solo la publica para la parcial- y suman sus medidas como medidas y como
+    # universo. Antes no sumaban: "5 de 6" donde el numero uso 11 de 12.
+    completas <- setdiff(instancias, declaradas)
+    n_completas <- sum(clave_medidas[indices] %in% completas)
+    fila_alcance(
+      k,
+      sum(alcance$medidas[cuales]) + n_completas,
+      sum(alcance$en_el_universo[cuales]) + n_completas,
+      unidades
+    )
   })
   filas <- filas[!vapply(filas, is.null, logical(1L))]
   if (!length(filas)) return(NULL)
-  do.call(rbind, filas)
+  es_completa <- vapply(filas, function(f) isTRUE(attr(f, "completa", exact = TRUE)),
+                        logical(1L))
+  parciales <- filas[!es_completa]
+  # Una fila "completa" del paso anterior con medidas == universo tampoco se
+  # publica como parcial.
+  salida <- if (length(parciales)) do.call(rbind, parciales) else NULL
+  if (!is.null(salida)) {
+    sigue_parcial <- is.na(salida$medidas) | salida$medidas < salida$en_el_universo
+    completas_suma <- salida[!sigue_parcial, , drop = FALSE]
+    salida <- salida[sigue_parcial, , drop = FALSE]
+  } else completas_suma <- NULL
+  completas <- c(filas[es_completa], if (!is.null(completas_suma) && nrow(completas_suma)) {
+    list(completas_suma)
+  })
+  if (is.null(salida) || !nrow(salida)) return(NULL)
+  rownames(salida) <- NULL
+  if (length(completas)) {
+    tabla <- do.call(rbind, lapply(completas, function(f) {
+      attr(f, "completa") <- NULL
+      f
+    }))
+    rownames(tabla) <- NULL
+    attr(salida, "completas") <- tabla
+  }
+  salida
 }
 
 # Lo que una agregacion arrastra de la medicion que la alimenta, y lo que NO.
@@ -766,7 +882,21 @@ transiciones_granularidad <- function() {
 #' declaración que no se podía atribuir a ninguna fila. Los conteos se **suman**
 #' por objeto de destino, y sólo cuando todas las partes declaran la misma
 #' unidad; si no, la fila declara la mezcla en lugar de publicar un total que no
-#' estaría en ninguna unidad.
+#' estaría en ninguna unidad. Las partes **completas** también suman —una
+#' columna de 6 de 6 junto a una de 5 de 6 da 11 de 12—, y en un destino por
+#' fila (`instanciaEntidad`) cada fila cuenta sus propias celdas: se declaran
+#' sólo las incompletas, con su número de fila en el motivo.
+#'
+#' Una medida repetida —el mismo `id_medida` dos veces, como deja una medición
+#' unida consigo misma— se rechaza, como en [evaluar()]. El `id_medida` de cada
+#' fila agregada nombra lo que agrega —destino, función, métrica y objeto, como
+#' `M-agg-atributo-ratio-NoNulo@t.x`—, así que dos partes agregadas por separado
+#' se pueden unir y subir de nivel, y el mismo agregado repetido sigue
+#' repitiendo su identificador. Un valor que no se
+#' puede agregar se rechaza nombrando la métrica y la causa: un tipo no
+#' acotado, una medida ausente o suprimida, o un valor fuera de `[0, 1]`.
+#' `umbral` sólo se acepta con `ratio_umbral`, y el borde se compara con
+#' tolerancia de redondeo: `1 - 0.9` alcanza el umbral `0.1`.
 #'
 #' Las coberturas de frontera (`cobertura_coleccion` y sus hermanas) **no** se
 #' arrastran: cada agregación calcula la de su propio destino con las partes que
@@ -951,6 +1081,13 @@ agregar <- function(medidas, destino,
       "' solo se admite 'promedio_ponderado': combinar alcances distintos exige ",
       "declarar los pesos. Sin pesos, se devuelve el tablero por parte.",
       call. = FALSE
+    )
+  }
+  # Un `umbral` con otra funcion se aceptaba en silencio. Medido en la ronda 23.
+  if (!is.null(umbral) && !identical(funcion, "ratio_umbral")) {
+    stop(
+      "`umbral` s\u00f3lo se usa con `ratio_umbral`; la agregaci\u00f3n pedida es `",
+      funcion, "`.", call. = FALSE
     )
   }
   tipo <- unique(medidas$tipo_resultado)
@@ -1171,10 +1308,28 @@ agregar <- function(medidas, destino,
   })
   resultado <- do.call(rbind, partes)
   rownames(resultado) <- NULL
-  resultado$id_medida <- paste0(
-    resultado$id_medicion, "-agg-", funcion, "-",
-    sprintf("%06d", seq_len(nrow(resultado)))
+  # El identificador nombra lo que agrega: destino, funcion, metrica y objeto.
+  # Numeraba desde 1 en cada llamada, y dos colecciones agregadas por separado
+  # -el camino documentado para subir a `conjuntoColecciones`- salian con el
+  # mismo `id_medida`: `evaluar()` rechazaba la union. El mismo agregado repetido
+  # sigue repitiendo su identificador. Medido en la ronda 23.
+  objeto_id <- switch(
+    destino,
+    atributo = paste0(resultado$entidad, ".", resultado$atributo),
+    instanciaEntidad = paste0(resultado$entidad, "#", resultado$fila),
+    resultado$entidad
   )
+  resultado$id_medida <- paste0(
+    resultado$id_medicion, "-agg-", destino, "-", funcion, "-",
+    resultado$metrica_especifica, "@", objeto_id
+  )
+  repetidos <- duplicated(resultado$id_medida) |
+    duplicated(resultado$id_medida, fromLast = TRUE)
+  if (any(repetidos)) {
+    resultado$id_medida[repetidos] <- paste0(
+      resultado$id_medida[repetidos], "-", sprintf("%06d", which(repetidos))
+    )
+  }
   resultado <- resultado[c(
     "id_medida", "id_medicion", "fecha", "metrica", "metrica_especifica",
     "metrica_instanciada", "dimension", "factor", "orientacion", "granularidad",

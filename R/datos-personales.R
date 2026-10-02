@@ -1517,7 +1517,12 @@
   # Las marcas tambien se apartan de las AGUJAS: un valor protegido que trae una
   # -`Av. Italia 2345<br>Apto 101`- se publicaba exacto, porque en la celda la
   # marca ya no estaba y en la aguja si. Medido en una refutacion.
-  sin_marcas <- .apartar_marcas_paquete(valores)$x
+  # Y los nombres de columna con forma de marca, igual que en el texto: un valor
+  # protegido que CONTIENE un nombre de columna -el correo
+  # `juan_perez@empresa.com.uy` con una columna `juan_perez`- no se encontraba,
+  # porque al texto se le apartaba el nombre y a la aguja no. Medido en la ronda
+  # 23.
+  sin_marcas <- .apartar_marcas_paquete(valores, nombres)$x
   valores <- unique(c(valores, sin_marcas))
   valores <- valores[order(-nchar(valores, type = "bytes"))]
   todos <- valores
@@ -2417,9 +2422,14 @@
   # Tambien la fecha escrita como fecha-hora a medianoche -ISO con `T`, como la
   # escriben muchos sistemas una fecha sin hora-: es la misma fecha.
   medianoche <- "([T ]00:00(:00(\\.0+)?)?(Z| ?UTC)?)?"
+  # Con un ANO plausible, el mismo rango que la regla de digitos: con cualquiera,
+  # el telefono guardado "2901-12-12" se trataba como fecha, salia del piso y se
+  # publicaba exacto. La misma regla estaba escrita dos veces y la ronda 22 la
+  # arreglo en una. Medido en la ronda 23.
+  anio <- .ANIO_PLAUSIBLE
   fecha <- paste0(
-    "^([0-9]{4}[-/.]", mes, "[-/.]", dia, "|", dia, "[-/.]", mes, "[-/.][0-9]{4}|",
-    mes, "[-/.]", dia, "[-/.][0-9]{4})", medianoche, "$"
+    "^(", anio, "[-/.]", mes, "[-/.]", dia, "|", dia, "[-/.]", mes, "[-/.]", anio, "|",
+    mes, "[-/.]", dia, "[-/.]", anio, ")", medianoche, "$"
   )
   valores <- valores[!grepl(fecha, valores, perl = TRUE, useBytes = TRUE)]
   # Y un marcador de ausencia del catalogo del paquete -`sin dato`, `N/A`- no es

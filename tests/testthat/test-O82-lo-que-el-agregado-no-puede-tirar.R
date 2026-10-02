@@ -310,11 +310,12 @@ test_that("con unidades distintas en un grupo el alcance declara y no suma", {
     en_el_universo = c(4, 10), medidas = c(3, 9),
     motivo = c("x", "y"), stringsAsFactors = FALSE
   )
-  # Con `entidad`: el alcance se empareja por el par metrica-entidad desde la
-  # ronda 11, y las medidas reales siempre la traen.
+  # Con `entidad` y `atributo`: el alcance se empareja por metrica, entidad y
+  # atributo desde la ronda 23 -antes por el par, desde la ronda 11-, y las
+  # medidas reales siempre los traen: `agregar()` los exige.
   medidas <- data.frame(
     metrica_instanciada = c("M@t.a", "M@t.b"), entidad = c("t", "t"),
-    stringsAsFactors = FALSE
+    atributo = c("a", "b"), stringsAsFactors = FALSE
   )
   resultado <- data.frame(
     metrica_instanciada = "agregada:promedio:M", entidad = "t",

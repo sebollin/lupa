@@ -39,6 +39,22 @@
   if (inherits(asociado, "marco_calidad")) return(asociado)
   if (inherits(medidas, "data.frame") && nrow(medidas) &&
       all(c("dimension", "factor") %in% names(medidas))) {
+    # Una metrica sin dimension -lo que `metrica()` deja por omision- abortaba
+    # aca con un mensaje que no la nombraba. Medido en la ronda 23.
+    sin_casilla <- is.na(medidas$dimension) | !nzchar(as.character(medidas$dimension)) |
+      is.na(medidas$factor) | !nzchar(as.character(medidas$factor))
+    if (any(sin_casilla)) {
+      nombres <- if ("metrica_instanciada" %in% names(medidas)) {
+        medidas$metrica_instanciada[sin_casilla]
+      } else medidas$metrica[sin_casilla]
+      stop(
+        "La m\u00e9trica '", paste(.identificadores_unicos(as.character(nombres)),
+                                  collapse = "', '"),
+        "' no declara dimensi\u00f3n ni factor, y el tablero no tiene d\u00f3nde ",
+        "ubicarla. Declararlos en `metrica()` o pasar un `marco` que la ubique.",
+        call. = FALSE
+      )
+    }
     pares <- .seleccionar_columnas(medidas, c("dimension", "factor"))
     pares <- pares[!duplicated(.clave_par_identificador(
       pares$dimension, pares$factor
@@ -194,6 +210,22 @@
       "m\u00e1s de un `id_medicion` o m\u00e1s de una `fecha`.", call. = FALSE
     )
   }
+  # Una medida repetida, como en `agregar()` y `evaluar()`: dos datos con el
+  # mismo identificador salian como una sola celda mezclada. Medido en la ronda
+  # 23. Las filas ya agregadas no tienen identificador propio.
+  if ("id_medida" %in% names(medidas)) {
+    ids <- as.character(medidas$id_medida)
+    con_id <- !is.na(ids) & nzchar(ids)
+    repetidas <- con_id & duplicated(.nombres_para_operar(ids)) & duplicated(con_id)
+    if (any(repetidas)) {
+      stop(
+        "Las medidas repiten `id_medida` -la primera, `", ids[which(repetidas)[[1L]]],
+        "`-: cada medida se cuenta una vez. Una medici\u00f3n unida consigo ",
+        "misma, o dos corridas con el mismo `id_medicion`, la repiten.",
+        call. = FALSE
+      )
+    }
+  }
   suprimidas <- if ("objeto_medible" %in% names(medidas)) {
     !is.na(medidas$objeto_medible) & grepl(
       "[valor suprimido]", medidas$objeto_medible, fixed = TRUE
@@ -319,6 +351,17 @@
     stop(
       "`ratio_umbral` requiere un umbral en [0, 1] para: ",
       paste(invalidos, collapse = ", "), ".", call. = FALSE
+    )
+  }
+  # Un umbral para una metrica que no lo usa se aceptaba en silencio, y el
+  # tablero lo publicaba al lado de un valor que no se calculo contra el.
+  # Medido en la ronda 23.
+  sobrantes <- names(umbral)[!is.na(umbral) & !names(umbral) %in% requieren]
+  if (length(sobrantes)) {
+    stop(
+      "Sobra el umbral de: ", paste(sobrantes, collapse = ", "),
+      ". S\u00f3lo lo usa `ratio_umbral`, y su agregaci\u00f3n es otra.",
+      call. = FALSE
     )
   }
   data.frame(
@@ -475,11 +518,11 @@
     for (i in grupos) {
       primero <- i[[1L]]
       valores <- actuales$resultado[i]
-      valor <- switch(
-        contrato$agregacion,
-        ratio = mean(valores == 1),
-        promedio = mean(valores),
-        ratio_umbral = mean(valores >= contrato$umbral)
+      # La misma cuenta que `agregar()`: el tablero tenia la suya, sin la
+      # tolerancia del borde, y las dos se equivocaban igual. Medido en la ronda
+      # 23.
+      valor <- .calcular_agregacion(
+        valores, contrato$agregacion, contrato$umbral, NULL
       )
       partes[[length(partes) + 1L]] <- data.frame(
         id_medida = "",
@@ -492,7 +535,14 @@
         factor = actuales$factor[[primero]],
         orientacion = actuales$orientacion[[primero]],
         granularidad = destino,
-        tipo_resultado = "real",
+        # El promedio de una duracion sigue siendo una duracion: rebautizarlo
+        # "real" lo hacia pasar por una proporcion, y `agregar()` lo aceptaba
+        # despues. Medido en la ronda 23.
+        tipo_resultado = if (identical(contrato$agregacion, "promedio") &&
+                             !actuales$tipo_resultado[[primero]] %in%
+                               c("booleano", "real")) {
+          as.character(actuales$tipo_resultado[[primero]])
+        } else "real",
         entidad = actuales$entidad[[primero]],
         atributo = if (destino == "atributo") {
           actuales$atributo[[primero]]
@@ -513,8 +563,8 @@
   }
   resultado <- do.call(rbind, partes)
   rownames(resultado) <- NULL
-  resultado$id_medida <- paste0(
-    resultado$id_medicion, "-tablero-", sprintf("%06d", seq_len(nrow(resultado)))
+  resultado$id_medida <- .ids_medida(
+    resultado$id_medicion, resultado$metrica_instanciada, "tablero-"
   )
   class(resultado) <- c("medicion", "data.frame")
   resultado
@@ -539,9 +589,17 @@
   )
   pares <- .clave_par_identificador(tablero$dimension, tablero$factor)
   declarable <- !is.na(tablero$dimension) & !is.na(tablero$factor)
-  .identificadores_unicos(
-    pares[declarable & !.identificadores_en(pares, declarados)]
-  )
+  # Una fila sin dimension tambien esta fuera del marco: no tiene casilla, y no
+  # contaba en `medidos_fuera_del_marco`. Medido en la ronda 23.
+  # `paste0()` con un vector vacio devuelve UN elemento: sin la guarda de
+  # `any()`, un tablero sin filas huerfanas publicaba "sin dimension: ".
+  sin_casilla <- if (any(!declarable) &&
+                     "metrica_instanciada" %in% names(tablero)) {
+    paste0("sin dimensi\u00f3n: ", tablero$metrica_instanciada[!declarable])
+  } else character()
+  .identificadores_unicos(c(
+    pares[declarable & !.identificadores_en(pares, declarados)], sin_casilla
+  ))
 }
 
 .preparar_tablero <- function(medidas, agregaciones = NULL, umbrales = NULL,
@@ -560,9 +618,18 @@
   }
   agregada <- if (ya_agregadas) {
     medidas$umbral_tablero <- NA_real_
-    medidas$universo_tablero <- vapply(
-      medidas$granularidad, .universo_tablero, character(1L)
-    )
+    # El universo es la unidad que CUENTA la proporcion -las celdas de un
+    # NoNulo-, y la medicion agregada ya lo trae: recalcularlo con la
+    # granularidad de la fila agregada decia "columnas", y el indice afirmaba
+    # "comparables" o "no comparables" segun el camino. Medido en la ronda 23.
+    # Solo se calcula el que falta.
+    calculado <- vapply(medidas$granularidad, .universo_tablero, character(1L))
+    if ("universo_tablero" %in% names(medidas)) {
+      falta <- is.na(medidas$universo_tablero) | !nzchar(as.character(medidas$universo_tablero))
+      medidas$universo_tablero[falta] <- calculado[falta]
+    } else {
+      medidas$universo_tablero <- calculado
+    }
     medidas
   } else {
     configuracion <- .configuracion_agregaciones(
@@ -903,6 +970,21 @@ print.tablero_calidad <- function(x, ...) {
   }
   faltan <- .identificadores_setdiff(esperados, names(pesos))
   sobran <- .identificadores_setdiff(names(pesos), esperados)
+  # Un nombre que solo difiere en la forma -la tilde compuesta o separada, la
+  # caja- se compara por sus bytes, como en todo el paquete, y el mensaje lo
+  # imprimia identico a lo declarado. Medido en la ronda 23. Se dice.
+  if (length(faltan) && length(sobran)) {
+    plegar <- function(v) tryCatch(.plegar_para_comparar(v), error = function(e) v)
+    parecidos <- faltan[plegar(faltan) %in% plegar(sobran)]
+    if (length(parecidos)) {
+      stop(
+        "Faltan ", etiqueta, " para: ", paste(parecidos, collapse = ", "),
+        ". Hay un nombre declarado que se ve igual pero se escribe distinto -la ",
+        "tilde compuesta o separada, o la caja-: los nombres se comparan por ",
+        "sus bytes.", call. = FALSE
+      )
+    }
+  }
   if (length(faltan)) {
     stop("Faltan ", etiqueta, " para: ", paste(faltan, collapse = ", "), ".",
          call. = FALSE)
@@ -1054,6 +1136,10 @@ print.tablero_calidad <- function(x, ...) {
 #' ambas capas de pesos, las inversiones, las exclusiones, los universos y la
 #' cobertura del marco.
 #'
+#' Una métrica sin dimensión no entra al índice: se excluye con su motivo, como
+#' las de orientación `no_aplica`. Un peso para una dimensión cuyas métricas se
+#' excluyeron se rechaza diciéndolo.
+#'
 #' `advertencia_universos` **se calcula de los universos que el propio objeto
 #' publica**, no es un texto fijo. Con un solo universo lo nombra y dice que las
 #' unidades son comparables; con varios dice cuántos son y nombra, por universo,
@@ -1108,7 +1194,12 @@ indice_calidad <- function(medidas, pesos, pesos_internos = NULL, ...) {
   }
   if (missing(pesos) || is.null(pesos)) return(tablero)
   cobertura_metricas <- attr(tablero, "cobertura_metricas", exact = TRUE)
-  componentes <- tablero[tablero$orientacion != "no_aplica", , drop = FALSE]
+  # Una metrica sin dimension no entra: el indice combina dimensiones, y pedia
+  # "Faltan pesos para: NA", un nombre que su propia validacion prohibe.
+  # Medido en la ronda 23. Se excluye y se dice por que, como la no_aplica.
+  sin_dimension <- is.na(tablero$dimension) | !nzchar(as.character(tablero$dimension))
+  componentes <- tablero[tablero$orientacion != "no_aplica" & !sin_dimension, ,
+                         drop = FALSE]
   if (!nrow(componentes)) {
     motivo <- if (!nrow(tablero)) paste0(
       "No hay \u00edndice: no hubo mediciones combinables para esta corrida. ",
@@ -1123,6 +1214,21 @@ indice_calidad <- function(medidas, pesos, pesos_internos = NULL, ...) {
     ))
   }
   dimensiones <- .identificadores_unicos(componentes$dimension)
+  # Un peso para una dimension cuyas metricas se excluyeron se dice asi, y no
+  # como un peso que sobra sin razon. Medido en la ronda 23.
+  excluidas_dimension <- .identificadores_setdiff(
+    .identificadores_unicos(tablero$dimension[!sin_dimension]), dimensiones
+  )
+  if (!is.null(names(pesos))) {
+    pesos_excluidos <- names(pesos)[.identificadores_en(names(pesos), excluidas_dimension)]
+    if (length(pesos_excluidos)) {
+      stop(
+        "Sobran pesos para: ", paste(pesos_excluidos, collapse = ", "),
+        ". Sus m\u00e9tricas tienen orientaci\u00f3n no_aplica y el \u00edndice las ",
+        "excluye: no hay valor que pesar.", call. = FALSE
+      )
+    }
+  }
   pesos <- .validar_pesos_indice(pesos, dimensiones)
   internos <- .pesos_internos_indice(componentes, pesos_internos)
   componentes$transformacion <- ifelse(
@@ -1154,9 +1260,14 @@ indice_calidad <- function(medidas, pesos, pesos_internos = NULL, ...) {
   })
   resumen <- do.call(rbind, resumen)
   rownames(resumen) <- NULL
-  excluidas <- tablero[tablero$orientacion == "no_aplica", , drop = FALSE]
+  excluidas <- tablero[tablero$orientacion == "no_aplica" | sin_dimension, ,
+                       drop = FALSE]
   if (nrow(excluidas)) {
-    excluidas$motivo_exclusion <- paste0(
+    sin_dim_excluida <- is.na(excluidas$dimension) |
+      !nzchar(as.character(excluidas$dimension))
+    excluidas$motivo_exclusion <- ifelse(
+      sin_dim_excluida,
+      "sin dimensi\u00f3n declarada: el \u00edndice combina dimensiones",
       "orientaci\u00f3n no_aplica: el valor no es una proporci\u00f3n combinable"
     )
   }

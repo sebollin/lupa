@@ -121,8 +121,10 @@ test_that("una medida suprimida no se publica en la seccion Historico", {
   expect_gt(inicio, 0L)
   seccion <- substring(html, inicio)
   seccion <- substr(seccion, 1L, regexpr("</section>", seccion, fixed = TRUE))
-  fila <- regmatches(seccion, regexpr("<tr>(?:(?!</tr>).)*enero-000002(?:(?!</tr>).)*</tr>",
-                                      seccion, perl = TRUE))
+  # El identificador se busca como lo escribe el informe: con `@` escapado.
+  id <- lupa:::.html_escapar(medicion$id_medida[[2L]])
+  filas <- unlist(strsplit(seccion, "</tr>", fixed = TRUE))
+  fila <- filas[grepl(id, filas, fixed = TRUE)]
   expect_length(fila, 1L)
   # Antes: <td>0</td>, el valor que la evaluacion del mismo informe tapaba.
   expect_match(fila, "[valor suprimido]", fixed = TRUE)

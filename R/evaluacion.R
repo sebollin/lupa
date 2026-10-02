@@ -876,8 +876,24 @@ perfiles_madurez <- function(metricas = NULL, umbrales = NULL) {
       !"metrica_instanciada" %in% names(desenlaces)) {
     return(x)
   }
-  metricas <- sub("@.*$", "", as.character(desenlaces$metrica_instanciada))
-  suprimidas <- .identificadores_en(as.character(x$metrica), metricas)
+  # Por la metrica INSTANCIADA, que el tablero y la medicion publican. Por la
+  # generica -`x$metrica` contra el nombre antes de la arroba, que es el
+  # ESPECIFICO- no casaban: una especializacion con nombre propio publicaba en
+  # el tablero, el indice y el informe el valor que la regla mando suprimir, y
+  # sin nombre propio se tapaba tambien la instancia que cumplia. Medido en la
+  # ronda 23.
+  suprimidas <- if ("metrica_instanciada" %in% names(x)) {
+    .identificadores_en(
+      as.character(x$metrica_instanciada),
+      as.character(desenlaces$metrica_instanciada)
+    )
+  } else {
+    .identificadores_en(
+      as.character(x$metrica),
+      sub("@.*$", "", as.character(desenlaces$metrica_instanciada))
+    )
+  }
+  suprimidas[is.na(suprimidas)] <- FALSE
   if (!any(suprimidas)) return(x)
   x$valor <- as.character(x$valor)
   x$valor[suprimidas] <- "[valor suprimido]"
@@ -932,7 +948,9 @@ perfiles_madurez <- function(metricas = NULL, umbrales = NULL) {
 #' @export
 `[.medicion` <- function(x, ...) {
   resultado <- NextMethod("[")
-  .conservar_atributos_objeto(resultado, x, por_corrida = "cobertura_metricas")
+  .conservar_atributos_objeto(
+    resultado, x, por_corrida = c("cobertura_metricas", "alcance_medidas")
+  )
 }
 
 #' @export
@@ -979,7 +997,10 @@ rbind.medicion <- function(..., deparse.level = 1) {
       call. = FALSE
     )
   }
-  for (atributo in c("cobertura_metricas", "alcance_metricas")) {
+  # `alcance_medidas` tambien: sin el, el tablero de `rbind(completa, parcial)`
+  # publicaba el 0,5 de la parcial sin decir que midio 5 de 6, y con el orden al
+  # reves si lo decia. Medido en la ronda 23.
+  for (atributo in c("cobertura_metricas", "alcance_metricas", "alcance_medidas")) {
     tablas <- Filter(
       function(t) inherits(t, "data.frame"),
       lapply(mediciones, attr, which = atributo, exact = TRUE)

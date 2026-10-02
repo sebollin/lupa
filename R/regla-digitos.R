@@ -20,8 +20,14 @@
 # decimal; sin su primer digito, solo si un comodin lo reemplaza -"*.012.345-8",
 # "X.123.456-7"-, que es como se escribe el documento recortado a proposito.
 
+# El ano de una fecha plausible, de 1800 a 2100: lo comparten el piso de
+# `.valores_identificantes()` y la regla de digitos, que antes lo escribian cada
+# uno a su manera. Hasta 2100 y no 2199: un telefono fijo "2101-12-12" tiene
+# forma de fecha valida, y una fecha del siglo XXII en un dato es rara.
+.ANIO_PLAUSIBLE <- "(?:1[89][0-9]{2}|20[0-9]{2}|2100)"
+
 .REGLA_DIGITOS <- local({
-  anio <- "(?:1[89]|2[01])[0-9]{2}"
+  anio <- .ANIO_PLAUSIBLE
   octeto <- "(?:25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9]?[0-9])"
   espacio <- "[ \u00a0\u2009\u202f]"
   # La coma une solo sin espacio despues: "4,123,456" es un numero y
@@ -30,19 +36,28 @@
   # "4 . 123 . 456-7"- y el parentesis de un prefijo -"(2) 487 1234"-; los demas
   # signos, pegados. Con cualquiera, "2983 4272 / 2988 2968" eran un solo numero
   # y su tramo del medio coincidia con un telefono. Medido en la ronda 22.
+  #
+  # Los dos puntos y la barra vertical NO unen: una razon "494:2714" y una lista
+  # "12|345|6789" coincidian con una cedula en uno de cada siete y uno de cada
+  # cuatro casos. Medido en la ronda 23. Un documento escrito con ellos no se
+  # reconoce, y la ayuda lo dice.
   separador <- paste0(
     "(?:", espacio, "{1,2}|", espacio, "?[-.]{1,2}", espacio, "?|",
-    "[-./'_:|+\u00b7()\\[\\]]{1,2}|[)\\]]", espacio, "|", espacio, "[(\\[]|",
+    "[-./'_+\u00b7()\\[\\]]{1,2}|[)\\]]", espacio, "|", espacio, "[(\\[]|",
     ",(?!", espacio, "))"
   )
-  signo_compacto <- "[-./,'_:|+\u00b7]"
+  signo_compacto <- "[-./,'_+\u00b7]"
   numero <- paste0("[0-9]+(?:", separador, "[0-9]+)*")
   list(
     numero = numero,
     compacto = paste0("[0-9]+(?:", signo_compacto, "[0-9]+)*"),
     signo_compacto = signo_compacto,
+    # El comodin es el que tapa cifras: el asterisco y la equis. El numeral, el
+    # signo de pregunta y la vineta precedian numeros de ticket y de lista, y
+    # uno de cada cuatro se tapaba como documento recortado. Medido en la ronda
+    # 23.
     comodin = paste0(
-      "(?<![\\p{L}\\p{N}])[*xX#?\u2022]+(?:", separador, ")?(", numero, ")"
+      "(?<![\\p{L}\\p{N}])[*xX]+(?:", separador, ")?(", numero, ")"
     ),
     # Una fecha de calendario no es un documento: partida en tramos,
     # `2003-05-17` da `20030517`, que con un millon de cedulas es la de
@@ -55,24 +70,33 @@
     # Y la hora, por lo mismo -`12:34:56`-, con su fraccion de segundo: sin ella,
     # la fraccion de `12:26:58.5412576` quedaba como un numero suelto de siete
     # cifras, y una de cada ocho coincidia con una cedula.
+    # La fraccion con tope -nueve cifras tras un punto, tres tras una coma-: sin
+    # el, la hora se tragaba un documento pegado, "10:30:00,41234567".
     hora = paste0(
-      "(?<![0-9])(?:[01]?[0-9]|2[0-3]):[0-5][0-9](?::[0-5][0-9](?:[.,][0-9]+)?)?",
-      "(?![0-9])"
+      "(?<![0-9])(?:[01]?[0-9]|2[0-3]):[0-5][0-9]",
+      "(?::[0-5][0-9](?:[.][0-9]{1,9}|,[0-9]{1,3})?)?(?![0-9])"
     ),
     # Un ISBN-13 tampoco: 978 o 979 y trece cifras con guiones o espacios.
     isbn = "(?<![0-9])97[89](?:[- ][0-9]+){3}[- ][0-9Xx](?![0-9])",
-    # Una direccion IPv4 tampoco: cuatro octetos de 0 a 255, sin ceros a la
-    # izquierda -un celular "099.12.34.56" no lo es-.
-    ip = paste0(
-      "(?<![0-9.])(?:", octeto, "\\.){3}", octeto, "(?![0-9.])"
-    ),
+    # Y el ISBN-10, con sus cuatro grupos unidos por guiones y diez cifras.
+    isbn10 = "(?<![0-9])[0-9]{1,5}-[0-9]{1,7}-[0-9]{1,7}-[0-9Xx](?![0-9])",
+    # Una direccion IPv4 -cuatro octetos de 0 a 255, sin ceros a la izquierda-
+    # no se borra: se reconoce como documento ENTERO y no como parcial. Borrarla
+    # dejaba pasar el telefono "29.10.12.34" y la cedula "1.234.123.4", que
+    # tienen esa forma. Medido en la ronda 23.
+    ip = paste0("^(?:", octeto, "\\.){3}", octeto, "$"),
     # La fecha CON HORA si puede ser un valor protegido, y se arma en el orden
     # en que se guarda -ano, mes, dia, horas- antes de borrar la fecha.
+    # Entre la fecha y la hora, una T, un espacio o una coma; entre horas,
+    # minutos y segundos, dos puntos o punto. Y la forma compacta ISO,
+    # "20240627T212425".
     fecha_hora = list(
-      paste0("(?<![0-9])(", anio, ")[-/.]([0-9]{1,2})[-/.]([0-9]{1,2})[Tt ]",
-             "([0-9]{1,2}):([0-9]{2})(?::([0-9]{2}))?"),
-      paste0("(?<![0-9])([0-9]{1,2})[-/.]([0-9]{1,2})[-/.](", anio, ")[Tt ]",
-             "([0-9]{1,2}):([0-9]{2})(?::([0-9]{2}))?")
+      paste0("(?<![0-9])(", anio, ")[-/.]([0-9]{1,2})[-/.]([0-9]{1,2})(?:[Tt ]|, ?)",
+             "([0-9]{1,2})[:.]([0-9]{2})(?:[:.]([0-9]{2}))?"),
+      paste0("(?<![0-9])([0-9]{1,2})[-/.]([0-9]{1,2})[-/.](", anio, ")(?:[Tt ]|, ?)",
+             "([0-9]{1,2})[:.]([0-9]{2})(?:[:.]([0-9]{2}))?"),
+      paste0("(?<![0-9])(", anio, ")([0-9]{2})([0-9]{2})[Tt]",
+             "([0-9]{2})([0-9]{2})([0-9]{2})?(?![0-9])")
     )
   )
 })
@@ -113,6 +137,8 @@
   grupos <- character()
   decimal <- logical()
   fraccion <- logical()
+  simples <- logical()
+  todos_decimales <- TRUE
   for (compacto in compactos) {
     partes <- strsplit(compacto, regla$signo_compacto, perl = TRUE)[[1L]]
     signos <- regmatches(
@@ -138,12 +164,22 @@
     # inequivoca: la de un importe con miles, o la de un numero de hasta tres
     # cifras enteras y cuatro o mas decimales -una coordenada "-33.340517", un
     # p-valor-, que se tapaba si con la entera formaba una cedula.
-    inequivoca <- es_decimal &&
-      (k > 2L || (largos[[1L]] <= 3L && largos[[k]] >= 4L))
+    # Un entero con un cero adelante -"099.123456"- no es la parte entera de
+    # un decimal: es un telefono. Medido en la ronda 23.
+    inequivoca <- es_decimal && (k > 2L || (
+      largos[[1L]] <= 3L && largos[[k]] >= 4L &&
+        !(largos[[1L]] >= 2L && startsWith(partes[[1L]], "0"))
+    ))
     grupos <- c(grupos, partes)
     decimal <- c(decimal, rep(es_decimal, k))
     fraccion <- c(fraccion, seq_len(k) == k & inequivoca)
+    simples <- c(simples, rep(k == 2L && inequivoca, k))
+    todos_decimales <- todos_decimales && es_decimal
   }
+  # Y la de un decimal suelto solo es inequivoca si TODO el numero son
+  # decimales -una coordenada, un par lat lon-: "(555) 123.4567" y
+  # "(02) 901.1234" son telefonos, con un prefijo que no es decimal.
+  if (!todos_decimales) fraccion[simples] <- FALSE
   list(grupos = grupos, decimal = decimal, fraccion = fraccion)
 }
 
@@ -210,15 +246,24 @@
 .normalizar_signos_digitos <- function(texto) {
   tryCatch({
     texto <- gsub("\\p{Cf}", "", texto, perl = TRUE)
+    # Y los selectores de variante, que tampoco se ven.
+    texto <- gsub("[\uFE00-\uFE0F\U000E0100-\U000E01EF]", "", texto, perl = TRUE)
     texto <- gsub("[\\p{Pd}\u2212]", "-", texto, perl = TRUE)
-    texto <- gsub("[\\p{Zs}\t\n\r\f\v]", " ", texto, perl = TRUE)
+    # Todo separador de Unicode -tambien el de linea y el de parrafo-, el salto
+    # de linea de C1 y los rellenos que se ven como un espacio: el hangul, el
+    # braille en blanco. Medido en la ronda 23.
+    texto <- gsub(
+      "[\\p{Z}\t\n\r\f\v\u0085\u3164\u115f\u1160\uffa0\u2800]", " ",
+      texto, perl = TRUE
+    )
     # Y los que se parecen a un punto, una barra, una coma o un punto medio: el
     # punto de guia, la barra de fraccion y la de division, la coma y el
     # separador de miles arabes, el punto medio katakana y el operador punto.
     chartr(
       paste0("\uff0e\uff0c\uff0f\uff1a\u3002\u2024\u2044\u2215\u060c",
-             "\u066c\u30fb\uff65\u2219\u22c5"),
-      ".,/:..//,,\u00b7\u00b7\u00b7\u00b7",
+             "\u066c\u30fb\uff65\u2219\u22c5\u2019\u02bc\u2027\ufe52",
+             "\uff61\ufe50\u3001\u201a\u29f8\uff0b\u2e31"),
+      ".,/:..//,,\u00b7\u00b7\u00b7\u00b7''...,,,/+\u00b7",
       texto
     )
   }, error = function(e) NA_character_)
@@ -240,13 +285,19 @@
     for (pieza in piezas) {
       partes <- regmatches(pieza, regexec(patron, pieza, perl = TRUE))[[1L]][-1L]
       numeros <- suppressWarnings(as.integer(partes))
-      if (indice == 2L) numeros <- numeros[c(3L, 2L, 1L, 4L, 5L, 6L)]
-      if (anyNA(numeros[1:5])) next
-      sin_segundos <- sprintf("%04d%02d%02d%02d%02d", numeros[[1L]], numeros[[2L]],
-                              numeros[[3L]], numeros[[4L]], numeros[[5L]])
-      salida <- c(salida, sin_segundos, paste0(sin_segundos, sprintf(
-        "%02d", if (is.na(numeros[[6L]])) 0L else numeros[[6L]]
-      )))
+      # Dia y mes delante del ano se prueban en los dos ordenes: "27/06/2024" y
+      # "06/27/2024" son la misma fecha escrita de dos maneras.
+      ordenes <- if (indice == 2L) {
+        list(numeros[c(3L, 2L, 1L, 4L, 5L, 6L)], numeros[c(3L, 1L, 2L, 4L, 5L, 6L)])
+      } else list(numeros)
+      for (orden in ordenes) {
+        if (anyNA(orden[1:5])) next
+        sin_segundos <- sprintf("%04d%02d%02d%02d%02d", orden[[1L]], orden[[2L]],
+                                orden[[3L]], orden[[4L]], orden[[5L]])
+        salida <- c(salida, sin_segundos, paste0(sin_segundos, sprintf(
+          "%02d", if (is.na(orden[[6L]])) 0L else orden[[6L]]
+        )))
+      }
     }
   }
   salida
@@ -264,10 +315,12 @@
   texto <- tryCatch({
     texto <- gsub(regla$fecha, " ", texto, perl = TRUE)
     texto <- gsub(regla$hora, " ", texto, perl = TRUE)
-    texto <- gsub(regla$ip, " ", texto, perl = TRUE)
     isbn <- regmatches(texto, gregexpr(regla$isbn, texto, perl = TRUE))[[1L]]
     isbn <- isbn[nchar(gsub("[^0-9Xx]", "", isbn)) == 13L]
     for (pieza in isbn) texto <- sub(pieza, " ", texto, fixed = TRUE)
+    isbn10 <- regmatches(texto, gregexpr(regla$isbn10, texto, perl = TRUE))[[1L]]
+    isbn10 <- isbn10[nchar(gsub("[^0-9Xx]", "", isbn10)) == 10L]
+    for (pieza in isbn10) texto <- sub(pieza, " ", texto, fixed = TRUE)
     # Dos decimales pegados por una coma -"40.446984,38.209835", un par de
     # coordenadas- son dos numeros, no uno.
     gsub("([0-9][.][0-9]+),(?=[0-9]+[.][0-9])", "\\1, ", texto, perl = TRUE)
@@ -287,6 +340,8 @@
     completos <- c(completos, .sin_ceros_iniciales(
       .concatenaciones_completas(partes, minimo, maximo)
     ))
+    # Con forma de IP, solo como documento entero.
+    if (grepl(regla$ip, numero, perl = TRUE)) next
     prefijos <- c(prefijos, redondo(.sin_ceros_iniciales(
       .concatenaciones_parciales(partes, maximo)
     )))

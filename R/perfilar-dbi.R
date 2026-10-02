@@ -11212,8 +11212,11 @@ print.plan_perfilado_dbi <- function(x, ...) {
     filas_sensibles <- .nombres_para_operar(resumen$sql$columna) %in%
       .nombres_para_operar(sensibles) & !is.na(resumen$sql$motivo)
     if (any(filas_sensibles)) {
-      resumen$sql$motivo[filas_sensibles] <- gsub(
-        "\"[^\"]*\"", "\"[valor protegido]\"",
+      # Desde la primera comilla hasta la ultima: una cedula guardada con sus
+      # comillas de CSV -`"5.765.432-1"`, citada como `""5.765.432-1""`-
+      # dejaba el valor entre dos pares de comillas vacias. Medido en la ronda 23.
+      resumen$sql$motivo[filas_sensibles] <- sub(
+        "\"(.*)\"", "\"[valor protegido]\"",
         resumen$sql$motivo[filas_sensibles], useBytes = TRUE
       )
     }
