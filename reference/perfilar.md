@@ -333,16 +333,16 @@ perfilar(
   [`perfilar_dbi()`](https://sebollin.github.io/lupa/reference/perfilar_dbi.md)—
   la conserva entera: con «Segundo» protegido, `segundo_nombre` salía
   `[valor protegido]_nombre` en los hallazgos sin acción del plan y en
-  la SQL. Un nombre que es él mismo un valor protegido, con otra caja o
-  con otros separadores, no se exceptúa. Lo mismo vale para el
-  **vocabulario**: un tipo de hallazgo, una severidad, una estrategia,
-  el nombre de un diagnóstico o de una métrica, o el de un factor de un
-  marco que declaró el usuario, no se enmascaran aunque coincidan con un
-  valor protegido o lo contengan. El principio es el de los nombres de
-  columna: son estructura, no salen de las celdas, y publicarlos no dice
-  nada de ninguna fila —el tipo `constante` aparece porque otra columna
-  es constante, no porque alguien se apellide así—. Se enmascaraban: en
-  una base real, un nombre de persona contenido en
+  la SQL. Un nombre que es él mismo un valor protegido, con otra caja,
+  otros separadores, tildes o codificación, no se exceptúa. Lo mismo
+  vale para el **vocabulario**: un tipo de hallazgo, una severidad, una
+  estrategia, el nombre de un diagnóstico o de una métrica, o el de un
+  factor de un marco que declaró el usuario, no se enmascaran aunque
+  coincidan con un valor protegido o lo contengan. El principio es el de
+  los nombres de columna: son estructura, no salen de las celdas, y
+  publicarlos no dice nada de ninguna fila —el tipo `constante` aparece
+  porque otra columna es constante, no porque alguien se apellide así—.
+  Se enmascaraban: en una base real, un nombre de persona contenido en
   `faltantes_disfrazados` dejó seis hallazgos con el tipo
   `[valor protegido]`, y el plan sin ninguna acción para ellos. La regla
   es por campo y por contenido: un campo cuyos valores son todos
@@ -369,19 +369,26 @@ perfilar(
   separadores**: `"771.771-01"` es el mismo documento que `"77177101"`,
   y la celda entera se enmascara. En los dígitos se busca **el documento
   en cada número del texto**, con cualquier agrupación: un número une
-  grupos de dígitos con espacios, puntos, guiones, barras, comas sin
-  espacio, apóstrofos, dos puntos, barras verticales, signos más, puntos
-  medios o paréntesis, y se tapa la celda si grupos contiguos forman un
-  documento protegido —`"2901 1234"`, `"099 12 34 56"`,
-  `"(2) 487 1234"`, `"4111 1111 1111 1111"`—, también con ceros a la
-  izquierda o escrito con dígitos arábigo-índicos, persas o devanagari.
-  El documento **parcial**, de siete cifras o más, se busca con más
-  cuidado porque es el que coincide por azar: sin su verificador, fuera
-  de la parte de un decimal (`"4.123.456"` frente a `"4.123.456-7"`, el
-  verificador mal tipeado, el documento seguido de un año), y sin su
-  primer dígito sólo detrás de un comodín (`"*.123.456-7"`,
-  `"X.012.345-8"`); un número redondo (`1.000.000`) no cuenta como
-  parcial. Una fecha, una hora, una lista separada por comas y la parte
+  grupos de dígitos con espacios, guiones o puntos —también con un
+  espacio a cada lado—, y con barras, comas sin espacio, apóstrofos, dos
+  puntos, barras verticales, signos más, puntos medios o paréntesis
+  pegados, y se tapa la celda si grupos contiguos forman un documento
+  protegido —`"2901 1234"`, `"099 12 34 56"`, `"(2) 487 1234"`,
+  `"4111 1111 1111 1111"`, `"01.23.45.67.89"`—, también con ceros a la
+  izquierda, con los guiones, espacios e invisibles de Unicode o escrito
+  con dígitos arábigo-índicos, persas o devanagari. Una fecha con hora
+  protegida se reconoce escrita en otro formato. El documento
+  **parcial**, de siete cifras o más, se busca con más cuidado porque es
+  el que coincide por azar: sin su verificador, fuera de la parte de un
+  decimal (`"4.123.456"` frente a `"4.123.456-7"`, el verificador mal
+  tipeado, el documento seguido de un año), y sin su primer dígito sólo
+  detrás de un comodín (`"*.123.456-7"`, `"X.012.345-8"`); un número
+  redondo (`1.000.000`) no cuenta como parcial. Es un **decimal** el
+  número cuyo último signo es un punto o una coma con otra cantidad de
+  cifras que tres, y antes un entero o miles separados con otro signo:
+  `"4.123.456,7"` es un importe, `"4.123.456.7"` no. Una fecha con un
+  año entre 1800 y 2199, una hora —con su fracción de segundo—, una
+  dirección IPv4, un ISBN, una lista separada por comas y la parte
   decimal de un número no son documentos. En la prosa del paquete los
   números son conteos suyos, y ahí la regla mira sólo lo que la prosa
   cita entre comillas y el código que sugiere entre comillas invertidas,
@@ -392,45 +399,48 @@ perfilar(
   celulares protegidos, eso le pasó a uno de cada cinco conteos de siete
   cifras en ejemplos, modas y evidencia, y a dos de cada cien enteros de
   ocho cifras, que coinciden con un documento entero; las coordenadas,
-  los p-valores, los importes con decimales, las horas, las listas y los
-  conteos de seis cifras no se taparon. La medición se rehace con
-  `data-raw/medir_tapado_de_mas.R`. Las tildes, la caja y la escritura
-  también son cosméticas: `juan.perez` se enmascara frente al nombre
-  protegido «Juan Pérez», y el nombre pegado a otras letras dentro de un
-  correo o un alias, también. La comparación usa un pliegue generado de
-  Unicode —caja de todo alfabeto, letras con y sin diacríticos,
-  ligaduras, ancho completo y medio ancho, letras matemáticas—, compara
-  el texto publicado también con los escapes del paquete deshechos (un
-  espacio duro sale `<U+00A0>`) —el valor protegido nunca se desescapa:
-  una barra literal es parte del valor—, y lee lo que no es UTF-8 válido
-  de las dos maneras, byte por byte como CP1252 conservando las
-  secuencias válidas y entero. Las marcas del paquete se apartan del
-  texto y también del valor protegido. **Una fecha de calendario sola no
-  entra en el piso**, tampoco escrita como `AAAAMMDD` en una columna de
-  esas fechas ni como fecha-hora ISO a medianoche: en una tabla de miles
-  de personas casi todo día es el cumpleaños de alguien, y con la fecha
-  de nacimiento protegida se tapaban los estadísticos de todas las demás
-  columnas de fechas. La columna de fechas protegida se sigue
-  protegiendo entera; una fecha con hora sí cuenta. En la **prosa del
-  paquete** —descripción, sugerencia, motivo, cómo resolverlo,
-  justificación— se exige además que la variante no tenga una letra
-  pegada antes o después: con los nombres de millones de personas como
-  valores protegidos, alguno aparecía cruzando palabras de esas frases y
-  las tapaba enteras, también en columnas no personales. Lo que esa
-  prosa cita entre comillas dobles —el nivel de un determinante en la
-  sugerencia de `posible_ausencia_estructural`— no es prosa sino un
-  valor: se compara con la regla de los valores y se tapa sólo la cita,
-  para que la sugerencia se siga leyendo. Y si el determinante es una
-  columna protegida, la sugerencia no reproduce el criterio. **Las
-  palabras y las marcas del propio paquete no se tapan**: con columnas
-  de nombre y de apellido separadas, los valores protegidos son palabras
-  sueltas, y algunas lo son también del paquete —`Blanco` frente a la
-  marca `<blanco>`, `Máximo` frente a la clave `grupo_maximo`, `Patrón`
-  en «el patrón dominante»—. El léxico se calcula al instalar, desde las
-  cadenas del código del paquete: sus marcas no se comparan en ningún
-  campo, y sus palabras no se tapan en su prosa salvo dentro de una
-  cita. El nombre completo en el texto de otra columna se sigue tapando.
-  Y lo aplican también
+  los p-valores, los importes con decimales, las horas, las direcciones
+  IP, los ISBN y las listas separadas por comas no se taparon. Lo mismo
+  vale, por la misma razón, para un número escrito con espacios entre
+  sus miles, una lista separada por espacios, un rango `"a - b"` o una
+  versión `"v4.16.4302"`: se unen como el documento. La medición se
+  rehace con `data-raw/medir_tapado_de_mas.R`. Las tildes, la caja y la
+  escritura también son cosméticas: `juan.perez` se enmascara frente al
+  nombre protegido «Juan Pérez», y el nombre pegado a otras letras
+  dentro de un correo o un alias, también. La comparación usa un pliegue
+  generado de Unicode —caja de todo alfabeto, letras con y sin
+  diacríticos, ligaduras, ancho completo y medio ancho, letras
+  matemáticas—, compara el texto publicado también con los escapes del
+  paquete deshechos (un espacio duro sale `<U+00A0>`) —el valor
+  protegido nunca se desescapa: una barra literal es parte del valor—, y
+  lee lo que no es UTF-8 válido de las dos maneras, byte por byte como
+  CP1252 conservando las secuencias válidas y entero. Las marcas del
+  paquete se apartan del texto y también del valor protegido. **Una
+  fecha de calendario sola no entra en el piso**, tampoco escrita como
+  `AAAAMMDD` en una columna de esas fechas ni como fecha-hora ISO a
+  medianoche: en una tabla de miles de personas casi todo día es el
+  cumpleaños de alguien, y con la fecha de nacimiento protegida se
+  tapaban los estadísticos de todas las demás columnas de fechas. La
+  columna de fechas protegida se sigue protegiendo entera; una fecha con
+  hora sí cuenta. En la **prosa del paquete** —descripción, sugerencia,
+  motivo, cómo resolverlo, justificación— se exige además que la
+  variante no tenga una letra pegada antes o después: con los nombres de
+  millones de personas como valores protegidos, alguno aparecía cruzando
+  palabras de esas frases y las tapaba enteras, también en columnas no
+  personales. Lo que esa prosa cita entre comillas dobles —el nivel de
+  un determinante en la sugerencia de `posible_ausencia_estructural`— no
+  es prosa sino un valor: se compara con la regla de los valores y se
+  tapa sólo la cita, para que la sugerencia se siga leyendo. Y si el
+  determinante es una columna protegida, la sugerencia no reproduce el
+  criterio. **Las palabras y las marcas del propio paquete no se
+  tapan**: con columnas de nombre y de apellido separadas, los valores
+  protegidos son palabras sueltas, y algunas lo son también del paquete
+  —`Blanco` frente a la marca `<blanco>`, `Máximo` frente a la clave
+  `grupo_maximo`, `Patrón` en «el patrón dominante»—. El léxico se
+  calcula al instalar, desde las cadenas del código del paquete: sus
+  marcas no se comparan en ningún campo, y sus palabras no se tapan en
+  su prosa salvo dentro de una cita. El nombre completo en el texto de
+  otra columna se sigue tapando. Y lo aplican también
   [`analizar()`](https://sebollin.github.io/lupa/reference/analizar.md)
   y
   [`distribucion_valores()`](https://sebollin.github.io/lupa/reference/distribucion_valores.md),

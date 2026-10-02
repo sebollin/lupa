@@ -43,6 +43,35 @@
     <div class="section level2">
 <h2 class="pkg-version" data-toc-text="0.1.0" id="lupa-010">lupa 0.1.0<a class="anchor" aria-label="anchor" href="#lupa-010"></a></h2>
 <div class="section level3">
+<h3 id="ronda-el-modelo-de-calidad-0-1-0">Ronda 22: el modelo de calidad<a class="anchor" aria-label="anchor" href="#ronda-el-modelo-de-calidad-0-1-0"></a></h3>
+<p>Una refutacion de <code><a href="../reference/medir.html">medir()</a></code>, <code><a href="../reference/evaluar.html">evaluar()</a></code>, el historico y la deriva encontro doce defectos.</p>
+<ul><li>
+<strong>Con <code>aplicabilidad</code>, toda metrica cita la fila de la tabla original</strong>: ocho de las once del paquete publicaban la fila del recorte -<code>t$x[3]</code> donde habian medido la 6-, y el plan de desenlaces mandaba suprimir otra celda. Una metrica de varias columnas se mide donde corresponden todas, y ya no depende del orden de sus atributos.</li>
+<li>
+<strong><code>[</code>, <code><a href="https://rdrr.io/r/base/subset.html" class="external-link">subset()</a></code> y <code><a href="https://rdrr.io/r/base/cbind.html" class="external-link">rbind()</a></code> conservan lo que la medicion y el historico declaran</strong>: la ronda 21 conservaba solo la marca de privacidad, y se perdian el modelo, la cobertura y la configuracion de cada corrida -<code><a href="../reference/evaluar.html">evaluar()</a></code> publicaba como exito una regla sin medidas segun el orden de <code><a href="https://rdrr.io/r/base/cbind.html" class="external-link">rbind()</a></code>, y la deriva leia un cambio de modelo como deterioro-. <code><a href="https://rdrr.io/r/base/cbind.html" class="external-link">rbind()</a></code> se niega a unir mediciones de modelos distintos, y el de dos historicos los acumula.</li>
+<li>
+<strong>La supresion declarada sobrevive a acumular la medicion despues de la evaluacion</strong>, tambien sobre un historico guardado o leido de un CSV.</li>
+<li>
+<code>AtributoDuplicado</code> marca todas las apariciones tambien en <code>integer64</code>, y los conjuntos declarados -<code>valores_nulos</code>, <code>valores</code>, <code>diccionario</code>- y la regla de integridad entre entidades emparejan los numeros por su valor: <code>1e5</code> y el <code>integer64</code> 100000 coinciden.</li>
+<li>
+<code>ErrorEstandar</code> se declara no medible ante un valor infinito, como <code>Escala</code>, en vez de publicar la dispersion del resto.</li>
+<li>
+<code><a href="../reference/evaluar.html">evaluar()</a></code> mira la cobertura de las reglas corrida por corrida, rechaza una medida repetida o con <code>resultado</code> <code>NA</code> nombrandola, y el resumen por regla no funde nombres que se pegan con un punto.</li>
+<li>Una fecha de texto se lee en UTC, en <code><a href="../reference/medir.html">medir()</a></code> y en el historico: un historico exportado con <code><a href="https://rdrr.io/r/utils/write.table.html" class="external-link">write.csv()</a></code> y releido conserva sus horas, y su deriva ya no ordena al reves dos corridas del mismo dia.</li>
+<li>Una misma corrida armada por partes -metricas medidas por separado con el mismo <code>id_medicion</code>- se une con <code><a href="https://rdrr.io/r/base/cbind.html" class="external-link">rbind()</a></code>, y su modelo es la union de los de las partes.</li>
+</ul><p>Y una refutacion de la proteccion de datos personales encontro ocho fugas y una familia de tapado de mas en la regla de digitos de la ronda 21:</p>
+<ul><li>
+<strong>Los guiones, espacios e invisibles de Unicode no cortan el numero</strong>: un telefono con un guion largo, un espacio de cifra o un espacio de ancho cero entre sus grupos se publicaba.</li>
+<li>
+<strong>Un numero con puntos no es un importe si no tiene forma de miles</strong>: <code>099.12.34.56</code>, <code>01.23.45.67.89</code> o <code>CI 4.123.456.7</code> se publicaban; el mismo signo no separa miles y decimales a la vez.</li>
+<li>Una fecha solo se borra antes de buscar si su ano es plausible -el telefono <code>2901-12-12</code> no es una fecha-, y una fecha con hora protegida se reconoce escrita en otro formato.</li>
+<li>En la prosa, una cita con digitos de otra escritura se prueba; un nombre de columna con tildes no exceptua al valor protegido que es; y el desvio se tapa junto con el extremo que el piso tapo, porque lo reconstruia.</li>
+<li>
+<code><a href="../reference/perfilar_dbi.html">perfilar_dbi()</a></code> lee como texto, en SQLite, una columna de afinidad numerica que guarda documentos, y el motivo de una cifra que no se pudo leer no cita el valor de una columna protegida.</li>
+<li>
+<strong>Tapa menos de mas</strong>: una coordenada de seis decimales, un par de coordenadas, una hora con fraccion de segundo, una direccion IP, un ISBN y dos telefonos separados por una barra ya no se toman por documentos. Lo que queda declarado en <code><a href="../reference/perfilar.html">?perfilar</a></code>, con su reproductor ampliado.</li>
+</ul></div>
+<div class="section level3">
 <h3 id="la-cuarta-evaluacion-real-0-1-0">La cuarta evaluacion real<a class="anchor" aria-label="anchor" href="#la-cuarta-evaluacion-real-0-1-0"></a></h3>
 <ul><li>
 <strong>Un nombre de columna no se tapa aunque contenga un valor protegido.</strong> Con “Segundo” -un nombre de pila corriente- protegido, la columna <code>segundo_nombre</code> salia <code>[valor protegido]_nombre</code> en los hallazgos sin accion del plan, en <code>columnas_analizadas</code> y en la SQL guardada de <code><a href="../reference/perfilar_dbi.html">perfilar_dbi()</a></code>: el hallazgo declarado dejaba de corresponder a su columna y la SQL nombraba una que no existe. Los nombres son estructura en todas las salidas, tambien cuando un texto los escribe entre comillas; salvo el que es, el mismo, un valor protegido.</li>

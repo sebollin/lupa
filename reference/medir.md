@@ -49,14 +49,20 @@ medir(
 
 - fecha:
 
-  Fecha y hora de la corrida.
+  Fecha y hora de la corrida. Se guarda en UTC; un texto —`"2026-03-01"`
+  o `"2026-03-01 09:30:00"`— se lee en UTC, no en el huso de la sesión,
+  así que la misma llamada registra el mismo instante en cualquier
+  máquina.
 
 - aplicabilidad:
 
   Lista con nombre por columna, donde cada elemento es una fórmula que
   dice en qué filas esa columna corresponde —por ejemplo
   `list(marca_auto = ~ tiene_auto == "Si")`—. Las filas fuera de ese
-  universo salen de la medición en vez de contarse como ausencia.
+  universo salen de la medición en vez de contarse como ausencia. Una
+  métrica de varias columnas se mide donde corresponden todas. Las
+  medidas citan la fila de la tabla original —`fila` y
+  `objeto_medible`—, no su posición en el universo.
 
   Es la misma declaración que recibe
   [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md),
@@ -149,13 +155,13 @@ especifica <- especializar(nucleo$NoNulo, nombre_especifico = "NoNuloEdad")
 instancia <- instanciar(especifica, "personas", "edad")
 medir(modelo(instancia), data.frame(edad = c(20, NA, 35)))
 #>                                     id_medida
-#> 1 medicion-20261002T051920.782250-7589-000001
-#> 2 medicion-20261002T051920.782250-7589-000002
-#> 3 medicion-20261002T051920.782250-7589-000003
+#> 1 medicion-20261002T072025.144750-7372-000001
+#> 2 medicion-20261002T072025.144750-7372-000002
+#> 3 medicion-20261002T072025.144750-7372-000003
 #>                            id_medicion               fecha metrica
-#> 1 medicion-20261002T051920.782250-7589 2026-10-02 05:19:20  NoNulo
-#> 2 medicion-20261002T051920.782250-7589 2026-10-02 05:19:20  NoNulo
-#> 3 medicion-20261002T051920.782250-7589 2026-10-02 05:19:20  NoNulo
+#> 1 medicion-20261002T072025.144750-7372 2026-10-02 07:20:25  NoNulo
+#> 2 medicion-20261002T072025.144750-7372 2026-10-02 07:20:25  NoNulo
+#> 3 medicion-20261002T072025.144750-7372 2026-10-02 07:20:25  NoNulo
 #>   metrica_especifica      metrica_instanciada   dimension   factor orientacion
 #> 1         NoNuloEdad NoNuloEdad@personas.edad Completitud Densidad conformidad
 #> 2         NoNuloEdad NoNuloEdad@personas.edad Completitud Densidad conformidad

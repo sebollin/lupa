@@ -44,8 +44,12 @@ menos una medida. Una medida que una regla declaró
 deja `resultado` en `NA` y marca `objeto_medible` con
 `[valor suprimido]`, en los dos niveles donde esa medida aparece
 —`medida` y `evaluacion_medida`—, porque esta tabla está pensada para
-exportarse. Una medición **enteramente** vacía —ninguna métrica pudo
-aplicarse— no se acumula: se rechaza citando el motivo que
+exportarse. Con el detalle resumido, las medidas suprimidas entran
+igual, enmascaradas en el nivel `evaluacion_medida`: así una medición
+acumulada **después** —también sobre un histórico guardado o leído de un
+CSV— queda tapada en las mismas medidas, sea cual sea el orden en que
+llegan los objetos. Una medición **enteramente** vacía —ninguna métrica
+pudo aplicarse— no se acumula: se rechaza citando el motivo que
 [`medir()`](https://sebollin.github.io/lupa/reference/medir.md) declaró
 en `cobertura_metricas`, porque no hay corrida que registrar. El
 atributo `configuracion_evaluacion` conserva, en una tabla plana
@@ -62,7 +66,13 @@ cuando el objetivo es monitorear la serie de evaluaciones. El objeto no
 guarda modelos, closures, datos originales ni perfiles de profiling.
 Esto mantiene la tabla exportable directamente con
 [`write.csv()`](https://rdrr.io/r/utils/write.table.html) o una
-herramienta de base de datos.
+herramienta de base de datos. Al volver a leerla, las fechas de texto se
+leen en UTC, con su hora.
+
+`[`, [`subset()`](https://rdrr.io/r/base/subset.html) y
+`dplyr::filter()` conservan la configuración de las corridas que quedan;
+[`rbind()`](https://rdrr.io/r/base/cbind.html) de dos históricos los
+acumula, como `acumular_historico()`.
 
 El esquema largo mapea las cuatro tablas de la sección 9.5 del marco
 mediante `nivel`. Las columnas que no corresponden a un nivel quedan

@@ -183,8 +183,9 @@ condicional.
 deja visible esa cobertura parcial. Pese a su nombre, `ErrorEstandar`
 sigue literalmente la semántica de la tabla 16.5 del marco y devuelve la
 desviación estándar muestral sin normalizar; exige al menos dos valores
-numéricos válidos. Por eso declara `tipo_resultado = "numero_real"` y no
-admite
+numéricos válidos y ninguno infinito —con uno, la métrica se declara no
+medible, como `Escala`—. Por eso declara
+`tipo_resultado = "numero_real"` y no admite
 [`agregar()`](https://sebollin.github.io/lupa/reference/agregar.md).
 
 `Formato` acepta exactamente una de las propiedades `expresion_regular`,
@@ -359,13 +360,13 @@ instancia <- instanciar(no_nulo, entidad = "personas", atributos = "edad")
 modelo_calidad <- modelo(instancia)
 medir(modelo_calidad, data.frame(edad = c(20, NA, 35)))
 #>                                     id_medida
-#> 1 medicion-20261002T051921.183738-7589-000001
-#> 2 medicion-20261002T051921.183738-7589-000002
-#> 3 medicion-20261002T051921.183738-7589-000003
+#> 1 medicion-20261002T072025.359863-7372-000001
+#> 2 medicion-20261002T072025.359863-7372-000002
+#> 3 medicion-20261002T072025.359863-7372-000003
 #>                            id_medicion               fecha metrica
-#> 1 medicion-20261002T051921.183738-7589 2026-10-02 05:19:21  NoNulo
-#> 2 medicion-20261002T051921.183738-7589 2026-10-02 05:19:21  NoNulo
-#> 3 medicion-20261002T051921.183738-7589 2026-10-02 05:19:21  NoNulo
+#> 1 medicion-20261002T072025.359863-7372 2026-10-02 07:20:25  NoNulo
+#> 2 medicion-20261002T072025.359863-7372 2026-10-02 07:20:25  NoNulo
+#> 3 medicion-20261002T072025.359863-7372 2026-10-02 07:20:25  NoNulo
 #>   metrica_especifica      metrica_instanciada   dimension   factor orientacion
 #> 1         NoNuloEdad NoNuloEdad@personas.edad Completitud Densidad conformidad
 #> 2         NoNuloEdad NoNuloEdad@personas.edad Completitud Densidad conformidad
@@ -416,13 +417,13 @@ medir(
   data.frame(origen = c("sistema_a", "", NA), stringsAsFactors = FALSE)
 )
 #>                                     id_medida
-#> 1 medicion-20261002T051921.193364-7589-000001
-#> 2 medicion-20261002T051921.193364-7589-000002
-#> 3 medicion-20261002T051921.193364-7589-000003
+#> 1 medicion-20261002T072025.364688-7372-000001
+#> 2 medicion-20261002T072025.364688-7372-000002
+#> 3 medicion-20261002T072025.364688-7372-000003
 #>                            id_medicion               fecha         metrica
-#> 1 medicion-20261002T051921.193364-7589 2026-10-02 05:19:21 OrigenDeclarado
-#> 2 medicion-20261002T051921.193364-7589 2026-10-02 05:19:21 OrigenDeclarado
-#> 3 medicion-20261002T051921.193364-7589 2026-10-02 05:19:21 OrigenDeclarado
+#> 1 medicion-20261002T072025.364688-7372 2026-10-02 07:20:25 OrigenDeclarado
+#> 2 medicion-20261002T072025.364688-7372 2026-10-02 07:20:25 OrigenDeclarado
+#> 3 medicion-20261002T072025.364688-7372 2026-10-02 07:20:25 OrigenDeclarado
 #>   metrica_especifica            metrica_instanciada    dimension
 #> 1    OrigenDeclarado OrigenDeclarado@entrega.origen Trazabilidad
 #> 2    OrigenDeclarado OrigenDeclarado@entrega.origen Trazabilidad
@@ -454,11 +455,11 @@ medir(
   data.frame(fecha = as.Date(c("2026-06-29", "2026-07-01")))
 )
 #>                                     id_medida
-#> 1 medicion-20261002T051921.201943-7589-000001
-#> 2 medicion-20261002T051921.201943-7589-000002
+#> 1 medicion-20261002T072025.368931-7372-000001
+#> 2 medicion-20261002T072025.368931-7372-000002
 #>                            id_medicion               fecha
-#> 1 medicion-20261002T051921.201943-7589 2026-10-02 05:19:21
-#> 2 medicion-20261002T051921.201943-7589 2026-10-02 05:19:21
+#> 1 medicion-20261002T072025.368931-7372 2026-10-02 07:20:25
+#> 2 medicion-20261002T072025.368931-7372 2026-10-02 07:20:25
 #>                       metrica metrica_especifica           metrica_instanciada
 #> 1 OportunidadAtributoPorFecha     EntregaATiempo EntregaATiempo@entregas.fecha
 #> 2 OportunidadAtributoPorFecha     EntregaATiempo EntregaATiempo@entregas.fecha

@@ -65,8 +65,11 @@ del perfil. Los resultados por regla se conservan en <code>reglas</code>; el res
 
 <dl><dt id="arg-medicion">medicion<a class="anchor" aria-label="anchor" href="#arg-medicion"></a></dt>
 <dd><p><strong>Primer argumento.</strong> Data frame producido por <code><a href="medir.html">medir()</a></code>;
-puede reunir varias corridas si conserva sus <code>id_medicion</code>. No es el
-<code>perfil</code> descriptivo que devuelve <code><a href="perfilar.html">perfilar()</a></code>.</p></dd>
+puede reunir varias corridas si conserva sus <code>id_medicion</code> —con <code><a href="https://rdrr.io/r/base/cbind.html" class="external-link">rbind()</a></code>,
+que se niega a unir mediciones de modelos distintos: para eso está
+<code><a href="historico_calidad.html">historico_calidad()</a></code>—. Cada <code>id_medida</code> se cuenta una vez: una medida
+repetida, o una con <code>resultado</code> <code>NA</code> sin estar suprimida, se rechaza
+nombrándola. No es el <code>perfil</code> descriptivo que devuelve <code><a href="perfilar.html">perfilar()</a></code>.</p></dd>
 
 
 <dt id="arg-perfil">perfil<a class="anchor" aria-label="anchor" href="#arg-perfil"></a></dt>
@@ -86,8 +89,9 @@ Cuando una métrica no pudo medirse, conserva <code>cobertura_metricas</code> y 
 en <code>NA</code> el resumen afectado, en lugar de tratar la ausencia como éxito.
 Y cuando una regla <strong>declara</strong> una métrica que la medición no trae —ninguna
 medida de ella—, el veredicto cubre menos de lo que la regla dice: eso se
-avisa al evaluar y queda en el atributo <code>cobertura_reglas</code>, con la métrica,
-el motivo y cómo resolverlo. Si <strong>ninguna</strong> de las métricas declaradas por
+avisa al evaluar y queda en el atributo <code>cobertura_reglas</code>, con la corrida,
+la métrica, el motivo y cómo resolverlo: se mira corrida por corrida, así
+que una corrida evaluada junto a otras avisa lo mismo que evaluada sola. Si <strong>ninguna</strong> de las métricas declaradas por
 una regla tiene medidas, <code>evaluar()</code> se niega y nombra las solicitadas y las
 disponibles.
 Conserva además, en atributos, la configuración del modelo, la
@@ -108,13 +112,13 @@ aplicabilidad y el perfil de evaluación que produjo el resultado.</p>
 <span class="r-msg co"><span class="r-pr">#&gt;</span> ── <span style="font-weight: bold;">Evaluaciones de medidas</span> ──</span>
 <span class="r-msg co"><span class="r-pr">#&gt;</span> </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>                                    id_medida</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>  medicion-20261002T051916.419374-7589-000001</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>  medicion-20261002T051916.419374-7589-000002</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>  medicion-20261002T051916.419374-7589-000003</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>  medicion-20261002T072022.728100-7372-000001</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>  medicion-20261002T072022.728100-7372-000002</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>  medicion-20261002T072022.728100-7372-000003</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>                           id_medicion               fecha   perfil        regla</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>  medicion-20261002T051916.419374-7589 2026-10-02 05:19:16 Avanzado Al menos 90%</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>  medicion-20261002T051916.419374-7589 2026-10-02 05:19:16 Avanzado Al menos 90%</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>  medicion-20261002T051916.419374-7589 2026-10-02 05:19:16 Avanzado Al menos 90%</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>  medicion-20261002T072022.728100-7372 2026-10-02 07:20:22 Avanzado Al menos 90%</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>  medicion-20261002T072022.728100-7372 2026-10-02 07:20:22 Avanzado Al menos 90%</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>  medicion-20261002T072022.728100-7372 2026-10-02 07:20:22 Avanzado Al menos 90%</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>   metrica_instanciada orientacion resultado</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>  NoNulo@personas.edad conformidad      TRUE</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>  NoNulo@personas.edad conformidad     FALSE</span>
@@ -122,13 +126,13 @@ aplicabilidad y el perfil de evaluación que produjo el resultado.</p>
 <span class="r-msg co"><span class="r-pr">#&gt;</span> ── <span style="font-weight: bold;">Evaluaciones de reglas</span> ──</span>
 <span class="r-msg co"><span class="r-pr">#&gt;</span> </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>                           id_medicion               fecha   perfil        regla</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>  medicion-20261002T051916.419374-7589 2026-10-02 05:19:16 Avanzado Al menos 90%</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>  medicion-20261002T072022.728100-7372 2026-10-02 07:20:22 Avanzado Al menos 90%</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>  n_medidas resultado</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>          3 0.6666667</span>
 <span class="r-msg co"><span class="r-pr">#&gt;</span> ── <span style="font-weight: bold;">Perfiles de madurez</span> ──</span>
 <span class="r-msg co"><span class="r-pr">#&gt;</span> </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>                           id_medicion               fecha   perfil n_reglas</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>  medicion-20261002T051916.419374-7589 2026-10-02 05:19:16 Avanzado        1</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>  medicion-20261002T072022.728100-7372 2026-10-02 07:20:22 Avanzado        1</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>  resultado</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>  0.6666667</span>
 </code></pre></div>

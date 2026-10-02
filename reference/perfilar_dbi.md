@@ -836,11 +836,15 @@ de valores; si hay más, o si la consulta no se puede hacer, se tapan
 todos los valores de celda de las columnas no personales —moda,
 extremos, ejemplos— y la evidencia de sus hallazgos, y
 `resumen_tabla$meta$proteccion_personal$fuera_de_muestra` dice por qué.
-`incluir_valores = FALSE` va más lejos: no emite las consultas de moda
-ni de mediana y no informa mínimo ni máximo, útil cuando la tabla es un
-padrón y la moda de un identificador único es un documento real. Si se
-pidió `desvio`, la sonda de magnitud que ese cálculo necesita puede
-emitirse, pero su motivo nunca publica el valor devuelto por el motor.
+En SQLite los valores se leen como texto, porque una columna de afinidad
+numérica guarda texto y el controlador lo convertía en número; y el
+motivo de una cifra que no se pudo leer como número no cita el valor de
+una columna protegida. `incluir_valores = FALSE` va más lejos: no emite
+las consultas de moda ni de mediana y no informa mínimo ni máximo, útil
+cuando la tabla es un padrón y la moda de un identificador único es un
+documento real. Si se pidió `desvio`, la sonda de magnitud que ese
+cálculo necesita puede emitirse, pero su motivo nunca publica el valor
+devuelto por el motor.
 
 ## Progreso
 

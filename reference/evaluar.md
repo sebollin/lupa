@@ -17,7 +17,12 @@ evaluar(medicion, perfil)
 
   **Primer argumento.** Data frame producido por
   [`medir()`](https://sebollin.github.io/lupa/reference/medir.md); puede
-  reunir varias corridas si conserva sus `id_medicion`. No es el
+  reunir varias corridas si conserva sus `id_medicion` —con
+  [`rbind()`](https://rdrr.io/r/base/cbind.html), que se niega a unir
+  mediciones de modelos distintos: para eso está
+  [`historico_calidad()`](https://sebollin.github.io/lupa/reference/historico_calidad.md)—.
+  Cada `id_medida` se cuenta una vez: una medida repetida, o una con
+  `resultado` `NA` sin estar suprimida, se rechaza nombrándola. No es el
   `perfil` descriptivo que devuelve
   [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md).
 
@@ -39,12 +44,13 @@ pudo medirse, conserva `cobertura_metricas` y deja en `NA` el resumen
 afectado, en lugar de tratar la ausencia como éxito. Y cuando una regla
 **declara** una métrica que la medición no trae —ninguna medida de
 ella—, el veredicto cubre menos de lo que la regla dice: eso se avisa al
-evaluar y queda en el atributo `cobertura_reglas`, con la métrica, el
-motivo y cómo resolverlo. Si **ninguna** de las métricas declaradas por
-una regla tiene medidas, `evaluar()` se niega y nombra las solicitadas y
-las disponibles. Conserva además, en atributos, la configuración del
-modelo, la aplicabilidad y el perfil de evaluación que produjo el
-resultado.
+evaluar y queda en el atributo `cobertura_reglas`, con la corrida, la
+métrica, el motivo y cómo resolverlo: se mira corrida por corrida, así
+que una corrida evaluada junto a otras avisa lo mismo que evaluada sola.
+Si **ninguna** de las métricas declaradas por una regla tiene medidas,
+`evaluar()` se niega y nombra las solicitadas y las disponibles.
+Conserva además, en atributos, la configuración del modelo, la
+aplicabilidad y el perfil de evaluación que produjo el resultado.
 
 ## Examples
 
@@ -61,13 +67,13 @@ evaluar(medidas, perfil_evaluacion("Avanzado", regla))
 #> ── Evaluaciones de medidas ──
 #> 
 #>                                    id_medida
-#>  medicion-20261002T051916.419374-7589-000001
-#>  medicion-20261002T051916.419374-7589-000002
-#>  medicion-20261002T051916.419374-7589-000003
+#>  medicion-20261002T072022.728100-7372-000001
+#>  medicion-20261002T072022.728100-7372-000002
+#>  medicion-20261002T072022.728100-7372-000003
 #>                           id_medicion               fecha   perfil        regla
-#>  medicion-20261002T051916.419374-7589 2026-10-02 05:19:16 Avanzado Al menos 90%
-#>  medicion-20261002T051916.419374-7589 2026-10-02 05:19:16 Avanzado Al menos 90%
-#>  medicion-20261002T051916.419374-7589 2026-10-02 05:19:16 Avanzado Al menos 90%
+#>  medicion-20261002T072022.728100-7372 2026-10-02 07:20:22 Avanzado Al menos 90%
+#>  medicion-20261002T072022.728100-7372 2026-10-02 07:20:22 Avanzado Al menos 90%
+#>  medicion-20261002T072022.728100-7372 2026-10-02 07:20:22 Avanzado Al menos 90%
 #>   metrica_instanciada orientacion resultado
 #>  NoNulo@personas.edad conformidad      TRUE
 #>  NoNulo@personas.edad conformidad     FALSE
@@ -75,13 +81,13 @@ evaluar(medidas, perfil_evaluacion("Avanzado", regla))
 #> ── Evaluaciones de reglas ──
 #> 
 #>                           id_medicion               fecha   perfil        regla
-#>  medicion-20261002T051916.419374-7589 2026-10-02 05:19:16 Avanzado Al menos 90%
+#>  medicion-20261002T072022.728100-7372 2026-10-02 07:20:22 Avanzado Al menos 90%
 #>  n_medidas resultado
 #>          3 0.6666667
 #> ── Perfiles de madurez ──
 #> 
 #>                           id_medicion               fecha   perfil n_reglas
-#>  medicion-20261002T051916.419374-7589 2026-10-02 05:19:16 Avanzado        1
+#>  medicion-20261002T072022.728100-7372 2026-10-02 07:20:22 Avanzado        1
 #>  resultado
 #>  0.6666667
 ```

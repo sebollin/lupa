@@ -357,8 +357,8 @@ columna, su moda sigue tapada. Y un texto que nombra una columna entre
 comillas —la prosa del paquete, la SQL que guarda <code><a href="perfilar_dbi.html">perfilar_dbi()</a></code>— la
 conserva entera: con «Segundo» protegido, <code>segundo_nombre</code> salía
 <code>[valor protegido]_nombre</code> en los hallazgos sin acción del plan y en la
-SQL. Un nombre que es él mismo un valor protegido, con otra caja o con
-otros separadores, no se exceptúa.
+SQL. Un nombre que es él mismo un valor protegido, con otra caja, otros
+separadores, tildes o codificación, no se exceptúa.
 Lo mismo vale para el <strong>vocabulario</strong>: un tipo de hallazgo, una severidad,
 una estrategia, el nombre de un diagnóstico o de una métrica, o el de un
 factor de un marco que declaró el usuario, no se enmascaran aunque coincidan
@@ -390,31 +390,42 @@ seudonimizada.
 El piso alcanza además la <strong>forma sin separadores</strong>: <code>"771.771-01"</code> es el
 mismo documento que <code>"77177101"</code>, y la celda entera se enmascara. En los
 dígitos se busca <strong>el documento en cada número del texto</strong>, con cualquier
-agrupación: un número une grupos de dígitos con espacios, puntos, guiones,
-barras, comas sin espacio, apóstrofos, dos puntos, barras verticales,
-signos más, puntos medios o paréntesis, y se tapa la celda si grupos
-contiguos forman un documento protegido —<code>"2901 1234"</code>, <code>"099 12 34 56"</code>,
-<code>"(2) 487 1234"</code>, <code>"4111 1111 1111 1111"</code>—, también con ceros a la
-izquierda o escrito con dígitos arábigo-índicos, persas o devanagari. El
-documento <strong>parcial</strong>, de siete cifras o más, se busca con más cuidado
-porque es el que coincide por azar: sin su verificador, fuera de la parte
-de un decimal (<code>"4.123.456"</code> frente a <code>"4.123.456-7"</code>, el verificador mal
-tipeado, el documento seguido de un año), y sin su primer dígito sólo
-detrás de un comodín (<code>"*.123.456-7"</code>, <code>"X.012.345-8"</code>); un número redondo
-(<code>1.000.000</code>) no cuenta como parcial. Una fecha, una hora, una lista
-separada por comas y la parte decimal de un número no son documentos. En
-la prosa del paquete los números son conteos suyos, y ahí la regla mira
-sólo lo que la prosa cita entre comillas y el código que sugiere entre
-comillas invertidas, y tapa la cita o el número, no la frase. <strong>El parcial
-tiene un costo, medido</strong>: un número entero de siete cifras que coincide
-con un documento protegido sin su verificador no se distingue de él, y se
-tapa. Con un millón de cédulas, 300.000 teléfonos fijos y 300.000 celulares
-protegidos, eso le pasó a uno de cada cinco conteos de siete cifras en
-ejemplos, modas y evidencia, y a dos de cada cien enteros de ocho cifras,
-que coinciden con un documento entero; las coordenadas, los p-valores, los
-importes con decimales, las horas, las listas y los conteos de seis cifras
-no se taparon. La medición se rehace con <code>data-raw/medir_tapado_de_mas.R</code>.
-Las tildes, la caja y la escritura también son cosméticas: <code>juan.perez</code> se enmascara frente al nombre protegido
+agrupación: un número une grupos de dígitos con espacios, guiones o puntos
+—también con un espacio a cada lado—, y con barras, comas sin espacio,
+apóstrofos, dos puntos, barras verticales, signos más, puntos medios o
+paréntesis pegados, y se tapa la celda si grupos contiguos forman un
+documento protegido —<code>"2901 1234"</code>, <code>"099 12 34 56"</code>, <code>"(2) 487 1234"</code>,
+<code>"4111 1111 1111 1111"</code>, <code>"01.23.45.67.89"</code>—, también con ceros a la
+izquierda, con los guiones, espacios e invisibles de Unicode o escrito con
+dígitos arábigo-índicos, persas o devanagari. Una fecha con hora protegida
+se reconoce escrita en otro formato. El documento <strong>parcial</strong>, de siete
+cifras o más, se busca con más cuidado porque es el que coincide por azar:
+sin su verificador, fuera de la parte de un decimal (<code>"4.123.456"</code> frente a
+<code>"4.123.456-7"</code>, el verificador mal tipeado, el documento seguido de un
+año), y sin su primer dígito sólo detrás de un comodín (<code>"*.123.456-7"</code>,
+<code>"X.012.345-8"</code>); un número redondo (<code>1.000.000</code>) no cuenta como parcial.
+Es un <strong>decimal</strong> el número cuyo último signo es un punto o una coma con
+otra cantidad de cifras que tres, y antes un entero o miles separados con
+otro signo: <code>"4.123.456,7"</code> es un importe, <code>"4.123.456.7"</code> no. Una fecha
+con un año entre 1800 y 2199, una hora —con su fracción de segundo—, una
+dirección IPv4, un ISBN, una lista separada por comas y la parte decimal de
+un número no son documentos. En la prosa del paquete los números son
+conteos suyos, y ahí la regla mira sólo lo que la prosa cita entre comillas
+y el código que sugiere entre comillas invertidas, y tapa la cita o el
+número, no la frase. <strong>El parcial tiene un costo, medido</strong>: un número
+entero de siete cifras que coincide con un documento protegido sin su
+verificador no se distingue de él, y se tapa. Con un millón de cédulas,
+300.000 teléfonos fijos y 300.000 celulares protegidos, eso le pasó a
+uno de cada cinco conteos de siete cifras en ejemplos, modas y evidencia,
+y a dos de cada cien enteros de ocho cifras, que coinciden con un documento
+entero; las coordenadas, los p-valores, los importes con decimales, las
+horas, las direcciones IP, los ISBN y las listas separadas por comas no se
+taparon. Lo mismo vale, por la misma razón, para un número escrito con
+espacios entre sus miles, una lista separada por espacios, un rango
+<code>"a - b"</code> o una versión <code>"v4.16.4302"</code>: se unen como el documento. La medición se rehace con
+<code>data-raw/medir_tapado_de_mas.R</code>.
+Las tildes, la caja y la escritura también son cosméticas: <code>juan.perez</code> se
+enmascara frente al nombre protegido
 «Juan Pérez», y el nombre pegado a otras letras dentro de un correo o un
 alias, también. La comparación usa un pliegue generado de Unicode —caja de
 todo alfabeto, letras con y sin diacríticos, ligaduras, ancho completo y
