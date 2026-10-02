@@ -18,3 +18,4 @@
 ^lupa\.Rcheck$
 ^lupa_.*\.tar\.gz$
 ^.*\.Rcheck$
+^LICENSE\.md$
