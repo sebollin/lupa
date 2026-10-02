@@ -159,21 +159,24 @@ se activa a mano—, no se activa por defecto y el registro conserva
 `destructiva` no es sinónimo de "pierde algo": marca las acciones que el
 usuario tiene que activar a mano —las que retiran filas o columnas y las
 conversiones que pierden representación, como `winsorizar_outliers`
-sobre una columna **entera**, donde los límites de Tukey son cuartiles y
-la columna queda en doble precisión: la justificación lo dice y
-`parametros` publica `tipo_original` y `tipo_resultante`— y por eso
-ninguna acción `destructiva` puede estar `recomendada`. Hay acciones
-recomendadas que sí pierden el valor de una celda:
-`convertir_ausencias_textuales` cambia un marcador por `NA` y
-`eliminar_controles_invisibles` quita un carácter. Esas lo dicen en su
-justificación y el registro las cuantifica en `n_no_reversibles`; leer
-`destructiva = FALSE` no significa que no se haya perdido nada, sino que
-el paquete pudo recomendar la acción sin conocer el dominio. Sobre una
-columna **factor** las acciones por celda devuelven texto: el resultado
-no puede ser un factor incompleto, así que el orden declarado y los
-niveles sin observaciones no se conservan. La justificación de la acción
-lo dice, y si el factor es ordenado la acción queda recomendada pero
-**sin activar**, porque conservar el orden es una decisión del dominio.
+sobre una columna **guardada como entera**, donde los límites de Tukey
+son cuartiles y la columna queda en doble precisión: la justificación lo
+dice y `parametros` publica `tipo_original` y `tipo_resultante`. Sobre
+cualquier otra clase —texto con números, factor, fecha— la acción
+conserva la clase y reescribe sólo las celdas recortadas; `Inf`, `NaN` y
+`NA` quedan como estaban— y por eso ninguna acción `destructiva` puede
+estar `recomendada`. Hay acciones recomendadas que sí pierden el valor
+de una celda: `convertir_ausencias_textuales` cambia un marcador por
+`NA` y `eliminar_controles_invisibles` quita un carácter. Esas lo dicen
+en su justificación y el registro las cuantifica en `n_no_reversibles`;
+leer `destructiva = FALSE` no significa que no se haya perdido nada,
+sino que el paquete pudo recomendar la acción sin conocer el dominio.
+Sobre una columna **factor** las acciones por celda devuelven texto: el
+resultado no puede ser un factor incompleto, así que el orden declarado
+y los niveles sin observaciones no se conservan. La justificación de la
+acción lo dice, y si el factor es ordenado la acción queda recomendada
+pero **sin activar**, porque conservar el orden es una decisión del
+dominio.
 
 Tres atributos del plan declaran lo que el plan no cubre.
 `cobertura_diagnosticos` trae los diagnósticos que el perfil no pudo
@@ -244,8 +247,10 @@ más pequeño que la detección. La acción `eliminar_controles_invisibles`
 quita controles C0/C1 que no son separadores y los invisibles Unicode de
 transporte, y se recomienda por defecto; conserva ZWJ/ZWNJ.
 `normalizar_espacios_invisibles` colapsa espacios Unicode (incluido
-NBSP) a un espacio ASCII, no se recomienda por defecto y registra la
-pérdida de reversibilidad. `decodificar_entidades_html` cubre las
+NBSP) a un espacio ASCII y, como su hermana, se recomienda y se activa
+por defecto: queda un espacio, así que el valor sigue ahí; si al
+colapsarlo dos valores que eran distintos quedan iguales, el registro lo
+cuenta en `n_no_reversibles`. `decodificar_entidades_html` cubre las
 entidades con nombre comunes en español y referencias numéricas válidas,
 pero no se activa sola porque un ampersand puede ser contenido legítimo.
 Decodifica **una capa**: un texto codificado dos veces —`&amp;amp;`—

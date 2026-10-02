@@ -206,9 +206,12 @@ se activa a mano—, no se activa por defecto y el registro conserva
 <p><code>destructiva</code> no es sinónimo de "pierde algo": marca las acciones que el
 usuario tiene que activar a mano —las que retiran filas o columnas y las
 conversiones que pierden representación, como <code>winsorizar_outliers</code> sobre una
-columna <strong>entera</strong>, donde los límites de Tukey son cuartiles y la columna queda
-en doble precisión: la justificación lo dice y <code>parametros</code> publica
-<code>tipo_original</code> y <code>tipo_resultante</code>— y por eso ninguna acción
+columna <strong>guardada como entera</strong>, donde los límites de Tukey son cuartiles y
+la columna queda en doble precisión: la justificación lo dice y <code>parametros</code>
+publica <code>tipo_original</code> y <code>tipo_resultante</code>. Sobre cualquier otra clase
+—texto con números, factor, fecha— la acción conserva la clase y reescribe
+sólo las celdas recortadas; <code>Inf</code>, <code>NaN</code> y <code>NA</code> quedan como estaban— y por
+eso ninguna acción
 <code>destructiva</code> puede estar <code>recomendada</code>. Hay acciones recomendadas que sí
 pierden el valor de una celda: <code>convertir_ausencias_textuales</code> cambia un
 marcador por <code>NA</code> y <code>eliminar_controles_invisibles</code> quita un carácter. Esas
@@ -282,8 +285,10 @@ normalización actúa sobre un conjunto más pequeño que la detección. La acci
 <code>eliminar_controles_invisibles</code> quita controles C0/C1 que no son separadores
 y los invisibles Unicode de transporte, y se recomienda por defecto; conserva
 ZWJ/ZWNJ. <code>normalizar_espacios_invisibles</code> colapsa espacios Unicode (incluido
-NBSP) a un espacio ASCII, no se recomienda por defecto y registra la pérdida
-de reversibilidad. <code>decodificar_entidades_html</code> cubre las entidades
+NBSP) a un espacio ASCII y, como su hermana, se recomienda y se activa por
+defecto: queda un espacio, así que el valor sigue ahí; si al colapsarlo dos
+valores que eran distintos quedan iguales, el registro lo cuenta en
+<code>n_no_reversibles</code>. <code>decodificar_entidades_html</code> cubre las entidades
 con nombre comunes en español y referencias numéricas válidas, pero no se
 activa sola porque un ampersand puede ser contenido legítimo. Decodifica
 <strong>una capa</strong>: un texto codificado dos veces —<code>&amp;amp;amp;</code>— queda en <code>&amp;amp;</code>,

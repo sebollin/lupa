@@ -2,6 +2,77 @@
 
 ## lupa 0.1.0
 
+### Ronda 20: el plan de limpieza, y la proteccion otra vez
+
+Dos refutaciones en paralelo. La de la capa de limpieza encontro
+veintidos defectos -no se atacaba desde la ronda 9-; la de privacidad,
+nueve, tres de ellos abiertos por la ronda 19.
+
+**El plan de limpieza:**
+
+- **`convertir_titulo` pone la mayuscula en la inicial aunque este
+  acentuada** -`Pena` con enie salia `PenA`- y capitaliza fuera del
+  latin; las tres acciones de caja usan el mapa del paquete y no
+  dependen del locale.
+- **`winsorizar_outliers` conserva la clase de la columna**: sobre texto
+  con numeros la pasaba entera a numero y borraba los ceros iniciales
+  que el propio plan protege; `Inf` y `NaN` quedan como estaban; una
+  fecha vuelve como fecha.
+- **Con `aplicabilidad`, las acciones de outliers miden y tratan solo el
+  universo**: marcaban filas de afuera y recortaban con los limites de
+  la columna entera. El registro cuenta las irreversibles.
+- **Una lista `valores` vacia en `convertir_ausencias_textuales` no
+  convierte nada** -convertia todo lo detectado- y el registro dice por
+  que.
+- **[`guiar_limpieza()`](https://sebollin.github.io/lupa/reference/guiar_limpieza.md)
+  no muestra valores de columnas protegidas** como ejemplos.
+- **Las acciones de duplicados usan la igualdad del perfil**:
+  `0.1 + 0.2` no es `0.3`, latin1 no es UTF-8, y
+  `conservar_mas_completa` no junta las claves ausentes ni borra una
+  fila con clave distinta.
+- **`normalizar_nombres` aplica los `nombres_propuestos` editados** y no
+  renombra las marcas que agrega el plan; sobre un `sf` actualiza su
+  geometria.
+- **El plan no tapa el catalogo de centinelas ni el vocabulario
+  compartido** de columnas no personales, y con
+  `proteger_datos_personales = FALSE` no protege.
+- Las acciones de texto conservan los atributos de la columna -la
+  etiqueta de `haven`-; las referencias HTML entre 128 y 159 se leen
+  como Windows-1252; un `orden` de texto se rechaza; activar a mano una
+  reparacion de codificacion parcial la aplica; una accion recomendada
+  ejecutada no figura `pendiente`; el registro de eliminar una columna
+  duplicada nombra la eliminada; y el resumen impreso ya no llama
+  “celdas” a la suma de lo que conto cada accion.
+
+**La proteccion de datos personales:**
+
+- **Un valor con una barra literal, o con una marca del paquete adentro,
+  no se publica.** El desescapado de la ronda 19 se aplicaba tambien al
+  valor protegido; ahora solo al texto publicado, que se compara en sus
+  dos formas.
+- **La regla de digitos parte cada numero por sus separadores** -tambien
+  coma, espacio duro, apostrofo y guion bajo- y busca el documento, sin
+  su verificador o sin su primer digito, entre sus tramos: reconoce el
+  verificador mal tipeado o el documento seguido de un ano, y no pega
+  dos conteos vecinos.
+- **[`perfilar_dbi()`](https://sebollin.github.io/lupa/reference/perfilar_dbi.md)
+  consulta la base** por los valores que va a publicar de las columnas
+  no personales cuando la muestra no cubre la tabla: el titular que solo
+  estaba fuera de la muestra se publicaba.
+- Un texto que no es UTF-8 valido se compara leido de las dos maneras;
+  una fecha compacta (`AAAAMMDD`) o en ISO a medianoche no entra en el
+  piso; y la `unidad` de una columna es vocabulario.
+- **Con un millon de cedulas protegidas, la regla de digitos ya no tapa
+  conteos.** En la prosa del paquete solo mira lo citado -sus numeros
+  son conteos-; una fecha, un numero redondo o la parte decimal de otro
+  no son documentos; los tramos que unen grupos tienen que tener forma
+  de numero con separadores de miles; y el documento parcial conserva
+  siete cifras. Medido: de 18, 16 y 6 celdas tapadas de mas a ninguna.
+- [`comparar_perfiles()`](https://sebollin.github.io/lupa/reference/comparar_perfiles.md)
+  declara `no_comparable` una politica de centinelas tapada EN PARTE, no
+  solo la tapada entera: ahora la proteccion puede tapar un centinela
+  declarado y dejar el catalogo del paquete a la vista.
+
 ### Ronda 19: la proteccion de datos personales, por las dos caras
 
 Diez hallazgos de una refutacion con dos encargos: que un valor

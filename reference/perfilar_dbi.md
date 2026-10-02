@@ -824,10 +824,15 @@ clasificación personal sólo cubre esas filas: las cifras de valor del
 resumen SQL completo quedan marcadas en `resumen_tabla$cobertura` y, con
 la protección activa, se ocultan hasta que la clasificación cubra el
 mismo alcance. La corroboración no repite esas cifras dudosas en su
-anotación. `incluir_valores = FALSE` va más lejos: no emite las
-consultas de moda ni de mediana y no informa mínimo ni máximo, útil
-cuando la tabla es un padrón y la moda de un identificador único es un
-documento real. Si se pidió `desvio`, la sonda de magnitud que ese
+anotación. Y cuando la muestra no cubre la tabla, lo que se va a
+publicar de las columnas no personales —moda, extremos, ejemplos de
+patrón— se busca en las columnas personales de texto de la tabla entera,
+con una consulta por columna: un valor de una persona que sólo está
+fuera de la muestra se tapa igual. Si esa consulta no se puede hacer, se
+tapan todos esos valores. `incluir_valores = FALSE` va más lejos: no
+emite las consultas de moda ni de mediana y no informa mínimo ni máximo,
+útil cuando la tabla es un padrón y la moda de un identificador único es
+un documento real. Si se pidió `desvio`, la sonda de magnitud que ese
 cálculo necesita puede emitirse, pero su motivo nunca publica el valor
 devuelto por el motor.
 

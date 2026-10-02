@@ -383,19 +383,32 @@ protegido de otra columna. No ocurre en silencio —avisa al ejecutar y lo
 declara en <code>etiquetas_personales</code>— y el remedio es agrupar por una columna
 seudonimizada.
 El piso alcanza además la <strong>forma sin separadores</strong>: <code>"771.771-01"</code> es el
-mismo documento que <code>"77177101"</code>, y la celda entera se enmascara; y en los
-dígitos, el documento <strong>sin su verificador</strong> —<code>"4.123.456"</code> frente a
-<code>"4.123.456-7"</code>—, no cualquier tramo de seis cifras que caiga dentro de uno:
-con un millón de cédulas protegidas casi todo número de seis cifras lo hace,
-y se tapaban los conteos de filas. Las tildes, la caja y la escritura
+mismo documento que <code>"77177101"</code>, y la celda entera se enmascara. En los
+dígitos se busca <strong>el documento entre los tramos de cada número</strong>: un número
+es una corrida de grupos de dígitos unidos por un separador —punto, guion,
+barra, coma, espacio, espacio duro, apóstrofo, guion bajo—, y se tapa la
+celda si un tramo alineado a esos separadores —con la forma de un número
+escrito con separadores de miles— es un documento protegido, el documento
+sin su verificador o sin su primer dígito (de siete cifras o más). Así se
+reconocen <code>"4.123.456"</code> frente a <code>"4.123.456-7"</code>, el verificador mal
+tipeado o el documento seguido de un año, y no se tapan los conteos: dos
+números vecinos no se pegan, seis cifras de adentro de un documento no son
+el documento, y una fecha, un número redondo (<code>1.000.000</code>) o la parte
+decimal de otro tampoco. En la prosa del paquete los números son conteos
+suyos, y ahí la regla mira sólo lo citado. Medido con un millón de cédulas
+protegidas: cero celdas tapadas de más. Las tildes, la caja y la escritura
 también son cosméticas: <code>juan.perez</code> se enmascara frente al nombre protegido
 «Juan Pérez», y el nombre pegado a otras letras dentro de un correo o un
 alias, también. La comparación usa un pliegue generado de Unicode —caja de
 todo alfabeto, letras con y sin diacríticos, ligaduras, ancho completo y
-medio ancho, letras matemáticas—, deshace los escapes con que el paquete
-publica lo que no se ve (un espacio duro sale <code>&lt;U+00A0&gt;</code>), y lee lo que no
-es UTF-8 válido byte por byte como CP1252, conservando las secuencias
-válidas. <strong>Una fecha de calendario sola no entra en el piso</strong>: en una tabla
+medio ancho, letras matemáticas—, compara el texto publicado también con
+los escapes del paquete deshechos (un espacio duro sale <code>&lt;U+00A0&gt;</code>) —el
+valor protegido nunca se desescapa: una barra literal es parte del valor—,
+y lee lo que no es UTF-8 válido de las dos maneras, byte por byte como
+CP1252 conservando las secuencias válidas y entero. Las marcas del paquete
+se apartan del texto y también del valor protegido. <strong>Una fecha de
+calendario sola no entra en el piso</strong>, tampoco escrita como <code>AAAAMMDD</code> en una
+columna de esas fechas ni como fecha-hora ISO a medianoche: en una tabla
 de miles de personas casi todo día es el cumpleaños de alguien, y con la
 fecha de nacimiento protegida se tapaban los estadísticos de todas las demás
 columnas de fechas. La columna de fechas protegida se sigue protegiendo

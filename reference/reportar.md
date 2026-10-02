@@ -71,15 +71,15 @@ reportar(
   haberse conservado tambien con
   `perfilar(..., proteger_datos_personales = FALSE)`.
 
-  El enmascarado alcanza tres formas del mismo valor: la exacta, la que
-  solo difiere en separadores o en la caja de sus letras ASCII, y la que
-  comparte con un valor protegido una corrida de seis digitos o mas -un
-  documento sin su digito verificador, por ejemplo-. La comparacion por
-  corridas se limita a digitos a proposito: aplicada al texto taparia
-  una palabra corriente por compartir un tramo con un apellido, y eso
-  silencia contenido del informe en vez de proteger un dato. Una
-  variante que solo difiere en la caja de una letra **acentuada** no se
-  pliega.
+  El enmascarado es el mismo que el de
+  [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md)
+  -ver su `proteger_datos_personales`-: la forma exacta, la que solo
+  difiere en separadores, tildes, caja o escritura, y en los digitos, el
+  documento entero, sin su verificador o sin su primer digito, buscado
+  entre los tramos de cada numero. La comparacion por tramos se limita a
+  digitos a proposito: aplicada al texto taparia una palabra corriente
+  por compartir un tramo con un apellido, y eso silencia contenido del
+  informe en vez de proteger un dato.
 
 ## Value
 
