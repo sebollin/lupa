@@ -2351,7 +2351,9 @@
       .valores_publicables_protegidos(datos, protegidas)
     )
     if (length(identificantes)) {
-      estructura <- .proteger_textos_salida(estructura, identificantes)
+      estructura <- .proteger_textos_salida(
+        estructura, identificantes, intocables = names(datos)
+      )
       estructura <- .proteger_numeros_parametros(estructura, identificantes)
     }
   }

@@ -1522,7 +1522,12 @@
 #'   datos. Un campo se reconoce como de nombres por su **contenido** —todos sus
 #'   valores son nombres de la entrada, solos o unidos—, así que la protección
 #'   de los valores no se afloja: si un valor protegido es igual a un nombre de
-#'   columna, su moda sigue tapada.
+#'   columna, su moda sigue tapada. Y un texto que nombra una columna entre
+#'   comillas —la prosa del paquete, la SQL que guarda [perfilar_dbi()]— la
+#'   conserva entera: con «Segundo» protegido, `segundo_nombre` salía
+#'   `[valor protegido]_nombre` en los hallazgos sin acción del plan y en la
+#'   SQL. Un nombre que es él mismo un valor protegido, con otra caja o con
+#'   otros separadores, no se exceptúa.
 #'   Lo mismo vale para el **vocabulario**: un tipo de hallazgo, una severidad,
 #'   una estrategia, el nombre de un diagnóstico o de una métrica, o el de un
 #'   factor de un marco que declaró el usuario, no se enmascaran aunque coincidan

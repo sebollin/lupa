@@ -1274,15 +1274,93 @@
   valores[posibles]
 }
 
+# Los nombres de columna que un texto escribe entre delimitadores -`nombre`,
+# "nombre", [nombre]- se apartan antes de comparar y se reponen despues. Cada uno
+# se reemplaza por un codigo propio de caracteres de control -su numero en base
+# cuatro con \003 a \006, entre dos \002-: la normalizacion los borra, no forman
+# digitos ni letras, y al reponer cada codigo dice que nombre era. Un orden de
+# aparicion no alcanzaria: si la proteccion tapa una cita que llevaba un nombre,
+# los que siguen se correrian uno.
+.apartar_nombres_delimitados <- function(x, nombres) {
+  sin_cambios <- list(x = x, nombres = character())
+  nombres <- unique(nombres[!is.na(nombres) & nzchar(nombres)])
+  if (!is.character(x) || !length(x) || !length(nombres)) return(sin_cambios)
+  indices <- which(
+    !is.na(x) & grepl("[`\"\\[]", x, perl = TRUE, useBytes = TRUE) &
+      !grepl("\002", x, fixed = TRUE, useBytes = TRUE)
+  )
+  if (!length(indices)) return(sin_cambios)
+  codigo <- function(i) {
+    cifras <- integer()
+    repeat {
+      cifras <- c(i %% 4L, cifras)
+      i <- i %/% 4L
+      if (!i) break
+    }
+    paste0("\002", rawToChar(as.raw(3L + cifras)), "\002")
+  }
+  patron <- "`[^`\n]+`|\"[^\"\n]+\"|\\[[^]\n]+\\]"
+  elegidos <- x[indices]
+  marcas <- Encoding(elegidos)
+  coincidencias <- gregexpr(patron, elegidos, perl = TRUE, useBytes = TRUE)
+  piezas <- regmatches(elegidos, coincidencias)
+  tocado <- FALSE
+  piezas <- lapply(piezas, function(p) {
+    if (!length(p)) return(p)
+    interior <- substr(p, 2L, nchar(p, type = "bytes") - 1L)
+    posicion <- match(interior, nombres)
+    cambiar <- !is.na(posicion)
+    if (any(cambiar)) {
+      tocado <<- TRUE
+      p[cambiar] <- paste0(
+        substr(p[cambiar], 1L, 1L),
+        vapply(posicion[cambiar], codigo, character(1L)),
+        substr(p[cambiar], nchar(p[cambiar], type = "bytes"),
+               nchar(p[cambiar], type = "bytes"))
+      )
+    }
+    p
+  })
+  if (!tocado) return(sin_cambios)
+  regmatches(elegidos, coincidencias) <- piezas
+  Encoding(elegidos) <- marcas
+  x[indices] <- elegidos
+  list(x = x, nombres = nombres)
+}
+
+.reponer_nombres_delimitados <- function(x, apartado) {
+  if (!length(apartado$nombres) || !is.character(x)) return(x)
+  con_codigo <- which(!is.na(x) & grepl("\002", x, fixed = TRUE, useBytes = TRUE))
+  for (i in con_codigo) {
+    texto <- x[[i]]
+    marca <- Encoding(texto)
+    coincidencias <- gregexpr("\002[\003-\006]+\002", texto, perl = TRUE,
+                              useBytes = TRUE)
+    codigos <- regmatches(texto, coincidencias)[[1L]]
+    if (!length(codigos)) next
+    nombres <- vapply(codigos, function(cod) {
+      cifras <- as.integer(charToRaw(substr(cod, 2L, nchar(cod, type = "bytes") - 1L))) - 3L
+      posicion <- sum(cifras * 4L^rev(seq_along(cifras) - 1L))
+      if (posicion >= 1L && posicion <= length(apartado$nombres)) {
+        apartado$nombres[[posicion]]
+      } else ""
+    }, character(1L), USE.NAMES = FALSE)
+    regmatches(texto, coincidencias) <- list(nombres)
+    Encoding(texto) <- marca
+    x[[i]] <- texto
+  }
+  x
+}
+
 # Las marcas del paquete -`<blanco>`, `grupo_maximo`, ver `.LEXICO_PAQUETE`- se
 # apartan antes de comparar y se reponen despues: son estructura, y un apellido
 # `Blanco` protegido tapaba toda evidencia que dijera `<blanco>`. Se reemplazan
 # por un caracter de control que la normalizacion borra; un texto que ya lo
 # trae no se toca.
-.apartar_marcas_paquete <- function(x) {
+.apartar_marcas_paquete <- function(x, nombres = character()) {
   sin_cambios <- list(x = x, indices = integer(), guardadas = list(),
                       codificaciones = character())
-  marcas <- .LEXICO_PAQUETE$marcas
+  marcas <- unique(c(.LEXICO_PAQUETE$marcas, nombres))
   if (!is.character(x) || !length(x) || !length(marcas)) return(sin_cambios)
   patron <- "<[a-z_]+>|[a-z0-9]+(_[a-z0-9]+)+"
   indices <- which(
@@ -1343,7 +1421,8 @@
   candidatos[!is.na(plegados) & plegados %in% palabras]
 }
 
-.reemplazar_valores_protegidos <- function(x, valores, exigir_limites = FALSE) {
+.reemplazar_valores_protegidos <- function(x, valores, exigir_limites = FALSE,
+                                           intocables = character()) {
   if (!is.character(x) || !length(valores)) return(x)
   # DE MAS LARGO A MAS CORTO, y una sola vez cada uno. Las dos cosas arreglan una
   # fuga medida con el piso del propio paquete -seis caracteres identifican-:
@@ -1371,7 +1450,30 @@
   valores <- valores[order(-nchar(valores, type = "bytes"))]
   # La regla de variantes recibe TODOS los valores: el prefiltro de aca mira la
   # escritura exacta, y una variante no la comparte.
-  apartado <- .apartar_marcas_paquete(x)
+  #
+  # Los NOMBRES DE COLUMNA tambien son estructura cuando el texto los nombra: con
+  # "Segundo" -un nombre de pila corriente- protegido, la SQL guardada de
+  # `perfilar_dbi()` decia `COUNT(\`[valor protegido]_nombre\`)` y la prosa
+  # nombraba una columna que no existe. Medido a partir de la cuarta evaluacion
+  # real. Se apartan solo los que van entre comillas -invertidas, dobles o
+  # corchetes, como los escriben el paquete y la SQL- o con la forma de una marca
+  # -`segundo_nombre`-: un nombre corto suelto podria estar adentro de un valor.
+  # Un nombre que es el mismo un valor protegido no se aparta.
+  nombres <- setdiff(unique(as.character(intocables)), c(valores, ""))
+  if (length(nombres)) {
+    # Tampoco uno que es el valor con otra caja o con otros separadores: una
+    # columna `juan_perez` frente al titular protegido "Juan Perez" dejaria
+    # publicado "juan_perez" en una celda. `tolower()` aborta sobre bytes que no
+    # son UTF-8 valido, y entonces se compara sin plegar la caja.
+    clave <- function(v) {
+      v <- tryCatch(tolower(v), error = function(e) v)
+      gsub("[^[:alnum:]]", "", v, useBytes = TRUE)
+    }
+    nombres <- nombres[!clave(nombres) %in% clave(valores)]
+  }
+  nombres_apartados <- .apartar_nombres_delimitados(x, nombres)
+  x <- nombres_apartados$x
+  apartado <- .apartar_marcas_paquete(x, nombres)
   x <- apartado$x
   # Las marcas tambien se apartan de las AGUJAS: un valor protegido que trae una
   # -`Av. Italia 2345<br>Apto 101`- se publicaba exacto, porque en la celda la
@@ -1421,7 +1523,8 @@
     x <- exacta(x, valores)
   }
   x <- .reemplazar_variantes_separadas(x, todos, exigir_limites)
-  .reponer_marcas_paquete(x, apartado)
+  x <- .reponer_marcas_paquete(x, apartado)
+  .reponer_nombres_delimitados(x, nombres_apartados)
 }
 
 # Recorre la parte textual de una salida sin convertir estadisticos numericos
@@ -1600,7 +1703,14 @@
     }
     return(x)
   }
-  if (is.character(x)) return(aplicar(x, campo))
+  # Y un vector suelto hecho entero de nombres de columna -`columnas_analizadas`,
+  # `columnas_datos_personales_protegidas`- tambien es estructura: con "Segundo"
+  # protegido, `segundo_nombre` salia `[valor protegido]_nombre` en esos
+  # atributos. Medido en la cuarta evaluacion real.
+  if (is.character(x)) {
+    if (.es_columna_de_nombres(x, intocables)) return(x)
+    return(aplicar(x, campo))
+  }
   x
 }
 
@@ -1639,7 +1749,8 @@
   if (!length(cofre$hojas)) return(x)
   protegidas <- .reemplazar_valores_protegidos(
     unlist(cofre$hojas, use.names = FALSE), valores,
-    exigir_limites = unlist(cofre$prosa, use.names = FALSE)
+    exigir_limites = unlist(cofre$prosa, use.names = FALSE),
+    intocables = intocables
   )
   cofre$desde <- 0L
   .recorrer_textos_salida(x, function(hoja, campo) {
@@ -1858,17 +1969,23 @@
   cobertura <- attr(plan, "cobertura_diagnosticos", exact = TRUE)
   if (inherits(cobertura, "data.frame")) {
     attr(plan, "cobertura_diagnosticos") <- .proteger_textos_salida(
-      cobertura, identificantes
+      cobertura, identificantes, intocables = nombres_entrada
     )
   }
   # Este atributo copia la sugerencia del hallazgo, que es texto del paquete
   # pero puede nombrar un valor de la columna. Enmascararlo aqui es lo que
   # impide que un atributo nuevo publique lo que las columnas del plan ya no
   # publican.
+  #
+  # Con los nombres de columna INTOCABLES, como en el plan. Sin eso, "Segundo"
+  # -un nombre de pila corriente- protegido tapaba la columna `segundo_nombre`
+  # del atributo, que salia `[valor protegido]_nombre`: el hallazgo declarado ya
+  # no correspondia a su columna. Medido en la cuarta evaluacion real, sobre
+  # tres columnas de nombres, como "hallazgo sin accion ni declaracion".
   sin_accion <- attr(plan, "hallazgos_sin_accion", exact = TRUE)
   if (inherits(sin_accion, "data.frame")) {
     attr(plan, "hallazgos_sin_accion") <- .proteger_textos_salida(
-      sin_accion, identificantes
+      sin_accion, identificantes, intocables = nombres_entrada
     )
   }
   # `guiar_limpieza()` vuelve a consultar los datos de origen para construir

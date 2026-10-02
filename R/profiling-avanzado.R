@@ -380,7 +380,9 @@ distribucion_valores <- function(datos, perfil = NULL, max_valores = 20L,
     .valores_publicables_protegidos(datos, personales)
   )
   if (length(identificantes)) {
-    resultado <- .proteger_textos_salida(resultado, identificantes)
+    resultado <- .proteger_textos_salida(
+      resultado, identificantes, intocables = names(datos)
+    )
     resultado <- .proteger_numeros_parametros(resultado, identificantes)
   }
   class(resultado) <- "distribuciones_perfil"

@@ -11170,7 +11170,10 @@ print.plan_perfilado_dbi <- function(x, ...) {
   # valor identificante no se publica por ninguna puerta, tenga o no columna
   # atribuible, y tambien en los campos numericos.
   if (length(identificantes)) {
-    resumen <- .proteger_textos_salida(resumen, identificantes)
+    resumen <- .proteger_textos_salida(
+      resumen, identificantes,
+      intocables = as.character(resumen$columnas$columna)
+    )
     columnas_antes <- resumen$columnas
     resumen <- .proteger_numeros_parametros(resumen, identificantes)
     resumen$columnas <- .tapar_derivados_del_piso(columnas_antes, resumen$columnas)
