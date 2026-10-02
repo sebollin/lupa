@@ -28,6 +28,18 @@ valores <- c(documentos, fijos, celulares)
 m <- 400
 familias <- list(
   coordenada_7_decimales = sprintf("%.7f", runif(m, -35, -30)),
+  coordenada_6_decimales = sprintf("%.6f", runif(m, -35, -30)),
+  punto_wkt = sprintf("POINT (%.6f %.6f)", runif(m, -58, -53), runif(m, -35, -30)),
+  hora_con_fraccion = sprintf("2024-05-17 %02d:%02d:%02d.%07d", sample(0:23, m, TRUE),
+                              sample(0:59, m, TRUE), sample(0:59, m, TRUE),
+                              sample(0:9999999, m, TRUE)),
+  direccion_ip = sprintf("%d.%d.%d.%d", sample(1:255, m, TRUE), sample(0:255, m, TRUE),
+                         sample(0:255, m, TRUE), sample(0:255, m, TRUE)),
+  isbn = sprintf("978-%d-%02d-%06d-%d", sample(0:9, m, TRUE), sample(0:99, m, TRUE),
+                 sample(0:999999, m, TRUE), sample(0:9, m, TRUE)),
+  lista_con_espacios = sprintf("codigos %d %d %d %d", sample(10:999, m, TRUE),
+                               sample(10:999, m, TRUE), sample(10:99, m, TRUE),
+                               sample(10:999, m, TRUE)),
   p_valor_7_decimales = sprintf("p=%.7f", runif(m, 0.1, 0.9)),
   monto_con_decimales = sprintf("%.2f", runif(m, 1e6, 7e6)),
   monto_con_miles = formatC(runif(m, 1e6, 7e6), format = "f", digits = 2,

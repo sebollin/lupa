@@ -134,7 +134,8 @@ una parte de la genérica del marco, que declara granularidad
 condicional. \code{\link[=catalogo_agesic]{catalogo_agesic()}} deja visible esa cobertura parcial.
 Pese a su nombre, \code{ErrorEstandar} sigue literalmente la semántica de la
 tabla 16.5 del marco y devuelve la desviación estándar muestral sin
-normalizar; exige al menos dos valores numéricos válidos. Por eso declara
+normalizar; exige al menos dos valores numéricos válidos y ninguno infinito
+—con uno, la métrica se declara no medible, como \code{Escala}—. Por eso declara
 \code{tipo_resultado = "numero_real"} y no admite \code{\link[=agregar]{agregar()}}.
 
 \code{Formato} acepta exactamente una de las propiedades \code{expresion_regular},

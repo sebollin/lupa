@@ -29,7 +29,11 @@ menos una medida. Una medida que una regla declaró \code{desenlace = "suprimir"
 no publica su valor \strong{tampoco aquí}: su fila deja \code{resultado} en \code{NA} y
 marca \code{objeto_medible} con \verb{[valor suprimido]}, en los dos niveles donde esa
 medida aparece —\code{medida} y \code{evaluacion_medida}—, porque esta tabla está
-pensada para exportarse. Una medición \strong{enteramente} vacía —ninguna métrica
+pensada para exportarse. Con el detalle resumido, las medidas suprimidas
+entran igual, enmascaradas en el nivel \code{evaluacion_medida}: así una
+medición acumulada \strong{después} —también sobre un histórico guardado o
+leído de un CSV— queda tapada en las mismas medidas, sea cual sea el orden
+en que llegan los objetos. Una medición \strong{enteramente} vacía —ninguna métrica
 pudo aplicarse— no se acumula: se rechaza citando el motivo que \code{medir()}
 declaró en \code{cobertura_metricas}, porque no hay corrida que registrar. El atributo
 \code{configuracion_evaluacion} conserva, en una tabla plana separada, el
@@ -49,6 +53,11 @@ El detalle predeterminado evita repetir una fila por celda y regla cuando el
 objetivo es monitorear la serie de evaluaciones. El objeto no guarda modelos,
 closures, datos originales ni perfiles de profiling. Esto mantiene la tabla
 exportable directamente con \code{write.csv()} o una herramienta de base de datos.
+Al volver a leerla, las fechas de texto se leen en UTC, con su hora.
+
+\code{[}, \code{subset()} y \code{dplyr::filter()} conservan la configuración de las
+corridas que quedan; \code{rbind()} de dos históricos los acumula, como
+\code{\link[=acumular_historico]{acumular_historico()}}.
 
 El esquema largo mapea las cuatro tablas de la sección 9.5 del marco mediante
 \code{nivel}. Las columnas que no corresponden a un nivel quedan como \code{NA}.

@@ -2027,7 +2027,7 @@ rbind.plan_limpieza <- function(..., deparse.level = 1) {
   } else if (inherits(resultado, "data.frame")) {
     class(resultado) <- setdiff(class(resultado), "plan_limpieza")
   }
-  .conservar_marca_sin_proteger(resultado, x)
+  .conservar_atributos_objeto(resultado, x)
 }
 
 .copiar_datos <- function(datos) {

@@ -1,5 +1,62 @@
 # lupa 0.1.0
 
+## Ronda 22: el modelo de calidad
+
+Una refutacion de `medir()`, `evaluar()`, el historico y la deriva encontro doce
+defectos.
+
+- **Con `aplicabilidad`, toda metrica cita la fila de la tabla original**: ocho
+  de las once del paquete publicaban la fila del recorte -`t$x[3]` donde habian
+  medido la 6-, y el plan de desenlaces mandaba suprimir otra celda. Una metrica
+  de varias columnas se mide donde corresponden todas, y ya no depende del orden
+  de sus atributos.
+- **`[`, `subset()` y `rbind()` conservan lo que la medicion y el historico
+  declaran**: la ronda 21 conservaba solo la marca de privacidad, y se perdian el
+  modelo, la cobertura y la configuracion de cada corrida -`evaluar()` publicaba
+  como exito una regla sin medidas segun el orden de `rbind()`, y la deriva leia
+  un cambio de modelo como deterioro-. `rbind()` se niega a unir mediciones de
+  modelos distintos, y el de dos historicos los acumula.
+- **La supresion declarada sobrevive a acumular la medicion despues de la
+  evaluacion**, tambien sobre un historico guardado o leido de un CSV.
+- `AtributoDuplicado` marca todas las apariciones tambien en `integer64`, y los
+  conjuntos declarados -`valores_nulos`, `valores`, `diccionario`- y la regla
+  de integridad entre entidades emparejan los numeros por su valor: `1e5` y el
+  `integer64` 100000 coinciden.
+- `ErrorEstandar` se declara no medible ante un valor infinito, como `Escala`, en
+  vez de publicar la dispersion del resto.
+- `evaluar()` mira la cobertura de las reglas corrida por corrida, rechaza una
+  medida repetida o con `resultado` `NA` nombrandola, y el resumen por regla no
+  funde nombres que se pegan con un punto.
+- Una fecha de texto se lee en UTC, en `medir()` y en el historico: un historico
+  exportado con `write.csv()` y releido conserva sus horas, y su deriva ya no
+  ordena al reves dos corridas del mismo dia.
+- Una misma corrida armada por partes -metricas medidas por separado con el
+  mismo `id_medicion`- se une con `rbind()`, y su modelo es la union de los de
+  las partes.
+
+Y una refutacion de la proteccion de datos personales encontro ocho fugas y una
+familia de tapado de mas en la regla de digitos de la ronda 21:
+
+- **Los guiones, espacios e invisibles de Unicode no cortan el numero**: un
+  telefono con un guion largo, un espacio de cifra o un espacio de ancho cero
+  entre sus grupos se publicaba.
+- **Un numero con puntos no es un importe si no tiene forma de miles**: `099.12.34.56`,
+  `01.23.45.67.89` o `CI 4.123.456.7` se publicaban; el mismo signo no separa
+  miles y decimales a la vez.
+- Una fecha solo se borra antes de buscar si su ano es plausible -el telefono
+  `2901-12-12` no es una fecha-, y una fecha con hora protegida se reconoce
+  escrita en otro formato.
+- En la prosa, una cita con digitos de otra escritura se prueba; un nombre de
+  columna con tildes no exceptua al valor protegido que es; y el desvio se tapa
+  junto con el extremo que el piso tapo, porque lo reconstruia.
+- `perfilar_dbi()` lee como texto, en SQLite, una columna de afinidad numerica
+  que guarda documentos, y el motivo de una cifra que no se pudo leer no cita el
+  valor de una columna protegida.
+- **Tapa menos de mas**: una coordenada de seis decimales, un par de coordenadas,
+  una hora con fraccion de segundo, una direccion IP, un ISBN y dos telefonos
+  separados por una barra ya no se toman por documentos. Lo que queda declarado
+  en `?perfilar`, con su reproductor ampliado.
+
 ## La cuarta evaluacion real
 
 - **Un nombre de columna no se tapa aunque contenga un valor protegido.** Con

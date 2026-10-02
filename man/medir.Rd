@@ -33,12 +33,18 @@ sólo que no falte ninguna.}
 
 \item{id_medicion}{Identificador de corrida. Si se omite, se genera uno.}
 
-\item{fecha}{Fecha y hora de la corrida.}
+\item{fecha}{Fecha y hora de la corrida. Se guarda en UTC; un texto
+—\code{"2026-03-01"} o \code{"2026-03-01 09:30:00"}— se lee en UTC, no en el huso de
+la sesión, así que la misma llamada registra el mismo instante en cualquier
+máquina.}
 
 \item{aplicabilidad}{Lista con nombre por columna, donde cada elemento es
 una fórmula que dice en qué filas esa columna corresponde —por ejemplo
 \code{list(marca_auto = ~ tiene_auto == "Si")}—. Las filas fuera de ese universo
-salen de la medición en vez de contarse como ausencia.
+salen de la medición en vez de contarse como ausencia. Una métrica de
+varias columnas se mide donde corresponden todas. Las medidas citan la fila
+de la tabla original —\code{fila} y \code{objeto_medible}—, no su posición en el
+universo.
 
 Es la misma declaración que recibe \code{\link[=perfilar]{perfilar()}}, y hace falta porque una
 métrica de completitud sobre una columna condicionada mide lo que no

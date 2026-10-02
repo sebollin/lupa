@@ -485,7 +485,8 @@
 #' condicional. [catalogo_agesic()] deja visible esa cobertura parcial.
 #' Pese a su nombre, `ErrorEstandar` sigue literalmente la semántica de la
 #' tabla 16.5 del marco y devuelve la desviación estándar muestral sin
-#' normalizar; exige al menos dos valores numéricos válidos. Por eso declara
+#' normalizar; exige al menos dos valores numéricos válidos y ninguno infinito
+#' —con uno, la métrica se declara no medible, como `Escala`—. Por eso declara
 #' `tipo_resultado = "numero_real"` y no admite [agregar()].
 #'
 #' `Formato` acepta exactamente una de las propiedades `expresion_regular`,
@@ -1062,6 +1063,17 @@ modelo <- function(..., marco = NULL) {
   }
 }
 
+# Pertenencia de numeros por su VALOR, con la misma regla que el camino
+# referencial (`.texto_identidad()`): `%in%` pasa un `integer64` por su texto
+# ("100000") y un doble por la coercion interna ("1e+05"), asi que el centinela
+# `1e5` no se encontraba en una columna `integer64` y NoNulo publicaba como
+# presentes las ausencias disfrazadas; y una columna `haven_labelled` igualaba
+# `0.1 + 0.2` con `0.3`. Medido en la ronda 22.
+.en_conjunto_por_valor <- function(x, conjunto) {
+  .texto_identidad(.valores_relacion(x)) %in%
+    .texto_identidad(.valores_relacion(conjunto))
+}
+
 .salida_metodo <- function(resultado, entidad, atributo, fila, objeto) {
   n <- length(resultado)
   reciclar <- function(x) {
@@ -1111,7 +1123,7 @@ modelo <- function(..., marco = NULL) {
   atributo <- instancia$atributos[[1L]]
   tabla <- .obtener_tabla_modelo(tablas, entidad)
   x <- .obtener_columna_modelo(tabla, atributo, entidad)
-  filas <- .indices_filas_modelo(tabla)
+  filas <- seq_len(nrow(tabla))
   # El universo declarado recorta las filas antes de medir. Sin `aplicable`, el
   # universo es la tabla entera y esto no cambia nada. Con `aplicable`, las
   # filas donde la columna no corresponde salen del denominador en vez de
@@ -1143,7 +1155,7 @@ modelo <- function(..., marco = NULL) {
       nulos_texto <- .texto_analizable(valores_nulos)$valores
       .clave_bytes(x_texto) %in% .clave_bytes(nulos_texto)
     } else {
-      x %in% valores_nulos
+      .en_conjunto_por_valor(x, valores_nulos)
     }
     ausente <- ausente | (!is.na(x) & coincide)
   }
@@ -1172,7 +1184,7 @@ modelo <- function(..., marco = NULL) {
   x <- .obtener_columna_modelo(tabla, atributo, entidad)
   texto <- is.character(x) || is.factor(x)
   if (texto) x <- .texto_analizable(x)$valores
-  filas <- .indices_filas_modelo(tabla)[!is.na(x)]
+  filas <- which(!is.na(x))
   valores <- x[!is.na(x)]
   config <- instancia$configuracion
   if (!is.null(config$expresion_regular)) {
@@ -1195,7 +1207,7 @@ modelo <- function(..., marco = NULL) {
       diccionario <- .texto_analizable(config$diccionario)$valores
       resultado <- .clave_bytes(valores) %in% .clave_bytes(diccionario)
     } else {
-      resultado <- valores %in% config$diccionario
+      resultado <- .en_conjunto_por_valor(valores, config$diccionario)
     }
   } else {
     resultado <- .resultado_validador(
@@ -1216,7 +1228,7 @@ modelo <- function(..., marco = NULL) {
   x <- .obtener_columna_modelo(tabla, atributo, entidad)
   texto <- is.character(x) || is.factor(x)
   if (texto) x <- .texto_analizable(x)$valores
-  filas <- .indices_filas_modelo(tabla)[!is.na(x)]
+  filas <- which(!is.na(x))
   valores <- x[!is.na(x)]
   dominio <- instancia$configuracion$valores
   # Un dominio temporal de otra clase que la columna no desplaza el numero: lo
@@ -1237,7 +1249,7 @@ modelo <- function(..., marco = NULL) {
     dominio <- .texto_analizable(dominio)$valores
     resultado <- .clave_bytes(valores) %in% .clave_bytes(dominio)
   } else {
-    resultado <- valores %in% dominio
+    resultado <- .en_conjunto_por_valor(valores, dominio)
   }
   .salida_metodo(
     resultado,
@@ -1266,7 +1278,7 @@ modelo <- function(..., marco = NULL) {
     instancia$configuracion$regla(datos_regla), nrow(tabla),
     "ReglaIntegridadIntraEntidad"
   )
-  filas <- .indices_filas_modelo(tabla)
+  filas <- seq_len(nrow(tabla))
   .salida_metodo(
     resultado, entidad, NA_character_, filas,
     paste0(entidad, "[", filas, ",]")
@@ -1315,7 +1327,14 @@ modelo <- function(..., marco = NULL) {
   if (!is.numeric(x) || inherits(x, c("Date", "POSIXt"))) {
     stop("ErrorEstandar requiere un atributo num\u00e9rico.", call. = FALSE)
   }
-  valores <- x[is.finite(x)]
+  # Un valor infinito no se descarta en silencio: `sd()` de lo que queda es la
+  # dispersion de otra columna, y Escala, sobre la misma columna y en la misma
+  # corrida, ya se declaraba no medible por lo mismo. Medido en la ronda 22: se
+  # publicaba 0,7071 -la de 1 y 2- sobre 1, 2 e `Inf`.
+  valores <- x[!is.na(x)]
+  if (any(!is.finite(valores))) {
+    stop("ErrorEstandar no puede medir valores no finitos.", call. = FALSE)
+  }
   if (length(valores) < 2L) {
     stop("ErrorEstandar requiere al menos dos valores num\u00e9ricos v\u00e1lidos.",
          call. = FALSE)
@@ -1461,9 +1480,12 @@ metricas_nucleo <- function() {
   alcanzable[[k + 1L]]
 }
 
-# Si el metodo es del paquete: sus `fila` ya son posiciones de la tabla ORIGINAL,
-# porque leen `.indices_filas_modelo()`. Un metodo del usuario no conoce ese
-# atributo interno y escribe posiciones de la tabla que recibio.
+# Todo metodo -del paquete o del usuario- escribe `fila` como posicion en la
+# tabla que RECIBIO, y `medir()` la traduce a la tabla original. Antes los del
+# paquete se daban por traducidos, y solo cuatro de once lo estaban: con
+# `aplicabilidad`, ocho metricas publicaban la fila del recorte -"t$x[3]" donde
+# habian medido la 6- y el plan de desenlaces mandaba suprimir otra celda.
+# Medido en la ronda 22.
 .metodo_del_paquete <- function(metodo) {
   is.function(metodo) &&
     identical(topenv(environment(metodo)), asNamespace("lupa"))
@@ -1520,7 +1542,8 @@ metricas_nucleo <- function() {
   invisible(NULL)
 }
 
-.filas_a_la_tabla_original <- function(salida, tablas, instancia) {
+.filas_a_la_tabla_original <- function(salida, tablas, instancia,
+                                       reetiquetar = FALSE) {
   for (entidad in unique(as.character(salida$entidad))) {
     indice <- .indice_identificador(entidad, names(tablas))
     if (is.na(indice)) next
@@ -1536,7 +1559,33 @@ metricas_nucleo <- function() {
         call. = FALSE
       )
     }
-    salida$fila[filas] <- originales[salida$fila[filas]]
+    locales <- salida$fila[filas]
+    salida$fila[filas] <- originales[locales]
+    # La etiqueta de un metodo del paquete lleva la fila -`t$x[3]`, `t[3,]`,
+    # `t[3,legajo]`- y se reescribe con la original. La de un metodo propio es
+    # texto de su autor y no se toca.
+    if (reetiquetar && length(filas)) {
+      objeto <- as.character(salida$objeto[filas])
+      atributo <- as.character(salida$atributo[filas])
+      nombre <- as.character(salida$entidad[filas])
+      hecho <- rep(FALSE, length(filas))
+      prefijos <- list(
+        ifelse(is.na(atributo), NA_character_, paste0(nombre, "$", atributo, "[")),
+        paste0(nombre, "[")
+      )
+      for (prefijo in prefijos) {
+        cabeza <- paste0(prefijo, locales)
+        resto <- substring(objeto, nchar(cabeza) + 1L)
+        cambiar <- !hecho & !is.na(prefijo) & !is.na(objeto) &
+          startsWith(objeto, cabeza) & !grepl("^[0-9]", resto)
+        cambiar[is.na(cambiar)] <- FALSE
+        objeto[cambiar] <- paste0(
+          prefijo[cambiar], originales[locales[cambiar]], resto[cambiar]
+        )
+        hecho <- hecho | cambiar
+      }
+      salida$objeto[filas] <- objeto
+    }
   }
   salida
 }
@@ -2090,17 +2139,24 @@ metricas_nucleo <- function() {
 # toca aunque compartan tabla.
 .recortar_tablas_aplicables <- function(tablas, aplicables, instancia) {
   if (is.null(aplicables)) return(tablas)
-  atributo <- instancia$atributo
-  if (is.null(atributo) || !length(atributo) || is.na(atributo[[1L]])) {
-    return(tablas)
-  }
-  atributo <- as.character(atributo[[1L]])
+  # TODOS los atributos de la instancia, con `[[` exacto. `instancia$atributo`
+  # casaba por coincidencia parcial con `atributos` y tomaba solo el primero: en
+  # una metrica de varias columnas el universo dependia del orden -DensidadPonderada
+  # con c("a", "b") media 5 filas y con c("b", "a"), 2-. Medido en la ronda 22. La
+  # medida de varias columnas se toma donde corresponden todas.
+  atributos <- as.character(unlist(instancia[["atributos"]]))
+  atributos <- atributos[!is.na(atributos) & nzchar(atributos)]
+  if (!length(atributos)) return(tablas)
   for (nombre in names(tablas)) {
     mascaras <- aplicables[[nombre]]
-    indice_atributo <- .indice_nombre(atributo, names(mascaras))
-    if (is.na(indice_atributo)) next
-    mascara <- mascaras[[indice_atributo]]
-    if (is.null(mascara) || all(mascara)) next
+    indices <- .indice_nombre(atributos, names(mascaras))
+    indices <- indices[!is.na(indices)]
+    # Una columna sin regla trae NULL, y `mascara & NULL` es un vector vacio
+    # que `all()` da por cierto: se descartan antes de combinar.
+    con_regla <- Filter(Negate(is.null), mascaras[indices])
+    if (!length(con_regla)) next
+    mascara <- Reduce(`&`, con_regla)
+    if (all(mascara)) next
     filas <- which(mascara)
     tabla <- tablas[[nombre]]
     indices_originales <- .indices_filas_modelo(tabla)
@@ -2144,11 +2200,17 @@ metricas_nucleo <- function() {
 #'   ignora**: no hace falta que la lista coincida exactamente con las entidades,
 #'   sólo que no falte ninguna.
 #' @param id_medicion Identificador de corrida. Si se omite, se genera uno.
-#' @param fecha Fecha y hora de la corrida.
+#' @param fecha Fecha y hora de la corrida. Se guarda en UTC; un texto
+#'   —`"2026-03-01"` o `"2026-03-01 09:30:00"`— se lee en UTC, no en el huso de
+#'   la sesión, así que la misma llamada registra el mismo instante en cualquier
+#'   máquina.
 #' @param aplicabilidad Lista con nombre por columna, donde cada elemento es
 #'   una fórmula que dice en qué filas esa columna corresponde —por ejemplo
 #'   `list(marca_auto = ~ tiene_auto == "Si")`—. Las filas fuera de ese universo
-#'   salen de la medición en vez de contarse como ausencia.
+#'   salen de la medición en vez de contarse como ausencia. Una métrica de
+#'   varias columnas se mide donde corresponden todas. Las medidas citan la fila
+#'   de la tabla original —`fila` y `objeto_medible`—, no su posición en el
+#'   universo.
 #'
 #'   Es la misma declaración que recibe [perfilar()], y hace falta porque una
 #'   métrica de completitud sobre una columna condicionada mide lo que no
@@ -2233,7 +2295,10 @@ medir <- function(modelo, datos, id_medicion = NULL, fecha = Sys.time(),
     stop("`fecha` debe contener una fecha y hora v\u00e1lida.", call. = FALSE)
   }
   fecha_declarada <- !missing(fecha)
-  fecha <- as.POSIXct(fecha)
+  # Por `.fecha_utc()`, como el historico: una fecha de TEXTO se leia en el huso
+  # de la sesion, y la misma llamada medía a las 03:00 UTC en una maquina y a las
+  # 00:00 en otra. Medido en la ronda 22.
+  fecha <- .fecha_utc(fecha)
   if (!is.logical(proteger_datos_personales) ||
       length(proteger_datos_personales) != 1L ||
       is.na(proteger_datos_personales)) {
@@ -2323,10 +2388,13 @@ medir <- function(modelo, datos, id_medicion = NULL, fecha = Sys.time(),
     # un atributo legitimo que la validacion no reconocia mataba la corrida.
     salida <- tryCatch({
       validada <- .validar_salida_medicion(cruda, instancia, tablas_instancia)
-      if (nrow(validada) && !.metodo_del_paquete(instancia$metodo)) {
-        .verificar_filas_aplicables(validada, tablas_instancia, instancia)
+      if (nrow(validada)) {
+        del_paquete <- .metodo_del_paquete(instancia$metodo)
+        if (!del_paquete) {
+          .verificar_filas_aplicables(validada, tablas_instancia, instancia)
+        }
         validada <- .filas_a_la_tabla_original(
-          validada, tablas_instancia, instancia
+          validada, tablas_instancia, instancia, reetiquetar = del_paquete
         )
       }
       validada

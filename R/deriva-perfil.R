@@ -1,7 +1,7 @@
 #' @export
 `[.deriva_perfil` <- function(x, ...) {
   resultado <- NextMethod("[")
-  .conservar_marca_sin_proteger(resultado, x)
+  .conservar_atributos_objeto(resultado, x)
 }
 
 #' @export

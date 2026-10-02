@@ -613,11 +613,41 @@
 # protege por omision- la lee para no publicarlos en claro. `[` con columnas
 # nombradas -lo que hace `subset()`- devuelve la misma clase SIN la marca: el
 # objeto filtrado se publicaba entero. Medido en la ronda 21.
-.conservar_marca_sin_proteger <- function(resultado, x) {
-  marca <- attr(x, "datos_personales_sin_proteger", exact = TRUE)
-  if (length(marca) && inherits(resultado, "data.frame") &&
-      is.null(attr(resultado, "datos_personales_sin_proteger", exact = TRUE))) {
-    attr(resultado, "datos_personales_sin_proteger") <- marca
+#
+# Y sin NINGUNO de sus atributos, no solo la marca: la ronda 21 repuso la marca y
+# dejo afuera el modelo, la cobertura y la configuracion de cada corrida. Medido
+# en la ronda 22: `evaluar(subset(medicion, TRUE))` abortaba con "la regla no
+# coincide con ninguna metrica instanciada" -se habia perdido
+# `cobertura_metricas`-, y la deriva de un historico filtrado leia un cambio de
+# modelo como deterioro de datos. Se reponen todos mientras el resultado siga
+# siendo de la clase, y las tablas POR CORRIDA -`por_corrida`- pierden las
+# corridas que el recorte saco: si no, volver a acumular una corrida corregida
+# chocaba con la configuracion vieja.
+.conservar_atributos_objeto <- function(resultado, x, por_corrida = character()) {
+  if (!inherits(resultado, "data.frame") || !inherits(resultado, class(x)[[1L]])) {
+    return(resultado)
+  }
+  estructurales <- c("names", "row.names", "class")
+  for (atributo in setdiff(names(attributes(x)), estructurales)) {
+    if (is.null(attr(resultado, atributo, exact = TRUE))) {
+      attr(resultado, atributo) <- attr(x, atributo, exact = TRUE)
+    }
+  }
+  if (length(por_corrida) && "id_medicion" %in% names(x) &&
+      "id_medicion" %in% names(resultado)) {
+    quitadas <- setdiff(
+      unique(as.character(x$id_medicion)),
+      unique(as.character(resultado$id_medicion))
+    )
+    for (atributo in por_corrida) {
+      tabla <- attr(resultado, atributo, exact = TRUE)
+      if (length(quitadas) && inherits(tabla, "data.frame") &&
+          "id_medicion" %in% names(tabla)) {
+        tabla <- tabla[!as.character(tabla$id_medicion) %in% quitadas, , drop = FALSE]
+        rownames(tabla) <- NULL
+        attr(resultado, atributo) <- tabla
+      }
+    }
   }
   resultado
 }
@@ -1164,7 +1194,10 @@
       tipos <- c(rep("cita", NROW(citas[[i]])),
                  rep("codigo", NROW(tramos) - NROW(citas[[i]])))
       partes <- texto_tramos(textos_candidatos[[i]], tramos)
-      con_digitos <- seis_digitos(partes)
+      # Contados DESPUES de plegar: una cita con digitos de ancho completo o
+      # arabigo-indicos no tenia seis digitos ASCII y no se probaba. Medido en
+      # la ronda 22.
+      con_digitos <- seis_digitos(plegar(partes))
       if (!any(con_digitos)) next
       tramos_prosa[[i]] <- list(tramos = tramos[con_digitos, , drop = FALSE],
                                 tipos = tipos[con_digitos])
@@ -1465,9 +1498,15 @@
     # columna `juan_perez` frente al titular protegido "Juan Perez" dejaria
     # publicado "juan_perez" en una celda. `tolower()` aborta sobre bytes que no
     # son UTF-8 valido, y entonces se compara sin plegar la caja.
+    # Con el mismo pliegue que la proteccion -tildes, escritura, codificacion-:
+    # con `tolower()` y clases por byte, la columna `jose_perez` frente a "Jose
+    # Perez" con tildes se exceptuaba y el valor salia. Medido en la ronda 22.
     clave <- function(v) {
-      v <- tryCatch(tolower(v), error = function(e) v)
-      gsub("[^[:alnum:]]", "", v, useBytes = TRUE)
+      plegado <- tryCatch(.plegar_para_comparar(v), error = function(e) as.character(v))
+      tryCatch(
+        gsub("[^\\p{L}\\p{N}]", "", plegado, perl = TRUE),
+        error = function(e) gsub("[^[:alnum:]]", "", plegado, useBytes = TRUE)
+      )
     }
     nombres <- nombres[!clave(nombres) %in% clave(valores)]
   }
@@ -1877,8 +1916,12 @@
     is.numeric(antes[[campo]]) & !is.na(antes[[campo]]) & is.na(despues[[campo]])
   }))
   if (!any(tocadas)) return(despues)
+  # `desvio` tambien: con el extremo dominando la columna, el desvio y `n` lo
+  # reconstruyen -48.890.008 contra el documento 48.889.997-. Medido en la ronda
+  # 22. Aca el extremo tapado ES un documento: no vale el criterio de las
+  # columnas protegidas, donde el desvio se conserva porque se tapa la media.
   derivados <- intersect(c(
-    "minimo", "maximo", "mediana", "media", "n_posiciones_secuencia_entera",
+    "minimo", "maximo", "mediana", "media", "desvio", "n_posiciones_secuencia_entera",
     "n_huecos_secuencia_entera", "hueco_maximo_secuencia_entera",
     "densidad_secuencia_entera", "densidad_sin_centinela"
   ), names(despues))

@@ -8,8 +8,11 @@ evaluar(medicion, perfil)
 }
 \arguments{
 \item{medicion}{\strong{Primer argumento.} Data frame producido por \code{medir()};
-puede reunir varias corridas si conserva sus \code{id_medicion}. No es el
-\code{perfil} descriptivo que devuelve \code{\link[=perfilar]{perfilar()}}.}
+puede reunir varias corridas si conserva sus \code{id_medicion} —con \code{rbind()},
+que se niega a unir mediciones de modelos distintos: para eso está
+\code{\link[=historico_calidad]{historico_calidad()}}—. Cada \code{id_medida} se cuenta una vez: una medida
+repetida, o una con \code{resultado} \code{NA} sin estar suprimida, se rechaza
+nombrándola. No es el \code{perfil} descriptivo que devuelve \code{\link[=perfilar]{perfilar()}}.}
 
 \item{perfil}{\strong{Segundo argumento.} Objeto creado por
 \code{perfil_evaluacion()}, que reúne las reglas que se aplican a la medición.
@@ -25,8 +28,9 @@ Cuando una métrica no pudo medirse, conserva \code{cobertura_metricas} y deja
 en \code{NA} el resumen afectado, en lugar de tratar la ausencia como éxito.
 Y cuando una regla \strong{declara} una métrica que la medición no trae —ninguna
 medida de ella—, el veredicto cubre menos de lo que la regla dice: eso se
-avisa al evaluar y queda en el atributo \code{cobertura_reglas}, con la métrica,
-el motivo y cómo resolverlo. Si \strong{ninguna} de las métricas declaradas por
+avisa al evaluar y queda en el atributo \code{cobertura_reglas}, con la corrida,
+la métrica, el motivo y cómo resolverlo: se mira corrida por corrida, así
+que una corrida evaluada junto a otras avisa lo mismo que evaluada sola. Si \strong{ninguna} de las métricas declaradas por
 una regla tiene medidas, \code{evaluar()} se niega y nombra las solicitadas y las
 disponibles.
 Conserva además, en atributos, la configuración del modelo, la

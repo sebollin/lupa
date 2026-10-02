@@ -8407,7 +8407,7 @@
         sondeo$motivo <- .motivo_nan_dbi("la sonda de magnitud")
       } else if (.valor_perdido_en_conversion_dbi(sondeo$valor, convertido)) {
         valor <- if (isTRUE(incluir_valores)) paste0(
-          " (", utils::head(as.character(sondeo$valor[[1L]]), 1L), ")"
+          " (\"", utils::head(as.character(sondeo$valor[[1L]]), 1L), "\")"
         ) else ""
         sondeo$ok <- FALSE
         sondeo$motivo <- paste0(
@@ -8480,11 +8480,17 @@
           }
           if (.valor_perdido_en_conversion_dbi(celda$valor, convertido)) {
             basicos$ok <- FALSE
+            # El valor, solo si se pidieron valores y entre comillas, como la
+            # sonda de magnitud: escrito entre parentesis era el MAXIMO de una
+            # columna personal en claro -la prosa del paquete solo se revisa en
+            # lo citado-. Medido en la ronda 22.
             basicos$motivo <- paste0(
               "El motor devolvio un valor para `", metrica, "` que no se pudo ",
-              "leer como numero (",
-              utils::head(as.character(celda$valor[[1L]]), 1L),
-              "): probablemente la columna no es de la magnitud que estas ",
+              "leer como numero",
+              if (isTRUE(incluir_valores)) paste0(
+                " (\"", utils::head(as.character(celda$valor[[1L]]), 1L), "\")"
+              ),
+              ": probablemente la columna no es de la magnitud que estas ",
               "metricas suponen. No se publica como calculada."
             )
             magnitud_desmentida <- TRUE
@@ -10965,8 +10971,15 @@ print.plan_perfilado_dbi <- function(x, ...) {
   valores <- character()
   for (indice in indices) {
     campo <- preparacion$campos_sql[[indice]]
+    # En SQLite una columna de afinidad NUMERIC guarda texto, y RSQLite la lee
+    # como numero: "5.765.432-1" llegaba como 5 y no tapaba nada. Medido en la
+    # ronda 22. Ahi se lee como texto; en los demas motores el tipo de la
+    # columna manda, y un CAST a VARCHAR sin largo trunca en SQL Server.
+    expresion <- if (grepl("sqlite", .senas_conexion_dbi(conexion), fixed = TRUE)) {
+      paste0("CAST(", campo, " AS TEXT)")
+    } else campo
     sql <- paste0(
-      "SELECT DISTINCT ", campo, " FROM ", preparacion$tabla_sql,
+      "SELECT DISTINCT ", expresion, " FROM ", preparacion$tabla_sql,
       " WHERE ", campo, " IS NOT NULL"
     )
     respuesta <- .consultar_dbi(
@@ -11189,6 +11202,20 @@ print.plan_perfilado_dbi <- function(x, ...) {
         texto <- gsub(literal, "[literal protegido]", texto, fixed = TRUE)
       }
       resumen$sql$sql[[i]] <- texto
+    }
+  }
+  # Y lo que el motivo de una columna protegida cita entre comillas: el valor que
+  # el motor devolvio y R no pudo leer como numero. No pasa por el piso porque R
+  # leyo ESA celda como otra cosa -una cedula "5.765.432-1" en una columna de
+  # afinidad numerica-, y el motivo la publicaba en claro. Medido en la ronda 22.
+  if (is.data.frame(resumen$sql) && all(c("columna", "motivo") %in% names(resumen$sql))) {
+    filas_sensibles <- .nombres_para_operar(resumen$sql$columna) %in%
+      .nombres_para_operar(sensibles) & !is.na(resumen$sql$motivo)
+    if (any(filas_sensibles)) {
+      resumen$sql$motivo[filas_sensibles] <- gsub(
+        "\"[^\"]*\"", "\"[valor protegido]\"",
+        resumen$sql$motivo[filas_sensibles], useBytes = TRUE
+      )
     }
   }
   resumen
@@ -12976,7 +13003,11 @@ print.plan_perfilado_dbi <- function(x, ...) {
 #' igual. Se traen hasta dos millones de valores; si hay más, o si la consulta
 #' no se puede hacer, se tapan todos los valores de celda de las columnas no
 #' personales —moda, extremos, ejemplos— y la evidencia de sus hallazgos, y
-#' `resumen_tabla$meta$proteccion_personal$fuera_de_muestra` dice por qué.
+#' `resumen_tabla$meta$proteccion_personal$fuera_de_muestra` dice por qué. En
+#' SQLite los valores se leen como texto, porque una columna de afinidad
+#' numérica guarda texto y el controlador lo convertía en número; y el motivo
+#' de una cifra que no se pudo leer como número no cita el valor de una columna
+#' protegida.
 #' `incluir_valores = FALSE` va más lejos: no emite las consultas de moda ni de
 #' mediana y no informa mínimo ni máximo, útil cuando la tabla es un padrón y
 #' la moda de un identificador único es un documento real. Si se pidió `desvio`,

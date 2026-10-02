@@ -355,10 +355,36 @@ perfiles_madurez <- function(metricas = NULL, umbrales = NULL) {
   } else {
     rep(FALSE, nrow(medicion))
   }
-  if (anyNA(medicion$resultado) &&
-      any(!suprimidas & is.na(medicion$resultado))) {
-    stop("Los resultados de la medici\u00f3n no respetan su tipo declarado.",
-         call. = FALSE)
+  # Una medida repetida se contaba dos veces: `evaluar(rbind(m, m))` publicaba
+  # el doble de medidas y dos desenlaces para una. Medido en la ronda 22.
+  if (.identificadores_en("id_medida", names(medicion))) {
+    repetidas <- duplicated(.nombres_para_operar(as.character(medicion$id_medida)))
+    if (any(repetidas)) {
+      stop(
+        "La medici\u00f3n repite la medida `",
+        as.character(medicion$id_medida)[which(repetidas)[[1L]]], "`",
+        if (sum(repetidas) > 1L) paste0(" (y ", sum(repetidas) - 1L, " m\u00e1s)"),
+        ": cada `id_medida` es una medida y se cuenta una vez. Una medici\u00f3n ",
+        "unida consigo misma -`rbind(m, m)`- la repite; para reunir corridas ",
+        "sin repetir, `historico_calidad()`.",
+        call. = FALSE
+      )
+    }
+  }
+  sin_valor <- !suprimidas & is.na(medicion$resultado)
+  if (any(sin_valor)) {
+    # Nombrar el NA y la medida: el mensaje decia que los resultados "no
+    # respetan su tipo", sin decir cual ni por que. Medido en la ronda 22.
+    ids <- if (.identificadores_en("id_medida", names(medicion))) {
+      as.character(medicion$id_medida[sin_valor])
+    } else as.character(which(sin_valor))
+    stop(
+      sum(sin_valor), if (sum(sin_valor) == 1L) " medida tiene" else " medidas tienen",
+      " `resultado` NA sin estar suprimida(s) -la primera, `", ids[[1L]], "`-: ",
+      "una medida sin valor no se eval\u00faa. Si la m\u00e9trica no pudo medirse, ",
+      "`medir()` la declara en `cobertura_metricas` en vez de publicar NA.",
+      call. = FALSE
+    )
   }
   valores <- if (isTRUE(permitir_suprimidas)) {
     medicion$resultado[!suprimidas]
@@ -435,17 +461,31 @@ perfiles_madurez <- function(metricas = NULL, umbrales = NULL) {
 # en que este paquete falla: la guarda mira el borde y no la propiedad.
 .cobertura_reglas_evaluacion <- function(medicion, perfil) {
   vacio <- data.frame(
+    id_medicion = character(),
     regla = character(), metrica_instanciada = character(),
     estado = character(), motivo = character(),
     como_resolverlo = character(), stringsAsFactors = FALSE
   )
-  disponibles <- .identificadores_unicos(medicion$metrica_instanciada)
-  partes <- lapply(perfil$reglas, function(regla) {
+  # POR CORRIDA. Una medicion puede reunir varias, y la cobertura se miraba en la
+  # medicion entera: la metrica que faltaba en una corrida la "cubria" otra, y la
+  # misma corrida evaluada sola avisaba y evaluada junto a otra no. Medido en la
+  # ronda 22.
+  corridas <- if ("id_medicion" %in% names(medicion) && nrow(medicion)) {
+    split(seq_len(nrow(medicion)),
+          factor(as.character(medicion$id_medicion),
+                 levels = unique(as.character(medicion$id_medicion))))
+  } else list(seq_len(nrow(medicion)))
+  ids <- if (is.null(names(corridas))) NA_character_ else names(corridas)
+  partes <- unlist(lapply(ids, function(id) {
+    filas <- if (is.na(id)) corridas[[1L]] else corridas[[id]]
+    disponibles <- .identificadores_unicos(medicion$metrica_instanciada[filas])
+    lapply(perfil$reglas, function(regla) {
     if (is.null(regla$metricas) || !length(regla$metricas)) return(NULL)
     sin_medidas <- .identificadores_setdiff(regla$metricas, disponibles)
     if (!length(sin_medidas)) return(NULL)
     declaradas <- length(.identificadores_unicos(regla$metricas))
     data.frame(
+      id_medicion = rep(id, length(sin_medidas)),
       regla = rep(as.character(regla$nombre), length(sin_medidas)),
       metrica_instanciada = as.character(sin_medidas),
       estado = rep("sin_medidas", length(sin_medidas)),
@@ -461,7 +501,8 @@ perfiles_madurez <- function(metricas = NULL, umbrales = NULL) {
       ), length(sin_medidas)),
       stringsAsFactors = FALSE
     )
-  })
+    })
+  }), recursive = FALSE)
   partes <- Filter(Negate(is.null), partes)
   if (!length(partes)) return(vacio)
   salida <- do.call(rbind, partes)
@@ -545,7 +586,11 @@ perfiles_madurez <- function(metricas = NULL, umbrales = NULL) {
     .nombres_para_operar(evaluaciones$id_medicion),
     .nombres_para_operar(evaluaciones$perfil),
     .nombres_para_operar(evaluaciones$regla),
-    drop = TRUE, lex.order = TRUE
+    # Con el separador por omision -"."- las etiquetas pegadas decidian el
+    # grupo: la corrida "x" con la regla "P.y" y la corrida "x.P" con la regla
+    # "y" se fundian. Medido en la ronda 22. Un caracter de control no aparece
+    # en un nombre.
+    drop = TRUE, lex.order = TRUE, sep = "\034"
   )
   grupos <- split(seq_len(nrow(evaluaciones)), clave, drop = TRUE)
   partes <- lapply(grupos, function(indices) {
@@ -664,7 +709,11 @@ perfiles_madurez <- function(metricas = NULL, umbrales = NULL) {
   clave <- interaction(
     .nombres_para_operar(evaluaciones$id_medicion),
     .nombres_para_operar(evaluaciones$perfil),
-    drop = TRUE, lex.order = TRUE
+    # Con el separador por omision -"."- las etiquetas pegadas decidian el
+    # grupo: la corrida "x" con la regla "P.y" y la corrida "x.P" con la regla
+    # "y" se fundian. Medido en la ronda 22. Un caracter de control no aparece
+    # en un nombre.
+    drop = TRUE, lex.order = TRUE, sep = "\034"
   )
   grupos <- split(seq_len(nrow(evaluaciones)), clave, drop = TRUE)
   partes <- lapply(grupos, function(indices) {
@@ -883,12 +932,89 @@ perfiles_madurez <- function(metricas = NULL, umbrales = NULL) {
 #' @export
 `[.medicion` <- function(x, ...) {
   resultado <- NextMethod("[")
-  .conservar_marca_sin_proteger(resultado, x)
+  .conservar_atributos_objeto(resultado, x, por_corrida = "cobertura_metricas")
 }
 
 #' @export
 rbind.medicion <- function(..., deparse.level = 1) {
-  .unir_con_marca_sin_proteger(..., deparse.level = deparse.level)
+  resultado <- .unir_con_marca_sin_proteger(..., deparse.level = deparse.level)
+  mediciones <- Filter(function(parte) inherits(parte, "medicion"), list(...))
+  if (length(mediciones) < 2L || !inherits(resultado, "data.frame")) {
+    return(resultado)
+  }
+  # `rbind.data.frame()` conserva los atributos del PRIMER objeto. Una medicion
+  # lleva UN modelo, asi que unir dos de modelos distintos dejaba el del primero
+  # para las dos, y la deriva leia el cambio de modelo como cambio de datos; y la
+  # cobertura del segundo se perdia, y `evaluar()` publicaba como exito la regla
+  # cuya metrica no se pudo medir -y NA con el orden al reves-. Medido en la ronda
+  # 22. Las coberturas se unen; dos modelos distintos no se juntan.
+  mismo <- function(atributo) {
+    valores <- lapply(mediciones, attr, which = atributo, exact = TRUE)
+    all(vapply(valores[-1L], identical, logical(1L), valores[[1L]]))
+  }
+  # Una MISMA corrida armada por partes -metricas medidas por separado y
+  # reunidas con el mismo `id_medicion`, para un indice- si se une: su modelo es
+  # la union de los de las partes. Dos corridas distintas con modelos distintos,
+  # no: es justo lo que la deriva no podria leer.
+  identificadores <- lapply(mediciones, function(m) {
+    sort(unique(as.character(m$id_medicion)))
+  })
+  misma_corrida <- all(vapply(
+    identificadores[-1L], identical, logical(1L), identificadores[[1L]]
+  ))
+  if (!mismo("configuracion_modelo") && misma_corrida &&
+      mismo("configuracion_aplicabilidad")) {
+    union <- .unir_configuraciones_modelo(lapply(
+      mediciones, attr, which = "configuracion_modelo", exact = TRUE
+    ))
+    if (!is.null(union)) attr(resultado, "configuracion_modelo") <- union
+  } else if (!mismo("configuracion_modelo") ||
+             !mismo("configuracion_aplicabilidad")) {
+    stop(
+      "No se pueden unir con `rbind()` mediciones de modelos o universos ",
+      "distintos: una medicion conserva un solo modelo, y una deriva posterior ",
+      "no podria distinguir el cambio de modelo del de datos. Para seguir ",
+      "corridas de modelos distintos, use `historico_calidad()`, que conserva ",
+      "la configuracion de cada una.",
+      call. = FALSE
+    )
+  }
+  for (atributo in c("cobertura_metricas", "alcance_metricas")) {
+    tablas <- Filter(
+      function(t) inherits(t, "data.frame"),
+      lapply(mediciones, attr, which = atributo, exact = TRUE)
+    )
+    if (length(tablas)) {
+      tabla <- unique(do.call(rbind.data.frame, tablas))
+      rownames(tabla) <- NULL
+      attr(resultado, atributo) <- tabla
+    }
+  }
+  declaradas <- lapply(mediciones, attr, which = "fecha_declarada", exact = TRUE)
+  if (!all(vapply(declaradas, is.null, logical(1L)))) {
+    attr(resultado, "fecha_declarada") <- all(vapply(declaradas, isTRUE, logical(1L)))
+  }
+  resultado
+}
+
+# El modelo de una corrida armada por partes: las metricas y entidades de todas,
+# con su tipo de resultado alineado. NULL si alguna parte no declara modelo o si
+# los marcos difieren, y entonces queda el del primero, como en `rbind()`.
+.unir_configuraciones_modelo <- function(modelos) {
+  if (any(vapply(modelos, function(m) !is.list(m), logical(1L)))) return(NULL)
+  marcos <- lapply(modelos, `[[`, "marco")
+  if (!all(vapply(marcos[-1L], identical, logical(1L), marcos[[1L]]))) return(NULL)
+  # `metricas` y `tipos_resultado` son vectores con el nombre de cada metrica
+  # instanciada: se unen sin repetir nombres.
+  unir <- function(campo) {
+    todos <- do.call(c, lapply(modelos, `[[`, campo))
+    todos[!duplicated(names(todos))]
+  }
+  union <- modelos[[1L]]
+  union$entidades <- unique(unlist(lapply(modelos, `[[`, "entidades")))
+  union$metricas <- unir("metricas")
+  union$tipos_resultado <- unir("tipos_resultado")
+  union
 }
 
 #' @export
@@ -1001,8 +1127,11 @@ print.evaluacion_calidad <- function(x, ...) {
 #' `perfiles` no sustituye esa distribución.
 #'
 #' @param medicion **Primer argumento.** Data frame producido por `medir()`;
-#'   puede reunir varias corridas si conserva sus `id_medicion`. No es el
-#'   `perfil` descriptivo que devuelve [perfilar()].
+#'   puede reunir varias corridas si conserva sus `id_medicion` —con `rbind()`,
+#'   que se niega a unir mediciones de modelos distintos: para eso está
+#'   [historico_calidad()]—. Cada `id_medida` se cuenta una vez: una medida
+#'   repetida, o una con `resultado` `NA` sin estar suprimida, se rechaza
+#'   nombrándola. No es el `perfil` descriptivo que devuelve [perfilar()].
 #' @param perfil **Segundo argumento.** Objeto creado por
 #'   `perfil_evaluacion()`, que reúne las reglas que se aplican a la medición.
 #'   Es un perfil de evaluación, distinto del objeto `perfil` creado por
@@ -1016,8 +1145,9 @@ print.evaluacion_calidad <- function(x, ...) {
 #'   en `NA` el resumen afectado, en lugar de tratar la ausencia como éxito.
 #'   Y cuando una regla **declara** una métrica que la medición no trae —ninguna
 #'   medida de ella—, el veredicto cubre menos de lo que la regla dice: eso se
-#'   avisa al evaluar y queda en el atributo `cobertura_reglas`, con la métrica,
-#'   el motivo y cómo resolverlo. Si **ninguna** de las métricas declaradas por
+#'   avisa al evaluar y queda en el atributo `cobertura_reglas`, con la corrida,
+#'   la métrica, el motivo y cómo resolverlo: se mira corrida por corrida, así
+#'   que una corrida evaluada junto a otras avisa lo mismo que evaluada sola. Si **ninguna** de las métricas declaradas por
 #'   una regla tiene medidas, `evaluar()` se niega y nombra las solicitadas y las
 #'   disponibles.
 #'   Conserva además, en atributos, la configuración del modelo, la

@@ -40,12 +40,20 @@
 #' @export
 `[.historico_calidad` <- function(x, ...) {
   resultado <- NextMethod("[")
-  .conservar_marca_sin_proteger(resultado, x)
+  .conservar_atributos_objeto(resultado, x, por_corrida = "configuracion_evaluacion")
 }
 
 #' @export
 rbind.historico_calidad <- function(..., deparse.level = 1) {
-  .unir_con_marca_sin_proteger(..., deparse.level = deparse.level)
+  # Unir dos historicos es acumularlos: `rbind.data.frame()` se quedaba con la
+  # configuracion de corridas del PRIMERO, y la deriva de `rbind(hA, hB)` decia
+  # "una sola medicion en la serie" sobre una serie de dos; y repetir un registro
+  # dejaba un historico que su propia validacion rechaza. Medido en la ronda 22.
+  partes <- list(...)
+  if (!all(vapply(partes, inherits, logical(1L), "historico_calidad"))) {
+    return(.unir_con_marca_sin_proteger(..., deparse.level = deparse.level))
+  }
+  Reduce(.combinar_historico, partes)
 }
 
 .historico_vacio <- function() {
@@ -71,6 +79,34 @@ rbind.historico_calidad <- function(..., deparse.level = 1) {
 .fecha_utc <- function(x) {
   if (inherits(x, "Date")) {
     resultado <- as.POSIXct(x, tz = "UTC")
+    attr(resultado, "tzone") <- "UTC"
+    return(resultado)
+  }
+  # Un TEXTO se lee en UTC y elemento por elemento. `as.POSIXct()` lo leia en el
+  # huso de la sesion -la misma llamada daba 03:00 o 00:00 UTC segun la maquina- y
+  # elegia UN formato para todo el vector: un historico exportado con
+  # `write.csv()`, que escribe la medianoche sin la hora, volvia sin las horas de
+  # las demas fechas, y la deriva ordenaba al reves dos corridas del mismo dia.
+  # Medido en la ronda 22. El historico guarda sus fechas en UTC, y asi las
+  # escribe `write.csv()`.
+  if (is.character(x) || is.factor(x)) {
+    texto <- trimws(as.character(x))
+    resultado <- as.POSIXct(rep(NA_real_, length(texto)), origin = "1970-01-01",
+                            tz = "UTC")
+    for (formato in c("%Y-%m-%d %H:%M:%OS", "%Y-%m-%dT%H:%M:%OS",
+                      "%Y-%m-%d %H:%M", "%Y-%m-%d")) {
+      faltan <- is.na(resultado) & !is.na(texto) & nzchar(texto)
+      if (!any(faltan)) break
+      resultado[faltan] <- as.POSIXct(texto[faltan], tz = "UTC", format = formato)
+    }
+    ilegibles <- is.na(resultado) & !is.na(texto) & nzchar(texto)
+    if (any(ilegibles)) {
+      stop(
+        "No se pudo leer como fecha: \"", texto[ilegibles][[1L]], "\"",
+        if (sum(ilegibles) > 1L) paste0(" (y ", sum(ilegibles) - 1L, " m\u00e1s)"),
+        ". Se espera AAAA-MM-DD, con la hora opcional.", call. = FALSE
+      )
+    }
     attr(resultado, "tzone") <- "UTC"
     return(resultado)
   }
@@ -440,6 +476,36 @@ rbind.historico_calidad <- function(..., deparse.level = 1) {
       perfil = perfiles$perfil, n_elementos = perfiles$n_reglas
     )
   )
+  # Con el detalle resumido, las medidas SUPRIMIDAS entran igual, enmascaradas:
+  # son lo que permite que una medicion acumulada DESPUES las tape. Sin ellas,
+  # `acumular_historico(historico_calidad(evaluacion), medicion)` publicaba con su
+  # valor las medidas que la evaluacion mando suprimir, y el resultado dependia
+  # del orden en que llegaban los objetos. Medido en la ronda 22. Van en la tabla
+  # y no en un atributo porque la tabla se exporta con `write.csv()`.
+  if (detalle != "completo") {
+    suprimidas <- .ids_suprimidos_de(x)
+    if (length(suprimidas) && inherits(x$medidas, "data.frame") &&
+        "id_medida" %in% names(x$medidas)) {
+      medidas <- x$medidas[
+        .identificadores_en(x$medidas$id_medida, suprimidas), , drop = FALSE
+      ]
+      if (nrow(medidas)) {
+        medidas <- .validar_tabla_evaluacion(
+          medidas,
+          c("id_medida", "id_medicion", "fecha", "perfil", "regla",
+            "metrica_instanciada", "resultado"), "medidas"
+        )
+        partes <- c(list(.parte_historico(
+          medidas, "evaluacion_medida",
+          .clave_historico(
+            "evaluacion_medida", medidas$id_medicion, medidas$perfil,
+            medidas$regla, medidas$id_medida
+          ),
+          perfil = medidas$perfil, regla = medidas$regla
+        )), partes)
+      }
+    }
+  }
   if (detalle == "completo") {
     medidas <- .validar_tabla_evaluacion(
       x$medidas,
@@ -477,19 +543,49 @@ rbind.historico_calidad <- function(..., deparse.level = 1) {
 # `NA` y `[valor suprimido]` en `objeto_medible`, que es lo que la validacion
 # reconoce. Se aplica igual al nivel `evaluacion_medida`, sin cambiar el esquema
 # ni su version.
-.enmascarar_suprimidas_historico <- function(historico, evaluacion) {
+.ids_suprimidos_de <- function(evaluacion) {
   desenlaces <- .desenlaces_de_objeto(evaluacion)
   if (!inherits(desenlaces, "data.frame") || !nrow(desenlaces) ||
       !all(c("id_medida", "desenlace") %in% names(desenlaces))) {
-    return(historico)
+    return(character())
   }
-  suprimidas <- desenlaces[
-    as.character(desenlaces$desenlace) == "suprimir", , drop = FALSE
-  ]
-  if (!nrow(suprimidas)) return(historico)
+  unique(as.character(desenlaces$id_medida[
+    as.character(desenlaces$desenlace) == "suprimir"
+  ]))
+}
+
+.enmascarar_suprimidas_historico <- function(historico, evaluacion) {
+  suprimidas <- .ids_suprimidos_de(evaluacion)
+  if (!length(suprimidas)) return(historico)
   objetivo <- !is.na(historico$id_medida) &
-    .identificadores_en(historico$id_medida, suprimidas$id_medida) &
+    .identificadores_en(historico$id_medida, suprimidas) &
     as.character(historico$nivel) %in% c("medida", "evaluacion_medida")
+  .marcar_suprimidas_historico(historico, objetivo)
+}
+
+# Las medidas que el historico YA tiene suprimidas -una fila
+# `evaluacion_medida` enmascarada- tapan la fila `medida` de la misma corrida y
+# la misma medida, venga en el mismo objeto o en otro que se acumula.
+.claves_suprimidas_historico <- function(historico) {
+  if (!nrow(historico)) return(character())
+  marcadas <- as.character(historico$nivel) == "evaluacion_medida" &
+    is.na(historico$resultado) & !is.na(historico$objeto_medible) &
+    grepl("[valor suprimido]", as.character(historico$objeto_medible), fixed = TRUE)
+  unique(paste(.clave_bytes(as.character(historico$id_medicion[marcadas])),
+               .clave_bytes(as.character(historico$id_medida[marcadas])),
+               sep = "\r"))
+}
+
+.propagar_suprimidas_historico <- function(historico, claves) {
+  if (!length(claves) || !nrow(historico)) return(historico)
+  objetivo <- as.character(historico$nivel) == "medida" &
+    paste(.clave_bytes(as.character(historico$id_medicion)),
+          .clave_bytes(as.character(historico$id_medida)), sep = "\r") %in% claves
+  .marcar_suprimidas_historico(historico, objetivo)
+}
+
+.marcar_suprimidas_historico <- function(historico, objetivo) {
+  objetivo[is.na(objetivo)] <- FALSE
   if (!any(objetivo)) return(historico)
   historico$resultado[objetivo] <- NA_real_
   historico$objeto_medible <- as.character(historico$objeto_medible)
@@ -540,6 +636,11 @@ rbind.historico_calidad <- function(..., deparse.level = 1) {
   # la lee para no publicarlo en claro, y `.tabla_base()` la borraba.
   sin_proteger <- attr(x, "datos_personales_sin_proteger", exact = TRUE)
   x <- .tabla_base(x)
+  # La fecha se lee ANTES de las guardas: la de "una unica fecha por corrida"
+  # hacia `as.numeric()` sobre el texto de un historico leido de un CSV, todo
+  # daba NA, la guarda no corria y se filtraba el aviso de coercion de R.
+  # Medido en la ronda 22.
+  if (nrow(x)) x$fecha <- .fecha_utc(x$fecha)
   configuracion <- .validar_configuraciones_historico(configuracion)
   version <- unique(x$version_esquema)
   if (!length(version)) version <- attr(x, "version_esquema", exact = TRUE)
@@ -630,10 +731,27 @@ rbind.historico_calidad <- function(..., deparse.level = 1) {
 .combinar_historico <- function(anterior, nuevo) {
   anterior <- .validar_historico(anterior)
   nuevo <- .validar_historico(nuevo)
+  # La configuracion de una corrida que ya no tiene filas sobra: quedaba despues
+  # de quitarla con `dplyr::filter()`, que no pasa por `[`, y volver a acumular
+  # esa corrida corregida chocaba con la configuracion vieja. Medido en la ronda
+  # 22.
+  vigente <- function(x) {
+    tabla <- attr(x, "configuracion_evaluacion", exact = TRUE)
+    if (!inherits(tabla, "data.frame") || !"id_medicion" %in% names(tabla) ||
+        !nrow(x)) {
+      return(tabla)
+    }
+    tabla[as.character(tabla$id_medicion) %in% as.character(x$id_medicion), ,
+          drop = FALSE]
+  }
   configuracion <- .combinar_configuraciones_historico(
-    attr(anterior, "configuracion_evaluacion", exact = TRUE),
-    attr(nuevo, "configuracion_evaluacion", exact = TRUE)
+    vigente(anterior), vigente(nuevo)
   )
+  suprimidas <- unique(c(
+    .claves_suprimidas_historico(anterior), .claves_suprimidas_historico(nuevo)
+  ))
+  anterior <- .propagar_suprimidas_historico(anterior, suprimidas)
+  nuevo <- .propagar_suprimidas_historico(nuevo, suprimidas)
   coincidencias <- .indice_identificador(
     nuevo$id_registro, anterior$id_registro
   )
@@ -701,7 +819,9 @@ rbind.historico_calidad <- function(..., deparse.level = 1) {
     }
   }
   agregar <- nuevo[coincidencias == 0L, , drop = FALSE]
-  resultado <- if (nrow(agregar)) rbind(anterior, agregar) else anterior
+  resultado <- if (nrow(agregar)) {
+    rbind.data.frame(anterior, agregar)
+  } else anterior
   rownames(resultado) <- NULL
   attr(resultado, "configuracion_evaluacion") <- configuracion
   # `rbind()` conserva solo la marca del primero: se unen las dos.
@@ -789,7 +909,11 @@ rbind.historico_calidad <- function(..., deparse.level = 1) {
 #'   no publica su valor **tampoco aquí**: su fila deja `resultado` en `NA` y
 #'   marca `objeto_medible` con `[valor suprimido]`, en los dos niveles donde esa
 #'   medida aparece —`medida` y `evaluacion_medida`—, porque esta tabla está
-#'   pensada para exportarse. Una medición **enteramente** vacía —ninguna métrica
+#'   pensada para exportarse. Con el detalle resumido, las medidas suprimidas
+#'   entran igual, enmascaradas en el nivel `evaluacion_medida`: así una
+#'   medición acumulada **después** —también sobre un histórico guardado o
+#'   leído de un CSV— queda tapada en las mismas medidas, sea cual sea el orden
+#'   en que llegan los objetos. Una medición **enteramente** vacía —ninguna métrica
 #'   pudo aplicarse— no se acumula: se rechaza citando el motivo que `medir()`
 #'   declaró en `cobertura_metricas`, porque no hay corrida que registrar. El atributo
 #'   `configuracion_evaluacion` conserva, en una tabla plana separada, el
@@ -803,6 +927,11 @@ rbind.historico_calidad <- function(..., deparse.level = 1) {
 #' objetivo es monitorear la serie de evaluaciones. El objeto no guarda modelos,
 #' closures, datos originales ni perfiles de profiling. Esto mantiene la tabla
 #' exportable directamente con `write.csv()` o una herramienta de base de datos.
+#' Al volver a leerla, las fechas de texto se leen en UTC, con su hora.
+#'
+#' `[`, `subset()` y `dplyr::filter()` conservan la configuración de las
+#' corridas que quedan; `rbind()` de dos históricos los acumula, como
+#' [acumular_historico()].
 #'
 #' El esquema largo mapea las cuatro tablas de la sección 9.5 del marco mediante
 #' `nivel`. Las columnas que no corresponden a un nivel quedan como `NA`.

@@ -454,7 +454,11 @@ detectar_claves <- function(datos, max_combinacion = 3, normalizar = NULL,
 
 .resumir_columna_relacion <- function(x, muestra, rango = NULL,
                                       origen_rango = NULL) {
-  valores <- .valores_relacion(x)
+  # Por su valor, como el camino referencial: el mismo numero guardado como
+  # `integer64` en una tabla y como doble en la otra -100000 y 1e5- no se
+  # encontraba, y la cobertura de una clave foranea daba 0 sobre 2 de 3.
+  # Medido en la ronda 22.
+  valores <- .texto_identidad(.valores_relacion(x))
   valores_muestra <- .muestrear_vector(valores, muestra)$valores
   valores_completos <- valores[!is.na(valores)]
   familia <- .familia_relacion(x)

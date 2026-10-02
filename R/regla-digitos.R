@@ -21,12 +21,19 @@
 # "X.123.456-7"-, que es como se escribe el documento recortado a proposito.
 
 .REGLA_DIGITOS <- local({
+  anio <- "(?:1[89]|2[01])[0-9]{2}"
+  octeto <- "(?:25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9]?[0-9])"
   espacio <- "[ \u00a0\u2009\u202f]"
   # La coma une solo sin espacio despues: "4,123,456" es un numero y
   # "67, 20, 855" es una lista.
+  # Con espacios alrededor solo unen el guion y el punto -"2600 - 1122",
+  # "4 . 123 . 456-7"- y el parentesis de un prefijo -"(2) 487 1234"-; los demas
+  # signos, pegados. Con cualquiera, "2983 4272 / 2988 2968" eran un solo numero
+  # y su tramo del medio coincidia con un telefono. Medido en la ronda 22.
   separador <- paste0(
-    "(?:", espacio, "{1,2}|", espacio, "?[-./'_:|+\u00b7()\\[\\]]{1,2}",
-    espacio, "?|,(?!", espacio, "))"
+    "(?:", espacio, "{1,2}|", espacio, "?[-.]{1,2}", espacio, "?|",
+    "[-./'_:|+\u00b7()\\[\\]]{1,2}|[)\\]]", espacio, "|", espacio, "[(\\[]|",
+    ",(?!", espacio, "))"
   )
   signo_compacto <- "[-./,'_:|+\u00b7]"
   numero <- paste0("[0-9]+(?:", separador, "[0-9]+)*")
@@ -39,12 +46,34 @@
     ),
     # Una fecha de calendario no es un documento: partida en tramos,
     # `2003-05-17` da `20030517`, que con un millon de cedulas es la de
-    # alguien. Y la hora, por lo mismo: `12:34:56`.
+    # alguien. Con un ANO plausible, 1800 a 2199: con cualquiera, el telefono
+    # "2901-12-12" se borraba como fecha y se publicaba. Medido en la ronda 22.
     fecha = paste0(
-      "(?<![0-9])(?:[0-9]{4}[-/.](?:0?[1-9]|1[0-2])[-/.](?:0?[1-9]|[12][0-9]|3[01])|",
-      "(?:0?[1-9]|[12][0-9]|3[01])[-/.](?:0?[1-9]|1[0-2])[-/.][0-9]{4})(?![0-9])"
+      "(?<![0-9])(?:", anio, "[-/.](?:0?[1-9]|1[0-2])[-/.](?:0?[1-9]|[12][0-9]|3[01])|",
+      "(?:0?[1-9]|[12][0-9]|3[01])[-/.](?:0?[1-9]|1[0-2])[-/.]", anio, ")(?![0-9])"
     ),
-    hora = "(?<![0-9])(?:[01]?[0-9]|2[0-3]):[0-5][0-9](?::[0-5][0-9])?(?![0-9])"
+    # Y la hora, por lo mismo -`12:34:56`-, con su fraccion de segundo: sin ella,
+    # la fraccion de `12:26:58.5412576` quedaba como un numero suelto de siete
+    # cifras, y una de cada ocho coincidia con una cedula.
+    hora = paste0(
+      "(?<![0-9])(?:[01]?[0-9]|2[0-3]):[0-5][0-9](?::[0-5][0-9](?:[.,][0-9]+)?)?",
+      "(?![0-9])"
+    ),
+    # Un ISBN-13 tampoco: 978 o 979 y trece cifras con guiones o espacios.
+    isbn = "(?<![0-9])97[89](?:[- ][0-9]+){3}[- ][0-9Xx](?![0-9])",
+    # Una direccion IPv4 tampoco: cuatro octetos de 0 a 255, sin ceros a la
+    # izquierda -un celular "099.12.34.56" no lo es-.
+    ip = paste0(
+      "(?<![0-9.])(?:", octeto, "\\.){3}", octeto, "(?![0-9.])"
+    ),
+    # La fecha CON HORA si puede ser un valor protegido, y se arma en el orden
+    # en que se guarda -ano, mes, dia, horas- antes de borrar la fecha.
+    fecha_hora = list(
+      paste0("(?<![0-9])(", anio, ")[-/.]([0-9]{1,2})[-/.]([0-9]{1,2})[Tt ]",
+             "([0-9]{1,2}):([0-9]{2})(?::([0-9]{2}))?"),
+      paste0("(?<![0-9])([0-9]{1,2})[-/.]([0-9]{1,2})[-/.](", anio, ")[Tt ]",
+             "([0-9]{1,2}):([0-9]{2})(?::([0-9]{2}))?")
+    )
   )
 })
 
@@ -90,12 +119,30 @@
       compacto, gregexpr(regla$signo_compacto, compacto, perl = TRUE)
     )[[1L]]
     k <- length(partes)
-    es_decimal <- length(signos) > 0L &&
-      signos[[length(signos)]] %in% c(".", ",") &&
-      nchar(partes[[k]], type = "bytes") != 3L
+    largos <- nchar(partes, type = "bytes")
+    ultimo <- if (length(signos)) signos[[length(signos)]] else ""
+    # Es un decimal si el ultimo signo es un punto o una coma, el ultimo grupo no
+    # tiene tres cifras, y lo de antes es un entero: un solo grupo, o un numero
+    # de miles con OTRO signo -"4.123.456,7"-. Con solo mirar el ultimo signo,
+    # "099.12.34.56", "01.23.45.67.89" o "CI 4.123.456.7" eran importes y se
+    # publicaban. Medido en la ronda 22: el mismo signo no separa miles y
+    # decimales a la vez.
+    es_decimal <- ultimo %in% c(".", ",") && largos[[k]] != 3L && (
+      k == 2L || (
+        all(signos[-length(signos)] == signos[[1L]]) && signos[[1L]] != ultimo &&
+          signos[[1L]] %in% c(".", ",", "'", "_") &&
+          largos[[1L]] <= 3L && all(largos[2:(k - 1L)] == 3L)
+      )
+    )
+    # Y la parte decimal no se pega al resto para el documento entero cuando es
+    # inequivoca: la de un importe con miles, o la de un numero de hasta tres
+    # cifras enteras y cuatro o mas decimales -una coordenada "-33.340517", un
+    # p-valor-, que se tapaba si con la entera formaba una cedula.
+    inequivoca <- es_decimal &&
+      (k > 2L || (largos[[1L]] <= 3L && largos[[k]] >= 4L))
     grupos <- c(grupos, partes)
     decimal <- c(decimal, rep(es_decimal, k))
-    fraccion <- c(fraccion, seq_len(k) == k & es_decimal & length(signos) >= 2L)
+    fraccion <- c(fraccion, seq_len(k) == k & inequivoca)
   }
   list(grupos = grupos, decimal = decimal, fraccion = fraccion)
 }
@@ -156,15 +203,74 @@
   )
 }
 
+# Los guiones, espacios e invisibles de Unicode cortaban el numero: el telefono
+# "2901 1234" con un guion largo, un espacio de cifra, un guion suave o un
+# espacio de ancho cero entre los grupos se publicaba. Medido en la ronda 22. Se
+# llevan a los de ASCII antes de buscar.
+.normalizar_signos_digitos <- function(texto) {
+  tryCatch({
+    texto <- gsub("\\p{Cf}", "", texto, perl = TRUE)
+    texto <- gsub("[\\p{Pd}\u2212]", "-", texto, perl = TRUE)
+    texto <- gsub("[\\p{Zs}\t\n\r\f\v]", " ", texto, perl = TRUE)
+    # Y los que se parecen a un punto, una barra, una coma o un punto medio: el
+    # punto de guia, la barra de fraccion y la de division, la coma y el
+    # separador de miles arabes, el punto medio katakana y el operador punto.
+    chartr(
+      paste0("\uff0e\uff0c\uff0f\uff1a\u3002\u2024\u2044\u2215\u060c",
+             "\u066c\u30fb\uff65\u2219\u22c5"),
+      ".,/:..//,,\u00b7\u00b7\u00b7\u00b7",
+      texto
+    )
+  }, error = function(e) NA_character_)
+}
+
+# La fecha con hora como documento entero, en el orden en que se guarda: el
+# valor protegido "2024-06-27 21:24:25" se publicaba escrito
+# "2024-06-27T21:24:25" o "27/06/2024 21:24:25", porque la fecha y la hora se
+# borran antes de buscar. Medido en la ronda 22. Una fecha SOLA no es un dato
+# -`.valores_identificantes()` no la lleva-; con hora, si.
+.fechas_hora_digitos <- function(texto) {
+  salida <- character()
+  for (indice in seq_along(.REGLA_DIGITOS$fecha_hora)) {
+    patron <- .REGLA_DIGITOS$fecha_hora[[indice]]
+    piezas <- tryCatch(
+      regmatches(texto, gregexpr(patron, texto, perl = TRUE))[[1L]],
+      error = function(e) character()
+    )
+    for (pieza in piezas) {
+      partes <- regmatches(pieza, regexec(patron, pieza, perl = TRUE))[[1L]][-1L]
+      numeros <- suppressWarnings(as.integer(partes))
+      if (indice == 2L) numeros <- numeros[c(3L, 2L, 1L, 4L, 5L, 6L)]
+      if (anyNA(numeros[1:5])) next
+      sin_segundos <- sprintf("%04d%02d%02d%02d%02d", numeros[[1L]], numeros[[2L]],
+                              numeros[[3L]], numeros[[4L]], numeros[[5L]])
+      salida <- c(salida, sin_segundos, paste0(sin_segundos, sprintf(
+        "%02d", if (is.na(numeros[[6L]])) 0L else numeros[[6L]]
+      )))
+    }
+  }
+  salida
+}
+
 # Los numeros de `texto` -ya plegado- que se comparan, en sus tres papeles.
 .candidatos_digitos <- function(texto, maximo) {
   vacio <- list(completos = character(), prefijos = character(),
                 sufijos = character())
   if (is.na(texto) || !grepl("[0-9]", texto, useBytes = TRUE)) return(vacio)
   regla <- .REGLA_DIGITOS
+  texto <- .normalizar_signos_digitos(texto)
+  if (is.na(texto)) return(vacio)
+  fechas_hora <- .fechas_hora_digitos(texto)
   texto <- tryCatch({
     texto <- gsub(regla$fecha, " ", texto, perl = TRUE)
-    gsub(regla$hora, " ", texto, perl = TRUE)
+    texto <- gsub(regla$hora, " ", texto, perl = TRUE)
+    texto <- gsub(regla$ip, " ", texto, perl = TRUE)
+    isbn <- regmatches(texto, gregexpr(regla$isbn, texto, perl = TRUE))[[1L]]
+    isbn <- isbn[nchar(gsub("[^0-9Xx]", "", isbn)) == 13L]
+    for (pieza in isbn) texto <- sub(pieza, " ", texto, fixed = TRUE)
+    # Dos decimales pegados por una coma -"40.446984,38.209835", un par de
+    # coordenadas- son dos numeros, no uno.
+    gsub("([0-9][.][0-9]+),(?=[0-9]+[.][0-9])", "\\1, ", texto, perl = TRUE)
   }, error = function(e) NA_character_)
   if (is.na(texto)) return(vacio)
   minimo <- .MIN_LARGO_VALOR_IDENTIFICANTE
@@ -172,7 +278,7 @@
   # SIN su verificador no lo vuelve un dato. El documento entero, aunque sea
   # redondo -la cedula 5.000.000-0 tiene verificador valido-, si.
   redondo <- function(v) v[!grepl("^[1-9]0+$", v, perl = TRUE)]
-  completos <- character()
+  completos <- fechas_hora
   prefijos <- character()
   sufijos <- character()
   numeros <- regmatches(texto, gregexpr(regla$numero, texto, perl = TRUE))[[1L]]
