@@ -85,7 +85,12 @@ sólo que no falte ninguna.</p></dd>
 
 
 <dt id="arg-id-medicion">id_medicion<a class="anchor" aria-label="anchor" href="#arg-id-medicion"></a></dt>
-<dd><p>Identificador de corrida. Si se omite, se genera uno.</p></dd>
+<dd><p>Identificador de corrida. Si se omite, se genera uno. Cada
+medida lleva un <code>id_medida</code> que lo antepone a su métrica instanciada y la
+numera dentro de ella —<code>M-NoNulo@t.x-000001</code>—: una corrida armada por partes
+con el mismo <code>id_medicion</code> y unida con <code><a href="https://rdrr.io/r/base/cbind.html" class="external-link">rbind()</a></code> no repite identificadores,
+y la misma métrica medida dos veces en la corrida sí, que es lo que
+<code><a href="evaluar.html">evaluar()</a></code> y <code><a href="historico_calidad.html">historico_calidad()</a></code> rechazan.</p></dd>
 
 
 <dt id="arg-fecha">fecha<a class="anchor" aria-label="anchor" href="#arg-fecha"></a></dt>
@@ -186,14 +191,14 @@ se lee como un cambio del modelo del usuario.</p>
 <span class="r-in"><span><span class="va">especifica</span> <span class="op">&lt;-</span> <span class="fu"><a href="modelo_calidad.html">especializar</a></span><span class="op">(</span><span class="va">nucleo</span><span class="op">$</span><span class="va">NoNulo</span>, nombre_especifico <span class="op">=</span> <span class="st">"NoNuloEdad"</span><span class="op">)</span></span></span>
 <span class="r-in"><span><span class="va">instancia</span> <span class="op">&lt;-</span> <span class="fu"><a href="modelo_calidad.html">instanciar</a></span><span class="op">(</span><span class="va">especifica</span>, <span class="st">"personas"</span>, <span class="st">"edad"</span><span class="op">)</span></span></span>
 <span class="r-in"><span><span class="fu">medir</span><span class="op">(</span><span class="fu"><a href="modelo_calidad.html">modelo</a></span><span class="op">(</span><span class="va">instancia</span><span class="op">)</span>, <span class="fu"><a href="https://rdrr.io/r/base/data.frame.html" class="external-link">data.frame</a></span><span class="op">(</span>edad <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">20</span>, <span class="cn">NA</span>, <span class="fl">35</span><span class="op">)</span><span class="op">)</span><span class="op">)</span></span></span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>                                     id_medida</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 1 medicion-20261002T072025.144750-7372-000001</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 2 medicion-20261002T072025.144750-7372-000002</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 3 medicion-20261002T072025.144750-7372-000003</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>                                                              id_medida</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 1 medicion-20261002T092359.946884-7626-NoNuloEdad@personas.edad-000001</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 2 medicion-20261002T092359.946884-7626-NoNuloEdad@personas.edad-000002</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 3 medicion-20261002T092359.946884-7626-NoNuloEdad@personas.edad-000003</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>                            id_medicion               fecha metrica</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 1 medicion-20261002T072025.144750-7372 2026-10-02 07:20:25  NoNulo</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 2 medicion-20261002T072025.144750-7372 2026-10-02 07:20:25  NoNulo</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 3 medicion-20261002T072025.144750-7372 2026-10-02 07:20:25  NoNulo</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 1 medicion-20261002T092359.946884-7626 2026-10-02 09:23:59  NoNulo</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 2 medicion-20261002T092359.946884-7626 2026-10-02 09:23:59  NoNulo</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 3 medicion-20261002T092359.946884-7626 2026-10-02 09:23:59  NoNulo</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>   metrica_especifica      metrica_instanciada   dimension   factor orientacion</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> 1         NoNuloEdad NoNuloEdad@personas.edad Completitud Densidad conformidad</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> 2         NoNuloEdad NoNuloEdad@personas.edad Completitud Densidad conformidad</span>

@@ -43,6 +43,31 @@
     <div class="section level2">
 <h2 class="pkg-version" data-toc-text="0.1.0" id="lupa-010">lupa 0.1.0<a class="anchor" aria-label="anchor" href="#lupa-010"></a></h2>
 <div class="section level3">
+<h3 id="ronda-el-tablero-el-indice-y-la-proteccion-otra-vez-0-1-0">Ronda 23: el tablero, el indice y la proteccion otra vez<a class="anchor" aria-label="anchor" href="#ronda-el-tablero-el-indice-y-la-proteccion-otra-vez-0-1-0"></a></h3>
+<p>Una refutacion de la agregacion, el tablero y el indice encontro doce defectos, y la suite uno mas que venia de antes; una de la proteccion, nueve fugas y tres familias de tapado de mas en lo que la ronda 22 habia aflojado.</p>
+<p><strong>El tablero y el indice:</strong></p>
+<ul><li>
+<strong>La supresion del tablero se empareja por la metrica instanciada</strong>: con una especializacion con nombre propio, el tablero, el indice y el informe publicaban el valor que la regla mando suprimir; sin nombre, se tapaba tambien la instancia que cumplia.</li>
+<li>
+<strong>El alcance agregado suma las partes completas</strong> -“11 de 12” y no “5 de 6”- y, en un destino por fila, declara solo las filas incompletas, con su numero. <code><a href="https://rdrr.io/r/base/cbind.html" class="external-link">rbind()</a></code> de mediciones conserva <code>alcance_medidas</code>.</li>
+<li>
+<code>ratio_umbral</code> alcanza el umbral en el borde -<code>1 - 0.9</code> llega a <code>0.1</code>-, con la misma cuenta en el tablero y en <code><a href="../reference/agregar.html">agregar()</a></code>; el universo de una celda no depende del camino; el promedio de una duracion conserva su tipo y no pasa por una proporcion.</li>
+<li>
+<strong>Los identificadores de medida dejan de numerarse por llamada</strong>: <code><a href="../reference/medir.html">medir()</a></code>, <code><a href="../reference/agregar.html">agregar()</a></code>, <code><a href="../reference/analizar.html">analizar()</a></code> y el tablero numeraban desde 1 en cada una, y dos partes de la misma corrida -dos colecciones agregadas por separado, o dos tablas medidas con el mismo <code>id_medicion</code> y unidas con <code><a href="https://rdrr.io/r/base/cbind.html" class="external-link">rbind()</a></code>- salian con los mismos <code>id_medida</code>: <code><a href="../reference/evaluar.html">evaluar()</a></code> y <code><a href="../reference/historico_calidad.html">historico_calidad()</a></code> las rechazaban como una medicion unida consigo misma, en el camino documentado para subir de nivel. Ahora <code><a href="../reference/medir.html">medir()</a></code> antepone la metrica instanciada y numera dentro de ella (<code>M-NoNulo@t.x-000001</code>), y <code><a href="../reference/agregar.html">agregar()</a></code> nombra destino, funcion, metrica y objeto (<code>M-agg-atributo-ratio-NoNulo@t.x</code>).</li>
+<li>
+<code><a href="../reference/agregar.html">agregar()</a></code> y el tablero rechazan una medida repetida, y un valor que no se puede agregar se rechaza nombrando la metrica y la causa; un <code>umbral</code> que nadie usa se rechaza; una metrica sin dimension se nombra en el tablero y se excluye del indice con su motivo; los mensajes de pesos dicen cuando una dimension se excluyo o cuando un nombre difiere solo en su forma Unicode.</li>
+</ul><p><strong>La proteccion:</strong></p>
+<ul><li>
+<strong>Un telefono guardado con forma de fecha no sale del piso</strong>: el piso aceptaba cualquier ano. El rango de anos plausibles -1800 a 2100- es uno solo para el piso y la regla de digitos.</li>
+<li>
+<strong>Un nombre de columna dentro de un valor protegido no lo exceptua</strong>.</li>
+<li>
+<strong>Un numero con forma de IP se reconoce como documento entero</strong>, y un decimal solo es inequivoco si todo el numero son decimales: el telefono “29.10.12.34” o “(02) 901.1234” se publicaba.</li>
+<li>La fecha con hora se reconoce con coma, con dia y mes en los dos ordenes, con la hora separada por puntos y en la forma compacta; la fraccion de segundo tiene tope; mas espacios, invisibles y parecidos de Unicode unen el numero; y el motivo de <code><a href="../reference/perfilar_dbi.html">perfilar_dbi()</a></code> tapa una cita con sus comillas de CSV.</li>
+<li>
+<strong>Tapa menos de mas</strong>: los dos puntos y la barra vertical ya no unen numeros, el numeral y la vineta ya no son comodines, una IP al final de una frase y el ISBN-10 ya no se toman por documentos. <code><a href="../reference/perfilar.html">?perfilar</a></code> lista lo que queda.</li>
+</ul></div>
+<div class="section level3">
 <h3 id="ronda-el-modelo-de-calidad-0-1-0">Ronda 22: el modelo de calidad<a class="anchor" aria-label="anchor" href="#ronda-el-modelo-de-calidad-0-1-0"></a></h3>
 <p>Una refutacion de <code><a href="../reference/medir.html">medir()</a></code>, <code><a href="../reference/evaluar.html">evaluar()</a></code>, el historico y la deriva encontro doce defectos.</p>
 <ul><li>

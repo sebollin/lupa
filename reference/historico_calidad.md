@@ -115,24 +115,29 @@ historico_calidad(medidas, evaluacion)
 #> 2               1            medida
 #> 3               1  evaluacion_regla
 #> 4               1 evaluacion_perfil
-#>                                    id_registro    id_medida id_medicion
-#> 1             =medida|=enero|~|~|=enero-000001 enero-000001       enero
-#> 2             =medida|=enero|~|~|=enero-000002 enero-000002       enero
-#> 3 =evaluacion_regla|=enero|=Basico|=Presente|~         <NA>       enero
-#> 4        =evaluacion_perfil|=enero|=Basico|~|~         <NA>       enero
-#>        fecha perfil    regla metrica metrica_especifica  metrica_instanciada
-#> 1 2026-01-31   <NA>     <NA>  NoNulo             NoNulo NoNulo@personas.edad
-#> 2 2026-01-31   <NA>     <NA>  NoNulo             NoNulo NoNulo@personas.edad
-#> 3 2026-01-31 Basico Presente    <NA>               <NA>                 <NA>
-#> 4 2026-01-31 Basico     <NA>    <NA>               <NA>                 <NA>
-#>     dimension   factor      granularidad tipo_resultado  entidad atributo fila
-#> 1 Completitud Densidad instanciaAtributo       booleano personas     edad    1
-#> 2 Completitud Densidad instanciaAtributo       booleano personas     edad    2
-#> 3        <NA>     <NA>              <NA>           <NA>     <NA>     <NA>   NA
-#> 4        <NA>     <NA>              <NA>           <NA>     <NA>     <NA>   NA
-#>     objeto_medible n_elementos resultado agregacion
-#> 1 personas$edad[1]           1       1.0       <NA>
-#> 2 personas$edad[2]           1       0.0       <NA>
-#> 3             <NA>           2       0.5       <NA>
-#> 4             <NA>           1       0.5       <NA>
+#>                                               id_registro
+#> 1 =medida|=enero|~|~|=enero-NoNulo%40personas.edad-000001
+#> 2 =medida|=enero|~|~|=enero-NoNulo%40personas.edad-000002
+#> 3            =evaluacion_regla|=enero|=Basico|=Presente|~
+#> 4                   =evaluacion_perfil|=enero|=Basico|~|~
+#>                           id_medida id_medicion      fecha perfil    regla
+#> 1 enero-NoNulo@personas.edad-000001       enero 2026-01-31   <NA>     <NA>
+#> 2 enero-NoNulo@personas.edad-000002       enero 2026-01-31   <NA>     <NA>
+#> 3                              <NA>       enero 2026-01-31 Basico Presente
+#> 4                              <NA>       enero 2026-01-31 Basico     <NA>
+#>   metrica metrica_especifica  metrica_instanciada   dimension   factor
+#> 1  NoNulo             NoNulo NoNulo@personas.edad Completitud Densidad
+#> 2  NoNulo             NoNulo NoNulo@personas.edad Completitud Densidad
+#> 3    <NA>               <NA>                 <NA>        <NA>     <NA>
+#> 4    <NA>               <NA>                 <NA>        <NA>     <NA>
+#>        granularidad tipo_resultado  entidad atributo fila   objeto_medible
+#> 1 instanciaAtributo       booleano personas     edad    1 personas$edad[1]
+#> 2 instanciaAtributo       booleano personas     edad    2 personas$edad[2]
+#> 3              <NA>           <NA>     <NA>     <NA>   NA             <NA>
+#> 4              <NA>           <NA>     <NA>     <NA>   NA             <NA>
+#>   n_elementos resultado agregacion
+#> 1           1       1.0       <NA>
+#> 2           1       0.0       <NA>
+#> 3           2       0.5       <NA>
+#> 4           1       0.5       <NA>
 ```

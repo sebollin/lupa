@@ -133,7 +133,23 @@ renombra la métrica (`agregada:ratio:Formato`), así que arrastrarla tal
 cual dejaba una declaración que no se podía atribuir a ninguna fila. Los
 conteos se **suman** por objeto de destino, y sólo cuando todas las
 partes declaran la misma unidad; si no, la fila declara la mezcla en
-lugar de publicar un total que no estaría en ninguna unidad.
+lugar de publicar un total que no estaría en ninguna unidad. Las partes
+**completas** también suman —una columna de 6 de 6 junto a una de 5 de 6
+da 11 de 12—, y en un destino por fila (`instanciaEntidad`) cada fila
+cuenta sus propias celdas: se declaran sólo las incompletas, con su
+número de fila en el motivo.
+
+Una medida repetida —el mismo `id_medida` dos veces, como deja una
+medición unida consigo misma— se rechaza, como en
+[`evaluar()`](https://sebollin.github.io/lupa/reference/evaluar.md). El
+`id_medida` de cada fila agregada nombra lo que agrega —destino,
+función, métrica y objeto, como `M-agg-atributo-ratio-NoNulo@t.x`—, así
+que dos partes agregadas por separado se pueden unir y subir de nivel, y
+el mismo agregado repetido sigue repitiendo su identificador. Un valor
+que no se puede agregar se rechaza nombrando la métrica y la causa: un
+tipo no acotado, una medida ausente o suprimida, o un valor fuera de
+`[0, 1]`. `umbral` sólo se acepta con `ratio_umbral`, y el borde se
+compara con tolerancia de redondeo: `1 - 0.9` alcanza el umbral `0.1`.
 
 Las coberturas de frontera (`cobertura_coleccion` y sus hermanas) **no**
 se arrastran: cada agregación calcula la de su propio destino con las
@@ -170,10 +186,10 @@ especifica <- especializar(nucleo$NoNulo)
 instancia <- instanciar(especifica, "personas", "edad")
 medidas <- medir(modelo(instancia), data.frame(edad = c(20, NA, 35)))
 agregar(medidas, "atributo", "ratio")
-#>                                               id_medida
-#> 1 medicion-20261002T072012.454507-7372-agg-ratio-000001
+#>                                                                      id_medida
+#> 1 medicion-20261002T092339.425888-7626-agg-atributo-ratio-NoNulo@personas.edad
 #>                            id_medicion               fecha metrica
-#> 1 medicion-20261002T072012.454507-7372 2026-10-02 07:20:12  NoNulo
+#> 1 medicion-20261002T092339.425888-7626 2026-10-02 09:23:39  NoNulo
 #>   metrica_especifica   metrica_instanciada   dimension   factor orientacion
 #> 1             NoNulo agregada:ratio:NoNulo Completitud Densidad conformidad
 #>   granularidad tipo_resultado  entidad atributo fila objeto_medible resultado

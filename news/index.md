@@ -2,6 +2,76 @@
 
 ## lupa 0.1.0
 
+### Ronda 23: el tablero, el indice y la proteccion otra vez
+
+Una refutacion de la agregacion, el tablero y el indice encontro doce
+defectos, y la suite uno mas que venia de antes; una de la proteccion,
+nueve fugas y tres familias de tapado de mas en lo que la ronda 22 habia
+aflojado.
+
+**El tablero y el indice:**
+
+- **La supresion del tablero se empareja por la metrica instanciada**:
+  con una especializacion con nombre propio, el tablero, el indice y el
+  informe publicaban el valor que la regla mando suprimir; sin nombre,
+  se tapaba tambien la instancia que cumplia.
+- **El alcance agregado suma las partes completas** -“11 de 12” y no “5
+  de 6”- y, en un destino por fila, declara solo las filas incompletas,
+  con su numero. [`rbind()`](https://rdrr.io/r/base/cbind.html) de
+  mediciones conserva `alcance_medidas`.
+- `ratio_umbral` alcanza el umbral en el borde -`1 - 0.9` llega a
+  `0.1`-, con la misma cuenta en el tablero y en
+  [`agregar()`](https://sebollin.github.io/lupa/reference/agregar.md);
+  el universo de una celda no depende del camino; el promedio de una
+  duracion conserva su tipo y no pasa por una proporcion.
+- **Los identificadores de medida dejan de numerarse por llamada**:
+  [`medir()`](https://sebollin.github.io/lupa/reference/medir.md),
+  [`agregar()`](https://sebollin.github.io/lupa/reference/agregar.md),
+  [`analizar()`](https://sebollin.github.io/lupa/reference/analizar.md)
+  y el tablero numeraban desde 1 en cada una, y dos partes de la misma
+  corrida -dos colecciones agregadas por separado, o dos tablas medidas
+  con el mismo `id_medicion` y unidas con
+  [`rbind()`](https://rdrr.io/r/base/cbind.html)- salian con los mismos
+  `id_medida`:
+  [`evaluar()`](https://sebollin.github.io/lupa/reference/evaluar.md) y
+  [`historico_calidad()`](https://sebollin.github.io/lupa/reference/historico_calidad.md)
+  las rechazaban como una medicion unida consigo misma, en el camino
+  documentado para subir de nivel. Ahora
+  [`medir()`](https://sebollin.github.io/lupa/reference/medir.md)
+  antepone la metrica instanciada y numera dentro de ella
+  (`M-NoNulo@t.x-000001`), y
+  [`agregar()`](https://sebollin.github.io/lupa/reference/agregar.md)
+  nombra destino, funcion, metrica y objeto
+  (`M-agg-atributo-ratio-NoNulo@t.x`).
+- [`agregar()`](https://sebollin.github.io/lupa/reference/agregar.md) y
+  el tablero rechazan una medida repetida, y un valor que no se puede
+  agregar se rechaza nombrando la metrica y la causa; un `umbral` que
+  nadie usa se rechaza; una metrica sin dimension se nombra en el
+  tablero y se excluye del indice con su motivo; los mensajes de pesos
+  dicen cuando una dimension se excluyo o cuando un nombre difiere solo
+  en su forma Unicode.
+
+**La proteccion:**
+
+- **Un telefono guardado con forma de fecha no sale del piso**: el piso
+  aceptaba cualquier ano. El rango de anos plausibles -1800 a 2100- es
+  uno solo para el piso y la regla de digitos.
+- **Un nombre de columna dentro de un valor protegido no lo exceptua**.
+- **Un numero con forma de IP se reconoce como documento entero**, y un
+  decimal solo es inequivoco si todo el numero son decimales: el
+  telefono “29.10.12.34” o “(02) 901.1234” se publicaba.
+- La fecha con hora se reconoce con coma, con dia y mes en los dos
+  ordenes, con la hora separada por puntos y en la forma compacta; la
+  fraccion de segundo tiene tope; mas espacios, invisibles y parecidos
+  de Unicode unen el numero; y el motivo de
+  [`perfilar_dbi()`](https://sebollin.github.io/lupa/reference/perfilar_dbi.md)
+  tapa una cita con sus comillas de CSV.
+- **Tapa menos de mas**: los dos puntos y la barra vertical ya no unen
+  numeros, el numeral y la vineta ya no son comodines, una IP al final
+  de una frase y el ISBN-10 ya no se toman por documentos.
+  [`?perfilar`](https://sebollin.github.io/lupa/reference/perfilar.md)
+  lista lo que queda.
+
 ### Ronda 22: el modelo de calidad
 
 Una refutacion de

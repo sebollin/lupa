@@ -148,26 +148,31 @@ República, Uruguay.</p>
 <span class="r-out co"><span class="r-pr">#&gt;</span> 2               1            medida</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> 3               1  evaluacion_regla</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> 4               1 evaluacion_perfil</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>                                    id_registro    id_medida id_medicion</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 1             =medida|=enero|~|~|=enero-000001 enero-000001       enero</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 2             =medida|=enero|~|~|=enero-000002 enero-000002       enero</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 3 =evaluacion_regla|=enero|=Basico|=Presente|~         &lt;NA&gt;       enero</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 4        =evaluacion_perfil|=enero|=Basico|~|~         &lt;NA&gt;       enero</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>        fecha perfil    regla metrica metrica_especifica  metrica_instanciada</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 1 2026-01-31   &lt;NA&gt;     &lt;NA&gt;  NoNulo             NoNulo NoNulo@personas.edad</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 2 2026-01-31   &lt;NA&gt;     &lt;NA&gt;  NoNulo             NoNulo NoNulo@personas.edad</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 3 2026-01-31 Basico Presente    &lt;NA&gt;               &lt;NA&gt;                 &lt;NA&gt;</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 4 2026-01-31 Basico     &lt;NA&gt;    &lt;NA&gt;               &lt;NA&gt;                 &lt;NA&gt;</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>     dimension   factor      granularidad tipo_resultado  entidad atributo fila</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 1 Completitud Densidad instanciaAtributo       booleano personas     edad    1</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 2 Completitud Densidad instanciaAtributo       booleano personas     edad    2</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 3        &lt;NA&gt;     &lt;NA&gt;              &lt;NA&gt;           &lt;NA&gt;     &lt;NA&gt;     &lt;NA&gt;   NA</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 4        &lt;NA&gt;     &lt;NA&gt;              &lt;NA&gt;           &lt;NA&gt;     &lt;NA&gt;     &lt;NA&gt;   NA</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>     objeto_medible n_elementos resultado agregacion</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 1 personas$edad[1]           1       1.0       &lt;NA&gt;</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 2 personas$edad[2]           1       0.0       &lt;NA&gt;</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 3             &lt;NA&gt;           2       0.5       &lt;NA&gt;</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 4             &lt;NA&gt;           1       0.5       &lt;NA&gt;</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>                                               id_registro</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 1 =medida|=enero|~|~|=enero-NoNulo%40personas.edad-000001</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 2 =medida|=enero|~|~|=enero-NoNulo%40personas.edad-000002</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 3            =evaluacion_regla|=enero|=Basico|=Presente|~</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 4                   =evaluacion_perfil|=enero|=Basico|~|~</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>                           id_medida id_medicion      fecha perfil    regla</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 1 enero-NoNulo@personas.edad-000001       enero 2026-01-31   &lt;NA&gt;     &lt;NA&gt;</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 2 enero-NoNulo@personas.edad-000002       enero 2026-01-31   &lt;NA&gt;     &lt;NA&gt;</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 3                              &lt;NA&gt;       enero 2026-01-31 Basico Presente</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 4                              &lt;NA&gt;       enero 2026-01-31 Basico     &lt;NA&gt;</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>   metrica metrica_especifica  metrica_instanciada   dimension   factor</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 1  NoNulo             NoNulo NoNulo@personas.edad Completitud Densidad</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 2  NoNulo             NoNulo NoNulo@personas.edad Completitud Densidad</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 3    &lt;NA&gt;               &lt;NA&gt;                 &lt;NA&gt;        &lt;NA&gt;     &lt;NA&gt;</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 4    &lt;NA&gt;               &lt;NA&gt;                 &lt;NA&gt;        &lt;NA&gt;     &lt;NA&gt;</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>        granularidad tipo_resultado  entidad atributo fila   objeto_medible</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 1 instanciaAtributo       booleano personas     edad    1 personas$edad[1]</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 2 instanciaAtributo       booleano personas     edad    2 personas$edad[2]</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 3              &lt;NA&gt;           &lt;NA&gt;     &lt;NA&gt;     &lt;NA&gt;   NA             &lt;NA&gt;</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 4              &lt;NA&gt;           &lt;NA&gt;     &lt;NA&gt;     &lt;NA&gt;   NA             &lt;NA&gt;</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>   n_elementos resultado agregacion</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 1           1       1.0       &lt;NA&gt;</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 2           1       0.0       &lt;NA&gt;</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 3           2       0.5       &lt;NA&gt;</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 4           1       0.5       &lt;NA&gt;</span>
 </code></pre></div>
     </div>
   </main><aside class="col-md-3"><nav id="toc" aria-label="Table of contents"><h2>On this page</h2>

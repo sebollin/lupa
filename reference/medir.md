@@ -45,7 +45,16 @@ medir(
 
 - id_medicion:
 
-  Identificador de corrida. Si se omite, se genera uno.
+  Identificador de corrida. Si se omite, se genera uno. Cada medida
+  lleva un `id_medida` que lo antepone a su métrica instanciada y la
+  numera dentro de ella —`M-NoNulo@t.x-000001`—: una corrida armada por
+  partes con el mismo `id_medicion` y unida con
+  [`rbind()`](https://rdrr.io/r/base/cbind.html) no repite
+  identificadores, y la misma métrica medida dos veces en la corrida sí,
+  que es lo que
+  [`evaluar()`](https://sebollin.github.io/lupa/reference/evaluar.md) y
+  [`historico_calidad()`](https://sebollin.github.io/lupa/reference/historico_calidad.md)
+  rechazan.
 
 - fecha:
 
@@ -154,14 +163,14 @@ nucleo <- metricas_nucleo()
 especifica <- especializar(nucleo$NoNulo, nombre_especifico = "NoNuloEdad")
 instancia <- instanciar(especifica, "personas", "edad")
 medir(modelo(instancia), data.frame(edad = c(20, NA, 35)))
-#>                                     id_medida
-#> 1 medicion-20261002T072025.144750-7372-000001
-#> 2 medicion-20261002T072025.144750-7372-000002
-#> 3 medicion-20261002T072025.144750-7372-000003
+#>                                                              id_medida
+#> 1 medicion-20261002T092359.946884-7626-NoNuloEdad@personas.edad-000001
+#> 2 medicion-20261002T092359.946884-7626-NoNuloEdad@personas.edad-000002
+#> 3 medicion-20261002T092359.946884-7626-NoNuloEdad@personas.edad-000003
 #>                            id_medicion               fecha metrica
-#> 1 medicion-20261002T072025.144750-7372 2026-10-02 07:20:25  NoNulo
-#> 2 medicion-20261002T072025.144750-7372 2026-10-02 07:20:25  NoNulo
-#> 3 medicion-20261002T072025.144750-7372 2026-10-02 07:20:25  NoNulo
+#> 1 medicion-20261002T092359.946884-7626 2026-10-02 09:23:59  NoNulo
+#> 2 medicion-20261002T092359.946884-7626 2026-10-02 09:23:59  NoNulo
+#> 3 medicion-20261002T092359.946884-7626 2026-10-02 09:23:59  NoNulo
 #>   metrica_especifica      metrica_instanciada   dimension   factor orientacion
 #> 1         NoNuloEdad NoNuloEdad@personas.edad Completitud Densidad conformidad
 #> 2         NoNuloEdad NoNuloEdad@personas.edad Completitud Densidad conformidad
