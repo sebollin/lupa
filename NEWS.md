@@ -1,5 +1,57 @@
 # lupa 0.1.0
 
+## Ronda 21: el informe HTML
+
+Una refutacion del informe de `reportar()` encontro siete defectos.
+
+- **Un plan, una deriva, una medicion o un historico armados con la proteccion
+  desactivada no se publican en un informe protegido**. Salian en claro al lado
+  de un perfil enmascarado del mismo archivo; ahora su seccion dice que se omitio
+  y como pedirla. La marca que lo indica sobrevive a `[`, `subset()` y `rbind()`
+  -que la perdian o se quedaban con la del primer objeto- y al historico.
+- **En la seccion Historico, una medida que la evaluacion suprime se enmascara**
+  como en la evaluacion del mismo informe.
+- Un perfil, o un analisis sin la tabla, armado con la proteccion desactivada se
+  vuelve a proteger con lo que conserva, y **su seccion declara** que una
+  variante de un valor protegido escrita en otra columna puede quedar a la vista.
+- El informe **no aborta con texto marcado UTF-8 que no es UTF-8 valido** -el que
+  deja `fread(encoding = "UTF-8")` sobre un CSV latin1-: lo muestra con sus bytes.
+- **Las cifras se escriben con todos sus digitos**: el informe redondeaba a ocho
+  cifras significativas y publicaba numeros que no estaban en el objeto.
+- Una seccion que no se puede armar -un perfil al que le falta un componente-
+  se declara dentro del informe en vez de interrumpirlo; y un salto de linea en
+  `titulo` ya no se escribe como `<br>` dentro de `<title>`.
+
+Y una refutacion de la proteccion de datos personales encontro catorce, cinco
+de ellos abiertos por lo que la ronda 20 aflojo.
+
+- **Un numero protegido se reconoce con cualquier agrupacion**: un telefono
+  "2901 1234" o "099 12 34 56", una tarjeta, un IBAN, la cedula escrita
+  "4 . 123 . 456-7" o con puntos medios se publicaban enteros, porque la regla
+  de la ronda 20 solo aceptaba la forma de miles. Tambien con ceros a la
+  izquierda, redondo -la cedula 5.000.000-0- y con digitos arabigo-indicos,
+  persas o devanagari.
+- **El documento sin su primer digito se reconoce tras un comodin**
+  -"*.012.345-8"-, tambien cuando el segundo digito es cero.
+- **Tapa menos de mas**: la parte decimal de una coordenada o de un p-valor, el
+  entero de un monto con decimales, una hora o una lista separada por comas ya
+  no se toman por documentos. Lo que queda tiene un costo medido y declarado en
+  `?perfilar`: un entero de siete cifras que coincide con un documento sin su
+  verificador no se distingue de el. `data-raw/medir_tapado_de_mas.R` rehace la
+  cifra.
+- **En la prosa se tapa el numero o la cita, no la frase**, y el umbral de una
+  sugerencia -escrito sin comillas- ya no publica el documento que es. Una
+  comilla en el nombre de una columna no desarma el apareo de las citas.
+- **Los campos numericos comparan tambien la forma en digitos** del documento
+  escrito -"5.432.198-6" frente a un `maximo` de 54321986-, y cuando el piso tapa
+  un extremo se tapan los campos de la secuencia entera que lo reconstruian.
+- Una columna de p-valores de siete decimales ya no se clasifica como documento.
+- **`perfilar_dbi()` trae los valores de las columnas protegidas de la tabla
+  entera** cuando la muestra no la cubre, tambien de una columna numerica, y
+  protege con la misma regla que `perfilar()`. Antes comparaba exacto, no miraba
+  la evidencia y se cortaba sin avisar en 500 candidatos. Si no puede traerlos,
+  tapa y lo declara.
+
 ## Ronda 20: el plan de limpieza, y la proteccion otra vez
 
 Dos refutaciones en paralelo. La de la capa de limpieza encontro veintidos

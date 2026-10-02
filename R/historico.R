@@ -37,6 +37,17 @@
   "n_elementos", "resultado", "agregacion"
 )
 
+#' @export
+`[.historico_calidad` <- function(x, ...) {
+  resultado <- NextMethod("[")
+  .conservar_marca_sin_proteger(resultado, x)
+}
+
+#' @export
+rbind.historico_calidad <- function(..., deparse.level = 1) {
+  .unir_con_marca_sin_proteger(..., deparse.level = deparse.level)
+}
+
 .historico_vacio <- function() {
   resultado <- data.frame(
     version_esquema = integer(), nivel = character(),
@@ -377,6 +388,8 @@
   }
   attr(resultado, "configuracion_evaluacion") <-
     .configuracion_historico_medicion(x)
+  attr(resultado, "datos_personales_sin_proteger") <-
+    attr(x, "datos_personales_sin_proteger", exact = TRUE)
   resultado
 }
 
@@ -523,6 +536,9 @@
     stop("`historico` no cumple el esquema tabular esperado.", call. = FALSE)
   }
   configuracion <- attr(x, "configuracion_evaluacion", exact = TRUE)
+  # La marca de que el historico viene de mediciones SIN proteccion: `reportar()`
+  # la lee para no publicarlo en claro, y `.tabla_base()` la borraba.
+  sin_proteger <- attr(x, "datos_personales_sin_proteger", exact = TRUE)
   x <- .tabla_base(x)
   configuracion <- .validar_configuraciones_historico(configuracion)
   version <- unique(x$version_esquema)
@@ -607,6 +623,7 @@
   class(x) <- c("historico_calidad", "data.frame")
   attr(x, "version_esquema") <- .version_esquema_historico
   attr(x, "configuracion_evaluacion") <- configuracion
+  attr(x, "datos_personales_sin_proteger") <- sin_proteger
   x
 }
 
@@ -687,6 +704,13 @@
   resultado <- if (nrow(agregar)) rbind(anterior, agregar) else anterior
   rownames(resultado) <- NULL
   attr(resultado, "configuracion_evaluacion") <- configuracion
+  # `rbind()` conserva solo la marca del primero: se unen las dos.
+  sin_proteger <- unique(c(
+    attr(anterior, "datos_personales_sin_proteger", exact = TRUE),
+    attr(nuevo, "datos_personales_sin_proteger", exact = TRUE)
+  ))
+  attr(resultado, "datos_personales_sin_proteger") <-
+    if (length(sin_proteger)) sin_proteger
   .validar_historico(resultado)
 }
 

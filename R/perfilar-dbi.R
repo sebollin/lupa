@@ -10924,71 +10924,125 @@ print.plan_perfilado_dbi <- function(x, ...) {
   info
 }
 
-# Lo que se va a publicar de las columnas NO personales -moda, extremos, ejemplos
-# de patron-, buscado en las columnas personales de la tabla ENTERA. La muestra
-# solo conoce sus filas: el titular que en la columna protegida esta solo fuera
-# de ella, y que es la moda de otra columna, se publicaba exacto en el resumen y
-# en el perfil de la muestra. Medido en una refutacion. Una consulta por columna
-# personal de texto, y solo cuando la muestra no cubre la tabla; si no se puede
-# consultar, se tapan todos los candidatos: es una funcion de privacidad.
+# Lo que se publica de las columnas NO personales -moda, extremos, ejemplos,
+# evidencia de los hallazgos- puede ser un valor que en la columna protegida esta
+# solo FUERA de la muestra: el titular que es la moda de otra columna se
+# publicaba exacto. La ronda 20 lo cerro con una consulta por los candidatos
+# escritos tal cual, y una refutacion la rompio de cuatro maneras: comparaba
+# exacto -sin caja ni separadores-, no miraba la evidencia, no corria sobre una
+# columna personal NUMERICA -una cedula guardada como entero, lo corriente en
+# una base- y se cortaba en 500 candidatos sin avisar.
+#
+# Ahora se traen los valores DISTINTOS de las columnas protegidas, de cualquier
+# tipo, y se protege con la misma regla que `perfilar()` en memoria: pliegue,
+# separadores, documentos parciales, campos numericos. Solo cuando la muestra no
+# cubre la tabla. Hasta `.MAXIMO_VALORES_PROTEGIDOS_DBI` valores; si hay mas, o
+# si la consulta falla, se cierra del lado seguro y se declara: ver
+# `.cerrar_fuera_de_muestra_dbi()`.
+.MAXIMO_VALORES_PROTEGIDOS_DBI <- 2000000L
+
 .valores_protegidos_fuera_de_muestra_dbi <- function(conexion, preparacion,
-                                                     resumen, perfil, sensibles,
+                                                     perfil, sensibles,
                                                      presupuesto) {
+  completo <- list(valores = character(), completo = TRUE, motivo = NA_character_)
   if (!length(sensibles) || !is.list(perfil) || !isTRUE(perfil$meta$muestreo)) {
-    return(character())
+    return(completo)
   }
+  operar <- function(x) .nombres_para_operar(as.character(x))
+  indices <- match(operar(sensibles), operar(preparacion$campos))
+  indices <- indices[!is.na(indices)]
+  if (!length(indices)) return(completo)
+  como_texto <- function(v) {
+    if (inherits(v, "integer64")) return(as.character(v))
+    if (is.numeric(v)) {
+      enteros <- !is.na(v) & is.finite(v) & v == round(v) & abs(v) < 1e18
+      salida <- as.character(v)
+      salida[enteros] <- formatC(v[enteros], format = "f", digits = 0)
+      return(salida)
+    }
+    as.character(v)
+  }
+  valores <- character()
+  for (indice in indices) {
+    campo <- preparacion$campos_sql[[indice]]
+    sql <- paste0(
+      "SELECT DISTINCT ", campo, " FROM ", preparacion$tabla_sql,
+      " WHERE ", campo, " IS NOT NULL"
+    )
+    respuesta <- .consultar_dbi(
+      conexion, sql, presupuesto,
+      filas = .MAXIMO_VALORES_PROTEGIDOS_DBI + 1L,
+      etapa = "proteccion_fuera_de_muestra"
+    )
+    if (!isTRUE(respuesta$ok)) {
+      return(list(valores = character(), completo = FALSE, motivo = paste0(
+        "no se pudieron consultar los valores de `",
+        preparacion$campos[[indice]], "` fuera de la muestra: ", respuesta$motivo
+      )))
+    }
+    if (NROW(respuesta$datos)) {
+      valores <- unique(c(valores, como_texto(respuesta$datos[[1L]])))
+    }
+    if (length(valores) > .MAXIMO_VALORES_PROTEGIDOS_DBI) {
+      return(list(valores = character(), completo = FALSE, motivo = paste0(
+        "las columnas protegidas tienen mas de ",
+        format(.MAXIMO_VALORES_PROTEGIDOS_DBI, big.mark = ".", scientific = FALSE),
+        " valores distintos y no se traen"
+      )))
+    }
+  }
+  list(valores = valores[!is.na(valores)], completo = TRUE, motivo = NA_character_)
+}
+
+# Lo que se aplica con los valores de la tabla entera: la misma proteccion que el
+# piso de `perfilar()`, en texto y en numeros.
+.proteger_con_valores_dbi <- function(x, valores, intocables) {
+  identificantes <- .valores_identificantes(unique(valores))
+  if (!length(identificantes) || is.null(x)) return(x)
+  x <- .proteger_textos_salida(x, identificantes, intocables = intocables)
+  columnas_antes <- x$columnas
+  x <- .proteger_numeros_parametros(x, identificantes)
+  if (inherits(columnas_antes, "data.frame")) {
+    x$columnas <- .tapar_derivados_del_piso(columnas_antes, x$columnas)
+  }
+  x
+}
+
+# Sin los valores de la tabla entera no se sabe que de lo publicado es de una
+# persona. Se tapa todo valor de celda de las columnas no personales -moda,
+# extremos, ejemplos- y la evidencia de sus hallazgos, y se dice por que.
+.cerrar_fuera_de_muestra_dbi <- function(resumen, perfil, sensibles) {
   operar <- function(x) .nombres_para_operar(as.character(x))
   no_personal <- function(columnas) !operar(columnas) %in% operar(sensibles)
   candidatos <- character()
   for (tabla in list(resumen$columnas, perfil$columnas)) {
     if (!is.data.frame(tabla) || !"columna" %in% names(tabla)) next
     filas <- no_personal(tabla$columna)
-    for (campo in intersect(c("moda", "minimo", "maximo"), names(tabla))) {
+    for (campo in intersect(c("moda", "minimo", "maximo", "mediana", "media"),
+                            names(tabla))) {
       candidatos <- c(candidatos, as.character(tabla[[campo]][filas]))
     }
   }
   if (is.list(perfil$patrones)) {
     for (columna in names(perfil$patrones)) {
       if (!no_personal(columna)) next
-      ejemplos <- perfil$patrones[[columna]]$ejemplos
       candidatos <- c(candidatos, unlist(strsplit(
-        as.character(ejemplos), .SEPARADOR_EJEMPLOS, fixed = TRUE
+        as.character(perfil$patrones[[columna]]$ejemplos),
+        .SEPARADOR_EJEMPLOS, fixed = TRUE
       ), use.names = FALSE))
     }
   }
-  candidatos <- .valores_identificantes(unique(candidatos[!is.na(candidatos)]))
-  candidatos <- utils::head(candidatos[validUTF8(candidatos)], 500L)
-  if (!length(candidatos)) return(character())
-  tipos <- perfil$columnas$tipo_declarado[
-    match(operar(sensibles), operar(perfil$columnas$columna))
-  ]
-  de_texto <- sensibles[!is.na(tipos) & tipos %in% c("texto", "factor")]
-  indices <- match(operar(de_texto), operar(preparacion$campos))
-  de_texto <- de_texto[!is.na(indices)]
-  indices <- indices[!is.na(indices)]
-  if (!length(indices)) return(character())
-  literales <- paste(
-    as.character(DBI::dbQuoteString(conexion, candidatos)), collapse = ", "
-  )
-  encontrados <- character()
-  for (indice in indices) {
-    campo <- preparacion$campos_sql[[indice]]
-    sql <- paste0(
-      "SELECT DISTINCT ", campo, " FROM ", preparacion$tabla_sql,
-      " WHERE ", campo, " IN (", literales, ")"
-    )
-    respuesta <- .consultar_dbi(
-      conexion, sql, presupuesto, etapa = "proteccion_fuera_de_muestra"
-    )
-    if (isTRUE(respuesta$ok)) {
-      if (NROW(respuesta$datos)) {
-        encontrados <- c(encontrados, as.character(respuesta$datos[[1L]]))
-      }
-    } else {
-      return(candidatos)
-    }
+  intocables <- as.character(resumen$columnas$columna)
+  candidatos <- unique(candidatos[!is.na(candidatos)])
+  resumen <- .proteger_con_valores_dbi(resumen, candidatos, intocables)
+  perfil <- .proteger_con_valores_dbi(perfil, candidatos, intocables)
+  if (is.data.frame(perfil$hallazgos) && nrow(perfil$hallazgos) &&
+      "evidencia" %in% names(perfil$hallazgos)) {
+    filas <- no_personal(perfil$hallazgos$columna) &
+      !is.na(perfil$hallazgos$evidencia)
+    perfil$hallazgos$evidencia[filas] <- "[evidencia protegida]"
   }
-  unique(encontrados[!is.na(encontrados)])
+  list(resumen = resumen, perfil = perfil)
 }
 
 .proteger_resumen_dbi <- function(resumen, sensibles, base_clasificacion,
@@ -11117,7 +11171,9 @@ print.plan_perfilado_dbi <- function(x, ...) {
   # atribuible, y tambien en los campos numericos.
   if (length(identificantes)) {
     resumen <- .proteger_textos_salida(resumen, identificantes)
+    columnas_antes <- resumen$columnas
     resumen <- .proteger_numeros_parametros(resumen, identificantes)
+    resumen$columnas <- .tapar_derivados_del_piso(columnas_antes, resumen$columnas)
   }
   literales <- resumen$literales
   if (length(literales)) {
@@ -12908,12 +12964,16 @@ print.plan_perfilado_dbi <- function(x, ...) {
 #' las cifras de valor del resumen SQL completo quedan marcadas en
 #' `resumen_tabla$cobertura` y, con la protección activa, se ocultan hasta que
 #' la clasificación cubra el mismo alcance. La corroboración no repite esas
-#' cifras dudosas en su anotación. Y cuando la muestra no cubre la tabla, lo que
-#' se va a publicar de las columnas no personales —moda, extremos, ejemplos de
-#' patrón— se busca en las columnas personales de texto de la tabla entera, con
-#' una consulta por columna: un valor de una persona que sólo está fuera de la
-#' muestra se tapa igual. Si esa consulta no se puede hacer, se tapan todos esos
-#' valores.
+#' cifras dudosas en su anotación. Y cuando la muestra no cubre la tabla, se
+#' traen los valores distintos de las columnas protegidas de la tabla entera
+#' —de texto o numéricas, una consulta por columna— y se protege con ellos lo
+#' que se publica, con la misma regla que [perfilar()] en memoria: tildes, caja,
+#' separadores, el documento parcial, los campos numéricos y la evidencia de los
+#' hallazgos. Un valor de una persona que sólo está fuera de la muestra se tapa
+#' igual. Se traen hasta dos millones de valores; si hay más, o si la consulta
+#' no se puede hacer, se tapan todos los valores de celda de las columnas no
+#' personales —moda, extremos, ejemplos— y la evidencia de sus hallazgos, y
+#' `resumen_tabla$meta$proteccion_personal$fuera_de_muestra` dice por qué.
 #' `incluir_valores = FALSE` va más lejos: no emite las consultas de moda ni de
 #' mediana y no informa mínimo ni máximo, útil cuando la tabla es un padrón y
 #' la moda de un identificador único es un documento real. Si se pidió `desvio`,
@@ -13845,14 +13905,23 @@ perfilar_dbi <- function(conexion, tabla,
         valores_muestra = bloque$valores_protegidos
       )
       fuera <- .valores_protegidos_fuera_de_muestra_dbi(
-        conexion, preparacion, resumen, bloque$perfil, sensibles_muestra,
-        presupuesto
+        conexion, preparacion, bloque$perfil, sensibles_muestra, presupuesto
       )
-      if (length(fuera)) {
+      if (isTRUE(fuera$completo)) {
         intocables <- as.character(resumen$columnas$columna)
-        resumen <- .proteger_textos_salida(resumen, fuera, intocables = intocables)
-        bloque$perfil <- .proteger_textos_salida(
-          bloque$perfil, fuera, intocables = intocables
+        resumen <- .proteger_con_valores_dbi(resumen, fuera$valores, intocables)
+        bloque$perfil <- .proteger_con_valores_dbi(
+          bloque$perfil, fuera$valores, intocables
+        )
+      } else {
+        cerrado <- .cerrar_fuera_de_muestra_dbi(
+          resumen, bloque$perfil, sensibles_muestra
+        )
+        resumen <- cerrado$resumen
+        bloque$perfil <- cerrado$perfil
+        resumen$meta$proteccion_personal$fuera_de_muestra <- paste0(
+          "No verificada: ", fuera$motivo, ". Se taparon los valores y la ",
+          "evidencia de las columnas no personales."
         )
       }
     }

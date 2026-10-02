@@ -881,6 +881,17 @@ perfiles_madurez <- function(metricas = NULL, umbrales = NULL) {
 }
 
 #' @export
+`[.medicion` <- function(x, ...) {
+  resultado <- NextMethod("[")
+  .conservar_marca_sin_proteger(resultado, x)
+}
+
+#' @export
+rbind.medicion <- function(..., deparse.level = 1) {
+  .unir_con_marca_sin_proteger(..., deparse.level = deparse.level)
+}
+
+#' @export
 print.medicion <- function(x, ...) {
   visible <- .proteger_medicion_desenlaces(
     x, .desenlaces_de_objeto(x)

@@ -1,5 +1,20 @@
+# Lo marcado UTF-8 que no es UTF-8 valido -lo que deja `fread(encoding = "UTF-8")`
+# sobre un CSV latin1- tampoco es texto: se trata como lo marcado `bytes`. Antes
+# pasaba de largo y el informe entero abortaba en `nchar()` o en `gsub()`, aunque
+# `print()` del mismo perfil funcionara. Medido en una refutacion.
+.declarar_utf8_roto <- function(x) {
+  if (!is.character(x) || !length(x)) return(x)
+  rotos <- !is.na(x) & Encoding(x) == "UTF-8" & !validUTF8(x)
+  if (any(rotos)) {
+    declarados <- x[rotos]
+    Encoding(declarados) <- "bytes"
+    x[rotos] <- declarados
+  }
+  x
+}
+
 .html_utf8 <- function(x) {
-  x <- as.character(x)
+  x <- .declarar_utf8_roto(as.character(x))
   # `bytes` NO entra aca, y antes entraba. Es la declaracion explicita de que
   # eso no se interprete como texto; el reporte HTML lo marcaba UTF-8 y
   # publicaba el caracter, mientras `print()` del mismo dato -y `test-N68`, que
@@ -97,11 +112,15 @@
     if (length(x) > limite) texto <- paste0(texto, "; \u2026")
   } else if (is.logical(x)) {
     texto <- ifelse(is.na(x), NA_character_, ifelse(x, "s\u00ed", "no"))
+  } else if (inherits(x, "integer64")) {
+    texto <- as.character(x)
   } else if (is.numeric(x)) {
-    texto <- ifelse(
-      is.na(x), NA_character_,
-      format(x, digits = 8L, trim = TRUE, scientific = FALSE)
-    )
+    # Con la regla de numeros publicados del paquete -quince cifras, sin depender
+    # de `digits` ni de `scipen`-, no con `digits = 8`: la mediana 123456789.5 se
+    # publicaba 123456790, que no esta en el objeto ni en la tabla. Medido en una
+    # refutacion.
+    texto <- .formatear_numeros_uno_a_uno(as.numeric(x))
+    texto[is.na(x)] <- NA_character_
   } else {
     texto <- as.character(x)
   }
@@ -109,7 +128,9 @@
   # valor declarado `bytes` -"number of characters is not computable"-, y el
   # reporte entero no se generaba. Basta con que ese valor llegue a una celda,
   # por ejemplo siendo la moda de una columna.
-  texto <- .publicar_sin_marca_ilegible(.texto_publicable(texto))
+  texto <- .publicar_sin_marca_ilegible(
+    .texto_publicable(.declarar_utf8_roto(texto))
+  )
   texto <- paste(texto, collapse = ", ")
   if (nchar(texto, type = "chars") > max_caracteres) {
     texto <- paste0(substr(texto, 1L, max_caracteres - 1L), "\u2026")
@@ -579,6 +600,14 @@
 
 .proteger_objeto_desenlaces <- function(x, desenlaces) {
   if (inherits(x, "medicion")) {
+    return(.proteger_medicion_desenlaces(x, desenlaces))
+  }
+  # El historico trae las mismas claves que la medicion -`id_medicion`,
+  # `id_medida`, `metrica_instanciada`- y su `resultado`: una medida suprimida en
+  # la evaluacion se publicaba en la seccion Historico del mismo informe. La
+  # promesa es sobre "las mismas medidas incluidas en el documento", no sobre una
+  # lista de clases. Medido en una refutacion.
+  if (inherits(x, "historico_calidad")) {
     return(.proteger_medicion_desenlaces(x, desenlaces))
   }
   if (inherits(x, "evaluacion_calidad")) {
@@ -1067,11 +1096,76 @@
   salida
 }
 
+# Una seccion que no se puede armar se declara dentro del informe y no lo
+# interrumpe, como promete `?reportar`: un perfil al que le faltaba
+# `dependencias` o `hallazgos` mataba el informe entero con un mensaje de R base
+# -"argumento tiene longitud cero"-, sin nombrar el objeto. Medido en una
+# refutacion.
+.renderizar_objeto_reporte_declarado <- function(x, ...) {
+  tryCatch(
+    .renderizar_objeto_reporte(x, ...),
+    error = function(e) {
+      paste0(
+        "<section><h2>Secci\u00f3n no armada</h2><p class=\"nota\">",
+        .html_texto(paste0(
+          "Un objeto de clase `", class(x)[[1L]], "` no se pudo armar: ",
+          conditionMessage(e), ". Puede faltarle un componente que la ",
+          "secci\u00f3n necesita. El resto del informe se escribi\u00f3 igual."
+        )),
+        "</p></section>"
+      )
+    }
+  )
+}
+
 .renderizar_objeto_reporte <- function(x, max_filas, max_patrones,
                                        proteger_datos_personales = TRUE,
                                        desenlaces = NULL) {
+  # Un plan, una deriva, una medicion o un historico armados con la proteccion APAGADA sobre
+  # columnas personales llevan sus valores en claro, y el informe -que protege por
+  # omision- no los puede volver a tapar: no tiene la clasificacion ni la tabla.
+  # Se publicaban al lado de un perfil enmascarado del mismo archivo; medido en
+  # una refutacion. La seccion se omite y se dice por que: para publicarla, hay
+  # que pedirlo tambien aca, con `proteger_datos_personales = FALSE`.
+  sin_proteger <- attr(x, "datos_personales_sin_proteger", exact = TRUE)
+  if (isTRUE(proteger_datos_personales) && length(sin_proteger)) {
+    return(paste0(
+      "<section><h2>Secci\u00f3n omitida</h2><p class=\"nota\">",
+      .html_texto(paste0(
+        "Un objeto de clase `", class(x)[[1L]], "` se arm\u00f3 con la ",
+        "protecci\u00f3n de datos personales desactivada y lleva en claro ",
+        length(sin_proteger), " columna(s) personal(es). El informe protege y ",
+        "no puede volver a tapar ese objeto, as\u00ed que no lo publica. Para ",
+        "incluirlo, genere el objeto con la protecci\u00f3n activa o use ",
+        "`reportar(..., proteger_datos_personales = FALSE)`."
+      )),
+      "</p></section>"
+    ))
+  }
   x <- .proteger_objeto_desenlaces(x, desenlaces)
-  switch(
+  # Un perfil -o un analisis sin `datos`- armado con la proteccion apagada se
+  # vuelve a proteger con lo que conserva: modas, ejemplos, estadisticos. Sin la
+  # tabla, una variante de un valor protegido escrita en otra columna -la cedula
+  # con puntos dentro de un texto libre- puede quedar, cuando `perfilar()` con la
+  # proteccion puesta la tapa. Medido en una refutacion. No se omite -la
+  # re-proteccion tapa casi todo y esta documentada-, pero se dice en la seccion.
+  nota <- ""
+  if (isTRUE(proteger_datos_personales)) {
+    origen <- if (inherits(x, "analisis")) x$perfil else if (inherits(x, "perfil")) x
+    sin_tabla <- inherits(x, "perfil") || is.null(x$datos)
+    if (is.list(origen) && is.list(origen$meta) &&
+        isFALSE(origen$meta$proteger_datos_personales) && sin_tabla &&
+        length(.columnas_personales_protegidas(origen))) {
+      nota <- paste0("<p class=\"nota\">", .html_texto(paste0(
+        "Este perfil se arm\u00f3 con la protecci\u00f3n de datos personales ",
+        "desactivada. El informe lo vuelve a proteger con lo que el perfil ",
+        "conserva, sin la tabla: una variante de un valor protegido escrita en ",
+        "otra columna puede quedar a la vista. Para la protecci\u00f3n completa, ",
+        "genere el perfil con la protecci\u00f3n activa."
+      )), "</p>")
+    }
+  }
+  seccion <- switch(
     .clase_objeto_reporte(x),
     analisis = .seccion_analisis(
       x, max_filas, max_patrones, proteger_datos_personales
@@ -1089,6 +1183,8 @@
       x, max_filas, proteger_datos_personales
     )
   )
+  if (nzchar(nota)) seccion <- sub("</h2>", paste0("</h2>", nota), seccion, fixed = TRUE)
+  seccion
 }
 
 .css_reporte <- function() {
@@ -1220,7 +1316,12 @@
 #' Una seccion que no se puede armar **se declara dentro del informe** y no lo
 #' interrumpe: si a un `historico_calidad` le faltan campos que su seccion
 #' necesita -`fecha`, `id_medicion`, `nivel`, `perfil` o `resultado`-, la seccion
-#' dice cuales faltan y el resto del documento se escribe igual.
+#' dice cuales faltan y el resto del documento se escribe igual. Lo mismo vale
+#' para cualquier otra seccion que falle al armarse -un perfil al que le falta un
+#' componente-: queda una seccion que lo dice. Un texto con bytes que no son
+#' UTF-8 valido se muestra con esos bytes en hexadecimal, como los muestra la
+#' consola, y no interrumpe el informe. Las cifras se escriben con todos sus digitos significativos, sin el
+#' redondeo de la consola.
 #'
 #' @param x Un objeto compatible o una lista de objetos compatibles.
 #' @param ... Objetos adicionales de clase `analisis`, `perfil`, `medicion`,
@@ -1246,11 +1347,23 @@
 #'   El enmascarado es el mismo que el de [perfilar()] -ver su
 #'   `proteger_datos_personales`-: la forma exacta, la que solo difiere en
 #'   separadores, tildes, caja o escritura, y en los digitos, el documento
-#'   entero, sin su verificador o sin su primer digito, buscado entre los tramos
-#'   de cada numero. La comparacion por tramos se limita a digitos a proposito:
+#'   entero con cualquier agrupacion, sin su verificador, o sin su primer digito
+#'   detras de un comodin. La comparacion parcial se limita a digitos a proposito:
 #'   aplicada al texto taparia una palabra corriente por compartir un tramo con
 #'   un apellido, y eso silencia contenido del informe en vez de proteger un
 #'   dato.
+#'
+#'   Un plan de limpieza, una medicion, un historico que incluye una medicion
+#'   o una comparacion de deriva armados con la proteccion desactivada no se
+#'   publican en un informe protegido: su seccion se reemplaza por una que dice
+#'   por que se omitio y como pedirla. Lo sabe por una marca que el objeto
+#'   lleva, y que `[`, `subset()` y `rbind()` conservan. En el
+#'   historico, una medida suprimida por una regla se enmascara como en la
+#'   evaluacion. Un perfil -o un analisis que no conserva la tabla- armado con
+#'   la proteccion desactivada se vuelve a proteger con lo que conserva, y su
+#'   seccion lo declara: sin la tabla, una variante de un valor protegido
+#'   escrita en otra columna puede quedar a la vista. Para la proteccion
+#'   completa, el perfil se arma con la proteccion activa.
 #'
 #' @return La ruta normalizada del archivo, de forma invisible.
 #' @export
@@ -1283,14 +1396,17 @@ reportar <- function(x, ...,
   if (length(fecha) != 1L || is.na(fecha) || !is.finite(as.numeric(fecha))) {
     stop("`fecha` debe contener una fecha y hora v\u00e1lida.", call. = FALSE)
   }
-  secciones <- vapply(objetos, .renderizar_objeto_reporte, character(1L),
+  secciones <- vapply(objetos, .renderizar_objeto_reporte_declarado, character(1L),
                       max_filas = max_filas, max_patrones = max_patrones,
                       proteger_datos_personales = proteger_datos_personales,
                       desenlaces = .desenlaces_reporte(objetos))
   documento <- paste0(
     "<!doctype html><html lang=\"es\"><head><meta charset=\"UTF-8\">",
     "<meta name=\"viewport\" content=\"width=device-width,initial-scale=1\">",
-    "<title>", .html_texto(titulo), "</title><style>", .css_reporte(),
+    # En `<title>` no hay marcado: un salto de linea se volvia `<br>` y se veia
+    # como texto en la pestana. Ahi va un espacio.
+    "<title>", .html_escapar(gsub("[\r\n]+", " ", titulo)), "</title><style>",
+    .css_reporte(),
     "</style></head><body><main><header><h1>", .html_texto(titulo), "</h1>",
     "<p class=\"meta\">Generado: ",
     .html_texto(.resumir_valor_reporte(fecha)), " \u00b7 Archivo: ",

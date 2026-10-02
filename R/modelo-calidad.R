@@ -2446,6 +2446,24 @@ medir <- function(modelo, datos, id_medicion = NULL, fecha = Sys.time(),
   }
   attr(resultado, "configuracion_aplicabilidad") <-
     .texto_configuracion_calidad(aplicabilidad)
+  # Medida con la proteccion apagada sobre tablas con columnas personales: se
+  # deja escrito, para que `reportar()`, que protege por omision, no la publique
+  # en claro sin decirlo.
+  if (!isTRUE(proteger_datos_personales) && nrow(resultado)) {
+    personales <- unique(unlist(lapply(tablas, function(tabla) {
+      if (!inherits(tabla, "data.frame") || !nrow(tabla)) return(character())
+      tryCatch(
+        .columnas_personales_rapidas(
+          tabla, declaradas = columnas_personales,
+          validadores = validadores_personales
+        ),
+        error = function(e) character()
+      )
+    }), use.names = FALSE))
+    if (length(personales)) {
+      attr(resultado, "datos_personales_sin_proteger") <- personales
+    }
+  }
   class(resultado) <- c("medicion", "data.frame")
   resultado
 }

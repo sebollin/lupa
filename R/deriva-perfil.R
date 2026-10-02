@@ -1,3 +1,14 @@
+#' @export
+`[.deriva_perfil` <- function(x, ...) {
+  resultado <- NextMethod("[")
+  .conservar_marca_sin_proteger(resultado, x)
+}
+
+#' @export
+rbind.deriva_perfil <- function(..., deparse.level = 1) {
+  .unir_con_marca_sin_proteger(..., deparse.level = deparse.level)
+}
+
 .deriva_perfil_vacia <- function() {
   resultado <- data.frame(
     columna = character(), aspecto = character(), cambio = character(),
@@ -1264,6 +1275,20 @@ comparar_perfiles <- function(anterior, actual, umbral_cambio = 0.05,
     ordered = TRUE
   )
   rownames(resultado) <- NULL
+  # Una comparacion de perfiles armados SIN proteccion publica sus valores -los
+  # rangos de una cedula-; queda escrito para que `reportar()` no la publique en
+  # claro dentro de un informe que protege.
+  sin_proteger <- unique(c(
+    if (is.list(anterior$meta) && isFALSE(anterior$meta$proteger_datos_personales)) {
+      .columnas_personales_protegidas(anterior)
+    },
+    if (is.list(actual$meta) && isFALSE(actual$meta$proteger_datos_personales)) {
+      .columnas_personales_protegidas(actual)
+    }
+  ))
+  if (length(sin_proteger)) {
+    attr(resultado, "datos_personales_sin_proteger") <- sin_proteger
+  }
   class(resultado) <- c("deriva_perfil", "data.frame")
   resultado
 }

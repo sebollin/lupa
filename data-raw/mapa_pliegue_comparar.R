@@ -33,6 +33,18 @@ rangos <- c(
   0x1D400:0x1D7FF, # letras y digitos matematicos
   0x1E900:0x1E95F  # adlam
 )
+# Los digitos decimales de TODAS las escrituras, esten o no en los rangos: los
+# arabigo-indicos, persas o devanagari no tienen descomposicion y quedaban como
+# estaban, asi que un documento escrito con ellos no se reconocia. Medido en una
+# refutacion. Unicode los ordena en tramos de diez consecutivos que empiezan en
+# el cero, asi que el valor es la posicion dentro del tramo.
+todos <- setdiff(0x80:0x1FFFF, 0xD800:0xDFFF)
+digitos <- todos[stringi::stri_detect_regex(
+  intToUtf8(todos, multiple = TRUE), "^\\p{Nd}$"
+)]
+tramo <- cumsum(c(TRUE, diff(digitos) != 1L))
+valor_digito <- (ave(digitos, tramo, FUN = seq_along) - 1L) %% 10L
+rangos <- sort(unique(c(rangos, digitos)))
 caracteres <- intToUtf8(rangos, multiple = TRUE)
 asignados <- stringi::stri_detect_regex(caracteres, "^[\\p{L}\\p{N}]$")
 plegar <- function(x) {
@@ -46,6 +58,8 @@ plegados <- plegar(caracteres)
 # La i sin punto no tiene descomposicion ni otra caja: se iguala a la i, que es
 # como se escribe el mismo nombre sin teclado turco.
 plegados[rangos == 0x0131] <- "i"
+es_digito <- rangos %in% digitos
+plegados[es_digito] <- as.character(valor_digito[match(rangos[es_digito], digitos)])
 cambia <- asignados & plegados != caracteres & nzchar(plegados) &
   stringi::stri_detect_regex(plegados, "^[\\p{L}\\p{N}]+$")
 puntos <- lapply(plegados, utf8ToInt)

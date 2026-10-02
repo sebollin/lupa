@@ -63,8 +63,9 @@ test_that("el informe entero dice lo mismo que su seccion de deriva", {
   on.exit(unlink(archivo), add = TRUE)
   reportar(historico, detectar_deriva_calidad(historico), archivo = archivo)
   html <- paste(readLines(archivo, warn = FALSE, encoding = "UTF-8"), collapse = "")
-  expect_false(grepl("-0.66666667", html, fixed = TRUE))
-  expect_true(grepl("0.66666667", html, fixed = TRUE))
+  # Con todas sus cifras: el informe ya no redondea a ocho.
+  expect_false(grepl("-0.666666666666667", html, fixed = TRUE))
+  expect_true(grepl("0.666666666666667", html, fixed = TRUE))
 })
 
 test_that("una medicion sin `id_medicion` no publica cero corridas", {

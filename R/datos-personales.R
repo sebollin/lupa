@@ -247,9 +247,13 @@
       "documento_identidad" %in% por_nombre || forma_documento_posible) {
     .proporcion_compatible(
       x,
+      # Los dos puntos de miles van juntos o no va ninguno: con un solo punto
+      # opcional, un p-valor de siete decimales -"0.4649203"- tenia forma de
+      # cedula, y la columna se clasificaba documento y perdia la evidencia de
+      # sus hallazgos. Medido en una refutacion.
       paste0(
         "^(?:[0-9]{7,12}|",
-        "[0-9]{1,2}\\.?[0-9]{3}\\.?[0-9]{3}-?[0-9Kk]|",
+        "[0-9]{1,2}(?:\\.[0-9]{3}\\.[0-9]{3}|[0-9]{6})-?[0-9Kk]|",
         "[0-9]{2}(?:[ .][0-9]{3}){2}[ .][0-9]{4})$"
       )
     )
@@ -602,6 +606,33 @@
     return(character())
   }
   unique(clasificacion$columna)
+}
+
+# Un plan, una medicion, una deriva o un historico armados con la proteccion
+# APAGADA llevan la marca `datos_personales_sin_proteger`, y `reportar()` -que
+# protege por omision- la lee para no publicarlos en claro. `[` con columnas
+# nombradas -lo que hace `subset()`- devuelve la misma clase SIN la marca: el
+# objeto filtrado se publicaba entero. Medido en la ronda 21.
+.conservar_marca_sin_proteger <- function(resultado, x) {
+  marca <- attr(x, "datos_personales_sin_proteger", exact = TRUE)
+  if (length(marca) && inherits(resultado, "data.frame") &&
+      is.null(attr(resultado, "datos_personales_sin_proteger", exact = TRUE))) {
+    attr(resultado, "datos_personales_sin_proteger") <- marca
+  }
+  resultado
+}
+
+# Y `rbind()` conserva solo la del PRIMER objeto: un objeto protegido delante de
+# uno sin proteger daba un resultado sin marca. Se unen las de todos.
+.unir_con_marca_sin_proteger <- function(..., deparse.level = 1) {
+  resultado <- rbind.data.frame(..., deparse.level = deparse.level)
+  marca <- unique(unlist(lapply(list(...), function(objeto) {
+    attr(objeto, "datos_personales_sin_proteger", exact = TRUE)
+  }), use.names = FALSE))
+  if (length(marca) && inherits(resultado, "data.frame")) {
+    attr(resultado, "datos_personales_sin_proteger") <- marca
+  }
+  resultado
 }
 
 .columnas_personales_protegidas <- function(clasificacion) {
@@ -977,20 +1008,26 @@
   # solo lo citado, no el texto entero, para que la sugerencia se siga leyendo.
   # Las citas se buscan en el texto ORIGINAL y no en el transliterado: la
   # transliteracion puede convertir comillas tipograficas en comillas rectas, y
-  # entonces las citas de uno y otro no se corresponden.
-  patron_cita <- "\"(?:[^\"\\\\]|\\\\.)*\""
+  # entonces las citas de uno y otro no se corresponden. Una comilla suelta -en
+  # el nombre de una columna- corre el apareo, y entonces se prueban todos los
+  # apareos posibles: ver `.tramos_entre_delimitadores()`.
+  textos_candidatos <- x[candidatas]
   citas <- vector("list", length(pajar))
   citado <- rep("", length(pajar))
-  if (any(limites)) {
-    citas[limites] <- regmatches(
-      x[candidatas][limites],
-      gregexpr(patron_cita, x[candidatas][limites], perl = TRUE, useBytes = TRUE)
-    )
-    citado[limites] <- vapply(citas[limites], function(partes) {
-      if (!length(partes)) return("")
-      paste(c(normalizar(partes), normalizar(partes, desescapar = TRUE)),
-            collapse = " ")
+  texto_tramos <- function(texto, tramos) {
+    vapply(seq_len(NROW(tramos)), function(k) {
+      .texto_de_tramo(texto, tramos[k, "inicio"], tramos[k, "fin"])
     }, character(1L))
+  }
+  for (i in which(limites)) {
+    citas[[i]] <- .tramos_entre_delimitadores(textos_candidatos[[i]], "\"")
+    if (NROW(citas[[i]])) {
+      partes <- texto_tramos(textos_candidatos[[i]], citas[[i]])
+      citado[[i]] <- paste(
+        c(normalizar(partes), normalizar(partes, desescapar = TRUE)),
+        collapse = " "
+      )
+    }
   }
   agujas_citadas <- vector("list", length(pajar))
   golpea <- rep(FALSE, length(pajar))
@@ -1035,19 +1072,35 @@
       }
     }
   }
+  # Lo que se tapa por tramos en la prosa: la cita o el numero, no el texto.
+  tramos_tapar <- vector("list", length(pajar))
+  reemplazos_tapar <- vector("list", length(pajar))
+  agregar_tramo <- function(i, tramos, reemplazo) {
+    tramos_tapar[[i]] <<- rbind(tramos_tapar[[i]], tramos)
+    reemplazos_tapar[[i]] <<- c(reemplazos_tapar[[i]], rep(reemplazo, NROW(tramos)))
+  }
+  for (i in which(lengths(agujas_citadas) > 0L & !golpea)) {
+    partes <- texto_tramos(textos_candidatos[[i]], citas[[i]])
+    normalizadas <- paste(normalizar(partes), normalizar(partes, desescapar = TRUE))
+    tapar <- vapply(normalizadas, function(parte) {
+      any(vapply(agujas_citadas[[i]], function(aguja) {
+        grepl(aguja, parte, fixed = TRUE, useBytes = TRUE)
+      }, logical(1L)))
+    }, logical(1L), USE.NAMES = FALSE)
+    if (any(tapar)) {
+      agregar_tramo(i, citas[[i]][tapar, , drop = FALSE], "\"[valor protegido]\"")
+    }
+  }
   # Y los DIGITOS aparte, que es donde la variante no es cosmetica sino PARCIAL:
   # la cedula sin su verificador -"4.123.456" frente a "4.123.456-7"- normaliza a
-  # "4123456", que NO contiene a "41234567", asi que la regla de arriba no la ve
-  # por ninguna de sus dos puntas. Medido: los tres fragmentos se publicaban con
-  # la proteccion doble puesta. Se comparan las corridas de digitos de la celda
-  # contra las de la aguja, en las dos direcciones, y solo de seis digitos para
-  # arriba, que es el mismo piso que usa el resto de esta capa.
+  # "4123456", que NO contiene a "41234567", asi que la regla de arriba no la ve.
+  # La regla vive en `R/regla-digitos.R`; aca se le dan los textos y los
+  # documentos.
   #
   # Limitado a DIGITOS a proposito. La misma regla sobre texto -tapar una celda
   # que comparte seis caracteres con un valor protegido- taparia una palabra
   # corriente por compartir un tramo con un apellido, y eso silencia contenido
-  # real del informe en vez de proteger un dato. Ver la mitad de control de la
-  # prueba, que exige que una celda ajena siga publicandose.
+  # real del informe en vez de proteger un dato.
   # Extraer las corridas con `gregexpr()` sobre todas las agujas costaba 6,6 s
   # con 600.000 valores protegidos -medido en `perfilar_por()`, que compara tres
   # etiquetas-. Casi todas son solo digitos -un documento, un telefono- o no
@@ -1067,142 +1120,101 @@
       p[!is.na(p) & nchar(p, type = "bytes") >= .MIN_LARGO_VALOR_IDENTIFICANTE]
     })
   }
-  # La regla de digitos, por NUMEROS: un numero es una corrida de grupos de
-  # digitos unidos por un solo separador de los que se usan adentro de una cifra
-  # -punto, guion, barra, coma, espacio, espacio duro o fino, apostrofo, guion
-  # bajo-. De cada numero se prueban los tramos alineados a esos separadores, y
-  # se tapa la celda si alguno es un documento protegido, el documento sin su
-  # verificador o sin su primer digito. Asi se reconoce "6.111.222-9" -verificador
-  # mal tipeado-, "3.777.888/2024", "4,123,456" o "*.555.666-2", y no se pegan dos
-  # conteos vecinos: "(199985); - (100114)" son dos numeros. Antes se pegaban, y
-  # cualquier tramo de seis cifras dentro de un documento tapaba la celda: con un
-  # millon de cedulas casi todo conteo lo era. Medido en dos refutaciones. Un
-  # documento pegado sin separador a otras cifras no se reconoce: ahi no se
-  # distingue de un numero mas largo.
-  if (!all(golpea)) {
-    separador <- "[-./ ,'_\u00a0\u2009\u202f]"
-    patron_numero <- paste0("[0-9]+(?:", separador, "[0-9]+)*")
-    # Un tramo que une grupos tiene que tener la forma de un numero escrito con
-    # separadores de miles: el primero de hasta tres cifras, los del medio de
-    # tres, y el ultimo de una a tres -un verificador de una o dos cifras-. Sin
-    # eso, un decimal como el estadistico de Benford `367277.602` daba
-    # `367277602`, cuyo prefijo era una cedula de ocho digitos. Un numero de un
-    # solo grupo se prueba entero y sin su ultima cifra -el verificador mal
-    # tipeado sin separadores-.
-    tramos <- function(numero) {
-      grupos <- strsplit(numero, separador, perl = TRUE)[[1L]]
-      k <- length(grupos)
-      largos <- nchar(grupos)
-      if (k == 1L) {
-        return(c(grupos, substr(grupos, 1L, largos - 1L)))
-      }
-      salida <- grupos
-      for (i in seq_len(k - 1L)) {
-        if (largos[[i]] > 3L) next
-        for (j in (i + 1L):k) {
-          medio <- if (j > i + 1L) largos[(i + 1L):(j - 1L)] else integer()
-          if (any(medio != 3L) || !largos[[j]] %in% 1:3) break
-          salida <- c(salida, paste0(grupos[i:j], collapse = ""))
+  # Los documentos -corridas de las agujas, que pueden ser millones- se arman
+  # SOLO si algun texto tiene seis digitos que probar: sin esa pereza,
+  # `perfilar_por()` los rearmaba en cada grupo y costaba 8 s de 65.
+  documentos <- NULL
+  obtener_documentos <- function() {
+    if (is.null(documentos)) {
+      documentos <<- .documentos_digitos(
+        unlist(corridas_largas(agujas_todas), use.names = FALSE)
+      )
+    }
+    documentos
+  }
+  seis_digitos <- function(v) {
+    !is.na(v) & nchar(gsub("[^0-9]", "", v, useBytes = TRUE), type = "bytes") >=
+      .MIN_LARGO_VALOR_IDENTIFICANTE
+  }
+  # Fuera de la prosa, la celda entera, en cualquiera de sus formas.
+  for (forma in crudos) {
+    probar <- which(!golpea & !limites & seis_digitos(forma))
+    if (!length(probar)) next
+    golpea[probar] <- .golpes_digitos(forma[probar], obtener_documentos())
+  }
+  # En la PROSA del paquete los numeros son conteos suyos -"12.497.500 pares
+  # posibles"- y por su forma no se distinguen de un documento: con un millon de
+  # cedulas alguno coincidia y la frase se tapaba entera. Ahi la regla mira solo
+  # lo que la prosa cita -entre comillas dobles- y el codigo que sugiere -entre
+  # comillas invertidas-: el umbral de una sugerencia, `~ nro_tramite <
+  # 48889997`, es un valor de la tabla sin comillas, y era la cedula protegida.
+  # Medido en una refutacion. Y se tapa el tramo, no la sugerencia entera.
+  prosa <- which(limites & !golpea)
+  numeros_tapar <- vector("list", length(pajar))
+  if (length(prosa)) {
+    duenos <- integer()
+    filas <- integer()
+    tramos_prosa <- vector("list", length(pajar))
+    partes_prosa <- character()
+    for (i in prosa) {
+      tramos <- rbind(
+        citas[[i]], .tramos_entre_delimitadores(textos_candidatos[[i]], "`")
+      )
+      if (!NROW(tramos)) next
+      tipos <- c(rep("cita", NROW(citas[[i]])),
+                 rep("codigo", NROW(tramos) - NROW(citas[[i]])))
+      partes <- texto_tramos(textos_candidatos[[i]], tramos)
+      con_digitos <- seis_digitos(partes)
+      if (!any(con_digitos)) next
+      tramos_prosa[[i]] <- list(tramos = tramos[con_digitos, , drop = FALSE],
+                                tipos = tipos[con_digitos])
+      partes_prosa <- c(partes_prosa, partes[con_digitos])
+      duenos <- c(duenos, rep(i, sum(con_digitos)))
+      filas <- c(filas, seq_len(sum(con_digitos)))
+    }
+    if (length(partes_prosa)) {
+      golpe <- .golpes_digitos(plegar(partes_prosa), obtener_documentos()) |
+        .golpes_digitos(plegar(partes_prosa, desescapar = TRUE), obtener_documentos())
+      for (k in which(golpe)) {
+        i <- duenos[[k]]
+        tramo <- tramos_prosa[[i]]$tramos[filas[[k]], , drop = FALSE]
+        if (identical(tramos_prosa[[i]]$tipos[[filas[[k]]]], "cita")) {
+          agregar_tramo(i, tramo, "\"[valor protegido]\"")
+          next
+        }
+        # En el codigo, solo el numero: la sugerencia se sigue leyendo.
+        parte <- partes_prosa[[k]]
+        numeros <- tryCatch(
+          regmatches(parte, gregexpr(.REGLA_DIGITOS$numero, parte, perl = TRUE))[[1L]],
+          error = function(e) character()
+        )
+        culpables <- numeros[.golpes_digitos(plegar(numeros), obtener_documentos())]
+        if (length(culpables)) {
+          numeros_tapar[[i]] <- unique(c(numeros_tapar[[i]], culpables))
+        } else {
+          agregar_tramo(i, tramo, "`[valor protegido]`")
         }
       }
-      salida
-    }
-    # Una fecha de calendario no es un documento: partida en tramos,
-    # `2003-05-17` da `20030517`, que con un millon de cedulas es la de alguien.
-    # Medido: tapaba ejemplos y estadisticos de columnas de fechas. Se borran de
-    # la celda antes de buscar los numeros.
-    patron_fecha <- paste0(
-      "(?<![0-9])(?:[0-9]{4}[-/.](?:0?[1-9]|1[0-2])[-/.](?:0?[1-9]|[12][0-9]|3[01])|",
-      "(?:0?[1-9]|[12][0-9]|3[01])[-/.](?:0?[1-9]|1[0-2])[-/.][0-9]{4})(?![0-9])"
-    )
-    # En la PROSA del paquete, fuera de lo citado, los numeros son conteos que
-    # escribe el paquete -"12.497.500 pares posibles"-, y por su forma no se
-    # distinguen de un documento: con un millon de cedulas alguno coincidia y la
-    # frase se tapaba entera. Es el mismo principio que las palabras del
-    # paquete: en la prosa, solo lo citado es un valor. Ahi la regla mira solo
-    # las citas.
-    citas_prosa <- vapply(citas, function(partes) {
-      if (!length(partes)) "" else paste(partes, collapse = " ")
-    }, character(1L))
-    formas_digitos <- list(
-      plegar(citas_prosa), plegar(citas_prosa, desescapar = TRUE)
-    )
-    candidatos_celda <- vector("list", length(golpea))
-    for (indice_forma in seq_along(crudos)) {
-      forma <- crudos[[indice_forma]]
-      if (any(limites)) {
-        forma[limites] <- formas_digitos[[min(indice_forma, 2L)]][limites]
-      }
-      forma <- gsub(patron_fecha, " ", forma, perl = TRUE)
-      pendientes <- which(!golpea & grepl("[0-9]", forma, useBytes = TRUE))
-      if (!length(pendientes)) next
-      numeros <- regmatches(
-        forma[pendientes], gregexpr(patron_numero, forma[pendientes], perl = TRUE)
-      )
-      for (k in seq_along(pendientes)) {
-        lista <- numeros[[k]]
-        lista <- lista[nchar(gsub("[^0-9]", "", lista)) >=
-                         .MIN_LARGO_VALOR_IDENTIFICANTE]
-        if (!length(lista)) next
-        candidatos <- unlist(lapply(lista, tramos), use.names = FALSE)
-        # Un numero redondo -`1.000.000`, `100.000`- es un conteo: que coincida
-        # con el documento de alguien sin su verificador no lo vuelve un dato.
-        candidatos <- candidatos[!grepl("^[1-9]0+$", candidatos, perl = TRUE)]
-        celda <- pendientes[[k]]
-        candidatos_celda[[celda]] <- c(candidatos_celda[[celda]], candidatos)
-      }
-    }
-    # Los documentos -corridas de las agujas, que pueden ser millones- se arman
-    # SOLO si alguna celda tiene un numero que probar: sin esa pereza,
-    # `perfilar_por()` los rearmaba en cada grupo y costaba 8 s de 65.
-    con_candidatos <- which(lengths(candidatos_celda) > 0L)
-    if (length(con_candidatos)) {
-      digitos_aguja <- unique(unlist(corridas_largas(agujas_todas), use.names = FALSE))
-      # El documento parcial -sin verificador o sin primer digito- tiene que
-      # conservar SIETE cifras: con cedulas viejas de siete digitos el parcial tiene
-      # seis, y con cuatrocientas mil protegidas casi todo numero de seis cifras
-      # coincidia con alguno -medido: dieciseis celdas tapadas de mas, motivos de
-      # cobertura y conteos incluidos-. El documento entero sigue contando desde el
-      # piso.
-      largo <- nchar(digitos_aguja)
-      parcial <- largo - 1L >= .MIN_LARGO_VALOR_IDENTIFICANTE + 1L
-      # El parcial sin primer digito que empieza con cero no se usa: es la parte
-      # decimal de un numero -`p=0.0001184` daba `0001184`, la cedula
-      # `5.000.118-4` sin su 5- y no la forma en que se escribe un documento.
-      sin_primero <- substr(digitos_aguja, 2L, largo)[parcial]
-      documentos <- unique(c(
-        digitos_aguja,
-        substr(digitos_aguja, 1L, largo - 1L)[parcial],
-        sin_primero[!startsWith(sin_primero, "0")]
-      ))
-      for (celda in con_candidatos) {
-        if (any(candidatos_celda[[celda]] %in% documentos)) golpea[[celda]] <- TRUE
-      }
     }
   }
-  con_cita <- which(lengths(agujas_citadas) > 0L & !golpea)
-  if (length(con_cita)) {
-    indices_x <- which(candidatas)[con_cita]
-    for (j in seq_along(con_cita)) {
-      texto <- x[[indices_x[[j]]]]
-      marca <- Encoding(texto)
-      coincidencias <- gregexpr(patron_cita, texto, perl = TRUE, useBytes = TRUE)
-      partes <- regmatches(texto, coincidencias)[[1L]]
-      # Las dos formas, como al detectar: la cita de un nivel que no es UTF-8 sale
-      # como `<lupa-byte:...>`, y solo desescapada contiene el valor.
-      normalizadas <- paste(normalizar(partes), normalizar(partes, desescapar = TRUE))
-      tapar <- vapply(normalizadas, function(parte) {
-        any(vapply(agujas_citadas[[con_cita[[j]]]], function(aguja) {
-          grepl(aguja, parte, fixed = TRUE, useBytes = TRUE)
-        }, logical(1L)))
-      }, logical(1L), USE.NAMES = FALSE)
-      partes[tapar] <- "\"[valor protegido]\""
-      regmatches(texto, coincidencias) <- list(partes)
-      Encoding(texto) <- marca
-      x[[indices_x[[j]]]] <- texto
-    }
+  for (i in which(lengths(reemplazos_tapar) > 0L & !golpea)) {
+    textos_candidatos[[i]] <- .reemplazar_tramos_bytes(
+      textos_candidatos[[i]], tramos_tapar[[i]], reemplazos_tapar[[i]]
+    )
   }
-  if (any(golpea)) x[candidatas][golpea] <- "[valor protegido]"
+  # El numero del codigo se tapa DESPUES de las citas: si estaba citado, la cita
+  # ya lo tapo y aca no queda nada que reemplazar.
+  for (i in which(lengths(numeros_tapar) > 0L & !golpea)) {
+    texto <- textos_candidatos[[i]]
+    marca <- Encoding(texto)
+    for (numero in numeros_tapar[[i]][order(-nchar(numeros_tapar[[i]], type = "bytes"))]) {
+      texto <- gsub(numero, "[valor protegido]", texto, fixed = TRUE, useBytes = TRUE)
+    }
+    Encoding(texto) <- marca
+    textos_candidatos[[i]] <- texto
+  }
+  textos_candidatos[golpea] <- "[valor protegido]"
+  x[candidatas] <- textos_candidatos
   .reponer_marcas_paquete(x, apartado)
 }
 
@@ -1678,16 +1690,30 @@
     grepl(.PATRON_NUMERICO_DE_ESTRUCTURA, nombre)
 }
 
-.proteger_numeros_parametros <- function(x, valores) {
+.proteger_numeros_parametros <- function(x, valores, ampliados = FALSE) {
   if (!length(valores)) return(x)
+  # Un numero es el documento aunque el documento este ESCRITO: "5.432.198-6" en
+  # la columna protegida y 54321986 como `maximo` de una copia numerica. Se
+  # comparaba solo la escritura exacta, y la misma cifra como texto se tapaba en
+  # otra hoja del mismo perfil: dos reglas para el mismo dato. Medido en una
+  # refutacion. Se agrega la forma en digitos, sin ceros iniciales, de cada valor
+  # que solo tiene digitos y separadores; una vez, arriba del recorrido.
+  if (!ampliados) {
+    escritos <- valores[!is.na(valores) &
+                          grepl("^[0-9][0-9 .,/'_-]*[0-9]$", valores, useBytes = TRUE)]
+    digitos <- .sin_ceros_iniciales(gsub("[^0-9]", "", escritos, useBytes = TRUE))
+    valores <- unique(c(valores, digitos[
+      nchar(digitos, type = "bytes") >= .MIN_LARGO_VALOR_IDENTIFICANTE
+    ]))
+  }
   if (inherits(x, "data.frame")) {
     for (j in seq_along(x)) {
       if (.es_numero_de_estructura(names(x)[[j]], x[[j]])) next
       if (is.list(x[[j]])) {
         x[[j]] <- lapply(x[[j]], .proteger_numeros_parametros,
-                         valores = valores)
+                         valores = valores, ampliados = TRUE)
       } else {
-        x[[j]] <- .proteger_numeros_parametros(x[[j]], valores)
+        x[[j]] <- .proteger_numeros_parametros(x[[j]], valores, TRUE)
       }
     }
     return(x)
@@ -1698,7 +1724,7 @@
       if (!is.null(nombres) && .es_numero_de_estructura(nombres[[i]], x[[i]])) {
         next
       }
-      x[i] <- list(.proteger_numeros_parametros(x[[i]], valores))
+      x[i] <- list(.proteger_numeros_parametros(x[[i]], valores, TRUE))
     }
     return(x)
   }
@@ -1707,9 +1733,48 @@
     as.character(x),
     error = function(e) rep(NA_character_, length(x))
   )
-  protegidos <- !is.na(textos) & textos %in% valores
+  # Y la forma entera sin notacion cientifica: `as.character()` escribe
+  # 1e+15 para un numero de dieciseis cifras.
+  enteros <- tryCatch({
+    numeros <- suppressWarnings(as.numeric(x))
+    salida <- rep(NA_character_, length(x))
+    enteras <- !is.na(numeros) & is.finite(numeros) & numeros == round(numeros) &
+      abs(numeros) < 1e18
+    salida[enteras] <- formatC(abs(numeros[enteras]), format = "f", digits = 0)
+    salida
+  }, error = function(e) rep(NA_character_, length(x)))
+  protegidos <- (!is.na(textos) & textos %in% valores) |
+    (!is.na(enteros) & enteros %in% valores)
   if (any(protegidos)) x[protegidos] <- NA
   x
+}
+
+# El piso tapa un extremo de una columna NO protegida porque es un documento, y
+# los campos de la secuencia entera lo devolvian: `minimo` 8 y
+# `n_posiciones_secuencia_entera` 54321979 dan el maximo, 54321986. Medido en una
+# refutacion. Es lo que ya esta escrito para las columnas protegidas -proteger el
+# minimo y el maximo y dejar publicado su rango no protege nada-, aplicado a la
+# fila donde el piso tapo algo. Se compara la tabla antes y despues del piso.
+.tapar_derivados_del_piso <- function(antes, despues) {
+  if (!inherits(antes, "data.frame") || !inherits(despues, "data.frame") ||
+      nrow(antes) != nrow(despues)) {
+    return(despues)
+  }
+  extremos <- intersect(c("minimo", "maximo", "mediana", "media"), names(despues))
+  if (!length(extremos)) return(despues)
+  tocadas <- Reduce(`|`, lapply(extremos, function(campo) {
+    is.numeric(antes[[campo]]) & !is.na(antes[[campo]]) & is.na(despues[[campo]])
+  }))
+  if (!any(tocadas)) return(despues)
+  derivados <- intersect(c(
+    "minimo", "maximo", "mediana", "media", "n_posiciones_secuencia_entera",
+    "n_huecos_secuencia_entera", "hueco_maximo_secuencia_entera",
+    "densidad_secuencia_entera", "densidad_sin_centinela"
+  ), names(despues))
+  for (campo in derivados) {
+    if (is.numeric(despues[[campo]])) despues[[campo]][tocadas] <- NA
+  }
+  despues
 }
 
 # La accion sigue siendo visible, pero sus argumentos no pueden llevarse un
@@ -1725,6 +1790,12 @@
   # parametros de sus acciones. Medido en una refutacion.
   if (is.list(perfil$meta) && isFALSE(perfil$meta$proteger_datos_personales)) {
     attr(plan, "columnas_datos_personales_protegidas") <- character()
+    # Queda escrito que lleva datos personales en claro, para que `reportar()`
+    # -que protege por omision- no lo publique sin decirlo.
+    sin_proteger <- .columnas_personales_protegidas(perfil)
+    if (length(sin_proteger)) {
+      attr(plan, "datos_personales_sin_proteger") <- sin_proteger
+    }
     return(plan)
   }
   sensibles <- .columnas_personales_protegidas(perfil)
@@ -2327,7 +2398,9 @@
   # exactos. Se reusa el ayudante que ya tapaba los parametros de una accion del
   # plan, con el mismo criterio: un numero cuya representacion es un valor
   # identificante protegido no se publica.
+  columnas_antes <- perfil$columnas
   perfil <- .proteger_numeros_parametros(perfil, identificantes)
+  perfil$columnas <- .tapar_derivados_del_piso(columnas_antes, perfil$columnas)
   perfil$meta <- meta_declarada
   if (!is.null(patrones_forma)) {
     for (i in seq_along(patrones_forma)) {

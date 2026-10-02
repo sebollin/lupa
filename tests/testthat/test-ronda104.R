@@ -93,7 +93,8 @@ test_that("sin declaracion no hay supresion ni cambios de contrato", {
     fecha = as.POSIXct("2026-08-16 13:00:00", tz = "UTC")
   )
   html <- paste(readLines(archivo, warn = FALSE, encoding = "UTF-8"), collapse = "\n")
-  expect_match(html, "0.12345679", fixed = TRUE)
+  # La cifra entera del objeto: el informe ya no la redondea a ocho cifras.
+  expect_match(html, "0.123456789", fixed = TRUE)
   expect_false(grepl("[valor suprimido]", html, fixed = TRUE))
 
   regla_sin_alcanzadas <- regla_evaluacion(

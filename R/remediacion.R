@@ -2014,6 +2014,11 @@ planificar_limpieza <- function(perfil, datos = NULL,
 }
 
 #' @export
+rbind.plan_limpieza <- function(..., deparse.level = 1) {
+  .unir_con_marca_sin_proteger(..., deparse.level = deparse.level)
+}
+
+#' @export
 `[.plan_limpieza` <- function(x, ...) {
   resultado <- NextMethod("[")
   if (inherits(resultado, "data.frame") &&
@@ -2022,7 +2027,7 @@ planificar_limpieza <- function(perfil, datos = NULL,
   } else if (inherits(resultado, "data.frame")) {
     class(resultado) <- setdiff(class(resultado), "plan_limpieza")
   }
-  resultado
+  .conservar_marca_sin_proteger(resultado, x)
 }
 
 .copiar_datos <- function(datos) {
