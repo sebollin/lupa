@@ -775,7 +775,7 @@ print.analisis <- function(x, ...) {
   identificantes <- .valores_identificantes(unique(c(
     .valores_perfil_protegidos(
       x$perfil$columnas, x$perfil$patrones, x$perfil$datos_personales,
-      x$perfil$meta
+      x$perfil$meta, datos = datos
     ),
     .valores_publicables_protegidos(datos, sensibles)
   )))

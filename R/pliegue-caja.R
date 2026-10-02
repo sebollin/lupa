@@ -170,10 +170,17 @@
   )
   sigma_final <- intToUtf8(0x03C2)
   sigma <- intToUtf8(0x03C3)
-  function(textos) {
+  # `desescapar`: solo para el TEXTO PUBLICADO, nunca para el valor protegido. Un
+  # valor con una barra literal -el usuario de dominio `CORP` barra `nrodriguez`-
+  # desescapado perdia la `n` y no se reconocia en su propia cita. `invalidos`:
+  # como se lee lo que no es UTF-8 valido, byte por byte conservando las
+  # secuencias validas, o la celda entera como CP1252; quien compara mira las
+  # dos, porque un par latin1 puede ser por azar una letra UTF-8 valida.
+  function(textos, desescapar = FALSE, invalidos = c("por_byte", "entero")) {
+    invalidos <- match.arg(invalidos)
     textos <- as.character(textos)
     if (!length(textos)) return(textos)
-    textos <- .desescapar_para_comparar(textos)
+    if (desescapar) textos <- .desescapar_para_comparar(textos)
     marcas <- Encoding(textos)
     presentes <- !is.na(textos)
     en_latin1 <- presentes & marcas == "latin1"
@@ -191,9 +198,13 @@
         Encoding(marcados) <- "UTF-8"
         textos[validos] <- marcados
       }
-      invalidos <- sin_marca & !validos
-      if (any(invalidos)) {
-        textos[invalidos] <- .reparar_utf8_por_byte(textos[invalidos])
+      rotos <- sin_marca & !validos
+      if (any(rotos)) {
+        textos[rotos] <- if (identical(invalidos, "por_byte")) {
+          .reparar_utf8_por_byte(textos[rotos])
+        } else {
+          .leer_entero_cp1252(textos[rotos])
+        }
       }
     }
     textos <- chartr(origen_uno, destino_uno, textos)
@@ -300,5 +311,61 @@
     validos <- validUTF8(salida)
     Encoding(salida[validos]) <- "UTF-8"
     salida
+  }
+})
+
+# Mayusculas y forma titulo SIN depender del locale, para las acciones de caja
+# del plan de limpieza. Usaban `toupper()`, `tolower()` y `\b` de PCRE: el titulo
+# ponia la mayuscula DESPUES de una letra acentuada -`Pena` con enie salia
+# `PenA`, `Angel` con tilde `aNgel`- porque sin `(*UCP)` la letra acentuada no es
+# de palabra, y bajo `C` lo no ASCII quedaba sin tocar. Es el mismo mapa de la
+# normalizacion, al reves; la I con punto y la doble ese mayuscula no se
+# invierten, porque `i` y la doble ese minuscula tienen su propia mayuscula.
+.a_mayusculas_vector <- local({
+  mapa <- c(.MAPA_MINUSCULAS_ACENTUADAS, .MAPA_MINUSCULAS_OTROS_ALFABETOS)
+  mapa <- mapa[!names(mapa) %in% c("0130", "1E9E")]
+  minusculas <- c(unname(mapa), 0x03C2L)
+  mayusculas <- c(strtoi(names(mapa), base = 16L), 0x03A3L)
+  unicas <- !duplicated(minusculas)
+  origen <- paste0(intToUtf8(minusculas[unicas], multiple = TRUE), collapse = "")
+  destino <- paste0(intToUtf8(mayusculas[unicas], multiple = TRUE), collapse = "")
+  function(textos) {
+    textos <- .textos_para_plegar(textos)
+    chartr("abcdefghijklmnopqrstuvwxyz", "ABCDEFGHIJKLMNOPQRSTUVWXYZ",
+           chartr(origen, destino, textos))
+  }
+})
+
+# Cada palabra con su inicial en mayuscula y el resto en minuscula. Empieza
+# palabra la letra que no sigue a otra letra ni a una marca combinante: `o'neil`
+# da `O'Neil`, que es la salvedad que el plan ya declara.
+.a_titulo_vector <- function(textos) {
+  textos <- .normalizacion_minusculas_vector(textos)
+  validos <- !is.na(textos) & validUTF8(textos)
+  if (!any(validos)) return(textos)
+  elegidos <- textos[validos]
+  coincidencias <- gregexpr("(?<![\\p{L}\\p{M}])\\p{L}", elegidos, perl = TRUE)
+  regmatches(elegidos, coincidencias) <- lapply(
+    regmatches(elegidos, coincidencias), .a_mayusculas_vector
+  )
+  textos[validos] <- elegidos
+  textos
+}
+
+# Lo que no es UTF-8 valido leido ENTERO como CP1252: latin1 y despues los
+# controles C1 a las letras que esos bytes son en Windows-1252.
+.leer_entero_cp1252 <- local({
+  origen <- NULL
+  destino <- NULL
+  function(textos) {
+    if (is.null(origen)) {
+      tabla <- .REFERENCIAS_HTML_WINDOWS_1252
+      origen <<- paste0(intToUtf8(as.integer(names(tabla)), multiple = TRUE),
+                        collapse = "")
+      destino <<- paste0(intToUtf8(unname(tabla), multiple = TRUE), collapse = "")
+    }
+    Encoding(textos) <- "bytes"
+    salida <- iconv(textos, from = "latin1", to = "UTF-8")
+    chartr(origen, destino, salida)
   }
 })

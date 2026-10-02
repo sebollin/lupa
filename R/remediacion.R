@@ -461,8 +461,17 @@
   "decodificar_entidades_html", "reemplazar_separadores",
   "reparar_codificacion", "convertir_minusculas", "convertir_mayusculas",
   "convertir_titulo", "convertir_segun_diccionario",
-  "convertir_sentinelas_numericos", "winsorizar_outliers"
+  "convertir_sentinelas_numericos"
 )
+
+# Las acciones de outliers reciben la regla de `aplicabilidad` y la aplican ELLAS
+# MISMAS: los limites de Tukey dependen de que valores entran en el calculo, asi
+# que no alcanza con restaurar despues las celdas de afuera. Medido en una
+# refutacion: `marcar_outliers` marcaba una fila fuera del universo y
+# `winsorizar_outliers` recortaba 400 a 242,5 -limite de la columna entera- en vez
+# de 106,5, el del universo que el perfil midio. Y restaurar despues confundia la
+# winsorizacion con una fusion al recontar las irreversibles.
+.estrategias_outliers <- c("marcar_outliers", "winsorizar_outliers")
 .declarar_texto_en_columna_factor <- function(plan, perfil) {
   # Una sola vez para todas las acciones por celda, y no una por estrategia: lo
   # que cambia la clase no es la estrategia sino la columna, y el contrato de
@@ -607,7 +616,7 @@
       if (is.null(parametros)) parametros <- list()
       parametros$aplicabilidad <- reglas[[columna]]
       resultado$parametros[[i]] <- parametros
-    } else if (estrategia %in% .estrategias_por_fila) {
+    } else if (estrategia %in% c(.estrategias_por_fila, .estrategias_outliers)) {
       parametros <- resultado$parametros[[i]]
       if (is.null(parametros)) parametros <- list()
       parametros$aplicabilidad <- reglas[[columna]]
@@ -794,9 +803,12 @@
 #' `destructiva` no es sinónimo de "pierde algo": marca las acciones que el
 #' usuario tiene que activar a mano —las que retiran filas o columnas y las
 #' conversiones que pierden representación, como `winsorizar_outliers` sobre una
-#' columna **entera**, donde los límites de Tukey son cuartiles y la columna queda
-#' en doble precisión: la justificación lo dice y `parametros` publica
-#' `tipo_original` y `tipo_resultante`— y por eso ninguna acción
+#' columna **guardada como entera**, donde los límites de Tukey son cuartiles y
+#' la columna queda en doble precisión: la justificación lo dice y `parametros`
+#' publica `tipo_original` y `tipo_resultante`. Sobre cualquier otra clase
+#' —texto con números, factor, fecha— la acción conserva la clase y reescribe
+#' sólo las celdas recortadas; `Inf`, `NaN` y `NA` quedan como estaban— y por
+#' eso ninguna acción
 #' `destructiva` puede estar `recomendada`. Hay acciones recomendadas que sí
 #' pierden el valor de una celda: `convertir_ausencias_textuales` cambia un
 #' marcador por `NA` y `eliminar_controles_invisibles` quita un carácter. Esas
@@ -874,8 +886,10 @@
 #' `eliminar_controles_invisibles` quita controles C0/C1 que no son separadores
 #' y los invisibles Unicode de transporte, y se recomienda por defecto; conserva
 #' ZWJ/ZWNJ. `normalizar_espacios_invisibles` colapsa espacios Unicode (incluido
-#' NBSP) a un espacio ASCII, no se recomienda por defecto y registra la pérdida
-#' de reversibilidad. `decodificar_entidades_html` cubre las entidades
+#' NBSP) a un espacio ASCII y, como su hermana, se recomienda y se activa por
+#' defecto: queda un espacio, así que el valor sigue ahí; si al colapsarlo dos
+#' valores que eran distintos quedan iguales, el registro lo cuenta en
+#' `n_no_reversibles`. `decodificar_entidades_html` cubre las entidades
 #' con nombre comunes en español y referencias numéricas válidas, pero no se
 #' activa sola porque un ampersand puede ser contenido legítimo. Decodifica
 #' **una capa**: un texto codificado dos veces —`&amp;amp;`— queda en `&amp;`,
@@ -1244,9 +1258,14 @@ planificar_limpieza <- function(perfil, datos = NULL,
         }, FALSE,
         estado = if (puede_aplicar) estado_columna else "informativa",
         aplicar = puede_aplicar,
+        # Si la accion queda informativa por una reparacion PARCIAL, activarla a
+        # mano es la seleccion explicita que la ayuda pide, y entonces se aplica
+        # tambien la parcial: antes nunca se aplicaba, y el registro publicaba
+        # `reparado_parcialmente` sobre una celda que quedo intacta.
         parametros = list(codificacion_intermedia = "ftfy",
                           codificaciones = names(.ftfy_tablas_bytes),
-                          max_iteraciones = 20L),
+                          max_iteraciones = 20L,
+                          aplicar_parciales = reparable && parcial),
         orden = 180L, estado_reparacion = estado_reparacion
       ))
     } else if (identical(tipo, "numero_como_texto") && !is.null(fila)) {
@@ -1495,7 +1514,12 @@ planificar_limpieza <- function(perfil, datos = NULL,
       # dice, igual que la de factor -> texto. No cambia lo que hay que consentir:
       # `permitir_eliminacion` se exige solo a lo que retira filas o columnas, y
       # esta accion ya requeria activacion explicita.
-      winsor_pierde_entero <- identical(fila$tipo_inferido[[1L]], "entero")
+      # Solo si la columna esta GUARDADA como entera: una de texto con numeros
+      # se infiere `entero` pero sigue siendo texto despues de la accion -solo
+      # se reescriben las celdas recortadas-, y el plan publicaba
+      # `tipo_original = "entero"` sobre una columna de texto.
+      winsor_pierde_entero <- identical(fila$tipo_inferido[[1L]], "entero") &&
+        identical(as.character(fila$tipo_declarado[[1L]]), "entero")
       acciones <- .agregar_accion(acciones, .nueva_accion(
         columna, tipo, "marcar_outliers", TRUE,
         paste0(
@@ -1887,6 +1911,17 @@ planificar_limpieza <- function(perfil, datos = NULL,
       anyNA(plan$destructiva)) {
     stop("`grupo` debe ser texto y `destructiva` un l\u00f3gico sin NA.", call. = FALSE)
   }
+  # `orden` fija la secuencia, y como texto se ordena alfabeticamente: `"35"` va
+  # despues de `"200"`. Una asignacion de R sobre cero filas basta para volverlo
+  # texto, y el plan editado eliminaba tres filas en vez de una sin decir nada.
+  # Medido en una refutacion.
+  if (!is.numeric(plan$orden) || anyNA(plan$orden)) {
+    stop(
+      "`orden` debe ser num\u00e9rico sin NA: fija la secuencia en que se ",
+      "aplican las acciones, y como texto se ordenar\u00eda alfab\u00e9ticamente.",
+      call. = FALSE
+    )
+  }
   if (any(plan$destructiva & plan$recomendada, na.rm = TRUE)) {
     stop("Una acci\u00f3n destructiva nunca puede ser recomendada.", call. = FALSE)
   }
@@ -1961,6 +1996,14 @@ planificar_limpieza <- function(perfil, datos = NULL,
         (!length(recomendacion) ||
          plan$estrategia[[activas]] != recomendacion[[1L]])) {
       plan$decision_grupo[indices] <- "elegida"
+    } else if (length(activas) == 1L && length(recomendacion) &&
+               plan$estrategia[[activas]] == recomendacion[[1L]] &&
+               as.character(plan$decision_grupo[[indices[[1L]]]]) %in%
+                 c("pendiente", "omitida", "desactivada")) {
+      # La activa es la recomendada: el grupo no esta sin revisar ni omitido, y el
+      # registro publicaba `pendiente` u `omitida` junto a `ejecutada`. Medido en
+      # una refutacion.
+      plan$decision_grupo[indices] <- "recomendada"
     } else if (!length(activas) && length(recomendacion) &&
                recomendacion[[1L]] != "no_hacer_nada" &&
                as.character(plan$decision_grupo[[indices[[1L]]]]) == "recomendada") {
@@ -2027,11 +2070,23 @@ planificar_limpieza <- function(perfil, datos = NULL,
     cadenas_ausencia = parametros$cadenas_ausencia
   )
   mascara <- deteccion$mascara_textual
-  if (length(parametros$valores)) {
-    normalizados <- tolower(trimws(.texto_analizable(x)$valores))
-    mascara <- mascara & !is.na(normalizados) &
-      normalizados %in% tolower(trimws(as.character(parametros$valores)))
+  # Acotar con la lista SIEMPRE, tambien vacia. Con `if (length(valores))` una
+  # lista vacia dejaba de acotar: sacar el unico marcador para conservarlo lo
+  # convertia igual, y aplicado a otra entrega convertia `NULL` o `sin dato`, que
+  # el plan nunca nombro, mientras el registro publicaba `valores = character(0)`
+  # junto a cuatro celdas cambiadas. Medido en una refutacion. El plan siempre
+  # arma la lista con lo observado, asi que vacia o ausente es lo mismo: nada
+  # autorizado.
+  if (!length(parametros$valores)) {
+    stop(
+      "La lista `valores` de la acci\u00f3n est\u00e1 vac\u00eda: no hay ",
+      "marcadores autorizados para convertir. Para conservarlos todos, ",
+      "desactive la acci\u00f3n.", call. = FALSE
+    )
   }
+  normalizados <- tolower(trimws(.texto_analizable(x)$valores))
+  mascara <- mascara & !is.na(normalizados) &
+    normalizados %in% tolower(trimws(as.character(parametros$valores)))
   if (is.factor(x)) x <- as.character(x)
   x[mascara] <- NA
   list(valor = x, n = sum(mascara))
@@ -2340,15 +2395,34 @@ planificar_limpieza <- function(perfil, datos = NULL,
        n_no_reversibles = sum(.celdas_que_pierden_valor(anterior, nuevo)))
 }
 
+# HTML5 lee las referencias numericas entre 0x80 y 0x9F como Windows-1252, no como
+# los controles C1 que esos numeros son en Unicode: `&#146;` es el apostrofo
+# tipografico de los textos que vienen de Word. Decodificarlas como controles
+# dejaba un caracter invisible donde iba una letra o una comilla. Medido en una
+# refutacion. Tabla del estandar, escrita aca para no depender de `iconv`; los
+# cinco numeros que Windows-1252 no define quedan como estan.
+.REFERENCIAS_HTML_WINDOWS_1252 <- c(
+  `128` = 0x20AC, `130` = 0x201A, `131` = 0x0192, `132` = 0x201E,
+  `133` = 0x2026, `134` = 0x2020, `135` = 0x2021, `136` = 0x02C6,
+  `137` = 0x2030, `138` = 0x0160, `139` = 0x2039, `140` = 0x0152,
+  `142` = 0x017D, `145` = 0x2018, `146` = 0x2019, `147` = 0x201C,
+  `148` = 0x201D, `149` = 0x2022, `150` = 0x2013, `151` = 0x2014,
+  `152` = 0x02DC, `153` = 0x2122, `154` = 0x0161, `155` = 0x203A,
+  `156` = 0x0153, `158` = 0x017E, `159` = 0x0178
+)
+
 .entidad_html_reemplazo <- function(entidad) {
   if (!.entidad_html_valida(entidad)) return(entidad)
   cuerpo <- substring(entidad, 2L, nchar(entidad) - 1L)
+  punto <- NULL
   if (startsWith(cuerpo, "#x") || startsWith(cuerpo, "#X")) {
     punto <- suppressWarnings(strtoi(substring(cuerpo, 3L), base = 16L))
-    return(intToUtf8(punto))
-  }
-  if (startsWith(cuerpo, "#")) {
+  } else if (startsWith(cuerpo, "#")) {
     punto <- suppressWarnings(as.integer(substring(cuerpo, 2L)))
+  }
+  if (!is.null(punto)) {
+    windows <- .REFERENCIAS_HTML_WINDOWS_1252[as.character(punto)]
+    if (!is.na(windows)) punto <- unname(windows)
     return(intToUtf8(punto))
   }
   unname(.entidades_html_comunes[[cuerpo]])
@@ -2426,13 +2500,19 @@ planificar_limpieza <- function(perfil, datos = NULL,
     estados[!is.na(indice)] <- vapply(resultados[indice[!is.na(indice)]],
       function(z) z$estado, character(1L))
   }
+  aplicables <- if (isTRUE(parametros$aplicar_parciales)) {
+    c("reparado", "reparado_parcialmente")
+  } else "reparado"
   mascara <- !is.na(candidatos) & !is.na(anterior) & candidatos != anterior &
-    estados == "reparado"
+    estados %in% aplicables
   nuevo <- anterior
   nuevo[mascara] <- candidatos[mascara]
   parciales <- !is.na(candidatos) & !is.na(anterior) & candidatos != anterior &
     estados == "reparado_parcialmente"
-  estado <- .ftfy_estado_agregado(estados)
+  # El estado que se publica es el de lo APLICADO, no el de la columna: con las
+  # parciales afuera, decir `reparado_parcialmente` describia una celda que no se
+  # toco.
+  estado <- .ftfy_estado_agregado(estados[mascara | is.na(estados) | !parciales])
   list(valor = .resultado_texto(x, nuevo), n = sum(mascara),
        n_parciales = sum(parciales), estado_reparacion = estado,
        estados = estados)
@@ -2563,14 +2643,15 @@ planificar_limpieza <- function(perfil, datos = NULL,
     stop("La capitalizaci\u00f3n requiere una columna de texto.", call. = FALSE)
   }
   anterior <- .texto_para_transformar(x)
+  # La caja se cambia con los mapas del paquete y no con `tolower()`/`toupper()`,
+  # que dependen del locale, ni con `\\b`, que sin `(*UCP)` no ve una letra
+  # acentuada como letra (ver `.a_titulo_vector()`).
   if (identical(estrategia, "convertir_minusculas")) {
-    nuevo <- .aplicar_por_marca(anterior, tolower)
+    nuevo <- .aplicar_por_marca(anterior, .normalizacion_minusculas_vector)
   } else if (identical(estrategia, "convertir_mayusculas")) {
-    nuevo <- .aplicar_por_marca(anterior, toupper)
+    nuevo <- .aplicar_por_marca(anterior, .a_mayusculas_vector)
   } else if (identical(estrategia, "convertir_titulo")) {
-    nuevo <- .aplicar_por_marca(anterior, function(v) gsub(
-      "\\b([[:alpha:]])", "\\U\\1", tolower(v), perl = TRUE
-    ))
+    nuevo <- .aplicar_por_marca(anterior, .a_titulo_vector)
   } else {
     diccionario <- parametros$diccionario
     if (is.null(diccionario) || !is.atomic(diccionario) ||
@@ -2666,7 +2747,9 @@ planificar_limpieza <- function(perfil, datos = NULL,
   stop("No hay una conversi\u00f3n definida para el tipo '", tipo, "'.", call. = FALSE)
 }
 
-.limites_outliers <- function(x) {
+# `dentro` es el universo de la accion -la regla de `aplicabilidad` del perfil-:
+# los limites se calculan solo con sus valores, y solo ahi se marca o se recorta.
+.limites_outliers <- function(x, dentro = NULL) {
   if (inherits(x, c("Date", "POSIXt")) || is.numeric(x)) {
     valores <- as.numeric(x)
   } else {
@@ -2675,6 +2758,7 @@ planificar_limpieza <- function(perfil, datos = NULL,
     ))
   }
   validos <- is.finite(valores)
+  if (!is.null(dentro)) validos <- validos & dentro
   if (!any(validos)) {
     return(list(valores = valores, validos = validos, inferior = NA_real_,
                 superior = NA_real_))
@@ -2690,8 +2774,8 @@ planificar_limpieza <- function(perfil, datos = NULL,
   )
 }
 
-.marca_outliers <- function(x) {
-  limites <- .limites_outliers(x)
+.marca_outliers <- function(x, dentro = NULL) {
+  limites <- .limites_outliers(x, dentro)
   mascara <- rep(FALSE, length(x))
   if (!any(limites$validos)) return(mascara)
   mascara[limites$validos] <-
@@ -2700,14 +2784,17 @@ planificar_limpieza <- function(perfil, datos = NULL,
   mascara
 }
 
-.winsorizar_outliers <- function(x) {
-  limites <- .limites_outliers(x)
-  mascara <- .marca_outliers(x)
+.winsorizar_outliers <- function(x, dentro = NULL) {
+  limites <- .limites_outliers(x, dentro)
+  mascara <- .marca_outliers(x, dentro)
+  universo <- if (is.null(dentro)) rep(TRUE, length(x)) else dentro
   salida <- limites$valores
   salida[limites$validos] <- pmin(
     pmax(salida[limites$validos], limites$inferior), limites$superior
   )
-  salida[!limites$validos] <- NA_real_
+  # Lo que no es finito no entra en los limites ni en la cuenta de outliers del
+  # perfil, asi que tampoco se toca: `Inf` y `NaN` pasaban a `NA` sin contarse.
+  salida[!limites$validos] <- limites$valores[!limites$validos]
   # Con pocas observaciones el propio reemplazo mueve los cuartiles: el
   # limite de Tukey que saco al extremo puede convertirse en el nuevo extremo
   # y el perfil seguiria emitiendo el mismo hallazgo. Ajustar los residuos al
@@ -2716,19 +2803,83 @@ planificar_limpieza <- function(perfil, datos = NULL,
   if (any(mascara)) {
     limite_iteraciones <- max(1L, 2L * length(salida))
     for (iteracion in seq_len(limite_iteraciones)) {
-      residuos <- .marca_outliers(salida)
+      residuos <- .marca_outliers(salida, dentro)
       if (!any(residuos)) break
-      centrales <- salida[is.finite(salida) & !residuos]
+      centrales <- salida[is.finite(salida) & !residuos & universo]
       if (!length(centrales)) break
       salida[residuos] <- stats::median(centrales)
     }
-    if (any(.marca_outliers(salida))) {
-      centrales <- salida[is.finite(salida)]
-      if (length(centrales)) salida[is.finite(salida)] <- centrales[[1L]]
+    if (any(.marca_outliers(salida, dentro))) {
+      centrales <- salida[is.finite(salida) & universo]
+      if (length(centrales)) {
+        salida[is.finite(salida) & universo] <- centrales[[1L]]
+      }
     }
   }
   cambio <- limites$validos & limites$valores != salida
-  list(valor = salida, n = sum(cambio))
+  cambio[is.na(cambio)] <- FALSE
+  list(valor = .columna_winsorizada(x, salida, cambio), n = sum(cambio))
+}
+
+# La columna winsorizada, en la clase de la original y con solo las celdas
+# recortadas cambiadas. Se devolvia siempre el vector numerico de los limites:
+# una columna de TEXTO con numeros pasaba entera a `double` -perdia los ceros
+# iniciales que el propio plan protege al bloquear `convertir_tipo`, y el
+# registro contaba una celda de veintiuna-, un factor tambien, y una fecha forzada
+# volvia como numero. Medido en una refutacion. Una columna entera si queda en
+# doble precision: los limites son cuartiles, y el plan lo dice.
+.columna_winsorizada <- function(x, salida, cambio) {
+  if (inherits(x, "Date")) {
+    resultado <- x
+    resultado[cambio] <- structure(salida[cambio], class = "Date")
+    return(resultado)
+  }
+  if (inherits(x, "POSIXct")) {
+    resultado <- x
+    resultado[cambio] <- .POSIXct(salida[cambio], tz = attr(x, "tzone"))
+    return(resultado)
+  }
+  if (is.character(x) || is.factor(x)) {
+    texto <- as.character(x)
+    nuevos <- .formatear_numeros_uno_a_uno(salida[cambio])
+    con_coma <- grepl(",", texto[cambio], fixed = TRUE)
+    nuevos[con_coma] <- sub(".", ",", nuevos[con_coma], fixed = TRUE)
+    texto[cambio] <- nuevos
+    if (is.factor(x)) {
+      return(factor(texto, levels = unique(c(levels(x), nuevos))))
+    }
+    return(texto)
+  }
+  salida
+}
+
+# Un codigo entero por fila que iguala dos filas solo si `duplicated()` de base
+# las iguala, que es lo que cuenta el perfil y lo que usa
+# `conservar_primera_duplicada`. Antes se pasaba cada columna por `factor()`, que
+# arma sus niveles con `as.character()`: un doble se escribe con quince cifras y
+# `0.1 + 0.2` quedaba igual a `0.3`, y `.nombres_para_operar()` igualaba un texto
+# `latin1` con el mismo en UTF-8. Las dos acciones del grupo de duplicados
+# contestaban distinto a "es esta fila un duplicado", y `conservar_mas_completa`
+# borraba una fila con clave distinta. Medido en una refutacion. `match()` sobre
+# cada columna es exacto en los dobles, distingue `NaN` de `NA` y no ordena, asi
+# que tampoco aborta con bytes invalidos. `integer64` va por su texto exacto: su
+# `NA` tiene el patron de bits de `-0` como doble, y `match()` lo igualaria al 0.
+.codigos_filas_exactos <- function(tabla) {
+  codigos <- lapply(tabla, function(x) {
+    valores <- if (inherits(x, "integer64") || is.factor(x)) {
+      as.character(x)
+    } else if (is.character(x)) {
+      x
+    } else {
+      unclass(x)
+    }
+    attributes(valores) <- NULL
+    match(valores, unique(valores))
+  })
+  if (!length(codigos)) return(integer())
+  as.integer(do.call(interaction, c(
+    lapply(codigos, factor), list(drop = TRUE, lex.order = TRUE)
+  )))
 }
 
 .grupos_filas_duplicadas <- function(datos) {
@@ -2760,15 +2911,7 @@ planificar_limpieza <- function(perfil, datos = NULL,
   # codigos enteros que salen de ahi `duplicated()` es el de base y si honra
   # `fromLast`. Ademas es una sola definicion de "misma fila" para las tres
   # cosas que antes usaban dos.
-  factores <- lapply(datos_base, function(x) {
-    valores <- if (is.character(x) || is.factor(x)) {
-      .nombres_para_operar(as.character(x))
-    } else x
-    factor(valores, exclude = NULL)
-  })
-  codigos <- as.integer(do.call(
-    interaction, c(factores, list(drop = TRUE, lex.order = TRUE))
-  ))
+  codigos <- .codigos_filas_exactos(datos_base)
   repetidas <- duplicated(codigos)
   participantes <- repetidas | duplicated(codigos, fromLast = TRUE)
   grupos <- rep(NA_integer_, nrow(datos_base))
@@ -2802,16 +2945,13 @@ planificar_limpieza <- function(perfil, datos = NULL,
   if (any(vapply(claves, is.list, logical(1L)))) {
     stop("La clave no puede contener columnas de lista.", call. = FALSE)
   }
-  factores <- lapply(claves, function(x) {
-    valores <- if (is.character(x) || is.factor(x)) {
-      .nombres_para_operar(as.character(x))
-    } else x
-    factor(valores, exclude = NULL)
-  })
-  codigos <- as.integer(do.call(
-    interaction, c(factores, list(drop = TRUE, lex.order = TRUE))
-  ))
-  grupos <- split(seq_len(nrow(datos_base)), codigos)
+  codigos <- .codigos_filas_exactos(claves)
+  # Una clave AUSENTE no identifica a nadie: las filas sin documento formaban un
+  # solo grupo y sobrevivia una -personas distintas, eliminadas por no tener
+  # clave-. Medido en una refutacion. Una fila con la clave incompleta no se
+  # agrupa con ninguna.
+  incompletas <- !stats::complete.cases(as.data.frame(claves))
+  grupos <- split(which(!incompletas), codigos[!incompletas])
   completitud <- rowSums(!is.na(datos_base))
   conservar <- rep(TRUE, nrow(datos_base))
   for (indices in grupos) {
@@ -2897,6 +3037,73 @@ planificar_limpieza <- function(perfil, datos = NULL,
   !is.na(mascara) & mascara
 }
 
+# Los nombres que aplica una accion de nombres son los del PLAN: el usuario puede
+# editar `nombres_propuestos`, y el ejecutor los recalculaba desde cero -se
+# aplicaban otros y el registro publicaba los editados como aplicados; medido en
+# una refutacion-. Se aplica el mapa `nombres_esperados` -> `nombres_propuestos`;
+# una columna que no estaba en el plan conserva su nombre, y eso incluye las
+# marcas que el propio plan agrega -`.fila_duplicada`-, que snake_case renombraba.
+# Sin el mapa -un plan armado a mano- se calcula como antes.
+.nombres_segun_plan <- function(anteriores, estrategia, parametros) {
+  esperados <- parametros$nombres_esperados
+  propuestos <- parametros$nombres_propuestos
+  if (is.null(esperados) || is.null(propuestos)) {
+    return(if (identical(estrategia, "normalizar_nombres")) {
+      .nombres_make_names(anteriores)
+    } else {
+      .nombres_snake(anteriores)
+    })
+  }
+  propuestos <- as.character(propuestos)
+  if (length(propuestos) != length(esperados) || anyNA(propuestos) ||
+      any(!nzchar(propuestos))) {
+    stop(
+      "`nombres_propuestos` tiene que traer un nombre no vac\u00edo por cada ",
+      "uno de `nombres_esperados` (", length(esperados), ").", call. = FALSE
+    )
+  }
+  # Si los nombres son los del plan en el mismo orden, el mapa es POR POSICION:
+  # con nombres repetidos -`" x"`, `" x"`- el mapa por nombre mandaba los dos al
+  # primer propuesto.
+  indices <- if (identical(.nombres_para_operar(anteriores),
+                           .nombres_para_operar(as.character(esperados)))) {
+    seq_along(anteriores)
+  } else {
+    match(.nombres_para_operar(anteriores),
+          .nombres_para_operar(as.character(esperados)))
+  }
+  nuevos <- anteriores
+  nuevos[!is.na(indices)] <- propuestos[indices[!is.na(indices)]]
+  if (anyDuplicated(.nombres_para_operar(nuevos))) {
+    repetidos <- unique(nuevos[duplicated(.nombres_para_operar(nuevos))])
+    stop(
+      "Los nombres propuestos repiten ", paste0("`", repetidos, "`", collapse = ", "),
+      ": una tabla no puede tener dos columnas con el mismo nombre.", call. = FALSE
+    )
+  }
+  nuevos
+}
+
+# La columna que devuelve una accion de texto conserva los atributos de la
+# original. Los ejecutores empiezan con `as.character()`, que los descarta, y
+# `recortar_espacios` -recomendada y activa por omision- borraba la etiqueta de
+# variable que deja `haven` en las seis filas, tambien en las que no toco;
+# medido en una refutacion. La clase y los niveles se copian solo si el tipo no
+# cambio y la columna no era un factor: un factor vuelve como texto, que es el
+# contrato escrito.
+.con_atributos_de <- function(original, nuevo) {
+  atributos <- attributes(original)
+  if (is.null(atributos) || length(nuevo) != length(original)) return(nuevo)
+  quitar <- c("names", "dim", "dimnames")
+  if (is.factor(original) || !identical(typeof(original), typeof(nuevo))) {
+    quitar <- c(quitar, "class", "levels")
+  }
+  for (nombre in setdiff(names(atributos), quitar)) {
+    attr(nuevo, nombre) <- atributos[[nombre]]
+  }
+  nuevo
+}
+
 .ejecutar_accion <- function(datos, accion, original = datos) {
   estrategia <- accion$estrategia[[1L]]
   parametros <- accion$parametros[[1L]]
@@ -2906,10 +3113,23 @@ planificar_limpieza <- function(perfil, datos = NULL,
     "normalizar_nombres", "normalizar_nombres_snake_case"
   )) {
     anteriores <- names(datos)
-    names(datos) <- if (identical(estrategia, "normalizar_nombres")) {
-      .nombres_make_names(anteriores)
-    } else {
-      .nombres_snake(anteriores)
+    nuevos <- .nombres_segun_plan(anteriores, estrategia, parametros)
+    names(datos) <- nuevos
+    # Un `sf` guarda el nombre de su geometria en `sf_column` y el de los
+    # atributos en `agr`: renombrar las columnas sin esos dos dejaba un objeto
+    # roto -la geometria `SHAPE` pasaba a `shape` y `sf` ya no la encontraba-
+    # mientras el registro decia `ejecutada`. Medido en una refutacion.
+    if (inherits(datos, "sf")) {
+      geometria <- attr(datos, "sf_column", exact = TRUE)
+      if (length(geometria) == 1L && geometria %in% anteriores) {
+        attr(datos, "sf_column") <- nuevos[[match(geometria, anteriores)]]
+      }
+      agr <- attr(datos, "agr", exact = TRUE)
+      if (!is.null(agr) && !is.null(names(agr))) {
+        indices <- match(names(agr), anteriores)
+        names(agr)[!is.na(indices)] <- nuevos[indices[!is.na(indices)]]
+        attr(datos, "agr") <- agr
+      }
     }
     return(list(
       datos = datos,
@@ -3000,7 +3220,7 @@ planificar_limpieza <- function(perfil, datos = NULL,
   x <- datos[[indice]]
   if (identical(estrategia, "convertir_ausencias_textuales")) {
     cambio <- .reemplazar_ausencias_textuales(x, parametros)
-    datos[[indice]] <- cambio$valor
+    datos[[indice]] <- .con_atributos_de(x, cambio$valor)
     # Cada celda que se convierte en ausencia pierde el texto que tenia: `S/D`
     # o `N/A` no quedan en ningun lado. El plan ya declara la accion
     # `reversible = FALSE`, pero el registro informaba `n_no_reversibles = 0`
@@ -3022,35 +3242,35 @@ planificar_limpieza <- function(perfil, datos = NULL,
   }
   if (identical(estrategia, "recortar_espacios")) {
     cambio <- .recortar_texto(x)
-    datos[[indice]] <- cambio$valor
+    datos[[indice]] <- .con_atributos_de(x, cambio$valor)
     return(list(datos = datos, n = cambio$n,
                 n_no_reversibles = cambio$n_no_reversibles))
   }
   if (identical(estrategia, "eliminar_controles_invisibles")) {
     cambio <- .quitar_controles_invisibles(x)
-    datos[[indice]] <- cambio$valor
+    datos[[indice]] <- .con_atributos_de(x, cambio$valor)
     return(list(datos = datos, n = cambio$n,
                 n_no_reversibles = cambio$n_no_reversibles))
   }
   if (identical(estrategia, "normalizar_espacios_invisibles")) {
     cambio <- .normalizar_espacios_invisibles(x)
-    datos[[indice]] <- cambio$valor
+    datos[[indice]] <- .con_atributos_de(x, cambio$valor)
     return(list(datos = datos, n = cambio$n,
                 n_no_reversibles = cambio$n_no_reversibles))
   }
   if (identical(estrategia, "decodificar_entidades_html")) {
     cambio <- .decodificar_entidades_html(x)
-    datos[[indice]] <- cambio$valor
+    datos[[indice]] <- .con_atributos_de(x, cambio$valor)
     return(list(datos = datos, n = cambio$n))
   }
   if (identical(estrategia, "reemplazar_separadores")) {
     cambio <- .reemplazar_separadores(x)
-    datos[[indice]] <- cambio$valor
+    datos[[indice]] <- .con_atributos_de(x, cambio$valor)
     return(list(datos = datos, n = cambio$n))
   }
   if (identical(estrategia, "reparar_codificacion")) {
     cambio <- .reparar_codificacion(x, parametros)
-    datos[[indice]] <- cambio$valor
+    datos[[indice]] <- .con_atributos_de(x, cambio$valor)
     return(list(datos = datos, n = cambio$n,
                 estado_reparacion = cambio$estado_reparacion,
                 n_parciales = cambio$n_parciales))
@@ -3131,14 +3351,25 @@ planificar_limpieza <- function(perfil, datos = NULL,
     return(list(datos = datos, n = .n_valores_cambiados(x, convertido),
                 n_no_reversibles = evaluacion$n_no_reversibles))
   }
+  dentro_outliers <- NULL
+  if (estrategia %in% .estrategias_outliers && !is.null(parametros$aplicabilidad)) {
+    if (nrow(original) != nrow(datos)) {
+      stop(
+        "No se puede respetar la aplicabilidad despu\u00e9s de eliminar filas: ",
+        "aplique las acciones de outliers antes de las que eliminan filas.",
+        call. = FALSE
+      )
+    }
+    dentro_outliers <- .mascara_aplicabilidad_accion(original, columna, parametros)
+  }
   if (identical(estrategia, "marcar_outliers")) {
-    marca <- .marca_outliers(x)
+    marca <- .marca_outliers(x, dentro_outliers)
     datos <- .agregar_marca(datos, parametros$columna_marca, marca)
     return(list(datos = datos, n = sum(marca)))
   }
   if (identical(estrategia, "winsorizar_outliers")) {
-    cambio <- .winsorizar_outliers(x)
-    datos[[indice]] <- cambio$valor
+    cambio <- .winsorizar_outliers(x, dentro_outliers)
+    datos[[indice]] <- .con_atributos_de(x, cambio$valor)
     # Cada celda cambiada pierde su valor original y ningun formato lo
     # recupera. El registro informaba `n_no_reversibles = 0` porque este
     # ejecutor no lo devolvia y `aplicar()` completa con cero: las mismas
@@ -3150,7 +3381,7 @@ planificar_limpieza <- function(perfil, datos = NULL,
     "convertir_segun_diccionario"
   )) {
     cambio <- .transformar_capitalizacion(x, estrategia, parametros)
-    datos[[indice]] <- cambio$valor
+    datos[[indice]] <- .con_atributos_de(x, cambio$valor)
     return(list(datos = datos, n = cambio$n))
   }
   stop("Estrategia de limpieza no implementada: ", estrategia, ".", call. = FALSE)
@@ -3395,9 +3626,17 @@ aplicar <- function(plan, datos, permitir_eliminacion = FALSE,
         data.table::setkey(salida, NULL)
       }
     }
+    # La accion de quitar una columna duplicada va en el plan bajo la columna que
+    # se CONSERVA -es la del hallazgo-, y el registro la publicaba como la tocada:
+    # nombraba la que quedo y no la que se elimino. Medido en una refutacion.
+    columna_registro <- accion$columna[[1L]]
+    if (identical(accion$estrategia[[1L]], "eliminar_columna_duplicada") &&
+        length(accion$parametros[[1L]]$eliminar) == 1L) {
+      columna_registro <- as.character(accion$parametros[[1L]]$eliminar)
+    }
     registro <- data.frame(
       id_accion = accion$id_accion[[1L]],
-      columna = accion$columna[[1L]],
+      columna = columna_registro,
       hallazgo = accion$hallazgo[[1L]],
       grupo = accion$grupo[[1L]],
       decision_grupo = as.character(accion$decision_grupo[[1L]]),
@@ -3479,7 +3718,30 @@ aplicar <- function(plan, datos, permitir_eliminacion = FALSE,
 }
 
 .ejemplos_grupo <- function(acciones, datos, max_ejemplos = 5L,
-                            columnas_protegidas = character()) {
+                            columnas_protegidas = character(),
+                            identificantes = character()) {
+  ejemplos <- .ejemplos_grupo_crudos(
+    acciones, datos, max_ejemplos, columnas_protegidas
+  )
+  # Los ejemplos van a la consola y al `selector`, y solo la rama de filas
+  # duplicadas miraba las columnas protegidas: para todo grupo POR COLUMNA se
+  # publicaban sus valores tal cual -nombres, correos y cedulas como "Ejemplos
+  # reales"- mientras el mismo plan tapaba su evidencia. Medido en una
+  # refutacion. Una columna protegida no da ejemplos, y los de cualquier otra se
+  # barren con el piso, como el perfil.
+  columna <- acciones$columna[[1L]]
+  if (!is.na(columna) && length(columnas_protegidas) &&
+      .nombres_para_operar(columna) %in% .nombres_para_operar(columnas_protegidas)) {
+    return("[valores protegidos: la columna lleva datos personales]")
+  }
+  if (length(identificantes) && length(ejemplos)) {
+    ejemplos <- .reemplazar_valores_protegidos(ejemplos, identificantes)
+  }
+  ejemplos
+}
+
+.ejemplos_grupo_crudos <- function(acciones, datos, max_ejemplos = 5L,
+                                   columnas_protegidas = character()) {
   tipo <- acciones$hallazgo[[1L]]
   columna <- acciones$columna[[1L]]
   parametros <- acciones$parametros[[1L]]
@@ -3697,6 +3959,11 @@ guiar_limpieza <- function(plan, datos, selector = NULL,
     plan, "columnas_datos_personales_protegidas", exact = TRUE
   )
   if (is.null(columnas_protegidas)) columnas_protegidas <- character()
+  identificantes <- if (length(columnas_protegidas)) {
+    .valores_identificantes(
+      .valores_publicables_protegidos(datos, columnas_protegidas)
+    )
+  } else character()
   for (grupo in grupos) {
     indices <- which(plan$grupo == grupo)
     acciones <- plan[indices, , drop = FALSE]
@@ -3726,7 +3993,7 @@ guiar_limpieza <- function(plan, datos, selector = NULL,
     }
     elegibles <- which(as.character(acciones$estado) == "lista")
     ejemplos <- .ejemplos_grupo(
-      acciones, datos, max_ejemplos, columnas_protegidas
+      acciones, datos, max_ejemplos, columnas_protegidas, identificantes
     )
     etiquetas <- paste0(
       acciones$estrategia[elegibles],
@@ -3930,7 +4197,13 @@ print.resultado_limpieza <- function(x, ...) {
   if (fallidas) {
     cli::cli_alert_danger(.cli_literal(paste(fallidas, "acciones fallidas; revise `registro$error`")))
   }
-  cli::cli_text(.cli_literal(paste(sum(x$registro$n_cambiadas), "celdas o marcas afectadas")))
+  # Es una suma de lo que conto cada accion, no de celdas distintas: una celda
+  # que tocan dos acciones cuenta dos veces, y una fila o un nombre cuentan uno.
+  # Decia "celdas o marcas afectadas", y el usuario lee primero esa cifra.
+  cli::cli_text(.cli_literal(paste0(
+    sum(x$registro$n_cambiadas), " cambios contados por las acciones (una celda ",
+    "que tocan dos acciones cuenta dos veces; el detalle est\u00e1 en `registro`)"
+  )))
   n_filas <- sum(x$registro$n_filas_eliminadas)
   n_columnas <- sum(x$registro$n_columnas_eliminadas)
   if (n_filas || n_columnas) {

@@ -926,7 +926,10 @@ comparar_perfiles <- function(anterior, actual, umbral_cambio = 0.05,
   # columna, y comparar un perfil protegido contra uno sin proteger daba
   # "Cambio la politica de centinelas numericos" con severidad `error` sobre
   # dos corridas que usaban exactamente la misma politica por omision.
-  oculta <- function(x) !is.null(x) && length(x) && all(is.na(x))
+  # Basta UN centinela enmascarado: la proteccion tapa solo los que coinciden con
+  # un valor protegido, y una politica tapada en parte se comparaba como
+  # "modificada" con severidad `error`. Es la regla de las cadenas de ausencia.
+  oculta <- function(x) !is.null(x) && length(x) && anyNA(x)
   sentinelas_comparables <- !is.null(sentinelas_a) &&
     !is.null(sentinelas_b) &&
     isTRUE(all.equal(sentinelas_a, sentinelas_b, check.attributes = FALSE))

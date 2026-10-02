@@ -723,16 +723,22 @@ test_that("la misma normalizacion no inventa una fila de configuracion", {
 # severidad `error` sobre dos corridas que usaban la MISMA politica.
 test_that("una politica oculta se declara no comparable, no cambiada", {
   set.seed(31)
+  # El centinela que el usuario declara es tambien el valor de un documento
+  # protegido: con la proteccion puesta, ese centinela se enmascara. El catalogo
+  # del paquete -`-999`- ya no se enmascara: es vocabulario.
   datos <- data.frame(
-    ciudad = sample(c("Montevideo", "Salto", "Rivera"), 60, TRUE),
-    x = c(rnorm(55, 100, 10), -999, -999, 0, 0, NA),
+    documento = c(sprintf("%08d", sample(1e7:5e7, 59)), "77777777"),
+    x = c(rnorm(55, 100, 10), -999, 77777777, 0, 0, NA),
     stringsAsFactors = FALSE
   )
-  sin_declarar <- perfilar(datos)
-  con_personal <- perfilar(datos, columnas_personales = "ciudad")
+  politica <- c(-999, 77777777)
+  sin_declarar <- perfilar(datos, sentinelas_numericos = politica,
+                           proteger_datos_personales = FALSE)
+  con_personal <- perfilar(datos, sentinelas_numericos = politica,
+                           columnas_personales = "documento")
   # El mecanismo se activo: una publica la politica y la otra la enmascara.
   expect_false(anyNA(sin_declarar$meta$sentinelas_numericos))
-  expect_true(all(is.na(con_personal$meta$sentinelas_numericos)))
+  expect_true(anyNA(con_personal$meta$sentinelas_numericos))
 
   fila <- comparar_perfiles(sin_declarar, con_personal)
   fila <- fila[fila$aspecto == "configuracion_sentinelas_numericos", ]
@@ -744,7 +750,8 @@ test_that("una politica oculta se declara no comparable, no cambiada", {
   # El control, y es el que impide que la guarda tape un cambio real: una
   # politica que SI cambio se sigue declarando como cambiada, con error.
   otra <- comparar_perfiles(
-    sin_declarar, perfilar(datos, sentinelas_numericos = c(-999))
+    sin_declarar, perfilar(datos, sentinelas_numericos = c(-999),
+                           proteger_datos_personales = FALSE)
   )
   otra <- otra[otra$aspecto == "configuracion_sentinelas_numericos", ]
   expect_equal(nrow(otra), 1L)
@@ -822,9 +829,19 @@ test_that("ordenar la politica no tapa ningun cambio real", {
     ),
     1L
   )
+  # La guarda de la politica oculta: un centinela declarado que es tambien el
+  # valor de un documento protegido se enmascara de un lado y no del otro.
+  con_documento <- datos
+  con_documento$documento <- c(sprintf("%08d", 10000000 + seq_len(199)), "77777777")
+  politica <- c(-999, 77777777)
   expect_equal(
-    filas_de(perfilar(datos), perfilar(datos, columnas_personales = "ciudad"),
-             "configuracion_sentinelas"),
+    filas_de(
+      perfilar(con_documento, sentinelas_numericos = politica,
+               proteger_datos_personales = FALSE),
+      perfilar(con_documento, sentinelas_numericos = politica,
+               columnas_personales = "documento"),
+      "configuracion_sentinelas"
+    ),
     1L
   )
   expect_equal(nrow(comparar_perfiles(perfilar(datos), perfilar(datos))), 0L)
