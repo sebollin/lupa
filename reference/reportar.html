@@ -121,11 +121,22 @@ concretos deben haberse conservado tambien con
 <p>El enmascarado es el mismo que el de <code><a href="perfilar.html">perfilar()</a></code> -ver su
 <code>proteger_datos_personales</code>-: la forma exacta, la que solo difiere en
 separadores, tildes, caja o escritura, y en los digitos, el documento
-entero, sin su verificador o sin su primer digito, buscado entre los tramos
-de cada numero. La comparacion por tramos se limita a digitos a proposito:
+entero con cualquier agrupacion, sin su verificador, o sin su primer digito
+detras de un comodin. La comparacion parcial se limita a digitos a proposito:
 aplicada al texto taparia una palabra corriente por compartir un tramo con
 un apellido, y eso silencia contenido del informe en vez de proteger un
-dato.</p></dd>
+dato.</p>
+<p>Un plan de limpieza, una medicion, un historico que incluye una medicion
+o una comparacion de deriva armados con la proteccion desactivada no se
+publican en un informe protegido: su seccion se reemplaza por una que dice
+por que se omitio y como pedirla. Lo sabe por una marca que el objeto
+lleva, y que <code>[</code>, <code><a href="https://rdrr.io/r/base/subset.html" class="external-link">subset()</a></code> y <code><a href="https://rdrr.io/r/base/cbind.html" class="external-link">rbind()</a></code> conservan. En el
+historico, una medida suprimida por una regla se enmascara como en la
+evaluacion. Un perfil -o un analisis que no conserva la tabla- armado con
+la proteccion desactivada se vuelve a proteger con lo que conserva, y su
+seccion lo declara: sin la tabla, una variante de un valor protegido
+escrita en otra columna puede quedar a la vista. Para la proteccion
+completa, el perfil se arma con la proteccion activa.</p></dd>
 
 </dl></div>
     <div class="section level2">
@@ -144,7 +155,12 @@ modifica los objetos recibidos.</p>
 <p>Una seccion que no se puede armar <strong>se declara dentro del informe</strong> y no lo
 interrumpe: si a un <code>historico_calidad</code> le faltan campos que su seccion
 necesita -<code>fecha</code>, <code>id_medicion</code>, <code>nivel</code>, <code>perfil</code> o <code>resultado</code>-, la seccion
-dice cuales faltan y el resto del documento se escribe igual.</p>
+dice cuales faltan y el resto del documento se escribe igual. Lo mismo vale
+para cualquier otra seccion que falle al armarse -un perfil al que le falta un
+componente-: queda una seccion que lo dice. Un texto con bytes que no son
+UTF-8 valido se muestra con esos bytes en hexadecimal, como los muestra la
+consola, y no interrumpe el informe. Las cifras se escriben con todos sus digitos significativos, sin el
+redondeo de la consola.</p>
     </div>
     <div class="section level2">
     <h2 id="see-also">See also<a class="anchor" aria-label="anchor" href="#see-also"></a></h2>

@@ -75,11 +75,25 @@ reportar(
   [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md)
   -ver su `proteger_datos_personales`-: la forma exacta, la que solo
   difiere en separadores, tildes, caja o escritura, y en los digitos, el
-  documento entero, sin su verificador o sin su primer digito, buscado
-  entre los tramos de cada numero. La comparacion por tramos se limita a
-  digitos a proposito: aplicada al texto taparia una palabra corriente
-  por compartir un tramo con un apellido, y eso silencia contenido del
-  informe en vez de proteger un dato.
+  documento entero con cualquier agrupacion, sin su verificador, o sin
+  su primer digito detras de un comodin. La comparacion parcial se
+  limita a digitos a proposito: aplicada al texto taparia una palabra
+  corriente por compartir un tramo con un apellido, y eso silencia
+  contenido del informe en vez de proteger un dato.
+
+  Un plan de limpieza, una medicion, un historico que incluye una
+  medicion o una comparacion de deriva armados con la proteccion
+  desactivada no se publican en un informe protegido: su seccion se
+  reemplaza por una que dice por que se omitio y como pedirla. Lo sabe
+  por una marca que el objeto lleva, y que `[`,
+  [`subset()`](https://rdrr.io/r/base/subset.html) y
+  [`rbind()`](https://rdrr.io/r/base/cbind.html) conservan. En el
+  historico, una medida suprimida por una regla se enmascara como en la
+  evaluacion. Un perfil -o un analisis que no conserva la tabla- armado
+  con la proteccion desactivada se vuelve a proteger con lo que
+  conserva, y su seccion lo declara: sin la tabla, una variante de un
+  valor protegido escrita en otra columna puede quedar a la vista. Para
+  la proteccion completa, el perfil se arma con la proteccion activa.
 
 ## Value
 
@@ -99,7 +113,12 @@ Una seccion que no se puede armar **se declara dentro del informe** y no
 lo interrumpe: si a un `historico_calidad` le faltan campos que su
 seccion necesita -`fecha`, `id_medicion`, `nivel`, `perfil` o
 `resultado`-, la seccion dice cuales faltan y el resto del documento se
-escribe igual.
+escribe igual. Lo mismo vale para cualquier otra seccion que falle al
+armarse -un perfil al que le falta un componente-: queda una seccion que
+lo dice. Un texto con bytes que no son UTF-8 valido se muestra con esos
+bytes en hexadecimal, como los muestra la consola, y no interrumpe el
+informe. Las cifras se escriben con todos sus digitos significativos,
+sin el redondeo de la consola.
 
 ## See also
 

@@ -43,6 +43,33 @@
     <div class="section level2">
 <h2 class="pkg-version" data-toc-text="0.1.0" id="lupa-010">lupa 0.1.0<a class="anchor" aria-label="anchor" href="#lupa-010"></a></h2>
 <div class="section level3">
+<h3 id="ronda-el-informe-html-0-1-0">Ronda 21: el informe HTML<a class="anchor" aria-label="anchor" href="#ronda-el-informe-html-0-1-0"></a></h3>
+<p>Una refutacion del informe de <code><a href="../reference/reportar.html">reportar()</a></code> encontro siete defectos.</p>
+<ul><li>
+<strong>Un plan, una deriva, una medicion o un historico armados con la proteccion desactivada no se publican en un informe protegido</strong>. Salian en claro al lado de un perfil enmascarado del mismo archivo; ahora su seccion dice que se omitio y como pedirla. La marca que lo indica sobrevive a <code>[</code>, <code><a href="https://rdrr.io/r/base/subset.html" class="external-link">subset()</a></code> y <code><a href="https://rdrr.io/r/base/cbind.html" class="external-link">rbind()</a></code> -que la perdian o se quedaban con la del primer objeto- y al historico.</li>
+<li>
+<strong>En la seccion Historico, una medida que la evaluacion suprime se enmascara</strong> como en la evaluacion del mismo informe.</li>
+<li>Un perfil, o un analisis sin la tabla, armado con la proteccion desactivada se vuelve a proteger con lo que conserva, y <strong>su seccion declara</strong> que una variante de un valor protegido escrita en otra columna puede quedar a la vista.</li>
+<li>El informe <strong>no aborta con texto marcado UTF-8 que no es UTF-8 valido</strong> -el que deja <code>fread(encoding = "UTF-8")</code> sobre un CSV latin1-: lo muestra con sus bytes.</li>
+<li>
+<strong>Las cifras se escriben con todos sus digitos</strong>: el informe redondeaba a ocho cifras significativas y publicaba numeros que no estaban en el objeto.</li>
+<li>Una seccion que no se puede armar -un perfil al que le falta un componente- se declara dentro del informe en vez de interrumpirlo; y un salto de linea en <code>titulo</code> ya no se escribe como <code>&lt;br&gt;</code> dentro de <code>&lt;title&gt;</code>.</li>
+</ul><p>Y una refutacion de la proteccion de datos personales encontro catorce, cinco de ellos abiertos por lo que la ronda 20 aflojo.</p>
+<ul><li>
+<strong>Un numero protegido se reconoce con cualquier agrupacion</strong>: un telefono “2901 1234” o “099 12 34 56”, una tarjeta, un IBAN, la cedula escrita “4 . 123 . 456-7” o con puntos medios se publicaban enteros, porque la regla de la ronda 20 solo aceptaba la forma de miles. Tambien con ceros a la izquierda, redondo -la cedula 5.000.000-0- y con digitos arabigo-indicos, persas o devanagari.</li>
+<li>
+<strong>El documento sin su primer digito se reconoce tras un comodin</strong> -“*.012.345-8”-, tambien cuando el segundo digito es cero.</li>
+<li>
+<strong>Tapa menos de mas</strong>: la parte decimal de una coordenada o de un p-valor, el entero de un monto con decimales, una hora o una lista separada por comas ya no se toman por documentos. Lo que queda tiene un costo medido y declarado en <code><a href="../reference/perfilar.html">?perfilar</a></code>: un entero de siete cifras que coincide con un documento sin su verificador no se distingue de el. <code>data-raw/medir_tapado_de_mas.R</code> rehace la cifra.</li>
+<li>
+<strong>En la prosa se tapa el numero o la cita, no la frase</strong>, y el umbral de una sugerencia -escrito sin comillas- ya no publica el documento que es. Una comilla en el nombre de una columna no desarma el apareo de las citas.</li>
+<li>
+<strong>Los campos numericos comparan tambien la forma en digitos</strong> del documento escrito -“5.432.198-6” frente a un <code>maximo</code> de 54321986-, y cuando el piso tapa un extremo se tapan los campos de la secuencia entera que lo reconstruian.</li>
+<li>Una columna de p-valores de siete decimales ya no se clasifica como documento.</li>
+<li>
+<strong><code><a href="../reference/perfilar_dbi.html">perfilar_dbi()</a></code> trae los valores de las columnas protegidas de la tabla entera</strong> cuando la muestra no la cubre, tambien de una columna numerica, y protege con la misma regla que <code><a href="../reference/perfilar.html">perfilar()</a></code>. Antes comparaba exacto, no miraba la evidencia y se cortaba sin avisar en 500 candidatos. Si no puede traerlos, tapa y lo declara.</li>
+</ul></div>
+<div class="section level3">
 <h3 id="ronda-el-plan-de-limpieza-y-la-proteccion-otra-vez-0-1-0">Ronda 20: el plan de limpieza, y la proteccion otra vez<a class="anchor" aria-label="anchor" href="#ronda-el-plan-de-limpieza-y-la-proteccion-otra-vez-0-1-0"></a></h3>
 <p>Dos refutaciones en paralelo. La de la capa de limpieza encontro veintidos defectos -no se atacaba desde la ronda 9-; la de privacidad, nueve, tres de ellos abiertos por la ronda 19.</p>
 <p><strong>El plan de limpieza:</strong></p>

@@ -824,17 +824,23 @@ clasificación personal sólo cubre esas filas: las cifras de valor del
 resumen SQL completo quedan marcadas en `resumen_tabla$cobertura` y, con
 la protección activa, se ocultan hasta que la clasificación cubra el
 mismo alcance. La corroboración no repite esas cifras dudosas en su
-anotación. Y cuando la muestra no cubre la tabla, lo que se va a
-publicar de las columnas no personales —moda, extremos, ejemplos de
-patrón— se busca en las columnas personales de texto de la tabla entera,
-con una consulta por columna: un valor de una persona que sólo está
-fuera de la muestra se tapa igual. Si esa consulta no se puede hacer, se
-tapan todos esos valores. `incluir_valores = FALSE` va más lejos: no
-emite las consultas de moda ni de mediana y no informa mínimo ni máximo,
-útil cuando la tabla es un padrón y la moda de un identificador único es
-un documento real. Si se pidió `desvio`, la sonda de magnitud que ese
-cálculo necesita puede emitirse, pero su motivo nunca publica el valor
-devuelto por el motor.
+anotación. Y cuando la muestra no cubre la tabla, se traen los valores
+distintos de las columnas protegidas de la tabla entera —de texto o
+numéricas, una consulta por columna— y se protege con ellos lo que se
+publica, con la misma regla que
+[`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md) en
+memoria: tildes, caja, separadores, el documento parcial, los campos
+numéricos y la evidencia de los hallazgos. Un valor de una persona que
+sólo está fuera de la muestra se tapa igual. Se traen hasta dos millones
+de valores; si hay más, o si la consulta no se puede hacer, se tapan
+todos los valores de celda de las columnas no personales —moda,
+extremos, ejemplos— y la evidencia de sus hallazgos, y
+`resumen_tabla$meta$proteccion_personal$fuera_de_muestra` dice por qué.
+`incluir_valores = FALSE` va más lejos: no emite las consultas de moda
+ni de mediana y no informa mínimo ni máximo, útil cuando la tabla es un
+padrón y la moda de un identificador único es un documento real. Si se
+pidió `desvio`, la sonda de magnitud que ese cálculo necesita puede
+emitirse, pero su motivo nunca publica el valor devuelto por el motor.
 
 ## Progreso
 
