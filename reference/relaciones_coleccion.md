@@ -109,6 +109,15 @@ resultado declara ese alcance: una relación candidata sobre una muestra
 **no es una clave foránea comprobada**, es un indicio que hay que
 confirmar contra el diccionario de datos.
 
+**Con la tabla de referencia truncada la cobertura es una cota
+inferior.** Un valor de `tabla_2` que no está entre las filas leídas de
+`tabla_1` puede estar en las demás, así que la cobertura sólo puede
+subir al leer más. Un par que con la referencia truncada no alcanza
+`umbral_cobertura` no se descarta en silencio: queda en
+`cobertura_pares` como «sin conclusión», con la mayor cobertura medida y
+cómo resolverlo, y `meta$pares_sin_conclusion` los cuenta —también están
+en `pares_comparados`, porque se compararon—.
+
 **El alcance se declara por par y en la fila.** Cada relación publica
 `filas_leidas_1`/`filas_leidas_2` —cuántas se compararon—, y además
 `filas_totales_1`/`filas_totales_2` y `muestreado_1`/`muestreado_2`:
@@ -135,6 +144,16 @@ Las podas quedan declaradas en `cobertura_podas`, con su motivo y
 conteo. La poda cierta por rangos usa `MIN` y `MAX` sobre el universo
 completo de cada tabla, no sobre las filas de la muestra. Si el motor no
 puede entregar ese rango, la comparación sigue sin aplicar esa poda.
+
+**Un entero ancho que llega como doble no se compara.** Por encima de
+2^53 un doble no distingue dos enteros consecutivos, y
+`dbConnect(duckdb::duckdb())` entrega BIGINT como doble por omisión: dos
+identificadores distintos se fundían y el objeto afirmaba una relación
+que el motor no tiene. Una columna leída como doble con algún valor de
+al menos 2^53 en valor absoluto deja sus pares en `sin_comparar`, con
+motivo `entero_como_doble` en `cobertura_podas` y el remedio en el
+detalle: conectar pidiendo `integer64` —`duckdb(bigint = "integer64")`,
+o `bigint = "integer64"` en RSQLite—.
 
 El campo `detalle` de una poda por rangos disjuntos **no publica
 extremos que identifiquen**: si el mínimo o el máximo de un lado llega

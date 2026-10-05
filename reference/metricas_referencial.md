@@ -41,14 +41,28 @@ entero en una tabla y como doble en la otra coincide —`100000L` y
 `1e5`—, y dos dobles distintos no coinciden aunque se escriban igual con
 15 cifras —`0.1 + 0.2` y `0.3`—. Lo mismo vale para
 [`metricas_nucleo()`](https://sebollin.github.io/lupa/reference/modelo_calidad.md)
-cuando compara filas por sus atributos, como en `EntidadDuplicada`.
+cuando compara filas por sus atributos, como en `EntidadDuplicada`. Los
+instantes y las fechas se emparejan también por su valor, con su
+fracción: dos instantes del mismo segundo no coinciden.
+
+Un texto con bytes que no son UTF-8 válido —lo que deja un archivo
+latin1 leído sin declarar su codificación— se empareja por sus bytes,
+como `%in%`: dos valores así distintos no coinciden entre sí. La
+proximidad no los compara, porque una distancia de texto no se mide
+sobre bytes que no son texto, y su `motivo` declara cuántos quedaron
+afuera.
 
 Los valores ausentes no generan medidas de correctitud: corresponden a
 la dimensión Completitud. La cobertura ignora claves ausentes en el
-objetivo y no permite que duplicados inflen el resultado. Sobre un
+objetivo y no permite que duplicados inflen el resultado. El universo se
+cuenta con la misma identidad con que se empareja: dos claves del padrón
+que la normalización funde —`A` y `a`— son una sola clave del universo,
+y `n_referencial` cuenta las claves de ese universo. Sobre un
 referencial sin claves, `RatioCobertura` no se mide: la cobertura de un
 universo vacío no es una proporción, y la métrica queda `sin_valores`
-con ese motivo, igual que cuando la entidad no tiene filas.
+con ese motivo, igual que cuando la entidad no tiene filas o ningún
+valor en los atributos ligados: lo que no se pudo medir no se publica
+como una cobertura cero.
 
 ## See also
 
@@ -68,11 +82,11 @@ fuerte <- instanciar(especializar(m$CorrectitudSemFuerte),
   "personas", "id", referencial = ref)
 medir(modelo(fuerte), data.frame(id = c(1, 4)))
 #>                                                                      id_medida
-#> 1 medicion-20261005T162548.568965-7637-CorrectitudSemFuerte@personas.id-000001
-#> 2 medicion-20261005T162548.568965-7637-CorrectitudSemFuerte@personas.id-000002
+#> 1 medicion-20261005T235329.673562-7664-CorrectitudSemFuerte@personas.id-000001
+#> 2 medicion-20261005T235329.673562-7664-CorrectitudSemFuerte@personas.id-000002
 #>                            id_medicion               fecha              metrica
-#> 1 medicion-20261005T162548.568965-7637 2026-10-05 16:25:48 CorrectitudSemFuerte
-#> 2 medicion-20261005T162548.568965-7637 2026-10-05 16:25:48 CorrectitudSemFuerte
+#> 1 medicion-20261005T235329.673562-7664 2026-10-05 23:53:29 CorrectitudSemFuerte
+#> 2 medicion-20261005T235329.673562-7664 2026-10-05 23:53:29 CorrectitudSemFuerte
 #>     metrica_especifica              metrica_instanciada dimension
 #> 1 CorrectitudSemFuerte CorrectitudSemFuerte@personas.id Exactitud
 #> 2 CorrectitudSemFuerte CorrectitudSemFuerte@personas.id Exactitud

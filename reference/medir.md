@@ -61,7 +61,9 @@ medir(
   Fecha y hora de la corrida. Se guarda en UTC; un texto —`"2026-03-01"`
   o `"2026-03-01 09:30:00"`— se lee en UTC, no en el huso de la sesión,
   así que la misma llamada registra el mismo instante en cualquier
-  máquina.
+  máquina. Un desplazamiento escrito en el texto
+  —`"2026-03-01 09:30:00-03:00"`, `Z`, `+0100`— se respeta, y un texto
+  que no se puede leer entero se rechaza.
 
 - aplicabilidad:
 
@@ -164,13 +166,13 @@ especifica <- especializar(nucleo$NoNulo, nombre_especifico = "NoNuloEdad")
 instancia <- instanciar(especifica, "personas", "edad")
 medir(modelo(instancia), data.frame(edad = c(20, NA, 35)))
 #>                                                              id_medida
-#> 1 medicion-20261005T162548.379902-7637-NoNuloEdad@personas.edad-000001
-#> 2 medicion-20261005T162548.379902-7637-NoNuloEdad@personas.edad-000002
-#> 3 medicion-20261005T162548.379902-7637-NoNuloEdad@personas.edad-000003
+#> 1 medicion-20261005T235329.489421-7664-NoNuloEdad@personas.edad-000001
+#> 2 medicion-20261005T235329.489421-7664-NoNuloEdad@personas.edad-000002
+#> 3 medicion-20261005T235329.489421-7664-NoNuloEdad@personas.edad-000003
 #>                            id_medicion               fecha metrica
-#> 1 medicion-20261005T162548.379902-7637 2026-10-05 16:25:48  NoNulo
-#> 2 medicion-20261005T162548.379902-7637 2026-10-05 16:25:48  NoNulo
-#> 3 medicion-20261005T162548.379902-7637 2026-10-05 16:25:48  NoNulo
+#> 1 medicion-20261005T235329.489421-7664 2026-10-05 23:53:29  NoNulo
+#> 2 medicion-20261005T235329.489421-7664 2026-10-05 23:53:29  NoNulo
+#> 3 medicion-20261005T235329.489421-7664 2026-10-05 23:53:29  NoNulo
 #>   metrica_especifica      metrica_instanciada   dimension   factor orientacion
 #> 1         NoNuloEdad NoNuloEdad@personas.edad Completitud Densidad conformidad
 #> 2         NoNuloEdad NoNuloEdad@personas.edad Completitud Densidad conformidad

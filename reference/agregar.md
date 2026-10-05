@@ -170,8 +170,10 @@ suya, en cualquier orden de la unión, y el tablero, el índice, el
 informe,
 [`evaluar()`](https://sebollin.github.io/lupa/reference/evaluar.md) e
 [`historico_calidad()`](https://sebollin.github.io/lupa/reference/historico_calidad.md)
-las publican todas. Una colección lleva en `cobertura_metricas` sólo la
-de sus propias tablas.
+las publican todas. Unidas dos corridas distintas, cada cobertura lleva
+además su `id_medicion`, y el histórico registra la parte no medida en
+la corrida a la que le faltó. Una colección lleva en
+`cobertura_metricas` sólo la de sus propias tablas.
 
 ## Los pesos se publican
 
@@ -205,9 +207,9 @@ instancia <- instanciar(especifica, "personas", "edad")
 medidas <- medir(modelo(instancia), data.frame(edad = c(20, NA, 35)))
 agregar(medidas, "atributo", "ratio")
 #>                                                                      id_medida
-#> 1 medicion-20261005T162527.534203-7637-agg-atributo-ratio-NoNulo@personas.edad
+#> 1 medicion-20261005T235308.083409-7664-agg-atributo-ratio-NoNulo@personas.edad
 #>                            id_medicion               fecha metrica
-#> 1 medicion-20261005T162527.534203-7637 2026-10-05 16:25:27  NoNulo
+#> 1 medicion-20261005T235308.083409-7664 2026-10-05 23:53:08  NoNulo
 #>   metrica_especifica   metrica_instanciada   dimension   factor orientacion
 #> 1             NoNulo agregada:ratio:NoNulo Completitud Densidad conformidad
 #>   granularidad tipo_resultado  entidad atributo fila objeto_medible resultado

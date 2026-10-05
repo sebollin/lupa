@@ -9,11 +9,18 @@ valor concentra al menos la mitad de los duplicados excedentes. La
 concentración evita confundir texto libre de alta cardinalidad, con
 muchas colisiones dispersas, con una clave dañada. Las variables con rol
 propuesto `fecha`, incluidas fecha-hora, no se consideran casi-claves.
-Los vectores `double` sólo son candidatos si ninguno de sus valores
-finitos tiene parte fraccionaria. Esto conserva identificadores enteros
-importados desde archivos de texto y excluye importes, coordenadas y
-otras medidas. Los vectores `integer64` se tratan como enteros
-semánticos.
+Los faltantes disfrazados —`"SIN DATO"`, `-999`— no cuentan como
+colisiones: se reconocen con la misma máscara que
+[`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md),
+con su política por omisión o con la del `perfil` que se pase, y la
+casi-clave se mide sin ellos —sus distintos, exactos y normalizados, y
+sus colisiones—. Una clave sana con treinta documentos en `"SIN DATO"`
+no es una clave rota: le faltan treinta documentos. `n_filas` sigue
+siendo el de la tabla. Los vectores `double` sólo son candidatos si
+ninguno de sus valores finitos tiene parte fraccionaria. Esto conserva
+identificadores enteros importados desde archivos de texto y excluye
+importes, coordenadas y otras medidas. Los vectores `integer64` se
+tratan como enteros semánticos.
 
 ## Usage
 
@@ -40,7 +47,8 @@ detectar_claves(datos, max_combinacion = 3, normalizar = NULL, perfil = NULL)
 
   Perfil producido por
   [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md)
-  para heredar la comparación.
+  para heredar la comparación y la política de faltantes disfrazados
+  —`sentinelas_numericos` y `cadenas_ausencia`—.
 
 ## Value
 

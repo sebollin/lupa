@@ -43,14 +43,21 @@ evaluacion_febrero <- evaluar(febrero, perfil)
 comparar_evaluaciones(evaluacion_enero, evaluacion_febrero)
 #>      perfil id_medicion_anterior fecha_anterior resultado_anterior id_medicion_actual
 #> 1 Operativo                enero     2026-01-31                  0            febrero
-#>   fecha_actual resultado_actual delta
-#> 1   2026-02-28                1     1
+#>   fecha_actual resultado_actual delta                           comparacion
+#> 1   2026-02-28                1     1 Cambió el resultado de la evaluación.
 ```
 
 [`historico_calidad()`](https://sebollin.github.io/lupa/reference/historico_calidad.md)
 normaliza las corridas en un `data.frame` plano y versionado. Puede
 escribirse como CSV o llevarse a una tabla institucional sin desarmar
-listas anidadas.
+listas anidadas. La configuración de cada corrida —la tabla, el marco,
+los tipos de resultado— viaja en las columnas `identidad_tabla` y
+`configuracion_*` de las filas `evaluacion_perfil`, así que un histórico
+releído de un CSV separa las tablas y corta los cambios de marco igual
+que el objeto.
+[`comparar_evaluaciones()`](https://sebollin.github.io/lupa/reference/comparar_evaluaciones.md)
+publica el mismo delta que la deriva, y en `comparacion` dice por qué
+falta cuando las corridas no se pueden comparar.
 
 ``` r
 

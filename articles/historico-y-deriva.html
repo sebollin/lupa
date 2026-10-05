@@ -111,11 +111,19 @@ completitud de la misma columna en dos meses.</p>
 <span><span class="fu"><a href="../reference/comparar_evaluaciones.html">comparar_evaluaciones</a></span><span class="op">(</span><span class="va">evaluacion_enero</span>, <span class="va">evaluacion_febrero</span><span class="op">)</span></span>
 <span><span class="co">#&gt;      perfil id_medicion_anterior fecha_anterior resultado_anterior id_medicion_actual</span></span>
 <span><span class="co">#&gt; 1 Operativo                enero     2026-01-31                  0            febrero</span></span>
-<span><span class="co">#&gt;   fecha_actual resultado_actual delta</span></span>
-<span><span class="co">#&gt; 1   2026-02-28                1     1</span></span></code></pre></div>
+<span><span class="co">#&gt;   fecha_actual resultado_actual delta                           comparacion</span></span>
+<span><span class="co">#&gt; 1   2026-02-28                1     1 Cambió el resultado de la evaluación.</span></span></code></pre></div>
 <p><code><a href="../reference/historico_calidad.html">historico_calidad()</a></code> normaliza las corridas en un
 <code>data.frame</code> plano y versionado. Puede escribirse como CSV o
-llevarse a una tabla institucional sin desarmar listas anidadas.</p>
+llevarse a una tabla institucional sin desarmar listas anidadas. La
+configuración de cada corrida —la tabla, el marco, los tipos de
+resultado— viaja en las columnas <code>identidad_tabla</code> y
+<code>configuracion_*</code> de las filas
+<code>evaluacion_perfil</code>, así que un histórico releído de un CSV
+separa las tablas y corta los cambios de marco igual que el objeto.
+<code><a href="../reference/comparar_evaluaciones.html">comparar_evaluaciones()</a></code> publica el mismo delta que la
+deriva, y en <code>comparacion</code> dice por qué falta cuando las
+corridas no se pueden comparar.</p>
 <div class="sourceCode" id="cb3"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">historico</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/historico_calidad.html">historico_calidad</a></span><span class="op">(</span><span class="va">evaluacion_enero</span>, <span class="va">evaluacion_febrero</span><span class="op">)</span></span>
 <span><span class="va">historico</span><span class="op">[</span>, <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"id_medicion"</span>, <span class="st">"fecha"</span>, <span class="st">"nivel"</span>, <span class="st">"resultado"</span><span class="op">)</span><span class="op">]</span></span>

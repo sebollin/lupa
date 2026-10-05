@@ -62,7 +62,11 @@ columna clasificada como dato personal** —salvo que se pida lo contrario
 con `proteger_datos_personales = FALSE`—: esos salen como
 `[valor protegido]`. El número de fila y el nombre de la columna se
 conservan, que es lo que hace falta para ir a corregirla. Las columnas
-que no son personales se citan enteras.
+que no son personales se citan enteras, salvo lo que en ellas repite un
+valor de una columna personal de la tabla —una observación que cita la
+cédula—: eso se tapa con el mismo piso que aplica
+[`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md),
+aunque la columna personal no esté en la señal.
 
 ## Details
 

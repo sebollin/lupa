@@ -90,11 +90,13 @@ a <code>medida</code>, <code>evaluacion_medida</code>, <code>evaluacion_regla</c
 menos una medida; y una parte declarada en una frontera —una tabla de la
 colección, una colección de la organización— que no entró al número, como
 <code>parte_no_medida</code>, con la frontera en <code>id_registro</code>, la parte en <code>entidad</code>
-y el motivo en <code>objeto_medible</code>. Una medida que una regla declaró <code>desenlace = "suprimir"</code>
+y el motivo en <code>objeto_medible</code> —también cuando un objeto reúne varias
+corridas con <code><a href="https://rdrr.io/r/base/cbind.html" class="external-link">rbind()</a></code>: cada parte va a la corrida a la que le faltó—. Una medida que una regla declaró <code>desenlace = "suprimir"</code>
 no publica su valor <strong>tampoco aquí</strong>: su fila deja <code>resultado</code> en <code>NA</code> y
 marca <code>objeto_medible</code> con <code>[valor suprimido]</code>, en los dos niveles donde esa
-medida aparece —<code>medida</code> y <code>evaluacion_medida</code>—, porque esta tabla está
-pensada para exportarse. Con el detalle resumido, las medidas suprimidas
+medida aparece —<code>medida</code> y <code>evaluacion_medida</code>, en este último bajo
+cualquier perfil o regla que la evalúe, no solo el que la suprimió—,
+porque esta tabla está pensada para exportarse. Con el detalle resumido, las medidas suprimidas
 entran igual, enmascaradas en el nivel <code>evaluacion_medida</code>: así una
 medición acumulada <strong>después</strong> —también sobre un histórico guardado o
 leído de un CSV— queda tapada en las mismas medidas, sea cual sea el orden
@@ -105,7 +107,14 @@ declaró en <code>cobertura_metricas</code>, porque no hay corrida que registrar
 modelo, su marco y sus tipos, la aplicabilidad, el perfil, la identidad
 de tabla y <strong>la fecha</strong> de cada corrida. Acumular una corrida con un
 <code>id_medicion</code> ya presente exige que todo eso coincida, la fecha incluida:
-dos entregas distintas son dos corridas, y el error nombra en qué difieren.</p>
+dos entregas distintas son dos corridas, y el error nombra en qué difieren.
+Esa misma configuración viaja <strong>en las filas</strong> <code>evaluacion_perfil</code>, en las
+columnas <code>identidad_tabla</code>, <code>configuracion_modelo</code>, <code>configuracion_marco</code>,
+<code>configuracion_tipos_resultado</code>, <code>configuracion_aplicabilidad</code> y
+<code>configuracion_perfil</code> —en <code>NA</code> en los demás niveles—, porque el atributo no
+sobrevive a <code><a href="https://rdrr.io/r/utils/write.table.html" class="external-link">write.csv()</a></code>: un histórico releído de un CSV la recupera de
+ahí. Son columnas agregadas al esquema 1: un histórico anterior que no las
+trae se lee igual, con ellas en <code>NA</code>.</p>
     </div>
     <div class="section level2">
     <h2 id="details">Details<a class="anchor" aria-label="anchor" href="#details"></a></h2>
@@ -113,7 +122,12 @@ dos entregas distintas son dos corridas, y el error nombra en qué difieren.</p>
 objetivo es monitorear la serie de evaluaciones. El objeto no guarda modelos,
 closures, datos originales ni perfiles de profiling. Esto mantiene la tabla
 exportable directamente con <code><a href="https://rdrr.io/r/utils/write.table.html" class="external-link">write.csv()</a></code> o una herramienta de base de datos.
-Al volver a leerla, las fechas de texto se leen en UTC, con su hora.</p>
+Al volver a leerla, cada columna recupera el tipo del esquema —<code><a href="https://rdrr.io/r/utils/read.table.html" class="external-link">read.csv()</a></code>
+lee como lógica una columna de texto que viene entera en <code>NA</code>— y las fechas
+de texto se leen en UTC, con su hora y con su desplazamiento cuando lo traen
+—<code>2026-01-31 10:00:00-03:00</code> son las 13:00 UTC; también <code>Z</code>, <code>+0100</code> o
+<code>-03</code>, como los escribe una columna <code>timestamptz</code> de una base—. Un texto que
+no se puede leer entero se rechaza: no se lee a medias.</p>
 <p><code>[</code>, <code><a href="https://rdrr.io/r/base/subset.html" class="external-link">subset()</a></code> y <code>dplyr::filter()</code> conservan la configuración de las
 corridas que quedan; <code><a href="https://rdrr.io/r/base/cbind.html" class="external-link">rbind()</a></code> de dos históricos los acumula, como
 <code>acumular_historico()</code>.</p>
@@ -171,11 +185,26 @@ República, Uruguay.</p>
 <span class="r-out co"><span class="r-pr">#&gt;</span> 2 instanciaAtributo       booleano personas     edad    2 personas$edad[2]</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> 3              &lt;NA&gt;           &lt;NA&gt;     &lt;NA&gt;     &lt;NA&gt;   NA             &lt;NA&gt;</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> 4              &lt;NA&gt;           &lt;NA&gt;     &lt;NA&gt;     &lt;NA&gt;   NA             &lt;NA&gt;</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>   n_elementos resultado agregacion</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 1           1       1.0       &lt;NA&gt;</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 2           1       0.0       &lt;NA&gt;</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 3           2       0.5       &lt;NA&gt;</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 4           1       0.5       &lt;NA&gt;</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>   n_elementos resultado agregacion identidad_tabla</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 1           1       1.0       &lt;NA&gt;            &lt;NA&gt;</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 2           1       0.0       &lt;NA&gt;            &lt;NA&gt;</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 3           2       0.5       &lt;NA&gt;            &lt;NA&gt;</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 4           1       0.5       &lt;NA&gt;        personas</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>                                                                                                                                                                                                                                                                                                                                configuracion_modelo</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 1                                                                                                                                                                                                                                                                                                                                              &lt;NA&gt;</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 2                                                                                                                                                                                                                                                                                                                                              &lt;NA&gt;</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 3                                                                                                                                                                                                                                                                                                                                              &lt;NA&gt;</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 4 list{version=integer[2];entidades=character[personas];marco=NULL;metricas=character[list{nombre=character[NoNulo@personas.edad];metrica=character[NoNulo];metrica_especifica=character[NoNulo];entidad=character[personas];atributos=character[edad];configuracion=list{valores_nulos=NULL;aplicable=NULL}}];tipos_resultado=character[booleano]}</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>   configuracion_marco configuracion_tipos_resultado configuracion_aplicabilidad</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 1                &lt;NA&gt;                          &lt;NA&gt;                        &lt;NA&gt;</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 2                &lt;NA&gt;                          &lt;NA&gt;                        &lt;NA&gt;</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 3                &lt;NA&gt;                          &lt;NA&gt;                        &lt;NA&gt;</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 4                &lt;NA&gt;           character[booleano]                        NULL</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>                                                                                                                                                                                                           configuracion_perfil</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 1                                                                                                                                                                                                                         &lt;NA&gt;</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 2                                                                                                                                                                                                                         &lt;NA&gt;</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 3                                                                                                                                                                                                                         &lt;NA&gt;</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 4 list{version=integer[1];nombre=character[Basico];reglas=character[list{nombre=character[Presente];metricas=NULL;nivel=character[medida];proporcion_minima=NULL;desenlace=NULL;umbrales=NULL;condicion=function (x)  x &gt; 0}]}</span>
 </code></pre></div>
     </div>
   </main><aside class="col-md-3"><nav id="toc" aria-label="Table of contents"><h2>On this page</h2>

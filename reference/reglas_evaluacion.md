@@ -57,7 +57,10 @@ perfiles_madurez(metricas = NULL, umbrales = NULL)
 
   `NULL`, para limitar la regla a evaluar, o `"suprimir"` para declarar
   que las medidas que no cumplen `condicion` no deben publicarse. No
-  existe un desenlace predeterminado.
+  existe un desenlace predeterminado. Suprimir tapa el **valor** de esas
+  medidas en cada salida; no es supresión complementaria: un agregado
+  suprimido se puede recalcular de sus medidas crudas si se publican al
+  lado —por ejemplo, en un histórico que acumula también la medición—.
 
 - umbrales:
 

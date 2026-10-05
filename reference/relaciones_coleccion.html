@@ -146,6 +146,13 @@ columnas de orden hace la lectura repetible.</p>
 declara ese alcance: una relación candidata sobre una muestra <strong>no es una
 clave foránea comprobada</strong>, es un indicio que hay que confirmar contra el
 diccionario de datos.</p>
+<p><strong>Con la tabla de referencia truncada la cobertura es una cota inferior.</strong> Un
+valor de <code>tabla_2</code> que no está entre las filas leídas de <code>tabla_1</code> puede
+estar en las demás, así que la cobertura sólo puede subir al leer más. Un par
+que con la referencia truncada no alcanza <code>umbral_cobertura</code> no se descarta
+en silencio: queda en <code>cobertura_pares</code> como «sin conclusión», con la mayor
+cobertura medida y cómo resolverlo, y <code>meta$pares_sin_conclusion</code> los cuenta
+—también están en <code>pares_comparados</code>, porque se compararon—.</p>
 <p><strong>El alcance se declara por par y en la fila.</strong> Cada relación publica
 <code>filas_leidas_1</code>/<code>filas_leidas_2</code> —cuántas se compararon—, y además
 <code>filas_totales_1</code>/<code>filas_totales_2</code> y <code>muestreado_1</code>/<code>muestreado_2</code>: cuando la
@@ -166,6 +173,14 @@ podas quedan declaradas en <code>cobertura_podas</code>, con su motivo y conteo.
 La poda cierta por rangos usa <code>MIN</code> y <code>MAX</code> sobre el universo completo de
 cada tabla, no sobre las filas de la muestra. Si el motor no puede entregar
 ese rango, la comparación sigue sin aplicar esa poda.</p>
+<p><strong>Un entero ancho que llega como doble no se compara.</strong> Por encima de 2^53 un
+doble no distingue dos enteros consecutivos, y <code>dbConnect(duckdb::duckdb())</code>
+entrega BIGINT como doble por omisión: dos identificadores distintos se
+fundían y el objeto afirmaba una relación que el motor no tiene. Una columna
+leída como doble con algún valor de al menos 2^53 en valor absoluto deja sus
+pares en <code>sin_comparar</code>, con motivo <code>entero_como_doble</code> en
+<code>cobertura_podas</code> y el remedio en el detalle: conectar pidiendo <code>integer64</code>
+—<code>duckdb(bigint = "integer64")</code>, o <code>bigint = "integer64"</code> en RSQLite—.</p>
 <p>El campo <code>detalle</code> de una poda por rangos disjuntos <strong>no publica extremos que
 identifiquen</strong>: si el mínimo o el máximo de un lado llega al piso de la
 protección —seis caracteres o más—, ese rango sale como <code>[valor protegido]</code>.

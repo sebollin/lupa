@@ -62,7 +62,9 @@ detectar_relaciones(
   [`relaciones_coleccion()`](https://sebollin.github.io/lupa/reference/relaciones_coleccion.md).
   Lista nombrada por `tabla1` y `tabla2`, con rangos y su origen para
   cada columna. La poda por rangos solo acepta rangos de la columna
-  completa o del universo DBI.
+  completa o del universo DBI. Una columna cuya lectura no permite
+  comparar exacto lo declara en `no_comparable`, y sus pares salen
+  `sin_comparar` con ese motivo.
 
 ## Value
 
@@ -76,6 +78,14 @@ comparados. Los atributos `filas_totales`, `filas_analizadas` y
 no.
 
 ## Details
+
+Los valores se comparan por su identidad. Los números, por su valor; los
+instantes y las fechas también, con su fracción: dos instantes del mismo
+segundo no coinciden, y un instante sin fracción se escribe al segundo
+—`2020-01-01 10:00:00`— para que un texto con esa escritura lo
+encuentre. Un texto con bytes que no son UTF-8 válido se compara por sus
+bytes, como `%in%`: no es un ausente, y dos valores así distintos no
+coinciden.
 
 `columnas_candidatas` permite evitar la exploración de columnas que el
 usuario sabe que no pueden participar. El costo crece con el producto de
@@ -94,10 +104,12 @@ Las otras dos sí lo cambiarían. Familias distintas parece decisivo y no
 lo es: una columna de texto puede guardar `"2020-01-05"` y coincidir con
 una de fecha. Y una cardinalidad imposible no dice que no haya
 coincidencias, dice que no alcanzan `umbral_cobertura`, que es otra
-cosa. Por eso van detrás de `podar = TRUE`, y cuando se aplican **el par
-no desaparece**: sale con `cardinalidad = "sin_comparar"`, coberturas
-`NA` y su motivo en `motivo_poda`. Un par que no se evaluó no es un par
-sin relación.
+cosa. La cota es por filas, como la cobertura: con `k` valores distintos
+en `tabla1`, las filas cubiertas de `tabla2` no superan las de sus `k`
+valores más frecuentes. Por eso van detrás de `podar = TRUE`, y cuando
+se aplican **el par no desaparece**: sale con
+`cardinalidad = "sin_comparar"`, coberturas `NA` y su motivo en
+`motivo_poda`. Un par que no se evaluó no es un par sin relación.
 
 Dos pares no se comparan nunca, con `podar` o sin él, porque la
 comparación no daría una respuesta sino una falsa. Si una tabla tiene

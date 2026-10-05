@@ -66,7 +66,13 @@ de N corridas use <code><a href="historico_calidad.html">historico_calidad()</a>
 </dl></div>
     <div class="section level2">
     <h2 id="value">Value<a class="anchor" aria-label="anchor" href="#value"></a></h2>
-    <p>Data frame con resultados anterior y actual, y <code>delta</code>.</p>
+    <p>Data frame con resultados anterior y actual, <code>delta</code> y
+<code>comparacion</code>. El delta es el que publica <code><a href="detectar_deriva_calidad.html">detectar_deriva_calidad()</a></code> sobre
+el histórico de las dos evaluaciones, con la misma regla: queda en <code>NA</code>
+cuando las corridas miden tablas distintas, cambia el marco o los tipos de
+resultado, cambia la parte medida de la frontera o un resultado no se
+evaluó, y <code>comparacion</code> dice por qué con la palabra de la deriva. El orden
+lo dan los argumentos, no la fecha: <code>anterior</code> es siempre el primero.</p>
     </div>
 
     <div class="section level2">

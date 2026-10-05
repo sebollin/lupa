@@ -111,13 +111,24 @@ Son definiciones: no miden hasta que se las instancia.</p>
 en una tabla y como doble en la otra coincide —<code>100000L</code> y <code>1e5</code>—, y dos
 dobles distintos no coinciden aunque se escriban igual con 15 cifras
 —<code>0.1 + 0.2</code> y <code>0.3</code>—. Lo mismo vale para <code><a href="modelo_calidad.html">metricas_nucleo()</a></code> cuando compara
-filas por sus atributos, como en <code>EntidadDuplicada</code>.</p>
+filas por sus atributos, como en <code>EntidadDuplicada</code>. Los instantes y las
+fechas se emparejan también por su valor, con su fracción: dos instantes del
+mismo segundo no coinciden.</p>
+<p>Un texto con bytes que no son UTF-8 válido —lo que deja un archivo latin1
+leído sin declarar su codificación— se empareja por sus bytes, como <code>%in%</code>:
+dos valores así distintos no coinciden entre sí. La proximidad no los
+compara, porque una distancia de texto no se mide sobre bytes que no son
+texto, y su <code>motivo</code> declara cuántos quedaron afuera.</p>
 <p>Los valores ausentes no generan medidas de correctitud: corresponden a la
 dimensión Completitud. La cobertura ignora claves ausentes en el objetivo y
-no permite que duplicados inflen el resultado. Sobre un referencial sin
+no permite que duplicados inflen el resultado. El universo se cuenta con la
+misma identidad con que se empareja: dos claves del padrón que la
+normalización funde —<code>A</code> y <code>a</code>— son una sola clave del universo, y
+<code>n_referencial</code> cuenta las claves de ese universo. Sobre un referencial sin
 claves, <code>RatioCobertura</code> no se mide: la cobertura de un universo vacío no es
 una proporción, y la métrica queda <code>sin_valores</code> con ese motivo, igual que
-cuando la entidad no tiene filas.</p>
+cuando la entidad no tiene filas o ningún valor en los atributos ligados:
+lo que no se pudo medir no se publica como una cobertura cero.</p>
     </div>
     <div class="section level2">
     <h2 id="see-also">See also<a class="anchor" aria-label="anchor" href="#see-also"></a></h2>
@@ -135,11 +146,11 @@ cuando la entidad no tiene filas.</p>
 <span class="r-in"><span>  <span class="st">"personas"</span>, <span class="st">"id"</span>, referencial <span class="op">=</span> <span class="va">ref</span><span class="op">)</span></span></span>
 <span class="r-in"><span><span class="fu"><a href="medir.html">medir</a></span><span class="op">(</span><span class="fu"><a href="modelo_calidad.html">modelo</a></span><span class="op">(</span><span class="va">fuerte</span><span class="op">)</span>, <span class="fu"><a href="https://rdrr.io/r/base/data.frame.html" class="external-link">data.frame</a></span><span class="op">(</span>id <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">1</span>, <span class="fl">4</span><span class="op">)</span><span class="op">)</span><span class="op">)</span></span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>                                                                      id_medida</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 1 medicion-20261005T162548.568965-7637-CorrectitudSemFuerte@personas.id-000001</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 2 medicion-20261005T162548.568965-7637-CorrectitudSemFuerte@personas.id-000002</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 1 medicion-20261005T235329.673562-7664-CorrectitudSemFuerte@personas.id-000001</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 2 medicion-20261005T235329.673562-7664-CorrectitudSemFuerte@personas.id-000002</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>                            id_medicion               fecha              metrica</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 1 medicion-20261005T162548.568965-7637 2026-10-05 16:25:48 CorrectitudSemFuerte</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 2 medicion-20261005T162548.568965-7637 2026-10-05 16:25:48 CorrectitudSemFuerte</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 1 medicion-20261005T235329.673562-7664 2026-10-05 23:53:29 CorrectitudSemFuerte</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 2 medicion-20261005T235329.673562-7664 2026-10-05 23:53:29 CorrectitudSemFuerte</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>     metrica_especifica              metrica_instanciada dimension</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> 1 CorrectitudSemFuerte CorrectitudSemFuerte@personas.id Exactitud</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> 2 CorrectitudSemFuerte CorrectitudSemFuerte@personas.id Exactitud</span>

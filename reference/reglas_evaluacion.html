@@ -104,7 +104,11 @@ veredicto y el universo de medidas que la produjo.</p></dd>
 <dt id="arg-desenlace">desenlace<a class="anchor" aria-label="anchor" href="#arg-desenlace"></a></dt>
 <dd><p><code>NULL</code>, para limitar la regla a evaluar, o <code>"suprimir"</code>
 para declarar que las medidas que no cumplen <code>condicion</code> no deben
-publicarse. No existe un desenlace predeterminado.</p></dd>
+publicarse. No existe un desenlace predeterminado. Suprimir tapa el
+<strong>valor</strong> de esas medidas en cada salida; no es supresión complementaria:
+un agregado suprimido se puede recalcular de sus medidas crudas si se
+publican al lado —por ejemplo, en un histórico que acumula también la
+medición—.</p></dd>
 
 
 <dt id="arg-umbrales">umbrales<a class="anchor" aria-label="anchor" href="#arg-umbrales"></a></dt>

@@ -42,17 +42,22 @@ corresponde a `medida`, `evaluacion_medida`, `evaluacion_regla` o
 menos una medida; y una parte declarada en una frontera —una tabla de la
 colección, una colección de la organización— que no entró al número,
 como `parte_no_medida`, con la frontera en `id_registro`, la parte en
-`entidad` y el motivo en `objeto_medible`. Una medida que una regla
-declaró `desenlace = "suprimir"` no publica su valor **tampoco aquí**:
-su fila deja `resultado` en `NA` y marca `objeto_medible` con
+`entidad` y el motivo en `objeto_medible` —también cuando un objeto
+reúne varias corridas con
+[`rbind()`](https://rdrr.io/r/base/cbind.html): cada parte va a la
+corrida a la que le faltó—. Una medida que una regla declaró
+`desenlace = "suprimir"` no publica su valor **tampoco aquí**: su fila
+deja `resultado` en `NA` y marca `objeto_medible` con
 `[valor suprimido]`, en los dos niveles donde esa medida aparece
-—`medida` y `evaluacion_medida`—, porque esta tabla está pensada para
-exportarse. Con el detalle resumido, las medidas suprimidas entran
-igual, enmascaradas en el nivel `evaluacion_medida`: así una medición
-acumulada **después** —también sobre un histórico guardado o leído de un
-CSV— queda tapada en las mismas medidas, sea cual sea el orden en que
-llegan los objetos. Una medición **enteramente** vacía —ninguna métrica
-pudo aplicarse— no se acumula: se rechaza citando el motivo que
+—`medida` y `evaluacion_medida`, en este último bajo cualquier perfil o
+regla que la evalúe, no solo el que la suprimió—, porque esta tabla está
+pensada para exportarse. Con el detalle resumido, las medidas suprimidas
+entran igual, enmascaradas en el nivel `evaluacion_medida`: así una
+medición acumulada **después** —también sobre un histórico guardado o
+leído de un CSV— queda tapada en las mismas medidas, sea cual sea el
+orden en que llegan los objetos. Una medición **enteramente** vacía
+—ninguna métrica pudo aplicarse— no se acumula: se rechaza citando el
+motivo que
 [`medir()`](https://sebollin.github.io/lupa/reference/medir.md) declaró
 en `cobertura_metricas`, porque no hay corrida que registrar. El
 atributo `configuracion_evaluacion` conserva, en una tabla plana
@@ -60,7 +65,16 @@ separada, el modelo, su marco y sus tipos, la aplicabilidad, el perfil,
 la identidad de tabla y **la fecha** de cada corrida. Acumular una
 corrida con un `id_medicion` ya presente exige que todo eso coincida, la
 fecha incluida: dos entregas distintas son dos corridas, y el error
-nombra en qué difieren.
+nombra en qué difieren. Esa misma configuración viaja **en las filas**
+`evaluacion_perfil`, en las columnas `identidad_tabla`,
+`configuracion_modelo`, `configuracion_marco`,
+`configuracion_tipos_resultado`, `configuracion_aplicabilidad` y
+`configuracion_perfil` —en `NA` en los demás niveles—, porque el
+atributo no sobrevive a
+[`write.csv()`](https://rdrr.io/r/utils/write.table.html): un histórico
+releído de un CSV la recupera de ahí. Son columnas agregadas al esquema
+1: un histórico anterior que no las trae se lee igual, con ellas en
+`NA`.
 
 ## Details
 
@@ -69,8 +83,14 @@ cuando el objetivo es monitorear la serie de evaluaciones. El objeto no
 guarda modelos, closures, datos originales ni perfiles de profiling.
 Esto mantiene la tabla exportable directamente con
 [`write.csv()`](https://rdrr.io/r/utils/write.table.html) o una
-herramienta de base de datos. Al volver a leerla, las fechas de texto se
-leen en UTC, con su hora.
+herramienta de base de datos. Al volver a leerla, cada columna recupera
+el tipo del esquema
+—[`read.csv()`](https://rdrr.io/r/utils/read.table.html) lee como lógica
+una columna de texto que viene entera en `NA`— y las fechas de texto se
+leen en UTC, con su hora y con su desplazamiento cuando lo traen
+—`2026-01-31 10:00:00-03:00` son las 13:00 UTC; también `Z`, `+0100` o
+`-03`, como los escribe una columna `timestamptz` de una base—. Un texto
+que no se puede leer entero se rechaza: no se lee a medias.
 
 `[`, [`subset()`](https://rdrr.io/r/base/subset.html) y
 `dplyr::filter()` conservan la configuración de las corridas que quedan;
@@ -138,9 +158,24 @@ historico_calidad(medidas, evaluacion)
 #> 2 instanciaAtributo       booleano personas     edad    2 personas$edad[2]
 #> 3              <NA>           <NA>     <NA>     <NA>   NA             <NA>
 #> 4              <NA>           <NA>     <NA>     <NA>   NA             <NA>
-#>   n_elementos resultado agregacion
-#> 1           1       1.0       <NA>
-#> 2           1       0.0       <NA>
-#> 3           2       0.5       <NA>
-#> 4           1       0.5       <NA>
+#>   n_elementos resultado agregacion identidad_tabla
+#> 1           1       1.0       <NA>            <NA>
+#> 2           1       0.0       <NA>            <NA>
+#> 3           2       0.5       <NA>            <NA>
+#> 4           1       0.5       <NA>        personas
+#>                                                                                                                                                                                                                                                                                                                                configuracion_modelo
+#> 1                                                                                                                                                                                                                                                                                                                                              <NA>
+#> 2                                                                                                                                                                                                                                                                                                                                              <NA>
+#> 3                                                                                                                                                                                                                                                                                                                                              <NA>
+#> 4 list{version=integer[2];entidades=character[personas];marco=NULL;metricas=character[list{nombre=character[NoNulo@personas.edad];metrica=character[NoNulo];metrica_especifica=character[NoNulo];entidad=character[personas];atributos=character[edad];configuracion=list{valores_nulos=NULL;aplicable=NULL}}];tipos_resultado=character[booleano]}
+#>   configuracion_marco configuracion_tipos_resultado configuracion_aplicabilidad
+#> 1                <NA>                          <NA>                        <NA>
+#> 2                <NA>                          <NA>                        <NA>
+#> 3                <NA>                          <NA>                        <NA>
+#> 4                <NA>           character[booleano]                        NULL
+#>                                                                                                                                                                                                           configuracion_perfil
+#> 1                                                                                                                                                                                                                         <NA>
+#> 2                                                                                                                                                                                                                         <NA>
+#> 3                                                                                                                                                                                                                         <NA>
+#> 4 list{version=integer[1];nombre=character[Basico];reglas=character[list{nombre=character[Presente];metricas=NULL;nivel=character[medida];proporcion_minima=NULL;desenlace=NULL;umbrales=NULL;condicion=function (x)  x > 0}]}
 ```

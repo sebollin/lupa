@@ -46,14 +46,20 @@ leer_historico(archivo)
 archivo <- tempfile(fileext = ".rds")
 guardar_historico(historico_calidad(), archivo)
 leer_historico(archivo)
-#>  [1] version_esquema     nivel               id_registro        
-#>  [4] id_medida           id_medicion         fecha              
-#>  [7] perfil              regla               metrica            
-#> [10] metrica_especifica  metrica_instanciada dimension          
-#> [13] factor              granularidad        tipo_resultado     
-#> [16] entidad             atributo            fila               
-#> [19] objeto_medible      n_elementos         resultado          
-#> [22] agregacion         
+#>  [1] version_esquema               nivel                        
+#>  [3] id_registro                   id_medida                    
+#>  [5] id_medicion                   fecha                        
+#>  [7] perfil                        regla                        
+#>  [9] metrica                       metrica_especifica           
+#> [11] metrica_instanciada           dimension                    
+#> [13] factor                        granularidad                 
+#> [15] tipo_resultado                entidad                      
+#> [17] atributo                      fila                         
+#> [19] objeto_medible                n_elementos                  
+#> [21] resultado                     agregacion                   
+#> [23] identidad_tabla               configuracion_modelo         
+#> [25] configuracion_marco           configuracion_tipos_resultado
+#> [27] configuracion_aplicabilidad   configuracion_perfil         
 #> <0 rows> (or 0-length row.names)
 unlink(archivo)
 ```
