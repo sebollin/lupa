@@ -25,7 +25,10 @@ atributo del mismo nombre permiten migraciones futuras. \code{nivel} corresponde
 a \code{medida}, \code{evaluacion_medida}, \code{evaluacion_regla} o
 \code{evaluacion_perfil}; una métrica sin valores se conserva como
 \code{metrica_no_evaluada} con su motivo, siempre que la medición tenga al
-menos una medida. Una medida que una regla declaró \code{desenlace = "suprimir"}
+menos una medida; y una parte declarada en una frontera —una tabla de la
+colección, una colección de la organización— que no entró al número, como
+\code{parte_no_medida}, con la frontera en \code{id_registro}, la parte en \code{entidad}
+y el motivo en \code{objeto_medible}. Una medida que una regla declaró \code{desenlace = "suprimir"}
 no publica su valor \strong{tampoco aquí}: su fila deja \code{resultado} en \code{NA} y
 marca \code{objeto_medible} con \verb{[valor suprimido]}, en los dos niveles donde esa
 medida aparece —\code{medida} y \code{evaluacion_medida}—, porque esta tabla está

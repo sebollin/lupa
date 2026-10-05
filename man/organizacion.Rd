@@ -15,8 +15,9 @@ lista de objetos de \code{\link[=coleccion]{coleccion()}} o \code{\link[=perfila
 tiene nombres, esos nombres mandan sobre el del objeto.}
 }
 \value{
-Objeto S3 \code{organizacion_lupa} con \code{nombre}, \code{declaradas} y
-\code{n_declaradas}.
+Objeto S3 \code{organizacion_lupa} con \code{nombre}, \code{declaradas},
+\code{n_declaradas} y \code{alias}: el nombre del objeto de cada colección, con el
+que \code{\link[=agregar]{agregar()}} la sigue reconociendo cuando la lista la renombró.
 }
 \description{
 Las granularidades novena y décima del marco —una organización y un conjunto
@@ -31,8 +32,13 @@ necesita. Sin declaración, \code{\link[=agregar]{agregar()}} a \code{"organizac
 cómo declararla, que es distinto de inventar una frontera que nadie nombró.
 
 No pide una conexión. Una colección es una cosa viva —tablas de un motor—,
-pero una organización es un enunciado \emph{sobre} colecciones, y puede reunir
-colecciones medidas en momentos distintos o contra motores distintos.
+pero una organización es un enunciado \emph{sobre} colecciones, y puede declarar
+colecciones que viven en motores distintos. Para \strong{agregar}, en cambio, las
+medidas de sus colecciones tienen que venir de una misma corrida —un
+\code{id_medicion} y una fecha—, porque un número describe un momento: las tablas
+de motores distintos se miden juntas, y colecciones medidas en momentos
+distintos se siguen cada una con \code{\link[=historico_calidad]{historico_calidad()}}. \code{\link[=agregar]{agregar()}} lo dice
+así cuando recibe partes de dos corridas.
 }
 \examples{
 organismo <- organizacion("Organismo A", c("padron", "tramites"))

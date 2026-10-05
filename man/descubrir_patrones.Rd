@@ -28,8 +28,9 @@ descubrir_patrones(
 
 \item{muestra}{Máximo de valores que se analizan.}
 
-\item{umbral_raro}{Umbral usado para conservar un resumen acotado de
-patrones raros para los hallazgos.}
+\item{umbral_raro}{Frecuencia máxima de un patrón raro, usada para conservar
+un resumen acotado de patrones raros para los hallazgos. La frontera es
+inclusiva: un patrón no dominante con exactamente esa proporción es raro.}
 
 \item{proteger_datos_personales}{Si los ejemplos se enmascaran cuando la
 forma de los valores alcanza para clasificarlos como dato personal. \code{TRUE}
@@ -47,7 +48,9 @@ de ocho dígitos \strong{sí} se publica, porque su forma sola no alcanza para
 afirmar que es un documento. Los atributos \code{total}, \code{analizados}, \code{filas_analizadas} y
 \code{muestreado} describen el posible muestreo; \code{filas_analizadas} es un alias
 explícito de \code{analizados} para mantener el alcance visible junto a otros
-diagnósticos. \code{resumen_patrones} conserva sólo el patrón dominante
+diagnósticos. \code{n_evaluados} es el denominador de \code{proporcion}: los valores
+analizados, sin los ausentes cuando \code{na.rm = TRUE}. \code{resumen_patrones}
+conserva sólo el patrón dominante
 y hasta seis patrones raros para presentacion; nunca guarda la distribucion
 completa. \code{patrones_raros_trazabilidad} conserva solo los nombres de los
 patrones raros, hasta 5.000, para que la trazabilidad pueda enumerar filas

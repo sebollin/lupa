@@ -1388,12 +1388,36 @@
 # Las marcas del paquete -`<blanco>`, `grupo_maximo`, ver `.LEXICO_PAQUETE`- se
 # apartan antes de comparar y se reponen despues: son estructura, y un apellido
 # `Blanco` protegido tapaba toda evidencia que dijera `<blanco>`. Se reemplazan
-# por un caracter de control que la normalizacion borra; un texto que ya lo
+# por caracteres de control que la normalizacion borra; un texto que ya los
 # trae no se toca.
-.apartar_marcas_paquete <- function(x, nombres = character()) {
+#
+# Cada aparicion lleva su propio codigo -su numero de orden en base cuatro con
+# \003 a \006, entre dos \001-, como los nombres delimitados: con un \001 por
+# marca y reposicion por ORDEN, si la proteccion tapaba un tramo que llevaba una
+# marca las siguientes se corrian una, y el texto publicado nombraba otra
+# columna -`escribir a [valor protegido], con copia a juan_perez` donde decia
+# `maria_lopez`-. Medido en la ronda 24.
+.codigo_de_orden <- function(i, borde) {
+  cifras <- integer()
+  repeat {
+    cifras <- c(i %% 4L, cifras)
+    i <- i %/% 4L
+    if (!i) break
+  }
+  paste0(borde, rawToChar(as.raw(3L + cifras)), borde)
+}
+
+.orden_de_codigo <- function(codigos) {
+  vapply(codigos, function(cod) {
+    cifras <- as.integer(charToRaw(substr(cod, 2L, nchar(cod, type = "bytes") - 1L))) - 3L
+    as.integer(sum(cifras * 4L^rev(seq_along(cifras) - 1L)))
+  }, integer(1L), USE.NAMES = FALSE)
+}
+
+.apartar_marcas_paquete <- function(x, nombres = character(), lexico = TRUE) {
   sin_cambios <- list(x = x, indices = integer(), guardadas = list(),
                       codificaciones = character())
-  marcas <- unique(c(.LEXICO_PAQUETE$marcas, nombres))
+  marcas <- unique(c(if (lexico) .LEXICO_PAQUETE$marcas, nombres))
   if (!is.character(x) || !length(x) || !length(marcas)) return(sin_cambios)
   patron <- "<[a-z_]+>|[a-z0-9]+(_[a-z0-9]+)+"
   indices <- which(
@@ -1410,8 +1434,12 @@
   con_marca <- lengths(guardadas) > 0L
   if (!any(con_marca)) return(sin_cambios)
   regmatches(elegidos, coincidencias) <- lapply(tokens, function(t) {
-    ifelse(t %in% marcas, "\001", t)
+    es_marca <- t %in% marcas
+    t[es_marca] <- vapply(seq_len(sum(es_marca)), .codigo_de_orden,
+                          character(1L), borde = "\001")
+    t
   })
+  Encoding(elegidos) <- codificaciones
   x[indices[con_marca]] <- elegidos[con_marca]
   list(x = x, indices = indices[con_marca], guardadas = guardadas[con_marca],
        codificaciones = codificaciones[con_marca])
@@ -1423,13 +1451,19 @@
     i <- apartado$indices[[k]]
     texto <- x[[i]]
     if (is.na(texto) || !grepl("\001", texto, fixed = TRUE, useBytes = TRUE)) next
-    partes <- strsplit(texto, "\001", fixed = TRUE, useBytes = TRUE)[[1L]]
-    if (endsWith(texto, "\001")) partes <- c(partes, "")
     marcas <- apartado$guardadas[[k]]
-    huecos <- length(partes) - 1L
-    marcas <- c(marcas, rep("", max(0L, huecos - length(marcas))))[seq_len(huecos)]
-    texto <- paste0(c(rbind(partes[-length(partes)], marcas), partes[length(partes)]),
-                    collapse = "")
+    coincidencias <- gregexpr("\001[\003-\006]+\001", texto, perl = TRUE,
+                              useBytes = TRUE)
+    codigos <- regmatches(texto, coincidencias)[[1L]]
+    if (length(codigos)) {
+      posicion <- .orden_de_codigo(codigos)
+      repuestas <- ifelse(posicion >= 1L & posicion <= length(marcas),
+                          marcas[pmax(1L, pmin(posicion, length(marcas)))], "")
+      regmatches(texto, coincidencias) <- list(repuestas)
+    }
+    # Un codigo que la proteccion corto a medias no se publica.
+    texto <- gsub("\001[\003-\006]*\001?", "", texto, perl = TRUE,
+                  useBytes = TRUE)
     Encoding(texto) <- apartado$codificaciones[[k]]
     x[[i]] <- texto
   }
@@ -1452,6 +1486,81 @@
     error = function(e) rep(NA_character_, length(candidatos))
   )
   candidatos[!is.na(plegados) & plegados %in% palabras]
+}
+
+# Los valores protegidos que CONTIENEN alguna de las marcas o nombres de columna
+# `presentes` -en cualquier caja, con otros separadores-, de los que pueden
+# aparecer en `textos`. Se comparan sin separadores y plegados, y la marca tiene
+# que ser MAS CORTA que el valor: un valor que es la marca misma -el apellido
+# `Blanco` frente a `<blanco>`- no la contiene, y la marca sigue a salvo.
+.clave_estructura <- function(v) {
+  v <- as.character(v)
+  salida <- rep(NA_character_, length(v))
+  ascii <- !is.na(v) & !grepl("[^\\001-\\177]", v, perl = TRUE, useBytes = TRUE)
+  salida[ascii] <- gsub(
+    "[^a-z0-9]+", "",
+    chartr("ABCDEFGHIJKLMNOPQRSTUVWXYZ", "abcdefghijklmnopqrstuvwxyz", v[ascii]),
+    perl = TRUE
+  )
+  otros <- !is.na(v) & !ascii
+  if (any(otros)) {
+    salida[otros] <- tryCatch(
+      gsub("[^\\p{L}\\p{N}]", "", .plegar_para_comparar(v[otros]), perl = TRUE),
+      error = function(e) NA_character_
+    )
+  }
+  salida
+}
+
+.valores_con_estructura <- function(valores, presentes, textos) {
+  presentes <- presentes[!is.na(presentes) & nzchar(presentes)]
+  if (!length(valores) || !length(presentes)) return(character())
+  con_letra <- which(
+    !is.na(valores) &
+      grepl("[A-Za-z]|[^\\001-\\177]", valores, perl = TRUE, useBytes = TRUE)
+  )
+  if (!length(con_letra)) return(character())
+  claves_textos <- .clave_estructura(textos)
+  claves_textos <- claves_textos[!is.na(claves_textos) & nzchar(claves_textos)]
+  if (!length(claves_textos)) return(character())
+  claves_valores <- .clave_estructura(valores[con_letra])
+  candidatas <- !is.na(claves_valores) & claves_valores %in%
+    .valores_que_pueden_aparecer(unique(claves_valores), claves_textos, 4L)
+  if (!any(candidatas)) return(character())
+  contienen <- .contiene_estructura(
+    valores[con_letra][candidatas], claves_valores[candidatas], presentes
+  )
+  unique(valores[con_letra][candidatas][contienen])
+}
+
+# Si cada valor contiene alguna de las marcas o nombres `presentes`. Una marca
+# de etiqueta -`<br>`- se busca tal cual, en cualquier caja; un nombre, por su
+# clave plegada sin separadores, de cuatro caracteres o mas y mas corta que la
+# del valor: una columna `d` esta dentro de casi cualquier valor y no dice nada,
+# y con ella "segundo" pasaba a contener estructura. Medido en la ronda 24.
+.contiene_estructura <- function(valores, claves_valores, presentes) {
+  contienen <- logical(length(valores))
+  if (!length(valores)) return(contienen)
+  etiqueta <- grepl("^<[a-z_]+>$", presentes, perl = TRUE, useBytes = TRUE)
+  if (any(etiqueta)) {
+    minusculas <- tryCatch(
+      chartr("ABCDEFGHIJKLMNOPQRSTUVWXYZ", "abcdefghijklmnopqrstuvwxyz", valores),
+      error = function(e) valores
+    )
+    for (marca in unique(presentes[etiqueta])) {
+      contienen <- contienen | grepl(marca, minusculas, fixed = TRUE, useBytes = TRUE)
+    }
+  }
+  claves <- unique(.clave_estructura(presentes[!etiqueta]))
+  claves <- claves[!is.na(claves) & nchar(claves, type = "bytes") >= 4L]
+  for (marca in claves) {
+    contienen <- contienen | (
+      !is.na(claves_valores) &
+        nchar(claves_valores, type = "bytes") > nchar(marca, type = "bytes") &
+        grepl(marca, claves_valores, fixed = TRUE, useBytes = TRUE)
+    )
+  }
+  contienen
 }
 
 .reemplazar_valores_protegidos <- function(x, valores, exigir_limites = FALSE,
@@ -1510,22 +1619,6 @@
     }
     nombres <- nombres[!clave(nombres) %in% clave(valores)]
   }
-  nombres_apartados <- .apartar_nombres_delimitados(x, nombres)
-  x <- nombres_apartados$x
-  apartado <- .apartar_marcas_paquete(x, nombres)
-  x <- apartado$x
-  # Las marcas tambien se apartan de las AGUJAS: un valor protegido que trae una
-  # -`Av. Italia 2345<br>Apto 101`- se publicaba exacto, porque en la celda la
-  # marca ya no estaba y en la aguja si. Medido en una refutacion.
-  # Y los nombres de columna con forma de marca, igual que en el texto: un valor
-  # protegido que CONTIENE un nombre de columna -el correo
-  # `juan_perez@empresa.com.uy` con una columna `juan_perez`- no se encontraba,
-  # porque al texto se le apartaba el nombre y a la aguja no. Medido en la ronda
-  # 23.
-  sin_marcas <- .apartar_marcas_paquete(valores, nombres)$x
-  valores <- unique(c(valores, sin_marcas))
-  valores <- valores[order(-nchar(valores, type = "bytes"))]
-  todos <- valores
   exacta <- function(textos, valores) {
     valores <- .valores_que_pueden_aparecer(valores, textos, 3L)
     for (valor in valores) {
@@ -1557,16 +1650,68 @@
   # entre comillas lo sigue tapando la regla de variantes, con la regla fuerte.
   limites <- rep_len(as.logical(exigir_limites), length(x))
   limites[is.na(limites)] <- FALSE
-  del_paquete <- if (any(limites)) {
-    .valores_que_son_palabras_del_paquete(valores)
-  } else character()
-  if (length(del_paquete)) {
-    x[limites] <- exacta(x[limites], setdiff(valores, del_paquete))
-    x[!limites] <- exacta(x[!limites], valores)
-  } else {
-    x <- exacta(x, valores)
+  pasada <- function(textos, valores, limites) {
+    if (!length(textos) || !length(valores)) return(textos)
+    del_paquete <- if (any(limites)) {
+      .valores_que_son_palabras_del_paquete(valores)
+    } else character()
+    if (length(del_paquete)) {
+      textos[limites] <- exacta(textos[limites], setdiff(valores, del_paquete))
+      textos[!limites] <- exacta(textos[!limites], valores)
+    } else {
+      textos <- exacta(textos, valores)
+    }
+    .reemplazar_variantes_separadas(textos, valores, limites)
   }
-  x <- .reemplazar_variantes_separadas(x, todos, exigir_limites)
+  # Un valor protegido que CONTIENE una marca o un nombre de columna -el correo
+  # `juan_perez@empresa.com.uy` con una columna `juan_perez`- se busca ANTES de
+  # apartar, en los textos que tienen alguno: si no, al texto se le aparta el
+  # nombre y el valor ya no esta. La ronda 23 apartaba el nombre tambien de la
+  # aguja, y eso dejaba escapar el valor con otra caja -`JUAN_PEREZ@...`- y
+  # tapaba de mas: la aguja recortada `@empresa.com.uy` casaba con el dominio y
+  # con el correo de cualquier otra columna. Medido en la ronda 24. Antes de
+  # apartar, lo que hay en el texto es el valor entero; despues, la estructura
+  # sigue a salvo de los valores que no la contienen.
+  previo <- .apartar_marcas_paquete(x, nombres)
+  previo_delimitados <- .apartar_nombres_delimitados(x, nombres)
+  tocados <- sort(unique(c(previo$indices, which(
+    !is.na(x) & !is.na(previo_delimitados$x) & previo_delimitados$x != x
+  ))))
+  if (length(tocados)) {
+    presentes <- unique(c(
+      unlist(previo$guardadas, use.names = FALSE),
+      nombres[vapply(nombres, function(n) {
+        any(grepl(n, x[tocados], fixed = TRUE, useBytes = TRUE))
+      }, logical(1L), USE.NAMES = FALSE)]
+    ))
+    estructura <- .valores_con_estructura(valores, presentes, x[tocados])
+    if (length(estructura)) {
+      # Y en esta pasada siguen apartados los nombres y las marcas que ninguno de
+      # esos valores contiene: sin eso, "segundo" -protegido, y dentro de un
+      # valor con estructura- se buscaba dentro de `segundo_nombre` en la SQL.
+      # Medido en la ronda 24.
+      claves_estructura <- .clave_estructura(estructura)
+      contenida <- vapply(presentes, function(marca) {
+        any(.contiene_estructura(estructura, claves_estructura, marca))
+      }, logical(1L), USE.NAMES = FALSE)
+      resguardo <- presentes[!contenida]
+      textos <- x[tocados]
+      resguardo_nombres <- .apartar_nombres_delimitados(
+        textos, intersect(nombres, resguardo)
+      )
+      resguardo_marcas <- .apartar_marcas_paquete(
+        resguardo_nombres$x, resguardo, lexico = FALSE
+      )
+      textos <- pasada(resguardo_marcas$x, estructura, limites[tocados])
+      textos <- .reponer_marcas_paquete(textos, resguardo_marcas)
+      x[tocados] <- .reponer_nombres_delimitados(textos, resguardo_nombres)
+    }
+  }
+  nombres_apartados <- .apartar_nombres_delimitados(x, nombres)
+  x <- nombres_apartados$x
+  apartado <- .apartar_marcas_paquete(x, nombres)
+  x <- apartado$x
+  x <- pasada(x, valores, limites)
   x <- .reponer_marcas_paquete(x, apartado)
   .reponer_nombres_delimitados(x, nombres_apartados)
 }
@@ -1996,7 +2141,9 @@
   # de cualquier columna, y la accion que lo convierte quedaba sin efecto. Los
   # parametros de las acciones sobre una columna protegida se barren ademas con
   # todos sus valores: es la proteccion por columna.
-  identificantes <- .valores_identificantes(valores)
+  identificantes <- .valores_identificantes(
+    valores, .fechas_que_identifican(datos, sensibles)
+  )
   plan <- .proteger_textos_salida(
     plan, identificantes, intocables = nombres_entrada
   )
@@ -2386,7 +2533,65 @@
 
 .MIN_LARGO_VALOR_IDENTIFICANTE <- 6L
 
-.valores_identificantes <- function(valores) {
+# Si cada valor tiene la forma de una fecha de calendario sola -con un ano
+# plausible, o a medianoche-. La comparten el piso y la decision por columna.
+.es_fecha_sola <- function(valores) {
+  dia <- "(0?[1-9]|[12][0-9]|3[01])"
+  mes <- "(0?[1-9]|1[0-2])"
+  # Tambien la fecha escrita como fecha-hora a medianoche -ISO con `T`, como la
+  # escriben muchos sistemas una fecha sin hora-: es la misma fecha.
+  medianoche <- "([T ]00:00(:00(\\.0+)?)?(Z| ?UTC)?)?"
+  # Con un ANO plausible, el mismo rango que la regla de digitos: con cualquiera,
+  # el telefono guardado "2901-12-12" se trataba como fecha, salia del piso y se
+  # publicaba exacto. La misma regla estaba escrita dos veces y la ronda 22 la
+  # arreglo en una. Medido en la ronda 23.
+  anio <- .ANIO_PLAUSIBLE
+  # Y con espacios y el ano al final -"16 01 2002"-, como la regla de digitos.
+  fecha <- paste0(
+    "^(", anio, "[-/.]", mes, "[-/.]", dia, "|", dia, "[-/.]", mes, "[-/.]", anio, "|",
+    mes, "[-/.]", dia, "[-/.]", anio, "|", dia, " ", mes, " ", anio, "|",
+    mes, " ", dia, " ", anio, ")", medianoche, "$"
+  )
+  salida <- grepl(fecha, valores, perl = TRUE, useBytes = TRUE)
+  salida[is.na(valores)] <- FALSE
+  salida
+}
+
+# Los valores con forma de fecha de las columnas protegidas que NO son de
+# fechas: en ellas la forma es casualidad -un telefono fijo "2012-11-05", que
+# tiene mes y dia validos- y el valor es el dato de alguien. Se decide por la
+# COLUMNA, como las fechas compactas de `.valores_publicables_protegidos()`: es
+# de fechas si es `Date` o `POSIXt`, o si la mitad o mas de sus valores distintos
+# tienen forma de fecha. La ronda 23 estrecho el rango de anos y el piso seguia
+# decidiendo por el valor: un fijo de Montevideo escrito 4-2-2 que empieza con
+# `20` y tiene mes y dia validos -uno de cada trescientos- se publicaba exacto.
+# Medido en la ronda 24.
+.fechas_que_identifican <- function(datos, sensibles) {
+  if (!inherits(datos, "data.frame") || !length(sensibles)) {
+    return(character())
+  }
+  indices <- .indice_nombre(sensibles, names(datos))
+  unique(unlist(lapply(unique(indices[!is.na(indices)]), function(indice) {
+    x <- datos[[indice]]
+    if (!is.atomic(x) || inherits(x, c("Date", "POSIXt")) || is.numeric(x) ||
+        is.logical(x)) {
+      return(character())
+    }
+    .fechas_de_columna_no_fecha(tryCatch(as.character(x),
+                                         error = function(e) character()))
+  }), use.names = FALSE))
+}
+
+.fechas_de_columna_no_fecha <- function(textos) {
+  textos <- unique(textos[!is.na(textos) & nzchar(textos)])
+  if (!length(textos)) return(character())
+  fechas <- .es_fecha_sola(textos)
+  if (!any(fechas) || mean(fechas) >= 0.5) return(character())
+  textos[fechas]
+}
+
+.valores_identificantes <- function(valores,
+                                    fechas_que_identifican = character()) {
   # El piso de la proteccion, en un solo lugar. Un valor identifica si tiene
   # seis caracteres o mas: es el mismo corte con el que la bateria de fugas
   # decide que cuenta como filtracion, y tener dos definiciones distintas en la
@@ -2417,21 +2622,13 @@
   # protegiendo entera, por columna; lo que sale del piso es la busqueda de sus
   # valores en el resto de la salida. Una fecha con hora si queda: con segundos
   # vuelve a ser casi unica.
-  dia <- "(0?[1-9]|[12][0-9]|3[01])"
-  mes <- "(0?[1-9]|1[0-2])"
-  # Tambien la fecha escrita como fecha-hora a medianoche -ISO con `T`, como la
-  # escriben muchos sistemas una fecha sin hora-: es la misma fecha.
-  medianoche <- "([T ]00:00(:00(\\.0+)?)?(Z| ?UTC)?)?"
-  # Con un ANO plausible, el mismo rango que la regla de digitos: con cualquiera,
-  # el telefono guardado "2901-12-12" se trataba como fecha, salia del piso y se
-  # publicaba exacto. La misma regla estaba escrita dos veces y la ronda 22 la
-  # arreglo en una. Medido en la ronda 23.
-  anio <- .ANIO_PLAUSIBLE
-  fecha <- paste0(
-    "^(", anio, "[-/.]", mes, "[-/.]", dia, "|", dia, "[-/.]", mes, "[-/.]", anio, "|",
-    mes, "[-/.]", dia, "[-/.]", anio, ")", medianoche, "$"
-  )
-  valores <- valores[!grepl(fecha, valores, perl = TRUE, useBytes = TRUE)]
+  #
+  # Salvo las de `fechas_que_identifican`: un valor con forma de fecha de una
+  # columna protegida que NO es de fechas -el telefono "2012-11-05" entre
+  # cuatrocientos telefonos- es el dato de alguien, y salia del piso. Se decide
+  # por la columna: ver `.fechas_que_identifican()`. Medido en la ronda 24.
+  es_fecha <- .es_fecha_sola(valores)
+  valores <- valores[!es_fecha | valores %in% fechas_que_identifican]
   # Y un marcador de ausencia del catalogo del paquete -`sin dato`, `N/A`- no es
   # el dato de nadie aunque aparezca en una columna de nombres: es vocabulario
   # compartido, como dice `?perfilar`. Como aguja tapaba el marcador en las
@@ -2553,7 +2750,9 @@
   # rotas: la suite lo rompio en `detectar_duplicados_aproximados()`. Ante un
   # valor cuyo largo no se puede medir, protegerlo es el lado seguro: es una
   # funcion de privacidad y el valor por omision tiene que ser cerrado.
-  identificantes <- .valores_identificantes(valores)
+  identificantes <- .valores_identificantes(
+    valores, .fechas_que_identifican(datos, .columnas_personales_protegidas(perfil))
+  )
   # Los nombres se toman ANTES de enmascarar: son los de la entrada.
   perfil <- .proteger_textos_salida(
     perfil, identificantes,

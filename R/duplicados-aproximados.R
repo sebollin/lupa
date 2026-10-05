@@ -2348,7 +2348,8 @@
   # refutacion externa, con `documento=[valor protegido]; codigo=77177101`.
   if (length(protegidas)) {
     identificantes <- .valores_identificantes(
-      .valores_publicables_protegidos(datos, protegidas)
+      .valores_publicables_protegidos(datos, protegidas),
+      .fechas_que_identifican(datos, protegidas)
     )
     if (length(identificantes)) {
       estructura <- .proteger_textos_salida(

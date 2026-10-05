@@ -294,7 +294,8 @@ perfilar_por <- function(datos, por, clave = NULL, min_filas = 30L, ...) {
       error = function(e) character()
     )
     valores_otras <- .valores_identificantes(
-      .valores_publicables_protegidos(otras, sensibles_otras)
+      .valores_publicables_protegidos(otras, sensibles_otras),
+      .fechas_que_identifican(otras, sensibles_otras)
     )
     if (!is.null(clasificada) && nrow(clasificada)) {
       etiquetas_personales <- data.frame(
@@ -553,16 +554,27 @@ perfilar_por <- function(datos, por, clave = NULL, min_filas = 30L, ...) {
   # usuario tiene -la unica que tiene- a filas inocentes: en un grupo de 102
   # filas, el hallazgo de las filas 199 a 202 salia como 99 a 102. `filas`
   # tiene las posiciones originales de cada grupo, que es justo lo que falta.
+  #
+  # `indices_unidades` -la primera fila de cada forma del grupo, en
+  # `casi_duplicados_vocabulario` y sus hermanos- es otro campo de indices de la
+  # MISMA traza y sale de la misma rebanada: se traducia solo `indices_fila`, y
+  # con grupos intercalados `indices_unidades = 39,37,1` nombraba, en la tabla
+  # del usuario, filas de OTRO grupo. Se traducen todos los campos de indices
+  # de fila por la misma regla.
   .traza_en_la_tabla_original <- function(trazas, filas_originales) {
     if (!is.list(trazas) || !length(trazas)) return(trazas)
-    lapply(trazas, function(traza) {
-      if (!is.list(traza) || !length(traza$indices_fila)) return(traza)
-      indices <- traza$indices_fila
+    traducir <- function(indices) {
       validos <- !is.na(indices) & indices >= 1L &
         indices <= length(filas_originales)
       traducidos <- rep(NA_integer_, length(indices))
       traducidos[validos] <- as.integer(filas_originales[indices[validos]])
-      traza$indices_fila <- traducidos
+      traducidos
+    }
+    lapply(trazas, function(traza) {
+      if (!is.list(traza)) return(traza)
+      for (campo in c("indices_fila", "indices_unidades")) {
+        if (length(traza[[campo]])) traza[[campo]] <- traducir(traza[[campo]])
+      }
       traza
     })
   }

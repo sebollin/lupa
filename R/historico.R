@@ -422,6 +422,10 @@ rbind.historico_calidad <- function(..., deparse.level = 1) {
       resultado, .parte_historico_metricas_no_evaluadas(cobertura)
     )
   }
+  if (nrow(x)) {
+    no_medidas <- .parte_historico_partes_no_medidas(x, x$id_medicion, x$fecha)
+    if (!is.null(no_medidas)) resultado <- rbind(resultado, no_medidas)
+  }
   attr(resultado, "configuracion_evaluacion") <-
     .configuracion_historico_medicion(x)
   attr(resultado, "datos_personales_sin_proteger") <-
@@ -524,6 +528,8 @@ rbind.historico_calidad <- function(..., deparse.level = 1) {
   if (tiene_cobertura) {
     partes <- c(partes, list(.parte_historico_metricas_no_evaluadas(cobertura)))
   }
+  no_medidas <- .parte_historico_partes_no_medidas(x, reglas$id_medicion, reglas$fecha)
+  if (!is.null(no_medidas)) partes <- c(partes, list(no_medidas))
   resultado <- do.call(rbind, partes)
   resultado <- .enmascarar_suprimidas_historico(resultado, x)
   attr(resultado, "configuracion_evaluacion") <-
@@ -626,6 +632,71 @@ rbind.historico_calidad <- function(..., deparse.level = 1) {
   )
 }
 
+# La cobertura de la FRONTERA en el historico: una tabla -o una coleccion, o una
+# organizacion- declarada que no entro al numero. La medicion la llevaba y el
+# historico no tenia donde guardarla, asi que la serie de una coleccion
+# incompleta se leia como la de una completa. Un registro por parte sin medir,
+# con su motivo, como `metrica_no_evaluada`. Medido en la ronda 24.
+.parte_historico_partes_no_medidas <- function(x, ids, fechas) {
+  ids <- .identificadores_unicos(ids)
+  if (length(ids) != 1L) return(NULL)
+  coberturas <- list()
+  for (atributo in .ATRIBUTOS_COBERTURA_FRONTERA) {
+    valor <- attr(x, atributo, exact = TRUE)
+    if (!is.null(valor)) coberturas <- c(coberturas, stats::setNames(list(valor), atributo))
+  }
+  partes_previas <- attr(x, "cobertura_de_partes", exact = TRUE)
+  if (length(partes_previas)) coberturas <- c(coberturas, partes_previas)
+  coberturas <- .coberturas_sin_repetir(coberturas)
+  if (!length(coberturas)) return(NULL)
+  filas <- lapply(seq_along(coberturas), function(i) {
+    cc <- coberturas[[i]]
+    atributo <- names(coberturas)[[i]]
+    partes <- if (!is.null(cc$tablas_sin_medir)) cc$tablas_sin_medir else cc$sin_medir
+    partes <- as.character(partes)
+    if (!length(partes)) return(NULL)
+    motivos <- if (length(cc$motivo_sin_medir) == length(partes)) {
+      as.character(cc$motivo_sin_medir)
+    } else rep("", length(partes))
+    frontera <- .etiqueta_cobertura_parte(atributo, cc)
+    granularidad <- switch(
+      atributo,
+      cobertura_coleccion = "entidad",
+      cobertura_conjunto_colecciones = "coleccion",
+      cobertura_organizacion = "coleccion",
+      cobertura_conjunto_organizaciones = "organizacion",
+      NA_character_
+    )
+    n <- length(partes)
+    data.frame(
+      version_esquema = rep(.version_esquema_historico, n),
+      nivel = rep("parte_no_medida", n),
+      id_registro = .clave_historico(
+        "parte_no_medida", rep(ids, n), perfil = rep(frontera, n),
+        regla = partes
+      ),
+      id_medida = rep(NA_character_, n),
+      id_medicion = rep(ids, n), fecha = rep(.fecha_utc(fechas[[1L]]), n),
+      perfil = rep(NA_character_, n), regla = rep(NA_character_, n),
+      metrica = rep(NA_character_, n), metrica_especifica = rep(NA_character_, n),
+      metrica_instanciada = rep(NA_character_, n),
+      dimension = rep(NA_character_, n), factor = rep(NA_character_, n),
+      granularidad = rep(granularidad, n),
+      tipo_resultado = rep(NA_character_, n), entidad = partes,
+      atributo = rep(NA_character_, n), fila = rep(NA_integer_, n),
+      objeto_medible = paste0(
+        "Parte no medida de la ", frontera, ": ", motivos
+      ),
+      n_elementos = rep(NA_integer_, n), resultado = rep(NA_real_, n),
+      agregacion = rep(NA_character_, n), stringsAsFactors = FALSE
+    )
+  })
+  filas <- Filter(Negate(is.null), filas)
+  if (!length(filas)) return(NULL)
+  salida <- do.call(rbind, filas)
+  salida[!duplicated(.nombres_para_operar(salida$id_registro)), , drop = FALSE]
+}
+
 .validar_historico <- function(x) {
   if (!inherits(x, "data.frame") ||
       !all(.columnas_historico %in% names(x))) {
@@ -668,7 +739,7 @@ rbind.historico_calidad <- function(..., deparse.level = 1) {
        anyNA(x$id_medicion) || any(!nzchar(x$id_medicion)) ||
        anyNA(x$fecha) ||
        any(is.na(x$resultado) & !(
-         x$nivel == "metrica_no_evaluada" |
+         x$nivel %in% c("metrica_no_evaluada", "parte_no_medida") |
            niveles_evaluacion & .identificadores_en(
              x$id_medicion, ids_incompletos
            ) |
@@ -703,7 +774,7 @@ rbind.historico_calidad <- function(..., deparse.level = 1) {
   }
   niveles <- c(
     "medida", "evaluacion_medida", "evaluacion_regla", "evaluacion_perfil",
-    "metrica_no_evaluada"
+    "metrica_no_evaluada", "parte_no_medida"
   )
   if (nrow(x) && (any(!x$nivel %in% niveles) ||
                   anyDuplicated(.nombres_para_operar(x$id_registro)))) {
@@ -905,7 +976,10 @@ rbind.historico_calidad <- function(..., deparse.level = 1) {
 #'   a `medida`, `evaluacion_medida`, `evaluacion_regla` o
 #'   `evaluacion_perfil`; una métrica sin valores se conserva como
 #'   `metrica_no_evaluada` con su motivo, siempre que la medición tenga al
-#'   menos una medida. Una medida que una regla declaró `desenlace = "suprimir"`
+#'   menos una medida; y una parte declarada en una frontera —una tabla de la
+#'   colección, una colección de la organización— que no entró al número, como
+#'   `parte_no_medida`, con la frontera en `id_registro`, la parte en `entidad`
+#'   y el motivo en `objeto_medible`. Una medida que una regla declaró `desenlace = "suprimir"`
 #'   no publica su valor **tampoco aquí**: su fila deja `resultado` en `NA` y
 #'   marca `objeto_medible` con `[valor suprimido]`, en los dos niveles donde esa
 #'   medida aparece —`medida` y `evaluacion_medida`—, porque esta tabla está

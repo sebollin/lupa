@@ -47,6 +47,7 @@
     ",(?!", espacio, "))"
   )
   signo_compacto <- "[-./,'_+\u00b7]"
+  entre_fecha_hora <- "(?:[Tt_]| {1,3}| *[-;,|] *| *\\( *)"
   numero <- paste0("[0-9]+(?:", separador, "[0-9]+)*")
   list(
     numero = numero,
@@ -56,30 +57,54 @@
     # signo de pregunta y la vineta precedian numeros de ticket y de lista, y
     # uno de cada cuatro se tapaba como documento recortado. Medido en la ronda
     # 23.
+    # El asterisco vale tambien pegado a una letra -"CI*123.456-7"-; la equis no,
+    # porque es parte de la palabra. Y tras la equis el numero sigue pegado o con
+    # un signo de los que unen, no con un espacio: "92 x 6931234" y
+    # "pack x 1781643" son una multiplicacion y una cantidad, y tres de cada diez
+    # se tapaban. Medido en la ronda 24.
     comodin = paste0(
-      "(?<![\\p{L}\\p{N}])[*xX]+(?:", separador, ")?(", numero, ")"
+      "(?:(?<!\\p{N})\\*[*xX]*(?:", separador, ")?|",
+      "(?<![\\p{L}\\p{N}])[xX][*xX]*(?:", signo_compacto, "{1,2})?)(", numero, ")"
     ),
     # Una fecha de calendario no es un documento: partida en tramos,
     # `2003-05-17` da `20030517`, que con un millon de cedulas es la de
     # alguien. Con un ANO plausible, 1800 a 2199: con cualquiera, el telefono
     # "2901-12-12" se borraba como fecha y se publicaba. Medido en la ronda 22.
+    # Y con espacios, solo con el ano al final -"16 01 2002"-: una de cada
+    # veintidos se tapaba. Medido en la ronda 24. Con el ano adelante no, porque
+    # "2012 11 05" es tambien un telefono fijo escrito de a pares.
     fecha = paste0(
       "(?<![0-9])(?:", anio, "[-/.](?:0?[1-9]|1[0-2])[-/.](?:0?[1-9]|[12][0-9]|3[01])|",
-      "(?:0?[1-9]|[12][0-9]|3[01])[-/.](?:0?[1-9]|1[0-2])[-/.]", anio, ")(?![0-9])"
+      "(?:0?[1-9]|[12][0-9]|3[01])[-/.](?:0?[1-9]|1[0-2])[-/.]", anio, "|",
+      "(?:(?:0?[1-9]|[12][0-9]|3[01]) (?:0?[1-9]|1[0-2])|",
+      "(?:0?[1-9]|1[0-2]) (?:0?[1-9]|[12][0-9]|3[01])) ", anio, ")(?![0-9])"
     ),
     # Y la hora, por lo mismo -`12:34:56`-, con su fraccion de segundo: sin ella,
     # la fraccion de `12:26:58.5412576` quedaba como un numero suelto de siete
     # cifras, y una de cada ocho coincidia con una cedula.
     # La fraccion con tope -nueve cifras tras un punto, tres tras una coma-: sin
     # el, la hora se tragaba un documento pegado, "10:30:00,41234567".
+    # Tras el punto, de una a siete cifras o nueve -milisegundos, microsegundos,
+    # los diez millonesimos de .NET, nanosegundos-, nunca ocho; y la fraccion no
+    # va seguida de un guion y una sola cifra, que es un verificador:
+    # "10:30:00.41234567" y "10:30:00.4123456-7" se tragaban un documento.
+    # Medido en la ronda 24.
     hora = paste0(
       "(?<![0-9])(?:[01]?[0-9]|2[0-3]):[0-5][0-9]",
-      "(?::[0-5][0-9](?:[.][0-9]{1,9}|,[0-9]{1,3})?)?(?![0-9])"
+      "(?::[0-5][0-9](?:[.](?:[0-9]{1,7}|[0-9]{9})|,[0-9]{1,3})?)?",
+      "(?![0-9]|-[0-9](?![0-9]))"
     ),
     # Un ISBN-13 tampoco: 978 o 979 y trece cifras con guiones o espacios.
     isbn = "(?<![0-9])97[89](?:[- ][0-9]+){3}[- ][0-9Xx](?![0-9])",
-    # Y el ISBN-10, con sus cuatro grupos unidos por guiones y diez cifras.
-    isbn10 = "(?<![0-9])[0-9]{1,5}-[0-9]{1,7}-[0-9]{1,7}-[0-9Xx](?![0-9])",
+    # Y el ISBN-10, con sus cuatro grupos y diez cifras, unidos por el mismo
+    # signo: guiones, espacios o puntos -con espacios o puntos se tapaba uno de
+    # cada treinta-. Solo con su digito de control valido o precedido de "ISBN":
+    # con cualquier diez cifras en cuatro grupos se borraba tambien un NIT
+    # "900-123-456-7", y se publicaba. Medido en la ronda 24.
+    isbn10 = paste0(
+      "(?<![0-9])((?i:isbn)(?:-?1[03])?[ :#]{0,3})?",
+      "([0-9]{1,5}([- .])[0-9]{1,7}\\3[0-9]{1,7}\\3[0-9Xx])(?![0-9])"
+    ),
     # Una direccion IPv4 -cuatro octetos de 0 a 255, sin ceros a la izquierda-
     # no se borra: se reconoce como documento ENTERO y no como parcial. Borrarla
     # dejaba pasar el telefono "29.10.12.34" y la cedula "1.234.123.4", que
@@ -87,14 +112,17 @@
     ip = paste0("^(?:", octeto, "\\.){3}", octeto, "$"),
     # La fecha CON HORA si puede ser un valor protegido, y se arma en el orden
     # en que se guarda -ano, mes, dia, horas- antes de borrar la fecha.
-    # Entre la fecha y la hora, una T, un espacio o una coma; entre horas,
-    # minutos y segundos, dos puntos o punto. Y la forma compacta ISO,
-    # "20240627T212425".
+    # Entre la fecha y la hora, una T, uno a tres espacios, un guion bajo, un
+    # guion, un punto y coma, una coma, una barra vertical o un parentesis;
+    # entre horas, minutos y segundos, dos puntos, punto, guion o las letras h y
+    # m. Y la forma compacta ISO, "20240627T212425". Con un solo espacio, la
+    # fecha con hora se publicaba escrita con dos, con " - ", con ";", en un
+    # nombre de archivo o como "21h24m25s". Medido en la ronda 24.
     fecha_hora = list(
-      paste0("(?<![0-9])(", anio, ")[-/.]([0-9]{1,2})[-/.]([0-9]{1,2})(?:[Tt ]|, ?)",
-             "([0-9]{1,2})[:.]([0-9]{2})(?:[:.]([0-9]{2}))?"),
-      paste0("(?<![0-9])([0-9]{1,2})[-/.]([0-9]{1,2})[-/.](", anio, ")(?:[Tt ]|, ?)",
-             "([0-9]{1,2})[:.]([0-9]{2})(?:[:.]([0-9]{2}))?"),
+      paste0("(?<![0-9])(", anio, ")[-/.]([0-9]{1,2})[-/.]([0-9]{1,2})", entre_fecha_hora,
+             "([0-9]{1,2})[-:.hH]([0-9]{2})(?:[-:.mM]([0-9]{2}))?"),
+      paste0("(?<![0-9])([0-9]{1,2})[-/.]([0-9]{1,2})[-/.](", anio, ")", entre_fecha_hora,
+             "([0-9]{1,2})[-:.hH]([0-9]{2})(?:[-:.mM]([0-9]{2}))?"),
       paste0("(?<![0-9])(", anio, ")([0-9]{2})([0-9]{2})[Tt]",
              "([0-9]{2})([0-9]{2})([0-9]{2})?(?![0-9])")
     )
@@ -245,27 +273,58 @@
 # llevan a los de ASCII antes de buscar.
 .normalizar_signos_digitos <- function(texto) {
   tryCatch({
+    # Un control C1 en un texto es casi siempre un CSV de Windows -CP1252- leido
+    # como `latin1`: la raya 0x96 queda como U+0096 y cortaba el numero. Se lee
+    # como lo que es en CP1252: la raya y la raya larga, las comillas simples, la
+    # coma baja y la vineta. Medido en la ronda 24.
+    texto <- chartr("\u0082\u0091\u0092\u0095\u0096\u0097",
+                    "\u201a\u2018\u2019\u2022\u2013\u2014", texto)
     texto <- gsub("\\p{Cf}", "", texto, perl = TRUE)
-    # Y los selectores de variante, que tampoco se ven.
-    texto <- gsub("[\uFE00-\uFE0F\U000E0100-\U000E01EF]", "", texto, perl = TRUE)
-    texto <- gsub("[\\p{Pd}\u2212]", "-", texto, perl = TRUE)
+    # Y los selectores de variante, que tampoco se ven; las marcas que no ocupan
+    # lugar -combinantes y envolventes- y los demas ignorables de Unicode, tambien
+    # los no asignados. Medido en la ronda 24: U+17B4, U+180B y U+20DD entre los
+    # grupos cortaban el numero.
+    texto <- gsub(
+      paste0("[\uFE00-\uFE0F\U000E0100-\U000E01EF\\p{Mn}\\p{Me}\u034f",
+             "\u17b4\u17b5\u180b-\u180f\u2065\ufff0-\ufff8\U000E0000-\U000E0FFF]"),
+      "", texto, perl = TRUE
+    )
+    # Y los parecidos del guion: el menos modificador, el guion vineta, el menos
+    # grueso, la linea de caja y la marca de prolongacion katakana. Medido en la
+    # ronda 24.
+    texto <- gsub("[\\p{Pd}\u2212\u02d7\u2043\u2796\u2500\u30fc]", "-", texto,
+                  perl = TRUE)
     # Todo separador de Unicode -tambien el de linea y el de parrafo-, el salto
     # de linea de C1 y los rellenos que se ven como un espacio: el hangul, el
-    # braille en blanco. Medido en la ronda 23.
+    # braille en blanco. Medido en la ronda 23. Y los demas controles, que son
+    # invisibles: tambien unen, como un espacio. Medido en la ronda 24.
     texto <- gsub(
-      "[\\p{Z}\t\n\r\f\v\u0085\u3164\u115f\u1160\uffa0\u2800]", " ",
+      "[\\p{Z}\\p{Cc}\u3164\u115f\u1160\uffa0\u2800]", " ",
       texto, perl = TRUE
     )
     # Y los que se parecen a un punto, una barra, una coma o un punto medio: el
     # punto de guia, la barra de fraccion y la de division, la coma y el
     # separador de miles arabes, el punto medio katakana y el operador punto.
-    chartr(
+    # La ronda 24 agrego el acento agudo que el teclado en espanol pone por
+    # apostrofo, las comillas simples, el ano teleia -el mismo caracter que el
+    # punto medio-, la vineta, la coma ideografica de medio ancho y la chica, la
+    # cedilla, el punto arabe y el armenio, y las diagonales. Sin guiones: `chartr()` los
+    # lee como rangos.
+    texto <- chartr(
       paste0("\uff0e\uff0c\uff0f\uff1a\u3002\u2024\u2044\u2215\u060c",
              "\u066c\u30fb\uff65\u2219\u22c5\u2019\u02bc\u2027\ufe52",
-             "\uff61\ufe50\u3001\u201a\u29f8\uff0b\u2e31"),
-      ".,/:..//,,\u00b7\u00b7\u00b7\u00b7''...,,,/+\u00b7",
+             "\uff61\ufe50\u3001\u201a\u29f8\uff0b\u2e31",
+             "\u00b4\u2018\u201b\uff07\u0387\u2022\u2e33\u02d9\u16eb",
+             "\uff64\ufe51\u00b8\u06d4\u0589\u066b\u2571\u27cb"),
+      paste0(".,/:..//,,\u00b7\u00b7\u00b7\u00b7''...,,,/+\u00b7",
+             "''''\u00b7\u00b7\u00b7\u00b7\u00b7",
+             ",,,...//"),
       texto
     )
+    # Los asteriscos de Unicode son el comodin, como el de ASCII. Medido en la
+    # ronda 24: el documento sin su primer digito tras el asterisco de ancho
+    # completo o el operador asterisco se publicaba.
+    gsub("[\uff0a\ufe61\u2217\u2731\u204e\u066d]", "*", texto, perl = TRUE)
   }, error = function(e) NA_character_)
 }
 
@@ -303,6 +362,21 @@
   salida
 }
 
+# Si un tramo que casa con la regla del ISBN-10 es un ISBN: diez cifras, y el
+# digito de control valido o la etiqueta "ISBN" delante. El control es la suma
+# de cada cifra por su peso, de diez a uno, multiplo de once; la equis vale diez
+# y solo al final.
+.es_isbn10 <- function(pieza) {
+  partes <- regmatches(pieza, regexec(.REGLA_DIGITOS$isbn10, pieza, perl = TRUE))[[1L]]
+  if (length(partes) < 3L) return(FALSE)
+  cifras <- gsub("[^0-9Xx]", "", partes[[3L]])
+  if (nchar(cifras) != 10L || grepl("[Xx].", cifras)) return(FALSE)
+  if (nzchar(partes[[2L]])) return(TRUE)
+  valores <- utf8ToInt(cifras) - 48L
+  valores[valores > 9L] <- 10L
+  sum(valores * 10:1) %% 11L == 0L
+}
+
 # Los numeros de `texto` -ya plegado- que se comparan, en sus tres papeles.
 .candidatos_digitos <- function(texto, maximo) {
   vacio <- list(completos = character(), prefijos = character(),
@@ -319,7 +393,7 @@
     isbn <- isbn[nchar(gsub("[^0-9Xx]", "", isbn)) == 13L]
     for (pieza in isbn) texto <- sub(pieza, " ", texto, fixed = TRUE)
     isbn10 <- regmatches(texto, gregexpr(regla$isbn10, texto, perl = TRUE))[[1L]]
-    isbn10 <- isbn10[nchar(gsub("[^0-9Xx]", "", isbn10)) == 10L]
+    isbn10 <- isbn10[vapply(isbn10, .es_isbn10, logical(1L))]
     for (pieza in isbn10) texto <- sub(pieza, " ", texto, fixed = TRUE)
     # Dos decimales pegados por una coma -"40.446984,38.209835", un par de
     # coordenadas- son dos numeros, no uno.
@@ -337,11 +411,18 @@
   numeros <- regmatches(texto, gregexpr(regla$numero, texto, perl = TRUE))[[1L]]
   for (numero in numeros) {
     partes <- .grupos_numero(numero)
+    # Con forma de IP, solo como documento entero, y entera: probar cada tramo
+    # de octetos tapaba una de cada cincuenta direcciones -"218.235.90.247" por
+    # el tramo "21823590"-. Medido en la ronda 24.
+    if (grepl(regla$ip, numero, perl = TRUE)) {
+      entera <- .sin_ceros_iniciales(paste0(partes$grupos, collapse = ""))
+      largo <- nchar(entera, type = "bytes")
+      if (largo >= minimo && largo <= maximo) completos <- c(completos, entera)
+      next
+    }
     completos <- c(completos, .sin_ceros_iniciales(
       .concatenaciones_completas(partes, minimo, maximo)
     ))
-    # Con forma de IP, solo como documento entero.
-    if (grepl(regla$ip, numero, perl = TRUE)) next
     prefijos <- c(prefijos, redondo(.sin_ceros_iniciales(
       .concatenaciones_parciales(partes, maximo)
     )))

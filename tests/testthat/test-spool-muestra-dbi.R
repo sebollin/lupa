@@ -104,8 +104,19 @@ test_that("muestra_motor materializa una vez y todas las métricas leen el spool
   expect_true(all(metricas$id_consulta == metricas$consulta_id))
   expect_true("id_consulta" %in% names(resultado$resumen_tabla$sql))
   expect_false("muestra_id" %in% names(resultado$resumen_tabla$sql))
+  # Los indices se retienen, pero la traza no es `NULL` -fuera de los cuatro
+  # estados-: es `no_disponible` con su alcance, o `no_aplica` si no nombra
+  # filas (ronda 24-C).
   expect_true(all(vapply(
-    resultado$perfil_muestra$hallazgos$trazabilidad, is.null, logical(1L)
+    resultado$perfil_muestra$hallazgos$trazabilidad,
+    function(traza) {
+      is.list(traza) && !length(traza$indices_fila) && is.null(traza$claves) &&
+        (identical(traza$estado, "no_aplica") || (
+          identical(traza$estado, "no_disponible") &&
+            identical(traza$alcance, "orden_muestra_no_estable")
+        ))
+    },
+    logical(1L)
   )))
   expect_true(all(c("trazabilidad", "ejemplos", "muestra") %in%
                   resultado$perfil_muestra$cobertura_diagnosticos$diagnostico))

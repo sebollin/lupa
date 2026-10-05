@@ -377,7 +377,8 @@ distribucion_valores <- function(datos, perfil = NULL, max_valores = 20L,
   # cinco cuantiles con el documento entero mientras la columna protegida salia
   # `[valor protegido]` en el mismo objeto.
   identificantes <- .valores_identificantes(
-    .valores_publicables_protegidos(datos, personales)
+    .valores_publicables_protegidos(datos, personales),
+    .fechas_que_identifican(datos, personales)
   )
   if (length(identificantes)) {
     resultado <- .proteger_textos_salida(

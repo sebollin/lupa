@@ -29,9 +29,13 @@ Debe contener una sola métrica específica, una corrida y una granularidad.}
 
 \item{pesos}{Vector numérico requerido por \code{promedio_ponderado}, con una
 entrada por fila de \code{medidas}. Si trae nombres, se emparejan con
-\code{objeto_medible} y se falla nombrando lo que sobra o falta —igual que en
-\code{\link[=indice_calidad]{indice_calidad()}}—, así que la misma declaración escrita en otro orden da
-el mismo número. Sin nombres se leen por posición.}
+\code{objeto_medible} o con el nombre de la parte —el que declaró la frontera,
+o el del objeto que la lista renombró— y se falla nombrando lo que sobra o
+falta —igual que en \code{\link[=indice_calidad]{indice_calidad()}}, también cuando un nombre sólo
+difiere en su forma Unicode—, así que la misma declaración escrita en otro
+orden da el mismo número. Si los nombres casan con los dos vocabularios y
+reparten distinto, se rechaza: no se puede saber a cuáles se refieren. Sin
+nombres se leen por posición.}
 
 \item{coleccion}{Frontera declarada, exigida cuando \code{destino} es
 \code{"coleccion"}: el objeto de \code{\link[=coleccion]{coleccion()}} o el perfil de
@@ -41,7 +45,8 @@ agregando, y el número resultante no describiría nada.}
 \item{colecciones}{Lista nombrada de objetos de \code{\link[=coleccion]{coleccion()}} o
 \code{\link[=perfilar_coleccion]{perfilar_coleccion()}}, exigida cuando \code{destino} es
 \code{"conjuntoColecciones"}. Los nombres declaran la identidad y la frontera
-del conjunto; no se agregan organizaciones ni otros alcances implícitos.}
+del conjunto, y mandan sobre el del objeto, que la sigue reconociendo; no
+se agregan organizaciones ni otros alcances implícitos.}
 
 \item{organizacion}{Frontera institucional declarada con \code{\link[=organizacion]{organizacion()}},
 exigida cuando \code{destino} es \code{"organizacion"}. Qué bases pertenecen a un
@@ -98,7 +103,8 @@ declaración que no se podía atribuir a ninguna fila. Los conteos se \strong{su
 por objeto de destino, y sólo cuando todas las partes declaran la misma
 unidad; si no, la fila declara la mezcla en lugar de publicar un total que no
 estaría en ninguna unidad. Las partes \strong{completas} también suman —una
-columna de 6 de 6 junto a una de 5 de 6 da 11 de 12—, y en un destino por
+columna de 6 de 6 junto a una de 5 de 6 da 11 de 12—, también cuando se
+agregaron por separado y se unieron con \code{rbind()}; y en un destino por
 fila (\code{instanciaEntidad}) cada fila cuenta sus propias celdas: se declaran
 sólo las incompletas, con su número de fila en el motivo.
 
@@ -107,7 +113,10 @@ unida consigo misma— se rechaza, como en \code{\link[=evaluar]{evaluar()}}. El
 fila agregada nombra lo que agrega —destino, función, métrica y objeto, como
 \code{M-agg-atributo-ratio-NoNulo@t.x}—, así que dos partes agregadas por separado
 se pueden unir y subir de nivel, y el mismo agregado repetido sigue
-repitiendo su identificador. Un valor que no se
+repitiendo su identificador. Cada nombre lleva escapados los signos que lo
+separan del siguiente —el punto, la coma—, y desde la colección para arriba
+el identificador nombra también las partes que reúne: dos conjuntos
+distintos, o dos colecciones sin nombre, no comparten identificador. Un valor que no se
 puede agregar se rechaza nombrando la métrica y la causa: un tipo no
 acotado, una medida ausente o suprimida, o un valor fuera de \verb{[0, 1]}.
 \code{umbral} sólo se acepta con \code{ratio_umbral}, y el borde se compara con
@@ -115,7 +124,11 @@ tolerancia de redondeo: \code{1 - 0.9} alcanza el umbral \code{0.1}.
 
 Las coberturas de frontera (\code{cobertura_coleccion} y sus hermanas) \strong{no} se
 arrastran: cada agregación calcula la de su propio destino con las partes que
-entraron a ese número.
+entraron a ese número, y hereda las de sus partes en \code{cobertura_de_partes}.
+Dos partes agregadas por separado y unidas con \code{rbind()} conservan cada una
+la suya, en cualquier orden de la unión, y el tablero, el índice, el
+informe, \code{\link[=evaluar]{evaluar()}} e \code{\link[=historico_calidad]{historico_calidad()}} las publican todas. Una
+colección lleva en \code{cobertura_metricas} sólo la de sus propias tablas.
 }
 
 \section{Los pesos se publican}{

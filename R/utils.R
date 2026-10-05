@@ -964,7 +964,9 @@
   if (inherits(x, "sfc")) {
     return(class(x)[[1L]])
   }
-  if (.es_columna_compuesta(x)) {
+  # Una tabla anidada es compuesta, pero no es una matriz: declara su propia
+  # clase -`data.frame`, `tbl_df`-, que se publica tal cual mas abajo.
+  if (.es_arreglo_compuesto(x)) {
     return("matriz")
   }
   if (inherits(x, "integer64")) {

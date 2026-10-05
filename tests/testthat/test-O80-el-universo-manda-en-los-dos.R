@@ -26,7 +26,11 @@ fila_de <- function(perfil, tipo) {
 filas_trazadas <- function(fila) {
   traza <- fila$trazabilidad[[1L]]
   if (is.list(traza) && !is.null(traza$indices_fila)) {
-    as.integer(traza$indices_fila)
+    # El CONJUNTO de filas, que es lo que este archivo compara. Desde la ronda
+    # 24-C la traza de `mayusculas_inconsistentes` entrega primero las filas de
+    # las formas variantes -como `casi_duplicados_vocabulario`-, asi que su
+    # orden ya no es el de las filas.
+    sort(as.integer(traza$indices_fila))
   } else {
     integer()
   }

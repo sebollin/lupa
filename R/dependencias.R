@@ -12,9 +12,12 @@
     clave <- (as.numeric(grupo) - 1) * k_y + match(y, valores_y)
     return(match(clave, unique(clave)))
   }
+  # Con el separador por omision -"."- el par (`a.b`, `c`) y el par (`a`,
+  # `b.c`) eran el mismo, y una dependencia que no se cumple parecia cumplirse.
+  # Ronda 24; el mismo arreglo que las evaluaciones en la ronda 22.
   as.integer(interaction(
     factor(grupo), factor(.nombres_para_operar(y), exclude = NULL),
-    drop = TRUE, lex.order = TRUE
+    drop = TRUE, lex.order = TRUE, sep = "\034"
   ))
 }
 

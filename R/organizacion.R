@@ -21,8 +21,10 @@
 #
 # `organizacion()` no pide una conexion. Una coleccion es una cosa viva -tablas
 # de un motor- pero una organizacion es un enunciado sobre colecciones, y puede
-# reunir colecciones medidas en momentos distintos o contra motores distintos.
-# Exigir una conexion habria atado la declaracion institucional a una sesion.
+# declarar colecciones de motores distintos. Exigir una conexion habria atado la
+# declaracion institucional a una sesion. Agregar, en cambio, pide una corrida:
+# la ayuda prometia reunir colecciones de momentos distintos y `agregar()` lo
+# rechazaba, y la unica salida era declarar una fecha falsa. Ronda 24.
 
 .nombre_de_frontera <- function(x) {
   if (inherits(x, "coleccion_lupa")) return(x$nombre)
@@ -98,8 +100,13 @@
 #' cómo declararla, que es distinto de inventar una frontera que nadie nombró.
 #'
 #' No pide una conexión. Una colección es una cosa viva —tablas de un motor—,
-#' pero una organización es un enunciado *sobre* colecciones, y puede reunir
-#' colecciones medidas en momentos distintos o contra motores distintos.
+#' pero una organización es un enunciado *sobre* colecciones, y puede declarar
+#' colecciones que viven en motores distintos. Para **agregar**, en cambio, las
+#' medidas de sus colecciones tienen que venir de una misma corrida —un
+#' `id_medicion` y una fecha—, porque un número describe un momento: las tablas
+#' de motores distintos se miden juntas, y colecciones medidas en momentos
+#' distintos se siguen cada una con [historico_calidad()]. [agregar()] lo dice
+#' así cuando recibe partes de dos corridas.
 #'
 #' @param nombre Nombre de la organización. Es su identidad dentro de un
 #'   conjunto de organizaciones.
@@ -107,8 +114,9 @@
 #'   lista de objetos de [coleccion()] o [perfilar_coleccion()]. Si la lista
 #'   tiene nombres, esos nombres mandan sobre el del objeto.
 #'
-#' @return Objeto S3 `organizacion_lupa` con `nombre`, `declaradas` y
-#'   `n_declaradas`.
+#' @return Objeto S3 `organizacion_lupa` con `nombre`, `declaradas`,
+#'   `n_declaradas` y `alias`: el nombre del objeto de cada colección, con el
+#'   que [agregar()] la sigue reconociendo cuando la lista la renombró.
 #' @export
 #' @seealso [agregar()], [coleccion()], [granularidades()]
 #'
@@ -136,11 +144,15 @@ organizacion <- function(nombre, colecciones) {
       !nzchar(nombre)) {
     stop("`nombre` debe ser un texto no vacio.", call. = FALSE)
   }
-  declaradas <- .nombres_declarados_frontera(colecciones, "colecciones")
+  identidad <- .nombres_declarados_frontera(
+    colecciones, "colecciones", con_alias = TRUE
+  )
+  declaradas <- identidad$nombres
   estructura <- list(
     nombre = nombre,
     declaradas = declaradas,
-    n_declaradas = length(declaradas)
+    n_declaradas = length(declaradas),
+    alias = identidad$alias
   )
   class(estructura) <- "organizacion_lupa"
   estructura
@@ -169,7 +181,11 @@ print.organizacion_lupa <- function(x, ...) {
       "numero no describiria a ningun organismo.", call. = FALSE
     )
   }
-  list(nombre = organizacion$nombre, declaradas = organizacion$declaradas)
+  # El alias -el nombre del objeto de cada coleccion- reconoce la medida que
+  # `agregar()` escribio con ese nombre cuando la lista la renombro. Una
+  # organizacion guardada antes de la ronda 24 no lo trae: sin alias.
+  list(nombre = organizacion$nombre, declaradas = organizacion$declaradas,
+       alias = organizacion$alias)
 }
 
 .validar_conjunto_organizaciones <- function(organizaciones) {

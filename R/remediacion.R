@@ -3966,7 +3966,8 @@ guiar_limpieza <- function(plan, datos, selector = NULL,
   if (is.null(columnas_protegidas)) columnas_protegidas <- character()
   identificantes <- if (length(columnas_protegidas)) {
     .valores_identificantes(
-      .valores_publicables_protegidos(datos, columnas_protegidas)
+      .valores_publicables_protegidos(datos, columnas_protegidas),
+      .fechas_que_identifican(datos, columnas_protegidas)
     )
   } else character()
   for (grupo in grupos) {

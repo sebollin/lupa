@@ -870,10 +870,11 @@
 #' `n_faltantes_disfrazados`— dicen cuánto separa a los dos.
 #' Una columna de listas intenta contar sus valores distintos; si la clase no
 #' admite comparación, informa `NA` en lugar de afirmar cero.
-#' Las columnas compuestas —matrices o arreglos de más de una dimensión— se
+#' Las columnas compuestas —matrices, arreglos de más de una dimensión o tablas
+#' anidadas (una columna `data.frame`, como la de un tibble empaquetado)— se
 #' conservan como una unidad por fila: `n` informa las filas de la tabla, pero
-#' los estadísticos por valor quedan en `NA` y un hallazgo explica que deben
-#' separarse en columnas con semántica explícita.
+#' los estadísticos por valor —`n_faltantes` incluido— quedan en `NA` y un
+#' hallazgo explica que deben separarse en columnas con semántica explícita.
 #' Cuando todos los valores válidos aparecen una sola vez **no hay moda**, y
 #' `moda` queda en `NA`. Lo que se publicaría es el ganador de un desempate de
 #' tantas vías como valores haya, y ese desempate sigue el orden de
@@ -899,8 +900,9 @@
 #' cinco.
 #'
 #' La ley de Benford se evalúa sólo en columnas numéricas con al menos 50
-#' valores finitos; las columnas compuestas —matrices o arreglos de más de una
-#' dimensión— no son magnitudes por fila y quedan fuera del análisis. Antes de
+#' valores finitos; las columnas compuestas —matrices, arreglos de más de una
+#' dimensión o tablas anidadas— no son magnitudes por fila y quedan fuera del
+#' análisis. Antes de
 #' comparar exige variación, que la columna no parezca un
 #' identificador ni una secuencia correlativa, al menos 100 observaciones
 #' positivas utilizables, una proporción de positivos igual a 1 y tres órdenes
@@ -1338,7 +1340,9 @@
 #'   hallazgo se activa al superarlo en sentido estricto.
 #' @param umbral_faltantes_error Umbral por encima del cual los faltantes son
 #'   un error; la igualdad conserva la severidad sospechosa.
-#' @param umbral_patron_raro Máxima frecuencia de un patrón raro.
+#' @param umbral_patron_raro Máxima frecuencia de un patrón raro. La frontera
+#'   es inclusiva: un patrón no dominante con exactamente esa proporción es raro,
+#'   y sólo los que la superan quedan excluidos.
 #' @param umbral_patron_dominante Frecuencia mínima del patrón dominante.
 #' @param columnas_opcionales Nombres de columnas donde la ausencia no es un
 #'   defecto. Su universo de completitud son las celdas presentes, y
@@ -1527,7 +1531,12 @@
 #'   conserva entera: con «Segundo» protegido, `segundo_nombre` salía
 #'   `[valor protegido]_nombre` en los hallazgos sin acción del plan y en la
 #'   SQL. Un nombre que es él mismo un valor protegido, con otra caja, otros
-#'   separadores, tildes o codificación, no se exceptúa.
+#'   separadores, tildes o codificación, no se exceptúa. Y un valor protegido
+#'   que **contiene** un nombre de columna —el correo
+#'   `juan_perez@empresa.com.uy` con una columna `juan_perez`— se busca entero,
+#'   con cualquier caja, antes de apartar el nombre: se tapa el correo y no su
+#'   dominio ni el correo de otra persona, y los nombres que siguen en el texto
+#'   quedan cada uno en su lugar.
 #'   Lo mismo vale para el **vocabulario**: un tipo de hallazgo, una severidad,
 #'   una estrategia, el nombre de un diagnóstico o de una métrica, o el de un
 #'   factor de un marco que declaró el usuario, no se enmascaran aunque coincidan
@@ -1565,28 +1574,46 @@
 #'   celda si grupos contiguos forman un documento protegido —`"2901 1234"`,
 #'   `"099 12 34 56"`, `"(2) 487 1234"`, `"4111 1111 1111 1111"`,
 #'   `"01.23.45.67.89"`—, también con ceros a la izquierda, con los guiones,
-#'   espacios e invisibles de Unicode y los parecidos más comunes del punto, la
-#'   coma y la barra, o escrito con dígitos arábigo-índicos, persas o
-#'   devanagari. Los dos puntos y la barra vertical **no** unen: una razón
+#'   espacios e invisibles de Unicode —las marcas combinantes, los ignorables y
+#'   los caracteres de control también—, con los parecidos más comunes del
+#'   punto, la coma, la barra y el apóstrofo —el acento agudo que el teclado en
+#'   español pone por apóstrofo—, con la raya o el apóstrofo de un CSV de
+#'   Windows leído como `latin1`, o escrito con dígitos arábigo-índicos, persas
+#'   o devanagari. No unen los parecidos raros: la prima de una coordenada
+#'   sexagesimal, el acento grave, la tilde. Los dos puntos y la barra vertical
+#'   **no** unen: una razón
 #'   `"494:2714"` o una lista `"12|345|6789"` no es un documento, y un documento
 #'   escrito así no se reconoce. Una fecha con hora protegida se reconoce escrita
-#'   con `T`, `Z`, espacio o coma, con día y mes en cualquier orden, con la hora
-#'   separada por puntos o en la forma compacta `"20240627T212425"`; no en
+#'   con `T`, `Z`, uno a tres espacios, coma, punto y coma, guion, guion bajo,
+#'   barra vertical o paréntesis entre la fecha y la hora, con día y mes en
+#'   cualquier orden, con la hora separada por puntos, guiones o `h` y `m`
+#'   (`"21h24m25s"`) o en la forma compacta `"20240627T212425"`; no en
 #'   palabras, con a.m./p.m. ni con el año en dos cifras. El documento
 #'   **parcial**, de siete cifras o más, se busca con más cuidado porque es el
 #'   que coincide por azar: sin su verificador, fuera de la parte de un decimal
 #'   y de un número con forma de dirección IPv4 (`"4.123.456"` frente a
 #'   `"4.123.456-7"`, el verificador mal tipeado, el documento seguido de un
 #'   año), y sin su primer dígito sólo detrás de un asterisco o una equis
-#'   (`"*.123.456-7"`, `"X.012.345-8"`); un número redondo (`1.000.000`) no
-#'   cuenta como parcial. Es un **decimal** el número cuyo último signo es un
+#'   (`"*.123.456-7"`, `"X.012.345-8"`, `"X2345678"`) —también los asteriscos
+#'   de Unicode y el asterisco pegado a una letra, `"CI*123.456-7"`—; la equis
+#'   seguida de un espacio no es comodín, porque `"92 x 6931234"` es una
+#'   multiplicación; un número redondo (`1.000.000`) no cuenta como parcial. Es un **decimal** el número cuyo último signo es un
 #'   punto o una coma con otra cantidad de cifras que tres, y antes un entero o
 #'   miles separados con otro signo: `"4.123.456,7"` es un importe,
 #'   `"4.123.456.7"` no; su parte decimal no se pega al resto cuando es la de un
 #'   importe con miles o la de un decimal suelto —una coordenada, un par
 #'   lat lon—, pero sí cuando el número es otra cosa, como `"(02) 901.1234"`.
-#'   Una fecha con un año entre 1800 y 2100, una hora —con su fracción de
-#'   segundo—, un ISBN y una lista separada por comas no son documentos. En la
+#'   Una fecha con un año entre 1800 y 2100 —también con espacios y el año al
+#'   final, `"16 01 2002"`; con el año adelante no, porque `"2012 11 05"` es
+#'   también un teléfono escrito de a pares—, una hora —con su fracción de
+#'   segundo: hasta siete cifras o nueve tras un punto, nunca ocho, y no
+#'   seguida de un guion y una cifra, que sería un verificador—, un ISBN y una
+#'   lista separada por comas no son documentos. El ISBN-10 —con guiones,
+#'   espacios o puntos— sólo si su dígito de control es válido o lo precede
+#'   `ISBN`: un NIT `"900-123-456-7"` tiene su forma, y uno de cada once
+#'   documentos de diez cifras escritos así valida por azar y no se reconoce.
+#'   Una fracción de nueve cifras tras un punto se lee como nanosegundos: un
+#'   documento con un cero adelante pegado así a una hora no se reconoce. En la
 #'   prosa del paquete los números son conteos suyos, y ahí la regla mira sólo
 #'   lo que la prosa cita entre comillas y el código que sugiere entre comillas
 #'   invertidas, y tapa la cita o el número, no la frase. **El parcial tiene un
@@ -1595,12 +1622,18 @@
 #'   Con un millón de cédulas, 300.000 teléfonos fijos y 300.000 celulares
 #'   protegidos, eso le pasó a uno de cada cinco números de siete cifras en
 #'   ejemplos, modas y evidencia —en cualquier escritura: con puntos o
-#'   apóstrofos de miles, con un guion, tras un numeral; tras un asterisco, a
-#'   uno de cada cuatro—, y a uno o dos de cada cien enteros de ocho cifras, que
-#'   coinciden con un documento entero; las coordenadas, los p-valores, los
-#'   importes con decimales, las horas, los ISBN, las listas separadas por
-#'   comas o por barras verticales y las razones no se taparon, y una dirección
-#'   IP sólo cuando coincide entera. Lo mismo vale, por la misma razón, para una
+#'   apóstrofos de miles, con un guion, tras un numeral o tras una equis
+#'   seguida de un espacio (`"92 x 6931234"`); tras un asterisco, o tras una
+#'   equis pegada (`"serie X6276963"`, que es como se escribe el documento
+#'   recortado sin formato, `"X2345678"`), a uno de cada cuatro—, y a uno o dos
+#'   de cada cien enteros de ocho cifras, que coinciden con un documento entero;
+#'   las coordenadas, los p-valores, los importes con decimales, las horas, los
+#'   ISBN —también el ISBN-10 con espacios o puntos—, las fechas con espacios,
+#'   las listas separadas por comas o por barras verticales y las razones no se
+#'   taparon; una dirección IP sólo cuando coincide entera, menos de una de cada
+#'   cien; y una coordenada escrita con un cero adelante (`"-056.092164"`), que
+#'   tiene la forma de un celular con punto (`"099.123456"`), una o dos de cada
+#'   cien. Lo mismo vale, por la misma razón, para una
 #'   lista separada por espacios, un rango `"a - b"` o una versión
 #'   `"v4.16.4302"`: se unen como el documento. La medición se rehace con
 #'   `data-raw/medir_tapado_de_mas.R`.
@@ -1614,13 +1647,20 @@
 #'   valor protegido nunca se desescapa: una barra literal es parte del valor—,
 #'   y lee lo que no es UTF-8 válido de las dos maneras, byte por byte como
 #'   CP1252 conservando las secuencias válidas y entero. Las marcas del paquete
-#'   se apartan del texto y también del valor protegido. **Una fecha de
+#'   se apartan del texto, y un valor protegido que contiene una se busca
+#'   entero antes de apartarla. **Una fecha de
 #'   calendario sola no entra en el piso**, tampoco escrita como `AAAAMMDD` en una
 #'   columna de esas fechas ni como fecha-hora ISO a medianoche: en una tabla
 #'   de miles de personas casi todo día es el cumpleaños de alguien, y con la
 #'   fecha de nacimiento protegida se tapaban los estadísticos de todas las demás
 #'   columnas de fechas. La columna de fechas protegida se sigue protegiendo
-#'   entera; una fecha con hora sí cuenta. En la **prosa del paquete**
+#'   entera; una fecha con hora sí cuenta. Se decide **por la columna**: en una
+#'   columna protegida que no es de fechas —un teléfono fijo `"2012-11-05"`
+#'   entre otros teléfonos— el valor con forma de fecha sí entra en el piso,
+#'   escrito como está guardado (la regla de dígitos borra las fechas antes de
+#'   buscar, así que `"2012/11/05"` no lo encuentra); una columna es de fechas
+#'   si es `Date` o `POSIXt`, o si la mitad o más de sus valores distintos
+#'   tienen forma de fecha. En la **prosa del paquete**
 #'   —descripción, sugerencia, motivo, cómo resolverlo, justificación— se exige
 #'   además que la variante no tenga una letra pegada antes o después: con los
 #'   nombres de millones de personas como valores protegidos, alguno aparecía
@@ -1772,8 +1812,11 @@
 #'   variantes con filas de la forma dominante, conserva además
 #'   `n_filas_formas_variantes` y `n_filas_formas_dominantes` con el reparto
 #'   completo, y `mostrados_formas_variantes` y `mostrados_formas_dominantes`
-#'   con el reparto de lo que sobrevivió al truncado. Las variantes se entregan
-#'   primero, de modo que el truncado no se lleve lo accionable. Para
+#'   con el reparto de lo que sobrevivió al truncado. En los tres diagnósticos
+#'   de unidad `valor_distinto` las filas de las formas variantes se entregan
+#'   primero —en `mayusculas_inconsistentes` y `normalizacion_unicode`, la forma
+#'   dominante de cada grupo es la guardada más veces—, de modo que el truncado
+#'   no se lleve lo accionable. Para
 #'   `patron_raro`,
 #'   el alcance puede ser `completo`, `muestra_patrones`,
 #'   `patrones_parciales` o `muestra_patrones+patrones_parciales`. El resumen y
@@ -1784,6 +1827,8 @@
 #'   Cuando se emite un hallazgo `patron_raro`, su evidencia incluye la
 #'   proporcion del patron dominante y cuantas filas pertenecen a patrones no
 #'   dominantes que superan `umbral_patron_raro` y por eso quedan excluidos.
+#'   Su `n_evaluados` es el universo de esas proporciones: las filas analizadas
+#'   que tienen valor —un ausente no tiene patrón—.
 #'   Si el patron dominante no alcanza `umbral_patron_dominante`, no se emite
 #'   el hallazgo: `cobertura_diagnosticos` declara la no medicion, su proporcion
 #'   observada y el argumento que se puede ajustar.
@@ -1815,6 +1860,9 @@
 #'   del patron dominante: `patron_raro` es completo respecto de su criterio de
 #'   rareza cuando no hay recorte de trazabilidad. Si el conjunto de nombres
 #'   raros supera 5.000, `cobertura_diagnosticos` declara el recorte y su limite.
+#'   Si `muestra` deja filas fuera del descubrimiento de patrones y la muestra
+#'   no trae ningún patrón raro, `cobertura_diagnosticos` también lo declara: la
+#'   ausencia del hallazgo vale sólo para la muestra.
 #'   Quien decida automáticamente sobre un perfil debe revisar
 #'   `nrow(perfil$cobertura_diagnosticos)` además de las severidades: un perfil
 #'   sin hallazgos y con diagnósticos no evaluados no es un perfil limpio.

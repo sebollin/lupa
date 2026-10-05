@@ -47,7 +47,13 @@
     # `.trazabilidad_vacia()` y el que `.limitar_trazabilidad()` ya sabe saltear.
     estado = if (total) "disponible" else "no_disponible",
     indices = mostrados,
-    total = total, alcance = alcance, limite = limite,
+    # Y por la misma razon el total de esa rama es `NA`, no cero: una traza
+    # `no_disponible` no conoce cuantas filas hay -por eso no esta disponible-, y
+    # publicar `total = 0` al lado de un hallazgo con filas afectadas afirmaba
+    # un conteo que nadie hizo. Es el valor por omision de
+    # `.trazabilidad_vacia()`.
+    total = if (total) total else NA_real_,
+    alcance = alcance, limite = limite,
     claves = .claves_de_filas(datos, clave, mostrados)
   )
 }
@@ -321,9 +327,10 @@
   raros <- attr(patrones, "patrones_raros_trazabilidad", exact = TRUE)
   if (!is.character(raros)) {
     raros <- if (nrow(resumen) > 1L) resumen[-1L, "patron"] else character()
+    # Frontera inclusiva, como en `descubrir_patrones()`: ver el comentario alli.
     raros <- as.character(raros[
       !is.na(resumen[-1L, "proporcion"]) &
-        resumen[-1L, "proporcion"] < umbral_patron_raro
+        resumen[-1L, "proporcion"] <= umbral_patron_raro
     ])
   }
   raros <- unique(raros[!is.na(raros)])
@@ -467,6 +474,10 @@
   if (is.null(regreso)) return(NULL)
   presentes <- !is.na(originales)
   if (any(presentes & (is.na(regreso) | regreso != originales))) return(NULL)
+  excluidos <- cuantitativos$excluidos_traza
+  if (is.logical(excluidos) && length(excluidos) == length(valores)) {
+    valores[excluidos] <- NA_real_
+  }
   valores
 }
 
@@ -2510,8 +2521,15 @@
     n <- 1
     afectados <- 1
   } else if (tipo == "patron_raro") {
+    # El denominador es el de las proporciones que el propio hallazgo publica:
+    # las filas con valor, sin los ausentes, que no tienen patron. `analizados`
+    # -las filas de la muestra, con sus `NA`- queda solo como respaldo para un
+    # objeto de patrones que no traiga el campo.
+    evaluados <- attr(resultado$patrones, "n_evaluados", exact = TRUE)
     analizados <- attr(resultado$patrones, "analizados", exact = TRUE)
-    if (!is.null(analizados) && is.finite(analizados)) {
+    if (length(evaluados) == 1L && isTRUE(is.finite(evaluados))) {
+      n <- as.numeric(evaluados)
+    } else if (!is.null(analizados) && is.finite(analizados)) {
       n <- as.numeric(analizados)
     }
   } else if (tipo == "geometria_invalida") {
@@ -2565,9 +2583,11 @@
   # proxima incorporacion no dependa de acordarse: **¿los numeros de este
   # diagnostico salen de los valores que llegaron al resumen cuantitativo?** Si la
   # respuesta es si, su denominador es ese subconjunto. `filas_duplicadas` no entra
-  # y no debe: cuenta filas, no valores convertidos. `patron_raro`, `faltantes` y
+  # y no debe: cuenta filas, no valores convertidos. `faltantes` y
   # `faltantes_disfrazados` tampoco: miran la columna entera, y por eso pueden
   # publicar un denominador distinto en la misma columna sin contradecirse.
+  # `patron_raro` tampoco entra: su denominador es el de sus propias
+  # proporciones -las filas con valor, sin ausentes-, y se fija arriba.
   #
   # `posible_centinela_numerico` faltaba, y se notaba mirando dos filas hermanas:
   # sobre la misma columna y en la misma corrida, `ceros_no_permitidos` y `outliers`
@@ -2580,6 +2600,28 @@
   )
   if (tipo %in% sobre_resumen && identical(unidad, "fila") &&
       isTRUE(is.finite(n))) {
+    # El subconjunto se CUENTA donde se calcula el resumen -`n_resumidos`-, y no
+    # se deriva restando. Es la misma resta que la fila de cobertura ya habia
+    # tenido que abandonar, y por el mismo motivo: el `NaN` esta en
+    # `n_faltantes` -es ausente- y TAMBIEN en `n_valores_excluidos_resumen`
+    # -los README prometen que ese campo cuenta los no finitos-, asi que se
+    # restaba dos veces. Medido: `c(0, 1, 2, NaN, NaN, NaN, 5, -3)` publicaba
+    # `n_evaluados = 2` en `ceros_no_permitidos` sobre los cinco valores que
+    # promedia la media publicada, y la misma columna con `NA` en vez de `NaN`
+    # publicaba 5. Con la mitad o mas de `NaN` la resta llegaba a cero y la
+    # guarda devolvia la columna entera. La resta queda solo como respaldo para
+    # las ramas que no cuentan -la de precision insuficiente-, donde no hay
+    # `NaN` que duplicar.
+    contado <- resultado$cuantitativo$n_resumidos
+    contado <- if (is.null(contado) || length(contado) != 1L) {
+      NA_real_
+    } else {
+      suppressWarnings(as.numeric(contado))
+    }
+    if (isTRUE(is.finite(contado))) {
+      return(list(n_evaluados = contado, n_afectados = afectados,
+                  unidad_conteo = unidad))
+    }
     excluidos <- if (!is.null(fila$n_valores_excluidos_resumen) &&
                      isTRUE(is.finite(fila$n_valores_excluidos_resumen[[1L]]))) {
       fila$n_valores_excluidos_resumen[[1L]]
@@ -2657,15 +2699,28 @@
     error = function(e) NULL
   )
   if (is.null(cuantitativos)) return(NULL)
+  # Los centinelas declarados se ENMASCARAN, no se borran. Este vector es la
+  # base de las trazas de `valores_no_finitos`, `ceros_no_permitidos`,
+  # `negativos_no_permitidos` y `outliers`, que hacen `which()` sobre el: borrar
+  # posiciones lo acortaba y cada indice quedaba corrido hacia arriba tantas
+  # filas como centinelas hubiera antes. Medido: con `-1` declarado en las tres
+  # primeras filas, el cero de la fila 20 se trazaba en la 17, el negativo de la
+  # 25 en la 22 y el outlier de la 30 en la 27 -filas sanas, con estado
+  # `disponible`-, y la guarda de coherencia no lo veia porque la cuenta
+  # coincidia. Es el mismo criterio que la aplicabilidad: marcar como ausente en
+  # vez de recortar, para que los indices sigan alineados con la tabla.
   sentinelas <- resultado$sentinelas_numericos_declarados %||% numeric()
   if (length(sentinelas) && identical(cuantitativos$clase, "numero")) {
     mascara <- .mascara_sentinelas_resumen(cuantitativos$valores, sentinelas)
-    cuantitativos$valores <- cuantitativos$valores[!mascara]
+    cuantitativos$valores[mascara] <- NA_real_
   } else if (length(sentinelas) &&
              identical(cuantitativos$clase, "integer64")) {
-    mascara <- !is.na(cuantitativos$valores) &
+    # Sobre `integer64` no se asigna `NA` con `[<-`: sin el metodo de `bit64`
+    # registrado, la asignacion escribe los bits de un `NA` doble, que no es el
+    # `NA` de `integer64`. La mascara viaja aparte y la aplica
+    # `.numerico_trazable()` despues de convertir a doble.
+    cuantitativos$excluidos_traza <- !is.na(cuantitativos$valores) &
       as.character(cuantitativos$valores) %in% as.character(sentinelas)
-    cuantitativos$valores <- cuantitativos$valores[!mascara]
   }
   cuantitativos
 }
@@ -2703,6 +2758,39 @@
   base[which(!is.na(patrones) & patrones %in% unique(raros))]
 }
 
+# Las filas de una colision de formas -`mayusculas_inconsistentes`,
+# `normalizacion_unicode`- con las VARIANTES primero: en cada grupo, la forma
+# guardada mas frecuente es la dominante (ante un empate, la que aparece antes)
+# y las demas son variantes. Primero van las filas de todas las variantes, en
+# orden de fila, y despues las de las dominantes.
+#
+# Es la decision que el paquete ya tomo para `casi_duplicados_vocabulario`, el
+# diagnostico hermano con la misma unidad y la misma semantica de traza: que el
+# truncado no se lleve lo accionable. Aca la traza concatenaba los grupos en el
+# orden alfabetico de `split()` y cada grupo en orden de fila, y
+# `max_filas_hallazgo` cortaba por delante. Medido: treinta `"Montevideo"` y un
+# `"MONTEVIDEO"` en la fila 31, con limite 10, publicaban una traza de diez filas
+# identicas -ningun testigo de la colision que el hallazgo afirma-; y con dos
+# grupos, el segundo entero quedaba afuera. El conjunto de filas no cambia: solo
+# el orden.
+.filas_colision_variantes_primero <- function(grupos, texto) {
+  variantes <- list()
+  dominantes <- list()
+  for (g in grupos) {
+    formas <- .nombres_para_operar(texto[g])
+    distintas <- unique(formas)
+    if (length(distintas) < 2L) next
+    frecuencias <- tabulate(match(formas, distintas), nbins = length(distintas))
+    es_dominante <- formas == distintas[[which.max(frecuencias)]]
+    variantes[[length(variantes) + 1L]] <- g[!es_dominante]
+    dominantes[[length(dominantes) + 1L]] <- g[es_dominante]
+  }
+  c(
+    sort(as.integer(unlist(variantes, use.names = FALSE))),
+    sort(as.integer(unlist(dominantes, use.names = FALSE)))
+  )
+}
+
 .indices_hallazgo_columna <- function(tipo, x, fila, resultado,
                                       expandir = FALSE,
                                       distinguir_mayusculas = TRUE,
@@ -2712,10 +2800,22 @@
   ## nombrarlas, que es la incoherencia que la guarda de trazabilidad persigue.
   ## En una columna protegida el valor viaja como NA y no hay indices que dar,
   ## que es correcto: nombrar las filas seria senalar los valores.
+  ##
+  ## Las filas se buscan sobre la MISMA conversion que midio el valor -la del
+  ## resumen cuantitativo- y no con `as.numeric(x)` sobre la columna cruda. La
+  ## regla estaba escrita dos veces y la segunda no convertia como la primera:
+  ## sobre un `factor`, `as.numeric()` devuelve los codigos de nivel, y sobre
+  ## `"8888,0"` devuelve `NA`. Medido: cinco `8888` en las filas 41 a 45 de una
+  ## columna factor, o escritos con coma decimal, daban la traza vacia y el aviso
+  ## de incoherencia, mientras `outliers` -que ya usaba esta conversion- trazaba
+  ## las mismas cinco filas.
   if (identical(tipo, "posible_centinela_numerico")) {
     valor <- suppressWarnings(as.numeric(fila$centinela_valor))
     if (!length(valor) || !isTRUE(is.finite(valor))) return(NULL)
-    numeros <- suppressWarnings(as.numeric(x))
+    numeros <- .numerico_trazable(
+      .valores_cuantitativos_hallazgo(x, fila, resultado)
+    )
+    if (is.null(numeros) || length(numeros) != NROW(x)) return(NULL)
     return(which(!is.na(numeros) & numeros == valor))
   }
   ## Vale para cualquier tipo de columna: las filas con valor fuera del universo
@@ -2875,11 +2975,7 @@
       canon <- .normalizacion_minusculas_vector(texto)
       canon_operativo <- .nombres_para_operar(canon[presentes])
       grupos <- split(seq_len(n)[presentes], canon_operativo)
-      unlist(lapply(grupos, function(g) {
-        if (length(unique(.nombres_para_operar(texto[g]))) > 1L) {
-          g
-        } else integer()
-      }), use.names = FALSE)
+      .filas_colision_variantes_primero(grupos, texto)
     },
     normalizacion_unicode = if (is.null(texto) ||
       !requireNamespace("stringi", quietly = TRUE)) NULL else {
@@ -2888,11 +2984,7 @@
         grupos <- split(
           which(presentes), .nombres_para_operar(normal)
         )
-        unlist(lapply(grupos, function(g) {
-          if (length(unique(.nombres_para_operar(texto[g]))) > 1L) {
-            g
-          } else integer()
-        }), use.names = FALSE)
+        .filas_colision_variantes_primero(grupos, texto)
       },
     codificacion_invalida = tryCatch(
       .texto_analizable(x)$posiciones, error = function(e) NULL
@@ -3336,6 +3428,12 @@
       next
     }
     if (no_aplica || unidad %in% c("par", "valor_positivo")) next
+    # Una traza retenida a proposito -los indices de una muestra del motor sin
+    # orden demostrado estable- no es una incoherencia: el perfil la declara
+    # en `cobertura_diagnosticos`. Solo ese alcance se exime; cualquier otra
+    # traza `no_disponible` sigue acusandose.
+    if (identical(traza$estado, "no_disponible") &&
+        identical(traza$alcance, .ALCANCE_TRAZA_ORDEN_INESTABLE)) next
     if (identical(traza$estado, "no_disponible")) {
       problemas <- c(problemas, paste0(etiqueta, ": traza no disponible"))
       next
@@ -3703,7 +3801,13 @@
         agregar(.nuevo_hallazgo(
           nombre, "tipo_compuesto_no_analizado", "sospechoso",
           paste0(
-            "La columna contiene una matriz por fila; no se aplan\u00f3 porque mezclar ",
+            "La columna contiene ",
+            if (identical(estructura$tipo, "tabla")) {
+              "una tabla anidada (una columna data.frame)"
+            } else {
+              "una matriz"
+            },
+            " por fila; no se aplan\u00f3 porque mezclar ",
             "sus componentes inventar\u00eda una sem\u00e1ntica de celda."
           ),
           paste0(
@@ -4386,6 +4490,32 @@
           )
         )
       }
+    } else if (is.finite(proporcion_dominante) &&
+               isTRUE(attr(resultado$patrones, "muestreado", exact = TRUE))) {
+      # Sin patrones raros EN LA MUESTRA no hay hallazgo, y eso es correcto; lo
+      # que faltaba era decir que la enumeracion fue parcial. Cuando si hay
+      # hallazgo, su `alcance = "muestra_patrones"` lo declara; cuando no hay,
+      # nada lo declaraba salvo `meta$filas_analizadas`, y la regla del contrato
+      # automatico -revisar `nrow(cobertura_diagnosticos)`- leia "perfil
+      # limpio". Medido: seis filas raras de 200 fuera de la rejilla de
+      # `muestra = 67` publicaban cero hallazgos `patron_raro` y una cobertura
+      # vacia; con `muestra = Inf` se publicaban las seis.
+      analizados <- attr(resultado$patrones, "analizados", exact = TRUE)
+      total <- attr(resultado$patrones, "total", exact = TRUE)
+      agregar_cobertura(
+        "patron_raro", nombre,
+        paste0(
+          "patron_raro se evaluo sobre una muestra de ",
+          .formatear_numero_publicado(analizados), " de ",
+          .formatear_numero_publicado(total),
+          " filas y no encontro patrones raros en ella; un patron raro ",
+          "presente solo fuera de la muestra no se detecta."
+        ),
+        paste0(
+          "Volver a perfilar con un valor mayor de `muestra` -`Inf` recorre ",
+          "todas las filas- para evaluar patron_raro sobre la columna entera."
+        )
+      )
     }
 
     if (isTRUE(fila$n_espacios_borde > 0L)) {

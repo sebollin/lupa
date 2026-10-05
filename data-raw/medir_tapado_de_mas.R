@@ -64,7 +64,32 @@ familias <- list(
   conteo_7_con_miles = sprintf("%s filas", formatC(sample(1000001:6999999, m),
                                                    format = "d", big.mark = ".",
                                                    decimal.mark = ",")),
-  entero_8_cifras = sprintf("expediente %d", sample(10000000:69999999, m))
+  entero_8_cifras = sprintf("expediente %d", sample(10000000:69999999, m)),
+  # Ronda 24: las familias que la refutacion encontro tapadas de mas. Van al
+  # final para no cambiar los numeros de las de arriba.
+  tras_una_equis = sprintf("serie X%d", sample(1000001:6999999, m)),
+  por_una_equis = sprintf("%d x %d", sample(2:99, m, TRUE), sample(1000001:6999999, m)),
+  coordenada_cero_adelante = sprintf("lon -0%.6f", runif(m, 53, 58)),
+  isbn10_espacios = sprintf("ISBN %d %03d %05d %d", sample(0:9, m, TRUE),
+                            sample(0:999, m, TRUE), sample(0:99999, m, TRUE),
+                            sample(0:9, m, TRUE)),
+  isbn10_puntos = sprintf("ISBN %d.%03d.%05d.%d", sample(0:9, m, TRUE),
+                          sample(0:999, m, TRUE), sample(0:99999, m, TRUE),
+                          sample(0:9, m, TRUE)),
+  # Sin la etiqueta, con su digito de control valido: un ISBN de verdad.
+  isbn10_sin_etiqueta = vapply(seq_len(m), function(i) {
+    cifras <- sample(0:9, 9, TRUE)
+    control <- (11 - sum(cifras * 10:2) %% 11) %% 11
+    paste0(cifras[1], "-", paste(cifras[2:4], collapse = ""), "-",
+           paste(cifras[5:9], collapse = ""), "-",
+           if (control == 10) "X" else control)
+  }, character(1L)),
+  fecha_con_espacios = sprintf("%02d %02d %d", sample(1:28, m, TRUE),
+                               sample(1:12, m, TRUE), sample(1990:2025, m, TRUE)),
+  fecha_hora_dos_espacios = sprintf("%d-%02d-%02d  %02d:%02d:%02d",
+                                    sample(2015:2025, m, TRUE), sample(1:12, m, TRUE),
+                                    sample(1:28, m, TRUE), sample(0:23, m, TRUE),
+                                    sample(0:59, m, TRUE), sample(0:59, m, TRUE))
 )
 cat("valores protegidos:", length(valores), "\n")
 for (familia in names(familias)) {

@@ -778,7 +778,7 @@ print.analisis <- function(x, ...) {
       x$perfil$meta, datos = datos
     ),
     .valores_publicables_protegidos(datos, sensibles)
-  )))
+  )), .fechas_que_identifican(datos, sensibles))
   x$perfil <- .proteger_perfil(x$perfil, x$datos)
   # Hay que limpiar el plan antes de anonimizar `x$datos`: un analisis abierto
   # puede conservar parametros que vienen de las filas originales.

@@ -373,18 +373,22 @@
 }
 
 .claves_objeto_tablero <- function(medidas) {
+  # Con el separador por omision -"."- la entidad `a.b` con el objeto `c` y la
+  # entidad `a` con el objeto `b.c` caian en la misma celda: el defecto que la
+  # ronda 22 cerro en las evaluaciones y la 24 en `agregar()`. Un caracter de
+  # control no aparece en un nombre.
   granularidad <- unique(medidas$granularidad)[[1L]]
   switch(
     granularidad,
     instanciaAtributo = interaction(
       addNA(as.factor(.nombres_para_operar(medidas$entidad))),
       addNA(as.factor(.nombres_para_operar(medidas$atributo))),
-      drop = TRUE, lex.order = TRUE
+      drop = TRUE, lex.order = TRUE, sep = "\034"
     ),
     atributo = interaction(
       addNA(as.factor(.nombres_para_operar(medidas$entidad))),
       addNA(as.factor(.nombres_para_operar(medidas$atributo))),
-      drop = TRUE, lex.order = TRUE
+      drop = TRUE, lex.order = TRUE, sep = "\034"
     ),
     instanciaEntidad = addNA(as.factor(.nombres_para_operar(medidas$entidad))),
     entidad = addNA(as.factor(.nombres_para_operar(medidas$entidad))),
@@ -401,7 +405,7 @@
     interaction(
       addNA(as.factor(.nombres_para_operar(medidas$entidad))),
       factor(.nombres_para_operar(medidas$objeto_medible), exclude = NULL),
-      drop = TRUE, lex.order = TRUE
+      drop = TRUE, lex.order = TRUE, sep = "\034"
     )
   )
 }
@@ -863,12 +867,56 @@ tablero_calidad <- function(medidas, agregaciones = NULL, umbrales = NULL,
 # declaracion de que una de dos tablas quedo afuera, aunque el objeto la trajera.
 # `NEWS.md` dice que «la cobertura de una parte incompleta ya no se pierde al
 # subir de nivel»; se perdia en el consumidor, no en `agregar()`.
+#
+# Y pueden ser VARIAS: un organismo de dos colecciones, o dos colecciones
+# unidas con `rbind()`. Se leia una sola -la primera- y la tabla que no habia
+# entrado en la segunda no aparecia en el tablero, el indice ni el informe.
+# Ahora se reunen en una: todas las tablas declaradas, las que entraron, las que
+# no, y el motivo de cada una con su coleccion. Medido en la ronda 24.
 .cobertura_coleccion_de <- function(x) {
   directa <- attr(x, "cobertura_coleccion", exact = TRUE)
-  if (!is.null(directa)) return(directa)
   partes <- attr(x, "cobertura_de_partes", exact = TRUE)
-  if (is.null(partes)) return(NULL)
-  partes[["cobertura_coleccion"]]
+  todas <- c(
+    if (!is.null(directa)) list(directa),
+    if (length(partes)) unname(partes[names(partes) %in% "cobertura_coleccion"])
+  )
+  todas <- .coberturas_sin_repetir(todas)
+  if (!length(todas)) return(NULL)
+  if (length(todas) == 1L) return(todas[[1L]])
+  .unir_coberturas_coleccion(todas)
+}
+
+.unir_coberturas_coleccion <- function(coberturas) {
+  campo <- function(nombre) lapply(coberturas, `[[`, nombre)
+  nombres <- vapply(coberturas, function(cc) {
+    if (is.null(cc$coleccion)) NA_character_ else as.character(cc$coleccion[[1L]])
+  }, character(1L))
+  declaradas <- sum(vapply(campo("tablas_declaradas"), function(v) {
+    if (length(v)) as.numeric(v[[1L]]) else 0
+  }, numeric(1L)))
+  en_el_numero <- sum(vapply(campo("tablas_en_el_numero"), function(v) {
+    if (length(v)) as.numeric(v[[1L]]) else 0
+  }, numeric(1L)))
+  sin_medir <- unlist(campo("tablas_sin_medir"), use.names = FALSE)
+  motivos <- unlist(lapply(coberturas, function(cc) {
+    tablas <- cc$tablas_sin_medir
+    if (!length(tablas)) return(character())
+    motivo <- if (length(cc$motivo_sin_medir) == length(tablas)) {
+      as.character(cc$motivo_sin_medir)
+    } else rep("", length(tablas))
+    paste0("Colecci\u00f3n ", cc$coleccion, ": ", motivo)
+  }), use.names = FALSE)
+  advertencias <- unique(unlist(campo("advertencia"), use.names = FALSE))
+  list(
+    coleccion = paste(nombres, collapse = ", "),
+    colecciones = nombres,
+    tablas_declaradas = declaradas,
+    tablas_en_el_numero = en_el_numero,
+    tablas_sin_medir = as.character(sin_medir),
+    motivo_sin_medir = as.character(motivos),
+    cobertura = if (declaradas > 0) en_el_numero / declaradas else NA_real_,
+    advertencia = paste(advertencias, collapse = " ")
+  )
 }
 
 .con_cobertura_coleccion <- function(salida, origen) {
@@ -958,6 +1006,21 @@ print.tablero_calidad <- function(x, ...) {
   invisible(original)
 }
 
+# Un nombre que solo difiere en la forma -la tilde compuesta o separada, la
+# caja- se compara por sus bytes, y el mensaje lo imprimia identico a lo
+# declarado. La pista vive en un solo lugar: el validador de `agregar()` no la
+# tenia, y su ayuda decia "igual que en `indice_calidad()`". Ronda 24.
+.pista_forma_distinta <- function(faltan, sobran) {
+  if (!length(faltan) || !length(sobran)) return("")
+  plegar <- function(v) tryCatch(.plegar_para_comparar(v), error = function(e) v)
+  if (!any(plegar(faltan) %in% plegar(sobran))) return("")
+  paste0(
+    " Hay un nombre declarado que se ve igual pero se escribe distinto -la ",
+    "tilde compuesta o separada, o la caja-: los nombres se comparan por ",
+    "sus bytes."
+  )
+}
+
 .validar_pesos_indice <- function(pesos, esperados, etiqueta = "pesos") {
   if (!is.numeric(pesos) || !length(pesos) || is.null(names(pesos)) ||
       anyNA(names(pesos)) || any(!nzchar(names(pesos))) ||
@@ -978,10 +1041,8 @@ print.tablero_calidad <- function(x, ...) {
     parecidos <- faltan[plegar(faltan) %in% plegar(sobran)]
     if (length(parecidos)) {
       stop(
-        "Faltan ", etiqueta, " para: ", paste(parecidos, collapse = ", "),
-        ". Hay un nombre declarado que se ve igual pero se escribe distinto -la ",
-        "tilde compuesta o separada, o la caja-: los nombres se comparan por ",
-        "sus bytes.", call. = FALSE
+        "Faltan ", etiqueta, " para: ", paste(parecidos, collapse = ", "), ".",
+        .pista_forma_distinta(faltan, sobran), call. = FALSE
       )
     }
   }

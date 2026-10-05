@@ -1079,7 +1079,13 @@
   for (i in seq_along(datos)) {
     columna <- datos[[i]]
     if (columnas_matriciales[[i]]) {
-      componentes <- as.data.frame(unclass(columna), stringsAsFactors = FALSE)
+      # Una tabla anidada se aplana por la misma regla, recursiva: sus columnas
+      # pueden ser a su vez matrices, listas o tablas.
+      componentes <- if (is.data.frame(columna)) {
+        .expandir_datos_identidad(columna)
+      } else {
+        as.data.frame(unclass(columna), stringsAsFactors = FALSE)
+      }
       for (j in seq_along(componentes)) {
         columnas[[length(columnas) + 1L]] <- componentes[[j]]
       }
@@ -2032,8 +2038,24 @@
       !is.data.frame(sobre$resultado) || !nrow(sobre$resultado)) {
     return(NULL)
   }
-  mapa <- sobre$resultado
-  candidatos <- which(mapa$frecuencia == max(mapa$frecuencia))
+  moda <- .moda_de_mapa(sobre$resultado)
+  if (is.null(moda)) NULL else moda[c("valor", "frecuencia")]
+}
+
+# El desempate de la moda sobre un mapa de distintos, escrito UNA vez. La via
+# por bloques de `perfilar_dbi()` tomaba `which.max(mapa$frecuencia)` -el
+# primero en el orden del mapa, que para dobles es el de su texto y para texto
+# no es por bytes- y publicaba otra moda que la via en memoria y la SQL sobre
+# la misma tabla. Medido en SQLite: cuatro dobles empatados daban `3.25` en
+# `perfilar()` y en SQL, y `10.608` con `bloque_filas`; tres textos daban `Mu`
+# y `alfa`. `posicion` viaja para que quien publique con otro formato use la
+# misma fila.
+.moda_de_mapa <- function(mapa) {
+  if (!is.data.frame(mapa) || !nrow(mapa) ||
+      !any(!is.na(mapa$frecuencia))) {
+    return(NULL)
+  }
+  candidatos <- which(mapa$frecuencia == max(mapa$frecuencia, na.rm = TRUE))
   if (length(candidatos) > 1L) {
     valores <- mapa$representante[candidatos]
     # `.orden_seguro()` y no `order()`: sobre `integer64` el `order()` de base
@@ -2052,7 +2074,8 @@
   posicion <- candidatos[[1L]]
   list(
     valor = .texto_valor(mapa$representante[posicion]),
-    frecuencia = as.integer(mapa$frecuencia[[posicion]])
+    frecuencia = as.integer(mapa$frecuencia[[posicion]]),
+    posicion = posicion
   )
 }
 
@@ -3246,10 +3269,11 @@ bytes_retenidos <- function(acumulador) .bytes_retenidos(acumulador)
   }
   limite <- min(length(frecuencias), floor(max_patrones))
   indices_salida <- if (limite) seq_len(limite) else integer()
+  # Frontera inclusiva, como en `descubrir_patrones()`: ver el comentario alli.
   indices_raros <- which(seq_along(frecuencias) > 1L &
-                          proporciones < umbral_raro)
+                          proporciones <= umbral_raro)
   indices_excluidos <- which(seq_along(frecuencias) > 1L &
-                              proporciones >= umbral_raro)
+                              proporciones > umbral_raro)
   indices_resumen <- unique(c(
     if (length(frecuencias)) 1L else integer(),
     utils::head(indices_raros, 6L)
@@ -3263,6 +3287,8 @@ bytes_retenidos <- function(acumulador) .bytes_retenidos(acumulador)
   attr(resultado, "analizados") <- as.integer(sobre$alcance$valores %||% 0)
   attr(resultado, "filas_analizadas") <- attr(resultado, "analizados")
   attr(resultado, "muestreado") <- attr(resultado, "analizados") < n
+  # Mismo campo y misma definicion que en `descubrir_patrones()`.
+  attr(resultado, "n_evaluados") <- as.integer(denominador)
   attr(resultado, "n_patrones_distintos") <- length(frecuencias)
   attr(resultado, "n_patrones_raros") <- length(indices_raros)
   raros <- nombres[indices_raros]

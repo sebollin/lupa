@@ -1011,7 +1011,12 @@
       estado_valores <- "omitido_por_costo"
       motivo_valores <- .motivo_decision_costo_dbi(decision_moda, "moda")
     } else {
-      indice <- which.max(mapa$frecuencia)
+      # El desempate es el del resto del paquete -`.moda_de_mapa()`-, no el
+      # orden del mapa.
+      moda_mapa <- .moda_de_mapa(mapa)
+      indice <- if (is.null(moda_mapa)) which.max(mapa$frecuencia) else {
+        moda_mapa$posicion
+      }
       fila$moda <- tryCatch(as.character(mapa$representante[[indice]]), error = function(e) NA_character_)
       fila$frecuencia_moda <- mapa$frecuencia[[indice]]
       estado_valores <- "calculado"

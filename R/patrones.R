@@ -35,8 +35,9 @@
 #' @param max_patrones Número máximo de patrones que se muestran.
 #' @param na.rm Si es `TRUE`, excluye los valores ausentes.
 #' @param muestra Máximo de valores que se analizan.
-#' @param umbral_raro Umbral usado para conservar un resumen acotado de
-#'   patrones raros para los hallazgos.
+#' @param umbral_raro Frecuencia máxima de un patrón raro, usada para conservar
+#'   un resumen acotado de patrones raros para los hallazgos. La frontera es
+#'   inclusiva: un patrón no dominante con exactamente esa proporción es raro.
 #'
 #' @return Un data frame de clase `patrones` con patrón, frecuencia, proporción
 #'   y ejemplos. Los **ejemplos no se publican** cuando la forma de los valores
@@ -48,7 +49,9 @@
 #'   afirmar que es un documento. Los atributos `total`, `analizados`, `filas_analizadas` y
 #'   `muestreado` describen el posible muestreo; `filas_analizadas` es un alias
 #'   explícito de `analizados` para mantener el alcance visible junto a otros
-#'   diagnósticos. `resumen_patrones` conserva sólo el patrón dominante
+#'   diagnósticos. `n_evaluados` es el denominador de `proporcion`: los valores
+#'   analizados, sin los ausentes cuando `na.rm = TRUE`. `resumen_patrones`
+#'   conserva sólo el patrón dominante
 #'   y hasta seis patrones raros para presentacion; nunca guarda la distribucion
 #'   completa. `patrones_raros_trazabilidad` conserva solo los nombres de los
 #'   patrones raros, hasta 5.000, para que la trazabilidad pueda enumerar filas
@@ -143,11 +146,18 @@ descubrir_patrones <- function(x,
   }
   limite <- min(length(frecuencias), floor(max_patrones))
   indices_salida <- seq_len(limite)
+  # `umbral_raro` es la frecuencia MAXIMA de un patron raro, y la igualdad es
+  # rara: la ayuda lo llama "maxima frecuencia" y cuenta como excluidos a los
+  # que lo "superan", y en el vocabulario del paquete superar es estricto. La
+  # comparacion era `<`, y un patron en exactamente el umbral -cinco filas de
+  # cien con el 0,05 por omision- quedaba afuera contado como si lo superara.
+  # La misma frontera esta escrita en `.descubrir_patrones_bloques()` y en
+  # `.desvios_patron_raro_detectados()`; se cambian juntas.
   indices_raros <- which(
-    seq_along(frecuencias) > 1L & proporciones < umbral_raro
+    seq_along(frecuencias) > 1L & proporciones <= umbral_raro
   )
   indices_no_dominantes_excluidos <- which(
-    seq_along(frecuencias) > 1L & proporciones >= umbral_raro
+    seq_along(frecuencias) > 1L & proporciones > umbral_raro
   )
   n_filas_patrones_no_dominantes_excluidos <- if (
     length(indices_no_dominantes_excluidos)
@@ -246,6 +256,13 @@ descubrir_patrones <- function(x,
   attr(resultado, "analizados") <- muestra_x$analizados
   attr(resultado, "filas_analizadas") <- muestra_x$analizados
   attr(resultado, "muestreado") <- muestra_x$muestreado
+  # El denominador de `proporcion`, publicado: con `na.rm = TRUE` son los
+  # valores analizados SIN los ausentes, que no tienen patron. `analizados`
+  # cuenta las filas de la muestra con sus `NA`, y `patron_raro` tomaba de ahi su
+  # `n_evaluados`: cien filas con dos `NA` publicaban `n_evaluados = 100` al lado
+  # de `proporcion_dominante = 0.918`, que es 90/98. Dos universos en el mismo
+  # hallazgo.
+  attr(resultado, "n_evaluados") <- as.integer(denominador)
   attr(resultado, "n_patrones_distintos") <- length(frecuencias)
   attr(resultado, "n_patrones_raros") <- n_patrones_raros
   attr(resultado, "patrones_raros_trazabilidad") <-

@@ -10950,11 +10950,24 @@ print.plan_perfilado_dbi <- function(x, ...) {
 .valores_protegidos_fuera_de_muestra_dbi <- function(conexion, preparacion,
                                                      perfil, sensibles,
                                                      presupuesto) {
-  completo <- list(valores = character(), completo = TRUE, motivo = NA_character_)
-  if (!length(sensibles) || !is.list(perfil) || !isTRUE(perfil$meta$muestreo)) {
-    return(completo)
-  }
+  completo <- list(valores = character(), completo = TRUE, motivo = NA_character_,
+                   fechas = character())
+  if (!length(sensibles) || !is.list(perfil)) return(completo)
   operar <- function(x) .nombres_para_operar(as.character(x))
+  sqlite <- grepl("sqlite", .senas_conexion_dbi(conexion), fixed = TRUE)
+  if (!isTRUE(perfil$meta$muestreo)) {
+    # Sin muestreo la muestra es la tabla, salvo en SQLite: RSQLite tipa una
+    # columna de afinidad numerica por sus primeras filas y lee el texto
+    # "5.765.432-1" guardado en ella como 5. La via por omision protegia MENOS
+    # que la muestreada sobre la misma tabla. Medido en la ronda 24. Ahi se
+    # relee como texto la columna protegida que no llego como texto.
+    if (!sqlite || !is.data.frame(perfil$columnas)) return(completo)
+    tipos <- perfil$columnas$tipo_declarado[
+      match(operar(sensibles), operar(perfil$columnas$columna))
+    ]
+    sensibles <- sensibles[is.na(tipos) | tipos != "texto"]
+    if (!length(sensibles)) return(completo)
+  }
   indices <- match(operar(sensibles), operar(preparacion$campos))
   indices <- indices[!is.na(indices)]
   if (!length(indices)) return(completo)
@@ -10969,15 +10982,14 @@ print.plan_perfilado_dbi <- function(x, ...) {
     as.character(v)
   }
   valores <- character()
+  fechas <- character()
   for (indice in indices) {
     campo <- preparacion$campos_sql[[indice]]
     # En SQLite una columna de afinidad NUMERIC guarda texto, y RSQLite la lee
     # como numero: "5.765.432-1" llegaba como 5 y no tapaba nada. Medido en la
     # ronda 22. Ahi se lee como texto; en los demas motores el tipo de la
     # columna manda, y un CAST a VARCHAR sin largo trunca en SQL Server.
-    expresion <- if (grepl("sqlite", .senas_conexion_dbi(conexion), fixed = TRUE)) {
-      paste0("CAST(", campo, " AS TEXT)")
-    } else campo
+    expresion <- if (sqlite) paste0("CAST(", campo, " AS TEXT)") else campo
     sql <- paste0(
       "SELECT DISTINCT ", expresion, " FROM ", preparacion$tabla_sql,
       " WHERE ", campo, " IS NOT NULL"
@@ -10994,7 +11006,11 @@ print.plan_perfilado_dbi <- function(x, ...) {
       )))
     }
     if (NROW(respuesta$datos)) {
-      valores <- unique(c(valores, como_texto(respuesta$datos[[1L]])))
+      leidos <- como_texto(respuesta$datos[[1L]])
+      valores <- unique(c(valores, leidos))
+      # El telefono con forma de fecha de una columna que no es de fechas: ver
+      # `.fechas_que_identifican()`.
+      fechas <- unique(c(fechas, .fechas_de_columna_no_fecha(leidos)))
     }
     if (length(valores) > .MAXIMO_VALORES_PROTEGIDOS_DBI) {
       return(list(valores = character(), completo = FALSE, motivo = paste0(
@@ -11004,13 +11020,15 @@ print.plan_perfilado_dbi <- function(x, ...) {
       )))
     }
   }
-  list(valores = valores[!is.na(valores)], completo = TRUE, motivo = NA_character_)
+  list(valores = valores[!is.na(valores)], completo = TRUE, motivo = NA_character_,
+       fechas = fechas)
 }
 
 # Lo que se aplica con los valores de la tabla entera: la misma proteccion que el
 # piso de `perfilar()`, en texto y en numeros.
-.proteger_con_valores_dbi <- function(x, valores, intocables) {
-  identificantes <- .valores_identificantes(unique(valores))
+.proteger_con_valores_dbi <- function(x, valores, intocables,
+                                      fechas = character()) {
+  identificantes <- .valores_identificantes(unique(valores), fechas)
   if (!length(identificantes) || is.null(x)) return(x)
   x <- .proteger_textos_salida(x, identificantes, intocables = intocables)
   columnas_antes <- x$columnas
@@ -11109,7 +11127,9 @@ print.plan_perfilado_dbi <- function(x, ...) {
       ),
       function(campo) as.character(columnas[[campo]][indices])
     ), use.names = FALSE)
-  )))
+    # Los de la muestra ya pasaron por el piso: una fecha que quedo es de una
+    # columna que no es de fechas.
+  )), valores_muestra)
   columnas$moda[indices & !is.na(columnas$moda)] <- reemplazo
   # Los estadisticos de orden son valores reales de una celda. Los momentos
   # tambien identifican cuando la columna es un documento: la media de las
@@ -12081,12 +12101,13 @@ print.plan_perfilado_dbi <- function(x, ...) {
   # que solo la moda SQL de la columna protegida contaba como protegida. Medido en
   # una refutacion: el titular que era la moda de otra columna se publicaba en el
   # resumen y en la corroboracion cruzada. Viajan en el bloque, nunca en el perfil.
-  valores_protegidos <- tryCatch(
-    .valores_identificantes(.valores_publicables_protegidos(
-      datos_muestra, .columnas_personales_protegidas(perfil$datos_personales)
-    )),
-    error = function(e) character()
-  )
+  valores_protegidos <- tryCatch({
+    protegidas <- .columnas_personales_protegidas(perfil$datos_personales)
+    .valores_identificantes(
+      .valores_publicables_protegidos(datos_muestra, protegidas),
+      .fechas_que_identifican(datos_muestra, protegidas)
+    )
+  }, error = function(e) character())
   list(perfil = perfil, cobertura = cobertura, muestreo = muestreo_meta,
        valores_protegidos = valores_protegidos)
 }
@@ -12690,7 +12711,11 @@ print.plan_perfilado_dbi <- function(x, ...) {
 #' familia no evaluada. `meta$origen_dbi$muestreo` conserva filas solicitadas,
 #' entregadas, reproducibilidad, `muestra_id`, `snapshot_id` y checksum. El
 #' método de impresión remite a esa cobertura cuando el campo no está
-#' disponible; no reemplaza la ausencia con `NULL` silencioso.
+#' disponible; no reemplaza la ausencia con `NULL` silencioso. Cuando el orden
+#' de la muestra del motor no se demostró estable, cada traza de `hallazgos` se
+#' publica `no_disponible` con `alcance = "orden_muestra_no_estable"`, sin
+#' índices ni claves y con su total; los patrones raros conservan su cantidad y
+#' retiran sus nombres.
 #' Bajo `bloque_filas`, `perfil_muestra` sigue siendo la muestra diagnóstica
 #' acotada por `muestra`, `max_celdas_muestra` y `max_bytes_muestra`; no es la
 #' cobertura completa. Por eso `perfil_muestra$general$filas` es el tamaño de
@@ -13008,7 +13033,10 @@ print.plan_perfilado_dbi <- function(x, ...) {
 #' personales —moda, extremos, ejemplos— y la evidencia de sus hallazgos, y
 #' `resumen_tabla$meta$proteccion_personal$fuera_de_muestra` dice por qué. En
 #' SQLite los valores se leen como texto, porque una columna de afinidad
-#' numérica guarda texto y el controlador lo convertía en número; y el motivo
+#' numérica guarda texto y el controlador lo convertía en número; también sin
+#' muestreo, cuando la muestra es la tabla entera: ahí se releen como texto, con
+#' una consulta, las columnas protegidas que el controlador no leyó como texto.
+#' Y el motivo
 #' de una cifra que no se pudo leer como número no cita el valor de una columna
 #' protegida.
 #' `incluir_valores = FALSE` va más lejos: no emite las consultas de moda ni de
@@ -13946,9 +13974,11 @@ perfilar_dbi <- function(conexion, tabla,
       )
       if (isTRUE(fuera$completo)) {
         intocables <- as.character(resumen$columnas$columna)
-        resumen <- .proteger_con_valores_dbi(resumen, fuera$valores, intocables)
+        resumen <- .proteger_con_valores_dbi(
+          resumen, fuera$valores, intocables, fuera$fechas
+        )
         bloque$perfil <- .proteger_con_valores_dbi(
-          bloque$perfil, fuera$valores, intocables
+          bloque$perfil, fuera$valores, intocables, fuera$fechas
         )
       } else {
         cerrado <- .cerrar_fuera_de_muestra_dbi(

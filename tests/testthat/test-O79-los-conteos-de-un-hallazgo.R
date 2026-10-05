@@ -117,7 +117,15 @@ test_that("el centinela declara el mismo universo que sus hermanos", {
   expect_identical(universo("outliers"), 26)
   # Y los que miran la columna entera siguen en 28: la agenda no es igualar todo,
   # es que cada uno declare el universo donde de verdad miro.
-  expect_identical(universo("patron_raro"), 28)
+  #
+  # `patron_raro` NO mira la columna entera, y aca decia 28. La entrada de NEWS
+  # que fijo este valor agrupaba tres diagnosticos -`patron_raro`, `faltantes`,
+  # `filas_duplicadas`- como "su universo real", y para `patron_raro` la premisa
+  # era falsa: la fila `NA` no tiene patron, sus proporciones se calculan sobre
+  # las filas con valor y su traza no la mira. Su universo son las 27 filas con
+  # valor (ronda 24-C). `faltantes` y `filas_duplicadas` si miran la columna
+  # entera y siguen en 28.
+  expect_identical(universo("patron_raro"), 27)
 })
 
 test_that("sin valores excluidos, el centinela cuenta la columna entera", {

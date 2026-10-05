@@ -213,9 +213,21 @@ transiciones_granularidad <- function() {
     function(x) length(unique(x)) != 1L, logical(1L)
   )]
   if (length(no_unicos)) {
+    # Dos corridas no son una: el agregado describe un momento. El mensaje decia
+    # solo "deben compartir: fecha", y la ayuda de `organizacion()` prometia
+    # reunir colecciones de momentos distintos. Ronda 24.
+    corridas <- if (any(c("id_medicion", "fecha") %in% no_unicos)) {
+      paste0(
+        " Las medidas vienen de ", length(unique(paste(medidas$id_medicion,
+                                                       medidas$fecha))),
+        " corridas: un agregado describe un momento, as\u00ed que sus partes ",
+        "se miden en una misma corrida, y las de momentos distintos se siguen ",
+        "cada una con `historico_calidad()`."
+      )
+    } else ""
     stop(
       "Las medidas deben compartir: ", paste(no_unicos, collapse = ", "), ".",
-      call. = FALSE
+      corridas, call. = FALSE
     )
   }
   # Una medida repetida se contaba dos veces, y dos datos con el mismo
@@ -275,13 +287,19 @@ transiciones_granularidad <- function() {
     stop("La granularidad de destino todav\u00eda no admite agregaci\u00f3n.",
          call. = FALSE)
   )
+  # La clave se arma con el CODIGO de cada nivel, no con su nombre:
+  # `interaction()` pega los nombres con un punto, y la tabla `ventas.total` con
+  # la columna `mes` y la tabla `ventas` con la columna `total.mes` caian en el
+  # mismo grupo -un solo atributo con 0,625 donde habia dos, 1 y 0,25-. Los
+  # codigos van rellenados para que el orden lexicografico siga siendo el de los
+  # niveles. Medido en la ronda 24.
   clave <- do.call(
     interaction,
     c(lapply(claves, function(x) {
       valores <- if (is.character(x) || is.factor(x)) {
         .nombres_para_operar(as.character(x))
       } else x
-      addNA(as.factor(valores))
+      sprintf("%09d", as.integer(addNA(as.factor(valores))))
     }),
       list(drop = TRUE, lex.order = TRUE))
   )
@@ -300,6 +318,16 @@ transiciones_granularidad <- function() {
   )
 }
 
+# Las partes de un objeto de varias, unidas con coma. Un nombre que ya trae una
+# coma va entre comillas invertidas: `a, b` y `c` daban "a, b, c", lo mismo que
+# `a` y `b, c`, y el tablero no podia distinguir las dos celdas. Ronda 24.
+.unir_nombres_partes <- function(x) {
+  x <- .identificadores_ordenados(x)
+  con_coma <- grepl(",", x, fixed = TRUE)
+  x[con_coma] <- paste0("`", x[con_coma], "`")
+  paste(x, collapse = ", ")
+}
+
 .objeto_agregado <- function(medidas, indices, destino) {
   entidades <- .identificadores_unicos(medidas$entidad[indices])
   switch(
@@ -309,11 +337,7 @@ transiciones_granularidad <- function() {
       entidades[[1L]], "[", medidas$fila[indices[[1L]]], ",]"
     ),
     entidad = entidades[[1L]],
-    conjuntoEntidades = paste(.identificadores_ordenados(entidades), collapse = ", "),
-    coleccion = paste(.identificadores_ordenados(entidades), collapse = ", "),
-    conjuntoColecciones = paste(.identificadores_ordenados(entidades), collapse = ", "),
-    organizacion = paste(.identificadores_ordenados(entidades), collapse = ", "),
-    conjuntoOrganizaciones = paste(.identificadores_ordenados(entidades), collapse = ", ")
+    .unir_nombres_partes(entidades)
   )
 }
 # Estos dos ayudantes van ANTES del bloque `roxygen` de `agregar()`, y no entre
@@ -322,6 +346,41 @@ transiciones_granularidad <- function() {
 # de exportarse y un interno con punto quedo exportado. La suite no lo vio
 # porque `pkgload::load_all()` expone todo; en un paquete instalado
 # `lupa::agregar()` no habria existido.
+
+# El objeto de un `id_medida` agregado. Cada nombre se escapa -la barra
+# invertida, el punto, la coma, `#`, `@` y los corchetes- antes de unirlo, para
+# que la tabla `ventas.total` con la columna `mes` y la tabla `ventas` con la
+# columna `total.mes` no den el mismo identificador. Y los niveles de arriba
+# nombran sus PARTES: el conjunto se llamaba siempre `conjuntoColecciones`, una
+# coleccion sin nombre siempre `coleccion`, y dos objetos distintos salian con
+# el mismo `id_medida` -la union se rechazaba como "unida consigo misma"-.
+# Medido en la ronda 24.
+.escapar_parte_id <- function(x) {
+  gsub("([\\]\\[\\\\.,#@])", "\\\\\\1", as.character(x), perl = TRUE)
+}
+
+.id_objeto_agregado <- function(medidas, indices, destino, nombre = NULL) {
+  primera <- indices[[1L]]
+  partes <- function() {
+    paste0("[", paste(.escapar_parte_id(.identificadores_ordenados(
+      .identificadores_unicos(medidas$entidad[indices])
+    )), collapse = ","), "]")
+  }
+  switch(
+    destino,
+    atributo = paste0(
+      .escapar_parte_id(medidas$entidad[[primera]]), ".",
+      .escapar_parte_id(medidas$atributo[[primera]])
+    ),
+    instanciaEntidad = paste0(
+      .escapar_parte_id(medidas$entidad[[primera]]), "#", medidas$fila[[primera]]
+    ),
+    entidad = .escapar_parte_id(medidas$entidad[[primera]]),
+    coleccion = ,
+    organizacion = paste0(.escapar_parte_id(nombre), partes()),
+    partes()
+  )
+}
 
 .validar_coleccion_destino <- function(coleccion) {
   if (is.null(coleccion)) {
@@ -498,11 +557,12 @@ transiciones_granularidad <- function() {
       "perfilar_coleccion().", call. = FALSE
     )
   }
+  desde_objeto <- vapply(colecciones, function(x) {
+    if (inherits(x, "coleccion_lupa")) x$nombre else x$meta$nombre
+  }, character(1L))
   nombres <- names(colecciones)
   if (is.null(nombres) || anyNA(nombres) || any(!nzchar(nombres))) {
-    nombres <- vapply(colecciones, function(x) {
-      if (inherits(x, "coleccion_lupa")) x$nombre else x$meta$nombre
-    }, character(1L))
+    nombres <- desde_objeto
   }
   if (anyNA(nombres) || any(!nzchar(nombres)) ||
       anyDuplicated(.nombres_para_operar(nombres))) {
@@ -512,7 +572,12 @@ transiciones_granularidad <- function() {
     )
   }
   names(colecciones) <- nombres
-  list(nombre = "conjuntoColecciones", declaradas = nombres)
+  # El nombre de lista manda, y el del objeto -el que `agregar()` escribio en la
+  # coleccion- la sigue reconociendo: el alias que ya tenia el conjunto de
+  # organizaciones. Sin el, la lista que renombraba sus colecciones abortaba.
+  # Medido en la ronda 24.
+  list(nombre = "conjuntoColecciones", declaradas = nombres,
+       alias = unname(desde_objeto))
 }
 
 # La cobertura de una frontera declarada es siempre la misma pregunta -cuantas
@@ -568,7 +633,32 @@ transiciones_granularidad <- function() {
 # total que no esta en ninguna unidad. Cuando no lo es, se declara la mezcla en
 # lugar de sumar.
 .alcance_agregado <- function(alcance, medidas, resultado, grupos) {
-  if (is.null(alcance) || !NROW(alcance)) return(NULL)
+  # Desde la base -celdas o filas- una medida es una unidad del universo, asi
+  # que las partes completas se cuentan aunque `medir()` no publique alcance
+  # para ellas. Mas arriba, una medida es un agregado de muchas, y sus unidades
+  # solo se conocen por las `completas` del paso anterior. Antes, sin ninguna
+  # parte parcial, se devolvia NULL y las completas se perdian: el conjunto de
+  # una coleccion completa y una parcial publicaba "5 de 9" donde eran 12 de 16.
+  # Medido en la ronda 24.
+  desde_la_base <- NROW(medidas) > 0L && all(
+    as.character(medidas$granularidad) %in% c("instanciaAtributo", "instanciaEntidad")
+  )
+  unidad_base <- if (desde_la_base &&
+                     all(as.character(medidas$granularidad) == "instanciaAtributo")) {
+    "celda"
+  } else "fila"
+  if (is.null(alcance) || !NROW(alcance)) {
+    completas_previas <- if (is.null(alcance)) NULL else attr(alcance, "completas", exact = TRUE)
+    hay_previas <- inherits(completas_previas, "data.frame") && NROW(completas_previas) > 0L
+    if (!desde_la_base && !hay_previas) return(NULL)
+    vacia <- data.frame(
+      metrica_instanciada = character(), entidad = character(),
+      atributo = character(), unidad = character(), en_el_universo = numeric(),
+      medidas = numeric(), motivo = character(), stringsAsFactors = FALSE
+    )
+    if (hay_previas) attr(vacia, "completas") <- completas_previas
+    alcance <- vacia
+  }
   # El alcance se empareja con las medidas del grupo por el PAR metrica y
   # entidad, no por la metrica sola. Desde el segundo nivel todas las entidades
   # comparten el nombre de la metrica agregada -`agregada:ratio:Formato`-, y
@@ -600,6 +690,7 @@ transiciones_granularidad <- function() {
   clave_alcance <- par(alcance$metrica_instanciada, alcance$entidad, alcance$atributo)
   clave_medidas <- par(medidas$metrica_instanciada, medidas$entidad, medidas$atributo)
   unidades_declaradas <- unique(as.character(alcance$unidad))
+  if (!length(unidades_declaradas) && desde_la_base) unidades_declaradas <- unidad_base
   # A una FILA -`instanciaEntidad` desde celdas- no se le atribuye el alcance
   # de la columna entera: cada fila cuenta cuantas de las instancias de su tabla
   # tienen medida en ella, y se declaran las que no estan completas. Antes las
@@ -690,16 +781,22 @@ transiciones_granularidad <- function() {
   completas <- c(filas[es_completa], if (!is.null(completas_suma) && nrow(completas_suma)) {
     list(completas_suma)
   })
-  if (is.null(salida) || !nrow(salida)) return(NULL)
-  rownames(salida) <- NULL
-  if (length(completas)) {
+  tabla_completas <- if (length(completas)) {
     tabla <- do.call(rbind, lapply(completas, function(f) {
       attr(f, "completa") <- NULL
       f
     }))
     rownames(tabla) <- NULL
-    attr(salida, "completas") <- tabla
+    tabla
   }
+  # Sin partes parciales no se publica alcance -todo esta completo-, pero las
+  # completas viajan igual, en una tabla vacia, para que el paso siguiente sume.
+  if (is.null(salida) || !nrow(salida)) {
+    if (is.null(tabla_completas)) return(NULL)
+    salida <- tabla_completas[0L, , drop = FALSE]
+  }
+  rownames(salida) <- NULL
+  if (!is.null(tabla_completas)) attr(salida, "completas") <- tabla_completas
   salida
 }
 
@@ -796,18 +893,50 @@ transiciones_granularidad <- function() {
   )
 }
 
-.heredar_cobertura_de_partes <- function(resultado, medidas, destino) {
-  atributos <- c(
-    "cobertura_coleccion", "cobertura_conjunto_colecciones",
-    "cobertura_organizacion", "cobertura_conjunto_organizaciones"
+# Las cuatro coberturas de frontera, en un solo lugar: las leen `agregar()`,
+# `rbind()` de mediciones y `evaluar()`.
+.ATRIBUTOS_COBERTURA_FRONTERA <- c(
+  "cobertura_coleccion", "cobertura_conjunto_colecciones",
+  "cobertura_organizacion", "cobertura_conjunto_organizaciones"
+)
+
+# Una lista de coberturas sin repetidas: la misma parte puede llegar por dos
+# caminos -el atributo directo y `cobertura_de_partes`- y se cuenta una vez. Los
+# nombres de la lista son el atributo de origen y PUEDEN repetirse: dos
+# colecciones unidas con `rbind()` traen dos `cobertura_coleccion`.
+.coberturas_sin_repetir <- function(coberturas) {
+  if (!length(coberturas)) return(list())
+  repetida <- vapply(seq_along(coberturas), function(i) {
+    i > 1L && any(vapply(coberturas[seq_len(i - 1L)], identical, logical(1L),
+                         coberturas[[i]]))
+  }, logical(1L))
+  coberturas[!repetida]
+}
+
+# Como se llama la parte de una cobertura, para decir cual vino incompleta. Se
+# publicaba el nombre del ATRIBUTO -"cobertura_coleccion"-, no el de la parte.
+.etiqueta_cobertura_parte <- function(atributo, cobertura) {
+  nombre <- if (!is.null(cobertura$coleccion)) cobertura$coleccion else cobertura$conjunto
+  nombre <- if (is.null(nombre) || !length(nombre)) "" else as.character(nombre[[1L]])
+  switch(
+    atributo,
+    cobertura_coleccion = paste0("colecci\u00f3n ", nombre),
+    cobertura_organizacion = paste0("organizaci\u00f3n ", nombre),
+    cobertura_conjunto_colecciones = "conjunto de colecciones",
+    cobertura_conjunto_organizaciones = "conjunto de organizaciones",
+    atributo
   )
+}
+
+.heredar_cobertura_de_partes <- function(resultado, medidas, destino) {
   heredadas <- list()
-  for (nombre in atributos) {
+  for (nombre in .ATRIBUTOS_COBERTURA_FRONTERA) {
     previa <- attr(medidas, nombre, exact = TRUE)
-    if (!is.null(previa)) heredadas[[nombre]] <- previa
+    if (!is.null(previa)) heredadas <- c(heredadas, stats::setNames(list(previa), nombre))
   }
   anteriores <- attr(medidas, "cobertura_de_partes", exact = TRUE)
   if (!is.null(anteriores)) heredadas <- c(anteriores, heredadas)
+  heredadas <- .coberturas_sin_repetir(heredadas)
   if (!length(heredadas)) return(resultado)
   attr(resultado, "cobertura_de_partes") <- heredadas
   # Y la cobertura propia de este nivel se corrige: si alguna parte venia
@@ -830,7 +959,9 @@ transiciones_granularidad <- function() {
   )
   if (!any(parciales)) return(resultado)
   cobertura <- attr(resultado, propio, exact = TRUE)
-  cobertura$partes_incompletas <- names(heredadas)[parciales]
+  cobertura$partes_incompletas <- unname(mapply(
+    .etiqueta_cobertura_parte, names(heredadas)[parciales], heredadas[parciales]
+  ))
   cobertura$completo <- FALSE
   cobertura$advertencia <- paste0(
     cobertura$advertencia,
@@ -883,7 +1014,8 @@ transiciones_granularidad <- function() {
 #' por objeto de destino, y sólo cuando todas las partes declaran la misma
 #' unidad; si no, la fila declara la mezcla en lugar de publicar un total que no
 #' estaría en ninguna unidad. Las partes **completas** también suman —una
-#' columna de 6 de 6 junto a una de 5 de 6 da 11 de 12—, y en un destino por
+#' columna de 6 de 6 junto a una de 5 de 6 da 11 de 12—, también cuando se
+#' agregaron por separado y se unieron con `rbind()`; y en un destino por
 #' fila (`instanciaEntidad`) cada fila cuenta sus propias celdas: se declaran
 #' sólo las incompletas, con su número de fila en el motivo.
 #'
@@ -892,7 +1024,10 @@ transiciones_granularidad <- function() {
 #' fila agregada nombra lo que agrega —destino, función, métrica y objeto, como
 #' `M-agg-atributo-ratio-NoNulo@t.x`—, así que dos partes agregadas por separado
 #' se pueden unir y subir de nivel, y el mismo agregado repetido sigue
-#' repitiendo su identificador. Un valor que no se
+#' repitiendo su identificador. Cada nombre lleva escapados los signos que lo
+#' separan del siguiente —el punto, la coma—, y desde la colección para arriba
+#' el identificador nombra también las partes que reúne: dos conjuntos
+#' distintos, o dos colecciones sin nombre, no comparten identificador. Un valor que no se
 #' puede agregar se rechaza nombrando la métrica y la causa: un tipo no
 #' acotado, una medida ausente o suprimida, o un valor fuera de `[0, 1]`.
 #' `umbral` sólo se acepta con `ratio_umbral`, y el borde se compara con
@@ -900,7 +1035,11 @@ transiciones_granularidad <- function() {
 #'
 #' Las coberturas de frontera (`cobertura_coleccion` y sus hermanas) **no** se
 #' arrastran: cada agregación calcula la de su propio destino con las partes que
-#' entraron a ese número.
+#' entraron a ese número, y hereda las de sus partes en `cobertura_de_partes`.
+#' Dos partes agregadas por separado y unidas con `rbind()` conservan cada una
+#' la suya, en cualquier orden de la unión, y el tablero, el índice, el
+#' informe, [evaluar()] e [historico_calidad()] las publican todas. Una
+#' colección lleva en `cobertura_metricas` sólo la de sus propias tablas.
 #'
 #' @section Los pesos se publican:
 #'
@@ -931,9 +1070,13 @@ transiciones_granularidad <- function() {
 #' @param umbral Umbral en `[0, 1]` requerido por `ratio_umbral`.
 #' @param pesos Vector numérico requerido por `promedio_ponderado`, con una
 #'   entrada por fila de `medidas`. Si trae nombres, se emparejan con
-#'   `objeto_medible` y se falla nombrando lo que sobra o falta —igual que en
-#'   [indice_calidad()]—, así que la misma declaración escrita en otro orden da
-#'   el mismo número. Sin nombres se leen por posición.
+#'   `objeto_medible` o con el nombre de la parte —el que declaró la frontera,
+#'   o el del objeto que la lista renombró— y se falla nombrando lo que sobra o
+#'   falta —igual que en [indice_calidad()], también cuando un nombre sólo
+#'   difiere en su forma Unicode—, así que la misma declaración escrita en otro
+#'   orden da el mismo número. Si los nombres casan con los dos vocabularios y
+#'   reparten distinto, se rechaza: no se puede saber a cuáles se refieren. Sin
+#'   nombres se leen por posición.
 #' @param coleccion Frontera declarada, exigida cuando `destino` es
 #'   `"coleccion"`: el objeto de [coleccion()] o el perfil de
 #'   [perfilar_coleccion()]. Sin ella no se sabe sobre qué tablas se está
@@ -941,7 +1084,8 @@ transiciones_granularidad <- function() {
 #' @param colecciones Lista nombrada de objetos de [coleccion()] o
 #'   [perfilar_coleccion()], exigida cuando `destino` es
 #'   `"conjuntoColecciones"`. Los nombres declaran la identidad y la frontera
-#'   del conjunto; no se agregan organizaciones ni otros alcances implícitos.
+#'   del conjunto, y mandan sobre el del objeto, que la sigue reconociendo; no
+#'   se agregan organizaciones ni otros alcances implícitos.
 #' @param organizacion Frontera institucional declarada con [organizacion()],
 #'   exigida cuando `destino` es `"organizacion"`. Qué bases pertenecen a un
 #'   organismo **no está en los datos**, así que lo declara quien lo sabe.
@@ -1009,6 +1153,7 @@ agregar <- function(medidas, destino,
   conjunto <- NULL
   if (identical(destino, "conjuntoColecciones")) {
     conjunto <- .validar_conjunto_colecciones(colecciones)
+    medidas$entidad <- .resolver_partes_frontera(medidas$entidad, conjunto)
     ajenas <- .identificadores_setdiff(
       .identificadores_unicos(medidas$entidad), conjunto$declaradas
     )
@@ -1026,6 +1171,7 @@ agregar <- function(medidas, destino,
       stop(.mensaje_granularidad_sin_frontera(destino), call. = FALSE)
     }
     organismo <- .validar_organizacion_destino(organizacion)
+    medidas$entidad <- .resolver_partes_frontera(medidas$entidad, organismo)
     ajenas <- .identificadores_setdiff(
       .identificadores_unicos(medidas$entidad), organismo$declaradas
     )
@@ -1045,11 +1191,14 @@ agregar <- function(medidas, destino,
       stop(.mensaje_granularidad_sin_frontera(destino), call. = FALSE)
     }
     conjunto_organismos <- .validar_conjunto_organizaciones(organizaciones)
-    entidades_resueltas <- .resolver_partes_frontera(
+    # Las medidas pasan a llamarse como las declara la frontera: los pesos, la
+    # cobertura y el objeto del agregado hablan ese idioma. Antes solo el chequeo
+    # de ajenas lo traducia, y los pesos con el nombre declarado se rechazaban.
+    medidas$entidad <- .resolver_partes_frontera(
       medidas$entidad, conjunto_organismos
     )
     ajenas <- .identificadores_setdiff(
-      .identificadores_unicos(entidades_resueltas),
+      .identificadores_unicos(medidas$entidad),
       conjunto_organismos$declaradas
     )
     if (length(ajenas)) {
@@ -1165,6 +1314,17 @@ agregar <- function(medidas, destino,
       # exige- se rechazaban, y habia que escribir `c("t1, t3" = 0.5, ...)`, que
       # nadie declaro en ningun lado. La frontera y sus pesos tienen que hablar
       # el mismo idioma.
+      # El nombre del objeto sigue reconociendo a la parte que la lista renombro:
+      # los pesos escritos con el se traducen al nombre declarado, como las
+      # medidas. Ronda 24.
+      frontera_con_alias <- if (!is.null(conjunto)) {
+        conjunto
+      } else if (!is.null(organismo)) {
+        organismo
+      } else conjunto_organismos
+      if (!is.null(frontera_con_alias$alias)) {
+        names(pesos) <- .resolver_partes_frontera(names(pesos), frontera_con_alias)
+      }
       partes_medidas <- as.character(medidas$objeto_medible)
       entidades_medidas <- if ("entidad" %in% names(medidas)) {
         as.character(medidas$entidad)
@@ -1172,11 +1332,27 @@ agregar <- function(medidas, destino,
         rep(NA_character_, length(partes_medidas))
       }
       por_objeto <- !length(.identificadores_setdiff(partes_medidas, names(pesos)))
-      partes_elegidas <- if (!por_objeto &&
-                             !anyNA(entidades_medidas) &&
-                             !length(.identificadores_setdiff(
-                               entidades_medidas, names(pesos)
-                             ))) {
+      por_entidad <- !anyNA(entidades_medidas) &&
+        !length(.identificadores_setdiff(entidades_medidas, names(pesos)))
+      # Si los nombres casan con los DOS vocabularios y reparten distinto, no hay
+      # como saber a cual se refieren: ganaba `objeto_medible` en silencio, y una
+      # coleccion `a` con la tabla `b` recibia el peso escrito para `b`. Medido
+      # en la ronda 24: 0,925 publicado donde el peso por coleccion daba 0,325.
+      if (por_objeto && por_entidad) {
+        segun_objeto <- unname(pesos[.indice_identificador(partes_medidas, names(pesos))])
+        segun_entidad <- unname(pesos[.indice_identificador(entidades_medidas, names(pesos))])
+        if (!isTRUE(all.equal(segun_objeto, segun_entidad))) {
+          stop(
+            "Los nombres de `pesos` casan a la vez con los objetos medidos (",
+            paste0("`", .identificadores_unicos(partes_medidas), "`", collapse = ", "),
+            ") y con las partes declaradas (",
+            paste0("`", .identificadores_unicos(entidades_medidas), "`", collapse = ", "),
+            "), y reparten distinto: no se puede saber a cu\u00e1les se refieren. ",
+            "Decl\u00e1relos por posici\u00f3n, en el orden de las medidas.", call. = FALSE
+          )
+        }
+      }
+      partes_elegidas <- if (!por_objeto && por_entidad) {
         entidades_medidas
       } else {
         partes_medidas
@@ -1203,6 +1379,7 @@ agregar <- function(medidas, destino,
               " o los de ", entre_comillas(entidades_medidas), "."
             )
           } else "",
+          .pista_forma_distinta(faltan, sobran),
           call. = FALSE
         )
       }
@@ -1243,6 +1420,11 @@ agregar <- function(medidas, destino,
     etiquetas_pesos <- as.character(medidas$objeto_medible)
   }
   grupos <- .indices_grupos_agregacion(medidas, destino)
+  nombre_frontera <- if (identical(destino, "coleccion")) {
+    coleccion$nombre
+  } else if (identical(destino, "organizacion")) {
+    organismo$nombre
+  } else NULL
   if (funcion == "promedio_ponderado") {
     sumas <- vapply(grupos, function(i) sum(pesos[i]), numeric(1L))
     if (any(abs(sumas - 1) > sqrt(.Machine$double.eps))) {
@@ -1257,9 +1439,7 @@ agregar <- function(medidas, destino,
       if (is.null(pesos)) NULL else pesos[indices]
     )
     entidad <- if (destino == "conjuntoEntidades") {
-      paste(.identificadores_ordenados(
-        .identificadores_unicos(medidas$entidad[indices])
-      ), collapse = ", ")
+      .unir_nombres_partes(.identificadores_unicos(medidas$entidad[indices]))
     } else if (destino == "coleccion") {
       coleccion$nombre
     } else if (destino == "conjuntoColecciones") {
@@ -1313,12 +1493,9 @@ agregar <- function(medidas, destino,
   # -el camino documentado para subir a `conjuntoColecciones`- salian con el
   # mismo `id_medida`: `evaluar()` rechazaba la union. El mismo agregado repetido
   # sigue repitiendo su identificador. Medido en la ronda 23.
-  objeto_id <- switch(
-    destino,
-    atributo = paste0(resultado$entidad, ".", resultado$atributo),
-    instanciaEntidad = paste0(resultado$entidad, "#", resultado$fila),
-    resultado$entidad
-  )
+  objeto_id <- vapply(grupos, function(indices) {
+    .id_objeto_agregado(medidas, indices, destino, nombre_frontera)
+  }, character(1L), USE.NAMES = FALSE)
   resultado$id_medida <- paste0(
     resultado$id_medicion, "-agg-", destino, "-", funcion, "-",
     resultado$metrica_especifica, "@", objeto_id
@@ -1363,6 +1540,25 @@ agregar <- function(medidas, destino,
     valor_atributo <- attr(medidas, nombre_atributo, exact = TRUE)
     if (!is.null(valor_atributo)) attr(resultado, nombre_atributo) <- valor_atributo
   }
+  # La coleccion lleva la cobertura de SUS tablas. Medidas tomadas de una
+  # `medir()` que reunia dos colecciones traian la de la otra -"la entidad `a3`
+  # tiene cero filas" en la coleccion que no tiene `a3`-, y con una regla sin
+  # `metricas` el veredicto de una coleccion completa salia NA. Medido en la
+  # ronda 24.
+  cobertura_metricas <- attr(resultado, "cobertura_metricas", exact = TRUE)
+  if (identical(destino, "coleccion") &&
+      inherits(cobertura_metricas, "data.frame") && nrow(cobertura_metricas) &&
+      "entidad" %in% names(cobertura_metricas)) {
+    propias <- .identificadores_en(
+      as.character(cobertura_metricas$entidad), coleccion$declaradas
+    )
+    propias[is.na(propias)] <- FALSE
+    cobertura_metricas <- cobertura_metricas[propias, , drop = FALSE]
+    rownames(cobertura_metricas) <- NULL
+    attr(resultado, "cobertura_metricas") <- if (nrow(cobertura_metricas)) {
+      cobertura_metricas
+    } else NULL
+  }
   # Y el alcance, que es el unico que no viaja igual: se reexpresa en la clave del
   # agregado. Ver `.alcance_agregado()`.
   attr(resultado, "alcance_medidas") <- .alcance_agregado(
@@ -1385,9 +1581,7 @@ agregar <- function(medidas, destino,
   if (identical(destino, "conjuntoOrganizaciones")) {
     attr(resultado, "cobertura_conjunto_organizaciones") <-
       .cobertura_frontera_declarada(
-        conjunto_organismos,
-        .resolver_partes_frontera(medidas$entidad, conjunto_organismos),
-        "organizacion"
+        conjunto_organismos, medidas$entidad, "organizacion"
       )
   }
   # La cobertura de las partes no se pierde al subir de nivel. Un conjunto

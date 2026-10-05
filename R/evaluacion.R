@@ -610,6 +610,30 @@ perfiles_madurez <- function(metricas = NULL, umbrales = NULL) {
   resultado
 }
 
+# Una regla sobre un AGREGADO nombra la metrica agregada -`agregada:ratio:NoNulo`-
+# y la cobertura nombra la instancia que no se pudo medir -`NoNulo@a2.x`-: no
+# casaban nunca, y el numero que excluia la parte sin medir se evaluaba como
+# completo. La deriva lo leia como mejora. Una fila de la cobertura afecta a la
+# regla si alguna fila agregada de la medicion es de la misma metrica
+# especifica y la regla la nombra. Medido en la ronda 24.
+.faltante_en_agregado <- function(faltantes, medicion, metricas) {
+  if (!nrow(faltantes) || !"metrica_especifica" %in% names(faltantes) ||
+      !all(c("agregacion", "metrica_especifica") %in% names(medicion))) {
+    return(rep(FALSE, nrow(faltantes)))
+  }
+  agregadas <- !is.na(medicion$agregacion)
+  if (!any(agregadas)) return(rep(FALSE, nrow(faltantes)))
+  vapply(seq_len(nrow(faltantes)), function(i) {
+    propias <- agregadas & .identificadores_en(
+      as.character(medicion$metrica_especifica),
+      as.character(faltantes$metrica_especifica[[i]])
+    )
+    any(.identificadores_en(
+      .identificadores_unicos(medicion$metrica_instanciada[propias]), metricas
+    ))
+  }, logical(1L))
+}
+
 .completar_evaluaciones_regla <- function(resumen, medicion, perfil) {
   cobertura <- attr(medicion, "cobertura_metricas", exact = TRUE)
   if (!inherits(cobertura, "data.frame") || !nrow(cobertura)) {
@@ -632,7 +656,8 @@ perfiles_madurez <- function(metricas = NULL, umbrales = NULL) {
         faltantes_id[
         .identificadores_en(
           faltantes_id$metrica_instanciada, regla$metricas
-        ), , drop = FALSE
+        ) | .faltante_en_agregado(faltantes_id, medicion, regla$metricas), ,
+        drop = FALSE
         ]
       }
       if (!nrow(faltantes)) next
@@ -1008,8 +1033,60 @@ rbind.medicion <- function(..., deparse.level = 1) {
     if (length(tablas)) {
       tabla <- unique(do.call(rbind.data.frame, tablas))
       rownames(tabla) <- NULL
+      # Las partes COMPLETAS del alcance viajan en un atributo de la tabla, y
+      # `rbind()` se quedaba con las del primero: una coleccion completa unida a
+      # una parcial entraba al conjunto como "1 de 1". Ronda 24.
+      completas <- Filter(
+        function(t) inherits(t, "data.frame") && nrow(t),
+        lapply(tablas, attr, which = "completas", exact = TRUE)
+      )
+      if (length(completas)) {
+        unidas <- unique(do.call(rbind.data.frame, completas))
+        rownames(unidas) <- NULL
+        attr(tabla, "completas") <- unidas
+      }
       attr(resultado, atributo) <- tabla
     }
+  }
+  # Las coberturas de FRONTERA son de cada parte: dos colecciones agregadas por
+  # separado y unidas traen una cada una, y `rbind()` dejaba la del primero. El
+  # conjunto salia completo o incompleto segun el orden de la union, y la tabla
+  # que no habia entrado desaparecia. Si todas las partes traen la misma, queda;
+  # si no, todas pasan a `cobertura_de_partes`, que es donde `agregar()` y los
+  # lectores las buscan. Medido en la ronda 24.
+  partes_cobertura <- .coberturas_sin_repetir(unlist(lapply(
+    mediciones, function(m) attr(m, "cobertura_de_partes", exact = TRUE)
+  ), recursive = FALSE))
+  for (atributo in .ATRIBUTOS_COBERTURA_FRONTERA) {
+    valores <- Filter(Negate(is.null), lapply(mediciones, attr, which = atributo,
+                                              exact = TRUE))
+    valores <- .coberturas_sin_repetir(valores)
+    if (length(valores) == 1L) {
+      attr(resultado, atributo) <- valores[[1L]]
+    } else if (length(valores) > 1L) {
+      attr(resultado, atributo) <- NULL
+      partes_cobertura <- c(
+        partes_cobertura,
+        stats::setNames(valores, rep(atributo, length(valores)))
+      )
+    }
+  }
+  if (length(partes_cobertura)) {
+    attr(resultado, "cobertura_de_partes") <- .coberturas_sin_repetir(partes_cobertura)
+  }
+  sin_peso <- unlist(lapply(mediciones, attr, which = "partes_con_peso_cero",
+                            exact = TRUE), use.names = FALSE)
+  if (length(sin_peso)) {
+    attr(resultado, "partes_con_peso_cero") <- .identificadores_unicos(sin_peso)
+  }
+  pesos <- unlist(lapply(mediciones, function(m) {
+    p <- attr(m, "pesos_declarados", exact = TRUE)
+    if (is.null(p)) NULL else as.list(p)
+  }), recursive = FALSE)
+  if (length(pesos)) {
+    pesos <- unlist(pesos)
+    repetido <- duplicated(paste(names(pesos), pesos, sep = "\r"))
+    attr(resultado, "pesos_declarados") <- pesos[!repetido]
   }
   declaradas <- lapply(mediciones, attr, which = "fecha_declarada", exact = TRUE)
   if (!all(vapply(declaradas, is.null, logical(1L)))) {
@@ -1137,6 +1214,7 @@ print.evaluacion_calidad <- function(x, ...) {
       ". El detalle esta en `attr(evaluacion, \"cobertura_reglas\")`."
     )))
   }
+  .imprimir_cobertura_coleccion(.cobertura_coleccion_de(original))
   invisible(original)
 }
 
@@ -1163,7 +1241,12 @@ print.evaluacion_calidad <- function(x, ...) {
 #'   contiene además `desenlaces`, un plan que identifica las medidas
 #'   incumplidas, el valor medido, el motivo y la regla que lo produjo.
 #'   Cuando una métrica no pudo medirse, conserva `cobertura_metricas` y deja
-#'   en `NA` el resumen afectado, en lugar de tratar la ausencia como éxito.
+#'   en `NA` el resumen afectado, en lugar de tratar la ausencia como éxito;
+#'   también sobre un agregado, donde la regla nombra la métrica agregada
+#'   —`agregada:ratio:NoNulo`— y la parte sin medir es una de sus instancias.
+#'   La evaluación de un agregado conserva además la cobertura de su frontera
+#'   —las tablas o colecciones declaradas que no entraron al número—, la
+#'   imprime y la lleva a su informe y a [historico_calidad()].
 #'   Y cuando una regla **declara** una métrica que la medición no trae —ninguna
 #'   medida de ella—, el veredicto cubre menos de lo que la regla dice: eso se
 #'   avisa al evaluar y queda en el atributo `cobertura_reglas`, con la corrida,
@@ -1244,6 +1327,13 @@ evaluar <- function(medicion, perfil) {
   if (inherits(cobertura, "data.frame") && nrow(cobertura)) {
     estructura$cobertura_metricas <- cobertura
     attr(estructura, "cobertura_metricas") <- cobertura
+  }
+  # La cobertura de la FRONTERA tambien: la evaluacion de una coleccion a la que
+  # le falto una tabla no la nombraba, ni en pantalla ni en su informe, y el
+  # historico tampoco. La medicion si. Medido en la ronda 24.
+  for (atributo in c(.ATRIBUTOS_COBERTURA_FRONTERA, "cobertura_de_partes")) {
+    valor <- attr(medicion, atributo, exact = TRUE)
+    if (!is.null(valor)) attr(estructura, atributo) <- valor
   }
   desenlaces <- .planificar_desenlaces(
     medicion, evaluaciones_medidas, perfil

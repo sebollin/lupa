@@ -8,8 +8,20 @@
 # `minimo 1`, `maximo 16`, y de ahi salia un hallazgo `posible_identificador`.
 # Una cifra cuya unidad no es la fila, publicada al lado del conteo de filas de
 # la tabla.
-.es_columna_compuesta <- function(x) {
+#
+# Una columna `data.frame` anidada -la que deja `jsonlite::fromJSON()` o un
+# tibble empaquetado con `tidyr::pack()`- es el caso hermano que la regla no
+# enumeraba: no es matriz ni arreglo, caia por el camino comun, y `is.na()`
+# sobre ella devuelve una matriz de CELDAS. Medido: doce filas con 27 celdas
+# ausentes publicaban `n_faltantes = 27`, `prop_faltantes = 2.25` y una traza
+# con indices hasta 34, filas que la tabla no tiene. Es compuesta por la misma
+# razon que la matriz: varios valores por fila, sin una semantica de celda que
+# el paquete pueda inventar.
+.es_arreglo_compuesto <- function(x) {
   is.matrix(x) || (is.array(x) && length(dim(x)) > 1L)
+}
+.es_columna_compuesta <- function(x) {
+  .es_arreglo_compuesto(x) || is.data.frame(x)
 }
 .moda_columna <- function(x, claves = NULL) {
   validos <- !is.na(x)
@@ -2815,7 +2827,9 @@
     sentinelas_numericos
   )
   fila <- resultado$fila
-  fila$tipo_declarado <- "matriz"
+  # `.tipo_declarado()` y no `"matriz"` fijo: una tabla anidada es compuesta y
+  # declara su propia clase.
+  fila$tipo_declarado <- .tipo_declarado(x)
   fila$tipo_inferido <- "desconocido"
   fila$estado_tipo_inferido <- NA_character_
   fila$proporcion_tipo_inferido <- NA_real_
@@ -2885,7 +2899,8 @@
   resultado$inferencia$compatibles <- 0L
   resultado$inferencia$n_analizados <- 0L
   resultado$estructura_no_analizada <- list(
-    tipo = "matriz", filas = NROW(x), componentes = NCOL(x),
+    tipo = if (is.data.frame(x)) "tabla" else "matriz",
+    filas = NROW(x), componentes = NCOL(x),
     dimensiones = dim(x)
   )
   resultado

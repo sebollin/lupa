@@ -540,10 +540,25 @@
   # como si fueran trazabilidad reproducible. Se conserva la columna para no
   # romper el contrato de forma de `hallazgos`, dejando sus valores ausentes y
   # la explicación completa en `cobertura_diagnosticos`.
+  #
+  # Retirar los indices no es retirar la traza. Antes cada traza se reemplazaba
+  # por `NULL`, que no es ninguno de los cuatro estados que la ayuda promete
+  # -`disponible`, `truncada`, `no_aplica`, `no_disponible`- y que la ayuda de
+  # `perfilar_dbi()` descarta con todas las letras ("no reemplaza la ausencia
+  # con `NULL` silencioso"): quien leia `traza$estado` recibia `NULL`. Ahora es
+  # una traza `no_disponible` con alcance `orden_muestra_no_estable`, sin
+  # indices ni claves, que conserva el total y los conteos que no nombran filas.
   if (is.data.frame(perfil$hallazgos) &&
       "trazabilidad" %in% names(perfil$hallazgos)) {
-    perfil$hallazgos$trazabilidad <- I(vector("list", nrow(perfil$hallazgos)))
+    perfil$hallazgos$trazabilidad <- I(lapply(
+      perfil$hallazgos$trazabilidad, .traza_retenida_orden_inestable
+    ))
   }
+  # Los NOMBRES de los patrones raros se retiran por la misma razon que los
+  # indices -con ellos la traza se rearma-, pero su CANTIDAD no: se forzaba a
+  # cero, y `descubrir_patrones()` documenta que ese atributo registra cuantos
+  # patrones raros habia antes de su limite. Medido: un patron raro conocido
+  # se publicaba como cero en el mismo perfil que emitia el hallazgo.
   if (is.list(perfil$patrones)) {
     for (i in seq_along(perfil$patrones)) {
       patrones <- perfil$patrones[[i]]
@@ -551,12 +566,38 @@
           "patrones_raros_trazabilidad" %in%
             names(attributes(patrones))) {
         attr(patrones, "patrones_raros_trazabilidad") <- character()
-        attr(patrones, "n_patrones_raros_trazabilidad") <- 0L
         perfil$patrones[[i]] <- patrones
       }
     }
   }
   perfil
+}
+
+.ALCANCE_TRAZA_ORDEN_INESTABLE <- "orden_muestra_no_estable"
+
+.traza_retenida_orden_inestable <- function(traza) {
+  # Una traza `no_aplica` no nombra filas: no hay nada que retener, y su estado
+  # es el que corresponde a la unidad del hallazgo.
+  if (is.list(traza) && identical(traza$estado, "no_aplica")) return(traza)
+  limite <- if (is.list(traza) && length(traza$limite) == 1L &&
+                !is.na(traza$limite)) traza$limite else 1000L
+  total <- if (is.list(traza) && length(traza$total) == 1L) {
+    suppressWarnings(as.numeric(traza$total))
+  } else NA_real_
+  retenida <- .trazabilidad_vacia(
+    estado = "no_disponible", total = total,
+    alcance = .ALCANCE_TRAZA_ORDEN_INESTABLE, limite = limite
+  )
+  if (is.list(traza)) {
+    conteos <- c(
+      "n_patrones_raros", "limite_patrones_raros_trazabilidad",
+      "n_filas_formas_variantes", "n_filas_formas_dominantes"
+    )
+    for (campo in intersect(conteos, names(traza))) {
+      retenida[[campo]] <- traza[[campo]]
+    }
+  }
+  retenida
 }
 
 .resumen_muestra_desde_spool_dbi <- function(datos, campos, n_total,
