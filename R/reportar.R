@@ -781,19 +781,20 @@
     }
     claves <- clave(perfiles$perfil, perfiles$id_medicion)
     claves_deriva <- clave(deriva$perfil, deriva$id_medicion_actual)
-    regular <- which(deriva$aspecto == "resultado")
-    i <- regular[match(claves, claves_deriva[regular])]
-    perfiles$delta <- deriva$delta[i]
-    perfiles$comparado_con <- as.character(deriva$id_medicion_anterior[i])
-    perfiles$comparacion <- as.character(deriva$descripcion[i])
-    no_comparable <- which(deriva$cambio %in% "no_comparable")
-    j <- no_comparable[match(claves, claves_deriva[no_comparable])]
-    con_corte <- !is.na(j)
-    perfiles$delta[con_corte] <- NA_real_
-    perfiles$comparado_con[con_corte] <- as.character(
-      deriva$id_medicion_anterior[j[con_corte]]
-    )
-    perfiles$comparacion[con_corte] <- as.character(deriva$descripcion[j[con_corte]])
+    # Todas las filas del par -la de resultado y las que declaran un cambio-, y
+    # una sola lectura, la de `comparar_evaluaciones()`. Mirar solo la etiqueta
+    # `no_comparable` borraba el delta de un cambio de modelo que la deriva
+    # declara comparable -"se mantienen las comparaciones"- y publica. Ronda 25.
+    for (k in seq_along(claves)) {
+      filas <- which(claves_deriva == claves[[k]])
+      if (!length(filas)) next
+      lectura <- .lectura_par_deriva(deriva, filas)
+      perfiles$delta[[k]] <- lectura$delta
+      perfiles$comparado_con[[k]] <- as.character(
+        deriva$id_medicion_anterior[[filas[[1L]]]]
+      )
+      perfiles$comparacion[[k]] <- lectura$comparacion
+    }
   }
   rownames(perfiles) <- NULL
   perfiles

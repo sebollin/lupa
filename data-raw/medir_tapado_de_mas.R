@@ -89,7 +89,47 @@ familias <- list(
   fecha_hora_dos_espacios = sprintf("%d-%02d-%02d  %02d:%02d:%02d",
                                     sample(2015:2025, m, TRUE), sample(1:12, m, TRUE),
                                     sample(1:28, m, TRUE), sample(0:23, m, TRUE),
-                                    sample(0:59, m, TRUE), sample(0:59, m, TRUE))
+                                    sample(0:59, m, TRUE), sample(0:59, m, TRUE)),
+  # Ronda 25: las familias que la refutacion midio. Al final, otra vez, para no
+  # cambiar los numeros de las de arriba.
+  ip_con_mascara = sprintf("%d.%d.%d.%d/%d", sample(1:255, m, TRUE),
+                           sample(0:255, m, TRUE), sample(0:255, m, TRUE),
+                           sample(0:255, m, TRUE), sample(8:32, m, TRUE)),
+  ip_con_puerto = sprintf("%d.%d.%d.%d:%d", sample(1:255, m, TRUE),
+                          sample(0:255, m, TRUE), sample(0:255, m, TRUE),
+                          sample(0:255, m, TRUE), sample(1:65535, m, TRUE)),
+  monto_10_cifras_miles = formatC(runif(m, 1e9, 1e10), format = "f", digits = 0,
+                                  big.mark = ".", decimal.mark = ","),
+  monto_11_cifras_miles = formatC(runif(m, 1e10, 1e11), format = "f", digits = 0,
+                                  big.mark = ".", decimal.mark = ","),
+  hora_fraccion_8 = sprintf("2024-05-17 %02d:%02d:%02d.%08d", sample(0:23, m, TRUE),
+                            sample(0:59, m, TRUE), sample(0:59, m, TRUE),
+                            sample(0:99999999, m, TRUE)),
+  lista_coma_sin_espacio = sprintf("%d,%d,%d", sample(10:999, m, TRUE),
+                                   sample(10:999, m, TRUE), sample(10:999, m, TRUE)),
+  lista_coma_ideografica = sprintf("%d\u3001%d\u3001%d", sample(10:999, m, TRUE),
+                                   sample(10:999, m, TRUE), sample(10:999, m, TRUE)),
+  isbn10_control_invalido = vapply(seq_len(m), function(i) {
+    cifras <- sample(0:9, 9, TRUE)
+    control <- (11 - sum(cifras * 10:2) %% 11) %% 11
+    malo <- (if (control == 10) 0 else control + 1) %% 10
+    paste0(cifras[1], "-", paste(cifras[2:4], collapse = ""), "-",
+           paste(cifras[5:9], collapse = ""), "-", malo)
+  }, character(1L)),
+  fecha_hora_barra = sprintf("%d-%02d-%02d / %02d:%02d:%02d",
+                             sample(2015:2025, m, TRUE), sample(1:12, m, TRUE),
+                             sample(1:28, m, TRUE), sample(0:23, m, TRUE),
+                             sample(0:59, m, TRUE), sample(0:59, m, TRUE)),
+  asterisco_ocho_rayos = sprintf("pedido \u2733%d", sample(1000001:6999999, m)),
+  # Y las decisiones que la ayuda declaraba sin cifra.
+  rango_de_anios = sprintf("periodo %d-%d", sample(1990:2010, m, TRUE),
+                           sample(2011:2025, m, TRUE)),
+  rango_raya_cp1252 = sprintf("%d\u0096%d", sample(1000:9999, m, TRUE),
+                              sample(1000:9999, m, TRUE)),
+  lista_tabulador = sprintf("%d\t%d\t%d", sample(10:999, m, TRUE),
+                            sample(10:999, m, TRUE), sample(10:999, m, TRUE)),
+  dos_numeros_en_dos_lineas = sprintf("%d\n%d", sample(1000:9999, m, TRUE),
+                                      sample(1000:9999, m, TRUE))
 )
 cat("valores protegidos:", length(valores), "\n")
 for (familia in names(familias)) {

@@ -23,7 +23,10 @@ deterioro de al menos un umbral es \code{sospechoso} y uno de al menos dos
 umbrales es \code{error}. \code{identidad_tabla} separa series de tablas distintas y
 \code{aspecto} marca el resultado o un cambio de configuracion; \code{cambio} usa
 \code{no_comparable} cuando una configuracion del modelo impide comparar las
-corridas.
+corridas —cambió el marco o los tipos de resultado, y entonces la fila de
+resultado no se publica—. Cualquier otro cambio de modelo se declara en su
+fila \code{configuracion_modelo} sin esa etiqueta: la comparación se mantiene, y
+la fila de resultado del mismo par conserva su veredicto.
 
 \strong{Un par que no se puede comparar no recibe veredicto.} Si alguna de las
 dos corridas no evaluó su resultado, \code{delta}, \code{cambio_absoluto},
@@ -31,6 +34,23 @@ dos corridas no evaluó su resultado, \code{delta}, \code{cambio_absoluto},
 ni en \code{ok}— y \code{descripcion} nombra de qué lado falta el resultado. Filtrar
 por \code{severidad != "ok"} deja fuera esas filas a propósito: no son filas
 sanas, son filas sin medición, y se encuentran con \code{is.na(significativo)}.
+La comparación es entre corridas \strong{consecutivas}: una corrida sin evaluar
+en medio de la serie deja sin veredicto sus dos pares y la deriva no
+compara por encima de ella. Para comparar las corridas de los dos lados,
+quitar la del medio del histórico —\code{h[h$id_medicion != "B", ]}—.
+Lo mismo cuando a una de las dos corridas le falta su configuración —una
+tabla armada a mano, o un CSV exportado sin las columnas \code{identidad_tabla}
+y \verb{configuracion_*}—: sin ella no se sabe si las dos miden la misma tabla
+con el mismo marco, así que \code{cambio} es \code{no_comparable}, el veredicto queda
+en \code{NA} y el atributo \code{cobertura_diagnosticos} lo declara.
+
+\strong{Un cambio de frontera tampoco se compara.} Si las dos corridas no dejan
+afuera las mismas partes declaradas —el nivel \code{parte_no_medida} del
+histórico: una tabla de la colección que entró o salió del número—, sus
+números no cubren lo mismo: la fila de resultado no se publica y una fila
+\code{aspecto = "cobertura_frontera"}, \code{cambio = "no_comparable"}, lo declara,
+con las partes sin medir de cada lado en \code{evidencia}. Dos corridas a las que
+les falta la misma parte sí se comparan.
 }
 \description{
 Compara corridas consecutivas, ordenadas por fecha dentro de cada perfil o

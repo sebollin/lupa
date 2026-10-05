@@ -1955,7 +1955,7 @@ metricas_nucleo <- function() {
       .seleccionar_columnas(tabla, columnas)
     } else NULL
     sin_valores <- !is.null(comparables) &&
-      (!nrow(comparables) || !any(stats::complete.cases(comparables)))
+      (!nrow(comparables) || !any(.filas_completas(comparables)))
     motivo <- if (sin_valores) {
       paste0(
         sujeto, " no se pudo medir: los atributos ligados quedaron sin valores",
@@ -2222,7 +2222,8 @@ metricas_nucleo <- function() {
 #' @param fecha Fecha y hora de la corrida. Se guarda en UTC; un texto
 #'   —`"2026-03-01"` o `"2026-03-01 09:30:00"`— se lee en UTC, no en el huso de
 #'   la sesión, así que la misma llamada registra el mismo instante en cualquier
-#'   máquina.
+#'   máquina. Un desplazamiento escrito en el texto —`"2026-03-01 09:30:00-03:00"`,
+#'   `Z`, `+0100`— se respeta, y un texto que no se puede leer entero se rechaza.
 #' @param aplicabilidad Lista con nombre por columna, donde cada elemento es
 #'   una fórmula que dice en qué filas esa columna corresponde —por ejemplo
 #'   `list(marca_auto = ~ tiene_auto == "Si")`—. Las filas fuera de ese universo

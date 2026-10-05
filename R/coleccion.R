@@ -1825,11 +1825,77 @@ estimar_costo_coleccion <- function(coleccion, pares = NULL,
         suppressWarnings(as.POSIXct(as.character(valores), tz = "UTC"))
       }
     } else {
+      # Un extremo que no llega como numero no es el extremo de una columna
+      # numerica: en SQLite una columna sin afinidad guarda tipos mezclados, y
+      # todo TEXT ordena despues de todo numero, asi que un solo '5' guardado
+      # como texto ES el `MAX`. `as.numeric()` lo convertia y la poda "cierta"
+      # declaraba disjuntos [1, 5] y [50, 60] sobre 11 filas comunes -medido en
+      # la ronda 25-. Sin un rango numerico confiable la poda no se aplica, que
+      # es lo que la ayuda promete cuando el motor no puede entregarlo.
+      numerico <- function(v) is.numeric(v) || inherits(v, "integer64")
+      if (!numerico(minimo) || !numerico(maximo)) {
+        stop("extremos no numericos", call. = FALSE)
+      }
       valores <- suppressWarnings(as.numeric(valores))
     }
     .rango_relacion(valores, familia)
   }, error = function(e) NULL)
   if (is.null(rango) || !all(is.finite(rango))) NULL else rango
+}
+
+# Un entero de 64 bits que el driver entrega como doble pierde exactitud por
+# encima de 2^53: dos BIGINT distintos caen en el mismo doble y la comparacion
+# los iguala. Medido en la ronda 25 sobre `dbConnect(duckdb::duckdb())`, que
+# entrega BIGINT como doble por omision: tres identificadores contra otros tres,
+# ninguno comun en el motor -`fk IN (SELECT id ...)` da 0-, y el objeto
+# publicaba `m:1`, 2 valores comunes y cobertura 1. `perfilar_dbi()` ya se
+# abstenia ante la misma conexion (`.conexion_entrega_bigint_como_doble_dbi()`).
+#
+# La guarda mira la columna LEIDA y no solo la conexion: HUGEINT y
+# DECIMAL(18, 0) llegan como doble aun pidiendo `integer64`, y el tipo del motor
+# no viaja en `dbColumnInfo()` -dice `numeric` para BIGINT y para DOUBLE-. Un
+# doble que no alcanza 2^53 representa exacto todo entero que pudo haber sido,
+# asi que solo se declara la columna que lo alcanza.
+.marcar_enteros_inexactos_coleccion <- function(rangos, datos, conexion) {
+  if (!is.list(rangos) || !is.data.frame(datos) || !ncol(datos)) return(rangos)
+  como_doble <- NULL
+  for (nombre in names(datos)) {
+    x <- datos[[nombre]]
+    if (!is.double(x) || inherits(x, c("integer64", "Date", "POSIXt", "difftime"))) {
+      next
+    }
+    if (!any(is.finite(x) & abs(x) >= .MAX_ENTERO_EXACTO_DBI)) next
+    if (is.null(como_doble)) {
+      como_doble <- isTRUE(tryCatch(
+        .conexion_entrega_bigint_como_doble_dbi(conexion),
+        error = function(e) FALSE
+      ))
+    }
+    especificacion <- rangos[[nombre]]
+    if (!is.list(especificacion)) {
+      especificacion <- list(
+        rango = .rango_relacion_sin_evidencia(), origen = "no_disponible"
+      )
+    }
+    especificacion$no_comparable <- list(
+      motivo = "entero_como_doble",
+      detalle = paste0(
+        "la columna llega como doble con valores de al menos 2^53 en valor ",
+        "absoluto, donde un doble no distingue dos enteros consecutivos: si en ",
+        "el motor es un entero ancho, dos valores distintos pudieron fundirse. ",
+        if (como_doble) {
+          .remedio_entero_doble_dbi()
+        } else {
+          paste(
+            "Si es HUGEINT o DECIMAL, comparar una vista que la convierta a",
+            "texto."
+          )
+        }
+      )
+    )
+    rangos[[nombre]] <- especificacion
+  }
+  rangos
 }
 
 # Lector con cache. `leer()` se llamaba DOS VECES POR PAR, sin cache: dos pares
@@ -2164,6 +2230,14 @@ estimar_costo_coleccion <- function(coleccion, pares = NULL,
 #' clave foránea comprobada**, es un indicio que hay que confirmar contra el
 #' diccionario de datos.
 #'
+#' **Con la tabla de referencia truncada la cobertura es una cota inferior.** Un
+#' valor de `tabla_2` que no está entre las filas leídas de `tabla_1` puede
+#' estar en las demás, así que la cobertura sólo puede subir al leer más. Un par
+#' que con la referencia truncada no alcanza `umbral_cobertura` no se descarta
+#' en silencio: queda en `cobertura_pares` como «sin conclusión», con la mayor
+#' cobertura medida y cómo resolverlo, y `meta$pares_sin_conclusion` los cuenta
+#' —también están en `pares_comparados`, porque se compararon—.
+#'
 #' **El alcance se declara por par y en la fila.** Cada relación publica
 #' `filas_leidas_1`/`filas_leidas_2` —cuántas se compararon—, y además
 #' `filas_totales_1`/`filas_totales_2` y `muestreado_1`/`muestreado_2`: cuando la
@@ -2186,6 +2260,15 @@ estimar_costo_coleccion <- function(coleccion, pares = NULL,
 #' La poda cierta por rangos usa `MIN` y `MAX` sobre el universo completo de
 #' cada tabla, no sobre las filas de la muestra. Si el motor no puede entregar
 #' ese rango, la comparación sigue sin aplicar esa poda.
+#'
+#' **Un entero ancho que llega como doble no se compara.** Por encima de 2^53 un
+#' doble no distingue dos enteros consecutivos, y `dbConnect(duckdb::duckdb())`
+#' entrega BIGINT como doble por omisión: dos identificadores distintos se
+#' fundían y el objeto afirmaba una relación que el motor no tiene. Una columna
+#' leída como doble con algún valor de al menos 2^53 en valor absoluto deja sus
+#' pares en `sin_comparar`, con motivo `entero_como_doble` en
+#' `cobertura_podas` y el remedio en el detalle: conectar pidiendo `integer64`
+#' —`duckdb(bigint = "integer64")`, o `bigint = "integer64"` en RSQLite—.
 #'
 #' El campo `detalle` de una poda por rangos disjuntos **no publica extremos que
 #' identifiquen**: si el mínimo o el máximo de un lado llega al piso de la
@@ -2288,6 +2371,7 @@ relaciones_coleccion <- function(coleccion, pares, muestra = 1e4,
   combinaciones_comparadas <- 0
   pares_parciales <- 0L
   pares_presupuesto <- 0L
+  pares_sin_conclusion <- 0L
   for (i in seq_len(nrow(pares))) {
     t1 <- pares$tabla_1[[i]]
     t2 <- pares$tabla_2[[i]]
@@ -2336,8 +2420,12 @@ relaciones_coleccion <- function(coleccion, pares, muestra = 1e4,
       columnas_candidatas[[t2]]
     }
     rangos <- list(
-      tabla1 = lector$rangos_universo(t1, d1),
-      tabla2 = lector$rangos_universo(t2, d2)
+      tabla1 = .marcar_enteros_inexactos_coleccion(
+        lector$rangos_universo(t1, d1), d1, conexion
+      ),
+      tabla2 = .marcar_enteros_inexactos_coleccion(
+        lector$rangos_universo(t2, d2), d2, conexion
+      )
     )
     relacion <- tryCatch(
       detectar_relaciones(
@@ -2396,7 +2484,46 @@ relaciones_coleccion <- function(coleccion, pares, muestra = 1e4,
       which(relacion$cobertura_tabla2_en_tabla1 >= umbral_cobertura), ,
       drop = FALSE
     ]
-    if (!nrow(candidatas)) next
+    alcance_1 <- .alcance_lectura_tabla(lector$bitacora(), t1)
+    alcance_2 <- .alcance_lectura_tabla(lector$bitacora(), t2)
+    if (!nrow(candidatas)) {
+      # Con la tabla de REFERENCIA truncada la cobertura no es una estimacion
+      # con ruido: es una cota inferior -un valor que no esta entre las filas
+      # leidas puede estar en las demas-. Medido en la ronda 25: una FK perfecta
+      # de 20.000 filas, leidas 10.000 de cada lado, daba 0,4962 y el par
+      # desaparecia de todas las salidas, cuando `detectar_relaciones()`
+      # promete para su propio muestreo conservar completa la referencia. El
+      # par se compara igual; lo que no se afirma es que no tenga relacion.
+      comparadas <- !.pegar_clave_compuesta(list(
+        relacion$columna_tabla1, relacion$columna_tabla2
+      )) %in% .pegar_clave_compuesta(list(
+        podas_relacion$columna_tabla1, podas_relacion$columna_tabla2
+      ))
+      if (isTRUE(alcance_1$muestreado) && any(comparadas)) {
+        pares_sin_conclusion <- pares_sin_conclusion + 1L
+        mejor <- suppressWarnings(max(
+          relacion$cobertura_tabla2_en_tabla1[comparadas], na.rm = TRUE
+        ))
+        sin_comparar[[length(sin_comparar) + 1L]] <- data.frame(
+          tabla_1 = t1, tabla_2 = t2,
+          motivo = paste0(
+            "Sin conclusion: la tabla de referencia `", t1, "` se leyo ",
+            "truncada (", nrow(d1), " filas) y ninguna columna alcanzo ",
+            "`umbral_cobertura` (", umbral_cobertura, "). Con la referencia ",
+            "incompleta la cobertura medida es una cota inferior",
+            if (is.finite(mejor)) paste0(" -la mayor fue ", signif(mejor, 4), "-"),
+            ", asi que el par no se descarta como sin relacion."
+          ),
+          como_resolverlo = paste(
+            "Aumentar `muestra` hasta leer completa la tabla de referencia, o",
+            "declarar `orden` por la clave en las dos tablas para alinear las",
+            "lecturas, y volver a comparar."
+          ),
+          stringsAsFactors = FALSE
+        )
+      }
+      next
+    }
     candidatas$tabla_1 <- t1
     candidatas$tabla_2 <- t2
     candidatas$filas_leidas_1 <- nrow(d1)
@@ -2408,8 +2535,6 @@ relaciones_coleccion <- function(coleccion, pares, muestra = 1e4,
     # medido, con dos pares publicados decian `filas_totales = c(5, 5)` y
     # `muestreado = c(FALSE, FALSE)` mientras el segundo par habia leido 10.000
     # filas de 20.000, y `n_pares_totales` contaba uno de dos.
-    alcance_1 <- .alcance_lectura_tabla(lector$bitacora(), t1)
-    alcance_2 <- .alcance_lectura_tabla(lector$bitacora(), t2)
     candidatas$filas_totales_1 <- alcance_1$filas_totales
     candidatas$filas_totales_2 <- alcance_2$filas_totales
     candidatas$muestreado_1 <- alcance_1$muestreado
@@ -2460,8 +2585,12 @@ relaciones_coleccion <- function(coleccion, pares, muestra = 1e4,
     meta = list(
       coleccion = coleccion$nombre,
       pares_declarados = nrow(pares),
-      pares_comparados = nrow(pares) - nrow(cobertura_pares),
+      # Un par sin conclusion SE COMPARO -con la referencia truncada- y esta en
+      # `cobertura_pares` porque su respuesta falta; no se resta dos veces.
+      pares_comparados = nrow(pares) - nrow(cobertura_pares) +
+        pares_sin_conclusion,
       pares_faltantes = nrow(cobertura_pares),
+      pares_sin_conclusion = pares_sin_conclusion,
       pares_parciales = pares_parciales,
       pares_sin_comparar_por_presupuesto = pares_presupuesto,
       pares_repetidos_descartados = repetidos,

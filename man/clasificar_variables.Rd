@@ -58,7 +58,10 @@ son nominal, ordinal, discreta, continua, binaria, temporal y desconocida.
 
 Los niveles declarados y observados se conservan como columnas de lista. Los
 niveles ausentes son una observación, no prueba de error. Si la evidencia de
-dato personal activa la protección, los niveles concretos se protegen. Sólo
+dato personal activa la protección, los niveles concretos se protegen, y los
+valores de esas columnas escritos en los niveles de OTRA columna —una
+observación que cita la cédula— se tapan con el mismo piso que aplica
+\code{\link[=perfilar]{perfilar()}}. Sólo
 las escalas nominal, ordinal y binaria guardan niveles observados; en las
 demás, \code{n_niveles_observados} es \code{NA}, porque la cifra no aplica.
 

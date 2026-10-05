@@ -42,7 +42,11 @@ veredicto y el universo de medidas que la produjo.}
 
 \item{desenlace}{\code{NULL}, para limitar la regla a evaluar, o \code{"suprimir"}
 para declarar que las medidas que no cumplen \code{condicion} no deben
-publicarse. No existe un desenlace predeterminado.}
+publicarse. No existe un desenlace predeterminado. Suprimir tapa el
+\strong{valor} de esas medidas en cada salida; no es supresión complementaria:
+un agregado suprimido se puede recalcular de sus medidas crudas si se
+publican al lado —por ejemplo, en un histórico que acumula también la
+medición—.}
 
 \item{umbrales}{Vector numérico con nombres, estrictamente creciente y en
 \verb{[0, 1]}. \code{NULL} conserva los tres perfiles incluidos de fábrica.}

@@ -219,6 +219,14 @@
         paste0(partes, collapse = "")
       }, character(1L), USE.NAMES = FALSE)
     }
+    # Las letras modificadoras que son un acento con lugar propio -el agudo
+    # U+02CA, el grave, el circunflejo, el caron, el macron, las marcas de acento
+    # y de largo: U+02C6 a U+02D1- se borran como las tildes. Para Unicode son
+    # letras (`Lm`), el mapa las conservaba y nada mas las sacaba: el nombre
+    # protegido escrito con el agudo modificador en lugar de la tilde se
+    # publicaba, mientras con el acento U+00B4, que es un signo, se tapaba.
+    # Medido en la ronda 25.
+    textos <- gsub("[\u02c6-\u02d1]", "", textos, perl = TRUE)
     textos <- .transliterar_ascii(textos)
     textos <- .normalizacion_minusculas_vector(textos)
     gsub(sigma_final, sigma, textos, fixed = TRUE)

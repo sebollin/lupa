@@ -76,10 +76,30 @@
   paste(vapply(ejemplos, function(grupo) {
     indices <- which(resumen$grupo == grupo)
     paste0(
-      encodeString(resumen$x[[indices[[1L]]]], quote = '"'), " -> ",
-      paste(encodeString(unique(resumen$y[indices]), quote = '"'), collapse = " | ")
+      encodeString(.bytes_de_clave_relacion(resumen$x[[indices[[1L]]]]), quote = '"'),
+      " -> ",
+      paste(encodeString(
+        .bytes_de_clave_relacion(unique(resumen$y[indices])), quote = '"'
+      ), collapse = " | ")
   )
   }, character(1L)), collapse = "; ")
+}
+
+# Desde la ronda 25 un texto con bytes invalidos se compara por su clave de
+# bytes, `<lupa-byte:4D6172ED61>`, y no como `NA`. Esa clave sirve para agrupar;
+# la evidencia vuelve a los bytes, que `encodeString()` escribe como la
+# consola: `"Mar\xeda"`.
+.bytes_de_clave_relacion <- function(x) {
+  if (!is.character(x) || !length(x)) return(x)
+  claves <- !is.na(x) & grepl("^<lupa-byte:([0-9A-F]{2})+>$", x, perl = TRUE)
+  if (any(claves)) {
+    x[claves] <- vapply(x[claves], function(clave) {
+      hex <- substr(clave, 12L, nchar(clave) - 1L)
+      pares <- substring(hex, seq(1L, nchar(hex), 2L), seq(2L, nchar(hex), 2L))
+      rawToChar(as.raw(strtoi(pares, 16L)))
+    }, character(1L), USE.NAMES = FALSE)
+  }
+  x
 }
 
 # Una sola funcion contesta "¿esta proporcion alcanza el umbral?", y la usan

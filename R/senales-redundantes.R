@@ -192,7 +192,10 @@ print.senal_redundante <- function(x, ...) {
 #'   `proteger_datos_personales = FALSE`—: esos salen como `[valor protegido]`. El
 #'   número de fila y el nombre de la columna se conservan, que es lo que hace
 #'   falta para ir a corregirla. Las columnas que no son personales se citan
-#'   enteras.
+#'   enteras, salvo lo que en ellas repite un valor de una columna personal de
+#'   la tabla —una observación que cita la cédula—: eso se tapa con el mismo
+#'   piso que aplica [perfilar()], aunque la columna personal no esté en la
+#'   señal.
 #' @export
 #' @seealso [senal_redundante()], [detectar_dependencias()],
 #'   [detectar_relaciones()]
@@ -371,6 +374,31 @@ detectar_discordancias <- function(datos, senales, max_ejemplos = 5L,
   salida <- do.call(rbind, filas)
   if (is.null(salida)) salida <- .discordancia_vacia()
   rownames(salida) <- NULL
+  # El mismo piso que aplican `perfilar()`, `analizar()` y
+  # `distribucion_valores()`: la mascara de arriba es por columna, y el
+  # documento protegido escrito en una columna de la senal -`obs`, un reclamo
+  # que cita la cedula- salia en `evidencia` mientras las tres hermanas lo
+  # tapaban sobre la misma tabla. Medido en la ronda 25. Necesita las columnas
+  # personales de la tabla ENTERA, tambien las que ninguna senal nombra, y
+  # clasificarlas costaba diez veces la funcion -2,5 s contra 0,2 s sobre
+  # 50.000 filas y 43 columnas-: se hace solo si la evidencia cita filas, que es
+  # el unico lugar por donde sale un valor de celda.
+  cita_filas <- isTRUE(proteger_datos_personales) && max_ejemplos > 0L &&
+    isTRUE(any(salida$n_discordantes > 0, na.rm = TRUE))
+  if (cita_filas) {
+    personales_tabla <- .columnas_personales_rapidas(
+      datos, declaradas = columnas_personales
+    )
+    identificantes <- .valores_identificantes(
+      .valores_publicables_protegidos(datos, personales_tabla),
+      .fechas_que_identifican(datos, personales_tabla)
+    )
+    if (length(identificantes)) {
+      salida <- .proteger_textos_salida(
+        salida, identificantes, intocables = names(datos)
+      )
+    }
+  }
   class(salida) <- c("discordancias_senales", "data.frame")
   salida
 }

@@ -1,3 +1,30 @@
+# `integer64` guarda cada entero en los bits de un doble, y dos operaciones de
+# base no lo saben: bit64 no registra `anyDuplicated()`, y
+# `stats::complete.cases()` no despacha. Las dos leen los dobles crudos, y el
+# patron de bits de todo entero de -1 a -4503599627370495 -y de los de
+# 9218868437227405313 para arriba- es un NaN: `complete.cases()` lo lee ausente
+# y `anyDuplicated()` iguala dos cualesquiera. Medido en la ronda 25:
+# `detectar_claves()` no proponia `id = -1, -2, -3` -y `sugerir_clave()` si-,
+# `referencial()` lo rechazaba por "valores ausentes", la correctitud borraba
+# en silencio la fila que FALLABA, y `perfilar()` publicaba `filas_completas =
+# 0` y dos columnas distintas como identicas.
+#
+# Se compara su texto, que es exacto: es lo que ya hacen `.texto_identidad()` y
+# `.codigos_filas_exactos()` de la remediacion. `is.na()` y `anyNA()` si
+# despachan, y el texto conserva el ausente.
+.integer64_como_texto <- function(datos) {
+  for (i in seq_along(datos)) {
+    if (inherits(datos[[i]], "integer64")) {
+      datos[[i]] <- .texto_identidad(datos[[i]])
+    }
+  }
+  datos
+}
+
+.filas_completas <- function(datos) {
+  stats::complete.cases(.integer64_como_texto(datos))
+}
+
 .es_clave <- function(datos, indices) {
   columnas <- lapply(indices, function(i) datos[[i]])
   if (any(vapply(columnas, .es_columna_compuesta, logical(1L)))) {
@@ -6,11 +33,48 @@
   if (any(vapply(columnas, anyNA, logical(1L)))) {
     return(FALSE)
   }
+  columnas <- .integer64_como_texto(columnas)
   if (length(indices) == 1L) {
     return(anyDuplicated(columnas[[1L]]) == 0L)
   }
   combinado <- as.data.frame(columnas, optional = TRUE, stringsAsFactors = FALSE)
   anyDuplicated(combinado) == 0L
+}
+
+# La casi-clave de `detectar_claves()` con la MISMA mascara de faltantes
+# disfrazados que `perfilar()` usa por omision -sus sentinelas numericos y sin
+# cadenas declaradas-, calculada por la misma funcion. Ver
+# `.faltantes_disfrazados_columna()`. Devuelve tambien el tipo inferido, que
+# `.resumen_casi_clave()` calculaba por su cuenta.
+.contexto_casi_clave <- function(x, perfil = NULL) {
+  preparacion <- .texto_analizable(x)
+  x_analisis <- preparacion$valores
+  n <- length(x_analisis)
+  if (!n) return(list(tipo = NULL, disfrazados = NULL))
+  muestra <- min(n, 1e5)
+  inferencia <- .inferir_tipo_interno(
+    preparacion$valores_identidad, muestra = muestra, conservar_cache = TRUE
+  )
+  formatos <- inferencia$formatos_fecha
+  if (is.null(formatos)) {
+    formatos <- detectar_formatos_fecha(x_analisis, muestra = muestra)
+  }
+  secuencia <- .resumen_secuencia_entera(x_analisis, inferencia, formatos)
+  # Con un perfil, la politica que ese perfil declaro; sin el, la de
+  # `perfilar()` por omision.
+  sentinelas <- .numeros_na_locales
+  cadenas <- NULL
+  if (inherits(perfil, "perfil") && is.list(perfil$meta)) {
+    if (!is.null(perfil$meta$sentinelas_numericos)) {
+      sentinelas <- perfil$meta$sentinelas_numericos
+    }
+    cadenas <- perfil$meta$cadenas_ausencia
+  }
+  disfrazados <- .faltantes_disfrazados_columna(
+    x_analisis, inferencia, formatos, secuencia, sentinelas,
+    .sentinelas_numericos_declarados(sentinelas), cadenas, rep(TRUE, n)
+  )
+  list(tipo = inferencia$tipo, disfrazados = disfrazados$mascara)
 }
 
 .umbral_unicidad_casi_clave <- 0.9
@@ -216,6 +280,12 @@
 #' texto libre de alta cardinalidad, con muchas colisiones dispersas, con una
 #' clave dañada. Las variables con rol propuesto `fecha`, incluidas fecha-hora,
 #' no se consideran casi-claves.
+#' Los faltantes disfrazados —`"SIN DATO"`, `-999`— no cuentan como colisiones:
+#' se reconocen con la misma máscara que [perfilar()], con su política por
+#' omisión o con la del `perfil` que se pase, y la casi-clave se mide sin ellos
+#' —sus distintos, exactos y normalizados, y sus colisiones—. Una clave sana con
+#' treinta documentos en `"SIN DATO"` no es una clave rota: le faltan treinta
+#' documentos. `n_filas` sigue siendo el de la tabla.
 #' Los vectores `double` sólo son candidatos si ninguno de sus valores finitos
 #' tiene parte fraccionaria. Esto conserva identificadores enteros importados
 #' desde archivos de texto y excluye importes, coordenadas y otras medidas. Los
@@ -237,7 +307,9 @@
 #' @param max_combinacion Máximo de columnas por combinación, entre 1 y 3.
 #' @param normalizar Perfil de comparación. `NULL` hereda el perfil de
 #'   `perfil`, pero las claves se siguen descubriendo por identidad exacta.
-#' @param perfil Perfil producido por [perfilar()] para heredar la comparación.
+#' @param perfil Perfil producido por [perfilar()] para heredar la comparación
+#'   y la política de faltantes disfrazados —`sentinelas_numericos` y
+#'   `cadenas_ausencia`—.
 #'
 #' @return Data frame de claves candidatas y casi-claves con las columnas
 #'   combinadas, cantidad de columnas, marcas de redundancia, `casi_clave`,
@@ -297,10 +369,22 @@ detectar_claves <- function(datos, max_combinacion = 3, normalizar = NULL,
         }
       }
     }
+    simples <- unlist(encontradas[lengths(encontradas) == 1L])
     casi_encontradas <- lapply(analizables, function(i) {
-      resumen <- .resumen_casi_clave(datos[[i]])
+      # La mascara cuesta una inferencia de tipo: no se paga donde la
+      # casi-clave no puede salir -una clave exacta no tiene colisiones, y con
+      # menos de `.min_filas_casi_clave` filas no se evalua-.
+      columna <- if (i %in% simples || NROW(datos[[i]]) < .min_filas_casi_clave) {
+        list(tipo = NULL, disfrazados = NULL)
+      } else {
+        .contexto_casi_clave(datos[[i]], perfil)
+      }
+      resumen <- .resumen_casi_clave(
+        datos[[i]], tipo_implicito = columna$tipo,
+        disfrazados = columna$disfrazados
+      )
       if (isTRUE(resumen$es_casi_clave)) {
-        list(indices = i, resumen = resumen)
+        list(indices = i, resumen = resumen, disfrazados = columna$disfrazados)
       } else NULL
     })
     casi_encontradas <- Filter(Negate(is.null), casi_encontradas)
@@ -313,7 +397,10 @@ detectar_claves <- function(datos, max_combinacion = 3, normalizar = NULL,
       list(indices = indices, casi_clave = FALSE, resumen = NULL)
     }),
     lapply(casi_encontradas, function(x) {
-      list(indices = x$indices, casi_clave = TRUE, resumen = x$resumen)
+      list(
+        indices = x$indices, casi_clave = TRUE, resumen = x$resumen,
+        disfrazados = x$disfrazados
+      )
     })
   )
   if (!length(entradas)) {
@@ -347,8 +434,15 @@ detectar_claves <- function(datos, max_combinacion = 3, normalizar = NULL,
           ]
         )
       }
+      # Una casi-clave se mide sin sus faltantes disfrazados, y la unicidad
+      # normalizada de la misma fila tambien: contada sobre la columna entera
+      # daba mas distintos normalizados que exactos.
+      filas_medidas <- if (es_casi_clave && length(entrada$disfrazados)) {
+        !(!is.na(entrada$disfrazados) & entrada$disfrazados)
+      } else rep(TRUE, nrow(datos))
       normalizada <- .resumen_clave_normalizada(
-        datos, indices, nombres, normalizacion_resuelta
+        datos[filas_medidas, , drop = FALSE], indices, nombres,
+        normalizacion_resuelta
       )
       exactos <- if (es_casi_clave) {
         resumen$n_distintos
@@ -417,13 +511,73 @@ detectar_claves <- function(datos, max_combinacion = 3, normalizar = NULL,
 
 .valores_relacion <- function(x) {
   if (inherits(x, "POSIXt")) {
-    return(format(x, "%Y-%m-%d %H:%M:%S", tz = "UTC"))
+    return(.escritura_exacta_temporal(
+      format(x, "%Y-%m-%d %H:%M:%S", tz = "UTC"), as.numeric(x)
+    ))
   }
   if (inherits(x, "Date")) {
-    return(format(x, "%Y-%m-%d"))
+    return(.escritura_exacta_temporal(format(x, "%Y-%m-%d"), as.numeric(x)))
   }
-  valores <- .texto_analizable(x)$valores
-  if (is.character(valores)) .nombres_para_operar(valores) else valores
+  analisis <- .texto_analizable(x)
+  valores <- analisis$valores
+  if (!is.character(valores)) return(valores)
+  claves <- .nombres_para_operar(valores)
+  # Un texto con bytes invalidos SIN declarar -lo que deja un `read.csv()` de un
+  # archivo latin1- sale de `.texto_analizable()` como `NA`, y aca se compara:
+  # la relacion lo sacaba del denominador, el referencial hacia del `NA` un
+  # nivel -todo invalido del objetivo casaba con cualquier invalido del padron-
+  # y las dependencias juntaban los invalidos en un solo grupo. Medido en la
+  # ronda 25: el padron {Ana, Mar<ed>a} declaraba conforme a `Jos<e9>`, y dos
+  # tablas con una sola fila en comun publicaban coberturas 1 y 1.
+  #
+  # Es el mismo arreglo que `.resumen_clave_normalizada()`: lo que no se puede
+  # leer como texto se compara por sus bytes, que es lo que hacen `%in%` y
+  # `unique()` de R. `.nombres_para_operar()` ya tiene esa clave -inyectiva y
+  # reservada, `<lupa-byte:...>`- y se le pasa el valor ORIGINAL.
+  invalidos <- which(analisis$invalidos)
+  if (length(invalidos)) {
+    claves[invalidos] <- .nombres_para_operar(as.character(x)[invalidos])
+  }
+  claves
+}
+
+# Un instante se escribia al segundo y una fecha al dia: dos instantes del mismo
+# segundo eran el mismo valor. Y la poda por rangos disjuntos usa el numero sin
+# truncar, asi que la respuesta dependia de los vecinos: medido en la ronda 25,
+# `a = t0 + 0.2` contra `b = t0 + 0.7` salia `sin_coincidencias` por la poda, y
+# agregando `t0 + 0.9` a `a` -el mismo valor de `b`- salia `m:1` con cobertura
+# 1. Las dependencias agrupaban los dos instantes de cada segundo y no omitian
+# una columna que es clave, y el referencial declaraba conforme un instante que
+# el padron no tenia.
+#
+# Se conserva la escritura al segundo -o al dia- cuando no hay fraccion, que es
+# como un texto puede coincidir con una fecha, y si la hay se le agrega la
+# fraccion EXACTA: `x - floor(x)` no redondea, y `format()` escribe el piso, asi
+# que el segundo mas su fraccion vuelve al valor. `%OS6` no alcanza: funde dos
+# instantes a un microsegundo -medido, `t0` y `t0 + 1e-6` dan la misma cadena-.
+.escritura_exacta_temporal <- function(texto, numero) {
+  fraccion <- numero - floor(numero)
+  con_fraccion <- !is.na(texto) & is.finite(numero) & fraccion != 0
+  if (any(con_fraccion)) {
+    etiqueta <- .etiqueta_numero_reversible(fraccion[con_fraccion])
+    # Una fraccion chica sale con exponente -`9.5367431640625e-07`-; se escribe
+    # en decimal corriendo la coma, sin redondear ninguna cifra.
+    con_exponente <- grepl("e", etiqueta, fixed = TRUE)
+    if (any(con_exponente)) {
+      etiqueta[con_exponente] <- vapply(
+        strsplit(etiqueta[con_exponente], "e", fixed = TRUE),
+        function(partes) {
+          cifras <- sub(".", "", partes[[1L]], fixed = TRUE)
+          ceros <- -as.integer(partes[[2L]]) - 1L
+          paste0("0.", strrep("0", max(ceros, 0L)), cifras)
+        }, character(1L)
+      )
+    }
+    texto[con_fraccion] <- paste0(
+      texto[con_fraccion], sub("^0[.]", ".", etiqueta)
+    )
+  }
+  texto
 }
 
 .familia_relacion <- function(x) {
@@ -615,15 +769,37 @@ detectar_claves <- function(datos, max_combinacion = 3, normalizar = NULL,
   # `y * umbral > x`, con 25 distintos contra 7 y umbral 0,28, el producto da
   # 7.0000000000000009 y declara imposible un par cuya cobertura maxima vale
   # exactamente el umbral -o sea alcanzable-.
+  #
+  # Pero esa cota es de VALORES DISTINTOS, y la cobertura que se compara con el
+  # umbral es por FILAS: `mean(y$muestra %in% x$unicos)`. Un solo valor comun
+  # puede cubrir casi todas las filas. Medido en la ronda 25: `a = {1}` contra
+  # `b` con 91 filas en 1 y nueve valores mas daba cobertura 0,91 y la poda la
+  # declaraba "imposible" con umbral 0,9 -la FK se perdia con un motivo falso-.
+  #
+  # La cota por filas: de `y` pueden estar en `x` a lo sumo `x$n_distintos`
+  # valores, asi que las filas cubiertas no superan las de sus
+  # `x$n_distintos` valores MAS FRECUENTES. La cota de distintos queda como
+  # filtro previo -es condicion necesaria: los k mas frecuentes de d valores
+  # cubren al menos k/d de las filas- y la de filas, que cuesta una tabla de
+  # frecuencias, solo se calcula cuando aquella dispara.
   if (umbral_cobertura > 0 && x$n_distintos > 0L && y$n_distintos > 0L &&
+      length(y$muestra) &&
       x$n_distintos / y$n_distintos < umbral_cobertura) {
-    return(list(
-      motivo = "cardinalidades_imposibles",
-      detalle = paste0(
-        y$n_distintos, " distintos en tabla2 contra ", x$n_distintos,
-        " en tabla1 con umbral ", umbral_cobertura
-      )
-    ))
+    frecuencias <- sort(
+      tabulate(match(y$muestra, unique(y$muestra))), decreasing = TRUE
+    )
+    k <- min(x$n_distintos, length(frecuencias))
+    cota <- sum(frecuencias[seq_len(k)]) / length(y$muestra)
+    if (cota < umbral_cobertura) {
+      return(list(
+        motivo = "cardinalidades_imposibles",
+        detalle = paste0(
+          "con ", x$n_distintos, " distintos en tabla1, los valores mas ",
+          "frecuentes de tabla2 cubren a lo sumo ", signif(cota, 4),
+          " de sus filas, por debajo del umbral ", umbral_cobertura
+        )
+      ))
+    }
   }
   NULL
 }
@@ -643,6 +819,13 @@ detectar_claves <- function(datos, max_combinacion = 3, normalizar = NULL,
 #' segunda; la cobertura inversa se informa de forma simétrica. Así se puede
 #' escoger la dirección PK/FK sin imponerla de antemano.
 #'
+#' Los valores se comparan por su identidad. Los números, por su valor; los
+#' instantes y las fechas también, con su fracción: dos instantes del mismo
+#' segundo no coinciden, y un instante sin fracción se escribe al segundo
+#' —`2020-01-01 10:00:00`— para que un texto con esa escritura lo encuentre.
+#' Un texto con bytes que no son UTF-8 válido se compara por sus bytes, como
+#' `%in%`: no es un ausente, y dos valores así distintos no coinciden.
+#'
 #' `columnas_candidatas` permite evitar la exploración de columnas que el usuario
 #' sabe que no pueden participar. El costo crece con el producto de anchos: dos
 #' tablas de treinta columnas son novecientas combinaciones por par de tablas, y
@@ -658,7 +841,9 @@ detectar_claves <- function(datos, max_combinacion = 3, normalizar = NULL,
 #' Las otras dos sí lo cambiarían. Familias distintas parece decisivo y no lo
 #' es: una columna de texto puede guardar `"2020-01-05"` y coincidir con una de
 #' fecha. Y una cardinalidad imposible no dice que no haya coincidencias, dice
-#' que no alcanzan `umbral_cobertura`, que es otra cosa. Por eso van detrás de
+#' que no alcanzan `umbral_cobertura`, que es otra cosa. La cota es por filas,
+#' como la cobertura: con `k` valores distintos en `tabla1`, las filas cubiertas
+#' de `tabla2` no superan las de sus `k` valores más frecuentes. Por eso van detrás de
 #' `podar = TRUE`, y cuando se aplican **el par no desaparece**: sale con
 #' `cardinalidad = "sin_comparar"`, coberturas `NA` y su motivo en `motivo_poda`.
 #' Un par que no se evaluó no es un par sin relación.
@@ -696,7 +881,9 @@ detectar_claves <- function(datos, max_combinacion = 3, normalizar = NULL,
 #'   alcanza; `Inf` no limita el procesamiento.
 #' @param .rangos Uso interno de [relaciones_coleccion()]. Lista nombrada por
 #'   `tabla1` y `tabla2`, con rangos y su origen para cada columna. La poda por
-#'   rangos solo acepta rangos de la columna completa o del universo DBI.
+#'   rangos solo acepta rangos de la columna completa o del universo DBI. Una
+#'   columna cuya lectura no permite comparar exacto lo declara en
+#'   `no_comparable`, y sus pares salen `sin_comparar` con ese motivo.
 #'
 #' @return Data frame con `columna_tabla1`, `columna_tabla2`, `cardinalidad`
 #'   —`1:1`, `1:m`, `m:1`, `m:m`, `sin_coincidencias` o `sin_comparar`—,
@@ -801,6 +988,18 @@ detectar_relaciones <- function(tabla1, tabla2, muestra = 1e5,
 
   repetido_1 <- .nombres_repetidos(nombres_1)[indices_1]
   repetido_2 <- .nombres_repetidos(nombres_2)[indices_2]
+  # Lo que la LECTURA no permite comparar exacto lo declara quien leyo
+  # -`relaciones_coleccion()`, en `.rangos`-: un BIGINT que el driver entrego
+  # como doble por encima de 2^53 ya no distingue dos enteros consecutivos.
+  lectura_de <- function(lado, nombre) {
+    if (is.null(.rangos) || !is.list(.rangos[[lado]])) return(NULL)
+    especificacion <- .rangos[[lado]][[nombre]]
+    if (is.list(especificacion) && is.list(especificacion$no_comparable)) {
+      especificacion$no_comparable
+    } else NULL
+  }
+  lectura_1 <- lapply(nombres_1[indices_1], function(n) lectura_de("tabla1", n))
+  lectura_2 <- lapply(nombres_2[indices_2], function(n) lectura_de("tabla2", n))
   for (i in seq_along(indices_1)) {
     x <- columnas_1[[i]]
     for (j in seq_along(indices_2)) {
@@ -835,6 +1034,10 @@ detectar_relaciones <- function(tabla1, tabla2, muestra = 1e5,
             "explicito, y volver a comparar"
           )
         )
+      } else if (!is.null(lectura_1[[i]])) {
+        lectura_1[[i]]
+      } else if (!is.null(lectura_2[[j]])) {
+        lectura_2[[j]]
       } else NULL
       if (!is.null(no_comparable)) {
         podas[[length(podas) + 1L]] <- data.frame(

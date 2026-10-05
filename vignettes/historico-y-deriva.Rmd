@@ -57,7 +57,12 @@ comparar_evaluaciones(evaluacion_enero, evaluacion_febrero)
 
 `historico_calidad()` normaliza las corridas en un `data.frame` plano y
 versionado. Puede escribirse como CSV o llevarse a una tabla institucional sin
-desarmar listas anidadas.
+desarmar listas anidadas. La configuración de cada corrida —la tabla, el marco,
+los tipos de resultado— viaja en las columnas `identidad_tabla` y
+`configuracion_*` de las filas `evaluacion_perfil`, así que un histórico releído
+de un CSV separa las tablas y corta los cambios de marco igual que el objeto.
+`comparar_evaluaciones()` publica el mismo delta que la deriva, y en
+`comparacion` dice por qué falta cuando las corridas no se pueden comparar.
 
 ```{r}
 historico <- historico_calidad(evaluacion_enero, evaluacion_febrero)

@@ -41,7 +41,8 @@ y la misma métrica medida dos veces en la corrida sí, que es lo que
 \item{fecha}{Fecha y hora de la corrida. Se guarda en UTC; un texto
 —\code{"2026-03-01"} o \code{"2026-03-01 09:30:00"}— se lee en UTC, no en el huso de
 la sesión, así que la misma llamada registra el mismo instante en cualquier
-máquina.}
+máquina. Un desplazamiento escrito en el texto —\code{"2026-03-01 09:30:00-03:00"},
+\code{Z}, \code{+0100}— se respeta, y un texto que no se puede leer entero se rechaza.}
 
 \item{aplicabilidad}{Lista con nombre por columna, donde cada elemento es
 una fórmula que dice en qué filas esa columna corresponde —por ejemplo

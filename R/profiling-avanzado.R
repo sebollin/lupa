@@ -106,8 +106,13 @@
     )))
   }
   textos <- .valores_relacion(valores)
-  # Cuantos se perdieron aca, ANTES de descartarlos. `.valores_relacion()`
-  # devuelve `NA` para lo que no puede comparar -bytes invalidos, sobre todo- y
+  # `.valores_relacion()` compara los bytes invalidos sin declarar por sus bytes
+  # -ronda 25: como `NA` casaban entre si en relaciones y referencial-, pero
+  # esta tabla los PUBLICA, y un byte suelto no es texto que se pueda escribir
+  # en el reporte. Aca se siguen descartando, y se cuentan abajo.
+  textos[.texto_analizable(valores)$invalidos] <- NA_character_
+  # Cuantos se perdieron aca, ANTES de descartarlos. Lo que no se puede
+  # publicar -bytes invalidos, sobre todo- queda en `NA` y
   # la linea siguiente los saca. La proporcion se calcula entonces sobre los
   # que sobrevivieron, no sobre la columna.
   #

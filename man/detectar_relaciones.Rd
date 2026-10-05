@@ -38,7 +38,9 @@ alcanza; \code{Inf} no limita el procesamiento.}
 
 \item{.rangos}{Uso interno de \code{\link[=relaciones_coleccion]{relaciones_coleccion()}}. Lista nombrada por
 \code{tabla1} y \code{tabla2}, con rangos y su origen para cada columna. La poda por
-rangos solo acepta rangos de la columna completa o del universo DBI.}
+rangos solo acepta rangos de la columna completa o del universo DBI. Una
+columna cuya lectura no permite comparar exacto lo declara en
+\code{no_comparable}, y sus pares salen \code{sin_comparar} con ese motivo.}
 }
 \value{
 Data frame con \code{columna_tabla1}, \code{columna_tabla2}, \code{cardinalidad}
@@ -58,6 +60,13 @@ segunda; la cobertura inversa se informa de forma simétrica. Así se puede
 escoger la dirección PK/FK sin imponerla de antemano.
 }
 \details{
+Los valores se comparan por su identidad. Los números, por su valor; los
+instantes y las fechas también, con su fracción: dos instantes del mismo
+segundo no coinciden, y un instante sin fracción se escribe al segundo
+—\verb{2020-01-01 10:00:00}— para que un texto con esa escritura lo encuentre.
+Un texto con bytes que no son UTF-8 válido se compara por sus bytes, como
+\code{\%in\%}: no es un ausente, y dos valores así distintos no coinciden.
+
 \code{columnas_candidatas} permite evitar la exploración de columnas que el usuario
 sabe que no pueden participar. El costo crece con el producto de anchos: dos
 tablas de treinta columnas son novecientas combinaciones por par de tablas, y
@@ -73,7 +82,9 @@ cambia lo que el objeto informa.
 Las otras dos sí lo cambiarían. Familias distintas parece decisivo y no lo
 es: una columna de texto puede guardar \code{"2020-01-05"} y coincidir con una de
 fecha. Y una cardinalidad imposible no dice que no haya coincidencias, dice
-que no alcanzan \code{umbral_cobertura}, que es otra cosa. Por eso van detrás de
+que no alcanzan \code{umbral_cobertura}, que es otra cosa. La cota es por filas,
+como la cobertura: con \code{k} valores distintos en \code{tabla1}, las filas cubiertas
+de \code{tabla2} no superan las de sus \code{k} valores más frecuentes. Por eso van detrás de
 \code{podar = TRUE}, y cuando se aplican \strong{el par no desaparece}: sale con
 \code{cardinalidad = "sin_comparar"}, coberturas \code{NA} y su motivo en \code{motivo_poda}.
 Un par que no se evaluó no es un par sin relación.

@@ -27,7 +27,11 @@
 #'   veredicto y el universo de medidas que la produjo.
 #' @param desenlace `NULL`, para limitar la regla a evaluar, o `"suprimir"`
 #'   para declarar que las medidas que no cumplen `condicion` no deben
-#'   publicarse. No existe un desenlace predeterminado.
+#'   publicarse. No existe un desenlace predeterminado. Suprimir tapa el
+#'   **valor** de esas medidas en cada salida; no es supresión complementaria:
+#'   un agregado suprimido se puede recalcular de sus medidas crudas si se
+#'   publican al lado —por ejemplo, en un histórico que acumula también la
+#'   medición—.
 #' @param umbrales Vector numérico con nombres, estrictamente creciente y en
 #'   `[0, 1]`. `NULL` conserva los tres perfiles incluidos de fábrica.
 #' @param ... Reglas creadas por `regla_evaluacion()` o una única lista que las
@@ -1054,12 +1058,31 @@ rbind.medicion <- function(..., deparse.level = 1) {
   # que no habia entrado desaparecia. Si todas las partes traen la misma, queda;
   # si no, todas pasan a `cobertura_de_partes`, que es donde `agregar()` y los
   # lectores las buscan. Medido en la ronda 24.
+  #
+  # Y entre corridas DISTINTAS cada cobertura lleva su `id_medicion`: sin el, la
+  # de una corrida no se distinguia de la de otra -dos iguales se fundian en una-
+  # y `historico_calidad(rbind(ene, feb))` no podia decir a que corrida le
+  # faltaba la tabla, asi que no guardaba ninguna `parte_no_medida`, donde
+  # `historico_calidad(ene, feb)` guardaba las dos. Medido en la ronda 25.
+  de_su_corrida <- function(medicion, cobertura) {
+    if (misma_corrida || !is.list(cobertura) || !is.null(cobertura$id_medicion)) {
+      return(cobertura)
+    }
+    ids <- .identificadores_unicos(as.character(medicion$id_medicion))
+    if (length(ids) == 1L) cobertura$id_medicion <- ids
+    cobertura
+  }
   partes_cobertura <- .coberturas_sin_repetir(unlist(lapply(
-    mediciones, function(m) attr(m, "cobertura_de_partes", exact = TRUE)
+    mediciones, function(m) {
+      partes <- attr(m, "cobertura_de_partes", exact = TRUE)
+      if (!length(partes)) return(partes)
+      stats::setNames(lapply(partes, de_su_corrida, medicion = m), names(partes))
+    }
   ), recursive = FALSE))
   for (atributo in .ATRIBUTOS_COBERTURA_FRONTERA) {
-    valores <- Filter(Negate(is.null), lapply(mediciones, attr, which = atributo,
-                                              exact = TRUE))
+    valores <- Filter(Negate(is.null), lapply(mediciones, function(m) {
+      de_su_corrida(m, attr(m, atributo, exact = TRUE))
+    }))
     valores <- .coberturas_sin_repetir(valores)
     if (length(valores) == 1L) {
       attr(resultado, atributo) <- valores[[1L]]
@@ -1356,7 +1379,13 @@ evaluar <- function(medicion, perfil) {
 #'
 #' @param anterior,actual Objetos creados por `evaluar()`.
 #'
-#' @return Data frame con resultados anterior y actual, y `delta`.
+#' @return Data frame con resultados anterior y actual, `delta` y
+#'   `comparacion`. El delta es el que publica [detectar_deriva_calidad()] sobre
+#'   el histórico de las dos evaluaciones, con la misma regla: queda en `NA`
+#'   cuando las corridas miden tablas distintas, cambia el marco o los tipos de
+#'   resultado, cambia la parte medida de la frontera o un resultado no se
+#'   evaluó, y `comparacion` dice por qué con la palabra de la deriva. El orden
+#'   lo dan los argumentos, no la fecha: `anterior` es siempre el primero.
 #' @export
 #'
 #' @examples
@@ -1398,6 +1427,94 @@ comparar_evaluaciones <- function(anterior, actual) {
     "perfil", "id_medicion_anterior", "fecha_anterior", "resultado_anterior",
     "id_medicion_actual", "fecha_actual", "resultado_actual"
   )]
-  combinado$delta <- combinado$resultado_actual - combinado$resultado_anterior
+  .delta_desde_la_deriva(combinado, anterior, actual)
+}
+
+# El delta sale de `detectar_deriva_calidad()` y no de una resta propia, como en
+# la evolucion de `reportar()`. La resta era la misma regla escrita dos veces, y
+# la copia no sabia lo que la original decide: publicaba -0,75 entre dos tablas
+# distintas medidas con el mismo perfil, y entre un marco y otro, donde la deriva
+# del historico de LAS MISMAS dos evaluaciones no arma par o declara
+# `no_comparable`. Medido en la ronda 25. `comparacion` dice, con la palabra de la
+# deriva, por que falta un delta o que acompana al que hay.
+.delta_desde_la_deriva <- function(combinado, anterior, actual) {
+  combinado$delta <- NA_real_
+  combinado$comparacion <- NA_character_
+  if (!nrow(combinado)) return(combinado)
+  id_a <- as.character(anterior$perfiles$id_medicion[[1L]])
+  id_b <- as.character(actual$perfiles$id_medicion[[1L]])
+  if (identical(.clave_bytes(id_a), .clave_bytes(id_b))) {
+    combinado$comparacion <- paste(
+      "No se puede comparar: `anterior` y `actual` son la misma corrida."
+    )
+    return(combinado)
+  }
+  deriva <- tryCatch({
+    historico <- historico_calidad(anterior, actual)
+    list(
+      tabla = as.data.frame(detectar_deriva_calidad(historico, nivel = "perfil")),
+      configuracion = attr(historico, "configuracion_evaluacion", exact = TRUE)
+    )
+  }, error = function(e) e)
+  if (inherits(deriva, "error")) {
+    combinado$comparacion <- paste0(
+      "La comparaci\u00f3n no se pudo calcular: ", conditionMessage(deriva)
+    )
+    return(combinado)
+  }
+  tabla <- deriva$tabla
+  # La deriva ordena por fecha -y un empate por los bytes de `id_medicion`-; aca
+  # manda el orden de los argumentos. Si la deriva armo el par al reves, el
+  # delta cambia de signo y la descripcion cambia de lado.
+  invertir_lados <- function(x) {
+    x <- gsub("anterior", "\001", x, fixed = TRUE)
+    x <- gsub("actual", "anterior", x, fixed = TRUE)
+    gsub("\001", "actual", x, fixed = TRUE)
+  }
+  clave <- function(x) .clave_bytes(as.character(x))
+  identidad_de <- function(id, perfil) {
+    configuracion <- deriva$configuracion
+    i <- which(clave(configuracion$id_medicion) == clave(id) &
+                 clave(configuracion$perfil) == clave(perfil))
+    if (length(i)) as.character(configuracion$identidad_tabla[[i[[1L]]]]) else NA_character_
+  }
+  for (k in seq_len(nrow(combinado))) {
+    perfil <- combinado$perfil[[k]]
+    if (is.na(combinado$id_medicion_anterior[[k]]) ||
+        is.na(combinado$id_medicion_actual[[k]])) {
+      combinado$comparacion[[k]] <- paste0(
+        "No se puede comparar: el perfil no se evalu\u00f3 en la corrida ",
+        if (is.na(combinado$id_medicion_anterior[[k]])) "anterior." else "actual."
+      )
+      next
+    }
+    del_perfil <- clave(tabla$perfil) == clave(perfil)
+    directo <- del_perfil & clave(tabla$id_medicion_anterior) == clave(id_a) &
+      clave(tabla$id_medicion_actual) == clave(id_b)
+    inverso <- del_perfil & clave(tabla$id_medicion_anterior) == clave(id_b) &
+      clave(tabla$id_medicion_actual) == clave(id_a)
+    filas <- which(directo | inverso)
+    if (!length(filas)) {
+      tabla_a <- identidad_de(id_a, perfil)
+      tabla_b <- identidad_de(id_b, perfil)
+      combinado$comparacion[[k]] <- if (!identical(tabla_a, tabla_b)) {
+        paste0(
+          "No se puede comparar: las dos corridas no miden la misma tabla (",
+          tabla_a, " contra ", tabla_b, ")."
+        )
+      } else {
+        "No se puede comparar: la deriva no arma un par con estas dos corridas."
+      }
+      next
+    }
+    lectura <- .lectura_par_deriva(tabla, filas)
+    al_reves <- all(inverso[filas])
+    combinado$delta[[k]] <- if (al_reves) -lectura$delta else lectura$delta
+    combinado$comparacion[[k]] <- if (al_reves) {
+      invertir_lados(lectura$comparacion)
+    } else {
+      lectura$comparacion
+    }
+  }
   combinado
 }

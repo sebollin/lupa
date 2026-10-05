@@ -28,11 +28,13 @@ a \code{medida}, \code{evaluacion_medida}, \code{evaluacion_regla} o
 menos una medida; y una parte declarada en una frontera —una tabla de la
 colección, una colección de la organización— que no entró al número, como
 \code{parte_no_medida}, con la frontera en \code{id_registro}, la parte en \code{entidad}
-y el motivo en \code{objeto_medible}. Una medida que una regla declaró \code{desenlace = "suprimir"}
+y el motivo en \code{objeto_medible} —también cuando un objeto reúne varias
+corridas con \code{rbind()}: cada parte va a la corrida a la que le faltó—. Una medida que una regla declaró \code{desenlace = "suprimir"}
 no publica su valor \strong{tampoco aquí}: su fila deja \code{resultado} en \code{NA} y
 marca \code{objeto_medible} con \verb{[valor suprimido]}, en los dos niveles donde esa
-medida aparece —\code{medida} y \code{evaluacion_medida}—, porque esta tabla está
-pensada para exportarse. Con el detalle resumido, las medidas suprimidas
+medida aparece —\code{medida} y \code{evaluacion_medida}, en este último bajo
+cualquier perfil o regla que la evalúe, no solo el que la suprimió—,
+porque esta tabla está pensada para exportarse. Con el detalle resumido, las medidas suprimidas
 entran igual, enmascaradas en el nivel \code{evaluacion_medida}: así una
 medición acumulada \strong{después} —también sobre un histórico guardado o
 leído de un CSV— queda tapada en las mismas medidas, sea cual sea el orden
@@ -44,6 +46,13 @@ modelo, su marco y sus tipos, la aplicabilidad, el perfil, la identidad
 de tabla y \strong{la fecha} de cada corrida. Acumular una corrida con un
 \code{id_medicion} ya presente exige que todo eso coincida, la fecha incluida:
 dos entregas distintas son dos corridas, y el error nombra en qué difieren.
+Esa misma configuración viaja \strong{en las filas} \code{evaluacion_perfil}, en las
+columnas \code{identidad_tabla}, \code{configuracion_modelo}, \code{configuracion_marco},
+\code{configuracion_tipos_resultado}, \code{configuracion_aplicabilidad} y
+\code{configuracion_perfil} —en \code{NA} en los demás niveles—, porque el atributo no
+sobrevive a \code{write.csv()}: un histórico releído de un CSV la recupera de
+ahí. Son columnas agregadas al esquema 1: un histórico anterior que no las
+trae se lee igual, con ellas en \code{NA}.
 }
 \description{
 Crea un data frame plano y versionado con corridas producidas por \code{\link[=medir]{medir()}} o
@@ -56,7 +65,12 @@ El detalle predeterminado evita repetir una fila por celda y regla cuando el
 objetivo es monitorear la serie de evaluaciones. El objeto no guarda modelos,
 closures, datos originales ni perfiles de profiling. Esto mantiene la tabla
 exportable directamente con \code{write.csv()} o una herramienta de base de datos.
-Al volver a leerla, las fechas de texto se leen en UTC, con su hora.
+Al volver a leerla, cada columna recupera el tipo del esquema —\code{read.csv()}
+lee como lógica una columna de texto que viene entera en \code{NA}— y las fechas
+de texto se leen en UTC, con su hora y con su desplazamiento cuando lo traen
+—\verb{2026-01-31 10:00:00-03:00} son las 13:00 UTC; también \code{Z}, \code{+0100} o
+\code{-03}, como los escribe una columna \code{timestamptz} de una base—. Un texto que
+no se puede leer entero se rechaza: no se lee a medias.
 
 \code{[}, \code{subset()} y \code{dplyr::filter()} conservan la configuración de las
 corridas que quedan; \code{rbind()} de dos históricos los acumula, como

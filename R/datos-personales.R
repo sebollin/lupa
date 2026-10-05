@@ -778,23 +778,108 @@
   vapply(seq_along(x), function(i) .texto_valor(x[i]), character(1L))
 }
 
-.columna_de_fechas_compactas <- function(x) {
+# Si una COLUMNA es de fechas: `Date` o `POSIXt`, o la mitad o mas de sus
+# valores distintos tienen forma de fecha -ver `.forma_de_fecha()`-. Es la UNICA
+# regla y la usan todas las puertas: el piso en memoria, la cosecha de los
+# estadisticos, las fechas que identifican y la lectura de la tabla entera en
+# `perfilar_dbi()`. Hasta la ronda 24 eran dos: la columna AAAAMMDD tenia que
+# serlo en TODAS sus celdas y la de fechas con separadores en la mitad, y el ano
+# en dos cifras no contaba. Medido en la ronda 25: una columna de nacimientos
+# con el 60 % en `dd/mm/aa`, o una AAAAMMDD con UNA celda mala, no era "de
+# fechas", sus fechas entraban al piso y tapaban la moda y los ejemplos de las
+# fechas de OTRA columna -con 20.000 personas, el 16 % de sus celdas-. Ante
+# cualquier duda, no es de fechas: la columna sigue aportando sus valores.
+.columna_de_fechas <- function(x) {
+  if (inherits(x, c("Date", "POSIXt"))) return(TRUE)
   if (!(is.numeric(x) || is.character(x) || is.factor(x)) ||
       inherits(x, "integer64")) {
     return(FALSE)
   }
-  # En bytes: `trimws()` aborta sobre texto que no es UTF-8 valido, y este paquete
-  # trabaja con esos. Ante cualquier duda, no es una columna de fechas: la
-  # columna sigue aportando sus valores al piso.
   tryCatch({
-    texto <- gsub("^[[:space:]]+|[[:space:]]+$", "", as.character(x),
-                  useBytes = TRUE)
-    texto <- texto[!is.na(texto) & nzchar(texto)]
-    length(texto) > 0L && all(grepl(
-      "^(1[89]|20)[0-9]{2}(0[1-9]|1[0-2])(0[1-9]|[12][0-9]|3[01])$", texto,
-      perl = TRUE, useBytes = TRUE
-    ))
+    texto <- unique(as.character(x))
+    texto <- texto[!is.na(texto)]
+    forma <- .forma_de_fecha(texto)
+    vacios <- !nzchar(.recortar_bytes(texto))
+    any(!vacios) && mean(forma[!vacios]) >= 0.5
   }, error = function(e) FALSE)
+}
+
+# `trimws()` aborta sobre texto que no es UTF-8 valido, y este paquete trabaja
+# con esos: se recorta en bytes.
+.recortar_bytes <- function(x) {
+  gsub("^[[:space:]]+|[[:space:]]+$", "", x, useBytes = TRUE)
+}
+
+# La forma de fecha que cuenta para decidir si una columna es de fechas y, en
+# una que lo es, que valores salen del piso: la fecha sola de `.es_fecha_sola()`,
+# la del ano en dos cifras -"16/01/95"- y la compacta AAAAMMDD -"19950116"-,
+# tambien escrita como numero real: SQLite devuelve "19950116.0" al leer como
+# texto una columna REAL.
+.forma_de_fecha <- function(valores) {
+  valores <- .recortar_bytes(as.character(valores))
+  dia <- "(0?[1-9]|[12][0-9]|3[01])"
+  mes <- "(0?[1-9]|1[0-2])"
+  dos_cifras <- paste0(
+    "^(", dia, "[-/.]", mes, "|", mes, "[-/.]", dia, ")[-/.][0-9]{2}$"
+  )
+  compacta <- paste0(
+    "^(1[89]|20)[0-9]{2}(0[1-9]|1[0-2])(0[1-9]|[12][0-9]|3[01])([.]0+)?$"
+  )
+  salida <- .es_fecha_sola(valores) |
+    grepl(dos_cifras, valores, perl = TRUE, useBytes = TRUE) |
+    grepl(compacta, valores, perl = TRUE, useBytes = TRUE)
+  salida[is.na(valores)] <- FALSE
+  salida
+}
+
+# Los RELLENOS de una columna protegida que son un centinela: un digito repetido
+# -"99999999", "0000-0000"- que aparece al menos `.MIN_REPETICIONES_CENTINELA`
+# veces en una columna que, sin el, es casi una clave -nueve de cada diez de sus
+# valores, distintos-. Ahi el dato de una persona aparece una vez y lo que se
+# repite cuarenta veces ocupa el lugar de un dato. Medido en la ronda 25: el
+# `99999999` de una cedula entraba al piso y tapaba la moda, el minimo, la
+# mediana y el maximo de un `monto` que tenia su propio `99999999`, y el hallazgo
+# decia "el valor [valor protegido] aparece 30 veces". En una tabla de
+# movimientos, donde el documento de un cliente se repite, NO se aplica: la
+# cedula 2.222.222-2 es valida y es de alguien. Ante cualquier duda, ninguno.
+# El relleno sin letras ni digitos -"------"- no necesita la columna: lo saca
+# `.valores_identificantes()`.
+.rellenos_de_columna <- function(x) {
+  if (!(is.character(x) || is.factor(x) || is.numeric(x)) ||
+      inherits(x, "integer64")) {
+    return(character())
+  }
+  tryCatch({
+    texto <- as.character(x)
+    texto <- texto[!is.na(texto)]
+    if (length(texto) < .MIN_REPETICIONES_CENTINELA) return(character())
+    distintos <- unique(texto)
+    cuenta <- tabulate(match(texto, distintos), nbins = length(distintos))
+    digitos <- gsub("[^0-9]", "", distintos, useBytes = TRUE)
+    candidatos <- which(
+      cuenta >= .MIN_REPETICIONES_CENTINELA &
+        grepl("^[0-9 .,/-]+$", distintos, useBytes = TRUE) &
+        grepl("^([0-9])\\1{5,}$", digitos, useBytes = TRUE)
+    )
+    if (!length(candidatos)) return(character())
+    resto <- !texto %in% distintos[candidatos]
+    if (!any(resto)) return(character())
+    casi_clave <- length(unique(texto[resto])) / sum(resto) >= 0.9
+    if (!casi_clave) return(character())
+    distintos[candidatos]
+  }, error = function(e) character())
+}
+
+# Los rellenos de las columnas `sensibles` de `datos`, para quien protege POR
+# COLUMNA: los parametros del plan sobre una columna protegida y las filas
+# duplicadas citadas tapan sus celdas con todos sus valores, tambien estos. Solo
+# el piso -lo que se busca en las demas columnas- los deja afuera.
+.rellenos_de_columnas <- function(datos, sensibles) {
+  if (!inherits(datos, "data.frame") || !length(sensibles)) return(character())
+  indices <- .indice_nombre(sensibles, names(datos))
+  unique(unlist(lapply(indices[!is.na(indices)], function(i) {
+    .rellenos_de_columna(datos[[i]])
+  }), use.names = FALSE))
 }
 
 .valores_publicables_protegidos <- function(datos, sensibles) {
@@ -807,20 +892,29 @@
     if (is.data.frame(x) || .es_columna_compuesta(x) || is.list(x)) {
       return(character())
     }
-    # Una columna de fechas escritas como AAAAMMDD -entero o texto- es una
-    # columna de fechas, y una fecha sola no entra en el piso (ver
+    # En una columna de fechas -tambien AAAAMMDD, entero o texto, y con el ano
+    # en dos cifras- una fecha sola no entra en el piso (ver
     # `.valores_identificantes()`). Se decide por la COLUMNA y no por el valor:
     # una cedula de ocho digitos puede parecer una fecha, una columna entera de
     # cedulas no. Medido en una refutacion: tapaba los estadisticos de fecha de
-    # las demas columnas.
-    if (.columna_de_fechas_compactas(x)) return(character())
+    # las demas columnas. Lo que en ella NO tiene forma de fecha -un relleno, un
+    # texto- sigue entrando.
+    de_fechas <- .columna_de_fechas(x)
     crudos <- tryCatch(as.character(x), error = function(e) character())
     formateados <- tryCatch(c(
       format(x, digits = 15L, trim = TRUE, scientific = FALSE),
       format(x, digits = 8L, trim = TRUE, scientific = FALSE),
       .texto_valor_vector(x)
     ), error = function(e) character())
-    c(crudos, formateados)
+    salida <- c(crudos, formateados)
+    if (de_fechas) salida <- salida[!.forma_de_fecha(salida)]
+    # Recortado: `format()` de un texto lo rellena con espacios hasta el ancho
+    # de la columna, y "99999999   " no es "99999999".
+    rellenos <- .rellenos_de_columna(x)
+    if (length(rellenos)) {
+      salida <- salida[!.recortar_bytes(salida) %in% rellenos]
+    }
+    salida
   }), use.names = FALSE)
   valores <- unique(valores[!is.na(valores) & nzchar(valores)])
   # Los valores largos van primero para que `12` no deje restos dentro de un
@@ -831,18 +925,31 @@
 }
 
 .valores_perfil_protegidos <- function(columnas, patrones, clasificacion,
-                                       meta = NULL, datos = NULL) {
+                                       meta = NULL, datos = NULL,
+                                       excluir = character(),
+                                       rellenos = character()) {
   sensibles <- .columnas_personales_protegidas(clasificacion)
-  # Con los datos a mano, una columna de fechas compactas -AAAAMMDD- no aporta
-  # agujas tampoco por sus estadisticos: su maximo `20000111` tapaba el maximo
-  # `2000-01-11` de otra columna de fechas. Ver `.valores_publicables_protegidos()`.
+  # `excluir`: las columnas de fechas que quien llama ya decidio sin pasar los
+  # datos -`perfilar_dbi()`, con la muestra-. Mismo efecto que el de abajo.
+  # `rellenos`: lo mismo para los centinelas de `.rellenos_de_columna()`.
+  sensibles <- sensibles[
+    !.nombres_para_operar(sensibles) %in% .nombres_para_operar(excluir)
+  ]
+  if (inherits(datos, "data.frame") && length(sensibles)) {
+    rellenos <- unique(c(rellenos, .rellenos_de_columnas(datos, sensibles)))
+  }
+  # Con los datos a mano, una columna de fechas -tambien AAAAMMDD o con el ano en
+  # dos cifras- no aporta agujas tampoco por sus estadisticos: su maximo
+  # `20000111` tapaba el maximo `2000-01-11` de otra columna de fechas. Lo que
+  # en ella no tiene forma de fecha llega igual, desde los datos: ver
+  # `.valores_publicables_protegidos()`.
   if (inherits(datos, "data.frame") && length(sensibles)) {
     indices_datos <- .indice_nombre(sensibles, names(datos))
-    compactas <- vapply(seq_along(sensibles), function(i) {
+    de_fechas <- vapply(seq_along(sensibles), function(i) {
       !is.na(indices_datos[[i]]) &&
-        .columna_de_fechas_compactas(datos[[indices_datos[[i]]]])
+        .columna_de_fechas(datos[[indices_datos[[i]]]])
     }, logical(1L))
-    sensibles <- sensibles[!compactas]
+    sensibles <- sensibles[!de_fechas]
   }
   if (!inherits(columnas, "data.frame") || !length(sensibles)) {
     return(character())
@@ -883,11 +990,12 @@
   # no entra: como aguja se tapaba a si mismo en `meta`, y el plan quedaba con la
   # accion que convierte `-999` en `NA` sin efecto en una columna de montos,
   # recomendada y activa. Medido en una refutacion.
+  declarados <- character()
   if (is.list(meta) && length(meta$sentinelas_numericos)) {
     propios <- meta$sentinelas_numericos[
       !meta$sentinelas_numericos %in% .numeros_na_locales
     ]
-    valores <- c(valores, as.character(propios))
+    declarados <- as.character(propios)
   }
   # Las celdas de `ejemplos` no traen UN valor: traen hasta tres UNIDOS con
   # `.SEPARADOR_EJEMPLOS`. Una aguja que es la cadena unida no existe en ningun
@@ -911,6 +1019,15 @@
   )
   valores <- c(valores, partes)
   valores <- unique(valores[!is.na(valores) & nzchar(valores)])
+  # El centinela de una columna protegida -su moda, cuarenta `99999999`- no es
+  # el dato de nadie: ver `.rellenos_de_columna()`. Si otra columna protegida
+  # lo tiene como valor, entra por `.valores_publicables_protegidos()`, que
+  # decide por columna. Lo que el usuario DECLARO centinela en `meta` entra
+  # igual: es su declaracion, y sin la tabla no se sabe de que columna es.
+  if (length(rellenos)) {
+    valores <- valores[!.recortar_bytes(valores) %in% rellenos]
+  }
+  valores <- unique(c(valores, declarados[!is.na(declarados)]))
   valores[order(nchar(valores, type = "bytes"), decreasing = TRUE,
                 method = "radix")]
 }
@@ -937,6 +1054,52 @@
     grepl(patron, textos, perl = TRUE),
     error = function(e) rep(TRUE, length(textos))
   )
+}
+
+# El correo ofuscado con palabras, leido como correo: `(at)`, `[at]`, `{at}`,
+# `_at_`, `(arroba)`, `(a)` y ` at ` o ` arroba ` entre dos palabras son la
+# arroba; `(dot)`, `(punto)` y ` dot ` o ` punto ` entre dos palabras, el punto.
+# Solo con forma de correo: la arroba, si la sigue un dominio con su punto
+# -escrito o en palabras-, y el punto, solo en un texto que ya tiene arroba.
+# Sin eso, "maria at lopez" o "maria punto lopez" se leian "maria.lopez" y se
+# tapaban frente a la protegida "Maria Lopez". La `a` sola, solo entre
+# parentesis: suelta es una preposicion. Ante un texto que no se puede
+# examinar, se devuelve como esta.
+.correo_desofuscado <- function(textos) {
+  tryCatch({
+    # Solo el texto que es UTF-8 valido se examina: `grepl()` con `perl = TRUE`
+    # AVISA "input string is invalid UTF-8" sobre bytes rotos, y el aviso le
+    # llegaba al usuario desde la proteccion. El que no se puede examinar se
+    # devuelve como esta, que es lo que este ayudante promete.
+    examinables <- !is.na(textos) & validUTF8(textos)
+    con <- examinables
+    con[examinables] <- grepl(
+      paste0("(?i)[(\\[{_]\\s*(?:at|arroba|a)\\s*[)\\]}_]|",
+             "[\\p{L}\\p{N}]\\s+(?:at|arroba)\\s+[\\p{L}\\p{N}]"),
+      textos[examinables], perl = TRUE
+    )
+    if (!any(con)) return(textos)
+    t <- textos[con]
+    punto <- "(?i:dot|punto)"
+    punto_escrito <- paste0(
+      "(?:\\s*[(\\[{]\\s*", punto, "\\s*[)\\]}]\\s*|_", punto, "_|\\s+", punto,
+      "\\s+)"
+    )
+    dominio <- paste0("(?=[\\p{L}\\p{N}][\\p{L}\\p{N}-]*(?:\\.|", punto_escrito,
+                      ")[\\p{L}])")
+    arroba <- "(?i:at|arroba)"
+    t <- gsub(paste0("\\s*(?:[(\\[{]\\s*(?:", arroba, "|(?i:a))\\s*[)\\]}]|_",
+                     arroba, "_)\\s*", dominio), "@", t, perl = TRUE)
+    t <- gsub(paste0("(?<=[\\p{L}\\p{N}])\\s+", arroba, "\\s+", dominio), "@",
+              t, perl = TRUE)
+    con_arroba <- grepl("@", t, fixed = TRUE)
+    t[con_arroba] <- gsub(
+      paste0("(?<=[\\p{L}\\p{N}])", punto_escrito, "(?=[\\p{L}\\p{N}])"), ".",
+      t[con_arroba], perl = TRUE
+    )
+    textos[con] <- t
+    textos
+  }, error = function(e) textos)
 }
 
 .reemplazar_variantes_separadas <- function(x, valores,
@@ -1013,6 +1176,20 @@
     entero <- crudos[[1L]]
     entero[rotos] <- plegar(elegidos[rotos], invalidos = "entero")
     crudos[[3L]] <- entero
+  }
+  # Y el correo escrito para que no lo lean las maquinas -`juan(at)gmail.com`,
+  # `juan arroba gmail punto com`-, con esas palabras leidas como la arroba y el
+  # punto. Sin esto se publicaba en diez de doce formas. Medido en la ronda 25:
+  # sobre 3000 correos protegidos, el costo de leerlas asi en correos NO
+  # protegidos fue el mismo que con la arroba comun -los separadores ya eran
+  # cosmeticos-, y 2009 frases con esas palabras no se taparon. Solo las filas
+  # que traen una; las demas quedan vacias en esta forma y no golpean.
+  ofuscados <- .correo_desofuscado(elegidos)
+  if (any(ofuscados != elegidos, na.rm = TRUE)) {
+    cambiados <- !is.na(ofuscados) & ofuscados != elegidos
+    forma <- rep("", length(elegidos))
+    forma[cambiados] <- plegar(ofuscados[cambiados])
+    crudos[[length(crudos) + 1L]] <- forma
   }
   pajares <- lapply(crudos, sin_separadores)
   pajar <- pajares[[1L]]
@@ -1314,6 +1491,34 @@
 # digitos ni letras, y al reponer cada codigo dice que nombre era. Un orden de
 # aparicion no alcanzaria: si la proteccion tapa una cita que llevaba un nombre,
 # los que siguen se correrian uno.
+#
+# La comparacion de cada pieza con los nombres es por BYTES, con una clave
+# propia, y no con `match()`. Las piezas salen de `regmatches()` sobre una
+# coincidencia en modo bytes, y R marca `bytes` a las que no son ASCII; los
+# nombres llegan en UTF-8. `match()` entre las dos marcas ABORTA -"no se permite
+# traduccion de cadenas con bytes"- en cuanto hay dos piezas, y con una sola no
+# aborta pero tampoco encuentra. Medido en la ronda 25: `perfilar()`,
+# `analizar()`, `perfilar_por()` y `perfilar_dbi()`, con la proteccion por
+# omision, abortaban sobre una planilla con `Anio Ingreso` -con enie- y una
+# cedula -la evidencia del nombre no sintactico cita las dos formas- y sobre
+# cualquier base con una columna acentuada -la SQL guardada cita todas-. El
+# codigo de cada nombre es su orden entre las piezas ENCONTRADAS, y al reponer
+# se escriben esos mismos bytes: lo que vuelve al texto es lo que estaba, con la
+# marca que tenia.
+.clave_bytes_nombre <- function(textos, marcas = Encoding(textos)) {
+  marcas <- rep_len(marcas, length(textos))
+  vapply(seq_along(textos), function(i) {
+    texto <- textos[[i]]
+    # Un texto declarado latin1 se compara por su forma UTF-8, que es la de los
+    # nombres que el paquete marca; lo que no declara nada se toma como esta.
+    if (identical(marcas[[i]], "latin1")) {
+      convertido <- iconv(texto, from = "latin1", to = "UTF-8")
+      if (!is.na(convertido)) texto <- convertido
+    }
+    paste(as.integer(charToRaw(texto)), collapse = ".")
+  }, character(1L), USE.NAMES = FALSE)
+}
+
 .apartar_nombres_delimitados <- function(x, nombres) {
   sin_cambios <- list(x = x, nombres = character())
   nombres <- unique(nombres[!is.na(nombres) & nzchar(nombres)])
@@ -1332,33 +1537,43 @@
     }
     paste0("\002", rawToChar(as.raw(3L + cifras)), "\002")
   }
+  claves_nombres <- .clave_bytes_nombre(nombres)
   patron <- "`[^`\n]+`|\"[^\"\n]+\"|\\[[^]\n]+\\]"
   elegidos <- x[indices]
   marcas <- Encoding(elegidos)
+  # Todo en bytes desde aca: las piezas, su interior y el reensamblado.
+  Encoding(elegidos) <- "bytes"
   coincidencias <- gregexpr(patron, elegidos, perl = TRUE, useBytes = TRUE)
   piezas <- regmatches(elegidos, coincidencias)
-  tocado <- FALSE
-  piezas <- lapply(piezas, function(p) {
-    if (!length(p)) return(p)
+  encontrados <- character()
+  claves_encontradas <- character()
+  for (k in seq_along(piezas)) {
+    p <- piezas[[k]]
+    if (!length(p)) next
+    Encoding(p) <- "bytes"
     interior <- substr(p, 2L, nchar(p, type = "bytes") - 1L)
-    posicion <- match(interior, nombres)
-    cambiar <- !is.na(posicion)
-    if (any(cambiar)) {
-      tocado <<- TRUE
-      p[cambiar] <- paste0(
-        substr(p[cambiar], 1L, 1L),
-        vapply(posicion[cambiar], codigo, character(1L)),
-        substr(p[cambiar], nchar(p[cambiar], type = "bytes"),
-               nchar(p[cambiar], type = "bytes"))
-      )
-    }
-    p
-  })
-  if (!tocado) return(sin_cambios)
+    Encoding(interior) <- "bytes"
+    cambiar <- .clave_bytes_nombre(interior, marcas[[k]]) %in% claves_nombres
+    if (!any(cambiar)) next
+    crudas <- .clave_bytes_nombre(interior[cambiar], "bytes")
+    nuevas <- !crudas %in% claves_encontradas
+    encontrados <- c(encontrados, interior[cambiar][nuevas])
+    claves_encontradas <- c(claves_encontradas, crudas[nuevas])
+    posicion <- match(crudas, claves_encontradas)
+    p[cambiar] <- paste0(
+      substr(p[cambiar], 1L, 1L),
+      vapply(posicion, codigo, character(1L)),
+      substr(p[cambiar], nchar(p[cambiar], type = "bytes"),
+             nchar(p[cambiar], type = "bytes"))
+    )
+    piezas[[k]] <- p
+  }
+  if (!length(encontrados)) return(sin_cambios)
   regmatches(elegidos, coincidencias) <- piezas
   Encoding(elegidos) <- marcas
   x[indices] <- elegidos
-  list(x = x, nombres = nombres)
+  Encoding(encontrados) <- "bytes"
+  list(x = x, nombres = encontrados)
 }
 
 .reponer_nombres_delimitados <- function(x, apartado) {
@@ -1367,6 +1582,7 @@
   for (i in con_codigo) {
     texto <- x[[i]]
     marca <- Encoding(texto)
+    Encoding(texto) <- "bytes"
     coincidencias <- gregexpr("\002[\003-\006]+\002", texto, perl = TRUE,
                               useBytes = TRUE)
     codigos <- regmatches(texto, coincidencias)[[1L]]
@@ -1378,6 +1594,7 @@
         apartado$nombres[[posicion]]
       } else ""
     }, character(1L), USE.NAMES = FALSE)
+    Encoding(nombres) <- "bytes"
     regmatches(texto, coincidencias) <- list(nombres)
     Encoding(texto) <- marca
     x[[i]] <- texto
@@ -2151,11 +2368,17 @@
     propias <- !is.na(plan$columna) &
       .nombres_para_operar(as.character(plan$columna)) %in%
         .nombres_para_operar(sensibles)
+    # Por columna, con TODOS sus valores: tambien sus rellenos, que el piso deja
+    # afuera. La accion que convierte el `99999999` de la cedula en `NA` no
+    # publica el `99999999`.
+    valores_columna <- unique(c(
+      valores, .rellenos_de_columnas(datos, sensibles)
+    ))
     plan$parametros <- I(lapply(seq_along(plan$parametros), function(i) {
       parametros <- plan$parametros[[i]]
       if (isTRUE(propias[[i]])) {
-        parametros <- .proteger_textos_salida(parametros, valores)
-        .proteger_numeros_parametros(parametros, valores)
+        parametros <- .proteger_textos_salida(parametros, valores_columna)
+        .proteger_numeros_parametros(parametros, valores_columna)
       } else {
         .proteger_numeros_parametros(parametros, identificantes)
       }
@@ -2560,8 +2783,9 @@
 # Los valores con forma de fecha de las columnas protegidas que NO son de
 # fechas: en ellas la forma es casualidad -un telefono fijo "2012-11-05", que
 # tiene mes y dia validos- y el valor es el dato de alguien. Se decide por la
-# COLUMNA, como las fechas compactas de `.valores_publicables_protegidos()`: es
-# de fechas si es `Date` o `POSIXt`, o si la mitad o mas de sus valores distintos
+# COLUMNA, con `.columna_de_fechas()`, la misma regla que saca del piso las
+# fechas de una columna de fechas en `.valores_publicables_protegidos()`: es de
+# fechas si es `Date` o `POSIXt`, o si la mitad o mas de sus valores distintos
 # tienen forma de fecha. La ronda 23 estrecho el rango de anos y el piso seguia
 # decidiendo por el valor: un fijo de Montevideo escrito 4-2-2 que empieza con
 # `20` y tiene mes y dia validos -uno de cada trescientos- se publicaba exacto.
@@ -2586,7 +2810,7 @@
   textos <- unique(textos[!is.na(textos) & nzchar(textos)])
   if (!length(textos)) return(character())
   fechas <- .es_fecha_sola(textos)
-  if (!any(fechas) || mean(fechas) >= 0.5) return(character())
+  if (!any(fechas) || .columna_de_fechas(textos)) return(character())
   textos[fechas]
 }
 
@@ -2613,6 +2837,14 @@
   if (!length(valores)) return(character())
   largos <- nchar(valores, type = "chars", allowNA = TRUE)
   valores <- valores[is.na(largos) | largos >= .MIN_LARGO_VALOR_IDENTIFICANTE]
+  # Un relleno sin una letra ni un digito -"------", "......"- no es el dato de
+  # nadie y no puede identificar a nadie. Medido en la ronda 25: el "------" de
+  # un telefono protegido tapaba `sin observaciones ------ revisar` en otra
+  # columna. Solo ASCII: un signo de otra escritura puede ser parte de un nombre.
+  valores <- valores[
+    grepl("[A-Za-z0-9]|[^\\x01-\\x7f]", valores, perl = TRUE, useBytes = TRUE)
+  ]
+  if (!length(valores)) return(character())
   # Una fecha de calendario sola no identifica, aunque tenga diez caracteres: en
   # una tabla de miles de personas casi todo dia es el cumpleanos de alguien. Con
   # la fecha de nacimiento protegida, el piso tapaba la media, la mediana, el

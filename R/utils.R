@@ -574,7 +574,14 @@
   # normalizada para cruzar locales.
   validos <- !is.na(nombres) & (!no_ascii | Encoding(claves) == "UTF-8")
   if (any(validos)) {
-    salida[validos] <- claves[validos]
+    # Lo ASCII queda como en la via rapida de arriba. `.clave_bytes()` duplica
+    # la barra invertida, y tomar su clave tambien para lo ASCII hacia que el
+    # mismo `a\b` saliera intacto en un vector todo ASCII y con la barra
+    # duplicada en uno con algun acento: una clave decidida por la tanda.
+    # Medido en la ronda 25: `detectar_relaciones()` no encontraba `a\b` entre
+    # dos tablas porque solo una tenia una enie. Lo ASCII no puede chocar
+    # con lo que no lo es, y lo reservado se escapa abajo igual.
+    salida[validos & no_ascii] <- claves[validos & no_ascii]
     # La representacion de bytes invalidos usa un prefijo reservado. Si un
     # nombre UTF-8 real lo contiene literalmente, se escapa con otra marca
     # para que la clave siga siendo inyectiva incluso en ese caso extremo.
@@ -1465,6 +1472,13 @@
 }
 
 .columnas_identicas <- function(x, y) {
+  # `identical()` iguala todos los NaN, y un `integer64` negativo ES un NaN en
+  # sus bits: `-1` y `-2` salian identicos. Comparar los bits es exacto para
+  # `integer64` -los bits son el valor-. Ronda 25.
+  if (inherits(x, "integer64") && inherits(y, "integer64")) {
+    return(identical(class(x), class(y)) &&
+      identical(x, y, num.eq = FALSE, single.NA = FALSE))
+  }
   identical(class(x), class(y)) &&
     identical(is.na(x), is.na(y)) &&
     identical(x, y)

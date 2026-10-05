@@ -14,7 +14,9 @@ detectar_claves(datos, max_combinacion = 3, normalizar = NULL, perfil = NULL)
 \item{normalizar}{Perfil de comparación. \code{NULL} hereda el perfil de
 \code{perfil}, pero las claves se siguen descubriendo por identidad exacta.}
 
-\item{perfil}{Perfil producido por \code{\link[=perfilar]{perfilar()}} para heredar la comparación.}
+\item{perfil}{Perfil producido por \code{\link[=perfilar]{perfilar()}} para heredar la comparación
+y la política de faltantes disfrazados —\code{sentinelas_numericos} y
+\code{cadenas_ausencia}—.}
 }
 \value{
 Data frame de claves candidatas y casi-claves con las columnas
@@ -34,6 +36,12 @@ menos la mitad de los duplicados excedentes. La concentración evita confundir
 texto libre de alta cardinalidad, con muchas colisiones dispersas, con una
 clave dañada. Las variables con rol propuesto \code{fecha}, incluidas fecha-hora,
 no se consideran casi-claves.
+Los faltantes disfrazados —\code{"SIN DATO"}, \code{-999}— no cuentan como colisiones:
+se reconocen con la misma máscara que \code{\link[=perfilar]{perfilar()}}, con su política por
+omisión o con la del \code{perfil} que se pase, y la casi-clave se mide sin ellos
+—sus distintos, exactos y normalizados, y sus colisiones—. Una clave sana con
+treinta documentos en \code{"SIN DATO"} no es una clave rota: le faltan treinta
+documentos. \code{n_filas} sigue siendo el de la tabla.
 Los vectores \code{double} sólo son candidatos si ninguno de sus valores finitos
 tiene parte fraccionaria. Esto conserva identificadores enteros importados
 desde archivos de texto y excluye importes, coordenadas y otras medidas. Los

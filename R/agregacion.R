@@ -1038,7 +1038,9 @@ transiciones_granularidad <- function() {
 #' entraron a ese número, y hereda las de sus partes en `cobertura_de_partes`.
 #' Dos partes agregadas por separado y unidas con `rbind()` conservan cada una
 #' la suya, en cualquier orden de la unión, y el tablero, el índice, el
-#' informe, [evaluar()] e [historico_calidad()] las publican todas. Una
+#' informe, [evaluar()] e [historico_calidad()] las publican todas. Unidas
+#' dos corridas distintas, cada cobertura lleva además su `id_medicion`, y el
+#' histórico registra la parte no medida en la corrida a la que le faltó. Una
 #' colección lleva en `cobertura_metricas` sólo la de sus propias tablas.
 #'
 #' @section Los pesos se publican:

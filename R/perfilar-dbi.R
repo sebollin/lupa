@@ -11007,10 +11007,14 @@ print.plan_perfilado_dbi <- function(x, ...) {
     }
     if (NROW(respuesta$datos)) {
       leidos <- como_texto(respuesta$datos[[1L]])
-      valores <- unique(c(valores, leidos))
       # El telefono con forma de fecha de una columna que no es de fechas: ver
       # `.fechas_que_identifican()`.
       fechas <- unique(c(fechas, .fechas_de_columna_no_fecha(leidos)))
+      # Y en una columna de fechas -tambien AAAAMMDD o con el ano en dos
+      # cifras- sus fechas no entran al piso: la misma regla que en memoria,
+      # `.columna_de_fechas()`. Por aca entraban enteras. Ronda 25.
+      if (.columna_de_fechas(leidos)) leidos <- leidos[!.forma_de_fecha(leidos)]
+      valores <- unique(c(valores, leidos))
     }
     if (length(valores) > .MAXIMO_VALORES_PROTEGIDOS_DBI) {
       return(list(valores = character(), completo = FALSE, motivo = paste0(
@@ -11078,7 +11082,9 @@ print.plan_perfilado_dbi <- function(x, ...) {
 
 .proteger_resumen_dbi <- function(resumen, sensibles, base_clasificacion,
                                   perfil_muestra = NULL,
-                                  valores_muestra = character()) {
+                                  valores_muestra = character(),
+                                  columnas_de_fechas = character(),
+                                  rellenos = character()) {
   resumen$meta$proteccion_personal <- list(
     aplicada = length(sensibles) > 0,
     base = base_clasificacion,
@@ -11115,7 +11121,8 @@ print.plan_perfilado_dbi <- function(x, ...) {
         ),
         .valores_perfil_protegidos(
           perfil_muestra$columnas, perfil_muestra$patrones,
-          perfil_muestra$datos_personales, perfil_muestra$meta
+          perfil_muestra$datos_personales, perfil_muestra$meta,
+          excluir = columnas_de_fechas, rellenos = rellenos
         )
       )
     } else character(),
@@ -11125,7 +11132,14 @@ print.plan_perfilado_dbi <- function(x, ...) {
           "maximo_exacto", "centinela_valor"),
         names(columnas)
       ),
-      function(campo) as.character(columnas[[campo]][indices])
+      function(campo) {
+        # Ni los de una columna de fechas ni sus centinelas: la misma regla que
+        # en memoria (`.columna_de_fechas()`, `.rellenos_de_columna()`).
+        cosecha <- indices & !(.nombres_para_operar(columnas$columna) %in%
+                                 .nombres_para_operar(columnas_de_fechas))
+        v <- as.character(columnas[[campo]][cosecha])
+        v[!.recortar_bytes(v) %in% rellenos]
+      }
     ), use.names = FALSE)
     # Los de la muestra ya pasaron por el piso: una fecha que quedo es de una
     # columna que no es de fechas.
@@ -12108,8 +12122,29 @@ print.plan_perfilado_dbi <- function(x, ...) {
       .fechas_que_identifican(datos_muestra, protegidas)
     )
   }, error = function(e) character())
+  # Y que columnas protegidas son de fechas, con la misma regla que en memoria
+  # -`.columna_de_fechas()`-: la cosecha del resumen no tiene la muestra y sus
+  # ejemplos y estadisticos entraban al piso enteros. Ronda 25.
+  columnas_de_fechas <- tryCatch({
+    protegidas <- .columnas_personales_protegidas(perfil$datos_personales)
+    indices <- .indice_nombre(protegidas, names(datos_muestra))
+    protegidas[vapply(indices, function(i) {
+      !is.na(i) && .columna_de_fechas(datos_muestra[[i]])
+    }, logical(1L))]
+  }, error = function(e) character())
+  # Y los centinelas de las columnas protegidas -`.rellenos_de_columna()`-, que
+  # la lectura de la tabla entera trae sin sus frecuencias.
+  rellenos <- tryCatch({
+    protegidas <- .columnas_personales_protegidas(perfil$datos_personales)
+    indices <- .indice_nombre(protegidas, names(datos_muestra))
+    unique(unlist(lapply(indices[!is.na(indices)], function(i) {
+      .rellenos_de_columna(datos_muestra[[i]])
+    }), use.names = FALSE))
+  }, error = function(e) character())
   list(perfil = perfil, cobertura = cobertura, muestreo = muestreo_meta,
-       valores_protegidos = valores_protegidos)
+       valores_protegidos = valores_protegidos,
+       columnas_de_fechas = columnas_de_fechas,
+       rellenos = if (is.null(rellenos)) character() else rellenos)
 }
 
 # ---- Portones ------------------------------------------------------------
@@ -13967,11 +14002,16 @@ perfilar_dbi <- function(conexion, tabla,
       )
       resumen <- .proteger_resumen_dbi(
         resumen, sensibles_muestra, "perfil_muestra", bloque$perfil,
-        valores_muestra = bloque$valores_protegidos
+        valores_muestra = bloque$valores_protegidos,
+        columnas_de_fechas = bloque$columnas_de_fechas,
+        rellenos = bloque$rellenos
       )
       fuera <- .valores_protegidos_fuera_de_muestra_dbi(
         conexion, preparacion, bloque$perfil, sensibles_muestra, presupuesto
       )
+      fuera$valores <- fuera$valores[
+        !.recortar_bytes(fuera$valores) %in% bloque$rellenos
+      ]
       if (isTRUE(fuera$completo)) {
         intocables <- as.character(resumen$columnas$columna)
         resumen <- .proteger_con_valores_dbi(

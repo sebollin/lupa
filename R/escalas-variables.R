@@ -210,7 +210,10 @@
 #'
 #' Los niveles declarados y observados se conservan como columnas de lista. Los
 #' niveles ausentes son una observación, no prueba de error. Si la evidencia de
-#' dato personal activa la protección, los niveles concretos se protegen. Sólo
+#' dato personal activa la protección, los niveles concretos se protegen, y los
+#' valores de esas columnas escritos en los niveles de OTRA columna —una
+#' observación que cita la cédula— se tapan con el mismo piso que aplica
+#' [perfilar()]. Sólo
 #' las escalas nominal, ordinal y binaria guardan niveles observados; en las
 #' demás, `n_niveles_observados` es `NA`, porque la cifra no aplica.
 #'
@@ -416,6 +419,20 @@ clasificar_variables <- function(datos, perfil = NULL, metadatos = NULL,
   resultado$niveles_observados <- I(lapply(niveles_observados, .texto_publicable))
   resultado$niveles_ausentes <- I(lapply(niveles_ausentes, .texto_publicable))
   rownames(resultado) <- NULL
+  # El mismo piso que aplican `perfilar()`, `analizar()` y
+  # `distribucion_valores()`. Proteger solo por columna dejaba publicar el
+  # documento protegido escrito en OTRA columna: medido en la ronda 25, los
+  # niveles de `obs` traian `reclamo CI 5.311.832-3` -y en mayusculas en `obs2`-
+  # mientras las tres hermanas lo tapaban sobre la misma tabla.
+  identificantes <- .valores_identificantes(
+    .valores_publicables_protegidos(datos, personales),
+    .fechas_que_identifican(datos, personales)
+  )
+  if (length(identificantes)) {
+    resultado <- .proteger_textos_salida(
+      resultado, identificantes, intocables = names(datos)
+    )
+  }
   class(resultado) <- c("clasificacion_variables", "data.frame")
   resultado
 }

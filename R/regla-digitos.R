@@ -47,7 +47,11 @@
     ",(?!", espacio, "))"
   )
   signo_compacto <- "[-./,'_+\u00b7]"
-  entre_fecha_hora <- "(?:[Tt_]| {1,3}| *[-;,|] *| *\\( *)"
+  # Entre la fecha y la hora -ver `fecha_hora`-. La barra, la arroba, el guion
+  # doble y el corchete se sumaron en la ronda 25: la fecha con hora protegida
+  # se publicaba escrita "2024-06-07 / 09:04:05", " @ ", " -- " o con la hora
+  # entre corchetes, mientras sus hermanas " - ", ";" y "|" se tapaban.
+  entre_fecha_hora <- "(?:[Tt_]| {1,3}| *(?:--|[-;,|/@]) *| *[(\\[] *)"
   numero <- paste0("[0-9]+(?:", separador, "[0-9]+)*")
   list(
     numero = numero,
@@ -110,10 +114,18 @@
     # dejaba pasar el telefono "29.10.12.34" y la cedula "1.234.123.4", que
     # tienen esa forma. Medido en la ronda 23.
     ip = paste0("^(?:", octeto, "\\.){3}", octeto, "$"),
+    # Y la IP con su mascara CIDR, "10.4.123.234/24": la barra une, el numero
+    # ya no tenia forma de IP y se probaban sus tramos de octetos -una de cada
+    # seis se tapaba-. La mascara se separa con una barra vertical, que no une,
+    # y la IP queda sola: se prueba entera. Medido en la ronda 25.
+    miles_largo = "^[0-9]{1,3}([.,'])[0-9]{3}(?:\\1[0-9]{3}){2,}$",
+    cidr = paste0("(?<![0-9.])((?:", octeto, "\\.){3}", octeto,
+                  ")/(3[0-2]|[12]?[0-9])(?![0-9]|[./][0-9])"),
     # La fecha CON HORA si puede ser un valor protegido, y se arma en el orden
     # en que se guarda -ano, mes, dia, horas- antes de borrar la fecha.
     # Entre la fecha y la hora, una T, uno a tres espacios, un guion bajo, un
-    # guion, un punto y coma, una coma, una barra vertical o un parentesis;
+    # guion o dos, un punto y coma, una coma, una barra, una barra vertical, una
+    # arroba, un parentesis o un corchete;
     # entre horas, minutos y segundos, dos puntos, punto, guion o las letras h y
     # m. Y la forma compacta ISO, "20240627T212425". Con un solo espacio, la
     # fecha con hora se publicaba escrita con dos, con " - ", con ";", en un
@@ -124,6 +136,10 @@
       paste0("(?<![0-9])([0-9]{1,2})[-/.]([0-9]{1,2})[-/.](", anio, ")", entre_fecha_hora,
              "([0-9]{1,2})[-:.hH]([0-9]{2})(?:[-:.mM]([0-9]{2}))?"),
       paste0("(?<![0-9])(", anio, ")([0-9]{2})([0-9]{2})[Tt]",
+             "([0-9]{2})([0-9]{2})([0-9]{2})?(?![0-9])"),
+      # La fecha con separadores y la hora compacta, "2024-06-07T090405": la
+      # mezcla de las dos formas ISO, que se publicaba. Medido en la ronda 25.
+      paste0("(?<![0-9])(", anio, ")[-/.]([0-9]{1,2})[-/.]([0-9]{1,2})[Tt]",
              "([0-9]{2})([0-9]{2})([0-9]{2})?(?![0-9])")
     )
   )
@@ -273,6 +289,20 @@
 # llevan a los de ASCII antes de buscar.
 .normalizar_signos_digitos <- function(texto) {
   tryCatch({
+    # Los asteriscos de Unicode son el comodin, como el de ASCII. Medido en la
+    # ronda 24: el documento sin su primer digito tras el asterisco de ancho
+    # completo o el operador asterisco se publicaba. Y en la ronda 25, con los
+    # otros treinta y ocho que Unicode llama asterisco: el de ocho rayos del
+    # emoji, el de centro abierto, los de rayos y globos, el encerrado en un
+    # circulo o un cuadrado, el eslavo y los combinantes. No los dos signos
+    # cuneiformes, que son letras, ni la etiqueta, que no se ve. Va PRIMERO: los
+    # combinantes son marcas, y abajo se borran.
+    texto <- gsub(
+      paste0("[\uff0a\ufe61\u2217\u204e\u066d\u0359\u20f0\u2051\u229b",
+             "\u2722-\u2725\u2731-\u2733\u273a-\u273d\u2743\u2749",
+             "\u274a\u274b\u29c6\u2a6e\ua673\U0001F7AF-\U0001F7BF]"),
+      "*", texto, perl = TRUE
+    )
     # Un control C1 en un texto es casi siempre un CSV de Windows -CP1252- leido
     # como `latin1`: la raya 0x96 queda como U+0096 y cortaba el numero. Se lee
     # como lo que es en CP1252: la raya y la raya larga, las comillas simples, la
@@ -321,10 +351,7 @@
              ",,,...//"),
       texto
     )
-    # Los asteriscos de Unicode son el comodin, como el de ASCII. Medido en la
-    # ronda 24: el documento sin su primer digito tras el asterisco de ancho
-    # completo o el operador asterisco se publicaba.
-    gsub("[\uff0a\ufe61\u2217\u2731\u204e\u066d]", "*", texto, perl = TRUE)
+    texto
   }, error = function(e) NA_character_)
 }
 
@@ -389,6 +416,7 @@
   texto <- tryCatch({
     texto <- gsub(regla$fecha, " ", texto, perl = TRUE)
     texto <- gsub(regla$hora, " ", texto, perl = TRUE)
+    texto <- gsub(regla$cidr, "\\1|\\2", texto, perl = TRUE)
     isbn <- regmatches(texto, gregexpr(regla$isbn, texto, perl = TRUE))[[1L]]
     isbn <- isbn[nchar(gsub("[^0-9Xx]", "", isbn)) == 13L]
     for (pieza in isbn) texto <- sub(pieza, " ", texto, fixed = TRUE)
@@ -414,7 +442,14 @@
     # Con forma de IP, solo como documento entero, y entera: probar cada tramo
     # de octetos tapaba una de cada cincuenta direcciones -"218.235.90.247" por
     # el tramo "21823590"-. Medido en la ronda 24.
-    if (grepl(regla$ip, numero, perl = TRUE)) {
+    # Lo mismo un importe con miles de cuatro grupos o mas -"3.919.024.166",
+    # "$ 12.345.678.901"-: el tramo de sus tres primeros grupos tiene la forma
+    # del documento sin su verificador, y uno de cada seis se tapaba. Medido en
+    # la ronda 25. Entero si: la cedula colombiana "1.023.456.789" se escribe
+    # asi. Sin el espacio como separador de miles: "598 099 123 456" es un
+    # celular con su prefijo, y su tramo es el celular.
+    if (grepl(regla$ip, numero, perl = TRUE) ||
+        grepl(regla$miles_largo, numero, perl = TRUE)) {
       entera <- .sin_ceros_iniciales(paste0(partes$grupos, collapse = ""))
       largo <- nchar(entera, type = "bytes")
       if (largo >= minimo && largo <= maximo) completos <- c(completos, entera)

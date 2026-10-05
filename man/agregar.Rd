@@ -127,7 +127,9 @@ arrastran: cada agregación calcula la de su propio destino con las partes que
 entraron a ese número, y hereda las de sus partes en \code{cobertura_de_partes}.
 Dos partes agregadas por separado y unidas con \code{rbind()} conservan cada una
 la suya, en cualquier orden de la unión, y el tablero, el índice, el
-informe, \code{\link[=evaluar]{evaluar()}} e \code{\link[=historico_calidad]{historico_calidad()}} las publican todas. Una
+informe, \code{\link[=evaluar]{evaluar()}} e \code{\link[=historico_calidad]{historico_calidad()}} las publican todas. Unidas
+dos corridas distintas, cada cobertura lleva además su \code{id_medicion}, y el
+histórico registra la parte no medida en la corrida a la que le faltó. Una
 colección lleva en \code{cobertura_metricas} sólo la de sus propias tablas.
 }
 

@@ -36,14 +36,26 @@ Los números se emparejan por su valor. El mismo número guardado como entero
 en una tabla y como doble en la otra coincide —\code{100000L} y \code{1e5}—, y dos
 dobles distintos no coinciden aunque se escriban igual con 15 cifras
 —\code{0.1 + 0.2} y \code{0.3}—. Lo mismo vale para \code{\link[=metricas_nucleo]{metricas_nucleo()}} cuando compara
-filas por sus atributos, como en \code{EntidadDuplicada}.
+filas por sus atributos, como en \code{EntidadDuplicada}. Los instantes y las
+fechas se emparejan también por su valor, con su fracción: dos instantes del
+mismo segundo no coinciden.
+
+Un texto con bytes que no son UTF-8 válido —lo que deja un archivo latin1
+leído sin declarar su codificación— se empareja por sus bytes, como \code{\%in\%}:
+dos valores así distintos no coinciden entre sí. La proximidad no los
+compara, porque una distancia de texto no se mide sobre bytes que no son
+texto, y su \code{motivo} declara cuántos quedaron afuera.
 
 Los valores ausentes no generan medidas de correctitud: corresponden a la
 dimensión Completitud. La cobertura ignora claves ausentes en el objetivo y
-no permite que duplicados inflen el resultado. Sobre un referencial sin
+no permite que duplicados inflen el resultado. El universo se cuenta con la
+misma identidad con que se empareja: dos claves del padrón que la
+normalización funde —\code{A} y \code{a}— son una sola clave del universo, y
+\code{n_referencial} cuenta las claves de ese universo. Sobre un referencial sin
 claves, \code{RatioCobertura} no se mide: la cobertura de un universo vacío no es
 una proporción, y la métrica queda \code{sin_valores} con ese motivo, igual que
-cuando la entidad no tiene filas.
+cuando la entidad no tiene filas o ningún valor en los atributos ligados:
+lo que no se pudo medir no se publica como una cobertura cero.
 }
 \examples{
 ref <- referencial(

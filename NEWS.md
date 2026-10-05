@@ -1,5 +1,239 @@
 # lupa 0.1.0
 
+## Ronda 25: la proteccion otra vez, el historico entre sesiones y las claves
+
+Tres refutaciones en paralelo. La de la proteccion encontro un aborto -la
+proteccion por omision hacia abortar `perfilar()` sobre una tabla con una columna
+personal y un nombre de columna con tilde-, cinco fugas y seis familias de tapado
+de mas; la del historico y la deriva entre sesiones, ocho defectos; la de las
+claves, las relaciones y el referencial, diez.
+
+**La proteccion:**
+
+- **Un nombre de columna no ASCII ya no hace abortar la proteccion**: con una
+  columna personal y un nombre como `Anio Ingreso` escrito con enie, `perfilar()`,
+  `analizar()`, `perfilar_por()` y `perfilar_dbi()` abortaban por omision con
+  "no se permite traduccion de cadenas con bytes": la proteccion comparaba los
+  nombres citados entre comillas -la evidencia de los nombres no sintacticos en
+  memoria, la SQL guardada en una base- con una marca de codificacion que R no
+  deja traducir. Ahora compara por bytes, y el nombre citado se conserva entero
+  tambien cuando no es ASCII; antes, citado solo, ni siquiera se apartaba.
+- **`clasificar_variables()` y `detectar_discordancias()` aplican el piso de
+  `perfilar()`**: protegian solo por columna, y el documento protegido escrito
+  en otra columna -una observacion que cita la cedula- salia en los niveles
+  observados y en `evidencia` mientras `perfilar()`, `analizar()` y
+  `distribucion_valores()` lo tapaban sobre la misma tabla. Es el mismo defecto
+  ya arreglado en esas hermanas.
+- **La fecha con hora protegida se tapa escrita con barra, arroba, guion doble
+  o corchete** entre la fecha y la hora -`2024-06-07 / 09:04:05`,
+  `2024-06-07 [09:04:05]`- y con la hora compacta tras la fecha con separadores,
+  `2024-06-07T090405`: se publicaban, mientras sus hermanas ` - `, `;` y `|` se
+  tapaban desde la ronda 24.
+- **Todo asterisco de Unicode es comodin**: solo seis de los cuarenta y siete
+  lo eran, y el documento sin su primer digito tras el asterisco de ocho rayos
+  del emoji se publicaba. Quedan fuera los dos signos
+  cuneiformes, que son letras, la etiqueta invisible y el asterisco combinante
+  de abajo, que el pliegue borra como a una tilde (declarado).
+- **El correo protegido escrito con palabras se tapa**: `juan(at)gmail.com`,
+  `[at]`, `{at}`, `_at_`, `(arroba)`, `(a)` y `juan arroba gmail punto com` se
+  publicaban -diez de doce formas-. La palabra se lee como arroba solo si la
+  sigue un dominio con su punto, y `dot` o `punto` como punto solo en un texto
+  con arroba: medido sobre 3.000 correos protegidos, los no protegidos escritos
+  asi se tapan lo mismo que con la arroba comun, y ninguna de 2.013 frases con
+  esas palabras.
+- **Las letras modificadoras de acento se pliegan como las tildes**: el nombre
+  protegido escrito con el agudo modificador U+02CA en lugar de la tilde se
+  publicaba en la moda, los ejemplos y el HTML de `reportar()`, mientras con el
+  acento U+00B4 se tapaba. El pliegue de comparacion borra ahora U+02C6 a
+  U+02D1.
+- **Una sola regla decide si una columna protegida es de fechas**, en memoria
+  y en `perfilar_dbi()`: la mitad o mas de sus valores distintos con forma de
+  fecha, con el ano en cuatro cifras o en dos, o `AAAAMMDD`. Eran dos -la
+  columna `AAAAMMDD` tenia que serlo en todas sus celdas y la otra en la mitad,
+  sin contar el ano en dos cifras-, y una columna de nacimientos con el 60 % en
+  `dd/mm/aa`, o una `AAAAMMDD` con una celda mala, tapaba la moda y los ejemplos
+  de las fechas de otra columna (regresion de la ronda 24). La lectura de la
+  tabla entera en `perfilar_dbi()` no aplicaba ninguna. El relleno de una
+  columna de fechas sigue en el piso.
+- **El relleno de una columna protegida no vacia el perfil de otra**: el
+  `99999999` de una cedula entraba al piso y tapaba la moda, el minimo, la
+  mediana y el maximo de un `monto` con su propio `99999999` -y el hallazgo
+  decia "el valor [valor protegido] aparece 30 veces"-, y el `------` de un
+  telefono tapaba `sin observaciones ------ revisar`. Fuera del piso: el relleno
+  sin letras ni digitos, y el digito repetido que se repite cinco veces o mas
+  en una columna que sin el es casi una clave. Donde el documento se repite
+  -una tabla de movimientos- el digito repetido sigue en el piso, y tambien el
+  centinela que el usuario declaro en `sentinelas_numericos`. La columna
+  protegida los sigue tapando por columna, tambien en los parametros del plan.
+- **`detectar_discordancias()` clasifica la tabla entera solo si la evidencia
+  cita filas**: es lo que necesita el piso, y fuera de ese caso cuesta lo mismo
+  que antes.
+- **La IP con mascara CIDR y el importe largo con miles se prueban enteros**:
+  `10.4.123.234/24` se tapaba por sus tramos de octetos -uno de cada seis-, y
+  `3.919.024.166` o `$ 5.902.468.069` por el tramo de sus tres primeros grupos,
+  con forma de documento sin verificador -uno de cada seis-. Ahora la IP se
+  separa de su mascara y el importe de cuatro grupos o mas se compara entero,
+  como la IP; los dos quedan en cero en `data-raw/medir_tapado_de_mas.R`.
+- **Documentado el costo de nombres y apellidos protegidos por separado**: un
+  departamento, una calle o un liceo que comparte palabra con uno de ellos se
+  tapa -trece campos de cuatro columnas sobre 5.000 personas-.
+- **Declarado con su cifra lo que se tapa de mas por decision**: la hora con
+  fraccion de ocho cifras y el numero con forma de ISBN-10 con su control
+  invalido -cuatro o cinco de cada cien-, y lo que se une como el documento:
+  la lista con espacios, el rango de anios, la lista con tabuladores o con comas
+  sin espacio -tambien la coma ideografica- y dos numeros en dos lineas. Todas
+  las familias nuevas estan en `data-raw/medir_tapado_de_mas.R`.
+
+**El historico y la deriva:**
+
+- **Un historico exportado con `write.csv()` conserva la configuracion de sus
+  corridas**: la tabla, el marco, los tipos, el modelo, la aplicabilidad y el
+  perfil vivian solo en el atributo `configuracion_evaluacion`, que el CSV no
+  escribe, y la deriva del historico releido agrupaba todo bajo
+  `<sin_configuracion>`: restaba la corrida de una tabla a la de otra (delta -1,
+  `error`) y publicaba como deterioro un cambio de marco que el objeto declaraba
+  no comparable. Ahora viajan tambien en las filas `evaluacion_perfil`, en seis
+  columnas nuevas (`identidad_tabla` y `configuracion_*`), y el historico releido
+  las recupera de ahi. El esquema sigue en 1: las columnas son opcionales a la
+  entrada y un historico anterior se lee igual. Y un par al que le falta la
+  configuracion -un CSV anterior, una tabla armada a mano- no recibe veredicto:
+  `cambio = "no_comparable"` y `cobertura_diagnosticos` lo declara.
+- **Acumular sobre un historico releido de un CSV es idempotente**: `read.csv()`
+  lee como logica una columna de texto que viene entera en NA, y re-acumular la
+  corrida que ya estaba se rechazaba con "Difieren: id_medida (NA contra NA)".
+  Cada columna recupera el tipo del esquema al validarse.
+- **Una medida suprimida no publica su valor en la fila de otro perfil**: la
+  supresion ya registrada tapaba solo el nivel `medida`, y la fila
+  `evaluacion_medida` de la misma medida evaluada por OTRO perfil publicaba su
+  numero -con `x > 0` sobre una metrica booleana, el valor suprimido mismo-, en
+  el historico y en su informe. Con las dos reglas en un solo perfil se tapaba.
+  Ahora la supresion vale en los dos niveles, para cualquier perfil o regla y en
+  cualquier orden de llegada.
+- **La deriva lee la frontera de cada corrida**: una coleccion que midio sus
+  tres tablas y despues dos publicaba la diferencia como mejora -y como
+  deterioro `error` al volver la tercera-, con los datos de cada tabla
+  identicos. El historico guardaba la parte no medida desde la ronda 24, pero
+  la deriva no la consultaba. Ahora un par cuyas partes sin medir difieren no
+  publica la fila de resultado y la declara con `aspecto =
+  "cobertura_frontera"` y `cambio = "no_comparable"`, como el cambio de marco.
+- **`rbind()` de dos corridas conserva la parte no medida de cada una en el
+  historico**: `historico_calidad(rbind(ene, feb))` no guardaba ninguna
+  `parte_no_medida` donde `historico_calidad(ene, feb)` guardaba las dos, y la
+  coleccion incompleta quedaba registrada como completa. Unidas dos corridas
+  distintas, cada cobertura de frontera lleva su `id_medicion`, y la parte va a
+  la corrida a la que le falto; una cobertura que no se puede atribuir se
+  rechaza en vez de callarse.
+- **`comparar_evaluaciones()` toma el delta de la deriva**: restaba por su
+  cuenta y publicaba -0,75 entre dos tablas distintas medidas con el mismo
+  perfil, o entre un marco y otro, donde la deriva del historico de las mismas
+  dos evaluaciones no arma par o declara `no_comparable`. Era la misma regla
+  escrita dos veces, como la que `reportar()` ya habia corregido. Ahora el delta
+  es el de `detectar_deriva_calidad()` y una columna nueva, `comparacion`, dice
+  por que falta.
+- **Una fecha de texto con desplazamiento se lee con el**: `10:00:00-03:00`,
+  `T10:00:00-0300` y `10:00:00 -03` se leian como las 10:00 UTC -son las 13:00-,
+  y `10:00:00 basura` pasaba igual, porque `as.POSIXct(format = )` ignora lo que
+  sigue al formato. En el cambio de hora eso invertia el orden de dos corridas
+  de un historico exportado desde una base y el veredicto de la deriva. Ahora el
+  desplazamiento se aplica (`Z`, `UTC`, `+HH`, `+HHMM`, `+HH:MM`) y un texto que
+  no se lee entero se rechaza. Vale para el historico, `medir()`, `perfilar()`
+  y `reportar()`, que leen la fecha por el mismo camino.
+- **Un cambio de modelo que mantiene la comparacion no se etiqueta
+  `no_comparable`**: la deriva publicaba para el mismo par la fila de resultado
+  con veredicto (-0,75, `error`) y una fila `configuracion_modelo` con `cambio =
+  "no_comparable"` y la descripcion "se mantienen las comparaciones"; y el
+  informe, que confiaba en la etiqueta, borraba el delta. Ahora `no_comparable`
+  queda para el cambio de marco o de tipos -cuando la fila de resultado se
+  quita-, y la evolucion del informe y `comparar_evaluaciones()` leen las filas
+  de cada par con una sola regla: el delta de la deriva y, al lado, lo que la
+  deriva declara.
+- La ayuda dice dos limites que el paquete ya tenia y no declaraba: suprimir
+  tapa el valor de la medida, no lo que se deduce de otras publicadas -un
+  agregado suprimido se recalcula de sus medidas crudas si el historico las
+  lleva-; y la deriva compara corridas consecutivas, asi que una corrida sin
+  evaluar en medio de la serie no se salta: para comparar sus vecinas, se quita
+  del historico.
+
+**Claves, relaciones y el referencial:**
+
+- **Un texto con bytes invalidos se compara por sus bytes, no como ausente**:
+  lo que deja un `read.csv()` de un archivo latin1 sin declarar se volvia `NA`
+  al comparar, y todos los invalidos casaban entre si. `detectar_relaciones()`
+  publicaba coberturas 1 y 1 sobre dos tablas con una sola fila en comun, el
+  referencial declaraba conforme a una persona que no estaba en el padron
+  (`RatioCobertura` 0,5 donde era 0) y `detectar_dependencias()` juntaba los
+  invalidos en un grupo y descartaba la columna como casi constante. Ahora la
+  comparacion usa la clave de bytes del paquete, como ya lo hacia la unicidad
+  normalizada de `detectar_claves()`; la proximidad del referencial no compara
+  esos valores -una distancia de texto no se mide sobre bytes que no son texto-
+  y lo declara en su `motivo`, y `distribucion_valores()` los sigue descartando
+  y declarando el alcance parcial. La evidencia de `detectar_dependencias()`
+  los escribe como la consola -`"Mar\xeda"`- y no como `NA`.
+- **`relaciones_coleccion()` no compara un entero ancho que llego como doble**:
+  `dbConnect(duckdb::duckdb())` entrega BIGINT como doble, y por encima de
+  2^53 dos identificadores distintos caen en el mismo doble. Tres valores
+  contra otros tres, ninguno comun en el motor, salian `m:1` con 2 comunes y
+  cobertura 1. Una columna leida como doble con algun valor de al menos 2^53
+  deja ahora sus pares `sin_comparar`, con motivo `entero_como_doble` en
+  `cobertura_podas` y el remedio -conectar pidiendo `integer64`- en el
+  detalle, como ya hacia `perfilar_dbi()`. Mira la columna y no solo la
+  conexion: HUGEINT y DECIMAL llegan como doble aun pidiendo `integer64`.
+- **Un `integer64` negativo es un entero, no un ausente**: bit64 no registra
+  `anyDuplicated()` y `complete.cases()` no despacha, asi que los dos leian
+  los bits como doble, y todo entero de -1 a -4503599627370495 tiene el
+  patron de un NaN. `detectar_claves()` no proponia `id = -1, -2, -3` (y
+  `sugerir_clave()` si), `referencial()` lo rechazaba por "valores ausentes",
+  la correctitud referencial borraba en silencio la fila que fallaba
+  (`RatioCobertura` 0,333 donde era 0,667), y `perfilar()` publicaba
+  `filas_completas = 0`, filas distintas como duplicadas y dos columnas
+  distintas como identicas. Ahora esas comparaciones usan el texto exacto del
+  `integer64`.
+- **Instantes y fechas con fraccion se comparan por su valor**: relaciones,
+  referencial y dependencias escribian un instante al segundo y una fecha al
+  dia, mientras la poda por rangos usaba el numero entero, asi que la misma
+  tabla daba dos respuestas segun sus vecinos (`sin_coincidencias` por la poda,
+  o `m:1` con cobertura 1 sobre un valor que no estaba), el referencial
+  declaraba conforme un instante ausente del padron y `detectar_dependencias()`
+  no omitia una columna que era clave. La escritura conserva ahora la fraccion
+  exacta; sin fraccion es la de siempre, y un texto al segundo sigue
+  encontrando su instante.
+- **`detectar_claves()` no cuenta los faltantes disfrazados como colisiones**:
+  el comentario decia cerrado el caso y seguia vivo en la funcion exportada.
+  190 documentos distintos mas diez "SIN DATO" salian casi-clave con
+  concentracion 1, mientras `perfilar()` contaba diez faltantes disfrazados y
+  ningun hallazgo; y una colision real (6 excedentes, concentracion 1) se
+  publicaba con 19 excedentes y concentracion 0,684. La mascara se calcula
+  ahora en una sola funcion que usan `perfilar()` y `detectar_claves()`, con la
+  politica del `perfil` cuando se lo pasa.
+- **`RatioCobertura` sobre una entidad sin valores queda `sin_valores`**: sin
+  filas, o con la clave toda ausente, publicaba 0, que el tablero lee como un
+  fallo; la ayuda ya decia `sin_valores`, como la correctitud.
+- **El universo de `RatioCobertura` se cuenta con la identidad del apareo**: un
+  padron `A`, `a`, `B` -unico por identidad exacta- y una entidad con `a`
+  daban 0,667, que no es ni la cobertura normalizada (0,5) ni la exacta
+  (0,333). Dos claves que la normalizacion funde son una sola clave del
+  universo, y `n_referencial` cuenta las de ese universo.
+- **`podar = TRUE` ya no declara imposible una cobertura alcanzable**: la cota
+  de "cardinalidades imposibles" era de valores distintos y la cobertura es por
+  filas; un solo valor comun en 91 de 100 filas se declaraba imposible con
+  umbral 0,9 y la FK se perdia. La cota es ahora la de los valores mas
+  frecuentes.
+- **`relaciones_coleccion()` no poda con un rango de tipos mezclados**: en
+  SQLite un `MAX` sobre una columna sin afinidad puede ser un texto -todo TEXT
+  ordena despues de todo numero-, y la poda "cierta" por rangos disjuntos
+  declaraba sin coincidencias 11 filas de 11. Un extremo que no llega como
+  numero deja la columna sin rango y la comparacion se hace.
+- **Un par con la tabla de referencia truncada no se descarta en silencio**: la
+  cobertura medida contra una referencia leida a medias es una cota inferior, y
+  una FK perfecta de 20.000 filas leidas de a 10.000 daba 0,496 y desaparecia
+  de todas las salidas. Ahora queda en `cobertura_pares` como sin conclusion,
+  con la mayor cobertura medida y como resolverlo, y `meta$pares_sin_conclusion`
+  los cuenta.
+- **La clave de un texto ASCII con barra invertida no depende de sus
+  vecinos**: `a\b` tenia una clave en un vector todo ASCII y otra -con la barra
+  duplicada- en uno con algun acento, asi que `detectar_relaciones()` no lo
+  encontraba entre dos tablas cuando solo una tenia una letra acentuada.
+
 ## Ronda 24: los niveles institucionales, las cifras del perfil y la proteccion otra vez
 
 Tres refutaciones en paralelo: la de los niveles institucionales encontro once

@@ -42,7 +42,10 @@ clasificada como dato personal} —salvo que se pida lo contrario con
 \code{proteger_datos_personales = FALSE}—: esos salen como \verb{[valor protegido]}. El
 número de fila y el nombre de la columna se conservan, que es lo que hace
 falta para ir a corregirla. Las columnas que no son personales se citan
-enteras.
+enteras, salvo lo que en ellas repite un valor de una columna personal de
+la tabla —una observación que cita la cédula—: eso se tapa con el mismo
+piso que aplica \code{\link[=perfilar]{perfilar()}}, aunque la columna personal no esté en la
+señal.
 }
 \description{
 Recorre las señales declaradas con \code{\link[=senal_redundante]{senal_redundante()}} e informa las filas

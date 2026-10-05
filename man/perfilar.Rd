@@ -289,7 +289,18 @@ documentos de la protegida con sólo repetirlos: una copia con nombre
 neutro, un texto libre que los contuviera, o los estadísticos de orden de
 una columna clasificada con poder discriminante \code{debil}. El vocabulario
 corto no entra en el piso: \code{"S/D"} sigue publicándose donde describe a una
-columna que no es personal. El piso tiene \strong{una excepción declarada}, y es
+columna que no es personal. Tampoco los \strong{rellenos} de una columna
+protegida, que ocupan el lugar de un dato y no son el de nadie: el que no
+tiene letras ni dígitos (\code{"------"}), y el dígito repetido que se repite
+cinco veces o más en una columna que sin él es casi una clave —cuarenta
+\code{"99999999"} entre cédulas que no se repiten—. Entraban, y tapaban la moda,
+el mínimo, la mediana y el máximo de un \code{monto} con su propio \code{99999999}.
+Donde el documento se repite —una tabla de movimientos— el dígito repetido
+sigue en el piso: \verb{2.222.222-2} es una cédula válida. Fuera del piso no
+quiere decir publicados en la columna protegida: su moda, sus ejemplos y
+los parámetros del plan sobre ella los siguen tapando, y un centinela que
+el usuario declaró en \code{sentinelas_numericos} sigue en el piso. El piso tiene
+\strong{una excepción declarada}, y es
 la única: \code{\link[=perfilar_por]{perfilar_por()}} agrupando \emph{por} una columna personal publica sus
 valores como etiquetas de grupo, porque la etiqueta es el eje del
 resultado y sin ella los grupos no se distinguen. Lo mismo cuando la
@@ -316,18 +327,25 @@ sexagesimal, el acento grave, la tilde. Los dos puntos y la barra vertical
 \strong{no} unen: una razón
 \code{"494:2714"} o una lista \code{"12|345|6789"} no es un documento, y un documento
 escrito así no se reconoce. Una fecha con hora protegida se reconoce escrita
-con \code{T}, \code{Z}, uno a tres espacios, coma, punto y coma, guion, guion bajo,
-barra vertical o paréntesis entre la fecha y la hora, con día y mes en
+con \code{T}, \code{Z}, uno a tres espacios, coma, punto y coma, guion o guion
+doble, guion bajo, barra, barra vertical, arroba, paréntesis o corchete
+entre la fecha y la hora, con día y mes en
 cualquier orden, con la hora separada por puntos, guiones o \code{h} y \code{m}
-(\code{"21h24m25s"}) o en la forma compacta \code{"20240627T212425"}; no en
-palabras, con a.m./p.m. ni con el año en dos cifras. El documento
+(\code{"21h24m25s"}), en la forma compacta \code{"20240627T212425"} o con la hora
+compacta tras la fecha con separadores (\code{"2024-06-27T212425"}); no en
+palabras, con a.m./p.m., con cuatro espacios o más ni con el año en dos
+cifras. El documento
 \strong{parcial}, de siete cifras o más, se busca con más cuidado porque es el
-que coincide por azar: sin su verificador, fuera de la parte de un decimal
-y de un número con forma de dirección IPv4 (\code{"4.123.456"} frente a
+que coincide por azar: sin su verificador, fuera de la parte de un
+decimal, de un número con forma de dirección IPv4 —con o sin máscara
+CIDR— y de un importe con miles de cuatro grupos o más
+(\code{"3.919.024.166"}), que se prueban enteros (\code{"4.123.456"} frente a
 \code{"4.123.456-7"}, el verificador mal tipeado, el documento seguido de un
 año), y sin su primer dígito sólo detrás de un asterisco o una equis
 (\code{"*.123.456-7"}, \code{"X.012.345-8"}, \code{"X2345678"}) —también los asteriscos
-de Unicode y el asterisco pegado a una letra, \code{"CI*123.456-7"}—; la equis
+de Unicode, todo signo que Unicode llama asterisco salvo el combinante de
+abajo, que el pliegue borra como a una tilde, y el asterisco pegado a una
+letra, \code{"CI*123.456-7"}—; la equis
 seguida de un espacio no es comodín, porque \code{"92 x 6931234"} es una
 multiplicación; un número redondo (\verb{1.000.000}) no cuenta como parcial. Es un \strong{decimal} el número cuyo último signo es un
 punto o una coma con otra cantidad de cifras que tres, y antes un entero o
@@ -361,28 +379,46 @@ recortado sin formato, \code{"X2345678"}), a uno de cada cuatro—, y a uno o do
 de cada cien enteros de ocho cifras, que coinciden con un documento entero;
 las coordenadas, los p-valores, los importes con decimales, las horas, los
 ISBN —también el ISBN-10 con espacios o puntos—, las fechas con espacios,
-las listas separadas por comas o por barras verticales y las razones no se
-taparon; una dirección IP sólo cuando coincide entera, menos de una de cada
-cien; y una coordenada escrita con un cero adelante (\code{"-056.092164"}), que
-tiene la forma de un celular con punto (\code{"099.123456"}), una o dos de cada
-cien. Lo mismo vale, por la misma razón, para una
-lista separada por espacios, un rango \code{"a - b"} o una versión
-\code{"v4.16.4302"}: se unen como el documento. La medición se rehace con
-\code{data-raw/medir_tapado_de_mas.R}.
+las listas separadas por comas con espacio o por barras verticales, las
+razones y los importes con miles de cuatro grupos o más no se taparon; una
+dirección IP —también con su máscara CIDR, \code{"10.4.123.234/24"}, o su
+puerto— sólo cuando coincide entera, menos de una de cada cien; y una
+coordenada escrita con un cero adelante (\code{"-056.092164"}), que tiene la
+forma de un celular con punto (\code{"099.123456"}), casi una de cada cien. Lo
+mismo vale, por la misma razón, para lo que se une como el documento: una
+lista separada por espacios, ocho de cada cien; un rango de años
+\code{"2004-2017"} o con la raya de un CSV de Windows, dos números en dos
+líneas, una lista con tabuladores o con comas sin espacio —también la coma
+ideográfica—, entre una y tres de cada cien; o una versión \code{"v4.16.4302"}.
+Y por la regla de la hora, una fracción de ocho cifras
+(\code{"18:54:14.80786977"}) no es fracción —así no se traga un documento
+pegado— y se taparon cuatro o cinco de cada cien; lo mismo un número de
+diez cifras con la forma de un ISBN-10 y su dígito de control inválido. La
+medición se rehace con \code{data-raw/medir_tapado_de_mas.R}.
 Las tildes, la caja y la escritura también son cosméticas: \code{juan.perez} se
 enmascara frente al nombre protegido
 «Juan Pérez», y el nombre pegado a otras letras dentro de un correo o un
 alias, también. La comparación usa un pliegue generado de Unicode —caja de
 todo alfabeto, letras con y sin diacríticos, ligaduras, ancho completo y
-medio ancho, letras matemáticas—, compara el texto publicado también con
+medio ancho, letras matemáticas, y las letras modificadoras que son un
+acento, como el agudo U+02CA escrito en lugar de la tilde—, compara el
+texto publicado también con
 los escapes del paquete deshechos (un espacio duro sale \verb{<U+00A0>}) —el
 valor protegido nunca se desescapa: una barra literal es parte del valor—,
 y lee lo que no es UTF-8 válido de las dos maneras, byte por byte como
-CP1252 conservando las secuencias válidas y entero. Las marcas del paquete
+CP1252 conservando las secuencias válidas y entero. El \strong{correo escrito
+con palabras} —\verb{juan(at)gmail.com}, \verb{[at]}, \code{{at}}, \verb{_at_}, \code{(arroba)},
+\code{(a)}, \verb{juan arroba gmail punto com}— se lee como correo: la palabra es la
+arroba sólo si la sigue un dominio con su punto, y \code{dot} o \code{punto} son el
+punto sólo en un texto que ya tiene arroba. Medido sobre 3.000 correos
+protegidos: los no protegidos escritos así se taparon lo mismo que con la
+arroba común —cuatro de cada mil, por los separadores cosméticos—, y
+ninguna de 2.013 frases con esas palabras. Las marcas del paquete
 se apartan del texto, y un valor protegido que contiene una se busca
 entero antes de apartarla. \strong{Una fecha de
-calendario sola no entra en el piso}, tampoco escrita como \code{AAAAMMDD} en una
-columna de esas fechas ni como fecha-hora ISO a medianoche: en una tabla
+calendario sola no entra en el piso}, tampoco escrita como \code{AAAAMMDD} o
+con el año en dos cifras en una columna de esas fechas, ni como fecha-hora
+ISO a medianoche: en una tabla
 de miles de personas casi todo día es el cumpleaños de alguien, y con la
 fecha de nacimiento protegida se tapaban los estadísticos de todas las demás
 columnas de fechas. La columna de fechas protegida se sigue protegiendo
@@ -392,7 +428,13 @@ entre otros teléfonos— el valor con forma de fecha sí entra en el piso,
 escrito como está guardado (la regla de dígitos borra las fechas antes de
 buscar, así que \code{"2012/11/05"} no lo encuentra); una columna es de fechas
 si es \code{Date} o \code{POSIXt}, o si la mitad o más de sus valores distintos
-tienen forma de fecha. En la \strong{prosa del paquete}
+tienen forma de fecha —con el año en cuatro cifras o en dos, o compacta
+\code{AAAAMMDD}—. Es una sola regla, en memoria y en \code{\link[=perfilar_dbi]{perfilar_dbi()}}: hasta la
+ronda 24 la columna \code{AAAAMMDD} tenía que serlo entera y el año en dos
+cifras no contaba, y una columna de nacimientos con el 60 \% en \code{dd/mm/aa}
+tapaba la moda y los ejemplos de las fechas de otra columna. En la columna
+de fechas, lo que no tiene forma de fecha —un relleno— sigue entrando al
+piso. En la \strong{prosa del paquete}
 —descripción, sugerencia, motivo, cómo resolverlo, justificación— se exige
 además que la variante no tenga una letra pegada antes o después: con los
 nombres de millones de personas como valores protegidos, alguno aparecía
@@ -409,8 +451,17 @@ lo son también del paquete —\code{Blanco} frente a la marca \verb{<blanco>},
 dominante»—. El léxico se calcula al instalar, desde las cadenas del código
 del paquete: sus marcas no se comparan en ningún campo, y sus palabras no se
 tapan en su prosa salvo dentro de una cita. El nombre completo en el texto
-de otra columna se sigue tapando. Y lo
-aplican también \code{\link[=analizar]{analizar()}} y \code{\link[=distribucion_valores]{distribucion_valores()}}, que antes
+de otra columna se sigue tapando. Lo que no es del paquete, también: con
+nombre y apellido protegidos en columnas separadas, un lugar que comparte
+una palabra de seis letras o más con uno de ellos se tapa —el departamento
+\code{"Maldonado"} entre los ejemplos, la calle \code{"Av. Rivera 1343"}, el
+\code{"Instituto Rivera"}; seis de los diecinueve departamentos de Uruguay son
+apellidos así, y ciudades como Mercedes o Dolores son nombres de pila—.
+Medido sobre 5.000 personas con esos nombres y apellidos: trece campos de
+cuatro columnas que no eran personales. Es el costo del piso y no se
+afloja: sin él, «llamó la Sra. Rivera» publicaría el apellido. Y lo
+aplican también \code{\link[=analizar]{analizar()}}, \code{\link[=distribucion_valores]{distribucion_valores()}},
+\code{\link[=clasificar_variables]{clasificar_variables()}} y \code{\link[=detectar_discordancias]{detectar_discordancias()}}, que antes
 protegían sólo por columna y publicaban lo que \code{perfilar()} tapaba sobre la
 misma tabla.}
 

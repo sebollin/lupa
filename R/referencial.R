@@ -168,12 +168,49 @@
   )))
 }
 
+# Las filas con bytes que no son texto UTF-8 -un `read.csv()` de un archivo
+# latin1 sin declarar-. La pertenencia las compara por sus bytes, que es lo que
+# hace `%in%`; la proximidad es una descripcion TEXTUAL y no las puede leer:
+# medir la distancia entre sus claves de bytes ofrecia como candidato cualquier
+# otro valor ilegible, porque todas comparten el prefijo de la clave. Ronda 25.
+.filas_texto_ilegible <- function(tabla) {
+  n <- nrow(tabla)
+  if (!n || !ncol(tabla)) return(rep(FALSE, n))
+  Reduce(`|`, lapply(tabla, function(x) {
+    ilegible <- .texto_analizable(x)$invalidos
+    if (length(ilegible) == n) ilegible else rep(FALSE, n)
+  }), init = rep(FALSE, n))
+}
+
 .referencial_proximidad <- function(filas_fallidas, texto_objetivo,
                                     texto_referencia, referencia_original,
-                                    config) {
+                                    config, ilegible_objetivo = NULL,
+                                    ilegible_referencia = NULL) {
   n <- length(texto_objetivo)
+  if (is.null(ilegible_objetivo)) ilegible_objetivo <- rep(FALSE, n)
+  if (is.null(ilegible_referencia)) {
+    ilegible_referencia <- rep(FALSE, length(texto_referencia))
+  }
   valores_fallidos <- unique(texto_objetivo[filas_fallidas])
+  # Los ilegibles van al final: no se comparan, y el tope de pares se reparte
+  # entre los que si se pueden leer.
+  es_ilegible <- valores_fallidos %in%
+    texto_objetivo[filas_fallidas[ilegible_objetivo[filas_fallidas]]]
+  valores_fallidos <- c(valores_fallidos[!es_ilegible],
+                        valores_fallidos[es_ilegible])
   n_valores <- length(valores_fallidos)
+  n_legibles <- sum(!es_ilegible)
+  candidatos <- which(!ilegible_referencia)
+  motivo_ilegibles <- if (any(es_ilegible) || length(candidatos) <
+                          length(texto_referencia)) {
+    paste0(
+      "No se compararon por proximidad ", sum(es_ilegible),
+      " valores fallidos y ", length(texto_referencia) - length(candidatos),
+      " filas del referencial con bytes que no son texto UTF-8: la ",
+      "pertenencia los compara por sus bytes, pero una distancia de texto no ",
+      "se puede medir sobre ellos."
+    )
+  } else ""
   evidencia <- rep("", n)
   base <- list(
     solicitada = isTRUE(config$proximidad), disponible = FALSE,
@@ -201,9 +238,16 @@
     return(list(evidencia = evidencia, alcance = base))
   }
   nref <- length(texto_referencia)
+  nref_legible <- length(candidatos)
+  if (!n_legibles || !nref_legible) {
+    base$disponible <- TRUE
+    base$motivo <- motivo_ilegibles
+    base$n_pares_sin_comparar <- as.numeric(n_valores) * nref
+    return(list(evidencia = evidencia, alcance = base))
+  }
   ncomparar <- if (is.infinite(config$max_pares)) {
-    n_valores
-  } else min(n_valores, floor(config$max_pares / nref))
+    n_legibles
+  } else min(n_legibles, floor(config$max_pares / nref_legible))
   if (ncomparar < 1L) {
     base$motivo <- "El limite de pares no alcanza para comparar un fallo con el referencial."
     base$n_pares_sin_comparar <- as.numeric(n_valores) * nref
@@ -212,11 +256,11 @@
   }
   elegidas <- seq_len(ncomparar)
   distancias <- .matriz_distancias_duplicados(
-    valores_fallidos[elegidas], texto_referencia,
+    valores_fallidos[elegidas], texto_referencia[candidatos],
     metodo = config$metodo, p = config$p, nucleos = config$nucleos
   )
   if (is.null(dim(distancias))) distancias <- matrix(distancias, nrow = ncomparar)
-  etiquetas <- vapply(seq_len(nrow(referencia_original)), function(i) {
+  etiquetas <- vapply(candidatos, function(i) {
     paste(as.character(referencia_original[i, , drop = TRUE]), collapse = " | ")
   }, character(1L))
   evidencia_valores <- rep("", n_valores)
@@ -233,12 +277,13 @@
   indices_fallidos <- match(texto_objetivo[filas_fallidas], valores_fallidos)
   evidencia[filas_fallidas] <- evidencia_valores[indices_fallidos]
   base$disponible <- TRUE
-  base$motivo <- ""
+  base$motivo <- motivo_ilegibles
   base$n_valores_fallidos_comparados <- ncomparar
   base$n_fallos_comparados <- sum(indices_fallidos <= ncomparar)
-  base$n_pares_comparados <- as.numeric(ncomparar) * nref
-  base$n_pares_sin_comparar <- as.numeric(n_valores - ncomparar) * nref
-  base$truncado <- ncomparar < n_valores
+  base$n_pares_comparados <- as.numeric(ncomparar) * nref_legible
+  base$n_pares_sin_comparar <- as.numeric(n_valores) * nref -
+    base$n_pares_comparados
+  base$truncado <- ncomparar < n_legibles
   list(evidencia = evidencia, alcance = base)
 }
 
@@ -367,11 +412,11 @@ referencial <- function(datos, clave, valor = character(), completo = FALSE,
   ))) {
     stop("Las columnas del referencial deben ser vectores at\u00f3micos.", call. = FALSE)
   }
-  if (any(!stats::complete.cases(.seleccionar_columnas(tabla, clave)))) {
+  if (any(!.filas_completas(.seleccionar_columnas(tabla, clave)))) {
     stop("La clave del referencial no puede contener valores ausentes.",
          call. = FALSE)
   }
-  if (anyDuplicated(.seleccionar_columnas(tabla, clave))) {
+  if (anyDuplicated(.integer64_como_texto(.seleccionar_columnas(tabla, clave)))) {
     stop("La clave del referencial debe identificar un\u00edvocamente cada fila.",
          call. = FALSE)
   }
@@ -489,7 +534,7 @@ print.referencial <- function(x, ...) {
          call. = FALSE)
   }
   objetivo <- .seleccionar_columnas(tabla, instancia$atributos)
-  presentes <- stats::complete.cases(objetivo)
+  presentes <- .filas_completas(objetivo)
   filas <- which(presentes)
   perfil <- .referencial_normalizacion(instancia, referencia)
   objetivo_presente <- objetivo[presentes, , drop = FALSE]
@@ -525,7 +570,9 @@ print.referencial <- function(x, ...) {
   config <- instancia$configuracion
   fallos <- which(!resultado)
   proximidad <- .referencial_proximidad(
-    fallos, texto_objetivo, texto_referencia, valores_referencia, config
+    fallos, texto_objetivo, texto_referencia, valores_referencia, config,
+    ilegible_objetivo = .filas_texto_ilegible(objetivo_presente),
+    ilegible_referencia = .filas_texto_ilegible(valores_referencia)
   )
   objetos <- paste0(entidad, "[", filas, ",",
                     paste(instancia$atributos, collapse = "+"), "]")
@@ -581,12 +628,18 @@ print.referencial <- function(x, ...) {
     stop("No se encontraron atributos ligados: ", paste(faltantes, collapse = ", "), ".",
          call. = FALSE)
   }
-  filas_completas <- stats::complete.cases(
+  filas_completas <- .filas_completas(
     .seleccionar_columnas(tabla, instancia$atributos)
   )
-  objetivo <- unique(.seleccionar_columnas(
+  objetivo <- .seleccionar_columnas(
     tabla, instancia$atributos, filas = filas_completas
-  ))
+  )
+  # `unique()` de un `data.frame` de dos o mas columnas arma la fila con `Map()`,
+  # que le saca la clase a un `integer64`: dos negativos distintos -patron NaN-
+  # contaban como uno. Ver `.integer64_como_texto()`.
+  objetivo <- objetivo[
+    !duplicated(.integer64_como_texto(objetivo)), , drop = FALSE
+  ]
   referencia_clave <- .seleccionar_columnas(
     referencia$datos, referencia$clave
   )
@@ -609,6 +662,17 @@ print.referencial <- function(x, ...) {
       estado = "sin_valores"
     ))
   }
+  # Y sobre una entidad sin valores -sin filas, o con la clave toda ausente- no
+  # hay nada que medir: publicaba 0, que el tablero lee como un fallo. La ayuda
+  # ya decia `sin_valores` "igual que cuando la entidad no tiene filas". Ronda
+  # 25. Cero medidas es como lo dicen las demas metricas: `medir()` declara el
+  # alcance vacio con su motivo, el mismo que para la correctitud.
+  if (!nrow(objetivo)) {
+    return(.salida_metodo(
+      numeric(), entidad, paste(instancia$atributos, collapse = "+"),
+      integer(), character()
+    ))
+  }
   perfil <- .referencial_normalizacion(instancia, referencia)
   .declarar_mezcla_referencial(
     instancia$declaracion$nombre, instancia$atributos, objetivo,
@@ -617,13 +681,23 @@ print.referencial <- function(x, ...) {
   usa_normalizacion <- !is.null(instancia$configuracion$normalizar) ||
     !is.null(referencia$normalizar)
   if (usa_normalizacion) {
-    cubiertas <- .filas_en_referencial(
-      .referencial_tabla_normalizada(referencia_clave, referencia$clave, perfil),
-      .referencial_tabla_normalizada(objetivo, instancia$atributos, perfil)
+    universo <- .referencial_tabla_normalizada(
+      referencia_clave, referencia$clave, perfil
+    )
+    objetivo_comparable <- .referencial_tabla_normalizada(
+      objetivo, instancia$atributos, perfil
     )
   } else {
-    cubiertas <- .filas_en_referencial(referencia_clave, objetivo)
+    universo <- referencia_clave
+    objetivo_comparable <- objetivo
   }
+  # El universo se cuenta con la MISMA identidad con que se empareja.
+  # `referencial()` exige claves unicas por identidad exacta, y `A` y `a` pasan;
+  # bajo la normalizacion por omision son una sola, y cubrir `a` contaba las dos
+  # filas: medido en la ronda 25, 0,667 sobre un padron de dos claves
+  # comparables -0,5- o de tres exactas -0,333-, ninguna de las dos.
+  universo <- universo[!duplicated(.codigos_filas(universo)), , drop = FALSE]
+  cubiertas <- .filas_en_referencial(universo, objetivo_comparable)
   resultado <- mean(cubiertas)
   salida <- .salida_metodo(
     resultado, entidad, paste(instancia$atributos, collapse = "+"), NA_integer_,
@@ -631,7 +705,7 @@ print.referencial <- function(x, ...) {
   )
   attr(salida, "alcance") <- list(
     normalizacion = .normalizacion_resumen(perfil),
-    n_referencial = nrow(referencia_clave),
+    n_referencial = nrow(universo),
     n_valores_objetivo = nrow(objetivo),
     proximidad = list(solicitada = FALSE, motivo =
                         "La proximidad no participa en la cobertura.")
@@ -663,14 +737,26 @@ print.referencial <- function(x, ...) {
 #' en una tabla y como doble en la otra coincide —`100000L` y `1e5`—, y dos
 #' dobles distintos no coinciden aunque se escriban igual con 15 cifras
 #' —`0.1 + 0.2` y `0.3`—. Lo mismo vale para [metricas_nucleo()] cuando compara
-#' filas por sus atributos, como en `EntidadDuplicada`.
+#' filas por sus atributos, como en `EntidadDuplicada`. Los instantes y las
+#' fechas se emparejan también por su valor, con su fracción: dos instantes del
+#' mismo segundo no coinciden.
+#'
+#' Un texto con bytes que no son UTF-8 válido —lo que deja un archivo latin1
+#' leído sin declarar su codificación— se empareja por sus bytes, como `%in%`:
+#' dos valores así distintos no coinciden entre sí. La proximidad no los
+#' compara, porque una distancia de texto no se mide sobre bytes que no son
+#' texto, y su `motivo` declara cuántos quedaron afuera.
 #'
 #' Los valores ausentes no generan medidas de correctitud: corresponden a la
 #' dimensión Completitud. La cobertura ignora claves ausentes en el objetivo y
-#' no permite que duplicados inflen el resultado. Sobre un referencial sin
+#' no permite que duplicados inflen el resultado. El universo se cuenta con la
+#' misma identidad con que se empareja: dos claves del padrón que la
+#' normalización funde —`A` y `a`— son una sola clave del universo, y
+#' `n_referencial` cuenta las claves de ese universo. Sobre un referencial sin
 #' claves, `RatioCobertura` no se mide: la cobertura de un universo vacío no es
 #' una proporción, y la métrica queda `sin_valores` con ese motivo, igual que
-#' cuando la entidad no tiene filas.
+#' cuando la entidad no tiene filas o ningún valor en los atributos ligados:
+#' lo que no se pudo medir no se publica como una cobertura cero.
 #'
 #' @return Lista con tres objetos `metrica_generica` —`CorrectitudSemFuerte`,
 #'   `CorrectitudSemDebil` y `RatioCobertura`—, listos para instanciar contra un

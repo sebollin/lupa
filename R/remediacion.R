@@ -2955,7 +2955,7 @@ rbind.plan_limpieza <- function(..., deparse.level = 1) {
   # solo grupo y sobrevivia una -personas distintas, eliminadas por no tener
   # clave-. Medido en una refutacion. Una fila con la clave incompleta no se
   # agrupa con ninguna.
-  incompletas <- !stats::complete.cases(as.data.frame(claves))
+  incompletas <- !.filas_completas(as.data.frame(claves))
   grupos <- split(which(!incompletas), codigos[!incompletas])
   completitud <- rowSums(!is.na(datos_base))
   conservar <- rep(TRUE, nrow(datos_base))
@@ -3759,8 +3759,10 @@ aplicar <- function(plan, datos, permitir_eliminacion = FALSE,
     columnas_protegidas <- names(datos)[
       unique(indices_protegidas[!is.na(indices_protegidas)])
     ]
-    valores_protegidos <- .valores_publicables_protegidos(
-      datos, columnas_protegidas
+    # Por columna: tambien sus rellenos, que el piso deja afuera.
+    valores_protegidos <- c(
+      .valores_publicables_protegidos(datos, columnas_protegidas),
+      .rellenos_de_columnas(datos, columnas_protegidas)
     )
     return(vapply(indices, function(i) {
       contenido <- vapply(seq_along(datos), function(j) {

@@ -37,6 +37,24 @@
   "n_elementos", "resultado", "agregacion"
 )
 
+# La configuracion de cada corrida viaja TAMBIEN en las filas `evaluacion_perfil`,
+# con los mismos nombres que en el atributo `configuracion_evaluacion`. El
+# atributo no lo escribe `write.csv()`, y la deriva de un historico releido de un
+# CSV agrupaba todo bajo `<sin_configuracion>`: restaba la corrida de una tabla a
+# la de otra y publicaba `error` sobre un cambio de marco que el objeto declaraba
+# no comparable. Medido en la ronda 25. Son opcionales a la entrada -un RDS o un
+# CSV anterior no las trae y se lee igual, con NA-, asi que el esquema sigue en 1:
+# es un agregado, como `parte_no_medida`, y un lector anterior las descarta.
+.columnas_configuracion_filas_historico <- c(
+  "identidad_tabla", "configuracion_modelo", "configuracion_marco",
+  "configuracion_tipos_resultado", "configuracion_aplicabilidad",
+  "configuracion_perfil"
+)
+
+.columnas_salida_historico <- c(
+  .columnas_historico, .columnas_configuracion_filas_historico
+)
+
 #' @export
 `[.historico_calidad` <- function(x, ...) {
   resultado <- NextMethod("[")
@@ -67,6 +85,11 @@ rbind.historico_calidad <- function(..., deparse.level = 1) {
     tipo_resultado = character(), entidad = character(), atributo = character(),
     fila = integer(), objeto_medible = character(), n_elementos = integer(),
     resultado = numeric(), agregacion = character(),
+    identidad_tabla = character(), configuracion_modelo = character(),
+    configuracion_marco = character(),
+    configuracion_tipos_resultado = character(),
+    configuracion_aplicabilidad = character(),
+    configuracion_perfil = character(),
     stringsAsFactors = FALSE
   )
   class(resultado) <- c("historico_calidad", "data.frame")
@@ -89,22 +112,62 @@ rbind.historico_calidad <- function(..., deparse.level = 1) {
   # las demas fechas, y la deriva ordenaba al reves dos corridas del mismo dia.
   # Medido en la ronda 22. El historico guarda sus fechas en UTC, y asi las
   # escribe `write.csv()`.
+  #
+  # Y un texto se lee ENTERO o no se lee. `as.POSIXct(format = )` ignora lo que
+  # sigue al formato: "10:00:00-03:00" -la salida de una columna `timestamptz`,
+  # y la ayuda nombra la base de datos como destino- se leia como 10:00 UTC, que
+  # son las 13:00, y "10:00:00 basura" pasaba igual. En el cambio de hora eso
+  # invertia el orden de dos corridas y el veredicto de la deriva. Medido en la
+  # ronda 25. El desplazamiento se lee -`Z`, `UTC`, `GMT`, `+HH`, `+HHMM`,
+  # `+HH:MM`- y lo que no casa con la forma completa se rechaza.
   if (is.character(x) || is.factor(x)) {
     texto <- trimws(as.character(x))
     resultado <- as.POSIXct(rep(NA_real_, length(texto)), origin = "1970-01-01",
                             tz = "UTC")
-    for (formato in c("%Y-%m-%d %H:%M:%OS", "%Y-%m-%dT%H:%M:%OS",
-                      "%Y-%m-%d %H:%M", "%Y-%m-%d")) {
-      faltan <- is.na(resultado) & !is.na(texto) & nzchar(texto)
-      if (!any(faltan)) break
-      resultado[faltan] <- as.POSIXct(texto[faltan], tz = "UTC", format = formato)
+    presentes <- !is.na(texto) & nzchar(texto)
+    partes <- regmatches(texto, regexec(paste0(
+      "^([0-9]{4}-[0-9]{1,2}-[0-9]{1,2})",
+      "(?:[ T]([0-9]{1,2}:[0-9]{2}(?::[0-9]{2}(?:[.][0-9]+)?)?)",
+      "[ ]*(Z|UTC|GMT|[+-][0-9]{2}(?::?[0-9]{2})?)?)?$"
+    ), texto, perl = TRUE))
+    leidas <- presentes & lengths(partes) == 4L
+    if (any(leidas)) {
+      campo <- function(i) vapply(partes[leidas], `[[`, character(1L), i)
+      dia <- campo(2L)
+      hora <- campo(3L)
+      zona <- campo(4L)
+      formato <- ifelse(
+        !nzchar(hora), "%Y-%m-%d",
+        ifelse(nchar(hora) <= 5L, "%Y-%m-%d %H:%M", "%Y-%m-%d %H:%M:%OS")
+      )
+      local <- rep(NA_real_, length(dia))
+      for (f in unique(formato)) {
+        en <- formato == f
+        local[en] <- as.numeric(as.POSIXct(
+          trimws(paste(dia[en], hora[en])), tz = "UTC", format = f
+        ))
+      }
+      signo <- ifelse(substr(zona, 1L, 1L) == "-", -1, 1)
+      digitos <- gsub("[^0-9]", "", zona)
+      horas <- suppressWarnings(as.numeric(substr(digitos, 1L, 2L)))
+      minutos <- suppressWarnings(as.numeric(substr(digitos, 3L, 4L)))
+      horas[!nzchar(digitos)] <- 0
+      minutos[is.na(minutos)] <- 0
+      fuera <- horas > 14 | minutos >= 60
+      local[fuera] <- NA_real_
+      # Con `origin`: `as.POSIXct()` de un numero sin el falla antes de R 4.3.
+      resultado[leidas] <- as.POSIXct(
+        local - signo * (horas * 3600 + minutos * 60), origin = "1970-01-01",
+        tz = "UTC"
+      )
     }
-    ilegibles <- is.na(resultado) & !is.na(texto) & nzchar(texto)
+    ilegibles <- is.na(resultado) & presentes
     if (any(ilegibles)) {
       stop(
         "No se pudo leer como fecha: \"", texto[ilegibles][[1L]], "\"",
         if (sum(ilegibles) > 1L) paste0(" (y ", sum(ilegibles) - 1L, " m\u00e1s)"),
-        ". Se espera AAAA-MM-DD, con la hora opcional.", call. = FALSE
+        ". Se espera AAAA-MM-DD, con la hora y el desplazamiento opcionales ",
+        "(2026-01-31 10:00:00-03:00).", call. = FALSE
       )
     }
     attr(resultado, "tzone") <- "UTC"
@@ -569,12 +632,17 @@ rbind.historico_calidad <- function(..., deparse.level = 1) {
   .marcar_suprimidas_historico(historico, objetivo)
 }
 
-# Las medidas que el historico YA tiene suprimidas -una fila
-# `evaluacion_medida` enmascarada- tapan la fila `medida` de la misma corrida y
-# la misma medida, venga en el mismo objeto o en otro que se acumula.
+# Las medidas que el historico YA tiene suprimidas -una fila `medida` o
+# `evaluacion_medida` enmascarada- tapan las filas de la misma corrida y la misma
+# medida en LOS DOS niveles, venga en el mismo objeto o en otro que se acumula, y
+# sea cual sea el perfil o la regla que la evalua. Se tapaba solo el nivel
+# `medida`: la misma medida evaluada por OTRO perfil publicaba su numero en
+# `evaluacion_medida` -con una regla `x > 0` sobre una metrica booleana, el valor
+# suprimido mismo-, y con las dos reglas en un solo perfil se tapaba. Partir un
+# perfil en dos no cambia que se puede publicar. Medido en la ronda 25.
 .claves_suprimidas_historico <- function(historico) {
   if (!nrow(historico)) return(character())
-  marcadas <- as.character(historico$nivel) == "evaluacion_medida" &
+  marcadas <- as.character(historico$nivel) %in% c("medida", "evaluacion_medida") &
     is.na(historico$resultado) & !is.na(historico$objeto_medible) &
     grepl("[valor suprimido]", as.character(historico$objeto_medible), fixed = TRUE)
   unique(paste(.clave_bytes(as.character(historico$id_medicion[marcadas])),
@@ -584,7 +652,7 @@ rbind.historico_calidad <- function(..., deparse.level = 1) {
 
 .propagar_suprimidas_historico <- function(historico, claves) {
   if (!length(claves) || !nrow(historico)) return(historico)
-  objetivo <- as.character(historico$nivel) == "medida" &
+  objetivo <- as.character(historico$nivel) %in% c("medida", "evaluacion_medida") &
     paste(.clave_bytes(as.character(historico$id_medicion)),
           .clave_bytes(as.character(historico$id_medida)), sep = "\r") %in% claves
   .marcar_suprimidas_historico(historico, objetivo)
@@ -637,9 +705,17 @@ rbind.historico_calidad <- function(..., deparse.level = 1) {
 # historico no tenia donde guardarla, asi que la serie de una coleccion
 # incompleta se leia como la de una completa. Un registro por parte sin medir,
 # con su motivo, como `metrica_no_evaluada`. Medido en la ronda 24.
+#
+# Con VARIAS corridas en el objeto -`rbind()` de dos mediciones- devolvia NULL:
+# la coleccion incompleta de cada corrida quedaba registrada como completa, que
+# es la falla que el nivel vino a cerrar. `rbind()` marca ahora cada cobertura
+# con su `id_medicion`, y cada parte va a su corrida. Una cobertura sin marca en
+# un objeto de varias corridas no se puede atribuir: se rechaza, no se calla.
+# Medido en la ronda 25.
 .parte_historico_partes_no_medidas <- function(x, ids, fechas) {
-  ids <- .identificadores_unicos(ids)
-  if (length(ids) != 1L) return(NULL)
+  corridas <- .identificadores_unicos(ids)
+  if (!length(corridas)) return(NULL)
+  fecha_de <- function(id) fechas[[.indice_identificador(id, ids)]]
   coberturas <- list()
   for (atributo in .ATRIBUTOS_COBERTURA_FRONTERA) {
     valor <- attr(x, atributo, exact = TRUE)
@@ -655,6 +731,22 @@ rbind.historico_calidad <- function(..., deparse.level = 1) {
     partes <- if (!is.null(cc$tablas_sin_medir)) cc$tablas_sin_medir else cc$sin_medir
     partes <- as.character(partes)
     if (!length(partes)) return(NULL)
+    ids <- if (!is.null(cc$id_medicion)) {
+      # Una cobertura de otra corrida -un objeto de varias, recortado con `[`-
+      # no es de esta.
+      if (!.identificadores_en(cc$id_medicion, corridas)) return(NULL)
+      .identificadores_unicos(cc$id_medicion)
+    } else if (length(corridas) == 1L) {
+      corridas
+    } else {
+      stop(
+        "El objeto re\u00fane ", length(corridas), " corridas y su cobertura de ",
+        "la ", .etiqueta_cobertura_parte(atributo, cc), " no dice a cu\u00e1l ",
+        "pertenece, as\u00ed que el hist\u00f3rico no puede registrar la parte ",
+        "que no se midi\u00f3. Acumular cada corrida por separado: ",
+        "`historico_calidad(corrida_1, corrida_2)`.", call. = FALSE
+      )
+    }
     motivos <- if (length(cc$motivo_sin_medir) == length(partes)) {
       as.character(cc$motivo_sin_medir)
     } else rep("", length(partes))
@@ -676,7 +768,7 @@ rbind.historico_calidad <- function(..., deparse.level = 1) {
         regla = partes
       ),
       id_medida = rep(NA_character_, n),
-      id_medicion = rep(ids, n), fecha = rep(.fecha_utc(fechas[[1L]]), n),
+      id_medicion = rep(ids, n), fecha = rep(.fecha_utc(fecha_de(ids)), n),
       perfil = rep(NA_character_, n), regla = rep(NA_character_, n),
       metrica = rep(NA_character_, n), metrica_especifica = rep(NA_character_, n),
       metrica_instanciada = rep(NA_character_, n),
@@ -697,6 +789,96 @@ rbind.historico_calidad <- function(..., deparse.level = 1) {
   salida[!duplicated(.nombres_para_operar(salida$id_registro)), , drop = FALSE]
 }
 
+# El tipo de cada columna del esquema, restituido. `read.csv()` lee como
+# `logical` toda columna que viene entera en NA -`agregacion` casi siempre, y
+# trece columnas en un historico solo de evaluaciones-, y la comparacion de un
+# registro repetido decia "Difieren: id_medida (NA contra NA)": re-acumular sobre
+# el CSV la corrida que ya tenia -el caso de uso de la idempotencia- se rechazaba.
+# Medido en la ronda 25. El tipo lo fija el esquema, no el lector.
+.columnas_historico_texto <- c(
+  "nivel", "id_registro", "id_medida", "id_medicion", "perfil", "regla",
+  "metrica", "metrica_especifica", "metrica_instanciada", "dimension", "factor",
+  "granularidad", "tipo_resultado", "entidad", "atributo", "objeto_medible",
+  "agregacion", .columnas_configuracion_filas_historico
+)
+
+.restituir_tipos_historico <- function(x) {
+  for (nombre in .columnas_configuracion_filas_historico) {
+    if (!nombre %in% names(x)) x[[nombre]] <- rep(NA_character_, nrow(x))
+  }
+  for (nombre in .columnas_historico_texto) {
+    if (!is.character(x[[nombre]])) x[[nombre]] <- as.character(x[[nombre]])
+  }
+  for (nombre in c("version_esquema", "fila", "n_elementos")) {
+    valores <- x[[nombre]]
+    if (is.logical(valores) ||
+        (is.numeric(valores) && !is.integer(valores) &&
+         all(is.na(valores) | valores == round(valores)))) {
+      x[[nombre]] <- as.integer(valores)
+    }
+  }
+  if (is.logical(x$resultado)) x$resultado <- as.numeric(x$resultado)
+  x
+}
+
+.clave_configuracion_historico <- function(ids, perfiles) {
+  paste(
+    .nombres_para_operar(as.character(ids)),
+    .nombres_para_operar(as.character(perfiles)), sep = "\034"
+  )
+}
+
+# Sin el atributo -un historico leido de un CSV-, la configuracion de cada
+# corrida se reconstruye de sus filas `evaluacion_perfil`. Con el atributo, manda
+# el atributo: lo que falta en el se completa de las filas.
+.configuracion_desde_filas_historico <- function(x, configuracion) {
+  if (!nrow(x)) return(configuracion)
+  columnas <- .columnas_configuracion_filas_historico
+  filas <- as.character(x$nivel) %in% "evaluacion_perfil"
+  if (any(filas)) {
+    filas[filas] <- Reduce(`|`, lapply(columnas, function(nombre) {
+      !is.na(x[[nombre]][filas])
+    }))
+  }
+  if (!any(filas)) return(configuracion)
+  desde <- data.frame(
+    id_medicion = .clave_bytes(as.character(x$id_medicion[filas])),
+    fecha = x$fecha[filas],
+    perfil = .clave_bytes(as.character(x$perfil[filas])),
+    stringsAsFactors = FALSE
+  )
+  for (nombre in columnas) {
+    desde[[nombre]] <- .clave_bytes(as.character(x[[nombre]][filas]))
+  }
+  desde <- desde[.columnas_configuracion_historico]
+  clave <- .clave_configuracion_historico(desde$id_medicion, desde$perfil)
+  nuevas <- !clave %in% .clave_configuracion_historico(
+    configuracion$id_medicion, configuracion$perfil
+  ) & !duplicated(clave)
+  if (!any(nuevas)) return(configuracion)
+  resultado <- rbind(configuracion, desde[nuevas, , drop = FALSE])
+  rownames(resultado) <- NULL
+  .validar_configuraciones_historico(resultado)
+}
+
+# Y al reves: las columnas de configuracion de las filas se escriben desde el
+# atributo, que es una sola fuente. Fuera de `evaluacion_perfil` quedan en NA.
+.configuracion_a_filas_historico <- function(x, configuracion) {
+  columnas <- .columnas_configuracion_filas_historico
+  for (nombre in columnas) x[[nombre]] <- rep(NA_character_, nrow(x))
+  filas <- which(as.character(x$nivel) %in% "evaluacion_perfil")
+  if (!length(filas) || !nrow(configuracion)) return(x)
+  i <- match(
+    .clave_configuracion_historico(x$id_medicion[filas], x$perfil[filas]),
+    .clave_configuracion_historico(configuracion$id_medicion, configuracion$perfil)
+  )
+  con <- !is.na(i)
+  for (nombre in columnas) {
+    x[[nombre]][filas[con]] <- as.character(configuracion[[nombre]][i[con]])
+  }
+  x
+}
+
 .validar_historico <- function(x) {
   if (!inherits(x, "data.frame") ||
       !all(.columnas_historico %in% names(x))) {
@@ -707,12 +889,14 @@ rbind.historico_calidad <- function(..., deparse.level = 1) {
   # la lee para no publicarlo en claro, y `.tabla_base()` la borraba.
   sin_proteger <- attr(x, "datos_personales_sin_proteger", exact = TRUE)
   x <- .tabla_base(x)
+  x <- .restituir_tipos_historico(x)
   # La fecha se lee ANTES de las guardas: la de "una unica fecha por corrida"
   # hacia `as.numeric()` sobre el texto de un historico leido de un CSV, todo
   # daba NA, la guarda no corria y se filtraba el aviso de coercion de R.
   # Medido en la ronda 22.
   if (nrow(x)) x$fecha <- .fecha_utc(x$fecha)
   configuracion <- .validar_configuraciones_historico(configuracion)
+  configuracion <- .configuracion_desde_filas_historico(x, configuracion)
   version <- unique(x$version_esquema)
   if (!length(version)) version <- attr(x, "version_esquema", exact = TRUE)
   if (length(version) != 1L || is.na(version) ||
@@ -790,8 +974,9 @@ rbind.historico_calidad <- function(..., deparse.level = 1) {
            call. = FALSE)
     }
   }
-  x <- .seleccionar_columnas(x, .columnas_historico)
+  x <- .seleccionar_columnas(x, .columnas_salida_historico)
   x$fecha <- .fecha_utc(x$fecha)
+  x <- .configuracion_a_filas_historico(x, configuracion)
   class(x) <- c("historico_calidad", "data.frame")
   attr(x, "version_esquema") <- .version_esquema_historico
   attr(x, "configuracion_evaluacion") <- configuracion
@@ -979,11 +1164,13 @@ rbind.historico_calidad <- function(..., deparse.level = 1) {
 #'   menos una medida; y una parte declarada en una frontera —una tabla de la
 #'   colección, una colección de la organización— que no entró al número, como
 #'   `parte_no_medida`, con la frontera en `id_registro`, la parte en `entidad`
-#'   y el motivo en `objeto_medible`. Una medida que una regla declaró `desenlace = "suprimir"`
+#'   y el motivo en `objeto_medible` —también cuando un objeto reúne varias
+#'   corridas con `rbind()`: cada parte va a la corrida a la que le faltó—. Una medida que una regla declaró `desenlace = "suprimir"`
 #'   no publica su valor **tampoco aquí**: su fila deja `resultado` en `NA` y
 #'   marca `objeto_medible` con `[valor suprimido]`, en los dos niveles donde esa
-#'   medida aparece —`medida` y `evaluacion_medida`—, porque esta tabla está
-#'   pensada para exportarse. Con el detalle resumido, las medidas suprimidas
+#'   medida aparece —`medida` y `evaluacion_medida`, en este último bajo
+#'   cualquier perfil o regla que la evalúe, no solo el que la suprimió—,
+#'   porque esta tabla está pensada para exportarse. Con el detalle resumido, las medidas suprimidas
 #'   entran igual, enmascaradas en el nivel `evaluacion_medida`: así una
 #'   medición acumulada **después** —también sobre un histórico guardado o
 #'   leído de un CSV— queda tapada en las mismas medidas, sea cual sea el orden
@@ -995,13 +1182,25 @@ rbind.historico_calidad <- function(..., deparse.level = 1) {
 #'   de tabla y **la fecha** de cada corrida. Acumular una corrida con un
 #'   `id_medicion` ya presente exige que todo eso coincida, la fecha incluida:
 #'   dos entregas distintas son dos corridas, y el error nombra en qué difieren.
+#'   Esa misma configuración viaja **en las filas** `evaluacion_perfil`, en las
+#'   columnas `identidad_tabla`, `configuracion_modelo`, `configuracion_marco`,
+#'   `configuracion_tipos_resultado`, `configuracion_aplicabilidad` y
+#'   `configuracion_perfil` —en `NA` en los demás niveles—, porque el atributo no
+#'   sobrevive a `write.csv()`: un histórico releído de un CSV la recupera de
+#'   ahí. Son columnas agregadas al esquema 1: un histórico anterior que no las
+#'   trae se lee igual, con ellas en `NA`.
 #'
 #' @details
 #' El detalle predeterminado evita repetir una fila por celda y regla cuando el
 #' objetivo es monitorear la serie de evaluaciones. El objeto no guarda modelos,
 #' closures, datos originales ni perfiles de profiling. Esto mantiene la tabla
 #' exportable directamente con `write.csv()` o una herramienta de base de datos.
-#' Al volver a leerla, las fechas de texto se leen en UTC, con su hora.
+#' Al volver a leerla, cada columna recupera el tipo del esquema —`read.csv()`
+#' lee como lógica una columna de texto que viene entera en `NA`— y las fechas
+#' de texto se leen en UTC, con su hora y con su desplazamiento cuando lo traen
+#' —`2026-01-31 10:00:00-03:00` son las 13:00 UTC; también `Z`, `+0100` o
+#' `-03`, como los escribe una columna `timestamptz` de una base—. Un texto que
+#' no se puede leer entero se rechaza: no se lee a medias.
 #'
 #' `[`, `subset()` y `dplyr::filter()` conservan la configuración de las
 #' corridas que quedan; `rbind()` de dos históricos los acumula, como
@@ -1191,7 +1390,10 @@ leer_historico <- function(archivo) {
 #'   umbrales es `error`. `identidad_tabla` separa series de tablas distintas y
 #'   `aspecto` marca el resultado o un cambio de configuracion; `cambio` usa
 #'   `no_comparable` cuando una configuracion del modelo impide comparar las
-#'   corridas.
+#'   corridas —cambió el marco o los tipos de resultado, y entonces la fila de
+#'   resultado no se publica—. Cualquier otro cambio de modelo se declara en su
+#'   fila `configuracion_modelo` sin esa etiqueta: la comparación se mantiene, y
+#'   la fila de resultado del mismo par conserva su veredicto.
 #'
 #'   **Un par que no se puede comparar no recibe veredicto.** Si alguna de las
 #'   dos corridas no evaluó su resultado, `delta`, `cambio_absoluto`,
@@ -1199,6 +1401,23 @@ leer_historico <- function(archivo) {
 #'   ni en `ok`— y `descripcion` nombra de qué lado falta el resultado. Filtrar
 #'   por `severidad != "ok"` deja fuera esas filas a propósito: no son filas
 #'   sanas, son filas sin medición, y se encuentran con `is.na(significativo)`.
+#'   La comparación es entre corridas **consecutivas**: una corrida sin evaluar
+#'   en medio de la serie deja sin veredicto sus dos pares y la deriva no
+#'   compara por encima de ella. Para comparar las corridas de los dos lados,
+#'   quitar la del medio del histórico —`h[h$id_medicion != "B", ]`—.
+#'   Lo mismo cuando a una de las dos corridas le falta su configuración —una
+#'   tabla armada a mano, o un CSV exportado sin las columnas `identidad_tabla`
+#'   y `configuracion_*`—: sin ella no se sabe si las dos miden la misma tabla
+#'   con el mismo marco, así que `cambio` es `no_comparable`, el veredicto queda
+#'   en `NA` y el atributo `cobertura_diagnosticos` lo declara.
+#'
+#'   **Un cambio de frontera tampoco se compara.** Si las dos corridas no dejan
+#'   afuera las mismas partes declaradas —el nivel `parte_no_medida` del
+#'   histórico: una tabla de la colección que entró o salió del número—, sus
+#'   números no cubren lo mismo: la fila de resultado no se publica y una fila
+#'   `aspecto = "cobertura_frontera"`, `cambio = "no_comparable"`, lo declara,
+#'   con las partes sin medir de cada lado en `evidencia`. Dos corridas a las que
+#'   les falta la misma parte sí se comparan.
 #' @export
 #'
 #' @examples
@@ -1239,6 +1458,44 @@ detectar_deriva_calidad <- function(historico, nivel = c("perfil", "regla"),
          call. = FALSE)
   }
   configuraciones <- attr(historico, "configuracion_evaluacion", exact = TRUE)
+  # La FRONTERA de cada corrida: las partes declaradas -una tabla de la
+  # coleccion, una coleccion de la organizacion- que no entraron al numero. La
+  # deriva no las miraba: una coleccion que medio sus tres tablas y despues dos
+  # publicaba la diferencia como mejora -o como deterioro `error` al volver la
+  # tercera-, con los datos de cada tabla identicos. El historico las guardaba
+  # desde la ronda 24 justamente para que la serie de una coleccion incompleta
+  # no se leyera como la de una completa; quien lee la serie es esta funcion.
+  # Medido en la ronda 25. La clave de una parte es su frontera y su nombre, sin
+  # la corrida -los campos 3 y 4 de `id_registro`, escapados, asi que `|` no
+  # aparece dentro de ninguno-.
+  partes_fuera <- historico[
+    as.character(historico$nivel) %in% "parte_no_medida", , drop = FALSE
+  ]
+  campos_parte <- strsplit(as.character(partes_fuera$id_registro), "|", fixed = TRUE)
+  partes_fuera$clave_parte <- vapply(campos_parte, function(campos) {
+    paste(campos[3:4], collapse = "|")
+  }, character(1L))
+  # Sin partes, nada que pegar: `paste0()` con vectores vacios devuelve un
+  # elemento, no cero.
+  partes_fuera$etiqueta_parte <- if (!nrow(partes_fuera)) character() else paste0(
+    vapply(campos_parte, function(campos) {
+      # La clave se escapo desde bytes UTF-8 (`.clave_bytes()`): se marca asi
+      # al volver, para que la etiqueta no dependa del locale de quien la lee.
+      etiqueta <- utils::URLdecode(sub("^=", "", campos[[3L]]))
+      if (validUTF8(etiqueta)) Encoding(etiqueta) <- "UTF-8"
+      etiqueta
+    }, character(1L)),
+    ": ", as.character(partes_fuera$entidad)
+  )
+  corridas_partes <- .clave_bytes(as.character(partes_fuera$id_medicion))
+  partes_de <- function(id) {
+    en <- corridas_partes %in% .clave_bytes(as.character(id))
+    orden <- order(partes_fuera$clave_parte[en], method = "radix")
+    list(
+      claves = unique(partes_fuera$clave_parte[en][orden]),
+      etiquetas = unique(partes_fuera$etiqueta_parte[en][orden])
+    )
+  }
   clave_configuracion <- function(ids, perfiles) {
     perfiles <- as.character(perfiles)
     perfiles[is.na(perfiles)] <- "~"
@@ -1433,9 +1690,109 @@ detectar_deriva_calidad <- function(historico, nivel = c("perfil", "regla"),
       evidencia = NA_character_,
       stringsAsFactors = FALSE
     )
-    if (!nrow(configuraciones)) return(regular)
+    # Un par al que le falta la configuracion de una corrida no se puede
+    # comparar: sin ella no se sabe si las dos corridas miden la misma tabla, ni
+    # si cambio el marco. La deriva lo SABIA -la columna decia
+    # `<sin_configuracion>`- y publicaba igual: sobre un historico releido de un
+    # CSV restaba la corrida de una tabla a la de otra y publicaba `error`, y un
+    # cambio de marco que el objeto declaraba no comparable salia como deterioro.
+    # Medido en la ronda 25. La fila queda, sin veredicto, y la cobertura lo dice.
+    sin_configuracion <- is.na(indices_configuracion[a]) |
+      is.na(indices_configuracion[b])
+    if (any(sin_configuracion)) {
+      for (columna in c("delta", "cambio_absoluto")) {
+        regular[[columna]][sin_configuracion] <- NA_real_
+      }
+      regular$significativo[sin_configuracion] <- NA
+      regular$direccion[sin_configuracion] <- NA_character_
+      regular$severidad[sin_configuracion] <- NA_character_
+      regular$cambio[sin_configuracion] <- "no_comparable"
+      regular$descripcion[sin_configuracion] <- paste(
+        "No se puede comparar: el hist\u00f3rico no declara la configuraci\u00f3n",
+        "de", ifelse(
+          is.na(indices_configuracion[a][sin_configuracion]) &
+            is.na(indices_configuracion[b][sin_configuracion]),
+          "ninguna de las dos corridas",
+          ifelse(
+            is.na(indices_configuracion[a][sin_configuracion]),
+            "la corrida anterior", "la corrida actual"
+          )
+        ),
+        "(tabla, marco y tipos de resultado), as\u00ed que no se sabe si miden lo mismo."
+      )
+      sin_par[[length(sin_par) + 1L]] <<- .nuevo_diagnostico_no_evaluado(
+        "detectar_deriva_calidad",
+        if (nivel == "regla") {
+          paste0(
+            as.character(datos$perfil[[indices[[1L]]]]), " / ",
+            as.character(datos$regla[[indices[[1L]]]])
+          )
+        } else {
+          as.character(datos$perfil[[indices[[1L]]]])
+        },
+        paste0(
+          "no_comparable: ", sum(sin_configuracion), " par(es) sin la ",
+          "configuraci\u00f3n de sus corridas"
+        ),
+        paste0(
+          "Acumular las corridas desde los objetos de evaluar() o medir(), o ",
+          "leer un hist\u00f3rico que conserve las columnas identidad_tabla y ",
+          "configuracion_* de sus filas evaluacion_perfil."
+        )
+      )
+    }
+    # Un par cuya frontera cambio -una parte declarada entro o salio del
+    # numero- no compara lo mismo: se declara como el cambio de marco, sin la
+    # fila de resultado.
+    partes_a <- lapply(datos$id_medicion[a], partes_de)
+    partes_b <- lapply(datos$id_medicion[b], partes_de)
+    frontera_cambiada <- !vapply(seq_along(a), function(i) {
+      identical(partes_a[[i]]$claves, partes_b[[i]]$claves)
+    }, logical(1L))
+    declaracion_frontera <- NULL
+    if (any(frontera_cambiada)) {
+      i <- which(frontera_cambiada)
+      describir <- function(partes) {
+        vapply(partes, function(p) {
+          if (length(p$etiquetas)) {
+            paste0("sin medir ", paste(p$etiquetas, collapse = "; "))
+          } else {
+            "todas las partes medidas"
+          }
+        }, character(1L))
+      }
+      declaracion_frontera <- data.frame(
+        nivel = rep(nivel, length(i)), perfil = datos$perfil[a[i]],
+        regla = if (nivel == "regla") datos$regla[a[i]] else NA_character_,
+        identidad_tabla = identidad[a[i]],
+        id_medicion_anterior = datos$id_medicion[a[i]],
+        fecha_anterior = datos$fecha[a[i]], resultado_anterior = NA_real_,
+        id_medicion_actual = datos$id_medicion[b[i]],
+        fecha_actual = datos$fecha[b[i]], resultado_actual = NA_real_,
+        delta = NA_real_, cambio_absoluto = NA_real_, significativo = TRUE,
+        direccion = "cobertura", severidad = "error", cambio = "no_comparable",
+        aspecto = "cobertura_frontera",
+        descripcion = paste(
+          "Cambi\u00f3 la parte medida de la frontera: el n\u00famero de una",
+          "corrida no cubre lo mismo que el de la otra; no se publica la",
+          "comparaci\u00f3n del resultado."
+        ),
+        evidencia = paste0(
+          "Anterior: ", describir(partes_a[i]), "; actual: ",
+          describir(partes_b[i]), "."
+        ),
+        stringsAsFactors = FALSE
+      )
+    }
+    if (!nrow(configuraciones)) {
+      return(rbind(
+        regular[!frontera_cambiada, , drop = FALSE], declaracion_frontera
+      ))
+    }
     anterior_configuracion <- indices_configuracion[a]
     actual_configuracion <- indices_configuracion[b]
+    anterior_configuracion[sin_configuracion] <- NA_integer_
+    actual_configuracion[sin_configuracion] <- NA_integer_
     diferencias_componente <- function(campo) {
       anterior <- rep(NA_character_, length(a))
       actual <- rep(NA_character_, length(b))
@@ -1456,9 +1813,10 @@ detectar_deriva_calidad <- function(historico, nivel = c("perfil", "regla"),
     marco_cambiado <- diferencias_componente("configuracion_marco")
     tipos_cambiados <- diferencias_componente("configuracion_tipos_resultado")
     modelo_no_comparable <- marco_cambiado | tipos_cambiados
-    if (any(modelo_no_comparable)) {
-      regular <- regular[!modelo_no_comparable, , drop = FALSE]
+    if (any(modelo_no_comparable | frontera_cambiada)) {
+      regular <- regular[!(modelo_no_comparable | frontera_cambiada), , drop = FALSE]
     }
+    regular <- rbind(regular, declaracion_frontera)
     campos <- c(
       modelo = "configuracion_modelo",
       aplicabilidad = "configuracion_aplicabilidad",
@@ -1487,7 +1845,18 @@ detectar_deriva_calidad <- function(historico, nivel = c("perfil", "regla"),
         fecha_actual = datos$fecha[b[i]], resultado_actual = NA_real_,
         delta = NA_real_, cambio_absoluto = NA_real_, significativo = TRUE,
         direccion = "configuracion", severidad = "error",
-        cambio = if (nombre == "modelo") "no_comparable" else NA_character_,
+        # `no_comparable` solo cuando la fila de resultado se quita -cambio el
+        # marco o los tipos-. Un cambio de modelo que mantiene la comparacion
+        # salia `no_comparable` al lado de su propia fila de resultado con
+        # veredicto y de una descripcion que dice "se mantienen las
+        # comparaciones"; y `reportar()`, que confia en la etiqueta, borraba el
+        # delta que la deriva publicaba. Medido en la ronda 25.
+        cambio = if (nombre == "modelo") {
+          ifelse(marco_cambiado[i] | tipos_cambiados[i], "no_comparable",
+                 NA_character_)
+        } else {
+          NA_character_
+        },
         aspecto = paste0("configuracion_", nombre),
         descripcion = paste(
           switch(
@@ -1561,4 +1930,29 @@ detectar_deriva_calidad <- function(historico, nivel = c("perfil", "regla"),
   }
   class(resultado) <- c("deriva_calidad", "data.frame")
   resultado
+}
+
+# Lo que la deriva dice de UN par de corridas, leido igual por todos los que la
+# consumen -la evolucion de `reportar()` y `comparar_evaluaciones()`-: el delta,
+# si la deriva lo publica, y el texto de todas sus filas, la de resultado
+# primero. Un par con alguna fila `no_comparable` no tiene delta. Leerlo en dos
+# lugares con dos reglas es como el informe termino borrando un delta que la
+# deriva publicaba.
+.lectura_par_deriva <- function(deriva, filas) {
+  if (!length(filas)) {
+    return(list(delta = NA_real_, comparacion = NA_character_))
+  }
+  resultado <- filas[as.character(deriva$aspecto[filas]) == "resultado"]
+  no_comparable <- any(deriva$cambio[filas] %in% "no_comparable")
+  orden <- filas[order(as.character(deriva$aspecto[filas]) != "resultado")]
+  list(
+    delta = if (!no_comparable && length(resultado)) {
+      deriva$delta[[resultado[[1L]]]]
+    } else {
+      NA_real_
+    },
+    comparacion = paste(
+      unique(as.character(deriva$descripcion[orden])), collapse = " "
+    )
+  )
 }

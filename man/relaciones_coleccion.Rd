@@ -82,6 +82,14 @@ declara ese alcance: una relación candidata sobre una muestra \strong{no es una
 clave foránea comprobada}, es un indicio que hay que confirmar contra el
 diccionario de datos.
 
+\strong{Con la tabla de referencia truncada la cobertura es una cota inferior.} Un
+valor de \code{tabla_2} que no está entre las filas leídas de \code{tabla_1} puede
+estar en las demás, así que la cobertura sólo puede subir al leer más. Un par
+que con la referencia truncada no alcanza \code{umbral_cobertura} no se descarta
+en silencio: queda en \code{cobertura_pares} como «sin conclusión», con la mayor
+cobertura medida y cómo resolverlo, y \code{meta$pares_sin_conclusion} los cuenta
+—también están en \code{pares_comparados}, porque se compararon—.
+
 \strong{El alcance se declara por par y en la fila.} Cada relación publica
 \code{filas_leidas_1}/\code{filas_leidas_2} —cuántas se compararon—, y además
 \code{filas_totales_1}/\code{filas_totales_2} y \code{muestreado_1}/\code{muestreado_2}: cuando la
@@ -104,6 +112,15 @@ podas quedan declaradas en \code{cobertura_podas}, con su motivo y conteo.
 La poda cierta por rangos usa \code{MIN} y \code{MAX} sobre el universo completo de
 cada tabla, no sobre las filas de la muestra. Si el motor no puede entregar
 ese rango, la comparación sigue sin aplicar esa poda.
+
+\strong{Un entero ancho que llega como doble no se compara.} Por encima de 2^53 un
+doble no distingue dos enteros consecutivos, y \code{dbConnect(duckdb::duckdb())}
+entrega BIGINT como doble por omisión: dos identificadores distintos se
+fundían y el objeto afirmaba una relación que el motor no tiene. Una columna
+leída como doble con algún valor de al menos 2^53 en valor absoluto deja sus
+pares en \code{sin_comparar}, con motivo \code{entero_como_doble} en
+\code{cobertura_podas} y el remedio en el detalle: conectar pidiendo \code{integer64}
+—\code{duckdb(bigint = "integer64")}, o \code{bigint = "integer64"} en RSQLite—.
 
 El campo \code{detalle} de una poda por rangos disjuntos \strong{no publica extremos que
 identifiquen}: si el mínimo o el máximo de un lado llega al piso de la

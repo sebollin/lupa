@@ -2299,6 +2299,87 @@
   disfrazados
 }
 
+# Los faltantes disfrazados de una columna -sentinelas numericos y cadenas que
+# dicen ausencia-, con la politica entera de `perfilar()`. Estaba escrita dentro
+# de `.perfilar_columna()`, y `detectar_claves()` llamaba a la casi-clave SIN
+# mascara: medido en la ronda 25, 190 documentos distintos mas diez "SIN DATO"
+# salian casi-clave con concentracion 1 y colision "SIN DATO (10)", mientras
+# `perfilar()` sobre la misma tabla contaba diez faltantes disfrazados y ningun
+# hallazgo de clave. Una regla escrita dos veces contestaba distinto sobre la
+# misma columna; ahora hay una sola.
+.faltantes_disfrazados_columna <- function(x_analisis, inferencia, formatos,
+                                           secuencia_entera,
+                                           sentinelas_numericos,
+                                           sentinelas_declarados,
+                                           cadenas_ausencia, aplicable) {
+  valores_numericos <- .valores_numericos_secuencia(
+    x_analisis, inferencia, formatos
+  )
+  candidatos_sentinelas <- .candidatos_sentinelas_presentes(
+    valores_numericos, sentinelas_numericos
+  )
+  rango_numeracion <- .rango_numeracion_sin_candidatos(
+    valores_numericos, candidatos_sentinelas
+  )
+  centinela_fuera_rango <- .sentinela_numerico_fuera_rango(
+    candidatos_sentinelas, rango_numeracion
+  )
+  centinela_moda_sobresaliente <- .sentinela_numerico_es_moda_sobresaliente(
+    valores_numericos, candidatos_sentinelas, secuencia_entera
+  )
+  # Sobre una numeracion limpia la guarda no corre entera: corre SOLO para los
+  # candidatos que muestran una senal propia. Sobre cualquier otra columna corre
+  # completa, como siempre. Una declaracion explicita la atraviesa igual.
+  # `!length(sentinelas_declarados)` no sobra: **una declaracion explicita
+  # atraviesa la guarda entera**, y filtrar por candidato tambien es la guarda.
+  # Sin esa condicion, declarar `sentinelas_numericos = c(999)` sobre una
+  # numeracion de 501 a 1000 no marcaba nada -999 esta dentro del rango y no
+  # sobresale-, o sea que el paquete ignoraba lo que el usuario acababa de
+  # decirle. Lo atrapo `test-grupos-guiado.R`.
+  sentinelas_efectivos <- if (isTRUE(secuencia_entera$densa) &&
+                              !length(sentinelas_declarados)) {
+    .sentinelas_que_abren_guarda(
+      valores_numericos, candidatos_sentinelas, rango_numeracion,
+      secuencia_entera
+    )
+  } else if (!length(sentinelas_declarados)) {
+    .sentinelas_sin_apariciones_unicas(
+      valores_numericos, candidatos_sentinelas, rango_numeracion,
+      sentinelas_numericos
+    )
+  } else {
+    sentinelas_numericos
+  }
+  detectar_sentinelas <- length(sentinelas_declarados) > 0L ||
+    !isTRUE(secuencia_entera$densa) ||
+    length(sentinelas_efectivos) > 0L
+  faltantes_disfrazados <- .detectar_faltantes_disfrazados(
+    x_analisis, sentinelas_numericos = sentinelas_efectivos,
+    cadenas_ausencia = cadenas_ausencia,
+    # Una numeración compacta no apaga por sí sola la corazonada: un candidato
+    # fuera de su rango o cuya frecuencia es la moda sobresaliente vuelve a
+    # abrirla. Una declaración explícita siempre atraviesa la guarda.
+    detectar_sentinelas_numericos = detectar_sentinelas
+  )
+  faltantes_disfrazados <- .restringir_disfrazados(faltantes_disfrazados, aplicable)
+  faltantes_declarados <- .detectar_faltantes_disfrazados(
+    x_analisis,
+    sentinelas_numericos = .sentinelas_numericos_declarados(
+      sentinelas_numericos
+    ),
+    detectar_sentinelas_numericos = TRUE
+  )
+  faltantes_declarados <- .restringir_disfrazados(
+    faltantes_declarados, aplicable
+  )
+  # El total conserva la señal del paquete y la política completa, pero la
+  # distinción entre declarado y adivinado queda disponible para la guarda de
+  # severidad de `hallazgos.R`.
+  faltantes_disfrazados$n_numericos_declarados <-
+    as.integer(faltantes_declarados$n_numericos)
+  faltantes_disfrazados
+}
+
 .perfilar_columna <- function(x, nombre, muestra, max_patrones,
                               distinguir_mayusculas, expandir,
                               umbral_patron_raro,
@@ -2439,71 +2520,11 @@
     .desvios_patron_raro_detectados(
       patrones, secuencia_entera$densa, umbral_patron_raro
     )
-  valores_numericos <- .valores_numericos_secuencia(
-    x_analisis, inferencia, formatos
+  # La mascara se calcula en UNA funcion, que tambien usa `detectar_claves()`.
+  faltantes_disfrazados <- .faltantes_disfrazados_columna(
+    x_analisis, inferencia, formatos, secuencia_entera, sentinelas_numericos,
+    sentinelas_declarados, cadenas_ausencia, aplicable
   )
-  candidatos_sentinelas <- .candidatos_sentinelas_presentes(
-    valores_numericos, sentinelas_numericos
-  )
-  rango_numeracion <- .rango_numeracion_sin_candidatos(
-    valores_numericos, candidatos_sentinelas
-  )
-  centinela_fuera_rango <- .sentinela_numerico_fuera_rango(
-    candidatos_sentinelas, rango_numeracion
-  )
-  centinela_moda_sobresaliente <- .sentinela_numerico_es_moda_sobresaliente(
-    valores_numericos, candidatos_sentinelas, secuencia_entera
-  )
-  # Sobre una numeracion limpia la guarda no corre entera: corre SOLO para los
-  # candidatos que muestran una senal propia. Sobre cualquier otra columna corre
-  # completa, como siempre. Una declaracion explicita la atraviesa igual.
-  # `!length(sentinelas_declarados)` no sobra: **una declaracion explicita
-  # atraviesa la guarda entera**, y filtrar por candidato tambien es la guarda.
-  # Sin esa condicion, declarar `sentinelas_numericos = c(999)` sobre una
-  # numeracion de 501 a 1000 no marcaba nada -999 esta dentro del rango y no
-  # sobresale-, o sea que el paquete ignoraba lo que el usuario acababa de
-  # decirle. Lo atrapo `test-grupos-guiado.R`.
-  sentinelas_efectivos <- if (isTRUE(secuencia_entera$densa) &&
-                              !length(sentinelas_declarados)) {
-    .sentinelas_que_abren_guarda(
-      valores_numericos, candidatos_sentinelas, rango_numeracion,
-      secuencia_entera
-    )
-  } else if (!length(sentinelas_declarados)) {
-    .sentinelas_sin_apariciones_unicas(
-      valores_numericos, candidatos_sentinelas, rango_numeracion,
-      sentinelas_numericos
-    )
-  } else {
-    sentinelas_numericos
-  }
-  detectar_sentinelas <- length(sentinelas_declarados) > 0L ||
-    !isTRUE(secuencia_entera$densa) ||
-    length(sentinelas_efectivos) > 0L
-  faltantes_disfrazados <- .detectar_faltantes_disfrazados(
-    x_analisis, sentinelas_numericos = sentinelas_efectivos,
-    cadenas_ausencia = cadenas_ausencia,
-    # Una numeración compacta no apaga por sí sola la corazonada: un candidato
-    # fuera de su rango o cuya frecuencia es la moda sobresaliente vuelve a
-    # abrirla. Una declaración explícita siempre atraviesa la guarda.
-    detectar_sentinelas_numericos = detectar_sentinelas
-  )
-  faltantes_disfrazados <- .restringir_disfrazados(faltantes_disfrazados, aplicable)
-  faltantes_declarados <- .detectar_faltantes_disfrazados(
-    x_analisis,
-    sentinelas_numericos = .sentinelas_numericos_declarados(
-      sentinelas_numericos
-    ),
-    detectar_sentinelas_numericos = TRUE
-  )
-  faltantes_declarados <- .restringir_disfrazados(
-    faltantes_declarados, aplicable
-  )
-  # El total conserva la señal del paquete y la política completa, pero la
-  # distinción entre declarado y adivinado queda disponible para la guarda de
-  # severidad de `hallazgos.R`.
-  faltantes_disfrazados$n_numericos_declarados <-
-    as.integer(faltantes_declarados$n_numericos)
   rol_propuesto <- .propuesta_escala(x, inferencia$tipo)$rol
   casi_clave <- .resumen_casi_clave(
     x_analisis, rol = rol_propuesto, tipo_implicito = inferencia$tipo,

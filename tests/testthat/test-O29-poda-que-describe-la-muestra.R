@@ -20,7 +20,14 @@ test_that("un rango de muestra no poda un solape del universo", {
       resultado$relaciones$n_valores_comunes == 0L
   ))
   # El par fue comparado; no se lo publico como ausencia de relacion podada.
-  expect_equal(nrow(resultado$cobertura_pares), 0L)
+  expect_equal(resultado$meta$pares_comparados, 1L)
+  # Y con `t1` leida truncada -500 de 1000 filas- ninguna cobertura alcanza el
+  # umbral, pero en el motor la mitad de `t2` esta en `t1`: eso no es ausencia
+  # de relacion. Esta prueba pedia `cobertura_pares` vacia como senal de "se
+  # comparo", y con eso sostenia el descarte en silencio; desde la ronda 25 el
+  # par queda declarado sin conclusion.
+  expect_equal(nrow(resultado$cobertura_pares), 1L)
+  expect_match(resultado$cobertura_pares$motivo, "^Sin conclusion")
 })
 
 test_that("rangos disjuntos del universo conservan la poda cierta", {
