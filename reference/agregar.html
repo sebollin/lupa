@@ -91,9 +91,13 @@ Debe contener una sola métrica específica, una corrida y una granularidad.</p>
 <dt id="arg-pesos">pesos<a class="anchor" aria-label="anchor" href="#arg-pesos"></a></dt>
 <dd><p>Vector numérico requerido por <code>promedio_ponderado</code>, con una
 entrada por fila de <code>medidas</code>. Si trae nombres, se emparejan con
-<code>objeto_medible</code> y se falla nombrando lo que sobra o falta —igual que en
-<code><a href="indice_calidad.html">indice_calidad()</a></code>—, así que la misma declaración escrita en otro orden da
-el mismo número. Sin nombres se leen por posición.</p></dd>
+<code>objeto_medible</code> o con el nombre de la parte —el que declaró la frontera,
+o el del objeto que la lista renombró— y se falla nombrando lo que sobra o
+falta —igual que en <code><a href="indice_calidad.html">indice_calidad()</a></code>, también cuando un nombre sólo
+difiere en su forma Unicode—, así que la misma declaración escrita en otro
+orden da el mismo número. Si los nombres casan con los dos vocabularios y
+reparten distinto, se rechaza: no se puede saber a cuáles se refieren. Sin
+nombres se leen por posición.</p></dd>
 
 
 <dt id="arg-coleccion">coleccion<a class="anchor" aria-label="anchor" href="#arg-coleccion"></a></dt>
@@ -107,7 +111,8 @@ agregando, y el número resultante no describiría nada.</p></dd>
 <dd><p>Lista nombrada de objetos de <code><a href="coleccion.html">coleccion()</a></code> o
 <code><a href="perfilar_coleccion.html">perfilar_coleccion()</a></code>, exigida cuando <code>destino</code> es
 <code>"conjuntoColecciones"</code>. Los nombres declaran la identidad y la frontera
-del conjunto; no se agregan organizaciones ni otros alcances implícitos.</p></dd>
+del conjunto, y mandan sobre el del objeto, que la sigue reconociendo; no
+se agregan organizaciones ni otros alcances implícitos.</p></dd>
 
 
 <dt id="arg-organizacion">organizacion<a class="anchor" aria-label="anchor" href="#arg-organizacion"></a></dt>
@@ -166,7 +171,8 @@ declaración que no se podía atribuir a ninguna fila. Los conteos se <strong>su
 por objeto de destino, y sólo cuando todas las partes declaran la misma
 unidad; si no, la fila declara la mezcla en lugar de publicar un total que no
 estaría en ninguna unidad. Las partes <strong>completas</strong> también suman —una
-columna de 6 de 6 junto a una de 5 de 6 da 11 de 12—, y en un destino por
+columna de 6 de 6 junto a una de 5 de 6 da 11 de 12—, también cuando se
+agregaron por separado y se unieron con <code><a href="https://rdrr.io/r/base/cbind.html" class="external-link">rbind()</a></code>; y en un destino por
 fila (<code>instanciaEntidad</code>) cada fila cuenta sus propias celdas: se declaran
 sólo las incompletas, con su número de fila en el motivo.</p>
 <p>Una medida repetida —el mismo <code>id_medida</code> dos veces, como deja una medición
@@ -174,14 +180,21 @@ unida consigo misma— se rechaza, como en <code><a href="evaluar.html">evaluar(
 fila agregada nombra lo que agrega —destino, función, métrica y objeto, como
 <code>M-agg-atributo-ratio-NoNulo@t.x</code>—, así que dos partes agregadas por separado
 se pueden unir y subir de nivel, y el mismo agregado repetido sigue
-repitiendo su identificador. Un valor que no se
+repitiendo su identificador. Cada nombre lleva escapados los signos que lo
+separan del siguiente —el punto, la coma—, y desde la colección para arriba
+el identificador nombra también las partes que reúne: dos conjuntos
+distintos, o dos colecciones sin nombre, no comparten identificador. Un valor que no se
 puede agregar se rechaza nombrando la métrica y la causa: un tipo no
 acotado, una medida ausente o suprimida, o un valor fuera de <code>[0, 1]</code>.
 <code>umbral</code> sólo se acepta con <code>ratio_umbral</code>, y el borde se compara con
 tolerancia de redondeo: <code>1 - 0.9</code> alcanza el umbral <code>0.1</code>.</p>
 <p>Las coberturas de frontera (<code>cobertura_coleccion</code> y sus hermanas) <strong>no</strong> se
 arrastran: cada agregación calcula la de su propio destino con las partes que
-entraron a ese número.</p>
+entraron a ese número, y hereda las de sus partes en <code>cobertura_de_partes</code>.
+Dos partes agregadas por separado y unidas con <code><a href="https://rdrr.io/r/base/cbind.html" class="external-link">rbind()</a></code> conservan cada una
+la suya, en cualquier orden de la unión, y el tablero, el índice, el
+informe, <code><a href="evaluar.html">evaluar()</a></code> e <code><a href="historico_calidad.html">historico_calidad()</a></code> las publican todas. Una
+colección lleva en <code>cobertura_metricas</code> sólo la de sus propias tablas.</p>
     </div>
     <div class="section level2">
     <h2 id="los-pesos-se-publican">Los pesos se publican<a class="anchor" aria-label="anchor" href="#los-pesos-se-publican"></a></h2>
@@ -214,9 +227,9 @@ taxonómicos y esta función no calcula un índice global.</p>
 <span class="r-in"><span><span class="va">medidas</span> <span class="op">&lt;-</span> <span class="fu"><a href="medir.html">medir</a></span><span class="op">(</span><span class="fu"><a href="modelo_calidad.html">modelo</a></span><span class="op">(</span><span class="va">instancia</span><span class="op">)</span>, <span class="fu"><a href="https://rdrr.io/r/base/data.frame.html" class="external-link">data.frame</a></span><span class="op">(</span>edad <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">20</span>, <span class="cn">NA</span>, <span class="fl">35</span><span class="op">)</span><span class="op">)</span><span class="op">)</span></span></span>
 <span class="r-in"><span><span class="fu">agregar</span><span class="op">(</span><span class="va">medidas</span>, <span class="st">"atributo"</span>, <span class="st">"ratio"</span><span class="op">)</span></span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>                                                                      id_medida</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 1 medicion-20261002T092339.425888-7626-agg-atributo-ratio-NoNulo@personas.edad</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 1 medicion-20261005T162527.534203-7637-agg-atributo-ratio-NoNulo@personas.edad</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>                            id_medicion               fecha metrica</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 1 medicion-20261002T092339.425888-7626 2026-10-02 09:23:39  NoNulo</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 1 medicion-20261005T162527.534203-7637 2026-10-05 16:25:27  NoNulo</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>   metrica_especifica   metrica_instanciada   dimension   factor orientacion</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> 1             NoNulo agregada:ratio:NoNulo Completitud Densidad conformidad</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>   granularidad tipo_resultado  entidad atributo fila objeto_medible resultado</span>

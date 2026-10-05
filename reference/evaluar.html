@@ -86,7 +86,12 @@ Es un perfil de evaluación, distinto del objeto <code>perfil</code> creado por
 contiene además <code>desenlaces</code>, un plan que identifica las medidas
 incumplidas, el valor medido, el motivo y la regla que lo produjo.
 Cuando una métrica no pudo medirse, conserva <code>cobertura_metricas</code> y deja
-en <code>NA</code> el resumen afectado, en lugar de tratar la ausencia como éxito.
+en <code>NA</code> el resumen afectado, en lugar de tratar la ausencia como éxito;
+también sobre un agregado, donde la regla nombra la métrica agregada
+—<code>agregada:ratio:NoNulo</code>— y la parte sin medir es una de sus instancias.
+La evaluación de un agregado conserva además la cobertura de su frontera
+—las tablas o colecciones declaradas que no entraron al número—, la
+imprime y la lleva a su informe y a <code><a href="historico_calidad.html">historico_calidad()</a></code>.
 Y cuando una regla <strong>declara</strong> una métrica que la medición no trae —ninguna
 medida de ella—, el veredicto cubre menos de lo que la regla dice: eso se
 avisa al evaluar y queda en el atributo <code>cobertura_reglas</code>, con la corrida,
@@ -112,13 +117,13 @@ aplicabilidad y el perfil de evaluación que produjo el resultado.</p>
 <span class="r-msg co"><span class="r-pr">#&gt;</span> ── <span style="font-weight: bold;">Evaluaciones de medidas</span> ──</span>
 <span class="r-msg co"><span class="r-pr">#&gt;</span> </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>                                                         id_medida</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>  medicion-20261002T092355.545400-7626-NoNulo@personas.edad-000001</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>  medicion-20261002T092355.545400-7626-NoNulo@personas.edad-000002</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>  medicion-20261002T092355.545400-7626-NoNulo@personas.edad-000003</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>  medicion-20261005T162543.894296-7637-NoNulo@personas.edad-000001</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>  medicion-20261005T162543.894296-7637-NoNulo@personas.edad-000002</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>  medicion-20261005T162543.894296-7637-NoNulo@personas.edad-000003</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>                           id_medicion               fecha   perfil        regla</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>  medicion-20261002T092355.545400-7626 2026-10-02 09:23:55 Avanzado Al menos 90%</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>  medicion-20261002T092355.545400-7626 2026-10-02 09:23:55 Avanzado Al menos 90%</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>  medicion-20261002T092355.545400-7626 2026-10-02 09:23:55 Avanzado Al menos 90%</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>  medicion-20261005T162543.894296-7637 2026-10-05 16:25:43 Avanzado Al menos 90%</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>  medicion-20261005T162543.894296-7637 2026-10-05 16:25:43 Avanzado Al menos 90%</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>  medicion-20261005T162543.894296-7637 2026-10-05 16:25:43 Avanzado Al menos 90%</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>   metrica_instanciada orientacion resultado</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>  NoNulo@personas.edad conformidad      TRUE</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>  NoNulo@personas.edad conformidad     FALSE</span>
@@ -126,13 +131,13 @@ aplicabilidad y el perfil de evaluación que produjo el resultado.</p>
 <span class="r-msg co"><span class="r-pr">#&gt;</span> ── <span style="font-weight: bold;">Evaluaciones de reglas</span> ──</span>
 <span class="r-msg co"><span class="r-pr">#&gt;</span> </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>                           id_medicion               fecha   perfil        regla</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>  medicion-20261002T092355.545400-7626 2026-10-02 09:23:55 Avanzado Al menos 90%</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>  medicion-20261005T162543.894296-7637 2026-10-05 16:25:43 Avanzado Al menos 90%</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>  n_medidas resultado</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>          3 0.6666667</span>
 <span class="r-msg co"><span class="r-pr">#&gt;</span> ── <span style="font-weight: bold;">Perfiles de madurez</span> ──</span>
 <span class="r-msg co"><span class="r-pr">#&gt;</span> </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>                           id_medicion               fecha   perfil n_reglas</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>  medicion-20261002T092355.545400-7626 2026-10-02 09:23:55 Avanzado        1</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>  medicion-20261005T162543.894296-7637 2026-10-05 16:25:43 Avanzado        1</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>  resultado</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>  0.6666667</span>
 </code></pre></div>

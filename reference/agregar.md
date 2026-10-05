@@ -47,11 +47,15 @@ agregar(
 
   Vector numérico requerido por `promedio_ponderado`, con una entrada
   por fila de `medidas`. Si trae nombres, se emparejan con
-  `objeto_medible` y se falla nombrando lo que sobra o falta —igual que
-  en
-  [`indice_calidad()`](https://sebollin.github.io/lupa/reference/indice_calidad.md)—,
-  así que la misma declaración escrita en otro orden da el mismo número.
-  Sin nombres se leen por posición.
+  `objeto_medible` o con el nombre de la parte —el que declaró la
+  frontera, o el del objeto que la lista renombró— y se falla nombrando
+  lo que sobra o falta —igual que en
+  [`indice_calidad()`](https://sebollin.github.io/lupa/reference/indice_calidad.md),
+  también cuando un nombre sólo difiere en su forma Unicode—, así que la
+  misma declaración escrita en otro orden da el mismo número. Si los
+  nombres casan con los dos vocabularios y reparten distinto, se
+  rechaza: no se puede saber a cuáles se refieren. Sin nombres se leen
+  por posición.
 
 - coleccion:
 
@@ -70,8 +74,9 @@ agregar(
   o
   [`perfilar_coleccion()`](https://sebollin.github.io/lupa/reference/perfilar_coleccion.md),
   exigida cuando `destino` es `"conjuntoColecciones"`. Los nombres
-  declaran la identidad y la frontera del conjunto; no se agregan
-  organizaciones ni otros alcances implícitos.
+  declaran la identidad y la frontera del conjunto, y mandan sobre el
+  del objeto, que la sigue reconociendo; no se agregan organizaciones ni
+  otros alcances implícitos.
 
 - organizacion:
 
@@ -135,9 +140,10 @@ conteos se **suman** por objeto de destino, y sólo cuando todas las
 partes declaran la misma unidad; si no, la fila declara la mezcla en
 lugar de publicar un total que no estaría en ninguna unidad. Las partes
 **completas** también suman —una columna de 6 de 6 junto a una de 5 de 6
-da 11 de 12—, y en un destino por fila (`instanciaEntidad`) cada fila
-cuenta sus propias celdas: se declaran sólo las incompletas, con su
-número de fila en el motivo.
+da 11 de 12—, también cuando se agregaron por separado y se unieron con
+[`rbind()`](https://rdrr.io/r/base/cbind.html); y en un destino por fila
+(`instanciaEntidad`) cada fila cuenta sus propias celdas: se declaran
+sólo las incompletas, con su número de fila en el motivo.
 
 Una medida repetida —el mismo `id_medida` dos veces, como deja una
 medición unida consigo misma— se rechaza, como en
@@ -145,15 +151,27 @@ medición unida consigo misma— se rechaza, como en
 `id_medida` de cada fila agregada nombra lo que agrega —destino,
 función, métrica y objeto, como `M-agg-atributo-ratio-NoNulo@t.x`—, así
 que dos partes agregadas por separado se pueden unir y subir de nivel, y
-el mismo agregado repetido sigue repitiendo su identificador. Un valor
-que no se puede agregar se rechaza nombrando la métrica y la causa: un
-tipo no acotado, una medida ausente o suprimida, o un valor fuera de
-`[0, 1]`. `umbral` sólo se acepta con `ratio_umbral`, y el borde se
-compara con tolerancia de redondeo: `1 - 0.9` alcanza el umbral `0.1`.
+el mismo agregado repetido sigue repitiendo su identificador. Cada
+nombre lleva escapados los signos que lo separan del siguiente —el
+punto, la coma—, y desde la colección para arriba el identificador
+nombra también las partes que reúne: dos conjuntos distintos, o dos
+colecciones sin nombre, no comparten identificador. Un valor que no se
+puede agregar se rechaza nombrando la métrica y la causa: un tipo no
+acotado, una medida ausente o suprimida, o un valor fuera de `[0, 1]`.
+`umbral` sólo se acepta con `ratio_umbral`, y el borde se compara con
+tolerancia de redondeo: `1 - 0.9` alcanza el umbral `0.1`.
 
 Las coberturas de frontera (`cobertura_coleccion` y sus hermanas) **no**
 se arrastran: cada agregación calcula la de su propio destino con las
-partes que entraron a ese número.
+partes que entraron a ese número, y hereda las de sus partes en
+`cobertura_de_partes`. Dos partes agregadas por separado y unidas con
+[`rbind()`](https://rdrr.io/r/base/cbind.html) conservan cada una la
+suya, en cualquier orden de la unión, y el tablero, el índice, el
+informe,
+[`evaluar()`](https://sebollin.github.io/lupa/reference/evaluar.md) e
+[`historico_calidad()`](https://sebollin.github.io/lupa/reference/historico_calidad.md)
+las publican todas. Una colección lleva en `cobertura_metricas` sólo la
+de sus propias tablas.
 
 ## Los pesos se publican
 
@@ -187,9 +205,9 @@ instancia <- instanciar(especifica, "personas", "edad")
 medidas <- medir(modelo(instancia), data.frame(edad = c(20, NA, 35)))
 agregar(medidas, "atributo", "ratio")
 #>                                                                      id_medida
-#> 1 medicion-20261002T092339.425888-7626-agg-atributo-ratio-NoNulo@personas.edad
+#> 1 medicion-20261005T162527.534203-7637-agg-atributo-ratio-NoNulo@personas.edad
 #>                            id_medicion               fecha metrica
-#> 1 medicion-20261002T092339.425888-7626 2026-10-02 09:23:39  NoNulo
+#> 1 medicion-20261005T162527.534203-7637 2026-10-05 16:25:27  NoNulo
 #>   metrica_especifica   metrica_instanciada   dimension   factor orientacion
 #> 1             NoNulo agregada:ratio:NoNulo Completitud Densidad conformidad
 #>   granularidad tipo_resultado  entidad atributo fila objeto_medible resultado

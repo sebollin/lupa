@@ -51,8 +51,10 @@ descubrir_patrones(
 
 - umbral_raro:
 
-  Umbral usado para conservar un resumen acotado de patrones raros para
-  los hallazgos.
+  Frecuencia máxima de un patrón raro, usada para conservar un resumen
+  acotado de patrones raros para los hallazgos. La frontera es
+  inclusiva: un patrón no dominante con exactamente esa proporción es
+  raro.
 
 - proteger_datos_personales:
 
@@ -74,16 +76,17 @@ disponible; un número de ocho dígitos **sí** se publica, porque su forma
 sola no alcanza para afirmar que es un documento. Los atributos `total`,
 `analizados`, `filas_analizadas` y `muestreado` describen el posible
 muestreo; `filas_analizadas` es un alias explícito de `analizados` para
-mantener el alcance visible junto a otros diagnósticos.
-`resumen_patrones` conserva sólo el patrón dominante y hasta seis
-patrones raros para presentacion; nunca guarda la distribucion completa.
-`patrones_raros_trazabilidad` conserva solo los nombres de los patrones
-raros, hasta 5.000, para que la trazabilidad pueda enumerar filas sin
-retener frecuencias ni ejemplos. Las proporciones siempre estan en
-`[0, 1]`. `n_patrones_distintos` registra el total antes de truncar la
-tabla para informar omisiones sin retenerla. `n_patrones_raros` y
-`n_patrones_raros_trazabilidad` registran cuantos patrones raros habia
-antes de sus respectivos limites.
+mantener el alcance visible junto a otros diagnósticos. `n_evaluados` es
+el denominador de `proporcion`: los valores analizados, sin los ausentes
+cuando `na.rm = TRUE`. `resumen_patrones` conserva sólo el patrón
+dominante y hasta seis patrones raros para presentacion; nunca guarda la
+distribucion completa. `patrones_raros_trazabilidad` conserva solo los
+nombres de los patrones raros, hasta 5.000, para que la trazabilidad
+pueda enumerar filas sin retener frecuencias ni ejemplos. Las
+proporciones siempre estan en `[0, 1]`. `n_patrones_distintos` registra
+el total antes de truncar la tabla para informar omisiones sin
+retenerla. `n_patrones_raros` y `n_patrones_raros_trazabilidad`
+registran cuantos patrones raros habia antes de sus respectivos limites.
 `n_filas_patrones_no_dominantes_excluidos` registra cuantas filas
 pertenecen a patrones no dominantes cuya proporcion no es rara y que por
 eso quedan fuera del hallazgo.

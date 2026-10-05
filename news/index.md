@@ -2,6 +2,222 @@
 
 ## lupa 0.1.0
 
+### Ronda 24: los niveles institucionales, las cifras del perfil y la proteccion otra vez
+
+Tres refutaciones en paralelo: la de los niveles institucionales
+encontro once defectos; la del perfil contra conteos a mano, otros once
+-uno lo defendia una entrada anterior de este archivo, que se corrige-;
+y la de la proteccion, nueve fugas y siete familias de tapado de mas.
+
+**Los niveles institucionales**
+([`agregar()`](https://sebollin.github.io/lupa/reference/agregar.md) de
+la coleccion para arriba):
+
+- **La cobertura de cada parte sobrevive a
+  [`rbind()`](https://rdrr.io/r/base/cbind.html)**: dos colecciones
+  agregadas por separado y unidas dejaban solo la cobertura de la
+  primera, asi que el conjunto -o la organizacion- salia completo o
+  incompleto segun el orden de la union, y la tabla que no habia entrado
+  desaparecia. Ahora cada parte conserva la suya en
+  `cobertura_de_partes`, `partes_incompletas` nombra la parte y no el
+  atributo, y el tablero, el indice y el informe reunen todas las
+  colecciones.
+- **Una tabla y una columna con punto ya no se funden**: `ventas.total`
+  con `mes` y `ventas` con `total.mes` caian en un solo atributo (0,625
+  donde habia 1 y 0,25), porque el grupo se armaba pegando los nombres
+  con un punto. Los identificadores escapan sus separadores, y desde la
+  coleccion para arriba nombran las partes que reunen: dos conjuntos
+  distintos, o dos colecciones sin nombre, ya no comparten `id_medida`;
+  un nombre con coma va entre comillas invertidas en la parte unida.
+- **El alcance suma las partes completas aunque se hayan agregado por
+  separado**: una coleccion completa unida a una parcial entraba como “1
+  de 1” y el conjunto publicaba “5 de 9” donde eran 12 de 16.
+- **Una regla sobre un agregado no da por completa una parte sin
+  medir**: la regla nombra `agregada:ratio:NoNulo` y la cobertura
+  `NoNulo@a2.x`, y no casaban; el numero que excluia la parte se
+  evaluaba como completo y la deriva lo leia como mejora. Y una
+  coleccion lleva en `cobertura_metricas` solo la de sus tablas: la de
+  otra coleccion le cambiaba el veredicto.
+- **La evaluacion y el historico nombran la parte que no entro**:
+  [`evaluar()`](https://sebollin.github.io/lupa/reference/evaluar.md)
+  conserva la cobertura de la frontera, la imprime y la lleva a su
+  informe, e
+  [`historico_calidad()`](https://sebollin.github.io/lupa/reference/historico_calidad.md)
+  la guarda como nivel `parte_no_medida`.
+- **El nombre de lista manda en los tres niveles**: `organizacion` y
+  `conjuntoColecciones` abortaban cuando la lista renombraba sus
+  colecciones; y los pesos se aceptan con el nombre declarado o con el
+  del objeto.
+- Los pesos que casan con dos vocabularios y reparten distinto se
+  rechazan (antes ganaba la tabla en silencio); el mensaje de pesos de
+  [`agregar()`](https://sebollin.github.io/lupa/reference/agregar.md)
+  dice cuando un nombre difiere solo en su forma Unicode, como el de
+  [`indice_calidad()`](https://sebollin.github.io/lupa/reference/indice_calidad.md);
+  y agregar partes de dos corridas se rechaza diciendo por que -un
+  agregado describe un momento- y que hacer.
+  [`?organizacion`](https://sebollin.github.io/lupa/reference/organizacion.md)
+  prometia reunir colecciones de momentos distintos: ahora dice que la
+  organizacion las declara y que para agregar se miden en una corrida.
+- Las claves del tablero y de las dependencias funcionales tampoco pegan
+  nombres con un punto -la misma falla, en ramas que la refutacion no
+  alcanzo-: llevan el separador de control que las evaluaciones usan
+  desde la ronda 22.
+
+**Lo que afirma el perfil:**
+
+- **Una columna `data.frame` anidada es compuesta**, como una matriz: la
+  que deja
+  [`jsonlite::fromJSON()`](https://jeroen.r-universe.dev/jsonlite/reference/fromJSON.html)
+  o un tibble empaquetado caia por el camino comun e
+  [`is.na()`](https://rdrr.io/r/base/NA.html) contaba celdas. Doce filas
+  con 27 celdas ausentes publicaban `n_faltantes = 27`,
+  `prop_faltantes = 2.25` y una traza hasta la fila 34. Ahora publica
+  `n` de filas, los estadisticos por valor en `NA` y el hallazgo
+  `tipo_compuesto_no_analizado`, con todas sus filas en la traza.
+- **Los centinelas declarados no corren las trazas**: con
+  `sentinelas_numericos`, las trazas de `valores_no_finitos`,
+  `ceros_no_permitidos`, `negativos_no_permitidos` y `outliers` se
+  calculaban sobre el vector sin centinelas y cada fila quedaba corrida
+  tantas posiciones como centinelas hubiera antes: el cero de la fila 20
+  se trazaba en la 17, con estado `disponible`. Pasaba en
+  [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md),
+  en
+  [`perfilar_dbi()`](https://sebollin.github.io/lupa/reference/perfilar_dbi.md)
+  y en
+  [`perfilar_por()`](https://sebollin.github.io/lupa/reference/perfilar_por.md),
+  y tambien en `integer64`.
+- **La traza de `posible_centinela_numerico` convierte como el
+  resumen**: en una columna `factor` o en texto con coma decimal se
+  buscaba el centinela con
+  [`as.numeric()`](https://rdrr.io/r/base/numeric.html) sobre la columna
+  cruda -codigos de nivel, o `NA`-, y la traza salia vacia con el aviso
+  de incoherencia. Una traza que no encuentra filas publica `total = NA`
+  y no cero.
+- **El `NaN` no se descuenta dos veces del denominador** de
+  `ceros_no_permitidos`, `negativos_no_permitidos`, `outliers` y
+  `posible_centinela_numerico`: se derivaba restando `n_faltantes` y
+  `n_valores_excluidos_resumen`, y el `NaN` esta en los dos.
+  `c(0, 1, 2, NaN, NaN, NaN, 5, -3)` publicaba `n_evaluados = 2` donde
+  la media promedia cinco valores, y la misma columna con `NA`
+  publicaba 5. Ahora se lee el conteo hecho donde se calcula el resumen,
+  como ya hacia la fila de cobertura.
+- **La traza truncada de `mayusculas_inconsistentes` y
+  `normalizacion_unicode` trae primero las variantes**, como ya hacia
+  `casi_duplicados_vocabulario`: treinta `"Montevideo"` y un
+  `"MONTEVIDEO"` en la fila 31, con `max_filas_hallazgo = 10`,
+  publicaban diez filas identicas y ningun testigo de la colision; con
+  dos grupos, el segundo quedaba entero afuera.
+- **`umbral_patron_raro` es inclusivo**, como dice la ayuda -“maxima
+  frecuencia”; excluidos los que lo “superan”-: un patron en exactamente
+  el umbral -cinco filas de cien con el 0,05 por omision- quedaba afuera
+  contado como si lo superara. La frontera estaba escrita en tres
+  lugares, la via por bloques incluida, y cambia en los tres.
+- [`perfilar_por()`](https://sebollin.github.io/lupa/reference/perfilar_por.md)
+  traduce a la tabla original tambien `indices_unidades` -la primera
+  fila de cada forma en `casi_duplicados_vocabulario`-, no solo
+  `indices_fila`: con grupos intercalados nombraba filas de otro grupo.
+- **`patron_raro` medido sobre una muestra sin hallazgo deja fila en
+  `cobertura_diagnosticos`**: con `muestra` menor que la tabla, seis
+  filas raras fuera de la rejilla publicaban cero hallazgos y una
+  cobertura vacia -un perfil “limpio” para quien decide por
+  `nrow(cobertura_diagnosticos)`-.
+- **`patron_raro` publica como `n_evaluados` el universo de sus
+  proporciones** -las filas con valor-, no las filas analizadas con sus
+  `NA`: cien filas con dos `NA` publicaban `n_evaluados = 100` junto a
+  `proporcion_dominante = 0.918`, que es 90/98, y
+  `1 - n_afectados/n_evaluados` no reconstruia la proporcion publicada.
+  [`descubrir_patrones()`](https://sebollin.github.io/lupa/reference/descubrir_patrones.md)
+  publica ese denominador en el atributo `n_evaluados`. **Correccion de
+  una entrada anterior**: en “Conteos que describen lo que miraron”, la
+  vineta de `posible_centinela_numerico` decia que “los diagnosticos que
+  miran la columna entera -`patron_raro`, `faltantes`,
+  `filas_duplicadas`- siguen en 28, que es su universo real”. Para
+  `patron_raro` era falso: una fila `NA` no tiene patron, sus
+  proporciones se calculan sobre las filas con valor y su traza no la
+  mira. En ese ejemplo su universo es 27; `faltantes` y
+  `filas_duplicadas` si miran la columna entera y siguen en 28.
+- Con `universo = "muestra_motor"` y un orden no demostrado estable, la
+  traza retenida se publica `no_disponible` con
+  `alcance = "orden_muestra_no_estable"` -sin indices, con su total- y
+  no `NULL`, fuera de los cuatro estados; y
+  `n_patrones_raros_trazabilidad` conserva la cantidad de patrones raros
+  en lugar de forzarse a cero.
+- La moda empatada de `resumen_tabla` por `bloque_filas` sigue el
+  desempate del resto del paquete -orden numerico para numeros, bytes
+  para texto-: tomaba el primero del mapa, y la misma tabla publicaba
+  `3.25` en memoria y por SQL y `10.608` por bloques.
+
+**La proteccion:**
+
+- [`perfilar_dbi()`](https://sebollin.github.io/lupa/reference/perfilar_dbi.md)
+  sin muestreo -la llamada por omision- relee como texto, en SQLite, la
+  columna protegida que el controlador leyo como numero: un documento
+  guardado como texto en una columna de afinidad numerica llegaba como
+  `5` y se publicaba en la moda y los ejemplos de otra columna. Con
+  muestreo ya se tapaba.
+- Un valor protegido que contiene un nombre de columna -el correo
+  `juan_perez@empresa.com.uy` con una columna `juan_perez`- se busca
+  entero antes de apartar el nombre: con otra caja
+  (`JUAN_PEREZ@EMPRESA.COM.UY`) ya no se publica, y la aguja recortada
+  de la ronda 23 (`@empresa.com.uy`) ya no tapa el dominio ni el correo
+  de otra columna.
+- Cada marca o nombre apartado lleva su propio codigo y se repone en su
+  lugar: si la proteccion tapaba un tramo que llevaba uno, los
+  siguientes se corrian y el texto publicado nombraba otra columna.
+- Un telefono guardado con forma de fecha (`2012-11-05`) en una columna
+  protegida que no es de fechas vuelve al piso: la ronda 23 estrecho el
+  rango de anos, pero el piso seguia decidiendo por el valor. Ahora
+  decide por la columna -es de fechas si es `Date`/`POSIXt` o si la
+  mitad de sus valores distintos tienen forma de fecha-, en
+  [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md),
+  [`analizar()`](https://sebollin.github.io/lupa/reference/analizar.md),
+  el plan,
+  [`perfilar_por()`](https://sebollin.github.io/lupa/reference/perfilar_por.md),
+  los duplicados aproximados,
+  [`perfilar_dbi()`](https://sebollin.github.io/lupa/reference/perfilar_dbi.md)
+  con y sin muestreo y las demas puertas que cosechan los datos.
+- La regla de digitos reconoce mas escrituras del mismo documento: la
+  raya, la raya larga y el apostrofo de un CSV de Windows leido como
+  `latin1` (U+0096, U+0097, U+0092); los invisibles que no son de
+  formato -marcas combinantes y envolventes, ignorables, controles- y
+  mas parecidos del apostrofo (el acento agudo del teclado en espanol),
+  del punto (el ano teleia, la vineta), del guion, de la coma y de la
+  barra; y los asteriscos de Unicode como comodin, tambien el asterisco
+  pegado a una letra (`CI*123.456-7`).
+- La fecha con hora protegida se reconoce con dos espacios, `-`, `;`,
+  `_`, `|` o parentesis entre fecha y hora, y con la hora separada por
+  guiones o escrita `21h24m25s`. La fraccion de segundo tras un punto ya
+  no se traga un documento pegado: de una a siete cifras o nueve, nunca
+  ocho, y no seguida de un guion y una cifra.
+- Un ISBN-10 se borra solo con su digito de control valido o la etiqueta
+  `ISBN` delante: con cualquier diez cifras en cuatro grupos, un NIT
+  `900-123-456-7` se borraba y se publicaba. Y se reconoce tambien con
+  espacios o puntos.
+- **Tapa menos de mas**: una direccion IP solo se tapa cuando coincide
+  entera -antes tambien por un tramo de sus octetos-; un ISBN-10 con
+  espacios o puntos, una fecha con espacios y el ano al final
+  (`16 01 2002`), y la equis seguida de un espacio (`92 x 6931234`,
+  `pack x 1781643`) ya no se toman por documentos. Medido con el
+  reproductor: la IP de 2,0 % a 0 % (y al final de una frase de 1,5 % a
+  0,8 %, las que coinciden enteras), el ISBN-10 con espacios de 3,2 % a
+  0 %, con puntos de 0,8 % a 0 %, la fecha con espacios de 7,2 % a 0 %,
+  y `52 x 6037844` de 29,5 % a 18,8 % -lo que queda es el costo
+  declarado de todo numero de siete cifras-. La equis pegada al numero
+  (`serie X6276963`, 27,3 %) y la coordenada con cero adelante
+  (`-056.092164`, 0,8 % a 2,2 %) se siguen tapando: la primera es como
+  se escribe el documento recortado sin formato y la segunda tiene la
+  forma de un celular con punto (`099.123456`). Quedan declaradas en
+  [`?perfilar`](https://sebollin.github.io/lupa/reference/perfilar.md)
+  con su cifra, y el reproductor `data-raw/medir_tapado_de_mas.R` las
+  mide con ocho familias nuevas.
+- [`?perfilar`](https://sebollin.github.io/lupa/reference/perfilar.md)
+  declara lo que queda: una fecha con hora cuya fraccion de nueve cifras
+  tras un punto empieza con un cero que es parte del documento, un
+  documento de diez cifras escrito en cuatro grupos que por azar valida
+  como ISBN-10 (uno de cada once), el telefono con forma de fecha
+  escrito en otra forma que la guardada, y los parecidos raros (la prima
+  de una coordenada sexagesimal, el acento grave, la tilde).
+
 ### Ronda 23: el tablero, el indice y la proteccion otra vez
 
 Una refutacion de la agregacion, el tablero y el indice encontro doce
@@ -1302,8 +1518,9 @@ nadie.
   filas menos una ausente y una no convertible- y el centinela
   publicaba 28. Su deteccion corre sobre el resumen cuantitativo, igual
   que la de sus hermanos. Los diagnosticos que miran la columna entera
-  -`patron_raro`, `faltantes`, `filas_duplicadas`- siguen en 28, que es
-  su universo real.
+  -`faltantes`, `filas_duplicadas`- siguen en 28, que es su universo
+  real; `patron_raro` mira las filas con valor (27): corregido en la
+  ronda 24.
 - **Una deriva vacia dice si fue porque nada cambio o porque no habia
   con que comparar.**
   [`detectar_deriva_calidad()`](https://sebollin.github.io/lupa/reference/detectar_deriva_calidad.md)

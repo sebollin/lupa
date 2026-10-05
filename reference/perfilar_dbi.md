@@ -497,22 +497,26 @@ contiene familias disponibles; y `cobertura_diagnosticos` tiene una fila
 por familia no evaluada. `meta$origen_dbi$muestreo` conserva filas
 solicitadas, entregadas, reproducibilidad, `muestra_id`, `snapshot_id` y
 checksum. El método de impresión remite a esa cobertura cuando el campo
-no está disponible; no reemplaza la ausencia con `NULL` silencioso. Bajo
-`bloque_filas`, `perfil_muestra` sigue siendo la muestra diagnóstica
-acotada por `muestra`, `max_celdas_muestra` y `max_bytes_muestra`; no es
-la cobertura completa. Por eso `perfil_muestra$general$filas` es el
-tamaño de esa muestra y la cobertura se lee en
-`meta$bloques$filas_vistas`. En `muestra_motor`, todas las metricas SQL
-salvo `n` describen la relacion muestreada; `n` es el total de la tabla
-completa y esta marcado con `alcance = "tabla_completa"`,
-`metodo = "conteo_universo"` y `error_esperado = "no_aplica"`. Los
-conteos `n_validos`, `n_faltantes`, `prop_faltantes`, `n_distintos`,
-`tasa_distintos`, `n_ceros`, `n_negativos` y `frecuencia_moda` son
-observaciones de esa muestra, no extrapolaciones al universo. Sus
-motivos declaran la escala local y el denominador `n_total_consulta`
-cuando corresponde. `TABLESAMPLE SYSTEM` es la fuente preferida cuando
-el adaptador la declara y la sonda la acepta; publica
-`metodo_muestreo = "tablesample_system"`,
+no está disponible; no reemplaza la ausencia con `NULL` silencioso.
+Cuando el orden de la muestra del motor no se demostró estable, cada
+traza de `hallazgos` se publica `no_disponible` con
+`alcance = "orden_muestra_no_estable"`, sin índices ni claves y con su
+total; los patrones raros conservan su cantidad y retiran sus nombres.
+Bajo `bloque_filas`, `perfil_muestra` sigue siendo la muestra
+diagnóstica acotada por `muestra`, `max_celdas_muestra` y
+`max_bytes_muestra`; no es la cobertura completa. Por eso
+`perfil_muestra$general$filas` es el tamaño de esa muestra y la
+cobertura se lee en `meta$bloques$filas_vistas`. En `muestra_motor`,
+todas las metricas SQL salvo `n` describen la relacion muestreada; `n`
+es el total de la tabla completa y esta marcado con
+`alcance = "tabla_completa"`, `metodo = "conteo_universo"` y
+`error_esperado = "no_aplica"`. Los conteos `n_validos`, `n_faltantes`,
+`prop_faltantes`, `n_distintos`, `tasa_distintos`, `n_ceros`,
+`n_negativos` y `frecuencia_moda` son observaciones de esa muestra, no
+extrapolaciones al universo. Sus motivos declaran la escala local y el
+denominador `n_total_consulta` cuando corresponde. `TABLESAMPLE SYSTEM`
+es la fuente preferida cuando el adaptador la declara y la sonda la
+acepta; publica `metodo_muestreo = "tablesample_system"`,
 `sesgo_muestreo = "por_bloques"` y el motivo estable
 `sesgo_muestreo:tablesample_system_por_bloques`. Si se usa el fallback
 `random_limit` con `NEWID()`, la metadata publica
@@ -837,14 +841,16 @@ todos los valores de celda de las columnas no personales —moda,
 extremos, ejemplos— y la evidencia de sus hallazgos, y
 `resumen_tabla$meta$proteccion_personal$fuera_de_muestra` dice por qué.
 En SQLite los valores se leen como texto, porque una columna de afinidad
-numérica guarda texto y el controlador lo convertía en número; y el
-motivo de una cifra que no se pudo leer como número no cita el valor de
-una columna protegida. `incluir_valores = FALSE` va más lejos: no emite
-las consultas de moda ni de mediana y no informa mínimo ni máximo, útil
-cuando la tabla es un padrón y la moda de un identificador único es un
-documento real. Si se pidió `desvio`, la sonda de magnitud que ese
-cálculo necesita puede emitirse, pero su motivo nunca publica el valor
-devuelto por el motor.
+numérica guarda texto y el controlador lo convertía en número; también
+sin muestreo, cuando la muestra es la tabla entera: ahí se releen como
+texto, con una consulta, las columnas protegidas que el controlador no
+leyó como texto. Y el motivo de una cifra que no se pudo leer como
+número no cita el valor de una columna protegida.
+`incluir_valores = FALSE` va más lejos: no emite las consultas de moda
+ni de mediana y no informa mínimo ni máximo, útil cuando la tabla es un
+padrón y la moda de un identificador único es un documento real. Si se
+pidió `desvio`, la sonda de magnitud que ese cálculo necesita puede
+emitirse, pero su motivo nunca publica el valor devuelto por el motor.
 
 ## Progreso
 

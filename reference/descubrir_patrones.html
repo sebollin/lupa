@@ -103,8 +103,9 @@ mayúscula ni minúscula —árabe, CJK— cuenta como <code>a</code>.</p>
 
 
 <dt id="arg-umbral-raro">umbral_raro<a class="anchor" aria-label="anchor" href="#arg-umbral-raro"></a></dt>
-<dd><p>Umbral usado para conservar un resumen acotado de
-patrones raros para los hallazgos.</p></dd>
+<dd><p>Frecuencia máxima de un patrón raro, usada para conservar
+un resumen acotado de patrones raros para los hallazgos. La frontera es
+inclusiva: un patrón no dominante con exactamente esa proporción es raro.</p></dd>
 
 
 <dt id="arg-proteger-datos-personales">proteger_datos_personales<a class="anchor" aria-label="anchor" href="#arg-proteger-datos-personales"></a></dt>
@@ -126,7 +127,9 @@ de ocho dígitos <strong>sí</strong> se publica, porque su forma sola no alcanz
 afirmar que es un documento. Los atributos <code>total</code>, <code>analizados</code>, <code>filas_analizadas</code> y
 <code>muestreado</code> describen el posible muestreo; <code>filas_analizadas</code> es un alias
 explícito de <code>analizados</code> para mantener el alcance visible junto a otros
-diagnósticos. <code>resumen_patrones</code> conserva sólo el patrón dominante
+diagnósticos. <code>n_evaluados</code> es el denominador de <code>proporcion</code>: los valores
+analizados, sin los ausentes cuando <code>na.rm = TRUE</code>. <code>resumen_patrones</code>
+conserva sólo el patrón dominante
 y hasta seis patrones raros para presentacion; nunca guarda la distribucion
 completa. <code>patrones_raros_trazabilidad</code> conserva solo los nombres de los
 patrones raros, hasta 5.000, para que la trazabilidad pueda enumerar filas

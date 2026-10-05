@@ -541,7 +541,11 @@ contiene familias disponibles; y <code>cobertura_diagnosticos</code> tiene una f
 familia no evaluada. <code>meta$origen_dbi$muestreo</code> conserva filas solicitadas,
 entregadas, reproducibilidad, <code>muestra_id</code>, <code>snapshot_id</code> y checksum. El
 método de impresión remite a esa cobertura cuando el campo no está
-disponible; no reemplaza la ausencia con <code>NULL</code> silencioso.
+disponible; no reemplaza la ausencia con <code>NULL</code> silencioso. Cuando el orden
+de la muestra del motor no se demostró estable, cada traza de <code>hallazgos</code> se
+publica <code>no_disponible</code> con <code>alcance = "orden_muestra_no_estable"</code>, sin
+índices ni claves y con su total; los patrones raros conservan su cantidad y
+retiran sus nombres.
 Bajo <code>bloque_filas</code>, <code>perfil_muestra</code> sigue siendo la muestra diagnóstica
 acotada por <code>muestra</code>, <code>max_celdas_muestra</code> y <code>max_bytes_muestra</code>; no es la
 cobertura completa. Por eso <code>perfil_muestra$general$filas</code> es el tamaño de
@@ -862,7 +866,10 @@ no se puede hacer, se tapan todos los valores de celda de las columnas no
 personales —moda, extremos, ejemplos— y la evidencia de sus hallazgos, y
 <code>resumen_tabla$meta$proteccion_personal$fuera_de_muestra</code> dice por qué. En
 SQLite los valores se leen como texto, porque una columna de afinidad
-numérica guarda texto y el controlador lo convertía en número; y el motivo
+numérica guarda texto y el controlador lo convertía en número; también sin
+muestreo, cuando la muestra es la tabla entera: ahí se releen como texto, con
+una consulta, las columnas protegidas que el controlador no leyó como texto.
+Y el motivo
 de una cifra que no se pudo leer como número no cita el valor de una columna
 protegida.
 <code>incluir_valores = FALSE</code> va más lejos: no emite las consultas de moda ni de

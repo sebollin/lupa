@@ -41,16 +41,22 @@ Objeto `evaluacion_calidad` con tres data frames filtrables: `medidas`,
 además `desenlaces`, un plan que identifica las medidas incumplidas, el
 valor medido, el motivo y la regla que lo produjo. Cuando una métrica no
 pudo medirse, conserva `cobertura_metricas` y deja en `NA` el resumen
-afectado, en lugar de tratar la ausencia como éxito. Y cuando una regla
-**declara** una métrica que la medición no trae —ninguna medida de
-ella—, el veredicto cubre menos de lo que la regla dice: eso se avisa al
-evaluar y queda en el atributo `cobertura_reglas`, con la corrida, la
-métrica, el motivo y cómo resolverlo: se mira corrida por corrida, así
-que una corrida evaluada junto a otras avisa lo mismo que evaluada sola.
-Si **ninguna** de las métricas declaradas por una regla tiene medidas,
-`evaluar()` se niega y nombra las solicitadas y las disponibles.
-Conserva además, en atributos, la configuración del modelo, la
-aplicabilidad y el perfil de evaluación que produjo el resultado.
+afectado, en lugar de tratar la ausencia como éxito; también sobre un
+agregado, donde la regla nombra la métrica agregada
+—`agregada:ratio:NoNulo`— y la parte sin medir es una de sus instancias.
+La evaluación de un agregado conserva además la cobertura de su frontera
+—las tablas o colecciones declaradas que no entraron al número—, la
+imprime y la lleva a su informe y a
+[`historico_calidad()`](https://sebollin.github.io/lupa/reference/historico_calidad.md).
+Y cuando una regla **declara** una métrica que la medición no trae
+—ninguna medida de ella—, el veredicto cubre menos de lo que la regla
+dice: eso se avisa al evaluar y queda en el atributo `cobertura_reglas`,
+con la corrida, la métrica, el motivo y cómo resolverlo: se mira corrida
+por corrida, así que una corrida evaluada junto a otras avisa lo mismo
+que evaluada sola. Si **ninguna** de las métricas declaradas por una
+regla tiene medidas, `evaluar()` se niega y nombra las solicitadas y las
+disponibles. Conserva además, en atributos, la configuración del modelo,
+la aplicabilidad y el perfil de evaluación que produjo el resultado.
 
 ## Examples
 
@@ -67,13 +73,13 @@ evaluar(medidas, perfil_evaluacion("Avanzado", regla))
 #> ── Evaluaciones de medidas ──
 #> 
 #>                                                         id_medida
-#>  medicion-20261002T092355.545400-7626-NoNulo@personas.edad-000001
-#>  medicion-20261002T092355.545400-7626-NoNulo@personas.edad-000002
-#>  medicion-20261002T092355.545400-7626-NoNulo@personas.edad-000003
+#>  medicion-20261005T162543.894296-7637-NoNulo@personas.edad-000001
+#>  medicion-20261005T162543.894296-7637-NoNulo@personas.edad-000002
+#>  medicion-20261005T162543.894296-7637-NoNulo@personas.edad-000003
 #>                           id_medicion               fecha   perfil        regla
-#>  medicion-20261002T092355.545400-7626 2026-10-02 09:23:55 Avanzado Al menos 90%
-#>  medicion-20261002T092355.545400-7626 2026-10-02 09:23:55 Avanzado Al menos 90%
-#>  medicion-20261002T092355.545400-7626 2026-10-02 09:23:55 Avanzado Al menos 90%
+#>  medicion-20261005T162543.894296-7637 2026-10-05 16:25:43 Avanzado Al menos 90%
+#>  medicion-20261005T162543.894296-7637 2026-10-05 16:25:43 Avanzado Al menos 90%
+#>  medicion-20261005T162543.894296-7637 2026-10-05 16:25:43 Avanzado Al menos 90%
 #>   metrica_instanciada orientacion resultado
 #>  NoNulo@personas.edad conformidad      TRUE
 #>  NoNulo@personas.edad conformidad     FALSE
@@ -81,13 +87,13 @@ evaluar(medidas, perfil_evaluacion("Avanzado", regla))
 #> ── Evaluaciones de reglas ──
 #> 
 #>                           id_medicion               fecha   perfil        regla
-#>  medicion-20261002T092355.545400-7626 2026-10-02 09:23:55 Avanzado Al menos 90%
+#>  medicion-20261005T162543.894296-7637 2026-10-05 16:25:43 Avanzado Al menos 90%
 #>  n_medidas resultado
 #>          3 0.6666667
 #> ── Perfiles de madurez ──
 #> 
 #>                           id_medicion               fecha   perfil n_reglas
-#>  medicion-20261002T092355.545400-7626 2026-10-02 09:23:55 Avanzado        1
+#>  medicion-20261005T162543.894296-7637 2026-10-05 16:25:43 Avanzado        1
 #>  resultado
 #>  0.6666667
 ```

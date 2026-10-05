@@ -76,8 +76,9 @@ tiene nombres, esos nombres mandan sobre el del objeto.</p></dd>
 </dl></div>
     <div class="section level2">
     <h2 id="value">Value<a class="anchor" aria-label="anchor" href="#value"></a></h2>
-    <p>Objeto S3 <code>organizacion_lupa</code> con <code>nombre</code>, <code>declaradas</code> y
-<code>n_declaradas</code>.</p>
+    <p>Objeto S3 <code>organizacion_lupa</code> con <code>nombre</code>, <code>declaradas</code>,
+<code>n_declaradas</code> y <code>alias</code>: el nombre del objeto de cada colección, con el
+que <code><a href="agregar.html">agregar()</a></code> la sigue reconociendo cuando la lista la renombró.</p>
     </div>
     <div class="section level2">
     <h2 id="details">Details<a class="anchor" aria-label="anchor" href="#details"></a></h2>
@@ -86,8 +87,13 @@ detrás, y nada obliga a pasar por estos niveles: existen para quien los
 necesita. Sin declaración, <code><a href="agregar.html">agregar()</a></code> a <code>"organizacion"</code> se niega y explica
 cómo declararla, que es distinto de inventar una frontera que nadie nombró.</p>
 <p>No pide una conexión. Una colección es una cosa viva —tablas de un motor—,
-pero una organización es un enunciado <em>sobre</em> colecciones, y puede reunir
-colecciones medidas en momentos distintos o contra motores distintos.</p>
+pero una organización es un enunciado <em>sobre</em> colecciones, y puede declarar
+colecciones que viven en motores distintos. Para <strong>agregar</strong>, en cambio, las
+medidas de sus colecciones tienen que venir de una misma corrida —un
+<code>id_medicion</code> y una fecha—, porque un número describe un momento: las tablas
+de motores distintos se miden juntas, y colecciones medidas en momentos
+distintos se siguen cada una con <code><a href="historico_calidad.html">historico_calidad()</a></code>. <code><a href="agregar.html">agregar()</a></code> lo dice
+así cuando recibe partes de dos corridas.</p>
     </div>
     <div class="section level2">
     <h2 id="see-also">See also<a class="anchor" aria-label="anchor" href="#see-also"></a></h2>

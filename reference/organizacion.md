@@ -30,8 +30,10 @@ organizacion(nombre, colecciones)
 
 ## Value
 
-Objeto S3 `organizacion_lupa` con `nombre`, `declaradas` y
-`n_declaradas`.
+Objeto S3 `organizacion_lupa` con `nombre`, `declaradas`, `n_declaradas`
+y `alias`: el nombre del objeto de cada colección, con el que
+[`agregar()`](https://sebollin.github.io/lupa/reference/agregar.md) la
+sigue reconociendo cuando la lista la renombró.
 
 ## Details
 
@@ -44,8 +46,14 @@ inventar una frontera que nadie nombró.
 
 No pide una conexión. Una colección es una cosa viva —tablas de un
 motor—, pero una organización es un enunciado *sobre* colecciones, y
-puede reunir colecciones medidas en momentos distintos o contra motores
-distintos.
+puede declarar colecciones que viven en motores distintos. Para
+**agregar**, en cambio, las medidas de sus colecciones tienen que venir
+de una misma corrida —un `id_medicion` y una fecha—, porque un número
+describe un momento: las tablas de motores distintos se miden juntas, y
+colecciones medidas en momentos distintos se siguen cada una con
+[`historico_calidad()`](https://sebollin.github.io/lupa/reference/historico_calidad.md).
+[`agregar()`](https://sebollin.github.io/lupa/reference/agregar.md) lo
+dice así cuando recibe partes de dos corridas.
 
 ## See also
 

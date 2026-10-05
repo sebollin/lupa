@@ -39,9 +39,12 @@ atributo del mismo nombre permiten migraciones futuras. `nivel`
 corresponde a `medida`, `evaluacion_medida`, `evaluacion_regla` o
 `evaluacion_perfil`; una métrica sin valores se conserva como
 `metrica_no_evaluada` con su motivo, siempre que la medición tenga al
-menos una medida. Una medida que una regla declaró
-`desenlace = "suprimir"` no publica su valor **tampoco aquí**: su fila
-deja `resultado` en `NA` y marca `objeto_medible` con
+menos una medida; y una parte declarada en una frontera —una tabla de la
+colección, una colección de la organización— que no entró al número,
+como `parte_no_medida`, con la frontera en `id_registro`, la parte en
+`entidad` y el motivo en `objeto_medible`. Una medida que una regla
+declaró `desenlace = "suprimir"` no publica su valor **tampoco aquí**:
+su fila deja `resultado` en `NA` y marca `objeto_medible` con
 `[valor suprimido]`, en los dos niveles donde esa medida aparece
 —`medida` y `evaluacion_medida`—, porque esta tabla está pensada para
 exportarse. Con el detalle resumido, las medidas suprimidas entran
