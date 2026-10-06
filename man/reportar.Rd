@@ -82,8 +82,10 @@ evaluacion, el historico, las comparaciones de deriva y la planificacion de
 limpieza. Cada tipo anade su seccion; el reporte no modifica datos ni aplica
 planes. Si una evaluacion contiene desenlaces de supresion declarados por
 reglas, el reporte enmascara su \code{valor_medido} y el \code{resultado} de las mismas
-medidas incluidas en el documento. El enmascarado se hace sobre copias y no
-modifica los objetos recibidos.
+medidas incluidas en el documento, también en las otras evaluaciones del
+informe: la supresión de una vale para todas, en cualquier orden, y la de
+una medida que un histórico del informe ya trae suprimida, también. El
+enmascarado se hace sobre copias y no modifica los objetos recibidos.
 
 Una seccion que no se puede armar \strong{se declara dentro del informe} y no lo
 interrumpe: si a un \code{historico_calidad} le faltan campos que su seccion
@@ -92,8 +94,16 @@ dice cuales faltan y el resto del documento se escribe igual. Lo mismo vale
 para cualquier otra seccion que falle al armarse -un perfil al que le falta un
 componente-: queda una seccion que lo dice. Un texto con bytes que no son
 UTF-8 valido se muestra con esos bytes en hexadecimal, como los muestra la
-consola, y no interrumpe el informe. Las cifras se escriben con todos sus digitos significativos, sin el
-redondeo de la consola.
+consola, y no interrumpe el informe. Un carácter de control —que un
+navegador no dibuja— se escribe con su código, \verb{<U+0001>}, como en la
+evidencia de los hallazgos. Las cifras se escriben con todos sus digitos significativos, sin el
+redondeo de la consola: con las cifras que vuelven al valor del objeto
+—quince, o dieciséis o diecisiete cuando hacen falta: \code{0.1 + 0.2} se escribe
+\code{0.30000000000000004}— y sin notación científica. Una cifra no se abrevia
+como un texto: la que sin exponente pasaría de 240 caracteres
+—\code{8.98846567431158e+307}, el ausente de Stata leído como número— se escribe
+con exponente y las mismas cifras, y una celda con varias se abrevia por
+cifras enteras.
 }
 \examples{
 perfil <- perfilar(datos_administrativos)

@@ -85,6 +85,31 @@ sentinelas_naniar <- c(-9, -99, -999, -9999, 9999, 66, 77, 88)
   sort(unique(numericos))
 }
 
+# El vocabulario de ausencia que vale para UNA columna, ya normalizada. Una sola
+# regla para el detector y para el plan: el plan leia los marcadores de los datos
+# contra el catalogo COMPLETO, sin la guarda de `sd`, `nc` y `nd` en columnas de
+# diez o mas valores distintos. Sobre doce codigos de dos letras con `sd` y `nd`
+# mas un `S/D`, el perfil detectaba solo `S/D`, y el plan publicaba
+# `valores = c("sd", "nd", "s/d")`, decia que "sd, nd" podian ser legitimos -no
+# se habian detectado- y por eso dejaba sin recomendar la conversion que el
+# hallazgo si sostenia. Medido en la refutacion 26-R.
+#
+# Lo declarado atraviesa la guarda del vocabulario, igual que un centinela
+# numerico declarado atraviesa la de la secuencia densa: el paquete no tiene con
+# que contradecir a quien conoce el dato.
+.cadenas_ausencia_columna <- function(normalizados, cadenas_ausencia = NULL) {
+  cadenas <- .cadenas_na()
+  if (!.cadenas_na_locales_ambiguas_aplican(normalizados)) {
+    cadenas <- setdiff(cadenas, .cadenas_na_ambiguas)
+  }
+  if (length(cadenas_ausencia)) {
+    cadenas <- unique(c(
+      cadenas, tolower(trimws(as.character(cadenas_ausencia)))
+    ))
+  }
+  cadenas
+}
+
 .numeros_na <- function(valores = .numeros_na_locales) {
   .normalizar_sentinelas_numericos(valores)
 }
@@ -108,18 +133,7 @@ sentinelas_naniar <- c(-9, -99, -999, -9999, 9999, 66, 77, 88)
   if (is.character(x) || is.factor(x)) {
     textos <- .texto_analizable(x)$valores
     normalizados <- tolower(trimws(textos))
-    cadenas <- .cadenas_na()
-    if (!.cadenas_na_locales_ambiguas_aplican(normalizados)) {
-      cadenas <- setdiff(cadenas, .cadenas_na_ambiguas)
-    }
-    # Lo declarado atraviesa la guarda del vocabulario, igual que un centinela
-    # numerico declarado atraviesa la de la secuencia densa: el paquete no
-    # tiene con que contradecir a quien conoce el dato.
-    if (length(cadenas_ausencia)) {
-      cadenas <- unique(c(
-        cadenas, tolower(trimws(as.character(cadenas_ausencia)))
-      ))
-    }
+    cadenas <- .cadenas_ausencia_columna(normalizados, cadenas_ausencia)
     mascara_textual <- !is.na(normalizados) & normalizados %in% cadenas
     numericos <- suppressWarnings(as.numeric(normalizados))
     mascara_numerica <- detectar_sentinelas_numericos &
@@ -200,11 +214,12 @@ sentinelas_naniar <- c(-9, -99, -999, -9999, 9999, 66, 77, 88)
 # `completa = FALSE` obliga a quien llama a ser prudente.
 .marcadores_de_ausencia <- function(columna_datos, evidencia, n_textuales,
                                     declarados = character()) {
-  catalogo <- unique(c(.cadenas_na(), tolower(trimws(as.character(declarados)))))
   if (!is.null(columna_datos) && (is.character(columna_datos) ||
                                   is.factor(columna_datos))) {
     textos <- .texto_analizable(columna_datos)$valores
-    normalizados <- unique(tolower(trimws(textos[!is.na(textos)])))
+    todos <- tolower(trimws(textos))
+    catalogo <- .cadenas_ausencia_columna(todos, declarados)
+    normalizados <- unique(todos[!is.na(todos)])
     return(list(marcadores = normalizados[normalizados %in% catalogo],
                 completa = TRUE))
   }

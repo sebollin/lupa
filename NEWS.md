@@ -1,5 +1,209 @@
 # lupa 0.1.0
 
+## Ronda 26: la proteccion, el informe HTML y el plan de limpieza
+
+Tres refutaciones en paralelo. La de la proteccion encontro nueve fugas y cuatro
+familias de tapado de mas -una de ellas renombraba la columna de los datos del
+usuario con el texto tapado-; la del informe HTML, diez defectos; la del plan de
+limpieza, catorce.
+
+**La proteccion:**
+
+- **El nombre que el plan propone ya no pasa por el barrido**: con "Segundo"
+  -un nombre de pila- protegido en `Primer Nombre`, la evidencia decia
+  `"Segundo Nombre" -> "[valor protegido].Nombre"`, `planificar_limpieza()` y
+  `analizar()$plan` proponian ese nombre en `nombres_propuestos` -y
+  `[valor protegido]` en snake_case- y `aplicar()` se lo ponia a la columna en
+  los datos del usuario, en la llamada por omision. Lo mismo las marcas que
+  crean sus acciones, `.ausente_<nombre>` y `.outlier_<nombre>`. Los nombres que
+  el paquete deriva de un nombre de columna son estructura como el nombre del
+  que salen, en todas las salidas.
+- **`detectar_dependencias()` protege los datos personales**: publicaba en
+  `evidencia` y en `print()` la cedula y el nombre de una columna personal
+  -536 apariciones en una tabla de movimientos- mientras `perfilar()` sobre la
+  misma tabla decia `[evidencia protegida]`. Es el defecto que la ronda 25 cerro
+  en `clasificar_variables()` y `detectar_discordancias()`, con la misma regla y
+  los mismos argumentos nuevos, `proteger_datos_personales` y
+  `columnas_personales`. Recorridas las demas exportadas que publican valores de
+  celdas, sobre una tabla con columnas personales: solo `analizar_tiempo()` sin
+  `perfil` publicaba algo -el minimo y el maximo de una `fecha_nacimiento`-, y
+  ahora clasifica como `clasificar_variables()` y protege igual, con los mismos
+  dos argumentos.
+- **En `perfilar_dbi()` con muestra, el relleno lo confirma la tabla entera**:
+  la regla de la ronda 25 -el digito repetido que se repite cinco veces o mas en
+  una columna casi clave sale del piso- se decidia sobre la MUESTRA, donde los
+  clientes que se repiten casi no se repiten, y la cedula valida de un cliente
+  con 600 movimientos salia como moda de otra columna. Ahora el candidato de la
+  muestra se confirma con los conteos exactos de la tabla, y sin ellos sigue en
+  el piso.
+- **El correo escrito con palabras se lee en mas formas**: con la arroba escrita
+  y el punto en palabras (`juan@gmail punto com`), con espacios duros o
+  ideograficos, con los parentesis o la arroba de ancho completo, y dentro de un
+  texto `latin1` con una tilde -como lo deja `read.csv(encoding = "latin1")`-.
+  Se publicaban. Sin costo medido: los no protegidos escritos asi se tapan lo
+  mismo que con la arroba comun, y ninguna de 3.015 frases con esas palabras. La
+  ayuda dice ahora que ofuscaciones no se leen.
+- **La fecha con hora se reconoce con la arroba, el punto y coma o la barra
+  vertical de ancho completo** entre la fecha y la hora, como sus hermanas
+  anchas: todo signo ASCII de ancho completo se lee como el de ASCII.
+- **Las letras modificadoras que hacen de acento o apostrofo se pliegan**: el
+  nombre protegido escrito con el circunflejo bajo U+A788, el apostrofo U+02BC,
+  la prima U+02B9 o la tilde vertical U+2E2F en lugar de la tilde se publicaba
+  -doce de cuarenta y cinco con nombre de acento-. Pegadas a una letra; entre
+  cifras la prima sigue sin unir un numero.
+- **El celular con su prefijo de pais agrupado de a tres se tapa**:
+  `598.099.123.456`, con comas o con apostrofos, se probaba solo entero como un
+  importe y se publicaba. Ahora tambien sin su primer grupo. Cuesta uno o dos
+  de cada mil importes de cuatro grupos -su cola coincide con un documento
+  cuando empieza con un cero-, medido sobre 10.000 por familia; antes, cero.
+- **`perfilar_coleccion()` protege cada tabla con los valores de las otras**: con
+  `conservar_perfiles = TRUE`, el perfil de `movimientos` publicaba en su moda y
+  sus ejemplos la cedula y el nombre que el de `clientes` tapaba -una
+  observacion que cita al cliente-. La coleccion es un objeto: cada perfil
+  conservado se barre con los valores protegidos de las demas tablas, leidos de
+  la base con sus frecuencias, y si la lectura falla -o una tabla no se pudo
+  clasificar- se cierra y se dice.
+  `perfilar_dbi()` sobre una tabla sola sigue protegiendo solo con los suyos, y
+  la ayuda lo dice.
+
+**Lo que se tapaba de mas:**
+
+- **La columna con clasificacion debil tapa sus valores, no su evidencia**: la
+  ayuda decia que lo debil "se informa pero no se ocultan valores", y la
+  evidencia de todos sus hallazgos salia `[evidencia protegida]` -tambien la que
+  no cita ningun valor, `"3 valores"`, `"N/D (30)"`, `"4939 valores distintos
+  de 5000 (0.988)"`-, igual que su magnitud de Benford y el `log10(max/min)` de
+  su cobertura. Ahora se tapan los valores de la columna en la evidencia, con el
+  piso, y la magnitud se publica: su minimo y su maximo ya se publicaban. La
+  forma compatible con un documento que no se pudo verificar se sigue
+  protegiendo entera, como decidio la seccion "Privacidad: ante la duda se
+  protege".
+- **La SQL guardada cita el nombre de columna igual a un valor protegido**: con
+  una columna llamada como el titular protegido salvo la tilde,
+  `perfilar_dbi()` tapaba enteras las 33 sentencias de su lote -que citan tambien
+  las demas columnas- y `meta$sql_esquema`, mientras la SQL de la muestra lo
+  citaba igual. En la SQL un nombre citado es un identificador.
+- **El rango de redes no se tapa**: `10.4.1.0/24-10.4.9.0/24` pegaba la mascara a
+  la IP siguiente por el guion, y uno de cada cuatro (26,8 %) se tapaba por sus
+  tramos; ahora, como la IP con mascara, menos de uno de cada cien (0,8 %).
+- **Declarado con su cifra** lo que se tapa por el mecanismo del parcial: la
+  version de cuatro partes `v4.62.660.4361`, trece de cada cien, y el expediente
+  `exp 2023-6-880041`, uno de cada seis. Las familias nuevas estan en
+  `data-raw/medir_tapado_de_mas.R`.
+
+**El informe HTML:**
+
+- **Las cuatro coberturas de frontera llegan al informe y a la consola**: solo
+  se leia la de la coleccion, asi que `cobertura_organizacion` y las de los dos
+  conjuntos no las publicaban `reportar()`, `print()` de la medicion, de la
+  evaluacion, del tablero ni del indice, y el tablero y el indice no las
+  conservaban. Como la organizacion hereda las coberturas de las colecciones que
+  si entraron, el informe de un organismo al que le falto una coleccion
+  publicaba "4 de 4 tablas, ninguna sin medir": lo no medido como medido. El
+  historico del mismo objeto si la registraba. Ahora un solo lector reune las
+  cuatro -directas y heredadas- y cada una sale con sus partes declaradas, las
+  que entraron, las que no y su motivo, y las partes con peso cero nombradas.
+- **Una medida suprimida por una evaluacion no la publica otra evaluacion del mismo
+  informe**: la medicion, el historico y el tablero se enmascaraban con las supresiones
+  de todo el informe y la evaluacion solo con las suyas, asi que en
+  `reportar(ev1, ev2)` la medida que `ev1` manda no publicar salia en las medidas de
+  `ev2` -"no cumple x > 0.5", que en una medida booleana es el valor-. Ahora la
+  supresion de una vale para todas, en cualquier orden, y la que un historico del
+  informe ya trae suprimida tambien -`reportar(historico_calidad(ev1), med)`
+  publicaba el valor en la medicion-. Y el enmascarado ya no escribe
+  las demas celdas con `as.character()`: salian "TRUE" donde el informe dice "si".
+- **Las cifras del informe vuelven al valor del objeto**: se escribian con quince
+  cifras, y `0.1 + 0.2` salia `0.3` al lado de "no cumple x <= 0.3", y `2/3` salia
+  `0.666666666666667`, otro doble. Ahora llevan las que hacen falta -dieciseis o
+  diecisiete- con la regla de la etiqueta de `perfilar_por()`, que vive en un solo
+  lugar.
+- **Una cifra no se abrevia como un texto**: sin exponente, un numero de |x| >= 1e240
+  o menor que 1e-238 pasaba los 240 caracteres y el corte de los textos publicaba otra
+  magnitud: el ausente de Stata, 8.988e307, salia como 239 cifras que se leen 8.988e238,
+  igual que su media cien veces menor. Ahora la que no cabe se escribe con exponente y
+  las mismas cifras, y una celda con varias se abrevia por cifras enteras.
+- **"Resumen general" y "Alcance y recortes" escriben cada valor con su tipo**: se
+  armaban con `c()`, y salia "Celdas 1e+05" debajo de "Filas 10000", "Muestreado 0"
+  donde el resto del informe dice "no", y la memoria con el redondeo de la consola;
+  ahora sale en bytes, con la lectura al lado.
+- **La evolucion del historico dice por que falta un delta cuando la deriva no arma el
+  par**: dos corridas del mismo perfil sobre tablas distintas salian en serie -0,75 y
+  1- con el delta, la corrida de referencia y la comparacion vacios, y se leian como una
+  mejora; `comparar_evaluaciones()` decia "no miden la misma tabla". El motivo vive
+  ahora en el lector unico del par, y los dos lo publican igual.
+- **El informe de un plan publica los diagnosticos que el perfil no evaluo**: de las tres
+  declaraciones de lo que el plan no cubre, `cobertura_diagnosticos` se quedaba en la
+  consola, y un plan mandado solo se leia como "lo demas esta bien".
+- **El historico publica aparte, y sin tope, lo que no se midio**: una metrica sin
+  valores o una parte de la frontera que no entro al numero son filas del historico, y
+  ordenadas por nivel caian detras de las medidas; con `max_filas` por omision, la de
+  una medicion de 120 celdas quedaba afuera y el informe solo decia "se muestran 100 de
+  121 filas".
+- **El informe nombra los pares medidos fuera del marco**: el alcance los contaba
+  -`medidos_fuera_del_marco`- y `print()` los nombraba; el informe no decia cuales.
+- **Los caracteres de control se escriben con su codigo en el informe**: salian crudos
+  en la moda, los ejemplos y los patrones, y un navegador no los dibuja -`ctl\x01x` se
+  veia `ctlx`-, mientras la evidencia del mismo informe los escribia `<U+0001>`. Ahora
+  todo el informe los escribe asi, y el encabezado lo declara.
+
+**El plan de limpieza:**
+
+- **`conservar_primera_duplicada` ya no borra filas que no son duplicadas**: con
+  una columna `integer64` y otra columna, comparaba con `duplicated.data.frame()`
+  crudo, que le saca la clase y lee dos negativos distintos como la misma fila;
+  sobre `id = -1, -2, 3, -1` borraba tambien la fila del `-2`. Ahora usa la misma
+  definicion de "misma fila" que el marcador del grupo y que el perfil.
+- **`marcar_filas_duplicadas` se ejecuta con columnas matriz, `data.frame`
+  anidadas o `POSIXlt`** -lo que deja `strptime()`-: el plan la recomendaba y la
+  activaba, y `aplicar()` la registraba `fallida`. Las dos acciones aplanan la
+  tabla como el perfil, y un factor se compara por sus codigos: el nivel `NA` ya
+  no se junta con el codigo ausente. Con `datos`, el plan bloquea las acciones de
+  duplicados cuando hay una lista que no se puede comparar -tambien dentro de una
+  tabla anidada o en una geometria-, que es la pregunta que hace el ejecutor.
+- **`winsorizar_outliers` recorta a los limites de Tukey y no toca lo demas**:
+  cuando los extremos movian los cuartiles, reemplazaba los que quedaban por la
+  mediana y, si seguian, llevaba la columna entera a un solo valor -24 celdas en
+  52,5 con el plan diciendo 6-. Ahora es un solo recorte, el que la ayuda
+  promete; el perfil del resultado puede volver a ver extremos con los cuartiles
+  nuevos.
+- **`reemplazar_separadores` cambia solo los codigos 9 a 13 que cuenta el
+  hallazgo**: el patron `\v` de PCRE casa tambien U+0085, U+2028 y U+2029 -que son
+  de las acciones hermanas- y, sobre celdas `bytes`, el byte 0x85 de una letra
+  como la A con anillo, que quedaba UTF-8 invalido.
+- **La imputacion por dependencia respeta la `aplicabilidad`**: llenaba las
+  filas declaradas fuera del universo -vacio por diseno- y el re-perfil acusaba
+  `valor_fuera_de_aplicabilidad`. `n_afectadas` las excluye.
+- **`convertir_tipo` a entero no pierde -2147483648**: el limite inferior era
+  `NA_integer_`, la conversion lo volvia `NA` y el plan la publicaba recomendada,
+  activa y con cero valores perdidos. Ahora no es ejecutable, como 2147483648.
+- **Los centinelas de una columna protegida se convierten sin publicarse**: el
+  plan tapaba en `valores` los mismos numeros que la accion necesitaba, y la
+  dejaba `lista` y sin efecto. El catalogo del paquete se publica entero -es
+  vocabulario, y el hueco delataba cual tenia la columna-; un centinela declarado
+  sigue tapado, `valores_enmascarados = TRUE` lo dice y `aplicar()` lo resuelve
+  sobre los datos con los rellenos de la columna. Si eso no reproduce lo que el
+  plan estima, la accion queda `bloqueada` y dice como ejecutarla.
+- **El plan no nombra marcadores que el detector descarto**: leia los datos
+  contra el catalogo completo, publicaba `sd` y `nd` en columnas de diez o mas
+  valores distintos y por ellos dejaba sin recomendar la conversion de `S/D`.
+  Detector y plan comparten la regla.
+- **Planificar de nuevo sobre lo aplicado no actua sobre las marcas del plan**:
+  marcaba ausentes en `.grupo_duplicado` -cuyo `NA` es "no participa"- y volvia a
+  recomendar marcas que ya existian, que fallaban en cada ronda. Los hallazgos
+  sobre las marcas quedan en `hallazgos_sin_accion` con su motivo, y una accion
+  cuya marca ya existe queda `bloqueada`. La ayuda decia que con las marcas
+  incluidas un perfil posterior no vuelve a contar duplicadas: en un grupo de
+  tres o mas filas las repetidas siguen iguales entre si, y ahora lo dice.
+- **Ampliar `valores` de `convertir_ausencias_textuales` convierte lo agregado**:
+  la lista solo podia acotar -decision escrita en un comentario- y el registro
+  publicaba como aplicada una lista que no se aplico. Ahora la lista manda, como
+  en `convertir_sentinelas_numericos`.
+- **`guiar_limpieza()` imprime el numero que resuelve**: imprimia el indice dentro
+  del grupo y resolvia la posicion entre las elegibles; con un plan reordenado,
+  elegir el numero que se veia dejaba el grupo `omitida`.
+- **Quitar filas o convertir el tipo conserva la etiqueta de variable**, y quitar
+  filas de un `data.table` conserva su clave.
+
 ## Ronda 25: la proteccion otra vez, el historico entre sesiones y las claves
 
 Tres refutaciones en paralelo. La de la proteccion encontro un aborto -la

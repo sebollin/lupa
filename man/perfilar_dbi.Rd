@@ -732,7 +732,16 @@ traen los valores distintos de las columnas protegidas de la tabla entera
 que se publica, con la misma regla que \code{\link[=perfilar]{perfilar()}} en memoria: tildes, caja,
 separadores, el documento parcial, los campos numéricos y la evidencia de los
 hallazgos. Un valor de una persona que sólo está fuera de la muestra se tapa
-igual. Se traen hasta dos millones de valores; si hay más, o si la consulta
+igual. El \strong{relleno} que sale del piso en memoria —el dígito repetido cinco
+veces o más en una columna que sin él es casi una clave— se decide sobre la
+tabla entera, no sobre la muestra: en la muestra de una tabla de movimientos
+los clientes que se repiten casi no se repiten, y la cédula válida de un
+cliente con seiscientos movimientos salía como moda de otra columna. Con
+la tabla leída completa decide la muestra, que es la tabla; si no, la
+confirman los conteos exactos de la tabla —\code{n_distintos} y \code{n_validos}
+calculados—, y sin ellos el relleno sigue en el piso. Y la protección es
+\strong{por tabla}: un valor protegido de otra tabla escrito en ésta no se
+conoce; \code{\link[=perfilar_coleccion]{perfilar_coleccion()}} los cruza. Se traen hasta dos millones de valores; si hay más, o si la consulta
 no se puede hacer, se tapan todos los valores de celda de las columnas no
 personales —moda, extremos, ejemplos— y la evidencia de sus hallazgos, y
 \code{resumen_tabla$meta$proteccion_personal$fuera_de_muestra} dice por qué. En

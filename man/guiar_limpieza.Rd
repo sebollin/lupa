@@ -18,7 +18,8 @@ guiar_limpieza(
 \item{datos}{Datos correspondientes al perfil que originó el plan.}
 
 \item{selector}{Función opcional que recibe una lista con \code{grupo},
-\code{acciones}, \code{elegibles}, \code{ejemplos} y \code{opciones}. Debe devolver la posición,
+\code{acciones}, \code{elegibles}, \code{ejemplos} y \code{opciones}. Debe devolver la posición
+—el número que imprime la lista, que cuenta sólo las opciones elegibles—,
 el identificador o el nombre de una estrategia, o \code{0} para no hacer nada. \code{NA} no es un valor
 válido: se rechaza con un error, para que una lectura fallida no quede
 registrada como una decisión de omitir.}

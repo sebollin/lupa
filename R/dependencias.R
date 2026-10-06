@@ -219,9 +219,27 @@
 #' @param min_observaciones Mínimo de pares presentes para informar una
 #'   dependencia.
 #' @param max_ejemplos Máximo de contradicciones concretas en `evidencia`.
+#' @param proteger_datos_personales Si los valores de las columnas clasificadas
+#'   como dato personal se ocultan en `evidencia`. `TRUE` por omisión; los
+#'   nombres de columna y los conteos se conservan igual. La clasificación se
+#'   hace aquí por léxico y por forma —esta función no recibe un perfil—, así
+#'   que lo que sólo quien conoce los datos sabe personal entra por
+#'   `columnas_personales`. [perfilar()] la llama con `FALSE` porque protege el
+#'   perfil entero después.
+#' @param columnas_personales Columnas que traen datos personales, declaradas
+#'   con la misma forma que acepta [perfilar()]: nombres de columna, o un vector
+#'   con nombre donde el nombre es la columna y el valor es el tipo. Sin ella,
+#'   una columna que el léxico no reconoce —un legajo interno— publica sus
+#'   valores en `evidencia`. Sólo tiene efecto con
+#'   `proteger_datos_personales = TRUE`.
 #'
 #' @return Data frame de clase `dependencias_funcionales`, ordenado por
-#'   cumplimiento y soporte. Los atributos `muestreado`, `filas_analizadas`,
+#'   cumplimiento y soporte. `evidencia` cita contradicciones concretas, y **no
+#'   publica los valores de una columna clasificada como dato personal**: la
+#'   evidencia de un par que nombra una columna personal sale entera como
+#'   `[evidencia protegida]` —lo mismo que en el perfil— y, en las demás, lo que
+#'   repite un valor de una columna personal de la tabla —una observación que
+#'   cita la cédula— se tapa con el mismo piso que aplica [perfilar()]. Los atributos `muestreado`, `filas_analizadas`,
 #'   `columnas_analizadas`, `columnas_omitidas`, `columnas_descartadas` y
 #'   `truncado` documentan el alcance efectivo. `n_pares_posibles`,
 #'   `n_pares_comparados`, `n_pares_sin_comparar` y `max_comparaciones`
@@ -251,9 +269,19 @@ detectar_dependencias <- function(datos, umbral = 0.995, muestra = 1e5,
                                   min_observaciones = 10L,
                                   max_ejemplos = 5L,
                                    max_comparaciones = 200000L,
-                                   max_trabajo = 100000000) {
+                                   max_trabajo = 100000000,
+                                   proteger_datos_personales = TRUE,
+                                   columnas_personales = character()) {
   .validar_datos_tabla(datos)
   datos <- .tabla_base(datos)
+  if (!is.logical(proteger_datos_personales) ||
+      length(proteger_datos_personales) != 1L ||
+      is.na(proteger_datos_personales)) {
+    stop("`proteger_datos_personales` debe ser TRUE o FALSE.", call. = FALSE)
+  }
+  columnas_personales <- .normalizar_columnas_personales(
+    columnas_personales, names(datos)
+  )
   proporciones <- c(umbral, umbral_casi_constante, umbral_casi_clave)
   if (anyNA(proporciones) || any(!is.finite(proporciones)) ||
       any(proporciones < 0 | proporciones > 1)) {
@@ -453,6 +481,40 @@ detectar_dependencias <- function(datos, umbral = 0.995, muestra = 1e5,
       .nombres_para_operar(resultado$dependiente)
     ), , drop = FALSE]
     rownames(resultado) <- NULL
+  }
+  # La evidencia cita VALORES de la tabla -`"2.107.507-7" -> "Rosario ..." |
+  # ...`- y esta funcion es exportada: sin esto publicaba la cedula y el nombre
+  # de las columnas personales en `evidencia` y en `print()` mientras
+  # `perfilar()`, sobre la misma tabla, decia `[evidencia protegida]`. Medido
+  # en la ronda 26: 536 apariciones, 72 cedulas, en una tabla de movimientos.
+  # Es el defecto que la ronda 25 cerro en `clasificar_variables()` y
+  # `detectar_discordancias()`, con la misma regla: por columna, la evidencia de
+  # un par que nombra una columna personal sale entera como en `perfilar()`; y
+  # el piso, para el documento escrito en otra columna -una observacion que lo
+  # cita-. `perfilar()` llama con la proteccion apagada porque protege el
+  # perfil entero despues, respetando la declaracion del usuario.
+  if (proteger_datos_personales && nrow(resultado) &&
+      any(nzchar(resultado$evidencia))) {
+    personales <- .columnas_personales_rapidas(
+      datos, declaradas = columnas_personales
+    )
+    if (length(personales)) {
+      claves_personales <- .nombres_para_operar(personales)
+      propias <- nzchar(resultado$evidencia) & (
+        .nombres_para_operar(resultado$determinante) %in% claves_personales |
+          .nombres_para_operar(resultado$dependiente) %in% claves_personales
+      )
+      resultado$evidencia[propias] <- "[evidencia protegida]"
+      identificantes <- .valores_identificantes(
+        .valores_publicables_protegidos(datos, personales),
+        .fechas_que_identifican(datos, personales)
+      )
+      if (length(identificantes)) {
+        resultado <- .proteger_textos_salida(
+          resultado, identificantes, intocables = nombres
+        )
+      }
+    }
   }
   class(resultado) <- c("dependencias_funcionales", "data.frame")
   attr(resultado, "filas_totales") <- nrow(datos)

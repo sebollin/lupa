@@ -237,7 +237,8 @@ declare que no deben existir.}
 \item{proteger_datos_personales}{Si se reemplazan modas, ejemplos, evidencia
 y estadísticos de orden concretos cuando \code{poder_discriminante} es medio,
 alto o verificado. Las clasificaciones débiles se conservan como aviso pero
-no suprimen estadísticos. Para conservar todo en el objeto debe desactivarse
+no suprimen estadísticos, ni la magnitud de Benford, ni la evidencia de sus
+hallazgos: en ella se tapan sólo sus valores. Para conservar todo en el objeto debe desactivarse
 explícitamente; \code{\link[=reportar]{reportar()}} aplica además su propia protección
 predeterminada.
 El enmascarado es \strong{por columna}: se reemplaza lo que describe a una
@@ -262,8 +263,18 @@ columna, su moda sigue tapada. Y un texto que nombra una columna entre
 comillas —la prosa del paquete, la SQL que guarda \code{\link[=perfilar_dbi]{perfilar_dbi()}}— la
 conserva entera: con «Segundo» protegido, \code{segundo_nombre} salía
 \verb{[valor protegido]_nombre} en los hallazgos sin acción del plan y en la
-SQL. Un nombre que es él mismo un valor protegido, con otra caja, otros
-separadores, tildes o codificación, no se exceptúa. Y un valor protegido
+SQL. Lo mismo los \strong{nombres que el paquete deriva} de un nombre de
+columna: el que propone el plan en \code{nombres_propuestos} —con
+\code{make.names()} y en snake_case— y las marcas \verb{.ausente_<nombre>} y
+\verb{.outlier_<nombre>} que crean sus acciones. Se barrían como texto de los
+datos: con «Segundo» protegido en \verb{Primer Nombre}, la evidencia decía
+\code{"Segundo Nombre" -> "[valor protegido].Nombre"}, el plan proponía ese
+nombre y \code{\link[=aplicar]{aplicar()}} se lo ponía a la columna en los datos del usuario.
+Un nombre que es él mismo un valor protegido, con otra caja, otros
+separadores, tildes o codificación, no se exceptúa —salvo citado en la SQL
+que guarda \code{\link[=perfilar_dbi]{perfilar_dbi()}}, donde es un identificador y se publica igual
+en \code{columnas$columna}: antes tapaba enteras las sentencias de su lote—.
+Y un valor protegido
 que \strong{contiene} un nombre de columna —el correo
 \code{juan_perez@empresa.com.uy} con una columna \code{juan_perez}— se busca entero,
 con cualquier caja, antes de apartar el nombre: se tapa el correo y no su
@@ -339,7 +350,9 @@ cifras. El documento
 que coincide por azar: sin su verificador, fuera de la parte de un
 decimal, de un número con forma de dirección IPv4 —con o sin máscara
 CIDR— y de un importe con miles de cuatro grupos o más
-(\code{"3.919.024.166"}), que se prueban enteros (\code{"4.123.456"} frente a
+(\code{"3.919.024.166"}), que se prueban enteros —el importe, también sin su
+primer grupo: es el prefijo de país de un celular agrupado de a tres,
+\code{"598.099.123.456"}, que se publicaba— (\code{"4.123.456"} frente a
 \code{"4.123.456-7"}, el verificador mal tipeado, el documento seguido de un
 año), y sin su primer dígito sólo detrás de un asterisco o una equis
 (\code{"*.123.456-7"}, \code{"X.012.345-8"}, \code{"X2345678"}) —también los asteriscos
@@ -380,9 +393,12 @@ de cada cien enteros de ocho cifras, que coinciden con un documento entero;
 las coordenadas, los p-valores, los importes con decimales, las horas, los
 ISBN —también el ISBN-10 con espacios o puntos—, las fechas con espacios,
 las listas separadas por comas con espacio o por barras verticales, las
-razones y los importes con miles de cuatro grupos o más no se taparon; una
+razones no se taparon; los importes con miles de cuatro grupos o más,
+uno o dos de cada mil —su cola sin el primer grupo coincide con un
+documento cuando empieza con un cero—; una
 dirección IP —también con su máscara CIDR, \code{"10.4.123.234/24"}, o su
-puerto— sólo cuando coincide entera, menos de una de cada cien; y una
+puerto, y en un rango de redes \code{"10.4.1.0/24-10.4.9.0/24"}— sólo cuando
+coincide entera, menos de una de cada cien; y una
 coordenada escrita con un cero adelante (\code{"-056.092164"}), que tiene la
 forma de un celular con punto (\code{"099.123456"}), casi una de cada cien. Lo
 mismo vale, por la misma razón, para lo que se une como el documento: una
@@ -390,6 +406,11 @@ lista separada por espacios, ocho de cada cien; un rango de años
 \code{"2004-2017"} o con la raya de un CSV de Windows, dos números en dos
 líneas, una lista con tabuladores o con comas sin espacio —también la coma
 ideográfica—, entre una y tres de cada cien; o una versión \code{"v4.16.4302"}.
+Y, por el mismo parcial, una versión de cuatro partes
+(\code{"v4.62.660.4361"}), trece de cada cien, y un expediente
+\code{"exp 2023-6-880041"}, uno de cada seis: su tramo \code{"660.4361"} o
+\code{"6-880041"} es un número de siete cifras con un signo que une, y no se
+distingue del documento escrito así.
 Y por la regla de la hora, una fracción de ocho cifras
 (\code{"18:54:14.80786977"}) no es fracción —así no se traga un documento
 pegado— y se taparon cuatro o cinco de cada cien; lo mismo un número de
@@ -400,8 +421,10 @@ enmascara frente al nombre protegido
 «Juan Pérez», y el nombre pegado a otras letras dentro de un correo o un
 alias, también. La comparación usa un pliegue generado de Unicode —caja de
 todo alfabeto, letras con y sin diacríticos, ligaduras, ancho completo y
-medio ancho, letras matemáticas, y las letras modificadoras que son un
-acento, como el agudo U+02CA escrito en lugar de la tilde—, compara el
+medio ancho, letras matemáticas, y las letras modificadoras que hacen de
+acento o de apóstrofo pegadas a una letra, como el agudo U+02CA, el
+circunflejo bajo U+A788, la tilde vertical U+2E2F, la prima U+02B9 o el
+apóstrofo U+02BC escritos en lugar de la tilde—, compara el
 texto publicado también con
 los escapes del paquete deshechos (un espacio duro sale \verb{<U+00A0>}) —el
 valor protegido nunca se desescapa: una barra literal es parte del valor—,
@@ -410,10 +433,18 @@ CP1252 conservando las secuencias válidas y entero. El \strong{correo escrito
 con palabras} —\verb{juan(at)gmail.com}, \verb{[at]}, \code{{at}}, \verb{_at_}, \code{(arroba)},
 \code{(a)}, \verb{juan arroba gmail punto com}— se lee como correo: la palabra es la
 arroba sólo si la sigue un dominio con su punto, y \code{dot} o \code{punto} son el
-punto sólo en un texto que ya tiene arroba. Medido sobre 3.000 correos
+punto sólo en un texto que ya tiene arroba —también la arroba escrita,
+\verb{juan@gmail punto com}—. Se lee con los espacios de Unicode como espacios
+—el duro, el ideográfico— y los signos de ancho completo como los de
+ASCII —los paréntesis o la arroba anchos—, y en cualquier codificación: un texto \code{latin1} con
+una tilde se lee como el mismo texto en UTF-8. Medido sobre 3.000 correos
 protegidos: los no protegidos escritos así se taparon lo mismo que con la
 arroba común —cuatro de cada mil, por los separadores cosméticos—, y
-ninguna de 2.013 frases con esas palabras. Las marcas del paquete
+ninguna de 3.015 frases con esas palabras, mil de ellas con una arroba y
+el punto en palabras. \strong{No} se leen otras ofuscaciones: el punto entre
+corchetes o paréntesis (\verb{[at]...[.]}, \code{(.)}), \verb{<at>}, \code{"at"}, \verb{-at-},
+\verb{/at/}, el punto con espacios alrededor (\verb{empresa . com}) ni un dominio con
+guion bajo; un correo protegido escrito así se publica. Las marcas del paquete
 se apartan del texto, y un valor protegido que contiene una se busca
 entero antes de apartarla. \strong{Una fecha de
 calendario sola no entra en el piso}, tampoco escrita como \code{AAAAMMDD} o
@@ -1359,7 +1390,12 @@ La clasificación de posibles datos personales es más amplia que la
 protección. Cada clasificación declara \code{poder_discriminante} y \code{proteger}:
 \itemize{
 \item \code{debil}: una forma genérica, como siete a doce dígitos, coincide también
-con importes, facturas y códigos; se informa pero no se ocultan valores;
+con importes, facturas y códigos; se informa y no se ocultan su moda, sus
+ejemplos ni sus estadísticos. En la evidencia de sus hallazgos se tapan
+sus valores de seis caracteres o más —la colisión de una casi clave—, no
+la evidencia entera: hasta la ronda 26 se tapaba entera, también la que no
+cita ningún valor (\code{"4939 valores distintos de 5000 (0.988)"}, \code{"3 valores"}); sin la tabla —un perfil que se vuelve a proteger al
+guardarlo— no hay valores con que barrer y se tapa entera;
 \item \code{medio}: el nombre de la columna expresa una categoría personal (por
 ejemplo \code{telefono}, \code{fecha_nacimiento} o \code{fecha_fallecimiento}); se protege aunque sus valores no
 se puedan validar. El nombre tiene prioridad sobre una forma numérica

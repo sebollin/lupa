@@ -43,8 +43,33 @@
   enc2utf8(x)
 }
 
+# Un caracter de control -C0 salvo tabulador y saltos, DEL y C1- en el texto de
+# un HTML es un error de analisis, y un navegador no lo dibuja: `ctl\x01x` y
+# `ctlx` se veian iguales en la tabla de patrones, en la moda y en los ejemplos,
+# mientras la evidencia del hallazgo del mismo informe lo escribia `<U+0001>`
+# "para que se vea". Se escribe con su codigo, como en la evidencia, y el
+# encabezado lo declara. Ronda 26.
+.html_controles_visibles <- function(x) {
+  con_control <- !is.na(x) & grepl(
+    "[\\x01-\\x08\\x0B\\x0C\\x0E-\\x1F\\x7F]|\\xC2[\\x80-\\x9F]", x,
+    perl = TRUE, useBytes = TRUE
+  )
+  if (!any(con_control)) return(x)
+  x[con_control] <- vapply(x[con_control], function(texto) {
+    codigos <- utf8ToInt(texto)
+    control <- (codigos >= 1L & codigos <= 31L & !codigos %in% c(9L, 10L, 13L)) |
+      (codigos >= 127L & codigos <= 159L)
+    piezas <- intToUtf8(codigos, multiple = TRUE)
+    piezas[control] <- sprintf("<U+%04X>", codigos[control])
+    salida <- paste(piezas, collapse = "")
+    Encoding(salida) <- "UTF-8"
+    salida
+  }, character(1L), USE.NAMES = FALSE)
+  x
+}
+
 .html_escapar <- function(x) {
-  x <- .html_utf8(x)
+  x <- .html_controles_visibles(.html_utf8(x))
   x <- gsub("&", "&amp;", x, fixed = TRUE)
   x <- gsub("<", "&lt;", x, fixed = TRUE)
   x <- gsub(">", "&gt;", x, fixed = TRUE)
@@ -75,6 +100,54 @@
     .html_texto(attr(primero, "total", exact = TRUE)),
     " valores: los conteos son de la muestra.</p>"
   )
+}
+
+# Las cifras del informe, con la regla de los numeros publicados del paquete
+# -sin notacion cientifica, sin depender de `digits` ni de `scipen`- y con las
+# cifras que hacen falta para volver al valor del objeto.
+#
+# Eran quince: `0.1 + 0.2` salia `0.3` al lado de "no cumple x <= 0.3" -el
+# objeto tiene 0.30000000000000004, y `<=` dice FALSE-, y `1/3` salia
+# 0.333333333333333, que no es el doble del objeto. `perfilar_por()` ya habia
+# decidido que un numero publicado vuelve a su valor; la regla de cuantas cifras
+# es una sola, `.cifras_reversibles()`.
+#
+# Y una cifra no se abrevia como un texto. Escrita sin exponente, |x| >= 1e240 o
+# |x| < 1e-238 pasa los 240 caracteres, y el corte de los textos dejaba otra
+# magnitud: el ausente de Stata 8.988e307 se publicaba como 239 cifras y "...",
+# que se leen 8.988e238, igual que su media cien veces menor. La que no cabe se
+# escribe con exponente, con las mismas cifras: es el mismo valor, entero.
+# Medido en la ronda 26.
+.formatear_numeros_reporte <- function(x, max_caracteres = 240L) {
+  texto <- .formatear_numeros_uno_a_uno(as.numeric(x))
+  valores <- as.double(x) + 0
+  escribir <- function(cuales, cifras, cientifica) {
+    vapply(seq_along(cuales), function(k) {
+      format(valores[[cuales[[k]]]], digits = cifras[[k]],
+             scientific = cientifica, trim = TRUE)
+    }, character(1L))
+  }
+  cifras <- .cifras_reversibles(valores, texto)
+  mas <- which(!is.na(cifras))
+  if (length(mas)) texto[mas] <- escribir(mas, cifras[mas], FALSE)
+  largos <- which(!is.na(texto) & nchar(texto, type = "bytes") > max_caracteres)
+  if (length(largos)) {
+    cifras <- .cifras_reversibles(valores[largos])
+    cifras[is.na(cifras)] <- 15L
+    texto[largos] <- escribir(largos, cifras, TRUE)
+  }
+  texto
+}
+
+# Varias cifras en una celda se abrevian por cifras enteras: cortar el texto
+# partia la ultima.
+.unir_cifras_reporte <- function(textos, max_caracteres) {
+  textos[is.na(textos)] <- "NA"
+  unido <- paste(textos, collapse = ", ")
+  if (nchar(unido, type = "chars") <= max_caracteres) return(unido)
+  largos <- cumsum(nchar(textos, type = "chars") + 2L)
+  caben <- max(1L, sum(largos + 1L <= max_caracteres))
+  paste0(paste(textos[seq_len(caben)], collapse = ", "), ", \u2026")
 }
 
 .resumir_valor_reporte <- function(x, max_caracteres = 240L) {
@@ -111,15 +184,16 @@
     texto <- paste(partes, collapse = "; ")
     if (length(x) > limite) texto <- paste0(texto, "; \u2026")
   } else if (is.logical(x)) {
-    texto <- ifelse(is.na(x), NA_character_, ifelse(x, "s\u00ed", "no"))
+    texto <- .texto_logico_reporte(x)
   } else if (inherits(x, "integer64")) {
     texto <- as.character(x)
   } else if (is.numeric(x)) {
-    # Con la regla de numeros publicados del paquete -quince cifras, sin depender
-    # de `digits` ni de `scipen`-, no con `digits = 8`: la mediana 123456789.5 se
-    # publicaba 123456790, que no esta en el objeto ni en la tabla. Medido en una
-    # refutacion.
-    texto <- .formatear_numeros_uno_a_uno(as.numeric(x))
+    # Con la regla de numeros publicados del paquete -sin depender de `digits`
+    # ni de `scipen`-, no con `digits = 8`: la mediana 123456789.5 se publicaba
+    # 123456790, que no esta en el objeto ni en la tabla. Medido en una
+    # refutacion. Y con las cifras que vuelven al valor: ver
+    # `.formatear_numeros_reporte()`.
+    texto <- .formatear_numeros_reporte(x, max_caracteres)
     texto[is.na(x)] <- NA_character_
   } else {
     texto <- as.character(x)
@@ -131,6 +205,9 @@
   texto <- .publicar_sin_marca_ilegible(
     .texto_publicable(.declarar_utf8_roto(texto))
   )
+  if (inherits(x, "integer64") || (is.numeric(x) && !is.logical(x))) {
+    return(.unir_cifras_reporte(texto, max_caracteres))
+  }
   texto <- paste(texto, collapse = ", ")
   if (nchar(texto, type = "chars") > max_caracteres) {
     texto <- paste0(substr(texto, 1L, max_caracteres - 1L), "\u2026")
@@ -237,25 +314,46 @@
   )
 }
 
+# Una tabla de indicadores -"Resumen general", "Alcance y recortes"- con un valor
+# de cada tipo. Se armaba con `c()`, que lleva todo al tipo comun: al lado de un
+# texto, el doble 100000 salia "1e+05" -`as.character()`- en la fila de debajo
+# de "Filas 10000"; entre enteros, el logico salia 0/1 donde el resto del
+# informe escribe "si"/"no"; y un atributo NULL corria las filas una posicion.
+# Cada valor conserva su tipo y lo escribe la regla del informe. Ronda 26.
+.tabla_indicadores_reporte <- function(indicador, valor) {
+  tabla <- data.frame(indicador = indicador, stringsAsFactors = FALSE)
+  tabla$valor <- I(unname(valor))
+  tabla
+}
+
+# La memoria, con sus bytes: `format(units = "auto")` es el redondeo de la
+# consola -401904 bytes salian "392.5 Kb"-, y queda al lado, entre parentesis,
+# como lectura.
+.memoria_publicada_reporte <- function(bytes) {
+  if (!is.numeric(bytes) || length(bytes) != 1L || is.na(bytes)) {
+    return(NA_character_)
+  }
+  paste0(
+    .formatear_numeros_reporte(bytes), " bytes (",
+    format(structure(bytes, class = "object_size"), units = "auto"), ")"
+  )
+}
+
 .seccion_perfil <- function(x, max_filas, max_patrones,
                             proteger_datos_personales = TRUE,
                             cobertura = NULL) {
   if (proteger_datos_personales) x <- .proteger_perfil(x)
   n_protegidas <- length(.columnas_personales_protegidas(x))
-  general <- data.frame(
-    indicador = c(
+  general <- .tabla_indicadores_reporte(
+    c(
       "Filas", "Columnas", "Celdas", "Filas completas",
       "Filas duplicadas", "Memoria de los datos"
     ),
-    valor = c(
+    list(
       x$general$filas, x$general$columnas, x$general$celdas,
       x$general$filas_completas, x$general$filas_duplicadas,
-      format(
-        structure(x$general$memoria_bytes, class = "object_size"),
-        units = "auto"
-      )
-    ),
-    stringsAsFactors = FALSE
+      .memoria_publicada_reporte(x$general$memoria_bytes)
+    )
   )
   hallazgos <- x$hallazgos
   # El informe es la superficie donde un hallazgo editado a mano circula fuera
@@ -447,6 +545,35 @@
   )
 }
 
+# Una cobertura de frontera en el informe: el resumen, el motivo de cada parte
+# sin medir y la advertencia. Lee lo mismo que la impresion
+# (`.resumen_cobertura_frontera()`), con las columnas nombradas por la parte que
+# cuenta cada nivel: tablas, colecciones u organizaciones.
+.html_cobertura_frontera <- function(cc, atributo) {
+  nivel <- .nivel_cobertura_frontera(atributo)
+  resumen <- .resumen_cobertura_frontera(cc, atributo)
+  nombres <- names(resumen)
+  basicas <- nombres %in% c("declaradas", "en_el_numero", "sin_medir")
+  nombres[basicas] <- paste0(nivel$partes, "_", nombres[basicas])
+  tabla <- as.data.frame(
+    as.list(stats::setNames(unname(resumen), nombres)),
+    stringsAsFactors = FALSE, check.names = FALSE
+  )
+  detalle <- .detalle_cobertura_frontera(cc, atributo)
+  c(
+    paste0("<h3>", .html_texto(nivel$titulo), "</h3>"), .html_tabla(tabla, Inf),
+    if (!is.null(detalle)) {
+      paste0(
+        "<h4>", .html_texto(paste0(nivel$Partes, " sin medir, y por qu\u00e9")),
+        "</h4>", .html_tabla(detalle, Inf)
+      )
+    } else "",
+    if (!is.null(cc$advertencia)) {
+      paste0("<p class=\"nota\">", .html_texto(cc$advertencia), "</p>")
+    } else ""
+  )
+}
+
 .seccion_coberturas_del_objeto <- function(x) {
   partes <- character()
   cobertura_metricas <- attr(x, "cobertura_metricas", exact = TRUE)
@@ -487,40 +614,19 @@
       .html_tabla(cobertura_reglas, Inf)
     )
   }
-  cobertura_coleccion <- .cobertura_coleccion_de(x)
-  if (!is.null(cobertura_coleccion)) {
-    resumen <- data.frame(
-      tablas_declaradas = cobertura_coleccion$tablas_declaradas,
-      tablas_en_el_numero = cobertura_coleccion$tablas_en_el_numero,
-      tablas_sin_medir = if (length(cobertura_coleccion$tablas_sin_medir)) {
-        paste(cobertura_coleccion$tablas_sin_medir, collapse = ", ")
-      } else "ninguna",
-      stringsAsFactors = FALSE
-    )
-    # El informe publicaba el NOMBRE de cada tabla sin medir y tiraba su MOTIVO,
-    # que el objeto si trae: quien lee el HTML -que es quien no abre R- veia que
-    # una tabla quedo afuera y no por que. Una tabla que no existe y una tabla
-    # vacia no son el mismo problema, y el objeto las distingue. La capa final no
-    # puede conservar menos que la que la alimenta.
-    sin_medir <- cobertura_coleccion$tablas_sin_medir
-    motivos <- cobertura_coleccion$motivo_sin_medir
-    detalle <- if (length(sin_medir) && length(motivos) == length(sin_medir)) {
-      .html_tabla(data.frame(
-        tabla = as.character(sin_medir),
-        motivo = as.character(motivos),
-        stringsAsFactors = FALSE
-      ), Inf)
-    } else ""
-    partes <- c(partes,
-      "<h3>Cobertura de la colecci\u00f3n</h3>", .html_tabla(resumen, Inf),
-      if (nzchar(detalle)) {
-        paste0("<h4>Tablas sin medir, y por qu\u00e9</h4>", detalle)
-      } else "",
-      if (!is.null(cobertura_coleccion$advertencia)) {
-        paste0("<p class=\"nota\">",
-               .html_texto(cobertura_coleccion$advertencia), "</p>")
-      } else ""
-    )
+  # Las cuatro coberturas de frontera, con el lector de la impresion. Solo se
+  # publicaba la de la coleccion, y la de una organizacion -la que dice que una
+  # de sus colecciones no se midio- se perdia; en su lugar quedaba la union de
+  # las colecciones que SI entraron, que se lee como completa. Ronda 26.
+  #
+  # El informe publicaba el NOMBRE de cada parte sin medir y tiraba su MOTIVO,
+  # que el objeto si trae: quien lee el HTML -que es quien no abre R- veia que
+  # una tabla quedo afuera y no por que. Una tabla que no existe y una tabla
+  # vacia no son el mismo problema, y el objeto las distingue. La capa final no
+  # puede conservar menos que la que la alimenta.
+  coberturas <- .coberturas_frontera_de(x)
+  for (atributo in names(coberturas)) {
+    partes <- c(partes, .html_cobertura_frontera(coberturas[[atributo]], atributo))
   }
   if (!length(partes)) return("")
   paste0(partes, collapse = "")
@@ -552,6 +658,23 @@
   )
 }
 
+# El alcance CUENTA los pares medidos que el marco no declara
+# (`medidos_fuera_del_marco`) y el atributo `pares_fuera_del_marco` los NOMBRA;
+# `print()` los nombra y el informe solo los contaba: "4" sin decir cuales.
+# Ronda 26.
+.html_pares_fuera_del_marco <- function(x) {
+  fuera <- attr(x, "pares_fuera_del_marco", exact = TRUE)
+  if (!length(fuera)) return("")
+  paste0(
+    "<h3>Pares medidos fuera del marco</h3>",
+    "<p class=\"nota\">Estos pares dimensi\u00f3n-factor se midieron y el marco ",
+    "no los declara: no entran en la cobertura de abajo.</p>",
+    .html_tabla(data.frame(
+      par_dimension_factor = as.character(fuera), stringsAsFactors = FALSE
+    ), Inf)
+  )
+}
+
 .seccion_tablero <- function(x, max_filas) {
   alcance <- attr(x, "alcance", exact = TRUE)
   cobertura <- attr(x, "cobertura", exact = TRUE)
@@ -562,6 +685,7 @@
     "impide leer estas medidas como si cubrieran todo el marco.</p>",
     .html_tabla(x, max_filas),
     "<h3>Alcance del marco</h3>", .html_tabla(alcance, Inf),
+    .html_pares_fuera_del_marco(x),
     "<h3>Detalle de cobertura</h3>", .html_tabla(cobertura, Inf),
     if (inherits(cobertura_metricas, "data.frame") &&
         nrow(cobertura_metricas)) paste0(
@@ -582,9 +706,30 @@
   )))
 }
 
+# Las supresiones de TODO el informe, de todos los objetos que las declaran: los
+# desenlaces de cada evaluacion -y de la de un analisis- y las medidas que un
+# historico ya trae suprimidas. El historico se quedaba afuera, y
+# `reportar(historico_calidad(ev), med)` publicaba en la medicion el valor que el
+# historico de al lado tapaba. Se reunen solo las columnas que leen los que
+# enmascaran -la medida, la corrida, la metrica-, que son las que todos traen.
+# Ronda 26.
 .desenlaces_reporte <- function(objetos) {
+  columnas <- c("id_medida", "id_medicion", "metrica_instanciada", "regla", "desenlace")
   partes <- lapply(objetos, function(x) {
-    .desenlaces_de_objeto(x)
+    propios <- if (inherits(x, "historico_calidad")) {
+      .desenlaces_suprimidos_historico(x)
+    } else {
+      .desenlaces_de_objeto(x)
+    }
+    if (!inherits(propios, "data.frame") || !nrow(propios) ||
+        !all(c("id_medida", "id_medicion", "metrica_instanciada") %in% names(propios))) {
+      return(NULL)
+    }
+    propios <- as.data.frame(unclass(propios), stringsAsFactors = FALSE)
+    for (columna in setdiff(columnas, names(propios))) {
+      propios[[columna]] <- rep(NA_character_, nrow(propios))
+    }
+    as.data.frame(lapply(propios[columnas], as.character), stringsAsFactors = FALSE)
   })
   partes <- partes[!vapply(partes, is.null, logical(1L))]
   if (!length(partes)) return(NULL)
@@ -598,9 +743,50 @@
   resultado[!duplicated(clave), , drop = FALSE]
 }
 
+# Lo que el enmascarado vuelve texto -la columna `resultado` de una medicion con
+# una medida suprimida- conserva en sus DEMAS celdas la escritura del informe.
+# Se convertia con `as.character()`: el logico salia "TRUE" donde la misma tabla
+# sin supresion dice "si", y el doble con quince cifras, que no es la regla de
+# las cifras publicadas. Medido en la ronda 26.
+.textos_celdas_reporte <- function(x) {
+  if (is.logical(x)) return(.texto_logico_reporte(x))
+  if (is.numeric(x) && !inherits(x, "integer64")) {
+    salida <- .formatear_numeros_reporte(x)
+    salida[is.na(x)] <- NA_character_
+    return(salida)
+  }
+  as.character(x)
+}
+
+.texto_logico_reporte <- function(x) {
+  ifelse(is.na(x), NA_character_, ifelse(x, "s\u00ed", "no"))
+}
+
+.desenlaces_suprimidos_historico <- function(x) {
+  requeridas <- c(
+    "nivel", "resultado", "objeto_medible", "id_medida", "id_medicion",
+    "metrica_instanciada"
+  )
+  if (!inherits(x, "data.frame") || !nrow(x) || !all(requeridas %in% names(x))) {
+    return(NULL)
+  }
+  marcadas <- .filas_suprimidas_historico(x) & !is.na(x$id_medida)
+  if (!any(marcadas)) return(NULL)
+  data.frame(
+    id_medida = as.character(x$id_medida[marcadas]),
+    id_medicion = as.character(x$id_medicion[marcadas]),
+    metrica_instanciada = as.character(x$metrica_instanciada[marcadas]),
+    regla = if ("regla" %in% names(x)) as.character(x$regla[marcadas]) else NA_character_,
+    desenlace = "suprimir",
+    stringsAsFactors = FALSE
+  )
+}
+
 .proteger_objeto_desenlaces <- function(x, desenlaces) {
   if (inherits(x, "medicion")) {
-    return(.proteger_medicion_desenlaces(x, desenlaces))
+    return(.proteger_medicion_desenlaces(
+      x, desenlaces, como_texto = .textos_celdas_reporte
+    ))
   }
   # El historico trae las mismas claves que la medicion -`id_medicion`,
   # `id_medida`, `metrica_instanciada`- y su `resultado`: una medida suprimida en
@@ -608,25 +794,36 @@
   # promesa es sobre "las mismas medidas incluidas en el documento", no sobre una
   # lista de clases. Medido en una refutacion.
   if (inherits(x, "historico_calidad")) {
-    return(.proteger_medicion_desenlaces(x, desenlaces))
+    return(.proteger_medicion_desenlaces(
+      x, desenlaces, como_texto = .textos_celdas_reporte
+    ))
   }
   if (inherits(x, "evaluacion_calidad")) {
-    return(.proteger_evaluacion_desenlaces(x))
+    return(.proteger_evaluacion_desenlaces(
+      x, desenlaces = desenlaces, como_texto = .textos_celdas_reporte
+    ))
   }
   if (inherits(x, "analisis")) {
     if (!is.null(x$medicion)) {
-      x$medicion <- .proteger_medicion_desenlaces(x$medicion, desenlaces)
+      x$medicion <- .proteger_medicion_desenlaces(
+        x$medicion, desenlaces, como_texto = .textos_celdas_reporte
+      )
     }
     if (!is.null(x$detalle_medicion)) {
       x$detalle_medicion <- .proteger_medicion_desenlaces(
-        x$detalle_medicion, desenlaces
+        x$detalle_medicion, desenlaces, como_texto = .textos_celdas_reporte
       )
     }
     if (!is.null(x$tablero)) {
-      x$tablero <- .proteger_tablero_desenlaces(x$tablero, desenlaces)
+      x$tablero <- .proteger_tablero_desenlaces(
+        x$tablero, desenlaces, como_texto = .textos_celdas_reporte
+      )
     }
     if (!is.null(x$evaluacion)) {
-      x$evaluacion <- .proteger_evaluacion_desenlaces(x$evaluacion)
+      x$evaluacion <- .proteger_evaluacion_desenlaces(
+        x$evaluacion, desenlaces = desenlaces,
+        como_texto = .textos_celdas_reporte
+      )
     }
   }
   x
@@ -772,7 +969,7 @@
     perfiles$comparacion <- paste0(
       "La evoluci\u00f3n no se pudo calcular: ", conditionMessage(deriva)
     )
-  } else if (nrow(deriva)) {
+  } else {
     clave <- function(perfil, id) {
       .clave_bytes(paste(
         .clave_bytes(as.character(perfil)), .clave_bytes(as.character(id)),
@@ -781,13 +978,31 @@
     }
     claves <- clave(perfiles$perfil, perfiles$id_medicion)
     claves_deriva <- clave(deriva$perfil, deriva$id_medicion_actual)
+    perfil_de <- .clave_bytes(as.character(perfiles$perfil))
+    configuracion <- attr(x, "configuracion_evaluacion", exact = TRUE)
     # Todas las filas del par -la de resultado y las que declaran un cambio-, y
     # una sola lectura, la de `comparar_evaluaciones()`. Mirar solo la etiqueta
     # `no_comparable` borraba el delta de un cambio de modelo que la deriva
     # declara comparable -"se mantienen las comparaciones"- y publica. Ronda 25.
+    #
+    # Y una corrida que la deriva no junta con ninguna -la anterior del perfil
+    # mide otra tabla- dejaba delta, `comparado_con` y `comparacion` vacios, y la
+    # serie 0.75 -> 1 de dos tablas se leia como una mejora. Se nombra la corrida
+    # anterior del perfil y la lectura dice por que no se comparan. Ronda 26.
     for (k in seq_along(claves)) {
       filas <- which(claves_deriva == claves[[k]])
-      if (!length(filas)) next
+      if (!length(filas)) {
+        previa <- k - 1L
+        if (previa >= 1L && identical(perfil_de[[previa]], perfil_de[[k]])) {
+          perfiles$comparado_con[[k]] <- as.character(perfiles$id_medicion[[previa]])
+          perfiles$comparacion[[k]] <- .lectura_par_deriva(
+            deriva, filas, configuracion = configuracion,
+            perfil = perfiles$perfil[[k]],
+            ids = c(perfiles$id_medicion[[previa]], perfiles$id_medicion[[k]])
+          )$comparacion
+        }
+        next
+      }
       lectura <- .lectura_par_deriva(deriva, filas)
       perfiles$delta[[k]] <- lectura$delta
       perfiles$comparado_con[[k]] <- as.character(
@@ -831,12 +1046,38 @@
   x <- x[order(
     x$fecha, .nombres_para_operar(x$id_medicion), x$nivel, method = "radix"
   ), , drop = FALSE]
+  # Lo que NO se midio -una metrica sin valores, una parte de la frontera que no
+  # entro al numero- vive en el historico como una fila mas, y ordenada por
+  # `nivel` caia detras de las medidas: una medicion de 120 celdas con una
+  # metrica que no se pudo medir dejaba esa declaracion en la fila 121, afuera
+  # del corte de `max_filas` por omision, y el informe solo decia "se muestran
+  # 100 de 121 filas". La misma medicion reportada directamente la publica en su
+  # cobertura, sin tope. Aca tambien: aparte y sin tope, como las coberturas de
+  # las demas secciones. Ronda 26.
+  ausencias <- as.character(x$nivel) %in% c("metrica_no_evaluada", "parte_no_medida")
+  no_medido <- if (any(ausencias)) {
+    paste0(
+      "<h3>Lo que no se midi\u00f3</h3>",
+      "<p class=\"nota\">M\u00e9tricas que no se pudieron medir y partes ",
+      "declaradas de una frontera que no entraron al n\u00famero, por corrida: ",
+      "la serie de esas corridas no cubre lo que su modelo declara. Su ",
+      "ausencia no es conformidad.</p>",
+      .html_tabla(
+        x[ausencias, , drop = FALSE], Inf,
+        columnas = c(
+          "id_medicion", "fecha", "nivel", "id_registro", "metrica_instanciada",
+          "granularidad", "entidad", "atributo", "objeto_medible", "agregacion"
+        )
+      )
+    )
+  } else ""
   paste0(
     "<section><h2>Hist\u00f3rico de calidad</h2>",
     "<p class=\"meta\">", .html_texto(length(.identificadores_unicos(x$id_medicion))),
     " corrida(s); esquema ", .html_texto(attr(x, "version_esquema")), ".</p>",
     "<h3>Evoluci\u00f3n de perfiles de madurez</h3>",
     .html_tabla(.evolucion_historico(x), max_filas),
+    no_medido,
     "<h3>Registros hist\u00f3ricos</h3>", .html_tabla(x, max_filas),
     "</section>"
   )
@@ -895,6 +1136,21 @@
 
 .html_huecos_plan <- function(x, max_filas) {
   partes <- character()
+  # Las TRES declaraciones de lo que el plan no cubre (`?planificar_limpieza`).
+  # El informe publicaba dos: `cobertura_diagnosticos` -los diagnosticos que el
+  # perfil no pudo evaluar- se quedaba en la consola, y un plan mandado solo, sin
+  # su perfil al lado, se leia como "lo demas esta bien". Sin tope, como la
+  # cobertura de diagnosticos del perfil: es lo que no se midio. Ronda 26.
+  no_evaluados <- attr(x, "cobertura_diagnosticos", exact = TRUE)
+  if (inherits(no_evaluados, "data.frame") && nrow(no_evaluados)) {
+    partes <- c(partes, paste0(
+      "<h3>Diagn\u00f3sticos no evaluados</h3>",
+      "<p>El perfil no pudo evaluarlos y por eso el plan no tiene acci\u00f3n ",
+      "para ellos: su ausencia entre las acciones no dice que esas columnas ",
+      "est\u00e9n bien.</p>",
+      .html_tabla(no_evaluados, Inf)
+    ))
+  }
   sin_accion <- attr(x, "hallazgos_sin_accion", exact = TRUE)
   if (inherits(sin_accion, "data.frame") && nrow(sin_accion)) {
     partes <- c(partes, paste0(
@@ -935,14 +1191,14 @@
 .seccion_analisis <- function(x, max_filas, max_patrones,
                               proteger_datos_personales) {
   if (proteger_datos_personales) x <- .proteger_analisis(x)
-  alcance_asociaciones <- data.frame(
-    indicador = c(
+  alcance_asociaciones <- .tabla_indicadores_reporte(
+    c(
       "Filas analizadas", "Muestreado", "Columnas analizadas",
       "Columnas no analizables", "Columnas omitidas por limite",
       "Pares examinables", "Pares omitidos por dependencia",
       "Asociaciones antes del recorte", "Salida truncada", "Umbral"
     ),
-    valor = c(
+    list(
       attr(x$asociaciones, "filas_analizadas", exact = TRUE),
       attr(x$asociaciones, "muestreado", exact = TRUE),
       length(attr(x$asociaciones, "columnas_analizadas", exact = TRUE)),
@@ -953,15 +1209,15 @@
       attr(x$asociaciones, "total_informadas", exact = TRUE),
       attr(x$asociaciones, "truncado", exact = TRUE),
       attr(x$asociaciones, "umbral", exact = TRUE)
-    ), stringsAsFactors = FALSE
+    )
   )
-  alcance_temporal <- data.frame(
-    indicador = c("Columnas analizadas", "Columnas omitidas", "Salida truncada"),
-    valor = c(
+  alcance_temporal <- .tabla_indicadores_reporte(
+    c("Columnas analizadas", "Columnas omitidas", "Salida truncada"),
+    list(
       length(attr(x$temporal, "columnas_analizadas", exact = TRUE)),
       length(attr(x$temporal, "columnas_omitidas", exact = TRUE)),
       attr(x$temporal, "truncado", exact = TRUE)
-    ), stringsAsFactors = FALSE
+    )
   )
   distribuciones <- paste0(
     "<section><h2>Distribuciones y cuantiles</h2>",
@@ -1311,8 +1567,10 @@
 #' limpieza. Cada tipo anade su seccion; el reporte no modifica datos ni aplica
 #' planes. Si una evaluacion contiene desenlaces de supresion declarados por
 #' reglas, el reporte enmascara su `valor_medido` y el `resultado` de las mismas
-#' medidas incluidas en el documento. El enmascarado se hace sobre copias y no
-#' modifica los objetos recibidos.
+#' medidas incluidas en el documento, también en las otras evaluaciones del
+#' informe: la supresión de una vale para todas, en cualquier orden, y la de
+#' una medida que un histórico del informe ya trae suprimida, también. El
+#' enmascarado se hace sobre copias y no modifica los objetos recibidos.
 #'
 #' Una seccion que no se puede armar **se declara dentro del informe** y no lo
 #' interrumpe: si a un `historico_calidad` le faltan campos que su seccion
@@ -1321,8 +1579,16 @@
 #' para cualquier otra seccion que falle al armarse -un perfil al que le falta un
 #' componente-: queda una seccion que lo dice. Un texto con bytes que no son
 #' UTF-8 valido se muestra con esos bytes en hexadecimal, como los muestra la
-#' consola, y no interrumpe el informe. Las cifras se escriben con todos sus digitos significativos, sin el
-#' redondeo de la consola.
+#' consola, y no interrumpe el informe. Un carácter de control —que un
+#' navegador no dibuja— se escribe con su código, `<U+0001>`, como en la
+#' evidencia de los hallazgos. Las cifras se escriben con todos sus digitos significativos, sin el
+#' redondeo de la consola: con las cifras que vuelven al valor del objeto
+#' —quince, o dieciséis o diecisiete cuando hacen falta: `0.1 + 0.2` se escribe
+#' `0.30000000000000004`— y sin notación científica. Una cifra no se abrevia
+#' como un texto: la que sin exponente pasaría de 240 caracteres
+#' —`8.98846567431158e+307`, el ausente de Stata leído como número— se escribe
+#' con exponente y las mismas cifras, y una celda con varias se abrevia por
+#' cifras enteras.
 #'
 #' @param x Un objeto compatible o una lista de objetos compatibles.
 #' @param ... Objetos adicionales de clase `analisis`, `perfil`, `medicion`,
@@ -1413,8 +1679,10 @@ reportar <- function(x, ...,
     .html_texto(.resumir_valor_reporte(fecha)), " \u00b7 Archivo: ",
     .html_texto(basename(archivo)), "</p>",
     "<p class=\"nota\">Los textos de m\u00e1s de 240 caracteres se abrevian con ",
-    "un punto suspensivo. Cada truncamiento de filas o patrones se indica en ",
-    "su secci\u00f3n.</p></header>",
+    "un punto suspensivo; las cifras no: la que no cabe se escribe con ",
+    "exponente. Los caracteres de control, que un navegador no dibuja, se ",
+    "escriben con su c\u00f3digo, como &lt;U+0001&gt;. Cada truncamiento de ",
+    "filas o patrones se indica en su secci\u00f3n.</p></header>",
     paste0(secciones, collapse = ""),
     "<footer>Reporte autocontenido generado con lupa ",
     .html_texto(.version_paquete()), ".</footer></main></body></html>"

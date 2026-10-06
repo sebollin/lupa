@@ -747,6 +747,12 @@ detectar_asociaciones <- function(datos, dependencias = NULL, umbral = 0.3,
 #'   propone la moda de los intervalos positivos.
 #' @param max_huecos Máximo de grupos de huecos devueltos por columna.
 #' @param max_columnas Máximo de columnas temporales analizadas.
+#' @param proteger_datos_personales Si se ocultan los rangos y los huecos de
+#'   las columnas temporales que son dato personal. `TRUE` por omisión.
+#' @param columnas_personales Columnas que traen datos personales, declaradas
+#'   con la misma forma que acepta [perfilar()]. Se suman a las que protege el
+#'   `perfil` o, sin él, a las que se clasifican aquí. Sólo tiene efecto con
+#'   `proteger_datos_personales = TRUE`.
 #'
 #' @return Objeto `analisis_temporal` con `resumen`, `dias_semana`, `huecos` y
 #'   `propuestas`. El recorte de huecos queda en `resumen`; el de columnas, en
@@ -770,8 +776,11 @@ detectar_asociaciones <- function(datos, dependencias = NULL, umbral = 0.3,
 #'   en vez de desaparecer.
 #'   Si se recibe un `perfil` que declara proteccion para una columna temporal,
 #'   sus rangos y huecos se protegen tambien en esta llamada directa, con el
-#'   mismo texto que usa [analizar()]. Sin `perfil` no hay una declaracion que
-#'   leer y el resumen conserva sus fechas.
+#'   mismo texto que usa [analizar()]. Sin `perfil`, la columna temporal que es
+#'   un dato personal —una fecha de nacimiento— se clasifica aquí por léxico y
+#'   por forma, como en [clasificar_variables()], y sus rangos y huecos se
+#'   protegen igual; lo que sólo quien conoce los datos sabe personal entra por
+#'   `columnas_personales`.
 #' @export
 #' @seealso [detectar_formatos_fecha()], [analizar()]
 #'
@@ -780,10 +789,20 @@ detectar_asociaciones <- function(datos, dependencias = NULL, umbral = 0.3,
 #' analizar_tiempo(data.frame(fecha = fechas))
 analizar_tiempo <- function(datos, perfil = NULL, columnas = NULL,
                             calendario = 1:7, frecuencia_dias = NULL,
-                            max_huecos = 20L, max_columnas = 50L) {
+                            max_huecos = 20L, max_columnas = 50L,
+                            proteger_datos_personales = TRUE,
+                            columnas_personales = character()) {
   .validar_datos_tabla(datos)
   .validar_perfil_de(perfil, datos)
   datos <- .tabla_base(datos)
+  if (!is.logical(proteger_datos_personales) ||
+      length(proteger_datos_personales) != 1L ||
+      is.na(proteger_datos_personales)) {
+    stop("`proteger_datos_personales` debe ser TRUE o FALSE.", call. = FALSE)
+  }
+  columnas_personales <- .normalizar_columnas_personales(
+    columnas_personales, names(datos)
+  )
   if (!is.numeric(calendario) || !length(calendario) || anyNA(calendario) ||
       any(calendario < 1 | calendario > 7) || any(calendario != floor(calendario))) {
     stop("`calendario` debe contener dias ISO entre 1 y 7.", call. = FALSE)
@@ -985,7 +1004,23 @@ analizar_tiempo <- function(datos, perfil = NULL, columnas = NULL,
     character()
   } else abandonadas
   attr(resultado, "truncado") <- length(columnas_totales) > length(columnas)
-  protegidas <- .columnas_temporales_protegidas(perfil)
+  # Sin perfil, la misma clasificacion rapida que `clasificar_variables()`:
+  # antes no habia "declaracion que leer" y el resumen publicaba el minimo y el
+  # maximo de una `fecha_nacimiento` que `perfilar()` protege por su nombre
+  # sobre la misma tabla. Medido en la ronda 26.
+  protegidas <- if (!proteger_datos_personales) {
+    character()
+  } else if (!is.null(perfil)) {
+    unique(c(.columnas_temporales_protegidas(perfil), names(columnas_personales)))
+  } else if (nrow(resultado$resumen)) {
+    # Solo las columnas del resumen: clasificar la tabla entera costaria lo
+    # que cuesta el perfil, y las demas no tienen rango que publicar.
+    indices <- .indice_nombre(resultado$resumen$columna, names(datos))
+    .columnas_personales_rapidas(
+      .seleccionar_columnas(datos, unique(indices[!is.na(indices)])),
+      declaradas = columnas_personales
+    )
+  } else character()
   if (length(protegidas) && nrow(resultado$resumen)) {
     indices_protegidos <- .nombres_para_operar(resultado$resumen$columna) %in%
       .nombres_para_operar(protegidas)

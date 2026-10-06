@@ -597,7 +597,8 @@
 
 # Toda columna que el clasificador reconocio como personal, aunque la evidencia
 # sea debil y no corresponda suprimir sus estadisticos. Es el alcance que usa la
-# evidencia de los hallazgos.
+# evidencia de los hallazgos: entera si la columna se protege, sus valores si es
+# debil.
 .columnas_personales_clasificadas <- function(clasificacion) {
   if (inherits(clasificacion, "perfil")) {
     clasificacion <- clasificacion$datos_personales
@@ -844,6 +845,11 @@
 # cedula 2.222.222-2 es valida y es de alguien. Ante cualquier duda, ninguno.
 # El relleno sin letras ni digitos -"------"- no necesita la columna: lo saca
 # `.valores_identificantes()`.
+# La tasa de distintos que la columna sin sus rellenos tiene que alcanzar. La
+# usan esta regla y su confirmacion sobre la tabla entera en `perfilar_dbi()`
+# (`.rellenos_confirmados_tabla_dbi()`): un solo numero.
+.TASA_CASI_CLAVE_RELLENO <- 0.9
+
 .rellenos_de_columna <- function(x) {
   if (!(is.character(x) || is.factor(x) || is.numeric(x)) ||
       inherits(x, "integer64")) {
@@ -855,6 +861,21 @@
     if (length(texto) < .MIN_REPETICIONES_CENTINELA) return(character())
     distintos <- unique(texto)
     cuenta <- tabulate(match(texto, distintos), nbins = length(distintos))
+    .rellenos_de_frecuencias(distintos, cuenta)
+  }, error = function(e) character())
+}
+
+# La misma regla sobre la tabla de frecuencias de la columna: sus valores
+# distintos y cuantas veces aparece cada uno. La usa tambien `perfilar_coleccion()`,
+# que la trae con un `GROUP BY` para proteger una tabla con los valores de otra.
+.rellenos_de_frecuencias <- function(distintos, cuenta) {
+  tryCatch({
+    distintos <- as.character(distintos)
+    cuenta <- as.numeric(cuenta)
+    validos <- !is.na(distintos) & !is.na(cuenta)
+    distintos <- distintos[validos]
+    cuenta <- cuenta[validos]
+    if (sum(cuenta) < .MIN_REPETICIONES_CENTINELA) return(character())
     digitos <- gsub("[^0-9]", "", distintos, useBytes = TRUE)
     candidatos <- which(
       cuenta >= .MIN_REPETICIONES_CENTINELA &
@@ -862,9 +883,10 @@
         grepl("^([0-9])\\1{5,}$", digitos, useBytes = TRUE)
     )
     if (!length(candidatos)) return(character())
-    resto <- !texto %in% distintos[candidatos]
-    if (!any(resto)) return(character())
-    casi_clave <- length(unique(texto[resto])) / sum(resto) >= 0.9
+    resto <- sum(cuenta[-candidatos])
+    if (!resto) return(character())
+    casi_clave <- (length(distintos) - length(candidatos)) / resto >=
+      .TASA_CASI_CLAVE_RELLENO
     if (!casi_clave) return(character())
     distintos[candidatos]
   }, error = function(e) character())
@@ -1056,6 +1078,18 @@
   )
 }
 
+# Los espacios de Unicode como un espacio, y los signos ASCII de ancho
+# completo (U+FF01 a U+FF5E) como su forma ASCII. Solo para LEER el correo: lo
+# que sale es una forma mas de comparacion, no el texto publicado.
+.ancho_y_espacios_ascii <- local({
+  anchos <- intToUtf8(0xFF01:0xFF5E)
+  ascii <- intToUtf8(0x21:0x7E)
+  function(textos) {
+    textos <- gsub("[\\p{Z}\\t]", " ", textos, perl = TRUE)
+    chartr(anchos, ascii, textos)
+  }
+})
+
 # El correo ofuscado con palabras, leido como correo: `(at)`, `[at]`, `{at}`,
 # `_at_`, `(arroba)`, `(a)` y ` at ` o ` arroba ` entre dos palabras son la
 # arroba; `(dot)`, `(punto)` y ` dot ` o ` punto ` entre dos palabras, el punto.
@@ -1065,6 +1099,17 @@
 # tapaban frente a la protegida "Maria Lopez". La `a` sola, solo entre
 # parentesis: suelta es una preposicion. Ante un texto que no se puede
 # examinar, se devuelve como esta.
+#
+# Ronda 26, tres puertas de la misma regla. (1) Los espacios de Unicode -el duro
+# U+00A0, el ideografico U+3000- y los signos de ancho completo -los parentesis
+# U+FF08 y U+FF09, la arroba U+FF20- son cosmeticos para la proteccion, pero
+# aca se leian crudos: `\s` de PCRE no casa el espacio duro, y el correo con
+# `(at)` escrito con los parentesis anchos se publicaba. Se pasan a su forma
+# ASCII antes de leer. (2) La
+# arroba LITERAL tambien abre la lectura del punto en palabras:
+# `juan.perez@empresa punto com punto uy` salia, porque solo `at` y `arroba`
+# abrian el paso. (3) Quien llama lo aplica tambien sobre el texto plegado, que
+# es UTF-8 valido: un texto latin1 con una tilde no lo es en bytes y se saltaba.
 .correo_desofuscado <- function(textos) {
   tryCatch({
     # Solo el texto que es UTF-8 valido se examina: `grepl()` con `perl = TRUE`
@@ -1072,14 +1117,16 @@
     # llegaba al usuario desde la proteccion. El que no se puede examinar se
     # devuelve como esta, que es lo que este ayudante promete.
     examinables <- !is.na(textos) & validUTF8(textos)
+    leidos <- textos
+    leidos[examinables] <- .ancho_y_espacios_ascii(textos[examinables])
     con <- examinables
     con[examinables] <- grepl(
       paste0("(?i)[(\\[{_]\\s*(?:at|arroba|a)\\s*[)\\]}_]|",
              "[\\p{L}\\p{N}]\\s+(?:at|arroba)\\s+[\\p{L}\\p{N}]"),
-      textos[examinables], perl = TRUE
-    )
+      leidos[examinables], perl = TRUE
+    ) | grepl("@", leidos[examinables], fixed = TRUE)
     if (!any(con)) return(textos)
-    t <- textos[con]
+    t <- leidos[con]
     punto <- "(?i:dot|punto)"
     punto_escrito <- paste0(
       "(?:\\s*[(\\[{]\\s*", punto, "\\s*[)\\]}]\\s*|_", punto, "_|\\s+", punto,
@@ -1184,12 +1231,26 @@
   # protegidos fue el mismo que con la arroba comun -los separadores ya eran
   # cosmeticos-, y 2009 frases con esas palabras no se taparon. Solo las filas
   # que traen una; las demas quedan vacias en esta forma y no golpean.
-  ofuscados <- .correo_desofuscado(elegidos)
-  if (any(ofuscados != elegidos, na.rm = TRUE)) {
-    cambiados <- !is.na(ofuscados) & ofuscados != elegidos
-    forma <- rep("", length(elegidos))
-    forma[cambiados] <- plegar(ofuscados[cambiados])
-    crudos[[length(crudos) + 1L]] <- forma
+  #
+  # Sobre cada forma plegada, no sobre la cruda: el pliegue deja todo en UTF-8
+  # valido, y un texto latin1 con una tilde -`contactar a Jose: juan(at)...`
+  # escrito con la tilde, como lo deja `read.csv(encoding = "latin1")`- no lo es
+  # en bytes y el lector lo saltaba. Medido en la ronda 26.
+  # Cada forma solo donde difiere de la primera: lo mismo no se lee dos veces.
+  bases <- crudos
+  for (k in seq_along(bases)) {
+    base <- bases[[k]]
+    mirar <- !is.na(base)
+    if (k > 1L) mirar <- mirar & base != bases[[1L]]
+    if (!any(mirar)) next
+    ofuscados <- base
+    ofuscados[mirar] <- .correo_desofuscado(base[mirar])
+    cambiados <- mirar & !is.na(ofuscados) & ofuscados != base
+    if (any(cambiados)) {
+      forma <- rep("", length(elegidos))
+      forma[cambiados] <- plegar(ofuscados[cambiados])
+      crudos[[length(crudos) + 1L]] <- forma
+    }
   }
   pajares <- lapply(crudos, sin_separadores)
   pajar <- pajares[[1L]]
@@ -1781,7 +1842,8 @@
 }
 
 .reemplazar_valores_protegidos <- function(x, valores, exigir_limites = FALSE,
-                                           intocables = character()) {
+                                           intocables = character(),
+                                           apartar_iguales = FALSE) {
   if (!is.character(x) || !length(valores)) return(x)
   # DE MAS LARGO A MAS CORTO, y una sola vez cada uno. Las dos cosas arreglan una
   # fuga medida con el piso del propio paquete -seis caracteres identifican-:
@@ -1818,8 +1880,17 @@
   # corchetes, como los escriben el paquete y la SQL- o con la forma de una marca
   # -`segundo_nombre`-: un nombre corto suelto podria estar adentro de un valor.
   # Un nombre que es el mismo un valor protegido no se aparta.
-  nombres <- setdiff(unique(as.character(intocables)), c(valores, ""))
-  if (length(nombres)) {
+  #
+  # Salvo en la SQL que el paquete escribe (`apartar_iguales`): ahi un nombre
+  # citado es un identificador, y el nombre se publica igual en
+  # `columnas$columna`. Con un nombre de columna igual a un valor protegido salvo
+  # la tilde, `perfilar_dbi()` tapaba ENTERAS las 33 sentencias de su lote -que
+  # citan tambien `id` y las demas columnas- mientras la SQL de la muestra lo
+  # citaba igual. Medido en la ronda 26.
+  nombres <- if (isTRUE(apartar_iguales)) {
+    setdiff(unique(as.character(intocables)), "")
+  } else setdiff(unique(as.character(intocables)), c(valores, ""))
+  if (length(nombres) && !isTRUE(apartar_iguales)) {
     # Tampoco uno que es el valor con otra caja o con otros separadores: una
     # columna `juan_perez` frente al titular protegido "Juan Perez" dejaria
     # publicado "juan_perez" en una celda. `tolower()` aborta sobre bytes que no
@@ -1973,6 +2044,56 @@
   all(compuestos)
 }
 
+# Los NOMBRES QUE EL PAQUETE DERIVA de un nombre de columna son estructura como
+# el nombre del que salen: el `make.names()` y el snake_case que el plan propone
+# en `nombres_propuestos`, y las marcas `.ausente_<nombre>` y `.outlier_<nombre>`
+# que sus acciones crean. Sin esto el barrido los trataba como texto de los
+# datos: con "Segundo" -un nombre de pila- protegido en `Primer Nombre`, la
+# evidencia decia `"Segundo Nombre" -> "[valor protegido].Nombre"`, el plan
+# PROPONIA ese nombre y `aplicar()` se lo ponia a la columna en los datos del
+# usuario. Medido en la ronda 26, en la llamada por omision.
+#
+# No abre nada que el nombre de columna no abra ya: el derivado se escribe con
+# las letras del nombre, que se publica por decision. Y valen las mismas
+# excepciones, porque recorren la misma lista: un derivado que, plegado, ES un
+# valor protegido no se aparta en `.reemplazar_valores_protegidos()`.
+#
+# Se calcula una vez por lista de nombres: el barrido corre muchas veces por
+# salida con los mismos nombres, y derivar mil nombres cuesta 0,2 s. Se
+# recuerdan las ultimas ocho listas, porque una misma corrida alterna entre los
+# nombres de la tabla y los del perfil.
+.memo_nombres_derivados <- new.env(parent = emptyenv())
+.memo_nombres_derivados$entradas <- list()
+
+.nombres_derivados_de_columnas <- function(nombres) {
+  nombres <- as.character(nombres)
+  nombres <- nombres[!is.na(nombres) & nzchar(nombres)]
+  if (!length(nombres)) return(character())
+  for (entrada in .memo_nombres_derivados$entradas) {
+    if (identical(entrada$nombres, nombres)) return(entrada$derivados)
+  }
+  # Si el nombre no se puede derivar -bytes que no son UTF-8 valido-, no hay
+  # derivado que exceptuar: se barre como antes, que es el lado cerrado.
+  derivados <- tryCatch({
+    # El vector entero -`nombres_propuestos`, con sus sufijos de unicidad- y
+    # cada nombre solo -la marca de una columna se deriva de ese nombre-.
+    sintacticos <- unique(c(
+      .nombres_make_names(nombres),
+      vapply(nombres, .nombres_make_names, character(1L), USE.NAMES = FALSE)
+    ))
+    unique(c(
+      sintacticos, .nombres_snake(nombres),
+      paste0(".ausente_", sintacticos), paste0(".outlier_", sintacticos)
+    ))
+  }, error = function(e) character())
+  derivados <- setdiff(derivados[!is.na(derivados)], nombres)
+  .memo_nombres_derivados$entradas <- c(
+    list(list(nombres = nombres, derivados = derivados)),
+    utils::head(.memo_nombres_derivados$entradas, 7L)
+  )
+  derivados
+}
+
 # El VOCABULARIO del paquete es estructura, igual que los nombres de columna: un
 # tipo de hallazgo, una severidad, una estrategia, un estado o el nombre de un
 # diagnostico o de una metrica no son datos de nadie, los escribio el paquete. El
@@ -2001,6 +2122,13 @@
   # fechas. Medido en una refutacion.
   "unidad"
 )
+
+# La SQL que el paquete escribe y guarda -`sql`, `sql_esquema`, `sql_muestra`,
+# `sql_conteo_filas`...-: ahi los nombres citados son identificadores, tambien
+# el que es igual a un valor protegido (ver `.reemplazar_valores_protegidos()`).
+# Un campo de SQL con otro nombre se barre como cualquier otro, que es el lado
+# seguro.
+.PATRON_CAMPOS_DE_SQL <- "^sql(_[a-z_]+)?$"
 
 # La PROSA del paquete: los campos que explican un diagnostico con frases. En
 # ellos la regla de variantes exige limites de palabra -ver
@@ -2141,23 +2269,42 @@
 # `fixed = TRUE` ni la codificacion: solo se agrupa.
 .proteger_textos_salida <- function(x, valores, intocables = character()) {
   if (!length(valores)) return(x)
-  intocables <- c(intocables, .vocabulario_de_objeto(x))
+  intocables <- c(
+    intocables, .nombres_derivados_de_columnas(intocables),
+    .vocabulario_de_objeto(x)
+  )
   cofre <- new.env(parent = emptyenv())
   cofre$hojas <- list()
   cofre$prosa <- list()
+  cofre$sql <- list()
   invisible(.recorrer_textos_salida(x, function(hoja, campo) {
     cofre$hojas[[length(cofre$hojas) + 1L]] <- hoja
     cofre$prosa[[length(cofre$prosa) + 1L]] <- rep(
       !is.null(campo) && campo %in% .CAMPOS_DE_PROSA, length(hoja)
     )
+    cofre$sql[[length(cofre$sql) + 1L]] <- rep(
+      !is.null(campo) && length(campo) == 1L && !is.na(campo) &&
+        grepl(.PATRON_CAMPOS_DE_SQL, campo), length(hoja)
+    )
     hoja
   }, intocables))
   if (!length(cofre$hojas)) return(x)
-  protegidas <- .reemplazar_valores_protegidos(
-    unlist(cofre$hojas, use.names = FALSE), valores,
-    exigir_limites = unlist(cofre$prosa, use.names = FALSE),
-    intocables = intocables
-  )
+  textos <- unlist(cofre$hojas, use.names = FALSE)
+  prosa <- unlist(cofre$prosa, use.names = FALSE)
+  sql <- unlist(cofre$sql, use.names = FALSE)
+  protegidas <- textos
+  if (any(!sql)) {
+    protegidas[!sql] <- .reemplazar_valores_protegidos(
+      textos[!sql], valores, exigir_limites = prosa[!sql],
+      intocables = intocables
+    )
+  }
+  if (any(sql)) {
+    protegidas[sql] <- .reemplazar_valores_protegidos(
+      textos[sql], valores, exigir_limites = prosa[sql],
+      intocables = intocables, apartar_iguales = TRUE
+    )
+  }
   cofre$desde <- 0L
   .recorrer_textos_salida(x, function(hoja, campo) {
     tramo <- protegidas[cofre$desde + seq_along(hoja)]
@@ -2374,6 +2521,7 @@
     valores_columna <- unique(c(
       valores, .rellenos_de_columnas(datos, sensibles)
     ))
+    antes <- plan$parametros
     plan$parametros <- I(lapply(seq_along(plan$parametros), function(i) {
       parametros <- plan$parametros[[i]]
       if (isTRUE(propias[[i]])) {
@@ -2383,6 +2531,7 @@
         .proteger_numeros_parametros(parametros, identificantes)
       }
     }))
+    plan <- .centinelas_en_columnas_protegidas(plan, antes, propias, datos)
   }
   cobertura <- attr(plan, "cobertura_diagnosticos", exact = TRUE)
   if (inherits(cobertura, "data.frame")) {
@@ -2411,6 +2560,84 @@
   # salida sin serializar ni publicar los valores protegidos.
   attr(plan, "columnas_datos_personales_protegidas") <- sensibles
   plan
+}
+
+# La accion de centinelas sobre una columna protegida tiene que poder ejecutar lo
+# que el plan dice sin publicar el valor protegido. El barrido por columna tapaba
+# en `valores` todo numero de la columna, y con eso los mismos numeros que la
+# accion necesita: sobre una cedula con un -999 la lista salia
+# `c(-9999, NA, -99, -9, 999)`, la accion `lista` con 1 afectada, y `aplicar()`
+# la registraba `fallida` con el -999 en la tabla. Con `sentinelas_numericos =
+# 99999999` -que el perfil protegido ya no conserva- `valores` era `NA` y las seis
+# celdas seguian. Y el hueco no ocultaba nada: estaba en la posicion de -999 del
+# catalogo fijo. Medido en la refutacion 26-R.
+#
+# Dos reglas, cada una con su precedente:
+#
+#   * el catalogo DEL PAQUETE -`.numeros_na_locales`- es vocabulario y no se
+#     tapa, como ya no se tapa en `meta` (ver `.valores_perfil_protegidos()`): la
+#     lista publicada es la misma tenga o no la columna esos valores;
+#   * lo demas sigue tapado, y como el mapa de la imputacion
+#     (`mapa_enmascarado`), `aplicar()` lo resuelve sobre los datos que recibe:
+#     lo tapado de una columna protegida que es centinela es su RELLENO -el digito
+#     repetido de `.rellenos_de_columna()`-. Solo se ofrece asi si sobre los datos
+#     del plan esa resolucion convierte exactamente las celdas que el plan
+#     estima; si no, la accion queda `bloqueada` y la justificacion dice como
+#     ejecutarla, en vez de ofrecer como `lista` una accion imposible.
+.centinelas_en_columnas_protegidas <- function(plan, antes, propias, datos) {
+  indices <- which(
+    propias & as.character(plan$estrategia) == "convertir_sentinelas_numericos"
+  )
+  for (i in indices) {
+    original <- antes[[i]]$valores
+    parametros <- plan$parametros[[i]]
+    valores <- parametros$valores
+    if (!is.numeric(valores) || length(valores) != length(original)) next
+    del_catalogo <- !is.na(original) &
+      suppressWarnings(as.numeric(original)) %in% .numeros_na_locales
+    valores[del_catalogo] <- original[del_catalogo]
+    parametros$valores <- valores
+    if (anyNA(valores)) {
+      parametros$valores_enmascarados <- TRUE
+      columna <- as.character(plan$columna[[i]])
+      resoluble <- isTRUE(tryCatch(
+        .centinelas_tapados_resolubles(
+          datos, columna, parametros, plan$n_afectadas[[i]]
+        ),
+        error = function(e) FALSE
+      ))
+      if (!resoluble) {
+        plan$estado[[i]] <- "bloqueada"
+        plan$aplicar[[i]] <- FALSE
+        plan$recomendada[[i]] <- FALSE
+        plan$justificacion[[i]] <- paste0(
+          plan$justificacion[[i]], " El centinela de esta columna es un valor ",
+          "protegido: el plan no lo publica y no puede reconstruirlo sobre los ",
+          "datos, as\u00ed que la acci\u00f3n no se puede ejecutar tal como est\u00e1. ",
+          "Para convertirlo, escribir el valor en `valores` y pasar `estado` a ",
+          "`lista`, o planificar con `proteger_datos_personales = FALSE`."
+        )
+      }
+    }
+    plan$parametros[[i]] <- parametros
+  }
+  plan
+}
+
+# Si la resolucion de `aplicar()` -los rellenos de la columna en lugar de lo
+# tapado- convierte sobre `datos` exactamente las celdas que el plan estima,
+# dentro de su universo aplicable. Es la misma funcion que usa el ejecutor.
+.centinelas_tapados_resolubles <- function(datos, columna, parametros,
+                                           n_afectadas) {
+  if (!inherits(datos, "data.frame") || is.na(columna)) return(FALSE)
+  indice <- .indice_nombre(columna, names(datos))
+  if (length(indice) != 1L || is.na(indice)) return(FALSE)
+  mascara <- .mascara_sentinelas_numericos(datos[[indice]], parametros)
+  if (!is.null(parametros$aplicabilidad)) {
+    mascara <- mascara &
+      .mascara_aplicabilidad_accion(datos, columna, parametros)
+  }
+  length(n_afectadas) == 1L && isTRUE(sum(mascara) == n_afectadas)
 }
 
 .proteger_ausencia_estructural <- function(hallazgos, sensibles) {
@@ -2463,7 +2690,8 @@
 }
 
 .proteger_componentes_perfil <- function(columnas, patrones, dependencias,
-                                          hallazgos, clasificacion) {
+                                          hallazgos, clasificacion,
+                                          valores_debiles = NULL) {
   sensibles <- .columnas_personales_protegidas(clasificacion)
   # Dos alcances, y la diferencia es deliberada. `sensibles` gobierna los
   # estadisticos de la tabla de columnas —minimo, maximo, moda—, donde suprimir
@@ -2471,7 +2699,8 @@
   # perderia su resumen cuantitativo. `clasificadas` gobierna la evidencia de
   # los hallazgos, donde el valor casi nunca hace falta: el hallazgo `constante`
   # dice que la columna tiene un unico valor, y para actuar sobre eso no se
-  # necesita saber cual. Ahi conviene ocultar aunque la clasificacion sea debil.
+  # necesita saber cual. Ahi conviene ocultar aunque la clasificacion sea debil
+  # -sus VALORES, no la evidencia entera: ver `indices_debiles` abajo-.
   clasificadas <- .columnas_personales_clasificadas(clasificacion)
   if (!length(sensibles) && !length(clasificadas)) {
     return(list(
@@ -2621,14 +2850,32 @@
   # de hallazgo, para que los nuevos hallazgos compuestos queden protegidos
   # automáticamente.
   columna_completa <- as.character(hallazgos$columna)
-  coincide <- .nombres_para_operar(columna_completa) %in%
-      .nombres_para_operar(clasificadas) |
-    vapply(strsplit(columna_completa, ",", fixed = TRUE),
-           function(columnas) any(.nombres_para_operar(trimws(columnas)) %in%
-                                  .nombres_para_operar(clasificadas)),
-           logical(1L))
-  indices_hallazgos <- !is.na(hallazgos$columna) &
-    hallazgos$tipo_hallazgo != "dato_personal_posible" & coincide
+  coincide_con <- function(lista) {
+    claves <- .nombres_para_operar(lista)
+    .nombres_para_operar(columna_completa) %in% claves |
+      vapply(strsplit(columna_completa, ",", fixed = TRUE),
+             function(columnas) any(.nombres_para_operar(trimws(columnas)) %in%
+                                    claves),
+             logical(1L))
+  }
+  candidatos <- !is.na(hallazgos$columna) &
+    hallazgos$tipo_hallazgo != "dato_personal_posible"
+  # La evidencia de la columna con clasificacion DEBIL -que no se protege- no
+  # se tapa entera: se le tapan sus valores, con el piso. Tapada entera, sus
+  # hallazgos perdian tambien la evidencia que no tiene ningun valor de celda
+  # -"4939 valores distintos de 5000 (0.988)", "3 valores", "N/D (30)"-, y la
+  # ayuda dice que lo debil se informa sin ocultar valores. Medido en la ronda
+  # 26: nueve de nueve hallazgos de columnas debiles sin evidencia. Sin los
+  # datos -un perfil que se vuelve a proteger sin su tabla- no hay valores con
+  # que barrer, y se tapa entera como antes: el lado cerrado.
+  if (is.null(valores_debiles)) {
+    indices_hallazgos <- candidatos & coincide_con(clasificadas)
+    indices_debiles <- rep(FALSE, length(candidatos))
+  } else {
+    indices_hallazgos <- candidatos & coincide_con(sensibles)
+    indices_debiles <- candidatos & !indices_hallazgos &
+      coincide_con(clasificadas)
+  }
   # La ausencia estructural es una señal válida aunque el determinante sea
   # personal. Se conserva la predicción y su precisión, pero no el corte ni los
   # niveles que permitirían reconstruir valores de la columna protegida.
@@ -2637,6 +2884,17 @@
   # sugerencia salia con los niveles o el corte del determinante.
   hallazgos <- .proteger_ausencia_estructural(hallazgos, sensibles)
   hallazgos$evidencia[indices_hallazgos] <- "[evidencia protegida]"
+  if (any(indices_debiles) && length(valores_debiles)) {
+    campos <- intersect(c("evidencia", "descripcion"), names(hallazgos))
+    barridos <- .proteger_textos_salida(
+      as.data.frame(lapply(hallazgos[indices_debiles, campos, drop = FALSE],
+                           as.character), stringsAsFactors = FALSE),
+      valores_debiles, intocables = as.character(columnas$columna)
+    )
+    for (campo in campos) {
+      hallazgos[[campo]][indices_debiles] <- barridos[[campo]]
+    }
+  }
   # La evidencia se tapaba y la descripcion no, y hay hallazgos que nombran un
   # valor de celda ahi adentro: `posible_centinela_numerico` decia "El valor
   # 9999 aparece 5 veces". Sobre una columna de documentos protegida eso es una
@@ -2883,9 +3141,22 @@
     perfil$columnas, perfil$patrones, perfil$datos_personales, perfil$meta,
     datos = datos
   )
+  # Los valores de las columnas con clasificacion debil, para tapar solo eso en
+  # la evidencia de sus hallazgos. Sin los datos, `NULL`: se tapa entera.
+  debiles <- setdiff(
+    .columnas_personales_clasificadas(perfil$datos_personales),
+    .columnas_personales_protegidas(perfil$datos_personales)
+  )
+  valores_debiles <- if (length(debiles) && inherits(datos, "data.frame")) {
+    tryCatch(.valores_identificantes(
+      .valores_publicables_protegidos(datos, debiles),
+      .fechas_que_identifican(datos, debiles)
+    ), error = function(e) NULL)
+  } else NULL
   protegidos <- .proteger_componentes_perfil(
     perfil$columnas, perfil$patrones, perfil$dependencias,
-    perfil$hallazgos, perfil$datos_personales
+    perfil$hallazgos, perfil$datos_personales,
+    valores_debiles = valores_debiles
   )
   perfil$columnas <- protegidos$columnas
   # `dato_personal_protegido` dice si el valor **quedo** protegido -asi esta
@@ -2905,9 +3176,11 @@
   perfil$patrones <- protegidos$patrones
   perfil$dependencias <- protegidos$dependencias
   perfil$hallazgos <- protegidos$hallazgos
-  sensibles <- as.character(protegidos$columnas$columna[
-    !is.na(protegidos$columnas$tipo_dato_personal)
-  ])
+  # La magnitud de Benford y el `log10(max/min)` de la cobertura, solo de las
+  # columnas PROTEGIDAS: de una con clasificacion debil se publican el minimo y
+  # el maximo, y su cociente no oculta nada. Se tapaban las de toda columna con
+  # tipo de dato personal. Medido en la ronda 26.
+  sensibles <- .columnas_personales_protegidas(perfil)
   valores <- .valores_publicables_protegidos(
     datos, .columnas_personales_protegidas(perfil)
   )

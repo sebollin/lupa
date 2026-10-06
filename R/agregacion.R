@@ -915,15 +915,26 @@ transiciones_granularidad <- function() {
 
 # Como se llama la parte de una cobertura, para decir cual vino incompleta. Se
 # publicaba el nombre del ATRIBUTO -"cobertura_coleccion"-, no el de la parte.
-.etiqueta_cobertura_parte <- function(atributo, cobertura) {
+.etiqueta_cobertura_parte <- function(atributo, cobertura, inicial = FALSE) {
   nombre <- if (!is.null(cobertura$coleccion)) cobertura$coleccion else cobertura$conjunto
   nombre <- if (is.null(nombre) || !length(nombre)) "" else as.character(nombre[[1L]])
+  # Al principio de una frase -el motivo de cada parte sin medir- va con
+  # mayuscula. Se arma del prefijo fijo y no cortando el texto: el nombre es del
+  # usuario y puede no ser UTF-8 valido.
   switch(
     atributo,
-    cobertura_coleccion = paste0("colecci\u00f3n ", nombre),
-    cobertura_organizacion = paste0("organizaci\u00f3n ", nombre),
-    cobertura_conjunto_colecciones = "conjunto de colecciones",
-    cobertura_conjunto_organizaciones = "conjunto de organizaciones",
+    cobertura_coleccion = paste0(
+      if (inicial) "Colecci\u00f3n " else "colecci\u00f3n ", nombre
+    ),
+    cobertura_organizacion = paste0(
+      if (inicial) "Organizaci\u00f3n " else "organizaci\u00f3n ", nombre
+    ),
+    cobertura_conjunto_colecciones = if (inicial) {
+      "Conjunto de colecciones"
+    } else "conjunto de colecciones",
+    cobertura_conjunto_organizaciones = if (inicial) {
+      "Conjunto de organizaciones"
+    } else "conjunto de organizaciones",
     atributo
   )
 }

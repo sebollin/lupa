@@ -303,6 +303,13 @@
              "\u274a\u274b\u29c6\u2a6e\ua673\U0001F7AF-\U0001F7BF]"),
       "*", texto, perl = TRUE
     )
+    # Todo signo ASCII de ancho completo, como su forma ASCII: el pliegue lleva
+    # las letras y las cifras anchas, y aca habia una lista de signos. La fecha
+    # con hora protegida se publicaba escrita con la arroba, el punto y coma o
+    # la barra vertical anchos (U+FF20, U+FF1B, U+FF5C) mientras sus hermanas
+    # -la coma, la barra y la T anchas- se tapaban. Medido en la ronda 26. La
+    # misma lectura que la del correo en palabras: `.ancho_y_espacios_ascii()`.
+    texto <- .ancho_y_espacios_ascii(texto)
     # Un control C1 en un texto es casi siempre un CSV de Windows -CP1252- leido
     # como `latin1`: la raya 0x96 queda como U+0096 y cortaba el numero. Se lee
     # como lo que es en CP1252: la raya y la raya larga, las comillas simples, la
@@ -416,7 +423,11 @@
   texto <- tryCatch({
     texto <- gsub(regla$fecha, " ", texto, perl = TRUE)
     texto <- gsub(regla$hora, " ", texto, perl = TRUE)
-    texto <- gsub(regla$cidr, "\\1|\\2", texto, perl = TRUE)
+    # La mascara queda entre dos barras verticales, que no unen: con una sola,
+    # el rango de redes "10.4.1.0/24-10.4.9.0/24" pegaba la mascara "24" a la IP
+    # siguiente por el guion, y uno de cada cuatro se tapaba por los tramos de
+    # ese numero. Medido en la ronda 26.
+    texto <- gsub(regla$cidr, "\\1|\\2|", texto, perl = TRUE)
     isbn <- regmatches(texto, gregexpr(regla$isbn, texto, perl = TRUE))[[1L]]
     isbn <- isbn[nchar(gsub("[^0-9Xx]", "", isbn)) == 13L]
     for (pieza in isbn) texto <- sub(pieza, " ", texto, fixed = TRUE)
@@ -448,11 +459,23 @@
     # la ronda 25. Entero si: la cedula colombiana "1.023.456.789" se escribe
     # asi. Sin el espacio como separador de miles: "598 099 123 456" es un
     # celular con su prefijo, y su tramo es el celular.
+    #
+    # Y del importe de cuatro grupos, tambien la COLA sin el primero, entera: el
+    # celular con su prefijo de pais agrupado de a tres con puntos, comas o
+    # apostrofos -"598.099.123.456"- se probaba solo entero y se publicaba,
+    # mientras con espacios o guiones se tapaba. Medido en la ronda 26. La cola
+    # tiene nueve cifras y solo coincide con un documento cuando empieza con un
+    # cero, como el celular; el costo en importes esta en
+    # `data-raw/medir_tapado_de_mas.R`.
     if (grepl(regla$ip, numero, perl = TRUE) ||
         grepl(regla$miles_largo, numero, perl = TRUE)) {
-      entera <- .sin_ceros_iniciales(paste0(partes$grupos, collapse = ""))
-      largo <- nchar(entera, type = "bytes")
-      if (largo >= minimo && largo <= maximo) completos <- c(completos, entera)
+      enteros <- paste0(partes$grupos, collapse = "")
+      if (grepl(regla$miles_largo, numero, perl = TRUE)) {
+        enteros <- c(enteros, paste0(partes$grupos[-1L], collapse = ""))
+      }
+      enteros <- .sin_ceros_iniciales(enteros)
+      largos <- nchar(enteros, type = "bytes")
+      completos <- c(completos, enteros[largos >= minimo & largos <= maximo])
       next
     }
     completos <- c(completos, .sin_ceros_iniciales(

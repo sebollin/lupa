@@ -909,7 +909,18 @@ print.coleccion_lupa <- function(x, ...) {
 #'   al mismo argumento de [perfilar_dbi()] para que todas las tablas de la
 #'   colección respeten la misma decisión.
 #' @param conservar_perfiles Si se retienen los objetos `perfil_dbi` completos.
-#'   Por omisión `FALSE`.
+#'   Por omisión `FALSE`. Retenidos, cada uno se protege además con los
+#'   valores protegidos de las **demás** tablas de la colección: una
+#'   observación de `movimientos` que cita la cédula y el nombre de un cliente
+#'   se tapa aunque `movimientos` no tenga ninguna columna personal, porque la
+#'   colección es un solo objeto. Esos valores se leen de la base, una consulta
+#'   por columna protegida, con la regla de [perfilar()] —también la de los
+#'   rellenos, con sus frecuencias—; si alguna lectura falla, o una tabla no
+#'   se pudo clasificar porque su muestra no se leyó, en los perfiles
+#'   de las otras tablas se tapan los valores y la evidencia de las columnas no
+#'   personales, y `resumen_tabla$meta$proteccion_personal$otras_tablas` dice
+#'   por qué. [perfilar_dbi()] sobre una tabla sola protege sólo con los de
+#'   esa tabla.
 #' @param cobertura_metricas Qué se sube a `cobertura_metricas`: `"no_medidas"`
 #'   (por omisión) sólo las métricas que no se calcularon, `"completa"` todas
 #'   con su estado, `"ninguna"` para omitirla. Los conteos por tabla de
@@ -974,6 +985,7 @@ perfilar_coleccion <- function(coleccion, muestra = Inf,
   lecturas <- list()
   resumenes <- list()
   perfiles <- list()
+  protegidos_tablas <- list()
   n_metricas_no_medidas <- 0
   n_divergencias <- 0L
   filas_metricas <- 0
@@ -1324,7 +1336,15 @@ perfilar_coleccion <- function(coleccion, muestra = Inf,
       }
     }
 
-    if (conservar_perfiles) perfiles[[identificador]] <- perfil
+    if (conservar_perfiles) {
+      perfiles[[identificador]] <- perfil
+      protegidos_tablas[[identificador]] <-
+        .valores_protegidos_tabla_coleccion(conexion, referencia, perfil)
+    }
+  }
+  # El piso cruza tablas: ver `.proteger_perfiles_entre_tablas()`.
+  if (conservar_perfiles && length(perfiles) > 1L) {
+    perfiles <- .proteger_perfiles_entre_tablas(perfiles, protegidos_tablas)
   }
 
   resumen_coleccion <- if (length(resumenes)) {
@@ -1403,6 +1423,127 @@ perfilar_coleccion <- function(coleccion, muestra = Inf,
   if (conservar_perfiles) estructura$perfiles <- perfiles
   class(estructura) <- "perfil_coleccion"
   estructura
+}
+
+# Los valores protegidos de UNA tabla de la coleccion, leidos de la base, para
+# tapar los de esa tabla en el perfil de las OTRAS. Medido en la ronda 26: con
+# `clientes` (cedula y nombre) y `movimientos` (una observacion que cita al
+# cliente), el perfil de `movimientos` conservado en la coleccion publicaba en
+# su moda y sus ejemplos la cedula y el nombre que el perfil de `clientes`
+# tapaba. Cada `perfilar_dbi()` protege su tabla; la coleccion es un solo
+# objeto y la promesa es sobre el objeto.
+#
+# Con la misma regla que la lectura fuera de la muestra de `perfilar_dbi()`
+# -fechas de una columna de fechas fuera, el telefono con forma de fecha
+# adentro-, y la de los rellenos con sus frecuencias, de un `GROUP BY`: el
+# `99999999` de una cedula casi clave no tapa el de un `monto` de otra tabla. Si
+# la lectura falla o son demasiados, `completo = FALSE` y quien protege cierra.
+.valores_protegidos_tabla_coleccion <- function(conexion, referencia, perfil) {
+  vacio <- list(valores = character(), fechas = character(), completo = TRUE,
+                motivo = NA_character_)
+  proteccion <- tryCatch(perfil$resumen_tabla$meta$proteccion_personal,
+                         error = function(e) NULL)
+  sensibles <- as.character(proteccion$columnas)
+  if (!isTRUE(proteccion$aplicada) || !length(sensibles)) return(vacio)
+  incompleto <- function(motivo) {
+    list(valores = character(), fechas = character(), completo = FALSE,
+         motivo = motivo)
+  }
+  # Sin la muestra no hubo clasificacion: la tabla protegio TODAS sus columnas
+  # y no se sabe cuales son personales. Leer los valores de todas para barrer
+  # las otras tablas taparia cualquier texto que coincida; se cierra del lado
+  # seguro, sin leer nada, como cuando la lectura falla.
+  if (!identical(proteccion$base, "perfil_muestra")) {
+    return(incompleto(
+      "una tabla no se pudo clasificar porque su muestra no se leyo"
+    ))
+  }
+  tryCatch({
+    sqlite <- grepl("sqlite", .senas_conexion_dbi(conexion), fixed = TRUE)
+    tabla_sql <- as.character(DBI::dbQuoteIdentifier(conexion, referencia))
+    valores <- character()
+    fechas <- character()
+    for (columna in sensibles) {
+      campo <- as.character(DBI::dbQuoteIdentifier(conexion, columna))
+      expresion <- if (sqlite) paste0("CAST(", campo, " AS TEXT)") else campo
+      sql <- paste0(
+        "SELECT ", expresion, " AS valor, COUNT(*) AS n FROM ", tabla_sql,
+        " WHERE ", campo, " IS NOT NULL GROUP BY ", expresion
+      )
+      respuesta <- .consultar_dbi(
+        conexion, sql, NULL, filas = .MAXIMO_VALORES_PROTEGIDOS_DBI + 1L,
+        etapa = "proteccion_coleccion"
+      )
+      if (!isTRUE(respuesta$ok)) {
+        return(incompleto(paste0(
+          "no se pudieron leer los valores de `", columna, "`: ",
+          respuesta$motivo
+        )))
+      }
+      if (!NROW(respuesta$datos)) next
+      if (NROW(respuesta$datos) > .MAXIMO_VALORES_PROTEGIDOS_DBI) {
+        return(incompleto(paste0(
+          "`", columna, "` tiene mas de ",
+          format(.MAXIMO_VALORES_PROTEGIDOS_DBI, big.mark = ".",
+                 scientific = FALSE),
+          " valores distintos"
+        )))
+      }
+      leidos <- .texto_de_valores_dbi(respuesta$datos[[1L]])
+      cuentas <- as.numeric(respuesta$datos[[2L]])
+      fechas <- unique(c(fechas, .fechas_de_columna_no_fecha(leidos)))
+      fuera <- if (.columna_de_fechas(leidos)) .forma_de_fecha(leidos) else
+        rep(FALSE, length(leidos))
+      rellenos <- .rellenos_de_frecuencias(leidos, cuentas)
+      fuera <- fuera | .recortar_bytes(leidos) %in% rellenos
+      valores <- unique(c(valores, leidos[!fuera & !is.na(leidos)]))
+    }
+    list(valores = valores, fechas = fechas, completo = TRUE,
+         motivo = NA_character_)
+  }, error = function(e) incompleto(conditionMessage(e)))
+}
+
+# Cada perfil conservado se barre con los valores protegidos de las DEMAS tablas
+# de la coleccion, con el piso de `perfilar()`. Si los de alguna no se pudieron
+# leer, se cierra como en `perfilar_dbi()` cuando no verifica fuera de la
+# muestra: se tapan los valores y la evidencia de las columnas no personales, y
+# se dice.
+.proteger_perfiles_entre_tablas <- function(perfiles, protegidos) {
+  for (identificador in names(perfiles)) {
+    otros <- protegidos[setdiff(names(protegidos), identificador)]
+    if (!length(otros)) next
+    perfil <- perfiles[[identificador]]
+    intocables <- as.character(perfil$resumen_tabla$columnas$columna)
+    if (all(vapply(otros, function(x) isTRUE(x$completo), logical(1L)))) {
+      valores <- unique(unlist(lapply(otros, `[[`, "valores"), use.names = FALSE))
+      fechas <- unique(unlist(lapply(otros, `[[`, "fechas"), use.names = FALSE))
+      if (!length(valores)) next
+      perfil$resumen_tabla <- .proteger_con_valores_dbi(
+        perfil$resumen_tabla, valores, intocables, fechas
+      )
+      perfil$perfil_muestra <- .proteger_con_valores_dbi(
+        perfil$perfil_muestra, valores, intocables, fechas
+      )
+    } else {
+      sensibles <- as.character(
+        perfil$resumen_tabla$meta$proteccion_personal$columnas
+      )
+      cerrado <- .cerrar_fuera_de_muestra_dbi(
+        perfil$resumen_tabla, perfil$perfil_muestra, sensibles
+      )
+      perfil$resumen_tabla <- cerrado$resumen
+      perfil$perfil_muestra <- cerrado$perfil
+      motivos <- vapply(otros, function(x) {
+        if (isTRUE(x$completo)) NA_character_ else as.character(x$motivo)
+      }, character(1L))
+      perfil$resumen_tabla$meta$proteccion_personal$otras_tablas <- paste0(
+        "No verificada: ", paste(stats::na.omit(motivos), collapse = "; "),
+        ". Se taparon los valores y la evidencia de las columnas no personales."
+      )
+    }
+    perfiles[[identificador]] <- perfil
+  }
+  perfiles
 }
 
 #' @export

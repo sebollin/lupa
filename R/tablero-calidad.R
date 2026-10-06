@@ -840,7 +840,7 @@ tablero_calidad <- function(medidas, agregaciones = NULL, umbrales = NULL,
       medidas$tablero, .desenlaces_de_objeto(medidas)
     ))
   }
-  .con_cobertura_coleccion(
+  .con_coberturas_frontera(
     .preparar_tablero(
       medidas, agregaciones, umbrales, marco, cobertura
     )$tablero,
@@ -874,90 +874,207 @@ tablero_calidad <- function(medidas, agregaciones = NULL, umbrales = NULL,
 # Ahora se reunen en una: todas las tablas declaradas, las que entraron, las que
 # no, y el motivo de cada una con su coleccion. Medido en la ronda 24.
 .cobertura_coleccion_de <- function(x) {
-  directa <- attr(x, "cobertura_coleccion", exact = TRUE)
+  .cobertura_frontera_de(x, "cobertura_coleccion")
+}
+
+# Las cuatro coberturas de frontera, con UN lector. Hasta la ronda 26 solo se
+# leia la de la coleccion: `cobertura_organizacion` y las de los dos conjuntos no
+# llegaban al informe ni a `print()`, y como una organizacion hereda en
+# `cobertura_de_partes` las coberturas de las colecciones que SI entraron, el
+# informe de un organismo con una coleccion sin medir publicaba "4 de 4 tablas,
+# ninguna sin medir": lo no medido como medido. `?agregar` promete que el
+# tablero, el indice, el informe, `evaluar()` e `historico_calidad()` las
+# publican TODAS, y el historico del mismo objeto ya la registraba. Medido en la
+# ronda 26.
+#
+# Cada nivel nombra sus campos -la coleccion cuenta tablas; los otros, partes- y
+# se lee igual: el atributo directo y las guardadas en `cobertura_de_partes` con
+# ese nombre, sin repetidas y, si son varias, reunidas en una. Los nombres son
+# los de `.ATRIBUTOS_COBERTURA_FRONTERA`, y un nivel nuevo sin su entrada aca se
+# rechaza al leerlo en lugar de callarse.
+.NIVELES_COBERTURA_FRONTERA <- list(
+  cobertura_coleccion = list(
+    titulo = "Cobertura de la colecci\u00f3n",
+    parte = "tabla", partes = "tablas", Partes = "Tablas",
+    campos = c(
+      nombre = "coleccion", declaradas = "tablas_declaradas",
+      en_el_numero = "tablas_en_el_numero", sin_medir = "tablas_sin_medir"
+    )
+  ),
+  cobertura_conjunto_colecciones = list(
+    titulo = "Cobertura del conjunto de colecciones",
+    parte = "coleccion", partes = "colecciones", Partes = "Colecciones",
+    campos = c(
+      nombre = "conjunto", declaradas = "declaradas",
+      en_el_numero = "en_el_numero", sin_medir = "sin_medir"
+    )
+  ),
+  cobertura_organizacion = list(
+    titulo = "Cobertura de la organizaci\u00f3n",
+    parte = "coleccion", partes = "colecciones", Partes = "Colecciones",
+    campos = c(
+      nombre = "conjunto", declaradas = "declaradas",
+      en_el_numero = "en_el_numero", sin_medir = "sin_medir"
+    )
+  ),
+  cobertura_conjunto_organizaciones = list(
+    titulo = "Cobertura del conjunto de organizaciones",
+    parte = "organizacion", partes = "organizaciones", Partes = "Organizaciones",
+    campos = c(
+      nombre = "conjunto", declaradas = "declaradas",
+      en_el_numero = "en_el_numero", sin_medir = "sin_medir"
+    )
+  )
+)
+
+.nivel_cobertura_frontera <- function(atributo) {
+  nivel <- .NIVELES_COBERTURA_FRONTERA[[atributo]]
+  if (is.null(nivel)) {
+    stop(
+      "La cobertura de frontera `", atributo, "` no tiene lector: falta su ",
+      "entrada en `.NIVELES_COBERTURA_FRONTERA`.", call. = FALSE
+    )
+  }
+  nivel
+}
+
+.cobertura_frontera_de <- function(x, atributo) {
+  directa <- attr(x, atributo, exact = TRUE)
   partes <- attr(x, "cobertura_de_partes", exact = TRUE)
   todas <- c(
     if (!is.null(directa)) list(directa),
-    if (length(partes)) unname(partes[names(partes) %in% "cobertura_coleccion"])
+    if (length(partes)) unname(partes[names(partes) %in% atributo])
   )
   todas <- .coberturas_sin_repetir(todas)
   if (!length(todas)) return(NULL)
   if (length(todas) == 1L) return(todas[[1L]])
-  .unir_coberturas_coleccion(todas)
+  .unir_coberturas_frontera(todas, atributo)
 }
 
-.unir_coberturas_coleccion <- function(coberturas) {
+# Todas las de un objeto, por nivel, en el orden de `.ATRIBUTOS_COBERTURA_FRONTERA`.
+.coberturas_frontera_de <- function(x) {
+  todas <- lapply(.ATRIBUTOS_COBERTURA_FRONTERA, function(atributo) {
+    .nivel_cobertura_frontera(atributo)
+    .cobertura_frontera_de(x, atributo)
+  })
+  names(todas) <- .ATRIBUTOS_COBERTURA_FRONTERA
+  Filter(Negate(is.null), todas)
+}
+
+.unir_coberturas_frontera <- function(coberturas, atributo) {
+  campos <- .nivel_cobertura_frontera(atributo)$campos
   campo <- function(nombre) lapply(coberturas, `[[`, nombre)
   nombres <- vapply(coberturas, function(cc) {
-    if (is.null(cc$coleccion)) NA_character_ else as.character(cc$coleccion[[1L]])
+    nombre <- cc[[campos[["nombre"]]]]
+    if (is.null(nombre) || !length(nombre)) NA_character_ else as.character(nombre[[1L]])
   }, character(1L))
-  declaradas <- sum(vapply(campo("tablas_declaradas"), function(v) {
-    if (length(v)) as.numeric(v[[1L]]) else 0
-  }, numeric(1L)))
-  en_el_numero <- sum(vapply(campo("tablas_en_el_numero"), function(v) {
-    if (length(v)) as.numeric(v[[1L]]) else 0
-  }, numeric(1L)))
-  sin_medir <- unlist(campo("tablas_sin_medir"), use.names = FALSE)
+  contar <- function(nombre) {
+    sum(vapply(campo(nombre), function(v) {
+      if (length(v)) as.numeric(v[[1L]]) else 0
+    }, numeric(1L)))
+  }
+  declaradas <- contar(campos[["declaradas"]])
+  en_el_numero <- contar(campos[["en_el_numero"]])
+  sin_medir <- unlist(campo(campos[["sin_medir"]]), use.names = FALSE)
   motivos <- unlist(lapply(coberturas, function(cc) {
-    tablas <- cc$tablas_sin_medir
-    if (!length(tablas)) return(character())
-    motivo <- if (length(cc$motivo_sin_medir) == length(tablas)) {
+    partes <- cc[[campos[["sin_medir"]]]]
+    if (!length(partes)) return(character())
+    motivo <- if (length(cc$motivo_sin_medir) == length(partes)) {
       as.character(cc$motivo_sin_medir)
-    } else rep("", length(tablas))
-    paste0("Colecci\u00f3n ", cc$coleccion, ": ", motivo)
+    } else rep("", length(partes))
+    paste0(.etiqueta_cobertura_parte(atributo, cc, inicial = TRUE), ": ", motivo)
   }), use.names = FALSE)
   advertencias <- unique(unlist(campo("advertencia"), use.names = FALSE))
-  list(
-    coleccion = paste(nombres, collapse = ", "),
-    colecciones = nombres,
-    tablas_declaradas = declaradas,
-    tablas_en_el_numero = en_el_numero,
-    tablas_sin_medir = as.character(sin_medir),
-    motivo_sin_medir = as.character(motivos),
-    cobertura = if (declaradas > 0) en_el_numero / declaradas else NA_real_,
-    advertencia = paste(advertencias, collapse = " ")
-  )
-}
-
-.con_cobertura_coleccion <- function(salida, origen) {
-  cobertura <- .cobertura_coleccion_de(origen)
-  if (!is.null(cobertura)) {
-    attr(salida, "cobertura_coleccion") <- cobertura
+  salida <- list()
+  salida[[campos[["nombre"]]]] <- paste(nombres, collapse = ", ")
+  if (identical(atributo, "cobertura_coleccion")) salida$colecciones <- nombres
+  salida[[campos[["declaradas"]]]] <- declaradas
+  salida[[campos[["en_el_numero"]]]] <- en_el_numero
+  salida[[campos[["sin_medir"]]]] <- as.character(sin_medir)
+  salida$motivo_sin_medir <- as.character(motivos)
+  salida$cobertura <- if (declaradas > 0) en_el_numero / declaradas else NA_real_
+  salida$advertencia <- paste(advertencias, collapse = " ")
+  # Lo que cada parte declara de mas -que entro con peso cero, que venia
+  # incompleta- tambien se reune: la advertencia lo cuenta y esto lo nombra.
+  for (extra in c("partes_con_peso_cero", "partes_incompletas")) {
+    valores <- unique(as.character(unlist(campo(extra), use.names = FALSE)))
+    if (length(valores)) salida[[extra]] <- valores
   }
   salida
 }
 
-# Imprimir la cobertura de la coleccion. Vive en un solo lugar porque la hacen
-# falta dos objetos -el tablero y el indice- y escribir la misma regla dos veces
-# es de donde salieron la mitad de los defectos de este paquete.
-.imprimir_cobertura_coleccion <- function(cc) {
-  if (is.null(cc)) return(invisible(NULL))
-  cli::cli_h2("Cobertura de la colecci\u00f3n")
-  etiquetas <- c(
-    "Tablas declaradas" = as.character(cc$tablas_declaradas),
-    "Sin medir" = if (length(cc$tablas_sin_medir)) {
-      paste(cc$tablas_sin_medir, collapse = ", ")
-    } else "ninguna"
-  )
-  etiquetas <- c(
-    etiquetas,
-    stats::setNames(
-      as.character(cc$tablas_en_el_numero),
-      .texto_celda_publicada("En el n\u00famero")
-    )
-  )
-  cli::cli_dl(.cli_literal(etiquetas))
-  # Y el motivo de cada tabla que quedo afuera: el nombre solo dice QUE falta,
-  # no por que, y una tabla que no existe y una tabla vacia no son el mismo
-  # problema. El objeto los distingue; la pantalla tambien tiene que hacerlo.
-  if (length(cc$tablas_sin_medir) &&
-      length(cc$motivo_sin_medir) == length(cc$tablas_sin_medir)) {
-    .print_data_frame_bytes(data.frame(
-      tabla = as.character(cc$tablas_sin_medir),
-      motivo = as.character(cc$motivo_sin_medir),
-      stringsAsFactors = FALSE
-    ), row.names = FALSE)
+.con_coberturas_frontera <- function(salida, origen) {
+  coberturas <- .coberturas_frontera_de(origen)
+  for (atributo in names(coberturas)) {
+    attr(salida, atributo) <- coberturas[[atributo]]
   }
+  salida
+}
+
+# Lo que cada nivel publica, como pares etiqueta-valor: la impresion y el
+# informe lo leen de aca, asi que dicen lo mismo.
+.resumen_cobertura_frontera <- function(cc, atributo) {
+  nivel <- .nivel_cobertura_frontera(atributo)
+  campos <- nivel$campos
+  uno <- function(v) if (length(v)) as.character(v[[1L]]) else NA_character_
+  sin_medir <- as.character(cc[[campos[["sin_medir"]]]])
+  salida <- c(
+    declaradas = uno(cc[[campos[["declaradas"]]]]),
+    en_el_numero = uno(cc[[campos[["en_el_numero"]]]]),
+    sin_medir = if (length(sin_medir)) paste(sin_medir, collapse = ", ") else "ninguna"
+  )
+  for (extra in c("partes_con_peso_cero", "partes_incompletas")) {
+    valores <- as.character(cc[[extra]])
+    if (length(valores)) salida[[extra]] <- paste(valores, collapse = ", ")
+  }
+  salida
+}
+
+# El motivo de cada parte que quedo afuera: el nombre solo dice QUE falta, no
+# por que, y una tabla que no existe y una tabla vacia no son el mismo problema.
+.detalle_cobertura_frontera <- function(cc, atributo) {
+  nivel <- .nivel_cobertura_frontera(atributo)
+  sin_medir <- as.character(cc[[nivel$campos[["sin_medir"]]]])
+  motivos <- cc$motivo_sin_medir
+  if (!length(sin_medir) || length(motivos) != length(sin_medir)) return(NULL)
+  detalle <- data.frame(
+    parte = sin_medir, motivo = as.character(motivos), stringsAsFactors = FALSE
+  )
+  names(detalle)[[1L]] <- nivel$parte
+  detalle
+}
+
+# Imprimir las coberturas de frontera. Vive en un solo lugar porque la hacen
+# falta cuatro objetos -la medicion, la evaluacion, el tablero y el indice- y
+# escribir la misma regla dos veces es de donde salieron la mitad de los
+# defectos de este paquete.
+.imprimir_coberturas_frontera <- function(x) {
+  coberturas <- .coberturas_frontera_de(x)
+  for (atributo in names(coberturas)) {
+    .imprimir_cobertura_frontera(coberturas[[atributo]], atributo)
+  }
+  invisible(NULL)
+}
+
+.imprimir_cobertura_frontera <- function(cc, atributo) {
+  if (is.null(cc)) return(invisible(NULL))
+  nivel <- .nivel_cobertura_frontera(atributo)
+  resumen <- .resumen_cobertura_frontera(cc, atributo)
+  cli::cli_h2(.cli_literal(nivel$titulo))
+  etiquetas <- stats::setNames(
+    resumen[c("declaradas", "sin_medir", "en_el_numero")],
+    c(paste(nivel$Partes, "declaradas"), "Sin medir",
+      .texto_celda_publicada("En el n\u00famero"))
+  )
+  if (!is.na(resumen["partes_con_peso_cero"])) {
+    etiquetas <- c(etiquetas, "Con peso cero" = resumen[["partes_con_peso_cero"]])
+  }
+  if (!is.na(resumen["partes_incompletas"])) {
+    etiquetas <- c(etiquetas, "Partes incompletas" = resumen[["partes_incompletas"]])
+  }
+  cli::cli_dl(.cli_literal(etiquetas))
+  detalle <- .detalle_cobertura_frontera(cc, atributo)
+  if (!is.null(detalle)) .print_data_frame_bytes(detalle, row.names = FALSE)
   if (!is.null(cc$advertencia)) cli::cli_alert_warning(.cli_literal(cc$advertencia))
   invisible(NULL)
 }
@@ -1002,7 +1119,7 @@ print.tablero_calidad <- function(x, ...) {
   # tiraba: quien lo mira en pantalla no veia que el numero se calculo sobre una
   # parte de las tablas declaradas. El indice ya la imprimia; eran dos capas del
   # mismo paquete contestando distinto a la misma pregunta.
-  .imprimir_cobertura_coleccion(.cobertura_coleccion_de(x))
+  .imprimir_coberturas_frontera(x)
   invisible(original)
 }
 
@@ -1178,11 +1295,9 @@ print.tablero_calidad <- function(x, ...) {
   # la conserva como atributo, asi que un consumidor generico que lea
   # `attr(x, "cobertura_coleccion")` -el mismo que funciona con el tablero- la
   # perdia al llegar al indice, que es el ultimo consumidor. La declaracion viaja
-  # por las dos vias, que es lo que costaba cero y evitaba el agujero.
-  if (!is.null(resultado$cobertura_coleccion)) {
-    attr(resultado, "cobertura_coleccion") <- resultado$cobertura_coleccion
-  }
-  resultado
+  # por las dos vias, que es lo que costaba cero y evitaba el agujero. Y las
+  # cuatro coberturas de frontera, no solo la de la coleccion: ronda 26.
+  .con_coberturas_frontera(resultado, tablero)
 }
 
 #' Calcular un índice de calidad declarado por el usuario
@@ -1240,7 +1355,7 @@ print.tablero_calidad <- function(x, ...) {
 indice_calidad <- function(medidas, pesos, pesos_internos = NULL, ...) {
   # El indice hereda la cobertura de coleccion de lo que recibe -sea el objeto
   # de `agregar()` o un tablero que ya la traiga-. Ver
-  # `.con_cobertura_coleccion()`: la pieza que dice sobre cuantas tablas de la
+  # `.con_coberturas_frontera()`: la pieza que dice sobre cuantas tablas de la
   # coleccion se calculo el numero tiene que llegar hasta el ultimo consumidor.
   cobertura_coleccion <- .cobertura_coleccion_de(medidas)
   tablero <- if (inherits(medidas, "analisis")) {
@@ -1250,9 +1365,7 @@ indice_calidad <- function(medidas, pesos, pesos_internos = NULL, ...) {
   } else {
     tablero_calidad(medidas, ...)
   }
-  if (!is.null(cobertura_coleccion)) {
-    attr(tablero, "cobertura_coleccion") <- cobertura_coleccion
-  }
+  tablero <- .con_coberturas_frontera(tablero, medidas)
   if (missing(pesos) || is.null(pesos)) return(tablero)
   cobertura_metricas <- attr(tablero, "cobertura_metricas", exact = TRUE)
   # Una metrica sin dimension no entra: el indice combina dimensiones, y pedia
@@ -1365,11 +1478,9 @@ indice_calidad <- function(medidas, pesos, pesos_internos = NULL, ...) {
   # la conserva como atributo, asi que un consumidor generico que lea
   # `attr(x, "cobertura_coleccion")` -el mismo que funciona con el tablero- la
   # perdia al llegar al indice, que es el ultimo consumidor. La declaracion viaja
-  # por las dos vias, que es lo que costaba cero y evitaba el agujero.
-  if (!is.null(resultado$cobertura_coleccion)) {
-    attr(resultado, "cobertura_coleccion") <- resultado$cobertura_coleccion
-  }
-  resultado
+  # por las dos vias, que es lo que costaba cero y evitaba el agujero. Y las
+  # cuatro coberturas de frontera, no solo la de la coleccion: ronda 26.
+  .con_coberturas_frontera(resultado, tablero)
 }
 
 #' @export
@@ -1394,7 +1505,7 @@ print.indice_calidad <- function(x, ...) {
   # imprime porque un indice es UN numero: si la cobertura vive solo en un
   # atributo, quien lo lee en pantalla no la ve. La misma regla la usa el
   # tablero, asi que vive en un solo lugar.
-  .imprimir_cobertura_coleccion(x$cobertura_coleccion)
+  .imprimir_coberturas_frontera(x)
   if (nrow(x$dimensiones)) {
     cli::cli_h2("Dimensiones, pesos y aportes")
     .print_data_frame_bytes(x$dimensiones, row.names = FALSE)

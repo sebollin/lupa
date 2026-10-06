@@ -11,7 +11,9 @@ analizar_tiempo(
   calendario = 1:7,
   frecuencia_dias = NULL,
   max_huecos = 20L,
-  max_columnas = 50L
+  max_columnas = 50L,
+  proteger_datos_personales = TRUE,
+  columnas_personales = character()
 )
 }
 \arguments{
@@ -29,6 +31,14 @@ propone la moda de los intervalos positivos.}
 \item{max_huecos}{Máximo de grupos de huecos devueltos por columna.}
 
 \item{max_columnas}{Máximo de columnas temporales analizadas.}
+
+\item{proteger_datos_personales}{Si se ocultan los rangos y los huecos de
+las columnas temporales que son dato personal. \code{TRUE} por omisión.}
+
+\item{columnas_personales}{Columnas que traen datos personales, declaradas
+con la misma forma que acepta \code{\link[=perfilar]{perfilar()}}. Se suman a las que protege el
+\code{perfil} o, sin él, a las que se clasifican aquí. Sólo tiene efecto con
+\code{proteger_datos_personales = TRUE}.}
 }
 \value{
 Objeto \code{analisis_temporal} con \code{resumen}, \code{dias_semana}, \code{huecos} y
@@ -53,8 +63,11 @@ declara en los atributos \code{columnas_omitidas} y \code{columnas_sin_serie_dia
 en vez de desaparecer.
 Si se recibe un \code{perfil} que declara proteccion para una columna temporal,
 sus rangos y huecos se protegen tambien en esta llamada directa, con el
-mismo texto que usa \code{\link[=analizar]{analizar()}}. Sin \code{perfil} no hay una declaracion que
-leer y el resumen conserva sus fechas.
+mismo texto que usa \code{\link[=analizar]{analizar()}}. Sin \code{perfil}, la columna temporal que es
+un dato personal —una fecha de nacimiento— se clasifica aquí por léxico y
+por forma, como en \code{\link[=clasificar_variables]{clasificar_variables()}}, y sus rangos y huecos se
+protegen igual; lo que sólo quien conoce los datos sabe personal entra por
+\code{columnas_personales}.
 }
 \description{
 Para cada columna temporal propone una frecuencia en días. La confianza es

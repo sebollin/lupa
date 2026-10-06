@@ -10947,6 +10947,20 @@ print.plan_perfilado_dbi <- function(x, ...) {
 # `.cerrar_fuera_de_muestra_dbi()`.
 .MAXIMO_VALORES_PROTEGIDOS_DBI <- 2000000L
 
+# Un valor leido de la base como el texto que se busca: el entero guardado como
+# doble sin su `.0` ni notacion cientifica. Lo usan la lectura fuera de la
+# muestra y la de `perfilar_coleccion()`.
+.texto_de_valores_dbi <- function(v) {
+  if (inherits(v, "integer64")) return(as.character(v))
+  if (is.numeric(v)) {
+    enteros <- !is.na(v) & is.finite(v) & v == round(v) & abs(v) < 1e18
+    salida <- as.character(v)
+    salida[enteros] <- formatC(v[enteros], format = "f", digits = 0)
+    return(salida)
+  }
+  as.character(v)
+}
+
 .valores_protegidos_fuera_de_muestra_dbi <- function(conexion, preparacion,
                                                      perfil, sensibles,
                                                      presupuesto) {
@@ -10971,16 +10985,7 @@ print.plan_perfilado_dbi <- function(x, ...) {
   indices <- match(operar(sensibles), operar(preparacion$campos))
   indices <- indices[!is.na(indices)]
   if (!length(indices)) return(completo)
-  como_texto <- function(v) {
-    if (inherits(v, "integer64")) return(as.character(v))
-    if (is.numeric(v)) {
-      enteros <- !is.na(v) & is.finite(v) & v == round(v) & abs(v) < 1e18
-      salida <- as.character(v)
-      salida[enteros] <- formatC(v[enteros], format = "f", digits = 0)
-      return(salida)
-    }
-    as.character(v)
-  }
+  como_texto <- .texto_de_valores_dbi
   valores <- character()
   fechas <- character()
   for (indice in indices) {
@@ -12133,18 +12138,82 @@ print.plan_perfilado_dbi <- function(x, ...) {
     }, logical(1L))]
   }, error = function(e) character())
   # Y los centinelas de las columnas protegidas -`.rellenos_de_columna()`-, que
-  # la lectura de la tabla entera trae sin sus frecuencias.
-  rellenos <- tryCatch({
+  # la lectura de la tabla entera trae sin sus frecuencias. Con su cuenta en la
+  # muestra: aca solo son CANDIDATOS. La regla pide que la columna sin ellos sea
+  # casi una clave, y en una muestra los clientes que se repiten casi no se
+  # repiten -ronda 26: la cedula valida de un cliente con 600 movimientos salia
+  # como moda de otra columna-. Los confirma la tabla entera, en
+  # `.rellenos_confirmados_tabla_dbi()`.
+  rellenos_detalle <- tryCatch({
     protegidas <- .columnas_personales_protegidas(perfil$datos_personales)
     indices <- .indice_nombre(protegidas, names(datos_muestra))
-    unique(unlist(lapply(indices[!is.na(indices)], function(i) {
-      .rellenos_de_columna(datos_muestra[[i]])
-    }), use.names = FALSE))
-  }, error = function(e) character())
+    filas <- lapply(which(!is.na(indices)), function(j) {
+      x <- datos_muestra[[indices[[j]]]]
+      valores <- .rellenos_de_columna(x)
+      if (!length(valores)) return(NULL)
+      texto <- as.character(x)
+      data.frame(
+        columna = protegidas[[j]], valor = valores,
+        cuenta = vapply(valores, function(v) sum(texto == v, na.rm = TRUE),
+                        numeric(1L), USE.NAMES = FALSE),
+        stringsAsFactors = FALSE
+      )
+    })
+    filas <- Filter(Negate(is.null), filas)
+    if (length(filas)) do.call(rbind, filas) else NULL
+  }, error = function(e) NULL)
+  rellenos <- if (is.null(rellenos_detalle)) character() else {
+    unique(rellenos_detalle$valor)
+  }
   list(perfil = perfil, cobertura = cobertura, muestreo = muestreo_meta,
        valores_protegidos = valores_protegidos,
        columnas_de_fechas = columnas_de_fechas,
-       rellenos = if (is.null(rellenos)) character() else rellenos)
+       rellenos = rellenos, rellenos_detalle = rellenos_detalle)
+}
+
+# Que candidatos a relleno de la muestra lo son en la TABLA ENTERA, con la regla
+# de `.rellenos_de_columna()`: la columna sin ellos, casi una clave. Leida la
+# tabla completa, la muestra es la tabla y se confirman todos. Si no, con los
+# conteos exactos de la tabla: `n_distintos` y `n_validos` calculados, y la
+# cuenta de la muestra como cota inferior de la del candidato -la tasa que da es
+# una cota inferior de la verdadera, asi que si alcanza, alcanza-. Sin conteo
+# exacto no se confirma ninguno y siguen en el piso: no se afloja una guarda
+# sobre lo que solo vio una muestra.
+.rellenos_confirmados_tabla_dbi <- function(detalle, muestreo, columnas, sql) {
+  if (!is.data.frame(detalle) || !nrow(detalle)) return(character())
+  if (is.list(muestreo) && isTRUE(muestreo$tabla_completa)) {
+    return(unique(detalle$valor))
+  }
+  if (!is.data.frame(columnas) ||
+      !all(c("columna", "n_validos", "n_distintos") %in% names(columnas))) {
+    return(character())
+  }
+  operar <- function(x) .nombres_para_operar(as.character(x))
+  calculado <- function(columna, metrica) {
+    is.data.frame(sql) &&
+      all(c("columna", "metrica", "estado") %in% names(sql)) &&
+      any(operar(sql$columna) %in% operar(columna) &
+            as.character(sql$metrica) == metrica &
+            as.character(sql$estado) == "calculado")
+  }
+  confirmados <- character()
+  for (columna in unique(detalle$columna)) {
+    i <- match(operar(columna), operar(columnas$columna))
+    if (is.na(i) || !calculado(columna, "n_validos") ||
+        !calculado(columna, "n_distintos")) next
+    validos <- .numero_dbi(columnas$n_validos[[i]])
+    distintos <- .numero_dbi(columnas$n_distintos[[i]])
+    propios <- detalle[operar(detalle$columna) == operar(columna), ,
+                       drop = FALSE]
+    if (length(validos) != 1L || length(distintos) != 1L ||
+        !is.finite(validos) || !is.finite(distintos)) next
+    resto <- validos - sum(propios$cuenta)
+    if (resto <= 0) next
+    if ((distintos - nrow(propios)) / resto >= .TASA_CASI_CLAVE_RELLENO) {
+      confirmados <- c(confirmados, propios$valor)
+    }
+  }
+  unique(confirmados)
 }
 
 # ---- Portones ------------------------------------------------------------
@@ -13063,7 +13132,16 @@ print.plan_perfilado_dbi <- function(x, ...) {
 #' que se publica, con la misma regla que [perfilar()] en memoria: tildes, caja,
 #' separadores, el documento parcial, los campos numéricos y la evidencia de los
 #' hallazgos. Un valor de una persona que sólo está fuera de la muestra se tapa
-#' igual. Se traen hasta dos millones de valores; si hay más, o si la consulta
+#' igual. El **relleno** que sale del piso en memoria —el dígito repetido cinco
+#' veces o más en una columna que sin él es casi una clave— se decide sobre la
+#' tabla entera, no sobre la muestra: en la muestra de una tabla de movimientos
+#' los clientes que se repiten casi no se repiten, y la cédula válida de un
+#' cliente con seiscientos movimientos salía como moda de otra columna. Con
+#' la tabla leída completa decide la muestra, que es la tabla; si no, la
+#' confirman los conteos exactos de la tabla —`n_distintos` y `n_validos`
+#' calculados—, y sin ellos el relleno sigue en el piso. Y la protección es
+#' **por tabla**: un valor protegido de otra tabla escrito en ésta no se
+#' conoce; [perfilar_coleccion()] los cruza. Se traen hasta dos millones de valores; si hay más, o si la consulta
 #' no se puede hacer, se tapan todos los valores de celda de las columnas no
 #' personales —moda, extremos, ejemplos— y la evidencia de sus hallazgos, y
 #' `resumen_tabla$meta$proteccion_personal$fuera_de_muestra` dice por qué. En
@@ -14000,17 +14078,31 @@ perfilar_dbi <- function(conexion, tabla,
       sensibles_muestra <- .columnas_personales_protegidas(
         bloque$perfil$datos_personales
       )
+      # Los rellenos que la tabla entera no confirma vuelven al piso: en el
+      # resumen, en la lectura fuera de la muestra y en el perfil de la muestra,
+      # que `perfilar()` protegio decidiendo sobre la muestra.
+      rellenos <- .rellenos_confirmados_tabla_dbi(
+        bloque$rellenos_detalle, bloque$muestreo, resumen$columnas,
+        resumen$sql
+      )
+      no_confirmados <- setdiff(bloque$rellenos, rellenos)
       resumen <- .proteger_resumen_dbi(
         resumen, sensibles_muestra, "perfil_muestra", bloque$perfil,
-        valores_muestra = bloque$valores_protegidos,
+        valores_muestra = c(bloque$valores_protegidos, no_confirmados),
         columnas_de_fechas = bloque$columnas_de_fechas,
-        rellenos = bloque$rellenos
+        rellenos = rellenos
       )
+      if (length(no_confirmados)) {
+        bloque$perfil <- .proteger_con_valores_dbi(
+          bloque$perfil, no_confirmados,
+          as.character(resumen$columnas$columna)
+        )
+      }
       fuera <- .valores_protegidos_fuera_de_muestra_dbi(
         conexion, preparacion, bloque$perfil, sensibles_muestra, presupuesto
       )
       fuera$valores <- fuera$valores[
-        !.recortar_bytes(fuera$valores) %in% bloque$rellenos
+        !.recortar_bytes(fuera$valores) %in% rellenos
       ]
       if (isTRUE(fuera$completo)) {
         intocables <- as.character(resumen$columnas$columna)

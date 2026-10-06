@@ -1,7 +1,7 @@
 # O25: la proteccion debe mantenerse entre las puertas que publican un
 # resumen temporal, un analisis persistido y un perfil DBI.
 
-test_that("analizar_tiempo respeta la proteccion del perfil y sin perfil no", {
+test_that("analizar_tiempo respeta la proteccion del perfil, y sin perfil clasifica", {
   datos <- data.frame(
     id = 1:30,
     nacimiento = as.Date("1960-01-01") + 1:30,
@@ -21,13 +21,24 @@ test_that("analizar_tiempo respeta la proteccion del perfil y sin perfil no", {
   expect_true(is.na(fila$fecha_maxima))
   expect_equal(fila$proteccion_temporal, "[rangos y huecos protegidos]")
 
-  # Control: sin perfil no existe una declaracion de proteccion que leer.
+  # Sin perfil, la columna se clasifica aca -por su nombre- como en
+  # `clasificar_variables()`, y se protege igual. Hasta la ronda 26 este control
+  # pedia lo contrario: sin perfil "no habia declaracion que leer" y se
+  # publicaban el minimo y el maximo de los nacimientos.
   sin_perfil <- analizar_tiempo(datos, columnas = "nacimiento")
   fila_sin_perfil <- sin_perfil$resumen[
     sin_perfil$resumen$columna == "nacimiento", , drop = FALSE
   ]
-  expect_equal(fila_sin_perfil$fecha_minima, min(datos$nacimiento))
-  expect_equal(fila_sin_perfil$fecha_maxima, max(datos$nacimiento))
+  expect_true(is.na(fila_sin_perfil$fecha_minima))
+  expect_true(is.na(fila_sin_perfil$fecha_maxima))
+  # Control: con la proteccion apagada, las fechas se publican.
+  abierto <- analizar_tiempo(datos, columnas = "nacimiento",
+                             proteger_datos_personales = FALSE)
+  fila_abierta <- abierto$resumen[
+    abierto$resumen$columna == "nacimiento", , drop = FALSE
+  ]
+  expect_equal(fila_abierta$fecha_minima, min(datos$nacimiento))
+  expect_equal(fila_abierta$fecha_maxima, max(datos$nacimiento))
 })
 
 test_that("el guardado declara la proteccion que ya trae el analisis", {

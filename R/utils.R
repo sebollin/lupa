@@ -1218,13 +1218,31 @@
   }
   salida <- .caracter_por_omision(x)
   if (!is.double(x)) return(salida)
-  for (digitos in c(16L, 17L)) {
-    vuelve <- suppressWarnings(as.numeric(salida))
-    faltan <- !is.na(x) & is.finite(x) & (is.na(vuelve) | vuelve != x)
-    if (!any(faltan)) break
-    salida[faltan] <- sprintf(paste0("%.", digitos, "g"), x[faltan])
+  cifras <- .cifras_reversibles(x, salida)
+  faltan <- !is.na(cifras)
+  if (any(faltan)) {
+    salida[faltan] <- sprintf(paste0("%.", cifras[faltan], "g"), x[faltan])
   }
   salida
+}
+
+# Cuantas cifras significativas le faltan al texto de un doble para volver a SU
+# valor: `NA` si el que ya tiene vuelve -o no es un numero finito-; si no, 16 o
+# 17, las que necesitan `1/3` o `0.1 + 0.2`. Es la regla de la etiqueta
+# reversible y la de las cifras del informe -que las escribe sin exponente-, en
+# un solo lugar. El texto se lee con la marca decimal de la sesion; las cifras se
+# cuentan con `sprintf()`, que no depende de `OutDec` ni de `scipen`.
+.cifras_reversibles <- function(x, texto = sprintf("%.15g", x)) {
+  x <- as.double(x)
+  cifras <- rep(NA_integer_, length(x))
+  marca <- getOption("OutDec", ".")
+  if (!identical(marca, ".")) texto <- chartr(marca, ".", texto)
+  leido <- suppressWarnings(as.numeric(texto))
+  faltan <- !is.na(x) & is.finite(x) & (is.na(leido) | leido != x)
+  if (!any(faltan)) return(cifras)
+  vuelve <- as.numeric(sprintf("%.16g", x[faltan])) == x[faltan]
+  cifras[faltan] <- ifelse(vuelve, 16L, 17L)
+  cifras
 }
 
 # Texto que identifica un valor para emparejarlo con otro: dos valores iguales dan

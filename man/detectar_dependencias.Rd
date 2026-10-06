@@ -15,7 +15,9 @@ detectar_dependencias(
   min_observaciones = 10L,
   max_ejemplos = 5L,
   max_comparaciones = 200000L,
-  max_trabajo = 1e+08
+  max_trabajo = 1e+08,
+  proteger_datos_personales = TRUE,
+  columnas_personales = character()
 )
 }
 \arguments{
@@ -48,10 +50,30 @@ comparan. \code{Inf} desactiva el presupuesto.}
 \item{max_trabajo}{Máximo de unidades fila-par estimadas. \code{Inf} desactiva el
 presupuesto que escala con las filas; se combina con
 \code{max_comparaciones} y se aplica el límite más restrictivo.}
+
+\item{proteger_datos_personales}{Si los valores de las columnas clasificadas
+como dato personal se ocultan en \code{evidencia}. \code{TRUE} por omisión; los
+nombres de columna y los conteos se conservan igual. La clasificación se
+hace aquí por léxico y por forma —esta función no recibe un perfil—, así
+que lo que sólo quien conoce los datos sabe personal entra por
+\code{columnas_personales}. \code{\link[=perfilar]{perfilar()}} la llama con \code{FALSE} porque protege el
+perfil entero después.}
+
+\item{columnas_personales}{Columnas que traen datos personales, declaradas
+con la misma forma que acepta \code{\link[=perfilar]{perfilar()}}: nombres de columna, o un vector
+con nombre donde el nombre es la columna y el valor es el tipo. Sin ella,
+una columna que el léxico no reconoce —un legajo interno— publica sus
+valores en \code{evidencia}. Sólo tiene efecto con
+\code{proteger_datos_personales = TRUE}.}
 }
 \value{
 Data frame de clase \code{dependencias_funcionales}, ordenado por
-cumplimiento y soporte. Los atributos \code{muestreado}, \code{filas_analizadas},
+cumplimiento y soporte. \code{evidencia} cita contradicciones concretas, y \strong{no
+publica los valores de una columna clasificada como dato personal}: la
+evidencia de un par que nombra una columna personal sale entera como
+\verb{[evidencia protegida]} —lo mismo que en el perfil— y, en las demás, lo que
+repite un valor de una columna personal de la tabla —una observación que
+cita la cédula— se tapa con el mismo piso que aplica \code{\link[=perfilar]{perfilar()}}. Los atributos \code{muestreado}, \code{filas_analizadas},
 \code{columnas_analizadas}, \code{columnas_omitidas}, \code{columnas_descartadas} y
 \code{truncado} documentan el alcance efectivo. \code{n_pares_posibles},
 \code{n_pares_comparados}, \code{n_pares_sin_comparar} y \code{max_comparaciones}

@@ -642,12 +642,19 @@ rbind.historico_calidad <- function(..., deparse.level = 1) {
 # perfil en dos no cambia que se puede publicar. Medido en la ronda 25.
 .claves_suprimidas_historico <- function(historico) {
   if (!nrow(historico)) return(character())
-  marcadas <- as.character(historico$nivel) %in% c("medida", "evaluacion_medida") &
-    is.na(historico$resultado) & !is.na(historico$objeto_medible) &
-    grepl("[valor suprimido]", as.character(historico$objeto_medible), fixed = TRUE)
+  marcadas <- .filas_suprimidas_historico(historico)
   unique(paste(.clave_bytes(as.character(historico$id_medicion[marcadas])),
                .clave_bytes(as.character(historico$id_medida[marcadas])),
                sep = "\r"))
+}
+
+# Que filas del historico declaran una medida suprimida: la regla la leen la
+# propagacion entre historicos y `reportar()`, que reparte esas supresiones a
+# los demas objetos del informe.
+.filas_suprimidas_historico <- function(historico) {
+  as.character(historico$nivel) %in% c("medida", "evaluacion_medida") &
+    is.na(historico$resultado) & !is.na(historico$objeto_medible) &
+    grepl("[valor suprimido]", as.character(historico$objeto_medible), fixed = TRUE)
 }
 
 .propagar_suprimidas_historico <- function(historico, claves) {
@@ -1938,9 +1945,21 @@ detectar_deriva_calidad <- function(historico, nivel = c("perfil", "regla"),
 # primero. Un par con alguna fila `no_comparable` no tiene delta. Leerlo en dos
 # lugares con dos reglas es como el informe termino borrando un delta que la
 # deriva publicaba.
-.lectura_par_deriva <- function(deriva, filas) {
+#
+# Y cuando la deriva NO arma el par -las dos corridas miden tablas distintas, o la
+# serie no las junta-, la lectura dice por que si quien llama nombra las dos
+# corridas (`ids`, la anterior primero) y su perfil. `comparar_evaluaciones()` lo
+# decia y la evolucion del informe dejaba la celda vacia: la serie de una tabla y
+# la de otra se leian, bajo el mismo perfil, como una mejora. Ronda 26.
+.lectura_par_deriva <- function(deriva, filas, configuracion = NULL,
+                                perfil = NULL, ids = NULL) {
   if (!length(filas)) {
-    return(list(delta = NA_real_, comparacion = NA_character_))
+    return(list(
+      delta = NA_real_,
+      comparacion = if (length(ids) == 2L) {
+        .motivo_sin_par_deriva(configuracion, perfil, ids[[1L]], ids[[2L]])
+      } else NA_character_
+    ))
   }
   resultado <- filas[as.character(deriva$aspecto[filas]) == "resultado"]
   no_comparable <- any(deriva$cambio[filas] %in% "no_comparable")
@@ -1955,4 +1974,31 @@ detectar_deriva_calidad <- function(historico, nivel = c("perfil", "regla"),
       unique(as.character(deriva$descripcion[orden])), collapse = " "
     )
   )
+}
+
+# Por que la deriva no compara dos corridas de un perfil: la tabla de cada una
+# sale de la configuracion del historico, que es con lo que la deriva separa las
+# series.
+.motivo_sin_par_deriva <- function(configuracion, perfil, id_anterior, id_actual) {
+  clave <- function(x) .clave_bytes(as.character(x))
+  identidad_de <- function(id) {
+    if (!inherits(configuracion, "data.frame") || !nrow(configuracion) ||
+        !all(c("id_medicion", "perfil", "identidad_tabla") %in%
+               names(configuracion))) {
+      return(NA_character_)
+    }
+    i <- which(clave(configuracion$id_medicion) == clave(id) &
+                 clave(configuracion$perfil) == clave(perfil))
+    if (length(i)) as.character(configuracion$identidad_tabla[[i[[1L]]]]) else NA_character_
+  }
+  tabla_anterior <- identidad_de(id_anterior)
+  tabla_actual <- identidad_de(id_actual)
+  if (!identical(tabla_anterior, tabla_actual)) {
+    paste0(
+      "No se puede comparar: las dos corridas no miden la misma tabla (",
+      tabla_anterior, " contra ", tabla_actual, ")."
+    )
+  } else {
+    "No se puede comparar: la deriva no arma un par con estas dos corridas."
+  }
 }

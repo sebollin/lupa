@@ -129,7 +129,25 @@ familias <- list(
   lista_tabulador = sprintf("%d\t%d\t%d", sample(10:999, m, TRUE),
                             sample(10:999, m, TRUE), sample(10:999, m, TRUE)),
   dos_numeros_en_dos_lineas = sprintf("%d\n%d", sample(1000:9999, m, TRUE),
-                                      sample(1000:9999, m, TRUE))
+                                      sample(1000:9999, m, TRUE)),
+  # Ronda 26: las familias que la refutacion midio sin cifra en la ayuda, y
+  # los importes de cuatro grupos que comparten forma con un celular con su
+  # prefijo de pais. Al final, para no cambiar los numeros de las de arriba.
+  version_cuatro_partes = sprintf("v%d.%d.%d.%d", sample(1:9, m, TRUE),
+                                  sample(0:99, m, TRUE), sample(0:999, m, TRUE),
+                                  sample(0:9999, m, TRUE)),
+  rango_de_redes = sprintf("%d.%d.%d.0/24-%d.%d.%d.0/24", sample(1:255, m, TRUE),
+                           sample(0:255, m, TRUE), sample(0:255, m, TRUE),
+                           sample(1:255, m, TRUE), sample(0:255, m, TRUE),
+                           sample(0:255, m, TRUE)),
+  expediente_con_guiones = sprintf("exp %d-%d-%06d", sample(2015:2024, m, TRUE),
+                                   sample(1:9, m, TRUE), sample(0:999999, m, TRUE)),
+  monto_12_cifras_miles = formatC(runif(m, 1e11, 1e12), format = "f", digits = 0,
+                                  big.mark = ".", decimal.mark = ","),
+  monto_10_cifras_coma = formatC(runif(m, 1e9, 1e10), format = "f", digits = 0,
+                                 big.mark = ","),
+  monto_10_cifras_apostrofo = formatC(runif(m, 1e9, 1e10), format = "f", digits = 0,
+                                      big.mark = "'")
 )
 cat("valores protegidos:", length(valores), "\n")
 for (familia in names(familias)) {

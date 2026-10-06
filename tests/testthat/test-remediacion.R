@@ -330,6 +330,14 @@ test_that("las precondiciones impiden conversiones parciales y marcas pisadas", 
 
   duplicados <- data.frame(x = c(1, 1), .fila_duplicada = FALSE)
   plan_duplicados <- planificar_limpieza(perfilar(duplicados))
+  # Si la marca ya esta al planificar, el plan bloquea la accion y dice por que
+  # -antes la recomendaba y activaba, y fallaba en cada ronda-. Forzada a mano,
+  # el ejecutor tampoco pisa la marca.
+  fila <- plan_duplicados$estrategia == "marcar_filas_duplicadas"
+  expect_identical(as.character(plan_duplicados$estado[fila]), "bloqueada")
+  expect_match(plan_duplicados$justificacion[fila], "ya existe", fixed = TRUE)
+  plan_duplicados$estado[fila] <- "lista"
+  plan_duplicados$aplicar[fila] <- TRUE
   fallo_duplicados <- aplicar(plan_duplicados, duplicados)
   expect_true(any(grepl("marca ya existe", fallo_duplicados$registro$error)))
 })

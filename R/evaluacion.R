@@ -871,7 +871,8 @@ perfiles_madurez <- function(metricas = NULL, umbrales = NULL) {
 }
 
 .proteger_medicion_desenlaces <- function(
-    x, desenlaces, reemplazo = "[valor suprimido]", marcar_objeto = FALSE) {
+    x, desenlaces, reemplazo = "[valor suprimido]", marcar_objeto = FALSE,
+    como_texto = as.character) {
   if (!inherits(x, "data.frame") || !nrow(x) || is.null(desenlaces) ||
       !all(c("resultado", "id_medida", "id_medicion",
              "metrica_instanciada") %in% names(x))) {
@@ -883,7 +884,7 @@ perfiles_madurez <- function(metricas = NULL, umbrales = NULL) {
     x$resultado <- as.numeric(x$resultado)
     x$resultado[suprimidas] <- NA_real_
   } else {
-    x$resultado <- as.character(x$resultado)
+    x$resultado <- como_texto(x$resultado)
     x$resultado[suprimidas] <- as.character(reemplazo)
   }
   if (isTRUE(marcar_objeto) && "objeto_medible" %in% names(x)) {
@@ -899,7 +900,8 @@ perfiles_madurez <- function(metricas = NULL, umbrales = NULL) {
   x
 }
 
-.proteger_tablero_desenlaces <- function(x, desenlaces) {
+.proteger_tablero_desenlaces <- function(x, desenlaces,
+                                        como_texto = as.character) {
   if (!inherits(x, "data.frame") || !nrow(x) || is.null(desenlaces) ||
       !all(c("metrica", "valor") %in% names(x)) ||
       !"metrica_instanciada" %in% names(desenlaces)) {
@@ -924,21 +926,41 @@ perfiles_madurez <- function(metricas = NULL, umbrales = NULL) {
   }
   suprimidas[is.na(suprimidas)] <- FALSE
   if (!any(suprimidas)) return(x)
-  x$valor <- as.character(x$valor)
+  x$valor <- como_texto(x$valor)
   x$valor[suprimidas] <- "[valor suprimido]"
   x
 }
 
+# `desenlaces`: las supresiones de los OTROS objetos que se publican junto a
+# esta evaluacion -las de todo el informe-. La evaluacion usaba solo las suyas, y
+# en `reportar(ev1, ev2)` la medida que `ev1` manda no publicar salia en las
+# medidas de `ev2` -"no cumple x > 0.5", que en una medida booleana es el 0-,
+# mientras la medicion y el historico del mismo informe la tapaban con las de
+# todos. La promesa es por medida del documento. Medido en la ronda 26.
 .proteger_evaluacion_desenlaces <- function(x, reemplazo = "[valor suprimido]",
-                                            incluir_medidas = TRUE) {
-  if (!inherits(x$desenlaces, "data.frame") ||
-      !nrow(x$desenlaces) || !"valor_medido" %in% names(x$desenlaces)) {
-    return(x)
-  }
-  suprimidas <- x$desenlaces$desenlace == "suprimir"
-  if (any(suprimidas)) {
-    x$desenlaces$valor_medido <- as.character(x$desenlaces$valor_medido)
-    x$desenlaces$valor_medido[suprimidas] <- "[valor suprimido]"
+                                            incluir_medidas = TRUE,
+                                            desenlaces = NULL,
+                                            como_texto = as.character) {
+  requeridas <- c("id_medida", "id_medicion", "metrica_instanciada")
+  claves <- Filter(Negate(is.null), lapply(
+    list(.desenlaces_de_objeto(x), desenlaces),
+    function(d) {
+      if (!inherits(d, "data.frame") || !nrow(d) ||
+          !all(requeridas %in% names(d))) return(NULL)
+      as.data.frame(lapply(unclass(d)[requeridas], as.character),
+                    stringsAsFactors = FALSE)
+    }
+  ))
+  if (!length(claves)) return(x)
+  suprimidos <- do.call(rbind, claves)
+  if (inherits(x$desenlaces, "data.frame") && nrow(x$desenlaces) &&
+      "valor_medido" %in% names(x$desenlaces)) {
+    tapar <- x$desenlaces$desenlace %in% "suprimir" |
+      .filas_desenlaces(x$desenlaces, suprimidos)
+    if (any(tapar)) {
+      x$desenlaces$valor_medido <- como_texto(x$desenlaces$valor_medido)
+      x$desenlaces$valor_medido[tapar] <- "[valor suprimido]"
+    }
   }
   # `desenlace = "suprimir"` declara que las medidas que no cumplen la
   # condicion **no deben publicarse**, y aca se enmascaraba solo su
@@ -954,10 +976,10 @@ perfiles_madurez <- function(metricas = NULL, umbrales = NULL) {
   # no tiene donde llevar la marca -no trae `objeto_medible`, que es como el
   # historico reconoce una supresion legitima-, asi que enmascarar ahi dejaria
   # un `NA` indistinguible de una medida que falta.
-  if (isTRUE(incluir_medidas) && any(suprimidas) &&
+  if (isTRUE(incluir_medidas) &&
       inherits(x$medidas, "data.frame") &&
       "resultado" %in% names(x$medidas)) {
-    filas <- .filas_desenlaces(x$medidas, x$desenlaces)
+    filas <- .filas_desenlaces(x$medidas, suprimidos)
     if (any(filas)) {
       if (length(reemplazo) == 1L && is.na(reemplazo)) {
         # `NA` **del tipo que ya tiene**: la tabla `medidas` valida su contrato
@@ -966,7 +988,7 @@ perfiles_madurez <- function(metricas = NULL, umbrales = NULL) {
         # desde el historico.
         x$medidas$resultado[filas] <- NA
       } else {
-        x$medidas$resultado <- as.character(x$medidas$resultado)
+        x$medidas$resultado <- como_texto(x$medidas$resultado)
         x$medidas$resultado[filas] <- as.character(reemplazo)
       }
     }
@@ -1151,7 +1173,7 @@ print.medicion <- function(x, ...) {
   # falta una. Es la tercera capa con la misma pregunta: el indice ya la imprimia
   # y el tablero se arreglo en su vuelta; esta quedaba muda, y es la que se mira
   # primero despues de agregar.
-  .imprimir_cobertura_coleccion(.cobertura_coleccion_de(x))
+  .imprimir_coberturas_frontera(x)
   # Una metrica por celda que midio menos celdas de las que hay en el universo
   # aplicable lo declara en `alcance_medidas`, y esta impresion es donde se lee
   # el numero: el promedio de tres celdas de cuatro no se distingue del de cuatro
@@ -1237,7 +1259,7 @@ print.evaluacion_calidad <- function(x, ...) {
       ". El detalle esta en `attr(evaluacion, \"cobertura_reglas\")`."
     )))
   }
-  .imprimir_cobertura_coleccion(.cobertura_coleccion_de(original))
+  .imprimir_coberturas_frontera(original)
   invisible(original)
 }
 
@@ -1472,12 +1494,6 @@ comparar_evaluaciones <- function(anterior, actual) {
     gsub("\001", "actual", x, fixed = TRUE)
   }
   clave <- function(x) .clave_bytes(as.character(x))
-  identidad_de <- function(id, perfil) {
-    configuracion <- deriva$configuracion
-    i <- which(clave(configuracion$id_medicion) == clave(id) &
-                 clave(configuracion$perfil) == clave(perfil))
-    if (length(i)) as.character(configuracion$identidad_tabla[[i[[1L]]]]) else NA_character_
-  }
   for (k in seq_len(nrow(combinado))) {
     perfil <- combinado$perfil[[k]]
     if (is.na(combinado$id_medicion_anterior[[k]]) ||
@@ -1495,16 +1511,10 @@ comparar_evaluaciones <- function(anterior, actual) {
       clave(tabla$id_medicion_actual) == clave(id_a)
     filas <- which(directo | inverso)
     if (!length(filas)) {
-      tabla_a <- identidad_de(id_a, perfil)
-      tabla_b <- identidad_de(id_b, perfil)
-      combinado$comparacion[[k]] <- if (!identical(tabla_a, tabla_b)) {
-        paste0(
-          "No se puede comparar: las dos corridas no miden la misma tabla (",
-          tabla_a, " contra ", tabla_b, ")."
-        )
-      } else {
-        "No se puede comparar: la deriva no arma un par con estas dos corridas."
-      }
+      combinado$comparacion[[k]] <- .lectura_par_deriva(
+        tabla, filas, configuracion = deriva$configuracion, perfil = perfil,
+        ids = c(id_a, id_b)
+      )$comparacion
       next
     }
     lectura <- .lectura_par_deriva(tabla, filas)

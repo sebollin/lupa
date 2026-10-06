@@ -226,7 +226,22 @@
     # protegido escrito con el agudo modificador en lugar de la tilde se
     # publicaba, mientras con el acento U+00B4, que es un signo, se tapaba.
     # Medido en la ronda 25.
-    textos <- gsub("[\u02c6-\u02d1]", "", textos, perl = TRUE)
+    #
+    # Y en la ronda 26, el resto de las letras modificadoras que hacen de acento
+    # o de apostrofo: la prima U+02B9, el apostrofo modificador U+02BC -el que la
+    # ayuda acepta en ASCII-, los semianillos, el circunflejo bajo U+A788, la
+    # tilde vertical U+2E2F, y las del armenio y el n'ko. Doce de cuarenta y
+    # cinco con nombre de acento quedaban: el nombre protegido escrito con una
+    # de ellas en lugar de la tilde se publicaba. Va todo el bloque de las
+    # letras modificadoras de espaciado (U+02B0 a U+02FF): lo que alli es una
+    # letra con forma de compatibilidad -la h volada- ya lo plego el mapa, como
+    # a la ele con tilde U+AB5E, que es una letra y queda como tal. Solo
+    # pegadas a una letra, que es donde hacen de acento: entre cifras, la prima
+    # sigue sin unir un numero, como dice la ayuda.
+    textos <- gsub(paste0(
+      "(?<=\\p{L})[\u02b0-\u02ff\u0559\u07f4\u07f5\u2e2f\ua788]|",
+      "[\u02b0-\u02ff\u0559\u07f4\u07f5\u2e2f\ua788](?=\\p{L})"
+    ), "", textos, perl = TRUE)
     textos <- .transliterar_ascii(textos)
     textos <- .normalizacion_minusculas_vector(textos)
     gsub(sigma_final, sigma, textos, fixed = TRUE)

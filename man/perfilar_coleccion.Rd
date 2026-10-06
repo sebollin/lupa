@@ -36,7 +36,18 @@ menos filas, y sobre una coleccion grande conviene mirar antes
 \code{\link[=plan_perfilado_dbi]{plan_perfilado_dbi()}} tabla por tabla.}
 
 \item{conservar_perfiles}{Si se retienen los objetos \code{perfil_dbi} completos.
-Por omisión \code{FALSE}.}
+Por omisión \code{FALSE}. Retenidos, cada uno se protege además con los
+valores protegidos de las \strong{demás} tablas de la colección: una
+observación de \code{movimientos} que cita la cédula y el nombre de un cliente
+se tapa aunque \code{movimientos} no tenga ninguna columna personal, porque la
+colección es un solo objeto. Esos valores se leen de la base, una consulta
+por columna protegida, con la regla de \code{\link[=perfilar]{perfilar()}} —también la de los
+rellenos, con sus frecuencias—; si alguna lectura falla, o una tabla no
+se pudo clasificar porque su muestra no se leyó, en los perfiles
+de las otras tablas se tapan los valores y la evidencia de las columnas no
+personales, y \code{resumen_tabla$meta$proteccion_personal$otras_tablas} dice
+por qué. \code{\link[=perfilar_dbi]{perfilar_dbi()}} sobre una tabla sola protege sólo con los de
+esa tabla.}
 
 \item{cobertura_metricas}{Qué se sube a \code{cobertura_metricas}: \code{"no_medidas"}
 (por omisión) sólo las métricas que no se calcularon, \code{"completa"} todas
