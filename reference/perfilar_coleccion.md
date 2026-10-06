@@ -53,7 +53,20 @@ perfilar_coleccion(
 - conservar_perfiles:
 
   Si se retienen los objetos `perfil_dbi` completos. Por omisión
-  `FALSE`.
+  `FALSE`. Retenidos, cada uno se protege además con los valores
+  protegidos de las **demás** tablas de la colección: una observación de
+  `movimientos` que cita la cédula y el nombre de un cliente se tapa
+  aunque `movimientos` no tenga ninguna columna personal, porque la
+  colección es un solo objeto. Esos valores se leen de la base, una
+  consulta por columna protegida, con la regla de
+  [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md)
+  —también la de los rellenos, con sus frecuencias—; si alguna lectura
+  falla, o una tabla no se pudo clasificar porque su muestra no se leyó,
+  en los perfiles de las otras tablas se tapan los valores y la
+  evidencia de las columnas no personales, y
+  `resumen_tabla$meta$proteccion_personal$otras_tablas` dice por qué.
+  [`perfilar_dbi()`](https://sebollin.github.io/lupa/reference/perfilar_dbi.md)
+  sobre una tabla sola protege sólo con los de esa tabla.
 
 - cobertura_metricas:
 

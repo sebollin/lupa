@@ -81,7 +81,9 @@ equipo que ejecuta el análisis.</p>
 <span>  calendario <span class="op">=</span> <span class="fl">1</span><span class="op">:</span><span class="fl">7</span>,</span>
 <span>  frecuencia_dias <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  max_huecos <span class="op">=</span> <span class="fl">20L</span>,</span>
-<span>  max_columnas <span class="op">=</span> <span class="fl">50L</span></span>
+<span>  max_columnas <span class="op">=</span> <span class="fl">50L</span>,</span>
+<span>  proteger_datos_personales <span class="op">=</span> <span class="cn">TRUE</span>,</span>
+<span>  columnas_personales <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/character.html" class="external-link">character</a></span><span class="op">(</span><span class="op">)</span></span>
 <span><span class="op">)</span></span></code></pre></div>
     </div>
 
@@ -117,6 +119,18 @@ propone la moda de los intervalos positivos.</p></dd>
 <dt id="arg-max-columnas">max_columnas<a class="anchor" aria-label="anchor" href="#arg-max-columnas"></a></dt>
 <dd><p>Máximo de columnas temporales analizadas.</p></dd>
 
+
+<dt id="arg-proteger-datos-personales">proteger_datos_personales<a class="anchor" aria-label="anchor" href="#arg-proteger-datos-personales"></a></dt>
+<dd><p>Si se ocultan los rangos y los huecos de
+las columnas temporales que son dato personal. <code>TRUE</code> por omisión.</p></dd>
+
+
+<dt id="arg-columnas-personales">columnas_personales<a class="anchor" aria-label="anchor" href="#arg-columnas-personales"></a></dt>
+<dd><p>Columnas que traen datos personales, declaradas
+con la misma forma que acepta <code><a href="perfilar.html">perfilar()</a></code>. Se suman a las que protege el
+<code>perfil</code> o, sin él, a las que se clasifican aquí. Sólo tiene efecto con
+<code>proteger_datos_personales = TRUE</code>.</p></dd>
+
 </dl></div>
     <div class="section level2">
     <h2 id="value">Value<a class="anchor" aria-label="anchor" href="#value"></a></h2>
@@ -141,8 +155,11 @@ declara en los atributos <code>columnas_omitidas</code> y <code>columnas_sin_ser
 en vez de desaparecer.
 Si se recibe un <code>perfil</code> que declara proteccion para una columna temporal,
 sus rangos y huecos se protegen tambien en esta llamada directa, con el
-mismo texto que usa <code><a href="analizar.html">analizar()</a></code>. Sin <code>perfil</code> no hay una declaracion que
-leer y el resumen conserva sus fechas.</p>
+mismo texto que usa <code><a href="analizar.html">analizar()</a></code>. Sin <code>perfil</code>, la columna temporal que es
+un dato personal —una fecha de nacimiento— se clasifica aquí por léxico y
+por forma, como en <code><a href="clasificar_variables.html">clasificar_variables()</a></code>, y sus rangos y huecos se
+protegen igual; lo que sólo quien conoce los datos sabe personal entra por
+<code>columnas_personales</code>.</p>
     </div>
     <div class="section level2">
     <h2 id="see-also">See also<a class="anchor" aria-label="anchor" href="#see-also"></a></h2>

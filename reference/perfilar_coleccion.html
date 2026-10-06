@@ -94,7 +94,18 @@ menos filas, y sobre una coleccion grande conviene mirar antes
 
 <dt id="arg-conservar-perfiles">conservar_perfiles<a class="anchor" aria-label="anchor" href="#arg-conservar-perfiles"></a></dt>
 <dd><p>Si se retienen los objetos <code>perfil_dbi</code> completos.
-Por omisión <code>FALSE</code>.</p></dd>
+Por omisión <code>FALSE</code>. Retenidos, cada uno se protege además con los
+valores protegidos de las <strong>demás</strong> tablas de la colección: una
+observación de <code>movimientos</code> que cita la cédula y el nombre de un cliente
+se tapa aunque <code>movimientos</code> no tenga ninguna columna personal, porque la
+colección es un solo objeto. Esos valores se leen de la base, una consulta
+por columna protegida, con la regla de <code><a href="perfilar.html">perfilar()</a></code> —también la de los
+rellenos, con sus frecuencias—; si alguna lectura falla, o una tabla no
+se pudo clasificar porque su muestra no se leyó, en los perfiles
+de las otras tablas se tapan los valores y la evidencia de las columnas no
+personales, y <code>resumen_tabla$meta$proteccion_personal$otras_tablas</code> dice
+por qué. <code><a href="perfilar_dbi.html">perfilar_dbi()</a></code> sobre una tabla sola protege sólo con los de
+esa tabla.</p></dd>
 
 
 <dt id="arg-cobertura-metricas">cobertura_metricas<a class="anchor" aria-label="anchor" href="#arg-cobertura-metricas"></a></dt>

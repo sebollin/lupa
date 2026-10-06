@@ -83,7 +83,10 @@ no cambia nada queda `fallida`, porque la ausencia de efecto es
 observable sin depender de la estimación. Si una columna de entrada es
 un factor, las acciones que transforman su texto devuelven una columna
 `character`: no se reconstruyen los niveles originales, porque una
-limpieza puede introducir valores nuevos.
+limpieza puede introducir valores nuevos. Los atributos de cada columna
+—la etiqueta de variable que deja `haven`— sobreviven a las acciones que
+la reescriben, a las conversiones de tipo y a las que quitan filas;
+quitar filas de un `data.table` conserva su clave.
 
 ## Details
 
@@ -260,10 +263,14 @@ codificación de un texto que quería decir `&amp;`: la segunda capa se
 decide viéndola. `reemplazar_separadores` convierte tabulaciones, saltos
 de línea, avances de página y tabulaciones verticales (`\\t`, `\\n`,
 `\\r`, `\\r\\n`, `\\f` y `\\v`) en un espacio y también requiere una
-decisión explícita. Las tres acciones registran el número de valores
-cambiados. Una comparación aproximada con `normalizar = TRUE` usa estas
-mismas clases: colapsa espacios y omite basura de transporte, pero
-conserva ZWJ/ZWNJ.
+decisión explícita. Son exactamente los códigos 9 a 13 que cuenta el
+hallazgo: los separadores Unicode U+2028 y U+2029 son de
+`normalizar_espacios_invisibles` y el control U+0085 de
+`eliminar_controles_invisibles`, y sobre celdas `bytes` la acción no
+toca ningún byte de un carácter multibyte. Las tres acciones registran
+el número de valores cambiados. Una comparación aproximada con
+`normalizar = TRUE` usa estas mismas clases: colapsa espacios y omite
+basura de transporte, pero conserva ZWJ/ZWNJ.
 
 Las imputaciones por dependencia funcional se ofrecen desactivadas.
 Aunque una dependencia exacta permite deducir un valor sin usar media,
@@ -273,17 +280,42 @@ de negocio. El plan conserva el mapa y su soporte para que el usuario la
 confirme; sólo entonces se aplica y se vuelve a validar contra los datos
 recibidos. Si la protección enmascaró alguna clave del mapa, éste no se
 usa como tabla de cruce: la relación se reconstruye sobre los datos
-recibidos con el soporte declarado, sin publicar sus valores.
+recibidos con el soporte declarado, sin publicar sus valores. Con una
+regla de `aplicabilidad` sobre la columna dependiente, la imputación
+respeta su universo como las demás acciones por celda: no llena las
+filas declaradas fuera, que son vacío por diseño, y `n_afectadas` las
+excluye.
+
+Sobre una columna protegida, `convertir_sentinelas_numericos` publica el
+catálogo de centinelas del paquete tal cual —es vocabulario, no un dato—
+y tapa el resto. Lo tapado se marca con `valores_enmascarados = TRUE` y
+`aplicar()` lo resuelve sobre los datos que recibe: son los rellenos de
+la columna, el dígito repetido que ocupa el lugar de un documento. El
+plan ofrece la acción así sólo si esa resolución convierte, sobre los
+datos del plan, exactamente las celdas que estima; si no, la acción
+queda `bloqueada` y la justificación dice cómo ejecutarla.
 
 `marcar_filas_duplicadas` añade dos columnas. `.fila_duplicada`
 reproduce la semántica de
 [`duplicated()`](https://rdrr.io/r/base/duplicated.html) y marca sólo
 las apariciones posteriores; `.grupo_duplicado` identifica a **todas**
-las filas que participan en cada grupo de contenido idéntico. Marcar no
-elimina filas: con las dos columnas incluidas, un perfil posterior
-tampoco vuelve a contar esas filas como duplicadas exactas, porque las
-marcas las distinguen. Para saber si los duplicados siguen en la tabla
-hay que quitar las columnas de marca antes de perfilarla.
+las filas que participan en cada grupo de contenido idéntico. Las
+acciones de duplicados comparan las filas con la misma igualdad que el
+perfil, también con columnas `integer64`, matrices, `data.frame`
+anidados o `POSIXlt`; una tabla con columnas de lista deja las acciones
+bloqueadas. Marcar no elimina filas. Con las dos columnas incluidas, las
+marcas distinguen la primera aparición de las repetidas, pero no a las
+repetidas entre sí: en un grupo de tres o más filas un perfil posterior
+sigue contando duplicadas. Para saber si los duplicados siguen en la
+tabla hay que quitar las columnas de marca antes de perfilarla.
+
+Al volver a planificar sobre lo aplicado, el plan no propone acciones
+sobre las marcas que agrega —`.fila_duplicada`, `.grupo_duplicado`,
+`.ausente_<columna>` y `.outlier_<columna>`—: sus hallazgos quedan en
+`hallazgos_sin_accion` con ese motivo, porque el `NA` de
+`.grupo_duplicado` significa que la fila no participa de ningún grupo y
+no una ausencia. Una acción cuya columna de marca ya existe en los datos
+queda `bloqueada`: `aplicar()` no puede volver a crearla.
 
 El orden operativo se aparta deliberadamente de la secuencia dimensional
 frescura–completitud–exactitud–consistencia–unicidad sugerida por el
@@ -310,6 +342,13 @@ falsa siguiendo el idioma documentado
 `plan$aplicar <- plan$recomendada`. Por la misma razón,
 `eliminar_filas_ausentes` también va después: eliminar antes deja sin
 eliminar las filas cuyo ausente todavía estaba disfrazado.
+
+`convertir_ausencias_textuales` convierte exactamente los textos de
+`parametros$valores`, comparados sin mayúsculas ni espacios al borde. El
+plan arma la lista con los marcadores que el perfil detectó y los que se
+declararon en `cadenas_ausencia`; editarla es una decisión del usuario:
+quitar un texto lo conserva y agregar uno lo convierte, como si se
+hubiera declarado.
 
 ## See also
 

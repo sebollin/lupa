@@ -835,17 +835,28 @@ publica, con la misma regla que
 [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md) en
 memoria: tildes, caja, separadores, el documento parcial, los campos
 numéricos y la evidencia de los hallazgos. Un valor de una persona que
-sólo está fuera de la muestra se tapa igual. Se traen hasta dos millones
-de valores; si hay más, o si la consulta no se puede hacer, se tapan
-todos los valores de celda de las columnas no personales —moda,
-extremos, ejemplos— y la evidencia de sus hallazgos, y
-`resumen_tabla$meta$proteccion_personal$fuera_de_muestra` dice por qué.
-En SQLite los valores se leen como texto, porque una columna de afinidad
-numérica guarda texto y el controlador lo convertía en número; también
-sin muestreo, cuando la muestra es la tabla entera: ahí se releen como
-texto, con una consulta, las columnas protegidas que el controlador no
-leyó como texto. Y el motivo de una cifra que no se pudo leer como
-número no cita el valor de una columna protegida.
+sólo está fuera de la muestra se tapa igual. El **relleno** que sale del
+piso en memoria —el dígito repetido cinco veces o más en una columna que
+sin él es casi una clave— se decide sobre la tabla entera, no sobre la
+muestra: en la muestra de una tabla de movimientos los clientes que se
+repiten casi no se repiten, y la cédula válida de un cliente con
+seiscientos movimientos salía como moda de otra columna. Con la tabla
+leída completa decide la muestra, que es la tabla; si no, la confirman
+los conteos exactos de la tabla —`n_distintos` y `n_validos`
+calculados—, y sin ellos el relleno sigue en el piso. Y la protección es
+**por tabla**: un valor protegido de otra tabla escrito en ésta no se
+conoce;
+[`perfilar_coleccion()`](https://sebollin.github.io/lupa/reference/perfilar_coleccion.md)
+los cruza. Se traen hasta dos millones de valores; si hay más, o si la
+consulta no se puede hacer, se tapan todos los valores de celda de las
+columnas no personales —moda, extremos, ejemplos— y la evidencia de sus
+hallazgos, y `resumen_tabla$meta$proteccion_personal$fuera_de_muestra`
+dice por qué. En SQLite los valores se leen como texto, porque una
+columna de afinidad numérica guarda texto y el controlador lo convertía
+en número; también sin muestreo, cuando la muestra es la tabla entera:
+ahí se releen como texto, con una consulta, las columnas protegidas que
+el controlador no leyó como texto. Y el motivo de una cifra que no se
+pudo leer como número no cita el valor de una columna protegida.
 `incluir_valores = FALSE` va más lejos: no emite las consultas de moda
 ni de mediana y no informa mínimo ni máximo, útil cuando la tabla es un
 padrón y la moda de un identificador único es un documento real. Si se

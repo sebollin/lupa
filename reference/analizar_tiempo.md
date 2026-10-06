@@ -21,7 +21,9 @@ analizar_tiempo(
   calendario = 1:7,
   frecuencia_dias = NULL,
   max_huecos = 20L,
-  max_columnas = 50L
+  max_columnas = 50L,
+  proteger_datos_personales = TRUE,
+  columnas_personales = character()
 )
 ```
 
@@ -56,6 +58,20 @@ analizar_tiempo(
 
   Máximo de columnas temporales analizadas.
 
+- proteger_datos_personales:
+
+  Si se ocultan los rangos y los huecos de las columnas temporales que
+  son dato personal. `TRUE` por omisión.
+
+- columnas_personales:
+
+  Columnas que traen datos personales, declaradas con la misma forma que
+  acepta
+  [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md).
+  Se suman a las que protege el `perfil` o, sin él, a las que se
+  clasifican aquí. Sólo tiene efecto con
+  `proteger_datos_personales = TRUE`.
+
 ## Value
 
 Objeto `analisis_temporal` con `resumen`, `dias_semana`, `huecos` y
@@ -84,8 +100,11 @@ y se declara en los atributos `columnas_omitidas` y
 huecos se protegen tambien en esta llamada directa, con el mismo texto
 que usa
 [`analizar()`](https://sebollin.github.io/lupa/reference/analizar.md).
-Sin `perfil` no hay una declaracion que leer y el resumen conserva sus
-fechas.
+Sin `perfil`, la columna temporal que es un dato personal —una fecha de
+nacimiento— se clasifica aquí por léxico y por forma, como en
+[`clasificar_variables()`](https://sebollin.github.io/lupa/reference/clasificar_variables.md),
+y sus rangos y huecos se protegen igual; lo que sólo quien conoce los
+datos sabe personal entra por `columnas_personales`.
 
 ## See also
 

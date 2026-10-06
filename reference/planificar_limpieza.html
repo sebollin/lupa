@@ -138,7 +138,10 @@ comprobación del efecto observa <code>n_cambiadas</code> aunque <code>n_afectad
 estimación.
 Si una columna de entrada es un factor, las acciones que transforman su
 texto devuelven una columna <code>character</code>: no se reconstruyen los niveles
-originales, porque una limpieza puede introducir valores nuevos.</p>
+originales, porque una limpieza puede introducir valores nuevos.
+Los atributos de cada columna —la etiqueta de variable que deja <code>haven</code>—
+sobreviven a las acciones que la reescriben, a las conversiones de tipo y a
+las que quitan filas; quitar filas de un <code>data.table</code> conserva su clave.</p>
     </div>
     <div class="section level2">
     <h2 id="details">Details<a class="anchor" aria-label="anchor" href="#details"></a></h2>
@@ -297,7 +300,11 @@ porque no se puede distinguir una doble codificación de un texto que quería
 decir <code>&amp;amp;</code>: la segunda capa se decide viéndola.
 <code>reemplazar_separadores</code> convierte tabulaciones, saltos de línea, avances de
 página y tabulaciones verticales (<code>\\t</code>, <code>\\n</code>, <code>\\r</code>, <code>\\r\\n</code>, <code>\\f</code> y <code>\\v</code>)
-en un espacio y también requiere una decisión explícita. Las tres acciones
+en un espacio y también requiere una decisión explícita. Son exactamente los
+códigos 9 a 13 que cuenta el hallazgo: los separadores Unicode U+2028 y
+U+2029 son de <code>normalizar_espacios_invisibles</code> y el control U+0085 de
+<code>eliminar_controles_invisibles</code>, y sobre celdas <code>bytes</code> la acción no toca
+ningún byte de un carácter multibyte. Las tres acciones
 registran el número de valores cambiados. Una comparación aproximada con
 <code>normalizar = TRUE</code> usa estas mismas clases: colapsa espacios y omite basura
 de transporte, pero conserva ZWJ/ZWNJ.</p>
@@ -309,15 +316,36 @@ conserva el mapa y su soporte para que el usuario la confirme; sólo entonces
 se aplica y se vuelve a validar contra los datos recibidos. Si la protección
 enmascaró alguna clave del mapa, éste no se usa como tabla de cruce: la
 relación se reconstruye sobre los datos recibidos con el soporte declarado,
-sin publicar sus valores.</p>
+sin publicar sus valores. Con una regla de <code>aplicabilidad</code> sobre la columna
+dependiente, la imputación respeta su universo como las demás acciones por
+celda: no llena las filas declaradas fuera, que son vacío por diseño, y
+<code>n_afectadas</code> las excluye.</p>
+<p>Sobre una columna protegida, <code>convertir_sentinelas_numericos</code> publica el
+catálogo de centinelas del paquete tal cual —es vocabulario, no un dato— y
+tapa el resto. Lo tapado se marca con <code>valores_enmascarados = TRUE</code> y
+<code>aplicar()</code> lo resuelve sobre los datos que recibe: son los rellenos de la
+columna, el dígito repetido que ocupa el lugar de un documento. El plan
+ofrece la acción así sólo si esa resolución convierte, sobre los datos del
+plan, exactamente las celdas que estima; si no, la acción queda <code>bloqueada</code>
+y la justificación dice cómo ejecutarla.</p>
 <p><code>marcar_filas_duplicadas</code> añade dos columnas. <code>.fila_duplicada</code> reproduce la
 semántica de <code><a href="https://rdrr.io/r/base/duplicated.html" class="external-link">duplicated()</a></code> y marca sólo las apariciones posteriores;
 <code>.grupo_duplicado</code> identifica a <strong>todas</strong> las filas que participan en cada
-grupo de contenido idéntico. Marcar no elimina filas: con las dos columnas
-incluidas, un perfil posterior tampoco vuelve a contar esas filas como
-duplicadas exactas, porque las marcas las distinguen. Para saber si los
-duplicados siguen en la tabla hay que quitar las columnas de marca antes de
-perfilarla.</p>
+grupo de contenido idéntico. Las acciones de duplicados comparan las filas
+con la misma igualdad que el perfil, también con columnas <code>integer64</code>,
+matrices, <code>data.frame</code> anidados o <code>POSIXlt</code>; una tabla con columnas de lista
+deja las acciones bloqueadas. Marcar no elimina filas. Con las dos columnas
+incluidas, las marcas distinguen la primera aparición de las repetidas, pero
+no a las repetidas entre sí: en un grupo de tres o más filas un perfil
+posterior sigue contando duplicadas. Para saber si los duplicados siguen en
+la tabla hay que quitar las columnas de marca antes de perfilarla.</p>
+<p>Al volver a planificar sobre lo aplicado, el plan no propone acciones sobre
+las marcas que agrega —<code>.fila_duplicada</code>, <code>.grupo_duplicado</code>,
+<code>.ausente_&lt;columna&gt;</code> y <code>.outlier_&lt;columna&gt;</code>—: sus hallazgos quedan en
+<code>hallazgos_sin_accion</code> con ese motivo, porque el <code>NA</code> de <code>.grupo_duplicado</code>
+significa que la fila no participa de ningún grupo y no una ausencia. Una
+acción cuya columna de marca ya existe en los datos queda <code>bloqueada</code>:
+<code>aplicar()</code> no puede volver a crearla.</p>
 <p>El orden operativo se aparta deliberadamente de la secuencia dimensional
 frescura–completitud–exactitud–consistencia–unicidad sugerida por el marco.
 Primero marca duplicados sin borrar, luego normaliza ausencias y texto, y
@@ -340,6 +368,12 @@ de tabla antes de corregirlo, tres producían esa marca falsa siguiendo el
 idioma documentado <code>plan$aplicar &lt;- plan$recomendada</code>. Por la misma razón,
 <code>eliminar_filas_ausentes</code> también va después: eliminar antes deja sin
 eliminar las filas cuyo ausente todavía estaba disfrazado.</p>
+<p><code>convertir_ausencias_textuales</code> convierte exactamente los textos de
+<code>parametros$valores</code>, comparados sin mayúsculas ni espacios al borde. El
+plan arma la lista con los marcadores que el perfil detectó y los que se
+declararon en <code>cadenas_ausencia</code>; editarla es una decisión del usuario:
+quitar un texto lo conserva y agregar uno lo convierte, como si se hubiera
+declarado.</p>
     </div>
     <div class="section level2">
     <h2 id="see-also">See also<a class="anchor" aria-label="anchor" href="#see-also"></a></h2>

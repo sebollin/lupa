@@ -20,7 +20,9 @@ detectar_dependencias(
   min_observaciones = 10L,
   max_ejemplos = 5L,
   max_comparaciones = 200000L,
-  max_trabajo = 1e+08
+  max_trabajo = 1e+08,
+  proteger_datos_personales = TRUE,
+  columnas_personales = character()
 )
 ```
 
@@ -76,21 +78,49 @@ detectar_dependencias(
   que escala con las filas; se combina con `max_comparaciones` y se
   aplica el límite más restrictivo.
 
+- proteger_datos_personales:
+
+  Si los valores de las columnas clasificadas como dato personal se
+  ocultan en `evidencia`. `TRUE` por omisión; los nombres de columna y
+  los conteos se conservan igual. La clasificación se hace aquí por
+  léxico y por forma —esta función no recibe un perfil—, así que lo que
+  sólo quien conoce los datos sabe personal entra por
+  `columnas_personales`.
+  [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md)
+  la llama con `FALSE` porque protege el perfil entero después.
+
+- columnas_personales:
+
+  Columnas que traen datos personales, declaradas con la misma forma que
+  acepta
+  [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md):
+  nombres de columna, o un vector con nombre donde el nombre es la
+  columna y el valor es el tipo. Sin ella, una columna que el léxico no
+  reconoce —un legajo interno— publica sus valores en `evidencia`. Sólo
+  tiene efecto con `proteger_datos_personales = TRUE`.
+
 ## Value
 
 Data frame de clase `dependencias_funcionales`, ordenado por
-cumplimiento y soporte. Los atributos `muestreado`, `filas_analizadas`,
-`columnas_analizadas`, `columnas_omitidas`, `columnas_descartadas` y
-`truncado` documentan el alcance efectivo. `n_pares_posibles`,
-`n_pares_comparados`, `n_pares_sin_comparar` y `max_comparaciones`
-documentan el presupuesto de comparaciones. `trabajo_estimado`,
-`trabajo_comparado`, `trabajo_sin_comparar`, `unidad_trabajo` y
-`max_trabajo` documentan el presupuesto por filas.
-`columnas_descartadas` es un data frame que explica por qué una columna
-no se usó como determinante. Una columna cuyo nombre se repite en la
-tabla no entra en ninguna dependencia, de ningún lado, y se descarta con
-el motivo `nombre_repetido`: la fila diría `k -> k` sin decir cuál
-columna es cuál.
+cumplimiento y soporte. `evidencia` cita contradicciones concretas, y
+**no publica los valores de una columna clasificada como dato
+personal**: la evidencia de un par que nombra una columna personal sale
+entera como `[evidencia protegida]` —lo mismo que en el perfil— y, en
+las demás, lo que repite un valor de una columna personal de la tabla
+—una observación que cita la cédula— se tapa con el mismo piso que
+aplica
+[`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md).
+Los atributos `muestreado`, `filas_analizadas`, `columnas_analizadas`,
+`columnas_omitidas`, `columnas_descartadas` y `truncado` documentan el
+alcance efectivo. `n_pares_posibles`, `n_pares_comparados`,
+`n_pares_sin_comparar` y `max_comparaciones` documentan el presupuesto
+de comparaciones. `trabajo_estimado`, `trabajo_comparado`,
+`trabajo_sin_comparar`, `unidad_trabajo` y `max_trabajo` documentan el
+presupuesto por filas. `columnas_descartadas` es un data frame que
+explica por qué una columna no se usó como determinante. Una columna
+cuyo nombre se repite en la tabla no entra en ninguna dependencia, de
+ningún lado, y se descarta con el motivo `nombre_repetido`: la fila
+diría `k -> k` sin decir cuál columna es cuál.
 
 ## Details
 

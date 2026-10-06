@@ -303,8 +303,9 @@ perfilar(
   Si se reemplazan modas, ejemplos, evidencia y estadísticos de orden
   concretos cuando `poder_discriminante` es medio, alto o verificado.
   Las clasificaciones débiles se conservan como aviso pero no suprimen
-  estadísticos. Para conservar todo en el objeto debe desactivarse
-  explícitamente;
+  estadísticos, ni la magnitud de Benford, ni la evidencia de sus
+  hallazgos: en ella se tapan sólo sus valores. Para conservar todo en
+  el objeto debe desactivarse explícitamente;
   [`reportar()`](https://sebollin.github.io/lupa/reference/reportar.md)
   aplica además su propia protección predeterminada. El enmascarado es
   **por columna**: se reemplaza lo que describe a una columna protegida
@@ -335,9 +336,22 @@ perfilar(
   [`perfilar_dbi()`](https://sebollin.github.io/lupa/reference/perfilar_dbi.md)—
   la conserva entera: con «Segundo» protegido, `segundo_nombre` salía
   `[valor protegido]_nombre` en los hallazgos sin acción del plan y en
-  la SQL. Un nombre que es él mismo un valor protegido, con otra caja,
-  otros separadores, tildes o codificación, no se exceptúa. Y un valor
-  protegido que **contiene** un nombre de columna —el correo
+  la SQL. Lo mismo los **nombres que el paquete deriva** de un nombre de
+  columna: el que propone el plan en `nombres_propuestos` —con
+  [`make.names()`](https://rdrr.io/r/base/make.names.html) y en
+  snake_case— y las marcas `.ausente_<nombre>` y `.outlier_<nombre>` que
+  crean sus acciones. Se barrían como texto de los datos: con «Segundo»
+  protegido en `Primer Nombre`, la evidencia decía
+  `"Segundo Nombre" -> "[valor protegido].Nombre"`, el plan proponía ese
+  nombre y
+  [`aplicar()`](https://sebollin.github.io/lupa/reference/planificar_limpieza.md)
+  se lo ponía a la columna en los datos del usuario. Un nombre que es él
+  mismo un valor protegido, con otra caja, otros separadores, tildes o
+  codificación, no se exceptúa —salvo citado en la SQL que guarda
+  [`perfilar_dbi()`](https://sebollin.github.io/lupa/reference/perfilar_dbi.md),
+  donde es un identificador y se publica igual en `columnas$columna`:
+  antes tapaba enteras las sentencias de su lote—. Y un valor protegido
+  que **contiene** un nombre de columna —el correo
   `juan_perez@empresa.com.uy` con una columna `juan_perez`— se busca
   entero, con cualquier caja, antes de apartar el nombre: se tapa el
   correo y no su dominio ni el correo de otra persona, y los nombres que
@@ -415,7 +429,9 @@ perfilar(
   busca con más cuidado porque es el que coincide por azar: sin su
   verificador, fuera de la parte de un decimal, de un número con forma
   de dirección IPv4 —con o sin máscara CIDR— y de un importe con miles
-  de cuatro grupos o más (`"3.919.024.166"`), que se prueban enteros
+  de cuatro grupos o más (`"3.919.024.166"`), que se prueban enteros —el
+  importe, también sin su primer grupo: es el prefijo de país de un
+  celular agrupado de a tres, `"598.099.123.456"`, que se publicaba—
   (`"4.123.456"` frente a `"4.123.456-7"`, el verificador mal tipeado,
   el documento seguido de un año), y sin su primer dígito sólo detrás de
   un asterisco o una equis (`"*.123.456-7"`, `"X.012.345-8"`,
@@ -459,57 +475,75 @@ perfilar(
   las coordenadas, los p-valores, los importes con decimales, las horas,
   los ISBN —también el ISBN-10 con espacios o puntos—, las fechas con
   espacios, las listas separadas por comas con espacio o por barras
-  verticales, las razones y los importes con miles de cuatro grupos o
-  más no se taparon; una dirección IP —también con su máscara CIDR,
-  `"10.4.123.234/24"`, o su puerto— sólo cuando coincide entera, menos
-  de una de cada cien; y una coordenada escrita con un cero adelante
-  (`"-056.092164"`), que tiene la forma de un celular con punto
-  (`"099.123456"`), casi una de cada cien. Lo mismo vale, por la misma
-  razón, para lo que se une como el documento: una lista separada por
-  espacios, ocho de cada cien; un rango de años `"2004-2017"` o con la
-  raya de un CSV de Windows, dos números en dos líneas, una lista con
-  tabuladores o con comas sin espacio —también la coma ideográfica—,
-  entre una y tres de cada cien; o una versión `"v4.16.4302"`. Y por la
-  regla de la hora, una fracción de ocho cifras (`"18:54:14.80786977"`)
-  no es fracción —así no se traga un documento pegado— y se taparon
-  cuatro o cinco de cada cien; lo mismo un número de diez cifras con la
-  forma de un ISBN-10 y su dígito de control inválido. La medición se
-  rehace con `data-raw/medir_tapado_de_mas.R`. Las tildes, la caja y la
-  escritura también son cosméticas: `juan.perez` se enmascara frente al
-  nombre protegido «Juan Pérez», y el nombre pegado a otras letras
-  dentro de un correo o un alias, también. La comparación usa un pliegue
-  generado de Unicode —caja de todo alfabeto, letras con y sin
-  diacríticos, ligaduras, ancho completo y medio ancho, letras
-  matemáticas, y las letras modificadoras que son un acento, como el
-  agudo U+02CA escrito en lugar de la tilde—, compara el texto publicado
-  también con los escapes del paquete deshechos (un espacio duro sale
-  `<U+00A0>`) —el valor protegido nunca se desescapa: una barra literal
-  es parte del valor—, y lee lo que no es UTF-8 válido de las dos
-  maneras, byte por byte como CP1252 conservando las secuencias válidas
-  y entero. El **correo escrito con palabras** —`juan(at)gmail.com`,
-  `[at]`, `{at}`, `_at_`, `(arroba)`, `(a)`,
-  `juan arroba gmail punto com`— se lee como correo: la palabra es la
-  arroba sólo si la sigue un dominio con su punto, y `dot` o `punto` son
-  el punto sólo en un texto que ya tiene arroba. Medido sobre 3.000
-  correos protegidos: los no protegidos escritos así se taparon lo mismo
-  que con la arroba común —cuatro de cada mil, por los separadores
-  cosméticos—, y ninguna de 2.013 frases con esas palabras. Las marcas
-  del paquete se apartan del texto, y un valor protegido que contiene
-  una se busca entero antes de apartarla. **Una fecha de calendario sola
-  no entra en el piso**, tampoco escrita como `AAAAMMDD` o con el año en
-  dos cifras en una columna de esas fechas, ni como fecha-hora ISO a
-  medianoche: en una tabla de miles de personas casi todo día es el
-  cumpleaños de alguien, y con la fecha de nacimiento protegida se
-  tapaban los estadísticos de todas las demás columnas de fechas. La
-  columna de fechas protegida se sigue protegiendo entera; una fecha con
-  hora sí cuenta. Se decide **por la columna**: en una columna protegida
-  que no es de fechas —un teléfono fijo `"2012-11-05"` entre otros
-  teléfonos— el valor con forma de fecha sí entra en el piso, escrito
-  como está guardado (la regla de dígitos borra las fechas antes de
-  buscar, así que `"2012/11/05"` no lo encuentra); una columna es de
-  fechas si es `Date` o `POSIXt`, o si la mitad o más de sus valores
-  distintos tienen forma de fecha —con el año en cuatro cifras o en dos,
-  o compacta `AAAAMMDD`—. Es una sola regla, en memoria y en
+  verticales, las razones no se taparon; los importes con miles de
+  cuatro grupos o más, uno o dos de cada mil —su cola sin el primer
+  grupo coincide con un documento cuando empieza con un cero—; una
+  dirección IP —también con su máscara CIDR, `"10.4.123.234/24"`, o su
+  puerto, y en un rango de redes `"10.4.1.0/24-10.4.9.0/24"`— sólo
+  cuando coincide entera, menos de una de cada cien; y una coordenada
+  escrita con un cero adelante (`"-056.092164"`), que tiene la forma de
+  un celular con punto (`"099.123456"`), casi una de cada cien. Lo mismo
+  vale, por la misma razón, para lo que se une como el documento: una
+  lista separada por espacios, ocho de cada cien; un rango de años
+  `"2004-2017"` o con la raya de un CSV de Windows, dos números en dos
+  líneas, una lista con tabuladores o con comas sin espacio —también la
+  coma ideográfica—, entre una y tres de cada cien; o una versión
+  `"v4.16.4302"`. Y, por el mismo parcial, una versión de cuatro partes
+  (`"v4.62.660.4361"`), trece de cada cien, y un expediente
+  `"exp 2023-6-880041"`, uno de cada seis: su tramo `"660.4361"` o
+  `"6-880041"` es un número de siete cifras con un signo que une, y no
+  se distingue del documento escrito así. Y por la regla de la hora, una
+  fracción de ocho cifras (`"18:54:14.80786977"`) no es fracción —así no
+  se traga un documento pegado— y se taparon cuatro o cinco de cada
+  cien; lo mismo un número de diez cifras con la forma de un ISBN-10 y
+  su dígito de control inválido. La medición se rehace con
+  `data-raw/medir_tapado_de_mas.R`. Las tildes, la caja y la escritura
+  también son cosméticas: `juan.perez` se enmascara frente al nombre
+  protegido «Juan Pérez», y el nombre pegado a otras letras dentro de un
+  correo o un alias, también. La comparación usa un pliegue generado de
+  Unicode —caja de todo alfabeto, letras con y sin diacríticos,
+  ligaduras, ancho completo y medio ancho, letras matemáticas, y las
+  letras modificadoras que hacen de acento o de apóstrofo pegadas a una
+  letra, como el agudo U+02CA, el circunflejo bajo U+A788, la tilde
+  vertical U+2E2F, la prima U+02B9 o el apóstrofo U+02BC escritos en
+  lugar de la tilde—, compara el texto publicado también con los escapes
+  del paquete deshechos (un espacio duro sale `<U+00A0>`) —el valor
+  protegido nunca se desescapa: una barra literal es parte del valor—, y
+  lee lo que no es UTF-8 válido de las dos maneras, byte por byte como
+  CP1252 conservando las secuencias válidas y entero. El **correo
+  escrito con palabras** —`juan(at)gmail.com`, `[at]`, `{at}`, `_at_`,
+  `(arroba)`, `(a)`, `juan arroba gmail punto com`— se lee como correo:
+  la palabra es la arroba sólo si la sigue un dominio con su punto, y
+  `dot` o `punto` son el punto sólo en un texto que ya tiene arroba
+  —también la arroba escrita, `juan@gmail punto com`—. Se lee con los
+  espacios de Unicode como espacios —el duro, el ideográfico— y los
+  signos de ancho completo como los de ASCII —los paréntesis o la arroba
+  anchos—, y en cualquier codificación: un texto `latin1` con una tilde
+  se lee como el mismo texto en UTF-8. Medido sobre 3.000 correos
+  protegidos: los no protegidos escritos así se taparon lo mismo que con
+  la arroba común —cuatro de cada mil, por los separadores cosméticos—,
+  y ninguna de 3.015 frases con esas palabras, mil de ellas con una
+  arroba y el punto en palabras. **No** se leen otras ofuscaciones: el
+  punto entre corchetes o paréntesis (`[at]...[.]`, `(.)`), `<at>`,
+  `"at"`, `-at-`, `/at/`, el punto con espacios alrededor
+  (`empresa . com`) ni un dominio con guion bajo; un correo protegido
+  escrito así se publica. Las marcas del paquete se apartan del texto, y
+  un valor protegido que contiene una se busca entero antes de
+  apartarla. **Una fecha de calendario sola no entra en el piso**,
+  tampoco escrita como `AAAAMMDD` o con el año en dos cifras en una
+  columna de esas fechas, ni como fecha-hora ISO a medianoche: en una
+  tabla de miles de personas casi todo día es el cumpleaños de alguien,
+  y con la fecha de nacimiento protegida se tapaban los estadísticos de
+  todas las demás columnas de fechas. La columna de fechas protegida se
+  sigue protegiendo entera; una fecha con hora sí cuenta. Se decide
+  **por la columna**: en una columna protegida que no es de fechas —un
+  teléfono fijo `"2012-11-05"` entre otros teléfonos— el valor con forma
+  de fecha sí entra en el piso, escrito como está guardado (la regla de
+  dígitos borra las fechas antes de buscar, así que `"2012/11/05"` no lo
+  encuentra); una columna es de fechas si es `Date` o `POSIXt`, o si la
+  mitad o más de sus valores distintos tienen forma de fecha —con el año
+  en cuatro cifras o en dos, o compacta `AAAAMMDD`—. Es una sola regla,
+  en memoria y en
   [`perfilar_dbi()`](https://sebollin.github.io/lupa/reference/perfilar_dbi.md):
   hasta la ronda 24 la columna `AAAAMMDD` tenía que serlo entera y el
   año en dos cifras no contaba, y una columna de nacimientos con el 60 %
@@ -1550,8 +1584,14 @@ protección. Cada clasificación declara `poder_discriminante` y
 `proteger`:
 
 - `debil`: una forma genérica, como siete a doce dígitos, coincide
-  también con importes, facturas y códigos; se informa pero no se
-  ocultan valores;
+  también con importes, facturas y códigos; se informa y no se ocultan
+  su moda, sus ejemplos ni sus estadísticos. En la evidencia de sus
+  hallazgos se tapan sus valores de seis caracteres o más —la colisión
+  de una casi clave—, no la evidencia entera: hasta la ronda 26 se
+  tapaba entera, también la que no cita ningún valor
+  (`"4939 valores distintos de 5000 (0.988)"`, `"3 valores"`); sin la
+  tabla —un perfil que se vuelve a proteger al guardarlo— no hay valores
+  con que barrer y se tapa entera;
 
 - `medio`: el nombre de la columna expresa una categoría personal (por
   ejemplo `telefono`, `fecha_nacimiento` o `fecha_fallecimiento`); se
