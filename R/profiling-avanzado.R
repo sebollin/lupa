@@ -185,7 +185,7 @@
   if (is.factor(originales)) originales <- as.character(originales)
   posicion_valor <- integer(length(originales))
   posicion_valor[.orden_seguro(originales)] <- seq_along(originales)
-  orden <- order(-conteos, posicion_valor)
+  orden <- .orden_por_bytes(-conteos, posicion_valor)
   seleccion <- utils::head(orden, max_valores)
   tabla <- data.frame(
     valor = if (protegida) rep("[valor protegido]", length(seleccion)) else {
@@ -653,7 +653,7 @@ detectar_asociaciones <- function(datos, dependencias = NULL, umbral = 0.3,
   )
   resultado <- if (length(filas)) do.call(rbind, filas) else vacia
   if (nrow(resultado)) {
-    resultado <- resultado[order(-resultado$asociacion, -resultado$n_pares,
+    resultado <- resultado[.orden_por_bytes(-resultado$asociacion, -resultado$n_pares,
                                  resultado$columna_1, resultado$columna_2), , drop = FALSE]
   }
   total_informadas <- nrow(resultado)
@@ -747,7 +747,9 @@ detectar_asociaciones <- function(datos, dependencias = NULL, umbral = 0.3,
   # `muestra = 50`. Los cincuenta quedaban afuera del resumen en los dos casos;
   # lo unico que cambiaba era si se decia. Y `perfilar()` sobre esa misma tabla
   # ya declaraba los 50, asi que las dos salidas del paquete se contradecian.
-  valores <- trimws(as.character(x))
+  # Declarado antes del recorte, y lo que no es UTF-8 valido no es una fecha en
+  # ninguna sesion (`.texto_legible_recortado()`, ronda 30-L).
+  valores <- .texto_legible_recortado(x)
   # Un blanco es un valor PRESENTE que no llego a fecha, igual que un texto
   # ilegible: `trimws()` lo deja en `""` y el `nzchar()` lo descartaba de la
   # cuenta. No es una ausencia declarada -eso es `NA`, y se informa en
@@ -857,7 +859,7 @@ analizar_tiempo <- function(datos, perfil = NULL, columnas = NULL,
       any(calendario < 1 | calendario > 7) || any(calendario != floor(calendario))) {
     stop("`calendario` debe contener dias ISO entre 1 y 7.", call. = FALSE)
   }
-  calendario <- sort(unique(as.integer(calendario)))
+  calendario <- .sort_por_bytes(unique(as.integer(calendario)))
   if (!is.null(frecuencia_dias) && (!is.numeric(frecuencia_dias) ||
       length(frecuencia_dias) != 1L || is.na(frecuencia_dias) ||
       !is.finite(frecuencia_dias) || frecuencia_dias <= 0 ||
@@ -917,7 +919,7 @@ analizar_tiempo <- function(datos, perfil = NULL, columnas = NULL,
       n_excluidas_granularidad <- 0L
     }
     presentes <- fechas[!is.na(fechas)]
-    unicas <- sort(unique(presentes))
+    unicas <- .sort_por_bytes(unique(presentes))
     duplicados <- length(presentes) - length(unicas)
     diferencias <- as.numeric(diff(unicas))
     positivas <- diferencias[diferencias > 0]

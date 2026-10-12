@@ -19,8 +19,8 @@
                               referencial = NULL, estado = "lista") {
   x <- data.frame(
     id_sugerencia = "", prioridad = prioridad, incluir = incluir,
-    metrica = metrica, entidad = paste(entidad, collapse = " + "),
-    atributos = paste(atributos, collapse = " + "), origen = origen,
+    metrica = metrica, entidad = .pegar_nombres(entidad),
+    atributos = .pegar_nombres(atributos), origen = origen,
     justificacion = justificacion, estado = estado,
     stringsAsFactors = FALSE
   )
@@ -91,10 +91,17 @@
 #' patrones dominantes— se proponen inactivas. Los controles estructurales
 #' directos, como `NoNulo`, duplicación exacta y dependencias funcionales
 #' exactas, se activan. `max_sugerencias` recorta después de ordenar por
-#' prioridad y el objeto declara el total en sus atributos.
+#' prioridad y el objeto declara el total en sus atributos. Dentro de cada
+#' prioridad las filas se ordenan por métrica, entidad y atributos según sus
+#' bytes —no según la intercalación del locale— y `id_sugerencia` las numera en
+#' ese orden: el mismo perfil da los mismos identificadores en cualquier sesión.
 #' Si una columna contiene faltantes disfrazados, `NoNulo` se propone pero queda
 #' inactiva hasta normalizarlos o configurar la métrica para reconocerlos. De
 #' otro modo mediría sólo los `NA` reales y sobrestimaría la completitud.
+#' Una sugerencia sobre una columna cuyo nombre la tabla repite sale inactiva y
+#' con estado `nombre_repetido`: una métrica se liga por nombre, y ese nombre no
+#' dice cuál de las columnas mide. [modelo_desde_propuesta()] no la materializa
+#' y [analizar()] no la mide hasta que las columnas se renombren.
 #'
 #' @param perfil Objeto creado por [perfilar()].
 #' @param datos Datos originales opcionales. Son necesarios para proponer
@@ -226,7 +233,12 @@ proponer_modelo <- function(perfil, datos = NULL, relaciones = NULL,
       indice_columna <- .indice_nombre(columna, names(datos))
       valores_dominio <- .texto_analizable(datos[[indice_columna]])$valores
       valores <- unique(valores_dominio[!is.na(valores_dominio)])
-      agregar_sugerencia(.nueva_sugerencia(
+      # El dominio son los valores que el paquete puede LEER: una columna cuyo
+      # texto no es UTF-8 valido tiene distintos en el perfil -que cuenta por
+      # identidad- y ninguno decodificable, y la metrica propuesta no media
+      # nada: `analizar()` avisaba que su metodo fallo, en cualquier locale
+      # (ronda 30-L, variante de bytes latin1 sin marca).
+      if (length(valores) >= 2L) agregar_sugerencia(.nueva_sugerencia(
         "baja", FALSE, "ValoresPosiblesPorExtension", entidad, columna,
         "perfil:dominio_observado",
         paste0(
@@ -261,7 +273,8 @@ proponer_modelo <- function(perfil, datos = NULL, relaciones = NULL,
         if (dependencia$exacta[[1L]]) "alta" else "media",
         dependencia$exacta[[1L]] && puede_materializar,
         "ReglaIntegridadIntraEntidad", entidad, atributos,
-        paste0("dependencia_funcional:", atributos[[1L]], "->", atributos[[2L]]),
+        .pegar_texto("dependencia_funcional:", atributos[[1L]], "->",
+                     atributos[[2L]], sep = ""),
         paste0(
           "La dependencia cumple en ",
           .formatear_decimal_publicado(dependencia$cumplimiento[[1L]], 4L),
@@ -312,19 +325,41 @@ proponer_modelo <- function(perfil, datos = NULL, relaciones = NULL,
   }
 
   resultado <- if (length(sugerencias)) do.call(rbind, sugerencias) else .propuesta_vacia()
+  # Un nombre de columna que la tabla repite no identifica una columna, y una
+  # metrica se liga por nombre: mediria siempre la primera. Con dos columnas `x`
+  # con faltantes, las dos sugerencias `NoNulo` sobre `x` eran el mismo
+  # instrumento y `analizar()` abortaba entero (medido en la ronda 30). Se
+  # proponen sin activar y con estado `nombre_repetido`: no se materializan
+  # hasta renombrar, como el plan de limpieza omite las acciones por columna.
+  nombres_perfil <- as.character(perfil$columnas$columna)
+  repetidos <- .nombres_para_operar(nombres_perfil)[
+    .nombres_repetidos(nombres_perfil)
+  ]
+  if (length(repetidos) && nrow(resultado)) {
+    afectada <- vapply(seq_len(nrow(resultado)), function(i) {
+      entidades <- resultado$entidades_ligadas[[i]]
+      length(entidades) && all(entidades %in% entidad) &&
+        any(.nombres_para_operar(resultado$atributos_ligados[[i]]) %in%
+              repetidos)
+    }, logical(1L))
+    resultado$estado[afectada] <- "nombre_repetido"
+    resultado$incluir[afectada] <- FALSE
+    resultado$justificacion[afectada] <- paste(
+      resultado$justificacion[afectada],
+      "La tabla repite el nombre de la columna y una m\u00e9trica se liga por",
+      "nombre: renombrarlas -por ejemplo con `make.unique()`- y volver a",
+      "proponer."
+    )
+  }
   if (nrow(resultado)) {
     orden_prioridad <- match(resultado$prioridad, c("alta", "media", "baja"))
-    # `order()` traduce el texto, y un nombre de columna marcado `bytes` lo hacia
-    # abortar -y con el, `analizar()`-. Medido en la ronda 27. Solo entonces se
-    # ordena por la clave del nombre: el orden de siempre no cambia.
-    orden <- tryCatch(
-      order(orden_prioridad, resultado$metrica, resultado$entidad,
-            resultado$atributos),
-      error = function(e) order(
-        orden_prioridad, .nombres_para_operar(resultado$metrica),
-        .nombres_para_operar(resultado$entidad),
-        .nombres_para_operar(resultado$atributos)
-      )
+    # Por los bytes de los nombres (`.orden_por_bytes()`), y despues se numera:
+    # con la intercalacion del locale el mismo `sugerencia-NNNN` media otra
+    # columna bajo `C` que en una sesion UTF-8 (ronda 30-L). La clave de bytes
+    # tampoco aborta sobre un nombre marcado `bytes`, que tumbaba `order()` y con
+    # el `analizar()` (ronda 27).
+    orden <- .orden_por_bytes(
+      orden_prioridad, resultado$metrica, resultado$entidad, resultado$atributos
     )
     resultado <- resultado[orden, , drop = FALSE]
     rownames(resultado) <- NULL

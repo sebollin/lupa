@@ -45,7 +45,8 @@
 #' `no`, `true` o `false`. Una letra suelta (`T`, `F`, `S`, `N`) cuenta como
 #' literal sólo si aparece también su opuesto —`T` con `F` o `false`, `S` con
 #' `N` o `no`, y al revés—: sola es un código, y una columna de `F` y `M` no es
-#' lógica.
+#' lógica. Los literales se reconocen sin distinguir mayúsculas —`SÍ` es `sí`—
+#' con el pliegue de caja de [normalizacion()], que no depende del locale.
 #' Un separador seguido de exactamente tres dígitos (`1.500`, `1,500`) cuenta
 #' como número sólo si la columna aporta evidencia de una sola convención
 #' decimal, con punto o con coma por igual.
@@ -108,7 +109,7 @@ inferir_tipo <- function(x, umbral = 0.8, muestra = 1e5) {
   formas <- vocabulario$valores
   pesos <- tabulate(vocabulario$indices, nbins = length(formas))
 
-  formas_minusculas <- tolower(formas)
+  formas_minusculas <- .minusculas_para_comparar(formas, recortar = FALSE)
   logicos_base <- formas_minusculas %in% c(
     "true", "false", "t", "f", "si", "s\u00ed", "s", "no", "n", "0", "1"
   )
@@ -252,5 +253,7 @@ print.inferencia_tipo <- function(x, ...) {
   if (inherits(x, "POSIXt")) {
     return(format(x, tz = "UTC", usetz = TRUE))
   }
-  as.character(x)
+  # Declarada: se compara con `.nombres_para_operar()` y se recorta, y un
+  # `unknown` junto a un `UTF-8` avisaba bajo `C` (ronda 30-L).
+  .declarar_utf8_valido(as.character(x))
 }

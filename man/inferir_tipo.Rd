@@ -28,7 +28,8 @@ inferir un lógico debe aparecer al menos un literal alfabético como \code{sí}
 \code{no}, \code{true} o \code{false}. Una letra suelta (\code{T}, \code{F}, \code{S}, \code{N}) cuenta como
 literal sólo si aparece también su opuesto —\code{T} con \code{F} o \code{false}, \code{S} con
 \code{N} o \code{no}, y al revés—: sola es un código, y una columna de \code{F} y \code{M} no es
-lógica.
+lógica. Los literales se reconocen sin distinguir mayúsculas —\code{SÍ} es \code{sí}—
+con el pliegue de caja de \code{\link[=normalizacion]{normalizacion()}}, que no depende del locale.
 Un separador seguido de exactamente tres dígitos (\code{1.500}, \verb{1,500}) cuenta
 como número sólo si la columna aporta evidencia de una sola convención
 decimal, con punto o con coma por igual.

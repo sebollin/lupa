@@ -89,7 +89,11 @@ el nombre genérico.}
 \item{entidad}{Nombres de las tablas ligadas, en el orden que espera el
 método.}
 
-\item{atributos}{Nombres de las columnas ligadas, en el mismo orden.}
+\item{atributos}{Nombres de las columnas ligadas, en el mismo orden. Son
+los nombres que tiene la tabla: una columna llamada \code{""} o \code{NA} se liga
+con ese nombre, que es el que publica \code{\link[=perfilar]{perfilar()}}. Un nombre que la tabla
+no tiene no se rechaza al instanciar; \code{\link[=medir]{medir()}} declara la métrica
+\code{no_medible} con el atributo que no encontró.}
 
 \item{nombre_instancia}{Nombre de la instancia. Si se omite, se deriva de la
 especialización y los objetos ligados.}

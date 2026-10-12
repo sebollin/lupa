@@ -32,7 +32,7 @@
     # Los niveles de `factor()` salen de `as.character()`, que funde dos dobles
     # distintos -`0.1 + 0.2` y `0.3`- y separa el mismo numero escrito como
     # entero y como doble -`100000L` y `1e5`-. Ver `.texto_identidad()`.
-    factor(.texto_identidad(.valores_relacion(x)), exclude = NULL)
+    .factor_por_bytes(.texto_identidad(.valores_relacion(x)), exclude = NULL)
   })
   as.integer(do.call(
     interaction, c(factores, list(drop = TRUE, lex.order = TRUE))
@@ -304,7 +304,7 @@
   if (!inherits(instancia$referencial, "referencial") ||
       !inherits(salida, "data.frame") || !nrow(salida) ||
       !"objeto" %in% names(salida) ||
-      !any(grepl("candidato_referencial=", salida$objeto, fixed = TRUE))) {
+      !any(grepl("candidato_referencial=", salida$objeto, fixed = TRUE, useBytes = TRUE))) {
     return(salida)
   }
   entidad <- instancia$entidad[[1L]]

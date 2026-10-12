@@ -1,16 +1,22 @@
 .preparar_fecha_parseo <- function(x, formato) {
-  if (!grepl("%z", formato, fixed = TRUE)) return(x)
+  if (!grepl("%z", formato, fixed = TRUE, useBytes = TRUE)) return(x)
   x <- sub("Z$", "+0000", x, perl = TRUE)
   sub("([+-][0-9]{2}):([0-9]{2})$", "\\1\\2", x, perl = TRUE)
 }
 
 .es_fecha_valida <- function(x, formato, expresion, granularidad = "dia") {
-  coincide <- grepl(expresion, x, perl = TRUE)
+  # Declarado, y solo lo legible: un texto que no es UTF-8 valido no es una
+  # fecha en ninguna sesion, y bajo un locale UTF-8 hacia abortar el `grepl()`
+  # (ronda 30-L).
+  x <- .declarar_utf8_valido(as.character(x))
+  legibles <- !is.na(x) & (Encoding(x) == "latin1" | validUTF8(x))
+  coincide <- rep(FALSE, length(x))
+  coincide[legibles] <- grepl(expresion, x[legibles], perl = TRUE)
   valido <- rep(FALSE, length(x))
   if (any(coincide)) {
     valores <- x[coincide]
     if (identical(granularidad, "mes")) {
-      separador <- if (grepl("-", formato, fixed = TRUE)) "-" else "/"
+      separador <- if (grepl("-", formato, fixed = TRUE, useBytes = TRUE)) "-" else "/"
       partes <- do.call(rbind, strsplit(valores, separador, fixed = TRUE))
       anios <- if (startsWith(formato, "%Y")) {
         suppressWarnings(as.integer(partes[, 1L]))
@@ -37,7 +43,7 @@
       # minuto siguiente: `23:59:60` del 2024-01-31 se publicaba como el
       # 1 de febrero, un dia que nadie escribio. Un segundo 60 o 61 no es una
       # hora que `POSIXct` pueda guardar sin cambiarla.
-      if (grepl("%S", formato, fixed = TRUE) || grepl("%T", formato, fixed = TRUE)) {
+      if (grepl("%S", formato, fixed = TRUE, useBytes = TRUE) || grepl("%T", formato, fixed = TRUE, useBytes = TRUE)) {
         valido_convertido <- valido_convertido & !is.na(convertido$sec) &
           convertido$sec < 60
       }
@@ -47,7 +53,7 @@
       # paquete no publica una fecha civil que nadie escribio. Ya normalizado,
       # `convertido$hour` dice 0: la hora se lee del texto, los dos digitos
       # antes del primer `:` -la parte de fecha no tiene ninguno-.
-      if (grepl("%H", formato, fixed = TRUE)) {
+      if (grepl("%H", formato, fixed = TRUE, useBytes = TRUE)) {
         horas <- suppressWarnings(as.integer(
           sub("^[^:]*([0-9]{2}):.*$", "\\1", valores, perl = TRUE)
         ))
@@ -297,7 +303,7 @@
         )
       } else if (identical(patron$formato, "ingles")) {
         comas <- grepl(",", texto[match(indices_validos, indices_candidatos)],
-                       fixed = TRUE)
+                       fixed = TRUE, useBytes = TRUE)
         paste0(
           "%", ifelse(nchar(nombres_validos) > 3L, "B", "b"),
           " %d", ifelse(comas, ",", ""), " %",
@@ -672,7 +678,7 @@ detectar_formatos_fecha <- function(x, muestra = 1e5) {
 
   if (length(filas)) {
     resultado <- do.call(rbind, filas)
-    resultado <- resultado[order(-resultado$n, resultado$formato), , drop = FALSE]
+    resultado <- resultado[.orden_por_bytes(-resultado$n, resultado$formato), , drop = FALSE]
     rownames(resultado) <- NULL
   } else {
     resultado <- data.frame(

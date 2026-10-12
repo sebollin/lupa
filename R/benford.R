@@ -87,7 +87,7 @@
   if (!inherits(x, "integer64") || !.bit64_disponible()) return(FALSE)
   presentes <- x[!is.na(x)]
   if (length(presentes) < 2L) return(FALSE)
-  distintos <- sort(unique(presentes))
+  distintos <- .sort_por_bytes(unique(presentes))
   if (length(distintos) < .MIN_DISTINTOS_NUMERACION) return(FALSE)
   if (!.numeracion_sin_repetir(presentes)) return(FALSE)
   uno <- bit64::as.integer64(1)
@@ -113,7 +113,7 @@
   valores <- as.numeric(x[is.finite(x)])
   if (length(valores) < 2L) return(FALSE)
   if (any(valores != floor(valores))) return(FALSE)
-  distintos <- sort(unique(valores))
+  distintos <- .sort_por_bytes(unique(valores))
   if (length(distintos) < .MIN_DISTINTOS_NUMERACION) return(FALSE)
   if (!.numeracion_sin_repetir(valores)) return(FALSE)
   rango <- distintos[[length(distintos)]] - distintos[[1L]] + 1

@@ -207,7 +207,7 @@
   textos <- .textos_para_clasificacion_personal(x)
   presentes <- !is.na(textos) & nzchar(textos)
   proporcion_correo <- if ("correo" %in% por_nombre ||
-    any(grepl("@", textos[presentes], fixed = TRUE))) {
+    any(grepl("@", textos[presentes], fixed = TRUE, useBytes = TRUE))) {
     if (any(presentes)) mean(validar_correo(textos[presentes])) else NA_real_
   } else NA_real_
   # Un correo escrito `usuario at dominio punto com` no es un correo valido y
@@ -946,7 +946,7 @@
   # Los valores largos van primero para que `12` no deje restos dentro de un
   # identificador `312`. La sustitucion es fija: estos textos ya son valores,
   # no expresiones regulares.
-  valores[order(nchar(valores, type = "bytes"), decreasing = TRUE,
+  valores[.orden_por_bytes(nchar(valores, type = "bytes"), decreasing = TRUE,
                 method = "radix")]
 }
 
@@ -1068,7 +1068,7 @@
     valores <- valores[!.recortar_bytes(valores) %in% rellenos]
   }
   valores <- unique(c(valores, declarados[!is.na(declarados)]))
-  valores[order(nchar(valores, type = "bytes"), decreasing = TRUE,
+  valores[.orden_por_bytes(nchar(valores, type = "bytes"), decreasing = TRUE,
                 method = "radix")]
 }
 
@@ -1200,7 +1200,7 @@
       paste0("(?i)[(\\[{_]\\s*(?:at|arroba|a)\\s*[)\\]}_]|",
              "[\\p{L}\\p{N}]\\s+(?:at|arroba)\\s+[\\p{L}\\p{N}]"),
       leidos[examinables], perl = TRUE
-    ) | grepl("@", leidos[examinables], fixed = TRUE)
+    ) | grepl("@", leidos[examinables], fixed = TRUE, useBytes = TRUE)
     if (!any(con)) return(textos)
     t <- leidos[con]
     punto <- "(?i:dot|punto)"
@@ -1215,7 +1215,7 @@
                      arroba, "_)\\s*", dominio), "@", t, perl = TRUE)
     t <- gsub(paste0("(?<=[\\p{L}\\p{N}])\\s+", arroba, "\\s+", dominio), "@",
               t, perl = TRUE)
-    con_arroba <- grepl("@", t, fixed = TRUE)
+    con_arroba <- grepl("@", t, fixed = TRUE, useBytes = TRUE)
     t[con_arroba] <- gsub(
       paste0("(?<=[\\p{L}\\p{N}])", punto_escrito, "(?=[\\p{L}\\p{N}])"), ".",
       t[con_arroba], perl = TRUE
@@ -1559,7 +1559,7 @@
   for (i in which(lengths(numeros_tapar) > 0L & !golpea)) {
     texto <- textos_candidatos[[i]]
     marca <- Encoding(texto)
-    for (numero in numeros_tapar[[i]][order(-nchar(numeros_tapar[[i]], type = "bytes"))]) {
+    for (numero in numeros_tapar[[i]][.orden_por_bytes(-nchar(numeros_tapar[[i]], type = "bytes"))]) {
       texto <- gsub(numero, "[valor protegido]", texto, fixed = TRUE, useBytes = TRUE)
     }
     Encoding(texto) <- marca
@@ -1950,7 +1950,7 @@
   # solo se buscan para enmascarar el elemento entero, y cual case primero no
   # cambia el resultado.
   valores <- unique(valores)
-  valores <- valores[order(-nchar(valores, type = "bytes"))]
+  valores <- valores[.orden_por_bytes(-nchar(valores, type = "bytes"))]
   # La regla de variantes recibe TODOS los valores: el prefiltro de aca mira la
   # escritura exacta, y una variante no la comparte.
   #
@@ -2047,7 +2047,7 @@
   # sigue a salvo de los valores que no la contienen.
   previo <- .apartar_marcas_paquete(x, nombres)
   previo_delimitados <- .apartar_nombres_delimitados(x, nombres)
-  tocados <- sort(unique(c(previo$indices, which(
+  tocados <- .sort_por_bytes(unique(c(previo$indices, which(
     !is.na(x) & !is.na(previo_delimitados$x) & previo_delimitados$x != x
   ))))
   if (length(tocados)) {
@@ -2294,15 +2294,30 @@
   if (!length(vocabulario) || !length(valores)) return(vocabulario)
   revisar <- !grepl("^[a-z0-9_]*$", vocabulario, useBytes = TRUE)
   if (!any(revisar)) return(vocabulario)
-  textos <- vocabulario[revisar]
-  nombres <- unique(as.character(nombres[!is.na(nombres) & nzchar(nombres)]))
+  # Declarados antes de la primera primitiva, y solo lo que se puede leer por
+  # caracteres (ronda 30-L). Bajo `C` un nombre UTF-8 sin marca no se traducia
+  # al armar el patron -avisaba "unable to translate"-, y bajo un locale UTF-8
+  # un nombre con un byte latin1 suelto ABORTABA `analizar()` en el
+  # `gsub(fixed = TRUE)` que escapa el literal, que estaba fuera del
+  # `tryCatch`. Lo que no es UTF-8 valido no se puede leer por caracteres en
+  # ninguna sesion: ese nombre no se quita y ese texto no se barre por nombres
+  # -queda entero para la regla de valores, que es el lado cerrado-.
+  legible <- function(x) Encoding(x) == "latin1" | validUTF8(x)
+  textos <- .declarar_utf8_valido(vocabulario[revisar])
+  barribles <- legible(textos)
+  nombres <- .declarar_utf8_valido(
+    unique(as.character(nombres[!is.na(nombres) & nzchar(nombres)]))
+  )
+  nombres <- nombres[legible(nombres)]
   # Entero y entre limites: `id` adentro de "Apellidoso" no es la columna, y
   # sacarlo partia el valor protegido que la regla tenia que encontrar.
-  for (nombre in nombres[order(-nchar(nombres, type = "bytes"))]) {
-    literal <- gsub("\\E", "\\E\\\\E\\Q", nombre, fixed = TRUE)
-    patron <- paste0("(?<![\\p{L}\\p{N}_])\\Q", literal, "\\E(?![\\p{L}\\p{N}_])")
-    textos <- tryCatch(gsub(patron, " ", textos, perl = TRUE),
-                       error = function(e) textos)
+  for (nombre in nombres[.orden_por_bytes(-nchar(nombres, type = "bytes"))]) {
+    if (!any(barribles)) break
+    textos[barribles] <- tryCatch({
+      literal <- gsub("\\E", "\\E\\\\E\\Q", nombre, fixed = TRUE)
+      patron <- paste0("(?<![\\p{L}\\p{N}_])\\Q", literal, "\\E(?![\\p{L}\\p{N}_])")
+      gsub(patron, " ", textos[barribles], perl = TRUE)
+    }, error = function(e) textos[barribles])
   }
   tapados <- tryCatch(
     .reemplazar_valores_protegidos(textos, valores, exigir_limites = TRUE),
@@ -2783,7 +2798,7 @@
     valores, .valores_publicables_protegidos(datos, sensibles)
   ))
   valores <- valores[!is.na(valores) & nzchar(valores)]
-  valores <- valores[order(nchar(valores, type = "bytes"), decreasing = TRUE,
+  valores <- valores[.orden_por_bytes(nchar(valores, type = "bytes"), decreasing = TRUE,
                            method = "radix")]
   if (!length(valores)) {
     attr(plan, "columnas_datos_personales_protegidas") <- sensibles
@@ -2936,12 +2951,10 @@
       !is.list(originales) || length(originales) != length(plan$parametros)) {
     return(plan)
   }
-  # `trimws()` y `tolower()` abortan sobre bytes que no son UTF-8 valido: ese
-  # texto se recorta por bytes y se compara sin plegar la caja.
+  # El pliegue de los detectores de ausencia (`.minusculas_para_comparar()`):
+  # no aborta sobre bytes que no son UTF-8 valido y no depende del locale.
   normalizar <- function(x) {
-    x <- as.character(x)
-    x <- tryCatch(trimws(x), error = function(e) .recortar_bytes(x))
-    tryCatch(tolower(x), error = function(e) x)
+    .minusculas_para_comparar(x)
   }
   vocabulario <- unique(c(
     normalizar(c(.cadenas_na_naniar_1_1_0, .cadenas_na_locales)),
@@ -3084,7 +3097,7 @@
     determinante <- candidatos[[which.max(nchar(candidatos, type = "bytes"))]]
     inicio <- sub("\\. La columna corresponde.*$", "", evidencia)
     if (identical(inicio, evidencia)) inicio <- NA_character_
-    tipo_criterio <- if (grepl("por un umbral", evidencia, fixed = TRUE)) {
+    tipo_criterio <- if (grepl("por un umbral", evidencia, fixed = TRUE, useBytes = TRUE)) {
       "un umbral"
     } else {
       "niveles"
@@ -3280,9 +3293,8 @@
   coincide_con <- function(lista) {
     claves <- .nombres_para_operar(lista)
     .nombres_para_operar(columna_completa) %in% claves |
-      vapply(strsplit(columna_completa, ",", fixed = TRUE),
-             function(columnas) any(.nombres_para_operar(trimws(columnas)) %in%
-                                    claves),
+      vapply(.partir_conservando_marca(columna_completa, ","),
+             function(columnas) any(.nombres_para_operar(columnas) %in% claves),
              logical(1L))
   }
   candidatos <- !is.na(hallazgos$columna) &
@@ -3559,11 +3571,15 @@
   # demas columnas, y en el plan dejaba sin efecto la accion que lo convierte en
   # `NA` en una columna vecina, recomendada y activa. Medido en una refutacion.
   # La columna protegida lo sigue tapando, por columna.
-  catalogo <- .normalizacion_minusculas_vector(trimws(c(
+  # El pliegue de los detectores de ausencia (`.minusculas_para_comparar()`):
+  # el `trimws()` antes de declarar avisaba bajo `C` con un nombre latin1, y
+  # bajo un locale UTF-8 un solo valor con un byte suelto hacia caer el filtro
+  # entero en el `tryCatch` (ronda 30-L).
+  catalogo <- .minusculas_para_comparar(c(
     .cadenas_na_naniar_1_1_0, .cadenas_na_locales
-  )))
+  ))
   normalizados <- tryCatch(
-    .normalizacion_minusculas_vector(trimws(.declarar_utf8_valido(valores))),
+    .minusculas_para_comparar(valores),
     error = function(e) rep(NA_character_, length(valores))
   )
   valores[is.na(normalizados) | !normalizados %in% catalogo]
@@ -3620,7 +3636,7 @@
   )
   valores <- unique(c(valores_perfil, valores))
   valores <- valores[!is.na(valores) & nzchar(valores)]
-  valores <- valores[order(nchar(valores, type = "bytes"), decreasing = TRUE,
+  valores <- valores[.orden_por_bytes(nchar(valores, type = "bytes"), decreasing = TRUE,
                            method = "radix")]
   perfil <- .proteger_meta_y_cobertura(perfil, sensibles, valores)
   # `meta` describe la CORRIDA, no los datos: la version del paquete, los

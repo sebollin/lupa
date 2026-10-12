@@ -427,7 +427,7 @@ names(.ftfy_tablas_bytes) <- c(
     } else {
       posiciones <- c(coincidencias, a_grave)
       longitudes <- c(longitudes, longitudes_a_grave)
-      orden <- order(posiciones)
+      orden <- .orden_por_bytes(posiciones)
       coincidencias <- posiciones[orden]
       longitudes <- longitudes[orden]
     }
@@ -732,8 +732,8 @@ names(.ftfy_tablas_bytes) <- c(
   afectados <- reparables | parciales | irreparables | no_se_pudo
   ejemplos <- utils::head(which(afectados), 5L)
   evidencia <- if (!length(ejemplos)) "" else paste(vapply(ejemplos, function(i) {
-    origen <- encodeString(valores[[i]], quote = '"')
-    if (reparables[[i]] || parciales[[i]]) paste0(origen, " -> ", encodeString(reparados[[i]], quote = '"'), " [", estados[[i]], "]")
+    origen <- .comillas_sin_locale(valores[[i]], quote = '"')
+    if (reparables[[i]] || parciales[[i]]) paste0(origen, " -> ", .comillas_sin_locale(reparados[[i]], quote = '"'), " [", estados[[i]], "]")
     else if (irreparables[[i]]) paste0(origen, " (contiene un caracter de reemplazo irrecuperable)")
     else paste0(origen, " (mal convertido; el motor no pudo repararlo)")
   }, character(1L)), collapse = "; ")

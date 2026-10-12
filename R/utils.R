@@ -233,18 +233,23 @@
   clave
 }
 
-# Lo que llega SIN MARCA y no es UTF-8 valido, en una sesion UTF-8. Es lo que
-# deja `read.csv()` sin `fileEncoding` sobre un archivo latin1, el caso mas
-# comun del mundo real, y no es texto: `nchar()`, `trimws()` y las expresiones
-# regulares abortan sobre eso. El paquete lo trataba como texto porque solo
-# miraba la marca `bytes`, y el mismo defecto aparecio en dos sitios de la
-# misma ronda -la limpieza y el reporte-: por eso la regla vive en un solo
-# lugar. En una sesion que no es UTF-8, "sin marca" es la codificacion nativa y
-# si es legible.
+# Lo que llega SIN MARCA y no es UTF-8 valido. Es lo que deja `read.csv()` sin
+# `fileEncoding` sobre un archivo latin1, el caso mas comun del mundo real, y no
+# es texto: `nchar()`, `trimws()` y las expresiones regulares abortan sobre eso.
+# El paquete lo trataba como texto porque solo miraba la marca `bytes`, y el
+# mismo defecto aparecio en dos sitios de la misma ronda -la limpieza y el
+# reporte-: por eso la regla vive en un solo lugar.
+#
+# Y no mira el locale (ronda 30-L). Decia que en una sesion que no es UTF-8
+# "sin marca" es la codificacion nativa y es legible, y bajo `C` eso hacia que
+# `aplicar()` transformara por bytes la celda que el perfil -que decide con
+# `validUTF8()` en cualquier locale- declaro `codificacion_invalida` y no midio,
+# y que el reporte escribiera el nombre `Tel<e9>fono` donde una sesion UTF-8
+# escribe `Tel\xe9fono`. Lo nativo de `C` es ASCII: un byte alto tampoco es
+# texto ahi.
 .sin_marca_ilegible <- function(x) {
   if (!is.character(x) || !length(x)) return(logical(length(x)))
-  !is.na(x) & Encoding(x) == "unknown" & isTRUE(l10n_info()[["UTF-8"]]) &
-    !validUTF8(x)
+  !is.na(x) & Encoding(x) == "unknown" & !validUTF8(x)
 }
 
 # Rinde un valor para PUBLICARLO. Lo declarado `bytes` pasa a la forma que R
@@ -629,7 +634,7 @@
 
 .identificadores_ordenados <- function(x) {
   originales <- as.character(x)
-  originales[order(.clave_bytes(originales), method = "radix")]
+  originales[.orden_por_bytes(.clave_bytes(originales), method = "radix")]
 }
 
 .indice_identificador <- function(pedidos, nombres) {
@@ -784,6 +789,69 @@
   x[order(.clave_bytes(x), method = "radix")]
 }
 
+# `order()` y `sort()` del paquete, sin la intercalacion del locale (ronda
+# 30-L). Sobre texto, `order()` de base usa la de `LC_COLLATE`: el desempate de
+# `formatos_fecha` ponia `%Y-%m-%d` primero bajo `C` y `%d/%m/%Y` bajo
+# `es_UY.UTF-8`, y la propuesta de modelo se ordenaba por el nombre de la
+# columna ANTES de numerar `sugerencia-NNNN`, asi que el mismo id media
+# `Fecha de Alta` en un `Rscript` de cron y `depto` en RStudio, y una regla que
+# nombraba la metrica por su id daba 1 en uno y 0 en el otro.
+#
+# El texto se ordena por sus bytes -la clave de `.clave_bytes()`, que marca el
+# UTF-8 valido y describe lo que no lo es: `method = "radix"` aborta sobre una
+# cadena sin marca con bytes altos-; un `integer64` por su rango (ver
+# `.orden_seguro()`), un factor por sus codigos y lo demas como esta, todo con
+# `method = "radix"`. Todas las llamadas del paquete pasan por aca: una prueba
+# recorre el espacio de nombres y no encuentra otro `order()` ni `sort()`.
+.orden_por_bytes <- function(..., na.last = TRUE, decreasing = FALSE,
+                             method = "radix") {
+  if (!identical(method, "radix")) {
+    stop("`.orden_por_bytes()` solo ordena con `method = \"radix\"`.", call. = FALSE)
+  }
+  claves <- lapply(list(...), .clave_de_orden)
+  do.call(order, c(unname(claves), list(
+    na.last = na.last, decreasing = decreasing, method = "radix"
+  )))
+}
+
+.clave_de_orden <- function(x) {
+  if (inherits(x, "integer64")) {
+    if (requireNamespace("bit64", quietly = TRUE)) {
+      rango <- bit64::rank.integer64(x)
+      rango[is.na(x)] <- NA
+      return(rango)
+    }
+    return(unclass(x))
+  }
+  if (is.factor(x)) return(as.integer(x))
+  if (is.character(x)) return(.clave_bytes(x))
+  if (is.raw(x)) return(as.integer(x))
+  x
+}
+
+.sort_por_bytes <- function(x, decreasing = FALSE, na.last = NA, ...) {
+  if (!length(x)) return(x)
+  x[.orden_por_bytes(x, decreasing = decreasing, na.last = na.last)]
+}
+
+# `factor()`, `split()`, `table()` y `tapply()` ordenan los niveles de un texto
+# con la intercalacion del locale, igual que `sort()` (ronda 30-L): el resumen de
+# hallazgos de `comparar_perfiles()` salia en otro orden bajo `C` que en una
+# sesion UTF-8. Estos ayudantes arman el factor con los niveles por bytes; lo
+# que no es texto queda como lo deja base, que ahi no consulta el locale.
+.factor_por_bytes <- function(x, exclude = NA) {
+  if (is.factor(x)) return(x)
+  if (!is.character(x)) return(factor(x, exclude = exclude))
+  niveles <- .sort_por_bytes(unique(x[!is.na(x)]))
+  if (is.null(exclude) && anyNA(x)) niveles <- c(niveles, NA_character_)
+  factor(x, levels = niveles, exclude = exclude)
+}
+
+.dividir_por_bytes <- function(x, f, drop = FALSE) {
+  f <- if (is.list(f)) lapply(f, .factor_por_bytes) else .factor_por_bytes(f)
+  split(x, f, drop = drop)
+}
+
 # `.columnas_duplicadas()` y `.pares_redundantes()` eran el mismo bloque escrito
 # dos veces en archivos distintos, con una sola diferencia: que columnas se
 # comparan -todas, o un subconjunto de claves-. Corregir un detalle obligaba a
@@ -845,8 +913,12 @@
   if (!inherits(datos, "data.frame")) {
     stop("`datos` debe heredar de data.frame.", call. = FALSE)
   }
-  if (is.character(columnas) && !is.null(names(datos)) &&
-      !anyNA(columnas)) {
+  # Por posicion, tambien un nombre `NA`: una tabla de R puede tener una
+  # columna llamada asi, y `[.data.frame` no la selecciona por nombre
+  # ("columnas no definidas seleccionadas"). `perfilar_por()` abortaba con
+  # ella (ronda 30, al cerrar 30-K H3). Un nombre que la tabla no tiene sigue
+  # cayendo en `[` y su error.
+  if (is.character(columnas) && !is.null(names(datos))) {
     indices <- .indice_nombre(columnas, names(datos))
     if (!anyNA(indices)) columnas <- indices
   }
@@ -1386,6 +1458,10 @@
 # siendo analizables: el corte separa lo que se convierte de lo que se deparsa,
 # no lo que es lista de lo que no lo es.
 .analizable_como_texto <- function(x) {
+  # Antes que todo: una clase que tiene metodo de `as.character()` y aborta al
+  # usarlo -la `vctrs_rcrd`- no se puede analizar como texto. Ver
+  # `.es_columna_sin_escritura()`.
+  if (.es_columna_sin_escritura(x)) return(FALSE)
   if (!is.list(x)) return(TRUE)
   if (inherits(x, "sfc") || inherits(x, "sfg")) return(FALSE)
   if (.tiene_metodo_as_character(x)) return(TRUE)
@@ -1400,6 +1476,12 @@
 }
 
 .motivo_no_analizable_texto <- function(x) {
+  if (.es_columna_sin_escritura(x)) {
+    return(paste0(
+      "Los valores de la columna (", .tipo_declarado(x), ") no se pueden ",
+      "escribir como texto; las etapas de texto no la evaluaron."
+    ))
+  }
   paste0(
     "La columna es una lista de objetos (", .tipo_declarado(x),
     "); las etapas de texto no la evaluaron porque convertirla no produce sus ",
@@ -1507,6 +1589,62 @@
   )
 }
 
+# Un nivel `NA` de un factor -el que dejan `addNA()` o `factor(exclude = NULL)`-
+# es un FALTANTE. El valor de esas celdas es `NA`: `as.character()` lo dice, la
+# medicion lo lee asi (los factores se miden como texto), y tambien
+# `distribucion_valores()` e `inferir_tipo()`. Pero `is.na()` sobre el factor
+# dice FALSE, porque el codigo apunta a un nivel, y el perfil y las
+# dependencias cuentan presencia con `is.na()`. Medido en la ronda 30, un factor
+# con 13 de 40 celdas en el nivel `NA` se leia de cinco maneras en un mismo
+# analisis: el perfil 0 faltantes -y entonces no se proponia `NoNulo` y esas
+# celdas no entraban a ninguna completitud- y `n_distintos = NA`;
+# `distribucion_valores()`, `Formato` e `inferir_tipo()` sobre 27; la dependencia
+# sobre 39 pares "presentes".
+#
+# La respuesta es una: es un faltante, porque una celda cuyo valor es `NA` no
+# informa nada, y es la lectura que ya hace la medicion de la calidad. Se aplica
+# en la ENTRADA -el codigo del nivel pasa a `NA` y el nivel se retira- y no en
+# cada `is.na()`: lo que viene despues ve un factor comun con faltantes. La copia
+# es interna; los datos del usuario no se tocan.
+.factor_sin_nivel_na <- function(x) {
+  if (!is.factor(x)) return(x)
+  niveles <- levels(x)
+  nivel_na <- which(is.na(niveles))
+  if (!length(nivel_na)) return(x)
+  atributos <- attributes(x)
+  conservados <- niveles[-nivel_na]
+  codigos <- match(niveles, conservados)[as.integer(x)]
+  atributos$levels <- conservados
+  attributes(codigos) <- atributos
+  codigos
+}
+
+# La entrada de una tabla a los diagnosticos que leen presencia y valores: dos
+# formas de guardar el mismo dato quedan en una, sobre la copia interna.
+#
+#   - El nivel `NA` de un factor pasa a ausente (arriba).
+#   - Un `POSIXlt` -lo que deja `strptime()`- pasa a `POSIXct`, que es el mismo
+#     instante en la misma zona. Por dentro es una lista, y el perfil lo leia
+#     distinto que a la misma columna `POSIXct`: medido en la ronda 30, `moda` y
+#     `frecuencia_moda` en `NA` sin declararlo (la `POSIXct` publica el instante
+#     y 10), `n_filas_fecha_civil_distinta_utc = 0` donde la `POSIXct` en
+#     `America/Montevideo` dice 30 -y su hallazgo de zona horaria no salia-, y
+#     las dependencias la declaraban "lista" y no la buscaban. La misma columna
+#     en las dos clases da ahora la misma respuesta. Las relaciones y la
+#     identidad de filas del plan ya iban por el instante.
+.normalizar_columnas_entrada <- function(tabla) {
+  if (!inherits(tabla, "data.frame") || !ncol(tabla)) return(tabla)
+  for (i in seq_along(tabla)) {
+    columna <- tabla[[i]]
+    if (is.factor(columna) && anyNA(levels(columna))) {
+      tabla[[i]] <- .factor_sin_nivel_na(columna)
+    } else if (inherits(columna, "POSIXlt")) {
+      tabla[[i]] <- as.POSIXct(columna)
+    }
+  }
+  tabla
+}
+
 # Copia operativa de una tabla: los factores se interpretan como texto para
 # que los métodos no dependan de la versión de R ni de stringsAsFactors.
 # El perfil conserva la columna original; esta función sólo se usa al ejecutar
@@ -1553,8 +1691,81 @@
   )
 }
 
-.pegar_nombres <- function(x) {
-  paste(x, collapse = " + ")
+# Una etiqueta que junta nombres de columna -`fecha + descripcion`-. Un solo
+# nombre se publica tal como llego, con sus bytes y su marca (`?perfilar`): asi
+# sigue indexando la tabla. Varios se pegan con `.pegar_texto()`.
+.pegar_nombres <- function(x, sep = " + ") {
+  x <- as.character(x)
+  if (length(x) == 1L && !is.na(x)) return(x)
+  .pegar_texto(x, collapse = sep)
+}
+
+# `paste()` que no depende del locale (ronda 30-L). `paste()` de base traduce al
+# nativo lo marcado `latin1` cuando nada del vector esta marcado UTF-8, y bajo
+# `C` lo nativo es ASCII: el nombre `descripcion` con tilde en latin1 salia como
+# el texto `descripci<f3>n`, que no indexa la tabla, y una columna llamada como
+# una persona salia `[valor protegido]` porque la etiqueta ya no era el nombre.
+# Con algo marcado UTF-8 al lado, un `unknown` con bytes altos se escapaba igual.
+# Aca lo `latin1` se convierte -sobre `latin1` la conversion no mira el locale-
+# y se pega por bytes; el resultado se declara UTF-8 si lo es, y si no queda
+# con sus bytes, sin marca, en los dos locales.
+.pegar_texto <- function(..., sep = " ", collapse = NULL) {
+  textos <- lapply(list(...), as.character)
+  # Lo declarado `bytes` sigue declarado en lo que se arma con el, como en
+  # `paste()` de base: es lo que hace que la consola lo muestre `a\\xc3\\xb1o`
+  # (test-N87).
+  declarados <- lapply(textos, function(x) !is.na(x) & Encoding(x) == "bytes")
+  piezas <- lapply(textos, function(x) {
+    en_latin1 <- !is.na(x) & Encoding(x) == "latin1"
+    if (any(en_latin1)) {
+      x[en_latin1] <- iconv(x[en_latin1], from = "latin1", to = "UTF-8")
+    }
+    Encoding(x) <- "bytes"
+    x
+  })
+  salida <- do.call(paste, c(piezas, list(sep = sep, collapse = collapse)))
+  con_bytes <- rep(FALSE, length(salida))
+  if (any(unlist(declarados, use.names = FALSE))) {
+    marcas <- do.call(paste, c(
+      lapply(declarados, function(b) ifelse(b, "1", "")),
+      list(sep = "", collapse = if (is.null(collapse)) NULL else "")
+    ))
+    con_bytes <- nzchar(marcas)
+  }
+  if (any(!con_bytes)) {
+    libres <- salida[!con_bytes]
+    Encoding(libres) <- "unknown"
+    salida[!con_bytes] <- .declarar_utf8_valido(libres)
+  }
+  salida
+}
+
+# `paste0()` del paquete sobre texto del usuario: los `objeto_medible` de
+# `medir()` -`tabla$columna[fila]`- y las evidencias `columna=valor` de
+# duplicados. Con `paste0()` de base, bajo `C` un nombre latin1 salia
+# `df$descripci<f3>n[1]` (ronda 30-L).
+.pegar_texto0 <- function(..., collapse = NULL) {
+  .pegar_texto(..., sep = "", collapse = collapse)
+}
+
+# Parte cada texto por un separador ASCII y recorta los blancos de cada pieza,
+# por bytes, y devuelve a las piezas la marca del texto de origen. Es la regla
+# de la ronda 27 (A1) para los nombres de columna: lo que no es UTF-8 valido se
+# corta por bytes, porque `strsplit()` y `trimws()` sin `useBytes` avisan o
+# abortan sobre el segun el locale -bajo un locale UTF-8 "input string N is
+# invalid in this locale", que con `warn = 2` tumbaba `perfilar()`; bajo `C`,
+# nada-. Cortar por un separador ASCII es exacto en UTF-8 y en latin1, pero el
+# corte por bytes pierde la marca, y sin ella un nombre `latin1` deja de ser el
+# mismo nombre (ronda 30-L).
+.partir_conservando_marca <- function(x, separador) {
+  x <- as.character(x)
+  marcas <- Encoding(x)
+  piezas <- strsplit(x, separador, fixed = TRUE, useBytes = TRUE)
+  lapply(seq_along(piezas), function(i) {
+    p <- .recortar_bytes(piezas[[i]])
+    if (length(p) && marcas[[i]] != "unknown") Encoding(p) <- marcas[[i]]
+    p
+  })
 }
 
 # Una corrida larga y callada no se distingue de una colgada, pero una barra en
@@ -1810,6 +2021,76 @@
   publicables
 }
 
+# `encodeString()` sin consultar el locale (ronda 30-L). La de base escapa como
+# `\uXXXX` todo lo que el locale no imprime, y bajo `C` eso es todo lo que no
+# es ASCII: la evidencia citaba `Jos\u00e9` en un `Rscript` de cron y la e con
+# tilde en RStudio -33 bytes contra 29-, el plan y el reporte heredaban la
+# diferencia, y el ejemplo dejaba de casar con el de la tabla de patrones.
+#
+# Escribe lo que `encodeString()` escribe en una sesion UTF-8: el texto valido
+# tal cual; la barra y la comilla escapadas; los controles ASCII como `\n`,
+# `\t` o en octal; los C1 y los separadores de linea y de parrafo Unicode
+# como `\uXXXX`; y cada byte que no forma UTF-8 valido como `\xNN`,
+# conservando las letras validas de al lado. Lo `latin1` se convierte primero, y
+# lo declarado `bytes` sale como lo escribe base, que en eso no mira el locale.
+.comillas_sin_locale <- function(x, quote = "") {
+  x <- as.character(x)
+  if (!length(x)) return(character())
+  vapply(x, .comillas_sin_locale_uno, character(1L), quote = quote,
+         USE.NAMES = FALSE)
+}
+
+.comillas_sin_locale_uno <- function(texto, quote) {
+  if (is.na(texto)) return("NA")
+  if (Encoding(texto) == "bytes") return(encodeString(texto, quote = quote))
+  if (Encoding(texto) == "latin1") {
+    texto <- iconv(texto, from = "latin1", to = "UTF-8")
+  }
+  bytes <- as.integer(charToRaw(texto))
+  comilla <- if (nzchar(quote)) utf8ToInt(quote) else -1L
+  partes <- character()
+  i <- 1L
+  n <- length(bytes)
+  while (i <= n) {
+    b <- bytes[[i]]
+    largo <- if (b < 0x80L) 1L else if (b >= 0xC2L && b <= 0xDFL) 2L else
+      if (b >= 0xE0L && b <= 0xEFL) 3L else if (b >= 0xF0L && b <= 0xF4L) 4L else 0L
+    codigo <- NA_integer_
+    if (largo >= 1L && i + largo - 1L <= n) {
+      trozo <- as.raw(bytes[i:(i + largo - 1L)])
+      if (largo == 1L || validUTF8(rawToChar(trozo))) {
+        codigo <- if (largo == 1L) b else utf8ToInt(rawToChar(trozo))
+      }
+    }
+    if (is.na(codigo)) {
+      partes <- c(partes, sprintf("\\x%02x", b))
+      i <- i + 1L
+      next
+    }
+    partes <- c(partes, .caracter_citado(codigo, comilla))
+    i <- i + largo
+  }
+  salida <- paste0(quote, paste0(partes, collapse = ""), quote)
+  Encoding(salida) <- "unknown"
+  .declarar_utf8_valido(salida)
+}
+
+.caracter_citado <- function(codigo, comilla) {
+  if (codigo == 0x5CL) return("\\\\")
+  if (codigo == comilla) return(paste0("\\", intToUtf8(codigo)))
+  if (codigo < 0x20L || codigo == 0x7FL) {
+    nombrados <- c(`7` = "a", `8` = "b", `9` = "t", `10` = "n", `11` = "v",
+                   `12` = "f", `13` = "r")
+    letra <- nombrados[as.character(codigo)]
+    if (!is.na(letra)) return(paste0("\\", letra))
+    return(sprintf("\\%03o", codigo))
+  }
+  if ((codigo >= 0x80L && codigo <= 0x9FL) || codigo %in% c(0x2028L, 0x2029L)) {
+    return(sprintf("\\u%04x", codigo))
+  }
+  intToUtf8(codigo)
+}
+
 # Cita un valor para publicarlo entre comillas sin volver a escapar lo que ya
 # se rindio. `encodeString()` escapa la barra del propio `\xNN`, asi que un
 # valor declarado `bytes` salia `ca\\xc3\\xb1` en la evidencia mientras la
@@ -1840,7 +2121,7 @@
       salida[[i]] <- paste0('"', gsub('"', '\\"', visible, fixed = TRUE), '"')
       next
     }
-    salida[[i]] <- encodeString(texto, quote = '"')
+    salida[[i]] <- .comillas_sin_locale(texto, quote = '"')
   }
   salida
 }

@@ -64,20 +64,22 @@ test_that("H: los duplicados se marcan con matriz, data.frame anidado y POSIXlt"
 test_that("N: un factor con codigo NA y nivel NA se agrupa como en el perfil", {
   datos <- data.frame(b = c(1, 1, 1, 1))
   datos$f <- structure(c(1L, 2L, NA, NA), levels = c("a", NA), class = "factor")
-  # A mano, por codigo: las filas 3 y 4 (codigo NA) son iguales; la 2 (nivel
-  # NA, codigo 2) es otra fila.
+  # La propiedad es que el ejecutor agrupa como el perfil. Desde la ronda 30
+  # (30-K, H6) el nivel `NA` es un faltante en el perfil, asi que las filas 2
+  # (nivel NA), 3 y 4 (codigo NA) son la misma fila: `b = 1` y `f` ausente. En
+  # la ronda 26 el perfil comparaba codigos y la fila 2 era otra.
   perfil <- suppressWarnings(perfilar(datos, analizar_dependencias = FALSE))
-  expect_equal(perfil$general$filas_duplicadas, 1)
+  expect_equal(perfil$general$filas_duplicadas, 2)
+  expect_equal(perfil$columnas$n_faltantes[perfil$columnas$columna == "f"], 3)
   plan <- suppressWarnings(planificar_limpieza(perfil, datos))
   marcado <- suppressWarnings(aplicar(.solo_O134(plan, "marcar_filas_duplicadas"), datos))
-  # Antes: la fila 2 entraba al grupo de las filas 3 y 4.
-  expect_identical(marcado$datos$.fila_duplicada, c(FALSE, FALSE, FALSE, TRUE))
-  expect_identical(marcado$datos$.grupo_duplicado, c(NA, NA, 1L, 1L))
+  expect_identical(marcado$datos$.fila_duplicada, c(FALSE, FALSE, TRUE, TRUE))
+  expect_identical(marcado$datos$.grupo_duplicado, c(NA, 1L, 1L, 1L))
   eliminado <- suppressWarnings(aplicar(
     .solo_O134(plan, "conservar_primera_duplicada"), datos,
     permitir_eliminacion = TRUE
   ))
-  expect_identical(nrow(eliminado$datos), 3L)
+  expect_identical(nrow(eliminado$datos), 2L)
 })
 
 test_that("B: winsorizar recorta a los limites de Tukey y no toca lo demas", {

@@ -105,7 +105,7 @@
 
 .error_identificador <- function(entrada, causa, salida) {
   stop(
-    "`lupa` no puede interpretar el nombre de tabla ", encodeString(entrada, quote = "'"),
+    "`lupa` no puede interpretar el nombre de tabla ", .comillas_sin_locale(entrada, quote = "'"),
     ": ", causa, " ", salida,
     call. = FALSE
   )
@@ -814,7 +814,7 @@ print.coleccion_lupa <- function(x, ...) {
   )
   if (!length(indices)) return(vacia)
   elemento <- as.character(registro$elemento[indices])
-  tiene_metrica <- grepl("::", elemento, fixed = TRUE)
+  tiene_metrica <- grepl("::", elemento, fixed = TRUE, useBytes = TRUE)
   columna <- rep(NA_character_, length(elemento))
   metrica <- elemento
   columna[tiene_metrica] <- sub("::.*$", "", elemento[tiene_metrica])
@@ -924,7 +924,12 @@ print.coleccion_lupa <- function(x, ...) {
 #'   personales, y `resumen_tabla$meta$proteccion_personal$otras_tablas` dice
 #'   por qué. Con esos valores se barren también `cobertura_coleccion`,
 #'   `cobertura_metricas` y `meta$lecturas`, que juntan los motivos de todas
-#'   las tablas. [perfilar_dbi()] sobre una tabla sola protege sólo con los de
+#'   las tablas. Sin retenerlos, esos tres campos y el mensaje del motor de
+#'   cada tabla pasan igual por el piso con los valores que las tablas
+#'   leyeron y que un mensaje del motor puede llevar —los que se escriben sólo
+#'   con lo permitido, ver [perfilar_dbi()]—, sin consultas de más: el mensaje
+#'   de una vista que citaba `"Campos Cadena"`, la celda de su tabla base, se
+#'   publicaba. [perfilar_dbi()] sobre una tabla sola protege sólo con los de
 #'   esa tabla.
 #' @param cobertura_metricas Qué se sube a `cobertura_metricas`: `"no_medidas"`
 #'   (por omisión) sólo las métricas que no se calcularon, `"completa"` todas
@@ -990,6 +995,11 @@ perfilar_coleccion <- function(coleccion, muestra = Inf,
     declaradas$tabla, declaradas$esquema, declaradas$identificador
   ))
   on.exit(.fijar_identificadores_motor(identificadores_previos), add = TRUE)
+  # Y los valores protegidos que lee cada tabla, para el mensaje del motor de
+  # las demas: ver `.valores_motor()`.
+  valores_motor_previos <- .activar_valores_motor()
+  on.exit(.fijar_valores_motor(valores_motor_previos), add = TRUE)
+  nombres_columnas <- character()
   inicio <- Sys.time()
   cobertura <- list()
   metricas <- list()
@@ -1373,6 +1383,10 @@ perfilar_coleccion <- function(coleccion, muestra = Inf,
       }
     }
 
+    nombres_columnas <- c(nombres_columnas, tryCatch(
+      as.character(perfil$resumen_tabla$columnas$columna),
+      error = function(e) character()
+    ))
     if (conservar_perfiles) {
       perfiles[[identificador]] <- perfil
       protegidos_tablas[[identificador]] <-
@@ -1422,9 +1436,41 @@ perfilar_coleccion <- function(coleccion, muestra = Inf,
   # `meta$lecturas` juntan los de todas las tablas, y un mensaje del motor de
   # una vista citaba el celular protegido de `clientes`, que el piso entre
   # tablas solo buscaba en `perfiles`. Medido en la ronda 29. Con los valores
-  # que se leyeron -los de `conservar_perfiles = TRUE`-; sin ellos, el mensaje
-  # del motor ya llega con solo lo permitido (`.sin_literales_motor()`). Solo
-  # el texto: los numeros de estas tablas son conteos y momentos.
+  # que se leyeron -los de `conservar_perfiles = TRUE`-. Solo el texto: los
+  # numeros de estas tablas son conteos y momentos.
+  #
+  # Sin perfiles, el mensaje del motor llega con solo lo permitido
+  # (`.sin_literales_motor()`), y la ronda 30 midio lo que eso deja: un valor
+  # hecho de lo permitido -`Campos Cadena`, dos palabras del vocabulario- citado
+  # por la vista se publicaba en los tres campos aunque la coleccion habia leido
+  # la tabla base. El mensaje ya pasa por el piso con los valores que la
+  # coleccion conocia al armarlo; aca se pasan los tres campos con todos los que
+  # conocio al final -una vista perfilada antes que su tabla base-, que son
+  # pocos: los que el mensaje puede llevar (`.valores_motor()`).
+  if (!conservar_perfiles) {
+    textos_motor <- c(
+      as.character(cobertura_coleccion$motivo),
+      as.character(tabla_metricas$motivo),
+      if (is.data.frame(tabla_lecturas)) as.character(tabla_lecturas$motivo)
+    )
+    conocidos <- .valores_conocidos_en(textos_motor)
+    if (length(conocidos)) {
+      intocables <- unique(c(
+        nombres_columnas, as.character(declaradas$tabla),
+        as.character(declaradas$esquema), as.character(declaradas$identificador)
+      ))
+      intocables <- intocables[!is.na(intocables) & nzchar(intocables)]
+      cobertura_coleccion <- .proteger_textos_salida(
+        cobertura_coleccion, conocidos, intocables = intocables
+      )
+      tabla_metricas <- .proteger_textos_salida(
+        tabla_metricas, conocidos, intocables = intocables
+      )
+      tabla_lecturas <- .proteger_textos_salida(
+        tabla_lecturas, conocidos, intocables = intocables
+      )
+    }
+  }
   if (conservar_perfiles && length(protegidos_tablas)) {
     completos <- Filter(function(x) isTRUE(x$completo), protegidos_tablas)
     valores_tablas <- unique(unlist(lapply(completos, `[[`, "valores"),
@@ -1532,7 +1578,7 @@ perfilar_coleccion <- function(coleccion, muestra = Inf,
     ))
   }
   tryCatch({
-    sqlite <- grepl("sqlite", .senas_conexion_dbi(conexion), fixed = TRUE)
+    sqlite <- grepl("sqlite", .senas_conexion_dbi(conexion), fixed = TRUE, useBytes = TRUE)
     tabla_sql <- as.character(DBI::dbQuoteIdentifier(conexion, referencia))
     valores <- character()
     fechas <- character()
@@ -2836,7 +2882,7 @@ relaciones_coleccion <- function(coleccion, pares, muestra = 1e4,
       consultas_rangos = estado$consultas_rangos,
       columnas_candidatas = columnas_candidatas,
       podas_por_motivo = if (nrow(cobertura_podas)) {
-        as.list(table(cobertura_podas$motivo))
+        as.list(table(.factor_por_bytes(cobertura_podas$motivo)))
       } else list(),
       lecturas = bitacora,
       orden_declarado = orden,

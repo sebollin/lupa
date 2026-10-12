@@ -61,6 +61,14 @@ Una fila donde alguna de las columnas comparadas está ausente \strong{no se cue
 como discordante ni como concordante}: se excluye del universo evaluado, y
 \code{n_evaluadas} lo declara. Ausencia no es desacuerdo.
 
+Una columna de la señal que no tiene un valor comparable por fila —una
+compuesta (matriz, tabla anidada, valores que no se escriben como texto), una
+lista de objetos o de geometrías, o una magnitud con unidad (\code{units}), cuyo
+número sin la unidad no es su valor— no entra: la fila de la señal sale con
+\code{n_evaluadas = 0}, \code{n_discordantes = NA} y la evidencia dice qué columna y
+por qué. Con una \code{transformacion} que la lleve a un valor por fila —por
+ejemplo \code{units::drop_units()} después de llevarla a una unidad—, se compara.
+
 Una fila con el mismo valor en todas las columnas concuerda, también si ese
 valor es infinito: \code{Inf} contra \code{Inf} es coincidencia exacta.
 

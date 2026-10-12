@@ -570,6 +570,17 @@ llama divergencia a la diferencia que ese criterio explica —menos
 distintos en el resumen SQL, con la moda y la frecuencia que de ahí se
 siguen, o una moda empatada que cada lado desempata con su orden—: la deja
 en una fila \code{no_corroborada} con ese motivo.
+\item \strong{Una columna que mezcla tipos de almacenamiento.} SQLite admite texto en
+una columna de afinidad numérica, y RSQLite la lee como número: convierte
+ese texto en \code{0} y lo avisa ("mixed type"). El resumen SQL ve los valores
+guardados —la moda puede ser el texto, y las métricas de magnitud quedan
+\code{no_disponible} porque el motor devolvió algo que no se lee como número—,
+y \code{perfil_muestra} ve lo que entregó el controlador: \code{minimo = 0}, una moda
+\code{0} que nadie escribió. \code{perfilar_dbi()} no relee la columna como texto:
+declara cada divergencia con esa causa medida en \code{resumen_tabla$cobertura},
+y dice que las cifras de magnitud de \code{perfil_muestra} para esa columna no
+describen lo guardado. Para perfilar los valores guardados, leer la columna
+como texto (\verb{CAST(columna AS TEXT)} en una vista) o limpiarla en el origen.
 }
 }
 
@@ -801,10 +812,24 @@ las palabras de SQL, los nombres de tipo, los nombres de la tabla y de sus
 columnas, los códigos SQLSTATE, los signos y los números de menos de seis
 cifras —el piso de la protección: la línea, la posición, un código—;
 todo lo demás sale \verb{[literal omitido]}. Un número se cuenta con sus
-separadores: \verb{4.685.467-9} es uno de ocho cifras. Así se tapa también el
+separadores: \verb{4.685.467-9} es uno de ocho cifras, y se lee como lo lee el
+piso de la protección, con los mismos separadores —un espacio duro o uno
+fino, el punto medio, una raya, \code{" - "}, dos espacios, un tabulador o un
+salto de línea entre los grupos: \code{"099 - 123 - 456"} es uno de nueve—. Así
+se tapa también el
 valor que el motor cita sin comillas —duckdb: \verb{Type INT64 with value 59899123456 can't be cast}, y la cadena que \code{strptime} repite en otra
 línea, que se tapa entera; SQL Server con la sesión en sueco o neerlandés—
-y la cola de un valor que lleva una comilla adentro. Un mensaje en otro
+y la cola de un valor que lleva una comilla adentro. Y el mensaje pasa
+también por el piso con los valores protegidos que la llamada ya leyó —en
+\code{\link[=perfilar_coleccion]{perfilar_coleccion()}}, los de todas sus tablas—: un valor escrito sólo con
+lo permitido —los apellidos \code{"Campos Cadena"}, dos palabras del
+vocabulario— se tapa, y el nombre de una columna que es también uno de esos
+valores —la docente \code{"Florencia"} de una planilla con una columna por
+docente— deja de exceptuarse, con la comparación del piso. Lo que queda
+abierto: un valor que la llamada \strong{no} leyó —la celda que hizo fallar la
+lectura de la muestra, de una columna que la vista castea— escrito sólo con
+lo permitido, o igual al nombre de una columna, se publica, porque el
+mensaje no tiene cómo distinguirlo del vocabulario ni de un nombre. Un mensaje en otro
 idioma conserva su SQL, sus tipos y sus nombres y se lee peor, que es el
 lado cerrado. Quedan una palabra de SQL entre comillas —\verb{Incorrect syntax near 'LIMIT'} dice que el motor no acepta ese dialecto— y un signo suelto.
 El texto que PostgreSQL cita sin comillas al no poder leer un JSON

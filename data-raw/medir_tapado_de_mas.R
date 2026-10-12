@@ -251,3 +251,37 @@ for (familia in names(listas)) {
   y <- .reemplazar_valores_protegidos(x, valores, exigir_limites = FALSE)
   cat(sprintf("%-24s %5.1f %%   ej: %s\n", familia, 100 * mean(y != x), x[[1L]]))
 }
+
+# Y los importes con centavos, por ESCRITURA, sobre las mismas cifras enteras:
+# la familia `monto_con_decimales` de arriba sortea centavos al azar, y uno de
+# cada cien termina en `.00`. Ronda 30: la ronda 29 leia el decimal de ceros como
+# el entero y el importe REDONDO de siete cifras -`"5460537.00"`, un sueldo, una
+# cuota- se tapaba como el entero de siete cifras, uno de cada cinco, contra
+# ninguno en la ronda 28. La cifra entera entra ahora solo como documento entero.
+# El de ocho cifras con centavos se tapa como el entero de ocho: su parte entera
+# coincide con un documento entero, y eso ya pasaba en la ronda 28. Al final, con
+# su semilla, para no cambiar los numeros de arriba.
+set.seed(3012)
+m_importes <- 4000
+ent7 <- sample(1000001:6999999, m_importes)
+ent8 <- sample(10000000:69999999, m_importes)
+centavos <- sample(1:99, m_importes, TRUE)
+importes <- list(
+  monto_7_con_centavos = sprintf("%d.%02d", ent7, centavos),
+  monto_7_cero_centavos = sprintf("%d.00", ent7),
+  monto_7_un_cero = sprintf("%d.0", ent7),
+  monto_7_coma_00 = sprintf("%d,00", ent7),
+  frase_monto_7_00 = sprintf("transferencia por %d.00 pesos", ent7),
+  monto_7_cuatro_ceros = sprintf("%d.0000", ent7),
+  monto_7_entero = sprintf("%d", ent7),
+  monto_8_con_centavos = sprintf("%d.%02d", ent8, centavos),
+  monto_8_cero_centavos = sprintf("%d.00", ent8),
+  monto_8_entero = sprintf("%d", ent8)
+)
+cat("\nimportes, las mismas", m_importes, "cifras enteras en cada escritura:\n")
+for (familia in names(importes)) {
+  x <- importes[[familia]]
+  p <- mean(.reemplazar_valores_protegidos(x, valores, exigir_limites = FALSE) != x)
+  cat(sprintf("%-24s %5.1f %%  (+- %.1f, dos errores estandar)   ej: %s\n",
+              familia, 100 * p, 200 * sqrt(p * (1 - p) / m_importes), x[[1L]]))
+}

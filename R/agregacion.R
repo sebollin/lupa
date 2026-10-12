@@ -299,7 +299,7 @@ transiciones_granularidad <- function() {
       valores <- if (is.character(x) || is.factor(x)) {
         .nombres_para_operar(as.character(x))
       } else x
-      sprintf("%09d", as.integer(addNA(as.factor(valores))))
+      sprintf("%09d", as.integer(addNA(.factor_por_bytes(valores))))
     }),
       list(drop = TRUE, lex.order = TRUE))
   )
@@ -323,7 +323,7 @@ transiciones_granularidad <- function() {
 # `a` y `b, c`, y el tablero no podia distinguir las dos celdas. Ronda 24.
 .unir_nombres_partes <- function(x) {
   x <- .identificadores_ordenados(x)
-  con_coma <- grepl(",", x, fixed = TRUE)
+  con_coma <- grepl(",", x, fixed = TRUE, useBytes = TRUE)
   x[con_coma] <- paste0("`", x[con_coma], "`")
   paste(x, collapse = ", ")
 }
@@ -699,7 +699,7 @@ transiciones_granularidad <- function() {
   por_fila <- identical(as.character(resultado$granularidad[[1L]]), "instanciaEntidad") &&
     all(as.character(medidas$granularidad) == "instanciaAtributo")
   instancias_por_entidad <- tapply(
-    clave_medidas, .nombres_para_operar(as.character(medidas$entidad)),
+    clave_medidas, .factor_por_bytes(.nombres_para_operar(as.character(medidas$entidad))),
     function(v) length(unique(v))
   )
   fila_alcance <- function(k, medidas_grupo, universo_grupo, unidades) {
@@ -1156,8 +1156,8 @@ agregar <- function(medidas, destino,
     if (length(ajenas)) {
       stop(
         "Hay medidas de entidades que no estan declaradas en la coleccion '",
-        coleccion$nombre, "': ", paste(sort(ajenas), collapse = ", "),
-        ". Declaradas: ", paste(sort(coleccion$declaradas), collapse = ", "),
+        coleccion$nombre, "': ", paste(.sort_por_bytes(ajenas), collapse = ", "),
+        ". Declaradas: ", paste(.sort_por_bytes(coleccion$declaradas), collapse = ", "),
         ". Un numero que mezcle objetos de fuera de la frontera no describe la ",
         "coleccion.", call. = FALSE
       )
@@ -1173,8 +1173,8 @@ agregar <- function(medidas, destino,
     if (length(ajenas)) {
       stop(
         "Hay medidas de colecciones que no estan declaradas en el conjunto: ",
-        paste(sort(ajenas), collapse = ", "), ". Declaradas: ",
-        paste(sort(conjunto$declaradas), collapse = ", "), ".", call. = FALSE
+        paste(.sort_por_bytes(ajenas), collapse = ", "), ". Declaradas: ",
+        paste(.sort_por_bytes(conjunto$declaradas), collapse = ", "), ".", call. = FALSE
       )
     }
   }
@@ -1191,8 +1191,8 @@ agregar <- function(medidas, destino,
     if (length(ajenas)) {
       stop(
         "Hay medidas de colecciones que no pertenecen a la organizacion '",
-        organismo$nombre, "': ", paste(sort(ajenas), collapse = ", "),
-        ". Declaradas: ", paste(sort(organismo$declaradas), collapse = ", "),
+        organismo$nombre, "': ", paste(.sort_por_bytes(ajenas), collapse = ", "),
+        ". Declaradas: ", paste(.sort_por_bytes(organismo$declaradas), collapse = ", "),
         ". Un numero que mezcle objetos de fuera de la frontera no describe a ",
         "ese organismo.", call. = FALSE
       )
@@ -1217,8 +1217,8 @@ agregar <- function(medidas, destino,
     if (length(ajenas)) {
       stop(
         "Hay medidas de organizaciones que no estan declaradas en el conjunto: ",
-        paste(sort(ajenas), collapse = ", "), ". Declaradas: ",
-        paste(sort(conjunto_organismos$declaradas), collapse = ", "), ".",
+        paste(.sort_por_bytes(ajenas), collapse = ", "), ". Declaradas: ",
+        paste(.sort_por_bytes(conjunto_organismos$declaradas), collapse = ", "), ".",
         call. = FALSE
       )
     }

@@ -649,7 +649,7 @@
   a <- a[is.finite(a)]
   b <- b[is.finite(b)]
   if (!length(a) || !length(b) || !is.finite(proporcion)) return(NA_real_)
-  ordenada <- sort(b)
+  ordenada <- .sort_por_bytes(b)
   n <- length(ordenada)
   esperada <- mean((n - findInterval(a, ordenada, left.open = TRUE)) / n)
   if (!is.finite(esperada) || esperada == 0) return(NA_real_)
@@ -659,11 +659,11 @@
 .alcance_orden_columnas <- function(nombres, seleccion, max_columnas,
                                     tipos, n_filas, umbral,
                                     umbral_solapamiento = 0.1) {
-  grupos <- split(seleccion, tipos[seleccion])
+  grupos <- .dividir_por_bytes(seleccion, tipos[seleccion])
   pares <- if (length(grupos)) {
     sum(vapply(grupos, function(x) choose(length(x), 2L), numeric(1L)))
   } else 0
-  grupos_analizados <- split(nombres[seleccion], tipos[seleccion])
+  grupos_analizados <- .dividir_por_bytes(nombres[seleccion], tipos[seleccion])
   pares_analizados <- if (length(grupos_analizados)) {
     sum(vapply(grupos_analizados, function(x) choose(length(x), 2L), numeric(1L)))
   } else 0
@@ -720,7 +720,7 @@
   )
   if (length(seleccion) < 2L) return(list(hallazgos = list(), alcance = alcance))
 
-  grupos <- split(seleccion, tipos[seleccion])
+  grupos <- .dividir_por_bytes(seleccion, tipos[seleccion])
   pares <- lapply(grupos, function(indices) {
     if (length(indices) < 2L) return(NULL)
     utils::combn(indices, 2L, simplify = FALSE)
@@ -872,6 +872,11 @@
       ),
       n_evaluados, length(indices_incumplen), "fila"
     )
+    # Las dos columnas viajan por POSICION hasta la traza: con un nombre
+    # repetido, "x,x" no dice cuales son. Ver `.indice_columna_hallazgo()`.
+    ultimo <- length(hallazgos)
+    hallazgos[[ultimo]]$trazabilidad[[1L]]$posicion_columna <-
+      c(primero, segundo)
   }
   list(hallazgos = hallazgos, alcance = alcance)
 }
@@ -950,7 +955,7 @@
 .token_frecuencias_vocabulario <- function(formas) {
   if (!length(formas)) return(integer())
   tokens <- strsplit(trimws(as.character(formas)), "[[:space:]]+", perl = TRUE)
-  tabla <- table(unlist(lapply(tokens, unique), use.names = FALSE))
+  tabla <- table(.factor_por_bytes(unlist(lapply(tokens, unique), use.names = FALSE)))
   stats::setNames(as.integer(tabla), names(tabla))
 }
 
@@ -999,7 +1004,11 @@
 # ordenar por distancia clasifica al reves. Lo que si los separa es si colapsan
 # al quitar caja, acentos y puntuacion.
 .clave_sin_escritura <- function(x) {
-  y <- tryCatch(enc2utf8(as.character(x)), error = function(e) as.character(x))
+  # Declarado antes de `enc2utf8()`, que sobre un `unknown` consulta `LC_CTYPE`
+  # y bajo `C` escapa sus bytes (ronda 30-L; la misma regla que la reparacion
+  # de codificacion).
+  y <- tryCatch(enc2utf8(.declarar_utf8_valido(as.character(x))),
+                error = function(e) as.character(x))
   y <- tryCatch(
     .transliterar_ascii(y),
     error = function(e) y
@@ -1785,7 +1794,7 @@
     # grupos descartados por el piso no desaparecen: se cuentan y el alcance los
     # declara.
     conserva <- vapply(grupos_salida, function(grupo) {
-      solo_por_distancia <- !grepl("normalizacion", grupo$origen, fixed = TRUE)
+      solo_por_distancia <- !grepl("normalizacion", grupo$origen, fixed = TRUE, useBytes = TRUE)
       if (!solo_por_distancia) return(TRUE)
       asimetria <- grupo$asimetria
       !is.finite(asimetria) || asimetria >= min_asimetria_general
@@ -1794,7 +1803,7 @@
     grupos_salida <- grupos_salida[conserva]
   }
   if (length(grupos_salida)) {
-    orden <- order(-vapply(grupos_salida, `[[`, numeric(1L), "asimetria"),
+    orden <- .orden_por_bytes(-vapply(grupos_salida, `[[`, numeric(1L), "asimetria"),
                    seq_along(grupos_salida))
     grupos_salida <- grupos_salida[orden]
   }
@@ -2200,7 +2209,7 @@
     }
     hay_distancia <- length(grupos$grupos) > 0L && any(vapply(
       grupos$grupos,
-      function(grupo) grepl("distancia", grupo$origen, fixed = TRUE),
+      function(grupo) grepl("distancia", grupo$origen, fixed = TRUE, useBytes = TRUE),
       logical(1L)
     ))
     descripcion_grupos <- if (hay_distancia) {
@@ -2890,8 +2899,8 @@
     dominantes[[length(dominantes) + 1L]] <- g[es_dominante]
   }
   c(
-    sort(as.integer(unlist(variantes, use.names = FALSE))),
-    sort(as.integer(unlist(dominantes, use.names = FALSE)))
+    .sort_por_bytes(as.integer(unlist(variantes, use.names = FALSE))),
+    .sort_por_bytes(as.integer(unlist(dominantes, use.names = FALSE)))
   )
 }
 
@@ -3109,14 +3118,14 @@
       # exotico: es el de muchos contenedores y el de varias verificaciones.
       canon <- .normalizacion_minusculas_vector(texto)
       canon_operativo <- .nombres_para_operar(canon[presentes])
-      grupos <- split(seq_len(n)[presentes], canon_operativo)
+      grupos <- .dividir_por_bytes(seq_len(n)[presentes], canon_operativo)
       .filas_colision_variantes_primero(grupos, texto)
     },
     normalizacion_unicode = if (is.null(texto) ||
       !requireNamespace("stringi", quietly = TRUE)) NULL else {
         presentes <- !is.na(texto)
         normal <- stringi::stri_trans_nfc(texto[presentes])
-        grupos <- split(
+        grupos <- .dividir_por_bytes(
           which(presentes), .nombres_para_operar(normal)
         )
         .filas_colision_variantes_primero(grupos, texto)
@@ -3235,7 +3244,7 @@
                                    resultados, expandir, aproximados,
                                    indice_hallazgo, tipos_hallazgos, limite,
                                    distinguir_mayusculas = TRUE,
-                                  clave = NULL) {
+                                  clave = NULL, posicion = NULL) {
   unidad <- as.character(hallazgo$unidad_conteo[[1L]])
   if (unidad %in% c("columna", "formato")) {
     return(.trazabilidad_vacia("no_aplica", alcance = "no_aplica", limite = limite))
@@ -3328,9 +3337,20 @@
     if (length(nombres_par) != 2L) {
       return(.trazabilidad_vacia(limite = limite))
     }
-    indices_columnas <- match(
-      .nombres_para_operar(nombres_par), .nombres_para_operar(nombres)
-    )
+    # Por la posicion que dejo el detector: con un nombre repetido, "x,x"
+    # resolvia las dos a la primera columna y comparaba la columna consigo
+    # misma. Sin posicion y con un nombre repetido, la traza no esta disponible.
+    indices_columnas <- if (length(posicion) == 2L) {
+      c(
+        .indice_columna_hallazgo(nombres_par[[1L]], nombres, posicion[[1L]]),
+        .indice_columna_hallazgo(nombres_par[[2L]], nombres, posicion[[2L]])
+      )
+    } else {
+      c(
+        .indice_columna_hallazgo(nombres_par[[1L]], nombres),
+        .indice_columna_hallazgo(nombres_par[[2L]], nombres)
+      )
+    }
     if (anyNA(indices_columnas)) {
       return(.trazabilidad_vacia(limite = limite))
     }
@@ -3378,7 +3398,7 @@
     ))
   }
   nombre <- as.character(hallazgo$columna[[1L]])
-  indice <- .indice_nombre(nombre, nombres)
+  indice <- .indice_columna_hallazgo(nombre, nombres, posicion)
   if (is.na(indice)) return(.trazabilidad_vacia(limite = limite))
   indices <- .indices_hallazgo_columna(
     tipo, datos[[indice]], resultados[[indice]]$fila,
@@ -3432,19 +3452,27 @@
     return(hallazgos)
   }
   tipos_hallazgos <- as.character(hallazgos$tipo_hallazgo)
+  # La posicion de la columna que dejo el detector, si la dejo. Se lee antes de
+  # calcular las trazas -que reemplazan a la provisoria- y no se publica.
+  posiciones <- lapply(hallazgos$trazabilidad, function(traza) {
+    if (is.list(traza)) traza[["posicion_columna"]] else NULL
+  })
   trazabilidad <- lapply(seq_len(nrow(hallazgos)), function(i) {
-    .trazabilidad_hallazgo(
+    traza <- .trazabilidad_hallazgo(
       as.character(hallazgos$tipo_hallazgo[[i]]), hallazgos[i, , drop = FALSE],
       datos, nombres, resultados, expandir, aproximados, i,
-      tipos_hallazgos, limite, distinguir_mayusculas, clave = clave
+      tipos_hallazgos, limite, distinguir_mayusculas, clave = clave,
+      posicion = posiciones[[i]]
     )
+    if (is.list(traza)) traza[["posicion_columna"]] <- NULL
+    traza
   })
   hallazgos$trazabilidad <- I(trazabilidad)
   for (i in seq_len(nrow(hallazgos))) {
     traza <- hallazgos$trazabilidad[[i]]
     tipo <- as.character(hallazgos$tipo_hallazgo[[i]])
-    indice_resultado <- .indice_nombre(
-      as.character(hallazgos$columna[[i]]), nombres
+    indice_resultado <- .indice_columna_hallazgo(
+      as.character(hallazgos$columna[[i]]), nombres, posiciones[[i]]
     )
     if (tipo == "patron_raro" && is.list(traza) &&
         !identical(traza$estado, "no_disponible") &&
@@ -3474,9 +3502,36 @@
   }
   .advertir_incoherencias_trazabilidad(
     hallazgos, datos, nombres,
-    aplicables = lapply(resultados, `[[`, "aplicable")
+    aplicables = lapply(resultados, `[[`, "aplicable"),
+    posiciones = posiciones
   )
   hallazgos
+}
+
+# La columna de la que habla un hallazgo, por su POSICION cuando el detector la
+# dejo. El nombre no la identifica si la tabla lo repite: buscandola por nombre
+# siempre salia la primera, y la traza del outlier de la segunda columna `x`
+# apuntaba a la fila del outlier de la primera, publicada como `disponible`
+# (medido en la ronda 30: filas 4 y 4 donde a mano son 4 y 10). Es la leccion
+# de la ronda 27 con los nombres marcados `bytes`: la columna se busca por su
+# posicion.
+#
+# Sin posicion y con un nombre repetido no hay respuesta, y se dice: `NA`, que
+# deja la traza `no_disponible` en vez de apuntar a la columna equivocada.
+.indice_columna_hallazgo <- function(nombre, nombres, posicion = NULL) {
+  if (length(posicion) == 1L && !is.na(posicion) &&
+      posicion >= 1L && posicion <= length(nombres) &&
+      identical(
+        .nombres_para_operar(nombres[[posicion]]),
+        .nombres_para_operar(nombre)
+      )) {
+    return(as.integer(posicion))
+  }
+  indice <- .indice_nombre(nombre, nombres)
+  if (is.na(indice) || .nombres_repetidos(nombres)[[indice]]) {
+    return(NA_integer_)
+  }
+  indice
 }
 
 .indices_unidades_valor_distinto <- function(tipo, x, trazabilidad,
@@ -3531,7 +3586,8 @@
 
 .advertir_incoherencias_trazabilidad <- function(hallazgos, datos = NULL,
                                                  nombres = NULL,
-                                                 aplicables = NULL) {
+                                                 aplicables = NULL,
+                                                 posiciones = NULL) {
   if (!nrow(hallazgos)) return(invisible(hallazgos))
   # Sin `severidad` no se puede decidir: la guarda salta los hallazgos
   # informativos -que cuentan cero por definicion- comparando ese campo, y sin
@@ -3593,7 +3649,10 @@
     if (unidad == "valor_distinto" && !is.null(datos) &&
         !is.null(nombres)) {
       columna <- as.character(hallazgos$columna[[i]])
-      indice_columna <- .indice_nombre(columna, nombres)
+      indice_columna <- .indice_columna_hallazgo(
+        columna, nombres,
+        if (length(posiciones) >= i) posiciones[[i]] else NULL
+      )
       esperados <- if (!is.na(indice_columna)) {
         .indices_unidades_valor_distinto(
           as.character(hallazgos$tipo_hallazgo[[i]]),
@@ -3709,6 +3768,12 @@
     x$n_evaluados <- preferir(conteo$n_evaluados, x$n_evaluados)
     x$n_afectados <- preferir(conteo$n_afectados, x$n_afectados)
     x$unidad_conteo <- preferir(conteo$unidad_conteo, x$unidad_conteo)
+    # La posicion de la columna viaja con el hallazgo hasta su traza: el nombre
+    # no la identifica cuando la tabla lo repite. Ver
+    # `.indice_columna_hallazgo()`.
+    if (is.list(x$trazabilidad[[1L]])) {
+      x$trazabilidad[[1L]]$posicion_columna <- i
+    }
     k <<- k + 1L
     hallazgos[[k]] <<- x
   }
@@ -3947,23 +4012,37 @@
     if (identical(fila$estado_resumen_cuantitativo, "tipo_compuesto_no_analizado")) {
       estructura <- resultado$estructura_no_analizada
       if (isTRUE(estructura$filas > 0L)) {
+        sin_escritura <- identical(estructura$tipo, "sin_escritura")
         agregar(.nuevo_hallazgo(
           nombre, "tipo_compuesto_no_analizado", "sospechoso",
-          paste0(
-            "La columna contiene ",
-            if (identical(estructura$tipo, "tabla")) {
-              "una tabla anidada (una columna data.frame)"
-            } else {
-              "una matriz"
-            },
-            " por fila; no se aplan\u00f3 porque mezclar ",
-            "sus componentes inventar\u00eda una sem\u00e1ntica de celda."
-          ),
+          if (sin_escritura) {
+            paste0(
+              "Los valores de la columna (clase `", estructura$clase,
+              "`) no se pueden escribir como texto; ",
+              "no se analizaron porque cualquier escritura que eligiera ",
+              "el paquete inventar\u00eda el valor."
+            )
+          } else {
+            paste0(
+              "La columna contiene ",
+              if (identical(estructura$tipo, "tabla")) {
+                "una tabla anidada (una columna data.frame)"
+              } else {
+                "una matriz"
+              },
+              " por fila; no se aplan\u00f3 porque mezclar ",
+              "sus componentes inventar\u00eda una sem\u00e1ntica de celda."
+            )
+          },
           paste0(
             estructura$filas, " filas y ", estructura$componentes,
             " componentes por fila; m\u00e9tricas por valor en NA."
           ),
-          "Separar los componentes en columnas con significado expl\u00edcito antes de perfilarlos."
+          if (sin_escritura) {
+            "Convertir la columna a tipos de base -una columna por campo- antes de perfilarla."
+          } else {
+            "Separar los componentes en columnas con significado expl\u00edcito antes de perfilarlos."
+          }
         ))
       } else {
         agregar_cobertura(
@@ -4505,7 +4584,7 @@
       identical(as.character(fila$tipo_inferido[[1L]]), "fecha-hora") &&
       is.data.frame(formatos_columna) &&
       all(c("formato", "estado", "n") %in% names(formatos_columna)) &&
-      any(grepl("%z", formatos_columna$formato, fixed = TRUE) &
+      any(grepl("%z", formatos_columna$formato, fixed = TRUE, useBytes = TRUE) &
             formatos_columna$estado == "confirmado" &
             !is.na(formatos_columna$n) & formatos_columna$n > 0L)
     if (identical(fila$zona_horaria_origen[[1L]], "sin_declarar")) {
@@ -5021,10 +5100,13 @@
     # Se cuenta sobre la columna entera y no sobre el resumen: aca los datos
     # estan a mano, asi que no hace falta agregar un campo publico al perfil
     # para llevar el conteo -y agregar un campo cambia lo que lee el resto-.
-    indice_datos <- if (is.null(datos)) {
+    # Por su posicion: `resultados` y `datos` estan en el mismo orden, y con un
+    # nombre repetido la busqueda por nombre contaba los subnormales de la
+    # primera columna en el hallazgo de la segunda.
+    indice_datos <- if (is.null(datos) || i > length(datos)) {
       NA_integer_
     } else {
-      .indice_nombre(nombre, names(datos))
+      i
     }
     n_subnormales <- if (is.na(indice_datos)) {
       0L
@@ -5308,7 +5390,7 @@
   }
   list(
     hallados = unique(hallados),
-    columnas = sort(unique(posiciones_halladas)),
+    columnas = .sort_por_bytes(unique(posiciones_halladas)),
     alcance = list(
       n_candidatos_posibles = as.numeric(posibles),
       n_candidatos_evaluados = as.numeric(evaluados),
@@ -5534,7 +5616,7 @@
     evidencia <- paste0(
       .citar_publicable(nombres_problematicos$original),
       " -> ",
-      encodeString(nombres_problematicos$propuesto, quote = '"'),
+      .comillas_sin_locale(nombres_problematicos$propuesto, quote = '"'),
       collapse = "; "
     )
     hay_codificacion_invalida <- any(nombres_problematicos$codificacion_invalida)

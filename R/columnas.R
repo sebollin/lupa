@@ -21,7 +21,52 @@
   is.matrix(x) || (is.array(x) && length(dim(x)) > 1L)
 }
 .es_columna_compuesta <- function(x) {
-  .es_arreglo_compuesto(x) || is.data.frame(x)
+  .es_arreglo_compuesto(x) || is.data.frame(x) || .es_columna_sin_escritura(x)
+}
+
+# Una columna cuyos valores no se pueden escribir como texto entra por la misma
+# puerta que la matriz y la tabla anidada: el paquete no tiene un valor por fila
+# que leer, y cualquier escritura que eligiera inventaria el dato. El caso medido
+# en la ronda 30 es la `vctrs_rcrd` -varios campos por fila, como una tabla
+# anidada sin serlo-, sobre la que `as.character()` y `format()` abortan, igual
+# que sobre un `vctrs_vctr` sin conversion declarada. Abortaba 22 de las 29
+# llamadas del catalogo desde tres sitios distintos -los formatos de fecha, el
+# clasificador de datos personales y la identidad de las relaciones-, porque el
+# paquete solo trataba como lista lo que sobrevivia a `as.character()`. Tampoco
+# se lee como numero (`as.double()` aborta igual); y aunque una clase se dejara
+# leer como numero, las etapas de texto abortarian sobre ella: lo que decide es
+# la escritura.
+#
+# Se pregunta por la PROPIEDAD y no por la clase, una vez por columna, y con eso
+# las etapas que ya preguntan `.es_columna_compuesta()` la declaran
+# `tipo_compuesto_no_analizado` en vez de tocarla. La prueba es sobre el prefijo
+# vacio: la conversion de estas clases se decide por el tipo y no por los
+# valores, asi que cuesta lo mismo sobre diez filas que sobre diez millones.
+# Las clases de base que siempre se escriben no pagan ni eso.
+#
+# Una clase sin metodo de `[` lo pierde al recortar -`x[0L]` es un `double`
+# comun-, y la pregunta es sobre la clase: el prefijo vacio se arma con sus
+# atributos. Si ni eso se puede armar, no se decide: la columna sigue por el
+# camino de siempre.
+.es_columna_sin_escritura <- function(x) {
+  if (!is.object(x) || is.data.frame(x)) return(FALSE)
+  if (is.factor(x) || inherits(x, c("Date", "POSIXt", "difftime"))) {
+    return(FALSE)
+  }
+  vacia <- tryCatch(x[0L], error = function(e) NULL)
+  if (is.null(vacia) || !identical(oldClass(vacia), oldClass(x))) {
+    vacia <- tryCatch({
+      atributos <- attributes(x)
+      atributos[c("names", "dim", "dimnames", "row.names")] <- NULL
+      prefijo <- unclass(x)[0L]
+      attributes(prefijo) <- atributos
+      prefijo
+    }, error = function(e) NULL)
+    if (is.null(vacia)) return(FALSE)
+  }
+  inherits(
+    tryCatch(as.character(vacia), error = function(e) e), "error"
+  )
 }
 .moda_columna <- function(x, claves = NULL) {
   validos <- !is.na(x)
@@ -64,7 +109,7 @@
     maximas <- which(frecuencias == max(frecuencias))
     if (length(maximas) > 1L) {
       numericos <- bit64::as.integer64(distintos[maximas])
-      maximas <- maximas[order(bit64::rank.integer64(numericos))]
+      maximas <- maximas[.orden_por_bytes(bit64::rank.integer64(numericos))]
     }
     posicion <- maximas[[1L]]
     return(list(valor = distintos[[posicion]],
@@ -175,17 +220,17 @@
   if (!excede) {
     iguales <- digitos[largo == nchar(limite)]
     if (length(iguales)) {
-      mayor <- sort(c(iguales, limite), method = "radix",
+      mayor <- .sort_por_bytes(c(iguales, limite), method = "radix",
                     decreasing = TRUE)[[1L]]
       excede <- !identical(mayor, limite)
     }
   }
   if (!excede) return(NULL)
   mayor_magnitud <- function(v) {
-    v[order(nchar(v), v, method = "radix", decreasing = TRUE)][[1L]]
+    v[.orden_por_bytes(nchar(v), v, method = "radix", decreasing = TRUE)][[1L]]
   }
   menor_magnitud <- function(v) {
-    v[order(nchar(v), v, method = "radix")][[1L]]
+    v[.orden_por_bytes(nchar(v), v, method = "radix")][[1L]]
   }
   positivos <- digitos[!negativos]
   magnitudes_negativas <- digitos[negativos]
@@ -526,7 +571,7 @@
       any(valores[presentes] != floor(valores[presentes]))) {
     return(vacio)
   }
-  distintos <- sort(unique(valores[presentes]))
+  distintos <- .sort_por_bytes(unique(valores[presentes]))
   if (!length(distintos)) return(vacio)
   n_posiciones <- max(distintos) - min(distintos) + 1
   if (!is.finite(n_posiciones) || n_posiciones < 1) return(vacio)
@@ -575,7 +620,7 @@
   # Se miran solo las primeras posiciones porque el grupo que sobresale esta
   # arriba; en la cola una caida de 2 a 1 da un salto de 2 que no dice nada, y
   # sin ese tope `beers$abv` daba 3,00 por una caida a mitad de su cola.
-  ordenadas <- sort(frecuencias, decreasing = TRUE)
+  ordenadas <- .sort_por_bytes(frecuencias, decreasing = TRUE)
   salto_frecuencias <- 1
   if (length(ordenadas) >= 2L) {
     razones <- ordenadas[-length(ordenadas)] /
@@ -691,7 +736,7 @@
   }
   sobresale <- rep(FALSE, length(candidatos))
   if (isTRUE(secuencia_entera$moda_sobresale)) {
-    distintos <- sort(unique(valores[presentes]))
+    distintos <- .sort_por_bytes(unique(valores[presentes]))
     frecuencias <- tabulate(match(valores[presentes], distintos),
                             nbins = length(distintos))
     tope <- max(frecuencias)
@@ -771,7 +816,7 @@
   frecuencias_candidatos <- vapply(candidatos, function(candidato) {
     sum(presentes & valores == candidato)
   }, numeric(1L))
-  distintos <- sort(unique(valores[presentes]))
+  distintos <- .sort_por_bytes(unique(valores[presentes]))
   frecuencias <- tabulate(match(valores[presentes], distintos),
                           nbins = length(distintos))
   any(frecuencias_candidatos == max(frecuencias))
@@ -1432,9 +1477,9 @@
   afectados <- reparables | parciales | irreparables
   ejemplos <- utils::head(which(afectados), 5L)
   evidencia <- if (!length(ejemplos)) "" else paste(vapply(ejemplos, function(i) {
-    origen <- encodeString(textos[[i]], quote = '"')
+    origen <- .comillas_sin_locale(textos[[i]], quote = '"')
     if (reparables[[i]] || parciales[[i]]) {
-      paste0(origen, " -> ", encodeString(reparados[[i]], quote = '"'),
+      paste0(origen, " -> ", .comillas_sin_locale(reparados[[i]], quote = '"'),
              " [", estados[[i]], "]")
     } else {
       paste0(origen, " (contiene un caracter de reemplazo irrecuperable)")
@@ -1451,8 +1496,26 @@
   )
 }
 
+# El texto de una celda en la forma con que se lo lee como numero: declarado
+# (`.declarar_utf8_valido()`), sin lo que no es UTF-8 valido -que no es un
+# numero en ninguna sesion- y recortado. La comparten la descomposicion del
+# numero regional y la conversion de tipo de `aplicar()`.
+.texto_legible_recortado <- function(x) {
+  texto <- .declarar_utf8_valido(as.character(x))
+  invalidos <- !is.na(texto) & Encoding(texto) != "latin1" & !validUTF8(texto)
+  texto[invalidos] <- NA_character_
+  trimws(texto)
+}
+
 .componentes_numero_texto <- function(x) {
-  texto <- trimws(as.character(x))
+  # La declaracion va antes de la primera primitiva (ronda 30-L). Sin ella, un
+  # importe con el simbolo del euro en UTF-8 sin marca -un CSV leido sin
+  # `encoding`- no casaba con `\\p{Sc}` bajo `C`: el perfil proponia
+  # `convertir_numero_regional`, la comprobacion del plan la daba por no
+  # ejecutable y `aplicar()` no convertia, mientras en una sesion UTF-8 si.
+  # Lo que no es UTF-8 valido no es un numero en ninguna sesion: bajo un locale
+  # UTF-8 `trimws()` abortaba sobre el y bajo `C` lo leia por bytes.
+  texto <- .texto_legible_recortado(x)
   prefijo <- "(?:[[:upper:]]{3}[[:space:]]+|U\\$S[[:space:]]+|\\p{Sc}[[:space:]]*)?"
   sufijo <- "[[:space:]]*(?:%|[[:alpha:]]+)?$"
   numero_coma <- paste0(
@@ -1511,8 +1574,8 @@
     ""
   )
   sin_unidad <- sub("[[:space:]]*(?:%|[[:alpha:]]+)$", "", cuerpo, perl = TRUE)
-  tiene_coma <- grepl(",", sin_unidad, fixed = TRUE)
-  tiene_punto <- grepl(".", sin_unidad, fixed = TRUE)
+  tiene_coma <- grepl(",", sin_unidad, fixed = TRUE, useBytes = TRUE)
+  tiene_punto <- grepl(".", sin_unidad, fixed = TRUE, useBytes = TRUE)
   punto_tres <- grepl(
     "^[+-]?[0-9]{1,3}(?:\\.[0-9]{3})+$", sin_unidad, perl = TRUE
   )
@@ -1736,9 +1799,9 @@
     )
   }
   if (!length(candidatos)) return(vacio)
-  indices <- sort(unique(unlist(lapply(candidatos, `[[`, "indices"))))
+  indices <- .sort_por_bytes(unique(unlist(lapply(candidatos, `[[`, "indices"))))
   distribuciones <- lapply(candidatos, `[[`, "valores_por_celda")
-  niveles <- sort(unique(as.integer(unlist(lapply(
+  niveles <- .sort_por_bytes(unique(as.integer(unlist(lapply(
     distribuciones, names
   )))))
   frecuencias_valores <- stats::setNames(vapply(niveles, function(n) {
@@ -1806,7 +1869,7 @@
     seguro = compatibles == n_presentes && !isTRUE(ambiguos) &&
       unidad_consistente && moneda_consistente,
     evidencia = paste(
-      encodeString(utils::head(unique(partes$texto[especiales]), 6L), quote = '"'),
+      .comillas_sin_locale(utils::head(unique(partes$texto[especiales]), 6L), quote = '"'),
       collapse = "; "
     ),
     unidad = if (length(unidades_no_vacias) == 1L) unidades_no_vacias else "",
@@ -2524,6 +2587,16 @@
   # tipo se conoce perfectamente.
   x_identidad <- preparacion_texto$valores_identidad
   if (is.null(x_identidad)) x_identidad <- x_analisis
+  # Un byte no es un texto escrito por una persona. `.texto_analizable()` da a
+  # una columna `raw` su escritura hexadecimal -`0a`, `1f`-, que sirve para
+  # compararla y publicarla, pero no es una convencion que el dato tenga: leida
+  # como texto escrito, la ronda 30 midio `numero_como_texto` y
+  # `unidades_mixtas` sobre los doce bytes con una letra hexadecimal -"0a" era
+  # un cero con la unidad "a"- y `patron_raro` sobre `9a` entre `99`. Las
+  # etapas que interpretan la escritura reciben ausentes, como una lista de
+  # objetos; lo que compara por igualdad -distintos, moda- sigue con los bytes.
+  escrito <- !is.raw(x)
+  if (!escrito) x_analisis <- rep(NA_character_, length(x))
   # Las filas fuera del universo salen del analisis, no solo de los conteos.
   # Dejarlas dentro hacia que `n_distintos` contara valores que no aplican
   # mientras `n_validos` ya solo contaba los aplicables, y `tasa_distintos`
@@ -2722,7 +2795,7 @@
   # y el paquete disparaba su propia alarma -"cuenta 6 y traza 4"-. Se marca
   # como ausente en vez de recortar, por el mismo motivo que arriba: para que
   # los indices de fila sigan alineados con la tabla.
-  x_texto <- x
+  x_texto <- if (escrito) x else rep(NA_character_, length(x))
   if (!all(aplicable)) {
     # Una geometria no admite `NA` -ver arriba, `x_identidad`- y los
     # diagnosticos de texto la tratan igual que a una columna de ausentes
@@ -2891,7 +2964,7 @@
     n_espacios_borde = diagnostico_texto$n_espacios_borde,
     n_variantes_mayusculas = diagnostico_texto$n_variantes_mayusculas,
     n_variantes_unicode = diagnostico_texto$n_variantes_unicode,
-    unicode_evaluado = if (isTRUE(preparacion_texto$analizable) &&
+    unicode_evaluado = if (isTRUE(preparacion_texto$analizable) && escrito &&
                            (is.character(x_analisis) || is.factor(x_analisis))) {
       diagnostico_texto$unicode_evaluado
     } else {
@@ -3022,9 +3095,28 @@
   resultado$inferencia$estado_tipo_inferido <- NA_character_
   resultado$inferencia$compatibles <- 0L
   resultado$inferencia$n_analizados <- 0L
+  # Una columna sin escritura no tiene dimensiones: sus componentes son los
+  # campos de su registro, si los tiene, o el valor entero.
+  sin_escritura <- !is.data.frame(x) && !.es_arreglo_compuesto(x)
   resultado$estructura_no_analizada <- list(
-    tipo = if (is.data.frame(x)) "tabla" else "matriz",
-    filas = NROW(x), componentes = NCOL(x),
+    tipo = if (is.data.frame(x)) {
+      "tabla"
+    } else if (sin_escritura) {
+      "sin_escritura"
+    } else {
+      "matriz"
+    },
+    filas = NROW(x),
+    # Un registro guarda sus campos con nombre y del largo de la tabla; una
+    # lista de objetos guarda uno por fila.
+    componentes = if (sin_escritura) {
+      campos <- unclass(x)
+      if (is.list(campos) && length(campos) && !is.null(names(campos)) &&
+          all(lengths(campos) == NROW(x))) length(campos) else 1L
+    } else {
+      NCOL(x)
+    },
+    clase = class(x)[[1L]],
     dimensiones = dim(x)
   )
   resultado

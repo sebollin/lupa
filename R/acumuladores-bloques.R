@@ -768,7 +768,7 @@
   if (!length(valores)) {
     return(list(valores = list(), ordinales = numeric()))
   }
-  orden <- order(ordinales)
+  orden <- .orden_por_bytes(ordinales)
   valores <- valores[orden]
   ordinales <- ordinales[orden]
   retenidos <- list()
@@ -1426,7 +1426,7 @@
   a <- acumulador$estado_familia
   b <- otro$estado_familia
   a$total <- a$total + b$total
-  a$indices <- sort(unique(c(a$indices, b$indices)))
+  a$indices <- .sort_por_bytes(unique(c(a$indices, b$indices)))
   if (isTRUE(a$truncado) || isTRUE(b$truncado)) {
     a$truncado <- TRUE
     a$causa_tope <- a$causa_tope %||% b$causa_tope %||% "entradas"
@@ -1513,7 +1513,7 @@
 .fusionar_muestra <- function(acumulador, otro) {
   a <- acumulador$estado_familia
   b <- otro$estado_familia
-  a$indices <- sort(unique(c(a$indices, b$indices)))
+  a$indices <- .sort_por_bytes(unique(c(a$indices, b$indices)))
   a$n <- length(a$indices)
   acumulador$estado_familia <- a
   acumulador
@@ -1544,7 +1544,7 @@
   if (acumulador$requiere_orden && length(acumulador$intervalos) &&
       length(otro$intervalos)) {
     todos <- c(acumulador$intervalos, otro$intervalos)
-    todos <- todos[order(vapply(todos, `[[`, numeric(1L), 1L))]
+    todos <- todos[.orden_por_bytes(vapply(todos, `[[`, numeric(1L), 1L))]
     if (any(vapply(seq_len(length(todos) - 1L), function(i) {
       todos[[i]][[2L]] >= todos[[i + 1L]][[1L]]
     }, logical(1L)))) {
@@ -1555,7 +1555,7 @@
   }
   acumulador$intervalos <- c(acumulador$intervalos, otro$intervalos)
   if (length(acumulador$intervalos)) {
-    orden_intervalos <- order(vapply(
+    orden_intervalos <- .orden_por_bytes(vapply(
       acumulador$intervalos, `[[`, numeric(1L), 1L
     ))
     acumulador$intervalos <- acumulador$intervalos[orden_intervalos]
@@ -1670,7 +1670,7 @@
         media = estado$suma / estado$n, n_resumidas = estado$n)
     },
     distintos = if (isTRUE(estado$truncado)) NULL else {
-      orden <- order(estado$primeros)
+      orden <- .orden_por_bytes(estado$primeros)
       representantes <- estado$representantes
       if (is.null(representantes)) {
         representantes <- switch(
@@ -1687,7 +1687,7 @@
       )
     },
     hueco = if (isTRUE(estado$truncado)) NULL else {
-      orden <- order(estado$primeros)
+      orden <- .orden_por_bytes(estado$primeros)
       representantes <- estado$representantes
       if (is.null(representantes)) representantes <- numeric()
       data.frame(
@@ -1721,7 +1721,7 @@
       )
     },
     trazabilidad = {
-      indices <- sort(unique(as.integer(estado$indices)))
+      indices <- .sort_por_bytes(unique(as.integer(estado$indices)))
       list(
         indices_fila = indices,
         total = as.numeric(estado$total),
@@ -1733,7 +1733,7 @@
       )
     },
     ejemplos = if (isTRUE(estado$truncado)) NULL else {
-      orden <- order(estado$primeros)
+      orden <- .orden_por_bytes(estado$primeros)
       representantes <- estado$representantes
       if (is.null(representantes)) {
         representantes <- switch(
@@ -1746,7 +1746,7 @@
         valores <- estado$valores[[i]]
         ordinales <- estado$ordinales[[i]]
         if (length(ordinales) == length(valores) && length(ordinales)) {
-          valores <- valores[order(ordinales)]
+          valores <- valores[.orden_por_bytes(ordinales)]
         }
         paste(vapply(valores, function(valor) {
           tryCatch(as.character(valor), error = function(e) "")
@@ -1761,7 +1761,7 @@
       )
     },
     muestra = list(
-      indices = as.integer(sort(unique(estado$indices))),
+      indices = as.integer(.sort_por_bytes(unique(estado$indices))),
       n = as.integer(length(unique(estado$indices))),
       n_total = as.numeric(estado$n_total),
       limite = as.numeric(estado$limite)
@@ -2311,7 +2311,7 @@ bytes_retenidos <- function(acumulador) .bytes_retenidos(acumulador)
   if (!is.numeric(representantes) || !length(representantes)) {
     return(list(representantes = numeric(), frecuencias = numeric()))
   }
-  orden <- tryCatch(order(representantes), error = function(e) NULL)
+  orden <- tryCatch(.orden_por_bytes(representantes), error = function(e) NULL)
   if (is.null(orden) || length(orden) != length(representantes)) return(NULL)
   list(
     representantes = as.numeric(representantes[orden]),
@@ -2555,7 +2555,7 @@ bytes_retenidos <- function(acumulador) .bytes_retenidos(acumulador)
   declarados <- declarados[is.finite(declarados)]
   con_forma <- setdiff(con_forma, declarados)
   if (!length(con_forma)) return(vacio)
-  orden <- tryCatch(order(con_forma), error = function(e) seq_along(con_forma))
+  orden <- tryCatch(.orden_por_bytes(con_forma), error = function(e) seq_along(con_forma))
   con_forma <- con_forma[orden]
   elegido <- con_forma[[which.max(abs(con_forma))]]
   posicion <- which(candidatos$representante == elegido)[[1L]]
@@ -3104,7 +3104,7 @@ bytes_retenidos <- function(acumulador) .bytes_retenidos(acumulador)
         stop("`indices` debe contener posiciones globales validas.",
              call. = FALSE)
       }
-      indices <- sort(unique(as.integer(indices)))
+      indices <- .sort_por_bytes(unique(as.integer(indices)))
     }
   }
   bloques <- .particionar_bloques(n, k = k, tamano = tamano)
@@ -3258,7 +3258,7 @@ bytes_retenidos <- function(acumulador) .bytes_retenidos(acumulador)
     # `sort()` sobre texto usa la intercalacion del locale.
     niveles <- .ordenar_por_bytes(unique(claves))
     orden_niveles <- match(claves, niveles)
-    orden <- order(-mapa$n, orden_niveles)
+    orden <- .orden_por_bytes(-mapa$n, orden_niveles)
     frecuencias <- mapa$n[orden]
   }
   denominador <- sum(frecuencias)

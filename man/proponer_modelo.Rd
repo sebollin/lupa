@@ -56,10 +56,17 @@ Las reglas observadas que pueden sobreajustarse a una entrega —dominios y
 patrones dominantes— se proponen inactivas. Los controles estructurales
 directos, como \code{NoNulo}, duplicación exacta y dependencias funcionales
 exactas, se activan. \code{max_sugerencias} recorta después de ordenar por
-prioridad y el objeto declara el total en sus atributos.
+prioridad y el objeto declara el total en sus atributos. Dentro de cada
+prioridad las filas se ordenan por métrica, entidad y atributos según sus
+bytes —no según la intercalación del locale— y \code{id_sugerencia} las numera en
+ese orden: el mismo perfil da los mismos identificadores en cualquier sesión.
 Si una columna contiene faltantes disfrazados, \code{NoNulo} se propone pero queda
 inactiva hasta normalizarlos o configurar la métrica para reconocerlos. De
 otro modo mediría sólo los \code{NA} reales y sobrestimaría la completitud.
+Una sugerencia sobre una columna cuyo nombre la tabla repite sale inactiva y
+con estado \code{nombre_repetido}: una métrica se liga por nombre, y ese nombre no
+dice cuál de las columnas mide. \code{\link[=modelo_desde_propuesta]{modelo_desde_propuesta()}} no la materializa
+y \code{\link[=analizar]{analizar()}} no la mide hasta que las columnas se renombren.
 }
 \examples{
 datos <- data.frame(

@@ -176,12 +176,12 @@
       valor <- .resumir_valor_reporte(x[[i]], max_caracteres = 80L)
       nombre <- names(x)[i]
       if (!is.null(nombre) && !is.na(nombre) && nzchar(nombre)) {
-        paste0(nombre, "=", valor)
+        .pegar_texto0(nombre, "=", valor)
       } else {
         valor
       }
     }, character(1L))
-    texto <- paste(partes, collapse = "; ")
+    texto <- .pegar_texto(partes, collapse = "; ")
     if (length(x) > limite) texto <- paste0(texto, "; \u2026")
   } else if (is.logical(x)) {
     texto <- .texto_logico_reporte(x)
@@ -208,7 +208,10 @@
   if (inherits(x, "integer64") || (is.numeric(x) && !is.logical(x))) {
     return(.unir_cifras_reporte(texto, max_caracteres))
   }
-  texto <- paste(texto, collapse = ", ")
+  # Con `.pegar_texto()`: `paste()` de base escribia `t<e9>` bajo `C` para un
+  # valor latin1, y la celda del reporte decia otra cosa que en una sesion
+  # UTF-8 (ronda 30-L).
+  texto <- .pegar_texto(texto, collapse = ", ")
   if (nchar(texto, type = "chars") > max_caracteres) {
     texto <- paste0(substr(texto, 1L, max_caracteres - 1L), "\u2026")
   }
@@ -942,7 +945,7 @@
     filas = x$nivel == "evaluacion_perfil"
   )
   if (!nrow(perfiles)) return(perfiles)
-  perfiles <- perfiles[order(
+  perfiles <- perfiles[.orden_por_bytes(
     .nombres_para_operar(perfiles$perfil), perfiles$fecha,
     .nombres_para_operar(perfiles$id_medicion), method = "radix"
   ), ]
@@ -1043,7 +1046,7 @@
       "</section>"
     ))
   }
-  x <- x[order(
+  x <- x[.orden_por_bytes(
     x$fecha, .nombres_para_operar(x$id_medicion), x$nivel, method = "radix"
   ), , drop = FALSE]
   # Lo que NO se midio -una metrica sin valores, una parte de la frontera que no
@@ -1494,7 +1497,7 @@
         is.na(contenido)) {
       stop("el contenido no es una cadena escalar")
     }
-    utf8 <- enc2utf8(contenido)
+    utf8 <- enc2utf8(.declarar_utf8_valido(contenido))
     if (!isTRUE(validUTF8(utf8))) {
       stop("el contenido no es UTF-8 valido")
     }

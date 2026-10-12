@@ -882,6 +882,21 @@
 #' conservan como una unidad por fila: `n` informa las filas de la tabla, pero
 #' los estadísticos por valor —`n_faltantes` incluido— quedan en `NA` y un
 #' hallazgo explica que deben separarse en columnas con semántica explícita.
+#' Entra por la misma puerta una columna cuyos valores no se pueden escribir
+#' como texto —una `vctrs_rcrd`, que guarda varios campos por fila, o un
+#' `vctrs_vctr` sin conversión declarada—: se pregunta por esa propiedad y no
+#' por la clase, y el hallazgo `tipo_compuesto_no_analizado` lo dice con su
+#' clase, en vez de abortar el perfil entero.
+#' Un vector de bytes (`raw`) se compara y se publica por su escritura
+#' hexadecimal —`moda`, `n_distintos`—, pero no pasa por las etapas que
+#' interpretan la escritura de una persona —patrones, números escritos como
+#' texto, unidades, espacios—: un byte no es un texto escrito.
+#' Un nivel `NA` de un factor —el que dejan `addNA()` o `factor(exclude =
+#' NULL)`— es un faltante: cuenta en `n_faltantes` y no en `n_distintos`, igual
+#' que en la medición, en [distribucion_valores()], en [inferir_tipo()] y en
+#' las dependencias. Un `POSIXlt` —lo que deja `strptime()`— se perfila por su
+#' instante, como el `POSIXct` equivalente: la misma columna en las dos clases
+#' da la misma fila.
 #' Cuando todos los valores válidos aparecen una sola vez **no hay moda**, y
 #' `moda` queda en `NA`. Lo que se publicaría es el ganador de un desempate de
 #' tantas vías como valores haya, y ese desempate sigue el orden de
@@ -974,7 +989,10 @@
 #' detectan aunque sólo se normalizan mediante una acción explícita, y ZWJ/ZWNJ
 #' se informan pero se conservan porque pueden ser semánticos. La comparación
 #' de duplicados con `normalizar = TRUE` aplica estas mismas clases sin borrar
-#' ZWJ/ZWNJ.
+#' ZWJ/ZWNJ. El resto del texto se cita con sus caracteres, y no con los
+#' escapes de punto de código de `encodeString()`, que dependen del locale: la
+#' evidencia es la misma bajo `C` y bajo un locale UTF-8, y el ejemplo que
+#' cita casa con el de la tabla de patrones.
 #'
 #' Un valor `double` **subnormal** —distinto de cero y menor que
 #' `.Machine$double.xmin` en valor absoluto, unos 2,2e-308— casi siempre sale de
@@ -1561,7 +1579,10 @@
 #'   vocabulario: `sd`, `nc` y `nd` sólo cuentan solas en columnas de pocos
 #'   valores distintos —para no acusar a un código de dos letras—, y
 #'   declararlas las hace contar siempre. Es el equivalente textual de
-#'   `sentinelas_numericos`.
+#'   `sentinelas_numericos`. Como la lista incorporada, se comparan sin los
+#'   blancos de los bordes y sin distinguir mayúsculas, con el pliegue de caja
+#'   de [normalizacion()]: `SIN INFORMACIÓN` es `sin información` en cualquier
+#'   locale.
 #' @param sentinelas_numericos Vector completo de valores numéricos que se
 #'   interpretan como ausencia. Se normaliza como un conjunto numérico, por lo
 #'   que el orden, el tipo entero o doble y los duplicados no cambian el
@@ -1725,8 +1746,12 @@
 #'   número con esa forma se prueba por su parte nacional. Y el celular protegido guardado con el prefijo se reconoce
 #'   escrito sin él, también guardado como número de planilla
 #'   —`"59899123456.0"`, `"59899123456,0"` o `"5.9899123456E+10"`, la misma
-#'   cifra—, y al revés: escrito así en un texto se lee por su parte
-#'   nacional. No unen los parecidos raros: la prima de una coordenada
+#'   cifra, con cualquier cantidad de ceros —`"59899123456.0000"`, como lo deja
+#'   un `DECIMAL(15,4)`— y con cualquier exponente —`"5.9899123456e+010"`, como
+#'   lo escribe el `printf` de Windows—, y al revés: escrito así en un texto se
+#'   lee por su parte nacional. La cifra escrita así es el documento
+#'   **entero**, no el parcial: el importe redondo `"5460537.00"` no se lee
+#'   como un documento sin su verificador. No unen los parecidos raros: la prima de una coordenada
 #'   sexagesimal, el acento grave, la tilde. Los dos puntos y la barra vertical
 #'   **no** unen: una razón
 #'   `"494:2714"` o una lista `"12|345|6789"` no es un documento, y un documento
@@ -1783,8 +1808,14 @@
 #'   seguida de un espacio (`"92 x 6931234"`); tras un asterisco, o tras una
 #'   equis pegada (`"serie X6276963"`, que es como se escribe el documento
 #'   recortado sin formato, `"X2345678"`), a uno de cada cuatro—, y a uno o dos
-#'   de cada cien enteros de ocho cifras, que coinciden con un documento entero;
-#'   las coordenadas, los p-valores, los importes con decimales, las horas, los
+#'   de cada cien enteros de ocho cifras, que coinciden con un documento entero
+#'   —también a los importes de ocho cifras con centavos, `"52317219.09"`, 1,8 %
+#'   sobre 4.000 con las mismas cifras enteras: su parte entera es la de un
+#'   documento entero—;
+#'   las coordenadas, los p-valores, los importes de siete cifras con decimales
+#'   —también los redondos, `"5460537.00"`, `"5460537,00"` o dentro de una
+#'   frase; con un solo cero, `"5460537.0"`, dos de cada cien, que se leen
+#'   también como la cédula con su verificador tras un punto—, las horas, los
 #'   ISBN —también el ISBN-10 con espacios o puntos—, las fechas con espacios,
 #'   las listas separadas por comas con espacio o por barras verticales, las
 #'   razones no se taparon; los importes con miles de cuatro grupos o más,
@@ -2236,6 +2267,9 @@ perfilar <- function(datos,
   # Antes de cualquier analisis: las columnas de texto que no declaran su
   # codificacion la declaran. Ver `.marcar_utf8_tabla()`.
   datos <- .marcar_utf8_tabla(datos)
+  # Un nivel `NA` de un factor es un faltante, y un `POSIXlt` es el instante
+  # de un `POSIXct`. Ver `.normalizar_columnas_entrada()`.
+  datos <- .normalizar_columnas_entrada(datos)
   muestra <- .validar_muestra(muestra)
   alcance_muestra <- .resolver_muestra_perfilado(
     datos, muestra, max_celdas_muestra, max_bytes_muestra
@@ -2618,9 +2652,9 @@ perfilar <- function(datos,
   normalizacion_fusiones <- .normalizacion_fusiones_tabla(
     datos, normalizacion_resuelta
   )
-  tipos <- table(vapply(seq_along(datos), function(i) {
+  tipos <- table(.factor_por_bytes(vapply(seq_along(datos), function(i) {
     .tipo_declarado(datos[[i]])
-  }, character(1L)))
+  }, character(1L))))
   tipos_columnas <- data.frame(
     tipo = names(tipos), n = as.integer(tipos), stringsAsFactors = FALSE
   )
@@ -2881,7 +2915,7 @@ perfilar <- function(datos,
       character()
     } else {
       nombres_aplicabilidad <- as.character(names(aplicabilidad))
-      nombres_aplicabilidad[order(
+      nombres_aplicabilidad[.orden_por_bytes(
         .clave_bytes(nombres_aplicabilidad), method = "radix"
       )]
     },

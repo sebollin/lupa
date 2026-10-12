@@ -135,7 +135,7 @@ descubrir_patrones <- function(x,
   # el desempate de la moda en `R/columnas.R:30`. El arreglo no habia llegado
   # aca. El desempate va por bytes: no depende de la maquina y es total.
   conteo <- table(para_tabla, useNA = "no")
-  orden <- order(-as.integer(conteo),
+  orden <- .orden_por_bytes(-as.integer(conteo),
                  .clave_bytes(names(conteo)), method = "radix")
   frecuencias <- conteo[orden]
   denominador <- length(para_tabla)
@@ -176,7 +176,7 @@ descubrir_patrones <- function(x,
     if (length(frecuencias)) 1L else integer(),
     indices_raros_presentacion
   ))
-  indices_objetivo <- sort(unique(c(indices_salida, indices_resumen)))
+  indices_objetivo <- .sort_por_bytes(unique(c(indices_salida, indices_resumen)))
   nombres_objetivo <- names(frecuencias)[indices_objetivo]
   ejemplos_objetivo <- rep("", length(indices_objetivo))
 

@@ -97,7 +97,7 @@
   }
   .salida_metodo(
     resultado, entidad, atributo, filas,
-    paste0(entidad, "$", atributo, "[", filas, "]")
+    .pegar_texto0(entidad, "$", atributo, "[", filas, "]")
   )
 }
 
@@ -125,7 +125,7 @@
   filas <- which(!is.na(x))
   .salida_metodo(
     .duplicados_completos(x[filas]), entidad, atributo, filas,
-    paste0(entidad, "$", atributo, "[", filas, "]")
+    .pegar_texto0(entidad, "$", atributo, "[", filas, "]")
   )
 }
 

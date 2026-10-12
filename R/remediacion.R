@@ -49,7 +49,8 @@
   originales <- as.character(nombres)
   originales[is.na(originales)] <- ""
   transliterados <- .transliterar_ascii(.nombres_para_operar(originales))
-  salida <- tolower(trimws(transliterados))
+  # Escribe el nombre: el mapa del paquete sin plegar la sigma final.
+  salida <- .normalizacion_minusculas_vector(trimws(transliterados))
   salida <- gsub("[^[:alnum:]]+", "_", salida, perl = TRUE)
   salida <- gsub("^_+|_+$", "", salida, perl = TRUE)
   salida[!nzchar(salida)] <- "x"
@@ -308,6 +309,17 @@
   acciones
 }
 
+# Si los datos traen la columna y no es texto: la conversion regional no puede
+# ejecutarse sobre ella con ninguna configuracion (ver
+# `.convertir_numero_regional()`). Sin datos no se sabe, y no se afirma.
+.columna_no_texto_plan <- function(datos, columna) {
+  if (!is.data.frame(datos)) return(FALSE)
+  indice <- .indice_nombre(columna, names(datos))
+  if (is.na(indice)) return(FALSE)
+  x <- datos[[indice]]
+  !is.character(x) && !is.factor(x)
+}
+
 .comprobar_reversibilidad_accion <- function(datos, columna, estrategia,
                                              parametros) {
   sin_datos <- list(
@@ -402,7 +414,9 @@
 .evaluar_conversion <- function(original, convertido, estrategia, parametros) {
   antes <- .texto_representacion_conversion(original)
   despues <- .texto_representacion_conversion(convertido)
-  presentes <- !is.na(antes) & nzchar(trimws(antes)) & !is.na(despues)
+  # Recortado por bytes: `trimws()` sobre el texto crudo avisaba bajo `C` con
+  # marcas mezcladas y abortaba bajo un locale UTF-8 con un byte suelto.
+  presentes <- !is.na(antes) & nzchar(.recortar_bytes(antes)) & !is.na(despues)
   colisionados <- rep(FALSE, length(antes))
   if (any(presentes)) {
     pares <- unique(data.frame(
@@ -423,7 +437,8 @@
   numerico <- destino %in% c("numerico", "entero", "doble")
   ceros <- rep(FALSE, length(antes))
   if (numerico) {
-    ceros <- !is.na(antes) & grepl("^0[0-9]", trimws(antes), perl = TRUE)
+    ceros <- !is.na(antes) &
+      grepl("^0[0-9]", .recortar_bytes(antes), perl = TRUE, useBytes = TRUE)
   }
   # Un entero por encima de 2^53 NO entra en un `double` sin redondear, y esa
   # perdida no produce colision: `9007199254740993` se vuelve
@@ -628,14 +643,14 @@
       )
     } else {
       paste0(
-        " La unidad ", encodeString(unidad, quote = "\""), " deja de formar ",
+        " La unidad ", .comillas_sin_locale(unidad, quote = "\""), " deja de formar ",
         "parte del valor; queda en los par\u00e1metros."
       )
     })
   }
   if (length(moneda) == 1L && !is.na(moneda) && nzchar(moneda)) {
     nota <- c(nota, paste0(
-      " El s\u00edmbolo ", encodeString(moneda, quote = "\""), " deja de formar ",
+      " El s\u00edmbolo ", .comillas_sin_locale(moneda, quote = "\""), " deja de formar ",
       "parte del valor; queda en los par\u00e1metros."
     ))
   }
@@ -1302,7 +1317,7 @@ planificar_limpieza <- function(perfil, datos = NULL,
           # planificar. Lo declarado se suma porque el usuario lo afirmo.
           parametros = list(
             valores = unique(c(leidos$marcadores,
-                               tolower(trimws(as.character(declarados))))),
+                               .minusculas_para_comparar(declarados))),
             cadenas_ausencia = declarados
           ), orden = 100L
         ))
@@ -1513,7 +1528,17 @@ planificar_limpieza <- function(perfil, datos = NULL,
         # separadores, y el plan prometia 11 donde la conversion cambiaba los
         # 20 -una columna cambia de tipo entera, tambien el "7"-.
         fila$n[[1L]] - fila$n_faltantes[[1L]], comprobacion_numero$reversible,
-        estado = if (seguro && comprobacion_numero$verificable) {
+        # Una conversion que el plan sabe que no se puede ejecutar sobre estos
+        # datos no sale `lista`: sobre una columna que no es texto su propio
+        # `motivo_no_reversible` decia "requiere una columna de texto", el
+        # estado invitaba a activarla y `aplicar()` la registraba `fallida`
+        # (medido en la ronda 30 sobre una columna `raw`). Es la precondicion
+        # del ejecutor, y ninguna configuracion la cambia. Una conversion que
+        # solo espera que se resuelva una ambiguedad -`punto_sin_coma`,
+        # `coma_sin_punto`- sigue `lista`: se configura y se ejecuta.
+        estado = if (.columna_no_texto_plan(datos, columna)) {
+          "bloqueada"
+        } else if (seguro && comprobacion_numero$verificable) {
           estado_columna
         } else if (seguro) "bloqueada" else estado_columna,
         aplicar = conversion_numero_segura &&
@@ -1568,7 +1593,7 @@ planificar_limpieza <- function(perfil, datos = NULL,
           "como fechas distintas, o la columna no se identifica de manera \u00fanica."
         )
       }
-      destino <- if (any(grepl("%H", confirmados, fixed = TRUE))) {
+      destino <- if (any(grepl("%H", confirmados, fixed = TRUE, useBytes = TRUE))) {
         "fecha-hora"
       } else {
         "fecha"
@@ -1993,7 +2018,7 @@ planificar_limpieza <- function(perfil, datos = NULL,
       )
     }
     if (length(candidatas)) {
-      por_dependiente <- split(
+      por_dependiente <- .dividir_por_bytes(
         seq_along(candidatas),
         .nombres_para_operar(vapply(
           candidatas, `[[`, character(1L), "dependiente"
@@ -2350,9 +2375,9 @@ rbind.plan_limpieza <- function(..., deparse.level = 1) {
       "desactive la acci\u00f3n.", call. = FALSE
     )
   }
-  normalizados <- tolower(trimws(.texto_analizable(x)$valores))
+  normalizados <- .minusculas_para_comparar(.texto_analizable(x)$valores)
   mascara <- mascara & !is.na(normalizados) &
-    normalizados %in% tolower(trimws(as.character(parametros$valores)))
+    normalizados %in% .minusculas_para_comparar(parametros$valores)
   if (is.factor(x)) x <- as.character(x)
   x[mascara] <- NA
   list(valor = x, n = sum(mascara))
@@ -3058,12 +3083,15 @@ rbind.plan_limpieza <- function(..., deparse.level = 1) {
 # El texto que `.convertir_tipo()` le pasa a `as.numeric()`. Aparte por el
 # mismo motivo que `.texto_regional_normalizado()`.
 .texto_tipo_normalizado <- function(x) {
-  sub(",", ".", trimws(as.character(x)), fixed = TRUE)
+  sub(",", ".", .texto_legible_recortado(x), fixed = TRUE)
 }
 
 .texto_regional_normalizado <- function(x, parametros) {
   partes <- .componentes_numero_texto(x)
-  presentes <- !is.na(x) & nzchar(trimws(as.character(x)))
+  # Presente es lo que no esta vacio, recortado por bytes: `trimws()` sobre el
+  # texto crudo abortaba bajo un locale UTF-8 con un byte suelto, y avisaba bajo
+  # `C` con marcas mezcladas.
+  presentes <- !is.na(x) & nzchar(.recortar_bytes(as.character(x)))
   if (any(presentes & !partes$compatible)) {
     stop("Hay valores presentes que no responden al formato num\u00e9rico regional.",
          call. = FALSE)
@@ -3198,7 +3226,10 @@ rbind.plan_limpieza <- function(..., deparse.level = 1) {
 }
 
 .convertir_logico <- function(x) {
-  texto <- tolower(trimws(as.character(x)))
+  # El mismo pliegue con que `inferir_tipo()` reconocio el logico: con
+  # `tolower()`, un plan armado en una sesion UTF-8 sobre `SI` con tilde quedaba
+  # `fallida` en un `Rscript` bajo `C` (ronda 30-L).
+  texto <- .minusculas_para_comparar(x)
   verdaderos <- c("true", "t", "si", "s\u00ed", "s", "1")
   falsos <- c("false", "f", "no", "n", "0")
   presentes <- !is.na(x)
@@ -3216,7 +3247,9 @@ rbind.plan_limpieza <- function(..., deparse.level = 1) {
   if (!length(formatos)) {
     stop("La conversi\u00f3n de fecha requiere formatos confirmados.", call. = FALSE)
   }
-  valores <- trimws(as.character(x))
+  # Declarado antes del recorte (ronda 30-L): lo mismo que la conversion a
+  # numero, `.texto_legible_recortado()`.
+  valores <- .texto_legible_recortado(x)
   presentes <- !is.na(x)
   especificaciones <- .especificaciones_fecha()
   indices <- match(formatos, especificaciones$formato)
@@ -3369,7 +3402,7 @@ rbind.plan_limpieza <- function(..., deparse.level = 1) {
   if (is.character(x) || is.factor(x)) {
     texto <- as.character(x)
     nuevos <- .formatear_numeros_uno_a_uno(salida[cambio])
-    con_coma <- grepl(",", texto[cambio], fixed = TRUE)
+    con_coma <- grepl(",", texto[cambio], fixed = TRUE, useBytes = TRUE)
     nuevos[con_coma] <- sub(".", ",", nuevos[con_coma], fixed = TRUE)
     texto[cambio] <- nuevos
     if (is.factor(x)) {
@@ -3400,12 +3433,20 @@ rbind.plan_limpieza <- function(..., deparse.level = 1) {
 # `conservar_primera_duplicada` quitaba 1. Medido en la refutacion 26-R. Un
 # `POSIXlt` -lo que deja `strptime()`- es una lista por dentro: va por su
 # instante, como lo iguala el perfil.
+#
+# Desde la ronda 30 el nivel `NA` es un faltante en el perfil -ver
+# `.factor_sin_nivel_na()`-, y el perfil cuenta los duplicados sobre su copia
+# sin ese nivel: el nivel `NA` y el codigo ausente son el mismo valor, ausente.
+# Los codigos se toman de la misma copia, para que el ejecutor siga agrupando
+# como el perfil.
 .codigos_filas_exactos <- function(tabla) {
   codigos <- lapply(tabla, function(x) {
     valores <- if (inherits(x, "integer64")) {
       as.character(x)
     } else if (inherits(x, "POSIXlt")) {
       unclass(as.POSIXct(x))
+    } else if (is.factor(x)) {
+      unclass(.factor_sin_nivel_na(x))
     } else if (is.character(x)) {
       x
     } else {
@@ -3905,7 +3946,9 @@ rbind.plan_limpieza <- function(..., deparse.level = 1) {
         call. = FALSE
       )
     }
-    marca <- is.na(x) & aplicable
+    # La ausencia es la del perfil: un nivel `NA` de un factor cuenta. Ver
+    # `.factor_sin_nivel_na()`; la columna no se modifica.
+    marca <- is.na(.factor_sin_nivel_na(x)) & aplicable
     datos <- .agregar_marca(datos, parametros$columna_marca, marca)
     return(list(datos = datos, n = sum(marca)))
   }
@@ -3926,7 +3969,7 @@ rbind.plan_limpieza <- function(..., deparse.level = 1) {
         call. = FALSE
       )
     }
-    eliminar <- is.na(x) & aplicable
+    eliminar <- is.na(.factor_sin_nivel_na(x)) & aplicable
     retiradas <- .filtrar_filas(datos, eliminar)
     datos <- .filtrar_filas(datos, !eliminar)
     return(list(
@@ -4157,7 +4200,7 @@ aplicar <- function(plan, datos, permitir_eliminacion = FALSE,
     # con dos acciones empatadas sobre la misma columna, el mismo plan con las
     # filas invertidas devolvia datos distintos -` A` contra `A`-, que es lo
     # contrario de lo que promete `planificar_limpieza()`.
-    seleccion <- seleccion[order(
+    seleccion <- seleccion[.orden_por_bytes(
       plan$orden[seleccion],
       .clave_bytes(as.character(plan$id_accion[seleccion]))
     )]
@@ -4407,7 +4450,8 @@ aplicar <- function(plan, datos, permitir_eliminacion = FALSE,
   x <- .texto_publicable(datos[[indice]])
   if (identical(tipo, "mayusculas_inconsistentes")) {
     unicos <- unique(as.character(x[!is.na(x)]))
-    base <- tolower(unicos)
+    # El pliegue del detector (`mayusculas_inconsistentes`), no `tolower()`.
+    base <- .normalizacion_minusculas_vector(unicos)
     colision <- duplicated(base) | duplicated(base, fromLast = TRUE)
     valores <- unicos[colision]
   } else if (identical(tipo, "faltantes_disfrazados")) {

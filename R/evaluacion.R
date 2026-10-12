@@ -354,7 +354,7 @@ perfiles_madurez <- function(metricas = NULL, umbrales = NULL) {
   medicion <- .tabla_base(medicion)
   suprimidas <- if (.identificadores_en("objeto_medible", names(medicion))) {
     !is.na(medicion$objeto_medible) & grepl(
-      "[valor suprimido]", medicion$objeto_medible, fixed = TRUE
+      "[valor suprimido]", medicion$objeto_medible, fixed = TRUE, useBytes = TRUE
     )
   } else {
     rep(FALSE, nrow(medicion))
@@ -587,9 +587,9 @@ perfiles_madurez <- function(metricas = NULL, umbrales = NULL) {
     ))
   }
   clave <- interaction(
-    .nombres_para_operar(evaluaciones$id_medicion),
-    .nombres_para_operar(evaluaciones$perfil),
-    .nombres_para_operar(evaluaciones$regla),
+    .factor_por_bytes(.nombres_para_operar(evaluaciones$id_medicion)),
+    .factor_por_bytes(.nombres_para_operar(evaluaciones$perfil)),
+    .factor_por_bytes(.nombres_para_operar(evaluaciones$regla)),
     # Con el separador por omision -"."- las etiquetas pegadas decidian el
     # grupo: la corrida "x" con la regla "P.y" y la corrida "x.P" con la regla
     # "y" se fundian. Medido en la ronda 22. Un caracter de control no aparece
@@ -736,8 +736,8 @@ perfiles_madurez <- function(metricas = NULL, umbrales = NULL) {
 
 .resumir_evaluaciones_perfil <- function(evaluaciones) {
   clave <- interaction(
-    .nombres_para_operar(evaluaciones$id_medicion),
-    .nombres_para_operar(evaluaciones$perfil),
+    .factor_por_bytes(.nombres_para_operar(evaluaciones$id_medicion)),
+    .factor_por_bytes(.nombres_para_operar(evaluaciones$perfil)),
     # Con el separador por omision -"."- las etiquetas pegadas decidian el
     # grupo: la corrida "x" con la regla "P.y" y la corrida "x.P" con la regla
     # "y" se fundian. Medido en la ronda 22. Un caracter de control no aparece
@@ -890,7 +890,7 @@ perfiles_madurez <- function(metricas = NULL, umbrales = NULL) {
   if (isTRUE(marcar_objeto) && "objeto_medible" %in% names(x)) {
     x$objeto_medible <- as.character(x$objeto_medible)
     ya_marcadas <- !is.na(x$objeto_medible) & grepl(
-      "[valor suprimido]", x$objeto_medible, fixed = TRUE
+      "[valor suprimido]", x$objeto_medible, fixed = TRUE, useBytes = TRUE
     )
     nuevas <- suprimidas & !ya_marcadas
     x$objeto_medible[nuevas] <- paste0(
@@ -1026,7 +1026,7 @@ rbind.medicion <- function(..., deparse.level = 1) {
   # la union de los de las partes. Dos corridas distintas con modelos distintos,
   # no: es justo lo que la deriva no podria leer.
   identificadores <- lapply(mediciones, function(m) {
-    sort(unique(as.character(m$id_medicion)))
+    .sort_por_bytes(unique(as.character(m$id_medicion)))
   })
   misma_corrida <- all(vapply(
     identificadores[-1L], identical, logical(1L), identificadores[[1L]]

@@ -33,7 +33,11 @@
 # mas que un `validador`.
 .puntaje_nombre_clave <- function(nombre) {
   n <- .normalizar_nombre_columna(nombre)
-  if (!nzchar(n)) return(0)
+  # Una columna llamada `NA` no tiene un nombre que se parezca a una clave:
+  # `nzchar(NA)` es TRUE, y `startsWith(NA, ...)` hacia abortar
+  # `sugerir_clave()` y `elegir_clave()` en una tabla que `perfilar()`
+  # perfila (ronda 30, al cerrar 30-K H3).
+  if (is.na(n) || !nzchar(n)) return(0)
   if (n %in% .NOMBRES_CLAVE_PROBABLE) return(3)
   empieza <- any(vapply(
     .NOMBRES_CLAVE_PROBABLE, function(p) startsWith(n, p), logical(1L)
@@ -187,7 +191,7 @@ sugerir_clave <- function(datos, maximo = 5L, umbral_casi = 0.95) {
   # despues el parecido del nombre, y a igualdad la que aparece antes en la
   # tabla -la clave suele ser la primera columna-.
   posicion <- .indice_nombre(salida$columna, names(datos))
-  salida <- salida[order(
+  salida <- salida[.orden_por_bytes(
     -salida$identifica, -salida$candidato_por_tipo, -salida$sin_faltantes,
     -salida$parecido_nombre, -salida$tasa_distintos, posicion
   ), , drop = FALSE]

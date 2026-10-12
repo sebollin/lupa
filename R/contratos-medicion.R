@@ -160,11 +160,11 @@ escala <- function(error, tipo = c("absoluto", "relativo")) {
 
 .validar_config_contrato <- function(configuracion, clase, nombre) {
   configuracion <- .validar_propiedades_base(
-    configuracion, tolower(nombre)
+    configuracion, .minusculas_ascii(nombre)
   )
-  objeto <- configuracion[[tolower(nombre)]]
+  objeto <- configuracion[[.minusculas_ascii(nombre)]]
   if (!inherits(objeto, clase)) {
-    stop("`", tolower(nombre), "` debe provenir de ", tolower(nombre), "().",
+    stop("`", .minusculas_ascii(nombre), "` debe provenir de ", .minusculas_ascii(nombre), "().",
          call. = FALSE)
   }
   configuracion

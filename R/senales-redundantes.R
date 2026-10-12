@@ -147,6 +147,11 @@ print.senal_redundante <- function(x, ...) {
       senal$transformacion[[indice_transformacion]]
     }
     if (!is.null(funcion)) valores <- funcion(valores)
+    # Una columna compuesta sin transformacion no tiene un valor por fila, y su
+    # largo -los elementos de la matriz, las columnas de la tabla anidada- no es
+    # el de la tabla: el mensaje de abajo culpaba a una transformacion que nadie
+    # declaro. Se devuelve tal cual y la senal la declara no comparable.
+    if (is.null(funcion) && .es_columna_compuesta(valores)) return(valores)
     if (length(valores) != nrow(datos)) {
       stop(
         "La transformacion de `", columna, "` devolvio ", length(valores),
@@ -274,6 +279,14 @@ print.senal_redundante <- function(x, ...) {
 #' como discordante ni como concordante**: se excluye del universo evaluado, y
 #' `n_evaluadas` lo declara. Ausencia no es desacuerdo.
 #'
+#' Una columna de la señal que no tiene un valor comparable por fila —una
+#' compuesta (matriz, tabla anidada, valores que no se escriben como texto), una
+#' lista de objetos o de geometrías, o una magnitud con unidad (`units`), cuyo
+#' número sin la unidad no es su valor— no entra: la fila de la señal sale con
+#' `n_evaluadas = 0`, `n_discordantes = NA` y la evidencia dice qué columna y
+#' por qué. Con una `transformacion` que la lleve a un valor por fila —por
+#' ejemplo `units::drop_units()` después de llevarla a una unidad—, se compara.
+#'
 #' Una fila con el mismo valor en todas las columnas concuerda, también si ese
 #' valor es infinito: `Inf` contra `Inf` es coincidencia exacta.
 #'
@@ -365,6 +378,31 @@ detectar_discordancias <- function(datos, senales, max_ejemplos = 5L,
       names(senal$transformacion) <- senal$columnas[indices_transformacion]
     }
     valores <- .valores_senal(datos, senal)
+    # Una columna sin un valor comparable por fila -compuesta, lista de objetos,
+    # magnitud con unidad- no entra: la senal se declara no evaluada, con el
+    # motivo, en vez de abortar con el error de R que tocara. Ver
+    # `.columna_no_comparable()`.
+    no_comparables <- lapply(valores, .columna_no_comparable)
+    afuera <- which(!vapply(no_comparables, is.null, logical(1L)))
+    if (length(afuera)) {
+      return(data.frame(
+        senal = senal$nombre,
+        columnas = paste(senal$columnas, collapse = ", "),
+        n_filas = as.numeric(nrow(datos)), n_evaluadas = 0,
+        n_discordantes = NA_real_, proporcion = NA_real_,
+        ventana = senal$ventana,
+        evidencia = paste0(
+          "La senal no se evaluo: ",
+          paste0(
+            "`", senal$columnas[afuera], "`, ",
+            vapply(no_comparables[afuera], `[[`, character(1L), "detalle"),
+            collapse = "; "
+          ),
+          ". Declarar una `transformacion` que la lleve a un valor por fila."
+        ),
+        stringsAsFactors = FALSE
+      ))
+    }
     completos <- Reduce(`&`, lapply(valores, function(x) !is.na(x)))
     n_evaluadas <- sum(completos)
     if (!n_evaluadas) {

@@ -46,7 +46,7 @@
     }
     invisible(NULL)
   }
-  for (nombre in sort(ls(espacio, all.names = TRUE))) {
+  for (nombre in .sort_por_bytes(ls(espacio, all.names = TRUE))) {
     if (nombre %in% c(".PLIEGUE_COMPARAR_UNO", ".PLIEGUE_COMPARAR_VARIOS")) next
     objeto <- get(nombre, envir = espacio)
     if (is.function(objeto) || is.character(objeto)) juntar(objeto)
@@ -57,11 +57,11 @@
     regmatches(plegados, gregexpr("\\p{L}+", plegados, perl = TRUE)),
     use.names = FALSE
   )
-  palabras <- sort(unique(palabras[
+  palabras <- .sort_por_bytes(unique(palabras[
     nchar(palabras) >= .MIN_LARGO_VALOR_IDENTIFICANTE
   ]))
   marcas <- unlist(regmatches(
     textos, gregexpr("<[a-z_]+>|[a-z0-9]+(_[a-z0-9]+)+", textos, perl = TRUE)
   ), use.names = FALSE)
-  list(palabras = palabras, marcas = sort(unique(marcas)))
+  list(palabras = palabras, marcas = .sort_por_bytes(unique(marcas)))
 })

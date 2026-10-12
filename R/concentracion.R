@@ -27,7 +27,7 @@
   indices <- match(valores, unicos)
   frecuencias <- tabulate(indices, nbins = length(unicos))
   orden <- tryCatch(
-    order(-frecuencias, unicos),
+    .orden_por_bytes(-frecuencias, unicos),
     error = function(e) NULL
   )
   if (is.null(orden) || length(orden) < 2L) return(NULL)

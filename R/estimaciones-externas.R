@@ -304,7 +304,7 @@ medicion_desde_estimaciones <- function(estimaciones, entidad, fuente,
       entidad = entidad,
       atributo = etiquetas,
       fila = seq_len(nrow(estimaciones)),
-      objeto_medible = paste0(entidad, "$", etiquetas),
+      objeto_medible = .pegar_texto0(entidad, "$", etiquetas),
       resultado = valores,
       # `.fila_utilizable` y `.motivo_descarte` no viajan en la salida: marcan
       # las filas que se quedan y por que se cae cada una de las otras.

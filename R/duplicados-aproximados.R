@@ -291,7 +291,7 @@
       " pares (presupuesto ", .formato_pares_lsh(presupuesto),
       "). \u00bfContinuar? [s/N] "
     ))
-    continuar <- tolower(trimws(respuesta)) %in% c(
+    continuar <- .minusculas_para_comparar(respuesta) %in% c(
       "s", "si", "s\u00ed", "y", "yes"
     )
   }
@@ -469,10 +469,10 @@
   if (!is.null(rango) && length(rango)) {
     r1 <- rango[pares$fila_1]
     r2 <- rango[pares$fila_2]
-    orden <- order(pares$distancia, pmin(r1, r2), pmax(r1, r2),
+    orden <- .orden_por_bytes(pares$distancia, pmin(r1, r2), pmax(r1, r2),
                    pares$fila_1, pares$fila_2)
   } else {
-    orden <- order(pares$distancia, pares$fila_1, pares$fila_2)
+    orden <- .orden_por_bytes(pares$distancia, pares$fila_1, pares$fila_2)
   }
   salida <- pares[orden, , drop = FALSE]
   rownames(salida) <- NULL
@@ -1287,7 +1287,7 @@
     claves <- do.call(paste, c(
       lapply(columnas, function(j) firmas[, j]), sep = ":"
     ))
-    orden <- order(claves)
+    orden <- .orden_por_bytes(claves)
     corridas <- rle(claves[orden])
     finales <- cumsum(corridas$lengths)
     inicios <- c(1L, utils::head(finales, -1L) + 1L)
@@ -1528,7 +1528,7 @@
     c(1L, 2L, n - 1L, n,
       as.integer(round(seq.int(3L, n - 2L, length.out = interiores))))
   } else c(1L, 2L, n - 1L, n)
-  sort(unique(indices))
+  .sort_por_bytes(unique(indices))
 }
 
 .columnas_duplicados_aproximados <- function(datos, columnas) {
@@ -1539,7 +1539,7 @@
     }, logical(1L))
     candidatas <- names(datos)[analizables]
     if (length(candidatas) > 2L) {
-      nombres <- tolower(gsub(
+      nombres <- .minusculas_ascii(gsub(
         "[^[:alnum:]]+", "_", .nombres_para_operar(candidatas), perl = TRUE
       ))
       es_identificador <- grepl(
@@ -1786,7 +1786,7 @@
       valores[is.na(valores) | !length(valores)] <- "[ausente]"
       valores
     }
-    paste0(columna_texto, "=", valores)
+    .pegar_texto0(columna_texto, "=", valores)
   })
   salida <- partes[[1L]]
   if (length(partes) > 1L) {
@@ -2235,7 +2235,7 @@
   hallazgos <- if (nrow(pares)) {
     n <- nrow(pares)
     data.frame(
-      columna = rep(paste(columnas, collapse = ", "), n),
+      columna = rep(.pegar_nombres(columnas, sep = ", "), n),
       tipo_hallazgo = ifelse(
         pares$tipo_par == "exacto", "duplicados_exactos_columnas",
         ifelse(

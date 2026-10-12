@@ -106,18 +106,47 @@
 # depender del locale.
 # Los que ya son UTF-8 valido se MARCAN -conserva los acentos, que es lo que el
 # pliegue necesita-; los que no, se reparan con `iconv(sub = "byte")`, que es
-# determinista aunque quede feo. Un texto ya marcado se deja como esta.
+# determinista aunque quede feo. Lo marcado UTF-8 se deja como esta.
+#
+# Lo marcado `latin1` se CONVIERTE, y la reparacion lee los bytes como UTF-8.
+# Las dos cosas dependian del locale (ronda 30-L): `chartr()` traduce un
+# `latin1` al nativo, y bajo `C` lo escapaba -la I con tilde `latin1` bajaba a
+# `s<cd>` y no a la i con tilde que da una sesion UTF-8-; y `iconv()` sin `from`
+# lee la cadena en la codificacion de la sesion, asi que bajo `C` una celda con
+# un byte suelto perdia tambien sus letras validas (`jos<c3><a9>` contra la e
+# con tilde). `iconv()` de `latin1` a UTF-8, y de UTF-8 a UTF-8, no miran el
+# locale.
 .textos_para_plegar <- function(textos) {
   if (!length(textos)) return(textos)
   textos <- .declarar_utf8_valido(as.character(textos))
+  en_latin1 <- !is.na(textos) & Encoding(textos) == "latin1"
+  if (any(en_latin1)) {
+    textos[en_latin1] <- iconv(textos[en_latin1], from = "latin1", to = "UTF-8")
+  }
   sin_marca <- !is.na(textos) & Encoding(textos) %in% c("unknown", "bytes")
   if (!any(sin_marca)) return(textos)
   irreparables <- sin_marca
   irreparables[sin_marca] <- !validUTF8(textos[sin_marca])
   if (any(irreparables)) {
-    textos[irreparables] <- iconv(textos[irreparables], to = "UTF-8", sub = "byte")
+    rotos <- textos[irreparables]
+    Encoding(rotos) <- "bytes"
+    textos[irreparables] <- iconv(rotos, from = "UTF-8", to = "UTF-8", sub = "byte")
   }
   textos
+}
+
+# Minusculas ASCII que no dependen del locale. Para el vocabulario del propio
+# paquete y de los motores -palabras de SQL, tipos, `PRIMARY`, digitos
+# hexadecimales-: `tolower()` y `toupper()` consultan `LC_CTYPE` aun sobre ASCII
+# -bajo un locale turco la `I` baja a la i sin punto y la `i` sube a la I con
+# punto-, y `chartr()` con dos alfabetos ASCII no lo consulta.
+.MINUSCULAS_ASCII <- "abcdefghijklmnopqrstuvwxyz"
+.MAYUSCULAS_ASCII <- "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+.minusculas_ascii <- function(x) {
+  chartr(.MAYUSCULAS_ASCII, .MINUSCULAS_ASCII, x)
+}
+.mayusculas_ascii <- function(x) {
+  chartr(.MINUSCULAS_ASCII, .MAYUSCULAS_ASCII, x)
 }
 
 .normalizacion_minusculas_vector <- local({

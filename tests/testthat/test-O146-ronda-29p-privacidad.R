@@ -359,10 +359,13 @@ test_that("H5: el celular escrito como numero de planilla es la misma cifra", {
                             "5.9893897037E+10", "1.5E+0")),
     c("59893897037", NA, "1500", "59893897037", NA)
   )
-  # En un texto, un millar no es un decimal de ceros: "123456.000" queda.
+  # En un texto, un millar no es un decimal de ceros: "1.000" no se lee. Desde
+  # la ronda 30 la funcion devuelve las cifras enteras -con cualquier cantidad
+  # de ceros detras de seis cifras- y no reescribe el texto: la cifra entera
+  # entra solo como documento entero.
   expect_identical(
     .cifras_enteras_en_texto("de 1.000 a 123456.000; cel 59899123456.0"),
-    "de 1.000 a 123456.000; cel 59899123456"
+    c("123456", "59899123456")
   )
   # De punta a punta: la nota no protegida en la copia y en el perfil.
   set.seed(2912L)

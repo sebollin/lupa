@@ -194,7 +194,7 @@ marco_agesic <- function() {
     catalogo$dimension, catalogo$factor
   )), c("dimension", "factor"), drop = FALSE]
   claves <- .clave_par_identificador(factores$dimension, factores$factor)
-  estados <- split(
+  estados <- .dividir_por_bytes(
     as.character(catalogo$estado),
     .clave_par_identificador(
       catalogo$dimension, catalogo$factor

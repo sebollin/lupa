@@ -228,7 +228,7 @@
   }
   suprimidas <- if ("objeto_medible" %in% names(medidas)) {
     !is.na(medidas$objeto_medible) & grepl(
-      "[valor suprimido]", medidas$objeto_medible, fixed = TRUE
+      "[valor suprimido]", medidas$objeto_medible, fixed = TRUE, useBytes = TRUE
     )
   } else {
     rep(FALSE, nrow(medidas))
@@ -381,17 +381,17 @@
   switch(
     granularidad,
     instanciaAtributo = interaction(
-      addNA(as.factor(.nombres_para_operar(medidas$entidad))),
-      addNA(as.factor(.nombres_para_operar(medidas$atributo))),
+      addNA(.factor_por_bytes(.nombres_para_operar(medidas$entidad))),
+      addNA(.factor_por_bytes(.nombres_para_operar(medidas$atributo))),
       drop = TRUE, lex.order = TRUE, sep = "\034"
     ),
     atributo = interaction(
-      addNA(as.factor(.nombres_para_operar(medidas$entidad))),
-      addNA(as.factor(.nombres_para_operar(medidas$atributo))),
+      addNA(.factor_por_bytes(.nombres_para_operar(medidas$entidad))),
+      addNA(.factor_por_bytes(.nombres_para_operar(medidas$atributo))),
       drop = TRUE, lex.order = TRUE, sep = "\034"
     ),
-    instanciaEntidad = addNA(as.factor(.nombres_para_operar(medidas$entidad))),
-    entidad = addNA(as.factor(.nombres_para_operar(medidas$entidad))),
+    instanciaEntidad = addNA(.factor_por_bytes(.nombres_para_operar(medidas$entidad))),
+    entidad = addNA(.factor_por_bytes(.nombres_para_operar(medidas$entidad))),
     # El resto de las granularidades agrupaba SOLO por `objeto_medible`, y la
     # celda publica la entidad de la primera fila del grupo. Medido a
     # `conjuntoAtributos` con dos medidas del mismo `objeto_medible` y entidades
@@ -403,8 +403,8 @@
     # identidad de la celda: agrupar por menos de lo que se publica como
     # identidad es fundir dos cosas que el objeto declara distintas.
     interaction(
-      addNA(as.factor(.nombres_para_operar(medidas$entidad))),
-      factor(.nombres_para_operar(medidas$objeto_medible), exclude = NULL),
+      addNA(.factor_por_bytes(.nombres_para_operar(medidas$entidad))),
+      .factor_por_bytes(.nombres_para_operar(medidas$objeto_medible), exclude = NULL),
       drop = TRUE, lex.order = TRUE, sep = "\034"
     )
   )
@@ -1179,7 +1179,7 @@ print.tablero_calidad <- function(x, ...) {
 
 .pesos_internos_indice <- function(componentes, pesos_internos) {
   claves_dimension <- .nombres_para_operar(componentes$dimension)
-  conteos <- table(claves_dimension)
+  conteos <- table(.factor_por_bytes(claves_dimension))
   claves_multiples <- names(conteos)[conteos > 1L]
   multiples <- componentes$dimension[
     match(claves_multiples, claves_dimension)

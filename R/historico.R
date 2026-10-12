@@ -654,7 +654,7 @@ rbind.historico_calidad <- function(..., deparse.level = 1) {
 .filas_suprimidas_historico <- function(historico) {
   as.character(historico$nivel) %in% c("medida", "evaluacion_medida") &
     is.na(historico$resultado) & !is.na(historico$objeto_medible) &
-    grepl("[valor suprimido]", as.character(historico$objeto_medible), fixed = TRUE)
+    grepl("[valor suprimido]", as.character(historico$objeto_medible), fixed = TRUE, useBytes = TRUE)
 }
 
 .propagar_suprimidas_historico <- function(historico, claves) {
@@ -671,7 +671,7 @@ rbind.historico_calidad <- function(..., deparse.level = 1) {
   historico$resultado[objetivo] <- NA_real_
   historico$objeto_medible <- as.character(historico$objeto_medible)
   ya_marcadas <- !is.na(historico$objeto_medible) &
-    grepl("[valor suprimido]", historico$objeto_medible, fixed = TRUE)
+    grepl("[valor suprimido]", historico$objeto_medible, fixed = TRUE, useBytes = TRUE)
   nuevas <- objetivo & !ya_marcadas
   historico$objeto_medible[nuevas] <- ifelse(
     is.na(historico$objeto_medible[nuevas]),
@@ -918,7 +918,7 @@ rbind.historico_calidad <- function(..., deparse.level = 1) {
   } else character()
   valores_suprimidos <- if (nrow(x) && "objeto_medible" %in% names(x)) {
     !is.na(x$objeto_medible) &
-      grepl("[valor suprimido]", x$objeto_medible, fixed = TRUE)
+      grepl("[valor suprimido]", x$objeto_medible, fixed = TRUE, useBytes = TRUE)
   } else {
     rep(FALSE, nrow(x))
   }
@@ -1065,9 +1065,9 @@ rbind.historico_calidad <- function(..., deparse.level = 1) {
           " Difieren: ",
           paste(vapply(utils::head(difieren, 3L), function(nombre) {
             paste0(
-              nombre, " (", encodeString(
+              nombre, " (", .comillas_sin_locale(
                 as.character(lado_anterior[[nombre]])[[1L]], quote = "\""
-              ), " contra ", encodeString(
+              ), " contra ", .comillas_sin_locale(
                 as.character(lado_nuevo[[nombre]])[[1L]], quote = "\""
               ), ")"
             )
@@ -1124,7 +1124,7 @@ rbind.historico_calidad <- function(..., deparse.level = 1) {
     x$resultado[suprimidas] <- NA_real_
     x$objeto_medible <- as.character(x$objeto_medible)
     ya_marcadas <- !is.na(x$objeto_medible) & grepl(
-      "[valor suprimido]", x$objeto_medible, fixed = TRUE
+      "[valor suprimido]", x$objeto_medible, fixed = TRUE, useBytes = TRUE
     )
     nuevas <- suprimidas & !ya_marcadas
     x$objeto_medible[nuevas] <- paste0(
@@ -1497,7 +1497,7 @@ detectar_deriva_calidad <- function(historico, nivel = c("perfil", "regla"),
   corridas_partes <- .clave_bytes(as.character(partes_fuera$id_medicion))
   partes_de <- function(id) {
     en <- corridas_partes %in% .clave_bytes(as.character(id))
-    orden <- order(partes_fuera$clave_parte[en], method = "radix")
+    orden <- .orden_por_bytes(partes_fuera$clave_parte[en], method = "radix")
     list(
       claves = unique(partes_fuera$clave_parte[en][orden]),
       etiquetas = unique(partes_fuera$etiqueta_parte[en][orden])
@@ -1531,7 +1531,7 @@ detectar_deriva_calidad <- function(historico, nivel = c("perfil", "regla"),
   clave <- .clave_bytes(paste(
     clave, .clave_bytes(as.character(identidad)), sep = "\034"
   ))
-  grupos <- split(seq_len(nrow(datos)), clave, drop = TRUE)
+  grupos <- .dividir_por_bytes(seq_len(nrow(datos)), clave, drop = TRUE)
   sin_par <- list()
   partes <- lapply(grupos, function(indices) {
     fechas <- as.numeric(datos$fecha[indices])
@@ -1963,7 +1963,7 @@ detectar_deriva_calidad <- function(historico, nivel = c("perfil", "regla"),
   }
   resultado <- filas[as.character(deriva$aspecto[filas]) == "resultado"]
   no_comparable <- any(deriva$cambio[filas] %in% "no_comparable")
-  orden <- filas[order(as.character(deriva$aspecto[filas]) != "resultado")]
+  orden <- filas[.orden_por_bytes(as.character(deriva$aspecto[filas]) != "resultado")]
   list(
     delta = if (!no_comparable && length(resultado)) {
       deriva$delta[[resultado[[1L]]]]

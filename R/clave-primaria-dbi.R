@@ -26,7 +26,7 @@
 .motor_clave_primaria <- function(conexion) {
   clase <- paste(class(conexion), collapse = " ")
   if (grepl("Ora|Oracle", clase)) return("oracle")
-  if (grepl("SQLite", clase, fixed = TRUE)) return("sqlite")
+  if (grepl("SQLite", clase, fixed = TRUE, useBytes = TRUE)) return("sqlite")
   if (grepl("DuckDB|duckdb", clase)) return("duckdb")
   if (grepl("MariaDB|RMariaDB", clase)) return("mariadb")
   if (grepl("MySQL|RMySQL", clase)) return("mysql")
@@ -337,7 +337,7 @@
   if (is.null(motivo) || !length(motivo) || all(is.na(motivo))) {
     return(FALSE)
   }
-  texto <- tolower(paste(as.character(motivo), collapse = " "))
+  texto <- .minusculas_ascii(paste(as.character(motivo), collapse = " "))
   grepl(
     "permission|privilege|permiso|privileg|access denied|command denied|denegad|not authorized|unauthorized",
     texto
@@ -369,7 +369,7 @@
   tipo <- match.arg(tipo)
   if (is.null(valor) || !length(valor)) return(NA)
   if (is.logical(valor)) return(if (is.na(valor[[1L]])) NA else valor[[1L]])
-  texto <- toupper(trimws(as.character(valor[[1L]])))
+  texto <- .mayusculas_ascii(trimws(as.character(valor[[1L]])))
   if (is.na(texto) || !nzchar(texto)) return(NA)
   # PostgreSQL devuelve `condeferrable` como logico; Oracle publica el texto
   # DEFERRABLE o NOT DEFERRABLE en `ALL_CONSTRAINTS`. El mismo hecho, dos
@@ -798,7 +798,7 @@
     }
     primarias <- which(
       !is.na(nombre_clave) &
-        toupper(trimws(as.character(nombre_clave))) == "PRIMARY"
+        .mayusculas_ascii(trimws(as.character(nombre_clave))) == "PRIMARY"
     )
     if (!length(primarias)) {
       return(vacio(
@@ -834,7 +834,7 @@
         visible = TRUE
       ))
     }
-    orden <- partes[order(posicion[partes])]
+    orden <- partes[.orden_por_bytes(posicion[partes])]
     garantia <- .garantia_clave_primaria(datos, via$nombre, motor)
     return(list(
       columnas = as.character(columna)[orden], fuente = via$nombre,
@@ -843,7 +843,7 @@
     ))
   }
   if (identical(via$nombre, "show_index")) {
-    orden <- order(posicion, na.last = TRUE)
+    orden <- .orden_por_bytes(posicion, na.last = TRUE)
     garantia <- .garantia_clave_primaria(datos, via$nombre, motor)
     return(list(
       columnas = as.character(columna)[orden], fuente = via$nombre,

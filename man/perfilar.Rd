@@ -228,7 +228,10 @@ además de la lista incorporada. Lo declarado atraviesa la guarda del
 vocabulario: \code{sd}, \code{nc} y \code{nd} sólo cuentan solas en columnas de pocos
 valores distintos —para no acusar a un código de dos letras—, y
 declararlas las hace contar siempre. Es el equivalente textual de
-\code{sentinelas_numericos}.}
+\code{sentinelas_numericos}. Como la lista incorporada, se comparan sin los
+blancos de los bordes y sin distinguir mayúsculas, con el pliegue de caja
+de \code{\link[=normalizacion]{normalizacion()}}: \verb{SIN INFORMACIÓN} es \verb{sin información} en cualquier
+locale.}
 
 \item{analizar_dependencias}{Si se buscan dependencias funcionales entre
 pares de columnas. Se aplica una sola muestra común a toda la tabla.}
@@ -379,8 +382,12 @@ guion —\code{"+59899123456/+59899765432"}, \code{"29011234/+59899123456"}—: 
 número con esa forma se prueba por su parte nacional. Y el celular protegido guardado con el prefijo se reconoce
 escrito sin él, también guardado como número de planilla
 —\code{"59899123456.0"}, \code{"59899123456,0"} o \code{"5.9899123456E+10"}, la misma
-cifra—, y al revés: escrito así en un texto se lee por su parte
-nacional. No unen los parecidos raros: la prima de una coordenada
+cifra, con cualquier cantidad de ceros —\code{"59899123456.0000"}, como lo deja
+un \code{DECIMAL(15,4)}— y con cualquier exponente —\code{"5.9899123456e+010"}, como
+lo escribe el \code{printf} de Windows—, y al revés: escrito así en un texto se
+lee por su parte nacional. La cifra escrita así es el documento
+\strong{entero}, no el parcial: el importe redondo \code{"5460537.00"} no se lee
+como un documento sin su verificador. No unen los parecidos raros: la prima de una coordenada
 sexagesimal, el acento grave, la tilde. Los dos puntos y la barra vertical
 \strong{no} unen: una razón
 \code{"494:2714"} o una lista \code{"12|345|6789"} no es un documento, y un documento
@@ -437,8 +444,14 @@ apóstrofos de miles, con un guion, tras un numeral o tras una equis
 seguida de un espacio (\code{"92 x 6931234"}); tras un asterisco, o tras una
 equis pegada (\code{"serie X6276963"}, que es como se escribe el documento
 recortado sin formato, \code{"X2345678"}), a uno de cada cuatro—, y a uno o dos
-de cada cien enteros de ocho cifras, que coinciden con un documento entero;
-las coordenadas, los p-valores, los importes con decimales, las horas, los
+de cada cien enteros de ocho cifras, que coinciden con un documento entero
+—también a los importes de ocho cifras con centavos, \code{"52317219.09"}, 1,8 \%
+sobre 4.000 con las mismas cifras enteras: su parte entera es la de un
+documento entero—;
+las coordenadas, los p-valores, los importes de siete cifras con decimales
+—también los redondos, \code{"5460537.00"}, \code{"5460537,00"} o dentro de una
+frase; con un solo cero, \code{"5460537.0"}, dos de cada cien, que se leen
+también como la cédula con su verificador tras un punto—, las horas, los
 ISBN —también el ISBN-10 con espacios o puntos—, las fechas con espacios,
 las listas separadas por comas con espacio o por barras verticales, las
 razones no se taparon; los importes con miles de cuatro grupos o más,
@@ -1116,6 +1129,20 @@ anidadas (una columna \code{data.frame}, como la de un tibble empaquetado)— se
 conservan como una unidad por fila: \code{n} informa las filas de la tabla, pero
 los estadísticos por valor —\code{n_faltantes} incluido— quedan en \code{NA} y un
 hallazgo explica que deben separarse en columnas con semántica explícita.
+Entra por la misma puerta una columna cuyos valores no se pueden escribir
+como texto —una \code{vctrs_rcrd}, que guarda varios campos por fila, o un
+\code{vctrs_vctr} sin conversión declarada—: se pregunta por esa propiedad y no
+por la clase, y el hallazgo \code{tipo_compuesto_no_analizado} lo dice con su
+clase, en vez de abortar el perfil entero.
+Un vector de bytes (\code{raw}) se compara y se publica por su escritura
+hexadecimal —\code{moda}, \code{n_distintos}—, pero no pasa por las etapas que
+interpretan la escritura de una persona —patrones, números escritos como
+texto, unidades, espacios—: un byte no es un texto escrito.
+Un nivel \code{NA} de un factor —el que dejan \code{addNA()} o \code{factor(exclude = NULL)}— es un faltante: cuenta en \code{n_faltantes} y no en \code{n_distintos}, igual
+que en la medición, en \code{\link[=distribucion_valores]{distribucion_valores()}}, en \code{\link[=inferir_tipo]{inferir_tipo()}} y en
+las dependencias. Un \code{POSIXlt} —lo que deja \code{strptime()}— se perfila por su
+instante, como el \code{POSIXct} equivalente: la misma columna en las dos clases
+da la misma fila.
 Cuando todos los valores válidos aparecen una sola vez \strong{no hay moda}, y
 \code{moda} queda en \code{NA}. Lo que se publicaría es el ganador de un desempate de
 tantas vías como valores haya, y ese desempate sigue el orden de
@@ -1208,7 +1235,10 @@ La evidencia los muestra como puntos de código; los espacios Unicode se
 detectan aunque sólo se normalizan mediante una acción explícita, y ZWJ/ZWNJ
 se informan pero se conservan porque pueden ser semánticos. La comparación
 de duplicados con \code{normalizar = TRUE} aplica estas mismas clases sin borrar
-ZWJ/ZWNJ.
+ZWJ/ZWNJ. El resto del texto se cita con sus caracteres, y no con los
+escapes de punto de código de \code{encodeString()}, que dependen del locale: la
+evidencia es la misma bajo \code{C} y bajo un locale UTF-8, y el ejemplo que
+cita casa con el de la tabla de patrones.
 
 Un valor \code{double} \strong{subnormal} —distinto de cero y menor que
 \code{.Machine$double.xmin} en valor absoluto, unos 2,2e-308— casi siempre sale de

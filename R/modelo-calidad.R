@@ -67,7 +67,7 @@
   # cobertura. Sin esto, declarar los mismos dos pares al reves daba otra
   # `configuracion_modelo` y la deriva publicaba un cambio de modelo sobre un
   # resultado identico.
-  orden <- order(
+  orden <- .orden_por_bytes(
     .clave_par_identificador(factores$dimension, factores$factor),
     method = "radix"
   )
@@ -136,10 +136,10 @@
   # (0,0,0 contra 1,0,0 en el control de la prueba). Ahi el orden no es un
   # artefacto de como se escribio: es parte del modelo, y la descripcion tiene
   # que distinguirlo.
-  orden <- order(.clave_bytes(names(metricas)), method = "radix")
+  orden <- .orden_por_bytes(.clave_bytes(names(metricas)), method = "radix")
   metricas <- metricas[orden]
   tipos_resultado <- tipos_resultado[
-    order(.clave_bytes(names(tipos_resultado)), method = "radix")
+    .orden_por_bytes(.clave_bytes(names(tipos_resultado)), method = "radix")
   ]
   list(
     version = 2L,
@@ -170,7 +170,7 @@
 
 .unidad_metrica_acotada <- function(unidad) {
   if (is.na(unidad) || !nzchar(trimws(unidad))) return(NA)
-  tolower(trimws(unidad)) %in% c("proporcion", "proportion")
+  .minusculas_para_comparar(unidad) %in% c("proporcion", "proportion")
 }
 
 .medidas_no_acotadas_01 <- function(x) {
@@ -413,7 +413,11 @@
 #'   `modelo()`, métricas instanciadas o una única lista que las contenga.
 #' @param entidad Nombres de las tablas ligadas, en el orden que espera el
 #'   método.
-#' @param atributos Nombres de las columnas ligadas, en el mismo orden.
+#' @param atributos Nombres de las columnas ligadas, en el mismo orden. Son
+#'   los nombres que tiene la tabla: una columna llamada `""` o `NA` se liga
+#'   con ese nombre, que es el que publica [perfilar()]. Un nombre que la tabla
+#'   no tiene no se rechaza al instanciar; [medir()] declara la métrica
+#'   `no_medible` con el atributo que no encontró.
 #' @param referencial Objeto opcional creado por [referencial()]. Se conserva en
 #'   la instancia sin modificarlo: `instanciar()` no supone que toda métrica lo
 #'   use. El `metodo` debe leerlo y validar el contrato que necesite; las
@@ -751,8 +755,16 @@ instanciar <- function(metrica_especifica, entidad, atributos = character(),
       any(!nzchar(entidad))) {
     stop("`entidad` debe contener nombres de tabla no vac\u00edos.", call. = FALSE)
   }
-  if (!is.character(atributos) || anyNA(atributos) || any(!nzchar(atributos))) {
-    stop("`atributos` debe contener nombres de columna no vac\u00edos.", call. = FALSE)
+  # Un nombre de columna es el que tiene la tabla, y una tabla de R puede tener
+  # una columna llamada "" o `NA` -la deja un `read.csv(check.names = FALSE)`
+  # con un encabezado vacio-. `perfilar()` la perfila con ese nombre y
+  # `proponer_modelo()` la propone con ese nombre; exigir aca un nombre no vacio
+  # hacia abortar `analizar()` entero con un mensaje sobre un argumento que
+  # nadie paso (medido en la ronda 30). Un nombre que la tabla no tiene no se
+  # rechaza aca: `medir()` declara la metrica `no_medible` con el atributo que
+  # no encontro, igual que con cualquier otro nombre.
+  if (!is.character(atributos)) {
+    stop("`atributos` debe ser un vector de nombres de columna.", call. = FALSE)
   }
   declaracion <- .declaracion_metrica(metrica_especifica)
   if (!.granularidad_implementada(declaracion$granularidad)) {
@@ -878,7 +890,7 @@ propiedades_metrica <- function(x) {
       v <- configuracion[[propiedad]]
       if (is.atomic(v) && length(v)) {
         v <- v[!duplicated(v)]
-        configuracion[[propiedad]] <- v[order(
+        configuracion[[propiedad]] <- v[.orden_por_bytes(
           .clave_bytes(as.character(v)), method = "radix"
         )]
       }
@@ -893,7 +905,7 @@ propiedades_metrica <- function(x) {
       (!isTRUE(a$metodo_declarado) ||
          identical(a$metodo, b$metodo, ignore.srcref = TRUE))
   }
-  for (indices in split(seq_along(metricas), clave)) {
+  for (indices in .dividir_por_bytes(seq_along(metricas), clave)) {
     if (length(indices) < 2L) next
     for (k in seq_along(indices)[-1L]) {
       for (m in seq_len(k - 1L)) {
@@ -1161,7 +1173,7 @@ modelo <- function(..., marco = NULL) {
   }
   .salida_metodo(
     !ausente, entidad, atributo, filas,
-    paste0(entidad, "$", atributo, "[", filas, "]")
+    .pegar_texto0(entidad, "$", atributo, "[", filas, "]")
   )
 }
 
@@ -1216,7 +1228,7 @@ modelo <- function(..., marco = NULL) {
   }
   .salida_metodo(
     resultado, entidad, atributo, filas,
-    paste0(entidad, "$", atributo, "[", filas, "]")
+    .pegar_texto0(entidad, "$", atributo, "[", filas, "]")
   )
 }
 
@@ -1254,7 +1266,7 @@ modelo <- function(..., marco = NULL) {
   .salida_metodo(
     resultado,
     entidad, atributo, filas,
-    paste0(entidad, "$", atributo, "[", filas, "]")
+    .pegar_texto0(entidad, "$", atributo, "[", filas, "]")
   )
 }
 
@@ -1311,7 +1323,7 @@ modelo <- function(..., marco = NULL) {
   .salida_metodo(
     relacion$cobertura_tabla2_en_tabla1,
     entidad_dependiente, atributo_fk, NA_integer_,
-    paste0(
+    .pegar_texto0(
       entidad_dependiente, "$", atributo_fk, " -> ",
       entidad_referencia, "$", atributo_pk
     )
@@ -1342,7 +1354,7 @@ modelo <- function(..., marco = NULL) {
   resultado <- stats::sd(valores)
   .salida_metodo(
     resultado, entidad, atributo, NA_integer_,
-    paste0(entidad, "$", atributo)
+    .pegar_texto0(entidad, "$", atributo)
   )
 }
 
@@ -1523,7 +1535,7 @@ metricas_nucleo <- function() {
   fila <- salida$fila
   propias <- .identificadores_en(as.character(salida$entidad), entidad) &
     !is.na(fila) & fila >= 1 & fila <= length(dentro)
-  fuera <- sort(unique(fila[propias][!dentro[fila[propias]]]))
+  fuera <- .sort_por_bytes(unique(fila[propias][!dentro[fila[propias]]]))
   if (length(fuera)) {
     # Se citan en la tabla del usuario, que es como se publican las demas.
     originales <- attr(tablas[[indice]], "lupa_indices_fila_originales",
@@ -1570,8 +1582,8 @@ metricas_nucleo <- function() {
       nombre <- as.character(salida$entidad[filas])
       hecho <- rep(FALSE, length(filas))
       prefijos <- list(
-        ifelse(is.na(atributo), NA_character_, paste0(nombre, "$", atributo, "[")),
-        paste0(nombre, "[")
+        ifelse(is.na(atributo), NA_character_, .pegar_texto0(nombre, "$", atributo, "[")),
+        .pegar_texto0(nombre, "[")
       )
       for (prefijo in prefijos) {
         cabeza <- paste0(prefijo, locales)
@@ -1606,9 +1618,9 @@ metricas_nucleo <- function() {
   con_atributo <- !is.na(atributo) & nzchar(atributo)
   ifelse(
     !is.na(fila),
-    ifelse(con_atributo, paste0(entidad, "$", atributo, "[", fila, "]"),
-           paste0(entidad, "[", fila, ",]")),
-    ifelse(con_atributo, paste0(entidad, "$", atributo), entidad)
+    ifelse(con_atributo, .pegar_texto0(entidad, "$", atributo, "[", fila, "]"),
+           .pegar_texto0(entidad, "[", fila, ",]")),
+    ifelse(con_atributo, .pegar_texto0(entidad, "$", atributo), entidad)
   )
 }
 

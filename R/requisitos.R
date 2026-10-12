@@ -115,8 +115,12 @@
   )
 }
 
+# Primero las minusculas y despues lo que no es letra ni cifra: en el orden
+# inverso `gsub()` borraba las mayusculas antes de bajarlas, y
+# `requisitos_motor("PostgreSQL")` -el nombre como lo publica el catalogo- no
+# se reconocia.
 .normalizar_nombre_motor <- function(motor) {
-  tolower(gsub("[^a-z0-9]+", "", trimws(as.character(motor))))
+  gsub("[^a-z0-9]+", "", .minusculas_ascii(trimws(as.character(motor))))
 }
 
 .fila_requisito_motor <- function(motor) {
@@ -129,7 +133,7 @@
 }
 
 .detener_error_requisito <- function(clase, lineas) {
-  herencia <- if (grepl("dbi", clase, fixed = TRUE)) "lupa_error_dbi" else character()
+  herencia <- if (grepl("dbi", clase, fixed = TRUE, useBytes = TRUE)) "lupa_error_dbi" else character()
   lineas <- .marcar_objeto_para_exhibir(lineas)
   cli::cli_abort(
     .cli_literal(lineas),
@@ -199,7 +203,7 @@
   if (length(informacion)) {
     texto <- paste(texto, paste(unlist(informacion), collapse = " "))
   }
-  texto <- tolower(texto)
+  texto <- .minusculas_ascii(texto)
   id <- if (grepl("postgres|pqconnection", texto)) {
     "postgresql"
   } else if (grepl("mariadb", texto)) {

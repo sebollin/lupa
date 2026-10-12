@@ -76,7 +76,7 @@
 }
 
 .lsh_checksum <- function(archivos) {
-  archivos <- sort(archivos[file.exists(archivos)])
+  archivos <- .sort_por_bytes(archivos[file.exists(archivos)])
   if (!length(archivos)) return(NA_character_)
   suma <- tryCatch(tools::md5sum(archivos), error = function(e) NULL)
   if (is.null(suma)) return(NA_character_)
@@ -206,7 +206,7 @@
   if ("qgrama" %in% columnas) {
     argumentos <- c(argumentos, list(method = "radix"))
   }
-  datos[do.call(order, argumentos), , drop = FALSE]
+  datos[do.call(.orden_por_bytes, argumentos), , drop = FALSE]
 }
 
 .lsh_deduplicar <- function(datos, columnas) {
@@ -258,9 +258,9 @@
       unlist(lapply(maximos, `[[`, j), use.names = FALSE)
     })
     orden_tope <- if ("qgrama" %in% columnas_orden) {
-      do.call(order, c(valores_tope, list(method = "radix")))
+      do.call(.orden_por_bytes, c(valores_tope, list(method = "radix")))
     } else {
-      do.call(order, valores_tope)
+      do.call(.orden_por_bytes, valores_tope)
     }
     limite <- maximos[[orden_tope[[1L]]]]
     partes <- lapply(disponibles, function(i) {
@@ -502,7 +502,7 @@
     while (length(pendientes) && dfile <= length(diccionario)) {
       objetivos <- datos$qgrama[pendientes]
       combinado <- c(ddata$qgrama, objetivos)
-      orden <- order(combinado, method = "radix")
+      orden <- .orden_por_bytes(combinado, method = "radix")
       rangos <- integer(length(combinado))
       rangos[orden] <- seq_along(orden)
       tope <- ddata$qgrama[[nrow(ddata)]]
@@ -1206,7 +1206,7 @@
       datos <- .lsh_validar_run(a, c("banda", "clave", "ordinal"))
       datos
     }))
-    firmas <- firmas[order(firmas$banda, firmas$ordinal), , drop = FALSE]
+    firmas <- firmas[.orden_por_bytes(firmas$banda, firmas$ordinal), , drop = FALSE]
     # Reconstruir la matriz sólo para la estimacion. Se descarta antes de las
     # cubetas; el diccionario sigue siendo exclusivamente externo.
     n <- sum(vapply(estado$bloques, function(b) length(b$ordinales), integer(1L)))

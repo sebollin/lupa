@@ -180,7 +180,7 @@
         nombres[[posicion]] <- as.character(datos[[colacion]][[i]])
         valor <- datos[[determinista]][[i]]
         valor <- if (is.logical(valor)) valor else {
-          tolower(as.character(valor)) %in% c("t", "true", "1", "yes")
+          .minusculas_ascii(as.character(valor)) %in% c("t", "true", "1", "yes")
         }
         determinismo[[posicion]] <- isTRUE(valor)
         demostrada[[posicion]] <- TRUE
@@ -816,7 +816,7 @@
   valores <- como_doble$valores
   frecuencias <- as.numeric(mapa$frecuencia)
   if (!is.numeric(valores) || anyNA(frecuencias)) return(NA_real_)
-  orden <- order(valores)
+  orden <- .orden_por_bytes(valores)
   valores <- valores[orden]
   frecuencias <- frecuencias[orden]
   total <- sum(frecuencias)
@@ -1736,7 +1736,7 @@
       conservar <- !(
         resumen$cobertura$bloque == "perfil_muestra" &
           grepl("muestra_diagnostica_acotada", resumen$cobertura$motivo,
-                fixed = TRUE)
+                fixed = TRUE, useBytes = TRUE)
       )
       resumen$cobertura <- resumen$cobertura[conservar, , drop = FALSE]
       rownames(resumen$cobertura) <- NULL

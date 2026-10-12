@@ -173,7 +173,7 @@
       )
     }
     seleccion <- list(
-      indices = sort(c(universo$indices, resto$indices)),
+      indices = .sort_por_bytes(c(universo$indices, resto$indices)),
       n_vertices = universo$n_vertices + resto$n_vertices,
       recortado = universo$recortado || resto$recortado
     )
@@ -219,8 +219,8 @@
 
 .dimensiones_omitidas <- function(dimensiones) {
   omitidas <- character()
-  if (any(grepl("Z", dimensiones, fixed = TRUE))) omitidas <- c(omitidas, "Z")
-  if (any(grepl("M", dimensiones, fixed = TRUE))) omitidas <- c(omitidas, "M")
+  if (any(grepl("Z", dimensiones, fixed = TRUE, useBytes = TRUE))) omitidas <- c(omitidas, "Z")
+  if (any(grepl("M", dimensiones, fixed = TRUE, useBytes = TRUE))) omitidas <- c(omitidas, "M")
   omitidas
 }
 
@@ -309,7 +309,7 @@
       next
     }
     es_bbox <- !en_comillas && i + 3L <= n &&
-      toupper(paste0(caracteres[i:(i + 3L)], collapse = "")) == "BBOX"
+      .mayusculas_ascii(paste0(caracteres[i:(i + 3L)], collapse = "")) == "BBOX"
     if (!es_bbox) {
       i <- i + 1L
       next
@@ -1027,13 +1027,13 @@
     geometria <- do.call(c, lapply(piezas, function(pieza) {
       suppressWarnings(sf::st_set_crs(pieza$sfc, sf::NA_crs_))
     }))
-    orden <- order(convertidas)
+    orden <- .orden_por_bytes(convertidas)
     convertidas <- convertidas[orden]
     geometria <- suppressWarnings(sf::st_set_crs(geometria[orden], crs_unido))
   }
   list(
     geometria = geometria, indices = as.integer(indices[convertidas]),
-    fallidas = as.integer(indices[sort(fallidas)]), error = ultimo_error
+    fallidas = as.integer(indices[.sort_por_bytes(fallidas)]), error = ultimo_error
   )
 }
 
@@ -1203,7 +1203,7 @@
     !anyNA(prioridad) && any(prioridad) && !all(prioridad)
   indices <- if (prioritario) {
     primero <- uniforme(posiciones[prioridad], max_geometrias)
-    sort(c(primero, uniforme(
+    .sort_por_bytes(c(primero, uniforme(
       posiciones[!prioridad], max_geometrias - length(primero)
     )))
   } else {

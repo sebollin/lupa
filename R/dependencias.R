@@ -16,7 +16,7 @@
   # `b.c`) eran el mismo, y una dependencia que no se cumple parecia cumplirse.
   # Ronda 24; el mismo arreglo que las evaluaciones en la ronda 22.
   as.integer(interaction(
-    factor(grupo), factor(.nombres_para_operar(y), exclude = NULL),
+    .factor_por_bytes(grupo), .factor_por_bytes(.nombres_para_operar(y), exclude = NULL),
     drop = TRUE, lex.order = TRUE, sep = "\034"
   ))
 }
@@ -76,9 +76,9 @@
   paste(vapply(ejemplos, function(grupo) {
     indices <- which(resumen$grupo == grupo)
     paste0(
-      encodeString(.bytes_de_clave_relacion(resumen$x[[indices[[1L]]]]), quote = '"'),
+      .comillas_sin_locale(.bytes_de_clave_relacion(resumen$x[[indices[[1L]]]]), quote = '"'),
       " -> ",
-      paste(encodeString(
+      paste(.comillas_sin_locale(
         .bytes_de_clave_relacion(unique(resumen$y[indices])), quote = '"'
       ), collapse = " | ")
   )
@@ -274,6 +274,10 @@ detectar_dependencias <- function(datos, umbral = 0.995, muestra = 1e5,
                                    columnas_personales = character()) {
   .validar_datos_tabla(datos)
   datos <- .tabla_base(datos)
+  # La misma entrada que el perfil: un nivel `NA` de un factor es un faltante
+  # -la dependencia lo contaba entre los pares presentes- y un `POSIXlt` es el
+  # instante de un `POSIXct`. Ver `.normalizar_columnas_entrada()`.
+  datos <- .normalizar_columnas_entrada(datos)
   if (!is.logical(proteger_datos_personales) ||
       length(proteger_datos_personales) != 1L ||
       is.na(proteger_datos_personales)) {
@@ -475,7 +479,7 @@ detectar_dependencias <- function(datos, umbral = 0.995, muestra = 1e5,
   )
   }
   if (nrow(resultado)) {
-    resultado <- resultado[order(
+    resultado <- resultado[.orden_por_bytes(
       -resultado$cumplimiento, -resultado$n_evaluados,
       .nombres_para_operar(resultado$determinante),
       .nombres_para_operar(resultado$dependiente)

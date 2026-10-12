@@ -249,10 +249,10 @@ print.normalizacion_lupa <- function(x, ...) {
       bloque <- inicio:fin
       if (clases[[inicio]] == 0L) {
         marcas <- (inicio + 1L):fin
-        orden <- c(inicio, marcas[order(clases[marcas], seq_along(marcas),
+        orden <- c(inicio, marcas[.orden_por_bytes(clases[marcas], seq_along(marcas),
                                         method = "radix")])
       } else {
-        orden <- bloque[order(clases[bloque], seq_along(bloque),
+        orden <- bloque[.orden_por_bytes(clases[bloque], seq_along(bloque),
                               method = "radix")]
       }
       salida <- c(salida, codigos[orden])
@@ -360,6 +360,27 @@ print.normalizacion_lupa <- function(x, ...) {
 .normalizacion_minusculas <- function(texto) {
   chartr("\u03c2", "\u03c3", .normalizacion_minusculas_vector(texto))
 }
+
+# El texto del usuario en la forma con que se lo COMPARA contra un vocabulario
+# -los literales logicos de la inferencia y de `aplicar()`, los marcadores de
+# ausencia del perfil, del plan y de la proteccion-: declarado, recortado y en
+# minusculas con el mapa del paquete. Con `tolower()` de base, bajo `C` la I con
+# tilde no bajaba: una columna `SI`/`NO` con tilde era `logico` en una sesion
+# UTF-8 y `texto` en un `Rscript` de cron, y `SIN INFORMACION` con tilde no se
+# contaba como faltante disfrazado (ronda 30-L). Como es para comparar, pliega
+# tambien la sigma final; los dos lados de la comparacion pasan por aca.
+#
+# La declaracion va antes del recorte (`.textos_para_plegar()`), y el pliegue se
+# hace una vez por valor distinto: los detectores lo llaman sobre la columna
+# entera.
+.minusculas_para_comparar <- function(textos, recortar = TRUE) {
+  textos <- .textos_para_plegar(as.character(textos))
+  if (!length(textos)) return(textos)
+  unicos <- unique(textos)
+  plegados <- if (recortar) trimws(unicos) else unicos
+  plegados <- .normalizacion_minusculas(plegados)
+  plegados[match(textos, unicos)]
+}
 # Los blancos que el primer paso de `espacios` lleva al espacio ASCII antes de
 # que comillas y puntuacion vean el texto: los separadores ASCII -tabulacion,
 # salto de linea, tabulacion vertical, avance de pagina y retorno, 9 a 13- y los
@@ -420,7 +441,7 @@ print.normalizacion_lupa <- function(x, ...) {
       # continuaciones son 10xxxxxx-, asi que la alternancia en bytes encuentra
       # exactamente las mismas coincidencias.
       en_bytes <- vapply(caracteres, function(caracter) {
-        paste0("\\x", toupper(as.character(charToRaw(caracter))), collapse = "")
+        paste0("\\x", .mayusculas_ascii(as.character(charToRaw(caracter))), collapse = "")
       }, character(1L), USE.NAMES = FALSE)
       cache <<- list(
         patron = paste0("(*UTF)(?:", paste0(
@@ -470,7 +491,7 @@ print.normalizacion_lupa <- function(x, ...) {
       .normalizacion_descomponer(utf8ToInt(x))
     ))
   }, character(1L))
-  orden <- order(nchar(grafemas, type = "chars"), decreasing = TRUE,
+  orden <- .orden_por_bytes(nchar(grafemas, type = "chars"), decreasing = TRUE,
                  method = "radix")
   grafemas <- grafemas[orden]
   marcadores <- intToUtf8(0xF0000L + seq_along(grafemas), multiple = TRUE)

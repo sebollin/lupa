@@ -54,17 +54,19 @@
 # La ausencia que cuenta aca es la total -vacio y disfrazado-, porque una
 # columna que no corresponde se llena tanto con `NA` como con cadena vacia o
 # con "no corresponde", y las tres significan lo mismo para este patron.
+#
+# Y es la MISMA ausencia que cuenta el perfil: `is.na()`, tambien sobre una
+# lista -el `NA` suelto, y el `NULL` solo donde la clase lo declara ausente,
+# como `blob`-. Un `NULL` o un `integer(0)` en una lista sin clase no es un
+# faltante para el perfil (decision escrita en `.posiciones_presentes()`, en
+# `R/geometrias.R`). Aca la lista tenia su propia regla -largo cero o `NULL`
+# era ausencia- y el objeto se contradecia: medido en la ronda 30, una lista
+# con `integer(0)` en diez de treinta filas publicaba `n_faltantes = 0` y un
+# `posible_ausencia_estructural` que "explicaba 10 de las 10 ausencias"; y
+# seguir su sugerencia al pie de la letra fabricaba un
+# `valor_fuera_de_aplicabilidad` sospechoso sobre las mismas diez celdas.
 .mascara_ausencia_columna <- function(x, disfrazados, n) {
   if (is.data.frame(x) || .es_columna_compuesta(x)) return(NULL)
-  if (is.list(x)) {
-    return(vapply(
-      x,
-      function(v) {
-        length(v) == 0L || is.null(v) || (length(v) == 1L && all(is.na(v)))
-      },
-      logical(1L)
-    ))
-  }
   ausente <- is.na(x)
   if (length(ausente) != n) return(NULL)
   mascara <- disfrazados$mascara
@@ -101,7 +103,7 @@
   clase <- ajuste$clase_umbral
   if (!is.null(clase) && clase %in% c("Date", "POSIXct", "POSIXt") &&
       !is.na(ajuste$etiqueta_corte)) {
-    etiqueta <- encodeString(ajuste$etiqueta_corte, quote = "\"")
+    etiqueta <- .comillas_sin_locale(ajuste$etiqueta_corte, quote = "\"")
     if (identical(clase, "Date")) return(paste0("as.Date(", etiqueta, ")"))
     # Un instante sin zona se lee en la zona de la sesion que lo pega. Medido:
     # `as.POSIXct("2024-03-01")` sobre marcas en UTC ubicaba bien todas las
@@ -111,7 +113,7 @@
     zona <- ajuste$zona_corte
     if (is.null(zona) || is.na(zona) || !nzchar(zona)) zona <- "UTC"
     return(paste0(
-      "as.POSIXct(", etiqueta, ", tz = ", encodeString(zona, quote = "\""), ")"
+      "as.POSIXct(", etiqueta, ", tz = ", .comillas_sin_locale(zona, quote = "\""), ")"
     ))
   }
   # La misma escritura que la etiqueta de un grupo, por la misma razon: tiene que
@@ -249,7 +251,7 @@
   if (isTRUE(ordenable)) {
     valores <- suppressWarnings(as.numeric(x[usable]))
     if (!anyNA(valores) && length(unique(valores)) >= 2L) {
-      orden <- order(valores)
+      orden <- .orden_por_bytes(valores)
       ordenados <- valores[orden]
       cambios <- which(ordenados[-length(ordenados)] != ordenados[-1L])
       muestreados <- length(cambios) > .max_cortes_umbral
@@ -293,7 +295,7 @@
       solo_umbral = TRUE
     ), umbral))
   }
-  niveles <- factor(.nombres_para_operar(as.character(x[usable])))
+  niveles <- .factor_por_bytes(.nombres_para_operar(as.character(x[usable])))
   if (nlevels(niveles) < 2L || nlevels(niveles) > .max_niveles_determinante) {
     return(NULL)
   }
@@ -724,7 +726,7 @@
   if (length(restantes) >= 2L) {
     huellas <- vapply(restantes, function(k) .huella_mascara(presentes[[k]]),
                       character(1L))
-    orden <- restantes[order(
+    orden <- restantes[.orden_por_bytes(
       vapply(restantes, function(k) sum(presentes[[k]]), integer(1L)),
       decreasing = TRUE
     )]

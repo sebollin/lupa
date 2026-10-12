@@ -286,16 +286,16 @@ NULL
 
 .url_ipv6_valido <- function(host) {
   if (!grepl("^[0-9A-Fa-f:.]+$", host, perl = TRUE) ||
-      !grepl(":", host, fixed = TRUE)) return(FALSE)
+      !grepl(":", host, fixed = TRUE, useBytes = TRUE)) return(FALSE)
   posiciones_compresion <- gregexpr("::", host, fixed = TRUE)[[1L]]
   if (sum(posiciones_compresion > 0L) > 1L) return(FALSE)
   # Tres `:` seguidos no son una compresion mas un separador: no son nada. Y un
   # `:` suelto al borde tampoco. `strsplit()` tira los grupos vacios, asi que
   # `:::` quedaba en cero grupos "comprimidos" y pasaba como `::`.
-  if (grepl(":::", host, fixed = TRUE) ||
+  if (grepl(":::", host, fixed = TRUE, useBytes = TRUE) ||
       grepl("^:[^:]", host, perl = TRUE) ||
       grepl("[^:]:$", host, perl = TRUE)) return(FALSE)
-  comprimido <- grepl("::", host, fixed = TRUE)
+  comprimido <- grepl("::", host, fixed = TRUE, useBytes = TRUE)
   grupos <- strsplit(host, ":", fixed = TRUE)[[1L]]
   grupos <- grupos[nzchar(grupos)]
   if (any(!grepl("^[0-9A-Fa-f]{1,4}$", grupos, perl = TRUE))) {
@@ -333,7 +333,7 @@ NULL
   # Una etiqueta vacia -dos puntos seguidos, o un punto al borde despues de
   # quitar el de la raiz- no es un nombre. `strsplit()` tira el campo vacio del
   # FINAL, asi que `ejemplo.uy..` pasaba y `ejemplo...` no.
-  if (grepl("..", host_sin_punto_final, fixed = TRUE) ||
+  if (grepl("..", host_sin_punto_final, fixed = TRUE, useBytes = TRUE) ||
       startsWith(host_sin_punto_final, ".") ||
       endsWith(host_sin_punto_final, ".")) return(FALSE)
   etiquetas <- strsplit(host_sin_punto_final, ".", fixed = TRUE)[[1L]]
@@ -351,7 +351,7 @@ NULL
 
   tiene_esquema <- grepl("^[A-Za-z][A-Za-z0-9+.-]*:", valor, perl = TRUE)
   if (tiene_esquema) {
-    esquema <- tolower(sub(":.*$", "", valor, perl = TRUE))
+    esquema <- .minusculas_ascii(sub(":.*$", "", valor, perl = TRUE))
     if (!esquema %in% c("http", "https")) return(FALSE)
     if (!grepl("^[A-Za-z][A-Za-z0-9+.-]*://", valor, perl = TRUE)) {
       return(FALSE)
@@ -376,13 +376,13 @@ NULL
   if (!nzchar(autoridad) || !.url_componentes_validos(resto)) return(FALSE)
 
   usuario <- sub("@[^@]*$", "", autoridad, perl = TRUE)
-  host_puerto <- if (grepl("@", autoridad, fixed = TRUE)) {
+  host_puerto <- if (grepl("@", autoridad, fixed = TRUE, useBytes = TRUE)) {
     sub("^.*@", "", autoridad, perl = TRUE)
   } else autoridad
-  if (grepl("@", host_puerto, fixed = TRUE)) return(FALSE)
+  if (grepl("@", host_puerto, fixed = TRUE, useBytes = TRUE)) return(FALSE)
   # `@` es un delimitador: dentro del usuario va codificado (RFC 3986, 3.2.1).
   # Se tomaba el host despues del ULTIMO `@` y `a@b` quedaba de usuario.
-  if (grepl("@", usuario, fixed = TRUE)) return(FALSE)
+  if (grepl("@", usuario, fixed = TRUE, useBytes = TRUE)) return(FALSE)
   if (nzchar(usuario) && !.url_componentes_validos(usuario)) return(FALSE)
 
   puerto <- ""

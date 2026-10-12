@@ -874,6 +874,15 @@
       proteger_spool <- is.null(args$proteger_datos_personales) ||
         isTRUE(args$proteger_datos_personales)
       if (!is.null(perfil) && proteger_spool) {
+        # Los valores protegidos de la muestra, para el mensaje del motor de las
+        # demas tablas de una coleccion: ver `.valores_motor()`.
+        tryCatch({
+          protegidas <- .columnas_personales_protegidas(perfil$datos_personales)
+          .sumar_valores_motor(
+            .valores_publicables_protegidos(datos, protegidas),
+            .fechas_que_identifican(datos, protegidas)
+          )
+        }, error = function(e) NULL)
         candidatos <- tryCatch(.rellenos_de_columnas(
           datos, .columnas_personales_protegidas(perfil$datos_personales)
         ), error = function(e) character())

@@ -272,20 +272,26 @@
 # no es una cifra entera escrita asi. La comparten las agujas de la regla de
 # digitos, el piso numerico y los numeros de un texto
 # (`.cifras_enteras_en_texto()`).
+#
+# El exponente, con cualquier cantidad de cifras: el `printf("%e")` de Windows
+# escribe tres -`5.9894215856e+010`- y con dos como tope el celular escrito asi
+# se publicaba en 80 de 80 notas. Medido en la ronda 30. Hasta 20: ningun
+# documento tiene mas cifras, y un exponente enorme armaria una cadena enorme.
 .cifra_entera_escrita <- function(x) {
   x <- .recortar_bytes(as.character(x))
   salida <- rep(NA_character_, length(x))
   decimal <- !is.na(x) & grepl("^[+]?[0-9]+[.,]0+$", x, useBytes = TRUE)
   salida[decimal] <- sub("^[+]?([0-9]+)[.,]0+$", "\\1", x[decimal],
                          useBytes = TRUE)
-  patron <- "^[+]?([0-9]+)(?:[.,]([0-9]+))?[eE][+]?([0-9]{1,2})$"
+  patron <- "^[+]?([0-9]+)(?:[.,]([0-9]+))?[eE][+]?([0-9]+)$"
   cientifica <- which(!is.na(x) & !decimal &
                         grepl(patron, x, perl = TRUE, useBytes = TRUE))
   for (i in cientifica) {
     partes <- regmatches(x[[i]], regexec(patron, x[[i]], perl = TRUE))[[1L]]
     entera <- partes[[2L]]
     fraccion <- partes[[3L]]
-    exponente <- as.integer(partes[[4L]])
+    exponente <- suppressWarnings(as.integer(partes[[4L]]))
+    if (is.na(exponente) || exponente > 20L) next
     if (nchar(fraccion) > exponente) {
       # Lo que queda despues de la coma tiene que ser ceros: si no, no es entera.
       if (grepl("[1-9]", substr(fraccion, exponente + 1L, nchar(fraccion)))) next
@@ -298,25 +304,37 @@
   salida
 }
 
-# Los numeros de un texto escritos asi, llevados a sus cifras enteras antes de
-# buscar: el decimal de ceros detras de seis cifras o mas -el de uno o dos
-# ceros: "1.000" con tres es un millar- y la notacion cientifica entera.
+# Las cifras enteras de los numeros de un texto escritos asi: el decimal de
+# ceros detras de seis cifras o mas -con cualquier cantidad de ceros: con seis
+# cifras delante no hay un millar posible- y la notacion cientifica entera, con
+# cualquier exponente. Devuelve las cifras, y el texto no se toca.
+#
+# Ronda 30, dos defectos de la misma lectura. (1) Leia uno o dos ceros y un
+# exponente de dos cifras: el celular E.164 escrito "59894215856.0000" -un
+# `DECIMAL(15,4)`, el `MONEY` de SQL Server- o "5.9894215856e+010" se publicaba
+# en 80 de 80 notas de la copia de `analizar()` y en los ejemplos del perfil. (2)
+# La ronda 29 reescribia el texto con la cifra entera, y el entero de un importe
+# redondo -"5460537.00", lo mas comun en una columna de importes- alimentaba la
+# regla del documento PARCIAL: con el universo de `data-raw/medir_tapado_de_mas.R`
+# se tapaba uno de cada cinco, contra ninguno en la ronda 28. La cifra entera es
+# la de la aguja COMPLETA -el celular de once cifras, la cedula con su
+# verificador- y entra solo como documento entero (`.candidatos_digitos()`); el
+# decimal sigue siendo un decimal para el parcial.
 .cifras_enteras_en_texto <- function(texto) {
   tryCatch({
-    texto <- gsub(
-      "(?<![0-9.,])([0-9]{6,})[.,]0{1,2}(?![0-9]|[-./,'_+][0-9])", "\\1",
-      texto, perl = TRUE
+    escritas <- c(
+      regmatches(texto, gregexpr(
+        "(?<![0-9.,])[0-9]{6,}[.,]0+(?![0-9]|[-./,'_+][0-9])", texto,
+        perl = TRUE
+      ))[[1L]],
+      regmatches(texto, gregexpr(
+        "(?<![0-9.,])[0-9]+[.,][0-9]+[eE][+]?[0-9]+(?![0-9])", texto,
+        perl = TRUE
+      ))[[1L]]
     )
-    m <- gregexpr(
-      "(?<![0-9.,])[0-9]+[.,][0-9]+[eE][+]?[0-9]{1,2}(?![0-9])", texto,
-      perl = TRUE
-    )
-    regmatches(texto, m) <- lapply(regmatches(texto, m), function(trozos) {
-      enteras <- .cifra_entera_escrita(trozos)
-      ifelse(is.na(enteras), trozos, enteras)
-    })
-    texto
-  }, error = function(e) texto)
+    enteras <- .cifra_entera_escrita(escritas)
+    unique(enteras[!is.na(enteras)])
+  }, error = function(e) character())
 }
 
 # El TELEFONO URUGUAYO con su prefijo de pais: "598" o "00598" -el "+" no es
@@ -515,7 +533,13 @@
   regla <- .REGLA_DIGITOS
   texto <- .normalizar_signos_digitos(texto)
   if (is.na(texto)) return(vacio)
-  texto <- .cifras_enteras_en_texto(texto)
+  # La cifra entera de lo escrito como numero de planilla, solo como documento
+  # ENTERO: ver `.cifras_enteras_en_texto()`. El telefono con su prefijo de pais,
+  # tambien por su parte nacional.
+  enteras <- .cifras_enteras_en_texto(texto)
+  nacionales <- unlist(lapply(enteras, .telefono_internacional_uy),
+                       use.names = FALSE)
+  enteras <- .sin_ceros_iniciales(c(enteras, nacionales))
   fechas_hora <- .fechas_hora_digitos(texto)
   texto <- tryCatch({
     texto <- gsub(regla$fecha, " ", texto, perl = TRUE)
@@ -541,7 +565,7 @@
   # SIN su verificador no lo vuelve un dato. El documento entero, aunque sea
   # redondo -la cedula 5.000.000-0 tiene verificador valido-, si.
   redondo <- function(v) v[!grepl("^[1-9]0+$", v, perl = TRUE)]
-  completos <- fechas_hora
+  completos <- c(fechas_hora, enteras)
   prefijos <- character()
   sufijos <- character()
   numeros <- regmatches(texto, gregexpr(regla$numero, texto, perl = TRUE))[[1L]]
@@ -652,6 +676,56 @@
     en("sufijos", documentos$sufijos)
 }
 
+# Los numeros de un texto AJENO -el mensaje de un error del motor- leidos con
+# la regla de digitos: los tramos que el piso lee como UN numero escrito con
+# separadores, en caracteres del texto original, con sus cifras. Ronda 30: la
+# segunda pasada del mensaje del motor tenia su propia lectura -cifras unidas
+# por uno solo de `[.,:/ -]`- y de 67 separadores entre los grupos de una cedula
+# o un celular el piso reconocia el valor en 45 y el mensaje lo publicaba en 39
+# de esos 45 -el espacio duro, los espacios finos, el punto medio, la raya,
+# ` - `, dos espacios, el tabulador, el salto de linea-: era la misma regla
+# escrita dos veces. Ahora es una: cada caracter pasa por el pliegue y por
+# `.normalizar_signos_digitos()`, y los numeros se buscan con
+# `.REGLA_DIGITOS$numero`, como en `.candidatos_digitos()`. Caracter por
+# caracter, para saber de donde viene cada uno: lo que se borra -un invisible
+# entre dos cifras- queda adentro del tramo. Toda cifra de Unicode cuenta como
+# una cifra. `barreras`: caracteres que no unen aunque la regla los lea como
+# un espacio -la marca de lo ya omitido-. Ante un texto que no se puede leer
+# por caracteres, ningun tramo: quien llama decide.
+.numeros_del_texto <- function(texto, barreras = character()) {
+  vacio <- data.frame(inicio = integer(), fin = integer(), cifras = integer())
+  puntos <- tryCatch(utf8ToInt(texto), error = function(e) NA_integer_)
+  if (!length(puntos) || anyNA(puntos)) return(vacio)
+  caracteres <- intToUtf8(puntos, multiple = TRUE)
+  cifra <- grepl("\\p{N}", caracteres, perl = TRUE)
+  if (!any(cifra)) return(vacio)
+  leidos <- caracteres
+  leidos[cifra] <- "0"
+  otros <- which(!cifra)
+  if (length(otros)) {
+    normalizados <- tryCatch(
+      .normalizar_signos_digitos(.plegar_para_comparar(caracteres[otros])),
+      error = function(e) NULL
+    )
+    if (length(normalizados) == length(otros) && !anyNA(normalizados)) {
+      leidos[otros] <- normalizados
+    }
+    leidos[otros][caracteres[otros] %in% barreras] <- "|"
+  }
+  dueno <- rep(seq_along(leidos), nchar(leidos, type = "chars"))
+  plano <- paste0(leidos, collapse = "")
+  m <- tryCatch(
+    gregexpr(.REGLA_DIGITOS$numero, plano, perl = TRUE)[[1L]],
+    error = function(e) -1L
+  )
+  if (m[[1L]] == -1L) return(vacio)
+  fin <- m + attr(m, "match.length") - 1L
+  data.frame(
+    inicio = dueno[m], fin = dueno[fin],
+    cifras = nchar(gsub("[^0-9]", "", substring(plano, m, fin)), type = "chars")
+  )
+}
+
 # Los tramos de un texto encerrados entre dos apariciones de `delimitador` -una
 # comilla doble, una invertida-, en bytes. Las comillas escapadas con barra no
 # cuentan. Si el delimitador aparece una cantidad IMPAR de veces, uno esta suelto
@@ -717,7 +791,7 @@
   }, logical(1L))
   tramos <- tramos[!contiene_otro, , drop = FALSE]
   reemplazos <- rep_len(reemplazos, length(contiene_otro))[!contiene_otro]
-  orden <- order(tramos[, "inicio"], -tramos[, "fin"])
+  orden <- .orden_por_bytes(tramos[, "inicio"], -tramos[, "fin"])
   tramos <- tramos[orden, , drop = FALSE]
   reemplazos <- rep_len(reemplazos, NROW(tramos))[orden]
   grupos <- list(list(inicio = tramos[1L, "inicio"], fin = tramos[1L, "fin"],

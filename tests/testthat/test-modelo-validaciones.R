@@ -83,7 +83,12 @@ test_that("se validan instancias, modelos y vínculos", {
   no_nulo <- especializar(nucleo$NoNulo)
 
   expect_error(instanciar(no_nulo, character(), "x"), "entidad")
-  expect_error(instanciar(no_nulo, "t", NA_character_), "atributos")
+  # Un nombre de columna es el que tiene la tabla, tambien `NA` o "" (ronda 30,
+  # 30-K H3: `analizar()` abortaba con una columna asi): no se rechaza al
+  # instanciar, y `medir()` declara `no_medible` si la tabla no lo tiene. Lo que
+  # no es un nombre si se rechaza.
+  expect_no_error(instanciar(no_nulo, "t", NA_character_))
+  expect_error(instanciar(no_nulo, "t", 1L), "atributos")
   expect_error(instanciar(no_nulo, "t", "x", nombre_instancia = ""),
                "nombre_instancia")
   sin_metodo <- especializar(metrica(

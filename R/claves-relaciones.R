@@ -37,7 +37,13 @@
   if (length(indices) == 1L) {
     return(anyDuplicated(columnas[[1L]]) == 0L)
   }
-  combinado <- as.data.frame(columnas, optional = TRUE, stringsAsFactors = FALSE)
+  # Sin los nombres: `as.data.frame()` de una lista los pasa por `do.call()`
+  # como nombres de argumento, que son simbolos en la codificacion nativa, y
+  # bajo `C` un nombre UTF-8 avisaba "unable to translate" -con `warn = 2`,
+  # `detectar_claves()` abortaba- (ronda 30-L). Para buscar filas repetidas
+  # el nombre no importa.
+  combinado <- as.data.frame(unname(columnas), optional = TRUE,
+                             stringsAsFactors = FALSE)
   anyDuplicated(combinado) == 0L
 }
 
@@ -170,7 +176,7 @@
   } else NA_real_
   tasa <- n_distintos / length(x)
   orden <- if (length(colisionados)) {
-    order(-frecuencias[colisionados], colisionados)
+    .orden_por_bytes(-frecuencias[colisionados], colisionados)
   } else integer()
   colisionados <- colisionados[orden]
   valores_unicos <- unique(x)
@@ -572,7 +578,7 @@ detectar_claves <- function(datos, max_combinacion = 3, normalizar = NULL,
     etiqueta <- .etiqueta_numero_reversible(fraccion[con_fraccion])
     # Una fraccion chica sale con exponente -`9.5367431640625e-07`-; se escribe
     # en decimal corriendo la coma, sin redondear ninguna cifra.
-    con_exponente <- grepl("e", etiqueta, fixed = TRUE)
+    con_exponente <- grepl("e", etiqueta, fixed = TRUE, useBytes = TRUE)
     if (any(con_exponente)) {
       etiqueta[con_exponente] <- vapply(
         strsplit(etiqueta[con_exponente], "e", fixed = TRUE),
@@ -616,8 +622,68 @@ detectar_claves <- function(datos, max_combinacion = 3, normalizar = NULL,
   c(minimo = NA_real_, maximo = NA_real_)
 }
 
+# Una columna que no tiene UN valor comparable por fila no entra a un
+# diagnostico que compara valores entre columnas: se declara, con su motivo, y
+# el diagnostico sigue. Es la regla de las relaciones entre tablas y de las
+# senales redundantes, escrita una sola vez.
+#
+#   - Una columna compuesta -matriz, tabla anidada, valores que no se escriben
+#     como texto- no tiene un valor por fila. La matriz se comparaba por sus
+#     ELEMENTOS -seis valores para tres filas- y publicaba una relacion `1:1`
+#     con cobertura 0,5; la `vctrs_rcrd` abortaba.
+#   - Una lista que las etapas de texto no evaluan -de vectores, de geometrias,
+#     de `NULL`- tampoco: la relacion la contaba sin coincidencias, que es una
+#     respuesta, y la senal abortaba con un error crudo de R.
+#   - Una magnitud con unidad (`units`) no se compara por su numero: el mismo
+#     numero en otra unidad es otro valor. Su aritmetica abortaba al mezclarla
+#     con un numero sin unidad (`abs(x) < 2^63`) o con otra unidad -medido en
+#     la ronda 30: `detectar_relaciones()` abortaba aunque la columna no fuera
+#     candidata-. Es la decision de los validadores (ronda 27): se pregunta por
+#     la clase antes de operar con la magnitud.
+.columna_no_comparable <- function(x) {
+  if (.es_columna_compuesta(x)) {
+    return(list(
+      motivo = "columna_no_comparable",
+      detalle = paste0(
+        "la columna (", .tipo_declarado(x), ") no tiene un valor por fila: ",
+        "guarda varios componentes o valores que no se escriben como texto; ",
+        "separarlos en columnas y volver a comparar"
+      )
+    ))
+  }
+  if (is.list(x) && !.analizable_como_texto(x)) {
+    return(list(
+      motivo = "columna_no_comparable",
+      detalle = paste0(
+        "la columna es una lista de objetos (", .tipo_declarado(x), ") y no ",
+        "tiene un valor escalar por fila"
+      )
+    ))
+  }
+  if (inherits(x, "units")) {
+    return(list(
+      motivo = "columna_no_comparable",
+      detalle = paste0(
+        "la columna es una magnitud con unidad (", .unidad_declarada(x),
+        "): el mismo numero en otra unidad es otro valor; convertirla a un ",
+        "numero en una unidad explicita y volver a comparar"
+      )
+    ))
+  }
+  NULL
+}
+
 .resumir_columna_relacion <- function(x, muestra, rango = NULL,
                                       origen_rango = NULL) {
+  no_comparable <- .columna_no_comparable(x)
+  if (!is.null(no_comparable)) {
+    return(list(
+      muestra = character(), unicos = character(), unico = FALSE,
+      n_distintos = NA_integer_, familia = "no_comparable",
+      rango = .rango_relacion_sin_evidencia(),
+      origen_rango = "no_disponible", no_comparable = no_comparable
+    ))
+  }
   # Por su valor, como el camino referencial: el mismo numero guardado como
   # `integer64` en una tabla y como doble en la otra -100000 y 1e5- no se
   # encontraba, y la cobertura de una clave foranea daba 0 sobre 2 de 3.
@@ -795,7 +861,7 @@ detectar_claves <- function(datos, max_combinacion = 3, normalizar = NULL,
   if (umbral_cobertura > 0 && x$n_distintos > 0L && y$n_distintos > 0L &&
       length(y$muestra) &&
       x$n_distintos / y$n_distintos < umbral_cobertura) {
-    frecuencias <- sort(
+    frecuencias <- .sort_por_bytes(
       tabulate(match(y$muestra, unique(y$muestra))), decreasing = TRUE
     )
     k <- min(x$n_distintos, length(frecuencias))
@@ -866,6 +932,13 @@ detectar_claves <- function(datos, max_combinacion = 3, normalizar = NULL,
 #' que ningún valor coincidiría aunque fueran los mismos días: el par sale con
 #' `motivo_poda = "fecha_contra_instante"`. Convertir una de las dos a la clase de
 #' la otra, con `tz` explícito, y volver a comparar.
+#' Tampoco entra una columna que no tiene un valor comparable por fila: una
+#' compuesta —matriz, tabla anidada, valores que no se escriben como texto,
+#' como una `vctrs_rcrd`—, una lista de objetos —de vectores, de geometrías,
+#' de `NULL`— o una magnitud con unidad (`units`), cuyo número sin la unidad
+#' no es su valor. Sus pares salen `sin_comparar` con
+#' `motivo_poda = "columna_no_comparable"`, y el detalle en `podas` dice cuál
+#' de las tres es; la función sigue con las demás columnas.
 #'
 #' Todas las podas, de las dos clases, quedan además en el atributo `podas` con
 #' su motivo y su detalle.
@@ -1044,6 +1117,10 @@ detectar_relaciones <- function(tabla1, tabla2, muestra = 1e5,
             "explicito, y volver a comparar"
           )
         )
+      } else if (!is.null(x$no_comparable)) {
+        x$no_comparable
+      } else if (!is.null(y$no_comparable)) {
+        y$no_comparable
       } else if (!is.null(lectura_1[[i]])) {
         lectura_1[[i]]
       } else if (!is.null(lectura_2[[j]])) {

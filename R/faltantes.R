@@ -75,14 +75,14 @@ sentinelas_naniar <- c(-9, -99, -999, -9999, 9999, 66, 77, 88)
   valores <- c(
     .cadenas_na_naniar_1_1_0, .cadenas_na_locales, .cadenas_na_ambiguas
   )
-  unique(tolower(trimws(as.character(valores))))
+  unique(.minusculas_para_comparar(valores))
 }
 
 .normalizar_sentinelas_numericos <- function(valores) {
   if (is.null(valores) || !length(valores)) return(numeric())
   numericos <- suppressWarnings(as.numeric(valores))
   numericos <- numericos[!is.na(numericos)]
-  sort(unique(numericos))
+  .sort_por_bytes(unique(numericos))
 }
 
 # El vocabulario de ausencia que vale para UNA columna, ya normalizada. Una sola
@@ -104,7 +104,7 @@ sentinelas_naniar <- c(-9, -99, -999, -9999, 9999, 66, 77, 88)
   }
   if (length(cadenas_ausencia)) {
     cadenas <- unique(c(
-      cadenas, tolower(trimws(as.character(cadenas_ausencia)))
+      cadenas, .minusculas_para_comparar(cadenas_ausencia)
     ))
   }
   cadenas
@@ -132,7 +132,7 @@ sentinelas_naniar <- c(-9, -99, -999, -9999, 9999, 66, 77, 88)
   numeros_na <- .numeros_na(sentinelas_numericos)
   if (is.character(x) || is.factor(x)) {
     textos <- .texto_analizable(x)$valores
-    normalizados <- tolower(trimws(textos))
+    normalizados <- .minusculas_para_comparar(textos)
     cadenas <- .cadenas_ausencia_columna(normalizados, cadenas_ausencia)
     mascara_textual <- !is.na(normalizados) & normalizados %in% cadenas
     numericos <- suppressWarnings(as.numeric(normalizados))
@@ -178,7 +178,7 @@ sentinelas_naniar <- c(-9, -99, -999, -9999, 9999, 66, 77, 88)
   # lugares en la evidencia el desempate lo decidia la maquina. Medido: una
   # sesion publicaba `SIN DATO` y la otra no. Desempate por bytes.
   conteo_etiquetas <- table(etiquetas)
-  tabla <- conteo_etiquetas[order(-as.integer(conteo_etiquetas),
+  tabla <- conteo_etiquetas[.orden_por_bytes(-as.integer(conteo_etiquetas),
                                  .clave_bytes(names(conteo_etiquetas)),
                                  method = "radix")]
   evidencia <- if (length(tabla)) {
@@ -217,7 +217,7 @@ sentinelas_naniar <- c(-9, -99, -999, -9999, 9999, 66, 77, 88)
   if (!is.null(columna_datos) && (is.character(columna_datos) ||
                                   is.factor(columna_datos))) {
     textos <- .texto_analizable(columna_datos)$valores
-    todos <- tolower(trimws(textos))
+    todos <- .minusculas_para_comparar(textos)
     catalogo <- .cadenas_ausencia_columna(todos, declarados)
     normalizados <- unique(todos[!is.na(todos)])
     return(list(marcadores = normalizados[normalizados %in% catalogo],
@@ -227,8 +227,10 @@ sentinelas_naniar <- c(-9, -99, -999, -9999, 9999, 66, 77, 88)
       !nzchar(evidencia[[1L]])) {
     return(list(marcadores = character(), completa = FALSE))
   }
-  partes <- strsplit(as.character(evidencia)[[1L]], "; ", fixed = TRUE)[[1L]]
-  marcadores <- tolower(trimws(sub("\\s*\\([0-9]+\\)$", "", partes)))
+  partes <- strsplit(
+    .declarar_utf8_valido(as.character(evidencia)[[1L]]), "; ", fixed = TRUE
+  )[[1L]]
+  marcadores <- .minusculas_para_comparar(sub("\\s*\\([0-9]+\\)$", "", partes))
   conteos <- suppressWarnings(as.integer(sub("^.*\\(([0-9]+)\\)$", "\\1", partes)))
   completa <- !anyNA(conteos) && !is.na(n_textuales) &&
     sum(conteos) >= n_textuales
@@ -248,7 +250,7 @@ sentinelas_naniar <- c(-9, -99, -999, -9999, 9999, 66, 77, 88)
 # puede contradecirlo despues: pedirle que confirme lo que acaba de afirmar.
 .marcadores_ambiguos <- function(marcadores, declarados = character()) {
   if (!length(marcadores)) return(character())
-  propios <- setdiff(marcadores, tolower(trimws(as.character(declarados))))
+  propios <- setdiff(marcadores, .minusculas_para_comparar(declarados))
   propios[grepl("^[[:alnum:]]+$", propios)]
 }
 

@@ -377,7 +377,13 @@ clasificar_variables <- function(datos, perfil = NULL, metadatos = NULL,
     }
     presentes_declarados <- if (length(declarados)) {
       valores_seguros <- .texto_analizable(x)$valores
-      declarados %in% as.character(valores_seguros[!is.na(valores_seguros)])
+      # Con la clave estable (`.identificadores_en()`): los valores ya estan
+      # declarados UTF-8 y los niveles llegan como el usuario los dejo, y bajo
+      # `C` `%in%` entre un `unknown` y un `UTF-8` traduce el primero desde
+      # ASCII y no casa -un nivel observado salia ausente- (ronda 30-L).
+      .identificadores_en(
+        declarados, as.character(valores_seguros[!is.na(valores_seguros)])
+      )
     } else logical()
     ausentes <- declarados[!presentes_declarados]
     observados <- unique(c(declarados[presentes_declarados], observados))
@@ -449,9 +455,22 @@ clasificar_variables <- function(datos, perfil = NULL, metadatos = NULL,
   # Aparecio despues de creer que `clasificar_variables()` estaba limpio: la
   # comprobacion habia mirado solo las columnas de texto de primer nivel y estos
   # son columnas-lista.
-  resultado$niveles_declarados <- I(lapply(niveles_declarados, .texto_publicable))
-  resultado$niveles_observados <- I(lapply(niveles_observados, .texto_publicable))
-  resultado$niveles_ausentes <- I(lapply(niveles_ausentes, .texto_publicable))
+  #
+  # Y declarados: los niveles de un factor llegan como el usuario los dejo, y
+  # bajo `C` un nivel UTF-8 sin marca hacia abortar `print()` de la tabla
+  # ("invalid multibyte string" en `format.AsIs()`), que en una sesion UTF-8
+  # se imprime; y al reves, un nivel con un byte latin1 suelto la hacia abortar
+  # en una sesion UTF-8 y no bajo `C` (ronda 30-L). Lo legible se marca -no
+  # cambia los bytes- y lo que no es UTF-8 valido se rinde como lo muestra la
+  # consola, igual que lo declarado `bytes`.
+  publicar <- function(x) {
+    .declarar_utf8_valido(
+      .publicar_sin_marca_ilegible(.texto_publicable(x)), marcas = "unknown"
+    )
+  }
+  resultado$niveles_declarados <- I(lapply(niveles_declarados, publicar))
+  resultado$niveles_observados <- I(lapply(niveles_observados, publicar))
+  resultado$niveles_ausentes <- I(lapply(niveles_ausentes, publicar))
   rownames(resultado) <- NULL
   # El mismo piso que aplican `perfilar()`, `analizar()` y
   # `distribucion_valores()`. Proteger solo por columna dejaba publicar el

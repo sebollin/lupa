@@ -217,7 +217,7 @@ rbind.deriva_perfil <- function(..., deparse.level = 1) {
   # los siga viendo.
   valores <- perfil$meta$sentinelas_numericos
   if (is.null(valores) || all(is.na(valores))) return(valores)
-  sort(unique(valores), na.last = TRUE)
+  .sort_por_bytes(unique(valores), na.last = TRUE)
 }
 
 # Un extremo exacto es un entero escrito en decimal y nada mas: es lo que el
@@ -495,7 +495,7 @@ rbind.deriva_perfil <- function(..., deparse.level = 1) {
     return(character())
   }
   es_texto <- function(tipo) {
-    tolower(as.character(tipo)) %in% c("texto", "character", "factor", "categoria")
+    .minusculas_ascii(as.character(tipo)) %in% c("texto", "character", "factor", "categoria")
   }
   nombres_a <- .nombres_para_operar(columnas_a$columna)
   nombres_b <- .nombres_para_operar(columnas_b$columna)
@@ -648,7 +648,7 @@ rbind.deriva_perfil <- function(..., deparse.level = 1) {
   clave <- .clave_bytes(paste(
     .clave_bytes(columna), .clave_bytes(x$tipo_hallazgo), sep = "\034"
   ))
-  grupos <- split(seq_len(nrow(x)), clave, drop = TRUE)
+  grupos <- .dividir_por_bytes(seq_len(nrow(x)), clave, drop = TRUE)
   partes <- lapply(grupos, function(indices) {
     nivel <- match(as.character(x$severidad[indices]),
                    c("ok", "sospechoso", "error"))
@@ -1419,7 +1419,7 @@ comparar_perfiles <- function(anterior, actual, umbral_cambio = 0.05,
   cadenas <- function(x) {
     x <- x$meta$cadenas_ausencia
     if (is.null(x) || !length(x)) return(character())
-    sort(unique(as.character(x)))
+    .sort_por_bytes(unique(as.character(x)))
   }
   cadenas_a <- cadenas(anterior)
   cadenas_b <- cadenas(actual)
@@ -1788,7 +1788,7 @@ comparar_perfiles <- function(anterior, actual, umbral_cambio = 0.05,
   if (length(valor) != 1L || is.na(valor) || !nzchar(trimws(valor))) {
     return(NA_character_)
   }
-  tipo <- tolower(trimws(valor))
+  tipo <- .minusculas_ascii(trimws(valor))
   conocidos <- c(
     "texto", "factor", "factor-ordenado", "doble", "entero", "logico",
     "fecha", "fecha-hora", "integer64", "lista", "matriz"
@@ -1860,7 +1860,7 @@ comparar_perfiles <- function(anterior, actual, umbral_cambio = 0.05,
   for (nombre in nombres) {
     valor <- as.character(columnas[[nombre]][[indice]])
     if (length(valor) == 1L && !is.na(valor) && nzchar(trimws(valor))) {
-      return(tolower(trimws(valor)))
+      return(.minusculas_ascii(trimws(valor)))
     }
   }
   NA_character_
@@ -1892,11 +1892,11 @@ comparar_perfiles <- function(anterior, actual, umbral_cambio = 0.05,
   if (length(detalle) != 1L || is.na(detalle) || !nzchar(detalle)) {
     return(FALSE)
   }
-  if (identical(campo, "moda") && grepl("moda", detalle, fixed = TRUE)) {
+  if (identical(campo, "moda") && grepl("moda", detalle, fixed = TRUE, useBytes = TRUE)) {
     return(TRUE)
   }
   if (campo %in% c("media", "media_fecha") &&
-      grepl("momentos", detalle, fixed = TRUE)) {
+      grepl("momentos", detalle, fixed = TRUE, useBytes = TRUE)) {
     return(TRUE)
   }
   campos_orden <- c(
@@ -1906,7 +1906,7 @@ comparar_perfiles <- function(anterior, actual, umbral_cambio = 0.05,
     "hueco_maximo_secuencia_entera", "densidad_secuencia_entera",
     "densidad_sin_centinela"
   )
-  campo %in% campos_orden && grepl("orden", detalle, fixed = TRUE)
+  campo %in% campos_orden && grepl("orden", detalle, fixed = TRUE, useBytes = TRUE)
 }
 
 .campo_protegido_equivalencia <- function(columnas, campo, indice) {

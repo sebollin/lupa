@@ -93,6 +93,11 @@
 #    consulta (`LINE 1:`). Un mensaje en otro idioma conserva su SQL, sus tipos,
 #    sus nombres y sus numeros cortos: se lee peor, que es el lado cerrado.
 #
+# 3. Ronda 30: el numero se lee como lo lee el piso (`.numeros_del_texto()`), y
+#    el mensaje pasa por el piso con los valores que la llamada conoce
+#    (`.valores_motor()`): lo permitido no alcanza cuando la celda citada se
+#    escribe con lo permitido.
+#
 # Una condicion propia de la via DBI (`lupa_error_dbi`, `lupa_aviso_dbi`) ya
 # trae el mensaje del motor pasado por aca: su texto es del paquete y solo se le
 # aplica la primera pasada, como antes.
@@ -254,12 +259,154 @@
   invisible(previos)
 }
 
+# Y los VALORES protegidos que la llamada ya leyo. Ronda 30: la segunda pasada
+# publica solo lo permitido, y un valor hecho de lo permitido -los apellidos
+# `Campos Cadena`, dos palabras del vocabulario castellano- o igual al nombre de
+# una columna -la docente `Florencia` en la planilla pivoteada por docente- es
+# la celda citada, y salia entero: en la coleccion sin perfiles, el mensaje del
+# motor de una vista citaba la celda de la tabla base, que la coleccion habia
+# leido. Ahora el mensaje pasa tambien por el piso con los valores que la
+# llamada conoce, y un nombre igual a uno de ellos deja de ser un nombre
+# permitido, con la comparacion del piso (`.nombres_iguales_a_valores()`): la
+# del mensaje no puede ser mas estricta. Los junta `perfilar_coleccion()`: cada
+# `perfilar_dbi()` de sus tablas suma lo que leyo. Se guardan solo los que el
+# mensaje puede llevar despues de la segunda pasada
+# (`.valores_que_lleva_el_motor()`), con su forma plegada y sin separadores:
+# los demas el mensaje ya los omite, y guardar todos los de todas las tablas es
+# lo que la coleccion sin perfiles evita.
+.valores_motor <- function() .CONTEXTO_MOTOR$valores
+
+.activar_valores_motor <- function() {
+  previos <- .CONTEXTO_MOTOR$valores
+  .CONTEXTO_MOTOR$valores <- .indice_valores_motor(character())
+  invisible(previos)
+}
+
+.fijar_valores_motor <- function(valores) {
+  .CONTEXTO_MOTOR$valores <- valores
+  invisible(NULL)
+}
+
+# Suma valores leidos -con el piso de `.valores_identificantes()`- si alguien
+# los esta juntando; si no, no hace nada.
+.sumar_valores_motor <- function(valores, fechas = character()) {
+  actual <- .CONTEXTO_MOTOR$valores
+  if (is.null(actual) || !length(valores)) return(invisible(NULL))
+  nuevos <- tryCatch({
+    identificantes <- .valores_identificantes(unique(as.character(valores)),
+                                              fechas)
+    .indice_valores_motor(setdiff(.valores_que_lleva_el_motor(identificantes),
+                                  actual$valor))
+  }, error = function(e) NULL)
+  if (!is.null(nuevos) && nrow(nuevos)) {
+    .CONTEXTO_MOTOR$valores <- rbind(actual, nuevos)
+  }
+  invisible(NULL)
+}
+
+# La forma con que se compara: plegada y sin separadores, como la regla de
+# variantes del piso, y sus tres primeros bytes para el prefiltro de
+# `.valores_conocidos_en()`.
+.indice_valores_motor <- function(valores) {
+  valores <- as.character(valores)
+  claves <- if (length(valores)) {
+    plegados <- tryCatch(.plegar_para_comparar(valores),
+                         error = function(e) valores)
+    tryCatch(gsub("[^\\p{L}\\p{N}]", "", plegados, perl = TRUE),
+             error = function(e) gsub("[^[:alnum:]]", "", plegados,
+                                      useBytes = TRUE))
+  } else character()
+  comienzos <- rep(NA_real_, length(claves))
+  largos <- nchar(claves, type = "bytes", allowNA = TRUE)
+  con_tres <- !is.na(largos) & largos >= 3L
+  if (any(con_tres)) comienzos[con_tres] <- .comienzo_bytes(claves[con_tres], 3L)
+  data.frame(valor = valores, comienzo = comienzos, stringsAsFactors = FALSE)
+}
+
+# Los valores conocidos que pueden estar en `textos`: los que tienen los tres
+# primeros bytes de su forma plegada en la de algun texto. Nunca descarta uno
+# que este; el piso decide despues.
+.valores_conocidos_en <- function(textos) {
+  indice <- .CONTEXTO_MOTOR$valores
+  if (is.null(indice) || !nrow(indice)) return(character())
+  textos <- as.character(textos)
+  textos <- textos[!is.na(textos)]
+  if (!length(textos)) return(character())
+  pajar <- tryCatch({
+    plegados <- .plegar_para_comparar(textos)
+    gsub("[^\\p{L}\\p{N}]", "", plegados, perl = TRUE)
+  }, error = function(e) NULL)
+  if (is.null(pajar)) return(indice$valor)
+  presentes <- .tramos_bytes(pajar, 3L)
+  indice$valor[is.na(indice$comienzo) | indice$comienzo %in% presentes]
+}
+
+# Que valores protegidos puede llevar el mensaje despues de la segunda pasada:
+# los que se escriben con lo permitido -palabras del vocabulario, de SQL y de
+# tipos, letras sueltas, numeros cortos y los nombres de la tabla y de sus
+# columnas, comparados plegados como compara el piso- y a lo sumo una palabra
+# mas, que puede ser el nombre de una columna de otra tabla de la coleccion que
+# todavia no se leyo. Un valor con un numero de seis cifras o mas no: la segunda
+# pasada lo omite. Un nombre y un apellido corrientes tampoco: tienen dos
+# palabras que no estan en ninguna lista.
+.valores_que_lleva_el_motor <- function(valores,
+                                        identificadores = .identificadores_motor()) {
+  valores <- unique(as.character(valores[!is.na(valores)]))
+  if (!length(valores)) return(character())
+  textos <- valores
+  rotos <- !validUTF8(textos) | Encoding(textos) == "latin1"
+  if (any(rotos)) textos[rotos] <- .plegar_para_comparar(textos[rotos])
+  largo <- grepl("\\p{N}(?:[^\\p{L}]{0,3}\\p{N}){5}", textos, perl = TRUE)
+  valores <- valores[!largo]
+  textos <- textos[!largo]
+  if (!length(valores)) return(character())
+  palabras <- strsplit(textos, "[^\\p{L}\\p{M}\\p{N}_'\u2019]+", perl = TRUE)
+  todas <- unlist(palabras, use.names = FALSE)
+  dueno <- rep(seq_along(palabras), lengths(palabras))
+  hay <- !is.na(todas) & nzchar(todas)
+  todas <- todas[hay]
+  dueno <- dueno[hay]
+  distintas <- unique(todas)
+  plegar <- function(v) {
+    # Si el pliegue falla, la caja ASCII: `tolower()` depende del locale (ronda 30-L).
+    tryCatch(.plegar_para_comparar(v), error = function(e) .minusculas_ascii(v))
+  }
+  identificadores <- as.character(identificadores)
+  identificadores <- identificadores[!is.na(identificadores)]
+  permitidas <- unique(c(
+    .VOCABULARIO_MENSAJE_MOTOR, .minusculas_ascii(.PALABRAS_SQL_MOTOR),
+    .minusculas_ascii(.TIPOS_MOTOR), identificadores
+  ))
+  libre <- nchar(distintas, type = "chars", allowNA = TRUE) <= 1L |
+    !grepl("\\p{L}", distintas, perl = TRUE) |
+    plegar(distintas) %in% plegar(permitidas) |
+    grepl("^rapi_[a-z_]+$", distintas) |
+    grepl("^(?=[A-Z]*[0-9])[0-9A-Z]{5}$", distintas, perl = TRUE)
+  libre[is.na(libre)] <- FALSE
+  ocupadas <- !libre[match(todas, distintas)]
+  otras <- tabulate(dueno[ocupadas], nbins = length(valores))
+  valores[otras <= 1L]
+}
+
 .sin_literales_motor <- function(texto,
                                  identificadores = .identificadores_motor(),
                                  solo_comillas = FALSE) {
   if (!length(texto)) return(character())
   texto <- as.character(texto)
   identificadores <- as.character(identificadores)
+  # Los valores que la llamada conoce y que pueden estar en el mensaje: un
+  # nombre igual a uno de ellos no es un nombre permitido, y el mensaje pasa por
+  # el piso con ellos. Ver `.valores_motor()`.
+  conocidos <- if (isTRUE(solo_comillas)) character() else {
+    tryCatch(.valores_conocidos_en(texto), error = function(e) character())
+  }
+  nombres <- identificadores
+  if (length(conocidos) && length(identificadores)) {
+    identificadores <- setdiff(identificadores, tryCatch(
+      .nombres_iguales_a_valores(identificadores, conocidos),
+      error = function(e) identificadores
+    ))
+  }
   # Cada par: la comilla que abre y la clase de las que cierran. Todas en UNA
   # expresion, de izquierda a derecha, para que una comilla se lea una sola
   # vez: par por par, la comilla baja que abre el polaco volvia a abrir con el
@@ -296,7 +443,7 @@
                             useBytes = bytes)
           }
           palabra <- grepl("^[A-Za-z_]+$", interior, useBytes = TRUE) &&
-            toupper(interior) %in% .PALABRAS_SQL_MOTOR
+            .mayusculas_ascii(interior) %in% .PALABRAS_SQL_MOTOR
           queda <- cerrado &&
             (palabra || !grepl("[[:alnum:]]", interior, useBytes = TRUE) ||
                interior %in% identificadores)
@@ -333,6 +480,18 @@
   if (!isTRUE(solo_comillas)) {
     salida <- .publicar_lo_permitido_motor(salida, identificadores)
   }
+  if (length(conocidos)) {
+    # Como el piso trata un valor del usuario y no la prosa del paquete: el
+    # mensaje es texto ajeno que cita una celda, y un apellido que es tambien
+    # una palabra del paquete -`Campos`- se busca igual. Con los nombres de la
+    # tabla y de sus columnas apartados, salvo los que son un valor. Si falla,
+    # el mensaje no se publica.
+    salida <- tryCatch(
+      .reemplazar_valores_protegidos(salida, conocidos, exigir_limites = FALSE,
+                                     intocables = nombres),
+      error = function(e) rep(.LITERAL_MOTOR_OMITIDO, length(salida))
+    )
+  }
   salida[is.na(texto)] <- NA_character_
   salida
 }
@@ -342,8 +501,8 @@
 .publicar_lo_permitido_motor <- function(texto, identificadores = character()) {
   marca <- "\001"
   permitidas <- unique(c(
-    .VOCABULARIO_MENSAJE_MOTOR, tolower(.PALABRAS_SQL_MOTOR),
-    tolower(.TIPOS_MOTOR)
+    .VOCABULARIO_MENSAJE_MOTOR, .minusculas_ascii(.PALABRAS_SQL_MOTOR),
+    .minusculas_ascii(.TIPOS_MOTOR)
   ))
   identificadores <- identificadores[!is.na(identificadores)]
   token <- paste0(
@@ -354,7 +513,11 @@
     if (!length(trozos)) return(trozos)
     numero <- grepl("^[\\p{N}.,:/ -]+$", trozos, perl = TRUE)
     cifras <- nchar(gsub("[^\\p{N}]", "", trozos, perl = TRUE))
-    minusculas <- tolower(trozos)
+    # Las palabras del mensaje y los nombres de columna se pliegan con el mapa
+    # del paquete: con `tolower()`, bajo `C` un nombre con una mayuscula
+    # acentuada no casaba con la misma palabra del mensaje, y se tapaba lo que
+    # en una sesion UTF-8 se publicaba.
+    minusculas <- .minusculas_para_comparar(trozos, recortar = FALSE)
     # Un numero con menos cifras de las que identifican -el piso de la
     # proteccion, `.MIN_LARGO_VALOR_IDENTIFICANTE`- no es el dato de nadie: la
     # linea, la posicion, un codigo. Y un codigo SQLSTATE -cinco signos, letras
@@ -362,7 +525,7 @@
     queda <- ifelse(
       numero, cifras < .MIN_LARGO_VALOR_IDENTIFICANTE,
       minusculas %in% permitidas | trozos %in% identificadores |
-        minusculas %in% tolower(identificadores) |
+        minusculas %in% .minusculas_para_comparar(identificadores, recortar = FALSE) |
         nchar(trozos) == 1L | grepl("^rapi_[a-z_]+$", trozos) |
         grepl("^(?=[A-Z]*[0-9])[0-9A-Z]{5}$", trozos, perl = TRUE)
     )
@@ -379,6 +542,20 @@
       "(^|\n)(?![ \t]*LINE [0-9]+:)[^\n]*[^\n \t^][^\n]*(?=\n[ \t]*\\^[ \t]*(?:\n|$))",
       paste0("\\1", marca), t, perl = TRUE
     )
+    # Un numero se lee como lo lee el piso, con la regla de digitos: ver
+    # `.numeros_del_texto()`. El de seis cifras o mas se omite entero; el token
+    # de abajo decide lo demas, y une tambien con dos puntos.
+    numeros <- .numeros_del_texto(t, barreras = marca)
+    numeros <- numeros[numeros$cifras >= .MIN_LARGO_VALOR_IDENTIFICANTE, ,
+                       drop = FALSE]
+    if (nrow(numeros)) {
+      caracteres <- intToUtf8(utf8ToInt(t), multiple = TRUE)
+      for (k in seq_len(nrow(numeros))) {
+        caracteres[numeros$inicio[[k]]:numeros$fin[[k]]] <- ""
+        caracteres[[numeros$inicio[[k]]]] <- marca
+      }
+      t <- paste0(caracteres, collapse = "")
+    }
     m <- gregexpr(token, t, perl = TRUE)
     regmatches(t, m) <- lapply(regmatches(t, m), decidir)
     t <- gsub(paste0(marca, "(?:[ \t.,'/@_-]*", marca, ")+"), marca, t,
@@ -1246,7 +1423,7 @@
   if (is.null(valor) || length(valor) != 1L || is.na(valor)) {
     return(NA_real_)
   }
-  texto <- tolower(trimws(as.character(valor)))
+  texto <- .minusculas_ascii(trimws(as.character(valor)))
   partes <- regexec(
     "^([0-9]+(?:\\.[0-9]+)?)\\s*(b|kb|kib|mb|mib|gb|gib|tb|tib)?$",
     texto, perl = TRUE
@@ -1903,7 +2080,7 @@
   if (!nzchar(texto) && !is.null(prototipo) && length(prototipo)) {
     if (inherits(prototipo, c("numeric", "integer64"))) texto <- "numeric"
   }
-  if (grepl("numeric|decimal|number", tolower(texto), perl = TRUE)) {
+  if (grepl("numeric|decimal|number", .minusculas_ascii(texto), perl = TRUE)) {
     "numeric"
   } else {
     "fijos"
@@ -1965,10 +2142,10 @@
             perl = TRUE)
   )
   if (length(estrategia) && nzchar(estrategia)) {
-    if (grepl('"Hashed"', estrategia, fixed = TRUE)) {
+    if (grepl('"Hashed"', estrategia, fixed = TRUE, useBytes = TRUE)) {
       return(list(ok = TRUE, metodo = "hash", motivo = NA_character_))
     }
-    if (grepl('"Sorted"', estrategia, fixed = TRUE)) {
+    if (grepl('"Sorted"', estrategia, fixed = TRUE, useBytes = TRUE)) {
       return(list(ok = TRUE, metodo = "sort", motivo = NA_character_))
     }
   }
@@ -2650,7 +2827,7 @@
       n_ejecuciones = 1L, stringsAsFactors = FALSE
     )
   }))
-  grupos <- split(seq_len(nrow(datos)), datos$etapa)
+  grupos <- .dividir_por_bytes(seq_len(nrow(datos)), datos$etapa)
   salida <- do.call(rbind, lapply(names(grupos), function(etapa) {
     filas <- datos[grupos[[etapa]], , drop = FALSE]
     duraciones <- filas$duracion_ms
@@ -3861,7 +4038,7 @@
       "por_bloques"
     } else if (grepl("random_limit", as.character(if (is.null(forma)) {
       NA_character_
-    } else forma$metodo), fixed = TRUE)) {
+    } else forma$metodo), fixed = TRUE, useBytes = TRUE)) {
       "por_fila"
     } else NA_character_,
     descripcion = if (is.null(forma)) {
@@ -3953,11 +4130,11 @@
     unlist(informacion[intersect(campos, names(informacion))], use.names = FALSE)
   )
   textos <- as.character(textos)
-  tolower(paste(textos[nzchar(textos) & !is.na(textos)], collapse = " "))
+  .minusculas_ascii(paste(textos[nzchar(textos) & !is.na(textos)], collapse = " "))
 }
 
 .es_oracle_dbi <- function(conexion) {
-  grepl("oracle", .senas_conexion_dbi(conexion), fixed = TRUE)
+  grepl("oracle", .senas_conexion_dbi(conexion), fixed = TRUE, useBytes = TRUE)
 }
 
 # El orden de los candidatos sale de las senas del motor, pero la palabra final
@@ -4940,7 +5117,7 @@
   nivel <- rep.int(1L, nrow(sql))
   medidos <- which(!is.na(sql$consulta_id))
   if (length(medidos)) {
-    grupos <- split(medidos, as.character(sql$consulta_id[medidos]))
+    grupos <- .dividir_por_bytes(medidos, as.character(sql$consulta_id[medidos]))
     for (indices in grupos) {
       if (length(indices) > 1L) nivel[indices[-1L]] <- 2L
     }
@@ -5218,6 +5395,57 @@
   columnas[[metrica]][[indices[[1L]]]]
 }
 
+# El motivo de una metrica de magnitud que el motor devolvio y no se pudo leer
+# como numero, y su reconocimiento: una sola regla para quien lo escribe -la
+# sonda de magnitud y las metricas basicas- y para la corroboracion, que lo usa
+# como CAUSA de la divergencia.
+.FRAGMENTO_NO_NUMERO_DBI <- "que no se pudo leer como numero"
+
+.motivo_no_numero_dbi <- function(que, valor = "") {
+  paste0(
+    "El motor devolvio un valor para ", que, " ", .FRAGMENTO_NO_NUMERO_DBI,
+    valor, ": probablemente la columna no es de la magnitud que estas ",
+    "metricas suponen. No se publica como calculada."
+  )
+}
+
+.es_motivo_no_numero_dbi <- function(motivo) {
+  !is.na(motivo) & grepl(.FRAGMENTO_NO_NUMERO_DBI, motivo, fixed = TRUE)
+}
+
+# La causa de una divergencia que se puede MEDIR: el motor guarda en la columna
+# valores que no son numeros -una de sus metricas de magnitud no se pudo leer
+# como numero- y el controlador la entrego a la muestra como numerica. Medido en
+# la ronda 30 con SQLite: una columna de afinidad INTEGER con dos `'abc'` daba
+# en el resumen SQL `moda = "abc"` y en la muestra `moda = 0`, `minimo = 0` y una
+# relacion aritmetica sobre las dos filas, porque RSQLite convierte a 0 el
+# texto de una columna que tipa como numerica (con su aviso "mixed type"). La
+# divergencia ya se declaraba, con una lista de causas posibles; ahora con la
+# medida. Se declara y no se relee la columna como texto: la decision esta
+# escrita en `?perfilar_dbi`.
+.causa_divergencia_no_numero_dbi <- function(sql, columnas, columna) {
+  if (!.tipo_numerico_corroboracion_dbi(columnas, columna)) return(NULL)
+  if (!is.data.frame(sql) ||
+      !all(c("columna", "estado", "motivo") %in% names(sql))) {
+    return(NULL)
+  }
+  propias <- .nombres_para_operar(as.character(sql$columna)) %in%
+    .nombres_para_operar(columna)
+  if (!any(propias & as.character(sql$estado) == "no_disponible" &
+           .es_motivo_no_numero_dbi(as.character(sql$motivo)))) {
+    return(NULL)
+  }
+  paste(
+    "Causa medida: el motor guarda en esta columna valores que no son",
+    "numeros -una de sus metricas de magnitud no se pudo leer como numero- y",
+    "el controlador la entrego a la muestra como numerica, asi que",
+    "`perfil_muestra` describe esos valores ya convertidos por el controlador",
+    "(RSQLite convierte a 0 el texto de una columna que tipa como numerica, y",
+    "lo avisa: \"mixed type\"). Las cifras de magnitud de `perfil_muestra` para",
+    "esta columna no describen lo guardado."
+  )
+}
+
 .tipo_numerico_corroboracion_dbi <- function(columnas, columna) {
   if (!is.data.frame(columnas) || !"tipo_inferido" %in% names(columnas)) {
     return(FALSE)
@@ -5225,7 +5453,7 @@
   indices <- which(.nombres_para_operar(as.character(columnas$columna)) %in%
                    .nombres_para_operar(columna))
   if (!length(indices)) return(FALSE)
-  tolower(as.character(columnas$tipo_inferido[[indices[[1L]]]])) %in%
+  .minusculas_ascii(as.character(columnas$tipo_inferido[[indices[[1L]]]])) %in%
     c("entero", "doble", "numero", "numerico", "integer", "double")
 }
 
@@ -5488,6 +5716,9 @@
     tipo_numerico <- .tipo_numerico_corroboracion_dbi(
       perfil$columnas, columna
     )
+    causa_medida <- .causa_divergencia_no_numero_dbi(
+      resumen$sql, perfil$columnas, columna
+    )
     for (metrica in .METRICAS_CORROBORACION_DBI) {
       indice_sql <- .estado_corroborable_dbi(
         resumen$sql, columna, metrica
@@ -5550,7 +5781,9 @@
         " (`perfilar()` sobre ", format(observado, scientific = FALSE,
           trim = TRUE), " de ", format(total, scientific = FALSE, trim = TRUE),
         " filas) = ", valor_muestra, ". ",
-        if (completa) {
+        if (!is.null(causa_medida)) {
+          causa_medida
+        } else if (completa) {
           paste(
             "La cobertura es 100%; la diferencia supera la tolerancia o",
             "un lado quedo en NA. Puede deberse al motor, al controlador,",
@@ -5561,7 +5794,13 @@
         } else detalle_muestra,
         " No se elige un ganador: ambos valores quedan publicados."
       )
-      como_resolverlo <- if (completa) {
+      como_resolverlo <- if (!is.null(causa_medida)) {
+        paste(
+          "Limpiar en el origen los valores que no son numeros, o leer la",
+          "columna como texto (`CAST(columna AS TEXT)` en una vista) y",
+          "perfilar esa lectura. No reemplazar un bloque por el otro."
+        )
+      } else if (completa) {
         paste(
           "Revisar el SQL, el controlador y la conversion de tipos; repetir",
           "la corroboracion bajo un snapshot si se necesita separar un cambio",
@@ -5911,7 +6150,7 @@
 
 .logico_catalogo_dbi <- function(valor) {
   if (is.logical(valor)) return(valor)
-  texto <- tolower(trimws(as.character(valor)))
+  texto <- .minusculas_ascii(trimws(as.character(valor)))
   ifelse(
     texto %in% c("true", "t", "1"), TRUE,
     ifelse(texto %in% c("false", "f", "0"), FALSE, NA)
@@ -6547,7 +6786,7 @@
 
 .tipo_declarado_numerico_dbi <- function(tipo) {
   if (is.null(tipo) || !length(tipo) || is.na(tipo[[1L]])) return(FALSE)
-  limpio <- tolower(trimws(sub("\\(.*", "", as.character(tipo[[1L]]))))
+  limpio <- .minusculas_ascii(trimws(sub("\\(.*", "", as.character(tipo[[1L]]))))
   limpio <- gsub("[[:space:]_-]+", "", limpio)
   grepl(.PATRON_TIPO_NUMERICO_DBI, limpio, perl = TRUE)
 }
@@ -6557,7 +6796,7 @@
 # de 32 bits, no puede alcanzar el umbral y no se produce un falso positivo.
 .tipo_declarado_entero_ancho_dbi <- function(tipo) {
   if (is.null(tipo) || !length(tipo) || is.na(tipo[[1L]])) return(FALSE)
-  limpio <- tolower(trimws(as.character(tipo[[1L]])))
+  limpio <- .minusculas_ascii(trimws(as.character(tipo[[1L]])))
   limpio <- gsub("[[:space:]_-]+", "", limpio)
   base <- sub("\\(.*", "", limpio)
   if (base %in% c(
@@ -6597,7 +6836,7 @@
 
 .tipo_declarado_temporal_dbi <- function(tipo) {
   if (is.null(tipo) || !length(tipo) || is.na(tipo[[1L]])) return(FALSE)
-  limpio <- tolower(trimws(sub("\\(.*", "", as.character(tipo[[1L]]))))
+  limpio <- .minusculas_ascii(trimws(sub("\\(.*", "", as.character(tipo[[1L]]))))
   limpio <- gsub("[[:space:]_-]+", "", limpio)
   grepl(.PATRON_TIPO_TEMPORAL_DBI, limpio, perl = TRUE)
 }
@@ -7786,10 +8025,10 @@
       presupuesto, max(vapply(grupos, length, integer(1L))), "planos"
     )
   }
-  clasificados <- sort(unique(c(unlist(grupos, use.names = FALSE), culpables)))
+  clasificados <- .sort_por_bytes(unique(c(unlist(grupos, use.names = FALSE), culpables)))
   desconocidos <- setdiff(seq_along(lote), clasificados)
   if (length(desconocidos)) {
-    pendientes <- sort(unique(c(pendientes, desconocidos)))
+    pendientes <- .sort_por_bytes(unique(c(pendientes, desconocidos)))
   }
 
   resultado <- vector("list", length(lote))
@@ -8057,10 +8296,10 @@
       presupuesto, max(vapply(grupos, length, integer(1L))), "distintos"
     )
   }
-  clasificados <- sort(unique(c(unlist(grupos, use.names = FALSE), culpables)))
+  clasificados <- .sort_por_bytes(unique(c(unlist(grupos, use.names = FALSE), culpables)))
   desconocidos <- setdiff(seq_along(lote), clasificados)
   if (length(desconocidos)) {
-    pendientes <- sort(unique(c(pendientes, desconocidos)))
+    pendientes <- .sort_por_bytes(unique(c(pendientes, desconocidos)))
   }
   salida <- vector("list", length(lote))
   names(salida) <- lote
@@ -9024,12 +9263,7 @@
           " (\"", utils::head(as.character(sondeo$valor[[1L]]), 1L), "\")"
         ) else ""
         sondeo$ok <- FALSE
-        sondeo$motivo <- paste0(
-          "El motor devolvio un valor para la sonda de magnitud que no se pudo",
-          " leer como numero", valor,
-          ": probablemente la columna no es de la magnitud que estas",
-          " metricas suponen. No se publica como calculada."
-        )
+        sondeo$motivo <- .motivo_no_numero_dbi("la sonda de magnitud", valor)
       } else if (.entero_perdido_en_conversion_dbi(
         sondeo$valor, tipo_declarado
       )) {
@@ -9098,14 +9332,11 @@
             # sonda de magnitud: escrito entre parentesis era el MAXIMO de una
             # columna personal en claro -la prosa del paquete solo se revisa en
             # lo citado-. Medido en la ronda 22.
-            basicos$motivo <- paste0(
-              "El motor devolvio un valor para `", metrica, "` que no se pudo ",
-              "leer como numero",
+            basicos$motivo <- .motivo_no_numero_dbi(
+              paste0("`", metrica, "`"),
               if (isTRUE(incluir_valores)) paste0(
                 " (\"", utils::head(as.character(celda$valor[[1L]]), 1L), "\")"
-              ),
-              ": probablemente la columna no es de la magnitud que estas ",
-              "metricas suponen. No se publica como calculada."
+              ) else ""
             )
             magnitud_desmentida <- TRUE
             motivo_magnitud <- basicos$motivo
@@ -9512,7 +9743,7 @@
       if (is.null(conteo$motivo)) "" else as.character(conteo$motivo)
     }
     agotado_por_presupuesto <- length(motivo_conteo) == 1L &&
-      grepl("presupuesto declarado", motivo_conteo, fixed = TRUE)
+      grepl("presupuesto declarado", motivo_conteo, fixed = TRUE, useBytes = TRUE)
     if (!agotado_por_presupuesto) {
       .detener_dbi(
         "lupa_error_conteo_dbi", motivo,
@@ -10562,7 +10793,7 @@
       length(filas_catalogo$motivo) == 1L &&
       !is.na(filas_catalogo$motivo) && nzchar(filas_catalogo$motivo)) {
     vacio$motivo <- if (grepl("sin dato filas", filas_catalogo$motivo,
-                              fixed = TRUE)) {
+                              fixed = TRUE, useBytes = TRUE)) {
       filas_catalogo$motivo
     } else {
       paste(filas_catalogo$motivo, "Se conserva `sin dato filas`.")
@@ -11585,7 +11816,7 @@ print.plan_perfilado_dbi <- function(x, ...) {
                    fechas = character())
   if (!length(sensibles) || !is.list(perfil)) return(completo)
   operar <- function(x) .nombres_para_operar(as.character(x))
-  sqlite <- grepl("sqlite", .senas_conexion_dbi(conexion), fixed = TRUE)
+  sqlite <- grepl("sqlite", .senas_conexion_dbi(conexion), fixed = TRUE, useBytes = TRUE)
   if (!isTRUE(perfil$meta$muestreo)) {
     # Sin muestreo la muestra es la tabla, salvo en SQLite: RSQLite tipa una
     # columna de afinidad numerica por sus primeras filas y lee el texto
@@ -11964,7 +12195,7 @@ print.plan_perfilado_dbi <- function(x, ...) {
 
 .columnas_de_tipo_largo_dbi <- function(tipos) {
   if (is.null(tipos) || !length(tipos)) return(integer())
-  limpio <- tolower(trimws(as.character(tipos)))
+  limpio <- .minusculas_ascii(trimws(as.character(tipos)))
   limpio <- gsub("[[:space:]]+", "", limpio)
   which(!is.na(limpio) &
           (limpio %in% .CODIGOS_TIPO_LARGO_DBI |
@@ -12023,7 +12254,7 @@ print.plan_perfilado_dbi <- function(x, ...) {
     )
   }
   salida <- list(
-    culpables = sort(culpables), sondas = gastadas, agotado = agotado
+    culpables = .sort_por_bytes(culpables), sondas = gastadas, agotado = agotado
   )
   if (isTRUE(conservar_legibles)) {
     salida$legibles <- legibles
@@ -12139,7 +12370,7 @@ print.plan_perfilado_dbi <- function(x, ...) {
   if (is.null(bigint) || !length(bigint) || is.na(bigint[[1L]])) {
     return(FALSE)
   }
-  identical(tolower(as.character(bigint[[1L]])), "numeric")
+  identical(.minusculas_ascii(as.character(bigint[[1L]])), "numeric")
 }
 
 .campos_sql_muestra_dbi <- function(
@@ -13015,7 +13246,7 @@ print.plan_perfilado_dbi <- function(x, ...) {
     ))
   }
   if (is.character(tabla) && length(tabla) == 1L && !is.na(tabla) &&
-      grepl(".", tabla, fixed = TRUE)) {
+      grepl(".", tabla, fixed = TRUE, useBytes = TRUE)) {
     if (!isTRUE(existe)) {
       cortado <- tryCatch(.partir_identificador(tabla), error = function(e) NULL)
       partes <- if (!is.null(cortado) && !isTRUE(cortado$abierto)) {
@@ -13139,8 +13370,8 @@ print.plan_perfilado_dbi <- function(x, ...) {
       if (!is.null(muestreo$candidato)) {
         muestreo$disponible <- FALSE
         if (is.null(muestreo$sondas) || !length(muestreo$sondas) ||
-            grepl("no pudo construir", muestreo$motivo, fixed = TRUE) ||
-            grepl("sin sondear", muestreo$motivo, fixed = TRUE)) {
+            grepl("no pudo construir", muestreo$motivo, fixed = TRUE, useBytes = TRUE) ||
+            grepl("sin sondear", muestreo$motivo, fixed = TRUE, useBytes = TRUE)) {
           muestreo$motivo <- estado_forma$motivo
         }
       }
@@ -13656,6 +13887,17 @@ print.plan_perfilado_dbi <- function(x, ...) {
 #'   distintos en el resumen SQL, con la moda y la frecuencia que de ahí se
 #'   siguen, o una moda empatada que cada lado desempata con su orden—: la deja
 #'   en una fila `no_corroborada` con ese motivo.
+#' * **Una columna que mezcla tipos de almacenamiento.** SQLite admite texto en
+#'   una columna de afinidad numérica, y RSQLite la lee como número: convierte
+#'   ese texto en `0` y lo avisa ("mixed type"). El resumen SQL ve los valores
+#'   guardados —la moda puede ser el texto, y las métricas de magnitud quedan
+#'   `no_disponible` porque el motor devolvió algo que no se lee como número—,
+#'   y `perfil_muestra` ve lo que entregó el controlador: `minimo = 0`, una moda
+#'   `0` que nadie escribió. `perfilar_dbi()` no relee la columna como texto:
+#'   declara cada divergencia con esa causa medida en `resumen_tabla$cobertura`,
+#'   y dice que las cifras de magnitud de `perfil_muestra` para esa columna no
+#'   describen lo guardado. Para perfilar los valores guardados, leer la columna
+#'   como texto (`CAST(columna AS TEXT)` en una vista) o limpiarla en el origen.
 #'
 #' @section Costo:
 #' Los agregados de una tabla ancha se emiten por lotes; `muestra` acota lo que
@@ -13881,11 +14123,25 @@ print.plan_perfilado_dbi <- function(x, ...) {
 #' columnas, los códigos SQLSTATE, los signos y los números de menos de seis
 #' cifras —el piso de la protección: la línea, la posición, un código—;
 #' todo lo demás sale `[literal omitido]`. Un número se cuenta con sus
-#' separadores: `4.685.467-9` es uno de ocho cifras. Así se tapa también el
+#' separadores: `4.685.467-9` es uno de ocho cifras, y se lee como lo lee el
+#' piso de la protección, con los mismos separadores —un espacio duro o uno
+#' fino, el punto medio, una raya, `" - "`, dos espacios, un tabulador o un
+#' salto de línea entre los grupos: `"099 - 123 - 456"` es uno de nueve—. Así
+#' se tapa también el
 #' valor que el motor cita sin comillas —duckdb: `Type INT64 with value
 #' 59899123456 can't be cast`, y la cadena que `strptime` repite en otra
 #' línea, que se tapa entera; SQL Server con la sesión en sueco o neerlandés—
-#' y la cola de un valor que lleva una comilla adentro. Un mensaje en otro
+#' y la cola de un valor que lleva una comilla adentro. Y el mensaje pasa
+#' también por el piso con los valores protegidos que la llamada ya leyó —en
+#' [perfilar_coleccion()], los de todas sus tablas—: un valor escrito sólo con
+#' lo permitido —los apellidos `"Campos Cadena"`, dos palabras del
+#' vocabulario— se tapa, y el nombre de una columna que es también uno de esos
+#' valores —la docente `"Florencia"` de una planilla con una columna por
+#' docente— deja de exceptuarse, con la comparación del piso. Lo que queda
+#' abierto: un valor que la llamada **no** leyó —la celda que hizo fallar la
+#' lectura de la muestra, de una columna que la vista castea— escrito sólo con
+#' lo permitido, o igual al nombre de una columna, se publica, porque el
+#' mensaje no tiene cómo distinguirlo del vocabulario ni de un nombre. Un mensaje en otro
 #' idioma conserva su SQL, sus tipos y sus nombres y se lee peor, que es el
 #' lado cerrado. Quedan una palabra de SQL entre comillas —`Incorrect syntax
 #' near 'LIMIT'` dice que el motor no acepta ese dialecto— y un signo suelto.
@@ -14860,7 +15116,12 @@ perfilar_dbi <- function(conexion, tabla,
         conexion, preparacion, bloque$perfil, sensibles_muestra, presupuesto,
         rellenos_columna = rellenos_columna
       )
+      # Para el mensaje del motor de las demas tablas de una coleccion: ver
+      # `.valores_motor()`. Fuera de una coleccion no hace nada.
+      .sumar_valores_motor(c(bloque$valores_protegidos, no_confirmados),
+                           fechas = bloque$valores_protegidos)
       if (isTRUE(fuera$completo)) {
+        .sumar_valores_motor(fuera$valores, fuera$fechas)
         intocables <- as.character(resumen$columnas$columna)
         resumen <- .proteger_con_valores_dbi(
           resumen, fuera$valores, intocables, fuera$fechas
@@ -15017,7 +15278,7 @@ print.perfil_dbi <- function(x, ...) {
   )
   texto_clave <- .texto_clave_dbi(meta$clave)
   if (!is.null(texto_clave)) cli::cli_text(.cli_literal(texto_clave))
-  estados <- table(x$resumen_tabla$sql$estado)
+  estados <- table(.factor_por_bytes(x$resumen_tabla$sql$estado))
   if (length(estados)) {
     detalle <- paste0(names(estados), " ", as.integer(estados), collapse = ", ")
     cli::cli_text("M\u00e9tricas: {detalle}")

@@ -535,6 +535,10 @@ perfilar_por <- function(datos, por, clave = NULL, min_filas = 30L, ...) {
     } else valores
     es_integer64 <- inherits(valores, "integer64")
     if (!is.numeric(valores) && !es_integer64) next
+    # Una columna compuesta no tiene un numero por fila: el perfil no le
+    # conjetura centinelas, y aca tampoco. Una sin escritura -un `vctrs_vctr`
+    # sin conversion- abortaba en `as.numeric()`.
+    if (.es_columna_compuesta(valores)) next
     presentes <- valores[!is.na(valores)]
     if (!length(presentes)) next
     if (es_integer64 && !.bit64_disponible()) {
@@ -569,7 +573,7 @@ perfilar_por <- function(datos, por, clave = NULL, min_filas = 30L, ...) {
       columnas_identificadoras <- c(columnas_identificadoras, nombre_columna)
     }
     secuencia <- if (es_integer64) {
-      distintos <- sort(unique(presentes))
+      distintos <- .sort_por_bytes(unique(presentes))
       rango <- max(distintos) - min(distintos) + bit64::as.integer64(1)
       limite_doble <- bit64::as.integer64("9007199254740991")
       densidad <- if (rango > limite_doble) 0 else {
