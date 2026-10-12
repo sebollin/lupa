@@ -2,6 +2,368 @@
 
 ## lupa 0.1.0
 
+### Ronda 30: la proteccion otra vez, el paquete bajo el locale C y las clases de columna
+
+Tres refutaciones. La de la proteccion encontro cinco defectos -el
+mensaje del motor publicaba un numero con separadores que la lista de lo
+permitido tomaba por signos, y la lectura de los decimales en cero de la
+ronda 29 tapaba uno de cada cinco importes de siete cifras con centavos
+en cero-; la del paquete entero bajo el locale C, ocho
+-[`tolower()`](https://rdrr.io/r/base/chartr.html) de base no bajaba las
+mayusculas con tilde, una columna si/no dejaba de ser logica, y el orden
+de la intercalacion cambiaba los identificadores de las sugerencias-; la
+de las clases de columna por todo el catalogo, nueve -una columna
+`vctrs_rcrd` hacia abortar 22 de 29 llamadas-.
+
+**La proteccion:**
+
+- **El mensaje de un error del motor lee el numero como lo lee el
+  piso.** La segunda pasada tenia su propia lectura de “un numero
+  escrito con separadores” -cifras unidas por uno solo de `.`, `,`, `:`,
+  `/`, espacio o guion- y el piso otra: de 67 separadores entre los
+  grupos de una cedula o un celular, el piso reconocia el valor en 45 y
+  el mensaje de SQL Server con la sesion en sueco, neerlandes, finlandes
+  o checo -que cita la celda sin comillas- lo publicaba en 39 de esos
+  45: `099 - 123 - 456`, con espacio duro o fino, punto medio, raya, dos
+  espacios, tabulador o salto de linea.
+  [`perfilar_dbi()`](https://sebollin.github.io/lupa/reference/perfilar_dbi.md)
+  lo publicaba en `sql$motivo`, `cobertura$motivo`,
+  `meta$proteccion_personal$fuera_de_muestra` y en el aviso de consola,
+  y
+  [`perfilar_coleccion()`](https://sebollin.github.io/lupa/reference/perfilar_coleccion.md)
+  en sus tres campos de motivos. Ahora es una sola regla: el mensaje lee
+  los numeros con la de digitos del piso.
+- **El mensaje del motor pasa tambien por el piso con los valores que la
+  llamada conoce.** Un valor escrito solo con lo permitido -los
+  apellidos `Campos Cadena`, dos palabras del vocabulario- es la celda
+  citada, y salia entero: en
+  [`perfilar_coleccion()`](https://sebollin.github.io/lupa/reference/perfilar_coleccion.md)
+  con `conservar_perfiles = FALSE`, el mensaje de una vista citaba la
+  celda de la tabla base que la coleccion habia leido. Cada
+  [`perfilar_dbi()`](https://sebollin.github.io/lupa/reference/perfilar_dbi.md)
+  de una coleccion suma los valores protegidos que lee -solo los que un
+  mensaje puede llevar: los que se escriben con lo permitido-, el
+  mensaje pasa por el piso con ellos y los tres campos de motivos
+  tambien, al final. Y un nombre de columna igual a uno de esos valores
+  deja de exceptuarse en el mensaje, con la comparacion del piso: la
+  docente `"Florencia"` de una planilla pivoteada por docente salia como
+  `'Florencia'`. Queda declarado lo que la llamada no leyo: la celda que
+  hizo fallar la lectura de la muestra, escrita solo con lo permitido o
+  igual al nombre de una columna, se publica.
+- **El celular escrito como numero de planilla con cuatro ceros o mas, o
+  con exponente de tres cifras, es la misma cifra.**
+  `"59894215856.0000"` -un `DECIMAL(15,4)`, el `MONEY` de SQL Server- y
+  `"5.9894215856e+010"` -el `printf` de Windows- no se leian en un
+  texto: 80 de 80 notas en claro en la copia de
+  [`analizar()`](https://sebollin.github.io/lupa/reference/analizar.md)
+  y tres en los ejemplos del perfil, frente al celular protegido. El
+  texto leia uno o dos ceros y el exponente de dos cifras.
+- **El importe redondo ya no se tapa como un documento sin su
+  verificador.** Regresion de la ronda 29: el decimal de ceros se leia
+  como el entero y alimentaba la regla del documento parcial, y un
+  importe de siete cifras con centavos en cero -`"5460537.00"`,
+  `"5460537,00"`, dentro de una frase- se tapaba en uno de cada cinco
+  casos con el universo de `data-raw/medir_tapado_de_mas.R` (en la ronda
+  28, ninguno); en la copia de
+  [`analizar()`](https://sebollin.github.io/lupa/reference/analizar.md),
+  80 de 20.000 importes. La cifra entera de lo escrito como numero de
+  planilla es ahora solo el documento ENTERO -el celular de once cifras,
+  la cedula con su verificador-: 0 %. El reproductor mide los importes
+  por escritura sobre las mismas cifras enteras, y la ayuda declara lo
+  que ya pasaba en la ronda 28 sin decirse: un importe de ocho cifras
+  con centavos se tapa 1,8 % de las veces, como el entero de ocho
+  cifras, y uno de siete con un solo cero, 2,1 %, porque se lee tambien
+  como la cedula con su verificador tras un punto.
+- **La copia de `analizar(conservar_datos = TRUE)` pasa por el piso todo
+  atributo de todo objeto que conserva.** Quedaban en claro el `comment`
+  y la `label` de una columna `POSIXlt`, el `units` de una columna
+  protegida -la cedula guardada como numero, la fecha de nacimiento-,
+  los nombres de columna de un `data.frame` anidado en una columna
+  lista, un entorno con atributo `name`
+  -[`environmentName()`](https://rdrr.io/r/base/environment.html) lo
+  leia como el de un paquete- y una llamada o una funcion en una columna
+  lista. Las llamadas, las formulas y las funciones se leen por el texto
+  que las escribe, y la funcion tambien por su entorno: si llevan un
+  valor protegido, la copia lleva `"[valor protegido]"` en su lugar,
+  como un entorno.
+
+**El locale C:**
+
+- **La caja se pliega con el mapa del paquete en todo el texto del
+  usuario.** La inferencia de logicos, el detector de faltantes
+  disfrazados, el plan y
+  [`aplicar()`](https://sebollin.github.io/lupa/reference/planificar_limpieza.md)
+  (la conversion a logico y la de marcadores a `NA`) bajaban la caja con
+  [`tolower()`](https://rdrr.io/r/base/chartr.html) de base, que bajo
+  `C` no baja una mayuscula acentuada: una columna `SI`/`NO` con tilde
+  era `logico` en una sesion UTF-8 y `texto` en un `Rscript` de cron
+  -otro hallazgo, otro plan, otros datos limpios-; un plan armado en
+  RStudio quedaba `fallido` al aplicarlo bajo `C`; y `SIN INFORMACION`
+  con tilde no se contaba como faltante disfrazado (8 de 12 contra 12 de
+  12, con `sospechoso` en vez de `error`, y
+  [`aplicar()`](https://sebollin.github.io/lupa/reference/planificar_limpieza.md)
+  dejaba 4 celdas sin pasar a `NA`). Todos los sitios pasan por un
+  pliegue para comparar (`.minusculas_para_comparar()`: declara, recorta
+  y baja con el mapa de
+  [`normalizacion()`](https://sebollin.github.io/lupa/reference/normalizacion.md));
+  el vocabulario del paquete y de los motores -palabras de SQL, tipos,
+  `PRIMARY`, hexadecimales- se baja con
+  [`chartr()`](https://rdrr.io/r/base/chartr.html) ASCII, que no
+  consulta `LC_CTYPE` ni bajo un locale turco. Ya no queda en el paquete
+  ninguna llamada a [`tolower()`](https://rdrr.io/r/base/chartr.html),
+  [`toupper()`](https://rdrr.io/r/base/chartr.html) ni
+  [`casefold()`](https://rdrr.io/r/base/chartr.html), y una prueba lo
+  comprueba recorriendo el espacio de nombres.
+- **[`aplicar()`](https://sebollin.github.io/lupa/reference/planificar_limpieza.md)
+  escribia `a<cd>b` en una columna latin1 bajo `C`.** El pliegue de caja
+  (`convertir_minusculas`, `convertir_mayusculas`, `convertir_titulo`)
+  pasaba el texto `latin1` a
+  [`chartr()`](https://rdrr.io/r/base/chartr.html), que lo traducia al
+  nativo y escapaba lo que no podia: la I con tilde salia como el texto
+  `<cd>`, en los datos, y el registro contaba 7 celdas cambiadas
+  contra 4. Y la reparacion del texto que no es UTF-8 valido leia la
+  celda en la codificacion de la sesion: bajo `C` una celda con un byte
+  suelto perdia tambien sus letras validas. Lo `latin1` se convierte y
+  lo invalido se lee como UTF-8, sin mirar el locale.
+- **`requisitos_motor("PostgreSQL")` no reconocia el motor.** El nombre
+  se limpiaba de lo que no es letra minuscula ANTES de bajarlo, y el
+  nombre como lo publica el propio catalogo se perdia; ahora se baja
+  primero.
+- **Un importe con el euro sin marca no se convertia bajo `C`.** La
+  descomposicion del numero con moneda (`.componentes_numero_texto()`)
+  no declaraba el texto antes de `\p{Sc}`: sobre un CSV leido sin
+  `encoding`, el perfil proponia `convertir_numero_regional` en los dos
+  locales, pero bajo `C` la comprobacion del plan la daba por no
+  ejecutable (“no responden al formato numerico regional”) y
+  [`aplicar()`](https://sebollin.github.io/lupa/reference/planificar_limpieza.md)
+  dejaba la columna `character`; en una sesion UTF-8, `numeric`. Ahora
+  declara antes de la primera primitiva, y lo que no es UTF-8 valido no
+  es un numero en ninguna sesion (bajo un locale UTF-8 abortaba el
+  [`trimws()`](https://rdrr.io/r/base/trimws.html); bajo `C` se leia por
+  bytes).
+- **El orden de las tablas publicadas ya no sigue la intercalacion del
+  locale, y con el, el id de cada metrica propuesta.**
+  [`proponer_modelo()`](https://sebollin.github.io/lupa/reference/proponer_modelo.md)
+  ordenaba sus filas por el nombre de la columna con
+  [`order()`](https://rdrr.io/r/base/order.html) de base ANTES de
+  numerar `sugerencia-NNNN`: sobre la misma tabla, `sugerencia-0003` era
+  el `Formato` de `Fecha de Alta` bajo `C` y el de `depto` bajo
+  `es_UY.UTF-8` (7 de 22 metricas de
+  [`analizar()`](https://sebollin.github.io/lupa/reference/analizar.md)
+  median otro atributo), y una regla que nombraba la metrica por su id
+  daba 1 en un `Rscript` de cron y 0 en RStudio. El desempate de
+  `formatos_fecha` ponia `%Y-%m-%d` o `%d/%m/%Y` primero segun el
+  locale, y eso llegaba a la evidencia, a `plan$parametros$formatos`, a
+  [`inferir_tipo()`](https://sebollin.github.io/lupa/reference/inferir_tipo.md)
+  y al reporte; las asociaciones, las dependencias y la medicion salian
+  en otro orden. Todo [`order()`](https://rdrr.io/r/base/order.html) y
+  [`sort()`](https://rdrr.io/r/base/sort.html) del paquete pasa ahora
+  por `.orden_por_bytes()` / `.sort_por_bytes()`: el texto por sus bytes
+  (`.clave_bytes()`), con `method = "radix"`, como ya hacian
+  [`detectar_deriva_calidad()`](https://sebollin.github.io/lupa/reference/detectar_deriva_calidad.md)
+  y los patrones. Una prueba recorre el espacio de nombres y no
+  encuentra otro [`order()`](https://rdrr.io/r/base/order.html),
+  [`sort()`](https://rdrr.io/r/base/sort.html) ni
+  [`rank()`](https://rdrr.io/r/base/rank.html).
+- **Un nombre de columna con un byte latin1 suelto tumbaba
+  [`analizar()`](https://sebollin.github.io/lupa/reference/analizar.md)
+  en una sesion UTF-8.** Es lo que deja `read.csv(check.names = FALSE)`
+  o `fread()` sobre un CSV Windows-1252: el escape del nombre para la
+  busqueda de valores protegidos en el vocabulario
+  (`gsub(fixed = TRUE)`, de la ronda 29) quedaba fuera de su `tryCatch`
+  y abortaba con “input string 1 is invalid in this locale”; bajo `C`
+  terminaba. Y
+  [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md)
+  avisaba cuatro veces al partir los nombres de los hallazgos
+  compuestos, y con `options(warn = 2)` abortaba. Lo que no es UTF-8
+  valido se corta por bytes, devolviendo a las piezas la marca de origen
+  (la regla de la ronda 27), y no se lee por caracteres en ninguna
+  sesion. La misma regla escrita en 55 sitios -todo
+  [`grepl()`](https://rdrr.io/r/base/grep.html) con `fixed = TRUE` y un
+  patron ASCII, entre ellos los siete `"[valor suprimido]"` del
+  historico, la evaluacion y el tablero- busca ahora por bytes, que es
+  exacto y no avisa ni aborta en ningun locale.
+- **Los nombres de columna `latin1` salian como texto `descripci<f3>n`
+  bajo `C`.** [`paste()`](https://rdrr.io/r/base/paste.html) traduce al
+  nativo lo marcado `latin1`, y bajo `C` lo nativo es ASCII:
+  `detectar_claves()$columnas` publicaba `fecha + descripci<f3>n`,
+  [`detectar_duplicados_aproximados()`](https://sebollin.github.io/lupa/reference/detectar_duplicados_aproximados.md)
+  ponia `descripci<f3>n` en cada hallazgo -un nombre que no indexa la
+  tabla, contra lo que promete
+  [`?perfilar`](https://sebollin.github.io/lupa/reference/perfilar.md)-,
+  [`proponer_modelo()`](https://sebollin.github.io/lupa/reference/proponer_modelo.md)
+  y
+  [`analizar()`](https://sebollin.github.io/lupa/reference/analizar.md)
+  lo mismo en `atributos`, `origen` y `decision_medicion$objeto`, y una
+  columna llamada como un valor protegido salia `[valor protegido]`. Un
+  nombre solo se publica ahora tal como llego, y una etiqueta que junta
+  varios se arma por bytes, con lo `latin1` convertido
+  (`.pegar_texto()`): la misma en los dos locales.
+- **[`clasificar_variables()`](https://sebollin.github.io/lupa/reference/clasificar_variables.md)
+  declaraba ausente un nivel que observo, bajo `C`.** Comparaba los
+  niveles crudos con los valores ya declarados UTF-8, y `%in%` entre un
+  texto sin marca y uno UTF-8 no casa bajo `C`: 4 niveles observados de
+  4 y uno ausente. Ahora compara con la clave estable de los
+  identificadores.
+- **La evidencia citaba los ejemplos con
+  [`encodeString()`](https://rdrr.io/r/base/encodeString.html).** Bajo
+  `C` escapa como punto de codigo todo lo que no es ASCII:
+  `ejemplos: "Jos\u00e9 "` (33 bytes) contra la e con tilde en una
+  sesion UTF-8 (29), en
+  [`hallazgos()`](https://sebollin.github.io/lupa/reference/accesores_perfil.md),
+  el plan,
+  [`aplicar()`](https://sebollin.github.io/lupa/reference/planificar_limpieza.md),
+  [`guiar_limpieza()`](https://sebollin.github.io/lupa/reference/guiar_limpieza.md),
+  [`analizar()`](https://sebollin.github.io/lupa/reference/analizar.md)
+  y el HTML de
+  [`reportar()`](https://sebollin.github.io/lupa/reference/reportar.md),
+  y el ejemplo dejaba de casar con el de la tabla de patrones. Las 16
+  citas del paquete -tambien las de la reparacion de codificacion, las
+  dependencias, el historico y las justificaciones del plan- pasan por
+  un citador propio que escribe lo que
+  [`encodeString()`](https://rdrr.io/r/base/encodeString.html) escribe
+  en una sesion UTF-8, en cualquier locale; una prueba comprueba que no
+  queda otro
+  [`encodeString()`](https://rdrr.io/r/base/encodeString.html).
+- **[`detectar_claves()`](https://sebollin.github.io/lupa/reference/detectar_claves.md)
+  abortaba con `options(warn = 2)` bajo `C`** sobre una tabla con un
+  nombre UTF-8 como `a\u00f1o`: la busqueda de filas repetidas armaba un
+  `data.frame` con los nombres, y bajo `C` el nombre no se traduce al
+  nativo. Ahora busca sin los nombres.
+- **El cierre por comparacion.** El catalogo de funciones exportadas
+  (perfil, hallazgos, plan,
+  [`aplicar()`](https://sebollin.github.io/lupa/reference/planificar_limpieza.md),
+  guia, patrones, tipos, formatos, claves, dependencias, asociaciones,
+  duplicados, distribucion, clasificacion,
+  [`analizar()`](https://sebollin.github.io/lupa/reference/analizar.md),
+  propuesta, modelo,
+  [`medir()`](https://sebollin.github.io/lupa/reference/medir.md),
+  [`perfilar_por()`](https://sebollin.github.io/lupa/reference/perfilar_por.md),
+  [`comparar_perfiles()`](https://sebollin.github.io/lupa/reference/comparar_perfiles.md)
+  y el HTML de
+  [`reportar()`](https://sebollin.github.io/lupa/reference/reportar.md))
+  sobre tres tablas en seis marcas y siete tablas minimas, en dos
+  procesos -`LC_ALL=C` y `es_UY.UTF-8`- y con `options(warn = 2)`,
+  encontro lo que quedaba de las mismas familias: los `objeto_medible`
+  de [`medir()`](https://sebollin.github.io/lupa/reference/medir.md)
+  (`df$descripci<f3>n[1]`) y la evidencia `columna=valor` de duplicados
+  se pegaban con [`paste0()`](https://rdrr.io/r/base/paste.html); el
+  resumen de hallazgos de
+  [`comparar_perfiles()`](https://sebollin.github.io/lupa/reference/comparar_perfiles.md),
+  las evaluaciones, el tablero, la agregacion y el plan de imputaciones
+  agrupaban con
+  [`split()`](https://rdrr.io/r/base/split.html)/[`factor()`](https://rdrr.io/r/base/factor.html)/[`table()`](https://rdrr.io/r/base/table.html),
+  que ordenan los niveles de un texto con la intercalacion del locale;
+  las celdas del reporte se unian con
+  [`paste()`](https://rdrr.io/r/base/paste.html); la conversion de
+  fechas de
+  [`aplicar()`](https://sebollin.github.io/lupa/reference/planificar_limpieza.md)
+  y la serie de
+  [`analizar_tiempo()`](https://sebollin.github.io/lupa/reference/analizar_tiempo.md)
+  recortaban el texto antes de declararlo; y la decision de si un texto
+  sin marca es legible miraba
+  [`l10n_info()`](https://rdrr.io/r/base/l10n_info.html), asi que bajo
+  `C`
+  [`aplicar()`](https://sebollin.github.io/lupa/reference/planificar_limpieza.md)
+  transformaba por bytes la celda que el perfil declaro
+  `codificacion_invalida` y el reporte escribia `Tel<e9>fono` donde una
+  sesion UTF-8 escribe `Tel\xe9fono`. Y uno que no era del locale: sobre
+  una columna sin ningun valor decodificable, la propuesta armaba
+  `ValoresPosiblesPorExtension` con un dominio vacio y
+  [`analizar()`](https://sebollin.github.io/lupa/reference/analizar.md)
+  avisaba que su metodo fallo; ahora no la propone. Con eso el catalogo
+  da las mismas salidas, byte a byte y marca a marca, en los dos
+  locales.
+- **[`print()`](https://rdrr.io/r/base/print.html) de
+  [`clasificar_variables()`](https://sebollin.github.io/lupa/reference/clasificar_variables.md)
+  abortaba segun el locale.** Las listas de niveles se publicaban como
+  llegaron: bajo `C` un nivel UTF-8 sin marca, y en una sesion UTF-8 un
+  nivel con un byte latin1 suelto, hacian abortar
+  [`format.AsIs()`](https://rdrr.io/r/base/format.html) (“invalid
+  multibyte string”). Ahora lo legible se publica declarado -los mismos
+  bytes- y lo que no es UTF-8 valido como lo muestra la consola, igual
+  que lo declarado `bytes`.
+
+**Las clases de columna:**
+
+- **Una columna cuyos valores no se pueden escribir como texto es
+  compuesta**: una `vctrs_rcrd` -o un `vctrs_vctr` sin conversion
+  declarada- hacia abortar 22 de las 29 llamadas del catalogo (“Can’t
+  convert `x` to ”) desde tres sitios. Se pregunta por la propiedad, una
+  vez por columna, y entra por la puerta de la matriz y la tabla
+  anidada: `tipo_compuesto_no_analizado`, con su clase en el hallazgo.
+  Las otras columnas publican las mismas cifras que sin ella.
+- **Un `integer(0)` o un `NULL` en una lista no es una ausencia
+  estructural**: la ausencia estructural tenia su propia regla para
+  listas y “explicaba 10 de las 10 ausencias” de una columna con
+  `n_faltantes = 0`; seguir su sugerencia fabricaba un
+  `valor_fuera_de_aplicabilidad` sospechoso. Ahora cuenta la ausencia
+  del perfil, [`is.na()`](https://rdrr.io/r/base/NA.html).
+- **[`analizar()`](https://sebollin.github.io/lupa/reference/analizar.md)
+  mide una columna de nombre vacio o `NA`** con ese nombre, el que
+  publica el perfil: abortaba con “`atributos` debe contener nombres de
+  columna no vacios”.
+  [`instanciar()`](https://sebollin.github.io/lupa/reference/modelo_calidad.md)
+  acepta el nombre que tiene la tabla; uno que no tiene sale
+  `no_medible` en
+  [`medir()`](https://sebollin.github.io/lupa/reference/medir.md).
+- **Con nombres de columna repetidos la traza apunta a la fila de su
+  columna**: la del outlier de la segunda `x` apuntaba a la fila del de
+  la primera, como `disponible`. La columna viaja por posicion desde el
+  detector hasta la traza; sin posicion y con un nombre repetido, la
+  traza queda `no_disponible`. Lo mismo el par de
+  `relacion_orden_columnas` y el conteo de subnormales.
+- **Una columna sin un valor comparable por fila se declara en
+  [`detectar_relaciones()`](https://sebollin.github.io/lupa/reference/detectar_relaciones.md)
+  y
+  [`detectar_discordancias()`](https://sebollin.github.io/lupa/reference/detectar_discordancias.md)**:
+  una `units` hacia abortar las relaciones aunque no fuera candidata, y
+  una lista, una `sfc` o una `units` hacian abortar las senales con
+  errores de R. Una matriz se comparaba por sus elementos (`1:1` con
+  cobertura 0,5 sobre tres filas). Sus pares salen `sin_comparar` con
+  `motivo_poda = "columna_no_comparable"`, y la senal sale con
+  `n_evaluadas = 0` y el motivo.
+- **El nivel `NA` de un factor es un faltante**: el perfil decia 0
+  faltantes (y entonces no se proponia `NoNulo`), `n_distintos` salia
+  `NA`, y la dependencia lo contaba entre los pares presentes, mientras
+  [`distribucion_valores()`](https://sebollin.github.io/lupa/reference/distribucion_valores.md),
+  la medicion e
+  [`inferir_tipo()`](https://sebollin.github.io/lupa/reference/inferir_tipo.md)
+  lo leian ausente. Ahora todos lo leen ausente;
+  [`aplicar()`](https://sebollin.github.io/lupa/reference/planificar_limpieza.md)
+  marca y elimina esas filas como el plan dice. Esto cambia una decision
+  de la ronda 26: el nivel `NA` y el codigo ausente son la misma fila
+  para los duplicados.
+- **Un vector de bytes (`raw`) no pasa por las etapas que interpretan la
+  escritura**: su escritura hexadecimal se leia como texto escrito, y
+  “0a” salia `numero_como_texto` con la unidad “a”, y `patron_raro`
+  sobre `9a`. Se sigue comparando y publicando en hexadecimal.
+- **Una conversion regional que el plan probo y no se puede ejecutar
+  sale `bloqueada`**: salia `lista` con un motivo que decia que no era
+  ejecutable.
+- **Un `POSIXlt` se perfila por su instante**: su `moda` salia `NA` sin
+  declararlo, y en una zona distinta de UTC no publicaba la fecha civil
+  distinta ni su hallazgo. La misma columna como `POSIXct` y como
+  `POSIXlt` da la misma fila.
+- **En SQLite, la divergencia de una columna de tipo mixto lleva su
+  causa**: texto en una columna de afinidad numerica, que el resumen SQL
+  ve y RSQLite convierte a 0 en la muestra. Se declara con la causa
+  medida y no se relee la columna como texto; la decision esta en
+  [`?perfilar_dbi`](https://sebollin.github.io/lupa/reference/perfilar_dbi.md).
+- **Con dos columnas del mismo nombre
+  [`analizar()`](https://sebollin.github.io/lupa/reference/analizar.md)
+  no aborta**: dos `NoNulo` sobre `x` eran “el mismo instrumento” y el
+  analisis entero se caia. Una sugerencia sobre un nombre que la tabla
+  repite sale inactiva, con estado `nombre_repetido`, hasta que se
+  renombren las columnas.
+- **Una columna llamada `NA` no hace abortar
+  [`sugerir_clave()`](https://sebollin.github.io/lupa/reference/sugerir_clave.md),
+  [`elegir_clave()`](https://sebollin.github.io/lupa/reference/elegir_clave.md)
+  ni
+  [`perfilar_por()`](https://sebollin.github.io/lupa/reference/perfilar_por.md)**:
+  su nombre no se parece a una clave (puntaje 0) y se selecciona por su
+  posicion.
+
 ### Ronda 29: la proteccion otra vez, el texto y la codificacion, y la misma tabla por todos los caminos
 
 Tres refutaciones. La de la proteccion encontro ocho defectos -el mapa
@@ -1181,8 +1543,9 @@ defectos; la del plan de limpieza, catorce.
   recomendaba y la activaba, y
   [`aplicar()`](https://sebollin.github.io/lupa/reference/planificar_limpieza.md)
   la registraba `fallida`. Las dos acciones aplanan la tabla como el
-  perfil, y un factor se compara por sus codigos: el nivel `NA` ya no se
-  junta con el codigo ausente. Con `datos`, el plan bloquea las acciones
+  perfil, y un factor se compara por sus codigos (desde la ronda 30 el
+  nivel `NA` es un faltante, como el codigo ausente, en el perfil y en
+  las acciones de duplicados). Con `datos`, el plan bloquea las acciones
   de duplicados cuando hay una lista que no se puede comparar -tambien
   dentro de una tabla anidada o en una geometria-, que es la pregunta
   que hace el ejecutor.

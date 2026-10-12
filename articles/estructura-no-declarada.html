@@ -201,11 +201,11 @@ fecha se examina como vector y los formatos se cuentan por separado.</p>
 <span><span class="co">#&gt; fecha (84.6%; 11 de 13 valores compatibles)</span></span>
 <span><span class="fu"><a href="../reference/detectar_formatos_fecha.html">detectar_formatos_fecha</a></span><span class="op">(</span><span class="va">datos_operativos</span><span class="op">$</span><span class="va">fecha_evento</span><span class="op">)</span></span>
 <span><span class="co">#&gt;    formato n proporcion     estado n_inequivocos n_ambiguos anio_dos_digitos granularidad</span></span>
-<span><span class="co">#&gt; 1 %d/%m/%Y 4 0.30769231 confirmado             4          0            FALSE          dia</span></span>
-<span><span class="co">#&gt; 2 %Y-%m-%d 4 0.30769231 confirmado             4          0            FALSE          dia</span></span>
-<span><span class="co">#&gt; 3 %d-%m-%Y 1 0.07692308 confirmado             1          0            FALSE          dia</span></span>
+<span><span class="co">#&gt; 1 %Y-%m-%d 4 0.30769231 confirmado             4          0            FALSE          dia</span></span>
+<span><span class="co">#&gt; 2 %d/%m/%Y 4 0.30769231 confirmado             4          0            FALSE          dia</span></span>
+<span><span class="co">#&gt; 3   %Y%m%d 1 0.07692308 confirmado             1          0            FALSE          dia</span></span>
 <span><span class="co">#&gt; 4 %Y/%m/%d 1 0.07692308 confirmado             1          0            FALSE          dia</span></span>
-<span><span class="co">#&gt; 5   %Y%m%d 1 0.07692308 confirmado             1          0            FALSE          dia</span></span></code></pre></div>
+<span><span class="co">#&gt; 5 %d-%m-%Y 1 0.07692308 confirmado             1          0            FALSE          dia</span></span></code></pre></div>
 <p>Estas salidas describen compatibilidad y frecuencia. No convierten la
 columna ni afirman cuál formato debe aceptar el sistema.</p>
 <p>Una columna compuesta sólo por fechas como <code>01/02/2020</code>

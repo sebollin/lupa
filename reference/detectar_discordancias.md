@@ -78,6 +78,16 @@ Una fila donde alguna de las columnas comparadas está ausente **no se
 cuenta como discordante ni como concordante**: se excluye del universo
 evaluado, y `n_evaluadas` lo declara. Ausencia no es desacuerdo.
 
+Una columna de la señal que no tiene un valor comparable por fila —una
+compuesta (matriz, tabla anidada, valores que no se escriben como
+texto), una lista de objetos o de geometrías, o una magnitud con unidad
+(`units`), cuyo número sin la unidad no es su valor— no entra: la fila
+de la señal sale con `n_evaluadas = 0`, `n_discordantes = NA` y la
+evidencia dice qué columna y por qué. Con una `transformacion` que la
+lleve a un valor por fila —por ejemplo
+[`units::drop_units()`](https://r-quantities.github.io/units/reference/drop_units.html)
+después de llevarla a una unidad—, se compara.
+
 Una fila con el mismo valor en todas las columnas concuerda, también si
 ese valor es infinito: `Inf` contra `Inf` es coincidencia exacta.
 

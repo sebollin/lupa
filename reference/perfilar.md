@@ -284,6 +284,10 @@ perfilar(
   `nc` y `nd` sólo cuentan solas en columnas de pocos valores distintos
   —para no acusar a un código de dos letras—, y declararlas las hace
   contar siempre. Es el equivalente textual de `sentinelas_numericos`.
+  Como la lista incorporada, se comparan sin los blancos de los bordes y
+  sin distinguir mayúsculas, con el pliegue de caja de
+  [`normalizacion()`](https://sebollin.github.io/lupa/reference/normalizacion.md):
+  `SIN INFORMACIÓN` es `sin información` en cualquier locale.
 
 - analizar_dependencias:
 
@@ -465,89 +469,99 @@ perfilar(
   número con esa forma se prueba por su parte nacional. Y el celular
   protegido guardado con el prefijo se reconoce escrito sin él, también
   guardado como número de planilla —`"59899123456.0"`, `"59899123456,0"`
-  o `"5.9899123456E+10"`, la misma cifra—, y al revés: escrito así en un
-  texto se lee por su parte nacional. No unen los parecidos raros: la
-  prima de una coordenada sexagesimal, el acento grave, la tilde. Los
-  dos puntos y la barra vertical **no** unen: una razón `"494:2714"` o
-  una lista `"12|345|6789"` no es un documento, y un documento escrito
-  así no se reconoce. Una fecha con hora protegida se reconoce escrita
-  con `T`, `Z`, uno a tres espacios, coma, punto y coma, guion o guion
-  doble, guion bajo, barra, barra vertical, arroba, paréntesis o
-  corchete entre la fecha y la hora, con día y mes en cualquier orden,
-  con la hora separada por puntos, guiones o `h` y `m` (`"21h24m25s"`),
-  en la forma compacta `"20240627T212425"` o con la hora compacta tras
-  la fecha con separadores (`"2024-06-27T212425"`); no en palabras, con
-  a.m./p.m., con cuatro espacios o más ni con el año en dos cifras
-  —también con las formas chicas o de ancho completo de esos signos, o
-  con la barra partida por barra vertical—. El documento **parcial**, de
-  siete cifras o más, se busca con más cuidado porque es el que coincide
-  por azar: sin su verificador, fuera de la parte de un decimal, de un
-  número con forma de dirección IPv4 —con o sin máscara CIDR— y de un
-  importe con miles de cuatro grupos o más (`"3.919.024.166"`), que se
-  prueban enteros —el importe, también sin su primer grupo: es el
-  prefijo de país de un celular agrupado de a tres, `"598.099.123.456"`,
-  que se publicaba— (`"4.123.456"` frente a `"4.123.456-7"`, el
-  verificador mal tipeado, el documento seguido de un año), y sin su
-  primer dígito sólo detrás de un asterisco o una equis
-  (`"*.123.456-7"`, `"X.012.345-8"`, `"X2345678"`) —también los
-  asteriscos de Unicode, todo signo que Unicode llama asterisco salvo el
-  combinante de abajo, que el pliegue borra como a una tilde, y el
-  asterisco pegado a una letra, `"CI*123.456-7"`—; la equis seguida de
-  un espacio no es comodín, porque `"92 x 6931234"` es una
-  multiplicación; un número redondo (`1.000.000`) no cuenta como
-  parcial. Es un **decimal** el número cuyo último signo es un punto o
-  una coma con otra cantidad de cifras que tres, y antes un entero o
-  miles separados con otro signo: `"4.123.456,7"` es un importe,
-  `"4.123.456.7"` no; su parte decimal no se pega al resto cuando es la
-  de un importe con miles o la de un decimal suelto —una coordenada, un
-  par lat lon—, pero sí cuando el número es otra cosa, como
-  `"(02) 901.1234"`. Una fecha con un año entre 1800 y 2100 —también con
-  espacios y el año al final, `"16 01 2002"`; con el año adelante no,
-  porque `"2012 11 05"` es también un teléfono escrito de a pares—, una
-  hora —con su fracción de segundo: hasta siete cifras o nueve tras un
-  punto, nunca ocho, y no seguida de un guion y una cifra, que sería un
-  verificador—, un ISBN y una lista separada por comas no son
-  documentos. El ISBN-10 —con guiones, espacios o puntos— sólo si su
-  dígito de control es válido o lo precede `ISBN`: un NIT
-  `"900-123-456-7"` tiene su forma, y uno de cada once documentos de
-  diez cifras escritos así valida por azar y no se reconoce. Una
-  fracción de nueve cifras tras un punto se lee como nanosegundos: un
-  documento con un cero adelante pegado así a una hora no se reconoce.
-  En la prosa del paquete los números son conteos suyos, y ahí la regla
-  mira sólo lo que la prosa cita entre comillas y el código que sugiere
-  entre comillas invertidas, y tapa la cita o el número, no la frase.
-  **El parcial tiene un costo, medido**: un número entero de siete
-  cifras que coincide con un documento protegido sin su verificador no
-  se distingue de él, y se tapa. Con un millón de cédulas, 300.000
-  teléfonos fijos y 300.000 celulares protegidos, eso le pasó a uno de
-  cada cinco números de siete cifras en ejemplos, modas y evidencia —en
-  cualquier escritura: con puntos o apóstrofos de miles, con un guion,
-  tras un numeral o tras una equis seguida de un espacio
+  o `"5.9899123456E+10"`, la misma cifra, con cualquier cantidad de
+  ceros —`"59899123456.0000"`, como lo deja un `DECIMAL(15,4)`— y con
+  cualquier exponente —`"5.9899123456e+010"`, como lo escribe el
+  `printf` de Windows—, y al revés: escrito así en un texto se lee por
+  su parte nacional. La cifra escrita así es el documento **entero**, no
+  el parcial: el importe redondo `"5460537.00"` no se lee como un
+  documento sin su verificador. No unen los parecidos raros: la prima de
+  una coordenada sexagesimal, el acento grave, la tilde. Los dos puntos
+  y la barra vertical **no** unen: una razón `"494:2714"` o una lista
+  `"12|345|6789"` no es un documento, y un documento escrito así no se
+  reconoce. Una fecha con hora protegida se reconoce escrita con `T`,
+  `Z`, uno a tres espacios, coma, punto y coma, guion o guion doble,
+  guion bajo, barra, barra vertical, arroba, paréntesis o corchete entre
+  la fecha y la hora, con día y mes en cualquier orden, con la hora
+  separada por puntos, guiones o `h` y `m` (`"21h24m25s"`), en la forma
+  compacta `"20240627T212425"` o con la hora compacta tras la fecha con
+  separadores (`"2024-06-27T212425"`); no en palabras, con a.m./p.m.,
+  con cuatro espacios o más ni con el año en dos cifras —también con las
+  formas chicas o de ancho completo de esos signos, o con la barra
+  partida por barra vertical—. El documento **parcial**, de siete cifras
+  o más, se busca con más cuidado porque es el que coincide por azar:
+  sin su verificador, fuera de la parte de un decimal, de un número con
+  forma de dirección IPv4 —con o sin máscara CIDR— y de un importe con
+  miles de cuatro grupos o más (`"3.919.024.166"`), que se prueban
+  enteros —el importe, también sin su primer grupo: es el prefijo de
+  país de un celular agrupado de a tres, `"598.099.123.456"`, que se
+  publicaba— (`"4.123.456"` frente a `"4.123.456-7"`, el verificador mal
+  tipeado, el documento seguido de un año), y sin su primer dígito sólo
+  detrás de un asterisco o una equis (`"*.123.456-7"`, `"X.012.345-8"`,
+  `"X2345678"`) —también los asteriscos de Unicode, todo signo que
+  Unicode llama asterisco salvo el combinante de abajo, que el pliegue
+  borra como a una tilde, y el asterisco pegado a una letra,
+  `"CI*123.456-7"`—; la equis seguida de un espacio no es comodín,
+  porque `"92 x 6931234"` es una multiplicación; un número redondo
+  (`1.000.000`) no cuenta como parcial. Es un **decimal** el número cuyo
+  último signo es un punto o una coma con otra cantidad de cifras que
+  tres, y antes un entero o miles separados con otro signo:
+  `"4.123.456,7"` es un importe, `"4.123.456.7"` no; su parte decimal no
+  se pega al resto cuando es la de un importe con miles o la de un
+  decimal suelto —una coordenada, un par lat lon—, pero sí cuando el
+  número es otra cosa, como `"(02) 901.1234"`. Una fecha con un año
+  entre 1800 y 2100 —también con espacios y el año al final,
+  `"16 01 2002"`; con el año adelante no, porque `"2012 11 05"` es
+  también un teléfono escrito de a pares—, una hora —con su fracción de
+  segundo: hasta siete cifras o nueve tras un punto, nunca ocho, y no
+  seguida de un guion y una cifra, que sería un verificador—, un ISBN y
+  una lista separada por comas no son documentos. El ISBN-10 —con
+  guiones, espacios o puntos— sólo si su dígito de control es válido o
+  lo precede `ISBN`: un NIT `"900-123-456-7"` tiene su forma, y uno de
+  cada once documentos de diez cifras escritos así valida por azar y no
+  se reconoce. Una fracción de nueve cifras tras un punto se lee como
+  nanosegundos: un documento con un cero adelante pegado así a una hora
+  no se reconoce. En la prosa del paquete los números son conteos suyos,
+  y ahí la regla mira sólo lo que la prosa cita entre comillas y el
+  código que sugiere entre comillas invertidas, y tapa la cita o el
+  número, no la frase. **El parcial tiene un costo, medido**: un número
+  entero de siete cifras que coincide con un documento protegido sin su
+  verificador no se distingue de él, y se tapa. Con un millón de
+  cédulas, 300.000 teléfonos fijos y 300.000 celulares protegidos, eso
+  le pasó a uno de cada cinco números de siete cifras en ejemplos, modas
+  y evidencia —en cualquier escritura: con puntos o apóstrofos de miles,
+  con un guion, tras un numeral o tras una equis seguida de un espacio
   (`"92 x 6931234"`); tras un asterisco, o tras una equis pegada
   (`"serie X6276963"`, que es como se escribe el documento recortado sin
   formato, `"X2345678"`), a uno de cada cuatro—, y a uno o dos de cada
-  cien enteros de ocho cifras, que coinciden con un documento entero;
-  las coordenadas, los p-valores, los importes con decimales, las horas,
-  los ISBN —también el ISBN-10 con espacios o puntos—, las fechas con
-  espacios, las listas separadas por comas con espacio o por barras
-  verticales, las razones no se taparon; los importes con miles de
-  cuatro grupos o más, uno o dos de cada mil —su cola sin el primer
-  grupo coincide con un documento cuando empieza con un cero—; una
-  dirección IP —también con su máscara CIDR, `"10.4.123.234/24"`, o su
-  puerto, y en un rango de redes `"10.4.1.0/24-10.4.9.0/24"`— sólo
-  cuando coincide entera, menos de una de cada cien; y una coordenada
-  escrita con un cero adelante (`"-056.092164"`), que tiene la forma de
-  un celular con punto (`"099.123456"`), casi una de cada cien. Lo mismo
-  vale, por la misma razón, para lo que se une como el documento: una
-  lista separada por espacios, ocho de cada cien; un rango de años
-  `"2004-2017"` o con la raya de un CSV de Windows, dos números en dos
-  líneas, una lista con tabuladores o con comas sin espacio —también la
-  coma ideográfica—, entre una y tres de cada cien; o una versión
-  `"v4.16.4302"`. Un teléfono fijo que no es de nadie, tres de cada cien
-  —2,8 %, sobre 4.000 fijos—, escrito de cualquier forma: con espacios o
-  guiones (`"4656 4570"`), con su prefijo de país (`"+598 4499 0917"`) o
-  pegado. Coincide con un documento o con un teléfono protegido, y como
-  se prueba su parte nacional, las mismas cifras se tapan en todas las
+  cien enteros de ocho cifras, que coinciden con un documento entero
+  —también a los importes de ocho cifras con centavos, `"52317219.09"`,
+  1,8 % sobre 4.000 con las mismas cifras enteras: su parte entera es la
+  de un documento entero—; las coordenadas, los p-valores, los importes
+  de siete cifras con decimales —también los redondos, `"5460537.00"`,
+  `"5460537,00"` o dentro de una frase; con un solo cero, `"5460537.0"`,
+  dos de cada cien, que se leen también como la cédula con su
+  verificador tras un punto—, las horas, los ISBN —también el ISBN-10
+  con espacios o puntos—, las fechas con espacios, las listas separadas
+  por comas con espacio o por barras verticales, las razones no se
+  taparon; los importes con miles de cuatro grupos o más, uno o dos de
+  cada mil —su cola sin el primer grupo coincide con un documento cuando
+  empieza con un cero—; una dirección IP —también con su máscara CIDR,
+  `"10.4.123.234/24"`, o su puerto, y en un rango de redes
+  `"10.4.1.0/24-10.4.9.0/24"`— sólo cuando coincide entera, menos de una
+  de cada cien; y una coordenada escrita con un cero adelante
+  (`"-056.092164"`), que tiene la forma de un celular con punto
+  (`"099.123456"`), casi una de cada cien. Lo mismo vale, por la misma
+  razón, para lo que se une como el documento: una lista separada por
+  espacios, ocho de cada cien; un rango de años `"2004-2017"` o con la
+  raya de un CSV de Windows, dos números en dos líneas, una lista con
+  tabuladores o con comas sin espacio —también la coma ideográfica—,
+  entre una y tres de cada cien; o una versión `"v4.16.4302"`. Un
+  teléfono fijo que no es de nadie, tres de cada cien —2,8 %, sobre
+  4.000 fijos—, escrito de cualquier forma: con espacios o guiones
+  (`"4656 4570"`), con su prefijo de país (`"+598 4499 0917"`) o pegado.
+  Coincide con un documento o con un teléfono protegido, y como se
+  prueba su parte nacional, las mismas cifras se tapan en todas las
   escrituras. Las familias del reproductor que sortean 400 fijos por
   escritura dan entre 1,5 y 5,5 %: es el sorteo, no la escritura. Con el
   prefijo era uno de cada seis, porque `"598"` y el primer grupo
@@ -1295,15 +1309,34 @@ tablas anidadas (una columna `data.frame`, como la de un tibble
 empaquetado)— se conservan como una unidad por fila: `n` informa las
 filas de la tabla, pero los estadísticos por valor —`n_faltantes`
 incluido— quedan en `NA` y un hallazgo explica que deben separarse en
-columnas con semántica explícita. Cuando todos los valores válidos
-aparecen una sola vez **no hay moda**, y `moda` queda en `NA`. Lo que se
-publicaría es el ganador de un desempate de tantas vías como valores
-haya, y ese desempate sigue el orden de ordenamiento, que depende de
-cómo esté guardada la columna: la misma columna `c(-5.5, -1, 0, 3.75)`
-daba `-5.5` como número y `-1` como texto. `frecuencia_moda` se conserva
-—vale 1, es cierto y es la evidencia de por qué la moda quedó callada—.
-Con un solo valor distinto sí hay moda, aunque su frecuencia sea 1: ahí
-no hay empate que resolver.
+columnas con semántica explícita. Entra por la misma puerta una columna
+cuyos valores no se pueden escribir como texto —una `vctrs_rcrd`, que
+guarda varios campos por fila, o un `vctrs_vctr` sin conversión
+declarada—: se pregunta por esa propiedad y no por la clase, y el
+hallazgo `tipo_compuesto_no_analizado` lo dice con su clase, en vez de
+abortar el perfil entero. Un vector de bytes (`raw`) se compara y se
+publica por su escritura hexadecimal —`moda`, `n_distintos`—, pero no
+pasa por las etapas que interpretan la escritura de una persona
+—patrones, números escritos como texto, unidades, espacios—: un byte no
+es un texto escrito. Un nivel `NA` de un factor —el que dejan
+[`addNA()`](https://rdrr.io/r/base/factor.html) o
+`factor(exclude = NULL)`— es un faltante: cuenta en `n_faltantes` y no
+en `n_distintos`, igual que en la medición, en
+[`distribucion_valores()`](https://sebollin.github.io/lupa/reference/distribucion_valores.md),
+en
+[`inferir_tipo()`](https://sebollin.github.io/lupa/reference/inferir_tipo.md)
+y en las dependencias. Un `POSIXlt` —lo que deja
+[`strptime()`](https://rdrr.io/r/base/strptime.html)— se perfila por su
+instante, como el `POSIXct` equivalente: la misma columna en las dos
+clases da la misma fila. Cuando todos los valores válidos aparecen una
+sola vez **no hay moda**, y `moda` queda en `NA`. Lo que se publicaría
+es el ganador de un desempate de tantas vías como valores haya, y ese
+desempate sigue el orden de ordenamiento, que depende de cómo esté
+guardada la columna: la misma columna `c(-5.5, -1, 0, 3.75)` daba `-5.5`
+como número y `-1` como texto. `frecuencia_moda` se conserva —vale 1, es
+cierto y es la evidencia de por qué la moda quedó callada—. Con un solo
+valor distinto sí hay moda, aunque su frecuencia sea 1: ahí no hay
+empate que resolver.
 
 Una columna numérica emite `valor_concentrado` como señal `sospechoso`
 cuando tiene al menos 20 valores válidos y 10 valores distintos, y su
@@ -1392,7 +1425,11 @@ los muestra como puntos de código; los espacios Unicode se detectan
 aunque sólo se normalizan mediante una acción explícita, y ZWJ/ZWNJ se
 informan pero se conservan porque pueden ser semánticos. La comparación
 de duplicados con `normalizar = TRUE` aplica estas mismas clases sin
-borrar ZWJ/ZWNJ.
+borrar ZWJ/ZWNJ. El resto del texto se cita con sus caracteres, y no con
+los escapes de punto de código de
+[`encodeString()`](https://rdrr.io/r/base/encodeString.html), que
+dependen del locale: la evidencia es la misma bajo `C` y bajo un locale
+UTF-8, y el ejemplo que cita casa con el de la tabla de patrones.
 
 Un valor `double` **subnormal** —distinto de cero y menor que
 `.Machine$double.xmin` en valor absoluto, unos 2,2e-308— casi siempre

@@ -160,7 +160,14 @@ mismo nombre, el nombre no dice cuál de las dos es: sus pares salen
 fecha-hora no comparte escritura —<code>2020-01-01</code> contra <code>2020-01-01 00:00:00</code>—, así
 que ningún valor coincidiría aunque fueran los mismos días: el par sale con
 <code>motivo_poda = "fecha_contra_instante"</code>. Convertir una de las dos a la clase de
-la otra, con <code>tz</code> explícito, y volver a comparar.</p>
+la otra, con <code>tz</code> explícito, y volver a comparar.
+Tampoco entra una columna que no tiene un valor comparable por fila: una
+compuesta —matriz, tabla anidada, valores que no se escriben como texto,
+como una <code>vctrs_rcrd</code>—, una lista de objetos —de vectores, de geometrías,
+de <code>NULL</code>— o una magnitud con unidad (<code>units</code>), cuyo número sin la unidad
+no es su valor. Sus pares salen <code>sin_comparar</code> con
+<code>motivo_poda = "columna_no_comparable"</code>, y el detalle en <code>podas</code> dice cuál
+de las tres es; la función sigue con las demás columnas.</p>
 <p>Todas las podas, de las dos clases, quedan además en el atributo <code>podas</code> con
 su motivo y su detalle.</p>
 <p>Cuando una tabla supera <code>muestra</code>, la función estima cada cobertura con una

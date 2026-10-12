@@ -119,7 +119,14 @@ una fecha contra una fecha-hora no comparte escritura —`2020-01-01`
 contra `2020-01-01 00:00:00`—, así que ningún valor coincidiría aunque
 fueran los mismos días: el par sale con
 `motivo_poda = "fecha_contra_instante"`. Convertir una de las dos a la
-clase de la otra, con `tz` explícito, y volver a comparar.
+clase de la otra, con `tz` explícito, y volver a comparar. Tampoco entra
+una columna que no tiene un valor comparable por fila: una compuesta
+—matriz, tabla anidada, valores que no se escriben como texto, como una
+`vctrs_rcrd`—, una lista de objetos —de vectores, de geometrías, de
+`NULL`— o una magnitud con unidad (`units`), cuyo número sin la unidad
+no es su valor. Sus pares salen `sin_comparar` con
+`motivo_poda = "columna_no_comparable"`, y el detalle en `podas` dice
+cuál de las tres es; la función sigue con las demás columnas.
 
 Todas las podas, de las dos clases, quedan además en el atributo `podas`
 con su motivo y su detalle.

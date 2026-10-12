@@ -70,7 +70,13 @@ perfilar_coleccion(
   `resumen_tabla$meta$proteccion_personal$otras_tablas` dice por qué.
   Con esos valores se barren también `cobertura_coleccion`,
   `cobertura_metricas` y `meta$lecturas`, que juntan los motivos de
-  todas las tablas.
+  todas las tablas. Sin retenerlos, esos tres campos y el mensaje del
+  motor de cada tabla pasan igual por el piso con los valores que las
+  tablas leyeron y que un mensaje del motor puede llevar —los que se
+  escriben sólo con lo permitido, ver
+  [`perfilar_dbi()`](https://sebollin.github.io/lupa/reference/perfilar_dbi.md)—,
+  sin consultas de más: el mensaje de una vista que citaba
+  `"Campos Cadena"`, la celda de su tabla base, se publicaba.
   [`perfilar_dbi()`](https://sebollin.github.io/lupa/reference/perfilar_dbi.md)
   sobre una tabla sola protege sólo con los de esa tabla.
 

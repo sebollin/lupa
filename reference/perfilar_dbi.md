@@ -670,6 +670,20 @@ eso no es lo mismo que la tabla en R:
   empatada que cada lado desempata con su orden—: la deja en una fila
   `no_corroborada` con ese motivo.
 
+- **Una columna que mezcla tipos de almacenamiento.** SQLite admite
+  texto en una columna de afinidad numérica, y RSQLite la lee como
+  número: convierte ese texto en `0` y lo avisa ("mixed type"). El
+  resumen SQL ve los valores guardados —la moda puede ser el texto, y
+  las métricas de magnitud quedan `no_disponible` porque el motor
+  devolvió algo que no se lee como número—, y `perfil_muestra` ve lo que
+  entregó el controlador: `minimo = 0`, una moda `0` que nadie escribió.
+  `perfilar_dbi()` no relee la columna como texto: declara cada
+  divergencia con esa causa medida en `resumen_tabla$cobertura`, y dice
+  que las cifras de magnitud de `perfil_muestra` para esa columna no
+  describen lo guardado. Para perfilar los valores guardados, leer la
+  columna como texto (`CAST(columna AS TEXT)` en una vista) o limpiarla
+  en el origen.
+
 ## Costo
 
 Los agregados de una tabla ancha se emiten por lotes; `muestra` acota lo
@@ -913,17 +927,32 @@ las palabras de SQL, los nombres de tipo, los nombres de la tabla y de
 sus columnas, los códigos SQLSTATE, los signos y los números de menos de
 seis cifras —el piso de la protección: la línea, la posición, un
 código—; todo lo demás sale `[literal omitido]`. Un número se cuenta con
-sus separadores: `4.685.467-9` es uno de ocho cifras. Así se tapa
-también el valor que el motor cita sin comillas —duckdb:
-`Type INT64 with value 59899123456 can't be cast`, y la cadena que
-`strptime` repite en otra línea, que se tapa entera; SQL Server con la
-sesión en sueco o neerlandés— y la cola de un valor que lleva una
-comilla adentro. Un mensaje en otro idioma conserva su SQL, sus tipos y
-sus nombres y se lee peor, que es el lado cerrado. Quedan una palabra de
-SQL entre comillas —`Incorrect syntax near 'LIMIT'` dice que el motor no
-acepta ese dialecto— y un signo suelto. El texto que PostgreSQL cita sin
-comillas al no poder leer un JSON (`CONTEXT: JSON data, line 1: ...`) se
-tapa hasta el fin de la línea. Se publicaba tal cual, en PostgreSQL, en
+sus separadores: `4.685.467-9` es uno de ocho cifras, y se lee como lo
+lee el piso de la protección, con los mismos separadores —un espacio
+duro o uno fino, el punto medio, una raya, `" - "`, dos espacios, un
+tabulador o un salto de línea entre los grupos: `"099 - 123 - 456"` es
+uno de nueve—. Así se tapa también el valor que el motor cita sin
+comillas —duckdb: `Type INT64 with value 59899123456 can't be cast`, y
+la cadena que `strptime` repite en otra línea, que se tapa entera; SQL
+Server con la sesión en sueco o neerlandés— y la cola de un valor que
+lleva una comilla adentro. Y el mensaje pasa también por el piso con los
+valores protegidos que la llamada ya leyó —en
+[`perfilar_coleccion()`](https://sebollin.github.io/lupa/reference/perfilar_coleccion.md),
+los de todas sus tablas—: un valor escrito sólo con lo permitido —los
+apellidos `"Campos Cadena"`, dos palabras del vocabulario— se tapa, y el
+nombre de una columna que es también uno de esos valores —la docente
+`"Florencia"` de una planilla con una columna por docente— deja de
+exceptuarse, con la comparación del piso. Lo que queda abierto: un valor
+que la llamada **no** leyó —la celda que hizo fallar la lectura de la
+muestra, de una columna que la vista castea— escrito sólo con lo
+permitido, o igual al nombre de una columna, se publica, porque el
+mensaje no tiene cómo distinguirlo del vocabulario ni de un nombre. Un
+mensaje en otro idioma conserva su SQL, sus tipos y sus nombres y se lee
+peor, que es el lado cerrado. Quedan una palabra de SQL entre comillas
+—`Incorrect syntax near 'LIMIT'` dice que el motor no acepta ese
+dialecto— y un signo suelto. El texto que PostgreSQL cita sin comillas
+al no poder leer un JSON (`CONTEXT: JSON data, line 1: ...`) se tapa
+hasta el fin de la línea. Se publicaba tal cual, en PostgreSQL, en
 duckdb y en SQL Server. `incluir_valores = FALSE` va más lejos: no emite
 las consultas de moda ni de mediana y no informa mínimo ni máximo, útil
 cuando la tabla es un padrón y la moda de un identificador único es un

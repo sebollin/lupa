@@ -122,10 +122,17 @@ copia, no las del objeto original.</p>
 patrones dominantes— se proponen inactivas. Los controles estructurales
 directos, como <code>NoNulo</code>, duplicación exacta y dependencias funcionales
 exactas, se activan. <code>max_sugerencias</code> recorta después de ordenar por
-prioridad y el objeto declara el total en sus atributos.
+prioridad y el objeto declara el total en sus atributos. Dentro de cada
+prioridad las filas se ordenan por métrica, entidad y atributos según sus
+bytes —no según la intercalación del locale— y <code>id_sugerencia</code> las numera en
+ese orden: el mismo perfil da los mismos identificadores en cualquier sesión.
 Si una columna contiene faltantes disfrazados, <code>NoNulo</code> se propone pero queda
 inactiva hasta normalizarlos o configurar la métrica para reconocerlos. De
-otro modo mediría sólo los <code>NA</code> reales y sobrestimaría la completitud.</p>
+otro modo mediría sólo los <code>NA</code> reales y sobrestimaría la completitud.
+Una sugerencia sobre una columna cuyo nombre la tabla repite sale inactiva y
+con estado <code>nombre_repetido</code>: una métrica se liga por nombre, y ese nombre no
+dice cuál de las columnas mide. <code><a href="modelo_desde_propuesta.html">modelo_desde_propuesta()</a></code> no la materializa
+y <code><a href="analizar.html">analizar()</a></code> no la mide hasta que las columnas se renombren.</p>
     </div>
     <div class="section level2">
     <h2 id="see-also">See also<a class="anchor" aria-label="anchor" href="#see-also"></a></h2>

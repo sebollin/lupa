@@ -8,10 +8,14 @@ consideran enteros; para inferir un lógico debe aparecer al menos un
 literal alfabético como `sí`, `no`, `true` o `false`. Una letra suelta
 (`T`, `F`, `S`, `N`) cuenta como literal sólo si aparece también su
 opuesto —`T` con `F` o `false`, `S` con `N` o `no`, y al revés—: sola es
-un código, y una columna de `F` y `M` no es lógica. Un separador seguido
-de exactamente tres dígitos (`1.500`, `1,500`) cuenta como número sólo
-si la columna aporta evidencia de una sola convención decimal, con punto
-o con coma por igual.
+un código, y una columna de `F` y `M` no es lógica. Los literales se
+reconocen sin distinguir mayúsculas —`SÍ` es `sí`— con el pliegue de
+caja de
+[`normalizacion()`](https://sebollin.github.io/lupa/reference/normalizacion.md),
+que no depende del locale. Un separador seguido de exactamente tres
+dígitos (`1.500`, `1,500`) cuenta como número sólo si la columna aporta
+evidencia de una sola convención decimal, con punto o con coma por
+igual.
 
 ## Usage
 

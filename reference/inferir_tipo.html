@@ -7,7 +7,8 @@ inferir un lógico debe aparecer al menos un literal alfabético como sí,
 no, true o false. Una letra suelta (T, F, S, N) cuenta como
 literal sólo si aparece también su opuesto —T con F o false, S con
 N o no, y al revés—: sola es un código, y una columna de F y M no es
-lógica.
+lógica. Los literales se reconocen sin distinguir mayúsculas —SÍ es sí—
+con el pliegue de caja de normalizacion(), que no depende del locale.
 Un separador seguido de exactamente tres dígitos (1.500, 1,500) cuenta
 como número sólo si la columna aporta evidencia de una sola convención
 decimal, con punto o con coma por igual."><meta property="og:description" content="Para columnas de texto distingue valores lógicos, enteros, dobles, fechas,
@@ -18,7 +19,8 @@ inferir un lógico debe aparecer al menos un literal alfabético como sí,
 no, true o false. Una letra suelta (T, F, S, N) cuenta como
 literal sólo si aparece también su opuesto —T con F o false, S con
 N o no, y al revés—: sola es un código, y una columna de F y M no es
-lógica.
+lógica. Los literales se reconocen sin distinguir mayúsculas —SÍ es sí—
+con el pliegue de caja de normalizacion(), que no depende del locale.
 Un separador seguido de exactamente tres dígitos (1.500, 1,500) cuenta
 como número sólo si la columna aporta evidencia de una sola convención
 decimal, con punto o con coma por igual."><meta property="og:image" content="https://sebollin.github.io/lupa/logo.png"></head><body>
@@ -72,7 +74,8 @@ inferir un lógico debe aparecer al menos un literal alfabético como <code>sí<
 <code>no</code>, <code>true</code> o <code>false</code>. Una letra suelta (<code>T</code>, <code>F</code>, <code>S</code>, <code>N</code>) cuenta como
 literal sólo si aparece también su opuesto —<code>T</code> con <code>F</code> o <code>false</code>, <code>S</code> con
 <code>N</code> o <code>no</code>, y al revés—: sola es un código, y una columna de <code>F</code> y <code>M</code> no es
-lógica.
+lógica. Los literales se reconocen sin distinguir mayúsculas —<code>SÍ</code> es <code>sí</code>—
+con el pliegue de caja de <code><a href="normalizacion.html">normalizacion()</a></code>, que no depende del locale.
 Un separador seguido de exactamente tres dígitos (<code>1.500</code>, <code>1,500</code>) cuenta
 como número sólo si la columna aporta evidencia de una sola convención
 decimal, con punto o con coma por igual.</p>

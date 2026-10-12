@@ -185,16 +185,23 @@ analizar(
   [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md)—,
   las columnas de lista elemento por elemento, los atributos de la tabla
   y de cada columna —también `levels` en lo que no es un factor y
-  `units`—, y los nombres de fila, que vuelven a ser los números de fila
-  si alguno lleva un valor protegido. Una columna `POSIXlt` se tapa como
-  la `POSIXct`, y cualquier lista con clase —un registro de `vctrs`, un
-  `blob`— por sus valores; un BLOB (`raw`) se lee como el texto que
-  guarda y, si lleva un valor protegido, la copia guarda los bytes del
-  texto tapado; un entorno no se modifica —es del usuario—: si guarda un
-  valor protegido, la copia lleva `"[valor protegido]"` en su lugar. Una
-  columna protegida conserva sólo los atributos de su clase (`class`,
-  `tzone`, `units`, `dim`): las etiquetas de valor de un
-  `haven_labelled` se quitan. Para conservar sus valores debe usarse
+  `units`—, los nombres de columna de una tabla anidada en una columna
+  lista, y los nombres de fila, que vuelven a ser los números de fila si
+  alguno lleva un valor protegido. Una columna `POSIXlt` se tapa como la
+  `POSIXct`, con sus atributos —`comment`, `label`—, y cualquier lista
+  con clase —un registro de `vctrs`, un `blob`— por sus valores; un BLOB
+  (`raw`) se lee como el texto que guarda y, si lleva un valor
+  protegido, la copia guarda los bytes del texto tapado; un entorno no
+  se modifica —es del usuario—: si guarda un valor protegido, la copia
+  lleva `"[valor protegido]"` en su lugar, también si tiene un atributo
+  `name`; sólo el global, el de un paquete y los de la ruta de búsqueda
+  se dejan como están. Una llamada, una fórmula o una función se leen
+  como el texto que las escribe —la función, también por su entorno— y,
+  si llevan un valor protegido, la copia lleva `"[valor protegido]"` en
+  su lugar. Una columna protegida conserva sólo los atributos de su
+  clase (`class`, `tzone`, `units`, `dim`), y `tzone` y `units` pasan
+  por el piso: las etiquetas de valor de un `haven_labelled` se quitan.
+  Para conservar sus valores debe usarse
   `proteger_datos_personales = FALSE` al crear el analisis y al
   guardarlo. La opcion del guardado no recupera valores que el analisis
   ya enmascaro.

@@ -150,11 +150,11 @@ inferir_tipo(datos_operativos$fecha_evento)
 #> fecha (84.6%; 11 de 13 valores compatibles)
 detectar_formatos_fecha(datos_operativos$fecha_evento)
 #>    formato n proporcion     estado n_inequivocos n_ambiguos anio_dos_digitos granularidad
-#> 1 %d/%m/%Y 4 0.30769231 confirmado             4          0            FALSE          dia
-#> 2 %Y-%m-%d 4 0.30769231 confirmado             4          0            FALSE          dia
-#> 3 %d-%m-%Y 1 0.07692308 confirmado             1          0            FALSE          dia
+#> 1 %Y-%m-%d 4 0.30769231 confirmado             4          0            FALSE          dia
+#> 2 %d/%m/%Y 4 0.30769231 confirmado             4          0            FALSE          dia
+#> 3   %Y%m%d 1 0.07692308 confirmado             1          0            FALSE          dia
 #> 4 %Y/%m/%d 1 0.07692308 confirmado             1          0            FALSE          dia
-#> 5   %Y%m%d 1 0.07692308 confirmado             1          0            FALSE          dia
+#> 5 %d-%m-%Y 1 0.07692308 confirmado             1          0            FALSE          dia
 ```
 
 Estas salidas describen compatibilidad y frecuencia. No convierten la
