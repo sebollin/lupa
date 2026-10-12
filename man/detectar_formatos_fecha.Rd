@@ -20,9 +20,14 @@ presencia de formatos mixtos.
 \description{
 Reconoce formatos de fecha y fecha-hora sin escoger arbitrariamente entre
 día/mes y mes/día. Cuando todos los valores con barra, guion o punto son
-ambiguos, devuelve ambos formatos con estado \code{"candidato"}. El atributo
+ambiguos, devuelve todas sus lecturas posibles con estado \code{"candidato"}:
+día/mes y mes/día y, con guion y dos dígitos en cada parte (\code{01-02-03}),
+también año/mes/día. Esas lecturas son una sola representación. El atributo
 \code{formatos_mixtos}
 indica si hay evidencia de dos o más representaciones en la columna.
+El nombre \code{May} es a la vez el mes completo en inglés y la abreviatura de
+\code{mayo}: se cuenta como \verb{\%B} o \verb{\%b} según cómo escriba el mes el resto de la
+columna, y no como una representación aparte.
 Se aceptan días y meses con uno o dos dígitos. Los años de dos dígitos se
 detectan, pero siempre quedan como candidatos y se señalan en la columna
 \code{anio_dos_digitos}: el siglo no se interpreta en silencio.
@@ -36,6 +41,8 @@ igual que las fechas compactas, exigen un año entre 1800 y 2100.
 El formato compacto \verb{\%Y\%m\%d} exige un año entre 1800 y 2100 para evitar que
 identificadores de ocho dígitos se clasifiquen parcialmente como fechas.
 Una hora con segundo 60 no se acepta: R la leería como el minuto siguiente.
+Tampoco la hora \code{24:00}: R la leería como la medianoche del día siguiente,
+y el perfil publicaría una fecha que nadie escribió.
 }
 \examples{
 detectar_formatos_fecha(c("2020-01-31", "31/01/2020"))

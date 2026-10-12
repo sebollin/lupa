@@ -25,7 +25,13 @@ fechas-hora, horas, identificadores y texto. Además de la etiqueta devuelve
 la proporción de valores compatibles, siempre en la escala \verb{[0, 1]}.
 Los textos compuestos únicamente por \code{0} y \code{1} se consideran enteros; para
 inferir un lógico debe aparecer al menos un literal alfabético como \code{sí},
-\code{no}, \code{true} o \code{false}.
+\code{no}, \code{true} o \code{false}. Una letra suelta (\code{T}, \code{F}, \code{S}, \code{N}) cuenta como
+literal sólo si aparece también su opuesto —\code{T} con \code{F} o \code{false}, \code{S} con
+\code{N} o \code{no}, y al revés—: sola es un código, y una columna de \code{F} y \code{M} no es
+lógica.
+Un separador seguido de exactamente tres dígitos (\code{1.500}, \verb{1,500}) cuenta
+como número sólo si la columna aporta evidencia de una sola convención
+decimal, con punto o con coma por igual.
 }
 \examples{
 inferir_tipo(c("1", "2", "3"))

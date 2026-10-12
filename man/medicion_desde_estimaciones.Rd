@@ -33,8 +33,13 @@ estadísticos reconocidos, en la forma \code{c(cv = "coef_var")}.}
 \item{fecha}{Fecha y hora de la medición.}
 }
 \value{
-Data frame \code{medicion_calidad} con el contrato de \code{\link[=medir]{medir()}}, más las
-columnas \code{fuente} y \code{unidad}.
+Data frame de clase \code{medicion_calidad} y \code{medicion} con el contrato
+de \code{\link[=medir]{medir()}}, más las columnas \code{fuente} y \code{unidad}: se acumula con
+\code{\link[=historico_calidad]{historico_calidad()}} y se une con \code{rbind()} como cualquier medición. Su
+\code{id_medida} nombra la métrica y la celda estimada —\code{objeto_medible}— y no el
+número de fila, así que dos tabulados de la misma entidad y la misma fecha
+se pueden unir y evaluar juntos; la misma celda medida dos veces sí repite
+su identificador, y \code{\link[=evaluar]{evaluar()}} lo rechaza.
 }
 \description{
 \code{lupa} \strong{no estima}: eso necesita un diseño muestral, estimación de varianza
@@ -68,7 +73,8 @@ publica.
 
 \strong{Una celda que no es una estimación también se descarta, y se declara.} Un
 texto que no es un número, o un número fuera del dominio de su estadístico
-—un tamaño de muestra que no es un entero no negativo; un error estándar, un
+—un infinito, en cualquiera; un tamaño de muestra que no es un entero no
+negativo; un error estándar, un
 coeficiente de variación, unos grados de libertad, un efecto de diseño o un
 tamaño efectivo negativos— no se publica: se avisa y queda en el atributo
 \code{celdas_descartadas}, con la métrica, la celda, el valor recibido y el motivo

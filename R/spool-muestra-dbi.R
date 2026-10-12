@@ -864,6 +864,25 @@
         )
         perfil <- NULL
       }
+      # `perfilar()` decidio los rellenos de las columnas protegidas sobre la
+      # muestra del motor, y con `universo = "muestra_motor"` no hay conteo de
+      # la tabla entera que los confirme: vuelven al piso, como los no
+      # confirmados de la via SQL (`.rellenos_confirmados_tabla_dbi()`). Sin
+      # esto la cedula valida de un cliente frecuente -600 de 20.600
+      # movimientos- era "relleno" en la muestra y salia en la moda, los
+      # ejemplos y la evidencia de `obs`. Medido en la ronda 27.
+      proteger_spool <- is.null(args$proteger_datos_personales) ||
+        isTRUE(args$proteger_datos_personales)
+      if (!is.null(perfil) && proteger_spool) {
+        candidatos <- tryCatch(.rellenos_de_columnas(
+          datos, .columnas_personales_protegidas(perfil$datos_personales)
+        ), error = function(e) character())
+        if (length(candidatos)) {
+          perfil <- .proteger_con_valores_dbi(
+            perfil, candidatos, as.character(perfil$columnas$columna)
+          )
+        }
+      }
     }
   } else if (isTRUE(leido$ok)) {
     metodo_vacio <- if (is.null(publico$metodo) ||

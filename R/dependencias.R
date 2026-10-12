@@ -558,10 +558,15 @@ detectar_dependencias <- function(datos, umbral = 0.995, muestra = 1e5,
   resultado
 }
 
+# Por indice y no por nombre: `datos[[nombre]]` traduce el nombre, y uno marcado
+# `bytes` -un encabezado `latin1` declarado asi- hacia abortar `analizar()` y
+# `planificar_limpieza()`, con y sin proteccion ("no se permite traduccion de
+# cadenas con \"bytes\""), mientras `perfilar()` corria. Medido en la ronda 27.
 .mapa_dependencia <- function(datos, determinante, dependiente,
                               soporte_minimo = 2L) {
-  x <- datos[[determinante]]
-  y <- datos[[dependiente]]
+  indices <- .indice_nombre(c(determinante, dependiente), names(datos))
+  x <- if (!is.na(indices[[1L]])) datos[[indices[[1L]]]]
+  y <- if (!is.na(indices[[2L]])) datos[[indices[[2L]]]]
   validos <- !is.na(x) & !is.na(y)
   pares <- data.frame(
     determinante = x[validos], dependiente = y[validos],

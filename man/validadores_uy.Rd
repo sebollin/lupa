@@ -20,10 +20,13 @@ Vector lógico de la misma longitud que \code{x}.
 \code{validar_ci_uy()} comprueba la cédula de identidad mediante su dígito
 verificador módulo 10. Acepta siete u ocho dígitos y separadores de puntos,
 espacios o guion; una cédula de siete dígitos se completa con cero inicial.
+Cualquier espacio separa, también el fino o el duro de Unicode.
 }
 \details{
 \code{validar_rut_uy()} comprueba la estructura de doce dígitos del RUT y su
-dígito verificador módulo 11. El algoritmo operativo no está publicado por
+dígito verificador módulo 11. Un RUT de once dígitos se completa con cero
+inicial, igual que la cédula de siete: es el que pierde su cero al guardarse
+como número (\code{read.csv()} lee \code{073602060015} como \code{73602060015}). El algoritmo operativo no está publicado por
 DGI como especificación normativa abierta; esta implementación se contrastó
 con la implementación pública de \code{python-stdnum} y con ejemplos públicos.
 Por eso valida estructura y dígito, no vigencia ni existencia registral.

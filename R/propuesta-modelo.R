@@ -314,8 +314,19 @@ proponer_modelo <- function(perfil, datos = NULL, relaciones = NULL,
   resultado <- if (length(sugerencias)) do.call(rbind, sugerencias) else .propuesta_vacia()
   if (nrow(resultado)) {
     orden_prioridad <- match(resultado$prioridad, c("alta", "media", "baja"))
-    resultado <- resultado[order(orden_prioridad, resultado$metrica,
-                                 resultado$entidad, resultado$atributos), , drop = FALSE]
+    # `order()` traduce el texto, y un nombre de columna marcado `bytes` lo hacia
+    # abortar -y con el, `analizar()`-. Medido en la ronda 27. Solo entonces se
+    # ordena por la clave del nombre: el orden de siempre no cambia.
+    orden <- tryCatch(
+      order(orden_prioridad, resultado$metrica, resultado$entidad,
+            resultado$atributos),
+      error = function(e) order(
+        orden_prioridad, .nombres_para_operar(resultado$metrica),
+        .nombres_para_operar(resultado$entidad),
+        .nombres_para_operar(resultado$atributos)
+      )
+    )
+    resultado <- resultado[orden, , drop = FALSE]
     rownames(resultado) <- NULL
   }
   total <- nrow(resultado)

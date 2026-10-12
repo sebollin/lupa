@@ -49,6 +49,18 @@ de igualdad exacta sobre el texto y la ventana no se aplica: eso queda dicho en
 la evidencia (\verb{comparacion textual exacta}) y, si se declaró una ventana mayor
 que cero, se avisa al medir. Para comparar fechas con tolerancia hay que
 llevarlas con \code{transformacion} a un número en la unidad de la ventana.
+
+Esa igualdad exacta es \strong{de valores, no de su impresión}. Una fecha-hora se
+compara por su instante: el mismo instante guardado en dos zonas horarias
+concuerda. Se escribe en UTC, al segundo y con su fracción exacta si la tiene
+—la misma escritura que usa \code{\link[=detectar_relaciones]{detectar_relaciones()}}—, así que comparada con
+una columna de texto, el texto tiene que estar en UTC; para otra zona, se la
+lleva con \code{transformacion}. Un número se compara con todas sus cifras —\code{1e5}
+y el texto \code{"100000"} concuerdan; \code{0.1 + 0.2} y \code{0.3} no—. Si todas las
+columnas son duraciones (\code{difftime}), se comparan en segundos: una hora y
+sesenta minutos concuerdan. Un texto se compara por sus bytes, así que una
+palabra con la tilde compuesta y la misma con la tilde descompuesta son dos
+textos distintos.
 }
 \examples{
 senal_redundante(c("anio_fiscal", "anio_archivo"))

@@ -41,6 +41,18 @@
         valido_convertido <- valido_convertido & !is.na(convertido$sec) &
           convertido$sec < 60
       }
+      # La hora 24 es el mismo caso: `strptime()` acepta `24:00` y lo normaliza
+      # a la medianoche del dia siguiente, y `2024-01-31 24:00` se publicaba
+      # como el 1 de febrero. ISO 8601 la admite como fin del dia, pero el
+      # paquete no publica una fecha civil que nadie escribio. Ya normalizado,
+      # `convertido$hour` dice 0: la hora se lee del texto, los dos digitos
+      # antes del primer `:` -la parte de fecha no tiene ninguno-.
+      if (grepl("%H", formato, fixed = TRUE)) {
+        horas <- suppressWarnings(as.integer(
+          sub("^[^:]*([0-9]{2}):.*$", "\\1", valores, perl = TRUE)
+        ))
+        valido_convertido <- valido_convertido & !is.na(horas) & horas < 24L
+      }
       if (startsWith(formato, "%Y%m%d")) {
         anios <- suppressWarnings(as.integer(substr(valores, 1L, 4L)))
         valido_convertido <- valido_convertido &
@@ -82,11 +94,16 @@
       "[0-9]{1,2}\\.[0-9]{1,2}\\.[0-9]{2}",
       "[0-9]{2}-[0-9]{1,2}-[0-9]{1,2}"
     ),
+    # `%y-%m-%d` va en el grupo de `%d-%m-%y` y `%m-%d-%y`: con guion y dos
+    # cifras en cada parte, `01-02-03` es UNA escritura con tres lecturas. Fuera
+    # del grupo contaba como una representacion aparte -`formatos_fecha_mixtos`,
+    # severidad error, sobre una columna homogenea- y publicaba
+    # `n_inequivocos = n` para valores que los otros dos formatos leen igual.
     grupo_base = c(
       "", "", "",
       "", "barra4", "barra4", "guion4", "guion4", "", "punto4",
       "punto4", "", "barra2", "barra2", "guion2", "guion2",
-      "punto2", "punto2", ""
+      "punto2", "punto2", "guion2"
     ),
     anio_dos_digitos = c(rep(FALSE, 12L), rep(TRUE, 7L)),
     granularidad = c(rep("mes", 3L), rep("dia", 16L)),
@@ -175,6 +192,7 @@
   anios <- rep(NA_integer_, n)
   dos_digitos <- rep(FALSE, n)
   validos <- rep(FALSE, n)
+  nombres_mes <- rep(NA_character_, n)
   patrones <- list(
     list(
       expresion = paste0(
@@ -294,6 +312,25 @@
       anios[indices_validos] <- anios_candidatos[validos_candidatos]
       dos_digitos[indices_validos] <- dos_validos
       validos[indices_validos] <- TRUE
+      nombres_mes[indices_validos] <- nombres_validos
+    }
+  }
+  # `%B` o `%b` se decide por el largo del nombre, y `may` es las dos cosas: el
+  # nombre completo en ingles y la abreviatura de `mayo`. Etiquetado `%b`, una
+  # columna inglesa de nombres completos con un mayo publicaba dos
+  # representaciones -`formatos_fecha_mixtos`, severidad error-. Se le da la
+  # etiqueta de sus vecinos: si la misma estructura aparece con `%B` y no con
+  # `%b` en el resto de la columna, `may` es nombre completo; si no, queda como
+  # estaba.
+  es_may <- validos & !is.na(nombres_mes) & nombres_mes == "may"
+  if (any(es_may) && any(validos & !es_may)) {
+    resto <- unique(formatos[validos & !es_may])
+    for (formato in unique(formatos[es_may])) {
+      completo <- sub("%b", "%B", formato, fixed = TRUE)
+      if (!identical(completo, formato) && completo %in% resto &&
+          !formato %in% resto) {
+        formatos[es_may & formatos == formato] <- completo
+      }
     }
   }
   filas <- list()
@@ -360,9 +397,14 @@
 #'
 #' Reconoce formatos de fecha y fecha-hora sin escoger arbitrariamente entre
 #' día/mes y mes/día. Cuando todos los valores con barra, guion o punto son
-#' ambiguos, devuelve ambos formatos con estado `"candidato"`. El atributo
+#' ambiguos, devuelve todas sus lecturas posibles con estado `"candidato"`:
+#' día/mes y mes/día y, con guion y dos dígitos en cada parte (`01-02-03`),
+#' también año/mes/día. Esas lecturas son una sola representación. El atributo
 #' `formatos_mixtos`
 #' indica si hay evidencia de dos o más representaciones en la columna.
+#' El nombre `May` es a la vez el mes completo en inglés y la abreviatura de
+#' `mayo`: se cuenta como `%B` o `%b` según cómo escriba el mes el resto de la
+#' columna, y no como una representación aparte.
 #' Se aceptan días y meses con uno o dos dígitos. Los años de dos dígitos se
 #' detectan, pero siempre quedan como candidatos y se señalan en la columna
 #' `anio_dos_digitos`: el siglo no se interpreta en silencio.
@@ -376,6 +418,8 @@
 #' El formato compacto `%Y%m%d` exige un año entre 1800 y 2100 para evitar que
 #' identificadores de ocho dígitos se clasifiquen parcialmente como fechas.
 #' Una hora con segundo 60 no se acepta: R la leería como el minuto siguiente.
+#' Tampoco la hora `24:00`: R la leería como la medianoche del día siguiente,
+#' y el perfil publicaría una fecha que nadie escribió.
 #'
 #' @param x Vector de texto, fechas o fechas-hora.
 #' @param muestra Máximo de valores que se analizan.
@@ -537,77 +581,92 @@ detectar_formatos_fecha <- function(x, muestra = 1e5) {
   }
 
   grupos <- unique(especificaciones$grupo_ambiguo[especificaciones$ambiguo])
+  # Un grupo reune las lecturas posibles de una MISMA escritura: dia/mes y
+  # mes/dia, y con guion y dos cifras tambien ano/mes/dia. Estaba escrito para
+  # dos lecturas -`indice_dmy` e `indice_mdy`-; con la tercera se cuenta, para
+  # cada valor, cuantas lecturas del grupo lo aceptan. Con dos lecturas el
+  # resultado es el de siempre.
   for (grupo in grupos) {
     indices <- which(especificaciones$grupo_ambiguo == grupo)
-    indice_dmy <- indices[grepl("^%d[-/.]", especificaciones$formato[indices])]
-    indice_mdy <- indices[grepl("^%m[-/.]", especificaciones$formato[indices])]
-    mascara_dmy <- mascaras[[indice_dmy]]
-    mascara_mdy <- mascaras[[indice_mdy]]
-    solo_dmy <- mascara_dmy & !mascara_mdy
-    solo_mdy <- mascara_mdy & !mascara_dmy
-    ambiguos <- mascara_dmy & mascara_mdy
+    mascaras_grupo <- mascaras[indices]
+    lecturas <- Reduce(`+`, lapply(mascaras_grupo, as.integer))
+    ambiguos <- lecturas >= 2L
+    solos <- lapply(mascaras_grupo, function(mascara) mascara & lecturas == 1L)
+    con_solo <- vapply(solos, any, logical(1L))
+    con_valores <- vapply(mascaras_grupo, any, logical(1L))
     pesos_grupo <- pesos_numericos
-    anio_dos <- especificaciones$anio_dos_digitos[[indice_dmy]]
+    anio_dos <- any(especificaciones$anio_dos_digitos[indices])
     estado_resuelto <- if (anio_dos) "candidato" else "confirmado"
 
-    if (!any(mascara_dmy | mascara_mdy)) {
+    if (!any(con_valores)) {
       next
     }
     cubiertos[indices_numericos] <- cubiertos[indices_numericos] |
-      mascara_dmy | mascara_mdy
+      lecturas > 0L
 
-    if (!any(solo_dmy) && !any(solo_mdy)) {
+    if (!any(con_solo)) {
+      # Ningun valor tiene una sola lectura: todas las que leen algo son
+      # candidatas, y lo que cada una lee es ambiguo.
+      for (posicion in which(con_valores)) {
+        n_lee <- sum(pesos_grupo[mascaras_grupo[[posicion]]])
+        k <- k + 1L
+        filas[[k]] <- .fila_formato(
+          especificaciones$formato[[indices[[posicion]]]], n_lee, total,
+          estado = "candidato", n_inequivocos = 0L, n_ambiguos = n_lee,
+          grupo_ambiguo = grupo, anio_dos_digitos = anio_dos
+        )
+      }
+    } else if (sum(con_solo) == 1L) {
+      posicion <- which(con_solo)
+      mascara <- mascaras_grupo[[posicion]]
+      # Con tres lecturas puede quedar algo que la resuelta NO lee y otras dos
+      # si -`25-12-31` junto a `01-25-95`-: sigue siendo ambiguo entre ellas, se
+      # publica como tal en vez de quedar cubierto sin ninguna fila que lo
+      # cuente, y es una segunda representacion: la resuelta deja de compartir
+      # unidad con el grupo.
+      otras <- setdiff(which(con_valores), posicion)
+      hay_resto <- any(vapply(otras, function(otra) {
+        any(mascaras_grupo[[otra]] & !mascara)
+      }, logical(1L)))
       k <- k + 1L
       filas[[k]] <- .fila_formato(
-        especificaciones$formato[[indice_dmy]], sum(pesos_grupo[ambiguos]), total,
-        estado = "candidato", n_inequivocos = 0L,
-        n_ambiguos = sum(pesos_grupo[ambiguos]), grupo_ambiguo = grupo,
-        anio_dos_digitos = anio_dos
-      )
-      k <- k + 1L
-      filas[[k]] <- .fila_formato(
-        especificaciones$formato[[indice_mdy]], sum(pesos_grupo[ambiguos]), total,
-        estado = "candidato", n_inequivocos = 0L,
-        n_ambiguos = sum(pesos_grupo[ambiguos]), grupo_ambiguo = grupo,
-        anio_dos_digitos = anio_dos
-      )
-    } else if (any(solo_dmy) && !any(solo_mdy)) {
-      k <- k + 1L
-      filas[[k]] <- .fila_formato(
-        especificaciones$formato[[indice_dmy]], sum(pesos_grupo[mascara_dmy]), total,
+        especificaciones$formato[[indices[[posicion]]]],
+        sum(pesos_grupo[mascara]), total,
         estado = estado_resuelto,
-        n_inequivocos = sum(pesos_grupo[solo_dmy]),
-        n_ambiguos = sum(pesos_grupo[ambiguos]),
-        grupo_ambiguo = if (anio_dos) grupo else "",
+        n_inequivocos = sum(pesos_grupo[solos[[posicion]]]),
+        n_ambiguos = sum(pesos_grupo[mascara & ambiguos]),
+        grupo_ambiguo = if (anio_dos && !hay_resto) grupo else "",
         anio_dos_digitos = anio_dos
       )
-    } else if (!any(solo_dmy) && any(solo_mdy)) {
-      k <- k + 1L
-      filas[[k]] <- .fila_formato(
-        especificaciones$formato[[indice_mdy]], sum(pesos_grupo[mascara_mdy]), total,
-        estado = estado_resuelto,
-        n_inequivocos = sum(pesos_grupo[solo_mdy]),
-        n_ambiguos = sum(pesos_grupo[ambiguos]),
-        grupo_ambiguo = if (anio_dos) grupo else "",
-        anio_dos_digitos = anio_dos
-      )
+      for (otra in otras) {
+        resto <- mascaras_grupo[[otra]] & !mascara
+        if (!any(resto)) next
+        k <- k + 1L
+        filas[[k]] <- .fila_formato(
+          especificaciones$formato[[indices[[otra]]]],
+          sum(pesos_grupo[resto]), total,
+          estado = "candidato", n_inequivocos = 0L,
+          n_ambiguos = sum(pesos_grupo[resto]),
+          grupo_ambiguo = grupo, anio_dos_digitos = anio_dos
+        )
+      }
     } else {
-      k <- k + 1L
-      filas[[k]] <- .fila_formato(
-        especificaciones$formato[[indice_dmy]], sum(pesos_grupo[solo_dmy]), total,
-        estado = estado_resuelto,
-        n_inequivocos = sum(pesos_grupo[solo_dmy]),
-        n_ambiguos = sum(pesos_grupo[ambiguos]),
-        grupo_ambiguo = grupo, anio_dos_digitos = anio_dos
-      )
-      k <- k + 1L
-      filas[[k]] <- .fila_formato(
-        especificaciones$formato[[indice_mdy]], sum(pesos_grupo[solo_mdy]), total,
-        estado = estado_resuelto,
-        n_inequivocos = sum(pesos_grupo[solo_mdy]),
-        n_ambiguos = sum(pesos_grupo[ambiguos]),
-        grupo_ambiguo = grupo, anio_dos_digitos = anio_dos
-      )
+      # Dos o mas lecturas probadas cada una por valores que solo ella lee: son
+      # representaciones distintas, y cuentan como tales aunque el ano de dos
+      # cifras las deje candidatas. Con la unidad del grupo, `13/01/20` y
+      # `01/13/20` -o `25-12-95` y `95-12-25`- no eran formatos mixtos, y los
+      # mismos con ano de cuatro cifras si.
+      for (posicion in which(con_solo)) {
+        k <- k + 1L
+        filas[[k]] <- .fila_formato(
+          especificaciones$formato[[indices[[posicion]]]],
+          sum(pesos_grupo[solos[[posicion]]]), total,
+          estado = estado_resuelto,
+          n_inequivocos = sum(pesos_grupo[solos[[posicion]]]),
+          n_ambiguos = sum(pesos_grupo[ambiguos]),
+          grupo_ambiguo = "", anio_dos_digitos = anio_dos
+        )
+      }
     }
   }
 

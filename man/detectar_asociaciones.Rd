@@ -61,6 +61,11 @@ arreglos de más de una dimensión—, categóricas de cardinalidad alta y
 columnas posteriores a \code{max_columnas} antes de construir pares. Las
 dependencias funcionales exactas recibidas en \code{dependencias} no se repiten
 como asociaciones.
+
+Un par en el que una columna toma un solo valor en las filas completas no se
+puede medir —ni Cramér ni eta cuadrado están definidos con una sola
+categoría—, aunque la columna no sea constante en la tabla entera: va a
+\code{pares_omitidos_medicion} y no se publica como asociación cero.
 }
 \examples{
 d <- data.frame(x = 1:20, y = 2 * (1:20), grupo = rep(c("A", "B"), 10))

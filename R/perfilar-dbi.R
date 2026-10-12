@@ -10963,7 +10963,8 @@ print.plan_perfilado_dbi <- function(x, ...) {
 
 .valores_protegidos_fuera_de_muestra_dbi <- function(conexion, preparacion,
                                                      perfil, sensibles,
-                                                     presupuesto) {
+                                                     presupuesto,
+                                                     rellenos_columna = NULL) {
   completo <- list(valores = character(), completo = TRUE, motivo = NA_character_,
                    fechas = character())
   if (!length(sensibles) || !is.list(perfil)) return(completo)
@@ -11019,6 +11020,13 @@ print.plan_perfilado_dbi <- function(x, ...) {
       # cifras- sus fechas no entran al piso: la misma regla que en memoria,
       # `.columna_de_fechas()`. Por aca entraban enteras. Ronda 25.
       if (.columna_de_fechas(leidos)) leidos <- leidos[!.forma_de_fecha(leidos)]
+      # Los rellenos confirmados de ESTA columna no entran; los de otra, si.
+      if (is.data.frame(rellenos_columna) && nrow(rellenos_columna)) {
+        propios <- rellenos_columna$valor[
+          operar(rellenos_columna$columna) %in% operar(preparacion$campos[[indice]])
+        ]
+        leidos <- leidos[!.recortar_bytes(leidos) %in% propios]
+      }
       valores <- unique(c(valores, leidos))
     }
     if (length(valores) > .MAXIMO_VALORES_PROTEGIDOS_DBI) {
@@ -12179,14 +12187,28 @@ print.plan_perfilado_dbi <- function(x, ...) {
 # una cota inferior de la verdadera, asi que si alcanza, alcanza-. Sin conteo
 # exacto no se confirma ninguno y siguen en el piso: no se afloja una guarda
 # sobre lo que solo vio una muestra.
-.rellenos_confirmados_tabla_dbi <- function(detalle, muestreo, columnas, sql) {
-  if (!is.data.frame(detalle) || !nrow(detalle)) return(character())
+#
+# Con `universo = "muestra_motor"` no hay tabla entera: los conteos `calculado`
+# son los de la relacion muestreada por el motor, y con `muestra = Inf` la
+# muestra en R ES esa relacion (`tabla_completa`). No se confirma ninguno: la
+# cedula valida de un cliente frecuente se confirmaba como relleno sobre la
+# muestra del motor y salia en la moda de otra columna. Medido en la ronda 27.
+#
+# Devuelve los confirmados POR COLUMNA -`columna`, `valor`-: un relleno de la
+# cedula no saca del piso el mismo valor de otra columna protegida, como en
+# memoria (`.valores_publicables_protegidos()`).
+.rellenos_confirmados_tabla_dbi <- function(detalle, muestreo, columnas, sql,
+                                            universo = "tabla_completa") {
+  vacio <- data.frame(columna = character(), valor = character(),
+                      stringsAsFactors = FALSE)
+  if (!is.data.frame(detalle) || !nrow(detalle)) return(vacio)
+  if (!identical(universo, "tabla_completa")) return(vacio)
   if (is.list(muestreo) && isTRUE(muestreo$tabla_completa)) {
-    return(unique(detalle$valor))
+    return(unique(.seleccionar_columnas(detalle, c("columna", "valor"))))
   }
   if (!is.data.frame(columnas) ||
       !all(c("columna", "n_validos", "n_distintos") %in% names(columnas))) {
-    return(character())
+    return(vacio)
   }
   operar <- function(x) .nombres_para_operar(as.character(x))
   calculado <- function(columna, metrica) {
@@ -12196,7 +12218,7 @@ print.plan_perfilado_dbi <- function(x, ...) {
             as.character(sql$metrica) == metrica &
             as.character(sql$estado) == "calculado")
   }
-  confirmados <- character()
+  confirmados <- vacio
   for (columna in unique(detalle$columna)) {
     i <- match(operar(columna), operar(columnas$columna))
     if (is.na(i) || !calculado(columna, "n_validos") ||
@@ -12210,7 +12232,8 @@ print.plan_perfilado_dbi <- function(x, ...) {
     resto <- validos - sum(propios$cuenta)
     if (resto <= 0) next
     if ((distintos - nrow(propios)) / resto >= .TASA_CASI_CLAVE_RELLENO) {
-      confirmados <- c(confirmados, propios$valor)
+      confirmados <- rbind(confirmados,
+                           .seleccionar_columnas(propios, c("columna", "valor")))
     }
   }
   unique(confirmados)
@@ -13139,7 +13162,13 @@ print.plan_perfilado_dbi <- function(x, ...) {
 #' cliente con seiscientos movimientos salía como moda de otra columna. Con
 #' la tabla leída completa decide la muestra, que es la tabla; si no, la
 #' confirman los conteos exactos de la tabla —`n_distintos` y `n_validos`
-#' calculados—, y sin ellos el relleno sigue en el piso. Y la protección es
+#' calculados—, y sin ellos el relleno sigue en el piso. Con
+#' `universo = "muestra_motor"` no hay tabla entera que lo confirme —los
+#' conteos son los de la muestra del motor, y con `muestra = Inf` la muestra en
+#' R es esa misma relación—: el relleno sigue en el piso. Y sale del piso sólo
+#' en su columna, como en memoria: si otra columna protegida tiene el mismo
+#' valor —el `1.111.111-1` de relleno de `cedula` es la cédula de un cónyuge—,
+#' ese valor se sigue tapando. Y la protección es
 #' **por tabla**: un valor protegido de otra tabla escrito en ésta no se
 #' conoce; [perfilar_coleccion()] los cruza. Se traen hasta dos millones de valores; si hay más, o si la consulta
 #' no se puede hacer, se tapan todos los valores de celda de las columnas no
@@ -14081,10 +14110,11 @@ perfilar_dbi <- function(conexion, tabla,
       # Los rellenos que la tabla entera no confirma vuelven al piso: en el
       # resumen, en la lectura fuera de la muestra y en el perfil de la muestra,
       # que `perfilar()` protegio decidiendo sobre la muestra.
-      rellenos <- .rellenos_confirmados_tabla_dbi(
+      rellenos_columna <- .rellenos_confirmados_tabla_dbi(
         bloque$rellenos_detalle, bloque$muestreo, resumen$columnas,
-        resumen$sql
+        resumen$sql, universo = preparacion$universo
       )
+      rellenos <- unique(rellenos_columna$valor)
       no_confirmados <- setdiff(bloque$rellenos, rellenos)
       resumen <- .proteger_resumen_dbi(
         resumen, sensibles_muestra, "perfil_muestra", bloque$perfil,
@@ -14098,12 +14128,14 @@ perfilar_dbi <- function(conexion, tabla,
           as.character(resumen$columnas$columna)
         )
       }
+      # Los rellenos confirmados salen del piso SOLO en su columna: si otra
+      # columna protegida tiene el mismo valor, entra. Se sacaban de todas, y
+      # el `1.111.111-1` de relleno de `cedula` dejaba publicada la cedula
+      # `1.111.111-1` de un conyuge en la moda de `obs`. Ronda 27.
       fuera <- .valores_protegidos_fuera_de_muestra_dbi(
-        conexion, preparacion, bloque$perfil, sensibles_muestra, presupuesto
+        conexion, preparacion, bloque$perfil, sensibles_muestra, presupuesto,
+        rellenos_columna = rellenos_columna
       )
-      fuera$valores <- fuera$valores[
-        !.recortar_bytes(fuera$valores) %in% rellenos
-      ]
       if (isTRUE(fuera$completo)) {
         intocables <- as.character(resumen$columnas$columna)
         resumen <- .proteger_con_valores_dbi(

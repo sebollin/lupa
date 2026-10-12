@@ -260,7 +260,12 @@
   if (is.character(x) || is.factor(x)) {
     if (inferencia$tipo %in% c("entero", "doble")) {
       texto <- trimws(as.character(x))
-      valores <- suppressWarnings(as.numeric(sub(",", ".", texto, fixed = TRUE)))
+      # Con la convencion decimal que el perfil publica para la columna, no con
+      # un `sub(",", ".")` propio: ver `.leer_numeros_texto()`. Lo que esa
+      # convencion no puede leer se cuenta abajo como excluido.
+      valores <- .leer_numeros_texto(
+        texto, inferencia[["convencion_numero_texto"]]
+      )
       # Los textos presentes que no llegan a numero no son NA de origen y no
       # pueden desaparecer sin dejar alcance.
       #
@@ -1529,6 +1534,83 @@
   )
 }
 
+# Resuelve los separadores de un numero escrito como texto segun la convencion
+# decimal: con `decimal_coma` el punto agrupa miles y la coma es decimal; con
+# `decimal_punto`, al reves. Es el texto que la remediacion le pasa a
+# `as.numeric()` -`.texto_regional_normalizado()`- y el que el resumen
+# cuantitativo lee de la misma columna. Escrita una vez: el perfil publicaba
+# `numero_texto_convencion = "decimal_coma"` y resumia `1.500` como 1,5 con un
+# `sub(",", ".")` propio, mientras la limpieza del mismo paquete, con la
+# convencion publicada, convertia el mismo texto en 1500.
+.normalizar_separadores_numero <- function(texto, convencion) {
+  if (identical(convencion, "decimal_coma")) {
+    texto <- gsub(".", "", texto, fixed = TRUE)
+    sub(",", ".", texto, fixed = TRUE)
+  } else if (identical(convencion, "decimal_punto")) {
+    gsub(",", "", texto, fixed = TRUE)
+  } else {
+    texto
+  }
+}
+
+# El numero que el perfil lee en cada texto de una columna inferida entera o
+# doble, con la convencion decimal que el MISMO perfil publica en
+# `numero_texto_convencion` -si no llega, se calcula con la misma funcion que la
+# publica-.
+#
+# - `decimal_coma` y `decimal_punto`: la normalizacion compartida. El separador
+#   de miles solo vale agrupando de a tres; un punto que no agrupa en una columna
+#   de coma decimal no tiene lectura con esa convencion y queda afuera.
+# - `ambigua` y `mixta`: la columna no decide. Cada valor se lee con su PROPIA
+#   evidencia -`2,5` y `1.234,5` solo admiten una lectura- y el que no la tiene
+#   -`1.500`, `1,500`- queda afuera: elegir seria inventar, igual que con una
+#   fecha que dos formatos leen distinto.
+# - sin separadores, o sin convencion evaluada: la lectura de siempre.
+#
+# Lo que queda afuera vuelve `NA`, y quien llama lo cuenta y lo declara
+# (`n_valores_excluidos_resumen`), como cualquier texto que no llega a numero.
+.leer_numeros_texto <- function(texto, convencion = NULL) {
+  texto <- trimws(as.character(texto))
+  con_separador <- !is.na(texto) & grepl("[.,]", texto, perl = TRUE)
+  if (!any(con_separador)) return(suppressWarnings(as.numeric(texto)))
+  if (is.null(convencion)) {
+    convencion <- .analizar_numeros_texto(texto)$convencion
+  }
+  convencion <- if (length(convencion) == 1L && !is.na(convencion)) {
+    as.character(convencion)
+  } else ""
+  if (identical(convencion, "es-UY")) convencion <- "decimal_coma"
+  normalizado <- texto
+  if (convencion %in% c("decimal_coma", "decimal_punto")) {
+    coma <- identical(convencion, "decimal_coma")
+    miles <- if (coma) "." else ","
+    agrupado <- if (coma) {
+      "^[+-]?[0-9]{1,3}(?:\\.[0-9]{3})+(?:,[0-9]+)?$"
+    } else {
+      "^[+-]?[0-9]{1,3}(?:,[0-9]{3})+(?:\\.[0-9]+)?$"
+    }
+    con_miles <- con_separador & grepl(miles, texto, fixed = TRUE)
+    sin_lectura <- con_miles & !grepl(agrupado, texto, perl = TRUE)
+    normalizado[sin_lectura] <- NA_character_
+    normalizado <- .normalizar_separadores_numero(normalizado, convencion)
+  } else if (convencion %in% c("ambigua", "mixta")) {
+    partes <- .componentes_numero_texto(texto[con_separador])
+    propia <- rep(NA_character_, sum(con_separador))
+    propia[partes$evidencia_coma & !partes$evidencia_punto] <- "decimal_coma"
+    propia[partes$evidencia_punto & !partes$evidencia_coma] <- "decimal_punto"
+    leidos <- texto[con_separador]
+    for (lectura in c("decimal_coma", "decimal_punto")) {
+      cuales <- !is.na(propia) & propia == lectura
+      leidos[cuales] <- .normalizar_separadores_numero(leidos[cuales], lectura)
+    }
+    leidos[is.na(propia)] <- NA_character_
+    normalizado[con_separador] <- leidos
+  } else {
+    normalizado <- sub(",", ".", texto, fixed = TRUE)
+  }
+  suppressWarnings(as.numeric(normalizado))
+}
+
 .frecuencias_unidades_numero <- function(partes, presentes) {
   unidades <- partes$unidad[presentes & partes$compatible & nzchar(partes$unidad)]
   if (!length(unidades)) return(stats::setNames(integer(), character()))
@@ -2513,23 +2595,6 @@
     class(estructura) <- c("patrones", "data.frame")
     estructura
   }
-  secuencia_entera <- .resumen_secuencia_entera(
-    x_analisis, inferencia, formatos
-  )
-  attr(patrones, "desvios_patron_raro") <-
-    .desvios_patron_raro_detectados(
-      patrones, secuencia_entera$densa, umbral_patron_raro
-    )
-  # La mascara se calcula en UNA funcion, que tambien usa `detectar_claves()`.
-  faltantes_disfrazados <- .faltantes_disfrazados_columna(
-    x_analisis, inferencia, formatos, secuencia_entera, sentinelas_numericos,
-    sentinelas_declarados, cadenas_ausencia, aplicable
-  )
-  rol_propuesto <- .propuesta_escala(x, inferencia$tipo)$rol
-  casi_clave <- .resumen_casi_clave(
-    x_analisis, rol = rol_propuesto, tipo_implicito = inferencia$tipo,
-    disfrazados = faltantes_disfrazados$mascara
-  )
   # `NROW()` y no `length()`. Para un vector son lo mismo; para una columna cuyo
   # valor es un `data.frame` -lo que devuelve un driver al leer un `STRUCT`- o una
   # matriz, `length()` cuenta sus CAMPOS y no sus filas: medido, una columna
@@ -2584,6 +2649,38 @@
   } else {
     NULL
   }
+  vocabulario_numeros <- if (
+    is.null(vocabulario_texto) &&
+      (is.character(x_analisis) || is.factor(x_analisis))
+  ) x_analisis else vocabulario_texto
+  numeros_texto <- .analizar_numeros_texto(
+    x_analisis, vocabulario = vocabulario_numeros, n_distintos = n_distintos,
+    directo = is.null(vocabulario_texto) &&
+      (is.character(x_analisis) || is.factor(x_analisis))
+  )
+  # La convencion decimal que la fila publica viaja con la inferencia a TODO lo
+  # que lee la columna como numero -la secuencia entera, los faltantes
+  # disfrazados, el resumen cuantitativo-, y por eso se calcula antes que ellos:
+  # leian `1.500` como 1,5 al lado de `numero_texto_convencion = "decimal_coma"`.
+  # Ver `.leer_numeros_texto()`.
+  inferencia$convencion_numero_texto <- numeros_texto$convencion
+  secuencia_entera <- .resumen_secuencia_entera(
+    x_analisis, inferencia, formatos
+  )
+  attr(patrones, "desvios_patron_raro") <-
+    .desvios_patron_raro_detectados(
+      patrones, secuencia_entera$densa, umbral_patron_raro
+    )
+  # La mascara se calcula en UNA funcion, que tambien usa `detectar_claves()`.
+  faltantes_disfrazados <- .faltantes_disfrazados_columna(
+    x_analisis, inferencia, formatos, secuencia_entera, sentinelas_numericos,
+    sentinelas_declarados, cadenas_ausencia, aplicable
+  )
+  rol_propuesto <- .propuesta_escala(x, inferencia$tipo)$rol
+  casi_clave <- .resumen_casi_clave(
+    x_analisis, rol = rol_propuesto, tipo_implicito = inferencia$tipo,
+    disfrazados = faltantes_disfrazados$mascara
+  )
   vocabulario_fecha <- if (
     (is.character(x_analisis) || is.factor(x_analisis)) &&
       inferencia$tipo %in% c("fecha", "fecha-hora")
@@ -2627,15 +2724,6 @@
     }
   }
   diagnostico_texto <- .diagnosticar_texto(x_texto, vocabulario = vocabulario_texto)
-  vocabulario_numeros <- if (
-    is.null(vocabulario_texto) &&
-      (is.character(x_analisis) || is.factor(x_analisis))
-  ) x_analisis else vocabulario_texto
-  numeros_texto <- .analizar_numeros_texto(
-    x_analisis, vocabulario = vocabulario_numeros, n_distintos = n_distintos,
-    directo = is.null(vocabulario_texto) &&
-      (is.character(x_analisis) || is.factor(x_analisis))
-  )
   multivaluados <- if (is.character(x_analisis) || is.factor(x_analisis)) {
     .detectar_multivaluados(x_analisis)
   } else list()

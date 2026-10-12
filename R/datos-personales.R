@@ -1081,11 +1081,27 @@
 # Los espacios de Unicode como un espacio, y los signos ASCII de ancho
 # completo (U+FF01 a U+FF5E) como su forma ASCII. Solo para LEER el correo: lo
 # que sale es una forma mas de comparacion, no el texto publicado.
+#
+# Y las demas FORMAS DE COMPATIBILIDAD de un signo ASCII, las que la regla de
+# digitos ya leia: los parentesis blancos anchos (U+FF5F, U+FF60) y sus no
+# anchos (U+2985, U+2986), el punto ideografico (U+3002) y el de medio ancho
+# (U+FF61), las variantes chicas (U+FE50 a U+FE6B: la coma, el punto, el punto
+# y coma, los parentesis, la arroba...), la barra partida (U+00A6) y su ancha
+# (U+FFE4) como barra vertical, y el salto de linea de C1 (U+0085), que es un
+# espacio de Unicode y PCRE no lo casa con `\\p{Z}`. Medido en la ronda 27: el
+# correo `juan.perez<U+FF5F>at<U+FF60>empresa.com.uy`, el dominio con el punto
+# ideografico y la fecha con hora con la arroba chica se publicaban, mientras
+# la cedula escrita con esos mismos puntos se tapaba.
 .ancho_y_espacios_ascii <- local({
-  anchos <- intToUtf8(0xFF01:0xFF5E)
-  ascii <- intToUtf8(0x21:0x7E)
+  # Sin las rayas chicas (U+FE58, U+FE63): `chartr()` lee un guion entre dos
+  # caracteres como un rango, y la regla de digitos ya las lleva al guion.
+  anchos <- intToUtf8(c(0xFF01:0xFF5E, 0xFF5F, 0xFF60, 0x2985, 0x2986, 0x3002,
+                        0xFF61, 0x00A6, 0xFFE4, 0xFE50:0xFE52, 0xFE54:0xFE57,
+                        0xFE59:0xFE5C, 0xFE5F:0xFE62, 0xFE64:0xFE66,
+                        0xFE68:0xFE6B))
+  ascii <- intToUtf8(c(0x21:0x7E, utf8ToInt("()()..||,,.;:?!(){}#&*+<>=\\$%@")))
   function(textos) {
-    textos <- gsub("[\\p{Z}\\t]", " ", textos, perl = TRUE)
+    textos <- gsub("[\\p{Z}\\t\u0085]", " ", textos, perl = TRUE)
     chartr(anchos, ascii, textos)
   }
 })
@@ -1843,7 +1859,8 @@
 
 .reemplazar_valores_protegidos <- function(x, valores, exigir_limites = FALSE,
                                            intocables = character(),
-                                           apartar_iguales = FALSE) {
+                                           apartar_iguales = FALSE,
+                                           nombres_iguales = NULL) {
   if (!is.character(x) || !length(valores)) return(x)
   # DE MAS LARGO A MAS CORTO, y una sola vez cada uno. Las dos cosas arreglan una
   # fuga medida con el piso del propio paquete -seis caracteres identifican-:
@@ -1890,7 +1907,10 @@
   nombres <- if (isTRUE(apartar_iguales)) {
     setdiff(unique(as.character(intocables)), "")
   } else setdiff(unique(as.character(intocables)), c(valores, ""))
-  if (length(nombres) && !isTRUE(apartar_iguales)) {
+  if (length(nombres) && !isTRUE(apartar_iguales) && !is.null(nombres_iguales)) {
+    # Ya calculados por quien llama (`.nombres_iguales_a_valores()`).
+    nombres <- setdiff(nombres, nombres_iguales)
+  } else if (length(nombres) && !isTRUE(apartar_iguales)) {
     # Tampoco uno que es el valor con otra caja o con otros separadores: una
     # columna `juan_perez` frente al titular protegido "Juan Perez" dejaria
     # publicado "juan_perez" en una celda. `tolower()` aborta sobre bytes que no
@@ -2036,8 +2056,17 @@
   # parten por los separadores del paquete y cada pieza tiene que ser un nombre.
   # Primero el valor entero, porque un nombre de columna puede llevar una coma.
   restantes <- valores[!exactos]
+  # Por bytes, como el resto del barrido: sin `useBytes`, `strsplit()` AVISA
+  # "input string 1 is invalid UTF-8" por cada texto `latin1` sin marca -el que
+  # deja `read.csv()` sin declarar la codificacion- y, con `options(warn = 2)`,
+  # `perfilar()` abortaba. Medido en la ronda 27. Los separadores son ASCII, asi
+  # que cortar por bytes da las mismas piezas; se les devuelve la marca del texto,
+  # que el corte por bytes no conserva.
   compuestos <- vapply(restantes, function(v) {
-    piezas <- strsplit(v, "\\s*(,|\\+|\\|)\\s*", perl = TRUE)[[1L]]
+    piezas <- strsplit(v, "\\s*(,|\\+|\\|)\\s*", perl = TRUE,
+                       useBytes = TRUE)[[1L]]
+    marca <- Encoding(v)
+    if (marca %in% c("latin1", "UTF-8")) Encoding(piezas) <- marca
     piezas <- piezas[nzchar(piezas)]
     length(piezas) > 1L && all(.nombres_para_operar(piezas) %in% claves)
   }, logical(1L), USE.NAMES = FALSE)
@@ -2178,17 +2207,74 @@
   unique(vocabulario)
 }
 
+# Los campos que REFIEREN columnas: ahi un nombre de columna es estructura aunque
+# sea igual a un valor protegido -una planilla pivoteada por persona tiene una
+# columna `Florencia Rodriguez` y una docente protegida con ese nombre-. El plan
+# lo necesita para ejecutar, y la columna se publica igual en `columnas$columna`.
+# Fuera de estos campos (y de los de vocabulario), un campo hecho SOLO de nombres
+# que son valores protegidos es un campo de VALORES: los ejemplos de `aprobo`,
+# sus niveles observados, la configuracion propuesta. La lista falla para el
+# lado cerrado: un campo de nombres que falte aca se tapa en ese caso -raro-,
+# no se publica.
+.CAMPOS_DE_NOMBRES <- c(
+  "determinante", "dependiente", "variable", "objeto", "objeto_medible",
+  "atributo", "atributos", "atributos_ligados", "grupo", "por", "clave",
+  "claves", "identificador"
+)
+.PATRON_CAMPOS_DE_NOMBRES <- "^(columna|columnas|nombres)(_[a-z_]+)?$"
+
+.es_campo_de_nombres <- function(campo) {
+  !is.null(campo) && length(campo) == 1L && !is.na(campo) &&
+    (campo %in% .CAMPOS_DE_NOMBRES || campo %in% .CAMPOS_DE_VOCABULARIO ||
+       grepl(.PATRON_CAMPOS_DE_NOMBRES, campo))
+}
+
+# Los nombres apartados que, plegados, SON un valor protegido -con la clave de
+# `.reemplazar_valores_protegidos()`: pliegue de tildes, caja y escritura, sin
+# separadores-. Se calcula una vez por barrido y se pasa a las dos puertas que
+# la necesitan, el recorrido y el reemplazo: plegar los valores es lo caro, y el
+# reemplazo lo hacia por su cuenta.
+.nombres_iguales_a_valores <- function(nombres, valores) {
+  nombres <- setdiff(unique(as.character(nombres)), "")
+  nombres <- nombres[!is.na(nombres)]
+  if (!length(nombres) || !length(valores)) return(character())
+  clave <- function(v) {
+    plegado <- tryCatch(.plegar_para_comparar(v), error = function(e) as.character(v))
+    tryCatch(
+      gsub("[^\\p{L}\\p{N}]", "", plegado, perl = TRUE),
+      error = function(e) gsub("[^[:alnum:]]", "", plegado, useBytes = TRUE)
+    )
+  }
+  nombres[nombres %in% valores | clave(nombres) %in% clave(valores)]
+}
+
+# Se saltea esta hoja por ser estructura? Si todos sus valores son nombres o
+# vocabulario -como antes-, salvo que alguno sea un valor protegido y el campo no
+# refiera columnas: ahi es un campo de valores y se barre, y el reemplazo no
+# aparta esos nombres. Medido en la ronda 27: `patrones$aprobo$ejemplos` decia
+# `Florencia Rodriguez | Martin Gomez` -dos docentes protegidas- porque la tabla
+# tenia columnas con esos nombres, y lo mismo `niveles_observados`, la
+# configuracion propuesta y el informe HTML.
+# `sin_iguales`: los intocables sin esos nombres, calculados una vez por barrido;
+# NULL si no hay ninguno, que es lo corriente.
+.saltear_hoja_de_nombres <- function(x, intocables, sin_iguales, campo) {
+  if (!.es_columna_de_nombres(x, intocables)) return(FALSE)
+  if (is.null(sin_iguales) || .es_campo_de_nombres(campo)) return(TRUE)
+  .es_columna_de_nombres(x, sin_iguales)
+}
+
 # `aplicar` recibe la hoja y el nombre del campo de donde viene -la columna, el
 # elemento de lista o el atributo, heredado hacia adentro-, para que el barrido
 # pueda tratar distinto la prosa del paquete y los valores.
 .recorrer_textos_salida <- function(x, aplicar, intocables = character(),
-                                    campo = NULL) {
+                                    campo = NULL, sin_iguales = NULL) {
   atributos <- attributes(x)
   estructurales <- c("names", "class", "row.names", "dim", "dimnames")
   adicionales <- setdiff(names(atributos), estructurales)
   for (atributo in adicionales) {
     attr(x, atributo) <- .recorrer_textos_salida(
-      attr(x, atributo, exact = TRUE), aplicar, intocables, campo = atributo
+      attr(x, atributo, exact = TRUE), aplicar, intocables, campo = atributo,
+      sin_iguales = sin_iguales
     )
   }
   if (inherits(x, "data.frame")) {
@@ -2202,11 +2288,12 @@
       # `fecha_[valor protegido]` y `planificar_limpieza()` y `analizar()`
       # abortaban. Se saltean en las DOS pasadas, asi que las hojas siguen
       # alineadas: la decision depende solo del contenido original.
+      nombre_columna <- names(x)[[j]]
       if ((is.character(columna) || is.factor(columna)) &&
-          .es_columna_de_nombres(columna, intocables)) {
+          .saltear_hoja_de_nombres(columna, intocables, sin_iguales,
+                                   nombre_columna)) {
         next
       }
-      nombre_columna <- names(x)[[j]]
       if (is.character(columna)) {
         x[[j]] <- aplicar(columna, nombre_columna)
       } else if (is.factor(columna)) {
@@ -2215,7 +2302,8 @@
       } else if (is.list(columna)) {
         x[[j]] <- lapply(
           columna, .recorrer_textos_salida,
-          aplicar = aplicar, intocables = intocables, campo = nombre_columna
+          aplicar = aplicar, intocables = intocables, campo = nombre_columna,
+          sin_iguales = sin_iguales
         )
       }
     }
@@ -2227,7 +2315,8 @@
       propio <- if (!is.null(nombres) && !is.na(nombres[[i]]) &&
                     nzchar(nombres[[i]])) nombres[[i]] else campo
       elemento <- .recorrer_textos_salida(
-        x[[i]], aplicar = aplicar, intocables = intocables, campo = propio
+        x[[i]], aplicar = aplicar, intocables = intocables, campo = propio,
+        sin_iguales = sin_iguales
       )
       if (is.null(elemento)) {
         x[i] <- list(NULL)
@@ -2242,7 +2331,7 @@
   # protegido, `segundo_nombre` salia `[valor protegido]_nombre` en esos
   # atributos. Medido en la cuarta evaluacion real.
   if (is.character(x)) {
-    if (.es_columna_de_nombres(x, intocables)) return(x)
+    if (.saltear_hoja_de_nombres(x, intocables, sin_iguales, campo)) return(x)
     return(aplicar(x, campo))
   }
   x
@@ -2273,6 +2362,8 @@
     intocables, .nombres_derivados_de_columnas(intocables),
     .vocabulario_de_objeto(x)
   )
+  iguales <- .nombres_iguales_a_valores(intocables, valores)
+  sin_iguales <- if (length(iguales)) setdiff(intocables, iguales)
   cofre <- new.env(parent = emptyenv())
   cofre$hojas <- list()
   cofre$prosa <- list()
@@ -2287,7 +2378,7 @@
         grepl(.PATRON_CAMPOS_DE_SQL, campo), length(hoja)
     )
     hoja
-  }, intocables))
+  }, intocables, sin_iguales = sin_iguales))
   if (!length(cofre$hojas)) return(x)
   textos <- unlist(cofre$hojas, use.names = FALSE)
   prosa <- unlist(cofre$prosa, use.names = FALSE)
@@ -2296,7 +2387,7 @@
   if (any(!sql)) {
     protegidas[!sql] <- .reemplazar_valores_protegidos(
       textos[!sql], valores, exigir_limites = prosa[!sql],
-      intocables = intocables
+      intocables = intocables, nombres_iguales = iguales
     )
   }
   if (any(sql)) {
@@ -2313,7 +2404,7 @@
     # vector y hay que devolverlos.
     attributes(tramo) <- attributes(hoja)
     tramo
-  }, intocables)
+  }, intocables, sin_iguales = sin_iguales)
 }
 
 # Los campos numericos que son ESTRUCTURA -cuentan, ubican o configuran- y no un
@@ -2333,6 +2424,13 @@
 # puede llevar un valor de la tabla -`minimo`, `maximo`, `media`, `mediana`,
 # `valor`, `resultado`, `rango`, `desvio`, `centinela_valor`, las coordenadas- no
 # esta, y tampoco lo que se deriva de valores, como `ordenes_magnitud`.
+#
+# `soporte_minimo` y `cumplimiento` -de la imputacion por dependencia- son la
+# configuracion de la accion: el soporte lo declara el usuario y el cumplimiento
+# es una proporcion. Con una columna `id_persona = 1..40` protegida, el 2 del
+# soporte coincidia con un valor y salia NA, y `aplicar()` dejaba la imputacion
+# `fallida` ("no conserva un soporte de dependencia valido"). Medido en la ronda
+# 27 por la guarda que recorre todos los parametros del plan.
 .PATRON_NUMERICO_DE_ESTRUCTURA <- paste0(
   "^(n|n_.+|indices_.+|fila|filas|filas_.+|total|.+_totales|valores_evaluados|",
   "pares_.+|celdas|celdas_.+|columnas|columnas_.+|lote|lotes_.+|tamano_.+|",
@@ -2341,7 +2439,8 @@
   "minima_proporcion_positivos|prop_.+|proporcion|proporcion_.+|fraccion|",
   "tasa_.+|version_.+|consulta_id|id_consulta|consultas_.+|emitidas|",
   "llamadas_.+|bloques_.+|muestra|muestra_.+|presupuesto|mostrados|frecuencia|",
-  "frecuencia_.+|absoluta|relativa|longitud_.+|centinela_repeticiones)$"
+  "frecuencia_.+|absoluta|relativa|longitud_.+|centinela_repeticiones|",
+  "soporte_minimo|cumplimiento)$"
 )
 
 # Solo una HOJA numerica se saltea, nunca un contenedor: el perfil tiene un
@@ -2508,6 +2607,7 @@
   identificantes <- .valores_identificantes(
     valores, .fechas_que_identifican(datos, sensibles)
   )
+  parametros_originales <- if (is.list(plan$parametros)) plan$parametros
   plan <- .proteger_textos_salida(
     plan, identificantes, intocables = nombres_entrada
   )
@@ -2522,16 +2622,27 @@
       valores, .rellenos_de_columnas(datos, sensibles)
     ))
     antes <- plan$parametros
+    # Con los nombres de la entrada INTOCABLES, como el barrido de todo el plan
+    # de arriba. Sin ellos, con "Segundo" -un nombre de pila- protegido en
+    # `Segundo Nombre`, la marca `.ausente_Segundo.Nombre` de su accion salia
+    # `[valor protegido]` y `aplicar()` creaba en los datos una columna con ese
+    # nombre; y el `dependiente` de su imputacion salia tapado y la accion
+    # quedaba `fallida`. Lo que el plan EJECUTA -los nombres de columna y los
+    # que deriva de ellos- guarda su valor real. Medido en la ronda 27, en la
+    # llamada por omision: era la puerta de al lado de la ronda 26.
     plan$parametros <- I(lapply(seq_along(plan$parametros), function(i) {
       parametros <- plan$parametros[[i]]
       if (isTRUE(propias[[i]])) {
-        parametros <- .proteger_textos_salida(parametros, valores_columna)
+        parametros <- .proteger_textos_salida(
+          parametros, valores_columna, intocables = nombres_entrada
+        )
         .proteger_numeros_parametros(parametros, valores_columna)
       } else {
         .proteger_numeros_parametros(parametros, identificantes)
       }
     }))
     plan <- .centinelas_en_columnas_protegidas(plan, antes, propias, datos)
+    plan <- .marcar_mapas_tapados(plan, parametros_originales)
   }
   cobertura <- attr(plan, "cobertura_diagnosticos", exact = TRUE)
   if (inherits(cobertura, "data.frame")) {
@@ -2559,6 +2670,42 @@
   # ejemplos. Llevar sólo los nombres de columnas permite enmascararlos en esa
   # salida sin serializar ni publicar los valores protegidos.
   attr(plan, "columnas_datos_personales_protegidas") <- sensibles
+  plan
+}
+
+# El MAPA de una imputacion por dependencia que la proteccion toco -una clave o un
+# valor que contiene un valor protegido- ya no es la relacion: se marca
+# `mapa_enmascarado` y `aplicar()` la reconstruye sobre los datos que recibe, con
+# el soporte declarado. Se marcaba solo cuando la determinante o la dependiente
+# ERA una columna protegida, y el piso tapa despues por CONTENIDO cualquier celda
+# del mapa: con "Rodriguez Perez" protegido en `titular`, el mapa de `cod_suc ->
+# sucursal` decia `S01 -> Farmacia [valor protegido]`, la accion `lista` quedaba
+# `fallida` ("los datos actuales contradicen la dependencia") y, al reves
+# (`sucursal -> cod_suc`), `ejecutada` con 12 de 24 celdas y sin avisar. Medido
+# en la ronda 27. Es el mismo mecanismo que el centinela tapado de una columna
+# protegida (`valores_enmascarados`): lo que se ejecuta se resuelve sobre los
+# datos y el plan no publica el valor.
+#
+# Se decide comparando el mapa antes y despues de TODOS los barridos, asi que no
+# depende de que regla lo tapo: el piso de texto, el numerico o el por columna.
+.marcar_mapas_tapados <- function(plan, originales) {
+  if (!inherits(plan, "data.frame") || !is.list(plan$parametros) ||
+      !is.list(originales) || length(originales) != length(plan$parametros)) {
+    return(plan)
+  }
+  estrategias <- as.character(plan$estrategia)
+  for (i in which(startsWith(estrategias, "imputar_dependencia_funcional__"))) {
+    parametros <- plan$parametros[[i]]
+    original <- originales[[i]]
+    if (!is.list(parametros) || !is.list(original) ||
+        isTRUE(parametros$mapa_enmascarado)) {
+      next
+    }
+    if (!identical(parametros$mapa, original$mapa)) {
+      parametros$mapa_enmascarado <- TRUE
+      plan$parametros[[i]] <- parametros
+    }
+  }
   plan
 }
 

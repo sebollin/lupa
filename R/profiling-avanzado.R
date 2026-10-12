@@ -110,7 +110,15 @@
   # -ronda 25: como `NA` casaban entre si en relaciones y referencial-, pero
   # esta tabla los PUBLICA, y un byte suelto no es texto que se pueda escribir
   # en el reporte. Aca se siguen descartando, y se cuentan abajo.
-  textos[.texto_analizable(valores)$invalidos] <- NA_character_
+  #
+  # `NA` a secas y no `NA_character_`: asignar un texto a un vector de dobles lo
+  # convierte ENTERO a texto aunque el indice sea todo `FALSE`, y
+  # `as.character()` escribe 15 cifras. La tabla agrupaba por esa escritura:
+  # `0.1 + 0.2` y `0.3` salian un solo valor con frecuencia 3, y `1e15` y
+  # `1e15 + 1`, uno con 2, mientras `perfilar()` contaba bien sobre los mismos
+  # datos. Medido en la ronda 27. Un `NA` logico conserva el tipo de la clave, y
+  # los dobles se agrupan por valor.
+  textos[.texto_analizable(valores)$invalidos] <- NA
   # Cuantos se perdieron aca, ANTES de descartarlos. Lo que no se puede
   # publicar -bytes invalidos, sobre todo- queda en `NA` y
   # la linea siguiente los saca. La proporcion se calcula entonces sobre los
@@ -139,7 +147,18 @@
   # `as.character()` porque la columna publicada es de texto siempre: sobre una
   # columna `raw`, `valores` es `raw` y `rbind()` de las tablas por columna
   # aborta con "incompatible types (from integer to raw)". Lo atrapo la suite.
-  publicables <- as.character(valores)[!is.na(textos)]
+  #
+  # Y un doble se publica con la escritura que vuelve a SU valor: agrupados por
+  # valor, `0.1 + 0.2` y `0.3` son dos filas, y con `as.character()` las dos se
+  # publicaban "0.3". Son 15 cifras cuando alcanzan, que es casi siempre.
+  validos <- valores[!is.na(textos)]
+  publicables <- if ((is.double(validos) || is.complex(validos)) &&
+                     !inherits(validos, c("Date", "POSIXt", "difftime",
+                                          "integer64"))) {
+    .etiqueta_numero_reversible(validos)
+  } else {
+    as.character(validos)
+  }
   textos <- textos[!is.na(textos)]
   if (!length(textos)) {
     return(list(tabla = data.frame(
@@ -154,8 +173,19 @@
   indices <- match(textos, unicos)
   conteos <- tabulate(indices, nbins = length(unicos))
   # El primer valor publicable de cada grupo, que es el que representa al grupo.
-  representantes <- publicables[match(seq_along(unicos), indices)]
-  orden <- order(-conteos, seq_along(conteos))
+  primeros <- match(seq_along(unicos), indices)
+  representantes <- publicables[primeros]
+  # A igual frecuencia, por VALOR y no por primera aparicion: con `max_valores`
+  # el valor que sobrevivia al recorte dependia del orden del archivo -`b, b, a,
+  # a, c` publicaba `b` y la misma tabla reordenada, `a`, con `perfilar()`
+  # diciendo `a` en los dos-. Es el desempate de la moda, `.moda_de_mapa()`:
+  # el texto por sus bytes y lo demas por `.orden_seguro()`, que ordena los
+  # numeros como numeros. Medido en la ronda 27.
+  originales <- validos[primeros]
+  if (is.factor(originales)) originales <- as.character(originales)
+  posicion_valor <- integer(length(originales))
+  posicion_valor[.orden_seguro(originales)] <- seq_along(originales)
+  orden <- order(-conteos, posicion_valor)
   seleccion <- utils::head(orden, max_valores)
   tabla <- data.frame(
     valor = if (protegida) rep("[valor protegido]", length(seleccion)) else {
@@ -208,6 +238,14 @@
 #' `"no_interpolable:<clase>"`, que nombra la clase que no se pudo interpolar. La
 #' condición se mide intentando el cálculo, no enumerando clases, así que una clase
 #' nueva con la misma limitación queda cubierta sin tocar el código.
+#'
+#' Las frecuencias se cuentan **por valor, no por su escritura**: dos dobles
+#' que coinciden en sus primeras 15 cifras —`0.1 + 0.2` y `0.3`, `1e15` y
+#' `1e15 + 1`— son dos filas, como los cuenta [perfilar()], y cada una se
+#' escribe con las cifras que la devuelven a su valor. A igual frecuencia, las
+#' filas se ordenan por valor —el texto por sus bytes, los números como
+#' números—, el mismo desempate que la moda de [perfilar()]: así, el recorte de
+#' `max_valores` no depende del orden de las filas de la tabla.
 #'
 #' @param datos Tabla que se desea examinar.
 #' @param perfil Perfil opcional de los mismos datos; evita repetir la
@@ -424,6 +462,13 @@ distribucion_valores <- function(datos, perfil = NULL, max_valores = 20L,
   total <- sum((numero - media)^2)
   if (!is.finite(total) || total == 0) return(NA_real_)
   grupos <- split(numero, .nombres_para_operar(categoria), drop = TRUE)
+  # Con un solo grupo en las filas completas no hay variacion entre grupos que
+  # comparar: eta cuadrado no esta definida, como Cramer con una sola fila o
+  # columna -que ya devolvia `NA`-. Devolvia 0 y el par se publicaba como "no
+  # hay asociacion", o desaparecia bajo el umbral, cuando no se habia podido
+  # medir. Medido en la ronda 27: la misma situacion daba `eta2 = 0` publicado
+  # y, con dos categoricas, un par omitido y declarado.
+  if (length(grupos) < 2L) return(NA_real_)
   entre <- sum(vapply(grupos, function(x) length(x) * (mean(x) - media)^2,
                        numeric(1L)))
   entre / total
@@ -456,6 +501,11 @@ distribucion_valores <- function(datos, perfil = NULL, max_valores = 20L,
 #' columnas posteriores a `max_columnas` antes de construir pares. Las
 #' dependencias funcionales exactas recibidas en `dependencias` no se repiten
 #' como asociaciones.
+#'
+#' Un par en el que una columna toma un solo valor en las filas completas no se
+#' puede medir —ni Cramér ni eta cuadrado están definidos con una sola
+#' categoría—, aunque la columna no sea constante en la tabla entera: va a
+#' `pares_omitidos_medicion` y no se publica como asociación cero.
 #'
 #' @param datos Tabla que se desea examinar.
 #' @param dependencias Resultado opcional de [detectar_dependencias()].

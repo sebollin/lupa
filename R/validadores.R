@@ -80,6 +80,23 @@
   if (!is.atomic(x) || is.list(x)) {
     stop("`x` debe ser un vector atomico.", call. = FALSE)
   }
+  # Una MAGNITUD con clase -fecha, fecha-hora, duracion, unidad- no es la
+  # escritura de un documento: su numero cuenta dias, segundos o metros. Se
+  # pregunta por la clase y no por una lista de clases -la leccion de
+  # `.es_numerico_pelado()`-: un `Date` y un `POSIXct` abortaban en
+  # `abs(x) < 2^53` (`Math.Date`), `units` abortaba en su aritmetica, y `hms` y
+  # `difftime` validaban sus segundos como cedula. El contrato es por valor: el
+  # ausente devuelve `NA` y todo presente que no cumple, `FALSE`. Las dos clases
+  # con numero de almacenamiento cuyo valor SI es el dato son `factor` -sus
+  # niveles son texto- e `integer64` -sus digitos, exactos-.
+  if (typeof(x) %in% c("double", "integer") && !is.factor(x) &&
+      !inherits(x, "integer64") &&
+      length(setdiff(oldClass(x), "AsIs"))) {
+    ausente <- is.na(unclass(x))
+    texto <- rep("", length(x))
+    texto[ausente] <- NA_character_
+    return(list(texto = texto, valido = rep(FALSE, length(x))))
+  }
   texto <- as.character(x)
   if (is.double(x) && !inherits(x, "integer64")) {
     # Un numero se valida por sus digitos, no por su impresion: `as.character()`
@@ -114,10 +131,28 @@
   # promete para todo valor presente que no lo cumple.
   if (is.numeric(x)) {
     representable <- is.na(x) | (is.finite(x) & x >= 0 & x == trunc(x))
+    # Y un `double` desde 2^53 no lleva sus digitos: es el mas cercano de varios
+    # enteros -`1253896908084157938` se guarda como `...952`-, asi que no hay
+    # dato que validar. El comentario de arriba prometia rechazarlos y nada lo
+    # hacia: se validaba la impresion de R, Luhn daba TRUE en uno de cada diez
+    # numeros de 19 cifras, y el `9.1e15` exacto cambiaba de respuesta por como
+    # lo escribe `as.character()`. `integer64` si es exacto y no pasa por aca.
+    if (is.double(x) && !inherits(x, "integer64")) {
+      representable <- representable & (is.na(x) | abs(x) < 2^53)
+    }
     valido <- valido & representable
   }
-  if (isTRUE(recortar)) texto[valido] <- trimws(texto[valido])
+  if (isTRUE(recortar)) texto[valido] <- .recortar_espacios_borde(texto[valido])
   list(texto = texto, valido = valido)
+}
+
+# Los espacios al borde son ruido de captura, y lo son TODOS: `trimws()` quita
+# solo `[ \t\r\n]`, y el espacio duro (U+00A0) que dejan una planilla o una
+# pagina web volvia invalida una cedula valida mientras el tabulador se
+# recortaba. Mismo conjunto que la proteccion ya trata como espacio: los
+# separadores de Unicode (`\p{Z}`) y los blancos de ASCII.
+.recortar_espacios_borde <- function(x) {
+  gsub("^[\\s\\p{Z}]+|[\\s\\p{Z}]+$", "", x, perl = TRUE)
 }
 
 .resultado_validador_vector <- function(x, evaluar, recortar = TRUE) {
@@ -140,12 +175,19 @@
 #' que no cumple el contrato devuelve `FALSE`. Los espacios **al borde** se
 #' recortan antes de validar —son ruido de captura, no parte del dato—, salvo en
 #' `validar_url()`, donde un espacio literal en cualquier posición rompe la
-#' sintaxis y el valor es inválido. Un espacio en el medio no se recorta en
-#' ningún validador.
+#' sintaxis y el valor es inválido. Se recorta todo espacio: el ASCII, el
+#' tabulador y los separadores de Unicode, como el espacio duro (U+00A0) que
+#' dejan las planillas y las páginas web. Un espacio en el medio no se recorta
+#' en ningún validador.
 #'
 #' La respuesta es sobre el dato, no sobre cómo lo escribe R. Un número se valida
 #' por sus dígitos: el doble `12000000` se lee como `"12000000"` aunque `scipen`
-#' lo imprima en notación científica. `NaN` es ausente y devuelve `NA`, igual que
+#' lo imprima en notación científica. Un doble desde 2^53 no conserva sus
+#' dígitos —es el más cercano de varios enteros— y devuelve `FALSE`; el mismo
+#' número como texto o como `integer64` sí se valida. Una magnitud con clase
+#' —`Date`, `POSIXct`, `difftime`, `hms`, `units`— no es la escritura de un
+#' documento y devuelve `FALSE` (o `NA` donde falta), sin validar los días o
+#' segundos que guarda. `NaN` es ausente y devuelve `NA`, igual que
 #' en el resto del paquete. Las letras se pasan a mayúsculas sólo dentro de ASCII:
 #' `toupper()` convierte la s larga (U+017F) en `S` y la i sin punto (U+0131) en
 #' `I`, y con eso una s larga seguida de `e` pasaba por un código ISO; ahora es
@@ -230,6 +272,11 @@ NULL
     all(as.integer(partes) <= 255L)
 }
 
+.ipv4_dec_octetos <- function(texto) {
+  octeto <- "(?:25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9]?[0-9])"
+  grepl(paste0("^(?:", octeto, "\\.){3}", octeto, "$"), texto, perl = TRUE)
+}
+
 .url_ipv6_valido <- function(host) {
   if (!grepl("^[0-9A-Fa-f:.]+$", host, perl = TRUE) ||
       !grepl(":", host, fixed = TRUE)) return(FALSE)
@@ -245,9 +292,13 @@ NULL
   grupos <- strsplit(host, ":", fixed = TRUE)[[1L]]
   grupos <- grupos[nzchar(grupos)]
   if (any(!grepl("^[0-9A-Fa-f]{1,4}$", grupos, perl = TRUE))) {
-    # La parte final puede ser una dirección IPv4 embebida.
-    ipv4 <- utils::tail(grupos, 1L)
-    if (!.url_ipv4_valido(ipv4)) return(FALSE)
+    # La parte final puede ser una direccion IPv4 embebida, y solo la FINAL:
+    # RFC 3986 la pone en los ultimos 32 bits (`ls32`), despues del ultimo `:`.
+    # Se tomaba el ultimo grupo NO VACIO, asi que `1.2.3.4::` pasaba. Y sus
+    # octetos son `dec-octet`: sin ceros iniciales ni punto final, que como
+    # nombre de host son validos pero adentro de una IPv6 no.
+    ipv4 <- sub("^.*:", "", host)
+    if (!.ipv4_dec_octetos(ipv4)) return(FALSE)
     grupos <- utils::head(grupos, -1L)
     if (length(grupos) && any(!grepl("^[0-9A-Fa-f]{1,4}$", grupos,
                                       perl = TRUE))) return(FALSE)
@@ -478,9 +529,12 @@ validar_mod97 <- function(x) {
 #' `validar_ci_uy()` comprueba la cédula de identidad mediante su dígito
 #' verificador módulo 10. Acepta siete u ocho dígitos y separadores de puntos,
 #' espacios o guion; una cédula de siete dígitos se completa con cero inicial.
+#' Cualquier espacio separa, también el fino o el duro de Unicode.
 #'
 #' `validar_rut_uy()` comprueba la estructura de doce dígitos del RUT y su
-#' dígito verificador módulo 11. El algoritmo operativo no está publicado por
+#' dígito verificador módulo 11. Un RUT de once dígitos se completa con cero
+#' inicial, igual que la cédula de siete: es el que pierde su cero al guardarse
+#' como número (`read.csv()` lee `073602060015` como `73602060015`). El algoritmo operativo no está publicado por
 #' DGI como especificación normativa abierta; esta implementación se contrastó
 #' con la implementación pública de `python-stdnum` y con ejemplos públicos.
 #' Por eso valida estructura y dígito, no vigencia ni existencia registral.
@@ -520,9 +574,13 @@ NULL
 # documentación promete que un número negativo o fraccionario no pasa.
 # `"-12345672"` quedaba en `"12345672"` y era una cédula válida, mientras
 # `-12345672` como número se rechazaba.
+#
+# El espacio que separa es cualquier espacio, igual que en el recorte del borde:
+# un espacio fino (U+2009) o uno duro entre grupos es la misma escritura que un
+# espacio ASCII.
 .solo_digitos <- function(valor) {
   al_borde <- !is.na(valor) & grepl("^[.-]|[.-]$", valor, perl = TRUE)
-  digitos <- gsub("[.[:space:]-]", "", valor, perl = TRUE)
+  digitos <- gsub("[.\\s\\p{Z}-]", "", valor, perl = TRUE)
   digitos[al_borde] <- NA_character_
   digitos
 }
@@ -553,6 +611,13 @@ validar_ci_uy <- function(x) {
 
 .rut_uy_uno <- function(valor) {
   digitos <- .solo_digitos(valor)
+  # Un RUT guardado como numero pierde su cero inicial -`073602060015` es el
+  # numero `73602060015`, y `read.csv()` lo lee asi- y una planilla lo escribe
+  # despues como texto de once digitos. Se completa con cero, el mismo criterio
+  # que la cedula de siete: con el prefijo entre 01 y 22 y los digitos 9 a 11
+  # en `001`, once digitos no tienen otra lectura. Se rechazaba, y la columna de
+  # RUT leida con `read.csv()` validaba la mitad.
+  if (grepl("^[0-9]{11}$", digitos, perl = TRUE)) digitos <- paste0("0", digitos)
   if (!grepl("^[0-9]{12}$", digitos, perl = TRUE)) return(FALSE)
   numeros <- utf8ToInt(digitos) - utf8ToInt("0")
   prefijo <- as.integer(substr(digitos, 1L, 2L))

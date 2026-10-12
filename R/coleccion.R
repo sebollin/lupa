@@ -915,7 +915,9 @@ print.coleccion_lupa <- function(x, ...) {
 #'   se tapa aunque `movimientos` no tenga ninguna columna personal, porque la
 #'   colección es un solo objeto. Esos valores se leen de la base, una consulta
 #'   por columna protegida, con la regla de [perfilar()] —también la de los
-#'   rellenos, con sus frecuencias—; si alguna lectura falla, o una tabla no
+#'   rellenos, con sus frecuencias—; si alguna lectura falla —también si una
+#'   tabla entera no se pudo perfilar, por ejemplo porque el rol no tiene
+#'   permiso sobre ella: sus valores son desconocidos—, o una tabla no
 #'   se pudo clasificar porque su muestra no se leyó, en los perfiles
 #'   de las otras tablas se tapan los valores y la evidencia de las columnas no
 #'   personales, y `resumen_tabla$meta$proteccion_personal$otras_tablas` dice
@@ -1043,6 +1045,18 @@ perfilar_coleccion <- function(coleccion, muestra = Inf,
         paste0("No se pudo perfilar la tabla: ", conditionMessage(perfil)),
         .como_resolver_tabla_ilegible(fila)
       )
+      # Una tabla que no se pudo leer tambien deja sin verificar a las demas:
+      # sus valores protegidos son desconocidos. Se hacia `next` antes de
+      # registrarla y `.proteger_perfiles_entre_tablas()` solo miraba las
+      # registradas: con un rol sin permiso sobre `clientes`, el perfil
+      # conservado de `movimientos` publicaba en su moda la cedula y el nombre
+      # del cliente. Medido en la ronda 27. En bases institucionales los
+      # permisos parciales son el caso normal.
+      if (conservar_perfiles) {
+        protegidos_tablas[[identificador]] <- .tabla_ilegible_coleccion(
+          identificador
+        )
+      }
       next
     }
     # Desestructurar tambien va dentro del `tryCatch`. Si `perfilar_dbi()` no
@@ -1112,6 +1126,11 @@ perfilar_coleccion <- function(coleccion, muestra = Inf,
           "perfil sean la misma."
         )
       )
+      if (conservar_perfiles) {
+        protegidos_tablas[[identificador]] <- .tabla_ilegible_coleccion(
+          identificador
+        )
+      }
       next
     }
     filas_tabla <- piezas$filas
@@ -1342,8 +1361,9 @@ perfilar_coleccion <- function(coleccion, muestra = Inf,
         .valores_protegidos_tabla_coleccion(conexion, referencia, perfil)
     }
   }
-  # El piso cruza tablas: ver `.proteger_perfiles_entre_tablas()`.
-  if (conservar_perfiles && length(perfiles) > 1L) {
+  # El piso cruza tablas: ver `.proteger_perfiles_entre_tablas()`. Con UNA
+  # tabla conservada tambien, si otra quedo registrada sin leer.
+  if (conservar_perfiles && length(perfiles) && length(protegidos_tablas) > 1L) {
     perfiles <- .proteger_perfiles_entre_tablas(perfiles, protegidos_tablas)
   }
 
@@ -1501,6 +1521,15 @@ perfilar_coleccion <- function(coleccion, muestra = Inf,
     list(valores = valores, fechas = fechas, completo = TRUE,
          motivo = NA_character_)
   }, error = function(e) incompleto(conditionMessage(e)))
+}
+
+# Lo que se registra de una tabla de la coleccion que no se pudo perfilar: sus
+# valores son desconocidos, asi que las demas cierran del lado seguro. El motivo
+# nombra la tabla -que ya se publica en la cobertura- y no el mensaje del motor,
+# que puede citar un valor.
+.tabla_ilegible_coleccion <- function(identificador) {
+  list(valores = character(), fechas = character(), completo = FALSE,
+       motivo = paste0("la tabla `", identificador, "` no se pudo perfilar"))
 }
 
 # Cada perfil conservado se barre con los valores protegidos de las DEMAS tablas

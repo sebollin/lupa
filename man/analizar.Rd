@@ -106,7 +106,10 @@ para asociación monótona sobre los rangos, que no supone linealidad.}
 
 \item{conservar_datos}{Si el objeto retiene una copia de la entrada. Es
 \code{FALSE} por omisión para limitar tamaño y exposición. Con protección activa,
-las columnas personales de esa copia también se enmascaran; para conservar
+las columnas personales de esa copia también se enmascaran, y en las demás
+columnas se tapa el valor protegido que identifica —el piso de
+\code{\link[=perfilar]{perfilar()}}—: la cédula citada en una observación, \code{"pago CI 3.738.538-0"},
+o guardada como número en otra columna; para conservar
 sus valores debe usarse \code{proteger_datos_personales = FALSE} al crear el
 analisis y al guardarlo. La opcion del guardado no recupera valores que el
 analisis ya enmascaro.}

@@ -56,6 +56,18 @@
 #' que cero, se avisa al medir. Para comparar fechas con tolerancia hay que
 #' llevarlas con `transformacion` a un número en la unidad de la ventana.
 #'
+#' Esa igualdad exacta es **de valores, no de su impresión**. Una fecha-hora se
+#' compara por su instante: el mismo instante guardado en dos zonas horarias
+#' concuerda. Se escribe en UTC, al segundo y con su fracción exacta si la tiene
+#' —la misma escritura que usa [detectar_relaciones()]—, así que comparada con
+#' una columna de texto, el texto tiene que estar en UTC; para otra zona, se la
+#' lleva con `transformacion`. Un número se compara con todas sus cifras —`1e5`
+#' y el texto `"100000"` concuerdan; `0.1 + 0.2` y `0.3` no—. Si todas las
+#' columnas son duraciones (`difftime`), se comparan en segundos: una hora y
+#' sesenta minutos concuerdan. Un texto se compara por sus bytes, así que una
+#' palabra con la tilde compuesta y la misma con la tilde descompuesta son dos
+#' textos distintos.
+#'
 #' @param columnas Nombres de al menos dos columnas que codifican el mismo
 #'   hecho.
 #' @param ventana Tolerancia máxima admitida entre los valores, en las unidades
@@ -154,6 +166,100 @@ print.senal_redundante <- function(x, ...) {
   )
 }
 
+# La identidad de cada valor en la comparacion NO numerica de una senal. Se
+# comparan valores, no su impresion: `as.character()` escribe cada fecha-hora en
+# la zona de SU columna, asi que el mismo instante guardado en UTC y en
+# `America/Montevideo` salia discordante en todas las filas -medido en la ronda
+# 27: 3 de 3, con 0 a mano-; y escribe un doble con 15 cifras y `1e5` como
+# "1e+05", asi que dos numeros distintos salian iguales y el mismo numero
+# guardado como doble y como texto, distinto. Es la propiedad que
+# `.valores_relacion()` ya resolvio para las relaciones entre tablas, y se usa
+# su misma escritura:
+#
+#   - una fecha-hora es su instante: UTC, al segundo y con la fraccion exacta si
+#     la tiene. Comparada con un texto, el texto tiene que estar en UTC; para
+#     otra zona, `transformacion`;
+#   - un numero, su texto de identidad: todas las cifras si es entero, la forma
+#     mas corta que vuelve al valor si tiene fraccion;
+#   - una duracion, su numero en la unidad de su columna, salvo que TODAS las
+#     columnas sean duraciones: entonces se comparan en segundos, porque una
+#     hora y sesenta minutos son la misma duracion en dos unidades;
+#   - un texto, sus bytes con la codificacion declarada resuelta: la igualdad
+#     textual exacta que documenta la ayuda. Las formas NFC y NFD de una palabra
+#     siguen siendo dos textos, y eso es decision, no defecto.
+.claves_senal <- function(valores) {
+  duraciones <- all(vapply(valores, inherits, logical(1L), "difftime"))
+  lapply(valores, function(x) {
+    if (inherits(x, "difftime")) {
+      return(.texto_identidad(
+        if (duraciones) as.numeric(x, units = "secs") else as.numeric(x)
+      ))
+    }
+    if (inherits(x, c("POSIXt", "Date"))) return(.valores_relacion(x))
+    if (is.numeric(x)) return(.texto_identidad(x))
+    if (is.character(x) || is.factor(x)) return(.valores_relacion(x))
+    as.character(x)
+  })
+}
+
+# La escritura de un valor que lo distingue de los que el veredicto separo. Solo
+# se usa en una fila citada donde la escritura de `.texto_valor()` -una
+# fecha-hora al segundo, un doble con 15 cifras, un texto tal cual- junta dos
+# valores distintos.
+.texto_que_distingue_senal <- function(x) {
+  if (inherits(x, "POSIXt")) return(paste(.valores_relacion(x), "UTC"))
+  if (inherits(x, "difftime")) {
+    return(paste(.etiqueta_numero_reversible(as.numeric(x)), units(x)))
+  }
+  if (inherits(x, c("Date", "integer64"))) return(.texto_valor(x))
+  if (is.double(x)) return(.etiqueta_numero_reversible(x))
+  if (is.character(x) || is.factor(x)) {
+    return(.texto_por_puntos_de_codigo(as.character(x)))
+  }
+  .texto_valor(x)
+}
+
+# Un texto con cada caracter fuera del ASCII imprimible escrito `<U+XXXX>`, la
+# convencion de `.escapar_texto_visible()`. Dos textos con los mismos caracteres
+# visibles y distintos puntos de codigo -una tilde compuesta y una descompuesta,
+# un espacio duro- quedan escritos distinto. Lo que no decodifica como UTF-8, o
+# se declaro `bytes`, se deja como lo publica `.texto_valor()`: esas formas ya
+# llevan sus escapes.
+.texto_por_puntos_de_codigo <- function(texto) {
+  if (length(texto) != 1L || is.na(texto)) return(.texto_valor(texto))
+  if (Encoding(texto) == "bytes") return(.texto_valor(texto))
+  if (Encoding(texto) == "latin1") texto <- enc2utf8(texto)
+  if (!isTRUE(validUTF8(texto))) return(.texto_valor(texto))
+  codigos <- tryCatch(utf8ToInt(texto), error = function(e) NA_integer_)
+  if (!length(codigos)) return("")
+  if (anyNA(codigos)) return(.texto_valor(texto))
+  visibles <- codigos >= 32L & codigos < 127L
+  partes <- character(length(codigos))
+  partes[visibles] <- vapply(
+    codigos[visibles], intToUtf8, character(1L), USE.NAMES = FALSE
+  )
+  partes[!visibles] <- sprintf("<U+%04X>", codigos[!visibles])
+  paste0(partes, collapse = "")
+}
+
+# Como se VE un texto: su descomposicion canonica, sin los caracteres que no se
+# ven. Dos textos con la misma forma visible y distintos bytes se imprimen
+# iguales, que es lo que la evidencia no puede hacer con dos valores que el
+# veredicto separo. Lo que no decodifica se deja tal cual.
+.texto_visible_senal <- function(texto) {
+  if (length(texto) != 1L || is.na(texto) || Encoding(texto) == "bytes") {
+    return(.texto_valor(texto))
+  }
+  if (Encoding(texto) == "latin1") texto <- enc2utf8(texto)
+  if (!isTRUE(validUTF8(texto))) return(.texto_valor(texto))
+  codigos <- tryCatch(utf8ToInt(texto), error = function(e) NA_integer_)
+  if (anyNA(codigos)) return(.texto_valor(texto))
+  codigos <- codigos[!.codigos_control_invisible(codigos)]
+  .normalizacion_a_texto(
+    .normalizacion_ordenar(.normalizacion_descomponer(codigos))
+  )
+}
+
 #' Detectar filas donde señales redundantes se contradicen
 #'
 #' Recorre las señales declaradas con [senal_redundante()] e informa las filas
@@ -167,6 +273,17 @@ print.senal_redundante <- function(x, ...) {
 #' Una fila donde alguna de las columnas comparadas está ausente **no se cuenta
 #' como discordante ni como concordante**: se excluye del universo evaluado, y
 #' `n_evaluadas` lo declara. Ausencia no es desacuerdo.
+#'
+#' Una fila con el mismo valor en todas las columnas concuerda, también si ese
+#' valor es infinito: `Inf` contra `Inf` es coincidencia exacta.
+#'
+#' Una fila citada no muestra iguales dos valores que el veredicto separó. Si la
+#' escritura corriente los junta —dos dobles que coinciden en 15 cifras, dos
+#' instantes del mismo segundo, dos textos que se ven iguales con distintos
+#' puntos de código—, esa fila los cita con la escritura que los distingue: el
+#' doble con las cifras que lo devuelven a su valor, el instante con su fracción
+#' y el texto con cada carácter fuera del ASCII imprimible escrito `<U+XXXX>`,
+#' con una nota que lo dice.
 #'
 #' @param datos Tabla que se desea examinar.
 #' @param senales Una señal creada por [senal_redundante()] o una lista de
@@ -283,13 +400,19 @@ detectar_discordancias <- function(datos, senales, max_ejemplos = 5L,
       )
     }
     discordante <- if (numericos) {
-      extremos <- do.call(pmax, comparables) - do.call(pmin, comparables)
-      extremos > senal$ventana
+      # Una fila con el MISMO infinito en todas las columnas concuerda, y la
+      # resta lo perdia: `Inf - Inf` es `NaN`, `NaN > ventana` es `NA`, y ese
+      # `NA` entraba a `indices`. Con `max_ejemplos` por omision la cita
+      # abortaba -"subindice fuera de los limites"-, y con `max_ejemplos = 0` la
+      # fila concordante se contaba discordante. Medido en la ronda 27: `a = b =
+      # Inf` en una fila de cinco publicaba 3 discordantes donde hay 2. Valores
+      # iguales concuerdan sin restar; entre distintos la resta nunca es `NaN`.
+      maximo <- do.call(pmax, comparables)
+      minimo <- do.call(pmin, comparables)
+      maximo != minimo & maximo - minimo > senal$ventana
     } else {
-      referencia <- as.character(comparables[[1L]])
-      Reduce(`|`, lapply(comparables[-1L], function(x) {
-        as.character(x) != referencia
-      }))
+      claves <- .claves_senal(comparables)
+      Reduce(`|`, lapply(claves[-1L], function(x) x != claves[[1L]]))
     }
     indices <- which(completos)[discordante]
     ejemplos <- utils::head(indices, max_ejemplos)
@@ -314,26 +437,50 @@ detectar_discordancias <- function(datos, senales, max_ejemplos = 5L,
     } else {
       character()
     }
-    dobles <- all(vapply(valores, function(x) {
-      is.double(x) && !inherits(x, c("integer64", "Date", "POSIXt", "difftime"))
-    }, logical(1L)))
+    escapo_texto <- FALSE
     detalle <- if (length(ejemplos)) {
       paste(vapply(ejemplos, function(fila) {
-        textos <- vapply(seq_along(senal$columnas), function(k) {
-          .texto_valor(valores[[k]][fila])
-        }, character(1L))
+        celdas <- lapply(valores, function(x) x[fila])
+        textos <- vapply(celdas, .texto_valor, character(1L))
         # Dos dobles distintos que se escriben igual con 15 cifras -`0.1 + 0.2` y
         # `0.3`- citaban `a=0.3; b=0.3` en una fila declarada discordante, y quien
         # leia no podia rehacer el veredicto. Si la fila tiene mas valores que
-        # escrituras, se citan con las cifras que los distinguen.
-        if (dobles) {
-          numeros <- vapply(valores, function(x) x[[fila]], numeric(1L))
-          if (length(unique(numeros)) > length(unique(textos))) {
-            textos <- .etiqueta_numero_reversible(numeros)
-          }
-        }
+        # escrituras, se citan con la escritura que los distingue.
+        #
+        # La ronda 15 lo cerro solo para los dobles, y es una propiedad, no un
+        # tipo: dos instantes a 0,3 s se citaban los dos `12:00:00 UTC`, y `cafe`
+        # con la tilde compuesta y descompuesta, los dos igual. Los valores se
+        # cuentan con la misma clave que decide el veredicto -en la via numerica
+        # tambien, que con dobles da lo mismo que contar los numeros-. Y se
+        # pregunta si alguna escritura junta dos valores, no si hay menos
+        # escrituras que valores: con tres columnas, `(a, b, b)` escritos
+        # `(x, x, y)` tienen dos de cada y citaban iguales dos valores distintos.
+        #
+        # Y la escritura se compara como SE VE, no como cadena: la tilde
+        # compuesta y la descompuesta son dos cadenas para `unique()` y una sola
+        # para quien lee. Un texto se compara por su forma visible -descompuesta
+        # y sin invisibles-.
+        claves_fila <- unlist(.claves_senal(celdas), use.names = FALSE)
+        vistas <- vapply(seq_along(celdas), function(k) {
+          x <- celdas[[k]]
+          if (is.character(x) || is.factor(x)) {
+            .texto_visible_senal(as.character(x))
+          } else textos[[k]]
+        }, character(1L))
+        junta <- length(unique(vistas)) <
+          nrow(unique(data.frame(clave = claves_fila, vista = vistas)))
         protegidas <- .nombres_para_operar(senal$columnas) %in%
           .nombres_para_operar(personales)
+        if (junta) {
+          distintos <- vapply(celdas, .texto_que_distingue_senal, character(1L))
+          de_texto <- vapply(celdas, function(x) {
+            is.character(x) || is.factor(x)
+          }, logical(1L))
+          if (any(de_texto & !protegidas & distintos != textos, na.rm = TRUE)) {
+            escapo_texto <<- TRUE
+          }
+          textos <- distintos
+        }
         textos[protegidas] <- "[valor protegido]"
         partes <- paste0(senal$columnas, "=", textos)
         paste0("fila ", fila, ": ", paste(partes, collapse = "; "))
@@ -361,6 +508,7 @@ detectar_discordancias <- function(datos, senales, max_ejemplos = 5L,
       ventana = senal$ventana,
       evidencia = paste0(
         detalle,
+        if (escapo_texto) .NOTA_ESCAPES else "",
         "; universo: ", n_evaluadas, " de ", nrow(datos),
         " filas con todas las columnas presentes",
         if (!numericos) "; comparacion textual exacta" else "",

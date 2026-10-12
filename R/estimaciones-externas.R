@@ -116,7 +116,8 @@ estadisticos_estimacion <- function() {
 #'
 #' **Una celda que no es una estimación también se descarta, y se declara.** Un
 #' texto que no es un número, o un número fuera del dominio de su estadístico
-#' —un tamaño de muestra que no es un entero no negativo; un error estándar, un
+#' —un infinito, en cualquiera; un tamaño de muestra que no es un entero no
+#' negativo; un error estándar, un
 #' coeficiente de variación, unos grados de libertad, un efecto de diseño o un
 #' tamaño efectivo negativos— no se publica: se avisa y queda en el atributo
 #' `celdas_descartadas`, con la métrica, la celda, el valor recibido y el motivo
@@ -136,8 +137,13 @@ estadisticos_estimacion <- function() {
 #'   estadísticos reconocidos, en la forma `c(cv = "coef_var")`.
 #' @param fecha Fecha y hora de la medición.
 #'
-#' @return Data frame `medicion_calidad` con el contrato de [medir()], más las
-#'   columnas `fuente` y `unidad`.
+#' @return Data frame de clase `medicion_calidad` y `medicion` con el contrato
+#'   de [medir()], más las columnas `fuente` y `unidad`: se acumula con
+#'   [historico_calidad()] y se une con `rbind()` como cualquier medición. Su
+#'   `id_medida` nombra la métrica y la celda estimada —`objeto_medible`— y no el
+#'   número de fila, así que dos tabulados de la misma entidad y la misma fecha
+#'   se pueden unir y evaluar juntos; la misma celda medida dos veces sí repite
+#'   su identificador, y [evaluar()] lo rechaza.
 #' @export
 #' @seealso [estadisticos_estimacion()], [evaluar()], [marco_cepal()]
 #'
@@ -275,15 +281,16 @@ medicion_desde_estimaciones <- function(estimaciones, entidad, fuente,
     # Una celda vacia se cae en silencio -lo documentado-; una con algo que no es
     # un numero, o con un numero fuera del dominio, se cae y se declara.
     presentes_crudos <- !is.na(crudos) & nzchar(trimws(as.character(crudos)))
+    # Un infinito es un numero, y ninguna estimacion lo es: va como fuera de
+    # dominio. Se rotulaba `no_numerica`, que manda a buscar un texto mal escrito
+    # donde hay un numero. `NaN` no es un numero y sigue siendo `no_numerica`.
+    numericos <- !is.na(valores)
     motivo_descarte <- ifelse(
       en_dominio | !presentes_crudos, NA_character_,
-      ifelse(finitos, "fuera_de_dominio", "no_numerica")
+      ifelse(numericos, "fuera_de_dominio", "no_numerica")
     )
     data.frame(
-      id_medida = sprintf(
-        "%s-%s-%04d", id_medicion, definicion$metrica,
-        seq_len(nrow(estimaciones))
-      ),
+      id_medida = NA_character_,
       id_medicion = id_medicion,
       fecha = fecha,
       metrica = definicion$metrica,
@@ -311,6 +318,19 @@ medicion_desde_estimaciones <- function(estimaciones, entidad, fuente,
     )
   })
   salida <- do.call(rbind, filas)
+  # El `id_medida` nombra lo que mide -la metrica y la celda estimada- y se
+  # numera DENTRO de eso, con el mismo `.ids_medida()` que `medir()`. Se armaba
+  # con el numero de fila de la llamada, y un numero de secuencia es unico en su
+  # llamada, no entre llamadas: dos tabulados de la misma entidad y la misma
+  # fecha -declarada, o la de omision dentro del mismo segundo- daban
+  # `...-Estimacion-0001` a "Norte" en uno y a "Mujer" en el otro, y `evaluar()`
+  # rechazaba la union como una medicion unida consigo misma. Medido en la ronda
+  # 27. Se numera antes de descartar celdas, asi que descartar una no renumera a
+  # las demas; la misma celda medida dos veces sigue repitiendo, que es lo que
+  # las guardas de `evaluar()` y `historico_calidad()` buscan.
+  salida$id_medida <- .ids_medida(
+    id_medicion, paste0(salida$metrica, "@", salida$objeto_medible)
+  )
   # Y la celda vacia dentro de una columna que si trae datos tampoco es una
   # medida: se cae la fila, no se publica con `NA`.
   descartadas <- salida[!is.na(salida$.motivo_descarte), , drop = FALSE]
@@ -336,7 +356,8 @@ medicion_desde_estimaciones <- function(estimaciones, entidad, fuente,
       " fuera del dominio de su estad\u00edstico (un tama\u00f1o de muestra es un ",
       "entero no negativo; un error est\u00e1ndar, un coeficiente de variaci\u00f3n, ",
       "unos grados de libertad, un efecto de dise\u00f1o y un tama\u00f1o efectivo ",
-      "no son negativos). Est\u00e1n en `attr(, \"celdas_descartadas\")`.",
+      "no son negativos; ninguna estimaci\u00f3n es infinita). ",
+      "Est\u00e1n en `attr(, \"celdas_descartadas\")`.",
       call. = FALSE
     )
   }
@@ -346,6 +367,13 @@ medicion_desde_estimaciones <- function(estimaciones, entidad, fuente,
   attr(salida, "estadisticos_sin_valores") <- sin_valores
   attr(salida, "celdas_descartadas") <- celdas_descartadas
   attr(salida, "fuente") <- fuente
-  class(salida) <- c("medicion_calidad", "data.frame")
+  # `medicion` es la clase por la que el resto del paquete reconoce una
+  # medicion -`historico_calidad()`, `rbind()`, `[` y la proteccion de
+  # `reportar()` despachan por ella- y la ayuda promete "el contrato de
+  # `medir()`". Sin ella, `historico_calidad(m1, m2)` rechazaba la salida, y es
+  # justo adonde manda el mensaje de `evaluar()` para reunir corridas. Medido en
+  # la ronda 27. `medicion_calidad` se conserva delante: quien ya despachaba por
+  # ella no cambia.
+  class(salida) <- c("medicion_calidad", "medicion", "data.frame")
   salida
 }

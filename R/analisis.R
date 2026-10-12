@@ -227,7 +227,10 @@
 #' @param max_columnas_temporales Máximo de columnas temporales analizadas.
 #' @param conservar_datos Si el objeto retiene una copia de la entrada. Es
 #'   `FALSE` por omisión para limitar tamaño y exposición. Con protección activa,
-#'   las columnas personales de esa copia también se enmascaran; para conservar
+#'   las columnas personales de esa copia también se enmascaran, y en las demás
+#'   columnas se tapa el valor protegido que identifica —el piso de
+#'   [perfilar()]—: la cédula citada en una observación, `"pago CI 3.738.538-0"`,
+#'   o guardada como número en otra columna; para conservar
 #'   sus valores debe usarse `proteger_datos_personales = FALSE` al crear el
 #'   analisis y al guardarlo. La opcion del guardado no recupera valores que el
 #'   analisis ya enmascaro.
@@ -764,6 +767,36 @@ print.analisis <- function(x, ...) {
   datos
 }
 
+# El PISO sobre las demas columnas de la copia conservada: un valor de una columna
+# protegida que identifica no se publica en ninguna parte, tampoco en la columna
+# de al lado de la copia. Medido en la ronda 27: `analizar(conservar_datos =
+# TRUE)` tapaba `cedula` y dejaba las sesenta cedulas en `obs`, "pago CI
+# 3.738.538-0". Celda por celda, con la regla de los valores -la misma que tapa
+# la moda de `obs`-, y en los numeros, la cedula guardada como entero en otra
+# columna. Sin el recorrido de las salidas: aca no hay prosa, ni nombres, ni
+# vocabulario del paquete, y una columna del usuario llamada `estado` no es
+# vocabulario.
+.proteger_piso_datos_conservados <- function(datos, identificantes, sensibles) {
+  if (!inherits(datos, "data.frame") || !length(identificantes)) return(datos)
+  propias <- .indice_nombre(sensibles, names(datos))
+  for (j in setdiff(seq_along(datos), propias[!is.na(propias)])) {
+    x <- datos[[j]]
+    if (is.character(x)) {
+      datos[[j]] <- .con_atributos_de(
+        x, .reemplazar_valores_protegidos(x, identificantes)
+      )
+    } else if (is.factor(x)) {
+      niveles <- .reemplazar_valores_protegidos(levels(x), identificantes)
+      if (!identical(niveles, levels(x))) {
+        datos[[j]] <- factor(niveles[as.integer(x)], levels = unique(niveles))
+      }
+    } else if (is.numeric(x) && !is.list(x)) {
+      datos[[j]] <- .proteger_numeros_parametros(x, identificantes)
+    }
+  }
+  datos
+}
+
 .proteger_analisis <- function(x, datos = NULL) {
   sensibles <- .columnas_personales_protegidas(x$perfil)
   # `datos` es la tabla original y llega por argumento porque `analizar()` por
@@ -838,6 +871,7 @@ print.analisis <- function(x, ...) {
       x$propuesta_modelo, sensibles
     )
     x$datos <- .proteger_datos_conservados(x$datos, sensibles)
+    x$datos <- .proteger_piso_datos_conservados(x$datos, identificantes, sensibles)
     nombres_datos <- if (inherits(x$datos, "data.frame")) names(x$datos) else character()
     x$meta$columnas_datos_protegidas <- nombres_datos[
       !is.na(.indice_nombre(nombres_datos, sensibles))
@@ -849,11 +883,16 @@ print.analisis <- function(x, ...) {
   # publicaba `"cliente 77177101"` en `variables$niveles_observados` -un
   # documento adentro de texto libre- mientras `perfilar()`, sobre la misma
   # tabla, lo tapaba. Se barren los resumenes DERIVADOS: `datos` es la tabla que
-  # el usuario pidio conservar y tiene su propio tratamiento, `perfil` ya paso
-  # por `.proteger_perfil()` y `meta` describe la corrida, no los datos.
+  # el usuario pidio conservar y tiene su propio tratamiento -sus columnas
+  # protegidas enteras y el piso en las demas, arriba-, `perfil` ya paso por
+  # `.proteger_perfil()` y `meta` describe la corrida, no los datos.
   if (length(identificantes)) {
     derivados <- setdiff(names(x), c("datos", "perfil", "meta"))
     for (parte in derivados) {
+      parametros_originales <- if (identical(parte, "plan_limpieza") &&
+                                   is.list(x[[parte]]$parametros)) {
+        x[[parte]]$parametros
+      }
       x[[parte]] <- .proteger_textos_salida(
         x[[parte]], identificantes,
         intocables = if (!is.null(x$perfil$columnas$columna)) {
@@ -861,6 +900,11 @@ print.analisis <- function(x, ...) {
         } else names(x$datos)
       )
       x[[parte]] <- .proteger_numeros_parametros(x[[parte]], identificantes)
+      # Un mapa de imputacion que este barrido toco ya no es la relacion: se
+      # reconstruye sobre los datos (ver `.marcar_mapas_tapados()`).
+      if (!is.null(parametros_originales)) {
+        x[[parte]] <- .marcar_mapas_tapados(x[[parte]], parametros_originales)
+      }
     }
   }
   x

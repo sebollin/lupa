@@ -1859,13 +1859,14 @@
   }, logical(1L), USE.NAMES = FALSE))
 }
 
-# La nota que declara la convencion, vacia cuando no hubo nada que escapar.
+# La nota que declara la convencion, vacia cuando no hubo nada que escapar. El
+# texto vive en una constante porque `detectar_discordancias()` escapa por su
+# cuenta -por punto de codigo, solo en la fila que lo necesita- y tiene que
+# decirlo con las mismas palabras.
+.NOTA_ESCAPES <- " [valores escapados para que se vean; en los datos estan sin escapar]"
+
 .nota_escapes <- function(x) {
-  if (.hay_escapes_al_publicar(x)) {
-    " [valores escapados para que se vean; en los datos estan sin escapar]"
-  } else {
-    ""
-  }
+  if (.hay_escapes_al_publicar(x)) .NOTA_ESCAPES else ""
 }
 
 # Aplica una transformacion de texto sin que la marca de un valor decida el

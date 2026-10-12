@@ -13,8 +13,11 @@
 # Un test que solo mirara el caso muestreado habria pasado con el defecto vivo.
 
 test_that("los valores que no convierten se cuentan con y sin muestreo", {
-  # 900 se leen como numero; 60 tienen separadores que no convierten y 40 no son
-  # numero. Ninguno es NA de origen: los 1000 estan presentes.
+  # 900 se leen como numero y 40 no son numero. Ninguno es NA de origen: los
+  # 1000 estan presentes. Los 60 `1.234,5` se contaban como separadores que no
+  # convierten porque el resumen los leia con `sub(",", ".")`; desde la ronda
+  # 27-V los lee con la convencion que el perfil publica -`decimal_coma`, por la
+  # coma con un decimal- y son 1234,5, como los convierte la remediacion.
   valores <- c(rep("100", 900L), rep("1.234,5", 60L), rep("no-numero", 40L))
   datos <- data.frame(x = valores, stringsAsFactors = FALSE)
 
@@ -25,7 +28,9 @@ test_that("los valores que no convierten se cuentan con y sin muestreo", {
     columna <- perfil$columnas
     expect_equal(columna$n, 1000L)
     expect_equal(columna$n_faltantes, 0L)
-    expect_equal(columna$n_valores_excluidos_resumen, 100L)
+    expect_equal(columna$numero_texto_convencion, "decimal_coma")
+    expect_equal(columna$maximo, 1234.5)
+    expect_equal(columna$n_valores_excluidos_resumen, 40L)
     expect_equal(columna$estado_resumen_cuantitativo, "calculados_sobre_valores")
     # Y la no-medicion parcial deja su fila, no solo el campo.
     expect_true("resumen_cuantitativo" %in% perfil$cobertura_diagnosticos$diagnostico)

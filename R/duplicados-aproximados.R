@@ -36,7 +36,9 @@
 # que cuesta y por como se degrada la distancia normalizada; las dos cosas
 # dependen de la cadena que entra a `stringdist`, no de la que estaba guardada.
 .largo_maximo_valor_duplicados <- function(x, normalizacion = NULL) {
-  valores <- suppressWarnings(as.character(.texto_analizable(x)$valores))
+  valores <- suppressWarnings(as.character(.texto_analizable(
+    .valores_para_comparar_duplicados(x)
+  )$valores))
   if (!is.null(normalizacion)) {
     # Mismo tratamiento del ausente que `.texto_fila_aproximada`: se compara ""
     # y no `NA`, y medir otra cosa que la que se compara es el defecto que esto
@@ -53,7 +55,9 @@
 # "" porque asi entra a la comparacion, y un largo no finito cuenta 0 en vez de
 # envenenar la suma.
 .largos_columna_duplicados <- function(x, normalizacion = NULL) {
-  valores <- suppressWarnings(as.character(.texto_analizable(x)$valores))
+  valores <- suppressWarnings(as.character(.texto_analizable(
+    .valores_para_comparar_duplicados(x)
+  )$valores))
   valores[is.na(valores)] <- ""
   if (!is.null(normalizacion)) {
     valores <- .normalizacion_aplicar(valores, normalizacion)
@@ -148,7 +152,16 @@
     modo_comparacion = "sin_comparacion", nucleos_usados = NA_integer_,
     p = 0.1, max_largo_valor = Inf,
     columnas_excluidas_largo = character(), largos_columnas = numeric(),
-    largo_combinado = NULL) {
+    largo_combinado = NULL, conteos_medidos = FALSE) {
+  # Los conteos que salen de COMPARAR filas son `NA` si no se comparo ninguna:
+  # sin `stringdist`, con un valor sobre el tope de largo, con dos columnas del
+  # mismo nombre o sin columnas comparables. Publicaba `0`, y `0` es una medicion
+  # -"no hay pares"- que nadie hizo: medido en la ronda 27, seis filas con un par
+  # identico daban `n_filas_validas = 0` y `n_pares_exactos = 0`. Es la doctrina
+  # que este mismo constructor aplica a `largo_maximo` mas abajo. Solo quien
+  # recorrio las filas y no encontro dos validas pasa `conteos_medidos = TRUE`:
+  # ahi cero pares es lo que hay.
+  medido <- if (isTRUE(conteos_medidos)) 0 else NA_real_
   pares <- data.frame(
     fila_1 = integer(), fila_2 = integer(), distancia = numeric(),
     tipo_par = character(), igualo_normalizar = logical(), metodo = character(),
@@ -161,14 +174,14 @@
   alcance <- data.frame(
     n_filas_total = as.numeric(n_filas),
     n_filas_muestra = 0,
-    n_filas_validas = 0,
+    n_filas_validas = medido,
     n_pares_posibles = posibles,
     n_pares_comparados = 0,
     n_pares_sin_comparar = posibles,
-    n_pares_hallados = 0,
-    n_pares_exactos = 0,
-    n_pares_exactos_normalizados = 0,
-    n_pares_aproximados = 0,
+    n_pares_hallados = medido,
+    n_pares_exactos = medido,
+    n_pares_exactos_normalizados = medido,
+    n_pares_aproximados = medido,
     n_pares_mostrados = 0,
     limite_pares = max_pares,
     limite_pares_configurado = max_pares,
@@ -1615,13 +1628,19 @@
     # escapa la barra invertida ANTES que nada -por esto mismo-, asi que el literal
     # recibe `a\\xc3\\xb1o` y los dos se distinguen. Y mantiene iguales UTF-8 y
     # `latin1` del mismo texto, que es la equivalencia que el manual promete.
+    x <- .valores_para_comparar_duplicados(x)
     legible <- suppressWarnings(
       as.character(.texto_analizable(.texto_publicable(x))$valores)
     )
     salida <- suppressWarnings(
       as.character(.texto_analizable(.clave_bytes(x))$valores)
     )
-    presentes <- !is.na(legible) & nzchar(legible)
+    # Un valor hecho solo de blancos no tiene texto que medir, igual que la cadena
+    # vacia: la normalizacion por omision lo recorta despues y `"   "`, `" "` y
+    # `"\t"` se comparaban como `""` a distancia 0 -tres pares
+    # `exacto_normalizado` entre filas sin texto, medido en la ronda 27-. Es el
+    # mismo criterio con que `perfilar()` los cuenta juntos en `n_blancos`.
+    presentes <- !is.na(legible) & nzchar(trimws(legible))
     salida[is.na(legible) | is.na(salida)] <- ""
     list(
       valores = .normalizacion_aplicar(
@@ -1640,21 +1659,21 @@
   # desmintiendo su propia clasificacion-. `.clave_bytes()` ya escapo la barra
   # invertida, asi que escapar la barra vertical despues deja una sola forma de leer
   # la cadena y el separador vuelve a separar.
-  # Y la clave de bytes se aplica UNA vez, por valor, no otra vez sobre la cadena
-  # ya pegada: la segunda aplicacion volvia a escapar las barras invertidas que la
-  # primera habia puesto, y entonces la cadena comparada no se podia rehacer con
-  # ninguna receta que no fuera esta funcion. Despues de la primera aplicacion los
-  # valores ya son ASCII, asi que el pegado no necesita normalizarse de nuevo.
+  # Y la clave de bytes se aplica UNA vez por valor: la del `Map()` de arriba,
+  # antes de normalizar. La nota anterior decia esto mismo y el codigo la aplicaba
+  # DOS -una en el `Map()` y otra aca, antes de pegar-, asi que cada `\` del dato
+  # llegaba cuadruplicado a `stringdist` y la distancia publicada no salia de
+  # ninguna receta: medido en la ronda 27, `x\y` contra `x\z` publicaba 0,067 y
+  # entraba al umbral por omision. La segunda aplicacion no hacia otra cosa: la
+  # primera ya marco UTF-8 lo valido y escapo lo que no lo es.
   #
   # La receta publicada queda entonces en una linea, y es la que documenta el Rd:
-  # cada valor con su `|` escapado como `\|`, unidos con `" | "`.
+  # cada valor con su `\` escrito `\\` y su `|` escrito `\|`, unidos con `" | "`.
   escapar_separador <- function(v) gsub("|", "\\|", v, fixed = TRUE)
   filas <- do.call(
     paste,
     c(
-      unname(lapply(valores, function(x) {
-        escapar_separador(.clave_bytes(x$valores))
-      })),
+      unname(lapply(valores, function(x) escapar_separador(x$valores))),
       sep = " | "
     )
   )
@@ -1690,21 +1709,48 @@
 # despues de la normalizacion declarada, no porque los valores guardados sean
 # iguales. Esto distingue los dos casos para que el hallazgo no afirme una
 # igualdad que no existe en los datos.
+#
+# Se comparan los valores con la misma escritura con que entran a la cadena -un
+# doble con las cifras que lo devuelven a su valor, no con las 15 de
+# `as.character()`-, y la celda
+# ausente se compara como la cadena vacia, que es como entra. Las dos cosas
+# daban clasificaciones falsas, medidas en la ronda 27: `0.1 + 0.2` contra `0.3`
+# y `1e15` contra `1e15 + 1` salian `exacto` -"los mismos valores"- con
+# evidencia `m=0.3`/`m=0.3`; y `NA` contra `""` con `normalizar = FALSE` salia
+# `exacto_normalizado` con `igualo_normalizar = TRUE`, atribuyendo a una
+# normalizacion que no existia una igualdad que puso el tratamiento del ausente.
 .pares_con_texto_original_igual <- function(datos, columnas, filas_1, filas_2) {
   n <- length(filas_1)
   if (!n) return(logical())
   iguales <- rep(TRUE, n)
   for (columna in columnas) {
-    valores <- .nombres_para_operar(
-      suppressWarnings(as.character(datos[[columna]]))
-    )
-    a <- valores[filas_1]
-    b <- valores[filas_2]
-    coincide <- (is.na(a) & is.na(b)) |
-      (!is.na(a) & !is.na(b) & a == b)
-    iguales <- iguales & coincide
+    valores <- .nombres_para_operar(suppressWarnings(as.character(
+      .valores_para_comparar_duplicados(datos[[columna]])
+    )))
+    valores[is.na(valores)] <- ""
+    iguales <- iguales & valores[filas_1] == valores[filas_2]
   }
   iguales
+}
+
+# Lo que entra a la comparacion desde una columna de dobles. `as.character()`
+# escribe 15 cifras, asi que `0.1 + 0.2` y `0.3`, o `1e15` y `1e15 + 1`, entraban
+# como el mismo texto: distancia 0, `tipo_par = "exacto"` y evidencia identica,
+# sobre valores que R separa (`==` da FALSE). Se usa la etiqueta reversible -la
+# escritura mas corta que vuelve al valor-: 15 cifras cuando alcanzan, que es casi
+# siempre, asi que `0.1` sigue siendo "0.1" y `1e15`, "1e+15"; 16 o 17 cuando no.
+# No la de identidad, que escribe todo entero con todas sus cifras: medido, con
+# ella `1e15` ("1000000000000000") quedaba a 0,09 de `0.1 + 0.2` y entraba al
+# umbral por omision, un par que la escritura corriente nunca publico. Aca no hay
+# que emparejar clases distintas -cada columna se compara consigo misma-, que es
+# lo unico que la de identidad agrega. Las clases que guardan su valor en un doble
+# y no son un numero corriente conservan su propia escritura.
+.valores_para_comparar_duplicados <- function(x) {
+  if (is.double(x) &&
+      !inherits(x, c("Date", "POSIXt", "difftime", "integer64"))) {
+    return(.etiqueta_numero_reversible(x))
+  }
+  x
 }
 
 .evidencia_filas_aproximada <- function(datos, columnas, filas, protegidas) {
@@ -1716,9 +1762,11 @@
                    .nombres_para_operar(protegidas)) {
       rep("[valor protegido]", n)
     } else {
-      valores <- suppressWarnings(
-        as.character(.texto_analizable(datos[[columna]][filas])$valores)
-      )
+      # Un doble se cita con la misma escritura con que entra a la comparacion:
+      # con 15 cifras, el par `1e15` / `1e15 + 1` se citaba `1e+15` / `1e+15`.
+      valores <- suppressWarnings(as.character(.texto_analizable(
+        .valores_para_comparar_duplicados(datos[[columna]][filas])
+      )$valores))
       # La evidencia se PUBLICA, y `.texto_analizable()` es el camino de
       # ANALISIS: marca UTF-8 lo declarado `bytes` cuando sus bytes son validos,
       # a proposito, para que `tolower()`, `trimws()` y las expresiones
@@ -1986,7 +2034,7 @@
       nrow(datos), columnas, metodo, umbral, muestra, max_pares,
       max_resultados, disponible = TRUE, bloque = bloque, p = p,
       razon = "No hay dos filas con valores comparables.",
-      nucleos_usados = nucleos
+      nucleos_usados = nucleos, conteos_medidos = TRUE
     )
     resultado$alcance$n_filas_muestra <- length(indices)
     resultado$alcance$n_filas_validas <- length(validos)
@@ -2379,7 +2427,10 @@
 #' calibracion fina. Ambos argumentos se pueden cambiar.
 #'
 #' `tipo_par = "exacto"` indica que los textos guardados son iguales en las
-#' columnas comparadas. `tipo_par = "exacto_normalizado"` indica que coinciden
+#' columnas comparadas; una celda ausente (`NA`) y una cadena vacía cuentan como
+#' el mismo texto vacío, que es como entran a la comparación, así que esa
+#' diferencia no se atribuye a la normalización. Dos dobles son iguales si lo son
+#' sus valores, no su escritura con 15 cifras. `tipo_par = "exacto_normalizado"` indica que coinciden
 #' despues de la normalizacion declarada, aunque los textos guardados difieran.
 #' Los restantes son `"aproximado"`. La columna logica `igualo_normalizar` es
 #' `TRUE` unicamente para el segundo caso. La clasificacion no depende de que
@@ -2392,8 +2443,10 @@
 #' no afirma que los valores guardados sean iguales y tampoco oculta la causa
 #' de la coincidencia bajo `duplicados_aproximados`.
 #'
-#' Una fila cuyos valores en las columnas comparadas son **todos** ausentes o
-#' cadena vacía no entra en la comparación: no hay texto que medir, y dos filas
+#' Una fila cuyos valores en las columnas comparadas son **todos** ausentes,
+#' cadena vacía o solo blancos —espacios, tabulaciones, saltos de línea; lo que
+#' [perfilar()] cuenta en `n_blancos`— no entra en la comparación, con o sin
+#' normalización: no hay texto que medir, y dos filas
 #' vacías no son un duplicado sino dos ausencias. `alcance$n_filas_validas`
 #' cuenta las que sí entraron —contra `n_filas_total`— y, si no quedan dos,
 #' `razon` lo dice. Una cadena vacía **sí** es una clave válida en
@@ -2452,7 +2505,13 @@
 #' `stringdist` es una dependencia opcional. Si no esta instalado, la funcion
 #' devuelve un objeto con `disponible = FALSE`, una tabla vacia y el motivo
 #' explicito; no falla ni presenta silencio como si se hubieran comparado todos
-#' los pares.
+#' los pares. En ese caso —y cuando la comparación no corre por un valor que
+#' supera `max_largo_valor`, por dos columnas con el mismo nombre o por no haber
+#' columnas comparables— los conteos de `alcance` que salen de comparar filas
+#' (`n_filas_validas`, `n_pares_hallados`, `n_pares_exactos`,
+#' `n_pares_exactos_normalizados` y `n_pares_aproximados`) son `NA`, no cero:
+#' nadie los midió. Si las filas se recorrieron y no quedaron dos válidas, cero
+#' pares sí es lo medido.
 #'
 #' Las comparaciones que delegan en `stringdist` usan `nucleos` hilos como
 #' máximo. El valor por omisión es `getOption("lupa.nucleos", 2L)`, se limita a
@@ -2521,21 +2580,32 @@
 #'   vuelve independiente de cómo estén ordenadas las columnas del archivo.
 #'
 #'   **Cómo se concatena, para poder rehacer la distancia.** Los valores se unen
-#'   con `" | "` y cada `|` que haya dentro de un valor se escribe `\|`. El escape
-#'   no es cosmético: sin él, `c1 = "x | y", c2 = "z"` y `c1 = "x", c2 = "y | z"`
-#'   producían la misma cadena y dos filas que **no comparten ningún valor** salían
-#'   `exacto_normalizado` a distancia `0`. Con el escape, la distancia publicada de
-#'   una comparación de varias columnas se rehace así:
+#'   con `" | "`; dentro de cada valor, cada barra invertida `\` se escribe `\\`
+#'   y cada `|` se escribe `\|`. Los escapes no son cosméticos: sin el de `|`,
+#'   `c1 = "x | y", c2 = "z"` y `c1 = "x", c2 = "y | z"` producían la misma cadena
+#'   y dos filas que **no comparten ningún valor** salían `exacto_normalizado` a
+#'   distancia `0`; el de `\` es el que deja leer ese `\|` de una sola manera, y
+#'   el que distingue un valor declarado `bytes` del literal de su escape. Con
+#'   los dos, la distancia publicada de una comparación de varias columnas se
+#'   rehace así —y la de una sola, con el mismo `escapar()` y sin pegar—:
 #'
 #'   ```r
-#'   escapar <- function(v) gsub("|", "\\|", v, fixed = TRUE)
+#'   escapar <- function(v) {
+#'     gsub("|", "\\|", gsub("\\", "\\\\", v, fixed = TRUE), fixed = TRUE)
+#'   }
 #'   fila <- function(i) paste(escapar(datos$c1[i]), escapar(datos$c2[i]), sep = " | ")
 #'   stringdist::stringdist(fila(1), fila(2), method = "jw", p = 0.1)
 #'   ```
 #'
-#'   Si la columna es un factor o tiene marca `bytes`, la cadena comparada es la
-#'   clave de bytes del valor —lo que distingue un valor no textual del literal de
-#'   su escape—; para texto corriente esa clave es el valor tal cual.
+#'   Fuera de esos dos escapes, el texto corriente se compara tal cual. Un valor
+#'   con marca `bytes` entra con cada byte alto escrito `\xHH` —su clave de
+#'   bytes; esas barras son del escape y no se duplican—, y un mismo texto en
+#'   `latin1` y en UTF-8 entra igual. Un doble entra
+#'   con la escritura más corta que vuelve a su valor: la de `as.character()`
+#'   cuando sus 15 cifras alcanzan —`0.1` es `"0.1"` y `1e15`, `"1e+15"`— y 16 o
+#'   17 cuando no —`1e15 + 1` es `"1000000000000001"` y `0.1 + 0.2`,
+#'   `"0.30000000000000004"`—, así que dos números que R distingue no se comparan
+#'   como el mismo texto. La evidencia los cita con esa misma escritura.
 #'
 #'   Si dos columnas de texto **tienen el mismo nombre**, la comparación no corre:
 #'   identifica las columnas por nombre y no podría decir cuál compara. No se

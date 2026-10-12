@@ -492,10 +492,22 @@
   } else NA_character_
 }
 
+# La convencion decimal que la fila publica, para leer la columna como numero
+# con la misma regla que el resumen -ver `.leer_numeros_texto()`-. Un perfil
+# guardado por una version anterior puede no traer el campo: entonces `NULL`, y
+# la lectura la calcula con la misma funcion que la publica.
+.convencion_numero_texto_fila <- function(fila) {
+  if (!"numero_texto_convencion" %in% names(fila)) return(NULL)
+  valor <- fila[["numero_texto_convencion"]]
+  if (!length(valor) || is.na(valor[[1L]])) return(NULL)
+  as.character(valor[[1L]])
+}
+
 .valores_orden_columna <- function(x, fila, formatos) {
   inferencia <- list(
     tipo = as.character(fila$tipo_inferido[[1L]]),
-    muestreado = isTRUE(fila$muestreado_tipo_inferido[[1L]])
+    muestreado = isTRUE(fila$muestreado_tipo_inferido[[1L]]),
+    convencion_numero_texto = .convencion_numero_texto_fila(fila)
   )
   cuantitativos <- tryCatch(
     .valores_cuantitativos(
@@ -2694,7 +2706,10 @@
   if (is.null(valores)) return(NULL)
   cuantitativos <- tryCatch(
     .valores_cuantitativos(
-      valores, list(tipo = tipo), resultado$formatos
+      valores,
+      list(tipo = tipo,
+           convencion_numero_texto = .convencion_numero_texto_fila(fila)),
+      resultado$formatos
     ),
     error = function(e) NULL
   )
@@ -4156,12 +4171,23 @@
     ]
     if (nrow(candidatos_fecha) &&
         fila$tipo_inferido %in% c("fecha", "fecha-hora")) {
+      # Con guion y dos cifras la ambiguedad tambien puede ser del ano con el
+      # dia -`25-12-31`-, y la descripcion lo dice en vez de nombrar solo el
+      # par dia/mes.
+      con_anio_primero <- any(startsWith(candidatos_fecha$formato, "%y"))
       agregar(.nuevo_hallazgo(
         nombre, "formato_fecha_ambiguo", "sospechoso",
-        paste0(
-          "La columna es compatible con fecha, pero no permite distinguir ",
-          "d\u00eda/mes de mes/d\u00eda; el rango temporal no se calcula."
-        ),
+        if (con_anio_primero) {
+          paste0(
+            "La columna es compatible con fecha, pero no permite distinguir ",
+            "el orden de d\u00eda, mes y a\u00f1o; el rango temporal no se calcula."
+          )
+        } else {
+          paste0(
+            "La columna es compatible con fecha, pero no permite distinguir ",
+            "d\u00eda/mes de mes/d\u00eda; el rango temporal no se calcula."
+          )
+        },
         paste(candidatos_fecha$formato, collapse = " o "),
         "Desambiguar el formato con el origen de los datos antes de convertir la columna."
       ))
@@ -4322,11 +4348,41 @@
       )
     }
 
+    # Un texto con el desplazamiento escrito -`2020-01-31T23:30:00-03:00`- se
+    # publica como instante UTC -`2020-02-01 02:30:00 UTC`-, y su fecha civil
+    # puede no ser la escrita: es la pregunta de `zona_horaria_fecha_hora`. El
+    # conteo es un campo de las columnas `POSIXt` y queda en `NA`, pero callado:
+    # ni hallazgo ni fila de cobertura, mientras la misma columna como
+    # `POSIXct` sin zona declarada si declaraba que no se evaluo. Se declara
+    # igual que ese caso.
+    formatos_columna <- resultado$formatos
+    # `zona_horaria_origen` es `NA` justo en lo que no es `POSIXt`.
+    texto_con_desplazamiento <- "zona_horaria_origen" %in% names(fila) &&
+      is.na(fila$zona_horaria_origen[[1L]]) &&
+      identical(as.character(fila$tipo_inferido[[1L]]), "fecha-hora") &&
+      is.data.frame(formatos_columna) &&
+      all(c("formato", "estado", "n") %in% names(formatos_columna)) &&
+      any(grepl("%z", formatos_columna$formato, fixed = TRUE) &
+            formatos_columna$estado == "confirmado" &
+            !is.na(formatos_columna$n) & formatos_columna$n > 0L)
     if (identical(fila$zona_horaria_origen[[1L]], "sin_declarar")) {
       agregar_cobertura(
         "zona_horaria_fecha_hora", nombre,
         "No se evaluo el cambio de fecha civil a UTC porque la zona horaria de origen no esta declarada.",
         "Declarar attr(x, 'tzone') con la zona horaria de origen antes de interpretar el calendario civil."
+      )
+    } else if (texto_con_desplazamiento) {
+      agregar_cobertura(
+        "zona_horaria_fecha_hora", nombre,
+        paste0(
+          "No se evaluo el cambio de fecha civil a UTC: la columna es texto con ",
+          "el desplazamiento horario escrito, el resumen publica el instante en ",
+          "UTC y su fecha puede no ser la escrita."
+        ),
+        paste0(
+          "Convertir la columna a POSIXct y declarar attr(x, 'tzone') con la ",
+          "zona de origen antes de interpretar el calendario civil."
+        )
       )
     } else if (isTRUE(fila$fecha_civil_distinta_utc)) {
       agregar(.nuevo_hallazgo(

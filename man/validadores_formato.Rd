@@ -44,13 +44,20 @@ versión del paquete. Los valores ausentes devuelven \code{NA}; todo valor prese
 que no cumple el contrato devuelve \code{FALSE}. Los espacios \strong{al borde} se
 recortan antes de validar —son ruido de captura, no parte del dato—, salvo en
 \code{validar_url()}, donde un espacio literal en cualquier posición rompe la
-sintaxis y el valor es inválido. Un espacio en el medio no se recorta en
-ningún validador.
+sintaxis y el valor es inválido. Se recorta todo espacio: el ASCII, el
+tabulador y los separadores de Unicode, como el espacio duro (U+00A0) que
+dejan las planillas y las páginas web. Un espacio en el medio no se recorta
+en ningún validador.
 }
 \details{
 La respuesta es sobre el dato, no sobre cómo lo escribe R. Un número se valida
 por sus dígitos: el doble \code{12000000} se lee como \code{"12000000"} aunque \code{scipen}
-lo imprima en notación científica. \code{NaN} es ausente y devuelve \code{NA}, igual que
+lo imprima en notación científica. Un doble desde 2^53 no conserva sus
+dígitos —es el más cercano de varios enteros— y devuelve \code{FALSE}; el mismo
+número como texto o como \code{integer64} sí se valida. Una magnitud con clase
+—\code{Date}, \code{POSIXct}, \code{difftime}, \code{hms}, \code{units}— no es la escritura de un
+documento y devuelve \code{FALSE} (o \code{NA} donde falta), sin validar los días o
+segundos que guarda. \code{NaN} es ausente y devuelve \code{NA}, igual que
 en el resto del paquete. Las letras se pasan a mayúsculas sólo dentro de ASCII:
 \code{toupper()} convierte la s larga (U+017F) en \code{S} y la i sin punto (U+0131) en
 \code{I}, y con eso una s larga seguida de \code{e} pasaba por un código ISO; ahora es

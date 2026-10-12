@@ -147,7 +147,42 @@ familias <- list(
   monto_10_cifras_coma = formatC(runif(m, 1e9, 1e10), format = "f", digits = 0,
                                  big.mark = ","),
   monto_10_cifras_apostrofo = formatC(runif(m, 1e9, 1e10), format = "f", digits = 0,
-                                      big.mark = "'")
+                                      big.mark = "'"),
+  # Ronda 27: las familias que la refutacion midio -los importes de cuatro grupos
+  # cuyo segundo empieza con cero, el telefono con su prefijo de pais pegado o
+  # con espacios, la version de cinco partes, el correo en palabras- y, para
+  # comparar, el telefono con guiones, pegado y sin el prefijo. Al final, para
+  # no cambiar los numeros de las de arriba.
+  monto_segundo_grupo_09 = sprintf("$ %d.09%d.%03d.%03d", sample(1:9, m, TRUE),
+                                   sample(1:9, m, TRUE), sample(0:999, m, TRUE),
+                                   sample(0:999, m, TRUE)),
+  monto_segundo_grupo_02 = sprintf("$ %d.02%d.%03d.%03d", sample(1:9, m, TRUE),
+                                   sample(0:9, m, TRUE), sample(0:999, m, TRUE),
+                                   sample(0:999, m, TRUE)),
+  monto_miles_con_decimales_4g = sprintf("$ %d.%03d.%03d.%03d,%02d",
+                                         sample(1:9, m, TRUE), sample(0:999, m, TRUE),
+                                         sample(0:999, m, TRUE), sample(0:999, m, TRUE),
+                                         sample(0:99, m, TRUE)),
+  celular_e164_no_protegido = sprintf("+5989%d%06d", sample(1:9, m, TRUE),
+                                      sample(0:999999, m, TRUE)),
+  fijo_intl_espacios = sprintf("+598 %d%03d %04d", sample(c(2, 4), m, TRUE),
+                               sample(0:999, m, TRUE), sample(0:9999, m, TRUE)),
+  celular_intl_espacios = sprintf("+598 9%d %03d %03d", sample(1:9, m, TRUE),
+                                  sample(0:999, m, TRUE), sample(0:999, m, TRUE)),
+  version_cinco_partes = sprintf("v%d.%d.%d.%d.%d", sample(1:9, m, TRUE),
+                                 sample(0:99, m, TRUE), sample(0:999, m, TRUE),
+                                 sample(0:9999, m, TRUE), sample(0:99, m, TRUE)),
+  correo_palabras_no_protegido = sprintf("u%05d arroba dominio%02d punto com",
+                                         sample(0:99999, m, TRUE),
+                                         sample(0:99, m, TRUE)),
+  fijo_e164_no_protegido = sprintf("+598%d%07d", sample(c(2, 4), m, TRUE),
+                                   sample(0:9999999, m, TRUE)),
+  fijo_nacional_espacios = sprintf("%d%03d %04d", sample(c(2, 4), m, TRUE),
+                                   sample(0:999, m, TRUE), sample(0:9999, m, TRUE)),
+  celular_nacional_espacios = sprintf("09%d %03d %03d", sample(1:9, m, TRUE),
+                                      sample(0:999, m, TRUE), sample(0:999, m, TRUE)),
+  fijo_intl_guiones = sprintf("+598-%d%03d-%04d", sample(c(2, 4), m, TRUE),
+                              sample(0:999, m, TRUE), sample(0:9999, m, TRUE))
 )
 cat("valores protegidos:", length(valores), "\n")
 for (familia in names(familias)) {

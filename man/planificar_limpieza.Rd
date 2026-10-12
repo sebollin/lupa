@@ -255,9 +255,12 @@ modelo externo, sigue siendo una regularidad aprendida de una sola entrega y
 puede reflejar un error sistemático en vez de una regla de negocio. El plan
 conserva el mapa y su soporte para que el usuario la confirme; sólo entonces
 se aplica y se vuelve a validar contra los datos recibidos. Si la protección
-enmascaró alguna clave del mapa, éste no se usa como tabla de cruce: la
-relación se reconstruye sobre los datos recibidos con el soporte declarado,
-sin publicar sus valores. Con una regla de \code{aplicabilidad} sobre la columna
+enmascaró alguna celda del mapa —una clave o un valor, también cuando ninguna
+de las dos columnas es personal pero una celda contiene un valor protegido,
+como la sucursal que se llama igual que un titular—, éste no se usa como
+tabla de cruce: queda marcado \code{mapa_enmascarado = TRUE} y la relación se
+reconstruye sobre los datos recibidos con el soporte declarado, sin publicar
+sus valores. Con una regla de \code{aplicabilidad} sobre la columna
 dependiente, la imputación respeta su universo como las demás acciones por
 celda: no llena las filas declaradas fuera, que son vacío por diseño, y
 \code{n_afectadas} las excluye.

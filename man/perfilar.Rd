@@ -259,7 +259,13 @@ abortaban porque los nombres del perfil ya no coincidían con los de los
 datos. Un campo se reconoce como de nombres por su \strong{contenido} —todos sus
 valores son nombres de la entrada, solos o unidos—, así que la protección
 de los valores no se afloja: si un valor protegido es igual a un nombre de
-columna, su moda sigue tapada. Y un texto que nombra una columna entre
+columna —una planilla pivoteada con una columna de notas por docente y la
+docente protegida—, su moda sigue tapada, y también los ejemplos de sus
+patrones, sus niveles observados y la configuración propuesta: un campo
+hecho de nombres que son valores protegidos es un campo de \strong{valores}.
+Salvo donde el campo refiere columnas —\code{columna}, \code{determinante},
+\code{dependiente}, \code{nombres_propuestos} y los demás de su clase—: ahí el
+nombre es estructura y el plan lo necesita para ejecutar. Y un texto que nombra una columna entre
 comillas —la prosa del paquete, la SQL que guarda \code{\link[=perfilar_dbi]{perfilar_dbi()}}— la
 conserva entera: con «Segundo» protegido, \code{segundo_nombre} salía
 \verb{[valor protegido]_nombre} en los hallazgos sin acción del plan y en la
@@ -333,7 +339,13 @@ los caracteres de control también—, con los parecidos más comunes del
 punto, la coma, la barra y el apóstrofo —el acento agudo que el teclado en
 español pone por apóstrofo—, con la raya o el apóstrofo de un CSV de
 Windows leído como \code{latin1}, o escrito con dígitos arábigo-índicos, persas
-o devanagari. No unen los parecidos raros: la prima de una coordenada
+o devanagari. El \strong{teléfono uruguayo con su prefijo de país} —\code{"598"} o
+\code{"00598"} y ocho cifras que empiezan con 2, 4 o 9: \code{"+598 2901 1234"},
+\code{"00598 99 123 456"} o pegado, \code{"+59899123456"}, como lo escriben los
+enlaces de WhatsApp y las exportaciones de un CRM— se prueba por su parte
+nacional, como si estuviera escrito solo, y entero; el prefijo no se une a
+otro grupo. Y el celular protegido guardado con el prefijo se reconoce
+escrito sin él. No unen los parecidos raros: la prima de una coordenada
 sexagesimal, el acento grave, la tilde. Los dos puntos y la barra vertical
 \strong{no} unen: una razón
 \code{"494:2714"} o una lista \code{"12|345|6789"} no es un documento, y un documento
@@ -345,7 +357,8 @@ cualquier orden, con la hora separada por puntos, guiones o \code{h} y \code{m}
 (\code{"21h24m25s"}), en la forma compacta \code{"20240627T212425"} o con la hora
 compacta tras la fecha con separadores (\code{"2024-06-27T212425"}); no en
 palabras, con a.m./p.m., con cuatro espacios o más ni con el año en dos
-cifras. El documento
+cifras —también con las formas chicas o de ancho completo de esos signos,
+o con la barra partida por barra vertical—. El documento
 \strong{parcial}, de siete cifras o más, se busca con más cuidado porque es el
 que coincide por azar: sin su verificador, fuera de la parte de un
 decimal, de un número con forma de dirección IPv4 —con o sin máscara
@@ -406,6 +419,11 @@ lista separada por espacios, ocho de cada cien; un rango de años
 \code{"2004-2017"} o con la raya de un CSV de Windows, dos números en dos
 líneas, una lista con tabuladores o con comas sin espacio —también la coma
 ideográfica—, entre una y tres de cada cien; o una versión \code{"v4.16.4302"}.
+Un teléfono fijo que no es de nadie, escrito con espacios o guiones
+—\code{"4656 4570"}—, entre tres y seis de cada cien, igual con su prefijo de
+país (\code{"+598 4499 0917"}) o pegado: coincide con un documento o con un
+teléfono protegido. Con el prefijo era uno de cada seis, porque \code{"598"} y
+el primer grupo formaban una cédula de siete cifras sin su verificador.
 Y, por el mismo parcial, una versión de cuatro partes
 (\code{"v4.62.660.4361"}), trece de cada cien, y un expediente
 \code{"exp 2023-6-880041"}, uno de cada seis: su tramo \code{"660.4361"} o
@@ -435,8 +453,16 @@ con palabras} —\verb{juan(at)gmail.com}, \verb{[at]}, \code{{at}}, \verb{_at_}
 arroba sólo si la sigue un dominio con su punto, y \code{dot} o \code{punto} son el
 punto sólo en un texto que ya tiene arroba —también la arroba escrita,
 \verb{juan@gmail punto com}—. Se lee con los espacios de Unicode como espacios
-—el duro, el ideográfico— y los signos de ancho completo como los de
-ASCII —los paréntesis o la arroba anchos—, y en cualquier codificación: un texto \code{latin1} con
+—el duro, el ideográfico, el salto de línea de C1 (U+0085)— y los signos de
+ancho completo como los de ASCII —los paréntesis o la arroba anchos,
+también los paréntesis blancos anchos (U+FF5F, U+FF60)—, y con las demás
+formas de compatibilidad de un signo ASCII que la regla de dígitos ya lee:
+el punto ideográfico y el de medio ancho (U+3002, U+FF61), las variantes
+chicas de la coma, el punto, los paréntesis o la arroba (U+FE50 a U+FE6B) y
+la barra partida. Las letras de otro alfabeto que se parecen —una «a»
+cirílica (U+0430) en lugar de la latina— no son el mismo signo y no se
+leen. Y en cualquier
+codificación: un texto \code{latin1} con
 una tilde se lee como el mismo texto en UTF-8. Medido sobre 3.000 correos
 protegidos: los no protegidos escritos así se taparon lo mismo que con la
 arroba común —cuatro de cada mil, por los separadores cosméticos—, y
@@ -1139,6 +1165,10 @@ conserva aunque la columna de entrada use otra zona horaria. Las columnas
 al mostrar el instante en UTC. Cuando la fecha civil cambia se emite un
 hallazgo \code{zona_horaria_fecha_hora}; si la zona de origen no está declarada,
 el conteo queda en \code{NA} y \code{cobertura_diagnosticos} declara que no se evaluó.
+Una columna de texto cuyos valores llevan el desplazamiento horario escrito
+(\verb{2020-01-31T23:30:00-03:00}) también publica su instante en UTC, y su fecha
+civil puede no ser la escrita: el conteo es de las columnas \code{POSIXt} y queda
+en \code{NA}, y \code{cobertura_diagnosticos} declara igual que no se evaluó.
 La zona se declara en la columna original, por ejemplo:
 \code{attr(x, "tzone") <- "America/Montevideo"}.
 
@@ -1433,7 +1463,17 @@ demasiado. Los desvíos siguen siendo síntesis no ligadas a una fila;
 nacimiento y fallecimiento, un hallazgo separado conserva el diagnóstico de
 valores anteriores a 1900 o posteriores a la corrida sin publicar las fechas.
 Los números escritos como texto reconocen tanto coma como punto decimal y
-sus separadores de miles simétricos. Los prefijos de tres letras separados
+sus separadores de miles simétricos. El resumen cuantitativo, los outliers y
+la secuencia entera los leen con la convención que la misma fila publica en
+\code{numero_texto_convencion}, por la misma normalización que la acción
+\code{convertir_numero_regional}: con \code{"decimal_coma"}, \code{1.500} es mil quinientos.
+Un separador seguido de exactamente tres dígitos —\code{1.500}, \verb{1,500}— sólo se
+lee si la columna aporta evidencia de una sola convención; si no la aporta
+(\code{"ambigua"}) o aporta de las dos (\code{"mixta"}), ese valor no se lee como
+número, con punto o con coma por igual: una columna entera de esos valores
+queda \code{texto} y sin resumen, y si son pocos quedan fuera del resumen y lo
+declaran \code{n_valores_excluidos_resumen} y \code{"calculados_sobre_valores"}.
+Los prefijos de tres letras separados
 del número, incluso como sufijo, \code{U$S} y los símbolos monetarios se
 conservan como evidencia; \code{monedas_mixtas} informa sus frecuencias sin
 convertir ni suponer tasas de cambio. Una única moneda o un símbolo \code{$}

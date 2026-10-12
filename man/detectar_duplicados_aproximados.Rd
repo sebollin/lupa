@@ -47,20 +47,31 @@ ese orden, así que el resultado se puede rehacer; declararlo a mano lo
 vuelve independiente de cómo estén ordenadas las columnas del archivo.
 
 \strong{Cómo se concatena, para poder rehacer la distancia.} Los valores se unen
-con \code{" | "} y cada \code{|} que haya dentro de un valor se escribe \verb{\\|}. El escape
-no es cosmético: sin él, \verb{c1 = "x | y", c2 = "z"} y \verb{c1 = "x", c2 = "y | z"}
-producían la misma cadena y dos filas que \strong{no comparten ningún valor} salían
-\code{exacto_normalizado} a distancia \code{0}. Con el escape, la distancia publicada de
-una comparación de varias columnas se rehace así:
+con \code{" | "}; dentro de cada valor, cada barra invertida \verb{\\} se escribe \verb{\\\\}
+y cada \code{|} se escribe \verb{\\|}. Los escapes no son cosméticos: sin el de \code{|},
+\verb{c1 = "x | y", c2 = "z"} y \verb{c1 = "x", c2 = "y | z"} producían la misma cadena
+y dos filas que \strong{no comparten ningún valor} salían \code{exacto_normalizado} a
+distancia \code{0}; el de \verb{\\} es el que deja leer ese \verb{\\|} de una sola manera, y
+el que distingue un valor declarado \code{bytes} del literal de su escape. Con
+los dos, la distancia publicada de una comparación de varias columnas se
+rehace así —y la de una sola, con el mismo \code{escapar()} y sin pegar—:
 
-\if{html}{\out{<div class="sourceCode r">}}\preformatted{escapar <- function(v) gsub("|", "\\\\|", v, fixed = TRUE)
+\if{html}{\out{<div class="sourceCode r">}}\preformatted{escapar <- function(v) \{
+  gsub("|", "\\\\|", gsub("\\\\", "\\\\\\\\", v, fixed = TRUE), fixed = TRUE)
+\}
 fila <- function(i) paste(escapar(datos$c1[i]), escapar(datos$c2[i]), sep = " | ")
 stringdist::stringdist(fila(1), fila(2), method = "jw", p = 0.1)
 }\if{html}{\out{</div>}}
 
-Si la columna es un factor o tiene marca \code{bytes}, la cadena comparada es la
-clave de bytes del valor —lo que distingue un valor no textual del literal de
-su escape—; para texto corriente esa clave es el valor tal cual.
+Fuera de esos dos escapes, el texto corriente se compara tal cual. Un valor
+con marca \code{bytes} entra con cada byte alto escrito \verb{\\xHH} —su clave de
+bytes; esas barras son del escape y no se duplican—, y un mismo texto en
+\code{latin1} y en UTF-8 entra igual. Un doble entra
+con la escritura más corta que vuelve a su valor: la de \code{as.character()}
+cuando sus 15 cifras alcanzan —\code{0.1} es \code{"0.1"} y \code{1e15}, \code{"1e+15"}— y 16 o
+17 cuando no —\code{1e15 + 1} es \code{"1000000000000001"} y \code{0.1 + 0.2},
+\code{"0.30000000000000004"}—, así que dos números que R distingue no se comparan
+como el mismo texto. La evidencia los cita con esa misma escritura.
 
 Si dos columnas de texto \strong{tienen el mismo nombre}, la comparación no corre:
 identifica las columnas por nombre y no podría decir cuál compara. No se
@@ -232,7 +243,10 @@ calibracion fina. Ambos argumentos se pueden cambiar.
 }
 \details{
 \code{tipo_par = "exacto"} indica que los textos guardados son iguales en las
-columnas comparadas. \code{tipo_par = "exacto_normalizado"} indica que coinciden
+columnas comparadas; una celda ausente (\code{NA}) y una cadena vacía cuentan como
+el mismo texto vacío, que es como entran a la comparación, así que esa
+diferencia no se atribuye a la normalización. Dos dobles son iguales si lo son
+sus valores, no su escritura con 15 cifras. \code{tipo_par = "exacto_normalizado"} indica que coinciden
 despues de la normalizacion declarada, aunque los textos guardados difieran.
 Los restantes son \code{"aproximado"}. La columna logica \code{igualo_normalizar} es
 \code{TRUE} unicamente para el segundo caso. La clasificacion no depende de que
@@ -245,8 +259,10 @@ hallazgos. \code{duplicados_exactos_normalizados} es un tipo de hallazgo propio:
 no afirma que los valores guardados sean iguales y tampoco oculta la causa
 de la coincidencia bajo \code{duplicados_aproximados}.
 
-Una fila cuyos valores en las columnas comparadas son \strong{todos} ausentes o
-cadena vacía no entra en la comparación: no hay texto que medir, y dos filas
+Una fila cuyos valores en las columnas comparadas son \strong{todos} ausentes,
+cadena vacía o solo blancos —espacios, tabulaciones, saltos de línea; lo que
+\code{\link[=perfilar]{perfilar()}} cuenta en \code{n_blancos}— no entra en la comparación, con o sin
+normalización: no hay texto que medir, y dos filas
 vacías no son un duplicado sino dos ausencias. \code{alcance$n_filas_validas}
 cuenta las que sí entraron —contra \code{n_filas_total}— y, si no quedan dos,
 \code{razon} lo dice. Una cadena vacía \strong{sí} es una clave válida en
@@ -305,7 +321,13 @@ contenido exportado en distinto orden.
 \code{stringdist} es una dependencia opcional. Si no esta instalado, la funcion
 devuelve un objeto con \code{disponible = FALSE}, una tabla vacia y el motivo
 explicito; no falla ni presenta silencio como si se hubieran comparado todos
-los pares.
+los pares. En ese caso —y cuando la comparación no corre por un valor que
+supera \code{max_largo_valor}, por dos columnas con el mismo nombre o por no haber
+columnas comparables— los conteos de \code{alcance} que salen de comparar filas
+(\code{n_filas_validas}, \code{n_pares_hallados}, \code{n_pares_exactos},
+\code{n_pares_exactos_normalizados} y \code{n_pares_aproximados}) son \code{NA}, no cero:
+nadie los midió. Si las filas se recorrieron y no quedaron dos válidas, cero
+pares sí es lo medido.
 
 Las comparaciones que delegan en \code{stringdist} usan \code{nucleos} hilos como
 máximo. El valor por omisión es \code{getOption("lupa.nucleos", 2L)}, se limita a

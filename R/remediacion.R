@@ -997,9 +997,12 @@
 #' puede reflejar un error sistemático en vez de una regla de negocio. El plan
 #' conserva el mapa y su soporte para que el usuario la confirme; sólo entonces
 #' se aplica y se vuelve a validar contra los datos recibidos. Si la protección
-#' enmascaró alguna clave del mapa, éste no se usa como tabla de cruce: la
-#' relación se reconstruye sobre los datos recibidos con el soporte declarado,
-#' sin publicar sus valores. Con una regla de `aplicabilidad` sobre la columna
+#' enmascaró alguna celda del mapa —una clave o un valor, también cuando ninguna
+#' de las dos columnas es personal pero una celda contiene un valor protegido,
+#' como la sucursal que se llama igual que un titular—, éste no se usa como
+#' tabla de cruce: queda marcado `mapa_enmascarado = TRUE` y la relación se
+#' reconstruye sobre los datos recibidos con el soporte declarado, sin publicar
+#' sus valores. Con una regla de `aplicabilidad` sobre la columna
 #' dependiente, la imputación respeta su universo como las demás acciones por
 #' celda: no llena las filas declaradas fuera, que son vacío por diseño, y
 #' `n_afectadas` las excluye.
@@ -1880,17 +1883,23 @@ planificar_limpieza <- function(perfil, datos = NULL,
         soporte_minimo = soporte_minimo_dependencia
       )
       if (!nrow(mapa)) next
+      # Por indice: un nombre marcado `bytes` no se traduce (ver
+      # `.mapa_dependencia()`).
       indices <- match(
-        .valores_relacion(datos[[determinante]]),
+        .valores_relacion(datos[[indices_dependencia[[1L]]]]),
         .valores_relacion(mapa$determinante)
       )
-      imputables <- is.na(datos[[dependiente]]) & !is.na(indices)
+      imputables <- is.na(datos[[indices_dependencia[[2L]]]]) & !is.na(indices)
       # Solo dentro del universo aplicable del dependiente: una fila declarada
       # fuera es vacio por diseno, el perfil no la cuenta como faltante y
       # `aplicar()` no la toca (ver `.estrategia_por_celda()`). Si la regla no se
       # puede evaluar aca, tampoco se podra al aplicar, que lo dira; el conteo
       # queda sin recortar.
-      regla_dependiente <- perfil$meta$reglas_aplicabilidad[[dependiente]]
+      reglas <- perfil$meta$reglas_aplicabilidad
+      i_regla <- if (length(reglas)) .indice_nombre(dependiente, names(reglas))
+      regla_dependiente <- if (length(i_regla) && !is.na(i_regla)) {
+        reglas[[i_regla]]
+      }
       if (!is.null(regla_dependiente)) {
         universo <- tryCatch(
           .mascara_aplicabilidad_accion(
@@ -2341,19 +2350,23 @@ rbind.plan_limpieza <- function(..., deparse.level = 1) {
       call. = FALSE
     )
   }
+  # Por indice: un nombre marcado `bytes` no se traduce (ver
+  # `.mapa_dependencia()`).
+  i_determinante <- indices_dependencia[[1L]]
+  i_dependiente <- indices_dependencia[[2L]]
   indices <- match(
-    .valores_relacion(datos[[determinante]]),
+    .valores_relacion(datos[[i_determinante]]),
     .valores_relacion(mapa$determinante)
   )
-  conocidos <- !is.na(datos[[dependiente]]) & !is.na(indices)
+  conocidos <- !is.na(datos[[i_dependiente]]) & !is.na(indices)
   esperado <- mapa$dependiente[indices[conocidos]]
-  if (any(.valores_relacion(datos[[dependiente]][conocidos]) !=
+  if (any(.valores_relacion(datos[[i_dependiente]][conocidos]) !=
           .valores_relacion(esperado))) {
     stop("Los datos actuales contradicen la dependencia funcional del plan.",
          call. = FALSE)
   }
-  imputar <- is.na(datos[[dependiente]]) & !is.na(indices)
-  salida <- datos[[dependiente]]
+  imputar <- is.na(datos[[i_dependiente]]) & !is.na(indices)
+  salida <- datos[[i_dependiente]]
   if (is.factor(salida)) {
     texto <- as.character(salida)
     texto[imputar] <- as.character(mapa$dependiente[indices[imputar]])
@@ -2361,7 +2374,7 @@ rbind.plan_limpieza <- function(..., deparse.level = 1) {
   } else {
     salida[imputar] <- mapa$dependiente[indices[imputar]]
   }
-  datos[[dependiente]] <- .con_atributos_de(datos[[dependiente]], salida)
+  datos[[i_dependiente]] <- .con_atributos_de(datos[[i_dependiente]], salida)
   list(datos = datos, n = sum(imputar))
 }
 
@@ -2753,11 +2766,11 @@ rbind.plan_limpieza <- function(..., deparse.level = 1) {
   if (is.null(convencion) || !length(convencion)) convencion <- "ambigua"
   if (identical(convencion, "es-UY")) convencion <- "decimal_coma"
   texto <- partes$cuerpo
-  if (identical(convencion, "decimal_coma")) {
-    texto <- gsub(".", "", texto, fixed = TRUE)
-    texto <- sub(",", ".", texto, fixed = TRUE)
-  } else if (identical(convencion, "decimal_punto")) {
-    texto <- gsub(",", "", texto, fixed = TRUE)
+  # La normalizacion es la misma con la que el perfil resume la columna: ver
+  # `.normalizar_separadores_numero()`.
+  if (length(convencion) == 1L &&
+      convencion %in% c("decimal_coma", "decimal_punto")) {
+    texto <- .normalizar_separadores_numero(texto, convencion)
   } else if (identical(convencion, "ambigua")) {
     ambiguos_punto <- presentes & partes$punto_tres
     ambiguos_coma <- presentes & partes$coma_tres
@@ -2974,9 +2987,10 @@ rbind.plan_limpieza <- function(..., deparse.level = 1) {
   if (inherits(x, c("Date", "POSIXt")) || is.numeric(x)) {
     valores <- as.numeric(x)
   } else {
-    valores <- suppressWarnings(as.numeric(
-      sub(",", ".", trimws(as.character(x)), fixed = TRUE)
-    ))
+    # El texto se lee con su convencion decimal, como lo lee el perfil que
+    # propuso la accion: con `sub(",", ".")` los limites salian de `1.500` leido
+    # como 1,5 en una columna de coma decimal. Ver `.leer_numeros_texto()`.
+    valores <- .leer_numeros_texto(x)
   }
   validos <- is.finite(valores)
   if (!is.null(dentro)) validos <- validos & dentro

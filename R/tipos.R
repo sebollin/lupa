@@ -42,7 +42,13 @@
 #' la proporción de valores compatibles, siempre en la escala `[0, 1]`.
 #' Los textos compuestos únicamente por `0` y `1` se consideran enteros; para
 #' inferir un lógico debe aparecer al menos un literal alfabético como `sí`,
-#' `no`, `true` o `false`.
+#' `no`, `true` o `false`. Una letra suelta (`T`, `F`, `S`, `N`) cuenta como
+#' literal sólo si aparece también su opuesto —`T` con `F` o `false`, `S` con
+#' `N` o `no`, y al revés—: sola es un código, y una columna de `F` y `M` no es
+#' lógica.
+#' Un separador seguido de exactamente tres dígitos (`1.500`, `1,500`) cuenta
+#' como número sólo si la columna aporta evidencia de una sola convención
+#' decimal, con punto o con coma por igual.
 #'
 #' @param x Vector que se desea examinar.
 #' @param umbral Proporción mínima para asignar un tipo implícito.
@@ -102,9 +108,26 @@ inferir_tipo <- function(x, umbral = 0.8, muestra = 1e5) {
   formas <- vocabulario$valores
   pesos <- tabulate(vocabulario$indices, nbins = length(formas))
 
-  logicos_base <- tolower(formas) %in% c(
+  formas_minusculas <- tolower(formas)
+  logicos_base <- formas_minusculas %in% c(
     "true", "false", "t", "f", "si", "s\u00ed", "s", "no", "n", "0", "1"
   )
+  # Una letra suelta es un literal logico solo con su par -`T` con `F` o
+  # `false`, `S` con `N` o `no`, y al reves-. Sola es un codigo: `F` y `M` es el
+  # sexo de un plantel, no un logico, y con el umbral de 0,8 dieciseis `F` y
+  # cuatro `M` salian `logico`, con un `tipo_declarado_distinto` falso; una
+  # columna de puras `F` se habria convertido en `FALSE`. Es la regla del
+  # `0`/`1` -una forma que suele ser codigo no prueba un logico por si sola-
+  # aplicada a las letras.
+  verdadero_tf <- any(formas_minusculas %in% c("t", "true"))
+  falso_tf <- any(formas_minusculas %in% c("f", "false"))
+  verdadero_sn <- any(formas_minusculas %in% c("s", "si", "s\u00ed"))
+  falso_sn <- any(formas_minusculas %in% c("n", "no"))
+  sin_par <- (formas_minusculas == "t" & !falso_tf) |
+    (formas_minusculas == "f" & !verdadero_tf) |
+    (formas_minusculas == "s" & !falso_sn) |
+    (formas_minusculas == "n" & !verdadero_sn)
+  logicos_base[sin_par] <- FALSE
   contiene_logico_alfabetico <- any(
     logicos_base & grepl("[[:alpha:]]", formas, perl = TRUE)
   )
@@ -118,9 +141,25 @@ inferir_tipo <- function(x, umbral = 0.8, muestra = 1e5) {
     "^[+-]?(?:[0-9]+(?:[.,][0-9]+)?|[.,][0-9]+)(?:[eE][+-]?[0-9]+)?$",
     formas, perl = TRUE
   )
-  punto_ambiguo <- grepl("^[+-]?[0-9]+\\.[0-9]{3}$", formas, perl = TRUE)
-  if (!any(grepl(",", formas, fixed = TRUE))) {
-    dobles[punto_ambiguo] <- FALSE
+  # Un separador seguido por exactamente tres digitos -`1.500`, `1,500`- es un
+  # numero solo si la columna decide la convencion: puede ser mil quinientos o
+  # uno y medio, y elegir seria inventar. La evidencia es la MISMA que publica
+  # `numero_texto_convencion` -`.componentes_numero_texto()`- y vale para los
+  # dos separadores por igual. Antes la guarda existia solo para el punto, y la
+  # decidia CUALQUIER coma de la columna: un `2,000` -tan ambiguo como el
+  # `1.500`- bastaba, y `1,500` no tenia guarda. La columna de miles con coma
+  # salia `doble` con su resumen leido como decimales, mientras la gemela con
+  # punto salia `texto`, sin resumen. Con evidencia de una sola convencion esas
+  # formas si son numeros, y el resumen las lee con ella.
+  separador_ambiguo <- dobles &
+    grepl("^[+-]?[0-9]{1,3}[.,][0-9]{3}$", formas, perl = TRUE)
+  if (any(separador_ambiguo)) {
+    con_separador <- grepl("[.,]", formas, perl = TRUE)
+    partes_numero <- .componentes_numero_texto(formas[con_separador])
+    if (!xor(any(partes_numero$evidencia_coma),
+             any(partes_numero$evidencia_punto))) {
+      dobles[separador_ambiguo] <- FALSE
+    }
   }
   horas <- grepl(
     "^(?:[01][0-9]|2[0-3]):[0-5][0-9](?::[0-5][0-9])?$",

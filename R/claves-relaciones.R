@@ -511,6 +511,11 @@ detectar_claves <- function(datos, max_combinacion = 3, normalizar = NULL,
 
 .valores_relacion <- function(x) {
   if (inherits(x, "POSIXt")) {
+    # `format(tz = "UTC")` no convierte un `POSIXlt`: lo escribe en la zona en
+    # que se descompuso, asi que el mismo instante en `POSIXlt` local y en
+    # `POSIXct` UTC daba dos claves. Medido en la ronda 27. Se pasa por el
+    # instante antes de escribir.
+    x <- as.POSIXct(x)
     return(.escritura_exacta_temporal(
       format(x, "%Y-%m-%d %H:%M:%S", tz = "UTC"), as.numeric(x)
     ))

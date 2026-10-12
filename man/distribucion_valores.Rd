@@ -76,6 +76,14 @@ conservan sus filas con \code{valor} en \code{NA} y el \code{estado}
 \code{"no_interpolable:<clase>"}, que nombra la clase que no se pudo interpolar. La
 condición se mide intentando el cálculo, no enumerando clases, así que una clase
 nueva con la misma limitación queda cubierta sin tocar el código.
+
+Las frecuencias se cuentan \strong{por valor, no por su escritura}: dos dobles
+que coinciden en sus primeras 15 cifras —\code{0.1 + 0.2} y \code{0.3}, \code{1e15} y
+\code{1e15 + 1}— son dos filas, como los cuenta \code{\link[=perfilar]{perfilar()}}, y cada una se
+escribe con las cifras que la devuelven a su valor. A igual frecuencia, las
+filas se ordenan por valor —el texto por sus bytes, los números como
+números—, el mismo desempate que la moda de \code{\link[=perfilar]{perfilar()}}: así, el recorte de
+\code{max_valores} no depende del orden de las filas de la tabla.
 }
 \examples{
 d <- data.frame(grupo = c("A", "A", "B"), valor = c(1, 2, 10))

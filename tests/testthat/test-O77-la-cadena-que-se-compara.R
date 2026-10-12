@@ -59,11 +59,32 @@ test_that("un valor declarado bytes no se iguala al literal de su escape", {
   literal <- "a\\xc3\\xb1o"
   datos <- data.frame(txt = c(crudo, literal), stringsAsFactors = FALSE)
 
+  # La promesa es que no se IGUALAN, y se mide con el par a la vista. Esta prueba
+  # pedia cero pares con el umbral por omision, y lo cumplia por la barra
+  # cuadruplicada de la ronda 27 -la distancia quedaba en 0,107, apenas sobre
+  # 0,10-: arreglada la doble clave de bytes, la distancia que sale de la receta
+  # es 0,098 y el par entra como `aproximado`, que es lo que es. Se pide el par
+  # con `umbral = 1` y se afirma lo que la promesa dice.
   resultado <- detectar_duplicados_aproximados(
-    datos, columnas = "txt", normalizar = FALSE, max_resultados = Inf
+    datos, columnas = "txt", normalizar = FALSE, max_resultados = Inf,
+    umbral = 1
   )
 
-  expect_identical(nrow(resultado$pares), 0L)
+  expect_identical(nrow(resultado$pares), 1L)
+  expect_identical(as.character(resultado$pares$tipo_par), "aproximado")
+  expect_false(resultado$pares$igualo_normalizar)
+  expect_gt(resultado$pares$distancia, 0)
+  # Y la distancia es la de la receta: el valor `bytes` entra con sus bytes altos
+  # escritos `\xHH`, y el literal con cada barra suya escrita doble.
+  escapar <- function(v) {
+    gsub("|", "\\|", gsub("\\", "\\\\", v, fixed = TRUE), fixed = TRUE)
+  }
+  expect_equal(
+    resultado$pares$distancia,
+    stringdist::stringdist(
+      "a\\xc3\\xb1o", escapar(literal), method = "jw", p = 0.1
+    )
+  )
 })
 
 test_that("el mismo texto en UTF-8 y en latin1 sigue siendo el mismo valor", {

@@ -261,6 +261,38 @@
 
 .sin_ceros_iniciales <- function(x) sub("^0+", "", x)
 
+# El TELEFONO URUGUAYO con su prefijo de pais: "598" o "00598" -el "+" no es
+# parte del numero- y la parte nacional, ocho cifras que empiezan con 2 o 4 (un
+# fijo) o con 9 (un celular), con el cero del celular o sin el. Escrito pegado
+# -"+59899123456", el formato E.164 de los enlaces de WhatsApp y de las
+# exportaciones de un CRM- o separado -"+598 4499 0917"-. Devuelve los grupos de
+# la parte nacional, o NULL si el numero no tiene esa forma.
+#
+# Ronda 27, dos defectos de la misma forma. (1) Pegado no dejaba ningun tramo
+# que fuera el telefono: "+59899123456" se publicaba frente al celular
+# protegido "099 123 456", y al reves. (2) Separado, el prefijo se pegaba al
+# primer grupo: "598" y "4499" formaban "5984499", una cedula de siete cifras
+# sin su verificador, y uno de cada seis fijos que no eran de nadie se tapaba.
+# Ahora la parte nacional se prueba como si estuviera escrita sola, y el numero
+# entero tambien como documento entero; el prefijo no entra en ningun otro
+# tramo.
+.PATRON_TELEFONO_UY_PEGADO <- "^(?:00)?598(0?[249][0-9]{7})$"
+
+.telefono_internacional_uy <- function(grupos) {
+  k <- length(grupos)
+  if (!k) return(NULL)
+  if (k == 1L) {
+    if (!grepl(.PATRON_TELEFONO_UY_PEGADO, grupos[[1L]], perl = TRUE)) {
+      return(NULL)
+    }
+    return(sub(.PATRON_TELEFONO_UY_PEGADO, "\\1", grupos[[1L]], perl = TRUE))
+  }
+  if (!grupos[[1L]] %in% c("598", "00598")) return(NULL)
+  nacional <- paste0(grupos[-1L], collapse = "")
+  if (!grepl("^0?[249][0-9]{7}$", nacional, perl = TRUE)) return(NULL)
+  grupos[-1L]
+}
+
 # Los conjuntos contra los que se compara, armados una vez por llamada. Un cero a
 # la izquierda no cambia el numero: "041234567" es el documento 41234567, como lo
 # deja una exportacion de ancho fijo. Medido en una refutacion.
@@ -268,7 +300,13 @@
   digitos <- unique(digitos[!is.na(digitos) & nzchar(digitos)])
   largo <- nchar(digitos, type = "bytes")
   parcial <- largo - 1L >= .MIN_LARGO_VALOR_IDENTIFICANTE + 1L
-  completos <- .sin_ceros_iniciales(digitos)
+  # El telefono protegido con su prefijo de pais -"+59899123456"- tambien es su
+  # parte nacional: el texto "llamar al 099 123 456" es el mismo telefono.
+  # Medido en la ronda 27.
+  internacionales <- grepl(.PATRON_TELEFONO_UY_PEGADO, digitos, perl = TRUE)
+  nacionales <- sub(.PATRON_TELEFONO_UY_PEGADO, "\\1", digitos[internacionales],
+                    perl = TRUE)
+  completos <- .sin_ceros_iniciales(c(digitos, nacionales))
   prefijos <- .sin_ceros_iniciales(substr(digitos, 1L, largo - 1L)[parcial])
   list(
     completos = unique(completos[
@@ -450,6 +488,26 @@
   numeros <- regmatches(texto, gregexpr(regla$numero, texto, perl = TRUE))[[1L]]
   for (numero in numeros) {
     partes <- .grupos_numero(numero)
+    # El telefono con su prefijo de pais: la parte nacional como si estuviera
+    # escrita sola, y el numero entero como documento entero. Ver
+    # `.telefono_internacional_uy()`.
+    nacional <- if (!any(partes$decimal)) {
+      .telefono_internacional_uy(partes$grupos)
+    }
+    if (!is.null(nacional)) {
+      grupos_nacionales <- list(
+        grupos = nacional, decimal = rep(FALSE, length(nacional)),
+        fraccion = rep(FALSE, length(nacional))
+      )
+      completos <- c(completos, .sin_ceros_iniciales(c(
+        paste0(partes$grupos, collapse = ""),
+        .concatenaciones_completas(grupos_nacionales, minimo, maximo)
+      )))
+      prefijos <- c(prefijos, redondo(.sin_ceros_iniciales(
+        .concatenaciones_parciales(grupos_nacionales, maximo)
+      )))
+      next
+    }
     # Con forma de IP, solo como documento entero, y entera: probar cada tramo
     # de octetos tapaba una de cada cincuenta direcciones -"218.235.90.247" por
     # el tramo "21823590"-. Medido en la ronda 24.
