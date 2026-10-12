@@ -14,12 +14,19 @@ cambio de proporción, cardinalidad o rango relativo. Cinco puntos
 porcentuales evita elevar variaciones pequeñas a hallazgo.}
 
 \item{umbral_error}{Diferencia a partir de la cual un aumento de faltantes o
-un patrón nuevo se clasifica como \code{error}.}
+un cambio de patrón —uno que aparece, desaparece o cambia de proporción— se
+clasifica como \code{error}.}
 }
 \value{
 Data frame \code{deriva_perfil}. \code{severidad} usa el factor ordenado
 \verb{ok < sospechoso < error}; los cambios menores permanecen como filas \code{ok}
 para que la serie sea exportable sin ocultar diferencias.
+El atributo \code{campos_protegidos} declara lo que no se comparó porque la
+protección de datos personales lo tapa: un data frame con \code{columna},
+\code{campo} y \code{lado} —\code{anterior} o \code{actual}—, la misma forma que usa
+\code{\link[=comparar_equivalencia]{comparar_equivalencia()}}. Hoy el único campo que puede figurar es
+\code{rango}. Está siempre, vacío si no hay nada que declarar, y \code{rbind()} une
+los de todas las derivas.
 }
 \description{
 Compara entregas sin exigir que tengan las mismas columnas. Devuelve cambios
@@ -72,6 +79,46 @@ con los mismos valores y la unidad cambiada de \code{m} a \code{km} son un cambi
 —la cifra dejó de significar lo mismo— y antes devolvían cero filas. Un perfil
 guardado antes de que ese campo existiera no hace mentir la comparación: esa
 parte se declara \strong{no comparable}, como el resto de los campos ausentes.
+
+El \strong{rango} se compara por los valores de sus extremos, no por su texto
+impreso: un cambio chico sale como fila \code{ok} y uno que alcanza
+\code{umbral_cambio} —medido contra el ancho del rango anterior— como
+\code{sospechoso}, sin que \code{options(scipen)} ni \code{digits} muevan el veredicto.
+Cuando el perfil conserva los extremos exactos de un entero que no entra en
+un doble —un \code{integer64} por encima de 2^53, o un entero escrito como
+texto—, esos extremos se comparan con aritmética exacta. Los números se
+publican con la escritura más corta que vuelve al valor, así que dos
+extremos distintos nunca se imprimen iguales; la marca decimal sigue a
+\code{OutDec}, y con coma decimal los extremos se separan con punto y coma
+(\verb{[1,5; 3]}).
+
+Una columna \strong{protegida} no publica su rango, y la comparación tampoco lo
+compara: lo declara en el atributo \code{campos_protegidos}, con la misma regla
+que \code{\link[=comparar_equivalencia]{comparar_equivalencia()}}. Si la protección de una columna cambia entre
+las corridas con la misma política —por ejemplo, porque la proporción de
+documentos válidos cruzó el umbral de verificación—, el cambio se informa
+con una fila propia, \code{aspecto = "proteccion"} y severidad \code{sospechoso}, en
+lugar de un cambio de rango que no ocurrió en los datos. Si lo que cambió es
+la política entera, ya lo dice la fila \code{configuracion_proteccion} y no se
+repite por columna.
+
+Además de los patrones que aparecen y desaparecen, se informa el \strong{cambio de
+proporción} de un patrón que sigue en el resumen cuando alcanza
+\code{umbral_cambio}: \code{sospechoso}, o \code{error} desde \code{umbral_error}, en las dos
+direcciones. Que los cambios menores no generen fila es una \strong{decisión}, a
+diferencia de los faltantes: serían una fila por patrón en cada entrega. Si
+el resumen de un lado estaba \strong{lleno} —la columna tenía más formas que
+\code{max_patrones}—, un patrón que falta en él pudo quedar por debajo del corte,
+y no se afirma que apareció o desapareció: la fila dice \code{no_comparable}, con
+severidad \code{ok}, salvo que el cambio que sí se puede garantizar —contra la
+menor proporción que guardaba ese resumen— alcance el umbral; entonces dice
+\code{modificado} y \code{delta} es esa cota.
+
+La \strong{cardinalidad} no tiene una dirección buena: que caiga la tasa de
+valores distintos de un identificador es un deterioro, y que suba la de una
+columna de categorías también. Por \strong{decisión}, un cambio significativo de
+cardinalidad es \code{sospechoso} en los dos sentidos. Los faltantes sí la
+tienen: que bajen es una mejora y queda \code{ok}.
 
 Las columnas que aparecen o desaparecen generan cambios estructurales de
 severidad \code{error}, pero no impiden comparar las columnas compartidas. Un

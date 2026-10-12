@@ -324,7 +324,7 @@ linked vignettes are the detailed manual. This table is the short map:
 | Task | Main functions | Read more |
 | --- | --- | --- |
 | Look at data for the first time | `perfilar()`, `analizar()`, `distribucion_valores()`, `detectar_asociaciones()`, `analizar_tiempo()`, `clasificar_variables()`, `inferir_tipo()`, `descubrir_patrones()`, `detectar_formatos_fecha()`, `sentinelas_naniar` | [Getting started](https://sebollin.github.io/lupa/articles/empezar-con-lupa.html) |
-| Profile against a database | `perfilar_dbi()` — full-table SQL aggregates plus, by default, a 115-analytic-field profile from a declared sample; `bloque_muestra = "solo_agregados"` requests only aggregates | [Profiling a database](https://sebollin.github.io/lupa/articles/perfilar-una-base.html) |
+| Profile against a database | `perfilar_dbi()` — full-table SQL aggregates plus, by default, a 117-analytic-field profile from a declared sample; `bloque_muestra = "solo_agregados"` requests only aggregates | [Profiling a database](https://sebollin.github.io/lupa/articles/perfilar-una-base.html) |
 | Find undeclared structure | `detectar_claves()`, `detectar_relaciones()`, `detectar_dependencias()`, `granularidades()`, `transiciones_granularidad()` | [Undeclared structure](https://sebollin.github.io/lupa/articles/estructura-no-declarada.html) |
 | Define quality | `marco_calidad()`, `marco_agesic()`, `marco_iso25012()`, `marco_cepal()`, `catalogo_agesic()`, `metrica()`, `especializar()`, `instanciar()`, `modelo()`, `metricas_nucleo()`, `metricas_referencial()`, `proponer_modelo()`, `modelo_desde_propuesta()`, `perfiles_madurez()`, `cobertura_analisis()` | [Define quality](https://sebollin.github.io/lupa/articles/definir-la-calidad.html) |
 | Measure and evaluate | `medir()`, `agregar()`, `tablero_calidad()`, `indice_calidad()` with project weights, `evaluar()`, `regla_evaluacion()` with the user-declared instruction `desenlace = "suprimir"` (not a factory threshold), `perfil_evaluacion()`, `escala()`, `referencial()`, `vigencia()` | [Measure and evaluate](https://sebollin.github.io/lupa/articles/medir-y-evaluar.html) |
@@ -1023,7 +1023,14 @@ quality.
 
 Recognising a numbering uses **density**: an identifier occupies a compact
 stretch of the integers while a magnitude spreads across several orders.
-Uniqueness does not work, since an amount is nearly unique too. The public
+Uniqueness alone does not work, since an amount is nearly unique too. It is
+needed as the second half, though: a bounded integer magnitude also fills every
+integer of its range once enough rows are loaded — repeating them — and with
+density alone an age from 18 to 90 with 20,000 rows came out as a "catalogue
+code" and the verdict depended on how many rows were read. A numbering is dense
+**and** barely repeats; a code that repeats cannot be told apart from that
+magnitude by its shape, and the package would rather say too much about it. The
+public
 `secuencia_entera_densa` field answers only that coverage question; the separate
 `moda_sobresale_secuencia_entera` signal must not switch off the form shields
 that use the numbering. The sentinel guard reopens when a candidate is outside
@@ -1036,7 +1043,10 @@ The criterion was chosen by measuring. A bench of thirteen columns with the know
 answer — five numberings and eight magnitudes with a bad value inside — compared
 four variants: crossing both signals gets all thirteen right and **never silences
 a real bad value**; density alone got eleven and silenced two. It lives in
-`test-ronda118.R`.
+`test-ronda118.R`. Since requiring that a numbering barely repeat, one of the five
+numberings — a code from 1 to 284 that repeats — is no longer recognised and
+gets Tukey's fences: twelve right, and the miss is on the cheap side, saying too
+much rather than silencing.
 
 For an `integer64` column, `bit64` is loaded lazily when it is installed so its
 methods are registered before measuring. If it is not installed, the five
@@ -1075,7 +1085,10 @@ same idea: the package **excludes what the user declares and includes what it
 merely suspects**. A value declared in `sentinelas_numericos` leaves `media`,
 `mediana`, `minimo`, `maximo` and `desvio` — with `n_valores_excluidos_resumen`
 reporting how many it left out — just as `NA`s do, and just as the rows that
-`aplicabilidad` places outside the universe do. The default list, by contrast,
+`aplicabilidad` places outside the universe do. What is declared outside the
+universe — sentinels or `aplicabilidad` — also leaves Benford's law and the
+arithmetic relations: the same cell cannot be missing in the summary and a
+value in a diagnostic. The default list, by contrast,
 reports without touching the numbers: it is a guess, and a guess does not move
 an average. `moda` and `n_distintos` keep describing what is stored, as they
 already did with an `Inf`.
@@ -1142,7 +1155,8 @@ without overlapping, `posible_ausencia_estructural` reports it with severity
 ```
 valor_a  posible_ausencia_estructural  ok
   evidence  `tipo` predicts the presence of `valor_a` in 100.0 % of 200 rows,
-            with 2 distinct values. The column applies when tipo is "A".
+            with 2 distinct values. The rule explains 100 of the column's 100
+            missing values. The column applies when tipo is "A".
   suggests  perfilar(datos, aplicabilidad = list(valor_a = ~ tipo == "A"))
 ```
 
@@ -1288,9 +1302,11 @@ evidence, not a switch that can turn it off.
   personal-data evidence.
 - Profiles `sf` geometries and declares CRS, geometry families, emptiness,
   planar validity, coordinate domain, and bounding-box scope; it does not
-  perform spatial analysis. Over PostGIS it reads the SRID of each EWKB, so a
-  column with mixed SRIDs is declared as such and its domain is evaluated by
-  group: an `sf::sfc` column can only carry one CRS.
+  perform spatial analysis. Over PostGIS it reads the SRID of each EWKB or
+  EWKT value, so a column with mixed SRIDs is declared as such and its domain
+  is evaluated by group: an `sf::sfc` column can only carry one CRS. A value
+  that does not convert does not erase the column: the rest is measured and
+  the loss is declared with its count.
 - Applies Benford's law only when its preconditions hold, and records
   non-applicability in `cobertura_diagnosticos`.
 - Reports `unidades_mixtas` and `monedas_mixtas` in a column without converting

@@ -1193,7 +1193,25 @@
   if (!is.double(x) || inherits(x, "integer64")) return(as.character(x))
   opciones <- options(scipen = 0, OutDec = ".")
   on.exit(options(opciones), add = TRUE)
-  as.character(x)
+  .marca_decimal_c(as.character(x))
+}
+
+# Hay una tercera perilla, y no es una opcion: `LC_NUMERIC`. R arranca siempre en
+# "C", pero quien la cambia con `Sys.setlocale()` cambia la marca que escriben
+# `as.character()` y `sprintf()`, con `OutDec = "."` y todo. Medido con
+# `de_DE.UTF-8`: `as.character(1.5)` daba "1,5", la comprobacion de
+# `.cifras_reversibles()` no lo reconocia como numero y avisaba "NAs
+# introducidos por coercion", y `0.1 + 0.2` salia "0.3", sin las cifras que lo
+# devuelven a su valor. Es la construccion que la sugerencia de ausencia
+# estructural ya habia cubierto con `Sys.localeconv()`: se detecta igual y se
+# devuelve el punto, aca, donde se escribe para todos.
+.marca_decimal_c <- function(texto) {
+  marca <- Sys.localeconv()[["decimal_point"]]
+  if (length(marca) != 1L || is.na(marca) || !nzchar(marca) ||
+      identical(marca, ".")) {
+    return(texto)
+  }
+  gsub(marca, ".", texto, fixed = TRUE)
 }
 
 .etiqueta_numero_reversible <- function(x) {
@@ -1221,7 +1239,9 @@
   cifras <- .cifras_reversibles(x, salida)
   faltan <- !is.na(cifras)
   if (any(faltan)) {
-    salida[faltan] <- sprintf(paste0("%.", cifras[faltan], "g"), x[faltan])
+    salida[faltan] <- .marca_decimal_c(
+      sprintf(paste0("%.", cifras[faltan], "g"), x[faltan])
+    )
   }
   salida
 }
@@ -1230,17 +1250,20 @@
 # valor: `NA` si el que ya tiene vuelve -o no es un numero finito-; si no, 16 o
 # 17, las que necesitan `1/3` o `0.1 + 0.2`. Es la regla de la etiqueta
 # reversible y la de las cifras del informe -que las escribe sin exponente-, en
-# un solo lugar. El texto se lee con la marca decimal de la sesion; las cifras se
-# cuentan con `sprintf()`, que no depende de `OutDec` ni de `scipen`.
+# un solo lugar. El texto se lee con la marca decimal de la sesion -la de
+# `OutDec` y la de `LC_NUMERIC`-; las cifras se cuentan con `sprintf()`, que no
+# depende de `OutDec` ni de `scipen` pero si de `LC_NUMERIC`.
 .cifras_reversibles <- function(x, texto = sprintf("%.15g", x)) {
   x <- as.double(x)
   cifras <- rep(NA_integer_, length(x))
   marca <- getOption("OutDec", ".")
   if (!identical(marca, ".")) texto <- chartr(marca, ".", texto)
+  texto <- .marca_decimal_c(texto)
   leido <- suppressWarnings(as.numeric(texto))
   faltan <- !is.na(x) & is.finite(x) & (is.na(leido) | leido != x)
   if (!any(faltan)) return(cifras)
-  vuelve <- as.numeric(sprintf("%.16g", x[faltan])) == x[faltan]
+  vuelve <- as.numeric(.marca_decimal_c(sprintf("%.16g", x[faltan]))) ==
+    x[faltan]
   cifras[faltan] <- ifelse(vuelve, 16L, 17L)
   cifras
 }

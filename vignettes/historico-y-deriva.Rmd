@@ -120,6 +120,15 @@ Una comparación contra el mismo perfil produce cero cambios. Las columnas que
 sólo existen en un lado se informan como cambios estructurales; no hacen fallar
 la comparación de las demás.
 
+Lo que la protección de datos personales tapa no se compara, pero tampoco se
+calla: el rango de `cedula` o de `correo` queda declarado, por columna y lado,
+en el atributo `campos_protegidos`. Si la protección de una columna cambia
+entre las entregas, ese cambio sale con su propia fila, `aspecto = "proteccion"`.
+
+```{r}
+attr(deriva, "campos_protegidos")
+```
+
 Las configuraciones que contienen nombres o texto del usuario se convierten en
 claves por bytes, no por la marca de codificación ni por la intercalación del
 locale. Por eso la comparación sigue siendo estable si el perfil se guarda con

@@ -49,6 +49,11 @@ Separa el tipo de almacenamiento, el tipo implícito y la escala de medición.
 Una propuesta basada sólo en valores nunca queda confirmada: \verb{1, 2, 3} puede
 ser conteo, código o nivel. Las clases \code{ordered}, \code{factor}, \code{logical}, las
 clases temporales y el metadato \code{measure} sí constituyen declaraciones.
+\code{measure = "scale"} se publica como \code{continua}, la lectura que SPSS da a ese
+nivel. Una unidad declarada —el atributo \code{units}— establece una magnitud,
+pero no si es discreta o continua: confirma \code{continua} cuando los valores
+traen decimales, y con valores enteros la propuesta queda sin confirmar,
+porque pueden ser una cuenta o una medida redondeada.
 }
 \details{
 \code{metadatos} permite confirmar o corregir la propuesta con una tabla editable.

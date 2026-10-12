@@ -42,6 +42,124 @@
   warning(aviso)
 }
 
+# ---- El mensaje del motor ------------------------------------------------
+#
+# El mensaje de un error del motor es texto AJENO, y cita el valor de la celda
+# que hizo fallar la consulta: `invalid input syntax for type bigint:
+# "4.685.467-9"` en PostgreSQL, `Could not convert string '6.678.340-2' to
+# INT64` en duckdb. Ese valor nunca se leyo -la consulta fallo justo ahi-, asi
+# que el piso de la proteccion no lo conoce y no lo puede tapar, y puede ser una
+# celda de CUALQUIER columna, tambien de una protegida. Se publicaba tal cual en
+# `sql$motivo`, `cobertura$motivo`, `meta$proteccion_personal` y en la
+# coleccion: con una vista que castea una cedula escrita con puntos, la cedula
+# salia en cuatro campos con su columna protegida. Medido en la ronda 28, en
+# PostgreSQL y duckdb.
+#
+# Todo mensaje de un error atrapado en la via DBI pasa por aca antes de
+# guardarse o de avisarse: los literales entre comillas -simples, dobles o
+# tipograficas- se reemplazan por `[literal omitido]`, con o sin proteccion. Un
+# identificador entre comillas se tapa tambien: callar un dato personal cuesta
+# mas que tapar de mas, y la tabla y la columna ya las nombra el resto de la
+# salida. Una comilla abre solo si no tiene una letra o un digito pegado antes, y
+# cierra solo si no tiene uno pegado despues: el apostrofo de `can't` o de
+# `O'Brien` no corta el literal. Una comilla que abre y no cierra -un mensaje
+# recortado- tapa hasta el fin de la linea. Y el contexto con que PostgreSQL
+# cita el texto que no pudo leer como JSON -`CONTEXT:  JSON data, line 1:
+# {"ci": 5.819....`-, que va SIN comillas: se tapa hasta el fin de la linea.
+#
+# Lo que SI queda entre comillas: una palabra de SQL -`Incorrect syntax near
+# 'LIMIT'` es lo que dice que el motor no acepta ese dialecto, y no es el dato de
+# nadie- y un literal sin una letra ni un digito -`near ','`-. La lista es de lo
+# que se conserva: una palabra que falte se tapa, que es el lado cerrado.
+.LITERAL_MOTOR_OMITIDO <- "[literal omitido]"
+
+.PALABRAS_SQL_MOTOR <- c(
+  "ABS", "ALL", "AND", "ANY", "AS", "ASC", "AVG", "BERNOULLI", "BETWEEN",
+  "BIGINT", "BOOLEAN", "BY", "CASE", "CAST", "CEIL", "CEILING", "CHAR",
+  "COALESCE", "COLLATE", "CONVERT", "COUNT", "CROSS", "DATE", "DATEADD",
+  "DATEDIFF", "DECIMAL", "DESC", "DISTINCT", "DIV", "DOUBLE", "ELSE", "END",
+  "ESCAPE", "EXISTS", "EXTRACT", "FALSE", "FETCH", "FIRST", "FLOAT", "FLOOR",
+  "FROM", "FULL", "GROUP", "HAVING", "IN", "INNER", "INT", "INTEGER",
+  "INTERVAL", "INTO", "IS", "JOIN", "LAST", "LATERAL", "LEFT", "LEN",
+  "LENGTH", "LIKE", "LIMIT", "LOWER", "MAX", "MEDIAN", "MIN", "MOD", "NEWID",
+  "NEXT", "NOT", "NULL", "NULLIF", "NULLS", "NUMERIC", "OFFSET", "ON", "ONLY",
+  "OR", "ORDER", "OUTER", "OVER", "PARTITION", "PERCENT", "PERCENTILE_CONT",
+  "PERCENTILE_DISC", "RAND", "RANDOM", "REAL", "RIGHT", "ROUND", "ROW",
+  "ROWNUM", "ROWS", "ROW_NUMBER", "SAMPLE", "SELECT", "SOME", "STDDEV",
+  "STDDEV_SAMP", "SUBSTR", "SUBSTRING", "SUM", "SYSTEM", "TABLESAMPLE",
+  "TEXT", "THEN", "TIME", "TIMESTAMP", "TOP", "TRIM", "TRUE", "TRY_CAST",
+  "UNION", "UPPER", "USING", "VALUES", "VARCHAR", "VARIANCE", "WHEN",
+  "WHERE", "WITH", "WITHIN"
+)
+
+.sin_literales_motor <- function(texto) {
+  if (!length(texto)) return(character())
+  texto <- as.character(texto)
+  pares <- list(
+    c("\"", "\""), c("'", "'"), c("\u2018", "\u2019"), c("\u201c", "\u201d"),
+    c("\u00ab", "\u00bb")
+  )
+  tapar <- function(texto, pares, antes, despues, ...) {
+    con_texto <- which(!is.na(texto))
+    for (par in pares) {
+      patron <- paste0(
+        antes, par[[1L]], "(?:[\\s\\S]*?", par[[2L]], despues, "|[^\\n]*)"
+      )
+      marcado <- paste0(par[[1L]], .LITERAL_MOTOR_OMITIDO, par[[2L]])
+      partes <- texto[con_texto]
+      coincidencias <- gregexpr(patron, partes, perl = TRUE, ...)
+      regmatches(partes, coincidencias) <- lapply(
+        regmatches(partes, coincidencias), function(trozos) {
+          if (!length(trozos)) return(trozos)
+          cerrados <- grepl(
+            paste0("^", par[[1L]], "[\\s\\S]*", par[[2L]], "$"), trozos,
+            perl = TRUE, ...
+          )
+          interior <- sub(
+            paste0("^", par[[1L]], "|", par[[2L]], "$"), "", trozos,
+            perl = TRUE, ...
+          )
+          interior <- gsub(
+            paste0(par[[2L]], "$"), "", interior, perl = TRUE, ...
+          )
+          palabra <- grepl("^[A-Za-z_]+$", interior, useBytes = TRUE)
+          palabra[palabra] <- toupper(as.character(interior[palabra])) %in%
+            .PALABRAS_SQL_MOTOR
+          queda <- cerrados &
+            (palabra | !grepl("[[:alnum:]]", interior, useBytes = TRUE))
+          ifelse(queda, trozos, marcado)
+        }
+      )
+      texto[con_texto] <- partes
+    }
+    texto
+  }
+  salida <- tryCatch(
+    tapar(texto, pares, "(?<![\\p{L}\\p{N}])", "(?![\\p{L}\\p{N}])"),
+    error = function(e) NULL, warning = function(w) NULL
+  )
+  if (is.null(salida)) {
+    # Un texto que no es UTF-8 valido no se puede leer por caracteres: se tapa
+    # por bytes, con las comillas ASCII.
+    salida <- tryCatch(
+      tapar(texto, pares[1:2], "(?<![A-Za-z0-9])", "(?![A-Za-z0-9])",
+            useBytes = TRUE),
+      error = function(e) rep(.LITERAL_MOTOR_OMITIDO, length(texto))
+    )
+  }
+  salida <- tryCatch(
+    gsub("(JSON data, line [0-9]+:)[^\n]*",
+         paste0("\\1 ", .LITERAL_MOTOR_OMITIDO), salida, perl = TRUE),
+    error = function(e) salida
+  )
+  salida[is.na(texto)] <- NA_character_
+  salida
+}
+
+.mensaje_motor <- function(condicion) {
+  .sin_literales_motor(conditionMessage(condicion))
+}
+
 # ---- Presupuesto de consultas -------------------------------------------
 #
 # Los agregados de una tabla ancha se emiten por lotes y `muestra` cambia
@@ -3672,7 +3790,7 @@
 
 .info_conexion_dbi <- function(conexion) {
   info <- tryCatch(DBI::dbGetInfo(conexion), error = function(e) {
-    list(no_disponible = conditionMessage(e))
+    list(no_disponible = .mensaje_motor(e))
   })
   list(
     clase_conexion = class(conexion),
@@ -3714,7 +3832,7 @@
         DBI::dbGetQuery(conexion, sql)
       ), motivo = NA_character_),
       error = function(e) {
-        list(ok = FALSE, datos = NULL, motivo = conditionMessage(e))
+        list(ok = FALSE, datos = NULL, motivo = .mensaje_motor(e))
       }
     )
     return(.adjuntar_medicion_dbi(
@@ -3732,7 +3850,7 @@
       DBI::dbFetch(resultado, n = filas)
     ), motivo = NA_character_)
   }, error = function(e) {
-    list(ok = FALSE, datos = NULL, motivo = conditionMessage(e))
+    list(ok = FALSE, datos = NULL, motivo = .mensaje_motor(e))
   })
   .adjuntar_medicion_dbi(
     salida, .terminar_consulta_dbi(medicion, salida$datos)
@@ -8250,7 +8368,7 @@
         valor_moda <- tryCatch(.texto_valor(celda$valor), error = function(e) e)
         if (inherits(valor_moda, "error")) {
           moda$ok <- FALSE
-          moda$motivo <- conditionMessage(valor_moda)
+          moda$motivo <- .mensaje_motor(valor_moda)
         } else {
           candidato <- .conteo_dbi(frecuencia$valor)
           guardian <- .guardian_moda_dbi(moda)
@@ -9319,7 +9437,7 @@
     return(list(campos = campos, motivo = NA_character_, origen = "dbListFields"))
   }
   motivo <- if (inherits(campos, "condition")) {
-    conditionMessage(campos)
+    .mensaje_motor(campos)
   } else {
     "dbListFields() no devolvio ningun campo."
   }
@@ -9377,7 +9495,7 @@
     }
     list(ok = TRUE, datos = prototipo, tipos = tipos, motivo = NA_character_)
   }, error = function(e) {
-    list(ok = FALSE, datos = NULL, tipos = NULL, motivo = conditionMessage(e))
+    list(ok = FALSE, datos = NULL, tipos = NULL, motivo = .mensaje_motor(e))
   })
   .adjuntar_medicion_dbi(
     salida, .terminar_consulta_dbi(medicion, salida$datos)
@@ -12063,7 +12181,7 @@ print.plan_perfilado_dbi <- function(x, ...) {
       "perfil_muestra", .texto_tabla_dbi(tabla), "no_disponible",
       paste0(
         "La muestra se leyo pero no se pudo perfilar: ",
-        conditionMessage(perfil)
+        .mensaje_motor(perfil)
       ),
       paste(
         "El resumen de tabla completa se devolvio igual. Revisar los",
@@ -12349,7 +12467,7 @@ print.plan_perfilado_dbi <- function(x, ...) {
   )
   if (inherits(existe, "condition")) {
     .detener_dbi("lupa_error_tabla_dbi", paste0(
-      "No se pudo comprobar `tabla`: ", conditionMessage(existe)
+      "No se pudo comprobar `tabla`: ", .mensaje_motor(existe)
     ))
   }
   if (is.character(tabla) && length(tabla) == 1L && !is.na(tabla) &&
@@ -12955,7 +13073,8 @@ print.plan_perfilado_dbi <- function(x, ...) {
 #' requiere nivel de compatibilidad >= 110. Se sondea; estos son los motivos
 #' conocidos de que no se active: la funcion no esta disponible o el motor
 #' rechaza la sonda. En ese caso el mensaje del motor queda en
-#' `meta$mediana_consolidada$motivo`, y se conserva la mediana por columna.
+#' `meta$mediana_consolidada$motivo` —sin sus literales, como todo mensaje del
+#' motor: ver la protección—, y se conserva la mediana por columna.
 #'
 #' @section Lo que el motor guarda distinto que R:
 #' El resumen SQL describe lo que el motor tiene delante, y en tres casos eso no
@@ -13180,7 +13299,19 @@ print.plan_perfilado_dbi <- function(x, ...) {
 #' una consulta, las columnas protegidas que el controlador no leyó como texto.
 #' Y el motivo
 #' de una cifra que no se pudo leer como número no cita el valor de una columna
-#' protegida.
+#' protegida. Tampoco el **mensaje de un error del motor**, que es texto ajeno
+#' y cita la celda que hizo fallar la consulta —`invalid input syntax for type
+#' bigint: "4.685.467-9"`, en una vista que castea una cédula escrita con
+#' puntos—: ese valor nunca se leyó, así que el piso no lo conoce y puede ser
+#' de cualquier columna. Todo mensaje de error que se publica —en `sql`,
+#' `cobertura`, `meta`, en la colección y en los avisos— lleva sus literales
+#' entre comillas, simples, dobles o tipográficas, cambiados por
+#' `[literal omitido]`, con o sin protección; también un identificador entre
+#' comillas, que el resto de la salida ya nombra. Quedan una palabra de SQL
+#' —`Incorrect syntax near 'LIMIT'` dice que el motor no acepta ese
+#' dialecto— y un signo suelto. El texto que PostgreSQL cita sin comillas al
+#' no poder leer un JSON (`CONTEXT:  JSON data, line 1: ...`) se tapa hasta el
+#' fin de la línea. Se publicaba tal cual, en PostgreSQL y en duckdb.
 #' `incluir_valores = FALSE` va más lejos: no emite las consultas de moda ni de
 #' mediana y no informa mínimo ni máximo, útil cuando la tabla es un padrón y
 #' la moda de un identificador único es un documento real. Si se pidió `desvio`,

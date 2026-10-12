@@ -34,7 +34,9 @@
 }
 
 .varia_columna_aritmetica <- function(x, tolerancia) {
-  x <- x[is.finite(x)]
+  # En doble: `extremos[[2]] - extremos[[1]]` sobre un `integer` de -2e9 a 2e9
+  # desborda a `NA`, y el `if` que lo consume aborta.
+  x <- as.double(x[is.finite(x)])
   if (length(x) < 3L) return(FALSE)
   extremos <- range(x)
   (extremos[[2L]] - extremos[[1L]]) >
@@ -43,6 +45,49 @@
 
 .cumple_criterio_aritmetica <- function(proporcion, umbral) {
   is.finite(proporcion) && proporcion >= umbral
+}
+
+# **Un sumando que la tolerancia absorbe no se puede verificar.** La tolerancia
+# es relativa a la escala del total, asi que con montos de 1e9 vale 10 a 20
+# unidades, y cualquier columna que viva por debajo de eso "completa" una suma
+# entre dos columnas casi iguales. Medido: `bruto` en 1e9..2e9, `neto = bruto -
+# comision` con comision de 1 a 9, y una columna ajena `hijos` de 0 a 5; ademas
+# de la relacion real se publicaba `[sospechoso] neto + hijos ~= bruto`, que
+# acusaba de romper una regla inexistente a las cinco filas sanas donde `hijos`
+# valia mas de 20. Con marcas epoch en segundos la tolerancia equivale a 17 s y
+# `inicio + intentos ~= fin` salia `ok`.
+#
+# Es el problema que la relacion de orden ya resolvio con su filtro de magnitud:
+# un orden explicado solo por escalas separadas no es una restriccion fila a
+# fila, y se descarta salvo que una brecha exacta lo sostenga. Aca la pregunta
+# equivalente es si la identidad se explica sola sin uno de sus sumandos: si
+# `x ~= z` ya alcanza el criterio con la misma tolerancia, el tercer termino
+# esta por debajo de la resolucion de la comparacion. Entonces se descarta,
+# salvo que la identidad se cumpla **exacta** -como la brecha de IQR cero del
+# orden, sin tolerancia oculta- en la proporcion que pide el criterio. Exacta
+# quiere decir salvo el redondeo del tipo double: tres decimales leidos de un
+# texto y sumados difieren del total en hasta dos unidades en la ultima cifra,
+# y medido sobre decimales de dos cifras en escalas de 1e3 a 1e12 solo tres de
+# cada cuatro filas daban diferencia cero, mientras todas quedaban dentro de dos
+# epsilon relativos. Se usan cuatro. Lo descartado se cuenta en
+# `identidades_descartadas_escala`.
+.resolucion_exacta_aritmetica <- function() 4 * .Machine$double.eps
+
+.exacta_salvo_redondeo <- function(observado, esperado) {
+  abs(observado - esperado) <= .resolucion_exacta_aritmetica() *
+    pmax(1, abs(observado), abs(esperado))
+}
+
+# Para cada sumando, si la identidad sin el ya alcanza el criterio.
+.sumandos_absorbidos <- function(x, y, z, umbral, tolerancia) {
+  c(
+    .cumple_criterio_aritmetica(
+      mean(.dentro_tolerancia_aritmetica(z, y, tolerancia)), umbral
+    ),
+    .cumple_criterio_aritmetica(
+      mean(.dentro_tolerancia_aritmetica(z, x, tolerancia)), umbral
+    )
+  )
 }
 
 .texto_criterio_aritmetica <- function(umbral, min_filas) {
@@ -104,6 +149,8 @@
       "max(1, |observado|, |esperado|)"
     ),
     minimo_filas_comparables = as.integer(min_filas),
+    identidades_descartadas_escala = 0,
+    resolucion_exacta = .resolucion_exacta_aritmetica(),
     clases_excluidas = clases_excluidas,
     columnas_excluidas_por_clase = excluidas_por_clase
   )
@@ -213,9 +260,18 @@
 .hallazgo_identidad_aditiva <- function(datos, sumandos, total, umbral,
                                          min_filas, tolerancia,
                                          nombres_texto = names(datos)) {
-  x <- datos[[sumandos[[1L]]]]
-  y <- datos[[sumandos[[2L]]]]
-  z <- datos[[total]]
+  # En doble y no en el tipo guardado: dos `integer` que suman mas de
+  # `.Machine$integer.max` daban `NA`, `mean(cumple)` daba `NA` y la relacion
+  # desaparecia sin fila de cobertura, con el aviso base de enteros excedidos
+  # filtrado al usuario. Medido: `total == a + b` en las 600 filas y cero
+  # relaciones porque una fila desbordaba; por DBI, RSQLite devuelve `INTEGER`
+  # como `integer` y el mismo importe en centesimos se callaba en 81 de 500
+  # filas. Que la relacion exista no puede depender del tipo de
+  # almacenamiento, que en una base lo decide el controlador. Un `integer`
+  # entra exacto en un doble.
+  x <- as.double(datos[[sumandos[[1L]]]])
+  y <- as.double(datos[[sumandos[[2L]]]])
+  z <- as.double(datos[[total]])
   comparables <- is.finite(x) & is.finite(y) & is.finite(z)
   n_evaluados <- sum(comparables)
   if (n_evaluados < min_filas ||
@@ -230,6 +286,24 @@
   )
   proporcion <- mean(cumple)
   if (!.cumple_criterio_aritmetica(proporcion, umbral)) return(NULL)
+  absorbidos <- .sumandos_absorbidos(
+    x[comparables], y[comparables], z[comparables], umbral, tolerancia
+  )
+  texto_escala <- ""
+  if (any(absorbidos)) {
+    exactas <- .exacta_salvo_redondeo(z[comparables], esperado)
+    if (!.cumple_criterio_aritmetica(mean(exactas), umbral)) {
+      return("descartada_escala")
+    }
+    texto_escala <- paste0(
+      "Con la tolerancia declarada, ",
+      paste0("`", nombres_texto[sumandos[absorbidos]], "`", collapse = " y "),
+      " no se distingue de cero frente a `", nombres_texto[[total]],
+      "`: la identidad sin ese sumando ya alcanza el criterio. Se publica ",
+      "porque se cumple exacta, salvo el redondeo del tipo double, en ",
+      sum(exactas), " de ", n_evaluados, " filas comparables. "
+    )
+  }
   filas_comparables <- which(comparables)
   indices_incumplen <- filas_comparables[!cumple]
   esperados_incumplen <- esperado[!cumple]
@@ -266,7 +340,7 @@
       "Forma equivalente observada: ", alternativa, ". ",
       "Tolerancia declarada: ", tolerancia_texto,
       "; criterio |observado - esperado| <= ", tolerancia_texto,
-      " * max(1, |observado|, |esperado|). ", ejemplos
+      " * max(1, |observado|, |esperado|). ", texto_escala, ejemplos
     ),
     paste0(
       "Evaluar si la regularidad observada corresponde a una regla del ",
@@ -289,6 +363,9 @@
 
 .hallazgo_proporcional <- function(datos, par, umbral, min_filas,
                                     tolerancia, nombres_texto = names(datos)) {
+  # Sin `as.double()`, a diferencia de la identidad aditiva: aca no hay suma de
+  # enteros -el cociente y `base * constante` ya salen en doble- y no hay nada
+  # que desborde.
   primero <- datos[[par[[1L]]]]
   segundo <- datos[[par[[2L]]]]
   base <- primero
@@ -405,6 +482,10 @@
           min_filas, tolerancia, nombres_texto
         )
       })
+      descartadas <- vapply(candidatos, is.character, logical(1L))
+      alcance$identidades_descartadas_escala <-
+        alcance$identidades_descartadas_escala + sum(descartadas)
+      candidatos <- candidatos[!descartadas]
       candidatos <- Filter(Negate(is.null), candidatos)
       if (!length(candidatos)) next
       afectados <- vapply(candidatos, function(x) x$n_afectados[[1L]], numeric(1L))

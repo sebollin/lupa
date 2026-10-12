@@ -95,22 +95,34 @@
   )
 }
 
+# El corte es codigo para pegar, no prosa: tiene que ser exacto, ejecutable y no
+# depender de la sesion que lo escribio ni de la que lo pega.
 .texto_corte_umbral <- function(ajuste) {
   clase <- ajuste$clase_umbral
   if (!is.null(clase) && clase %in% c("Date", "POSIXct", "POSIXt") &&
       !is.na(ajuste$etiqueta_corte)) {
-    envoltorio <- if (identical(clase, "Date")) "as.Date" else "as.POSIXct"
-    return(paste0(envoltorio, "(\"", ajuste$etiqueta_corte, "\")"))
+    etiqueta <- encodeString(ajuste$etiqueta_corte, quote = "\"")
+    if (identical(clase, "Date")) return(paste0("as.Date(", etiqueta, ")"))
+    # Un instante sin zona se lee en la zona de la sesion que lo pega. Medido:
+    # `as.POSIXct("2024-03-01")` sobre marcas en UTC ubicaba bien todas las
+    # filas con la sesion en UTC y dejaba seis presentes fuera del universo en
+    # America/Montevideo. La etiqueta se escribe en la zona del dato -o en UTC si
+    # el dato no declara ninguna- y esa zona viaja en la llamada.
+    zona <- ajuste$zona_corte
+    if (is.null(zona) || is.na(zona) || !nzchar(zona)) zona <- "UTC"
+    return(paste0(
+      "as.POSIXct(", etiqueta, ", tz = ", encodeString(zona, quote = "\""), ")"
+    ))
   }
-  texto <- trimws(format(
-    ajuste$corte, digits = 15, scientific = FALSE, trim = TRUE
-  ))
-  decimal <- Sys.localeconv()[["decimal_point"]]
-  if (length(decimal) && !is.na(decimal) && nzchar(decimal) &&
-      !identical(decimal, ".")) {
-    texto <- sub(decimal, ".", texto, fixed = TRUE)
-  }
-  texto
+  # La misma escritura que la etiqueta de un grupo, por la misma razon: tiene que
+  # volver al valor del que salio. Fija `OutDec` y `scipen` -con `OutDec = ","`
+  # la sugerencia decia `ingreso >= 30122,33`, que no es codigo R- y agrega
+  # cifras hasta que el texto vuelve al doble exacto, que las 15 de `format()`
+  # no garantizan.
+  # `LC_NUMERIC` -la otra perilla- la cubre la misma escritura
+  # (`.marca_decimal_c()`): el arreglo que vivia aca con `Sys.localeconv()` paso
+  # a `utils.R`, donde escribe para todos los numeros que tienen que volver.
+  .etiqueta_numero_reversible(ajuste$corte)
 }
 
 .texto_valores_nivel <- function(valores) {
@@ -150,21 +162,53 @@
   if (!length(cortes)) return(NULL)
   # Debajo del corte hay `i` filas con `acumulado[i]` presentes; encima hay
   # `n - i` con `total_presentes - acumulado[i]`.
-  presentes_abajo <- acumulado[cortes]
-  aciertos_mayor <- (cortes - presentes_abajo) +
-    (total_presentes - presentes_abajo)
-  aciertos_menor <- presentes_abajo + ((n - cortes) -
-    (total_presentes - presentes_abajo))
-  mejor_mayor <- max(aciertos_mayor)
-  mejor_menor <- max(aciertos_menor)
-  if (mejor_mayor >= mejor_menor) {
-    aciertos <- mejor_mayor
-    indice <- cortes[[which.max(aciertos_mayor)]]
+  aciertos_en <- function(posiciones, mayor) {
+    presentes_abajo <- acumulado[posiciones]
+    if (mayor) {
+      (posiciones - presentes_abajo) + (total_presentes - presentes_abajo)
+    } else {
+      presentes_abajo + ((n - posiciones) - (total_presentes - presentes_abajo))
+    }
+  }
+  # **El corte muestreado se refina al limite exacto.** Con mas de 200 cambios
+  # de valor se prueba uno cada medio por ciento, y el corte publicado era el
+  # valor siguiente al corte muestreado: sobre un ingreso continuo con la regla
+  # exacta `>= 50000` -ausente mas alto 49.989,31, presente mas bajo 50.001,97-
+  # se sugeria `>= 49849.27`, que cumple 0,9988, y pegada tal cual dejaba seis
+  # faltantes dentro del universo. La sugerencia promete "la linea exacta". El
+  # muestreo sigue eligiendo la zona, y despues se prueban TODOS los cambios
+  # entre los dos cortes muestreados vecinos: el costo es de un tramo, no de la
+  # columna. Los cambios del tramo se recalculan sobre los valores ordenados en
+  # vez de guardarlos, que costaria un vector del largo de la tabla por cada
+  # determinante.
+  mejor_en <- function(mayor) {
+    aciertos <- aciertos_en(cortes, mayor)
+    j <- which.max(aciertos)
+    if (!isTRUE(det$cortes_muestreados)) {
+      return(list(aciertos = aciertos[[j]], indice = cortes[[j]]))
+    }
+    tramo <- seq.int(cortes[[max(1L, j - 1L)]],
+                     cortes[[min(length(cortes), j + 1L)]])
+    ordenados <- det$valores_ordenados
+    vecinos <- tramo[ordenados[tramo] != ordenados[tramo + 1L]]
+    aciertos_vecinos <- aciertos_en(vecinos, mayor)
+    k <- which.max(aciertos_vecinos)
+    list(aciertos = aciertos_vecinos[[k]], indice = vecinos[[k]])
+  }
+  mayor <- mejor_en(TRUE)
+  menor <- mejor_en(FALSE)
+  if (mayor$aciertos >= menor$aciertos) {
+    aciertos <- mayor$aciertos
+    indice <- mayor$indice
     sentido <- ">="
+    # Las ausentes que la regla explica son las que quedan del lado donde la
+    # columna no corresponde: debajo del corte.
+    explicados <- indice - acumulado[[indice]]
   } else {
-    aciertos <- mejor_menor
-    indice <- cortes[[which.max(aciertos_menor)]]
+    aciertos <- menor$aciertos
+    indice <- menor$indice
     sentido <- "<"
+    explicados <- (n - indice) - (total_presentes - acumulado[[indice]])
   }
   cumplimiento <- aciertos / n
   if (cumplimiento < .min_determinacion_ausencia) return(NULL)
@@ -176,11 +220,13 @@
     n_niveles = det$n_niveles,
     corte = det$valores_ordenados[[indice + 1L]],
     clase_umbral = det$clase_umbral,
+    zona_corte = det$zona_umbral,
     etiqueta_corte = if (!is.null(det$etiquetas_ordenadas)) {
       det$etiquetas_ordenadas[[indice + 1L]]
     } else NA_character_,
     sentido = sentido,
-    n_indeterminados = det$n_indeterminados
+    n_indeterminados = det$n_indeterminados,
+    n_ausentes_explicados = as.integer(explicados)
   )
 }
 
@@ -206,17 +252,29 @@
       orden <- order(valores)
       ordenados <- valores[orden]
       cambios <- which(ordenados[-length(ordenados)] != ordenados[-1L])
-      if (length(cambios) > .max_cortes_umbral) {
+      muestreados <- length(cambios) > .max_cortes_umbral
+      if (muestreados) {
         cambios <- cambios[unique(round(seq(
           1, length(cambios), length.out = .max_cortes_umbral
         )))]
       }
       # La clase viaja con el corte: `as.numeric()` sobre una fecha da los dias
       # desde 1970, y una sugerencia que diga `>= 18628` no se puede pegar.
+      # La zona tambien: ver `.texto_corte_umbral()`.
+      zona <- NA_character_
+      etiquetable <- x[usable]
+      if (inherits(x, "POSIXct")) {
+        zona <- attr(x, "tzone", exact = TRUE)
+        zona <- if (length(zona) && !is.na(zona[[1L]]) && nzchar(zona[[1L]])) {
+          zona[[1L]]
+        } else "UTC"
+        attr(etiquetable, "tzone") <- zona
+      }
       umbral <- list(
         orden = orden, valores_ordenados = ordenados, cortes = cambios,
-        clase_umbral = class(x)[[1L]],
-        etiquetas_ordenadas = as.character(x[usable])[orden]
+        cortes_muestreados = muestreados,
+        clase_umbral = class(x)[[1L]], zona_umbral = zona,
+        etiquetas_ordenadas = as.character(etiquetable)[orden]
       )
     }
   }
@@ -282,7 +340,11 @@
     n_usables = det$n_usables,
     n_niveles = det$n_niveles,
     niveles_aplica = det$etiquetas[aplica],
-    n_indeterminados = det$n_indeterminados
+    n_indeterminados = det$n_indeterminados,
+    # Las ausentes que caen en los niveles donde la columna no corresponde.
+    n_ausentes_explicados = as.integer(sum(
+      (det$n_por_nivel - presentes_por_nivel)[!aplica]
+    ))
   )
 }
 
@@ -301,7 +363,15 @@
       .texto_valores_nivel(ajuste$niveles_aplica)
     )
   }
-  explicados <- round(ajuste$cumplimiento * n_ausentes)
+  # `n_afectados` cuenta las ausencias que la regla explica: las que caen donde
+  # la columna no corresponde. Era `round(cumplimiento * n_ausentes)`, que mezcla
+  # el acierto sobre TODAS las filas con un conteo de ausentes y no es ningun
+  # conteo verificable: con nueve ausencias al azar dentro del universo daba 108
+  # donde la regla explica 100, y con el determinante faltante en 200 filas
+  # vacias daba 300 donde explica 100. Las filas con el determinante faltante no
+  # cuentan como explicadas, igual que `aplicabilidad` no las cuenta ni como
+  # aplicables ni como no aplicables.
+  explicados <- ajuste$n_ausentes_explicados
   .nuevo_hallazgo(
     columna, "posible_ausencia_estructural", "ok",
     paste0(
@@ -326,6 +396,8 @@
       } else {
         ""
       },
+      ". La regla explica ", explicados, " de las ", n_ausentes,
+      " ausencias de la columna",
       ". La columna corresponde cuando ", determinante_texto,
       if (por_umbral) {
         paste0(" ", ajuste$sentido, " ", .texto_corte_umbral(ajuste))

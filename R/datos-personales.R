@@ -1012,11 +1012,25 @@
   # no entra: como aguja se tapaba a si mismo en `meta`, y el plan quedaba con la
   # accion que convierte `-999` en `NA` sin efecto en una columna de montos,
   # recomendada y activa. Medido en una refutacion.
+  #
+  # Y CON los datos, lo declarado entra solo si aparece en una columna
+  # protegida -como su valor o como su relleno: el 99999999 que se repite en la
+  # cedula sigue en el piso-. Entraba siempre, y se tapaba a si mismo en `meta`
+  # -de donde el plan toma la lista-: con `sentinelas_numericos = c(-999,
+  # 99999999)` la accion de `monto` salia `valores = -999, NA` y `aplicar()` la
+  # registraba `fallida` sin un solo 99999999 en la columna protegida: el piso
+  # no protegia nada. Es lo que la ronda 26 arreglo para el catalogo, en la
+  # declaracion. Medido en la ronda 28.
   declarados <- character()
   if (is.list(meta) && length(meta$sentinelas_numericos)) {
     propios <- meta$sentinelas_numericos[
       !meta$sentinelas_numericos %in% .numeros_na_locales
     ]
+    if (inherits(datos, "data.frame")) {
+      propios <- propios[.aparece_en_columnas(
+        propios, datos, .columnas_personales_protegidas(clasificacion)
+      )]
+    }
     declarados <- as.character(propios)
   }
   # Las celdas de `ejemplos` no traen UN valor: traen hasta tres UNIDOS con
@@ -1052,6 +1066,30 @@
   valores <- unique(c(valores, declarados[!is.na(declarados)]))
   valores[order(nchar(valores, type = "bytes"), decreasing = TRUE,
                 method = "radix")]
+}
+
+# Si cada numero de `valores` -un centinela declarado- aparece en alguna de las
+# columnas `columnas` de `datos`, escrito como numero o como texto. Ante una
+# columna que no se puede leer, TRUE: es el lado cerrado.
+.aparece_en_columnas <- function(valores, datos, columnas) {
+  if (!length(valores)) return(logical())
+  indices <- .indice_nombre(columnas, names(datos))
+  presente <- rep(FALSE, length(valores))
+  for (indice in unique(indices[!is.na(indices)])) {
+    x <- datos[[indice]]
+    numeros <- tryCatch({
+      if (is.numeric(x) && !inherits(x, c("Date", "POSIXt"))) {
+        as.numeric(x)
+      } else if (is.character(x) || is.factor(x)) {
+        suppressWarnings(as.numeric(trimws(as.character(x))))
+      } else {
+        numeric()
+      }
+    }, error = function(e) NULL)
+    if (is.null(numeros)) return(rep(TRUE, length(valores)))
+    presente <- presente | (!is.na(valores) & valores %in% numeros)
+  }
+  presente
 }
 
 # Si la aguja -una forma ya plegada por `.plegar_para_comparar()`, sin nada que no
@@ -1092,14 +1130,32 @@
 # correo `juan.perez<U+FF5F>at<U+FF60>empresa.com.uy`, el dominio con el punto
 # ideografico y la fecha con hora con la arroba chica se publicaban, mientras
 # la cedula escrita con esos mismos puntos se tapaba.
+#
+# Y TODAS las demas: cada caracter cuya forma de compatibilidad de Unicode (NFKC)
+# es UN signo ASCII -los parentesis superindice y subindice (U+207D, U+207E,
+# U+208D, U+208E), las formas de presentacion vertical (U+FE10 a U+FE48), el
+# punto de guia (U+2024), los guiones bajos de U+FE4D a U+FE4F, el signo de
+# interrogacion griego-. La ronda 27 enumero las formas que conocia y el
+# correo `juan.perez<U+207D>at<U+207E>empresa.com.uy` se publicaba frente al
+# protegido: era la misma propiedad con otros cuatro caracteres. Medido en la
+# ronda 28. La lista se genero recorriendo Unicode 15.1 con
+# `unicodedata.normalize("NFKC", x)`: son 82, y estas 28 faltaban (la raya chica
+# U+FE63 la lleva al guion la regla de digitos). Las letras encerradas -un
+# circulo, un parentesis- no son un signo y no se leen.
 .ancho_y_espacios_ascii <- local({
   # Sin las rayas chicas (U+FE58, U+FE63): `chartr()` lee un guion entre dos
   # caracteres como un rango, y la regla de digitos ya las lleva al guion.
   anchos <- intToUtf8(c(0xFF01:0xFF5E, 0xFF5F, 0xFF60, 0x2985, 0x2986, 0x3002,
                         0xFF61, 0x00A6, 0xFFE4, 0xFE50:0xFE52, 0xFE54:0xFE57,
                         0xFE59:0xFE5C, 0xFE5F:0xFE62, 0xFE64:0xFE66,
-                        0xFE68:0xFE6B))
-  ascii <- intToUtf8(c(0x21:0x7E, utf8ToInt("()()..||,,.;:?!(){}#&*+<>=\\$%@")))
+                        0xFE68:0xFE6B,
+                        0x037E, 0x1FEF, 0x2024, 0x207A, 0x207C:0x207E,
+                        0x208A, 0x208C:0x208E, 0xFB29, 0xFE10, 0xFE13:0xFE16,
+                        0xFE33:0xFE38, 0xFE47, 0xFE48, 0xFE4D:0xFE4F))
+  ascii <- intToUtf8(c(0x21:0x7E, utf8ToInt(paste0(
+    "()()..||,,.;:?!(){}#&*+<>=\\$%@",
+    ";`.+=()+=()+,:;!?__(){}[]___"
+  ))))
   function(textos) {
     textos <- gsub("[\\p{Z}\\t\u0085]", " ", textos, perl = TRUE)
     chartr(anchos, ascii, textos)
@@ -2050,7 +2106,12 @@
   valores <- valores[!is.na(valores) & nzchar(valores)]
   if (!length(valores)) return(FALSE)
   claves <- .nombres_para_operar(nombres)
-  exactos <- .nombres_para_operar(valores) %in% claves
+  # La tabla, como la nombra el paquete donde una medida no es de una columna
+  # -`(tabla)`, `(tabla: t1)`-, tambien es estructura: `objeto` mezcla las dos
+  # cosas. Ronda 28.
+  tabla <- "^\\(tabla(: [^()]+)?\\)$"
+  exactos <- .nombres_para_operar(valores) %in% claves |
+    grepl(tabla, valores, perl = TRUE, useBytes = TRUE)
   if (all(exactos)) return(TRUE)
   # Los que no son un nombre exacto se prueban como referencia a varios: se
   # parten por los separadores del paquete y cada pieza tiene que ser un nombre.
@@ -2063,12 +2124,14 @@
   # que cortar por bytes da las mismas piezas; se les devuelve la marca del texto,
   # que el corte por bytes no conserva.
   compuestos <- vapply(restantes, function(v) {
-    piezas <- strsplit(v, "\\s*(,|\\+|\\|)\\s*", perl = TRUE,
+    piezas <- strsplit(v, "\\s*(,|\\+|\\||->)\\s*", perl = TRUE,
                        useBytes = TRUE)[[1L]]
     marca <- Encoding(v)
     if (marca %in% c("latin1", "UTF-8")) Encoding(piezas) <- marca
     piezas <- piezas[nzchar(piezas)]
-    length(piezas) > 1L && all(.nombres_para_operar(piezas) %in% claves)
+    length(piezas) > 1L && all(.nombres_para_operar(piezas) %in% claves |
+                                 grepl(tabla, piezas, perl = TRUE,
+                                       useBytes = TRUE))
   }, logical(1L), USE.NAMES = FALSE)
   all(compuestos)
 }
@@ -2219,8 +2282,38 @@
 .CAMPOS_DE_NOMBRES <- c(
   "determinante", "dependiente", "variable", "objeto", "objeto_medible",
   "atributo", "atributos", "atributos_ligados", "grupo", "por", "clave",
-  "claves", "identificador"
+  "claves", "identificador", "origen"
 )
+
+# Un VALOR de un campo que refiere columnas, con un prefijo de vocabulario y
+# columnas detras -`dependencia_funcional:curso->turno`, el `origen` de la
+# propuesta de `analizar()`-, es estructura aunque la hoja mezcle otras cosas:
+# esa forma la escribe el paquete, no sale de una celda. La hoja `origen` mezcla
+# `perfil:n_faltantes_totales` con las dependencias, no era "toda nombres" y se
+# barria: con la docente protegida y una columna por docente, decia
+# `dependencia_funcional:[valor protegido]->[valor protegido]` donde nombraba
+# dos COLUMNAS, que salen igual en `atributos`. Medido en la ronda 28. Sin el
+# prefijo no: un nombre suelto se decide por la hoja entera
+# (`.es_columna_de_nombres()`), porque `mapa$dependiente` tambien se llama como
+# un campo de nombres y lleva VALORES -"Mercedes", la persona, igual a la columna
+# `Mercedes`-.
+.es_referencia_a_columnas <- function(x, nombres) {
+  valores <- as.character(x)
+  salida <- rep(FALSE, length(valores))
+  if (!length(nombres) || !length(valores)) return(salida)
+  prefijo <- "^(?:[a-z][a-z0-9_]*:)+"
+  con_prefijo <- which(!is.na(valores) &
+                         grepl(prefijo, valores, perl = TRUE, useBytes = TRUE))
+  for (i in con_prefijo) {
+    v <- valores[[i]]
+    resto <- sub(prefijo, "", v, perl = TRUE, useBytes = TRUE)
+    marca <- Encoding(v)
+    if (marca %in% c("latin1", "UTF-8")) Encoding(resto) <- marca
+    salida[[i]] <- nzchar(resto) && .es_columna_de_nombres(resto, nombres)
+  }
+  salida
+}
+
 .PATRON_CAMPOS_DE_NOMBRES <- "^(columna|columnas|nombres)(_[a-z_]+)?$"
 
 .es_campo_de_nombres <- function(campo) {
@@ -2368,8 +2461,14 @@
   cofre$hojas <- list()
   cofre$prosa <- list()
   cofre$sql <- list()
+  cofre$referencias <- list()
   invisible(.recorrer_textos_salida(x, function(hoja, campo) {
     cofre$hojas[[length(cofre$hojas) + 1L]] <- hoja
+    cofre$referencias[[length(cofre$referencias) + 1L]] <- if (
+      .es_campo_de_nombres(campo)
+    ) {
+      .es_referencia_a_columnas(hoja, intocables)
+    } else rep(FALSE, length(hoja))
     cofre$prosa[[length(cofre$prosa) + 1L]] <- rep(
       !is.null(campo) && campo %in% .CAMPOS_DE_PROSA, length(hoja)
     )
@@ -2396,6 +2495,10 @@
       intocables = intocables, apartar_iguales = TRUE
     )
   }
+  # Una referencia a columnas en un campo de nombres queda: ver
+  # `.es_referencia_a_columnas()`.
+  referencias <- unlist(cofre$referencias, use.names = FALSE)
+  protegidas[referencias] <- textos[referencias]
   cofre$desde <- 0L
   .recorrer_textos_salida(x, function(hoja, campo) {
     tramo <- protegidas[cofre$desde + seq_along(hoja)]
@@ -2641,8 +2744,9 @@
         .proteger_numeros_parametros(parametros, identificantes)
       }
     }))
-    plan <- .centinelas_en_columnas_protegidas(plan, antes, propias, datos)
-    plan <- .marcar_mapas_tapados(plan, parametros_originales)
+    plan <- .ejecutables_tras_barrido(
+      plan, parametros_originales, antes, datos, perfil$meta$cadenas_ausencia
+    )
   }
   cobertura <- attr(plan, "cobertura_diagnosticos", exact = TRUE)
   if (inherits(cobertura, "data.frame")) {
@@ -2709,6 +2813,74 @@
   plan
 }
 
+# Lo que el plan EJECUTA, despues de un barrido de sus parametros: los
+# marcadores de ausencia guardan su valor, un centinela tapado se declara y se
+# resuelve sobre los datos, y un mapa tocado se marca para reconstruirse. Lo
+# llaman `.proteger_plan_limpieza()` y el barrido de `analizar()` sobre su plan:
+# alli solo se volvia a marcar el mapa, y el barrido de `analizar()` volvia a
+# tapar los marcadores que el plan ya habia devuelto. Medido en la ronda 28 por
+# la guarda de los parametros ejecutables. `originales`: los parametros antes
+# del barrido; `antes`: antes del barrido por columna, si lo hubo.
+.ejecutables_tras_barrido <- function(plan, originales, antes = originales,
+                                      datos = NULL, declarados = NULL) {
+  plan <- .marcadores_ausencia_ejecutables(plan, originales, declarados)
+  plan <- .centinelas_tapados_en_plan(plan, antes, datos)
+  .marcar_mapas_tapados(plan, originales)
+}
+
+# Lo que `convertir_ausencias_textuales` EJECUTA guarda su valor real: la lista
+# `valores` y la declaracion `cadenas_ausencia`. Un marcador del catalogo del
+# paquete -`sin dato`, `N/A`- o uno que el usuario declaro -`SIN REGISTRO`- no
+# es el dato de nadie: es vocabulario, del paquete o del usuario, y la
+# declaracion ya se publica en `meta$cadenas_ausencia`. Los barridos lo tapaban
+# igual -el por columna con todos los valores de la protegida; el piso, en
+# cualquier columna, si el marcador declarado aparecia tambien en la protegida-
+# y la accion quedaba `lista`, activa, con `valores = "[valor protegido]"`, y
+# `aplicar()` la registraba `fallida`. Medido en la ronda 28, en la llamada por
+# omision. Es la ronda 26 y la 27 otra vez: lo que se ejecuta no pasa por el
+# barrido; se tapa lo que solo se muestra. Lo que no es marcador -un texto que
+# el detector leyo de una evidencia ya tapada- sigue como lo dejo el barrido.
+.marcadores_ausencia_ejecutables <- function(plan, originales,
+                                             declarados = NULL) {
+  if (!inherits(plan, "data.frame") || !is.list(plan$parametros) ||
+      !is.list(originales) || length(originales) != length(plan$parametros)) {
+    return(plan)
+  }
+  # `trimws()` y `tolower()` abortan sobre bytes que no son UTF-8 valido: ese
+  # texto se recorta por bytes y se compara sin plegar la caja.
+  normalizar <- function(x) {
+    x <- as.character(x)
+    x <- tryCatch(trimws(x), error = function(e) .recortar_bytes(x))
+    tryCatch(tolower(x), error = function(e) x)
+  }
+  vocabulario <- unique(c(
+    normalizar(c(.cadenas_na_naniar_1_1_0, .cadenas_na_locales)),
+    normalizar(declarados)
+  ))
+  indices <- which(
+    as.character(plan$estrategia) == "convertir_ausencias_textuales"
+  )
+  for (i in indices) {
+    parametros <- plan$parametros[[i]]
+    original <- originales[[i]]
+    if (!is.list(parametros) || !is.list(original)) next
+    propios <- unique(c(vocabulario, normalizar(original$cadenas_ausencia)))
+    valores <- parametros$valores
+    if (is.character(valores) && is.character(original$valores) &&
+        length(valores) == length(original$valores)) {
+      marcadores <- !is.na(original$valores) &
+        normalizar(original$valores) %in% propios
+      valores[marcadores] <- original$valores[marcadores]
+      parametros$valores <- valores
+    }
+    if (length(original$cadenas_ausencia)) {
+      parametros$cadenas_ausencia <- original$cadenas_ausencia
+    }
+    plan$parametros[[i]] <- parametros
+  }
+  plan
+}
+
 # La accion de centinelas sobre una columna protegida tiene que poder ejecutar lo
 # que el plan dice sin publicar el valor protegido. El barrido por columna tapaba
 # en `valores` todo numero de la columna, y con eso los mismos numeros que la
@@ -2731,11 +2903,23 @@
 #     del plan esa resolucion convierte exactamente las celdas que el plan
 #     estima; si no, la accion queda `bloqueada` y la justificacion dice como
 #     ejecutarla, en vez de ofrecer como `lista` una accion imposible.
-.centinelas_en_columnas_protegidas <- function(plan, antes, propias, datos) {
+#
+# En TODA columna, no solo en las protegidas: la lista de una columna que no es
+# personal sale de `meta$sentinelas_numericos`, y ahi el piso tapa el centinela
+# declarado que es el valor de una columna protegida -el 99999999 que se repite
+# en una tabla de movimientos, donde puede ser una cedula-. La accion de `monto`
+# salia `lista` con `valores = -999, NA`, sin marca, y `aplicar()` la registraba
+# `fallida`. Ahora lo declara igual: lo resuelve con los rellenos de `monto`, si
+# eso reproduce lo que el plan estima, o queda `bloqueada`. Medido en la ronda
+# 28.
+.centinelas_tapados_en_plan <- function(plan, antes, datos) {
   indices <- which(
-    propias & as.character(plan$estrategia) == "convertir_sentinelas_numericos"
+    as.character(plan$estrategia) == "convertir_sentinelas_numericos"
   )
   for (i in indices) {
+    # Una accion que un barrido anterior ya declaro se deja como esta: la
+    # justificacion no se repite.
+    if (isTRUE(antes[[i]]$valores_enmascarados)) next
     original <- antes[[i]]$valores
     parametros <- plan$parametros[[i]]
     valores <- parametros$valores
@@ -2944,8 +3128,8 @@
     names(columnas)
   )
   geometria <- rep(FALSE, nrow(columnas))
-  if ("representacion_geometrica" %in% names(columnas)) {
-    geometria <- geometria | !is.na(columnas$representacion_geometrica)
+  if ("representacion_geometria" %in% names(columnas)) {
+    geometria <- geometria | !is.na(columnas$representacion_geometria)
   }
   if ("tipo_geometria" %in% names(columnas)) {
     geometria <- geometria | !is.na(columnas$tipo_geometria)
@@ -2960,8 +3144,14 @@
       columnas[[campo]][ocultar] <- NA_real_
     }
   }
+  # Solo donde habia un alcance que declarar: una geometria que no se pudo
+  # convertir no tiene bbox, y decir que no se publico "por geometria
+  # protegida" declararia un tapado que no ocurrio. Con el nombre de campo mal
+  # escrito -`representacion_geometrica`- esas filas nunca llegaban aca; al
+  # corregirlo, la sonda mostro que llegaban a esta linea con `bbox_alcance` NA.
   if ("bbox_alcance" %in% names(columnas)) {
-    columnas$bbox_alcance[geometria] <-
+    con_alcance <- geometria & !is.na(columnas$bbox_alcance)
+    columnas$bbox_alcance[con_alcance] <-
       "no_publicado_por_geometria_protegida"
   }
   if (!"detalle_proteccion_personal" %in% names(columnas)) {

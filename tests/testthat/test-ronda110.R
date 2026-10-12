@@ -18,13 +18,17 @@ test_that("las secuencias enteras densas apagan solo la lectura del contenido", 
     casi_duplicados_vocabulario = FALSE
   )
 
-  expect_true(all(perfil$columnas$secuencia_entera_densa))
+  # Ronda 28-N: `brewery_id` -0..557 repetidos a lo largo de 2.410 filas- cubre
+  # su tramo de enteros, pero se repite, y una columna que se repite no se
+  # distingue por su forma de una magnitud que lleno su rango. Ya no es
+  # numeracion: `index` e `id`, que no se repiten, si.
+  expect_equal(perfil$columnas$secuencia_entera_densa, c(TRUE, TRUE, FALSE))
   expect_equal(
     perfil$columnas$densidad_secuencia_entera,
     c(1, 2410 / 2692, 1), tolerance = 1e-12
   )
   expect_equal(perfil$columnas$n_huecos_secuencia_entera, c(0, 282, 0))
-  for (columna in names(datos)) {
+  for (columna in c("index", "id")) {
     tipos <- .tipos_senalados_r110(perfil, columna)
     expect_false("faltantes_disfrazados" %in% tipos)
     expect_false("patron_raro" %in% tipos)
@@ -32,21 +36,18 @@ test_that("las secuencias enteras densas apagan solo la lectura del contenido", 
   identificadores <- perfil$hallazgos[
     perfil$hallazgos$tipo_hallazgo == "posible_identificador", , drop = FALSE
   ]
-  # `brewery_id` se sumo cuando las dos preguntas sobre si algo es una
-  # numeracion pasaron a contestarse con el mismo criterio. Es una clave foranea
-  # -0..557 repetidos a lo largo de 2.410 filas-, o sea un codigo de catalogo, y
-  # antes quedaba sin diagnostico: las guardas la trataban como numeracion para
-  # callar Benford y Tukey, y el perfil no decia que lo fuera.
-  expect_setequal(identificadores$columna, c("index", "id", "brewery_id"))
+  # `brewery_id` se habia sumado cuando las dos preguntas sobre si algo es una
+  # numeracion pasaron a contestarse con el mismo criterio: las guardas la
+  # trataban como numeracion y el perfil no lo decia. Desde la ronda 28-N las
+  # guardas tampoco la tratan como numeracion, y el perfil sigue coherente con
+  # ellas: no la llama identificador.
+  expect_setequal(identificadores$columna, c("index", "id"))
   expect_true(all(as.character(identificadores$severidad) == "ok"))
   expect_true(all(grepl("secuencia_entera_densa=TRUE|densidad del tramo",
                         identificadores$evidencia)))
-  # Las dos lecturas se distinguen: unicas son identificador de fila, repetidas
-  # son codigo.
   descripciones <- as.character(identificadores$descripcion)
   names(descripciones) <- as.character(identificadores$columna)
   expect_match(descripciones[["id"]], "unicidad")
-  expect_match(descripciones[["brewery_id"]], "codigo de catalogo")
 
   con_ausente_y_duplicado <- data.frame(
     id = c(as.character(seq_len(100L)), "50", rep(NA_character_, 20L))

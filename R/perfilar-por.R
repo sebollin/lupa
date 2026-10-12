@@ -534,7 +534,10 @@ perfilar_por <- function(datos, por, clave = NULL, min_filas = 30L, ...) {
         length(distintos) / as.numeric(rango)
       }
       list(
-        densa = length(distintos) >= 20L && densidad >= 0.8,
+        # La misma regla de numeracion que la de `double`: densa Y casi sin
+        # repetir (`.numeracion_sin_repetir_conteos()`).
+        densa = length(distintos) >= 20L && densidad >= 0.8 &&
+          .numeracion_sin_repetir(presentes),
         no_evaluada = FALSE
       )
     } else {

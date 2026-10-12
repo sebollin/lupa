@@ -523,7 +523,8 @@ La mediana consolidada tambien se sondea antes de usarla; en SQL Server
 requiere nivel de compatibilidad >= 110. Se sondea; estos son los motivos
 conocidos de que no se active: la funcion no esta disponible o el motor
 rechaza la sonda. En ese caso el mensaje del motor queda en
-\code{meta$mediana_consolidada$motivo}, y se conserva la mediana por columna.
+\code{meta$mediana_consolidada$motivo} —sin sus literales, como todo mensaje del
+motor: ver la protección—, y se conserva la mediana por columna.
 }
 
 \section{Lo que el motor guarda distinto que R}{
@@ -757,7 +758,18 @@ muestreo, cuando la muestra es la tabla entera: ahí se releen como texto, con
 una consulta, las columnas protegidas que el controlador no leyó como texto.
 Y el motivo
 de una cifra que no se pudo leer como número no cita el valor de una columna
-protegida.
+protegida. Tampoco el \strong{mensaje de un error del motor}, que es texto ajeno
+y cita la celda que hizo fallar la consulta —\verb{invalid input syntax for type bigint: "4.685.467-9"}, en una vista que castea una cédula escrita con
+puntos—: ese valor nunca se leyó, así que el piso no lo conoce y puede ser
+de cualquier columna. Todo mensaje de error que se publica —en \code{sql},
+\code{cobertura}, \code{meta}, en la colección y en los avisos— lleva sus literales
+entre comillas, simples, dobles o tipográficas, cambiados por
+\verb{[literal omitido]}, con o sin protección; también un identificador entre
+comillas, que el resto de la salida ya nombra. Quedan una palabra de SQL
+—\verb{Incorrect syntax near 'LIMIT'} dice que el motor no acepta ese
+dialecto— y un signo suelto. El texto que PostgreSQL cita sin comillas al
+no poder leer un JSON (\verb{CONTEXT:  JSON data, line 1: ...}) se tapa hasta el
+fin de la línea. Se publicaba tal cual, en PostgreSQL y en duckdb.
 \code{incluir_valores = FALSE} va más lejos: no emite las consultas de moda ni de
 mediana y no informa mínimo ni máximo, útil cuando la tabla es un padrón y
 la moda de un identificador único es un documento real. Si se pidió \code{desvio},

@@ -1,5 +1,343 @@
 # lupa 0.1.0
 
+## Ronda 28: las geometrias, la comparacion de perfiles, los diagnosticos numericos y la proteccion otra vez
+
+Cuatro refutaciones. La de las geometrias encontro doce defectos -con un
+universo declarado, el perfil contaba como evaluadas geometrias que nunca evaluo
+y publicaba 0 invalidas donde habia 50-; la de la comparacion de perfiles, ocho
+-una columna protegida cuyo rango se corria setenta veces su ancho no producia
+ninguna fila-; la de los diagnosticos numericos, diez -una edad de 18 a 90 salia
+como identificador y Benford se callaba con muchas filas-; y la de la
+proteccion, nueve -el mensaje de error del motor citaba la celda que lo
+provocaba-.
+
+**La proteccion:**
+
+- **El mensaje de un error del motor se publica sin los literales que cita.**
+  Una vista que castea una cedula escrita con puntos hacia fallar la consulta, y
+  PostgreSQL o duckdb citaban la celda -`invalid input syntax for type bigint:
+  "4.685.467-9"`-; ese valor nunca se leyo, el piso no lo conocia, y
+  `perfilar_dbi()` lo publicaba en `resumen_tabla$sql$motivo`,
+  `cobertura$motivo`, `meta$proteccion_personal$fuera_de_muestra` y el motivo de
+  las columnas omitidas -seis veces en duckdb, una por consulta-, y
+  `perfilar_coleccion()` en `cobertura_metricas`, `meta$lecturas` y
+  `cobertura_coleccion`, tambien con `conservar_perfiles = FALSE`. Todo mensaje
+  de error atrapado en la via DBI pasa ahora por un solo lugar: los literales
+  entre comillas -simples, dobles o tipograficas- salen `[literal omitido]`, con
+  o sin proteccion, salvo una palabra de SQL -`Incorrect syntax near 'LIMIT'`
+  dice que el dialecto no sirve- o un signo suelto; y el contexto con que
+  PostgreSQL cita, sin comillas, el texto que no pudo leer como JSON.
+- **La copia de `analizar(conservar_datos = TRUE)` aplica el piso en todo el
+  `data.frame`**, no solo en las celdas de texto y de numeros: los nombres de
+  fila -las ciento veinte cedulas de `rownames(d) <- d$cedula`, que vuelven a
+  ser numeros-, las etiquetas de valor de una columna protegida `haven_labelled`
+  -que conserva solo los atributos de su clase-, una copia `POSIXct` de la fecha
+  con hora protegida -que `perfilar()` si tapaba-, las columnas de lista y los
+  atributos de la tabla y de cada columna. Es una regla recursiva: cada valor,
+  donde este, pasa por el piso.
+- **Las acciones de ausencias y de centinelas ejecutan lo que el plan
+  estima.** Con un marcador del catalogo (`sin dato`) en una columna protegida,
+  o uno declarado en `cadenas_ausencia` que aparecia tambien en una protegida,
+  la accion `convertir_ausencias_textuales` salia `lista`, activa, con
+  `valores = "[valor protegido]"`, y `aplicar()` la registraba `fallida`. Un
+  marcador del catalogo o declarado no es el dato de nadie y guarda su valor. Y
+  un centinela declarado en `sentinelas_numericos` entraba al piso siempre y se
+  tapaba a si mismo en `meta`, de donde el plan toma la lista: la accion de un
+  `monto` salia `valores = -999, NA` y `fallida`, tambien sin un solo 99999999
+  en la columna protegida. Con los datos, entra al piso solo si aparece en una
+  columna protegida -tambien como su relleno-; y si aparece -el 99999999 que se
+  repite en la cedula de una tabla de movimientos-, la accion de cualquier
+  columna lo declara
+  (`valores_enmascarados`) y lo resuelve con los rellenos de la columna, o queda
+  `bloqueada`, como ya hacia sobre una columna protegida. La prueba que compara
+  los parametros ejecutables con la corrida sin proteccion tiene ahora en su
+  tabla marcadores y un centinela declarado; el barrido de `analizar()` sobre
+  su plan volvia a tapar los marcadores que el plan ya habia devuelto.
+- **El celular con prefijo de pais pegado a otro numero por una barra o un
+  guion se reconoce**: en `"+59899123456/+59899765432"` el numero tiene dos
+  grupos, el primero no es `598` y la parte nacional no se probaba; los cuatro
+  celulares de una lista asi se publicaban en los ejemplos de una observacion
+  -81 celdas en `analizar()`- mientras con `" / "` o con `;` se tapaban.
+- **Un objeto declarado `tipo = "vista"` en `perfilar_coleccion()` se registra
+  como no leido**: se salteaba antes de registrarse y el perfil conservado de
+  `movimientos` publicaba la cedula y el nombre de los clientes, sin que
+  `otras_tablas` lo dijera. Todo camino que saltea una tabla la registra ahora
+  por el mismo lugar.
+- **El mapa enmascarado de una imputacion se valida sobre los datos que recibe
+  `aplicar()`**: se reconstruia entero sobre ellos, y sobre otra entrega la
+  accion que sin proteccion queda `fallida` -la fila `S02 -> Farmacia Centro
+  Norte`, publicada en claro, con otro nombre- salia `ejecutada` y escribia
+  valores que el plan nunca mostro, e imputaba una sucursal nueva. Las filas en
+  claro son ahora el mapa, y una fila tapada se resuelve con el par que,
+  tapado con los valores protegidos de esos datos, da lo que el plan publico;
+  si los datos la contradicen, o no traen el valor que la tapo, la accion queda
+  `fallida`.
+- **Un campo que refiere columnas publica la columna aunque mezcle `(tabla)`**:
+  en una planilla pivoteada con la docente protegida y una columna por docente,
+  `medicion$objeto_medible` y `tablero$objeto` decian `[valor protegido]` donde
+  nombraban la columna, y el `origen` de la propuesta
+  `dependencia_funcional:[valor protegido]->[valor protegido]`.
+- **Toda forma de compatibilidad de un signo ASCII se lee como el signo** en el
+  correo y en la fecha con hora: los parentesis superindice y subindice, las
+  formas de presentacion vertical y el punto de guia faltaban, y
+  `juan.perez<U+207D>at<U+207E>empresa.com.uy` se publicaba frente al correo
+  protegido. La lista se genero recorriendo Unicode: 28 caracteres que NFKC
+  lleva a un solo signo ASCII y no se leian. Una letra encerrada en un circulo
+  no es un signo y no se lee; queda escrito en `?perfilar`.
+- **La cifra del fijo que se tapa de mas se corrige con lo medido.** `?perfilar`
+  decia "entre tres y seis de cada cien, igual con su prefijo de pais o pegado",
+  y el reproductor de la misma version imprimia 5,5 % sin el prefijo, 2,8 % con
+  el prefijo y espacios y 1,5 % pegado. Las familias del reproductor sortean 400
+  fijos por escritura, cada una con sus cifras: la diferencia es el sorteo. Con
+  las MISMAS 4.000 cifras escritas de seis formas -con espacios, con guiones,
+  con el prefijo y espacios o guiones, pegado con el prefijo y sin el- se tapan
+  2,8 % en todas, y exactamente los mismos 112: la regla prueba la parte
+  nacional. El bloque esta al final de `data-raw/medir_tapado_de_mas.R`, con su
+  semilla, junto con las listas de dos telefonos unidos por una barra (5,5 %;
+  con " / ", 7,8 %, sobre 400).
+
+**Las geometrias:**
+
+- Con un universo aplicable declarado, `n_validez_evaluados` y
+  `n_dominio_evaluados` cuentan solo lo que de verdad se evaluo dentro de el:
+  antes se derivaban de las filas aplicables, y las geometrias que el
+  presupuesto no analizo, los `NA` de una columna de texto y -para el dominio-
+  las vacias se publicaban como evaluadas. Con los topes por omision, 50
+  poligonos invalidos del universo, todos fuera del presupuesto, salian "0
+  invalidas de 120 evaluadas" y `geometria_invalida` no se emitia; ahora salen
+  "0 de 20" y `cobertura_diagnosticos` agrega cuantas del universo quedaron sin
+  analizar ("se analizaron 20 de sus 120 valores presentes").
+- `geometria_vacia` y `tipos_geometria_mixtos` cuentan sobre las geometrias
+  medidas del universo, no sobre las filas de la tabla: 2 vacias "de 10" sobre
+  un universo de 6, 1 "de 10" sobre 7 WKT presentes, 3000 sobre 2925 geometrias
+  de PostGIS. `tipos_geometria_mixtos` dejaba adentro las filas donde la regla
+  de aplicabilidad quedo indeterminada ("cuenta 5 y traza 3") y se emitia con
+  afectadas sobre un universo vacio; ya no.
+- Un valor que no convierte ya no borra la medicion de la columna ni se calla:
+  un solo `""`, `"zz"` o un encabezado trunco dejaba una columna EWKB
+  hexadecimal sin representacion, sin motivo y sin un campo geometrico; en WKB
+  crudo el valor perdido no se declaraba; en WKT uno solo dejaba la columna
+  entera sin medir. Ahora se mide lo que convierte y lo demas se declara con su
+  cifra en `motivo_representacion` y en `cobertura_diagnosticos`. El WKB
+  hexadecimal tiene su propia guarda de encabezado -la misma aritmetica que el
+  crudo- y solo lo que la supera llega a `sf`; si una llamada falla, se biseca.
+- La guarda WKT admite lo que `ST_AsText` de PostGIS escribe:
+  `GEOMETRYCOLLECTION Z (POINT Z (1 2 3))`, la variante M y las colecciones
+  anidadas salian como "WKT estructuralmente invalido". Las curvas siguen sin
+  medirse y se declaran como no convertidas. Los parentesis se verifican
+  balanceados de verdad (contar aperturas y cierres dejaba pasar `)(`).
+- Una columna EWKT con varios SRID, o con valores con y sin SRID, se mide por
+  SRID como la misma columna en EWKB: antes `sf` la rechazaba entera y ademas se
+  emitia `crs_no_declarado` [error]. Si ningun valor convierte pero los valores
+  declaran su SRID, `crs_declarado` lo dice y no se acusa `crs_no_declarado`.
+- Un componente vacio dentro de una geometria que no es vacia -un `POINT EMPTY`
+  en una coleccion o en un `MULTIPOINT`, que `sf` escribe como `NaN NaN`- ya no
+  se cuenta como coordenada fuera de dominio.
+- En un CRS geografico con otro meridiano de origen (Ferro, Paris, Jakarta) o en
+  gradianes, el rango se exige en sus unidades y la comparacion con la `BBOX`
+  del area de uso se hace despues de llevar las coordenadas a longitud/latitud
+  WGS 84: el centro del area de uso de EPSG:4805 salia fuera de dominio.
+- Con SRID mezclados, todos geograficos (4326 + 4258), `geometria_invalida` es
+  `sospechoso`, igual que con un solo SRID geografico; antes cualquier mezcla la
+  volvia `error`.
+- `n_geometrias_analizadas` y `n_vertices_analizados` se publican en
+  `p$columnas`, como `?perfilar` prometia: el trabajo del presupuesto geometrico
+  solo aparecia en el texto de la cobertura, y solo cuando habia recorte.
+- Sobre una geometria escrita como texto, la proximidad de vocabulario,
+  `posible_identificador` y `patron_raro` declaran "no aplica" tambien cuando
+  corrieron sin producir hallazgo: con 2.500 WKT la cobertura decia "el
+  vocabulario excede el alcance de comparacion" y con 50, "no aplica".
+- Con un universo aplicable declarado, el presupuesto geometrico se gasta
+  primero en el universo -con el mismo muestreo uniforme si el universo solo ya
+  excede el tope- y lo que sobra va al resto de la columna; el tope de la
+  conversion de una columna WKT o WKB sigue la misma regla. Antes se repartia
+  entre todas las filas: con los topes por omision, un universo de 120
+  poligonos que entraba entero en el tope quedaba analizado en 20 mientras se
+  median 980 filas de afuera, y 50 invalidas del universo salian "0 de 20".
+  Ahora salen 50 de 120. Sin universo, el presupuesto hace lo mismo que antes.
+- La proteccion de datos personales leia `representacion_geometrica`, un campo
+  que no existe; corregido el nombre, ademas solo declara
+  `no_publicado_por_geometria_protegida` donde habia una caja que tapar: una
+  geometria de texto que no se pudo convertir conserva `bbox_alcance` en `NA`.
+
+**La comparacion de perfiles:**
+
+- **Una columna protegida declara que su rango no se compara.** Con la
+  proteccion por omision, un `telefono` cuyo rango pasaba a setenta veces su
+  ancho no producia ninguna fila ni ningun aviso: la comparacion no decia el
+  cambio, que no puede publicar, ni que no lo habia mirado. Ahora el resultado
+  lleva siempre el atributo `campos_protegidos` -`columna`, `campo`, `lado`, la
+  misma forma que ya usaba `comparar_equivalencia()`, con la misma regla para
+  decidir que esta tapado-, y `rbind()` une los de todas las derivas.
+- **Un cambio de proteccion de la columna tiene su propia fila.** Cien
+  documentos con los mismos extremos, que cruzaban el umbral de verificacion
+  entre una entrega y otra con la misma politica, salian como "Cambio el rango
+  observado", `sospechoso`, con magnitud `Inf`. Ahora sale una fila
+  `aspecto = "proteccion"`, `sospechoso`, `sin proteger -> protegido`, como
+  `configuracion_proteccion` una escala mas arriba; si cambia la politica
+  entera, esa fila ya lo dice y no se repite por columna.
+- **Los extremos exactos de un entero que no entra en un doble se comparan.**
+  Un `integer64` por encima de 2^53, o un entero escrito como texto, publica
+  `minimo` y `maximo` en NA y conserva los extremos en `minimo_exacto` y
+  `maximo_exacto`, que la comparacion no leia: un ancho que se multiplicaba por
+  cuarenta y nueve daba cero filas. Se restan con aritmetica exacta por cifras,
+  sin `bit64`.
+- **El rango se decide por sus valores, no por su texto.** Se comparaba el
+  rango impreso con ocho cifras, que sigue a `options(scipen)`: los mismos
+  perfiles daban cero filas o una fila `sospechoso` segun la opcion, y un rango
+  angosto frente a su magnitud -`1.000000030` contra `1.000000044`- no salia
+  nunca. Los numeros de la deriva se publican ahora con la escritura mas corta
+  que vuelve al valor, sin depender de `scipen` ni de `digits` -antes salia
+  `[2.1e+11, 2.1e+11]` para dos extremos distintos-; la marca decimal sigue a
+  `OutDec`, y con coma decimal los extremos se separan con punto y coma.
+- **Un patron que entra o sale de un resumen lleno no se publica como nuevo ni
+  como desaparecido.** Con mas formas que `max_patrones`, mover un valor entre
+  dos formas raras publicaba un patron "nuevo" y otro "desaparecido", los dos
+  `sospechoso`, que seguian en los datos. Ahora sale `no_comparable` con
+  severidad `ok`, salvo que el cambio que se puede garantizar alcance el umbral.
+- **El cambio de proporcion de un patron que sigue presente se informa.** Un
+  formato que pasaba del 5 % al 95 % no producia ninguna fila. Ahora sale
+  `modificado` cuando alcanza `umbral_cambio` (`error` desde `umbral_error`);
+  que los cambios menores no den fila es una decision escrita en la ayuda.
+- **`comparar_equivalencia()` no afirma un cambio de tipo temporal que no
+  midio.** El frame de `perfilar_dbi()` no publica tipo, y la guarda lo leia
+  como "no temporal": fechas que el motor devolvia como `Date` salian con
+  `tipo_cambiado:temporal_vs_no_temporal`. Sin tipo de un lado, los mismos
+  campos se omiten con `tipo_desconocido:temporal_vs_sin_tipo`, porque tampoco
+  hay una unidad comun garantizada.
+- **Un cambio significativo de cardinalidad es `sospechoso` en los dos
+  sentidos.** La regla del signo era la de los faltantes, y un identificador
+  unico que pasaba a tener la mitad repetida salia `ok`. Es una decision escrita
+  en la ayuda: la cardinalidad no tiene una direccion buena.
+
+**Benford:**
+
+- **La exclusion por "secuencia correlativa" ya no depende de cuantas filas se
+  cargaron.** La guarda contaba cuantos enteros distintos ocupan el rango y no
+  cuanto se repite cada uno, y una magnitud entera acotada termina ocupando
+  todos los de su rango si hay filas suficientes: `floor(10^runif(n, 0, 4))`
+  tenia densidad 0,094 con 2.000 filas y 0,97 con 200.000, donde la guarda la
+  daba por numeracion y callaba un 20 % de montos fabricados con X2 = 93.078. Es
+  el defecto por el que el paquete ya habia retirado el criterio de unicidad. La
+  condicion es ahora una conjuncion -densa y casi sin repetir, con la misma
+  unicidad de 0,9 que define el tipo `identificador`-, que sorteando con
+  reposicion no se cumple a ningun tamano: medido sobre cinco distribuciones y
+  ocho tamanos, la unicidad mas alta entre las columnas densas fue 0,659. Por la
+  misma razon, `posible_identificador` excluye a Benford solo cuando la columna
+  no se repite. Un correlativo de verdad sigue excluido con cualquier `n`. El
+  costo esta del lado barato: una numeracion que se repite, como el
+  identificador del hogar en una tabla de personas, puede recibir
+  `desviacion_benford`.
+- **Los ordenes de magnitud son `log10(max/min)`, como dice la ayuda.** El codigo
+  restaba logaritmos, y con 534 y 0,534 -cociente 1000 exacto en doble- daba
+  2,9999999999999996: Benford no se evaluaba y el motivo publicaba
+  "3.000000000000000 < 3". De 50.000 pares decimales con cociente 1000, la resta
+  dejaba 5.728 por debajo de 3. Ademas el motivo compara ahora los textos que
+  publica, hasta 17 decimales: `round()` y `formatC()` no redondean igual, y el
+  valor y el umbral podian escribirse identicos.
+
+**Centinelas declarados:**
+
+- **Lo que `sentinelas_numericos` declara como ausencia sale tambien de Benford y
+  de las relaciones aritmeticas**, como ya salia del resumen. Con 160 `999`
+  declarados en un monto, el resumen publicaba la media sin ellos y Benford
+  contaba 2.000 valores y publicaba `desviacion_benford` (X2 = 245,4), cuando sin
+  los `999` la columna cumple (X2 = 3,98, p = 0,86); con `-9` declarado en ocho
+  filas, `a + b ~= total` salia `sospechoso` acusando justo esas ocho. Se aplica
+  la misma regla del resumen, no una reescrita, y la lista por omision sigue sin
+  sacar nada.
+
+**Relaciones aritmeticas:**
+
+- **Un sumando que la tolerancia absorbe ya no completa una suma.** La tolerancia
+  es relativa a la escala del total, y con montos de 1e9 vale 10 a 20 unidades:
+  junto a `neto + comision ~= bruto` se publicaba `[sospechoso] neto + hijos ~=
+  bruto`, que acusaba a cinco filas sanas de romper una regla inexistente, y con
+  marcas epoch `inicio + intentos ~= fin`. Con el criterio del filtro de magnitud
+  de las relaciones de orden: si la identidad sin uno de sus sumandos ya alcanza
+  el criterio, ese sumando esta por debajo de la resolucion y la identidad se
+  descarta, salvo que se cumpla exacta -con la sola diferencia del redondeo de un
+  doble-, como la brecha de IQR cero rescata un orden. La relacion real sale, con
+  la evidencia que lo dice, y las descartadas se cuentan en
+  `meta$aritmetica_columnas$identidades_descartadas_escala`.
+- **Un desborde de enteros no apaga ni aborta la busqueda.** `x + y` en
+  `integer` daba `NA` en una fila y la relacion desaparecia sin fila de
+  cobertura, con el aviso base de enteros excedidos filtrado al usuario; por
+  `perfilar_dbi()`, RSQLite devuelve `INTEGER` como `integer` y un importe en
+  centesimos se callaba entero. Y con un `integer` de -2e9 a 2e9 el rango
+  desbordaba y `perfilar()` abortaba. La identidad aditiva y la variacion se
+  calculan en doble, que guarda exacto a cualquier entero.
+
+**Ausencia estructural:**
+
+- **El corte de un umbral es el limite exacto.** Con mas de 200 cambios de valor
+  se prueba un corte cada medio por ciento, y se publicaba el valor siguiente al
+  corte muestreado: sobre una regla exacta `>= 50000` se sugeria `>= 49849.27`,
+  que cumple 0,9988 y pegada dejaba seis faltantes dentro del universo. Ahora el
+  muestreo elige la zona y se prueban todos los cambios entre los dos cortes
+  vecinos: el corte publicado es el primer valor observado del lado donde la
+  columna corresponde.
+- **El corte de un instante lleva su zona.** `as.POSIXct("2024-03-01")` se leia
+  en la zona de la sesion que lo pegaba: con la sesion en UTC ubicaba bien todas
+  las filas y en America/Montevideo dejaba seis presentes fuera del universo.
+  La etiqueta se escribe en la zona de la columna -o en UTC- y la llamada lleva
+  `tz`.
+- **La sugerencia no depende de `OutDec`.** Con `OutDec = ","` decia `ingreso >=
+  30122,33`, que no es codigo R. El numero se escribe como la etiqueta de un
+  grupo: punto decimal, sin depender de `scipen`, y con las cifras que hacen
+  falta para volver al valor. La prosa sigue respetando `OutDec`.
+- **`n_afectados` cuenta las ausencias que la regla explica**: las que caen donde
+  la columna no corresponde, sin las filas donde el determinante falta. Era
+  `round(cumplimiento * n_ausentes)`, que no es un conteo de nada: daba 108
+  donde la regla explica 100, y 300 donde explica 100 con 200 determinantes
+  faltantes. La evidencia lo dice con las dos cifras.
+
+**`clasificar_variables()`:**
+
+- **Una unidad declarada no confirma lo que solo dicen los valores.** Un peso en
+  `kg` con valores enteros salia `discreta`, confirmada y con confianza 1. La
+  unidad establece una magnitud, no si es una cuenta o una medida: confirma
+  `continua` cuando hay decimales, y con enteros la propuesta sale sin confirmar.
+  `measure = "scale"` sigue publicandose como `continua` confirmada: es una
+  declaracion, y esa es la lectura que SPSS le da al nivel; queda escrito en la
+  ayuda.
+
+**La numeracion, en todo el perfil:**
+
+- **Una regla de numeracion para todo el perfil.** La densidad sin repeticiones
+  no solo callaba Benford: decidia tambien `posible_identificador` y las guardas
+  de Tukey, de centinelas y de patrones. Una edad de 18 a 90 con 20.000 filas
+  salia "codigo de catalogo, no una magnitud", y una magnitud acotada pasaba a
+  numeracion al crecer la tabla -y ahi se callaban sus limites de Tukey-. Ahora
+  hay una sola regla, escrita una vez y alimentada con los conteos de cada sitio
+  (en memoria, por `perfilar_dbi()` y en `perfilar_por()`): densa y casi sin
+  repetir, descontando el excedente de la moda. `secuencia_entera_densa` pasa a
+  responder lo mismo. Un correlativo y un identificador con huecos siguen siendo
+  numeracion a cualquier tamano; una numeracion que se repite -un codigo de
+  catalogo, una clave foranea- no se distingue por su forma de una magnitud que
+  lleno su rango y deja de tratarse como numeracion, asi que el paquete puede
+  hablar de mas sobre ella. En el banco de trece columnas que decidio la guarda,
+  el codigo 1..284 que se repite pasa a recibir Tukey: acierta doce, y el error
+  queda del lado barato.
+- **La aplicabilidad declarada manda tambien en Benford y en la aritmetica.**
+  Las filas fuera del universo -y las indeterminadas- salian del resumen y
+  seguian sosteniendo una desviacion de Benford o apagando una relacion: con
+  200 de 1.200 filas fuera del universo, Benford publicaba X2 = 356,8 sobre la
+  columna entera cuando sobre el universo da 9,4, y `a + b ~= total` se perdia
+  porque la basura de afuera bajaba el cumplimiento a 0,83. Se usa la misma
+  mascara que el resumen.
+- **La traza de `outliers`, ceros y negativos usa el universo declarado.** Con
+  `aplicabilidad`, el conteo salia de los cuartiles del universo y la traza de
+  los de la columna entera, y el paquete se acusaba de una traza incoherente
+  ("cuenta 4 y traza 3"). En enteros lo tapaba la guarda de densidad.
+- **Los numeros que tienen que volver a su valor no dependen de `LC_NUMERIC`.**
+  Con `Sys.setlocale("LC_NUMERIC", "de_DE.UTF-8")`, `as.character()` y
+  `sprintf()` escriben coma aun con `OutDec = "."`: las etiquetas de grupo de
+  `perfilar_por()` salian "1,5", la comprobacion avisaba "NAs introducidos por
+  coercion" y `0.1 + 0.2` quedaba "0.3". La escritura reversible devuelve el
+  punto en un solo lugar, el mismo que ya usaba la sugerencia de ausencia
+  estructural.
+
 ## Ronda 27: la proteccion otra vez, los validadores y las fechas, los duplicados y la distribucion
 
 Tres refutaciones en paralelo. La de la proteccion encontro siete fugas, tres
@@ -74,8 +412,11 @@ asociaciones y las estimaciones, trece.
   escriben los enlaces de WhatsApp- se publicaba frente al celular protegido
   "099 123 456", y al reves; separado, "598" y el primer grupo formaban una
   cedula de siete cifras sin su verificador y un fijo de cada seis que no era de
-  nadie se tapaba ("+598 4499 0917": 16,8 % medido; ahora 2,8 %, como el mismo
-  fijo escrito sin el prefijo).
+  nadie se tapaba ("+598 4499 0917": 16,8 % medido; ahora 2,8 %, lo mismo que
+  el fijo escrito sin el prefijo o pegado: medido sobre las mismas 4.000 cifras
+  escritas de seis formas, la regla tapa los mismos 112 en todas. El 5,5 % que el
+  reproductor imprimia sin el prefijo era el sorteo de 400 fijos con otras
+  cifras, semilla 7).
 - El correo escrito con palabras y la fecha con hora se leen tambien con las
   demas formas de compatibilidad de un signo ASCII, las que la regla de digitos
   ya leia: los parentesis blancos anchos (U+FF5F, U+FF60), el punto ideografico

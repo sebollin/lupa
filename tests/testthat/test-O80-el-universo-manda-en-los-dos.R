@@ -153,12 +153,14 @@ test_that("sin universo declarado, la geometria cuenta la columna entera", {
 })
 
 test_that("la lista de campos de indices de geometria esta en un solo lugar", {
-  # Los cinco campos los leen el remapeo y el recorte al universo. Si cada uno los
+  # Los campos de indices los leen el remapeo y el recorte al universo. Si cada uno los
   # escribiera por su lado, agregar un diagnostico con indices dejaria a uno de los
   # dos sin enterarse.
   campos <- lupa:::.CAMPOS_INDICES_GEOMETRIA
   vacias <- lupa:::.metricas_geometria_vacias()
 
   expect_true(all(campos %in% names(vacias)))
-  expect_identical(length(campos), 5L)
+  # Ronda 28-G: se suman las posiciones medidas y las analizadas, que el recorte
+  # al universo necesita para contar lo evaluado dentro de el.
+  expect_identical(length(campos), 7L)
 })

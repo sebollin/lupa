@@ -722,9 +722,14 @@ test_that("las guardas de tabla completa sobreviven al agrupamiento", {
   #    lista, porque la regla del paquete pide que se repita. Ese caso se
   #    verifica aparte, mas abajo, y aca haria que la guarda no tuviera trabajo
   #    y la prueba no midiera nada.
+  #
+  #    Ronda 28-N: el grupo "No" repetia 1..1000, que en la tabla entera
+  #    duplicaba casi todos los valores, y una columna que se repite ya no es
+  #    numeracion. El caso es el de una numeracion de la tabla entera que el
+  #    agrupamiento corta, asi que el grupo "No" la continua.
   denso <- data.frame(
     egreso = rep(c("Si", "No"), each = 1000L),
-    id = c(seq_len(950L), rep(999L, 50L), seq_len(1000L)),
+    id = c(seq_len(950L), rep(999L, 50L), 1000L + seq_len(1000L)),
     stringsAsFactors = FALSE
   )
   agrupado <- perfilar_por(denso, por = "egreso", min_filas = 1)

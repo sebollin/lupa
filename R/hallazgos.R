@@ -214,6 +214,74 @@
 # falso positivo y el mismo codigo con un valor mas no lo recibia.
 .MIN_DISTINTOS_NUMERACION <- 5L
 
+# La unicidad a partir de la cual una columna se lee como identificador: es el
+# mismo 0,9 que exige el tipo inferido `identificador` en `tipos.R`. La usan el
+# texto de `posible_identificador` y la regla de numeracion de abajo, que explica
+# por que la densidad sola no alcanza.
+.MIN_TASA_DISTINTOS_IDENTIFICADOR <- 0.9
+
+# **La densidad sola dependia del numero de filas.** Mide cuantos enteros DISTINTOS
+# ocupan el rango y no mira cuanto se repite cada uno, y una magnitud entera
+# acotada termina ocupando todos los enteros de su rango si hay filas
+# suficientes. Medido sobre `floor(10^runif(n, 0, 4))` -Benford por
+# construccion-: densidad 0,094 con 2.000 filas, 0,444 con 20.000 y 0,97 con
+# 200.000, donde la guarda la daba por "secuencia correlativa" con cada valor
+# repetido unas veinte veces. Con un 20 % de montos fabricados en 5000..5999
+# callaba un chi cuadrado de 93.078. Es el mismo defecto por el que se retiro el
+# criterio de unicidad (abajo): el veredicto cambiaba con las filas y callaba
+# magnitudes reales. Y no era solo Benford: la misma densidad decidia
+# `posible_identificador` -una edad de 18 a 90 con 20.000 filas salia "codigo
+# de catalogo, no una magnitud"- y las guardas de Tukey, de centinelas y de
+# patrones.
+#
+# Lo que una numeracion tiene y una magnitud que lleno su rango no, es que sus
+# valores no se repiten. La condicion es una conjuncion -densa Y casi sin
+# repetir-, la que ya describe `perfilar_por()`, y no depende de `n`: sorteando
+# con reposicion, la densidad solo llega a 0,5 cuando ya hay un 28 % de filas
+# repetidas (la cota es la del sorteo uniforme, `(1 - exp(-t)) / t` en
+# `t = log 2`: 0,72 de unicidad), asi que las dos condiciones no se cumplen
+# juntas con ningun tamano. Medido sobre cinco distribuciones y ocho tamanos, de
+# 300 a 200.000 filas: la unicidad mas alta entre las columnas densas fue 0,659.
+# Un correlativo de verdad -`1:n`, con o sin huecos- tiene unicidad 1 con
+# cualquier `n`.
+#
+# No es el criterio retirado de abajo: aquel reconocia una clave POR su
+# unicidad, y callaba las magnitudes unicas por mecanismo. Aca la unicidad es una
+# condicion mas, y solo puede quitarle a una columna el trato de numeracion,
+# nunca darselo.
+#
+# Un solo valor que concentra filas -un centinela, un codigo por omision- no es
+# que la numeracion se repita: se descuenta el excedente de la moda.
+# `c(1:2000, rep(500, 500))` sigue siendo una numeracion con un valor
+# concentrado, como fija `test-N76`. Descontar un valor no abre la ventana: en
+# las mismas 40 columnas sorteadas, mas otras ocho con un tercio de las filas en
+# un solo valor, la unicidad sin el excedente de la moda llego a 0,662 entre las
+# densas.
+#
+# El costo esta del lado barato: una numeracion que se repite -un codigo de
+# catalogo, el identificador del hogar en una tabla de personas- no se distingue
+# por su forma de una magnitud que lleno su rango, asi que ya no se trata como
+# numeracion, y Benford, Tukey o la lista de centinelas pueden hablar de mas
+# sobre ella. Es la misma eleccion que el paquete hizo con el identificador
+# disperso.
+#
+# La regla se escribe una vez y cada sitio le pasa sus conteos: los valores
+# distintos, los valores presentes y la frecuencia de la moda. Benford la llama
+# con el vector crudo (`.numeracion_sin_repetir()`), `.resumen_secuencia_entera()`
+# con sus frecuencias, y la guarda de la fila resumida con `n_distintos`,
+# `tasa_distintos` y `frecuencia_moda`.
+.numeracion_sin_repetir_conteos <- function(n_distintos, n_valores,
+                                            frecuencia_moda) {
+  conteos <- suppressWarnings(as.numeric(c(n_distintos, n_valores,
+                                           frecuencia_moda)))
+  if (length(conteos) != 3L || any(!is.finite(conteos)) ||
+      conteos[[2L]] <= 0 || conteos[[3L]] < 1) {
+    return(FALSE)
+  }
+  conteos[[1L]] / (conteos[[2L]] - conteos[[3L]] + 1) >=
+    .MIN_TASA_DISTINTOS_IDENTIFICADOR
+}
+
 # **Se probo reconocer la clave dispersa por unicidad y se retiro.** El problema
 # es real: sobre una clave repartida en un rango ancho se emite
 # `desviacion_benford`, que afirma un problema de calidad sobre una columna que
@@ -248,6 +316,16 @@
   numerico <- as.character(fila$tipo_inferido) %in% c("entero", "doble") ||
     as.character(fila$tipo_declarado) %in% c("entero", "doble")
   if (!isTRUE(numerico)) return(FALSE)
+  # Densa no alcanza: una numeracion casi no repite valores, y una magnitud que
+  # lleno su rango si. Es la regla de `.numeracion_sin_repetir_conteos()`, con
+  # los conteos de la fila. Con un centinela adentro la moda es el centinela, y
+  # descontar su excedente mira la numeracion sin el.
+  if (!.numeracion_sin_repetir_conteos(
+    fila$n_distintos, fila$n_aplicables - fila$n_faltantes,
+    fila$frecuencia_moda
+  )) {
+    return(FALSE)
+  }
   # Un centinela adentro hunde la densidad y abre el salto: un identificador de
   # 1 a 4000 con quince `9999` pasaba de densidad 0,625 a 0,250 y dejaba de
   # reconocerse. Si sacando el centinela la columna es compacta, la numeracion
@@ -2401,13 +2479,24 @@
   # mixtos-, asi que su universo es el universo APLICABLE: las filas que la regla
   # dejo afuera no son parte ni del denominador ni del numerador. Se ajusta `n`
   # ANTES del `switch`, que es lo que usa para los dos, para no escribir la misma
-  # resta en dos lugares. Medido: publicaba "cuenta 7 y traza 5" con el aviso del
-  # paquete contra si mismo; sin universo declarado `n_no_aplica` es cero y nada se
-  # mueve. El universo sale de dos campos que la fila ya publica, igual que lo hace
-  # `valor_fuera_de_aplicabilidad` mas abajo.
-  if (identical(tipo, "tipos_geometria_mixtos") && isTRUE(is.finite(n)) &&
-      !is.null(fila$n_no_aplica) && isTRUE(is.finite(fila$n_no_aplica[[1L]]))) {
-    n <- n - as.numeric(fila$n_no_aplica[[1L]])
+  # cuenta en dos lugares. Medido: publicaba "cuenta 7 y traza 5" con el aviso del
+  # paquete contra si mismo.
+  #
+  # Restar solo `n_no_aplica` -lo que se hacia hasta la ronda 28-G- dejaba
+  # adentro las filas donde la regla quedo
+  # indeterminada, que tampoco son del universo: "cuenta 5 y traza 3" otra vez,
+  # y 2 afectadas sobre un universo vacio. El universo de los hallazgos de unidad
+  # `geometria` es el de las geometrias MEDIDAS del universo -el analisis ya lo
+  # recorto por la mascara, que deja afuera indeterminadas y no aplicables-, y
+  # tampoco cuenta lo que no es una geometria: un `NA` de una columna de texto o
+  # un valor que no convirtio. `geometria_vacia` usaba las filas de la tabla por
+  # el mismo motivo: 2 vacias "de 10" sobre un universo de 6, 1 "de 10" sobre 7
+  # WKT presentes.
+  if (tipo %in% c("tipos_geometria_mixtos", "geometria_vacia")) {
+    medidas <- suppressWarnings(
+      as.numeric(resultado$geometria$n_geometrias_medidas)
+    )
+    if (length(medidas) == 1L && isTRUE(is.finite(medidas))) n <- medidas
   }
   afectados <- switch(
     tipo,
@@ -2806,6 +2895,37 @@
   )
 }
 
+# El universo aplicable tambien gobierna la traza de lo que se cuenta sobre los
+# numeros. El texto ya lo recibia (abajo) y el resumen tambien
+# (`x_analisis[!aplicable] <- NA`), pero los valores con que se trazan
+# `outliers`, ceros y negativos salian de la columna entera. Medido: 950 valores
+# en el universo y 50 `9999`/`9998` fuera; el resumen contaba 4 valores fuera de
+# los limites de Tukey -cuartiles del universo- y la traza nombraba 3 -cuartiles
+# con los 50 de afuera-, y el paquete se acusaba de una traza incoherente. Sobre
+# enteros no se veia porque la guarda de densidad tomaba la columna por
+# numeracion y callaba Tukey; en decimales salia igual antes de la ronda 28-N.
+.cuantitativos_en_el_universo <- function(cuantitativos, aplicable) {
+  if (is.null(cuantitativos) || is.null(aplicable) ||
+      length(aplicable) != length(cuantitativos$valores) ||
+      all(aplicable)) {
+    return(cuantitativos)
+  }
+  fuera <- !as.logical(aplicable)
+  fuera[is.na(fuera)] <- TRUE
+  if (identical(cuantitativos$clase, "integer64")) {
+    # Sobre `integer64` no se asigna `NA` con `[<-` (ver
+    # `.valores_cuantitativos_hallazgo()`): la mascara viaja aparte.
+    previos <- cuantitativos$excluidos_traza
+    if (!is.logical(previos) || length(previos) != length(fuera)) {
+      previos <- rep(FALSE, length(fuera))
+    }
+    cuantitativos$excluidos_traza <- previos | fuera
+  } else if (is.numeric(cuantitativos$valores)) {
+    cuantitativos$valores[fuera] <- NA
+  }
+  cuantitativos
+}
+
 .indices_hallazgo_columna <- function(tipo, x, fila, resultado,
                                       expandir = FALSE,
                                       distinguir_mayusculas = TRUE,
@@ -2867,7 +2987,7 @@
       geometria_invalida = geometria$indices_invalidas,
       geometria_vacia = geometria$indices_vacias,
       coordenada_fuera_dominio = geometria$indices_fuera_de_dominio,
-      tipos_geometria_mixtos = seq_along(x),
+      tipos_geometria_mixtos = geometria$indices_geometrias,
       NULL
     )
     if (!is.null(idx)) return(as.integer(idx))
@@ -2911,8 +3031,8 @@
   cuantitativos_evaluados <- FALSE
   obtener_cuantitativos <- function() {
     if (!cuantitativos_evaluados) {
-      cuantitativos <<- .valores_cuantitativos_hallazgo(
-        x, fila, resultado
+      cuantitativos <<- .cuantitativos_en_el_universo(
+        .valores_cuantitativos_hallazgo(x, fila, resultado), aplicable
       )
       cuantitativos_evaluados <<- TRUE
     }
@@ -3643,6 +3763,20 @@
       )
     }
     if (isTRUE(geometria$aplica)) {
+      # Lo que no convirtio y no borro la medicion de la columna: se declara con
+      # su cifra, como el recorte del presupuesto.
+      if (isTRUE(geometria$geometria_convertida) &&
+          isTRUE(geometria$n_valores_no_convertidos > 0L) &&
+          !is.null(geometria$motivo_conversion) &&
+          !is.na(geometria$motivo_conversion)) {
+        agregar_cobertura(
+          "perfil_geometria", nombre, geometria$motivo_conversion,
+          paste(
+            "Revisar esos valores en la fuente: los que no tienen la forma de",
+            "su representacion no se entregan a sf para no arriesgar el proceso."
+          )
+        )
+      }
       if (isTRUE(geometria$geometrias_recortadas)) {
         agregar_cobertura(
           "perfil_geometria", nombre, geometria$motivo_recorte,
@@ -3996,7 +4130,8 @@
         (fila$tipo_inferido == "identificador" ||
          isTRUE(fila$secuencia_entera_densa) ||
          .parece_identificador_numerico(fila)) &&
-        (isTRUE(is.finite(fila$tasa_distintos) && fila$tasa_distintos >= 0.9) ||
+        (isTRUE(is.finite(fila$tasa_distintos) &&
+                  fila$tasa_distintos >= .MIN_TASA_DISTINTOS_IDENTIFICADOR) ||
          .parece_identificador_numerico(fila))) {
       # Una numeracion puede ser casi unica -un identificador de fila- o
       # repetirse mucho -un codigo de catalogo-, y son dos cosas distintas que
@@ -4006,8 +4141,16 @@
       # numeracion **y el perfil no decia en ninguna parte que lo fuera**. Es el
       # mismo hueco que tenia `MotId` por el lado de la densidad, visto desde el
       # otro extremo.
+      #
+      # Ronda 28-N: la coherencia se mantiene por el otro lado. Una numeracion
+      # que se repite no se distingue de una magnitud que lleno su rango -una
+      # edad de 18 a 90 con 20.000 filas recibia este texto de "codigo de
+      # catalogo"-, asi que ni las guardas ni este hallazgo la tratan ya como
+      # numeracion (`.numeracion_sin_repetir_conteos()`). El texto de codigo
+      # queda para la numeracion casi unica con un solo valor concentrado.
       es_unico <- isTRUE(is.finite(fila$tasa_distintos) &&
-                           fila$tasa_distintos >= 0.9)
+                           fila$tasa_distintos >=
+                             .MIN_TASA_DISTINTOS_IDENTIFICADOR)
       agregar(.nuevo_hallazgo(
         nombre, "posible_identificador", "ok",
         if (es_unico) {
@@ -4398,7 +4541,8 @@
     }
 
     identificador_secuencial <- isTRUE(fila$secuencia_entera_densa) &&
-      is.finite(fila$tasa_distintos) && fila$tasa_distintos >= 0.9
+      is.finite(fila$tasa_distintos) &&
+      fila$tasa_distintos >= .MIN_TASA_DISTINTOS_IDENTIFICADOR
     if (!.tipos_equivalentes(fila$tipo_declarado, fila$tipo_inferido) &&
         fila$tipo_inferido != "desconocido" && !identificador_secuencial) {
       # La proporcion compatible se calculaba, se imprimia en la evidencia y no

@@ -68,9 +68,14 @@ test_that("una numeracion limpia sigue siendo numeracion", {
   expect_false("faltantes_disfrazados" %in% perfil$hallazgos$tipo)
 })
 
-test_that("una clave foranea reparte y conserva su condicion de numeracion", {
+test_that("una clave foranea reparte, y perder la numeracion no acusa nada", {
   # Control: las reglas que miran el TAMANO de la moda rompen esto, porque una
   # clave foranea legitima tiene modas grandes. La que mira la FORMA no.
+  #
+  # Ronda 28-N: una clave que se repite ya no es numeracion -no se distingue de
+  # una magnitud que lleno su rango-, y la promesa del paquete es que perder esa
+  # condicion "no genera un hallazgo por si solo: solo devuelve la columna a la
+  # mirada de la lista de centinelas". Eso es lo que se fija.
   id <- rep(1:100, times = c(8L, rep(5L, 99L)))
   perfil <- perfilar(
     data.frame(id = id),
@@ -78,7 +83,8 @@ test_that("una clave foranea reparte y conserva su condicion de numeracion", {
   )
 
   expect_false(perfil$columnas$moda_sobresale_secuencia_entera[[1L]])
-  expect_true(perfil$columnas$secuencia_entera_densa[[1L]])
+  expect_false(perfil$columnas$secuencia_entera_densa[[1L]])
+  expect_equal(as.numeric(perfil$columnas$n_faltantes_disfrazados[[1L]]), 0)
 })
 
 test_that("una moda legitima no inventa un hallazgo", {
@@ -131,7 +137,10 @@ test_that("una clave foranea con distribucion pareja conserva su escudo", {
     analizar_dependencias = FALSE, proteger_datos_personales = FALSE
   )
   expect_false(pareja$columnas$moda_sobresale_secuencia_entera[[1L]])
-  expect_true(pareja$columnas$secuencia_entera_densa[[1L]])
+  # Ronda 28-N: repetida cuatro veces cada una, no es numeracion; sin valores de
+  # la lista de centinelas, no hay nada que acusar.
+  expect_false(pareja$columnas$secuencia_entera_densa[[1L]])
+  expect_equal(as.numeric(pareja$columnas$n_faltantes_disfrazados[[1L]]), 0)
 
   suave <- perfilar(
     data.frame(id = rep(1:100, times = c(8L, rep(5L, 99L)))),
@@ -171,7 +180,9 @@ test_that("un centinela masivo dentro de una clave foranea no queda callado", {
   )
 
   expect_true(perfil$columnas$moda_sobresale_secuencia_entera[[1L]])
-  expect_true(perfil$columnas$secuencia_entera_densa[[1L]])
+  # Ronda 28-N: la clave se repite y no es numeracion; el centinela se acusa
+  # igual, que es lo que esta prueba defiende.
+  expect_false(perfil$columnas$secuencia_entera_densa[[1L]])
   expect_equal(as.numeric(perfil$columnas$n_faltantes_disfrazados[[1L]]), 100)
 })
 
@@ -200,8 +211,13 @@ test_that("un grupo bajo el umbral de densidad no acusa lo que la tabla calla", 
   # -"0 ausentes reales y 4 disfrazados"-. Ese tipo no estaba en la reubicacion,
   # que solo cubria `faltantes_disfrazados`, asi que las dos puertas discrepaban
   # sobre las mismas cuatro filas.
+  #
+  # Ronda 28-N: el grupo B repetia 1..34, que en la tabla completa duplicaba un
+  # tercio de los valores, y una columna que se repite ya no es numeracion. El
+  # caso es el de una numeracion de la tabla entera que el grupo corta, asi que
+  # B sigue la numeracion en vez de repetirla.
   a <- c(1:60, rep(-9L, 4L))
-  b <- c(1:34, rep(-9L, 4L))
+  b <- c(61:94, rep(-9L, 4L))
   datos <- data.frame(
     x = c(a, b),
     g = c(rep("A", length(a)), rep("B", length(b))),

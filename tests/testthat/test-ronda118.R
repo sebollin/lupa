@@ -1,5 +1,12 @@
 # El banco que decidio la forma de la guarda de numeracion.
 #
+# Ronda 28-N: `EstCod` -un codigo 1..284 que se repite- ya no cuenta como
+# numeracion. Una numeracion que se repite no se distingue por su forma de una
+# magnitud entera que lleno su rango, y la guarda pasa a exigir densa Y casi
+# sin repetir (`.numeracion_sin_repetir_conteos()`). Sobre `EstCod` el paquete
+# habla de mas -senala sus 181 valores fuera de los limites-, que es el lado
+# barato; los otros doce casos no cambian.
+#
 # Trece columnas con la respuesta conocida: cinco que son numeraciones -donde
 # Benford y los limites de Tukey no corresponden- y ocho magnitudes con un dato
 # malo adentro, que hay que ver. Se probaron cuatro variantes de la guarda y
@@ -33,7 +40,7 @@ test_that("las numeraciones no reciben pruebas de magnitud, y queda declarado", 
     list(nombre = "EstCod 1..284 con cola",
          valores = c(sample(60L, 1900L, TRUE), sample(61:284, 224L, TRUE)),
          diagnostico = "outliers", hallazgo = "outliers",
-         n_outliers = 181L, declara = TRUE),
+         n_outliers = 181L, declara = FALSE, senala = TRUE),
     list(nombre = "BenId 105 valores", valores = sample(105L, 2000L, TRUE),
          diagnostico = "outliers", hallazgo = "outliers",
          n_outliers = 0L, declara = FALSE),
@@ -46,7 +53,8 @@ test_that("las numeraciones no reciben pruebas de magnitud, y queda declarado", 
   )
   for (caso in numeraciones) {
     perfil <- .perfil_r118(caso$valores)
-    expect_false(.senalado_r118(perfil, caso$hallazgo), info = caso$nombre)
+    expect_equal(.senalado_r118(perfil, caso$hallazgo), isTRUE(caso$senala),
+                 info = caso$nombre)
     # No se apaga: se declara. Pero solo hay algo que declarar cuando habia algo
     # que decir: una columna sin ningun valor fuera de los limites no necesita
     # una fila que cuente que no se evaluaron.

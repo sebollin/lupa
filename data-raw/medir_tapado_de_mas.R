@@ -194,3 +194,60 @@ control <- c(documentos[1:3], sub("-[0-9]$", "", documentos[4:6]), fijos[1:3],
              celulares[1:3])
 cat("control, deben taparse los 12:",
     sum(.reemplazar_valores_protegidos(control, valores) != control), "\n")
+
+# El telefono fijo que no es de nadie, por ESCRITURA, sobre las mismas cifras y
+# con una muestra diez veces mayor. Las familias de arriba sortean cifras
+# distintas para cada escritura y con 400 de cada una la diferencia entre ellas
+# es ruido: la ayuda decia "entre tres y seis de cada cien, igual con su prefijo"
+# y estas mismas familias daban 5,5 sin el prefijo, 2,8 con el prefijo y 1,5
+# pegado. Escritos con las mismas cifras se tapan exactamente los mismos: la
+# regla prueba la parte nacional, se escriba como se escriba. Ronda 28. Al
+# final y con su propia semilla, para no cambiar los numeros de arriba.
+set.seed(2809)
+m_fijos <- 4000
+a <- sample(c(2, 4), m_fijos, TRUE)
+b <- sample(0:999, m_fijos, TRUE)
+c4 <- sample(0:9999, m_fijos, TRUE)
+fijos_por_escritura <- list(
+  fijo_nacional_espacios = sprintf("%d%03d %04d", a, b, c4),
+  fijo_nacional_guiones = sprintf("%d%03d-%04d", a, b, c4),
+  fijo_intl_espacios = sprintf("+598 %d%03d %04d", a, b, c4),
+  fijo_intl_guiones = sprintf("+598-%d%03d-%04d", a, b, c4),
+  fijo_e164_no_protegido = sprintf("+598%d%03d%04d", a, b, c4),
+  fijo_nacional_pegado = sprintf("%d%03d%04d", a, b, c4)
+)
+tapados_fijos <- sapply(fijos_por_escritura, function(x) {
+  .reemplazar_valores_protegidos(x, valores, exigir_limites = FALSE) != x
+})
+cat("\nfijos por escritura, las mismas", m_fijos, "cifras en cada una:\n")
+for (familia in names(fijos_por_escritura)) {
+  p <- mean(tapados_fijos[, familia])
+  cat(sprintf("%-24s %5.1f %%  (+- %.1f, dos errores estandar)\n", familia,
+              100 * p, 200 * sqrt(p * (1 - p) / m_fijos)))
+}
+cat("tapados en todas las escrituras:", sum(rowSums(tapados_fijos) == ncol(tapados_fijos)),
+    "| en alguna:", sum(rowSums(tapados_fijos) > 0), "\n")
+
+# Y las listas de telefonos unidos por una barra: desde la ronda 28 cada numero
+# E.164 de la lista se prueba por su parte nacional, como con " / " o con ";",
+# y la lista pegada se tapa lo mismo que la separada. Al final, con su semilla.
+set.seed(2810)
+listas <- list(
+  lista_e164_barra = sprintf("+5989%d%06d/+598%d%07d", sample(1:9, m, TRUE),
+                             sample(0:999999, m, TRUE), sample(c(2, 4), m, TRUE),
+                             sample(0:9999999, m, TRUE)),
+  lista_e164_barra_esp = sprintf("+5989%d%06d / +598%d%07d", sample(1:9, m, TRUE),
+                                 sample(0:999999, m, TRUE),
+                                 sample(c(2, 4), m, TRUE),
+                                 sample(0:9999999, m, TRUE)),
+  lista_nacional_barra = sprintf("09%d%06d/%d%07d", sample(1:9, m, TRUE),
+                                 sample(0:999999, m, TRUE),
+                                 sample(c(2, 4), m, TRUE),
+                                 sample(0:9999999, m, TRUE))
+)
+cat("\nlistas de dos telefonos:\n")
+for (familia in names(listas)) {
+  x <- listas[[familia]]
+  y <- .reemplazar_valores_protegidos(x, valores, exigir_limites = FALSE)
+  cat(sprintf("%-24s %5.1f %%   ej: %s\n", familia, 100 * mean(y != x), x[[1L]]))
+}

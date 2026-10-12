@@ -24,7 +24,11 @@ test_that("perfilar_por declara por grupo lo que no se evaluo", {
   # cual de los grupos no se miro.
   expect_true("grupo" %in% names(cobertura))
   expect_setequal(unique(as.character(cobertura$grupo)), c("A", "B"))
-  expect_true("outliers" %in% as.character(cobertura$diagnostico))
+  # Era "outliers", y solo se declaraba porque la guarda de densidad tomaba la
+  # edad -cada valor repetido decenas de veces- por una numeracion: el defecto
+  # de la ronda 28-N. Benford si se declara en los dos grupos, por un motivo
+  # verdadero: la edad no cubre tres ordenes de magnitud.
+  expect_true("ley_benford" %in% as.character(cobertura$diagnostico))
 })
 
 test_that("sin nada que declarar la tabla existe y esta vacia", {
@@ -53,7 +57,8 @@ test_that("el plan de limpieza lleva la cobertura del perfil que lo origino", {
   cobertura <- attr(plan, "cobertura_diagnosticos", exact = TRUE)
   expect_true(inherits(cobertura, "data.frame"))
   expect_equal(nrow(cobertura), nrow(perfil$cobertura_diagnosticos))
-  expect_true("outliers" %in% as.character(cobertura$diagnostico))
+  # Ver la prueba anterior: la edad no es una numeracion y Tukey corre.
+  expect_true("ley_benford" %in% as.character(cobertura$diagnostico))
 })
 
 test_that("la gramatica de entidades HTML es una sola para detectar y reparar", {

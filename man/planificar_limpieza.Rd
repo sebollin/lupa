@@ -257,10 +257,19 @@ conserva el mapa y su soporte para que el usuario la confirme; sólo entonces
 se aplica y se vuelve a validar contra los datos recibidos. Si la protección
 enmascaró alguna celda del mapa —una clave o un valor, también cuando ninguna
 de las dos columnas es personal pero una celda contiene un valor protegido,
-como la sucursal que se llama igual que un titular—, éste no se usa como
-tabla de cruce: queda marcado \code{mapa_enmascarado = TRUE} y la relación se
-reconstruye sobre los datos recibidos con el soporte declarado, sin publicar
-sus valores. Con una regla de \code{aplicabilidad} sobre la columna
+como la sucursal que se llama igual que un titular—, queda marcado
+\code{mapa_enmascarado = TRUE} y se valida igual que sin protección: las filas
+que el plan publica en claro son el mapa tal cual, y una fila tapada se
+resuelve con el par de los datos recibidos que tiene su forma y que, tapado
+con los valores protegidos de esos mismos datos, da lo que el plan publicó;
+la relación de los datos se toma con el soporte declarado, sin publicar sus
+valores. Si los datos contradicen una fila —la publicada en claro o la
+tapada—, la acción queda \code{fallida}, y una clave que no está en el plan no
+se imputa. Se reconstruía entera sobre los datos recibidos, y sobre otra
+entrega escribía valores que el plan nunca mostró. Una fila tapada no se
+puede validar si los datos recibidos no traen el valor protegido que la
+tapó —un subconjunto sin ese titular—: también queda \code{fallida}, con el
+motivo, y se aplica planificando sobre esos datos. Con una regla de \code{aplicabilidad} sobre la columna
 dependiente, la imputación respeta su universo como las demás acciones por
 celda: no llena las filas declaradas fuera, que son vacío por diseño, y
 \code{n_afectadas} las excluye.
@@ -272,7 +281,12 @@ tapa el resto. Lo tapado se marca con \code{valores_enmascarados = TRUE} y
 columna, el dígito repetido que ocupa el lugar de un documento. El plan
 ofrece la acción así sólo si esa resolución convierte, sobre los datos del
 plan, exactamente las celdas que estima; si no, la acción queda \code{bloqueada}
-y la justificación dice cómo ejecutarla.
+y la justificación dice cómo ejecutarla. Lo mismo en una columna que no es
+personal cuando el centinela declarado aparece en una protegida —el
+\code{99999999} que se repite en la cédula de una tabla de movimientos—: no se
+publica, se declara y se resuelve con los rellenos de esa columna, o la
+acción queda \code{bloqueada}. Un centinela declarado que no aparece en ninguna
+protegida se publica: es la declaración del usuario.
 
 \code{marcar_filas_duplicadas} añade dos columnas. \code{.fila_duplicada} reproduce la
 semántica de \code{\link[=duplicated]{duplicated()}} y marca sólo las apariciones posteriores;
@@ -323,7 +337,11 @@ eliminar las filas cuyo ausente todavía estaba disfrazado.
 plan arma la lista con los marcadores que el perfil detectó y los que se
 declararon en \code{cadenas_ausencia}; editarla es una decisión del usuario:
 quitar un texto lo conserva y agregar uno lo convierte, como si se hubiera
-declarado.
+declarado. Con protección, la lista y la declaración guardan su valor
+también sobre una columna protegida: un marcador del catálogo —\verb{sin dato}—
+o uno declarado —\verb{SIN REGISTRO}— no es el dato de nadie, y la declaración ya
+se publica en \code{meta$cadenas_ausencia}. Salían \verb{[valor protegido]} y
+\code{aplicar()} registraba \code{fallida} la acción recomendada.
 }
 \examples{
 datos <- data.frame(categoria = c(" A", "S/D", "B"))

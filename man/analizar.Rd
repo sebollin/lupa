@@ -109,7 +109,14 @@ para asociación monótona sobre los rangos, que no supone linealidad.}
 las columnas personales de esa copia también se enmascaran, y en las demás
 columnas se tapa el valor protegido que identifica —el piso de
 \code{\link[=perfilar]{perfilar()}}—: la cédula citada en una observación, \code{"pago CI 3.738.538-0"},
-o guardada como número en otra columna; para conservar
+o guardada como número en otra columna. En todo lugar donde un
+\code{data.frame} guarda un valor: las celdas de cualquier clase —una copia
+\code{POSIXct} de la fecha con hora protegida queda en \code{NA}, como la tapa
+\code{\link[=perfilar]{perfilar()}}—, las columnas de lista elemento por elemento, los atributos
+de la tabla y de cada columna, y los nombres de fila, que vuelven a ser los
+números de fila si alguno lleva un valor protegido. Una columna protegida
+conserva sólo los atributos de su clase (\code{class}, \code{tzone}, \code{units}, \code{dim}):
+las etiquetas de valor de un \code{haven_labelled} se quitan. Para conservar
 sus valores debe usarse \code{proteger_datos_personales = FALSE} al crear el
 analisis y al guardarlo. La opcion del guardado no recupera valores que el
 analisis ya enmascaro.}

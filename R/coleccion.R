@@ -917,7 +917,8 @@ print.coleccion_lupa <- function(x, ...) {
 #'   por columna protegida, con la regla de [perfilar()] —también la de los
 #'   rellenos, con sus frecuencias—; si alguna lectura falla —también si una
 #'   tabla entera no se pudo perfilar, por ejemplo porque el rol no tiene
-#'   permiso sobre ella: sus valores son desconocidos—, o una tabla no
+#'   permiso sobre ella, o no se perfiló porque se declaró de otro tipo
+#'   —`tipo = "vista"`—: sus valores son desconocidos—, o una tabla no
 #'   se pudo clasificar porque su muestra no se leyó, en los perfiles
 #'   de las otras tablas se tapan los valores y la evidencia de las columnas no
 #'   personales, y `resumen_tabla$meta$proteccion_personal$otras_tablas` dice
@@ -988,6 +989,25 @@ perfilar_coleccion <- function(coleccion, muestra = Inf,
   resumenes <- list()
   perfiles <- list()
   protegidos_tablas <- list()
+  # TODO camino que saltea una tabla pasa por aca: la cobertura dice por que, y
+  # la tabla queda registrada como no leida, asi que las demas cierran del lado
+  # seguro -sus valores protegidos son tan desconocidos como los de una tabla
+  # ilegible-. La ronda 27 registro las dos tablas que fallan y el objeto
+  # declarado `tipo = "vista"` seguia haciendo `next` antes de registrarse: el
+  # perfil conservado de `movimientos` publicaba la cedula y el nombre de los
+  # clientes de la vista y `otras_tablas` no decia nada. Medido en la ronda 28.
+  # Una regla escrita tres veces es una regla escrita una vez.
+  saltear_tabla <- function(motivo, como_resolverlo, motivo_protegidos) {
+    cobertura[[length(cobertura) + 1L]] <<- .fila_cobertura_coleccion(
+      fila, "tabla", motivo, como_resolverlo
+    )
+    if (conservar_perfiles) {
+      protegidos_tablas[[identificador]] <<- .tabla_ilegible_coleccion(
+        identificador, motivo_protegidos
+      )
+    }
+    invisible(NULL)
+  }
   n_metricas_no_medidas <- 0
   n_divergencias <- 0L
   filas_metricas <- 0
@@ -1017,8 +1037,7 @@ perfilar_coleccion <- function(coleccion, muestra = Inf,
       )
     }
     if (!identical(fila$tipo, "tabla")) {
-      cobertura[[length(cobertura) + 1L]] <- .fila_cobertura_coleccion(
-        fila, "tabla",
+      saltear_tabla(
         paste0(
           "El objeto se declaro como '", fila$tipo,
           "' y no como tabla base; no se perfilo."
@@ -1026,7 +1045,8 @@ perfilar_coleccion <- function(coleccion, muestra = Inf,
         paste(
           "Declarar el objeto con tipo 'tabla' si corresponde perfilarlo, o",
           "perfilar la tabla base que lo respalda."
-        )
+        ),
+        paste0("se declaro '", fila$tipo, "' y no se perfilo")
       )
       next
     }
@@ -1040,11 +1060,6 @@ perfilar_coleccion <- function(coleccion, muestra = Inf,
       error = function(e) e
     )
     if (inherits(perfil, "condition")) {
-      cobertura[[length(cobertura) + 1L]] <- .fila_cobertura_coleccion(
-        fila, "tabla",
-        paste0("No se pudo perfilar la tabla: ", conditionMessage(perfil)),
-        .como_resolver_tabla_ilegible(fila)
-      )
       # Una tabla que no se pudo leer tambien deja sin verificar a las demas:
       # sus valores protegidos son desconocidos. Se hacia `next` antes de
       # registrarla y `.proteger_perfiles_entre_tablas()` solo miraba las
@@ -1052,11 +1067,11 @@ perfilar_coleccion <- function(coleccion, muestra = Inf,
       # conservado de `movimientos` publicaba en su moda la cedula y el nombre
       # del cliente. Medido en la ronda 27. En bases institucionales los
       # permisos parciales son el caso normal.
-      if (conservar_perfiles) {
-        protegidos_tablas[[identificador]] <- .tabla_ilegible_coleccion(
-          identificador
-        )
-      }
+      saltear_tabla(
+        paste0("No se pudo perfilar la tabla: ", .mensaje_motor(perfil)),
+        .como_resolver_tabla_ilegible(fila),
+        "no se pudo perfilar"
+      )
       next
     }
     # Desestructurar tambien va dentro del `tryCatch`. Si `perfilar_dbi()` no
@@ -1115,22 +1130,17 @@ perfilar_coleccion <- function(coleccion, muestra = Inf,
       )
     }, error = function(e) e)
     if (inherits(piezas, "condition")) {
-      cobertura[[length(cobertura) + 1L]] <- .fila_cobertura_coleccion(
-        fila, "tabla",
+      saltear_tabla(
         paste0(
           "La tabla se perfilo pero su resultado no tiene la forma esperada: ",
-          conditionMessage(piezas)
+          .mensaje_motor(piezas)
         ),
         paste(
           "Comprobar que la version instalada de lupa y la que produjo el",
           "perfil sean la misma."
-        )
+        ),
+        "no se pudo perfilar"
       )
-      if (conservar_perfiles) {
-        protegidos_tablas[[identificador]] <- .tabla_ilegible_coleccion(
-          identificador
-        )
-      }
       next
     }
     filas_tabla <- piezas$filas
@@ -1520,16 +1530,17 @@ perfilar_coleccion <- function(coleccion, muestra = Inf,
     }
     list(valores = valores, fechas = fechas, completo = TRUE,
          motivo = NA_character_)
-  }, error = function(e) incompleto(conditionMessage(e)))
+  }, error = function(e) incompleto(.mensaje_motor(e)))
 }
 
-# Lo que se registra de una tabla de la coleccion que no se pudo perfilar: sus
-# valores son desconocidos, asi que las demas cierran del lado seguro. El motivo
-# nombra la tabla -que ya se publica en la cobertura- y no el mensaje del motor,
-# que puede citar un valor.
-.tabla_ilegible_coleccion <- function(identificador) {
+# Lo que se registra de una tabla de la coleccion que no se perfilo -porque no
+# se pudo o porque se declaro de otro tipo-: sus valores son desconocidos, asi
+# que las demas cierran del lado seguro. El motivo nombra la tabla -que ya se
+# publica en la cobertura- y no el mensaje del motor, que puede citar un valor.
+.tabla_ilegible_coleccion <- function(identificador,
+                                      motivo = "no se pudo perfilar") {
   list(valores = character(), fechas = character(), completo = FALSE,
-       motivo = paste0("la tabla `", identificador, "` no se pudo perfilar"))
+       motivo = paste0("la tabla `", identificador, "` ", motivo))
 }
 
 # Cada perfil conservado se barre con los valores protegidos de las DEMAS tablas
@@ -2190,7 +2201,7 @@ estimar_costo_coleccion <- function(coleccion, pares = NULL,
       }, error = function(e) e)
       if (inherits(resultado, "condition") || !nrow(resultado)) {
         motivo <- if (inherits(resultado, "condition")) {
-          conditionMessage(resultado)
+          .mensaje_motor(resultado)
         } else {
           "la consulta de rangos no devolvio una fila"
         }
@@ -2282,7 +2293,7 @@ estimar_costo_coleccion <- function(coleccion, pares = NULL,
     )
     motivo_limite <- NA_character_
     if (inherits(resultado, "condition")) {
-      motivo_limite <- conditionMessage(resultado)
+      motivo_limite <- .mensaje_motor(resultado)
        sql_llano <- paste0(
          "SELECT ", seleccion_sql, " FROM ", tabla_sql, orden_sql
        )
@@ -2301,7 +2312,7 @@ estimar_costo_coleccion <- function(coleccion, pares = NULL,
       # segundo intento esconde por que se llego hasta ahi.
       motivo <- paste0(
         "con LIMIT: ", motivo_limite, "; sin LIMIT: ",
-        conditionMessage(resultado),
+        .mensaje_motor(resultado),
         if (length(columnas_orden)) {
           paste0(
             ". Se declaro `orden` (", paste(columnas_orden, collapse = ", "),
@@ -2570,7 +2581,7 @@ relaciones_coleccion <- function(coleccion, pares, muestra = 1e4,
     if (!is.null(fallo)) {
       sin_comparar[[length(sin_comparar) + 1L]] <- data.frame(
         tabla_1 = t1, tabla_2 = t2,
-        motivo = paste0("No se pudo leer el par: ", conditionMessage(fallo)),
+        motivo = paste0("No se pudo leer el par: ", .mensaje_motor(fallo)),
         como_resolverlo = paste(
           "Comprobar que las dos tablas existen y que la credencial las puede",
           "leer. El SQL exacto de cada intento queda en `meta$lecturas`."
@@ -2623,7 +2634,7 @@ relaciones_coleccion <- function(coleccion, pares, muestra = 1e4,
     if (inherits(relacion, "condition")) {
       sin_comparar[[length(sin_comparar) + 1L]] <- data.frame(
         tabla_1 = t1, tabla_2 = t2,
-        motivo = paste0("No se pudo comparar: ", conditionMessage(relacion)),
+        motivo = paste0("No se pudo comparar: ", .mensaje_motor(relacion)),
         como_resolverlo = "Revisar los tipos de las columnas comparadas.",
         stringsAsFactors = FALSE
       )

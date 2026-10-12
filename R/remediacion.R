@@ -999,10 +999,19 @@
 #' se aplica y se vuelve a validar contra los datos recibidos. Si la protección
 #' enmascaró alguna celda del mapa —una clave o un valor, también cuando ninguna
 #' de las dos columnas es personal pero una celda contiene un valor protegido,
-#' como la sucursal que se llama igual que un titular—, éste no se usa como
-#' tabla de cruce: queda marcado `mapa_enmascarado = TRUE` y la relación se
-#' reconstruye sobre los datos recibidos con el soporte declarado, sin publicar
-#' sus valores. Con una regla de `aplicabilidad` sobre la columna
+#' como la sucursal que se llama igual que un titular—, queda marcado
+#' `mapa_enmascarado = TRUE` y se valida igual que sin protección: las filas
+#' que el plan publica en claro son el mapa tal cual, y una fila tapada se
+#' resuelve con el par de los datos recibidos que tiene su forma y que, tapado
+#' con los valores protegidos de esos mismos datos, da lo que el plan publicó;
+#' la relación de los datos se toma con el soporte declarado, sin publicar sus
+#' valores. Si los datos contradicen una fila —la publicada en claro o la
+#' tapada—, la acción queda `fallida`, y una clave que no está en el plan no
+#' se imputa. Se reconstruía entera sobre los datos recibidos, y sobre otra
+#' entrega escribía valores que el plan nunca mostró. Una fila tapada no se
+#' puede validar si los datos recibidos no traen el valor protegido que la
+#' tapó —un subconjunto sin ese titular—: también queda `fallida`, con el
+#' motivo, y se aplica planificando sobre esos datos. Con una regla de `aplicabilidad` sobre la columna
 #' dependiente, la imputación respeta su universo como las demás acciones por
 #' celda: no llena las filas declaradas fuera, que son vacío por diseño, y
 #' `n_afectadas` las excluye.
@@ -1014,7 +1023,12 @@
 #' columna, el dígito repetido que ocupa el lugar de un documento. El plan
 #' ofrece la acción así sólo si esa resolución convierte, sobre los datos del
 #' plan, exactamente las celdas que estima; si no, la acción queda `bloqueada`
-#' y la justificación dice cómo ejecutarla.
+#' y la justificación dice cómo ejecutarla. Lo mismo en una columna que no es
+#' personal cuando el centinela declarado aparece en una protegida —el
+#' `99999999` que se repite en la cédula de una tabla de movimientos—: no se
+#' publica, se declara y se resuelve con los rellenos de esa columna, o la
+#' acción queda `bloqueada`. Un centinela declarado que no aparece en ninguna
+#' protegida se publica: es la declaración del usuario.
 #'
 #' `marcar_filas_duplicadas` añade dos columnas. `.fila_duplicada` reproduce la
 #' semántica de [duplicated()] y marca sólo las apariciones posteriores;
@@ -1065,7 +1079,11 @@
 #' plan arma la lista con los marcadores que el perfil detectó y los que se
 #' declararon en `cadenas_ausencia`; editarla es una decisión del usuario:
 #' quitar un texto lo conserva y agregar uno lo convierte, como si se hubiera
-#' declarado.
+#' declarado. Con protección, la lista y la declaración guardan su valor
+#' también sobre una columna protegida: un marcador del catálogo —`sin dato`—
+#' o uno declarado —`SIN REGISTRO`— no es el dato de nadie, y la declaración ya
+#' se publica en `meta$cadenas_ausencia`. Salían `[valor protegido]` y
+#' `aplicar()` registraba `fallida` la acción recomendada.
 #'
 #' @param perfil Objeto de clase `perfil` creado por [perfilar()].
 #' @param datos Datos opcionales que originaron el perfil. Son necesarios para
@@ -2286,7 +2304,7 @@ rbind.plan_limpieza <- function(..., deparse.level = 1) {
 # sobre los datos que recibe `aplicar()`, sin que el plan lo publique: son los
 # rellenos de la columna (`.rellenos_de_columna()`). El plan solo lo ofrece asi
 # cuando esa resolucion convierte lo que estima; ver
-# `.centinelas_en_columnas_protegidas()`.
+# `.centinelas_tapados_en_plan()`.
 .valores_sentinelas_accion <- function(x, parametros) {
   valores <- parametros$valores
   if (!isTRUE(parametros$valores_enmascarados)) return(valores)
@@ -2314,7 +2332,155 @@ rbind.plan_limpieza <- function(..., deparse.level = 1) {
   list(valor = x, n = sum(mascara))
 }
 
-.imputar_dependencia <- function(datos, parametros) {
+# El mapa ENMASCARADO sobre los datos que recibe `aplicar()`. El plan publico el
+# mapa con algunas celdas tapadas -una sucursal que se llama como un titular
+# protegido-, y la relacion se reconstruia entera sobre los datos recibidos, sin
+# la validacion que la ayuda promete: sobre otra entrega, la accion que sin
+# proteccion queda `fallida` -una fila PUBLICADA en claro que los datos
+# contradicen, o la fila tapada con otro valor- salia `ejecutada` y escribia
+# valores que el plan nunca mostro, e imputaba una clave nueva que no estaba en
+# el plan. Medido en la ronda 28. Ahora hace lo mismo que sin proteccion:
+#
+#   * las filas que el plan publica EN CLARO son el mapa, tal cual, y se validan
+#     como sin proteccion;
+#   * una fila tapada se resuelve con el par de los datos recibidos que tiene su
+#     forma -lo visible, igual; lo tapado, cualquier texto- y que, tapado con los
+#     valores protegidos de esos mismos datos, da exactamente lo que el plan
+#     publico. Si un par tiene la clave de la fila y su valor no la reproduce,
+#     los datos contradicen la dependencia, como sin proteccion -o no traen el
+#     valor protegido que la tapo: tampoco se puede validar-. Si la reproducen
+#     mas pares que filas tapadas con esa forma, no se puede saber cual esta en
+#     el plan, y tambien se detiene;
+#   * una clave que no esta en el plan -ni en claro ni con la forma de una fila
+#     tapada- no se imputa, como sin proteccion.
+#
+# Sin el mapa publicado -un plan de otra version- se reconstruye como antes.
+.resolver_mapa_enmascarado <- function(datos, parametros, i_determinante,
+                                       i_dependiente, protegidas = character()) {
+  publicado <- parametros$mapa
+  if (!inherits(publicado, "data.frame") ||
+      !all(c("determinante", "dependiente") %in% names(publicado))) {
+    return(.mapa_dependencia(
+      datos, names(datos)[[i_determinante]], names(datos)[[i_dependiente]],
+      soporte_minimo = parametros$soporte_minimo
+    ))
+  }
+  marca <- "[valor protegido]"
+  texto <- function(x) {
+    salida <- tryCatch(as.character(x), error = function(e) {
+      rep(NA_character_, length(x))
+    })
+    salida[is.na(x)] <- NA_character_
+    salida
+  }
+  # Una celda tapada lleva el marcador; una numerica tapada, `NA` -un par del
+  # mapa nunca tiene un lado ausente-.
+  tapada_celda <- function(x) is.na(x) | grepl(marca, x, fixed = TRUE)
+  igual <- function(a, b) (is.na(a) & is.na(b)) | (!is.na(a) & !is.na(b) & a == b)
+  texto_det <- texto(publicado$determinante)
+  texto_dep <- texto(publicado$dependiente)
+  tapada <- tapada_celda(texto_det) | tapada_celda(texto_dep)
+  claras <- publicado[!tapada, c("determinante", "dependiente"), drop = FALSE]
+  if (!any(tapada)) return(claras)
+  x <- datos[[i_determinante]]
+  y <- datos[[i_dependiente]]
+  conocidos <- !is.na(x) & !is.na(y)
+  pares <- data.frame(determinante = x[conocidos], dependiente = y[conocidos],
+                      stringsAsFactors = FALSE)
+  pares <- pares[!duplicated(data.frame(
+    a = .valores_relacion(pares$determinante),
+    b = .valores_relacion(pares$dependiente)
+  )), , drop = FALSE]
+  # Las claves publicadas en claro ya son mapa: sus pares los valida el ejecutor.
+  pares <- pares[!.valores_relacion(pares$determinante) %in%
+                   .valores_relacion(claras$determinante), , drop = FALSE]
+  if (!nrow(pares)) return(claras)
+  # Lo que resuelve una fila tapada es la relacion de los datos con el soporte
+  # declarado -como se armo el mapa del plan-; todos los pares, en cambio,
+  # cuentan para la contradiccion.
+  reconstruido <- .mapa_dependencia(
+    datos, names(datos)[[i_determinante]], names(datos)[[i_dependiente]],
+    soporte_minimo = parametros$soporte_minimo
+  )
+  en_relacion <- paste(.valores_relacion(pares$determinante),
+                       .valores_relacion(pares$dependiente), sep = "\001") %in%
+    paste(.valores_relacion(reconstruido$determinante),
+          .valores_relacion(reconstruido$dependiente), sep = "\001")
+  # Lo visible, literal; lo tapado, cualquier texto. Un `NA` publicado es un
+  # numero tapado: cualquier valor.
+  forma <- function(publicada) {
+    if (is.na(publicada)) return("^[\\s\\S]*$")
+    # Tantas partes como marcadores mas uno: `strsplit()` no devuelve la parte
+    # vacia del final.
+    n_marcas <- lengths(regmatches(
+      publicada, gregexpr(marca, publicada, fixed = TRUE)
+    ))
+    partes <- strsplit(publicada, marca, fixed = TRUE)[[1L]]
+    partes <- c(partes, rep("", n_marcas + 1L - length(partes)))
+    literal <- gsub("(\\W)", "\\\\\\1", partes, perl = TRUE)
+    paste0("^", paste(literal, collapse = "[\\s\\S]+"), "$")
+  }
+  # Lo que el plan publicaria de cada par, con los valores protegidos de los
+  # datos recibidos: el piso, y si la accion es sobre una columna protegida,
+  # todos sus valores, como el barrido por columna del plan.
+  protegidas <- as.character(protegidas)
+  valores <- .valores_publicables_protegidos(datos, protegidas)
+  identificantes <- .valores_identificantes(
+    valores, .fechas_que_identifican(datos, protegidas)
+  )
+  vistos <- list(mapa = pares)
+  vistos <- .proteger_textos_salida(vistos, identificantes,
+                                    intocables = names(datos))
+  vistos <- .proteger_numeros_parametros(vistos, identificantes)
+  if (.nombres_para_operar(names(datos)[[i_dependiente]]) %in%
+      .nombres_para_operar(protegidas)) {
+    todos <- unique(c(valores, .rellenos_de_columnas(datos, protegidas)))
+    vistos <- .proteger_textos_salida(vistos, todos, intocables = names(datos))
+    vistos <- .proteger_numeros_parametros(vistos, todos)
+  }
+  visto_det <- texto(vistos$mapa$determinante)
+  visto_dep <- texto(vistos$mapa$dependiente)
+  par_det <- texto(pares$determinante)
+  par_dep <- texto(pares$dependiente)
+  grupos <- unique(data.frame(determinante = texto_det[tapada],
+                              dependiente = texto_dep[tapada],
+                              stringsAsFactors = FALSE))
+  resueltas <- integer()
+  for (g in seq_len(nrow(grupos))) {
+    det_g <- grupos$determinante[[g]]
+    dep_g <- grupos$dependiente[[g]]
+    filas_grupo <- sum(igual(texto_det[tapada], det_g) &
+                         igual(texto_dep[tapada], dep_g))
+    con_forma <- which(
+      grepl(forma(det_g), par_det, perl = TRUE) &
+        grepl(forma(dep_g), par_dep, perl = TRUE)
+    )
+    clave <- con_forma[igual(visto_det[con_forma], det_g)]
+    reproducen <- clave[igual(visto_dep[clave], dep_g)]
+    reproducen <- reproducen[en_relacion[reproducen]]
+    if (length(clave[!igual(visto_dep[clave], dep_g)])) {
+      stop(
+        "Los datos actuales contradicen la dependencia funcional del plan: ",
+        "una fila que el plan public\u00f3 tapada no se reproduce sobre los ",
+        "datos recibidos -la relaci\u00f3n cambi\u00f3, o los datos no traen el ",
+        "valor protegido que la tap\u00f3-. Para aplicarla, planificar sobre ",
+        "estos datos.", call. = FALSE
+      )
+    }
+    if (length(reproducen) > filas_grupo) {
+      stop(
+        "La dependencia funcional del plan no se puede resolver sobre los ",
+        "datos recibidos: m\u00e1s claves de las que el plan public\u00f3 tapadas ",
+        "tienen la misma forma, y no se puede saber cu\u00e1l est\u00e1 en el plan.",
+        call. = FALSE
+      )
+    }
+    resueltas <- c(resueltas, reproducen)
+  }
+  rbind(claras, pares[unique(resueltas), , drop = FALSE])
+}
+
+.imputar_dependencia <- function(datos, parametros, protegidas = character()) {
   determinante <- parametros$determinante
   dependiente <- parametros$dependiente
   indices_dependencia <- .indice_nombre(
@@ -2333,8 +2499,9 @@ rbind.plan_limpieza <- function(..., deparse.level = 1) {
       stop("La imputaci\u00f3n no conserva un soporte de dependencia v\u00e1lido.",
            call. = FALSE)
     }
-    .mapa_dependencia(
-      datos, determinante, dependiente, soporte_minimo = soporte
+    .resolver_mapa_enmascarado(
+      datos, parametros, indices_dependencia[[1L]], indices_dependencia[[2L]],
+      protegidas
     )
   } else {
     parametros$mapa
@@ -3393,7 +3560,8 @@ rbind.plan_limpieza <- function(..., deparse.level = 1) {
   nuevo
 }
 
-.ejecutar_accion <- function(datos, accion, original = datos) {
+.ejecutar_accion <- function(datos, accion, original = datos,
+                             protegidas = character()) {
   estrategia <- accion$estrategia[[1L]]
   parametros <- accion$parametros[[1L]]
   columna <- accion$columna[[1L]]
@@ -3533,7 +3701,7 @@ rbind.plan_limpieza <- function(..., deparse.level = 1) {
     return(list(datos = datos, n = cambio$n, n_no_reversibles = cambio$n))
   }
   if (startsWith(estrategia, "imputar_dependencia_funcional__")) {
-    return(.imputar_dependencia(datos, parametros))
+    return(.imputar_dependencia(datos, parametros, protegidas))
   }
   if (identical(estrategia, "recortar_espacios")) {
     cambio <- .recortar_texto(x)
@@ -3825,6 +3993,9 @@ rbind.plan_limpieza <- function(..., deparse.level = 1) {
 aplicar <- function(plan, datos, permitir_eliminacion = FALSE,
                     conservar_eliminados = TRUE) {
   era_plan <- inherits(plan, "plan_limpieza")
+  # Las columnas que la proteccion tapo al planificar: con ellas se valida un
+  # mapa enmascarado sobre los datos recibidos (`.resolver_mapa_enmascarado()`).
+  protegidas <- attr(plan, "columnas_datos_personales_protegidas", exact = TRUE)
   .validar_plan_limpieza(plan)
   plan <- .tabla_base(plan)
   if (era_plan) class(plan) <- unique(c("plan_limpieza", class(plan)))
@@ -3904,7 +4075,8 @@ aplicar <- function(plan, datos, permitir_eliminacion = FALSE,
       list(error = motivo_parametros, n = 0, n_no_reversibles = 0)
     } else {
       tryCatch(
-        .ejecutar_accion(.copiar_datos(salida), accion, original = datos),
+        .ejecutar_accion(.copiar_datos(salida), accion, original = datos,
+                         protegidas = protegidas),
         error = function(e) list(
           error = conditionMessage(e), n = 0, n_no_reversibles = 0
         )

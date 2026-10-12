@@ -230,7 +230,14 @@
 #'   las columnas personales de esa copia también se enmascaran, y en las demás
 #'   columnas se tapa el valor protegido que identifica —el piso de
 #'   [perfilar()]—: la cédula citada en una observación, `"pago CI 3.738.538-0"`,
-#'   o guardada como número en otra columna; para conservar
+#'   o guardada como número en otra columna. En todo lugar donde un
+#'   `data.frame` guarda un valor: las celdas de cualquier clase —una copia
+#'   `POSIXct` de la fecha con hora protegida queda en `NA`, como la tapa
+#'   [perfilar()]—, las columnas de lista elemento por elemento, los atributos
+#'   de la tabla y de cada columna, y los nombres de fila, que vuelven a ser los
+#'   números de fila si alguno lleva un valor protegido. Una columna protegida
+#'   conserva sólo los atributos de su clase (`class`, `tzone`, `units`, `dim`):
+#'   las etiquetas de valor de un `haven_labelled` se quitan. Para conservar
 #'   sus valores debe usarse `proteger_datos_personales = FALSE` al crear el
 #'   analisis y al guardarlo. La opcion del guardado no recupera valores que el
 #'   analisis ya enmascaro.
@@ -748,6 +755,13 @@ print.analisis <- function(x, ...) {
   propuesta
 }
 
+# Los atributos que hacen a la CLASE de una columna -como se lee- y no llevan
+# valores: son lo unico que conserva una columna protegida de la copia. Todo lo
+# demas puede llevar sus valores -las etiquetas de un `haven_labelled`, los
+# nombres de un vector, un atributo propio- y se quita: `x[] <- NA` vaciaba las
+# celdas y dejaba los nombres de las docentes en `labels`. Ronda 28.
+.ATRIBUTOS_DE_CLASE_COLUMNA <- c("class", "tzone", "units", "dim")
+
 .proteger_datos_conservados <- function(datos, sensibles) {
   if (!inherits(datos, "data.frame") || !length(sensibles)) return(datos)
   reemplazo <- "[valor protegido]"
@@ -759,6 +773,10 @@ print.analisis <- function(x, ...) {
       datos[[indice]] <- rep(reemplazo, NROW(x))
     } else if (is.atomic(x)) {
       x[] <- NA
+      for (atributo in setdiff(names(attributes(x)),
+                               .ATRIBUTOS_DE_CLASE_COLUMNA)) {
+        attr(x, atributo) <- NULL
+      }
       datos[[indice]] <- x
     } else {
       datos[[indice]] <- rep(list(NULL), NROW(x))
@@ -767,7 +785,7 @@ print.analisis <- function(x, ...) {
   datos
 }
 
-# El PISO sobre las demas columnas de la copia conservada: un valor de una columna
+# El PISO sobre todo lo demas de la copia conservada: un valor de una columna
 # protegida que identifica no se publica en ninguna parte, tampoco en la columna
 # de al lado de la copia. Medido en la ronda 27: `analizar(conservar_datos =
 # TRUE)` tapaba `cedula` y dejaba las sesenta cedulas en `obs`, "pago CI
@@ -776,25 +794,115 @@ print.analisis <- function(x, ...) {
 # columna. Sin el recorrido de las salidas: aca no hay prosa, ni nombres, ni
 # vocabulario del paquete, y una columna del usuario llamada `estado` no es
 # vocabulario.
+#
+# Y en TODOS los lugares donde un data.frame guarda un valor, no solo en las
+# celdas de texto y de numeros: los nombres de fila, los atributos de la tabla y
+# de cada columna -las etiquetas de valor de un `haven_labelled`-, las columnas
+# de cualquier clase -una copia `POSIXct` de la fecha con hora protegida, que
+# `perfilar()` si tapa- y las listas, elemento por elemento. Se recorrian solo el
+# texto, el factor y `is.numeric()`, y la copia publicaba las ciento veinte
+# cedulas por cada una de esas cuatro puertas. Medido en la ronda 28. Es una
+# sola regla, recursiva: cada valor, donde este, pasa por el piso.
 .proteger_piso_datos_conservados <- function(datos, identificantes, sensibles) {
   if (!inherits(datos, "data.frame") || !length(identificantes)) return(datos)
   propias <- .indice_nombre(sensibles, names(datos))
   for (j in setdiff(seq_along(datos), propias[!is.na(propias)])) {
-    x <- datos[[j]]
-    if (is.character(x)) {
-      datos[[j]] <- .con_atributos_de(
-        x, .reemplazar_valores_protegidos(x, identificantes)
-      )
-    } else if (is.factor(x)) {
-      niveles <- .reemplazar_valores_protegidos(levels(x), identificantes)
-      if (!identical(niveles, levels(x))) {
-        datos[[j]] <- factor(niveles[as.integer(x)], levels = unique(niveles))
-      }
-    } else if (is.numeric(x) && !is.list(x)) {
-      datos[[j]] <- .proteger_numeros_parametros(x, identificantes)
+    datos[[j]] <- .piso_valor_conservado(datos[[j]], identificantes)
+  }
+  .piso_marco_conservado(datos, identificantes)
+}
+
+# Los nombres de fila y los atributos de la tabla. Los nombres de fila tienen que
+# ser unicos y el marcador no lo es: si alguno lleva un valor protegido, vuelven
+# a ser los numeros de fila. Los nombres de columna son estructura y quedan.
+.piso_marco_conservado <- function(datos, identificantes) {
+  filas <- attr(datos, "row.names", exact = TRUE)
+  if (is.character(filas)) {
+    tapadas <- .reemplazar_valores_protegidos(filas, identificantes)
+    if (!identical(tapadas, filas)) {
+      attr(datos, "row.names") <- .set_row_names(length(filas))
     }
   }
+  for (atributo in setdiff(names(attributes(datos)),
+                           c("names", "row.names", "class"))) {
+    attr(datos, atributo) <- .piso_valor_conservado(
+      attr(datos, atributo, exact = TRUE), identificantes
+    )
+  }
   datos
+}
+
+.piso_valor_conservado <- function(x, identificantes) {
+  if (is.null(x) || is.function(x) || is.environment(x)) return(x)
+  if (is.data.frame(x)) {
+    for (j in seq_along(x)) {
+      x[[j]] <- .piso_valor_conservado(x[[j]], identificantes)
+    }
+    return(.piso_marco_conservado(x, identificantes))
+  }
+  if (is.list(x)) {
+    textos <- vapply(x, function(y) {
+      is.null(y) || (is.character(y) && is.null(attributes(y)))
+    }, logical(1L))
+    if (length(x) && all(textos)) {
+      # Lo comun -una lista de textos, como `I(list(c("pago", "CI ...")))`- de
+      # una vez y no elemento por elemento.
+      largos <- lengths(x)
+      tapados <- .reemplazar_valores_protegidos(
+        unlist(x, use.names = FALSE), identificantes
+      )
+      partes <- split(tapados, factor(rep(seq_along(x), largos),
+                                      levels = seq_along(x)))
+      for (i in which(largos > 0L)) x[[i]] <- unname(partes[[i]])
+    } else {
+      for (i in seq_along(x)) {
+        if (!is.null(x[[i]])) {
+          x[i] <- list(.piso_valor_conservado(x[[i]], identificantes))
+        }
+      }
+    }
+  } else if (is.factor(x)) {
+    niveles <- .reemplazar_valores_protegidos(levels(x), identificantes)
+    if (!identical(niveles, levels(x))) {
+      atributos <- attributes(x)
+      x <- factor(niveles[as.integer(x)], levels = unique(niveles))
+      for (atributo in setdiff(names(atributos), c("levels", "class"))) {
+        attr(x, atributo) <- atributos[[atributo]]
+      }
+    }
+  } else if (is.character(x)) {
+    tapados <- .reemplazar_valores_protegidos(as.vector(x), identificantes)
+    cambiadas <- !is.na(tapados) & (is.na(x) | tapados != x)
+    if (any(cambiadas)) x[cambiadas] <- tapados[cambiadas]
+  } else if (is.numeric(x) && !is.object(x)) {
+    x <- .proteger_numeros_parametros(x, identificantes)
+  } else if (is.atomic(x)) {
+    # Fechas, fechas con hora, duraciones, numeros con clase: la celda se tapa si
+    # alguna de sus escrituras -la del perfil, `as.character()` y `format()`-
+    # lleva un valor protegido. Es como `perfilar()` publica su moda o sus
+    # extremos, y como ahi los tapa el piso.
+    if (is.numeric(x)) x <- .proteger_numeros_parametros(x, identificantes)
+    tapadas <- rep(FALSE, length(x))
+    escrituras <- list(as.character, format)
+    if (inherits(x, c("Date", "POSIXt"))) {
+      escrituras <- c(escrituras, .texto_valor_vector)
+    }
+    for (escribir in escrituras) {
+      texto <- tryCatch(as.character(escribir(x)), error = function(e) NULL)
+      if (length(texto) != length(x)) next
+      tapado <- .reemplazar_valores_protegidos(texto, identificantes)
+      tapadas <- tapadas | (!is.na(texto) & !is.na(tapado) & tapado != texto)
+    }
+    if (any(tapadas)) x[tapadas] <- NA
+  }
+  for (atributo in setdiff(names(attributes(x)),
+                           c("class", "levels", "dim", "tzone", "units",
+                             "row.names"))) {
+    attr(x, atributo) <- .piso_valor_conservado(
+      attr(x, atributo, exact = TRUE), identificantes
+    )
+  }
+  x
 }
 
 .proteger_analisis <- function(x, datos = NULL) {
@@ -900,10 +1008,14 @@ print.analisis <- function(x, ...) {
         } else names(x$datos)
       )
       x[[parte]] <- .proteger_numeros_parametros(x[[parte]], identificantes)
-      # Un mapa de imputacion que este barrido toco ya no es la relacion: se
-      # reconstruye sobre los datos (ver `.marcar_mapas_tapados()`).
+      # Lo que el plan ejecuta, como despues del barrido del plan: los
+      # marcadores de ausencia guardan su valor, un centinela tapado se declara
+      # y un mapa tocado se reconstruye (ver `.ejecutables_tras_barrido()`).
       if (!is.null(parametros_originales)) {
-        x[[parte]] <- .marcar_mapas_tapados(x[[parte]], parametros_originales)
+        x[[parte]] <- .ejecutables_tras_barrido(
+          x[[parte]], parametros_originales, datos = datos,
+          declarados = x$perfil$meta$cadenas_ausencia
+        )
       }
     }
   }

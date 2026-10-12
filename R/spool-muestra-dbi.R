@@ -402,7 +402,7 @@
   resultado <- tryCatch(
     DBI::dbSendQuery(conexion, sql),
     error = function(e) {
-      error_lectura <<- conditionMessage(e)
+      error_lectura <<- .mensaje_motor(e)
       NULL
     }
   )
@@ -419,7 +419,7 @@
     datos <- tryCatch(
       .marcar_utf8_tabla(DBI::dbFetch(resultado, n = bloque_filas)),
       error = function(e) {
-        error_lectura <<- conditionMessage(e)
+        error_lectura <<- .mensaje_motor(e)
         NULL
       }
     )
@@ -860,7 +860,7 @@
       )
       if (inherits(perfil, "condition")) {
         motivo <- paste0(
-          "muestra_inestable:perfilado_spool: ", conditionMessage(perfil)
+          "muestra_inestable:perfilado_spool: ", .mensaje_motor(perfil)
         )
         perfil <- NULL
       }

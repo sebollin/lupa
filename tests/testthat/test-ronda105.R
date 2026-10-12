@@ -136,8 +136,11 @@ test_that("el perfil completo declara el alcance de la muestra", {
   ## `unidad` se suma al esquema en la ronda O85: la unidad en la que estan las
   ## cifras que la fila publica. Sin ella, cuatro columnas `units` medidas en
   ## unidades distintas publicaban filas identicas.
-  expect_equal(ncol(perfil$columnas), 116L)
-  expect_equal(ncol(perfil$columnas) - 1L, 115L)
+  ## `n_geometrias_analizadas` y `n_vertices_analizados` se suman en la ronda
+  ## 28-G: `?perfilar` los prometia publicados -el trabajo que hizo el
+  ## presupuesto geometrico- y solo existian dentro del analisis.
+  expect_equal(ncol(perfil$columnas), 118L)
+  expect_equal(ncol(perfil$columnas) - 1L, 117L)
   expect_true(all(perfil$columnas$n == 1000L))
   expect_equal(alcance$filas_solicitadas, 1000)
   expect_equal(alcance$filas_obtenidas, 1000)

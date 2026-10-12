@@ -508,6 +508,26 @@
       )))
       next
     }
+    # Y el telefono E.164 que es UN grupo de un numero mas largo: pegado a otro
+    # por una barra o un guion -"+59899123456/+59899765432", "29011234/+598..."-,
+    # el numero tiene dos grupos, el primero no es "598" y su parte nacional no se
+    # probaba: los cuatro celulares de una lista asi se publicaban frente a los
+    # protegidos, mientras con " / " o con ";" se tapaban. Medido en la ronda 28.
+    # La parte nacional de cada grupo con esa forma, como si estuviera escrita
+    # sola; el resto del numero sigue su camino.
+    if (!any(partes$decimal) && length(partes$grupos) > 1L) {
+      pegados <- grepl(.PATRON_TELEFONO_UY_PEGADO, partes$grupos, perl = TRUE)
+      for (grupo in partes$grupos[pegados]) {
+        nacional_grupo <- sub(.PATRON_TELEFONO_UY_PEGADO, "\\1", grupo,
+                              perl = TRUE)
+        completos <- c(completos, .sin_ceros_iniciales(nacional_grupo))
+        prefijos <- c(prefijos, redondo(.sin_ceros_iniciales(
+          .concatenaciones_parciales(list(
+            grupos = nacional_grupo, decimal = FALSE, fraccion = FALSE
+          ), maximo)
+        )))
+      }
+    }
     # Con forma de IP, solo como documento entero, y entera: probar cada tramo
     # de octetos tapaba una de cada cincuenta direcciones -"218.235.90.247" por
     # el tramo "21823590"-. Medido en la ronda 24.

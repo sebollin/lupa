@@ -334,7 +334,7 @@ viñetas enlazadas son el manual detallado. Esta tabla es el mapa breve:
 | Tarea | Funciones principales | Para leer más |
 | --- | --- | --- |
 | Mirar los datos por primera vez | `perfilar()`, `analizar()`, `distribucion_valores()`, `detectar_asociaciones()`, `analizar_tiempo()`, `clasificar_variables()`, `inferir_tipo()`, `descubrir_patrones()`, `detectar_formatos_fecha()`, `sentinelas_naniar` | [Empezar con lupa](https://sebollin.github.io/lupa/articles/empezar-con-lupa.html) |
-| Perfilar contra una base | `perfilar_dbi()` — agregados SQL de toda la tabla y, por omisión, un perfil de 115 campos analíticos sobre una muestra declarada; `bloque_muestra = "solo_agregados"` permite pedir sólo los agregados | [Perfilar una base](https://sebollin.github.io/lupa/articles/perfilar-una-base.html) |
+| Perfilar contra una base | `perfilar_dbi()` — agregados SQL de toda la tabla y, por omisión, un perfil de 117 campos analíticos sobre una muestra declarada; `bloque_muestra = "solo_agregados"` permite pedir sólo los agregados | [Perfilar una base](https://sebollin.github.io/lupa/articles/perfilar-una-base.html) |
 | Encontrar estructura no declarada | `detectar_claves()`, `detectar_relaciones()`, `detectar_dependencias()`, `granularidades()`, `transiciones_granularidad()` | [Estructura no declarada](https://sebollin.github.io/lupa/articles/estructura-no-declarada.html) |
 | Definir la calidad | `marco_calidad()`, `marco_agesic()`, `marco_iso25012()`, `marco_cepal()`, `catalogo_agesic()`, `metrica()`, `especializar()`, `instanciar()`, `modelo()`, `metricas_nucleo()`, `metricas_referencial()`, `proponer_modelo()`, `modelo_desde_propuesta()`, `perfiles_madurez()`, `cobertura_analisis()` | [Definir la calidad](https://sebollin.github.io/lupa/articles/definir-la-calidad.html) |
 | Medir y evaluar | `medir()`, `agregar()`, `tablero_calidad()`, `indice_calidad()` con pesos del proyecto, `evaluar()`, `regla_evaluacion()` con la instrucción `desenlace = "suprimir"` declarada por quien usa el paquete (no un umbral de fábrica), `perfil_evaluacion()`, `escala()`, `referencial()`, `vigencia()` | [Medir y evaluar](https://sebollin.github.io/lupa/articles/medir-y-evaluar.html) |
@@ -1051,7 +1051,13 @@ quede lejos de la mediana no dice nada de su calidad.
 
 Reconocer una numeración usa la **densidad**: un identificador ocupa un tramo
 compacto de los enteros y una magnitud se reparte por varios órdenes. La
-unicidad no sirve, porque un monto también es casi único. El campo público
+unicidad sola no sirve, porque un monto también es casi único. Pero hace falta
+como segunda mitad: una magnitud entera acotada también llena todos los enteros
+de su rango cuando se cargan filas suficientes —repitiéndolos—, y con la densidad
+sola una edad de 18 a 90 con 20.000 filas salía «código de catálogo» y el
+veredicto dependía de cuántas filas se leyeron. Una numeración es densa **y**
+casi no se repite; un código que se repite no se distingue por su forma de esa
+magnitud, y el paquete prefiere hablar de más sobre él. El campo público
 `secuencia_entera_densa` responde sólo esa pregunta de cobertura; la señal
 separada `moda_sobresale_secuencia_entera` no debe apagar los escudos de forma
 que usan la numeración. La guarda de centinelas vuelve a abrirse si un candidato
@@ -1065,7 +1071,10 @@ El criterio se eligió midiendo. Un banco de trece columnas con la respuesta
 conocida —cinco numeraciones y ocho magnitudes con un dato malo adentro—
 comparó cuatro variantes: cruzar las dos señales acierta las trece y **no calla
 ningún dato malo real**; la densidad sola acertaba once y callaba dos. Está en
-`test-ronda118.R`.
+`test-ronda118.R`. Desde que se exige que una numeración casi no se repita, una de
+las cinco —un código de 1 a 284 que se repite— ya no se reconoce y recibe los
+límites de Tukey: acierta doce, y el error queda del lado barato, el de hablar de
+más y no el de callar.
 
 Para una columna `integer64`, `bit64` se carga de manera diferida cuando está
 instalado, para registrar sus métodos antes de medir. Si no está instalado, las
@@ -1107,7 +1116,10 @@ idea: el paquete **excluye lo que el usuario declara e incluye lo que él mismo
 sospecha**. Un valor declarado en `sentinelas_numericos` sale de `media`,
 `mediana`, `minimo`, `maximo` y `desvio` —y `n_valores_excluidos_resumen` dice
 cuántos dejó afuera—, igual que salen los `NA` y las filas que `aplicabilidad`
-deja fuera del universo. La lista por omisión, en cambio, informa y no toca los
+deja fuera del universo. Lo que se declara fuera del universo —centinelas o
+`aplicabilidad`— sale también de la ley de Benford y de las relaciones
+aritméticas: la misma celda no puede ser ausencia en el resumen y valor en un
+diagnóstico. La lista por omisión, en cambio, informa y no toca los
 números: es una conjetura, y una conjetura no mueve un promedio. `moda` y
 `n_distintos` siguen describiendo lo que hay guardado, como ya hacían con un
 `Inf`.
@@ -1176,7 +1188,8 @@ medida y la línea exacta que habría que escribir:
 ```
 valor_a  posible_ausencia_estructural  ok
   evidencia   `tipo` predice la presencia de `valor_a` en 100.0 % de 200 filas,
-              con 2 valores distintos. La columna corresponde cuando tipo es "A".
+              con 2 valores distintos. La regla explica 100 de las 100
+              ausencias de la columna. La columna corresponde cuando tipo es "A".
   sugerencia  perfilar(datos, aplicabilidad = list(valor_a = ~ tipo == "A"))
 ```
 
@@ -1323,9 +1336,11 @@ no un interruptor que pueda apagarlo.
   de datos personales.
 - Perfila geometrías `sf` y declara CRS, familias geométricas, vacíos, validez
   planar, dominio de coordenadas y alcance de la caja envolvente; no hace
-  análisis espacial. Sobre PostGIS lee el SRID de cada EWKB, así que una columna
-  con SRID mixto queda declarada como tal y su dominio se evalúa por grupos: una
-  columna `sf::sfc` sólo puede tener un CRS.
+  análisis espacial. Sobre PostGIS lee el SRID de cada valor EWKB o EWKT, así
+  que una columna con SRID mixto queda declarada como tal y su dominio se evalúa
+  por grupos: una columna `sf::sfc` sólo puede tener un CRS. Un valor que no se
+  puede convertir no borra la columna: se mide el resto y la pérdida se declara
+  con su cifra.
 - Evalúa la ley de Benford sólo cuando se cumplen sus precondiciones y registra
   los casos no aplicables en `cobertura_diagnosticos`.
 - Informa `unidades_mixtas` y `monedas_mixtas` en una columna sin convertir

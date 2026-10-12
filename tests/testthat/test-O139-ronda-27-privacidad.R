@@ -64,13 +64,31 @@
 
 test_that("T1 GUARDA: ningun parametro ejecutable ni nombre de aplicar() se tapa", {
   d <- .r27_tabla_nombres()
+  # Ronda 28: la guarda ve tambien los parametros que llevan VALORES y no
+  # nombres. Su tabla no tenia marcadores de ausencia ni centinelas declarados, y
+  # sus acciones salian `lista` con `valores = "[valor protegido]"` y `fallida`:
+  # el marcador del catalogo y uno declarado en una protegida, el declarado
+  # tambien en una columna vecina, y un centinela declarado de ocho cifras.
+  d$`Primer Nombre`[1:6] <- "sin dato"
+  d$`Primer Nombre`[7:12] <- "SIN REGISTRO"
+  d$Localidad <- rep(c("Salto", "Rocha", "Minas", "Florida"),
+                     length.out = nrow(d))
+  d$Localidad[13:18] <- "SIN REGISTRO"
+  d$cuota <- rep(1:12, length.out = nrow(d))
+  d$cuota[19:24] <- 99999999
+  argumentos <- list(cadenas_ausencia = "SIN REGISTRO",
+                     sentinelas_numericos = c(-999, 99999999))
   mascara <- "[valor protegido]"
   corridas <- lapply(c(FALSE, TRUE), function(proteger) {
-    p <- suppressWarnings(perfilar(d, proteger_datos_personales = proteger))
+    p <- suppressWarnings(do.call(perfilar, c(
+      list(d, proteger_datos_personales = proteger), argumentos
+    )))
     pl <- suppressWarnings(planificar_limpieza(p, d))
     # `analizar()` solo con proteccion: es lo que la guarda mira, y es lo caro.
     an <- if (proteger) {
-      suppressWarnings(suppressMessages(analizar(d)))
+      suppressWarnings(suppressMessages(analizar(
+        d, argumentos_perfil = argumentos
+      )))
     }
     activar <- pl$recomendada |
       startsWith(as.character(pl$estrategia), "imputar_dependencia_funcional__")
@@ -92,6 +110,10 @@ test_that("T1 GUARDA: ningun parametro ejecutable ni nombre de aplicar() se tapa
   expect_true(any(startsWith(as.character(con$pl$estrategia),
                              "imputar_dependencia_funcional__")))
   expect_true(any(con$pl$columna %in% "Mercedes"))
+  ausencias <- con$pl$columna[con$pl$estrategia == "convertir_ausencias_textuales"]
+  expect_true(all(c("Primer Nombre", "Localidad") %in% ausencias))
+  expect_true(any(con$pl$estrategia == "convertir_sentinelas_numericos" &
+                    con$pl$columna == "cuota"))
   for (plan in list(con$pl, con$an$plan_limpieza)) {
     hojas <- .r27_hojas(.r27_ejecutables(plan))
     expect_false(any(grepl(mascara, hojas, fixed = TRUE)),

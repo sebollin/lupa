@@ -146,8 +146,11 @@ test_that("una numeracion se describe igual sea integer o double", {
   declarado <- function(perfil) {
     "outliers" %in% as.character(perfil$cobertura_diagnosticos$diagnostico)
   }
-  expect_false(senalado(como_entero))
-  expect_false(senalado(como_doble))
-  expect_true(declarado(como_entero))
-  expect_true(declarado(como_doble))
+  # Lo que esta prueba fija es que el almacenamiento no cambia el veredicto.
+  # Desde la ronda 28-N un codigo que se repite no se toma por numeracion (ver
+  # test-ronda116), asi que los dos senalan los mismos valores; antes los dos
+  # los callaban.
+  expect_identical(senalado(como_doble), senalado(como_entero))
+  expect_identical(declarado(como_doble), declarado(como_entero))
+  expect_true(senalado(como_entero))
 })

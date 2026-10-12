@@ -6,7 +6,23 @@
 
 #' @export
 rbind.deriva_perfil <- function(..., deparse.level = 1) {
-  .unir_con_marca_sin_proteger(..., deparse.level = deparse.level)
+  resultado <- .unir_con_marca_sin_proteger(..., deparse.level = deparse.level)
+  # Lo que no se comparo por la proteccion se declara en un atributo, y
+  # `rbind()` conserva solo el del primer objeto: unir dos derivas callaba lo que
+  # declaraba la segunda. Se unen los de todas, como la marca de proteccion.
+  declarados <- Filter(
+    function(x) inherits(x, "data.frame"),
+    lapply(list(...), function(objeto) {
+      attr(objeto, "campos_protegidos", exact = TRUE)
+    })
+  )
+  if (length(declarados) && inherits(resultado, "data.frame")) {
+    unidos <- do.call(rbind, declarados)
+    unidos <- unidos[!duplicated(unidos), , drop = FALSE]
+    rownames(unidos) <- NULL
+    attr(resultado, "campos_protegidos") <- unidos
+  }
+  resultado
 }
 
 .deriva_perfil_vacia <- function() {
@@ -62,9 +78,37 @@ rbind.deriva_perfil <- function(..., deparse.level = 1) {
   !isTRUE(all.equal(a, b, check.attributes = FALSE))
 }
 
+# Un numero publicado en la deriva no puede depender de como imprime la sesion
+# ni juntar dos valores distintos, y `format(x, digits = 8)` hacia las dos cosas.
+# Con `scipen = 0` el rango [210000000011, 210000001000] salia `[2.1e+11,
+# 2.1e+11]` -dos extremos distintos impresos iguales-, otro salia `[1e+06,
+# 1040000]` -dos notaciones en el mismo rango-, y con `scipen = 100` los mismos
+# perfiles se publicaban con todas sus cifras. Se escribe con la forma mas corta
+# que vuelve al valor, la de `.texto_identidad()`: un entero con todas sus
+# cifras, una fraccion con 15, 16 o 17. No mira `scipen` ni `digits`.
+# La marca decimal SI sigue a `OutDec`: mostrar `3,5` a quien pidio coma es una
+# decision del paquete (RESUELTOS 2.245 y 2.314), y la evidencia de la deriva ya
+# la respeta con `.formatear_decimal_publicado()`. Un objeto con las dos marcas
+# es peor que cualquiera de las dos.
+.texto_numero_deriva <- function(x) {
+  texto <- .texto_identidad(x)
+  marca <- getOption("OutDec", ".")
+  if (!identical(marca, ".")) texto <- gsub(".", marca, texto, fixed = TRUE)
+  texto
+}
+
+# El separador de los extremos no puede chocar con la marca decimal: con
+# `OutDec = ","` el rango de 1,5 a 3 se publicaba `[1,5, 3]`, que se lee de dos
+# maneras. Con coma decimal los extremos se separan con punto y coma, que es como
+# se escriben los intervalos en esa notacion.
+.texto_rango_deriva <- function(minimo, maximo) {
+  separador <- if (identical(getOption("OutDec", "."), ".")) ", " else "; "
+  paste0("[", minimo, separador, maximo, "]")
+}
+
 .texto_deriva <- function(x) {
   if (!length(x) || is.na(x)) return(NA_character_)
-  if (is.numeric(x)) return(format(x, digits = 8L, trim = TRUE))
+  if (is.numeric(x)) return(.texto_numero_deriva(x))
   texto <- as.character(x)
   # Una diferencia que el canal no muestra es una diferencia que el lector no
   # puede ver. Recortar espacios cambia el patron de `a+\a+9\a+9a ` a
@@ -176,12 +220,96 @@ rbind.deriva_perfil <- function(..., deparse.level = 1) {
   sort(unique(valores), na.last = TRUE)
 }
 
+# Un extremo exacto es un entero escrito en decimal y nada mas: es lo que el
+# perfil conserva en `minimo_exacto` y `maximo_exacto` cuando el valor no entra
+# en un doble. Se normaliza -sin `+` ni ceros a la izquierda- para que la
+# igualdad sea la de los valores y no la de su escritura.
+.extremo_exacto_deriva <- function(fila, campo) {
+  if (!campo %in% names(fila)) return(NA_character_)
+  valor <- fila[[campo]][[1L]]
+  if (length(valor) != 1L || is.na(valor)) return(NA_character_)
+  texto <- trimws(as.character(valor))
+  if (!grepl("^[+-]?[0-9]+$", texto)) return(NA_character_)
+  negativo <- startsWith(texto, "-")
+  digitos <- sub("^0+(?=[0-9])", "", sub("^[+-]", "", texto), perl = TRUE)
+  if (negativo && !identical(digitos, "0")) paste0("-", digitos) else digitos
+}
+
+# La diferencia EXACTA `x - y` entre dos enteros escritos en decimal, devuelta
+# como doble. Hace falta para los extremos que no entran en un doble:
+# `as.numeric()` los redondea a multiplos de 256 cerca de 2^60, y entre
+# `1152921504606846996` y `1152921504606847976` la diferencia salia cero. Se
+# restan las cifras, que no necesita `bit64` -esta en Suggests- y vale para
+# cualquier largo; lo que se convierte a doble es la diferencia, que si entra.
+.diferencia_entera_exacta <- function(x, y) {
+  partes <- function(s) {
+    list(
+      signo = if (startsWith(s, "-")) -1L else 1L,
+      cifras = rev(as.integer(strsplit(sub("^-", "", s), "", fixed = TRUE)[[1L]]))
+    )
+  }
+  a <- partes(x)
+  b <- partes(y)
+  b$signo <- -b$signo
+  largo <- max(length(a$cifras), length(b$cifras))
+  ca <- c(a$cifras, integer(largo - length(a$cifras)))
+  cb <- c(b$cifras, integer(largo - length(b$cifras)))
+  if (a$signo == b$signo) {
+    cifras <- ca + cb
+    signo <- a$signo
+  } else {
+    distintas <- which(rev(ca) != rev(cb))
+    if (!length(distintas)) return(0)
+    primera <- distintas[[1L]]
+    if (rev(ca)[[primera]] > rev(cb)[[primera]]) {
+      cifras <- ca - cb
+      signo <- a$signo
+    } else {
+      cifras <- cb - ca
+      signo <- b$signo
+    }
+  }
+  acarreo <- 0L
+  for (i in seq_along(cifras)) {
+    valor <- cifras[[i]] + acarreo
+    acarreo <- valor %/% 10L
+    cifras[[i]] <- valor %% 10L
+  }
+  if (acarreo > 0L) cifras <- c(cifras, acarreo)
+  signo * as.numeric(paste(rev(cifras), collapse = ""))
+}
+
+# El rango de una columna, con sus extremos como VALORES. Tiene tres formas, y la
+# segunda faltaba: con un `integer64` por encima de 2^53 -o un entero escrito
+# como texto que no entra en un doble- el perfil publica `minimo` y `maximo` en
+# NA y conserva los extremos exactos como texto, y esta funcion solo miraba los
+# dobles. `2^60 + c(0, 10, 20)` contra `2^60 + c(0, 10, 1000)` -el ancho se
+# multiplica por cuarenta y nueve- daba cero filas, mientras
+# `comparar_equivalencia()` veia el `maximo_exacto` distinto.
 .rango_perfil <- function(fila) {
+  exacto_minimo <- .extremo_exacto_deriva(fila, "minimo_exacto")
+  exacto_maximo <- .extremo_exacto_deriva(fila, "maximo_exacto")
+  hay_exactos <- !is.na(exacto_minimo) && !is.na(exacto_maximo)
+  if (!hay_exactos) {
+    exacto_minimo <- NA_character_
+    exacto_maximo <- NA_character_
+  }
   if (is.finite(fila$minimo) && is.finite(fila$maximo)) {
     return(list(
       tipo = "numerico", minimo = fila$minimo, maximo = fila$maximo,
-      texto = paste0("[", .texto_deriva(fila$minimo), ", ",
-                     .texto_deriva(fila$maximo), "]")
+      minimo_exacto = exacto_minimo, maximo_exacto = exacto_maximo,
+      texto = .texto_rango_deriva(
+        .texto_numero_deriva(fila$minimo), .texto_numero_deriva(fila$maximo)
+      )
+    ))
+  }
+  if (hay_exactos) {
+    return(list(
+      tipo = "numerico",
+      minimo = suppressWarnings(as.numeric(exacto_minimo)),
+      maximo = suppressWarnings(as.numeric(exacto_maximo)),
+      minimo_exacto = exacto_minimo, maximo_exacto = exacto_maximo,
+      texto = .texto_rango_deriva(exacto_minimo, exacto_maximo)
     ))
   }
   if (!is.na(fila$minimo_fecha) && !is.na(fila$maximo_fecha)) {
@@ -196,23 +324,80 @@ rbind.deriva_perfil <- function(..., deparse.level = 1) {
     b <- as.numeric(limites[[2L]])
     return(list(
       tipo = "fecha", minimo = a, maximo = b,
-      texto = paste0("[", fila$minimo_fecha, ", ", fila$maximo_fecha, "]")
+      minimo_exacto = NA_character_, maximo_exacto = NA_character_,
+      texto = .texto_rango_deriva(fila$minimo_fecha, fila$maximo_fecha)
     ))
   }
   NULL
 }
 
+.rango_con_exactos <- function(rango) {
+  !is.null(rango$minimo_exacto) && !is.na(rango$minimo_exacto) &&
+    !is.null(rango$maximo_exacto) && !is.na(rango$maximo_exacto)
+}
+
+# Dos rangos son iguales si sus extremos son los mismos VALORES. Se comparaba su
+# texto impreso, que redondea a ocho cifras y sigue a `scipen`:
+# `1234567890000000 + c(0, 50000, 123456)` contra `+ c(0, 50000, 9999999)` -un
+# ancho que se multiplica por ochenta- daba cero filas con `scipen = 0` y una fila
+# `sospechoso` con `scipen = 100`, sobre los mismos perfiles; y `1.000000030`
+# contra `1.000000044` no salia con ninguna. La magnitud se calculaba bien, pero
+# nunca llegaba a calcularse si los dos textos coincidian. Los extremos son
+# valores de la columna, no resultados de una cuenta, asi que la igualdad es
+# exacta: un cambio chico sale como fila `ok`, que es lo que promete la ayuda.
+.rangos_iguales_deriva <- function(anterior, actual) {
+  if (!identical(anterior$tipo, actual$tipo)) return(FALSE)
+  if (.rango_con_exactos(anterior) && .rango_con_exactos(actual)) {
+    return(identical(anterior$minimo_exacto, actual$minimo_exacto) &&
+             identical(anterior$maximo_exacto, actual$maximo_exacto))
+  }
+  isTRUE(anterior$minimo == actual$minimo) &&
+    isTRUE(anterior$maximo == actual$maximo)
+}
+
 .magnitud_rango <- function(anterior, actual) {
   if (is.null(anterior) || is.null(actual) ||
       anterior$tipo != actual$tipo) return(Inf)
-  ancho <- abs(anterior$maximo - anterior$minimo)
+  if (.rango_con_exactos(anterior) && .rango_con_exactos(actual)) {
+    ancho <- abs(.diferencia_entera_exacta(
+      anterior$maximo_exacto, anterior$minimo_exacto
+    ))
+    cambio_minimo <- abs(.diferencia_entera_exacta(
+      actual$minimo_exacto, anterior$minimo_exacto
+    ))
+    cambio_maximo <- abs(.diferencia_entera_exacta(
+      actual$maximo_exacto, anterior$maximo_exacto
+    ))
+  } else {
+    ancho <- abs(anterior$maximo - anterior$minimo)
+    cambio_minimo <- abs(actual$minimo - anterior$minimo)
+    cambio_maximo <- abs(actual$maximo - anterior$maximo)
+  }
   escala <- if (is.finite(ancho) && ancho > 0) ancho else {
     max(abs(c(anterior$minimo, anterior$maximo)), 1)
   }
-  max(
-    abs(actual$minimo - anterior$minimo),
-    abs(actual$maximo - anterior$maximo)
-  ) / escala
+  max(cambio_minimo, cambio_maximo) / escala
+}
+
+# Si el rango de la columna esta tapado por la proteccion en este lado. Basta
+# UNO de sus campos, con la misma regla que ya usa `comparar_equivalencia()` -la
+# marca `dato_personal_protegido`, el marcador `[valor protegido]` o el detalle
+# de proteccion de orden-, para que las dos hermanas no puedan contestar distinto
+# sobre la misma columna.
+.proteccion_conocida_deriva <- function(fila) {
+  any(c("dato_personal_protegido", "detalle_proteccion_personal") %in%
+        names(fila)) || !is.null(.rango_perfil(fila))
+}
+
+.rango_protegido_deriva <- function(fila) {
+  campos <- intersect(
+    c("minimo", "maximo", "minimo_fecha", "maximo_fecha",
+      "minimo_exacto", "maximo_exacto"),
+    names(fila)
+  )
+  any(vapply(campos, function(campo) {
+    isTRUE(.campo_protegido_equivalencia(fila, campo, 1L))
+  }, logical(1L)))
 }
 
 .patrones_perfil <- function(perfil, indice) {
@@ -223,6 +408,29 @@ rbind.deriva_perfil <- function(..., deparse.level = 1) {
     ))
   }
   x[c("patron", "proporcion")]
+}
+
+# Un resumen de patrones guarda los `max_patrones` mas frecuentes. Si la columna
+# tenia mas formas, las que no entraron siguen en los datos con una proporcion
+# que no supera la menor del resumen. Devuelve esa cota, o NA si el resumen esta
+# completo y un patron ausente de verdad no esta. El perfil publica cuantas
+# formas habia en `n_patrones_distintos`; un perfil sin ese dato y con
+# `max_patrones` filas se trata como lleno, que es la lectura que no afirma de
+# mas.
+.techo_fuera_del_resumen <- function(perfil, indice, tabla) {
+  filas <- nrow(tabla)
+  if (!filas) return(NA_real_)
+  total <- attr(perfil$patrones[[indice]], "n_patrones_distintos", exact = TRUE)
+  lleno <- if (is.numeric(total) && length(total) == 1L && !is.na(total)) {
+    total > filas
+  } else {
+    maximo <- perfil$meta[["max_patrones", exact = TRUE]]
+    is.numeric(maximo) && length(maximo) == 1L && !is.na(maximo) &&
+      filas >= maximo
+  }
+  proporciones <- tabla$proporcion[!is.na(tabla$proporcion)]
+  if (!lleno || !length(proporciones)) return(NA_real_)
+  min(proporciones)
 }
 
 .clave_patron <- function(x) {
@@ -536,11 +744,18 @@ rbind.deriva_perfil <- function(..., deparse.level = 1) {
 #'   cambio de proporción, cardinalidad o rango relativo. Cinco puntos
 #'   porcentuales evita elevar variaciones pequeñas a hallazgo.
 #' @param umbral_error Diferencia a partir de la cual un aumento de faltantes o
-#'   un patrón nuevo se clasifica como `error`.
+#'   un cambio de patrón —uno que aparece, desaparece o cambia de proporción— se
+#'   clasifica como `error`.
 #'
 #' @return Data frame `deriva_perfil`. `severidad` usa el factor ordenado
 #'   `ok < sospechoso < error`; los cambios menores permanecen como filas `ok`
 #'   para que la serie sea exportable sin ocultar diferencias.
+#'   El atributo `campos_protegidos` declara lo que no se comparó porque la
+#'   protección de datos personales lo tapa: un data frame con `columna`,
+#'   `campo` y `lado` —`anterior` o `actual`—, la misma forma que usa
+#'   [comparar_equivalencia()]. Hoy el único campo que puede figurar es
+#'   `rango`. Está siempre, vacío si no hay nada que declarar, y `rbind()` une
+#'   los de todas las derivas.
 #'
 #' @details
 #' Los patrones se comparan sobre el resumen acotado que conserva cada perfil,
@@ -588,6 +803,46 @@ rbind.deriva_perfil <- function(..., deparse.level = 1) {
 #' —la cifra dejó de significar lo mismo— y antes devolvían cero filas. Un perfil
 #' guardado antes de que ese campo existiera no hace mentir la comparación: esa
 #' parte se declara **no comparable**, como el resto de los campos ausentes.
+#'
+#' El **rango** se compara por los valores de sus extremos, no por su texto
+#' impreso: un cambio chico sale como fila `ok` y uno que alcanza
+#' `umbral_cambio` —medido contra el ancho del rango anterior— como
+#' `sospechoso`, sin que `options(scipen)` ni `digits` muevan el veredicto.
+#' Cuando el perfil conserva los extremos exactos de un entero que no entra en
+#' un doble —un `integer64` por encima de 2^53, o un entero escrito como
+#' texto—, esos extremos se comparan con aritmética exacta. Los números se
+#' publican con la escritura más corta que vuelve al valor, así que dos
+#' extremos distintos nunca se imprimen iguales; la marca decimal sigue a
+#' `OutDec`, y con coma decimal los extremos se separan con punto y coma
+#' (`[1,5; 3]`).
+#'
+#' Una columna **protegida** no publica su rango, y la comparación tampoco lo
+#' compara: lo declara en el atributo `campos_protegidos`, con la misma regla
+#' que [comparar_equivalencia()]. Si la protección de una columna cambia entre
+#' las corridas con la misma política —por ejemplo, porque la proporción de
+#' documentos válidos cruzó el umbral de verificación—, el cambio se informa
+#' con una fila propia, `aspecto = "proteccion"` y severidad `sospechoso`, en
+#' lugar de un cambio de rango que no ocurrió en los datos. Si lo que cambió es
+#' la política entera, ya lo dice la fila `configuracion_proteccion` y no se
+#' repite por columna.
+#'
+#' Además de los patrones que aparecen y desaparecen, se informa el **cambio de
+#' proporción** de un patrón que sigue en el resumen cuando alcanza
+#' `umbral_cambio`: `sospechoso`, o `error` desde `umbral_error`, en las dos
+#' direcciones. Que los cambios menores no generen fila es una **decisión**, a
+#' diferencia de los faltantes: serían una fila por patrón en cada entrega. Si
+#' el resumen de un lado estaba **lleno** —la columna tenía más formas que
+#' `max_patrones`—, un patrón que falta en él pudo quedar por debajo del corte,
+#' y no se afirma que apareció o desapareció: la fila dice `no_comparable`, con
+#' severidad `ok`, salvo que el cambio que sí se puede garantizar —contra la
+#' menor proporción que guardaba ese resumen— alcance el umbral; entonces dice
+#' `modificado` y `delta` es esa cota.
+#'
+#' La **cardinalidad** no tiene una dirección buena: que caiga la tasa de
+#' valores distintos de un identificador es un deterioro, y que suba la de una
+#' columna de categorías también. Por **decisión**, un cambio significativo de
+#' cardinalidad es `sospechoso` en los dos sentidos. Los faltantes sí la
+#' tienen: que bajen es una mejora y queda `ok`.
 #'
 #' Las columnas que aparecen o desaparecen generan cambios estructurales de
 #' severidad `error`, pero no impiden comparar las columnas compartidas. Un
@@ -703,6 +958,14 @@ comparar_perfiles <- function(anterior, actual, umbral_cambio = 0.05,
   }
 
   comunes <- intersect(mapa_a$clave, mapa_b$clave)
+  # La politica se mira antes de recorrer las columnas: si cambio la politica
+  # entera, su fila `configuracion_proteccion` ya explica cada columna y la fila
+  # por columna no se repite.
+  proteccion_a <- .proteccion_declarada_perfil(anterior)
+  proteccion_b <- .proteccion_declarada_perfil(actual)
+  politica_proteccion_cambiada <- !is.na(proteccion_a) && !is.na(proteccion_b) &&
+    !identical(proteccion_a, proteccion_b)
+  campos_protegidos <- .campos_protegidos_equivalencia_vacios()
   for (columna in comunes) {
     indice_a <- mapa_a$indice[match(columna, mapa_a$clave)]
     indice_b <- mapa_b$indice[match(columna, mapa_b$clave)]
@@ -779,10 +1042,20 @@ comparar_perfiles <- function(anterior, actual, umbral_cambio = 0.05,
         # y sin ella en otro no es una decision sino una inconsistencia, y este
         # archivo era el otro.
         significativo <- .alcanza_umbral_deriva(delta, umbral_cambio)
-        severidad <- if (!significativo || delta < 0) {
+        # Que bajen los faltantes es una mejora, y por eso queda `ok`. La
+        # cardinalidad no tiene una direccion buena: la regla del signo valia
+        # igual para las dos, y un `id_tramite` unico que pasaba a tener la mitad
+        # repetida -tasa de 1 a 0,5, diez umbrales- salia `ok` con
+        # `significativo = TRUE`, mientras el arreglo inverso salia
+        # `sospechoso`. Un cambio significativo de cardinalidad es sospechoso en
+        # los dos sentidos, como el del rango, que tampoco tiene direccion.
+        severidad <- if (!significativo) {
           "ok"
-        } else if (aspecto == "faltantes" &&
-                   .alcanza_umbral_deriva(delta, umbral_error)) {
+        } else if (aspecto == "cardinalidad") {
+          "sospechoso"
+        } else if (delta < 0) {
+          "ok"
+        } else if (.alcanza_umbral_deriva(delta, umbral_error)) {
           "error"
         } else {
           "sospechoso"
@@ -840,21 +1113,71 @@ comparar_perfiles <- function(anterior, actual, umbral_cambio = 0.05,
         )
       )
     }
-    rango_a <- if ("rango" %in% campos$comparables) .rango_perfil(a) else NULL
-    rango_b <- if ("rango" %in% campos$comparables) .rango_perfil(b) else NULL
-    if ((!is.null(rango_a) || !is.null(rango_b)) &&
-        (is.null(rango_a) || is.null(rango_b) ||
-         rango_a$texto != rango_b$texto || rango_a$tipo != rango_b$tipo)) {
-      magnitud <- .magnitud_rango(rango_a, rango_b)
-      significativo <- .alcanza_umbral_deriva(magnitud, umbral_cambio)
-      agregar(
-        columna, "rango", "modificado",
-        if (significativo) "sospechoso" else "ok",
-        if (is.null(rango_a)) NA_character_ else rango_a$texto,
-        if (is.null(rango_b)) NA_character_ else rango_b$texto,
-        cambio_relativo = magnitud, significativo = significativo,
-        descripcion = "Cambi\u00f3 el rango observado de la columna."
-      )
+    if ("rango" %in% campos$comparables) {
+      # Una columna protegida no publica su rango, y comparar un rango tapado
+      # mentia de las dos maneras posibles. Protegida en los dos lados, los dos
+      # rangos eran NULL y no salia nada: `telefono` pasaba de [20001066,
+      # 20997537] a [90002001, 90997570] -setenta veces su ancho- y la
+      # comparacion no decia ni eso ni que no lo habia mirado. Protegida en un
+      # solo lado -la columna cruzo el umbral de verificacion de cedulas, con la
+      # misma politica en las dos corridas-, el rango de un lado contra NULL daba
+      # magnitud `Inf` y "Cambio el rango observado" con `significativo = TRUE`,
+      # sobre dos entregas con los MISMOS extremos.
+      #
+      # Las dos respuestas ya estaban escritas en el paquete. `comparar_
+      # equivalencia()` no compara un campo protegido: lo declara por columna,
+      # campo y lado en `campos_protegidos`. Y un cambio de proteccion es un
+      # cambio de lo que la entrega publica, no del dato, asi que lleva su propia
+      # fila, como `configuracion_proteccion` una escala mas arriba.
+      protegido_a <- .rango_protegido_deriva(a)
+      protegido_b <- .rango_protegido_deriva(b)
+      if (protegido_a || protegido_b) {
+        lados <- c(if (protegido_a) "anterior", if (protegido_b) "actual")
+        campos_protegidos <- rbind(campos_protegidos, data.frame(
+          columna = rep(mapa_a$original[match(columna, mapa_a$clave)],
+                        length(lados)),
+          campo = "rango", lado = lados, stringsAsFactors = FALSE
+        ))
+        # La fila afirma "sin proteger" del otro lado, y eso hay que saberlo: un
+        # perfil de otra version sin los campos de proteccion y con el rango en
+        # NA puede haberlo tenido tapado. Ahi no se afirma nada; lo protegido
+        # queda declarado igual.
+        conocido <- if (protegido_a) b else a
+        if (xor(protegido_a, protegido_b) && !politica_proteccion_cambiada &&
+            .proteccion_conocida_deriva(conocido)) {
+          agregar(
+            columna, "proteccion", "modificado", "sospechoso",
+            if (protegido_a) "protegido" else "sin proteger",
+            if (protegido_b) "protegido" else "sin proteger",
+            descripcion = paste(
+              "Cambi\u00f3 la protecci\u00f3n de datos personales de la columna: un",
+              "lado oculta lo que el otro publica, as\u00ed que su rango no se compara."
+            ),
+            evidencia = paste(
+              "La pol\u00edtica de protecci\u00f3n es la misma en las dos corridas;",
+              "lo que cambi\u00f3 es la clasificaci\u00f3n de la columna. El rango del",
+              "lado protegido queda declarado en el atributo `campos_protegidos`."
+            )
+          )
+        }
+      } else {
+        rango_a <- .rango_perfil(a)
+        rango_b <- .rango_perfil(b)
+        if ((!is.null(rango_a) || !is.null(rango_b)) &&
+            (is.null(rango_a) || is.null(rango_b) ||
+             !.rangos_iguales_deriva(rango_a, rango_b))) {
+          magnitud <- .magnitud_rango(rango_a, rango_b)
+          significativo <- .alcanza_umbral_deriva(magnitud, umbral_cambio)
+          agregar(
+            columna, "rango", "modificado",
+            if (significativo) "sospechoso" else "ok",
+            if (is.null(rango_a)) NA_character_ else rango_a$texto,
+            if (is.null(rango_b)) NA_character_ else rango_b$texto,
+            cambio_relativo = magnitud, significativo = significativo,
+            descripcion = "Cambi\u00f3 el rango observado de la columna."
+          )
+        }
+      }
     }
   }
 
@@ -880,6 +1203,21 @@ comparar_perfiles <- function(anterior, actual, umbral_cambio = 0.05,
       pb <- .patrones_perfil(actual, indice_b)
       claves_a <- .clave_patron(pa$patron)
       claves_b <- .clave_patron(pb$patron)
+      # Un patron que falta en un resumen LLENO no falta en los datos: pudo
+      # quedar por debajo del corte. Con 22 formas y `max_patrones = 20`, mover
+      # UN valor entre dos formas raras publicaba "Aparecio un patron de formato
+      # nuevo" y "Desaparecio un patron de formato anterior", los dos
+      # `sospechoso`, sobre patrones que seguian en las dos entregas. El techo
+      # es la mayor proporcion que pudo tener alli; NA si el resumen esta
+      # completo y la ausencia es cierta.
+      techo_a <- .techo_fuera_del_resumen(anterior, indice_a, pa)
+      techo_b <- .techo_fuera_del_resumen(actual, indice_b, pb)
+      # La severidad de un patron que cambia se gradua igual que la de uno que
+      # aparece o desaparece: desde `umbral_error`, `error`.
+      grado <- function(cambio) {
+        if (.alcanza_umbral_deriva(cambio, umbral_error)) "error" else "sospechoso"
+      }
+      fmt <- function(x) .formatear_decimal_publicado(x, 4L)
       # La clave APAREA; lo que se publica es el patron tal como lo publica el
       # perfil. Publicando la clave, la fila de deriva sacaba el patron con la
       # barra invertida duplicada -el escape que hace inyectiva a la clave- y
@@ -893,36 +1231,122 @@ comparar_perfiles <- function(anterior, actual, umbral_cambio = 0.05,
       for (patron in setdiff(claves_b, claves_a)) {
         proporcion <- pb$proporcion[match(patron, claves_b)]
         patron <- publicable(patron, claves_b, pb)
-        agregar(
-          columna, "patron", "aparecido",
-          if (.alcanza_umbral_deriva(proporcion, umbral_error)) {
-            "error"
-          } else {
-            "sospechoso"
-          },
-          NA_character_, patron, delta = proporcion, significativo = TRUE,
-          descripcion = "Apareci\u00f3 un patr\u00f3n de formato nuevo.",
-          evidencia = paste0(
-            "Proporci\u00f3n actual: ",
-            .formatear_decimal_publicado(proporcion, 4L)
+        if (is.na(techo_a)) {
+          agregar(
+            columna, "patron", "aparecido",
+            if (.alcanza_umbral_deriva(proporcion, umbral_error)) {
+              "error"
+            } else {
+              "sospechoso"
+            },
+            NA_character_, patron, delta = proporcion, significativo = TRUE,
+            descripcion = "Apareci\u00f3 un patr\u00f3n de formato nuevo.",
+            evidencia = paste0(
+              "Proporci\u00f3n actual: ",
+              .formatear_decimal_publicado(proporcion, 4L)
+            )
           )
+          next
+        }
+        evidencia <- paste0(
+          "Proporci\u00f3n actual: ", fmt(proporcion), "; en el perfil anterior, ",
+          "cuyo resumen estaba lleno, a lo sumo ", fmt(techo_a), "."
         )
+        cota <- proporcion - techo_a
+        if (cota > 0 && .alcanza_umbral_deriva(cota, umbral_cambio)) {
+          agregar(
+            columna, "patron", "modificado", grado(cota), NA_character_, patron,
+            delta = cota, significativo = TRUE,
+            descripcion = paste(
+              "Aument\u00f3 la proporci\u00f3n de un patr\u00f3n de formato, por lo menos",
+              "en lo que dice `delta`: en el perfil anterior estaba por debajo del",
+              "corte del resumen acotado."
+            ),
+            evidencia = evidencia
+          )
+        } else {
+          agregar(
+            columna, "patron", "no_comparable", "ok", NA_character_, patron,
+            significativo = FALSE,
+            descripcion = paste(
+              "Un patr\u00f3n de formato entr\u00f3 al resumen acotado, pero no se sabe",
+              "si es nuevo: el resumen anterior estaba lleno y pudo estar por",
+              "debajo del corte."
+            ),
+            evidencia = evidencia
+          )
+        }
       }
       for (patron in setdiff(claves_a, claves_b)) {
         proporcion <- pa$proporcion[match(patron, claves_a)]
         patron <- publicable(patron, claves_a, pa)
+        if (is.na(techo_b)) {
+          agregar(
+            columna, "patron", "desaparecido",
+            if (.alcanza_umbral_deriva(proporcion, umbral_error)) {
+              "error"
+            } else {
+              "sospechoso"
+            },
+            patron, NA_character_, delta = -proporcion, significativo = TRUE,
+            descripcion = "Desapareci\u00f3 un patr\u00f3n de formato anterior.",
+            evidencia = paste0(
+              "Proporci\u00f3n anterior: ",
+              .formatear_decimal_publicado(proporcion, 4L)
+            )
+          )
+          next
+        }
+        evidencia <- paste0(
+          "Proporci\u00f3n anterior: ", fmt(proporcion), "; en el perfil actual, ",
+          "cuyo resumen estaba lleno, a lo sumo ", fmt(techo_b), "."
+        )
+        cota <- proporcion - techo_b
+        if (cota > 0 && .alcanza_umbral_deriva(cota, umbral_cambio)) {
+          agregar(
+            columna, "patron", "modificado", grado(cota), patron, NA_character_,
+            delta = -cota, significativo = TRUE,
+            descripcion = paste(
+              "Baj\u00f3 la proporci\u00f3n de un patr\u00f3n de formato, por lo menos en",
+              "lo que dice `delta`: en el perfil actual qued\u00f3 por debajo del corte",
+              "del resumen acotado."
+            ),
+            evidencia = evidencia
+          )
+        } else {
+          agregar(
+            columna, "patron", "no_comparable", "ok", patron, NA_character_,
+            significativo = FALSE,
+            descripcion = paste(
+              "Un patr\u00f3n de formato sali\u00f3 del resumen acotado, pero no se sabe",
+              "si desapareci\u00f3: el resumen actual estaba lleno y puede seguir por",
+              "debajo del corte."
+            ),
+            evidencia = evidencia
+          )
+        }
+      }
+      # Un patron que sigue en los dos resumenes tiene su proporcion medida en
+      # los dos, y no se miraba: `Montevideo` x95 y `MVD-01` x5 contra la
+      # inversa -el formato dominante paso del nombre al codigo- daba cero filas.
+      # Se informa cuando el cambio alcanza `umbral_cambio`; los menores no dan
+      # fila, a diferencia de los faltantes, porque serian una fila por patron
+      # en cada entrega. Es una decision, y esta escrita en la ayuda.
+      for (patron in intersect(claves_a, claves_b)) {
+        proporcion_a <- pa$proporcion[match(patron, claves_a)]
+        proporcion_b <- pb$proporcion[match(patron, claves_b)]
+        delta <- proporcion_b - proporcion_a
+        if (!.alcanza_umbral_deriva(delta, umbral_cambio)) next
+        patron <- publicable(patron, claves_b, pb)
         agregar(
-          columna, "patron", "desaparecido",
-          if (.alcanza_umbral_deriva(proporcion, umbral_error)) {
-            "error"
-          } else {
-            "sospechoso"
-          },
-          patron, NA_character_, delta = -proporcion, significativo = TRUE,
-          descripcion = "Desapareci\u00f3 un patr\u00f3n de formato anterior.",
+          columna, "patron", "modificado", grado(delta), patron, patron,
+          delta = delta, significativo = TRUE,
+          descripcion = paste(
+            "Cambi\u00f3 la proporci\u00f3n de un patr\u00f3n de formato que sigue",
+            "presente."
+          ),
           evidencia = paste0(
-            "Proporci\u00f3n anterior: ",
-            .formatear_decimal_publicado(proporcion, 4L)
+            "Proporci\u00f3n: ", fmt(proporcion_a), " -> ", fmt(proporcion_b), "."
           )
         )
       }
@@ -1050,10 +1474,7 @@ comparar_perfiles <- function(anterior, actual, umbral_cambio = 0.05,
   # comparacion ya tiene el perfil sin proteger- pero es la misma forma que ya
   # tienen `configuracion_umbrales` y `configuracion_normalizacion`: un cambio de
   # politica se declara con su propia fila en vez de disfrazarse de deriva.
-  proteccion_a <- .proteccion_declarada_perfil(anterior)
-  proteccion_b <- .proteccion_declarada_perfil(actual)
-  if (!is.na(proteccion_a) && !is.na(proteccion_b) &&
-      !identical(proteccion_a, proteccion_b)) {
+  if (politica_proteccion_cambiada) {
     agregar(
       NA_character_, "configuracion_proteccion", "modificado", "error",
       if (proteccion_a) "protegido" else "sin proteger",
@@ -1268,7 +1689,12 @@ comparar_perfiles <- function(anterior, actual, umbral_cambio = 0.05,
     }
   }
 
-  if (!length(cambios)) return(.deriva_perfil_vacia())
+  rownames(campos_protegidos) <- NULL
+  if (!length(cambios)) {
+    resultado <- .deriva_perfil_vacia()
+    attr(resultado, "campos_protegidos") <- campos_protegidos
+    return(resultado)
+  }
   resultado <- do.call(rbind, cambios)
   resultado$severidad <- factor(
     resultado$severidad, levels = c("ok", "sospechoso", "error"),
@@ -1289,6 +1715,7 @@ comparar_perfiles <- function(anterior, actual, umbral_cambio = 0.05,
   if (length(sin_proteger)) {
     attr(resultado, "datos_personales_sin_proteger") <- sin_proteger
   }
+  attr(resultado, "campos_protegidos") <- campos_protegidos
   class(resultado) <- c("deriva_perfil", "data.frame")
   resultado
 }
@@ -1441,7 +1868,13 @@ comparar_perfiles <- function(anterior, actual, umbral_cambio = 0.05,
 
 .es_temporal_equivalencia <- function(columnas, indice) {
   tipo <- .tipo_columna_equivalencia(columnas, indice)
-  if (is.na(tipo)) return(FALSE)
+  # Sin tipo no se sabe, y no saber no es "no temporal". El frame de
+  # `perfilar_dbi()` no publica ningun campo de tipo, y devolver FALSE ahi hacia
+  # que el `xor` afirmara `tipo_cambiado:temporal_vs_no_temporal` sobre columnas
+  # que el motor devolvia como `Date` y `POSIXct`. Es la regla de la guarda
+  # hermana de texto, `.almacenamiento_caracter_equivalencia()`: ante lo
+  # desconocido, NA.
+  if (is.na(tipo)) return(NA)
   tipo %in% c(
     "fecha", "fecha-hora", "fecha_hora", "date", "datetime", "timestamp",
     "posixct", "posixlt", "temporal"
@@ -1683,6 +2116,14 @@ comparar_perfiles <- function(anterior, actual, umbral_cambio = 0.05,
 #' son temporales, `desvio` sí se compara en flotante porque ambas puertas lo
 #' expresan en segundos.
 #'
+#' Si un lado es temporal y el otro **no publica su tipo** —el frame de
+#' [perfilar_dbi()] no trae ningún campo de tipo—, no se afirma un cambio de
+#' tipo: los mismos campos se omiten con el motivo
+#' `tipo_desconocido:temporal_vs_sin_tipo`, porque tampoco se puede garantizar
+#' una unidad común. Una fecha guardada como número en el motor tiene su
+#' `desvio` en días de ese lado y en segundos del otro, y compararlos
+#' publicaría como diferencia del dato una diferencia de unidad.
+#'
 #' Si una columna guarda caracteres en exactamente uno de los perfiles, los
 #' campos calculados sobre la representación —longitudes, variantes unicode y
 #' números escritos como texto— se omiten y su motivo queda en
@@ -1849,6 +2290,17 @@ comparar_equivalencia <- function(anterior, actual, tolerancia) {
     columna <- mapa_anterior$original[[indice_a]]
     temporal_a <- .es_temporal_equivalencia(anterior, indice_a)
     temporal_b <- .es_temporal_equivalencia(actual, indice_b)
+    # Solo con los dos tipos conocidos se puede afirmar que cambio. Con un lado
+    # temporal y el otro sin tipo tampoco se puede garantizar una unidad comun,
+    # y abstenerse del todo -comparar como siempre- publicaba como diferencia
+    # del dato una diferencia de unidad: la misma columna `Date` guardada como
+    # REAL en SQLite tiene `desvio` en dias del lado DBI y en segundos del lado
+    # de memoria. Se omiten los mismos campos, con un motivo que no afirma un
+    # cambio que nadie midio.
+    temporal_cambiado <- !is.na(temporal_a) && !is.na(temporal_b) &&
+      xor(temporal_a, temporal_b)
+    temporal_sin_tipo <- (isTRUE(temporal_a) && is.na(temporal_b)) ||
+      (is.na(temporal_a) && isTRUE(temporal_b))
     tipo_a <- .tipo_columna_equivalencia(anterior, indice_a)
     tipo_b <- .tipo_columna_equivalencia(actual, indice_b)
     declarado_a <- .tipo_declarado_equivalencia(anterior, indice_a)
@@ -1882,10 +2334,17 @@ comparar_equivalencia <- function(anterior, actual, tolerancia) {
         campos_protegidos <- rbind(campos_protegidos, do.call(rbind, registros))
         next
       }
-      if (xor(temporal_a, temporal_b) && campo %in% campos_magnitud) {
+      if ((temporal_cambiado || temporal_sin_tipo) &&
+          campo %in% campos_magnitud) {
         campos_no_comparables <- unique(c(campos_no_comparables, campo))
         registrar_no_comparable(
-          columna, "ambos", "tipo_cambiado:temporal_vs_no_temporal", campo
+          columna, "ambos",
+          if (temporal_cambiado) {
+            "tipo_cambiado:temporal_vs_no_temporal"
+          } else {
+            "tipo_desconocido:temporal_vs_sin_tipo"
+          },
+          campo
         )
         next
       }

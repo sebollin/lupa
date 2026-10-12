@@ -70,6 +70,18 @@
 # los enteros -0,69 en ese caso- y una magnitud se reparte por varios ordenes de
 # magnitud -0,00005 para montos entre 9 y 9.999.999-. La unicidad no sirve: un
 # monto tambien es casi unico.
+#
+# La densidad sola dependia del numero de filas: una magnitud entera acotada
+# llena su rango si se cargan filas suficientes. La regla que lo cierra -densa Y
+# casi sin repetir- es la de todo el paquete y esta escrita una sola vez, en
+# `.numeracion_sin_repetir_conteos()` (`hallazgos.R`), con su medicion. Esta es
+# la entrada para un vector crudo.
+.numeracion_sin_repetir <- function(valores) {
+  n <- length(valores)
+  if (!n) return(FALSE)
+  conteos <- tabulate(match(valores, unique(valores)))
+  .numeracion_sin_repetir_conteos(length(conteos), n, max(conteos))
+}
 
 .parece_correlativo_integer64 <- function(x) {
   if (!inherits(x, "integer64") || !.bit64_disponible()) return(FALSE)
@@ -77,6 +89,7 @@
   if (length(presentes) < 2L) return(FALSE)
   distintos <- sort(unique(presentes))
   if (length(distintos) < .MIN_DISTINTOS_NUMERACION) return(FALSE)
+  if (!.numeracion_sin_repetir(presentes)) return(FALSE)
   uno <- bit64::as.integer64(1)
   rango <- max(distintos) - min(distintos) + uno
   limite_doble <- bit64::as.integer64("9007199254740991")
@@ -102,6 +115,7 @@
   if (any(valores != floor(valores))) return(FALSE)
   distintos <- sort(unique(valores))
   if (length(distintos) < .MIN_DISTINTOS_NUMERACION) return(FALSE)
+  if (!.numeracion_sin_repetir(valores)) return(FALSE)
   rango <- distintos[[length(distintos)]] - distintos[[1L]] + 1
   if (!is.finite(rango) || rango <= 0) return(FALSE)
   if (length(distintos) / rango < .MIN_DENSIDAD_NUMERACION) return(FALSE)
@@ -130,7 +144,19 @@
   proporcion_positivos <- if (n_finitos) n_positivos / n_finitos else NA_real_
   variacion <- length(unique(finitos)) > 1L
   ordenes <- if (n_positivos && variacion) {
-    log10(max(positivos)) - log10(min(positivos))
+    # La ayuda promete `log10(max/min)`, y la resta de logaritmos no es esa
+    # cuenta en el borde: con 534 y 0,534 el cociente da 1000 exacto en doble y
+    # `log10(1000)` es 3, que cumple; la resta daba 2,9999999999999996 y el motivo
+    # publicaba "3.000000000000000 < 3". De 50.000 pares decimales con cociente
+    # 1000, la resta dejaba 5.728 por debajo de 3. El cociente solo puede
+    # desbordar con extremos fuera de toda escala -un subnormal y un 1e300-, y
+    # ahi la resta es la misma magnitud sin desbordar.
+    cociente <- max(positivos) / min(positivos)
+    if (is.finite(cociente)) {
+      log10(cociente)
+    } else {
+      log10(max(positivos)) - log10(min(positivos))
+    }
   } else {
     NA_real_
   }
@@ -145,11 +171,21 @@
   # columna cruda y el hallazgo la fila resumida, que ademas rechaza la moda
   # acantilada- y por eso pueden diferir. Que difieran es defendible; publicar
   # una razon que no ocurrio, no.
+  #
+  # `posible_identificador` tiene dos textos, y solo uno describe una
+  # numeracion: el de la alta unicidad. El otro -"los valores ocupan un tramo
+  # compacto de los enteros y se repiten"- es exactamente la forma de una
+  # magnitud entera que lleno su rango, y con 200.000 filas lo recibe una
+  # columna que cumple Benford (ver `.numeracion_sin_repetir()`). Contarlo aca
+  # devolvia el silencio que depende de `n` por la otra puerta. Una clave
+  # declarada no pasa por esto: es un hecho, se repita o no.
+  repite <- !.numeracion_sin_repetir(finitos)
   motivos_identificador <- c(
     if (identical(as.character(tipo_inferido), "identificador")) {
       "el tipo inferido es identificador"
     },
-    if (isTRUE(posible_identificador)) {
+    if (isTRUE(posible_identificador) &&
+        (isTRUE(clave_declarada) || !repite)) {
       "el perfil publico `posible_identificador`"
     },
     if (.parece_correlativo_benford(x)) {
@@ -209,12 +245,17 @@
       valor == umbral) {
     return(.formatear_decimal_publicado(valor, digits))
   }
-  for (d in seq.int(digits, 15L)) {
-    if (round(valor, d) != round(umbral, d)) {
-      return(.formatear_decimal_publicado(valor, d))
+  # Se comparan los TEXTOS y no `round()`: los dos no redondean igual, y con
+  # 2,9999999999999996 `round(valor, 15)` ya difiere de 3 mientras `formatC()`
+  # con 15 decimales sigue escribiendo "3.000000000000000". Y el tope es 17: con
+  # 15 decimales dos dobles distintos pueden escribirse igual.
+  for (d in seq.int(digits, 17L)) {
+    texto <- .formatear_decimal_publicado(valor, d)
+    if (!identical(texto, .formatear_decimal_publicado(umbral, d))) {
+      return(texto)
     }
   }
-  .formatear_decimal_publicado(valor, 15L)
+  .formatear_decimal_publicado(valor, 17L)
 }
 
 .motivo_no_aplica_benford <- function(resultado, umbrales) {
@@ -423,4 +464,52 @@
       resultados = resultados
     )
   )
+}
+
+# Lo que el usuario DECLARO fuera del universo sale del resumen -`media`,
+# `minimo`, `n_outliers`- y tiene que salir tambien de los diagnosticos que leen
+# la columna como magnitud: Benford y las relaciones aritmeticas. Los dos tomaban
+# la columna cruda, y el mismo perfil afirmaba dos cosas contrarias sobre las
+# mismas celdas. Son dos declaraciones:
+#
+# - **`sentinelas_numericos`.** Medido: 160 `999` declarados en un monto
+#   lognormal; el resumen publicaba la media sin ellos y Benford contaba 2.000
+#   valores y publicaba `desviacion_benford` (X2 = 245,4), cuando sin los `999`
+#   la columna cumple (n = 1.840, X2 = 3,98, p = 0,86). Y con `-9` declarado en
+#   ocho filas de `b`, `a + b ~= total` salia `sospechoso` acusando justo esas
+#   ocho filas, que el resumen contaba como faltantes.
+# - **`aplicabilidad`.** Las filas donde la regla dice que la columna no
+#   corresponde -o donde no se puede decidir- salen del resumen, y Benford y la
+#   aritmetica las seguian contando: un valor que el usuario declaro fuera del
+#   universo sostenia una desviacion o acusaba una fila.
+#
+# No se reescribe ninguna regla: se usan las MISMAS piezas que el resumen -que
+# valores son declaracion (`.sentinelas_numericos_declarados()`), que celdas los
+# contienen (`.mascara_sentinelas_resumen()`) y la mascara de aplicabilidad que
+# `.resolver_aplicabilidad()` arma una vez para todo el perfil-, y la celda pasa
+# a `NA`, que es como el resumen la trata. La lista por omision no es una
+# declaracion y no saca nada, igual que en el resumen.
+.universo_del_resumen <- function(datos, sentinelas_numericos,
+                                  mascaras_aplicabilidad = NULL) {
+  declarados <- .sentinelas_numericos_declarados(sentinelas_numericos)
+  if (!length(datos)) return(datos)
+  for (j in seq_along(datos)) {
+    x <- datos[[j]]
+    if (!.es_numerico_pelado(x) || .es_columna_compuesta(x)) next
+    fuera <- rep(FALSE, length(x))
+    aplicable <- if (length(mascaras_aplicabilidad) >= j) {
+      mascaras_aplicabilidad[[j]]
+    } else NULL
+    if (!is.null(aplicable) && length(aplicable) == length(x)) {
+      fuera <- fuera | !as.logical(aplicable)
+    }
+    if (length(declarados)) {
+      fuera <- fuera | .mascara_sentinelas_resumen(as.numeric(x), declarados)
+    }
+    if (any(fuera)) {
+      x[fuera] <- NA
+      datos[[j]] <- x
+    }
+  }
+  datos
 }

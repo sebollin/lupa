@@ -590,12 +590,18 @@
   if (!is.finite(hueco_tipico) || hueco_tipico <= 0) hueco_tipico <- 1
   hueco_maximo <- if (length(huecos)) max(huecos) else 0
   list(
-    # `densa` responde solo si los distintos cubren suficientemente su rango.
-    # La forma de la frecuencia es una señal independiente: la guarda de
+    # `densa` responde si los distintos cubren suficientemente su rango Y casi
+    # no se repiten: cubrir el rango sola la cumple tambien una magnitud entera
+    # que se cargo con filas suficientes (`.numeracion_sin_repetir_conteos()`,
+    # en `hallazgos.R`). La forma de la frecuencia es otra señal: la guarda de
     # centinelas la consulta, pero los escudos de numeración no deben depender
-    # de que una moda legítima sobresalga.
+    # de que una moda legítima sobresalga, y por eso la regla descuenta el
+    # excedente de la moda.
     densa = length(distintos) >= min_distintos &&
-      densidad >= umbral_densidad,
+      densidad >= umbral_densidad &&
+      .numeracion_sin_repetir_conteos(
+        length(distintos), sum(frecuencias), max(frecuencias)
+      ),
     densidad = as.numeric(densidad),
     n_posiciones = as.numeric(n_posiciones),
     n_huecos = as.numeric(n_posiciones - length(distintos)),
@@ -2498,7 +2504,11 @@
     }
     convertida
   }
-  geometria <- .perfilar_geometria(x)
+  # La mascara entra solo para decidir en que se gasta el presupuesto geometrico:
+  # primero en el universo.
+  geometria <- .perfilar_geometria(
+    x, aplicable = if (isTRUE(all(aplicable))) NULL else aplicable
+  )
   # El analisis de geometria corre sobre la columna cruda -no puede ser de otro
   # modo: necesita la `sfc` entera para leer su CRS y sus tipos- asi que el universo
   # aplicable se aplica despues, sobre sus conteos y sus indices. Ver
@@ -2866,6 +2876,11 @@
     n_fuera_de_dominio = geometria$n_fuera_de_dominio,
     n_dominio_evaluados = geometria$n_dominio_evaluados,
     n_bbox_evaluados = geometria$n_bbox_evaluados,
+    # El trabajo que hizo el presupuesto geometrico. `?perfilar` los promete
+    # publicados y solo existian dentro del analisis: la unica traza era el texto
+    # de la cobertura, y solo cuando habia recorte.
+    n_geometrias_analizadas = geometria$n_geometrias_analizadas,
+    n_vertices_analizados = geometria$n_vertices_analizados,
     bbox_alcance = geometria$bbox_alcance,
     bbox_xmin = geometria$bbox_xmin,
     bbox_xmax = geometria$bbox_xmax,

@@ -52,6 +52,9 @@
       "declarar una escala de medici\u00f3n."
     )
   ))
+  # `measure` es una declaracion y se publica como tal. `"scale"` se lee como
+  # `continua`, que es como SPSS presenta ese nivel; para una cuenta declarada
+  # asi, `metadatos` permite corregir la escala.
   medida <- attr(x, "measure", exact = TRUE)
   if (is.character(medida) && length(medida) == 1L &&
       medida %in% c("nominal", "ordinal", "scale")) {
@@ -80,14 +83,40 @@
     escala = "temporal", rol = "fecha", confianza = 1, confirmada = TRUE,
     evidencia = "La clase de fecha declara semantica temporal."
   ))
+  # Una unidad declara una MAGNITUD, no si es discreta o continua: `kg` y
+  # `personas` son las dos unidades. Lo que decide entre las dos es el valor, y
+  # aca se confirmaba igual: un peso en kilos con valores enteros salia
+  # `discreta`, confirmada y con confianza 1, cuando la ayuda promete que una
+  # propuesta basada solo en valores nunca queda confirmada. La unidad confirma
+  # la escala solo cuando los valores no dejan alternativa: un decimal descarta
+  # la cuenta, y una magnitud declarada con decimales es continua. Con valores
+  # enteros -o sin ninguno- quedan las dos lecturas, una cuenta o una medida
+  # redondeada, y la propuesta sale sin confirmar.
   unidad <- attr(x, "units", exact = TRUE)
   if (is.numeric(x) && !is.null(unidad)) {
     presentes <- x[!is.na(x) & is.finite(x)]
-    discreta <- length(presentes) && all(presentes == floor(presentes))
+    if (any(presentes != floor(presentes))) {
+      return(list(
+        escala = "continua", rol = "medida", confianza = 1, confirmada = TRUE,
+        evidencia = paste0(
+          "La unidad declarada confirma una magnitud cuantitativa, y los ",
+          "decimales observados descartan una cuenta."
+        )
+      ))
+    }
     return(list(
-      escala = if (discreta) "discreta" else "continua", rol = "medida",
-      confianza = 1, confirmada = TRUE,
-      evidencia = "La unidad declarada confirma una magnitud cuantitativa."
+      escala = if (length(presentes)) "discreta" else "desconocida",
+      rol = "medida", confianza = if (length(presentes)) 0.85 else NA_real_,
+      confirmada = FALSE,
+      evidencia = paste0(
+        "La unidad declarada confirma una magnitud cuantitativa, pero ",
+        if (length(presentes)) {
+          "con valores enteros puede ser una cuenta o una medida redondeada: "
+        } else {
+          "sin valores finitos no se ve si es una cuenta o una medida: "
+        },
+        "que sea discreta o continua no esta declarado."
+      )
     ))
   }
   if (!is.null(attr(x, "labels", exact = TRUE))) return(list(
@@ -202,6 +231,11 @@
 #' Una propuesta basada sólo en valores nunca queda confirmada: `1, 2, 3` puede
 #' ser conteo, código o nivel. Las clases `ordered`, `factor`, `logical`, las
 #' clases temporales y el metadato `measure` sí constituyen declaraciones.
+#' `measure = "scale"` se publica como `continua`, la lectura que SPSS da a ese
+#' nivel. Una unidad declarada —el atributo `units`— establece una magnitud,
+#' pero no si es discreta o continua: confirma `continua` cuando los valores
+#' traen decimales, y con valores enteros la propuesta queda sin confirmar,
+#' porque pueden ser una cuenta o una medida redondeada.
 #'
 #' `metadatos` permite confirmar o corregir la propuesta con una tabla editable.
 #' Debe contener `columna` y puede incluir `escala`, `rol`, `confianza`,

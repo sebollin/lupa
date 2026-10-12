@@ -141,7 +141,9 @@ se cumple salen del universo de esa columna: no cuentan como ausencia. Las
 filas donde el predicado no se puede determinar se declaran aparte, sin
 contarse ni como aplicables ni como no aplicables. Un valor presente fuera
 del universo produce el hallazgo \code{valor_fuera_de_aplicabilidad}, que es el
-error simétrico y hoy no tiene otra forma de aparecer.
+error simétrico y hoy no tiene otra forma de aparecer. Las filas fuera del
+universo —y las indeterminadas— salen también de la ley de Benford y de las
+relaciones aritméticas, con la misma máscara que usa el resumen.
 
 \code{lupa} no infiere el universo: si nadie lo declara, toda la columna aplica
 y el resultado es el de siempre. Declararlo es lo que distingue el vacío
@@ -182,7 +184,16 @@ informe engañoso que si el vacío fuera un defecto. Con \code{TRUE}, cuando el
 valor de otra columna decide qué filas tienen ésta, o cuando dos columnas
 se reparten las filas sin pisarse, se emite \code{posible_ausencia_estructural}
 con severidad \code{ok}, la evidencia medida y la línea exacta que habría que
-escribir para declararlo. Sugiere; no decide. Las columnas ya declaradas
+escribir para declararlo. Un umbral se busca primero sobre un corte cada
+medio por ciento de la columna y después se refina entre todos los valores
+observados de ese tramo, así que el corte publicado es el primer valor
+observado del lado donde la columna corresponde. La línea no depende de la
+sesión: un instante se escribe con su zona (\code{tz}) —la de la columna, o UTC
+si no declara ninguna— y un número, con punto decimal y las cifras que hacen
+falta para volver al valor, cualquiera sea \code{OutDec}. \code{n_evaluados} cuenta
+las ausencias de la columna y \code{n_afectados} las que la regla explica: las
+que caen donde la columna no corresponde, sin contar las filas donde el
+determinante falta. Sugiere; no decide. Las columnas ya declaradas
 quedan fuera del examen. La regla tiene que cumplirse en al menos el 99 \% de
 las filas: una que un solo caso rompe por debajo de ese corte no se publica,
 porque ofrecer la línea para declararla sería afirmar de más.
@@ -209,7 +220,8 @@ La reserva \strong{sólo} rige para la lista por omisión. Si usted declara sus
 propios valores —o pide \link{sentinelas_naniar}, que es optar por una
 heurística más ancha—, se cuentan todos, incluida la aparición única. Ésa
 es también la forma de recuperar el caso que la reserva calla: declarar el
-valor lo vuelve a contar y además lo saca de los estadísticos del resumen.}
+valor lo vuelve a contar y además lo saca de los estadísticos del resumen,
+de la ley de Benford y de las relaciones aritméticas.}
 
 \item{cadenas_ausencia}{Cadenas que el usuario declara como ausencia,
 además de la lista incorporada. Lo declarado atraviesa la guarda del
@@ -265,7 +277,12 @@ patrones, sus niveles observados y la configuración propuesta: un campo
 hecho de nombres que son valores protegidos es un campo de \strong{valores}.
 Salvo donde el campo refiere columnas —\code{columna}, \code{determinante},
 \code{dependiente}, \code{nombres_propuestos} y los demás de su clase—: ahí el
-nombre es estructura y el plan lo necesita para ejecutar. Y un texto que nombra una columna entre
+nombre es estructura y el plan lo necesita para ejecutar, también cuando
+el campo lo mezcla con la tabla —\code{objeto} dice \code{(tabla)} en las medidas
+que no son de una columna— o lo escribe detrás de un prefijo del paquete
+—el \code{origen} \code{dependencia_funcional:curso->turno} de la propuesta de
+\code{\link[=analizar]{analizar()}}—. Un nombre suelto en un campo que también lleva valores
+—el mapa de una imputación— se sigue tapando. Y un texto que nombra una columna entre
 comillas —la prosa del paquete, la SQL que guarda \code{\link[=perfilar_dbi]{perfilar_dbi()}}— la
 conserva entera: con «Segundo» protegido, \code{segundo_nombre} salía
 \verb{[valor protegido]_nombre} en los hallazgos sin acción del plan y en la
@@ -316,7 +333,12 @@ Donde el documento se repite —una tabla de movimientos— el dígito repetido
 sigue en el piso: \verb{2.222.222-2} es una cédula válida. Fuera del piso no
 quiere decir publicados en la columna protegida: su moda, sus ejemplos y
 los parámetros del plan sobre ella los siguen tapando, y un centinela que
-el usuario declaró en \code{sentinelas_numericos} sigue en el piso. El piso tiene
+el usuario declaró en \code{sentinelas_numericos} y aparece en una columna
+protegida —también como su relleno— sigue en el piso. Sin los datos, el
+declarado entra siempre, porque no se sabe de qué columna es; con ellos, el
+que no aparece en ninguna protegida no entra: entraba igual, se tapaba a sí
+mismo en \code{meta} y la acción que lo convierte en un \code{monto} quedaba sin
+efecto sin proteger nada. El piso tiene
 \strong{una excepción declarada}, y es
 la única: \code{\link[=perfilar_por]{perfilar_por()}} agrupando \emph{por} una columna personal publica sus
 valores como etiquetas de grupo, porque la etiqueta es el eje del
@@ -344,7 +366,9 @@ o devanagari. El \strong{teléfono uruguayo con su prefijo de país} —\code{"5
 \code{"00598 99 123 456"} o pegado, \code{"+59899123456"}, como lo escriben los
 enlaces de WhatsApp y las exportaciones de un CRM— se prueba por su parte
 nacional, como si estuviera escrito solo, y entero; el prefijo no se une a
-otro grupo. Y el celular protegido guardado con el prefijo se reconoce
+otro grupo. También cuando va pegado a otro número por una barra o un
+guion —\code{"+59899123456/+59899765432"}, \code{"29011234/+59899123456"}—: cada
+número con esa forma se prueba por su parte nacional. Y el celular protegido guardado con el prefijo se reconoce
 escrito sin él. No unen los parecidos raros: la prima de una coordenada
 sexagesimal, el acento grave, la tilde. Los dos puntos y la barra vertical
 \strong{no} unen: una razón
@@ -419,11 +443,17 @@ lista separada por espacios, ocho de cada cien; un rango de años
 \code{"2004-2017"} o con la raya de un CSV de Windows, dos números en dos
 líneas, una lista con tabuladores o con comas sin espacio —también la coma
 ideográfica—, entre una y tres de cada cien; o una versión \code{"v4.16.4302"}.
-Un teléfono fijo que no es de nadie, escrito con espacios o guiones
-—\code{"4656 4570"}—, entre tres y seis de cada cien, igual con su prefijo de
-país (\code{"+598 4499 0917"}) o pegado: coincide con un documento o con un
-teléfono protegido. Con el prefijo era uno de cada seis, porque \code{"598"} y
-el primer grupo formaban una cédula de siete cifras sin su verificador.
+Un teléfono fijo que no es de nadie, tres de cada cien —2,8 \%, sobre
+4.000 fijos—, escrito de cualquier forma: con espacios o guiones
+(\code{"4656 4570"}), con su prefijo de país (\code{"+598 4499 0917"}) o pegado.
+Coincide con un documento o con un teléfono protegido, y como se prueba su
+parte nacional, las mismas cifras se tapan en todas las escrituras. Las
+familias del reproductor que sortean 400 fijos por escritura dan entre 1,5
+y 5,5 \%: es el sorteo, no la escritura. Con el prefijo era uno de cada
+seis, porque \code{"598"} y el primer grupo formaban una cédula de siete cifras
+sin su verificador. Y una lista de dos teléfonos unidos por una barra
+—\code{"+59894364556/+59849290458"}—, entre cinco y ocho de cada cien, como la
+misma lista con \code{" / "}: cada uno se prueba por su parte nacional.
 Y, por el mismo parcial, una versión de cuatro partes
 (\code{"v4.62.660.4361"}), trece de cada cien, y un expediente
 \code{"exp 2023-6-880041"}, uno de cada seis: su tramo \code{"660.4361"} o
@@ -455,13 +485,18 @@ punto sólo en un texto que ya tiene arroba —también la arroba escrita,
 \verb{juan@gmail punto com}—. Se lee con los espacios de Unicode como espacios
 —el duro, el ideográfico, el salto de línea de C1 (U+0085)— y los signos de
 ancho completo como los de ASCII —los paréntesis o la arroba anchos,
-también los paréntesis blancos anchos (U+FF5F, U+FF60)—, y con las demás
-formas de compatibilidad de un signo ASCII que la regla de dígitos ya lee:
-el punto ideográfico y el de medio ancho (U+3002, U+FF61), las variantes
-chicas de la coma, el punto, los paréntesis o la arroba (U+FE50 a U+FE6B) y
-la barra partida. Las letras de otro alfabeto que se parecen —una «a»
-cirílica (U+0430) en lugar de la latina— no son el mismo signo y no se
-leen. Y en cualquier
+también los paréntesis blancos anchos (U+FF5F, U+FF60)—, y con todas las
+demás formas de compatibilidad de un signo ASCII —cada carácter que la
+normalización NFKC de Unicode lleva a un solo signo ASCII—: el punto
+ideográfico y el de medio ancho (U+3002, U+FF61), las variantes chicas de
+la coma, el punto, los paréntesis o la arroba (U+FE50 a U+FE6B), la barra
+partida, los paréntesis superíndice y subíndice (U+207D, U+207E, U+208D,
+U+208E), las formas de presentación vertical (U+FE10 a U+FE48) y el punto
+de guía (U+2024). Se enumeraban las conocidas, y el correo escrito con los
+paréntesis superíndice alrededor de \code{at} se publicaba. Las letras de otro
+alfabeto que se parecen —una «a» cirílica (U+0430) en lugar de la latina—
+no son el mismo signo y no se leen, ni una letra encerrada en un círculo
+(U+24D0): es otra forma de la letra, no un signo. Y en cualquier
 codificación: un texto \code{latin1} con
 una tilde se lee como el mismo texto en UTF-8. Medido sobre 3.000 correos
 protegidos: los no protegidos escritos así se taparon lo mismo que con la
@@ -600,7 +635,17 @@ evaluar una candidata aritmética. Por omisión es \code{3}.}
 
 \item{tolerancia_aritmetica}{Tolerancia numérica relativa escalada usada al
 comparar un valor observado y uno esperado. Por omisión es \code{1e-8}; el
-criterio completo y el valor efectivo se declaran en cada evidencia.}
+criterio completo y el valor efectivo se declaran en cada evidencia. Como
+es relativa a la escala del total, con montos de \code{1e9} vale entre 10 y 20
+unidades, y una columna que vive por debajo de eso completaría cualquier
+suma entre dos columnas casi iguales. Por eso una identidad que se cumple
+igual sin uno de sus sumandos no se publica, salvo que se cumpla exacta —con
+la única diferencia del redondeo del tipo double, \code{4 * .Machine$double.eps}
+relativo— en la proporción de \code{umbral_aritmetica}; la evidencia lo dice, y
+las descartadas se cuentan en
+\code{meta$aritmetica_columnas$identidades_descartadas_escala}, junto a la
+resolución usada en \code{resolucion_exacta}. Es el mismo
+criterio que el filtro de magnitud de las relaciones de orden.}
 
 \item{max_columnas_aritmetica}{Máximo de columnas numéricas que intervienen
 en la búsqueda aritmética, cuyo costo crece cúbicamente. Por omisión es
@@ -1036,8 +1081,11 @@ El paquete distingue lo que el usuario \strong{declara} de lo que él mismo
 de \code{media}, \code{mediana}, \code{minimo}, \code{maximo}, \code{desvio} y \code{n_outliers}, igual que
 salen los \code{NA} y las filas que \code{aplicabilidad} deja fuera del universo;
 \code{n_valores_excluidos_resumen} y \code{estado_resumen_cuantitativo} declaran ese
-alcance. La lista por omisión —\code{-9}, \code{-99}, \code{-999}, \code{-9999} y \code{999}— es en
-cambio una conjetura del paquete: se informa como \code{faltantes_disfrazados}
+alcance. Salen también de la ley de Benford y de las relaciones aritméticas,
+que leen la columna como magnitud: la misma celda no puede ser ausencia en
+el resumen y valor en un diagnóstico. La lista por omisión —\code{-9}, \code{-99},
+\code{-999}, \code{-9999} y \code{999}— es en cambio una conjetura del paquete: se
+informa como \code{faltantes_disfrazados}
 pero \strong{no} se retira de los resúmenes, porque \code{999} también puede ser un
 dato legítimo y actuar sobre una sospecha cambiaría números que nadie pidió
 cambiar.
@@ -1088,7 +1136,15 @@ análisis. Antes de
 comparar exige variación, que la columna no parezca un
 identificador ni una secuencia correlativa, al menos 100 observaciones
 positivas utilizables, una proporción de positivos igual a 1 y tres órdenes
-de magnitud según \code{log10(max/min)}. Si falla alguna precondición no emite un
+de magnitud según \code{log10(max/min)}. Una secuencia correlativa es una columna
+de enteros que cubre al menos la mitad del tramo entre su mínimo y su máximo
+\strong{sin repetirse} —al menos un 90 \% de valores distintos—: una magnitud
+entera acotada también llena su tramo cuando se cargan filas suficientes,
+pero repitiendo valores, y la exclusión no puede depender de cuántas filas
+se cargaron. Es la regla de numeración de todo el perfil (ver
+\code{secuencia_entera_densa} más abajo), y una clave declarada excluye a Benford
+siempre. Si
+falla alguna precondición no emite un
 hallazgo: la enumera en \code{cobertura_diagnosticos}. Si aplica,
 \code{meta$benford$resultados} conserva la distribución observada y esperada por
 primer dígito, el chi-cuadrado de Pearson, ocho grados de libertad y el valor
@@ -1121,7 +1177,8 @@ las clases medidas en esta tabla. La ley de Benford sigue el mismo criterio y
 la misma declaración. Cada relación requiere al
 menos tres filas con valores finitos en todas las columnas involucradas;
 los \code{NA}, \code{NaN} e infinitos quedan fuera del universo que publica la
-evidencia. Para cada terna se prueban las tres orientaciones de una identidad
+evidencia. Una columna \code{integer} se suma en doble: que dos enteros pasen
+\code{.Machine$integer.max} no apaga la relación. Para cada terna se prueban las tres orientaciones de una identidad
 aditiva; esto cubre sumas y sus restas equivalentes sin informar tres veces
 la misma igualdad. En pares proporcionales, \code{k} es la mediana de los cocientes
 finitos cuya base no es cero, pero el cumplimiento se evalúa después también
@@ -1237,7 +1294,8 @@ resultado no dependa de que \code{s2} esté instalado; \code{validez_criterio} p
 geometrías vacías porque GEOS sí devuelve su validez. Si hay una dimensión
 M, se aplica \code{sf::st_zm()} y se valida la topología XY;
 \code{validez_preprocesamiento = "st_zm(x)"} declara esa transformación. Si el
-CRS es geográfico, un fallo es \code{sospechoso} y no un \code{error}, porque no afirma
+CRS es geográfico —con SRID mezclados, si todos lo son—, un fallo es
+\code{sospechoso} y no un \code{error}, porque no afirma
 invalidez esférica. Las dimensiones Z y M no se evalúan como medidas:
 \code{dimensiones_no_evaluadas} las enumera y \code{cobertura_diagnosticos} deja
 constancia explícita incluso cuando la validez XY sí pudo calcularse.
@@ -1249,12 +1307,20 @@ como metros—, pero no una zona UTM equivocada cuando esa interpretación cae
 dentro del área de la zona declarada. Una \code{BBOX} mundial es un no-op válido;
 si el WKT no permite extraer la caja, el dominio queda en \code{NA} y
 \code{cobertura_diagnosticos} lo declara en lugar de suponer el mundo entero.
+Si el CRS geográfico mide desde otro meridiano de origen —París, Ferro— o en
+otra unidad —gradianes—, ese rango se exige en sus propias unidades y la
+comparación con la \code{BBOX} se hace después de llevar las coordenadas a
+longitud/latitud WGS 84. Un componente vacío de una geometría que no es
+vacía —un \verb{POINT EMPTY} dentro de una colección o de un \code{MULTIPOINT}— no es
+una coordenada y no cuenta como fuera de dominio.
 Las geometrías vacías se cuentan aparte y no integran el universo del dominio
 ni de la bbox. \code{n_dominio_evaluados} y \code{n_bbox_evaluados} publican ambos
 universos; la bbox se calcula sobre coordenadas crudas de geometrías no
 vacías, incluidas las que el dominio marque fuera, y \code{bbox_alcance} lo
 declara. Si todas son vacías, sus conteos evaluados y fuera de dominio son
-cero. Sin CRS,
+cero. \code{geometria_vacia} y \code{tipos_geometria_mixtos} cuentan sobre las
+geometrías medidas: un valor ausente de una columna de texto o un valor que no
+se pudo convertir no es una geometría y no entra en su denominador. Sin CRS,
 \code{n_fuera_de_dominio} queda en \code{NA} y se emite \code{crs_no_declarado}: nunca se
 supone EPSG:4326. Si falta el paquete opcional \code{sf}, todos esos campos quedan
 en \code{NA}, no se emite un hallazgo geométrico y \code{cobertura_diagnosticos}
@@ -1269,17 +1335,36 @@ declara aparte en \code{cobertura_diagnosticos}.
 restringen a ese universo, igual que el resto del perfilado: una geometría que la
 regla dejó afuera no cuenta como vacía, ni como inválida, ni como fuera de dominio,
 y \code{n_geometrias}, \code{n_dominio_evaluados} y \code{n_validez_evaluados} describen el
-universo. Tres campos son la excepción y conviene saber por qué:
+universo. Los dos evaluados cuentan sólo lo que de verdad se evaluó dentro de
+él: no entran las geometrías que el presupuesto no analizó, los valores
+ausentes de una columna de texto ni, para el dominio, las geometrías vacías.
+El presupuesto geométrico —los topes \code{lupa.max_geometrias} y
+\code{lupa.max_vertices}, que acotan la validez y el dominio— se gasta primero en
+el universo, con el mismo muestreo uniforme si el universo solo ya excede el
+tope, y lo que sobra va al resto de la columna. Si aun así quedaron
+geometrías del universo sin analizar, \code{cobertura_diagnosticos} dice cuántas,
+junto al recorte de la columna; si el recorte cayó entero fuera del
+universo, también lo dice.
+Tres campos son la excepción y conviene saber por qué:
 \code{n_bbox_evaluados}, \code{n_geometrias_analizadas} y \code{n_vertices_analizados} cuentan
-\strong{el trabajo que se hizo}, no filas de un universo —el análisis geométrico corre
-sobre la columna entera, porque necesita su CRS y sus tipos—, así que se publican
+\strong{el trabajo que se hizo} sobre la columna entera —el universo y lo que el
+presupuesto alcanzó del resto—, no filas de un universo: el análisis geométrico
+corre sobre la columna, porque necesita su CRS y sus tipos, así que se publican
 tal como se midieron. Recortarlos a ojo sería inventar un número: no hay conjunto
 de índices del que derivarlos.
 
 \strong{Una columna de texto puede ser una geometría.} Se reconoce como WKT o WKB
 (crudo o hexadecimal) cuando la mayoría de una muestra de 20 valores tiene esa
 forma; si después hay valores que no se pueden convertir, la pérdida se declara
-en \code{motivo_representacion}. Esa columna se sigue perfilando como texto en lo que
+con su cifra en \code{motivo_representacion} y en \code{cobertura_diagnosticos}, y las
+métricas cubren el resto: un valor que no convierte no borra la medición de la
+columna. A \code{sf} sólo llega lo que tiene la forma de su representación —un WKT
+de los tipos que el perfil mide, con su dimensión \code{Z} o \code{M} y colecciones
+anidadas como las que escribe PostGIS, o un WKB de encabezado plausible—; el
+texto corrupto y las curvas se declaran como no convertidos. Si los valores
+declaran su SRID —\code{SRID=n;} en EWKT, o EWKB—, la columna se mide por SRID y no
+se acusa \code{crs_no_declarado}, aunque ningún valor se haya podido convertir.
+Esa columna se sigue perfilando como texto en lo que
 toca a su escritura —espacios, codificación, invisibles—, pero no recibe los
 diagnósticos que leen los valores como palabras o como claves —la proximidad de
 vocabulario, \code{posible_identificador}, \code{patron_raro}—: \code{cobertura_diagnosticos}
@@ -1370,9 +1455,17 @@ precedencia: un centinela no se presenta también como posible variante de un
 valor válido. El alcance declara cuántas observaciones retiró este filtro.
 
 La corazonada de centinelas numéricos se apaga sobre una \strong{numeración
-limpia}, para no llamar ausencia a un código válido. \code{densa} responde sólo
-a la cobertura del rango —\code{densidad_secuencia_entera} por encima de su
-umbral—; \code{moda_sobresale_secuencia_entera} es una señal independiente y no
+limpia}, para no llamar ausencia a un código válido. \code{densa} responde a la
+cobertura del rango —\code{densidad_secuencia_entera} por encima de su umbral— y
+a que los valores \strong{casi no se repitan}: al menos un 90 \% de valores
+distintos, descontando el excedente de la moda. Cubrir el rango sola lo
+cumple también una magnitud entera acotada cuando se cargan filas
+suficientes, y el veredicto dependía de cuántas filas se leyeron; una
+numeración que se repite —un código de catálogo, una clave foránea— no se
+distingue por su forma de esa magnitud y no se trata como numeración. Es la
+misma regla que deciden \code{posible_identificador}, la guarda de los límites de
+Tukey, la de los patrones raros y la de Benford.
+\code{moda_sobresale_secuencia_entera} es una señal independiente y no
 cambia los tres escudos de forma que dependen de la numeración.
 En una columna \code{integer64}, \code{bit64} se carga de manera diferida si está
 instalado para registrar sus métodos antes de medir. Si no está instalado,

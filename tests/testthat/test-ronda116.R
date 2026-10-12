@@ -57,22 +57,22 @@ test_that("Benford sigue corriendo sobre magnitudes casi unicas", {
   expect_true("desviacion_benford" %in% .tipos_r116(perfil, "monto"))
 })
 
-test_that("los limites de Tukey no se evaluan sobre un codigo, y se declara", {
-  # Un codigo 1..284 cuyas filas se concentran en los bajos: Tukey marca la
-  # cola entera. Son 179 valores "extremos" que no dicen nada de la calidad.
+test_that("un codigo que se repite no se toma por numeracion, y Tukey corre", {
+  # Ronda 28-N. Esta prueba afirmaba que Tukey no se evalua sobre `EstCod`, un
+  # codigo 1..284 que se repite, con el motivo "es una numeracion -un
+  # identificador o un codigo- y no una magnitud". Lo que lo decidia era que los
+  # valores cubren el tramo de enteros, y eso tambien lo hace una cuenta acotada
+  # cargada con filas suficientes: la misma columna era magnitud con pocas filas
+  # y numeracion con muchas. Con valores que se repiten el motivo no se puede
+  # afirmar, y la regla del paquete es hablar de mas antes que callar.
   set.seed(9)
   codigos <- c(sample(seq_len(60L), 1900L, TRUE), sample(61:284, 224L, TRUE))
   perfil <- .perfil_r116(data.frame(EstCod = codigos))
 
   expect_gt(perfil$columnas$n_outliers, 0L)
-  expect_false("outliers" %in% .tipos_r116(perfil, "EstCod"))
-
-  motivo <- .motivo_r116(perfil, "EstCod", "outliers")
-  expect_length(motivo, 1L)
-  # El motivo declara el criterio que se aplico y cuanto se dejo de decir. Un
-  # motivo que describe otro criterio es la misma falta que no declarar nada.
-  expect_match(motivo, "de los enteros entre su minimo y su maximo")
-  expect_match(motivo, as.character(perfil$columnas$n_outliers))
+  expect_true("outliers" %in% .tipos_r116(perfil, "EstCod"))
+  expect_length(.motivo_r116(perfil, "EstCod", "outliers"), 0L)
+  expect_false(perfil$columnas$secuencia_entera_densa)
 })
 
 test_that("un valor fuera de escala rompe la densidad y se sigue senalando", {

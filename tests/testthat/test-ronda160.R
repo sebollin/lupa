@@ -192,6 +192,8 @@
 }
 
 test_that("el contador de duplicados fija los bordes de la semantica de base", {
+  # Convierte cada caso tambien a tibble, que esta en Suggests.
+  skip_if_not_installed("tibble")
   casos <- list(
     cero_filas = data.frame(a = numeric(), b = character()),
     una_fila = data.frame(a = 1, b = "x"),
@@ -403,6 +405,7 @@ test_that("la salida tabular de una metrica tambien queda aislada de cedta", {
 test_that("la API de coleccion coincide cuando su tabla declarada cambia de clase", {
   skip_if_not_installed("DBI")
   skip_if_not_installed("RSQLite")
+  skip_if_not_installed("tibble")
   con <- DBI::dbConnect(RSQLite::SQLite(), ":memory:")
   on.exit(DBI::dbDisconnect(con), add = TRUE)
   DBI::dbWriteTable(con, "tabla_a", data.frame(id = 1:3))

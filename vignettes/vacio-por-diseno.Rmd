@@ -86,8 +86,9 @@ cat(perfil$hallazgos$sugerencia[
 
 Severidad `ok`: no es un defecto, es una lectura de la estructura. La evidencia
 es un hecho medido sobre los datos —qué proporción de las filas queda explicada
-por el valor de la otra columna— y la sugerencia trae la línea exacta que habría
-que escribir. Quien decide sigue siendo el usuario: el paquete no reescribe el
+por el valor de la otra columna, y cuántas de las ausencias caen donde la regla
+dice que la columna no corresponde, que es lo que cuenta `n_afectados`— y la
+sugerencia trae la línea exacta que habría que escribir. Quien decide sigue siendo el usuario: el paquete no reescribe el
 universo por su cuenta, y las columnas ya declaradas quedan fuera del examen.
 
 La señal sale por dos caminos. Uno es el de arriba: **una columna determina la

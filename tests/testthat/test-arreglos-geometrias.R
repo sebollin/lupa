@@ -524,27 +524,30 @@ test_that("un WKB declarado con un valor invalido declara la perdida sin sf", {
   )[[1L]]
   invalido <- as.raw(c(2, 3, 4, 5, 6))
   columna <- structure(list(valido, invalido), class = "WKB")
-  llamadas <- 0L
+  recibidos <- list()
+  original <- sf::st_as_sfc
   local_mocked_bindings(
-    st_as_sfc = function(...) {
-      llamadas <<- llamadas + 1L
-      stop("st_as_sfc no debe recibir un WKB estructuralmente invalido")
+    st_as_sfc = function(x, ...) {
+      recibidos <<- c(recibidos, unclass(x))
+      original(x, ...)
     },
     .package = "sf"
   )
 
   metricas <- lupa:::.perfilar_geometria(columna)
 
-  expect_identical(llamadas, 0L)
+  ## El invalido nunca llega a sf. Antes, ademas, borraba la medicion de la
+  ## columna entera; desde la ronda 28-G el valido se mide y la perdida se
+  ## declara con su cifra: un solo valor basura no deja la columna sin medir.
+  expect_false(any(vapply(recibidos, identical, logical(1L), invalido)))
   expect_true(metricas$aplica)
   expect_identical(metricas$representacion_geometria, "WKB")
   expect_true(metricas$sf_evaluado)
-  expect_false(metricas$geometria_convertida)
-  expect_false(metricas$validez_evaluada)
-  expect_false(metricas$dominio_evaluado)
-  expect_match(metricas$motivo_representacion, "estructuralmente invalidos")
-  expect_match(metricas$motivo_validez, "estructuralmente invalidos")
-  expect_match(metricas$motivo_dominio, "estructuralmente invalidos")
+  expect_true(metricas$geometria_convertida)
+  expect_identical(metricas$n_validez_evaluados, 1L)
+  expect_identical(metricas$n_valores_no_convertidos, 1L)
+  expect_match(metricas$motivo_representacion, "1 de 2 valores presentes")
+  expect_match(metricas$motivo_representacion, "no se entrego a sf")
 })
 
 test_that("el perfil publica las metricas espaciales de una columna WKT", {

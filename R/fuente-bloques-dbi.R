@@ -160,7 +160,7 @@
     )
     respuesta <- tryCatch(
       .consultar_dbi(conexion, sql, presupuesto, etapa = "sonda_collation_dbi"),
-      error = function(e) list(ok = FALSE, motivo = conditionMessage(e))
+      error = function(e) list(ok = FALSE, motivo = .mensaje_motor(e))
     )
     datos <- if (isTRUE(respuesta$ok)) respuesta$datos else NULL
     if (inherits(datos, "data.frame") && nrow(datos)) {
@@ -216,7 +216,7 @@
     )
     respuesta <- tryCatch(
       .consultar_dbi(conexion, sql, presupuesto, etapa = "sonda_collation_dbi"),
-      error = function(e) list(ok = FALSE, motivo = conditionMessage(e))
+      error = function(e) list(ok = FALSE, motivo = .mensaje_motor(e))
     )
     datos <- if (isTRUE(respuesta$ok)) respuesta$datos else NULL
     if (inherits(datos, "data.frame") && nrow(datos)) {
@@ -269,7 +269,7 @@
     )
     respuesta <- tryCatch(
       .consultar_dbi(conexion, sql, presupuesto, etapa = "sonda_collation_dbi"),
-      error = function(e) list(ok = FALSE, motivo = conditionMessage(e))
+      error = function(e) list(ok = FALSE, motivo = .mensaje_motor(e))
     )
     datos <- if (isTRUE(respuesta$ok)) respuesta$datos else NULL
     if (inherits(datos, "data.frame") && nrow(datos)) {
@@ -322,7 +322,7 @@
                                                  presupuesto = NULL) {
   respuesta <- tryCatch(
     .consultar_dbi(conexion, sql, presupuesto, etapa = "sonda_fuente_bloques"),
-    error = function(e) list(ok = FALSE, motivo = conditionMessage(e))
+    error = function(e) list(ok = FALSE, motivo = .mensaje_motor(e))
   )
   isTRUE(respuesta$ok)
 }
@@ -1176,7 +1176,7 @@
                   entrada = 0, texto = 0, retenidos = 0,
                   rss_maximo = NA_real_),
                 locators = locators,
-                error = paste0("no_disponible:dbSendQuery:", conditionMessage(resultado))))
+                error = paste0("no_disponible:dbSendQuery:", .mensaje_motor(resultado))))
   }
   bloques$consultas_sql <- 1L
   on.exit(tryCatch(DBI::dbClearResult(resultado), error = function(e) NULL), add = TRUE)
@@ -1193,7 +1193,7 @@
                                 retenidos = sum(vapply(acumuladores, .bytes_retenidos, numeric(1L)),
                                                 na.rm = TRUE), rss_maximo = NA_real_),
                   locators = locators,
-                  error = paste0("no_disponible:dbFetch:", conditionMessage(bloque))))
+                  error = paste0("no_disponible:dbFetch:", .mensaje_motor(bloque))))
     }
     if (!inherits(bloque, "data.frame")) bloque <- as.data.frame(bloque)
     bloque <- .marcar_utf8_tabla(bloque)
@@ -1301,7 +1301,7 @@
   rs <- tryCatch(DBI::dbSendQuery(conexion, fuente$consulta), error = function(e) e)
   if (inherits(rs, "condition")) {
     return(list(estado = "no_disponible", identidad = NA,
-                motivo = paste0("no_disponible:dbSendQuery:", conditionMessage(rs)),
+                motivo = paste0("no_disponible:dbSendQuery:", .mensaje_motor(rs)),
                 consultas_sql = 1L, fetches = 0L))
   }
   consultas_sql <- 1L
@@ -1314,7 +1314,7 @@
     fetches <- fetches + 1L
     if (inherits(bloque, "condition")) {
       return(list(estado = "no_disponible", identidad = NA,
-                  motivo = paste0("no_disponible:dbFetch:", conditionMessage(bloque)),
+                  motivo = paste0("no_disponible:dbFetch:", .mensaje_motor(bloque)),
                   consultas_sql = consultas_sql, fetches = fetches))
     }
     if (!nrow(bloque)) break
