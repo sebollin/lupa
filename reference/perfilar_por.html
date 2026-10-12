@@ -188,7 +188,12 @@ no se miró.</p>
 <p>Las senales de numeracion densa y de identificacion se miden tambien sobre
 columnas <code>integer64</code> con comparaciones exactas. Si un grupo vuelve a
 conjeturar un centinela por la particion, el hallazgo se mueve a esta
-cobertura y no se publica como defecto del grupo.</p>
+cobertura y no se publica como defecto del grupo. "La columna entera" es la
+que <code><a href="perfilar.html">perfilar()</a></code> mide con la misma declaración: las filas que
+<code>aplicabilidad</code> deja fuera no cuentan para el centinela, la numeración ni
+la guarda de Benford. Y lo que la columna entera sí conjetura —una
+numeración cuya moda sobresale, o un candidato fuera de su rango— no es
+de la partición: el grupo lo publica.</p>
     </div>
     <div class="section level2">
     <h2 id="details">Details<a class="anchor" aria-label="anchor" href="#details"></a></h2>

@@ -372,14 +372,22 @@ columna —una planilla pivoteada con una columna de notas por docente y la
 docente protegida—, su moda sigue tapada, y también los ejemplos de sus
 patrones, sus niveles observados y la configuración propuesta: un campo
 hecho de nombres que son valores protegidos es un campo de <strong>valores</strong>.
-Salvo donde el campo refiere columnas —<code>columna</code>, <code>determinante</code>,
+Salvo donde el campo refiere columnas —<code>columna</code>, <code>columna_1</code> y
+<code>columna_2</code> de las columnas duplicadas, <code>eliminar</code>, <code>determinante</code>,
 <code>dependiente</code>, <code>nombres_propuestos</code> y los demás de su clase—: ahí el
 nombre es estructura y el plan lo necesita para ejecutar, también cuando
 el campo lo mezcla con la tabla —<code>objeto</code> dice <code>(tabla)</code> en las medidas
 que no son de una columna— o lo escribe detrás de un prefijo del paquete
 —el <code>origen</code> <code>dependencia_funcional:curso-&gt;turno</code> de la propuesta de
 <code><a href="analizar.html">analizar()</a></code>—. Un nombre suelto en un campo que también lleva valores
-—el mapa de una imputación— se sigue tapando. Y un texto que nombra una columna entre
+—el mapa de una imputación— se sigue tapando, aunque todos los valores
+del mapa sean nombres de columna: sus <code>determinante</code> y <code>dependiente</code> son
+valores de las dos columnas, y <code><a href="planificar_limpieza.html">aplicar()</a></code> lo resuelve sobre los datos
+que recibe. El texto del usuario que llega a un campo de vocabulario —la
+<code>unidad</code> de una columna, que es su atributo <code>units</code>— no se ampara en el
+vocabulario: un valor protegido entre límites de palabra se tapa, y una
+palabra del paquete —<code>faltantes</code>, <code>segundos</code>— sigue siendo vocabulario
+aunque un valor protegido coincida con ella. Y un texto que nombra una columna entre
 comillas —la prosa del paquete, la SQL que guarda <code><a href="perfilar_dbi.html">perfilar_dbi()</a></code>— la
 conserva entera: con «Segundo» protegido, <code>segundo_nombre</code> salía
 <code>[valor protegido]_nombre</code> en los hallazgos sin acción del plan y en la
@@ -466,7 +474,10 @@ nacional, como si estuviera escrito solo, y entero; el prefijo no se une a
 otro grupo. También cuando va pegado a otro número por una barra o un
 guion —<code>"+59899123456/+59899765432"</code>, <code>"29011234/+59899123456"</code>—: cada
 número con esa forma se prueba por su parte nacional. Y el celular protegido guardado con el prefijo se reconoce
-escrito sin él. No unen los parecidos raros: la prima de una coordenada
+escrito sin él, también guardado como número de planilla
+—<code>"59899123456.0"</code>, <code>"59899123456,0"</code> o <code>"5.9899123456E+10"</code>, la misma
+cifra—, y al revés: escrito así en un texto se lee por su parte
+nacional. No unen los parecidos raros: la prima de una coordenada
 sexagesimal, el acento grave, la tilde. Los dos puntos y la barra vertical
 <strong>no</strong> unen: una razón
 <code>"494:2714"</code> o una lista <code>"12|345|6789"</code> no es un documento, y un documento
@@ -1398,8 +1409,10 @@ pegar.</p>
 puede distinguir sin decodificarla. Un valor ilegible cuenta como valor, y
 la moda que se publica es el valor original tal como llegó, sin
 reinterpretarlo. Cuando ese valor es numérico, su representación textual se
-formatea con notación fija, con la precisión completa e independiente de
-<code>scipen</code> y de <code>digits</code>; se conserva
+formatea con notación fija, con la precisión completa —las cifras que hacen
+falta para volver al valor: <code>0.1 + 0.2</code> se publica <code>0.30000000000000004</code>,
+no <code>0.3</code>— e independiente de <code>scipen</code> y de <code>digits</code>, igual en
+<code>perfilar()</code> y en los caminos de <code><a href="perfilar_dbi.html">perfilar_dbi()</a></code>; se conserva
 <code>OutDec</code>, porque esa marca decimal sí pertenece a la preferencia de locale
 de quien usa el paquete.</p>
 <p>Las columnas <code>sfc</code> declaran su CRS, los tipos concretos y la dimensión
@@ -1497,7 +1510,11 @@ responde cuánto aporta cada paso por separado; sus números no son aditivos
 porque dos pasos pueden fundir el mismo par. <code>n_distintos</code> y
 <code>n_distintos_normalizados</code> declaran el total antes y después del perfil
 completo. La descomposición canónica es siempre activa y forma parte de la
-línea base, no una fila configurable.
+línea base, no una fila configurable. Un valor con marca <code>bytes</code> entra con su
+clave de bytes —cada byte alto escrito <code>\xHH</code>—, como en
+<code><a href="detectar_claves.html">detectar_claves()</a></code> y <code><a href="detectar_duplicados_aproximados.html">detectar_duplicados_aproximados()</a></code>: <code>bytes</code> declara
+que eso no se interprete como texto, así que no se pliega con el mismo texto
+marcado UTF-8. Los tres cuentan igual <code>n_distintos_normalizados</code>.
 Con <code>normalizar = FALSE</code> no hay pasos configurables que medir y el informe
 de fusiones queda en <code>NULL</code>; en un perfil por columna sólo se incluyen las
 columnas con algún paso activo. Si <code><a href="detectar_duplicados_aproximados.html">detectar_duplicados_aproximados()</a></code> recibe

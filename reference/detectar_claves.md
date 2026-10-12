@@ -16,11 +16,16 @@ con su política por omisión o con la del `perfil` que se pase, y la
 casi-clave se mide sin ellos —sus distintos, exactos y normalizados, y
 sus colisiones—. Una clave sana con treinta documentos en `"SIN DATO"`
 no es una clave rota: le faltan treinta documentos. `n_filas` sigue
-siendo el de la tabla. Los vectores `double` sólo son candidatos si
-ninguno de sus valores finitos tiene parte fraccionaria. Esto conserva
-identificadores enteros importados desde archivos de texto y excluye
-importes, coordenadas y otras medidas. Los vectores `integer64` se
-tratan como enteros semánticos.
+siendo el de la tabla. La unicidad normalizada compara cada valor de
+texto por su clave de bytes, la misma con que
+[`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md)
+cuenta `n_distintos_normalizados`: un valor con marca `bytes` entra con
+cada byte alto escrito `\xHH` y no se pliega con el mismo texto marcado
+UTF-8; `latin1` y UTF-8 del mismo texto entran igual. Los vectores
+`double` sólo son candidatos si ninguno de sus valores finitos tiene
+parte fraccionaria. Esto conserva identificadores enteros importados
+desde archivos de texto y excluye importes, coordenadas y otras medidas.
+Los vectores `integer64` se tratan como enteros semánticos.
 
 ## Usage
 

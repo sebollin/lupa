@@ -184,11 +184,17 @@ analizar(
   `POSIXct` de la fecha con hora protegida queda en `NA`, como la tapa
   [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md)—,
   las columnas de lista elemento por elemento, los atributos de la tabla
-  y de cada columna, y los nombres de fila, que vuelven a ser los
-  números de fila si alguno lleva un valor protegido. Una columna
-  protegida conserva sólo los atributos de su clase (`class`, `tzone`,
-  `units`, `dim`): las etiquetas de valor de un `haven_labelled` se
-  quitan. Para conservar sus valores debe usarse
+  y de cada columna —también `levels` en lo que no es un factor y
+  `units`—, y los nombres de fila, que vuelven a ser los números de fila
+  si alguno lleva un valor protegido. Una columna `POSIXlt` se tapa como
+  la `POSIXct`, y cualquier lista con clase —un registro de `vctrs`, un
+  `blob`— por sus valores; un BLOB (`raw`) se lee como el texto que
+  guarda y, si lleva un valor protegido, la copia guarda los bytes del
+  texto tapado; un entorno no se modifica —es del usuario—: si guarda un
+  valor protegido, la copia lleva `"[valor protegido]"` en su lugar. Una
+  columna protegida conserva sólo los atributos de su clase (`class`,
+  `tzone`, `units`, `dim`): las etiquetas de valor de un
+  `haven_labelled` se quitan. Para conservar sus valores debe usarse
   `proteger_datos_personales = FALSE` al crear el analisis y al
   guardarlo. La opcion del guardado no recupera valores que el analisis
   ya enmascaro.

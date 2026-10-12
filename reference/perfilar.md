@@ -348,7 +348,8 @@ perfilar(
   también los ejemplos de sus patrones, sus niveles observados y la
   configuración propuesta: un campo hecho de nombres que son valores
   protegidos es un campo de **valores**. Salvo donde el campo refiere
-  columnas —`columna`, `determinante`, `dependiente`,
+  columnas —`columna`, `columna_1` y `columna_2` de las columnas
+  duplicadas, `eliminar`, `determinante`, `dependiente`,
   `nombres_propuestos` y los demás de su clase—: ahí el nombre es
   estructura y el plan lo necesita para ejecutar, también cuando el
   campo lo mezcla con la tabla —`objeto` dice `(tabla)` en las medidas
@@ -357,7 +358,16 @@ perfilar(
   propuesta de
   [`analizar()`](https://sebollin.github.io/lupa/reference/analizar.md)—.
   Un nombre suelto en un campo que también lleva valores —el mapa de una
-  imputación— se sigue tapando. Y un texto que nombra una columna entre
+  imputación— se sigue tapando, aunque todos los valores del mapa sean
+  nombres de columna: sus `determinante` y `dependiente` son valores de
+  las dos columnas, y
+  [`aplicar()`](https://sebollin.github.io/lupa/reference/planificar_limpieza.md)
+  lo resuelve sobre los datos que recibe. El texto del usuario que llega
+  a un campo de vocabulario —la `unidad` de una columna, que es su
+  atributo `units`— no se ampara en el vocabulario: un valor protegido
+  entre límites de palabra se tapa, y una palabra del paquete
+  —`faltantes`, `segundos`— sigue siendo vocabulario aunque un valor
+  protegido coincida con ella. Y un texto que nombra una columna entre
   comillas —la prosa del paquete, la SQL que guarda
   [`perfilar_dbi()`](https://sebollin.github.io/lupa/reference/perfilar_dbi.md)—
   la conserva entera: con «Segundo» protegido, `segundo_nombre` salía
@@ -453,30 +463,33 @@ perfilar(
   También cuando va pegado a otro número por una barra o un guion
   —`"+59899123456/+59899765432"`, `"29011234/+59899123456"`—: cada
   número con esa forma se prueba por su parte nacional. Y el celular
-  protegido guardado con el prefijo se reconoce escrito sin él. No unen
-  los parecidos raros: la prima de una coordenada sexagesimal, el acento
-  grave, la tilde. Los dos puntos y la barra vertical **no** unen: una
-  razón `"494:2714"` o una lista `"12|345|6789"` no es un documento, y
-  un documento escrito así no se reconoce. Una fecha con hora protegida
-  se reconoce escrita con `T`, `Z`, uno a tres espacios, coma, punto y
-  coma, guion o guion doble, guion bajo, barra, barra vertical, arroba,
-  paréntesis o corchete entre la fecha y la hora, con día y mes en
-  cualquier orden, con la hora separada por puntos, guiones o `h` y `m`
-  (`"21h24m25s"`), en la forma compacta `"20240627T212425"` o con la
-  hora compacta tras la fecha con separadores (`"2024-06-27T212425"`);
-  no en palabras, con a.m./p.m., con cuatro espacios o más ni con el año
-  en dos cifras —también con las formas chicas o de ancho completo de
-  esos signos, o con la barra partida por barra vertical—. El documento
-  **parcial**, de siete cifras o más, se busca con más cuidado porque es
-  el que coincide por azar: sin su verificador, fuera de la parte de un
-  decimal, de un número con forma de dirección IPv4 —con o sin máscara
-  CIDR— y de un importe con miles de cuatro grupos o más
-  (`"3.919.024.166"`), que se prueban enteros —el importe, también sin
-  su primer grupo: es el prefijo de país de un celular agrupado de a
-  tres, `"598.099.123.456"`, que se publicaba— (`"4.123.456"` frente a
-  `"4.123.456-7"`, el verificador mal tipeado, el documento seguido de
-  un año), y sin su primer dígito sólo detrás de un asterisco o una
-  equis (`"*.123.456-7"`, `"X.012.345-8"`, `"X2345678"`) —también los
+  protegido guardado con el prefijo se reconoce escrito sin él, también
+  guardado como número de planilla —`"59899123456.0"`, `"59899123456,0"`
+  o `"5.9899123456E+10"`, la misma cifra—, y al revés: escrito así en un
+  texto se lee por su parte nacional. No unen los parecidos raros: la
+  prima de una coordenada sexagesimal, el acento grave, la tilde. Los
+  dos puntos y la barra vertical **no** unen: una razón `"494:2714"` o
+  una lista `"12|345|6789"` no es un documento, y un documento escrito
+  así no se reconoce. Una fecha con hora protegida se reconoce escrita
+  con `T`, `Z`, uno a tres espacios, coma, punto y coma, guion o guion
+  doble, guion bajo, barra, barra vertical, arroba, paréntesis o
+  corchete entre la fecha y la hora, con día y mes en cualquier orden,
+  con la hora separada por puntos, guiones o `h` y `m` (`"21h24m25s"`),
+  en la forma compacta `"20240627T212425"` o con la hora compacta tras
+  la fecha con separadores (`"2024-06-27T212425"`); no en palabras, con
+  a.m./p.m., con cuatro espacios o más ni con el año en dos cifras
+  —también con las formas chicas o de ancho completo de esos signos, o
+  con la barra partida por barra vertical—. El documento **parcial**, de
+  siete cifras o más, se busca con más cuidado porque es el que coincide
+  por azar: sin su verificador, fuera de la parte de un decimal, de un
+  número con forma de dirección IPv4 —con o sin máscara CIDR— y de un
+  importe con miles de cuatro grupos o más (`"3.919.024.166"`), que se
+  prueban enteros —el importe, también sin su primer grupo: es el
+  prefijo de país de un celular agrupado de a tres, `"598.099.123.456"`,
+  que se publicaba— (`"4.123.456"` frente a `"4.123.456-7"`, el
+  verificador mal tipeado, el documento seguido de un año), y sin su
+  primer dígito sólo detrás de un asterisco o una equis
+  (`"*.123.456-7"`, `"X.012.345-8"`, `"X2345678"`) —también los
   asteriscos de Unicode, todo signo que Unicode llama asterisco salvo el
   combinante de abajo, que el pliegue borra como a una tilde, y el
   asterisco pegado a una letra, `"CI*123.456-7"`—; la equis seguida de
@@ -1463,9 +1476,13 @@ La identidad de la columna no depende de esa exclusión: `n_distintos`,
 puede distinguir sin decodificarla. Un valor ilegible cuenta como valor,
 y la moda que se publica es el valor original tal como llegó, sin
 reinterpretarlo. Cuando ese valor es numérico, su representación textual
-se formatea con notación fija, con la precisión completa e independiente
-de `scipen` y de `digits`; se conserva `OutDec`, porque esa marca
-decimal sí pertenece a la preferencia de locale de quien usa el paquete.
+se formatea con notación fija, con la precisión completa —las cifras que
+hacen falta para volver al valor: `0.1 + 0.2` se publica
+`0.30000000000000004`, no `0.3`— e independiente de `scipen` y de
+`digits`, igual en `perfilar()` y en los caminos de
+[`perfilar_dbi()`](https://sebollin.github.io/lupa/reference/perfilar_dbi.md);
+se conserva `OutDec`, porque esa marca decimal sí pertenece a la
+preferencia de locale de quien usa el paquete.
 
 Las columnas `sfc` declaran su CRS, los tipos concretos y la dimensión
 (`XY`, `XYZ`, `XYM` o `XYZM`), además de geometrías vacías, validez,
@@ -1572,10 +1589,18 @@ comparación responde cuánto aporta cada paso por separado; sus números
 no son aditivos porque dos pasos pueden fundir el mismo par.
 `n_distintos` y `n_distintos_normalizados` declaran el total antes y
 después del perfil completo. La descomposición canónica es siempre
-activa y forma parte de la línea base, no una fila configurable. Con
-`normalizar = FALSE` no hay pasos configurables que medir y el informe
-de fusiones queda en `NULL`; en un perfil por columna sólo se incluyen
-las columnas con algún paso activo. Si
+activa y forma parte de la línea base, no una fila configurable. Un
+valor con marca `bytes` entra con su clave de bytes —cada byte alto
+escrito `\xHH`—, como en
+[`detectar_claves()`](https://sebollin.github.io/lupa/reference/detectar_claves.md)
+y
+[`detectar_duplicados_aproximados()`](https://sebollin.github.io/lupa/reference/detectar_duplicados_aproximados.md):
+`bytes` declara que eso no se interprete como texto, así que no se
+pliega con el mismo texto marcado UTF-8. Los tres cuentan igual
+`n_distintos_normalizados`. Con `normalizar = FALSE` no hay pasos
+configurables que medir y el informe de fusiones queda en `NULL`; en un
+perfil por columna sólo se incluyen las columnas con algún paso activo.
+Si
 [`detectar_duplicados_aproximados()`](https://sebollin.github.io/lupa/reference/detectar_duplicados_aproximados.md)
 recibe un perfil, puede reutilizar este informe ya calculado. El informe
 usa el vocabulario completo: `n_distintos` y `n_usados` son el número de

@@ -228,7 +228,13 @@ perfilar_dbi(
   cliente usa la suma de `proc.time()[c("user.self", "sys.self")]`.
   `cpu_ms` es cero cuando el proceso no consumió CPU; `NA` significa que
   no se pudo medir. Los intervalos que el reloj no puede resolver no se
-  publican como cero.
+  publican como cero. En PostgreSQL, la atribución del derrame lee
+  `pg_stat_statements` dos veces —antes y después—, limitado al usuario
+  y la base de la conexión, y atribuye solo las consultas cuyas llamadas
+  crecieron en esa ventana; una entrada que el catálogo repite —la misma
+  consulta de otro usuario o anidada— no se atribuye. Medido con unas
+  4.900 filas en el catálogo: sobre una tabla de 23 filas, 0,3 s con
+  `TRUE` contra 0,15 s con `FALSE`.
 
 - umbral_cardinalidad:
 
@@ -449,7 +455,14 @@ usando `estado_resumen_cuantitativo = "omitidos_precision"`, como en
 memoria. Si falta `bit64`, la columna queda como texto y
 `cobertura_diagnosticos` explica la limitacion y recomienda instalarlo o
 pedir `integer64` al conectar. Las columnas declaradas como `double`,
-`real` o `float` no entran en esta guarda. Si se omite el bloque con
+`real` o `float` no entran en esta guarda. Con `bloque_filas` rige la
+misma regla, sobre los valores que el controlador entrega como
+`integer64` —un `BIGINT` o `bigserial` de PostgreSQL, un `INTEGER` de
+SQLite que no entra en 32 bits—: por debajo de 2^53 se opera con el
+valor exacto, y desde 2^53 las siete métricas quedan `no_disponible` con
+su motivo. Ninguna columna cambia la clase de un campo de la tabla:
+`minimo`, `maximo`, `media`, `mediana` y `desvio` de
+`resumen_tabla$columnas` son siempre dobles. Si se omite el bloque con
 `bloque_muestra = "solo_agregados"`, la cobertura usa el estado
 `no_solicitado`: no es un fallo ni se cuenta como una métrica no
 disponible. En `muestra_motor`, la selección materializada se hace una
@@ -622,7 +635,7 @@ del motor: ver la protección—, y se conserva la mediana por columna.
 
 ## Lo que el motor guarda distinto que R
 
-El resumen SQL describe lo que el motor tiene delante, y en tres casos
+El resumen SQL describe lo que el motor tiene delante, y en cuatro casos
 eso no es lo mismo que la tabla en R:
 
 - **Fechas en SQLite.** SQLite no tiene tipo fecha: RSQLite guarda un
@@ -643,6 +656,19 @@ eso no es lo mismo que la tabla en R:
   columna que mezcla magnitudes muy distintas —`1e20` junto a `1`— las
   medias pueden diferir entre motores y con la de R, y ninguna es la
   exacta. La corroboración cruzada lo declara cuando compara las dos.
+
+- **El cotejamiento.** El resumen SQL agrupa y ordena con el
+  cotejamiento de la columna: sobre una `COLLATE NOCASE` de SQLite o una
+  colación ICU no determinista de PostgreSQL, "Montevideo" y
+  "montevideo" son un valor, y `n_distintos`, la moda y su frecuencia
+  salen de esa cuenta. Con `bloque_filas` las filas se leen y se
+  comparan en R, byte a byte, como el perfil de muestra. Cada
+  `resumen_tabla` lo dice en `meta$criterio_comparacion` y
+  `meta$criterio_moda`. La corroboración no llama divergencia a la
+  diferencia que ese criterio explica —menos distintos en el resumen
+  SQL, con la moda y la frecuencia que de ahí se siguen, o una moda
+  empatada que cada lado desempata con su orden—: la deja en una fila
+  `no_corroborada` con ese motivo.
 
 ## Costo
 
@@ -824,7 +850,14 @@ personales, se ocultan sus estadísticos de orden y sus momentos, se
 sanean los datos de conexión y el SQL guardado no contiene ningún valor
 derivado de los datos. La clasificación se toma del perfil de la
 muestra; si la muestra no se pudo leer, la protección se aplica a todas
-las columnas y `meta` lo declara. Si la muestra se recorta, la
+las columnas y `meta` lo declara. Lo que se oculta no queda `calculado`:
+su fila de `resumen_tabla$sql` dice `omitido_por_privacidad`, con un
+motivo que distingue la columna clasificada como personal de la que se
+cerró porque, sin muestra, no se pudo clasificar. El desvío se publica,
+como en
+[`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md):
+una dispersión no identifica a nadie, y la media, que junto con él
+reconstruiría los valores, se oculta. Si la muestra se recorta, la
 clasificación personal sólo cubre esas filas: las cifras de valor del
 resumen SQL completo quedan marcadas en `resumen_tabla$cobertura` y, con
 la protección activa, se ocultan hasta que la clasificación cubra el
@@ -870,19 +903,33 @@ que hizo fallar la consulta
 castea una cédula escrita con puntos—: ese valor nunca se leyó, así que
 el piso no lo conoce y puede ser de cualquier columna. Todo mensaje de
 error que se publica —en `sql`, `cobertura`, `meta`, en la colección y
-en los avisos— lleva sus literales entre comillas, simples, dobles o
-tipográficas, cambiados por `[literal omitido]`, con o sin protección;
-también un identificador entre comillas, que el resto de la salida ya
-nombra. Quedan una palabra de SQL —`Incorrect syntax near 'LIMIT'` dice
-que el motor no acepta ese dialecto— y un signo suelto. El texto que
-PostgreSQL cita sin comillas al no poder leer un JSON
-(`CONTEXT: JSON data, line 1: ...`) se tapa hasta el fin de la línea. Se
-publicaba tal cual, en PostgreSQL y en duckdb. `incluir_valores = FALSE`
-va más lejos: no emite las consultas de moda ni de mediana y no informa
-mínimo ni máximo, útil cuando la tabla es un padrón y la moda de un
-identificador único es un documento real. Si se pidió `desvio`, la sonda
-de magnitud que ese cálculo necesita puede emitirse, pero su motivo
-nunca publica el valor devuelto por el motor.
+en los avisos— lleva sus literales entre comillas —simples, dobles,
+tipográficas, bajas como las del polaco, angulares— cambiados por
+`[literal omitido]`, con o sin protección; también un identificador
+entre comillas, salvo el nombre de la tabla o de una de sus columnas. Y
+fuera de las comillas el mensaje publica **sólo lo permitido**: el
+vocabulario de los mensajes de los motores, en inglés y en castellano,
+las palabras de SQL, los nombres de tipo, los nombres de la tabla y de
+sus columnas, los códigos SQLSTATE, los signos y los números de menos de
+seis cifras —el piso de la protección: la línea, la posición, un
+código—; todo lo demás sale `[literal omitido]`. Un número se cuenta con
+sus separadores: `4.685.467-9` es uno de ocho cifras. Así se tapa
+también el valor que el motor cita sin comillas —duckdb:
+`Type INT64 with value 59899123456 can't be cast`, y la cadena que
+`strptime` repite en otra línea, que se tapa entera; SQL Server con la
+sesión en sueco o neerlandés— y la cola de un valor que lleva una
+comilla adentro. Un mensaje en otro idioma conserva su SQL, sus tipos y
+sus nombres y se lee peor, que es el lado cerrado. Quedan una palabra de
+SQL entre comillas —`Incorrect syntax near 'LIMIT'` dice que el motor no
+acepta ese dialecto— y un signo suelto. El texto que PostgreSQL cita sin
+comillas al no poder leer un JSON (`CONTEXT: JSON data, line 1: ...`) se
+tapa hasta el fin de la línea. Se publicaba tal cual, en PostgreSQL, en
+duckdb y en SQL Server. `incluir_valores = FALSE` va más lejos: no emite
+las consultas de moda ni de mediana y no informa mínimo ni máximo, útil
+cuando la tabla es un padrón y la moda de un identificador único es un
+documento real. Si se pidió `desvio`, la sonda de magnitud que ese
+cálculo necesita puede emitirse, pero su motivo nunca publica el valor
+devuelto por el motor.
 
 ## Progreso
 

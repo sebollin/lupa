@@ -107,7 +107,9 @@ permiso sobre ella, o no se perfiló porque se declaró de otro tipo
 se pudo clasificar porque su muestra no se leyó, en los perfiles
 de las otras tablas se tapan los valores y la evidencia de las columnas no
 personales, y <code>resumen_tabla$meta$proteccion_personal$otras_tablas</code> dice
-por qué. <code><a href="perfilar_dbi.html">perfilar_dbi()</a></code> sobre una tabla sola protege sólo con los de
+por qué. Con esos valores se barren también <code>cobertura_coleccion</code>,
+<code>cobertura_metricas</code> y <code>meta$lecturas</code>, que juntan los motivos de todas
+las tablas. <code><a href="perfilar_dbi.html">perfilar_dbi()</a></code> sobre una tabla sola protege sólo con los de
 esa tabla.</p></dd>
 
 

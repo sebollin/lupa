@@ -220,8 +220,15 @@ o guardada como número en otra columna. En todo lugar donde un
 <code>data.frame</code> guarda un valor: las celdas de cualquier clase —una copia
 <code>POSIXct</code> de la fecha con hora protegida queda en <code>NA</code>, como la tapa
 <code><a href="perfilar.html">perfilar()</a></code>—, las columnas de lista elemento por elemento, los atributos
-de la tabla y de cada columna, y los nombres de fila, que vuelven a ser los
-números de fila si alguno lleva un valor protegido. Una columna protegida
+de la tabla y de cada columna —también <code>levels</code> en lo que no es un factor
+y <code>units</code>—, y los nombres de fila, que vuelven a ser los
+números de fila si alguno lleva un valor protegido. Una columna <code>POSIXlt</code>
+se tapa como la <code>POSIXct</code>, y cualquier lista con clase —un registro de
+<code>vctrs</code>, un <code>blob</code>— por sus valores; un BLOB (<code>raw</code>) se lee como el texto
+que guarda y, si lleva un valor protegido, la copia guarda los bytes del
+texto tapado; un entorno no se modifica —es del usuario—: si guarda un
+valor protegido, la copia lleva <code>"[valor protegido]"</code> en su lugar. Una
+columna protegida
 conserva sólo los atributos de su clase (<code>class</code>, <code>tzone</code>, <code>units</code>, <code>dim</code>):
 las etiquetas de valor de un <code>haven_labelled</code> se quitan. Para conservar
 sus valores debe usarse <code>proteger_datos_personales = FALSE</code> al crear el

@@ -63,30 +63,32 @@ aplicar(plan, datos, permitir_eliminacion = FALSE, conservar_eliminados = TRUE)
 seleccionada, incluso cuando una falla y las siguientes continúan.
 `n_codificacion_normalizada` cuenta, por acción, las celdas cuya **marca
 de codificación** cambió: es el caso de una acción de texto sobre celdas
-`latin1`, cuyo valor se conserva y cuyos bytes no. `n_no_reversibles`
-cuenta las celdas cuyo VALOR se perdió y no se puede recuperar desde el
-resultado: un centinela `-999` que pasa a ausencia, un extremo recortado
-a su límite, un marcador de ausencia convertido, o un número que se
-redondeó al convertirlo. Las acciones que **normalizan la escritura**
-—recortar espacios, quitar un invisible de transporte, reemplazar
-separadores o cambiar mayúsculas— dejan el valor en su lugar y no
-cuentan, **salvo cuando la normalización fusiona valores que eran
-distintos**: ahí lo que los separaba no queda en ningún lado y esas
-celdas sí se cuentan. El criterio se mide sobre el resultado, no por el
-nombre de la acción: quitar un guion suave de `PRO<U+00AD>DUCTO-A` no
-pierde nada, y quitar un espacio de ancho cero que distinguía dos claves
-fusiona las dos. Si una acción seleccionada no produce ningún efecto, se
-registra como `fallida` con el motivo y su copia no se incorpora al
-resultado. La comprobación del efecto observa `n_cambiadas` aunque
-`n_afectadas` sea `NA` o haya sido editado: una acción seleccionada que
-no cambia nada queda `fallida`, porque la ausencia de efecto es
-observable sin depender de la estimación. Si una columna de entrada es
-un factor, las acciones que transforman su texto devuelven una columna
-`character`: no se reconstruyen los niveles originales, porque una
-limpieza puede introducir valores nuevos. Los atributos de cada columna
-—la etiqueta de variable que deja `haven`— sobreviven a las acciones que
-la reescriben, a las conversiones de tipo y a las que quitan filas;
-quitar filas de un `data.table` conserva su clave.
+`latin1`, cuyo valor se conserva y cuyos bytes no. No cuenta una celda
+sin marca cuyos bytes ya eran UTF-8 válido ni un texto ASCII, así que no
+depende del locale. `n_no_reversibles` cuenta las celdas cuyo VALOR se
+perdió y no se puede recuperar desde el resultado: un centinela `-999`
+que pasa a ausencia, un extremo recortado a su límite, un marcador de
+ausencia convertido, o un número que se redondeó al convertirlo. Las
+acciones que **normalizan la escritura** —recortar espacios, quitar un
+invisible de transporte, reemplazar separadores o cambiar mayúsculas—
+dejan el valor en su lugar y no cuentan, **salvo cuando la normalización
+fusiona valores que eran distintos**: ahí lo que los separaba no queda
+en ningún lado y esas celdas sí se cuentan. El criterio se mide sobre el
+resultado, no por el nombre de la acción: quitar un guion suave de
+`PRO<U+00AD>DUCTO-A` no pierde nada, y quitar un espacio de ancho cero
+que distinguía dos claves fusiona las dos. Si una acción seleccionada no
+produce ningún efecto, se registra como `fallida` con el motivo y su
+copia no se incorpora al resultado. La comprobación del efecto observa
+`n_cambiadas` aunque `n_afectadas` sea `NA` o haya sido editado: una
+acción seleccionada que no cambia nada queda `fallida`, porque la
+ausencia de efecto es observable sin depender de la estimación. Si una
+columna de entrada es un factor, las acciones que transforman su texto
+devuelven una columna `character`: no se reconstruyen los niveles
+originales, porque una limpieza puede introducir valores nuevos. Los
+atributos de cada columna —la etiqueta de variable que deja `haven`—
+sobreviven a las acciones que la reescriben, a las conversiones de tipo
+y a las que quitan filas; quitar filas de un `data.table` conserva su
+clave.
 
 ## Details
 
@@ -205,23 +207,35 @@ justificación lo dice cuando ocurre. Una columna que mezcla `5` con
 la misma escala. La acción de codificación prueba las tablas congeladas
 de varias codificaciones y deja en `estado_reparacion` uno de
 `reparado`, `reparado_parcialmente` o `no_se_pudo`. Una reparación
-parcial no se activa automáticamente: debe revisarse y seleccionarse de
-forma explícita. La estrategia se llama `reparar_codificacion` y no
-limita el motor a latin-1. Unos mismos bytes pueden recibir dos
-diagnósticos: `c2 80` es a la vez un carácter de control C1 y la huella
-de un `€` de Windows-1252 leído como latin-1. Cuando el plan propone
-reparar la codificación y eliminar ese control, manda la reparación
-—corre primero y restituye el `€`—, y la eliminación queda sin nada que
-hacer. Es la lectura habitual en texto real; en el caso raro de un
-control C1 genuino, la reparación lo convierte en `€`. Una celda cuyo
-texto no se puede leer —declarada `bytes` con bytes que no son UTF-8, o
-sin marca en una sesión UTF-8, que es lo que deja
+parcial —una celda que el motor repara sólo en parte— no se activa
+automáticamente: la acción queda `lista` con `aplicar = FALSE`, y se
+selecciona de forma explícita marcando `aplicar = TRUE`; entonces se
+aplican también las parciales. Una celda sin reparación local —con el
+carácter de reemplazo U+FFFD, o que el motor no pudo reparar— no frena
+la de las demás: queda como está y la justificación de la acción la
+cuenta. La estrategia se llama `reparar_codificacion` y no limita el
+motor a latin-1. Un texto legítimo que se escribe con los mismos bytes
+que un mojibake —por ejemplo, uno que cita literalmente la `Ã` seguida
+de `©`— no se distingue de uno roto: se acusa, la evidencia del plan lo
+muestra antes de aplicar, y si se aplica la acción se reescribe como la
+letra que esos bytes codifican. Si la columna contiene texto así, no
+active la acción. Unos mismos bytes pueden recibir dos diagnósticos:
+`c2 80` es a la vez un carácter de control C1 y la huella de un `€` de
+Windows-1252 leído como latin-1. Cuando el plan propone reparar la
+codificación y eliminar ese control, manda la reparación —corre primero
+y restituye el `€`—, y la eliminación queda sin nada que hacer. Es la
+lectura habitual en texto real; en el caso raro de un control C1
+genuino, la reparación lo convierte en `€`. Una celda cuyo texto no se
+puede leer —declarada `bytes` con bytes que no son UTF-8, o sin marca en
+una sesión UTF-8, que es lo que deja
 [`read.csv()`](https://rdrr.io/r/utils/read.table.html) sin
 `fileEncoding` sobre un archivo latin1— no se transforma: el perfil no
 la midió y la informa como `codificacion_invalida`, cuyo remedio es
 volver a leer la fuente declarando su codificación. Las acciones de
 texto trabajan sobre las demás celdas de la columna y cuentan sólo lo
-que cambiaron.
+que cambiaron. Una celda sin marca cuyos bytes son UTF-8 válido se trata
+como UTF-8 en cualquier locale, igual que en el perfil: con `LC_CTYPE=C`
+las acciones hacen lo mismo que en una sesión UTF-8.
 
 Una celda `latin1` **sí** se transforma —ahí R conoce la codificación y
 la convierte sin pérdida—, y el resultado queda marcado `UTF-8`. Como la
@@ -229,13 +243,17 @@ acción toca sólo las celdas que cambia, una columna `latin1` puede
 quedar con marcas **mixtas**: las celdas transformadas en `UTF-8` y las
 intactas en `latin1`. El valor es el mismo, pero los bytes no, así que
 el registro lo cuenta en `n_codificacion_normalizada` en vez de dejarlo
-implícito. No se convierte la columna entera a propósito: eso tocaría
-celdas que el plan no declaró como cambiadas y haría mentir a
-`n_cambiadas` por el otro lado. Si se marca una acción que no está
-`lista`, `aplicar()` aborta antes de modificar la copia y enumera las
-filas problemáticas. Una acción que sí está lista pero falla se registra
-con su error y no impide aplicar las siguientes: cada una conserva
-atomicidad sobre su propia columna o tabla. Las acciones que
+implícito. Ese conteo es de recodificaciones, no de marcas: una celda
+sin marca cuyos bytes son UTF-8 válido ya es UTF-8 y no cambia de
+codificación aunque la acción la devuelva marcada, y un texto ASCII se
+escribe igual en toda codificación —decodificar `Jos&eacute;` cambia el
+valor, no la codificación—. No se convierte la columna entera a
+propósito: eso tocaría celdas que el plan no declaró como cambiadas y
+haría mentir a `n_cambiadas` por el otro lado. Si se marca una acción
+que no está `lista`, `aplicar()` aborta antes de modificar la copia y
+enumera las filas problemáticas. Una acción que sí está lista pero falla
+se registra con su error y no impide aplicar las siguientes: cada una
+conserva atomicidad sobre su propia columna o tabla. Las acciones que
 efectivamente eliminan filas o columnas requieren además
 `permitir_eliminacion = TRUE`; una conversión `destructiva` requiere
 selección explícita y deja la pérdida cuantificada. Por defecto, el
@@ -293,10 +311,15 @@ imputa. Se reconstruía entera sobre los datos recibidos, y sobre otra
 entrega escribía valores que el plan nunca mostró. Una fila tapada no se
 puede validar si los datos recibidos no traen el valor protegido que la
 tapó —un subconjunto sin ese titular—: también queda `fallida`, con el
-motivo, y se aplica planificando sobre esos datos. Con una regla de
-`aplicabilidad` sobre la columna dependiente, la imputación respeta su
-universo como las demás acciones por celda: no llena las filas
-declaradas fuera, que son vacío por diseño, y `n_afectadas` las excluye.
+motivo, y se aplica planificando sobre esos datos. Y si los datos piden
+imputar una clave cuya fila el plan publicó tapada pero no traen ningún
+par de esa clave que la resuelva —la entrega que trae sólo las filas a
+completar—, la acción tampoco escribe a medias: queda `fallida`, con el
+motivo, porque sin la protección el plan escribiría esas celdas y con la
+fila tapada no se sabe con qué. Con una regla de `aplicabilidad` sobre
+la columna dependiente, la imputación respeta su universo como las demás
+acciones por celda: no llena las filas declaradas fuera, que son vacío
+por diseño, y `n_afectadas` las excluye.
 
 Sobre una columna protegida, `convertir_sentinelas_numericos` publica el
 catálogo de centinelas del paquete tal cual —es vocabulario, no un dato—

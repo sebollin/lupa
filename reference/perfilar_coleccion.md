@@ -68,6 +68,9 @@ perfilar_coleccion(
   se leyó, en los perfiles de las otras tablas se tapan los valores y la
   evidencia de las columnas no personales, y
   `resumen_tabla$meta$proteccion_personal$otras_tablas` dice por qué.
+  Con esos valores se barren también `cobertura_coleccion`,
+  `cobertura_metricas` y `meta$lecturas`, que juntan los motivos de
+  todas las tablas.
   [`perfilar_dbi()`](https://sebollin.github.io/lupa/reference/perfilar_dbi.md)
   sobre una tabla sola protege sólo con los de esa tabla.
 
