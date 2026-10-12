@@ -363,7 +363,7 @@ map:
 | Task | Main functions | Read more |
 |----|----|----|
 | Look at data for the first time | [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md), [`analizar()`](https://sebollin.github.io/lupa/reference/analizar.md), [`distribucion_valores()`](https://sebollin.github.io/lupa/reference/distribucion_valores.md), [`detectar_asociaciones()`](https://sebollin.github.io/lupa/reference/detectar_asociaciones.md), [`analizar_tiempo()`](https://sebollin.github.io/lupa/reference/analizar_tiempo.md), [`clasificar_variables()`](https://sebollin.github.io/lupa/reference/clasificar_variables.md), [`inferir_tipo()`](https://sebollin.github.io/lupa/reference/inferir_tipo.md), [`descubrir_patrones()`](https://sebollin.github.io/lupa/reference/descubrir_patrones.md), [`detectar_formatos_fecha()`](https://sebollin.github.io/lupa/reference/detectar_formatos_fecha.md), `sentinelas_naniar` | [Getting started](https://sebollin.github.io/lupa/articles/empezar-con-lupa.html) |
-| Profile against a database | [`perfilar_dbi()`](https://sebollin.github.io/lupa/reference/perfilar_dbi.md) — full-table SQL aggregates plus, by default, a 115-analytic-field profile from a declared sample; `bloque_muestra = "solo_agregados"` requests only aggregates | [Profiling a database](https://sebollin.github.io/lupa/articles/perfilar-una-base.html) |
+| Profile against a database | [`perfilar_dbi()`](https://sebollin.github.io/lupa/reference/perfilar_dbi.md) — full-table SQL aggregates plus, by default, a 117-analytic-field profile from a declared sample; `bloque_muestra = "solo_agregados"` requests only aggregates | [Profiling a database](https://sebollin.github.io/lupa/articles/perfilar-una-base.html) |
 | Find undeclared structure | [`detectar_claves()`](https://sebollin.github.io/lupa/reference/detectar_claves.md), [`detectar_relaciones()`](https://sebollin.github.io/lupa/reference/detectar_relaciones.md), [`detectar_dependencias()`](https://sebollin.github.io/lupa/reference/detectar_dependencias.md), [`granularidades()`](https://sebollin.github.io/lupa/reference/granularidades.md), [`transiciones_granularidad()`](https://sebollin.github.io/lupa/reference/granularidades.md) | [Undeclared structure](https://sebollin.github.io/lupa/articles/estructura-no-declarada.html) |
 | Define quality | [`marco_calidad()`](https://sebollin.github.io/lupa/reference/marco_calidad.md), [`marco_agesic()`](https://sebollin.github.io/lupa/reference/marco_calidad.md), [`marco_iso25012()`](https://sebollin.github.io/lupa/reference/marco_calidad.md), [`marco_cepal()`](https://sebollin.github.io/lupa/reference/marco_calidad.md), [`catalogo_agesic()`](https://sebollin.github.io/lupa/reference/catalogo_agesic.md), [`metrica()`](https://sebollin.github.io/lupa/reference/modelo_calidad.md), [`especializar()`](https://sebollin.github.io/lupa/reference/modelo_calidad.md), [`instanciar()`](https://sebollin.github.io/lupa/reference/modelo_calidad.md), [`modelo()`](https://sebollin.github.io/lupa/reference/modelo_calidad.md), [`metricas_nucleo()`](https://sebollin.github.io/lupa/reference/modelo_calidad.md), [`metricas_referencial()`](https://sebollin.github.io/lupa/reference/metricas_referencial.md), [`proponer_modelo()`](https://sebollin.github.io/lupa/reference/proponer_modelo.md), [`modelo_desde_propuesta()`](https://sebollin.github.io/lupa/reference/modelo_desde_propuesta.md), [`perfiles_madurez()`](https://sebollin.github.io/lupa/reference/reglas_evaluacion.md), [`cobertura_analisis()`](https://sebollin.github.io/lupa/reference/cobertura_analisis.md) | [Define quality](https://sebollin.github.io/lupa/articles/definir-la-calidad.html) |
 | Measure and evaluate | [`medir()`](https://sebollin.github.io/lupa/reference/medir.md), [`agregar()`](https://sebollin.github.io/lupa/reference/agregar.md), [`tablero_calidad()`](https://sebollin.github.io/lupa/reference/tablero_calidad.md), [`indice_calidad()`](https://sebollin.github.io/lupa/reference/indice_calidad.md) with project weights, [`evaluar()`](https://sebollin.github.io/lupa/reference/evaluar.md), [`regla_evaluacion()`](https://sebollin.github.io/lupa/reference/reglas_evaluacion.md) with the user-declared instruction `desenlace = "suprimir"` (not a factory threshold), [`perfil_evaluacion()`](https://sebollin.github.io/lupa/reference/reglas_evaluacion.md), [`escala()`](https://sebollin.github.io/lupa/reference/contratos_medicion.md), [`referencial()`](https://sebollin.github.io/lupa/reference/referencial.md), [`vigencia()`](https://sebollin.github.io/lupa/reference/contratos_medicion.md) | [Measure and evaluate](https://sebollin.github.io/lupa/articles/medir-y-evaluar.html) |
@@ -1144,21 +1144,32 @@ from the median says nothing about its quality.
 
 Recognising a numbering uses **density**: an identifier occupies a
 compact stretch of the integers while a magnitude spreads across several
-orders. Uniqueness does not work, since an amount is nearly unique too.
-The public `secuencia_entera_densa` field answers only that coverage
-question; the separate `moda_sobresale_secuencia_entera` signal must not
-switch off the form shields that use the numbering. The sentinel guard
-reopens when a candidate is outside the range of the remaining
-numbering, or when that candidate is the standout frequency. The range
-signal is deliberately independent of frequency: `-9` in a numbering
-from 1 to 1,505 is suspicious even when five legitimate values tie with
-it, while `999` appearing once inside 1..1,000 is not.
+orders. Uniqueness alone does not work, since an amount is nearly unique
+too. It is needed as the second half, though: a bounded integer
+magnitude also fills every integer of its range once enough rows are
+loaded — repeating them — and with density alone an age from 18 to 90
+with 20,000 rows came out as a “catalogue code” and the verdict depended
+on how many rows were read. A numbering is dense **and** barely repeats;
+a code that repeats cannot be told apart from that magnitude by its
+shape, and the package would rather say too much about it. The public
+`secuencia_entera_densa` field answers only that coverage question; the
+separate `moda_sobresale_secuencia_entera` signal must not switch off
+the form shields that use the numbering. The sentinel guard reopens when
+a candidate is outside the range of the remaining numbering, or when
+that candidate is the standout frequency. The range signal is
+deliberately independent of frequency: `-9` in a numbering from 1 to
+1,505 is suspicious even when five legitimate values tie with it, while
+`999` appearing once inside 1..1,000 is not.
 
 The criterion was chosen by measuring. A bench of thirteen columns with
 the known answer — five numberings and eight magnitudes with a bad value
 inside — compared four variants: crossing both signals gets all thirteen
 right and **never silences a real bad value**; density alone got eleven
-and silenced two. It lives in `test-ronda118.R`.
+and silenced two. It lives in `test-ronda118.R`. Since requiring that a
+numbering barely repeat, one of the five numberings — a code from 1 to
+284 that repeats — is no longer recognised and gets Tukey’s fences:
+twelve right, and the miss is on the cheap side, saying too much rather
+than silencing.
 
 For an `integer64` column, `bit64` is loaded lazily when it is installed
 so its methods are registered before measuring. If it is not installed,
@@ -1202,7 +1213,10 @@ includes what it merely suspects**. A value declared in
 `sentinelas_numericos` leaves `media`, `mediana`, `minimo`, `maximo` and
 `desvio` — with `n_valores_excluidos_resumen` reporting how many it left
 out — just as `NA`s do, and just as the rows that `aplicabilidad` places
-outside the universe do. The default list, by contrast, reports without
+outside the universe do. What is declared outside the universe —
+sentinels or `aplicabilidad` — also leaves Benford’s law and the
+arithmetic relations: the same cell cannot be missing in the summary and
+a value in a diagnostic. The default list, by contrast, reports without
 touching the numbers: it is a guess, and a guess does not move an
 average. `moda` and `n_distintos` keep describing what is stored, as
 they already did with an `Inf`.
@@ -1278,7 +1292,8 @@ measured evidence, and the line to paste:
 
     valor_a  posible_ausencia_estructural  ok
       evidence  `tipo` predicts the presence of `valor_a` in 100.0 % of 200 rows,
-                with 2 distinct values. The column applies when tipo is "A".
+                with 2 distinct values. The rule explains 100 of the column's 100
+                missing values. The column applies when tipo is "A".
       suggests  perfilar(datos, aplicabilidad = list(valor_a = ~ tipo == "A"))
 
 It suggests; it does not decide, and it never rewrites the universe on
@@ -1462,10 +1477,12 @@ that can turn it off.
 - Profiles `sf` geometries and declares CRS, geometry families,
   emptiness, planar validity, coordinate domain, and bounding-box scope;
   it does not perform spatial analysis. Over PostGIS it reads the SRID
-  of each EWKB, so a column with mixed SRIDs is declared as such and its
-  domain is evaluated by group: an
+  of each EWKB or EWKT value, so a column with mixed SRIDs is declared
+  as such and its domain is evaluated by group: an
   [`sf::sfc`](https://r-spatial.github.io/sf/reference/sfc.html) column
-  can only carry one CRS.
+  can only carry one CRS. A value that does not convert does not erase
+  the column: the rest is measured and the loss is declared with its
+  count.
 - Applies Benford’s law only when its preconditions hold, and records
   non-applicability in `cobertura_diagnosticos`.
 - Reports `unidades_mixtas` and `monedas_mixtas` in a column without

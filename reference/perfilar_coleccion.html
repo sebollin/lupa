@@ -102,7 +102,8 @@ colección es un solo objeto. Esos valores se leen de la base, una consulta
 por columna protegida, con la regla de <code><a href="perfilar.html">perfilar()</a></code> —también la de los
 rellenos, con sus frecuencias—; si alguna lectura falla —también si una
 tabla entera no se pudo perfilar, por ejemplo porque el rol no tiene
-permiso sobre ella: sus valores son desconocidos—, o una tabla no
+permiso sobre ella, o no se perfiló porque se declaró de otro tipo
+—<code>tipo = "vista"</code>—: sus valores son desconocidos—, o una tabla no
 se pudo clasificar porque su muestra no se leyó, en los perfiles
 de las otras tablas se tapan los valores y la evidencia de las columnas no
 personales, y <code>resumen_tabla$meta$proteccion_personal$otras_tablas</code> dice

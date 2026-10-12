@@ -69,7 +69,7 @@ perfil$hallazgos[
 cat(perfil$hallazgos$evidencia[
   perfil$hallazgos$tipo_hallazgo == "posible_ausencia_estructural"
 ])
-#> `tiene_auto` predice la presencia de `marca_auto` en 100.0 % de 2000 filas, con 2 valores distintos. La columna corresponde cuando tiene_auto es "Si".
+#> `tiene_auto` predice la presencia de `marca_auto` en 100.0 % de 2000 filas, con 2 valores distintos. La regla explica 1400 de las 1400 ausencias de la columna. La columna corresponde cuando tiene_auto es "Si".
 cat(perfil$hallazgos$sugerencia[
   perfil$hallazgos$tipo_hallazgo == "posible_ausencia_estructural"
 ])
@@ -78,10 +78,12 @@ cat(perfil$hallazgos$sugerencia[
 
 Severidad `ok`: no es un defecto, es una lectura de la estructura. La
 evidencia es un hecho medido sobre los datos —qué proporción de las
-filas queda explicada por el valor de la otra columna— y la sugerencia
-trae la línea exacta que habría que escribir. Quien decide sigue siendo
-el usuario: el paquete no reescribe el universo por su cuenta, y las
-columnas ya declaradas quedan fuera del examen.
+filas queda explicada por el valor de la otra columna, y cuántas de las
+ausencias caen donde la regla dice que la columna no corresponde, que es
+lo que cuenta `n_afectados`— y la sugerencia trae la línea exacta que
+habría que escribir. Quien decide sigue siendo el usuario: el paquete no
+reescribe el universo por su cuenta, y las columnas ya declaradas quedan
+fuera del examen.
 
 La señal sale por dos caminos. Uno es el de arriba: **una columna
 determina la presencia de otra**, con un cumplimiento de al menos 0,99,
@@ -242,9 +244,7 @@ table(as.character(plano$hallazgos$tipo_hallazgo))
 #>            alta_cardinalidad  casi_duplicados_vocabulario        dato_personal_posible 
 #>                            1                            1                            1 
 #>                    faltantes    mayusculas_inconsistentes posible_ausencia_estructural 
-#>                            2                            1                            2 
-#>        posible_identificador 
-#>                            2
+#>                            2                            1                            2
 ```
 
 Por grupo, cada atributo se perfila contra su propio dominio. Las
@@ -264,7 +264,7 @@ table(as.character(por_grupo$tipo_hallazgo))
 #> casi_duplicados_vocabulario       dato_personal_posible   mayusculas_inconsistentes 
 #>                           2                           1                           1 
 #>       posible_identificador 
-#>                           4
+#>                           3
 ```
 
 El argumento `clave` no es cosmético. Sin la columna de identidad, cada

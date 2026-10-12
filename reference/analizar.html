@@ -216,7 +216,14 @@ para asociación monótona sobre los rangos, que no supone linealidad.</p></dd>
 las columnas personales de esa copia también se enmascaran, y en las demás
 columnas se tapa el valor protegido que identifica —el piso de
 <code><a href="perfilar.html">perfilar()</a></code>—: la cédula citada en una observación, <code>"pago CI 3.738.538-0"</code>,
-o guardada como número en otra columna; para conservar
+o guardada como número en otra columna. En todo lugar donde un
+<code>data.frame</code> guarda un valor: las celdas de cualquier clase —una copia
+<code>POSIXct</code> de la fecha con hora protegida queda en <code>NA</code>, como la tapa
+<code><a href="perfilar.html">perfilar()</a></code>—, las columnas de lista elemento por elemento, los atributos
+de la tabla y de cada columna, y los nombres de fila, que vuelven a ser los
+números de fila si alguno lleva un valor protegido. Una columna protegida
+conserva sólo los atributos de su clase (<code>class</code>, <code>tzone</code>, <code>units</code>, <code>dim</code>):
+las etiquetas de valor de un <code>haven_labelled</code> se quitan. Para conservar
 sus valores debe usarse <code>proteger_datos_personales = FALSE</code> al crear el
 analisis y al guardarlo. La opcion del guardado no recupera valores que el
 analisis ya enmascaro.</p></dd>

@@ -133,13 +133,35 @@ deriva[, c("columna", "aspecto", "cambio", "severidad")]
 #>         columna      aspecto        cambio  severidad
 #> 1 nueva_columna      columna     aparecida      error
 #> 2        cedula cardinalidad    modificado sospechoso
-#> 3 nueva_columna     hallazgo     aparecido sospechoso
-#> 4          <NA>     hallazgo no_comparable      error
+#> 3        cedula       patron    modificado sospechoso
+#> 4        cedula       patron    modificado sospechoso
+#> 5 nueva_columna     hallazgo     aparecido sospechoso
+#> 6          <NA>     hallazgo no_comparable      error
 ```
 
 Una comparación contra el mismo perfil produce cero cambios. Las
 columnas que sólo existen en un lado se informan como cambios
 estructurales; no hacen fallar la comparación de las demás.
+
+Lo que la protección de datos personales tapa no se compara, pero
+tampoco se calla: el rango de `cedula` o de `correo` queda declarado,
+por columna y lado, en el atributo `campos_protegidos`. Si la protección
+de una columna cambia entre las entregas, ese cambio sale con su propia
+fila, `aspecto = "proteccion"`.
+
+``` r
+
+attr(deriva, "campos_protegidos")
+#>            columna campo     lado
+#> 1       id_persona rango anterior
+#> 2       id_persona rango   actual
+#> 3           cedula rango anterior
+#> 4           cedula rango   actual
+#> 5 fecha_nacimiento rango anterior
+#> 6 fecha_nacimiento rango   actual
+#> 7           correo rango anterior
+#> 8           correo rango   actual
+```
 
 Las configuraciones que contienen nombres o texto del usuario se
 convierten en claves por bytes, no por la marca de codificación ni por

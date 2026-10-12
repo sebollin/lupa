@@ -62,7 +62,8 @@ perfilar_coleccion(
   [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md)
   —también la de los rellenos, con sus frecuencias—; si alguna lectura
   falla —también si una tabla entera no se pudo perfilar, por ejemplo
-  porque el rol no tiene permiso sobre ella: sus valores son
+  porque el rol no tiene permiso sobre ella, o no se perfiló porque se
+  declaró de otro tipo —`tipo = "vista"`—: sus valores son
   desconocidos—, o una tabla no se pudo clasificar porque su muestra no
   se leyó, en los perfiles de las otras tablas se tapan los valores y la
   evidencia de las columnas no personales, y

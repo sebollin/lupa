@@ -81,6 +81,16 @@ en segundos contra magnitudes numéricas sin unidad común. Cuando ambos
 lados son temporales, `desvio` sí se compara en flotante porque ambas
 puertas lo expresan en segundos.
 
+Si un lado es temporal y el otro **no publica su tipo** —el frame de
+[`perfilar_dbi()`](https://sebollin.github.io/lupa/reference/perfilar_dbi.md)
+no trae ningún campo de tipo—, no se afirma un cambio de tipo: los
+mismos campos se omiten con el motivo
+`tipo_desconocido:temporal_vs_sin_tipo`, porque tampoco se puede
+garantizar una unidad común. Una fecha guardada como número en el motor
+tiene su `desvio` en días de ese lado y en segundos del otro, y
+compararlos publicaría como diferencia del dato una diferencia de
+unidad.
+
 Si una columna guarda caracteres en exactamente uno de los perfiles, los
 campos calculados sobre la representación —longitudes, variantes unicode
 y números escritos como texto— se omiten y su motivo queda en

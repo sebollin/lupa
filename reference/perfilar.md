@@ -181,7 +181,9 @@ perfilar(
   declaran aparte, sin contarse ni como aplicables ni como no
   aplicables. Un valor presente fuera del universo produce el hallazgo
   `valor_fuera_de_aplicabilidad`, que es el error simétrico y hoy no
-  tiene otra forma de aparecer.
+  tiene otra forma de aparecer. Las filas fuera del universo —y las
+  indeterminadas— salen también de la ley de Benford y de las relaciones
+  aritméticas, con la misma máscara que usa el resumen.
 
   `lupa` no infiere el universo: si nadie lo declara, toda la columna
   aplica y el resultado es el de siempre. Declararlo es lo que distingue
@@ -229,11 +231,21 @@ perfilar(
   el valor de otra columna decide qué filas tienen ésta, o cuando dos
   columnas se reparten las filas sin pisarse, se emite
   `posible_ausencia_estructural` con severidad `ok`, la evidencia medida
-  y la línea exacta que habría que escribir para declararlo. Sugiere; no
-  decide. Las columnas ya declaradas quedan fuera del examen. La regla
-  tiene que cumplirse en al menos el 99 % de las filas: una que un solo
-  caso rompe por debajo de ese corte no se publica, porque ofrecer la
-  línea para declararla sería afirmar de más.
+  y la línea exacta que habría que escribir para declararlo. Un umbral
+  se busca primero sobre un corte cada medio por ciento de la columna y
+  después se refina entre todos los valores observados de ese tramo, así
+  que el corte publicado es el primer valor observado del lado donde la
+  columna corresponde. La línea no depende de la sesión: un instante se
+  escribe con su zona (`tz`) —la de la columna, o UTC si no declara
+  ninguna— y un número, con punto decimal y las cifras que hacen falta
+  para volver al valor, cualquiera sea `OutDec`. `n_evaluados` cuenta
+  las ausencias de la columna y `n_afectados` las que la regla explica:
+  las que caen donde la columna no corresponde, sin contar las filas
+  donde el determinante falta. Sugiere; no decide. Las columnas ya
+  declaradas quedan fuera del examen. La regla tiene que cumplirse en al
+  menos el 99 % de las filas: una que un solo caso rompe por debajo de
+  ese corte no se publica, porque ofrecer la línea para declararla sería
+  afirmar de más.
 
   Con el mismo argumento viaja `regla_silencia_ausencia`, también `ok`:
   avisa cuando una columna declarada opcional o con universo propio
@@ -262,7 +274,8 @@ perfilar(
   que es optar por una heurística más ancha—, se cuentan todos, incluida
   la aparición única. Ésa es también la forma de recuperar el caso que
   la reserva calla: declarar el valor lo vuelve a contar y además lo
-  saca de los estadísticos del resumen.
+  saca de los estadísticos del resumen, de la ley de Benford y de las
+  relaciones aritméticas.
 
 - cadenas_ausencia:
 
@@ -337,8 +350,15 @@ perfilar(
   protegidos es un campo de **valores**. Salvo donde el campo refiere
   columnas —`columna`, `determinante`, `dependiente`,
   `nombres_propuestos` y los demás de su clase—: ahí el nombre es
-  estructura y el plan lo necesita para ejecutar. Y un texto que nombra
-  una columna entre comillas —la prosa del paquete, la SQL que guarda
+  estructura y el plan lo necesita para ejecutar, también cuando el
+  campo lo mezcla con la tabla —`objeto` dice `(tabla)` en las medidas
+  que no son de una columna— o lo escribe detrás de un prefijo del
+  paquete —el `origen` `dependencia_funcional:curso->turno` de la
+  propuesta de
+  [`analizar()`](https://sebollin.github.io/lupa/reference/analizar.md)—.
+  Un nombre suelto en un campo que también lleva valores —el mapa de una
+  imputación— se sigue tapando. Y un texto que nombra una columna entre
+  comillas —la prosa del paquete, la SQL que guarda
   [`perfilar_dbi()`](https://sebollin.github.io/lupa/reference/perfilar_dbi.md)—
   la conserva entera: con «Segundo» protegido, `segundo_nombre` salía
   `[valor protegido]_nombre` en los hallazgos sin acción del plan y en
@@ -395,8 +415,13 @@ perfilar(
   cédula válida. Fuera del piso no quiere decir publicados en la columna
   protegida: su moda, sus ejemplos y los parámetros del plan sobre ella
   los siguen tapando, y un centinela que el usuario declaró en
-  `sentinelas_numericos` sigue en el piso. El piso tiene **una excepción
-  declarada**, y es la única:
+  `sentinelas_numericos` y aparece en una columna protegida —también
+  como su relleno— sigue en el piso. Sin los datos, el declarado entra
+  siempre, porque no se sabe de qué columna es; con ellos, el que no
+  aparece en ninguna protegida no entra: entraba igual, se tapaba a sí
+  mismo en `meta` y la acción que lo convierte en un `monto` quedaba sin
+  efecto sin proteger nada. El piso tiene **una excepción declarada**, y
+  es la única:
   [`perfilar_por()`](https://sebollin.github.io/lupa/reference/perfilar_por.md)
   agrupando *por* una columna personal publica sus valores como
   etiquetas de grupo, porque la etiqueta es el eje del resultado y sin
@@ -424,64 +449,67 @@ perfilar(
   empiezan con 2, 4 o 9: `"+598 2901 1234"`, `"00598 99 123 456"` o
   pegado, `"+59899123456"`, como lo escriben los enlaces de WhatsApp y
   las exportaciones de un CRM— se prueba por su parte nacional, como si
-  estuviera escrito solo, y entero; el prefijo no se une a otro grupo. Y
-  el celular protegido guardado con el prefijo se reconoce escrito sin
-  él. No unen los parecidos raros: la prima de una coordenada
-  sexagesimal, el acento grave, la tilde. Los dos puntos y la barra
-  vertical **no** unen: una razón `"494:2714"` o una lista
-  `"12|345|6789"` no es un documento, y un documento escrito así no se
-  reconoce. Una fecha con hora protegida se reconoce escrita con `T`,
-  `Z`, uno a tres espacios, coma, punto y coma, guion o guion doble,
-  guion bajo, barra, barra vertical, arroba, paréntesis o corchete entre
-  la fecha y la hora, con día y mes en cualquier orden, con la hora
-  separada por puntos, guiones o `h` y `m` (`"21h24m25s"`), en la forma
-  compacta `"20240627T212425"` o con la hora compacta tras la fecha con
-  separadores (`"2024-06-27T212425"`); no en palabras, con a.m./p.m.,
-  con cuatro espacios o más ni con el año en dos cifras —también con las
-  formas chicas o de ancho completo de esos signos, o con la barra
-  partida por barra vertical—. El documento **parcial**, de siete cifras
-  o más, se busca con más cuidado porque es el que coincide por azar:
-  sin su verificador, fuera de la parte de un decimal, de un número con
-  forma de dirección IPv4 —con o sin máscara CIDR— y de un importe con
-  miles de cuatro grupos o más (`"3.919.024.166"`), que se prueban
-  enteros —el importe, también sin su primer grupo: es el prefijo de
-  país de un celular agrupado de a tres, `"598.099.123.456"`, que se
-  publicaba— (`"4.123.456"` frente a `"4.123.456-7"`, el verificador mal
-  tipeado, el documento seguido de un año), y sin su primer dígito sólo
-  detrás de un asterisco o una equis (`"*.123.456-7"`, `"X.012.345-8"`,
-  `"X2345678"`) —también los asteriscos de Unicode, todo signo que
-  Unicode llama asterisco salvo el combinante de abajo, que el pliegue
-  borra como a una tilde, y el asterisco pegado a una letra,
-  `"CI*123.456-7"`—; la equis seguida de un espacio no es comodín,
-  porque `"92 x 6931234"` es una multiplicación; un número redondo
-  (`1.000.000`) no cuenta como parcial. Es un **decimal** el número cuyo
-  último signo es un punto o una coma con otra cantidad de cifras que
-  tres, y antes un entero o miles separados con otro signo:
-  `"4.123.456,7"` es un importe, `"4.123.456.7"` no; su parte decimal no
-  se pega al resto cuando es la de un importe con miles o la de un
-  decimal suelto —una coordenada, un par lat lon—, pero sí cuando el
-  número es otra cosa, como `"(02) 901.1234"`. Una fecha con un año
-  entre 1800 y 2100 —también con espacios y el año al final,
-  `"16 01 2002"`; con el año adelante no, porque `"2012 11 05"` es
-  también un teléfono escrito de a pares—, una hora —con su fracción de
-  segundo: hasta siete cifras o nueve tras un punto, nunca ocho, y no
-  seguida de un guion y una cifra, que sería un verificador—, un ISBN y
-  una lista separada por comas no son documentos. El ISBN-10 —con
-  guiones, espacios o puntos— sólo si su dígito de control es válido o
-  lo precede `ISBN`: un NIT `"900-123-456-7"` tiene su forma, y uno de
-  cada once documentos de diez cifras escritos así valida por azar y no
-  se reconoce. Una fracción de nueve cifras tras un punto se lee como
-  nanosegundos: un documento con un cero adelante pegado así a una hora
-  no se reconoce. En la prosa del paquete los números son conteos suyos,
-  y ahí la regla mira sólo lo que la prosa cita entre comillas y el
-  código que sugiere entre comillas invertidas, y tapa la cita o el
-  número, no la frase. **El parcial tiene un costo, medido**: un número
-  entero de siete cifras que coincide con un documento protegido sin su
-  verificador no se distingue de él, y se tapa. Con un millón de
-  cédulas, 300.000 teléfonos fijos y 300.000 celulares protegidos, eso
-  le pasó a uno de cada cinco números de siete cifras en ejemplos, modas
-  y evidencia —en cualquier escritura: con puntos o apóstrofos de miles,
-  con un guion, tras un numeral o tras una equis seguida de un espacio
+  estuviera escrito solo, y entero; el prefijo no se une a otro grupo.
+  También cuando va pegado a otro número por una barra o un guion
+  —`"+59899123456/+59899765432"`, `"29011234/+59899123456"`—: cada
+  número con esa forma se prueba por su parte nacional. Y el celular
+  protegido guardado con el prefijo se reconoce escrito sin él. No unen
+  los parecidos raros: la prima de una coordenada sexagesimal, el acento
+  grave, la tilde. Los dos puntos y la barra vertical **no** unen: una
+  razón `"494:2714"` o una lista `"12|345|6789"` no es un documento, y
+  un documento escrito así no se reconoce. Una fecha con hora protegida
+  se reconoce escrita con `T`, `Z`, uno a tres espacios, coma, punto y
+  coma, guion o guion doble, guion bajo, barra, barra vertical, arroba,
+  paréntesis o corchete entre la fecha y la hora, con día y mes en
+  cualquier orden, con la hora separada por puntos, guiones o `h` y `m`
+  (`"21h24m25s"`), en la forma compacta `"20240627T212425"` o con la
+  hora compacta tras la fecha con separadores (`"2024-06-27T212425"`);
+  no en palabras, con a.m./p.m., con cuatro espacios o más ni con el año
+  en dos cifras —también con las formas chicas o de ancho completo de
+  esos signos, o con la barra partida por barra vertical—. El documento
+  **parcial**, de siete cifras o más, se busca con más cuidado porque es
+  el que coincide por azar: sin su verificador, fuera de la parte de un
+  decimal, de un número con forma de dirección IPv4 —con o sin máscara
+  CIDR— y de un importe con miles de cuatro grupos o más
+  (`"3.919.024.166"`), que se prueban enteros —el importe, también sin
+  su primer grupo: es el prefijo de país de un celular agrupado de a
+  tres, `"598.099.123.456"`, que se publicaba— (`"4.123.456"` frente a
+  `"4.123.456-7"`, el verificador mal tipeado, el documento seguido de
+  un año), y sin su primer dígito sólo detrás de un asterisco o una
+  equis (`"*.123.456-7"`, `"X.012.345-8"`, `"X2345678"`) —también los
+  asteriscos de Unicode, todo signo que Unicode llama asterisco salvo el
+  combinante de abajo, que el pliegue borra como a una tilde, y el
+  asterisco pegado a una letra, `"CI*123.456-7"`—; la equis seguida de
+  un espacio no es comodín, porque `"92 x 6931234"` es una
+  multiplicación; un número redondo (`1.000.000`) no cuenta como
+  parcial. Es un **decimal** el número cuyo último signo es un punto o
+  una coma con otra cantidad de cifras que tres, y antes un entero o
+  miles separados con otro signo: `"4.123.456,7"` es un importe,
+  `"4.123.456.7"` no; su parte decimal no se pega al resto cuando es la
+  de un importe con miles o la de un decimal suelto —una coordenada, un
+  par lat lon—, pero sí cuando el número es otra cosa, como
+  `"(02) 901.1234"`. Una fecha con un año entre 1800 y 2100 —también con
+  espacios y el año al final, `"16 01 2002"`; con el año adelante no,
+  porque `"2012 11 05"` es también un teléfono escrito de a pares—, una
+  hora —con su fracción de segundo: hasta siete cifras o nueve tras un
+  punto, nunca ocho, y no seguida de un guion y una cifra, que sería un
+  verificador—, un ISBN y una lista separada por comas no son
+  documentos. El ISBN-10 —con guiones, espacios o puntos— sólo si su
+  dígito de control es válido o lo precede `ISBN`: un NIT
+  `"900-123-456-7"` tiene su forma, y uno de cada once documentos de
+  diez cifras escritos así valida por azar y no se reconoce. Una
+  fracción de nueve cifras tras un punto se lee como nanosegundos: un
+  documento con un cero adelante pegado así a una hora no se reconoce.
+  En la prosa del paquete los números son conteos suyos, y ahí la regla
+  mira sólo lo que la prosa cita entre comillas y el código que sugiere
+  entre comillas invertidas, y tapa la cita o el número, no la frase.
+  **El parcial tiene un costo, medido**: un número entero de siete
+  cifras que coincide con un documento protegido sin su verificador no
+  se distingue de él, y se tapa. Con un millón de cédulas, 300.000
+  teléfonos fijos y 300.000 celulares protegidos, eso le pasó a uno de
+  cada cinco números de siete cifras en ejemplos, modas y evidencia —en
+  cualquier escritura: con puntos o apóstrofos de miles, con un guion,
+  tras un numeral o tras una equis seguida de un espacio
   (`"92 x 6931234"`); tras un asterisco, o tras una equis pegada
   (`"serie X6276963"`, que es como se escribe el documento recortado sin
   formato, `"X2345678"`), a uno de cada cuatro—, y a uno o dos de cada
@@ -502,14 +530,20 @@ perfilar(
   `"2004-2017"` o con la raya de un CSV de Windows, dos números en dos
   líneas, una lista con tabuladores o con comas sin espacio —también la
   coma ideográfica—, entre una y tres de cada cien; o una versión
-  `"v4.16.4302"`. Un teléfono fijo que no es de nadie, escrito con
-  espacios o guiones —`"4656 4570"`—, entre tres y seis de cada cien,
-  igual con su prefijo de país (`"+598 4499 0917"`) o pegado: coincide
-  con un documento o con un teléfono protegido. Con el prefijo era uno
-  de cada seis, porque `"598"` y el primer grupo formaban una cédula de
-  siete cifras sin su verificador. Y, por el mismo parcial, una versión
-  de cuatro partes (`"v4.62.660.4361"`), trece de cada cien, y un
-  expediente `"exp 2023-6-880041"`, uno de cada seis: su tramo
+  `"v4.16.4302"`. Un teléfono fijo que no es de nadie, tres de cada cien
+  —2,8 %, sobre 4.000 fijos—, escrito de cualquier forma: con espacios o
+  guiones (`"4656 4570"`), con su prefijo de país (`"+598 4499 0917"`) o
+  pegado. Coincide con un documento o con un teléfono protegido, y como
+  se prueba su parte nacional, las mismas cifras se tapan en todas las
+  escrituras. Las familias del reproductor que sortean 400 fijos por
+  escritura dan entre 1,5 y 5,5 %: es el sorteo, no la escritura. Con el
+  prefijo era uno de cada seis, porque `"598"` y el primer grupo
+  formaban una cédula de siete cifras sin su verificador. Y una lista de
+  dos teléfonos unidos por una barra —`"+59894364556/+59849290458"`—,
+  entre cinco y ocho de cada cien, como la misma lista con `" / "`: cada
+  uno se prueba por su parte nacional. Y, por el mismo parcial, una
+  versión de cuatro partes (`"v4.62.660.4361"`), trece de cada cien, y
+  un expediente `"exp 2023-6-880041"`, uno de cada seis: su tramo
   `"660.4361"` o `"6-880041"` es un número de siete cifras con un signo
   que une, y no se distingue del documento escrito así. Y por la regla
   de la hora, una fracción de ocho cifras (`"18:54:14.80786977"`) no es
@@ -538,24 +572,30 @@ perfilar(
   espacios de Unicode como espacios —el duro, el ideográfico, el salto
   de línea de C1 (U+0085)— y los signos de ancho completo como los de
   ASCII —los paréntesis o la arroba anchos, también los paréntesis
-  blancos anchos (U+FF5F, U+FF60)—, y con las demás formas de
-  compatibilidad de un signo ASCII que la regla de dígitos ya lee: el
-  punto ideográfico y el de medio ancho (U+3002, U+FF61), las variantes
-  chicas de la coma, el punto, los paréntesis o la arroba (U+FE50 a
-  U+FE6B) y la barra partida. Las letras de otro alfabeto que se parecen
-  —una «a» cirílica (U+0430) en lugar de la latina— no son el mismo
-  signo y no se leen. Y en cualquier codificación: un texto `latin1` con
-  una tilde se lee como el mismo texto en UTF-8. Medido sobre 3.000
-  correos protegidos: los no protegidos escritos así se taparon lo mismo
-  que con la arroba común —cuatro de cada mil, por los separadores
-  cosméticos—, y ninguna de 3.015 frases con esas palabras, mil de ellas
-  con una arroba y el punto en palabras. **No** se leen otras
-  ofuscaciones: el punto entre corchetes o paréntesis (`[at]...[.]`,
-  `(.)`), `<at>`, `"at"`, `-at-`, `/at/`, el punto con espacios
-  alrededor (`empresa . com`) ni un dominio con guion bajo; un correo
-  protegido escrito así se publica. Las marcas del paquete se apartan
-  del texto, y un valor protegido que contiene una se busca entero antes
-  de apartarla. **Una fecha de calendario sola no entra en el piso**,
+  blancos anchos (U+FF5F, U+FF60)—, y con todas las demás formas de
+  compatibilidad de un signo ASCII —cada carácter que la normalización
+  NFKC de Unicode lleva a un solo signo ASCII—: el punto ideográfico y
+  el de medio ancho (U+3002, U+FF61), las variantes chicas de la coma,
+  el punto, los paréntesis o la arroba (U+FE50 a U+FE6B), la barra
+  partida, los paréntesis superíndice y subíndice (U+207D, U+207E,
+  U+208D, U+208E), las formas de presentación vertical (U+FE10 a U+FE48)
+  y el punto de guía (U+2024). Se enumeraban las conocidas, y el correo
+  escrito con los paréntesis superíndice alrededor de `at` se publicaba.
+  Las letras de otro alfabeto que se parecen —una «a» cirílica (U+0430)
+  en lugar de la latina— no son el mismo signo y no se leen, ni una
+  letra encerrada en un círculo (U+24D0): es otra forma de la letra, no
+  un signo. Y en cualquier codificación: un texto `latin1` con una tilde
+  se lee como el mismo texto en UTF-8. Medido sobre 3.000 correos
+  protegidos: los no protegidos escritos así se taparon lo mismo que con
+  la arroba común —cuatro de cada mil, por los separadores cosméticos—,
+  y ninguna de 3.015 frases con esas palabras, mil de ellas con una
+  arroba y el punto en palabras. **No** se leen otras ofuscaciones: el
+  punto entre corchetes o paréntesis (`[at]...[.]`, `(.)`), `<at>`,
+  `"at"`, `-at-`, `/at/`, el punto con espacios alrededor
+  (`empresa . com`) ni un dominio con guion bajo; un correo protegido
+  escrito así se publica. Las marcas del paquete se apartan del texto, y
+  un valor protegido que contiene una se busca entero antes de
+  apartarla. **Una fecha de calendario sola no entra en el piso**,
   tampoco escrita como `AAAAMMDD` o con el año en dos cifras en una
   columna de esas fechas, ni como fecha-hora ISO a medianoche: en una
   tabla de miles de personas casi todo día es el cumpleaños de alguien,
@@ -720,7 +760,17 @@ perfilar(
 
   Tolerancia numérica relativa escalada usada al comparar un valor
   observado y uno esperado. Por omisión es `1e-8`; el criterio completo
-  y el valor efectivo se declaran en cada evidencia.
+  y el valor efectivo se declaran en cada evidencia. Como es relativa a
+  la escala del total, con montos de `1e9` vale entre 10 y 20 unidades,
+  y una columna que vive por debajo de eso completaría cualquier suma
+  entre dos columnas casi iguales. Por eso una identidad que se cumple
+  igual sin uno de sus sumandos no se publica, salvo que se cumpla
+  exacta —con la única diferencia del redondeo del tipo double,
+  `4 * .Machine$double.eps` relativo— en la proporción de
+  `umbral_aritmetica`; la evidencia lo dice, y las descartadas se
+  cuentan en `meta$aritmetica_columnas$identidades_descartadas_escala`,
+  junto a la resolución usada en `resolucion_exacta`. Es el mismo
+  criterio que el filtro de magnitud de las relaciones de orden.
 
 - max_columnas_aritmetica:
 
@@ -1208,11 +1258,14 @@ reemplaza `sentinelas_numericos`, esos valores son una declaración de
 ausencia y salen de `media`, `mediana`, `minimo`, `maximo`, `desvio` y
 `n_outliers`, igual que salen los `NA` y las filas que `aplicabilidad`
 deja fuera del universo; `n_valores_excluidos_resumen` y
-`estado_resumen_cuantitativo` declaran ese alcance. La lista por omisión
-—`-9`, `-99`, `-999`, `-9999` y `999`— es en cambio una conjetura del
-paquete: se informa como `faltantes_disfrazados` pero **no** se retira
-de los resúmenes, porque `999` también puede ser un dato legítimo y
-actuar sobre una sospecha cambiaría números que nadie pidió cambiar.
+`estado_resumen_cuantitativo` declaran ese alcance. Salen también de la
+ley de Benford y de las relaciones aritméticas, que leen la columna como
+magnitud: la misma celda no puede ser ausencia en el resumen y valor en
+un diagnóstico. La lista por omisión —`-9`, `-99`, `-999`, `-9999` y
+`999`— es en cambio una conjetura del paquete: se informa como
+`faltantes_disfrazados` pero **no** se retira de los resúmenes, porque
+`999` también puede ser un dato legítimo y actuar sobre una sospecha
+cambiaría números que nadie pidió cambiar.
 
 `moda`, `frecuencia_moda`, `n_distintos`, `tasa_distintos` y
 `longitud_*` describen la **representación almacenada** y siguen
@@ -1260,7 +1313,14 @@ una dimensión o tablas anidadas— no son magnitudes por fila y quedan
 fuera del análisis. Antes de comparar exige variación, que la columna no
 parezca un identificador ni una secuencia correlativa, al menos 100
 observaciones positivas utilizables, una proporción de positivos igual a
-1 y tres órdenes de magnitud según `log10(max/min)`. Si falla alguna
+1 y tres órdenes de magnitud según `log10(max/min)`. Una secuencia
+correlativa es una columna de enteros que cubre al menos la mitad del
+tramo entre su mínimo y su máximo **sin repetirse** —al menos un 90 % de
+valores distintos—: una magnitud entera acotada también llena su tramo
+cuando se cargan filas suficientes, pero repitiendo valores, y la
+exclusión no puede depender de cuántas filas se cargaron. Es la regla de
+numeración de todo el perfil (ver `secuencia_entera_densa` más abajo), y
+una clave declarada excluye a Benford siempre. Si falla alguna
 precondición no emite un hallazgo: la enumera en
 `cobertura_diagnosticos`. Si aplica, `meta$benford$resultados` conserva
 la distribución observada y esperada por primer dígito, el chi-cuadrado
@@ -1298,16 +1358,17 @@ las clases medidas en esta tabla. La ley de Benford sigue el mismo
 criterio y la misma declaración. Cada relación requiere al menos tres
 filas con valores finitos en todas las columnas involucradas; los `NA`,
 `NaN` e infinitos quedan fuera del universo que publica la evidencia.
-Para cada terna se prueban las tres orientaciones de una identidad
-aditiva; esto cubre sumas y sus restas equivalentes sin informar tres
-veces la misma igualdad. En pares proporcionales, `k` es la mediana de
-los cocientes finitos cuya base no es cero, pero el cumplimiento se
-evalúa después también en las filas con base cero. Si una identidad
-aditiva ya relaciona una terna, se omiten las proporcionalidades
-redundantes entre su total y sus sumandos; se conserva la
-proporcionalidad entre los dos sumandos. Una regularidad completa se
-informa con severidad `"ok"`; si alcanza el umbral pero tiene
-discrepancias, sigue el criterio de las relaciones de orden y es
+Una columna `integer` se suma en doble: que dos enteros pasen
+`.Machine$integer.max` no apaga la relación. Para cada terna se prueban
+las tres orientaciones de una identidad aditiva; esto cubre sumas y sus
+restas equivalentes sin informar tres veces la misma igualdad. En pares
+proporcionales, `k` es la mediana de los cocientes finitos cuya base no
+es cero, pero el cumplimiento se evalúa después también en las filas con
+base cero. Si una identidad aditiva ya relaciona una terna, se omiten
+las proporcionalidades redundantes entre su total y sus sumandos; se
+conserva la proporcionalidad entre los dos sumandos. Una regularidad
+completa se informa con severidad `"ok"`; si alcanza el umbral pero
+tiene discrepancias, sigue el criterio de las relaciones de orden y es
 `"sospechoso"`. Todo esto describe evidencia observada: no declara una
 regla del dominio ni autoriza una corrección. Los valores de texto que
 no forman UTF-8 válido tampoco se convierten: se cuentan, se excluyen de
@@ -1418,29 +1479,38 @@ publica su universo, que incluye las geometrías vacías porque GEOS sí
 devuelve su validez. Si hay una dimensión M, se aplica
 [`sf::st_zm()`](https://r-spatial.github.io/sf/reference/st_zm.html) y
 se valida la topología XY; `validez_preprocesamiento = "st_zm(x)"`
-declara esa transformación. Si el CRS es geográfico, un fallo es
-`sospechoso` y no un `error`, porque no afirma invalidez esférica. Las
-dimensiones Z y M no se evalúan como medidas: `dimensiones_no_evaluadas`
-las enumera y `cobertura_diagnosticos` deja constancia explícita incluso
-cuando la validez XY sí pudo calcularse. En un CRS geográfico el dominio
-exige longitudes en `[-180, 180]` y latitudes en `[-90, 90]`. Además,
-las coordenadas se comparan en longitud/latitud con la `BBOX` del área
-de uso incluida en el WKT del CRS. Este control puede detectar valores
-en unidades incompatibles —por ejemplo, grados declarados como metros—,
+declara esa transformación. Si el CRS es geográfico —con SRID mezclados,
+si todos lo son—, un fallo es `sospechoso` y no un `error`, porque no
+afirma invalidez esférica. Las dimensiones Z y M no se evalúan como
+medidas: `dimensiones_no_evaluadas` las enumera y
+`cobertura_diagnosticos` deja constancia explícita incluso cuando la
+validez XY sí pudo calcularse. En un CRS geográfico el dominio exige
+longitudes en `[-180, 180]` y latitudes en `[-90, 90]`. Además, las
+coordenadas se comparan en longitud/latitud con la `BBOX` del área de
+uso incluida en el WKT del CRS. Este control puede detectar valores en
+unidades incompatibles —por ejemplo, grados declarados como metros—,
 pero no una zona UTM equivocada cuando esa interpretación cae dentro del
 área de la zona declarada. Una `BBOX` mundial es un no-op válido; si el
 WKT no permite extraer la caja, el dominio queda en `NA` y
 `cobertura_diagnosticos` lo declara en lugar de suponer el mundo entero.
-Las geometrías vacías se cuentan aparte y no integran el universo del
-dominio ni de la bbox. `n_dominio_evaluados` y `n_bbox_evaluados`
-publican ambos universos; la bbox se calcula sobre coordenadas crudas de
-geometrías no vacías, incluidas las que el dominio marque fuera, y
-`bbox_alcance` lo declara. Si todas son vacías, sus conteos evaluados y
-fuera de dominio son cero. Sin CRS, `n_fuera_de_dominio` queda en `NA` y
-se emite `crs_no_declarado`: nunca se supone EPSG:4326. Si falta el
-paquete opcional `sf`, todos esos campos quedan en `NA`, no se emite un
-hallazgo geométrico y `cobertura_diagnosticos` registra la dependencia
-ausente.
+Si el CRS geográfico mide desde otro meridiano de origen —París, Ferro—
+o en otra unidad —gradianes—, ese rango se exige en sus propias unidades
+y la comparación con la `BBOX` se hace después de llevar las coordenadas
+a longitud/latitud WGS 84. Un componente vacío de una geometría que no
+es vacía —un `POINT EMPTY` dentro de una colección o de un `MULTIPOINT`—
+no es una coordenada y no cuenta como fuera de dominio. Las geometrías
+vacías se cuentan aparte y no integran el universo del dominio ni de la
+bbox. `n_dominio_evaluados` y `n_bbox_evaluados` publican ambos
+universos; la bbox se calcula sobre coordenadas crudas de geometrías no
+vacías, incluidas las que el dominio marque fuera, y `bbox_alcance` lo
+declara. Si todas son vacías, sus conteos evaluados y fuera de dominio
+son cero. `geometria_vacia` y `tipos_geometria_mixtos` cuentan sobre las
+geometrías medidas: un valor ausente de una columna de texto o un valor
+que no se pudo convertir no es una geometría y no entra en su
+denominador. Sin CRS, `n_fuera_de_dominio` queda en `NA` y se emite
+`crs_no_declarado`: nunca se supone EPSG:4326. Si falta el paquete
+opcional `sf`, todos esos campos quedan en `NA`, no se emite un hallazgo
+geométrico y `cobertura_diagnosticos` registra la dependencia ausente.
 
 Una columna cuyos valores son `data.frame` o matriz —lo que devuelve un
 driver al leer un `STRUCT`— declara `n` en **filas**, como cualquier
@@ -1452,27 +1522,47 @@ analizarlos como texto, que se declara aparte en
 geometría se restringen a ese universo, igual que el resto del
 perfilado: una geometría que la regla dejó afuera no cuenta como vacía,
 ni como inválida, ni como fuera de dominio, y `n_geometrias`,
-`n_dominio_evaluados` y `n_validez_evaluados` describen el universo.
-Tres campos son la excepción y conviene saber por qué:
-`n_bbox_evaluados`, `n_geometrias_analizadas` y `n_vertices_analizados`
-cuentan **el trabajo que se hizo**, no filas de un universo —el análisis
-geométrico corre sobre la columna entera, porque necesita su CRS y sus
-tipos—, así que se publican tal como se midieron. Recortarlos a ojo
-sería inventar un número: no hay conjunto de índices del que derivarlos.
+`n_dominio_evaluados` y `n_validez_evaluados` describen el universo. Los
+dos evaluados cuentan sólo lo que de verdad se evaluó dentro de él: no
+entran las geometrías que el presupuesto no analizó, los valores
+ausentes de una columna de texto ni, para el dominio, las geometrías
+vacías. El presupuesto geométrico —los topes `lupa.max_geometrias` y
+`lupa.max_vertices`, que acotan la validez y el dominio— se gasta
+primero en el universo, con el mismo muestreo uniforme si el universo
+solo ya excede el tope, y lo que sobra va al resto de la columna. Si aun
+así quedaron geometrías del universo sin analizar,
+`cobertura_diagnosticos` dice cuántas, junto al recorte de la columna;
+si el recorte cayó entero fuera del universo, también lo dice. Tres
+campos son la excepción y conviene saber por qué: `n_bbox_evaluados`,
+`n_geometrias_analizadas` y `n_vertices_analizados` cuentan **el trabajo
+que se hizo** sobre la columna entera —el universo y lo que el
+presupuesto alcanzó del resto—, no filas de un universo: el análisis
+geométrico corre sobre la columna, porque necesita su CRS y sus tipos,
+así que se publican tal como se midieron. Recortarlos a ojo sería
+inventar un número: no hay conjunto de índices del que derivarlos.
 
 **Una columna de texto puede ser una geometría.** Se reconoce como WKT o
 WKB (crudo o hexadecimal) cuando la mayoría de una muestra de 20 valores
 tiene esa forma; si después hay valores que no se pueden convertir, la
-pérdida se declara en `motivo_representacion`. Esa columna se sigue
-perfilando como texto en lo que toca a su escritura —espacios,
-codificación, invisibles—, pero no recibe los diagnósticos que leen los
-valores como palabras o como claves —la proximidad de vocabulario,
-`posible_identificador`, `patron_raro`—: `cobertura_diagnosticos`
-declara que no aplican. El argumento `normalizar` declara el perfil de
-comparación que se conserva en `meta$normalizacion`; cambia sólo la
-representación usada para comparar, no el texto guardado. `TRUE` usa el
-perfil predeterminado, `FALSE` desactiva sus pasos configurables,
-`"amplio"` activa los tres pliegues optativos y
+pérdida se declara con su cifra en `motivo_representacion` y en
+`cobertura_diagnosticos`, y las métricas cubren el resto: un valor que
+no convierte no borra la medición de la columna. A `sf` sólo llega lo
+que tiene la forma de su representación —un WKT de los tipos que el
+perfil mide, con su dimensión `Z` o `M` y colecciones anidadas como las
+que escribe PostGIS, o un WKB de encabezado plausible—; el texto
+corrupto y las curvas se declaran como no convertidos. Si los valores
+declaran su SRID —`SRID=n;` en EWKT, o EWKB—, la columna se mide por
+SRID y no se acusa `crs_no_declarado`, aunque ningún valor se haya
+podido convertir. Esa columna se sigue perfilando como texto en lo que
+toca a su escritura —espacios, codificación, invisibles—, pero no recibe
+los diagnósticos que leen los valores como palabras o como claves —la
+proximidad de vocabulario, `posible_identificador`, `patron_raro`—:
+`cobertura_diagnosticos` declara que no aplican. El argumento
+`normalizar` declara el perfil de comparación que se conserva en
+`meta$normalizacion`; cambia sólo la representación usada para comparar,
+no el texto guardado. `TRUE` usa el perfil predeterminado, `FALSE`
+desactiva sus pasos configurables, `"amplio"` activa los tres pliegues
+optativos y
 [`normalizacion()`](https://sebollin.github.io/lupa/reference/normalizacion.md)
 permite declararlos. También admite una lista nombrada por columna.
 `meta$normalizacion_fusiones` informa, para cada paso activo, la
@@ -1561,10 +1651,18 @@ de un valor válido. El alcance declara cuántas observaciones retiró este
 filtro.
 
 La corazonada de centinelas numéricos se apaga sobre una **numeración
-limpia**, para no llamar ausencia a un código válido. `densa` responde
-sólo a la cobertura del rango —`densidad_secuencia_entera` por encima de
-su umbral—; `moda_sobresale_secuencia_entera` es una señal independiente
-y no cambia los tres escudos de forma que dependen de la numeración. En
+limpia**, para no llamar ausencia a un código válido. `densa` responde a
+la cobertura del rango —`densidad_secuencia_entera` por encima de su
+umbral— y a que los valores **casi no se repitan**: al menos un 90 % de
+valores distintos, descontando el excedente de la moda. Cubrir el rango
+sola lo cumple también una magnitud entera acotada cuando se cargan
+filas suficientes, y el veredicto dependía de cuántas filas se leyeron;
+una numeración que se repite —un código de catálogo, una clave foránea—
+no se distingue por su forma de esa magnitud y no se trata como
+numeración. Es la misma regla que deciden `posible_identificador`, la
+guarda de los límites de Tukey, la de los patrones raros y la de
+Benford. `moda_sobresale_secuencia_entera` es una señal independiente y
+no cambia los tres escudos de forma que dependen de la numeración. En
 una columna `integer64`, `bit64` se carga de manera diferida si está
 instalado para registrar sus métodos antes de medir. Si no está
 instalado, las cinco medidas públicas de la secuencia quedan en `NA` y
@@ -1745,7 +1843,7 @@ perfil
 #>            correo         texto             0.00000000          12         NA
 #>          id_copia         doble             0.00000000          11         NA
 #>        id_tramite identificador             0.00000000          12         NA
-#> ℹ Se muestran 5 de 116 campos; los demás están en `columnas()`.
+#> ℹ Se muestran 5 de 118 campos; los demás están en `columnas()`.
 summary(perfil)
 #>             columna tipo_declarado tipo_inferido estado_tipo_inferido
 #> 1        id_persona          doble         doble                 <NA>
@@ -2022,17 +2120,28 @@ summary(perfil)
 #> 8                      <NA>                 NA                  NA
 #> 9                      <NA>                 NA                  NA
 #> 10                     <NA>                 NA                  NA
-#>    n_bbox_evaluados bbox_alcance bbox_xmin bbox_xmax bbox_ymin bbox_ymax
-#> 1                NA         <NA>        NA        NA        NA        NA
-#> 2                NA         <NA>        NA        NA        NA        NA
-#> 3                NA         <NA>        NA        NA        NA        NA
-#> 4                NA         <NA>        NA        NA        NA        NA
-#> 5                NA         <NA>        NA        NA        NA        NA
-#> 6                NA         <NA>        NA        NA        NA        NA
-#> 7                NA         <NA>        NA        NA        NA        NA
-#> 8                NA         <NA>        NA        NA        NA        NA
-#> 9                NA         <NA>        NA        NA        NA        NA
-#> 10               NA         <NA>        NA        NA        NA        NA
+#>    n_bbox_evaluados n_geometrias_analizadas n_vertices_analizados bbox_alcance
+#> 1                NA                      NA                    NA         <NA>
+#> 2                NA                      NA                    NA         <NA>
+#> 3                NA                      NA                    NA         <NA>
+#> 4                NA                      NA                    NA         <NA>
+#> 5                NA                      NA                    NA         <NA>
+#> 6                NA                      NA                    NA         <NA>
+#> 7                NA                      NA                    NA         <NA>
+#> 8                NA                      NA                    NA         <NA>
+#> 9                NA                      NA                    NA         <NA>
+#> 10               NA                      NA                    NA         <NA>
+#>    bbox_xmin bbox_xmax bbox_ymin bbox_ymax
+#> 1         NA        NA        NA        NA
+#> 2         NA        NA        NA        NA
+#> 3         NA        NA        NA        NA
+#> 4         NA        NA        NA        NA
+#> 5         NA        NA        NA        NA
+#> 6         NA        NA        NA        NA
+#> 7         NA        NA        NA        NA
+#> 8         NA        NA        NA        NA
+#> 9         NA        NA        NA        NA
+#> 10        NA        NA        NA        NA
 #>                      detalle_proteccion_personal n_blancos n_espacios_borde
 #> 1  [estadisticos de orden y la media protegidos]         0                0
 #> 2             [estadisticos de orden protegidos]         0                0

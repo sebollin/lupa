@@ -375,7 +375,7 @@ breve:
 | Tarea | Funciones principales | Para leer más |
 |----|----|----|
 | Mirar los datos por primera vez | [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md), [`analizar()`](https://sebollin.github.io/lupa/reference/analizar.md), [`distribucion_valores()`](https://sebollin.github.io/lupa/reference/distribucion_valores.md), [`detectar_asociaciones()`](https://sebollin.github.io/lupa/reference/detectar_asociaciones.md), [`analizar_tiempo()`](https://sebollin.github.io/lupa/reference/analizar_tiempo.md), [`clasificar_variables()`](https://sebollin.github.io/lupa/reference/clasificar_variables.md), [`inferir_tipo()`](https://sebollin.github.io/lupa/reference/inferir_tipo.md), [`descubrir_patrones()`](https://sebollin.github.io/lupa/reference/descubrir_patrones.md), [`detectar_formatos_fecha()`](https://sebollin.github.io/lupa/reference/detectar_formatos_fecha.md), `sentinelas_naniar` | [Empezar con lupa](https://sebollin.github.io/lupa/articles/empezar-con-lupa.html) |
-| Perfilar contra una base | [`perfilar_dbi()`](https://sebollin.github.io/lupa/reference/perfilar_dbi.md) — agregados SQL de toda la tabla y, por omisión, un perfil de 115 campos analíticos sobre una muestra declarada; `bloque_muestra = "solo_agregados"` permite pedir sólo los agregados | [Perfilar una base](https://sebollin.github.io/lupa/articles/perfilar-una-base.html) |
+| Perfilar contra una base | [`perfilar_dbi()`](https://sebollin.github.io/lupa/reference/perfilar_dbi.md) — agregados SQL de toda la tabla y, por omisión, un perfil de 117 campos analíticos sobre una muestra declarada; `bloque_muestra = "solo_agregados"` permite pedir sólo los agregados | [Perfilar una base](https://sebollin.github.io/lupa/articles/perfilar-una-base.html) |
 | Encontrar estructura no declarada | [`detectar_claves()`](https://sebollin.github.io/lupa/reference/detectar_claves.md), [`detectar_relaciones()`](https://sebollin.github.io/lupa/reference/detectar_relaciones.md), [`detectar_dependencias()`](https://sebollin.github.io/lupa/reference/detectar_dependencias.md), [`granularidades()`](https://sebollin.github.io/lupa/reference/granularidades.md), [`transiciones_granularidad()`](https://sebollin.github.io/lupa/reference/granularidades.md) | [Estructura no declarada](https://sebollin.github.io/lupa/articles/estructura-no-declarada.html) |
 | Definir la calidad | [`marco_calidad()`](https://sebollin.github.io/lupa/reference/marco_calidad.md), [`marco_agesic()`](https://sebollin.github.io/lupa/reference/marco_calidad.md), [`marco_iso25012()`](https://sebollin.github.io/lupa/reference/marco_calidad.md), [`marco_cepal()`](https://sebollin.github.io/lupa/reference/marco_calidad.md), [`catalogo_agesic()`](https://sebollin.github.io/lupa/reference/catalogo_agesic.md), [`metrica()`](https://sebollin.github.io/lupa/reference/modelo_calidad.md), [`especializar()`](https://sebollin.github.io/lupa/reference/modelo_calidad.md), [`instanciar()`](https://sebollin.github.io/lupa/reference/modelo_calidad.md), [`modelo()`](https://sebollin.github.io/lupa/reference/modelo_calidad.md), [`metricas_nucleo()`](https://sebollin.github.io/lupa/reference/modelo_calidad.md), [`metricas_referencial()`](https://sebollin.github.io/lupa/reference/metricas_referencial.md), [`proponer_modelo()`](https://sebollin.github.io/lupa/reference/proponer_modelo.md), [`modelo_desde_propuesta()`](https://sebollin.github.io/lupa/reference/modelo_desde_propuesta.md), [`perfiles_madurez()`](https://sebollin.github.io/lupa/reference/reglas_evaluacion.md), [`cobertura_analisis()`](https://sebollin.github.io/lupa/reference/cobertura_analisis.md) | [Definir la calidad](https://sebollin.github.io/lupa/articles/definir-la-calidad.html) |
 | Medir y evaluar | [`medir()`](https://sebollin.github.io/lupa/reference/medir.md), [`agregar()`](https://sebollin.github.io/lupa/reference/agregar.md), [`tablero_calidad()`](https://sebollin.github.io/lupa/reference/tablero_calidad.md), [`indice_calidad()`](https://sebollin.github.io/lupa/reference/indice_calidad.md) con pesos del proyecto, [`evaluar()`](https://sebollin.github.io/lupa/reference/evaluar.md), [`regla_evaluacion()`](https://sebollin.github.io/lupa/reference/reglas_evaluacion.md) con la instrucción `desenlace = "suprimir"` declarada por quien usa el paquete (no un umbral de fábrica), [`perfil_evaluacion()`](https://sebollin.github.io/lupa/reference/reglas_evaluacion.md), [`escala()`](https://sebollin.github.io/lupa/reference/contratos_medicion.md), [`referencial()`](https://sebollin.github.io/lupa/reference/referencial.md), [`vigencia()`](https://sebollin.github.io/lupa/reference/contratos_medicion.md) | [Medir y evaluar](https://sebollin.github.io/lupa/articles/medir-y-evaluar.html) |
@@ -1169,22 +1169,33 @@ calidad.
 
 Reconocer una numeración usa la **densidad**: un identificador ocupa un
 tramo compacto de los enteros y una magnitud se reparte por varios
-órdenes. La unicidad no sirve, porque un monto también es casi único. El
-campo público `secuencia_entera_densa` responde sólo esa pregunta de
-cobertura; la señal separada `moda_sobresale_secuencia_entera` no debe
-apagar los escudos de forma que usan la numeración. La guarda de
-centinelas vuelve a abrirse si un candidato queda fuera del rango de la
-numeración restante, o si ese candidato es la frecuencia sobresaliente.
-La señal del rango es deliberadamente independiente de la frecuencia:
-`-9` en una numeración de 1 a 1.505 es sospechoso aunque cinco valores
-legítimos empaten con él, mientras que un `999` que aparece una vez
-dentro de 1..1.000 no lo es.
+órdenes. La unicidad sola no sirve, porque un monto también es casi
+único. Pero hace falta como segunda mitad: una magnitud entera acotada
+también llena todos los enteros de su rango cuando se cargan filas
+suficientes —repitiéndolos—, y con la densidad sola una edad de 18 a 90
+con 20.000 filas salía «código de catálogo» y el veredicto dependía de
+cuántas filas se leyeron. Una numeración es densa **y** casi no se
+repite; un código que se repite no se distingue por su forma de esa
+magnitud, y el paquete prefiere hablar de más sobre él. El campo público
+`secuencia_entera_densa` responde sólo esa pregunta de cobertura; la
+señal separada `moda_sobresale_secuencia_entera` no debe apagar los
+escudos de forma que usan la numeración. La guarda de centinelas vuelve
+a abrirse si un candidato queda fuera del rango de la numeración
+restante, o si ese candidato es la frecuencia sobresaliente. La señal
+del rango es deliberadamente independiente de la frecuencia: `-9` en una
+numeración de 1 a 1.505 es sospechoso aunque cinco valores legítimos
+empaten con él, mientras que un `999` que aparece una vez dentro de
+1..1.000 no lo es.
 
 El criterio se eligió midiendo. Un banco de trece columnas con la
 respuesta conocida —cinco numeraciones y ocho magnitudes con un dato
 malo adentro— comparó cuatro variantes: cruzar las dos señales acierta
 las trece y **no calla ningún dato malo real**; la densidad sola
-acertaba once y callaba dos. Está en `test-ronda118.R`.
+acertaba once y callaba dos. Está en `test-ronda118.R`. Desde que se
+exige que una numeración casi no se repita, una de las cinco —un código
+de 1 a 284 que se repite— ya no se reconoce y recibe los límites de
+Tukey: acierta doce, y el error queda del lado barato, el de hablar de
+más y no el de callar.
 
 Para una columna `integer64`, `bit64` se carga de manera diferida cuando
 está instalado, para registrar sus métodos antes de medir. Si no está
@@ -1228,7 +1239,10 @@ la misma idea: el paquete **excluye lo que el usuario declara e incluye
 lo que él mismo sospecha**. Un valor declarado en `sentinelas_numericos`
 sale de `media`, `mediana`, `minimo`, `maximo` y `desvio` —y
 `n_valores_excluidos_resumen` dice cuántos dejó afuera—, igual que salen
-los `NA` y las filas que `aplicabilidad` deja fuera del universo. La
+los `NA` y las filas que `aplicabilidad` deja fuera del universo. Lo que
+se declara fuera del universo —centinelas o `aplicabilidad`— sale
+también de la ley de Benford y de las relaciones aritméticas: la misma
+celda no puede ser ausencia en el resumen y valor en un diagnóstico. La
 lista por omisión, en cambio, informa y no toca los números: es una
 conjetura, y una conjetura no mueve un promedio. `moda` y `n_distintos`
 siguen describiendo lo que hay guardado, como ya hacían con un `Inf`.
@@ -1306,7 +1320,8 @@ habría que escribir:
 
     valor_a  posible_ausencia_estructural  ok
       evidencia   `tipo` predice la presencia de `valor_a` en 100.0 % de 200 filas,
-                  con 2 valores distintos. La columna corresponde cuando tipo es "A".
+                  con 2 valores distintos. La regla explica 100 de las 100
+                  ausencias de la columna. La columna corresponde cuando tipo es "A".
       sugerencia  perfilar(datos, aplicabilidad = list(valor_a = ~ tipo == "A"))
 
 Sugiere; no decide, y nunca reescribe el universo por su cuenta. Las
@@ -1494,10 +1509,11 @@ que pueda apagarlo.
 - Perfila geometrías `sf` y declara CRS, familias geométricas, vacíos,
   validez planar, dominio de coordenadas y alcance de la caja
   envolvente; no hace análisis espacial. Sobre PostGIS lee el SRID de
-  cada EWKB, así que una columna con SRID mixto queda declarada como tal
-  y su dominio se evalúa por grupos: una columna
+  cada valor EWKB o EWKT, así que una columna con SRID mixto queda
+  declarada como tal y su dominio se evalúa por grupos: una columna
   [`sf::sfc`](https://r-spatial.github.io/sf/reference/sfc.html) sólo
-  puede tener un CRS.
+  puede tener un CRS. Un valor que no se puede convertir no borra la
+  columna: se mide el resto y la pérdida se declara con su cifra.
 - Evalúa la ley de Benford sólo cuando se cumplen sus precondiciones y
   registra los casos no aplicables en `cobertura_diagnosticos`.
 - Informa `unidades_mixtas` y `monedas_mixtas` en una columna sin

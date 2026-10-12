@@ -4,7 +4,12 @@ Separa el tipo de almacenamiento, el tipo implícito y la escala de
 medición. Una propuesta basada sólo en valores nunca queda confirmada:
 `1, 2, 3` puede ser conteo, código o nivel. Las clases `ordered`,
 `factor`, `logical`, las clases temporales y el metadato `measure` sí
-constituyen declaraciones.
+constituyen declaraciones. `measure = "scale"` se publica como
+`continua`, la lectura que SPSS da a ese nivel. Una unidad declarada —el
+atributo `units`— establece una magnitud, pero no si es discreta o
+continua: confirma `continua` cuando los valores traen decimales, y con
+valores enteros la propuesta queda sin confirmar, porque pueden ser una
+cuenta o una medida redondeada.
 
 ## Usage
 

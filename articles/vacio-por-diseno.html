@@ -171,17 +171,19 @@ engañoso y nada más. Por eso el mismo perfil trae otra fila:</p>
 <span><span class="fu"><a href="https://rdrr.io/r/base/cat.html" class="external-link">cat</a></span><span class="op">(</span><span class="va">perfil</span><span class="op">$</span><span class="va">hallazgos</span><span class="op">$</span><span class="va">evidencia</span><span class="op">[</span></span>
 <span>  <span class="va">perfil</span><span class="op">$</span><span class="va">hallazgos</span><span class="op">$</span><span class="va">tipo_hallazgo</span> <span class="op">==</span> <span class="st">"posible_ausencia_estructural"</span></span>
 <span><span class="op">]</span><span class="op">)</span></span>
-<span><span class="co">#&gt; `tiene_auto` predice la presencia de `marca_auto` en 100.0 % de 2000 filas, con 2 valores distintos. La columna corresponde cuando tiene_auto es "Si".</span></span>
+<span><span class="co">#&gt; `tiene_auto` predice la presencia de `marca_auto` en 100.0 % de 2000 filas, con 2 valores distintos. La regla explica 1400 de las 1400 ausencias de la columna. La columna corresponde cuando tiene_auto es "Si".</span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/base/cat.html" class="external-link">cat</a></span><span class="op">(</span><span class="va">perfil</span><span class="op">$</span><span class="va">hallazgos</span><span class="op">$</span><span class="va">sugerencia</span><span class="op">[</span></span>
 <span>  <span class="va">perfil</span><span class="op">$</span><span class="va">hallazgos</span><span class="op">$</span><span class="va">tipo_hallazgo</span> <span class="op">==</span> <span class="st">"posible_ausencia_estructural"</span></span>
 <span><span class="op">]</span><span class="op">)</span></span>
 <span><span class="co">#&gt; Si es así, declararlo y volver a perfilar: `perfilar(datos, aplicabilidad = list(marca_auto = ~ tiene_auto == "Si"))`. Con la regla declarada, la ausencia fuera de ese universo deja de contarse como defecto y el alcance queda escrito en `cobertura_diagnosticos`.</span></span></code></pre></div>
 <p>Severidad <code>ok</code>: no es un defecto, es una lectura de la
 estructura. La evidencia es un hecho medido sobre los datos —qué
-proporción de las filas queda explicada por el valor de la otra columna—
-y la sugerencia trae la línea exacta que habría que escribir. Quien
-decide sigue siendo el usuario: el paquete no reescribe el universo por
-su cuenta, y las columnas ya declaradas quedan fuera del examen.</p>
+proporción de las filas queda explicada por el valor de la otra columna,
+y cuántas de las ausencias caen donde la regla dice que la columna no
+corresponde, que es lo que cuenta <code>n_afectados</code>— y la
+sugerencia trae la línea exacta que habría que escribir. Quien decide
+sigue siendo el usuario: el paquete no reescribe el universo por su
+cuenta, y las columnas ya declaradas quedan fuera del examen.</p>
 <p>La señal sale por dos caminos. Uno es el de arriba: <strong>una
 columna determina la presencia de otra</strong>, con un cumplimiento de
 al menos 0,99, y entonces se puede escribir la fórmula. El otro es el
@@ -323,9 +325,7 @@ resultado no describe a ninguno.</p>
 <span><span class="co">#&gt;            alta_cardinalidad  casi_duplicados_vocabulario        dato_personal_posible </span></span>
 <span><span class="co">#&gt;                            1                            1                            1 </span></span>
 <span><span class="co">#&gt;                    faltantes    mayusculas_inconsistentes posible_ausencia_estructural </span></span>
-<span><span class="co">#&gt;                            2                            1                            2 </span></span>
-<span><span class="co">#&gt;        posible_identificador </span></span>
-<span><span class="co">#&gt;                            2</span></span></code></pre></div>
+<span><span class="co">#&gt;                            2                            1                            2</span></span></code></pre></div>
 <p>Por grupo, cada atributo se perfila contra su propio dominio. Las
 columnas enteramente ausentes dentro del grupo se descartan antes de
 perfilar, y ése es el paso que desactiva el faltante falso.</p>
@@ -341,7 +341,7 @@ perfilar, y ése es el paso que desactiva el faltante falso.</p>
 <span><span class="co">#&gt; casi_duplicados_vocabulario       dato_personal_posible   mayusculas_inconsistentes </span></span>
 <span><span class="co">#&gt;                           2                           1                           1 </span></span>
 <span><span class="co">#&gt;       posible_identificador </span></span>
-<span><span class="co">#&gt;                           4</span></span></code></pre></div>
+<span><span class="co">#&gt;                           3</span></span></code></pre></div>
 <p>El argumento <code>clave</code> no es cosmético. Sin la columna de
 identidad, cada repetición del valor de un atributo se lee como fila
 duplicada y el diagnóstico de unicidad informa la tabla entera. Si se

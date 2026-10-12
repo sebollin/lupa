@@ -130,6 +130,13 @@ de magnitud numérica se omiten por el cambio de esquema y su motivo queda en
 segundos contra magnitudes numéricas sin unidad común. Cuando ambos lados
 son temporales, <code>desvio</code> sí se compara en flotante porque ambas puertas lo
 expresan en segundos.</p>
+<p>Si un lado es temporal y el otro <strong>no publica su tipo</strong> —el frame de
+<code><a href="perfilar_dbi.html">perfilar_dbi()</a></code> no trae ningún campo de tipo—, no se afirma un cambio de
+tipo: los mismos campos se omiten con el motivo
+<code>tipo_desconocido:temporal_vs_sin_tipo</code>, porque tampoco se puede garantizar
+una unidad común. Una fecha guardada como número en el motor tiene su
+<code>desvio</code> en días de ese lado y en segundos del otro, y compararlos
+publicaría como diferencia del dato una diferencia de unidad.</p>
 <p>Si una columna guarda caracteres en exactamente uno de los perfiles, los
 campos calculados sobre la representación —longitudes, variantes unicode y
 números escritos como texto— se omiten y su motivo queda en

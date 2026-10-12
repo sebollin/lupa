@@ -72,14 +72,21 @@ porcentuales evita elevar variaciones pequeñas a hallazgo.</p></dd>
 
 <dt id="arg-umbral-error">umbral_error<a class="anchor" aria-label="anchor" href="#arg-umbral-error"></a></dt>
 <dd><p>Diferencia a partir de la cual un aumento de faltantes o
-un patrón nuevo se clasifica como <code>error</code>.</p></dd>
+un cambio de patrón —uno que aparece, desaparece o cambia de proporción— se
+clasifica como <code>error</code>.</p></dd>
 
 </dl></div>
     <div class="section level2">
     <h2 id="value">Value<a class="anchor" aria-label="anchor" href="#value"></a></h2>
     <p>Data frame <code>deriva_perfil</code>. <code>severidad</code> usa el factor ordenado
 <code>ok &lt; sospechoso &lt; error</code>; los cambios menores permanecen como filas <code>ok</code>
-para que la serie sea exportable sin ocultar diferencias.</p>
+para que la serie sea exportable sin ocultar diferencias.
+El atributo <code>campos_protegidos</code> declara lo que no se comparó porque la
+protección de datos personales lo tapa: un data frame con <code>columna</code>,
+<code>campo</code> y <code>lado</code> —<code>anterior</code> o <code>actual</code>—, la misma forma que usa
+<code><a href="comparar_equivalencia.html">comparar_equivalencia()</a></code>. Hoy el único campo que puede figurar es
+<code>rango</code>. Está siempre, vacío si no hay nada que declarar, y <code><a href="https://rdrr.io/r/base/cbind.html" class="external-link">rbind()</a></code> une
+los de todas las derivas.</p>
     </div>
     <div class="section level2">
     <h2 id="details">Details<a class="anchor" aria-label="anchor" href="#details"></a></h2>
@@ -122,6 +129,42 @@ con los mismos valores y la unidad cambiada de <code>m</code> a <code>km</code> 
 —la cifra dejó de significar lo mismo— y antes devolvían cero filas. Un perfil
 guardado antes de que ese campo existiera no hace mentir la comparación: esa
 parte se declara <strong>no comparable</strong>, como el resto de los campos ausentes.</p>
+<p>El <strong>rango</strong> se compara por los valores de sus extremos, no por su texto
+impreso: un cambio chico sale como fila <code>ok</code> y uno que alcanza
+<code>umbral_cambio</code> —medido contra el ancho del rango anterior— como
+<code>sospechoso</code>, sin que <code>options(scipen)</code> ni <code>digits</code> muevan el veredicto.
+Cuando el perfil conserva los extremos exactos de un entero que no entra en
+un doble —un <code>integer64</code> por encima de 2^53, o un entero escrito como
+texto—, esos extremos se comparan con aritmética exacta. Los números se
+publican con la escritura más corta que vuelve al valor, así que dos
+extremos distintos nunca se imprimen iguales; la marca decimal sigue a
+<code>OutDec</code>, y con coma decimal los extremos se separan con punto y coma
+(<code>[1,5; 3]</code>).</p>
+<p>Una columna <strong>protegida</strong> no publica su rango, y la comparación tampoco lo
+compara: lo declara en el atributo <code>campos_protegidos</code>, con la misma regla
+que <code><a href="comparar_equivalencia.html">comparar_equivalencia()</a></code>. Si la protección de una columna cambia entre
+las corridas con la misma política —por ejemplo, porque la proporción de
+documentos válidos cruzó el umbral de verificación—, el cambio se informa
+con una fila propia, <code>aspecto = "proteccion"</code> y severidad <code>sospechoso</code>, en
+lugar de un cambio de rango que no ocurrió en los datos. Si lo que cambió es
+la política entera, ya lo dice la fila <code>configuracion_proteccion</code> y no se
+repite por columna.</p>
+<p>Además de los patrones que aparecen y desaparecen, se informa el <strong>cambio de
+proporción</strong> de un patrón que sigue en el resumen cuando alcanza
+<code>umbral_cambio</code>: <code>sospechoso</code>, o <code>error</code> desde <code>umbral_error</code>, en las dos
+direcciones. Que los cambios menores no generen fila es una <strong>decisión</strong>, a
+diferencia de los faltantes: serían una fila por patrón en cada entrega. Si
+el resumen de un lado estaba <strong>lleno</strong> —la columna tenía más formas que
+<code>max_patrones</code>—, un patrón que falta en él pudo quedar por debajo del corte,
+y no se afirma que apareció o desapareció: la fila dice <code>no_comparable</code>, con
+severidad <code>ok</code>, salvo que el cambio que sí se puede garantizar —contra la
+menor proporción que guardaba ese resumen— alcance el umbral; entonces dice
+<code>modificado</code> y <code>delta</code> es esa cota.</p>
+<p>La <strong>cardinalidad</strong> no tiene una dirección buena: que caiga la tasa de
+valores distintos de un identificador es un deterioro, y que suba la de una
+columna de categorías también. Por <strong>decisión</strong>, un cambio significativo de
+cardinalidad es <code>sospechoso</code> en los dos sentidos. Los faltantes sí la
+tienen: que bajen es una mejora y queda <code>ok</code>.</p>
 <p>Las columnas que aparecen o desaparecen generan cambios estructurales de
 severidad <code>error</code>, pero no impiden comparar las columnas compartidas. Un
 hallazgo de una columna retirada no se presenta como resuelto.</p>
@@ -150,18 +193,22 @@ conserva.</p>
 <span class="r-in"><span><span class="va">actual</span> <span class="op">&lt;-</span> <span class="fu"><a href="perfilar.html">perfilar</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/data.frame.html" class="external-link">data.frame</a></span><span class="op">(</span>codigo <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"AA1"</span>, <span class="st">"B-2"</span><span class="op">)</span>, nueva <span class="op">=</span> <span class="fl">1</span><span class="op">:</span><span class="fl">2</span><span class="op">)</span>,</span></span>
 <span class="r-in"><span>                   fecha <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/as.POSIXlt.html" class="external-link">as.POSIXct</a></span><span class="op">(</span><span class="st">"2026-02-01"</span>, tz <span class="op">=</span> <span class="st">"UTC"</span><span class="op">)</span><span class="op">)</span></span></span>
 <span class="r-in"><span><span class="fu">comparar_perfiles</span><span class="op">(</span><span class="va">anterior</span>, <span class="va">actual</span><span class="op">)</span></span></span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>   columna aspecto    cambio severidad valor_anterior valor_actual delta</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 1   nueva columna aparecida     error           &lt;NA&gt;        nueva    NA</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 2  codigo  patron aparecido     error           &lt;NA&gt;          A-9   0.5</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>   columna aspecto     cambio severidad valor_anterior valor_actual delta</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 1   nueva columna  aparecida     error           &lt;NA&gt;        nueva    NA</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 2  codigo  patron  aparecido     error           &lt;NA&gt;          A-9   0.5</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 3  codigo  patron modificado     error            A+9          A+9  -0.5</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>   cambio_relativo significativo fecha_anterior fecha_actual</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> 1              NA          TRUE     2026-01-01   2026-02-01</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> 2              NA          TRUE     2026-01-01   2026-02-01</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>                                                  descripcion</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 1 Apareció una columna que no estaba en la entrega anterior.</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 2                       Apareció un patrón de formato nuevo.</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 3              NA          TRUE     2026-01-01   2026-02-01</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>                                                        descripcion</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 1       Apareció una columna que no estaba en la entrega anterior.</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 2                             Apareció un patrón de formato nuevo.</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 3 Cambió la proporción de un patrón de formato que sigue presente.</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>                                        evidencia</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> 1 No existe una base anterior para sus métricas.</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> 2                      Proporción actual: 0.5000</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 3                  Proporción: 1.0000 -&gt; 0.5000.</span>
 </code></pre></div>
     </div>
   </main><aside class="col-md-3"><nav id="toc" aria-label="Table of contents"><h2>On this page</h2>

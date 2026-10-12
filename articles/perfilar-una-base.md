@@ -292,7 +292,7 @@ data.frame(
 )
 #>           bloque filas_fuente campos_analiticos columnas_del_resultado
 #> 1  resumen_tabla           12                15                     16
-#> 2 perfil_muestra            5               115                    116
+#> 2 perfil_muestra            5               117                    118
 ```
 
 ## `resumen_tabla`: agregados sobre la tabla completa
@@ -316,11 +316,11 @@ perfil$resumen_tabla$columnas[, c(
 #> 4   fecha 12           0          12     NA     NA       NA
 ```
 
-`perfil_muestra$columnas` trae 115 campos analíticos además del nombre
+`perfil_muestra$columnas` trae 117 campos analíticos además del nombre
 de la columna, pero su universo son cinco filas en este ejemplo. Llamar
 *perfil* al resumen SQL afirmaría una completitud que no tiene: el
 resumen cubre quince de esos aspectos sobre doce filas; el perfil cubre
-sus 115 sobre las cinco filas obtenidas. Las consultas, estados y
+sus 117 sobre las cinco filas obtenidas. Las consultas, estados y
 motivos de los agregados SQL quedan en `resumen_tabla$sql` para que
 también se vea qué aceptó o rechazó el motor.
 
@@ -348,31 +348,31 @@ perfil$resumen_tabla$sql[, c(
   "bytes_resultado_r", "consulta_id", "id_consulta", "etapa", "nivel"
 )]
 #>            metrica    estado duracion_ms cpu_ms n_filas_resultado bytes_resultado_r
-#> 1                n calculado   0.6151199      1                 1              3192
-#> 2                n calculado   0.6151199      1                 1              3192
-#> 3                n calculado   0.6151199      1                 1              3192
-#> 4                n calculado   0.6151199      1                 1              3192
-#> 5        n_validos calculado   0.6151199      1                 1              3192
-#> 6      n_faltantes calculado   0.6151199      1                 1              3192
-#> 7   prop_faltantes calculado   0.6151199      1                 1              3192
-#> 8      n_distintos calculado   0.4618168      0                 1              1216
-#> 9   tasa_distintos calculado   0.4618168      0                 1              1216
-#> 10            moda calculado   0.4699230      0                 1              1024
-#> 11 frecuencia_moda calculado   0.4699230      0                 1              1024
-#> 12          minimo calculado   0.6151199      1                 1              3192
-#> 13          maximo calculado   0.6151199      1                 1              3192
-#> 14           media calculado   0.6151199      1                 1              3192
-#> 15         n_ceros calculado   0.6151199      1                 1              3192
-#> 16     n_negativos calculado   0.6151199      1                 1              3192
-#> 17         mediana calculado   0.4479885      0                 1               736
-#> 18          desvio calculado   0.6151199      1                 1              3192
-#> 19       n_validos calculado   0.6151199      1                 1              3192
-#> 20     n_faltantes calculado   0.6151199      1                 1              3192
-#> 21  prop_faltantes calculado   0.6151199      1                 1              3192
-#> 22     n_distintos calculado   0.4618168      0                 1              1216
-#> 23  tasa_distintos calculado   0.4618168      0                 1              1216
-#> 24            moda calculado   0.4777908      0                 1              1080
-#> 25 frecuencia_moda calculado   0.4777908      0                 1              1080
+#> 1                n calculado   0.6642342      1                 1              3192
+#> 2                n calculado   0.6642342      1                 1              3192
+#> 3                n calculado   0.6642342      1                 1              3192
+#> 4                n calculado   0.6642342      1                 1              3192
+#> 5        n_validos calculado   0.6642342      1                 1              3192
+#> 6      n_faltantes calculado   0.6642342      1                 1              3192
+#> 7   prop_faltantes calculado   0.6642342      1                 1              3192
+#> 8      n_distintos calculado   0.5149841      0                 1              1216
+#> 9   tasa_distintos calculado   0.5149841      0                 1              1216
+#> 10            moda calculado   0.5078316      1                 1              1024
+#> 11 frecuencia_moda calculado   0.5078316      1                 1              1024
+#> 12          minimo calculado   0.6642342      1                 1              3192
+#> 13          maximo calculado   0.6642342      1                 1              3192
+#> 14           media calculado   0.6642342      1                 1              3192
+#> 15         n_ceros calculado   0.6642342      1                 1              3192
+#> 16     n_negativos calculado   0.6642342      1                 1              3192
+#> 17         mediana calculado   0.6582737      0                 1               736
+#> 18          desvio calculado   0.6642342      1                 1              3192
+#> 19       n_validos calculado   0.6642342      1                 1              3192
+#> 20     n_faltantes calculado   0.6642342      1                 1              3192
+#> 21  prop_faltantes calculado   0.6642342      1                 1              3192
+#> 22     n_distintos calculado   0.5149841      0                 1              1216
+#> 23  tasa_distintos calculado   0.5149841      0                 1              1216
+#> 24            moda calculado   0.6792545      1                 1              1080
+#> 25 frecuencia_moda calculado   0.6792545      1                 1              1080
 #> 26          minimo no_aplica          NA     NA                NA                NA
 #> 27          maximo no_aplica          NA     NA                NA                NA
 #> 28           media no_aplica          NA     NA                NA                NA
@@ -380,27 +380,27 @@ perfil$resumen_tabla$sql[, c(
 #> 30     n_negativos no_aplica          NA     NA                NA                NA
 #> 31         mediana no_aplica          NA     NA                NA                NA
 #> 32          desvio no_aplica          NA     NA                NA                NA
-#> 33       n_validos calculado   0.6151199      1                 1              3192
-#> 34     n_faltantes calculado   0.6151199      1                 1              3192
-#> 35  prop_faltantes calculado   0.6151199      1                 1              3192
-#> 36     n_distintos calculado   0.4091263      1                 1              1216
-#> 37  tasa_distintos calculado   0.4091263      1                 1              1216
-#> 38            moda calculado   0.4358292      0                 1              1024
-#> 39 frecuencia_moda calculado   0.4358292      0                 1              1024
-#> 40          minimo calculado   0.6151199      1                 1              3192
-#> 41          maximo calculado   0.6151199      1                 1              3192
-#> 42           media calculado   0.6151199      1                 1              3192
-#> 43         n_ceros calculado   0.6151199      1                 1              3192
-#> 44     n_negativos calculado   0.6151199      1                 1              3192
-#> 45         mediana calculado   0.5521774      1                 1               736
-#> 46          desvio calculado   0.6151199      1                 1              3192
-#> 47       n_validos calculado   0.6151199      1                 1              3192
-#> 48     n_faltantes calculado   0.6151199      1                 1              3192
-#> 49  prop_faltantes calculado   0.6151199      1                 1              3192
-#> 50     n_distintos calculado   0.4091263      1                 1              1216
-#> 51  tasa_distintos calculado   0.4091263      1                 1              1216
-#> 52            moda calculado   0.4868507      1                 1              1088
-#> 53 frecuencia_moda calculado   0.4868507      1                 1              1088
+#> 33       n_validos calculado   0.6642342      1                 1              3192
+#> 34     n_faltantes calculado   0.6642342      1                 1              3192
+#> 35  prop_faltantes calculado   0.6642342      1                 1              3192
+#> 36     n_distintos calculado   0.4508495      1                 1              1216
+#> 37  tasa_distintos calculado   0.4508495      1                 1              1216
+#> 38            moda calculado   0.5700588      1                 1              1024
+#> 39 frecuencia_moda calculado   0.5700588      1                 1              1024
+#> 40          minimo calculado   0.6642342      1                 1              3192
+#> 41          maximo calculado   0.6642342      1                 1              3192
+#> 42           media calculado   0.6642342      1                 1              3192
+#> 43         n_ceros calculado   0.6642342      1                 1              3192
+#> 44     n_negativos calculado   0.6642342      1                 1              3192
+#> 45         mediana calculado   0.7240772      1                 1               736
+#> 46          desvio calculado   0.6642342      1                 1              3192
+#> 47       n_validos calculado   0.6642342      1                 1              3192
+#> 48     n_faltantes calculado   0.6642342      1                 1              3192
+#> 49  prop_faltantes calculado   0.6642342      1                 1              3192
+#> 50     n_distintos calculado   0.4508495      1                 1              1216
+#> 51  tasa_distintos calculado   0.4508495      1                 1              1216
+#> 52            moda calculado   0.6186962      1                 1              1088
+#> 53 frecuencia_moda calculado   0.6186962      1                 1              1088
 #> 54          minimo no_aplica          NA     NA                NA                NA
 #> 55          maximo no_aplica          NA     NA                NA                NA
 #> 56           media no_aplica          NA     NA                NA                NA
@@ -472,15 +472,15 @@ perfil$resumen_tabla$sql[, c(
 
 perfil$resumen_tabla$tiempos
 #>                            etapa duracion_ms cpu_ms        estado nivel n_ejecuciones
-#> 1           ausencia_estructural   1.1014938      2        medido     2             1
-#> 2    casi_duplicados_vocabulario  10.0409985     16        medido     2             1
-#> 3 clasificacion_datos_personales   3.5176277      4        medido     2             1
-#> 4                   dependencias   1.1487007      2        medido     2             1
+#> 1           ausencia_estructural   0.7014275      0        medido     2             1
+#> 2    casi_duplicados_vocabulario  31.5182209     40        medido     2             1
+#> 3 clasificacion_datos_personales   3.8406849      4        medido     2             1
+#> 4                   dependencias   1.3017654      1        medido     2             1
 #> 5         duplicados_aproximados          NA     NA no_solicitado     2             1
-#> 6                lectura_muestra   1.8439293      2        medido     1             1
-#> 7             perfilado_columnas 333.1115246    333        medido     2             1
-#> 8              perfilado_muestra 440.4454231    452        medido     1             1
-#> 9    proteccion_datos_personales   0.5044937      1        medido     2             1
+#> 6                lectura_muestra   2.2039413      2        medido     1             1
+#> 7             perfilado_columnas 322.6249218    322        medido     2             1
+#> 8              perfilado_muestra 442.4071312    451        medido     1             1
+#> 9    proteccion_datos_personales   0.5557537      1        medido     2             1
 ```
 
 `resumen_tabla$tiempos` reúne en milisegundos las etapas grandes del
@@ -534,7 +534,7 @@ resuelto; sin medición, `NA`.
 ## `perfil_muestra`: el perfil completo de la muestra
 
 El perfil completo se obtiene en memoria sobre las cinco filas
-seleccionadas. La salida muestra algunos de sus 115 campos analíticos
+seleccionadas. La salida muestra algunos de sus 117 campos analíticos
 para que se vean, junto con los conteos, los faltantes, los distintos y
 el tipo inferido.
 

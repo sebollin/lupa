@@ -185,11 +185,30 @@ tipos, ausencias, cardinalidad, rangos, patrones y hallazgos.</p>
 <span><span class="co">#&gt;         columna      aspecto        cambio  severidad</span></span>
 <span><span class="co">#&gt; 1 nueva_columna      columna     aparecida      error</span></span>
 <span><span class="co">#&gt; 2        cedula cardinalidad    modificado sospechoso</span></span>
-<span><span class="co">#&gt; 3 nueva_columna     hallazgo     aparecido sospechoso</span></span>
-<span><span class="co">#&gt; 4          &lt;NA&gt;     hallazgo no_comparable      error</span></span></code></pre></div>
+<span><span class="co">#&gt; 3        cedula       patron    modificado sospechoso</span></span>
+<span><span class="co">#&gt; 4        cedula       patron    modificado sospechoso</span></span>
+<span><span class="co">#&gt; 5 nueva_columna     hallazgo     aparecido sospechoso</span></span>
+<span><span class="co">#&gt; 6          &lt;NA&gt;     hallazgo no_comparable      error</span></span></code></pre></div>
 <p>Una comparación contra el mismo perfil produce cero cambios. Las
 columnas que sólo existen en un lado se informan como cambios
 estructurales; no hacen fallar la comparación de las demás.</p>
+<p>Lo que la protección de datos personales tapa no se compara, pero
+tampoco se calla: el rango de <code>cedula</code> o de
+<code>correo</code> queda declarado, por columna y lado, en el atributo
+<code>campos_protegidos</code>. Si la protección de una columna cambia
+entre las entregas, ese cambio sale con su propia fila,
+<code>aspecto = "proteccion"</code>.</p>
+<div class="sourceCode" id="cb7"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/base/attr.html" class="external-link">attr</a></span><span class="op">(</span><span class="va">deriva</span>, <span class="st">"campos_protegidos"</span><span class="op">)</span></span>
+<span><span class="co">#&gt;            columna campo     lado</span></span>
+<span><span class="co">#&gt; 1       id_persona rango anterior</span></span>
+<span><span class="co">#&gt; 2       id_persona rango   actual</span></span>
+<span><span class="co">#&gt; 3           cedula rango anterior</span></span>
+<span><span class="co">#&gt; 4           cedula rango   actual</span></span>
+<span><span class="co">#&gt; 5 fecha_nacimiento rango anterior</span></span>
+<span><span class="co">#&gt; 6 fecha_nacimiento rango   actual</span></span>
+<span><span class="co">#&gt; 7           correo rango anterior</span></span>
+<span><span class="co">#&gt; 8           correo rango   actual</span></span></code></pre></div>
 <p>Las configuraciones que contienen nombres o texto del usuario se
 convierten en claves por bytes, no por la marca de codificación ni por
 la intercalación del locale. Por eso la comparación sigue siendo estable
@@ -201,7 +220,7 @@ perfiles idénticos no emiten avisos espurios bajo LC_CTYPE = C.</p>
 tabla se conservan tal como llegaron y sólo la copia destinada al texto
 se marca como UTF-8. Así el código publicado no cambia al pasar de un
 locale UTF-8 a <code>C</code>.</p>
-<div class="sourceCode" id="cb7"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb8"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/base/nrow.html" class="external-link">nrow</a></span><span class="op">(</span><span class="fu"><a href="../reference/comparar_perfiles.html">comparar_perfiles</a></span><span class="op">(</span><span class="va">perfil_enero</span>, <span class="va">perfil_enero</span><span class="op">)</span><span class="op">)</span></span>
 <span><span class="co">#&gt; [1] 0</span></span></code></pre></div>
 </div>
@@ -211,7 +230,7 @@ locale UTF-8 a <code>C</code>.</p>
 <p><code><a href="../reference/comparar_equivalencia.html">comparar_equivalencia()</a></code> devuelve una fila por columna y
 campo compartidos. Compara con igualdad exacta los conteos y usa la
 tolerancia declarada por quien llama sólo para los campos flotantes.</p>
-<div class="sourceCode" id="cb8"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb9"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/base/Random.html" class="external-link">set.seed</a></span><span class="op">(</span><span class="fl">20260831</span><span class="op">)</span></span>
 <span><span class="va">datos_equivalencia</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/data.frame.html" class="external-link">data.frame</a></span><span class="op">(</span></span>
 <span>  monto <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">10</span>, <span class="fl">20</span>, <span class="fl">30</span>, <span class="fl">40</span><span class="op">)</span>,</span>
@@ -261,7 +280,7 @@ tolerancia es del llamador y viaja ecoada en <code>tolerancia</code>. En
 los ejes exactos, <code>equivalente</code> es inalcanzable: el conteo
 cambiado permanece <code>materialmente_distinto</code> con cualquier
 tolerancia válida.</p>
-<div class="sourceCode" id="cb9"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb10"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">tolerancias</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">0</span>, <span class="va">tolerancia_llamador</span>, <span class="fl">1e12</span><span class="op">)</span></span>
 <span><span class="va">veredictos_conteo</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/lapply.html" class="external-link">vapply</a></span><span class="op">(</span><span class="va">tolerancias</span>, <span class="kw">function</span><span class="op">(</span><span class="va">tolerancia</span><span class="op">)</span> <span class="op">{</span></span>
 <span>  <span class="va">prueba</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/comparar_equivalencia.html">comparar_equivalencia</a></span><span class="op">(</span></span>
