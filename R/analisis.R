@@ -234,8 +234,15 @@
 #'   `data.frame` guarda un valor: las celdas de cualquier clase —una copia
 #'   `POSIXct` de la fecha con hora protegida queda en `NA`, como la tapa
 #'   [perfilar()]—, las columnas de lista elemento por elemento, los atributos
-#'   de la tabla y de cada columna, y los nombres de fila, que vuelven a ser los
-#'   números de fila si alguno lleva un valor protegido. Una columna protegida
+#'   de la tabla y de cada columna —también `levels` en lo que no es un factor
+#'   y `units`—, y los nombres de fila, que vuelven a ser los
+#'   números de fila si alguno lleva un valor protegido. Una columna `POSIXlt`
+#'   se tapa como la `POSIXct`, y cualquier lista con clase —un registro de
+#'   `vctrs`, un `blob`— por sus valores; un BLOB (`raw`) se lee como el texto
+#'   que guarda y, si lleva un valor protegido, la copia guarda los bytes del
+#'   texto tapado; un entorno no se modifica —es del usuario—: si guarda un
+#'   valor protegido, la copia lleva `"[valor protegido]"` en su lugar. Una
+#'   columna protegida
 #'   conserva sólo los atributos de su clase (`class`, `tzone`, `units`, `dim`):
 #'   las etiquetas de valor de un `haven_labelled` se quitan. Para conservar
 #'   sus valores debe usarse `proteger_datos_personales = FALSE` al crear el
@@ -815,7 +822,7 @@ print.analisis <- function(x, ...) {
 # Los nombres de fila y los atributos de la tabla. Los nombres de fila tienen que
 # ser unicos y el marcador no lo es: si alguno lleva un valor protegido, vuelven
 # a ser los numeros de fila. Los nombres de columna son estructura y quedan.
-.piso_marco_conservado <- function(datos, identificantes) {
+.piso_marco_conservado <- function(datos, identificantes, vistos = list()) {
   filas <- attr(datos, "row.names", exact = TRUE)
   if (is.character(filas)) {
     tapadas <- .reemplazar_valores_protegidos(filas, identificantes)
@@ -826,19 +833,47 @@ print.analisis <- function(x, ...) {
   for (atributo in setdiff(names(attributes(datos)),
                            c("names", "row.names", "class"))) {
     attr(datos, atributo) <- .piso_valor_conservado(
-      attr(datos, atributo, exact = TRUE), identificantes
+      attr(datos, atributo, exact = TRUE), identificantes, vistos
     )
   }
   datos
 }
 
-.piso_valor_conservado <- function(x, identificantes) {
-  if (is.null(x) || is.function(x) || is.environment(x)) return(x)
+# `vistos`: los entornos que ya se estan recorriendo, para no entrar dos veces
+# en el mismo -un entorno puede guardarse a si mismo-.
+.piso_valor_conservado <- function(x, identificantes, vistos = list()) {
+  if (is.null(x) || is.function(x)) return(x)
+  if (is.environment(x)) {
+    return(.piso_entorno_conservado(x, identificantes, vistos))
+  }
   if (is.data.frame(x)) {
     for (j in seq_along(x)) {
-      x[[j]] <- .piso_valor_conservado(x[[j]], identificantes)
+      x[[j]] <- .piso_valor_conservado(x[[j]], identificantes, vistos)
     }
-    return(.piso_marco_conservado(x, identificantes))
+    return(.piso_marco_conservado(x, identificantes, vistos))
+  }
+  # Una fecha con hora `POSIXlt` -lo que deja `d$x <- strptime(...)`- es una
+  # LISTA por dentro, y `x[[i]]` de una `POSIXlt` es otra `POSIXlt`: el
+  # recorrido de las listas no terminaba nunca y `analizar(conservar_datos =
+  # TRUE)` abortaba con "stack desbordado" sobre una columna cualquiera, con la
+  # proteccion puesta y sin ella no. Medido en la ronda 29. Es una fecha con
+  # hora y se tapa como la `POSIXct`, celda por celda.
+  if (inherits(x, "POSIXlt")) {
+    tapadas <- tryCatch(
+      .celdas_conservadas_tapadas(as.POSIXct(x), identificantes),
+      error = function(e) rep(FALSE, length(x))
+    )
+    if (any(tapadas)) x[tapadas] <- NA
+    return(x)
+  }
+  # Y por lo mismo cualquier otra lista CON CLASE -un registro de `vctrs`, un
+  # `blob`, una lista con `I()`-: su `[[` puede devolver el mismo objeto. Se
+  # recorre sin la clase, que es donde estan sus valores, y se le devuelve.
+  if (is.list(x) && is.object(x)) {
+    clase <- oldClass(x)
+    x <- .piso_valor_conservado(unclass(x), identificantes, vistos)
+    oldClass(x) <- clase
+    return(x)
   }
   if (is.list(x)) {
     textos <- vapply(x, function(y) {
@@ -857,7 +892,7 @@ print.analisis <- function(x, ...) {
     } else {
       for (i in seq_along(x)) {
         if (!is.null(x[[i]])) {
-          x[i] <- list(.piso_valor_conservado(x[[i]], identificantes))
+          x[i] <- list(.piso_valor_conservado(x[[i]], identificantes, vistos))
         }
       }
     }
@@ -874,35 +909,102 @@ print.analisis <- function(x, ...) {
     tapados <- .reemplazar_valores_protegidos(as.vector(x), identificantes)
     cambiadas <- !is.na(tapados) & (is.na(x) | tapados != x)
     if (any(cambiadas)) x[cambiadas] <- tapados[cambiadas]
+  } else if (is.raw(x)) {
+    x <- .piso_bytes_conservados(x, identificantes)
   } else if (is.numeric(x) && !is.object(x)) {
     x <- .proteger_numeros_parametros(x, identificantes)
   } else if (is.atomic(x)) {
-    # Fechas, fechas con hora, duraciones, numeros con clase: la celda se tapa si
-    # alguna de sus escrituras -la del perfil, `as.character()` y `format()`-
-    # lleva un valor protegido. Es como `perfilar()` publica su moda o sus
-    # extremos, y como ahi los tapa el piso.
     if (is.numeric(x)) x <- .proteger_numeros_parametros(x, identificantes)
-    tapadas <- rep(FALSE, length(x))
-    escrituras <- list(as.character, format)
-    if (inherits(x, c("Date", "POSIXt"))) {
-      escrituras <- c(escrituras, .texto_valor_vector)
-    }
-    for (escribir in escrituras) {
-      texto <- tryCatch(as.character(escribir(x)), error = function(e) NULL)
-      if (length(texto) != length(x)) next
-      tapado <- .reemplazar_valores_protegidos(texto, identificantes)
-      tapadas <- tapadas | (!is.na(texto) & !is.na(tapado) & tapado != texto)
-    }
+    tapadas <- .celdas_conservadas_tapadas(x, identificantes)
     if (any(tapadas)) x[tapadas] <- NA
   }
-  for (atributo in setdiff(names(attributes(x)),
-                           c("class", "levels", "dim", "tzone", "units",
-                             "row.names"))) {
+  # Todo atributo que no hace a la forma del objeto pasa por el piso, tambien
+  # `levels` en lo que no es un factor y `units`: un entero con `levels` y una
+  # columna con `units` guardaban cedulas en la copia. Medido en la ronda 29.
+  # La unidad y la zona horaria de una fecha -`secs`, `UTC`- no llevan un valor
+  # protegido y quedan como estan.
+  estructurales <- c("class", "dim", "row.names", if (is.factor(x)) "levels")
+  for (atributo in setdiff(names(attributes(x)), estructurales)) {
     attr(x, atributo) <- .piso_valor_conservado(
-      attr(x, atributo, exact = TRUE), identificantes
+      attr(x, atributo, exact = TRUE), identificantes, vistos
     )
   }
   x
+}
+
+# Fechas, fechas con hora, duraciones, numeros con clase: la celda se tapa si
+# alguna de sus escrituras -la del perfil, `as.character()` y `format()`- lleva
+# un valor protegido. Es como `perfilar()` publica su moda o sus extremos, y
+# como ahi los tapa el piso.
+.celdas_conservadas_tapadas <- function(x, identificantes) {
+  tapadas <- rep(FALSE, length(x))
+  escrituras <- list(as.character, format)
+  if (inherits(x, c("Date", "POSIXt"))) {
+    escrituras <- c(escrituras, .texto_valor_vector)
+  }
+  for (escribir in escrituras) {
+    texto <- tryCatch(as.character(escribir(x)), error = function(e) NULL)
+    if (length(texto) != length(x)) next
+    tapado <- .reemplazar_valores_protegidos(texto, identificantes)
+    tapadas <- tapadas | (!is.na(texto) & !is.na(tapado) & tapado != texto)
+  }
+  tapadas
+}
+
+# Un BLOB -un vector `raw`, como devuelve DBI un BYTEA o un BLOB- con texto
+# adentro es ese texto: los sesenta nombres protegidos guardados en bytes
+# quedaban enteros en la copia, porque el piso solo miraba sus cifras
+# hexadecimales. Medido en la ronda 29. Se lee como texto -un byte nulo, como un
+# salto de linea; lo que no es UTF-8 valido, como latin1- y, si lleva un valor
+# protegido, la copia guarda los bytes del texto tapado.
+.piso_bytes_conservados <- function(x, identificantes) {
+  if (!length(x)) return(x)
+  texto <- tryCatch({
+    bytes <- as.vector(x)
+    bytes[bytes == as.raw(0L)] <- as.raw(10L)
+    leido <- rawToChar(bytes)
+    if (validUTF8(leido)) {
+      Encoding(leido) <- "UTF-8"
+      leido
+    } else {
+      iconv(leido, "latin1", "UTF-8")
+    }
+  }, error = function(e) NA_character_)
+  if (length(texto) != 1L || is.na(texto)) return(x)
+  tapado <- tryCatch(
+    .reemplazar_valores_protegidos(texto, identificantes),
+    error = function(e) "[valor protegido]"
+  )
+  if (identical(tapado, texto)) return(x)
+  salida <- charToRaw(tapado)
+  atributos <- attributes(x)
+  for (atributo in setdiff(names(atributos), c("names", "dim", "dimnames"))) {
+    attr(salida, atributo) <- atributos[[atributo]]
+  }
+  salida
+}
+
+# Un ENTORNO es una referencia: tapar adentro cambiaria el objeto del usuario y
+# no la copia. Se recorre su contenido con el mismo piso -sin entrar dos veces en
+# el mismo, ni en los entornos con nombre: el global, el de un paquete- y, si
+# guarda un valor protegido, la copia lleva el marcador en su lugar. Una cedula
+# en un entorno de una columna lista quedaba en la copia. Medido en la ronda 29.
+.piso_entorno_conservado <- function(e, identificantes, vistos = list()) {
+  if (identical(e, emptyenv()) || identical(e, globalenv()) ||
+      identical(e, baseenv()) || isNamespace(e) ||
+      nzchar(environmentName(e))) {
+    return(e)
+  }
+  for (visto in vistos) if (identical(visto, e)) return(e)
+  # Una cadena de entornos sin fin a la vista: el lado cerrado.
+  if (length(vistos) >= 8L) return("[valor protegido]")
+  contenido <- tryCatch(
+    as.list.environment(e, all.names = TRUE, sorted = TRUE),
+    error = function(err) NULL
+  )
+  if (is.null(contenido) || !length(contenido)) return(e)
+  tapado <- .piso_valor_conservado(contenido, identificantes, c(vistos, list(e)))
+  if (identical(tapado, contenido)) e else "[valor protegido]"
 }
 
 .proteger_analisis <- function(x, datos = NULL) {

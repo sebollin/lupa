@@ -134,7 +134,7 @@
   frecuencias <- tabulate(indices, nbins = length(unicos))
   posicion <- which.max(frecuencias)
   list(
-    valor = .texto_valor(unicos[posicion]),
+    valor = .texto_moda(unicos[posicion]),
     frecuencia = as.integer(frecuencias[[posicion]])
   )
 }
@@ -1023,8 +1023,8 @@
   valores <- x[validos]
   minimo_exacto <- as.character(min(valores))
   maximo_exacto <- as.character(max(valores))
-  limite <- bit64::as.integer64("9007199254740991")
-  seguros <- valores >= -limite & valores <= limite
+  # La frontera es la de toda la via DBI, escrita una vez.
+  seguros <- .integer64_exacto_en_doble(valores)
   if (!all(seguros)) {
     vacio$minimo_exacto <- minimo_exacto
     vacio$maximo_exacto <- maximo_exacto

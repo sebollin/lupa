@@ -3,12 +3,33 @@
 #' La normalizacion afecta unicamente la representacion usada para comparar;
 #' nunca modifica los datos de entrada. La descomposicion canonica y el orden
 #' de sus marcas son siempre activos para que NFC y NFD sean equivalentes en el
-#' subconjunto latino cubierto por lupa. Los pasos optativos de ligaduras y ancho
+#' subconjunto latino cubierto por lupa: las letras latinas precompuestas, las
+#' marcas combinantes de U+0300 a U+0332 ordenadas por su clase combinante
+#' canónica, y los signos Kelvin y Ångström, que Unicode declara iguales a la
+#' `K` y a la `Å`. Las tablas se generan desde Unicode
+#' (`data-raw/normalizacion_unicode.R`). Los pasos optativos de ligaduras y ancho
 #' completo tambien se aplican por punto de codigo, despues de declarar como
 #' UTF-8 los bytes validos, por lo que no dependen de `LC_CTYPE`. Bajar a
 #' minusculas tampoco depende del locale: usa un mapa explicito para el latin
 #' acentuado, el griego, el cirilico, el armenio y el ancho completo, y lo que
-#' queda fuera de ese mapa se conserva.
+#' queda fuera de ese mapa se conserva. Para comparar, la sigma final griega se
+#' iguala a la sigma, como en el plegado de caja de Unicode: una palabra griega
+#' en mayúsculas y la misma en minúsculas, escrita con su sigma final, son el
+#' mismo valor.
+#'
+#' El paso `espacios` lleva primero al espacio común la tabulación, el salto de
+#' línea, el retorno de carro, el avance de página, la tabulación vertical y los
+#' espacios Unicode, y borra los controles de transporte; al final colapsa y
+#' recorta los blancos. Como va antes que `comillas`, una comilla junto a una
+#' tabulación o un salto de línea se trata igual que junto a un espacio.
+#'
+#' El paso `comillas` quita una comilla de apertura cuando abre una palabra —la
+#' precede un blanco o el inicio y la sigue una letra— y una de cierre o un
+#' apóstrofo cuando la cierra —la precede una letra y la sigue un blanco o el
+#' final—; los apóstrofos tipográficos que quedan se escriben `'`. La comilla
+#' simple ASCII cierra pero no abre, porque también es el apóstrofo de una
+#' elisión: `'Piedras'` se compara como `'piedras`, mientras que la misma
+#' palabra entre comillas simples tipográficas se compara como `piedras`.
 #'
 #' @param minusculas,espacios,acentos,comillas,puntuacion,ligaduras,ancho
 #'   Activan el paso correspondiente.
@@ -199,522 +220,11 @@ print.normalizacion_lupa <- function(x, ...) {
   salida
 }
 
-.normalizacion_decomposiciones <-
-  list(
-    "192" = c(65, 768),
-    "193" = c(65, 769),
-    "194" = c(65, 770),
-    "195" = c(65, 771),
-    "196" = c(65, 776),
-    "197" = c(65, 778),
-    "199" = c(67, 807),
-    "200" = c(69, 768),
-    "201" = c(69, 769),
-    "202" = c(69, 770),
-    "203" = c(69, 776),
-    "204" = c(73, 768),
-    "205" = c(73, 769),
-    "206" = c(73, 770),
-    "207" = c(73, 776),
-    "209" = c(78, 771),
-    "210" = c(79, 768),
-    "211" = c(79, 769),
-    "212" = c(79, 770),
-    "213" = c(79, 771),
-    "214" = c(79, 776),
-    "217" = c(85, 768),
-    "218" = c(85, 769),
-    "219" = c(85, 770),
-    "220" = c(85, 776),
-    "221" = c(89, 769),
-    "224" = c(97, 768),
-    "225" = c(97, 769),
-    "226" = c(97, 770),
-    "227" = c(97, 771),
-    "228" = c(97, 776),
-    "229" = c(97, 778),
-    "231" = c(99, 807),
-    "232" = c(101, 768),
-    "233" = c(101, 769),
-    "234" = c(101, 770),
-    "235" = c(101, 776),
-    "236" = c(105, 768),
-    "237" = c(105, 769),
-    "238" = c(105, 770),
-    "239" = c(105, 776),
-    "241" = c(110, 771),
-    "242" = c(111, 768),
-    "243" = c(111, 769),
-    "244" = c(111, 770),
-    "245" = c(111, 771),
-    "246" = c(111, 776),
-    "249" = c(117, 768),
-    "250" = c(117, 769),
-    "251" = c(117, 770),
-    "252" = c(117, 776),
-    "253" = c(121, 769),
-    "255" = c(121, 776),
-    "256" = c(65, 772),
-    "257" = c(97, 772),
-    "258" = c(65, 774),
-    "259" = c(97, 774),
-    "260" = c(65, 808),
-    "261" = c(97, 808),
-    "262" = c(67, 769),
-    "263" = c(99, 769),
-    "264" = c(67, 770),
-    "265" = c(99, 770),
-    "266" = c(67, 775),
-    "267" = c(99, 775),
-    "268" = c(67, 780),
-    "269" = c(99, 780),
-    "270" = c(68, 780),
-    "271" = c(100, 780),
-    "274" = c(69, 772),
-    "275" = c(101, 772),
-    "276" = c(69, 774),
-    "277" = c(101, 774),
-    "278" = c(69, 775),
-    "279" = c(101, 775),
-    "280" = c(69, 808),
-    "281" = c(101, 808),
-    "282" = c(69, 780),
-    "283" = c(101, 780),
-    "284" = c(71, 770),
-    "285" = c(103, 770),
-    "286" = c(71, 774),
-    "287" = c(103, 774),
-    "288" = c(71, 775),
-    "289" = c(103, 775),
-    "290" = c(71, 807),
-    "291" = c(103, 807),
-    "292" = c(72, 770),
-    "293" = c(104, 770),
-    "296" = c(73, 771),
-    "297" = c(105, 771),
-    "298" = c(73, 772),
-    "299" = c(105, 772),
-    "300" = c(73, 774),
-    "301" = c(105, 774),
-    "302" = c(73, 808),
-    "303" = c(105, 808),
-    "304" = c(73, 775),
-    "308" = c(74, 770),
-    "309" = c(106, 770),
-    "310" = c(75, 807),
-    "311" = c(107, 807),
-    "313" = c(76, 769),
-    "314" = c(108, 769),
-    "315" = c(76, 807),
-    "316" = c(108, 807),
-    "317" = c(76, 780),
-    "318" = c(108, 780),
-    "323" = c(78, 769),
-    "324" = c(110, 769),
-    "325" = c(78, 807),
-    "326" = c(110, 807),
-    "327" = c(78, 780),
-    "328" = c(110, 780),
-    "332" = c(79, 772),
-    "333" = c(111, 772),
-    "334" = c(79, 774),
-    "335" = c(111, 774),
-    "336" = c(79, 779),
-    "337" = c(111, 779),
-    "340" = c(82, 769),
-    "341" = c(114, 769),
-    "342" = c(82, 807),
-    "343" = c(114, 807),
-    "344" = c(82, 780),
-    "345" = c(114, 780),
-    "346" = c(83, 769),
-    "347" = c(115, 769),
-    "348" = c(83, 770),
-    "349" = c(115, 770),
-    "350" = c(83, 807),
-    "351" = c(115, 807),
-    "352" = c(83, 780),
-    "353" = c(115, 780),
-    "354" = c(84, 807),
-    "355" = c(116, 807),
-    "356" = c(84, 780),
-    "357" = c(116, 780),
-    "360" = c(85, 771),
-    "361" = c(117, 771),
-    "362" = c(85, 772),
-    "363" = c(117, 772),
-    "364" = c(85, 774),
-    "365" = c(117, 774),
-    "366" = c(85, 778),
-    "367" = c(117, 778),
-    "368" = c(85, 779),
-    "369" = c(117, 779),
-    "370" = c(85, 808),
-    "371" = c(117, 808),
-    "372" = c(87, 770),
-    "373" = c(119, 770),
-    "374" = c(89, 770),
-    "375" = c(121, 770),
-    "376" = c(89, 776),
-    "377" = c(90, 769),
-    "378" = c(122, 769),
-    "379" = c(90, 775),
-    "380" = c(122, 775),
-    "381" = c(90, 780),
-    "382" = c(122, 780),
-    "416" = c(79, 795),
-    "417" = c(111, 795),
-    "431" = c(85, 795),
-    "432" = c(117, 795),
-    "461" = c(65, 780),
-    "462" = c(97, 780),
-    "463" = c(73, 780),
-    "464" = c(105, 780),
-    "465" = c(79, 780),
-    "466" = c(111, 780),
-    "467" = c(85, 780),
-    "468" = c(117, 780),
-    "469" = c(85, 776, 772),
-    "470" = c(117, 776, 772),
-    "471" = c(85, 776, 769),
-    "472" = c(117, 776, 769),
-    "473" = c(85, 776, 780),
-    "474" = c(117, 776, 780),
-    "475" = c(85, 776, 768),
-    "476" = c(117, 776, 768),
-    "478" = c(65, 776, 772),
-    "479" = c(97, 776, 772),
-    "480" = c(65, 775, 772),
-    "481" = c(97, 775, 772),
-    "482" = c(198, 772),
-    "483" = c(230, 772),
-    "486" = c(71, 780),
-    "487" = c(103, 780),
-    "488" = c(75, 780),
-    "489" = c(107, 780),
-    "490" = c(79, 808),
-    "491" = c(111, 808),
-    "492" = c(79, 808, 772),
-    "493" = c(111, 808, 772),
-    "494" = c(439, 780),
-    "495" = c(658, 780),
-    "496" = c(106, 780),
-    "500" = c(71, 769),
-    "501" = c(103, 769),
-    "504" = c(78, 768),
-    "505" = c(110, 768),
-    "506" = c(65, 778, 769),
-    "507" = c(97, 778, 769),
-    "508" = c(198, 769),
-    "509" = c(230, 769),
-    "510" = c(216, 769),
-    "511" = c(248, 769),
-    "512" = c(65, 783),
-    "513" = c(97, 783),
-    "514" = c(65, 785),
-    "515" = c(97, 785),
-    "516" = c(69, 783),
-    "517" = c(101, 783),
-    "518" = c(69, 785),
-    "519" = c(101, 785),
-    "520" = c(73, 783),
-    "521" = c(105, 783),
-    "522" = c(73, 785),
-    "523" = c(105, 785),
-    "524" = c(79, 783),
-    "525" = c(111, 783),
-    "526" = c(79, 785),
-    "527" = c(111, 785),
-    "528" = c(82, 783),
-    "529" = c(114, 783),
-    "530" = c(82, 785),
-    "531" = c(114, 785),
-    "532" = c(85, 783),
-    "533" = c(117, 783),
-    "534" = c(85, 785),
-    "535" = c(117, 785),
-    "536" = c(83, 806),
-    "537" = c(115, 806),
-    "538" = c(84, 806),
-    "539" = c(116, 806),
-    "542" = c(72, 780),
-    "543" = c(104, 780),
-    "550" = c(65, 775),
-    "551" = c(97, 775),
-    "552" = c(69, 807),
-    "553" = c(101, 807),
-    "554" = c(79, 776, 772),
-    "555" = c(111, 776, 772),
-    "556" = c(79, 771, 772),
-    "557" = c(111, 771, 772),
-    "558" = c(79, 775),
-    "559" = c(111, 775),
-    "560" = c(79, 775, 772),
-    "561" = c(111, 775, 772),
-    "562" = c(89, 772),
-    "563" = c(121, 772),
-    "7680" = c(65, 805),
-    "7681" = c(97, 805),
-    "7682" = c(66, 775),
-    "7683" = c(98, 775),
-    "7684" = c(66, 803),
-    "7685" = c(98, 803),
-    "7686" = c(66, 817),
-    "7687" = c(98, 817),
-    "7688" = c(67, 807, 769),
-    "7689" = c(99, 807, 769),
-    "7690" = c(68, 775),
-    "7691" = c(100, 775),
-    "7692" = c(68, 803),
-    "7693" = c(100, 803),
-    "7694" = c(68, 817),
-    "7695" = c(100, 817),
-    "7696" = c(68, 807),
-    "7697" = c(100, 807),
-    "7698" = c(68, 813),
-    "7699" = c(100, 813),
-    "7700" = c(69, 772, 768),
-    "7701" = c(101, 772, 768),
-    "7702" = c(69, 772, 769),
-    "7703" = c(101, 772, 769),
-    "7704" = c(69, 813),
-    "7705" = c(101, 813),
-    "7706" = c(69, 816),
-    "7707" = c(101, 816),
-    "7708" = c(69, 807, 774),
-    "7709" = c(101, 807, 774),
-    "7710" = c(70, 775),
-    "7711" = c(102, 775),
-    "7712" = c(71, 772),
-    "7713" = c(103, 772),
-    "7714" = c(72, 775),
-    "7715" = c(104, 775),
-    "7716" = c(72, 803),
-    "7717" = c(104, 803),
-    "7718" = c(72, 776),
-    "7719" = c(104, 776),
-    "7720" = c(72, 807),
-    "7721" = c(104, 807),
-    "7722" = c(72, 814),
-    "7723" = c(104, 814),
-    "7724" = c(73, 816),
-    "7725" = c(105, 816),
-    "7726" = c(73, 776, 769),
-    "7727" = c(105, 776, 769),
-    "7728" = c(75, 769),
-    "7729" = c(107, 769),
-    "7730" = c(75, 803),
-    "7731" = c(107, 803),
-    "7732" = c(75, 817),
-    "7733" = c(107, 817),
-    "7734" = c(76, 803),
-    "7735" = c(108, 803),
-    "7736" = c(76, 803, 772),
-    "7737" = c(108, 803, 772),
-    "7738" = c(76, 817),
-    "7739" = c(108, 817),
-    "7740" = c(76, 813),
-    "7741" = c(108, 813),
-    "7742" = c(77, 769),
-    "7743" = c(109, 769),
-    "7744" = c(77, 775),
-    "7745" = c(109, 775),
-    "7746" = c(77, 803),
-    "7747" = c(109, 803),
-    "7748" = c(78, 775),
-    "7749" = c(110, 775),
-    "7750" = c(78, 803),
-    "7751" = c(110, 803),
-    "7752" = c(78, 817),
-    "7753" = c(110, 817),
-    "7754" = c(78, 813),
-    "7755" = c(110, 813),
-    "7756" = c(79, 771, 769),
-    "7757" = c(111, 771, 769),
-    "7758" = c(79, 771, 776),
-    "7759" = c(111, 771, 776),
-    "7760" = c(79, 772, 768),
-    "7761" = c(111, 772, 768),
-    "7762" = c(79, 772, 769),
-    "7763" = c(111, 772, 769),
-    "7764" = c(80, 769),
-    "7765" = c(112, 769),
-    "7766" = c(80, 775),
-    "7767" = c(112, 775),
-    "7768" = c(82, 775),
-    "7769" = c(114, 775),
-    "7770" = c(82, 803),
-    "7771" = c(114, 803),
-    "7772" = c(82, 803, 772),
-    "7773" = c(114, 803, 772),
-    "7774" = c(82, 817),
-    "7775" = c(114, 817),
-    "7776" = c(83, 775),
-    "7777" = c(115, 775),
-    "7778" = c(83, 803),
-    "7779" = c(115, 803),
-    "7780" = c(83, 769, 775),
-    "7781" = c(115, 769, 775),
-    "7782" = c(83, 780, 775),
-    "7783" = c(115, 780, 775),
-    "7784" = c(83, 803, 775),
-    "7785" = c(115, 803, 775),
-    "7786" = c(84, 775),
-    "7787" = c(116, 775),
-    "7788" = c(84, 803),
-    "7789" = c(116, 803),
-    "7790" = c(84, 817),
-    "7791" = c(116, 817),
-    "7792" = c(84, 813),
-    "7793" = c(116, 813),
-    "7794" = c(85, 804),
-    "7795" = c(117, 804),
-    "7796" = c(85, 816),
-    "7797" = c(117, 816),
-    "7798" = c(85, 813),
-    "7799" = c(117, 813),
-    "7800" = c(85, 771, 769),
-    "7801" = c(117, 771, 769),
-    "7802" = c(85, 772, 776),
-    "7803" = c(117, 772, 776),
-    "7804" = c(86, 771),
-    "7805" = c(118, 771),
-    "7806" = c(86, 803),
-    "7807" = c(118, 803),
-    "7808" = c(87, 768),
-    "7809" = c(119, 768),
-    "7810" = c(87, 769),
-    "7811" = c(119, 769),
-    "7812" = c(87, 776),
-    "7813" = c(119, 776),
-    "7814" = c(87, 775),
-    "7815" = c(119, 775),
-    "7816" = c(87, 803),
-    "7817" = c(119, 803),
-    "7818" = c(88, 775),
-    "7819" = c(120, 775),
-    "7820" = c(88, 776),
-    "7821" = c(120, 776),
-    "7822" = c(89, 775),
-    "7823" = c(121, 775),
-    "7824" = c(90, 770),
-    "7825" = c(122, 770),
-    "7826" = c(90, 803),
-    "7827" = c(122, 803),
-    "7828" = c(90, 817),
-    "7829" = c(122, 817),
-    "7830" = c(104, 817),
-    "7831" = c(116, 776),
-    "7832" = c(119, 778),
-    "7833" = c(121, 778),
-    "7835" = c(383, 775),
-    "7840" = c(65, 803),
-    "7841" = c(97, 803),
-    "7842" = c(65, 777),
-    "7843" = c(97, 777),
-    "7844" = c(65, 770, 769),
-    "7845" = c(97, 770, 769),
-    "7846" = c(65, 770, 768),
-    "7847" = c(97, 770, 768),
-    "7848" = c(65, 770, 777),
-    "7849" = c(97, 770, 777),
-    "7850" = c(65, 770, 771),
-    "7851" = c(97, 770, 771),
-    "7852" = c(65, 803, 770),
-    "7853" = c(97, 803, 770),
-    "7854" = c(65, 774, 769),
-    "7855" = c(97, 774, 769),
-    "7856" = c(65, 774, 768),
-    "7857" = c(97, 774, 768),
-    "7858" = c(65, 774, 777),
-    "7859" = c(97, 774, 777),
-    "7860" = c(65, 774, 771),
-    "7861" = c(97, 774, 771),
-    "7862" = c(65, 803, 774),
-    "7863" = c(97, 803, 774),
-    "7864" = c(69, 803),
-    "7865" = c(101, 803),
-    "7866" = c(69, 777),
-    "7867" = c(101, 777),
-    "7868" = c(69, 771),
-    "7869" = c(101, 771),
-    "7870" = c(69, 770, 769),
-    "7871" = c(101, 770, 769),
-    "7872" = c(69, 770, 768),
-    "7873" = c(101, 770, 768),
-    "7874" = c(69, 770, 777),
-    "7875" = c(101, 770, 777),
-    "7876" = c(69, 770, 771),
-    "7877" = c(101, 770, 771),
-    "7878" = c(69, 803, 770),
-    "7879" = c(101, 803, 770),
-    "7880" = c(73, 777),
-    "7881" = c(105, 777),
-    "7882" = c(73, 803),
-    "7883" = c(105, 803),
-    "7884" = c(79, 803),
-    "7885" = c(111, 803),
-    "7886" = c(79, 777),
-    "7887" = c(111, 777),
-    "7888" = c(79, 770, 769),
-    "7889" = c(111, 770, 769),
-    "7890" = c(79, 770, 768),
-    "7891" = c(111, 770, 768),
-    "7892" = c(79, 770, 777),
-    "7893" = c(111, 770, 777),
-    "7894" = c(79, 770, 771),
-    "7895" = c(111, 770, 771),
-    "7896" = c(79, 803, 770),
-    "7897" = c(111, 803, 770),
-    "7898" = c(79, 795, 769),
-    "7899" = c(111, 795, 769),
-    "7900" = c(79, 795, 768),
-    "7901" = c(111, 795, 768),
-    "7902" = c(79, 795, 777),
-    "7903" = c(111, 795, 777),
-    "7904" = c(79, 795, 771),
-    "7905" = c(111, 795, 771),
-    "7906" = c(79, 795, 803),
-    "7907" = c(111, 795, 803),
-    "7908" = c(85, 803),
-    "7909" = c(117, 803),
-    "7910" = c(85, 777),
-    "7911" = c(117, 777),
-    "7912" = c(85, 795, 769),
-    "7913" = c(117, 795, 769),
-    "7914" = c(85, 795, 768),
-    "7915" = c(117, 795, 768),
-    "7916" = c(85, 795, 777),
-    "7917" = c(117, 795, 777),
-    "7918" = c(85, 795, 771),
-    "7919" = c(117, 795, 771),
-    "7920" = c(85, 795, 803),
-    "7921" = c(117, 795, 803),
-    "7922" = c(89, 768),
-    "7923" = c(121, 768),
-    "7924" = c(89, 803),
-    "7925" = c(121, 803),
-    "7926" = c(89, 777),
-    "7927" = c(121, 777),
-    "7928" = c(89, 771),
-    "7929" = c(121, 771)
-  )
-
-.normalizacion_clases_combinantes <- c(
-  "768" = 230L, "769" = 230L, "770" = 230L, "771" = 230L,
-  "772" = 230L, "773" = 230L, "774" = 230L, "775" = 230L,
-  "776" = 230L, "777" = 230L, "778" = 230L, "779" = 220L,
-  "780" = 230L, "781" = 230L, "782" = 230L, "783" = 230L,
-  "784" = 230L, "785" = 230L, "786" = 232L, "787" = 202L,
-  "788" = 220L, "789" = 220L, "790" = 230L, "791" = 230L,
-  "792" = 230L, "793" = 230L, "794" = 230L, "795" = 216L,
-  "796" = 220L, "797" = 220L, "798" = 220L, "799" = 202L,
-  "800" = 202L, "801" = 230L, "802" = 220L, "803" = 220L,
-  "804" = 230L, "805" = 230L, "806" = 130L, "807" = 202L,
-  "808" = 202L, "809" = 230L, "810" = 220L, "811" = 230L,
-  "812" = 220L, "813" = 230L, "814" = 230L, "815" = 230L,
-  "816" = 230L, "817" = 230L, "818" = 230L
-)
+# `.normalizacion_decomposiciones` y `.normalizacion_clases_combinantes` viven
+# en `R/normalizacion-unicode.R`, generado desde Unicode por
+# `data-raw/normalizacion_unicode.R`. La tabla de clases estaba escrita a mano y
+# 25 de sus 51 valores no eran los de Unicode: el orden canonico de las marcas
+# salia mal y NFC y NFD del mismo texto no se igualaban con `acentos = FALSE`.
 .normalizacion_descomponer <- function(codigos) {
   expandir <- function(codigo) {
     valor <- .normalizacion_decomposiciones[[as.character(codigo)]]
@@ -802,25 +312,18 @@ print.normalizacion_lupa <- function(x, ...) {
   }
   salida
 }
+# La regla de comillas existe UNA vez, en `.normalizacion_comillas_vector()`, y el
+# recorrido escalar la usa sobre el texto de sus puntos de codigo. Estaba escrita
+# dos veces -un bucle aca y dos expresiones alla- y las dos versiones no
+# coincidian: la expresion casaba `$` antes de un salto de linea final y su
+# pasada de aperturas borraba la comilla que la de cierres despues no veia. Como
+# un valor con dos o mas marcas combinantes va por el camino escalar, `Pena"`
+# con salto final se igualaba a `Pena"` y `Nunoa"` con salto final no -lo mismo
+# al reves con una apertura y un cierre tipograficos sueltos-: la clave dependia
+# de cuantas enies tenia la palabra.
 .normalizacion_comillas <- function(codigos) {
-  aperturas <- c(34L, 0xAB, 0x2018, 0x201B, 0x201C, 0x201E, 0x2039)
-  cierres <- c(34L, 0xBB, 0x2019, 0x201D, 0x201F, 0x203A)
-  es_letra <- function(x) (x >= 65L && x <= 90L) ||
-    (x >= 97L && x <= 122L) || x > 127L
-  borrar <- logical(length(codigos))
-  for (i in seq_along(codigos)) {
-    anterior <- if (i == 1L) 32L else codigos[[i - 1L]]
-    siguiente <- if (i == length(codigos)) 32L else codigos[[i + 1L]]
-    if (codigos[[i]] %in% aperturas && es_letra(siguiente) &&
-        (i == 1L || anterior == 32L)) borrar[[i]] <- TRUE
-    if (codigos[[i]] %in% cierres && es_letra(anterior) &&
-        (i == length(codigos) || siguiente == 32L)) borrar[[i]] <- TRUE
-    if (codigos[[i]] %in% c(39L, 0x2019, 0x201A) && es_letra(anterior) &&
-        (i == length(codigos) || siguiente == 32L)) borrar[[i]] <- TRUE
-  }
-  codigos <- codigos[!borrar]
-  codigos[codigos %in% c(0x2019, 0x201A, 0x201B)] <- 39L
-  codigos
+  if (!length(codigos)) return(codigos)
+  utf8ToInt(.normalizacion_comillas_vector(.normalizacion_a_texto(codigos)))
 }
 .normalizacion_ancho <- function(codigos) {
   vapply(codigos, function(x) {
@@ -846,12 +349,31 @@ print.normalizacion_lupa <- function(x, ...) {
   }, logical(1L))
   codigos[!quitar]
 }
+# Bajar caja para COMPARAR. Usa el mapa de minusculas del paquete y ademas
+# pliega la sigma final (U+03C2) a la sigma (U+03C3), como el plegado de caja de
+# Unicode y como ya lo hace `.plegar_para_comparar()`: el mapa baja la mayuscula
+# U+03A3 siempre a U+03C3, asi que `TREIS` en mayusculas y `treis` escrito con
+# su sigma final no se igualaban. El pliegue va aca y no en el mapa, porque el
+# mapa tambien ESCRIBE -`convertir_minusculas` de `aplicar()`- y ahi una sigma
+# final bien escrita no se toca. Es la unica funcion del paso: el camino
+# vectorial y el escalar la llaman los dos.
 .normalizacion_minusculas <- function(texto) {
-  .normalizacion_minusculas_vector(texto)
+  chartr("\u03c2", "\u03c3", .normalizacion_minusculas_vector(texto))
+}
+# Los blancos que el primer paso de `espacios` lleva al espacio ASCII antes de
+# que comillas y puntuacion vean el texto: los separadores ASCII -tabulacion,
+# salto de linea, tabulacion vertical, avance de pagina y retorno, 9 a 13- y los
+# espacios Unicode. Sin los ASCII, `"Juan"` seguido de una tabulacion conservaba
+# su comilla -la regla de comillas exige un espacio o el borde- y no se igualaba
+# con el mismo valor seguido de un espacio, aunque el paso promete colapsar los
+# blancos y el paso final los colapsaba igual. Una sola lista para los dos
+# caminos.
+.normalizacion_codigos_blancos <- function() {
+  c(.codigos_salto_linea_set, .codigos_espacios_invisibles)
 }
 .normalizacion_espacios_codigos <- function(codigos) {
   if (!length(codigos)) return(codigos)
-  codigos[codigos %in% .codigos_espacios_invisibles] <- 32L
+  codigos[codigos %in% .normalizacion_codigos_blancos()] <- 32L
   codigos[!(codigos %in% .codigos_control_eliminable_set)]
 }
 .normalizacion_a_texto <- function(codigos) {
@@ -1009,23 +531,26 @@ print.normalizacion_lupa <- function(x, ...) {
 
 .normalizacion_comillas_vector <- function(textos) {
   letra <- "[A-Za-z\\x{0080}-\\x{10FFFF}]"
-  # Las comillas de apertura sólo se quitan cuando abren una palabra; las de
-  # cierre y los apóstrofos sólo cuando cierran una palabra. Esto conserva la
-  # misma regla contextual del recorrido escalar sin inspeccionar cada valor
-  # en R.
+  # Una comilla de apertura se quita cuando abre una palabra: la precede un
+  # espacio o el inicio -`(?<![^ ])`- y la sigue una letra. Una de cierre o un
+  # apostrofo, cuando la cierra: la precede una letra y la sigue un espacio o el
+  # FINAL -`(?![^ ])`, no `$`, que en PCRE casa tambien antes de un salto de
+  # linea final-. La comilla simple ASCII cierra pero no abre: es tambien el
+  # apostrofo de una elision.
+  #
+  # Todo en UNA sola pasada, que decide sobre el texto original. En dos, la
+  # segunda veia lo que la primera ya habia borrado: en "abc" seguido de una
+  # comilla simple y una doble de cierre, la primera quitaba la doble y la
+  # segunda, ahora al final, la simple; y una apertura borrada dejaba sin letra
+  # a la izquierda al cierre que la seguia. Es la unica escritura de la regla:
+  # `.normalizacion_comillas()` la usa para el camino escalar.
+  apertura <- paste0("[\"\\x{00AB}\\x{2018}\\x{201B}\\x{201C}",
+                     "\\x{201E}\\x{2039}]")
+  cierre <- paste0("[\"\\x{00BB}\\x{2019}\\x{201D}\\x{201F}",
+                   "\\x{203A}\\x{0027}\\x{201A}]")
   textos <- gsub(
-    paste0("(*UTF)(^| )([\"\\x{00AB}\\x{2018}\\x{201B}\\x{201C}",
-           "\\x{201E}\\x{2039}])(?=", letra, ")"),
-    "\\1", textos, perl = TRUE
-  )
-  # Las de cierre y los apostrofos en UNA sola pasada. En dos, la segunda veia lo
-  # que la primera ya habia borrado: en "abc" seguido de una comilla simple y una
-  # doble de cierre, la primera quitaba la doble y la segunda, ahora al final, la
-  # simple; el recorrido escalar decide sobre el texto original y conserva la
-  # simple. Los dos caminos daban claves distintas para el mismo valor.
-  textos <- gsub(
-    paste0("(*UTF)(?<=", letra, ")[\"\\x{00BB}\\x{2019}\\x{201D}\\x{201F}",
-           "\\x{203A}\\x{0027}\\x{201A}](?=$| )"),
+    paste0("(*UTF)(?:(?<![^ ])", apertura, "(?=", letra, ")|(?<=", letra, ")",
+           cierre, "(?![^ ]))"),
     "", textos, perl = TRUE
   )
   gsub("[\u2019\u201A\u201B]", "'", textos, fixed = FALSE)
@@ -1070,7 +595,7 @@ print.normalizacion_lupa <- function(x, ...) {
   if (isTRUE(perfil$espacios)) {
     # Este es el primer paso del contrato escalar: un espacio Unicode se
     # vuelve espacio ASCII antes de que comillas y puntuación vean el texto.
-    salida <- gsub(.normalizacion_regex_codigos(.codigos_espacios_invisibles),
+    salida <- gsub(.normalizacion_regex_codigos(.normalizacion_codigos_blancos()),
                    " ", salida, perl = TRUE)
     salida <- gsub(.normalizacion_regex_codigos(
       .codigos_control_eliminable_set
@@ -1117,7 +642,7 @@ print.normalizacion_lupa <- function(x, ...) {
     }
   }
   if (isTRUE(perfil$minusculas)) {
-    salida <- .normalizacion_minusculas_vector(salida)
+    salida <- .normalizacion_minusculas(salida)
   }
   if (isTRUE(perfil$espacios)) {
     salida <- trimws(gsub("[[:space:]]+", " ", salida, perl = TRUE))
@@ -1224,6 +749,25 @@ print.normalizacion_lupa <- function(x, ...) {
     pasos = fusiones$pasos
   )
 }
+# La forma con que un valor de texto entra a la normalizacion para decidir si dos
+# valores son el mismo: su clave de bytes. Lo declarado `bytes` entra con cada
+# byte alto escrito `\xHH` -no se interpreta como texto, como documenta
+# `?detectar_duplicados_aproximados`-, `latin1` y UTF-8 del mismo texto entran
+# igual, y la barra invertida se escapa para que el escape no choque con un
+# literal tecleado.
+#
+# `perfilar()` usaba otra regla para el mismo campo: marcaba UTF-8 lo `bytes`
+# valido. Sobre {"Cafe Central", el mismo con tilde declarado `bytes`, "CAFE
+# CENTRAL"}, `meta$normalizacion_fusiones` publicaba 1 normalizado y
+# `detectar_claves()` 2, los dos en un campo llamado `n_distintos_normalizados`;
+# y `detectar_duplicados_aproximados()`, que puede reutilizar el informe del
+# perfil, fundia lo que sus propios pares separaban. `detectar_duplicados_
+# aproximados()` arma la misma clave por su cuenta, sobre cualquier tipo.
+.clave_para_normalizar <- function(x) {
+  if (is.character(x) || is.factor(x)) x <- .clave_bytes(x)
+  suppressWarnings(as.character(.texto_analizable(x)$valores))
+}
+
 .normalizacion_fusiones_tabla <- function(datos, resuelta) {
   nombres <- names(datos)
   if (is.null(nombres)) nombres <- paste0("V", seq_along(datos))
@@ -1232,8 +776,15 @@ print.normalizacion_lupa <- function(x, ...) {
     if (!.normalizacion_tiene_pasos(perfil)) return(NULL)
     x <- datos[[i]]
     if (is.list(x) || .es_columna_compuesta(x)) return(NULL)
-    valores <- suppressWarnings(as.character(.texto_analizable(x)$valores))
-    valores <- unique(valores[!is.na(valores)])
+    if (is.character(x) || is.factor(x)) x <- unique(as.character(x))
+    # Lo que no se puede leer queda afuera -se informa como codificacion
+    # invalida-, y eso se decide sobre el valor tal como llego: la clave de un
+    # valor ilegible es un escape ASCII perfectamente comparable.
+    legibles <- !is.na(suppressWarnings(as.character(
+      .texto_analizable(x)$valores
+    )))
+    valores <- .clave_para_normalizar(x)
+    valores <- unique(valores[legibles & !is.na(valores)])
     .normalizacion_fusiones_vocabulario(
       valores, perfil
     )

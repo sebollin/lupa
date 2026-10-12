@@ -35,12 +35,34 @@ no toca los datos, y la descomposicion canonica se aplica siempre.
 La normalizacion afecta unicamente la representacion usada para comparar;
 nunca modifica los datos de entrada. La descomposicion canonica y el orden
 de sus marcas son siempre activos para que NFC y NFD sean equivalentes en el
-subconjunto latino cubierto por lupa. Los pasos optativos de ligaduras y ancho
+subconjunto latino cubierto por lupa: las letras latinas precompuestas, las
+marcas combinantes de U+0300 a U+0332 ordenadas por su clase combinante
+canónica, y los signos Kelvin y Ångström, que Unicode declara iguales a la
+\code{K} y a la \code{Å}. Las tablas se generan desde Unicode
+(\code{data-raw/normalizacion_unicode.R}). Los pasos optativos de ligaduras y ancho
 completo tambien se aplican por punto de codigo, despues de declarar como
 UTF-8 los bytes validos, por lo que no dependen de \code{LC_CTYPE}. Bajar a
 minusculas tampoco depende del locale: usa un mapa explicito para el latin
 acentuado, el griego, el cirilico, el armenio y el ancho completo, y lo que
-queda fuera de ese mapa se conserva.
+queda fuera de ese mapa se conserva. Para comparar, la sigma final griega se
+iguala a la sigma, como en el plegado de caja de Unicode: una palabra griega
+en mayúsculas y la misma en minúsculas, escrita con su sigma final, son el
+mismo valor.
+}
+\details{
+El paso \code{espacios} lleva primero al espacio común la tabulación, el salto de
+línea, el retorno de carro, el avance de página, la tabulación vertical y los
+espacios Unicode, y borra los controles de transporte; al final colapsa y
+recorta los blancos. Como va antes que \code{comillas}, una comilla junto a una
+tabulación o un salto de línea se trata igual que junto a un espacio.
+
+El paso \code{comillas} quita una comilla de apertura cuando abre una palabra —la
+precede un blanco o el inicio y la sigue una letra— y una de cierre o un
+apóstrofo cuando la cierra —la precede una letra y la sigue un blanco o el
+final—; los apóstrofos tipográficos que quedan se escriben \verb{'}. La comilla
+simple ASCII cierra pero no abre, porque también es el apóstrofo de una
+elisión: \code{'Piedras'} se compara como \verb{'piedras}, mientras que la misma
+palabra entre comillas simples tipográficas se compara como \code{piedras}.
 }
 \examples{
 # El perfil por omisión: minúsculas, espacios, acentos y comillas.

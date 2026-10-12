@@ -53,11 +53,15 @@ test_that("H1: el mensaje del motor se publica sin los literales que cita", {
     paste0("Conversion failed when converting the varchar value ",
            "'[literal omitido]' to int."),
     "can't convert '[literal omitido]' to int",
-    "cortado: \"[literal omitido]\"",
+    # Ronda 29: fuera de las comillas se publica solo lo permitido -el
+    # vocabulario de los mensajes de los motores, SQL, tipos, nombres de la
+    # consulta, signos y numeros cortos-; "cortado" y "comillas" no son de un
+    # motor y se omiten.
+    "[literal omitido]: \"[literal omitido]\"",
     "CONTEXT:  JSON data, line 1: [literal omitido]",
     # Una palabra de SQL entre comillas queda: dice que el dialecto no sirve.
     "Incorrect syntax near 'LIMIT'.",
-    "sin comillas", NA
+    "sin [literal omitido]", NA
   )
   expect_identical(.sin_literales_motor(mensajes), esperados)
   tipograficas <- paste0("valor ", intToUtf8(0x201C), "Ana Sosa",

@@ -275,14 +275,22 @@ columna —una planilla pivoteada con una columna de notas por docente y la
 docente protegida—, su moda sigue tapada, y también los ejemplos de sus
 patrones, sus niveles observados y la configuración propuesta: un campo
 hecho de nombres que son valores protegidos es un campo de \strong{valores}.
-Salvo donde el campo refiere columnas —\code{columna}, \code{determinante},
+Salvo donde el campo refiere columnas —\code{columna}, \code{columna_1} y
+\code{columna_2} de las columnas duplicadas, \code{eliminar}, \code{determinante},
 \code{dependiente}, \code{nombres_propuestos} y los demás de su clase—: ahí el
 nombre es estructura y el plan lo necesita para ejecutar, también cuando
 el campo lo mezcla con la tabla —\code{objeto} dice \code{(tabla)} en las medidas
 que no son de una columna— o lo escribe detrás de un prefijo del paquete
 —el \code{origen} \code{dependencia_funcional:curso->turno} de la propuesta de
 \code{\link[=analizar]{analizar()}}—. Un nombre suelto en un campo que también lleva valores
-—el mapa de una imputación— se sigue tapando. Y un texto que nombra una columna entre
+—el mapa de una imputación— se sigue tapando, aunque todos los valores
+del mapa sean nombres de columna: sus \code{determinante} y \code{dependiente} son
+valores de las dos columnas, y \code{\link[=aplicar]{aplicar()}} lo resuelve sobre los datos
+que recibe. El texto del usuario que llega a un campo de vocabulario —la
+\code{unidad} de una columna, que es su atributo \code{units}— no se ampara en el
+vocabulario: un valor protegido entre límites de palabra se tapa, y una
+palabra del paquete —\code{faltantes}, \code{segundos}— sigue siendo vocabulario
+aunque un valor protegido coincida con ella. Y un texto que nombra una columna entre
 comillas —la prosa del paquete, la SQL que guarda \code{\link[=perfilar_dbi]{perfilar_dbi()}}— la
 conserva entera: con «Segundo» protegido, \code{segundo_nombre} salía
 \verb{[valor protegido]_nombre} en los hallazgos sin acción del plan y en la
@@ -369,7 +377,10 @@ nacional, como si estuviera escrito solo, y entero; el prefijo no se une a
 otro grupo. También cuando va pegado a otro número por una barra o un
 guion —\code{"+59899123456/+59899765432"}, \code{"29011234/+59899123456"}—: cada
 número con esa forma se prueba por su parte nacional. Y el celular protegido guardado con el prefijo se reconoce
-escrito sin él. No unen los parecidos raros: la prima de una coordenada
+escrito sin él, también guardado como número de planilla
+—\code{"59899123456.0"}, \code{"59899123456,0"} o \code{"5.9899123456E+10"}, la misma
+cifra—, y al revés: escrito así en un texto se lee por su parte
+nacional. No unen los parecidos raros: la prima de una coordenada
 sexagesimal, el acento grave, la tilde. Los dos puntos y la barra vertical
 \strong{no} unen: una razón
 \code{"494:2714"} o una lista \code{"12|345|6789"} no es un documento, y un documento
@@ -1278,8 +1289,10 @@ La identidad de la columna no depende de esa exclusión: \code{n_distintos},
 puede distinguir sin decodificarla. Un valor ilegible cuenta como valor, y
 la moda que se publica es el valor original tal como llegó, sin
 reinterpretarlo. Cuando ese valor es numérico, su representación textual se
-formatea con notación fija, con la precisión completa e independiente de
-\code{scipen} y de \code{digits}; se conserva
+formatea con notación fija, con la precisión completa —las cifras que hacen
+falta para volver al valor: \code{0.1 + 0.2} se publica \code{0.30000000000000004},
+no \code{0.3}— e independiente de \code{scipen} y de \code{digits}, igual en
+\code{\link[=perfilar]{perfilar()}} y en los caminos de \code{\link[=perfilar_dbi]{perfilar_dbi()}}; se conserva
 \code{OutDec}, porque esa marca decimal sí pertenece a la preferencia de locale
 de quien usa el paquete.
 
@@ -1381,7 +1394,11 @@ responde cuánto aporta cada paso por separado; sus números no son aditivos
 porque dos pasos pueden fundir el mismo par. \code{n_distintos} y
 \code{n_distintos_normalizados} declaran el total antes y después del perfil
 completo. La descomposición canónica es siempre activa y forma parte de la
-línea base, no una fila configurable.
+línea base, no una fila configurable. Un valor con marca \code{bytes} entra con su
+clave de bytes —cada byte alto escrito \verb{\\xHH}—, como en
+\code{\link[=detectar_claves]{detectar_claves()}} y \code{\link[=detectar_duplicados_aproximados]{detectar_duplicados_aproximados()}}: \code{bytes} declara
+que eso no se interprete como texto, así que no se pliega con el mismo texto
+marcado UTF-8. Los tres cuentan igual \code{n_distintos_normalizados}.
 Con \code{normalizar = FALSE} no hay pasos configurables que medir y el informe
 de fusiones queda en \code{NULL}; en un perfil por columna sólo se incluyen las
 columnas con algún paso activo. Si \code{detectar_duplicados_aproximados()} recibe

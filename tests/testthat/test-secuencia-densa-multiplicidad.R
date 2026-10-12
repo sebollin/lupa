@@ -214,10 +214,17 @@ test_that("un grupo bajo el umbral de densidad no acusa lo que la tabla calla", 
   #
   # Ronda 28-N: el grupo B repetia 1..34, que en la tabla completa duplicaba un
   # tercio de los valores, y una columna que se repite ya no es numeracion. El
-  # caso es el de una numeracion de la tabla entera que el grupo corta, asi que
-  # B sigue la numeracion en vez de repetirla.
-  a <- c(1:60, rep(-9L, 4L))
-  b <- c(61:94, rep(-9L, 4L))
+  # caso es el de una numeracion de la tabla entera que el grupo corta.
+  #
+  # Ronda 29-E: el caso anterior era 1..94 con ocho -9, y la tabla completa SI
+  # acusaba -el -9 cae fuera del rango y reabre la guarda: 8
+  # `faltantes_disfrazados`-; esta prueba exigia que `perfilar_por()` los
+  # callara. Ahora el centinela es el 999 de la lista, dentro del rango y sin
+  # sobresalir: la tabla completa no acusa nada (comprobado abajo) y el grupo B,
+  # 33 numeros espaciados de la numeracion mas cuatro 999, si.
+  b_numeros <- seq(10L, 970L, by = 30L)
+  a <- setdiff(1:1000, c(b_numeros, 999L))
+  b <- c(b_numeros, rep(999L, 4L))
   datos <- data.frame(
     x = c(a, b),
     g = c(rep("A", length(a)), rep("B", length(b))),
@@ -231,8 +238,14 @@ test_that("un grupo bajo el umbral de densidad no acusa lo que la tabla calla", 
     data.frame(x = datos$x), analizar_dependencias = FALSE,
     proteger_datos_personales = FALSE
   )
+  solo_b <- perfilar(
+    data.frame(x = b), analizar_dependencias = FALSE,
+    proteger_datos_personales = FALSE
+  )
 
-  expect_equal(as.numeric(completa$columnas$n_faltantes_disfrazados[[1L]]), 8)
+  expect_equal(as.numeric(completa$columnas$n_faltantes_disfrazados[[1L]]), 0)
+  expect_true(all(c("faltantes", "faltantes_disfrazados") %in%
+                    as.character(solo_b$hallazgos$tipo_hallazgo)))
   expect_equal(
     sum(grepl("faltantes", as.character(por_grupo$tipo_hallazgo))), 0L
   )

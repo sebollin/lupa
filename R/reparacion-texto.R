@@ -608,7 +608,12 @@ names(.ftfy_tablas_bytes) <- c(
   if (is.na(valor) || !nzchar(valor)) {
     return(list(texto = valor, pasos = character(), estado = "sin_texto"))
   }
-  actual <- enc2utf8(valor)
+  # Lo que no declara codificacion y es UTF-8 valido se MARCA antes de
+  # `enc2utf8()`, que sobre un `unknown` consulta `LC_CTYPE`: bajo `C` escapaba
+  # sus bytes como texto ASCII (`<c3><83>`) y el motor contestaba
+  # `no_parece_roto` sobre el mismo mojibake que en una sesion UTF-8 reparaba.
+  # Es la declaracion de la normalizacion, `.declarar_utf8_valido()`.
+  actual <- enc2utf8(.declarar_utf8_valido(valor))
   pasos <- character()
   usar_extensiones <- isTRUE(usar_extensiones_inicial)
   if (!.ftfy_es_mojibake(actual)) {

@@ -34,8 +34,12 @@ test_that("la fila de coleccion declara el universo de sus metricas", {
 test_that("la coleccion conserva las divergencias del perfil interno", {
   con <- .con_o28()
   on.exit(DBI::dbDisconnect(con), add = TRUE)
-  DBI::dbExecute(con, "CREATE TABLE t (v TEXT COLLATE RTRIM)")
-  DBI::dbExecute(con, "INSERT INTO t VALUES ('x '), ('x '), ('x'), ('x')")
+  # Una divergencia de verdad: la media de {1e16, 1, -1e16} el motor la suma
+  # en doble y da 0, R da 1/3 (README). Hasta la ronda 29-E el caso era una
+  # columna `COLLATE RTRIM`, y esa diferencia es la que `criterio_comparacion`
+  # declara esperable: ahora va a `no_corroborada`, no a `divergencia`.
+  DBI::dbExecute(con, "CREATE TABLE t (v REAL)")
+  DBI::dbExecute(con, "INSERT INTO t VALUES (1e16), (1), (-1e16)")
   col <- coleccion(con, "t", nombre = "o28")
 
   interno <- perfilar_dbi(con, "t", muestra = 10)

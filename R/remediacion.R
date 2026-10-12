@@ -929,9 +929,19 @@
 #' que decidir si el número sin `%` está en la misma escala.
 #' La acción de codificación prueba las tablas congeladas de varias
 #' codificaciones y deja en `estado_reparacion` uno de `reparado`,
-#' `reparado_parcialmente` o `no_se_pudo`. Una reparación parcial no se activa
-#' automáticamente: debe revisarse y seleccionarse de forma explícita. La
-#' estrategia se llama `reparar_codificacion` y no limita el motor a latin-1.
+#' `reparado_parcialmente` o `no_se_pudo`. Una reparación parcial —una celda que
+#' el motor repara sólo en parte— no se activa automáticamente: la acción queda
+#' `lista` con `aplicar = FALSE`, y se selecciona de forma explícita marcando
+#' `aplicar = TRUE`; entonces se aplican también las parciales. Una celda sin
+#' reparación local —con el carácter de reemplazo U+FFFD, o que el motor no
+#' pudo reparar— no frena la de las demás: queda como está y la justificación
+#' de la acción la cuenta. La estrategia se llama `reparar_codificacion` y no
+#' limita el motor a latin-1. Un texto legítimo que se escribe con los mismos
+#' bytes que un mojibake —por ejemplo, uno que cita literalmente la `Ã` seguida
+#' de `©`— no se distingue de uno roto: se acusa, la evidencia del plan lo
+#' muestra antes de aplicar, y si se aplica la acción se reescribe como la letra
+#' que esos bytes codifican. Si la columna contiene texto así, no active la
+#' acción.
 #' Unos mismos bytes pueden recibir dos diagnósticos: `c2 80` es a la vez un
 #' carácter de control C1 y la huella de un `€` de Windows-1252 leído como
 #' latin-1. Cuando el plan propone reparar la codificación y eliminar ese
@@ -943,14 +953,21 @@
 #' sin `fileEncoding` sobre un archivo latin1— no se transforma: el perfil no la
 #' midió y la informa como `codificacion_invalida`, cuyo remedio es volver a leer
 #' la fuente declarando su codificación. Las acciones de texto trabajan sobre las
-#' demás celdas de la columna y cuentan sólo lo que cambiaron.
+#' demás celdas de la columna y cuentan sólo lo que cambiaron. Una celda sin
+#' marca cuyos bytes son UTF-8 válido se trata como UTF-8 en cualquier locale,
+#' igual que en el perfil: con `LC_CTYPE=C` las acciones hacen lo mismo que en
+#' una sesión UTF-8.
 #'
 #' Una celda `latin1` **sí** se transforma —ahí R conoce la codificación y la
 #' convierte sin pérdida—, y el resultado queda marcado `UTF-8`. Como la acción
 #' toca sólo las celdas que cambia, una columna `latin1` puede quedar con marcas
 #' **mixtas**: las celdas transformadas en `UTF-8` y las intactas en `latin1`. El
 #' valor es el mismo, pero los bytes no, así que el registro lo cuenta en
-#' `n_codificacion_normalizada` en vez de dejarlo implícito. No se convierte la
+#' `n_codificacion_normalizada` en vez de dejarlo implícito. Ese conteo es de
+#' recodificaciones, no de marcas: una celda sin marca cuyos bytes son UTF-8
+#' válido ya es UTF-8 y no cambia de codificación aunque la acción la devuelva
+#' marcada, y un texto ASCII se escribe igual en toda codificación —decodificar
+#' `Jos&eacute;` cambia el valor, no la codificación—. No se convierte la
 #' columna entera a propósito: eso tocaría celdas que el plan no declaró como
 #' cambiadas y haría mentir a `n_cambiadas` por el otro lado.
 #' Si se marca una acción que no está `lista`, `aplicar()` aborta antes de
@@ -1011,7 +1028,12 @@
 #' entrega escribía valores que el plan nunca mostró. Una fila tapada no se
 #' puede validar si los datos recibidos no traen el valor protegido que la
 #' tapó —un subconjunto sin ese titular—: también queda `fallida`, con el
-#' motivo, y se aplica planificando sobre esos datos. Con una regla de `aplicabilidad` sobre la columna
+#' motivo, y se aplica planificando sobre esos datos. Y si los datos piden
+#' imputar una clave cuya fila el plan publicó tapada pero no traen ningún par
+#' de esa clave que la resuelva —la entrega que trae sólo las filas a
+#' completar—, la acción tampoco escribe a medias: queda `fallida`, con el
+#' motivo, porque sin la protección el plan escribiría esas celdas y con la
+#' fila tapada no se sabe con qué. Con una regla de `aplicabilidad` sobre la columna
 #' dependiente, la imputación respeta su universo como las demás acciones por
 #' celda: no llena las filas declaradas fuera, que son vacío por diseño, y
 #' `n_afectadas` las excluye.
@@ -1104,7 +1126,9 @@
 #'   acción seleccionada, incluso cuando una falla y las siguientes continúan.
 #'   `n_codificacion_normalizada` cuenta, por acción, las celdas cuya **marca de
 #'   codificación** cambió: es el caso de una acción de texto sobre celdas
-#'   `latin1`, cuyo valor se conserva y cuyos bytes no.
+#'   `latin1`, cuyo valor se conserva y cuyos bytes no. No cuenta una celda sin
+#'   marca cuyos bytes ya eran UTF-8 válido ni un texto ASCII, así que no
+#'   depende del locale.
 #'   `n_no_reversibles` cuenta las celdas cuyo VALOR se perdió y no se puede
 #'   recuperar desde el resultado: un centinela `-999` que pasa a ausencia, un
 #'   extremo recortado a su límite, un marcador de ausencia convertido, o un
@@ -1382,13 +1406,35 @@ planificar_limpieza <- function(perfil, datos = NULL,
       ))
     } else if (identical(tipo, "codificacion_rota") && !is.null(fila)) {
       reparable <- fila$n_codificacion_reparable[[1L]] > 0L
-      parcial <- isTRUE(fila$estado_codificacion_reparacion[[1L]] ==
-        "reparado_parcialmente") ||
-        ("n_codificacion_reparable_parcialmente" %in% names(fila) &&
-          fila$n_codificacion_reparable_parcialmente[[1L]] > 0L)
-      estado_reparacion <- if ("estado_codificacion_reparacion" %in% names(fila)) {
+      # PARCIAL es una celda que el motor repara solo en parte, no una columna
+      # que ademas de las reparables trae una celda sin reparacion local. Se
+      # decidia con el estado AGREGADO de la columna, y `.ftfy_estado_agregado()`
+      # da `reparado_parcialmente` en cuanto una celda con el caracter de
+      # reemplazo convive con las reparadas: una sola celda ajena dejaba
+      # `informativa` -y sin via para aplicarla- la reparacion de tres celdas que
+      # se reparan enteras, aunque la accion ni siquiera toca la irreparable.
+      # Con el conteo por celda la accion repara lo reparable y declara lo
+      # irreparable en su justificacion. El estado agregado queda solo para un
+      # perfil anterior que no traiga el conteo.
+      n_parciales <- if ("n_codificacion_reparable_parcialmente" %in% names(fila)) {
+        fila$n_codificacion_reparable_parcialmente[[1L]]
+      } else NA_integer_
+      parcial <- if (!is.na(n_parciales)) {
+        n_parciales > 0L
+      } else {
+        isTRUE(fila$estado_codificacion_reparacion[[1L]] == "reparado_parcialmente")
+      }
+      n_parciales <- if (parcial && !is.na(n_parciales)) n_parciales else 0L
+      estado_reparacion <- if (reparable) {
+        if (parcial) "reparado_parcialmente" else "reparado"
+      } else if ("estado_codificacion_reparacion" %in% names(fila)) {
         as.character(fila$estado_codificacion_reparacion[[1L]])
-      } else if (reparable) "reparado" else "no_se_pudo"
+      } else "no_se_pudo"
+      # Lo que la accion no toca: el hallazgo cuenta cada valor afectado una vez.
+      n_sin_reparacion <- if (reparable) {
+        max(0L, fila$n_codificacion_rota[[1L]] -
+          fila$n_codificacion_reparable[[1L]] - n_parciales)
+      } else 0L
       puede_aplicar <- reparable && !parcial && identical(estado_columna, "lista")
       acciones <- .agregar_accion(acciones, .nueva_accion(
         columna, tipo, if (reparable) {
@@ -1399,7 +1445,18 @@ planificar_limpieza <- function(perfil, datos = NULL,
         if (reparable) {
           paste0(
             "Prueba las codificaciones conocidas y se detiene cuando el texto ",
-            "deja de parecer mojibake. Los estados parciales no se aplican solos."
+            "deja de parecer mojibake.",
+            if (parcial) paste0(
+              " Hay reparaciones parciales",
+              if (n_parciales > 0L) paste0(" (", n_parciales, ")"),
+              ": la acci\u00f3n queda sin activar y, si se activa, las aplica ",
+              "tambi\u00e9n."
+            ),
+            if (n_sin_reparacion > 0L) paste0(
+              " ", n_sin_reparacion, " valor(es) sin reparaci\u00f3n local (con ",
+              "el car\u00e1cter de reemplazo, o que el motor no pudo reparar) ",
+              "quedan como est\u00e1n."
+            )
           )
         } else {
           paste0(
@@ -1407,15 +1464,17 @@ planificar_limpieza <- function(perfil, datos = NULL,
             "transformaci\u00f3n local puede recuperar el contenido original."
           )
         },
-        if (reparable) fila$n_codificacion_reparable[[1L]] else {
+        if (reparable) fila$n_codificacion_reparable[[1L]] + n_parciales else {
           fila$n_codificacion_irreparable[[1L]]
         }, FALSE,
-        estado = if (puede_aplicar) estado_columna else "informativa",
+        # Una reparacion con parciales queda `lista` y SIN activar: `aplicar()`
+        # solo ejecuta acciones `lista`, y quedaba `informativa`, asi que la
+        # "seleccion explicita" que pide la ayuda -marcar `aplicar = TRUE`-
+        # abortaba. Activarla a mano aplica tambien las parciales: antes nunca se
+        # aplicaban, y el registro publicaba `reparado_parcialmente` sobre una
+        # celda que quedo intacta.
+        estado = if (reparable) estado_columna else "informativa",
         aplicar = puede_aplicar,
-        # Si la accion queda informativa por una reparacion PARCIAL, activarla a
-        # mano es la seleccion explicita que la ayuda pide, y entonces se aplica
-        # tambien la parcial: antes nunca se aplicaba, y el registro publicaba
-        # `reparado_parcialmente` sobre una celda que quedo intacta.
         parametros = list(codificacion_intermedia = "ftfy",
                           codificaciones = names(.ftfy_tablas_bytes),
                           max_iteraciones = 20L,
@@ -2394,18 +2453,6 @@ rbind.plan_limpieza <- function(..., deparse.level = 1) {
   # Las claves publicadas en claro ya son mapa: sus pares los valida el ejecutor.
   pares <- pares[!.valores_relacion(pares$determinante) %in%
                    .valores_relacion(claras$determinante), , drop = FALSE]
-  if (!nrow(pares)) return(claras)
-  # Lo que resuelve una fila tapada es la relacion de los datos con el soporte
-  # declarado -como se armo el mapa del plan-; todos los pares, en cambio,
-  # cuentan para la contradiccion.
-  reconstruido <- .mapa_dependencia(
-    datos, names(datos)[[i_determinante]], names(datos)[[i_dependiente]],
-    soporte_minimo = parametros$soporte_minimo
-  )
-  en_relacion <- paste(.valores_relacion(pares$determinante),
-                       .valores_relacion(pares$dependiente), sep = "\001") %in%
-    paste(.valores_relacion(reconstruido$determinante),
-          .valores_relacion(reconstruido$dependiente), sep = "\001")
   # Lo visible, literal; lo tapado, cualquier texto. Un `NA` publicado es un
   # numero tapado: cualquier valor.
   forma <- function(publicada) {
@@ -2428,29 +2475,99 @@ rbind.plan_limpieza <- function(..., deparse.level = 1) {
   identificantes <- .valores_identificantes(
     valores, .fechas_que_identifican(datos, protegidas)
   )
-  vistos <- list(mapa = pares)
-  vistos <- .proteger_textos_salida(vistos, identificantes,
-                                    intocables = names(datos))
-  vistos <- .proteger_numeros_parametros(vistos, identificantes)
-  if (.nombres_para_operar(names(datos)[[i_dependiente]]) %in%
-      .nombres_para_operar(protegidas)) {
-    todos <- unique(c(valores, .rellenos_de_columnas(datos, protegidas)))
-    vistos <- .proteger_textos_salida(vistos, todos, intocables = names(datos))
-    vistos <- .proteger_numeros_parametros(vistos, todos)
+  ver <- function(tabla) {
+    vistos <- list(mapa = tabla)
+    vistos <- .proteger_textos_salida(vistos, identificantes,
+                                      intocables = names(datos))
+    vistos <- .proteger_numeros_parametros(vistos, identificantes)
+    if (.nombres_para_operar(names(datos)[[i_dependiente]]) %in%
+        .nombres_para_operar(protegidas)) {
+      todos <- unique(c(valores, .rellenos_de_columnas(datos, protegidas)))
+      vistos <- .proteger_textos_salida(vistos, todos, intocables = names(datos))
+      vistos <- .proteger_numeros_parametros(vistos, todos)
+    }
+    vistos$mapa
   }
-  visto_det <- texto(vistos$mapa$determinante)
-  visto_dep <- texto(vistos$mapa$dependiente)
-  par_det <- texto(pares$determinante)
-  par_dep <- texto(pares$dependiente)
   grupos <- unique(data.frame(determinante = texto_det[tapada],
                               dependiente = texto_dep[tapada],
                               stringsAsFactors = FALSE))
+  filas_grupo <- vapply(seq_len(nrow(grupos)), function(g) {
+    sum(igual(texto_det[tapada], grupos$determinante[[g]]) &
+          igual(texto_dep[tapada], grupos$dependiente[[g]]))
+  }, integer(1L))
+  # Una fila tapada que los datos recibidos NO resuelven -no traen ningun par de
+  # su clave, o no traen el valor protegido que la tapo- no se imputa, y se
+  # salteaba en silencio: con la entrega que trae solo las filas a completar, la
+  # accion salia `ejecutada` con 12 celdas de 24 -las de esa clave quedaban NA,
+  # sin motivo-; y sin el par ni el titular, `ejecutada` con 11 de 22 donde la
+  # ayuda promete `fallida`. Medido en la ronda 29. Si los datos piden imputar
+  # una clave -dependiente ausente- que no cubren ni el mapa en claro ni una
+  # fila tapada resuelta, y que tiene la forma de una fila tapada sin resolver,
+  # la accion no puede hacer lo que el plan dice: queda `fallida`, con el
+  # motivo. Una clave que no tiene la forma de ninguna fila del plan no se
+  # imputa, como sin proteccion.
+  detener_si_falta <- function(resueltas, sin_resolver) {
+    if (!any(sin_resolver)) return(invisible())
+    pedidas <- !is.na(x) & is.na(y)
+    if (!any(pedidas)) return(invisible())
+    claves <- x[pedidas]
+    claves <- claves[!duplicated(.valores_relacion(claves))]
+    cubiertas <- .valores_relacion(claves) %in%
+      .valores_relacion(claras$determinante) |
+      .valores_relacion(claves) %in%
+        .valores_relacion(pares$determinante[resueltas])
+    claves <- claves[!cubiertas]
+    if (!length(claves)) return(invisible())
+    texto_claves <- texto(claves)
+    vistas <- texto(ver(data.frame(
+      determinante = claves, dependiente = rep(NA, length(claves)),
+      stringsAsFactors = FALSE
+    ))$determinante)
+    for (g in which(sin_resolver)) {
+      det_g <- grupos$determinante[[g]]
+      piden <- grepl(forma(det_g), texto_claves, perl = TRUE) &
+        igual(vistas, det_g)
+      if (any(piden)) {
+        n_celdas <- sum(.valores_relacion(x[pedidas]) %in%
+                          .valores_relacion(claves[piden]))
+        stop(
+          "La dependencia funcional del plan no se puede aplicar sobre los ",
+          "datos recibidos: ", n_celdas, " celda(s) para imputar tienen una ",
+          "clave cuya fila el plan public\u00f3 tapada, y los datos no traen ",
+          "un par de esa clave que la resuelva -ni, quiz\u00e1, el valor ",
+          "protegido que la tap\u00f3-. Sin proteger, el plan las ",
+          "escribir\u00eda. Para aplicarla, planificar sobre datos que traigan ",
+          "esa relaci\u00f3n.", call. = FALSE
+        )
+      }
+    }
+    invisible()
+  }
+  if (!nrow(pares)) {
+    detener_si_falta(integer(), filas_grupo > 0L)
+    return(claras)
+  }
+  # Lo que resuelve una fila tapada es la relacion de los datos con el soporte
+  # declarado -como se armo el mapa del plan-; todos los pares, en cambio,
+  # cuentan para la contradiccion.
+  reconstruido <- .mapa_dependencia(
+    datos, names(datos)[[i_determinante]], names(datos)[[i_dependiente]],
+    soporte_minimo = parametros$soporte_minimo
+  )
+  en_relacion <- paste(.valores_relacion(pares$determinante),
+                       .valores_relacion(pares$dependiente), sep = "\001") %in%
+    paste(.valores_relacion(reconstruido$determinante),
+          .valores_relacion(reconstruido$dependiente), sep = "\001")
+  vistos <- ver(pares)
+  visto_det <- texto(vistos$determinante)
+  visto_dep <- texto(vistos$dependiente)
+  par_det <- texto(pares$determinante)
+  par_dep <- texto(pares$dependiente)
   resueltas <- integer()
+  sin_resolver <- rep(FALSE, nrow(grupos))
   for (g in seq_len(nrow(grupos))) {
     det_g <- grupos$determinante[[g]]
     dep_g <- grupos$dependiente[[g]]
-    filas_grupo <- sum(igual(texto_det[tapada], det_g) &
-                         igual(texto_dep[tapada], dep_g))
     con_forma <- which(
       grepl(forma(det_g), par_det, perl = TRUE) &
         grepl(forma(dep_g), par_dep, perl = TRUE)
@@ -2467,7 +2584,7 @@ rbind.plan_limpieza <- function(..., deparse.level = 1) {
         "estos datos.", call. = FALSE
       )
     }
-    if (length(reproducen) > filas_grupo) {
+    if (length(reproducen) > filas_grupo[[g]]) {
       stop(
         "La dependencia funcional del plan no se puede resolver sobre los ",
         "datos recibidos: m\u00e1s claves de las que el plan public\u00f3 tapadas ",
@@ -2475,8 +2592,10 @@ rbind.plan_limpieza <- function(..., deparse.level = 1) {
         call. = FALSE
       )
     }
+    sin_resolver[[g]] <- length(reproducen) < filas_grupo[[g]]
     resueltas <- c(resueltas, reproducen)
   }
+  detener_si_falta(unique(resueltas), sin_resolver)
   rbind(claras, pares[unique(resueltas), , drop = FALSE])
 }
 
@@ -2681,7 +2800,19 @@ rbind.plan_limpieza <- function(..., deparse.level = 1) {
   if (!is.character(x) || !is.character(y) || length(x) != length(y)) {
     return(0L)
   }
-  as.integer(sum(Encoding(x) != Encoding(y)))
+  # Cuenta RECODIFICACIONES: celdas cuyo contenido quedo escrito en otra
+  # codificacion -`latin1` que pasa a UTF-8-, no celdas cuya marca cambio. La
+  # marca de un texto sin declarar la pone el locale: `trimws()` sobre bytes
+  # UTF-8 `unknown` devuelve `UTF-8` en una sesion UTF-8 y `unknown` bajo `C`, y
+  # el campo publicaba 1 o 0 para la misma salida, con los mismos bytes. Por eso
+  # las dos puntas pasan por la declaracion de la normalizacion
+  # -`.declarar_utf8_valido()`-: un `unknown` valido ya ES UTF-8 y no cambio de
+  # codificacion. Y un texto ASCII se escribe igual en todas, asi que tampoco:
+  # `Jos&eacute;` decodificado a `Jose` con tilde cambio de valor, no de codificacion.
+  x <- .declarar_utf8_valido(x)
+  y <- .declarar_utf8_valido(y)
+  no_ascii <- grepl("[^\\001-\\177]", x, useBytes = TRUE, perl = TRUE)
+  as.integer(sum(!is.na(x) & !is.na(y) & no_ascii & Encoding(x) != Encoding(y)))
 }
 
 .perdidas_al_aplicar <- function(anterior, nuevo, columna) {
@@ -2814,10 +2945,14 @@ rbind.plan_limpieza <- function(..., deparse.level = 1) {
   anterior <- as.character(x)
   # La misma que usa la deteccion: las dos tienen que coincidir.
   patron <- .PATRON_ENTIDAD_HTML
-  nuevo <- vapply(anterior, function(texto) {
-    if (is.na(texto)) return(NA_character_)
+  nuevo <- vapply(anterior, function(original) {
+    if (is.na(original)) return(NA_character_)
+    # Declarado antes de la expresion regular, como en `.aplicar_por_marca()`:
+    # bajo `LC_CTYPE=C` un `unknown` UTF-8 valido se leia como bytes de la
+    # sesion. Lo `bytes` sigue como esta. Sin entidades, vuelve como llego.
+    texto <- .declarar_utf8_valido(original, marcas = "unknown")
     coincidencias <- gregexpr(patron, texto, perl = TRUE)[[1L]]
-    if (identical(coincidencias[[1L]], -1L)) return(texto)
+    if (identical(coincidencias[[1L]], -1L)) return(original)
     encontrados <- regmatches(texto, list(coincidencias))[[1L]]
     reemplazos <- vapply(encontrados, .entidad_html_reemplazo, character(1L))
     regmatches(texto, list(coincidencias)) <- list(reemplazos)
@@ -2900,8 +3035,12 @@ rbind.plan_limpieza <- function(..., deparse.level = 1) {
     estados == "reparado_parcialmente"
   # El estado que se publica es el de lo APLICADO, no el de la columna: con las
   # parciales afuera, decir `reparado_parcialmente` describia una celda que no se
-  # toco.
-  estado <- .ftfy_estado_agregado(estados[mascara | is.na(estados) | !parciales])
+  # toco. Lo mismo una celda `no_se_pudo` -el caracter de reemplazo-: la accion
+  # no la toca, y con ella el registro publicaba `reparado_parcialmente` sobre
+  # tres celdas reparadas enteras, contra el `reparado` del plan.
+  estado <- .ftfy_estado_agregado(
+    estados[mascara | is.na(estados) | !(parciales | estados %in% "no_se_pudo")]
+  )
   list(valor = .resultado_texto(x, nuevo), n = sum(mascara),
        n_parciales = sum(parciales), estado_reparacion = estado,
        estados = estados)
@@ -3016,15 +3155,14 @@ rbind.plan_limpieza <- function(..., deparse.level = 1) {
 # Se MARCA, no se convierte: los bytes no cambian. Lo que no es UTF-8 valido
 # queda como esta -no hay nada que interpretar ahi- y sigue contandose en
 # `n_codificacion_invalida`.
+#
+# Lo `unknown` tambien: el perfil lo marca igual, y aca solo se marcaba lo
+# `bytes`. Bajo `LC_CTYPE=C` la reparacion de codificacion leia un `unknown`
+# valido como ASCII escapado y lo daba por sano: la accion que el plan publicaba
+# `lista` quedaba `fallida` segun el locale. La declaracion es la misma de la
+# normalizacion, `.declarar_utf8_valido()`.
 .texto_para_transformar <- function(x) {
-  texto <- as.character(x)
-  crudos <- !is.na(texto) & Encoding(texto) == "bytes" & validUTF8(texto)
-  if (any(crudos)) {
-    marcados <- texto[crudos]
-    Encoding(marcados) <- "UTF-8"
-    texto[crudos] <- marcados
-  }
-  texto
+  .declarar_utf8_valido(as.character(x))
 }
 
 .transformar_capitalizacion <- function(x, estrategia, parametros) {

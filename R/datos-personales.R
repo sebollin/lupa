@@ -928,13 +928,17 @@
       format(x, digits = 8L, trim = TRUE, scientific = FALSE),
       .texto_valor_vector(x)
     ), error = function(e) character())
-    salida <- c(crudos, formateados)
-    if (de_fechas) salida <- salida[!.forma_de_fecha(salida)]
     # Recortado: `format()` de un texto lo rellena con espacios hasta el ancho
-    # de la columna, y "99999999   " no es "99999999".
+    # de la columna, y "99999999   " no es "99999999". Y la aguja tampoco va
+    # rellena: "Maria Lopez Fernandez " -relleno hasta el largo de "Carlos
+    # Rodriguez Silva"- se tragaba el espacio de la prosa que la cita, "La
+    # relacion [valor protegido] -> [valor protegido]es exacta". Medido en la
+    # ronda 29. El valor recortado tapa lo mismo: esta adentro del relleno.
+    salida <- .recortar_bytes(c(crudos, formateados))
+    if (de_fechas) salida <- salida[!.forma_de_fecha(salida)]
     rellenos <- .rellenos_de_columna(x)
     if (length(rellenos)) {
-      salida <- salida[!.recortar_bytes(salida) %in% rellenos]
+      salida <- salida[!salida %in% rellenos]
     }
     salida
   }), use.names = FALSE)
@@ -1466,9 +1470,14 @@
   documentos <- NULL
   obtener_documentos <- function() {
     if (is.null(documentos)) {
-      documentos <<- .documentos_digitos(
-        unlist(corridas_largas(agujas_todas), use.names = FALSE)
-      )
+      # Y la cifra entera del valor protegido escrito como numero de planilla
+      # -"59893897037.0"-: sin separadores es "598938970370", otra cifra. Ver
+      # `.cifra_entera_escrita()`.
+      enteras <- .cifra_entera_escrita(valores)
+      documentos <<- .documentos_digitos(c(
+        unlist(corridas_largas(agujas_todas), use.names = FALSE),
+        enteras[!is.na(enteras)]
+      ))
     }
     documentos
   }
@@ -2270,6 +2279,39 @@
   unique(vocabulario)
 }
 
+# El vocabulario que el objeto trae en sus campos de vocabulario no ampara un
+# valor protegido: un campo de vocabulario puede llevar texto del usuario -la
+# `unidad` es el atributo `units` de su columna-, y `attr(y, "units") <- "CI
+# 3.006.514-3"` se publicaba entero en `columnas$unidad` por ser "vocabulario".
+# Medido en la ronda 29. Sale del vocabulario lo que lleva un valor protegido
+# ENTRE LIMITES de palabra -la regla de la prosa-, sin contar los nombres de
+# columna que cita -un hallazgo `columnas_duplicadas@Juan Perez Gonzalez`
+# nombra la columna-: "segundos" frente al nombre protegido "Segundo" sigue
+# siendo la unidad de las fechas. Lo que el paquete escribe -una palabra en
+# minusculas con guiones bajos- no se revisa: no puede llevar el dato de nadie
+# entre limites, y revisarlo costaria un barrido mas por salida.
+.vocabulario_sin_valores <- function(vocabulario, valores, nombres = character()) {
+  if (!length(vocabulario) || !length(valores)) return(vocabulario)
+  revisar <- !grepl("^[a-z0-9_]*$", vocabulario, useBytes = TRUE)
+  if (!any(revisar)) return(vocabulario)
+  textos <- vocabulario[revisar]
+  nombres <- unique(as.character(nombres[!is.na(nombres) & nzchar(nombres)]))
+  # Entero y entre limites: `id` adentro de "Apellidoso" no es la columna, y
+  # sacarlo partia el valor protegido que la regla tenia que encontrar.
+  for (nombre in nombres[order(-nchar(nombres, type = "bytes"))]) {
+    literal <- gsub("\\E", "\\E\\\\E\\Q", nombre, fixed = TRUE)
+    patron <- paste0("(?<![\\p{L}\\p{N}_])\\Q", literal, "\\E(?![\\p{L}\\p{N}_])")
+    textos <- tryCatch(gsub(patron, " ", textos, perl = TRUE),
+                       error = function(e) textos)
+  }
+  tapados <- tryCatch(
+    .reemplazar_valores_protegidos(textos, valores, exigir_limites = TRUE),
+    error = function(e) rep(NA_character_, length(textos))
+  )
+  con_valor <- is.na(tapados) | tapados != textos
+  vocabulario[!vocabulario %in% vocabulario[revisar][con_valor]]
+}
+
 # Los campos que REFIEREN columnas: ahi un nombre de columna es estructura aunque
 # sea igual a un valor protegido -una planilla pivoteada por persona tiene una
 # columna `Florencia Rodriguez` y una docente protegida con ese nombre-. El plan
@@ -2279,11 +2321,34 @@
 # sus niveles observados, la configuracion propuesta. La lista falla para el
 # lado cerrado: un campo de nombres que falte aca se tapa en ese caso -raro-,
 # no se publica.
+#
+# Ronda 29: la lista y el patron se revisaron RECORRIENDO las salidas -perfil,
+# plan, `analizar()`, `perfilar_por()`, `perfilar_dbi()`, la coleccion, las
+# dependencias, los duplicados, la distribucion, las asociaciones,
+# `guiar_limpieza()` y `comparar_perfiles()`- y anotando todo campo cuyas hojas
+# son nombres de columna. Faltaban `columna_1` y `columna_2` -las columnas
+# duplicadas, en el perfil y en los parametros de sus dos acciones-, `eliminar`
+# y `datos_personales_sin_proteger`: con la columna que se llama como una
+# persona protegida, las dos acciones de la columna duplicada salian
+# `bloqueada`, sin parametros, cuando sin la proteccion la recomendada estaba
+# `lista`. La prueba de la ronda 29 repite el recorrido.
 .CAMPOS_DE_NOMBRES <- c(
   "determinante", "dependiente", "variable", "objeto", "objeto_medible",
   "atributo", "atributos", "atributos_ligados", "grupo", "por", "clave",
-  "claves", "identificador", "origen"
+  "claves", "identificador", "origen", "eliminar",
+  "datos_personales_sin_proteger"
 )
+
+# Lo que un campo de nombres NO es adentro de un contenedor de VALORES: el
+# `mapa` de una imputacion por dependencia tiene columnas `determinante` y
+# `dependiente`, y lleva los valores de las dos columnas, no sus nombres. Con
+# la docente protegida y una columna de notas por docente, el mapa se publicaba
+# en claro -los cuatro nombres- porque sus valores eran todos nombres de
+# columna. Medido en la ronda 29. Adentro de un contenedor de estos, cada hoja
+# hereda el nombre del contenedor, que no es de nombres: se barre como valores.
+# Lo que se EJECUTA no cambia: un mapa tapado queda `mapa_enmascarado` y
+# `aplicar()` lo resuelve sobre los datos que recibe.
+.CONTENEDORES_DE_VALORES <- c("mapa")
 
 # Un VALOR de un campo que refiere columnas, con un prefijo de vocabulario y
 # columnas detras -`dependencia_funcional:curso->turno`, el `origen` de la
@@ -2314,12 +2379,29 @@
   salida
 }
 
-.PATRON_CAMPOS_DE_NOMBRES <- "^(columna|columnas|nombres)(_[a-z_]+)?$"
+# Con cifras en el sufijo: `columna_1`, `columna_2`.
+.PATRON_CAMPOS_DE_NOMBRES <- "^(columna|columnas|nombres)(_[a-z0-9_]+)?$"
 
 .es_campo_de_nombres <- function(campo) {
+  .refiere_columnas(campo) ||
+    (!is.null(campo) && length(campo) == 1L && !is.na(campo) &&
+       campo %in% .CAMPOS_DE_VOCABULARIO)
+}
+
+# Un campo que REFIERE columnas -ver `.CAMPOS_DE_NOMBRES`-, sin los de
+# vocabulario: es lo que la prueba de la ronda 29 exige de todo campo cuyas
+# hojas son nombres de columna. El vocabulario se saltea por otra razon -una
+# palabra del paquete, `faltantes`, igual a un nombre protegido, sigue siendo el
+# tipo del hallazgo-, y el texto del usuario que llega a un campo de vocabulario
+# lo saca `.vocabulario_sin_valores()`.
+.refiere_columnas <- function(campo) {
   !is.null(campo) && length(campo) == 1L && !is.na(campo) &&
-    (campo %in% .CAMPOS_DE_NOMBRES || campo %in% .CAMPOS_DE_VOCABULARIO ||
-       grepl(.PATRON_CAMPOS_DE_NOMBRES, campo))
+    (campo %in% .CAMPOS_DE_NOMBRES || grepl(.PATRON_CAMPOS_DE_NOMBRES, campo))
+}
+
+.es_contenedor_de_valores <- function(campo) {
+  !is.null(campo) && length(campo) == 1L && !is.na(campo) &&
+    campo %in% .CONTENEDORES_DE_VALORES
 }
 
 # Los nombres apartados que, plegados, SON un valor protegido -con la clave de
@@ -2381,7 +2463,9 @@
       # `fecha_[valor protegido]` y `planificar_limpieza()` y `analizar()`
       # abortaban. Se saltean en las DOS pasadas, asi que las hojas siguen
       # alineadas: la decision depende solo del contenido original.
-      nombre_columna <- names(x)[[j]]
+      nombre_columna <- if (.es_contenedor_de_valores(campo)) {
+        campo
+      } else names(x)[[j]]
       if ((is.character(columna) || is.factor(columna)) &&
           .saltear_hoja_de_nombres(columna, intocables, sin_iguales,
                                    nombre_columna)) {
@@ -2405,8 +2489,10 @@
   if (is.list(x)) {
     nombres <- names(x)
     for (i in seq_along(x)) {
-      propio <- if (!is.null(nombres) && !is.na(nombres[[i]]) &&
-                    nzchar(nombres[[i]])) nombres[[i]] else campo
+      propio <- if (!.es_contenedor_de_valores(campo) && !is.null(nombres) &&
+                    !is.na(nombres[[i]]) && nzchar(nombres[[i]])) {
+        nombres[[i]]
+      } else campo
       elemento <- .recorrer_textos_salida(
         x[[i]], aplicar = aplicar, intocables = intocables, campo = propio,
         sin_iguales = sin_iguales
@@ -2451,9 +2537,9 @@
 # `fixed = TRUE` ni la codificacion: solo se agrupa.
 .proteger_textos_salida <- function(x, valores, intocables = character()) {
   if (!length(valores)) return(x)
+  nombres <- c(intocables, .nombres_derivados_de_columnas(intocables))
   intocables <- c(
-    intocables, .nombres_derivados_de_columnas(intocables),
-    .vocabulario_de_objeto(x)
+    nombres, .vocabulario_sin_valores(.vocabulario_de_objeto(x), valores, nombres)
   )
   iguales <- .nombres_iguales_a_valores(intocables, valores)
   sin_iguales <- if (length(iguales)) setdiff(intocables, iguales)
@@ -2568,6 +2654,10 @@
     escritos <- valores[!is.na(valores) &
                           grepl("^[0-9][0-9 .,/'_-]*[0-9]$", valores, useBytes = TRUE)]
     digitos <- .sin_ceros_iniciales(gsub("[^0-9]", "", escritos, useBytes = TRUE))
+    # La cifra escrita con un decimal de ceros o en notacion cientifica es la
+    # misma: ver `.cifra_entera_escrita()`. Ronda 29.
+    enteras <- .sin_ceros_iniciales(.cifra_entera_escrita(valores))
+    digitos <- c(digitos, enteras[!is.na(enteras)])
     valores <- unique(c(valores, digitos[
       nchar(digitos, type = "bytes") >= .MIN_LARGO_VALOR_IDENTIFICANTE
     ]))
@@ -3430,7 +3520,14 @@
     !is.na(valores) & nzchar(valores) & valores != "[valor protegido]"
   ]
   if (!length(valores)) return(character())
-  largos <- nchar(valores, type = "chars", allowNA = TRUE)
+  # Se mide y se compara sobre la forma DECLARADA -los bytes UTF-8 validos sin
+  # marca son UTF-8, `.declarar_utf8_valido()`- y se devuelve el valor como llego.
+  # Bajo `LC_CTYPE=C`, `nchar()` de un texto sin marca cuenta bytes -`Angel` con
+  # tilde daba 6 y pasaba el piso, que en una sesion UTF-8 da 5- y `trimws()`
+  # sobre un vector con marcas mezcladas avisaba "unable to translate" o
+  # abortaba: el filtro del catalogo de ausencias de abajo caia en su `tryCatch`
+  # y no se aplicaba. La proteccion decidia distinto segun el locale.
+  largos <- nchar(.declarar_utf8_valido(valores), type = "chars", allowNA = TRUE)
   valores <- valores[is.na(largos) | largos >= .MIN_LARGO_VALOR_IDENTIFICANTE]
   # Un relleno sin una letra ni un digito -"------", "......"- no es el dato de
   # nadie y no puede identificar a nadie. Medido en la ronda 25: el "------" de
@@ -3466,7 +3563,7 @@
     .cadenas_na_naniar_1_1_0, .cadenas_na_locales
   )))
   normalizados <- tryCatch(
-    .normalizacion_minusculas_vector(trimws(valores)),
+    .normalizacion_minusculas_vector(trimws(.declarar_utf8_valido(valores))),
     error = function(e) rep(NA_character_, length(valores))
   )
   valores[is.na(normalizados) | !normalizados %in% catalogo]

@@ -1144,6 +1144,29 @@
   as.character(x[[1L]])
 }
 
+# La moda numerica, como la promete `?perfilar`: notacion fija, la precision
+# COMPLETA e independiente de `scipen` y `digits`, con la marca de `OutDec`.
+# `.formatear_numero_publicado()` escribe 15 cifras, que alcanzan casi siempre
+# pero no siempre: la moda `0.1 + 0.2` salia "0.3" y `1/3` "0.333333333333333",
+# que no vuelven a su valor, y dos tablas con moda 0.3 y 0.1 + 0.2 -distintas,
+# `0.3 == 0.1 + 0.2` es FALSE- se declaraban identicas en
+# `comparar_equivalencia()` en el mismo par donde el minimo salia distinto. Se
+# escriben las cifras que hacen falta para volver -15, 16 o 17, la regla de
+# `.cifras_reversibles()`-. Los tres caminos de `perfilar_dbi()` y `perfilar()`
+# escriben la moda con esta funcion: la via por bloques usaba `as.character()` y
+# publicaba "1e-20" donde las otras publicaban "0.00000000000000000001".
+.texto_moda <- function(x) {
+  if (length(x) == 0L || is.na(x[[1L]])) return(NA_character_)
+  if (!is.double(x) || is.object(x)) return(.texto_valor(x))
+  valor <- x[[1L]]
+  texto <- .formatear_numero_publicado(valor)
+  cifras <- .cifras_reversibles(valor, texto)
+  if (!is.na(cifras)) {
+    texto <- format(valor, scientific = FALSE, trim = TRUE, digits = cifras)
+  }
+  texto
+}
+
 # Los numeros que entran en texto publicado no deben obedecer las preferencias
 # de IMPRESION de la sesion, que son dos y hay que cerrar las dos:
 #
@@ -1453,13 +1476,16 @@
   # marcarla como UTF-8 antes de que lleguen `tolower()`, `trimws()` o las
   # expresiones regulares. Los bytes invalidos siguen el camino de texto no
   # descifrable de abajo.
-  bytes_validos <- !is.na(valores) & Encoding(valores) == "bytes" &
-    validUTF8(valores)
-  if (any(bytes_validos)) {
-    marcados <- valores[bytes_validos]
-    Encoding(marcados) <- "UTF-8"
-    valores[bytes_validos] <- marcados
-  }
+  #
+  # Lo mismo vale para un texto con bytes UTF-8 validos que llega con marca
+  # `unknown` (por ejemplo, desde `read.csv()`); bajo `LC_CTYPE=C`, `trimws()`,
+  # `tolower()` y varias primitivas de R intentan traducirlo y advierten o
+  # comparan distinto. La marca no cambia los bytes ni el texto publicado: solo
+  # fija la forma de trabajo, igual que `.nombres_para_operar()` para los
+  # identificadores. Es la declaracion compartida con la normalizacion y con las
+  # acciones de texto, `.declarar_utf8_valido()`: marcar lo `unknown` antes de
+  # convertir no cambia nada, porque `enc2utf8()` deja intacto lo que ya es UTF-8.
+  valores <- .declarar_utf8_valido(valores)
   declarados <- Encoding(valores) %in% c("latin1", "UTF-8")
   if (any(declarados)) {
     convertidos <- suppressWarnings(
@@ -1472,17 +1498,6 @@
   invalidos <- !is.na(valores) & !validUTF8(valores)
   posiciones <- which(invalidos)
   if (length(posiciones)) valores[posiciones] <- NA_character_
-  # Un texto con bytes UTF-8 validos puede llegar con marca `unknown` (por
-  # ejemplo, desde `read.csv()`); bajo `LC_CTYPE=C`, `trimws()`, `tolower()` y
-  # varias primitivas de R intentan traducirlo y advierten o comparan distinto.
-  # La marca no cambia los bytes ni el texto publicado: sólo fija la forma de
-  # trabajo, igual que `.nombres_para_operar()` para los identificadores.
-  validos <- !is.na(valores) & validUTF8(valores)
-  if (any(validos)) {
-    marcados <- valores[validos]
-    Encoding(marcados) <- "UTF-8"
-    valores[validos] <- marcados
-  }
   list(
     valores = valores, invalidos = invalidos, posiciones = posiciones,
     # La igualdad y la descripcion textual tienen universos distintos. La
@@ -1919,9 +1934,27 @@
   # texto valido: `trimws()` moria con "input string 3 is invalid UTF-8" y la
   # accion que el plan recomienda y aplica sola quedaba `fallida`.
   aparte <- declarados | .sin_marca_ilegible(x)
-  if (!any(aparte)) return(en_texto(x))
+  # Lo que va a `en_texto` se DECLARA antes: un `unknown` cuyos bytes son UTF-8
+  # valido es UTF-8 (`.declarar_utf8_valido()`). Sin eso, bajo `LC_CTYPE=C`
+  # `trimws()` y `gsub(perl = TRUE)` lo leian como bytes de la sesion, y sobre
+  # una columna con marcas mezcladas avisaban "unable to translate". Lo que la
+  # transformacion deja igual vuelve como llego: declarar es marcar, y una celda
+  # intacta no tiene por que cambiar de marca. La igualdad se mide en bytes, sin
+  # traducir nada.
+  como_texto <- function(v) {
+    declarado <- .declarar_utf8_valido(v, marcas = "unknown")
+    nuevo <- en_texto(declarado)
+    a <- nuevo
+    b <- declarado
+    Encoding(a) <- "bytes"
+    Encoding(b) <- "bytes"
+    intactas <- !is.na(v) & !is.na(nuevo) & a == b
+    nuevo[intactas] <- v[intactas]
+    nuevo
+  }
+  if (!any(aparte)) return(como_texto(x))
   salida <- x
-  if (any(!aparte)) salida[!aparte] <- en_texto(x[!aparte])
+  if (any(!aparte)) salida[!aparte] <- como_texto(x[!aparte])
   # Por bytes se transforma solo lo que el perfil midio: lo declarado `bytes`
   # cuyos bytes son UTF-8 valido. Lo que no decodifica queda intacto, como ya
   # lo deja `eliminar_controles_invisibles`: el perfil no lo midio -lo informa

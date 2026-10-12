@@ -68,6 +68,40 @@
   )
 })
 
+# Declara como UTF-8 lo que no declara codificacion -`unknown` o `bytes`- y
+# cuyos bytes son UTF-8 valido. Se MARCA, no se convierte: los bytes no cambian,
+# y lo que no es UTF-8 valido queda como esta. Es la declaracion que promete
+# `?normalizacion` -"despues de declarar como UTF-8 los bytes validos, por lo
+# que no dependen de `LC_CTYPE`"- y vive en un solo lugar porque la necesitan
+# tambien las acciones de texto de `aplicar()`.
+#
+# Estaba escrita tres veces con dos criterios. La normalizacion y el perfil
+# marcaban `unknown` y `bytes`; las acciones de texto solo `bytes`. Un CSV leido
+# sin `encoding` deja `unknown`, y bajo `LC_CTYPE=C` `enc2utf8()` escapa esos
+# bytes como texto ASCII (`<c3><b1>`): el perfil media dos celdas reparables, el
+# plan proponia `reparar_codificacion` como `lista` y `aplicar()` la dejaba
+# `fallida` sin cambiar nada, mientras bajo un locale UTF-8 reparaba las dos.
+#
+# `marcas = "unknown"` es para quien trata lo `bytes` aparte a proposito -las
+# acciones que lo recortan por bytes y lo devuelven declarado `bytes`-.
+#
+# Regla de uso: la declaracion va ANTES de la primera primitiva de texto que
+# reciba el valor -`trimws()`, `sub()`, `gsub()`, `gregexpr()`, `nchar()`-, no
+# despues. `.textos_para_plegar(trimws(x))` declara tarde: el argumento se evalua
+# antes, y bajo `C` `trimws()` sobre un vector con marcas mezcladas avisa
+# "unable to translate" o aborta.
+.declarar_utf8_valido <- function(textos, marcas = c("unknown", "bytes")) {
+  if (!is.character(textos) || !length(textos)) return(textos)
+  validos <- !is.na(textos) & Encoding(textos) %in% marcas &
+    validUTF8(textos)
+  if (any(validos)) {
+    marcados <- textos[validos]
+    Encoding(marcados) <- "UTF-8"
+    textos[validos] <- marcados
+  }
+  textos
+}
+
 # Deja el vector en un estado que las operaciones Unicode puedan leer sin
 # depender del locale.
 # Los que ya son UTF-8 valido se MARCAN -conserva los acentos, que es lo que el
@@ -75,16 +109,11 @@
 # determinista aunque quede feo. Un texto ya marcado se deja como esta.
 .textos_para_plegar <- function(textos) {
   if (!length(textos)) return(textos)
-  textos <- as.character(textos)
+  textos <- .declarar_utf8_valido(as.character(textos))
   sin_marca <- !is.na(textos) & Encoding(textos) %in% c("unknown", "bytes")
   if (!any(sin_marca)) return(textos)
-  bytes_validos <- sin_marca & validUTF8(textos)
-  if (any(bytes_validos)) {
-    marcados <- textos[bytes_validos]
-    Encoding(marcados) <- "UTF-8"
-    textos[bytes_validos] <- marcados
-  }
-  irreparables <- sin_marca & !bytes_validos
+  irreparables <- sin_marca
+  irreparables[sin_marca] <- !validUTF8(textos[sin_marca])
   if (any(irreparables)) {
     textos[irreparables] <- iconv(textos[irreparables], to = "UTF-8", sub = "byte")
   }

@@ -490,6 +490,17 @@
     acumulador$estado_familia <- estado
     return(acumulador)
   }
+  # `min()`, `max()`, `mean()` y la resta de base leen los bits de un
+  # `integer64` como si fueran un doble: con `bloque_filas`, una clave
+  # `bigserial` publicaba `minimo = 4.94e-324` y su `media` `integer64` truncaba
+  # las de toda la tabla. Se opera como doble cuando el doble lo sostiene; si
+  # algun valor llega a 2^53, la condicion es de la columna y el acumulador
+  # entero queda `no_disponible` con el motivo.
+  como_doble <- .integer64_como_doble_dbi(valores)
+  if (!isTRUE(como_doble$ok)) {
+    return(.marcar_fallo_acumulador(acumulador, como_doble$motivo))
+  }
+  valores <- como_doble$valores
   estado$n_nan <- estado$n_nan + sum(is.nan(valores))
   estado$n_infinito_positivo <- estado$n_infinito_positivo +
     sum(is.infinite(valores) & valores > 0, na.rm = TRUE)
@@ -2073,7 +2084,7 @@
   }
   posicion <- candidatos[[1L]]
   list(
-    valor = .texto_valor(mapa$representante[posicion]),
+    valor = .texto_moda(mapa$representante[posicion]),
     frecuencia = as.integer(mapa$frecuencia[[posicion]]),
     posicion = posicion
   )

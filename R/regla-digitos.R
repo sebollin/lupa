@@ -261,6 +261,64 @@
 
 .sin_ceros_iniciales <- function(x) sub("^0+", "", x)
 
+# La MISMA CIFRA escrita como numero de planilla: con una parte decimal de ceros
+# -"59893897037.0", lo que deja pandas o una planilla al pasar el celular por un
+# numero, o "59893897037,0" con la coma decimal- o en notacion cientifica
+# -"5.9893897037E+10"-. El celular protegido escrito asi no protegia su forma
+# nacional: "llamar al 093 897 037" se publicaba en 80 de 80 notas, porque la
+# parte decimal hacia que la regla no lo leyera como E.164; y al reves, el
+# celular E.164 escrito asi en un texto no se leia frente al protegido "099 123
+# 456". Medido en la ronda 29. Devuelve las cifras del entero, o NA si el texto
+# no es una cifra entera escrita asi. La comparten las agujas de la regla de
+# digitos, el piso numerico y los numeros de un texto
+# (`.cifras_enteras_en_texto()`).
+.cifra_entera_escrita <- function(x) {
+  x <- .recortar_bytes(as.character(x))
+  salida <- rep(NA_character_, length(x))
+  decimal <- !is.na(x) & grepl("^[+]?[0-9]+[.,]0+$", x, useBytes = TRUE)
+  salida[decimal] <- sub("^[+]?([0-9]+)[.,]0+$", "\\1", x[decimal],
+                         useBytes = TRUE)
+  patron <- "^[+]?([0-9]+)(?:[.,]([0-9]+))?[eE][+]?([0-9]{1,2})$"
+  cientifica <- which(!is.na(x) & !decimal &
+                        grepl(patron, x, perl = TRUE, useBytes = TRUE))
+  for (i in cientifica) {
+    partes <- regmatches(x[[i]], regexec(patron, x[[i]], perl = TRUE))[[1L]]
+    entera <- partes[[2L]]
+    fraccion <- partes[[3L]]
+    exponente <- as.integer(partes[[4L]])
+    if (nchar(fraccion) > exponente) {
+      # Lo que queda despues de la coma tiene que ser ceros: si no, no es entera.
+      if (grepl("[1-9]", substr(fraccion, exponente + 1L, nchar(fraccion)))) next
+      fraccion <- substr(fraccion, 1L, exponente)
+    }
+    salida[[i]] <- paste0(
+      entera, fraccion, strrep("0", exponente - nchar(fraccion))
+    )
+  }
+  salida
+}
+
+# Los numeros de un texto escritos asi, llevados a sus cifras enteras antes de
+# buscar: el decimal de ceros detras de seis cifras o mas -el de uno o dos
+# ceros: "1.000" con tres es un millar- y la notacion cientifica entera.
+.cifras_enteras_en_texto <- function(texto) {
+  tryCatch({
+    texto <- gsub(
+      "(?<![0-9.,])([0-9]{6,})[.,]0{1,2}(?![0-9]|[-./,'_+][0-9])", "\\1",
+      texto, perl = TRUE
+    )
+    m <- gregexpr(
+      "(?<![0-9.,])[0-9]+[.,][0-9]+[eE][+]?[0-9]{1,2}(?![0-9])", texto,
+      perl = TRUE
+    )
+    regmatches(texto, m) <- lapply(regmatches(texto, m), function(trozos) {
+      enteras <- .cifra_entera_escrita(trozos)
+      ifelse(is.na(enteras), trozos, enteras)
+    })
+    texto
+  }, error = function(e) texto)
+}
+
 # El TELEFONO URUGUAYO con su prefijo de pais: "598" o "00598" -el "+" no es
 # parte del numero- y la parte nacional, ocho cifras que empiezan con 2 o 4 (un
 # fijo) o con 9 (un celular), con el cero del celular o sin el. Escrito pegado
@@ -457,6 +515,7 @@
   regla <- .REGLA_DIGITOS
   texto <- .normalizar_signos_digitos(texto)
   if (is.na(texto)) return(vacio)
+  texto <- .cifras_enteras_en_texto(texto)
   fechas_hora <- .fechas_hora_digitos(texto)
   texto <- tryCatch({
     texto <- gsub(regla$fecha, " ", texto, perl = TRUE)

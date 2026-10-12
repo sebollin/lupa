@@ -40,7 +40,9 @@ o \code{fallida}), \code{error}, \code{n_no_reversibles} y la \code{justificacio
 acción seleccionada, incluso cuando una falla y las siguientes continúan.
 \code{n_codificacion_normalizada} cuenta, por acción, las celdas cuya \strong{marca de
 codificación} cambió: es el caso de una acción de texto sobre celdas
-\code{latin1}, cuyo valor se conserva y cuyos bytes no.
+\code{latin1}, cuyo valor se conserva y cuyos bytes no. No cuenta una celda sin
+marca cuyos bytes ya eran UTF-8 válido ni un texto ASCII, así que no
+depende del locale.
 \code{n_no_reversibles} cuenta las celdas cuyo VALOR se perdió y no se puede
 recuperar desde el resultado: un centinela \code{-999} que pasa a ausencia, un
 extremo recortado a su límite, un marcador de ausencia convertido, o un
@@ -187,9 +189,19 @@ cuando ocurre. Una columna que mezcla \code{5} con \verb{5 \%} no se convierte: 
 que decidir si el número sin \verb{\%} está en la misma escala.
 La acción de codificación prueba las tablas congeladas de varias
 codificaciones y deja en \code{estado_reparacion} uno de \code{reparado},
-\code{reparado_parcialmente} o \code{no_se_pudo}. Una reparación parcial no se activa
-automáticamente: debe revisarse y seleccionarse de forma explícita. La
-estrategia se llama \code{reparar_codificacion} y no limita el motor a latin-1.
+\code{reparado_parcialmente} o \code{no_se_pudo}. Una reparación parcial —una celda que
+el motor repara sólo en parte— no se activa automáticamente: la acción queda
+\code{lista} con \code{aplicar = FALSE}, y se selecciona de forma explícita marcando
+\code{aplicar = TRUE}; entonces se aplican también las parciales. Una celda sin
+reparación local —con el carácter de reemplazo U+FFFD, o que el motor no
+pudo reparar— no frena la de las demás: queda como está y la justificación
+de la acción la cuenta. La estrategia se llama \code{reparar_codificacion} y no
+limita el motor a latin-1. Un texto legítimo que se escribe con los mismos
+bytes que un mojibake —por ejemplo, uno que cita literalmente la \code{Ã} seguida
+de \verb{©}— no se distingue de uno roto: se acusa, la evidencia del plan lo
+muestra antes de aplicar, y si se aplica la acción se reescribe como la letra
+que esos bytes codifican. Si la columna contiene texto así, no active la
+acción.
 Unos mismos bytes pueden recibir dos diagnósticos: \verb{c2 80} es a la vez un
 carácter de control C1 y la huella de un \verb{€} de Windows-1252 leído como
 latin-1. Cuando el plan propone reparar la codificación y eliminar ese
@@ -201,14 +213,21 @@ son UTF-8, o sin marca en una sesión UTF-8, que es lo que deja \code{\link[=rea
 sin \code{fileEncoding} sobre un archivo latin1— no se transforma: el perfil no la
 midió y la informa como \code{codificacion_invalida}, cuyo remedio es volver a leer
 la fuente declarando su codificación. Las acciones de texto trabajan sobre las
-demás celdas de la columna y cuentan sólo lo que cambiaron.
+demás celdas de la columna y cuentan sólo lo que cambiaron. Una celda sin
+marca cuyos bytes son UTF-8 válido se trata como UTF-8 en cualquier locale,
+igual que en el perfil: con \code{LC_CTYPE=C} las acciones hacen lo mismo que en
+una sesión UTF-8.
 
 Una celda \code{latin1} \strong{sí} se transforma —ahí R conoce la codificación y la
 convierte sin pérdida—, y el resultado queda marcado \code{UTF-8}. Como la acción
 toca sólo las celdas que cambia, una columna \code{latin1} puede quedar con marcas
 \strong{mixtas}: las celdas transformadas en \code{UTF-8} y las intactas en \code{latin1}. El
 valor es el mismo, pero los bytes no, así que el registro lo cuenta en
-\code{n_codificacion_normalizada} en vez de dejarlo implícito. No se convierte la
+\code{n_codificacion_normalizada} en vez de dejarlo implícito. Ese conteo es de
+recodificaciones, no de marcas: una celda sin marca cuyos bytes son UTF-8
+válido ya es UTF-8 y no cambia de codificación aunque la acción la devuelva
+marcada, y un texto ASCII se escribe igual en toda codificación —decodificar
+\code{Jos&eacute;} cambia el valor, no la codificación—. No se convierte la
 columna entera a propósito: eso tocaría celdas que el plan no declaró como
 cambiadas y haría mentir a \code{n_cambiadas} por el otro lado.
 Si se marca una acción que no está \code{lista}, \code{aplicar()} aborta antes de
@@ -269,7 +288,12 @@ se imputa. Se reconstruía entera sobre los datos recibidos, y sobre otra
 entrega escribía valores que el plan nunca mostró. Una fila tapada no se
 puede validar si los datos recibidos no traen el valor protegido que la
 tapó —un subconjunto sin ese titular—: también queda \code{fallida}, con el
-motivo, y se aplica planificando sobre esos datos. Con una regla de \code{aplicabilidad} sobre la columna
+motivo, y se aplica planificando sobre esos datos. Y si los datos piden
+imputar una clave cuya fila el plan publicó tapada pero no traen ningún par
+de esa clave que la resuelva —la entrega que trae sólo las filas a
+completar—, la acción tampoco escribe a medias: queda \code{fallida}, con el
+motivo, porque sin la protección el plan escribiría esas celdas y con la
+fila tapada no se sabe con qué. Con una regla de \code{aplicabilidad} sobre la columna
 dependiente, la imputación respeta su universo como las demás acciones por
 celda: no llena las filas declaradas fuera, que son vacío por diseño, y
 \code{n_afectadas} las excluye.

@@ -786,6 +786,9 @@
   if (!nrow(mapa)) {
     return("familia_sin_acumulador:mapa_distintos_vacio")
   }
+  # La misma condicion de columna que retiene `minimo`, `media` y `desvio`.
+  como_doble <- .integer64_como_doble_dbi(mapa$representante)
+  if (!isTRUE(como_doble$ok)) return(como_doble$motivo)
   frecuencias <- suppressWarnings(as.numeric(mapa$frecuencia))
   total <- sum(frecuencias)
   if (is.finite(total) && total > .TOPE_RECONSTRUCCION_MEDIANA_BLOQUES_DBI) {
@@ -804,7 +807,13 @@
 
 .mediana_mapa_bloques_dbi <- function(mapa) {
   if (!is.data.frame(mapa) || !nrow(mapa)) return(NA_real_)
-  valores <- mapa$representante
+  # `order()` y `median()` de base sobre `integer64` ordenan por los bits -los
+  # negativos salian `NaN`- y la mediana volvia `integer64` y truncada. Se
+  # reconstruye sobre dobles, o no se reconstruye: ver
+  # `.integer64_como_doble_dbi()`.
+  como_doble <- .integer64_como_doble_dbi(mapa$representante)
+  if (!isTRUE(como_doble$ok)) return(NA_real_)
+  valores <- como_doble$valores
   frecuencias <- as.numeric(mapa$frecuencia)
   if (!is.numeric(valores) || anyNA(frecuencias)) return(NA_real_)
   orden <- order(valores)
@@ -1013,11 +1022,19 @@
     } else {
       # El desempate es el del resto del paquete -`.moda_de_mapa()`-, no el
       # orden del mapa.
+      # Y la escritura tambien: `as.character()` publicaba "1e-20" y
+      # "1.234e-05" donde `perfilar()` y el agregado SQL publican
+      # "0.00000000000000000001" y "0.00001234", y `comparar_equivalencia()`
+      # declaraba `materialmente_distinto` el mismo valor. `.moda_de_mapa()` ya
+      # trae el texto escrito con `.texto_moda()`.
       moda_mapa <- .moda_de_mapa(mapa)
       indice <- if (is.null(moda_mapa)) which.max(mapa$frecuencia) else {
         moda_mapa$posicion
       }
-      fila$moda <- tryCatch(as.character(mapa$representante[[indice]]), error = function(e) NA_character_)
+      fila$moda <- if (!is.null(moda_mapa)) moda_mapa$valor else tryCatch(
+        .texto_moda(mapa$representante[indice]),
+        error = function(e) NA_character_
+      )
       fila$frecuencia_moda <- mapa$frecuencia[[indice]]
       estado_valores <- "calculado"
       motivo_valores <- NA_character_
@@ -1052,7 +1069,26 @@
       metadatos = .metadatos_sql_dbi()
     )
   }
-  if ("mediana" %in% metricas && isTRUE(incluir_valores)) {
+  # La mediana de una columna que no es numerica no se mide: es `no_aplica`, como
+  # en el agregado SQL y con la misma pregunta (`.es_numerico_dbi()`). Salia
+  # `no_disponible` con `mapa_distintos_no_reconstruible`, y la corroboracion
+  # declaraba `divergencia` contra la mediana que el perfil de muestra calcula
+  # sobre un texto que lee como numero ("3,75").
+  posicion_campo <- match(campo, fuente$campos)
+  columna_numerica <- is.na(posicion_campo) || .es_numerico_dbi(
+    if (!is.null(prototipo) && posicion_campo <= length(prototipo)) {
+      prototipo[[posicion_campo]]
+    } else NULL,
+    if (!is.null(tipos) && posicion_campo <= length(tipos)) {
+      tipos[[posicion_campo]]
+    } else NA_character_
+  )
+  if ("mediana" %in% metricas && !columna_numerica) {
+    registros[[length(registros) + 1L]] <- .registro_sql_dbi(
+      campo, "mediana", "no_aplica", "La columna no es numerica.",
+      NA_character_, metadatos = .metadatos_sql_dbi()
+    )
+  } else if ("mediana" %in% metricas && isTRUE(incluir_valores)) {
     fila$mediana <- .mediana_mapa_bloques_dbi(mapa)
     estado_mediana <- if (is.na(fila$mediana)) "no_disponible" else "calculado"
     motivo_mediana <- if (is.na(fila$mediana)) {
@@ -1556,7 +1592,7 @@
   }
   columnas <- if (length(filas)) {
     do.call(rbind, lapply(filas, function(fila) {
-      as.data.frame(fila, stringsAsFactors = FALSE)
+      as.data.frame(.fila_magnitudes_dobles_dbi(fila), stringsAsFactors = FALSE)
     }))
   } else .columnas_dbi_vacias()
   for (nombre in intersect(
@@ -1637,6 +1673,22 @@
     estimacion_derrame_mediana = if (is.null(presupuesto)) NULL else
       presupuesto$estimacion_derrame_mediana,
     metodo = "dbfetch_bloques", snapshot = fuente$snapshot_id,
+    # Los mismos dos campos que el agregado SQL, con lo que esta via hace: lee
+    # las filas y compara en R. Sobre una columna con cotejamiento insensible a
+    # caja, la misma tabla daba `n_distintos` 5 y moda "Montevideo" sin
+    # `bloque_filas` y 9 y "Rivera" con el, y solo uno de los dos `resumen_tabla`
+    # decia por que.
+    criterio_moda = paste(
+      "mayor frecuencia; empates resueltos por el valor ascendente: los",
+      "numeros por su valor y el texto por sus bytes, como en `perfilar()`"
+    ),
+    criterio_comparacion = paste(
+      "el recorrido por bloques lee las filas y compara en R, que distingue",
+      "byte a byte, como el perfil de muestra; no usa el cotejamiento del",
+      "motor. Sobre una columna con cotejamiento insensible a caja o acentos,",
+      "`n_distintos` y la moda pueden diferir de los del resumen SQL sin",
+      "`bloque_filas`, y no es un error de ninguno de los dos"
+    ),
     clave = preparacion$catalogo_cardinalidad,
     metricas = metricas_publicas, metricas_ejecucion = metricas,
     incluir_valores = incluir_valores,

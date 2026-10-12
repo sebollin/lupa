@@ -726,12 +726,28 @@ test_that("las guardas de tabla completa sobreviven al agrupamiento", {
   #    Ronda 28-N: el grupo "No" repetia 1..1000, que en la tabla entera
   #    duplicaba casi todos los valores, y una columna que se repite ya no es
   #    numeracion. El caso es el de una numeracion de la tabla entera que el
-  #    agrupamiento corta, asi que el grupo "No" la continua.
+  #    agrupamiento corta.
+  #
+  #    Ronda 29-E: el caso anterior repetia el 999 cincuenta veces, y la tabla
+  #    entera SI acusaba -la moda sobresale y reabre la guarda: `perfilar()`
+  #    publica los 50 como `faltantes_disfrazados`-; esta prueba exigia que
+  #    `perfilar_por()` los callara. Ahora el 999 aparece dos veces: la tabla
+  #    entera no acusa (comprobado abajo) y el grupo, intercalado y sin
+  #    densidad, si. Ese es el hueco de la particion.
+  id <- seq_len(2000L)
+  id[c(997L, 1001L)] <- 999L
   denso <- data.frame(
-    egreso = rep(c("Si", "No"), each = 1000L),
-    id = c(seq_len(950L), rep(999L, 50L), 1000L + seq_len(1000L)),
-    stringsAsFactors = FALSE
+    egreso = rep(c("Si", "No"), 1000L), id = id, stringsAsFactors = FALSE
   )
+  expect_equal(
+    sum(perfilar(denso["id"])$hallazgos$tipo_hallazgo ==
+          "faltantes_disfrazados"),
+    0L
+  )
+  expect_true(any(
+    perfilar(denso[denso$egreso == "Si", "id", drop = FALSE])$hallazgos$
+      tipo_hallazgo == "faltantes_disfrazados"
+  ))
   agrupado <- perfilar_por(denso, por = "egreso", min_filas = 1)
   expect_equal(sum(agrupado$tipo_hallazgo == "faltantes_disfrazados"), 0L)
   cobertura2 <- as.data.frame(attr(agrupado, "cobertura_diagnosticos"))

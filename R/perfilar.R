@@ -1055,8 +1055,10 @@
 #' puede distinguir sin decodificarla. Un valor ilegible cuenta como valor, y
 #' la moda que se publica es el valor original tal como llegó, sin
 #' reinterpretarlo. Cuando ese valor es numérico, su representación textual se
-#' formatea con notación fija, con la precisión completa e independiente de
-#' `scipen` y de `digits`; se conserva
+#' formatea con notación fija, con la precisión completa —las cifras que hacen
+#' falta para volver al valor: `0.1 + 0.2` se publica `0.30000000000000004`,
+#' no `0.3`— e independiente de `scipen` y de `digits`, igual en
+#' [perfilar()] y en los caminos de [perfilar_dbi()]; se conserva
 #' `OutDec`, porque esa marca decimal sí pertenece a la preferencia de locale
 #' de quien usa el paquete.
 #'
@@ -1158,7 +1160,11 @@
 #' porque dos pasos pueden fundir el mismo par. `n_distintos` y
 #' `n_distintos_normalizados` declaran el total antes y después del perfil
 #' completo. La descomposición canónica es siempre activa y forma parte de la
-#' línea base, no una fila configurable.
+#' línea base, no una fila configurable. Un valor con marca `bytes` entra con su
+#' clave de bytes —cada byte alto escrito `\xHH`—, como en
+#' [detectar_claves()] y [detectar_duplicados_aproximados()]: `bytes` declara
+#' que eso no se interprete como texto, así que no se pliega con el mismo texto
+#' marcado UTF-8. Los tres cuentan igual `n_distintos_normalizados`.
 #' Con `normalizar = FALSE` no hay pasos configurables que medir y el informe
 #' de fusiones queda en `NULL`; en un perfil por columna sólo se incluyen las
 #' columnas con algún paso activo. Si `detectar_duplicados_aproximados()` recibe
@@ -1615,14 +1621,22 @@
 #'   docente protegida—, su moda sigue tapada, y también los ejemplos de sus
 #'   patrones, sus niveles observados y la configuración propuesta: un campo
 #'   hecho de nombres que son valores protegidos es un campo de **valores**.
-#'   Salvo donde el campo refiere columnas —`columna`, `determinante`,
+#'   Salvo donde el campo refiere columnas —`columna`, `columna_1` y
+#'   `columna_2` de las columnas duplicadas, `eliminar`, `determinante`,
 #'   `dependiente`, `nombres_propuestos` y los demás de su clase—: ahí el
 #'   nombre es estructura y el plan lo necesita para ejecutar, también cuando
 #'   el campo lo mezcla con la tabla —`objeto` dice `(tabla)` en las medidas
 #'   que no son de una columna— o lo escribe detrás de un prefijo del paquete
 #'   —el `origen` `dependencia_funcional:curso->turno` de la propuesta de
 #'   [analizar()]—. Un nombre suelto en un campo que también lleva valores
-#'   —el mapa de una imputación— se sigue tapando. Y un texto que nombra una columna entre
+#'   —el mapa de una imputación— se sigue tapando, aunque todos los valores
+#'   del mapa sean nombres de columna: sus `determinante` y `dependiente` son
+#'   valores de las dos columnas, y [aplicar()] lo resuelve sobre los datos
+#'   que recibe. El texto del usuario que llega a un campo de vocabulario —la
+#'   `unidad` de una columna, que es su atributo `units`— no se ampara en el
+#'   vocabulario: un valor protegido entre límites de palabra se tapa, y una
+#'   palabra del paquete —`faltantes`, `segundos`— sigue siendo vocabulario
+#'   aunque un valor protegido coincida con ella. Y un texto que nombra una columna entre
 #'   comillas —la prosa del paquete, la SQL que guarda [perfilar_dbi()]— la
 #'   conserva entera: con «Segundo» protegido, `segundo_nombre` salía
 #'   `[valor protegido]_nombre` en los hallazgos sin acción del plan y en la
@@ -1709,7 +1723,10 @@
 #'   otro grupo. También cuando va pegado a otro número por una barra o un
 #'   guion —`"+59899123456/+59899765432"`, `"29011234/+59899123456"`—: cada
 #'   número con esa forma se prueba por su parte nacional. Y el celular protegido guardado con el prefijo se reconoce
-#'   escrito sin él. No unen los parecidos raros: la prima de una coordenada
+#'   escrito sin él, también guardado como número de planilla
+#'   —`"59899123456.0"`, `"59899123456,0"` o `"5.9899123456E+10"`, la misma
+#'   cifra—, y al revés: escrito así en un texto se lee por su parte
+#'   nacional. No unen los parecidos raros: la prima de una coordenada
 #'   sexagesimal, el acento grave, la tilde. Los dos puntos y la barra vertical
 #'   **no** unen: una razón
 #'   `"494:2714"` o una lista `"12|345|6789"` no es un documento, y un documento

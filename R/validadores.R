@@ -119,6 +119,13 @@
     marcados <- !is.na(texto) & Encoding(texto) == "latin1"
     if (any(marcados)) texto[marcados] <- enc2utf8(texto[marcados])
   }
+  # Y lo que no declara codificacion y es UTF-8 valido se declara UTF-8 antes de
+  # las expresiones regulares (`.declarar_utf8_valido()`), tambien los niveles de
+  # un factor: bajo `LC_CTYPE=C` el recorte del borde, `.solo_digitos()` y la
+  # estructura del correo leian sus bytes como texto de la sesion -un espacio
+  # duro o fino no era espacio- y sobre un vector con marcas mezcladas avisaban
+  # "unable to translate".
+  texto <- .declarar_utf8_valido(texto)
   valido <- !is.na(texto) & validUTF8(texto)
   # Un NUMERO no es una presentacion de documento. Los separadores que estos
   # validadores admiten -punto, espacio, guion- existen porque una persona

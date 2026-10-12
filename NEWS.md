@@ -1,5 +1,234 @@
 # lupa 0.1.0
 
+## Ronda 29: la proteccion otra vez, el texto y la codificacion, y la misma tabla por todos los caminos
+
+Tres refutaciones. La de la proteccion encontro ocho defectos -el mapa de la
+imputacion de una columna protegida salia en claro, y el mensaje del motor
+citaba el valor sin comillas, en otros idiomas o con comillas que la limpieza no
+conocia: la limpieza paso de tapar formas a publicar solo lo permitido-; la del
+texto y la codificacion, ocho -la reparacion de codificacion dependia del locale
+y la tabla de clases combinantes tenia 25 de 51 valores mal-; la de la misma
+tabla por todos los caminos, seis -con `bloque_filas`, una sola columna
+`integer64` truncaba a entero las medias de toda la tabla-, y el costo de
+`instrumentar`, que llevaba 23 filas a un minuto.
+
+**La proteccion:**
+
+- **El mensaje de un error del motor publica solo lo permitido.** La ronda 28
+  tapaba los literales ENTRE COMILLAS, y cada forma nueva de citar se escapaba:
+  duckdb cita el valor sin comillas -`Type INT64 with value 59899123456 can't
+  be cast`, `Could not cast value 59899123456 to DECIMAL(9,0)`,
+  `(59899123456 * 1000000000)`, y `strptime` repite la cadena en otra linea-;
+  SQL Server, con la sesion en sueco, neerlandes, finlandes, checo o noruego,
+  tambien, y en polaco o hungaro la cita entre una comilla baja que la lista no
+  tenia -14 mensajes de 34 idiomas-; y un valor con una comilla adentro dejaba
+  visible su cola -`"Ana "Anita" Suarez Gomez"` salia con `Suarez Gomez"`-.
+  `perfilar_dbi()` los publicaba en `sql$motivo`, `cobertura$motivo` y
+  `meta$proteccion_personal$fuera_de_muestra`, y `perfilar_coleccion()` en
+  `cobertura_coleccion`, `cobertura_metricas` y `meta$lecturas`. La lista se
+  invirtio: despues de tapar los literales entre comillas -ahora tambien las
+  bajas, las angulares y las de esquina, leidas de una vez de izquierda a
+  derecha-, el mensaje publica solo el vocabulario de los mensajes de los
+  motores, en ingles y en castellano, las palabras de SQL, los nombres de tipo,
+  los nombres de la tabla y de sus columnas, los codigos SQLSTATE, los signos y
+  los numeros de menos de seis cifras -las del piso de la proteccion; un numero
+  se cuenta con sus separadores: `4.685.467-9` es uno de ocho-. Todo lo demas sale `[literal omitido]`, y la linea que el motor repite
+  sobre un `^` se tapa entera. Un mensaje en otro idioma conserva su SQL, sus
+  tipos y sus nombres y se lee peor, que es el lado cerrado.
+- **El piso entre tablas de `perfilar_coleccion()` cubre tambien
+  `cobertura_coleccion`, `cobertura_metricas` y `meta$lecturas`**, que juntan los
+  motivos de todas las tablas: barria solo `perfiles`. Con
+  `conservar_perfiles = TRUE`, que es cuando se leen los valores.
+- **El mapa de una imputacion se tapa aunque sus valores sean nombres de
+  columna.** Con la docente protegida y una columna de notas por docente, el
+  plan publicaba `1A -> Juan Perez Gonzalez` en `parametros[[i]]$mapa`, en los
+  dos sentidos y en la llamada por omision de `analizar()`: `determinante` y
+  `dependiente` son campos de nombres, y el mapa se salteaba por ser "todo
+  nombres". Adentro del `mapa` esos campos llevan valores. `aplicar()` ejecuta
+  lo mismo: el mapa queda `mapa_enmascarado` y se resuelve sobre los datos.
+- **Un mapa enmascarado sobre otra entrega no escribe a medias en silencio.**
+  Con la entrega que trae solo las filas a completar, `aplicar()` salia
+  `ejecutada` con 12 celdas de 24 -las de la clave cuya fila del plan estaba
+  tapada quedaban `NA`, sin motivo-, y sin el par ni el titular, `ejecutada`
+  con 11 de 22 donde `?planificar_limpieza` prometia `fallida`. Si los datos
+  piden imputar una clave cuya fila tapada no pueden resolver, la accion queda
+  `fallida`, con el motivo.
+- **La columna duplicada que se llama como una persona protegida conserva sus
+  acciones.** `columnas_duplicadas$columna_1` salia `[valor protegido]` y
+  `marcar_columnas_duplicadas`, recomendada, quedaba `bloqueada` sin
+  parametros. Los campos que refieren columnas se revisaron recorriendo las
+  salidas de quince funciones: faltaban `columna_1`, `columna_2`, `eliminar` y
+  `datos_personales_sin_proteger`.
+- **El celular protegido escrito como numero de planilla protege su forma
+  nacional.** `"59893897037.0"` o `"59893897037,0"` -lo que deja pandas o una
+  planilla- no tapaba `"llamar al 093 897 037"`: 80 de 80 notas en claro en la
+  copia de `analizar()`. Un decimal de ceros y la notacion cientifica son la
+  misma cifra, en las agujas, en el texto y en el piso numerico.
+- **Una columna `POSIXlt` ya no hace abortar `analizar(conservar_datos =
+  TRUE)`.** El piso la recorria como lista y no terminaba nunca -"stack
+  desbordado"-, con la proteccion puesta y sin ella no. Se tapa como la
+  `POSIXct`, y cualquier lista con clase se recorre sin la clase.
+- **El piso de la copia de `analizar()` recorre los BLOB, los entornos, `levels`
+  y `units`**, y la `unidad` del perfil no ampara un valor protegido: un `units`
+  igual a un titular se publicaba en `columnas$unidad`.
+- El valor tapado ya no se come el espacio que lo sigue -`[valor protegido]es
+  exacta`-: la aguja salia de `format()` rellena con espacios.
+
+**El texto y la codificacion:**
+
+- **`reparar_codificacion` repara bajo `LC_CTYPE=C` lo mismo que en una sesion
+  UTF-8.** Un CSV leido sin `encoding` deja bytes UTF-8 validos sin marca; el
+  perfil los media, el plan proponia la accion como `lista` con `n_afectadas =
+  2` y `aplicar()` la dejaba `fallida` sin cambiar nada bajo `C`, porque las
+  acciones de texto solo declaraban UTF-8 lo marcado `bytes`. La declaracion de
+  que los bytes validos son UTF-8 estaba escrita tres veces con dos criterios;
+  ahora es una sola, la de la normalizacion, y la comparten el perfil, la
+  normalizacion y las acciones de `aplicar()`.
+- **`n_codificacion_normalizada` cuenta recodificaciones, no marcas.** Contaba
+  las celdas cuya marca cambiaba, y la marca de un texto sin declarar la pone el
+  locale: `recortar_espacios` sobre la misma columna publicaba 1 en una sesion
+  UTF-8 y 0 bajo `C` con bytes de salida identicos, y decodificar `Jos&eacute;`
+  -ASCII- contaba 1. Ahora cuenta solo las celdas no ASCII cuya codificacion
+  declarada cambio -`latin1` que pasa a UTF-8-, igual en todo locale.
+- **El orden canonico de las marcas es el de Unicode.** La tabla de clases
+  combinantes estaba escrita a mano y 25 de sus 51 valores estaban mal: con
+  `normalizacion(acentos = FALSE)`, el NFC y el NFD del mismo texto no se
+  igualaban en 1770 de 17850 cadenas de base y dos marcas, y dos marcas de la
+  misma clase en distinto orden -textos canonicamente distintos- si. Las dos
+  tablas de la descomposicion se generan ahora desde Unicode con
+  `data-raw/normalizacion_unicode.R`, y una prueba las compara con `stringi`
+  cuando esta instalado. Los signos Kelvin y Angstrom se igualan a la `K` y a
+  la A con anillo, como declara Unicode.
+- **Una comilla junto a una tabulacion o un salto de linea se quita como junto
+  a un espacio.** El paso `espacios` llevaba al espacio comun los espacios
+  Unicode pero no la tabulacion, el salto de linea ni el retorno, y la regla de
+  comillas pide un espacio o el borde: `"Juan"` seguido de una tabulacion no se
+  igualaba con `"Juan"` seguido de un espacio, aunque el paso promete colapsar
+  los blancos.
+- **Los dos caminos de la normalizacion dan la misma clave para las
+  comillas**, como afirmaba la ronda 17 y no era cierto: la regla estaba escrita
+  dos veces, la vectorial casaba `$` antes de un salto de linea final y su
+  pasada de aperturas le borraba la letra de al lado a la de cierres. Como un
+  valor con dos marcas combinantes va por el camino escalar, la clave dependia
+  de cuantas enies tenia la palabra. La regla vive ahora en un solo lugar y el
+  camino escalar la usa; sobre 7482 cadenas y cinco perfiles los dos caminos
+  coinciden en las 7482.
+- **La sigma final griega se iguala a la sigma al comparar**, como ya hacia el
+  pliegue de la proteccion: una palabra griega en mayusculas y la misma en
+  minusculas no se igualaban en `detectar_claves()` ni en
+  `detectar_duplicados_aproximados()`. `convertir_minusculas` no la toca: una
+  sigma final bien escrita sigue igual.
+- **`perfilar()` cuenta `n_distintos_normalizados` como `detectar_claves()` con
+  la marca `bytes`.** El perfil leia como texto lo declarado `bytes` y las otras
+  dos funciones no: sobre `Cafe Central`, el mismo con tilde declarado `bytes` y
+  `CAFE CENTRAL`, el perfil publicaba 1 y `detectar_claves()` 2 en un campo con
+  el mismo nombre. Comparten ahora la misma clave.
+- **Una celda irreparable ya no bloquea la reparacion de las demas, y una
+  reparacion parcial se selecciona marcando `aplicar`.** El plan decidia
+  "parcial" con el estado de toda la columna, y una celda con el caracter de
+  reemplazo junto a tres reparables dejaba la accion `informativa`; y una
+  accion `informativa` no se puede aplicar, asi que la "seleccion explicita"
+  que pide la ayuda abortaba -la prueba del paquete la activaba reescribiendo
+  `estado`-. Ahora la accion repara lo reparable y la justificacion cuenta lo
+  que queda como esta; con una celda reparada solo en parte queda `lista` y sin
+  activar, y `aplicar = TRUE` la ejecuta con las parciales.
+- La ayuda escribe dos reglas que el codigo ya seguia: la comilla simple ASCII
+  cierra pero no abre (`?normalizacion`), y un texto legitimo con los mismos
+  bytes que un mojibake se acusa y se reescribe si se aplica la reparacion
+  (`?planificar_limpieza`).
+- **El texto sin marca se declara antes de la primera expresion regular, no
+  despues.** Bajo `LC_CTYPE=C`, `perfilar()` avisaba dos veces "unable to
+  translate ... to UTF-8" sobre una columna UTF-8 sin marca: la proteccion
+  pasaba `trimws()` sobre los valores antes de declararlos, y con
+  `options(warn = 2)` el aviso se volvia error y dejaba sin aplicar el filtro
+  del catalogo de ausencias. En el mismo lugar, `nchar()` contaba bytes y una
+  palabra corta con tilde pasaba el piso de seis caracteres solo bajo `C`. Lo
+  mismo en `recortar_espacios`, `reemplazar_separadores`,
+  `decodificar_entidades_html` y los validadores: `validar_ci_uy()` daba `FALSE`
+  bajo `C` para una cedula con un espacio duro que en una sesion UTF-8 daba
+  `TRUE`. Una enumeracion por programa de las 656 llamadas de la familia de
+  expresiones regulares sin `useBytes` encontro esos cuatro lugares entre las
+  que reciben texto del usuario; ahora todas pasan por la misma declaracion.
+
+**Los caminos de `perfilar_dbi()` y `perfilar_por()`:**
+
+- **`bloque_filas` publica las cifras exactas de una columna `integer64` y no
+  trunca las de las demas.** El controlador entrega como `integer64` todo
+  `BIGINT` de PostgreSQL -`bigserial`, la clave por omision- y todo `INTEGER` de
+  SQLite que no entra en 32 bits -marcas de tiempo en milisegundos, cedulas-, y
+  el recorrido por bloques le aplicaba `min()`, `max()`, `mean()`, `order()` y
+  `median()` de base, que leen sus bits como un doble: `minimo = 4.94e-324` en
+  la clave, `NaN` en una columna con negativos, y como la media `integer64`
+  entraba primera en `resumen_tabla$columnas`, la columna `media` y la
+  `mediana` de toda la tabla pasaban a `integer64` y truncaban las de las
+  columnas dobles -0,5604 se publicaba 0-, todo con estado `calculado`. Ahora
+  rige la regla de 2^53 que `?perfilar_dbi` promete para el agregado SQL: por
+  debajo se opera con el valor exacto y las cifras coinciden con las de la via
+  sin `bloque_filas` (SQLite y PostgreSQL, bloques de 10 y de 7); desde 2^53 las
+  siete metricas de magnitud quedan `no_disponible` con su motivo, y la moda y
+  `n_distintos` se siguen contando sobre el valor exacto. La frontera se
+  escribe una vez y la usa tambien `perfilar()` en memoria. Y ninguna columna
+  cambia la clase de un campo de la tabla: las magnitudes de cada fila se
+  convierten a doble antes de unir las filas, en las dos vias.
+- **`perfilar_por()` mide la columna entera dentro del universo declarado.** El
+  centinela, la numeracion densa y la guarda de identificador de "la columna
+  entera" se calculaban sobre todos los valores, sin la mascara de
+  `aplicabilidad` que `perfilar()` aplica: con `aplicabilidad = list(ingreso =
+  ~ edad >= 18)`, el relleno 999999 de los menores ganaba la conjetura, el
+  88888 del universo -el que `perfilar()` publica, con 18 afectados- se
+  declaraba "de la particion" y desaparecia de los tres grupos. Y una
+  numeracion densa cuya moda sobresale -50 veces 999 en una serie de 2000- se
+  daba por numeracion limpia: `perfilar()` publica los 50
+  `faltantes_disfrazados` y `perfilar_por()` los movia a la cobertura. Solo es
+  de la particion lo que la columna entera no conjetura.
+- **La corroboracion compara valores.** Dos textos iguales son iguales: la moda
+  "3,75" de una columna de texto que el perfil infiere doble, y cualquier moda
+  decimal con `OutDec = ","` -que el paquete conserva a proposito-, se leian
+  como numero, daban `NA` en los dos lados y salian `divergencia`, que subia a
+  `perfilar_coleccion()` como "El perfil interno declaro 2 divergencias". El
+  numero publicado se lee con la marca de `OutDec`.
+- **La moda numerica se escribe igual por los tres caminos, con todas sus
+  cifras.** La via por bloques publicaba "1e-20" y "1.234e-05" donde
+  `perfilar()` y el agregado publican "0.00000000000000000001" y
+  "0.00001234", y `comparar_equivalencia()` declaraba distinto el mismo valor.
+  Y la moda se escribia con 15 cifras: `0.1 + 0.2` salia "0.3" y `1/3`
+  "0.333333333333333", que no vuelven al valor, y dos tablas con moda 0.3 y
+  `0.1 + 0.2` se daban por identicas en el mismo par donde el minimo salia
+  distinto. Ahora se usan las cifras que hacen falta para volver -15, 16 o 17-,
+  en notacion fija y con la marca de `OutDec`, como promete `?perfilar`. Un
+  perfil guardado antes tiene esas modas con 15 cifras: `comparar_equivalencia()`
+  contra uno nuevo las ve distintas, y lo son.
+- **`bloque_filas` declara su criterio, y la corroboracion no llama divergencia
+  a lo que el criterio anticipa.** Sobre una columna con cotejamiento insensible
+  a caja, la misma tabla daba `n_distintos` 5 y moda "Montevideo" sin
+  `bloque_filas` y 9 y "Rivera" con el, y solo el agregado decia por que. Ahora
+  el resumen por bloques publica su `meta$criterio_comparacion` y su
+  `meta$criterio_moda` -compara en R, byte a byte-; y la corroboracion del
+  agregado deja en una fila `no_corroborada` la diferencia que el cotejamiento
+  explica -menos distintos en el resumen SQL, o una moda empatada desempatada
+  distinto-, en vez de tres `divergencia`. Al reves sigue siendo divergencia. La
+  mediana de una columna de texto por bloques es `no_aplica`, como en el
+  agregado.
+- **`instrumentar = TRUE` deja de costar diez veces la medicion, y atribuye
+  solo lo que ocurrio en la ventana.** Con unas 4.900 filas en
+  `pg_stat_statements`, una tabla de una columna y 23 filas tardaba 53 a 58 s
+  contra 0,1 s sin instrumentar: el normalizador de SQL era cuadratico, se
+  corria sobre todo el catalogo dos veces y sobre el SQL de la corrida una vez
+  por consulta medida. Y con un solo `queryid` repetido en el catalogo -la
+  misma consulta de otro usuario- ninguna fila se emparejaba, y la historia
+  entera del servidor se publicaba como de esta corrida: 726 consultas
+  "observadas" y 5459 llamadas donde hubo 3. Ahora el catalogo se lee limitado
+  al usuario y la base de la conexion, se normaliza solo lo que la ventana
+  movio, una entrada repetida no se atribuye, y la misma tabla tarda 0,3 s
+  contra 0,15 s.
+- **Lo que la proteccion tapa en `resumen_tabla` se declara.** Con
+  `bloque_muestra = "solo_agregados"` y la proteccion por omision, la moda, el
+  minimo, el maximo, la media y la mediana de todas las columnas se tapaban con
+  `estado = calculado` y sin motivo. Ahora su fila de `resumen_tabla$sql` dice
+  `omitido_por_privacidad`, con el motivo -columna personal, o cerrada porque
+  sin muestra no se pudo clasificar-, por todas las vias. El desvio se sigue
+  publicando, como en `perfilar()`.
+
 ## Ronda 28: las geometrias, la comparacion de perfiles, los diagnosticos numericos y la proteccion otra vez
 
 Cuatro refutaciones. La de las geometrias encontro doce defectos -con un

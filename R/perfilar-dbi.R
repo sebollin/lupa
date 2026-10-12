@@ -56,21 +56,46 @@
 # PostgreSQL y duckdb.
 #
 # Todo mensaje de un error atrapado en la via DBI pasa por aca antes de
-# guardarse o de avisarse: los literales entre comillas -simples, dobles o
-# tipograficas- se reemplazan por `[literal omitido]`, con o sin proteccion. Un
-# identificador entre comillas se tapa tambien: callar un dato personal cuesta
-# mas que tapar de mas, y la tabla y la columna ya las nombra el resto de la
-# salida. Una comilla abre solo si no tiene una letra o un digito pegado antes, y
-# cierra solo si no tiene uno pegado despues: el apostrofo de `can't` o de
-# `O'Brien` no corta el literal. Una comilla que abre y no cierra -un mensaje
-# recortado- tapa hasta el fin de la linea. Y el contexto con que PostgreSQL
-# cita el texto que no pudo leer como JSON -`CONTEXT:  JSON data, line 1:
-# {"ci": 5.819....`-, que va SIN comillas: se tapa hasta el fin de la linea.
+# guardarse o de avisarse, con o sin proteccion, en dos pasadas.
 #
-# Lo que SI queda entre comillas: una palabra de SQL -`Incorrect syntax near
-# 'LIMIT'` es lo que dice que el motor no acepta ese dialecto, y no es el dato de
-# nadie- y un literal sin una letra ni un digito -`near ','`-. La lista es de lo
-# que se conserva: una palabra que falte se tapa, que es el lado cerrado.
+# 1. Los literales entre comillas -simples, dobles, tipograficas, bajas,
+#    angulares, de esquina- se reemplazan por `[literal omitido]`. Un
+#    identificador entre comillas se tapa tambien, salvo que sea un nombre de
+#    la tabla o de sus columnas. Una comilla abre solo si no tiene una letra o
+#    un digito pegado antes, y cierra solo si no tiene uno pegado despues: el
+#    apostrofo de `can't` o de `O'Brien` no corta el literal. Una comilla que
+#    abre y no cierra -un mensaje recortado- tapa hasta el fin de la linea. Y
+#    el contexto con que PostgreSQL cita el texto que no pudo leer como JSON
+#    -`CONTEXT:  JSON data, line 1: {"ci": 5.819....`-, que va SIN comillas: se
+#    tapa hasta el fin de la linea. Queda entre comillas una palabra de SQL
+#    -`Incorrect syntax near 'LIMIT'` dice que el motor no acepta ese dialecto- y
+#    un literal sin una letra ni un digito -`near ','`-.
+#
+# 2. Ronda 29: la primera pasada es una lista de lo que se TAPA, y cada forma
+#    nueva de citar se escapaba. duckdb cita el valor sin comillas -`Type INT64
+#    with value 59899123456 can't be cast`, `(59899123456 * 1000000000)`, y
+#    `strptime` repite la cadena en otra linea-; SQL Server, con la sesion en
+#    sueco, neerlandes, finlandes, checo o noruego, tambien, y en polaco o
+#    hungaro entre una comilla baja que la lista no tenia; y un valor con una
+#    comilla adentro dejaba visible su cola. Medido en la ronda 29, de punta a
+#    punta, en duckdb y en SQL Server. Es "la lista que falla abierta". Ahora,
+#    despues de la primera, se publica SOLO lo que esta en una lista de lo
+#    permitido: las palabras del vocabulario de los mensajes de los motores
+#    -`.VOCABULARIO_MENSAJE_MOTOR`, en ingles y en castellano-, las de SQL, los
+#    nombres de tipo, los nombres de la tabla y de sus columnas que se estan
+#    leyendo (`.identificadores_motor()`), una letra suelta, los codigos
+#    SQLSTATE, los signos y los numeros de menos de seis cifras -el piso de la
+#    proteccion: la linea, la posicion, un codigo-. Un
+#    numero se cuenta con sus separadores: `4.685.467-9` y `099 123 456` son uno
+#    solo, de ocho y nueve cifras. Todo lo demas sale `[literal omitido]`, y lo
+#    omitido seguido se junta en uno. La linea que el motor repite sobre un
+#    `^` -la cadena que `strptime` no pudo leer- se tapa entera, salvo la de la
+#    consulta (`LINE 1:`). Un mensaje en otro idioma conserva su SQL, sus tipos,
+#    sus nombres y sus numeros cortos: se lee peor, que es el lado cerrado.
+#
+# Una condicion propia de la via DBI (`lupa_error_dbi`, `lupa_aviso_dbi`) ya
+# trae el mensaje del motor pasado por aca: su texto es del paquete y solo se le
+# aplica la primera pasada, como antes.
 .LITERAL_MOTOR_OMITIDO <- "[literal omitido]"
 
 .PALABRAS_SQL_MOTOR <- c(
@@ -92,46 +117,199 @@
   "WHERE", "WITH", "WITHIN"
 )
 
-.sin_literales_motor <- function(texto) {
+# Los nombres de tipo que citan los motores: los de SQL y los internos de
+# duckdb (`INT64`, `UINT8`), PostgreSQL (`INT4`, `BPCHAR`) y SQL Server.
+.TIPOS_MOTOR <- c(
+  "ARRAY", "BIGINT", "BINARY", "BIT", "BLOB", "BOOL", "BOOLEAN", "BPCHAR",
+  "BYTEA", "CHAR", "CHARACTER", "CLOB", "DATE", "DATETIME", "DATETIME2",
+  "DATETIMEOFFSET", "DECIMAL", "DOUBLE", "ENUM", "FLOAT", "FLOAT4", "FLOAT8",
+  "GEOGRAPHY", "GEOMETRY", "HUGEINT", "IMAGE", "INT", "INT1", "INT2", "INT4",
+  "INT8", "INT16", "INT32", "INT64", "INT128", "INTEGER", "INTERVAL", "JSON",
+  "JSONB", "LIST", "MAP", "MEDIUMINT", "MONEY", "NCHAR", "NTEXT", "NUMBER",
+  "NUMERIC", "NVARCHAR", "OID", "REAL", "SERIAL", "SMALLDATETIME",
+  "SMALLINT", "SMALLMONEY", "STRING", "STRUCT", "TEXT", "TIME", "TIMESTAMP",
+  "TIMESTAMPTZ", "TIMETZ", "TINYINT", "UBIGINT", "UHUGEINT", "UINT8",
+  "UINT16", "UINT32", "UINT64", "UINT128", "UINTEGER", "UNION",
+  "UNIQUEIDENTIFIER", "USMALLINT", "UTINYINT", "UUID", "VARBINARY", "VARCHAR",
+  "VARCHAR2", "VARIANT", "XML", "YEAR"
+)
+
+# El vocabulario de los mensajes de error: el de duckdb, PostgreSQL, SQLite,
+# SQL Server, MySQL y MariaDB y sus controladores -medido sobre sus mensajes
+# reales en las rondas 28 y 29-, en ingles y en castellano, mas las palabras
+# corrientes de esas frases. En minusculas; se compara sin caja. Una palabra que
+# falte se tapa: el mensaje se lee peor, y no se publica el dato de nadie.
+.VOCABULARIO_MENSAJE_MOTOR <- c(
+  # Ingles.
+  "a", "abnormally", "aborted", "about", "absolute", "access", "according",
+  "add", "addition", "after", "aggregate", "all", "allowed", "already",
+  "ambiguous", "an", "and", "any", "are", "argument", "arguments",
+  "arithmetic", "as", "at", "attempt", "authentication", "autoload",
+  "autoloading", "available", "backtrace", "be", "because", "been", "before",
+  "between", "binary", "binder", "binding", "bindings", "block", "bound", "but",
+  "by", "call", "can", "can't", "candidate", "cannot", "canceling", "cast",
+  "casting", "casts", "catalog", "character", "characters", "check", "clause",
+  "client", "closed", "code", "column", "columns", "command", "commands",
+  "compound", "conflict", "connect", "connection", "constraint", "contains",
+  "context", "conversion", "convert", "converted", "converting",
+  "corresponds", "could", "couldn't", "create", "current", "data", "database",
+  "datatype", "date", "datestyle", "deadlock", "default", "denied",
+  "descriptor",
+  "destination", "detail", "did", "different", "disk", "divide", "division",
+  "does", "doesn't", "driver", "due", "duplicate", "element", "elements",
+  "encoding", "encountered", "end", "entry", "equivalent", "error", "errors",
+  "exceeds", "exception", "execute", "executing", "exist", "existing",
+  "exists", "expected", "explicit", "expression", "extension", "extract",
+  "failed", "fatal", "fetch", "field", "file", "find", "first", "for",
+  "format", "found", "from", "full", "function", "functions", "given", "has",
+  "have", "hint", "identifier", "ignored", "implemented", "in", "incorrect",
+  "index", "inf", "infinity", "information", "input", "insert", "install",
+  "integer", "internal", "interrupt", "interrupted", "into", "invalid", "io",
+  "is", "isn't", "it", "key", "larger", "length", "less", "level", "line",
+  "list", "literal", "locked", "login", "long", "malformed", "manual",
+  "match", "matches", "maximum", "mean", "means", "memory", "message",
+  "might", "minimum", "mismatch", "missing", "misuse", "msg", "multi",
+  "multiplication", "must", "name", "nan", "native", "near", "need", "no",
+  "non", "not", "null", "number", "numeric", "object", "occurred", "of",
+  "on", "only", "open", "operation", "operator", "or", "out", "overflow",
+  "overflowed", "parse", "parser", "part", "perhaps", "permission", "please",
+  "position", "precision", "prepare", "primary", "probably", "procedure",
+  "processing", "query", "range", "recognized", "record", "referenced",
+  "relation", "request", "required", "restarting", "result", "right",
+  "round", "row", "rows", "scalar", "scale", "schema", "see", "sequence",
+  "server", "session", "setting", "should", "size", "source", "specifier",
+  "state", "statement", "stored", "string", "subtraction", "such", "support",
+  "supported", "syntax", "table", "terminated", "terms", "than", "that",
+  "the", "this", "timeout", "to", "token", "too", "transaction", "truncated",
+  "try", "trying", "type", "types", "unable", "unexpected", "unexpectedly",
+  "unicode", "unimplemented", "unique", "unknown", "unrecognized",
+  "unsupported", "until", "use", "user", "using", "utf", "utf8", "value",
+  "values", "version", "view", "violated", "violates", "was", "when",
+  "where", "which", "while", "with", "would", "you", "your", "zero",
+  "byte", "bytes", "collation", "compatible", "constant", "contain",
+  "dates", "empty", "escape", "exceeded", "fields", "got", "implicit",
+  "implicitly", "incompatible", "keys", "lists", "loss", "lost", "names",
+  "numbers", "objects", "operand", "operands", "provide", "provided",
+  "quoted", "require", "requested", "requires", "results", "return",
+  "returned", "returns", "rounded", "second", "sizes", "specified",
+  "specify", "strings", "tables", "truncation", "unterminated", "valid",
+  "wrong",
+  # Los nombres de los motores y de sus controladores.
+  "cpp", "duckdb", "freetds", "mariadb", "microsoft", "mysql", "nanodbc",
+  "odbc", "postgres", "postgresql", "rpostgres", "rsqlite", "sql", "sqlite",
+  "sqlstate",
+  # Castellano: SQL Server, PostgreSQL y R en castellano, y las palabras
+  # corrientes de esas frases.
+  "a", "al", "ambiguo", "ambigua", "ante", "argumento", "argumentos",
+  "aritm\u00e9tica", "aritm\u00e9tico", "base", "bloque", "cadena",
+  "cadenas", "campo", "campos", "cancelada", "car\u00e1cter", "caracteres",
+  "cerca", "cero", "clave", "codificaci\u00f3n", "coincide", "columna",
+  "columnas", "comando", "comandos", "como", "con", "conexi\u00f3n",
+  "consulta", "contexto", "conversi\u00f3n", "conversiones", "convertir",
+  "cuando", "dato", "datos", "de", "debe", "del", "denegado", "desbordado",
+  "desbordamiento", "desconocido", "desconocida", "detalle", "divisi\u00f3n",
+  "donde", "e", "el", "en", "encontrado", "encontrar", "entero", "entrada",
+  "error", "es", "esperaba", "espera", "esquema", "est\u00e1", "existe",
+  "expl\u00edcitas", "expresi\u00f3n", "falta", "fecha", "fila", "filas",
+  "fin", "finalizado", "formato", "fuera", "funci\u00f3n", "ha", "hay",
+  "hora", "inesperadamente", "instrucci\u00f3n", "incorrecta",
+  "incorrecto", "inv\u00e1lida", "inv\u00e1lido", "la", "las",
+  "l\u00ednea", "literal", "lo", "longitud", "los", "memoria", "motor",
+  "muestra", "necesario", "ni", "ninguna", "ning\u00fan", "no", "nombre",
+  "nombres", "nulo", "n\u00famero", "o", "objeto", "operador", "para",
+  "permiso", "por", "posici\u00f3n", "puede", "pudo", "que", "rango",
+  "relaci\u00f3n", "se", "ser", "servidor", "si", "sin", "sintaxis", "sobre",
+  "su", "sugerencia", "tabla", "texto", "tiempo", "tipo", "tipos",
+  "transacci\u00f3n", "truncado", "u", "un", "una", "v\u00e1lida",
+  "v\u00e1lido", "valor", "valores", "vista", "y"
+)
+
+# Los nombres de la tabla y de las columnas que se estan leyendo: lo unico de la
+# consulta que el mensaje del motor puede citar en claro, porque el resto de la
+# salida ya los publica. Los fija `perfilar_dbi()` mientras corre -y
+# `perfilar_coleccion()`, los de sus tablas- y los devuelve al salir.
+.CONTEXTO_MOTOR <- new.env(parent = emptyenv())
+
+.identificadores_motor <- function() {
+  identificadores <- .CONTEXTO_MOTOR$identificadores
+  if (is.null(identificadores)) character() else identificadores
+}
+
+.fijar_identificadores_motor <- function(identificadores) {
+  previos <- .CONTEXTO_MOTOR$identificadores
+  .CONTEXTO_MOTOR$identificadores <- identificadores
+  invisible(previos)
+}
+
+# Suma `nuevos` a los que ya hay y devuelve los de antes, para reponerlos con
+# `.fijar_identificadores_motor()` en `on.exit()`.
+.sumar_identificadores_motor <- function(nuevos) {
+  previos <- .CONTEXTO_MOTOR$identificadores
+  nuevos <- tryCatch(as.character(unlist(nuevos, use.names = FALSE)),
+                     error = function(e) character())
+  partes <- unlist(strsplit(nuevos[!is.na(nuevos)], ".", fixed = TRUE),
+                   use.names = FALSE)
+  todos <- unique(c(previos, nuevos, partes))
+  .CONTEXTO_MOTOR$identificadores <- todos[!is.na(todos) & nzchar(todos)]
+  invisible(previos)
+}
+
+.sin_literales_motor <- function(texto,
+                                 identificadores = .identificadores_motor(),
+                                 solo_comillas = FALSE) {
   if (!length(texto)) return(character())
   texto <- as.character(texto)
+  identificadores <- as.character(identificadores)
+  # Cada par: la comilla que abre y la clase de las que cierran. Todas en UNA
+  # expresion, de izquierda a derecha, para que una comilla se lea una sola
+  # vez: par por par, la comilla baja que abre el polaco volvia a abrir con el
+  # otro cierre, no lo encontraba y tapaba hasta el fin de la linea.
   pares <- list(
     c("\"", "\""), c("'", "'"), c("\u2018", "\u2019"), c("\u201c", "\u201d"),
-    c("\u00ab", "\u00bb")
+    c("\u00ab", "\u00bb"), c("\u00bb", "\u00ab"),
+    c("\u201e", "[\u201d\u201c]"), c("\u201a", "[\u2019\u2018]"),
+    c("\u2039", "\u203a"), c("\u203a", "\u2039"), c("\u300c", "\u300d"),
+    c("\u300e", "\u300f"), c("\uff02", "\uff02"), c("\uff07", "\uff07")
   )
-  tapar <- function(texto, pares, antes, despues, ...) {
+  tapar <- function(texto, pares, antes, despues, bytes = FALSE) {
     con_texto <- which(!is.na(texto))
-    for (par in pares) {
-      patron <- paste0(
-        antes, par[[1L]], "(?:[\\s\\S]*?", par[[2L]], despues, "|[^\\n]*)"
-      )
-      marcado <- paste0(par[[1L]], .LITERAL_MOTOR_OMITIDO, par[[2L]])
-      partes <- texto[con_texto]
-      coincidencias <- gregexpr(patron, partes, perl = TRUE, ...)
-      regmatches(partes, coincidencias) <- lapply(
-        regmatches(partes, coincidencias), function(trozos) {
-          if (!length(trozos)) return(trozos)
-          cerrados <- grepl(
-            paste0("^", par[[1L]], "[\\s\\S]*", par[[2L]], "$"), trozos,
-            perl = TRUE, ...
-          )
-          interior <- sub(
-            paste0("^", par[[1L]], "|", par[[2L]], "$"), "", trozos,
-            perl = TRUE, ...
-          )
-          interior <- gsub(
-            paste0(par[[2L]], "$"), "", interior, perl = TRUE, ...
-          )
-          palabra <- grepl("^[A-Za-z_]+$", interior, useBytes = TRUE)
-          palabra[palabra] <- toupper(as.character(interior[palabra])) %in%
-            .PALABRAS_SQL_MOTOR
-          queda <- cerrados &
-            (palabra | !grepl("[[:alnum:]]", interior, useBytes = TRUE))
-          ifelse(queda, trozos, marcado)
-        }
-      )
-      texto[con_texto] <- partes
-    }
+    alternativas <- vapply(pares, function(par) {
+      paste0(par[[1L]], "(?:[\\s\\S]*?", par[[2L]], despues, "|[^\\n]*)")
+    }, character(1L))
+    patron <- paste0(antes, "(?:", paste(alternativas, collapse = "|"), ")")
+    partes <- texto[con_texto]
+    coincidencias <- gregexpr(patron, partes, perl = TRUE, useBytes = bytes)
+    regmatches(partes, coincidencias) <- lapply(
+      regmatches(partes, coincidencias), function(trozos) {
+        if (!length(trozos)) return(trozos)
+        vapply(trozos, function(trozo) {
+          cual <- which(vapply(pares, function(par) {
+            grepl(paste0("^", par[[1L]]), trozo, perl = TRUE, useBytes = bytes)
+          }, logical(1L)))[[1L]]
+          par <- pares[[cual]]
+          cerrado <- grepl(paste0("^", par[[1L]], "[\\s\\S]*", par[[2L]], "$"),
+                           trozo, perl = TRUE, useBytes = bytes)
+          interior <- sub(paste0("^", par[[1L]]), "", trozo, perl = TRUE,
+                          useBytes = bytes)
+          if (cerrado) {
+            interior <- sub(paste0(par[[2L]], "$"), "", interior, perl = TRUE,
+                            useBytes = bytes)
+          }
+          palabra <- grepl("^[A-Za-z_]+$", interior, useBytes = TRUE) &&
+            toupper(interior) %in% .PALABRAS_SQL_MOTOR
+          queda <- cerrado &&
+            (palabra || !grepl("[[:alnum:]]", interior, useBytes = TRUE) ||
+               interior %in% identificadores)
+          if (queda) return(trozo)
+          cierre <- if (cerrado) {
+            regmatches(trozo, regexpr(paste0(par[[2L]], "$"), trozo,
+                                      perl = TRUE, useBytes = bytes))
+          } else sub("^\\[(.).*\\]$", "\\1", par[[2L]])
+          paste0(par[[1L]], .LITERAL_MOTOR_OMITIDO, cierre)
+        }, character(1L), USE.NAMES = FALSE)
+      }
+    )
+    texto[con_texto] <- partes
     texto
   }
   salida <- tryCatch(
@@ -143,7 +321,7 @@
     # por bytes, con las comillas ASCII.
     salida <- tryCatch(
       tapar(texto, pares[1:2], "(?<![A-Za-z0-9])", "(?![A-Za-z0-9])",
-            useBytes = TRUE),
+            bytes = TRUE),
       error = function(e) rep(.LITERAL_MOTOR_OMITIDO, length(texto))
     )
   }
@@ -152,12 +330,71 @@
          paste0("\\1 ", .LITERAL_MOTOR_OMITIDO), salida, perl = TRUE),
     error = function(e) salida
   )
+  if (!isTRUE(solo_comillas)) {
+    salida <- .publicar_lo_permitido_motor(salida, identificadores)
+  }
   salida[is.na(texto)] <- NA_character_
   salida
 }
 
+# La segunda pasada: ver arriba. Lo que no se puede leer por caracteres se lee
+# como latin1, y si aun asi falla el mensaje entero se omite.
+.publicar_lo_permitido_motor <- function(texto, identificadores = character()) {
+  marca <- "\001"
+  permitidas <- unique(c(
+    .VOCABULARIO_MENSAJE_MOTOR, tolower(.PALABRAS_SQL_MOTOR),
+    tolower(.TIPOS_MOTOR)
+  ))
+  identificadores <- identificadores[!is.na(identificadores)]
+  token <- paste0(
+    "(?<![\\p{L}\\p{N}_])\\p{N}+(?:[.,:/ -]\\p{N}+)*(?![\\p{L}\\p{N}_])|",
+    "[\\p{L}\\p{M}\\p{N}_]+(?:['\u2019][\\p{L}\\p{M}]+)*"
+  )
+  decidir <- function(trozos) {
+    if (!length(trozos)) return(trozos)
+    numero <- grepl("^[\\p{N}.,:/ -]+$", trozos, perl = TRUE)
+    cifras <- nchar(gsub("[^\\p{N}]", "", trozos, perl = TRUE))
+    minusculas <- tolower(trozos)
+    # Un numero con menos cifras de las que identifican -el piso de la
+    # proteccion, `.MIN_LARGO_VALOR_IDENTIFICANTE`- no es el dato de nadie: la
+    # linea, la posicion, un codigo. Y un codigo SQLSTATE -cinco signos, letras
+    # mayusculas y cifras: `22P02`, `HY000`-.
+    queda <- ifelse(
+      numero, cifras < .MIN_LARGO_VALOR_IDENTIFICANTE,
+      minusculas %in% permitidas | trozos %in% identificadores |
+        minusculas %in% tolower(identificadores) |
+        nchar(trozos) == 1L | grepl("^rapi_[a-z_]+$", trozos) |
+        grepl("^(?=[A-Z]*[0-9])[0-9A-Z]{5}$", trozos, perl = TRUE)
+    )
+    ifelse(queda, trozos, marca)
+  }
+  uno <- function(t) {
+    if (is.na(t)) return(t)
+    if (!validUTF8(t)) t <- iconv(t, "latin1", "UTF-8")
+    if (is.na(t)) return(.LITERAL_MOTOR_OMITIDO)
+    t <- gsub(marca, " ", t, fixed = TRUE)
+    t <- gsub(.LITERAL_MOTOR_OMITIDO, marca, t, fixed = TRUE)
+    # La linea que el motor repite sobre un `^`, salvo la de la consulta.
+    t <- gsub(
+      "(^|\n)(?![ \t]*LINE [0-9]+:)[^\n]*[^\n \t^][^\n]*(?=\n[ \t]*\\^[ \t]*(?:\n|$))",
+      paste0("\\1", marca), t, perl = TRUE
+    )
+    m <- gregexpr(token, t, perl = TRUE)
+    regmatches(t, m) <- lapply(regmatches(t, m), decidir)
+    t <- gsub(paste0(marca, "(?:[ \t.,'/@_-]*", marca, ")+"), marca, t,
+              perl = TRUE)
+    gsub(marca, .LITERAL_MOTOR_OMITIDO, t, fixed = TRUE)
+  }
+  vapply(texto, function(t) {
+    tryCatch(uno(t), error = function(e) .LITERAL_MOTOR_OMITIDO)
+  }, character(1L), USE.NAMES = FALSE)
+}
+
 .mensaje_motor <- function(condicion) {
-  .sin_literales_motor(conditionMessage(condicion))
+  .sin_literales_motor(
+    conditionMessage(condicion),
+    solo_comillas = inherits(condicion, c("lupa_error_dbi", "lupa_aviso_dbi"))
+  )
 }
 
 # ---- Presupuesto de consultas -------------------------------------------
@@ -3857,15 +4094,49 @@
   )
 }
 
+# Recorre el texto UNA vez. La version anterior armaba en cada caracter el
+# resto entero del texto (`paste(caracteres[i:limite])`), le corria la expresion
+# del numero, pedia `tail()` de la salida y la hacia crecer con `c()`: cuadratica
+# en el largo de la consulta, y se llamaba sobre cada fila de
+# `pg_stat_statements` y, en `.adjuntar_derrame_sql_dbi()`, sobre cada fila del
+# SQL una vez POR consulta medida. Medido en la ronda 29 con 4807 filas en
+# `pg_stat_statements`: una tabla de una columna y 23 filas tardaba 47 s con
+# `instrumentar = TRUE` y 3,6 s sin el, el 90 % aca. La salida es la misma -se
+# comparo contra la version anterior sobre cada consulta del catalogo-: solo
+# se busca un numero donde puede empezar uno, en una ventana que se agranda si
+# el numero la llena.
 .normalizar_sql_derrame_dbi <- function(sql) {
   if (is.null(sql) || length(sql) != 1L || is.na(sql)) return(NA_character_)
   texto <- sub(";+[[:space:]]*$", "", as.character(sql))
   caracteres <- strsplit(texto, "", fixed = TRUE)[[1L]]
-  salida <- character()
-  i <- 1L
-  literal <- 0L
   limite <- length(caracteres)
+  salida <- character(limite)
+  n_salida <- 0L
+  # El primer caracter del ultimo elemento de la salida: lo unico que la regla
+  # del numero mira de lo anterior.
+  primero_anterior <- ""
+  literal <- 0L
+  i <- 1L
   es_borde <- function(valor) !grepl("[A-Za-z0-9_$]", valor, perl = TRUE)
+  borde <- es_borde(caracteres)
+  puede_empezar <- grepl("^[-+0-9.]$", caracteres, perl = TRUE)
+  patron_numero <- "^(?:[-+]?(?:[0-9]+(?:\\.[0-9]*)?|\\.[0-9]+)(?:[eE][-+]?[0-9]+)?)"
+  numero_en <- function(i) {
+    ancho <- 64L
+    repeat {
+      hasta <- min(limite, i + ancho - 1L)
+      resto <- paste(caracteres[i:hasta], collapse = "")
+      captura <- regmatches(resto, regexpr(patron_numero, resto, perl = TRUE))
+      # Lo que queda de la ventana despues del numero tiene que alcanzar para
+      # saber que no sigue: "1234e" cortado en la `e` casaria "1234" y en el
+      # texto entero "1234e+12".
+      if (!length(captura) || hasta == limite ||
+          nchar(captura, type = "chars") <= hasta - i + 1L - 4L) {
+        return(captura)
+      }
+      ancho <- ancho * 4L
+    }
+  }
   while (i <= limite) {
     actual <- caracteres[[i]]
     if (identical(actual, "\"")) {
@@ -3882,7 +4153,9 @@
           i <- i + 1L
         }
       }
-      salida <- c(salida, paste(caracteres[inicio:(i - 1L)], collapse = ""))
+      n_salida <- n_salida + 1L
+      salida[[n_salida]] <- paste(caracteres[inicio:(i - 1L)], collapse = "")
+      primero_anterior <- "\""
       next
     }
     if (identical(actual, "'")) {
@@ -3899,40 +4172,48 @@
           i <- i + 1L
         }
       }
-      salida <- c(salida, paste0("$", literal))
+      n_salida <- n_salida + 1L
+      salida[[n_salida]] <- paste0("$", literal)
+      primero_anterior <- "$"
       next
     }
-    resto <- paste(caracteres[i:limite], collapse = "")
-    anterior <- if (length(salida)) substr(utils::tail(salida, 1L), 1L, 1L) else ""
-    patron_numero <- "^(?:[-+]?(?:[0-9]+(?:\\.[0-9]*)?|\\.[0-9]+)(?:[eE][-+]?[0-9]+)?)"
-    captura <- regmatches(resto, regexpr(patron_numero, resto, perl = TRUE))
-    puede_numero <- length(captura) == 1L && nzchar(captura) &&
-      (i == 1L || es_borde(anterior))
-    if (puede_numero) {
-      siguiente <- i + nchar(captura, type = "chars")
-      caracter_siguiente <- if (siguiente <= limite) caracteres[[siguiente]] else ""
-      if (!nzchar(caracter_siguiente) || es_borde(caracter_siguiente)) {
-        literal <- literal + 1L
-        salida <- c(salida, paste0("$", literal))
-        i <- siguiente
-        next
+    if (puede_empezar[[i]] && (i == 1L || es_borde(primero_anterior))) {
+      captura <- numero_en(i)
+      if (length(captura) == 1L && nzchar(captura)) {
+        siguiente <- i + nchar(captura, type = "chars")
+        if (siguiente > limite || borde[[siguiente]]) {
+          literal <- literal + 1L
+          n_salida <- n_salida + 1L
+          salida[[n_salida]] <- paste0("$", literal)
+          primero_anterior <- "$"
+          i <- siguiente
+          next
+        }
       }
     }
-    salida <- c(salida, actual)
+    n_salida <- n_salida + 1L
+    salida[[n_salida]] <- actual
+    primero_anterior <- actual
     i <- i + 1L
   }
-  gsub("[[:space:]]+", " ", trimws(paste(salida, collapse = "")))
+  gsub("[[:space:]]+", " ",
+       trimws(paste(salida[seq_len(n_salida)], collapse = "")))
 }
 
 .estadisticas_derrame_postgresql_dbi <- function(conexion) {
   sql <- paste(
     "SELECT queryid, query, calls, temp_blks_read, temp_blks_written",
     "FROM pg_stat_statements",
-    "WHERE query ILIKE '%COUNT(DISTINCT%'",
+    # Las consultas de esta corrida las ejecuta este usuario en esta base: lo
+    # demas del catalogo no se puede atribuir y solo agrega filas que leer.
+    "WHERE userid = (SELECT oid FROM pg_roles WHERE rolname = current_user)",
+    "AND dbid = (SELECT oid FROM pg_database",
+    "WHERE datname = current_database())",
+    "AND (query ILIKE '%COUNT(DISTINCT%'",
     "OR query ILIKE '%AS frecuencia%'",
     "OR query ILIKE '%frecuencia%'",
     "OR query ILIKE '%lupa_mediana%'",
-    "OR query ILIKE '%PERCENTILE_CONT%'"
+    "OR query ILIKE '%PERCENTILE_CONT%')"
   )
   datos <- tryCatch(
     DBI::dbGetQuery(conexion, sql),
@@ -3943,9 +4224,23 @@
   ) %in% names(datos))) {
     return(NULL)
   }
-  datos$query_normalizada <- vapply(
-    datos$query, .normalizar_sql_derrame_dbi, character(1L)
-  )
+  # El texto normalizado NO se calcula aca sobre todo el catalogo: la pareja
+  # antes/despues se arma por `queryid`, y el texto solo hace falta para las
+  # filas que esta ventana movio. Ver `.finalizar_instrumentacion_derrame_dbi()`.
+  datos
+}
+
+.normalizar_consultas_derrame_dbi <- function(datos, filas = seq_len(nrow(datos))) {
+  if (is.null(datos$query_normalizada)) {
+    datos$query_normalizada <- rep(NA_character_, nrow(datos))
+  }
+  faltan <- filas[is.na(datos$query_normalizada[filas])]
+  if (length(faltan)) {
+    datos$query_normalizada[faltan] <- vapply(
+      datos$query[faltan], .normalizar_sql_derrame_dbi, character(1L),
+      USE.NAMES = FALSE
+    )
+  }
   datos
 }
 
@@ -4019,23 +4314,58 @@
     claves <- datos$query_normalizada
     any(!is.na(claves) & nzchar(claves) & duplicated(claves))
   }
-  duplicados_queryid <- function(datos) {
-    claves <- vapply(datos$queryid, clave_queryid, character(1L))
-    any(!is.na(claves) & duplicated(claves))
+  # Las claves se leen UNA vez: se recorrian enteras por cada fila de
+  # `despues`, cuadratico en el tamano de `pg_stat_statements`.
+  claves_antes <- if (tiene_queryid) {
+    vapply(antes$queryid, clave_queryid, character(1L), USE.NAMES = FALSE)
+  } else character()
+  claves_despues <- if (tiene_queryid) {
+    vapply(despues$queryid, clave_queryid, character(1L), USE.NAMES = FALSE)
+  } else character()
+  if (!tiene_queryid) {
+    antes <- .normalizar_consultas_derrame_dbi(antes)
+    despues <- .normalizar_consultas_derrame_dbi(despues)
   }
   hay_ambiguedad_sin_queryid <- !tiene_queryid &&
     (duplicados_texto(antes) || duplicados_texto(despues))
-  hay_ambiguedad_queryid <- tiene_queryid &&
-    (duplicados_queryid(antes) || duplicados_queryid(despues))
-  for (i in seq_len(nrow(despues))) {
+  # Un `queryid` repetido -la misma consulta de otro usuario, de otra base o
+  # anidada- o ausente no se puede emparejar. Antes, si habia UNO repetido en
+  # todo el catalogo, ninguna fila se emparejaba: cada una quedaba sin "antes"
+  # y sus llamadas y bloques de TODA la historia del servidor se publicaban
+  # como de esta ventana. Medido en la ronda 29: 712 consultas "observadas" y
+  # 5333 llamadas en una corrida que emitio cinco. La fila que no se puede
+  # emparejar no se atribuye; las demas si.
+  ambiguas <- if (tiene_queryid) {
+    unique(c(claves_antes[duplicated(claves_antes)],
+             claves_despues[duplicated(claves_despues)]))
+  } else character()
+  ambiguas <- ambiguas[!is.na(ambiguas)]
+  hay_ambiguedad_queryid <- length(ambiguas) > 0L
+  # Solo pueden entrar las filas cuyas llamadas crecieron en la ventana -la
+  # condicion de abajo descartaba las otras despues de normalizarlas- y solo
+  # esas se normalizan.
+  candidatas <- seq_len(nrow(despues))
+  previa <- rep(NA_integer_, nrow(despues))
+  if (tiene_queryid) {
+    previa <- match(claves_despues, claves_antes, incomparables = NA)
+    llamadas_despues_todas <- vapply(
+      seq_len(nrow(despues)), function(i) .numero_dbi(despues$calls[[i]]),
+      numeric(1L)
+    )
+    llamadas_antes_todas <- vapply(seq_along(previa), function(i) {
+      if (is.na(previa[[i]])) 0 else .numero_dbi(antes$calls[[previa[[i]]]])
+    }, numeric(1L))
+    delta <- llamadas_despues_todas - llamadas_antes_todas
+    atribuibles <- !is.na(claves_despues) & !(claves_despues %in% ambiguas)
+    candidatas <- which(atribuibles & !is.na(delta) & delta >= 1)
+  }
+  despues <- .normalizar_consultas_derrame_dbi(despues, candidatas)
+  for (i in candidatas) {
     clave <- despues$query_normalizada[[i]]
     if (is.na(clave) || !nzchar(clave)) next
-    queryid <- if (tiene_queryid) clave_queryid(despues$queryid[[i]]) else NA_character_
-    indices_previos <- if (tiene_queryid && !is.na(queryid) &&
-                            !hay_ambiguedad_queryid) {
-      previos <- vapply(antes$queryid, clave_queryid, character(1L))
-      which(!is.na(previos) & previos == queryid)
-    } else if (!tiene_queryid && !hay_ambiguedad_sin_queryid) {
+    indices_previos <- if (tiene_queryid) {
+      if (is.na(previa[[i]])) integer() else previa[[i]]
+    } else if (!hay_ambiguedad_sin_queryid) {
       which(!is.na(antes$query_normalizada) & antes$query_normalizada == clave)
     } else integer()
     previo <- if (length(indices_previos) == 1L) {
@@ -4212,6 +4542,74 @@
 # nada; encima, el `double` ya perdio digitos y `integer64` es la unica forma de
 # conservarlos.
 .MAX_ENTERO_EXACTO_DBI <- 2^53
+
+# La misma frontera para un `integer64`, escrita una vez: si cada valor cabe en
+# un doble sin perderse -valor absoluto menor que 2^53-. La usan el resumen en
+# memoria (`.resumen_integer64()`) y el recorrido por bloques de
+# `perfilar_dbi()`. `NA` para un `NA`.
+.integer64_exacto_en_doble <- function(x) {
+  limite <- bit64::as.integer64(.MAX_ENTERO_EXACTO_DBI)
+  x > -limite & x < limite
+}
+
+.MOTIVO_INTEGER64_FUERA_DE_PRECISION_DBI <- paste(
+  "La columna es un entero de 64 bits con algun valor de valor absoluto de al",
+  "menos 2^53, que un doble no representa con exactitud: minimo, maximo,",
+  "media, n_ceros, n_negativos, mediana y desvio no se publican como",
+  "calculados. n_distintos y la moda se cuentan sobre el valor exacto."
+)
+
+# Un `integer64` no se opera con `min()`, `max()`, `mean()` ni la resta de base:
+# leen sus bits como si fueran un doble. El driver lo entrega asi para todo
+# BIGINT de PostgreSQL -`bigserial`, la clave por omision- y para todo INTEGER de
+# SQLite que no entra en 32 bits -marcas de tiempo en milisegundos, cedulas-, y
+# la via por bloques publicaba `minimo = 4.94e-324` con estado `calculado`. Por
+# debajo de 2^53 el doble representa el entero exacto y se opera como doble; si
+# algun valor llega a 2^53, no hay doble que lo sostenga y quien llama declara
+# las magnitudes `no_disponible` con este motivo, como la via SQL.
+.integer64_como_doble_dbi <- function(x) {
+  if (!inherits(x, "integer64")) return(list(ok = TRUE, valores = x))
+  if (!.bit64_disponible()) {
+    return(list(ok = FALSE, motivo = paste(
+      "requiere_bit64: la columna llego como entero de 64 bits y el paquete",
+      "bit64 no esta disponible para operarla."
+    )))
+  }
+  exactos <- .integer64_exacto_en_doble(x)
+  if (any(!is.na(exactos) & !exactos)) {
+    return(list(ok = FALSE, motivo = .MOTIVO_INTEGER64_FUERA_DE_PRECISION_DBI))
+  }
+  list(ok = TRUE, valores = as.numeric(x))
+}
+
+# Ninguna columna decide la clase de un campo de toda la tabla. `rbind()` toma
+# la clase de la primera fila: una `media` `integer64` -la via por bloques sobre
+# un BIGINT- volvia `integer64` la columna `media` de `resumen_tabla$columnas`
+# entera y truncaba a entero las medias de las columnas dobles (0,5604 se
+# publicaba 0). Las magnitudes son dobles y se convierten en cada fila ANTES de
+# unirlas: despues ya es tarde. Un `integer64` que el doble no sostiene no llega
+# hasta aca -lo retiene su via con el motivo-; si llegara, sale `NA`, nunca un
+# numero truncado.
+.CAMPOS_MAGNITUD_RESUMEN_DBI <- c(
+  "prop_faltantes", "tasa_distintos", "minimo", "maximo", "media", "mediana",
+  "desvio"
+)
+
+.fila_magnitudes_dobles_dbi <- function(fila) {
+  for (campo in intersect(.CAMPOS_MAGNITUD_RESUMEN_DBI, names(fila))) {
+    valor <- fila[[campo]]
+    if (is.null(valor) || length(valor) != 1L) next
+    if (inherits(valor, "integer64")) {
+      como_doble <- .integer64_como_doble_dbi(valor)
+      fila[[campo]] <- if (isTRUE(como_doble$ok)) {
+        como_doble$valores
+      } else NA_real_
+    } else if (is.numeric(valor) || is.logical(valor)) {
+      fila[[campo]] <- as.numeric(valor)
+    }
+  }
+  fila
+}
 
 .entero_exacto_grande_dbi <- function(texto) {
   if (is.na(texto) || !grepl("^[+-]?[0-9]+$", texto)) return(FALSE)
@@ -4500,11 +4898,12 @@
       !length(derrame$consultas)) {
     return(sql)
   }
+  # El SQL de esta corrida se normaliza una vez, no una vez por consulta medida.
+  normalizadas <- vapply(
+    sql$sql, .normalizar_sql_derrame_dbi, character(1L), USE.NAMES = FALSE
+  )
   for (consulta in derrame$consultas) {
-    indices <- which(
-      vapply(sql$sql, .normalizar_sql_derrame_dbi, character(1L)) ==
-        consulta$query_normalizada
-    )
+    indices <- which(normalizadas == consulta$query_normalizada)
     if (!length(indices)) next
     sql$derrame[indices] <- isTRUE(consulta$derrame)
     sql$bloques_temporales_leidos[indices] <-
@@ -4855,9 +5254,24 @@
   isTRUE(resultado)
 }
 
+# Un numero que llega como TEXTO publicado -la moda numerica- se escribio con la
+# marca de `OutDec`, que el paquete conserva a proposito (`?perfilar`): se lee
+# con esa misma marca. Con `OutDec = ","` la moda 2.5 se publica "2,5" en los dos
+# bloques, `as.numeric()` daba `NA` en los dos y la corroboracion declaraba
+# `divergencia` entre dos valores identicos.
 .numero_corroboracion_dbi <- function(valor) {
   if (is.null(valor) || length(valor) != 1L) return(NA_real_)
-  suppressWarnings(as.numeric(valor[[1L]]))
+  primero <- valor[[1L]]
+  if (is.character(primero) || is.factor(primero)) {
+    texto <- as.character(primero)
+    marca <- getOption("OutDec", ".")
+    if (!is.na(texto) && is.character(marca) && length(marca) == 1L &&
+        !identical(marca, ".")) {
+      texto <- gsub(marca, ".", texto, fixed = TRUE)
+    }
+    return(suppressWarnings(as.numeric(texto)))
+  }
+  suppressWarnings(as.numeric(primero))
 }
 
 .texto_corroboracion_dbi <- function(valor) {
@@ -4890,9 +5304,26 @@
       difiere = FALSE, motivo = "faltante_en_ambos", delta = NA_real_
     ))
   }
+  # Se comparan VALORES: dos textos iguales son el mismo valor, se lean o no
+  # como numero. La moda de una columna de texto que el perfil infiere `doble`
+  # -"3,75"- se comparaba como numero, daba `NA` en los dos lados y salia
+  # `divergencia` con el motivo "valor no numerico en un lado", que tampoco era
+  # cierto.
+  # Solo entre textos: `as.character()` de un doble escribe 15 cifras y daria
+  # por iguales dos dobles que no lo son.
+  es_texto <- function(v) is.character(v[[1L]]) || is.factor(v[[1L]])
+  if (es_texto(a) && es_texto(b) && identical(
+    .valor_normalizado_corroboracion_dbi(a, FALSE),
+    .valor_normalizado_corroboracion_dbi(b, FALSE)
+  )) {
+    return(list(difiere = FALSE, motivo = "igualdad_exacta", delta = NA_real_))
+  }
   a <- .valor_normalizado_corroboracion_dbi(a, numerico)
   b <- .valor_normalizado_corroboracion_dbi(b, numerico)
   if (numerico) {
+    if (is.na(a) && is.na(b)) {
+      return(list(difiere = TRUE, motivo = "texto_distinto", delta = NA_real_))
+    }
     if (is.na(a) || is.na(b)) {
       return(list(
         difiere = TRUE, motivo = "valor_no_numerico_un_lado", delta = NA_real_
@@ -5018,6 +5449,38 @@
   # filas-. La regla de no llamarlas divergencia es correcta y se conserva; lo
   # que faltaba era decir que hubo diferencias que no se pudieron corroborar.
   no_corroboradas <- list()
+  # Lo que `meta$criterio_comparacion` declara esperable no se llama
+  # divergencia. El resumen SQL agrupa y ordena con el cotejamiento del motor y
+  # el perfil de muestra compara byte a byte: sobre una columna `COLLATE NOCASE`
+  # la corroboracion publicaba tres `divergencia` -`n_distintos` 5 contra 9, la
+  # moda y su frecuencia- en el mismo objeto cuyo `meta` dice que esa diferencia
+  # "es esperable, y no es un error de ninguno de los dos". Se reconoce solo la
+  # forma que un cotejamiento puede producir: fundir valores -menos distintos
+  # en el resumen SQL, y una moda mas frecuente-, o desempatar distinto una
+  # moda con la misma frecuencia. Al reves es imposible y sigue siendo
+  # divergencia. La via por bloques compara en R y no tiene esta excusa.
+  esperables_cotejamiento <- list()
+  por_cotejamiento <- !identical(resumen$meta$metodo, "dbfetch_bloques")
+  explica_cotejamiento <- function(columna, metrica) {
+    leer <- function(columnas, campo) {
+      .numero_corroboracion_dbi(.valor_corroboracion_dbi(columnas, columna, campo))
+    }
+    distintos_sql <- leer(resumen$columnas, "n_distintos")
+    distintos_muestra <- leer(perfil$columnas, "n_distintos")
+    frecuencia_sql <- leer(resumen$columnas, "frecuencia_moda")
+    frecuencia_muestra <- leer(perfil$columnas, "frecuencia_moda")
+    funde <- isTRUE(is.finite(distintos_sql) && is.finite(distintos_muestra) &&
+                      distintos_sql < distintos_muestra)
+    frecuencias <- is.finite(frecuencia_sql) && is.finite(frecuencia_muestra)
+    switch(
+      metrica,
+      n_distintos = funde,
+      frecuencia_moda = funde && frecuencias &&
+        frecuencia_sql > frecuencia_muestra,
+      moda = funde || (frecuencias && frecuencia_sql == frecuencia_muestra),
+      FALSE
+    )
+  }
   for (columna in unique(nombres)) {
     if (.nombres_para_operar(columna) %in% .nombres_para_operar(protegidas)) {
       next
@@ -5060,6 +5523,14 @@
           no_corroboradas[[length(no_corroboradas) + 1L]] <-
             .clave_par_identificador(columna, metrica, sep = "::")
         }
+        next
+      }
+      if (por_cotejamiento && !tipo_numerico &&
+          !identical(comparacion$motivo, "faltante_un_lado") &&
+          metrica %in% c("n_distintos", "moda", "frecuencia_moda") &&
+          explica_cotejamiento(columna, metrica)) {
+        esperables_cotejamiento[[length(esperables_cotejamiento) + 1L]] <-
+          .clave_par_identificador(columna, metrica, sep = "::")
         next
       }
       valor_sql <- .texto_corroboracion_dbi(a_crudo)
@@ -5131,11 +5602,36 @@
       NA_character_
     )
   }
+  if (length(esperables_cotejamiento)) {
+    claves <- unlist(esperables_cotejamiento, use.names = FALSE)
+    registros[[length(registros) + 1L]] <- .registro_cobertura_dbi(
+      "corroboracion", paste(claves, collapse = ", "),
+      "no_corroborada",
+      paste0(
+        "Hay ", length(claves), " comparaciones entre `resumen_tabla` y ",
+        "`perfil_muestra` que no coinciden y no se declaran divergencia: el ",
+        "resumen SQL agrupa y ordena con el cotejamiento del motor y el perfil ",
+        "de muestra compara byte a byte (`meta$criterio_comparacion` y ",
+        "`meta$criterio_moda`). En una columna de texto, menos distintos en el ",
+        "resumen SQL -con la moda y la frecuencia que de ahi se siguen-, o una ",
+        "moda empatada que cada lado desempata con su orden, es lo que ese ",
+        "criterio anticipa."
+      ),
+      paste(
+        "Para contar con el criterio de R, usar `bloque_filas`, que compara en",
+        "R, o consultar la columna con un cotejamiento binario. No reemplazar",
+        "un bloque por el otro."
+      ),
+      NA_character_
+    )
+  }
   salida <- if (length(registros)) do.call(rbind, registros) else vacia
   meta$divergencias <- as.integer(sum(
     as.character(salida$estado) == "divergencia"
   ))
-  meta$no_corroboradas <- as.integer(length(no_corroboradas))
+  meta$no_corroboradas <- as.integer(
+    length(no_corroboradas) + length(esperables_cotejamiento)
+  )
   list(cobertura = salida, meta = meta)
 }
 
@@ -8365,7 +8861,7 @@
         moda$ok <- FALSE
         moda$motivo <- frecuencia$motivo
       } else {
-        valor_moda <- tryCatch(.texto_valor(celda$valor), error = function(e) e)
+        valor_moda <- tryCatch(.texto_moda(celda$valor), error = function(e) e)
         if (inherits(valor_moda, "error")) {
           moda$ok <- FALSE
           moda$motivo <- .mensaje_motor(valor_moda)
@@ -9254,7 +9750,9 @@
   })
   .finalizar_instrumentacion_derrame_dbi(conexion, presupuesto)
   columnas <- if (length(resultados)) {
-    filas <- lapply(resultados, `[[`, "fila")
+    filas <- lapply(
+      lapply(resultados, `[[`, "fila"), .fila_magnitudes_dobles_dbi
+    )
     as.data.frame(do.call(rbind, lapply(filas, as.data.frame)),
                   stringsAsFactors = FALSE)
   } else {
@@ -11275,6 +11773,13 @@ print.plan_perfilado_dbi <- function(x, ...) {
     # Los de la muestra ya pasaron por el piso: una fecha que quedo es de una
     # columna que no es de fechas.
   )), valores_muestra)
+  # Lo que se tapa, por columna y metrica, para que `resumen_tabla$sql` lo
+  # declare: ver abajo.
+  tapadas <- list(data.frame(
+    columna = as.character(columnas$columna[indices & !is.na(columnas$moda)]),
+    metrica = rep("moda", sum(indices & !is.na(columnas$moda))),
+    stringsAsFactors = FALSE
+  ))
   columnas$moda[indices & !is.na(columnas$moda)] <- reemplazo
   # Los estadisticos de orden son valores reales de una celda. Los momentos
   # tambien identifican cuando la columna es un documento: la media de las
@@ -11296,6 +11801,10 @@ print.plan_perfilado_dbi <- function(x, ...) {
     } else {
       oculto_orden <<- oculto_orden | tapar
     }
+    tapadas[[length(tapadas) + 1L]] <<- data.frame(
+      columna = as.character(columnas$columna[tapar]),
+      metrica = rep(campo, sum(tapar)), stringsAsFactors = FALSE
+    )
     columnas[[campo]][tapar] <<- NA_real_
   }
   for (campo in campos) tapar_campo(campo, indices)
@@ -11344,6 +11853,41 @@ print.plan_perfilado_dbi <- function(x, ...) {
       "[estadisticos de orden y la media protegidos]"
   }
   resumen$columnas <- columnas
+  # El estado dice lo que se publico. Lo tapado quedaba `NA` -o "[valor
+  # protegido]"- con `estado = calculado` y `motivo` NA en `resumen_tabla$sql`:
+  # con `bloque_muestra = "solo_agregados"` y la proteccion por omision, el
+  # `minimo`, el `maximo`, la `media` y la `mediana` de TODAS las columnas. Se
+  # declara con el estado que el paquete ya usa cuando no se publica un valor
+  # por privacidad. `desvio` no se tapa, como en `perfilar()`: una dispersion
+  # no identifica a nadie (la prueba F-6 lo fija alla).
+  tapadas <- do.call(rbind, tapadas)
+  if (is.data.frame(tapadas) && nrow(tapadas) && is.data.frame(resumen$sql) &&
+      all(c("columna", "metrica", "estado", "motivo") %in% names(resumen$sql))) {
+    sin_valor <- c("no_disponible", "no_aplica", "no_solicitado", "no_medido",
+                   "omitido_por_costo", "omitido_por_privacidad")
+    clave <- function(columna, metrica) {
+      paste(.nombres_para_operar(as.character(columna)), metrica, sep = "\u001f")
+    }
+    filas <- clave(resumen$sql$columna, as.character(resumen$sql$metrica)) %in%
+      clave(tapadas$columna, tapadas$metrica) &
+      !(as.character(resumen$sql$estado) %in% sin_valor)
+    if (any(filas)) {
+      resumen$sql$estado[filas] <- "omitido_por_privacidad"
+      resumen$sql$motivo[filas] <- if (identical(
+        base_clasificacion, "sin_clasificacion_disponible"
+      )) {
+        paste(
+          "Sin muestra no se pudo clasificar la columna como dato personal o",
+          "no, y se protegio por omision: el valor no se publica."
+        )
+      } else {
+        paste(
+          "La columna se protegio como dato personal: el valor no se publica",
+          "(`detalle_proteccion_personal`)."
+        )
+      }
+    }
+  }
   # Y el piso sobre TODO el resumen, no solo sobre las columnas protegidas: un
   # valor identificante no se publica por ninguna puerta, tenga o no columna
   # atribuible, y tambien en los campos numericos.
@@ -12915,6 +13459,13 @@ print.plan_perfilado_dbi <- function(x, ...) {
 #' falta `bit64`, la columna queda como texto y `cobertura_diagnosticos` explica
 #' la limitacion y recomienda instalarlo o pedir `integer64` al conectar. Las
 #' columnas declaradas como `double`, `real` o `float` no entran en esta guarda.
+#' Con `bloque_filas` rige la misma regla, sobre los valores que el
+#' controlador entrega como `integer64` —un `BIGINT` o `bigserial` de
+#' PostgreSQL, un `INTEGER` de SQLite que no entra en 32 bits—: por debajo de
+#' 2^53 se opera con el valor exacto, y desde 2^53 las siete métricas quedan
+#' `no_disponible` con su motivo. Ninguna columna cambia la clase de un campo
+#' de la tabla: `minimo`, `maximo`, `media`, `mediana` y `desvio` de
+#' `resumen_tabla$columnas` son siempre dobles.
 #' Si se omite el bloque con `bloque_muestra = "solo_agregados"`, la cobertura
 #' usa el estado `no_solicitado`: no es un fallo ni se cuenta como una métrica
 #' no disponible. En `muestra_motor`, la selección materializada se hace una
@@ -13077,8 +13628,8 @@ print.plan_perfilado_dbi <- function(x, ...) {
 #' motor: ver la protección—, y se conserva la mediana por columna.
 #'
 #' @section Lo que el motor guarda distinto que R:
-#' El resumen SQL describe lo que el motor tiene delante, y en tres casos eso no
-#' es lo mismo que la tabla en R:
+#' El resumen SQL describe lo que el motor tiene delante, y en cuatro casos eso
+#' no es lo mismo que la tabla en R:
 #'
 #' * **Fechas en SQLite.** SQLite no tiene tipo fecha: RSQLite guarda un `Date`
 #'   como número de días desde 1970 y un `POSIXct` como segundos, y sin más
@@ -13094,6 +13645,17 @@ print.plan_perfilado_dbi <- function(x, ...) {
 #'   que mezcla magnitudes muy distintas —`1e20` junto a `1`— las medias pueden
 #'   diferir entre motores y con la de R, y ninguna es la exacta. La
 #'   corroboración cruzada lo declara cuando compara las dos.
+#' * **El cotejamiento.** El resumen SQL agrupa y ordena con el cotejamiento
+#'   de la columna: sobre una `COLLATE NOCASE` de SQLite o una colación ICU no
+#'   determinista de PostgreSQL, "Montevideo" y "montevideo" son un valor, y
+#'   `n_distintos`, la moda y su frecuencia salen de esa cuenta. Con
+#'   `bloque_filas` las filas se leen y se comparan en R, byte a byte, como el
+#'   perfil de muestra. Cada `resumen_tabla` lo dice en
+#'   `meta$criterio_comparacion` y `meta$criterio_moda`. La corroboración no
+#'   llama divergencia a la diferencia que ese criterio explica —menos
+#'   distintos en el resumen SQL, con la moda y la frecuencia que de ahí se
+#'   siguen, o una moda empatada que cada lado desempata con su orden—: la deja
+#'   en una fila `no_corroborada` con ese motivo.
 #'
 #' @section Costo:
 #' Los agregados de una tabla ancha se emiten por lotes; `muestra` acota lo que
@@ -13264,6 +13826,11 @@ print.plan_perfilado_dbi <- function(x, ...) {
 #' el SQL guardado no contiene ningún valor derivado de los datos. La
 #' clasificación se toma del perfil de la muestra; si la muestra no se pudo
 #' leer, la protección se aplica a todas las columnas y `meta` lo declara.
+#' Lo que se oculta no queda `calculado`: su fila de `resumen_tabla$sql` dice
+#' `omitido_por_privacidad`, con un motivo que distingue la columna clasificada
+#' como personal de la que se cerró porque, sin muestra, no se pudo clasificar.
+#' El desvío se publica, como en [perfilar()]: una dispersión no identifica a
+#' nadie, y la media, que junto con él reconstruiría los valores, se oculta.
 #' Si la muestra se recorta, la clasificación personal sólo cubre esas filas:
 #' las cifras de valor del resumen SQL completo quedan marcadas en
 #' `resumen_tabla$cobertura` y, con la protección activa, se ocultan hasta que
@@ -13305,13 +13872,26 @@ print.plan_perfilado_dbi <- function(x, ...) {
 #' puntos—: ese valor nunca se leyó, así que el piso no lo conoce y puede ser
 #' de cualquier columna. Todo mensaje de error que se publica —en `sql`,
 #' `cobertura`, `meta`, en la colección y en los avisos— lleva sus literales
-#' entre comillas, simples, dobles o tipográficas, cambiados por
-#' `[literal omitido]`, con o sin protección; también un identificador entre
-#' comillas, que el resto de la salida ya nombra. Quedan una palabra de SQL
-#' —`Incorrect syntax near 'LIMIT'` dice que el motor no acepta ese
-#' dialecto— y un signo suelto. El texto que PostgreSQL cita sin comillas al
-#' no poder leer un JSON (`CONTEXT:  JSON data, line 1: ...`) se tapa hasta el
-#' fin de la línea. Se publicaba tal cual, en PostgreSQL y en duckdb.
+#' entre comillas —simples, dobles, tipográficas, bajas como las del polaco,
+#' angulares— cambiados por `[literal omitido]`, con o sin protección; también
+#' un identificador entre comillas, salvo el nombre de la tabla o de una de sus
+#' columnas. Y fuera de las comillas el mensaje publica **sólo lo permitido**:
+#' el vocabulario de los mensajes de los motores, en inglés y en castellano,
+#' las palabras de SQL, los nombres de tipo, los nombres de la tabla y de sus
+#' columnas, los códigos SQLSTATE, los signos y los números de menos de seis
+#' cifras —el piso de la protección: la línea, la posición, un código—;
+#' todo lo demás sale `[literal omitido]`. Un número se cuenta con sus
+#' separadores: `4.685.467-9` es uno de ocho cifras. Así se tapa también el
+#' valor que el motor cita sin comillas —duckdb: `Type INT64 with value
+#' 59899123456 can't be cast`, y la cadena que `strptime` repite en otra
+#' línea, que se tapa entera; SQL Server con la sesión en sueco o neerlandés—
+#' y la cola de un valor que lleva una comilla adentro. Un mensaje en otro
+#' idioma conserva su SQL, sus tipos y sus nombres y se lee peor, que es el
+#' lado cerrado. Quedan una palabra de SQL entre comillas —`Incorrect syntax
+#' near 'LIMIT'` dice que el motor no acepta ese dialecto— y un signo suelto.
+#' El texto que PostgreSQL cita sin comillas al no poder leer un JSON
+#' (`CONTEXT:  JSON data, line 1: ...`) se tapa hasta el fin de la línea. Se
+#' publicaba tal cual, en PostgreSQL, en duckdb y en SQL Server.
 #' `incluir_valores = FALSE` va más lejos: no emite las consultas de moda ni de
 #' mediana y no informa mínimo ni máximo, útil cuando la tabla es un padrón y
 #' la moda de un identificador único es un documento real. Si se pidió `desvio`,
@@ -13540,6 +14120,12 @@ print.plan_perfilado_dbi <- function(x, ...) {
 #'   `proc.time()[c("user.self", "sys.self")]`. `cpu_ms` es cero cuando el
 #'   proceso no consumió CPU; `NA` significa que no se pudo medir. Los
 #'   intervalos que el reloj no puede resolver no se publican como cero.
+#'   En PostgreSQL, la atribución del derrame lee `pg_stat_statements` dos
+#'   veces —antes y después—, limitado al usuario y la base de la conexión, y
+#'   atribuye solo las consultas cuyas llamadas crecieron en esa ventana; una
+#'   entrada que el catálogo repite —la misma consulta de otro usuario o
+#'   anidada— no se atribuye. Medido con unas 4.900 filas en el catálogo:
+#'   sobre una tabla de 23 filas, 0,3 s con `TRUE` contra 0,15 s con `FALSE`.
 #' @param ... Argumentos enviados a [perfilar()] para analizar la muestra.
 #'
 #' @return Objeto de clase `perfil_dbi` con dos componentes: `resumen_tabla`, de
@@ -13667,6 +14253,13 @@ perfilar_dbi <- function(conexion, tabla,
     max_bytes_procesamiento = max_bytes_procesamiento,
     max_bytes_materializacion = max_bytes_materializacion
   )
+  # Los nombres de la tabla y de sus columnas son lo unico de la consulta que
+  # el mensaje de un error del motor puede citar en claro: ver
+  # `.sin_literales_motor()`.
+  identificadores_previos <- .sumar_identificadores_motor(c(
+    .texto_tabla_dbi(tabla), preparacion$campos
+  ))
+  on.exit(.fijar_identificadores_motor(identificadores_previos), add = TRUE)
   if (identical(preparacion$universo, "muestra_motor") &&
       .solicita_muestra_dbi(preparacion$bloque_muestra)) {
     resultado <- .perfil_muestra_spool_dbi(

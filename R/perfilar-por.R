@@ -134,7 +134,12 @@
 #'   Las senales de numeracion densa y de identificacion se miden tambien sobre
 #'   columnas `integer64` con comparaciones exactas. Si un grupo vuelve a
 #'   conjeturar un centinela por la particion, el hallazgo se mueve a esta
-#'   cobertura y no se publica como defecto del grupo.
+#'   cobertura y no se publica como defecto del grupo. "La columna entera" es la
+#'   que [perfilar()] mide con la misma declaración: las filas que
+#'   `aplicabilidad` deja fuera no cuentan para el centinela, la numeración ni
+#'   la guarda de Benford. Y lo que la columna entera sí conjetura —una
+#'   numeración cuya moda sobresale, o un candidato fuera de su rango— no es
+#'   de la partición: el grupo lo publica.
 #' @export
 #' @seealso [perfilar()], [cobertura_analisis()]
 #'
@@ -489,8 +494,45 @@ perfilar_por <- function(datos, por, clave = NULL, min_filas = 30L, ...) {
   hay_centinelas_declarados <- length(
     .sentinelas_numericos_declarados(extras$sentinelas_numericos)
   ) > 0L
+  # "La columna entera" es la que `perfilar()` mide con la MISMA declaracion:
+  # las filas que `aplicabilidad` deja fuera no son de la columna. Las tres
+  # senales se calculaban sobre todos los valores presentes. Medido (ronda 29):
+  # con `aplicabilidad = list(ingreso = ~ edad >= 18)`, el relleno 999999 de los
+  # menores ganaba la conjetura de la columna entera, el 88888 del universo
+  # -el que `perfilar()` publica, con 18 afectados- se declaraba "de la
+  # particion" y desaparecia de `hallazgos` en los tres grupos. La mascara es la
+  # de `.resolver_aplicabilidad()`, la misma funcion del perfil; para la guarda
+  # de Benford, el universo es el de `.universo_del_resumen()`, que es el que
+  # `perfilar()` le pasa a Benford. Una declaracion invalida no se resuelve aca:
+  # la rechaza `perfilar()` en cada grupo, con su error.
+  mascaras_universo <- tryCatch(
+    .resolver_aplicabilidad(
+      datos, names(datos), extras$columnas_opcionales %||% character(),
+      extras$aplicabilidad
+    )$mascaras,
+    error = function(e) NULL
+  )
+  datos_magnitudes <- tryCatch(
+    .universo_del_resumen(
+      datos, extras$sentinelas_numericos, mascaras_universo
+    ),
+    error = function(e) datos
+  )
+  lista_centinelas <- extras$sentinelas_numericos %||% .numeros_na_locales
   for (nombre_columna in nombres_sin_por) {
+    indice_columna <- .indice_nombre(nombre_columna, names(datos))
     valores <- datos[[nombre_columna]]
+    mascara <- if (!is.na(indice_columna) &&
+                   length(mascaras_universo) >= indice_columna) {
+      mascaras_universo[[indice_columna]]
+    } else NULL
+    if (!is.null(mascara) && length(mascara) == length(valores) &&
+        !all(mascara)) {
+      valores[!as.logical(mascara)] <- NA
+    }
+    magnitudes <- if (!is.na(indice_columna)) {
+      datos_magnitudes[[indice_columna]]
+    } else valores
     es_integer64 <- inherits(valores, "integer64")
     if (!is.numeric(valores) && !es_integer64) next
     presentes <- valores[!is.na(valores)]
@@ -523,7 +565,7 @@ perfilar_por <- function(datos, por, clave = NULL, min_filas = 30L, ...) {
     # casi unicos, asi que esa regla le suprimia Benford justo a las magnitudes
     # que Benford describe. La condicion del paquete es una conjuncion -alta
     # unicidad Y forma de numeracion-, no una de las dos.
-    if (isTRUE(.parece_correlativo_benford(valores))) {
+    if (isTRUE(.parece_correlativo_benford(magnitudes))) {
       columnas_identificadoras <- c(columnas_identificadoras, nombre_columna)
     }
     secuencia <- if (es_integer64) {
@@ -546,7 +588,26 @@ perfilar_por <- function(datos, por, clave = NULL, min_filas = 30L, ...) {
         error = function(e) NULL
       )
     }
-    if (isTRUE(secuencia$densa)) {
+    # Densa no alcanza: sobre una numeracion la guarda de la tabla entera se
+    # vuelve a abrir si la moda sobresale o si un candidato de la lista cae
+    # fuera del rango (`.sentinelas_que_abren_guarda()`, la misma pieza que usa
+    # el perfil). Medido: `id = c(1:950, 999 x 50, 1001:2000)` es densa,
+    # `perfilar()` publica los 50 `999` como `faltantes_disfrazados` y
+    # `perfilar_por()` los movia a la cobertura como "huecos de la particion"
+    # -50 ausencias codificadas calladas-. Solo es de la particion lo que la
+    # columna entera no conjetura.
+    guarda_cerrada <- isTRUE(secuencia$densa) &&
+      !isTRUE(secuencia$moda_sobresale) && tryCatch({
+        numeros <- suppressWarnings(as.numeric(valores))
+        candidatos <- .candidatos_sentinelas_presentes(
+          numeros, lista_centinelas
+        )
+        !length(.sentinelas_que_abren_guarda(
+          numeros, candidatos,
+          .rango_numeracion_sin_candidatos(numeros, candidatos), secuencia
+        ))
+      }, error = function(e) FALSE)
+    if (guarda_cerrada) {
       columnas_densas <- c(columnas_densas, nombre_columna)
     }
   }

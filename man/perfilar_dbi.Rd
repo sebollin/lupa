@@ -174,7 +174,13 @@ consulta produjo cada metrica, y se publica igual con \code{FALSE}. Las
 duraciones usan \code{Sys.time()} y el CPU del cliente usa la suma de
 \code{proc.time()[c("user.self", "sys.self")]}. \code{cpu_ms} es cero cuando el
 proceso no consumió CPU; \code{NA} significa que no se pudo medir. Los
-intervalos que el reloj no puede resolver no se publican como cero.}
+intervalos que el reloj no puede resolver no se publican como cero.
+En PostgreSQL, la atribución del derrame lee \code{pg_stat_statements} dos
+veces —antes y después—, limitado al usuario y la base de la conexión, y
+atribuye solo las consultas cuyas llamadas crecieron en esa ventana; una
+entrada que el catálogo repite —la misma consulta de otro usuario o
+anidada— no se atribuye. Medido con unas 4.900 filas en el catálogo:
+sobre una tabla de 23 filas, 0,3 s con \code{TRUE} contra 0,15 s con \code{FALSE}.}
 
 \item{umbral_cardinalidad}{Proporción entre valores distintos y válidos que
 activa la omisión de la moda con \code{politica_costo = "por_cardinalidad"}. El
@@ -360,6 +366,13 @@ de magnitud por encima de 2^53 siguen usando
 falta \code{bit64}, la columna queda como texto y \code{cobertura_diagnosticos} explica
 la limitacion y recomienda instalarlo o pedir \code{integer64} al conectar. Las
 columnas declaradas como \code{double}, \code{real} o \code{float} no entran en esta guarda.
+Con \code{bloque_filas} rige la misma regla, sobre los valores que el
+controlador entrega como \code{integer64} —un \code{BIGINT} o \code{bigserial} de
+PostgreSQL, un \code{INTEGER} de SQLite que no entra en 32 bits—: por debajo de
+2^53 se opera con el valor exacto, y desde 2^53 las siete métricas quedan
+\code{no_disponible} con su motivo. Ninguna columna cambia la clase de un campo
+de la tabla: \code{minimo}, \code{maximo}, \code{media}, \code{mediana} y \code{desvio} de
+\code{resumen_tabla$columnas} son siempre dobles.
 Si se omite el bloque con \code{bloque_muestra = "solo_agregados"}, la cobertura
 usa el estado \code{no_solicitado}: no es un fallo ni se cuenta como una métrica
 no disponible. En \code{muestra_motor}, la selección materializada se hace una
@@ -529,8 +542,8 @@ motor: ver la protección—, y se conserva la mediana por columna.
 
 \section{Lo que el motor guarda distinto que R}{
 
-El resumen SQL describe lo que el motor tiene delante, y en tres casos eso no
-es lo mismo que la tabla en R:
+El resumen SQL describe lo que el motor tiene delante, y en cuatro casos eso
+no es lo mismo que la tabla en R:
 \itemize{
 \item \strong{Fechas en SQLite.} SQLite no tiene tipo fecha: RSQLite guarda un \code{Date}
 como número de días desde 1970 y un \code{POSIXct} como segundos, y sin más
@@ -546,6 +559,17 @@ respondió con \code{NaN} no se publica: queda \code{no_disponible} con su motiv
 que mezcla magnitudes muy distintas —\code{1e20} junto a \code{1}— las medias pueden
 diferir entre motores y con la de R, y ninguna es la exacta. La
 corroboración cruzada lo declara cuando compara las dos.
+\item \strong{El cotejamiento.} El resumen SQL agrupa y ordena con el cotejamiento
+de la columna: sobre una \verb{COLLATE NOCASE} de SQLite o una colación ICU no
+determinista de PostgreSQL, "Montevideo" y "montevideo" son un valor, y
+\code{n_distintos}, la moda y su frecuencia salen de esa cuenta. Con
+\code{bloque_filas} las filas se leen y se comparan en R, byte a byte, como el
+perfil de muestra. Cada \code{resumen_tabla} lo dice en
+\code{meta$criterio_comparacion} y \code{meta$criterio_moda}. La corroboración no
+llama divergencia a la diferencia que ese criterio explica —menos
+distintos en el resumen SQL, con la moda y la frecuencia que de ahí se
+siguen, o una moda empatada que cada lado desempata con su orden—: la deja
+en una fila \code{no_corroborada} con ese motivo.
 }
 }
 
@@ -723,6 +747,11 @@ sus estadísticos de orden y sus momentos, se sanean los datos de conexión y
 el SQL guardado no contiene ningún valor derivado de los datos. La
 clasificación se toma del perfil de la muestra; si la muestra no se pudo
 leer, la protección se aplica a todas las columnas y \code{meta} lo declara.
+Lo que se oculta no queda \code{calculado}: su fila de \code{resumen_tabla$sql} dice
+\code{omitido_por_privacidad}, con un motivo que distingue la columna clasificada
+como personal de la que se cerró porque, sin muestra, no se pudo clasificar.
+El desvío se publica, como en \code{\link[=perfilar]{perfilar()}}: una dispersión no identifica a
+nadie, y la media, que junto con él reconstruiría los valores, se oculta.
 Si la muestra se recorta, la clasificación personal sólo cubre esas filas:
 las cifras de valor del resumen SQL completo quedan marcadas en
 \code{resumen_tabla$cobertura} y, con la protección activa, se ocultan hasta que
@@ -763,13 +792,24 @@ y cita la celda que hizo fallar la consulta —\verb{invalid input syntax for ty
 puntos—: ese valor nunca se leyó, así que el piso no lo conoce y puede ser
 de cualquier columna. Todo mensaje de error que se publica —en \code{sql},
 \code{cobertura}, \code{meta}, en la colección y en los avisos— lleva sus literales
-entre comillas, simples, dobles o tipográficas, cambiados por
-\verb{[literal omitido]}, con o sin protección; también un identificador entre
-comillas, que el resto de la salida ya nombra. Quedan una palabra de SQL
-—\verb{Incorrect syntax near 'LIMIT'} dice que el motor no acepta ese
-dialecto— y un signo suelto. El texto que PostgreSQL cita sin comillas al
-no poder leer un JSON (\verb{CONTEXT:  JSON data, line 1: ...}) se tapa hasta el
-fin de la línea. Se publicaba tal cual, en PostgreSQL y en duckdb.
+entre comillas —simples, dobles, tipográficas, bajas como las del polaco,
+angulares— cambiados por \verb{[literal omitido]}, con o sin protección; también
+un identificador entre comillas, salvo el nombre de la tabla o de una de sus
+columnas. Y fuera de las comillas el mensaje publica \strong{sólo lo permitido}:
+el vocabulario de los mensajes de los motores, en inglés y en castellano,
+las palabras de SQL, los nombres de tipo, los nombres de la tabla y de sus
+columnas, los códigos SQLSTATE, los signos y los números de menos de seis
+cifras —el piso de la protección: la línea, la posición, un código—;
+todo lo demás sale \verb{[literal omitido]}. Un número se cuenta con sus
+separadores: \verb{4.685.467-9} es uno de ocho cifras. Así se tapa también el
+valor que el motor cita sin comillas —duckdb: \verb{Type INT64 with value 59899123456 can't be cast}, y la cadena que \code{strptime} repite en otra
+línea, que se tapa entera; SQL Server con la sesión en sueco o neerlandés—
+y la cola de un valor que lleva una comilla adentro. Un mensaje en otro
+idioma conserva su SQL, sus tipos y sus nombres y se lee peor, que es el
+lado cerrado. Quedan una palabra de SQL entre comillas —\verb{Incorrect syntax near 'LIMIT'} dice que el motor no acepta ese dialecto— y un signo suelto.
+El texto que PostgreSQL cita sin comillas al no poder leer un JSON
+(\verb{CONTEXT:  JSON data, line 1: ...}) se tapa hasta el fin de la línea. Se
+publicaba tal cual, en PostgreSQL, en duckdb y en SQL Server.
 \code{incluir_valores = FALSE} va más lejos: no emite las consultas de moda ni de
 mediana y no informa mínimo ni máximo, útil cuando la tabla es un padrón y
 la moda de un identificador único es un documento real. Si se pidió \code{desvio},

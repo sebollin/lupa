@@ -922,7 +922,9 @@ print.coleccion_lupa <- function(x, ...) {
 #'   se pudo clasificar porque su muestra no se leyó, en los perfiles
 #'   de las otras tablas se tapan los valores y la evidencia de las columnas no
 #'   personales, y `resumen_tabla$meta$proteccion_personal$otras_tablas` dice
-#'   por qué. [perfilar_dbi()] sobre una tabla sola protege sólo con los de
+#'   por qué. Con esos valores se barren también `cobertura_coleccion`,
+#'   `cobertura_metricas` y `meta$lecturas`, que juntan los motivos de todas
+#'   las tablas. [perfilar_dbi()] sobre una tabla sola protege sólo con los de
 #'   esa tabla.
 #' @param cobertura_metricas Qué se sube a `cobertura_metricas`: `"no_medidas"`
 #'   (por omisión) sólo las métricas que no se calcularon, `"completa"` todas
@@ -982,6 +984,12 @@ perfilar_coleccion <- function(coleccion, muestra = Inf,
   # paquete ya establecio ese precedente para `catalogo`, y el recorrido mostro
   # que habia cinco columnas mas en el mismo estado.
   declaradas <- .completar_columnas_coleccion(coleccion$tablas)
+  # Los nombres de las tablas declaradas, para el mensaje del motor: ver
+  # `.sin_literales_motor()`. Cada `perfilar_dbi()` suma los de sus columnas.
+  identificadores_previos <- .sumar_identificadores_motor(c(
+    declaradas$tabla, declaradas$esquema, declaradas$identificador
+  ))
+  on.exit(.fijar_identificadores_motor(identificadores_previos), add = TRUE)
   inicio <- Sys.time()
   cobertura <- list()
   metricas <- list()
@@ -1409,6 +1417,41 @@ perfilar_coleccion <- function(coleccion, muestra = Inf,
   rownames(resumen_coleccion) <- NULL
   rownames(cobertura_coleccion) <- NULL
   rownames(tabla_metricas) <- NULL
+  # El piso entre tablas cubre tambien lo que la coleccion publica por su
+  # cuenta: los motivos de `cobertura_coleccion`, `cobertura_metricas` y
+  # `meta$lecturas` juntan los de todas las tablas, y un mensaje del motor de
+  # una vista citaba el celular protegido de `clientes`, que el piso entre
+  # tablas solo buscaba en `perfiles`. Medido en la ronda 29. Con los valores
+  # que se leyeron -los de `conservar_perfiles = TRUE`-; sin ellos, el mensaje
+  # del motor ya llega con solo lo permitido (`.sin_literales_motor()`). Solo
+  # el texto: los numeros de estas tablas son conteos y momentos.
+  if (conservar_perfiles && length(protegidos_tablas)) {
+    completos <- Filter(function(x) isTRUE(x$completo), protegidos_tablas)
+    valores_tablas <- unique(unlist(lapply(completos, `[[`, "valores"),
+                                    use.names = FALSE))
+    fechas_tablas <- unique(unlist(lapply(completos, `[[`, "fechas"),
+                                   use.names = FALSE))
+    identificantes <- .valores_identificantes(valores_tablas, fechas_tablas)
+    if (length(identificantes)) {
+      intocables <- unique(c(
+        unlist(lapply(perfiles, function(perfil) {
+          as.character(perfil$resumen_tabla$columnas$columna)
+        }), use.names = FALSE),
+        as.character(declaradas$tabla), as.character(declaradas$esquema),
+        as.character(declaradas$identificador)
+      ))
+      intocables <- intocables[!is.na(intocables) & nzchar(intocables)]
+      cobertura_coleccion <- .proteger_textos_salida(
+        cobertura_coleccion, identificantes, intocables = intocables
+      )
+      tabla_metricas <- .proteger_textos_salida(
+        tabla_metricas, identificantes, intocables = intocables
+      )
+      tabla_lecturas <- .proteger_textos_salida(
+        tabla_lecturas, identificantes, intocables = intocables
+      )
+    }
+  }
 
   # `n_sin_perfilar` cuenta tablas que no se perfilaron. Las filas de alcance
   # `tabla_vacia`, `medicion_incompleta` y `metricas` describen tablas que SI

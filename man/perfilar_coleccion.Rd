@@ -49,7 +49,9 @@ permiso sobre ella, o no se perfiló porque se declaró de otro tipo
 se pudo clasificar porque su muestra no se leyó, en los perfiles
 de las otras tablas se tapan los valores y la evidencia de las columnas no
 personales, y \code{resumen_tabla$meta$proteccion_personal$otras_tablas} dice
-por qué. \code{\link[=perfilar_dbi]{perfilar_dbi()}} sobre una tabla sola protege sólo con los de
+por qué. Con esos valores se barren también \code{cobertura_coleccion},
+\code{cobertura_metricas} y \code{meta$lecturas}, que juntan los motivos de todas
+las tablas. \code{\link[=perfilar_dbi]{perfilar_dbi()}} sobre una tabla sola protege sólo con los de
 esa tabla.}
 
 \item{cobertura_metricas}{Qué se sube a \code{cobertura_metricas}: \code{"no_medidas"}

@@ -113,8 +113,15 @@ o guardada como número en otra columna. En todo lugar donde un
 \code{data.frame} guarda un valor: las celdas de cualquier clase —una copia
 \code{POSIXct} de la fecha con hora protegida queda en \code{NA}, como la tapa
 \code{\link[=perfilar]{perfilar()}}—, las columnas de lista elemento por elemento, los atributos
-de la tabla y de cada columna, y los nombres de fila, que vuelven a ser los
-números de fila si alguno lleva un valor protegido. Una columna protegida
+de la tabla y de cada columna —también \code{levels} en lo que no es un factor
+y \code{units}—, y los nombres de fila, que vuelven a ser los
+números de fila si alguno lleva un valor protegido. Una columna \code{POSIXlt}
+se tapa como la \code{POSIXct}, y cualquier lista con clase —un registro de
+\code{vctrs}, un \code{blob}— por sus valores; un BLOB (\code{raw}) se lee como el texto
+que guarda y, si lleva un valor protegido, la copia guarda los bytes del
+texto tapado; un entorno no se modifica —es del usuario—: si guarda un
+valor protegido, la copia lleva \code{"[valor protegido]"} en su lugar. Una
+columna protegida
 conserva sólo los atributos de su clase (\code{class}, \code{tzone}, \code{units}, \code{dim}):
 las etiquetas de valor de un \code{haven_labelled} se quitan. Para conservar
 sus valores debe usarse \code{proteger_datos_personales = FALSE} al crear el
