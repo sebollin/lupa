@@ -248,8 +248,10 @@ test_that("H4: una magnitud con clase devuelve FALSE o NA, no aborta", {
 })
 
 test_that("H4: hms y units tampoco se validan como documento", {
-  skip_if_not_installed("hms")
-  expect_false(validar_ci_uy(hms::as_hms(12345672)))
+  # Un `hms` es un `difftime` en segundos con la clase "hms" adelante: se arma
+  # sin el paquete, que no esta en Suggests (el check rechaza el `hms::`).
+  hms <- structure(12345672, units = "secs", class = c("hms", "difftime"))
+  expect_false(validar_ci_uy(hms))
   skip_if_not_installed("units")
   expect_false(validar_ci_uy(units::set_units(12345672, "m")))
 })
