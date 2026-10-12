@@ -118,6 +118,15 @@ contradecirse entre sí.</p>
 <p>Una fila donde alguna de las columnas comparadas está ausente <strong>no se cuenta
 como discordante ni como concordante</strong>: se excluye del universo evaluado, y
 <code>n_evaluadas</code> lo declara. Ausencia no es desacuerdo.</p>
+<p>Una fila con el mismo valor en todas las columnas concuerda, también si ese
+valor es infinito: <code>Inf</code> contra <code>Inf</code> es coincidencia exacta.</p>
+<p>Una fila citada no muestra iguales dos valores que el veredicto separó. Si la
+escritura corriente los junta —dos dobles que coinciden en 15 cifras, dos
+instantes del mismo segundo, dos textos que se ven iguales con distintos
+puntos de código—, esa fila los cita con la escritura que los distingue: el
+doble con las cifras que lo devuelven a su valor, el instante con su fracción
+y el texto con cada carácter fuera del ASCII imprimible escrito <code>&lt;U+XXXX&gt;</code>,
+con una nota que lo dice.</p>
     </div>
     <div class="section level2">
     <h2 id="see-also">See also<a class="anchor" aria-label="anchor" href="#see-also"></a></h2>

@@ -2,6 +2,280 @@
 
 ## lupa 0.1.0
 
+### Ronda 27: la proteccion otra vez, los validadores y las fechas, los duplicados y la distribucion
+
+Tres refutaciones en paralelo. La de la proteccion encontro siete fugas,
+tres familias de tapado de mas, un aviso que con `warn = 2` abortaba
+[`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md) y
+un aborto con un nombre de columna marcado `bytes` -la marca de una
+columna protegida volvia a llegar tapada a los datos del usuario por
+otra puerta-; la de los validadores y las fechas, doce defectos -el
+perfil declaraba la coma decimal y resumia `1.500` como 1,5-; la de los
+duplicados, la distribucion, las asociaciones y las estimaciones, trece.
+
+**La proteccion:**
+
+- La marca `.ausente_<columna>` de una columna PROTEGIDA ya no sale
+  `[valor protegido]`: con “Segundo” -un nombre de pila- protegido en
+  `Segundo Nombre`, la accion recomendada `marcar_filas_ausentes`
+  llevaba `columna_marca = "[valor protegido]"` y
+  [`aplicar()`](https://sebollin.github.io/lupa/reference/planificar_limpieza.md)
+  creaba en los datos una columna con ese nombre; el `dependiente` de la
+  imputacion por dependencia salia tapado igual y la accion quedaba
+  `fallida`. El barrido por columna de los parametros no recibia los
+  nombres de la entrada como intocables (la ronda 26 los habia pasado
+  solo al barrido de todo el plan). Tambien `soporte_minimo` y
+  `cumplimiento` de la imputacion se tapaban cuando coincidian con un
+  valor de una columna protegida -`id_persona = 1..40`- y la accion
+  quedaba `fallida`. Una prueba recorre ahora todos los parametros del
+  plan y los nombres de `aplicar()$datos` en la llamada por omision y
+  los compara con la corrida sin proteccion.
+- El mapa de una imputacion por dependencia que la proteccion toca por
+  contenido -una sucursal que se llama como un titular protegido- queda
+  marcado `mapa_enmascarado = TRUE` y
+  [`aplicar()`](https://sebollin.github.io/lupa/reference/planificar_limpieza.md)
+  reconstruye la relacion sobre los datos. Antes la accion `lista`
+  quedaba `fallida` si lo tapado era el valor, o `ejecutada` con la
+  mitad de las celdas y sin aviso si era la clave.
+- `perfilar_coleccion(conservar_perfiles = TRUE)` cierra del lado seguro
+  cuando una tabla de la coleccion no se puede perfilar -un rol sin
+  permiso sobre `clientes`-: sus valores protegidos son desconocidos,
+  asi que en los perfiles de las demas se tapan los valores y la
+  evidencia de las columnas no personales, y `otras_tablas` lo dice.
+  Antes la tabla ilegible no se registraba y el perfil de `movimientos`
+  publicaba la cedula y el nombre del cliente que su observacion citaba.
+- `perfilar_dbi(universo = "muestra_motor")` ya no confirma un relleno
+  sobre la muestra del motor: ahi los conteos `calculado` son los de la
+  relacion muestreada, y la cedula valida de un cliente frecuente era
+  “relleno” en la muestra y salia en la moda, los ejemplos y la
+  evidencia de otra columna. Sin tabla entera que lo confirme, el
+  relleno sigue en el piso.
+- En
+  [`perfilar_dbi()`](https://sebollin.github.io/lupa/reference/perfilar_dbi.md)
+  con muestreo, un relleno confirmado sale del piso solo en su columna,
+  como en memoria: el `1.111.111-1` de relleno de `cedula` que es la
+  cedula de un conyuge en `ci_conyuge` se sigue tapando en las demas
+  columnas. Antes se sacaba de los valores de todas las columnas
+  protegidas.
+- Un valor protegido igual a un nombre de columna -o a uno que el
+  paquete deriva, como el snake_case- ya no se publica en los campos de
+  valores: en una planilla pivoteada con una columna de notas por
+  docente y la docente protegida, `patrones$aprobo$ejemplos`,
+  `niveles_observados`, la configuracion propuesta de
+  [`analizar()`](https://sebollin.github.io/lupa/reference/analizar.md)
+  y el informe HTML publicaban los nombres de las docentes, tambien en
+  [`perfilar_dbi()`](https://sebollin.github.io/lupa/reference/perfilar_dbi.md)
+  y entre tablas en
+  [`perfilar_coleccion()`](https://sebollin.github.io/lupa/reference/perfilar_coleccion.md).
+  El barrido salteaba todo campo hecho de nombres; ahora un campo hecho
+  de nombres que son valores protegidos se barre, salvo los que refieren
+  columnas (`columna`, `determinante`, `nombres_propuestos`…), donde el
+  nombre es estructura.
+- `analizar(conservar_datos = TRUE)` aplica el piso tambien a las demas
+  columnas de la copia: tapaba la columna `cedula` y dejaba las cedulas
+  en `obs` (“pago CI 3.738.538-0”) o guardadas como numero en otra
+  columna.
+- Con texto `latin1` sin marca -el que deja
+  [`read.csv()`](https://rdrr.io/r/utils/read.table.html) sin declarar
+  la codificacion- la lectura de nombres del barrido avisaba “input
+  string 1 is invalid UTF-8” y, con `options(warn = 2)`,
+  [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md)
+  abortaba. Corta por bytes, como el resto del barrido.
+- Un nombre de columna marcado `bytes` ya no hace abortar
+  [`analizar()`](https://sebollin.github.io/lupa/reference/analizar.md),
+  [`planificar_limpieza()`](https://sebollin.github.io/lupa/reference/planificar_limpieza.md)
+  ni la imputacion por dependencia de
+  [`aplicar()`](https://sebollin.github.io/lupa/reference/planificar_limpieza.md),
+  con y sin proteccion (“no se permite traduccion de cadenas con
+  "bytes"”): esas rutas buscaban la columna por su nombre, que R no
+  traduce, y ahora la buscan por su posicion.
+- El telefono uruguayo con su prefijo de pais se reconoce como telefono:
+  su parte nacional se prueba como si estuviera escrita sola y el
+  prefijo no se une a otro grupo. Pegado (E.164) -“wa.me/59899123456”,
+  “+59899123456”, como lo escriben los enlaces de WhatsApp- se publicaba
+  frente al celular protegido “099 123 456”, y al reves; separado, “598”
+  y el primer grupo formaban una cedula de siete cifras sin su
+  verificador y un fijo de cada seis que no era de nadie se tapaba
+  (“+598 4499 0917”: 16,8 % medido; ahora 2,8 %, como el mismo fijo
+  escrito sin el prefijo).
+- El correo escrito con palabras y la fecha con hora se leen tambien con
+  las demas formas de compatibilidad de un signo ASCII, las que la regla
+  de digitos ya leia: los parentesis blancos anchos (U+FF5F, U+FF60), el
+  punto ideografico y el de medio ancho, las variantes chicas de la
+  coma, el punto, los parentesis o la arroba (U+FE50 a U+FE6B), la barra
+  partida y el salto de linea de C1.
+  “juan.perez(at)empresa\<U+3002\>com\<U+3002\>uy” o
+  “2024-06-07\<U+FE6B\>09:04:05” se publicaban frente al valor
+  protegido.
+
+**Los validadores, los tipos y las fechas:**
+
+- **El resumen de los numeros escritos como texto lee con la convencion
+  que el perfil publica.** Una columna con
+  `numero_texto_convencion = "decimal_coma"` resumia `1.500` como 1,5
+  con un `sub(",", ".")` propio, mientras la limpieza del mismo paquete
+  convertia el mismo texto en 1500: media 5.0994 donde a mano da
+  4849.65, y un hallazgo `outliers` sobre importes ordinarios. El
+  resumen, la secuencia entera, los faltantes disfrazados, los outliers
+  y los limites de Tukey del plan leen ahora por la misma normalizacion
+  que `convertir_numero_regional`, en
+  [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md)
+  y en la muestra de
+  [`perfilar_dbi()`](https://sebollin.github.io/lupa/reference/perfilar_dbi.md).
+  Lo que la convencion no puede leer queda afuera y se declara
+  (`n_valores_excluidos_resumen`, `calculados_sobre_valores`).
+- **Un separador seguido de tres cifras ya no se decide por la otra.**
+  `1.500` dejaba de ser numero solo si no habia ninguna coma en la
+  columna, y `1,500` no tenia guarda: la columna de miles con coma salia
+  `doble` con su resumen leido como decimales, y la gemela con punto
+  salia `texto`.
+  [`inferir_tipo()`](https://sebollin.github.io/lupa/reference/inferir_tipo.md)
+  cuenta esas formas como numero solo si la columna aporta evidencia de
+  una sola convencion -la misma evidencia que publica
+  `numero_texto_convencion`-, para los dos separadores por igual.
+- **`%y-%m-%d` es otra lectura de `01-02-03`, no otro formato.** Fuera
+  del grupo ambiguo, una columna homogenea `dd-dd-dd` recibia
+  `formatos_fecha_mixtos` con severidad error,
+  [`detectar_formatos_fecha()`](https://sebollin.github.io/lupa/reference/detectar_formatos_fecha.md)
+  publicaba `n_inequivocos = n` para valores con tres lecturas, y
+  `formato_fecha_ambiguo` omitia la tercera (o no salia, con
+  `25-12-31`). Ahora las tres lecturas son candidatas de una sola
+  representacion. Y dos lecturas probadas cada una por valores propios
+  son formatos mixtos tambien con ano de dos cifras (`13/01/20` y
+  `01/13/20`), como ya lo eran con cuatro.
+- **`May` toma la etiqueta de su columna.** Es el nombre completo en
+  ingles y la abreviatura de `mayo`; etiquetado siempre `%b`, una
+  columna inglesa de meses completos con un mayo recibia
+  `formatos_fecha_mixtos` (error).
+- **La hora `24:00` no se acepta**, por el mismo motivo que el segundo
+  60: [`strptime()`](https://rdrr.io/r/base/strptime.html) la normaliza
+  al dia siguiente y `2024-01-31 24:00` se publicaba como el 1 de
+  febrero. El valor queda fuera del resumen y se declara.
+- **El texto con desplazamiento horario declara que no se evaluo la
+  fecha civil.** `2020-01-31T23:30:00-03:00` se publica como
+  `2020-02-01 02:30:00 UTC` y el conteo
+  `n_filas_fecha_civil_distinta_utc`, que es de las columnas `POSIXt`,
+  quedaba en `NA` sin fila en `cobertura_diagnosticos`.
+- **[`validar_rut_uy()`](https://sebollin.github.io/lupa/reference/validadores_uy.md)
+  completa con cero el RUT de once digitos**, igual que
+  [`validar_ci_uy()`](https://sebollin.github.io/lupa/reference/validadores_uy.md)
+  la cedula de siete: un RUT con prefijo 01 a 09 leido por
+  [`read.csv()`](https://rdrr.io/r/utils/read.table.html) llega como
+  numero sin su cero, y la mitad de la columna se rechazaba;
+  [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md)
+  la bajaba de `verificado` a `alto`.
+- **Los validadores recortan cualquier espacio al borde**, tambien el
+  espacio duro (U+00A0) que dejan planillas y paginas web: con el, una
+  cedula valida era invalida mientras con un tabulador no. En la cedula
+  y el RUT, cualquier espacio separa grupos.
+- **Un doble desde 2^53 devuelve `FALSE` en los validadores**: no
+  conserva sus digitos, y se validaba la impresion de R
+  ([`validar_luhn()`](https://sebollin.github.io/lupa/reference/validadores_formato.md)
+  daba TRUE en uno de cada diez numeros de 19 cifras). El mismo numero
+  como texto o `integer64` se valida.
+- **Una fecha, una duracion o una magnitud con unidad devuelve `FALSE`
+  (o `NA`) en los validadores**: `Date`, `POSIXct` y `units` abortaban,
+  y `difftime` y `hms` validaban sus segundos como cedula.
+- **[`validar_url()`](https://sebollin.github.io/lupa/reference/validadores_formato.md)
+  exige la IPv4 embebida al final de la IPv6 y con octetos decimales**:
+  `[1.2.3.4::]`, `[::1.2.3.4.]` y `[::01.2.3.4]` pasaban.
+- **Una letra suelta sin su opuesto no hace logica a una columna.** `T`,
+  `F`, `S` y `N` cuentan como literal logico solo junto a su opuesto:
+  una columna de `F` y `M` salia `logico`, con un
+  `tipo_declarado_distinto` falso.
+
+**Las senales redundantes:**
+
+- **Una fila con el mismo infinito en todas las columnas concuerda**:
+  [`detectar_discordancias()`](https://sebollin.github.io/lupa/reference/detectar_discordancias.md)
+  restaba `Inf - Inf`, que es `NaN`, y con el `max_ejemplos` por omision
+  abortaba con “subindice fuera de los limites”; con `max_ejemplos = 0`
+  contaba la fila como discordante -3 de 5 donde hay 2-.
+- **La comparacion no numerica es de valores, no de su impresion**: el
+  mismo instante guardado en UTC y en otra zona salia discordante en
+  todas las filas, porque se comparaba
+  [`as.character()`](https://rdrr.io/r/base/character.html), que escribe
+  cada fecha-hora en la zona de su columna. Ahora una fecha-hora se
+  compara por su instante -escrito en UTC, como en
+  [`detectar_relaciones()`](https://sebollin.github.io/lupa/reference/detectar_relaciones.md)-,
+  un numero con todas sus cifras -`1e5` y el texto `"100000"`
+  concuerdan; `0.1 + 0.2` y `0.3` no- y, si todas las columnas son
+  duraciones, en segundos. El texto sigue comparandose por sus bytes.
+- **La evidencia no cita iguales dos valores que el veredicto separo**:
+  la ronda 15 lo cerro para los dobles; dos instantes a 0,3 s se citaban
+  los dos `12:00:00 UTC`, y una palabra con la tilde compuesta y la
+  descompuesta, igual. Esa fila los cita ahora con la escritura que los
+  distingue -el instante con su fraccion, el texto con `<U+XXXX>` y la
+  nota de escapes-.
+
+**Duplicados aproximados:**
+
+- **La barra invertida se escapa una vez**: la clave de bytes se
+  aplicaba dos veces por valor y cada `\` llegaba cuadruplicada a
+  `stringdist`: `x\y` contra `x\z` publicaba 0,067 y entraba al umbral
+  por omision. La receta del manual dice ahora los dos escapes -`\` como
+  `\\` y `|` como `\|`- y la distancia publicada sale de ella.
+- **Dos dobles que coinciden en 15 cifras no son el mismo valor**:
+  `0.1 + 0.2` contra `0.3`, o `1e15` contra `1e15 + 1`, salian
+  `tipo_par = "exacto"` a distancia 0 con la misma evidencia. Un doble
+  entra a la comparacion, a la clasificacion y a la evidencia con la
+  escritura mas corta que vuelve a su valor.
+- **`NA` contra cadena vacia no se atribuye a la normalizacion**: con
+  `normalizar = FALSE` el par salia `exacto_normalizado` con
+  `igualo_normalizar = TRUE`. Los dos entran a la comparacion como texto
+  vacio, y ahora la clasificacion los trata igual.
+- **Una fila hecha solo de blancos no entra a la comparacion**: `" "`,
+  `" "` y `"\t"` pasaban el filtro de filas vacias y salian como tres
+  pares `exacto_normalizado` entre si. El criterio es el de `n_blancos`
+  en
+  [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md).
+- **Sin `stringdist`, los conteos no medidos son `NA`**: `alcance`
+  publicaba `n_filas_validas`, `n_pares_hallados` y los conteos por tipo
+  en 0. Lo mismo cuando la comparacion no corre por el largo de un
+  valor, por nombres de columna repetidos o por no haber columnas
+  comparables.
+
+**Distribucion y asociaciones:**
+
+- **[`distribucion_valores()`](https://sebollin.github.io/lupa/reference/distribucion_valores.md)
+  cuenta dobles por valor**: convertia la columna a texto con 15 cifras
+  y fundia `0.1 + 0.2` con `0.3` -frecuencia 3 donde hay 2- y `1e15` con
+  `1e15 + 1`, mientras
+  [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md)
+  contaba bien sobre los mismos datos, y
+  [`analizar()`](https://sebollin.github.io/lupa/reference/analizar.md)
+  publicaba la cifra equivocada. Cada fila se publica con las cifras que
+  la devuelven a su valor.
+- **Un empate en
+  [`distribucion_valores()`](https://sebollin.github.io/lupa/reference/distribucion_valores.md)
+  no depende del orden de las filas**: se desempataba por primera
+  aparicion, y con `max_valores` el valor publicado cambiaba al
+  reordenar el archivo. Ahora por valor, el mismo desempate que la moda
+  de
+  [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md).
+- **Eta cuadrado no se publica con un solo grupo**: con la categorica en
+  un solo nivel en las filas completas devolvia 0 y el par salia como
+  “no hay asociacion”; Cramer, en la misma situacion, lo declaraba no
+  medible. Ahora los dos van a `pares_omitidos_medicion`.
+
+**Estimaciones externas:**
+
+- **Dos tabulados de la misma entidad no comparten `id_medida`**: el id
+  se armaba con el numero de fila de la llamada, y
+  [`evaluar()`](https://sebollin.github.io/lupa/reference/evaluar.md)
+  rechazaba la union de dos tabulados con la misma fecha como una
+  medicion unida consigo misma. Ahora nombra la metrica y la celda
+  estimada, como
+  [`medir()`](https://sebollin.github.io/lupa/reference/medir.md) desde
+  la ronda 23.
+- **La salida es una `medicion`**: su clase era solo `medicion_calidad`,
+  y
+  [`historico_calidad()`](https://sebollin.github.io/lupa/reference/historico_calidad.md)
+  la rechazaba. Ahora es
+  `c("medicion_calidad", "medicion", "data.frame")`.
+- **Una celda infinita es un numero fuera de dominio**: se descartaba
+  con motivo `no_numerica`, que manda a buscar un texto mal escrito.
+
 ### Ronda 26: la proteccion, el informe HTML y el plan de limpieza
 
 Tres refutaciones en paralelo. La de la proteccion encontro nueve fugas

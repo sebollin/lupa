@@ -62,6 +62,20 @@ y, si se declaró una ventana mayor que cero, se avisa al medir. Para
 comparar fechas con tolerancia hay que llevarlas con `transformacion` a
 un número en la unidad de la ventana.
 
+Esa igualdad exacta es **de valores, no de su impresión**. Una
+fecha-hora se compara por su instante: el mismo instante guardado en dos
+zonas horarias concuerda. Se escribe en UTC, al segundo y con su
+fracción exacta si la tiene —la misma escritura que usa
+[`detectar_relaciones()`](https://sebollin.github.io/lupa/reference/detectar_relaciones.md)—,
+así que comparada con una columna de texto, el texto tiene que estar en
+UTC; para otra zona, se la lleva con `transformacion`. Un número se
+compara con todas sus cifras —`1e5` y el texto `"100000"` concuerdan;
+`0.1 + 0.2` y `0.3` no—. Si todas las columnas son duraciones
+(`difftime`), se comparan en segundos: una hora y sesenta minutos
+concuerdan. Un texto se compara por sus bytes, así que una palabra con
+la tilde compuesta y la misma con la tilde descompuesta son dos textos
+distintos.
+
 ## See also
 
 [`detectar_discordancias()`](https://sebollin.github.io/lupa/reference/detectar_discordancias.md),

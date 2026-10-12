@@ -109,6 +109,17 @@ de igualdad exacta sobre el texto y la ventana no se aplica: eso queda dicho en
 la evidencia (<code>comparacion textual exacta</code>) y, si se declaró una ventana mayor
 que cero, se avisa al medir. Para comparar fechas con tolerancia hay que
 llevarlas con <code>transformacion</code> a un número en la unidad de la ventana.</p>
+<p>Esa igualdad exacta es <strong>de valores, no de su impresión</strong>. Una fecha-hora se
+compara por su instante: el mismo instante guardado en dos zonas horarias
+concuerda. Se escribe en UTC, al segundo y con su fracción exacta si la tiene
+—la misma escritura que usa <code><a href="detectar_relaciones.html">detectar_relaciones()</a></code>—, así que comparada con
+una columna de texto, el texto tiene que estar en UTC; para otra zona, se la
+lleva con <code>transformacion</code>. Un número se compara con todas sus cifras —<code>1e5</code>
+y el texto <code>"100000"</code> concuerdan; <code>0.1 + 0.2</code> y <code>0.3</code> no—. Si todas las
+columnas son duraciones (<code>difftime</code>), se comparan en segundos: una hora y
+sesenta minutos concuerdan. Un texto se compara por sus bytes, así que una
+palabra con la tilde compuesta y la misma con la tilde descompuesta son dos
+textos distintos.</p>
     </div>
     <div class="section level2">
     <h2 id="see-also">See also<a class="anchor" aria-label="anchor" href="#see-also"></a></h2>

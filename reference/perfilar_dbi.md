@@ -843,7 +843,13 @@ repiten casi no se repiten, y la cédula válida de un cliente con
 seiscientos movimientos salía como moda de otra columna. Con la tabla
 leída completa decide la muestra, que es la tabla; si no, la confirman
 los conteos exactos de la tabla —`n_distintos` y `n_validos`
-calculados—, y sin ellos el relleno sigue en el piso. Y la protección es
+calculados—, y sin ellos el relleno sigue en el piso. Con
+`universo = "muestra_motor"` no hay tabla entera que lo confirme —los
+conteos son los de la muestra del motor, y con `muestra = Inf` la
+muestra en R es esa misma relación—: el relleno sigue en el piso. Y sale
+del piso sólo en su columna, como en memoria: si otra columna protegida
+tiene el mismo valor —el `1.111.111-1` de relleno de `cedula` es la
+cédula de un cónyuge—, ese valor se sigue tapando. Y la protección es
 **por tabla**: un valor protegido de otra tabla escrito en ésta no se
 conoce;
 [`perfilar_coleccion()`](https://sebollin.github.io/lupa/reference/perfilar_coleccion.md)

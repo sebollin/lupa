@@ -238,12 +238,12 @@ distribuciones <- distribucion_valores(datos_operativos, max_valores = 5)
 distribuciones$frecuencias[
   distribuciones$frecuencias$columna == "canal", , drop = FALSE
 ]
-#>    columna rango      valor frecuencia proporcion
-#> 16   canal     1        web          5 0.38461538
-#> 17   canal     2   telefono          2 0.15384615
-#> 18   canal     3        Web          1 0.07692308
-#> 19   canal     4 presencial          1 0.07692308
-#> 20   canal     5        S/D          1 0.07692308
+#>    columna rango    valor frecuencia proporcion
+#> 16   canal     1      web          5 0.38461538
+#> 17   canal     2 telefono          2 0.15384615
+#> 18   canal     3                   1 0.07692308
+#> 19   canal     4      APP          1 0.07692308
+#> 20   canal     5      S/D          1 0.07692308
 distribuciones$cuantiles[
   distribuciones$cuantiles$columna == "monto", , drop = FALSE
 ]

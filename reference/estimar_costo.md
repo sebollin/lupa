@@ -59,21 +59,34 @@ estimar_costo(
   columnas del archivo.
 
   **Cómo se concatena, para poder rehacer la distancia.** Los valores se
-  unen con `" | "` y cada `|` que haya dentro de un valor se escribe
-  `\|`. El escape no es cosmético: sin él, `c1 = "x | y", c2 = "z"` y
+  unen con `" | "`; dentro de cada valor, cada barra invertida `\` se
+  escribe `\\` y cada `|` se escribe `\|`. Los escapes no son
+  cosméticos: sin el de `|`, `c1 = "x | y", c2 = "z"` y
   `c1 = "x", c2 = "y | z"` producían la misma cadena y dos filas que
   **no comparten ningún valor** salían `exacto_normalizado` a distancia
-  `0`. Con el escape, la distancia publicada de una comparación de
-  varias columnas se rehace así:
+  `0`; el de `\` es el que deja leer ese `\|` de una sola manera, y el
+  que distingue un valor declarado `bytes` del literal de su escape. Con
+  los dos, la distancia publicada de una comparación de varias columnas
+  se rehace así —y la de una sola, con el mismo `escapar()` y sin
+  pegar—:
 
-      escapar <- function(v) gsub("|", "\\|", v, fixed = TRUE)
+      escapar <- function(v) {
+        gsub("|", "\\|", gsub("\\", "\\\\", v, fixed = TRUE), fixed = TRUE)
+      }
       fila <- function(i) paste(escapar(datos$c1[i]), escapar(datos$c2[i]), sep = " | ")
       stringdist::stringdist(fila(1), fila(2), method = "jw", p = 0.1)
 
-  Si la columna es un factor o tiene marca `bytes`, la cadena comparada
-  es la clave de bytes del valor —lo que distingue un valor no textual
-  del literal de su escape—; para texto corriente esa clave es el valor
-  tal cual.
+  Fuera de esos dos escapes, el texto corriente se compara tal cual. Un
+  valor con marca `bytes` entra con cada byte alto escrito `\xHH` —su
+  clave de bytes; esas barras son del escape y no se duplican—, y un
+  mismo texto en `latin1` y en UTF-8 entra igual. Un doble entra con la
+  escritura más corta que vuelve a su valor: la de
+  [`as.character()`](https://rdrr.io/r/base/character.html) cuando sus
+  15 cifras alcanzan —`0.1` es `"0.1"` y `1e15`, `"1e+15"`— y 16 o 17
+  cuando no —`1e15 + 1` es `"1000000000000001"` y `0.1 + 0.2`,
+  `"0.30000000000000004"`—, así que dos números que R distingue no se
+  comparan como el mismo texto. La evidencia los cita con esa misma
+  escritura.
 
   Si dos columnas de texto **tienen el mismo nombre**, la comparación no
   corre: identifica las columnas por nombre y no podría decir cuál

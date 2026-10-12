@@ -2,22 +2,29 @@
 
 Reconoce formatos de fecha y fecha-hora sin escoger arbitrariamente
 entre día/mes y mes/día. Cuando todos los valores con barra, guion o
-punto son ambiguos, devuelve ambos formatos con estado `"candidato"`. El
-atributo `formatos_mixtos` indica si hay evidencia de dos o más
-representaciones en la columna. Se aceptan días y meses con uno o dos
-dígitos. Los años de dos dígitos se detectan, pero siempre quedan como
-candidatos y se señalan en la columna `anio_dos_digitos`: el siglo no se
-interpreta en silencio. También reconoce meses escritos en español
-rioplatense (`setiembre` y `set`) y en inglés, con la estructura
-completa de una fecha o como mes y año. La tabla interna de nombres no
-usa `LC_TIME`, por lo que el resultado es independiente del locale del
-proceso; los nombres de mes dentro de una oración no se reconocen. Un
-mes escrito desambigua día/mes, pero un año de dos dígitos sigue siendo
-candidato. Los formatos escritos de mes y año, igual que las fechas
-compactas, exigen un año entre 1800 y 2100. El formato compacto `%Y%m%d`
-exige un año entre 1800 y 2100 para evitar que identificadores de ocho
-dígitos se clasifiquen parcialmente como fechas. Una hora con segundo 60
-no se acepta: R la leería como el minuto siguiente.
+punto son ambiguos, devuelve todas sus lecturas posibles con estado
+`"candidato"`: día/mes y mes/día y, con guion y dos dígitos en cada
+parte (`01-02-03`), también año/mes/día. Esas lecturas son una sola
+representación. El atributo `formatos_mixtos` indica si hay evidencia de
+dos o más representaciones en la columna. El nombre `May` es a la vez el
+mes completo en inglés y la abreviatura de `mayo`: se cuenta como `%B` o
+`%b` según cómo escriba el mes el resto de la columna, y no como una
+representación aparte. Se aceptan días y meses con uno o dos dígitos.
+Los años de dos dígitos se detectan, pero siempre quedan como candidatos
+y se señalan en la columna `anio_dos_digitos`: el siglo no se interpreta
+en silencio. También reconoce meses escritos en español rioplatense
+(`setiembre` y `set`) y en inglés, con la estructura completa de una
+fecha o como mes y año. La tabla interna de nombres no usa `LC_TIME`,
+por lo que el resultado es independiente del locale del proceso; los
+nombres de mes dentro de una oración no se reconocen. Un mes escrito
+desambigua día/mes, pero un año de dos dígitos sigue siendo candidato.
+Los formatos escritos de mes y año, igual que las fechas compactas,
+exigen un año entre 1800 y 2100. El formato compacto `%Y%m%d` exige un
+año entre 1800 y 2100 para evitar que identificadores de ocho dígitos se
+clasifiquen parcialmente como fechas. Una hora con segundo 60 no se
+acepta: R la leería como el minuto siguiente. Tampoco la hora `24:00`: R
+la leería como la medianoche del día siguiente, y el perfil publicaría
+una fecha que nadie escribió.
 
 ## Usage
 

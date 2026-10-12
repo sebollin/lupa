@@ -140,6 +140,13 @@ conservan sus filas con <code>valor</code> en <code>NA</code> y el <code>estado<
 <code>"no_interpolable:&lt;clase&gt;"</code>, que nombra la clase que no se pudo interpolar. La
 condición se mide intentando el cálculo, no enumerando clases, así que una clase
 nueva con la misma limitación queda cubierta sin tocar el código.</p>
+<p>Las frecuencias se cuentan <strong>por valor, no por su escritura</strong>: dos dobles
+que coinciden en sus primeras 15 cifras —<code>0.1 + 0.2</code> y <code>0.3</code>, <code>1e15</code> y
+<code>1e15 + 1</code>— son dos filas, como los cuenta <code><a href="perfilar.html">perfilar()</a></code>, y cada una se
+escribe con las cifras que la devuelven a su valor. A igual frecuencia, las
+filas se ordenan por valor —el texto por sus bytes, los números como
+números—, el mismo desempate que la moda de <code><a href="perfilar.html">perfilar()</a></code>: así, el recorte de
+<code>max_valores</code> no depende del orden de las filas de la tabla.</p>
     </div>
     <div class="section level2">
     <h2 id="see-also">See also<a class="anchor" aria-label="anchor" href="#see-also"></a></h2>

@@ -175,10 +175,14 @@ analizar(
 
   Si el objeto retiene una copia de la entrada. Es `FALSE` por omisión
   para limitar tamaño y exposición. Con protección activa, las columnas
-  personales de esa copia también se enmascaran; para conservar sus
-  valores debe usarse `proteger_datos_personales = FALSE` al crear el
-  analisis y al guardarlo. La opcion del guardado no recupera valores
-  que el analisis ya enmascaro.
+  personales de esa copia también se enmascaran, y en las demás columnas
+  se tapa el valor protegido que identifica —el piso de
+  [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md)—:
+  la cédula citada en una observación, `"pago CI 3.738.538-0"`, o
+  guardada como número en otra columna; para conservar sus valores debe
+  usarse `proteger_datos_personales = FALSE` al crear el analisis y al
+  guardarlo. La opcion del guardado no recupera valores que el analisis
+  ya enmascaro.
 
 - proteger_datos_personales:
 

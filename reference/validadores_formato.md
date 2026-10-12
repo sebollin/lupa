@@ -7,8 +7,10 @@ versión del paquete. Los valores ausentes devuelven `NA`; todo valor
 presente que no cumple el contrato devuelve `FALSE`. Los espacios **al
 borde** se recortan antes de validar —son ruido de captura, no parte del
 dato—, salvo en `validar_url()`, donde un espacio literal en cualquier
-posición rompe la sintaxis y el valor es inválido. Un espacio en el
-medio no se recorta en ningún validador.
+posición rompe la sintaxis y el valor es inválido. Se recorta todo
+espacio: el ASCII, el tabulador y los separadores de Unicode, como el
+espacio duro (U+00A0) que dejan las planillas y las páginas web. Un
+espacio en el medio no se recorta en ningún validador.
 
 ## Usage
 
@@ -52,8 +54,13 @@ Vector lógico de la misma longitud que `x`.
 
 La respuesta es sobre el dato, no sobre cómo lo escribe R. Un número se
 valida por sus dígitos: el doble `12000000` se lee como `"12000000"`
-aunque `scipen` lo imprima en notación científica. `NaN` es ausente y
-devuelve `NA`, igual que en el resto del paquete. Las letras se pasan a
+aunque `scipen` lo imprima en notación científica. Un doble desde 2^53
+no conserva sus dígitos —es el más cercano de varios enteros— y devuelve
+`FALSE`; el mismo número como texto o como `integer64` sí se valida. Una
+magnitud con clase —`Date`, `POSIXct`, `difftime`, `hms`, `units`— no es
+la escritura de un documento y devuelve `FALSE` (o `NA` donde falta),
+sin validar los días o segundos que guarda. `NaN` es ausente y devuelve
+`NA`, igual que en el resto del paquete. Las letras se pasan a
 mayúsculas sólo dentro de ASCII:
 [`toupper()`](https://rdrr.io/r/base/chartr.html) convierte la s larga
 (U+017F) en `S` y la i sin punto (U+0131) en `I`, y con eso una s larga

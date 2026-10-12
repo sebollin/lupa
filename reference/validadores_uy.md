@@ -3,7 +3,8 @@
 `validar_ci_uy()` comprueba la cédula de identidad mediante su dígito
 verificador módulo 10. Acepta siete u ocho dígitos y separadores de
 puntos, espacios o guion; una cédula de siete dígitos se completa con
-cero inicial.
+cero inicial. Cualquier espacio separa, también el fino o el duro de
+Unicode.
 
 ## Usage
 
@@ -26,11 +27,15 @@ Vector lógico de la misma longitud que `x`.
 ## Details
 
 `validar_rut_uy()` comprueba la estructura de doce dígitos del RUT y su
-dígito verificador módulo 11. El algoritmo operativo no está publicado
-por DGI como especificación normativa abierta; esta implementación se
-contrastó con la implementación pública de `python-stdnum` y con
-ejemplos públicos. Por eso valida estructura y dígito, no vigencia ni
-existencia registral.
+dígito verificador módulo 11. Un RUT de once dígitos se completa con
+cero inicial, igual que la cédula de siete: es el que pierde su cero al
+guardarse como número
+([`read.csv()`](https://rdrr.io/r/utils/read.table.html) lee
+`073602060015` como `73602060015`). El algoritmo operativo no está
+publicado por DGI como especificación normativa abierta; esta
+implementación se contrastó con la implementación pública de
+`python-stdnum` y con ejemplos públicos. Por eso valida estructura y
+dígito, no vigencia ni existencia registral.
 
 **Los separadores son de la escritura, no del número.** Punto, espacio y
 guion se admiten porque una persona escribe `1.234.567-2`; en un valor

@@ -57,9 +57,17 @@ medicion_desde_estimaciones(
 
 ## Value
 
-Data frame `medicion_calidad` con el contrato de
+Data frame de clase `medicion_calidad` y `medicion` con el contrato de
 [`medir()`](https://sebollin.github.io/lupa/reference/medir.md), más las
-columnas `fuente` y `unidad`.
+columnas `fuente` y `unidad`: se acumula con
+[`historico_calidad()`](https://sebollin.github.io/lupa/reference/historico_calidad.md)
+y se une con [`rbind()`](https://rdrr.io/r/base/cbind.html) como
+cualquier medición. Su `id_medida` nombra la métrica y la celda estimada
+—`objeto_medible`— y no el número de fila, así que dos tabulados de la
+misma entidad y la misma fecha se pueden unir y evaluar juntos; la misma
+celda medida dos veces sí repite su identificador, y
+[`evaluar()`](https://sebollin.github.io/lupa/reference/evaluar.md) lo
+rechaza.
 
 ## Details
 
@@ -89,13 +97,13 @@ las estimaciones se publica.
 
 **Una celda que no es una estimación también se descarta, y se
 declara.** Un texto que no es un número, o un número fuera del dominio
-de su estadístico —un tamaño de muestra que no es un entero no negativo;
-un error estándar, un coeficiente de variación, unos grados de libertad,
-un efecto de diseño o un tamaño efectivo negativos— no se publica: se
-avisa y queda en el atributo `celdas_descartadas`, con la métrica, la
-celda, el valor recibido y el motivo (`no_numerica` o
-`fuera_de_dominio`). Una columna `factor` se lee por el texto de sus
-niveles, no por sus códigos.
+de su estadístico —un infinito, en cualquiera; un tamaño de muestra que
+no es un entero no negativo; un error estándar, un coeficiente de
+variación, unos grados de libertad, un efecto de diseño o un tamaño
+efectivo negativos— no se publica: se avisa y queda en el atributo
+`celdas_descartadas`, con la métrica, la celda, el valor recibido y el
+motivo (`no_numerica` o `fuera_de_dominio`). Una columna `factor` se lee
+por el texto de sus niveles, no por sus códigos.
 
 ## See also
 
@@ -116,20 +124,20 @@ medicion_desde_estimaciones(
   estimaciones, entidad = "ech2024", atributo = "celda",
   fuente = "survey 4.4, diseno complejo declarado por el equipo"
 )
-#>                                                        id_medida
-#> 1           estimaciones-20261006T105112-ech2024-Estimacion-0001
-#> 2           estimaciones-20261006T105112-ech2024-Estimacion-0002
-#> 3 estimaciones-20261006T105112-ech2024-CoeficienteVariacion-0001
-#> 4 estimaciones-20261006T105112-ech2024-CoeficienteVariacion-0002
-#> 5        estimaciones-20261006T105112-ech2024-TamanoMuestra-0001
-#> 6        estimaciones-20261006T105112-ech2024-TamanoMuestra-0002
+#>                                                                             id_medida
+#> 1           estimaciones-20261012T024401-ech2024-Estimacion@ech2024$Montevideo-000001
+#> 2             estimaciones-20261012T024401-ech2024-Estimacion@ech2024$Interior-000001
+#> 3 estimaciones-20261012T024401-ech2024-CoeficienteVariacion@ech2024$Montevideo-000001
+#> 4   estimaciones-20261012T024401-ech2024-CoeficienteVariacion@ech2024$Interior-000001
+#> 5        estimaciones-20261012T024401-ech2024-TamanoMuestra@ech2024$Montevideo-000001
+#> 6          estimaciones-20261012T024401-ech2024-TamanoMuestra@ech2024$Interior-000001
 #>                            id_medicion               fecha              metrica
-#> 1 estimaciones-20261006T105112-ech2024 2026-10-06 10:51:12           Estimacion
-#> 2 estimaciones-20261006T105112-ech2024 2026-10-06 10:51:12           Estimacion
-#> 3 estimaciones-20261006T105112-ech2024 2026-10-06 10:51:12 CoeficienteVariacion
-#> 4 estimaciones-20261006T105112-ech2024 2026-10-06 10:51:12 CoeficienteVariacion
-#> 5 estimaciones-20261006T105112-ech2024 2026-10-06 10:51:12        TamanoMuestra
-#> 6 estimaciones-20261006T105112-ech2024 2026-10-06 10:51:12        TamanoMuestra
+#> 1 estimaciones-20261012T024401-ech2024 2026-10-12 02:44:01           Estimacion
+#> 2 estimaciones-20261012T024401-ech2024 2026-10-12 02:44:01           Estimacion
+#> 3 estimaciones-20261012T024401-ech2024 2026-10-12 02:44:01 CoeficienteVariacion
+#> 4 estimaciones-20261012T024401-ech2024 2026-10-12 02:44:01 CoeficienteVariacion
+#> 5 estimaciones-20261012T024401-ech2024 2026-10-12 02:44:01        TamanoMuestra
+#> 6 estimaciones-20261012T024401-ech2024 2026-10-12 02:44:01        TamanoMuestra
 #>     metrica_especifica          metrica_instanciada dimension
 #> 1           Estimacion           Estimacion@ech2024 Precision
 #> 2           Estimacion           Estimacion@ech2024 Precision

@@ -99,6 +99,17 @@ interpolar. La condición se mide intentando el cálculo, no enumerando
 clases, así que una clase nueva con la misma limitación queda cubierta
 sin tocar el código.
 
+Las frecuencias se cuentan **por valor, no por su escritura**: dos
+dobles que coinciden en sus primeras 15 cifras —`0.1 + 0.2` y `0.3`,
+`1e15` y `1e15 + 1`— son dos filas, como los cuenta
+[`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md), y
+cada una se escribe con las cifras que la devuelven a su valor. A igual
+frecuencia, las filas se ordenan por valor —el texto por sus bytes, los
+números como números—, el mismo desempate que la moda de
+[`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md):
+así, el recorte de `max_valores` no depende del orden de las filas de la
+tabla.
+
 ## See also
 
 [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md),

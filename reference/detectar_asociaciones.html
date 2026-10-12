@@ -130,6 +130,10 @@ arreglos de más de una dimensión—, categóricas de cardinalidad alta y
 columnas posteriores a <code>max_columnas</code> antes de construir pares. Las
 dependencias funcionales exactas recibidas en <code>dependencias</code> no se repiten
 como asociaciones.</p>
+<p>Un par en el que una columna toma un solo valor en las filas completas no se
+puede medir —ni Cramér ni eta cuadrado están definidos con una sola
+categoría—, aunque la columna no sea constante en la tabla entera: va a
+<code>pares_omitidos_medicion</code> y no se publica como asociación cero.</p>
     </div>
     <div class="section level2">
     <h2 id="see-also">See also<a class="anchor" aria-label="anchor" href="#see-also"></a></h2>

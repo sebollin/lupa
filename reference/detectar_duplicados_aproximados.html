@@ -132,17 +132,28 @@ columnas en <code>datos</code>. El objeto publica en <code>columnas</code> el ve
 ese orden, así que el resultado se puede rehacer; declararlo a mano lo
 vuelve independiente de cómo estén ordenadas las columnas del archivo.</p>
 <p><strong>Cómo se concatena, para poder rehacer la distancia.</strong> Los valores se unen
-con <code>" | "</code> y cada <code>|</code> que haya dentro de un valor se escribe <code>\|</code>. El escape
-no es cosmético: sin él, <code>c1 = "x | y", c2 = "z"</code> y <code>c1 = "x", c2 = "y | z"</code>
-producían la misma cadena y dos filas que <strong>no comparten ningún valor</strong> salían
-<code>exacto_normalizado</code> a distancia <code>0</code>. Con el escape, la distancia publicada de
-una comparación de varias columnas se rehace así:</p>
-<p></p><div class="sourceCode r"><pre><code><span><span class="va">escapar</span> <span class="op">&lt;-</span> <span class="kw">function</span><span class="op">(</span><span class="va">v</span><span class="op">)</span> <span class="fu"><a href="https://rdrr.io/r/base/grep.html" class="external-link">gsub</a></span><span class="op">(</span><span class="st">"|"</span>, <span class="st">"\\|"</span>, <span class="va">v</span>, fixed <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span></span>
+con <code>" | "</code>; dentro de cada valor, cada barra invertida <code>\</code> se escribe <code>\\</code>
+y cada <code>|</code> se escribe <code>\|</code>. Los escapes no son cosméticos: sin el de <code>|</code>,
+<code>c1 = "x | y", c2 = "z"</code> y <code>c1 = "x", c2 = "y | z"</code> producían la misma cadena
+y dos filas que <strong>no comparten ningún valor</strong> salían <code>exacto_normalizado</code> a
+distancia <code>0</code>; el de <code>\</code> es el que deja leer ese <code>\|</code> de una sola manera, y
+el que distingue un valor declarado <code>bytes</code> del literal de su escape. Con
+los dos, la distancia publicada de una comparación de varias columnas se
+rehace así —y la de una sola, con el mismo <code>escapar()</code> y sin pegar—:</p>
+<p></p><div class="sourceCode r"><pre><code><span><span class="va">escapar</span> <span class="op">&lt;-</span> <span class="kw">function</span><span class="op">(</span><span class="va">v</span><span class="op">)</span> <span class="op">{</span></span>
+<span>  <span class="fu"><a href="https://rdrr.io/r/base/grep.html" class="external-link">gsub</a></span><span class="op">(</span><span class="st">"|"</span>, <span class="st">"\\|"</span>, <span class="fu"><a href="https://rdrr.io/r/base/grep.html" class="external-link">gsub</a></span><span class="op">(</span><span class="st">"\\"</span>, <span class="st">"\\\\"</span>, <span class="va">v</span>, fixed <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span>, fixed <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span></span>
+<span><span class="op">}</span></span>
 <span><span class="va">fila</span> <span class="op">&lt;-</span> <span class="kw">function</span><span class="op">(</span><span class="va">i</span><span class="op">)</span> <span class="fu"><a href="https://rdrr.io/r/base/paste.html" class="external-link">paste</a></span><span class="op">(</span><span class="fu">escapar</span><span class="op">(</span><span class="va">datos</span><span class="op">$</span><span class="va">c1</span><span class="op">[</span><span class="va">i</span><span class="op">]</span><span class="op">)</span>, <span class="fu">escapar</span><span class="op">(</span><span class="va">datos</span><span class="op">$</span><span class="va">c2</span><span class="op">[</span><span class="va">i</span><span class="op">]</span><span class="op">)</span>, sep <span class="op">=</span> <span class="st">" | "</span><span class="op">)</span></span>
 <span><span class="fu">stringdist</span><span class="fu">::</span><span class="fu"><a href="https://rdrr.io/pkg/stringdist/man/stringdist.html" class="external-link">stringdist</a></span><span class="op">(</span><span class="fu">fila</span><span class="op">(</span><span class="fl">1</span><span class="op">)</span>, <span class="fu">fila</span><span class="op">(</span><span class="fl">2</span><span class="op">)</span>, method <span class="op">=</span> <span class="st">"jw"</span>, p <span class="op">=</span> <span class="fl">0.1</span><span class="op">)</span></span></code></pre><p></p></div>
-<p>Si la columna es un factor o tiene marca <code>bytes</code>, la cadena comparada es la
-clave de bytes del valor —lo que distingue un valor no textual del literal de
-su escape—; para texto corriente esa clave es el valor tal cual.</p>
+<p>Fuera de esos dos escapes, el texto corriente se compara tal cual. Un valor
+con marca <code>bytes</code> entra con cada byte alto escrito <code>\xHH</code> —su clave de
+bytes; esas barras son del escape y no se duplican—, y un mismo texto en
+<code>latin1</code> y en UTF-8 entra igual. Un doble entra
+con la escritura más corta que vuelve a su valor: la de <code><a href="https://rdrr.io/r/base/character.html" class="external-link">as.character()</a></code>
+cuando sus 15 cifras alcanzan —<code>0.1</code> es <code>"0.1"</code> y <code>1e15</code>, <code>"1e+15"</code>— y 16 o
+17 cuando no —<code>1e15 + 1</code> es <code>"1000000000000001"</code> y <code>0.1 + 0.2</code>,
+<code>"0.30000000000000004"</code>—, así que dos números que R distingue no se comparan
+como el mismo texto. La evidencia los cita con esa misma escritura.</p>
 <p>Si dos columnas de texto <strong>tienen el mismo nombre</strong>, la comparación no corre:
 identifica las columnas por nombre y no podría decir cuál compara. No se
 compara un subconjunto —sacar una columna cambia el significado de la
@@ -346,7 +357,10 @@ son <code>NA</code>, nunca cero.</p>
     <div class="section level2">
     <h2 id="details">Details<a class="anchor" aria-label="anchor" href="#details"></a></h2>
     <p><code>tipo_par = "exacto"</code> indica que los textos guardados son iguales en las
-columnas comparadas. <code>tipo_par = "exacto_normalizado"</code> indica que coinciden
+columnas comparadas; una celda ausente (<code>NA</code>) y una cadena vacía cuentan como
+el mismo texto vacío, que es como entran a la comparación, así que esa
+diferencia no se atribuye a la normalización. Dos dobles son iguales si lo son
+sus valores, no su escritura con 15 cifras. <code>tipo_par = "exacto_normalizado"</code> indica que coinciden
 despues de la normalizacion declarada, aunque los textos guardados difieran.
 Los restantes son <code>"aproximado"</code>. La columna logica <code>igualo_normalizar</code> es
 <code>TRUE</code> unicamente para el segundo caso. La clasificacion no depende de que
@@ -357,8 +371,10 @@ comillas, el objeto conserva esta distincion tanto en <code>pares</code> como en
 hallazgos. <code>duplicados_exactos_normalizados</code> es un tipo de hallazgo propio:
 no afirma que los valores guardados sean iguales y tampoco oculta la causa
 de la coincidencia bajo <code>duplicados_aproximados</code>.</p>
-<p>Una fila cuyos valores en las columnas comparadas son <strong>todos</strong> ausentes o
-cadena vacía no entra en la comparación: no hay texto que medir, y dos filas
+<p>Una fila cuyos valores en las columnas comparadas son <strong>todos</strong> ausentes,
+cadena vacía o solo blancos —espacios, tabulaciones, saltos de línea; lo que
+<code><a href="perfilar.html">perfilar()</a></code> cuenta en <code>n_blancos</code>— no entra en la comparación, con o sin
+normalización: no hay texto que medir, y dos filas
 vacías no son un duplicado sino dos ausencias. <code>alcance$n_filas_validas</code>
 cuenta las que sí entraron —contra <code>n_filas_total</code>— y, si no quedan dos,
 <code>razon</code> lo dice. Una cadena vacía <strong>sí</strong> es una clave válida en
@@ -410,7 +426,13 @@ contenido exportado en distinto orden.</p>
 <p><code>stringdist</code> es una dependencia opcional. Si no esta instalado, la funcion
 devuelve un objeto con <code>disponible = FALSE</code>, una tabla vacia y el motivo
 explicito; no falla ni presenta silencio como si se hubieran comparado todos
-los pares.</p>
+los pares. En ese caso —y cuando la comparación no corre por un valor que
+supera <code>max_largo_valor</code>, por dos columnas con el mismo nombre o por no haber
+columnas comparables— los conteos de <code>alcance</code> que salen de comparar filas
+(<code>n_filas_validas</code>, <code>n_pares_hallados</code>, <code>n_pares_exactos</code>,
+<code>n_pares_exactos_normalizados</code> y <code>n_pares_aproximados</code>) son <code>NA</code>, no cero:
+nadie los midió. Si las filas se recorrieron y no quedaron dos válidas, cero
+pares sí es lo medido.</p>
 <p>Las comparaciones que delegan en <code>stringdist</code> usan <code>nucleos</code> hilos como
 máximo. El valor por omisión es <code>getOption("lupa.nucleos", 2L)</code>, se limita a
 los núcleos disponibles y se publica como <code>alcance$nucleos_usados</code>. Cambiar

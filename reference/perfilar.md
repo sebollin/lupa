@@ -330,9 +330,15 @@ perfilar(
   los datos. Un campo se reconoce como de nombres por su **contenido**
   —todos sus valores son nombres de la entrada, solos o unidos—, así que
   la protección de los valores no se afloja: si un valor protegido es
-  igual a un nombre de columna, su moda sigue tapada. Y un texto que
-  nombra una columna entre comillas —la prosa del paquete, la SQL que
-  guarda
+  igual a un nombre de columna —una planilla pivoteada con una columna
+  de notas por docente y la docente protegida—, su moda sigue tapada, y
+  también los ejemplos de sus patrones, sus niveles observados y la
+  configuración propuesta: un campo hecho de nombres que son valores
+  protegidos es un campo de **valores**. Salvo donde el campo refiere
+  columnas —`columna`, `determinante`, `dependiente`,
+  `nombres_propuestos` y los demás de su clase—: ahí el nombre es
+  estructura y el plan lo necesita para ejecutar. Y un texto que nombra
+  una columna entre comillas —la prosa del paquete, la SQL que guarda
   [`perfilar_dbi()`](https://sebollin.github.io/lupa/reference/perfilar_dbi.md)—
   la conserva entera: con «Segundo» protegido, `segundo_nombre` salía
   `[valor protegido]_nombre` en los hallazgos sin acción del plan y en
@@ -413,28 +419,36 @@ perfilar(
   comunes del punto, la coma, la barra y el apóstrofo —el acento agudo
   que el teclado en español pone por apóstrofo—, con la raya o el
   apóstrofo de un CSV de Windows leído como `latin1`, o escrito con
-  dígitos arábigo-índicos, persas o devanagari. No unen los parecidos
-  raros: la prima de una coordenada sexagesimal, el acento grave, la
-  tilde. Los dos puntos y la barra vertical **no** unen: una razón
-  `"494:2714"` o una lista `"12|345|6789"` no es un documento, y un
-  documento escrito así no se reconoce. Una fecha con hora protegida se
-  reconoce escrita con `T`, `Z`, uno a tres espacios, coma, punto y
-  coma, guion o guion doble, guion bajo, barra, barra vertical, arroba,
-  paréntesis o corchete entre la fecha y la hora, con día y mes en
-  cualquier orden, con la hora separada por puntos, guiones o `h` y `m`
-  (`"21h24m25s"`), en la forma compacta `"20240627T212425"` o con la
-  hora compacta tras la fecha con separadores (`"2024-06-27T212425"`);
-  no en palabras, con a.m./p.m., con cuatro espacios o más ni con el año
-  en dos cifras. El documento **parcial**, de siete cifras o más, se
-  busca con más cuidado porque es el que coincide por azar: sin su
-  verificador, fuera de la parte de un decimal, de un número con forma
-  de dirección IPv4 —con o sin máscara CIDR— y de un importe con miles
-  de cuatro grupos o más (`"3.919.024.166"`), que se prueban enteros —el
-  importe, también sin su primer grupo: es el prefijo de país de un
-  celular agrupado de a tres, `"598.099.123.456"`, que se publicaba—
-  (`"4.123.456"` frente a `"4.123.456-7"`, el verificador mal tipeado,
-  el documento seguido de un año), y sin su primer dígito sólo detrás de
-  un asterisco o una equis (`"*.123.456-7"`, `"X.012.345-8"`,
+  dígitos arábigo-índicos, persas o devanagari. El **teléfono uruguayo
+  con su prefijo de país** —`"598"` o `"00598"` y ocho cifras que
+  empiezan con 2, 4 o 9: `"+598 2901 1234"`, `"00598 99 123 456"` o
+  pegado, `"+59899123456"`, como lo escriben los enlaces de WhatsApp y
+  las exportaciones de un CRM— se prueba por su parte nacional, como si
+  estuviera escrito solo, y entero; el prefijo no se une a otro grupo. Y
+  el celular protegido guardado con el prefijo se reconoce escrito sin
+  él. No unen los parecidos raros: la prima de una coordenada
+  sexagesimal, el acento grave, la tilde. Los dos puntos y la barra
+  vertical **no** unen: una razón `"494:2714"` o una lista
+  `"12|345|6789"` no es un documento, y un documento escrito así no se
+  reconoce. Una fecha con hora protegida se reconoce escrita con `T`,
+  `Z`, uno a tres espacios, coma, punto y coma, guion o guion doble,
+  guion bajo, barra, barra vertical, arroba, paréntesis o corchete entre
+  la fecha y la hora, con día y mes en cualquier orden, con la hora
+  separada por puntos, guiones o `h` y `m` (`"21h24m25s"`), en la forma
+  compacta `"20240627T212425"` o con la hora compacta tras la fecha con
+  separadores (`"2024-06-27T212425"`); no en palabras, con a.m./p.m.,
+  con cuatro espacios o más ni con el año en dos cifras —también con las
+  formas chicas o de ancho completo de esos signos, o con la barra
+  partida por barra vertical—. El documento **parcial**, de siete cifras
+  o más, se busca con más cuidado porque es el que coincide por azar:
+  sin su verificador, fuera de la parte de un decimal, de un número con
+  forma de dirección IPv4 —con o sin máscara CIDR— y de un importe con
+  miles de cuatro grupos o más (`"3.919.024.166"`), que se prueban
+  enteros —el importe, también sin su primer grupo: es el prefijo de
+  país de un celular agrupado de a tres, `"598.099.123.456"`, que se
+  publicaba— (`"4.123.456"` frente a `"4.123.456-7"`, el verificador mal
+  tipeado, el documento seguido de un año), y sin su primer dígito sólo
+  detrás de un asterisco o una equis (`"*.123.456-7"`, `"X.012.345-8"`,
   `"X2345678"`) —también los asteriscos de Unicode, todo signo que
   Unicode llama asterisco salvo el combinante de abajo, que el pliegue
   borra como a una tilde, y el asterisco pegado a una letra,
@@ -488,15 +502,20 @@ perfilar(
   `"2004-2017"` o con la raya de un CSV de Windows, dos números en dos
   líneas, una lista con tabuladores o con comas sin espacio —también la
   coma ideográfica—, entre una y tres de cada cien; o una versión
-  `"v4.16.4302"`. Y, por el mismo parcial, una versión de cuatro partes
-  (`"v4.62.660.4361"`), trece de cada cien, y un expediente
-  `"exp 2023-6-880041"`, uno de cada seis: su tramo `"660.4361"` o
-  `"6-880041"` es un número de siete cifras con un signo que une, y no
-  se distingue del documento escrito así. Y por la regla de la hora, una
-  fracción de ocho cifras (`"18:54:14.80786977"`) no es fracción —así no
-  se traga un documento pegado— y se taparon cuatro o cinco de cada
-  cien; lo mismo un número de diez cifras con la forma de un ISBN-10 y
-  su dígito de control inválido. La medición se rehace con
+  `"v4.16.4302"`. Un teléfono fijo que no es de nadie, escrito con
+  espacios o guiones —`"4656 4570"`—, entre tres y seis de cada cien,
+  igual con su prefijo de país (`"+598 4499 0917"`) o pegado: coincide
+  con un documento o con un teléfono protegido. Con el prefijo era uno
+  de cada seis, porque `"598"` y el primer grupo formaban una cédula de
+  siete cifras sin su verificador. Y, por el mismo parcial, una versión
+  de cuatro partes (`"v4.62.660.4361"`), trece de cada cien, y un
+  expediente `"exp 2023-6-880041"`, uno de cada seis: su tramo
+  `"660.4361"` o `"6-880041"` es un número de siete cifras con un signo
+  que une, y no se distingue del documento escrito así. Y por la regla
+  de la hora, una fracción de ocho cifras (`"18:54:14.80786977"`) no es
+  fracción —así no se traga un documento pegado— y se taparon cuatro o
+  cinco de cada cien; lo mismo un número de diez cifras con la forma de
+  un ISBN-10 y su dígito de control inválido. La medición se rehace con
   `data-raw/medir_tapado_de_mas.R`. Las tildes, la caja y la escritura
   también son cosméticas: `juan.perez` se enmascara frente al nombre
   protegido «Juan Pérez», y el nombre pegado a otras letras dentro de un
@@ -516,20 +535,27 @@ perfilar(
   la palabra es la arroba sólo si la sigue un dominio con su punto, y
   `dot` o `punto` son el punto sólo en un texto que ya tiene arroba
   —también la arroba escrita, `juan@gmail punto com`—. Se lee con los
-  espacios de Unicode como espacios —el duro, el ideográfico— y los
-  signos de ancho completo como los de ASCII —los paréntesis o la arroba
-  anchos—, y en cualquier codificación: un texto `latin1` con una tilde
-  se lee como el mismo texto en UTF-8. Medido sobre 3.000 correos
-  protegidos: los no protegidos escritos así se taparon lo mismo que con
-  la arroba común —cuatro de cada mil, por los separadores cosméticos—,
-  y ninguna de 3.015 frases con esas palabras, mil de ellas con una
-  arroba y el punto en palabras. **No** se leen otras ofuscaciones: el
-  punto entre corchetes o paréntesis (`[at]...[.]`, `(.)`), `<at>`,
-  `"at"`, `-at-`, `/at/`, el punto con espacios alrededor
-  (`empresa . com`) ni un dominio con guion bajo; un correo protegido
-  escrito así se publica. Las marcas del paquete se apartan del texto, y
-  un valor protegido que contiene una se busca entero antes de
-  apartarla. **Una fecha de calendario sola no entra en el piso**,
+  espacios de Unicode como espacios —el duro, el ideográfico, el salto
+  de línea de C1 (U+0085)— y los signos de ancho completo como los de
+  ASCII —los paréntesis o la arroba anchos, también los paréntesis
+  blancos anchos (U+FF5F, U+FF60)—, y con las demás formas de
+  compatibilidad de un signo ASCII que la regla de dígitos ya lee: el
+  punto ideográfico y el de medio ancho (U+3002, U+FF61), las variantes
+  chicas de la coma, el punto, los paréntesis o la arroba (U+FE50 a
+  U+FE6B) y la barra partida. Las letras de otro alfabeto que se parecen
+  —una «a» cirílica (U+0430) en lugar de la latina— no son el mismo
+  signo y no se leen. Y en cualquier codificación: un texto `latin1` con
+  una tilde se lee como el mismo texto en UTF-8. Medido sobre 3.000
+  correos protegidos: los no protegidos escritos así se taparon lo mismo
+  que con la arroba común —cuatro de cada mil, por los separadores
+  cosméticos—, y ninguna de 3.015 frases con esas palabras, mil de ellas
+  con una arroba y el punto en palabras. **No** se leen otras
+  ofuscaciones: el punto entre corchetes o paréntesis (`[at]...[.]`,
+  `(.)`), `<at>`, `"at"`, `-at-`, `/at/`, el punto con espacios
+  alrededor (`empresa . com`) ni un dominio con guion bajo; un correo
+  protegido escrito así se publica. Las marcas del paquete se apartan
+  del texto, y un valor protegido que contiene una se busca entero antes
+  de apartarla. **Una fecha de calendario sola no entra en el piso**,
   tampoco escrita como `AAAAMMDD` o con el año en dos cifras en una
   columna de esas fechas, ni como fecha-hora ISO a medianoche: en una
   tabla de miles de personas casi todo día es el cumpleaños de alguien,
@@ -1318,8 +1344,13 @@ Las columnas `POSIXt` declaran `zona_horaria_origen` y
 cambia al mostrar el instante en UTC. Cuando la fecha civil cambia se
 emite un hallazgo `zona_horaria_fecha_hora`; si la zona de origen no
 está declarada, el conteo queda en `NA` y `cobertura_diagnosticos`
-declara que no se evaluó. La zona se declara en la columna original, por
-ejemplo: `attr(x, "tzone") <- "America/Montevideo"`.
+declara que no se evaluó. Una columna de texto cuyos valores llevan el
+desplazamiento horario escrito (`2020-01-31T23:30:00-03:00`) también
+publica su instante en UTC, y su fecha civil puede no ser la escrita: el
+conteo es de las columnas `POSIXt` y queda en `NA`, y
+`cobertura_diagnosticos` declara igual que no se evaluó. La zona se
+declara en la columna original, por ejemplo:
+`attr(x, "tzone") <- "America/Montevideo"`.
 
 El diagnóstico de formas Unicode compara sin modificar el texto y puede
 usar el paquete opcional `stringi` para enriquecer la evidencia cuando
@@ -1635,25 +1666,35 @@ una fila; `detalle_proteccion_personal` hace visible la supresión. En
 fechas de nacimiento y fallecimiento, un hallazgo separado conserva el
 diagnóstico de valores anteriores a 1900 o posteriores a la corrida sin
 publicar las fechas. Los números escritos como texto reconocen tanto
-coma como punto decimal y sus separadores de miles simétricos. Los
-prefijos de tres letras separados del número, incluso como sufijo, `U$S`
-y los símbolos monetarios se conservan como evidencia; `monedas_mixtas`
-informa sus frecuencias sin convertir ni suponer tasas de cambio. Una
-única moneda o un símbolo `$` aislado no produce ese hallazgo. Un sufijo
-de unidad se reconoce sólo si es `%` o una abreviatura alfabética en
-minúsculas; por eso `12 kg` y `13500 g` son unidades, mientras que `12A`
-y `13B` se tratan como códigos. Si hay más de una unidad observada,
-`unidades_mixtas` informa sus frecuencias y no convierte ni compara sus
-magnitudes. Una única unidad no genera ese hallazgo.
-`formatos_fecha_mixtos` compara representaciones dentro de una columna
-cuyo dominio es la fecha o la fecha-hora. Una fecha agregada adentro de
-una columna de horas del día —`12/02/2011 6:55 a.m.` entre valores
-`7:10 a.m.`— no produce ese hallazgo, porque la columna no es de fechas:
-aparece como `patron_raro`, que es lo que de verdad cambió. Decidir que
-esa columna sólo debe contener horas es una regla de dominio y el
-paquete no la supone. Del mismo modo, un número sin sufijo no cuenta
-como una segunda unidad: una columna que mezcla `5` con `5 %` observa
-una sola unidad y se informa como `numero_como_texto`, no como
+coma como punto decimal y sus separadores de miles simétricos. El
+resumen cuantitativo, los outliers y la secuencia entera los leen con la
+convención que la misma fila publica en `numero_texto_convencion`, por
+la misma normalización que la acción `convertir_numero_regional`: con
+`"decimal_coma"`, `1.500` es mil quinientos. Un separador seguido de
+exactamente tres dígitos —`1.500`, `1,500`— sólo se lee si la columna
+aporta evidencia de una sola convención; si no la aporta (`"ambigua"`) o
+aporta de las dos (`"mixta"`), ese valor no se lee como número, con
+punto o con coma por igual: una columna entera de esos valores queda
+`texto` y sin resumen, y si son pocos quedan fuera del resumen y lo
+declaran `n_valores_excluidos_resumen` y `"calculados_sobre_valores"`.
+Los prefijos de tres letras separados del número, incluso como sufijo,
+`U$S` y los símbolos monetarios se conservan como evidencia;
+`monedas_mixtas` informa sus frecuencias sin convertir ni suponer tasas
+de cambio. Una única moneda o un símbolo `$` aislado no produce ese
+hallazgo. Un sufijo de unidad se reconoce sólo si es `%` o una
+abreviatura alfabética en minúsculas; por eso `12 kg` y `13500 g` son
+unidades, mientras que `12A` y `13B` se tratan como códigos. Si hay más
+de una unidad observada, `unidades_mixtas` informa sus frecuencias y no
+convierte ni compara sus magnitudes. Una única unidad no genera ese
+hallazgo. `formatos_fecha_mixtos` compara representaciones dentro de una
+columna cuyo dominio es la fecha o la fecha-hora. Una fecha agregada
+adentro de una columna de horas del día —`12/02/2011 6:55 a.m.` entre
+valores `7:10 a.m.`— no produce ese hallazgo, porque la columna no es de
+fechas: aparece como `patron_raro`, que es lo que de verdad cambió.
+Decidir que esa columna sólo debe contener horas es una regla de dominio
+y el paquete no la supone. Del mismo modo, un número sin sufijo no
+cuenta como una segunda unidad: una columna que mezcla `5` con `5 %`
+observa una sola unidad y se informa como `numero_como_texto`, no como
 `unidades_mixtas`. `celdas_multivaluadas` es deliberadamente
 conservador: usa los patrones de
 [`descubrir_patrones()`](https://sebollin.github.io/lupa/reference/descubrir_patrones.md)

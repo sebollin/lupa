@@ -6,16 +6,20 @@ versión del paquete. Los valores ausentes devuelven NA; todo valor presente
 que no cumple el contrato devuelve FALSE. Los espacios al borde se
 recortan antes de validar —son ruido de captura, no parte del dato—, salvo en
 validar_url(), donde un espacio literal en cualquier posición rompe la
-sintaxis y el valor es inválido. Un espacio en el medio no se recorta en
-ningún validador."><meta property="og:description" content="Estas funciones son puras y vectorizadas: no consultan la red ni prueban la
+sintaxis y el valor es inválido. Se recorta todo espacio: el ASCII, el
+tabulador y los separadores de Unicode, como el espacio duro (U+00A0) que
+dejan las planillas y las páginas web. Un espacio en el medio no se recorta
+en ningún validador."><meta property="og:description" content="Estas funciones son puras y vectorizadas: no consultan la red ni prueban la
 existencia de un país, moneda, buzón o entidad emisora. Los códigos se
 contrastan con copias locales de las listas vigentes al preparar esta
 versión del paquete. Los valores ausentes devuelven NA; todo valor presente
 que no cumple el contrato devuelve FALSE. Los espacios al borde se
 recortan antes de validar —son ruido de captura, no parte del dato—, salvo en
 validar_url(), donde un espacio literal en cualquier posición rompe la
-sintaxis y el valor es inválido. Un espacio en el medio no se recorta en
-ningún validador."><meta property="og:image" content="https://sebollin.github.io/lupa/logo.png"></head><body>
+sintaxis y el valor es inválido. Se recorta todo espacio: el ASCII, el
+tabulador y los separadores de Unicode, como el espacio duro (U+00A0) que
+dejan las planillas y las páginas web. Un espacio en el medio no se recorta
+en ningún validador."><meta property="og:image" content="https://sebollin.github.io/lupa/logo.png"></head><body>
     <a href="#main" class="visually-hidden-focusable">Skip to contents</a>
 
 
@@ -65,8 +69,10 @@ versión del paquete. Los valores ausentes devuelven <code>NA</code>; todo valor
 que no cumple el contrato devuelve <code>FALSE</code>. Los espacios <strong>al borde</strong> se
 recortan antes de validar —son ruido de captura, no parte del dato—, salvo en
 <code>validar_url()</code>, donde un espacio literal en cualquier posición rompe la
-sintaxis y el valor es inválido. Un espacio en el medio no se recorta en
-ningún validador.</p>
+sintaxis y el valor es inválido. Se recorta todo espacio: el ASCII, el
+tabulador y los separadores de Unicode, como el espacio duro (U+00A0) que
+dejan las planillas y las páginas web. Un espacio en el medio no se recorta
+en ningún validador.</p>
     </div>
 
     <div class="section level2">
@@ -112,7 +118,12 @@ dos dígitos se completan con ceros a la izquierda.</p></dd>
     <h2 id="details">Details<a class="anchor" aria-label="anchor" href="#details"></a></h2>
     <p>La respuesta es sobre el dato, no sobre cómo lo escribe R. Un número se valida
 por sus dígitos: el doble <code>12000000</code> se lee como <code>"12000000"</code> aunque <code>scipen</code>
-lo imprima en notación científica. <code>NaN</code> es ausente y devuelve <code>NA</code>, igual que
+lo imprima en notación científica. Un doble desde 2^53 no conserva sus
+dígitos —es el más cercano de varios enteros— y devuelve <code>FALSE</code>; el mismo
+número como texto o como <code>integer64</code> sí se valida. Una magnitud con clase
+—<code>Date</code>, <code>POSIXct</code>, <code>difftime</code>, <code>hms</code>, <code>units</code>— no es la escritura de un
+documento y devuelve <code>FALSE</code> (o <code>NA</code> donde falta), sin validar los días o
+segundos que guarda. <code>NaN</code> es ausente y devuelve <code>NA</code>, igual que
 en el resto del paquete. Las letras se pasan a mayúsculas sólo dentro de ASCII:
 <code><a href="https://rdrr.io/r/base/chartr.html" class="external-link">toupper()</a></code> convierte la s larga (U+017F) en <code>S</code> y la i sin punto (U+0131) en
 <code>I</code>, y con eso una s larga seguida de <code>e</code> pasaba por un código ISO; ahora es

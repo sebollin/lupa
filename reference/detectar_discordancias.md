@@ -78,6 +78,17 @@ Una fila donde alguna de las columnas comparadas está ausente **no se
 cuenta como discordante ni como concordante**: se excluye del universo
 evaluado, y `n_evaluadas` lo declara. Ausencia no es desacuerdo.
 
+Una fila con el mismo valor en todas las columnas concuerda, también si
+ese valor es infinito: `Inf` contra `Inf` es coincidencia exacta.
+
+Una fila citada no muestra iguales dos valores que el veredicto separó.
+Si la escritura corriente los junta —dos dobles que coinciden en 15
+cifras, dos instantes del mismo segundo, dos textos que se ven iguales
+con distintos puntos de código—, esa fila los cita con la escritura que
+los distingue: el doble con las cifras que lo devuelven a su valor, el
+instante con su fracción y el texto con cada carácter fuera del ASCII
+imprimible escrito `<U+XXXX>`, con una nota que lo dice.
+
 ## See also
 
 [`senal_redundante()`](https://sebollin.github.io/lupa/reference/senal_redundante.md),

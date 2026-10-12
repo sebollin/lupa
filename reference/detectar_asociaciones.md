@@ -82,6 +82,11 @@ columnas posteriores a `max_columnas` antes de construir pares. Las
 dependencias funcionales exactas recibidas en `dependencias` no se
 repiten como asociaciones.
 
+Un par en el que una columna toma un solo valor en las filas completas
+no se puede medir —ni Cramér ni eta cuadrado están definidos con una
+sola categoría—, aunque la columna no sea constante en la tabla entera:
+va a `pares_omitidos_medicion` y no se publica como asociación cero.
+
 ## See also
 
 [`detectar_dependencias()`](https://sebollin.github.io/lupa/reference/detectar_dependencias.md),

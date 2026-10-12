@@ -4,12 +4,24 @@ fechas-hora, horas, identificadores y texto. Además de la etiqueta devuelve
 la proporción de valores compatibles, siempre en la escala [0, 1].
 Los textos compuestos únicamente por 0 y 1 se consideran enteros; para
 inferir un lógico debe aparecer al menos un literal alfabético como sí,
-no, true o false."><meta property="og:description" content="Para columnas de texto distingue valores lógicos, enteros, dobles, fechas,
+no, true o false. Una letra suelta (T, F, S, N) cuenta como
+literal sólo si aparece también su opuesto —T con F o false, S con
+N o no, y al revés—: sola es un código, y una columna de F y M no es
+lógica.
+Un separador seguido de exactamente tres dígitos (1.500, 1,500) cuenta
+como número sólo si la columna aporta evidencia de una sola convención
+decimal, con punto o con coma por igual."><meta property="og:description" content="Para columnas de texto distingue valores lógicos, enteros, dobles, fechas,
 fechas-hora, horas, identificadores y texto. Además de la etiqueta devuelve
 la proporción de valores compatibles, siempre en la escala [0, 1].
 Los textos compuestos únicamente por 0 y 1 se consideran enteros; para
 inferir un lógico debe aparecer al menos un literal alfabético como sí,
-no, true o false."><meta property="og:image" content="https://sebollin.github.io/lupa/logo.png"></head><body>
+no, true o false. Una letra suelta (T, F, S, N) cuenta como
+literal sólo si aparece también su opuesto —T con F o false, S con
+N o no, y al revés—: sola es un código, y una columna de F y M no es
+lógica.
+Un separador seguido de exactamente tres dígitos (1.500, 1,500) cuenta
+como número sólo si la columna aporta evidencia de una sola convención
+decimal, con punto o con coma por igual."><meta property="og:image" content="https://sebollin.github.io/lupa/logo.png"></head><body>
     <a href="#main" class="visually-hidden-focusable">Skip to contents</a>
 
 
@@ -57,7 +69,13 @@ fechas-hora, horas, identificadores y texto. Además de la etiqueta devuelve
 la proporción de valores compatibles, siempre en la escala <code>[0, 1]</code>.
 Los textos compuestos únicamente por <code>0</code> y <code>1</code> se consideran enteros; para
 inferir un lógico debe aparecer al menos un literal alfabético como <code>sí</code>,
-<code>no</code>, <code>true</code> o <code>false</code>.</p>
+<code>no</code>, <code>true</code> o <code>false</code>. Una letra suelta (<code>T</code>, <code>F</code>, <code>S</code>, <code>N</code>) cuenta como
+literal sólo si aparece también su opuesto —<code>T</code> con <code>F</code> o <code>false</code>, <code>S</code> con
+<code>N</code> o <code>no</code>, y al revés—: sola es un código, y una columna de <code>F</code> y <code>M</code> no es
+lógica.
+Un separador seguido de exactamente tres dígitos (<code>1.500</code>, <code>1,500</code>) cuenta
+como número sólo si la columna aporta evidencia de una sola convención
+decimal, con punto o con coma por igual.</p>
     </div>
 
     <div class="section level2">

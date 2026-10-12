@@ -868,7 +868,13 @@ los clientes que se repiten casi no se repiten, y la cédula válida de un
 cliente con seiscientos movimientos salía como moda de otra columna. Con
 la tabla leída completa decide la muestra, que es la tabla; si no, la
 confirman los conteos exactos de la tabla —<code>n_distintos</code> y <code>n_validos</code>
-calculados—, y sin ellos el relleno sigue en el piso. Y la protección es
+calculados—, y sin ellos el relleno sigue en el piso. Con
+<code>universo = "muestra_motor"</code> no hay tabla entera que lo confirme —los
+conteos son los de la muestra del motor, y con <code>muestra = Inf</code> la muestra en
+R es esa misma relación—: el relleno sigue en el piso. Y sale del piso sólo
+en su columna, como en memoria: si otra columna protegida tiene el mismo
+valor —el <code>1.111.111-1</code> de relleno de <code>cedula</code> es la cédula de un cónyuge—,
+ese valor se sigue tapando. Y la protección es
 <strong>por tabla</strong>: un valor protegido de otra tabla escrito en ésta no se
 conoce; <code><a href="perfilar_coleccion.html">perfilar_coleccion()</a></code> los cruza. Se traen hasta dos millones de valores; si hay más, o si la consulta
 no se puede hacer, se tapan todos los valores de celda de las columnas no
