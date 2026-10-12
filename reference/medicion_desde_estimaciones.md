@@ -125,19 +125,19 @@ medicion_desde_estimaciones(
   fuente = "survey 4.4, diseno complejo declarado por el equipo"
 )
 #>                                                                             id_medida
-#> 1           estimaciones-20261012T024401-ech2024-Estimacion@ech2024$Montevideo-000001
-#> 2             estimaciones-20261012T024401-ech2024-Estimacion@ech2024$Interior-000001
-#> 3 estimaciones-20261012T024401-ech2024-CoeficienteVariacion@ech2024$Montevideo-000001
-#> 4   estimaciones-20261012T024401-ech2024-CoeficienteVariacion@ech2024$Interior-000001
-#> 5        estimaciones-20261012T024401-ech2024-TamanoMuestra@ech2024$Montevideo-000001
-#> 6          estimaciones-20261012T024401-ech2024-TamanoMuestra@ech2024$Interior-000001
+#> 1           estimaciones-20261012T025910-ech2024-Estimacion@ech2024$Montevideo-000001
+#> 2             estimaciones-20261012T025910-ech2024-Estimacion@ech2024$Interior-000001
+#> 3 estimaciones-20261012T025910-ech2024-CoeficienteVariacion@ech2024$Montevideo-000001
+#> 4   estimaciones-20261012T025910-ech2024-CoeficienteVariacion@ech2024$Interior-000001
+#> 5        estimaciones-20261012T025910-ech2024-TamanoMuestra@ech2024$Montevideo-000001
+#> 6          estimaciones-20261012T025910-ech2024-TamanoMuestra@ech2024$Interior-000001
 #>                            id_medicion               fecha              metrica
-#> 1 estimaciones-20261012T024401-ech2024 2026-10-12 02:44:01           Estimacion
-#> 2 estimaciones-20261012T024401-ech2024 2026-10-12 02:44:01           Estimacion
-#> 3 estimaciones-20261012T024401-ech2024 2026-10-12 02:44:01 CoeficienteVariacion
-#> 4 estimaciones-20261012T024401-ech2024 2026-10-12 02:44:01 CoeficienteVariacion
-#> 5 estimaciones-20261012T024401-ech2024 2026-10-12 02:44:01        TamanoMuestra
-#> 6 estimaciones-20261012T024401-ech2024 2026-10-12 02:44:01        TamanoMuestra
+#> 1 estimaciones-20261012T025910-ech2024 2026-10-12 02:59:10           Estimacion
+#> 2 estimaciones-20261012T025910-ech2024 2026-10-12 02:59:10           Estimacion
+#> 3 estimaciones-20261012T025910-ech2024 2026-10-12 02:59:10 CoeficienteVariacion
+#> 4 estimaciones-20261012T025910-ech2024 2026-10-12 02:59:10 CoeficienteVariacion
+#> 5 estimaciones-20261012T025910-ech2024 2026-10-12 02:59:10        TamanoMuestra
+#> 6 estimaciones-20261012T025910-ech2024 2026-10-12 02:59:10        TamanoMuestra
 #>     metrica_especifica          metrica_instanciada dimension
 #> 1           Estimacion           Estimacion@ech2024 Precision
 #> 2           Estimacion           Estimacion@ech2024 Precision
