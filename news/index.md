@@ -346,7 +346,7 @@ la `NoNulo` con faltantes disfrazados se mide.
   (la plantilla de un pack propio) calcula el digito verificador con
   enteros: con `scipen = -9` rechazaba un RUT valido.
 
-**Tres decisiones de diseno:**
+**Cuatro decisiones de diseno:**
 
 - **[`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md)
   acepta `columnas_codigo`.** La regla de numeracion (ronda 28-N) dejo
@@ -424,6 +424,21 @@ la `NoNulo` con faltantes disfrazados se mide.
   avisa “unable to translate” bajo el locale `C` con ids no ASCII (unia
   las mediciones con [`rbind()`](https://rdrr.io/r/base/cbind.html)
   sobre una lista nombrada por instancia; ahora sin los nombres).
+- **El paquete ya no tapa [`stop()`](https://rdrr.io/r/base/stop.html)
+  ni [`warning()`](https://rdrr.io/r/base/warning.html) de base.** La
+  ronda 31 habia definido en el espacio de nombres un
+  [`stop()`](https://rdrr.io/r/base/stop.html) -y la 32 un
+  [`warning()`](https://rdrr.io/r/base/warning.html)- que armaban la
+  condicion sin [`gettext()`](https://rdrr.io/r/base/gettext.html), para
+  que bajo el locale `C` el texto de un error o un aviso que se guarda
+  como dato no saliera escapado; con `devtools::load_all()` tapaban
+  tambien a los de base en la sesion. Ahora son `.detener()` y
+  `.avisar()`, con nombre propio, y las 711 llamadas del paquete los
+  nombran; ningun nombre de base queda tapado, y una prueba recorre el
+  codigo del paquete y no encuentra otra llamada a
+  [`stop()`](https://rdrr.io/r/base/stop.html) ni a
+  [`warning()`](https://rdrr.io/r/base/warning.html) de base. El
+  comportamiento no cambia.
 
 **Rendimiento:**
 
