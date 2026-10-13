@@ -33,7 +33,8 @@ test_that("el recorte de dependencias queda declarado", {
   expect_equal(attr(resultado, "filas_analizadas"), 10L)
   expect_equal(attr(resultado, "columnas_omitidas"), "c")
   expect_error(detectar_dependencias(datos, umbral = 2), "umbrales")
-  expect_error(detectar_dependencias(datos, max_columnas = 0), "enteros positivos")
+  expect_error(detectar_dependencias(datos, max_columnas = 0),
+               "`max_columnas` debe ser un entero positivo", fixed = TRUE)
   expect_error(detectar_dependencias(1:3), "data.frame")
   expect_error(detectar_dependencias(datos, incluir_claves = NA), "l.*gico")
   expect_error(detectar_dependencias(datos, muestra = 0), "positivo")
@@ -83,7 +84,9 @@ test_that("perfilar conserva dependencias y la propuesta explica su origen", {
   expect_false(inherits(recortada[, "metrica", drop = FALSE], "propuesta_modelo"))
 })
 
-test_that("NoNulo se propone inactiva ante ausentes disfrazados", {
+# Hasta la ronda 31 se proponia inactiva; la decision D6 de la ronda 32 la
+# activa y la mide contando los disfrazados (ver test-O156).
+test_that("NoNulo se propone activa ante ausentes disfrazados, contandolos", {
   disfrazados <- data.frame(a = c(rep("S/D", 8), "x", "y"))
   propuesta <- proponer_modelo(
     perfilar(disfrazados, analizar_dependencias = FALSE), disfrazados
@@ -91,9 +94,11 @@ test_that("NoNulo se propone inactiva ante ausentes disfrazados", {
   no_nulo <- propuesta[propuesta$metrica == "NoNulo", , drop = FALSE]
 
   expect_equal(nrow(no_nulo), 1L)
-  expect_false(no_nulo$incluir)
+  expect_true(no_nulo$incluir)
+  expect_equal(as.character(no_nulo$estado), "lista")
   expect_equal(no_nulo$origen, "hallazgo:faltantes")
-  expect_match(no_nulo$justificacion, "normalizarlos")
+  expect_match(no_nulo$justificacion, "normalizan")
+  expect_identical(no_nulo$configuracion[[1L]]$valores_nulos, "S/D")
 
   reales <- data.frame(a = c(rep(NA, 8), "x", "y"))
   propuesta_reales <- proponer_modelo(
@@ -125,7 +130,8 @@ test_that("la propuesta valida entradas y estados editables", {
   expect_equal(nrow(vacia), 0L)
   expect_error(proponer_modelo(data.frame()), "clase perfil")
   expect_error(proponer_modelo(perfil_vacio, datos = 1:3), "data.frame")
-  expect_error(proponer_modelo(perfil_vacio, max_sugerencias = 0), "enteros")
+  expect_error(proponer_modelo(perfil_vacio, max_sugerencias = 0),
+               "`max_sugerencias` debe ser un entero positivo", fixed = TRUE)
 
   perfil <- perfilar(data.frame(x = c(1, NA)), analizar_dependencias = FALSE)
   propuesta <- proponer_modelo(perfil, data.frame(x = c(1, NA)))

@@ -2743,8 +2743,8 @@
   if (!any(tocadas)) return(despues)
   # `desvio` tambien: con el extremo dominando la columna, el desvio y `n` lo
   # reconstruyen -48.890.008 contra el documento 48.889.997-. Medido en la ronda
-  # 22. Aca el extremo tapado ES un documento: no vale el criterio de las
-  # columnas protegidas, donde el desvio se conserva porque se tapa la media.
+  # 22. Aca el extremo tapado ES un documento. (En las columnas protegidas el
+  # desvio tambien se tapa desde la ronda 32: `.CAMPOS_MOMENTO_PROTEGIDOS`.)
   derivados <- intersect(c(
     "minimo", "maximo", "mediana", "media", "desvio", "n_posiciones_secuencia_entera",
     "n_huecos_secuencia_entera", "hueco_maximo_secuencia_entera",
@@ -3127,6 +3127,31 @@
   hallazgos
 }
 
+# Los MOMENTOS que se tapan en una columna protegida, en todas las vias -la de
+# memoria, `perfilar_dbi()` con o sin bloques, `perfilar_por()`-: la media, en
+# sus dos formas, y el desvio. Ronda 32: el desvio se publicaba por una decision
+# declarada (F-6, "una dispersion no identifica a nadie") que se revirtio.
+.CAMPOS_MOMENTO_PROTEGIDOS <- c("media", "media_fecha", "desvio")
+
+# El detalle que declara lo que se tapo de una columna protegida: los
+# estadisticos de orden, la media, el desvio. Solo lo que de verdad se tapo
+# -decir "momentos" cuando la media ya era NA, o mientras se publicaba el
+# desvio, declaraba una proteccion que no se aplico-. Lo comparten las dos
+# vias, para que la misma columna diga lo mismo por `perfilar()` y por
+# `perfilar_dbi()`. `NA` donde no se tapo nada.
+.detalle_proteccion_estadisticos <- function(orden, media, desvio) {
+  momentos <- ifelse(
+    media & desvio, "momentos",
+    ifelse(media, "la media", ifelse(desvio, "el desvio", NA_character_))
+  )
+  ifelse(
+    orden & !is.na(momentos), paste0("[estadisticos de orden y ", momentos,
+                                     " protegidos]"),
+    ifelse(orden, "[estadisticos de orden protegidos]",
+           ifelse(!is.na(momentos), "[momentos protegidos]", NA_character_))
+  )
+}
+
 .proteger_componentes_perfil <- function(columnas, patrones, dependencias,
                                           hallazgos, clasificacion,
                                           valores_debiles = NULL) {
@@ -3174,27 +3199,28 @@
   # dos ecuaciones con dos incognitas y devuelven **27 y 599.917 exactos**,
   # mientras `minimo` y `maximo` salian en NA como corresponde. Proteger el
   # minimo y el maximo y dejar publicado su rango no protege nada.
-  # `desvio` NO esta en esta lista, y es una decision tomada -la prueba que la
-  # fija se llama "F-6 conserva el desvio numerico y protege la media"-: una
-  # dispersion no identifica a nadie y la media, que junto con ella
-  # reconstruiria los valores, si se enmascara. Lo que estaba mal era la
-  # ETIQUETA, que decia "momentos protegidos" mientras publicaba uno.
+  # Y `desvio`, como la media, desde la ronda 32. Era la unica excepcion
+  # declarada -la decision F-6: "una dispersion no identifica a nadie"-, y la
+  # decision cambio: el desvio de una columna protegida es una magnitud de sus
+  # valores, y junto con lo que el resto del perfil publica de la columna
+  # acerca el valor. Se tapa en todas las vias, con la misma lista: ver
+  # `.CAMPOS_MOMENTO_PROTEGIDOS`.
   #
   # Una lista de campos a ocultar falla ABIERTA: el campo que se agregue manana
   # se publica salvo que alguien se acuerde de anotarlo aca. Por eso viaja una
   # prueba que no lee esta lista: perfila una columna protegida de magnitudes
   # conocidas y exige que ningun campo publicado traiga una magnitud de la
-  # columna, con `desvio` como unica excepcion declarada.
+  # columna, sin excepciones.
   campos_numericos <- intersect(
     c(
-      "minimo", "maximo", "mediana", "media", "centinela_valor",
+      "minimo", "maximo", "mediana", "media", "desvio", "centinela_valor",
       "n_posiciones_secuencia_entera", "n_huecos_secuencia_entera",
       "hueco_maximo_secuencia_entera", "densidad_secuencia_entera",
       "densidad_sin_centinela"
     ),
     names(columnas)
   )
-  campos_momento <- c("media", "media_fecha")
+  campos_momento <- .CAMPOS_MOMENTO_PROTEGIDOS
   campos_texto <- intersect(
     c(
       "minimo_exacto", "maximo_exacto", "minimo_fecha", "maximo_fecha",
@@ -3206,11 +3232,14 @@
   # el detalle tiene que declararlo aunque la columna no tenga otros campos de
   # orden para tapar.
   tenia_orden <- ocultar_moda
-  tenia_momento <- rep(FALSE, nrow(columnas))
+  tenia_media <- rep(FALSE, nrow(columnas))
+  tenia_desvio <- rep(FALSE, nrow(columnas))
   for (campo in campos_numericos) {
     ocultar <- indices_columnas & !is.na(columnas[[campo]])
-    if (campo %in% campos_momento) {
-      tenia_momento <- tenia_momento | ocultar
+    if (identical(campo, "desvio")) {
+      tenia_desvio <- tenia_desvio | ocultar
+    } else if (campo %in% campos_momento) {
+      tenia_media <- tenia_media | ocultar
     } else {
       tenia_orden <- tenia_orden | ocultar
     }
@@ -3220,7 +3249,7 @@
     ocultar <- indices_columnas & !is.na(columnas[[campo]]) &
       nzchar(columnas[[campo]])
     if (campo %in% campos_momento) {
-      tenia_momento <- tenia_momento | ocultar
+      tenia_media <- tenia_media | ocultar
     } else {
       tenia_orden <- tenia_orden | ocultar
     }
@@ -3266,12 +3295,9 @@
   }
   # El texto dice lo que de verdad se tapo. Decir "y momentos" cuando la media
   # ya era NA seria declarar una proteccion que no se aplico.
-  columnas$detalle_proteccion_personal[tenia_orden & !tenia_momento] <-
-    "[estadisticos de orden protegidos]"
-  columnas$detalle_proteccion_personal[tenia_momento & !tenia_orden] <-
-    "[momentos protegidos]"
-  columnas$detalle_proteccion_personal[tenia_orden & tenia_momento] <-
-    "[estadisticos de orden y la media protegidos]"
+  detalle <- .detalle_proteccion_estadisticos(tenia_orden, tenia_media,
+                                              tenia_desvio)
+  columnas$detalle_proteccion_personal[!is.na(detalle)] <- detalle[!is.na(detalle)]
   for (i in intersect(which(indices_columnas), seq_along(patrones))) {
     if (.nombres_para_operar(columnas$columna[[i]]) %in%
         .nombres_para_operar(sensibles) &&

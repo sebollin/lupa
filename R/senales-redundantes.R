@@ -301,7 +301,8 @@ print.senal_redundante <- function(x, ...) {
 #' @param datos Tabla que se desea examinar.
 #' @param senales Una señal creada por [senal_redundante()] o una lista de
 #'   señales.
-#' @param max_ejemplos Máximo de filas concretas que se citan como evidencia.
+#' @param max_ejemplos Máximo de filas concretas que se citan como evidencia:
+#'   un entero no negativo; `0` no cita ninguna.
 #' @param proteger_datos_personales Si los valores de las columnas clasificadas
 #'   como dato personal se enmascaran en `evidencia`. `TRUE` por omisión; el
 #'   número de fila y el nombre de la columna se conservan igual. La
@@ -352,11 +353,9 @@ detectar_discordancias <- function(datos, senales, max_ejemplos = 5L,
       call. = FALSE
     )
   }
-  if (!is.numeric(max_ejemplos) || length(max_ejemplos) != 1L ||
-      is.na(max_ejemplos) || max_ejemplos < 0) {
-    stop("`max_ejemplos` debe ser un entero no negativo.", call. = FALSE)
-  }
-  max_ejemplos <- as.integer(max_ejemplos)
+  # Cero vale: no cita filas. `Inf` no, como en `detectar_dependencias()`.
+  max_ejemplos <- .validar_parametro_lsh(max_ejemplos, "max_ejemplos", 0L)
+  .validar_bandera_proteccion(proteger_datos_personales)
 
   filas <- lapply(senales, function(senal) {
     indices <- .indice_nombre(senal$columnas, names(datos))

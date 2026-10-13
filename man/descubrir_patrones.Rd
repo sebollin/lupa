@@ -22,7 +22,8 @@ descubrir_patrones(
 
 \item{expandir}{Si es \code{FALSE}, colapsa tokens repetidos (\code{9999} a \verb{9+}).}
 
-\item{max_patrones}{Número máximo de patrones que se muestran.}
+\item{max_patrones}{Número máximo de patrones que se muestran: un entero
+positivo, o \code{Inf} para mostrarlos todos.}
 
 \item{na.rm}{Si es \code{TRUE}, excluye los valores ausentes.}
 

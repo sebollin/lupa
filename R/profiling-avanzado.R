@@ -203,13 +203,18 @@
   # Y un doble se publica con la escritura que vuelve a SU valor: agrupados por
   # valor, `0.1 + 0.2` y `0.3` son dos filas, y con `as.character()` las dos se
   # publicaban "0.3". Son 15 cifras cuando alcanzan, que es casi siempre.
+  # Una duracion tambien, por su numero en la unidad de la columna: con
+  # `as.character()` la etiqueta seguia a `OutDec`, `LC_NUMERIC` y `scipen`
+  # -`1,5` o `1.5e+00`- (ronda 32-S).
   validos <- valores[!is.na(textos)]
   publicables <- if (inherits(validos, "POSIXt")) {
     # Un instante, en UTC y con su rotulo, como el resto del paquete: con
     # `as.character()` salia en la hora de la sesion y sin zona (ronda 31-S).
     .texto_instante_utc(validos)
+  } else if (inherits(validos, "difftime")) {
+    .etiqueta_numero_reversible(as.double(unclass(validos)))
   } else if ((is.double(validos) || is.complex(validos)) &&
-             !inherits(validos, c("Date", "difftime", "integer64"))) {
+             !inherits(validos, c("Date", "integer64"))) {
     .etiqueta_numero_reversible(validos)
   } else {
     as.character(validos)
@@ -308,7 +313,10 @@
 #'
 #' @param datos Tabla que se desea examinar.
 #' @param perfil Perfil opcional de los mismos datos; evita repetir la
-#'   clasificación de posibles datos personales.
+#'   clasificación de posibles datos personales. Si el perfil declaró
+#'   `columnas_codigo`, esas columnas publican en `cuantiles` sólo los extremos
+#'   —probabilidad 0 y 1, el tramo de códigos—; los intermedios quedan en `NA`
+#'   con `estado = "codigo_declarado"`, como `mediana` en el perfil.
 #' @param max_valores Máximo de valores mostrados por columna.
 #' @param probabilidades Probabilidades de los cuantiles, en `[0, 1]`.
 #' @param muestra Máximo de filas por columna; `Inf` desactiva el muestreo.
@@ -368,11 +376,7 @@ distribucion_valores <- function(datos, perfil = NULL, max_valores = 20L,
          call. = FALSE)
   }
   probabilidades <- unique(as.numeric(probabilidades))
-  if (!is.logical(proteger_datos_personales) ||
-      length(proteger_datos_personales) != 1L ||
-      is.na(proteger_datos_personales)) {
-    stop("`proteger_datos_personales` debe ser TRUE o FALSE.", call. = FALSE)
-  }
+  .validar_bandera_proteccion(proteger_datos_personales)
   # La declaracion del usuario tiene que poder entrar por ESTA puerta tambien.
   # Sin perfil, la clasificacion corre por lexico y por forma: una columna que
   # solo el usuario sabe personal -`edad`, un legajo interno- se publicaba
@@ -385,6 +389,9 @@ distribucion_valores <- function(datos, perfil = NULL, max_valores = 20L,
   personales <- if (proteger_datos_personales) {
     .columnas_personales_rapidas(datos, perfil,
                                  declaradas = columnas_personales)
+  } else character()
+  codigos <- if (inherits(perfil, "perfil")) {
+    .nombres_para_operar(as.character(perfil$meta[["columnas_codigo"]]))
   } else character()
   frecuencias <- list()
   cuantiles <- list()
@@ -455,13 +462,26 @@ distribucion_valores <- function(datos, perfil = NULL, max_valores = 20L,
             stringsAsFactors = FALSE
           )
         } else {
+          valor_q <- if (protegida) {
+            rep(NA_real_, length(valores_q))
+          } else as.numeric(valores_q)
+          estado_q <- rep(
+            if (protegida) "valor_protegido" else "calculado", length(valores_q)
+          )
+          # Una columna que el perfil declaro en `columnas_codigo` publica sus
+          # extremos -el tramo de codigos, como `minimo` y `maximo` del perfil-
+          # y no sus cuantiles intermedios, que el perfil tampoco publica:
+          # la mediana de unos codigos no es un dato (decision D2, ronda 32).
+          if (!protegida && .nombres_para_operar(nombre) %in% codigos) {
+            interior <- probabilidades > 0 & probabilidades < 1
+            valor_q[interior] <- NA_real_
+            estado_q[interior] <- "codigo_declarado"
+          }
           cuantiles[[q]] <- data.frame(
             columna = nombre, probabilidad = probabilidades,
-            valor = if (protegida) {
-              rep(NA_real_, length(valores_q))
-            } else as.numeric(valores_q),
+            valor = valor_q,
             n_analizados = length(finitos), muestreado = muestra_x$muestreado,
-            estado = if (protegida) "valor_protegido" else "calculado",
+            estado = estado_q,
             stringsAsFactors = FALSE
           )
         }
@@ -611,7 +631,7 @@ detectar_asociaciones <- function(datos, dependencias = NULL, umbral = 0.3,
                                   muestra = 1e4, max_columnas = 50L,
                                   max_niveles = 50L, max_pares = 500L,
                                   metodo_numerico = c("pearson", "spearman")) {
-  metodo_numerico <- match.arg(metodo_numerico)
+  metodo_numerico <- .elegir_opcion(metodo_numerico)
   .validar_datos_tabla(datos)
   datos <- .tabla_base(datos)
   if (!is.null(dependencias) && !inherits(dependencias, "data.frame")) {
@@ -924,11 +944,7 @@ analizar_tiempo <- function(datos, perfil = NULL, columnas = NULL,
   .validar_datos_tabla(datos)
   .validar_perfil_de(perfil, datos)
   datos <- .tabla_base(datos)
-  if (!is.logical(proteger_datos_personales) ||
-      length(proteger_datos_personales) != 1L ||
-      is.na(proteger_datos_personales)) {
-    stop("`proteger_datos_personales` debe ser TRUE o FALSE.", call. = FALSE)
-  }
+  .validar_bandera_proteccion(proteger_datos_personales)
   columnas_personales <- .normalizar_columnas_personales(
     columnas_personales, names(datos)
   )

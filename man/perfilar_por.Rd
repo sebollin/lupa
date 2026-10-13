@@ -108,7 +108,8 @@ también cuando \code{proteger_datos_personales} es
 \code{FALSE}, porque entonces ya está declarado que se quieren los valores. Si el
 léxico no reconoce el nombre de la columna, decláresela con
 \code{columnas_personales}: ese argumento —como \code{columnas_opcionales}, \code{clave},
-\code{columnas_sin_ceros}, \code{columnas_no_negativas} y \code{aplicabilidad}— puede
+\code{columnas_sin_ceros}, \code{columnas_no_negativas}, \code{columnas_codigo} y
+\code{aplicabilidad}— puede
 nombrar la columna de agrupación, y se recorta de lo que se envía a
 \code{\link[=perfilar]{perfilar()}} para cada grupo, donde esa columna ya no está. El recorte se
 publica por grupo en \code{cobertura_grupos$columnas_descartadas}, junto con el

@@ -2,6 +2,40 @@
   requireNamespace("sf", quietly = TRUE)
 }
 
+# `requireNamespace()` da FALSE tambien cuando sf esta instalado y no carga: con
+# `LC_NUMERIC` en coma falla la carga de `units`, una de sus dependencias, y el
+# perfil publicaba "falta el paquete opcional 'sf'" y "Instalar el paquete 'sf'"
+# sobre una maquina que lo tiene (ronda 32-S). La causa y el remedio publicados
+# tienen que ser los ciertos: se distingue lo que no esta instalado de lo que
+# no se pudo cargar en esta sesion.
+.sf_no_disponible <- function() {
+  if (nzchar(system.file(package = "sf"))) {
+    numerica <- Sys.getlocale("LC_NUMERIC")
+    con_numerica <- nzchar(numerica) && !numerica %in% c("C", "POSIX")
+    list(
+      causa = "el paquete opcional 'sf' esta instalado pero no se pudo cargar en esta sesion",
+      remedio = paste0(
+        "Ejecutar `library(sf)` en esta sesion para ver por que no carga",
+        if (con_numerica) {
+          paste0(
+            "; la sesion tiene `LC_NUMERIC` en \"", numerica, "\", y con ",
+            "una marca decimal que no es la de \"C\" la dependencia `units` ",
+            "de sf no carga: `Sys.setlocale(\"LC_NUMERIC\", \"C\")`"
+          )
+        } else {
+          ""
+        },
+        "."
+      )
+    )
+  } else {
+    list(
+      causa = "falta el paquete opcional 'sf'",
+      remedio = "Instalar el paquete 'sf' para medir CRS, tipo, validez, vacios, dominio y bbox."
+    )
+  }
+}
+
 .metricas_geometria_vacias <- function() {
   list(
     aplica = FALSE,
@@ -1104,7 +1138,8 @@
       indices = integer(), n_total = length(x),
       motivo = paste0(
         "La columna llega como ", representacion,
-        " y no se convirtio a geometria porque falta el paquete opcional 'sf'."
+        " y no se convirtio a geometria porque ", .sf_no_disponible()$causa,
+        "."
       )
     ))
   }

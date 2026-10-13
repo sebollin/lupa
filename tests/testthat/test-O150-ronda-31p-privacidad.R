@@ -78,7 +78,11 @@ test_that("H1: la coleccion guarda los valores que el mensaje del motor lleva", 
     "[FreeTDS][SQL Server][literal omitido] varchar [literal omitido] int ",
     "[literal omitido]."
   ))
-  expect_false("099 123 456" %in% .valores_motor()$valor)
+  # Ronda 32 (D7): se guarda la huella y no el texto; se pregunta con ella. Y el
+  # control de que la pregunta no es vacia: el que si se guarda.
+  expect_false(.valor_motor_guardado("099 123 456"))
+  mensaje("099;123;456", "monto")
+  expect_true(.valor_motor_guardado("099;123;456"))
   # La seleccion pregunta por la forma del valor, para no correr la segunda
   # pasada valor por valor; nunca descarta uno del que la segunda pasada, con
   # toda palabra permitida, deja pasar algo. Sobre textos al azar con cifras,

@@ -294,7 +294,11 @@ Rige la misma reserva que en \code{\link[=perfilar]{perfilar()}}: un valor de la
 omisión} que aparece una sola vez y dentro del rango de los demás no se
 señala. Declarar el valor lo vuelve a contar.}
 
-\item{...}{Argumentos enviados a \code{\link[=perfilar]{perfilar()}} para analizar la muestra.}
+\item{...}{Argumentos enviados a \code{\link[=perfilar]{perfilar()}} para analizar la muestra.
+\code{columnas_codigo} vale además en \code{resumen_tabla}: \code{media}, \code{mediana} y
+\code{desvio} de una columna declarada quedan en \code{NA} y
+\code{resumen_tabla$cobertura} lo declara con estado \code{no_aplica}. Sus nombres se
+validan contra las columnas de la tabla aunque no haya muestra.}
 }
 \value{
 Objeto de clase \code{perfil_dbi} con dos componentes: \code{resumen_tabla}, de
@@ -772,8 +776,10 @@ leer, la protección se aplica a todas las columnas y \code{meta} lo declara.
 Lo que se oculta no queda \code{calculado}: su fila de \code{resumen_tabla$sql} dice
 \code{omitido_por_privacidad}, con un motivo que distingue la columna clasificada
 como personal de la que se cerró porque, sin muestra, no se pudo clasificar.
-El desvío se publica, como en \code{\link[=perfilar]{perfilar()}}: una dispersión no identifica a
-nadie, y la media, que junto con él reconstruiría los valores, se oculta.
+El desvío se oculta como la media, como en \code{\link[=perfilar]{perfilar()}}; también en
+\code{resumen_tabla$meta$familias}, donde la vía por bloques (\code{bloque_filas})
+guarda lo que devolvió cada acumulador: ahí se tapan los extremos, la media
+y el desvío de las columnas protegidas, y cada valor distinto.
 Si la muestra se recorta, la clasificación personal sólo cubre esas filas:
 las cifras de valor del resumen SQL completo quedan marcadas en
 \code{resumen_tabla$cobertura} y, con la protección activa, se ocultan hasta que
@@ -826,7 +832,12 @@ todo lo demás sale \verb{[literal omitido]}. Un número se cuenta con sus
 separadores: \verb{4.685.467-9} es uno de ocho cifras, y se lee como lo lee el
 piso de la protección, con los mismos separadores —un espacio duro o uno
 fino, el punto medio, una raya, \code{" - "}, dos espacios, un tabulador o un
-salto de línea entre los grupos: \code{"099 - 123 - 456"} es uno de nueve—. Así
+salto de línea entre los grupos: \code{"099 - 123 - 456"} es uno de nueve—. El
+mensaje se lee como lo dijo el motor: odbc lo arma con cli, que pone una
+viñeta después de cada salto de línea y corta las líneas al ancho de la
+consola, y un número partido en dos líneas —\code{"2901\\n1234"}— quedaba partido
+por la viñeta; se toman las líneas que guarda la condición, unidas por el
+salto que puso el motor, y así se publican, sin las viñetas. Así
 se tapa también el
 valor que el motor cita sin comillas —duckdb: \verb{Type INT64 with value 59899123456 can't be cast}, y la cadena que \code{strptime} repite en otra
 línea, que se tapa entera; SQL Server con la sesión en sueco o neerlandés—

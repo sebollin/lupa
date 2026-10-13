@@ -667,13 +667,39 @@
     if (is.na(clave)) return(NA_character_)
     paste0("k", paste(as.integer(charToRaw(clave)), collapse = "_"))
   }
+  # Los dos entornos son conjuntos -y un mapa- sobre la clave por bytes, que
+  # ocupa hasta cuatro caracteres por byte del nombre. La clave se usaba ENTERA
+  # como nombre de variable del entorno, y R no admite uno de mas de 10.000
+  # bytes: un nombre de columna de 2.501 bytes abortaba `perfilar()` y otras
+  # cuatro con "nombres de variables se limitan a 10000 bytes", un limite del
+  # instrumento que no es de los datos ni esta documentado. El caso real, medido
+  # en la ronda 32: un CSV de 300 columnas separado por `;` leido con `sep = ","`
+  # deja una sola columna cuyo nombre es la cabecera entera, justo la tabla mal
+  # leida que hay que poder diagnosticar.
+  #
+  # La variable del entorno es ahora un PREFIJO acotado de la clave, y guarda
+  # las claves enteras que lo comparten -con su sufijo, en `siguientes`-. La
+  # pertenencia se sigue decidiendo por la clave entera, byte por byte, asi que
+  # el conjunto y la salida son los mismos para cualquier largo: los nombres
+  # cortos caen solos en su cubeta.
+  cubeta <- function(llave) substr(llave, 1L, 4000L)
+  leer <- function(entorno, llave) {
+    get0(cubeta(llave), envir = entorno, inherits = FALSE)[[llave]]
+  }
+  escribir <- function(entorno, llave, valor) {
+    nombre <- cubeta(llave)
+    valores <- get0(nombre, envir = entorno, inherits = FALSE)
+    if (is.null(valores)) valores <- list()
+    valores[[llave]] <- valor
+    assign(nombre, valores, envir = entorno)
+  }
   ya_usada <- function(clave) {
     llave <- clave_hash(clave)
-    !is.na(llave) && exists(llave, envir = usados, inherits = FALSE)
+    !is.na(llave) && !is.null(leer(usados, llave))
   }
   registrar <- function(clave) {
     llave <- clave_hash(clave)
-    if (!is.na(llave)) assign(llave, TRUE, envir = usados)
+    if (!is.na(llave)) escribir(usados, llave, TRUE)
   }
   for (i in seq_along(originales)) {
     candidato <- originales[[i]]
@@ -682,16 +708,15 @@
     if (repetido) {
       base <- candidato
       llave_base <- clave_hash(clave)
-      sufijo <- if (exists(llave_base, envir = siguientes, inherits = FALSE)) {
-        get(llave_base, envir = siguientes, inherits = FALSE)
-      } else 1L
+      sufijo <- leer(siguientes, llave_base)
+      if (is.null(sufijo)) sufijo <- 1L
       repeat {
         candidato <- paste0(base, sep, sufijo)
         clave <- .nombres_para_operar(candidato)
         if (!ya_usada(clave)) break
         sufijo <- sufijo + 1L
       }
-      assign(llave_base, sufijo + 1L, envir = siguientes)
+      escribir(siguientes, llave_base, sufijo + 1L)
     }
     unicos[[i]] <- candidato
     registrar(clave)
@@ -892,6 +917,93 @@
     stop("`", nombre, "` debe heredar de data.frame.", call. = FALSE)
   }
   invisible(datos)
+}
+
+# Las funciones de vector reciben UNA columna. `tabla[, "f"]` da un vector en
+# un data.frame y una tabla de una columna en un tibble, una data.table o un
+# grouped_df: la misma expresion, otra respuesta. `inferir_tipo()` contestaba
+# sobre la tabla -`tipo = "tbl_df"`, "4 de 4 valores compatibles"- donde el
+# vector daba `texto`, mientras sus hermanas la rechazaban. Medido en la ronda
+# 32. Se rechaza con el mensaje que ya daba `detectar_formatos_fecha()`.
+.validar_vector_no_tabla <- function(x) {
+  if (inherits(x, "data.frame")) {
+    stop("`x` debe ser un vector, no un data.frame.", call. = FALSE)
+  }
+  invisible(x)
+}
+
+# La bandera de proteccion, en UN lugar. Estaba escrita once veces y faltaba en
+# dos: `detectar_discordancias()` y `descubrir_patrones()` la leian con
+# `isTRUE()`, asi que `NA`, `NULL`, `"si"`, `"TRUE"` -el texto que deja un
+# archivo de configuracion-, `c(TRUE, TRUE)` o `-1` APAGABAN la proteccion y
+# publicaban los correos crudos, mientras las once hermanas rechazaban esos
+# mismos valores. Una proteccion que ante la duda abre falla del lado que
+# expone. Medido en la ronda 32. Las puertas que la reciben por `...`
+# (`perfilar_por()`, `perfilar_dbi()`, `perfilar_coleccion()`) la validan aca
+# tambien cuando se pasa: por DBI el resumen SQL la leia con `isTRUE()` y
+# publicaba el valor que el mismo resumen ocultaba con `TRUE`.
+.validar_bandera_proteccion <- function(x) {
+  .validar_bandera(x, "proteger_datos_personales")
+}
+
+# Un logico escalar sin NA, con el mensaje que el paquete ya da en sus
+# interruptores ("`x` debe ser TRUE o FALSE.").
+.validar_bandera <- function(x, nombre) {
+  if (!is.logical(x) || length(x) != 1L || is.na(x)) {
+    stop("`", nombre, "` debe ser TRUE o FALSE.", call. = FALSE)
+  }
+  invisible(x)
+}
+
+# `match.arg()` con el error del paquete. Sobre `NA`, un numero, `TRUE` o
+# `list()` R decia "'arg' must be NULL or a character vector", y con dos textos
+# "'arg' must be of length 1": ninguno nombraba el argumento ni sus opciones.
+# Medido en la ronda 32 en diez argumentos exportados. Se usa como
+# `match.arg()` -las opciones salen de los formales de quien llama, como alli,
+# o se pasan- y sobre todo valor que `match.arg()` acepta devuelve lo mismo:
+# `NULL` y el vector entero de opciones dan la primera, y un prefijo unico se
+# completa. Solo cambia el error.
+.elegir_opcion <- function(arg, opciones) {
+  nombre <- as.character(substitute(arg))
+  if (missing(opciones)) {
+    llamador <- sys.parent()
+    opciones <- eval(formals(sys.function(llamador))[[nombre]],
+                     envir = sys.frame(llamador))
+  }
+  elegido <- if (is.null(arg) || (is.character(arg) && !anyNA(arg) &&
+                                  (length(arg) == 1L ||
+                                   identical(arg, opciones)))) {
+    tryCatch(match.arg(arg, opciones), error = function(e) NULL)
+  }
+  if (is.null(elegido)) {
+    citadas <- paste0("'", opciones, "'")
+    lista <- if (length(citadas) > 1L) {
+      paste0(paste(utils::head(citadas, -1L), collapse = ", "), " o ",
+             utils::tail(citadas, 1L))
+    } else citadas
+    stop("`", nombre, "` debe ser ", lista, ".", call. = FALSE)
+  }
+  elegido
+}
+
+# Las comprobaciones que validan varios umbrales juntos los unian con `c()`, y
+# `c()` borra un `NULL` o un `list()`, junta un `TRUE` como 1 y aplana un vector
+# de dos: el valor malo pasaba la guarda y abortaba despues con un error de R
+# -"argumento tiene longitud cero", "valor ausente donde TRUE/FALSE es
+# necesario", "unsupported type" en `formatC()`-. Medido en la ronda 32. Antes
+# de unirlos, cada uno tiene que ser UN numero.
+.son_numeros_escalares <- function(valores) {
+  all(vapply(valores, function(v) is.numeric(v) && length(v) == 1L,
+             logical(1L)))
+}
+
+# La misma bandera cuando llega por `...`: solo si se paso. Ausente vale la
+# omision de cada funcion, que protege.
+.validar_bandera_proteccion_en <- function(argumentos) {
+  if ("proteger_datos_personales" %in% names(argumentos)) {
+    .validar_bandera_proteccion(argumentos[["proteger_datos_personales"]])
+  }
+  invisible(argumentos)
 }
 
 # Copia las subclases con semantica propia de `[` a un data.frame base antes
@@ -1291,10 +1403,79 @@
 # formula de una aplicabilidad o el nombre de los datos cambiaban con la sesion;
 # la deriva publicaba "Cambio el perfil de evaluacion" sobre el mismo perfil
 # (ronda 31-S). Todo `deparse()` del paquete pasa por aca.
-.deparse_por_omision <- function(...) {
+#
+# Y no era la unica perilla (ronda 32-S). `deparse()` escribe la marca decimal
+# de `LC_NUMERIC` -`x > 0,9` con `Sys.setlocale("LC_NUMERIC", "es_UY.utf8")`- y
+# bajo el locale `C` escapa el texto no ASCII: `"S<U+00ED>"` en una formula,
+# `"S\303\255"` en una funcion y el simbolo entre comillas invertidas. Lo que
+# sale de aca es una CLAVE que se compara entre procesos -la configuracion de una
+# medicion y de un perfil-, y una corrida de cron (`C`) contra una de RStudio
+# afirmaba un cambio de modelo, de aplicabilidad y de perfil que no hubo. Se
+# escribe con `LC_NUMERIC` en "C" y, bajo `C`, con `LC_CTYPE` en un locale UTF-8
+# mientras dura la escritura: sale lo mismo que en una sesion UTF-8, byte por
+# byte y con los mismos cortes de linea -que `deparse()` decide por bytes, asi
+# que reemplazar el texto por una marca ASCII los movia-. En una sesion UTF-8 no
+# se toca nada, y lo guardado antes sigue apareando.
+.deparse_por_omision <- function(expr, ...) {
   opciones <- options(scipen = 0)
   on.exit(options(opciones), add = TRUE)
-  deparse(...)
+  numerica <- Sys.getlocale("LC_NUMERIC")
+  if (nzchar(numerica) && !numerica %in% c("C", "POSIX")) {
+    Sys.setlocale("LC_NUMERIC", "C")
+    # Volver a un `LC_NUMERIC` que no es "C" avisa siempre; bajo `warn = 2` el
+    # aviso seria un error del paquete.
+    on.exit(suppressWarnings(Sys.setlocale("LC_NUMERIC", numerica)), add = TRUE)
+  }
+  caracteres <- Sys.getlocale("LC_CTYPE")
+  if (caracteres %in% c("C", "POSIX")) {
+    on.exit(suppressWarnings(Sys.setlocale("LC_CTYPE", caracteres)), add = TRUE)
+    if (.poner_ctype_utf8()) {
+      return(.declarar_utf8_valido(deparse(expr, ...)))
+    }
+  }
+  deparse(expr, ...)
+}
+
+# Un locale UTF-8 para `LC_CTYPE`, el primero que el sistema acepte. Si no hay
+# ninguno, `deparse()` escribe como siempre bajo `C`.
+.poner_ctype_utf8 <- function() {
+  for (candidato in c("C.UTF-8", "C.utf8", "en_US.UTF-8", "en_US.utf8",
+                      "UTF-8")) {
+    puesto <- suppressWarnings(Sys.setlocale("LC_CTYPE", candidato))
+    if (length(puesto) == 1L && !is.na(puesto) && nzchar(puesto) &&
+        isTRUE(l10n_info()[["UTF-8"]])) {
+      return(TRUE)
+    }
+  }
+  FALSE
+}
+
+# Lo que se LEE de una conexion tampoco puede depender de `LC_NUMERIC` (ronda
+# 32-S, segunda vuelta). Los controladores convierten el texto que devuelve el
+# motor con `strtod()` de C, que sigue la marca decimal del locale: con
+# `Sys.setlocale("LC_NUMERIC", "es_UY.utf8")` RPostgres leia `2.5` como `2` -y
+# odbc, un `decimal` de SQL Server-, y `perfilar_dbi()` publicaba en silencio
+# media 3, mediana 2, minimo 0 y maximo 10 sobre una columna de media 3.7,
+# mediana 2.5, minimo 0.5 y maximo 10.25. El paquete no arregla el
+# controlador, pero fija la marca en la ENTRADA: toda exportada que lee de una
+# conexion llama a esto primero; pone "C" y registra en el marco de quien
+# llama la vuelta al valor anterior, que corre al salir, tambien en error. Si
+# ya esta en "C" no toca nada: una exportada que llama a otra no la fija dos
+# veces ni la devuelve antes de tiempo.
+.fijar_numerica_c <- function(marco = parent.frame()) {
+  numerica <- Sys.getlocale("LC_NUMERIC")
+  if (!nzchar(numerica) || numerica %in% c("C", "POSIX")) {
+    return(invisible(FALSE))
+  }
+  Sys.setlocale("LC_NUMERIC", "C")
+  # Volver a un `LC_NUMERIC` que no es "C" avisa siempre; bajo `warn = 2` el
+  # aviso seria un error del paquete.
+  volver <- substitute(
+    suppressWarnings(Sys.setlocale("LC_NUMERIC", anterior)),
+    list(anterior = numerica)
+  )
+  do.call(on.exit, list(volver, add = TRUE), envir = marco)
+  invisible(TRUE)
 }
 
 # Hay una tercera perilla, y no es una opcion: `LC_NUMERIC`. R arranca siempre en
@@ -1324,11 +1505,30 @@
 # hora- salian los dos `01:30:00`; la clave de la normalizacion los fundia
 # (ronda 31-S). La zona declarada de la columna se publica aparte, en
 # `zona_horaria_origen`.
-.texto_instante_utc <- function(x) {
+#
+# Es tambien la escritura de un instante que se COMPARA (ronda 32-S): `format()`
+# sin formato toma los decimales de `options(digits.secs)`, asi que con el valor
+# por omision dos instantes del mismo segundo salian iguales. El plan contaba
+# "10 valores participan en una conversion no inyectiva" y bloqueaba una
+# conversion que conserva cada valor -con `digits.secs = 6` la dejaba `lista`-,
+# y la configuracion de una medicion cambiaba con la opcion. `compacta = TRUE`
+# es la forma que guardaba esa configuracion -la de `format()` sin formato en la
+# sesion por omision: la fecha sola si todos caen a medianoche, si no al
+# segundo-, con la fraccion exacta agregada: lo guardado antes sin fraccion
+# sigue apareando. El formato se elige aca y se pasa explicito: el argumento
+# `digits` de `format.POSIXlt()` no existe en R 4.1 -va a `...` y se ignora-,
+# y alli `format()` seguia a `digits.secs` (medido en 4.1.3: `00:00:00.5`, y la
+# fraccion exacta se agregaba dos veces).
+.texto_instante_utc <- function(x, compacta = FALSE) {
   x <- as.POSIXct(x)
-  salida <- paste(.escritura_exacta_temporal(
-    format(x, "%Y-%m-%d %H:%M:%S", tz = "UTC"), as.numeric(x)
-  ), "UTC")
+  formato <- "%Y-%m-%d %H:%M:%S"
+  if (isTRUE(compacta)) {
+    partes <- as.POSIXlt(x, tz = "UTC")
+    reloj <- c(partes$sec, partes$min, partes$hour)
+    if (all(reloj[is.finite(reloj)] == 0)) formato <- "%Y-%m-%d"
+  }
+  texto <- format(x, formato, tz = "UTC")
+  salida <- paste(.escritura_exacta_temporal(texto, as.numeric(x)), "UTC")
   salida[is.na(x)] <- NA_character_
   salida
 }

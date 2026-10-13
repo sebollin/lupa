@@ -15,7 +15,8 @@ test_that("los validadores ISO usan listas locales y conservan ausentes", {
     validar_iso4217(c("UYU", "clp", "EUR", "ZZZ", NA)),
     c(TRUE, TRUE, TRUE, FALSE, NA)
   )
-  expect_error(validar_iso3166("UY", "otro"), "arg")
+  expect_error(validar_iso3166("UY", "otro"),
+               "`tipo` debe ser 'alpha2', 'alpha3' o 'numerico'.", fixed = TRUE)
 })
 
 test_that("el validador de correo declara un subconjunto sintactico", {

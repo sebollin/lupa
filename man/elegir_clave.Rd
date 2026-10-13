@@ -9,7 +9,7 @@ elegir_clave(datos, maximo = 5L, umbral_casi = 0.95)
 \arguments{
 \item{datos}{Tabla a examinar.}
 
-\item{maximo}{Cuántas sugerencias devolver como máximo.}
+\item{maximo}{Cuántas sugerencias devolver como máximo: un entero positivo.}
 
 \item{umbral_casi}{Proporción de valores distintos a partir de la cual una
 columna que repite se informa igual, como candidata con duplicados.}

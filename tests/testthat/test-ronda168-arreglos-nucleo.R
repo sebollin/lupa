@@ -10,10 +10,12 @@ test_that("F-1 y F-6 protegen las dos formas de la media temporal", {
 
   expect_true(isTRUE(protegido$dato_personal_protegido))
   expect_equal(protegido$media_fecha, "[valor protegido]")
-  expect_equal(protegido$desvio, claro$desvio)
+  # Ronda 32 (D9): el desvio se tapa como la media; sin proteccion, se publica.
+  expect_true(is.na(protegido$desvio))
+  expect_true(is.finite(claro$desvio))
   expect_equal(
     protegido$detalle_proteccion_personal,
-    "[estadisticos de orden y la media protegidos]"
+    "[estadisticos de orden y momentos protegidos]"
   )
   expect_equal(protegido$minimo_fecha, "[valor protegido]")
   expect_equal(protegido$maximo_fecha, "[valor protegido]")
@@ -109,16 +111,23 @@ test_that("F-5 el mapa y absorber rechazan entradas no atomicas", {
   expect_true(is.na(resultado$exacto))
 })
 
-test_that("F-6 conserva el desvio numerico y protege la media", {
+# F-6 conservaba el desvio de una columna protegida -"una dispersion no
+# identifica a nadie"- y protegia la media. La decision se revirtio en la ronda
+# 32 (D9): el desvio es una magnitud de los valores de la columna, y se tapa
+# como la media, por todas las vias.
+test_that("F-6 protege la media y, desde la ronda 32, el desvio numerico", {
   datos <- data.frame(cedula = c(
     12345678, 87654321, 12345678, 13579246, 24681357
   ))
   perfil <- perfilar(datos, analizar_dependencias = FALSE)$columnas
+  claro <- perfilar(datos, analizar_dependencias = FALSE,
+                    proteger_datos_personales = FALSE)$columnas
 
   expect_true(is.na(perfil$media))
-  expect_true(is.finite(perfil$desvio))
+  expect_true(is.na(perfil$desvio))
+  expect_true(is.finite(claro$desvio))
   expect_equal(
     perfil$detalle_proteccion_personal,
-    "[estadisticos de orden y la media protegidos]"
+    "[estadisticos de orden y momentos protegidos]"
   )
 })

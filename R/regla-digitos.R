@@ -290,9 +290,35 @@
 # escrituras dan la misma cifra entera, y la parte nacional sale de esa cifra
 # (`.telefono_internacional_uy()`). Con al menos tres grupos: dos ya son el
 # millar de un conteo.
-.PATRON_MILES_PLANILLA <- paste0(
-  "^[+]?([0-9]{1,3}([.,' ])[0-9]{3}(?:\\2[0-9]{3})+)(?:(?!\\2)[.,]0+)?$"
+#
+# Ronda 32. El separador de miles era una lista propia -punto, coma, apostrofo y
+# espacio- y el celular E.164 escrito con el punto medio -`59.895.271.823` con
+# U+00B7, o con el operador vineta o el punto medio katakana, que
+# `.normalizar_signos_digitos()` lleva al punto medio- se publicaba en 60 de 60
+# notas de la copia de `analizar()` y en los ejemplos del perfil, mientras el
+# nacional con el mismo signo se tapaba. Ahora el separador es la clase con que
+# el piso une los grupos de un numero compacto (`.REGLA_DIGITOS$signo_compacto`)
+# mas el espacio. Va como alternativa y no como clase: el punto medio ocupa dos
+# bytes, y `.cifra_entera_escrita()` lee por bytes. Y con el agrupado indio
+# -grupos de dos y el ultimo de tres: `59,89,52,71,823`, el formato "Numero" de
+# una planilla con la configuracion regional de la India-, que tambien se
+# publicaba en 60 de 60. El grupo 1 es la cifra y el 2, el separador, en las dos
+# formas (`(?|`).
+.SEPARADOR_GRUPOS_PLANILLA <- local({
+  signos <- strsplit(gsub("^\\[|\\]$", "", .REGLA_DIGITOS$signo_compacto),
+                     "")[[1L]]
+  ascii <- vapply(signos, function(signo) utf8ToInt(signo) < 128L, logical(1L))
+  paste0("(?:[", paste0(signos[ascii], collapse = ""), " ]",
+         paste0("|", signos[!ascii], collapse = ""), ")")
+})
+
+.NUMERO_PLANILLA <- paste0(
+  "((?|[0-9]{1,3}(", .SEPARADOR_GRUPOS_PLANILLA, ")[0-9]{3}(?:\\2[0-9]{3})+|",
+  "[0-9]{1,2}(", .SEPARADOR_GRUPOS_PLANILLA, ")(?:[0-9]{2}\\2)+[0-9]{3}))",
+  "(?:(?!\\2)[.,]0+)?"
 )
+
+.PATRON_MILES_PLANILLA <- paste0("^[+]?", .NUMERO_PLANILLA, "$")
 
 .cifra_entera_escrita <- function(x) {
   x <- .recortar_bytes(as.character(x))
@@ -355,11 +381,12 @@
         "(?<![0-9.,])[0-9]+[.,][0-9]+ ?[eE][+]?[0-9]+(?![0-9])", texto,
         perl = TRUE
       ))[[1L]],
-      # Con separador de miles: ver `.PATRON_MILES_PLANILLA`. Entero, sin otro
-      # grupo pegado delante ni detras.
+      # Con separador de miles: ver `.PATRON_MILES_PLANILLA`, la misma forma.
+      # Entero, sin otro grupo pegado delante ni detras por un separador.
       regmatches(texto, gregexpr(
-        paste0("(?<![0-9.,'])(?<![0-9][ .,'])[+]?[0-9]{1,3}([.,' ])[0-9]{3}",
-               "(?:\\1[0-9]{3})+(?:(?!\\1)[.,]0+)?(?![0-9]|[-./,'_+ ][0-9])"),
+        paste0("(?<![0-9.,'\u00b7])(?<![0-9]", .SEPARADOR_GRUPOS_PLANILLA, ")",
+               "[+]?", .NUMERO_PLANILLA,
+               "(?![0-9]|", .SEPARADOR_GRUPOS_PLANILLA, "[0-9])"),
         texto, perl = TRUE
       ))[[1L]]
     )

@@ -3795,7 +3795,15 @@
 
     geometria <- resultado$geometria
     estado_outliers <- resultado$cuantitativo$estado_outliers
-    if (identical(estado_outliers, "no_evaluado")) {
+    if (identical(estado_outliers, "codigo_declarado")) {
+      agregar_cobertura(
+        "outliers", nombre, resultado$cuantitativo$motivo_outliers,
+        paste(
+          "Si la columna es una magnitud y no un codigo, quitarla de",
+          "`columnas_codigo` para medir sus limites de Tukey."
+        )
+      )
+    } else if (identical(estado_outliers, "no_evaluado")) {
       agregar_cobertura(
         "outliers", nombre, resultado$cuantitativo$motivo_outliers,
         paste(
@@ -3876,10 +3884,11 @@
         )
       }
       if (isFALSE(geometria$sf_evaluado)) {
+        sin_sf <- .sf_no_disponible()
         agregar_cobertura(
           "perfil_geometria", nombre,
-          "No se evaluo la geometria porque falta el paquete opcional 'sf'.",
-          "Instalar el paquete 'sf' para medir CRS, tipo, validez, vacios, dominio y bbox.",
+          paste0("No se evaluo la geometria porque ", sin_sf$causa, "."),
+          sin_sf$remedio,
           "sf"
         )
       } else {
@@ -4471,8 +4480,10 @@
     # dos estados que la lista nombraba son los del resumen PARCIAL; el del
     # resumen que no se pudo calcular quedaba afuera, que es justo donde el
     # silencio se lee como conformidad.
+    # `omitidos_codigo` tambien: la columna declarada como codigo calcula su
+    # `minimo` y su `maximo` sobre lo que pudo leer.
     estado_parcial <- fila$estado_resumen_cuantitativo[[1L]] %in% c(
-      "calculados_sobre_dias", "calculados_sobre_valores"
+      "calculados_sobre_dias", "calculados_sobre_valores", "omitidos_codigo"
     )
     if (is.finite(n_excluidas_resumen) && n_excluidas_resumen > 0) {
       analizados <- attr(resultado$formatos, "analizados", exact = TRUE)

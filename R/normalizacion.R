@@ -237,29 +237,26 @@ print.normalizacion_lupa <- function(x, ...) {
   valor <- unname(.normalizacion_clases_combinantes[as.character(codigo)])
   if (!length(valor) || is.na(valor)) 0L else as.integer(valor)
 }
+# El orden canonico solo mueve marcas: cada tramo maximo de marcas combinantes
+# -clase distinta de 0- se ordena por clase, de forma estable, y la base que lo
+# precede queda en su lugar. La salida se armaba creciendo un vector con
+# `salida <- c(salida, ...)` en cada vuelta del `while`, una vuelta por caracter:
+# cuadratico en el largo. `detectar_discordancias()`, que normaliza la celda
+# entera, tardaba 1,7 / 4,6 / 15,4 s con celdas de 25.000 / 50.000 / 100.000
+# caracteres. Medido en la ronda 32. Ahora se reordena en su lugar, tramo por
+# tramo, sobre una copia: la misma salida, en tiempo lineal.
 .normalizacion_ordenar <- function(codigos) {
   if (length(codigos) < 2L) return(codigos)
   clases <- vapply(codigos, .normalizacion_clase, integer(1L))
-  salida <- integer()
-  inicio <- 1L
-  while (inicio <= length(codigos)) {
-    fin <- inicio
-    while (fin < length(codigos) && clases[[fin + 1L]] != 0L) fin <- fin + 1L
-    if (fin > inicio) {
-      bloque <- inicio:fin
-      if (clases[[inicio]] == 0L) {
-        marcas <- (inicio + 1L):fin
-        orden <- c(inicio, marcas[.orden_por_bytes(clases[marcas], seq_along(marcas),
-                                        method = "radix")])
-      } else {
-        orden <- bloque[.orden_por_bytes(clases[bloque], seq_along(bloque),
-                              method = "radix")]
-      }
-      salida <- c(salida, codigos[orden])
-    } else {
-      salida <- c(salida, codigos[inicio:fin])
-    }
-    inicio <- fin + 1L
+  salida <- codigos
+  tramos <- rle(clases != 0L)
+  fines <- cumsum(tramos$lengths)
+  inicios <- fines - tramos$lengths + 1L
+  for (k in which(tramos$values & tramos$lengths > 1L)) {
+    bloque <- inicios[[k]]:fines[[k]]
+    salida[bloque] <- codigos[bloque][
+      .orden_por_bytes(clases[bloque], seq_along(bloque), method = "radix")
+    ]
   }
   salida
 }
@@ -290,27 +287,32 @@ print.normalizacion_lupa <- function(x, ...) {
     list(base = codigos[[1L]], marcas = codigos[-1L])
   })
 }
+# La misma construccion que `.normalizacion_ordenar()` -crecer la salida con
+# `c()` en un `while`, una vuelta por caracter- y el mismo costo cuadratico:
+# 0,8 / 1,9 / 5,9 s con 25.000 / 50.000 / 100.000 caracteres, en el perfil de
+# normalizacion por omision. Medido en la ronda 32. La regla no cambia: toda base
+# se conserva; un tramo de marcas se conserva solo si, con la base que lo
+# precede, es un grafema protegido; las marcas sin base se descartan. Se decide
+# por tramo y se toma de una vez.
 .normalizacion_quitar_acentos <- function(codigos, perfil, protecciones = NULL) {
   if (is.null(protecciones)) protecciones <- .normalizacion_protecciones(perfil)
-  salida <- integer()
-  i <- 1L
-  while (i <= length(codigos)) {
-    if (.normalizacion_clase(codigos[[i]]) != 0L) {
-      i <- i + 1L
-      next
-    }
-    j <- i
-    while (j < length(codigos) &&
-           .normalizacion_clase(codigos[[j + 1L]]) != 0L) j <- j + 1L
-    marcas <- if (j > i) codigos[(i + 1L):j] else integer()
-    conservar <- any(vapply(protecciones, function(p) {
-      identical(as.integer(p$base), as.integer(codigos[[i]])) &&
+  if (!length(codigos)) return(integer())
+  clases <- vapply(codigos, .normalizacion_clase, integer(1L))
+  conservar <- clases == 0L
+  tramos <- rle(!conservar)
+  fines <- cumsum(tramos$lengths)
+  inicios <- fines - tramos$lengths + 1L
+  for (k in which(tramos$values & inicios > 1L)) {
+    tramo <- inicios[[k]]:fines[[k]]
+    base <- codigos[[inicios[[k]] - 1L]]
+    marcas <- codigos[tramo]
+    protegido <- any(vapply(protecciones, function(p) {
+      identical(as.integer(p$base), as.integer(base)) &&
         identical(as.integer(p$marcas), as.integer(marcas))
     }, logical(1L)))
-    salida <- c(salida, codigos[[i]], if (conservar) marcas else integer())
-    i <- j + 1L
+    if (protegido) conservar[tramo] <- TRUE
   }
-  salida
+  codigos[conservar]
 }
 # La regla de comillas existe UNA vez, en `.normalizacion_comillas_vector()`, y el
 # recorrido escalar la usa sobre el texto de sus puntos de codigo. Estaba escrita

@@ -186,7 +186,10 @@ test_that("H5: analizar()$distribuciones recibe los centinelas y el universo dec
   expect_equal(fila$n_distintos[fila$columna == "marca"], 3)
 })
 
-test_that("H6: analizar() no mide la NoNulo que la propuesta deja inactiva por disfrazados", {
+# H6 fijaba que la `NoNulo` con disfrazados NO se medía. La decision D6 de la
+# ronda 32 lo revierte: se mide, contandolos como faltantes. La prueba fija ahora
+# eso, con las mismas cifras a mano (la de la decision esta en test-O156).
+test_that("H6 (revertida en 32-D): analizar() mide la NoNulo con disfrazados contandolos", {
   n <- 40
   d <- data.frame(
     edad = c(rep(c(20, 30, 40, 50, 60), length.out = n - 4), -999, -999, -999, NA),
@@ -204,10 +207,13 @@ test_that("H6: analizar() no mide la NoNulo que la propuesta deja inactiva por d
   decision <- a$decision_medicion
   no_nulo <- decision[decision$metrica == "NoNulo", ]
   expect_equal(nrow(no_nulo), 2L)
-  expect_true(all(no_nulo$estado == "faltantes_disfrazados"))
-  expect_false(any(no_nulo$medida))
+  expect_true(all(no_nulo$estado == "lista"))
+  expect_true(all(no_nulo$medida))
   medicion <- as.data.frame(a$medicion)
-  expect_false(any(medicion$metrica == "NoNulo"))
+  medidas <- medicion[medicion$metrica == "NoNulo", ]
+  # A mano: 36/40 y 34/40, no 39/40.
+  expect_equal(mean(medidas$resultado[medidas$atributo == "edad"]), 36 / 40)
+  expect_equal(mean(medidas$resultado[medidas$atributo == "estado"]), 34 / 40)
   # La misma regla que `analizar()` ya aplicaba: medida si y solo si lista.
   expect_identical(decision$medida, decision$estado == "lista")
 })

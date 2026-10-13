@@ -19,7 +19,10 @@ distribucion_valores(
 \item{datos}{Tabla que se desea examinar.}
 
 \item{perfil}{Perfil opcional de los mismos datos; evita repetir la
-clasificación de posibles datos personales.}
+clasificación de posibles datos personales. Si el perfil declaró
+\code{columnas_codigo}, esas columnas publican en \code{cuantiles} sólo los extremos
+—probabilidad 0 y 1, el tramo de códigos—; los intermedios quedan en \code{NA}
+con \code{estado = "codigo_declarado"}, como \code{mediana} en el perfil.}
 
 \item{max_valores}{Máximo de valores mostrados por columna.}
 

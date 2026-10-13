@@ -17,7 +17,8 @@ proponer_modelo(
 \item{perfil}{Objeto creado por \code{\link[=perfilar]{perfilar()}}.}
 
 \item{datos}{Datos originales opcionales. Son necesarios para proponer
-dominios observados y materializar reglas de dependencia funcional.}
+dominios observados, materializar reglas de dependencia funcional e
+identificar los faltantes disfrazados que cuenta \code{NoNulo}.}
 
 \item{relaciones}{Resultado opcional de \code{\link[=detectar_relaciones]{detectar_relaciones()}}.}
 
@@ -58,15 +59,42 @@ directos, como \code{NoNulo}, duplicación exacta y dependencias funcionales
 exactas, se activan. \code{max_sugerencias} recorta después de ordenar por
 prioridad y el objeto declara el total en sus atributos. Dentro de cada
 prioridad las filas se ordenan por métrica, entidad y atributos según sus
-bytes —no según la intercalación del locale— y \code{id_sugerencia} las numera en
-ese orden: el mismo perfil da los mismos identificadores en cualquier sesión.
-Si una columna contiene faltantes disfrazados, \code{NoNulo} se propone pero queda
-inactiva hasta normalizarlos o configurar la métrica para reconocerlos. De
-otro modo mediría sólo los \code{NA} reales y sobrestimaría la completitud. Por
-eso sale con estado \code{faltantes_disfrazados} y no \code{lista}: \code{\link[=analizar]{analizar()}} no la
-mide y \code{\link[=modelo_desde_propuesta]{modelo_desde_propuesta()}} no la materializa. Para medirla, normalizar
-los disfrazados y volver a perfilar, o declararlos en \code{valores_nulos} de su
-\code{configuracion} y pasar su \code{estado} a \code{"lista"}.
+bytes —no según la intercalación del locale—: el mismo orden en cualquier
+sesión.
+
+\code{id_sugerencia} se arma con el \strong{contenido} de la sugerencia, nunca con su
+posición: la métrica y sus atributos en su orden —\code{NoNulo:edad},
+\verb{ReglaIntegridadIntraEntidad:depto,codigo}— y, cuando la sugerencia liga dos
+tablas, cada atributo con su entidad delante
+(\verb{ReglaIntegridadInterEntidad:personas.id,visitas.persona_id}). Una
+sugerencia sin atributos lleva sólo la métrica (\code{EntidadDuplicada}). Así una
+columna que se agrega o se quita no cambia el id de las demás, y una regla de
+\code{\link[=regla_evaluacion]{regla_evaluacion()}} que lo nombra sigue midiendo lo mismo en la corrida
+siguiente: \code{\link[=modelo_desde_propuesta]{modelo_desde_propuesta()}} lo usa como nombre de la instancia, que
+es la \code{metrica_instanciada} de \code{\link[=medir]{medir()}}, del tablero y del histórico. La
+entidad de una sugerencia de una sola tabla no entra, porque es el nombre del
+perfil y cambia con la expresión perfilada; la configuración tampoco: un
+cambio de patrón o de dominio lo declara el histórico en
+\code{configuracion_modelo}. Dentro de cada nombre se escribe \verb{\%25}, \verb{\%2C} y \verb{\%23}
+en lugar de \verb{\%}, \verb{,} y \verb{#} —y \verb{\%2E} en lugar de \code{.} en una entidad—, y un
+nombre \code{NA} se escribe \verb{\%NA}, de modo que dos contenidos distintos no dan el
+mismo id. Un nombre que no es UTF-8 válido escribe cada byte alto como \verb{\%XX}
+—los bytes latin1 de «notaé» sin declarar dan \verb{nota\%E9}—, así que el id es
+siempre texto UTF-8 o ASCII, el mismo en cualquier locale. Si dos sugerencias
+tienen el mismo contenido —una tabla que repite
+el nombre de una columna—, la segunda lleva \verb{#2} y la tercera \verb{#3}, en el
+orden de las columnas de la tabla.
+
+Si una columna contiene faltantes disfrazados, \code{NoNulo} se propone activa,
+con estado \code{lista}, y \strong{se mide contándolos}: los valores que el perfil contó
+como disfrazados —con la misma regla y la misma declaración de
+\code{sentinelas_numericos} y \code{cadenas_ausencia}— se declaran en \code{valores_nulos} de
+su \code{configuracion}, y la justificación lo dice. Sobre cuarenta valores con un
+\code{NA} y tres \code{-999} mide 0,90, no 0,975. Si no se pueden identificar —sin
+\code{datos}, la propuesta no tiene de dónde sacarlos—, se mide igual con los
+valores crudos, y la justificación dice que cuenta sólo los \code{NA} y que
+sobrestima la completitud. \code{\link[=analizar]{analizar()}} la mide y \code{\link[=modelo_desde_propuesta]{modelo_desde_propuesta()}}
+la materializa como a cualquier otra sugerencia activa.
 Una sugerencia sobre una columna cuyo nombre la tabla repite sale inactiva y
 con estado \code{nombre_repetido}: una métrica se liga por nombre, y ese nombre no
 dice cuál de las columnas mide. \code{\link[=modelo_desde_propuesta]{modelo_desde_propuesta()}} no la materializa

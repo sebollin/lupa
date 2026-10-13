@@ -545,6 +545,12 @@ detectar_claves <- function(datos, max_combinacion = 3, normalizar = NULL,
   if (inherits(x, "Date")) {
     return(.escritura_exacta_temporal(format(x, "%Y-%m-%d"), as.numeric(x)))
   }
+  # Una duracion se compara por su valor, como el doble que es. Con la clase,
+  # `match()` y `%in%` la pasan por `as.character()` -15 cifras-, y
+  # `distribucion_valores()` juntaba `0.1 + 0.2` con `0.3` en un solo grupo y
+  # agregaba una fila `NA` con frecuencia 0 (ronda 32-S). La unidad es una sola
+  # por columna: no distingue valores dentro de ella.
+  if (inherits(x, "difftime")) x <- as.double(unclass(x))
   analisis <- .texto_analizable(x)
   valores <- analisis$valores
   if (!is.character(valores)) return(valores)
@@ -826,16 +832,23 @@ detectar_claves <- function(datos, max_combinacion = 3, normalizar = NULL,
   # Cada extremo con sus propias cifras y sin `scipen` ni `digits`, y con coma
   # decimal los extremos se separan con punto y coma, como en
   # `comparar_perfiles()`: con `OutDec = ","` salia `[0,10, 0,75]` (ronda 31-S).
-  lado <- function(rango) {
-    textos <- vapply(c(rango[["minimo"]], rango[["maximo"]]),
-                     .formatear_numero_publicado, character(1L))
+  # Los dos rangos con el mismo separador: con `LC_NUMERIC` en coma solo los
+  # extremos con fraccion la traen (ronda 32-S).
+  extremos <- function(rango) {
+    vapply(c(rango[["minimo"]], rango[["maximo"]]),
+           .formatear_numero_publicado, character(1L))
+  }
+  textos_x <- extremos(rango_x)
+  textos_y <- extremos(rango_y)
+  separador <- .separador_rango_deriva(c(textos_x, textos_y))
+  lado <- function(textos) {
     if (length(.valores_identificantes(textos))) {
       "[valor protegido]"
     } else {
-      .texto_rango_deriva(textos[[1L]], textos[[2L]])
+      .texto_rango_deriva(textos[[1L]], textos[[2L]], separador = separador)
     }
   }
-  paste0(lado(rango_x), " y ", lado(rango_y))
+  paste0(lado(textos_x), " y ", lado(textos_y))
 }
 
 .poda_relacion <- function(x, y, umbral_cobertura) {

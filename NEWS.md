@@ -1,5 +1,313 @@
 # lupa 0.1.0
 
+## Ronda 32: las entradas, la sesion otra vez, la proteccion y tres decisiones
+
+Tres refutaciones y una vuelta de decisiones. La de las entradas encontro once
+hallazgos -dos funciones que apagaban la proteccion con una bandera mal escrita, una
+fecha de texto leida en el huso de la sesion, un nombre de columna largo que abortaba,
+unos treinta argumentos sin validar-; la de la sesion, nueve -`digits.secs` decidia si
+una conversion era reversible, y la configuracion que se compara entre corridas cambiaba
+entre un `Rscript` de cron y RStudio- y uno mas al arreglarlos: con `LC_NUMERIC` en coma
+los controladores de PostgreSQL y SQL Server leian 2.5 como 2; la de la proteccion, seis
+-un numero partido en lineas en el mensaje del motor- y uno mas, alto, al arreglarlos: la
+lectura por bloques publicaba los valores de las columnas protegidas. Y tres decisiones:
+las columnas de codigo se declaran, el id de una sugerencia del modelo se arma con lo que
+mide, y la `NoNulo` con faltantes disfrazados se mide.
+
+**La proteccion:**
+
+- **El mensaje del motor se lee como lo dijo el motor, sin lo que agrega cli.**
+  odbc arma su error con `cli::cli_abort()`: guarda cada linea del mensaje del
+  motor como un elemento y `conditionMessage()` las une con una vineta (`\n` y
+  U+2022), junta los blancos y corta las lineas al ancho de la consola. Un numero
+  partido en dos lineas -`2901\n1234`, que la regla de digitos lee como uno de ocho
+  cifras- llegaba partido por la vineta, que la regla lee como un punto medio que
+  no une: con SQL Server en sueco o neerlandes, `perfilar_dbi()` publicaba en
+  `resumen_tabla$sql$motivo` el fijo, la cedula `4.685\n467-9` o el celular
+  `099\n123\n456`, y `perfilar_coleccion()` lo publicaba en sus motivos aunque
+  habia leido la base, con y sin perfiles; y una consola de 48 a 52 columnas
+  cortaba `2901 1234` en dos lineas. Ahora el texto de una condicion de rlang se
+  arma con sus partes (`message`, `body`, `footer`, las de la condicion que la
+  causo) unidas por el salto que puso el motor, y asi se publica, sin vinetas
+  (`.texto_condicion_motor()`, la entrada de `.mensaje_motor()`). duckdb,
+  RPostgres y RSQLite dan el mismo texto que antes.
+- **La seleccion de los valores del motor lee el valor con la misma regla que la
+  segunda pasada.** La unica regla de la segunda pasada que mira lo que rodea al
+  valor -la linea que el motor repite sobre un `^`- omitia entero, leido solo, el
+  valor que termina en `\n^`, y la coleccion no lo guardaba; dentro del mensaje la
+  linea del `^` sigue con el texto del motor, la regla no corre, y `099;123;456\n^`
+  o "Florencia Martinez\n^" se publicaban. La seleccion pregunta ahora con la
+  lectura del peor contexto (`toda_palabra = TRUE`), que no aplica esa regla: solo
+  puede guardar de mas.
+- **El celular escrito como numero de planilla con punto medio o con el agrupado
+  indio se lee como la misma cifra.** El separador de miles del numero de planilla
+  era una lista propia -punto, coma, apostrofo y espacio-: con el punto medio
+  (U+00B7, y el operador vineta y el punto medio katakana, que el piso lleva a el)
+  o con el agrupado indio (`59,89,52,71,823`), el celular E.164 de una nota salia
+  en claro en 60 de 60 notas de la copia de `analizar()` y en los ejemplos del
+  perfil. Ahora el separador es la clase con que el piso une los grupos de un
+  numero compacto, mas el espacio, y el agrupado indio es una forma del mismo
+  numero, en la lectura de la cifra y en la del texto (una sola pieza).
+- **Los avisos de una coleccion que se corta pasan por el mismo piso.** Si
+  `perfilar_coleccion()` se interrumpia -Ctrl+C, un error- despues de leer una
+  tabla y antes del piso final, los avisos juntados salian como llegaron, y el de
+  una vista leida antes que su tabla base citaba el celular protegido. El piso
+  final es ahora una sola funcion que aplica tambien el `on.exit()`, con los
+  valores que se conocian; si falla, el texto del aviso no se publica.
+- **La copia de `analizar(conservar_datos = TRUE)` mira los atributos de un
+  entorno y cierra lo que no puede leer.** Un entorno con la cedula en su atributo
+  `name` -que `print()` muestra- o en otro, o el de una funcion con ese atributo,
+  quedaba entero en la copia; y uno con una promesa o una ligadura activa que
+  aborta al leerse se devolvia como estaba, con la cedula en otra ligadura. Ahora
+  los atributos pasan por el piso -sin modificarlos: el entorno es del usuario-, y
+  lo que no se lee lleva el marcador, como una funcion que no se puede escribir.
+- **`perfilar_dbi(bloque_filas = )` no publica los valores de las columnas
+  protegidas en `meta$familias`.** La via por bloques guarda en
+  `resumen_tabla$meta$familias` lo que devolvio cada acumulador, y salia entero:
+  en `distintos`, cada valor distinto de las columnas protegidas -todas las cedulas
+  y los nombres de la tabla, en SQLite-, y en `cuantitativos` los extremos y el
+  desvio de una protegida de valores cortos, que el piso por valor no busca. Ahora
+  se tapan con la misma lista de campos que la tabla de columnas, en las mismas
+  columnas. Encontrado al medir el desvio por todas las vias.
+- **El desvio de una columna protegida deja de publicarse.** Era la unica
+  excepcion declarada -la decision F-6: "una dispersion no identifica a nadie"- y la
+  decision se revirtio: el desvio es una magnitud de los valores de la columna. Se
+  tapa como la media en `perfilar()`, `perfilar_dbi()` (con o sin bloques; su fila
+  de `resumen_tabla$sql` dice `omitido_por_privacidad`) y `perfilar_coleccion()`,
+  con una sola lista (`.CAMPOS_MOMENTO_PROTEGIDOS`), y
+  `detalle_proteccion_personal` dice `[estadisticos de orden y momentos
+  protegidos]` cuando tapa los dos momentos.
+- **La coleccion guarda huellas de los valores protegidos, no sus textos.** Para el
+  mensaje del motor de las demas tablas guardaba el texto de todo valor con letras
+  que leia, y la memoria crecia con los nombres. Ahora guarda por valor una huella
+  de 52 bits de su forma plegada y sin separadores (ocho bytes, base R), y el
+  mensaje se compara tramo por tramo: un tramo con la huella de un valor guardado
+  se tapa como esta escrito. Dos formas con la misma huella, una en 2^52, solo
+  tapan de mas. Medido con `aud31-07` (SQLite, `conservar_perfiles = FALSE`, a la
+  par con la ronda 31): sobre 800.000 filas con nombres el indice pasa de 73,2 a
+  6,1 MB, el tiempo de 324,8 a 310,2 s y el RSS de 875 a 765 MB; sobre 1.600.000,
+  de 146,5 a 12,2 MB, de 649 a 610 s y de 1849 a 1726 MB.
+
+- **La bandera `proteger_datos_personales` se valida en un solo lugar, con un solo
+  mensaje.** `detectar_discordancias()` y `descubrir_patrones()` la leian con
+  `isTRUE()`: `NA`, `NULL`, `"si"`, `"TRUE"` -el texto que deja un archivo de
+  configuracion-, `c(TRUE, TRUE)` o `-1` apagaban la proteccion y publicaban el correo
+  crudo en `evidencia` y en los ejemplos, mientras las otras once funciones rechazaban
+  esos valores (dos con otro mensaje). Por `...` pasaba lo mismo: `perfilar_dbi()`
+  calculaba y guardaba en el resumen SQL el valor que con `TRUE` declara omitido por
+  privacidad, `perfilar_coleccion()` lo heredaba y `perfilar_por()` aceptaba `NA` en
+  silencio cuando ningun grupo llegaba a `min_filas`. Ahora las trece funciones con la
+  bandera y las tres que la reciben por `...` dan el mismo error ("`proteger_datos_personales`
+  debe ser TRUE o FALSE."), y una prueba recorre las funciones exportadas con ese
+  argumento: una nueva tiene que entrar en la lista.
+
+**La fecha y la entrada:**
+
+- **`medicion_desde_estimaciones()` lee la fecha como `medir()`, cuyo contrato
+  promete.** Leia un texto con `as.POSIXct()` en el huso de la sesion: la misma llamada
+  con `fecha = "2026-03-01"` guardaba las 00:00, las 03:00 o las 15:00 del dia anterior
+  en UTC segun la maquina, con el mismo `id_medicion`, y el historico la ordenaba
+  despues de una medicion propia de la 01:00. Aceptaba ademas `NA` y dos fechas, y
+  abortaba con un error de R con `NULL`, `TRUE` o un texto ilegible. La regla de la
+  fecha de una funcion exportada queda escrita una vez -un instante, leido en UTC, o el
+  error del paquete- y la usan `perfilar()`, `reportar()`, `medir()`, `analizar()` y
+  `medicion_desde_estimaciones()`. `medir(fecha = TRUE)` da ahora el error del paquete,
+  y `medir(fecha = "ayer")` el mismo mensaje que `perfilar()`.
+- **`analizar()` acepta la fecha de texto que aceptan `perfilar()` y `medir()`.**
+  `analizar(d, fecha = "2026-03-01")` abortaba con "argumento 'trim' invalido": el texto
+  crudo llegaba al armado del id. Ahora la fecha se lee una vez, en la entrada.
+
+- **Un nombre de columna de mas de 2.500 bytes ya no aborta.** El conjunto de nombres
+  usados se guardaba en un entorno con la clave por bytes como nombre de variable -hasta
+  cuatro caracteres por byte-, y R no admite uno de mas de 10.000 bytes: `perfilar()` y
+  otras cuatro abortaban con "nombres de variables se limitan a 10000 bytes". El caso
+  real es un CSV leido con el separador equivocado, cuya unica columna se llama como la
+  cabecera entera. La pertenencia se sigue decidiendo por la clave entera, asi que el
+  resultado no cambia para nombres cortos. `medir()` tenia el mismo limite por otro
+  lado -nombraba los argumentos de `do.call(rbind)` con la metrica instanciada, que
+  lleva el nombre de la columna- y tambien se arreglo.
+- **`inferir_tipo()` rechaza una tabla como sus hermanas.** `tibble[, "f"]`,
+  `data.table[, "f"]` y `grouped_df[, "f"]` dan una tabla de una columna, y
+  `inferir_tipo()` contestaba el nombre de su clase -`tipo = "tbl_df"`- donde el vector
+  daba `texto`. Ahora da el error que ya daba `detectar_formatos_fecha()`, escrito una
+  vez para las dos.
+- **`Inf` en un tope entero da el error del paquete.** `sugerir_clave(maximo)`,
+  `elegir_clave(maximo)`, `detectar_discordancias(max_ejemplos)`,
+  `perfilar(max_columnas_orden, max_columnas_aritmetica)` y `perfilar_por(min_filas)`
+  pasaban la guarda con `Inf` y abortaban con un aviso y un error de R. Como los topes
+  hermanos de una busqueda cara, rechazan `Inf` con un mensaje que nombra el argumento;
+  los topes de lo que se muestra (`max_patrones`, `max_filas_hallazgo`, `muestra`)
+  siguen admitiendolo.
+- **NULL, largo cero, NA o el tipo equivocado dan el error del paquete en unos treinta
+  argumentos.** Las guardas que validaban varios umbrales juntos los unian con `c()`,
+  que borra un `NULL`, aplana dos valores y convierte `TRUE` en 1: el valor malo pasaba
+  y abortaba despues en `if`, `head()` o `formatC()`. Ahora cada umbral tiene que ser un
+  numero antes de unirlos, y los topes enteros se validan uno por uno con un mensaje que
+  nombra el argumento ("`max_columnas` debe ser un entero positivo." en lugar de "Los
+  limites deben ser enteros positivos."). Incluye `perfilar(nombre)` -con una funcion
+  construia el perfil y su `print()` abortaba-, `metrica(dimension, factor)`,
+  `reportar(archivo)`, `comparar_perfiles()` y `descubrir_patrones(na.rm,
+  distinguir_mayusculas, expandir)`, que con `NA` o `"si"` se leian como `FALSE` en
+  silencio.
+- **`agregar(pesos)` con otra funcion que `promedio_ponderado` se rechaza, como
+  `umbral` fuera de `ratio_umbral`.** Con `ratio` los pesos no pesaban y se publicaban
+  igual en `pesos_declarados`, y `partes_con_peso_cero` declaraba partes que si habian
+  entrado; con otro largo abortaba con un error de R.
+- **Las opciones de texto dan un error que nombra el argumento.** Diez argumentos
+  exportados usaban `match.arg()` crudo: con `NA` o un numero decia "'arg' must be NULL
+  or a character vector". Ahora "`funcion` debe ser 'ratio', 'ratio_umbral', 'promedio'
+  o 'promedio_ponderado'.", con el mismo resultado que `match.arg()` sobre todo lo que
+  este acepta. Tambien en `perfilar_dbi()` y `perfilar_coleccion()`.
+- **`aplicar()` devuelve la data.table con su espacio reservado.** Las acciones
+  asignan con `[[<-.data.frame`, que copia la tabla sin la sobreasignacion: volvia con
+  `truelength` 0 y el primer `:=` del usuario avisaba "Se tomo una copia superficial".
+
+**La misma respuesta en cualquier sesion:**
+
+- **Una conversion a fecha-hora con fraccion de segundo no depende de
+  `options(digits.secs)`.** El plan comparaba el instante convertido con
+  `format()` sin formato, que toma los decimales de esa opcion: con el valor por
+  omision dos instantes del mismo segundo salian iguales y `planificar_limpieza()`
+  bloqueaba como "no inyectiva" -10 valores de 12- una conversion que conserva
+  cada valor; con `digits.secs = 6` la dejaba `lista` y `aplicar()` la escribia.
+  El instante se compara con todas sus cifras, en UTC, en cualquier sesion.
+- **La configuracion que se compara entre corridas no depende de `LC_NUMERIC`,
+  del locale `C` ni de `digits.secs`.** `deparse()` escribe la marca decimal de
+  `LC_NUMERIC` (`x > 0,9`) y bajo `C` escapa el texto no ASCII
+  (`"S<U+00ED>"`), y la configuracion guardaba los instantes con `format()` sin
+  formato: una corrida de cron contra una de RStudio, o una sesion con
+  `Sys.setlocale("LC_NUMERIC", ...)`, hacian que `comparar_evaluaciones()` y
+  `detectar_deriva_calidad()` afirmaran un cambio de perfil, de modelo y de
+  aplicabilidad que no hubo. Todo `deparse()` del paquete escribe ahora con
+  `LC_NUMERIC` en "C" y, bajo `C`, con un `LC_CTYPE` UTF-8 mientras escribe: sale
+  lo mismo que en una sesion UTF-8, con los mismos cortes de linea. Lo mismo
+  arregla el texto publicado de la regla de aplicabilidad y el nombre de los datos
+  (que bajo `C` salia `datos`). Una evaluacion guardada antes en una sesion UTF-8
+  sigue apareando; la excepcion es un instante con fraccion de segundo en la
+  configuracion (`vigencia(fecha_acceso = )`), que antes se guardaba cortado al
+  segundo y ahora con su fraccion: esa corrida declara el cambio una vez.
+- **Lo que se lee de una base de datos no depende de `LC_NUMERIC`.** Los
+  controladores convierten el texto que devuelve el motor con la marca decimal
+  del locale: con `Sys.setlocale("LC_NUMERIC", ...)` en coma, RPostgres leia
+  `2.5` como `2` (y odbc, un `decimal` de SQL Server), y `perfilar_dbi()`
+  publicaba sin aviso media 3, mediana 2, minimo 0 y maximo 10 sobre una columna
+  de media 3.7, mediana 2.5, minimo 0.5 y maximo 10.25. `coleccion()`,
+  `perfilar_dbi()`, `plan_perfilado_dbi()`, `perfilar_coleccion()`,
+  `estimar_costo_coleccion()` y `relaciones_coleccion()` leen ahora con
+  `LC_NUMERIC` en "C" y lo devuelven como estaba al terminar, tambien si
+  terminan en error.
+- **El porcentaje de `TABLESAMPLE` se escribe con punto.** `formatC()` tomaba la
+  marca de `OutDec` y el `sprintf()` de C la de `LC_NUMERIC`: con cualquiera de
+  las dos en coma la sentencia decia `TABLESAMPLE SYSTEM (12,5)`, el motor la
+  rechazaba y `perfilar_dbi(universo = "muestra_motor")` se quedaba sin muestra.
+- **`distribucion_valores()` agrupa una duracion por su valor y la escribe como
+  un doble.** Una columna `difftime` se publicaba con `as.character()`: la
+  etiqueta seguia a `OutDec`, `LC_NUMERIC` y `scipen` (`1,5`, `1.5e+00`),
+  `0.1 + 0.2` y `0.3` caian en una sola fila y aparecia una fila `NA` con
+  frecuencia 0.
+- **Dos cifras que la ronda 31 no alcanzo ya no salen en notacion cientifica**
+  con `scipen` negativo: el motivo de `perfilar_coleccion()` ("No se calcularon
+  14 de 105 agregados") y la fuente de la proyeccion de la mediana de
+  `perfilar_dbi()` ("68 ms por millon de filas").
+- **Con `LC_NUMERIC` en coma, `detectar_relaciones()` separa los extremos de un
+  rango con punto y coma**, como con `OutDec`: decia `[0,125, 0,75]`.
+- **Si `sf` esta instalado y no se puede cargar, el perfil no dice que falta.**
+  Con `LC_NUMERIC` en coma su dependencia `units` no carga; el motivo decia
+  "falta el paquete opcional 'sf'" y el remedio "Instalar el paquete". Ahora dice
+  que esta instalado pero no se pudo cargar en la sesion, y nombra
+  `LC_NUMERIC` cuando es la causa.
+- **Bajo el locale `C` los avisos del paquete llegan con su texto intacto**, como
+  los errores desde la ronda 31: `warning()` pasaba el mensaje por `gettext()` y
+  `conditionMessage()` devolvia `m<U+00E9>trica(s)`.
+- El ejemplo de `?pack_validadores` (la plantilla de un pack propio) calcula el
+  digito verificador con enteros: con `scipen = -9` rechazaba un RUT valido.
+
+**Tres decisiones de diseno:**
+
+- **`perfilar()` acepta `columnas_codigo`.** La regla de numeracion (ronda 28-N)
+  dejo de tratar como identificador a un codigo que se repite, porque por su forma
+  no se distingue de una magnitud entera que lleno su rango, y un codigo de 1 a 284
+  como `EstCod` recibia 181 outliers falsos. Pasarlo como texto o factor no lo
+  evitaba: el paquete infiere numero. Ahora se declara: una columna en
+  `columnas_codigo` no recibe limites de Tukey (`n_outliers` en `NA`, sin
+  `outliers` ni `posible_centinela_numerico`), ni la ley de Benford, ni `media`,
+  `mediana` y `desvio`, con `estado_resumen_cuantitativo = "omitidos_codigo"`; lo
+  que no se evaluo va a `cobertura_diagnosticos` con su motivo (dos razones nuevas:
+  `outliers` y `ley_benford` por `codigo_declarado`). Conserva lo que describe sus
+  valores: `minimo` y `maximo` -el tramo de codigos-, moda, distintos, conteos y
+  faltantes disfrazados. Vale igual por `perfilar_dbi()` (tambien en
+  `resumen_tabla`, por SQL, bloques y spool, con una fila de cobertura
+  `no_aplica`; el nombre se valida aunque no haya muestra), `perfilar_por()` (se
+  recorta de la rebanada que no la tiene), `perfilar_coleccion()` y `analizar()`
+  (sus `distribuciones` publican solo los cuantiles 0 y 1 de la columna).
+  `comparar_perfiles()` declara un cambio de la declaracion como cambio de
+  configuracion. El sentido contrario -forzar que se midan las magnitudes de una
+  columna que parece numeracion- no se agrega: desde 28-N solo es numeracion la
+  columna densa y casi sin repetir, donde Tukey no tiene que acusar salvo un salto
+  de escala, que ya rompe la guarda.
+- **El id de las sugerencias de `proponer_modelo()` sale de su contenido.** Era
+  `sugerencia-NNNN`, numerado tras ordenar por nombre de columna: una columna nueva
+  corria los numeros, y una regla que nombraba `sugerencia-0002` -la `NoNulo` de
+  `edad`- media la de `apellido` en la corrida siguiente; la deriva por regla
+  publicaba un deterioro `error` de -0,44 que era del id. Ahora es la metrica y sus
+  atributos en su orden (`NoNulo:edad`, `ReglaIntegridadIntraEntidad:depto,codigo`),
+  con la entidad delante de cada atributo cuando la sugerencia liga dos tablas
+  (`ReglaIntegridadInterEntidad:personas.id,visitas.persona_id`), y la metrica sola
+  si no tiene atributos (`EntidadDuplicada`). La entidad de una sola tabla no entra
+  -es el nombre del perfil y cambia con la expresion perfilada- ni la
+  configuracion. `%`, `,` y `#` se escriben `%25`, `%2C` y `%23` (y `.` como
+  `%2E` en una entidad), y dos sugerencias del mismo contenido -una tabla que
+  repite un nombre de columna- se distinguen con `#2`, `#3` en el orden de las
+  columnas, nunca por la posicion en la propuesta. El id es la
+  `metrica_instanciada` de `modelo_desde_propuesta()`, `medir()`, el tablero, el
+  historico y la deriva: medido, una sugerencia propuesta, materializada, medida,
+  evaluada, guardada y comparada entre dos corridas con una columna agregada en la
+  segunda conserva su id, y la deriva da delta 0.
+- **La `NoNulo` con faltantes disfrazados se mide (revierte 31-R H6).** La ronda 31
+  la dejaba con estado `faltantes_disfrazados`, sin medir ni materializar. Ahora se
+  propone activa y `lista` y se mide contandolos: los valores que el perfil conto
+  como disfrazados -con la misma funcion y la misma declaracion de
+  `sentinelas_numericos` y `cadenas_ausencia`- van a `valores_nulos` de su
+  `configuracion`, y sobre 40 valores con un `NA` y tres `-999` mide 0,90 y no
+  0,975 (0,85 en la columna de texto con cinco disfrazados). Si no se pueden
+  identificar -`proponer_modelo()` sin `datos`- se mide igual con los valores
+  crudos, y la justificacion dice cual de las dos se hizo.
+- **El id por contenido es seguro en cualquier nombre y en cualquier sesion.** Un
+  nombre de columna que no es UTF-8 valido (declarado `bytes`) se escribe en el id
+  con `%XX`, byte a byte, en vez de hacer abortar `medir()`; y `medir()` ya no avisa
+  "unable to translate" bajo el locale `C` con ids no ASCII (unia las mediciones con
+  `rbind()` sobre una lista nombrada por instancia; ahora sin los nombres).
+
+**Rendimiento:**
+
+- **La normalizacion Unicode es lineal en el largo de la celda.** El orden canonico de
+  las marcas y el retiro de acentos crecian la salida con `c()` dentro de un `while`, una
+  vuelta por caracter: `detectar_discordancias()` tardaba 15,6 s con tres celdas de
+  100.000 caracteres y `perfilar(normalizar = TRUE)` 15,5 s; ahora 2,2 s y 3,1 s, con la
+  misma salida.
+
+**Decision documentada:**
+
+- Los nombres de fila cuentan en `max_bytes_muestra`: el paquete los trata como datos
+  y la muestra los materializa, asi que la misma tabla con nombres de fila de texto se
+  muestrea en menos filas con el mismo tope. El recorte se declara en
+  `cobertura_diagnosticos`, y la ayuda de `perfilar()` ahora lo dice.
+
+**La documentacion:**
+
+- **La ayuda declara dos familias que la regla tapa de mas.** El fijo que no es de
+  nadie escrito como numero de planilla con su prefijo (`59.822.877.006`), que
+  desde la ronda 31 se lee por su parte nacional: 3,2 %, como pegado, y 4,4 % con
+  los miles y los decimales en cero o con espacios -sus primeras ocho cifras tienen
+  la forma de una cedula entera, como en el celular-; la ayuda decia que las mismas
+  cifras se tapaban en todas las escrituras. Y el entero de ocho cifras que empieza
+  con 9 (90 a 99,9 millones), 3,3 % en cualquier escritura: es un celular protegido
+  sin su cero; la ayuda daba "uno o dos de cada cien", medido entre 10 y 70
+  millones. Y lo que suma la lectura nueva del numero de planilla: con el punto
+  medio, 5,3 % (7,8 % con `,00`; 1,3 y 4,0 % antes), y con el agrupado indio, que
+  ya se tapaba uno de cada cinco por sus grupos de dos, 20,3 % (32,0 % con `.00`;
+  17,2 y 29,3 % antes). Las familias nuevas estan en `data-raw/medir_tapado_de_mas.R`.
+
 ## Ronda 31: la misma respuesta en cualquier sesion, la proteccion otra vez y una regla por hecho
 
 Tres refutaciones. La de la sesion encontro ocho defectos -bajo un locale turco
@@ -119,7 +427,8 @@ duplicadas-, y la auditoria uno mas: una conversion regional que no se ejecuta s
   de los cuantiles como sale de `minimo` y `maximo`; en las frecuencias sigue
   contando, como en `n_distintos` y `moda`. `distribucion_valores()` sola no
   cambia.
-- **`analizar()` no mide la `NoNulo` que la propuesta deja inactiva por
+- **(Revertido en la ronda 32: la `NoNulo` con faltantes disfrazados se mide
+  contandolos.)** **`analizar()` no mide la `NoNulo` que la propuesta deja inactiva por
   faltantes disfrazados.** La fila de `decision_medicion` decia `medida = TRUE`
   y "queda inactiva hasta normalizarlos", y el tablero publicaba 0,975 donde,
   con los disfrazados que el perfil cuenta, la completitud es 0,90 y 0,85. Sale

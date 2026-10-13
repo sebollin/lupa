@@ -132,7 +132,8 @@
 .resultado_benford_columna <- function(x, nombre, tipo_inferido,
                                        posible_identificador,
                                        umbrales = .umbrales_benford(),
-                                       clave_declarada = FALSE) {
+                                       clave_declarada = FALSE,
+                                       codigo_declarado = FALSE) {
   finitos <- if (is.numeric(x)) {
     as.numeric(x[is.finite(x)])
   } else {
@@ -194,10 +195,17 @@
   )
   es_identificador <- length(motivos_identificador) > 0L
 
-  fallas <- .precondiciones_benford(
-    variacion, es_identificador, n_positivos, proporcion_positivos,
-    ordenes, umbrales
-  )
+  # Una columna declarada en `columnas_codigo` es un codigo por declaracion, y
+  # sobre un codigo Benford no se aplica: la unica precondicion que se publica
+  # es esa, porque las demas no llegan a importar (decision D2, ronda 32).
+  fallas <- if (isTRUE(codigo_declarado)) {
+    "codigo_declarado"
+  } else {
+    .precondiciones_benford(
+      variacion, es_identificador, n_positivos, proporcion_positivos,
+      ordenes, umbrales
+    )
+  }
 
   base <- list(
     columna = nombre,
@@ -209,7 +217,8 @@
     ordenes_magnitud = ordenes,
     parece_identificador = es_identificador,
     motivos_identificador = motivos_identificador,
-    clave_declarada = isTRUE(clave_declarada)
+    clave_declarada = isTRUE(clave_declarada),
+    codigo_declarado = isTRUE(codigo_declarado)
   )
   if (length(fallas)) return(base)
 
@@ -266,6 +275,10 @@
   # el criterio cuando no hubo criterio.
   etiquetas <- c(
     sin_variacion = "sin variacion",
+    codigo_declarado = paste(
+      "la columna se declaro en `columnas_codigo`, asi que es un codigo y no",
+      "una magnitud"
+    ),
     parece_identificador = if (isTRUE(resultado$clave_declarada)) {
       # Se probo agregar un aviso cuando la columna declarada como clave se
       # reparte por muchos ordenes de magnitud, para que una declaracion
@@ -320,7 +333,8 @@
 }
 
 .diagnosticar_benford <- function(datos, columnas, hallazgos,
-                                  clave_declarada = NULL) {
+                                  clave_declarada = NULL,
+                                  columnas_codigo = NULL) {
   candidatas <- which(vapply(datos, .columna_candidata_benford, logical(1L)))
 
   # `integer64` esta excluido por tipo desde el primer commit, junto con `Date`,
@@ -394,7 +408,9 @@
       datos[[i]], nombre, columnas$tipo_inferido[[i]],
       clave_operativa %in% identificadores, umbrales,
       clave_declarada = clave_operativa %in%
-        .nombres_para_operar(as.character(clave_declarada))
+        .nombres_para_operar(as.character(clave_declarada)),
+      codigo_declarado = clave_operativa %in%
+        .nombres_para_operar(as.character(columnas_codigo))
     )
   })
   names(resultados) <- names(datos)[candidatas]
@@ -404,7 +420,10 @@
     .nuevo_diagnostico_no_evaluado(
       "ley_benford", resultado$columna,
       .motivo_no_aplica_benford(resultado, umbrales),
-      paste0(
+      if (isTRUE(resultado$codigo_declarado)) paste(
+        "Si la columna es una magnitud y no un codigo, quitarla de",
+        "`columnas_codigo` para evaluar Benford."
+      ) else paste0(
         "No interpretar una distribucion de primeros digitos. Benford requiere ",
         "montos positivos no asignados, al menos ",
         .formatear_numero_publicado(umbrales$minimo_observaciones_utilizables),

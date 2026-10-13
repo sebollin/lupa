@@ -144,7 +144,7 @@ vigencia <- function(columna_actualizacion, fecha_acceso = Sys.time(),
 #' @rdname contratos_medicion
 #' @export
 escala <- function(error, tipo = c("absoluto", "relativo")) {
-  tipo <- match.arg(tipo)
+  tipo <- .elegir_opcion(tipo)
   if (!is.function(error) &&
       (!is.numeric(error) || !length(error) || anyNA(error) ||
        any(!is.finite(error)) || any(error < 0))) {

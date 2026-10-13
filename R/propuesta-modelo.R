@@ -79,6 +79,138 @@
   }
 }
 
+# El id de una sugerencia se arma con lo que la identifica, nunca con su
+# posicion (decision D3, ronda 32). Era `sugerencia-NNNN`, numerado tras ordenar
+# por nombre de columna: una columna nueva corria los numeros y una regla que
+# nombraba `sugerencia-0002` -la `NoNulo` de `edad`- pasaba a medir la de
+# `apellido` en la corrida siguiente. Medido: de siete sugerencias comunes a dos
+# corridas, una conservaba su id, y la deriva publicaba un deterioro `error` que
+# era del id y no de los datos.
+#
+# El id es `Metrica:atributo,atributo`: la metrica y sus atributos en su orden
+# -una dependencia `a -> b` no es `b -> a`-. Cuando la sugerencia liga mas de una
+# entidad -una regla entre tablas- cada atributo lleva su entidad delante
+# (`personas.id`), porque la direccion es lo que distingue las dos sugerencias
+# de una misma relacion. La entidad de una sugerencia de una sola tabla NO entra:
+# es el nombre del perfil, que sale de la expresion perfilada (`enero`,
+# `febrero`) y cambiaria el id de una corrida a otra sobre la misma tabla.
+#
+# Ningun parametro de la configuracion entra: la propuesta no ofrece dos
+# instancias de la misma metrica sobre los mismos atributos, y meter el patron
+# de un `Formato` haria que una regla perdiera su metrica cuando el patron
+# dominante cambia. Ese cambio es de configuracion y el historico lo declara en
+# `configuracion_modelo`.
+#
+# Los signos que el id usa como sintaxis se escapan en cada nombre como en una
+# URL -`%` es `%25`, `,` es `%2C` y `#` es `%23`; y `.` es `%2E` en la
+# entidad-, asi que dos contenidos distintos no dan el mismo id. Un nombre `NA`
+# se escribe `%NA`, que ningun nombre escapado produce.
+#
+# El id tiene que ser texto que el resto del paquete pueda unir y comparar, y
+# un nombre de columna puede no serlo: con un nombre declarado `bytes` -los
+# bytes latin1 de `nota` con la e con tilde- el id lo heredaba y `medir()`
+# abortaba en su `rbind()` -"translating strings with bytes encoding is not
+# allowed"- (lo atrapo `test-O139`). Por eso el id se arma por BYTES: lo que es
+# UTF-8 valido queda como esta, marcado UTF-8, sea cual sea su marca -la marca no
+# es parte del nombre, sus bytes si; es la regla de `.nombres_para_operar()`-; lo
+# latin1 declarado se convierte primero; y en un nombre que no es UTF-8 valido
+# cada byte alto se escribe `%XX`. El resultado es UTF-8 valido o ASCII, nunca
+# `bytes`, igual en cualquier locale, y sigue siendo inyectivo: el `%` de un
+# nombre real ya se escribio `%25`.
+.componente_id_sugerencia <- function(x, entidad = FALSE) {
+  x <- as.character(x)
+  especiales <- as.integer(charToRaw(paste0(
+    "%,#", if (entidad) "." else ""
+  )))
+  vapply(x, function(nombre) {
+    if (is.na(nombre)) return("%NA")
+    if (identical(Encoding(nombre), "latin1")) {
+      nombre <- iconv(nombre, from = "latin1", to = "UTF-8")
+    }
+    bytes <- charToRaw(nombre)
+    codigos <- as.integer(bytes)
+    crudo <- rawToChar(bytes)
+    escapar <- codigos %in% especiales
+    if (!validUTF8(crudo)) escapar <- escapar | codigos >= 128L
+    salida <- if (any(escapar)) {
+      piezas <- lapply(seq_along(bytes), function(k) {
+        if (escapar[[k]]) charToRaw(sprintf("%%%02X", codigos[[k]])) else bytes[[k]]
+      })
+      rawToChar(do.call(c, piezas))
+    } else crudo
+    if (any(charToRaw(salida) >= as.raw(128L))) Encoding(salida) <- "UTF-8"
+    salida
+  }, character(1L), USE.NAMES = FALSE)
+}
+
+.id_contenido_sugerencia <- function(metrica, entidades, atributos) {
+  atributos <- as.character(atributos)
+  if (!length(atributos)) return(as.character(metrica))
+  componentes <- .componente_id_sugerencia(atributos)
+  entidades <- as.character(entidades)
+  if (length(entidades) > 1L && length(entidades) == length(atributos)) {
+    componentes <- .pegar_texto0(
+      .componente_id_sugerencia(entidades, entidad = TRUE), ".", componentes
+    )
+  }
+  .pegar_texto0(metrica, ":", .pegar_texto(componentes, collapse = ","))
+}
+
+# Dos sugerencias con el mismo contenido -una tabla que repite el nombre de una
+# columna, una relacion pasada dos veces- se distinguen por su ORDINAL entre las
+# de igual contenido, en el orden en que se generan: el de las columnas de la
+# tabla. La primera conserva el id sin sufijo y las siguientes llevan `#2`,
+# `#3`. Agregar o quitar otra columna no lo mueve; lo unico que lo mueve es
+# agregar otra columna con ese mismo nombre antes, y ahi no hay otro dato que
+# las distinga.
+.ids_sugerencias <- function(resultado) {
+  if (!nrow(resultado)) return(character())
+  base <- vapply(seq_len(nrow(resultado)), function(i) {
+    .id_contenido_sugerencia(
+      resultado$metrica[[i]], resultado$entidades_ligadas[[i]],
+      resultado$atributos_ligados[[i]]
+    )
+  }, character(1L))
+  clave <- .clave_bytes(.nombres_para_operar(base))
+  ordinal <- vapply(seq_along(clave), function(i) {
+    sum(clave[seq_len(i)] == clave[[i]])
+  }, integer(1L))
+  repetido <- ordinal > 1L
+  if (any(repetido)) {
+    base[repetido] <- .pegar_texto0(base[repetido], "#", ordinal[repetido])
+  }
+  base
+}
+
+# Los faltantes disfrazados de una columna, para contarlos en su `NoNulo`
+# (decision D6, ronda 32). La ronda 31 dejaba esa `NoNulo` sin medir; Sebastian
+# lo revirtio: primero normalizar, y si no se puede, medir igual con los valores
+# crudos. Normalizar es declarar en `valores_nulos` los valores que el perfil
+# conto como disfrazados, y la mascara sale de la MISMA funcion que usa el perfil
+# (`.faltantes_disfrazados_columna()`, por `.contexto_casi_clave()`) con la
+# politica que el perfil declaro -sus `sentinelas_numericos` y sus
+# `cadenas_ausencia`-. Como la mascara decide por valor, `x %in% valores_nulos`
+# marca las mismas filas. Se ordenan por sus bytes para que dos corridas con
+# los mismos valores declaren la misma configuracion.
+.valores_nulos_disfrazados <- function(perfil, datos, columna) {
+  if (is.null(datos)) return(NULL)
+  indice <- .indice_nombre(columna, names(datos))
+  if (length(indice) != 1L || is.na(indice)) return(NULL)
+  x <- datos[[indice]]
+  if (.es_columna_compuesta(x) || (is.list(x) && !is.factor(x))) return(NULL)
+  mascara <- tryCatch(
+    .contexto_casi_clave(x, perfil)$disfrazados,
+    error = function(e) NULL
+  )
+  if (!is.logical(mascara) || length(mascara) != length(x)) return(NULL)
+  mascara[is.na(mascara)] <- FALSE
+  if (!any(mascara)) return(NULL)
+  valores <- x[mascara]
+  if (is.factor(valores)) valores <- as.character(valores)
+  valores <- valores[!duplicated(valores)]
+  valores[.orden_por_bytes(valores)]
+}
+
 #' Proponer un modelo de calidad desde el profiling
 #'
 #' Construye el puente entre el examen de datos y la medición. El resultado no
@@ -93,15 +225,42 @@
 #' exactas, se activan. `max_sugerencias` recorta después de ordenar por
 #' prioridad y el objeto declara el total en sus atributos. Dentro de cada
 #' prioridad las filas se ordenan por métrica, entidad y atributos según sus
-#' bytes —no según la intercalación del locale— y `id_sugerencia` las numera en
-#' ese orden: el mismo perfil da los mismos identificadores en cualquier sesión.
-#' Si una columna contiene faltantes disfrazados, `NoNulo` se propone pero queda
-#' inactiva hasta normalizarlos o configurar la métrica para reconocerlos. De
-#' otro modo mediría sólo los `NA` reales y sobrestimaría la completitud. Por
-#' eso sale con estado `faltantes_disfrazados` y no `lista`: [analizar()] no la
-#' mide y [modelo_desde_propuesta()] no la materializa. Para medirla, normalizar
-#' los disfrazados y volver a perfilar, o declararlos en `valores_nulos` de su
-#' `configuracion` y pasar su `estado` a `"lista"`.
+#' bytes —no según la intercalación del locale—: el mismo orden en cualquier
+#' sesión.
+#'
+#' `id_sugerencia` se arma con el **contenido** de la sugerencia, nunca con su
+#' posición: la métrica y sus atributos en su orden —`NoNulo:edad`,
+#' `ReglaIntegridadIntraEntidad:depto,codigo`— y, cuando la sugerencia liga dos
+#' tablas, cada atributo con su entidad delante
+#' (`ReglaIntegridadInterEntidad:personas.id,visitas.persona_id`). Una
+#' sugerencia sin atributos lleva sólo la métrica (`EntidadDuplicada`). Así una
+#' columna que se agrega o se quita no cambia el id de las demás, y una regla de
+#' [regla_evaluacion()] que lo nombra sigue midiendo lo mismo en la corrida
+#' siguiente: [modelo_desde_propuesta()] lo usa como nombre de la instancia, que
+#' es la `metrica_instanciada` de [medir()], del tablero y del histórico. La
+#' entidad de una sugerencia de una sola tabla no entra, porque es el nombre del
+#' perfil y cambia con la expresión perfilada; la configuración tampoco: un
+#' cambio de patrón o de dominio lo declara el histórico en
+#' `configuracion_modelo`. Dentro de cada nombre se escribe `%25`, `%2C` y `%23`
+#' en lugar de `%`, `,` y `#` —y `%2E` en lugar de `.` en una entidad—, y un
+#' nombre `NA` se escribe `%NA`, de modo que dos contenidos distintos no dan el
+#' mismo id. Un nombre que no es UTF-8 válido escribe cada byte alto como `%XX`
+#' —los bytes latin1 de «notaé» sin declarar dan `nota%E9`—, así que el id es
+#' siempre texto UTF-8 o ASCII, el mismo en cualquier locale. Si dos sugerencias
+#' tienen el mismo contenido —una tabla que repite
+#' el nombre de una columna—, la segunda lleva `#2` y la tercera `#3`, en el
+#' orden de las columnas de la tabla.
+#'
+#' Si una columna contiene faltantes disfrazados, `NoNulo` se propone activa,
+#' con estado `lista`, y **se mide contándolos**: los valores que el perfil contó
+#' como disfrazados —con la misma regla y la misma declaración de
+#' `sentinelas_numericos` y `cadenas_ausencia`— se declaran en `valores_nulos` de
+#' su `configuracion`, y la justificación lo dice. Sobre cuarenta valores con un
+#' `NA` y tres `-999` mide 0,90, no 0,975. Si no se pueden identificar —sin
+#' `datos`, la propuesta no tiene de dónde sacarlos—, se mide igual con los
+#' valores crudos, y la justificación dice que cuenta sólo los `NA` y que
+#' sobrestima la completitud. [analizar()] la mide y [modelo_desde_propuesta()]
+#' la materializa como a cualquier otra sugerencia activa.
 #' Una sugerencia sobre una columna cuyo nombre la tabla repite sale inactiva y
 #' con estado `nombre_repetido`: una métrica se liga por nombre, y ese nombre no
 #' dice cuál de las columnas mide. [modelo_desde_propuesta()] no la materializa
@@ -109,7 +268,8 @@
 #'
 #' @param perfil Objeto creado por [perfilar()].
 #' @param datos Datos originales opcionales. Son necesarios para proponer
-#'   dominios observados y materializar reglas de dependencia funcional.
+#'   dominios observados, materializar reglas de dependencia funcional e
+#'   identificar los faltantes disfrazados que cuenta `NoNulo`.
 #' @param relaciones Resultado opcional de [detectar_relaciones()].
 #' @param entidades_relacion Dos nombres de entidad correspondientes a las
 #'   tablas usadas en `relaciones`.
@@ -154,11 +314,10 @@ proponer_modelo <- function(perfil, datos = NULL, relaciones = NULL,
     stop("`datos` debe ser NULL o heredar de data.frame.", call. = FALSE)
   }
   if (!is.null(datos)) datos <- .tabla_base(datos)
-  limites <- c(max_valores_dominio, max_sugerencias)
-  if (anyNA(limites) || any(!is.finite(limites)) || any(limites < 1) ||
-      any(limites != floor(limites))) {
-    stop("Los m\u00e1ximos deben ser enteros positivos.", call. = FALSE)
-  }
+  max_valores_dominio <- .validar_entero_positivo(
+    max_valores_dominio, "max_valores_dominio"
+  )
+  max_sugerencias <- .validar_entero_positivo(max_sugerencias, "max_sugerencias")
   entidad <- perfil$meta$nombre
   if (!.es_texto_escalar(entidad)) entidad <- "datos"
   if (!is.null(datos) && !identical(
@@ -196,23 +355,39 @@ proponer_modelo <- function(perfil, datos = NULL, relaciones = NULL,
         "perfil:n_faltantes_totales"
       }
       n_disfrazados <- fila$n_faltantes_disfrazados[[1L]]
-      # Con ausentes disfrazados la sugerencia sale inactiva porque medirla
-      # contaria solo los `NA` y sobrestimaria la completitud. Y tambien fuera
-      # de `lista`: `analizar()` mide todo lo `lista` aunque este inactivo, y
-      # medida asi publicaba en el tablero `NoNulo = 0.975` sobre 1 `NA` y 3
-      # `-999` -el perfil cuenta 4 ausentes, 0.90-, con `medida = TRUE` en la
-      # misma fila que decia "queda inactiva" (ronda 31). Es lo que el paquete
-      # ya hace con `nombre_repetido`: inactiva por una razon de validez, con
-      # estado propio, no se mide ni se materializa.
+      # Con ausentes disfrazados la `NoNulo` SE MIDE (decision D6, ronda 32;
+      # revierte la de la ronda 31, que la dejaba sin medir con estado
+      # `faltantes_disfrazados`). El paquete existe para dar la medicion. Primero
+      # se normaliza: los valores que el perfil conto como disfrazados van a
+      # `valores_nulos`, y la metrica los cuenta como faltantes -0,90 en vez de
+      # 0,975 sobre 1 `NA` y 3 `-999`-. Si no se pueden identificar -sin
+      # `datos`, no hay de donde sacarlos-, se mide igual con los valores crudos
+      # y la justificacion dice que cuenta solo los `NA`.
       disfrazados_presentes <- isTRUE(n_disfrazados > 0L)
+      valores_nulos <- if (disfrazados_presentes) {
+        .valores_nulos_disfrazados(perfil, datos, columna)
+      } else NULL
       agregar_sugerencia(.nueva_sugerencia(
-        "alta", n_disfrazados == 0L, "NoNulo", entidad, columna, origen,
-        if (n_disfrazados > 0L) {
+        "alta", TRUE, "NoNulo", entidad, columna, origen,
+        if (disfrazados_presentes && length(valores_nulos)) {
           paste0(
             "La columna contiene ", fila$n_faltantes_totales[[1L]],
             " ausentes totales, incluidos ", n_disfrazados,
-            " disfrazados. La sugerencia queda inactiva hasta normalizarlos ",
-            "o declararlos en `valores_nulos`."
+            " disfrazados. Se normalizan: sus valores se declaran en ",
+            "`valores_nulos` y la m\u00e9trica los cuenta como faltantes."
+          )
+        } else if (disfrazados_presentes) {
+          paste0(
+            "La columna contiene ", fila$n_faltantes_totales[[1L]],
+            " ausentes totales, incluidos ", n_disfrazados,
+            if (is.null(datos)) {
+              " disfrazados que no se pueden identificar sin los datos."
+            } else {
+              " disfrazados que no se pudieron identificar en los datos recibidos."
+            },
+            " Se mide con los valores crudos: cuenta como faltantes s\u00f3lo los ",
+            "`NA` (", fila$n_faltantes[[1L]], ") y sobrestima la completitud. ",
+            "Para contarlos, declararlos en `valores_nulos`."
           )
         } else {
           paste0(
@@ -220,7 +395,9 @@ proponer_modelo <- function(perfil, datos = NULL, relaciones = NULL,
             " valores ausentes; la completitud debe medirse por separado."
           )
         },
-        estado = if (disfrazados_presentes) "faltantes_disfrazados" else "lista"
+        configuracion = if (length(valores_nulos)) {
+          list(valores_nulos = valores_nulos)
+        } else list()
       ))
     }
     patrones <- perfil$patrones[[i]]
@@ -365,13 +542,16 @@ proponer_modelo <- function(perfil, datos = NULL, relaciones = NULL,
       "proponer."
     )
   }
+  # El id sale del contenido y se asigna ANTES de ordenar y de recortar: no
+  # depende de la posicion, ni de `max_sugerencias`, ni del orden. Ver
+  # `.ids_sugerencias()`.
+  resultado$id_sugerencia <- .ids_sugerencias(resultado)
   if (nrow(resultado)) {
     orden_prioridad <- match(resultado$prioridad, c("alta", "media", "baja"))
-    # Por los bytes de los nombres (`.orden_por_bytes()`), y despues se numera:
-    # con la intercalacion del locale el mismo `sugerencia-NNNN` media otra
-    # columna bajo `C` que en una sesion UTF-8 (ronda 30-L). La clave de bytes
-    # tampoco aborta sobre un nombre marcado `bytes`, que tumbaba `order()` y con
-    # el `analizar()` (ronda 27).
+    # Por los bytes de los nombres (`.orden_por_bytes()`): con la intercalacion
+    # del locale la propuesta salia en otro orden bajo `C` que en una sesion
+    # UTF-8 (ronda 30-L). La clave de bytes tampoco aborta sobre un nombre
+    # marcado `bytes`, que tumbaba `order()` y con el `analizar()` (ronda 27).
     orden <- .orden_por_bytes(
       orden_prioridad, resultado$metrica, resultado$entidad, resultado$atributos
     )
@@ -380,7 +560,6 @@ proponer_modelo <- function(perfil, datos = NULL, relaciones = NULL,
   }
   total <- nrow(resultado)
   resultado <- utils::head(resultado, max_sugerencias)
-  resultado$id_sugerencia <- sprintf("sugerencia-%04d", seq_len(nrow(resultado)))
   resultado$prioridad <- factor(
     resultado$prioridad, levels = c("baja", "media", "alta"), ordered = TRUE
   )

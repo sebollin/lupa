@@ -295,11 +295,7 @@ clasificar_variables <- function(datos, perfil = NULL, metadatos = NULL,
   if (!is.null(metadatos)) metadatos <- .tabla_base(metadatos)
   max_niveles <- .validar_entero_positivo(max_niveles, "max_niveles")
   limite <- .validar_muestra(muestra)
-  if (!is.logical(proteger_datos_personales) ||
-      length(proteger_datos_personales) != 1L ||
-      is.na(proteger_datos_personales)) {
-    stop("`proteger_datos_personales` debe ser TRUE o FALSE.", call. = FALSE)
-  }
+  .validar_bandera_proteccion(proteger_datos_personales)
   metadatos <- .normalizar_metadatos_variables(metadatos, names(datos))
   nombres_metadatos <- .nombres_para_operar(metadatos$columna)
   # Igual que en `distribucion_valores()`: sin perfil, la declaracion del

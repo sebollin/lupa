@@ -184,7 +184,8 @@
 #'
 #' @param datos Tabla que se desea analizar.
 #' @param nombre Nombre de la entrega.
-#' @param fecha Fecha y hora reproducible de la corrida.
+#' @param fecha Fecha y hora reproducible de la corrida. Se lee una vez, como
+#'   en [perfilar()] y [medir()]: en UTC, también un texto como `"2026-03-01"`.
 #' @param argumentos_perfil Lista de argumentos adicionales para [perfilar()].
 #' @param metadatos_variables Declaraciones para [clasificar_variables()].
 #' @param modelo_confirmado Modelo creado por [modelo()] o `NULL`.
@@ -248,9 +249,12 @@
 #'   `vctrs`, un `blob`— por sus valores; un BLOB (`raw`) se lee como el texto
 #'   que guarda y, si lleva un valor protegido, la copia guarda los bytes del
 #'   texto tapado; un entorno no se modifica —es del usuario—: si guarda un
-#'   valor protegido, la copia lleva `"[valor protegido]"` en su lugar, también
-#'   si tiene un atributo `name`; sólo el global, el de un paquete y los de la
-#'   ruta de búsqueda se dejan como están. Una llamada, una fórmula o una
+#'   valor protegido, en su contenido o en sus atributos —valor y nombre,
+#'   también `name`, que `print()` muestra—, la copia lleva
+#'   `"[valor protegido]"` en su lugar, también si tiene un atributo `name`; y
+#'   también si no se puede leer entero —una promesa o una ligadura activa que
+#'   aborta al leerse—, porque lo que no se lee no se sabe limpio; sólo el
+#'   global, el de un paquete y los de la ruta de búsqueda se dejan como están. Una llamada, una fórmula o una
 #'   función se leen como el texto que `print()` escribe —con sus atributos y,
 #'   si guarda su fuente (`srcref`), la fuente con sus comentarios—, y también
 #'   por sus atributos y, la función, por su entorno; si algo de eso lleva un
@@ -343,13 +347,11 @@ analizar <- function(datos, nombre = .nombre_de_los_datos(substitute(datos)),
     stop("`argumentos_perfil` no puede reemplazar argumentos coordinados por analizar().",
          call. = FALSE)
   }
+  .validar_bandera_proteccion(proteger_datos_personales)
   logicos <- c(
-    conservar_datos, proteger_datos_personales, medir_propuesta,
-    conservar_detalle_medicion
+    conservar_datos, medir_propuesta, conservar_detalle_medicion
   )
   if (!is.logical(conservar_datos) || length(conservar_datos) != 1L ||
-      !is.logical(proteger_datos_personales) ||
-      length(proteger_datos_personales) != 1L ||
       !is.logical(medir_propuesta) || length(medir_propuesta) != 1L ||
       !is.logical(conservar_detalle_medicion) ||
       length(conservar_detalle_medicion) != 1L || anyNA(logicos)) {
@@ -371,6 +373,10 @@ analizar <- function(datos, nombre = .nombre_de_los_datos(substitute(datos)),
   if (!is.null(marco) && !inherits(marco, "marco_calidad")) {
     stop("`marco` debe provenir de marco_calidad().", call. = FALSE)
   }
+  # La fecha se lee UNA vez, en la entrada, como la leen `perfilar()` y
+  # `medir()`: el texto crudo llegaba a `.nuevo_id_medicion()` y abortaba con un
+  # error de R lo que las dos piezas aceptan. Medido en la ronda 32.
+  fecha <- .fecha_argumento_utc(fecha)
   argumentos <- c(list(
     # La entrada SIN convertir: si era una matriz, `perfilar()` la convierte y lo
     # declara en `meta$entrada_convertida`. Pasarle la copia ya convertida hacia
@@ -393,7 +399,7 @@ analizar <- function(datos, nombre = .nombre_de_los_datos(substitute(datos)),
     muestra = muestra,
     proteger_datos_personales = proteger_datos_personales
   )
-  metodo_asociacion_numerica <- match.arg(metodo_asociacion_numerica)
+  metodo_asociacion_numerica <- .elegir_opcion(metodo_asociacion_numerica)
   asociaciones <- detectar_asociaciones(
     datos, perfil$dependencias, umbral_asociacion, muestra_asociacion,
     max_columnas_asociacion, max_niveles_asociacion, max_pares_asociacion,
@@ -1076,11 +1082,30 @@ print.analisis <- function(x, ...) {
   for (visto in vistos) if (identical(visto, e)) return(e)
   # Una cadena de entornos sin fin a la vista: el lado cerrado.
   if (length(vistos) >= 8L) return("[valor protegido]")
+  # Ronda 32, dos puertas del mismo recorrido. (1) Los ATRIBUTOS del entorno,
+  # valor y nombre, como los de cualquier objeto: un entorno con la cedula en
+  # su atributo `name` -que `print()` muestra- o en otro, y el entorno de una
+  # funcion con ese atributo, quedaban enteros en la copia, porque se recorria
+  # solo su contenido. Se leen sin cambiarlos -el entorno es del usuario- y, si
+  # llevan un valor protegido, la copia lleva el marcador. (2) Lo que no se
+  # puede leer -una promesa o una ligadura activa que aborta al leerse- es el
+  # lado cerrado: se devolvia el entorno entero, con la cedula en otra
+  # ligadura. Ahora es como lo que se puede leer y lleva un valor protegido,
+  # igual que `.piso_lenguaje_conservado()` con lo que no puede escribir.
+  atributos <- attributes(e)
+  if (length(atributos)) {
+    recorridos <- tryCatch(
+      .piso_valor_conservado(atributos, identificantes, c(vistos, list(e))),
+      error = function(err) NULL
+    )
+    if (!identical(recorridos, atributos)) return("[valor protegido]")
+  }
   contenido <- tryCatch(
     as.list.environment(e, all.names = TRUE, sorted = TRUE),
-    error = function(err) NULL
+    error = function(err) err
   )
-  if (is.null(contenido) || !length(contenido)) return(e)
+  if (inherits(contenido, "error")) return("[valor protegido]")
+  if (!length(contenido)) return(e)
   tapado <- .piso_valor_conservado(contenido, identificantes, c(vistos, list(e)))
   if (identical(tapado, contenido)) e else "[valor protegido]"
 }
@@ -1336,10 +1361,9 @@ guardar_analisis <- function(x, archivo, incluir_datos = FALSE,
     stop("`x` debe provenir de analizar().", call. = FALSE)
   }
   if (!.es_texto_escalar(archivo)) stop("`archivo` debe ser una ruta.", call. = FALSE)
-  logicos <- c(incluir_datos, proteger_datos_personales, sobrescribir)
+  .validar_bandera_proteccion(proteger_datos_personales)
+  logicos <- c(incluir_datos, sobrescribir)
   if (!is.logical(incluir_datos) || length(incluir_datos) != 1L ||
-      !is.logical(proteger_datos_personales) ||
-      length(proteger_datos_personales) != 1L ||
       !is.logical(sobrescribir) || length(sobrescribir) != 1L ||
       anyNA(logicos)) {
     stop("Los controles de persistencia deben ser logicos.", call. = FALSE)

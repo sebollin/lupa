@@ -40,7 +40,8 @@ analizar(
 
 \item{nombre}{Nombre de la entrega.}
 
-\item{fecha}{Fecha y hora reproducible de la corrida.}
+\item{fecha}{Fecha y hora reproducible de la corrida. Se lee una vez, como
+en \code{\link[=perfilar]{perfilar()}} y \code{\link[=medir]{medir()}}: en UTC, también un texto como \code{"2026-03-01"}.}
 
 \item{argumentos_perfil}{Lista de argumentos adicionales para \code{\link[=perfilar]{perfilar()}}.}
 
@@ -127,9 +128,12 @@ cualquier lista con clase —un registro de
 \code{vctrs}, un \code{blob}— por sus valores; un BLOB (\code{raw}) se lee como el texto
 que guarda y, si lleva un valor protegido, la copia guarda los bytes del
 texto tapado; un entorno no se modifica —es del usuario—: si guarda un
-valor protegido, la copia lleva \code{"[valor protegido]"} en su lugar, también
-si tiene un atributo \code{name}; sólo el global, el de un paquete y los de la
-ruta de búsqueda se dejan como están. Una llamada, una fórmula o una
+valor protegido, en su contenido o en sus atributos —valor y nombre,
+también \code{name}, que \code{print()} muestra—, la copia lleva
+\code{"[valor protegido]"} en su lugar, también si tiene un atributo \code{name}; y
+también si no se puede leer entero —una promesa o una ligadura activa que
+aborta al leerse—, porque lo que no se lee no se sabe limpio; sólo el
+global, el de un paquete y los de la ruta de búsqueda se dejan como están. Una llamada, una fórmula o una
 función se leen como el texto que \code{print()} escribe —con sus atributos y,
 si guarda su fuente (\code{srcref}), la fuente con sus comentarios—, y también
 por sus atributos y, la función, por su entorno; si algo de eso lleva un

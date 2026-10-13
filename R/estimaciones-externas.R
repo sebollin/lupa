@@ -135,7 +135,11 @@ estadisticos_estimacion <- function() {
 #'   la celda estimada. Cuando falta, se numeran las filas.
 #' @param columnas Vector con nombres para traducir columnas de `estimaciones` a
 #'   estadísticos reconocidos, en la forma `c(cv = "coef_var")`.
-#' @param fecha Fecha y hora de la medición.
+#' @param fecha Fecha y hora de la medición. Se lee como en [medir()]: se
+#'   guarda en UTC y un texto —`"2026-03-01"`— se lee en UTC, no en el huso de
+#'   la sesión, así que la misma llamada registra el mismo instante —y el mismo
+#'   `id_medicion`— en cualquier máquina. Una sola fecha: `NA`, `NULL`, dos
+#'   fechas o un texto que no se puede leer entero se rechazan.
 #'
 #' @return Data frame de clase `medicion_calidad` y `medicion` con el contrato
 #'   de [medir()], más las columnas `fuente` y `unidad`: se acumula con
@@ -179,6 +183,9 @@ medicion_desde_estimaciones <- function(estimaciones, entidad, fuente,
        anyNA(columnas) || !all(nzchar(columnas)))) {
     stop("`columnas` debe ser un vector con nombres.", call. = FALSE)
   }
+  # La lectura de `medir()`, cuyo contrato promete: un texto en UTC, no en el
+  # huso de la sesion, y una sola fecha valida. Ver `.fecha_argumento_utc()`.
+  fecha <- .fecha_argumento_utc(fecha)
   catalogo <- .catalogo_estimaciones()
   if (!is.null(columnas)) {
     desconocidos <- .identificadores_setdiff(
@@ -267,7 +274,6 @@ medicion_desde_estimaciones <- function(estimaciones, entidad, fuente,
     )
   }
 
-  fecha <- as.POSIXct(fecha)
   id_medicion <- paste0(
     "estimaciones-", format(fecha, "%Y%m%dT%H%M%S"), "-", entidad
   )

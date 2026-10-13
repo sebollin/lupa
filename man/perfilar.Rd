@@ -21,6 +21,7 @@ perfilar(
   columnas_sin_ceros = character(),
   columnas_no_negativas = character(),
   columnas_opcionales = character(),
+  columnas_codigo = character(),
   aplicabilidad = NULL,
   ausencia_estructural = TRUE,
   sentinelas_numericos = c(-9, -99, -999, -9999, 999),
@@ -69,7 +70,7 @@ entran por ahí— o una matriz de dos dimensiones, que se convierte con
 \code{\link[=as.data.frame]{as.data.frame()}}. La conversión queda declarada en \code{meta$entrada_convertida}
 para que el perfil no aparente haber recibido lo que no recibió.}
 
-\item{nombre}{Nombre descriptivo del objeto.}
+\item{nombre}{Nombre descriptivo del objeto: una cadena no vacía.}
 
 \item{fecha}{Fecha y hora de la corrida. Se puede fijar para construir series
 reproducibles; se normaliza a UTC.}
@@ -133,6 +134,27 @@ defecto. Su universo de completitud son las celdas presentes, y
 \code{cobertura_diagnosticos} declara el recorte. Sirve para el vacío por
 diseño: un historial con vigencia abierta, una columna que sólo
 corresponde a algunas filas.}
+
+\item{columnas_codigo}{Nombres de columnas que son \strong{códigos}, no
+magnitudes: un código de catálogo, un departamento numerado, una clave
+foránea. El paquete no los distingue por su forma de una magnitud entera
+que llenó su rango —una edad de 18 a 90 repite valores igual que un código
+de 1 a 284—, así que sin la declaración los mide como magnitudes. Una columna
+declarada se perfila por sus valores y no recibe lo que sólo tiene sentido
+sobre una magnitud: ni límites de Tukey (\code{n_outliers} en \code{NA}, sin hallazgo
+\code{outliers} ni \code{posible_centinela_numerico}), ni la ley de Benford, ni
+\code{media}, \code{mediana} y \code{desvio}, que quedan en \code{NA} con
+\code{estado_resumen_cuantitativo = "omitidos_codigo"}. Lo que no se evaluó se
+declara en \code{cobertura_diagnosticos} con el motivo. Conserva lo que describe
+sus valores: \code{minimo} y \code{maximo} —el tramo de códigos observado, donde
+aparece un código fuera de catálogo—, \code{moda}, \code{n_distintos}, los conteos y
+los faltantes disfrazados. Vale igual por todas las vías que aceptan las
+declaraciones de \code{perfilar()}: \code{\link[=perfilar_dbi]{perfilar_dbi()}} —también en su
+\code{resumen_tabla}—, \code{\link[=perfilar_por]{perfilar_por()}}, \code{\link[=perfilar_coleccion]{perfilar_coleccion()}} y \code{\link[=analizar]{analizar()}}
+por \code{argumentos_perfil}. Vale también para el código guardado como texto
+o como factor, que el paquete lee como número; una columna sin resumen
+numérico —texto que no se lee como número, fechas— no cambia, porque no
+tiene esas cifras. Un nombre que la tabla no tiene es un error.}
 
 \item{aplicabilidad}{Lista con nombre por columna, donde cada elemento es
 una fórmula de un solo lado evaluada sobre \code{datos} — por ejemplo
@@ -387,7 +409,10 @@ un \code{DECIMAL(15,4)}—, con cualquier exponente —\code{"5.9899123456e+010"
 lo escribe el \code{printf} de Windows, también con un espacio antes,
 \code{"5.9899123456 e+10"}— y con separador de miles, como lo muestra el
 formato "Número" de una planilla —\code{"59.899.123.456"},
-\code{"59,899,123,456.00"}, \code{"59 899 123 456,00"}, \code{"59'899'123'456"}: todas
+\code{"59,899,123,456.00"}, \code{"59 899 123 456,00"}, \code{"59'899'123'456"}, con el
+punto medio o sus parecidos —el operador viñeta, el punto medio
+katakana: cualquier signo que une los grupos de un número— o con el
+agrupado indio, \code{"59,89,91,23,456"}: todas
 las escrituras dan la misma cifra entera—, y al revés: escrito así en un
 texto se lee por su parte nacional, que sale de esa cifra y no de los
 grupos como vienen. La cifra escrita así es el documento
@@ -454,7 +479,11 @@ de cada cien enteros de ocho cifras, que coinciden con un documento entero
 sobre 4.000 con las mismas cifras enteras: su parte entera es la de un
 documento entero; y a los escritos con separador de miles o en notación
 científica, con o sin un espacio antes del exponente —\code{"52.317.219,00"},
-\code{"5.2317219 e+07"}—, también 1,8 \%: son la misma cifra entera—;
+\code{"5.2317219 e+07"}—, también 1,8 \%: son la misma cifra entera; y a tres
+de cada cien de los que empiezan con 9 —entre 90 y 99,9 millones: un
+importe, un código—, en cualquier escritura (\code{"98276375"},
+\code{"98.276.375,00"}: 3,3 \% sobre 4.000), porque tienen además la forma de un
+celular protegido sin su cero—;
 las coordenadas, los p-valores, los importes de siete cifras con decimales
 —también los redondos, \code{"5460537.00"}, \code{"5460537,00"} o dentro de una
 frase; con un solo cero, \code{"5460537.0"}, dos de cada cien, que se leen
@@ -476,9 +505,14 @@ líneas, una lista con tabuladores o con comas sin espacio —también la coma
 ideográfica—, entre una y tres de cada cien; o una versión \code{"v4.16.4302"}.
 Un teléfono fijo que no es de nadie, tres de cada cien —2,8 \%, sobre
 4.000 fijos—, escrito de cualquier forma: con espacios o guiones
-(\code{"4656 4570"}), con su prefijo de país (\code{"+598 4499 0917"}) o pegado.
+(\code{"4656 4570"}), con su prefijo de país (\code{"+598 4499 0917"}) o pegado, y
+como número de planilla con su prefijo (\code{"59.822.877.006"}): 3,2 \% sobre
+otros 4.000, lo mismo que pegados (\code{"+59822877006"}).
 Coincide con un documento o con un teléfono protegido, y como se prueba su
-parte nacional, las mismas cifras se tapan en todas las escrituras. Las
+parte nacional, las mismas cifras se tapan en todas las escrituras, salvo
+la de planilla con los miles y los decimales en cero o con espacios
+(\code{"59.822.877.006,00"}, \code{"59 822 877 006"}), 4,4 \%: como en el celular,
+sus primeras ocho cifras tienen además la forma de una cédula entera. Las
 familias del reproductor que sortean 400 fijos por escritura dan entre 1,5
 y 5,5 \%: es el sorteo, no la escritura. Con el prefijo era uno de cada
 seis, porque \code{"598"} y el primer grupo formaban una cédula de siete cifras
@@ -491,7 +525,13 @@ prefijo; 3,0 \% sobre 4.000 con las mismas cifras, pegado
 (\code{"+59895257283"}) o como número de planilla con separador de miles
 (\code{"59.895.257.283"})—: coincide con uno protegido. Con los miles y los
 decimales en cero, o con espacios (\code{"59 895 257 283"}), 4,4 \%: sus primeras
-ocho cifras tienen además la forma de una cédula entera.
+ocho cifras tienen además la forma de una cédula entera. Con el punto
+medio como separador de miles, 5,3 \% sobre otros 4.000 que pegados dan
+4,0 \%, y 7,8 \% con los decimales en cero: como con espacios, sus grupos se
+prueban también sueltos. Con el agrupado indio (\code{"59,89,52,57,283"}), uno
+de cada cinco —20,3 \%, y 32,0 \% con \code{".00"}—: sus grupos de dos forman
+números de siete cifras que coinciden con un documento sin su verificador,
+y eso ya pasaba antes de leerlo como la misma cifra (17,2 y 29,3 \%).
 Y, por el mismo parcial, una versión de cuatro partes
 (\code{"v4.62.660.4361"}), trece de cada cien, la de cinco partes
 (\code{"v2.76.527.6327.3"}), quince de cada cien, y un expediente
@@ -785,7 +825,10 @@ alimenta los diagnosticos que muestrean filas. Por defecto es \verb{512 MiB}.
 El tamaño se estima sobre una sonda de hasta cien filas y se comprueba
 sobre la muestra efectiva; si la cota reduce el alcance,
 \code{cobertura_diagnosticos} informa los bytes observados y el umbral. \code{Inf}
-desactiva este tope.}
+desactiva este tope. Se mide la tabla como llega, con sus nombres de fila:
+son parte de lo que se materializa —y el paquete los trata como datos, por
+ejemplo al proteger—, así que la misma tabla con nombres de fila de texto
+ocupa más y, con el mismo tope, se muestrea en menos filas.}
 
 \item{avisar_costo_tabla_ancha}{Si es \code{TRUE}, avisa en sesiones interactivas
 cuando las celdas proyectadas superan \code{umbral_celdas_aviso_tabla_ancha}.
@@ -1197,7 +1240,7 @@ entera acotada también llena su tramo cuando se cargan filas suficientes,
 pero repitiendo valores, y la exclusión no puede depender de cuántas filas
 se cargaron. Es la regla de numeración de todo el perfil (ver
 \code{secuencia_entera_densa} más abajo), y una clave declarada excluye a Benford
-siempre. Si
+siempre, como una columna declarada en \code{columnas_codigo}. Si
 falla alguna precondición no emite un
 hallazgo: la enumera en \code{cobertura_diagnosticos}. Si aplica,
 \code{meta$benford$resultados} conserva la distribución observada y esperada por
@@ -1383,7 +1426,9 @@ se pudo convertir no es una geometría y no entra en su denominador. Sin CRS,
 \code{n_fuera_de_dominio} queda en \code{NA} y se emite \code{crs_no_declarado}: nunca se
 supone EPSG:4326. Si falta el paquete opcional \code{sf}, todos esos campos quedan
 en \code{NA}, no se emite un hallazgo geométrico y \code{cobertura_diagnosticos}
-registra la dependencia ausente.
+registra la dependencia ausente. Si \code{sf} está instalado pero no se pudo cargar
+en la sesión —con \code{LC_NUMERIC} en coma no carga su dependencia \code{units}—, pasa
+lo mismo y el motivo lo dice: no pide instalar lo que ya está.
 
 Una columna cuyos valores son \code{data.frame} o matriz —lo que devuelve un driver al
 leer un \code{STRUCT}— declara \code{n} en \strong{filas}, como cualquier otra: tiene tantos
@@ -1527,7 +1572,10 @@ suficientes, y el veredicto dependía de cuántas filas se leyeron; una
 numeración que se repite —un código de catálogo, una clave foránea— no se
 distingue por su forma de esa magnitud y no se trata como numeración. Es la
 misma regla que deciden \code{posible_identificador}, la guarda de los límites de
-Tukey, la de los patrones raros y la de Benford.
+Tukey, la de los patrones raros y la de Benford. Por eso un código de
+catálogo que se repite —un \code{EstCod} de 1 a 284— recibe límites de Tukey y,
+con tres órdenes de magnitud, Benford, aunque se lo pase como texto o como
+factor: el paquete infiere número. Para eso está \code{columnas_codigo}.
 \code{moda_sobresale_secuencia_entera} es una señal independiente y no
 cambia los tres escudos de forma que dependen de la numeración.
 En una columna \code{integer64}, \code{bit64} se carga de manera diferida si está
@@ -1611,11 +1659,13 @@ una forma sola nunca se trata como prueba de identidad.
 
 Este criterio mide capacidad de discriminación, no juzga si la presencia del
 dato es correcta. La protección sustituye modas, ejemplos, evidencia y
-extremos o medianas que corresponden a observaciones reales. Los desvíos se conservan; las medias se protegen en sus dos formas
-(\code{media} y
-\code{media_fecha}), porque la media de una columna personal puede reconstruir
-demasiado. Los desvíos siguen siendo síntesis no ligadas a una fila;
-\code{detalle_proteccion_personal} hace visible la supresión. En fechas de
+extremos o medianas que corresponden a observaciones reales. También los
+momentos: las medias en sus dos formas (\code{media} y \code{media_fecha}), porque la
+media de una columna personal puede reconstruir demasiado, y el desvío, que
+es una magnitud de sus valores —hasta la ronda 32 se conservaba, por una
+decisión declarada que se revirtió—. \code{detalle_proteccion_personal} hace
+visible la supresión y dice qué se tapó: los estadísticos de orden, la media,
+el desvío o los dos momentos. En fechas de
 nacimiento y fallecimiento, un hallazgo separado conserva el diagnóstico de
 valores anteriores a 1900 o posteriores a la corrida sin publicar las fechas.
 Los números escritos como texto reconocen tanto coma como punto decimal y

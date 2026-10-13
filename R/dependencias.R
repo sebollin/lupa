@@ -278,26 +278,30 @@ detectar_dependencias <- function(datos, umbral = 0.995, muestra = 1e5,
   # -la dependencia lo contaba entre los pares presentes- y un `POSIXlt` es el
   # instante de un `POSIXct`. Ver `.normalizar_columnas_entrada()`.
   datos <- .normalizar_columnas_entrada(datos)
-  if (!is.logical(proteger_datos_personales) ||
-      length(proteger_datos_personales) != 1L ||
-      is.na(proteger_datos_personales)) {
-    stop("`proteger_datos_personales` debe ser TRUE o FALSE.", call. = FALSE)
-  }
+  .validar_bandera_proteccion(proteger_datos_personales)
   columnas_personales <- .normalizar_columnas_personales(
     columnas_personales, names(datos)
   )
-  proporciones <- c(umbral, umbral_casi_constante, umbral_casi_clave)
+  proporciones <- list(umbral, umbral_casi_constante, umbral_casi_clave)
+  if (!.son_numeros_escalares(proporciones)) {
+    stop("Los umbrales deben ser proporciones finitas en [0, 1].",
+         call. = FALSE)
+  }
+  proporciones <- unlist(proporciones)
   if (anyNA(proporciones) || any(!is.finite(proporciones)) ||
       any(proporciones < 0 | proporciones > 1)) {
     stop("Los umbrales deben ser proporciones finitas en [0, 1].",
          call. = FALSE)
   }
   limite <- .validar_muestra(muestra)
-  enteros <- c(max_columnas, min_observaciones, max_ejemplos)
-  if (anyNA(enteros) || any(!is.finite(enteros)) || any(enteros < 1) ||
-      any(enteros != floor(enteros))) {
-    stop("Los l\u00edmites deben ser enteros positivos.", call. = FALSE)
-  }
+  # Uno por uno: unidos con `c()`, un `NULL` o un `list()` desaparecian y dos
+  # valores pasaban como dos limites validos, para abortar despues en `if` o en
+  # `head()`. Y el mensaje nombra cual.
+  max_columnas <- .validar_entero_positivo(max_columnas, "max_columnas")
+  min_observaciones <- .validar_entero_positivo(
+    min_observaciones, "min_observaciones"
+  )
+  max_ejemplos <- .validar_entero_positivo(max_ejemplos, "max_ejemplos")
   if (!is.numeric(max_comparaciones) || length(max_comparaciones) != 1L ||
       is.na(max_comparaciones) || max_comparaciones <= 0 ||
       (!is.infinite(max_comparaciones) &&

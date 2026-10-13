@@ -1089,7 +1089,8 @@ transiciones_granularidad <- function() {
 #'   difiere en su forma Unicode—, así que la misma declaración escrita en otro
 #'   orden da el mismo número. Si los nombres casan con los dos vocabularios y
 #'   reparten distinto, se rechaza: no se puede saber a cuáles se refieren. Sin
-#'   nombres se leen por posición.
+#'   nombres se leen por posición. Con otra `funcion` se rechaza, como `umbral`
+#'   fuera de `ratio_umbral`: no pesarían nada y se publicarían igual.
 #' @param coleccion Frontera declarada, exigida cuando `destino` es
 #'   `"coleccion"`: el objeto de [coleccion()] o el perfil de
 #'   [perfilar_coleccion()]. Sin ella no se sabe sobre qué tablas se está
@@ -1226,7 +1227,7 @@ agregar <- function(medidas, destino,
   if (!.granularidad_implementada(destino)) {
     stop(.mensaje_granularidad_sin_frontera(destino), call. = FALSE)
   }
-  funcion <- match.arg(funcion)
+  funcion <- .elegir_opcion(funcion)
   .niveles_con_frontera <- c(
     "coleccion", "conjuntoColecciones", "organizacion",
     "conjuntoOrganizaciones"
@@ -1243,6 +1244,16 @@ agregar <- function(medidas, destino,
       "' solo se admite 'promedio_ponderado': combinar alcances distintos exige ",
       "declarar los pesos. Sin pesos, se devuelve el tablero por parte.",
       call. = FALSE
+    )
+  }
+  # Lo mismo con `pesos`, y peor: con `ratio` o `promedio` los pesos no pesaban
+  # nada y se publicaban igual en `pesos_declarados` -y `partes_con_peso_cero`
+  # declaraba partes que si habian entrado-; uno de otro largo abortaba con un
+  # error de R al nombrarlos. Medido en la ronda 32.
+  if (!is.null(pesos) && !identical(funcion, "promedio_ponderado")) {
+    stop(
+      "`pesos` s\u00f3lo se usa con `promedio_ponderado`; la agregaci\u00f3n ",
+      "pedida es `", funcion, "`.", call. = FALSE
     )
   }
   # Un `umbral` con otra funcion se aceptaba en silencio. Medido en la ronda 23.

@@ -179,6 +179,24 @@ rbind.historico_calidad <- function(..., deparse.level = 1) {
   resultado
 }
 
+# El argumento `fecha` de una funcion exportada: UN instante, leido en UTC por
+# `.fecha_utc()`, o el error del paquete. La regla estaba escrita en `perfilar()`
+# y `reportar()`, de otra forma en `medir()` -que dejaba pasar `TRUE` hasta el
+# error de `as.POSIXct()`-, y faltaba en dos puertas: `analizar()` mandaba el
+# texto crudo a `.nuevo_id_medicion()` y abortaba con "argumento 'trim'
+# invalido", y `medicion_desde_estimaciones()` leia el texto con `as.POSIXct()`
+# en el huso de la SESION -la misma llamada guardaba 00:00, 03:00 o 15:00 del
+# dia anterior en UTC segun la maquina- y aceptaba `NA` y dos fechas. Medido en
+# la ronda 32.
+.fecha_argumento_utc <- function(fecha) {
+  fecha_hora <- tryCatch(.fecha_utc(fecha), error = function(e) NA)
+  if (length(fecha_hora) != 1L || is.na(fecha_hora) ||
+      !is.finite(as.numeric(fecha_hora))) {
+    stop("`fecha` debe contener una fecha y hora v\u00e1lida.", call. = FALSE)
+  }
+  fecha_hora
+}
+
 .columnas_configuracion_historico <- c(
   "id_medicion", "fecha", "perfil", "identidad_tabla",
   "configuracion_modelo", "configuracion_marco",
@@ -1237,7 +1255,7 @@ rbind.historico_calidad <- function(..., deparse.level = 1) {
 #' )
 #' historico_calidad(medidas, evaluacion)
 historico_calidad <- function(..., detalle = c("resumen", "completo")) {
-  detalle <- match.arg(detalle)
+  detalle <- .elegir_opcion(detalle)
   objetos <- list(...)
   # Un unico argumento que sea una lista se despliega como lista de objetos. Un
   # `data.frame` TAMBIEN es una lista, y por eso `historico_calidad(data.frame())`
@@ -1273,7 +1291,7 @@ historico_calidad <- function(..., detalle = c("resumen", "completo")) {
 #' @seealso [historico_calidad()], [leer_historico()]
 acumular_historico <- function(historico, ...,
                                detalle = c("resumen", "completo")) {
-  detalle <- match.arg(detalle)
+  detalle <- .elegir_opcion(detalle)
   resultado <- .validar_historico(historico)
   objetos <- list(...)
   # Un unico argumento que sea una lista se despliega como lista de objetos. Un
@@ -1432,7 +1450,7 @@ leer_historico <- function(archivo) {
 detectar_deriva_calidad <- function(historico, nivel = c("perfil", "regla"),
                                     umbral = 0.05) {
   historico <- .validar_historico(historico)
-  nivel <- match.arg(nivel)
+  nivel <- .elegir_opcion(nivel)
   if (!is.numeric(umbral) || length(umbral) != 1L || is.na(umbral) ||
       !is.finite(umbral) || umbral <= 0 || umbral > 1) {
     stop("`umbral` debe ser un n\u00famero en (0, 1].", call. = FALSE)

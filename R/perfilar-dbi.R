@@ -273,11 +273,22 @@
 # del mensaje no puede ser mas estricta. Los junta `perfilar_coleccion()`: cada
 # `perfilar_dbi()` de sus tablas suma lo que leyo. Se guardan solo los que el
 # mensaje puede llevar despues de la segunda pasada
-# (`.valores_que_lleva_el_motor()`), con su forma plegada y sin separadores:
-# los demas -el documento, el celular, la tarjeta: un numero que se lee como
-# uno de seis cifras o mas- el mensaje ya los omite. Desde la ronda 31 un valor
-# con letras se guarda siempre: cualquier palabra puede ser el nombre de una
-# columna de otra tabla.
+# (`.valores_que_lleva_el_motor()`): los demas -el documento, el celular, la
+# tarjeta: un numero que se lee como uno de seis cifras o mas- el mensaje ya los
+# omite. Desde la ronda 31 un valor con letras se guarda siempre: cualquier
+# palabra puede ser el nombre de una columna de otra tabla.
+#
+# Ronda 32 (D7). Se guardaba el TEXTO de cada uno, y con todo valor con letras
+# la memoria crecia con los nombres que la coleccion leia: +66 MB y +8 % de
+# tiempo sobre 800.000 filas con nombres (`aud31-07`). Ahora se guarda una
+# HUELLA por valor (`.huellas_claves_motor()`): un numero de 52 bits de su
+# forma plegada y sin separadores -la de la regla de variantes del piso-, ocho
+# bytes en lugar del texto, y los largos de esas formas. El mensaje se compara
+# tramo por tramo (`.valores_conocidos_en()`): un tramo de su forma plegada con
+# la huella de un valor guardado es ese valor, y se devuelve como esta escrito
+# en el mensaje, que es lo que el piso tapa. Dos formas distintas con la misma
+# huella -una en 2^52- solo pueden tapar de mas: nunca se deja de encontrar un
+# valor guardado.
 .valores_motor <- function() .CONTEXTO_MOTOR$valores
 
 .activar_valores_motor <- function() {
@@ -299,50 +310,194 @@
   nuevos <- tryCatch({
     identificantes <- .valores_identificantes(unique(as.character(valores)),
                                               fechas)
-    .indice_valores_motor(setdiff(.valores_que_lleva_el_motor(identificantes),
-                                  actual$valor))
+    .indice_valores_motor(.valores_que_lleva_el_motor(identificantes))
   }, error = function(e) NULL)
-  if (!is.null(nuevos) && nrow(nuevos)) {
-    .CONTEXTO_MOTOR$valores <- rbind(actual, nuevos)
+  if (!is.null(nuevos) && length(nuevos$huellas)) {
+    sumadas <- nuevos$huellas[!nuevos$huellas %in% actual$huellas]
+    .CONTEXTO_MOTOR$valores <- list(
+      huellas = c(actual$huellas, sumadas),
+      largos = .sort_por_bytes(unique(c(actual$largos, nuevos$largos)))
+    )
   }
   invisible(NULL)
 }
 
-# La forma con que se compara: plegada y sin separadores, como la regla de
-# variantes del piso, y sus tres primeros bytes para el prefiltro de
-# `.valores_conocidos_en()`.
-.indice_valores_motor <- function(valores) {
+# Si cada valor esta guardado: con la misma huella que se guarda. Para las
+# pruebas y las sondas, que ya no pueden mirar el texto.
+.valor_motor_guardado <- function(valores) {
+  indice <- .CONTEXTO_MOTOR$valores
   valores <- as.character(valores)
-  claves <- if (length(valores)) {
-    plegados <- tryCatch(.plegar_para_comparar(valores),
-                         error = function(e) valores)
-    tryCatch(gsub("[^\\p{L}\\p{N}]", "", plegados, perl = TRUE),
-             error = function(e) gsub("[^[:alnum:]]", "", plegados,
-                                      useBytes = TRUE))
-  } else character()
-  comienzos <- rep(NA_real_, length(claves))
-  largos <- nchar(claves, type = "bytes", allowNA = TRUE)
-  con_tres <- !is.na(largos) & largos >= 3L
-  if (any(con_tres)) comienzos[con_tres] <- .comienzo_bytes(claves[con_tres], 3L)
-  data.frame(valor = valores, comienzo = comienzos, stringsAsFactors = FALSE)
+  if (is.null(indice) || !length(valores)) return(rep(FALSE, length(valores)))
+  huellas <- .huellas_claves_motor(.claves_motor(valores))
+  !is.na(huellas) & huellas %in% indice$huellas
 }
 
-# Los valores conocidos que pueden estar en `textos`: los que tienen los tres
-# primeros bytes de su forma plegada en la de algun texto. Nunca descarta uno
-# que este; el piso decide despues.
+# La forma con que se compara: plegada y sin separadores, como la regla de
+# variantes del piso.
+.claves_motor <- function(valores) {
+  valores <- as.character(valores)
+  if (!length(valores)) return(character())
+  plegados <- tryCatch(.plegar_para_comparar(valores),
+                       error = function(e) valores)
+  claves <- tryCatch(gsub("[^\\p{L}\\p{N}]", "", plegados, perl = TRUE),
+                     error = function(e) gsub("[^[:alnum:]]", "", plegados,
+                                              useBytes = TRUE))
+  # Lo que no se pudo leer como UTF-8 se lee como latin1, igual de los dos
+  # lados: las huellas solo se comparan entre si.
+  rotas <- !is.na(claves) & !validUTF8(claves)
+  if (any(rotas)) claves[rotas] <- iconv(claves[rotas], "latin1", "UTF-8")
+  claves
+}
+
+# Las dos bases y los dos modulos de la huella: dos primos menores que 2^26,
+# para que cada producto y cada suma de la cuenta sean exactos en un `double` y
+# la huella -la primera por el segundo modulo mas la segunda- quepa en 52 bits.
+.HUELLA_MOTOR <- list(bases = c(1315423, 2654435),
+                      modulos = c(67108859, 67108837))
+
+.potencias_huella_motor <- function(maximo) {
+  lapply(1:2, function(k) {
+    base <- .HUELLA_MOTOR$bases[[k]]
+    modulo <- .HUELLA_MOTOR$modulos[[k]]
+    potencias <- numeric(maximo + 1L)
+    potencias[[1L]] <- 1
+    for (e in seq_len(maximo)) {
+      potencias[[e + 1L]] <- (potencias[[e]] * base) %% modulo
+    }
+    potencias
+  })
+}
+
+# La huella de cada clave: el polinomio de sus puntos de codigo en cada base,
+# modulo cada primo. En lote, sin un bucle por clave: los puntos de todas las
+# claves de un tramo -de a 250.000 caracteres, para que lo transitorio sea
+# chico- de una vez (`utf8ToInt()`), su exponente por la posicion
+# en su clave y una suma por clave (`rowsum()`). `NA` para una clave vacia.
+.huellas_claves_motor <- function(claves) {
+  salida <- rep(NA_real_, length(claves))
+  largos <- nchar(claves, type = "chars", allowNA = TRUE)
+  cuales <- which(!is.na(claves) & !is.na(largos) & largos > 0L)
+  if (!length(cuales)) return(salida)
+  potencias <- .potencias_huella_motor(max(largos[cuales]))
+  tramos <- split(cuales, ceiling(cumsum(largos[cuales]) / 2.5e5))
+  for (tramo in tramos) {
+    puntos <- utf8ToInt(paste(claves[tramo], collapse = ""))
+    if (anyNA(puntos) || length(puntos) != sum(largos[tramo])) {
+      puntos <- unlist(lapply(claves[tramo], function(clave) {
+        p <- utf8ToInt(clave)
+        if (anyNA(p) || length(p) != nchar(clave, type = "chars")) {
+          as.integer(charToRaw(clave))[seq_len(nchar(clave, type = "chars"))]
+        } else p
+      }), use.names = FALSE)
+    }
+    grupo <- rep.int(seq_along(tramo), largos[tramo])
+    exponente <- rep.int(largos[tramo], largos[tramo]) - sequence(largos[tramo])
+    h <- lapply(1:2, function(k) {
+      modulo <- .HUELLA_MOTOR$modulos[[k]]
+      terminos <- (puntos * potencias[[k]][exponente + 1L]) %% modulo
+      as.vector(rowsum(terminos, grupo, reorder = FALSE)) %% modulo
+    })
+    salida[tramo] <- h[[1L]] * .HUELLA_MOTOR$modulos[[2L]] + h[[2L]]
+  }
+  salida
+}
+
+.indice_valores_motor <- function(valores) {
+  claves <- .claves_motor(valores)
+  huellas <- .huellas_claves_motor(claves)
+  validas <- !is.na(huellas)
+  list(huellas = unique(huellas[validas]),
+       largos = .sort_por_bytes(unique(nchar(claves[validas], type = "chars"))))
+}
+
+# Los valores conocidos que estan en `textos`, como estan escritos ahi: cada
+# tramo de la forma plegada de un texto cuya huella es la de un valor guardado,
+# devuelto con los caracteres del texto que lo forman. Para eso cada caracter se
+# pliega solo y se sabe de que caracter sale cada letra de la forma; si esa
+# forma no es la del texto entero -un pliegue que mira al vecino- o algo no se
+# puede leer, el texto entero es el valor conocido, y el piso lo tapa entero:
+# el lado cerrado. Nunca descarta un valor que este.
 .valores_conocidos_en <- function(textos) {
   indice <- .CONTEXTO_MOTOR$valores
-  if (is.null(indice) || !nrow(indice)) return(character())
+  if (is.null(indice) || !length(indice$huellas)) return(character())
   textos <- as.character(textos)
-  textos <- textos[!is.na(textos)]
+  textos <- unique(textos[!is.na(textos)])
   if (!length(textos)) return(character())
-  pajar <- tryCatch({
-    plegados <- .plegar_para_comparar(textos)
-    gsub("[^\\p{L}\\p{N}]", "", plegados, perl = TRUE)
-  }, error = function(e) NULL)
-  if (is.null(pajar)) return(indice$valor)
-  presentes <- .tramos_bytes(pajar, 3L)
-  indice$valor[is.na(indice$comienzo) | indice$comienzo %in% presentes]
+  claves <- tryCatch(.claves_motor(textos), error = function(e) NULL)
+  if (is.null(claves)) return(textos)
+  largos <- nchar(claves, type = "chars", allowNA = TRUE)
+  maximo <- suppressWarnings(max(largos, na.rm = TRUE))
+  if (!is.finite(maximo) || maximo < 1L) return(character())
+  potencias <- .potencias_huella_motor(maximo)
+  modulos <- .HUELLA_MOTOR$modulos
+  bases <- .HUELLA_MOTOR$bases
+  salida <- character()
+  # Las huellas de todos los tramos de todos los textos, y UNA sola comparacion
+  # con las guardadas: `%in%` arma la tabla de las guardadas -pueden ser
+  # millones- en cada llamada, y por largo costaba una tabla por largo.
+  candidatos <- list()
+  for (i in seq_along(textos)) {
+    l <- largos[[i]]
+    if (is.na(l)) {
+      salida <- c(salida, textos[[i]])
+      next
+    }
+    if (!l) next
+    puntos <- utf8ToInt(claves[[i]])
+    if (anyNA(puntos) || length(puntos) != l) {
+      salida <- c(salida, textos[[i]])
+      next
+    }
+    # Las huellas de los prefijos, y de ahi la de cada tramo de cada largo
+    # guardado: `h(i, j) = H(j) - H(i - 1) * base^(j - i + 1)`.
+    prefijos <- lapply(1:2, function(k) {
+      h <- numeric(l + 1L)
+      for (j in seq_len(l)) {
+        h[[j + 1L]] <- (h[[j]] * bases[[k]] + puntos[[j]]) %% modulos[[k]]
+      }
+      h
+    })
+    for (largo in indice$largos[indice$largos <= l]) {
+      inicio <- seq_len(l - largo + 1L)
+      h <- lapply(1:2, function(k) {
+        (prefijos[[k]][inicio + largo] -
+           prefijos[[k]][inicio] * potencias[[k]][[largo + 1L]]) %% modulos[[k]]
+      })
+      candidatos[[length(candidatos) + 1L]] <- list(
+        texto = i, inicio = inicio, fin = inicio + largo - 1L,
+        huella = h[[1L]] * modulos[[2L]] + h[[2L]]
+      )
+    }
+  }
+  if (length(candidatos)) {
+    huellas <- unlist(lapply(candidatos, `[[`, "huella"), use.names = FALSE)
+    dentro <- huellas %in% indice$huellas
+    if (any(dentro)) {
+      cuantos <- lengths(lapply(candidatos, `[[`, "huella"))
+      cual <- rep.int(vapply(candidatos, `[[`, integer(1L), "texto"), cuantos)
+      inicios <- unlist(lapply(candidatos, `[[`, "inicio"), use.names = FALSE)
+      fines <- unlist(lapply(candidatos, `[[`, "fin"), use.names = FALSE)
+      for (i in unique(cual[dentro])) {
+        de_i <- dentro & cual == i
+        tramos <- cbind(inicios[de_i], fines[de_i])
+        escritos <- tryCatch({
+          caracteres <- strsplit(textos[[i]], "")[[1L]]
+          piezas <- .claves_motor(caracteres)
+          piezas[is.na(piezas)] <- ""
+          if (!identical(paste0(piezas, collapse = ""), claves[[i]])) {
+            stop("pliegue")
+          }
+          dueno <- rep.int(seq_along(caracteres), nchar(piezas, type = "chars"))
+          vapply(seq_len(nrow(tramos)), function(k) {
+            paste0(caracteres[dueno[[tramos[k, 1L]]]:dueno[[tramos[k, 2L]]]],
+                   collapse = "")
+          }, character(1L))
+        }, error = function(e) textos[[i]])
+        salida <- c(salida, escritos)
+      }
+    }
+  }
+  unique(salida)
 }
 
 # Que valores protegidos puede llevar el mensaje despues de la segunda pasada.
@@ -365,12 +520,21 @@
 #
 # Se pregunta por la FORMA del valor y no valor por valor: la segunda pasada
 # cuesta cerca de dos milisegundos por texto, y una tabla tiene millones. Cada
-# cifra va como `0` -la segunda pasada las lee asi: `.numeros_del_texto()`- y,
-# sin un `^` en el valor -la linea que el motor repite sobre un `^` se lee por
-# sus letras-, cada tramo de letras como `a`: con toda palabra permitida, una
-# palabra pasa sea cual sea. Lo unico que esa forma puede cambiar es una letra
-# que el pliegue lleva a un signo que une cifras, y ahi la forma deja pasar MAS
-# que el valor: guarda de mas, que es el lado cerrado.
+# cifra va como `0` -la segunda pasada las lee asi: `.numeros_del_texto()`- y
+# cada tramo de letras como `a`: con toda palabra permitida, una palabra pasa
+# sea cual sea. Lo unico que esa forma puede cambiar es una letra que el
+# pliegue lleva a un signo que une cifras, y ahi la forma deja pasar MAS que el
+# valor: guarda de mas, que es el lado cerrado.
+#
+# Ronda 32. El valor se lee SOLO y el mensaje lo lleva con lo que lo rodea. La
+# unica regla de la segunda pasada que mira eso -la linea que el motor repite
+# sobre un `^`- omitia entero el valor que termina en `\n^`, y no se guardaba;
+# en el mensaje sueco de SQL Server la linea del `^` sigue con `till datatypen
+# int`, la regla no corre, y `099;123;456\n^` o `Florencia Martinez\n^` se
+# publicaban en la coleccion sin perfiles. Ahora la seleccion pregunta con la
+# lectura del peor contexto (`toda_palabra = TRUE`), que no aplica esa regla:
+# guarda todo lo que algun mensaje puede llevar. Las letras ya no se guardan
+# tal cual cuando hay un `^`: era para esa regla, que lee la linea `LINE n:`.
 .valores_que_lleva_el_motor <- function(valores,
                                         identificadores = .identificadores_motor()) {
   valores <- unique(as.character(valores[!is.na(valores)]))
@@ -379,9 +543,7 @@
   rotos <- !validUTF8(textos) | Encoding(textos) == "latin1"
   if (any(rotos)) textos[rotos] <- .plegar_para_comparar(textos[rotos])
   formas <- gsub("\\p{N}", "0", textos, perl = TRUE)
-  sin_circunflejo <- !grepl("^", formas, fixed = TRUE, useBytes = TRUE)
-  formas[sin_circunflejo] <- gsub("\\p{L}+", "a", formas[sin_circunflejo],
-                                  perl = TRUE)
+  formas <- gsub("\\p{L}+", "a", formas, perl = TRUE)
   distintas <- unique(formas)
   identificadores <- as.character(identificadores)
   publicadas <- .publicar_lo_permitido_motor(
@@ -517,8 +679,15 @@
 
 # La segunda pasada: ver arriba. Lo que no se puede leer por caracteres se lee
 # como latin1, y si aun asi falla el mensaje entero se omite. `toda_palabra`:
-# toda palabra cuenta como un nombre permitido -el de una columna de cualquier
-# tabla-; lo usa la seleccion de `.valores_que_lleva_el_motor()`.
+# la lectura del peor contexto, la que usa la seleccion de
+# `.valores_que_lleva_el_motor()`, que lee el valor solo y tiene que contestar
+# por cualquier mensaje que lo lleve. Toda palabra cuenta como un nombre
+# permitido -el de una columna de cualquier tabla-, y la linea sobre un `^` no
+# se omite: dentro del mensaje, el `^` en que termina el valor sigue con el
+# texto del motor -`099;123;456\n^ till datatypen int`- y la linea no se
+# omite. Ronda 32: con esa regla, la seleccion leia `099;123;456\n^` como una
+# linea que el motor repite, no lo guardaba, y el mensaje lo publicaba. Las dos
+# reglas que miran el contexto se contestan del lado que guarda de mas.
 .publicar_lo_permitido_motor <- function(texto, identificadores = character(),
                                          toda_palabra = FALSE) {
   toda_palabra <- isTRUE(toda_palabra)
@@ -564,11 +733,16 @@
     t <- gsub(.LITERAL_MOTOR_OMITIDO, marca, t, fixed = TRUE)
     # El marcador del piso -que ya paso, ver `.sin_literales_motor()`- queda.
     t <- gsub(.VALOR_PROTEGIDO_MOTOR, marca_valor, t, fixed = TRUE)
-    # La linea que el motor repite sobre un `^`, salvo la de la consulta.
-    t <- gsub(
-      "(^|\n)(?![ \t]*LINE [0-9]+:)[^\n]*[^\n \t^][^\n]*(?=\n[ \t]*\\^[ \t]*(?:\n|$))",
-      paste0("\\1", marca), t, perl = TRUE
-    )
+    # La linea que el motor repite sobre un `^`, salvo la de la consulta. Es la
+    # unica regla de esta pasada que mira lo que rodea al valor: la linea del
+    # `^` tiene que estar sola. Por eso la seleccion (`toda_palabra`) no la
+    # aplica: ver abajo.
+    if (!toda_palabra) {
+      t <- gsub(
+        "(^|\n)(?![ \t]*LINE [0-9]+:)[^\n]*[^\n \t^][^\n]*(?=\n[ \t]*\\^[ \t]*(?:\n|$))",
+        paste0("\\1", marca), t, perl = TRUE
+      )
+    }
     # Un numero se lee como lo lee el piso, con la regla de digitos: ver
     # `.numeros_del_texto()`. El de seis cifras o mas se omite entero; el token
     # de abajo decide lo demas, y une tambien con dos puntos.
@@ -597,9 +771,58 @@
 
 .mensaje_motor <- function(condicion) {
   .sin_literales_motor(
-    conditionMessage(condicion),
+    .texto_condicion_motor(condicion),
     solo_comillas = inherits(condicion, c("lupa_error_dbi", "lupa_aviso_dbi"))
   )
+}
+
+# El mensaje, como lo dijo el motor. Ronda 32. odbc arma su error con cli
+# (`cli::cli_abort()`): guarda cada linea del mensaje del motor como un elemento
+# de `body`, y `conditionMessage()` las une con una vineta -`\n` y U+2022-,
+# junta los blancos y corta las lineas al ancho de la consola. Un numero partido
+# en dos lineas -`2901\n1234`, que la regla de digitos lee como uno de ocho
+# cifras- llegaba partido por la vineta, que la regla lee como un punto medio
+# que no une: dos numeros de cuatro cifras, que la segunda pasada publicaba y
+# el piso con los valores conocidos no reconocia, en SQL Server con la sesion
+# en sueco o neerlandes, con y sin perfiles retenidos. Y una consola de 48 a 52
+# columnas cortaba `2901 1234` en dos lineas, con dos espacios delante de la
+# segunda. Si el dato entra deformado, el arreglo va en la entrada: de una
+# condicion de rlang se toman sus partes -`message`, `body`, `footer`, y las de
+# la condicion que la causo-, unidas por el salto de linea que el motor puso y
+# sin lo que agrega cli; la barra con que el molde de cli parte una linea larga
+# no es del motor. De las demas -RPostgres, RSQLite- y de duckdb, que guarda el
+# mensaje entero en `message`, sale el mismo texto que da `conditionMessage()`.
+# Si las partes no son texto, o no queda nada que leer, `conditionMessage()`.
+.texto_condicion_motor <- function(condicion, profundidad = 0L) {
+  crudo <- tryCatch({
+    partes <- if (inherits(condicion, c("rlang_error", "rlang_warning",
+                                        "rlang_message"))) {
+      lapply(c("message", "body", "footer"), function(campo) {
+        condicion[[campo]]
+      })
+    }
+    texto <- all(vapply(partes, function(parte) {
+      is.null(parte) || is.character(parte)
+    }, logical(1L)))
+    if (!length(partes) || !texto) {
+      NULL
+    } else {
+      lineas <- unlist(partes, use.names = FALSE)
+      lineas <- lineas[!is.na(lineas)]
+      if (isTRUE(condicion[["use_cli_format"]])) {
+        lineas <- gsub("\\\\\n[ \t]*", "", lineas)
+      }
+      padre <- condicion[["parent"]]
+      if (inherits(padre, "condition") && profundidad < 10L) {
+        lineas <- c(lineas, .texto_condicion_motor(padre, profundidad + 1L))
+      }
+      unido <- paste(lineas, collapse = "\n")
+      if (grepl("[[:alnum:]]", unido, useBytes = TRUE)) unido
+    }
+  }, error = function(e) NULL)
+  if (is.character(crudo) && length(crudo) == 1L) crudo else {
+    conditionMessage(condicion)
+  }
 }
 
 # ---- Presupuesto de consultas -------------------------------------------
@@ -1219,9 +1442,13 @@
     )
   } else if (isTRUE(usar_referencia_banco)) {
     referencia <- .REFERENCIA_BANCO_MEDIANA_MS_POR_MILLON_FILAS_DBI / 1e6
+    # Con la escritura publicada: `paste()` del doble decia "6.8e+01" con
+    # `scipen = -9` (ronda 32-S).
     fuente <- paste(
       "referencia de banco de otra corrida:",
-      .REFERENCIA_BANCO_MEDIANA_MS_POR_MILLON_FILAS_DBI,
+      .formatear_numero_publicado(
+        .REFERENCIA_BANCO_MEDIANA_MS_POR_MILLON_FILAS_DBI
+      ),
       "ms por millon de filas"
     )
     motivo <- paste(
@@ -2971,6 +3198,16 @@
   format(round(as.numeric(n)), scientific = FALSE, trim = TRUE)
 }
 
+# Un numero con decimales dentro de una sentencia es codigo SQL, y el SQL lleva
+# punto. `formatC()` toma la marca de `OutDec` y el `sprintf()` de C la de
+# `LC_NUMERIC`: con cualquiera de las dos en coma el porcentaje de `TABLESAMPLE`
+# salia `12,5`, el motor respondia "syntax error at or near ','" y
+# `perfilar_dbi(universo = "muestra_motor")` se quedaba sin muestra (ronda 32-S).
+# La sonda de capacidad no lo veia: usa el literal `"1"`, sin decimales.
+.decimal_sql_dbi <- function(x) {
+  .marca_decimal_c(formatC(x, format = "fg", digits = 8, decimal.mark = "."))
+}
+
 # La muestra debe conservar los digitos antes de llegar a R. MySQL y MariaDB
 # requieren CHAR en CAST; los demas motores cubiertos aceptan VARCHAR.
 .cast_entero_ancho_texto_dbi <- function(expr, alias, conexion = NULL) {
@@ -3361,7 +3598,7 @@
 .fuente_muestreada_dbi <- function(tabla_sql, campos_sql, muestra, n_total,
                                    dialecto, resolucion) {
   fraccion <- .fraccion_muestreo_dbi(muestra, n_total)
-  porcentaje <- formatC(fraccion * 100, format = "fg", digits = 8)
+  porcentaje <- .decimal_sql_dbi(fraccion * 100)
   forma <- .forma_muestreo_dbi(
     resolucion$candidato, tabla_sql, campos_sql, porcentaje, muestra,
     dialecto
@@ -5288,12 +5525,71 @@
   }))
 }
 
+# `resumen_tabla` no pasa por `perfilar()`: sus cifras salen del SQL, y ahi
+# `media`, `mediana` y `desvio` de una columna declarada en `columnas_codigo`
+# se publicaban mientras `perfil_muestra` las callaba. Se aplica la MISMA
+# declaracion, ya validada por `.normalizar_columnas_codigo()`: esas tres
+# cifras quedan en `NA` y la cobertura lo declara por columna. Ver
+# `.resumen_codigo_declarado()` (decision D2, ronda 32).
+.aplicar_columnas_codigo_dbi <- function(resumen, columnas_codigo) {
+  if (!length(columnas_codigo) || !is.list(resumen) ||
+      !is.data.frame(resumen$columnas) || !nrow(resumen$columnas)) {
+    return(resumen)
+  }
+  columnas <- resumen$columnas
+  declaradas <- .nombres_para_operar(as.character(columnas$columna)) %in%
+    .nombres_para_operar(columnas_codigo)
+  campos <- intersect(c("media", "mediana", "desvio"), names(columnas))
+  if (!any(declaradas) || !length(campos)) return(resumen)
+  # La fila de cobertura va en toda columna declarada con resumen numerico, no
+  # solo donde habia una cifra que borrar: por el camino del spool el resumen
+  # sale del perfil de la muestra, que ya la callo, y la fila no se escribia.
+  con_cifras <- declaradas & Reduce(`|`, lapply(
+    intersect(c(campos, "minimo", "maximo"), names(columnas)),
+    function(campo) !is.na(columnas[[campo]])
+  ))
+  for (campo in campos) columnas[[campo]][declaradas] <- NA
+  resumen$columnas <- columnas
+  if (any(con_cifras)) {
+    nuevas <- do.call(rbind, lapply(
+      as.character(columnas$columna[con_cifras]), function(columna) {
+        .registro_cobertura_dbi(
+          "resumen_tabla", columna, "no_aplica",
+          paste(
+            "La columna se declaro en `columnas_codigo`: es un codigo y no",
+            "una magnitud, asi que `media`, `mediana` y `desvio` no se",
+            "publican. `minimo`, `maximo` y los conteos describen sus valores."
+          ),
+          paste(
+            "Si la columna es una magnitud y no un codigo, quitarla de",
+            "`columnas_codigo`."
+          )
+        )
+      }
+    ))
+    cobertura <- resumen$cobertura
+    resumen$cobertura <- if (is.null(cobertura) || !nrow(cobertura)) {
+      nuevas
+    } else {
+      rbind(cobertura, nuevas)
+    }
+    rownames(resumen$cobertura) <- NULL
+  }
+  resumen
+}
+
 .agregar_cobertura_politicas_muestra_dbi <- function(
     resultado, aplicabilidad = NULL, columnas_opcionales = character(),
-    sentinelas_numericos = c(-9, -99, -999, -9999, 999)) {
+    sentinelas_numericos = c(-9, -99, -999, -9999, 999),
+    columnas_codigo = character()) {
   if (!is.list(resultado) || !is.list(resultado$resumen_tabla)) {
     return(resultado)
   }
+  # Los tres caminos de `perfilar_dbi()` terminan aca, asi que la declaracion
+  # de codigos se aplica en un solo lugar para los tres.
+  resultado$resumen_tabla <- .aplicar_columnas_codigo_dbi(
+    resultado$resumen_tabla, columnas_codigo
+  )
   nuevas <- .cobertura_politicas_muestra_dbi(
     aplicabilidad = aplicabilidad,
     columnas_opcionales = columnas_opcionales,
@@ -6145,7 +6441,7 @@
 }
 
 .validar_estrategia_distintos_dbi <- function(estrategia_distintos) {
-  match.arg(estrategia_distintos, .ESTRATEGIAS_DISTINTOS_DBI)
+  .elegir_opcion(estrategia_distintos, .ESTRATEGIAS_DISTINTOS_DBI)
 }
 
 .estrategia_distintos_dbi <- function(metricas_solicitadas, politica,
@@ -11456,6 +11752,7 @@ plan_perfilado_dbi <- function(conexion, tabla,
                                bloque_filas = NULL,
                                max_bytes_procesamiento = .MAX_BYTES_MUESTRA,
                                max_bytes_materializacion = .MAX_BYTES_MUESTRA) {
+  .fijar_numerica_c()  # LC_NUMERIC en "C" mientras lee de la conexion
   bloque_filas <- .validar_bloque_filas_dbi(bloque_filas)
   max_celdas_muestra <- .validar_limite_duplicados(
     max_celdas_muestra, "max_celdas_muestra"
@@ -12304,8 +12601,11 @@ print.plan_perfilado_dbi <- function(x, ...) {
   # Los estadisticos de orden son valores reales de una celda. Los momentos
   # tambien identifican cuando la columna es un documento: la media de las
   # cedulas de una tabla chica reconstruye demasiado.
+  # Y el desvio, desde la ronda 32, como en `perfilar()`: la misma lista de
+  # momentos (`.CAMPOS_MOMENTO_PROTEGIDOS`).
   campos <- intersect(
-    c("minimo", "maximo", "mediana", "media"), names(columnas)
+    c("minimo", "maximo", "mediana", .CAMPOS_MOMENTO_PROTEGIDOS),
+    names(columnas)
   )
   # Se lleva aparte lo que se tapo de orden y de momento, para que el detalle
   # diga lo mismo que dice `perfilar()` sobre la misma columna: el motor escribia
@@ -12313,11 +12613,14 @@ print.plan_perfilado_dbi <- function(x, ...) {
   # comparacion entre las dos puertas marcaba el campo como distinto sin que la
   # proteccion lo fuera -en la tercera evaluacion real, en cuatro corridas-.
   oculto_orden <- rep(FALSE, nrow(columnas))
-  oculto_momento <- rep(FALSE, nrow(columnas))
+  oculto_media <- rep(FALSE, nrow(columnas))
+  oculto_desvio <- rep(FALSE, nrow(columnas))
   tapar_campo <- function(campo, filas) {
     tapar <- filas & !is.na(columnas[[campo]])
-    if (identical(campo, "media")) {
-      oculto_momento <<- oculto_momento | tapar
+    if (identical(campo, "desvio")) {
+      oculto_desvio <<- oculto_desvio | tapar
+    } else if (campo %in% .CAMPOS_MOMENTO_PROTEGIDOS) {
+      oculto_media <<- oculto_media | tapar
     } else {
       oculto_orden <<- oculto_orden | tapar
     }
@@ -12339,6 +12642,7 @@ print.plan_perfilado_dbi <- function(x, ...) {
   # Que el paquete haya clasificado las dos columnas con el MISMO tipo personal
   # es lo que lo sostiene: no es una conjetura sobre los valores, es lo que la
   # clasificacion ya afirmo de las dos.
+  indices_hermanas <- rep(FALSE, nrow(columnas))
   if (!is.null(perfil_muestra) &&
       is.data.frame(perfil_muestra$datos_personales)) {
     clasificacion <- perfil_muestra$datos_personales
@@ -12361,16 +12665,26 @@ print.plan_perfilado_dbi <- function(x, ...) {
       for (campo in campos) tapar_campo(campo, indices_hermanas)
     }
   }
-  if (any(oculto_orden | oculto_momento)) {
+  # Ronda 32. Y la otra publicacion de esos estadisticos: con `bloque_filas`,
+  # `meta$familias` guarda por columna lo que devolvio cada acumulador -los
+  # extremos, la media y el desvio en `cuantitativos`, y cada valor distinto
+  # con su frecuencia en `distintos`- y salia entero: todas las cedulas y los
+  # nombres de las columnas protegidas, y los extremos de una protegida de
+  # valores cortos, que el piso por valor no busca. Se tapan con la misma
+  # lista que la tabla de columnas, en las mismas columnas.
+  resumen$meta$familias <- .proteger_familias_bloques_dbi(
+    resumen$meta$familias,
+    as.character(columnas$columna[indices | indices_hermanas]),
+    campos
+  )
+  if (any(oculto_orden | oculto_media | oculto_desvio)) {
     if (!"detalle_proteccion_personal" %in% names(columnas)) {
       columnas$detalle_proteccion_personal <- NA_character_
     }
-    columnas$detalle_proteccion_personal[oculto_orden & !oculto_momento] <-
-      "[estadisticos de orden protegidos]"
-    columnas$detalle_proteccion_personal[oculto_momento & !oculto_orden] <-
-      "[momentos protegidos]"
-    columnas$detalle_proteccion_personal[oculto_orden & oculto_momento] <-
-      "[estadisticos de orden y la media protegidos]"
+    detalle <- .detalle_proteccion_estadisticos(oculto_orden, oculto_media,
+                                                oculto_desvio)
+    columnas$detalle_proteccion_personal[!is.na(detalle)] <-
+      detalle[!is.na(detalle)]
   }
   resumen$columnas <- columnas
   # El estado dice lo que se publico. Lo tapado quedaba `NA` -o "[valor
@@ -12378,8 +12692,8 @@ print.plan_perfilado_dbi <- function(x, ...) {
   # con `bloque_muestra = "solo_agregados"` y la proteccion por omision, el
   # `minimo`, el `maximo`, la `media` y la `mediana` de TODAS las columnas. Se
   # declara con el estado que el paquete ya usa cuando no se publica un valor
-  # por privacidad. `desvio` no se tapa, como en `perfilar()`: una dispersion
-  # no identifica a nadie (la prueba F-6 lo fija alla).
+  # por privacidad. Tambien el `desvio`, desde la ronda 32, como en
+  # `perfilar()`.
   tapadas <- do.call(rbind, tapadas)
   if (is.data.frame(tapadas) && nrow(tapadas) && is.data.frame(resumen$sql) &&
       all(c("columna", "metrica", "estado", "motivo") %in% names(resumen$sql))) {
@@ -12451,6 +12765,42 @@ print.plan_perfilado_dbi <- function(x, ...) {
     }
   }
   resumen
+}
+
+# `meta$familias` de la via por bloques en las columnas protegidas: en
+# `cuantitativos`, los campos de `campos` -los de la tabla de columnas: los
+# extremos, la mediana, la media, el desvio-; en `distintos`, cada valor
+# distinto, que es un valor de celda, como la moda. Los conteos y las
+# longitudes quedan, como en la tabla de columnas. Ver `.proteger_resumen_dbi()`.
+.proteger_familias_bloques_dbi <- function(familias, columnas, campos) {
+  if (!is.list(familias) || !length(familias) || !length(columnas)) {
+    return(familias)
+  }
+  protegidas <- .nombres_para_operar(columnas)
+  for (nombre in names(familias)) {
+    if (!.nombres_para_operar(nombre) %in% protegidas) next
+    if (!is.list(familias[[nombre]])) next
+    for (familia in names(familias[[nombre]])) {
+      sobre <- familias[[nombre]][[familia]]
+      if (!is.list(sobre) || is.null(sobre[["resultado"]])) next
+      resultado <- sobre[["resultado"]]
+      if (identical(familia, "distintos") && is.data.frame(resultado) &&
+          "representante" %in% names(resultado)) {
+        representante <- resultado[["representante"]]
+        resultado[["representante"]] <- if (is.numeric(representante) ||
+                                             is.logical(representante)) {
+          rep(NA, length(representante))
+        } else rep("[valor protegido]", length(representante))
+      } else if (identical(familia, "cuantitativos") && is.list(resultado)) {
+        for (campo in intersect(campos, names(resultado))) {
+          resultado[[campo]] <- rep(NA_real_, length(resultado[[campo]]))
+        }
+      }
+      sobre[["resultado"]] <- resultado
+      familias[[nombre]][[familia]] <- sobre
+    }
+  }
+  familias
 }
 
 # ---- Bloque de la muestra ------------------------------------------------
@@ -13448,11 +13798,11 @@ print.plan_perfilado_dbi <- function(x, ...) {
   max_bytes_materializacion <- .validar_presupuesto_bytes_dbi(
     max_bytes_materializacion, "max_bytes_materializacion"
   )
-  universo <- match.arg(universo, c("tabla_completa", "muestra_motor"))
-  estrategia_mediana <- match.arg(
+  universo <- .elegir_opcion(universo, c("tabla_completa", "muestra_motor"))
+  estrategia_mediana <- .elegir_opcion(
     estrategia_mediana, c("exacta", "aproximada_motor")
   )
-  dialecto <- match.arg(
+  dialecto <- .elegir_opcion(
     dialecto, c("auto", "limit", "top", "fetch_first", "rownum", "portable")
   )
   muestra <- .validar_muestra_dbi(muestra)
@@ -13479,7 +13829,7 @@ print.plan_perfilado_dbi <- function(x, ...) {
       "`muestra_motor` solo se puede usar con `universo = \"muestra_motor\"`."
     )
   }
-  bloque_muestra <- match.arg(
+  bloque_muestra <- .elegir_opcion(
     bloque_muestra, c("con_muestra", "solo_agregados")
   )
   if (identical(bloque_muestra, "solo_agregados")) {
@@ -14371,8 +14721,10 @@ print.plan_perfilado_dbi <- function(x, ...) {
 #' Lo que se oculta no queda `calculado`: su fila de `resumen_tabla$sql` dice
 #' `omitido_por_privacidad`, con un motivo que distingue la columna clasificada
 #' como personal de la que se cerró porque, sin muestra, no se pudo clasificar.
-#' El desvío se publica, como en [perfilar()]: una dispersión no identifica a
-#' nadie, y la media, que junto con él reconstruiría los valores, se oculta.
+#' El desvío se oculta como la media, como en [perfilar()]; también en
+#' `resumen_tabla$meta$familias`, donde la vía por bloques (`bloque_filas`)
+#' guarda lo que devolvió cada acumulador: ahí se tapan los extremos, la media
+#' y el desvío de las columnas protegidas, y cada valor distinto.
 #' Si la muestra se recorta, la clasificación personal sólo cubre esas filas:
 #' las cifras de valor del resumen SQL completo quedan marcadas en
 #' `resumen_tabla$cobertura` y, con la protección activa, se ocultan hasta que
@@ -14426,7 +14778,12 @@ print.plan_perfilado_dbi <- function(x, ...) {
 #' separadores: `4.685.467-9` es uno de ocho cifras, y se lee como lo lee el
 #' piso de la protección, con los mismos separadores —un espacio duro o uno
 #' fino, el punto medio, una raya, `" - "`, dos espacios, un tabulador o un
-#' salto de línea entre los grupos: `"099 - 123 - 456"` es uno de nueve—. Así
+#' salto de línea entre los grupos: `"099 - 123 - 456"` es uno de nueve—. El
+#' mensaje se lee como lo dijo el motor: odbc lo arma con cli, que pone una
+#' viñeta después de cada salto de línea y corta las líneas al ancho de la
+#' consola, y un número partido en dos líneas —`"2901\n1234"`— quedaba partido
+#' por la viñeta; se toman las líneas que guarda la condición, unidas por el
+#' salto que puso el motor, y así se publican, sin las viñetas. Así
 #' se tapa también el
 #' valor que el motor cita sin comillas —duckdb: `Type INT64 with value
 #' 59899123456 can't be cast`, y la cadena que `strptime` repite en otra
@@ -14685,6 +15042,10 @@ print.plan_perfilado_dbi <- function(x, ...) {
 #'   anidada— no se atribuye. Medido con unas 4.900 filas en el catálogo:
 #'   sobre una tabla de 23 filas, 0,3 s con `TRUE` contra 0,15 s con `FALSE`.
 #' @param ... Argumentos enviados a [perfilar()] para analizar la muestra.
+#'   `columnas_codigo` vale además en `resumen_tabla`: `media`, `mediana` y
+#'   `desvio` de una columna declarada quedan en `NA` y
+#'   `resumen_tabla$cobertura` lo declara con estado `no_aplica`. Sus nombres se
+#'   validan contra las columnas de la tabla aunque no haya muestra.
 #'
 #' @return Objeto de clase `perfil_dbi` con dos componentes: `resumen_tabla`, de
 #'   alcance completo o muestreado según `universo`, y `perfil_muestra`, un objeto
@@ -14751,7 +15112,9 @@ perfilar_dbi <- function(conexion, tabla,
                          aplicabilidad = NULL,
                          sentinelas_numericos = c(-9, -99, -999, -9999, 999),
                          ...) {
+  .fijar_numerica_c()  # LC_NUMERIC en "C" mientras lee de la conexion
   argumentos_muestra <- list(...)
+  .validar_bandera_proteccion_en(argumentos_muestra)
   argumentos_muestra$columnas_opcionales <- columnas_opcionales
   argumentos_muestra$aplicabilidad <- aplicabilidad
   argumentos_muestra$sentinelas_numericos <- sentinelas_numericos
@@ -14811,6 +15174,12 @@ perfilar_dbi <- function(conexion, tabla,
     max_bytes_procesamiento = max_bytes_procesamiento,
     max_bytes_materializacion = max_bytes_materializacion
   )
+  # `columnas_codigo` viaja en `...` a `perfilar()` del `perfil_muestra`, y
+  # se valida ACA contra las columnas de la tabla: con `bloque_muestra =
+  # "solo_agregados"` no hay muestra, y un nombre mal escrito pasaba sin error.
+  columnas_codigo <- .normalizar_columnas_codigo(
+    argumentos_muestra[["columnas_codigo"]], preparacion$campos
+  )
   # Los nombres de la tabla y de sus columnas son lo unico de la consulta que
   # el mensaje de un error del motor puede citar en claro: ver
   # `.sin_literales_motor()`.
@@ -14854,7 +15223,8 @@ perfilar_dbi <- function(conexion, tabla,
     return(.agregar_cobertura_politicas_muestra_dbi(
       resultado, aplicabilidad = aplicabilidad,
       columnas_opcionales = columnas_opcionales,
-      sentinelas_numericos = sentinelas_numericos
+      sentinelas_numericos = sentinelas_numericos,
+      columnas_codigo = columnas_codigo
     ))
   }
   preparacion$presupuesto$avisar_derrame_estimado <- avisar_derrame_estimado
@@ -14875,7 +15245,8 @@ perfilar_dbi <- function(conexion, tabla,
     return(.agregar_cobertura_politicas_muestra_dbi(
       resultado, aplicabilidad = aplicabilidad,
       columnas_opcionales = columnas_opcionales,
-      sentinelas_numericos = sentinelas_numericos
+      sentinelas_numericos = sentinelas_numericos,
+      columnas_codigo = columnas_codigo
     ))
   }
   presupuesto <- preparacion$presupuesto
@@ -15485,7 +15856,8 @@ perfilar_dbi <- function(conexion, tabla,
   estructura <- .agregar_cobertura_politicas_muestra_dbi(
     estructura, aplicabilidad = aplicabilidad,
     columnas_opcionales = columnas_opcionales,
-    sentinelas_numericos = sentinelas_numericos
+    sentinelas_numericos = sentinelas_numericos,
+    columnas_codigo = columnas_codigo
   )
   estructura <- .sellar_perfil_dbi(estructura)
   estructura

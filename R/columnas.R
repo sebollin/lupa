@@ -1027,6 +1027,69 @@
   )
 }
 
+# `columnas_codigo` (decision D2, ronda 32). La regla de numeracion de
+# `hallazgos.R` dejo de tratar como identificador a un codigo que se repite
+# -un codigo de catalogo no se distingue por su forma de una magnitud que lleno
+# su rango-, y un `EstCod` de 1 a 284 recibia 181 outliers falsos. Pasarlo como
+# texto o factor no lo evitaba: el paquete infiere numero y calcula igual. Lo
+# que el paquete no puede saber lo declara quien conoce el dato, como
+# `columnas_opcionales` y `columnas_personales`.
+#
+# Una regla, en un solo lugar: TODAS las vias que aceptan las declaraciones de
+# `perfilar()` -`perfilar_dbi()` para su `perfil_muestra`, `perfilar_por()` en
+# cada grupo, `analizar()`, `perfilar_coleccion()`- perfilan por aca, y lo que
+# no pasa por `perfilar()` -el `resumen_tabla` de `perfilar_dbi()`- llama a
+# esta misma validacion.
+.normalizar_columnas_codigo <- function(columnas_codigo, nombres) {
+  if (is.null(columnas_codigo)) return(character())
+  if (!is.character(columnas_codigo) || anyNA(columnas_codigo)) {
+    stop("`columnas_codigo` debe ser un vector de nombres de columna.",
+         call. = FALSE)
+  }
+  if (!length(columnas_codigo)) return(character())
+  indices <- .indice_nombre(columnas_codigo, nombres)
+  if (anyNA(indices)) {
+    stop("`columnas_codigo` nombra columnas inexistentes: ",
+         .pegar_texto(columnas_codigo[is.na(indices)], collapse = ", "), ".",
+         call. = FALSE)
+  }
+  .identificadores_unicos(nombres[indices])
+}
+
+# Lo que una columna declarada como codigo NO publica: las cifras que solo
+# tienen sentido sobre una magnitud. `media`, `mediana` y `desvio` describen
+# una distribucion, y el promedio de unos codigos no es un dato; los limites
+# de Tukey suponen esa distribucion -que un codigo quede lejos de la mediana no
+# dice nada-, y el centinela de tres senales se mide contra esos limites. Lo
+# demas se conserva, porque describe los VALORES y no una magnitud: `minimo` y
+# `maximo` -el tramo de codigos observado, donde aparece un codigo fuera de
+# catalogo-, los conteos, la moda, los distintos y los faltantes disfrazados.
+# El estado lo declara, como `omitidos_precision` declara lo suyo.
+#
+# Solo actua sobre un resumen numerico calculado: una columna de texto o de
+# fechas declarada como codigo no tiene esas cifras y no cambia.
+.resumen_codigo_declarado <- function(cuantitativo) {
+  numerico <- cuantitativo$estado_resumen_cuantitativo %in%
+    c("calculados", "calculados_sobre_valores") &&
+    is.na(cuantitativo$minimo_fecha) && is.na(cuantitativo$maximo_fecha)
+  if (!isTRUE(numerico)) return(cuantitativo)
+  cuantitativo$media <- NA_real_
+  cuantitativo$mediana <- NA_real_
+  cuantitativo$desvio <- NA_real_
+  cuantitativo$n_outliers <- NA_integer_
+  cuantitativo$centinela_valor <- NA_real_
+  cuantitativo$centinela_repeticiones <- NA_integer_
+  cuantitativo$densidad_sin_centinela <- NA_real_
+  cuantitativo$estado_outliers <- "codigo_declarado"
+  cuantitativo$motivo_outliers <- paste(
+    "No se evaluaron los limites de Tukey: la columna se declaro en",
+    "`columnas_codigo`, asi que es un codigo y no una magnitud. Que un codigo",
+    "quede lejos de la mediana no dice nada de su calidad."
+  )
+  cuantitativo$estado_resumen_cuantitativo <- "omitidos_codigo"
+  cuantitativo
+}
+
 .resumen_integer64 <- function(x, sentinelas_numericos = NULL) {
   vacio <- .resumen_vacio_cuantitativo("sin_valores")
   sentinelas_numericos <- .sentinelas_numericos_declarados(
@@ -2536,7 +2599,8 @@
                               umbral_patron_raro,
                               sentinelas_numericos,
                               aplicable = NULL,
-                              cadenas_ausencia = NULL) {
+                              cadenas_ausencia = NULL,
+                              codigo = FALSE) {
   if (.es_columna_compuesta(x)) {
     return(.perfilar_columna_matriz(
       x, nombre, muestra, max_patrones, distinguir_mayusculas, expandir,
@@ -2787,6 +2851,8 @@
     vocabulario = vocabulario_fecha,
     valores_preparados = x_analisis
   )
+  # Declarada en `columnas_codigo`: ver `.resumen_codigo_declarado()`.
+  if (isTRUE(codigo)) cuantitativo <- .resumen_codigo_declarado(cuantitativo)
   # Los diagnosticos de texto miran solo el universo aplicable, como ya lo
   # hacen el analisis y la identidad de mas arriba. Recibian la columna CRUDA
   # mientras su `vocabulario` venia armado sobre `x_analisis`, ya enmascarado:

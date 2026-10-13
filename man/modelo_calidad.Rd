@@ -58,7 +58,7 @@ agregaciones normalizadas.}
 \item{propiedades}{Nombres de las propiedades que fija \code{especializar()}.}
 
 \item{dimension, factor}{Metadatos taxonómicos; no se usan para calcular
-puntuaciones.}
+puntuaciones. Cada uno es una cadena no vacía o \code{NA}.}
 
 \item{metodo}{Método predeterminado opcional. Es una función de \code{tablas} e
 \code{instancia} que cumple el contrato descrito en \strong{Contrato de \code{metodo}}.}

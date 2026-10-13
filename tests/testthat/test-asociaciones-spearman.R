@@ -44,7 +44,7 @@ test_that("un método desconocido se rechaza en vez de adivinarse", {
   datos <- data.frame(a = 1:20, b = 2 * (1:20))
   expect_error(
     detectar_asociaciones(datos, metodo_numerico = "kendall"),
-    "arg"
+    "`metodo_numerico` debe ser 'pearson' o 'spearman'", fixed = TRUE
   )
 })
 

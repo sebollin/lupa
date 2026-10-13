@@ -32,7 +32,8 @@
 #'   entero después, respetando ahí la declaración del usuario.
 #' @param distinguir_mayusculas Si es `TRUE`, distingue `a` de `A`.
 #' @param expandir Si es `FALSE`, colapsa tokens repetidos (`9999` a `9+`).
-#' @param max_patrones Número máximo de patrones que se muestran.
+#' @param max_patrones Número máximo de patrones que se muestran: un entero
+#'   positivo, o `Inf` para mostrarlos todos.
 #' @param na.rm Si es `TRUE`, excluye los valores ausentes.
 #' @param muestra Máximo de valores que se analizan.
 #' @param umbral_raro Frecuencia máxima de un patrón raro, usada para conservar
@@ -78,12 +79,19 @@ descubrir_patrones <- function(x,
                                muestra = 1e5,
                                umbral_raro = 0.05,
                                proteger_datos_personales = TRUE) {
-  if (length(max_patrones) != 1L || is.na(max_patrones) || max_patrones < 1) {
-    stop("`max_patrones` debe ser un entero positivo.", call. = FALSE)
-  }
+  # `perfilar()` documenta `Inf` para los topes de lo que se muestra; un texto
+  # -"5"- pasaba la comparacion y abortaba en `floor()`.
+  max_patrones <- .validar_limite_duplicados(max_patrones, "max_patrones")
+  # `na.rm = NA` abortaba en `if`; `distinguir_mayusculas` y `expandir` con
+  # `NA`, `"si"` o dos valores se leian como FALSE en silencio -tambien desde
+  # `perfilar()`, que los pasa aca-.
+  .validar_bandera(na.rm, "na.rm")
+  .validar_bandera(distinguir_mayusculas, "distinguir_mayusculas")
+  .validar_bandera(expandir, "expandir")
   if (!is.atomic(x) && !is.factor(x)) {
     stop("`x` debe ser un vector at\u00f3mico.", call. = FALSE)
   }
+  .validar_bandera_proteccion(proteger_datos_personales)
   if (length(umbral_raro) != 1L || is.na(umbral_raro) ||
       umbral_raro < 0 || umbral_raro > 1) {
     stop("`umbral_raro` debe estar entre 0 y 1.", call. = FALSE)

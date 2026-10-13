@@ -116,7 +116,8 @@
 #'   `FALSE`, porque entonces ya está declarado que se quieren los valores. Si el
 #'   léxico no reconoce el nombre de la columna, decláresela con
 #'   `columnas_personales`: ese argumento —como `columnas_opcionales`, `clave`,
-#'   `columnas_sin_ceros`, `columnas_no_negativas` y `aplicabilidad`— puede
+#'   `columnas_sin_ceros`, `columnas_no_negativas`, `columnas_codigo` y
+#'   `aplicabilidad`— puede
 #'   nombrar la columna de agrupación, y se recorta de lo que se envía a
 #'   [perfilar()] para cada grupo, donde esa columna ya no está. El recorte se
 #'   publica por grupo en `cobertura_grupos$columnas_descartadas`, junto con el
@@ -196,11 +197,9 @@ perfilar_por <- function(datos, por, clave = NULL, min_filas = 30L, ...) {
   # Un `min_filas` fraccionario se truncaba sin decirlo: con 10,7 se perfilaba un
   # grupo de 10 filas. Los otros parametros enteros del paquete rechazan la
   # fraccion; este tambien.
-  if (!is.numeric(min_filas) || length(min_filas) != 1L || is.na(min_filas) ||
-      min_filas < 1 || min_filas != trunc(min_filas)) {
-    stop("`min_filas` debe ser un entero positivo.", call. = FALSE)
-  }
-  min_filas <- as.integer(min_filas)
+  # Y `Inf` es un entero para `trunc()`, pero no para `as.integer()`: daba NA,
+  # un aviso de R y "valor ausente donde TRUE/FALSE es necesario".
+  min_filas <- .validar_entero_positivo(min_filas, "min_filas")
 
   # La etiqueta sale del VALOR y tiene que volver a el: con `as.character()` dos
   # dobles distintos que se escriben igual caian en un solo grupo, y el perfil
@@ -254,6 +253,7 @@ perfilar_por <- function(datos, por, clave = NULL, min_filas = 30L, ...) {
   # de la regla aca: una regla duplicada se arregla en un lado y no en el otro,
   # que es como aparecio el defecto de `analizar_tiempo()`.
   extras <- list(...)
+  .validar_bandera_proteccion_en(extras)
   proteger <- if ("proteger_datos_personales" %in% names(extras)) {
     isTRUE(extras$proteger_datos_personales)
   } else {
@@ -694,7 +694,8 @@ perfilar_por <- function(datos, por, clave = NULL, min_filas = 30L, ...) {
     # llegando a `perfilar()` para producir su error habitual, pero uno que sí
     # existe y fue retirado por ausencia estructural no aborta la corrida.
     for (arg in c("columnas_personales", "columnas_opcionales", "clave",
-                  "columnas_sin_ceros", "columnas_no_negativas")) {
+                  "columnas_sin_ceros", "columnas_no_negativas",
+                  "columnas_codigo")) {
       if (!(arg %in% names(extras_grupo)) ||
           !is.character(extras_grupo[[arg]])) next
       declaradas <- extras_grupo[[arg]]

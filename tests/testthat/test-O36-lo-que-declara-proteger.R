@@ -4,26 +4,24 @@
 # decia "[estadisticos de orden y momentos protegidos]" mientras publicaba un
 # momento -el desvio-.
 #
-# La decision sobre el desvio esta tomada y registrada -"F-6 conserva el desvio
-# numerico y protege la media"-: una dispersion no identifica a nadie, y la
-# media, que junto con ella reconstruiria los valores, si se enmascara. Lo que
-# se corrigio fue la etiqueta.
+# La decision sobre el desvio era "F-6 conserva el desvio numerico y protege la
+# media"; se revirtio en la ronda 32 (D9): el desvio es una magnitud de los
+# valores de la columna y se tapa como la media.
 #
 # Esta prueba no lee la lista de campos: perfila una columna protegida con
-# magnitudes conocidas y exige que ningun campo publicado las traiga, con el
-# desvio como UNICA excepcion declarada. Un campo nuevo que filtre cae aca
-# aunque nadie lo anote.
+# magnitudes conocidas y exige que ningun campo publicado las traiga, sin
+# excepciones. Un campo nuevo que filtre cae aca aunque nadie lo anote.
 
 .columna_protegida_de_prueba <- function() {
   set.seed(536)
   as.numeric(sample(10000000:99999999, 40L))
 }
 
-# La excepcion se nombra aca, una sola vez, para que agregar otra sea un acto
-# deliberado y visible en el diff.
-.campos_con_magnitud_permitida <- c("desvio")
+# Las excepciones se nombran aca, una sola vez, para que agregar una sea un acto
+# deliberado y visible en el diff. Desde la ronda 32 no hay ninguna.
+.campos_con_magnitud_permitida <- character()
 
-test_that("solo el desvio publica una magnitud de la columna protegida", {
+test_that("ningun campo publica una magnitud de la columna protegida", {
   valores <- .columna_protegida_de_prueba()
   datos <- data.frame(id = seq_len(40L), documento = valores)
 
@@ -76,13 +74,13 @@ test_that("la etiqueta nombra lo que efectivamente protege", {
   fila <- perfil$columnas[perfil$columnas$columna == "documento", ,
                           drop = FALSE]
 
-  # Decia "momentos" y publicaba uno: ahora nombra la media, que es el que
-  # protege, y el desvio queda declarado como lo que es.
+  # Decia "momentos" y publicaba uno -el desvio-; desde la ronda 32 tapa los
+  # dos, y la etiqueta vuelve a decir "momentos" porque es lo que protege.
   expect_equal(as.character(fila$detalle_proteccion_personal[[1L]]),
-               "[estadisticos de orden y la media protegidos]")
+               "[estadisticos de orden y momentos protegidos]")
   expect_true(is.na(fila$media[[1L]]))
   expect_true(is.na(fila$minimo[[1L]]))
-  expect_true(is.finite(fila$desvio[[1L]]))
+  expect_true(is.na(fila$desvio[[1L]]))
 
   # Y lo que declara proteger no llega al informe.
   destino <- tempfile(fileext = ".html")

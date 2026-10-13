@@ -460,7 +460,7 @@ test_that("H7: la normalizacion del SQL no cambia", {
   expect_identical(.normalizar_sql_derrame_dbi("f(1,2) - .5"), "f($1,$2) - $3")
 })
 
-test_that("H8: lo que la proteccion tapa en resumen_tabla se declara, y el desvio sigue el precedente de perfilar()", {
+test_that("H8: lo que la proteccion tapa en resumen_tabla se declara, y el desvio sigue a perfilar()", {
   skip_if_not_installed("DBI")
   skip_if_not_installed("RSQLite")
   con <- conexion_sqlite_r29e()
@@ -468,12 +468,12 @@ test_that("H8: lo que la proteccion tapa en resumen_tabla se declara, y el desvi
   v <- c(10.5, 12, 15.25, 18, 11, 12)
   DBI::dbWriteTable(con, "t", data.frame(v = v))
   # El precedente: la misma columna protegida en memoria tapa moda, extremos,
-  # media y mediana, y publica el desvio.
+  # media y mediana, y desde la ronda 32 (D9) tambien el desvio.
   memoria <- perfilar(data.frame(v = v), columnas_personales = "v")$columnas
   expect_identical(memoria$moda, "[valor protegido]")
   expect_true(all(is.na(unlist(memoria[c("minimo", "maximo", "media", "mediana")]))))
-  expect_equal(memoria$desvio, stats::sd(v))
-  tapadas <- c("moda", "minimo", "maximo", "media", "mediana")
+  expect_true(is.na(memoria$desvio))
+  tapadas <- c("moda", "minimo", "maximo", "media", "mediana", "desvio")
   # Sin muestra no hay clasificacion y la proteccion por omision cierra la
   # columna: lo que no se publica no puede decir `calculado`.
   for (bf in list(NULL, 2L)) {
@@ -485,7 +485,8 @@ test_that("H8: lo que la proteccion tapa en resumen_tabla se declara, y el desvi
     expect_true(all(estados_r29e(rt, "v", tapadas) == "omitido_por_privacidad"))
     sql <- rt$sql[rt$sql$columna == "v" & rt$sql$metrica %in% tapadas, ]
     expect_true(all(!is.na(sql$motivo) & nzchar(sql$motivo)))
-    expect_equal(f$desvio, stats::sd(v), tolerance = 1e-12)
-    expect_identical(unname(estados_r29e(rt, "v", "desvio")), "calculado")
+    expect_true(is.na(f$desvio))
+    expect_identical(unname(estados_r29e(rt, "v", "desvio")),
+                     "omitido_por_privacidad")
   }
 })

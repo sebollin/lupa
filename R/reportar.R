@@ -1490,10 +1490,15 @@
   file.copy(origen, destino, overwrite = sobrescribir)
 }
 
-.escribir_reporte <- function(contenido, archivo, sobrescribir) {
+.validar_archivo_reporte <- function(archivo) {
   if (!.es_texto_escalar(archivo)) {
     stop("`archivo` debe ser una ruta no vac\u00eda.", call. = FALSE)
   }
+  invisible(archivo)
+}
+
+.escribir_reporte <- function(contenido, archivo, sobrescribir) {
+  .validar_archivo_reporte(archivo)
   if (!is.logical(sobrescribir) || length(sobrescribir) != 1L ||
       is.na(sobrescribir)) {
     stop("`sobrescribir` debe ser TRUE o FALSE.", call. = FALSE)
@@ -1662,20 +1667,16 @@ reportar <- function(x, ...,
                      max_patrones = 20L,
                      proteger_datos_personales = TRUE) {
   objetos <- .aplanar_objetos_reporte(c(list(x), list(...)))
+  # En la entrada: `basename(archivo)` lo usaba antes de que `.escribir_reporte()`
+  # lo validara, y `NULL`, `NA` o un numero abortaban con un error de R.
+  .validar_archivo_reporte(archivo)
   if (!.es_texto_escalar(titulo)) {
     stop("`titulo` debe ser una cadena no vac\u00eda.", call. = FALSE)
   }
   max_filas <- .validar_limite_reporte(max_filas, "max_filas")
   max_patrones <- .validar_limite_reporte(max_patrones, "max_patrones")
-  if (!is.logical(proteger_datos_personales) ||
-      length(proteger_datos_personales) != 1L ||
-      is.na(proteger_datos_personales)) {
-    stop("`proteger_datos_personales` debe ser TRUE o FALSE.", call. = FALSE)
-  }
-  fecha <- tryCatch(.fecha_utc(fecha), error = function(e) NA)
-  if (length(fecha) != 1L || is.na(fecha) || !is.finite(as.numeric(fecha))) {
-    stop("`fecha` debe contener una fecha y hora v\u00e1lida.", call. = FALSE)
-  }
+  .validar_bandera_proteccion(proteger_datos_personales)
+  fecha <- .fecha_argumento_utc(fecha)
   secciones <- vapply(objetos, .renderizar_objeto_reporte_declarado, character(1L),
                       max_filas = max_filas, max_patrones = max_patrones,
                       proteger_datos_personales = proteger_datos_personales,

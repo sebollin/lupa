@@ -101,8 +101,22 @@ rbind.deriva_perfil <- function(..., deparse.level = 1) {
 # `OutDec = ","` el rango de 1,5 a 3 se publicaba `[1,5, 3]`, que se lee de dos
 # maneras. Con coma decimal los extremos se separan con punto y coma, que es como
 # se escriben los intervalos en esa notacion.
-.texto_rango_deriva <- function(minimo, maximo) {
-  separador <- if (identical(getOption("OutDec", "."), ".")) ", " else "; "
+#
+# La coma no viene solo de `OutDec`: con `LC_NUMERIC` en coma la escritura
+# publicada -`format()`, el `sprintf()` de C- ya la trae aunque `OutDec` sea
+# punto, y `detectar_relaciones()` publicaba `[0,125, 0,75]` (ronda 32-S). Se
+# mira tambien el texto de los extremos: el separador es "; " si alguno lleva
+# coma. Quien publica varios rangos juntos pasa el separador de todos.
+.separador_rango_deriva <- function(textos) {
+  coma <- !identical(getOption("OutDec", "."), ".") ||
+    any(grepl(",", textos, fixed = TRUE, useBytes = TRUE))
+  if (coma) "; " else ", "
+}
+
+.texto_rango_deriva <- function(minimo, maximo,
+                                separador = .separador_rango_deriva(
+                                  c(minimo, maximo)
+                                )) {
   paste0("[", minimo, separador, maximo, "]")
 }
 
@@ -168,10 +182,16 @@ rbind.deriva_perfil <- function(..., deparse.level = 1) {
   campos <- c(
     "umbral_faltantes_sospechoso", "umbral_faltantes_error",
     "umbral_alta_cardinalidad", "umbral_patron_dominante",
-    "umbral_patron_raro", "columnas_sin_ceros", "columnas_no_negativas"
+    "umbral_patron_raro", "columnas_sin_ceros", "columnas_no_negativas",
+    "columnas_codigo"
   )
   presentes <- intersect(campos, names(perfil$meta))
   if (!length(presentes)) return(NULL)
+  # `columnas_codigo` llego en la ronda 32 (decision D2): un perfil guardado
+  # antes no la trae, y no declaraba ningun codigo. Se la cuenta como "ninguna",
+  # en su lugar de la lista, para que comparar contra un perfil viejo no
+  # publique un cambio de vara que no hubo.
+  presentes <- intersect(campos, c(presentes, "columnas_codigo"))
   valores <- lapply(presentes, function(campo) {
     valor <- perfil$meta[[campo]]
     if (is.null(valor) || !length(valor)) "ninguna"
@@ -880,6 +900,12 @@ comparar_perfiles <- function(anterior, actual, umbral_cambio = 0.05,
     declaradas = isTRUE(anterior$meta$fecha_declarada) &&
       isTRUE(actual$meta$fecha_declarada)
   )
+  if (!.son_numeros_escalares(list(umbral_cambio, umbral_error))) {
+    stop(
+      "Los umbrales deben estar en [0, 1] y `umbral_error` no puede ser menor.",
+      call. = FALSE
+    )
+  }
   umbrales <- c(umbral_cambio, umbral_error)
   if (!is.numeric(umbrales) || anyNA(umbrales) ||
       any(!is.finite(umbrales)) || any(umbrales < 0 | umbrales > 1) ||

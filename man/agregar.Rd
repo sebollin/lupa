@@ -35,7 +35,8 @@ falta —igual que en \code{\link[=indice_calidad]{indice_calidad()}}, también 
 difiere en su forma Unicode—, así que la misma declaración escrita en otro
 orden da el mismo número. Si los nombres casan con los dos vocabularios y
 reparten distinto, se rechaza: no se puede saber a cuáles se refieren. Sin
-nombres se leen por posición.}
+nombres se leen por posición. Con otra \code{funcion} se rechaza, como \code{umbral}
+fuera de \code{ratio_umbral}: no pesarían nada y se publicarían igual.}
 
 \item{coleccion}{Frontera declarada, exigida cuando \code{destino} es
 \code{"coleccion"}: el objeto de \code{\link[=coleccion]{coleccion()}} o el perfil de

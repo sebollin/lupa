@@ -51,7 +51,8 @@
 #' como número sólo si la columna aporta evidencia de una sola convención
 #' decimal, con punto o con coma por igual.
 #'
-#' @param x Vector que se desea examinar.
+#' @param x Vector que se desea examinar. Una tabla —también la de una columna
+#'   que da `tibble[, "f"]`— se rechaza: se pasa la columna, `tabla[["f"]]`.
 #' @param umbral Proporción mínima para asignar un tipo implícito.
 #' @param muestra Máximo de valores que se analizan.
 #'
@@ -66,6 +67,9 @@
 #' inferir_tipo(c("1", "2", "3"))
 #' inferir_tipo(c("2020-01-01", "31/12/2020"))
 inferir_tipo <- function(x, umbral = 0.8, muestra = 1e5) {
+  # En la funcion exportada: es la regla de la entrada publica. Los llamadores
+  # internos ya le pasan una columna.
+  .validar_vector_no_tabla(x)
   .inferir_tipo_interno(x, umbral, muestra, conservar_cache = FALSE)
 }
 
@@ -249,9 +253,12 @@ print.inferencia_tipo <- function(x, ...) {
 # recibe el usuario, no sobre una igualdad numérica. Así se conservan ceros
 # iniciales, separadores y formatos de fecha cuando una acción se ofrece como
 # no destructiva.
+# Un instante, con todas sus cifras: `format()` sin formato sigue a
+# `options(digits.secs)`, y con el valor por omision dos instantes del mismo
+# segundo eran una colision (ronda 32-S). Ver `.texto_instante_utc()`.
 .texto_representacion_conversion <- function(x) {
   if (inherits(x, "POSIXt")) {
-    return(format(x, tz = "UTC", usetz = TRUE))
+    return(.texto_instante_utc(x))
   }
   # Declarada: se compara con `.nombres_para_operar()` y se recorta, y un
   # `unknown` junto a un `UTF-8` avisaba bajo `C` (ronda 30-L).

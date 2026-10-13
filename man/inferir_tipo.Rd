@@ -7,7 +7,8 @@
 inferir_tipo(x, umbral = 0.8, muestra = 1e+05)
 }
 \arguments{
-\item{x}{Vector que se desea examinar.}
+\item{x}{Vector que se desea examinar. Una tabla —también la de una columna
+que da \code{tibble[, "f"]}— se rechaza: se pasa la columna, \code{tabla[["f"]]}.}
 
 \item{umbral}{Proporción mínima para asignar un tipo implícito.}
 

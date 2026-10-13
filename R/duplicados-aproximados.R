@@ -1827,7 +1827,7 @@
     .validar_directorio_lotes(directorio_lotes, crear = FALSE)
   }
   resumen_bloqueo <- .resumir_bloqueo(datos, bloquear_por)
-  estrategia <- match.arg(estrategia, c("auto", "teselas", "muestra", "lsh"))
+  estrategia <- .elegir_opcion(estrategia, c("auto", "teselas", "muestra", "lsh"))
   lsh_bandas <- .validar_parametro_lsh(lsh_bandas, "lsh_bandas")
   lsh_filas <- .validar_parametro_lsh(lsh_filas, "lsh_filas")
   lsh_q <- .validar_parametro_lsh(lsh_q, "lsh_q")
@@ -1858,12 +1858,7 @@
       p < 0 || p > 0.25) {
     stop("`p` debe ser un numero finito entre 0 y 0.25.", call. = FALSE)
   }
-  if (!is.logical(proteger_datos_personales) ||
-      length(proteger_datos_personales) != 1L ||
-      is.na(proteger_datos_personales)) {
-    stop("`normalizar` y `proteger_datos_personales` deben ser l\u00f3gicos escalares.",
-         call. = FALSE)
-  }
+  .validar_bandera_proteccion(proteger_datos_personales)
   largos <- .columnas_largas_duplicados(
     datos, columnas, max_largo_valor, normalizacion_resuelta
   )

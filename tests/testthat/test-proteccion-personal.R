@@ -86,9 +86,11 @@ test_that("analizar protege valores crudos de los cuatro tipos personales", {
   # por la otra. El argumento esta escrito del lado DBI desde antes: la media de
   # las cedulas de una tabla chica reconstruye demasiado.
   expect_true(all(is.na(columnas$media[documentos])))
+  # Y el desvio, desde la ronda 32 (D9).
+  expect_true(all(is.na(columnas$desvio[documentos])))
   expect_true(all(
     columnas$detalle_proteccion_personal[documentos] ==
-      "[estadisticos de orden y la media protegidos]"
+      "[estadisticos de orden y momentos protegidos]"
   ))
   expect_true(all(
     columnas$minimo_fecha[nacimiento] == "[valor protegido]"
@@ -162,7 +164,7 @@ test_that("reconoce fechas de fallecimiento y rechaza nombres cercanos", {
   )
 })
 
-test_that("protege momentos de nacimiento y fallecimiento y conserva desvios", {
+test_that("protege momentos de nacimiento y fallecimiento, tambien el desvio", {
   fechas_nacimiento <- as.Date(c("1958-09-13", "1964-05-21", "1974-03-18"))
   fechas_fallecimiento <- as.Date(c("2018-09-13", "2020-05-21", "2024-03-18"))
   datos <- data.frame(
@@ -198,20 +200,13 @@ test_that("protege momentos de nacimiento y fallecimiento y conserva desvios", {
   expect_true(all(is.na(columnas$maximo[fechas])))
   expect_true(all(is.na(columnas$media[fechas])))
   expect_true(all(is.na(columnas$mediana[fechas])))
-  # El desvio se conserva -"F-6 conserva el desvio numerico y protege la
-  # media"- y lo que se corrigio fue la etiqueta, que decia "momentos
-  # protegidos" mientras publicaba uno: la media, que junto al desvio
-  # reconstruiria los valores, si se enmascara.
-  expect_equal(
-    columnas$desvio[fechas],
-    c(
-      stats::sd(as.numeric(fechas_nacimiento) * 86400),
-      stats::sd(as.numeric(fechas_fallecimiento) * 86400)
-    )
-  )
+  # El desvio se conservaba -la decision F-6- y desde la ronda 32 (D9) se tapa
+  # como la media: es una magnitud de las fechas protegidas. La etiqueta dice
+  # los dos momentos.
+  expect_true(all(is.na(columnas$desvio[fechas])))
   expect_equal(
     columnas$detalle_proteccion_personal[fechas],
-    rep("[estadisticos de orden y la media protegidos]", 2L)
+    rep("[estadisticos de orden y momentos protegidos]", 2L)
   )
 })
 

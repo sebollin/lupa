@@ -21,3 +21,26 @@ stop <- function(..., call. = TRUE, domain = NULL) {
   llamada <- if (isTRUE(call.) && sys.nframe() > 1L) sys.call(-1L) else NULL
   base::stop(simpleError(mensaje, llamada))
 }
+
+# Lo mismo para los avisos (ronda 32-S). `warning()` de base pasa el texto por
+# `gettext()` igual que `stop()`, y bajo `C` el aviso de `medir()` llegaba a quien
+# lo atrapa como "1 m<U+00E9>trica(s) no se midieron...". Y el texto de un aviso
+# es dato: `perfilar_coleccion()` junta los de cada tabla, los pasa por el piso
+# de proteccion y los vuelve a emitir, y `analizar()` reconoce el de `medir()`
+# por su texto. Un aviso ya armado -una condicion- pasa como esta. Ningun sitio
+# del paquete pide `immediate.` ni `noBreaks.`: se aceptan para no romper la
+# firma de base, y con texto se respetan pasandolos a base.
+warning <- function(..., call. = TRUE, immediate. = FALSE, noBreaks. = FALSE,
+                    domain = NULL) {
+  argumentos <- list(...)
+  if (length(argumentos) == 1L && inherits(argumentos[[1L]], "condition")) {
+    return(base::warning(argumentos[[1L]]))
+  }
+  if (isTRUE(immediate.) || isTRUE(noBreaks.)) {
+    return(base::warning(..., call. = call., immediate. = immediate.,
+                         noBreaks. = noBreaks., domain = domain))
+  }
+  mensaje <- .makeMessage(..., domain = if (is.null(domain)) NA else domain)
+  llamada <- if (isTRUE(call.) && sys.nframe() > 1L) sys.call(-1L) else NULL
+  invisible(base::warning(simpleWarning(mensaje, llamada)))
+}

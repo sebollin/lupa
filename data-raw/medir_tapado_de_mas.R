@@ -321,3 +321,63 @@ for (familia in names(planilla)) {
   cat(sprintf("%-32s %5.1f %%  (+- %.1f, dos errores estandar)   ej: %s\n",
               familia, 100 * p, 200 * sqrt(p * (1 - p) / m_importes), x[[1L]]))
 }
+
+# Ronda 32: las familias que la refutacion midio sin cifra en la ayuda -el fijo
+# que no es de nadie escrito como numero de planilla, que se lee desde la ronda
+# 31 por su parte nacional como el celular, y el entero de ocho cifras que
+# empieza con 9, que es la forma de un celular protegido sin su cero- y las dos
+# escrituras del numero de planilla que se suman en esta ronda: el punto medio
+# como separador de miles y el agrupado indio. Las mismas cifras en cada
+# escritura de un grupo, con su control pegado. Al final, con su semilla, para
+# no cambiar los numeros de arriba.
+set.seed(3215)
+m_r32 <- 4000
+con_miles_r32 <- function(x, marca, dec = if (identical(marca, ".")) "," else ".") {
+  formatC(x, format = "f", digits = 0, big.mark = marca, decimal.mark = dec)
+}
+agrupado_indio <- function(x) {
+  cifras <- formatC(x, format = "f", digits = 0)
+  vapply(cifras, function(s) {
+    cola <- substr(s, nchar(s) - 2L, nchar(s))
+    resto <- substr(s, 1L, nchar(s) - 3L)
+    grupos <- character()
+    while (nchar(resto) > 2L) {
+      grupos <- c(substr(resto, nchar(resto) - 1L, nchar(resto)), grupos)
+      resto <- substr(resto, 1L, nchar(resto) - 2L)
+    }
+    paste(c(resto, grupos, cola), collapse = ",")
+  }, character(1L), USE.NAMES = FALSE)
+}
+invisible(sample(10000000:69999999, m_r32))
+ent8_9 <- sample(90000000:99999999, m_r32)
+fijos_libres <- as.numeric(sprintf("598%d%07d", sample(c(2, 4), m_r32, TRUE),
+                                   sample(0:9999999, m_r32, TRUE)))
+celulares_libres_r32 <- as.numeric(sprintf("5989%d%06d",
+                                           sample(1:9, m_r32, TRUE),
+                                           sample(0:999999, m_r32, TRUE)))
+ronda_32 <- list(
+  entero_8_empieza_9 = sprintf("%d", ent8_9),
+  entero_8_empieza_9_miles = con_miles_r32(ent8_9, "."),
+  entero_8_empieza_9_miles_00 = paste0(con_miles_r32(ent8_9, "."), ",00"),
+  fijo_e164_pegado = paste0("+", formatC(fijos_libres, format = "f",
+                                         digits = 0)),
+  fijo_e164_miles = con_miles_r32(fijos_libres, "."),
+  fijo_e164_miles_cero_centavos = paste0(con_miles_r32(fijos_libres, "."),
+                                         ",00"),
+  fijo_e164_miles_espacio = con_miles_r32(fijos_libres, " "),
+  celular_e164_pegado_r32 = paste0("+", formatC(celulares_libres_r32,
+                                                format = "f", digits = 0)),
+  celular_e164_punto_medio = con_miles_r32(celulares_libres_r32, "\u00b7"),
+  celular_e164_punto_medio_00 = paste0(
+    con_miles_r32(celulares_libres_r32, "\u00b7"), ",00"
+  ),
+  celular_e164_indio = agrupado_indio(celulares_libres_r32),
+  celular_e164_indio_00 = paste0(agrupado_indio(celulares_libres_r32), ".00")
+)
+cat("\nronda 32, las mismas", m_r32, "cifras en cada escritura de un grupo:\n")
+for (familia in names(ronda_32)) {
+  x <- ronda_32[[familia]]
+  p <- mean(.reemplazar_valores_protegidos(x, valores, exigir_limites = FALSE) != x)
+  cat(sprintf("%-32s %5.1f %%  (+- %.1f, dos errores estandar)   ej: %s\n",
+              familia, 100 * p, 200 * sqrt(p * (1 - p) / m_r32), x[[1L]]))
+}

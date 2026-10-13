@@ -85,7 +85,7 @@
 #' `tasa_distintos` en `NA` y el motivo; [elegir_clave()] no la ofrece.
 #'
 #' @param datos Tabla a examinar.
-#' @param maximo Cuántas sugerencias devolver como máximo.
+#' @param maximo Cuántas sugerencias devolver como máximo: un entero positivo.
 #' @param umbral_casi Proporción de valores distintos a partir de la cual una
 #'   columna que repite se informa igual, como candidata con duplicados.
 #'
@@ -112,10 +112,9 @@ sugerir_clave <- function(datos, maximo = 5L, umbral_casi = 0.95) {
   # que `perfilar(clave = )` refuta por ausentes-. Ver
   # `.normalizar_columnas_entrada()`.
   datos <- .normalizar_columnas_entrada(datos)
-  if (!is.numeric(maximo) || length(maximo) != 1L || is.na(maximo) ||
-        maximo < 1) {
-    stop("`maximo` debe ser un entero positivo.", call. = FALSE)
-  }
+  # `Inf` pasaba la guarda y `as.integer(Inf)` es NA: aviso de R y error de
+  # `head()`. Como `max_sugerencias` de `proponer_modelo()`, un entero positivo.
+  maximo <- .validar_entero_positivo(maximo, "maximo")
   if (!is.numeric(umbral_casi) || length(umbral_casi) != 1L ||
         is.na(umbral_casi) || umbral_casi <= 0 || umbral_casi > 1) {
     stop("`umbral_casi` debe estar en (0, 1].", call. = FALSE)

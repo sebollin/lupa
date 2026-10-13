@@ -4380,6 +4380,15 @@ aplicar <- function(plan, datos, permitir_eliminacion = FALSE,
   registro <- if (length(registros)) do.call(rbind, registros) else .registro_vacio()
   rownames(registro) <- NULL
   attr(salida, "registro_limpieza") <- registro
+  # Una accion asigna con `datos[[indice]] <- ...`, que es `[[<-.data.frame`: R
+  # copia la tabla y la data.table vuelve sin espacio reservado -`truelength` 0-
+  # y con la autorreferencia rota, asi que el primer `:=` del usuario avisaba
+  # "Se tomo una copia superficial". La clase volvia, pero degradada. Medido en
+  # la ronda 32. Se le devuelve el espacio, como lo haria `data.table` misma.
+  if (inherits(salida, "data.table") &&
+      requireNamespace("data.table", quietly = TRUE)) {
+    salida <- data.table::setalloccol(salida)
+  }
   estructura <- list(
     datos = salida,
     registro = registro,

@@ -936,7 +936,7 @@
 #' pero repitiendo valores, y la exclusión no puede depender de cuántas filas
 #' se cargaron. Es la regla de numeración de todo el perfil (ver
 #' `secuencia_entera_densa` más abajo), y una clave declarada excluye a Benford
-#' siempre. Si
+#' siempre, como una columna declarada en `columnas_codigo`. Si
 #' falla alguna precondición no emite un
 #' hallazgo: la enumera en `cobertura_diagnosticos`. Si aplica,
 #' `meta$benford$resultados` conserva la distribución observada y esperada por
@@ -1122,7 +1122,9 @@
 #' `n_fuera_de_dominio` queda en `NA` y se emite `crs_no_declarado`: nunca se
 #' supone EPSG:4326. Si falta el paquete opcional `sf`, todos esos campos quedan
 #' en `NA`, no se emite un hallazgo geométrico y `cobertura_diagnosticos`
-#' registra la dependencia ausente.
+#' registra la dependencia ausente. Si `sf` está instalado pero no se pudo cargar
+#' en la sesión —con `LC_NUMERIC` en coma no carga su dependencia `units`—, pasa
+#' lo mismo y el motivo lo dice: no pide instalar lo que ya está.
 #'
 #' Una columna cuyos valores son `data.frame` o matriz —lo que devuelve un driver al
 #' leer un `STRUCT`— declara `n` en **filas**, como cualquier otra: tiene tantos
@@ -1266,7 +1268,10 @@
 #' numeración que se repite —un código de catálogo, una clave foránea— no se
 #' distingue por su forma de esa magnitud y no se trata como numeración. Es la
 #' misma regla que deciden `posible_identificador`, la guarda de los límites de
-#' Tukey, la de los patrones raros y la de Benford.
+#' Tukey, la de los patrones raros y la de Benford. Por eso un código de
+#' catálogo que se repite —un `EstCod` de 1 a 284— recibe límites de Tukey y,
+#' con tres órdenes de magnitud, Benford, aunque se lo pase como texto o como
+#' factor: el paquete infiere número. Para eso está `columnas_codigo`.
 #' `moda_sobresale_secuencia_entera` es una señal independiente y no
 #' cambia los tres escudos de forma que dependen de la numeración.
 #' En una columna `integer64`, `bit64` se carga de manera diferida si está
@@ -1350,11 +1355,13 @@
 #'
 #' Este criterio mide capacidad de discriminación, no juzga si la presencia del
 #' dato es correcta. La protección sustituye modas, ejemplos, evidencia y
-#' extremos o medianas que corresponden a observaciones reales. Los desvíos se conservan; las medias se protegen en sus dos formas
-#' (`media` y
-#' `media_fecha`), porque la media de una columna personal puede reconstruir
-#' demasiado. Los desvíos siguen siendo síntesis no ligadas a una fila;
-#' `detalle_proteccion_personal` hace visible la supresión. En fechas de
+#' extremos o medianas que corresponden a observaciones reales. También los
+#' momentos: las medias en sus dos formas (`media` y `media_fecha`), porque la
+#' media de una columna personal puede reconstruir demasiado, y el desvío, que
+#' es una magnitud de sus valores —hasta la ronda 32 se conservaba, por una
+#' decisión declarada que se revirtió—. `detalle_proteccion_personal` hace
+#' visible la supresión y dice qué se tapó: los estadísticos de orden, la media,
+#' el desvío o los dos momentos. En fechas de
 #' nacimiento y fallecimiento, un hallazgo separado conserva el diagnóstico de
 #' valores anteriores a 1900 o posteriores a la corrida sin publicar las fechas.
 #' Los números escritos como texto reconocen tanto coma como punto decimal y
@@ -1398,7 +1405,7 @@
 #'   entran por ahí— o una matriz de dos dimensiones, que se convierte con
 #'   [as.data.frame()]. La conversión queda declarada en `meta$entrada_convertida`
 #'   para que el perfil no aparente haber recibido lo que no recibió.
-#' @param nombre Nombre descriptivo del objeto.
+#' @param nombre Nombre descriptivo del objeto: una cadena no vacía.
 #' @param fecha Fecha y hora de la corrida. Se puede fijar para construir series
 #'   reproducibles; se normaliza a UTC.
 #' @param muestra Máximo de filas usadas para patrones, inferencia de tipos,
@@ -1446,6 +1453,26 @@
 #'   `cobertura_diagnosticos` declara el recorte. Sirve para el vacío por
 #'   diseño: un historial con vigencia abierta, una columna que sólo
 #'   corresponde a algunas filas.
+#' @param columnas_codigo Nombres de columnas que son **códigos**, no
+#'   magnitudes: un código de catálogo, un departamento numerado, una clave
+#'   foránea. El paquete no los distingue por su forma de una magnitud entera
+#'   que llenó su rango —una edad de 18 a 90 repite valores igual que un código
+#'   de 1 a 284—, así que sin la declaración los mide como magnitudes. Una columna
+#'   declarada se perfila por sus valores y no recibe lo que sólo tiene sentido
+#'   sobre una magnitud: ni límites de Tukey (`n_outliers` en `NA`, sin hallazgo
+#'   `outliers` ni `posible_centinela_numerico`), ni la ley de Benford, ni
+#'   `media`, `mediana` y `desvio`, que quedan en `NA` con
+#'   `estado_resumen_cuantitativo = "omitidos_codigo"`. Lo que no se evaluó se
+#'   declara en `cobertura_diagnosticos` con el motivo. Conserva lo que describe
+#'   sus valores: `minimo` y `maximo` —el tramo de códigos observado, donde
+#'   aparece un código fuera de catálogo—, `moda`, `n_distintos`, los conteos y
+#'   los faltantes disfrazados. Vale igual por todas las vías que aceptan las
+#'   declaraciones de `perfilar()`: [perfilar_dbi()] —también en su
+#'   `resumen_tabla`—, [perfilar_por()], [perfilar_coleccion()] y [analizar()]
+#'   por `argumentos_perfil`. Vale también para el código guardado como texto
+#'   o como factor, que el paquete lee como número; una columna sin resumen
+#'   numérico —texto que no se lee como número, fechas— no cambia, porque no
+#'   tiene esas cifras. Un nombre que la tabla no tiene es un error.
 #' @param aplicabilidad Lista con nombre por columna, donde cada elemento es
 #'   una fórmula de un solo lado evaluada sobre `datos` — por ejemplo
 #'   `list(marca_auto = ~ tiene_auto == "Si")`. Las filas donde el predicado no
@@ -1566,7 +1593,10 @@
 #'   El tamaño se estima sobre una sonda de hasta cien filas y se comprueba
 #'   sobre la muestra efectiva; si la cota reduce el alcance,
 #'   `cobertura_diagnosticos` informa los bytes observados y el umbral. `Inf`
-#'   desactiva este tope.
+#'   desactiva este tope. Se mide la tabla como llega, con sus nombres de fila:
+#'   son parte de lo que se materializa —y el paquete los trata como datos, por
+#'   ejemplo al proteger—, así que la misma tabla con nombres de fila de texto
+#'   ocupa más y, con el mismo tope, se muestrea en menos filas.
 #' @param avisar_costo_tabla_ancha Si es `TRUE`, avisa en sesiones interactivas
 #'   cuando las celdas proyectadas superan `umbral_celdas_aviso_tabla_ancha`.
 #'   El aviso es una estimacion y queda en silencio en scripts no interactivos.
@@ -1752,7 +1782,10 @@
 #'   lo escribe el `printf` de Windows, también con un espacio antes,
 #'   `"5.9899123456 e+10"`— y con separador de miles, como lo muestra el
 #'   formato "Número" de una planilla —`"59.899.123.456"`,
-#'   `"59,899,123,456.00"`, `"59 899 123 456,00"`, `"59'899'123'456"`: todas
+#'   `"59,899,123,456.00"`, `"59 899 123 456,00"`, `"59'899'123'456"`, con el
+#'   punto medio o sus parecidos —el operador viñeta, el punto medio
+#'   katakana: cualquier signo que une los grupos de un número— o con el
+#'   agrupado indio, `"59,89,91,23,456"`: todas
 #'   las escrituras dan la misma cifra entera—, y al revés: escrito así en un
 #'   texto se lee por su parte nacional, que sale de esa cifra y no de los
 #'   grupos como vienen. La cifra escrita así es el documento
@@ -1819,7 +1852,11 @@
 #'   sobre 4.000 con las mismas cifras enteras: su parte entera es la de un
 #'   documento entero; y a los escritos con separador de miles o en notación
 #'   científica, con o sin un espacio antes del exponente —`"52.317.219,00"`,
-#'   `"5.2317219 e+07"`—, también 1,8 %: son la misma cifra entera—;
+#'   `"5.2317219 e+07"`—, también 1,8 %: son la misma cifra entera; y a tres
+#'   de cada cien de los que empiezan con 9 —entre 90 y 99,9 millones: un
+#'   importe, un código—, en cualquier escritura (`"98276375"`,
+#'   `"98.276.375,00"`: 3,3 % sobre 4.000), porque tienen además la forma de un
+#'   celular protegido sin su cero—;
 #'   las coordenadas, los p-valores, los importes de siete cifras con decimales
 #'   —también los redondos, `"5460537.00"`, `"5460537,00"` o dentro de una
 #'   frase; con un solo cero, `"5460537.0"`, dos de cada cien, que se leen
@@ -1841,9 +1878,14 @@
 #'   ideográfica—, entre una y tres de cada cien; o una versión `"v4.16.4302"`.
 #'   Un teléfono fijo que no es de nadie, tres de cada cien —2,8 %, sobre
 #'   4.000 fijos—, escrito de cualquier forma: con espacios o guiones
-#'   (`"4656 4570"`), con su prefijo de país (`"+598 4499 0917"`) o pegado.
+#'   (`"4656 4570"`), con su prefijo de país (`"+598 4499 0917"`) o pegado, y
+#'   como número de planilla con su prefijo (`"59.822.877.006"`): 3,2 % sobre
+#'   otros 4.000, lo mismo que pegados (`"+59822877006"`).
 #'   Coincide con un documento o con un teléfono protegido, y como se prueba su
-#'   parte nacional, las mismas cifras se tapan en todas las escrituras. Las
+#'   parte nacional, las mismas cifras se tapan en todas las escrituras, salvo
+#'   la de planilla con los miles y los decimales en cero o con espacios
+#'   (`"59.822.877.006,00"`, `"59 822 877 006"`), 4,4 %: como en el celular,
+#'   sus primeras ocho cifras tienen además la forma de una cédula entera. Las
 #'   familias del reproductor que sortean 400 fijos por escritura dan entre 1,5
 #'   y 5,5 %: es el sorteo, no la escritura. Con el prefijo era uno de cada
 #'   seis, porque `"598"` y el primer grupo formaban una cédula de siete cifras
@@ -1856,7 +1898,13 @@
 #'   (`"+59895257283"`) o como número de planilla con separador de miles
 #'   (`"59.895.257.283"`)—: coincide con uno protegido. Con los miles y los
 #'   decimales en cero, o con espacios (`"59 895 257 283"`), 4,4 %: sus primeras
-#'   ocho cifras tienen además la forma de una cédula entera.
+#'   ocho cifras tienen además la forma de una cédula entera. Con el punto
+#'   medio como separador de miles, 5,3 % sobre otros 4.000 que pegados dan
+#'   4,0 %, y 7,8 % con los decimales en cero: como con espacios, sus grupos se
+#'   prueban también sueltos. Con el agrupado indio (`"59,89,52,57,283"`), uno
+#'   de cada cinco —20,3 %, y 32,0 % con `".00"`—: sus grupos de dos forman
+#'   números de siete cifras que coinciden con un documento sin su verificador,
+#'   y eso ya pasaba antes de leerlo como la misma cifra (17,2 y 29,3 %).
 #'   Y, por el mismo parcial, una versión de cuatro partes
 #'   (`"v4.62.660.4361"`), trece de cada cien, la de cinco partes
 #'   (`"v2.76.527.6327.3"`), quince de cada cien, y un expediente
@@ -2201,6 +2249,7 @@ perfilar <- function(datos,
                      columnas_sin_ceros = character(),
                      columnas_no_negativas = character(),
                      columnas_opcionales = character(),
+                     columnas_codigo = character(),
                      aplicabilidad = NULL,
                      ausencia_estructural = TRUE,
                      sentinelas_numericos = c(-9, -99, -999, -9999, 999),
@@ -2259,6 +2308,12 @@ perfilar <- function(datos,
   # de la tabla. Se fuerza ACA, antes de cualquier reasignacion, para que el
   # nombre no dependa de que ninguna rama posterior toque la variable.
   force(nombre)
+  # Sin validar, `nombre = function(x) x` construia el perfil y su `print()`
+  # abortaba; `c("a", "b")` imprimia dos encabezados pegados. Medido en la
+  # ronda 32. Un nombre es una cadena, como el de una metrica.
+  if (!.es_texto_escalar(nombre)) {
+    stop("`nombre` debe ser una cadena no vac\u00eda.", call. = FALSE)
+  }
   entrada_convertida <- NA_character_
   if (!inherits(datos, "data.frame") && is.matrix(datos)) {
     entrada_convertida <- paste0(
@@ -2297,15 +2352,15 @@ perfilar <- function(datos,
   }
   normalizacion_resuelta <- .resolver_normalizacion(normalizar)
   fecha_declarada <- !missing(fecha)
-  fecha_hora <- tryCatch(.fecha_utc(fecha), error = function(e) NA)
-  if (length(fecha_hora) != 1L || is.na(fecha_hora) ||
-      !is.finite(as.numeric(fecha_hora))) {
-    stop("`fecha` debe contener una fecha y hora v\u00e1lida.", call. = FALSE)
-  }
-  umbrales <- c(
+  fecha_hora <- .fecha_argumento_utc(fecha)
+  umbrales <- list(
     umbral_alta_cardinalidad, umbral_faltantes_sospechoso,
     umbral_faltantes_error, umbral_patron_raro, umbral_patron_dominante
   )
+  if (!.son_numeros_escalares(umbrales)) {
+    stop("Todos los umbrales deben estar entre 0 y 1.", call. = FALSE)
+  }
+  umbrales <- unlist(umbrales)
   if (anyNA(umbrales) || any(umbrales < 0 | umbrales > 1)) {
     stop("Todos los umbrales deben estar entre 0 y 1.", call. = FALSE)
   }
@@ -2362,12 +2417,12 @@ perfilar <- function(datos,
     stop("`analizar_dependencias` debe ser un l\u00f3gico escalar sin NA.",
          call. = FALSE)
   }
-  for (argumento in c("datos_personales_permitidos", "proteger_datos_personales")) {
-    valor <- get(argumento)
-    if (!is.logical(valor) || length(valor) != 1L || is.na(valor)) {
-      stop("`", argumento, "` debe ser TRUE o FALSE.", call. = FALSE)
-    }
+  if (!is.logical(datos_personales_permitidos) ||
+      length(datos_personales_permitidos) != 1L ||
+      is.na(datos_personales_permitidos)) {
+    stop("`datos_personales_permitidos` debe ser TRUE o FALSE.", call. = FALSE)
   }
+  .validar_bandera_proteccion(proteger_datos_personales)
   if (!is.numeric(umbral_documento_verificado) ||
       length(umbral_documento_verificado) != 1L ||
       is.na(umbral_documento_verificado) ||
@@ -2398,12 +2453,11 @@ perfilar <- function(datos,
       umbral_orden_columnas > 1) {
     stop("`umbral_orden_columnas` debe estar entre 0 y 1.", call. = FALSE)
   }
-  if (!is.numeric(max_columnas_orden) || length(max_columnas_orden) != 1L ||
-      is.na(max_columnas_orden) || max_columnas_orden < 2 ||
-      max_columnas_orden != floor(max_columnas_orden)) {
-    stop("`max_columnas_orden` debe ser un entero de al menos 2.", call. = FALSE)
-  }
-  max_columnas_orden <- as.integer(max_columnas_orden)
+  # Los topes de columnas de una busqueda cara rechazan `Inf`, como
+  # `max_columnas_dependencias`: pasaba la guarda y `as.integer(Inf)` es NA.
+  max_columnas_orden <- .validar_parametro_lsh(
+    max_columnas_orden, "max_columnas_orden", 2L
+  )
   if (!is.numeric(umbral_solapamiento_orden) ||
       length(umbral_solapamiento_orden) != 1L ||
       is.na(umbral_solapamiento_orden) ||
@@ -2431,14 +2485,15 @@ perfilar <- function(datos,
     stop("`tolerancia_aritmetica` debe ser un n\u00famero finito no negativo.",
          call. = FALSE)
   }
-  if (!is.numeric(max_columnas_aritmetica) ||
-      length(max_columnas_aritmetica) != 1L ||
-      is.na(max_columnas_aritmetica) || max_columnas_aritmetica < 2 ||
-      max_columnas_aritmetica != floor(max_columnas_aritmetica)) {
-    stop("`max_columnas_aritmetica` debe ser un entero de al menos 2.",
-         call. = FALSE)
-  }
-  max_columnas_aritmetica <- as.integer(max_columnas_aritmetica)
+  max_columnas_aritmetica <- .validar_parametro_lsh(
+    max_columnas_aritmetica, "max_columnas_aritmetica", 2L
+  )
+  # Se validaba recien dentro de `detectar_dependencias()`, con el nombre de
+  # ALLA (`max_columnas`) y sin mirar la forma: `NULL` o dos valores abortaban
+  # en `head()`.
+  max_columnas_dependencias <- .validar_entero_positivo(
+    max_columnas_dependencias, "max_columnas_dependencias"
+  )
   if (!is.logical(casi_duplicados_vocabulario) ||
       length(casi_duplicados_vocabulario) != 1L ||
       is.na(casi_duplicados_vocabulario)) {
@@ -2572,6 +2627,9 @@ perfilar <- function(datos,
   aplicabilidad_resuelta <- .resolver_aplicabilidad(
     datos, nombres, columnas_opcionales, aplicabilidad
   )
+  columnas_codigo <- .normalizar_columnas_codigo(columnas_codigo, nombres)
+  es_codigo <- .nombres_para_operar(nombres) %in%
+    .nombres_para_operar(columnas_codigo)
   resultados <- .medir_etapa_dbi(
     trazador_tiempos, "perfilado_columnas",
     lapply(seq_len(ncol(datos)), function(i) {
@@ -2580,7 +2638,8 @@ perfilar <- function(datos,
         distinguir_mayusculas, expandir, umbral_patron_raro,
         sentinelas_numericos,
         aplicable = aplicabilidad_resuelta$mascaras[[i]],
-        cadenas_ausencia = cadenas_ausencia
+        cadenas_ausencia = cadenas_ausencia,
+        codigo = es_codigo[[i]]
       )
     })
   )
@@ -2785,7 +2844,8 @@ perfilar <- function(datos,
     )
   }
   benford <- .diagnosticar_benford(
-    datos_magnitudes, columnas, hallazgos, clave_declarada = clave
+    datos_magnitudes, columnas, hallazgos, clave_declarada = clave,
+    columnas_codigo = columnas_codigo
   )
   if (nrow(benford$cobertura)) {
     cobertura_diagnosticos <- rbind(
@@ -2968,6 +3028,8 @@ perfilar <- function(datos,
     umbral_patron_dominante = umbral_patron_dominante,
     columnas_sin_ceros = columnas_sin_ceros,
     columnas_no_negativas = columnas_no_negativas,
+    # Ningun acceso `meta$...` del paquete es prefijo de este nombre.
+    columnas_codigo = columnas_codigo,
     analizar_dependencias = analizar_dependencias,
     umbral_dependencia = umbral_dependencia,
     umbral_casi_clave_dependencia = umbral_casi_clave_dependencia,

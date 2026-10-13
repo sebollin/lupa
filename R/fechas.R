@@ -450,9 +450,7 @@ detectar_formatos_fecha <- function(x, muestra = 1e5) {
 # interno lo conserva sólo hasta pasarlo al resumen de la columna.
 .detectar_formatos_fecha_interno <- function(x, muestra = 1e5,
                                               vocabulario = NULL) {
-  if (inherits(x, "data.frame")) {
-    stop("`x` debe ser un vector, no un data.frame.", call. = FALSE)
-  }
+  .validar_vector_no_tabla(x)
   muestra_x <- .muestrear_vector(x, muestra)
   valores_originales <- muestra_x$valores
 

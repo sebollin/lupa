@@ -248,11 +248,12 @@ test_that("H4: el desempate de formatos y los id de la propuesta siguen los byte
     )
     formato <- propuesta[propuesta$metrica == "Formato", , drop = FALSE]
     # A mano: `F` (46) va antes que `d` (64) en bytes; en la intercalacion
-    # espanola, al reves. El id numera despues de ordenar.
+    # espanola, al reves. El id sale del contenido desde la ronda 32 (D3), asi
+    # que tampoco depende del orden: es el mismo en los dos locales.
     expect_identical(as.character(formato$atributos), c("Fecha de Alta", "depto"),
                      info = locale)
-    expect_identical(formato$id_sugerencia, c("sugerencia-0001", "sugerencia-0002"),
-                     info = locale)
+    expect_identical(formato$id_sugerencia,
+                     c("Formato:Fecha de Alta", "Formato:depto"), info = locale)
   }
 })
 

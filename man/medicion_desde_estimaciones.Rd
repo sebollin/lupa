@@ -30,7 +30,11 @@ la celda estimada. Cuando falta, se numeran las filas.}
 \item{columnas}{Vector con nombres para traducir columnas de \code{estimaciones} a
 estadísticos reconocidos, en la forma \code{c(cv = "coef_var")}.}
 
-\item{fecha}{Fecha y hora de la medición.}
+\item{fecha}{Fecha y hora de la medición. Se lee como en \code{\link[=medir]{medir()}}: se
+guarda en UTC y un texto —\code{"2026-03-01"}— se lee en UTC, no en el huso de
+la sesión, así que la misma llamada registra el mismo instante —y el mismo
+\code{id_medicion}— en cualquier máquina. Una sola fecha: \code{NA}, \code{NULL}, dos
+fechas o un texto que no se puede leer entero se rechazan.}
 }
 \value{
 Data frame de clase \code{medicion_calidad} y \code{medicion} con el contrato

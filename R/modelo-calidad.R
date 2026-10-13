@@ -15,10 +15,14 @@
   if (is.function(x) || inherits(x, "formula")) {
     return(paste(.deparse_por_omision(x), collapse = " "))
   }
+  # Un instante con todas sus cifras y sin `digits.secs`: con la opcion en 6 la
+  # misma `fecha_acceso` se leia como un cambio de modelo, y con el valor por
+  # omision dos que difieren en medio segundo se escribian igual (ronda 32-S).
+  # La forma compacta es la que se guardaba: lo guardado sin fraccion aparea.
   if (inherits(x, "POSIXt")) {
     return(paste0(
       "POSIXt:",
-      paste(format(x, tz = "UTC", usetz = TRUE), collapse = ",")
+      paste(.texto_instante_utc(x, compacta = TRUE), collapse = ",")
     ))
   }
   if (inherits(x, "Date")) {
@@ -26,8 +30,11 @@
       "Date:", paste(format(x, "%Y-%m-%d"), collapse = ",")
     ))
   }
+  # Un doble con la escritura que vuelve a SU valor: 15 cifras cuando alcanzan
+  # -lo que ya se guardaba- y 16 o 17 cuando no, que es donde la escritura de
+  # siempre juntaba dos valores distintos.
   if (is.atomic(x)) {
-    valores <- .caracter_por_omision(x)
+    valores <- .etiqueta_numero_reversible(x)
     faltantes <- is.na(valores)
     valores[faltantes] <- "<NA>"
     valores[!faltantes] <- .clave_bytes(valores[!faltantes])
@@ -394,7 +401,7 @@
 #'   agregaciones normalizadas.
 #' @param propiedades Nombres de las propiedades que fija `especializar()`.
 #' @param dimension,factor Metadatos taxonómicos; no se usan para calcular
-#'   puntuaciones.
+#'   puntuaciones. Cada uno es una cadena no vacía o `NA`.
 #' @param orientacion Sentido de lectura del resultado: `"conformidad"` indica
 #'   que un valor mayor es mejor; `"defecto"`, que un valor menor es mejor; y
 #'   `"no_aplica"`, que la métrica no es una proporción interpretable en esos
@@ -686,6 +693,16 @@ metrica <- function(nombre, semantica, granularidad, tipo_resultado,
   }
   if (!is.null(validar_propiedades) && !is.function(validar_propiedades)) {
     stop("`validar_propiedades` debe ser una funci\u00f3n o NULL.", call. = FALSE)
+  }
+  # `as.character(x)[[1L]]` abortaba con "subindice fuera de los limites" sobre
+  # `NULL` o `character(0)`, y tomaba en silencio el primero de dos.
+  for (argumento in c("dimension", "factor")) {
+    valor <- get(argumento)
+    if (!(length(valor) == 1L && is.atomic(valor) &&
+          (is.na(valor) || .es_texto_escalar(valor)))) {
+      stop("`", argumento, "` debe ser una cadena no vac\u00eda o NA.",
+           call. = FALSE)
+    }
   }
   declaracion <- list(
     nombre = nombre,
@@ -2325,19 +2342,12 @@ medir <- function(modelo, datos, id_medicion = NULL, fecha = Sys.time(),
   if (!inherits(modelo, "modelo_calidad")) {
     stop("`modelo` debe provenir de modelo().", call. = FALSE)
   }
-  if (length(fecha) != 1L || is.na(fecha)) {
-    stop("`fecha` debe contener una fecha y hora v\u00e1lida.", call. = FALSE)
-  }
   fecha_declarada <- !missing(fecha)
   # Por `.fecha_utc()`, como el historico: una fecha de TEXTO se leia en el huso
   # de la sesion, y la misma llamada medía a las 03:00 UTC en una maquina y a las
   # 00:00 en otra. Medido en la ronda 22.
-  fecha <- .fecha_utc(fecha)
-  if (!is.logical(proteger_datos_personales) ||
-      length(proteger_datos_personales) != 1L ||
-      is.na(proteger_datos_personales)) {
-    stop("`proteger_datos_personales` debe ser TRUE o FALSE.", call. = FALSE)
-  }
+  fecha <- .fecha_argumento_utc(fecha)
+  .validar_bandera_proteccion(proteger_datos_personales)
   # El lexico por omision no puede conocer lo que solo el usuario sabe. Se
   # normalizan aca, una vez, con las mismas funciones que usa perfilar().
   # Se valida con las mismas funciones que perfilar(), para que la misma
@@ -2496,7 +2506,14 @@ medir <- function(modelo, datos, id_medicion = NULL, fecha = Sys.time(),
   })
   alcances <- lapply(partes, `[[`, "alcance")
   partes <- lapply(partes, `[[`, "salida")
-  resultado <- do.call(rbind, partes)
+  # Sin nombres: `partes` viene nombrada por las instancias, y con esos nombres
+  # `do.call()` arma los de los argumentos y `rbind()` los de las filas -que se
+  # tiran en la linea siguiente-. Dos defectos de la ronda 32: R no admite un
+  # nombre de argumento de mas de 10.000 bytes, y una columna con un nombre asi
+  # abortaba `medir()`; y `rbind()` traduce los nombres al nativo, asi que bajo
+  # `C` un id con acento (`NoNulo:a\u00f1o`, desde la decision D3) avisaba "unable
+  # to translate" en cada medicion y abortaba con `warn = 2`.
+  resultado <- do.call(rbind, unname(partes))
   rownames(resultado) <- NULL
   resultado$id_medida <- .ids_medida(id_medicion, resultado$metrica_instanciada)
   resultado <- resultado[c(

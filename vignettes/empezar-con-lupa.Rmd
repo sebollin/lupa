@@ -129,9 +129,9 @@ Si una columna se clasifica como posible dato personal, los estadísticos que
 podrían ser valores de una persona se suprimen y la tabla lo marca. Se suprimen
 los de orden —mínimo, máximo, mediana, moda— y también la media, porque sobre
 pocas filas se acerca a un valor y porque publicarla junto a otras cifras del
-mismo perfil permite despejar las que sí se protegieron. El desvío se mantiene:
-describe la dispersión sin acercarse a ninguna fila. La supresión se declara, y
-distingue el estadístico de orden del momento.
+mismo perfil permite despejar las que sí se protegieron. Y el desvío, que es
+una magnitud de los mismos valores. La supresión se declara, y distingue el
+estadístico de orden de los momentos.
 
 ```{r}
 analisis$distribuciones$cuantiles

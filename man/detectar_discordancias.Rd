@@ -18,7 +18,8 @@ detectar_discordancias(
 \item{senales}{Una señal creada por \code{\link[=senal_redundante]{senal_redundante()}} o una lista de
 señales.}
 
-\item{max_ejemplos}{Máximo de filas concretas que se citan como evidencia.}
+\item{max_ejemplos}{Máximo de filas concretas que se citan como evidencia:
+un entero no negativo; \code{0} no cita ninguna.}
 
 \item{proteger_datos_personales}{Si los valores de las columnas clasificadas
 como dato personal se enmascaran en \code{evidencia}. \code{TRUE} por omisión; el
