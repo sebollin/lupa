@@ -635,7 +635,7 @@ del motor: ver la protección—, y se conserva la mediana por columna.
 
 ## Lo que el motor guarda distinto que R
 
-El resumen SQL describe lo que el motor tiene delante, y en cuatro casos
+El resumen SQL describe lo que el motor tiene delante, y en estos casos
 eso no es lo mismo que la tabla en R:
 
 - **Fechas en SQLite.** SQLite no tiene tipo fecha: RSQLite guarda un
@@ -651,6 +651,19 @@ eso no es lo mismo que la tabla en R:
   `NaN` cuenta como ausente. Los conteos pueden diferir por eso, y una
   métrica que el motor respondió con `NaN` no se publica: queda
   `no_disponible` con su motivo.
+
+- **Infinitos.** SQLite, PostgreSQL y duckdb admiten `Inf` y `-Inf` en
+  una columna de punto flotante, y el motor los cuenta en `MIN`, `MAX`,
+  `AVG` y el orden de la mediana. Los estadísticos de magnitud se
+  calculan sólo con valores finitos, como en
+  [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md)
+  y con `bloque_filas`: cuando el motor responde un infinito, `minimo`,
+  `maximo`, `media`, `mediana`, `desvio`, `n_ceros` y `n_negativos` se
+  vuelven a pedir sobre una subconsulta que deja afuera los infinitos, y
+  su `sql` lo muestra. Donde la consulta no sabe escribir el infinito, o
+  sobre una muestra del motor, esas métricas quedan `no_disponible` con
+  ese motivo. Un infinito es un número: no se informa como un valor que
+  no se pudo leer como número.
 
 - **La media en coma flotante.** Cada lado suma a su modo; sobre una
   columna que mezcla magnitudes muy distintas —`1e20` junto a `1`— las
@@ -677,12 +690,13 @@ eso no es lo mismo que la tabla en R:
   las métricas de magnitud quedan `no_disponible` porque el motor
   devolvió algo que no se lee como número—, y `perfil_muestra` ve lo que
   entregó el controlador: `minimo = 0`, una moda `0` que nadie escribió.
-  `perfilar_dbi()` no relee la columna como texto: declara cada
-  divergencia con esa causa medida en `resumen_tabla$cobertura`, y dice
-  que las cifras de magnitud de `perfil_muestra` para esa columna no
-  describen lo guardado. Para perfilar los valores guardados, leer la
-  columna como texto (`CAST(columna AS TEXT)` en una vista) o limpiarla
-  en el origen.
+  `perfilar_dbi()` no relee la columna como texto: cuenta con
+  [`typeof()`](https://rdrr.io/r/base/typeof.html) los valores guardados
+  como texto o blob y declara cada divergencia con esa causa medida en
+  `resumen_tabla$cobertura`, y dice que las cifras de magnitud de
+  `perfil_muestra` para esa columna no describen lo guardado. Para
+  perfilar los valores guardados, leer la columna como texto
+  (`CAST(columna AS TEXT)` en una vista) o limpiarla en el origen.
 
 ## Costo
 
@@ -938,8 +952,10 @@ Server con la sesión en sueco o neerlandés— y la cola de un valor que
 lleva una comilla adentro. Y el mensaje pasa también por el piso con los
 valores protegidos que la llamada ya leyó —en
 [`perfilar_coleccion()`](https://sebollin.github.io/lupa/reference/perfilar_coleccion.md),
-los de todas sus tablas—: un valor escrito sólo con lo permitido —los
-apellidos `"Campos Cadena"`, dos palabras del vocabulario— se tapa, y el
+los de todas sus tablas—, antes de las dos pasadas, con el valor entero
+a la vista, y otra vez al final: un valor escrito sólo con lo permitido
+—los apellidos `"Campos Cadena"`, dos palabras del vocabulario, o un
+nombre cuyas palabras son columnas de otra tabla— se tapa entero, y el
 nombre de una columna que es también uno de esos valores —la docente
 `"Florencia"` de una planilla con una columna por docente— deja de
 exceptuarse, con la comparación del piso. Lo que queda abierto: un valor

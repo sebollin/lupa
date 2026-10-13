@@ -128,7 +128,11 @@ bytes —no según la intercalación del locale— y <code>id_sugerencia</code> 
 ese orden: el mismo perfil da los mismos identificadores en cualquier sesión.
 Si una columna contiene faltantes disfrazados, <code>NoNulo</code> se propone pero queda
 inactiva hasta normalizarlos o configurar la métrica para reconocerlos. De
-otro modo mediría sólo los <code>NA</code> reales y sobrestimaría la completitud.
+otro modo mediría sólo los <code>NA</code> reales y sobrestimaría la completitud. Por
+eso sale con estado <code>faltantes_disfrazados</code> y no <code>lista</code>: <code><a href="analizar.html">analizar()</a></code> no la
+mide y <code><a href="modelo_desde_propuesta.html">modelo_desde_propuesta()</a></code> no la materializa. Para medirla, normalizar
+los disfrazados y volver a perfilar, o declararlos en <code>valores_nulos</code> de su
+<code>configuracion</code> y pasar su <code>estado</code> a <code>"lista"</code>.
 Una sugerencia sobre una columna cuyo nombre la tabla repite sale inactiva y
 con estado <code>nombre_repetido</code>: una métrica se liga por nombre, y ese nombre no
 dice cuál de las columnas mide. <code><a href="modelo_desde_propuesta.html">modelo_desde_propuesta()</a></code> no la materializa

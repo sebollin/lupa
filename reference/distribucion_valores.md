@@ -16,7 +16,8 @@ distribucion_valores(
   probabilidades = c(0, 0.25, 0.5, 0.75, 1),
   muestra = 1e+05,
   proteger_datos_personales = TRUE,
-  columnas_personales = character()
+  columnas_personales = character(),
+  .universo = NULL
 )
 ```
 
@@ -65,6 +66,17 @@ distribucion_valores(
   un legajo interno— se publicaría entera. Sólo tiene efecto con
   `proteger_datos_personales = TRUE`.
 
+- .universo:
+
+  Uso interno de
+  [`analizar()`](https://sebollin.github.io/lupa/reference/analizar.md):
+  el universo que declara su `argumentos_perfil` —`aplicabilidad`,
+  `columnas_opcionales` y `sentinelas_numericos`—. Con él, lo que queda
+  fuera del universo no entra en `frecuencias` ni en `cuantiles`, y un
+  centinela declarado sale de los `cuantiles` como sale de `minimo`,
+  `mediana` y `maximo` del perfil; en `frecuencias` sigue contando, como
+  en `n_distintos` y `moda`.
+
 ## Value
 
 Objeto `distribuciones_perfil`, una lista con data frames `frecuencias`,
@@ -80,7 +92,10 @@ es `calculada_parcial` en vez de `calculada`, para que un resultado
 parcial no se lea como completo. Un `NA` no cuenta como descarte: es una
 ausencia declarada, no un valor que no se pudo analizar. Los otros
 estados posibles son `sin_valores`, `sin_valores_analizables` y
-`tipo_no_comparable`.
+`tipo_no_comparable`. La entrada es la de
+[`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md):
+un `POSIXlt` se cuenta por su instante, como el `POSIXct` equivalente, y
+el nivel `NA` de un factor es un faltante.
 
 Cuando una columna tiene evidencia suficiente para activar la protección
 de datos personales, sus frecuencias y niveles se conservan pero el
@@ -103,9 +118,12 @@ Las frecuencias se cuentan **por valor, no por su escritura**: dos
 dobles que coinciden en sus primeras 15 cifras —`0.1 + 0.2` y `0.3`,
 `1e15` y `1e15 + 1`— son dos filas, como los cuenta
 [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md), y
-cada una se escribe con las cifras que la devuelven a su valor. A igual
-frecuencia, las filas se ordenan por valor —el texto por sus bytes, los
-números como números—, el mismo desempate que la moda de
+cada una se escribe con las cifras que la devuelven a su valor. Un
+instante se escribe en UTC y con el rótulo `UTC`, como los resúmenes de
+[`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md):
+la etiqueta no depende de la zona de la sesión. A igual frecuencia, las
+filas se ordenan por valor —el texto por sus bytes, los números como
+números—, el mismo desempate que la moda de
 [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md):
 así, el recorte de `max_valores` no depende del orden de las filas de la
 tabla.

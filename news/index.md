@@ -2,6 +2,283 @@
 
 ## lupa 0.1.0
 
+### Ronda 31: la misma respuesta en cualquier sesion, la proteccion otra vez y una regla por hecho
+
+Tres refutaciones. La de la sesion encontro ocho defectos -bajo un
+locale turco `ABRIL 2024` no era una fecha ni `point(1 2)` WKT; con
+`scipen` o `OutDec` el nombre de una regla cambiaba y la deriva perdia
+el par, la proteccion tapaba los estadisticos de una columna no
+protegida y
+[`perfilar_dbi()`](https://sebollin.github.io/lupa/reference/perfilar_dbi.md)
+publicaba divergencias entre dos cifras iguales; en Adak dos instantes
+salian con la misma etiqueta-; la de la proteccion, seis -la coleccion
+descartaba valores que el mensaje del motor lleva, y el celular escrito
+con separador de miles salia en claro-; la de dos funciones que
+contestan el mismo hecho, diez -un factor con nivel `NA` era clave para
+[`detectar_claves()`](https://sebollin.github.io/lupa/reference/detectar_claves.md)
+y clave con ausentes para
+[`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md), y
+[`aplicar()`](https://sebollin.github.io/lupa/reference/planificar_limpieza.md)
+no eliminaba las columnas que el plan llamaba duplicadas-, y la
+auditoria uno mas: una conversion regional que no se ejecuta salia
+`lista` por un camino que la ronda 30 no cerro.
+
+**La proteccion:**
+
+- **La coleccion guarda los valores que el mensaje del motor lleva, con
+  la misma regla que lo publica.** `.valores_que_lleva_el_motor()`
+  decidia con su propia lectura que valores protegidos guardar para el
+  mensaje del motor de las demas tablas -“un numero de seis cifras con
+  hasta tres signos entre las cifras” y “a lo sumo una palabra fuera de
+  lo permitido”- y la segunda pasada publicaba con otra: con SQL Server
+  en sueco, que cita la celda sin comillas,
+  `perfilar_coleccion(conservar_perfiles = FALSE)` publicaba en sus tres
+  campos de motivos y en el aviso de consola el celular protegido
+  `099;123;456` (y las demas escrituras con un signo que no une: `|`,
+  tres espacios, `" / "`…) y el nombre “Florencia Martinez” citado por
+  una vista con la columna `Florencia.Martinez`. Ahora la seleccion le
+  pregunta a la segunda pasada si deja pasar algo del valor con toda
+  palabra permitida -cualquier palabra puede ser el nombre de una
+  columna de otra tabla-: se guarda todo valor con letras y el numero
+  que el mensaje no omite entero. Y el piso con esos valores pasa ademas
+  antes de las dos pasadas, con el valor entero a la vista: con “Ana
+  Florencia Martinez” la segunda omitia “Ana” y salia “Florencia
+  Martinez”, y con `099 ' 123 ' 456` la primera omitia lo citado y
+  salian `099` y `456`. Para no correr la segunda pasada valor por valor
+  (dos milisegundos cada uno), se le pregunta por la forma del valor
+  -cifras y tramos de letras resumidos-, que solo puede guardar de mas.
+- **El aviso de consola de una coleccion pasa por el mismo piso final
+  que sus tres campos de motivos.** Con la vista antes que su tabla base
+  en
+  [`coleccion()`](https://sebollin.github.io/lupa/reference/coleccion.md),
+  el objeto quedaba limpio y el aviso “El resumen SQL se calculo y se
+  devuelve, pero la muestra no” de la vista publicaba `Campos Cadena`,
+  la celda de la base, porque se emitia antes de leerla. Los avisos de
+  cada tabla se juntan y se emiten al final, con su clase, despues del
+  piso, con o sin perfiles retenidos.
+- **El celular escrito como numero de planilla con separador de miles, o
+  en cientifica con un espacio antes del exponente, es la misma cifra.**
+  `"59.893.425.706,00"`, `"59,898,617,353"`, `"59 898 617 353"`,
+  `"59'898'617'353"` -con o sin `,00`, con `+` delante- y
+  `"5.9895845098 e+10"` se publicaban frente al celular protegido
+  nacional `"098 617 353"`: 60 de 60 notas en claro en la copia de
+  [`analizar()`](https://sebollin.github.io/lupa/reference/analizar.md)
+  y los tres ejemplos del perfil, mientras sin miles, con el exponente
+  pegado o frente al protegido E.164 se tapaban. Los grupos de tres
+  partian el `598` y la parte nacional se buscaba en los grupos como
+  venian. La lectura del numero de planilla -la de las agujas, el piso
+  numerico y el texto- da ahora la misma cifra entera para todas esas
+  escrituras, y la parte nacional sale de la cifra. Con
+  `data-raw/medir_tapado_de_mas.R`, ninguna familia de antes cambia
+  -tampoco los importes con miles- y las nuevas, con las mismas cifras
+  en cada escritura, dan: el importe de ocho cifras con miles y `,00`
+  1,8 %, como antes, y en cientifica con un espacio antes del exponente
+  1,8 %, como sin el espacio (antes 0 %); el celular que no es de nadie
+  escrito con miles, 3,0 %, como pegado con su prefijo (antes 0 %), y
+  con miles y `,00` o con espacios 4,4 % (antes 1,5 %: sus primeras ocho
+  cifras tienen la forma de una cedula entera). La ayuda lo declara.
+- **La copia de `analizar(conservar_datos = TRUE)` lee una funcion, una
+  llamada y una formula como las imprime.** Se leian por su codigo sin
+  atributos ni fuente, y se devolvian antes de recorrer sus atributos:
+  `structure(function() NULL, nota = <cedula>)`, la llamada y la formula
+  con ese atributo, el comentario `# titular <cedula>` de una funcion
+  con `srcref` -lo que deja una sesion interactiva- o de una expresion,
+  y un entorno que guarda una funcion asi quedaban en la copia. Se leen
+  ahora como [`print()`](https://rdrr.io/r/base/print.html) las escribe
+  -con sus atributos y su fuente- y por sus atributos; y el recorrido de
+  atributos, que estaba escrito tres veces, es uno y pasa por el piso
+  tambien el NOMBRE de cada atributo: `attr(x, "2.037.187-5") <- TRUE`
+  quedaba en la copia.
+- **`analizar(conservar_datos = TRUE)` ya no aborta con una columna
+  lista de puros `NULL`.** Con la proteccion puesta, “primer argumento
+  debe ser un vector”: el piso de la copia juntaba los textos de la
+  lista y [`unlist()`](https://rdrr.io/r/base/unlist.html) de puros
+  `NULL` es `NULL`.
+- **La ayuda declara dos familias que el reproductor tapa de mas y no
+  tenian cifra.** La version de cinco partes (`"v2.76.527.6327.3"`),
+  quince de cada cien, y el celular que no es de nadie, entre dos y tres
+  de cada cien (2,0 a 2,5 % con 400 por escritura; 3,0 % con 4.000),
+  como ya daba el reproductor desde la ronda 27: la ayuda daba la de
+  cuatro partes y el fijo.
+
+**Dos funciones, dos respuestas:**
+
+- **Las cifras de magnitud se calculan solo con valores finitos tambien
+  en la via SQL.** Con `bloque_filas`, la mediana contaba los infinitos
+  que `minimo`, `maximo` y `media` de la misma fila excluian:
+  `c(-Inf x3, 10, 20, 30, 40)` daba mediana 10 contra 25. Sin bloques,
+  en SQLite, duckdb y PostgreSQL, una columna de punto flotante con un
+  `Inf` dejaba en `NA` minimo, maximo, media, mediana y desvio “porque
+  la columna no es de la magnitud que estas metricas suponen”, y la
+  corroboracion publicaba como causa medida que la columna guardaba
+  texto. Un infinito es un numero: cuando el motor lo responde, las
+  magnitudes se vuelven a pedir sobre una subconsulta que lo deja
+  afuera, con la misma maquinaria de siempre, y su `sql` lo muestra. Lo
+  mismo por la sonda de magnitud, que ahora pide tambien `MIN` -un
+  `-Inf` queda al principio del orden y la mediana salia 10-, y en
+  [`perfilar_coleccion()`](https://sebollin.github.io/lupa/reference/perfilar_coleccion.md).
+  Donde la consulta no sabe escribir el infinito, o sobre una muestra
+  del motor, quedan `no_disponible` con ese motivo y no con el de “no es
+  numero”. La decision esta en
+  [`?perfilar_dbi`](https://sebollin.github.io/lupa/reference/perfilar_dbi.md).
+- **La causa “el motor guarda texto” se mide.** En SQLite se cuentan con
+  [`typeof()`](https://rdrr.io/r/base/typeof.html) los valores guardados
+  como texto o blob, el conteo va al motivo, y la corroboracion solo
+  publica la causa medida cuando lo hay.
+- **Un factor con nivel `NA` no es clave para
+  [`detectar_claves()`](https://sebollin.github.io/lupa/reference/detectar_claves.md),
+  [`sugerir_clave()`](https://sebollin.github.io/lupa/reference/sugerir_clave.md)
+  ni
+  [`referencial()`](https://sebollin.github.io/lupa/reference/referencial.md).**
+  El perfil lo cuenta como faltante desde la ronda 30, y estas tres
+  leian la ausencia sobre el factor crudo: un codigo unico salvo una
+  fila en el nivel `NA` salia clave exacta con 40 distintos y
+  “identifica cada fila sin repetir”, la columna que
+  `perfilar(clave = )` refuta por ausentes. Pasan por la misma entrada
+  que el perfil.
+- **[`aplicar()`](https://sebollin.github.io/lupa/reference/planificar_limpieza.md)
+  elimina las columnas que el perfil llama duplicadas.** Dos columnas
+  que difieren solo por el nivel `NA`, o un `POSIXlt` y su `POSIXct`,
+  salian duplicadas en el perfil y en el plan, y
+  [`aplicar()`](https://sebollin.github.io/lupa/reference/planificar_limpieza.md)
+  las registraba `fallida`, 0 cambios, “dejaron de tener contenido
+  duplicado”, sobre la tabla original. La comparacion es una sola y
+  normaliza sus dos columnas como la entrada del perfil.
+- **`analizar()$distribuciones` recibe las declaraciones de
+  `argumentos_perfil`.** Con `sentinelas_numericos = c(-999, 999)` el
+  perfil publicaba maximo 60 y los cuantiles 999; con un universo
+  declarado, 20000 contra 999999 y 3 marcas distintas contra 4. Lo que
+  queda fuera del universo no entra en las frecuencias ni en los
+  cuantiles, y un centinela declarado sale de los cuantiles como sale de
+  `minimo` y `maximo`; en las frecuencias sigue contando, como en
+  `n_distintos` y `moda`.
+  [`distribucion_valores()`](https://sebollin.github.io/lupa/reference/distribucion_valores.md)
+  sola no cambia.
+- **[`analizar()`](https://sebollin.github.io/lupa/reference/analizar.md)
+  no mide la `NoNulo` que la propuesta deja inactiva por faltantes
+  disfrazados.** La fila de `decision_medicion` decia `medida = TRUE` y
+  “queda inactiva hasta normalizarlos”, y el tablero publicaba 0,975
+  donde, con los disfrazados que el perfil cuenta, la completitud es
+  0,90 y 0,85. Sale con estado `faltantes_disfrazados`, como
+  `nombre_repetido`: no se mide ni se materializa hasta normalizarlos o
+  reconocerlos en `valores_nulos`.
+- **[`distribucion_valores()`](https://sebollin.github.io/lupa/reference/distribucion_valores.md)
+  cuenta un `POSIXlt` como su `POSIXct`**: lo declaraba
+  `tipo_no_comparable`, con 0 analizados, donde
+  [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md),
+  [`inferir_tipo()`](https://sebollin.github.io/lupa/reference/inferir_tipo.md)
+  y [`medir()`](https://sebollin.github.io/lupa/reference/medir.md)
+  leian 7 presentes y 4 distintos. Pasa por la entrada del perfil.
+- **`desambiguar_fecha_en_origen` cuenta en la unidad de su hallazgo**:
+  publicaba `n_afectadas = 40` -las filas- con la unidad “formato” de un
+  hallazgo que declara 2 formatos. Es la regla que las acciones
+  informativas ya seguian, escrita ahora una sola vez.
+- **Sin moda, la moda es `NA` tambien con la proteccion activa.** Una
+  columna personal sin valores repetidos publicaba `[valor protegido]`,
+  la misma escritura que una que si tiene moda, en
+  [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md)
+  y
+  [`perfilar_dbi()`](https://sebollin.github.io/lupa/reference/perfilar_dbi.md).
+  La proteccion tapa un valor; no inventa uno. `frecuencia_moda = 1` ya
+  decia que no se repetia ninguno.
+- **Una conversion regional que no se ejecuta con ninguna configuracion
+  sale `bloqueada`.** La ronda 30 lo resolvio para la columna que no es
+  texto; sobre `c("1.234,56", "100.000", "1e5", ...)` -`1e5` no responde
+  al formato regional- seguia `lista` con un motivo que decia que no era
+  ejecutable. El plan le pregunta al conversor con las configuraciones
+  de `punto_sin_coma` y `coma_sin_punto`; la que solo espera una de
+  ellas sigue `lista`.
+
+**La misma respuesta en cualquier sesion:**
+
+- **Bajo un locale turco `ABRIL 2024` es una fecha y `point(1 2)` es
+  WKT.** `ignore.case = TRUE` y `(?i)` sobre texto ASCII pliegan con las
+  tablas de caja del locale, y bajo `tr_TR` la `I` y la `i` no se
+  pliegan:
+  [`detectar_formatos_fecha()`](https://sebollin.github.io/lupa/reference/detectar_formatos_fecha.md)
+  daba `%B %Y` en 0,25 contra 1 y
+  [`inferir_tipo()`](https://sebollin.github.io/lupa/reference/inferir_tipo.md)
+  `texto`, y una columna WKT en minusculas no se reconocia. Ningun
+  patron del paquete usa ya `ignore.case` ni `(?i)`: el vocabulario se
+  escribe con las dos cajas de cada letra (`.regex_sin_caja()`), en los
+  36 sitios -fechas, WKT, motores, permisos, correos ofuscados, ISBN-, y
+  una prueba recorre el espacio de nombres para que no vuelva. El WKT le
+  llega a sf en mayusculas ASCII: el lector de GDAL tambien comparaba
+  con la caja del locale y perdia tres de cuatro geometrias.
+- **El nombre de una regla de
+  [`perfiles_madurez()`](https://sebollin.github.io/lupa/reference/reglas_evaluacion.md)
+  no depende de `OutDec` ni de `scipen`.** `Resultado > 0,9` en una
+  sesion y `Resultado > 0.9` en otra no se apareaban: la deriva por
+  regla perdia la fila y
+  [`comparar_evaluaciones()`](https://sebollin.github.io/lupa/reference/comparar_evaluaciones.md)
+  afirmaba “Cambio el perfil de evaluacion” sobre el mismo perfil. El
+  umbral se escribe con punto y la escritura mas corta que vuelve al
+  valor, y la configuracion del perfil -que guarda la condicion con
+  [`deparse()`](https://rdrr.io/r/base/deparse.html), que escribe los
+  numeros con `scipen`- tambien: todo
+  [`deparse()`](https://rdrr.io/r/base/deparse.html) del paquete fija
+  `scipen = 0`. Una evaluacion guardada antes sigue apareando.
+  [`propiedades_regla()`](https://sebollin.github.io/lupa/reference/propiedades_regla.md)
+  escribe los umbrales de la misma forma, con todas sus cifras.
+- **`scipen` no mueve la proteccion.** La cosecha de valores protegidos,
+  la comparacion de las hojas numericas y las decisiones que leen un
+  numero como texto -columna de fechas, rellenos- usaban
+  [`as.character()`](https://rdrr.io/r/base/character.html): con
+  `scipen = -9` el `11` de una columna protegida salia `1.1e+01`, pasaba
+  el piso de seis caracteres y tapaba minimo, maximo, media, mediana,
+  desvio y la secuencia entera de `id_copia` en
+  `perfilar(datos_administrativos)`.
+- **La corroboracion de
+  [`perfilar_dbi()`](https://sebollin.github.io/lupa/reference/perfilar_dbi.md)
+  compara el valor y no su escritura.** Un conteo llega entero de un
+  lado y doble del otro, y con `scipen = -9` `"12"` contra `"1.2e+01"`
+  daba nueve divergencias falsas de nueve; con `scipen = 0`, `100000`
+  entero contra `1e5` doble tambien. El mismo arreglo en el apareo de
+  centinelas sobre una columna `integer64`.
+- **Bajo el locale `C`, el texto de un error del paquete entra intacto
+  al plan, al registro de
+  [`aplicar()`](https://sebollin.github.io/lupa/reference/planificar_limpieza.md),
+  a la guia, a
+  [`analizar()`](https://sebollin.github.io/lupa/reference/analizar.md)
+  y al HTML.** [`stop()`](https://rdrr.io/r/base/stop.html) pasaba el
+  mensaje por [`gettext()`](https://rdrr.io/r/base/gettext.html), que
+  sin catalogo lo devuelve en la codificacion nativa, y bajo `C`
+  escapaba `num<U+00E9>rico`. Los errores del paquete se arman ahora
+  como una condicion con el texto tal cual.
+- **Un instante se escribe en UTC y con su rotulo en todas las
+  salidas.**
+  [`distribucion_valores()`](https://sebollin.github.io/lupa/reference/distribucion_valores.md),
+  las etiquetas de
+  [`perfilar_por()`](https://sebollin.github.io/lupa/reference/perfilar_por.md)
+  y la clave de `meta$normalizacion_fusiones` escribian una fecha-hora
+  sin zona en la hora de la sesion: en America/Adak dos instantes
+  distintos salian con la misma etiqueta y la normalizacion los fundia
+  (`n_distintos` 3 contra 4), y la moda de una columna en Asia/Tokyo
+  salia en UTC en el perfil y en hora de Tokio, sin rotulo, en la
+  distribucion. La zona declarada de la columna sigue en
+  `zona_horaria_origen`.
+- **Las cifras publicadas como texto no salen en notacion cientifica.**
+  Con `scipen = -9`,
+  [`comparar_perfiles()`](https://sebollin.github.io/lupa/reference/comparar_perfiles.md)
+  publicaba `1.2e+01`,
+  [`analizar_tiempo()`](https://sebollin.github.io/lupa/reference/analizar_tiempo.md)
+  “1e+00 dias”,
+  [`detectar_duplicados_aproximados()`](https://sebollin.github.io/lupa/reference/detectar_duplicados_aproximados.md)
+  “distancia 0e+00 con jw (umbral 1e-01)”, la evidencia de
+  `faltantes_disfrazados` el centinela `-99` como `-9.9e+01` -y esa
+  evidencia se relee como lista de marcadores- y el reporte “8.2e+00
+  Kb”, “12 de 1.2e+01” y “Se muestran 1e+02 de 101 filas”: todo numero
+  que el HTML escribe pasa por la escritura publicada. Con coma decimal,
+  [`detectar_relaciones()`](https://sebollin.github.io/lupa/reference/detectar_relaciones.md)
+  separa los extremos de un rango con punto y coma, como
+  [`comparar_perfiles()`](https://sebollin.github.io/lupa/reference/comparar_perfiles.md):
+  decia `[0,10, 0,75]`.
+- **[`perfilar_dbi()`](https://sebollin.github.io/lupa/reference/perfilar_dbi.md)
+  no deja escapar el aviso crudo de bit64.** Un `BIGINT` mayor que 2^53
+  en SQLite emitia “integer precision lost while converting to double”
+  con `warn = 0`; el aviso se recoge donde se convierte y la perdida se
+  declara como el resto.
+
 ### Ronda 30: la proteccion otra vez, el paquete bajo el locale C y las clases de columna
 
 Tres refutaciones. La de la proteccion encontro cinco defectos -el

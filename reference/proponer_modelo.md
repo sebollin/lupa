@@ -84,10 +84,16 @@ atributos según sus bytes —no según la intercalación del locale— y
 identificadores en cualquier sesión. Si una columna contiene faltantes
 disfrazados, `NoNulo` se propone pero queda inactiva hasta normalizarlos
 o configurar la métrica para reconocerlos. De otro modo mediría sólo los
-`NA` reales y sobrestimaría la completitud. Una sugerencia sobre una
-columna cuyo nombre la tabla repite sale inactiva y con estado
-`nombre_repetido`: una métrica se liga por nombre, y ese nombre no dice
-cuál de las columnas mide.
+`NA` reales y sobrestimaría la completitud. Por eso sale con estado
+`faltantes_disfrazados` y no `lista`:
+[`analizar()`](https://sebollin.github.io/lupa/reference/analizar.md) no
+la mide y
+[`modelo_desde_propuesta()`](https://sebollin.github.io/lupa/reference/modelo_desde_propuesta.md)
+no la materializa. Para medirla, normalizar los disfrazados y volver a
+perfilar, o declararlos en `valores_nulos` de su `configuracion` y pasar
+su `estado` a `"lista"`. Una sugerencia sobre una columna cuyo nombre la
+tabla repite sale inactiva y con estado `nombre_repetido`: una métrica
+se liga por nombre, y ese nombre no dice cuál de las columnas mide.
 [`modelo_desde_propuesta()`](https://sebollin.github.io/lupa/reference/modelo_desde_propuesta.md)
 no la materializa y
 [`analizar()`](https://sebollin.github.io/lupa/reference/analizar.md) no

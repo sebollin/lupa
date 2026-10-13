@@ -677,7 +677,7 @@ motor: ver la protección—, y se conserva la mediana por columna.</p>
     <h2 id="lo-que-el-motor-guarda-distinto-que-r">Lo que el motor guarda distinto que R<a class="anchor" aria-label="anchor" href="#lo-que-el-motor-guarda-distinto-que-r"></a></h2>
 
 
-<p>El resumen SQL describe lo que el motor tiene delante, y en cuatro casos eso
+<p>El resumen SQL describe lo que el motor tiene delante, y en estos casos eso
 no es lo mismo que la tabla en R:</p><ul><li><p><strong>Fechas en SQLite.</strong> SQLite no tiene tipo fecha: RSQLite guarda un <code>Date</code>
 como número de días desde 1970 y un <code>POSIXct</code> como segundos, y sin más
 información el motor los describe como números —<code>minimo = 17956</code>—. Con
@@ -688,6 +688,16 @@ cuantitativos, y lo dice.</p></li>
 presente y distinto, y responde <code>MAX</code> y <code>AVG</code> con <code>NaN</code>. En R, <code>NaN</code> cuenta
 como ausente. Los conteos pueden diferir por eso, y una métrica que el motor
 respondió con <code>NaN</code> no se publica: queda <code>no_disponible</code> con su motivo.</p></li>
+<li><p><strong>Infinitos.</strong> SQLite, PostgreSQL y duckdb admiten <code>Inf</code> y <code>-Inf</code> en una
+columna de punto flotante, y el motor los cuenta en <code>MIN</code>, <code>MAX</code>, <code>AVG</code> y
+el orden de la mediana. Los estadísticos de magnitud se calculan sólo con
+valores finitos, como en <code><a href="perfilar.html">perfilar()</a></code> y con <code>bloque_filas</code>: cuando el motor
+responde un infinito, <code>minimo</code>, <code>maximo</code>, <code>media</code>, <code>mediana</code>, <code>desvio</code>,
+<code>n_ceros</code> y <code>n_negativos</code> se vuelven a pedir sobre una subconsulta que deja
+afuera los infinitos, y su <code>sql</code> lo muestra. Donde la consulta no sabe
+escribir el infinito, o sobre una muestra del motor, esas métricas quedan
+<code>no_disponible</code> con ese motivo. Un infinito es un número: no se informa
+como un valor que no se pudo leer como número.</p></li>
 <li><p><strong>La media en coma flotante.</strong> Cada lado suma a su modo; sobre una columna
 que mezcla magnitudes muy distintas —<code>1e20</code> junto a <code>1</code>— las medias pueden
 diferir entre motores y con la de R, y ninguna es la exacta. La
@@ -710,7 +720,8 @@ guardados —la moda puede ser el texto, y las métricas de magnitud quedan
 <code>no_disponible</code> porque el motor devolvió algo que no se lee como número—,
 y <code>perfil_muestra</code> ve lo que entregó el controlador: <code>minimo = 0</code>, una moda
 <code>0</code> que nadie escribió. <code>perfilar_dbi()</code> no relee la columna como texto:
-declara cada divergencia con esa causa medida en <code>resumen_tabla$cobertura</code>,
+cuenta con <code><a href="https://rdrr.io/r/base/typeof.html" class="external-link">typeof()</a></code> los valores guardados como texto o blob y declara
+cada divergencia con esa causa medida en <code>resumen_tabla$cobertura</code>,
 y dice que las cifras de magnitud de <code>perfil_muestra</code> para esa columna no
 describen lo guardado. Para perfilar los valores guardados, leer la columna
 como texto (<code>CAST(columna AS TEXT)</code> en una vista) o limpiarla en el origen.</p></li>
@@ -950,9 +961,11 @@ valor que el motor cita sin comillas —duckdb: <code>Type INT64 with value 5989
 línea, que se tapa entera; SQL Server con la sesión en sueco o neerlandés—
 y la cola de un valor que lleva una comilla adentro. Y el mensaje pasa
 también por el piso con los valores protegidos que la llamada ya leyó —en
-<code><a href="perfilar_coleccion.html">perfilar_coleccion()</a></code>, los de todas sus tablas—: un valor escrito sólo con
-lo permitido —los apellidos <code>"Campos Cadena"</code>, dos palabras del
-vocabulario— se tapa, y el nombre de una columna que es también uno de esos
+<code><a href="perfilar_coleccion.html">perfilar_coleccion()</a></code>, los de todas sus tablas—, antes de las dos pasadas,
+con el valor entero a la vista, y otra vez al final: un valor escrito sólo
+con lo permitido —los apellidos <code>"Campos Cadena"</code>, dos palabras del
+vocabulario, o un nombre cuyas palabras son columnas de otra tabla— se
+tapa entero, y el nombre de una columna que es también uno de esos
 valores —la docente <code>"Florencia"</code> de una planilla con una columna por
 docente— deja de exceptuarse, con la comparación del piso. Lo que queda
 abierto: un valor que la llamada <strong>no</strong> leyó —la celda que hizo fallar la

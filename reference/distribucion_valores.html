@@ -63,7 +63,8 @@ Los cuantiles se calculan sólo para números ordinarios finitos.</p>
 <span>  probabilidades <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">0</span>, <span class="fl">0.25</span>, <span class="fl">0.5</span>, <span class="fl">0.75</span>, <span class="fl">1</span><span class="op">)</span>,</span>
 <span>  muestra <span class="op">=</span> <span class="fl">1e+05</span>,</span>
 <span>  proteger_datos_personales <span class="op">=</span> <span class="cn">TRUE</span>,</span>
-<span>  columnas_personales <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/character.html" class="external-link">character</a></span><span class="op">(</span><span class="op">)</span></span>
+<span>  columnas_personales <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/character.html" class="external-link">character</a></span><span class="op">(</span><span class="op">)</span>,</span>
+<span>  .universo <span class="op">=</span> <span class="cn">NULL</span></span>
 <span><span class="op">)</span></span></code></pre></div>
     </div>
 
@@ -109,6 +110,15 @@ corre por léxico y por forma, así que una columna que sólo quien la conoce
 sabe personal —una edad, un legajo interno— se publicaría entera. Sólo
 tiene efecto con <code>proteger_datos_personales = TRUE</code>.</p></dd>
 
+
+<dt id="arg--universo">.universo<a class="anchor" aria-label="anchor" href="#arg--universo"></a></dt>
+<dd><p>Uso interno de <code><a href="analizar.html">analizar()</a></code>: el universo que declara su
+<code>argumentos_perfil</code> —<code>aplicabilidad</code>, <code>columnas_opcionales</code> y
+<code>sentinelas_numericos</code>—. Con él, lo que queda fuera del universo no entra
+en <code>frecuencias</code> ni en <code>cuantiles</code>, y un centinela declarado sale de los
+<code>cuantiles</code> como sale de <code>minimo</code>, <code>mediana</code> y <code>maximo</code> del perfil; en
+<code>frecuencias</code> sigue contando, como en <code>n_distintos</code> y <code>moda</code>.</p></dd>
+
 </dl></div>
     <div class="section level2">
     <h2 id="value">Value<a class="anchor" aria-label="anchor" href="#value"></a></h2>
@@ -125,7 +135,9 @@ fueron: <code>n_total</code> contra <code>n_analizados</code>. Cuando alguno no 
 <code>calculada_parcial</code> en vez de <code>calculada</code>, para que un resultado parcial no
 se lea como completo. Un <code>NA</code> no cuenta como descarte: es una ausencia
 declarada, no un valor que no se pudo analizar. Los otros estados posibles
-son <code>sin_valores</code>, <code>sin_valores_analizables</code> y <code>tipo_no_comparable</code>.</p>
+son <code>sin_valores</code>, <code>sin_valores_analizables</code> y <code>tipo_no_comparable</code>. La
+entrada es la de <code><a href="perfilar.html">perfilar()</a></code>: un <code>POSIXlt</code> se cuenta por su instante, como
+el <code>POSIXct</code> equivalente, y el nivel <code>NA</code> de un factor es un faltante.</p>
 <p>Cuando una columna tiene evidencia suficiente para activar la protección de
 datos personales, sus frecuencias y niveles se conservan pero el valor
 concreto se reemplaza. Los cuantiles
@@ -143,7 +155,9 @@ nueva con la misma limitación queda cubierta sin tocar el código.</p>
 <p>Las frecuencias se cuentan <strong>por valor, no por su escritura</strong>: dos dobles
 que coinciden en sus primeras 15 cifras —<code>0.1 + 0.2</code> y <code>0.3</code>, <code>1e15</code> y
 <code>1e15 + 1</code>— son dos filas, como los cuenta <code><a href="perfilar.html">perfilar()</a></code>, y cada una se
-escribe con las cifras que la devuelven a su valor. A igual frecuencia, las
+escribe con las cifras que la devuelven a su valor. Un instante se escribe
+en UTC y con el rótulo <code>UTC</code>, como los resúmenes de <code><a href="perfilar.html">perfilar()</a></code>: la
+etiqueta no depende de la zona de la sesión. A igual frecuencia, las
 filas se ordenan por valor —el texto por sus bytes, los números como
 números—, el mismo desempate que la moda de <code><a href="perfilar.html">perfilar()</a></code>: así, el recorte de
 <code>max_valores</code> no depende del orden de las filas de la tabla.</p>

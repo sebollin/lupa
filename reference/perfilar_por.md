@@ -46,8 +46,11 @@ perfilar_por(datos, por, clave = NULL, min_filas = 30L, ...)
   Lo mismo vale para las otras clases: un `integer64` se etiqueta con
   sus cifras exactas, aun por encima de 2^53; un complejo, con sus dos
   partes; una fecha, con su escritura `AAAA-MM-DD`, y una fecha-hora,
-  con la suya hasta el microsegundo y el huso de la columna —no con su
-  número de días o de segundos—.
+  con su instante en UTC y el rótulo `UTC` —al segundo, con la fracción
+  exacta si la tiene—, la misma escritura en cualquier sesión; la zona
+  declarada de la columna la publica
+  [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md)
+  en `zona_horaria_origen`. No con su número de días o de segundos.
 
   Si la columna es un **factor**, un nivel declarado sin ninguna fila es
   un grupo de cero filas: no se perfila y se declara en

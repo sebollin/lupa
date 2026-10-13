@@ -89,9 +89,11 @@ etiqueta lleva las cifras que hacen falta para distinguirlos
 mayoría de los números la etiqueta es la de siempre.</p>
 <p>Lo mismo vale para las otras clases: un <code>integer64</code> se etiqueta con sus
 cifras exactas, aun por encima de 2^53; un complejo, con sus dos partes;
-una fecha, con su escritura <code>AAAA-MM-DD</code>, y una fecha-hora, con la suya
-hasta el microsegundo y el huso de la columna —no con su número de días o
-de segundos—.</p>
+una fecha, con su escritura <code>AAAA-MM-DD</code>, y una fecha-hora, con su
+instante en UTC y el rótulo <code>UTC</code> —al segundo, con la fracción exacta si
+la tiene—, la misma escritura en cualquier sesión; la zona declarada de la
+columna la publica <code><a href="perfilar.html">perfilar()</a></code> en <code>zona_horaria_origen</code>. No con su número
+de días o de segundos.</p>
 <p>Si la columna es un <strong>factor</strong>, un nivel declarado sin ninguna fila es un
 grupo de cero filas: no se perfila y se declara en <code>cobertura_grupos</code>, igual
 que cualquier grupo por debajo de <code>min_filas</code>. Eso incluye un nivel

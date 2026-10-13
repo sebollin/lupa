@@ -344,8 +344,11 @@ las filas que participan en cada grupo de contenido idéntico. Las
 acciones de duplicados comparan las filas con la misma igualdad que el
 perfil, también con columnas `integer64`, matrices, `data.frame`
 anidados o `POSIXlt`; una tabla con columnas de lista deja las acciones
-bloqueadas. Marcar no elimina filas. Con las dos columnas incluidas, las
-marcas distinguen la primera aparición de las repetidas, pero no a las
+bloqueadas. Las de columnas duplicadas comparan el contenido como el
+perfil: un factor con nivel `NA` y el mismo factor sin ese nivel, o un
+`POSIXlt` y su `POSIXct`, son la misma columna también al aplicar.
+Marcar no elimina filas. Con las dos columnas incluidas, las marcas
+distinguen la primera aparición de las repetidas, pero no a las
 repetidas entre sí: en un grupo de tres o más filas un perfil posterior
 sigue contando duplicadas. Para saber si los duplicados siguen en la
 tabla hay que quitar las columnas de marca antes de perfilarla.

@@ -95,7 +95,10 @@ analizar(
   `argumentos_perfil` declara `aplicabilidad`, esa misma declaración
   viaja a la medición: el universo se declara una vez y gobierna todo el
   análisis, así que el perfil y el tablero cuentan el mismo dato de la
-  misma manera.
+  misma manera. `distribuciones` recibe esa declaración y la de
+  `sentinelas_numericos`: lo que queda fuera del universo no entra en
+  sus frecuencias ni en sus cuantiles, y un centinela declarado sale de
+  los cuantiles como sale de `minimo` y `maximo` del perfil.
 
 - medir_propuesta:
 
@@ -185,24 +188,27 @@ analizar(
   [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md)—,
   las columnas de lista elemento por elemento, los atributos de la tabla
   y de cada columna —también `levels` en lo que no es un factor y
-  `units`—, los nombres de columna de una tabla anidada en una columna
-  lista, y los nombres de fila, que vuelven a ser los números de fila si
-  alguno lleva un valor protegido. Una columna `POSIXlt` se tapa como la
-  `POSIXct`, con sus atributos —`comment`, `label`—, y cualquier lista
-  con clase —un registro de `vctrs`, un `blob`— por sus valores; un BLOB
-  (`raw`) se lee como el texto que guarda y, si lleva un valor
-  protegido, la copia guarda los bytes del texto tapado; un entorno no
-  se modifica —es del usuario—: si guarda un valor protegido, la copia
-  lleva `"[valor protegido]"` en su lugar, también si tiene un atributo
+  `units`, y el nombre de cada atributo, además de su valor—, los
+  nombres de columna de una tabla anidada en una columna lista, y los
+  nombres de fila, que vuelven a ser los números de fila si alguno lleva
+  un valor protegido. Una columna `POSIXlt` se tapa como la `POSIXct`,
+  con sus atributos —`comment`, `label`—, y cualquier lista con clase
+  —un registro de `vctrs`, un `blob`— por sus valores; un BLOB (`raw`)
+  se lee como el texto que guarda y, si lleva un valor protegido, la
+  copia guarda los bytes del texto tapado; un entorno no se modifica —es
+  del usuario—: si guarda un valor protegido, la copia lleva
+  `"[valor protegido]"` en su lugar, también si tiene un atributo
   `name`; sólo el global, el de un paquete y los de la ruta de búsqueda
   se dejan como están. Una llamada, una fórmula o una función se leen
-  como el texto que las escribe —la función, también por su entorno— y,
-  si llevan un valor protegido, la copia lleva `"[valor protegido]"` en
-  su lugar. Una columna protegida conserva sólo los atributos de su
-  clase (`class`, `tzone`, `units`, `dim`), y `tzone` y `units` pasan
-  por el piso: las etiquetas de valor de un `haven_labelled` se quitan.
-  Para conservar sus valores debe usarse
-  `proteger_datos_personales = FALSE` al crear el analisis y al
+  como el texto que [`print()`](https://rdrr.io/r/base/print.html)
+  escribe —con sus atributos y, si guarda su fuente (`srcref`), la
+  fuente con sus comentarios—, y también por sus atributos y, la
+  función, por su entorno; si algo de eso lleva un valor protegido, la
+  copia lleva `"[valor protegido]"` en su lugar. Una columna protegida
+  conserva sólo los atributos de su clase (`class`, `tzone`, `units`,
+  `dim`), y `tzone` y `units` pasan por el piso: las etiquetas de valor
+  de un `haven_labelled` se quitan. Para conservar sus valores debe
+  usarse `proteger_datos_personales = FALSE` al crear el analisis y al
   guardarlo. La opcion del guardado no recupera valores que el analisis
   ya enmascaro.
 
@@ -279,45 +285,33 @@ resultado
 #> ── Tablero de calidad ──────────────────────────────────────────────────────────
 #>       componente    dimension                 factor
 #>  componente-0001     Unicidad         No-duplicación
-#>  componente-0002  Completitud               Densidad
-#>  componente-0003  Completitud               Densidad
-#>  componente-0004  Completitud               Densidad
-#>  componente-0005  Completitud               Densidad
+#>  componente-0002    Exactitud Correctitud sintáctica
+#>  componente-0003    Exactitud Correctitud sintáctica
+#>  componente-0004    Exactitud Correctitud sintáctica
+#>  componente-0005    Exactitud Correctitud sintáctica
 #>  componente-0006    Exactitud Correctitud sintáctica
-#>  componente-0007    Exactitud Correctitud sintáctica
-#>  componente-0008    Exactitud Correctitud sintáctica
-#>  componente-0009    Exactitud Correctitud sintáctica
-#>  componente-0010    Exactitud Correctitud sintáctica
-#>  componente-0011 Consistencia  Integridad de dominio
+#>  componente-0007 Consistencia  Integridad de dominio
 #>                      metrica metrica_instanciada               entidad
 #>             EntidadDuplicada     sugerencia-0001 datos_administrativos
-#>                       NoNulo     sugerencia-0002 datos_administrativos
-#>                       NoNulo     sugerencia-0003 datos_administrativos
-#>                       NoNulo     sugerencia-0004 datos_administrativos
-#>                       NoNulo     sugerencia-0005 datos_administrativos
 #>                      Formato     sugerencia-0006 datos_administrativos
 #>                      Formato     sugerencia-0007 datos_administrativos
 #>                      Formato     sugerencia-0008 datos_administrativos
 #>                      Formato     sugerencia-0009 datos_administrativos
 #>                      Formato     sugerencia-0010 datos_administrativos
 #>  ValoresPosiblesPorExtension     sugerencia-0011 datos_administrativos
-#>            objeto     valor orientacion agregacion umbral universo
-#>           (tabla) 0.1538462     defecto      ratio     NA    filas
-#>            cedula 1.0000000 conformidad      ratio     NA   celdas
-#>  fecha_nacimiento 1.0000000 conformidad      ratio     NA   celdas
-#>           ingreso 1.0000000 conformidad      ratio     NA   celdas
-#>              sexo 1.0000000 conformidad      ratio     NA   celdas
-#>            correo 0.8461538 conformidad      ratio     NA   celdas
-#>      departamento 0.9230769 conformidad      ratio     NA   celdas
-#>        id_tramite 1.0000000 conformidad      ratio     NA   celdas
-#>              pais 1.0000000 conformidad      ratio     NA   celdas
-#>              sexo 0.8461538 conformidad      ratio     NA   celdas
-#>              sexo 1.0000000 conformidad      ratio     NA   celdas
+#>        objeto     valor orientacion agregacion umbral universo
+#>       (tabla) 0.1538462     defecto      ratio     NA    filas
+#>        correo 0.8461538 conformidad      ratio     NA   celdas
+#>  departamento 0.9230769 conformidad      ratio     NA   celdas
+#>    id_tramite 1.0000000 conformidad      ratio     NA   celdas
+#>          pais 1.0000000 conformidad      ratio     NA   celdas
+#>          sexo 0.8461538 conformidad      ratio     NA   celdas
+#>          sexo 1.0000000 conformidad      ratio     NA   celdas
 #> 
 #> ── Alcance del marco ──
 #> 
 #>  factores_marco factores_medidos sin_metrica_declarada no_aplican
-#>              17                4                     8          4
+#>              17                3                     9          4
 #>  fuera_de_alcance medidos_fuera_del_marco
 #>                 1                       0
 #> ── Cobertura conceptual ──

@@ -76,45 +76,33 @@ analisis$tablero
 #> ── Tablero de calidad ────────────────────────────────────────────────────────────────────
 #>       componente    dimension                 factor                     metrica
 #>  componente-0001     Unicidad         No-duplicación            EntidadDuplicada
-#>  componente-0002  Completitud               Densidad                      NoNulo
-#>  componente-0003  Completitud               Densidad                      NoNulo
-#>  componente-0004  Completitud               Densidad                      NoNulo
-#>  componente-0005  Completitud               Densidad                      NoNulo
-#>  componente-0006    Exactitud Correctitud sintáctica                     Formato
-#>  componente-0007    Exactitud Correctitud sintáctica                     Formato
-#>  componente-0008    Exactitud Correctitud sintáctica                     Formato
-#>  componente-0009    Exactitud Correctitud sintáctica                     Formato
-#>  componente-0010 Consistencia  Integridad de dominio ValoresPosiblesPorExtension
-#>  metrica_instanciada            entidad         objeto     valor orientacion agregacion
-#>      sugerencia-0001 entrega de ejemplo        (tabla) 0.1538462     defecto      ratio
-#>      sugerencia-0002 entrega de ejemplo          canal 1.0000000 conformidad      ratio
-#>      sugerencia-0003 entrega de ejemplo codigo_usuario 1.0000000 conformidad      ratio
-#>      sugerencia-0004 entrega de ejemplo   fecha_evento 1.0000000 conformidad      ratio
-#>      sugerencia-0005 entrega de ejemplo          monto 1.0000000 conformidad      ratio
-#>      sugerencia-0006 entrega de ejemplo       contacto 0.8461538 conformidad      ratio
-#>      sugerencia-0007 entrega de ejemplo      id_evento 1.0000000 conformidad      ratio
-#>      sugerencia-0008 entrega de ejemplo        sistema 1.0000000 conformidad      ratio
-#>      sugerencia-0009 entrega de ejemplo           zona 1.0000000 conformidad      ratio
-#>      sugerencia-0010 entrega de ejemplo           zona 1.0000000 conformidad      ratio
-#>  umbral universo
-#>      NA    filas
-#>      NA   celdas
-#>      NA   celdas
-#>      NA   celdas
-#>      NA   celdas
-#>      NA   celdas
-#>      NA   celdas
-#>      NA   celdas
-#>      NA   celdas
-#>      NA   celdas
+#>  componente-0002    Exactitud Correctitud sintáctica                     Formato
+#>  componente-0003    Exactitud Correctitud sintáctica                     Formato
+#>  componente-0004    Exactitud Correctitud sintáctica                     Formato
+#>  componente-0005    Exactitud Correctitud sintáctica                     Formato
+#>  componente-0006 Consistencia  Integridad de dominio ValoresPosiblesPorExtension
+#>  metrica_instanciada            entidad    objeto     valor orientacion agregacion umbral
+#>      sugerencia-0001 entrega de ejemplo   (tabla) 0.1538462     defecto      ratio     NA
+#>      sugerencia-0006 entrega de ejemplo  contacto 0.8461538 conformidad      ratio     NA
+#>      sugerencia-0007 entrega de ejemplo id_evento 1.0000000 conformidad      ratio     NA
+#>      sugerencia-0008 entrega de ejemplo   sistema 1.0000000 conformidad      ratio     NA
+#>      sugerencia-0009 entrega de ejemplo      zona 1.0000000 conformidad      ratio     NA
+#>      sugerencia-0010 entrega de ejemplo      zona 1.0000000 conformidad      ratio     NA
+#>  universo
+#>     filas
+#>    celdas
+#>    celdas
+#>    celdas
+#>    celdas
+#>    celdas
 #> 
 #> ── Alcance del marco ──
 #> 
 #>  factores_marco factores_medidos sin_metrica_declarada no_aplican fuera_de_alcance
 #>               3                0                     3          0                0
 #>  medidos_fuera_del_marco
-#>                        4
-#> ! 4 pares dimensión-factor medidos no están declarados en este marco: Unicidad|No-duplicación, Completitud|Densidad, Exactitud|Correctitud sintáctica, Consistencia|Integridad de dominio. No entran en la cobertura de arriba.
+#>                        3
+#> ! 3 pares dimensión-factor medidos no están declarados en este marco: Unicidad|No-duplicación, Exactitud|Correctitud sintáctica, Consistencia|Integridad de dominio. No entran en la cobertura de arriba.
 ```
 
 Los hallazgos son datos. Se pueden filtrar, ordenar o exportar sin
@@ -423,17 +411,17 @@ propuesta[, c(
 #> 8                      Formato        sistema         perfil:patron_dominante:a+
 #> 9                      Formato           zona        perfil:patron_dominante:Aa+
 #> 10 ValoresPosiblesPorExtension           zona           perfil:dominio_observado
-#>    prioridad incluir estado
-#> 1       alta    TRUE  lista
-#> 2       alta   FALSE  lista
-#> 3       alta   FALSE  lista
-#> 4       alta   FALSE  lista
-#> 5       alta   FALSE  lista
-#> 6      media   FALSE  lista
-#> 7      media   FALSE  lista
-#> 8      media   FALSE  lista
-#> 9      media   FALSE  lista
-#> 10      baja   FALSE  lista
+#>    prioridad incluir                estado
+#> 1       alta    TRUE                 lista
+#> 2       alta   FALSE faltantes_disfrazados
+#> 3       alta   FALSE faltantes_disfrazados
+#> 4       alta   FALSE faltantes_disfrazados
+#> 5       alta   FALSE faltantes_disfrazados
+#> 6      media   FALSE                 lista
+#> 7      media   FALSE                 lista
+#> 8      media   FALSE                 lista
+#> 9      media   FALSE                 lista
+#> 10      baja   FALSE                 lista
 ```
 
 Las filas activas se convierten en un modelo y se miden. En este ejemplo
@@ -584,7 +572,7 @@ archivo <- reportar(
   titulo = "Calidad de la entrega de ejemplo"
 )
 basename(archivo)
-#> [1] "file21bd1c40c839.html"
+#> [1] "file21b11ad43d09.html"
 unlink(c(archivo, archivo_rds))
 ```
 
