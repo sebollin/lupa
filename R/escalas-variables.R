@@ -17,27 +17,27 @@
       anyNA(metadatos$columna) || length(indices_columnas) !=
       length(metadatos$columna) || anyNA(indices_columnas) ||
       anyDuplicated(indices_columnas)) {
-    stop("`metadatos` debe tener una fila unica por columna existente.",
+    .detener("`metadatos` debe tener una fila unica por columna existente.",
          call. = FALSE)
   }
   permitidas <- c("columna", "escala", "rol", "confianza", "confirmada",
                   "unidad", "niveles")
   if (any(!names(metadatos) %in% permitidas)) {
-    stop("`metadatos` contiene campos no reconocidos.", call. = FALSE)
+    .detener("`metadatos` contiene campos no reconocidos.", call. = FALSE)
   }
   if ("escala" %in% names(metadatos) &&
       any(!is.na(metadatos$escala) & !metadatos$escala %in% .escalas_variables)) {
-    stop("`escala` contiene una escala no reconocida.", call. = FALSE)
+    .detener("`escala` contiene una escala no reconocida.", call. = FALSE)
   }
   if ("confirmada" %in% names(metadatos) &&
       (!is.logical(metadatos$confirmada) || anyNA(metadatos$confirmada))) {
-    stop("`confirmada` debe ser logica y no contener NA.", call. = FALSE)
+    .detener("`confirmada` debe ser logica y no contener NA.", call. = FALSE)
   }
   if ("confianza" %in% names(metadatos) &&
       any(!is.na(metadatos$confianza) &
           (!is.finite(metadatos$confianza) |
              metadatos$confianza < 0 | metadatos$confianza > 1))) {
-    stop("`confianza` debe estar en [0, 1].", call. = FALSE)
+    .detener("`confianza` debe estar en [0, 1].", call. = FALSE)
   }
   metadatos$columna <- nombres[indices_columnas]
   metadatos

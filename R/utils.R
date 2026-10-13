@@ -516,7 +516,7 @@
 
 .print_data_frame_bytes <- function(x, row.names = TRUE, ...) {
   if (!inherits(x, "data.frame")) {
-    stop("x debe ser un data.frame.", call. = FALSE)
+    .detener("x debe ser un data.frame.", call. = FALSE)
   }
   imprimir <- function(marco) utils::capture.output(
     print.data.frame(marco, row.names = row.names, ...)
@@ -534,7 +534,7 @@
         imprimir(.data_frame_para_exhibir(x, escapar = TRUE)),
         error = function(otra) NULL
       )
-      if (is.null(segunda)) stop(condicion)
+      if (is.null(segunda)) .detener(condicion)
       segunda
     }
   )
@@ -658,7 +658,7 @@
   originales <- as.character(nombres)
   if (!length(originales)) return(originales)
   if (!is.character(sep) || length(sep) != 1L || is.na(sep)) {
-    stop("`sep` debe ser una cadena de longitud uno.", call. = FALSE)
+    .detener("`sep` debe ser una cadena de longitud uno.", call. = FALSE)
   }
   unicos <- originales
   usados <- new.env(hash = TRUE, parent = emptyenv())
@@ -831,7 +831,7 @@
 .orden_por_bytes <- function(..., na.last = TRUE, decreasing = FALSE,
                              method = "radix") {
   if (!identical(method, "radix")) {
-    stop("`.orden_por_bytes()` solo ordena con `method = \"radix\"`.", call. = FALSE)
+    .detener("`.orden_por_bytes()` solo ordena con `method = \"radix\"`.", call. = FALSE)
   }
   claves <- lapply(list(...), .clave_de_orden)
   do.call(order, c(unname(claves), list(
@@ -914,7 +914,7 @@
 # muchas veces: no diverge de golpe, diverge de a poco.
 .validar_datos_tabla <- function(datos, nombre = "datos") {
   if (!inherits(datos, "data.frame")) {
-    stop("`", nombre, "` debe heredar de data.frame.", call. = FALSE)
+    .detener("`", nombre, "` debe heredar de data.frame.", call. = FALSE)
   }
   invisible(datos)
 }
@@ -927,7 +927,7 @@
 # 32. Se rechaza con el mensaje que ya daba `detectar_formatos_fecha()`.
 .validar_vector_no_tabla <- function(x) {
   if (inherits(x, "data.frame")) {
-    stop("`x` debe ser un vector, no un data.frame.", call. = FALSE)
+    .detener("`x` debe ser un vector, no un data.frame.", call. = FALSE)
   }
   invisible(x)
 }
@@ -950,7 +950,7 @@
 # interruptores ("`x` debe ser TRUE o FALSE.").
 .validar_bandera <- function(x, nombre) {
   if (!is.logical(x) || length(x) != 1L || is.na(x)) {
-    stop("`", nombre, "` debe ser TRUE o FALSE.", call. = FALSE)
+    .detener("`", nombre, "` debe ser TRUE o FALSE.", call. = FALSE)
   }
   invisible(x)
 }
@@ -981,7 +981,7 @@
       paste0(paste(utils::head(citadas, -1L), collapse = ", "), " o ",
              utils::tail(citadas, 1L))
     } else citadas
-    stop("`", nombre, "` debe ser ", lista, ".", call. = FALSE)
+    .detener("`", nombre, "` debe ser ", lista, ".", call. = FALSE)
   }
   elegido
 }
@@ -1023,7 +1023,7 @@
 # es opcional para los llamadores que necesitan ambas dimensiones.
 .seleccionar_columnas <- function(datos, columnas, filas = NULL) {
   if (!inherits(datos, "data.frame")) {
-    stop("`datos` debe heredar de data.frame.", call. = FALSE)
+    .detener("`datos` debe heredar de data.frame.", call. = FALSE)
   }
   # Por posicion, tambien un nombre `NA`: una tabla de R puede tener una
   # columna llamada asi, y `[.data.frame` no la selecciona por nombre
@@ -1053,7 +1053,7 @@
   if (!is.null(perfil) && (!inherits(perfil, "perfil") ||
         !identical(.nombres_para_operar(names(datos)),
                    .nombres_para_operar(perfil$columnas$columna)))) {
-    stop("`perfil` debe corresponder a las columnas de `datos`.", call. = FALSE)
+    .detener("`perfil` debe corresponder a las columnas de `datos`.", call. = FALSE)
   }
   invisible(perfil)
 }
@@ -1061,10 +1061,10 @@
 .validar_muestra <- function(muestra) {
   if (!is.numeric(muestra) || length(muestra) != 1L || is.na(muestra) ||
       muestra < 1) {
-    stop("`muestra` debe ser un n\u00famero positivo.", call. = FALSE)
+    .detener("`muestra` debe ser un n\u00famero positivo.", call. = FALSE)
   }
   if (is.finite(muestra) && muestra != floor(muestra)) {
-    stop(
+    .detener(
       "`muestra` debe ser un entero positivo, o `Inf` para no muestrear.",
       call. = FALSE
     )
@@ -2031,17 +2031,17 @@
 # que es lo que el usuario necesita para saber que hacer.
 .validar_objeto_lupa <- function(x, clase, componentes, origen) {
   if (!inherits(x, clase)) {
-    stop("`x` debe ser un objeto de clase `", clase, "`, producido por ",
+    .detener("`x` debe ser un objeto de clase `", clase, "`, producido por ",
          origen, ".", call. = FALSE)
   }
   if (!length(componentes)) return(invisible(x))
   if (!is.list(x)) {
-    stop("`x` no tiene la estructura de un objeto `", clase,
+    .detener("`x` no tiene la estructura de un objeto `", clase,
          "`: falta ", paste(componentes, collapse = ", "), ".", call. = FALSE)
   }
   faltan <- componentes[!componentes %in% names(x)]
   if (length(faltan)) {
-    stop("`x` no tiene la estructura de un objeto `", clase, "`: falta ",
+    .detener("`x` no tiene la estructura de un objeto `", clase, "`: falta ",
          paste(faltan, collapse = ", "), ". Producirlo con ", origen, ".",
          call. = FALSE)
   }
@@ -2063,7 +2063,7 @@
   } else {
     ""
   }
-  stop(
+  .detener(
     "`", argumento, "` viene de ", origen,
     " pero no tiene ninguna medida que evaluar.", motivo,
     " Se puede revisar `attr(", argumento, ", \"cobertura_metricas\")`.",

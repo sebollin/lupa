@@ -10,18 +10,18 @@
 .validar_destino_archivo <- function(archivo, sobrescribir) {
   directorio <- dirname(archivo)
   if (!dir.exists(directorio)) {
-    stop("No existe el directorio de destino: ", directorio, ".", call. = FALSE)
+    .detener("No existe el directorio de destino: ", directorio, ".", call. = FALSE)
   }
   # Un directorio no es un archivo que se pueda reemplazar: `file.copy()` copiaba
   # el temporal ADENTRO, con su nombre de temporal, y la funcion devolvia la ruta
   # del directorio como si ahi estuviera lo guardado. Y sin `sobrescribir`, el
   # mensaje mandaba justamente a ese camino.
   if (dir.exists(archivo)) {
-    stop("`archivo` es un directorio: ", archivo, ". Indicar la ruta de un ",
+    .detener("`archivo` es un directorio: ", archivo, ". Indicar la ruta de un ",
          "archivo dentro de \u00e9l.", call. = FALSE)
   }
   if (file.exists(archivo) && !sobrescribir) {
-    stop("El archivo ya existe; use `sobrescribir = TRUE` para reemplazarlo.",
+    .detener("El archivo ya existe; use `sobrescribir = TRUE` para reemplazarlo.",
          call. = FALSE)
   }
   directorio
@@ -163,7 +163,7 @@ rbind.historico_calidad <- function(..., deparse.level = 1) {
     }
     ilegibles <- is.na(resultado) & presentes
     if (any(ilegibles)) {
-      stop(
+      .detener(
         "No se pudo leer como fecha: \"", texto[ilegibles][[1L]], "\"",
         if (sum(ilegibles) > 1L) paste0(" (y ", sum(ilegibles) - 1L, " m\u00e1s)"),
         ". Se espera AAAA-MM-DD, con la hora y el desplazamiento opcionales ",
@@ -192,7 +192,7 @@ rbind.historico_calidad <- function(..., deparse.level = 1) {
   fecha_hora <- tryCatch(.fecha_utc(fecha), error = function(e) NA)
   if (length(fecha_hora) != 1L || is.na(fecha_hora) ||
       !is.finite(as.numeric(fecha_hora))) {
-    stop("`fecha` debe contener una fecha y hora v\u00e1lida.", call. = FALSE)
+    .detener("`fecha` debe contener una fecha y hora v\u00e1lida.", call. = FALSE)
   }
   fecha_hora
 }
@@ -330,7 +330,7 @@ rbind.historico_calidad <- function(..., deparse.level = 1) {
 .validar_configuraciones_historico <- function(x) {
   if (is.null(x)) return(.configuraciones_historico_vacias())
   if (!inherits(x, "data.frame")) {
-    stop("La configuraci\u00f3n del hist\u00f3rico no cumple su esquema tabular.",
+    .detener("La configuraci\u00f3n del hist\u00f3rico no cumple su esquema tabular.",
          call. = FALSE)
   }
   ausentes <- setdiff(.columnas_configuracion_historico, names(x))
@@ -343,7 +343,7 @@ rbind.historico_calidad <- function(..., deparse.level = 1) {
         .nombres_para_operar(x$perfil), sep = "\034"
       ))
   )) {
-    stop("La configuraci\u00f3n del hist\u00f3rico contiene registros inv\u00e1lidos o duplicados.",
+    .detener("La configuraci\u00f3n del hist\u00f3rico contiene registros inv\u00e1lidos o duplicados.",
          call. = FALSE)
   }
   x$fecha <- .fecha_utc(x$fecha)
@@ -413,7 +413,7 @@ rbind.historico_calidad <- function(..., deparse.level = 1) {
       } else {
         ""
       }
-      stop(
+      .detener(
         "Una corrida ya existente no coincide con la que se quiere acumular: ",
         nuevo$id_medicion[[i]], ".", detalle, call. = FALSE
       )
@@ -492,7 +492,7 @@ rbind.historico_calidad <- function(..., deparse.level = 1) {
 
 .normalizar_medicion_historico <- function(x) {
   if (!inherits(x, "medicion")) {
-    stop("El objeto de medidas debe provenir de medir().", call. = FALSE)
+    .detener("El objeto de medidas debe provenir de medir().", call. = FALSE)
   }
   .validar_medicion_evaluacion(x, permitir_suprimidas = TRUE)
   clave <- .clave_historico("medida", x$id_medicion, id_medida = x$id_medida)
@@ -524,7 +524,7 @@ rbind.historico_calidad <- function(..., deparse.level = 1) {
       any(!is.na(x$resultado) & !is.finite(x$resultado)) ||
       any(!is.na(x$resultado) &
           (x$resultado < 0 | x$resultado > 1))) {
-    stop("La tabla `", nombre, "` de la evaluaci\u00f3n no cumple su contrato.",
+    .detener("La tabla `", nombre, "` de la evaluaci\u00f3n no cumple su contrato.",
          call. = FALSE)
   }
   x
@@ -532,7 +532,7 @@ rbind.historico_calidad <- function(..., deparse.level = 1) {
 
 .normalizar_evaluacion_historico <- function(x, detalle) {
   if (!inherits(x, "evaluacion_calidad")) {
-    stop("El objeto de evaluaci\u00f3n debe provenir de evaluar().", call. = FALSE)
+    .detener("El objeto de evaluaci\u00f3n debe provenir de evaluar().", call. = FALSE)
   }
   cobertura <- x$cobertura_metricas
   tiene_cobertura <- inherits(cobertura, "data.frame") && nrow(cobertura)
@@ -764,7 +764,7 @@ rbind.historico_calidad <- function(..., deparse.level = 1) {
     } else if (length(corridas) == 1L) {
       corridas
     } else {
-      stop(
+      .detener(
         "El objeto re\u00fane ", length(corridas), " corridas y su cobertura de ",
         "la ", .etiqueta_cobertura_parte(atributo, cc), " no dice a cu\u00e1l ",
         "pertenece, as\u00ed que el hist\u00f3rico no puede registrar la parte ",
@@ -907,7 +907,7 @@ rbind.historico_calidad <- function(..., deparse.level = 1) {
 .validar_historico <- function(x) {
   if (!inherits(x, "data.frame") ||
       !all(.columnas_historico %in% names(x))) {
-    stop("`historico` no cumple el esquema tabular esperado.", call. = FALSE)
+    .detener("`historico` no cumple el esquema tabular esperado.", call. = FALSE)
   }
   configuracion <- attr(x, "configuracion_evaluacion", exact = TRUE)
   # La marca de que el historico viene de mediciones SIN proteccion: `reportar()`
@@ -926,7 +926,7 @@ rbind.historico_calidad <- function(..., deparse.level = 1) {
   if (!length(version)) version <- attr(x, "version_esquema", exact = TRUE)
   if (length(version) != 1L || is.na(version) ||
       version != .version_esquema_historico) {
-    stop(
+    .detener(
       "Versi\u00f3n de esquema hist\u00f3rico no compatible: ",
       paste(version, collapse = ", "), ".", call. = FALSE
     )
@@ -958,7 +958,7 @@ rbind.historico_calidad <- function(..., deparse.level = 1) {
            # historico completo exporta- chocaba con esta misma validacion.
            x$nivel %in% c("medida", "evaluacion_medida") & valores_suprimidos
        )))) {
-    stop("El hist\u00f3rico contiene identificadores, fechas o resultados inv\u00e1lidos.",
+    .detener("El hist\u00f3rico contiene identificadores, fechas o resultados inv\u00e1lidos.",
          call. = FALSE)
   }
   if (nrow(x)) {
@@ -967,7 +967,7 @@ rbind.historico_calidad <- function(..., deparse.level = 1) {
     if (any(medidas) && !.resultados_validos_tipo(
       x$resultado[medidas_validas], x$tipo_resultado[medidas_validas]
     )) {
-      stop("Los resultados de las medidas hist\u00f3ricas no respetan su tipo.",
+      .detener("Los resultados de las medidas hist\u00f3ricas no respetan su tipo.",
            call. = FALSE)
     }
     evaluaciones <- x$nivel %in% c(
@@ -977,7 +977,7 @@ rbind.historico_calidad <- function(..., deparse.level = 1) {
       !is.na(x$resultado[evaluaciones]) &
         (x$resultado[evaluaciones] < 0 | x$resultado[evaluaciones] > 1)
     )) {
-      stop("Los resultados de evaluaciones hist\u00f3ricas deben estar en [0, 1].",
+      .detener("Los resultados de evaluaciones hist\u00f3ricas deben estar en [0, 1].",
            call. = FALSE)
     }
   }
@@ -987,7 +987,7 @@ rbind.historico_calidad <- function(..., deparse.level = 1) {
   )
   if (nrow(x) && (any(!x$nivel %in% niveles) ||
                   anyDuplicated(.nombres_para_operar(x$id_registro)))) {
-    stop("El hist\u00f3rico contiene niveles o identificadores de registro duplicados.",
+    .detener("El hist\u00f3rico contiene niveles o identificadores de registro duplicados.",
          call. = FALSE)
   }
   if (nrow(x)) {
@@ -995,7 +995,7 @@ rbind.historico_calidad <- function(..., deparse.level = 1) {
       as.numeric(x$fecha), .nombres_para_operar(x$id_medicion), drop = TRUE
     )
     if (any(vapply(fechas, function(z) length(unique(z)) != 1L, logical(1L)))) {
-      stop("Cada `id_medicion` debe corresponder a una \u00fanica fecha.",
+      .detener("Cada `id_medicion` debe corresponder a una \u00fanica fecha.",
            call. = FALSE)
     }
   }
@@ -1092,7 +1092,7 @@ rbind.historico_calidad <- function(..., deparse.level = 1) {
           }, character(1L)), collapse = "; "), "."
         )
       } else ""
-      stop(
+      .detener(
         "Un registro ya existente tiene contenido diferente: ",
         nuevo$id_registro[primero], ".", detalle,
         call. = FALSE
@@ -1121,7 +1121,7 @@ rbind.historico_calidad <- function(..., deparse.level = 1) {
   if (inherits(x, "evaluacion_calidad")) {
     return(.normalizar_evaluacion_historico(x, detalle))
   }
-  stop(
+  .detener(
     "Cada objeto debe ser una medicion, evaluacion_calidad o historico_calidad.",
     call. = FALSE
   )
@@ -1345,11 +1345,11 @@ acumular_historico <- function(historico, ...,
 guardar_historico <- function(historico, archivo, sobrescribir = FALSE) {
   historico <- .validar_historico(historico)
   if (!.es_texto_escalar(archivo)) {
-    stop("`archivo` debe ser una ruta no vac\u00eda.", call. = FALSE)
+    .detener("`archivo` debe ser una ruta no vac\u00eda.", call. = FALSE)
   }
   if (!is.logical(sobrescribir) || length(sobrescribir) != 1L ||
       is.na(sobrescribir)) {
-    stop("`sobrescribir` debe ser TRUE o FALSE.", call. = FALSE)
+    .detener("`sobrescribir` debe ser TRUE o FALSE.", call. = FALSE)
   }
   directorio <- .validar_destino_archivo(archivo, sobrescribir)
   temporal <- tempfile(".lupa-historico-", tmpdir = directorio)
@@ -1379,7 +1379,7 @@ guardar_historico <- function(historico, archivo, sobrescribir = FALSE) {
   # rompe la otra.
   saveRDS(historico, temporal, version = 2L)
   if (!file.copy(temporal, archivo, overwrite = sobrescribir)) {
-    stop("No se pudo guardar el hist\u00f3rico en el destino indicado.", call. = FALSE)
+    .detener("No se pudo guardar el hist\u00f3rico en el destino indicado.", call. = FALSE)
   }
   invisible(normalizePath(archivo, mustWork = TRUE))
 }
@@ -1389,7 +1389,7 @@ guardar_historico <- function(historico, archivo, sobrescribir = FALSE) {
 #' @seealso [historico_calidad()], [comparar_evaluaciones()]
 leer_historico <- function(archivo) {
   if (!.es_texto_escalar(archivo) || !file.exists(archivo)) {
-    stop("`archivo` debe identificar un RDS existente.", call. = FALSE)
+    .detener("`archivo` debe identificar un RDS existente.", call. = FALSE)
   }
   objeto <- readRDS(archivo)
   .validar_historico(objeto)
@@ -1453,7 +1453,7 @@ detectar_deriva_calidad <- function(historico, nivel = c("perfil", "regla"),
   nivel <- .elegir_opcion(nivel)
   if (!is.numeric(umbral) || length(umbral) != 1L || is.na(umbral) ||
       !is.finite(umbral) || umbral <= 0 || umbral > 1) {
-    stop("`umbral` debe ser un n\u00famero en (0, 1].", call. = FALSE)
+    .detener("`umbral` debe ser un n\u00famero en (0, 1].", call. = FALSE)
   }
   nombre_nivel <- paste0("evaluacion_", nivel)
   datos <- historico[historico$nivel == nombre_nivel, , drop = FALSE]
@@ -1479,7 +1479,7 @@ detectar_deriva_calidad <- function(historico, nivel = c("perfil", "regla"),
     stringsAsFactors = FALSE
   )
   if (!nrow(datos)) {
-    stop("El hist\u00f3rico no contiene evaluaciones en el nivel solicitado.",
+    .detener("El hist\u00f3rico no contiene evaluaciones en el nivel solicitado.",
          call. = FALSE)
   }
   configuraciones <- attr(historico, "configuracion_evaluacion", exact = TRUE)

@@ -331,20 +331,20 @@ analizar <- function(datos, nombre = .nombre_de_los_datos(substitute(datos)),
   extras <- list(...)
   if (!is.list(argumentos_perfil) || is.null(names(argumentos_perfil)) &&
       length(argumentos_perfil)) {
-    stop("`argumentos_perfil` debe ser una lista con nombres.", call. = FALSE)
+    .detener("`argumentos_perfil` debe ser una lista con nombres.", call. = FALSE)
   }
   if (length(argumentos_perfil) && any(!nzchar(names(argumentos_perfil))) ||
       length(extras) && (is.null(names(extras)) || any(!nzchar(names(extras))))) {
-    stop("Todos los argumentos de perfilar() deben tener nombre.", call. = FALSE)
+    .detener("Todos los argumentos de perfilar() deben tener nombre.", call. = FALSE)
   }
   argumentos_perfil <- c(argumentos_perfil, extras)
   if (anyDuplicated(.nombres_para_operar(names(argumentos_perfil)))) {
-    stop("Los argumentos de perfilar() no pueden repetirse.", call. = FALSE)
+    .detener("Los argumentos de perfilar() no pueden repetirse.", call. = FALSE)
   }
   reservados <- c("datos", "nombre", "fecha", "muestra",
                   "proteger_datos_personales")
   if (any(names(argumentos_perfil) %in% reservados)) {
-    stop("`argumentos_perfil` no puede reemplazar argumentos coordinados por analizar().",
+    .detener("`argumentos_perfil` no puede reemplazar argumentos coordinados por analizar().",
          call. = FALSE)
   }
   .validar_bandera_proteccion(proteger_datos_personales)
@@ -355,23 +355,23 @@ analizar <- function(datos, nombre = .nombre_de_los_datos(substitute(datos)),
       !is.logical(medir_propuesta) || length(medir_propuesta) != 1L ||
       !is.logical(conservar_detalle_medicion) ||
       length(conservar_detalle_medicion) != 1L || anyNA(logicos)) {
-    stop("Los controles de medicion, conservacion y proteccion deben ser logicos.",
+    .detener("Los controles de medicion, conservacion y proteccion deben ser logicos.",
          call. = FALSE)
   }
   if (!is.null(modelo_confirmado) && !is.null(propuesta_confirmada)) {
-    stop("Use `modelo_confirmado` o `propuesta_confirmada`, no ambos.",
+    .detener("Use `modelo_confirmado` o `propuesta_confirmada`, no ambos.",
          call. = FALSE)
   }
   if (!is.null(modelo_confirmado) && !inherits(modelo_confirmado, "modelo_calidad")) {
-    stop("`modelo_confirmado` debe provenir de modelo().", call. = FALSE)
+    .detener("`modelo_confirmado` debe provenir de modelo().", call. = FALSE)
   }
   if (!is.null(propuesta_confirmada) &&
       !inherits(propuesta_confirmada, "propuesta_modelo")) {
-    stop("`propuesta_confirmada` debe provenir de proponer_modelo().",
+    .detener("`propuesta_confirmada` debe provenir de proponer_modelo().",
          call. = FALSE)
   }
   if (!is.null(marco) && !inherits(marco, "marco_calidad")) {
-    stop("`marco` debe provenir de marco_calidad().", call. = FALSE)
+    .detener("`marco` debe provenir de marco_calidad().", call. = FALSE)
   }
   # La fecha se lee UNA vez, en la entrada, como la leen `perfilar()` y
   # `medir()`: el texto crudo llegaba a `.nuevo_id_medicion()` y abortaba con un
@@ -500,7 +500,7 @@ analizar <- function(datos, nombre = .nombre_de_los_datos(substitute(datos)),
   }
   if (!is.null(perfil_evaluacion) && is.null(detalle_medicion) &&
       is.null(agregado)) {
-    stop("`perfil_evaluacion` requiere una medici\u00f3n activa.",
+    .detener("`perfil_evaluacion` requiere una medici\u00f3n activa.",
          call. = FALSE)
   }
   cobertura <- cobertura_analisis(
@@ -535,7 +535,7 @@ analizar <- function(datos, nombre = .nombre_de_los_datos(substitute(datos)),
   medicion <- preparado$medicion
   tablero <- preparado$tablero
   evaluacion <- if (!is.null(perfil_evaluacion) && is.null(medicion)) {
-    warning(
+    .avisar(
       "No se evalu\u00f3 `perfil_evaluacion`: ninguna m\u00e9trica del modelo ",
       "produjo medidas. El motivo de cada una est\u00e1 en ",
       "`attr(resultado$tablero, \"cobertura_metricas\")`.", call. = FALSE
@@ -1358,15 +1358,15 @@ guardar_analisis <- function(x, archivo, incluir_datos = FALSE,
                              sobrescribir = FALSE,
                              comprimir = "xz") {
   if (!inherits(x, "analisis")) {
-    stop("`x` debe provenir de analizar().", call. = FALSE)
+    .detener("`x` debe provenir de analizar().", call. = FALSE)
   }
-  if (!.es_texto_escalar(archivo)) stop("`archivo` debe ser una ruta.", call. = FALSE)
+  if (!.es_texto_escalar(archivo)) .detener("`archivo` debe ser una ruta.", call. = FALSE)
   .validar_bandera_proteccion(proteger_datos_personales)
   logicos <- c(incluir_datos, sobrescribir)
   if (!is.logical(incluir_datos) || length(incluir_datos) != 1L ||
       !is.logical(sobrescribir) || length(sobrescribir) != 1L ||
       anyNA(logicos)) {
-    stop("Los controles de persistencia deben ser logicos.", call. = FALSE)
+    .detener("Los controles de persistencia deben ser logicos.", call. = FALSE)
   }
   # La lista incluia las CADENAS "TRUE" y "FALSE" y la comparacion se hacia
   # sobre `as.character(comprimir)`, asi que `comprimir = "TRUE"` -la cadena-
@@ -1397,7 +1397,7 @@ guardar_analisis <- function(x, archivo, incluir_datos = FALSE,
     (is.character(comprimir) && length(comprimir) == 1L &&
        !is.na(comprimir) && comprimir %in% metodos)
   if (!valido) {
-    stop(
+    .detener(
       "`comprimir` debe ser TRUE, FALSE o uno de ",
       paste(sprintf("\"%s\"", metodos), collapse = ", "), ".",
       call. = FALSE
@@ -1407,12 +1407,12 @@ guardar_analisis <- function(x, archivo, incluir_datos = FALSE,
   # leia "No existe el directorio de destino." sin saber cual.
   .validar_destino_archivo(archivo, sobrescribir)
   if (incluir_datos && is.null(x$datos)) {
-    stop("El analisis no conservo datos; use `conservar_datos = TRUE`.",
+    .detener("El analisis no conservo datos; use `conservar_datos = TRUE`.",
          call. = FALSE)
   }
   sensibles <- .columnas_personales_protegidas(x$perfil)
   if (incluir_datos && proteger_datos_personales && length(sensibles)) {
-    stop(
+    .detener(
       paste(
         "Incluir datos personales exige crear el analisis con",
         "`proteger_datos_personales = FALSE` en `analizar()` y usar la misma",
@@ -1476,7 +1476,7 @@ guardar_analisis <- function(x, archivo, incluir_datos = FALSE,
   # bit alto y corrompe el texto en silencio.
   saveRDS(copia, temporal, version = 2L, compress = comprimir)
   if (!file.copy(temporal, archivo, overwrite = sobrescribir)) {
-    stop("No se pudo escribir el analisis.", call. = FALSE)
+    .detener("No se pudo escribir el analisis.", call. = FALSE)
   }
   invisible(normalizePath(archivo, winslash = "/", mustWork = TRUE))
 }
@@ -1485,14 +1485,14 @@ guardar_analisis <- function(x, archivo, incluir_datos = FALSE,
 #' @export
 leer_analisis <- function(archivo) {
   if (!.es_texto_escalar(archivo) || !file.exists(archivo)) {
-    stop("`archivo` debe ser un RDS existente.", call. = FALSE)
+    .detener("`archivo` debe ser un RDS existente.", call. = FALSE)
   }
   x <- readRDS(archivo)
   if (!inherits(x, "analisis") || is.null(x$meta$version_esquema)) {
-    stop("El archivo no contiene un analisis versionado.", call. = FALSE)
+    .detener("El archivo no contiene un analisis versionado.", call. = FALSE)
   }
   if (!identical(as.integer(x$meta$version_esquema), .version_esquema_analisis)) {
-    stop("La version del esquema de analisis no es compatible.", call. = FALSE)
+    .detener("La version del esquema de analisis no es compatible.", call. = FALSE)
   }
   x$propuesta_modelo <- .hidratar_propuesta(x$propuesta_modelo, x$datos)
   advertencia <- .advertencia_persistencia_propuesta(x)

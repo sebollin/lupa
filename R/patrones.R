@@ -89,12 +89,12 @@ descubrir_patrones <- function(x,
   .validar_bandera(distinguir_mayusculas, "distinguir_mayusculas")
   .validar_bandera(expandir, "expandir")
   if (!is.atomic(x) && !is.factor(x)) {
-    stop("`x` debe ser un vector at\u00f3mico.", call. = FALSE)
+    .detener("`x` debe ser un vector at\u00f3mico.", call. = FALSE)
   }
   .validar_bandera_proteccion(proteger_datos_personales)
   if (length(umbral_raro) != 1L || is.na(umbral_raro) ||
       umbral_raro < 0 || umbral_raro > 1) {
-    stop("`umbral_raro` debe estar entre 0 y 1.", call. = FALSE)
+    .detener("`umbral_raro` debe estar entre 0 y 1.", call. = FALSE)
   }
 
   muestra_x <- .muestrear_vector(x, muestra)

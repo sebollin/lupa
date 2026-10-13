@@ -2,7 +2,7 @@
   permitidas <- c("predicado", "minimo", "maximo", "inclusivo")
   desconocidas <- setdiff(names(configuracion), permitidas)
   if (length(desconocidas)) {
-    stop(
+    .detener(
       "ValoresPosiblesPorComprension no acepta: ",
       paste(desconocidas, collapse = ", "), ".", call. = FALSE
     )
@@ -11,14 +11,14 @@
   tiene_rango <- !is.null(configuracion$minimo) ||
     !is.null(configuracion$maximo) || !is.null(configuracion$inclusivo)
   if (tiene_predicado == tiene_rango) {
-    stop(
+    .detener(
       "ValoresPosiblesPorComprension exige un `predicado` o un rango, no ambos.",
       call. = FALSE
     )
   }
   if (tiene_predicado) {
     if (!is.function(configuracion$predicado)) {
-      stop("`predicado` debe ser una funci\u00f3n.", call. = FALSE)
+      .detener("`predicado` debe ser una funci\u00f3n.", call. = FALSE)
     }
     return(list(predicado = configuracion$predicado))
   }
@@ -26,7 +26,7 @@
       length(configuracion$minimo) != 1L ||
       length(configuracion$maximo) != 1L ||
       anyNA(c(configuracion$minimo, configuracion$maximo))) {
-    stop("El rango exige `minimo` y `maximo` escalares no ausentes.",
+    .detener("El rango exige `minimo` y `maximo` escalares no ausentes.",
          call. = FALSE)
   }
   orden_valido <- tryCatch(
@@ -34,13 +34,13 @@
     error = function(e) FALSE
   )
   if (!orden_valido) {
-    stop("`minimo` no puede ser mayor que `maximo`.", call. = FALSE)
+    .detener("`minimo` no puede ser mayor que `maximo`.", call. = FALSE)
   }
   inclusivo <- configuracion$inclusivo
   if (is.null(inclusivo)) inclusivo <- c(TRUE, TRUE)
   if (!is.logical(inclusivo) || anyNA(inclusivo) ||
       !length(inclusivo) %in% c(1L, 2L)) {
-    stop("`inclusivo` debe contener uno o dos valores l\u00f3gicos.",
+    .detener("`inclusivo` debe contener uno o dos valores l\u00f3gicos.",
          call. = FALSE)
   }
   if (length(inclusivo) == 1L) inclusivo <- rep(inclusivo, 2L)
@@ -91,7 +91,7 @@
     }
     resultado <- izquierda & derecha
     if (!is.logical(resultado) || anyNA(resultado)) {
-      stop("El rango no se puede comparar con el atributo ligado.",
+      .detener("El rango no se puede comparar con el atributo ligado.",
            call. = FALSE)
     }
   }
@@ -133,7 +133,7 @@
   if (length(instancia$entidad) != 1L ||
       length(instancia$atributos) < minimo ||
       anyDuplicated(.nombres_para_operar(instancia$atributos))) {
-    stop(
+    .detener(
       "La m\u00e9trica ", instancia$declaracion$nombre,
       " requiere una entidad y al menos ", minimo,
       " atributo(s) distinto(s).", call. = FALSE
@@ -143,7 +143,7 @@
     is.na(.indice_nombre(instancia$atributos, names(tabla)))
   ]
   if (length(faltantes)) {
-    stop(
+    .detener(
       "No se encontraron atributos ligados: ",
       paste(faltantes, collapse = ", "), ".", call. = FALSE
     )
@@ -152,7 +152,7 @@
 
 .metodo_conjunto_duplicado <- function(tablas, instancia) {
   if (length(instancia$entidad) != 1L) {
-    stop(
+    .detener(
       "ConjuntoAtributosDuplicado requiere una entidad y al menos dos atributos.",
       call. = FALSE
     )
@@ -171,7 +171,7 @@
 
 .metodo_entidad_duplicada <- function(tablas, instancia) {
   if (length(instancia$entidad) != 1L) {
-    stop("EntidadDuplicada requiere una entidad.", call. = FALSE)
+    .detener("EntidadDuplicada requiere una entidad.", call. = FALSE)
   }
   entidad <- instancia$entidad[[1L]]
   tabla <- .obtener_tabla_modelo(tablas, entidad)
@@ -213,7 +213,7 @@
   permitidas <- c("metodo", "p", "umbral", "normalizar", "max_valores", "nucleos")
   desconocidas <- setdiff(names(configuracion), permitidas)
   if (length(desconocidas)) {
-    stop(
+    .detener(
       "EntidadContradictoria no acepta: ",
       paste(desconocidas, collapse = ", "), ".", call. = FALSE
     )
@@ -225,7 +225,7 @@
         "osa", "lv", "dl", "hamming", "lcs", "qgram", "cosine",
         "jaccard", "jw", "soundex"
       )) {
-    stop(
+    .detener(
       "`metodo` debe ser una medida admitida: osa, lv, dl, hamming, lcs, ",
       "qgram, cosine, jaccard, jw o soundex.", call. = FALSE
     )
@@ -234,20 +234,20 @@
   if (is.null(p)) p <- 0.1
   if (!is.numeric(p) || length(p) != 1L || is.na(p) || !is.finite(p) ||
       p < 0 || p > 0.25) {
-    stop("`p` debe ser un numero finito entre 0 y 0.25.", call. = FALSE)
+    .detener("`p` debe ser un numero finito entre 0 y 0.25.", call. = FALSE)
   }
   umbral <- configuracion$umbral
   if (is.null(umbral)) umbral <- 0.10
   if (!is.numeric(umbral) || length(umbral) != 1L || is.na(umbral) ||
       !is.finite(umbral) || umbral < 0) {
-    stop("`umbral` debe ser un numero finito no negativo.", call. = FALSE)
+    .detener("`umbral` debe ser un numero finito no negativo.", call. = FALSE)
   }
   normalizar <- configuracion$normalizar
   if (is.null(normalizar)) normalizar <- TRUE
   normalizacion_resuelta <- tryCatch(
     .resolver_normalizacion(normalizar),
     error = function(e) {
-      stop("normalizar no describe un perfil valido: ",
+      .detener("normalizar no describe un perfil valido: ",
            conditionMessage(e), call. = FALSE)
     }
   )
@@ -256,7 +256,7 @@
   if (!is.numeric(max_valores) || length(max_valores) != 1L ||
       is.na(max_valores) || max_valores < 1 ||
       (!is.infinite(max_valores) && max_valores != floor(max_valores))) {
-    stop("`max_valores` debe ser un entero positivo o Inf.", call. = FALSE)
+    .detener("`max_valores` debe ser un entero positivo o Inf.", call. = FALSE)
   }
   nucleos <- .resolver_nucleos_lupa(configuracion$nucleos)
   list(
@@ -286,7 +286,7 @@
     utils::head(vocabulario, config$max_valores)
   }
   if (length(vocabulario_evaluado) > 1L && !.stringdist_disponible()) {
-    stop(
+    .detener(
       "EntidadContradictoria requiere el paquete opcional 'stringdist'.",
       call. = FALSE
     )
@@ -349,17 +349,17 @@
   activas <- intersect(names(configuracion), permitidas)
   activas <- activas[!vapply(configuracion[activas], is.null, logical(1L))]
   if (length(desconocidas) || length(activas) != 1L) {
-    stop(
+    .detener(
       "DesactualizacionPorFormato exige exactamente `expresion_regular` o `validador`.",
       call. = FALSE
     )
   }
   if (activas == "expresion_regular" &&
       !.es_texto_escalar(configuracion$expresion_regular)) {
-    stop("`expresion_regular` debe ser una cadena no vac\u00eda.", call. = FALSE)
+    .detener("`expresion_regular` debe ser una cadena no vac\u00eda.", call. = FALSE)
   }
   if (activas == "validador" && !is.function(configuracion$validador)) {
-    stop("`validador` debe ser una funci\u00f3n.", call. = FALSE)
+    .detener("`validador` debe ser una funci\u00f3n.", call. = FALSE)
   }
   configuracion
 }
@@ -398,30 +398,30 @@
 .validar_intervalo_fechas <- function(inicio, fin, nombre_inicio, nombre_fin) {
   if (!.es_fecha_modelo(inicio) || !.es_fecha_modelo(fin) ||
       !length(inicio) || !length(fin) || anyNA(inicio) || anyNA(fin)) {
-    stop(
+    .detener(
       "`", nombre_inicio, "` y `", nombre_fin,
       "` deben contener fechas no ausentes.", call. = FALSE
     )
   }
   if (length(inicio) != 1L && length(fin) != 1L &&
       length(inicio) != length(fin)) {
-    stop("Los extremos del intervalo deben tener longitudes compatibles.",
+    .detener("Los extremos del intervalo deben tener longitudes compatibles.",
          call. = FALSE)
   }
   n <- max(length(inicio), length(fin))
   diferencia <- rep(.fecha_numerica(fin), length.out = n) -
     rep(.fecha_numerica(inicio), length.out = n)
   if (any(!is.finite(diferencia))) {
-    stop("El intervalo contiene una duraci\u00f3n no finita.", call. = FALSE)
+    .detener("El intervalo contiene una duraci\u00f3n no finita.", call. = FALSE)
   }
   if (any(diferencia == 0)) {
-    stop(
+    .detener(
       "El intervalo tiene duraci\u00f3n cero y no define oportunidad.",
       call. = FALSE
     )
   }
   if (any(diferencia < 0)) {
-    stop(
+    .detener(
       "`", nombre_fin, "` debe ser posterior a `", nombre_inicio,
       "`; el intervalo est\u00e1 invertido.", call. = FALSE
     )
@@ -433,7 +433,7 @@
   configuracion <- .validar_propiedades_base(configuracion, "fecha_limite")
   limite <- configuracion$fecha_limite
   if (!.es_fecha_modelo(limite) || !length(limite) || anyNA(limite)) {
-    stop("`fecha_limite` debe contener fechas no ausentes.", call. = FALSE)
+    .detener("`fecha_limite` debe contener fechas no ausentes.", call. = FALSE)
   }
   configuracion
 }
@@ -446,24 +446,24 @@
   fin <- configuracion$fin_vigencia
   if (!.es_fecha_modelo(inicio) || !.es_fecha_modelo(fin) ||
       !length(inicio) || !length(fin) || anyNA(inicio) || anyNA(fin)) {
-    stop(
+    .detener(
       "`inicio_vigencia` y `fin_vigencia` deben contener fechas no ausentes.",
       call. = FALSE
     )
   }
   if (length(inicio) != 1L && length(fin) != 1L &&
       length(inicio) != length(fin)) {
-    stop("Los extremos del intervalo deben tener longitudes compatibles.",
+    .detener("Los extremos del intervalo deben tener longitudes compatibles.",
          call. = FALSE)
   }
   n <- max(length(inicio), length(fin))
   diferencia <- rep(.fecha_numerica(fin), length.out = n) -
     rep(.fecha_numerica(inicio), length.out = n)
   if (any(!is.finite(diferencia))) {
-    stop("El intervalo contiene una duraci\u00f3n no finita.", call. = FALSE)
+    .detener("El intervalo contiene una duraci\u00f3n no finita.", call. = FALSE)
   }
   if (any(diferencia < 0)) {
-    stop(
+    .detener(
       "`fin_vigencia` no puede ser anterior a `inicio_vigencia`; ",
       "el intervalo est\u00e1 invertido.", call. = FALSE
     )
@@ -496,7 +496,7 @@
 .fecha_para_filas <- function(x, filas, n_total, nombre) {
   if (length(x) == 1L) return(rep(.fecha_numerica(x), length(filas)))
   if (length(x) != n_total) {
-    stop(
+    .detener(
       "`", nombre, "` debe tener longitud 1 o tantas fechas como filas.",
       call. = FALSE
     )
@@ -511,7 +511,7 @@
   tabla <- .obtener_tabla_modelo(tablas, entidad)
   x <- .obtener_columna_modelo(tabla, atributo, entidad)
   if (!.es_fecha_modelo(x)) {
-    stop("La oportunidad requiere un atributo Date o POSIXt.", call. = FALSE)
+    .detener("La oportunidad requiere un atributo Date o POSIXt.", call. = FALSE)
   }
   filas <- which(!is.na(x))
   list(
@@ -584,7 +584,7 @@
   )
   duracion <- fin - inicio
   if (any(duracion <= 0)) {
-    stop("El intervalo de oportunidad debe tener duraci\u00f3n positiva.",
+    .detener("El intervalo de oportunidad debe tener duraci\u00f3n positiva.",
          call. = FALSE)
   }
   resultado <- pmin(1, pmax(0, 1 - (datos$entrega - inicio) / duracion))
@@ -610,7 +610,7 @@
       anyNA(coeficientes) || any(!is.finite(coeficientes)) ||
       any(coeficientes < 0 | coeficientes > 1) ||
       abs(sum(coeficientes) - 1) > sqrt(.Machine$double.eps)) {
-    stop(
+    .detener(
       "`coeficientes` debe contener pesos en [0, 1] que sumen 1.",
       call. = FALSE
     )
@@ -618,7 +618,7 @@
   if (!is.null(names(coeficientes)) &&
       (any(!nzchar(names(coeficientes))) ||
        anyDuplicated(.nombres_para_operar(names(coeficientes))))) {
-    stop("Los nombres de `coeficientes` deben ser \u00fanicos y no vac\u00edos.",
+    .detener("Los nombres de `coeficientes` deben ser \u00fanicos y no vac\u00edos.",
          call. = FALSE)
   }
   configuracion
@@ -626,7 +626,7 @@
 
 .metodo_densidad_ponderada <- function(tablas, instancia) {
   if (length(instancia$entidad) != 1L) {
-    stop("DensidadPonderada requiere una entidad.", call. = FALSE)
+    .detener("DensidadPonderada requiere una entidad.", call. = FALSE)
   }
   entidad <- instancia$entidad[[1L]]
   tabla <- .obtener_tabla_modelo(tablas, entidad)
@@ -635,14 +635,14 @@
   if (!is.null(names(pesos))) {
     if (!setequal(.nombres_para_operar(names(pesos)),
                   .nombres_para_operar(instancia$atributos))) {
-      stop(
+      .detener(
         "Los nombres de `coeficientes` deben coincidir con los atributos ligados.",
         call. = FALSE
       )
     }
     pesos <- pesos[.indice_identificador(instancia$atributos, names(pesos))]
   } else if (length(pesos) != length(instancia$atributos)) {
-    stop("Debe haber un coeficiente por atributo ligado.", call. = FALSE)
+    .detener("Debe haber un coeficiente por atributo ligado.", call. = FALSE)
   }
   presencia <- !is.na(.seleccionar_columnas(tabla, instancia$atributos))
   resultado <- as.numeric(as.matrix(presencia) %*% pesos)

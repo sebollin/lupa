@@ -3,7 +3,7 @@
     if (!length(factores) || is.null(names(factores)) ||
         anyNA(names(factores)) || any(!nzchar(names(factores))) ||
         anyDuplicated(.nombres_para_operar(names(factores)))) {
-      stop(
+      .detener(
         "Una lista de factores debe tener dimensiones con nombres \u00fanicos.",
         call. = FALSE
       )
@@ -18,7 +18,7 @@
   }
   if (!inherits(factores, "data.frame") || !nrow(factores) ||
       !all(c("dimension", "factor") %in% names(factores))) {
-    stop(
+    .detener(
       "`factores` debe ser un data frame con `dimension` y `factor`, o una lista con nombres.",
       call. = FALSE
     )
@@ -31,12 +31,12 @@
   factores$factor <- as.character(factores$factor)
   if (anyNA(factores$dimension) || anyNA(factores$factor) ||
       any(!nzchar(factores$dimension)) || any(!nzchar(factores$factor))) {
-    stop("Las dimensiones y los factores no pueden ser ausentes ni vac\u00edos.",
+    .detener("Las dimensiones y los factores no pueden ser ausentes ni vac\u00edos.",
          call. = FALSE)
   }
   clave <- .clave_par_identificador(factores$dimension, factores$factor)
   if (anyDuplicated(clave)) {
-    stop("Cada par dimensi\u00f3n-factor debe ser \u00fanico.", call. = FALSE)
+    .detener("Cada par dimensi\u00f3n-factor debe ser \u00fanico.", call. = FALSE)
   }
 
   predeterminados <- list(
@@ -55,28 +55,28 @@
   factores$aplicabilidad <- as.character(factores$aplicabilidad)
   factores$disponibilidad <- as.character(factores$disponibilidad)
   if (anyNA(factores$como_resolverlo) || any(!nzchar(factores$como_resolverlo))) {
-    stop("`como_resolverlo` debe contener texto no vac\u00edo.", call. = FALSE)
+    .detener("`como_resolverlo` debe contener texto no vac\u00edo.", call. = FALSE)
   }
   if (anyNA(factores$perfil_mide)) {
-    stop("`perfil_mide` debe contener valores l\u00f3gicos sin NA.", call. = FALSE)
+    .detener("`perfil_mide` debe contener valores l\u00f3gicos sin NA.", call. = FALSE)
   }
   if (anyNA(factores$aplicabilidad) ||
       any(!factores$aplicabilidad %in% c("siempre", "temporal", "geometria"))) {
-    stop(
+    .detener(
       "`aplicabilidad` debe usar 'siempre', 'temporal' o 'geometria'.",
       call. = FALSE
     )
   }
   if (anyNA(factores$disponibilidad) ||
       any(!factores$disponibilidad %in% c("disponible", "fuera_de_alcance"))) {
-    stop(
+    .detener(
       "`disponibilidad` debe usar 'disponible' o 'fuera_de_alcance'.",
       call. = FALSE
     )
   }
   if (any(factores$perfil_mide &
           factores$disponibilidad == "fuera_de_alcance")) {
-    stop(
+    .detener(
       "Un factor fuera de alcance no puede declarar `perfil_mide = TRUE`.",
       call. = FALSE
     )
@@ -175,7 +175,7 @@
 #' marco_cepal()
 marco_calidad <- function(nombre, factores) {
   if (!.es_texto_escalar(nombre)) {
-    stop("`nombre` debe ser una cadena no vac\u00eda.", call. = FALSE)
+    .detener("`nombre` debe ser una cadena no vac\u00eda.", call. = FALSE)
   }
   estructura <- list(
     nombre = nombre,

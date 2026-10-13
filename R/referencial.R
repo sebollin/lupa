@@ -11,13 +11,13 @@
       any(!nzchar(columnas)) ||
       anyDuplicated(.nombres_para_operar(columnas)) ||
       (!permitir_vacio && !length(columnas))) {
-    stop("`", argumento, "` debe contener nombres de columna \u00fanicos y no vac\u00edos.",
+    .detener("`", argumento, "` debe contener nombres de columna \u00fanicos y no vac\u00edos.",
          call. = FALSE)
   }
   indices <- .indice_nombre(columnas, names(datos))
   faltantes <- columnas[is.na(indices)]
   if (length(faltantes)) {
-    stop(
+    .detener(
       "No se encontraron columnas de `", argumento, "`: ",
       paste(faltantes, collapse = ", "), ".", call. = FALSE
     )
@@ -41,7 +41,7 @@
 
 .filas_en_referencial <- function(objetivo, referencia) {
   if (ncol(objetivo) != ncol(referencia)) {
-    stop("El objeto y el referencial deben tener la misma cantidad de columnas.",
+    .detener("El objeto y el referencial deben tener la misma cantidad de columnas.",
          call. = FALSE)
   }
   nombres <- paste0("V", seq_len(ncol(objetivo)))
@@ -63,20 +63,20 @@
                   "max_pares", "nucleos")
   desconocidas <- setdiff(names(configuracion), permitidas)
   if (length(desconocidas)) {
-    stop("Las metricas referenciales no aceptan: ",
+    .detener("Las metricas referenciales no aceptan: ",
          paste(desconocidas, collapse = ", "), ".", call. = FALSE)
   }
   normalizar <- configuracion[["normalizar"]]
   if (!is.null(normalizar)) {
     tryCatch(.resolver_normalizacion(normalizar), error = function(e) {
-      stop("`normalizar` no describe un perfil valido: ",
+      .detener("`normalizar` no describe un perfil valido: ",
            conditionMessage(e), call. = FALSE)
     })
   }
   proximidad <- configuracion[["proximidad"]]
   if (is.null(proximidad)) proximidad <- TRUE
   if (!is.logical(proximidad) || length(proximidad) != 1L || is.na(proximidad)) {
-    stop("`proximidad` debe ser un logico escalar sin NA.", call. = FALSE)
+    .detener("`proximidad` debe ser un logico escalar sin NA.", call. = FALSE)
   }
   metodo <- configuracion[["metodo"]]
   if (is.null(metodo)) metodo <- "jw"
@@ -84,26 +84,26 @@
                "jaccard", "jw", "soundex")
   if (!is.character(metodo) || length(metodo) != 1L || is.na(metodo) ||
       !metodo %in% metodos) {
-    stop("`metodo` debe ser una medida admitida: ",
+    .detener("`metodo` debe ser una medida admitida: ",
          paste(metodos, collapse = ", "), ".", call. = FALSE)
   }
   p <- configuracion[["p"]]
   if (is.null(p)) p <- 0.1
   if (!is.numeric(p) || length(p) != 1L || is.na(p) || !is.finite(p) ||
       p < 0 || p > 0.25) {
-    stop("`p` debe ser un numero finito entre 0 y 0.25.", call. = FALSE)
+    .detener("`p` debe ser un numero finito entre 0 y 0.25.", call. = FALSE)
   }
   umbral <- configuracion[["umbral"]]
   if (is.null(umbral)) umbral <- 0.10
   if (!is.numeric(umbral) || length(umbral) != 1L || is.na(umbral) ||
       !is.finite(umbral) || umbral < 0) {
-    stop("`umbral` debe ser un numero finito no negativo.", call. = FALSE)
+    .detener("`umbral` debe ser un numero finito no negativo.", call. = FALSE)
   }
   max_pares <- configuracion[["max_pares"]]
   if (is.null(max_pares)) max_pares <- 500000L
   if (!is.numeric(max_pares) || length(max_pares) != 1L || is.na(max_pares) ||
       max_pares < 1 || (!is.infinite(max_pares) && max_pares != floor(max_pares))) {
-    stop("`max_pares` debe ser un entero positivo o Inf.", call. = FALSE)
+    .detener("`max_pares` debe ser un entero positivo o Inf.", call. = FALSE)
   }
   list(
     normalizar = normalizar, proximidad = proximidad, metodo = metodo, p = p,
@@ -394,7 +394,7 @@ referencial <- function(datos, clave, valor = character(), completo = FALSE,
   .validar_datos_tabla(datos)
   if (is.null(names(datos)) || anyNA(names(datos)) || any(!nzchar(names(datos))) ||
       anyDuplicated(.nombres_para_operar(names(datos)))) {
-    stop("El referencial requiere nombres de columna \u00fanicos y no vac\u00edos.",
+    .detener("El referencial requiere nombres de columna \u00fanicos y no vac\u00edos.",
          call. = FALSE)
   }
   tabla <- .copiar_data_frame(datos)
@@ -405,38 +405,38 @@ referencial <- function(datos, clave, valor = character(), completo = FALSE,
   if (length(intersect(
     .nombres_para_operar(clave), .nombres_para_operar(valor)
   ))) {
-    stop("`clave` y `valor` no pueden compartir columnas.", call. = FALSE)
+    .detener("`clave` y `valor` no pueden compartir columnas.", call. = FALSE)
   }
   if (any(vapply(
     .seleccionar_columnas(tabla, c(clave, valor)), is.list, logical(1L)
   ))) {
-    stop("Las columnas del referencial deben ser vectores at\u00f3micos.", call. = FALSE)
+    .detener("Las columnas del referencial deben ser vectores at\u00f3micos.", call. = FALSE)
   }
   if (any(!.filas_completas(.seleccionar_columnas(tabla, clave)))) {
-    stop("La clave del referencial no puede contener valores ausentes.",
+    .detener("La clave del referencial no puede contener valores ausentes.",
          call. = FALSE)
   }
   if (anyDuplicated(.integer64_como_texto(.seleccionar_columnas(tabla, clave)))) {
-    stop("La clave del referencial debe identificar un\u00edvocamente cada fila.",
+    .detener("La clave del referencial debe identificar un\u00edvocamente cada fila.",
          call. = FALSE)
   }
   if (!is.logical(completo) || length(completo) != 1L || is.na(completo)) {
-    stop("`completo` debe ser un l\u00f3gico escalar sin NA.", call. = FALSE)
+    .detener("`completo` debe ser un l\u00f3gico escalar sin NA.", call. = FALSE)
   }
   if (completo && !.es_texto_escalar(alcance)) {
-    stop("Un referencial completo requiere describir su `alcance`.",
+    .detener("Un referencial completo requiere describir su `alcance`.",
          call. = FALSE)
   }
   if (!is.null(alcance) && !.es_texto_escalar(alcance)) {
-    stop("`alcance` debe ser NULL o una cadena no vac\u00eda.", call. = FALSE)
+    .detener("`alcance` debe ser NULL o una cadena no vac\u00eda.", call. = FALSE)
   }
   if (!.es_texto_escalar(nombre)) {
-    stop("`nombre` debe ser una cadena no vac\u00eda.", call. = FALSE)
+    .detener("`nombre` debe ser una cadena no vac\u00eda.", call. = FALSE)
   }
   normalizar <- tryCatch(
     .resolver_normalizacion(normalizar),
     error = function(e) {
-      stop("`normalizar` no describe un perfil valido: ",
+      .detener("`normalizar` no describe un perfil valido: ",
            conditionMessage(e), call. = FALSE)
     }
   )
@@ -475,17 +475,17 @@ print.referencial <- function(x, ...) {
                                 completo = FALSE) {
   referencia <- instancia$referencial
   if (!inherits(referencia, "referencial")) {
-    stop(
+    .detener(
       "La m\u00e9trica ", instancia$declaracion$nombre,
       " requiere un objeto creado por referencial().", call. = FALSE
     )
   }
   if (valores && !length(referencia$valor)) {
-    stop("CorrectitudSemDebil requiere valores asociados en el referencial.",
+    .detener("CorrectitudSemDebil requiere valores asociados en el referencial.",
          call. = FALSE)
   }
   if (completo && !isTRUE(referencia$completo)) {
-    stop(
+    .detener(
       "RatioCobertura exige un referencial declarado completo y con alcance.",
       call. = FALSE
     )
@@ -530,7 +530,7 @@ print.referencial <- function(x, ...) {
   indices_atributos <- .indice_nombre(instancia$atributos, names(tabla))
   faltantes <- instancia$atributos[is.na(indices_atributos)]
   if (length(faltantes)) {
-    stop("No se encontraron atributos ligados: ", paste(faltantes, collapse = ", "), ".",
+    .detener("No se encontraron atributos ligados: ", paste(faltantes, collapse = ", "), ".",
          call. = FALSE)
   }
   objetivo <- .seleccionar_columnas(tabla, instancia$atributos)
@@ -625,7 +625,7 @@ print.referencial <- function(x, ...) {
   indices_atributos <- .indice_nombre(instancia$atributos, names(tabla))
   faltantes <- instancia$atributos[is.na(indices_atributos)]
   if (length(faltantes)) {
-    stop("No se encontraron atributos ligados: ", paste(faltantes, collapse = ", "), ".",
+    .detener("No se encontraron atributos ligados: ", paste(faltantes, collapse = ", "), ".",
          call. = FALSE)
   }
   filas_completas <- .filas_completas(

@@ -259,12 +259,14 @@ test_that("H4: un centinela doble excluye su valor en una columna integer64 con 
 }
 
 test_that("H5: bajo C un error del paquete llega a quien lo atrapa con sus bytes", {
-  # Por construccion: el `stop()` del paquete arma la condicion sin pasar por
-  # `gettext()` ni por la traduccion al nativo del `stop()` de base.
+  # Por construccion: `.detener()` arma la condicion sin pasar por `gettext()` ni
+  # por la traduccion al nativo del `stop()` de base (desde la ronda 32 con nombre
+  # propio: el paquete ya no tapa a `stop()`, decision D4).
   ns <- asNamespace("lupa")
-  expect_true(exists("stop", envir = ns, inherits = FALSE))
+  expect_true(exists(".detener", envir = ns, inherits = FALSE))
+  expect_false(exists("stop", envir = ns, inherits = FALSE))
   esperado <- paste0("num", intToUtf8(0xe9L), "rico")
-  levantar <- function() stop("num", intToUtf8(0xe9L), "rico", call. = FALSE)
+  levantar <- function() .detener("num", intToUtf8(0xe9L), "rico", call. = FALSE)
   environment(levantar) <- ns
   mensaje <- .con_ctype_o152("C", tryCatch(levantar(), error = conditionMessage))
   # A mano: 9 bytes, la e con tilde en dos; escapada serian 15.
@@ -272,7 +274,7 @@ test_that("H5: bajo C un error del paquete llega a quien lo atrapa con sus bytes
   expect_identical(length(charToRaw(mensaje)), 9L)
   # Una condicion ya armada pasa como esta.
   condicion <- simpleError("x")
-  relevantar <- function(condicion) stop(condicion)
+  relevantar <- function(condicion) .detener(condicion)
   environment(relevantar) <- ns
   expect_identical(tryCatch(relevantar(condicion), error = identity), condicion)
 })

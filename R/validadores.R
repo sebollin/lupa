@@ -78,7 +78,7 @@
 
 .texto_validador <- function(x, recortar = TRUE) {
   if (!is.atomic(x) || is.list(x)) {
-    stop("`x` debe ser un vector atomico.", call. = FALSE)
+    .detener("`x` debe ser un vector atomico.", call. = FALSE)
   }
   # Una MAGNITUD con clase -fecha, fecha-hora, duracion, unidad- no es la
   # escritura de un documento: su numero cuenta dias, segundos o metros. Se
@@ -421,7 +421,7 @@ NULL
 validar_url <- function(x, esquema_obligatorio = TRUE) {
   if (!is.logical(esquema_obligatorio) ||
       length(esquema_obligatorio) != 1L || is.na(esquema_obligatorio)) {
-    stop("`esquema_obligatorio` debe ser TRUE o FALSE.", call. = FALSE)
+    .detener("`esquema_obligatorio` debe ser TRUE o FALSE.", call. = FALSE)
   }
   .resultado_validador_vector(
     x,
@@ -694,27 +694,27 @@ pack_validadores <- function(nombre, validadores, pais = NULL,
                              descripcion = NULL) {
   if (!is.character(nombre) || length(nombre) != 1L || is.na(nombre) ||
       !nzchar(trimws(nombre))) {
-    stop("`nombre` debe ser una cadena no vacia.", call. = FALSE)
+    .detener("`nombre` debe ser una cadena no vacia.", call. = FALSE)
   }
   if (!is.list(validadores) || !length(validadores) ||
       is.null(names(validadores)) || anyNA(names(validadores)) ||
       any(!nzchar(names(validadores))) ||
       anyDuplicated(.nombres_para_operar(names(validadores))) ||
       !all(vapply(validadores, is.function, logical(1L)))) {
-    stop("`validadores` debe ser una lista con nombres unicos de funciones.",
+    .detener("`validadores` debe ser una lista con nombres unicos de funciones.",
          call. = FALSE)
   }
   if (!is.null(pais)) {
     if (!is.character(pais) || length(pais) != 1L || is.na(pais) ||
         !validar_iso3166(pais, "alpha2")) {
-      stop("`pais` debe ser un codigo ISO 3166 alpha-2 vigente o NULL.",
+      .detener("`pais` debe ser un codigo ISO 3166 alpha-2 vigente o NULL.",
            call. = FALSE)
     }
     pais <- .mayusculas_ascii(pais)
   }
   if (!is.null(descripcion) && (!is.character(descripcion) ||
       length(descripcion) != 1L || is.na(descripcion) || !nzchar(descripcion))) {
-    stop("`descripcion` debe ser una cadena no vacia o NULL.", call. = FALSE)
+    .detener("`descripcion` debe ser una cadena no vacia o NULL.", call. = FALSE)
   }
   estructura <- validadores
   attr(estructura, "nombre") <- trimws(nombre)

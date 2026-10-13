@@ -166,14 +166,14 @@ medicion_desde_estimaciones <- function(estimaciones, entidad, fuente,
                                         atributo = NULL, columnas = NULL,
                                         fecha = Sys.time()) {
   if (!inherits(estimaciones, "data.frame") || !nrow(estimaciones)) {
-    stop("`estimaciones` debe ser un data.frame no vacio.", call. = FALSE)
+    .detener("`estimaciones` debe ser un data.frame no vacio.", call. = FALSE)
   }
   estimaciones <- .tabla_base(estimaciones)
   if (!.es_texto_escalar(entidad)) {
-    stop("`entidad` debe ser una cadena no vacia.", call. = FALSE)
+    .detener("`entidad` debe ser una cadena no vacia.", call. = FALSE)
   }
   if (!.es_texto_escalar(fuente)) {
-    stop(
+    .detener(
       "`fuente` debe declarar quien calculo las estimaciones: sin eso, el ",
       "resultado no dice de donde viene.", call. = FALSE
     )
@@ -181,7 +181,7 @@ medicion_desde_estimaciones <- function(estimaciones, entidad, fuente,
   if (!is.null(columnas) &&
       (!is.character(columnas) || is.null(names(columnas)) ||
        anyNA(columnas) || !all(nzchar(columnas)))) {
-    stop("`columnas` debe ser un vector con nombres.", call. = FALSE)
+    .detener("`columnas` debe ser un vector con nombres.", call. = FALSE)
   }
   # La lectura de `medir()`, cuyo contrato promete: un texto en UTC, no en el
   # huso de la sesion, y una sola fecha valida. Ver `.fecha_argumento_utc()`.
@@ -192,7 +192,7 @@ medicion_desde_estimaciones <- function(estimaciones, entidad, fuente,
       names(columnas), catalogo$estadistico
     )
     if (length(desconocidos)) {
-      stop(
+      .detener(
         "`columnas` nombra estadisticos que no se reconocen: ",
         paste(desconocidos, collapse = ", "),
         ". Reconocidos: ", paste(catalogo$estadistico, collapse = ", "), ".",
@@ -202,7 +202,7 @@ medicion_desde_estimaciones <- function(estimaciones, entidad, fuente,
     indices_columnas <- .indice_nombre(unname(columnas), names(estimaciones))
     ausentes <- unname(columnas)[is.na(indices_columnas)]
     if (length(ausentes)) {
-      stop(
+      .detener(
         "`columnas` apunta a columnas que no estan en `estimaciones`: ",
         paste(ausentes, collapse = ", "), ".", call. = FALSE
       )
@@ -217,7 +217,7 @@ medicion_desde_estimaciones <- function(estimaciones, entidad, fuente,
       .indice_nombre(atributo, names(estimaciones))
     } else NA_integer_
     if (is.na(indice_atributo)) {
-      stop(
+      .detener(
         "`atributo` debe nombrar una columna de `estimaciones`. Disponibles: ",
         paste(names(estimaciones), collapse = ", "), ".", call. = FALSE
       )
@@ -261,14 +261,14 @@ medicion_desde_estimaciones <- function(estimaciones, entidad, fuente,
     # cuando SI se reconocieron las columnas manda a revisar los nombres, que es
     # justamente lo que ya estaba bien.
     if (length(sin_valores)) {
-      stop(
+      .detener(
         "`estimaciones` trae ", paste(sin_valores, collapse = ", "),
         " pero sin ningun valor utilizable: no hay nada que medir. Una columna ",
         "vacia no produce medidas, y no se rellena con ceros ni se estima.",
         call. = FALSE
       )
     }
-    stop(
+    .detener(
       "`estimaciones` no trae ningun estadistico reconocido. Reconocidos: ",
       paste(catalogo$estadistico, collapse = ", "), ".", call. = FALSE
     )
@@ -352,7 +352,7 @@ medicion_desde_estimaciones <- function(estimaciones, entidad, fuente,
   salida$.valor_crudo <- NULL
   rownames(salida) <- NULL
   if (nrow(celdas_descartadas)) {
-    warning(
+    .avisar(
       "Se descartaron ", nrow(celdas_descartadas), " celda",
       if (nrow(celdas_descartadas) > 1L) "s" else "",
       " que no son una estimaci\u00f3n: ",

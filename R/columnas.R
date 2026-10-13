@@ -1043,13 +1043,13 @@
 .normalizar_columnas_codigo <- function(columnas_codigo, nombres) {
   if (is.null(columnas_codigo)) return(character())
   if (!is.character(columnas_codigo) || anyNA(columnas_codigo)) {
-    stop("`columnas_codigo` debe ser un vector de nombres de columna.",
+    .detener("`columnas_codigo` debe ser un vector de nombres de columna.",
          call. = FALSE)
   }
   if (!length(columnas_codigo)) return(character())
   indices <- .indice_nombre(columnas_codigo, nombres)
   if (anyNA(indices)) {
-    stop("`columnas_codigo` nombra columnas inexistentes: ",
+    .detener("`columnas_codigo` nombra columnas inexistentes: ",
          .pegar_texto(columnas_codigo[is.na(indices)], collapse = ", "), ".",
          call. = FALSE)
   }

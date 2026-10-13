@@ -156,7 +156,7 @@
 #' head(hallazgos[, c("grupo", "columna", "tipo_hallazgo")])
 perfilar_por <- function(datos, por, clave = NULL, min_filas = 30L, ...) {
   if (!inherits(datos, "data.frame")) {
-    stop("`datos` debe ser un data frame.", call. = FALSE)
+    .detener("`datos` debe ser un data frame.", call. = FALSE)
   }
   datos <- .tabla_base(datos)
   # Con dos columnas del MISMO nombre -lo que da `fread()` sobre un CSV con un
@@ -165,31 +165,31 @@ perfilar_por <- function(datos, por, clave = NULL, min_filas = 30L, ...) {
   # falso y un 75 % de faltantes callado. Se dice en la entrada.
   repetidos <- unique(names(datos)[duplicated(.nombres_para_operar(names(datos)))])
   if (length(repetidos)) {
-    stop(
+    .detener(
       "`datos` tiene nombres de columna repetidos: ",
       paste(repetidos, collapse = ", "), ". `perfilar_por()` arma cada grupo ",
       "por nombre y no puede distinguirlas; renombrarlas antes.", call. = FALSE
     )
   }
   if (!is.character(por) || length(por) != 1L || is.na(por)) {
-    stop("`por` debe ser el nombre de una sola columna.", call. = FALSE)
+    .detener("`por` debe ser el nombre de una sola columna.", call. = FALSE)
   }
   indice_por <- .indice_nombre(por, names(datos))
   if (is.na(indice_por)) {
-    stop("`por` nombra una columna inexistente: ", por, ".", call. = FALSE)
+    .detener("`por` nombra una columna inexistente: ", por, ".", call. = FALSE)
   }
   por <- names(datos)[[indice_por]]
   if (!is.atomic(datos[[por]])) {
-    stop("`por` debe nombrar una columna atomica.", call. = FALSE)
+    .detener("`por` debe nombrar una columna atomica.", call. = FALSE)
   }
   if (!is.null(clave)) {
     if (!is.character(clave)) {
-      stop("`clave` debe ser un vector de nombres de columnas.", call. = FALSE)
+      .detener("`clave` debe ser un vector de nombres de columnas.", call. = FALSE)
     }
     indices_clave <- .indice_nombre(clave, names(datos))
     desconocidas <- clave[is.na(indices_clave)]
     if (length(desconocidas)) {
-      stop("`clave` nombra columnas inexistentes: ",
+      .detener("`clave` nombra columnas inexistentes: ",
            paste(desconocidas, collapse = ", "), ".", call. = FALSE)
     }
     clave <- names(datos)[indices_clave]

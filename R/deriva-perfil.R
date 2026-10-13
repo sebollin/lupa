@@ -49,14 +49,14 @@ rbind.deriva_perfil <- function(..., deparse.level = 1) {
       !is.list(x$patrones) || !inherits(x$hallazgos, "data.frame") ||
       is.null(x$meta$fecha_hora)) {
     if (inherits(x, "perfil_dbi")) {
-      stop(
+      .detener(
         "`", nombre, "` es un objeto de `perfilar_dbi()`: para comparar dos ",
         "entregas pase su perfil de muestra, `", nombre, "$perfil_muestra`. ",
         "El resumen SQL de la tabla completa no es un perfil.",
         call. = FALSE
       )
     }
-    stop("`", nombre, "` debe ser un objeto producido por perfilar().",
+    .detener("`", nombre, "` debe ser un objeto producido por perfilar().",
          call. = FALSE)
   }
   x
@@ -744,7 +744,7 @@ rbind.deriva_perfil <- function(..., deparse.level = 1) {
   anterior_seg <- trunc(as.numeric(fecha_anterior))
   actual_seg <- trunc(as.numeric(fecha_actual))
   if (anterior_seg <= actual_seg) return(invisible(NULL))
-  stop(
+  .detener(
     "`anterior` esta fechado despues que `actual` (",
     format(fecha_anterior, "%Y-%m-%d %H:%M:%S"), " contra ",
     format(fecha_actual, "%Y-%m-%d %H:%M:%S"), "), asi que ", funcion,
@@ -901,7 +901,7 @@ comparar_perfiles <- function(anterior, actual, umbral_cambio = 0.05,
       isTRUE(actual$meta$fecha_declarada)
   )
   if (!.son_numeros_escalares(list(umbral_cambio, umbral_error))) {
-    stop(
+    .detener(
       "Los umbrales deben estar en [0, 1] y `umbral_error` no puede ser menor.",
       call. = FALSE
     )
@@ -910,7 +910,7 @@ comparar_perfiles <- function(anterior, actual, umbral_cambio = 0.05,
   if (!is.numeric(umbrales) || anyNA(umbrales) ||
       any(!is.finite(umbrales)) || any(umbrales < 0 | umbrales > 1) ||
       umbral_error < umbral_cambio) {
-    stop(
+    .detener(
       "Los umbrales deben estar en [0, 1] y `umbral_error` no puede ser menor.",
       call. = FALSE
     )
@@ -1963,20 +1963,20 @@ comparar_perfiles <- function(anterior, actual, umbral_cambio = 0.05,
   } else if (is.data.frame(x)) {
     columnas <- x
   } else {
-    stop(
+    .detener(
       "`", nombre, "` debe ser un `perfil`, un `perfil_dbi` o un frame `columnas`.",
       call. = FALSE
     )
   }
   if (!is.data.frame(columnas) || !"columna" %in% names(columnas)) {
-    stop(
+    .detener(
       "`", nombre, "` no contiene un frame `columnas` con el campo `columna`.",
       call. = FALSE
     )
   }
   nombres <- as.character(columnas$columna)
   if (anyNA(nombres) || anyDuplicated(.nombres_para_operar(nombres))) {
-    stop(
+    .detener(
       "El frame `columnas` de `", nombre,
       "` debe tener nombres de columna presentes y sin duplicados.", call. = FALSE
     )
@@ -2005,7 +2005,7 @@ comparar_perfiles <- function(anterior, actual, umbral_cambio = 0.05,
 
 .comparar_valor_equivalencia <- function(a, b, tipo_eje, tolerancia) {
   if (length(a) != 1L || length(b) != 1L) {
-    stop(
+    .detener(
       "Cada valor de un campo comparable debe ser escalar.", call. = FALSE
     )
   }
@@ -2043,7 +2043,7 @@ comparar_perfiles <- function(anterior, actual, umbral_cambio = 0.05,
   }
   if (!is.numeric(a) || !is.numeric(b) ||
       !isTRUE(is.finite(a)) || !isTRUE(is.finite(b))) {
-    stop(
+    .detener(
       "Los campos del eje `flotante` deben contener numeros finitos o faltantes.",
       call. = FALSE
     )
@@ -2188,7 +2188,7 @@ comparar_perfiles <- function(anterior, actual, umbral_cambio = 0.05,
 comparar_equivalencia <- function(anterior, actual, tolerancia) {
   if (!is.numeric(tolerancia) || length(tolerancia) != 1L ||
       is.na(tolerancia) || !is.finite(tolerancia) || tolerancia < 0) {
-    stop(
+    .detener(
       "`tolerancia` debe ser un escalar numerico finito, sin NA y mayor o igual a 0.",
       call. = FALSE
     )

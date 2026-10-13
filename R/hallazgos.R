@@ -1194,7 +1194,7 @@
   if (!is.numeric(max_trabajo) || length(max_trabajo) != 1L ||
       is.na(max_trabajo) || max_trabajo <= 0 ||
       (!is.infinite(max_trabajo) && max_trabajo != floor(max_trabajo))) {
-    stop(
+    .detener(
       "`max_trabajo` debe ser un entero positivo o Inf.",
       call. = FALSE
     )
@@ -1223,7 +1223,7 @@
   )
   if (is.null(excluir)) excluir <- rep(FALSE, length(textos))
   if (!is.logical(excluir) || length(excluir) != length(textos)) {
-    stop("`excluir` debe ser una mascara logica del largo de `x`.", call. = FALSE)
+    .detener("`excluir` debe ser una mascara logica del largo de `x`.", call. = FALSE)
   }
   excluir[is.na(excluir)] <- FALSE
   presentes_originales <- !is.na(textos) & nzchar(textos)
@@ -3708,7 +3708,7 @@
       ),
       class = c("lupa_trazabilidad_incoherente", "warning", "condition")
     )
-    warning(condicion)
+    .avisar(condicion)
   }
   invisible(hallazgos)
 }

@@ -165,7 +165,7 @@
 .validar_tipo_resultado <- function(tipo_resultado) {
   opciones <- c("booleano", "real", "numero_real", "entero", "duracion")
   if (!.es_texto_escalar(tipo_resultado) || !tipo_resultado %in% opciones) {
-    stop(
+    .detener(
       "`tipo_resultado` debe ser 'booleano', 'real', 'numero_real', ",
       "'entero' o 'duracion'.", call. = FALSE
     )
@@ -207,20 +207,20 @@
 .validar_orientacion <- function(orientacion, tipo_resultado) {
   if (!.es_texto_escalar(orientacion) ||
       !orientacion %in% .orientaciones_metricas) {
-    stop(
+    .detener(
       "`orientacion` debe ser 'conformidad', 'defecto' o 'no_aplica'.",
       call. = FALSE
     )
   }
   if (tipo_resultado == "booleano" && orientacion == "no_aplica") {
-    stop(
+    .detener(
       "Una metrica booleana debe declarar orientacion 'conformidad' o 'defecto'.",
       call. = FALSE
     )
   }
   if (!tipo_resultado %in% c("booleano", "real") &&
       orientacion != "no_aplica") {
-    stop(
+    .detener(
       "Una metrica no acotada debe declarar orientacion 'no_aplica'.",
       call. = FALSE
     )
@@ -234,7 +234,7 @@
   invalidas <- !is.na(orientacion) &
     !orientacion %in% .orientaciones_metricas
   if (any(invalidas)) {
-    stop("La medicion contiene orientaciones no reconocidas.", call. = FALSE)
+    .detener("La medicion contiene orientaciones no reconocidas.", call. = FALSE)
   }
   orientacion
 }
@@ -270,18 +270,18 @@
 .validar_propiedades_base <- function(configuracion, propiedades) {
   if (length(configuracion) &&
       (is.null(names(configuracion)) || any(!nzchar(names(configuracion))))) {
-    stop("Todas las propiedades de configuraci\u00f3n deben tener nombre.", call. = FALSE)
+    .detener("Todas las propiedades de configuraci\u00f3n deben tener nombre.", call. = FALSE)
   }
   desconocidas <- .identificadores_setdiff(names(configuracion), propiedades)
   if (length(desconocidas)) {
-    stop(
+    .detener(
       "Propiedades no declaradas: ", paste(desconocidas, collapse = ", "), ".",
       call. = FALSE
     )
   }
   faltantes <- .identificadores_setdiff(propiedades, names(configuracion))
   if (length(faltantes)) {
-    stop(
+    .detener(
       "Faltan propiedades de configuraci\u00f3n: ",
       paste(faltantes, collapse = ", "), ".",
       call. = FALSE
@@ -295,14 +295,14 @@
       (is.null(names(configuracion)) || anyNA(names(configuracion)) ||
        any(!nzchar(names(configuracion))) ||
        anyDuplicated(.nombres_para_operar(names(configuracion))))) {
-    stop(
+    .detener(
       "El validador de propiedades debe devolver una lista con nombres \u00fanicos.",
       call. = FALSE
     )
   }
   desconocidas <- .identificadores_setdiff(names(configuracion), propiedades)
   if (length(desconocidas)) {
-    stop(
+    .detener(
       "El validador devolvi\u00f3 propiedades no declaradas: ",
       paste(desconocidas, collapse = ", "), ".", call. = FALSE
     )
@@ -322,12 +322,12 @@
       if (!is.null(nombres_extras) && any(nombres_extras %in% c(
         "entidad", "atributos", "nombre_instancia", "referencial"
       ))) {
-        stop(
+        .detener(
           "La f\u00e1brica gen\u00e9rica debe especializarse primero; use ",
           "metrica()(entidad = ..., atributos = ...).", call. = FALSE
         )
       }
-      stop("La m\u00e9trica recibi\u00f3 argumentos de configuraci\u00f3n no declarados.",
+      .detener("La m\u00e9trica recibi\u00f3 argumentos de configuraci\u00f3n no declarados.",
            call. = FALSE)
     }
     configuracion <- LLAMADA_LISTA
@@ -667,10 +667,10 @@ metrica <- function(nombre, semantica, granularidad, tipo_resultado,
                       "booleano", "real"
                     )) "conformidad" else "no_aplica") {
   if (!.es_texto_escalar(nombre)) {
-    stop("`nombre` debe ser una cadena no vac\u00eda.", call. = FALSE)
+    .detener("`nombre` debe ser una cadena no vac\u00eda.", call. = FALSE)
   }
   if (!.es_texto_escalar(semantica)) {
-    stop("`semantica` debe ser una cadena no vac\u00eda.", call. = FALSE)
+    .detener("`semantica` debe ser una cadena no vac\u00eda.", call. = FALSE)
   }
   granularidad <- .validar_granularidad(
     granularidad, aceptar_relacional = TRUE
@@ -680,19 +680,19 @@ metrica <- function(nombre, semantica, granularidad, tipo_resultado,
   if (!is.character(propiedades) || anyNA(propiedades) ||
       any(!nzchar(propiedades)) ||
       anyDuplicated(.nombres_para_operar(propiedades))) {
-    stop("`propiedades` debe contener nombres \u00fanicos no vac\u00edos.", call. = FALSE)
+    .detener("`propiedades` debe contener nombres \u00fanicos no vac\u00edos.", call. = FALSE)
   }
   if (any(.nombres_make_names(propiedades) !=
           .nombres_para_operar(propiedades)) ||
       .identificadores_en("nombre_especifico", propiedades)) {
-    stop("Las propiedades deben ser nombres sint\u00e1cticos no reservados.",
+    .detener("Las propiedades deben ser nombres sint\u00e1cticos no reservados.",
          call. = FALSE)
   }
   if (!is.null(metodo) && !is.function(metodo)) {
-    stop("`metodo` debe ser una funci\u00f3n o NULL.", call. = FALSE)
+    .detener("`metodo` debe ser una funci\u00f3n o NULL.", call. = FALSE)
   }
   if (!is.null(validar_propiedades) && !is.function(validar_propiedades)) {
-    stop("`validar_propiedades` debe ser una funci\u00f3n o NULL.", call. = FALSE)
+    .detener("`validar_propiedades` debe ser una funci\u00f3n o NULL.", call. = FALSE)
   }
   # `as.character(x)[[1L]]` abortaba con "subindice fuera de los limites" sobre
   # `NULL` o `character(0)`, y tomaba en silencio el primero de dos.
@@ -700,7 +700,7 @@ metrica <- function(nombre, semantica, granularidad, tipo_resultado,
     valor <- get(argumento)
     if (!(length(valor) == 1L && is.atomic(valor) &&
           (is.na(valor) || .es_texto_escalar(valor)))) {
-      stop("`", argumento, "` debe ser una cadena no vac\u00eda o NA.",
+      .detener("`", argumento, "` debe ser una cadena no vac\u00eda o NA.",
            call. = FALSE)
     }
   }
@@ -725,14 +725,14 @@ metrica <- function(nombre, semantica, granularidad, tipo_resultado,
 #' @export
 especializar <- function(metrica, nombre_especifico = NULL, ...) {
   if (!inherits(metrica, "metrica_generica")) {
-    stop("`metrica` debe ser una m\u00e9trica gen\u00e9rica.", call. = FALSE)
+    .detener("`metrica` debe ser una m\u00e9trica gen\u00e9rica.", call. = FALSE)
   }
   declaracion <- .declaracion_metrica(metrica)
   if (is.null(nombre_especifico)) {
     nombre_especifico <- declaracion$nombre
   }
   if (!.es_texto_escalar(nombre_especifico)) {
-    stop("`nombre_especifico` debe ser una cadena no vac\u00eda.", call. = FALSE)
+    .detener("`nombre_especifico` debe ser una cadena no vac\u00eda.", call. = FALSE)
   }
   configuracion <- list(...)
   validador <- attr(metrica, "validador_propiedades", exact = TRUE)
@@ -743,7 +743,7 @@ especializar <- function(metrica, nombre_especifico = NULL, ...) {
   } else {
     configuracion <- validador(configuracion)
     if (!is.list(configuracion)) {
-      stop("El validador de propiedades debe devolver una lista.", call. = FALSE)
+      .detener("El validador de propiedades debe devolver una lista.", call. = FALSE)
     }
     configuracion <- .validar_propiedades_devueltas(
       configuracion, declaracion$propiedades
@@ -766,11 +766,11 @@ instanciar <- function(metrica_especifica, entidad, atributos = character(),
                        nombre_instancia = NULL, metodo = NULL,
                        referencial = NULL) {
   if (!inherits(metrica_especifica, "metrica_especifica")) {
-    stop("`metrica_especifica` debe provenir de especializar().", call. = FALSE)
+    .detener("`metrica_especifica` debe provenir de especializar().", call. = FALSE)
   }
   if (!is.character(entidad) || !length(entidad) || anyNA(entidad) ||
       any(!nzchar(entidad))) {
-    stop("`entidad` debe contener nombres de tabla no vac\u00edos.", call. = FALSE)
+    .detener("`entidad` debe contener nombres de tabla no vac\u00edos.", call. = FALSE)
   }
   # Un nombre de columna es el que tiene la tabla, y una tabla de R puede tener
   # una columna llamada "" o `NA` -la deja un `read.csv(check.names = FALSE)`
@@ -781,11 +781,11 @@ instanciar <- function(metrica_especifica, entidad, atributos = character(),
   # rechaza aca: `medir()` declara la metrica `no_medible` con el atributo que
   # no encontro, igual que con cualquier otro nombre.
   if (!is.character(atributos)) {
-    stop("`atributos` debe ser un vector de nombres de columna.", call. = FALSE)
+    .detener("`atributos` debe ser un vector de nombres de columna.", call. = FALSE)
   }
   declaracion <- .declaracion_metrica(metrica_especifica)
   if (!.granularidad_implementada(declaracion$granularidad)) {
-    stop(
+    .detener(
       "La granularidad '", declaracion$granularidad,
       "' est\u00e1 declarada pero todav\u00eda no se puede instanciar.", call. = FALSE
     )
@@ -805,7 +805,7 @@ instanciar <- function(metrica_especifica, entidad, atributos = character(),
   # especializar; se dice eso, con el nombre de la metrica.
   if (metodo_declarado && !is.function(metodo) &&
       .identificadores_en("metodo", declaracion$propiedades)) {
-    stop(
+    .detener(
       "En `instanciar()`, `metodo` es la funci\u00f3n que mide. `",
       declaracion$nombre, "` tiene adem\u00e1s una propiedad `metodo`, y las ",
       "propiedades se fijan al especializar: `especializar(metrica, metodo = ",
@@ -813,7 +813,7 @@ instanciar <- function(metrica_especifica, entidad, atributos = character(),
     )
   }
   if (!is.function(metodo)) {
-    stop("La instancia requiere un `metodo` de medici\u00f3n.", call. = FALSE)
+    .detener("La instancia requiere un `metodo` de medici\u00f3n.", call. = FALSE)
   }
   if (is.null(nombre_instancia)) {
     vinculo <- c(entidad, atributos)
@@ -823,7 +823,7 @@ instanciar <- function(metrica_especifica, entidad, atributos = character(),
     )
   }
   if (!.es_texto_escalar(nombre_instancia)) {
-    stop("`nombre_instancia` debe ser una cadena no vac\u00eda.", call. = FALSE)
+    .detener("`nombre_instancia` debe ser una cadena no vac\u00eda.", call. = FALSE)
   }
   estructura <- list(
     nombre = nombre_instancia,
@@ -848,7 +848,7 @@ instanciar <- function(metrica_especifica, entidad, atributos = character(),
 propiedades_metrica <- function(x) {
   clases <- c("metrica_generica", "metrica_especifica", "metrica_instanciada")
   if (!any(vapply(clases, function(clase) inherits(x, clase), logical(1L)))) {
-    stop(
+    .detener(
       "`x` debe ser una m\u00e9trica gen\u00e9rica, espec\u00edfica o instanciada.",
       call. = FALSE
     )
@@ -929,7 +929,7 @@ propiedades_metrica <- function(x) {
         a <- metricas[[indices[[m]]]]
         b <- metricas[[indices[[k]]]]
         if (mismo(a, b)) {
-          stop(
+          .detener(
             "`", a$nombre, "` y `", b$nombre, "` son el mismo instrumento: la ",
             "misma m\u00e9trica con la misma configuraci\u00f3n sobre la misma ",
             "entidad y los mismos atributos. Un modelo es un conjunto, y la ",
@@ -953,16 +953,16 @@ modelo <- function(..., marco = NULL) {
   }
   if (!length(metricas) ||
       !all(vapply(metricas, inherits, logical(1L), "metrica_instanciada"))) {
-    stop("`modelo()` requiere una o m\u00e1s m\u00e9tricas instanciadas.", call. = FALSE)
+    .detener("`modelo()` requiere una o m\u00e1s m\u00e9tricas instanciadas.", call. = FALSE)
   }
   nombres <- vapply(metricas, `[[`, character(1L), "nombre")
   if (anyDuplicated(.nombres_para_operar(nombres))) {
-    stop("Los nombres de las m\u00e9tricas instanciadas deben ser \u00fanicos.", call. = FALSE)
+    .detener("Los nombres de las m\u00e9tricas instanciadas deben ser \u00fanicos.", call. = FALSE)
   }
   .rechazar_instrumentos_repetidos(metricas)
   if (!is.null(marco)) {
     if (!inherits(marco, "marco_calidad")) {
-      stop("`marco` debe provenir de marco_calidad().", call. = FALSE)
+      .detener("`marco` debe provenir de marco_calidad().", call. = FALSE)
     }
     declaradas <- .clave_par_identificador(
       marco$factores$dimension, marco$factores$factor
@@ -974,7 +974,7 @@ modelo <- function(..., marco = NULL) {
     }, character(1L))
     fuera <- !.identificadores_en(claves, declaradas)
     if (any(fuera)) {
-      stop(
+      .detener(
         "El marco no declara estos pares dimensi\u00f3n-factor: ",
         paste(unique(claves[fuera]), collapse = ", "), ".", call. = FALSE
       )
@@ -992,20 +992,20 @@ modelo <- function(..., marco = NULL) {
   activas <- intersect(names(configuracion), permitidas)
   activas <- activas[!vapply(configuracion[activas], is.null, logical(1L))]
   if (length(desconocidas) || length(activas) != 1L) {
-    stop(
+    .detener(
       "Formato exige exactamente una de `expresion_regular`, `diccionario` o `validador`.",
       call. = FALSE
     )
   }
   if (activas == "expresion_regular" &&
       !.es_texto_escalar(configuracion$expresion_regular)) {
-    stop("`expresion_regular` debe ser una cadena no vac\u00eda.", call. = FALSE)
+    .detener("`expresion_regular` debe ser una cadena no vac\u00eda.", call. = FALSE)
   }
   if (activas == "diccionario" && !is.atomic(configuracion$diccionario)) {
-    stop("`diccionario` debe ser un vector at\u00f3mico.", call. = FALSE)
+    .detener("`diccionario` debe ser un vector at\u00f3mico.", call. = FALSE)
   }
   if (activas == "validador" && !is.function(configuracion$validador)) {
-    stop("`validador` debe ser una funci\u00f3n.", call. = FALSE)
+    .detener("`validador` debe ser una funci\u00f3n.", call. = FALSE)
   }
   configuracion
 }
@@ -1013,12 +1013,12 @@ modelo <- function(..., marco = NULL) {
 .validar_config_no_nulo <- function(configuracion) {
   desconocidas <- setdiff(names(configuracion), c("valores_nulos", "aplicable"))
   if (length(desconocidas)) {
-    stop("NoNulo s\u00f3lo acepta `valores_nulos` y `aplicable`.", call. = FALSE)
+    .detener("NoNulo s\u00f3lo acepta `valores_nulos` y `aplicable`.", call. = FALSE)
   }
   if (!is.null(configuracion$aplicable) &&
       !(inherits(configuracion$aplicable, "formula") &&
         length(configuracion$aplicable) == 2L)) {
-    stop(
+    .detener(
       "`aplicable` debe ser una formula de un solo lado, como ",
       "`~ tiene_auto == \"Si\"`.", call. = FALSE
     )
@@ -1029,7 +1029,7 @@ modelo <- function(..., marco = NULL) {
     ))
   }
   if (!is.atomic(configuracion$valores_nulos)) {
-    stop("`valores_nulos` debe ser un vector at\u00f3mico.", call. = FALSE)
+    .detener("`valores_nulos` debe ser un vector at\u00f3mico.", call. = FALSE)
   }
   configuracion
 }
@@ -1037,7 +1037,7 @@ modelo <- function(..., marco = NULL) {
 .validar_config_valores <- function(configuracion) {
   configuracion <- .validar_propiedades_base(configuracion, "valores")
   if (!is.atomic(configuracion$valores)) {
-    stop("`valores` debe ser un vector at\u00f3mico.", call. = FALSE)
+    .detener("`valores` debe ser un vector at\u00f3mico.", call. = FALSE)
   }
   configuracion
 }
@@ -1045,7 +1045,7 @@ modelo <- function(..., marco = NULL) {
 .validar_config_regla <- function(configuracion) {
   configuracion <- .validar_propiedades_base(configuracion, "regla")
   if (!is.function(configuracion$regla)) {
-    stop("`regla` debe ser una funci\u00f3n.", call. = FALSE)
+    .detener("`regla` debe ser una funci\u00f3n.", call. = FALSE)
   }
   configuracion
 }
@@ -1053,7 +1053,7 @@ modelo <- function(..., marco = NULL) {
 .validar_config_inter <- function(configuracion) {
   desconocidas <- setdiff(names(configuracion), "muestra")
   if (length(desconocidas)) {
-    stop("ReglaIntegridadInterEntidad s\u00f3lo acepta `muestra`.", call. = FALSE)
+    .detener("ReglaIntegridadInterEntidad s\u00f3lo acepta `muestra`.", call. = FALSE)
   }
   if (is.null(configuracion$muestra)) {
     configuracion$muestra <- Inf
@@ -1065,7 +1065,7 @@ modelo <- function(..., marco = NULL) {
 .obtener_tabla_modelo <- function(tablas, nombre) {
   indice <- .indice_identificador(nombre, names(tablas))
   if (is.na(indice)) {
-    stop("No se encontr\u00f3 la entidad ligada: ", nombre, ".", call. = FALSE)
+    .detener("No se encontr\u00f3 la entidad ligada: ", nombre, ".", call. = FALSE)
   }
   .tabla_base(tablas[[indice]])
 }
@@ -1073,7 +1073,7 @@ modelo <- function(..., marco = NULL) {
 .obtener_columna_modelo <- function(tabla, nombre, entidad) {
   indice <- .indice_nombre(nombre, names(tabla))
   if (is.na(indice)) {
-    stop(
+    .detener(
       "No se encontr\u00f3 el atributo ligado: ", entidad, "$", nombre, ".",
       call. = FALSE
     )
@@ -1084,7 +1084,7 @@ modelo <- function(..., marco = NULL) {
 .validar_vinculo <- function(instancia, n_entidades, n_atributos) {
   if (length(instancia$entidad) != n_entidades ||
       length(instancia$atributos) != n_atributos) {
-    stop(
+    .detener(
       "La m\u00e9trica ", instancia$declaracion$nombre, " requiere ",
       n_entidades, " entidad(es) y ", n_atributos, " atributo(s).",
       call. = FALSE
@@ -1131,14 +1131,14 @@ modelo <- function(..., marco = NULL) {
   if (is.null(aplicable)) return(rep(TRUE, n))
   crudo <- eval(aplicable[[2L]], envir = tabla, enclos = environment(aplicable))
   if (!is.logical(crudo)) {
-    stop(
+    .detener(
       "`aplicable` debe dar un valor logico y dio ", class(crudo)[[1L]], ".",
       call. = FALSE
     )
   }
   if (length(crudo) == 1L) crudo <- rep(crudo, n)
   if (length(crudo) != n) {
-    stop(
+    .detener(
       "`aplicable` dio ", length(crudo), " valores y la entidad `", entidad,
       "` tiene ", n, " filas.", call. = FALSE
     )
@@ -1196,7 +1196,7 @@ modelo <- function(..., marco = NULL) {
 
 .resultado_validador <- function(resultado, n, nombre) {
   if (!is.logical(resultado) || length(resultado) != n || anyNA(resultado)) {
-    stop(
+    .detener(
       "El validador de ", nombre,
       " debe devolver un vector l\u00f3gico sin NA de longitud ", n, ".",
       call. = FALSE
@@ -1289,7 +1289,7 @@ modelo <- function(..., marco = NULL) {
 
 .metodo_regla_intra <- function(tablas, instancia) {
   if (length(instancia$entidad) != 1L || !length(instancia$atributos)) {
-    stop(
+    .detener(
       "ReglaIntegridadIntraEntidad requiere una entidad y al menos un atributo.",
       call. = FALSE
     )
@@ -1299,7 +1299,7 @@ modelo <- function(..., marco = NULL) {
   indices_atributos <- .indice_nombre(instancia$atributos, names(tabla))
   faltantes <- instancia$atributos[is.na(indices_atributos)]
   if (length(faltantes)) {
-    stop("No se encontraron atributos ligados: ", paste(faltantes, collapse = ", "), ".",
+    .detener("No se encontraron atributos ligados: ", paste(faltantes, collapse = ", "), ".",
          call. = FALSE)
   }
   datos_regla <- .seleccionar_columnas(tabla, instancia$atributos)
@@ -1354,7 +1354,7 @@ modelo <- function(..., marco = NULL) {
   tabla <- .obtener_tabla_modelo(tablas, entidad)
   x <- .obtener_columna_modelo(tabla, atributo, entidad)
   if (!is.numeric(x) || inherits(x, c("Date", "POSIXt"))) {
-    stop("ErrorEstandar requiere un atributo num\u00e9rico.", call. = FALSE)
+    .detener("ErrorEstandar requiere un atributo num\u00e9rico.", call. = FALSE)
   }
   # Un valor infinito no se descarta en silencio: `sd()` de lo que queda es la
   # dispersion de otra columna, y Escala, sobre la misma columna y en la misma
@@ -1362,10 +1362,10 @@ modelo <- function(..., marco = NULL) {
   # publicaba 0,7071 -la de 1 y 2- sobre 1, 2 e `Inf`.
   valores <- x[!is.na(x)]
   if (any(!is.finite(valores))) {
-    stop("ErrorEstandar no puede medir valores no finitos.", call. = FALSE)
+    .detener("ErrorEstandar no puede medir valores no finitos.", call. = FALSE)
   }
   if (length(valores) < 2L) {
-    stop("ErrorEstandar requiere al menos dos valores num\u00e9ricos v\u00e1lidos.",
+    .detener("ErrorEstandar requiere al menos dos valores num\u00e9ricos v\u00e1lidos.",
          call. = FALSE)
   }
   resultado <- stats::sd(valores)
@@ -1437,7 +1437,7 @@ metricas_nucleo <- function() {
       modelo$metricas, `[[`, "entidad"
     ), use.names = FALSE))
     if (length(entidades) != 1L) {
-      stop(
+      .detener(
         "Para un modelo con varias entidades, `datos` debe ser una lista con nombre.",
         call. = FALSE
       )
@@ -1449,7 +1449,7 @@ metricas_nucleo <- function() {
   if (!is.list(datos) || is.null(names(datos)) || any(!nzchar(names(datos))) ||
       anyDuplicated(.nombres_para_operar(names(datos))) ||
       !all(vapply(datos, inherits, logical(1L), "data.frame"))) {
-    stop(
+    .detener(
       "`datos` debe ser un data.frame o una lista con nombre de data frames.",
       call. = FALSE
     )
@@ -1471,7 +1471,7 @@ metricas_nucleo <- function() {
   ))
   faltantes <- .identificadores_setdiff(requeridas, names(datos))
   if (length(faltantes)) {
-    stop(
+    .detener(
       "Faltan tablas para las entidades del modelo: ",
       paste(faltantes, collapse = ", "),
       ". `datos` tiene: ",
@@ -1558,7 +1558,7 @@ metricas_nucleo <- function() {
     originales <- attr(tablas[[indice]], "lupa_indices_fila_originales",
                        exact = TRUE)
     if (length(originales)) fuera <- originales[fuera]
-    stop(
+    .detener(
       "El m\u00e9todo de ", instancia$nombre, " devolvi\u00f3 medidas de ",
       length(fuera), if (length(fuera) == 1L) " fila" else " filas",
       " fuera del universo que la m\u00e9trica declara con `aplicable` -",
@@ -1581,7 +1581,7 @@ metricas_nucleo <- function() {
     if (is.null(originales)) next
     filas <- which(as.character(salida$entidad) == entidad & !is.na(salida$fila))
     if (any(salida$fila[filas] > length(originales))) {
-      stop(
+      .detener(
         "El m\u00e9todo de ", instancia$nombre, " devolvi\u00f3 una `fila` mayor que ",
         "las ", length(originales), " filas que recibi\u00f3 de `", entidad,
         "`: `fila` es la posici\u00f3n en la tabla que recibe el m\u00e9todo.",
@@ -1681,7 +1681,7 @@ metricas_nucleo <- function() {
 .validar_salida_medicion <- function(salida, instancia, tablas = NULL) {
   requeridas <- c("resultado", "entidad", "atributo", "fila", "objeto")
   if (!inherits(salida, "data.frame") || !all(requeridas %in% names(salida))) {
-    stop(
+    .detener(
       "El m\u00e9todo de ", instancia$nombre,
       " debe devolver un data frame con: ", paste(requeridas, collapse = ", "), ".",
       call. = FALSE
@@ -1692,31 +1692,31 @@ metricas_nucleo <- function() {
   tipo <- instancia$declaracion$tipo_resultado
   if (tipo == "booleano" &&
       (!is.logical(resultado) || anyNA(resultado))) {
-    stop("Una m\u00e9trica booleana debe devolver l\u00f3gicos sin NA.", call. = FALSE)
+    .detener("Una m\u00e9trica booleana debe devolver l\u00f3gicos sin NA.", call. = FALSE)
   }
   if (tipo == "real" &&
       (!is.numeric(resultado) || anyNA(resultado) ||
        any(!is.finite(resultado)) || any(resultado < 0 | resultado > 1))) {
-    stop("Una m\u00e9trica real debe devolver valores finitos en [0, 1].",
+    .detener("Una m\u00e9trica real debe devolver valores finitos en [0, 1].",
          call. = FALSE)
   }
   if (tipo == "numero_real" &&
       (!is.numeric(resultado) || anyNA(resultado) ||
        any(!is.finite(resultado)))) {
-    stop("Una m\u00e9trica numero_real debe devolver n\u00fameros finitos.",
+    .detener("Una m\u00e9trica numero_real debe devolver n\u00fameros finitos.",
          call. = FALSE)
   }
   if (tipo == "entero" &&
       (!is.numeric(resultado) || anyNA(resultado) ||
        any(!is.finite(resultado)) || any(resultado < 0) ||
        any(resultado != floor(resultado)))) {
-    stop("Una m\u00e9trica entera debe devolver enteros no negativos.",
+    .detener("Una m\u00e9trica entera debe devolver enteros no negativos.",
          call. = FALSE)
   }
   if (tipo == "duracion" &&
       (!is.numeric(resultado) || anyNA(resultado) ||
        any(!is.finite(resultado)) || any(resultado < 0))) {
-    stop("Una m\u00e9trica de duraci\u00f3n debe devolver valores finitos no negativos.",
+    .detener("Una m\u00e9trica de duraci\u00f3n debe devolver valores finitos no negativos.",
          call. = FALSE)
   }
   # La parte SEMANTICA del contrato de `metodo` (`?modelo_calidad`), que hasta
@@ -1737,7 +1737,7 @@ metricas_nucleo <- function() {
     fila_valida <- (is.numeric(fila) && !is.factor(fila)) ||
       (is.logical(fila) && all(is.na(fila)))
     if (!fila_valida) {
-      stop(
+      .detener(
         "El m\u00e9todo de ", instancia$nombre, " devolvi\u00f3 `fila` de clase `",
         class(fila)[[1L]], "`: tiene que ser la posici\u00f3n entera de la fila.",
         call. = FALSE
@@ -1747,7 +1747,7 @@ metricas_nucleo <- function() {
     if (length(presentes) &&
         (any(!is.finite(presentes)) || any(presentes < 1) ||
          any(presentes != floor(presentes)))) {
-      stop(
+      .detener(
         "El m\u00e9todo de ", instancia$nombre, " devolvi\u00f3 una `fila` que no ",
         "es una posici\u00f3n entera desde 1.", call. = FALSE
       )
@@ -1767,7 +1767,7 @@ metricas_nucleo <- function() {
         tope <- if (length(originales)) max(originales) else nrow(tablas[[indice]])
         filas_entidad <- fila[as.character(salida$entidad) == entidad]
         if (any(filas_entidad[!is.na(filas_entidad)] > tope)) {
-          stop(
+          .detener(
             "El m\u00e9todo de ", instancia$nombre, " devolvi\u00f3 una `fila` mayor ",
             "que las ", tope, " filas de `", entidad, "`: la posici\u00f3n no existe.",
             call. = FALSE
@@ -1778,7 +1778,7 @@ metricas_nucleo <- function() {
     entidades <- as.character(salida$entidad)
     ajenas <- is.na(entidades) | !.identificadores_en(entidades, instancia$entidad)
     if (any(ajenas)) {
-      stop(
+      .detener(
         "El m\u00e9todo de ", instancia$nombre, " devolvi\u00f3 medidas de una ",
         "entidad que no est\u00e1 ligada a la instancia: `",
         entidades[ajenas][[1L]], "`.", call. = FALSE
@@ -1787,7 +1787,7 @@ metricas_nucleo <- function() {
     granularidad <- as.character(instancia$declaracion$granularidad)[1L]
     if (granularidad %in% c("instanciaAtributo", "instanciaEntidad") &&
         anyNA(salida$fila)) {
-      stop(
+      .detener(
         "El m\u00e9todo de ", instancia$nombre, " devolvi\u00f3 medidas por ",
         if (identical(granularidad, "instanciaAtributo")) "celda" else "fila",
         " sin `fila`: cada una tiene que decir qu\u00e9 fila mide.",
@@ -1808,7 +1808,7 @@ metricas_nucleo <- function() {
       ajenos <- atributos[!vapply(atributos, .atributo_de_columnas, logical(1L),
                                   columnas = columnas)]
       if (length(ajenos)) {
-        stop(
+        .detener(
           "El m\u00e9todo de ", instancia$nombre, " devolvi\u00f3 medidas de un ",
           "atributo que no es una columna de las tablas que recibi\u00f3: `",
           ajenos[[1L]], "`.", call. = FALSE
@@ -1828,7 +1828,7 @@ metricas_nucleo <- function() {
       componente(salida$fila), componente(salida$objeto), sep = "\034"
     )
     if (anyDuplicated(clave)) {
-      stop(
+      .detener(
         "El m\u00e9todo de ", instancia$nombre, " devolvi\u00f3 m\u00e1s de una ",
         "observaci\u00f3n para el mismo objeto medido (`",
         as.character(salida$objeto)[duplicated(clave)][[1L]], "`). El contrato ",
@@ -1854,7 +1854,7 @@ metricas_nucleo <- function() {
   # "las demas siguieron" solo si HAY otras: con una metrica sola la frase
   # afirmaria algo que no paso.
   otras <- n_metricas > sum(fallidas)
-  warning(
+  .avisar(
     sum(fallidas), " m\u00e9trica(s) no se midieron porque su m\u00e9todo ",
     "fall\u00f3",
     if (otras) "; la corrida sigui\u00f3 con las dem\u00e1s del modelo" else "",
@@ -2160,7 +2160,7 @@ metricas_nucleo <- function() {
   if (is.null(aplicabilidad) || !length(aplicabilidad)) return(NULL)
   if (!is.list(aplicabilidad) || is.null(names(aplicabilidad)) ||
       any(!nzchar(names(aplicabilidad)))) {
-    stop(
+    .detener(
       "`aplicabilidad` debe ser una lista con nombre por columna.",
       call. = FALSE
     )
@@ -2340,7 +2340,7 @@ medir <- function(modelo, datos, id_medicion = NULL, fecha = Sys.time(),
                   columnas_personales = character(),
                   validadores_personales = NULL) {
   if (!inherits(modelo, "modelo_calidad")) {
-    stop("`modelo` debe provenir de modelo().", call. = FALSE)
+    .detener("`modelo` debe provenir de modelo().", call. = FALSE)
   }
   fecha_declarada <- !missing(fecha)
   # Por `.fecha_utc()`, como el historico: una fecha de TEXTO se leia en el huso
@@ -2366,7 +2366,7 @@ medir <- function(modelo, datos, id_medicion = NULL, fecha = Sys.time(),
     id_medicion <- .nuevo_id_medicion(fecha)
   }
   if (!.es_texto_escalar(id_medicion)) {
-    stop("`id_medicion` debe ser una cadena no vac\u00eda.", call. = FALSE)
+    .detener("`id_medicion` debe ser una cadena no vac\u00eda.", call. = FALSE)
   }
   tablas <- .normalizar_tablas_modelo(datos, modelo)
   # El universo aplicable gobernaba el perfilado y se cortaba aca: quien medía

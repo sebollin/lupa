@@ -235,7 +235,7 @@
 
 .validar_limite_reporte <- function(x, nombre) {
   if (!is.numeric(x) || length(x) != 1L || is.na(x) || x < 1) {
-    stop("`", nombre, "` debe ser un n\u00famero positivo o Inf.", call. = FALSE)
+    .detener("`", nombre, "` debe ser un n\u00famero positivo o Inf.", call. = FALSE)
   }
   if (is.infinite(x)) Inf else floor(x)
 }
@@ -1344,7 +1344,7 @@
       # Sin esto, el objeto de `perfilar_dbi()` caia en la rama de lista, se
       # recorria por dentro y el error salia sobre alguno de sus componentes:
       # el usuario leia una enumeracion de clases que no le decia que hacer.
-      stop(
+      .detener(
         "Un objeto de `perfilar_dbi()` no se reporta entero: pase su perfil ",
         "de muestra, `x$perfil_muestra`. El resumen SQL de la tabla completa ",
         "esta en `x$resumen_tabla` y no es un perfil.",
@@ -1353,7 +1353,7 @@
     } else if (is.list(x) && !inherits(x, "data.frame")) {
       for (elemento in x) recorrer(elemento)
     } else {
-      stop(
+      .detener(
         "Cada objeto debe ser un analisis, perfil, medicion, evaluacion_calidad, ",
         "historico_calidad, deriva_perfil, deriva_calidad, plan_limpieza o ",
         "duplicados_aproximados.",
@@ -1362,7 +1362,7 @@
     }
   }
   for (objeto in objetos) recorrer(objeto)
-  if (!length(salida)) stop("Se necesita al menos un objeto para el reporte.", call. = FALSE)
+  if (!length(salida)) .detener("Se necesita al menos un objeto para el reporte.", call. = FALSE)
   salida
 }
 
@@ -1492,7 +1492,7 @@
 
 .validar_archivo_reporte <- function(archivo) {
   if (!.es_texto_escalar(archivo)) {
-    stop("`archivo` debe ser una ruta no vac\u00eda.", call. = FALSE)
+    .detener("`archivo` debe ser una ruta no vac\u00eda.", call. = FALSE)
   }
   invisible(archivo)
 }
@@ -1501,7 +1501,7 @@
   .validar_archivo_reporte(archivo)
   if (!is.logical(sobrescribir) || length(sobrescribir) != 1L ||
       is.na(sobrescribir)) {
-    stop("`sobrescribir` debe ser TRUE o FALSE.", call. = FALSE)
+    .detener("`sobrescribir` debe ser TRUE o FALSE.", call. = FALSE)
   }
   directorio <- .validar_destino_archivo(archivo, sobrescribir)
   temporal <- tempfile(".lupa-reporte-", tmpdir = directorio, fileext = ".html")
@@ -1510,15 +1510,15 @@
   bytes <- tryCatch({
     if (!is.character(contenido) || length(contenido) != 1L ||
         is.na(contenido)) {
-      stop("el contenido no es una cadena escalar")
+      .detener("el contenido no es una cadena escalar")
     }
     utf8 <- enc2utf8(.declarar_utf8_valido(contenido))
     if (!isTRUE(validUTF8(utf8))) {
-      stop("el contenido no es UTF-8 valido")
+      .detener("el contenido no es UTF-8 valido")
     }
     c(charToRaw(utf8), as.raw(0x0a))
   }, error = function(e) {
-    stop("No se pudo escribir el reporte completo: ", conditionMessage(e),
+    .detener("No se pudo escribir el reporte completo: ", conditionMessage(e),
          call. = FALSE)
   })
 
@@ -1526,14 +1526,14 @@
   verificar <- function(ruta, etapa) {
     tamano <- file.info(ruta)$size
     if (length(tamano) != 1L || is.na(tamano) || tamano != length(bytes)) {
-      stop(
+      .detener(
         "tamano inesperado en ", etapa, " (esperados ", length(bytes),
         ", escritos ", if (length(tamano)) tamano else "NA", ")"
       )
     }
     leidos <- readBin(ruta, what = "raw", n = tamano)
     if (!identical(leidos, bytes)) {
-      stop("los bytes escritos no coinciden con el contenido completo")
+      .detener("los bytes escritos no coinciden con el contenido completo")
     }
     invisible(NULL)
   }
@@ -1545,13 +1545,13 @@
       conexion <- NULL
       verificar(temporal, "el temporal")
     }, warning = function(e) {
-      stop(conditionMessage(e), call. = FALSE)
+      .detener(conditionMessage(e), call. = FALSE)
     }),
     error = function(e) {
       if (!is.null(conexion) && isOpen(conexion)) {
         try(close(conexion), silent = TRUE)
       }
-      stop("No se pudo escribir el reporte completo: ", conditionMessage(e),
+      .detener("No se pudo escribir el reporte completo: ", conditionMessage(e),
            call. = FALSE)
     }
   )
@@ -1559,14 +1559,14 @@
   tryCatch(
     withCallingHandlers({
       if (!isTRUE(.copiar_archivo_reporte(temporal, archivo, sobrescribir))) {
-        stop("la copia al destino devolvio FALSE", call. = FALSE)
+        .detener("la copia al destino devolvio FALSE", call. = FALSE)
       }
       verificar(archivo, "el destino")
     }, warning = function(e) {
-      stop(conditionMessage(e), call. = FALSE)
+      .detener(conditionMessage(e), call. = FALSE)
     }),
     error = function(e) {
-      stop("No se pudo escribir el reporte completo: ", conditionMessage(e),
+      .detener("No se pudo escribir el reporte completo: ", conditionMessage(e),
            call. = FALSE)
     }
   )
@@ -1671,7 +1671,7 @@ reportar <- function(x, ...,
   # lo validara, y `NULL`, `NA` o un numero abortaban con un error de R.
   .validar_archivo_reporte(archivo)
   if (!.es_texto_escalar(titulo)) {
-    stop("`titulo` debe ser una cadena no vac\u00eda.", call. = FALSE)
+    .detener("`titulo` debe ser una cadena no vac\u00eda.", call. = FALSE)
   }
   max_filas <- .validar_limite_reporte(max_filas, "max_filas")
   max_patrones <- .validar_limite_reporte(max_patrones, "max_patrones")

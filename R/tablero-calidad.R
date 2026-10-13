@@ -31,7 +31,7 @@
 .marco_para_tablero <- function(medidas, marco = NULL) {
   if (!is.null(marco)) {
     if (!inherits(marco, "marco_calidad")) {
-      stop("`marco` debe provenir de marco_calidad().", call. = FALSE)
+      .detener("`marco` debe provenir de marco_calidad().", call. = FALSE)
     }
     return(marco)
   }
@@ -47,7 +47,7 @@
       nombres <- if ("metrica_instanciada" %in% names(medidas)) {
         medidas$metrica_instanciada[sin_casilla]
       } else medidas$metrica[sin_casilla]
-      stop(
+      .detener(
         "La m\u00e9trica '", paste(.identificadores_unicos(as.character(nombres)),
                                   collapse = "', '"),
         "' no declara dimensi\u00f3n ni factor, y el tablero no tiene d\u00f3nde ",
@@ -76,7 +76,7 @@
   requeridas <- c("marco", "dimension", "factor", "estado")
   if (!inherits(cobertura, "data.frame") ||
       !all(requeridas %in% names(cobertura))) {
-    stop(
+    .detener(
       "`cobertura` debe provenir de cobertura_analisis().",
       call. = FALSE
     )
@@ -84,7 +84,7 @@
   estados <- as.character(cobertura$estado)
   validos <- c("medida", "no_declarada", "no_aplica", "fuera_de_alcance")
   if (anyNA(estados) || any(!estados %in% validos)) {
-    stop("`cobertura` contiene estados no reconocidos.", call. = FALSE)
+    .detener("`cobertura` contiene estados no reconocidos.", call. = FALSE)
   }
   cobertura
 }
@@ -192,7 +192,7 @@
 .validar_medidas_tablero <- function(medidas) {
   if (!inherits(medidas, "data.frame") ||
       !all(.columnas_medicion_tablero %in% names(medidas))) {
-    stop(
+    .detener(
       "`medidas` debe ser una medici\u00f3n producida por medir() o agregar().",
       call. = FALSE
     )
@@ -205,7 +205,7 @@
   # entraban dos corridas al tablero sin que nada lo dijera.
   if (length(.identificadores_unicos(medidas$id_medicion)) != 1L ||
       length(unique(medidas$fecha)) > 1L) {
-    stop(
+    .detener(
       "El tablero admite una sola corrida de medici\u00f3n: las medidas traen ",
       "m\u00e1s de un `id_medicion` o m\u00e1s de una `fecha`.", call. = FALSE
     )
@@ -218,7 +218,7 @@
     con_id <- !is.na(ids) & nzchar(ids)
     repetidas <- con_id & duplicated(.nombres_para_operar(ids)) & duplicated(con_id)
     if (any(repetidas)) {
-      stop(
+      .detener(
         "Las medidas repiten `id_medida` -la primera, `", ids[which(repetidas)[[1L]]],
         "`-: cada medida se cuenta una vez. Una medici\u00f3n unida consigo ",
         "misma, o dos corridas con el mismo `id_medicion`, la repiten.",
@@ -236,7 +236,7 @@
   if (!is.numeric(medidas$resultado) ||
       anyNA(medidas$resultado) && any(!suprimidas & is.na(medidas$resultado)) ||
       any(!suprimidas & !is.finite(medidas$resultado))) {
-    stop("La medici\u00f3n contiene resultados no num\u00e9ricos o no finitos.",
+    .detener("La medici\u00f3n contiene resultados no num\u00e9ricos o no finitos.",
          call. = FALSE)
   }
   medidas$orientacion <- .orientacion_medidas(medidas)
@@ -252,7 +252,7 @@
     }, logical(1L)))
   }, logical(1L))]
   if (length(invalidas)) {
-    stop(
+    .detener(
       "Cada m\u00e9trica instanciada debe conservar un solo contrato: ",
       paste(invalidas, collapse = ", "), ".", call. = FALSE
     )
@@ -274,19 +274,19 @@
   if (inherits(agregaciones, "data.frame")) {
     requeridas <- c("metrica_instanciada", "agregacion")
     if (!all(requeridas %in% names(agregaciones))) {
-      stop(
+      .detener(
         "`agregaciones` debe contener `metrica_instanciada` y `agregacion`.",
         call. = FALSE
       )
     }
     if (anyDuplicated(.nombres_para_operar(agregaciones$metrica_instanciada))) {
-      stop("Cada m\u00e9trica puede declarar una sola agregaci\u00f3n.", call. = FALSE)
+      .detener("Cada m\u00e9trica puede declarar una sola agregaci\u00f3n.", call. = FALSE)
     }
     desconocidas <- .identificadores_setdiff(
       agregaciones$metrica_instanciada, metricas
     )
     if (length(desconocidas)) {
-      stop("Sobran agregaciones para: ", paste(desconocidas, collapse = ", "),
+      .detener("Sobran agregaciones para: ", paste(desconocidas, collapse = ", "),
            ".", call. = FALSE)
     }
     indices <- .indice_identificador(agregaciones$metrica_instanciada, metricas)
@@ -296,7 +296,7 @@
     }
   } else if (!is.null(agregaciones)) {
     if (!is.character(agregaciones) || !length(agregaciones)) {
-      stop("`agregaciones` debe ser texto con nombres o un data frame.",
+      .detener("`agregaciones` debe ser texto con nombres o un data frame.",
            call. = FALSE)
     }
     if (length(agregaciones) == 1L && is.null(names(agregaciones))) {
@@ -304,11 +304,11 @@
     } else {
       if (is.null(names(agregaciones)) || any(!nzchar(names(agregaciones))) ||
           anyDuplicated(.nombres_para_operar(names(agregaciones)))) {
-        stop("El vector `agregaciones` debe tener nombres \u00fanicos.", call. = FALSE)
+        .detener("El vector `agregaciones` debe tener nombres \u00fanicos.", call. = FALSE)
       }
       desconocidas <- .identificadores_setdiff(names(agregaciones), metricas)
       if (length(desconocidas)) {
-        stop("Sobran agregaciones para: ", paste(desconocidas, collapse = ", "),
+        .detener("Sobran agregaciones para: ", paste(desconocidas, collapse = ", "),
              ".", call. = FALSE)
       }
       elegidas[.indice_identificador(names(agregaciones), metricas)] <- agregaciones
@@ -318,28 +318,28 @@
     if (!is.numeric(umbrales) || is.null(names(umbrales)) ||
         any(!nzchar(names(umbrales))) ||
         anyDuplicated(.nombres_para_operar(names(umbrales)))) {
-      stop("`umbrales` debe ser un vector num\u00e9rico con nombres \u00fanicos.",
+      .detener("`umbrales` debe ser un vector num\u00e9rico con nombres \u00fanicos.",
            call. = FALSE)
     }
     desconocidos <- .identificadores_setdiff(names(umbrales), metricas)
     if (length(desconocidos)) {
-      stop("Sobran umbrales para: ", paste(desconocidos, collapse = ", "), ".",
+      .detener("Sobran umbrales para: ", paste(desconocidos, collapse = ", "), ".",
            call. = FALSE)
     }
     umbral[.indice_identificador(names(umbrales), metricas)] <- umbrales
   }
   validas <- c("ratio", "promedio", "ratio_umbral")
   if (anyNA(elegidas) || any(!elegidas %in% validas)) {
-    stop(
+    .detener(
       "Las agregaciones admitidas son `ratio`, `promedio` y `ratio_umbral`.",
       call. = FALSE
     )
   }
   if (any(elegidas == "ratio" & tipos != "booleano")) {
-    stop("`ratio` s\u00f3lo admite m\u00e9tricas booleanas.", call. = FALSE)
+    .detener("`ratio` s\u00f3lo admite m\u00e9tricas booleanas.", call. = FALSE)
   }
   if (any(elegidas == "ratio_umbral" & tipos != "real")) {
-    stop("`ratio_umbral` s\u00f3lo admite m\u00e9tricas reales acotadas.",
+    .detener("`ratio_umbral` s\u00f3lo admite m\u00e9tricas reales acotadas.",
          call. = FALSE)
   }
   requieren <- names(elegidas)[elegidas == "ratio_umbral"]
@@ -348,7 +348,7 @@
       umbral[requieren] < 0 | umbral[requieren] > 1
   ]
   if (length(invalidos)) {
-    stop(
+    .detener(
       "`ratio_umbral` requiere un umbral en [0, 1] para: ",
       paste(invalidos, collapse = ", "), ".", call. = FALSE
     )
@@ -358,7 +358,7 @@
   # Medido en la ronda 23.
   sobrantes <- names(umbral)[!is.na(umbral) & !names(umbral) %in% requieren]
   if (length(sobrantes)) {
-    stop(
+    .detener(
       "Sobra el umbral de: ", paste(sobrantes, collapse = ", "),
       ". S\u00f3lo lo usa `ratio_umbral`, y su agregaci\u00f3n es otra.",
       call. = FALSE
@@ -615,7 +615,7 @@
   ya_agregadas <- all(!is.na(medidas$agregacion)) &&
     all(!medidas$granularidad %in% c("instanciaAtributo", "instanciaEntidad"))
   if (ya_agregadas && (!is.null(agregaciones) || !is.null(umbrales))) {
-    stop(
+    .detener(
       "Una medici\u00f3n ya agregada conserva su agregaci\u00f3n; para cambiarla use las medidas de origen.",
       call. = FALSE
     )
@@ -708,7 +708,7 @@
   if (anyDuplicated(clave_celda)) {
     repetidas <- unique(clave_celda[duplicated(clave_celda)])
     cuales <- which(clave_celda %in% repetidas)
-    stop(
+    .detener(
       "Dos celdas del tablero tendrian la misma identidad, y la identidad de ",
       "una celda son `metrica_instanciada`, `entidad` y `objeto`: ",
       paste0(
@@ -930,7 +930,7 @@ tablero_calidad <- function(medidas, agregaciones = NULL, umbrales = NULL,
 .nivel_cobertura_frontera <- function(atributo) {
   nivel <- .NIVELES_COBERTURA_FRONTERA[[atributo]]
   if (is.null(nivel)) {
-    stop(
+    .detener(
       "La cobertura de frontera `", atributo, "` no tiene lector: falta su ",
       "entrada en `.NIVELES_COBERTURA_FRONTERA`.", call. = FALSE
     )
@@ -1142,11 +1142,11 @@ print.tablero_calidad <- function(x, ...) {
   if (!is.numeric(pesos) || !length(pesos) || is.null(names(pesos)) ||
       anyNA(names(pesos)) || any(!nzchar(names(pesos))) ||
       anyDuplicated(.nombres_para_operar(names(pesos)))) {
-    stop("`", etiqueta, "` debe ser num\u00e9rico y tener nombres \u00fanicos.",
+    .detener("`", etiqueta, "` debe ser num\u00e9rico y tener nombres \u00fanicos.",
          call. = FALSE)
   }
   if (anyNA(pesos) || any(!is.finite(pesos)) || any(pesos < 0 | pesos > 1)) {
-    stop("`", etiqueta, "` debe contener valores en [0, 1].", call. = FALSE)
+    .detener("`", etiqueta, "` debe contener valores en [0, 1].", call. = FALSE)
   }
   faltan <- .identificadores_setdiff(esperados, names(pesos))
   sobran <- .identificadores_setdiff(names(pesos), esperados)
@@ -1157,22 +1157,22 @@ print.tablero_calidad <- function(x, ...) {
     plegar <- function(v) tryCatch(.plegar_para_comparar(v), error = function(e) v)
     parecidos <- faltan[plegar(faltan) %in% plegar(sobran)]
     if (length(parecidos)) {
-      stop(
+      .detener(
         "Faltan ", etiqueta, " para: ", paste(parecidos, collapse = ", "), ".",
         .pista_forma_distinta(faltan, sobran), call. = FALSE
       )
     }
   }
   if (length(faltan)) {
-    stop("Faltan ", etiqueta, " para: ", paste(faltan, collapse = ", "), ".",
+    .detener("Faltan ", etiqueta, " para: ", paste(faltan, collapse = ", "), ".",
          call. = FALSE)
   }
   if (length(sobran)) {
-    stop("Sobran ", etiqueta, " para: ", paste(sobran, collapse = ", "), ".",
+    .detener("Sobran ", etiqueta, " para: ", paste(sobran, collapse = ", "), ".",
          call. = FALSE)
   }
   if (abs(sum(pesos) - 1) > sqrt(.Machine$double.eps)) {
-    stop("Los ", etiqueta, " deben sumar uno.", call. = FALSE)
+    .detener("Los ", etiqueta, " deben sumar uno.", call. = FALSE)
   }
   pesos[.indice_identificador(esperados, names(pesos))]
 }
@@ -1187,7 +1187,7 @@ print.tablero_calidad <- function(x, ...) {
   resultado <- stats::setNames(rep(1, nrow(componentes)), componentes$componente)
   if (!length(multiples)) {
     if (!is.null(pesos_internos)) {
-      stop(
+      .detener(
         "Sobran pesos_internos: ninguna dimensi\u00f3n requiere combinaci\u00f3n interna.",
         call. = FALSE
       )
@@ -1198,7 +1198,7 @@ print.tablero_calidad <- function(x, ...) {
     .identificadores_en(componentes$dimension, multiples)
   ]
   if (is.null(pesos_internos)) {
-    stop(
+    .detener(
       "Las dimensiones con varios componentes requieren `pesos_internos`: ",
       paste(multiples, collapse = ", "), ".", call. = FALSE
     )
@@ -1208,17 +1208,17 @@ print.tablero_calidad <- function(x, ...) {
       any(pesos_internos < 0 | pesos_internos > 1) ||
       any(!nzchar(names(pesos_internos))) ||
       anyDuplicated(.nombres_para_operar(names(pesos_internos)))) {
-    stop("`pesos_internos` debe tener nombres \u00fanicos y valores en [0, 1].",
+    .detener("`pesos_internos` debe tener nombres \u00fanicos y valores en [0, 1].",
          call. = FALSE)
   }
   faltan <- .identificadores_setdiff(requeridos, names(pesos_internos))
   sobran <- .identificadores_setdiff(names(pesos_internos), requeridos)
   if (length(faltan)) {
-    stop("Faltan pesos_internos para: ", paste(faltan, collapse = ", "), ".",
+    .detener("Faltan pesos_internos para: ", paste(faltan, collapse = ", "), ".",
          call. = FALSE)
   }
   if (length(sobran)) {
-    stop("Sobran pesos_internos para: ", paste(sobran, collapse = ", "), ".",
+    .detener("Sobran pesos_internos para: ", paste(sobran, collapse = ", "), ".",
          call. = FALSE)
   }
   resultado[.indice_identificador(requeridos, names(resultado))] <-
@@ -1231,7 +1231,7 @@ print.tablero_calidad <- function(x, ...) {
       componentes_dimension, names(resultado)
     )
     if (abs(sum(resultado[indices_componentes]) - 1) > sqrt(.Machine$double.eps)) {
-      stop("Los pesos_internos de ", dimension, " deben sumar uno.",
+      .detener("Los pesos_internos de ", dimension, " deben sumar uno.",
            call. = FALSE)
     }
   }
@@ -1396,7 +1396,7 @@ indice_calidad <- function(medidas, pesos, pesos_internos = NULL, ...) {
   if (!is.null(names(pesos))) {
     pesos_excluidos <- names(pesos)[.identificadores_en(names(pesos), excluidas_dimension)]
     if (length(pesos_excluidos)) {
-      stop(
+      .detener(
         "Sobran pesos para: ", paste(pesos_excluidos, collapse = ", "),
         ". Sus m\u00e9tricas tienen orientaci\u00f3n no_aplica y el \u00edndice las ",
         "excluye: no hay valor que pesar.", call. = FALSE

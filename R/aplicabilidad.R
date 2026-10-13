@@ -42,25 +42,25 @@
 
 .validar_aplicabilidad <- function(nombres, columnas_opcionales, aplicabilidad) {
   if (!is.character(columnas_opcionales)) {
-    stop("`columnas_opcionales` debe ser un vector de nombres de columnas.",
+    .detener("`columnas_opcionales` debe ser un vector de nombres de columnas.",
          call. = FALSE)
   }
   indices_opcionales <- .indice_nombre(columnas_opcionales, nombres)
   desconocidas <- columnas_opcionales[is.na(indices_opcionales)]
   if (length(desconocidas)) {
-    stop("`columnas_opcionales` nombra columnas inexistentes: ",
+    .detener("`columnas_opcionales` nombra columnas inexistentes: ",
          paste(desconocidas, collapse = ", "), ".", call. = FALSE)
   }
   if (is.null(aplicabilidad)) return(invisible(NULL))
   if (!is.list(aplicabilidad) || is.null(names(aplicabilidad)) ||
       any(!nzchar(names(aplicabilidad)))) {
-    stop("`aplicabilidad` debe ser una lista con nombre por columna.",
+    .detener("`aplicabilidad` debe ser una lista con nombre por columna.",
          call. = FALSE)
   }
   indices_aplicabilidad <- .indice_nombre(names(aplicabilidad), nombres)
   desconocidas <- names(aplicabilidad)[is.na(indices_aplicabilidad)]
   if (length(desconocidas)) {
-    stop("`aplicabilidad` nombra columnas inexistentes: ",
+    .detener("`aplicabilidad` nombra columnas inexistentes: ",
          paste(desconocidas, collapse = ", "), ".", call. = FALSE)
   }
   no_formulas <- names(aplicabilidad)[
@@ -68,7 +68,7 @@
             logical(1L))
   ]
   if (length(no_formulas)) {
-    stop(
+    .detener(
       "Cada elemento de `aplicabilidad` debe ser una formula de un solo lado, ",
       "como `~ tiene_auto == \"Si\"`. No lo son: ",
       paste(no_formulas, collapse = ", "), ".", call. = FALSE
@@ -79,7 +79,7 @@
     indices_aplicabilidad[!is.na(indices_aplicabilidad)]
   )]
   if (length(ambas)) {
-    stop(
+    .detener(
       "Estas columnas estan declaradas en `columnas_opcionales` y en ",
       "`aplicabilidad` a la vez: ", paste(ambas, collapse = ", "),
       ". Corresponde una sola de las dos.", call. = FALSE
@@ -117,7 +117,7 @@
 .evaluar_predicado_aplicabilidad <- function(datos, columna, f) {
   n <- nrow(datos)
   if (!.aplicabilidad_es_predicado_fila(f[[2L]])) {
-    stop(
+    .detener(
       "aplicabilidad_no_fila:", .formula_a_texto(f),
       ". La regla debe evaluar una condicion por fila; no puede calcular un ",
       "estadistico global.", call. = FALSE
@@ -136,20 +136,20 @@
     error = function(e) e
   )
   if (inherits(valor, "condition")) {
-    stop(
+    .detener(
       "No se pudo evaluar la regla de aplicabilidad de `", columna, "`: ",
       conditionMessage(valor), call. = FALSE
     )
   }
   if (!is.logical(valor)) {
-    stop(
+    .detener(
       "La regla de aplicabilidad de `", columna,
       "` debe dar un valor logico y dio ", class(valor)[[1L]], ".", call. = FALSE
     )
   }
   if (length(valor) == 1L) valor <- rep(valor, n)
   if (length(valor) != n) {
-    stop(
+    .detener(
       "La regla de aplicabilidad de `", columna, "` dio ", length(valor),
       " valores y la tabla tiene ", n, " filas.", call. = FALSE
     )

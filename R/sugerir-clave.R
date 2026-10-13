@@ -117,7 +117,7 @@ sugerir_clave <- function(datos, maximo = 5L, umbral_casi = 0.95) {
   maximo <- .validar_entero_positivo(maximo, "maximo")
   if (!is.numeric(umbral_casi) || length(umbral_casi) != 1L ||
         is.na(umbral_casi) || umbral_casi <= 0 || umbral_casi > 1) {
-    stop("`umbral_casi` debe estar en (0, 1].", call. = FALSE)
+    .detener("`umbral_casi` debe estar en (0, 1].", call. = FALSE)
   }
   vacio <- data.frame(
     columna = character(), identifica = logical(), sin_faltantes = logical(),

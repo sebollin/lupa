@@ -388,7 +388,7 @@
       convertir_tipo = .convertir_tipo(x, parametros),
       convertir_numero_regional = .convertir_numero_regional(x, parametros),
       convertir_fecha_confirmada = .convertir_fecha(x, parametros),
-      stop("Estrategia de conversi\u00f3n no reconocida.", call. = FALSE)
+      .detener("Estrategia de conversi\u00f3n no reconocida.", call. = FALSE)
     )
     if (is.list(valor) && !is.null(valor$valor)) valor$valor else valor
   }, error = function(e) e)
@@ -1221,10 +1221,10 @@
 planificar_limpieza <- function(perfil, datos = NULL,
                                 soporte_minimo_dependencia = 2L) {
   if (!inherits(perfil, "perfil")) {
-    stop("`perfil` debe ser un objeto de clase perfil.", call. = FALSE)
+    .detener("`perfil` debe ser un objeto de clase perfil.", call. = FALSE)
   }
   if (!is.null(datos) && !inherits(datos, "data.frame")) {
-    stop("`datos` debe ser NULL o heredar de data.frame.", call. = FALSE)
+    .detener("`datos` debe ser NULL o heredar de data.frame.", call. = FALSE)
   }
   if (!is.null(datos)) datos <- .tabla_base(datos)
   if (length(soporte_minimo_dependencia) != 1L ||
@@ -1232,7 +1232,7 @@ planificar_limpieza <- function(perfil, datos = NULL,
       !is.finite(soporte_minimo_dependencia) ||
       soporte_minimo_dependencia < 1L ||
       soporte_minimo_dependencia != floor(soporte_minimo_dependencia)) {
-    stop("`soporte_minimo_dependencia` debe ser un entero positivo.",
+    .detener("`soporte_minimo_dependencia` debe ser un entero positivo.",
          call. = FALSE)
   }
   acciones <- list()
@@ -2000,7 +2000,7 @@ planificar_limpieza <- function(perfil, datos = NULL,
       .nombres_para_operar(names(datos)),
       .nombres_para_operar(perfil$columnas$columna)
     )) {
-      stop("Los nombres de `datos` no coinciden con los usados por el perfil.",
+      .detener("Los nombres de `datos` no coinciden con los usados por el perfil.",
            call. = FALSE)
     }
     exactas <- dependencias[dependencias$exacta, , drop = FALSE]
@@ -2186,10 +2186,10 @@ planificar_limpieza <- function(perfil, datos = NULL,
 .validar_plan_limpieza <- function(plan) {
   requeridas <- .columnas_plan()
   if (!inherits(plan, "data.frame") || !all(requeridas %in% names(plan))) {
-    stop("`plan` no cumple el contrato de un plan de limpieza.", call. = FALSE)
+    .detener("`plan` no cumple el contrato de un plan de limpieza.", call. = FALSE)
   }
   if (!is.logical(plan$aplicar) || anyNA(plan$aplicar)) {
-    stop("`plan$aplicar` debe ser un vector l\u00f3gico sin NA.", call. = FALSE)
+    .detener("`plan$aplicar` debe ser un vector l\u00f3gico sin NA.", call. = FALSE)
   }
   if (!is.character(plan$id_accion) || anyNA(plan$id_accion) ||
       length(plan$id_accion) != nrow(plan)) {
@@ -2197,52 +2197,52 @@ planificar_limpieza <- function(perfil, datos = NULL,
     # columna, el usuario recibia "los argumentos implican un numero diferente
     # de filas: 0, 1" -un error interno de R al armar el registro- en vez del
     # motivo del plan que el paquete promete.
-    stop(
+    .detener(
       "`plan$id_accion` debe ser un vector de texto sin NA, con un ",
       "identificador por fila.",
       call. = FALSE
     )
   }
   if (anyDuplicated(plan$id_accion)) {
-    stop("`plan$id_accion` debe contener identificadores \u00fanicos.", call. = FALSE)
+    .detener("`plan$id_accion` debe contener identificadores \u00fanicos.", call. = FALSE)
   }
   if (!is.list(plan$parametros)) {
-    stop("`plan$parametros` debe ser una columna de listas.", call. = FALSE)
+    .detener("`plan$parametros` debe ser una columna de listas.", call. = FALSE)
   }
   if (!is.character(plan$unidad_conteo)) {
-    stop("`plan$unidad_conteo` debe ser texto.", call. = FALSE)
+    .detener("`plan$unidad_conteo` debe ser texto.", call. = FALSE)
   }
   if (!is.logical(plan$recomendada) || anyNA(plan$recomendada) ||
       !is.logical(plan$reversible)) {
-    stop(
+    .detener(
       "`recomendada` debe ser l\u00f3gica sin NA y `reversible` debe ser l\u00f3gica.",
       call. = FALSE
     )
   }
   if (!is.character(plan$grupo) || !is.logical(plan$destructiva) ||
       anyNA(plan$destructiva)) {
-    stop("`grupo` debe ser texto y `destructiva` un l\u00f3gico sin NA.", call. = FALSE)
+    .detener("`grupo` debe ser texto y `destructiva` un l\u00f3gico sin NA.", call. = FALSE)
   }
   # `orden` fija la secuencia, y como texto se ordena alfabeticamente: `"35"` va
   # despues de `"200"`. Una asignacion de R sobre cero filas basta para volverlo
   # texto, y el plan editado eliminaba tres filas en vez de una sin decir nada.
   # Medido en una refutacion.
   if (!is.numeric(plan$orden) || anyNA(plan$orden)) {
-    stop(
+    .detener(
       "`orden` debe ser num\u00e9rico sin NA: fija la secuencia en que se ",
       "aplican las acciones, y como texto se ordenar\u00eda alfab\u00e9ticamente.",
       call. = FALSE
     )
   }
   if (any(plan$destructiva & plan$recomendada, na.rm = TRUE)) {
-    stop("Una acci\u00f3n destructiva nunca puede ser recomendada.", call. = FALSE)
+    .detener("Una acci\u00f3n destructiva nunca puede ser recomendada.", call. = FALSE)
   }
   if (any(plan$destructiva & (is.na(plan$reversible) | plan$reversible))) {
-    stop("Toda acci\u00f3n destructiva debe declarar `reversible = FALSE`.", call. = FALSE)
+    .detener("Toda acci\u00f3n destructiva debe declarar `reversible = FALSE`.", call. = FALSE)
   }
   estados <- as.character(plan$estado)
   if (anyNA(estados) || any(!estados %in% c("lista", "bloqueada", "informativa"))) {
-    stop("`estado` contiene un valor no reconocido.", call. = FALSE)
+    .detener("`estado` contiene un valor no reconocido.", call. = FALSE)
   }
   if (any(plan$aplicar & estados != "lista")) {
     invalidas <- which(plan$aplicar & estados != "lista")
@@ -2251,7 +2251,7 @@ planificar_limpieza <- function(perfil, datos = NULL,
              "', estrategia '", as.character(plan$estrategia[[i]]),
              "', estado '", estados[[i]], "')")
     }, character(1L)), collapse = "; ")
-    stop(
+    .detener(
       "S\u00f3lo se pueden aplicar acciones con estado 'lista'. ",
       "Acciones no listas: ", detalle, ".",
       call. = FALSE
@@ -2262,7 +2262,7 @@ planificar_limpieza <- function(perfil, datos = NULL,
     indices <- which(plan$grupo == grupo)
     activas <- indices[plan$aplicar[indices]]
     if (length(activas) > 1L) {
-      stop(
+      .detener(
         "El grupo '", grupo, "' tiene acciones incompatibles activas: ",
         paste(plan$estrategia[activas], collapse = ", "), ".",
         call. = FALSE
@@ -2275,23 +2275,23 @@ planificar_limpieza <- function(perfil, datos = NULL,
       # grupo marcado como elegido y sin ninguna accion activa no es ninguna de
       # las dos: es una edicion contradictoria, y el paquete ya rechaza las
       # otras dos de esta familia en vez de adivinar cual gana.
-      stop(
+      .detener(
         "El grupo '", grupo, "' esta marcado como elegido y no tiene ninguna ",
         "accion activa. Active la accion elegida o cambie la decision.",
         call. = FALSE
       )
     }
     if (anyDuplicated(plan$estrategia[indices])) {
-      stop("El grupo '", grupo, "' repite una estrategia.", call. = FALSE)
+      .detener("El grupo '", grupo, "' repite una estrategia.", call. = FALSE)
     }
     decisiones <- unique(as.character(plan$decision_grupo[indices]))
     if (length(decisiones) != 1L || is.na(decisiones)) {
-      stop("El grupo '", grupo, "' debe compartir una sola decisi\u00f3n.", call. = FALSE)
+      .detener("El grupo '", grupo, "' debe compartir una sola decisi\u00f3n.", call. = FALSE)
     }
     recomendaciones <- unique(plan$recomendacion_grupo[indices])
     recomendaciones <- recomendaciones[!is.na(recomendaciones)]
     if (length(recomendaciones) > 1L) {
-      stop("El grupo '", grupo, "' declara recomendaciones incompatibles.", call. = FALSE)
+      .detener("El grupo '", grupo, "' declara recomendaciones incompatibles.", call. = FALSE)
     }
   }
   invisible(plan)
@@ -2353,7 +2353,7 @@ rbind.plan_limpieza <- function(..., deparse.level = 1) {
   indices <- which(.nombres_para_operar(names(datos)) %in%
                    .nombres_para_operar(columna))
   if (length(indices) != 1L) {
-    stop(
+    .detener(
       "La acci\u00f3n requiere una \u00fanica columna llamada '", columna,
       "'; se encontraron ", length(indices), ".", call. = FALSE
     )
@@ -2363,7 +2363,7 @@ rbind.plan_limpieza <- function(..., deparse.level = 1) {
 
 .reemplazar_ausencias_textuales <- function(x, parametros) {
   if (!is.character(x) && !is.factor(x)) {
-    stop("La normalizaci\u00f3n textual requiere una columna de texto.", call. = FALSE)
+    .detener("La normalizaci\u00f3n textual requiere una columna de texto.", call. = FALSE)
   }
   # Se convierte EXACTAMENTE lo que el detector conto, y no lo que diga un
   # catalogo propio. Antes este ejecutor tenia su propia logica y se habia
@@ -2407,7 +2407,7 @@ rbind.plan_limpieza <- function(..., deparse.level = 1) {
   # arma la lista con lo observado, asi que vacia o ausente es lo mismo: nada
   # autorizado.
   if (!length(parametros$valores)) {
-    stop(
+    .detener(
       "La lista `valores` de la acci\u00f3n est\u00e1 vac\u00eda: no hay ",
       "marcadores autorizados para convertir. Para conservarlos todos, ",
       "desactive la acci\u00f3n.", call. = FALSE
@@ -2441,7 +2441,7 @@ rbind.plan_limpieza <- function(..., deparse.level = 1) {
   } else if (is.numeric(x) && !inherits(x, c("Date", "POSIXt"))) {
     numeros <- as.numeric(x)
   } else {
-    stop("Los sentinelas num\u00e9ricos requieren texto o n\u00fameros.", call. = FALSE)
+    .detener("Los sentinelas num\u00e9ricos requieren texto o n\u00fameros.", call. = FALSE)
   }
   !is.na(x) & !is.na(numeros) &
     numeros %in% .valores_sentinelas_accion(x, parametros)
@@ -2593,7 +2593,7 @@ rbind.plan_limpieza <- function(..., deparse.level = 1) {
       if (any(piden)) {
         n_celdas <- sum(.valores_relacion(x[pedidas]) %in%
                           .valores_relacion(claves[piden]))
-        stop(
+        .detener(
           "La dependencia funcional del plan no se puede aplicar sobre los ",
           "datos recibidos: ", n_celdas, " celda(s) para imputar tienen una ",
           "clave cuya fila el plan public\u00f3 tapada, y los datos no traen ",
@@ -2639,7 +2639,7 @@ rbind.plan_limpieza <- function(..., deparse.level = 1) {
     reproducen <- clave[igual(visto_dep[clave], dep_g)]
     reproducen <- reproducen[en_relacion[reproducen]]
     if (length(clave[!igual(visto_dep[clave], dep_g)])) {
-      stop(
+      .detener(
         "Los datos actuales contradicen la dependencia funcional del plan: ",
         "una fila que el plan public\u00f3 tapada no se reproduce sobre los ",
         "datos recibidos -la relaci\u00f3n cambi\u00f3, o los datos no traen el ",
@@ -2648,7 +2648,7 @@ rbind.plan_limpieza <- function(..., deparse.level = 1) {
       )
     }
     if (length(reproducen) > filas_grupo[[g]]) {
-      stop(
+      .detener(
         "La dependencia funcional del plan no se puede resolver sobre los ",
         "datos recibidos: m\u00e1s claves de las que el plan public\u00f3 tapadas ",
         "tienen la misma forma, y no se puede saber cu\u00e1l est\u00e1 en el plan.",
@@ -2669,7 +2669,7 @@ rbind.plan_limpieza <- function(..., deparse.level = 1) {
     c(determinante, dependiente), names(datos)
   )
   if (anyNA(indices_dependencia)) {
-    stop("La imputaci\u00f3n no conserva un contrato de dependencia v\u00e1lido.",
+    .detener("La imputaci\u00f3n no conserva un contrato de dependencia v\u00e1lido.",
          call. = FALSE)
   }
   determinante <- names(datos)[indices_dependencia[[1L]]]
@@ -2678,7 +2678,7 @@ rbind.plan_limpieza <- function(..., deparse.level = 1) {
     soporte <- parametros$soporte_minimo
     if (length(soporte) != 1L || is.na(soporte) ||
         !is.finite(soporte) || soporte < 1L) {
-      stop("La imputaci\u00f3n no conserva un soporte de dependencia v\u00e1lido.",
+      .detener("La imputaci\u00f3n no conserva un soporte de dependencia v\u00e1lido.",
            call. = FALSE)
     }
     .resolver_mapa_enmascarado(
@@ -2690,11 +2690,11 @@ rbind.plan_limpieza <- function(..., deparse.level = 1) {
   }
   if (!inherits(mapa, "data.frame") ||
       !all(c("determinante", "dependiente") %in% names(mapa))) {
-    stop("La imputaci\u00f3n no conserva un contrato de dependencia v\u00e1lido.",
+    .detener("La imputaci\u00f3n no conserva un contrato de dependencia v\u00e1lido.",
          call. = FALSE)
   }
   if (isTRUE(parametros$mapa_enmascarado) && !nrow(mapa)) {
-    stop(
+    .detener(
       "La dependencia funcional del plan no se puede resolver sobre los datos recibidos.",
       call. = FALSE
     )
@@ -2711,7 +2711,7 @@ rbind.plan_limpieza <- function(..., deparse.level = 1) {
   esperado <- mapa$dependiente[indices[conocidos]]
   if (any(.valores_relacion(datos[[i_dependiente]][conocidos]) !=
           .valores_relacion(esperado))) {
-    stop("Los datos actuales contradicen la dependencia funcional del plan.",
+    .detener("Los datos actuales contradicen la dependencia funcional del plan.",
          call. = FALSE)
   }
   imputar <- is.na(datos[[i_dependiente]]) & !is.na(indices)
@@ -2894,7 +2894,7 @@ rbind.plan_limpieza <- function(..., deparse.level = 1) {
 
 .recortar_texto <- function(x) {
   if (!is.character(x) && !is.factor(x)) {
-    stop("El recorte de espacios requiere una columna de texto.", call. = FALSE)
+    .detener("El recorte de espacios requiere una columna de texto.", call. = FALSE)
   }
   anterior <- as.character(x)
   # `trimws()` sobre un vector que contiene UNA cadena marcada `bytes` devuelve
@@ -2914,7 +2914,7 @@ rbind.plan_limpieza <- function(..., deparse.level = 1) {
 
 .quitar_controles_invisibles <- function(x) {
   if (!is.character(x) && !is.factor(x)) {
-    stop("La eliminaci\u00f3n de controles invisibles requiere una columna de texto.",
+    .detener("La eliminaci\u00f3n de controles invisibles requiere una columna de texto.",
          call. = FALSE)
   }
   anterior <- as.character(x)
@@ -2946,7 +2946,7 @@ rbind.plan_limpieza <- function(..., deparse.level = 1) {
 
 .normalizar_espacios_invisibles <- function(x) {
   if (!is.character(x) && !is.factor(x)) {
-    stop("La normalizacion de espacios Unicode requiere una columna de texto.",
+    .detener("La normalizacion de espacios Unicode requiere una columna de texto.",
          call. = FALSE)
   }
   anterior <- as.character(x)
@@ -3003,7 +3003,7 @@ rbind.plan_limpieza <- function(..., deparse.level = 1) {
 
 .decodificar_entidades_html <- function(x) {
   if (!is.character(x) && !is.factor(x)) {
-    stop("La decodificaci\u00f3n HTML requiere una columna de texto.", call. = FALSE)
+    .detener("La decodificaci\u00f3n HTML requiere una columna de texto.", call. = FALSE)
   }
   anterior <- as.character(x)
   # La misma que usa la deteccion: las dos tienen que coincidir.
@@ -3026,7 +3026,7 @@ rbind.plan_limpieza <- function(..., deparse.level = 1) {
 
 .reemplazar_separadores <- function(x) {
   if (!is.character(x) && !is.factor(x)) {
-    stop("El reemplazo de saltos de l\u00ednea requiere una columna de texto.",
+    .detener("El reemplazo de saltos de l\u00ednea requiere una columna de texto.",
          call. = FALSE)
   }
   anterior <- as.character(x)
@@ -3051,7 +3051,7 @@ rbind.plan_limpieza <- function(..., deparse.level = 1) {
 
 .reparar_codificacion <- function(x, parametros) {
   if (!is.character(x) && !is.factor(x)) {
-    stop("La reparaci\u00f3n de codificaci\u00f3n requiere una columna de texto.",
+    .detener("La reparaci\u00f3n de codificaci\u00f3n requiere una columna de texto.",
          call. = FALSE)
   }
   iteraciones <- parametros$max_iteraciones
@@ -3131,7 +3131,7 @@ rbind.plan_limpieza <- function(..., deparse.level = 1) {
   # `C` con marcas mezcladas.
   presentes <- !is.na(x) & nzchar(.recortar_bytes(as.character(x)))
   if (any(presentes & !partes$compatible)) {
-    stop("Hay valores presentes que no responden al formato num\u00e9rico regional.",
+    .detener("Hay valores presentes que no responden al formato num\u00e9rico regional.",
          call. = FALSE)
   }
   convencion <- parametros$convencion
@@ -3151,7 +3151,7 @@ rbind.plan_limpieza <- function(..., deparse.level = 1) {
     if (any(ambiguos_punto) &&
         (length(interpretacion_punto) != 1L || is.na(interpretacion_punto) ||
          !interpretacion_punto %in% c("miles", "decimal"))) {
-      stop(
+      .detener(
         "La columna es ambigua; configure `punto_sin_coma` como 'miles' o 'decimal'.",
         call. = FALSE
       )
@@ -3159,7 +3159,7 @@ rbind.plan_limpieza <- function(..., deparse.level = 1) {
     if (any(ambiguos_coma) &&
         (length(interpretacion_coma) != 1L || is.na(interpretacion_coma) ||
          !interpretacion_coma %in% c("miles", "decimal"))) {
-      stop(
+      .detener(
         "La columna es ambigua; configure `coma_sin_punto` como 'miles' o 'decimal'.",
         call. = FALSE
       )
@@ -3175,14 +3175,14 @@ rbind.plan_limpieza <- function(..., deparse.level = 1) {
       }
     }
   } else if (!identical(convencion, "sin_separadores")) {
-    stop("La convenci\u00f3n num\u00e9rica no est\u00e1 confirmada.", call. = FALSE)
+    .detener("La convenci\u00f3n num\u00e9rica no est\u00e1 confirmada.", call. = FALSE)
   }
   list(texto = texto, presentes = presentes, partes = partes)
 }
 
 .convertir_numero_regional <- function(x, parametros) {
   if (!is.character(x) && !is.factor(x)) {
-    stop("La conversi\u00f3n regional requiere una columna de texto.", call. = FALSE)
+    .detener("La conversi\u00f3n regional requiere una columna de texto.", call. = FALSE)
   }
   normalizado <- .texto_regional_normalizado(x, parametros)
   texto <- normalizado$texto
@@ -3190,7 +3190,7 @@ rbind.plan_limpieza <- function(..., deparse.level = 1) {
   partes <- normalizado$partes
   numero <- suppressWarnings(as.numeric(texto))
   if (any(presentes & (!is.finite(numero) | is.na(numero)))) {
-    stop("No fue posible convertir todos los valores regionales.", call. = FALSE)
+    .detener("No fue posible convertir todos los valores regionales.", call. = FALSE)
   }
   porcentajes <- presentes & partes$unidad == "%"
   numero[porcentajes] <- numero[porcentajes] / 100
@@ -3233,7 +3233,7 @@ rbind.plan_limpieza <- function(..., deparse.level = 1) {
 
 .transformar_capitalizacion <- function(x, estrategia, parametros) {
   if (!is.character(x) && !is.factor(x)) {
-    stop("La capitalizaci\u00f3n requiere una columna de texto.", call. = FALSE)
+    .detener("La capitalizaci\u00f3n requiere una columna de texto.", call. = FALSE)
   }
   anterior <- .texto_para_transformar(x)
   # La caja se cambia con los mapas del paquete y no con `tolower()`/`toupper()`,
@@ -3249,7 +3249,7 @@ rbind.plan_limpieza <- function(..., deparse.level = 1) {
     diccionario <- parametros$diccionario
     if (is.null(diccionario) || !is.atomic(diccionario) ||
         is.null(names(diccionario)) || any(!nzchar(names(diccionario)))) {
-      stop(
+      .detener(
         "La capitalizaci\u00f3n por diccionario requiere un vector at\u00f3mico con nombres.",
         call. = FALSE
       )
@@ -3273,7 +3273,7 @@ rbind.plan_limpieza <- function(..., deparse.level = 1) {
   presentes <- !is.na(x)
   validos <- texto %in% c(verdaderos, falsos)
   if (any(presentes & !validos)) {
-    stop("Hay valores presentes que no pueden convertirse a l\u00f3gico.", call. = FALSE)
+    .detener("Hay valores presentes que no pueden convertirse a l\u00f3gico.", call. = FALSE)
   }
   salida <- rep(NA, length(x))
   salida[presentes] <- texto[presentes] %in% verdaderos
@@ -3283,7 +3283,7 @@ rbind.plan_limpieza <- function(..., deparse.level = 1) {
 .convertir_fecha <- function(x, parametros) {
   formatos <- parametros$formatos
   if (!length(formatos)) {
-    stop("La conversi\u00f3n de fecha requiere formatos confirmados.", call. = FALSE)
+    .detener("La conversi\u00f3n de fecha requiere formatos confirmados.", call. = FALSE)
   }
   # Declarado antes del recorte (ronda 30-L): lo mismo que la conversion a
   # numero, `.texto_legible_recortado()`.
@@ -3292,7 +3292,7 @@ rbind.plan_limpieza <- function(..., deparse.level = 1) {
   especificaciones <- .especificaciones_fecha()
   indices <- match(formatos, especificaciones$formato)
   if (anyNA(indices)) {
-    stop("La conversi\u00f3n de fecha recibi\u00f3 un formato no reconocido.", call. = FALSE)
+    .detener("La conversi\u00f3n de fecha recibi\u00f3 un formato no reconocido.", call. = FALSE)
   }
   compatibles <- rep(FALSE, length(x))
   for (indice in indices) {
@@ -3302,7 +3302,7 @@ rbind.plan_limpieza <- function(..., deparse.level = 1) {
     )
   }
   if (any(presentes & !compatibles)) {
-    stop("Hay valores presentes que no responden a los formatos confirmados.", call. = FALSE)
+    .detener("Hay valores presentes que no responden a los formatos confirmados.", call. = FALSE)
   }
   tabla_formatos <- data.frame(
     formato = formatos, estado = rep("confirmado", length(formatos)),
@@ -3310,7 +3310,7 @@ rbind.plan_limpieza <- function(..., deparse.level = 1) {
   )
   salida <- .parsear_fechas(x, tabla_formatos)
   if (any(presentes & is.na(salida))) {
-    stop("Hay valores presentes que no responden a los formatos confirmados.", call. = FALSE)
+    .detener("Hay valores presentes que no responden a los formatos confirmados.", call. = FALSE)
   }
   if (identical(parametros$tipo, "fecha")) as.Date(salida) else salida
 }
@@ -3327,7 +3327,7 @@ rbind.plan_limpieza <- function(..., deparse.level = 1) {
   texto <- .texto_tipo_normalizado(x)
   numero <- suppressWarnings(as.numeric(texto))
   if (any(presentes & (!is.finite(numero) | is.na(numero)))) {
-    stop("Hay valores presentes que no pueden convertirse a n\u00famero.", call. = FALSE)
+    .detener("Hay valores presentes que no pueden convertirse a n\u00famero.", call. = FALSE)
   }
   if (identical(tipo, "doble")) {
     return(numero)
@@ -3346,15 +3346,15 @@ rbind.plan_limpieza <- function(..., deparse.level = 1) {
       (abs(numero - round(numero)) < sqrt(.Machine$double.eps) &
          numero >= limites[[1L]] & numero <= limites[[2L]])
     if (!all(validos)) {
-      stop("Hay valores presentes que no pueden representarse como enteros.", call. = FALSE)
+      .detener("Hay valores presentes que no pueden representarse como enteros.", call. = FALSE)
     }
     entero <- suppressWarnings(as.integer(numero))
     if (any(presentes & is.na(entero))) {
-      stop("Hay valores presentes que no pueden representarse como enteros.", call. = FALSE)
+      .detener("Hay valores presentes que no pueden representarse como enteros.", call. = FALSE)
     }
     return(entero)
   }
-  stop("No hay una conversi\u00f3n definida para el tipo '", tipo, "'.", call. = FALSE)
+  .detener("No hay una conversi\u00f3n definida para el tipo '", tipo, "'.", call. = FALSE)
 }
 
 # `dentro` es el universo de la accion -la regla de `aplicabilidad` del perfil-:
@@ -3533,7 +3533,7 @@ rbind.plan_limpieza <- function(..., deparse.level = 1) {
     return(list(repetidas = repetidas, grupos = grupos))
   }
   if (.identidad_filas_con_listas(datos_base)) {
-    stop("No se pueden agrupar duplicados con columnas de lista.", call. = FALSE)
+    .detener("No se pueden agrupar duplicados con columnas de lista.", call. = FALSE)
   }
   # Todo sale de los MISMOS codigos, y no de `duplicated.data.frame`.
   #
@@ -3609,14 +3609,14 @@ rbind.plan_limpieza <- function(..., deparse.level = 1) {
 .conservar_mas_completa <- function(datos, clave) {
   datos_base <- .tabla_base(datos)
   if (!length(clave) || anyNA(.indice_nombre(clave, names(datos_base)))) {
-    stop(
+    .detener(
       "`conservar_mas_completa` requiere configurar nombres de clave existentes.",
       call. = FALSE
     )
   }
   claves <- .seleccionar_columnas(datos_base, clave)
   if (any(vapply(claves, is.list, logical(1L)))) {
-    stop("La clave no puede contener columnas de lista.", call. = FALSE)
+    .detener("La clave no puede contener columnas de lista.", call. = FALSE)
   }
   codigos <- .codigos_filas_exactos(claves)
   # Una clave AUSENTE no identifica a nadie: las filas sin documento formaban un
@@ -3652,14 +3652,14 @@ rbind.plan_limpieza <- function(..., deparse.level = 1) {
   esperados <- plan$parametros[[indices[[1L]]]]$nombres_esperados
   if (!identical(.nombres_para_operar(names(datos)),
                  .nombres_para_operar(esperados))) {
-    stop("Los nombres de los datos no coinciden con los usados por el perfil.", call. = FALSE)
+    .detener("Los nombres de los datos no coinciden con los usados por el perfil.", call. = FALSE)
   }
   invisible(TRUE)
 }
 
 .agregar_marca <- function(datos, nombre, valor) {
   if (.nombres_para_operar(nombre) %in% .nombres_para_operar(names(datos))) {
-    stop("La columna de marca ya existe: ", nombre, ".", call. = FALSE)
+    .detener("La columna de marca ya existe: ", nombre, ".", call. = FALSE)
   }
   datos[[nombre]] <- valor
   datos
@@ -3699,13 +3699,13 @@ rbind.plan_limpieza <- function(..., deparse.level = 1) {
     error = function(e) e
   )
   if (inherits(mascara, "error")) {
-    stop(
+    .detener(
       "No se pudo respetar la aplicabilidad de `", columna, "`: ",
       conditionMessage(mascara), call. = FALSE
     )
   }
   if (length(mascara) != nrow(datos)) {
-    stop(
+    .detener(
       "No se pudo respetar la aplicabilidad de `", columna,
       "`: la regla no devolvio una marca por fila.", call. = FALSE
     )
@@ -3733,7 +3733,7 @@ rbind.plan_limpieza <- function(..., deparse.level = 1) {
   propuestos <- as.character(propuestos)
   if (length(propuestos) != length(esperados) || anyNA(propuestos) ||
       any(!nzchar(propuestos))) {
-    stop(
+    .detener(
       "`nombres_propuestos` tiene que traer un nombre no vac\u00edo por cada ",
       "uno de `nombres_esperados` (", length(esperados), ").", call. = FALSE
     )
@@ -3752,7 +3752,7 @@ rbind.plan_limpieza <- function(..., deparse.level = 1) {
   nuevos[!is.na(indices)] <- propuestos[indices[!is.na(indices)]]
   if (anyDuplicated(.nombres_para_operar(nuevos))) {
     repetidos <- unique(nuevos[duplicated(.nombres_para_operar(nuevos))])
-    stop(
+    .detener(
       "Los nombres propuestos repiten ", paste0("`", repetidos, "`", collapse = ", "),
       ": una tabla no puede tener dos columnas con el mismo nombre.", call. = FALSE
     )
@@ -3850,7 +3850,7 @@ rbind.plan_limpieza <- function(..., deparse.level = 1) {
     indice_1 <- .indice_columna(datos, parametros$columna_1)
     indice_2 <- .indice_columna(datos, parametros$columna_2)
     if (!.contenido_igual(datos[[indice_1]], datos[[indice_2]])) {
-      stop("Las columnas dejaron de tener contenido duplicado.", call. = FALSE)
+      .detener("Las columnas dejaron de tener contenido duplicado.", call. = FALSE)
     }
     if (identical(estrategia, "marcar_columnas_duplicadas")) {
       marcas <- attr(datos, "columnas_duplicadas_marcadas", exact = TRUE)
@@ -3889,7 +3889,7 @@ rbind.plan_limpieza <- function(..., deparse.level = 1) {
     indice <- .indice_columna(datos, columna)
     x <- datos[[indice]]
     if (length(unique(x[!is.na(x)])) > 1L) {
-      stop("La columna dej\u00f3 de ser constante.", call. = FALSE)
+      .detener("La columna dej\u00f3 de ser constante.", call. = FALSE)
     }
     retirada <- list(nombre = columna, posicion = indice, valores = x)
     datos[[indice]] <- NULL
@@ -3982,7 +3982,7 @@ rbind.plan_limpieza <- function(..., deparse.level = 1) {
       .mascara_aplicabilidad_accion(original, columna, parametros)
     }
     if (length(aplicable) != length(x)) {
-      stop(
+      .detener(
         "No se pudo respetar la aplicabilidad despues de eliminar filas.",
         call. = FALSE
       )
@@ -4005,7 +4005,7 @@ rbind.plan_limpieza <- function(..., deparse.level = 1) {
       .mascara_aplicabilidad_accion(original, columna, parametros)
     }
     if (length(aplicable) != length(x)) {
-      stop(
+      .detener(
         "No se pudo respetar la aplicabilidad despues de eliminar filas.",
         call. = FALSE
       )
@@ -4042,7 +4042,7 @@ rbind.plan_limpieza <- function(..., deparse.level = 1) {
   dentro_outliers <- NULL
   if (estrategia %in% .estrategias_outliers && !is.null(parametros$aplicabilidad)) {
     if (nrow(original) != nrow(datos)) {
-      stop(
+      .detener(
         "No se puede respetar la aplicabilidad despu\u00e9s de eliminar filas: ",
         "aplique las acciones de outliers antes de las que eliminan filas.",
         call. = FALSE
@@ -4072,7 +4072,7 @@ rbind.plan_limpieza <- function(..., deparse.level = 1) {
     datos[[indice]] <- .con_atributos_de(x, cambio$valor)
     return(list(datos = datos, n = cambio$n))
   }
-  stop("Estrategia de limpieza no implementada: ", estrategia, ".", call. = FALSE)
+  .detener("Estrategia de limpieza no implementada: ", estrategia, ".", call. = FALSE)
 }
 
 .registro_vacio <- function() {
@@ -4223,12 +4223,12 @@ aplicar <- function(plan, datos, permitir_eliminacion = FALSE,
   if (era_plan) class(plan) <- unique(c("plan_limpieza", class(plan)))
   plan <- .sincronizar_decisiones(plan)
   if (!inherits(datos, "data.frame")) {
-    stop("`datos` debe ser un data.frame, tibble o data.table.", call. = FALSE)
+    .detener("`datos` debe ser un data.frame, tibble o data.table.", call. = FALSE)
   }
   if (!is.logical(permitir_eliminacion) || length(permitir_eliminacion) != 1L ||
       is.na(permitir_eliminacion) || !is.logical(conservar_eliminados) ||
       length(conservar_eliminados) != 1L || is.na(conservar_eliminados)) {
-    stop(
+    .detener(
       "Los permisos de eliminaci\u00f3n deben ser l\u00f3gicos escalares sin NA.",
       call. = FALSE
     )
@@ -4266,7 +4266,7 @@ aplicar <- function(plan, datos, permitir_eliminacion = FALSE,
     # solo "requiere permitir_eliminacion" deja abierta la lectura de que lo
     # demas si se aplico, y el objeto que lo desmentiria -el registro- no
     # existe, porque esta negativa ocurre antes de tocar nada.
-    stop(
+    .detener(
       "El plan contiene acciones destructivas y requiere ",
       "`permitir_eliminacion = TRUE`: ",
       paste(plan$estrategia[destructivas], collapse = ", "), ". ",
@@ -4558,7 +4558,7 @@ aplicar <- function(plan, datos, permitir_eliminacion = FALSE,
     return(NA_integer_)
   }
   if (is.na(respuesta[[1L]])) {
-    stop(
+    .detener(
       "La selecci\u00f3n guiada devolvi\u00f3 NA, que no identifica ninguna opci\u00f3n. ",
       "Para no hacer nada, devolver 0.", call. = FALSE
     )
@@ -4577,7 +4577,7 @@ aplicar <- function(plan, datos, permitir_eliminacion = FALSE,
   )
   candidatos <- intersect(candidatos, elegibles)
   if (length(candidatos) != 1L) {
-    stop("La selecci\u00f3n guiada no identifica una opci\u00f3n disponible.", call. = FALSE)
+    .detener("La selecci\u00f3n guiada no identifica una opci\u00f3n disponible.", call. = FALSE)
   }
   candidatos[[1L]]
 }
@@ -4642,20 +4642,20 @@ guiar_limpieza <- function(plan, datos, selector = NULL,
   if (is.null(selector) && !interactive()) return(plan)
   plan <- .sincronizar_decisiones(plan)
   if (!is.null(selector) && !is.function(selector)) {
-    stop("`selector` debe ser una funci\u00f3n.", call. = FALSE)
+    .detener("`selector` debe ser una funci\u00f3n.", call. = FALSE)
   }
   if (!inherits(datos, "data.frame")) {
-    stop("`datos` debe ser un data.frame, tibble o data.table.", call. = FALSE)
+    .detener("`datos` debe ser un data.frame, tibble o data.table.", call. = FALSE)
   }
   datos <- .tabla_base(datos)
   if (!is.list(diccionarios) ||
       (length(diccionarios) &&
        (is.null(names(diccionarios)) || any(!nzchar(names(diccionarios)))))) {
-    stop("`diccionarios` debe ser una lista con nombres de columna.", call. = FALSE)
+    .detener("`diccionarios` debe ser una lista con nombres de columna.", call. = FALSE)
   }
   if (!is.numeric(max_ejemplos) || length(max_ejemplos) != 1L ||
       is.na(max_ejemplos) || max_ejemplos < 1) {
-    stop("`max_ejemplos` debe ser un n\u00famero positivo.", call. = FALSE)
+    .detener("`max_ejemplos` debe ser un n\u00famero positivo.", call. = FALSE)
   }
   max_ejemplos <- floor(max_ejemplos)
 

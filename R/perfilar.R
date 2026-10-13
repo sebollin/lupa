@@ -78,7 +78,7 @@
     floor(as.numeric(max_celdas_muestra) / columnas_totales)
   }
   if (filas_totales > 0 && filas_por_celdas < 1) {
-    stop(
+    .detener(
       "`max_celdas_muestra` debe permitir al menos una fila para todas las columnas.",
       call. = FALSE
     )
@@ -92,7 +92,7 @@
     datos_vacios <- .muestra_tabla_datos(datos, 0L)
     bytes_vacios <- as.numeric(utils::object.size(datos_vacios))
     if (bytes_vacios > max_bytes_muestra) {
-      stop(
+      .detener(
         paste0(
           "`max_bytes_muestra` es menor que el tamano minimo de la muestra ",
           "vacia (", bytes_vacios, " bytes)."
@@ -115,7 +115,7 @@
   }
 
   if (filas_totales > 0 && filas_candidatas < 1) {
-    stop(
+    .detener(
       "`max_bytes_muestra` no permite materializar una fila de la muestra.",
       call. = FALSE
     )
@@ -147,7 +147,7 @@
     as.numeric(utils::object.size(.muestra_tabla_datos(datos, filas_candidatas)))
   }
   if (filas_totales > 0 && filas_candidatas < 1) {
-    stop(
+    .detener(
       "`max_bytes_muestra` no permite materializar una fila de la muestra.",
       call. = FALSE
     )
@@ -2312,7 +2312,7 @@ perfilar <- function(datos,
   # abortaba; `c("a", "b")` imprimia dos encabezados pegados. Medido en la
   # ronda 32. Un nombre es una cadena, como el de una metrica.
   if (!.es_texto_escalar(nombre)) {
-    stop("`nombre` debe ser una cadena no vac\u00eda.", call. = FALSE)
+    .detener("`nombre` debe ser una cadena no vac\u00eda.", call. = FALSE)
   }
   entrada_convertida <- NA_character_
   if (!inherits(datos, "data.frame") && is.matrix(datos)) {
@@ -2323,7 +2323,7 @@ perfilar <- function(datos,
     datos <- as.data.frame(datos, stringsAsFactors = FALSE)
   }
   if (!inherits(datos, "data.frame")) {
-    stop(
+    .detener(
       "`datos` debe ser un data.frame, tibble, data.table o una matriz.",
       call. = FALSE
     )
@@ -2358,20 +2358,20 @@ perfilar <- function(datos,
     umbral_faltantes_error, umbral_patron_raro, umbral_patron_dominante
   )
   if (!.son_numeros_escalares(umbrales)) {
-    stop("Todos los umbrales deben estar entre 0 y 1.", call. = FALSE)
+    .detener("Todos los umbrales deben estar entre 0 y 1.", call. = FALSE)
   }
   umbrales <- unlist(umbrales)
   if (anyNA(umbrales) || any(umbrales < 0 | umbrales > 1)) {
-    stop("Todos los umbrales deben estar entre 0 y 1.", call. = FALSE)
+    .detener("Todos los umbrales deben estar entre 0 y 1.", call. = FALSE)
   }
   if (umbral_faltantes_error < umbral_faltantes_sospechoso) {
-    stop("El umbral de error no puede ser menor que el sospechoso.", call. = FALSE)
+    .detener("El umbral de error no puede ser menor que el sospechoso.", call. = FALSE)
   }
   evaluacion_clave <- NULL
   if (!is.null(clave)) {
     if (!is.character(clave) || !length(clave) || anyNA(clave) ||
         !all(nzchar(clave))) {
-      stop(
+      .detener(
         "`clave` debe ser un vector de nombres de columna sin NA.",
         call. = FALSE
       )
@@ -2379,7 +2379,7 @@ perfilar <- function(datos,
     indices_clave <- .indice_nombre(clave, names(datos))
     faltantes <- clave[is.na(indices_clave)]
     if (length(faltantes)) {
-      stop(
+      .detener(
         "`clave` nombra columnas que no estan en los datos: ",
         paste(faltantes, collapse = ", "),
         ". Disponibles: ", paste(names(datos), collapse = ", "), ".",
@@ -2387,7 +2387,7 @@ perfilar <- function(datos,
       )
     }
     if (anyDuplicated(.nombres_para_operar(clave))) {
-      stop("`clave` repite una columna.", call. = FALSE)
+      .detener("`clave` repite una columna.", call. = FALSE)
     }
     # La declaracion se valida con la clave estable, pero las etapas siguientes
     # indexan la tabla por su nombre. Resolverla una sola vez evita que el
@@ -2402,38 +2402,38 @@ perfilar <- function(datos,
   if (!is.numeric(sentinelas_numericos) ||
       any(!is.na(sentinelas_numericos) &
           !is.finite(sentinelas_numericos))) {
-    stop("`sentinelas_numericos` debe ser un vector num\u00e9rico finito; se permiten NA.", call. = FALSE)
+    .detener("`sentinelas_numericos` debe ser un vector num\u00e9rico finito; se permiten NA.", call. = FALSE)
   }
   if (!is.null(cadenas_ausencia) &&
       (!is.character(cadenas_ausencia) || anyNA(cadenas_ausencia) ||
        any(!nzchar(trimws(cadenas_ausencia))))) {
-    stop(
+    .detener(
       "`cadenas_ausencia` debe ser un vector de texto sin ausentes ni cadenas ",
       "vac\u00edas.", call. = FALSE
     )
   }
   if (!is.logical(analizar_dependencias) || length(analizar_dependencias) != 1L ||
       is.na(analizar_dependencias)) {
-    stop("`analizar_dependencias` debe ser un l\u00f3gico escalar sin NA.",
+    .detener("`analizar_dependencias` debe ser un l\u00f3gico escalar sin NA.",
          call. = FALSE)
   }
   if (!is.logical(datos_personales_permitidos) ||
       length(datos_personales_permitidos) != 1L ||
       is.na(datos_personales_permitidos)) {
-    stop("`datos_personales_permitidos` debe ser TRUE o FALSE.", call. = FALSE)
+    .detener("`datos_personales_permitidos` debe ser TRUE o FALSE.", call. = FALSE)
   }
   .validar_bandera_proteccion(proteger_datos_personales)
   if (!is.numeric(umbral_documento_verificado) ||
       length(umbral_documento_verificado) != 1L ||
       is.na(umbral_documento_verificado) ||
       umbral_documento_verificado < 0 || umbral_documento_verificado > 1) {
-    stop("`umbral_documento_verificado` debe estar entre 0 y 1.", call. = FALSE)
+    .detener("`umbral_documento_verificado` debe estar entre 0 y 1.", call. = FALSE)
   }
   if (!is.numeric(muestra_validadores) || length(muestra_validadores) != 1L ||
       is.na(muestra_validadores) || muestra_validadores < 1 ||
       (!is.infinite(muestra_validadores) &&
        muestra_validadores != floor(muestra_validadores))) {
-    stop("`muestra_validadores` debe ser un entero positivo o Inf.", call. = FALSE)
+    .detener("`muestra_validadores` debe ser un entero positivo o Inf.", call. = FALSE)
   }
   muestra_validadores <- if (is.infinite(muestra_validadores)) Inf else {
     as.integer(muestra_validadores)
@@ -2442,7 +2442,7 @@ perfilar <- function(datos,
       is.na(max_filas_hallazgo) || max_filas_hallazgo < 1 ||
       (!is.infinite(max_filas_hallazgo) &&
        max_filas_hallazgo != floor(max_filas_hallazgo))) {
-    stop("`max_filas_hallazgo` debe ser un entero positivo o Inf.", call. = FALSE)
+    .detener("`max_filas_hallazgo` debe ser un entero positivo o Inf.", call. = FALSE)
   }
   max_filas_hallazgo <- if (is.infinite(max_filas_hallazgo)) {
     Inf
@@ -2451,7 +2451,7 @@ perfilar <- function(datos,
       length(umbral_orden_columnas) != 1L ||
       is.na(umbral_orden_columnas) || umbral_orden_columnas <= 0 ||
       umbral_orden_columnas > 1) {
-    stop("`umbral_orden_columnas` debe estar entre 0 y 1.", call. = FALSE)
+    .detener("`umbral_orden_columnas` debe estar entre 0 y 1.", call. = FALSE)
   }
   # Los topes de columnas de una busqueda cara rechazan `Inf`, como
   # `max_columnas_dependencias`: pasaba la guarda y `as.integer(Inf)` es NA.
@@ -2462,19 +2462,19 @@ perfilar <- function(datos,
       length(umbral_solapamiento_orden) != 1L ||
       is.na(umbral_solapamiento_orden) ||
       umbral_solapamiento_orden < 0 || umbral_solapamiento_orden > 1) {
-    stop("`umbral_solapamiento_orden` debe estar entre 0 y 1.", call. = FALSE)
+    .detener("`umbral_solapamiento_orden` debe estar entre 0 y 1.", call. = FALSE)
   }
   if (!is.numeric(umbral_aritmetica) || length(umbral_aritmetica) != 1L ||
       is.na(umbral_aritmetica) || umbral_aritmetica <= 0 ||
       umbral_aritmetica > 1) {
-    stop("`umbral_aritmetica` debe estar entre 0 y 1.", call. = FALSE)
+    .detener("`umbral_aritmetica` debe estar entre 0 y 1.", call. = FALSE)
   }
   if (!is.numeric(min_filas_aritmetica) ||
       length(min_filas_aritmetica) != 1L ||
       is.na(min_filas_aritmetica) || !is.finite(min_filas_aritmetica) ||
       min_filas_aritmetica < 3 ||
       min_filas_aritmetica != floor(min_filas_aritmetica)) {
-    stop("`min_filas_aritmetica` debe ser un entero de al menos 3.",
+    .detener("`min_filas_aritmetica` debe ser un entero de al menos 3.",
          call. = FALSE)
   }
   min_filas_aritmetica <- as.integer(min_filas_aritmetica)
@@ -2482,7 +2482,7 @@ perfilar <- function(datos,
       length(tolerancia_aritmetica) != 1L ||
       is.na(tolerancia_aritmetica) || !is.finite(tolerancia_aritmetica) ||
       tolerancia_aritmetica < 0) {
-    stop("`tolerancia_aritmetica` debe ser un n\u00famero finito no negativo.",
+    .detener("`tolerancia_aritmetica` debe ser un n\u00famero finito no negativo.",
          call. = FALSE)
   }
   max_columnas_aritmetica <- .validar_parametro_lsh(
@@ -2497,23 +2497,23 @@ perfilar <- function(datos,
   if (!is.logical(casi_duplicados_vocabulario) ||
       length(casi_duplicados_vocabulario) != 1L ||
       is.na(casi_duplicados_vocabulario)) {
-    stop("`casi_duplicados_vocabulario` debe ser TRUE o FALSE.", call. = FALSE)
+    .detener("`casi_duplicados_vocabulario` debe ser TRUE o FALSE.", call. = FALSE)
   }
   if (!is.logical(ausencia_estructural) ||
       length(ausencia_estructural) != 1L || is.na(ausencia_estructural)) {
-    stop("`ausencia_estructural` debe ser TRUE o FALSE.", call. = FALSE)
+    .detener("`ausencia_estructural` debe ser TRUE o FALSE.", call. = FALSE)
   }
   if (!is.logical(variantes_equifrecuentes_vocabulario) ||
       length(variantes_equifrecuentes_vocabulario) != 1L ||
       is.na(variantes_equifrecuentes_vocabulario)) {
-    stop("`variantes_equifrecuentes_vocabulario` debe ser TRUE o FALSE.",
+    .detener("`variantes_equifrecuentes_vocabulario` debe ser TRUE o FALSE.",
          call. = FALSE)
   }
   if (!is.numeric(max_asimetria_equifrecuente_vocabulario) ||
       length(max_asimetria_equifrecuente_vocabulario) != 1L ||
       is.na(max_asimetria_equifrecuente_vocabulario) ||
       max_asimetria_equifrecuente_vocabulario < 1) {
-    stop(
+    .detener(
       "`max_asimetria_equifrecuente_vocabulario` debe ser un numero mayor o igual a 1.",
       call. = FALSE
     )
@@ -2525,7 +2525,7 @@ perfilar <- function(datos,
       (!is.infinite(max_comparaciones_dependencias) &&
        max_comparaciones_dependencias !=
          floor(max_comparaciones_dependencias))) {
-    stop(
+    .detener(
       "`max_comparaciones_dependencias` debe ser un entero positivo o Inf.",
       call. = FALSE
     )
@@ -2534,7 +2534,7 @@ perfilar <- function(datos,
     valor <- get(argumento)
     if (!is.numeric(valor) || length(valor) != 1L || is.na(valor) ||
         valor <= 0 || (!is.infinite(valor) && valor != floor(valor))) {
-      stop(
+      .detener(
         "`", argumento, "` debe ser un entero positivo o Inf.",
         call. = FALSE
       )
@@ -2546,7 +2546,7 @@ perfilar <- function(datos,
   if (!is.logical(avisar_costo_tabla_ancha) ||
       length(avisar_costo_tabla_ancha) != 1L ||
       is.na(avisar_costo_tabla_ancha)) {
-    stop("`avisar_costo_tabla_ancha` debe ser TRUE o FALSE.", call. = FALSE)
+    .detener("`avisar_costo_tabla_ancha` debe ser TRUE o FALSE.", call. = FALSE)
   }
   umbral_celdas_aviso_tabla_ancha <- .validar_limite_duplicados(
     umbral_celdas_aviso_tabla_ancha, "umbral_celdas_aviso_tabla_ancha"
@@ -2563,7 +2563,7 @@ perfilar <- function(datos,
       is.na(max_proporcion_grupo_vocabulario) ||
       max_proporcion_grupo_vocabulario < 0 ||
       max_proporcion_grupo_vocabulario > 1) {
-    stop("`max_proporcion_grupo_vocabulario` debe estar entre 0 y 1.",
+    .detener("`max_proporcion_grupo_vocabulario` debe estar entre 0 y 1.",
          call. = FALSE)
   }
   if (!is.numeric(umbral_variante_rara_vocabulario) ||
@@ -2571,7 +2571,7 @@ perfilar <- function(datos,
       is.na(umbral_variante_rara_vocabulario) ||
       umbral_variante_rara_vocabulario < 0 ||
       umbral_variante_rara_vocabulario > 1) {
-    stop("`umbral_variante_rara_vocabulario` debe estar entre 0 y 1.",
+    .detener("`umbral_variante_rara_vocabulario` debe estar entre 0 y 1.",
          call. = FALSE)
   }
   if (!is.numeric(min_asimetria_vocabulario_corto) ||
@@ -2579,7 +2579,7 @@ perfilar <- function(datos,
       is.na(min_asimetria_vocabulario_corto) ||
       !is.finite(min_asimetria_vocabulario_corto) ||
       min_asimetria_vocabulario_corto < 1) {
-    stop("`min_asimetria_vocabulario_corto` debe ser al menos 1.",
+    .detener("`min_asimetria_vocabulario_corto` debe ser al menos 1.",
          call. = FALSE)
   }
   if (!is.numeric(min_participacion_dominante_vocabulario_corto) ||
@@ -2587,26 +2587,26 @@ perfilar <- function(datos,
       is.na(min_participacion_dominante_vocabulario_corto) ||
       min_participacion_dominante_vocabulario_corto < 0 ||
       min_participacion_dominante_vocabulario_corto > 1) {
-    stop(paste0(
+    .detener(paste0(
       "`min_participacion_dominante_vocabulario_corto` debe estar entre 0 y 1."
     ), call. = FALSE)
   }
   if (!is.logical(duplicados_aproximados) &&
       !is.list(duplicados_aproximados)) {
-    stop("`duplicados_aproximados` debe ser FALSE, TRUE o una lista de argumentos.",
+    .detener("`duplicados_aproximados` debe ser FALSE, TRUE o una lista de argumentos.",
          call. = FALSE)
   }
   if (is.logical(duplicados_aproximados) &&
       (length(duplicados_aproximados) != 1L ||
        is.na(duplicados_aproximados))) {
-    stop("`duplicados_aproximados` debe ser FALSE o TRUE.", call. = FALSE)
+    .detener("`duplicados_aproximados` debe ser FALSE o TRUE.", call. = FALSE)
   }
   if (is.list(duplicados_aproximados) &&
       any(names(duplicados_aproximados) %in% c(
         "datos", "clasificacion", "perfil", "proteger_datos_personales",
         "normalizar"
       ))) {
-    stop("`duplicados_aproximados` no puede reemplazar argumentos coordinados por perfilar().",
+    .detener("`duplicados_aproximados` no puede reemplazar argumentos coordinados por perfilar().",
          call. = FALSE)
   }
   validadores_personales <- .normalizar_validadores_personales(

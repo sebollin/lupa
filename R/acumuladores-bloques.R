@@ -13,7 +13,7 @@
   if (!is.numeric(x) || length(x) != 1L || is.na(x) || x < 1 ||
       (!permitir_inf && !is.finite(x)) ||
       (is.finite(x) && x != floor(x))) {
-    stop("`", nombre, "` debe ser un entero positivo",
+    .detener("`", nombre, "` debe ser un entero positivo",
          if (permitir_inf) " o Inf" else "", ".", call. = FALSE)
   }
   if (is.infinite(x)) Inf else as.numeric(x)
@@ -27,7 +27,7 @@
                                               muestra_id = NULL,
                                               orden_id = "orden_entrada") {
   if (!is.list(configuracion)) {
-    stop("`configuracion` debe ser una lista.", call. = FALSE)
+    .detener("`configuracion` debe ser una lista.", call. = FALSE)
   }
   list(
     columna = as.character(columna),
@@ -188,7 +188,7 @@
       k = NA_real_, tolerancia = NA_real_
     ),
     generica = list(n = 0L),
-    stop("Familia de acumulador desconocida: `", familia, "`.", call. = FALSE)
+    .detener("Familia de acumulador desconocida: `", familia, "`.", call. = FALSE)
   )
   if (familia %in% c("outliers", "centinela")) {
     acumulador$estado_familia$limite_inferior <-
@@ -263,17 +263,17 @@
   }
   if (is.null(aplicable)) aplicable <- rep(TRUE, n_filas)
   if (!is.logical(aplicable) || length(aplicable) != n_filas) {
-    stop("La mascara `aplicable` debe ser logica y tener el largo del bloque.",
+    .detener("La mascara `aplicable` debe ser logica y tener el largo del bloque.",
          call. = FALSE)
   }
   if (!is.null(ordinales) && length(ordinales) != n_filas) {
-    stop("`ordinales` debe tener el largo del bloque.", call. = FALSE)
+    .detener("`ordinales` debe tener el largo del bloque.", call. = FALSE)
   }
   if (!is.null(claves) && length(claves) != n_filas) {
-    stop("`claves` debe tener el largo del bloque.", call. = FALSE)
+    .detener("`claves` debe tener el largo del bloque.", call. = FALSE)
   }
   if (!is.null(ejemplos) && length(ejemplos) != n_filas) {
-    stop("`ejemplos` debe tener el largo del bloque.", call. = FALSE)
+    .detener("`ejemplos` debe tener el largo del bloque.", call. = FALSE)
   }
   list(valores = valores, ordinal_inicio = inicio, ordinal_fin = fin,
        ordinales = ordinales, claves = claves, ejemplos = ejemplos,
@@ -310,20 +310,20 @@
   if (length(inicio) != 1L || length(fin) != 1L || is.na(inicio) ||
       is.na(fin) || inicio < 1 || fin < inicio - 1 ||
       (n && is.null(ordinales) && fin - inicio + 1 != n)) {
-    stop("El bloque no tiene ordinales globales validos.", call. = FALSE)
+    .detener("El bloque no tiene ordinales globales validos.", call. = FALSE)
   }
   if (!is.null(ordinales) && length(ordinales)) {
     if (any(!is.finite(ordinales)) || any(ordinales != floor(ordinales)) ||
         any(ordinales < 1) || anyDuplicated(ordinales) ||
         any(diff(ordinales) <= 0) || min(ordinales) < inicio ||
         max(ordinales) > fin) {
-      stop("El bloque no tiene ordinales globales validos.", call. = FALSE)
+      .detener("El bloque no tiene ordinales globales validos.", call. = FALSE)
     }
   }
   if (acumulador$requiere_orden && length(acumulador$intervalos)) {
     anterior <- acumulador$intervalos[[length(acumulador$intervalos)]]
     if (inicio <= anterior[[2L]]) {
-      stop("Los intervalos globales del acumulador se solapan.", call. = FALSE)
+      .detener("Los intervalos globales del acumulador se solapan.", call. = FALSE)
     }
   }
   acumulador$intervalos[[length(acumulador$intervalos) + 1L]] <-
@@ -389,7 +389,7 @@
 
 .clave_identidad_R <- function(x) {
   if (length(x) != 1L) {
-    stop("La clave de identidad requiere un solo valor.", call. = FALSE)
+    .detener("La clave de identidad requiere un solo valor.", call. = FALSE)
   }
   es_integer64 <- inherits(x, "integer64")
   es_na <- isTRUE(tryCatch(is.na(x), error = function(e) FALSE))
@@ -1078,7 +1078,7 @@
 
 .expandir_datos_identidad <- function(datos) {
   if (!inherits(datos, "data.frame")) {
-    stop("La clave de fila requiere un data.frame.", call. = FALSE)
+    .detener("La clave de fila requiere un data.frame.", call. = FALSE)
   }
   columnas_matriciales <- vapply(
     datos,
@@ -1204,10 +1204,10 @@
 
 .absorber_acumulador <- function(acumulador, bloque) {
   if (!inherits(acumulador, "acumulador_bloques")) {
-    stop("`acumulador` no es un acumulador de bloques.", call. = FALSE)
+    .detener("`acumulador` no es un acumulador de bloques.", call. = FALSE)
   }
   if (identical(acumulador$estado, "finalizado")) {
-    stop("No se puede absorber despues de `finalizar()`.", call. = FALSE)
+    .detener("No se puede absorber despues de `finalizar()`.", call. = FALSE)
   }
   if (identical(acumulador$estado, "no_disponible")) return(acumulador)
   bloque <- .extraer_bloque(bloque)
@@ -1522,7 +1522,7 @@
 .fusionar_acumuladores <- function(acumulador, otro) {
   if (!inherits(acumulador, "acumulador_bloques") ||
       !inherits(otro, "acumulador_bloques")) {
-    stop("Ambos objetos deben ser acumuladores de bloques.", call. = FALSE)
+    .detener("Ambos objetos deben ser acumuladores de bloques.", call. = FALSE)
   }
   if (!.compatible_acumuladores(acumulador, otro)) {
     return(.marcar_fallo_acumulador(
@@ -1875,7 +1875,7 @@
 
 .finalizar_acumulador <- function(acumulador) {
   if (!inherits(acumulador, "acumulador_bloques")) {
-    stop("`acumulador` no es un acumulador de bloques.", call. = FALSE)
+    .detener("`acumulador` no es un acumulador de bloques.", call. = FALSE)
   }
   if (identical(acumulador$estado, "finalizado")) return(acumulador$resultado)
   if (identical(acumulador$familia, "lsh") && exists(
@@ -1906,7 +1906,7 @@
 .ejecutar_acumulador_bloques <- function(acumulador, bloques,
                                          vigilante = NULL,
                                          familia = acumulador$familia) {
-  if (!is.list(bloques)) stop("`bloques` debe ser una lista.", call. = FALSE)
+  if (!is.list(bloques)) .detener("`bloques` debe ser una lista.", call. = FALSE)
   for (i in seq_along(bloques)) {
     acumulador <- .absorber_acumulador(acumulador, bloques[[i]])
     if (!is.null(vigilante)) {
@@ -1930,7 +1930,7 @@
 
 .particionar_bloques <- function(n, k = NULL, tamano = 10000L) {
   if (length(n) != 1L || is.na(n) || n < 0 || n != floor(n)) {
-    stop("`n` debe ser un entero no negativo.", call. = FALSE)
+    .detener("`n` debe ser un entero no negativo.", call. = FALSE)
   }
   n <- as.integer(n)
   if (!n) return(list())
@@ -1939,7 +1939,7 @@
     k <- ceiling(n / tamano)
   } else {
     if (length(k) != 1L || is.na(k) || k < 1 || k != floor(k)) {
-      stop("`k` debe ser un entero positivo.", call. = FALSE)
+      .detener("`k` debe ser un entero positivo.", call. = FALSE)
     }
     k <- min(as.integer(k), n)
   }
@@ -1975,7 +1975,7 @@
                                      orden_id = "orden_entrada") {
   if (!is.null(aplicable) &&
       (!is.logical(aplicable) || length(aplicable) != length(x))) {
-    stop("`aplicable` debe ser logico y tener el largo del vector.",
+    .detener("`aplicable` debe ser logico y tener el largo del vector.",
          call. = FALSE)
   }
   acumulador <- .iniciar_acumulador(
@@ -2146,7 +2146,7 @@
 .registrar_barrera_vigilante <- function(vigilante, fase, familia, bloque_id,
                                          acumulador, resultado = NULL) {
   if (!inherits(vigilante, "vigilante_bloques")) {
-    stop("`vigilante` no es un vigilante de bloques.", call. = FALSE)
+    .detener("`vigilante` no es un vigilante de bloques.", call. = FALSE)
   }
   bytes <- .bytes_retenidos(acumulador)
   bytes_resultado <- if (is.null(resultado)) 0 else {
@@ -2739,7 +2739,7 @@ bytes_retenidos <- function(acumulador) .bytes_retenidos(acumulador)
   }
   if (length(aplicable) &&
       (!is.logical(aplicable) || length(aplicable) != length(base))) {
-    stop("`aplicable` debe ser logico y tener el largo de los vectores.",
+    .detener("`aplicable` debe ser logico y tener el largo de los vectores.",
          call. = FALSE)
   }
   if (is.null(aplicable)) aplicable <- rep(TRUE, length(base))
@@ -2957,7 +2957,7 @@ bytes_retenidos <- function(acumulador) .bytes_retenidos(acumulador)
 .indices_muestra_globales <- function(n, muestra) {
   if (!is.numeric(n) || length(n) != 1L || is.na(n) || !is.finite(n) ||
       n < 0 || n != floor(n)) {
-    stop("`n` debe ser un entero no negativo y conocido.", call. = FALSE)
+    .detener("`n` debe ser un entero no negativo y conocido.", call. = FALSE)
   }
   n <- as.numeric(n)
   limite <- .validar_muestra(muestra)
@@ -2972,7 +2972,7 @@ bytes_retenidos <- function(acumulador) .bytes_retenidos(acumulador)
   if (length(ordinal_inicio) != 1L || length(ordinal_fin) != 1L ||
       is.na(ordinal_inicio) || is.na(ordinal_fin) ||
       ordinal_inicio < 1L || ordinal_fin < ordinal_inicio - 1L) {
-    stop("El intervalo del bloque no es valido.", call. = FALSE)
+    .detener("El intervalo del bloque no es valido.", call. = FALSE)
   }
   indices <- .indices_muestra_globales(n, muestra)
   if (!length(indices) || ordinal_fin < ordinal_inicio) return(integer())
@@ -3021,7 +3021,7 @@ bytes_retenidos <- function(acumulador) .bytes_retenidos(acumulador)
   }), use.names = FALSE)
   aplicados <- as.integer(aplicados)
   if (!identical(aplicados, indices)) {
-    stop("La particion no reprodujo los indices globales de la muestra.",
+    .detener("La particion no reprodujo los indices globales de la muestra.",
          call. = FALSE)
   }
   list(
@@ -3075,33 +3075,33 @@ bytes_retenidos <- function(acumulador) .bytes_retenidos(acumulador)
       is.na(max_filas_hallazgo) || max_filas_hallazgo < 1L ||
       (!is.infinite(max_filas_hallazgo) &&
        max_filas_hallazgo != floor(max_filas_hallazgo))) {
-    stop("`max_filas_hallazgo` debe ser un entero positivo o Inf.",
+    .detener("`max_filas_hallazgo` debe ser un entero positivo o Inf.",
          call. = FALSE)
   }
   n <- length(x)
   if (!is.null(mascara) &&
       (!is.logical(mascara) || length(mascara) != n)) {
-    stop("`mascara` debe ser logica y tener el largo del vector.",
+    .detener("`mascara` debe ser logica y tener el largo del vector.",
          call. = FALSE)
   }
   if (!is.null(aplicable) &&
       (!is.logical(aplicable) || length(aplicable) != n)) {
-    stop("`aplicable` debe ser logica y tener el largo del vector.",
+    .detener("`aplicable` debe ser logica y tener el largo del vector.",
          call. = FALSE)
   }
   if (!is.null(criterio) && !is.function(criterio)) {
-    stop("`criterio` debe ser una funcion.", call. = FALSE)
+    .detener("`criterio` debe ser una funcion.", call. = FALSE)
   }
   if (!is.null(indices)) {
     if (is.logical(indices)) {
       if (length(indices) != n) {
-        stop("`indices` logicos debe tener el largo del vector.", call. = FALSE)
+        .detener("`indices` logicos debe tener el largo del vector.", call. = FALSE)
       }
       indices <- which(!is.na(indices) & indices)
     } else {
       if (!is.numeric(indices) || anyNA(indices) ||
           any(indices != floor(indices)) || any(indices < 1L | indices > n)) {
-        stop("`indices` debe contener posiciones globales validas.",
+        .detener("`indices` debe contener posiciones globales validas.",
              call. = FALSE)
       }
       indices <- .sort_por_bytes(unique(as.integer(indices)))
@@ -3152,18 +3152,18 @@ bytes_retenidos <- function(acumulador) .bytes_retenidos(acumulador)
   if (!is.numeric(max_ejemplos) || length(max_ejemplos) != 1L ||
       is.na(max_ejemplos) || max_ejemplos < 1L ||
       max_ejemplos != floor(max_ejemplos)) {
-    stop("`max_ejemplos` debe ser un entero positivo.", call. = FALSE)
+    .detener("`max_ejemplos` debe ser un entero positivo.", call. = FALSE)
   }
   n <- length(x)
   if (is.function(claves)) claves <- claves(x)
   if (is.null(claves)) claves <- x
   if (length(claves) != n) {
-    stop("`claves` debe tener el largo del vector.", call. = FALSE)
+    .detener("`claves` debe tener el largo del vector.", call. = FALSE)
   }
   if (is.function(ejemplos)) ejemplos <- ejemplos(x)
   if (is.null(ejemplos)) ejemplos <- x
   if (length(ejemplos) != n) {
-    stop("`ejemplos` debe tener el largo del vector.", call. = FALSE)
+    .detener("`ejemplos` debe tener el largo del vector.", call. = FALSE)
   }
   bloques <- .particionar_bloques(n, k = k, tamano = tamano)
   bloques <- lapply(bloques, function(bloque) {
@@ -3201,17 +3201,17 @@ bytes_retenidos <- function(acumulador) .bytes_retenidos(acumulador)
   if (!is.numeric(max_patrones) || length(max_patrones) != 1L ||
       is.na(max_patrones) || max_patrones < 1L ||
       max_patrones != floor(max_patrones)) {
-    stop("`max_patrones` debe ser un entero positivo.", call. = FALSE)
+    .detener("`max_patrones` debe ser un entero positivo.", call. = FALSE)
   }
   if (!is.logical(na.rm) || length(na.rm) != 1L || is.na(na.rm)) {
-    stop("`na.rm` debe ser TRUE o FALSE.", call. = FALSE)
+    .detener("`na.rm` debe ser TRUE o FALSE.", call. = FALSE)
   }
   if (!is.numeric(umbral_raro) || length(umbral_raro) != 1L ||
       is.na(umbral_raro) || umbral_raro < 0 || umbral_raro > 1) {
-    stop("`umbral_raro` debe estar entre 0 y 1.", call. = FALSE)
+    .detener("`umbral_raro` debe estar entre 0 y 1.", call. = FALSE)
   }
   if (!is.atomic(x) && !is.factor(x)) {
-    stop("`x` debe ser un vector atomico.", call. = FALSE)
+    .detener("`x` debe ser un vector atomico.", call. = FALSE)
   }
   n <- length(x)
   bloques <- if (n <= .validar_muestra(muestra)) {

@@ -1,7 +1,7 @@
 .validar_entero_positivo <- function(x, nombre) {
   if (!is.numeric(x) || length(x) != 1L || is.na(x) || !is.finite(x) ||
       x < 1 || x != floor(x)) {
-    stop("`", nombre, "` debe ser un entero positivo.", call. = FALSE)
+    .detener("`", nombre, "` debe ser un entero positivo.", call. = FALSE)
   }
   as.integer(x)
 }
@@ -358,7 +358,7 @@ distribucion_valores <- function(datos, perfil = NULL, max_valores = 20L,
   .validar_perfil_de(perfil, datos)
   if (!is.null(.universo) && (!is.list(.universo) ||
       !all(c("mascaras", "sentinelas_numericos") %in% names(.universo)))) {
-    stop("`.universo` es de uso interno de `analizar()`.", call. = FALSE)
+    .detener("`.universo` es de uso interno de `analizar()`.", call. = FALSE)
   }
   datos <- .tabla_base(datos)
   # La misma entrada que el perfil: un `POSIXlt` es el instante de su
@@ -372,7 +372,7 @@ distribucion_valores <- function(datos, perfil = NULL, max_valores = 20L,
   if (!is.numeric(probabilidades) || !length(probabilidades) ||
       anyNA(probabilidades) || any(!is.finite(probabilidades)) ||
       any(probabilidades < 0 | probabilidades > 1)) {
-    stop("`probabilidades` debe contener valores finitos en [0, 1].",
+    .detener("`probabilidades` debe contener valores finitos en [0, 1].",
          call. = FALSE)
   }
   probabilidades <- unique(as.numeric(probabilidades))
@@ -635,11 +635,11 @@ detectar_asociaciones <- function(datos, dependencias = NULL, umbral = 0.3,
   .validar_datos_tabla(datos)
   datos <- .tabla_base(datos)
   if (!is.null(dependencias) && !inherits(dependencias, "data.frame")) {
-    stop("`dependencias` debe ser NULL o un data frame.", call. = FALSE)
+    .detener("`dependencias` debe ser NULL o un data frame.", call. = FALSE)
   }
   if (!is.numeric(umbral) || length(umbral) != 1L || is.na(umbral) ||
       !is.finite(umbral) || umbral < 0 || umbral > 1) {
-    stop("`umbral` debe ser una proporcion finita en [0, 1].", call. = FALSE)
+    .detener("`umbral` debe ser una proporcion finita en [0, 1].", call. = FALSE)
   }
   limite <- .validar_muestra(muestra)
   max_columnas <- .validar_entero_positivo(max_columnas, "max_columnas")
@@ -950,14 +950,14 @@ analizar_tiempo <- function(datos, perfil = NULL, columnas = NULL,
   )
   if (!is.numeric(calendario) || !length(calendario) || anyNA(calendario) ||
       any(calendario < 1 | calendario > 7) || any(calendario != floor(calendario))) {
-    stop("`calendario` debe contener dias ISO entre 1 y 7.", call. = FALSE)
+    .detener("`calendario` debe contener dias ISO entre 1 y 7.", call. = FALSE)
   }
   calendario <- .sort_por_bytes(unique(as.integer(calendario)))
   if (!is.null(frecuencia_dias) && (!is.numeric(frecuencia_dias) ||
       length(frecuencia_dias) != 1L || is.na(frecuencia_dias) ||
       !is.finite(frecuencia_dias) || frecuencia_dias <= 0 ||
       frecuencia_dias != floor(frecuencia_dias))) {
-    stop("`frecuencia_dias` debe ser NULL o un entero positivo.", call. = FALSE)
+    .detener("`frecuencia_dias` debe ser NULL o un entero positivo.", call. = FALSE)
   }
   max_huecos <- .validar_entero_positivo(max_huecos, "max_huecos")
   max_columnas <- .validar_entero_positivo(max_columnas, "max_columnas")
@@ -973,7 +973,7 @@ analizar_tiempo <- function(datos, perfil = NULL, columnas = NULL,
   if (!is.character(columnas) || anyNA(columnas) ||
       length(indices_columnas) != length(columnas) ||
       anyNA(indices_columnas)) {
-    stop("`columnas` contiene nombres inexistentes.", call. = FALSE)
+    .detener("`columnas` contiene nombres inexistentes.", call. = FALSE)
   }
   columnas_totales <- names(datos)[unique(indices_columnas)]
   columnas <- utils::head(columnas_totales, max_columnas)

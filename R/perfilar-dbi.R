@@ -13,7 +13,7 @@
 
 .requerir_dbi <- function() {
   if (!.dbi_disponible()) {
-    stop(
+    .detener(
       "Para perfilar una muestra de una base se necesita instalar el paquete opcional 'DBI'.",
       call. = FALSE
     )
@@ -33,13 +33,13 @@
 }
 
 .detener_dbi <- function(clase, mensaje, datos = list()) {
-  stop(.condicion_dbi(clase, mensaje, datos))
+  .detener(.condicion_dbi(clase, mensaje, datos))
 }
 
 .avisar_dbi <- function(clase, mensaje, datos = list()) {
   aviso <- list(message = mensaje, call = NULL, datos = datos)
   class(aviso) <- c(clase, "lupa_aviso_dbi", "warning", "condition")
-  warning(aviso)
+  .avisar(aviso)
 }
 
 # ---- El mensaje del motor ------------------------------------------------
@@ -485,7 +485,7 @@
           piezas <- .claves_motor(caracteres)
           piezas[is.na(piezas)] <- ""
           if (!identical(paste0(piezas, collapse = ""), claves[[i]])) {
-            stop("pliegue")
+            .detener("pliegue")
           }
           dueno <- rep.int(seq_along(caracteres), nchar(piezas, type = "chars"))
           vapply(seq_len(nrow(tramos)), function(k) {
@@ -3063,7 +3063,7 @@
     trazador, etapa, inicio, .ahora_dbi(), nivel = nivel,
     cpu_inicio = cpu_inicio, cpu_fin = .ahora_cpu_dbi()
   )
-  if (!isTRUE(valor$ok)) stop(valor$error)
+  if (!isTRUE(valor$ok)) .detener(valor$error)
   valor$valor
 }
 
@@ -7039,7 +7039,7 @@
   if (!is.numeric(muestra) || length(muestra) != 1L || is.na(muestra) ||
       muestra < 1 ||
       (is.finite(muestra) && muestra != floor(muestra))) {
-    stop(
+    .detener(
       "`muestra` debe ser un entero positivo, o `Inf` para la tabla entera.",
       call. = FALSE
     )
@@ -7070,14 +7070,14 @@
     Inf
   }
   if (total_conocido && total > 0 && por_celdas < 1) {
-    stop(
+    .detener(
       "`max_celdas_muestra` debe permitir al menos una fila para todas las columnas.",
       call. = FALSE
     )
   }
   filas <- min(solicitado, por_celdas)
   if (total_conocido && total > 0 && filas < 1) {
-    stop(
+    .detener(
       "`max_celdas_muestra` debe permitir al menos una fila para todas las columnas.",
       call. = FALSE
     )

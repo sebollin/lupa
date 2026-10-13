@@ -51,11 +51,11 @@
   base <- if (is.null(directorio)) tempdir() else directorio
   if (!dir.exists(base) && !dir.create(base, recursive = TRUE,
                                         showWarnings = FALSE)) {
-    stop("No se pudo crear el directorio base de derrame LSH.", call. = FALSE)
+    .detener("No se pudo crear el directorio base de derrame LSH.", call. = FALSE)
   }
   salida <- tempfile("lupa-lsh-", tmpdir = base)
   if (!dir.create(salida, recursive = TRUE, showWarnings = FALSE)) {
-    stop("No se pudo crear el directorio de derrame LSH.", call. = FALSE)
+    .detener("No se pudo crear el directorio de derrame LSH.", call. = FALSE)
   }
   salida
 }
@@ -87,7 +87,7 @@
   datos <- tryCatch(readRDS(archivo), error = function(e) e)
   if (inherits(datos, "condition") || !is.data.frame(datos) ||
       anyNA(.indice_nombre(columnas, names(datos)))) {
-    stop("run LSH ilegible o con formato incompatible.", call. = FALSE)
+    .detener("run LSH ilegible o con formato incompatible.", call. = FALSE)
   }
   datos
 }
@@ -279,7 +279,7 @@
       tomar <- .lsh_menor_igual_clave(unidos, limite, columnas_orden)
     }
     indices_tomar <- if (is.logical(tomar)) which(tomar) else tomar
-    if (!length(indices_tomar)) stop("merge LSH sin avance.", call. = FALSE)
+    if (!length(indices_tomar)) .detener("merge LSH sin avance.", call. = FALSE)
     for (i in disponibles) {
       cursores[[i]]$consumir(sum(unidos$.lsh_run[indices_tomar] == i))
     }
@@ -1182,7 +1182,7 @@
         estado$maximo_cache_diccionario %||% 0,
         unidos$max_cache %||% 0
       )
-      if (unidos$faltantes > 0L) stop(
+      if (unidos$faltantes > 0L) .detener(
         "merge-join del diccionario dejo q-gramas sin identificador.",
         call. = FALSE
       )
@@ -1393,7 +1393,7 @@
     fuente_id = "memoria", snapshot_id = "memoria",
     universo_id = "tabla_completa", muestra_id = NULL,
     orden_id = "orden_entrada", vigilante = NULL) {
-  if (!is.list(bloques)) stop("`bloques` debe ser una lista.", call. = FALSE)
+  if (!is.list(bloques)) .detener("`bloques` debe ser una lista.", call. = FALSE)
   conf <- list(
     metodo = as.character(metodo), umbral = as.numeric(umbral), p = as.numeric(p),
     bandas = as.integer(bandas), filas_banda = as.integer(filas_banda),

@@ -76,7 +76,7 @@ inferir_tipo <- function(x, umbral = 0.8, muestra = 1e5) {
 .inferir_tipo_interno <- function(x, umbral = 0.8, muestra = 1e5,
                                   conservar_cache = TRUE) {
   if (length(umbral) != 1L || is.na(umbral) || umbral < 0 || umbral > 1) {
-    stop("`umbral` debe estar entre 0 y 1.", call. = FALSE)
+    .detener("`umbral` debe estar entre 0 y 1.", call. = FALSE)
   }
   muestreo <- .muestrear_vector(x, muestra)
   declarada <- .tipo_declarado(x)

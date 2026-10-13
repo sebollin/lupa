@@ -352,7 +352,7 @@ detectar_claves <- function(datos, max_combinacion = 3, normalizar = NULL,
   normalizacion_resuelta <- .resolver_normalizacion(normalizar, perfil)
   if (length(max_combinacion) != 1L || is.na(max_combinacion) ||
       max_combinacion < 1L || max_combinacion > 3L) {
-    stop("`max_combinacion` debe ser un entero entre 1 y 3.", call. = FALSE)
+    .detener("`max_combinacion` debe ser un entero entre 1 y 3.", call. = FALSE)
   }
   # Los nombres publicados son los de la tabla. La forma unica queda reservada
   # para nombres de listas internas; agregar el sufijo de `make.unique()` a una
@@ -518,7 +518,7 @@ detectar_claves <- function(datos, max_combinacion = 3, normalizar = NULL,
   sin_analizar <- sin_analizar[!duplicated(.nombres_para_operar(sin_analizar))]
   attr(resultado, "columnas_nombre_repetido") <- sin_analizar
   if (length(sin_analizar)) {
-    warning(
+    .avisar(
       "No se buscaron claves en ", length(sin_analizar), " nombre",
       if (length(sin_analizar) > 1L) "s" else "", " de columna repetido",
       if (length(sin_analizar) > 1L) "s" else "", " (",
@@ -736,7 +736,7 @@ detectar_claves <- function(datos, max_combinacion = 3, normalizar = NULL,
   if (is.null(columnas)) return(nombres)
   if (!is.character(columnas) || !length(columnas) || anyNA(columnas) ||
       any(!nzchar(columnas))) {
-    stop(
+    .detener(
       "`columnas_candidatas` para ", lado,
       " debe ser un vector de nombres no vacios.", call. = FALSE
     )
@@ -744,7 +744,7 @@ detectar_claves <- function(datos, max_combinacion = 3, normalizar = NULL,
   indices <- .indice_nombre(columnas, nombres)
   desconocidas <- columnas[is.na(indices)]
   if (length(desconocidas)) {
-    stop(
+    .detener(
       "`columnas_candidatas` nombra columnas inexistentes en ", lado, ": ",
       paste(desconocidas, collapse = ", "), ".", call. = FALSE
     )
@@ -755,7 +755,7 @@ detectar_claves <- function(datos, max_combinacion = 3, normalizar = NULL,
 .resolver_columnas_candidatas_relacion <- function(columnas, n1, n2) {
   if (is.null(columnas)) return(list(tabla1 = n1, tabla2 = n2))
   if (!is.list(columnas) || length(columnas) != 2L) {
-    stop(
+    .detener(
       "`columnas_candidatas` debe ser una lista con una entrada para cada tabla,",
       " en el orden `tabla1`, `tabla2`.", call. = FALSE
     )
@@ -1018,21 +1018,21 @@ detectar_relaciones <- function(tabla1, tabla2, muestra = 1e5,
                                 podar = FALSE,
                                 tope_memoria_mb = Inf, .rangos = NULL) {
   if (!inherits(tabla1, "data.frame") || !inherits(tabla2, "data.frame")) {
-    stop("`tabla1` y `tabla2` deben heredar de data.frame.", call. = FALSE)
+    .detener("`tabla1` y `tabla2` deben heredar de data.frame.", call. = FALSE)
   }
   tabla1 <- .tabla_base(tabla1)
   tabla2 <- .tabla_base(tabla2)
   if (!is.logical(podar) || length(podar) != 1L || is.na(podar)) {
-    stop("`podar` debe ser TRUE o FALSE.", call. = FALSE)
+    .detener("`podar` debe ser TRUE o FALSE.", call. = FALSE)
   }
   if (!is.numeric(umbral_cobertura) || length(umbral_cobertura) != 1L ||
       is.na(umbral_cobertura) || umbral_cobertura < 0 ||
       umbral_cobertura > 1) {
-    stop("`umbral_cobertura` debe estar entre 0 y 1.", call. = FALSE)
+    .detener("`umbral_cobertura` debe estar entre 0 y 1.", call. = FALSE)
   }
   if (!is.numeric(tope_memoria_mb) || length(tope_memoria_mb) != 1L ||
       is.na(tope_memoria_mb) || tope_memoria_mb < 0) {
-    stop("`tope_memoria_mb` debe ser un numero no negativo.", call. = FALSE)
+    .detener("`tope_memoria_mb` debe ser un numero no negativo.", call. = FALSE)
   }
   limite_muestra <- .validar_muestra(muestra)
   nombres_1 <- names(tabla1)
@@ -1047,7 +1047,7 @@ detectar_relaciones <- function(tabla1, tabla2, muestra = 1e5,
   })
   if (!is.null(.rangos) && (!is.list(.rangos) ||
       !all(c("tabla1", "tabla2") %in% names(.rangos)))) {
-    stop(
+    .detener(
       "`.rangos` debe declarar entradas `tabla1` y `tabla2`.",
       call. = FALSE
     )

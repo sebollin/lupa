@@ -1,7 +1,7 @@
 .validar_limite_duplicados <- function(x, nombre) {
   if (!is.numeric(x) || length(x) != 1L || is.na(x) || x < 1 ||
       (!is.infinite(x) && x != floor(x))) {
-    stop("`", nombre, "` debe ser un entero positivo o Inf.", call. = FALSE)
+    .detener("`", nombre, "` debe ser un entero positivo o Inf.", call. = FALSE)
   }
   if (is.infinite(x)) Inf else as.integer(x)
 }
@@ -141,7 +141,7 @@
   if (is.null(x)) x <- getOption("lupa.nucleos", 2L)
   if (!is.numeric(x) || length(x) != 1L || is.na(x) || !is.finite(x) ||
       x < 1 || x != floor(x)) {
-    stop("`nucleos` debe ser un entero positivo o NULL.", call. = FALSE)
+    .detener("`nucleos` debe ser un entero positivo o NULL.", call. = FALSE)
   }
   min(as.integer(x), .nucleos_disponibles_lupa())
 }
@@ -244,7 +244,7 @@
 .validar_bloque_duplicados <- function(x) {
   if (!is.numeric(x) || length(x) != 1L || is.na(x) ||
       !is.finite(x) || x < 1 || x != floor(x)) {
-    stop("`bloque` debe ser un entero positivo y finito.", call. = FALSE)
+    .detener("`bloque` debe ser un entero positivo y finito.", call. = FALSE)
   }
   as.integer(x)
 }
@@ -253,18 +253,18 @@
   if (is.null(x)) return(NULL)
   if (!is.character(x) || length(x) != 1L || is.na(x) || !nzchar(x) ||
       is.na(.indice_nombre(x, names(datos)))) {
-    stop("`bloquear_por` debe nombrar una columna existente.", call. = FALSE)
+    .detener("`bloquear_por` debe nombrar una columna existente.", call. = FALSE)
   }
   x <- names(datos)[[.indice_nombre(x, names(datos))]]
   if (.es_columna_compuesta(datos[[x]]) || is.list(datos[[x]])) {
-    stop("`bloquear_por` debe nombrar una columna atomica.", call. = FALSE)
+    .detener("`bloquear_por` debe nombrar una columna atomica.", call. = FALSE)
   }
   x
 }
 
 .validar_lotes <- function(x) {
   if (!is.logical(x) || length(x) != 1L || is.na(x)) {
-    stop("`lotes` debe ser TRUE o FALSE.", call. = FALSE)
+    .detener("`lotes` debe ser TRUE o FALSE.", call. = FALSE)
   }
   isTRUE(x)
 }
@@ -272,11 +272,11 @@
 .validar_directorio_lotes <- function(x, crear = TRUE) {
   if (is.null(x)) return(NULL)
   if (!is.character(x) || length(x) != 1L || is.na(x) || !nzchar(x)) {
-    stop("`directorio_lotes` debe ser una ruta de texto o NULL.", call. = FALSE)
+    .detener("`directorio_lotes` debe ser una ruta de texto o NULL.", call. = FALSE)
   }
   if (isTRUE(crear) && !dir.exists(x) &&
       !dir.create(x, recursive = TRUE, showWarnings = FALSE)) {
-    stop("No se pudo crear `directorio_lotes`.", call. = FALSE)
+    .detener("No se pudo crear `directorio_lotes`.", call. = FALSE)
   }
   x
 }
@@ -296,7 +296,7 @@
     )
   }
   if (!continuar) {
-    stop(
+    .detener(
       "La estimaci\u00f3n exacta (", .formato_pares_lsh(estimados),
       " pares) supera `presupuesto_pares` (",
       .formato_pares_lsh(presupuesto),
@@ -408,7 +408,7 @@
 .validar_parametro_lsh <- function(x, nombre, minimo = 1L) {
   if (!is.numeric(x) || length(x) != 1L || is.na(x) ||
       !is.finite(x) || x < minimo || x != floor(x)) {
-    stop("`", nombre, "` debe ser un entero finito de al menos ", minimo,
+    .detener("`", nombre, "` debe ser un entero finito de al menos ", minimo,
          ".", call. = FALSE)
   }
   as.integer(x)
@@ -452,11 +452,11 @@
 .ordenar_pares_con_igualdad <- function(pares, iguales, rango = NULL) {
   if (!inherits(pares, "data.frame") ||
       !all(c("distancia", "fila_1", "fila_2") %in% names(pares))) {
-    stop("Los pares deben ser un data frame con filas y distancia.",
+    .detener("Los pares deben ser un data frame con filas y distancia.",
          call. = FALSE)
   }
   if (length(iguales) != nrow(pares)) {
-    stop("La igualdad debe contener una entrada por par.", call. = FALSE)
+    .detener("La igualdad debe contener una entrada por par.", call. = FALSE)
   }
   if (!nrow(pares)) {
     rownames(pares) <- NULL
@@ -500,7 +500,7 @@
       } else logical()
     }
     if (length(iguales) != nrow(lotes_todos[[indice]])) {
-      stop("El acumulador no contiene la igualdad de los textos para cada par.",
+      .detener("El acumulador no contiene la igualdad de los textos para cada par.",
            call. = FALSE)
     }
     as.logical(iguales)
@@ -531,13 +531,13 @@
     iguales_originales = NULL) {
   if (!length(fila_1)) return(acumulador)
   if (is.null(iguales)) {
-    stop("El lote debe entregar la igualdad de los textos para cada par.",
+    .detener("El lote debe entregar la igualdad de los textos para cada par.",
          call. = FALSE)
   }
   if (length(fila_1) != length(fila_2) ||
       length(fila_1) != length(distancia) ||
       length(fila_1) != length(iguales)) {
-    stop("El lote de pares debe tener filas y distancias de igual longitud.",
+    .detener("El lote de pares debe tener filas y distancias de igual longitud.",
          call. = FALSE)
   }
   validos <- is.finite(distancia)
@@ -552,7 +552,7 @@
   iguales[is.na(iguales)] <- FALSE
   if (is.null(iguales_originales)) iguales_originales <- iguales
   if (length(iguales_originales) != length(fila_1)) {
-    stop("La igualdad del texto original debe contener una entrada por par.",
+    .detener("La igualdad del texto original debe contener una entrada por par.",
          call. = FALSE)
   }
   iguales_originales <- as.logical(iguales_originales[validos])
@@ -693,7 +693,7 @@
   base <- if (is.null(directorio_lotes)) tempdir() else directorio_lotes
   directorio <- tempfile("lupa-lotes-", tmpdir = base)
   if (!dir.create(directorio, recursive = TRUE, showWarnings = FALSE)) {
-    stop("No se pudo crear el directorio de parciales.", call. = FALSE)
+    .detener("No se pudo crear el directorio de parciales.", call. = FALSE)
   }
   directorio
 }
@@ -1566,7 +1566,7 @@
       anyNA(columnas) || any(!nzchar(columnas)) ||
       length(indices) != length(columnas) || anyNA(indices) ||
       anyDuplicated(indices)) {
-    stop("`columnas` debe nombrar columnas atomicas existentes y sin repetir.",
+    .detener("`columnas` debe nombrar columnas atomicas existentes y sin repetir.",
          call. = FALSE)
   }
   columnas <- names(datos)[indices]
@@ -1575,7 +1575,7 @@
     .es_columna_compuesta(x) || is.list(x)
   },
                  logical(1L)))) {
-    stop("Las columnas aproximadas no pueden ser matrices ni listas.",
+    .detener("Las columnas aproximadas no pueden ser matrices ni listas.",
          call. = FALSE)
   }
   columnas
@@ -1845,18 +1845,18 @@
         "osa", "lv", "dl", "hamming", "lcs", "qgram", "cosine",
         "jaccard", "jw", "soundex"
       )) {
-    stop(
+    .detener(
       "`metodo` debe ser una medida admitida: osa, lv, dl, hamming, lcs, ",
       "qgram, cosine, jaccard, jw o soundex.", call. = FALSE
     )
   }
   if (!is.numeric(umbral) || length(umbral) != 1L || is.na(umbral) ||
       !is.finite(umbral) || umbral < 0) {
-    stop("`umbral` debe ser un numero finito no negativo.", call. = FALSE)
+    .detener("`umbral` debe ser un numero finito no negativo.", call. = FALSE)
   }
   if (!is.numeric(p) || length(p) != 1L || is.na(p) || !is.finite(p) ||
       p < 0 || p > 0.25) {
-    stop("`p` debe ser un numero finito entre 0 y 0.25.", call. = FALSE)
+    .detener("`p` debe ser un numero finito entre 0 y 0.25.", call. = FALSE)
   }
   .validar_bandera_proteccion(proteger_datos_personales)
   largos <- .columnas_largas_duplicados(
@@ -2047,7 +2047,7 @@
     return(resultado)
   }
   if (lotes && usar_lsh) {
-    stop(
+    .detener(
       "`lotes = TRUE` s\u00f3lo est\u00e1 disponible para la comparaci\u00f3n exacta; ",
       "el camino LSH ya procesa sus cubetas por bloques en memoria.",
       call. = FALSE

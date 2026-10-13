@@ -73,10 +73,10 @@ normalizacion <- function(minusculas = TRUE, espacios = TRUE, acentos = TRUE,
   )
   if (any(!vapply(valores, function(x) is.logical(x) && length(x) == 1L &&
                   !is.na(x), logical(1L)))) {
-    stop("Los pasos de normalizacion() deben ser logicos escalares.", call. = FALSE)
+    .detener("Los pasos de normalizacion() deben ser logicos escalares.", call. = FALSE)
   }
   if (!is.character(proteger) || anyNA(proteger) || any(!nzchar(proteger))) {
-    stop("proteger debe ser un vector de caracteres no vacio ni NA.", call. = FALSE)
+    .detener("proteger debe ser un vector de caracteres no vacio ni NA.", call. = FALSE)
   }
   if (any(vapply(proteger, function(x) {
     codigos <- .normalizacion_ordenar(
@@ -85,7 +85,7 @@ normalizacion <- function(minusculas = TRUE, espacios = TRUE, acentos = TRUE,
     !length(codigos) || .normalizacion_clase(codigos[[1L]]) != 0L ||
       any(vapply(codigos[-1L], .normalizacion_clase, integer(1L)) == 0L)
   }, logical(1L)))) {
-    stop("Cada elemento de proteger debe ser un grafema Unicode valido.",
+    .detener("Cada elemento de proteger debe ser un grafema Unicode valido.",
          call. = FALSE)
   }
   structure(c(valores, list(proteger = unique(proteger))),
@@ -118,7 +118,7 @@ print.normalizacion_lupa <- function(x, ...) {
   if (identical(nombre, "amplio")) {
     return(normalizacion(puntuacion = TRUE, ligaduras = TRUE, ancho = TRUE))
   }
-  stop("El preset de normalizar debe ser amplio.", call. = FALSE)
+  .detener("El preset de normalizar debe ser amplio.", call. = FALSE)
 }
 .normalizacion_resuelta <- function(general, por_columna = list()) {
   estructura <- list(general = general, por_columna = por_columna)
@@ -143,7 +143,7 @@ print.normalizacion_lupa <- function(x, ...) {
     )))
   }
   if (is.logical(normalizar)) {
-    stop("normalizar debe ser un vector de l\u00f3gicos escalares sin NA.",
+    .detener("normalizar debe ser un vector de l\u00f3gicos escalares sin NA.",
          call. = FALSE)
   }
   if (is.character(normalizar) && length(normalizar) == 1L && !is.na(normalizar)) {
@@ -153,7 +153,7 @@ print.normalizacion_lupa <- function(x, ...) {
     nombres <- names(normalizar)
     if (is.null(nombres) || anyNA(nombres) || any(!nzchar(nombres)) ||
         anyDuplicated(.nombres_para_operar(nombres))) {
-      stop("La lista de normalizar debe tener nombres de columnas unicos.", call. = FALSE)
+      .detener("La lista de normalizar debe tener nombres de columnas unicos.", call. = FALSE)
     }
     perfiles <- lapply(normalizar, function(x) {
       if (is.character(x) && length(x) == 1L) x <- .normalizacion_preset(x)
@@ -162,14 +162,14 @@ print.normalizacion_lupa <- function(x, ...) {
                            comillas = x)
       }
       if (!inherits(x, "normalizacion_lupa")) {
-        stop("Cada valor de la lista normalizar debe ser un perfil valido.",
+        .detener("Cada valor de la lista normalizar debe ser un perfil valido.",
              call. = FALSE)
       }
       x
     })
     return(.normalizacion_resuelta(normalizacion(), perfiles))
   }
-  stop("normalizar debe ser TRUE, FALSE, amplio, un perfil o una lista nombrada.",
+  .detener("normalizar debe ser TRUE, FALSE, amplio, un perfil o una lista nombrada.",
        call. = FALSE)
 }
 .normalizacion_para_columna <- function(resuelta, columna) {

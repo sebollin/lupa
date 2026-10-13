@@ -83,40 +83,40 @@ regla_evaluacion <- function(nombre, condicion, metricas = NULL,
                              proporcion_minima = NULL, desenlace = NULL,
                              umbrales = list()) {
   if (!.es_texto_escalar(nombre)) {
-    stop("`nombre` debe ser una cadena no vac\u00eda.", call. = FALSE)
+    .detener("`nombre` debe ser una cadena no vac\u00eda.", call. = FALSE)
   }
   if (!is.function(condicion)) {
-    stop("`condicion` debe ser una funci\u00f3n.", call. = FALSE)
+    .detener("`condicion` debe ser una funci\u00f3n.", call. = FALSE)
   }
   if (!is.null(metricas) &&
       (!is.character(metricas) || !length(metricas) || anyNA(metricas) ||
        any(!nzchar(metricas)))) {
-    stop("`metricas` debe ser NULL o nombres no vac\u00edos.", call. = FALSE)
+    .detener("`metricas` debe ser NULL o nombres no vac\u00edos.", call. = FALSE)
   }
   if (!is.null(proporcion_minima) &&
       (!is.numeric(proporcion_minima) || length(proporcion_minima) != 1L ||
        is.na(proporcion_minima) || !is.finite(proporcion_minima) ||
        proporcion_minima < 0 || proporcion_minima > 1)) {
-    stop("`proporcion_minima` debe ser NULL o un n\u00famero entre 0 y 1.",
+    .detener("`proporcion_minima` debe ser NULL o un n\u00famero entre 0 y 1.",
          call. = FALSE)
   }
   if (!is.null(desenlace) &&
       (!.es_texto_escalar(desenlace) || desenlace != "suprimir")) {
-    stop("`desenlace` debe ser NULL o 'suprimir'.", call. = FALSE)
+    .detener("`desenlace` debe ser NULL o 'suprimir'.", call. = FALSE)
   }
   # Los umbrales viajan aparte de la condicion para que se puedan cambiar sin
   # reconstruir la regla y para que queden a la vista en `propiedades_regla()`.
   # Encerrados en el closure quedaban invisibles y obligaban a escribir otra
   # regla para mover un numero.
   if (!is.list(umbrales)) {
-    stop("`umbrales` debe ser una lista con nombres.", call. = FALSE)
+    .detener("`umbrales` debe ser una lista con nombres.", call. = FALSE)
   }
   if (length(umbrales)) {
     nombres_umbrales <- names(umbrales)
     if (is.null(nombres_umbrales) || anyNA(nombres_umbrales) ||
         !all(nzchar(nombres_umbrales)) ||
         anyDuplicated(.nombres_para_operar(nombres_umbrales))) {
-      stop("`umbrales` debe tener nombres unicos y no vacios.", call. = FALSE)
+      .detener("`umbrales` debe tener nombres unicos y no vacios.", call. = FALSE)
     }
     argumentos_condicion <- names(formals(condicion))
     if (!"..." %in% argumentos_condicion) {
@@ -124,7 +124,7 @@ regla_evaluacion <- function(nombre, condicion, metricas = NULL,
         nombres_umbrales, argumentos_condicion
       )
       if (length(sin_recibir)) {
-        stop(
+        .detener(
           "`condicion` no recibe estos umbrales: ",
           paste(sin_recibir, collapse = ", "),
           ". Sus argumentos son: ",
@@ -177,7 +177,7 @@ regla_evaluacion <- function(nombre, condicion, metricas = NULL,
 #' propiedades_regla(regla)
 propiedades_regla <- function(regla) {
   if (!inherits(regla, "regla_evaluacion")) {
-    stop("`regla` debe ser una regla creada por regla_evaluacion().",
+    .detener("`regla` debe ser una regla creada por regla_evaluacion().",
          call. = FALSE)
   }
   texto <- function(x) {
@@ -225,7 +225,7 @@ propiedades_regla <- function(regla) {
 #'   [historico_calidad()]
 perfil_evaluacion <- function(nombre, ...) {
   if (!.es_texto_escalar(nombre)) {
-    stop("`nombre` debe ser una cadena no vac\u00eda.", call. = FALSE)
+    .detener("`nombre` debe ser una cadena no vac\u00eda.", call. = FALSE)
   }
   reglas <- list(...)
   if (length(reglas) == 1L && is.list(reglas[[1L]]) &&
@@ -234,11 +234,11 @@ perfil_evaluacion <- function(nombre, ...) {
   }
   if (!length(reglas) ||
       !all(vapply(reglas, inherits, logical(1L), "regla_evaluacion"))) {
-    stop("Un perfil requiere una o m\u00e1s reglas de evaluaci\u00f3n.", call. = FALSE)
+    .detener("Un perfil requiere una o m\u00e1s reglas de evaluaci\u00f3n.", call. = FALSE)
   }
   nombres <- vapply(reglas, `[[`, character(1L), "nombre")
   if (anyDuplicated(.nombres_para_operar(nombres))) {
-    stop("Los nombres de las reglas del perfil deben ser \u00fanicos.", call. = FALSE)
+    .detener("Los nombres de las reglas del perfil deben ser \u00fanicos.", call. = FALSE)
   }
   names(reglas) <- nombres
   estructura <- list(nombre = nombre, reglas = reglas)
@@ -281,7 +281,7 @@ perfil_evaluacion <- function(nombre, ...) {
         # declare una regla propia con la escala de esa medida.
         no_aplica <- !is.na(orientacion) & orientacion == "no_aplica"
         if (any(no_aplica)) {
-          stop(
+          .detener(
             "El perfil de madurez usa un umbral en [0, 1] y no puede juzgar una ",
             "metrica no acotada. Declara orientacion `no_aplica`: ",
             paste(unique(seq_along(valor)[no_aplica]), collapse = ", "),
@@ -310,13 +310,13 @@ perfiles_madurez <- function(metricas = NULL, umbrales = NULL) {
       is.null(names(umbrales)) || anyNA(names(umbrales)) ||
       any(!nzchar(names(umbrales))) ||
       anyDuplicated(.nombres_para_operar(names(umbrales)))) {
-    stop(
+    .detener(
       "`umbrales` debe ser un vector num\u00e9rico con nombres \u00fanicos en [0, 1].",
       call. = FALSE
     )
   }
   if (length(umbrales) > 1L && any(diff(umbrales) <= 0)) {
-    stop("Los umbrales de madurez deben ser estrictamente crecientes.",
+    .detener("Los umbrales de madurez deben ser estrictamente crecientes.",
          call. = FALSE)
   }
   nombres <- names(umbrales)
@@ -358,7 +358,7 @@ perfiles_madurez <- function(metricas = NULL, umbrales = NULL) {
   # motivo verdadero a mano.
   if (!inherits(medicion, "data.frame") ||
       !all(.identificadores_en(requeridas, names(medicion)))) {
-    stop("`medicion` debe ser un data frame producido por medir().",
+    .detener("`medicion` debe ser un data frame producido por medir().",
          call. = FALSE)
   }
   if (!nrow(medicion)) {
@@ -377,7 +377,7 @@ perfiles_madurez <- function(metricas = NULL, umbrales = NULL) {
   if (.identificadores_en("id_medida", names(medicion))) {
     repetidas <- duplicated(.nombres_para_operar(as.character(medicion$id_medida)))
     if (any(repetidas)) {
-      stop(
+      .detener(
         "La medici\u00f3n repite la medida `",
         as.character(medicion$id_medida)[which(repetidas)[[1L]]], "`",
         if (sum(repetidas) > 1L) paste0(" (y ", sum(repetidas) - 1L, " m\u00e1s)"),
@@ -395,7 +395,7 @@ perfiles_madurez <- function(metricas = NULL, umbrales = NULL) {
     ids <- if (.identificadores_en("id_medida", names(medicion))) {
       as.character(medicion$id_medida[sin_valor])
     } else as.character(which(sin_valor))
-    stop(
+    .detener(
       sum(sin_valor), if (sum(sin_valor) == 1L) " medida tiene" else " medidas tienen",
       " `resultado` NA sin estar suprimida(s) -la primera, `", ids[[1L]], "`-: ",
       "una medida sin valor no se eval\u00faa. Si la m\u00e9trica no pudo medirse, ",
@@ -415,7 +415,7 @@ perfiles_madurez <- function(metricas = NULL, umbrales = NULL) {
       rep(TRUE, nrow(medicion))
     }]
   )) {
-    stop("Los resultados de la medici\u00f3n no respetan su tipo declarado.",
+    .detener("Los resultados de la medici\u00f3n no respetan su tipo declarado.",
          call. = FALSE)
   }
   .orientacion_medidas(medicion)
@@ -550,7 +550,7 @@ perfiles_madurez <- function(metricas = NULL, umbrales = NULL) {
       regla$metricas, medicion$metrica_instanciada
     )
     disponibles <- .identificadores_unicos(medicion$metrica_instanciada)
-    stop(
+    .detener(
       "La regla '", regla$nombre,
       "' no coincide con ninguna m\u00e9trica instanciada. Solicitadas: ",
       paste(solicitadas, collapse = ", "), ". Disponibles: ",
@@ -564,7 +564,7 @@ perfiles_madurez <- function(metricas = NULL, umbrales = NULL) {
   )
   if (!is.logical(resultado) || length(resultado) != nrow(medidas) ||
       anyNA(resultado)) {
-    stop(
+    .detener(
       "La condici\u00f3n de la regla '", regla$nombre,
       "' debe devolver l\u00f3gicos sin NA, uno por medida.", call. = FALSE
     )
@@ -1052,7 +1052,7 @@ rbind.medicion <- function(..., deparse.level = 1) {
     if (!is.null(union)) attr(resultado, "configuracion_modelo") <- union
   } else if (!mismo("configuracion_modelo") ||
              !mismo("configuracion_aplicabilidad")) {
-    stop(
+    .detener(
       "No se pueden unir con `rbind()` mediciones de modelos o universos ",
       "distintos: una medicion conserva un solo modelo, y una deriva posterior ",
       "no podria distinguir el cambio de modelo del de datos. Para seguir ",
@@ -1332,7 +1332,7 @@ evaluar <- function(medicion, perfil) {
     } else {
       paste0("un objeto de clase ", paste(class(perfil), collapse = "/"))
     }
-    stop(
+    .detener(
       "El segundo argumento `perfil` debe ser un perfil creado por ",
       "perfil_evaluacion(); se recibio ", recibido, ".",
       call. = FALSE
@@ -1370,7 +1370,7 @@ evaluar <- function(medicion, perfil) {
   cobertura_reglas <- .cobertura_reglas_evaluacion(medicion, perfil)
   if (nrow(cobertura_reglas)) {
     attr(estructura, "cobertura_reglas") <- cobertura_reglas
-    warning(
+    .avisar(
       "El veredicto de ",
       length(.identificadores_unicos(cobertura_reglas$regla)),
       " regla(s) cubre menos m\u00e9tricas de las que la regla declara: ",
@@ -1428,13 +1428,13 @@ evaluar <- function(medicion, perfil) {
 comparar_evaluaciones <- function(anterior, actual) {
   if (!inherits(anterior, "evaluacion_calidad") ||
       !inherits(actual, "evaluacion_calidad")) {
-    stop("`anterior` y `actual` deben provenir de evaluar().", call. = FALSE)
+    .detener("`anterior` y `actual` deben provenir de evaluar().", call. = FALSE)
   }
   a <- anterior$perfiles
   b <- actual$perfiles
   if (length(.identificadores_unicos(a$id_medicion)) != 1L ||
       length(.identificadores_unicos(b$id_medicion)) != 1L) {
-    stop("Cada evaluaci\u00f3n debe contener una sola corrida.", call. = FALSE)
+    .detener("Cada evaluaci\u00f3n debe contener una sola corrida.", call. = FALSE)
   }
   # La misma razon que en `comparar_perfiles()`: con las corridas cambiadas, el
   # delta publicado dice que bajo lo que subio, y la fila llama "anterior" a la

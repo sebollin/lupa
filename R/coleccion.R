@@ -104,7 +104,7 @@
 }
 
 .error_identificador <- function(entrada, causa, salida) {
-  stop(
+  .detener(
     "`lupa` no puede interpretar el nombre de tabla ", .comillas_sin_locale(entrada, quote = "'"),
     ": ", causa, " ", salida,
     call. = FALSE
@@ -176,7 +176,7 @@
 .partes_id_dbi <- function(id) {
   nombres <- tryCatch(id@name, error = function(e) NULL)
   if (!length(nombres) || !is.character(nombres)) {
-    stop(
+    .detener(
       "Un `DBI::Id` de la coleccion no trae componentes de nombre utilizables.",
       call. = FALSE
     )
@@ -188,7 +188,7 @@
   # se rechaza **nombrando la causa**, que es lo que evita que el usuario lo lea
   # como un problema suyo de permisos.
   if (length(nombres) > 3L) {
-    stop(
+    .detener(
       "`lupa` no admite un `DBI::Id` de mas de tres componentes: por encima del ",
       "catalogo no hay un nivel que la coleccion sepa declarar. Revise el ",
       "identificador; si el nombre lleva puntos, decl\u00e1relo con ",
@@ -223,7 +223,7 @@
     con_nombre <- etiquetas[nzchar(etiquetas)]
     ajenas <- setdiff(con_nombre, conocidas)
     if (length(ajenas)) {
-      stop(
+      .detener(
         "Un `DBI::Id` de la coleccion nombra componentes que `lupa` no modela: ",
         paste(ajenas, collapse = ", "),
         ". La identidad de una tabla es `catalog`, `schema` y `table`; si su ",
@@ -234,7 +234,7 @@
     }
     repetidas <- unique(con_nombre[duplicated(con_nombre)])
     if (length(repetidas)) {
-      stop(
+      .detener(
         "Un `DBI::Id` de la coleccion repite el componente ",
         paste(repetidas, collapse = ", "),
         ": no se puede saber cual de los dos nombra la tabla.",
@@ -246,7 +246,7 @@
   if (etiquetadas) {
     tabla <- por_etiqueta("table")
     if (is.na(tabla)) {
-      stop(
+      .detener(
         "Un `DBI::Id` con `schema` y sin `table` no nombra una tabla.",
         call. = FALSE
       )
@@ -280,18 +280,18 @@
     valores <- as.character(valores)
   }
   if (!is.character(valores)) {
-    stop(
+    .detener(
       "La columna `", campo, "` de `tablas` debe ser de texto.", call. = FALSE
     )
   }
   if (!permitir_na && anyNA(valores)) {
-    stop(
+    .detener(
       "La columna `", campo, "` de `tablas` no admite `NA`.", call. = FALSE
     )
   }
   vacias <- !is.na(valores) & !nzchar(valores)
   if (any(vacias)) {
-    stop(
+    .detener(
       "La columna `", campo, "` de `tablas` no admite cadenas vacias.",
       call. = FALSE
     )
@@ -304,7 +304,7 @@
   if (inherits(tablas, "data.frame")) {
     tablas <- .tabla_base(tablas)
     if (!"tabla" %in% names(tablas) || !nrow(tablas)) {
-      stop(
+      .detener(
         "`tablas` como data.frame debe traer una columna `tabla` y al menos ",
         "una fila.", call. = FALSE
       )
@@ -357,7 +357,7 @@
   }
   if (!is.character(tablas) || !length(tablas) || anyNA(tablas) ||
       !all(nzchar(tablas))) {
-    stop(
+    .detener(
       "`tablas` debe ser un vector de nombres, una lista de `DBI::Id` o un ",
       "data.frame con columnas `esquema` y `tabla`.", call. = FALSE
     )
@@ -460,7 +460,7 @@
   if (!inherits(tablas, "data.frame")) return(tablas)
   faltan <- setdiff(.COLUMNAS_EXIGIDAS_COLECCION, names(tablas))
   if (length(faltan)) {
-    stop(
+    .detener(
       "La coleccion declarada no tiene la columna ",
       paste0("`", faltan, "`", collapse = ", "),
       ", que es parte del nombre de la tabla y no se puede completar. ",
@@ -535,7 +535,7 @@
       " + tabla `", tablas$tabla[cuales], "`",
       collapse = "; "
     )
-    stop(
+    .detener(
       "Dos tablas declaradas distintas producen el mismo identificador, asi que ",
       "una no se podria nombrar: ", detalle,
       ". Declare la que tiene el punto en el nombre con su esquema real, o ",
@@ -646,10 +646,10 @@ coleccion <- function(conexion, tablas, nombre = NULL) {
     sep = "\r"
   ))
   if (anyDuplicated(claves_declaradas)) {
-    stop("`tablas` repite una tabla.", call. = FALSE)
+    .detener("`tablas` repite una tabla.", call. = FALSE)
   }
   if (!is.null(nombre) && !.es_texto_escalar(nombre)) {
-    stop("`nombre` debe ser NULL o una cadena no vacia.", call. = FALSE)
+    .detener("`nombre` debe ser NULL o una cadena no vacia.", call. = FALSE)
   }
   declaradas <- .derivar_columnas_coleccion(declaradas)
   estructura <- list(
@@ -975,14 +975,14 @@ perfilar_coleccion <- function(coleccion, muestra = Inf,
                                ...) {
   .fijar_numerica_c()  # LC_NUMERIC en "C" mientras lee de la conexion
   if (!inherits(coleccion, "coleccion_lupa")) {
-    stop(
+    .detener(
       "`coleccion` debe ser una coleccion declarada por coleccion().",
       call. = FALSE
     )
   }
   if (!is.logical(conservar_perfiles) || length(conservar_perfiles) != 1L ||
       is.na(conservar_perfiles)) {
-    stop("`conservar_perfiles` debe ser TRUE o FALSE.", call. = FALSE)
+    .detener("`conservar_perfiles` debe ser TRUE o FALSE.", call. = FALSE)
   }
   .validar_bandera_proteccion_en(list(...))
   cobertura_metricas <- .elegir_opcion(cobertura_metricas)
@@ -992,7 +992,7 @@ perfilar_coleccion <- function(coleccion, muestra = Inf,
   if (!is.numeric(tope_cobertura_metricas) ||
       length(tope_cobertura_metricas) != 1L ||
       is.na(tope_cobertura_metricas) || tope_cobertura_metricas < 0) {
-    stop(
+    .detener(
       "`tope_cobertura_metricas` debe ser un numero no negativo.", call. = FALSE
     )
   }
@@ -1185,7 +1185,7 @@ perfilar_coleccion <- function(coleccion, muestra = Inf,
     piezas <- tryCatch({
       resumen <- perfil$resumen_tabla
       if (is.null(resumen) || is.null(resumen$columnas)) {
-        stop("el perfil no trae `resumen_tabla$columnas`", call. = FALSE)
+        .detener("el perfil no trae `resumen_tabla$columnas`", call. = FALSE)
       }
       muestra_perfil <- perfil$perfil_muestra
       cobertura_filas_analizadas <- .cobertura_dbi_vacia()
@@ -1628,7 +1628,7 @@ perfilar_coleccion <- function(coleccion, muestra = Inf,
                                               error = function(e) NULL))
       )
     }
-    warning(aviso)
+    .avisar(aviso)
   }
   invisible(NULL)
 }
@@ -1897,7 +1897,7 @@ estimar_costo_coleccion <- function(coleccion, pares = NULL,
                                     columnas_candidatas = NULL) {
   .fijar_numerica_c()  # LC_NUMERIC en "C" mientras lee de la conexion
   if (!inherits(coleccion, "coleccion_lupa")) {
-    stop("`coleccion` debe venir de coleccion().", call. = FALSE)
+    .detener("`coleccion` debe venir de coleccion().", call. = FALSE)
   }
   columnas_candidatas <- .validar_columnas_candidatas_coleccion(
     coleccion, columnas_candidatas
@@ -2010,7 +2010,7 @@ estimar_costo_coleccion <- function(coleccion, pares = NULL,
   declaradas <- coleccion$tablas$identificador
   if (is.null(pares)) {
     if (exigir) {
-      stop(
+      .detener(
         "`pares` debe declarar que tablas se comparan. Explorar todos los ",
         "pares no es viable: una coleccion de mil tablas tiene casi un millon ",
         "de pares dirigidos. Use estimar_costo_coleccion() para verlo.",
@@ -2033,7 +2033,7 @@ estimar_costo_coleccion <- function(coleccion, pares = NULL,
   }
   if (!inherits(pares, "data.frame") ||
       !all(c("tabla_1", "tabla_2") %in% names(pares))) {
-    stop(
+    .detener(
       "`pares` debe ser un data.frame con columnas `tabla_1` y `tabla_2`.",
       call. = FALSE
     )
@@ -2044,7 +2044,7 @@ estimar_costo_coleccion <- function(coleccion, pares = NULL,
   tabla_2 <- as.character(pares$tabla_2)
   if (anyNA(tabla_1) || anyNA(tabla_2) ||
       !all(nzchar(tabla_1)) || !all(nzchar(tabla_2))) {
-    stop(
+    .detener(
       "`pares` no admite `NA` ni cadenas vacias en `tabla_1` ni en `tabla_2`.",
       call. = FALSE
     )
@@ -2053,7 +2053,7 @@ estimar_costo_coleccion <- function(coleccion, pares = NULL,
     c(tabla_1, tabla_2), declaradas
   )
   if (length(desconocidas)) {
-    stop(
+    .detener(
       "`pares` nombra tablas que no estan declaradas en la coleccion: ",
       paste(unique(desconocidas), collapse = ", "),
       ". Declaradas: ", paste(declaradas, collapse = ", "), ".",
@@ -2065,7 +2065,7 @@ estimar_costo_coleccion <- function(coleccion, pares = NULL,
   autorreferenciales <- .nombres_para_operar(tabla_1) ==
     .nombres_para_operar(tabla_2)
   if (any(autorreferenciales)) {
-    stop(
+    .detener(
       "`pares` declara pares de una tabla consigo misma: ",
       paste(.identificadores_unicos(tabla_1[autorreferenciales]),
             collapse = ", "),
@@ -2120,7 +2120,7 @@ estimar_costo_coleccion <- function(coleccion, pares = NULL,
   if (!is.list(columnas) || is.null(names(columnas)) ||
       anyNA(names(columnas)) || any(!nzchar(names(columnas))) ||
       anyDuplicated(.nombres_para_operar(names(columnas)))) {
-    stop(
+    .detener(
       "`columnas_candidatas` debe ser una lista nombrada por identificador de tabla.",
       call. = FALSE
     )
@@ -2128,7 +2128,7 @@ estimar_costo_coleccion <- function(coleccion, pares = NULL,
   declaradas <- coleccion$tablas$identificador
   desconocidas <- .identificadores_setdiff(names(columnas), declaradas)
   if (length(desconocidas)) {
-    stop(
+    .detener(
       "`columnas_candidatas` nombra tablas no declaradas en la coleccion: ",
       paste(desconocidas, collapse = ", "), ".", call. = FALSE
     )
@@ -2137,7 +2137,7 @@ estimar_costo_coleccion <- function(coleccion, pares = NULL,
     candidatas <- columnas[[identificador]]
     if (!is.character(candidatas) || !length(candidatas) ||
         anyNA(candidatas) || any(!nzchar(candidatas))) {
-      stop(
+      .detener(
         "`columnas_candidatas` para `", identificador,
         "` debe ser un vector de nombres no vacio.", call. = FALSE
       )
@@ -2151,7 +2151,7 @@ estimar_costo_coleccion <- function(coleccion, pares = NULL,
       indices <- .indice_nombre(candidatas, campos)
       desconocidas <- candidatas[is.na(indices)]
       if (length(desconocidas)) {
-        stop(
+        .detener(
           "`columnas_candidatas` nombra columnas inexistentes en `",
           identificador, "`: ", paste(desconocidas, collapse = ", "), ".",
           call. = FALSE
@@ -2194,7 +2194,7 @@ estimar_costo_coleccion <- function(coleccion, pares = NULL,
       # es lo que la ayuda promete cuando el motor no puede entregarlo.
       numerico <- function(v) is.numeric(v) || inherits(v, "integer64")
       if (!numerico(minimo) || !numerico(maximo)) {
-        stop("extremos no numericos", call. = FALSE)
+        .detener("extremos no numericos", call. = FALSE)
       }
       valores <- suppressWarnings(as.numeric(valores))
     }
@@ -2691,23 +2691,23 @@ relaciones_coleccion <- function(coleccion, pares, muestra = 1e4,
                                  tope_memoria_mb = 512) {
   .fijar_numerica_c()  # LC_NUMERIC en "C" mientras lee de la conexion
   if (!inherits(coleccion, "coleccion_lupa")) {
-    stop("`coleccion` debe venir de coleccion().", call. = FALSE)
+    .detener("`coleccion` debe venir de coleccion().", call. = FALSE)
   }
   if (!is.numeric(umbral_cobertura) || length(umbral_cobertura) != 1L ||
       is.na(umbral_cobertura) || umbral_cobertura < 0 ||
       umbral_cobertura > 1) {
-    stop("`umbral_cobertura` debe estar entre 0 y 1.", call. = FALSE)
+    .detener("`umbral_cobertura` debe estar entre 0 y 1.", call. = FALSE)
   }
   if (!is.numeric(tope_cache_mb) || length(tope_cache_mb) != 1L ||
       is.na(tope_cache_mb) || tope_cache_mb < 0) {
-    stop("`tope_cache_mb` debe ser un numero no negativo.", call. = FALSE)
+    .detener("`tope_cache_mb` debe ser un numero no negativo.", call. = FALSE)
   }
   if (!is.numeric(tope_memoria_mb) || length(tope_memoria_mb) != 1L ||
       is.na(tope_memoria_mb) || tope_memoria_mb < 0) {
-    stop("`tope_memoria_mb` debe ser un numero no negativo.", call. = FALSE)
+    .detener("`tope_memoria_mb` debe ser un numero no negativo.", call. = FALSE)
   }
   if (!is.null(orden) && !is.character(orden) && !is.list(orden)) {
-    stop(
+    .detener(
       "`orden` debe ser NULL, un vector de nombres de columnas o una lista ",
       "nombrada por identificador de tabla.", call. = FALSE
     )

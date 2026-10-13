@@ -361,16 +361,17 @@ test_that("B3: sf instalado que no se puede cargar no se publica como paquete au
 
 test_that("B4: bajo C un aviso del paquete llega a quien lo atrapa con sus bytes", {
   ns <- asNamespace("lupa")
-  expect_true(exists("warning", envir = ns, inherits = FALSE))
+  expect_true(exists(".avisar", envir = ns, inherits = FALSE))
+  expect_false(exists("warning", envir = ns, inherits = FALSE))
   esperado <- paste0("num", intToUtf8(0xe9L), "rico")
-  avisar <- function() warning("num", intToUtf8(0xe9L), "rico", call. = FALSE)
+  avisar <- function() .avisar("num", intToUtf8(0xe9L), "rico", call. = FALSE)
   environment(avisar) <- ns
   mensaje <- .con_ctype_o154("C", tryCatch(avisar(), warning = conditionMessage))
   # A mano: 9 bytes, la e con tilde en dos; escapada serian 15.
   expect_identical(charToRaw(mensaje), charToRaw(esperado))
   # Una condicion ya armada pasa como esta.
   condicion <- simpleWarning("x")
-  reavisar <- function(condicion) warning(condicion)
+  reavisar <- function(condicion) .avisar(condicion)
   environment(reavisar) <- ns
   expect_identical(tryCatch(reavisar(condicion), warning = identity), condicion)
 })
@@ -455,12 +456,35 @@ test_that("Guarda: ninguna funcion del paquete escribe un instante con format() 
 })
 
 test_that("Guarda: ninguna funcion del paquete levanta un aviso con warning() de base", {
-  # Por construccion: el `warning()` del paquete arma la condicion sin pasar por
-  # `gettext()`; `base::warning()` solo puede llamarlo ese envoltorio.
+  # Por construccion: `.avisar()` arma la condicion sin pasar por `gettext()`;
+  # `base::warning()` solo puede llamarlo ese ayudante.
   directos <- character()
   .recorrer_llamadas_o154(function(e, nombre) {
     if (is.call(e) && identical(e[[1L]], quote(base::warning)) &&
-        !identical(nombre, "warning")) {
+        !identical(nombre, ".avisar")) {
+      directos <<- c(directos, nombre)
+    }
+  })
+  expect_identical(unique(directos), character())
+})
+
+test_that("D4: el paquete no tapa stop() ni warning() y no los llama de base", {
+  # Decision D4 de Sebastian (ronda 32): los errores y avisos del paquete van por
+  # `.detener()` y `.avisar()`, con nombre propio, en vez de un `stop()` y un
+  # `warning()` que tapaban a los de base en el espacio de nombres. Ningun
+  # nombre de base queda tapado, y ninguna funcion del paquete llama a `stop()`
+  # ni a `warning()` de base -que pasan el texto por `gettext()` y bajo `C` lo
+  # escapan- fuera de esos dos ayudantes.
+  ns <- asNamespace("lupa")
+  expect_false(exists("stop", envir = ns, inherits = FALSE))
+  expect_false(exists("warning", envir = ns, inherits = FALSE))
+  directos <- character()
+  .recorrer_llamadas_o154(function(e, nombre) {
+    if (!is.call(e)) return(invisible())
+    cabeza <- e[[1L]]
+    es_base <- identical(cabeza, quote(stop)) || identical(cabeza, quote(warning)) ||
+      identical(cabeza, quote(base::stop)) || identical(cabeza, quote(base::warning))
+    if (es_base && !(nombre %in% c(".detener", ".avisar"))) {
       directos <<- c(directos, nombre)
     }
   })

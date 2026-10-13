@@ -284,13 +284,13 @@ detectar_dependencias <- function(datos, umbral = 0.995, muestra = 1e5,
   )
   proporciones <- list(umbral, umbral_casi_constante, umbral_casi_clave)
   if (!.son_numeros_escalares(proporciones)) {
-    stop("Los umbrales deben ser proporciones finitas en [0, 1].",
+    .detener("Los umbrales deben ser proporciones finitas en [0, 1].",
          call. = FALSE)
   }
   proporciones <- unlist(proporciones)
   if (anyNA(proporciones) || any(!is.finite(proporciones)) ||
       any(proporciones < 0 | proporciones > 1)) {
-    stop("Los umbrales deben ser proporciones finitas en [0, 1].",
+    .detener("Los umbrales deben ser proporciones finitas en [0, 1].",
          call. = FALSE)
   }
   limite <- .validar_muestra(muestra)
@@ -306,7 +306,7 @@ detectar_dependencias <- function(datos, umbral = 0.995, muestra = 1e5,
       is.na(max_comparaciones) || max_comparaciones <= 0 ||
       (!is.infinite(max_comparaciones) &&
        max_comparaciones != floor(max_comparaciones))) {
-    stop(
+    .detener(
       "`max_comparaciones` debe ser un entero positivo o Inf.",
       call. = FALSE
   )
@@ -317,7 +317,7 @@ detectar_dependencias <- function(datos, umbral = 0.995, muestra = 1e5,
   if (!is.numeric(max_trabajo) || length(max_trabajo) != 1L ||
       is.na(max_trabajo) || max_trabajo <= 0 ||
       (!is.infinite(max_trabajo) && max_trabajo != floor(max_trabajo))) {
-    stop(
+    .detener(
       "`max_trabajo` debe ser un entero positivo o Inf.",
       call. = FALSE
   )
@@ -325,7 +325,7 @@ detectar_dependencias <- function(datos, umbral = 0.995, muestra = 1e5,
   max_trabajo <- if (is.infinite(max_trabajo)) Inf else as.numeric(max_trabajo)
   if (!is.logical(incluir_claves) || length(incluir_claves) != 1L ||
       is.na(incluir_claves)) {
-    stop("`incluir_claves` debe ser un l\u00f3gico escalar sin NA.", call. = FALSE)
+    .detener("`incluir_claves` debe ser un l\u00f3gico escalar sin NA.", call. = FALSE)
   }
   # `raw` entra por aca aunque sea un vector atomico: agrupar exige ordenar, y
   # `order()` no implementa ese tipo. Sin este filtro, una columna `raw` no

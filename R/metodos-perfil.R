@@ -119,7 +119,7 @@ as.data.frame.perfil <- function(x, row.names = NULL, optional = FALSE, ...) {
 #' }
 as_tibble.perfil <- function(x, ...) {
   if (!requireNamespace("tibble", quietly = TRUE)) {
-    stop("Para esta conversi\u00f3n se necesita instalar el paquete 'tibble'.", call. = FALSE)
+    .detener("Para esta conversi\u00f3n se necesita instalar el paquete 'tibble'.", call. = FALSE)
   }
   tibble::as_tibble(x$columnas, ...)
 }
@@ -181,7 +181,7 @@ as_tibble.perfil <- function(x, ...) {
 .exigir_forma_conocida <- function(x, que) {
   formas <- c("perfil", "analisis", "perfil_dbi", "perfil_coleccion")
   if (!inherits(x, formas)) {
-    stop(
+    .detener(
       "`x` debe ser un objeto de perfilar(), analizar(), perfilar_dbi() o ",
       "perfilar_coleccion(); recibi un objeto de clase '",
       paste(class(x), collapse = "/"), "'.", call. = FALSE
@@ -238,13 +238,13 @@ hallazgos <- function(x, ...) {
   if (is.null(salida)) {
     if (inherits(x, "perfil_dbi")) {
       if (identical(.estado_bloque_muestra_dbi(x), "no_solicitado")) {
-        warning(
+        .avisar(
           "Este perfil DBI no solicito la muestra, asi que no hay hallazgos por ",
           "fila. El resumen por columna sigue disponible en columnas(); el ",
           "detalle, en cobertura().", call. = FALSE
         )
       } else {
-        warning(
+        .avisar(
           "Este perfil DBI no trae muestra leida, asi que no hay hallazgos por ",
           "fila. El resumen por columna sigue disponible en columnas(); el ",
           "motivo, en cobertura().", call. = FALSE

@@ -84,7 +84,7 @@
       any(!nzchar(names(validadores))) ||
       anyDuplicated(.nombres_para_operar(names(validadores))) ||
       !all(vapply(validadores, is.function, logical(1L)))) {
-    stop("`validadores_personales` debe ser un pack o una lista con nombres de funciones.",
+    .detener("`validadores_personales` debe ser un pack o una lista con nombres de funciones.",
          call. = FALSE)
   }
   validadores
@@ -119,7 +119,7 @@
     validador <- validadores[[k]]
     parcial <- validador(textos[indices])
     if (!is.logical(parcial) || length(parcial) != length(indices)) {
-      stop("Cada validador personal debe devolver un vector l\u00f3gico de igual longitud.",
+      .detener("Cada validador personal debe devolver un vector l\u00f3gico de igual longitud.",
            call. = FALSE)
     }
     parcial <- mean(parcial %in% TRUE)
@@ -134,7 +134,7 @@
     }
     completo <- validador(textos[confirmacion])
     if (!is.logical(completo) || length(completo) != length(confirmacion)) {
-      stop("Cada validador personal debe devolver un vector l\u00f3gico de igual longitud.",
+      .detener("Cada validador personal debe devolver un vector l\u00f3gico de igual longitud.",
            call. = FALSE)
     }
     evaluados[[k]] <<- length(confirmacion)
@@ -430,7 +430,7 @@
 .normalizar_columnas_personales <- function(columnas_personales, nombres) {
   if (is.null(columnas_personales)) return(character())
   if (!is.character(columnas_personales) || anyNA(columnas_personales)) {
-    stop(
+    .detener(
       "`columnas_personales` debe ser un vector de texto: nombres de columna, ",
       "o un vector con nombre donde el nombre es la columna y el valor es el ",
       "tipo de dato personal.", call. = FALSE
@@ -440,7 +440,7 @@
   etiquetas <- names(columnas_personales)
   declaradas <- if (is.null(etiquetas) || !all(nzchar(etiquetas))) {
     if (!is.null(etiquetas) && any(nzchar(etiquetas))) {
-      stop(
+      .detener(
         "`columnas_personales` mezcla elementos con nombre y sin nombre. ",
         "Corresponde una sola forma: o todos nombres de columna, o todos ",
         "`columna = \"tipo\"`.", call. = FALSE
@@ -452,10 +452,10 @@
     stats::setNames(as.character(columnas_personales), etiquetas)
   }
   if (any(!nzchar(names(declaradas)))) {
-    stop("`columnas_personales` nombra una columna vac\u00eda.", call. = FALSE)
+    .detener("`columnas_personales` nombra una columna vac\u00eda.", call. = FALSE)
   }
   if (anyDuplicated(.nombres_para_operar(names(declaradas)))) {
-    stop("`columnas_personales` repite una columna.", call. = FALSE)
+    .detener("`columnas_personales` repite una columna.", call. = FALSE)
   }
   # `nombres = NULL` significa "no se puede saber que columnas hay". Lo usa
   # medir(), donde la entrada puede ser una coleccion o una conexion y no hay
@@ -468,12 +468,12 @@
     names(declaradas)[is.na(indices)]
   }
   if (length(desconocidas)) {
-    stop("`columnas_personales` nombra columnas inexistentes: ",
+    .detener("`columnas_personales` nombra columnas inexistentes: ",
          paste(desconocidas, collapse = ", "), ".", call. = FALSE)
   }
   vacios <- names(declaradas)[!nzchar(declaradas)]
   if (length(vacios)) {
-    stop("`columnas_personales` declara un tipo vac\u00edo en: ",
+    .detener("`columnas_personales` declara un tipo vac\u00edo en: ",
          paste(vacios, collapse = ", "), ".", call. = FALSE)
   }
   if (!is.null(nombres)) {

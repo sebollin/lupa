@@ -38,7 +38,7 @@
                                         con_alias = FALSE) {
   if (is.character(elementos)) elementos <- as.list(elementos)
   if (!is.list(elementos) || !length(elementos)) {
-    stop(
+    .detener(
       "`", argumento, "` debe ser un vector de nombres o una lista no vacia.",
       call. = FALSE
     )
@@ -56,7 +56,7 @@
     ifelse(nzchar(etiquetas) & !is.na(etiquetas), etiquetas, desde_objeto)
   }
   if (anyNA(nombres) || any(!nzchar(nombres))) {
-    stop(
+    .detener(
       "Cada elemento de `", argumento, "` tiene que quedar identificado: un ",
       "nombre de texto, o un objeto de coleccion(), perfilar_coleccion() u ",
       "organizacion() del que se pueda tomar el nombre.", call. = FALSE
@@ -65,7 +65,7 @@
   if (anyDuplicated(.nombres_para_operar(nombres))) {
     claves_nombres <- .nombres_para_operar(nombres)
     repetidos <- .identificadores_unicos(nombres[duplicated(claves_nombres)])
-    stop(
+    .detener(
       "`", argumento, "` repite nombres: ", paste(repetidos, collapse = ", "),
       ". Los nombres son la identidad de cada parte dentro de la frontera.",
       call. = FALSE
@@ -142,7 +142,7 @@
 organizacion <- function(nombre, colecciones) {
   if (!is.character(nombre) || length(nombre) != 1L || is.na(nombre) ||
       !nzchar(nombre)) {
-    stop("`nombre` debe ser un texto no vacio.", call. = FALSE)
+    .detener("`nombre` debe ser un texto no vacio.", call. = FALSE)
   }
   identidad <- .nombres_declarados_frontera(
     colecciones, "colecciones", con_alias = TRUE
@@ -175,7 +175,7 @@ print.organizacion_lupa <- function(x, ...) {
 
 .validar_organizacion_destino <- function(organizacion) {
   if (!inherits(organizacion, "organizacion_lupa")) {
-    stop(
+    .detener(
       "`organizacion` debe provenir de organizacion(): la granularidad ",
       "'organizacion' agrega sobre una frontera declarada, y sin ella el ",
       "numero no describiria a ningun organismo.", call. = FALSE
@@ -190,7 +190,7 @@ print.organizacion_lupa <- function(x, ...) {
 
 .validar_conjunto_organizaciones <- function(organizaciones) {
   if (!is.list(organizaciones) || !length(organizaciones)) {
-    stop(
+    .detener(
       "`organizaciones` debe ser una lista no vacia de objetos creados por ",
       "organizacion().", call. = FALSE
     )
@@ -199,7 +199,7 @@ print.organizacion_lupa <- function(x, ...) {
     organizaciones, inherits, logical(1L), what = "organizacion_lupa"
   )
   if (any(!validas)) {
-    stop(
+    .detener(
       "Cada elemento de `organizaciones` debe provenir de organizacion().",
       call. = FALSE
     )

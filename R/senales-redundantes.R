@@ -14,18 +14,18 @@
   if (is.null(transformacion)) return(NULL)
   if (!is.list(transformacion) || is.null(names(transformacion)) ||
       anyNA(names(transformacion)) || !all(nzchar(names(transformacion)))) {
-    stop("`transformacion` debe ser una lista con nombres.", call. = FALSE)
+    .detener("`transformacion` debe ser una lista con nombres.", call. = FALSE)
   }
   indices <- .indice_nombre(names(transformacion), columnas)
   sobrantes <- names(transformacion)[is.na(indices)]
   if (length(sobrantes)) {
-    stop(
+    .detener(
       "`transformacion` nombra columnas que no estan en la senal: ",
       paste(sobrantes, collapse = ", "), ".", call. = FALSE
     )
   }
   if (!all(vapply(transformacion, is.function, logical(1L)))) {
-    stop("Cada elemento de `transformacion` debe ser una funcion.",
+    .detener("Cada elemento de `transformacion` debe ser una funcion.",
          call. = FALSE)
   }
   names(transformacion) <- columnas[indices]
@@ -95,18 +95,18 @@ senal_redundante <- function(columnas, ventana = 0, transformacion = NULL,
                              nombre = NULL) {
   if (!is.character(columnas) || length(columnas) < 2L ||
       anyNA(columnas) || !all(nzchar(columnas))) {
-    stop("`columnas` debe nombrar al menos dos columnas.", call. = FALSE)
+    .detener("`columnas` debe nombrar al menos dos columnas.", call. = FALSE)
   }
   if (anyDuplicated(.nombres_para_operar(columnas))) {
-    stop("`columnas` repite una columna.", call. = FALSE)
+    .detener("`columnas` repite una columna.", call. = FALSE)
   }
   if (!is.numeric(ventana) || length(ventana) != 1L || is.na(ventana) ||
       !is.finite(ventana) || ventana < 0) {
-    stop("`ventana` debe ser un numero finito no negativo.", call. = FALSE)
+    .detener("`ventana` debe ser un numero finito no negativo.", call. = FALSE)
   }
   transformacion <- .validar_transformacion_senal(transformacion, columnas)
   if (!is.null(nombre) && !.es_texto_escalar(nombre)) {
-    stop("`nombre` debe ser NULL o una cadena no vacia.", call. = FALSE)
+    .detener("`nombre` debe ser NULL o una cadena no vacia.", call. = FALSE)
   }
   estructura <- list(
     nombre = if (is.null(nombre)) paste(columnas, collapse = " = ") else nombre,
@@ -153,7 +153,7 @@ print.senal_redundante <- function(x, ...) {
     # declaro. Se devuelve tal cual y la senal la declara no comparable.
     if (is.null(funcion) && .es_columna_compuesta(valores)) return(valores)
     if (length(valores) != nrow(datos)) {
-      stop(
+      .detener(
         "La transformacion de `", columna, "` devolvio ", length(valores),
         " valores para ", nrow(datos), " filas.", call. = FALSE
       )
@@ -348,7 +348,7 @@ detectar_discordancias <- function(datos, senales, max_ejemplos = 5L,
   if (inherits(senales, "senal_redundante")) senales <- list(senales)
   if (!is.list(senales) || !length(senales) ||
       !all(vapply(senales, inherits, logical(1L), "senal_redundante"))) {
-    stop(
+    .detener(
       "`senales` debe ser una senal_redundante o una lista de ellas.",
       call. = FALSE
     )
@@ -361,7 +361,7 @@ detectar_discordancias <- function(datos, senales, max_ejemplos = 5L,
     indices <- .indice_nombre(senal$columnas, names(datos))
     faltantes <- senal$columnas[is.na(indices)]
     if (length(faltantes)) {
-      stop(
+      .detener(
         "La senal '", senal$nombre, "' nombra columnas que no estan en los ",
         "datos: ", paste(faltantes, collapse = ", "),
         ". Disponibles: ", paste(names(datos), collapse = ", "), ".",
@@ -427,7 +427,7 @@ detectar_discordancias <- function(datos, senales, max_ejemplos = 5L,
     # 0. La evidencia ya lo declaraba -"comparacion textual exacta"-; el aviso es
     # para quien lee la tabla y no la evidencia.
     if (!numericos && senal$ventana > 0) {
-      warning(
+      .avisar(
         "La se\u00f1al `", senal$nombre, "` declara `ventana = ", senal$ventana,
         "` y sus columnas no son num\u00e9ricas: se compar\u00f3 por igualdad exacta y ",
         "la ventana no se aplic\u00f3. Para comparar fechas con tolerancia, ",

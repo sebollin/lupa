@@ -2,7 +2,7 @@
   if (is.null(x) && permitir_null) return(NULL)
   if (!.es_fecha_modelo(x) || !length(x) || anyNA(x) ||
       any(!is.finite(.fecha_numerica(x)))) {
-    stop("`", nombre, "` debe contener fechas v\u00e1lidas no ausentes.",
+    .detener("`", nombre, "` debe contener fechas v\u00e1lidas no ausentes.",
          call. = FALSE)
   }
   x
@@ -91,7 +91,7 @@ vigencia <- function(columna_actualizacion, fecha_acceso = Sys.time(),
     sin_declarar <- c(sin_declarar, "frecuencia_cambio_segundos")
   }
   if (!.es_texto_escalar(columna_actualizacion)) {
-    stop("`columna_actualizacion` debe ser un nombre no vac\u00edo.", call. = FALSE)
+    .detener("`columna_actualizacion` debe ser un nombre no vac\u00edo.", call. = FALSE)
   }
   fecha_acceso <- .validar_fecha_contrato(
     fecha_acceso, "fecha_acceso", permitir_null = FALSE
@@ -105,7 +105,7 @@ vigencia <- function(columna_actualizacion, fecha_acceso = Sys.time(),
   )
   fin_intervalo <- .validar_fecha_contrato(fin_intervalo, "fin_intervalo")
   if (xor(is.null(inicio_intervalo), is.null(fin_intervalo))) {
-    stop("El intervalo exige `inicio_intervalo` y `fin_intervalo`.",
+    .detener("El intervalo exige `inicio_intervalo` y `fin_intervalo`.",
          call. = FALSE)
   }
   if (!is.null(inicio_intervalo)) {
@@ -124,7 +124,7 @@ vigencia <- function(columna_actualizacion, fecha_acceso = Sys.time(),
     }
     if (!length(frecuencia_segundos) || anyNA(frecuencia_segundos) ||
         any(!is.finite(frecuencia_segundos)) || any(frecuencia_segundos <= 0)) {
-      stop("`frecuencia_cambio` debe ser una duraci\u00f3n positiva.", call. = FALSE)
+      .detener("`frecuencia_cambio` debe ser una duraci\u00f3n positiva.", call. = FALSE)
     }
   }
   estructura <- list(
@@ -148,10 +148,10 @@ escala <- function(error, tipo = c("absoluto", "relativo")) {
   if (!is.function(error) &&
       (!is.numeric(error) || !length(error) || anyNA(error) ||
        any(!is.finite(error)) || any(error < 0))) {
-    stop("`error` debe ser num\u00e9rico no negativo o una funci\u00f3n.", call. = FALSE)
+    .detener("`error` debe ser num\u00e9rico no negativo o una funci\u00f3n.", call. = FALSE)
   }
   if (tipo == "relativo" && !is.function(error) && any(error > 1)) {
-    stop("El error relativo debe estar en [0, 1].", call. = FALSE)
+    .detener("El error relativo debe estar en [0, 1].", call. = FALSE)
   }
   estructura <- list(error = error, tipo = tipo)
   class(estructura) <- "escala_medicion"
@@ -164,7 +164,7 @@ escala <- function(error, tipo = c("absoluto", "relativo")) {
   )
   objeto <- configuracion[[.minusculas_ascii(nombre)]]
   if (!inherits(objeto, clase)) {
-    stop("`", .minusculas_ascii(nombre), "` debe provenir de ", .minusculas_ascii(nombre), "().",
+    .detener("`", .minusculas_ascii(nombre), "` debe provenir de ", .minusculas_ascii(nombre), "().",
          call. = FALSE)
   }
   configuracion
@@ -184,7 +184,7 @@ escala <- function(error, tipo = c("absoluto", "relativo")) {
   if (length(resultado) == 1L) resultado <- rep(resultado, length(valores))
   if (!is.numeric(resultado) || length(resultado) != length(valores) ||
       anyNA(resultado) || any(!is.finite(resultado)) || any(resultado < 0)) {
-    stop("El error de escala no devolvi\u00f3 un valor finito no negativo por fila.",
+    .detener("El error de escala no devolvi\u00f3 un valor finito no negativo por fila.",
          call. = FALSE)
   }
   resultado
@@ -197,17 +197,17 @@ escala <- function(error, tipo = c("absoluto", "relativo")) {
   tabla <- .obtener_tabla_modelo(tablas, entidad)
   x <- .obtener_columna_modelo(tabla, atributo, entidad)
   if (!is.numeric(x) || inherits(x, c("Date", "POSIXt", "integer64"))) {
-    stop("Escala requiere un atributo num\u00e9rico ordinario.", call. = FALSE)
+    .detener("Escala requiere un atributo num\u00e9rico ordinario.", call. = FALSE)
   }
   filas <- which(!is.na(x))
   valores <- x[filas]
   if (any(!is.finite(valores))) {
-    stop("Escala no puede medir valores no finitos.", call. = FALSE)
+    .detener("Escala no puede medir valores no finitos.", call. = FALSE)
   }
   contrato <- instancia$configuracion$escala
   error <- .rep_error_escala(contrato$error, valores, filas, length(x))
   if (contrato$tipo == "relativo") {
-    if (any(error > 1)) stop("El error relativo debe estar en [0, 1].", call. = FALSE)
+    if (any(error > 1)) .detener("El error relativo debe estar en [0, 1].", call. = FALSE)
     resultado <- 1 - error
   } else {
     cociente <- ifelse(abs(valores) == 0, ifelse(error == 0, 0, Inf),
@@ -259,7 +259,7 @@ escala <- function(error, tipo = c("absoluto", "relativo")) {
               vapply(fechas, clase_temporal, character(1L), USE.NAMES = FALSE))
   clases <- clases[!is.na(clases)]
   if (length(unique(clases)) < 2L) return(invisible(FALSE))
-  warning(
+  .avisar(
     nombre_metrica, " compara una fecha de calendario con un instante: la ",
     "columna `", columna, "` y el contrato mezclan `Date` -que se ancla a la ",
     "medianoche UTC- con `POSIXct`, ", consecuencia,
@@ -272,7 +272,7 @@ escala <- function(error, tipo = c("absoluto", "relativo")) {
 
 .actualizaciones_vigencia <- function(tablas, instancia) {
   if (length(instancia$entidad) != 1L) {
-    stop(instancia$declaracion$nombre, " requiere una entidad.", call. = FALSE)
+    .detener(instancia$declaracion$nombre, " requiere una entidad.", call. = FALSE)
   }
   entidad <- instancia$entidad[[1L]]
   tabla <- .obtener_tabla_modelo(tablas, entidad)
@@ -280,7 +280,7 @@ escala <- function(error, tipo = c("absoluto", "relativo")) {
   columna <- contrato$columna_actualizacion
   x <- .obtener_columna_modelo(tabla, columna, entidad)
   if (!.es_fecha_modelo(x)) {
-    stop("La columna de actualizaci\u00f3n debe ser Date o POSIXt.", call. = FALSE)
+    .detener("La columna de actualizaci\u00f3n debe ser Date o POSIXt.", call. = FALSE)
   }
   filas <- which(!is.na(x))
   list(

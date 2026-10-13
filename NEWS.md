@@ -222,7 +222,7 @@ mide, y la `NoNulo` con faltantes disfrazados se mide.
 - El ejemplo de `?pack_validadores` (la plantilla de un pack propio) calcula el
   digito verificador con enteros: con `scipen = -9` rechazaba un RUT valido.
 
-**Tres decisiones de diseno:**
+**Cuatro decisiones de diseno:**
 
 - **`perfilar()` acepta `columnas_codigo`.** La regla de numeracion (ronda 28-N)
   dejo de tratar como identificador a un codigo que se repite, porque por su forma
@@ -277,6 +277,15 @@ mide, y la `NoNulo` con faltantes disfrazados se mide.
   con `%XX`, byte a byte, en vez de hacer abortar `medir()`; y `medir()` ya no avisa
   "unable to translate" bajo el locale `C` con ids no ASCII (unia las mediciones con
   `rbind()` sobre una lista nombrada por instancia; ahora sin los nombres).
+- **El paquete ya no tapa `stop()` ni `warning()` de base.** La ronda 31 habia
+  definido en el espacio de nombres un `stop()` -y la 32 un `warning()`- que
+  armaban la condicion sin `gettext()`, para que bajo el locale `C` el texto de
+  un error o un aviso que se guarda como dato no saliera escapado; con
+  `devtools::load_all()` tapaban tambien a los de base en la sesion. Ahora son
+  `.detener()` y `.avisar()`, con nombre propio, y las 711 llamadas del paquete
+  los nombran; ningun nombre de base queda tapado, y una prueba recorre el codigo
+  del paquete y no encuentra otra llamada a `stop()` ni a `warning()` de base. El
+  comportamiento no cambia.
 
 **Rendimiento:**
 

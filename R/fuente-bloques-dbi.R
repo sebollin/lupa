@@ -347,7 +347,7 @@
     }, character(1L), USE.NAMES = FALSE)
   }
   if (length(campos) != length(campos_sql)) {
-    stop("`campos` y `campos_sql` deben tener el mismo largo.", call. = FALSE)
+    .detener("`campos` y `campos_sql` deben tener el mismo largo.", call. = FALSE)
   }
   if (!is.null(orden_muestra) && length(orden_muestra)) {
     orden_muestra <- as.character(orden_muestra)
@@ -358,7 +358,7 @@
       .normalizacion_minusculas_vector(.nombres_para_operar(campos))
     )
     if (anyNA(posiciones)) {
-      stop("`orden_muestra` contiene columnas inexistentes.", call. = FALSE)
+      .detener("`orden_muestra` contiene columnas inexistentes.", call. = FALSE)
     }
     orden_muestra <- campos[posiciones]
     orden_sql <- vapply(orden_muestra, function(campo) {

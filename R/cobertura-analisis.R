@@ -124,19 +124,19 @@
 cobertura_analisis <- function(perfil, medicion = NULL,
                                modelo = marco_agesic()) {
   if (!inherits(perfil, "perfil")) {
-    stop(
+    .detener(
       "El primer argumento `perfil` debe ser un objeto creado por perfilar(); ",
       "no es un perfil de evaluacion.", call. = FALSE
     )
   }
   if (!is.null(medicion) && !inherits(medicion, "medicion")) {
-    stop(
+    .detener(
       "El segundo argumento `medicion` debe ser NULL o un objeto creado por ",
       "medir().", call. = FALSE
     )
   }
   if (!inherits(modelo, "marco_calidad")) {
-    stop(
+    .detener(
       "El tercer argumento `modelo` debe provenir de marco_calidad(); ",
       "no es el modelo operativo creado por modelo().", call. = FALSE
     )

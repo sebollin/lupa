@@ -74,7 +74,7 @@
       }
     }
   }
-  stop(
+  .detener(
     "Granularidad no reconocida: ", paste(x, collapse = ", "), ".",
     .texto_vocabularios_granularidad(), call. = FALSE
   )
@@ -193,7 +193,7 @@ transiciones_granularidad <- function() {
   # POR QUE quedo sin medidas. Ver el mismo arreglo en `.validar_medicion_evaluacion()`.
   if (!inherits(medidas, "data.frame") ||
       !all(requeridas %in% names(medidas))) {
-    stop("`medidas` debe ser un data frame producido por medir() o agregar().",
+    .detener("`medidas` debe ser un data frame producido por medir() o agregar().",
          call. = FALSE)
   }
   if (!nrow(medidas)) {
@@ -225,7 +225,7 @@ transiciones_granularidad <- function() {
         "cada una con `historico_calidad()`."
       )
     } else ""
-    stop(
+    .detener(
       "Las medidas deben compartir: ", paste(no_unicos, collapse = ", "), ".",
       corridas, call. = FALSE
     )
@@ -236,7 +236,7 @@ transiciones_granularidad <- function() {
   if ("id_medida" %in% names(medidas)) {
     repetidas <- duplicated(.nombres_para_operar(as.character(medidas$id_medida)))
     if (any(repetidas)) {
-      stop(
+      .detener(
         "Las medidas repiten `id_medida` -la primera, `",
         as.character(medidas$id_medida)[which(repetidas)[[1L]]], "`-: cada ",
         "medida se cuenta una vez. Una medici\u00f3n unida consigo misma, o dos ",
@@ -261,7 +261,7 @@ transiciones_granularidad <- function() {
     } else {
       "trae valores fuera de ese rango"
     }
-    stop(
+    .detener(
       "Los resultados que se agregan deben estar en [0, 1]: la m\u00e9trica '",
       paste(.identificadores_unicos(as.character(nombres)), collapse = "', '"),
       "' ", causa, ".", call. = FALSE
@@ -284,7 +284,7 @@ transiciones_granularidad <- function() {
     conjuntoColecciones = list(rep("conjunto_colecciones", nrow(medidas))),
     organizacion = list(rep("organizacion", nrow(medidas))),
     conjuntoOrganizaciones = list(rep("conjunto_organizaciones", nrow(medidas))),
-    stop("La granularidad de destino todav\u00eda no admite agregaci\u00f3n.",
+    .detener("La granularidad de destino todav\u00eda no admite agregaci\u00f3n.",
          call. = FALSE)
   )
   # La clave se arma con el CODIGO de cada nivel, no con su nombre:
@@ -384,7 +384,7 @@ transiciones_granularidad <- function() {
 
 .validar_coleccion_destino <- function(coleccion) {
   if (is.null(coleccion)) {
-    stop(
+    .detener(
       "Agregar a la granularidad 'coleccion' exige declarar la frontera: ",
       "pase `coleccion = ` con el objeto de coleccion() o el perfil de ",
       "perfilar_coleccion(). Sin la frontera no se sabe sobre que tablas se ",
@@ -477,7 +477,7 @@ transiciones_granularidad <- function() {
       )
     ))
   }
-  stop(
+  .detener(
     "`coleccion` debe venir de coleccion() o de perfilar_coleccion().",
     call. = FALSE
   )
@@ -542,7 +542,7 @@ transiciones_granularidad <- function() {
 
 .validar_conjunto_colecciones <- function(colecciones) {
   if (!is.list(colecciones) || !length(colecciones)) {
-    stop(
+    .detener(
       "`colecciones` debe ser una lista no vacia de objetos creados por ",
       "coleccion() o perfilar_coleccion().", call. = FALSE
     )
@@ -552,7 +552,7 @@ transiciones_granularidad <- function() {
     logical(1L)
   )
   if (any(!clases_validas)) {
-    stop(
+    .detener(
       "Cada elemento de `colecciones` debe provenir de coleccion() o ",
       "perfilar_coleccion().", call. = FALSE
     )
@@ -566,7 +566,7 @@ transiciones_granularidad <- function() {
   }
   if (anyNA(nombres) || any(!nzchar(nombres)) ||
       anyDuplicated(.nombres_para_operar(nombres))) {
-    stop(
+    .detener(
       "`colecciones` debe tener nombres unicos y no vacios; esos nombres son",
       " la identidad de cada coleccion en el conjunto.", call. = FALSE
     )
@@ -1139,7 +1139,7 @@ agregar <- function(medidas, destino,
   transicion <- .transiciones_granularidad$origen == origen &
     .transiciones_granularidad$destino == destino
   if (!any(transicion)) {
-    stop(
+    .detener(
       "No existe una transici\u00f3n de agregaci\u00f3n de '", origen,
       "' a '", destino, "'.", call. = FALSE
     )
@@ -1155,7 +1155,7 @@ agregar <- function(medidas, destino,
       .identificadores_unicos(medidas$entidad), coleccion$declaradas
     )
     if (length(ajenas)) {
-      stop(
+      .detener(
         "Hay medidas de entidades que no estan declaradas en la coleccion '",
         coleccion$nombre, "': ", paste(.sort_por_bytes(ajenas), collapse = ", "),
         ". Declaradas: ", paste(.sort_por_bytes(coleccion$declaradas), collapse = ", "),
@@ -1172,7 +1172,7 @@ agregar <- function(medidas, destino,
       .identificadores_unicos(medidas$entidad), conjunto$declaradas
     )
     if (length(ajenas)) {
-      stop(
+      .detener(
         "Hay medidas de colecciones que no estan declaradas en el conjunto: ",
         paste(.sort_por_bytes(ajenas), collapse = ", "), ". Declaradas: ",
         paste(.sort_por_bytes(conjunto$declaradas), collapse = ", "), ".", call. = FALSE
@@ -1182,7 +1182,7 @@ agregar <- function(medidas, destino,
   organismo <- NULL
   if (identical(destino, "organizacion")) {
     if (is.null(organizacion)) {
-      stop(.mensaje_granularidad_sin_frontera(destino), call. = FALSE)
+      .detener(.mensaje_granularidad_sin_frontera(destino), call. = FALSE)
     }
     organismo <- .validar_organizacion_destino(organizacion)
     medidas$entidad <- .resolver_partes_frontera(medidas$entidad, organismo)
@@ -1190,7 +1190,7 @@ agregar <- function(medidas, destino,
       .identificadores_unicos(medidas$entidad), organismo$declaradas
     )
     if (length(ajenas)) {
-      stop(
+      .detener(
         "Hay medidas de colecciones que no pertenecen a la organizacion '",
         organismo$nombre, "': ", paste(.sort_por_bytes(ajenas), collapse = ", "),
         ". Declaradas: ", paste(.sort_por_bytes(organismo$declaradas), collapse = ", "),
@@ -1202,7 +1202,7 @@ agregar <- function(medidas, destino,
   conjunto_organismos <- NULL
   if (identical(destino, "conjuntoOrganizaciones")) {
     if (is.null(organizaciones)) {
-      stop(.mensaje_granularidad_sin_frontera(destino), call. = FALSE)
+      .detener(.mensaje_granularidad_sin_frontera(destino), call. = FALSE)
     }
     conjunto_organismos <- .validar_conjunto_organizaciones(organizaciones)
     # Las medidas pasan a llamarse como las declara la frontera: los pesos, la
@@ -1216,7 +1216,7 @@ agregar <- function(medidas, destino,
       conjunto_organismos$declaradas
     )
     if (length(ajenas)) {
-      stop(
+      .detener(
         "Hay medidas de organizaciones que no estan declaradas en el conjunto: ",
         paste(.sort_por_bytes(ajenas), collapse = ", "), ". Declaradas: ",
         paste(.sort_por_bytes(conjunto_organismos$declaradas), collapse = ", "), ".",
@@ -1225,7 +1225,7 @@ agregar <- function(medidas, destino,
     }
   }
   if (!.granularidad_implementada(destino)) {
-    stop(.mensaje_granularidad_sin_frontera(destino), call. = FALSE)
+    .detener(.mensaje_granularidad_sin_frontera(destino), call. = FALSE)
   }
   funcion <- .elegir_opcion(funcion)
   .niveles_con_frontera <- c(
@@ -1239,7 +1239,7 @@ agregar <- function(medidas, destino,
     # exactamente el juicio que el paquete se niega a inventar. Vale igual para
     # los dos niveles institucionales: promediar organismos de tamano distinto
     # sin declararlo es el mismo juicio inventado, un piso mas arriba.
-    stop(
+    .detener(
       "En las granularidades '", paste(.niveles_con_frontera, collapse = "', '"),
       "' solo se admite 'promedio_ponderado': combinar alcances distintos exige ",
       "declarar los pesos. Sin pesos, se devuelve el tablero por parte.",
@@ -1251,21 +1251,21 @@ agregar <- function(medidas, destino,
   # declaraba partes que si habian entrado-; uno de otro largo abortaba con un
   # error de R al nombrarlos. Medido en la ronda 32.
   if (!is.null(pesos) && !identical(funcion, "promedio_ponderado")) {
-    stop(
+    .detener(
       "`pesos` s\u00f3lo se usa con `promedio_ponderado`; la agregaci\u00f3n ",
       "pedida es `", funcion, "`.", call. = FALSE
     )
   }
   # Un `umbral` con otra funcion se aceptaba en silencio. Medido en la ronda 23.
   if (!is.null(umbral) && !identical(funcion, "ratio_umbral")) {
-    stop(
+    .detener(
       "`umbral` s\u00f3lo se usa con `ratio_umbral`; la agregaci\u00f3n pedida es `",
       funcion, "`.", call. = FALSE
     )
   }
   tipo <- unique(medidas$tipo_resultado)
   if (funcion == "ratio" && tipo != "booleano") {
-    stop("`ratio` s\u00f3lo admite m\u00e9tricas de resultado booleano.", call. = FALSE)
+    .detener("`ratio` s\u00f3lo admite m\u00e9tricas de resultado booleano.", call. = FALSE)
   }
   # El tipo declarado no alcanza: `ratio` cuenta los unos, asi que un valor que
   # no es 0 ni 1 se contaba como falso en silencio. Medido antes de poner la
@@ -1274,13 +1274,13 @@ agregar <- function(medidas, destino,
   # ninguna metrica legitima la viola: doce instancias booleanas del nucleo,
   # cero valores fuera de {0, 1}.
   if (funcion == "ratio" && !all(medidas$resultado %in% c(0, 1))) {
-    stop(
+    .detener(
       "Una medida booleana solo puede valer 0 o 1; `ratio` cuenta los unos y ",
       "no puede contar un valor intermedio.", call. = FALSE
     )
   }
   if (funcion == "ratio_umbral" && tipo != "real") {
-    stop("`ratio_umbral` s\u00f3lo admite m\u00e9tricas de resultado real.",
+    .detener("`ratio_umbral` s\u00f3lo admite m\u00e9tricas de resultado real.",
          call. = FALSE)
   }
   # Los tres tipos no acotados -`numero_real`, `entero`, `duracion`- no admiten
@@ -1300,7 +1300,7 @@ agregar <- function(medidas, destino,
   # las dos puertas eran `promedio` y `promedio_ponderado`.
   if (funcion %in% c("promedio", "promedio_ponderado") &&
       !tipo %in% c("booleano", "real")) {
-    stop(
+    .detener(
       "`", funcion, "` no admite m\u00e9tricas de resultado '", tipo,
       "': son valores no acotados y el promedio los publicar\u00eda como una ",
       "proporci\u00f3n en [0, 1]. La m\u00e9trica es '",
@@ -1312,7 +1312,7 @@ agregar <- function(medidas, destino,
   if (funcion == "ratio_umbral") {
     if (!is.numeric(umbral) || length(umbral) != 1L || is.na(umbral) ||
         !is.finite(umbral) || umbral < 0 || umbral > 1) {
-      stop("`umbral` debe ser un n\u00famero entre 0 y 1.", call. = FALSE)
+      .detener("`umbral` debe ser un n\u00famero entre 0 y 1.", call. = FALSE)
     }
   }
   if (funcion == "promedio_ponderado") {
@@ -1323,7 +1323,7 @@ agregar <- function(medidas, destino,
     # pesos para: t2", y un nombre que sobraba no se nombraba nunca.
     if (!is.null(names(pesos)) && is.numeric(pesos)) {
       if (any(!nzchar(names(pesos)))) {
-        stop(
+        .detener(
           "`pesos` mezcla entradas con nombre y sin nombre. Corresponde una ",
           "sola forma: o todas con el nombre de su parte, o todas por ",
           "posici\u00f3n.", call. = FALSE
@@ -1366,7 +1366,7 @@ agregar <- function(medidas, destino,
         segun_objeto <- unname(pesos[.indice_identificador(partes_medidas, names(pesos))])
         segun_entidad <- unname(pesos[.indice_identificador(entidades_medidas, names(pesos))])
         if (!isTRUE(all.equal(segun_objeto, segun_entidad))) {
-          stop(
+          .detener(
             "Los nombres de `pesos` casan a la vez con los objetos medidos (",
             paste0("`", .identificadores_unicos(partes_medidas), "`", collapse = ", "),
             ") y con las partes declaradas (",
@@ -1388,7 +1388,7 @@ agregar <- function(medidas, destino,
         # `t1, t3`, y una lista separada por comas de nombres que llevan comas
         # nombra cuatro cosas donde hay dos.
         entre_comillas <- function(x) paste0("`", x, "`", collapse = ", ")
-        stop(
+        .detener(
           if (length(faltan)) {
             paste0("Faltan pesos para: ", entre_comillas(faltan), ".")
           } else "",
@@ -1409,7 +1409,7 @@ agregar <- function(medidas, destino,
       }
       claves_pesos <- .nombres_para_operar(names(pesos))
       if (anyDuplicated(claves_pesos)) {
-        stop("`pesos` repite una parte: ",
+        .detener("`pesos` repite una parte: ",
              paste(unique(names(pesos)[duplicated(claves_pesos)]),
                    collapse = ", "), ".", call. = FALSE)
       }
@@ -1423,7 +1423,7 @@ agregar <- function(medidas, destino,
     }
     if (!is.numeric(pesos) || length(pesos) != nrow(medidas) || anyNA(pesos) ||
         any(!is.finite(pesos)) || any(pesos < 0 | pesos > 1)) {
-      stop("`pesos` debe tener una entrada en [0, 1] por medida.", call. = FALSE)
+      .detener("`pesos` debe tener una entrada en [0, 1] por medida.", call. = FALSE)
     }
   }
   # Por la via POSICIONAL -documentada: "sin nombres se leen por posicion"- no hay
@@ -1452,7 +1452,7 @@ agregar <- function(medidas, destino,
   if (funcion == "promedio_ponderado") {
     sumas <- vapply(grupos, function(i) sum(pesos[i]), numeric(1L))
     if (any(abs(sumas - 1) > sqrt(.Machine$double.eps))) {
-      stop("Los pesos deben sumar 1 dentro de cada objeto de destino.", call. = FALSE)
+      .detener("Los pesos deben sumar 1 dentro de cada objeto de destino.", call. = FALSE)
     }
   }
   partes <- lapply(seq_along(grupos), function(k) {

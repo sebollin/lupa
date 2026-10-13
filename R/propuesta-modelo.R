@@ -308,10 +308,10 @@ proponer_modelo <- function(perfil, datos = NULL, relaciones = NULL,
                             max_valores_dominio = 20L,
                             max_sugerencias = 100L) {
   if (!inherits(perfil, "perfil")) {
-    stop("`perfil` debe ser un objeto de clase perfil.", call. = FALSE)
+    .detener("`perfil` debe ser un objeto de clase perfil.", call. = FALSE)
   }
   if (!is.null(datos) && !inherits(datos, "data.frame")) {
-    stop("`datos` debe ser NULL o heredar de data.frame.", call. = FALSE)
+    .detener("`datos` debe ser NULL o heredar de data.frame.", call. = FALSE)
   }
   if (!is.null(datos)) datos <- .tabla_base(datos)
   max_valores_dominio <- .validar_entero_positivo(
@@ -324,7 +324,7 @@ proponer_modelo <- function(perfil, datos = NULL, relaciones = NULL,
     .nombres_para_operar(names(datos)),
     .nombres_para_operar(perfil$columnas$columna)
   )) {
-    stop("Los nombres de `datos` no coinciden con los usados por el perfil.",
+    .detener("Los nombres de `datos` no coinciden con los usados por el perfil.",
          call. = FALSE)
   }
   sugerencias <- list()
@@ -480,7 +480,7 @@ proponer_modelo <- function(perfil, datos = NULL, relaciones = NULL,
   if (!is.null(relaciones)) {
     if (!inherits(relaciones, "data.frame") || length(entidades_relacion) != 2L ||
         anyNA(entidades_relacion) || any(!nzchar(entidades_relacion))) {
-      stop(
+      .detener(
         "`relaciones` requiere dos nombres en `entidades_relacion`.",
         call. = FALSE
       )
@@ -602,15 +602,15 @@ modelo_desde_propuesta <- function(propuesta) {
   )
   if (!inherits(propuesta, "data.frame") || !all(requeridas %in% names(propuesta)) ||
       !is.logical(propuesta$incluir) || anyNA(propuesta$incluir)) {
-    stop("`propuesta` no cumple el contrato de una propuesta de modelo.",
+    .detener("`propuesta` no cumple el contrato de una propuesta de modelo.",
          call. = FALSE)
   }
   seleccion <- which(propuesta$incluir)
   if (!length(seleccion)) {
-    stop("La propuesta no contiene sugerencias activas.", call. = FALSE)
+    .detener("La propuesta no contiene sugerencias activas.", call. = FALSE)
   }
   if (any(propuesta$estado[seleccion] != "lista")) {
-    stop("S\u00f3lo se pueden materializar sugerencias con estado 'lista'.",
+    .detener("S\u00f3lo se pueden materializar sugerencias con estado 'lista'.",
          call. = FALSE)
   }
   nucleo <- metricas_nucleo()
@@ -618,7 +618,7 @@ modelo_desde_propuesta <- function(propuesta) {
     nombre <- propuesta$metrica[[i]]
     indice_nucleo <- .indice_identificador(nombre, names(nucleo))
     if (is.na(indice_nucleo)) {
-      stop("No existe una m\u00e9trica materializable llamada '", nombre, "'.",
+      .detener("No existe una m\u00e9trica materializable llamada '", nombre, "'.",
            call. = FALSE)
     }
     configuracion <- propuesta$configuracion[[i]]
