@@ -53,11 +53,15 @@ por qué. Con esos valores se barren también \code{cobertura_coleccion},
 \code{cobertura_metricas} y \code{meta$lecturas}, que juntan los motivos de todas
 las tablas. Sin retenerlos, esos tres campos y el mensaje del motor de
 cada tabla pasan igual por el piso con los valores que las tablas
-leyeron y que un mensaje del motor puede llevar —los que se escriben sólo
-con lo permitido, ver \code{\link[=perfilar_dbi]{perfilar_dbi()}}—, sin consultas de más: el mensaje
-de una vista que citaba \code{"Campos Cadena"}, la celda de su tabla base, se
-publicaba. \code{\link[=perfilar_dbi]{perfilar_dbi()}} sobre una tabla sola protege sólo con los de
-esa tabla.}
+leyeron y que un mensaje del motor puede llevar —todo valor con letras,
+porque cualquier palabra puede ser el nombre de una columna de otra tabla,
+y el número que el mensaje no omite entero, como \code{"099;123;456"}, escrito
+con un signo que no une; ver \code{\link[=perfilar_dbi]{perfilar_dbi()}}—, sin consultas de más: el
+mensaje de una vista que citaba \code{"Campos Cadena"}, la celda de su tabla
+base, se publicaba. Y los avisos de consola de cada tabla se emiten al
+final, después del mismo piso que esos tres campos, con o sin perfiles: el
+aviso de una vista perfilada antes que su tabla base citaba la celda.
+\code{\link[=perfilar_dbi]{perfilar_dbi()}} sobre una tabla sola protege sólo con los de esa tabla.}
 
 \item{cobertura_metricas}{Qué se sube a \code{cobertura_metricas}: \code{"no_medidas"}
 (por omisión) sólo las métricas que no se calcularon, \code{"completa"} todas

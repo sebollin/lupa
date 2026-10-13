@@ -1033,7 +1033,7 @@
     sentinelas_numericos
   )
   mascara_sentinelas <- if (length(sentinelas_numericos)) {
-    !is.na(x) & as.character(x) %in% as.character(sentinelas_numericos)
+    !is.na(x) & .texto_identidad(x) %in% .texto_identidad(sentinelas_numericos)
   } else {
     rep(FALSE, length(x))
   }

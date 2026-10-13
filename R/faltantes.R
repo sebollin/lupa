@@ -167,7 +167,10 @@ sentinelas_naniar <- c(-9, -99, -999, -9999, 9999, 66, 77, 88)
     mascara_numerica <- detectar_sentinelas_numericos &
       !is.na(numero) & numero %in% numeros_na
     mascara <- mascara_numerica
-    etiquetas <- as.character(numero[mascara])
+    # La etiqueta del valor, no su escritura en la sesion: con `scipen = -9` el
+    # centinela -99 salia `-9.9e+01` en la evidencia, que ademas se relee como
+    # lista de marcadores (ronda 31-S).
+    etiquetas <- .etiqueta_numero_reversible(numero[mascara])
   } else {
     etiquetas <- character()
   }

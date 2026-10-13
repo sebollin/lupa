@@ -29,9 +29,11 @@ mayoría de los números la etiqueta es la de siempre.
 
 Lo mismo vale para las otras clases: un \code{integer64} se etiqueta con sus
 cifras exactas, aun por encima de 2^53; un complejo, con sus dos partes;
-una fecha, con su escritura \code{AAAA-MM-DD}, y una fecha-hora, con la suya
-hasta el microsegundo y el huso de la columna —no con su número de días o
-de segundos—.
+una fecha, con su escritura \code{AAAA-MM-DD}, y una fecha-hora, con su
+instante en UTC y el rótulo \code{UTC} —al segundo, con la fracción exacta si
+la tiene—, la misma escritura en cualquier sesión; la zona declarada de la
+columna la publica \code{\link[=perfilar]{perfilar()}} en \code{zona_horaria_origen}. No con su número
+de días o de segundos.
 
 Si la columna es un \strong{factor}, un nivel declarado sin ninguna fila es un
 grupo de cero filas: no se perfila y se declara en \code{cobertura_grupos}, igual

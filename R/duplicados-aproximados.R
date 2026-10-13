@@ -2259,8 +2259,10 @@
       evidencia = paste0(
         "Filas ", pares$fila_1, " y ", pares$fila_2,
         "; distancia ",
-        vapply(pares$distancia, format, character(1L), digits = 6L),
-        " con ", pares$metodo, " (umbral ", pares$umbral, "). ",
+        vapply(pares$distancia, format, character(1L), digits = 6L,
+               scientific = FALSE),
+        " con ", pares$metodo, " (umbral ",
+        .formatear_numero_publicado(pares$umbral), "). ",
         pares$evidencia_1, " / ", pares$evidencia_2
       ),
       sugerencia = rep(

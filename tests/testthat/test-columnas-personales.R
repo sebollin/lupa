@@ -20,10 +20,14 @@ test_that("declarar una columna personal gana sobre el lexico", {
   expect_setequal(con$datos_personales$tipo, c("documento_identidad", "nombre"))
   expect_true(all(con$datos_personales$proteger))
   expect_true(all(con$datos_personales$poder_discriminante == "declarado"))
-  expect_true(all(
-    con$columnas$moda[con$columnas$columna %in% c("cod_benef", "apodo")] ==
-      "[valor protegido]"
-  ))
+  # `apodo` repite valores y su moda se tapa. `cod_benef` no repite ninguno: no
+  # tiene moda, y la proteccion no la inventa (ronda 31).
+  modas <- con$columnas$moda[match(c("cod_benef", "apodo"), con$columnas$columna)]
+  expect_true(all(con$columnas$dato_personal_protegido[
+    match(c("cod_benef", "apodo"), con$columnas$columna)
+  ]))
+  expect_true(is.na(modas[[1L]]))
+  expect_identical(modas[[2L]], "[valor protegido]")
 })
 
 test_that("la forma sin tipo tambien vale", {

@@ -217,15 +217,15 @@
   # forma, el clasificador decide si hay dato personal.
   proporcion_correo_ofuscado <- if (any(presentes)) {
     mean(grepl(
-      paste0(
+      .regex_sin_caja(paste0(
         "^[A-Za-z0-9._%+-]+[[:space:]]*(?:\\(|\\[)?(?:at|arroba)(?:\\)|\\])?",
         "[[:space:]]*[A-Za-z0-9-]+",
         # El dominio tiene que traer su separador: sin el, `lunes at casa` es
         # una frase y no una direccion, y protegerla seria inventar el dato.
         "(?:[[:space:]]*(?:\\(|\\[)?(?:dot|punto)(?:\\)|\\])?[[:space:]]*|\\.)",
         "[A-Za-z]{2,}$"
-      ),
-      textos[presentes], perl = TRUE, ignore.case = TRUE
+      )),
+      textos[presentes], perl = TRUE
     ))
   } else NA_real_
   textos_presentes <- textos[presentes]
@@ -797,7 +797,7 @@
     return(FALSE)
   }
   tryCatch({
-    texto <- unique(as.character(x))
+    texto <- unique(.caracter_por_omision(x))
     texto <- texto[!is.na(texto)]
     forma <- .forma_de_fecha(texto)
     vacios <- !nzchar(.recortar_bytes(texto))
@@ -817,7 +817,7 @@
 # tambien escrita como numero real: SQLite devuelve "19950116.0" al leer como
 # texto una columna REAL.
 .forma_de_fecha <- function(valores) {
-  valores <- .recortar_bytes(as.character(valores))
+  valores <- .recortar_bytes(.caracter_por_omision(valores))
   dia <- "(0?[1-9]|[12][0-9]|3[01])"
   mes <- "(0?[1-9]|1[0-2])"
   dos_cifras <- paste0(
@@ -856,7 +856,7 @@
     return(character())
   }
   tryCatch({
-    texto <- as.character(x)
+    texto <- .caracter_por_omision(x)
     texto <- texto[!is.na(texto)]
     if (length(texto) < .MIN_REPETICIONES_CENTINELA) return(character())
     distintos <- unique(texto)
@@ -870,7 +870,7 @@
 # que la trae con un `GROUP BY` para proteger una tabla con los valores de otra.
 .rellenos_de_frecuencias <- function(distintos, cuenta) {
   tryCatch({
-    distintos <- as.character(distintos)
+    distintos <- .caracter_por_omision(distintos)
     cuenta <- as.numeric(cuenta)
     validos <- !is.na(distintos) & !is.na(cuenta)
     distintos <- distintos[validos]
@@ -922,7 +922,11 @@
     # las demas columnas. Lo que en ella NO tiene forma de fecha -un relleno, un
     # texto- sigue entrando.
     de_fechas <- .columna_de_fechas(x)
-    crudos <- tryCatch(as.character(x), error = function(e) character())
+    # Con la escritura de la sesion por omision: con `scipen = -9` el `11` de
+    # la columna protegida salia `1.1e+01`, pasaba el piso de seis caracteres y
+    # tapaba el maximo 11 de otra columna (ronda 31-S). Lo publicado con la marca
+    # de la sesion lo cubren los `formateados`.
+    crudos <- tryCatch(.caracter_por_omision(x), error = function(e) character())
     formateados <- tryCatch(c(
       format(x, digits = 15L, trim = TRUE, scientific = FALSE),
       format(x, digits = 8L, trim = TRUE, scientific = FALSE),
@@ -991,7 +995,7 @@
     names(columnas)
   )
   valores <- unlist(lapply(campos, function(campo) {
-    tryCatch(as.character(columnas[[campo]][indices]),
+    tryCatch(.caracter_por_omision(columnas[[campo]][indices]),
              error = function(e) character())
   }), use.names = FALSE)
   if (length(patrones) && length(indices)) {
@@ -1197,21 +1201,21 @@
     leidos[examinables] <- .ancho_y_espacios_ascii(textos[examinables])
     con <- examinables
     con[examinables] <- grepl(
-      paste0("(?i)[(\\[{_]\\s*(?:at|arroba|a)\\s*[)\\]}_]|",
-             "[\\p{L}\\p{N}]\\s+(?:at|arroba)\\s+[\\p{L}\\p{N}]"),
+      .regex_sin_caja(paste0("[(\\[{_]\\s*(?:at|arroba|a)\\s*[)\\]}_]|",
+             "[\\p{L}\\p{N}]\\s+(?:at|arroba)\\s+[\\p{L}\\p{N}]")),
       leidos[examinables], perl = TRUE
     ) | grepl("@", leidos[examinables], fixed = TRUE, useBytes = TRUE)
     if (!any(con)) return(textos)
     t <- leidos[con]
-    punto <- "(?i:dot|punto)"
+    punto <- .regex_sin_caja("(?:dot|punto)")
     punto_escrito <- paste0(
       "(?:\\s*[(\\[{]\\s*", punto, "\\s*[)\\]}]\\s*|_", punto, "_|\\s+", punto,
       "\\s+)"
     )
     dominio <- paste0("(?=[\\p{L}\\p{N}][\\p{L}\\p{N}-]*(?:\\.|", punto_escrito,
                       ")[\\p{L}])")
-    arroba <- "(?i:at|arroba)"
-    t <- gsub(paste0("\\s*(?:[(\\[{]\\s*(?:", arroba, "|(?i:a))\\s*[)\\]}]|_",
+    arroba <- .regex_sin_caja("(?:at|arroba)")
+    t <- gsub(paste0("\\s*(?:[(\\[{]\\s*(?:", arroba, "|[aA])\\s*[)\\]}]|_",
                      arroba, "_)\\s*", dominio), "@", t, perl = TRUE)
     t <- gsub(paste0("(?<=[\\p{L}\\p{N}])\\s+", arroba, "\\s+", dominio), "@",
               t, perl = TRUE)
@@ -2701,7 +2705,7 @@
   }
   if (!is.numeric(x) || inherits(x, c("Date", "POSIXt"))) return(x)
   textos <- tryCatch(
-    as.character(x),
+    .caracter_por_omision(x),
     error = function(e) rep(NA_character_, length(x))
   )
   # Y la forma entera sin notacion cientifica: `as.character()` escribe

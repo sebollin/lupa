@@ -785,6 +785,10 @@ print.normalizacion_lupa <- function(x, ...) {
 # perfil, fundia lo que sus propios pares separaban. `detectar_duplicados_
 # aproximados()` arma la misma clave por su cuenta, sobre cualquier tipo.
 .clave_para_normalizar <- function(x) {
+  # Un instante entra por su valor y no por su texto en la hora de la sesion: en
+  # America/Adak dos instantes distintos se escribian igual y se fundian
+  # (ronda 31-S).
+  if (inherits(x, "POSIXt")) return(.texto_instante_utc(x))
   if (is.character(x) || is.factor(x)) x <- .clave_bytes(x)
   suppressWarnings(as.character(.texto_analizable(x)$valores))
 }

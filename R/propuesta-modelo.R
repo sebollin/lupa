@@ -97,7 +97,11 @@
 #' ese orden: el mismo perfil da los mismos identificadores en cualquier sesión.
 #' Si una columna contiene faltantes disfrazados, `NoNulo` se propone pero queda
 #' inactiva hasta normalizarlos o configurar la métrica para reconocerlos. De
-#' otro modo mediría sólo los `NA` reales y sobrestimaría la completitud.
+#' otro modo mediría sólo los `NA` reales y sobrestimaría la completitud. Por
+#' eso sale con estado `faltantes_disfrazados` y no `lista`: [analizar()] no la
+#' mide y [modelo_desde_propuesta()] no la materializa. Para medirla, normalizar
+#' los disfrazados y volver a perfilar, o declararlos en `valores_nulos` de su
+#' `configuracion` y pasar su `estado` a `"lista"`.
 #' Una sugerencia sobre una columna cuyo nombre la tabla repite sale inactiva y
 #' con estado `nombre_repetido`: una métrica se liga por nombre, y ese nombre no
 #' dice cuál de las columnas mide. [modelo_desde_propuesta()] no la materializa
@@ -192,6 +196,15 @@ proponer_modelo <- function(perfil, datos = NULL, relaciones = NULL,
         "perfil:n_faltantes_totales"
       }
       n_disfrazados <- fila$n_faltantes_disfrazados[[1L]]
+      # Con ausentes disfrazados la sugerencia sale inactiva porque medirla
+      # contaria solo los `NA` y sobrestimaria la completitud. Y tambien fuera
+      # de `lista`: `analizar()` mide todo lo `lista` aunque este inactivo, y
+      # medida asi publicaba en el tablero `NoNulo = 0.975` sobre 1 `NA` y 3
+      # `-999` -el perfil cuenta 4 ausentes, 0.90-, con `medida = TRUE` en la
+      # misma fila que decia "queda inactiva" (ronda 31). Es lo que el paquete
+      # ya hace con `nombre_repetido`: inactiva por una razon de validez, con
+      # estado propio, no se mide ni se materializa.
+      disfrazados_presentes <- isTRUE(n_disfrazados > 0L)
       agregar_sugerencia(.nueva_sugerencia(
         "alta", n_disfrazados == 0L, "NoNulo", entidad, columna, origen,
         if (n_disfrazados > 0L) {
@@ -206,7 +219,8 @@ proponer_modelo <- function(perfil, datos = NULL, relaciones = NULL,
             "La columna contiene ", fila$n_faltantes[[1L]],
             " valores ausentes; la completitud debe medirse por separado."
           )
-        }
+        },
+        estado = if (disfrazados_presentes) "faltantes_disfrazados" else "lista"
       ))
     }
     patrones <- perfil$patrones[[i]]

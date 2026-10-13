@@ -106,7 +106,7 @@
     # con cualquier diez cifras en cuatro grupos se borraba tambien un NIT
     # "900-123-456-7", y se publicaba. Medido en la ronda 24.
     isbn10 = paste0(
-      "(?<![0-9])((?i:isbn)(?:-?1[03])?[ :#]{0,3})?",
+      "(?<![0-9])((?:[iI][sS][bB][nN])(?:-?1[03])?[ :#]{0,3})?",
       "([0-9]{1,5}([- .])[0-9]{1,7}\\3[0-9]{1,7}\\3[0-9Xx])(?![0-9])"
     ),
     # Una direccion IPv4 -cuatro octetos de 0 a 255, sin ceros a la izquierda-
@@ -277,14 +277,38 @@
 # escribe tres -`5.9894215856e+010`- y con dos como tope el celular escrito asi
 # se publicaba en 80 de 80 notas. Medido en la ronda 30. Hasta 20: ningun
 # documento tiene mas cifras, y un exponente enorme armaria una cadena enorme.
+#
+# Ronda 31, dos escrituras mas de la misma cifra. Con SEPARADOR DE MILES -el
+# formato "Numero" de una planilla: "59.893.425.706,00", "59,898,617,353",
+# "59 898 617 353", "59'898'617'353", con o sin la parte decimal de ceros, que
+# usa el otro signo- y en cientifica con un ESPACIO antes del exponente
+# -"5.9895845098 e+10"-. El celular E.164 escrito asi se publicaba frente al
+# protegido nacional "099 123 456" en 60 de 60 notas de la copia de
+# `analizar()` y en los ejemplos del perfil, mientras sin miles, o con el
+# exponente pegado, se tapaba: los grupos de tres parten el `598` del prefijo y
+# la parte nacional se buscaba en los grupos tal como venian. Ahora todas las
+# escrituras dan la misma cifra entera, y la parte nacional sale de esa cifra
+# (`.telefono_internacional_uy()`). Con al menos tres grupos: dos ya son el
+# millar de un conteo.
+.PATRON_MILES_PLANILLA <- paste0(
+  "^[+]?([0-9]{1,3}([.,' ])[0-9]{3}(?:\\2[0-9]{3})+)(?:(?!\\2)[.,]0+)?$"
+)
+
 .cifra_entera_escrita <- function(x) {
   x <- .recortar_bytes(as.character(x))
   salida <- rep(NA_character_, length(x))
   decimal <- !is.na(x) & grepl("^[+]?[0-9]+[.,]0+$", x, useBytes = TRUE)
   salida[decimal] <- sub("^[+]?([0-9]+)[.,]0+$", "\\1", x[decimal],
                          useBytes = TRUE)
-  patron <- "^[+]?([0-9]+)(?:[.,]([0-9]+))?[eE][+]?([0-9]+)$"
-  cientifica <- which(!is.na(x) & !decimal &
+  miles <- !is.na(x) & !decimal &
+    grepl(.PATRON_MILES_PLANILLA, x, perl = TRUE, useBytes = TRUE)
+  salida[miles] <- gsub(
+    "[^0-9]", "",
+    sub(.PATRON_MILES_PLANILLA, "\\1", x[miles], perl = TRUE, useBytes = TRUE),
+    useBytes = TRUE
+  )
+  patron <- "^[+]?([0-9]+)(?:[.,]([0-9]+))? ?[eE][+]?([0-9]+)$"
+  cientifica <- which(!is.na(x) & !decimal & !miles &
                         grepl(patron, x, perl = TRUE, useBytes = TRUE))
   for (i in cientifica) {
     partes <- regmatches(x[[i]], regexec(patron, x[[i]], perl = TRUE))[[1L]]
@@ -328,8 +352,15 @@
         perl = TRUE
       ))[[1L]],
       regmatches(texto, gregexpr(
-        "(?<![0-9.,])[0-9]+[.,][0-9]+[eE][+]?[0-9]+(?![0-9])", texto,
+        "(?<![0-9.,])[0-9]+[.,][0-9]+ ?[eE][+]?[0-9]+(?![0-9])", texto,
         perl = TRUE
+      ))[[1L]],
+      # Con separador de miles: ver `.PATRON_MILES_PLANILLA`. Entero, sin otro
+      # grupo pegado delante ni detras.
+      regmatches(texto, gregexpr(
+        paste0("(?<![0-9.,'])(?<![0-9][ .,'])[+]?[0-9]{1,3}([.,' ])[0-9]{3}",
+               "(?:\\1[0-9]{3})+(?:(?!\\1)[.,]0+)?(?![0-9]|[-./,'_+ ][0-9])"),
+        texto, perl = TRUE
       ))[[1L]]
     )
     enteras <- .cifra_entera_escrita(escritas)

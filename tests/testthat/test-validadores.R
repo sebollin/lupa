@@ -158,7 +158,10 @@ test_that("nombre correo y documentos con evidencia fuerte siguen protegidos", {
     perfil$datos_personales$poder_discriminante,
     c("verificado", "alto", "medio")
   )
-  expect_true(all(perfil$columnas$moda == "[valor protegido]"))
+  # Ninguna columna repite valores: no hay moda, y la proteccion no la inventa
+  # (ronda 31). `repetido`, abajo, si tiene moda y la tapa.
+  expect_true(all(perfil$columnas$dato_personal_protegido))
+  expect_true(all(is.na(perfil$columnas$moda)))
 
   sin_nombre <- perfilar(
     data.frame(codigo = c("1.234.567-2", "2.345.678-3", "3.456.789-4")),

@@ -62,7 +62,11 @@ bytes —no según la intercalación del locale— y \code{id_sugerencia} las nu
 ese orden: el mismo perfil da los mismos identificadores en cualquier sesión.
 Si una columna contiene faltantes disfrazados, \code{NoNulo} se propone pero queda
 inactiva hasta normalizarlos o configurar la métrica para reconocerlos. De
-otro modo mediría sólo los \code{NA} reales y sobrestimaría la completitud.
+otro modo mediría sólo los \code{NA} reales y sobrestimaría la completitud. Por
+eso sale con estado \code{faltantes_disfrazados} y no \code{lista}: \code{\link[=analizar]{analizar()}} no la
+mide y \code{\link[=modelo_desde_propuesta]{modelo_desde_propuesta()}} no la materializa. Para medirla, normalizar
+los disfrazados y volver a perfilar, o declararlos en \code{valores_nulos} de su
+\code{configuracion} y pasar su \code{estado} a \code{"lista"}.
 Una sugerencia sobre una columna cuyo nombre la tabla repite sale inactiva y
 con estado \code{nombre_repetido}: una métrica se liga por nombre, y ese nombre no
 dice cuál de las columnas mide. \code{\link[=modelo_desde_propuesta]{modelo_desde_propuesta()}} no la materializa

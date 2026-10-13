@@ -182,6 +182,12 @@ propiedades_regla <- function(regla) {
   }
   texto <- function(x) {
     if (is.null(x) || !length(x)) return(NA_character_)
+    # Un umbral es un parametro, no prosa: punto decimal y la escritura mas corta
+    # que vuelve al valor, sin `OutDec`, `scipen` ni `digits` -con `OutDec = ","`
+    # dos umbrales salian "0,1, 0,5"- (ronda 31-S).
+    if (is.numeric(x) && !is.object(x)) {
+      return(paste(.etiqueta_numero_reversible(x), collapse = ", "))
+    }
     paste(format(x, trim = TRUE), collapse = ", ")
   }
   filas <- list(
@@ -322,9 +328,16 @@ perfiles_madurez <- function(metricas = NULL, umbrales = NULL) {
   perfiles <- lapply(seq_along(umbrales), function(i) {
     nombre <- unname(nombres_perfil[[i]])
     umbral <- unname(umbrales[[i]])
+    # El nombre de la regla es la clave con la que el historico aparea corridas:
+    # se escribe con punto decimal y la escritura mas corta que vuelve al valor,
+    # sin `OutDec` ni `scipen`. Con `paste0()`, `Resultado > 0,9` en una sesion y
+    # `Resultado > 0.9` en otra no se apareaban (ronda 31-S).
     perfil_evaluacion(
       nombre,
-      .regla_umbral(paste0("Resultado > ", umbral), umbral, metricas)
+      .regla_umbral(
+        paste0("Resultado > ", .etiqueta_numero_reversible(umbral)),
+        umbral, metricas
+      )
     )
   })
   names(perfiles) <- nombres

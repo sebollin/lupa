@@ -893,8 +893,9 @@
 #' texto, unidades, espacios—: un byte no es un texto escrito.
 #' Un nivel `NA` de un factor —el que dejan `addNA()` o `factor(exclude =
 #' NULL)`— es un faltante: cuenta en `n_faltantes` y no en `n_distintos`, igual
-#' que en la medición, en [distribucion_valores()], en [inferir_tipo()] y en
-#' las dependencias. Un `POSIXlt` —lo que deja `strptime()`— se perfila por su
+#' que en la medición, en [distribucion_valores()], en [inferir_tipo()], en
+#' las dependencias y en las claves —[detectar_claves()] y [sugerir_clave()] no
+#' la proponen—. Un `POSIXlt` —lo que deja `strptime()`— se perfila por su
 #' instante, como el `POSIXct` equivalente: la misma columna en las dos clases
 #' da la misma fila.
 #' Cuando todos los valores válidos aparecen una sola vez **no hay moda**, y
@@ -1747,9 +1748,14 @@
 #'   escrito sin él, también guardado como número de planilla
 #'   —`"59899123456.0"`, `"59899123456,0"` o `"5.9899123456E+10"`, la misma
 #'   cifra, con cualquier cantidad de ceros —`"59899123456.0000"`, como lo deja
-#'   un `DECIMAL(15,4)`— y con cualquier exponente —`"5.9899123456e+010"`, como
-#'   lo escribe el `printf` de Windows—, y al revés: escrito así en un texto se
-#'   lee por su parte nacional. La cifra escrita así es el documento
+#'   un `DECIMAL(15,4)`—, con cualquier exponente —`"5.9899123456e+010"`, como
+#'   lo escribe el `printf` de Windows, también con un espacio antes,
+#'   `"5.9899123456 e+10"`— y con separador de miles, como lo muestra el
+#'   formato "Número" de una planilla —`"59.899.123.456"`,
+#'   `"59,899,123,456.00"`, `"59 899 123 456,00"`, `"59'899'123'456"`: todas
+#'   las escrituras dan la misma cifra entera—, y al revés: escrito así en un
+#'   texto se lee por su parte nacional, que sale de esa cifra y no de los
+#'   grupos como vienen. La cifra escrita así es el documento
 #'   **entero**, no el parcial: el importe redondo `"5460537.00"` no se lee
 #'   como un documento sin su verificador. No unen los parecidos raros: la prima de una coordenada
 #'   sexagesimal, el acento grave, la tilde. Los dos puntos y la barra vertical
@@ -1811,7 +1817,9 @@
 #'   de cada cien enteros de ocho cifras, que coinciden con un documento entero
 #'   —también a los importes de ocho cifras con centavos, `"52317219.09"`, 1,8 %
 #'   sobre 4.000 con las mismas cifras enteras: su parte entera es la de un
-#'   documento entero—;
+#'   documento entero; y a los escritos con separador de miles o en notación
+#'   científica, con o sin un espacio antes del exponente —`"52.317.219,00"`,
+#'   `"5.2317219 e+07"`—, también 1,8 %: son la misma cifra entera—;
 #'   las coordenadas, los p-valores, los importes de siete cifras con decimales
 #'   —también los redondos, `"5460537.00"`, `"5460537,00"` o dentro de una
 #'   frase; con un solo cero, `"5460537.0"`, dos de cada cien, que se leen
@@ -1842,8 +1850,16 @@
 #'   sin su verificador. Y una lista de dos teléfonos unidos por una barra
 #'   —`"+59894364556/+59849290458"`—, entre cinco y ocho de cada cien, como la
 #'   misma lista con `" / "`: cada uno se prueba por su parte nacional.
+#'   Un celular que no es de nadie, entre dos y tres de cada cien —2,0 a 2,5 %
+#'   con 400 por escritura, pegado con su prefijo, con espacios o sin el
+#'   prefijo; 3,0 % sobre 4.000 con las mismas cifras, pegado
+#'   (`"+59895257283"`) o como número de planilla con separador de miles
+#'   (`"59.895.257.283"`)—: coincide con uno protegido. Con los miles y los
+#'   decimales en cero, o con espacios (`"59 895 257 283"`), 4,4 %: sus primeras
+#'   ocho cifras tienen además la forma de una cédula entera.
 #'   Y, por el mismo parcial, una versión de cuatro partes
-#'   (`"v4.62.660.4361"`), trece de cada cien, y un expediente
+#'   (`"v4.62.660.4361"`), trece de cada cien, la de cinco partes
+#'   (`"v2.76.527.6327.3"`), quince de cada cien, y un expediente
 #'   `"exp 2023-6-880041"`, uno de cada seis: su tramo `"660.4361"` o
 #'   `"6-880041"` es un número de siete cifras con un signo que une, y no se
 #'   distingue del documento escrito así.

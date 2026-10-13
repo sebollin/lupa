@@ -13,7 +13,7 @@
 .texto_configuracion_calidad <- function(x) {
   if (is.null(x)) return("NULL")
   if (is.function(x) || inherits(x, "formula")) {
-    return(paste(deparse(x), collapse = " "))
+    return(paste(.deparse_por_omision(x), collapse = " "))
   }
   if (inherits(x, "POSIXt")) {
     return(paste0(
@@ -2104,13 +2104,14 @@ metricas_nucleo <- function() {
     )
   } else {
     paste0(
-      "; las otras ", no_medidas, " no produjeron medida y no cuentan como ",
+      "; las otras ", .formatear_numero_publicado(no_medidas),
+      " no produjeron medida y no cuentan como ",
       "incumplimiento",
       # Solo si cierra: un metodo que mide filas FUERA del universo deja menos no
       # medidas que celdas sin valor, y la frase decia "las otras 1 ... (2 de
       # ellas sin valor)".
       if (!is.na(sin_valor) && sin_valor <= no_medidas) {
-        paste0(" (", sin_valor, " de ellas sin valor)")
+        paste0(" (", .formatear_numero_publicado(sin_valor), " de ellas sin valor)")
       } else "",
       "."
     )
@@ -2127,7 +2128,8 @@ metricas_nucleo <- function() {
     en_el_universo = as.numeric(esperadas),
     medidas = as.numeric(n_medidas),
     motivo = paste0(
-      "La m\u00e9trica midi\u00f3 ", n_medidas, " de ", esperadas,
+      "La m\u00e9trica midi\u00f3 ", .formatear_numero_publicado(n_medidas), " de ",
+      .formatear_numero_publicado(esperadas),
       " en el universo aplicable", causa, " El agregado se calcula sobre las ",
       "medidas publicadas."
     ),

@@ -24,7 +24,7 @@
 # se declaran aparte, que es la unica lectura honesta.
 
 .formula_a_texto <- function(f) {
-  paste(deparse(f), collapse = " ")
+  paste(.deparse_por_omision(f), collapse = " ")
 }
 
 .funciones_aplicabilidad_no_fila <- c(

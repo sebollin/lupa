@@ -1119,20 +1119,14 @@
   distintos <- suppressWarnings(as.numeric(columnas[["n_distintos"]]))
   sin_moda <- !is.na(frecuencia) & !is.na(distintos) &
     frecuencia == 1 & distintos > 1
-  # Una columna protegida queda como esta. El marcador `[valor protegido]` no
-  # afirma una moda, asi que no hay nada que corregir; y cambiarlo por NA SI
-  # diria algo del dato -- que esa columna personal no tiene ningun valor
-  # repetido -- justo lo que la proteccion existe para no decir. Se comprueba
-  # por el campo y tambien por el marcador, para que el resultado no dependa de
-  # si la proteccion ya corrio o corre despues.
-  if ("dato_personal_protegido" %in% names(columnas)) {
-    protegida <- !is.na(columnas[["dato_personal_protegido"]]) &
-      as.logical(columnas[["dato_personal_protegido"]])
-    sin_moda <- sin_moda & !protegida
-  }
-  marcada <- !is.na(columnas[["moda"]]) &
-    as.character(columnas[["moda"]]) == "[valor protegido]"
-  sin_moda <- sin_moda & !marcada
+  # Tambien en una columna protegida. La proteccion tapa un valor; no cambia
+  # el hecho de que no lo hay. Antes la protegida quedaba con el marcador
+  # `[valor protegido]` -la misma escritura que una columna que SI tiene moda-
+  # con el argumento de que el NA diria que la columna no repite ningun valor.
+  # Pero eso ya lo dicen `frecuencia_moda = 1` y `n_distintos`, que se publican
+  # con o sin proteccion: el marcador no ocultaba nada y afirmaba una moda que
+  # no existe (ronda 31). La proteccion corre antes que esto y solo tapa una
+  # moda presente, asi que el NA no se vuelve a tapar.
   if (any(sin_moda)) {
     columnas[["moda"]][sin_moda] <- NA
   }
@@ -1193,7 +1187,7 @@
 # incrustado, porque la capa de proteccion enmascaraba los numeros del propio
 # nombre-. Vive aca, que es donde se ve.
 .nombre_de_los_datos <- function(expresion) {
-  texto <- tryCatch(deparse(expresion), error = function(e) character())
+  texto <- tryCatch(.deparse_por_omision(expresion), error = function(e) character())
   if (length(texto) != 1L || !nzchar(trimws(texto)) || nchar(texto) > 120L) {
     return("datos")
   }
@@ -1291,6 +1285,18 @@
   .marca_decimal_c(as.character(x))
 }
 
+# Lo mismo para `deparse()`, que escribe los numeros de una expresion con
+# `scipen` -no con `OutDec` ni con `digits`-: con `scipen = -9`, `valor > 0.5`
+# se escribe `valor > 5e-01`, y la configuracion de un perfil de evaluacion, la
+# formula de una aplicabilidad o el nombre de los datos cambiaban con la sesion;
+# la deriva publicaba "Cambio el perfil de evaluacion" sobre el mismo perfil
+# (ronda 31-S). Todo `deparse()` del paquete pasa por aca.
+.deparse_por_omision <- function(...) {
+  opciones <- options(scipen = 0)
+  on.exit(options(opciones), add = TRUE)
+  deparse(...)
+}
+
 # Hay una tercera perilla, y no es una opcion: `LC_NUMERIC`. R arranca siempre en
 # "C", pero quien la cambia con `Sys.setlocale()` cambia la marca que escriben
 # `as.character()` y `sprintf()`, con `OutDec = "."` y todo. Medido con
@@ -1309,6 +1315,24 @@
   gsub(marca, ".", texto, fixed = TRUE)
 }
 
+# Un instante se publica de una sola forma: en UTC, con el rotulo `UTC`, al
+# segundo y con la fraccion exacta si la tiene -la escritura de las claves de
+# relacion, `.escritura_exacta_temporal()`-, que vuelve a su valor. Sin zona,
+# `as.character()` y `format()` escriben en la hora de la sesion: la etiqueta de
+# `distribucion_valores()` y de `perfilar_por()` cambiaba con `TZ`, y en
+# America/Adak dos instantes distintos -10:30 y 11:30 UTC del dia del cambio de
+# hora- salian los dos `01:30:00`; la clave de la normalizacion los fundia
+# (ronda 31-S). La zona declarada de la columna se publica aparte, en
+# `zona_horaria_origen`.
+.texto_instante_utc <- function(x) {
+  x <- as.POSIXct(x)
+  salida <- paste(.escritura_exacta_temporal(
+    format(x, "%Y-%m-%d %H:%M:%S", tz = "UTC"), as.numeric(x)
+  ), "UTC")
+  salida[is.na(x)] <- NA_character_
+  salida
+}
+
 .etiqueta_numero_reversible <- function(x) {
   # Tres clases que `is.double()` da por dobles y no lo son para esto: un
   # `integer64` guarda sus bits en un doble -`sprintf()` los leia crudos y la
@@ -1316,9 +1340,7 @@
   # dias o de segundos. Cada una tiene su escritura reversible.
   if (inherits(x, "integer64")) return(as.character(x))
   if (inherits(x, "Date")) return(as.character(x))
-  if (inherits(x, "POSIXt")) {
-    return(format(as.POSIXct(x), format = "%Y-%m-%d %H:%M:%OS6", usetz = TRUE))
-  }
+  if (inherits(x, "POSIXt")) return(.texto_instante_utc(x))
   # Y el complejo no entraba: `as.character()` le da 15 cifras a cada parte y
   # `1e17` y `1e17 + 32` caian en un solo grupo, el defecto que esta funcion
   # cerro para los dobles.
@@ -1636,13 +1658,21 @@
   if (!inherits(tabla, "data.frame") || !ncol(tabla)) return(tabla)
   for (i in seq_along(tabla)) {
     columna <- tabla[[i]]
-    if (is.factor(columna) && anyNA(levels(columna))) {
-      tabla[[i]] <- .factor_sin_nivel_na(columna)
-    } else if (inherits(columna, "POSIXlt")) {
-      tabla[[i]] <- as.POSIXct(columna)
+    if ((is.factor(columna) && anyNA(levels(columna))) ||
+        inherits(columna, "POSIXlt")) {
+      tabla[[i]] <- .normalizar_columna_entrada(columna)
     }
   }
   tabla
+}
+
+# La misma regla para una sola columna, para quien compara columnas sueltas
+# -la igualdad de contenido de `aplicar()`, `distribucion_valores()`- y no
+# recibe la tabla entera.
+.normalizar_columna_entrada <- function(x) {
+  if (is.factor(x) && anyNA(levels(x))) return(.factor_sin_nivel_na(x))
+  if (inherits(x, "POSIXlt")) return(as.POSIXct(x))
+  x
 }
 
 # Copia operativa de una tabla: los factores se interpretan como texto para
@@ -1666,6 +1696,15 @@
 }
 
 .columnas_identicas <- function(x, y) {
+  # Dos columnas son el mismo contenido con la regla de la entrada del perfil:
+  # el nivel `NA` de un factor es un faltante y un `POSIXlt` es su instante.
+  # El perfil compara la tabla ya normalizada, y `aplicar()` comparaba las
+  # columnas crudas: `addNA(f)` contra `f` -o un `POSIXlt` contra su
+  # `POSIXct`- salian "duplicadas" en el perfil y en el plan, y `aplicar()` las
+  # registraba `fallida` con "dejaron de tener contenido duplicado" sobre la
+  # tabla original (ronda 31). La comparacion es una sola, aca.
+  x <- .normalizar_columna_entrada(x)
+  y <- .normalizar_columna_entrada(y)
   # `identical()` iguala todos los NaN, y un `integer64` negativo ES un NaN en
   # sus bits: `-1` y `-2` salian identicos. Comparar los bits es exacto para
   # `integer64` -los bits son el valor-. Ronda 25.

@@ -234,11 +234,11 @@
   # expresar la estructura completa, esta guarda evita cuatro pasadas de
   # expresiones regulares sobre texto libre que sólo menciona un mes.
   candidatos <- !is.na(texto_original) & grepl(
-    paste0(
+    .regex_sin_caja(paste0(
       "^(?:[0-9]{1,2}[[:space:]]+de[[:space:]]+|",
       "[0-9]{1,2}[-[:space:]]|(?:", .meses_fecha_regex,
       ")[[:space:]]+)"
-    ), texto_original, perl = TRUE, ignore.case = TRUE
+    )), texto_original, perl = TRUE
   )
   if (any(candidatos)) {
     indices_candidatos <- which(candidatos)

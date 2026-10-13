@@ -1101,15 +1101,15 @@ comparar_perfiles <- function(anterior, actual, umbral_cambio = 0.05,
         !identical(excluidos_a, excluidos_b)) {
       agregar(
         columna, "alcance_resumen", "modificado", "sospechoso",
-        as.character(excluidos_a), as.character(excluidos_b),
+        .texto_numero_deriva(excluidos_a), .texto_numero_deriva(excluidos_b),
         descripcion = paste(
           "Los dos resumenes se calcularon sobre distinta cantidad de valores,",
           "asi que las diferencias de media, rango o cardinalidad pueden venir",
           "del alcance y no de los datos."
         ),
         evidencia = paste0(
-          "Valores excluidos del resumen: ", excluidos_a, " antes, ",
-          excluidos_b, " ahora."
+          "Valores excluidos del resumen: ", .texto_numero_deriva(excluidos_a),
+          " antes, ", .texto_numero_deriva(excluidos_b), " ahora."
         )
       )
     }

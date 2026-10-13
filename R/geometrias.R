@@ -686,7 +686,7 @@
 .parece_wkt <- function(x) {
   if (!is.character(x)) return(FALSE)
   muestra <- .muestra_texto_geometria(x)
-  .mayoria_geometria(grepl(.patron_wkt, muestra, perl = TRUE, ignore.case = TRUE))
+  .mayoria_geometria(grepl(.regex_sin_caja(.patron_wkt), muestra, perl = TRUE))
 }
 
 .parece_wkb_hexadecimal <- function(x) {
@@ -802,8 +802,8 @@
 
 .srid_wkt <- function(valor) {
   if (length(valor) != 1L || is.na(valor)) return(NA_integer_)
-  capturado <- regexec("^\\s*SRID=([0-9]+);", as.character(valor),
-                       ignore.case = TRUE)
+  capturado <- regexec(.regex_sin_caja("^\\s*SRID=([0-9]+);"),
+                       as.character(valor))
   partes <- regmatches(as.character(valor), capturado)[[1L]]
   if (length(partes) != 2L) return(NA_integer_)
   srid <- suppressWarnings(as.numeric(partes[[2L]]))
@@ -891,16 +891,18 @@
     "^(?:SRID=[0-9]+;)?\\s*(?:", .TIPOS_WKT_MEDIDOS, ")\\s*(?:ZM|Z|M)?\\s*",
     "(?:EMPTY|\\(.*\\))$"
   )
-  ok <- grepl(forma, texto, perl = TRUE, ignore.case = TRUE)
+  ok <- grepl(.regex_sin_caja(forma), texto, perl = TRUE)
   # Lo que queda despues de retirar el prefijo SRID, cada etiqueta de tipo con su
   # dimension -solo si la sigue un parentesis o EMPTY- y cada EMPTY tiene que ser
   # solo numeros, separadores y parentesis.
-  resto <- sub("^SRID=[0-9]+;", "", texto, perl = TRUE, ignore.case = TRUE)
+  resto <- sub(.regex_sin_caja("^SRID=[0-9]+;"), "", texto, perl = TRUE)
   resto <- gsub(
-    paste0("(?:", .TIPOS_WKT_MEDIDOS, ")\\s*(?:ZM|Z|M)?\\s*(?=\\(|EMPTY)"),
-    " ", resto, perl = TRUE, ignore.case = TRUE
+    .regex_sin_caja(paste0(
+      "(?:", .TIPOS_WKT_MEDIDOS, ")\\s*(?:ZM|Z|M)?\\s*(?=\\(|EMPTY)"
+    )),
+    " ", resto, perl = TRUE
   )
-  resto <- gsub("EMPTY", " ", resto, ignore.case = TRUE)
+  resto <- gsub(.regex_sin_caja("EMPTY"), " ", resto)
   ok <- ok & grepl("^[-+0-9eE.,()[:space:]]*$", resto, perl = TRUE)
   # Parentesis balanceados de verdad, y un solo cuerpo: el primer parentesis abre
   # y solo el ultimo vuelve a profundidad cero. Contar aperturas y cierres dejaba
@@ -937,10 +939,15 @@
   valores <- unclass(x)[indices]
   if (identical(representacion, "WKT")) {
     srids <- vapply(valores, .srid_wkt, integer(1L), USE.NAMES = FALSE)
-    textos <- sub(
-      "^\\s*SRID=[0-9]+;\\s*", "", as.character(valores),
-      perl = TRUE, ignore.case = TRUE
-    )
+    # A sf el WKT le llega en mayusculas ASCII. La gramatica no distingue la
+    # caja, pero el lector de GDAL compara las palabras con la caja del locale:
+    # bajo uno turco `point(1 2)` daba "Unsupported geometry type" y la columna
+    # perdia tres de cuatro valores (ronda 31-S). Lo que llega aca ya paso la
+    # guarda: palabras de la gramatica, numeros y separadores.
+    textos <- .mayusculas_ascii(sub(
+      .regex_sin_caja("^\\s*SRID=[0-9]+;\\s*"), "", as.character(valores),
+      perl = TRUE
+    ))
     crs <- sf::NA_crs_
     for (srid in unique(srids[!is.na(srids) & srids > 0L])) {
       candidato <- tryCatch(

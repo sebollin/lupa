@@ -30,10 +30,10 @@
   if (grepl("DuckDB|duckdb", clase)) return("duckdb")
   if (grepl("MariaDB|RMariaDB", clase)) return("mariadb")
   if (grepl("MySQL|RMySQL", clase)) return("mysql")
-  if (grepl("Pq|Postgres", clase, ignore.case = TRUE)) {
+  if (grepl(.regex_sin_caja("Pq|Postgres"), clase)) {
     return("postgresql")
   }
-  if (grepl("SQLServer|SQL Server|Microsoft", clase, ignore.case = TRUE)) {
+  if (grepl(.regex_sin_caja("SQLServer|SQL Server|Microsoft"), clase)) {
     return("sqlserver")
   }
   if (grepl("Odbc|ODBC", clase)) {
@@ -41,25 +41,25 @@
       as.character(DBI::dbGetInfo(conexion)$dbms.name),
       error = function(e) ""
     )
-    if (length(motor) && grepl("oracle", motor, ignore.case = TRUE)) {
+    if (length(motor) && grepl(.regex_sin_caja("oracle"), motor)) {
       return("oracle")
     }
-    if (length(motor) && grepl("sqlite", motor, ignore.case = TRUE)) {
+    if (length(motor) && grepl(.regex_sin_caja("sqlite"), motor)) {
       return("sqlite")
     }
-    if (length(motor) && grepl("duckdb", motor, ignore.case = TRUE)) {
+    if (length(motor) && grepl(.regex_sin_caja("duckdb"), motor)) {
       return("duckdb")
     }
-    if (length(motor) && grepl("mariadb", motor, ignore.case = TRUE)) {
+    if (length(motor) && grepl(.regex_sin_caja("mariadb"), motor)) {
       return("mariadb")
     }
-    if (length(motor) && grepl("mysql", motor, ignore.case = TRUE)) {
+    if (length(motor) && grepl(.regex_sin_caja("mysql"), motor)) {
       return("mysql")
     }
-    if (length(motor) && grepl("postgres", motor, ignore.case = TRUE)) {
+    if (length(motor) && grepl(.regex_sin_caja("postgres"), motor)) {
       return("postgresql")
     }
-    if (length(motor) && grepl("sql server|microsoft", motor, ignore.case = TRUE)) {
+    if (length(motor) && grepl(.regex_sin_caja("sql server|microsoft"), motor)) {
       return("sqlserver")
     }
   }

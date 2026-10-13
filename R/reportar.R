@@ -82,6 +82,11 @@
 }
 
 .html_texto <- function(x) {
+  # Un numero se escribe sin `scipen`: con `scipen = -9` el reporte decia "Se
+  # muestran 1e+02 de 101 filas" (ronda 31-S).
+  if (is.numeric(x) && !is.object(x)) {
+    x <- vapply(x, .formatear_numero_publicado, character(1L), USE.NAMES = FALSE)
+  }
   x <- .html_escapar(x)
   gsub("\n", "<br>", gsub("\r\n?", "\n", x, perl = TRUE), fixed = TRUE)
 }
@@ -158,7 +163,9 @@
   }
   if (is.list(x) && !is.null(x$estado) &&
       "indices_fila" %in% names(x) && "mostrados" %in% names(x)) {
-    total <- if (length(x$total) && is.na(x$total)) "NA" else as.character(x$total)
+    # Sin `scipen`: con `scipen = -9` salia "12 de 1.2e+01" (ronda 31-S).
+    total <- if (length(x$total) && is.na(x$total)) "NA" else
+      .formatear_numero_publicado(x$total)
     return(paste0(
       "estado=", x$estado,
       "; filas mostradas=", x$mostrados,
@@ -336,6 +343,9 @@
   if (!is.numeric(bytes) || length(bytes) != 1L || is.na(bytes)) {
     return(NA_character_)
   }
+  # La lectura sin `scipen`: con `scipen = -9` salia "8.2e+00 Kb" (ronda 31-S).
+  opciones <- options(scipen = 0)
+  on.exit(options(opciones), add = TRUE)
   paste0(
     .formatear_numeros_reporte(bytes), " bytes (",
     format(structure(bytes, class = "object_size"), units = "auto"), ")"

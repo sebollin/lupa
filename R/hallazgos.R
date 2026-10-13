@@ -2047,7 +2047,7 @@
             " grupo de valores cercanos no se informo"
           } else " grupos de valores cercanos no se informaron",
           " porque su asimetria de frecuencias quedo por debajo de ",
-          alcance$min_asimetria_general,
+          .formatear_numero_publicado(alcance$min_asimetria_general),
           ": las formas son casi igual de comunes y no se puede distinguir una",
           " errata sistematica de dos valores legitimamente parecidos."
         ),
@@ -2833,7 +2833,7 @@
     # `NA` de `integer64`. La mascara viaja aparte y la aplica
     # `.numerico_trazable()` despues de convertir a doble.
     cuantitativos$excluidos_traza <- !is.na(cuantitativos$valores) &
-      as.character(cuantitativos$valores) %in% as.character(sentinelas)
+      .texto_identidad(cuantitativos$valores) %in% .texto_identidad(sentinelas)
   }
   cuantitativos
 }

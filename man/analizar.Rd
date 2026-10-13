@@ -59,7 +59,11 @@ usa la asociada a \code{modelo_confirmado} y, en último término,
 \item{id_medicion}{Identificador opcional enviado a \code{\link[=medir]{medir()}}. Si
 \code{argumentos_perfil} declara \code{aplicabilidad}, esa misma declaración viaja a
 la medición: el universo se declara una vez y gobierna todo el análisis,
-así que el perfil y el tablero cuentan el mismo dato de la misma manera.}
+así que el perfil y el tablero cuentan el mismo dato de la misma manera.
+\code{distribuciones} recibe esa declaración y la de \code{sentinelas_numericos}: lo
+que queda fuera del universo no entra en sus frecuencias ni en sus
+cuantiles, y un centinela declarado sale de los cuantiles como sale de
+\code{minimo} y \code{maximo} del perfil.}
 
 \item{medir_propuesta}{Si se mide automáticamente la propuesta en estado
 \code{"lista"} cuando no se recibe un modelo o una propuesta confirmada. Use
@@ -114,7 +118,8 @@ o guardada como número en otra columna. En todo lugar donde un
 \code{POSIXct} de la fecha con hora protegida queda en \code{NA}, como la tapa
 \code{\link[=perfilar]{perfilar()}}—, las columnas de lista elemento por elemento, los atributos
 de la tabla y de cada columna —también \code{levels} en lo que no es un factor
-y \code{units}—, los nombres de columna de una tabla anidada en una columna
+y \code{units}, y el nombre de cada atributo, además de su valor—, los nombres
+de columna de una tabla anidada en una columna
 lista, y los nombres de fila, que vuelven a ser los
 números de fila si alguno lleva un valor protegido. Una columna \code{POSIXlt}
 se tapa como la \code{POSIXct}, con sus atributos —\code{comment}, \code{label}—, y
@@ -125,9 +130,11 @@ texto tapado; un entorno no se modifica —es del usuario—: si guarda un
 valor protegido, la copia lleva \code{"[valor protegido]"} en su lugar, también
 si tiene un atributo \code{name}; sólo el global, el de un paquete y los de la
 ruta de búsqueda se dejan como están. Una llamada, una fórmula o una
-función se leen como el texto que las escribe —la función, también por su
-entorno— y, si llevan un valor protegido, la copia lleva
-\code{"[valor protegido]"} en su lugar. Una columna protegida
+función se leen como el texto que \code{print()} escribe —con sus atributos y,
+si guarda su fuente (\code{srcref}), la fuente con sus comentarios—, y también
+por sus atributos y, la función, por su entorno; si algo de eso lleva un
+valor protegido, la copia lleva \code{"[valor protegido]"} en su lugar. Una
+columna protegida
 conserva sólo los atributos de su clase (\code{class}, \code{tzone}, \code{units}, \code{dim}),
 y \code{tzone} y \code{units} pasan por el piso:
 las etiquetas de valor de un \code{haven_labelled} se quitan. Para conservar

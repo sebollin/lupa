@@ -102,6 +102,8 @@
 # trae el mensaje del motor pasado por aca: su texto es del paquete y solo se le
 # aplica la primera pasada, como antes.
 .LITERAL_MOTOR_OMITIDO <- "[literal omitido]"
+# El marcador del piso de la proteccion (`.reemplazar_valores_protegidos()`).
+.VALOR_PROTEGIDO_MOTOR <- "[valor protegido]"
 
 .PALABRAS_SQL_MOTOR <- c(
   "ABS", "ALL", "AND", "ANY", "AS", "ASC", "AVG", "BERNOULLI", "BETWEEN",
@@ -272,8 +274,10 @@
 # `perfilar_dbi()` de sus tablas suma lo que leyo. Se guardan solo los que el
 # mensaje puede llevar despues de la segunda pasada
 # (`.valores_que_lleva_el_motor()`), con su forma plegada y sin separadores:
-# los demas el mensaje ya los omite, y guardar todos los de todas las tablas es
-# lo que la coleccion sin perfiles evita.
+# los demas -el documento, el celular, la tarjeta: un numero que se lee como
+# uno de seis cifras o mas- el mensaje ya los omite. Desde la ronda 31 un valor
+# con letras se guarda siempre: cualquier palabra puede ser el nombre de una
+# columna de otra tabla.
 .valores_motor <- function() .CONTEXTO_MOTOR$valores
 
 .activar_valores_motor <- function() {
@@ -341,14 +345,32 @@
   indice$valor[is.na(indice$comienzo) | indice$comienzo %in% presentes]
 }
 
-# Que valores protegidos puede llevar el mensaje despues de la segunda pasada:
-# los que se escriben con lo permitido -palabras del vocabulario, de SQL y de
-# tipos, letras sueltas, numeros cortos y los nombres de la tabla y de sus
-# columnas, comparados plegados como compara el piso- y a lo sumo una palabra
-# mas, que puede ser el nombre de una columna de otra tabla de la coleccion que
-# todavia no se leyo. Un valor con un numero de seis cifras o mas no: la segunda
-# pasada lo omite. Un nombre y un apellido corrientes tampoco: tienen dos
-# palabras que no estan en ninguna lista.
+# Que valores protegidos puede llevar el mensaje despues de la segunda pasada.
+# Lo decide la MISMA funcion que publica: un valor se guarda si
+# `.publicar_lo_permitido_motor()`, corrida sobre el valor, deja pasar algo de
+# el -una letra o una cifra- con los identificadores que cualquier tabla de la
+# coleccion puede permitir. Y cualquier palabra puede ser el nombre de una
+# columna de una tabla que todavia no se leyo -`Florencia.Martinez`, el nombre
+# que deja `make.names()` al pivotear, se parte por puntos-: se corre con toda
+# palabra permitida (`toda_palabra = TRUE`). Lo que queda afuera es lo que la
+# segunda pasada omite entero: un numero que se lee como uno de seis cifras o
+# mas, con sus signos.
+#
+# Ronda 31. La seleccion tenia su propia lectura -"un numero de seis cifras con
+# hasta tres signos entre las cifras" y "a lo sumo una palabra fuera de lo
+# permitido"- y descartaba valores que el mensaje lleva: `099;123;456`, con un
+# signo que no une, la segunda pasada lo lee como tres numeros de tres cifras y
+# los publica; y "Florencia Martinez", con dos columnas de otra tabla que son
+# sus palabras, salia entero. Era la regla escrita dos veces.
+#
+# Se pregunta por la FORMA del valor y no valor por valor: la segunda pasada
+# cuesta cerca de dos milisegundos por texto, y una tabla tiene millones. Cada
+# cifra va como `0` -la segunda pasada las lee asi: `.numeros_del_texto()`- y,
+# sin un `^` en el valor -la linea que el motor repite sobre un `^` se lee por
+# sus letras-, cada tramo de letras como `a`: con toda palabra permitida, una
+# palabra pasa sea cual sea. Lo unico que esa forma puede cambiar es una letra
+# que el pliegue lleva a un signo que une cifras, y ahi la forma deja pasar MAS
+# que el valor: guarda de mas, que es el lado cerrado.
 .valores_que_lleva_el_motor <- function(valores,
                                         identificadores = .identificadores_motor()) {
   valores <- unique(as.character(valores[!is.na(valores)]))
@@ -356,36 +378,18 @@
   textos <- valores
   rotos <- !validUTF8(textos) | Encoding(textos) == "latin1"
   if (any(rotos)) textos[rotos] <- .plegar_para_comparar(textos[rotos])
-  largo <- grepl("\\p{N}(?:[^\\p{L}]{0,3}\\p{N}){5}", textos, perl = TRUE)
-  valores <- valores[!largo]
-  textos <- textos[!largo]
-  if (!length(valores)) return(character())
-  palabras <- strsplit(textos, "[^\\p{L}\\p{M}\\p{N}_'\u2019]+", perl = TRUE)
-  todas <- unlist(palabras, use.names = FALSE)
-  dueno <- rep(seq_along(palabras), lengths(palabras))
-  hay <- !is.na(todas) & nzchar(todas)
-  todas <- todas[hay]
-  dueno <- dueno[hay]
-  distintas <- unique(todas)
-  plegar <- function(v) {
-    # Si el pliegue falla, la caja ASCII: `tolower()` depende del locale (ronda 30-L).
-    tryCatch(.plegar_para_comparar(v), error = function(e) .minusculas_ascii(v))
-  }
+  formas <- gsub("\\p{N}", "0", textos, perl = TRUE)
+  sin_circunflejo <- !grepl("^", formas, fixed = TRUE, useBytes = TRUE)
+  formas[sin_circunflejo] <- gsub("\\p{L}+", "a", formas[sin_circunflejo],
+                                  perl = TRUE)
+  distintas <- unique(formas)
   identificadores <- as.character(identificadores)
-  identificadores <- identificadores[!is.na(identificadores)]
-  permitidas <- unique(c(
-    .VOCABULARIO_MENSAJE_MOTOR, .minusculas_ascii(.PALABRAS_SQL_MOTOR),
-    .minusculas_ascii(.TIPOS_MOTOR), identificadores
-  ))
-  libre <- nchar(distintas, type = "chars", allowNA = TRUE) <= 1L |
-    !grepl("\\p{L}", distintas, perl = TRUE) |
-    plegar(distintas) %in% plegar(permitidas) |
-    grepl("^rapi_[a-z_]+$", distintas) |
-    grepl("^(?=[A-Z]*[0-9])[0-9A-Z]{5}$", distintas, perl = TRUE)
-  libre[is.na(libre)] <- FALSE
-  ocupadas <- !libre[match(todas, distintas)]
-  otras <- tabulate(dueno[ocupadas], nbins = length(valores))
-  valores[otras <= 1L]
+  publicadas <- .publicar_lo_permitido_motor(
+    distintas, identificadores[!is.na(identificadores)], toda_palabra = TRUE
+  )
+  restos <- gsub(.LITERAL_MOTOR_OMITIDO, "", publicadas, fixed = TRUE)
+  lleva <- is.na(restos) | grepl("[\\p{L}\\p{N}]", restos, perl = TRUE)
+  valores[lleva[match(formas, distintas)]]
 }
 
 .sin_literales_motor <- function(texto,
@@ -459,15 +463,30 @@
     texto[con_texto] <- partes
     texto
   }
+  # El piso con los valores conocidos va PRIMERO, sobre el mensaje como llega,
+  # con el valor entero a la vista: cada pasada omite una parte -la primera,
+  # lo que esta entre comillas; la segunda, la palabra que no esta permitida- y
+  # el resto -"Florencia Martinez" de "Ana Florencia Martinez", con dos
+  # columnas de otra tabla que son esas palabras; "099" y "456" de
+  # "099 ' 123 ' 456"- ya no es el valor que el piso busca. Ronda 31. Las dos
+  # pasadas dejan el marcador como esta, y el piso vuelve a pasar al final.
+  entrada <- texto
+  if (length(conocidos)) {
+    entrada <- tryCatch(
+      .reemplazar_valores_protegidos(texto, conocidos, exigir_limites = FALSE,
+                                     intocables = nombres),
+      error = function(e) rep(.LITERAL_MOTOR_OMITIDO, length(texto))
+    )
+  }
   salida <- tryCatch(
-    tapar(texto, pares, "(?<![\\p{L}\\p{N}])", "(?![\\p{L}\\p{N}])"),
+    tapar(entrada, pares, "(?<![\\p{L}\\p{N}])", "(?![\\p{L}\\p{N}])"),
     error = function(e) NULL, warning = function(w) NULL
   )
   if (is.null(salida)) {
     # Un texto que no es UTF-8 valido no se puede leer por caracteres: se tapa
     # por bytes, con las comillas ASCII.
     salida <- tryCatch(
-      tapar(texto, pares[1:2], "(?<![A-Za-z0-9])", "(?![A-Za-z0-9])",
+      tapar(entrada, pares[1:2], "(?<![A-Za-z0-9])", "(?![A-Za-z0-9])",
             bytes = TRUE),
       error = function(e) rep(.LITERAL_MOTOR_OMITIDO, length(texto))
     )
@@ -497,9 +516,14 @@
 }
 
 # La segunda pasada: ver arriba. Lo que no se puede leer por caracteres se lee
-# como latin1, y si aun asi falla el mensaje entero se omite.
-.publicar_lo_permitido_motor <- function(texto, identificadores = character()) {
+# como latin1, y si aun asi falla el mensaje entero se omite. `toda_palabra`:
+# toda palabra cuenta como un nombre permitido -el de una columna de cualquier
+# tabla-; lo usa la seleccion de `.valores_que_lleva_el_motor()`.
+.publicar_lo_permitido_motor <- function(texto, identificadores = character(),
+                                         toda_palabra = FALSE) {
+  toda_palabra <- isTRUE(toda_palabra)
   marca <- "\001"
+  marca_valor <- "\002"
   permitidas <- unique(c(
     .VOCABULARIO_MENSAJE_MOTOR, .minusculas_ascii(.PALABRAS_SQL_MOTOR),
     .minusculas_ascii(.TIPOS_MOTOR)
@@ -524,7 +548,7 @@
     # mayusculas y cifras: `22P02`, `HY000`-.
     queda <- ifelse(
       numero, cifras < .MIN_LARGO_VALOR_IDENTIFICANTE,
-      minusculas %in% permitidas | trozos %in% identificadores |
+      toda_palabra | minusculas %in% permitidas | trozos %in% identificadores |
         minusculas %in% .minusculas_para_comparar(identificadores, recortar = FALSE) |
         nchar(trozos) == 1L | grepl("^rapi_[a-z_]+$", trozos) |
         grepl("^(?=[A-Z]*[0-9])[0-9A-Z]{5}$", trozos, perl = TRUE)
@@ -536,7 +560,10 @@
     if (!validUTF8(t)) t <- iconv(t, "latin1", "UTF-8")
     if (is.na(t)) return(.LITERAL_MOTOR_OMITIDO)
     t <- gsub(marca, " ", t, fixed = TRUE)
+    t <- gsub(marca_valor, " ", t, fixed = TRUE)
     t <- gsub(.LITERAL_MOTOR_OMITIDO, marca, t, fixed = TRUE)
+    # El marcador del piso -que ya paso, ver `.sin_literales_motor()`- queda.
+    t <- gsub(.VALOR_PROTEGIDO_MOTOR, marca_valor, t, fixed = TRUE)
     # La linea que el motor repite sobre un `^`, salvo la de la consulta.
     t <- gsub(
       "(^|\n)(?![ \t]*LINE [0-9]+:)[^\n]*[^\n \t^][^\n]*(?=\n[ \t]*\\^[ \t]*(?:\n|$))",
@@ -545,7 +572,7 @@
     # Un numero se lee como lo lee el piso, con la regla de digitos: ver
     # `.numeros_del_texto()`. El de seis cifras o mas se omite entero; el token
     # de abajo decide lo demas, y une tambien con dos puntos.
-    numeros <- .numeros_del_texto(t, barreras = marca)
+    numeros <- .numeros_del_texto(t, barreras = c(marca, marca_valor))
     numeros <- numeros[numeros$cifras >= .MIN_LARGO_VALOR_IDENTIFICANTE, ,
                        drop = FALSE]
     if (nrow(numeros)) {
@@ -560,7 +587,8 @@
     regmatches(t, m) <- lapply(regmatches(t, m), decidir)
     t <- gsub(paste0(marca, "(?:[ \t.,'/@_-]*", marca, ")+"), marca, t,
               perl = TRUE)
-    gsub(marca, .LITERAL_MOTOR_OMITIDO, t, fixed = TRUE)
+    t <- gsub(marca, .LITERAL_MOTOR_OMITIDO, t, fixed = TRUE)
+    gsub(marca_valor, .VALOR_PROTEGIDO_MOTOR, t, fixed = TRUE)
   }
   vapply(texto, function(t) {
     tryCatch(uno(t), error = function(e) .LITERAL_MOTOR_OMITIDO)
@@ -1723,8 +1751,8 @@
       )
     ))
   }
-  if (!grepl("postgres|pqconnection", .senas_conexion_dbi(conexion),
-             ignore.case = TRUE, perl = TRUE)) {
+  if (!grepl(.regex_sin_caja("postgres|pqconnection"),
+             .senas_conexion_dbi(conexion), perl = TRUE)) {
     return(.estimacion_derrame_vacia_postgresql_dbi(
       motivo = paste(
         "No se pudo estimar el derrame: la conexion no fue reconocida como",
@@ -2278,8 +2306,8 @@
       "vayan a emitir", familia, "."
     )))
   }
-  if (!grepl("postgres|pqconnection", .senas_conexion_dbi(conexion),
-             ignore.case = TRUE, perl = TRUE)) {
+  if (!grepl(.regex_sin_caja("postgres|pqconnection"),
+             .senas_conexion_dbi(conexion), perl = TRUE)) {
     return(vacia(motivo = paste(
       "No se pudo estimar el derrame de", familia, ": la conexion no fue",
       "reconocida como PostgreSQL y no hay un `pg_stats` portable."
@@ -3981,7 +4009,7 @@
   for (candidato in candidatos) {
     sql <- candidato$sonda(alias)
     if (.es_oracle_dbi(conexion) &&
-        !grepl("\\bFROM\\b", sql, ignore.case = TRUE, perl = TRUE)) {
+        !grepl(.regex_sin_caja("\\bFROM\\b"), sql, perl = TRUE)) {
       sql <- paste0(sql, " FROM DUAL")
     }
     sondas <- c(sondas, sql)
@@ -4437,8 +4465,8 @@
     estado$motivo <- paste(
       "La instrumentacion esta apagada; DBI no mide bloques temporales."
     )
-  } else if (!grepl("postgres|pqconnection", .senas_conexion_dbi(conexion),
-                    ignore.case = TRUE, perl = TRUE)) {
+  } else if (!grepl(.regex_sin_caja("postgres|pqconnection"),
+                    .senas_conexion_dbi(conexion), perl = TRUE)) {
     estado$estado <- "no_disponible"
     estado$motivo <- paste(
       "El controlador no fue reconocido como PostgreSQL; no se puede",
@@ -5413,6 +5441,40 @@
   !is.na(motivo) & grepl(.FRAGMENTO_NO_NUMERO_DBI, motivo, fixed = TRUE)
 }
 
+# Que el motor guarda TEXTO en una columna numerica se MIDE, no se deduce de que
+# una metrica no se pudo leer como numero: en la ronda 31 un `Inf` -un numero-
+# hacia publicar "Causa medida: el motor guarda en esta columna valores que no
+# son numeros" sobre una columna con cinco `real` y un `null`. En SQLite, que
+# es el motor que admite texto en una columna de afinidad numerica, se cuenta
+# con `typeof()`. Devuelve la frase que se agrega al motivo, o "" si no se midio
+# texto: en los demas motores una columna numerica no puede guardarlo.
+.FRAGMENTO_TEXTO_MEDIDO_DBI <- "guardados como texto o blob, medido con `typeof()`"
+
+.texto_guardado_medido_dbi <- function(conexion, tabla_sql, columna_sql, alias,
+                                       presupuesto = NULL) {
+  if (!grepl("sqlite", .senas_conexion_dbi(conexion), fixed = TRUE,
+             useBytes = TRUE)) {
+    return("")
+  }
+  sql <- paste0(
+    "SELECT SUM(CASE WHEN typeof(", columna_sql, ") IN ('text', 'blob') ",
+    "THEN 1 ELSE 0 END) AS ", alias("n_texto"), " FROM ", tabla_sql
+  )
+  medido <- .escalar_dbi(
+    conexion, sql, "n_texto", presupuesto, etapa = "tipos_guardados"
+  )
+  n <- if (isTRUE(medido$ok)) .numero_dbi(medido$valor) else NA_real_
+  if (!isTRUE(n > 0)) return("")
+  paste0(
+    " La columna tiene ", format(n, scientific = FALSE, trim = TRUE),
+    " valores ", .FRAGMENTO_TEXTO_MEDIDO_DBI, "."
+  )
+}
+
+.es_motivo_texto_medido_dbi <- function(motivo) {
+  !is.na(motivo) & grepl(.FRAGMENTO_TEXTO_MEDIDO_DBI, motivo, fixed = TRUE, useBytes = TRUE)
+}
+
 # La causa de una divergencia que se puede MEDIR: el motor guarda en la columna
 # valores que no son numeros -una de sus metricas de magnitud no se pudo leer
 # como numero- y el controlador la entrego a la muestra como numerica. Medido en
@@ -5422,7 +5484,9 @@
 # texto de una columna que tipa como numerica (con su aviso "mixed type"). La
 # divergencia ya se declaraba, con una lista de causas posibles; ahora con la
 # medida. Se declara y no se relee la columna como texto: la decision esta
-# escrita en `?perfilar_dbi`.
+# escrita en `?perfilar_dbi`. Medida de verdad desde la ronda 31: la causa exige
+# el conteo de `typeof()` en el motivo -ver `.texto_guardado_medido_dbi()`-, y
+# no solo que una magnitud no se haya podido leer.
 .causa_divergencia_no_numero_dbi <- function(sql, columnas, columna) {
   if (!.tipo_numerico_corroboracion_dbi(columnas, columna)) return(NULL)
   if (!is.data.frame(sql) ||
@@ -5432,12 +5496,13 @@
   propias <- .nombres_para_operar(as.character(sql$columna)) %in%
     .nombres_para_operar(columna)
   if (!any(propias & as.character(sql$estado) == "no_disponible" &
-           .es_motivo_no_numero_dbi(as.character(sql$motivo)))) {
+           .es_motivo_no_numero_dbi(as.character(sql$motivo)) &
+           .es_motivo_texto_medido_dbi(as.character(sql$motivo)))) {
     return(NULL)
   }
   paste(
     "Causa medida: el motor guarda en esta columna valores que no son",
-    "numeros -una de sus metricas de magnitud no se pudo leer como numero- y",
+    "numeros -`typeof()` cuenta valores guardados como texto o blob- y",
     "el controlador la entrego a la muestra como numerica, asi que",
     "`perfil_muestra` describe esos valores ya convertidos por el controlador",
     "(RSQLite convierte a 0 el texto de una columna que tipa como numerica, y",
@@ -5516,7 +5581,10 @@
 .valor_normalizado_corroboracion_dbi <- function(valor, numerico) {
   if (numerico) return(.numero_corroboracion_dbi(valor))
   if (is.null(valor) || !length(valor)) return(NA_character_)
-  as.character(valor[[1L]])
+  # El texto que identifica el valor, no el que imprime la sesion: un conteo llega
+  # entero de un lado y doble del otro, y con `scipen = -9` `as.character()` daba
+  # "12" contra "1.2e+01" -nueve divergencias falsas de nueve- (ronda 31-S).
+  .texto_identidad(valor[[1L]])
 }
 
 .comparar_celda_corroboracion_dbi <- function(a, b, numerico) {
@@ -6219,7 +6287,7 @@
 .estimar_distintos_catalogo_dbi <- function(conexion, tabla, columnas,
                                             presupuesto) {
   senas <- .senas_conexion_dbi(conexion)
-  if (!grepl("postgres|pqconnection", senas, ignore.case = TRUE)) {
+  if (!grepl(.regex_sin_caja("postgres|pqconnection"), senas)) {
     vacias <- .fuentes_cardinalidad_vacias_dbi(columnas)
     return(list(
       disponible = FALSE, estimaciones = vacias, fuentes = vacias,
@@ -6858,7 +6926,7 @@
 .mensaje_tabla_inaccesible_dbi <- function(motivo) {
   detalle <- if (!is.na(motivo)) motivo else ""
   if (!is.na(motivo) &&
-      grepl(.PATRON_PERMISO_DBI, motivo, ignore.case = TRUE, perl = TRUE)) {
+      grepl(.regex_sin_caja(.PATRON_PERMISO_DBI), motivo, perl = TRUE)) {
     return(paste(
       "La tabla existe pero la credencial no tiene permiso para verla: el",
       "motor lo dijo explicitamente.", detalle
@@ -6936,6 +7004,121 @@
   !isTRUE(is.finite(convertido))
 }
 
+# Un infinito que el motor devuelve no es "un valor que no se pudo leer como
+# numero": es un numero, y R lo lee. La columna guarda `Inf` o `-Inf` -SQLite,
+# PostgreSQL y duckdb los admiten en una columna de punto flotante- y el motor
+# los cuenta en `MIN`, `MAX`, `AVG` y el orden de la mediana, mientras que la
+# regla del paquete es una: los estadisticos de magnitud se calculan solo con
+# valores finitos. Medido en la ronda 31: `c(1, 2, 3, 4, Inf, NA)` salia con
+# `minimo`, `maximo`, `media` y `mediana` en `NA` "porque la columna no es de
+# la magnitud que estas metricas suponen", y la corroboracion publicaba como
+# causa MEDIDA que la columna guardaba texto. `typeof()` daba cinco `real`.
+.es_infinito_motor_dbi <- function(crudo) {
+  if (is.null(crudo) || !length(crudo)) return(FALSE)
+  original <- crudo[[1L]]
+  is.numeric(original) && !inherits(original, "integer64") &&
+    isTRUE(is.infinite(original))
+}
+
+.motivo_infinito_dbi <- function(que) {
+  paste0(
+    "El motor respondio un infinito para ", if (identical(que, "la sonda de magnitud"))
+      que else paste0("`", que, "`"),
+    ": la columna guarda valores infinitos y el motor los cuenta en `MIN`, ",
+    "`MAX`, `AVG` y el orden de la mediana, mientras que los estadisticos de ",
+    "magnitud se calculan solo con valores finitos. En este motor la consulta ",
+    "no los pudo excluir, y las metricas de magnitud de esta columna no se ",
+    "publican como calculadas."
+  )
+}
+
+# Como se escribe un infinito en el SQL de cada motor que los admite. `9e999`
+# desborda a `Inf` en el lector de SQLite; PostgreSQL y duckdb leen
+# 'Infinity'. En SQL Server y MySQL una columna de punto flotante no admite
+# infinitos; en un motor sin senas no se adivina la sintaxis: `NULL`, y las
+# magnitudes quedan sin publicar con `.motivo_infinito_dbi()`.
+.literales_infinito_dbi <- function(conexion) {
+  senas <- .senas_conexion_dbi(conexion)
+  if (grepl("duckdb", senas, fixed = TRUE, useBytes = TRUE)) {
+    return(c("CAST('Infinity' AS DOUBLE)", "CAST('-Infinity' AS DOUBLE)"))
+  }
+  if (grepl("postgres|pqconnection", senas, useBytes = TRUE)) {
+    return(c(
+      "CAST('Infinity' AS DOUBLE PRECISION)",
+      "CAST('-Infinity' AS DOUBLE PRECISION)"
+    ))
+  }
+  if (grepl("sqlite", senas, fixed = TRUE, useBytes = TRUE)) {
+    return(c("9e999", "-9e999"))
+  }
+  NULL
+}
+
+# Cuenta los infinitos de la columna en un motor que sabe escribirlos. Solo se
+# pregunta cuando ninguna otra respuesta del motor lo dice: ver el `AVG` de los
+# basicos.
+.hay_infinitos_dbi <- function(conexion, tabla_sql, columna_sql, alias,
+                               presupuesto = NULL) {
+  infinitos <- .literales_infinito_dbi(conexion)
+  if (is.null(infinitos)) return(FALSE)
+  sql <- paste0(
+    "SELECT SUM(CASE WHEN ", columna_sql, " = ", infinitos[[1L]], " OR ",
+    columna_sql, " = ", infinitos[[2L]], " THEN 1 ELSE 0 END) AS ",
+    alias("n_infinitos"), " FROM ", tabla_sql
+  )
+  contado <- .escalar_dbi(
+    conexion, sql, "n_infinitos", presupuesto, etapa = "sonda_infinitos"
+  )
+  isTRUE(contado$ok) && isTRUE(.numero_dbi(contado$valor) > 0)
+}
+
+# Las metricas de magnitud de una columna con infinitos, sobre los valores
+# finitos: la MISMA maquinaria del resumen por columna -basicos, mediana por
+# cualquiera de sus caminos, desvio- sobre una subconsulta que deja afuera los
+# dos infinitos. Ni una regla nueva por metrica ni una consulta escrita aparte:
+# `n_validos` de la subconsulta es el de los finitos, y es el que usa la mediana
+# exacta en dos consultas. Solo sobre la tabla completa: sobre una muestra del
+# motor, la subconsulta volveria a muestrear otras filas. Devuelve `NULL` si
+# este motor no tiene como escribir el infinito.
+.magnitudes_finitas_dbi <- function(conexion, tabla_sql, columna, columna_sql,
+                                    prototipo, n_total, dialecto,
+                                    pedidas_numericas, presupuesto,
+                                    incluir_valores, tipo_declarado,
+                                    motivo_ilegible, universo,
+                                    aproximacion_mediana, mediana_escalar,
+                                    decisiones_costo) {
+  if (!identical(universo, "tabla_completa")) return(NULL)
+  infinitos <- .literales_infinito_dbi(conexion)
+  if (is.null(infinitos)) return(NULL)
+  tabla_finita <- paste0(
+    "(SELECT ", columna_sql, " FROM ", tabla_sql, " WHERE ", columna_sql,
+    " <> ", infinitos[[1L]], " AND ", columna_sql, " <> ", infinitos[[2L]],
+    ")", dialecto$alias_tabla("lupa_finitos")
+  )
+  interno <- .resumen_columna_dbi(
+    conexion, tabla_finita, columna, prototipo, n_total, dialecto = dialecto,
+    metricas = c("validos", pedidas_numericas), presupuesto = presupuesto,
+    incluir_valores = incluir_valores, tipo_declarado = tipo_declarado,
+    motivo_ilegible = motivo_ilegible, universo = "tabla_completa",
+    aproximacion_mediana = aproximacion_mediana,
+    mediana_escalar = mediana_escalar, decisiones_costo = decisiones_costo,
+    solo_finitos = TRUE
+  )
+  campos <- unlist(.CAMPOS_METRICA_DBI[pedidas_numericas], use.names = FALSE)
+  sql <- interno$sql
+  sql <- sql[as.character(sql$metrica) %in% campos, , drop = FALSE]
+  # "La columna no contiene valores no nulos" es falso: los tiene, y son
+  # infinitos.
+  sin_finitos <- as.character(sql$estado) == "sin_valores"
+  if (any(sin_finitos)) {
+    sql$motivo[sin_finitos] <- paste(
+      "La columna no contiene valores finitos: los estadisticos de magnitud",
+      "se calculan solo con valores finitos."
+    )
+  }
+  list(fila = interno$fila[campos], sql = sql, literales = interno$literales)
+}
+
 .motivo_nan_dbi <- function(que) {
   paste0(
     "El motor respondio `NaN` para ", if (identical(que, "la sonda de magnitud"))
@@ -6983,10 +7166,22 @@
   if (is.na(original)) return(FALSE)
   if (inherits(original, "integer64")) {
     if (!.bit64_disponible_dbi()) return(FALSE)
+    # El aviso de bit64 -"integer precision lost while converting to double"- es
+    # la perdida que esta funcion mide: se recoge aca y la declara quien llama,
+    # como el resto. El `tryCatch()` solo atrapaba errores: con `warn = 0` el
+    # aviso crudo, en ingles, le llegaba al usuario (ronda 31-S).
+    avisada <- FALSE
     regreso <- tryCatch(
-      bit64::as.integer64(as.numeric(original)), error = function(e) NULL
+      withCallingHandlers(
+        bit64::as.integer64(as.numeric(original)),
+        warning = function(w) {
+          avisada <<- TRUE
+          invokeRestart("muffleWarning")
+        }
+      ),
+      error = function(e) NULL
     )
-    return(is.null(regreso) || is.na(regreso) || regreso != original)
+    return(avisada || is.null(regreso) || is.na(regreso) || regreso != original)
   }
   if (!is.double(original) ||
       !.tipo_declarado_entero_ancho_dbi(tipo_declarado)) {
@@ -7579,13 +7774,28 @@
   # con `NaN` pasaba la sonda y la mediana se calculaba contandolo; en SQLite el
   # texto se ordena despues de los numeros, asi que `MIN` de una columna INTEGER
   # con texto devolvia un numero y tampoco lo veia.
+  #
+  # Y `MIN` en la misma consulta: un `-Inf` queda al PRINCIPIO del orden, y
+  # sin el la mediana se calculaba contandolo -ver `.es_infinito_motor_dbi()`-.
   sql <- paste0(
     "SELECT MAX(", columna_sql, ") AS ", alias("magnitud"),
+    ", MIN(", columna_sql, ") AS ", alias("magnitud_minima"),
     " FROM ", tabla_sql
   )
-  resultado <- .escalar_dbi(
-    conexion, sql, "magnitud", presupuesto, etapa = "sonda_magnitud"
+  consulta <- .consultar_dbi(
+    conexion, sql, presupuesto, etapa = "sonda_magnitud"
   )
+  if (!consulta$ok) {
+    resultado <- .adjuntar_medicion_dbi(
+      list(ok = FALSE, valor = NULL, motivo = consulta$motivo), consulta
+    )
+  } else {
+    resultado <- .adjuntar_medicion_dbi(
+      .valor_campo_dbi(consulta$datos, "magnitud"), consulta
+    )
+    minima <- .valor_campo_dbi(consulta$datos, "magnitud_minima")
+    resultado$minimo <- if (isTRUE(minima$ok)) minima$valor else NULL
+  }
   resultado$sql <- sql
   resultado
 }
@@ -8647,7 +8857,8 @@
                                  moda_precalculada = NULL,
                                  decisiones_costo = NULL,
                                  publica_distintos = TRUE,
-                                 estrategia_distintos = NULL) {
+                                 estrategia_distintos = NULL,
+                                 solo_finitos = FALSE) {
   if (is.null(dialecto)) dialecto <- .dialectos_dbi()$limit
   if (is.null(estrategia_distintos)) {
     estrategia_distintos <- list(
@@ -9237,6 +9448,10 @@
   magnitud_desmentida <- FALSE
   motivo_magnitud <- NA_character_
   magnitud_sondeada <- TRUE
+  # El motor respondio un infinito en una metrica de magnitud: ver
+  # `.es_infinito_motor_dbi()`. Las magnitudes se vuelven a pedir sobre los
+  # valores finitos despues de los basicos.
+  infinitos_motor <- FALSE
 
   mediana_conservada <- is.null(decisiones_costo) ||
     isTRUE(decisiones_costo$mediana)
@@ -9258,12 +9473,22 @@
       if (sonda_nan) {
         sondeo$ok <- FALSE
         sondeo$motivo <- .motivo_nan_dbi("la sonda de magnitud")
+      } else if (.es_infinito_motor_dbi(sondeo$valor) ||
+                 .es_infinito_motor_dbi(sondeo$minimo)) {
+        sondeo$ok <- FALSE
+        sondeo$motivo <- .motivo_infinito_dbi("la sonda de magnitud")
+        infinitos_motor <- TRUE
       } else if (.valor_perdido_en_conversion_dbi(sondeo$valor, convertido)) {
         valor <- if (isTRUE(incluir_valores)) paste0(
           " (\"", utils::head(as.character(sondeo$valor[[1L]]), 1L), "\")"
         ) else ""
         sondeo$ok <- FALSE
-        sondeo$motivo <- .motivo_no_numero_dbi("la sonda de magnitud", valor)
+        sondeo$motivo <- paste0(
+          .motivo_no_numero_dbi("la sonda de magnitud", valor),
+          .texto_guardado_medido_dbi(
+            conexion, tabla_sql, columna_sql, alias, presupuesto
+          )
+        )
       } else if (.entero_perdido_en_conversion_dbi(
         sondeo$valor, tipo_declarado
       )) {
@@ -9311,6 +9536,26 @@
           convertido <- .escalar_finito_dbi(celda$valor)
           crudo_nan <- is.numeric(celda$valor[[1L]]) &&
             isTRUE(is.nan(celda$valor[[1L]]))
+          # Sin `MIN` ni `MAX` -`incluir_valores = FALSE`-, un `Inf` y un `-Inf`
+          # en la misma columna solo se ven en `AVG`: duckdb y PostgreSQL
+          # responden `NaN` y SQLite, que no guarda `NaN`, `NULL`. Medido en la
+          # ronda 31: SQLite publicaba `media = NA` como `calculado` y
+          # `n_negativos = 2` -contando el `-Inf`- donde los finitos dan 1, y
+          # duckdb culpaba a un `NaN` que la columna no tenia. Antes de leerlo
+          # como `NaN` o como nulo, se cuentan los infinitos.
+          if (identical(metrica, "media") && !isTRUE(solo_finitos) &&
+              (crudo_nan || is.na(convertido)) &&
+              .hay_infinitos_dbi(
+                conexion, tabla_sql, columna_sql, alias, presupuesto
+              )) {
+            basicos$ok <- FALSE
+            basicos$motivo <- .motivo_infinito_dbi(metrica)
+            magnitud_desmentida <- TRUE
+            motivo_magnitud <- basicos$motivo
+            infinitos_motor <- TRUE
+            leidos <- list()
+            break
+          }
           if (crudo_nan) {
             # Un `NaN` del motor no dice que la columna sea de otra magnitud: es
             # numerica y guarda `NaN` como un valor -duckdb lo hace-, y el motor
@@ -9326,17 +9571,35 @@
             leidos <- list()
             break
           }
+          # Un infinito no es un valor ilegible: es la columna que guarda
+          # infinitos. Se retienen las magnitudes con ese motivo y, donde el
+          # motor sabe escribir el infinito, se vuelven a pedir abajo sobre los
+          # finitos.
+          if (.es_infinito_motor_dbi(celda$valor)) {
+            basicos$ok <- FALSE
+            basicos$motivo <- .motivo_infinito_dbi(metrica)
+            magnitud_desmentida <- TRUE
+            motivo_magnitud <- basicos$motivo
+            infinitos_motor <- TRUE
+            leidos <- list()
+            break
+          }
           if (.valor_perdido_en_conversion_dbi(celda$valor, convertido)) {
             basicos$ok <- FALSE
             # El valor, solo si se pidieron valores y entre comillas, como la
             # sonda de magnitud: escrito entre parentesis era el MAXIMO de una
             # columna personal en claro -la prosa del paquete solo se revisa en
             # lo citado-. Medido en la ronda 22.
-            basicos$motivo <- .motivo_no_numero_dbi(
-              paste0("`", metrica, "`"),
-              if (isTRUE(incluir_valores)) paste0(
-                " (\"", utils::head(as.character(celda$valor[[1L]]), 1L), "\")"
-              ) else ""
+            basicos$motivo <- paste0(
+              .motivo_no_numero_dbi(
+                paste0("`", metrica, "`"),
+                if (isTRUE(incluir_valores)) paste0(
+                  " (\"", utils::head(as.character(celda$valor[[1L]]), 1L), "\")"
+                ) else ""
+              ),
+              .texto_guardado_medido_dbi(
+                conexion, tabla_sql, columna_sql, alias, presupuesto
+              )
             )
             magnitud_desmentida <- TRUE
             motivo_magnitud <- basicos$motivo
@@ -9406,6 +9669,32 @@
         columna, c("minimo", "maximo"), "omitido_por_privacidad",
         motivo_privacidad, NA_character_, metadatos = metadatos
       )))
+    }
+  }
+
+  # Una columna con infinitos: todas sus magnitudes -las de los basicos, la
+  # mediana y el desvio- se piden de nuevo sobre los valores finitos, que es la
+  # regla de `perfilar()` y de la via por bloques. Si el motor no sabe escribir
+  # el infinito, o la lectura es una muestra del motor, quedan retenidas con
+  # `.motivo_infinito_dbi()` -abajo, como cualquier magnitud desmentida-.
+  if (infinitos_motor && !isTRUE(solo_finitos)) {
+    finitas <- .magnitudes_finitas_dbi(
+      conexion, tabla_sql, columna, columna_sql, prototipo, n_total, dialecto,
+      pedidas_numericas, presupuesto, incluir_valores, tipo_declarado,
+      motivo_ilegible, universo, aproximacion_mediana, mediana_escalar,
+      decisiones_costo
+    )
+    if (!is.null(finitas)) {
+      for (campo in names(finitas$fila)) fila[[campo]] <- finitas$fila[[campo]]
+      previos <- do.call(rbind, registros)
+      previos <- previos[
+        !as.character(previos$metrica) %in% c(campos_pedidos, "sonda_magnitud"),
+        , drop = FALSE
+      ]
+      return(list(
+        fila = fila, sql = rbind(previos, finitas$sql),
+        literales = c(literales, finitas$literales)
+      ))
     }
   }
 
@@ -13859,7 +14148,7 @@ print.plan_perfilado_dbi <- function(x, ...) {
 #' motor: ver la protección—, y se conserva la mediana por columna.
 #'
 #' @section Lo que el motor guarda distinto que R:
-#' El resumen SQL describe lo que el motor tiene delante, y en cuatro casos eso
+#' El resumen SQL describe lo que el motor tiene delante, y en estos casos eso
 #' no es lo mismo que la tabla en R:
 #'
 #' * **Fechas en SQLite.** SQLite no tiene tipo fecha: RSQLite guarda un `Date`
@@ -13872,6 +14161,16 @@ print.plan_perfilado_dbi <- function(x, ...) {
 #'   presente y distinto, y responde `MAX` y `AVG` con `NaN`. En R, `NaN` cuenta
 #'   como ausente. Los conteos pueden diferir por eso, y una métrica que el motor
 #'   respondió con `NaN` no se publica: queda `no_disponible` con su motivo.
+#' * **Infinitos.** SQLite, PostgreSQL y duckdb admiten `Inf` y `-Inf` en una
+#'   columna de punto flotante, y el motor los cuenta en `MIN`, `MAX`, `AVG` y
+#'   el orden de la mediana. Los estadísticos de magnitud se calculan sólo con
+#'   valores finitos, como en [perfilar()] y con `bloque_filas`: cuando el motor
+#'   responde un infinito, `minimo`, `maximo`, `media`, `mediana`, `desvio`,
+#'   `n_ceros` y `n_negativos` se vuelven a pedir sobre una subconsulta que deja
+#'   afuera los infinitos, y su `sql` lo muestra. Donde la consulta no sabe
+#'   escribir el infinito, o sobre una muestra del motor, esas métricas quedan
+#'   `no_disponible` con ese motivo. Un infinito es un número: no se informa
+#'   como un valor que no se pudo leer como número.
 #' * **La media en coma flotante.** Cada lado suma a su modo; sobre una columna
 #'   que mezcla magnitudes muy distintas —`1e20` junto a `1`— las medias pueden
 #'   diferir entre motores y con la de R, y ninguna es la exacta. La
@@ -13894,7 +14193,8 @@ print.plan_perfilado_dbi <- function(x, ...) {
 #'   `no_disponible` porque el motor devolvió algo que no se lee como número—,
 #'   y `perfil_muestra` ve lo que entregó el controlador: `minimo = 0`, una moda
 #'   `0` que nadie escribió. `perfilar_dbi()` no relee la columna como texto:
-#'   declara cada divergencia con esa causa medida en `resumen_tabla$cobertura`,
+#'   cuenta con `typeof()` los valores guardados como texto o blob y declara
+#'   cada divergencia con esa causa medida en `resumen_tabla$cobertura`,
 #'   y dice que las cifras de magnitud de `perfil_muestra` para esa columna no
 #'   describen lo guardado. Para perfilar los valores guardados, leer la columna
 #'   como texto (`CAST(columna AS TEXT)` en una vista) o limpiarla en el origen.
@@ -14133,9 +14433,11 @@ print.plan_perfilado_dbi <- function(x, ...) {
 #' línea, que se tapa entera; SQL Server con la sesión en sueco o neerlandés—
 #' y la cola de un valor que lleva una comilla adentro. Y el mensaje pasa
 #' también por el piso con los valores protegidos que la llamada ya leyó —en
-#' [perfilar_coleccion()], los de todas sus tablas—: un valor escrito sólo con
-#' lo permitido —los apellidos `"Campos Cadena"`, dos palabras del
-#' vocabulario— se tapa, y el nombre de una columna que es también uno de esos
+#' [perfilar_coleccion()], los de todas sus tablas—, antes de las dos pasadas,
+#' con el valor entero a la vista, y otra vez al final: un valor escrito sólo
+#' con lo permitido —los apellidos `"Campos Cadena"`, dos palabras del
+#' vocabulario, o un nombre cuyas palabras son columnas de otra tabla— se
+#' tapa entero, y el nombre de una columna que es también uno de esos
 #' valores —la docente `"Florencia"` de una planilla con una columna por
 #' docente— deja de exceptuarse, con la comparación del piso. Lo que queda
 #' abierto: un valor que la llamada **no** leyó —la celda que hizo fallar la

@@ -21,8 +21,13 @@
   datos
 }
 
+# La completitud de una fila lee la ausencia como el perfil: un nivel `NA` de
+# un factor es un faltante -ver `.normalizar_columnas_entrada()`-. Con
+# `complete.cases()` sobre el factor crudo el nivel contaba presente, y
+# `referencial()` aceptaba como clave sin ausentes la columna que `perfilar()`
+# cuenta con un faltante. Medido en la ronda 31.
 .filas_completas <- function(datos) {
-  stats::complete.cases(.integer64_como_texto(datos))
+  stats::complete.cases(.integer64_como_texto(.normalizar_columnas_entrada(datos)))
 }
 
 .es_clave <- function(datos, indices) {
@@ -338,6 +343,12 @@ detectar_claves <- function(datos, max_combinacion = 3, normalizar = NULL,
   .validar_datos_tabla(datos)
   .validar_perfil_de(perfil, datos)
   datos <- .tabla_base(datos)
+  # La misma entrada que el perfil: un nivel `NA` de un factor es un faltante y
+  # un `POSIXlt` es el instante de su `POSIXct`. Sin esto, un codigo unico
+  # salvo una fila en el nivel `NA` salia clave exacta con 40 distintos, y
+  # `perfilar(clave = )` la refutaba con 1 faltante y 39 distintos (ronda 31).
+  # Ver `.normalizar_columnas_entrada()`.
+  datos <- .normalizar_columnas_entrada(datos)
   normalizacion_resuelta <- .resolver_normalizacion(normalizar, perfil)
   if (length(max_combinacion) != 1L || is.na(max_combinacion) ||
       max_combinacion < 1L || max_combinacion > 3L) {
@@ -812,13 +823,16 @@ detectar_claves <- function(datos, max_combinacion = 3, normalizar = NULL,
   # Se protege el RANGO entero, no cada extremo por separado. Enmascarar uno
   # solo publica el otro, y el par acota igual; ademas
   # `[[valor protegido], [valor protegido]]` no se lee.
+  # Cada extremo con sus propias cifras y sin `scipen` ni `digits`, y con coma
+  # decimal los extremos se separan con punto y coma, como en
+  # `comparar_perfiles()`: con `OutDec = ","` salia `[0,10, 0,75]` (ronda 31-S).
   lado <- function(rango) {
-    textos <- format(c(rango[["minimo"]], rango[["maximo"]]),
-                     scientific = FALSE, trim = TRUE)
+    textos <- vapply(c(rango[["minimo"]], rango[["maximo"]]),
+                     .formatear_numero_publicado, character(1L))
     if (length(.valores_identificantes(textos))) {
       "[valor protegido]"
     } else {
-      paste0("[", textos[[1L]], ", ", textos[[2L]], "]")
+      .texto_rango_deriva(textos[[1L]], textos[[2L]])
     }
   }
   paste0(lado(rango_x), " y ", lado(rango_y))
@@ -871,8 +885,10 @@ detectar_claves <- function(datos, max_combinacion = 3, normalizar = NULL,
         motivo = "cardinalidades_imposibles",
         detalle = paste0(
           "con ", x$n_distintos, " distintos en tabla1, los valores mas ",
-          "frecuentes de tabla2 cubren a lo sumo ", signif(cota, 4),
-          " de sus filas, por debajo del umbral ", umbral_cobertura
+          "frecuentes de tabla2 cubren a lo sumo ",
+          .formatear_numero_publicado(signif(cota, 4)),
+          " de sus filas, por debajo del umbral ",
+          .formatear_numero_publicado(umbral_cobertura)
         )
       ))
     }

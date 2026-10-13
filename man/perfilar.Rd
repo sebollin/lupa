@@ -383,9 +383,14 @@ número con esa forma se prueba por su parte nacional. Y el celular protegido gu
 escrito sin él, también guardado como número de planilla
 —\code{"59899123456.0"}, \code{"59899123456,0"} o \code{"5.9899123456E+10"}, la misma
 cifra, con cualquier cantidad de ceros —\code{"59899123456.0000"}, como lo deja
-un \code{DECIMAL(15,4)}— y con cualquier exponente —\code{"5.9899123456e+010"}, como
-lo escribe el \code{printf} de Windows—, y al revés: escrito así en un texto se
-lee por su parte nacional. La cifra escrita así es el documento
+un \code{DECIMAL(15,4)}—, con cualquier exponente —\code{"5.9899123456e+010"}, como
+lo escribe el \code{printf} de Windows, también con un espacio antes,
+\code{"5.9899123456 e+10"}— y con separador de miles, como lo muestra el
+formato "Número" de una planilla —\code{"59.899.123.456"},
+\code{"59,899,123,456.00"}, \code{"59 899 123 456,00"}, \code{"59'899'123'456"}: todas
+las escrituras dan la misma cifra entera—, y al revés: escrito así en un
+texto se lee por su parte nacional, que sale de esa cifra y no de los
+grupos como vienen. La cifra escrita así es el documento
 \strong{entero}, no el parcial: el importe redondo \code{"5460537.00"} no se lee
 como un documento sin su verificador. No unen los parecidos raros: la prima de una coordenada
 sexagesimal, el acento grave, la tilde. Los dos puntos y la barra vertical
@@ -447,7 +452,9 @@ recortado sin formato, \code{"X2345678"}), a uno de cada cuatro—, y a uno o do
 de cada cien enteros de ocho cifras, que coinciden con un documento entero
 —también a los importes de ocho cifras con centavos, \code{"52317219.09"}, 1,8 \%
 sobre 4.000 con las mismas cifras enteras: su parte entera es la de un
-documento entero—;
+documento entero; y a los escritos con separador de miles o en notación
+científica, con o sin un espacio antes del exponente —\code{"52.317.219,00"},
+\code{"5.2317219 e+07"}—, también 1,8 \%: son la misma cifra entera—;
 las coordenadas, los p-valores, los importes de siete cifras con decimales
 —también los redondos, \code{"5460537.00"}, \code{"5460537,00"} o dentro de una
 frase; con un solo cero, \code{"5460537.0"}, dos de cada cien, que se leen
@@ -478,8 +485,16 @@ seis, porque \code{"598"} y el primer grupo formaban una cédula de siete cifras
 sin su verificador. Y una lista de dos teléfonos unidos por una barra
 —\code{"+59894364556/+59849290458"}—, entre cinco y ocho de cada cien, como la
 misma lista con \code{" / "}: cada uno se prueba por su parte nacional.
+Un celular que no es de nadie, entre dos y tres de cada cien —2,0 a 2,5 \%
+con 400 por escritura, pegado con su prefijo, con espacios o sin el
+prefijo; 3,0 \% sobre 4.000 con las mismas cifras, pegado
+(\code{"+59895257283"}) o como número de planilla con separador de miles
+(\code{"59.895.257.283"})—: coincide con uno protegido. Con los miles y los
+decimales en cero, o con espacios (\code{"59 895 257 283"}), 4,4 \%: sus primeras
+ocho cifras tienen además la forma de una cédula entera.
 Y, por el mismo parcial, una versión de cuatro partes
-(\code{"v4.62.660.4361"}), trece de cada cien, y un expediente
+(\code{"v4.62.660.4361"}), trece de cada cien, la de cinco partes
+(\code{"v2.76.527.6327.3"}), quince de cada cien, y un expediente
 \code{"exp 2023-6-880041"}, uno de cada seis: su tramo \code{"660.4361"} o
 \code{"6-880041"} es un número de siete cifras con un signo que une, y no se
 distingue del documento escrito así.
@@ -1139,8 +1154,9 @@ hexadecimal —\code{moda}, \code{n_distintos}—, pero no pasa por las etapas q
 interpretan la escritura de una persona —patrones, números escritos como
 texto, unidades, espacios—: un byte no es un texto escrito.
 Un nivel \code{NA} de un factor —el que dejan \code{addNA()} o \code{factor(exclude = NULL)}— es un faltante: cuenta en \code{n_faltantes} y no en \code{n_distintos}, igual
-que en la medición, en \code{\link[=distribucion_valores]{distribucion_valores()}}, en \code{\link[=inferir_tipo]{inferir_tipo()}} y en
-las dependencias. Un \code{POSIXlt} —lo que deja \code{strptime()}— se perfila por su
+que en la medición, en \code{\link[=distribucion_valores]{distribucion_valores()}}, en \code{\link[=inferir_tipo]{inferir_tipo()}}, en
+las dependencias y en las claves —\code{\link[=detectar_claves]{detectar_claves()}} y \code{\link[=sugerir_clave]{sugerir_clave()}} no
+la proponen—. Un \code{POSIXlt} —lo que deja \code{strptime()}— se perfila por su
 instante, como el \code{POSIXct} equivalente: la misma columna en las dos clases
 da la misma fila.
 Cuando todos los valores válidos aparecen una sola vez \strong{no hay moda}, y

@@ -930,7 +930,10 @@ test_that("el resumen de tabla completa pasa por la proteccion personal", {
   columnas <- protegido$resumen_tabla$columnas
   personales <- columnas$columna %in%
     c("documento_texto", "ci", "nombre", "correo")
-  expect_true(all(columnas$moda[personales] == "[valor protegido]"))
+  # Las cuatro no repiten ningun valor: no hay moda, y la proteccion no la
+  # inventa (ronda 31). Que ningun valor salga lo comprueba la busqueda de
+  # arriba.
+  expect_true(all(is.na(columnas$moda[personales])))
   # Los momentos tambien: la media de las cedulas reconstruye demasiado.
   expect_true(all(is.na(columnas$media[personales])))
   expect_true(all(is.na(columnas$minimo[personales])))

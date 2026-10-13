@@ -285,3 +285,39 @@ for (familia in names(importes)) {
   cat(sprintf("%-24s %5.1f %%  (+- %.1f, dos errores estandar)   ej: %s\n",
               familia, 100 * p, 200 * sqrt(p * (1 - p) / m_importes), x[[1L]]))
 }
+
+# Ronda 31: el numero de planilla con separador de miles -"52.317.219,00",
+# "59.898.617.353"- y la cientifica con un espacio antes del exponente
+# -"5.2317219 e+07"- se leen como la misma cifra entera que sin miles y con el
+# exponente pegado, y el celular con su prefijo de pais escrito asi, por su
+# parte nacional. Las mismas cifras enteras de los importes de arriba en cada
+# escritura, y celulares que no son de nadie con las mismas cifras pegados y
+# con miles. Al final, con su semilla, para no cambiar los numeros de arriba.
+set.seed(3101)
+con_miles <- function(x, marca) {
+  formatC(x, format = "f", digits = 0, big.mark = marca,
+          decimal.mark = if (identical(marca, ".")) "," else ".")
+}
+celulares_libres <- as.numeric(sprintf("5989%d%06d", sample(1:9, m_importes, TRUE),
+                                       sample(0:999999, m_importes, TRUE)))
+planilla <- list(
+  monto_7_miles_cero_centavos = paste0(con_miles(ent7, "."), ",00"),
+  monto_8_miles = con_miles(ent8, "."),
+  monto_8_miles_cero_centavos = paste0(con_miles(ent8, "."), ",00"),
+  monto_8_miles_coma_punto00 = paste0(con_miles(ent8, ","), ".00"),
+  monto_8_cientifica = sprintf("%.7fe+07", ent8 / 1e7),
+  monto_8_cientifica_espacio = sprintf("%.7f e+07", ent8 / 1e7),
+  celular_e164_pegado = paste0("+", formatC(celulares_libres, format = "f",
+                                            digits = 0)),
+  celular_e164_miles = con_miles(celulares_libres, "."),
+  celular_e164_miles_cero_centavos = paste0(con_miles(celulares_libres, "."),
+                                            ",00"),
+  celular_e164_miles_espacio = con_miles(celulares_libres, " ")
+)
+cat("\nnumero de planilla, las mismas", m_importes, "cifras en cada escritura:\n")
+for (familia in names(planilla)) {
+  x <- planilla[[familia]]
+  p <- mean(.reemplazar_valores_protegidos(x, valores, exigir_limites = FALSE) != x)
+  cat(sprintf("%-32s %5.1f %%  (+- %.1f, dos errores estandar)   ej: %s\n",
+              familia, 100 * p, 200 * sqrt(p * (1 - p) / m_importes), x[[1L]]))
+}

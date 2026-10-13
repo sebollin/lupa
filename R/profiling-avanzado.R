@@ -80,6 +80,58 @@
   .columnas_personales_protegidas(perfil)
 }
 
+# El universo que `analizar()` declara UNA vez, en `argumentos_perfil`
+# -`aplicabilidad`, `columnas_opcionales` y `sentinelas_numericos`-, gobierna
+# tambien sus distribuciones. Sin esto el mismo objeto publicaba dos maximos:
+# el perfil 60 y `$distribuciones` 999 con `-999`/`999` declarados, 20000
+# contra 999999 con un universo declarado, y 3 marcas distintas contra 4
+# (ronda 31). No se escribe ninguna regla nueva: las mascaras salen de
+# `.resolver_aplicabilidad()` sobre la misma entrada que ve `perfilar()`, y los
+# centinelas declarados de `.sentinelas_numericos_declarados()` dentro de
+# `.universo_del_resumen()`.
+.universo_declarado_analisis <- function(datos, argumentos_perfil) {
+  argumentos <- if (is.list(argumentos_perfil)) argumentos_perfil else list()
+  aplicabilidad <- argumentos[["aplicabilidad"]]
+  opcionales <- argumentos[["columnas_opcionales"]]
+  if (is.null(opcionales)) opcionales <- character()
+  mascaras <- NULL
+  if (inherits(datos, "data.frame") && ncol(datos) &&
+      (!is.null(aplicabilidad) || length(opcionales))) {
+    entrada <- .normalizar_columnas_entrada(.marcar_utf8_tabla(datos))
+    mascaras <- .resolver_aplicabilidad(
+      entrada, names(entrada), opcionales, aplicabilidad
+    )$mascaras
+  }
+  list(
+    mascaras = mascaras,
+    sentinelas_numericos = argumentos[["sentinelas_numericos"]]
+  )
+}
+
+# Las dos lecturas de una columna bajo ese universo, como en el perfil:
+#   - `frecuencias`: fuera del universo la celda no existe -tampoco para
+#     `n_distintos` y `moda`-, pero un centinela declarado SI se cuenta, porque
+#     describe la representacion almacenada.
+#   - `magnitud`: para los cuantiles, que son `minimo`, `mediana` y `maximo`,
+#     sale ademas el centinela declarado.
+.columna_en_universo <- function(x, universo, i) {
+  if (is.null(universo) || .es_columna_compuesta(x) ||
+      (is.list(x) && !is.factor(x))) {
+    return(list(frecuencias = x, magnitud = x))
+  }
+  aplicable <- if (length(universo$mascaras) >= i) universo$mascaras[[i]] else NULL
+  if (!is.null(aplicable) && length(aplicable) == length(x) &&
+      !all(aplicable)) {
+    x <- x[as.logical(aplicable)]
+  }
+  list(
+    frecuencias = x,
+    magnitud = .universo_del_resumen(
+      list(x), universo$sentinelas_numericos
+    )[[1L]]
+  )
+}
+
 .frecuencias_columna <- function(x, max_valores, muestra, protegida) {
   if (.es_columna_compuesta(x) || (is.list(x) && !is.factor(x))) {
     return(list(tabla = NULL, meta = c(
@@ -152,9 +204,12 @@
   # valor, `0.1 + 0.2` y `0.3` son dos filas, y con `as.character()` las dos se
   # publicaban "0.3". Son 15 cifras cuando alcanzan, que es casi siempre.
   validos <- valores[!is.na(textos)]
-  publicables <- if ((is.double(validos) || is.complex(validos)) &&
-                     !inherits(validos, c("Date", "POSIXt", "difftime",
-                                          "integer64"))) {
+  publicables <- if (inherits(validos, "POSIXt")) {
+    # Un instante, en UTC y con su rotulo, como el resto del paquete: con
+    # `as.character()` salia en la hora de la sesion y sin zona (ronda 31-S).
+    .texto_instante_utc(validos)
+  } else if ((is.double(validos) || is.complex(validos)) &&
+             !inherits(validos, c("Date", "difftime", "integer64"))) {
     .etiqueta_numero_reversible(validos)
   } else {
     as.character(validos)
@@ -221,7 +276,9 @@
 #' `calculada_parcial` en vez de `calculada`, para que un resultado parcial no
 #' se lea como completo. Un `NA` no cuenta como descarte: es una ausencia
 #' declarada, no un valor que no se pudo analizar. Los otros estados posibles
-#' son `sin_valores`, `sin_valores_analizables` y `tipo_no_comparable`.
+#' son `sin_valores`, `sin_valores_analizables` y `tipo_no_comparable`. La
+#' entrada es la de [perfilar()]: un `POSIXlt` se cuenta por su instante, como
+#' el `POSIXct` equivalente, y el nivel `NA` de un factor es un faltante.
 #'
 #' Cuando una columna tiene evidencia suficiente para activar la protección de
 #' datos personales, sus frecuencias y niveles se conservan pero el valor
@@ -242,7 +299,9 @@
 #' Las frecuencias se cuentan **por valor, no por su escritura**: dos dobles
 #' que coinciden en sus primeras 15 cifras —`0.1 + 0.2` y `0.3`, `1e15` y
 #' `1e15 + 1`— son dos filas, como los cuenta [perfilar()], y cada una se
-#' escribe con las cifras que la devuelven a su valor. A igual frecuencia, las
+#' escribe con las cifras que la devuelven a su valor. Un instante se escribe
+#' en UTC y con el rótulo `UTC`, como los resúmenes de [perfilar()]: la
+#' etiqueta no depende de la zona de la sesión. A igual frecuencia, las
 #' filas se ordenan por valor —el texto por sus bytes, los números como
 #' números—, el mismo desempate que la moda de [perfilar()]: así, el recorte de
 #' `max_valores` no depende del orden de las filas de la tabla.
@@ -265,6 +324,12 @@
 #'   corre por léxico y por forma, así que una columna que sólo quien la conoce
 #'   sabe personal —una edad, un legajo interno— se publicaría entera. Sólo
 #'   tiene efecto con `proteger_datos_personales = TRUE`.
+#' @param .universo Uso interno de [analizar()]: el universo que declara su
+#'   `argumentos_perfil` —`aplicabilidad`, `columnas_opcionales` y
+#'   `sentinelas_numericos`—. Con él, lo que queda fuera del universo no entra
+#'   en `frecuencias` ni en `cuantiles`, y un centinela declarado sale de los
+#'   `cuantiles` como sale de `minimo`, `mediana` y `maximo` del perfil; en
+#'   `frecuencias` sigue contando, como en `n_distintos` y `moda`.
 #'
 #' @return Objeto `distribuciones_perfil`, una lista con data frames
 #'   `frecuencias`, `cuantiles` y `alcance`. Todas las proporciones están en
@@ -279,10 +344,21 @@ distribucion_valores <- function(datos, perfil = NULL, max_valores = 20L,
                                  probabilidades = c(0, 0.25, 0.5, 0.75, 1),
                                  muestra = 1e5,
                                  proteger_datos_personales = TRUE,
-                                 columnas_personales = character()) {
+                                 columnas_personales = character(),
+                                 .universo = NULL) {
   .validar_datos_tabla(datos)
   .validar_perfil_de(perfil, datos)
+  if (!is.null(.universo) && (!is.list(.universo) ||
+      !all(c("mascaras", "sentinelas_numericos") %in% names(.universo)))) {
+    stop("`.universo` es de uso interno de `analizar()`.", call. = FALSE)
+  }
   datos <- .tabla_base(datos)
+  # La misma entrada que el perfil: un `POSIXlt` es el instante de su
+  # `POSIXct` y un nivel `NA` de un factor es un faltante. El `POSIXlt` salia
+  # `tipo_no_comparable`, con 0 analizados, donde `perfilar()`, `inferir_tipo()`
+  # y `medir()` leian 7 presentes y 4 distintos (ronda 31). Ver
+  # `.normalizar_columnas_entrada()`.
+  datos <- .normalizar_columnas_entrada(datos)
   max_valores <- .validar_entero_positivo(max_valores, "max_valores")
   limite <- .validar_muestra(muestra)
   if (!is.numeric(probabilidades) || !length(probabilidades) ||
@@ -317,8 +393,9 @@ distribucion_valores <- function(datos, perfil = NULL, max_valores = 20L,
   q <- 0L
   for (i in seq_along(datos)) {
     nombre <- names(datos)[[i]]
+    en_universo <- .columna_en_universo(datos[[i]], .universo, i)
     resumen <- .frecuencias_columna(
-      datos[[i]], max_valores, limite,
+      en_universo$frecuencias, max_valores, limite,
       .nombres_para_operar(nombre) %in% .nombres_para_operar(personales)
     )
     if (!is.null(resumen$tabla) && nrow(resumen$tabla)) {
@@ -341,7 +418,7 @@ distribucion_valores <- function(datos, perfil = NULL, max_valores = 20L,
         .nombres_para_operar(personales),
       estado = as.character(meta[["estado"]]), stringsAsFactors = FALSE
     )
-    x <- datos[[i]]
+    x <- en_universo$magnitud
     if (is.numeric(x) && !.es_columna_compuesta(x) &&
         !inherits(x, c("Date", "POSIXt", "integer64"))) {
       muestra_x <- .muestrear_vector(x, limite)
@@ -999,7 +1076,8 @@ analizar_tiempo <- function(datos, perfil = NULL, columnas = NULL,
       contiguidad = contiguidad, cobertura_periodo = cobertura,
       calendario = paste(calendario, collapse = ","), confirmada = FALSE,
       evidencia = if (is.finite(frecuencia)) paste0(
-        "Moda de intervalos: ", frecuencia, " dias; ", length(positivas),
+        "Moda de intervalos: ", .formatear_numero_publicado(frecuencia),
+        " dias; ", length(positivas),
         " intervalos observados."
       ) else "No hay intervalos suficientes para proponer frecuencia.",
       stringsAsFactors = FALSE

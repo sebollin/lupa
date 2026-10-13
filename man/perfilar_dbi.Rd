@@ -542,7 +542,7 @@ motor: ver la protección—, y se conserva la mediana por columna.
 
 \section{Lo que el motor guarda distinto que R}{
 
-El resumen SQL describe lo que el motor tiene delante, y en cuatro casos eso
+El resumen SQL describe lo que el motor tiene delante, y en estos casos eso
 no es lo mismo que la tabla en R:
 \itemize{
 \item \strong{Fechas en SQLite.} SQLite no tiene tipo fecha: RSQLite guarda un \code{Date}
@@ -555,6 +555,16 @@ cuantitativos, y lo dice.
 presente y distinto, y responde \code{MAX} y \code{AVG} con \code{NaN}. En R, \code{NaN} cuenta
 como ausente. Los conteos pueden diferir por eso, y una métrica que el motor
 respondió con \code{NaN} no se publica: queda \code{no_disponible} con su motivo.
+\item \strong{Infinitos.} SQLite, PostgreSQL y duckdb admiten \code{Inf} y \code{-Inf} en una
+columna de punto flotante, y el motor los cuenta en \code{MIN}, \code{MAX}, \code{AVG} y
+el orden de la mediana. Los estadísticos de magnitud se calculan sólo con
+valores finitos, como en \code{\link[=perfilar]{perfilar()}} y con \code{bloque_filas}: cuando el motor
+responde un infinito, \code{minimo}, \code{maximo}, \code{media}, \code{mediana}, \code{desvio},
+\code{n_ceros} y \code{n_negativos} se vuelven a pedir sobre una subconsulta que deja
+afuera los infinitos, y su \code{sql} lo muestra. Donde la consulta no sabe
+escribir el infinito, o sobre una muestra del motor, esas métricas quedan
+\code{no_disponible} con ese motivo. Un infinito es un número: no se informa
+como un valor que no se pudo leer como número.
 \item \strong{La media en coma flotante.} Cada lado suma a su modo; sobre una columna
 que mezcla magnitudes muy distintas —\code{1e20} junto a \code{1}— las medias pueden
 diferir entre motores y con la de R, y ninguna es la exacta. La
@@ -577,7 +587,8 @@ guardados —la moda puede ser el texto, y las métricas de magnitud quedan
 \code{no_disponible} porque el motor devolvió algo que no se lee como número—,
 y \code{perfil_muestra} ve lo que entregó el controlador: \code{minimo = 0}, una moda
 \code{0} que nadie escribió. \code{perfilar_dbi()} no relee la columna como texto:
-declara cada divergencia con esa causa medida en \code{resumen_tabla$cobertura},
+cuenta con \code{typeof()} los valores guardados como texto o blob y declara
+cada divergencia con esa causa medida en \code{resumen_tabla$cobertura},
 y dice que las cifras de magnitud de \code{perfil_muestra} para esa columna no
 describen lo guardado. Para perfilar los valores guardados, leer la columna
 como texto (\verb{CAST(columna AS TEXT)} en una vista) o limpiarla en el origen.
@@ -821,9 +832,11 @@ valor que el motor cita sin comillas —duckdb: \verb{Type INT64 with value 5989
 línea, que se tapa entera; SQL Server con la sesión en sueco o neerlandés—
 y la cola de un valor que lleva una comilla adentro. Y el mensaje pasa
 también por el piso con los valores protegidos que la llamada ya leyó —en
-\code{\link[=perfilar_coleccion]{perfilar_coleccion()}}, los de todas sus tablas—: un valor escrito sólo con
-lo permitido —los apellidos \code{"Campos Cadena"}, dos palabras del
-vocabulario— se tapa, y el nombre de una columna que es también uno de esos
+\code{\link[=perfilar_coleccion]{perfilar_coleccion()}}, los de todas sus tablas—, antes de las dos pasadas,
+con el valor entero a la vista, y otra vez al final: un valor escrito sólo
+con lo permitido —los apellidos \code{"Campos Cadena"}, dos palabras del
+vocabulario, o un nombre cuyas palabras son columnas de otra tabla— se
+tapa entero, y el nombre de una columna que es también uno de esos
 valores —la docente \code{"Florencia"} de una planilla con una columna por
 docente— deja de exceptuarse, con la comparación del piso. Lo que queda
 abierto: un valor que la llamada \strong{no} leyó —la celda que hizo fallar la

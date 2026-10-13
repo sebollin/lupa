@@ -280,7 +280,9 @@
     "oci.*(not found|cannot|missing)", "libpq.*(not found|cannot|missing)",
     "mariadb.*(not found|cannot|missing)", "mysql.*(not found|cannot|missing)"
   )
-  any(vapply(patrones, grepl, logical(1L), x = texto, ignore.case = TRUE))
+  any(vapply(patrones, function(patron) {
+    grepl(.regex_sin_caja(patron), texto)
+  }, logical(1L)))
 }
 
 .detener_error_conexion_dbi <- function(error, motor = NULL,

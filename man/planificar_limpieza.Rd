@@ -318,7 +318,10 @@ semántica de \code{\link[=duplicated]{duplicated()}} y marca sólo las aparicio
 grupo de contenido idéntico. Las acciones de duplicados comparan las filas
 con la misma igualdad que el perfil, también con columnas \code{integer64},
 matrices, \code{data.frame} anidados o \code{POSIXlt}; una tabla con columnas de lista
-deja las acciones bloqueadas. Marcar no elimina filas. Con las dos columnas
+deja las acciones bloqueadas. Las de columnas duplicadas comparan el
+contenido como el perfil: un factor con nivel \code{NA} y el mismo factor sin ese
+nivel, o un \code{POSIXlt} y su \code{POSIXct}, son la misma columna también al
+aplicar. Marcar no elimina filas. Con las dos columnas
 incluidas, las marcas distinguen la primera aparición de las repetidas, pero
 no a las repetidas entre sí: en un grupo de tres o más filas un perfil
 posterior sigue contando duplicadas. Para saber si los duplicados siguen en

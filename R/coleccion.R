@@ -926,11 +926,15 @@ print.coleccion_lupa <- function(x, ...) {
 #'   `cobertura_metricas` y `meta$lecturas`, que juntan los motivos de todas
 #'   las tablas. Sin retenerlos, esos tres campos y el mensaje del motor de
 #'   cada tabla pasan igual por el piso con los valores que las tablas
-#'   leyeron y que un mensaje del motor puede llevar —los que se escriben sólo
-#'   con lo permitido, ver [perfilar_dbi()]—, sin consultas de más: el mensaje
-#'   de una vista que citaba `"Campos Cadena"`, la celda de su tabla base, se
-#'   publicaba. [perfilar_dbi()] sobre una tabla sola protege sólo con los de
-#'   esa tabla.
+#'   leyeron y que un mensaje del motor puede llevar —todo valor con letras,
+#'   porque cualquier palabra puede ser el nombre de una columna de otra tabla,
+#'   y el número que el mensaje no omite entero, como `"099;123;456"`, escrito
+#'   con un signo que no une; ver [perfilar_dbi()]—, sin consultas de más: el
+#'   mensaje de una vista que citaba `"Campos Cadena"`, la celda de su tabla
+#'   base, se publicaba. Y los avisos de consola de cada tabla se emiten al
+#'   final, después del mismo piso que esos tres campos, con o sin perfiles: el
+#'   aviso de una vista perfilada antes que su tabla base citaba la celda.
+#'   [perfilar_dbi()] sobre una tabla sola protege sólo con los de esa tabla.
 #' @param cobertura_metricas Qué se sube a `cobertura_metricas`: `"no_medidas"`
 #'   (por omisión) sólo las métricas que no se calcularon, `"completa"` todas
 #'   con su estado, `"ninguna"` para omitirla. Los conteos por tabla de
@@ -999,6 +1003,14 @@ perfilar_coleccion <- function(coleccion, muestra = Inf,
   # las demas: ver `.valores_motor()`.
   valores_motor_previos <- .activar_valores_motor()
   on.exit(.fijar_valores_motor(valores_motor_previos), add = TRUE)
+  # Y los avisos de consola de cada `perfilar_dbi()`, que se juntan y se emiten
+  # al final, despues del mismo piso que los tres campos de motivos: ver
+  # `.emitir_avisos_coleccion()`. Si la coleccion se corta antes, salen como
+  # llegaron.
+  avisos_tablas <- list()
+  avisos_emitidos <- FALSE
+  on.exit(if (!avisos_emitidos) .emitir_avisos_coleccion(avisos_tablas),
+          add = TRUE, after = FALSE)
   nombres_columnas <- character()
   inicio <- Sys.time()
   cobertura <- list()
@@ -1071,9 +1083,15 @@ perfilar_coleccion <- function(coleccion, muestra = Inf,
     momento <- Sys.time()
     referencia <- declaradas$referencia[[i]]
     perfil <- tryCatch(
-      perfilar_dbi(
-        conexion, referencia, muestra = muestra,
-        bloque_muestra = bloque_muestra, ...
+      withCallingHandlers(
+        perfilar_dbi(
+          conexion, referencia, muestra = muestra,
+          bloque_muestra = bloque_muestra, ...
+        ),
+        warning = function(w) {
+          avisos_tablas[[length(avisos_tablas) + 1L]] <<- w
+          invokeRestart("muffleWarning")
+        }
       ),
       error = function(e) e
     )
@@ -1447,11 +1465,24 @@ perfilar_coleccion <- function(coleccion, muestra = Inf,
   # coleccion conocia al armarlo; aca se pasan los tres campos con todos los que
   # conocio al final -una vista perfilada antes que su tabla base-, que son
   # pocos: los que el mensaje puede llevar (`.valores_motor()`).
+  #
+  # Y el aviso de consola es una salida mas: con la vista antes que su tabla
+  # base, el objeto quedaba limpio y el aviso "El resumen SQL se calculo ...
+  # pero la muestra no" de la vista publicaba `Campos Cadena`, porque se emitia
+  # antes de leer la base. Medido en la ronda 31. Los avisos se juntaron
+  # arriba y pasan aca por el mismo piso, como una cuarta tabla de motivos.
+  tabla_avisos <- data.frame(
+    motivo = vapply(avisos_tablas, function(w) {
+      tryCatch(conditionMessage(w), error = function(e) NA_character_)
+    }, character(1L)),
+    stringsAsFactors = FALSE
+  )
   if (!conservar_perfiles) {
     textos_motor <- c(
       as.character(cobertura_coleccion$motivo),
       as.character(tabla_metricas$motivo),
-      if (is.data.frame(tabla_lecturas)) as.character(tabla_lecturas$motivo)
+      if (is.data.frame(tabla_lecturas)) as.character(tabla_lecturas$motivo),
+      tabla_avisos$motivo
     )
     conocidos <- .valores_conocidos_en(textos_motor)
     if (length(conocidos)) {
@@ -1468,6 +1499,9 @@ perfilar_coleccion <- function(coleccion, muestra = Inf,
       )
       tabla_lecturas <- .proteger_textos_salida(
         tabla_lecturas, conocidos, intocables = intocables
+      )
+      tabla_avisos <- .proteger_textos_salida(
+        tabla_avisos, conocidos, intocables = intocables
       )
     }
   }
@@ -1496,8 +1530,13 @@ perfilar_coleccion <- function(coleccion, muestra = Inf,
       tabla_lecturas <- .proteger_textos_salida(
         tabla_lecturas, identificantes, intocables = intocables
       )
+      tabla_avisos <- .proteger_textos_salida(
+        tabla_avisos, identificantes, intocables = intocables
+      )
     }
   }
+  avisos_emitidos <- TRUE
+  .emitir_avisos_coleccion(avisos_tablas, tabla_avisos$motivo)
 
   # `n_sin_perfilar` cuenta tablas que no se perfilaron. Las filas de alcance
   # `tabla_vacia`, `medicion_incompleta` y `metricas` describen tablas que SI
@@ -1542,6 +1581,29 @@ perfilar_coleccion <- function(coleccion, muestra = Inf,
   if (conservar_perfiles) estructura$perfiles <- perfiles
   class(estructura) <- "perfil_coleccion"
   estructura
+}
+
+# Emite los avisos que `perfilar_coleccion()` junto de sus tablas, en orden y
+# con su clase, cada uno con su texto ya pasado por el piso final (`textos`).
+# Un aviso cuyo texto el piso no cambio sale como llego; uno que cambio sale
+# con la misma clase y el texto tapado. Sin `textos` -la coleccion se corto
+# antes del piso final-, salen como llegaron: ya pasaron por el piso del
+# mensaje del motor con los valores que se conocian al emitirlos.
+.emitir_avisos_coleccion <- function(avisos, textos = NULL) {
+  for (k in seq_along(avisos)) {
+    aviso <- avisos[[k]]
+    texto <- if (k <= length(textos)) textos[[k]] else NA_character_
+    original <- tryCatch(conditionMessage(aviso), error = function(e) NA_character_)
+    if (!is.na(texto) && !identical(texto, original)) {
+      aviso <- structure(
+        class = class(aviso),
+        list(message = texto, call = tryCatch(conditionCall(aviso),
+                                              error = function(e) NULL))
+      )
+    }
+    warning(aviso)
+  }
+  invisible(NULL)
 }
 
 # Los valores protegidos de UNA tabla de la coleccion, leidos de la base, para

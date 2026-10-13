@@ -45,6 +45,20 @@
 
 .id_grupo <- function(indice) sprintf("grupo-%04d", indice)
 
+# El numero que se publica tiene que ser el de la UNIDAD que se publica. Una
+# accion que no declara `unidad_conteo` hereda la del hallazgo que la origina,
+# y entonces su `n_afectadas` es el alcance que midio ese hallazgo -no las
+# filas de la columna-. Estaba escrito una vez bien -las acciones informativas,
+# donde `alta_cardinalidad` publicaba 80 "columnas" sobre 1- y otra mal:
+# `desambiguar_fecha_en_origen` publicaba `n_afectadas = 40` con la unidad
+# "formato" de un hallazgo que declara 2 formatos (ronda 31). La regla es una.
+.n_afectadas_del_hallazgo <- function(hallazgo, fila) {
+  if (!is.null(hallazgo) && "n_afectados" %in% names(hallazgo)) {
+    return(suppressWarnings(as.numeric(hallazgo$n_afectados[[1L]])))
+  }
+  if (is.null(fila)) NA_real_ else fila$n[[1L]]
+}
+
 .nombres_snake <- function(nombres) {
   originales <- as.character(nombres)
   originales[is.na(originales)] <- ""
@@ -309,15 +323,38 @@
   acciones
 }
 
-# Si los datos traen la columna y no es texto: la conversion regional no puede
-# ejecutarse sobre ella con ninguna configuracion (ver
-# `.convertir_numero_regional()`). Sin datos no se sabe, y no se afirma.
-.columna_no_texto_plan <- function(datos, columna) {
-  if (!is.data.frame(datos)) return(FALSE)
+# Si la conversion regional no se puede ejecutar sobre los datos con NINGUNA
+# configuracion. El plan la prueba con sus parametros, y una falla puede ser
+# solo una ambiguedad que el usuario resuelve -`punto_sin_coma`,
+# `coma_sin_punto`-: esa accion sigue `lista`, se configura y se ejecuta. Pero
+# si falla con todas las configuraciones no hay nada que decidir, y es
+# `bloqueada`. La ronda 30 lo resolvio para UNA de esas fallas -la columna que no
+# es texto, mirando su clase- y la regla quedo escrita como un caso: sobre
+# `c("1.234,56", "100.000", "1e5", ...)` -`1e5` no responde al formato
+# regional- la accion salia `lista` con un `motivo_no_reversible` que decia "no
+# es ejecutable sobre los datos completos" (ronda 31). Ahora se pregunta al
+# conversor, que es quien decide. Sin datos no se sabe, y no se afirma.
+.regional_no_ejecutable_plan <- function(datos, columna, parametros,
+                                         comprobacion) {
+  if (!isTRUE(comprobacion$verificable) || isTRUE(comprobacion$ejecutable)) {
+    return(FALSE)
+  }
   indice <- .indice_nombre(columna, names(datos))
   if (is.na(indice)) return(FALSE)
   x <- datos[[indice]]
-  !is.character(x) && !is.factor(x)
+  for (punto in c("miles", "decimal")) {
+    for (coma in c("miles", "decimal")) {
+      configurados <- parametros
+      configurados$punto_sin_coma <- punto
+      configurados$coma_sin_punto <- coma
+      prueba <- tryCatch(
+        .convertir_numero_regional(x, configurados),
+        error = function(e) e
+      )
+      if (!inherits(prueba, "error")) return(FALSE)
+    }
+  }
+  TRUE
 }
 
 .comprobar_reversibilidad_accion <- function(datos, columna, estrategia,
@@ -1073,7 +1110,10 @@
 #' grupo de contenido idéntico. Las acciones de duplicados comparan las filas
 #' con la misma igualdad que el perfil, también con columnas `integer64`,
 #' matrices, `data.frame` anidados o `POSIXlt`; una tabla con columnas de lista
-#' deja las acciones bloqueadas. Marcar no elimina filas. Con las dos columnas
+#' deja las acciones bloqueadas. Las de columnas duplicadas comparan el
+#' contenido como el perfil: un factor con nivel `NA` y el mismo factor sin ese
+#' nivel, o un `POSIXlt` y su `POSIXct`, son la misma columna también al
+#' aplicar. Marcar no elimina filas. Con las dos columnas
 #' incluidas, las marcas distinguen la primera aparición de las repetidas, pero
 #' no a las repetidas entre sí: en un grupo de tres o más filas un perfil
 #' posterior sigue contando duplicadas. Para saber si los duplicados siguen en
@@ -1532,11 +1572,14 @@ planificar_limpieza <- function(perfil, datos = NULL,
         # datos no sale `lista`: sobre una columna que no es texto su propio
         # `motivo_no_reversible` decia "requiere una columna de texto", el
         # estado invitaba a activarla y `aplicar()` la registraba `fallida`
-        # (medido en la ronda 30 sobre una columna `raw`). Es la precondicion
-        # del ejecutor, y ninguna configuracion la cambia. Una conversion que
-        # solo espera que se resuelva una ambiguedad -`punto_sin_coma`,
-        # `coma_sin_punto`- sigue `lista`: se configura y se ejecuta.
-        estado = if (.columna_no_texto_plan(datos, columna)) {
+        # (medido en la ronda 30 sobre una columna `raw`). Ninguna
+        # configuracion la cambia. Una conversion que solo espera que se
+        # resuelva una ambiguedad -`punto_sin_coma`, `coma_sin_punto`- sigue
+        # `lista`: se configura y se ejecuta. La pregunta es una, y se le hace
+        # al conversor: ver `.regional_no_ejecutable_plan()`.
+        estado = if (.regional_no_ejecutable_plan(
+          datos, columna, parametros_numero, comprobacion_numero
+        )) {
           "bloqueada"
         } else if (seguro && comprobacion_numero$verificable) {
           estado_columna
@@ -1559,7 +1602,7 @@ planificar_limpieza <- function(perfil, datos = NULL,
         paste0(
           "Los datos no permiten elegir entre d\u00eda/mes y mes/d\u00eda; convertirlos ",
           "inventar\u00eda una interpretaci\u00f3n."
-        ), if (is.null(fila)) NA_real_ else fila$n[[1L]], FALSE,
+        ), .n_afectadas_del_hallazgo(hallazgo, fila), FALSE,
         estado = "bloqueada", aplicar = FALSE,
         parametros = list(candidatos = hallazgo$evidencia[[1L]]), orden = 300L
       ))
@@ -1938,13 +1981,8 @@ planificar_limpieza <- function(perfil, datos = NULL,
       # Ninguna lectura salva ese par: ni 80 columnas existen, ni la unidad es
       # de filas. Estas tres acciones son informativas -no tocan nada-, asi que
       # lo que corresponde es el alcance que midio el hallazgo que las origino.
-      n <- if (!is.null(hallazgo) && "n_afectados" %in% names(hallazgo)) {
-        suppressWarnings(as.numeric(hallazgo$n_afectados[[1L]]))
-      } else if (is.null(fila)) {
-        NA_real_
-      } else {
-        fila$n[[1L]]
-      }
+      # Ver `.n_afectadas_del_hallazgo()`.
+      n <- .n_afectadas_del_hallazgo(hallazgo, fila)
       acciones <- .agregar_accion(acciones, .nueva_accion(
         columna, tipo, estrategias[[tipo]], FALSE,
         paste0(
@@ -3587,7 +3625,10 @@ rbind.plan_limpieza <- function(..., deparse.level = 1) {
   # agrupa con ninguna.
   incompletas <- !.filas_completas(as.data.frame(claves))
   grupos <- split(which(!incompletas), codigos[!incompletas])
-  completitud <- rowSums(!is.na(datos_base))
+  # La completitud de la fila con la misma lectura de la ausencia que la clave
+  # de arriba: el nivel `NA` de un factor es un faltante. Ver
+  # `.normalizar_columnas_entrada()`.
+  completitud <- rowSums(!is.na(.normalizar_columnas_entrada(datos_base)))
   conservar <- rep(TRUE, nrow(datos_base))
   for (indices in grupos) {
     if (length(indices) > 1L) {

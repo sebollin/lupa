@@ -25,9 +25,9 @@
     return(.motor_clave_primaria(conexion))
   }
   clase <- paste(class(conexion), collapse = " ")
-  if (grepl("duckdb", clase, ignore.case = TRUE)) return("duckdb")
-  if (grepl("sqlite", clase, ignore.case = TRUE)) return("sqlite")
-  if (grepl("postgres|pqc|rpostgres", clase, ignore.case = TRUE)) {
+  if (grepl(.regex_sin_caja("duckdb"), clase)) return("duckdb")
+  if (grepl(.regex_sin_caja("sqlite"), clase)) return("sqlite")
+  if (grepl(.regex_sin_caja("postgres|pqc|rpostgres"), clase)) {
     return("postgresql")
   }
   "desconocido"
@@ -39,7 +39,7 @@
   info <- tryCatch(DBI::dbGetInfo(conexion), error = function(e) list())
   texto_info <- paste(unlist(info, use.names = FALSE), collapse = " ")
   if (identical(motor, "desconocido") &&
-      grepl("duckdb", paste(clase, texto_info), ignore.case = TRUE)) {
+      grepl(.regex_sin_caja("duckdb"), paste(clase, texto_info))) {
     motor <- "duckdb"
   }
   retencion <- c(
@@ -114,7 +114,7 @@
     tipo <- if (!is.null(tipos) && i <= length(tipos)) tipos[[i]] else NA_character_
     is.character(valor) || is.factor(valor) ||
       (!is.null(tipo) && length(tipo) == 1L &&
-       grepl("char|text|clob|varchar|citext", tipo, ignore.case = TRUE))
+       grepl(.regex_sin_caja("char|text|clob|varchar|citext"), tipo))
   }, logical(1L))
 }
 
@@ -235,8 +235,8 @@
         if (is.na(posicion) || !textual[[posicion]]) next
         colacion_actual <- as.character(datos[[colacion]][[i]])
         nombres[[posicion]] <- colacion_actual
-        determinismo[[posicion]] <- grepl("(_bin2?|binary)$",
-                                           colacion_actual, ignore.case = TRUE)
+        determinismo[[posicion]] <- grepl(.regex_sin_caja("(_bin2?|binary)$"),
+                                           colacion_actual)
         demostrada[[posicion]] <- TRUE
         fuente[[posicion]] <- paste0(
           "information_schema.columns.collation_name:",
@@ -802,6 +802,12 @@
       anyNA(frecuencias)) {
     return("familia_sin_acumulador:mapa_distintos_no_reconstruible")
   }
+  if (!any(is.finite(como_doble$valores) & frecuencias > 0)) {
+    return(paste(
+      "La columna no contiene valores finitos: los estadisticos de magnitud",
+      "se calculan solo con valores finitos."
+    ))
+  }
   "familia_sin_acumulador:mediana_requiere_mapa_no_truncado"
 }
 
@@ -816,6 +822,15 @@
   valores <- como_doble$valores
   frecuencias <- as.numeric(mapa$frecuencia)
   if (!is.numeric(valores) || anyNA(frecuencias)) return(NA_real_)
+  # Solo valores finitos, como `minimo`, `maximo`, `media` y `desvio` de la
+  # misma fila -que salen de `.absorber_cuantitativos()` sobre `finitos`- y como
+  # la mediana de `perfilar()`. `na.rm` saca `NA` y `NaN`, no los infinitos:
+  # sobre `c(-Inf x3, 10, 20, 30, 40)` la mediana salia 10 -el minimo- al lado
+  # de una media de 25 (ronda 31).
+  finitos <- is.finite(valores)
+  valores <- valores[finitos]
+  frecuencias <- frecuencias[finitos]
+  if (!length(valores)) return(NA_real_)
   orden <- .orden_por_bytes(valores)
   valores <- valores[orden]
   frecuencias <- frecuencias[orden]

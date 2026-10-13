@@ -478,7 +478,10 @@ test_that("los valores personales se clasifican sin juicio y se protegen", {
   )
   personales <- perfil$hallazgos$tipo_hallazgo == "dato_personal_posible"
   expect_true(all(perfil$hallazgos$severidad[personales] == "ok"))
-  expect_true(all(perfil$columnas$moda == "[valor protegido]"))
+  # Las tres columnas no repiten ningun valor: no hay moda, y la proteccion no
+  # la inventa -tapa un valor, no cambia el hecho- (ronda 31).
+  expect_true(all(perfil$columnas$dato_personal_protegido))
+  expect_true(all(is.na(perfil$columnas$moda)))
 
   archivo <- tempfile(fileext = ".html")
   reportar(perfil, archivo = archivo)

@@ -197,6 +197,10 @@
 #'   `argumentos_perfil` declara `aplicabilidad`, esa misma declaración viaja a
 #'   la medición: el universo se declara una vez y gobierna todo el análisis,
 #'   así que el perfil y el tablero cuentan el mismo dato de la misma manera.
+#'   `distribuciones` recibe esa declaración y la de `sentinelas_numericos`: lo
+#'   que queda fuera del universo no entra en sus frecuencias ni en sus
+#'   cuantiles, y un centinela declarado sale de los cuantiles como sale de
+#'   `minimo` y `maximo` del perfil.
 #' @param medir_propuesta Si se mide automáticamente la propuesta en estado
 #'   `"lista"` cuando no se recibe un modelo o una propuesta confirmada. Use
 #'   `FALSE` para conservar el comportamiento descriptivo anterior.
@@ -235,7 +239,8 @@
 #'   `POSIXct` de la fecha con hora protegida queda en `NA`, como la tapa
 #'   [perfilar()]—, las columnas de lista elemento por elemento, los atributos
 #'   de la tabla y de cada columna —también `levels` en lo que no es un factor
-#'   y `units`—, los nombres de columna de una tabla anidada en una columna
+#'   y `units`, y el nombre de cada atributo, además de su valor—, los nombres
+#'   de columna de una tabla anidada en una columna
 #'   lista, y los nombres de fila, que vuelven a ser los
 #'   números de fila si alguno lleva un valor protegido. Una columna `POSIXlt`
 #'   se tapa como la `POSIXct`, con sus atributos —`comment`, `label`—, y
@@ -246,9 +251,11 @@
 #'   valor protegido, la copia lleva `"[valor protegido]"` en su lugar, también
 #'   si tiene un atributo `name`; sólo el global, el de un paquete y los de la
 #'   ruta de búsqueda se dejan como están. Una llamada, una fórmula o una
-#'   función se leen como el texto que las escribe —la función, también por su
-#'   entorno— y, si llevan un valor protegido, la copia lleva
-#'   `"[valor protegido]"` en su lugar. Una columna protegida
+#'   función se leen como el texto que `print()` escribe —con sus atributos y,
+#'   si guarda su fuente (`srcref`), la fuente con sus comentarios—, y también
+#'   por sus atributos y, la función, por su entorno; si algo de eso lleva un
+#'   valor protegido, la copia lleva `"[valor protegido]"` en su lugar. Una
+#'   columna protegida
 #'   conserva sólo los atributos de su clase (`class`, `tzone`, `units`, `dim`),
 #'   y `tzone` y `units` pasan por el piso:
 #'   las etiquetas de valor de un `haven_labelled` se quitan. Para conservar
@@ -374,9 +381,12 @@ analizar <- function(datos, nombre = .nombre_de_los_datos(substitute(datos)),
   ), argumentos_perfil)
   perfil <- do.call(perfilar, argumentos)
   datos <- .tabla_base(datos_originales)
+  # El universo declarado en `argumentos_perfil` gobierna tambien las
+  # distribuciones. Ver `.universo_declarado_analisis()`.
   distribuciones <- distribucion_valores(
     datos, perfil, max_valores, probabilidades, muestra,
-    proteger_datos_personales
+    proteger_datos_personales,
+    .universo = .universo_declarado_analisis(datos, argumentos_perfil)
   )
   variables <- clasificar_variables(
     datos, perfil, metadatos_variables,
@@ -831,13 +841,8 @@ print.analisis <- function(x, ...) {
   # la ronda 30. Pasan por el piso como los de las demas, salvo la clase y la
   # forma.
   for (j in propias) {
-    x <- datos[[j]]
-    for (atributo in setdiff(names(attributes(x)), c("class", "dim"))) {
-      attr(x, atributo) <- .piso_valor_conservado(
-        attr(x, atributo, exact = TRUE), identificantes
-      )
-    }
-    datos[[j]] <- x
+    datos[[j]] <- .piso_atributos_conservados(datos[[j]], identificantes,
+                                              estructurales = c("class", "dim"))
   }
   .piso_marco_conservado(datos, identificantes)
 }
@@ -861,13 +866,8 @@ print.analisis <- function(x, ...) {
     tapados <- .reemplazar_valores_protegidos(names(datos), identificantes)
     if (!identical(tapados, names(datos))) names(datos) <- tapados
   }
-  for (atributo in setdiff(names(attributes(datos)),
-                           c("names", "row.names", "class"))) {
-    attr(datos, atributo) <- .piso_valor_conservado(
-      attr(datos, atributo, exact = TRUE), identificantes, vistos
-    )
-  }
-  datos
+  .piso_atributos_conservados(datos, identificantes, vistos,
+                              c("names", "row.names", "class"))
 }
 
 # `vistos`: los entornos que ya se estan recorriendo, para no entrar dos veces
@@ -920,7 +920,10 @@ print.analisis <- function(x, ...) {
     textos <- vapply(x, function(y) {
       is.null(y) || (is.character(y) && is.null(attributes(y)))
     }, logical(1L))
-    if (length(x) && all(textos)) {
+    # Una lista de puros `NULL` no tiene nada que tapar: `unlist()` daba `NULL`
+    # y `split()` abortaba `analizar(conservar_datos = TRUE)` sobre una columna
+    # lista vacia. Medido en la ronda 31.
+    if (length(x) && all(textos) && any(lengths(x) > 0L)) {
       # Lo comun -una lista de textos, como `I(list(c("pago", "CI ...")))`- de
       # una vez y no elemento por elemento.
       largos <- lengths(x)
@@ -965,10 +968,40 @@ print.analisis <- function(x, ...) {
   # La unidad y la zona horaria de una fecha -`secs`, `UTC`- no llevan un valor
   # protegido y quedan como estan.
   estructurales <- c("class", "dim", "row.names", if (is.factor(x)) "levels")
+  .piso_atributos_conservados(x, identificantes, vistos, estructurales)
+}
+
+# Los atributos de un objeto de la copia, cada uno por el piso: su VALOR, con
+# el recorrido de arriba, y su NOMBRE, que tambien es texto del usuario:
+# `attr(x, "2.037.187-5") <- TRUE` quedaba en la copia y `print()` lo
+# mostraba. Medido en la ronda 31. Un nombre que lleva un valor protegido se
+# cambia por el marcador -sin repetir otro nombre-; los que R usa para la forma
+# de un objeto (`.ATRIBUTOS_DE_FORMA_R`) no son texto de nadie y no se miran.
+# `estructurales`: los que no se recorren.
+.ATRIBUTOS_DE_FORMA_R <- c(
+  "class", "dim", "dimnames", "names", "row.names", "levels", "tsp",
+  "comment", "srcref", "srcfile", "wholeSrcref", ".Environment", "tzone",
+  "units"
+)
+
+.piso_atributos_conservados <- function(x, identificantes, vistos = list(),
+                                        estructurales = character()) {
   for (atributo in setdiff(names(attributes(x)), estructurales)) {
-    attr(x, atributo) <- .piso_valor_conservado(
+    valor <- .piso_valor_conservado(
       attr(x, atributo, exact = TRUE), identificantes, vistos
     )
+    nombre <- if (atributo %in% .ATRIBUTOS_DE_FORMA_R) atributo else {
+      tryCatch(.reemplazar_valores_protegidos(atributo, identificantes),
+               error = function(e) "[valor protegido]")
+    }
+    if (identical(nombre, atributo)) {
+      attr(x, atributo) <- valor
+    } else {
+      attr(x, atributo) <- NULL
+      libres <- make.unique(c(names(attributes(x)), nombre))
+      nombre <- libres[[length(libres)]]
+      attr(x, nombre) <- valor
+    }
   }
   x
 }
@@ -1065,23 +1098,48 @@ print.analisis <- function(x, ...) {
 # escribe; la funcion, tambien por su entorno -con el mismo recorrido que un
 # entorno de la copia-. Si algo lleva un valor protegido, el marcador en su
 # lugar; si no se puede escribir, tambien: es el lado cerrado.
+#
+# El texto es el que `print()` escribe: con sus atributos (`showAttributes`) y,
+# si la funcion guarda su fuente -`srcref`, lo que deja una sesion interactiva o
+# `source()`-, la fuente con sus comentarios (`useSource`); y tambien sin ella,
+# por si la fuente ya no es el codigo. Y sus atributos, valor y nombre, por el
+# mismo recorrido que los de cualquier objeto: `deparse()` no escribe los de
+# una llamada ni los de una formula, y el `srcref` guarda el archivo entero en
+# su entorno. Se leia solo el codigo, sin atributos ni fuente, y se devolvia
+# antes de recorrerlos: `structure(function() NULL, nota = <cedula>)`, la
+# formula y la llamada con ese atributo, el comentario `# titular <cedula>` de
+# una funcion y el de una expresion quedaban en la copia. Medido en la ronda 31.
 .piso_lenguaje_conservado <- function(x, identificantes, vistos = list()) {
-  texto <- tryCatch(
-    paste(deparse(x, width.cutoff = 500L, control = "keepInteger"),
-          collapse = "\n"),
-    error = function(e) NA_character_
+  escribir <- function(control) {
+    tryCatch(
+      paste(.deparse_por_omision(x, width.cutoff = 500L, control = control),
+            collapse = "\n"),
+      error = function(e) NA_character_
+    )
+  }
+  textos <- c(
+    escribir(c("keepInteger", "showAttributes", "useSource")),
+    escribir(c("keepInteger", "showAttributes"))
   )
-  if (is.na(texto)) return("[valor protegido]")
-  tapado <- tryCatch(
-    .reemplazar_valores_protegidos(texto, identificantes),
-    error = function(e) "[valor protegido]"
+  if (anyNA(textos)) return("[valor protegido]")
+  tapados <- tryCatch(
+    .reemplazar_valores_protegidos(textos, identificantes),
+    error = function(e) rep("[valor protegido]", length(textos))
   )
-  if (!identical(tapado, texto)) return("[valor protegido]")
+  if (!identical(tapados, textos)) return("[valor protegido]")
   entorno <- if (is.function(x)) environment(x) else attr(x, ".Environment")
   if (is.environment(entorno) &&
       !identical(.piso_entorno_conservado(entorno, identificantes, vistos),
                  entorno)) {
     return("[valor protegido]")
+  }
+  atributos <- attributes(x)
+  if (length(atributos)) {
+    recorridos <- tryCatch(
+      attributes(.piso_atributos_conservados(x, identificantes, vistos)),
+      error = function(e) NULL
+    )
+    if (!identical(recorridos, atributos)) return("[valor protegido]")
   }
   x
 }
