@@ -182,8 +182,10 @@ propuesta[, c(
 )]
 ```
 
-Las filas activas se convierten en un modelo y se miden. En este ejemplo la
-métrica estructural activa detecta las filas que participan en duplicados.
+Las filas activas se convierten en un modelo y se miden. En este ejemplo hay
+dos clases de métricas activas: la estructural detecta las filas que participan
+en duplicados, y `NoNulo` mide la completitud de cuatro columnas contando como
+faltantes los valores disfrazados que el perfil encontró.
 
 ```{r}
 modelo_calidad <- modelo_desde_propuesta(propuesta)
@@ -195,11 +197,14 @@ medidas <- medir(
 head(medidas[, c("metrica", "fila", "resultado")])
 ```
 
-La medida booleana por fila puede agregarse a la entidad mediante `ratio`.
-Después se evalúa una regla explícita; no aparece un puntaje global inventado.
+La medida booleana por fila de los duplicados puede agregarse a la entidad
+mediante `ratio`; `agregar()` sólo combina medidas de una misma métrica, así que
+se toma esa. Después se evalúa una regla explícita; no aparece un puntaje global
+inventado.
 
 ```{r}
-medida_entidad <- agregar(medidas, "entidad", "ratio")
+duplicados <- medidas[medidas$metrica == "EntidadDuplicada", ]
+medida_entidad <- agregar(duplicados, "entidad", "ratio")
 regla <- regla_evaluacion(
   "Duplicación menor al 20 %",
   function(x) x < 0.2
