@@ -140,8 +140,8 @@ cuando ninguna etiqueta lleva datos personales, y también cuando
 declarado que se quieren los valores. Si el léxico no reconoce el nombre
 de la columna, decláresela con `columnas_personales`: ese argumento
 —como `columnas_opcionales`, `clave`, `columnas_sin_ceros`,
-`columnas_no_negativas` y `aplicabilidad`— puede nombrar la columna de
-agrupación, y se recorta de lo que se envía a
+`columnas_no_negativas`, `columnas_codigo` y `aplicabilidad`— puede
+nombrar la columna de agrupación, y se recorta de lo que se envía a
 [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md)
 para cada grupo, donde esa columna ya no está. El recorte se publica por
 grupo en `cobertura_grupos$columnas_descartadas`, junto con el nombre de

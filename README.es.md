@@ -1195,7 +1195,11 @@ acertaba once y callaba dos. Está en `test-ronda118.R`. Desde que se
 exige que una numeración casi no se repita, una de las cinco —un código
 de 1 a 284 que se repite— ya no se reconoce y recibe los límites de
 Tukey: acierta doce, y el error queda del lado barato, el de hablar de
-más y no el de callar.
+más y no el de callar. Quien conoce la columna lo corrige declarándola
+en `columnas_codigo`: un código declarado no recibe límites de Tukey, ni
+Benford, ni `media`, `mediana` y `desvio`, conserva su tramo, su moda y
+sus conteos, y la cobertura dice por qué. Pasarlo como texto o como
+factor no alcanza, porque el paquete lo lee como número.
 
 Para una columna `integer64`, `bit64` se carga de manera diferida cuando
 está instalado, para registrar sus métodos antes de medir. Si no está

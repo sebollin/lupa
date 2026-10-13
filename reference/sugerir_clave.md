@@ -19,7 +19,7 @@ sugerir_clave(datos, maximo = 5L, umbral_casi = 0.95)
 
 - maximo:
 
-  Cuántas sugerencias devolver como máximo.
+  Cuántas sugerencias devolver como máximo: un entero positivo.
 
 - umbral_casi:
 

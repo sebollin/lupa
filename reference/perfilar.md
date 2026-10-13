@@ -24,6 +24,7 @@ perfilar(
   columnas_sin_ceros = character(),
   columnas_no_negativas = character(),
   columnas_opcionales = character(),
+  columnas_codigo = character(),
   aplicabilidad = NULL,
   ausencia_estructural = TRUE,
   sentinelas_numericos = c(-9, -99, -999, -9999, 999),
@@ -79,7 +80,7 @@ perfilar(
 
 - nombre:
 
-  Nombre descriptivo del objeto.
+  Nombre descriptivo del objeto: una cadena no vacía.
 
 - fecha:
 
@@ -170,6 +171,35 @@ perfilar(
   completitud son las celdas presentes, y `cobertura_diagnosticos`
   declara el recorte. Sirve para el vacío por diseño: un historial con
   vigencia abierta, una columna que sólo corresponde a algunas filas.
+
+- columnas_codigo:
+
+  Nombres de columnas que son **códigos**, no magnitudes: un código de
+  catálogo, un departamento numerado, una clave foránea. El paquete no
+  los distingue por su forma de una magnitud entera que llenó su rango
+  —una edad de 18 a 90 repite valores igual que un código de 1 a 284—,
+  así que sin la declaración los mide como magnitudes. Una columna
+  declarada se perfila por sus valores y no recibe lo que sólo tiene
+  sentido sobre una magnitud: ni límites de Tukey (`n_outliers` en `NA`,
+  sin hallazgo `outliers` ni `posible_centinela_numerico`), ni la ley de
+  Benford, ni `media`, `mediana` y `desvio`, que quedan en `NA` con
+  `estado_resumen_cuantitativo = "omitidos_codigo"`. Lo que no se evaluó
+  se declara en `cobertura_diagnosticos` con el motivo. Conserva lo que
+  describe sus valores: `minimo` y `maximo` —el tramo de códigos
+  observado, donde aparece un código fuera de catálogo—, `moda`,
+  `n_distintos`, los conteos y los faltantes disfrazados. Vale igual por
+  todas las vías que aceptan las declaraciones de `perfilar()`:
+  [`perfilar_dbi()`](https://sebollin.github.io/lupa/reference/perfilar_dbi.md)
+  —también en su `resumen_tabla`—,
+  [`perfilar_por()`](https://sebollin.github.io/lupa/reference/perfilar_por.md),
+  [`perfilar_coleccion()`](https://sebollin.github.io/lupa/reference/perfilar_coleccion.md)
+  y
+  [`analizar()`](https://sebollin.github.io/lupa/reference/analizar.md)
+  por `argumentos_perfil`. Vale también para el código guardado como
+  texto o como factor, que el paquete lee como número; una columna sin
+  resumen numérico —texto que no se lee como número, fechas— no cambia,
+  porque no tiene esas cifras. Un nombre que la tabla no tiene es un
+  error.
 
 - aplicabilidad:
 
@@ -475,68 +505,70 @@ perfilar(
   `printf` de Windows, también con un espacio antes,
   `"5.9899123456 e+10"`— y con separador de miles, como lo muestra el
   formato "Número" de una planilla —`"59.899.123.456"`,
-  `"59,899,123,456.00"`, `"59 899 123 456,00"`, `"59'899'123'456"`:
-  todas las escrituras dan la misma cifra entera—, y al revés: escrito
-  así en un texto se lee por su parte nacional, que sale de esa cifra y
-  no de los grupos como vienen. La cifra escrita así es el documento
-  **entero**, no el parcial: el importe redondo `"5460537.00"` no se lee
-  como un documento sin su verificador. No unen los parecidos raros: la
-  prima de una coordenada sexagesimal, el acento grave, la tilde. Los
-  dos puntos y la barra vertical **no** unen: una razón `"494:2714"` o
-  una lista `"12|345|6789"` no es un documento, y un documento escrito
-  así no se reconoce. Una fecha con hora protegida se reconoce escrita
-  con `T`, `Z`, uno a tres espacios, coma, punto y coma, guion o guion
-  doble, guion bajo, barra, barra vertical, arroba, paréntesis o
-  corchete entre la fecha y la hora, con día y mes en cualquier orden,
-  con la hora separada por puntos, guiones o `h` y `m` (`"21h24m25s"`),
-  en la forma compacta `"20240627T212425"` o con la hora compacta tras
-  la fecha con separadores (`"2024-06-27T212425"`); no en palabras, con
-  a.m./p.m., con cuatro espacios o más ni con el año en dos cifras
-  —también con las formas chicas o de ancho completo de esos signos, o
-  con la barra partida por barra vertical—. El documento **parcial**, de
-  siete cifras o más, se busca con más cuidado porque es el que coincide
-  por azar: sin su verificador, fuera de la parte de un decimal, de un
-  número con forma de dirección IPv4 —con o sin máscara CIDR— y de un
-  importe con miles de cuatro grupos o más (`"3.919.024.166"`), que se
-  prueban enteros —el importe, también sin su primer grupo: es el
-  prefijo de país de un celular agrupado de a tres, `"598.099.123.456"`,
-  que se publicaba— (`"4.123.456"` frente a `"4.123.456-7"`, el
-  verificador mal tipeado, el documento seguido de un año), y sin su
-  primer dígito sólo detrás de un asterisco o una equis
-  (`"*.123.456-7"`, `"X.012.345-8"`, `"X2345678"`) —también los
-  asteriscos de Unicode, todo signo que Unicode llama asterisco salvo el
-  combinante de abajo, que el pliegue borra como a una tilde, y el
-  asterisco pegado a una letra, `"CI*123.456-7"`—; la equis seguida de
-  un espacio no es comodín, porque `"92 x 6931234"` es una
-  multiplicación; un número redondo (`1.000.000`) no cuenta como
-  parcial. Es un **decimal** el número cuyo último signo es un punto o
-  una coma con otra cantidad de cifras que tres, y antes un entero o
-  miles separados con otro signo: `"4.123.456,7"` es un importe,
-  `"4.123.456.7"` no; su parte decimal no se pega al resto cuando es la
-  de un importe con miles o la de un decimal suelto —una coordenada, un
-  par lat lon—, pero sí cuando el número es otra cosa, como
-  `"(02) 901.1234"`. Una fecha con un año entre 1800 y 2100 —también con
-  espacios y el año al final, `"16 01 2002"`; con el año adelante no,
-  porque `"2012 11 05"` es también un teléfono escrito de a pares—, una
-  hora —con su fracción de segundo: hasta siete cifras o nueve tras un
-  punto, nunca ocho, y no seguida de un guion y una cifra, que sería un
-  verificador—, un ISBN y una lista separada por comas no son
-  documentos. El ISBN-10 —con guiones, espacios o puntos— sólo si su
-  dígito de control es válido o lo precede `ISBN`: un NIT
-  `"900-123-456-7"` tiene su forma, y uno de cada once documentos de
-  diez cifras escritos así valida por azar y no se reconoce. Una
-  fracción de nueve cifras tras un punto se lee como nanosegundos: un
-  documento con un cero adelante pegado así a una hora no se reconoce.
-  En la prosa del paquete los números son conteos suyos, y ahí la regla
-  mira sólo lo que la prosa cita entre comillas y el código que sugiere
-  entre comillas invertidas, y tapa la cita o el número, no la frase.
-  **El parcial tiene un costo, medido**: un número entero de siete
-  cifras que coincide con un documento protegido sin su verificador no
-  se distingue de él, y se tapa. Con un millón de cédulas, 300.000
-  teléfonos fijos y 300.000 celulares protegidos, eso le pasó a uno de
-  cada cinco números de siete cifras en ejemplos, modas y evidencia —en
-  cualquier escritura: con puntos o apóstrofos de miles, con un guion,
-  tras un numeral o tras una equis seguida de un espacio
+  `"59,899,123,456.00"`, `"59 899 123 456,00"`, `"59'899'123'456"`, con
+  el punto medio o sus parecidos —el operador viñeta, el punto medio
+  katakana: cualquier signo que une los grupos de un número— o con el
+  agrupado indio, `"59,89,91,23,456"`: todas las escrituras dan la misma
+  cifra entera—, y al revés: escrito así en un texto se lee por su parte
+  nacional, que sale de esa cifra y no de los grupos como vienen. La
+  cifra escrita así es el documento **entero**, no el parcial: el
+  importe redondo `"5460537.00"` no se lee como un documento sin su
+  verificador. No unen los parecidos raros: la prima de una coordenada
+  sexagesimal, el acento grave, la tilde. Los dos puntos y la barra
+  vertical **no** unen: una razón `"494:2714"` o una lista
+  `"12|345|6789"` no es un documento, y un documento escrito así no se
+  reconoce. Una fecha con hora protegida se reconoce escrita con `T`,
+  `Z`, uno a tres espacios, coma, punto y coma, guion o guion doble,
+  guion bajo, barra, barra vertical, arroba, paréntesis o corchete entre
+  la fecha y la hora, con día y mes en cualquier orden, con la hora
+  separada por puntos, guiones o `h` y `m` (`"21h24m25s"`), en la forma
+  compacta `"20240627T212425"` o con la hora compacta tras la fecha con
+  separadores (`"2024-06-27T212425"`); no en palabras, con a.m./p.m.,
+  con cuatro espacios o más ni con el año en dos cifras —también con las
+  formas chicas o de ancho completo de esos signos, o con la barra
+  partida por barra vertical—. El documento **parcial**, de siete cifras
+  o más, se busca con más cuidado porque es el que coincide por azar:
+  sin su verificador, fuera de la parte de un decimal, de un número con
+  forma de dirección IPv4 —con o sin máscara CIDR— y de un importe con
+  miles de cuatro grupos o más (`"3.919.024.166"`), que se prueban
+  enteros —el importe, también sin su primer grupo: es el prefijo de
+  país de un celular agrupado de a tres, `"598.099.123.456"`, que se
+  publicaba— (`"4.123.456"` frente a `"4.123.456-7"`, el verificador mal
+  tipeado, el documento seguido de un año), y sin su primer dígito sólo
+  detrás de un asterisco o una equis (`"*.123.456-7"`, `"X.012.345-8"`,
+  `"X2345678"`) —también los asteriscos de Unicode, todo signo que
+  Unicode llama asterisco salvo el combinante de abajo, que el pliegue
+  borra como a una tilde, y el asterisco pegado a una letra,
+  `"CI*123.456-7"`—; la equis seguida de un espacio no es comodín,
+  porque `"92 x 6931234"` es una multiplicación; un número redondo
+  (`1.000.000`) no cuenta como parcial. Es un **decimal** el número cuyo
+  último signo es un punto o una coma con otra cantidad de cifras que
+  tres, y antes un entero o miles separados con otro signo:
+  `"4.123.456,7"` es un importe, `"4.123.456.7"` no; su parte decimal no
+  se pega al resto cuando es la de un importe con miles o la de un
+  decimal suelto —una coordenada, un par lat lon—, pero sí cuando el
+  número es otra cosa, como `"(02) 901.1234"`. Una fecha con un año
+  entre 1800 y 2100 —también con espacios y el año al final,
+  `"16 01 2002"`; con el año adelante no, porque `"2012 11 05"` es
+  también un teléfono escrito de a pares—, una hora —con su fracción de
+  segundo: hasta siete cifras o nueve tras un punto, nunca ocho, y no
+  seguida de un guion y una cifra, que sería un verificador—, un ISBN y
+  una lista separada por comas no son documentos. El ISBN-10 —con
+  guiones, espacios o puntos— sólo si su dígito de control es válido o
+  lo precede `ISBN`: un NIT `"900-123-456-7"` tiene su forma, y uno de
+  cada once documentos de diez cifras escritos así valida por azar y no
+  se reconoce. Una fracción de nueve cifras tras un punto se lee como
+  nanosegundos: un documento con un cero adelante pegado así a una hora
+  no se reconoce. En la prosa del paquete los números son conteos suyos,
+  y ahí la regla mira sólo lo que la prosa cita entre comillas y el
+  código que sugiere entre comillas invertidas, y tapa la cita o el
+  número, no la frase. **El parcial tiene un costo, medido**: un número
+  entero de siete cifras que coincide con un documento protegido sin su
+  verificador no se distingue de él, y se tapa. Con un millón de
+  cédulas, 300.000 teléfonos fijos y 300.000 celulares protegidos, eso
+  le pasó a uno de cada cinco números de siete cifras en ejemplos, modas
+  y evidencia —en cualquier escritura: con puntos o apóstrofos de miles,
+  con un guion, tras un numeral o tras una equis seguida de un espacio
   (`"92 x 6931234"`); tras un asterisco, o tras una equis pegada
   (`"serie X6276963"`, que es como se escribe el documento recortado sin
   formato, `"X2345678"`), a uno de cada cuatro—, y a uno o dos de cada
@@ -546,20 +578,23 @@ perfilar(
   de un documento entero; y a los escritos con separador de miles o en
   notación científica, con o sin un espacio antes del exponente
   —`"52.317.219,00"`, `"5.2317219 e+07"`—, también 1,8 %: son la misma
-  cifra entera—; las coordenadas, los p-valores, los importes de siete
-  cifras con decimales —también los redondos, `"5460537.00"`,
-  `"5460537,00"` o dentro de una frase; con un solo cero, `"5460537.0"`,
-  dos de cada cien, que se leen también como la cédula con su
-  verificador tras un punto—, las horas, los ISBN —también el ISBN-10
-  con espacios o puntos—, las fechas con espacios, las listas separadas
-  por comas con espacio o por barras verticales, las razones no se
-  taparon; los importes con miles de cuatro grupos o más, uno o dos de
-  cada mil —su cola sin el primer grupo coincide con un documento cuando
-  empieza con un cero—; una dirección IP —también con su máscara CIDR,
-  `"10.4.123.234/24"`, o su puerto, y en un rango de redes
-  `"10.4.1.0/24-10.4.9.0/24"`— sólo cuando coincide entera, menos de una
-  de cada cien; y una coordenada escrita con un cero adelante
-  (`"-056.092164"`), que tiene la forma de un celular con punto
+  cifra entera; y a tres de cada cien de los que empiezan con 9 —entre
+  90 y 99,9 millones: un importe, un código—, en cualquier escritura
+  (`"98276375"`, `"98.276.375,00"`: 3,3 % sobre 4.000), porque tienen
+  además la forma de un celular protegido sin su cero—; las coordenadas,
+  los p-valores, los importes de siete cifras con decimales —también los
+  redondos, `"5460537.00"`, `"5460537,00"` o dentro de una frase; con un
+  solo cero, `"5460537.0"`, dos de cada cien, que se leen también como
+  la cédula con su verificador tras un punto—, las horas, los ISBN
+  —también el ISBN-10 con espacios o puntos—, las fechas con espacios,
+  las listas separadas por comas con espacio o por barras verticales,
+  las razones no se taparon; los importes con miles de cuatro grupos o
+  más, uno o dos de cada mil —su cola sin el primer grupo coincide con
+  un documento cuando empieza con un cero—; una dirección IP —también
+  con su máscara CIDR, `"10.4.123.234/24"`, o su puerto, y en un rango
+  de redes `"10.4.1.0/24-10.4.9.0/24"`— sólo cuando coincide entera,
+  menos de una de cada cien; y una coordenada escrita con un cero
+  adelante (`"-056.092164"`), que tiene la forma de un celular con punto
   (`"099.123456"`), casi una de cada cien. Lo mismo vale, por la misma
   razón, para lo que se une como el documento: una lista separada por
   espacios, ocho de cada cien; un rango de años `"2004-2017"` o con la
@@ -568,10 +603,15 @@ perfilar(
   entre una y tres de cada cien; o una versión `"v4.16.4302"`. Un
   teléfono fijo que no es de nadie, tres de cada cien —2,8 %, sobre
   4.000 fijos—, escrito de cualquier forma: con espacios o guiones
-  (`"4656 4570"`), con su prefijo de país (`"+598 4499 0917"`) o pegado.
-  Coincide con un documento o con un teléfono protegido, y como se
-  prueba su parte nacional, las mismas cifras se tapan en todas las
-  escrituras. Las familias del reproductor que sortean 400 fijos por
+  (`"4656 4570"`), con su prefijo de país (`"+598 4499 0917"`) o pegado,
+  y como número de planilla con su prefijo (`"59.822.877.006"`): 3,2 %
+  sobre otros 4.000, lo mismo que pegados (`"+59822877006"`). Coincide
+  con un documento o con un teléfono protegido, y como se prueba su
+  parte nacional, las mismas cifras se tapan en todas las escrituras,
+  salvo la de planilla con los miles y los decimales en cero o con
+  espacios (`"59.822.877.006,00"`, `"59 822 877 006"`), 4,4 %: como en
+  el celular, sus primeras ocho cifras tienen además la forma de una
+  cédula entera. Las familias del reproductor que sortean 400 fijos por
   escritura dan entre 1,5 y 5,5 %: es el sorteo, no la escritura. Con el
   prefijo era uno de cada seis, porque `"598"` y el primer grupo
   formaban una cédula de siete cifras sin su verificador. Y una lista de
@@ -584,9 +624,16 @@ perfilar(
   de planilla con separador de miles (`"59.895.257.283"`)—: coincide con
   uno protegido. Con los miles y los decimales en cero, o con espacios
   (`"59 895 257 283"`), 4,4 %: sus primeras ocho cifras tienen además la
-  forma de una cédula entera. Y, por el mismo parcial, una versión de
-  cuatro partes (`"v4.62.660.4361"`), trece de cada cien, la de cinco
-  partes (`"v2.76.527.6327.3"`), quince de cada cien, y un expediente
+  forma de una cédula entera. Con el punto medio como separador de
+  miles, 5,3 % sobre otros 4.000 que pegados dan 4,0 %, y 7,8 % con los
+  decimales en cero: como con espacios, sus grupos se prueban también
+  sueltos. Con el agrupado indio (`"59,89,52,57,283"`), uno de cada
+  cinco —20,3 %, y 32,0 % con `".00"`—: sus grupos de dos forman números
+  de siete cifras que coinciden con un documento sin su verificador, y
+  eso ya pasaba antes de leerlo como la misma cifra (17,2 y 29,3 %). Y,
+  por el mismo parcial, una versión de cuatro partes
+  (`"v4.62.660.4361"`), trece de cada cien, la de cinco partes
+  (`"v2.76.527.6327.3"`), quince de cada cien, y un expediente
   `"exp 2023-6-880041"`, uno de cada seis: su tramo `"660.4361"` o
   `"6-880041"` es un número de siete cifras con un signo que une, y no
   se distingue del documento escrito así. Y por la regla de la hora, una
@@ -946,7 +993,11 @@ perfilar(
   se estima sobre una sonda de hasta cien filas y se comprueba sobre la
   muestra efectiva; si la cota reduce el alcance,
   `cobertura_diagnosticos` informa los bytes observados y el umbral.
-  `Inf` desactiva este tope.
+  `Inf` desactiva este tope. Se mide la tabla como llega, con sus
+  nombres de fila: son parte de lo que se materializa —y el paquete los
+  trata como datos, por ejemplo al proteger—, así que la misma tabla con
+  nombres de fila de texto ocupa más y, con el mismo tope, se muestrea
+  en menos filas.
 
 - avisar_costo_tabla_ancha:
 
@@ -1387,16 +1438,16 @@ valores distintos—: una magnitud entera acotada también llena su tramo
 cuando se cargan filas suficientes, pero repitiendo valores, y la
 exclusión no puede depender de cuántas filas se cargaron. Es la regla de
 numeración de todo el perfil (ver `secuencia_entera_densa` más abajo), y
-una clave declarada excluye a Benford siempre. Si falla alguna
-precondición no emite un hallazgo: la enumera en
-`cobertura_diagnosticos`. Si aplica, `meta$benford$resultados` conserva
-la distribución observada y esperada por primer dígito, el chi-cuadrado
-de Pearson, ocho grados de libertad y el valor p;
-`meta$benford$umbrales` publica todos los cortes. Un valor p menor que
-`0.01` genera `desviacion_benford` como señal descriptiva para revisar,
-no como evidencia de fraude o manipulación. Topes administrativos,
-redondeos, precios psicológicos y subsidios de monto fijo son
-explicaciones posibles.
+una clave declarada excluye a Benford siempre, como una columna
+declarada en `columnas_codigo`. Si falla alguna precondición no emite un
+hallazgo: la enumera en `cobertura_diagnosticos`. Si aplica,
+`meta$benford$resultados` conserva la distribución observada y esperada
+por primer dígito, el chi-cuadrado de Pearson, ocho grados de libertad y
+el valor p; `meta$benford$umbrales` publica todos los cortes. Un valor p
+menor que `0.01` genera `desviacion_benford` como señal descriptiva para
+revisar, no como evidencia de fraude o manipulación. Topes
+administrativos, redondeos, precios psicológicos y subsidios de monto
+fijo son explicaciones posibles.
 
 Las relaciones aritméticas se buscan sólo entre columnas numéricas **sin
 clase declarada** y con variación: una columna que declara una clase
@@ -1586,6 +1637,9 @@ denominador. Sin CRS, `n_fuera_de_dominio` queda en `NA` y se emite
 `crs_no_declarado`: nunca se supone EPSG:4326. Si falta el paquete
 opcional `sf`, todos esos campos quedan en `NA`, no se emite un hallazgo
 geométrico y `cobertura_diagnosticos` registra la dependencia ausente.
+Si `sf` está instalado pero no se pudo cargar en la sesión —con
+`LC_NUMERIC` en coma no carga su dependencia `units`—, pasa lo mismo y
+el motivo lo dice: no pide instalar lo que ya está.
 
 Una columna cuyos valores son `data.frame` o matriz —lo que devuelve un
 driver al leer un `STRUCT`— declara `n` en **filas**, como cualquier
@@ -1744,24 +1798,27 @@ una numeración que se repite —un código de catálogo, una clave foránea—
 no se distingue por su forma de esa magnitud y no se trata como
 numeración. Es la misma regla que deciden `posible_identificador`, la
 guarda de los límites de Tukey, la de los patrones raros y la de
-Benford. `moda_sobresale_secuencia_entera` es una señal independiente y
-no cambia los tres escudos de forma que dependen de la numeración. En
-una columna `integer64`, `bit64` se carga de manera diferida si está
-instalado para registrar sus métodos antes de medir. Si no está
-instalado, las cinco medidas públicas de la secuencia quedan en `NA` y
-`cobertura_diagnosticos` declara que `secuencia_entera` no se evaluó por
-falta de esa dependencia. Lo mismo pasa si la columna tiene valores por
-encima de 2^53: en un doble se redondean, la densidad no se mide sobre
-números redondeados, y la secuencia queda en `NA` y declarada, no como
-«no densa». La guarda vuelve a abrirse si un candidato presente queda
-fuera del rango de los valores restantes de la numeración, o si la
-frecuencia del candidato es la moda sobresaliente. Esta segunda señal se
-mide por el **salto entre frecuencias consecutivas**, ordenadas de mayor
-a menor y mirando sólo las primeras posiciones. Es el mismo idioma que
-`salto_de_escala_secuencia_entera` usa con los huecos: lo que delata a
-un centinela no es que su frecuencia sea grande, sino que haya un
-**acantilado** entre el grupo que sobresale y el resto de la
-distribución.
+Benford. Por eso un código de catálogo que se repite —un `EstCod` de 1 a
+284— recibe límites de Tukey y, con tres órdenes de magnitud, Benford,
+aunque se lo pase como texto o como factor: el paquete infiere número.
+Para eso está `columnas_codigo`. `moda_sobresale_secuencia_entera` es
+una señal independiente y no cambia los tres escudos de forma que
+dependen de la numeración. En una columna `integer64`, `bit64` se carga
+de manera diferida si está instalado para registrar sus métodos antes de
+medir. Si no está instalado, las cinco medidas públicas de la secuencia
+quedan en `NA` y `cobertura_diagnosticos` declara que `secuencia_entera`
+no se evaluó por falta de esa dependencia. Lo mismo pasa si la columna
+tiene valores por encima de 2^53: en un doble se redondean, la densidad
+no se mide sobre números redondeados, y la secuencia queda en `NA` y
+declarada, no como «no densa». La guarda vuelve a abrirse si un
+candidato presente queda fuera del rango de los valores restantes de la
+numeración, o si la frecuencia del candidato es la moda sobresaliente.
+Esta segunda señal se mide por el **salto entre frecuencias
+consecutivas**, ordenadas de mayor a menor y mirando sólo las primeras
+posiciones. Es el mismo idioma que `salto_de_escala_secuencia_entera`
+usa con los huecos: lo que delata a un centinela no es que su frecuencia
+sea grande, sino que haya un **acantilado** entre el grupo que sobresale
+y el resto de la distribución.
 
 Comparar contra un valor concreto no alcanza, y cada intento lo rompió
 un caso distinto: contra el **segundo** valor, un señuelo legítimo y
@@ -1839,14 +1896,16 @@ prueba de identidad.
 
 Este criterio mide capacidad de discriminación, no juzga si la presencia
 del dato es correcta. La protección sustituye modas, ejemplos, evidencia
-y extremos o medianas que corresponden a observaciones reales. Los
-desvíos se conservan; las medias se protegen en sus dos formas (`media`
-y `media_fecha`), porque la media de una columna personal puede
-reconstruir demasiado. Los desvíos siguen siendo síntesis no ligadas a
-una fila; `detalle_proteccion_personal` hace visible la supresión. En
-fechas de nacimiento y fallecimiento, un hallazgo separado conserva el
-diagnóstico de valores anteriores a 1900 o posteriores a la corrida sin
-publicar las fechas. Los números escritos como texto reconocen tanto
+y extremos o medianas que corresponden a observaciones reales. También
+los momentos: las medias en sus dos formas (`media` y `media_fecha`),
+porque la media de una columna personal puede reconstruir demasiado, y
+el desvío, que es una magnitud de sus valores —hasta la ronda 32 se
+conservaba, por una decisión declarada que se revirtió—.
+`detalle_proteccion_personal` hace visible la supresión y dice qué se
+tapó: los estadísticos de orden, la media, el desvío o los dos momentos.
+En fechas de nacimiento y fallecimiento, un hallazgo separado conserva
+el diagnóstico de valores anteriores a 1900 o posteriores a la corrida
+sin publicar las fechas. Los números escritos como texto reconocen tanto
 coma como punto decimal y sus separadores de miles simétricos. El
 resumen cuantitativo, los outliers y la secuencia entera los leen con la
 convención que la misma fila publica en `numero_texto_convencion`, por
@@ -2083,9 +2142,9 @@ summary(perfil)
 #> 9               NA              NA             NA                     NA      1
 #> 10               5               5       5.000000                     13     NA
 #>     maximo        media mediana       desvio minimo_exacto maximo_exacto
-#> 1       NA           NA      NA 3.546396e+00          <NA>          <NA>
+#> 1       NA           NA      NA           NA          <NA>          <NA>
 #> 2       NA           NA      NA           NA          <NA>          <NA>
-#> 3       NA           NA      NA 1.191710e+08          <NA>          <NA>
+#> 3       NA           NA      NA           NA          <NA>          <NA>
 #> 4       NA           NA      NA           NA          <NA>          <NA>
 #> 5  9999999 7.900192e+05   29900 2.767287e+06          <NA>          <NA>
 #> 6       NA           NA      NA           NA          <NA>          <NA>
@@ -2226,9 +2285,9 @@ summary(perfil)
 #> 9         NA        NA        NA        NA
 #> 10        NA        NA        NA        NA
 #>                      detalle_proteccion_personal n_blancos n_espacios_borde
-#> 1  [estadisticos de orden y la media protegidos]         0                0
+#> 1  [estadisticos de orden y momentos protegidos]         0                0
 #> 2             [estadisticos de orden protegidos]         0                0
-#> 3  [estadisticos de orden y la media protegidos]         0                0
+#> 3  [estadisticos de orden y momentos protegidos]         0                0
 #> 4                                           <NA>         1                0
 #> 5                                           <NA>         0                0
 #> 6                                           <NA>         0                0

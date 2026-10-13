@@ -40,18 +40,18 @@ datos <- data.frame(x = c(1, NA, 3))
 propuesta <- proponer_modelo(perfilar(datos), datos)
 modelo_propuesto <- modelo_desde_propuesta(propuesta)
 medir(modelo_propuesto, datos)
-#>                                                     id_medida
-#> 1 medicion-20261013T042415.108018-7282-sugerencia-0001-000001
-#> 2 medicion-20261013T042415.108018-7282-sugerencia-0001-000002
-#> 3 medicion-20261013T042415.108018-7282-sugerencia-0001-000003
+#>                                              id_medida
+#> 1 medicion-20261013T231703.251853-7296-NoNulo:x-000001
+#> 2 medicion-20261013T231703.251853-7296-NoNulo:x-000002
+#> 3 medicion-20261013T231703.251853-7296-NoNulo:x-000003
 #>                            id_medicion               fecha metrica
-#> 1 medicion-20261013T042415.108018-7282 2026-10-13 04:24:15  NoNulo
-#> 2 medicion-20261013T042415.108018-7282 2026-10-13 04:24:15  NoNulo
-#> 3 medicion-20261013T042415.108018-7282 2026-10-13 04:24:15  NoNulo
+#> 1 medicion-20261013T231703.251853-7296 2026-10-13 23:17:03  NoNulo
+#> 2 medicion-20261013T231703.251853-7296 2026-10-13 23:17:03  NoNulo
+#> 3 medicion-20261013T231703.251853-7296 2026-10-13 23:17:03  NoNulo
 #>   metrica_especifica metrica_instanciada   dimension   factor orientacion
-#> 1    NoNuloPropuesto     sugerencia-0001 Completitud Densidad conformidad
-#> 2    NoNuloPropuesto     sugerencia-0001 Completitud Densidad conformidad
-#> 3    NoNuloPropuesto     sugerencia-0001 Completitud Densidad conformidad
+#> 1    NoNuloPropuesto            NoNulo:x Completitud Densidad conformidad
+#> 2    NoNuloPropuesto            NoNulo:x Completitud Densidad conformidad
+#> 3    NoNuloPropuesto            NoNulo:x Completitud Densidad conformidad
 #>        granularidad tipo_resultado entidad atributo fila objeto_medible
 #> 1 instanciaAtributo       booleano   datos        x    1     datos$x[1]
 #> 2 instanciaAtributo       booleano   datos        x    2     datos$x[2]

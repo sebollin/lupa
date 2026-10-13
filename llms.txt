@@ -1169,7 +1169,11 @@ and silenced two. It lives in `test-ronda118.R`. Since requiring that a
 numbering barely repeat, one of the five numberings — a code from 1 to
 284 that repeats — is no longer recognised and gets Tukey’s fences:
 twelve right, and the miss is on the cheap side, saying too much rather
-than silencing.
+than silencing. Whoever knows the column corrects it by declaring it in
+`columnas_codigo`: a declared code gets no Tukey fences, no Benford and
+no `media`, `mediana` or `desvio`, keeps its range, mode and counts, and
+the coverage says why. Passing it as text or as a factor does not help,
+because the package reads it as a number.
 
 For an `integer64` column, `bit64` is loaded lazily when it is installed
 so its methods are registered before measuring. If it is not installed,

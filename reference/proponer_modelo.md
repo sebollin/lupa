@@ -30,7 +30,8 @@ proponer_modelo(
 - datos:
 
   Datos originales opcionales. Son necesarios para proponer dominios
-  observados y materializar reglas de dependencia funcional.
+  observados, materializar reglas de dependencia funcional e identificar
+  los faltantes disfrazados que cuenta `NoNulo`.
 
 - relaciones:
 
@@ -79,21 +80,52 @@ estructurales directos, como `NoNulo`, duplicación exacta y dependencias
 funcionales exactas, se activan. `max_sugerencias` recorta después de
 ordenar por prioridad y el objeto declara el total en sus atributos.
 Dentro de cada prioridad las filas se ordenan por métrica, entidad y
-atributos según sus bytes —no según la intercalación del locale— y
-`id_sugerencia` las numera en ese orden: el mismo perfil da los mismos
-identificadores en cualquier sesión. Si una columna contiene faltantes
-disfrazados, `NoNulo` se propone pero queda inactiva hasta normalizarlos
-o configurar la métrica para reconocerlos. De otro modo mediría sólo los
-`NA` reales y sobrestimaría la completitud. Por eso sale con estado
-`faltantes_disfrazados` y no `lista`:
-[`analizar()`](https://sebollin.github.io/lupa/reference/analizar.md) no
-la mide y
+atributos según sus bytes —no según la intercalación del locale—: el
+mismo orden en cualquier sesión.
+
+`id_sugerencia` se arma con el **contenido** de la sugerencia, nunca con
+su posición: la métrica y sus atributos en su orden —`NoNulo:edad`,
+`ReglaIntegridadIntraEntidad:depto,codigo`— y, cuando la sugerencia liga
+dos tablas, cada atributo con su entidad delante
+(`ReglaIntegridadInterEntidad:personas.id,visitas.persona_id`). Una
+sugerencia sin atributos lleva sólo la métrica (`EntidadDuplicada`). Así
+una columna que se agrega o se quita no cambia el id de las demás, y una
+regla de
+[`regla_evaluacion()`](https://sebollin.github.io/lupa/reference/reglas_evaluacion.md)
+que lo nombra sigue midiendo lo mismo en la corrida siguiente:
 [`modelo_desde_propuesta()`](https://sebollin.github.io/lupa/reference/modelo_desde_propuesta.md)
-no la materializa. Para medirla, normalizar los disfrazados y volver a
-perfilar, o declararlos en `valores_nulos` de su `configuracion` y pasar
-su `estado` a `"lista"`. Una sugerencia sobre una columna cuyo nombre la
-tabla repite sale inactiva y con estado `nombre_repetido`: una métrica
-se liga por nombre, y ese nombre no dice cuál de las columnas mide.
+lo usa como nombre de la instancia, que es la `metrica_instanciada` de
+[`medir()`](https://sebollin.github.io/lupa/reference/medir.md), del
+tablero y del histórico. La entidad de una sugerencia de una sola tabla
+no entra, porque es el nombre del perfil y cambia con la expresión
+perfilada; la configuración tampoco: un cambio de patrón o de dominio lo
+declara el histórico en `configuracion_modelo`. Dentro de cada nombre se
+escribe `%25`, `%2C` y `%23` en lugar de `%`, `,` y `#` —y `%2E` en
+lugar de `.` en una entidad—, y un nombre `NA` se escribe `%NA`, de modo
+que dos contenidos distintos no dan el mismo id. Un nombre que no es
+UTF-8 válido escribe cada byte alto como `%XX` —los bytes latin1 de
+«notaé» sin declarar dan `nota%E9`—, así que el id es siempre texto
+UTF-8 o ASCII, el mismo en cualquier locale. Si dos sugerencias tienen
+el mismo contenido —una tabla que repite el nombre de una columna—, la
+segunda lleva `#2` y la tercera `#3`, en el orden de las columnas de la
+tabla.
+
+Si una columna contiene faltantes disfrazados, `NoNulo` se propone
+activa, con estado `lista`, y **se mide contándolos**: los valores que
+el perfil contó como disfrazados —con la misma regla y la misma
+declaración de `sentinelas_numericos` y `cadenas_ausencia`— se declaran
+en `valores_nulos` de su `configuracion`, y la justificación lo dice.
+Sobre cuarenta valores con un `NA` y tres `-999` mide 0,90, no 0,975. Si
+no se pueden identificar —sin `datos`, la propuesta no tiene de dónde
+sacarlos—, se mide igual con los valores crudos, y la justificación dice
+que cuenta sólo los `NA` y que sobrestima la completitud.
+[`analizar()`](https://sebollin.github.io/lupa/reference/analizar.md) la
+mide y
+[`modelo_desde_propuesta()`](https://sebollin.github.io/lupa/reference/modelo_desde_propuesta.md)
+la materializa como a cualquier otra sugerencia activa. Una sugerencia
+sobre una columna cuyo nombre la tabla repite sale inactiva y con estado
+`nombre_repetido`: una métrica se liga por nombre, y ese nombre no dice
+cuál de las columnas mide.
 [`modelo_desde_propuesta()`](https://sebollin.github.io/lupa/reference/modelo_desde_propuesta.md)
 no la materializa y
 [`analizar()`](https://sebollin.github.io/lupa/reference/analizar.md) no

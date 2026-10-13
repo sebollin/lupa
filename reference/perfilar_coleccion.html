@@ -116,9 +116,16 @@ porque cualquier palabra puede ser el nombre de una columna de otra tabla,
 y el número que el mensaje no omite entero, como <code>"099;123;456"</code>, escrito
 con un signo que no une; ver <code><a href="perfilar_dbi.html">perfilar_dbi()</a></code>—, sin consultas de más: el
 mensaje de una vista que citaba <code>"Campos Cadena"</code>, la celda de su tabla
-base, se publicaba. Y los avisos de consola de cada tabla se emiten al
-final, después del mismo piso que esos tres campos, con o sin perfiles: el
-aviso de una vista perfilada antes que su tabla base citaba la celda.
+base, se publicaba. De cada uno se guarda una huella —ocho bytes de su
+forma plegada y sin separadores— y no el texto: la memoria no crece con el
+largo de los nombres que se leen, y un tramo del mensaje con la huella de
+uno se tapa como esté escrito; dos formas con la misma huella, una en
+2^52, sólo pueden tapar de más. Y los avisos de consola de cada tabla se
+emiten al final, después del mismo piso que esos tres campos, con o sin
+perfiles: el aviso de una vista perfilada antes que su tabla base citaba
+la celda. También si la colección se corta —una interrupción, un error—
+después de leer alguna tabla: los avisos juntados salen por ese mismo
+piso, con los valores que se conocían.
 <code><a href="perfilar_dbi.html">perfilar_dbi()</a></code> sobre una tabla sola protege sólo con los de esa tabla.</p></dd>
 
 

@@ -31,7 +31,8 @@ detectar_discordancias(
 
 - max_ejemplos:
 
-  Máximo de filas concretas que se citan como evidencia.
+  Máximo de filas concretas que se citan como evidencia: un entero no
+  negativo; `0` no cita ninguna.
 
 - proteger_datos_personales:
 

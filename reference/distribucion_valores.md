@@ -30,7 +30,10 @@ distribucion_valores(
 - perfil:
 
   Perfil opcional de los mismos datos; evita repetir la clasificación de
-  posibles datos personales.
+  posibles datos personales. Si el perfil declaró `columnas_codigo`,
+  esas columnas publican en `cuantiles` sólo los extremos —probabilidad
+  0 y 1, el tramo de códigos—; los intermedios quedan en `NA` con
+  `estado = "codigo_declarado"`, como `mediana` en el perfil.
 
 - max_valores:
 

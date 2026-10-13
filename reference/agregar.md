@@ -55,7 +55,8 @@ agregar(
   misma declaración escrita en otro orden da el mismo número. Si los
   nombres casan con los dos vocabularios y reparten distinto, se
   rechaza: no se puede saber a cuáles se refieren. Sin nombres se leen
-  por posición.
+  por posición. Con otra `funcion` se rechaza, como `umbral` fuera de
+  `ratio_umbral`: no pesarían nada y se publicarían igual.
 
 - coleccion:
 
@@ -207,9 +208,9 @@ instancia <- instanciar(especifica, "personas", "edad")
 medidas <- medir(modelo(instancia), data.frame(edad = c(20, NA, 35)))
 agregar(medidas, "atributo", "ratio")
 #>                                                                      id_medida
-#> 1 medicion-20261013T042347.408090-7282-agg-atributo-ratio-NoNulo@personas.edad
+#> 1 medicion-20261013T231645.833374-7296-agg-atributo-ratio-NoNulo@personas.edad
 #>                            id_medicion               fecha metrica
-#> 1 medicion-20261013T042347.408090-7282 2026-10-13 04:23:47  NoNulo
+#> 1 medicion-20261013T231645.833374-7296 2026-10-13 23:16:45  NoNulo
 #>   metrica_especifica   metrica_instanciada   dimension   factor orientacion
 #> 1             NoNulo agregada:ratio:NoNulo Completitud Densidad conformidad
 #>   granularidad tipo_resultado  entidad atributo fila objeto_medible resultado

@@ -101,7 +101,8 @@ conceptual y plan de limpieza. No modifica los datos.</p>
 
 
 <dt id="arg-fecha">fecha<a class="anchor" aria-label="anchor" href="#arg-fecha"></a></dt>
-<dd><p>Fecha y hora reproducible de la corrida.</p></dd>
+<dd><p>Fecha y hora reproducible de la corrida. Se lee una vez, como
+en <code><a href="perfilar.html">perfilar()</a></code> y <code><a href="medir.html">medir()</a></code>: en UTC, también un texto como <code>"2026-03-01"</code>.</p></dd>
 
 
 <dt id="arg-argumentos-perfil">argumentos_perfil<a class="anchor" aria-label="anchor" href="#arg-argumentos-perfil"></a></dt>
@@ -234,9 +235,12 @@ cualquier lista con clase —un registro de
 <code>vctrs</code>, un <code>blob</code>— por sus valores; un BLOB (<code>raw</code>) se lee como el texto
 que guarda y, si lleva un valor protegido, la copia guarda los bytes del
 texto tapado; un entorno no se modifica —es del usuario—: si guarda un
-valor protegido, la copia lleva <code>"[valor protegido]"</code> en su lugar, también
-si tiene un atributo <code>name</code>; sólo el global, el de un paquete y los de la
-ruta de búsqueda se dejan como están. Una llamada, una fórmula o una
+valor protegido, en su contenido o en sus atributos —valor y nombre,
+también <code>name</code>, que <code><a href="https://rdrr.io/r/base/print.html" class="external-link">print()</a></code> muestra—, la copia lleva
+<code>"[valor protegido]"</code> en su lugar, también si tiene un atributo <code>name</code>; y
+también si no se puede leer entero —una promesa o una ligadura activa que
+aborta al leerse—, porque lo que no se lee no se sabe limpio; sólo el
+global, el de un paquete y los de la ruta de búsqueda se dejan como están. Una llamada, una fórmula o una
 función se leen como el texto que <code><a href="https://rdrr.io/r/base/print.html" class="external-link">print()</a></code> escribe —con sus atributos y,
 si guarda su fuente (<code>srcref</code>), la fuente con sus comentarios—, y también
 por sus atributos y, la función, por su entorno; si algo de eso lleva un
@@ -314,33 +318,57 @@ queden ocultos dentro del recorrido integral.</p>
 <span class="r-msg co"><span class="r-pr">#&gt;</span> <span style="color: #00BBBB;">──</span> <span style="font-weight: bold;">Tablero de calidad</span> <span style="color: #00BBBB;">──────────────────────────────────────────────────────────</span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>       componente    dimension                 factor</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>  componente-0001     Unicidad         No-duplicación</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>  componente-0002    Exactitud Correctitud sintáctica</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>  componente-0003    Exactitud Correctitud sintáctica</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>  componente-0004    Exactitud Correctitud sintáctica</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>  componente-0005    Exactitud Correctitud sintáctica</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>  componente-0002  Completitud               Densidad</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>  componente-0003  Completitud               Densidad</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>  componente-0004  Completitud               Densidad</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>  componente-0005  Completitud               Densidad</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>  componente-0006    Exactitud Correctitud sintáctica</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>  componente-0007 Consistencia  Integridad de dominio</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>                      metrica metrica_instanciada               entidad</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>             EntidadDuplicada     sugerencia-0001 datos_administrativos</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>                      Formato     sugerencia-0006 datos_administrativos</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>                      Formato     sugerencia-0007 datos_administrativos</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>                      Formato     sugerencia-0008 datos_administrativos</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>                      Formato     sugerencia-0009 datos_administrativos</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>                      Formato     sugerencia-0010 datos_administrativos</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>  ValoresPosiblesPorExtension     sugerencia-0011 datos_administrativos</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>        objeto     valor orientacion agregacion umbral universo</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>       (tabla) 0.1538462     defecto      ratio     NA    filas</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>        correo 0.8461538 conformidad      ratio     NA   celdas</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>  departamento 0.9230769 conformidad      ratio     NA   celdas</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>    id_tramite 1.0000000 conformidad      ratio     NA   celdas</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>          pais 1.0000000 conformidad      ratio     NA   celdas</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>          sexo 0.8461538 conformidad      ratio     NA   celdas</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>          sexo 1.0000000 conformidad      ratio     NA   celdas</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>  componente-0007    Exactitud Correctitud sintáctica</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>  componente-0008    Exactitud Correctitud sintáctica</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>  componente-0009    Exactitud Correctitud sintáctica</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>  componente-0010    Exactitud Correctitud sintáctica</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>  componente-0011 Consistencia  Integridad de dominio</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>                      metrica              metrica_instanciada</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>             EntidadDuplicada                 EntidadDuplicada</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>                       NoNulo                    NoNulo:cedula</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>                       NoNulo          NoNulo:fecha_nacimiento</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>                       NoNulo                   NoNulo:ingreso</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>                       NoNulo                      NoNulo:sexo</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>                      Formato                   Formato:correo</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>                      Formato             Formato:departamento</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>                      Formato               Formato:id_tramite</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>                      Formato                     Formato:pais</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>                      Formato                     Formato:sexo</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>  ValoresPosiblesPorExtension ValoresPosiblesPorExtension:sexo</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>                entidad           objeto     valor orientacion agregacion umbral</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>  datos_administrativos          (tabla) 0.1538462     defecto      ratio     NA</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>  datos_administrativos           cedula 0.9230769 conformidad      ratio     NA</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>  datos_administrativos fecha_nacimiento 0.9230769 conformidad      ratio     NA</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>  datos_administrativos          ingreso 0.9230769 conformidad      ratio     NA</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>  datos_administrativos             sexo 0.8461538 conformidad      ratio     NA</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>  datos_administrativos           correo 0.8461538 conformidad      ratio     NA</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>  datos_administrativos     departamento 0.9230769 conformidad      ratio     NA</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>  datos_administrativos       id_tramite 1.0000000 conformidad      ratio     NA</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>  datos_administrativos             pais 1.0000000 conformidad      ratio     NA</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>  datos_administrativos             sexo 0.8461538 conformidad      ratio     NA</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>  datos_administrativos             sexo 1.0000000 conformidad      ratio     NA</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>  universo</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>     filas</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>    celdas</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>    celdas</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>    celdas</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>    celdas</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>    celdas</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>    celdas</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>    celdas</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>    celdas</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>    celdas</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>    celdas</span>
 <span class="r-msg co"><span class="r-pr">#&gt;</span> </span>
 <span class="r-msg co"><span class="r-pr">#&gt;</span> ── <span style="font-weight: bold;">Alcance del marco</span> ──</span>
 <span class="r-msg co"><span class="r-pr">#&gt;</span> </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>  factores_marco factores_medidos sin_metrica_declarada no_aplican</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>              17                3                     9          4</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>              17                4                     8          4</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>  fuera_de_alcance medidos_fuera_del_marco</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>                 1                       0</span>
 <span class="r-msg co"><span class="r-pr">#&gt;</span> ── <span style="font-weight: bold;">Cobertura conceptual</span> ──</span>

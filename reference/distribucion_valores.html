@@ -78,7 +78,10 @@ Los cuantiles se calculan sólo para números ordinarios finitos.</p>
 
 <dt id="arg-perfil">perfil<a class="anchor" aria-label="anchor" href="#arg-perfil"></a></dt>
 <dd><p>Perfil opcional de los mismos datos; evita repetir la
-clasificación de posibles datos personales.</p></dd>
+clasificación de posibles datos personales. Si el perfil declaró
+<code>columnas_codigo</code>, esas columnas publican en <code>cuantiles</code> sólo los extremos
+—probabilidad 0 y 1, el tramo de códigos—; los intermedios quedan en <code>NA</code>
+con <code>estado = "codigo_declarado"</code>, como <code>mediana</code> en el perfil.</p></dd>
 
 
 <dt id="arg-max-valores">max_valores<a class="anchor" aria-label="anchor" href="#arg-max-valores"></a></dt>

@@ -434,7 +434,11 @@ señala. Declarar el valor lo vuelve a contar.</p></dd>
 
 
 <dt id="arg--">...<a class="anchor" aria-label="anchor" href="#arg--"></a></dt>
-<dd><p>Argumentos enviados a <code><a href="perfilar.html">perfilar()</a></code> para analizar la muestra.</p></dd>
+<dd><p>Argumentos enviados a <code><a href="perfilar.html">perfilar()</a></code> para analizar la muestra.
+<code>columnas_codigo</code> vale además en <code>resumen_tabla</code>: <code>media</code>, <code>mediana</code> y
+<code>desvio</code> de una columna declarada quedan en <code>NA</code> y
+<code>resumen_tabla$cobertura</code> lo declara con estado <code>no_aplica</code>. Sus nombres se
+validan contra las columnas de la tabla aunque no haya muestra.</p></dd>
 
 </dl></div>
     <div class="section level2">
@@ -901,8 +905,10 @@ leer, la protección se aplica a todas las columnas y <code>meta</code> lo decla
 Lo que se oculta no queda <code>calculado</code>: su fila de <code>resumen_tabla$sql</code> dice
 <code>omitido_por_privacidad</code>, con un motivo que distingue la columna clasificada
 como personal de la que se cerró porque, sin muestra, no se pudo clasificar.
-El desvío se publica, como en <code><a href="perfilar.html">perfilar()</a></code>: una dispersión no identifica a
-nadie, y la media, que junto con él reconstruiría los valores, se oculta.
+El desvío se oculta como la media, como en <code><a href="perfilar.html">perfilar()</a></code>; también en
+<code>resumen_tabla$meta$familias</code>, donde la vía por bloques (<code>bloque_filas</code>)
+guarda lo que devolvió cada acumulador: ahí se tapan los extremos, la media
+y el desvío de las columnas protegidas, y cada valor distinto.
 Si la muestra se recorta, la clasificación personal sólo cubre esas filas:
 las cifras de valor del resumen SQL completo quedan marcadas en
 <code>resumen_tabla$cobertura</code> y, con la protección activa, se ocultan hasta que
@@ -955,7 +961,12 @@ todo lo demás sale <code>[literal omitido]</code>. Un número se cuenta con sus
 separadores: <code>4.685.467-9</code> es uno de ocho cifras, y se lee como lo lee el
 piso de la protección, con los mismos separadores —un espacio duro o uno
 fino, el punto medio, una raya, <code>" - "</code>, dos espacios, un tabulador o un
-salto de línea entre los grupos: <code>"099 - 123 - 456"</code> es uno de nueve—. Así
+salto de línea entre los grupos: <code>"099 - 123 - 456"</code> es uno de nueve—. El
+mensaje se lee como lo dijo el motor: odbc lo arma con cli, que pone una
+viñeta después de cada salto de línea y corta las líneas al ancho de la
+consola, y un número partido en dos líneas —<code>"2901\n1234"</code>— quedaba partido
+por la viñeta; se toman las líneas que guarda la condición, unidas por el
+salto que puso el motor, y así se publican, sin las viñetas. Así
 se tapa también el
 valor que el motor cita sin comillas —duckdb: <code>Type INT64 with value 59899123456 can't be cast</code>, y la cadena que <code>strptime</code> repite en otra
 línea, que se tapa entera; SQL Server con la sesión en sueco o neerlandés—

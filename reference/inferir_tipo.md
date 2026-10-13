@@ -27,7 +27,8 @@ inferir_tipo(x, umbral = 0.8, muestra = 1e+05)
 
 - x:
 
-  Vector que se desea examinar.
+  Vector que se desea examinar. Una tabla —también la de una columna que
+  da `tibble[, "f"]`— se rechaza: se pasa la columna, `tabla[["f"]]`.
 
 - umbral:
 

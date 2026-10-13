@@ -389,7 +389,11 @@ perfilar_dbi(
 
   Argumentos enviados a
   [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md)
-  para analizar la muestra.
+  para analizar la muestra. `columnas_codigo` vale además en
+  `resumen_tabla`: `media`, `mediana` y `desvio` de una columna
+  declarada quedan en `NA` y `resumen_tabla$cobertura` lo declara con
+  estado `no_aplica`. Sus nombres se validan contra las columnas de la
+  tabla aunque no haya muestra.
 
 ## Value
 
@@ -881,19 +885,21 @@ muestra; si la muestra no se pudo leer, la protección se aplica a todas
 las columnas y `meta` lo declara. Lo que se oculta no queda `calculado`:
 su fila de `resumen_tabla$sql` dice `omitido_por_privacidad`, con un
 motivo que distingue la columna clasificada como personal de la que se
-cerró porque, sin muestra, no se pudo clasificar. El desvío se publica,
-como en
-[`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md):
-una dispersión no identifica a nadie, y la media, que junto con él
-reconstruiría los valores, se oculta. Si la muestra se recorta, la
-clasificación personal sólo cubre esas filas: las cifras de valor del
-resumen SQL completo quedan marcadas en `resumen_tabla$cobertura` y, con
-la protección activa, se ocultan hasta que la clasificación cubra el
-mismo alcance. La corroboración no repite esas cifras dudosas en su
-anotación. Y cuando la muestra no cubre la tabla, se traen los valores
-distintos de las columnas protegidas de la tabla entera —de texto o
-numéricas, una consulta por columna— y se protege con ellos lo que se
-publica, con la misma regla que
+cerró porque, sin muestra, no se pudo clasificar. El desvío se oculta
+como la media, como en
+[`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md);
+también en `resumen_tabla$meta$familias`, donde la vía por bloques
+(`bloque_filas`) guarda lo que devolvió cada acumulador: ahí se tapan
+los extremos, la media y el desvío de las columnas protegidas, y cada
+valor distinto. Si la muestra se recorta, la clasificación personal sólo
+cubre esas filas: las cifras de valor del resumen SQL completo quedan
+marcadas en `resumen_tabla$cobertura` y, con la protección activa, se
+ocultan hasta que la clasificación cubra el mismo alcance. La
+corroboración no repite esas cifras dudosas en su anotación. Y cuando la
+muestra no cubre la tabla, se traen los valores distintos de las
+columnas protegidas de la tabla entera —de texto o numéricas, una
+consulta por columna— y se protege con ellos lo que se publica, con la
+misma regla que
 [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md) en
 memoria: tildes, caja, separadores, el documento parcial, los campos
 numéricos y la evidencia de los hallazgos. Un valor de una persona que
@@ -945,12 +951,18 @@ sus separadores: `4.685.467-9` es uno de ocho cifras, y se lee como lo
 lee el piso de la protección, con los mismos separadores —un espacio
 duro o uno fino, el punto medio, una raya, `" - "`, dos espacios, un
 tabulador o un salto de línea entre los grupos: `"099 - 123 - 456"` es
-uno de nueve—. Así se tapa también el valor que el motor cita sin
-comillas —duckdb: `Type INT64 with value 59899123456 can't be cast`, y
-la cadena que `strptime` repite en otra línea, que se tapa entera; SQL
-Server con la sesión en sueco o neerlandés— y la cola de un valor que
-lleva una comilla adentro. Y el mensaje pasa también por el piso con los
-valores protegidos que la llamada ya leyó —en
+uno de nueve—. El mensaje se lee como lo dijo el motor: odbc lo arma con
+cli, que pone una viñeta después de cada salto de línea y corta las
+líneas al ancho de la consola, y un número partido en dos líneas
+—`"2901\n1234"`— quedaba partido por la viñeta; se toman las líneas que
+guarda la condición, unidas por el salto que puso el motor, y así se
+publican, sin las viñetas. Así se tapa también el valor que el motor
+cita sin comillas —duckdb:
+`Type INT64 with value 59899123456 can't be cast`, y la cadena que
+`strptime` repite en otra línea, que se tapa entera; SQL Server con la
+sesión en sueco o neerlandés— y la cola de un valor que lleva una
+comilla adentro. Y el mensaje pasa también por el piso con los valores
+protegidos que la llamada ya leyó —en
 [`perfilar_coleccion()`](https://sebollin.github.io/lupa/reference/perfilar_coleccion.md),
 los de todas sus tablas—, antes de las dos pasadas, con el valor entero
 a la vista, y otra vez al final: un valor escrito sólo con lo permitido

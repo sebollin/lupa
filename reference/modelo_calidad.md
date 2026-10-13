@@ -72,7 +72,8 @@ metricas_nucleo()
 
 - dimension, factor:
 
-  Metadatos taxonómicos; no se usan para calcular puntuaciones.
+  Metadatos taxonómicos; no se usan para calcular puntuaciones. Cada uno
+  es una cadena no vacía o `NA`.
 
 - metodo:
 
@@ -366,13 +367,13 @@ instancia <- instanciar(no_nulo, entidad = "personas", atributos = "edad")
 modelo_calidad <- modelo(instancia)
 medir(modelo_calidad, data.frame(edad = c(20, NA, 35)))
 #>                                                              id_medida
-#> 1 medicion-20261013T042414.862810-7282-NoNuloEdad@personas.edad-000001
-#> 2 medicion-20261013T042414.862810-7282-NoNuloEdad@personas.edad-000002
-#> 3 medicion-20261013T042414.862810-7282-NoNuloEdad@personas.edad-000003
+#> 1 medicion-20261013T231702.938656-7296-NoNuloEdad@personas.edad-000001
+#> 2 medicion-20261013T231702.938656-7296-NoNuloEdad@personas.edad-000002
+#> 3 medicion-20261013T231702.938656-7296-NoNuloEdad@personas.edad-000003
 #>                            id_medicion               fecha metrica
-#> 1 medicion-20261013T042414.862810-7282 2026-10-13 04:24:14  NoNulo
-#> 2 medicion-20261013T042414.862810-7282 2026-10-13 04:24:14  NoNulo
-#> 3 medicion-20261013T042414.862810-7282 2026-10-13 04:24:14  NoNulo
+#> 1 medicion-20261013T231702.938656-7296 2026-10-13 23:17:02  NoNulo
+#> 2 medicion-20261013T231702.938656-7296 2026-10-13 23:17:02  NoNulo
+#> 3 medicion-20261013T231702.938656-7296 2026-10-13 23:17:02  NoNulo
 #>   metrica_especifica      metrica_instanciada   dimension   factor orientacion
 #> 1         NoNuloEdad NoNuloEdad@personas.edad Completitud Densidad conformidad
 #> 2         NoNuloEdad NoNuloEdad@personas.edad Completitud Densidad conformidad
@@ -423,13 +424,13 @@ medir(
   data.frame(origen = c("sistema_a", "", NA), stringsAsFactors = FALSE)
 )
 #>                                                                    id_medida
-#> 1 medicion-20261013T042414.867852-7282-OrigenDeclarado@entrega.origen-000001
-#> 2 medicion-20261013T042414.867852-7282-OrigenDeclarado@entrega.origen-000002
-#> 3 medicion-20261013T042414.867852-7282-OrigenDeclarado@entrega.origen-000003
+#> 1 medicion-20261013T231702.944410-7296-OrigenDeclarado@entrega.origen-000001
+#> 2 medicion-20261013T231702.944410-7296-OrigenDeclarado@entrega.origen-000002
+#> 3 medicion-20261013T231702.944410-7296-OrigenDeclarado@entrega.origen-000003
 #>                            id_medicion               fecha         metrica
-#> 1 medicion-20261013T042414.867852-7282 2026-10-13 04:24:14 OrigenDeclarado
-#> 2 medicion-20261013T042414.867852-7282 2026-10-13 04:24:14 OrigenDeclarado
-#> 3 medicion-20261013T042414.867852-7282 2026-10-13 04:24:14 OrigenDeclarado
+#> 1 medicion-20261013T231702.944410-7296 2026-10-13 23:17:02 OrigenDeclarado
+#> 2 medicion-20261013T231702.944410-7296 2026-10-13 23:17:02 OrigenDeclarado
+#> 3 medicion-20261013T231702.944410-7296 2026-10-13 23:17:02 OrigenDeclarado
 #>   metrica_especifica            metrica_instanciada    dimension
 #> 1    OrigenDeclarado OrigenDeclarado@entrega.origen Trazabilidad
 #> 2    OrigenDeclarado OrigenDeclarado@entrega.origen Trazabilidad
@@ -461,11 +462,11 @@ medir(
   data.frame(fecha = as.Date(c("2026-06-29", "2026-07-01")))
 )
 #>                                                                   id_medida
-#> 1 medicion-20261013T042414.872295-7282-EntregaATiempo@entregas.fecha-000001
-#> 2 medicion-20261013T042414.872295-7282-EntregaATiempo@entregas.fecha-000002
+#> 1 medicion-20261013T231702.956472-7296-EntregaATiempo@entregas.fecha-000001
+#> 2 medicion-20261013T231702.956472-7296-EntregaATiempo@entregas.fecha-000002
 #>                            id_medicion               fecha
-#> 1 medicion-20261013T042414.872295-7282 2026-10-13 04:24:14
-#> 2 medicion-20261013T042414.872295-7282 2026-10-13 04:24:14
+#> 1 medicion-20261013T231702.956472-7296 2026-10-13 23:17:02
+#> 2 medicion-20261013T231702.956472-7296 2026-10-13 23:17:02
 #>                       metrica metrica_especifica           metrica_instanciada
 #> 1 OportunidadAtributoPorFecha     EntregaATiempo EntregaATiempo@entregas.fecha
 #> 2 OportunidadAtributoPorFecha     EntregaATiempo EntregaATiempo@entregas.fecha

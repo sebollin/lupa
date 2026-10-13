@@ -70,6 +70,7 @@ accionables. Todas las proporciones se expresan en <code>[0, 1]</code>.</p>
 <span>  columnas_sin_ceros <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/character.html" class="external-link">character</a></span><span class="op">(</span><span class="op">)</span>,</span>
 <span>  columnas_no_negativas <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/character.html" class="external-link">character</a></span><span class="op">(</span><span class="op">)</span>,</span>
 <span>  columnas_opcionales <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/character.html" class="external-link">character</a></span><span class="op">(</span><span class="op">)</span>,</span>
+<span>  columnas_codigo <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/character.html" class="external-link">character</a></span><span class="op">(</span><span class="op">)</span>,</span>
 <span>  aplicabilidad <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  ausencia_estructural <span class="op">=</span> <span class="cn">TRUE</span>,</span>
 <span>  sentinelas_numericos <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="op">-</span><span class="fl">9</span>, <span class="op">-</span><span class="fl">99</span>, <span class="op">-</span><span class="fl">999</span>, <span class="op">-</span><span class="fl">9999</span>, <span class="fl">999</span><span class="op">)</span>,</span>
@@ -125,7 +126,7 @@ para que el perfil no aparente haber recibido lo que no recibió.</p></dd>
 
 
 <dt id="arg-nombre">nombre<a class="anchor" aria-label="anchor" href="#arg-nombre"></a></dt>
-<dd><p>Nombre descriptivo del objeto.</p></dd>
+<dd><p>Nombre descriptivo del objeto: una cadena no vacía.</p></dd>
 
 
 <dt id="arg-fecha">fecha<a class="anchor" aria-label="anchor" href="#arg-fecha"></a></dt>
@@ -217,6 +218,29 @@ defecto. Su universo de completitud son las celdas presentes, y
 <code>cobertura_diagnosticos</code> declara el recorte. Sirve para el vacío por
 diseño: un historial con vigencia abierta, una columna que sólo
 corresponde a algunas filas.</p></dd>
+
+
+<dt id="arg-columnas-codigo">columnas_codigo<a class="anchor" aria-label="anchor" href="#arg-columnas-codigo"></a></dt>
+<dd><p>Nombres de columnas que son <strong>códigos</strong>, no
+magnitudes: un código de catálogo, un departamento numerado, una clave
+foránea. El paquete no los distingue por su forma de una magnitud entera
+que llenó su rango —una edad de 18 a 90 repite valores igual que un código
+de 1 a 284—, así que sin la declaración los mide como magnitudes. Una columna
+declarada se perfila por sus valores y no recibe lo que sólo tiene sentido
+sobre una magnitud: ni límites de Tukey (<code>n_outliers</code> en <code>NA</code>, sin hallazgo
+<code>outliers</code> ni <code>posible_centinela_numerico</code>), ni la ley de Benford, ni
+<code>media</code>, <code>mediana</code> y <code>desvio</code>, que quedan en <code>NA</code> con
+<code>estado_resumen_cuantitativo = "omitidos_codigo"</code>. Lo que no se evaluó se
+declara en <code>cobertura_diagnosticos</code> con el motivo. Conserva lo que describe
+sus valores: <code>minimo</code> y <code>maximo</code> —el tramo de códigos observado, donde
+aparece un código fuera de catálogo—, <code>moda</code>, <code>n_distintos</code>, los conteos y
+los faltantes disfrazados. Vale igual por todas las vías que aceptan las
+declaraciones de <code>perfilar()</code>: <code><a href="perfilar_dbi.html">perfilar_dbi()</a></code> —también en su
+<code>resumen_tabla</code>—, <code><a href="perfilar_por.html">perfilar_por()</a></code>, <code><a href="perfilar_coleccion.html">perfilar_coleccion()</a></code> y <code><a href="analizar.html">analizar()</a></code>
+por <code>argumentos_perfil</code>. Vale también para el código guardado como texto
+o como factor, que el paquete lee como número; una columna sin resumen
+numérico —texto que no se lee como número, fechas— no cambia, porque no
+tiene esas cifras. Un nombre que la tabla no tiene es un error.</p></dd>
 
 
 <dt id="arg-aplicabilidad">aplicabilidad<a class="anchor" aria-label="anchor" href="#arg-aplicabilidad"></a></dt>
@@ -484,7 +508,10 @@ un <code>DECIMAL(15,4)</code>—, con cualquier exponente —<code>"5.9899123456
 lo escribe el <code>printf</code> de Windows, también con un espacio antes,
 <code>"5.9899123456 e+10"</code>— y con separador de miles, como lo muestra el
 formato "Número" de una planilla —<code>"59.899.123.456"</code>,
-<code>"59,899,123,456.00"</code>, <code>"59 899 123 456,00"</code>, <code>"59'899'123'456"</code>: todas
+<code>"59,899,123,456.00"</code>, <code>"59 899 123 456,00"</code>, <code>"59'899'123'456"</code>, con el
+punto medio o sus parecidos —el operador viñeta, el punto medio
+katakana: cualquier signo que une los grupos de un número— o con el
+agrupado indio, <code>"59,89,91,23,456"</code>: todas
 las escrituras dan la misma cifra entera—, y al revés: escrito así en un
 texto se lee por su parte nacional, que sale de esa cifra y no de los
 grupos como vienen. La cifra escrita así es el documento
@@ -551,7 +578,11 @@ de cada cien enteros de ocho cifras, que coinciden con un documento entero
 sobre 4.000 con las mismas cifras enteras: su parte entera es la de un
 documento entero; y a los escritos con separador de miles o en notación
 científica, con o sin un espacio antes del exponente —<code>"52.317.219,00"</code>,
-<code>"5.2317219 e+07"</code>—, también 1,8 %: son la misma cifra entera—;
+<code>"5.2317219 e+07"</code>—, también 1,8 %: son la misma cifra entera; y a tres
+de cada cien de los que empiezan con 9 —entre 90 y 99,9 millones: un
+importe, un código—, en cualquier escritura (<code>"98276375"</code>,
+<code>"98.276.375,00"</code>: 3,3 % sobre 4.000), porque tienen además la forma de un
+celular protegido sin su cero—;
 las coordenadas, los p-valores, los importes de siete cifras con decimales
 —también los redondos, <code>"5460537.00"</code>, <code>"5460537,00"</code> o dentro de una
 frase; con un solo cero, <code>"5460537.0"</code>, dos de cada cien, que se leen
@@ -573,9 +604,14 @@ líneas, una lista con tabuladores o con comas sin espacio —también la coma
 ideográfica—, entre una y tres de cada cien; o una versión <code>"v4.16.4302"</code>.
 Un teléfono fijo que no es de nadie, tres de cada cien —2,8 %, sobre
 4.000 fijos—, escrito de cualquier forma: con espacios o guiones
-(<code>"4656 4570"</code>), con su prefijo de país (<code>"+598 4499 0917"</code>) o pegado.
+(<code>"4656 4570"</code>), con su prefijo de país (<code>"+598 4499 0917"</code>) o pegado, y
+como número de planilla con su prefijo (<code>"59.822.877.006"</code>): 3,2 % sobre
+otros 4.000, lo mismo que pegados (<code>"+59822877006"</code>).
 Coincide con un documento o con un teléfono protegido, y como se prueba su
-parte nacional, las mismas cifras se tapan en todas las escrituras. Las
+parte nacional, las mismas cifras se tapan en todas las escrituras, salvo
+la de planilla con los miles y los decimales en cero o con espacios
+(<code>"59.822.877.006,00"</code>, <code>"59 822 877 006"</code>), 4,4 %: como en el celular,
+sus primeras ocho cifras tienen además la forma de una cédula entera. Las
 familias del reproductor que sortean 400 fijos por escritura dan entre 1,5
 y 5,5 %: es el sorteo, no la escritura. Con el prefijo era uno de cada
 seis, porque <code>"598"</code> y el primer grupo formaban una cédula de siete cifras
@@ -588,7 +624,13 @@ prefijo; 3,0 % sobre 4.000 con las mismas cifras, pegado
 (<code>"+59895257283"</code>) o como número de planilla con separador de miles
 (<code>"59.895.257.283"</code>)—: coincide con uno protegido. Con los miles y los
 decimales en cero, o con espacios (<code>"59 895 257 283"</code>), 4,4 %: sus primeras
-ocho cifras tienen además la forma de una cédula entera.
+ocho cifras tienen además la forma de una cédula entera. Con el punto
+medio como separador de miles, 5,3 % sobre otros 4.000 que pegados dan
+4,0 %, y 7,8 % con los decimales en cero: como con espacios, sus grupos se
+prueban también sueltos. Con el agrupado indio (<code>"59,89,52,57,283"</code>), uno
+de cada cinco —20,3 %, y 32,0 % con <code>".00"</code>—: sus grupos de dos forman
+números de siete cifras que coinciden con un documento sin su verificador,
+y eso ya pasaba antes de leerlo como la misma cifra (17,2 y 29,3 %).
 Y, por el mismo parcial, una versión de cuatro partes
 (<code>"v4.62.660.4361"</code>), trece de cada cien, la de cinco partes
 (<code>"v2.76.527.6327.3"</code>), quince de cada cien, y un expediente
@@ -936,7 +978,10 @@ alimenta los diagnosticos que muestrean filas. Por defecto es <code>512 MiB</cod
 El tamaño se estima sobre una sonda de hasta cien filas y se comprueba
 sobre la muestra efectiva; si la cota reduce el alcance,
 <code>cobertura_diagnosticos</code> informa los bytes observados y el umbral. <code>Inf</code>
-desactiva este tope.</p></dd>
+desactiva este tope. Se mide la tabla como llega, con sus nombres de fila:
+son parte de lo que se materializa —y el paquete los trata como datos, por
+ejemplo al proteger—, así que la misma tabla con nombres de fila de texto
+ocupa más y, con el mismo tope, se muestrea en menos filas.</p></dd>
 
 
 <dt id="arg-avisar-costo-tabla-ancha">avisar_costo_tabla_ancha<a class="anchor" aria-label="anchor" href="#arg-avisar-costo-tabla-ancha"></a></dt>
@@ -1327,7 +1372,7 @@ entera acotada también llena su tramo cuando se cargan filas suficientes,
 pero repitiendo valores, y la exclusión no puede depender de cuántas filas
 se cargaron. Es la regla de numeración de todo el perfil (ver
 <code>secuencia_entera_densa</code> más abajo), y una clave declarada excluye a Benford
-siempre. Si
+siempre, como una columna declarada en <code>columnas_codigo</code>. Si
 falla alguna precondición no emite un
 hallazgo: la enumera en <code>cobertura_diagnosticos</code>. Si aplica,
 <code>meta$benford$resultados</code> conserva la distribución observada y esperada por
@@ -1502,7 +1547,9 @@ se pudo convertir no es una geometría y no entra en su denominador. Sin CRS,
 <code>n_fuera_de_dominio</code> queda en <code>NA</code> y se emite <code>crs_no_declarado</code>: nunca se
 supone EPSG:4326. Si falta el paquete opcional <code>sf</code>, todos esos campos quedan
 en <code>NA</code>, no se emite un hallazgo geométrico y <code>cobertura_diagnosticos</code>
-registra la dependencia ausente.</p>
+registra la dependencia ausente. Si <code>sf</code> está instalado pero no se pudo cargar
+en la sesión —con <code>LC_NUMERIC</code> en coma no carga su dependencia <code>units</code>—, pasa
+lo mismo y el motivo lo dice: no pide instalar lo que ya está.</p>
 <p>Una columna cuyos valores son <code>data.frame</code> o matriz —lo que devuelve un driver al
 leer un <code>STRUCT</code>— declara <code>n</code> en <strong>filas</strong>, como cualquier otra: tiene tantos
 valores como la tabla, y lo que no se puede es analizarlos como texto, que se
@@ -1642,7 +1689,10 @@ suficientes, y el veredicto dependía de cuántas filas se leyeron; una
 numeración que se repite —un código de catálogo, una clave foránea— no se
 distingue por su forma de esa magnitud y no se trata como numeración. Es la
 misma regla que deciden <code>posible_identificador</code>, la guarda de los límites de
-Tukey, la de los patrones raros y la de Benford.
+Tukey, la de los patrones raros y la de Benford. Por eso un código de
+catálogo que se repite —un <code>EstCod</code> de 1 a 284— recibe límites de Tukey y,
+con tres órdenes de magnitud, Benford, aunque se lo pase como texto o como
+factor: el paquete infiere número. Para eso está <code>columnas_codigo</code>.
 <code>moda_sobresale_secuencia_entera</code> es una señal independiente y no
 cambia los tres escudos de forma que dependen de la numeración.
 En una columna <code>integer64</code>, <code>bit64</code> se carga de manera diferida si está
@@ -1717,11 +1767,13 @@ que supera el umbral aporta evidencia verificable y eleva la clasificación;
 una forma sola nunca se trata como prueba de identidad.</p>
 <p>Este criterio mide capacidad de discriminación, no juzga si la presencia del
 dato es correcta. La protección sustituye modas, ejemplos, evidencia y
-extremos o medianas que corresponden a observaciones reales. Los desvíos se conservan; las medias se protegen en sus dos formas
-(<code>media</code> y
-<code>media_fecha</code>), porque la media de una columna personal puede reconstruir
-demasiado. Los desvíos siguen siendo síntesis no ligadas a una fila;
-<code>detalle_proteccion_personal</code> hace visible la supresión. En fechas de
+extremos o medianas que corresponden a observaciones reales. También los
+momentos: las medias en sus dos formas (<code>media</code> y <code>media_fecha</code>), porque la
+media de una columna personal puede reconstruir demasiado, y el desvío, que
+es una magnitud de sus valores —hasta la ronda 32 se conservaba, por una
+decisión declarada que se revirtió—. <code>detalle_proteccion_personal</code> hace
+visible la supresión y dice qué se tapó: los estadísticos de orden, la media,
+el desvío o los dos momentos. En fechas de
 nacimiento y fallecimiento, un hallazgo separado conserva el diagnóstico de
 valores anteriores a 1900 o posteriores a la corrida sin publicar las fechas.
 Los números escritos como texto reconocen tanto coma como punto decimal y
@@ -1957,9 +2009,9 @@ quedan en la evidencia del hallazgo.</p>
 <span class="r-out co"><span class="r-pr">#&gt;</span> 9               NA              NA             NA                     NA      1</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> 10               5               5       5.000000                     13     NA</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>     maximo        media mediana       desvio minimo_exacto maximo_exacto</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 1       NA           NA      NA 3.546396e+00          &lt;NA&gt;          &lt;NA&gt;</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 1       NA           NA      NA           NA          &lt;NA&gt;          &lt;NA&gt;</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> 2       NA           NA      NA           NA          &lt;NA&gt;          &lt;NA&gt;</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 3       NA           NA      NA 1.191710e+08          &lt;NA&gt;          &lt;NA&gt;</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 3       NA           NA      NA           NA          &lt;NA&gt;          &lt;NA&gt;</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> 4       NA           NA      NA           NA          &lt;NA&gt;          &lt;NA&gt;</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> 5  9999999 7.900192e+05   29900 2.767287e+06          &lt;NA&gt;          &lt;NA&gt;</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> 6       NA           NA      NA           NA          &lt;NA&gt;          &lt;NA&gt;</span>
@@ -2100,9 +2152,9 @@ quedan en la evidencia del hallazgo.</p>
 <span class="r-out co"><span class="r-pr">#&gt;</span> 9         NA        NA        NA        NA</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> 10        NA        NA        NA        NA</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>                      detalle_proteccion_personal n_blancos n_espacios_borde</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 1  [estadisticos de orden y la media protegidos]         0                0</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 1  [estadisticos de orden y momentos protegidos]         0                0</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> 2             [estadisticos de orden protegidos]         0                0</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 3  [estadisticos de orden y la media protegidos]         0                0</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 3  [estadisticos de orden y momentos protegidos]         0                0</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> 4                                           &lt;NA&gt;         1                0</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> 5                                           &lt;NA&gt;         0                0</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> 6                                           &lt;NA&gt;         0                0</span>

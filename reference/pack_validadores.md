@@ -66,7 +66,7 @@ digito_rut_cl <- function(x) {
     if (!grepl("^[0-9]{7,8}[0-9K]$", z)) return(FALSE)
     cuerpo <- as.integer(strsplit(substr(z, 1, nchar(z) - 1), "")[[1]])
     suma <- sum(rev(cuerpo) * rep(2:7, length.out = length(cuerpo)))
-    esperado <- 11 - suma %% 11
+    esperado <- 11L - suma %% 11L  # entero: su texto no sigue a `scipen`
     esperado <- if (esperado == 11) "0" else if (esperado == 10) "K" else
       as.character(esperado)
     identical(substr(z, nchar(z), nchar(z)), esperado)

@@ -79,7 +79,8 @@ usuario deja activas.</p>
 
 <dt id="arg-datos">datos<a class="anchor" aria-label="anchor" href="#arg-datos"></a></dt>
 <dd><p>Datos originales opcionales. Son necesarios para proponer
-dominios observados y materializar reglas de dependencia funcional.</p></dd>
+dominios observados, materializar reglas de dependencia funcional e
+identificar los faltantes disfrazados que cuenta <code>NoNulo</code>.</p></dd>
 
 
 <dt id="arg-relaciones">relaciones<a class="anchor" aria-label="anchor" href="#arg-relaciones"></a></dt>
@@ -124,15 +125,40 @@ directos, como <code>NoNulo</code>, duplicación exacta y dependencias funcional
 exactas, se activan. <code>max_sugerencias</code> recorta después de ordenar por
 prioridad y el objeto declara el total en sus atributos. Dentro de cada
 prioridad las filas se ordenan por métrica, entidad y atributos según sus
-bytes —no según la intercalación del locale— y <code>id_sugerencia</code> las numera en
-ese orden: el mismo perfil da los mismos identificadores en cualquier sesión.
-Si una columna contiene faltantes disfrazados, <code>NoNulo</code> se propone pero queda
-inactiva hasta normalizarlos o configurar la métrica para reconocerlos. De
-otro modo mediría sólo los <code>NA</code> reales y sobrestimaría la completitud. Por
-eso sale con estado <code>faltantes_disfrazados</code> y no <code>lista</code>: <code><a href="analizar.html">analizar()</a></code> no la
-mide y <code><a href="modelo_desde_propuesta.html">modelo_desde_propuesta()</a></code> no la materializa. Para medirla, normalizar
-los disfrazados y volver a perfilar, o declararlos en <code>valores_nulos</code> de su
-<code>configuracion</code> y pasar su <code>estado</code> a <code>"lista"</code>.
+bytes —no según la intercalación del locale—: el mismo orden en cualquier
+sesión.</p>
+<p><code>id_sugerencia</code> se arma con el <strong>contenido</strong> de la sugerencia, nunca con su
+posición: la métrica y sus atributos en su orden —<code>NoNulo:edad</code>,
+<code>ReglaIntegridadIntraEntidad:depto,codigo</code>— y, cuando la sugerencia liga dos
+tablas, cada atributo con su entidad delante
+(<code>ReglaIntegridadInterEntidad:personas.id,visitas.persona_id</code>). Una
+sugerencia sin atributos lleva sólo la métrica (<code>EntidadDuplicada</code>). Así una
+columna que se agrega o se quita no cambia el id de las demás, y una regla de
+<code><a href="reglas_evaluacion.html">regla_evaluacion()</a></code> que lo nombra sigue midiendo lo mismo en la corrida
+siguiente: <code><a href="modelo_desde_propuesta.html">modelo_desde_propuesta()</a></code> lo usa como nombre de la instancia, que
+es la <code>metrica_instanciada</code> de <code><a href="medir.html">medir()</a></code>, del tablero y del histórico. La
+entidad de una sugerencia de una sola tabla no entra, porque es el nombre del
+perfil y cambia con la expresión perfilada; la configuración tampoco: un
+cambio de patrón o de dominio lo declara el histórico en
+<code>configuracion_modelo</code>. Dentro de cada nombre se escribe <code>%25</code>, <code>%2C</code> y <code>%23</code>
+en lugar de <code>%</code>, <code>,</code> y <code>#</code> —y <code>%2E</code> en lugar de <code>.</code> en una entidad—, y un
+nombre <code>NA</code> se escribe <code>%NA</code>, de modo que dos contenidos distintos no dan el
+mismo id. Un nombre que no es UTF-8 válido escribe cada byte alto como <code>%XX</code>
+—los bytes latin1 de «notaé» sin declarar dan <code>nota%E9</code>—, así que el id es
+siempre texto UTF-8 o ASCII, el mismo en cualquier locale. Si dos sugerencias
+tienen el mismo contenido —una tabla que repite
+el nombre de una columna—, la segunda lleva <code>#2</code> y la tercera <code>#3</code>, en el
+orden de las columnas de la tabla.</p>
+<p>Si una columna contiene faltantes disfrazados, <code>NoNulo</code> se propone activa,
+con estado <code>lista</code>, y <strong>se mide contándolos</strong>: los valores que el perfil contó
+como disfrazados —con la misma regla y la misma declaración de
+<code>sentinelas_numericos</code> y <code>cadenas_ausencia</code>— se declaran en <code>valores_nulos</code> de
+su <code>configuracion</code>, y la justificación lo dice. Sobre cuarenta valores con un
+<code>NA</code> y tres <code>-999</code> mide 0,90, no 0,975. Si no se pueden identificar —sin
+<code>datos</code>, la propuesta no tiene de dónde sacarlos—, se mide igual con los
+valores crudos, y la justificación dice que cuenta sólo los <code>NA</code> y que
+sobrestima la completitud. <code><a href="analizar.html">analizar()</a></code> la mide y <code><a href="modelo_desde_propuesta.html">modelo_desde_propuesta()</a></code>
+la materializa como a cualquier otra sugerencia activa.
 Una sugerencia sobre una columna cuyo nombre la tabla repite sale inactiva y
 con estado <code>nombre_repetido</code>: una métrica se liga por nombre, y ese nombre no
 dice cuál de las columnas mide. <code><a href="modelo_desde_propuesta.html">modelo_desde_propuesta()</a></code> no la materializa

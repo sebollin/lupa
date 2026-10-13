@@ -80,10 +80,10 @@ medicion <- medir(
 )
 medicion[, c("metrica", "metrica_instanciada", "resultado")]
 #>   metrica metrica_instanciada resultado
-#> 1  NoNulo     sugerencia-0001         1
-#> 2  NoNulo     sugerencia-0001         0
-#> 3  NoNulo     sugerencia-0001         1
-#> 4  NoNulo     sugerencia-0001         1
+#> 1  NoNulo         NoNulo:edad         1
+#> 2  NoNulo         NoNulo:edad         0
+#> 3  NoNulo         NoNulo:edad         1
+#> 4  NoNulo         NoNulo:edad         1
 ```
 
 ## 4. Evaluar
@@ -104,7 +104,7 @@ perfil_para_evaluar <- perfil_evaluacion("Publicable", regla)
 evaluacion <- evaluar(medicion, perfil_para_evaluar)
 evaluacion$perfiles
 #>      id_medicion               fecha     perfil n_reglas resultado
-#> 1 ejemplo-guiado 2026-10-13 04:24:35 Publicable        1      0.75
+#> 1 ejemplo-guiado 2026-10-13 23:17:27 Publicable        1      0.75
 ```
 
 La evaluación aplica una condición a las medidas existentes. No vuelve a

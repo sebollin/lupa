@@ -76,33 +76,45 @@ analisis$tablero
 #> ── Tablero de calidad ────────────────────────────────────────────────────────────────────
 #>       componente    dimension                 factor                     metrica
 #>  componente-0001     Unicidad         No-duplicación            EntidadDuplicada
-#>  componente-0002    Exactitud Correctitud sintáctica                     Formato
-#>  componente-0003    Exactitud Correctitud sintáctica                     Formato
-#>  componente-0004    Exactitud Correctitud sintáctica                     Formato
-#>  componente-0005    Exactitud Correctitud sintáctica                     Formato
-#>  componente-0006 Consistencia  Integridad de dominio ValoresPosiblesPorExtension
-#>  metrica_instanciada            entidad    objeto     valor orientacion agregacion umbral
-#>      sugerencia-0001 entrega de ejemplo   (tabla) 0.1538462     defecto      ratio     NA
-#>      sugerencia-0006 entrega de ejemplo  contacto 0.8461538 conformidad      ratio     NA
-#>      sugerencia-0007 entrega de ejemplo id_evento 1.0000000 conformidad      ratio     NA
-#>      sugerencia-0008 entrega de ejemplo   sistema 1.0000000 conformidad      ratio     NA
-#>      sugerencia-0009 entrega de ejemplo      zona 1.0000000 conformidad      ratio     NA
-#>      sugerencia-0010 entrega de ejemplo      zona 1.0000000 conformidad      ratio     NA
-#>  universo
-#>     filas
-#>    celdas
-#>    celdas
-#>    celdas
-#>    celdas
-#>    celdas
+#>  componente-0002  Completitud               Densidad                      NoNulo
+#>  componente-0003  Completitud               Densidad                      NoNulo
+#>  componente-0004  Completitud               Densidad                      NoNulo
+#>  componente-0005  Completitud               Densidad                      NoNulo
+#>  componente-0006    Exactitud Correctitud sintáctica                     Formato
+#>  componente-0007    Exactitud Correctitud sintáctica                     Formato
+#>  componente-0008    Exactitud Correctitud sintáctica                     Formato
+#>  componente-0009    Exactitud Correctitud sintáctica                     Formato
+#>  componente-0010 Consistencia  Integridad de dominio ValoresPosiblesPorExtension
+#>               metrica_instanciada            entidad         objeto     valor orientacion
+#>                  EntidadDuplicada entrega de ejemplo        (tabla) 0.1538462     defecto
+#>                      NoNulo:canal entrega de ejemplo          canal 0.8461538 conformidad
+#>             NoNulo:codigo_usuario entrega de ejemplo codigo_usuario 0.9230769 conformidad
+#>               NoNulo:fecha_evento entrega de ejemplo   fecha_evento 0.9230769 conformidad
+#>                      NoNulo:monto entrega de ejemplo          monto 0.9230769 conformidad
+#>                  Formato:contacto entrega de ejemplo       contacto 0.8461538 conformidad
+#>                 Formato:id_evento entrega de ejemplo      id_evento 1.0000000 conformidad
+#>                   Formato:sistema entrega de ejemplo        sistema 1.0000000 conformidad
+#>                      Formato:zona entrega de ejemplo           zona 1.0000000 conformidad
+#>  ValoresPosiblesPorExtension:zona entrega de ejemplo           zona 1.0000000 conformidad
+#>  agregacion umbral universo
+#>       ratio     NA    filas
+#>       ratio     NA   celdas
+#>       ratio     NA   celdas
+#>       ratio     NA   celdas
+#>       ratio     NA   celdas
+#>       ratio     NA   celdas
+#>       ratio     NA   celdas
+#>       ratio     NA   celdas
+#>       ratio     NA   celdas
+#>       ratio     NA   celdas
 #> 
 #> ── Alcance del marco ──
 #> 
 #>  factores_marco factores_medidos sin_metrica_declarada no_aplican fuera_de_alcance
 #>               3                0                     3          0                0
 #>  medidos_fuera_del_marco
-#>                        3
-#> ! 3 pares dimensión-factor medidos no están declarados en este marco: Unicidad|No-duplicación, Exactitud|Correctitud sintáctica, Consistencia|Integridad de dominio. No entran en la cobertura de arriba.
+#>                        4
+#> ! 4 pares dimensión-factor medidos no están declarados en este marco: Unicidad|No-duplicación, Completitud|Densidad, Exactitud|Correctitud sintáctica, Consistencia|Integridad de dominio. No entran en la cobertura de arriba.
 ```
 
 Los hallazgos son datos. Se pueden filtrar, ordenar o exportar sin
@@ -222,9 +234,9 @@ que podrían ser valores de una persona se suprimen y la tabla lo marca.
 Se suprimen los de orden —mínimo, máximo, mediana, moda— y también la
 media, porque sobre pocas filas se acerca a un valor y porque publicarla
 junto a otras cifras del mismo perfil permite despejar las que sí se
-protegieron. El desvío se mantiene: describe la dispersión sin acercarse
-a ninguna fila. La supresión se declara, y distingue el estadístico de
-orden del momento.
+protegieron. Y el desvío, que es una magnitud de los mismos valores. La
+supresión se declara, y distingue el estadístico de orden de los
+momentos.
 
 ``` r
 
@@ -411,22 +423,24 @@ propuesta[, c(
 #> 8                      Formato        sistema         perfil:patron_dominante:a+
 #> 9                      Formato           zona        perfil:patron_dominante:Aa+
 #> 10 ValoresPosiblesPorExtension           zona           perfil:dominio_observado
-#>    prioridad incluir                estado
-#> 1       alta    TRUE                 lista
-#> 2       alta   FALSE faltantes_disfrazados
-#> 3       alta   FALSE faltantes_disfrazados
-#> 4       alta   FALSE faltantes_disfrazados
-#> 5       alta   FALSE faltantes_disfrazados
-#> 6      media   FALSE                 lista
-#> 7      media   FALSE                 lista
-#> 8      media   FALSE                 lista
-#> 9      media   FALSE                 lista
-#> 10      baja   FALSE                 lista
+#>    prioridad incluir estado
+#> 1       alta    TRUE  lista
+#> 2       alta    TRUE  lista
+#> 3       alta    TRUE  lista
+#> 4       alta    TRUE  lista
+#> 5       alta    TRUE  lista
+#> 6      media   FALSE  lista
+#> 7      media   FALSE  lista
+#> 8      media   FALSE  lista
+#> 9      media   FALSE  lista
+#> 10      baja   FALSE  lista
 ```
 
 Las filas activas se convierten en un modelo y se miden. En este ejemplo
-la métrica estructural activa detecta las filas que participan en
-duplicados.
+hay dos clases de métricas activas: la estructural detecta las filas que
+participan en duplicados, y `NoNulo` mide la completitud de cuatro
+columnas contando como faltantes los valores disfrazados que el perfil
+encontró.
 
 ``` r
 
@@ -446,13 +460,16 @@ head(medidas[, c("metrica", "fila", "resultado")])
 #> 6 EntidadDuplicada    6         0
 ```
 
-La medida booleana por fila puede agregarse a la entidad mediante
-`ratio`. Después se evalúa una regla explícita; no aparece un puntaje
-global inventado.
+La medida booleana por fila de los duplicados puede agregarse a la
+entidad mediante `ratio`;
+[`agregar()`](https://sebollin.github.io/lupa/reference/agregar.md) sólo
+combina medidas de una misma métrica, así que se toma esa. Después se
+evalúa una regla explícita; no aparece un puntaje global inventado.
 
 ``` r
 
-medida_entidad <- agregar(medidas, "entidad", "ratio")
+duplicados <- medidas[medidas$metrica == "EntidadDuplicada", ]
+medida_entidad <- agregar(duplicados, "entidad", "ratio")
 regla <- regla_evaluacion(
   "Duplicación menor al 20 %",
   function(x) x < 0.2
@@ -572,7 +589,7 @@ archivo <- reportar(
   titulo = "Calidad de la entrega de ejemplo"
 )
 basename(archivo)
-#> [1] "file21b11ad43d09.html"
+#> [1] "file21ad4105bea7.html"
 unlink(c(archivo, archivo_rds))
 ```
 

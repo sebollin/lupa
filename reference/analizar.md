@@ -52,7 +52,10 @@ analizar(
 
 - fecha:
 
-  Fecha y hora reproducible de la corrida.
+  Fecha y hora reproducible de la corrida. Se lee una vez, como en
+  [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md)
+  y [`medir()`](https://sebollin.github.io/lupa/reference/medir.md): en
+  UTC, también un texto como `"2026-03-01"`.
 
 - argumentos_perfil:
 
@@ -196,19 +199,24 @@ analizar(
   —un registro de `vctrs`, un `blob`— por sus valores; un BLOB (`raw`)
   se lee como el texto que guarda y, si lleva un valor protegido, la
   copia guarda los bytes del texto tapado; un entorno no se modifica —es
-  del usuario—: si guarda un valor protegido, la copia lleva
-  `"[valor protegido]"` en su lugar, también si tiene un atributo
-  `name`; sólo el global, el de un paquete y los de la ruta de búsqueda
-  se dejan como están. Una llamada, una fórmula o una función se leen
-  como el texto que [`print()`](https://rdrr.io/r/base/print.html)
-  escribe —con sus atributos y, si guarda su fuente (`srcref`), la
-  fuente con sus comentarios—, y también por sus atributos y, la
-  función, por su entorno; si algo de eso lleva un valor protegido, la
-  copia lleva `"[valor protegido]"` en su lugar. Una columna protegida
-  conserva sólo los atributos de su clase (`class`, `tzone`, `units`,
-  `dim`), y `tzone` y `units` pasan por el piso: las etiquetas de valor
-  de un `haven_labelled` se quitan. Para conservar sus valores debe
-  usarse `proteger_datos_personales = FALSE` al crear el analisis y al
+  del usuario—: si guarda un valor protegido, en su contenido o en sus
+  atributos —valor y nombre, también `name`, que
+  [`print()`](https://rdrr.io/r/base/print.html) muestra—, la copia
+  lleva `"[valor protegido]"` en su lugar, también si tiene un atributo
+  `name`; y también si no se puede leer entero —una promesa o una
+  ligadura activa que aborta al leerse—, porque lo que no se lee no se
+  sabe limpio; sólo el global, el de un paquete y los de la ruta de
+  búsqueda se dejan como están. Una llamada, una fórmula o una función
+  se leen como el texto que
+  [`print()`](https://rdrr.io/r/base/print.html) escribe —con sus
+  atributos y, si guarda su fuente (`srcref`), la fuente con sus
+  comentarios—, y también por sus atributos y, la función, por su
+  entorno; si algo de eso lleva un valor protegido, la copia lleva
+  `"[valor protegido]"` en su lugar. Una columna protegida conserva sólo
+  los atributos de su clase (`class`, `tzone`, `units`, `dim`), y
+  `tzone` y `units` pasan por el piso: las etiquetas de valor de un
+  `haven_labelled` se quitan. Para conservar sus valores debe usarse
+  `proteger_datos_personales = FALSE` al crear el analisis y al
   guardarlo. La opcion del guardado no recupera valores que el analisis
   ya enmascaro.
 
@@ -285,33 +293,57 @@ resultado
 #> ── Tablero de calidad ──────────────────────────────────────────────────────────
 #>       componente    dimension                 factor
 #>  componente-0001     Unicidad         No-duplicación
-#>  componente-0002    Exactitud Correctitud sintáctica
-#>  componente-0003    Exactitud Correctitud sintáctica
-#>  componente-0004    Exactitud Correctitud sintáctica
-#>  componente-0005    Exactitud Correctitud sintáctica
+#>  componente-0002  Completitud               Densidad
+#>  componente-0003  Completitud               Densidad
+#>  componente-0004  Completitud               Densidad
+#>  componente-0005  Completitud               Densidad
 #>  componente-0006    Exactitud Correctitud sintáctica
-#>  componente-0007 Consistencia  Integridad de dominio
-#>                      metrica metrica_instanciada               entidad
-#>             EntidadDuplicada     sugerencia-0001 datos_administrativos
-#>                      Formato     sugerencia-0006 datos_administrativos
-#>                      Formato     sugerencia-0007 datos_administrativos
-#>                      Formato     sugerencia-0008 datos_administrativos
-#>                      Formato     sugerencia-0009 datos_administrativos
-#>                      Formato     sugerencia-0010 datos_administrativos
-#>  ValoresPosiblesPorExtension     sugerencia-0011 datos_administrativos
-#>        objeto     valor orientacion agregacion umbral universo
-#>       (tabla) 0.1538462     defecto      ratio     NA    filas
-#>        correo 0.8461538 conformidad      ratio     NA   celdas
-#>  departamento 0.9230769 conformidad      ratio     NA   celdas
-#>    id_tramite 1.0000000 conformidad      ratio     NA   celdas
-#>          pais 1.0000000 conformidad      ratio     NA   celdas
-#>          sexo 0.8461538 conformidad      ratio     NA   celdas
-#>          sexo 1.0000000 conformidad      ratio     NA   celdas
+#>  componente-0007    Exactitud Correctitud sintáctica
+#>  componente-0008    Exactitud Correctitud sintáctica
+#>  componente-0009    Exactitud Correctitud sintáctica
+#>  componente-0010    Exactitud Correctitud sintáctica
+#>  componente-0011 Consistencia  Integridad de dominio
+#>                      metrica              metrica_instanciada
+#>             EntidadDuplicada                 EntidadDuplicada
+#>                       NoNulo                    NoNulo:cedula
+#>                       NoNulo          NoNulo:fecha_nacimiento
+#>                       NoNulo                   NoNulo:ingreso
+#>                       NoNulo                      NoNulo:sexo
+#>                      Formato                   Formato:correo
+#>                      Formato             Formato:departamento
+#>                      Formato               Formato:id_tramite
+#>                      Formato                     Formato:pais
+#>                      Formato                     Formato:sexo
+#>  ValoresPosiblesPorExtension ValoresPosiblesPorExtension:sexo
+#>                entidad           objeto     valor orientacion agregacion umbral
+#>  datos_administrativos          (tabla) 0.1538462     defecto      ratio     NA
+#>  datos_administrativos           cedula 0.9230769 conformidad      ratio     NA
+#>  datos_administrativos fecha_nacimiento 0.9230769 conformidad      ratio     NA
+#>  datos_administrativos          ingreso 0.9230769 conformidad      ratio     NA
+#>  datos_administrativos             sexo 0.8461538 conformidad      ratio     NA
+#>  datos_administrativos           correo 0.8461538 conformidad      ratio     NA
+#>  datos_administrativos     departamento 0.9230769 conformidad      ratio     NA
+#>  datos_administrativos       id_tramite 1.0000000 conformidad      ratio     NA
+#>  datos_administrativos             pais 1.0000000 conformidad      ratio     NA
+#>  datos_administrativos             sexo 0.8461538 conformidad      ratio     NA
+#>  datos_administrativos             sexo 1.0000000 conformidad      ratio     NA
+#>  universo
+#>     filas
+#>    celdas
+#>    celdas
+#>    celdas
+#>    celdas
+#>    celdas
+#>    celdas
+#>    celdas
+#>    celdas
+#>    celdas
+#>    celdas
 #> 
 #> ── Alcance del marco ──
 #> 
 #>  factores_marco factores_medidos sin_metrica_declarada no_aplican
-#>              17                3                     9          4
+#>              17                4                     8          4
 #>  fuera_de_alcance medidos_fuera_del_marco
 #>                 1                       0
 #> ── Cobertura conceptual ──

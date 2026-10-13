@@ -39,7 +39,8 @@ descubrir_patrones(
 
 - max_patrones:
 
-  Número máximo de patrones que se muestran.
+  Número máximo de patrones que se muestran: un entero positivo, o `Inf`
+  para mostrarlos todos.
 
 - na.rm:
 
