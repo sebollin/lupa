@@ -158,7 +158,11 @@ su <code>configuracion</code>, y la justificación lo dice. Sobre cuarenta valor
 <code>datos</code>, la propuesta no tiene de dónde sacarlos—, se mide igual con los
 valores crudos, y la justificación dice que cuenta sólo los <code>NA</code> y que
 sobrestima la completitud. <code><a href="analizar.html">analizar()</a></code> la mide y <code><a href="modelo_desde_propuesta.html">modelo_desde_propuesta()</a></code>
-la materializa como a cualquier otra sugerencia activa.
+la materializa como a cualquier otra sugerencia activa. Si la columna se
+declaró en <code>columnas_opcionales</code> de <code><a href="perfilar.html">perfilar()</a></code>, la <code>NoNulo</code> lleva además
+<code>opcional = TRUE</code> y se mide sobre las celdas presentes, el mismo universo
+que el perfil: con un <code>NA</code> y tres <code>-999</code> en cuarenta celdas mide
+36/39 = 0,923, que es <code>1 - prop_faltantes_totales</code>.
 Una sugerencia sobre una columna cuyo nombre la tabla repite sale inactiva y
 con estado <code>nombre_repetido</code>: una métrica se liga por nombre, y ese nombre no
 dice cuál de las columnas mide. <code><a href="modelo_desde_propuesta.html">modelo_desde_propuesta()</a></code> no la materializa

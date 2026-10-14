@@ -1173,7 +1173,11 @@ than silencing. Whoever knows the column corrects it by declaring it in
 `columnas_codigo`: a declared code gets no Tukey fences, no Benford and
 no `media`, `mediana` or `desvio`, keeps its range, mode and counts, and
 the coverage says why. Passing it as text or as a factor does not help,
-because the package reads it as a number.
+because the package reads it as a number. Inside
+[`analizar()`](https://sebollin.github.io/lupa/reference/analizar.md)
+the declaration also reaches `variables` — nominal scale, category role
+— and `asociaciones`, where the code is associated as a category rather
+than with a correlation.
 
 For an `integer64` column, `bit64` is loaded lazily when it is installed
 so its methods are registered before measuring. If it is not installed,

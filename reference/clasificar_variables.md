@@ -76,6 +76,11 @@ Data frame S3 `clasificacion_variables`, editable y filtrable.
 
 ## Details
 
+Con `perfil`, una columna declarada en su `columnas_codigo` es un código
+y no una magnitud: en lugar de `discreta` o `continua` con rol `medida`,
+sale `nominal`, con rol `categoria` y confirmada, porque la declaración
+es del usuario. `metadatos` la puede corregir igual.
+
 `metadatos` permite confirmar o corregir la propuesta con una tabla
 editable. Debe contener `columna` y puede incluir `escala`, `rol`,
 `confianza`, `confirmada`, `unidad` y una columna de lista `niveles`.

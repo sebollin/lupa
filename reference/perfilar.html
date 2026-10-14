@@ -217,7 +217,10 @@ y sólo los que la superan quedan excluidos.</p></dd>
 defecto. Su universo de completitud son las celdas presentes, y
 <code>cobertura_diagnosticos</code> declara el recorte. Sirve para el vacío por
 diseño: un historial con vigencia abierta, una columna que sólo
-corresponde a algunas filas.</p></dd>
+corresponde a algunas filas. La declaración queda en
+<code>meta$columnas_opcionales</code>, y la <code>NoNulo</code> que <code><a href="proponer_modelo.html">proponer_modelo()</a></code> propone
+para la columna —cuando tiene faltantes disfrazados— se mide sobre el mismo
+universo (<code>opcional = TRUE</code>).</p></dd>
 
 
 <dt id="arg-columnas-codigo">columnas_codigo<a class="anchor" aria-label="anchor" href="#arg-columnas-codigo"></a></dt>
@@ -238,9 +241,19 @@ los faltantes disfrazados. Vale igual por todas las vías que aceptan las
 declaraciones de <code>perfilar()</code>: <code><a href="perfilar_dbi.html">perfilar_dbi()</a></code> —también en su
 <code>resumen_tabla</code>—, <code><a href="perfilar_por.html">perfilar_por()</a></code>, <code><a href="perfilar_coleccion.html">perfilar_coleccion()</a></code> y <code><a href="analizar.html">analizar()</a></code>
 por <code>argumentos_perfil</code>. Vale también para el código guardado como texto
-o como factor, que el paquete lee como número; una columna sin resumen
-numérico —texto que no se lee como número, fechas— no cambia, porque no
-tiene esas cifras. Un nombre que la tabla no tiene es un error.</p></dd>
+o como factor, que el paquete lee como número —y ese código no recibe el
+hallazgo <code>tipo_declarado_distinto</code>, que pedía convertirlo a número—; una
+columna sin resumen numérico —texto que no se lee como número, fechas— no
+cambia, porque no tiene esas cifras. Un nombre que la tabla no tiene es un
+error. Dentro de <code><a href="analizar.html">analizar()</a></code> la declaración llega también a <code>variables</code>
+—escala <code>nominal</code>, rol <code>categoria</code>, confirmada— y a <code>asociaciones</code>, donde
+el código se asocia como categoría (eta cuadrado o V de Cramér) y no con
+una correlación que supone una magnitud. En <code><a href="perfilar_dbi.html">perfilar_dbi()</a></code>, la
+corroboración entre <code>resumen_tabla</code> y <code>perfil_muestra</code> no compara la
+media, la mediana ni el desvío de una columna declarada: no se calculan.
+En <code><a href="perfilar_coleccion.html">perfilar_coleccion()</a></code> la declaración vale igual para todas las
+tablas: una tabla que no tiene la columna declarada no se perfila
+(limitación conocida; ver la ayuda de esa función).</p></dd>
 
 
 <dt id="arg-aplicabilidad">aplicabilidad<a class="anchor" aria-label="anchor" href="#arg-aplicabilidad"></a></dt>

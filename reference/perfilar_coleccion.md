@@ -71,25 +71,41 @@ perfilar_coleccion(
   `resumen_tabla$meta$proteccion_personal$otras_tablas` dice por qué.
   Con esos valores se barren también `cobertura_coleccion`,
   `cobertura_metricas` y `meta$lecturas`, que juntan los motivos de
-  todas las tablas. Sin retenerlos, esos tres campos y el mensaje del
-  motor de cada tabla pasan igual por el piso con los valores que las
-  tablas leyeron y que un mensaje del motor puede llevar —todo valor con
-  letras, porque cualquier palabra puede ser el nombre de una columna de
-  otra tabla, y el número que el mensaje no omite entero, como
-  `"099;123;456"`, escrito con un signo que no une; ver
+  todas las tablas. Con o sin retenerlos, esos tres campos, los perfiles
+  retenidos y el mensaje del motor de cada tabla pasan además por el
+  piso con los valores que las tablas leyeron y que un mensaje del motor
+  puede llevar —todo valor con letras, porque cualquier palabra puede
+  ser el nombre de una columna de otra tabla, y el número que el mensaje
+  no omite entero, como `"099;123;456"`, escrito con un signo que no
+  une; ver
   [`perfilar_dbi()`](https://sebollin.github.io/lupa/reference/perfilar_dbi.md)—,
   sin consultas de más: el mensaje de una vista que citaba
-  `"Campos Cadena"`, la celda de su tabla base, se publicaba. De cada
-  uno se guarda una huella —ocho bytes de su forma plegada y sin
-  separadores— y no el texto: la memoria no crece con el largo de los
-  nombres que se leen, y un tramo del mensaje con la huella de uno se
-  tapa como esté escrito; dos formas con la misma huella, una en 2^52,
-  sólo pueden tapar de más. Y los avisos de consola de cada tabla se
-  emiten al final, después del mismo piso que esos tres campos, con o
-  sin perfiles: el aviso de una vista perfilada antes que su tabla base
-  citaba la celda. También si la colección se corta —una interrupción,
-  un error— después de leer alguna tabla: los avisos juntados salen por
-  ese mismo piso, con los valores que se conocían.
+  `"Campos Cadena"`, la celda de su tabla base, se publicaba; y con
+  perfiles retenidos y una tabla base incompleta —una columna protegida
+  `ntext` de SQL Server, que no admite el `GROUP BY` que lee sus
+  valores— el piso usaba sólo las tablas completas y el motivo de la
+  vista citaba el valor entero. De cada uno se guarda una huella —ocho
+  bytes de su forma plegada y sin separadores— y no el texto: la memoria
+  no crece con el largo de los nombres que se leen, y un tramo del
+  mensaje con la huella de uno se tapa como esté escrito; dos formas con
+  la misma huella, una en 2^52, sólo pueden tapar de más. Y cada mensaje
+  del motor se guarda como llegó mientras dura la colección —en memoria;
+  nunca entra al objeto— y al final se vuelve a leer con todo lo que la
+  colección leyó: con una vista perfilada antes que su tabla base el
+  piso no conocía todavía el nombre, y la segunda pasada dejaba su resto
+  —`"De Los Campos"` de `"María De Los Campos"` en SQL Server en sueco,
+  `"Campos Cadena"` después de un apodo entre comillas—. El orden de las
+  tablas no cambia lo que se publica; lo vuelto a leer reemplaza a lo
+  publicado sólo si publica menos. Se reemplaza el texto tal como se
+  publicó: si el piso de la propia tabla ya lo había cambiado —el
+  mensaje citaba entero, además, un valor protegido de esa misma tabla—,
+  la relectura no lo encuentra y queda sólo el piso de las huellas, que
+  tapa los valores enteros y no el resto. Y los avisos de consola de
+  cada tabla se emiten al final, después del mismo piso que esos tres
+  campos, con o sin perfiles: el aviso de una vista perfilada antes que
+  su tabla base citaba la celda. También si la colección se corta —una
+  interrupción, un error— después de leer alguna tabla: los avisos
+  juntados salen por ese mismo piso, con los valores que se conocían.
   [`perfilar_dbi()`](https://sebollin.github.io/lupa/reference/perfilar_dbi.md)
   sobre una tabla sola protege sólo con los de esa tabla. Sin protección
   (`proteger_datos_personales = FALSE`) no se cruza nada: cada perfil
@@ -184,6 +200,22 @@ su identidad, aunque `conservar_perfiles = FALSE`.
 [`sql_perfil()`](https://sebollin.github.io/lupa/reference/accesores_perfil.md)
 lo devuelve como una tabla unica; los perfiles completos siguen
 disponibles por tabla cuando se pidio conservarlos.
+
+**Limitación conocida: las declaraciones por columna valen para todas
+las tablas.** `columnas_codigo`, `columnas_opcionales`,
+`columnas_personales` y las demás llegan por `...` iguales a cada
+[`perfilar_dbi()`](https://sebollin.github.io/lupa/reference/perfilar_dbi.md),
+y
+[`coleccion()`](https://sebollin.github.io/lupa/reference/coleccion.md)
+no tiene declaraciones por tabla. Una tabla que no tiene una columna
+declarada en `columnas_codigo` no se perfila —sale de
+`resumen_coleccion` y `cobertura_coleccion` nombra la causa,
+«`columnas_codigo` nombra columnas inexistentes», aunque
+`como_resolverlo` hable de permisos—; con `columnas_opcionales` o
+`columnas_personales` la tabla conserva su resumen y pierde la muestra.
+`columnas_sin_ceros` y `columnas_no_negativas` no la afectan. Para
+declarar columnas que no están en todas las tablas, perfilar esas tablas
+por separado o partir la colección.
 
 ## See also
 

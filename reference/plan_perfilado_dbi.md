@@ -200,7 +200,7 @@ plan_perfilado_dbi(
 - incluir_valores:
 
   Si el resumen informa valores de celda: moda, mínimo, máximo y
-  mediana. Con `FALSE` esas consultas no se emiten.
+  mediana. Con `FALSE` esas consultas no se emiten. `TRUE` o `FALSE`.
 
 - tamano_lote:
 

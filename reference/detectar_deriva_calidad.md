@@ -41,7 +41,16 @@ las corridas —cambió el marco o los tipos de resultado, y entonces la
 fila de resultado no se publica—. Cualquier otro cambio de modelo se
 declara en su fila `configuracion_modelo` sin esa etiqueta: la
 comparación se mantiene, y la fila de resultado del mismo par conserva
-su veredicto.
+su veredicto. Limitación conocida: una corrida guardada por una versión
+anterior del paquete cuya configuración lleva un número que con 15
+cifras no vuelve a su valor —`maximo = 1/3`, `0.1 + 0.2`, un umbral
+calculado con [`quantile()`](https://rdrr.io/r/stats/quantile.html)— o
+un instante con fracción de segundo declara **una vez** esa fila, con
+severidad `error`, contra la primera corrida nueva: la versión anterior
+escribía el número con 15 cifras (`0.333333333333333`) y el instante
+cortado al segundo, y la actual con las cifras que los devuelven a su
+valor (`0.3333333333333333`). La fila de resultado de ese par conserva
+su veredicto, y desde ahí la serie aparea.
 
 **Un par que no se puede comparar no recibe veredicto.** Si alguna de
 las dos corridas no evaluó su resultado, `delta`, `cambio_absoluto`,

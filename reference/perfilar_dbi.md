@@ -188,7 +188,7 @@ perfilar_dbi(
 - incluir_valores:
 
   Si el resumen informa valores de celda: moda, mínimo, máximo y
-  mediana. Con `FALSE` esas consultas no se emiten.
+  mediana. Con `FALSE` esas consultas no se emiten. `TRUE` o `FALSE`.
 
 - tamano_lote:
 
@@ -393,7 +393,21 @@ perfilar_dbi(
   `resumen_tabla`: `media`, `mediana` y `desvio` de una columna
   declarada quedan en `NA` y `resumen_tabla$cobertura` lo declara con
   estado `no_aplica`. Sus nombres se validan contra las columnas de la
-  tabla aunque no haya muestra.
+  tabla aunque no haya muestra. Un nombre abreviado vale lo mismo que el
+  entero, como lo completa R al llamar a
+  [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md):
+  `proteger = FALSE` es `proteger_datos_personales = FALSE` también para
+  `resumen_tabla`. La bandera, `fecha` y los nombres se validan al
+  entrar, también con `bloque_muestra = "solo_agregados"`: un nombre que
+  [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md)
+  no tiene es un error, no un fallo parcial. Los demás valores los
+  valida
+  [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md)
+  al perfilar la muestra —sin muestra no se validan—, y uno inválido
+  deja `perfil_muestra = NULL` con el error de
+  [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md)
+  como motivo, legible también con la protección: un error que se repite
+  sobre la muestra sin filas no cita ninguna celda.
 
 ## Value
 
@@ -485,13 +499,22 @@ motivo y cómo resolverlo. Si se pide sólo agregados,
 `perfil_muestra = NULL` se acompaña de una fila `no_solicitado`: no se
 intentó leer la muestra. Si el motor rechaza una columna, esa columna
 queda con sus métricas en `no_disponible` y las demás se perfilan
-enteras. Los [`stop()`](https://rdrr.io/r/base/stop.html) de esta vía
-llevan clase de condición propia —todas heredan de `lupa_error_dbi`—
-para que se puedan rescatar con
-[`tryCatch()`](https://rdrr.io/r/base/conditions.html):
+enteras. Lo mismo con una columna cuyo nombre la sesión no puede
+escribir: odbc pasa la consulta por la codificación nativa, y bajo el
+locale `C` —el de un `Rscript` de cron en Linux— un nombre con tilde no
+se puede mandar; mandarlo dejaba la conexión rota y la consulta
+siguiente hacía caer a R. La consulta no se envía: la columna queda en
+`no_disponible` con ese motivo, y una tabla con un nombre así da
+`lupa_error_codificacion_dbi`. Para leerlas, correr la sesión con un
+locale UTF-8 (`LC_ALL=C.UTF-8`). RPostgres, RSQLite y duckdb reciben la
+consulta en UTF-8 y leen esos nombres en cualquier locale. Los
+[`stop()`](https://rdrr.io/r/base/stop.html) de esta vía llevan clase de
+condición propia —todas heredan de `lupa_error_dbi`— para que se puedan
+rescatar con [`tryCatch()`](https://rdrr.io/r/base/conditions.html):
 `lupa_error_conexion_dbi`, `lupa_error_tabla_dbi`,
 `lupa_error_campos_dbi`, `lupa_error_conteo_dbi`,
-`lupa_error_esquema_dbi` y `lupa_error_argumento_dbi`.
+`lupa_error_esquema_dbi`, `lupa_error_codificacion_dbi` y
+`lupa_error_argumento_dbi`.
 
 ## Muestra y aproximaciones
 
@@ -673,7 +696,14 @@ eso no es lo mismo que la tabla en R:
 - **La media en coma flotante.** Cada lado suma a su modo; sobre una
   columna que mezcla magnitudes muy distintas —`1e20` junto a `1`— las
   medias pueden diferir entre motores y con la de R, y ninguna es la
-  exacta. La corroboración cruzada lo declara cuando compara las dos.
+  exacta. La corroboración cruzada lo declara cuando compara las dos. La
+  media y el desvío se le piden al motor como doble donde su aritmética
+  decimal los recortaría: en SQL Server `AVG(CAST(x AS FLOAT))`, porque
+  `AVG` de un `numeric` devuelve seis decimales, y en PostgreSQL
+  `STDDEV_SAMP(CAST(x AS DOUBLE PRECISION))`, porque sobre magnitudes
+  grandes el desvío de un `numeric` sale con cuatro; en MySQL y MariaDB
+  `AVG(x * 1e0)`, porque `AVG` de un `DECIMAL` devuelve cinco decimales.
+  En los demás motores, `x * 1.0`.
 
 - **El cotejamiento.** El resumen SQL agrupa y ordena con el
   cotejamiento de la columna: sobre una `COLLATE NOCASE` de SQLite o una
@@ -892,15 +922,23 @@ como la media, como en
 también en `resumen_tabla$meta$familias`, donde la vía por bloques
 (`bloque_filas`) guarda lo que devolvió cada acumulador: ahí se tapan
 los extremos, la media y el desvío de las columnas protegidas, y cada
-valor distinto. Si la muestra se recorta, la clasificación personal sólo
-cubre esas filas: las cifras de valor del resumen SQL completo quedan
-marcadas en `resumen_tabla$cobertura` y, con la protección activa, se
-ocultan hasta que la clasificación cubra el mismo alcance. La
-corroboración no repite esas cifras dudosas en su anotación. Y cuando la
-muestra no cubre la tabla, se traen los valores distintos de las
-columnas protegidas de la tabla entera —de texto o numéricas, una
-consulta por columna— y se protege con ellos lo que se publica, con la
-misma regla que
+valor distinto. Y por la vía por bloques corre el mismo piso por valor
+que sin ella —con los valores de la muestra y, si la muestra no cubre la
+tabla, con los de la tabla entera—, sobre **todas** las columnas: una
+cédula copiada en una columna de códigos o un nombre citado en un texto
+libre se tapan en `resumen_tabla$columnas`, en la corroboración y en
+`meta$familias` igual que sin `bloque_filas`; la misma tabla publica lo
+mismo por las dos vías. Lo que el piso tapa en la tabla de columnas —un
+extremo que es un documento, y la media y el desvío que lo reconstruyen—
+se tapa también en `meta$familias`. Si la muestra se recorta, la
+clasificación personal sólo cubre esas filas: las cifras de valor del
+resumen SQL completo quedan marcadas en `resumen_tabla$cobertura` y, con
+la protección activa, se ocultan hasta que la clasificación cubra el
+mismo alcance. La corroboración no repite esas cifras dudosas en su
+anotación. Y cuando la muestra no cubre la tabla, se traen los valores
+distintos de las columnas protegidas de la tabla entera —de texto o
+numéricas, una consulta por columna— y se protege con ellos lo que se
+publica, con la misma regla que
 [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md) en
 memoria: tildes, caja, separadores, el documento parcial, los campos
 numéricos y la evidencia de los hallazgos. Un valor de una persona que
@@ -924,16 +962,18 @@ conoce;
 [`perfilar_coleccion()`](https://sebollin.github.io/lupa/reference/perfilar_coleccion.md)
 los cruza. Se traen hasta dos millones de valores; si hay más, o si la
 consulta no se puede hacer, se tapan todos los valores de celda de las
-columnas no personales —moda, extremos, ejemplos— y la evidencia de sus
-hallazgos, y `resumen_tabla$meta$proteccion_personal$fuera_de_muestra`
-dice por qué. En SQLite los valores se leen como texto, porque una
-columna de afinidad numérica guarda texto y el controlador lo convertía
-en número; también sin muestreo, cuando la muestra es la tabla entera:
-ahí se releen como texto, con una consulta, las columnas protegidas que
-el controlador no leyó como texto. Y el motivo de una cifra que no se
-pudo leer como número no cita el valor de una columna protegida. Tampoco
-el **mensaje de un error del motor**, que es texto ajeno y cita la celda
-que hizo fallar la consulta
+columnas no personales —moda, extremos, ejemplos y, por la vía por
+bloques, cada valor distinto y los extremos de `meta$familias`— y la
+evidencia de sus hallazgos, y
+`resumen_tabla$meta$proteccion_personal$fuera_de_muestra` dice por qué.
+En SQLite los valores se leen como texto, porque una columna de afinidad
+numérica guarda texto y el controlador lo convertía en número; también
+sin muestreo, cuando la muestra es la tabla entera: ahí se releen como
+texto, con una consulta, las columnas protegidas que el controlador no
+leyó como texto. Y el motivo de una cifra que no se pudo leer como
+número no cita el valor de una columna protegida. Tampoco el **mensaje
+de un error del motor**, que es texto ajeno y cita la celda que hizo
+fallar la consulta
 —`invalid input syntax for type bigint: "4.685.467-9"`, en una vista que
 castea una cédula escrita con puntos—: ese valor nunca se leyó, así que
 el piso no lo conoce y puede ser de cualquier columna. Con la protección
@@ -957,8 +997,14 @@ cli, que pone una viñeta después de cada salto de línea y corta las
 líneas al ancho de la consola, y un número partido en dos líneas
 —`"2901\n1234"`— quedaba partido por la viñeta; se toman las líneas que
 guarda la condición, unidas por el salto que puso el motor, y así se
-publican, sin las viñetas. Así se tapa también el valor que el motor
-cita sin comillas —duckdb:
+publican, sin las viñetas. Tampoco llevan los colores ni los enlaces que
+cli pone en una consola a color —la de RStudio—: las secuencias ANSI
+quedaban guardadas en el motivo, y con protección pegadas a los
+marcadores. Lo que cli agrega dentro de una línea no se distingue del
+texto del motor y queda: sin color, cli cita entre comillas el archivo
+del controlador (`'nanodbc/nanodbc.cpp:1802'`) y con protección esa cita
+sale `[literal omitido]`; con color se publica. Así se tapa también el
+valor que el motor cita sin comillas —duckdb:
 `Type INT64 with value 59899123456 can't be cast`, y la cadena que
 `strptime` repite en otra línea, que se tapa entera; SQL Server con la
 sesión en sueco o neerlandés— y la cola de un valor que lleva una
@@ -971,9 +1017,14 @@ a la vista, y otra vez al final: un valor escrito sólo con lo permitido
 nombre cuyas palabras son columnas de otra tabla— se tapa entero, y el
 nombre de una columna que es también uno de esos valores —la docente
 `"Florencia"` de una planilla con una columna por docente— deja de
-exceptuarse, con la comparación del piso. Lo que queda abierto: un valor
-que la llamada **no** leyó —la celda que hizo fallar la lectura de la
-muestra, de una columna que la vista castea— escrito sólo con lo
+exceptuarse, con la comparación del piso. En
+[`perfilar_coleccion()`](https://sebollin.github.io/lupa/reference/perfilar_coleccion.md)
+cada mensaje se vuelve a leer al final, desde como llegó, con todo lo
+que la colección leyó: con una vista perfilada antes que su tabla base,
+el piso no conocía todavía el nombre y la segunda pasada dejaba su resto
+—`"De Los Campos"` de `"María De Los Campos"`—. Lo que queda abierto: un
+valor que la llamada **no** leyó —la celda que hizo fallar la lectura de
+la muestra, de una columna que la vista castea— escrito sólo con lo
 permitido, o igual al nombre de una columna, se publica, porque el
 mensaje no tiene cómo distinguirlo del vocabulario ni de un nombre. Un
 mensaje en otro idioma conserva su SQL, sus tipos y sus nombres y se lee
@@ -985,8 +1036,8 @@ hasta el fin de la línea. Se publicaba tal cual, en PostgreSQL, en
 duckdb y en SQL Server. **Sin protección**
 (`proteger_datos_personales = FALSE`) el mensaje del motor se publica
 entero, en todas esas salidas: el literal que hizo fallar la lectura y
-el SQL que la hacía, sólo sin las viñetas ni los cortes que agrega cli.
-El diagnóstico es el cometido del paquete
+el SQL que la hacía, sólo sin las viñetas, los cortes ni los colores que
+agrega cli. El diagnóstico es el cometido del paquete
 —`Conversion failed when converting the nvarchar value 'N/D' to data type int`
 dice que la columna trae un faltante disfrazado—, y sin protección ya se
 publican valores de todas las columnas —modas, ejemplos, patrones—:

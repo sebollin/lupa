@@ -241,7 +241,8 @@ declaran sin sondeo.</p></dd>
 
 <dt id="arg-incluir-valores">incluir_valores<a class="anchor" aria-label="anchor" href="#arg-incluir-valores"></a></dt>
 <dd><p>Si el resumen informa valores de celda: moda, mínimo,
-máximo y mediana. Con <code>FALSE</code> esas consultas no se emiten.</p></dd>
+máximo y mediana. Con <code>FALSE</code> esas consultas no se emiten. <code>TRUE</code> o
+<code>FALSE</code>.</p></dd>
 
 
 <dt id="arg-tamano-lote">tamano_lote<a class="anchor" aria-label="anchor" href="#arg-tamano-lote"></a></dt>
@@ -438,7 +439,16 @@ señala. Declarar el valor lo vuelve a contar.</p></dd>
 <code>columnas_codigo</code> vale además en <code>resumen_tabla</code>: <code>media</code>, <code>mediana</code> y
 <code>desvio</code> de una columna declarada quedan en <code>NA</code> y
 <code>resumen_tabla$cobertura</code> lo declara con estado <code>no_aplica</code>. Sus nombres se
-validan contra las columnas de la tabla aunque no haya muestra.</p></dd>
+validan contra las columnas de la tabla aunque no haya muestra. Un nombre
+abreviado vale lo mismo que el entero, como lo completa R al llamar a
+<code><a href="perfilar.html">perfilar()</a></code>: <code>proteger = FALSE</code> es <code>proteger_datos_personales = FALSE</code>
+también para <code>resumen_tabla</code>. La bandera, <code>fecha</code> y los nombres se validan
+al entrar, también con <code>bloque_muestra = "solo_agregados"</code>: un nombre que
+<code><a href="perfilar.html">perfilar()</a></code> no tiene es un error, no un fallo parcial. Los demás valores
+los valida <code><a href="perfilar.html">perfilar()</a></code> al perfilar la muestra —sin muestra no se
+validan—, y uno inválido deja <code>perfil_muestra = NULL</code> con el error de
+<code><a href="perfilar.html">perfilar()</a></code> como motivo, legible también con la protección: un error que
+se repite sobre la muestra sin filas no cita ninguna celda.</p></dd>
 
 </dl></div>
     <div class="section level2">
@@ -530,11 +540,19 @@ el estado <code>no_disponible</code>, el motivo y cómo resolverlo. Si se pide s
 agregados, <code>perfil_muestra = NULL</code> se acompaña de una fila <code>no_solicitado</code>:
 no se intentó leer la muestra. Si el motor rechaza una columna, esa columna
 queda con sus métricas en <code>no_disponible</code> y las demás se perfilan enteras.
+Lo mismo con una columna cuyo nombre la sesión no puede escribir: odbc pasa
+la consulta por la codificación nativa, y bajo el locale <code>C</code> —el de un
+<code>Rscript</code> de cron en Linux— un nombre con tilde no se puede mandar; mandarlo
+dejaba la conexión rota y la consulta siguiente hacía caer a R. La consulta
+no se envía: la columna queda en <code>no_disponible</code> con ese motivo, y una tabla
+con un nombre así da <code>lupa_error_codificacion_dbi</code>. Para leerlas, correr la
+sesión con un locale UTF-8 (<code>LC_ALL=C.UTF-8</code>). RPostgres, RSQLite y duckdb
+reciben la consulta en UTF-8 y leen esos nombres en cualquier locale.
 Los <code><a href="https://rdrr.io/r/base/stop.html" class="external-link">stop()</a></code> de esta vía llevan clase de condición propia —todas heredan de
 <code>lupa_error_dbi</code>— para que se puedan rescatar con <code><a href="https://rdrr.io/r/base/conditions.html" class="external-link">tryCatch()</a></code>:
 <code>lupa_error_conexion_dbi</code>, <code>lupa_error_tabla_dbi</code>, <code>lupa_error_campos_dbi</code>,
-<code>lupa_error_conteo_dbi</code>, <code>lupa_error_esquema_dbi</code> y
-<code>lupa_error_argumento_dbi</code>.</p>
+<code>lupa_error_conteo_dbi</code>, <code>lupa_error_esquema_dbi</code>,
+<code>lupa_error_codificacion_dbi</code> y <code>lupa_error_argumento_dbi</code>.</p>
     </div>
     <div class="section level2">
     <h2 id="muestra-y-aproximaciones">Muestra y aproximaciones<a class="anchor" aria-label="anchor" href="#muestra-y-aproximaciones"></a></h2>
@@ -706,7 +724,14 @@ como un valor que no se pudo leer como número.</p></li>
 <li><p><strong>La media en coma flotante.</strong> Cada lado suma a su modo; sobre una columna
 que mezcla magnitudes muy distintas —<code>1e20</code> junto a <code>1</code>— las medias pueden
 diferir entre motores y con la de R, y ninguna es la exacta. La
-corroboración cruzada lo declara cuando compara las dos.</p></li>
+corroboración cruzada lo declara cuando compara las dos. La media y el
+desvío se le piden al motor como doble donde su aritmética decimal los
+recortaría: en SQL Server <code>AVG(CAST(x AS FLOAT))</code>, porque <code>AVG</code> de un
+<code>numeric</code> devuelve seis decimales, y en PostgreSQL
+<code>STDDEV_SAMP(CAST(x AS DOUBLE PRECISION))</code>, porque sobre magnitudes
+grandes el desvío de un <code>numeric</code> sale con cuatro; en MySQL y MariaDB
+<code>AVG(x * 1e0)</code>, porque <code>AVG</code> de un <code>DECIMAL</code> devuelve cinco decimales. En
+los demás motores, <code>x * 1.0</code>.</p></li>
 <li><p><strong>El cotejamiento.</strong> El resumen SQL agrupa y ordena con el cotejamiento
 de la columna: sobre una <code>COLLATE NOCASE</code> de SQLite o una colación ICU no
 determinista de PostgreSQL, "Montevideo" y "montevideo" son un valor, y
@@ -909,7 +934,15 @@ como personal de la que se cerró porque, sin muestra, no se pudo clasificar.
 El desvío se oculta como la media, como en <code><a href="perfilar.html">perfilar()</a></code>; también en
 <code>resumen_tabla$meta$familias</code>, donde la vía por bloques (<code>bloque_filas</code>)
 guarda lo que devolvió cada acumulador: ahí se tapan los extremos, la media
-y el desvío de las columnas protegidas, y cada valor distinto.
+y el desvío de las columnas protegidas, y cada valor distinto. Y por la vía
+por bloques corre el mismo piso por valor que sin ella —con los valores de
+la muestra y, si la muestra no cubre la tabla, con los de la tabla entera—,
+sobre <strong>todas</strong> las columnas: una cédula copiada en una columna de códigos o
+un nombre citado en un texto libre se tapan en <code>resumen_tabla$columnas</code>, en
+la corroboración y en <code>meta$familias</code> igual que sin <code>bloque_filas</code>; la misma
+tabla publica lo mismo por las dos vías. Lo que el piso tapa en la tabla de
+columnas —un extremo que es un documento, y la media y el desvío que lo
+reconstruyen— se tapa también en <code>meta$familias</code>.
 Si la muestra se recorta, la clasificación personal sólo cubre esas filas:
 las cifras de valor del resumen SQL completo quedan marcadas en
 <code>resumen_tabla$cobertura</code> y, con la protección activa, se ocultan hasta que
@@ -937,7 +970,8 @@ ese valor se sigue tapando. Y la protección es
 <strong>por tabla</strong>: un valor protegido de otra tabla escrito en ésta no se
 conoce; <code><a href="perfilar_coleccion.html">perfilar_coleccion()</a></code> los cruza. Se traen hasta dos millones de valores; si hay más, o si la consulta
 no se puede hacer, se tapan todos los valores de celda de las columnas no
-personales —moda, extremos, ejemplos— y la evidencia de sus hallazgos, y
+personales —moda, extremos, ejemplos y, por la vía por bloques, cada valor
+distinto y los extremos de <code>meta$familias</code>— y la evidencia de sus hallazgos, y
 <code>resumen_tabla$meta$proteccion_personal$fuera_de_muestra</code> dice por qué. En
 SQLite los valores se leen como texto, porque una columna de afinidad
 numérica guarda texto y el controlador lo convertía en número; también sin
@@ -967,7 +1001,13 @@ mensaje se lee como lo dijo el motor: odbc lo arma con cli, que pone una
 viñeta después de cada salto de línea y corta las líneas al ancho de la
 consola, y un número partido en dos líneas —<code>"2901\n1234"</code>— quedaba partido
 por la viñeta; se toman las líneas que guarda la condición, unidas por el
-salto que puso el motor, y así se publican, sin las viñetas. Así
+salto que puso el motor, y así se publican, sin las viñetas. Tampoco llevan
+los colores ni los enlaces que cli pone en una consola a color —la de
+RStudio—: las secuencias ANSI quedaban guardadas en el motivo, y con
+protección pegadas a los marcadores. Lo que cli agrega dentro de una línea
+no se distingue del texto del motor y queda: sin color, cli cita entre
+comillas el archivo del controlador (<code>'nanodbc/nanodbc.cpp:1802'</code>) y con
+protección esa cita sale <code>[literal omitido]</code>; con color se publica. Así
 se tapa también el
 valor que el motor cita sin comillas —duckdb: <code>Type INT64 with value 59899123456 can't be cast</code>, y la cadena que <code>strptime</code> repite en otra
 línea, que se tapa entera; SQL Server con la sesión en sueco o neerlandés—
@@ -979,7 +1019,11 @@ con lo permitido —los apellidos <code>"Campos Cadena"</code>, dos palabras del
 vocabulario, o un nombre cuyas palabras son columnas de otra tabla— se
 tapa entero, y el nombre de una columna que es también uno de esos
 valores —la docente <code>"Florencia"</code> de una planilla con una columna por
-docente— deja de exceptuarse, con la comparación del piso. Lo que queda
+docente— deja de exceptuarse, con la comparación del piso. En
+<code><a href="perfilar_coleccion.html">perfilar_coleccion()</a></code> cada mensaje se vuelve a leer al final, desde como
+llegó, con todo lo que la colección leyó: con una vista perfilada antes que
+su tabla base, el piso no conocía todavía el nombre y la segunda pasada
+dejaba su resto —<code>"De Los Campos"</code> de <code>"María De Los Campos"</code>—. Lo que queda
 abierto: un valor que la llamada <strong>no</strong> leyó —la celda que hizo fallar la
 lectura de la muestra, de una columna que la vista castea— escrito sólo con
 lo permitido, o igual al nombre de una columna, se publica, porque el
@@ -991,8 +1035,8 @@ El texto que PostgreSQL cita sin comillas al no poder leer un JSON
 publicaba tal cual, en PostgreSQL, en duckdb y en SQL Server.
 <strong>Sin protección</strong> (<code>proteger_datos_personales = FALSE</code>) el mensaje del motor
 se publica entero, en todas esas salidas: el literal que hizo fallar la
-lectura y el SQL que la hacía, sólo sin las viñetas ni los cortes que agrega
-cli. El diagnóstico es el cometido del paquete —<code>Conversion failed when converting the nvarchar value 'N/D' to data type int</code> dice que la columna
+lectura y el SQL que la hacía, sólo sin las viñetas, los cortes ni los
+colores que agrega cli. El diagnóstico es el cometido del paquete —<code>Conversion failed when converting the nvarchar value 'N/D' to data type int</code> dice que la columna
 trae un faltante disfrazado—, y sin protección ya se publican valores de
 todas las columnas —modas, ejemplos, patrones—: omitirlo ahí no protegía
 nada y quitaba el diagnóstico. Vale igual en <code><a href="perfilar_coleccion.html">perfilar_coleccion()</a></code>, que pasa

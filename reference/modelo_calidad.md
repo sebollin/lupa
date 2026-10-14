@@ -204,7 +204,14 @@ denominador de sus agregaciones. La completitud se mide por separado con
 `NoNulo`; así un mismo ausente no se penaliza en dos factores. `NoNulo`
 acepta el vector opcional `valores_nulos` para aplicar de forma
 deliberada el diccionario de nulos que contempla el marco; sin
-configurarlo, sólo considera los `NA` reales.
+configurarlo, sólo considera los `NA` reales. Con `opcional = TRUE` mide
+sobre las celdas presentes: la ausencia no es defecto y sólo cuentan
+como faltantes los `valores_nulos`. Es como
+[`proponer_modelo()`](https://sebollin.github.io/lupa/reference/proponer_modelo.md)
+propone la `NoNulo` de una columna declarada en `columnas_opcionales` de
+[`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md),
+para medir sobre el mismo universo que el perfil: con un `NA` y tres
+`-999` en cuarenta celdas, 36/39 = 0,923 y no 36/40.
 `ValoresPosiblesPorComprension` sigue la misma convención y acepta un
 `predicado` o un rango definido por `minimo`, `maximo` e `inclusivo`.
 
@@ -367,13 +374,13 @@ instancia <- instanciar(no_nulo, entidad = "personas", atributos = "edad")
 modelo_calidad <- modelo(instancia)
 medir(modelo_calidad, data.frame(edad = c(20, NA, 35)))
 #>                                                              id_medida
-#> 1 medicion-20261014T001203.942310-7365-NoNuloEdad@personas.edad-000001
-#> 2 medicion-20261014T001203.942310-7365-NoNuloEdad@personas.edad-000002
-#> 3 medicion-20261014T001203.942310-7365-NoNuloEdad@personas.edad-000003
+#> 1 medicion-20261014T041525.361095-7487-NoNuloEdad@personas.edad-000001
+#> 2 medicion-20261014T041525.361095-7487-NoNuloEdad@personas.edad-000002
+#> 3 medicion-20261014T041525.361095-7487-NoNuloEdad@personas.edad-000003
 #>                            id_medicion               fecha metrica
-#> 1 medicion-20261014T001203.942310-7365 2026-10-14 00:12:03  NoNulo
-#> 2 medicion-20261014T001203.942310-7365 2026-10-14 00:12:03  NoNulo
-#> 3 medicion-20261014T001203.942310-7365 2026-10-14 00:12:03  NoNulo
+#> 1 medicion-20261014T041525.361095-7487 2026-10-14 04:15:25  NoNulo
+#> 2 medicion-20261014T041525.361095-7487 2026-10-14 04:15:25  NoNulo
+#> 3 medicion-20261014T041525.361095-7487 2026-10-14 04:15:25  NoNulo
 #>   metrica_especifica      metrica_instanciada   dimension   factor orientacion
 #> 1         NoNuloEdad NoNuloEdad@personas.edad Completitud Densidad conformidad
 #> 2         NoNuloEdad NoNuloEdad@personas.edad Completitud Densidad conformidad
@@ -424,13 +431,13 @@ medir(
   data.frame(origen = c("sistema_a", "", NA), stringsAsFactors = FALSE)
 )
 #>                                                                    id_medida
-#> 1 medicion-20261014T001203.949567-7365-OrigenDeclarado@entrega.origen-000001
-#> 2 medicion-20261014T001203.949567-7365-OrigenDeclarado@entrega.origen-000002
-#> 3 medicion-20261014T001203.949567-7365-OrigenDeclarado@entrega.origen-000003
+#> 1 medicion-20261014T041525.371355-7487-OrigenDeclarado@entrega.origen-000001
+#> 2 medicion-20261014T041525.371355-7487-OrigenDeclarado@entrega.origen-000002
+#> 3 medicion-20261014T041525.371355-7487-OrigenDeclarado@entrega.origen-000003
 #>                            id_medicion               fecha         metrica
-#> 1 medicion-20261014T001203.949567-7365 2026-10-14 00:12:03 OrigenDeclarado
-#> 2 medicion-20261014T001203.949567-7365 2026-10-14 00:12:03 OrigenDeclarado
-#> 3 medicion-20261014T001203.949567-7365 2026-10-14 00:12:03 OrigenDeclarado
+#> 1 medicion-20261014T041525.371355-7487 2026-10-14 04:15:25 OrigenDeclarado
+#> 2 medicion-20261014T041525.371355-7487 2026-10-14 04:15:25 OrigenDeclarado
+#> 3 medicion-20261014T041525.371355-7487 2026-10-14 04:15:25 OrigenDeclarado
 #>   metrica_especifica            metrica_instanciada    dimension
 #> 1    OrigenDeclarado OrigenDeclarado@entrega.origen Trazabilidad
 #> 2    OrigenDeclarado OrigenDeclarado@entrega.origen Trazabilidad
@@ -462,11 +469,11 @@ medir(
   data.frame(fecha = as.Date(c("2026-06-29", "2026-07-01")))
 )
 #>                                                                   id_medida
-#> 1 medicion-20261014T001203.956020-7365-EntregaATiempo@entregas.fecha-000001
-#> 2 medicion-20261014T001203.956020-7365-EntregaATiempo@entregas.fecha-000002
+#> 1 medicion-20261014T041525.380482-7487-EntregaATiempo@entregas.fecha-000001
+#> 2 medicion-20261014T041525.380482-7487-EntregaATiempo@entregas.fecha-000002
 #>                            id_medicion               fecha
-#> 1 medicion-20261014T001203.956020-7365 2026-10-14 00:12:03
-#> 2 medicion-20261014T001203.956020-7365 2026-10-14 00:12:03
+#> 1 medicion-20261014T041525.380482-7487 2026-10-14 04:15:25
+#> 2 medicion-20261014T041525.380482-7487 2026-10-14 04:15:25
 #>                       metrica metrica_especifica           metrica_instanciada
 #> 1 OportunidadAtributoPorFecha     EntregaATiempo EntregaATiempo@entregas.fecha
 #> 2 OportunidadAtributoPorFecha     EntregaATiempo EntregaATiempo@entregas.fecha

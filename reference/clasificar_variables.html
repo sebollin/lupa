@@ -132,7 +132,11 @@ tiene efecto con <code>proteger_datos_personales = TRUE</code>.</p></dd>
     </div>
     <div class="section level2">
     <h2 id="details">Details<a class="anchor" aria-label="anchor" href="#details"></a></h2>
-    <p><code>metadatos</code> permite confirmar o corregir la propuesta con una tabla editable.
+    <p>Con <code>perfil</code>, una columna declarada en su <code>columnas_codigo</code> es un código y
+no una magnitud: en lugar de <code>discreta</code> o <code>continua</code> con rol <code>medida</code>, sale
+<code>nominal</code>, con rol <code>categoria</code> y confirmada, porque la declaración es del
+usuario. <code>metadatos</code> la puede corregir igual.</p>
+<p><code>metadatos</code> permite confirmar o corregir la propuesta con una tabla editable.
 Debe contener <code>columna</code> y puede incluir <code>escala</code>, <code>rol</code>, <code>confianza</code>,
 <code>confirmada</code>, <code>unidad</code> y una columna de lista <code>niveles</code>. Las escalas válidas
 son nominal, ordinal, discreta, continua, binaria, temporal y desconocida.</p>

@@ -1199,7 +1199,11 @@ más y no el de callar. Quien conoce la columna lo corrige declarándola
 en `columnas_codigo`: un código declarado no recibe límites de Tukey, ni
 Benford, ni `media`, `mediana` y `desvio`, conserva su tramo, su moda y
 sus conteos, y la cobertura dice por qué. Pasarlo como texto o como
-factor no alcanza, porque el paquete lo lee como número.
+factor no alcanza, porque el paquete lo lee como número. Dentro de
+[`analizar()`](https://sebollin.github.io/lupa/reference/analizar.md) la
+declaración llega también a `variables` —escala nominal, rol categoría—
+y a `asociaciones`, donde el código se asocia como categoría y no con
+una correlación.
 
 Para una columna `integer64`, `bit64` se carga de manera diferida cuando
 está instalado, para registrar sus métodos antes de medir. Si no está

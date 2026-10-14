@@ -122,10 +122,15 @@ que cuenta sólo los `NA` y que sobrestima la completitud.
 [`analizar()`](https://sebollin.github.io/lupa/reference/analizar.md) la
 mide y
 [`modelo_desde_propuesta()`](https://sebollin.github.io/lupa/reference/modelo_desde_propuesta.md)
-la materializa como a cualquier otra sugerencia activa. Una sugerencia
-sobre una columna cuyo nombre la tabla repite sale inactiva y con estado
-`nombre_repetido`: una métrica se liga por nombre, y ese nombre no dice
-cuál de las columnas mide.
+la materializa como a cualquier otra sugerencia activa. Si la columna se
+declaró en `columnas_opcionales` de
+[`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md),
+la `NoNulo` lleva además `opcional = TRUE` y se mide sobre las celdas
+presentes, el mismo universo que el perfil: con un `NA` y tres `-999` en
+cuarenta celdas mide 36/39 = 0,923, que es `1 - prop_faltantes_totales`.
+Una sugerencia sobre una columna cuyo nombre la tabla repite sale
+inactiva y con estado `nombre_repetido`: una métrica se liga por nombre,
+y ese nombre no dice cuál de las columnas mide.
 [`modelo_desde_propuesta()`](https://sebollin.github.io/lupa/reference/modelo_desde_propuesta.md)
 no la materializa y
 [`analizar()`](https://sebollin.github.io/lupa/reference/analizar.md) no

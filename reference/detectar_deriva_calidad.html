@@ -89,7 +89,16 @@ umbrales es <code>error</code>. <code>identidad_tabla</code> separa series de ta
 corridas —cambió el marco o los tipos de resultado, y entonces la fila de
 resultado no se publica—. Cualquier otro cambio de modelo se declara en su
 fila <code>configuracion_modelo</code> sin esa etiqueta: la comparación se mantiene, y
-la fila de resultado del mismo par conserva su veredicto.</p>
+la fila de resultado del mismo par conserva su veredicto. Limitación
+conocida: una corrida guardada por una versión anterior del paquete cuya
+configuración lleva un número que con 15 cifras no vuelve a su valor
+—<code>maximo = 1/3</code>, <code>0.1 + 0.2</code>, un umbral calculado con <code><a href="https://rdrr.io/r/stats/quantile.html" class="external-link">quantile()</a></code>— o un
+instante con fracción de segundo declara <strong>una vez</strong> esa fila, con
+severidad <code>error</code>, contra la primera corrida nueva: la versión anterior
+escribía el número con 15 cifras (<code>0.333333333333333</code>) y el instante cortado
+al segundo, y la actual con las cifras que los devuelven a su valor
+(<code>0.3333333333333333</code>). La fila de resultado de ese par conserva su
+veredicto, y desde ahí la serie aparea.</p>
 <p><strong>Un par que no se puede comparar no recibe veredicto.</strong> Si alguna de las
 dos corridas no evaluó su resultado, <code>delta</code>, <code>cambio_absoluto</code>,
 <code>significativo</code>, <code>direccion</code> y <code>severidad</code> quedan en <code>NA</code> —no en <code>estable</code>
