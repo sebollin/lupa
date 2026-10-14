@@ -1759,8 +1759,7 @@
     resumen$cobertura <- rbind(resumen$cobertura, bloque_muestra$cobertura)
     resumen$tiempos <- .resumen_tiempos_dbi(trazador)
   }
-  proteger <- is.null(argumentos$proteger_datos_personales) ||
-    isTRUE(argumentos$proteger_datos_personales)
+  proteger <- .protege_argumentos(argumentos)
   if (proteger) {
     columnas_protegidas <- if (is.null(perfil_muestra)) {
       preparacion$campos

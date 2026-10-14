@@ -910,7 +910,8 @@ print.coleccion_lupa <- function(x, ...) {
 #'   al mismo argumento de [perfilar_dbi()] para que todas las tablas de la
 #'   colección respeten la misma decisión.
 #' @param conservar_perfiles Si se retienen los objetos `perfil_dbi` completos.
-#'   Por omisión `FALSE`. Retenidos, cada uno se protege además con los
+#'   Por omisión `FALSE`. Retenidos y con la protección activa, cada uno se
+#'   protege además con los
 #'   valores protegidos de las **demás** tablas de la colección: una
 #'   observación de `movimientos` que cita la cédula y el nombre de un cliente
 #'   se tapa aunque `movimientos` no tenga ninguna columna personal, porque la
@@ -943,6 +944,9 @@ print.coleccion_lupa <- function(x, ...) {
 #'   después de leer alguna tabla: los avisos juntados salen por ese mismo
 #'   piso, con los valores que se conocían.
 #'   [perfilar_dbi()] sobre una tabla sola protege sólo con los de esa tabla.
+#'   Sin protección (`proteger_datos_personales = FALSE`) no se cruza nada:
+#'   cada perfil retenido sale como lo dio su tabla, también si otra no se
+#'   pudo perfilar.
 #' @param cobertura_metricas Qué se sube a `cobertura_metricas`: `"no_medidas"`
 #'   (por omisión) sólo las métricas que no se calcularon, `"completa"` todas
 #'   con su estado, `"ninguna"` para omitirla. Los conteos por tabla de
@@ -950,7 +954,11 @@ print.coleccion_lupa <- function(x, ...) {
 #' @param tope_cobertura_metricas Máximo de filas de `cobertura_metricas`. El
 #'   total real queda siempre en `meta$n_metricas_no_medidas`, aunque la tabla
 #'   se haya recortado.
-#' @param ... Argumentos enviados a [perfilar_dbi()].
+#' @param ... Argumentos enviados a [perfilar_dbi()]. `proteger_datos_personales`
+#'   vale para toda la colección: sin protección, el mensaje de un error del
+#'   motor se publica entero —el literal que hizo fallar la lectura y el SQL—
+#'   también en `cobertura_coleccion`, `cobertura_metricas`, `meta$lecturas` y
+#'   los avisos; ver la sección «Datos personales» de [perfilar_dbi()].
 #'
 #' @return Objeto de clase `perfil_coleccion` con `resumen_coleccion`,
 #'   `cobertura_coleccion`, `cobertura_metricas`, `meta` y, si se pidió,
@@ -985,6 +993,11 @@ perfilar_coleccion <- function(coleccion, muestra = Inf,
     .detener("`conservar_perfiles` debe ser TRUE o FALSE.", call. = FALSE)
   }
   .validar_bandera_proteccion_en(list(...))
+  proteger <- .protege_argumentos(list(...))
+  # Sin proteccion, el mensaje del motor se publica entero -el de cada tabla y
+  # el de la coleccion-: antes de la primera lectura, y hasta la salida. Ver
+  # `.protege_mensaje_motor()`.
+  .fijar_proteccion_motor(proteger)
   cobertura_metricas <- .elegir_opcion(cobertura_metricas)
   bloque_muestra <- .elegir_opcion(
     bloque_muestra, c("con_muestra", "solo_agregados")
@@ -1482,8 +1495,14 @@ perfilar_coleccion <- function(coleccion, muestra = Inf,
     }
   }
   # El piso cruza tablas: ver `.proteger_perfiles_entre_tablas()`. Con UNA
-  # tabla conservada tambien, si otra quedo registrada sin leer.
-  if (conservar_perfiles && length(perfiles) && length(protegidos_tablas) > 1L) {
+  # tabla conservada tambien, si otra quedo registrada sin leer. Solo con la
+  # proteccion activa (ronda 33, por D8): sin ella ninguna tabla protege, pero
+  # una tabla sin leer -o declarada `tipo = "vista"`- quedaba registrada con sus
+  # valores desconocidos, y los perfiles de las demas se cerraban igual -la moda
+  # `Montevideo` de una columna de ciudades salia `[valor protegido]`-: una
+  # proteccion que el usuario apago y que costaba diagnostico.
+  if (conservar_perfiles && proteger && length(perfiles) &&
+      length(protegidos_tablas) > 1L) {
     perfiles <- .proteger_perfiles_entre_tablas(perfiles, protegidos_tablas)
   }
 

@@ -1006,6 +1006,18 @@
   invisible(argumentos)
 }
 
+# Si la llamada protege, leido de los argumentos que viajan en `...`: ausente
+# vale la omision, que protege. Por el nombre exacto, como la validacion de
+# arriba: `$` casaba tambien un nombre que empieza con este. La regla estaba
+# escrita cuatro veces en la via DBI -`perfilar_dbi()`, las dos del spool y la
+# via por bloques-, y la ronda 33 la necesitaba en la entrada de
+# `perfilar_dbi()` y de `perfilar_coleccion()`, para el mensaje del motor
+# (`.fijar_proteccion_motor()`): una sola, para que no se separen.
+.protege_argumentos <- function(argumentos) {
+  bandera <- argumentos[["proteger_datos_personales"]]
+  is.null(bandera) || isTRUE(bandera)
+}
+
 # Copia las subclases con semantica propia de `[` a un data.frame base antes
 # de ejecutar codigo que selecciona columnas o agrega columnas.
 .tabla_base <- function(tabla) {

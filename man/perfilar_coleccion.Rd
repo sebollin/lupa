@@ -36,7 +36,8 @@ menos filas, y sobre una coleccion grande conviene mirar antes
 \code{\link[=plan_perfilado_dbi]{plan_perfilado_dbi()}} tabla por tabla.}
 
 \item{conservar_perfiles}{Si se retienen los objetos \code{perfil_dbi} completos.
-Por omisión \code{FALSE}. Retenidos, cada uno se protege además con los
+Por omisión \code{FALSE}. Retenidos y con la protección activa, cada uno se
+protege además con los
 valores protegidos de las \strong{demás} tablas de la colección: una
 observación de \code{movimientos} que cita la cédula y el nombre de un cliente
 se tapa aunque \code{movimientos} no tenga ninguna columna personal, porque la
@@ -68,7 +69,10 @@ perfiles: el aviso de una vista perfilada antes que su tabla base citaba
 la celda. También si la colección se corta —una interrupción, un error—
 después de leer alguna tabla: los avisos juntados salen por ese mismo
 piso, con los valores que se conocían.
-\code{\link[=perfilar_dbi]{perfilar_dbi()}} sobre una tabla sola protege sólo con los de esa tabla.}
+\code{\link[=perfilar_dbi]{perfilar_dbi()}} sobre una tabla sola protege sólo con los de esa tabla.
+Sin protección (\code{proteger_datos_personales = FALSE}) no se cruza nada:
+cada perfil retenido sale como lo dio su tabla, también si otra no se
+pudo perfilar.}
 
 \item{cobertura_metricas}{Qué se sube a \code{cobertura_metricas}: \code{"no_medidas"}
 (por omisión) sólo las métricas que no se calcularon, \code{"completa"} todas
@@ -85,7 +89,11 @@ se haya recortado.}
 al mismo argumento de \code{\link[=perfilar_dbi]{perfilar_dbi()}} para que todas las tablas de la
 colección respeten la misma decisión.}
 
-\item{...}{Argumentos enviados a \code{\link[=perfilar_dbi]{perfilar_dbi()}}.}
+\item{...}{Argumentos enviados a \code{\link[=perfilar_dbi]{perfilar_dbi()}}. \code{proteger_datos_personales}
+vale para toda la colección: sin protección, el mensaje de un error del
+motor se publica entero —el literal que hizo fallar la lectura y el SQL—
+también en \code{cobertura_coleccion}, \code{cobertura_metricas}, \code{meta$lecturas} y
+los avisos; ver la sección «Datos personales» de \code{\link[=perfilar_dbi]{perfilar_dbi()}}.}
 }
 \value{
 Objeto de clase \code{perfil_coleccion} con \code{resumen_coleccion},

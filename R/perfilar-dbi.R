@@ -101,6 +101,9 @@
 # Una condicion propia de la via DBI (`lupa_error_dbi`, `lupa_aviso_dbi`) ya
 # trae el mensaje del motor pasado por aca: su texto es del paquete y solo se le
 # aplica la primera pasada, como antes.
+#
+# 4. Ronda 33: todo esto vale con la proteccion activa. Sin ella el mensaje se
+#    publica entero, sin las vinetas de cli: ver `.protege_mensaje_motor()`.
 .LITERAL_MOTOR_OMITIDO <- "[literal omitido]"
 # El marcador del piso de la proteccion (`.reemplazar_valores_protegidos()`).
 .VALOR_PROTEGIDO_MOTOR <- "[valor protegido]"
@@ -259,6 +262,44 @@
   todos <- unique(c(previos, nuevos, partes))
   .CONTEXTO_MOTOR$identificadores <- todos[!is.na(todos) & nzchar(todos)]
   invisible(previos)
+}
+
+# Y si la llamada PROTEGE. Ronda 33 (A-2, por la decision D8 de Sebastian: el
+# cometido principal del paquete es el diagnostico de la calidad de los datos,
+# y una proteccion que cuesta diagnostico importante no va por omision). El
+# mensaje del motor cita la celda que hizo fallar la lectura -`Conversion
+# failed when converting the nvarchar value 'N/D' to data type int`, un
+# faltante disfrazado: el diagnostico mismo- y el SQL que la leia, y los dos se
+# omitian con o sin proteccion. Sin proteccion el paquete ya publica valores de
+# todas las columnas -modas, ejemplos, patrones-: omitirlos ahi no protegia
+# nada y quitaba el diagnostico. Ahora, sin proteccion, el mensaje se publica
+# entero, como lo dijo el motor (`.texto_condicion_motor()`: sin las vinetas ni
+# los cortes que agrega cli). Con proteccion nada cambia.
+#
+# La decision se toma en la ENTRADA y llega a la lectura del mensaje por un
+# solo camino: la fijan `perfilar_dbi()` y `perfilar_coleccion()` -las dos
+# exportadas que reciben `proteger_datos_personales`- al entrar, antes de la
+# primera lectura, y la devuelven al salir, tambien en error, como
+# `.fijar_numerica_c()` con `LC_NUMERIC`. Los sitios que publican un mensaje
+# del motor -unos treinta, en cuatro archivos- no la reciben y no la pueden
+# olvidar: la lee `.mensaje_motor()`. Las otras cuatro exportadas que leen por
+# DBI no tienen la bandera y no la fijan: heredan la de quien las llama
+# -`perfilar_dbi()` llama a `plan_perfilado_dbi()`- y, solas, protegen. Sin
+# nadie que la fije se protege: el lado cerrado.
+.protege_mensaje_motor <- function() !isFALSE(.CONTEXTO_MOTOR$proteger)
+
+.fijar_proteccion_motor <- function(proteger, marco = parent.frame()) {
+  previa <- .CONTEXTO_MOTOR$proteger
+  .CONTEXTO_MOTOR$proteger <- !isFALSE(proteger)
+  volver <- substitute(.reponer_proteccion_motor(previa),
+                       list(previa = previa))
+  do.call(on.exit, list(volver, add = TRUE), envir = marco)
+  invisible(previa)
+}
+
+.reponer_proteccion_motor <- function(previa) {
+  .CONTEXTO_MOTOR$proteger <- previa
+  invisible(NULL)
 }
 
 # Y los VALORES protegidos que la llamada ya leyo. Ronda 30: la segunda pasada
@@ -770,10 +811,29 @@
 }
 
 .mensaje_motor <- function(condicion) {
+  texto <- .texto_condicion_motor(condicion)
+  # Sin proteccion, entero: ver `.protege_mensaje_motor()`. Tambien el de una
+  # condicion propia de la via DBI, que ya lo trae entero.
+  if (!.protege_mensaje_motor()) return(.texto_motor_legible(texto))
   .sin_literales_motor(
-    .texto_condicion_motor(condicion),
+    texto,
     solo_comillas = inherits(condicion, c("lupa_error_dbi", "lupa_aviso_dbi"))
   )
+}
+
+# El mensaje entero, legible en cualquier locale: lo que ya es UTF-8 valido se
+# declara UTF-8 -sin cambiar sus bytes-, y lo que no -o lo marcado `latin1`- se
+# lee como latin1, como lo lee la segunda pasada
+# (`.publicar_lo_permitido_motor()`). Un texto que no es UTF-8 valido aborta
+# despues en `nchar()` o en la impresion.
+.texto_motor_legible <- function(texto) {
+  texto <- as.character(texto)
+  tryCatch({
+    leer <- !is.na(texto) &
+      (Encoding(texto) == "latin1" | !validUTF8(texto))
+    if (any(leer)) texto[leer] <- iconv(texto[leer], "latin1", "UTF-8")
+    .declarar_utf8_valido(texto)
+  }, error = function(e) texto)
 }
 
 # El mensaje, como lo dijo el motor. Ronda 32. odbc arma su error con cli
@@ -14494,8 +14554,9 @@ print.plan_perfilado_dbi <- function(x, ...) {
 #' requiere nivel de compatibilidad >= 110. Se sondea; estos son los motivos
 #' conocidos de que no se active: la funcion no esta disponible o el motor
 #' rechaza la sonda. En ese caso el mensaje del motor queda en
-#' `meta$mediana_consolidada$motivo` —sin sus literales, como todo mensaje del
-#' motor: ver la protección—, y se conserva la mediana por columna.
+#' `meta$mediana_consolidada$motivo` —sin sus literales con la protección
+#' activa, entero sin ella, como todo mensaje del motor: ver «Datos
+#' personales»—, y se conserva la mediana por columna.
 #'
 #' @section Lo que el motor guarda distinto que R:
 #' El resumen SQL describe lo que el motor tiene delante, y en estos casos eso
@@ -14764,10 +14825,10 @@ print.plan_perfilado_dbi <- function(x, ...) {
 #' y cita la celda que hizo fallar la consulta —`invalid input syntax for type
 #' bigint: "4.685.467-9"`, en una vista que castea una cédula escrita con
 #' puntos—: ese valor nunca se leyó, así que el piso no lo conoce y puede ser
-#' de cualquier columna. Todo mensaje de error que se publica —en `sql`,
-#' `cobertura`, `meta`, en la colección y en los avisos— lleva sus literales
-#' entre comillas —simples, dobles, tipográficas, bajas como las del polaco,
-#' angulares— cambiados por `[literal omitido]`, con o sin protección; también
+#' de cualquier columna. Con la protección activa, todo mensaje de error que se
+#' publica —en `sql`, `cobertura`, `meta`, en la colección y en los avisos— lleva
+#' sus literales entre comillas —simples, dobles, tipográficas, bajas como las
+#' del polaco, angulares— cambiados por `[literal omitido]`; también
 #' un identificador entre comillas, salvo el nombre de la tabla o de una de sus
 #' columnas. Y fuera de las comillas el mensaje publica **sólo lo permitido**:
 #' el vocabulario de los mensajes de los motores, en inglés y en castellano,
@@ -14807,6 +14868,18 @@ print.plan_perfilado_dbi <- function(x, ...) {
 #' El texto que PostgreSQL cita sin comillas al no poder leer un JSON
 #' (`CONTEXT:  JSON data, line 1: ...`) se tapa hasta el fin de la línea. Se
 #' publicaba tal cual, en PostgreSQL, en duckdb y en SQL Server.
+#' **Sin protección** (`proteger_datos_personales = FALSE`) el mensaje del motor
+#' se publica entero, en todas esas salidas: el literal que hizo fallar la
+#' lectura y el SQL que la hacía, sólo sin las viñetas ni los cortes que agrega
+#' cli. El diagnóstico es el cometido del paquete —`Conversion failed when
+#' converting the nvarchar value 'N/D' to data type int` dice que la columna
+#' trae un faltante disfrazado—, y sin protección ya se publican valores de
+#' todas las columnas —modas, ejemplos, patrones—: omitirlo ahí no protegía
+#' nada y quitaba el diagnóstico. Vale igual en [perfilar_coleccion()], que pasa
+#' la bandera a cada tabla y la aplica a sus propios motivos.
+#' [plan_perfilado_dbi()], [coleccion()], [estimar_costo_coleccion()] y
+#' [relaciones_coleccion()] no tienen la bandera: llamadas por su cuenta, tapan
+#' el mensaje como con la protección activa.
 #' `incluir_valores = FALSE` va más lejos: no emite las consultas de moda ni de
 #' mediana y no informa mínimo ni máximo, útil cuando la tabla es un padrón y
 #' la moda de un identificador único es un documento real. Si se pidió `desvio`,
@@ -15115,6 +15188,9 @@ perfilar_dbi <- function(conexion, tabla,
   .fijar_numerica_c()  # LC_NUMERIC en "C" mientras lee de la conexion
   argumentos_muestra <- list(...)
   .validar_bandera_proteccion_en(argumentos_muestra)
+  # Sin proteccion, el mensaje del motor se publica entero: antes de la primera
+  # lectura, y hasta la salida. Ver `.protege_mensaje_motor()`.
+  .fijar_proteccion_motor(.protege_argumentos(argumentos_muestra))
   argumentos_muestra$columnas_opcionales <- columnas_opcionales
   argumentos_muestra$aplicabilidad <- aplicabilidad
   argumentos_muestra$sentinelas_numericos <- sentinelas_numericos
@@ -15747,8 +15823,7 @@ perfilar_dbi <- function(conexion, tabla,
   )
 
   argumentos <- argumentos_muestra
-  proteger <- is.null(argumentos$proteger_datos_personales) ||
-    isTRUE(argumentos$proteger_datos_personales)
+  proteger <- .protege_argumentos(argumentos)
   if (proteger) {
     if (is.null(bloque$perfil)) {
       # Sin muestra no hay clasificacion posible. Ante la duda se protege: para

@@ -871,8 +871,7 @@
       # esto la cedula valida de un cliente frecuente -600 de 20.600
       # movimientos- era "relleno" en la muestra y salia en la moda, los
       # ejemplos y la evidencia de `obs`. Medido en la ronda 27.
-      proteger_spool <- is.null(args$proteger_datos_personales) ||
-        isTRUE(args$proteger_datos_personales)
+      proteger_spool <- .protege_argumentos(args)
       if (!is.null(perfil) && proteger_spool) {
         # Los valores protegidos de la muestra, para el mensaje del motor de las
         # demas tablas de una coleccion: ver `.valores_motor()`.
@@ -1054,8 +1053,7 @@
     perfil$meta$vigilante <- meta$vigilante
   }
   if (!is.null(perfil)) {
-    args_proteger <- is.null(argumentos$proteger_datos_personales) ||
-      isTRUE(argumentos$proteger_datos_personales)
+    args_proteger <- .protege_argumentos(argumentos)
     if (args_proteger) {
       columnas_personales <- .columnas_personales_protegidas(
         perfil$datos_personales
