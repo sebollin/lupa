@@ -1369,11 +1369,22 @@ planificar_limpieza <- function(perfil, datos = NULL,
           "Un sentinela num\u00e9rico tambi\u00e9n puede ser un valor leg\u00edtimo; ",
           "requiere confirmar el diccionario del campo."
         )
+        # La convencion decimal de la columna viaja con la accion: el detector
+        # conto `"-999,00"` como -999 en una columna `decimal_coma`, y sin ella
+        # la accion no lo convertia.
+        convencion <- if ("numero_texto_convencion" %in% names(fila)) {
+          as.character(fila$numero_texto_convencion[[1L]])
+        } else ""
+        parametros_sentinelas <- list(valores = sentinelas)
+        if (length(convencion) == 1L && !is.na(convencion) &&
+            nzchar(convencion)) {
+          parametros_sentinelas$convencion <- convencion
+        }
         acciones <- .agregar_accion(acciones, .nueva_accion(
           columna, tipo, "convertir_sentinelas_numericos", FALSE,
           justificacion, n_numericos, FALSE,
           estado = estado_columna, aplicar = FALSE,
-          parametros = list(valores = sentinelas), orden = 110L,
+          parametros = parametros_sentinelas, orden = 110L,
           grupo = grupo_hallazgo, decision_grupo = "pendiente"
         ))
       }
@@ -2437,7 +2448,11 @@ rbind.plan_limpieza <- function(..., deparse.level = 1) {
 
 .mascara_sentinelas_numericos <- function(x, parametros) {
   if (is.character(x) || is.factor(x)) {
-    numeros <- suppressWarnings(as.numeric(trimws(as.character(x))))
+    # Con la convencion decimal que el plan registro, la lectura del detector:
+    # ver `.leer_numeros_texto_centinela()`.
+    numeros <- .leer_numeros_texto_centinela(
+      trimws(as.character(x)), parametros$convencion
+    )
   } else if (is.numeric(x) && !inherits(x, c("Date", "POSIXt"))) {
     numeros <- as.numeric(x)
   } else {
@@ -3494,8 +3509,11 @@ rbind.plan_limpieza <- function(..., deparse.level = 1) {
     match(valores, unique(valores))
   })
   if (!length(codigos)) return(integer())
+  # Sin los nombres de las columnas: `do.call()` los vuelve nombres de argumento
+  # y bajo `C` una columna con acento avisaba "unable to translate" en
+  # `aplicar()` (ronda 33-X, la construccion de `medir()`).
   as.integer(do.call(interaction, c(
-    lapply(codigos, factor), list(drop = TRUE, lex.order = TRUE)
+    unname(lapply(codigos, factor)), list(drop = TRUE, lex.order = TRUE)
   )))
 }
 

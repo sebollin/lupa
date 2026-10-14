@@ -400,7 +400,7 @@
   error_lectura <- NULL
   fetches <- 0L
   resultado <- tryCatch(
-    DBI::dbSendQuery(conexion, sql),
+    .enviar_consulta_dbi(conexion, sql),
     error = function(e) {
       error_lectura <<- .mensaje_motor(e)
       NULL
@@ -860,7 +860,8 @@
       )
       if (inherits(perfil, "condition")) {
         motivo <- paste0(
-          "muestra_inestable:perfilado_spool: ", .mensaje_motor(perfil)
+          "muestra_inestable:perfilado_spool: ",
+          .motivo_perfilado_muestra_dbi(perfil, datos, args)
         )
         perfil <- NULL
       }

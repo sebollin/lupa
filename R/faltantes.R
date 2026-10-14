@@ -110,14 +110,34 @@ sentinelas_naniar <- c(-9, -99, -999, -9999, 9999, 66, 77, 88)
   cadenas
 }
 
+# El numero de cada texto para compararlo con los centinelas: con la convencion
+# decimal de la columna, si el perfil publico una. La usan el detector y la
+# accion `convertir_sentinelas_numericos`, que tienen que marcar las mismas
+# celdas.
+.leer_numeros_texto_centinela <- function(texto, convencion = NULL) {
+  if (length(convencion) == 1L && !is.na(convencion) &&
+      nzchar(as.character(convencion))) {
+    return(.leer_numeros_texto(texto, as.character(convencion)))
+  }
+  suppressWarnings(as.numeric(texto))
+}
+
 .numeros_na <- function(valores = .numeros_na_locales) {
   .normalizar_sentinelas_numericos(valores)
 }
 
+# `convencion` es la convencion decimal que el perfil publica para la columna en
+# `numero_texto_convencion`. Con ella, un centinela escrito en texto se lee como
+# lee el resto del perfil -`.leer_numeros_texto()`-: `"-999,00"` en una columna
+# `decimal_coma` es -999, como su `minimo`. Con `as.numeric()` era `NA`, y la
+# columna publicaba `minimo = -999` con cero disfrazados y sin `NoNulo`, al
+# lado de la misma cifra escrita `"-999.00"`, que si contaba (refutacion 33-D).
+# Sin convencion -o vacia: la columna no se lee como numero- la lectura es la
+# de siempre.
 .detectar_faltantes_disfrazados <- function(
     x, sentinelas_numericos = .numeros_na_locales,
     detectar_sentinelas_numericos = TRUE,
-    cadenas_ausencia = NULL) {
+    cadenas_ausencia = NULL, convencion = NULL) {
   n <- length(x)
   if (!n) {
     return(list(
@@ -135,7 +155,7 @@ sentinelas_naniar <- c(-9, -99, -999, -9999, 9999, 66, 77, 88)
     normalizados <- .minusculas_para_comparar(textos)
     cadenas <- .cadenas_ausencia_columna(normalizados, cadenas_ausencia)
     mascara_textual <- !is.na(normalizados) & normalizados %in% cadenas
-    numericos <- suppressWarnings(as.numeric(normalizados))
+    numericos <- .leer_numeros_texto_centinela(normalizados, convencion)
     mascara_numerica <- detectar_sentinelas_numericos &
       !is.na(normalizados) & !is.na(numericos) & numericos %in% numeros_na
     mascara <- mascara_textual | mascara_numerica

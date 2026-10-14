@@ -56,6 +56,11 @@ traen decimales, y con valores enteros la propuesta queda sin confirmar,
 porque pueden ser una cuenta o una medida redondeada.
 }
 \details{
+Con \code{perfil}, una columna declarada en su \code{columnas_codigo} es un código y
+no una magnitud: en lugar de \code{discreta} o \code{continua} con rol \code{medida}, sale
+\code{nominal}, con rol \code{categoria} y confirmada, porque la declaración es del
+usuario. \code{metadatos} la puede corregir igual.
+
 \code{metadatos} permite confirmar o corregir la propuesta con una tabla editable.
 Debe contener \code{columna} y puede incluir \code{escala}, \code{rol}, \code{confianza},
 \code{confirmada}, \code{unidad} y una columna de lista \code{niveles}. Las escalas válidas

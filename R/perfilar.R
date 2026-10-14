@@ -1452,7 +1452,10 @@
 #'   defecto. Su universo de completitud son las celdas presentes, y
 #'   `cobertura_diagnosticos` declara el recorte. Sirve para el vacío por
 #'   diseño: un historial con vigencia abierta, una columna que sólo
-#'   corresponde a algunas filas.
+#'   corresponde a algunas filas. La declaración queda en
+#'   `meta$columnas_opcionales`, y la `NoNulo` que [proponer_modelo()] propone
+#'   para la columna —cuando tiene faltantes disfrazados— se mide sobre el mismo
+#'   universo (`opcional = TRUE`).
 #' @param columnas_codigo Nombres de columnas que son **códigos**, no
 #'   magnitudes: un código de catálogo, un departamento numerado, una clave
 #'   foránea. El paquete no los distingue por su forma de una magnitud entera
@@ -1470,9 +1473,19 @@
 #'   declaraciones de `perfilar()`: [perfilar_dbi()] —también en su
 #'   `resumen_tabla`—, [perfilar_por()], [perfilar_coleccion()] y [analizar()]
 #'   por `argumentos_perfil`. Vale también para el código guardado como texto
-#'   o como factor, que el paquete lee como número; una columna sin resumen
-#'   numérico —texto que no se lee como número, fechas— no cambia, porque no
-#'   tiene esas cifras. Un nombre que la tabla no tiene es un error.
+#'   o como factor, que el paquete lee como número —y ese código no recibe el
+#'   hallazgo `tipo_declarado_distinto`, que pedía convertirlo a número—; una
+#'   columna sin resumen numérico —texto que no se lee como número, fechas— no
+#'   cambia, porque no tiene esas cifras. Un nombre que la tabla no tiene es un
+#'   error. Dentro de [analizar()] la declaración llega también a `variables`
+#'   —escala `nominal`, rol `categoria`, confirmada— y a `asociaciones`, donde
+#'   el código se asocia como categoría (eta cuadrado o V de Cramér) y no con
+#'   una correlación que supone una magnitud. En [perfilar_dbi()], la
+#'   corroboración entre `resumen_tabla` y `perfil_muestra` no compara la
+#'   media, la mediana ni el desvío de una columna declarada: no se calculan.
+#'   En [perfilar_coleccion()] la declaración vale igual para todas las
+#'   tablas: una tabla que no tiene la columna declarada no se perfila
+#'   (limitación conocida; ver la ayuda de esa función).
 #' @param aplicabilidad Lista con nombre por columna, donde cada elemento es
 #'   una fórmula de un solo lado evaluada sobre `datos` — por ejemplo
 #'   `list(marca_auto = ~ tiene_auto == "Si")`. Las filas donde el predicado no
@@ -3030,6 +3043,12 @@ perfilar <- function(datos,
     columnas_no_negativas = columnas_no_negativas,
     # Ningun acceso `meta$...` del paquete es prefijo de este nombre.
     columnas_codigo = columnas_codigo,
+    # Las columnas declaradas opcionales, con el nombre de la tabla. Las lee
+    # `proponer_modelo()`: la `NoNulo` de una opcional se mide sobre las celdas
+    # presentes, el mismo universo que el perfil (ronda 33-D). Sin este registro
+    # la propuesta no sabia de la declaracion y media sobre todas las filas.
+    # Tampoco aca hay un acceso `meta$...` que sea prefijo de este nombre.
+    columnas_opcionales = .nombres_resueltos(columnas_opcionales, nombres),
     analizar_dependencias = analizar_dependencias,
     umbral_dependencia = umbral_dependencia,
     umbral_casi_clave_dependencia = umbral_casi_clave_dependencia,

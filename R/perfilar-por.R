@@ -74,7 +74,12 @@
 #'   filas, los diagnósticos que muestrean miran 100 de cada grupo. El alcance
 #'   viaja en la evidencia de cada hallazgo, que declara sobre cuántos valores
 #'   se midió; `n_filas_grupo` sigue siendo el tamaño del grupo, no el de la
-#'   muestra.
+#'   muestra. Un nombre abreviado vale lo mismo que el entero, como lo completa
+#'   R al llamar a [perfilar()]: `proteger = FALSE` es
+#'   `proteger_datos_personales = FALSE` también para las etiquetas de grupo.
+#'   La bandera, `fecha` y los nombres se validan al entrar, aunque ningún grupo
+#'   llegue a `min_filas`. Los demás valores los valida [perfilar()] al perfilar
+#'   el primer grupo: si ninguno llega a `min_filas`, uno inválido no da error.
 #'
 #' @return Data frame de clase `hallazgos_por_grupo` con las columnas de
 #'   `hallazgos` de [perfilar()] precedidas por `grupo` y `n_filas_grupo`. El
@@ -252,8 +257,8 @@ perfilar_por <- function(datos, por, clave = NULL, min_filas = 30L, ...) {
   # La clasificacion la decide `perfilar()` sobre esa sola columna, no una copia
   # de la regla aca: una regla duplicada se arregla en un lado y no en el otro,
   # que es como aparecio el defecto de `analizar_tiempo()`.
-  extras <- list(...)
-  .validar_bandera_proteccion_en(extras)
+  extras <- .argumentos_para_perfilar(list(...))
+  .validar_argumentos_para_perfilar(extras)
   proteger <- if ("proteger_datos_personales" %in% names(extras)) {
     isTRUE(extras$proteger_datos_personales)
   } else {

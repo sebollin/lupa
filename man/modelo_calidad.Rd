@@ -151,7 +151,12 @@ integra el denominador de sus agregaciones. La completitud se mide por
 separado con \code{NoNulo}; así un mismo ausente no se penaliza en dos factores.
 \code{NoNulo} acepta el vector opcional \code{valores_nulos} para aplicar de forma
 deliberada el diccionario de nulos que contempla el marco; sin configurarlo,
-sólo considera los \code{NA} reales.
+sólo considera los \code{NA} reales. Con \code{opcional = TRUE} mide sobre las celdas
+presentes: la ausencia no es defecto y sólo cuentan como faltantes los
+\code{valores_nulos}. Es como \code{\link[=proponer_modelo]{proponer_modelo()}} propone la \code{NoNulo} de una
+columna declarada en \code{columnas_opcionales} de \code{\link[=perfilar]{perfilar()}}, para medir sobre
+el mismo universo que el perfil: con un \code{NA} y tres \code{-999} en cuarenta
+celdas, 36/39 = 0,923 y no 36/40.
 \code{ValoresPosiblesPorComprension} sigue la misma convención y acepta un
 \code{predicado} o un rango definido por \code{minimo}, \code{maximo} e \code{inclusivo}.
 

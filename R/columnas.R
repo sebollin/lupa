@@ -2567,9 +2567,12 @@
   detectar_sentinelas <- length(sentinelas_declarados) > 0L ||
     !isTRUE(secuencia_entera$densa) ||
     length(sentinelas_efectivos) > 0L
+  # La convencion decimal que la fila publica: un centinela escrito con ella
+  # -`"-999,00"` en una columna `decimal_coma`- se lee como lo lee el resumen.
+  convencion <- inferencia[["convencion_numero_texto"]]
   faltantes_disfrazados <- .detectar_faltantes_disfrazados(
     x_analisis, sentinelas_numericos = sentinelas_efectivos,
-    cadenas_ausencia = cadenas_ausencia,
+    cadenas_ausencia = cadenas_ausencia, convencion = convencion,
     # Una numeración compacta no apaga por sí sola la corazonada: un candidato
     # fuera de su rango o cuya frecuencia es la moda sobresaliente vuelve a
     # abrirla. Una declaración explícita siempre atraviesa la guarda.
@@ -2581,7 +2584,7 @@
     sentinelas_numericos = .sentinelas_numericos_declarados(
       sentinelas_numericos
     ),
-    detectar_sentinelas_numericos = TRUE
+    detectar_sentinelas_numericos = TRUE, convencion = convencion
   )
   faltantes_declarados <- .restringir_disfrazados(
     faltantes_declarados, aplicable

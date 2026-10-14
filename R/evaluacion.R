@@ -522,7 +522,12 @@ perfiles_madurez <- function(metricas = NULL, umbrales = NULL) {
   }), recursive = FALSE)
   partes <- Filter(Negate(is.null), partes)
   if (!length(partes)) return(vacio)
-  salida <- do.call(rbind, partes)
+  # Sin nombres, como en `medir()`: `rbind()` traduce al nativo los nombres de
+  # sus argumentos, y bajo `C` una regla, un perfil o un id con acento avisaba
+  # "unable to translate" en cada `evaluar()` -con `warn = 2`, abortaba-. Los
+  # nombres eran los de las reglas y los grupos, y se tiraban en la linea
+  # siguiente (ronda 33-X).
+  salida <- do.call(rbind, unname(partes))
   rownames(salida) <- NULL
   salida
 }
@@ -622,7 +627,7 @@ perfiles_madurez <- function(metricas = NULL, umbrales = NULL) {
       stringsAsFactors = FALSE
     )
   })
-  resultado <- do.call(rbind, partes)
+  resultado <- do.call(rbind, unname(partes))
   rownames(resultado) <- NULL
   resultado
 }
@@ -771,7 +776,7 @@ perfiles_madurez <- function(metricas = NULL, umbrales = NULL) {
       stringsAsFactors = FALSE
     )
   })
-  resultado <- do.call(rbind, partes)
+  resultado <- do.call(rbind, unname(partes))
   rownames(resultado) <- NULL
   resultado
 }
@@ -840,7 +845,7 @@ perfiles_madurez <- function(metricas = NULL, umbrales = NULL) {
   })
   partes <- partes[!vapply(partes, is.null, logical(1L))]
   if (!length(partes)) return(.desenlaces_vacios())
-  resultado <- do.call(rbind, partes)
+  resultado <- do.call(rbind, unname(partes))
   rownames(resultado) <- NULL
   class(resultado) <- c("plan_desenlaces", "data.frame")
   resultado
@@ -1338,9 +1343,12 @@ evaluar <- function(medicion, perfil) {
       call. = FALSE
     )
   }
-  evaluaciones_medidas <- do.call(rbind, lapply(perfil$reglas, function(regla) {
+  # `perfil$reglas` viene nombrada por las reglas: sin nombres al unir, como en
+  # `.cobertura_reglas_evaluacion()`.
+  medidas_por_regla <- lapply(perfil$reglas, function(regla) {
     .evaluar_regla_medidas(medicion, perfil, regla)
-  }))
+  })
+  evaluaciones_medidas <- do.call(rbind, unname(medidas_por_regla))
   rownames(evaluaciones_medidas) <- NULL
   evaluaciones_reglas <- .resumir_evaluaciones_regla(evaluaciones_medidas)
   evaluaciones_reglas <- .completar_evaluaciones_regla(

@@ -829,6 +829,23 @@ transiciones_granularidad <- function() {
   "cobertura_organizacion", "cobertura_conjunto_organizaciones"
 )
 
+# Copia a `destino` los atributos de `.ATRIBUTOS_TRASLADADOS_AGREGACION` que
+# `origen` declara. Una sola forma para las tres puertas que agregan una
+# medicion: `agregar()`, el tablero y la medicion de `analizar()`. Esta ultima
+# no los copiaba, y `evaluar()` copia `configuracion_modelo`,
+# `configuracion_aplicabilidad` y la fecha declarada de la medicion que recibe:
+# la evaluacion de `analizar()` llegaba al historico sin ellas, la deriva no
+# separaba un cambio de modelo ni dos tablas -`identidad_tabla` salia
+# `<sin_configuracion>`- y publicaba `error` sobre corridas que la puerta
+# `medir()` -> `evaluar()` declara no comparables (refutacion 33-D).
+.trasladar_atributos_medicion <- function(destino, origen) {
+  for (nombre_atributo in .ATRIBUTOS_TRASLADADOS_AGREGACION) {
+    valor_atributo <- attr(origen, nombre_atributo, exact = TRUE)
+    if (!is.null(valor_atributo)) attr(destino, nombre_atributo) <- valor_atributo
+  }
+  destino
+}
+
 # Una agregacion hereda lo que sus partes declararon. Sin esto, la cobertura de
 # cada organizacion se perdia al armar el conjunto y el numero de arriba salia
 # diciendo que estaba completo.
@@ -1560,10 +1577,7 @@ agregar <- function(medidas, destino,
   # se declaran juntos a proposito: la suite recorre los atributos que `medir()`
   # pone de verdad y exige que cada uno este en una de las dos listas, asi que un
   # atributo nuevo no puede volver a perderse en silencio.
-  for (nombre_atributo in .ATRIBUTOS_TRASLADADOS_AGREGACION) {
-    valor_atributo <- attr(medidas, nombre_atributo, exact = TRUE)
-    if (!is.null(valor_atributo)) attr(resultado, nombre_atributo) <- valor_atributo
-  }
+  resultado <- .trasladar_atributos_medicion(resultado, medidas)
   # La coleccion lleva la cobertura de SUS tablas. Medidas tomadas de una
   # `medir()` que reunia dos colecciones traian la de la otra -"la entidad `a3`
   # tiene cero filas" en la coleccion que no tiene `a3`-, y con una regla sin

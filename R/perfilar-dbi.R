@@ -36,6 +36,96 @@
   .detener(.condicion_dbi(clase, mensaje, datos))
 }
 
+# Un argumento malo de la via DBI que valida un ayudante comun -`.elegir_opcion()`,
+# la bandera de proteccion, los topes de la muestra- salia como `simpleError`, sin
+# la clase que promete `?perfilar_dbi` (ronda 33-X: 44 combinaciones de nueve
+# argumentos y la bandera por `...`). El mismo mensaje, con
+# `lupa_error_argumento_dbi`; una condicion que ya es de la via pasa como esta.
+.argumento_dbi <- function(expr) {
+  tryCatch(expr, error = function(e) {
+    if (inherits(e, "lupa_error_dbi")) .detener(e)
+    .detener_dbi("lupa_error_argumento_dbi", conditionMessage(e))
+  })
+}
+
+# ---- Una consulta que la sesion no puede escribir ------------------------
+#
+# odbc pasa el texto de la consulta por la codificacion NATIVA de la sesion
+# antes de mandarlo, y bajo el locale `C` -el de un `Rscript` de cron en Linux-
+# lo nativo es ASCII. Medido en la ronda 33-X con SQL Server (FreeTDS) y una
+# columna `a\u00f1o`: con los bytes UTF-8 sin marca que devuelve
+# `dbListFields()`, la conversion falla, odbc manda el texto "NA" ("Could not
+# find stored procedure 'NA'") y deja la conexion con un resultado a medio
+# armar; la consulta SIGUIENTE en esa conexion -cualquiera, tambien
+# `SELECT 1`- hace caer a R con una violacion de segmento dentro de
+# `dbSendQuery()`. `perfilar_dbi()` caia asi: la lectura conjunta del esquema
+# fallaba y la sonda de la primera columna mataba la sesion. Con el nombre
+# marcado UTF-8, odbc lo manda escapado (`a<U+00F1>o`): otro identificador, que
+# el motor rechaza -o que leeria sin aviso si hubiera una columna llamada asi-.
+# Ninguna de las dos es una lectura. Una consulta que la sesion no puede
+# escribir no se manda: falla aca, antes de tocar la conexion, con un error de
+# la via que cada sitio trata como un rechazo del motor; la columna -o la
+# tabla- queda sin leer con este motivo y lo demas se lee. Solo odbc: RPostgres,
+# RSQLite y duckdb reciben el texto en UTF-8 (medido bajo `C`).
+.sentencia_representable_dbi <- function(conexion, sql) {
+  if (!inherits(conexion, "OdbcConnection")) return(TRUE)
+  if (isTRUE(l10n_info()[["UTF-8"]])) return(TRUE)
+  sql <- as.character(sql)
+  if (length(sql) != 1L || is.na(sql)) return(TRUE)
+  if (!grepl("[^\\001-\\177]", sql, useBytes = TRUE, perl = TRUE)) return(TRUE)
+  desde <- switch(Encoding(sql), latin1 = "latin1", "UTF-8" = "UTF-8",
+                  bytes = NA_character_, "")
+  if (is.na(desde)) return(FALSE)
+  !is.na(suppressWarnings(iconv(sql, desde, "")))
+}
+
+.motivo_no_representable_dbi <- function(que = "El nombre") {
+  paste0(
+    que, " no se puede escribir en la codificacion de la sesion (",
+    "LC_CTYPE ", Sys.getlocale("LC_CTYPE"), ", ", l10n_info()[["codeset"]],
+    "): odbc pasa la consulta por esa codificacion, asi que no se envio. ",
+    "Correr la sesion con un locale UTF-8 -por ejemplo LC_ALL=C.UTF-8- para ",
+    "leer esta columna o tabla."
+  )
+}
+
+.exigir_sentencia_representable_dbi <- function(conexion, sql) {
+  if (.sentencia_representable_dbi(conexion, sql)) return(invisible(TRUE))
+  .detener_dbi("lupa_error_codificacion_dbi", .motivo_no_representable_dbi())
+}
+
+# Las columnas que el esquema no pudo leer, declaradas en la cobertura: la via SQL
+# y la via por bloques usan la misma (ronda 33-X: la de bloques las dejaba fuera
+# del resumen sin decirlo).
+.cobertura_ilegibles_dbi <- function(esquema) {
+  cobertura <- .cobertura_dbi_vacia()
+  for (campo in esquema$ilegibles) {
+    como <- if (campo %in% esquema$no_representables) {
+      "Correr la sesion con un locale UTF-8; las demas columnas se midieron enteras."
+    } else paste(
+      "Las demas columnas se midieron enteras. Revisar el tipo de la",
+      "columna y los permisos a nivel de columna."
+    )
+    cobertura <- rbind(cobertura, .registro_cobertura_dbi(
+      "resumen_tabla", campo, "no_disponible", esquema$motivos[[campo]],
+      como, esquema$motivo_conjunto
+    ))
+  }
+  cobertura
+}
+
+# Toda consulta de la via sale por aca (una prueba recorre el espacio de nombres
+# y no encuentra otro `dbSendQuery()` ni `dbGetQuery()`).
+.enviar_consulta_dbi <- function(conexion, sql) {
+  .exigir_sentencia_representable_dbi(conexion, sql)
+  DBI::dbSendQuery(conexion, sql)
+}
+
+.traer_consulta_dbi <- function(conexion, sql) {
+  .exigir_sentencia_representable_dbi(conexion, sql)
+  DBI::dbGetQuery(conexion, sql)
+}
+
 .avisar_dbi <- function(clase, mensaje, datos = list()) {
   aviso <- list(message = mensaje, call = NULL, datos = datos)
   class(aviso) <- c(clase, "lupa_aviso_dbi", "warning", "condition")
@@ -371,6 +461,158 @@
   if (is.null(indice) || !length(valores)) return(rep(FALSE, length(valores)))
   huellas <- .huellas_claves_motor(.claves_motor(valores))
   !is.na(huellas) & huellas %in% indice$huellas
+}
+
+# Ronda 33 (H2 y H3). Y el mensaje CRUDO de cada error del motor que se publica
+# mientras una coleccion junta valores. El piso del mensaje corre al armarlo
+# (`.sin_literales_motor()`), con los valores que se conocen en ese momento, y
+# con una vista leida antes que su tabla base no conoce los de la base: la
+# segunda pasada omitia lo que no es una palabra permitida y dejaba el RESTO del
+# nombre -"De Los Campos" de "Maria De Los Campos" en SQL Server en sueco,
+# "Campos Cadena" despues de un apodo entre comillas en ingles-, que el piso
+# final ya no reconocia, porque la huella es la del valor entero. Ahora la
+# coleccion guarda cada mensaje como llego, lo que se publico de el y los
+# nombres que estaban permitidos, y al final vuelve a leer cada uno con todo lo
+# que leyo y cambia lo publicado (`.repasar_mensajes_motor()`): el piso corre
+# sobre el valor entero, sin depender del orden de las tablas. Los crudos viven
+# en memoria mientras dura la coleccion y nunca entran a un objeto; fuera de
+# una coleccion no se guarda nada.
+.activar_mensajes_motor <- function() {
+  previos <- .CONTEXTO_MOTOR$mensajes
+  registro <- new.env(parent = emptyenv())
+  registro$crudos <- character()
+  registro$publicados <- character()
+  registro$conjunto <- integer()
+  registro$conjuntos <- list()
+  registro$claves <- character()
+  .CONTEXTO_MOTOR$mensajes <- registro
+  invisible(previos)
+}
+
+.fijar_mensajes_motor <- function(mensajes) {
+  .CONTEXTO_MOTOR$mensajes <- mensajes
+  invisible(NULL)
+}
+
+.registrar_mensajes_motor <- function(crudos, publicados,
+                                      identificadores = .identificadores_motor()) {
+  registro <- .CONTEXTO_MOTOR$mensajes
+  if (!is.environment(registro)) return(invisible(NULL))
+  crudos <- as.character(crudos)
+  publicados <- as.character(publicados)
+  validos <- !is.na(crudos) & !is.na(publicados)
+  if (!any(validos)) return(invisible(NULL))
+  identificadores <- as.character(identificadores)
+  # Los nombres permitidos al armarlo: al volver a leerlo se permiten los
+  # mismos, ni uno mas.
+  cual <- Position(function(c) identical(c, identificadores), registro$conjuntos)
+  if (is.na(cual)) {
+    registro$conjuntos[[length(registro$conjuntos) + 1L]] <- identificadores
+    cual <- length(registro$conjuntos)
+  }
+  crudos <- crudos[validos]
+  publicados <- publicados[validos]
+  claves <- paste(cual, crudos, publicados, sep = "\001")
+  nuevas <- !duplicated(claves) & !claves %in% registro$claves
+  if (!any(nuevas)) return(invisible(NULL))
+  registro$claves <- c(registro$claves, claves[nuevas])
+  registro$crudos <- c(registro$crudos, crudos[nuevas])
+  registro$publicados <- c(registro$publicados, publicados[nuevas])
+  registro$conjunto <- c(registro$conjunto, rep(cual, sum(nuevas)))
+  invisible(NULL)
+}
+
+.crudos_mensajes_motor <- function() {
+  registro <- .CONTEXTO_MOTOR$mensajes
+  if (!is.environment(registro)) return(character())
+  unique(registro$crudos)
+}
+
+.publicados_mensajes_motor <- function() {
+  registro <- .CONTEXTO_MOTOR$mensajes
+  if (!is.environment(registro)) return(character())
+  unique(registro$publicados)
+}
+
+# Las letras y cifras que un texto publica fuera de los marcadores.
+.alfanumericos_publicados_motor <- function(texto) {
+  texto <- as.character(texto)
+  sin_marcas <- gsub(.LITERAL_MOTOR_OMITIDO, "", texto, fixed = TRUE,
+                     useBytes = TRUE)
+  sin_marcas <- gsub(.VALOR_PROTEGIDO_MOTOR, "", sin_marcas, fixed = TRUE,
+                     useBytes = TRUE)
+  # Por bytes: una letra fuera de ASCII cuenta por cada uno de sus bytes, en
+  # cualquier codificacion y sin abortar.
+  ascii <- nchar(gsub("[^A-Za-z0-9]", "", sin_marcas, useBytes = TRUE),
+                 type = "bytes")
+  otros <- vapply(sin_marcas, function(t) {
+    if (is.na(t)) return(NA_integer_)
+    sum(as.integer(charToRaw(t)) >= 128L)
+  }, integer(1L), USE.NAMES = FALSE)
+  salida <- as.integer(ascii + otros)
+  salida[is.na(texto)] <- NA_integer_
+  salida
+}
+
+# Lo publicado de cada mensaje guardado y lo que se publica ahora, con todo lo
+# que la llamada conoce y los nombres de entonces: solo los que cambian, del
+# publicado mas largo al mas corto -uno que esta dentro de otro va despues-.
+# Lo de ahora reemplaza a lo de antes solo si publica menos letras y cifras: un
+# mensaje vuelto a leer nunca abre lo que antes se omitio. Y no un publicado
+# sin letras ni cifras -todo el mensaje omitido-: esta en cualquier texto. Si
+# dos crudos publicaron lo mismo y ahora publican distinto, gana el que tapa
+# mas: el lado cerrado.
+.pares_mensajes_motor <- function() {
+  vacio <- data.frame(publicado = character(), nuevo = character(),
+                      stringsAsFactors = FALSE)
+  registro <- .CONTEXTO_MOTOR$mensajes
+  if (!is.environment(registro) || !length(registro$crudos)) return(vacio)
+  nuevos <- rep(NA_character_, length(registro$crudos))
+  for (k in unique(registro$conjunto)) {
+    cuales <- which(registro$conjunto == k)
+    nuevos[cuales] <- tryCatch(
+      .sin_literales_motor(registro$crudos[cuales],
+                           identificadores = registro$conjuntos[[k]]),
+      error = function(e) rep(.LITERAL_MOTOR_OMITIDO, length(cuales))
+    )
+  }
+  antes <- .alfanumericos_publicados_motor(registro$publicados)
+  ahora <- .alfanumericos_publicados_motor(nuevos)
+  cambia <- !is.na(nuevos) & nuevos != registro$publicados & antes > 0L &
+    ahora < antes
+  cambia <- cambia & !is.na(cambia)
+  if (!any(cambia)) return(vacio)
+  pares <- data.frame(publicado = registro$publicados[cambia],
+                      nuevo = nuevos[cambia], ahora = ahora[cambia],
+                      stringsAsFactors = FALSE)
+  pares <- pares[.orden_por_bytes(pares$ahora), , drop = FALSE]
+  pares <- pares[!duplicated(pares$publicado), , drop = FALSE]
+  pares <- pares[.orden_por_bytes(-nchar(pares$publicado, type = "bytes")), ,
+                 drop = FALSE]
+  rownames(pares) <- NULL
+  pares[, c("publicado", "nuevo")]
+}
+
+# Cada texto de `x` que lleva lo publicado de un mensaje guardado pasa a llevar
+# lo que se publica ahora (`.pares_mensajes_motor()`). Si el reemplazo falla, el
+# texto que lo lleva no se publica.
+.repasar_mensajes_motor <- function(x, pares = .pares_mensajes_motor()) {
+  if (is.null(x) || !nrow(pares)) return(x)
+  .recorrer_textos_salida(x, function(hoja, campo) {
+    for (k in seq_len(nrow(pares))) {
+      viejo <- pares$publicado[[k]]
+      hoja <- tryCatch(
+        gsub(viejo, pares$nuevo[[k]], hoja, fixed = TRUE),
+        error = function(e) {
+          dentro <- !is.na(hoja) &
+            grepl(viejo, hoja, fixed = TRUE, useBytes = TRUE)
+          hoja[dentro] <- .LITERAL_MOTOR_OMITIDO
+          hoja
+        }
+      )
+    }
+    hoja
+  })
 }
 
 # La forma con que se compara: plegada y sin separadores, como la regla de
@@ -810,15 +1052,45 @@
   }, character(1L), USE.NAMES = FALSE)
 }
 
+# El motivo de una muestra que se leyo y no se pudo perfilar (ronda 33-X). El
+# error de `perfilar()` pasaba por el piso entero, como un mensaje del motor, y
+# con la proteccion activa un error del propio paquete salia ilegible: "`fecha`
+# debe [literal omitido] una fecha y hora valida", "`[literal omitido]` debe ser
+# un entero [literal omitido] de al [literal omitido] 2." -no se sabia que
+# argumento fallo-. Pero el texto de un error puede citar una celda, y por eso
+# el piso. El criterio: se vuelve a llamar a `perfilar()` con los mismos
+# argumentos sobre la muestra SIN FILAS; si da el mismo error, el error no sale
+# de ninguna celda -es de los argumentos- y se trata como una condicion propia
+# de la via: solo la primera pasada, que tapa lo citado entre comillas salvo los
+# nombres de la tabla y sus columnas. Si no se repite, el piso entero. Solo
+# corre cuando el perfilado ya fallo.
+.motivo_perfilado_muestra_dbi <- function(error, datos, argumentos) {
+  sin_filas <- tryCatch({
+    suppressWarnings(suppressMessages(do.call(
+      perfilar, c(list(datos = datos[0L, , drop = FALSE]), argumentos)
+    )))
+    NULL
+  }, error = function(e) e)
+  if (inherits(sin_filas, "error") &&
+      identical(conditionMessage(sin_filas), conditionMessage(error))) {
+    error <- .condicion_dbi(
+      "lupa_error_argumento_dbi", .texto_condicion_motor(error)
+    )
+  }
+  .mensaje_motor(error)
+}
+
 .mensaje_motor <- function(condicion) {
   texto <- .texto_condicion_motor(condicion)
   # Sin proteccion, entero: ver `.protege_mensaje_motor()`. Tambien el de una
   # condicion propia de la via DBI, que ya lo trae entero.
   if (!.protege_mensaje_motor()) return(.texto_motor_legible(texto))
-  .sin_literales_motor(
-    texto,
-    solo_comillas = inherits(condicion, c("lupa_error_dbi", "lupa_aviso_dbi"))
-  )
+  propia <- inherits(condicion, c("lupa_error_dbi", "lupa_aviso_dbi"))
+  salida <- .sin_literales_motor(texto, solo_comillas = propia)
+  # En una coleccion se guarda como llego, para volver a leerlo al final con
+  # todo lo que la coleccion leyo: ver `.activar_mensajes_motor()`.
+  if (!propia) .registrar_mensajes_motor(texto, salida)
+  salida
 }
 
 # El mensaje entero, legible en cualquier locale: lo que ya es UTF-8 valido se
@@ -868,7 +1140,7 @@
       NULL
     } else {
       lineas <- unlist(partes, use.names = FALSE)
-      lineas <- lineas[!is.na(lineas)]
+      lineas <- .sin_ansi_motor(lineas[!is.na(lineas)])
       if (isTRUE(condicion[["use_cli_format"]])) {
         lineas <- gsub("\\\\\n[ \t]*", "", lineas)
       }
@@ -881,8 +1153,29 @@
     }
   }, error = function(e) NULL)
   if (is.character(crudo) && length(crudo) == 1L) crudo else {
-    conditionMessage(condicion)
+    .sin_ansi_motor(conditionMessage(condicion))
   }
+}
+
+# Ronda 33 (H4). Y sin los colores de cli. En una consola a color -la de
+# RStudio, `cli.num_colors = 256`- cli formatea las partes al senalar el error
+# (`cli_abort()` aplica `format_inline()`): `message` y `body` traen las
+# secuencias ANSI -`\033[32m[FreeTDS][SQL Server]\033[39m`, el enlace de
+# `{.file}`- y el motivo se guardaba con ellas, con y sin proteccion; con
+# proteccion la segunda pasada las mezclaba con marcadores
+# (`[[literal omitido][FreeTDS]`). No son del motor: se quitan en la misma
+# lectura que quita las vinetas. Si `ansi_strip()` falla, las de color a mano.
+.sin_ansi_motor <- function(texto) {
+  if (!is.character(texto) || !length(texto)) return(texto)
+  con <- !is.na(texto) & grepl("\033", texto, fixed = TRUE, useBytes = TRUE)
+  if (!any(con)) return(texto)
+  texto[con] <- tryCatch(
+    as.character(cli::ansi_strip(texto[con])),
+    error = function(e) {
+      gsub("\033\\[[0-9;]*[A-Za-z]", "", texto[con], useBytes = TRUE)
+    }
+  )
+  texto
 }
 
 # ---- Presupuesto de consultas -------------------------------------------
@@ -3272,7 +3565,7 @@
 # requieren CHAR en CAST; los demas motores cubiertos aceptan VARCHAR.
 .cast_entero_ancho_texto_dbi <- function(expr, alias, conexion = NULL) {
   senas <- if (is.null(conexion)) "" else .senas_conexion_dbi(conexion)
-  tipo_texto <- if (grepl("mysql|mariadb", senas, perl = TRUE)) {
+  tipo_texto <- if (.es_mysql_dbi(senas)) {
     "CHAR"
   } else {
     "VARCHAR"
@@ -4568,7 +4861,7 @@
   if (filas < 0) {
     salida <- tryCatch(
       list(ok = TRUE, datos = .marcar_utf8_tabla(
-        DBI::dbGetQuery(conexion, sql)
+        .traer_consulta_dbi(conexion, sql)
       ), motivo = NA_character_),
       error = function(e) {
         list(ok = FALSE, datos = NULL, motivo = .mensaje_motor(e))
@@ -4584,7 +4877,7 @@
     add = TRUE
   )
   salida <- tryCatch({
-    resultado <- DBI::dbSendQuery(conexion, sql)
+    resultado <- .enviar_consulta_dbi(conexion, sql)
     list(ok = TRUE, datos = .marcar_utf8_tabla(
       DBI::dbFetch(resultado, n = filas)
     ), motivo = NA_character_)
@@ -4718,7 +5011,7 @@
     "OR query ILIKE '%PERCENTILE_CONT%')"
   )
   datos <- tryCatch(
-    DBI::dbGetQuery(conexion, sql),
+    .traer_consulta_dbi(conexion, sql),
     error = function(e) NULL
   )
   if (is.null(datos) || !all(c(
@@ -6022,7 +6315,7 @@
 }
 
 .cobertura_corroboracion_bloques_dbi <- function(
-    resumen, perfil, protegidas = character()) {
+    resumen, perfil, protegidas = character(), columnas_codigo = character()) {
   vacia <- .cobertura_dbi_vacia()
   meta_vacia <- list(
     disponible = FALSE, estado = "no_disponible", filas_resumen = NA_real_,
@@ -6133,10 +6426,21 @@
       FALSE
     )
   }
+  # Lo que la declaracion `columnas_codigo` manda no calcular no se corrobora.
+  # La corroboracion corre antes de que `.aplicar_columnas_codigo_dbi()` borre
+  # `media`, `mediana` y `desvio` del resumen SQL, y comparaba esa cifra con el
+  # `NA` que `perfil_muestra` callo a proposito: tres `divergencia` falsas por
+  # columna declarada, con la cifra del codigo en el texto, y la coleccion las
+  # subia a `alcance = "divergencias"` (refutacion 33-D). El `NA` no es una
+  # lectura distinta: es la omision declarada, que la fila `no_aplica` de
+  # `resumen_tabla` ya dice.
+  omitidas_codigo <- c("media", "mediana", "desvio")
   for (columna in unique(nombres)) {
     if (.nombres_para_operar(columna) %in% .nombres_para_operar(protegidas)) {
       next
     }
+    es_codigo <- .nombres_para_operar(columna) %in%
+      .nombres_para_operar(columnas_codigo)
     tipo_numerico <- .tipo_numerico_corroboracion_dbi(
       perfil$columnas, columna
     )
@@ -6144,6 +6448,7 @@
       resumen$sql, perfil$columnas, columna
     )
     for (metrica in .METRICAS_CORROBORACION_DBI) {
+      if (es_codigo && metrica %in% omitidas_codigo) next
       indice_sql <- .estado_corroborable_dbi(
         resumen$sql, columna, metrica
       )
@@ -6298,7 +6603,8 @@
   list(cobertura = salida, meta = meta)
 }
 
-.agregar_cobertura_corroboracion_dbi <- function(resultado) {
+.agregar_cobertura_corroboracion_dbi <- function(resultado,
+                                                 columnas_codigo = character()) {
   if (!is.list(resultado) || !is.list(resultado$resumen_tabla) ||
       is.null(resultado$perfil_muestra)) {
     return(resultado)
@@ -6338,7 +6644,8 @@
     parcial$columnas
   ))
   corroboracion <- .cobertura_corroboracion_bloques_dbi(
-    resumen, perfil, protegidas = protegidas
+    resumen, perfil, protegidas = protegidas,
+    columnas_codigo = columnas_codigo
   )
   cobertura <- resumen$cobertura
   resumen$cobertura <- if (is.null(cobertura) || !nrow(cobertura)) {
@@ -6501,7 +6808,9 @@
 }
 
 .validar_estrategia_distintos_dbi <- function(estrategia_distintos) {
-  .elegir_opcion(estrategia_distintos, .ESTRATEGIAS_DISTINTOS_DBI)
+  .argumento_dbi(
+    .elegir_opcion(estrategia_distintos, .ESTRATEGIAS_DISTINTOS_DBI)
+  )
 }
 
 .estrategia_distintos_dbi <- function(metricas_solicitadas, politica,
@@ -7099,9 +7408,9 @@
   if (!is.numeric(muestra) || length(muestra) != 1L || is.na(muestra) ||
       muestra < 1 ||
       (is.finite(muestra) && muestra != floor(muestra))) {
-    .detener(
-      "`muestra` debe ser un entero positivo, o `Inf` para la tabla entera.",
-      call. = FALSE
+    .detener_dbi(
+      "lupa_error_argumento_dbi",
+      "`muestra` debe ser un entero positivo, o `Inf` para la tabla entera."
     )
   }
   as.numeric(muestra)
@@ -8097,13 +8406,51 @@
   )
 }
 
+# La media en el motor, como doble. `AVG(x * 1.0)` promueve una columna entera
+# sin depender del nombre de un tipo, y en SQLite, duckdb y PostgreSQL da la
+# media entera. En SQL Server no: `int * 1.0` es `numeric`, y `AVG` de un
+# `numeric` devuelve seis decimales. Sobre 61 enteros el motor publicaba
+# 16.934426 y la muestra 16.934426229508198, y la corroboracion declaraba
+# `divergencia` en la media de TODA columna entera -tambien `bigint`- de una
+# tabla perfilada entera (refutacion 33-D). En T-SQL -SQL Server y Sybase, las
+# senas del dialecto `top`- se pide como `FLOAT`, que es el doble de 53 bits:
+# la misma cifra que lee R, y no una tolerancia que esconda la diferencia.
+# MySQL y MariaDB hacen lo mismo con otra escala: `AVG` de un `DECIMAL` suma
+# `div_precision_increment` (4) decimales a los de `int * 1.0`, y la media de
+# una `int` salia `decimal(16,5)`, 16.93443 -la cifra que se publica en el
+# resumen- con dos divergencias falsas en MariaDB 11.8 y MySQL 8.4. Ahi se
+# multiplica por `1e0`, un literal `DOUBLE` en cualquier version: `CAST(x AS
+# DOUBLE)` existe en MySQL solo desde la 8.0.17. Su `STDDEV_SAMP` ya devuelve
+# `DOUBLE`. Las medianas no pasan por aca: promedian uno o dos valores y la
+# aritmetica decimal las representa enteras.
+.es_transact_sql_dbi <- function(senas) {
+  length(senas) == 1L && !is.na(senas) &&
+    grepl(.dialectos_dbi()$top$patron, senas, perl = TRUE)
+}
+
+.es_mysql_dbi <- function(senas) {
+  length(senas) == 1L && !is.na(senas) &&
+    grepl("mysql|mariadb", senas, perl = TRUE)
+}
+
+.media_sql_dbi <- function(expr, senas = "") {
+  if (.es_transact_sql_dbi(senas)) {
+    paste0("AVG(CAST(", expr, " AS FLOAT))")
+  } else if (.es_mysql_dbi(senas)) {
+    paste0("AVG(", expr, " * 1e0)")
+  } else {
+    paste0("AVG(", expr, " * 1.0)")
+  }
+}
+
 .basicos_columna_dbi <- function(conexion, tabla_sql, columna_sql, alias,
                                  incluir_valores, presupuesto = NULL,
                                  metadatos = NULL) {
+  senas <- .senas_conexion_dbi(conexion)
   partes <- c(
     if (incluir_valores) paste0("MIN(", columna_sql, ") AS ", alias("minimo")),
     if (incluir_valores) paste0("MAX(", columna_sql, ") AS ", alias("maximo")),
-    paste0("AVG(", columna_sql, " * 1.0) AS ", alias("media")),
+    paste0(.media_sql_dbi(columna_sql, senas), " AS ", alias("media")),
     paste0(
       "SUM(CASE WHEN ", columna_sql, " = 0 THEN 1 ELSE 0 END) AS ",
       alias("n_ceros")
@@ -8156,14 +8503,23 @@
   resultado
 }
 
-.formas_desvio_dbi <- function(tabla_sql, columna_sql, alias) {
+.formas_desvio_dbi <- function(tabla_sql, columna_sql, alias, senas = "") {
   media_sql <- paste0(
-    "(SELECT AVG(", columna_sql, " * 1.0) FROM ", tabla_sql, ")"
+    "(SELECT ", .media_sql_dbi(columna_sql, senas), " FROM ", tabla_sql, ")"
   )
+  # PostgreSQL calcula `STDDEV_SAMP` de un `numeric` -`int * 1.0`- con cuatro
+  # decimales cuando la magnitud es grande: sobre 61 enteros de unos nueve
+  # millones daba 8956265.3453 contra 8956265.3453457393, y la corroboracion
+  # declaraba `divergencia` en el desvio (la misma construccion que la media de
+  # SQL Server, ver `.media_sql_dbi()`). Ahi se pide como doble. `STDEV` de SQL
+  # Server ya devuelve `float`.
+  desvio_muestral <- if (grepl("postgres|pqconnection", senas, useBytes = TRUE)) {
+    paste0("STDDEV_SAMP(CAST(", columna_sql, " AS DOUBLE PRECISION))")
+  } else {
+    paste0("STDDEV_SAMP(", columna_sql, " * 1.0)")
+  }
   list(
-    paste0(
-      "STDDEV_SAMP(", columna_sql, " * 1.0) AS ", alias("desvio")
-    ),
+    paste0(desvio_muestral, " AS ", alias("desvio")),
     paste0(
       "STDEV(", columna_sql, " * 1.0) AS ", alias("desvio")
     ),
@@ -8177,7 +8533,9 @@
 
 .desvio_columna_dbi <- function(conexion, tabla_sql, columna_sql, alias,
                                 forma, presupuesto = NULL, metadatos = NULL) {
-  formas <- .formas_desvio_dbi(tabla_sql, columna_sql, alias)
+  formas <- .formas_desvio_dbi(
+    tabla_sql, columna_sql, alias, .senas_conexion_dbi(conexion)
+  )
   sql <- paste0("SELECT ", formas[[forma]], " FROM ", tabla_sql)
   resultado <- .escalar_dbi(
     conexion, sql, "desvio", presupuesto, etapa = "desvio"
@@ -8436,6 +8794,8 @@
     incluir_valores, presupuesto, tamano_lote, numero, alias, forma,
     etapa = "agregados", incluir_total = FALSE,
     tabla_total_sql = tabla_sql) {
+  # Ver `.media_sql_dbi()`: la media se pide como doble en T-SQL.
+  senas <- .senas_conexion_dbi(conexion)
   metricas_basicos <- if ("basicos" %in% metricas) {
     if (incluir_valores) {
       c("minimo", "maximo", "media", "n_ceros", "n_negativos")
@@ -8481,7 +8841,7 @@
           "MAX(", nombres_sql[[campo]], ") AS ", aliases$basicos$maximo
         ),
         paste0(
-          "AVG(", nombres_sql[[campo]], " * 1.0) AS ",
+          .media_sql_dbi(nombres_sql[[campo]], senas), " AS ",
           aliases$basicos$media
         ),
         paste0(
@@ -8496,7 +8856,7 @@
       if ("desvio" %in% metricas && es_numerico[[i]]) {
         formas <- .formas_desvio_dbi(
           tabla_sql, nombres_sql[[campo]],
-          function(nombre) aliases$desvio
+          function(nombre) aliases$desvio, senas
         )
         formas[[forma]]
       }
@@ -10859,7 +11219,7 @@
     add = TRUE
   )
   salida <- tryCatch({
-    resultado <- DBI::dbSendQuery(conexion, sql)
+    resultado <- .enviar_consulta_dbi(conexion, sql)
     prototipo <- DBI::dbFetch(resultado, n = 0L)
     informacion <- tryCatch(DBI::dbColumnInfo(resultado), error = function(e) NULL)
     tipos <- if (is.data.frame(informacion) && "type" %in% names(informacion)) {
@@ -10869,7 +11229,8 @@
     }
     list(ok = TRUE, datos = prototipo, tipos = tipos, motivo = NA_character_)
   }, error = function(e) {
-    list(ok = FALSE, datos = NULL, tipos = NULL, motivo = .mensaje_motor(e))
+    list(ok = FALSE, datos = NULL, tipos = NULL, motivo = .mensaje_motor(e),
+         no_representable = inherits(e, "lupa_error_codificacion_dbi"))
   })
   .adjuntar_medicion_dbi(
     salida, .terminar_consulta_dbi(medicion, salida$datos)
@@ -10922,6 +11283,7 @@
   motivo_conjunto <- esquema$motivo
   legibles <- character()
   legibles_sql <- character()
+  no_representables <- character()
   prototipos <- list()
   tipos <- character()
   motivos <- list()
@@ -10936,7 +11298,12 @@
       prototipos[[length(prototipos) + 1L]] <- parcial$datos[[1L]]
       tipos <- c(tipos, if (length(parcial$tipos)) parcial$tipos[[1L]] else NA_character_)
     } else {
-      motivos[[campos[[i]]]] <- paste0(
+      if (isTRUE(parcial$no_representable)) {
+        no_representables <- c(no_representables, campos[[i]])
+      }
+      motivos[[campos[[i]]]] <- if (isTRUE(parcial$no_representable)) {
+        parcial$motivo
+      } else paste0(
         "El motor rechazo la lectura de la columna: ",
         if (parcial$ok) "no devolvio campos" else parcial$motivo, "."
       )
@@ -10957,7 +11324,7 @@
     campos = legibles, campos_sql = legibles_sql, prototipo = prototipo,
     tipos = tipos, sql = .sql_esquema_dbi(tabla_sql, legibles_sql),
     ilegibles = names(motivos), motivos = motivos, sondeo = TRUE,
-    motivo_conjunto = motivo_conjunto
+    motivo_conjunto = motivo_conjunto, no_representables = no_representables
   )
 }
 
@@ -11814,12 +12181,12 @@ plan_perfilado_dbi <- function(conexion, tabla,
                                max_bytes_materializacion = .MAX_BYTES_MUESTRA) {
   .fijar_numerica_c()  # LC_NUMERIC en "C" mientras lee de la conexion
   bloque_filas <- .validar_bloque_filas_dbi(bloque_filas)
-  max_celdas_muestra <- .validar_limite_duplicados(
+  max_celdas_muestra <- .argumento_dbi(.validar_limite_duplicados(
     max_celdas_muestra, "max_celdas_muestra"
-  )
-  max_bytes_muestra <- .validar_limite_duplicados(
+  ))
+  max_bytes_muestra <- .argumento_dbi(.validar_limite_duplicados(
     max_bytes_muestra, "max_bytes_muestra"
-  )
+  ))
   max_bytes_procesamiento <- .validar_presupuesto_bytes_dbi(
     max_bytes_procesamiento, "max_bytes_procesamiento"
   )
@@ -12545,7 +12912,48 @@ print.plan_perfilado_dbi <- function(x, ...) {
   x <- .proteger_numeros_parametros(x, identificantes)
   if (inherits(columnas_antes, "data.frame")) {
     x$columnas <- .tapar_derivados_del_piso(columnas_antes, x$columnas)
+    x <- .tapar_familias_como_columnas_dbi(x, columnas_antes)
   }
+  x
+}
+
+# `meta$familias` de la via por bloques no publica de una columna lo que el piso
+# le tapo en la tabla de columnas: con el maximo de una columna de codigos tapado
+# -una cedula copiada- y el minimo, la media y el desvio tapados como sus
+# derivados (`.tapar_derivados_del_piso()`), `cuantitativos` seguia publicando la
+# media y el desvio, que con dos cedulas entre noventa codigos las
+# reconstruyen. Se tapa en `cuantitativos` cada campo que el piso dejo en NA en
+# `columnas`, comparando antes y despues: un campo que ya era NA no cuenta.
+# Ronda 33.
+.tapar_familias_como_columnas_dbi <- function(x, columnas_antes) {
+  familias <- if (is.list(x$meta)) x$meta$familias
+  despues <- x$columnas
+  if (!is.list(familias) || !length(familias) ||
+      !is.data.frame(columnas_antes) || !is.data.frame(despues) ||
+      nrow(columnas_antes) != nrow(despues) ||
+      !"columna" %in% names(despues)) {
+    return(x)
+  }
+  operar <- function(v) .nombres_para_operar(as.character(v))
+  claves <- operar(despues$columna)
+  for (nombre in names(familias)) {
+    if (!is.list(familias[[nombre]])) next
+    sobre <- familias[[nombre]][["cuantitativos"]]
+    if (!is.list(sobre) || !is.list(sobre[["resultado"]])) next
+    i <- match(operar(nombre), claves)
+    if (is.na(i)) next
+    resultado <- sobre[["resultado"]]
+    campos <- intersect(c("minimo", "maximo", "media", "desvio"),
+                        intersect(names(resultado), names(despues)))
+    for (campo in campos) {
+      tapado <- !is.na(columnas_antes[[campo]][[i]]) &&
+        is.na(despues[[campo]][[i]])
+      if (tapado) resultado[[campo]] <- rep(NA_real_, length(resultado[[campo]]))
+    }
+    sobre[["resultado"]] <- resultado
+    familias[[nombre]][["cuantitativos"]] <- sobre
+  }
+  x$meta$familias <- familias
   x
 }
 
@@ -12573,6 +12981,13 @@ print.plan_perfilado_dbi <- function(x, ...) {
       ), use.names = FALSE))
     }
   }
+  # Y lo que la via por bloques guarda de cada columna no personal en
+  # `meta$familias`: cada valor distinto y los extremos son valores de celda,
+  # como la moda. Sin esto, con la lectura fuera de la muestra fallida, salian
+  # enteros. Ronda 33.
+  candidatos <- c(candidatos, .valores_familias_bloques_dbi(
+    resumen$meta$familias, no_personal
+  ))
   intocables <- as.character(resumen$columnas$columna)
   candidatos <- unique(candidatos[!is.na(candidatos)])
   resumen <- .proteger_con_valores_dbi(resumen, candidatos, intocables)
@@ -12584,6 +12999,113 @@ print.plan_perfilado_dbi <- function(x, ...) {
     perfil$hallazgos$evidencia[filas] <- "[evidencia protegida]"
   }
   list(resumen = resumen, perfil = perfil)
+}
+
+# Los valores de celda que `meta$familias` de la via por bloques publica de las
+# columnas que `incluir()` acepta: los representantes de `distintos` y los
+# extremos de `cuantitativos`.
+.valores_familias_bloques_dbi <- function(familias, incluir) {
+  if (!is.list(familias) || !length(familias)) return(character())
+  valores <- character()
+  for (nombre in names(familias)) {
+    if (!isTRUE(incluir(nombre)) || !is.list(familias[[nombre]])) next
+    distintos <- familias[[nombre]][["distintos"]]
+    distintos <- if (is.list(distintos)) distintos[["resultado"]]
+    if (is.data.frame(distintos) && "representante" %in% names(distintos)) {
+      valores <- c(valores, as.character(distintos[["representante"]]))
+    }
+    cuantitativos <- familias[[nombre]][["cuantitativos"]]
+    cuantitativos <- if (is.list(cuantitativos)) cuantitativos[["resultado"]]
+    if (is.list(cuantitativos)) {
+      for (campo in intersect(c("minimo", "maximo"), names(cuantitativos))) {
+        valores <- c(valores, as.character(cuantitativos[[campo]]))
+      }
+    }
+  }
+  unique(valores[!is.na(valores)])
+}
+
+# Lo que la llamada publica de la tabla pasa por el piso por valor con todo lo
+# que la llamada conoce de las columnas protegidas: los valores de la muestra y,
+# cuando la muestra no cubre la tabla, los de la tabla entera; si esos no se
+# pueden leer, se cierra. UNA funcion para las dos vias, con y sin
+# `bloque_filas`. La via por bloques llamaba solo a `.proteger_resumen_dbi()`
+# sin la muestra: el piso corria con los extremos de las columnas protegidas y
+# nada mas, y una cedula repetida en una columna de codigos salia en
+# `columnas$maximo`, en la corroboracion -con una divergencia que la proteccion
+# inventaba- y en `meta$familias`; los nombres citados en una columna de texto
+# libre, igual. La ronda 32 habia cerrado `meta$familias` solo en las columnas
+# protegidas. Ronda 33.
+#
+# `bloque` es lo que devuelve `.bloque_muestra_dbi()`; sin perfil de muestra no
+# hay clasificacion y se protege todo.
+.proteger_salida_muestra_dbi <- function(resumen, bloque, conexion, preparacion,
+                                         presupuesto) {
+  if (is.null(bloque$perfil)) {
+    # Sin muestra no hay clasificacion posible. Ante la duda se protege: para
+    # una funcion de privacidad el valor por omision seguro es cerrado.
+    resumen <- .proteger_resumen_dbi(
+      resumen, resumen$columnas$columna, "sin_clasificacion_disponible"
+    )
+    return(list(resumen = resumen, perfil = bloque$perfil))
+  }
+  sensibles_muestra <- .columnas_personales_protegidas(
+    bloque$perfil$datos_personales
+  )
+  # Los rellenos que la tabla entera no confirma vuelven al piso: en el
+  # resumen, en la lectura fuera de la muestra y en el perfil de la muestra,
+  # que `perfilar()` protegio decidiendo sobre la muestra.
+  rellenos_columna <- .rellenos_confirmados_tabla_dbi(
+    bloque$rellenos_detalle, bloque$muestreo, resumen$columnas,
+    resumen$sql, universo = preparacion$universo
+  )
+  rellenos <- unique(rellenos_columna$valor)
+  no_confirmados <- setdiff(bloque$rellenos, rellenos)
+  resumen <- .proteger_resumen_dbi(
+    resumen, sensibles_muestra, "perfil_muestra", bloque$perfil,
+    valores_muestra = c(bloque$valores_protegidos, no_confirmados),
+    columnas_de_fechas = bloque$columnas_de_fechas,
+    rellenos = rellenos
+  )
+  if (length(no_confirmados)) {
+    bloque$perfil <- .proteger_con_valores_dbi(
+      bloque$perfil, no_confirmados,
+      as.character(resumen$columnas$columna)
+    )
+  }
+  # Los rellenos confirmados salen del piso SOLO en su columna: si otra
+  # columna protegida tiene el mismo valor, entra. Se sacaban de todas, y
+  # el `1.111.111-1` de relleno de `cedula` dejaba publicada la cedula
+  # `1.111.111-1` de un conyuge en la moda de `obs`. Ronda 27.
+  fuera <- .valores_protegidos_fuera_de_muestra_dbi(
+    conexion, preparacion, bloque$perfil, sensibles_muestra, presupuesto,
+    rellenos_columna = rellenos_columna
+  )
+  # Para el mensaje del motor de las demas tablas de una coleccion: ver
+  # `.valores_motor()`. Fuera de una coleccion no hace nada.
+  .sumar_valores_motor(c(bloque$valores_protegidos, no_confirmados),
+                       fechas = bloque$valores_protegidos)
+  if (isTRUE(fuera$completo)) {
+    .sumar_valores_motor(fuera$valores, fuera$fechas)
+    intocables <- as.character(resumen$columnas$columna)
+    resumen <- .proteger_con_valores_dbi(
+      resumen, fuera$valores, intocables, fuera$fechas
+    )
+    bloque$perfil <- .proteger_con_valores_dbi(
+      bloque$perfil, fuera$valores, intocables, fuera$fechas
+    )
+  } else {
+    cerrado <- .cerrar_fuera_de_muestra_dbi(
+      resumen, bloque$perfil, sensibles_muestra
+    )
+    resumen <- cerrado$resumen
+    bloque$perfil <- cerrado$perfil
+    resumen$meta$proteccion_personal$fuera_de_muestra <- paste0(
+      "No verificada: ", fuera$motivo, ". Se taparon los valores y la ",
+      "evidencia de las columnas no personales."
+    )
+  }
+  list(resumen = resumen, perfil = bloque$perfil)
 }
 
 .proteger_resumen_dbi <- function(resumen, sensibles, base_clasificacion,
@@ -12793,6 +13315,7 @@ print.plan_perfilado_dbi <- function(x, ...) {
     columnas_antes <- resumen$columnas
     resumen <- .proteger_numeros_parametros(resumen, identificantes)
     resumen$columnas <- .tapar_derivados_del_piso(columnas_antes, resumen$columnas)
+    resumen <- .tapar_familias_como_columnas_dbi(resumen, columnas_antes)
   }
   literales <- resumen$literales
   if (length(literales)) {
@@ -13655,7 +14178,7 @@ print.plan_perfilado_dbi <- function(x, ...) {
       "perfil_muestra", .texto_tabla_dbi(tabla), "no_disponible",
       paste0(
         "La muestra se leyo pero no se pudo perfilar: ",
-        .mensaje_motor(perfil)
+        .motivo_perfilado_muestra_dbi(perfil, datos_muestra, argumentos)
       ),
       paste(
         "El resumen de tabla completa se devolvio igual. Revisar los",
@@ -13858,13 +14381,15 @@ print.plan_perfilado_dbi <- function(x, ...) {
   max_bytes_materializacion <- .validar_presupuesto_bytes_dbi(
     max_bytes_materializacion, "max_bytes_materializacion"
   )
-  universo <- .elegir_opcion(universo, c("tabla_completa", "muestra_motor"))
-  estrategia_mediana <- .elegir_opcion(
+  universo <- .argumento_dbi(
+    .elegir_opcion(universo, c("tabla_completa", "muestra_motor"))
+  )
+  estrategia_mediana <- .argumento_dbi(.elegir_opcion(
     estrategia_mediana, c("exacta", "aproximada_motor")
-  )
-  dialecto <- .elegir_opcion(
+  ))
+  dialecto <- .argumento_dbi(.elegir_opcion(
     dialecto, c("auto", "limit", "top", "fetch_first", "rownum", "portable")
-  )
+  ))
   muestra <- .validar_muestra_dbi(muestra)
   if (identical(universo, "muestra_motor")) {
     if (!is.numeric(muestra_motor) || length(muestra_motor) != 1L ||
@@ -13889,11 +14414,20 @@ print.plan_perfilado_dbi <- function(x, ...) {
       "`muestra_motor` solo se puede usar con `universo = \"muestra_motor\"`."
     )
   }
-  bloque_muestra <- .elegir_opcion(
+  bloque_muestra <- .argumento_dbi(.elegir_opcion(
     bloque_muestra, c("con_muestra", "solo_agregados")
-  )
+  ))
   if (identical(bloque_muestra, "solo_agregados")) {
     orden_muestra <- NULL
+  }
+  # Sin validar, `incluir_valores = NA` abortaba con el error de R "valor
+  # ausente donde TRUE/FALSE es necesario" (ronda 33-X).
+  if (!is.logical(incluir_valores) || length(incluir_valores) != 1L ||
+      is.na(incluir_valores)) {
+    .detener_dbi(
+      "lupa_error_argumento_dbi",
+      "`incluir_valores` debe ser TRUE o FALSE."
+    )
   }
   metricas_solicitadas <- .validar_metricas_dbi(metricas)
   politica_costo <- .validar_politica_costo_dbi(
@@ -13958,6 +14492,12 @@ print.plan_perfilado_dbi <- function(x, ...) {
     }
   }
   tabla_sql <- as.character(DBI::dbQuoteIdentifier(conexion, tabla))
+  if (!.sentencia_representable_dbi(conexion, tabla_sql)) {
+    .detener_dbi(
+      "lupa_error_codificacion_dbi",
+      .motivo_no_representable_dbi("La tabla no se puede leer: su nombre")
+    )
+  }
   motivo_existe <- NA_character_
   if (!isTRUE(existe)) {
     # Algunos controladores no implementan nombres calificados en
@@ -14412,11 +14952,19 @@ print.plan_perfilado_dbi <- function(x, ...) {
 #' agregados, `perfil_muestra = NULL` se acompaña de una fila `no_solicitado`:
 #' no se intentó leer la muestra. Si el motor rechaza una columna, esa columna
 #' queda con sus métricas en `no_disponible` y las demás se perfilan enteras.
+#' Lo mismo con una columna cuyo nombre la sesión no puede escribir: odbc pasa
+#' la consulta por la codificación nativa, y bajo el locale `C` —el de un
+#' `Rscript` de cron en Linux— un nombre con tilde no se puede mandar; mandarlo
+#' dejaba la conexión rota y la consulta siguiente hacía caer a R. La consulta
+#' no se envía: la columna queda en `no_disponible` con ese motivo, y una tabla
+#' con un nombre así da `lupa_error_codificacion_dbi`. Para leerlas, correr la
+#' sesión con un locale UTF-8 (`LC_ALL=C.UTF-8`). RPostgres, RSQLite y duckdb
+#' reciben la consulta en UTF-8 y leen esos nombres en cualquier locale.
 #' Los `stop()` de esta vía llevan clase de condición propia —todas heredan de
 #' `lupa_error_dbi`— para que se puedan rescatar con `tryCatch()`:
 #' `lupa_error_conexion_dbi`, `lupa_error_tabla_dbi`, `lupa_error_campos_dbi`,
-#' `lupa_error_conteo_dbi`, `lupa_error_esquema_dbi` y
-#' `lupa_error_argumento_dbi`.
+#' `lupa_error_conteo_dbi`, `lupa_error_esquema_dbi`,
+#' `lupa_error_codificacion_dbi` y `lupa_error_argumento_dbi`.
 #'
 #' @section Muestra y aproximaciones:
 #' `universo = "muestra_motor"` sondea las formas declaradas por el adaptador y
@@ -14585,7 +15133,14 @@ print.plan_perfilado_dbi <- function(x, ...) {
 #' * **La media en coma flotante.** Cada lado suma a su modo; sobre una columna
 #'   que mezcla magnitudes muy distintas —`1e20` junto a `1`— las medias pueden
 #'   diferir entre motores y con la de R, y ninguna es la exacta. La
-#'   corroboración cruzada lo declara cuando compara las dos.
+#'   corroboración cruzada lo declara cuando compara las dos. La media y el
+#'   desvío se le piden al motor como doble donde su aritmética decimal los
+#'   recortaría: en SQL Server `AVG(CAST(x AS FLOAT))`, porque `AVG` de un
+#'   `numeric` devuelve seis decimales, y en PostgreSQL
+#'   `STDDEV_SAMP(CAST(x AS DOUBLE PRECISION))`, porque sobre magnitudes
+#'   grandes el desvío de un `numeric` sale con cuatro; en MySQL y MariaDB
+#'   `AVG(x * 1e0)`, porque `AVG` de un `DECIMAL` devuelve cinco decimales. En
+#'   los demás motores, `x * 1.0`.
 #' * **El cotejamiento.** El resumen SQL agrupa y ordena con el cotejamiento
 #'   de la columna: sobre una `COLLATE NOCASE` de SQLite o una colación ICU no
 #'   determinista de PostgreSQL, "Montevideo" y "montevideo" son un valor, y
@@ -14785,7 +15340,15 @@ print.plan_perfilado_dbi <- function(x, ...) {
 #' El desvío se oculta como la media, como en [perfilar()]; también en
 #' `resumen_tabla$meta$familias`, donde la vía por bloques (`bloque_filas`)
 #' guarda lo que devolvió cada acumulador: ahí se tapan los extremos, la media
-#' y el desvío de las columnas protegidas, y cada valor distinto.
+#' y el desvío de las columnas protegidas, y cada valor distinto. Y por la vía
+#' por bloques corre el mismo piso por valor que sin ella —con los valores de
+#' la muestra y, si la muestra no cubre la tabla, con los de la tabla entera—,
+#' sobre **todas** las columnas: una cédula copiada en una columna de códigos o
+#' un nombre citado en un texto libre se tapan en `resumen_tabla$columnas`, en
+#' la corroboración y en `meta$familias` igual que sin `bloque_filas`; la misma
+#' tabla publica lo mismo por las dos vías. Lo que el piso tapa en la tabla de
+#' columnas —un extremo que es un documento, y la media y el desvío que lo
+#' reconstruyen— se tapa también en `meta$familias`.
 #' Si la muestra se recorta, la clasificación personal sólo cubre esas filas:
 #' las cifras de valor del resumen SQL completo quedan marcadas en
 #' `resumen_tabla$cobertura` y, con la protección activa, se ocultan hasta que
@@ -14813,7 +15376,8 @@ print.plan_perfilado_dbi <- function(x, ...) {
 #' **por tabla**: un valor protegido de otra tabla escrito en ésta no se
 #' conoce; [perfilar_coleccion()] los cruza. Se traen hasta dos millones de valores; si hay más, o si la consulta
 #' no se puede hacer, se tapan todos los valores de celda de las columnas no
-#' personales —moda, extremos, ejemplos— y la evidencia de sus hallazgos, y
+#' personales —moda, extremos, ejemplos y, por la vía por bloques, cada valor
+#' distinto y los extremos de `meta$familias`— y la evidencia de sus hallazgos, y
 #' `resumen_tabla$meta$proteccion_personal$fuera_de_muestra` dice por qué. En
 #' SQLite los valores se leen como texto, porque una columna de afinidad
 #' numérica guarda texto y el controlador lo convertía en número; también sin
@@ -14844,7 +15408,13 @@ print.plan_perfilado_dbi <- function(x, ...) {
 #' viñeta después de cada salto de línea y corta las líneas al ancho de la
 #' consola, y un número partido en dos líneas —`"2901\n1234"`— quedaba partido
 #' por la viñeta; se toman las líneas que guarda la condición, unidas por el
-#' salto que puso el motor, y así se publican, sin las viñetas. Así
+#' salto que puso el motor, y así se publican, sin las viñetas. Tampoco llevan
+#' los colores ni los enlaces que cli pone en una consola a color —la de
+#' RStudio—: las secuencias ANSI quedaban guardadas en el motivo, y con
+#' protección pegadas a los marcadores. Lo que cli agrega dentro de una línea
+#' no se distingue del texto del motor y queda: sin color, cli cita entre
+#' comillas el archivo del controlador (`'nanodbc/nanodbc.cpp:1802'`) y con
+#' protección esa cita sale `[literal omitido]`; con color se publica. Así
 #' se tapa también el
 #' valor que el motor cita sin comillas —duckdb: `Type INT64 with value
 #' 59899123456 can't be cast`, y la cadena que `strptime` repite en otra
@@ -14857,7 +15427,11 @@ print.plan_perfilado_dbi <- function(x, ...) {
 #' vocabulario, o un nombre cuyas palabras son columnas de otra tabla— se
 #' tapa entero, y el nombre de una columna que es también uno de esos
 #' valores —la docente `"Florencia"` de una planilla con una columna por
-#' docente— deja de exceptuarse, con la comparación del piso. Lo que queda
+#' docente— deja de exceptuarse, con la comparación del piso. En
+#' [perfilar_coleccion()] cada mensaje se vuelve a leer al final, desde como
+#' llegó, con todo lo que la colección leyó: con una vista perfilada antes que
+#' su tabla base, el piso no conocía todavía el nombre y la segunda pasada
+#' dejaba su resto —`"De Los Campos"` de `"María De Los Campos"`—. Lo que queda
 #' abierto: un valor que la llamada **no** leyó —la celda que hizo fallar la
 #' lectura de la muestra, de una columna que la vista castea— escrito sólo con
 #' lo permitido, o igual al nombre de una columna, se publica, porque el
@@ -14870,8 +15444,8 @@ print.plan_perfilado_dbi <- function(x, ...) {
 #' publicaba tal cual, en PostgreSQL, en duckdb y en SQL Server.
 #' **Sin protección** (`proteger_datos_personales = FALSE`) el mensaje del motor
 #' se publica entero, en todas esas salidas: el literal que hizo fallar la
-#' lectura y el SQL que la hacía, sólo sin las viñetas ni los cortes que agrega
-#' cli. El diagnóstico es el cometido del paquete —`Conversion failed when
+#' lectura y el SQL que la hacía, sólo sin las viñetas, los cortes ni los
+#' colores que agrega cli. El diagnóstico es el cometido del paquete —`Conversion failed when
 #' converting the nvarchar value 'N/D' to data type int` dice que la columna
 #' trae un faltante disfrazado—, y sin protección ya se publican valores de
 #' todas las columnas —modas, ejemplos, patrones—: omitirlo ahí no protegía
@@ -15018,7 +15592,8 @@ print.plan_perfilado_dbi <- function(x, ...) {
 #'   `"limit"`, `"top"`, `"fetch_first"`, `"rownum"` o `"portable"` la
 #'   declaran sin sondeo.
 #' @param incluir_valores Si el resumen informa valores de celda: moda, mínimo,
-#'   máximo y mediana. Con `FALSE` esas consultas no se emiten.
+#'   máximo y mediana. Con `FALSE` esas consultas no se emiten. `TRUE` o
+#'   `FALSE`.
 #' @param politica_costo Política optativa para las métricas caras. El valor por
 #'   omisión, `"todas"`, conserva moda y mediana para todas las columnas
 #'   solicitadas. `"por_cardinalidad"` resuelve primero las fuentes
@@ -15118,7 +15693,16 @@ print.plan_perfilado_dbi <- function(x, ...) {
 #'   `columnas_codigo` vale además en `resumen_tabla`: `media`, `mediana` y
 #'   `desvio` de una columna declarada quedan en `NA` y
 #'   `resumen_tabla$cobertura` lo declara con estado `no_aplica`. Sus nombres se
-#'   validan contra las columnas de la tabla aunque no haya muestra.
+#'   validan contra las columnas de la tabla aunque no haya muestra. Un nombre
+#'   abreviado vale lo mismo que el entero, como lo completa R al llamar a
+#'   [perfilar()]: `proteger = FALSE` es `proteger_datos_personales = FALSE`
+#'   también para `resumen_tabla`. La bandera, `fecha` y los nombres se validan
+#'   al entrar, también con `bloque_muestra = "solo_agregados"`: un nombre que
+#'   [perfilar()] no tiene es un error, no un fallo parcial. Los demás valores
+#'   los valida [perfilar()] al perfilar la muestra —sin muestra no se
+#'   validan—, y uno inválido deja `perfil_muestra = NULL` con el error de
+#'   [perfilar()] como motivo, legible también con la protección: un error que
+#'   se repite sobre la muestra sin filas no cita ninguna celda.
 #'
 #' @return Objeto de clase `perfil_dbi` con dos componentes: `resumen_tabla`, de
 #'   alcance completo o muestreado según `universo`, y `perfil_muestra`, un objeto
@@ -15186,8 +15770,10 @@ perfilar_dbi <- function(conexion, tabla,
                          sentinelas_numericos = c(-9, -99, -999, -9999, 999),
                          ...) {
   .fijar_numerica_c()  # LC_NUMERIC en "C" mientras lee de la conexion
-  argumentos_muestra <- list(...)
-  .validar_bandera_proteccion_en(argumentos_muestra)
+  argumentos_muestra <- .argumentos_para_perfilar(list(...))
+  .argumento_dbi(.validar_argumentos_para_perfilar(
+    argumentos_muestra, propios = .ARGUMENTOS_PROPIOS_DBI
+  ))
   # Sin proteccion, el mensaje del motor se publica entero: antes de la primera
   # lectura, y hasta la salida. Ver `.protege_mensaje_motor()`.
   .fijar_proteccion_motor(.protege_argumentos(argumentos_muestra))
@@ -15195,12 +15781,12 @@ perfilar_dbi <- function(conexion, tabla,
   argumentos_muestra$aplicabilidad <- aplicabilidad
   argumentos_muestra$sentinelas_numericos <- sentinelas_numericos
   bloque_filas <- .validar_bloque_filas_dbi(bloque_filas)
-  max_celdas_muestra <- .validar_limite_duplicados(
+  max_celdas_muestra <- .argumento_dbi(.validar_limite_duplicados(
     max_celdas_muestra, "max_celdas_muestra"
-  )
-  max_bytes_muestra <- .validar_limite_duplicados(
+  ))
+  max_bytes_muestra <- .argumento_dbi(.validar_limite_duplicados(
     max_bytes_muestra, "max_bytes_muestra"
-  )
+  ))
   max_bytes_procesamiento <- .validar_presupuesto_bytes_dbi(
     max_bytes_procesamiento, "max_bytes_procesamiento"
   )
@@ -15295,7 +15881,9 @@ perfilar_dbi <- function(conexion, tabla,
       max_bytes_materializacion = max_bytes_materializacion
     )
     resultado$resumen_tabla$meta$plan <- plan_corrida
-    resultado <- .agregar_cobertura_corroboracion_dbi(resultado)
+    resultado <- .agregar_cobertura_corroboracion_dbi(
+      resultado, columnas_codigo = columnas_codigo
+    )
     return(.agregar_cobertura_politicas_muestra_dbi(
       resultado, aplicabilidad = aplicabilidad,
       columnas_opcionales = columnas_opcionales,
@@ -15317,7 +15905,9 @@ perfilar_dbi <- function(conexion, tabla,
       max_bytes_procesamiento = max_bytes_procesamiento,
       metricas_publicas = preparacion$metricas
     )
-    resultado <- .agregar_cobertura_corroboracion_dbi(resultado)
+    resultado <- .agregar_cobertura_corroboracion_dbi(
+      resultado, columnas_codigo = columnas_codigo
+    )
     return(.agregar_cobertura_politicas_muestra_dbi(
       resultado, aplicabilidad = aplicabilidad,
       columnas_opcionales = columnas_opcionales,
@@ -15718,17 +16308,7 @@ perfilar_dbi <- function(conexion, tabla,
   resumen$meta$conteo_exacto <- .conteo_exacto_dbi(preparacion$n_total)
 
   if (length(preparacion$esquema$ilegibles)) {
-    for (campo in preparacion$esquema$ilegibles) {
-      cobertura <- rbind(cobertura, .registro_cobertura_dbi(
-        "resumen_tabla", campo, "no_disponible",
-        preparacion$esquema$motivos[[campo]],
-        paste(
-          "Las demas columnas se midieron enteras. Revisar el tipo de la",
-          "columna y los permisos a nivel de columna."
-        ),
-        preparacion$esquema$motivo_conjunto
-      ))
-    }
+    cobertura <- rbind(cobertura, .cobertura_ilegibles_dbi(preparacion$esquema))
   }
   if (!identical(preparacion$lista_campos$origen, "dbListFields")) {
     cobertura <- rbind(cobertura, .registro_cobertura_dbi(
@@ -15825,70 +16405,13 @@ perfilar_dbi <- function(conexion, tabla,
   argumentos <- argumentos_muestra
   proteger <- .protege_argumentos(argumentos)
   if (proteger) {
-    if (is.null(bloque$perfil)) {
-      # Sin muestra no hay clasificacion posible. Ante la duda se protege: para
-      # una funcion de privacidad el valor por omision seguro es cerrado.
-      resumen <- .proteger_resumen_dbi(
-        resumen, resumen$columnas$columna, "sin_clasificacion_disponible"
-      )
-    } else {
-      sensibles_muestra <- .columnas_personales_protegidas(
-        bloque$perfil$datos_personales
-      )
-      # Los rellenos que la tabla entera no confirma vuelven al piso: en el
-      # resumen, en la lectura fuera de la muestra y en el perfil de la muestra,
-      # que `perfilar()` protegio decidiendo sobre la muestra.
-      rellenos_columna <- .rellenos_confirmados_tabla_dbi(
-        bloque$rellenos_detalle, bloque$muestreo, resumen$columnas,
-        resumen$sql, universo = preparacion$universo
-      )
-      rellenos <- unique(rellenos_columna$valor)
-      no_confirmados <- setdiff(bloque$rellenos, rellenos)
-      resumen <- .proteger_resumen_dbi(
-        resumen, sensibles_muestra, "perfil_muestra", bloque$perfil,
-        valores_muestra = c(bloque$valores_protegidos, no_confirmados),
-        columnas_de_fechas = bloque$columnas_de_fechas,
-        rellenos = rellenos
-      )
-      if (length(no_confirmados)) {
-        bloque$perfil <- .proteger_con_valores_dbi(
-          bloque$perfil, no_confirmados,
-          as.character(resumen$columnas$columna)
-        )
-      }
-      # Los rellenos confirmados salen del piso SOLO en su columna: si otra
-      # columna protegida tiene el mismo valor, entra. Se sacaban de todas, y
-      # el `1.111.111-1` de relleno de `cedula` dejaba publicada la cedula
-      # `1.111.111-1` de un conyuge en la moda de `obs`. Ronda 27.
-      fuera <- .valores_protegidos_fuera_de_muestra_dbi(
-        conexion, preparacion, bloque$perfil, sensibles_muestra, presupuesto,
-        rellenos_columna = rellenos_columna
-      )
-      # Para el mensaje del motor de las demas tablas de una coleccion: ver
-      # `.valores_motor()`. Fuera de una coleccion no hace nada.
-      .sumar_valores_motor(c(bloque$valores_protegidos, no_confirmados),
-                           fechas = bloque$valores_protegidos)
-      if (isTRUE(fuera$completo)) {
-        .sumar_valores_motor(fuera$valores, fuera$fechas)
-        intocables <- as.character(resumen$columnas$columna)
-        resumen <- .proteger_con_valores_dbi(
-          resumen, fuera$valores, intocables, fuera$fechas
-        )
-        bloque$perfil <- .proteger_con_valores_dbi(
-          bloque$perfil, fuera$valores, intocables, fuera$fechas
-        )
-      } else {
-        cerrado <- .cerrar_fuera_de_muestra_dbi(
-          resumen, bloque$perfil, sensibles_muestra
-        )
-        resumen <- cerrado$resumen
-        bloque$perfil <- cerrado$perfil
-        resumen$meta$proteccion_personal$fuera_de_muestra <- paste0(
-          "No verificada: ", fuera$motivo, ". Se taparon los valores y la ",
-          "evidencia de las columnas no personales."
-        )
-      }
-    }
+    # La misma funcion que la via por bloques: ver
+    # `.proteger_salida_muestra_dbi()`.
+    protegido <- .proteger_salida_muestra_dbi(
+      resumen, bloque, conexion, preparacion, presupuesto
+    )
+    resumen <- protegido$resumen
+    bloque$perfil <- protegido$perfil
   } else {
     resumen$meta$proteccion_personal <- list(
       aplicada = FALSE, base = "desactivada por el usuario",
@@ -15927,7 +16450,9 @@ perfilar_dbi <- function(conexion, tabla,
   }
 
   estructura <- list(resumen_tabla = resumen, perfil_muestra = bloque$perfil)
-  estructura <- .agregar_cobertura_corroboracion_dbi(estructura)
+  estructura <- .agregar_cobertura_corroboracion_dbi(
+    estructura, columnas_codigo = columnas_codigo
+  )
   estructura <- .agregar_cobertura_politicas_muestra_dbi(
     estructura, aplicabilidad = aplicabilidad,
     columnas_opcionales = columnas_opcionales,

@@ -4633,8 +4633,17 @@
     identificador_secuencial <- isTRUE(fila$secuencia_entera_densa) &&
       is.finite(fila$tasa_distintos) &&
       fila$tasa_distintos >= .MIN_TASA_DISTINTOS_IDENTIFICADOR
+    # Un codigo declarado en `columnas_codigo` y guardado como texto ya tiene su
+    # tipo: el hallazgo pedia "convertir la columna de forma explicita" a numero,
+    # que es la magnitud que la declaracion niega -`"006"` pierde el cero-
+    # (refutacion 33-D).
+    codigo_en_texto <- identical(estado_outliers, "codigo_declarado") &&
+      as.character(fila$tipo_declarado) %in%
+        c("texto", "factor", "factor-ordenado") &&
+      as.character(fila$tipo_inferido) %in% c("entero", "doble", "integer64")
     if (!.tipos_equivalentes(fila$tipo_declarado, fila$tipo_inferido) &&
-        fila$tipo_inferido != "desconocido" && !identificador_secuencial) {
+        fila$tipo_inferido != "desconocido" && !identificador_secuencial &&
+        !codigo_en_texto) {
       # La proporcion compatible se calculaba, se imprimia en la evidencia y no
       # decidia nada: el hallazgo sugeria "convertir la columna" igual con 0,98
       # que con 0,85, y esas dos conversiones no cuestan lo mismo -la segunda

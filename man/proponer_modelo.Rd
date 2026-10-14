@@ -94,7 +94,11 @@ su \code{configuracion}, y la justificación lo dice. Sobre cuarenta valores con
 \code{datos}, la propuesta no tiene de dónde sacarlos—, se mide igual con los
 valores crudos, y la justificación dice que cuenta sólo los \code{NA} y que
 sobrestima la completitud. \code{\link[=analizar]{analizar()}} la mide y \code{\link[=modelo_desde_propuesta]{modelo_desde_propuesta()}}
-la materializa como a cualquier otra sugerencia activa.
+la materializa como a cualquier otra sugerencia activa. Si la columna se
+declaró en \code{columnas_opcionales} de \code{\link[=perfilar]{perfilar()}}, la \code{NoNulo} lleva además
+\code{opcional = TRUE} y se mide sobre las celdas presentes, el mismo universo
+que el perfil: con un \code{NA} y tres \code{-999} en cuarenta celdas mide
+36/39 = 0,923, que es \code{1 - prop_faltantes_totales}.
 Una sugerencia sobre una columna cuyo nombre la tabla repite sale inactiva y
 con estado \code{nombre_repetido}: una métrica se liga por nombre, y ese nombre no
 dice cuál de las columnas mide. \code{\link[=modelo_desde_propuesta]{modelo_desde_propuesta()}} no la materializa

@@ -1,5 +1,266 @@
 # lupa 0.1.0
 
+## Ronda 33: la primera ronda con el porton por severidad
+
+Desde esta ronda la etapa de refutacion cierra cuando una ronda no encuentra nada alto ni
+medio; lo bajo se documenta. Tres refutaciones sobre la ronda 32 y sus cuatro decisiones: la
+de la proteccion encontro uno alto -por la via por bloques el piso por valor no corria sobre las
+columnas no personales: las cedulas y los nombres que repetia otra columna se publicaban- y dos
+medios en las colecciones; la de las decisiones, cuatro medios -la `NoNulo` de una columna
+opcional, divergencias falsas con `columnas_codigo`, la evaluacion de `analizar()` sin su
+configuracion, el centinela con coma decimal-; la de las piezas compartidas, uno medio -con
+`LC_NUMERIC` en coma se perdia la fraccion de segundo-. Al arreglarlos aparecieron dos mas: la
+media de una columna entera salia recortada en SQL Server, MySQL y MariaDB -y la corroboracion
+publicaba una divergencia falsa en cada una-, y bajo el locale `C` una columna con tilde en SQL
+Server hacia caer a R.
+
+**La proteccion:**
+
+- **Por la via por bloques corre el mismo piso por valor que sin ella, sobre todas
+  las columnas.** Con `bloque_filas`, `perfilar_dbi()` protegia el resumen solo con
+  los extremos de las columnas protegidas: no usaba la muestra ni leia los valores
+  de la tabla entera, y una cedula copiada en una columna de codigos o un nombre
+  citado en un texto libre se publicaban en `resumen_tabla$columnas$maximo`, en el
+  motivo de la corroboracion -que ademas declaraba una divergencia que no existia:
+  la proteccion tapaba un lado y no el otro- y en `meta$familias` (`distintos`,
+  `cuantitativos`), en SQLite y PostgreSQL y en `perfilar_coleccion(conservar_perfiles
+  = TRUE)`. Medido: 96 apariciones, 14 de 16 nombres y 40 de 120 cedulas en una tabla
+  de 120 filas; sin bloques, 0. La ronda 32 habia cerrado `meta$familias` solo en las
+  columnas protegidas. Ahora las dos vias llaman a la misma funcion
+  (`.proteger_salida_muestra_dbi()`: la muestra, los rellenos confirmados, la lectura
+  fuera de la muestra o el cierre del lado seguro) y la misma tabla publica lo mismo
+  con y sin `bloque_filas`. Lo que el piso tapa en `columnas` -un extremo que es un
+  documento, y sus derivados: la media y el desvio que lo reconstruyen- se tapa
+  tambien en `meta$familias$<columna>$cuantitativos`; y si la lectura fuera de la
+  muestra falla, el cierre tapa tambien los valores distintos de las columnas no
+  personales en `meta$familias`. Cuesta lo que la via sin bloques: un
+  `perfilar_dbi(bloque_filas = 10)` protegido de 24 filas paso de 1,6 s a 1,9 s.
+- **El piso final de `perfilar_coleccion()` lee cada mensaje del motor entero, en
+  cualquier orden de las tablas.** El mensaje pasa por el piso al armarlo, con los
+  valores que se conocen en ese momento; con una vista leida antes que su tabla base
+  el piso no conocia el nombre, la segunda pasada omitia lo que no es una palabra
+  permitida y dejaba su RESTO -"De Los Campos" de "Maria De Los Campos" en SQL Server
+  en sueco, "Campos Cadena" despues de un apodo entre comillas en ingles- en los tres
+  campos de motivos, en el perfil retenido de la vista, en el aviso y en `print()`, con
+  y sin perfiles: la huella es la del valor entero y el resto no la tiene. Ahora la
+  coleccion guarda cada mensaje como llego -en memoria, mientras dura; nunca entra al
+  objeto- con los nombres que estaban permitidos, y al final lo vuelve a leer con todo
+  lo que leyo y cambia lo publicado (`.repasar_mensajes_motor()`), solo si lo nuevo
+  publica menos. El diagnostico queda: "Conversion failed when converting the nvarchar
+  value '[literal omitido]' to data type int".
+  Limitacion conocida (baja, no medida): la relectura reemplaza el texto tal como se
+  publico; si el piso de la propia tabla ya lo habia cambiado -el mensaje citaba
+  entero, ademas, un valor protegido de esa misma tabla-, no lo encuentra y queda solo
+  el piso de las huellas, que tapa los valores enteros y no el resto.
+- **Con perfiles retenidos el piso final usa tambien las huellas de lo leido.** Usaba
+  solo los valores de las tablas completas: con una tabla base incompleta -una columna
+  protegida `ntext` de SQL Server no admite el `GROUP BY` que lee sus valores- el
+  motivo de la vista leida antes citaba el valor ENTERO, en siete lugares, y sin
+  perfiles se tapaba: retener perfiles protegia menos. Ahora el piso de huellas corre
+  con y sin perfiles en los tres campos y los avisos, y sobre los perfiles retenidos
+  (`.proteger_perfiles_con_mensajes_motor()`) con los valores que citan los mensajes.
+- **El mensaje del motor se guarda sin los colores de cli.** En una consola a color
+  -RStudio, `cli.num_colors = 256`- cli formatea las partes del error de odbc al
+  senalarlo, y `resumen_tabla$sql$motivo` guardaba las secuencias ANSI
+  (`\033[32m[FreeTDS][SQL Server]\033[39m`) y el enlace de `{.file}` con la ruta del
+  directorio de trabajo, con y sin proteccion; con proteccion la segunda pasada las
+  mezclaba con marcadores (`[[literal omitido][FreeTDS]`). Se quitan en la misma
+  lectura que quita las vinetas (`.sin_ansi_motor()`, `cli::ansi_strip()`).
+  Limitacion conocida (baja): lo que cli agrega dentro de una linea no se distingue
+  del texto del motor; sin color cita entre comillas el archivo del controlador
+  (`'nanodbc/nanodbc.cpp:1802'`) y con proteccion esa cita sale `[literal omitido]`,
+  con color se publica. No es un valor de la tabla.
+
+**Las decisiones de la ronda 32:**
+
+- **La `NoNulo` de una columna opcional se mide sobre sus celdas presentes.** La
+  decision D6 propone y mide la `NoNulo` de una columna con faltantes disfrazados,
+  pero no trasladaba `columnas_opcionales`: sobre cuarenta celdas con un `NA` y
+  tres `-999` en una columna declarada opcional, el perfil contaba 3 de 39
+  (`1 - prop_faltantes_totales` = 0,923) y `medir()` y el tablero de `analizar()`
+  publicaban 0,900 = 36/40, contando como faltante el `NA` que la declaracion
+  legitima, con la justificacion de la sugerencia diciendo 3 ausentes. Ahora el
+  perfil registra la declaracion en `meta$columnas_opcionales`, `NoNulo` acepta
+  `opcional = TRUE` -mide sobre las celdas presentes y solo cuenta los
+  `valores_nulos`- y `proponer_modelo()` se lo pone a la `NoNulo` de una columna
+  declarada opcional, asi que vale igual por `medir()` directo, por `analizar()` y
+  sobre la entrega siguiente. Es una propiedad y no una formula `aplicable =
+  ~ !is.na(col)` porque la formula nombra la columna como simbolo: bajo
+  `LC_CTYPE = "C"`, con un nombre no ASCII, avisaba "unable to translate" seis
+  veces por medicion.
+- **`perfilar_dbi()` no corrobora lo que `columnas_codigo` manda no calcular.**
+  La corroboracion entre `resumen_tabla` y `perfil_muestra` corria antes de que
+  la declaracion borrara la media, la mediana y el desvio del resumen SQL, y
+  comparaba esa cifra con el `NA` que la muestra callo a proposito: tres
+  `divergencia` falsas por columna declarada, con la media del codigo en el
+  texto, por el camino SQL (duckdb y SQLite) y por bloques; con una muestra
+  parcial, ademas, el lado que falta. `perfilar_coleccion()` las subia a
+  `alcance = "divergencias"` y pedia releer la tabla. Ahora esas tres metricas de
+  una columna declarada no se corroboran; la fila `no_aplica` de `resumen_tabla`
+  sigue declarando la omision.
+- **La evaluacion de `analizar()` conserva la configuracion del modelo, la
+  aplicabilidad y la fecha declarada.** `analizar()` evalua la medicion agregada
+  del tablero, que no llevaba esos atributos de `medir()`; `evaluar()` los copia
+  de lo que recibe, asi que la evaluacion llegaba al historico sin ellos: la
+  deriva no separaba un cambio del conjunto de metricas -publicaba `error` de
+  0,5 a 0,333 donde la puerta `medir()` -> `evaluar()` declara
+  `configuracion_modelo / no_comparable`- ni dos tablas -`identidad_tabla`
+  `<sin_configuracion>`, y encadenaba `personas` con `visitas` como una serie-.
+  Ahora la medicion de `analizar()` lleva lo que `agregar()` traslada, con una
+  sola funcion para las tres puertas (`.trasladar_atributos_medicion()`); por el
+  camino que mide metrica por metrica, la configuracion es la del modelo entero.
+  `fecha_declarada` dice si la fecha la paso quien llamo a `analizar()`.
+- **Un centinela escrito con la convencion decimal de la columna es un faltante
+  disfrazado.** En una columna de texto con coma decimal, `"-999,00"` se resumia
+  como -999 (`minimo = -999`) pero no se contaba como disfrazado, y la columna se
+  quedaba sin hallazgo y sin `NoNulo`, al lado de la misma cifra escrita
+  `"-999.00"`, que si contaba. El detector, la mascara con que `proponer_modelo()`
+  arma los `valores_nulos` y la accion `convertir_sentinelas_numericos` del plan
+  leen ahora el texto con la convencion que el perfil publica en
+  `numero_texto_convencion`, como el resumen; la accion la lleva en
+  `parametros$convencion`. Sobre 60 importes y tres `"-999,00"`: tres
+  disfrazados, `NoNulo` 60/63 = 0,952 y `aplicar()` convierte las tres celdas.
+  Tambien cuentan `"-999,00"` y `"-9.999,00"` en una columna con miles.
+- **`columnas_codigo` llega a todo `analizar()`.** `clasificar_variables()` con el
+  perfil propone `nominal`, rol `categoria` y confirmada para una columna
+  declarada -antes `discreta` y `medida`-, y `analizar()` le pasa a
+  `detectar_asociaciones()` el codigo como categoria: eta cuadrado o V de
+  Cramer, no un Pearson que supone una magnitud. Y un codigo guardado como texto
+  (`"006"`) ya no recibe `tipo_declarado_distinto`, que pedia convertirlo a
+  numero.
+- **Limitacion conocida, documentada: en `perfilar_coleccion()` las
+  declaraciones por columna valen para todas las tablas.** `coleccion()` no tiene
+  declaraciones por tabla y `...` llega igual a cada `perfilar_dbi()`: una tabla
+  sin la columna declarada en `columnas_codigo` no se perfila (sale de
+  `resumen_coleccion`, con un `como_resolverlo` que habla de permisos), y con
+  `columnas_opcionales` o `columnas_personales` pierde la muestra. Para declarar
+  columnas que no estan en todas las tablas, perfilarlas por separado o partir la
+  coleccion.
+- **La media de SQL Server y el desvio de PostgreSQL se piden al motor como
+  doble.** `perfilar_dbi()` pedia la media como `AVG(x * 1.0)`, que en SQL
+  Server es `AVG` de un `numeric` y devuelve seis decimales: sobre 61 enteros el
+  resumen publicaba 16.934426 y la muestra 16.934426229508198, y la
+  corroboracion declaraba `divergencia` en la media de toda columna entera
+  -tambien `bigint`- de una tabla leida entera. PostgreSQL hacia lo mismo con el
+  desvio, `STDDEV_SAMP(x * 1.0)`, sobre magnitudes grandes: 8767203.0408 contra
+  8767203.0408313069. Ahora la media se pide como `AVG(CAST(x AS FLOAT))` en
+  T-SQL (SQL Server y Sybase) y el desvio como
+  `STDDEV_SAMP(CAST(x AS DOUBLE PRECISION))` en PostgreSQL, que es la cifra que
+  lee R; no se agrando ninguna tolerancia. En SQLite, duckdb y PostgreSQL la
+  media sale igual que antes, cifra por cifra, y el desvio tambien salvo el de
+  PostgreSQL sobre enteros grandes, que ahora es el de R.
+- **La media de MySQL y MariaDB tambien se pide como doble.** Ahi `AVG(x * 1.0)`
+  es `AVG` de un `DECIMAL`, que suma `div_precision_increment` (4) decimales a
+  la escala: la media de una columna `int` salia `decimal(16,5)`, y el resumen
+  publicaba 16.93443 donde la media es 16.934426229508198, con dos divergencias
+  falsas en la corroboracion (MariaDB 11.8 y MySQL 8.4). Ahora se pide como
+  `AVG(x * 1e0)`: `1e0` es un literal `DOUBLE` en cualquier version, y
+  `CAST(x AS DOUBLE)` solo existe en MySQL desde la 8.0.17. `STDDEV_SAMP` ya
+  devuelve `DOUBLE` en los dos y no cambia. SQLite, duckdb, PostgreSQL y SQL
+  Server dan lo mismo que con el arreglo anterior.
+
+**Una sesion que no puede escribir un nombre (alta):**
+
+- **Bajo el locale `C`, `perfilar_dbi()` ya no hace caer a R con una columna
+  con tilde en SQL Server.** odbc pasa el texto de la consulta por la
+  codificacion nativa de la sesion, y bajo `C` -la de un `Rscript` de cron en
+  Linux- es ASCII: con una columna `ano` con tilde, la lectura del esquema mandaba
+  un texto que no se podia convertir, odbc mandaba `NA` y dejaba la conexion
+  rota, y la consulta siguiente -la de la primera columna- terminaba la sesion
+  con una violacion de segmento (medido con FreeTDS; con el nombre bien marcado
+  odbc lo escapa y el motor lee otro identificador). Ninguna consulta que la
+  sesion no pueda escribir se manda: toda consulta de la via sale por un solo
+  envio que lo mira antes de tocar la conexion. La columna queda en
+  `no_disponible` con ese motivo y "Correr la sesion con un locale UTF-8", las
+  demas se leen enteras, y una tabla con un nombre asi da
+  `lupa_error_codificacion_dbi`, clase nueva. RPostgres, RSQLite y duckdb reciben
+  la consulta en UTF-8 y leen esos nombres en cualquier locale: no cambian.
+- **La via por bloques declara las columnas que el esquema no pudo leer.** Con
+  `bloque_filas`, una columna que el motor rechazaba -o, ahora, que la sesion no
+  puede nombrar- desaparecia de `resumen_tabla$columnas`, de `sql` y de la
+  cobertura sin decirlo; ahora sale como en la via SQL, sin medir y con su
+  motivo.
+
+**La sesion:**
+
+- **Un texto con fraccion de segundo se lee entero con `LC_NUMERIC` en coma.**
+  `strptime()` lee la fraccion de `%OS` con la marca decimal del locale, y con
+  `Sys.setlocale("LC_NUMERIC", ...)` en coma `"10:00:05.25"` se leia como
+  `10:00:05`, sin aviso: un plan armado en una sesion "C" salia `lista` y
+  `aplicar()` en una sesion con coma escribia 7 instantes distintos de 12; en la
+  misma sesion `planificar_limpieza()` bloqueaba la conversion como "no
+  inyectiva", y una `fecha` de texto con fraccion se guardaba al segundo en
+  `perfilar()`, `medir()`, `analizar()`, `perfilar_por()`,
+  `medicion_desde_estimaciones()` y `reportar()`, y en el historico. Toda lectura
+  de un texto a fecha y hora pasa ahora por un solo lector, que fija
+  `LC_NUMERIC` en "C" mientras lee y lo devuelve como estaba; llegan a el 31
+  exportadas. El `id_medicion` por omision de `medir()` se escribe con punto
+  (`T100005.250000`, antes `T100005,250000` con coma).
+- **Bajo el locale `C`, `evaluar()`, `aplicar()`, `perfilar_dbi(bloque_filas = )` y
+  `relaciones_coleccion()` ya no avisan "unable to translate" con nombres no
+  ASCII.** Es la construccion que la ronda 32 cerro en `medir()`: unian partes
+  con `do.call()` sobre una lista nombrada por los perfiles, las reglas o las
+  columnas, y `do.call()` traduce al nativo los nombres de sus argumentos; con
+  `warn = 2` abortaban. `relaciones_coleccion()` guardaba cada tabla leida en un
+  cache con su nombre como clave, que `assign()` tambien traduce: bajo `C` la
+  tabla `pais` con tilde en la i y una tabla llamada literalmente `pa<U+00ED>s`
+  compartian la entrada. Un recorrido de 47
+  llamadas de exportadas bajo `C` con nombres y valores no ASCII da ahora cero
+  avisos (antes 24, en esas cuatro).
+
+**Limitacion conocida, declarada:**
+
+- **Una corrida guardada por una version anterior cuya configuracion lleva un
+  numero que con 15 cifras no vuelve a su valor** -`maximo = 1/3`, `0.1 + 0.2`,
+  un umbral calculado con `quantile()`- declara una vez una fila
+  `configuracion_modelo` con severidad `error` contra la primera corrida nueva:
+  la version anterior lo escribia con 15 cifras (`0.333333333333333`) y la ronda
+  32 lo escribe con las que lo devuelven a su valor (`0.3333333333333333`). Es la
+  misma excepcion que ya tenia un instante con fraccion de segundo. Hacerlas
+  aparear exigiria comparar con 15 cifras, lo que la ronda 32 cerro. Lo dice
+  `?detectar_deriva_calidad`.
+
+**La via DBI:**
+
+- **Los errores de argumento de `perfilar_dbi()` llevan la clase que promete su
+  ayuda.** `?perfilar_dbi` dice que todo `stop()` de la via hereda de
+  `lupa_error_dbi`, y nueve argumentos -`universo`, `muestra`,
+  `estrategia_distintos`, `estrategia_mediana`, `bloque_muestra`, `dialecto`,
+  `incluir_valores`, `max_celdas_muestra`, `max_bytes_muestra`- y la bandera de
+  proteccion por `...` daban un `simpleError`: los valida un ayudante comun a
+  todo el paquete. Ahora llevan `lupa_error_argumento_dbi` con el mismo mensaje.
+  `incluir_valores` no se validaba: con `NA` abortaba con el error de R "valor
+  ausente donde TRUE/FALSE es necesario"; ahora es `TRUE` o `FALSE`.
+
+**La bandera y los argumentos que viajan por `...`:**
+
+- **Un nombre abreviado por `...` vale lo mismo para todos los que lo leen.**
+  `perfilar_dbi()`, `perfilar_coleccion()` y `perfilar_por()` leian la lista de
+  `...` por el nombre exacto, y R completa el nombre al llamar a `perfilar()`:
+  `perfilar_dbi(proteger = FALSE)` perfilaba la muestra sin proteccion y tapaba
+  la moda del resumen SQL, `proteger = "si"` o `NA` devolvia el fallo parcial con
+  el nombre del argumento tapado en vez del error del paquete, y `perfilar_por()`
+  protegia sus etiquetas de grupo mientras cada grupo se perfilaba sin
+  proteccion (y leia asi otros seis argumentos). Los nombres se completan ahora
+  en la entrada con la regla de R, contra los formales de `perfilar()`.
+- **Lo que viaja por `...` hasta `perfilar()` se valida al entrar, aunque no haya
+  nada que perfilar.** La ronda 32 lo hizo con la bandera; seguian pasando en
+  silencio, sin grupos que llegaran a `min_filas` o con `bloque_muestra =
+  "solo_agregados"`, una `fecha` invalida (`"ayer"`, `NA`, dos fechas) y un nombre
+  que `perfilar()` no tiene (`no_existe = 1`, una errata). `perfilar_por()`,
+  `perfilar_dbi()` y `perfilar_coleccion()` dan ahora el error del paquete; en
+  `perfilar_coleccion()` una vez, en la entrada, y no tabla por tabla (que
+  habria perdido los resumenes SQL). Limitacion declarada: los demas valores los
+  valida `perfilar()` al perfilar, y sin nada que perfilar no se validan.
+- **Con la proteccion activa, el motivo de una muestra que no se pudo perfilar
+  por un argumento sale legible.** El error de `perfilar()` pasaba por el piso
+  del mensaje del motor y decia "`[literal omitido]` debe ser un entero [literal
+  omitido] de al [literal omitido] 2.": no se sabia que argumento fallo. Si
+  `perfilar()` da el mismo error sobre la muestra sin filas, el error no cita
+  ninguna celda y se trata como una condicion propia de la via: se tapa solo lo
+  citado entre comillas que no es un nombre de la tabla o de sus columnas. Si no
+  se repite, el piso entero, como antes.
+
 ## Ronda 32: las entradas, la sesion otra vez, la proteccion y cuatro decisiones
 
 Tres refutaciones y una vuelta de decisiones. La de las entradas encontro once

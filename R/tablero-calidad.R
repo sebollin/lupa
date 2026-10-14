@@ -608,6 +608,7 @@
 
 .preparar_tablero <- function(medidas, agregaciones = NULL, umbrales = NULL,
                               marco = NULL, cobertura = NULL) {
+  origen <- medidas
   cobertura_metricas <- attr(medidas, "cobertura_metricas", exact = TRUE)
   alcance_medidas <- attr(medidas, "alcance_medidas", exact = TRUE)
   desenlaces <- .desenlaces_de_objeto(medidas)
@@ -641,6 +642,9 @@
     )
     .agregar_medidas_tablero(medidas, configuracion)
   }
+  # La medicion agregada que sale de aca es la que `analizar()` evalua y
+  # devuelve: lleva lo que la medicion de origen declaro, como `agregar()`.
+  agregada <- .trasladar_atributos_medicion(agregada, origen)
   .armar_tablero(
     agregada, medidas, marco = marco, cobertura = cobertura,
     cobertura_metricas = cobertura_metricas, alcance_medidas = alcance_medidas,

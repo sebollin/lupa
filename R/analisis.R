@@ -376,6 +376,9 @@ analizar <- function(datos, nombre = .nombre_de_los_datos(substitute(datos)),
   # La fecha se lee UNA vez, en la entrada, como la leen `perfilar()` y
   # `medir()`: el texto crudo llegaba a `.nuevo_id_medicion()` y abortaba con un
   # error de R lo que las dos piezas aceptan. Medido en la ronda 32.
+  # Si la fecha la declaro quien llama se pregunta ANTES de leerla: despues de
+  # asignarla, `missing()` ya no lo dice. La medicion lo declara como `medir()`.
+  fecha_declarada <- !missing(fecha)
   fecha <- .fecha_argumento_utc(fecha)
   argumentos <- c(list(
     # La entrada SIN convertir: si era una matriz, `perfilar()` la convierte y lo
@@ -400,8 +403,16 @@ analizar <- function(datos, nombre = .nombre_de_los_datos(substitute(datos)),
     proteger_datos_personales = proteger_datos_personales
   )
   metodo_asociacion_numerica <- .elegir_opcion(metodo_asociacion_numerica)
+  # Una columna declarada en `columnas_codigo` es un codigo: se asocia como
+  # categoria, no con una correlacion que supone una magnitud. Sin esto el mismo
+  # objeto publicaba `cod` como codigo en el perfil y su Pearson con `monto` en
+  # `asociaciones` (refutacion 33-D). Se convierte una copia; los datos del
+  # usuario no se tocan.
+  datos_asociaciones <- .codigos_como_categoria(
+    datos, perfil$meta[["columnas_codigo"]]
+  )
   asociaciones <- detectar_asociaciones(
-    datos, perfil$dependencias, umbral_asociacion, muestra_asociacion,
+    datos_asociaciones, perfil$dependencias, umbral_asociacion, muestra_asociacion,
     max_columnas_asociacion, max_niveles_asociacion, max_pares_asociacion,
     metodo_numerico = metodo_asociacion_numerica
   )
@@ -534,6 +545,15 @@ analizar <- function(datos, nombre = .nombre_de_los_datos(substitute(datos)),
   }
   medicion <- preparado$medicion
   tablero <- preparado$tablero
+  # `medir()` registra si la fecha la declaro quien llama; aca quien llama es el
+  # usuario de `analizar()`, que siempre le pasa una fecha a `medir()`. Las dos
+  # mediciones del objeto lo dicen igual.
+  if (inherits(medicion, "data.frame")) {
+    attr(medicion, "fecha_declarada") <- fecha_declarada
+  }
+  if (inherits(detalle_medicion, "data.frame")) {
+    attr(detalle_medicion, "fecha_declarada") <- fecha_declarada
+  }
   evaluacion <- if (!is.null(perfil_evaluacion) && is.null(medicion)) {
     .avisar(
       "No se evalu\u00f3 `perfil_evaluacion`: ninguna m\u00e9trica del modelo ",
@@ -1502,6 +1522,25 @@ leer_analisis <- function(archivo) {
   x
 }
 
+# Las columnas declaradas en `columnas_codigo`, como texto: asi `detectar_asociaciones()`
+# las trata como categorias. Solo las numericas cambian; un codigo ya guardado
+# como texto o factor ya es una categoria.
+.codigos_como_categoria <- function(datos, columnas_codigo) {
+  columnas_codigo <- as.character(columnas_codigo)
+  if (!length(columnas_codigo)) return(datos)
+  indices <- .indice_nombre(columnas_codigo, names(datos))
+  for (j in unique(indices[!is.na(indices)])) {
+    x <- datos[[j]]
+    if ((is.numeric(x) || inherits(x, "integer64")) &&
+        !inherits(x, c("Date", "POSIXt", "difftime"))) {
+      texto <- as.character(x)
+      texto[is.na(x)] <- NA_character_
+      datos[[j]] <- texto
+    }
+  }
+  datos
+}
+
 # Mide y agrega una metrica por vez, para que el pico de memoria sea el de UNA
 # metrica y no el de todas. Devuelve lo mismo que agregar el detalle entero con
 # `.preparar_tablero()`: la agregacion agrupa por `metrica_instanciada`, asi que
@@ -1520,6 +1559,11 @@ leer_analisis <- function(archivo) {
   alcances <- list()
   entidades <- character()
   vacia <- NULL
+  # Lo que `medir()` declara sobre la corrida -la fecha declarada, la
+  # aplicabilidad, el marco- es igual en cada metrica y se toma de la primera.
+  # La configuracion del modelo no: la de cada medicion parcial es la de UNA
+  # metrica, y se declara la del modelo entero, como la da `medir()` sobre el.
+  declarado <- NULL
   for (instancia in modelo_completo$metricas) {
     sola <- modelo(list(instancia), marco = modelo_completo$marco)
     medidas <- withCallingHandlers(
@@ -1532,6 +1576,9 @@ leer_analisis <- function(archivo) {
         }
       }
     )
+    if (is.null(declarado)) {
+      declarado <- .trasladar_atributos_medicion(list(), medidas)
+    }
     cobertura <- attr(medidas, "cobertura_metricas", exact = TRUE)
     if (inherits(cobertura, "data.frame") && nrow(cobertura)) {
       coberturas[[length(coberturas) + 1L]] <- cobertura
@@ -1562,9 +1609,11 @@ leer_analisis <- function(archivo) {
     unidos
   }
   .avisar_no_medibles(cobertura_metricas, length(modelo_completo$metricas))
+  configuracion_modelo <- .configuracion_modelo_calidad(modelo_completo)
   if (!length(partes)) {
     attr(vacia, "cobertura_metricas") <- cobertura_metricas
     attr(vacia, "alcance_medidas") <- alcance_medidas
+    attr(vacia, "configuracion_modelo") <- configuracion_modelo
     return(list(agregada = NULL, vacia = vacia))
   }
   cual <- if (length(entidades) > 1L) "varias" else "una"
@@ -1574,6 +1623,12 @@ leer_analisis <- function(archivo) {
     agregada$id_medicion, agregada$metrica_instanciada, "tablero-"
   )
   class(agregada) <- c("medicion", "data.frame")
+  agregada <- .trasladar_atributos_medicion(agregada, declarado)
+  attr(agregada, "configuracion_modelo") <- configuracion_modelo
+  # Las dos coberturas de la primera metrica no son las de la corrida: se
+  # declaran las de todas, que son las que `.armar_tablero()` publica.
+  attr(agregada, "cobertura_metricas") <- cobertura_metricas
+  attr(agregada, "alcance_medidas") <- alcance_medidas
   list(
     agregada = agregada, cobertura_metricas = cobertura_metricas,
     alcance_medidas = alcance_medidas

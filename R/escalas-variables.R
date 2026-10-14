@@ -237,6 +237,11 @@
 #' traen decimales, y con valores enteros la propuesta queda sin confirmar,
 #' porque pueden ser una cuenta o una medida redondeada.
 #'
+#' Con `perfil`, una columna declarada en su `columnas_codigo` es un código y
+#' no una magnitud: en lugar de `discreta` o `continua` con rol `medida`, sale
+#' `nominal`, con rol `categoria` y confirmada, porque la declaración es del
+#' usuario. `metadatos` la puede corregir igual.
+#'
 #' `metadatos` permite confirmar o corregir la propuesta con una tabla editable.
 #' Debe contener `columna` y puede incluir `escala`, `rol`, `confianza`,
 #' `confirmada`, `unidad` y una columna de lista `niveles`. Las escalas válidas
@@ -320,6 +325,22 @@ clasificar_variables <- function(datos, perfil = NULL, metadatos = NULL,
       inferir_tipo(x)$tipo
     } else .tipo_declarado(x)
     propuesta <- .propuesta_escala(x, tipo_implicito)
+    # Declarada en `columnas_codigo` del perfil: es un codigo, no una magnitud,
+    # asi que no se propone una escala de magnitud ni el rol de medida. La
+    # declaracion es del usuario, como `metadatos`, y `metadatos` la sigue
+    # pudiendo corregir (refutacion 33-D).
+    if (!is.null(perfil) && propuesta$escala %in% c("discreta", "continua") &&
+        .nombres_para_operar(nombre) %in%
+          .nombres_para_operar(as.character(perfil$meta[["columnas_codigo"]]))) {
+      propuesta <- list(
+        escala = "nominal", rol = "categoria", confianza = 1,
+        confirmada = TRUE,
+        evidencia = paste0(
+          "Declarada en `columnas_codigo` del perfil: es un c\u00f3digo, ",
+          "no una magnitud."
+        )
+      )
+    }
     meta <- metadatos[
       nombres_metadatos == .nombres_para_operar(nombre), , drop = FALSE
     ]

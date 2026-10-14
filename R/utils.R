@@ -1018,6 +1018,58 @@
   is.null(bandera) || isTRUE(bandera)
 }
 
+# Los argumentos que viajan por `...` hasta `perfilar()` se leen con el nombre
+# COMPLETO del formal que R les asigna (ronda 33-X). `do.call(perfilar, ...)`
+# completa un nombre abreviado -`proteger = FALSE` es
+# `proteger_datos_personales = FALSE`-, y quien leia la lista antes lo leia por
+# el nombre exacto: `perfilar_dbi(proteger = FALSE)` perfilaba la muestra sin
+# proteccion y tapaba el resumen SQL, `proteger = "si"` no daba el error del
+# paquete sino el fallo parcial, y `perfilar_por()` lee asi seis argumentos mas.
+# Dos lectores de la misma lista que no contestaban lo mismo. Los nombres se
+# completan aca con la regla de R para los nombrados -primero los exactos,
+# despues el prefijo que casa con un solo formal de los que quedan: `pmatch()`
+# sin duplicados- contra los formales de `perfilar()`, que no tiene `...`, y
+# todos leen lo que `perfilar()` va a recibir. Un nombre que no casa, o que
+# casa con varios, queda como llego: `perfilar()` da su error.
+.argumentos_para_perfilar <- function(argumentos) {
+  nombres <- names(argumentos)
+  if (!length(argumentos) || is.null(nombres)) return(argumentos)
+  candidatos <- which(!is.na(nombres) & nzchar(nombres) &
+    !grepl("[^\\001-\\177]", nombres, useBytes = TRUE, perl = TRUE))
+  if (!length(candidatos)) return(argumentos)
+  formales <- names(formals(perfilar))
+  casados <- pmatch(nombres[candidatos], formales, duplicates.ok = FALSE)
+  nombres[candidatos[!is.na(casados)]] <- formales[casados[!is.na(casados)]]
+  names(argumentos) <- nombres
+  argumentos
+}
+
+# Lo que viaja por `...` hasta `perfilar()` se valida en la ENTRADA, haya o no
+# algo que perfilar (ronda 33-X). La ronda 32 lo hizo con la bandera: sin
+# grupos que lleguen a `min_filas` o con `bloque_muestra = "solo_agregados"`,
+# `perfilar()` no corre y nada se validaba. Seguian pasando en silencio una
+# `fecha` invalida -`"ayer"`, `NA`, dos fechas- y un nombre que `perfilar()` no
+# tiene -`no_existe = 1`, una errata-. Se validan aca la bandera, la `fecha`
+# -la misma regla de las cinco puertas, `.fecha_argumento_utc()`- y los nombres,
+# ya completados por `.argumentos_para_perfilar()` -los que la via toma para si,
+# `propios`, tambien valen-. Los demas valores los valida
+# `perfilar()` al perfilar: limitacion declarada en `?perfilar_por` y
+# `?perfilar_dbi`.
+.validar_argumentos_para_perfilar <- function(argumentos, propios = character()) {
+  nombres <- names(argumentos)
+  if (!is.null(nombres)) {
+    desconocidos <- nombres[!is.na(nombres) & nzchar(nombres) &
+                              !nombres %in% c(names(formals(perfilar)), propios)]
+    if (length(desconocidos)) {
+      .detener("`", desconocidos[[1L]], "` no es un argumento de `perfilar()`.",
+               call. = FALSE)
+    }
+  }
+  .validar_bandera_proteccion_en(argumentos)
+  if ("fecha" %in% nombres) .fecha_argumento_utc(argumentos[["fecha"]])
+  invisible(argumentos)
+}
+
 # Copia las subclases con semantica propia de `[` a un data.frame base antes
 # de ejecutar codigo que selecciona columnas o agrega columnas.
 .tabla_base <- function(tabla) {
@@ -1488,6 +1540,24 @@
   )
   do.call(on.exit, list(volver, add = TRUE), envir = marco)
   invisible(TRUE)
+}
+
+# Un texto con fraccion de segundo tambien se LEE con `LC_NUMERIC` (ronda 33-X).
+# `strptime()` lee la fraccion de `%OS` con el `strtod()` de C, que sigue la
+# marca decimal del locale: con `Sys.setlocale("LC_NUMERIC", "es_UY.utf8")`
+# `"10:00:05.25"` se leia `10:00:05`, sin aviso. Un plan armado en una sesion
+# "C" salia `lista` y `aplicar()` en una sesion con coma escribia 7 instantes
+# distintos de 12; en la misma sesion el plan bloqueaba la conversion como "no
+# inyectiva", y una `fecha` de texto con fraccion se guardaba al segundo en las
+# cinco puertas. `as.numeric()` no tiene ese problema: lee con el analizador
+# propio de R. La lectura de un texto con formato es una sola, aca, con
+# `LC_NUMERIC` en "C" mientras dura -la construccion de la lectura por DBI-; 31
+# exportadas llegan a ella por `.es_fecha_valida()`, `.parsear_fechas()`,
+# `.detectar_formatos_fecha_interno()` y `.fecha_utc()`. Una prueba recorre el
+# espacio de nombres y rechaza otro `strptime()` u otro `as.POSIXct(format = )`.
+.strptime_utc <- function(x, formato, tz = "UTC") {
+  .fijar_numerica_c()
+  strptime(x, format = formato, tz = tz)
 }
 
 # Hay una tercera perilla, y no es una opcion: `LC_NUMERIC`. R arranca siempre en

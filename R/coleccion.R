@@ -885,6 +885,18 @@ print.coleccion_lupa <- function(x, ...) {
 #' como una tabla unica; los perfiles completos siguen disponibles por tabla
 #' cuando se pidio conservarlos.
 #'
+#' **Limitación conocida: las declaraciones por columna valen para todas las
+#' tablas.** `columnas_codigo`, `columnas_opcionales`, `columnas_personales` y
+#' las demás llegan por `...` iguales a cada [perfilar_dbi()], y [coleccion()] no
+#' tiene declaraciones por tabla. Una tabla que no tiene una columna declarada
+#' en `columnas_codigo` no se perfila —sale de `resumen_coleccion` y
+#' `cobertura_coleccion` nombra la causa, «`columnas_codigo` nombra columnas
+#' inexistentes», aunque `como_resolverlo` hable de permisos—; con
+#' `columnas_opcionales` o `columnas_personales` la tabla conserva su resumen y
+#' pierde la muestra. `columnas_sin_ceros` y `columnas_no_negativas` no la
+#' afectan. Para declarar columnas que no están en todas las tablas, perfilar
+#' esas tablas por separado o partir la colección.
+#'
 #' @param coleccion Objeto creado por [coleccion()].
 #' Una colección **guardada por una versión anterior** se perfila igual. El objeto
 #' fue creciendo —`catalogo`, `tipo`, `declaracion`— y las columnas que a un
@@ -926,18 +938,34 @@ print.coleccion_lupa <- function(x, ...) {
 #'   personales, y `resumen_tabla$meta$proteccion_personal$otras_tablas` dice
 #'   por qué. Con esos valores se barren también `cobertura_coleccion`,
 #'   `cobertura_metricas` y `meta$lecturas`, que juntan los motivos de todas
-#'   las tablas. Sin retenerlos, esos tres campos y el mensaje del motor de
-#'   cada tabla pasan igual por el piso con los valores que las tablas
-#'   leyeron y que un mensaje del motor puede llevar —todo valor con letras,
+#'   las tablas. Con o sin retenerlos, esos tres campos, los perfiles
+#'   retenidos y el mensaje del motor de cada tabla pasan además por el piso
+#'   con los valores que las tablas leyeron y que un mensaje del motor puede
+#'   llevar —todo valor con letras,
 #'   porque cualquier palabra puede ser el nombre de una columna de otra tabla,
 #'   y el número que el mensaje no omite entero, como `"099;123;456"`, escrito
 #'   con un signo que no une; ver [perfilar_dbi()]—, sin consultas de más: el
 #'   mensaje de una vista que citaba `"Campos Cadena"`, la celda de su tabla
-#'   base, se publicaba. De cada uno se guarda una huella —ocho bytes de su
+#'   base, se publicaba; y con perfiles retenidos y una tabla base incompleta
+#'   —una columna protegida `ntext` de SQL Server, que no admite el `GROUP BY`
+#'   que lee sus valores— el piso usaba sólo las tablas completas y el motivo
+#'   de la vista citaba el valor entero. De cada uno se guarda una huella —ocho bytes de su
 #'   forma plegada y sin separadores— y no el texto: la memoria no crece con el
 #'   largo de los nombres que se leen, y un tramo del mensaje con la huella de
 #'   uno se tapa como esté escrito; dos formas con la misma huella, una en
-#'   2^52, sólo pueden tapar de más. Y los avisos de consola de cada tabla se
+#'   2^52, sólo pueden tapar de más. Y cada mensaje del motor se guarda como
+#'   llegó mientras dura la colección —en memoria; nunca entra al objeto— y al
+#'   final se vuelve a leer con todo lo que la colección leyó: con una vista
+#'   perfilada antes que su tabla base el piso no conocía todavía el nombre, y
+#'   la segunda pasada dejaba su resto —`"De Los Campos"` de
+#'   `"María De Los Campos"` en SQL Server en sueco, `"Campos Cadena"` después
+#'   de un apodo entre comillas—. El orden de las tablas no cambia lo que se
+#'   publica; lo vuelto a leer reemplaza a lo publicado sólo si publica menos.
+#'   Se reemplaza el texto tal como se publicó: si el piso de la propia tabla
+#'   ya lo había cambiado —el mensaje citaba entero, además, un valor
+#'   protegido de esa misma tabla—, la relectura no lo encuentra y queda sólo
+#'   el piso de las huellas, que tapa los valores enteros y no el resto.
+#'   Y los avisos de consola de cada tabla se
 #'   emiten al final, después del mismo piso que esos tres campos, con o sin
 #'   perfiles: el aviso de una vista perfilada antes que su tabla base citaba
 #'   la celda. También si la colección se corta —una interrupción, un error—
@@ -992,8 +1020,24 @@ perfilar_coleccion <- function(coleccion, muestra = Inf,
       is.na(conservar_perfiles)) {
     .detener("`conservar_perfiles` debe ser TRUE o FALSE.", call. = FALSE)
   }
-  .validar_bandera_proteccion_en(list(...))
-  proteger <- .protege_argumentos(list(...))
+  # Lo que `perfilar_dbi()` no toma por nombre viaja a `perfilar()`, y se valida
+  # aca, una vez: tabla por tabla, una `fecha` invalida o una errata hacian
+  # fallar cada `perfilar_dbi()` entero y la coleccion perdia los resumenes SQL
+  # (ronda 33-X; la bandera, desde la ronda 32).
+  extras <- list(...)
+  hacia_perfilar <- if (is.null(names(extras))) {
+    rep(TRUE, length(extras))
+  } else {
+    is.na(pmatch(names(extras), setdiff(
+      names(formals(perfilar_dbi)),
+      c("conexion", "tabla", "muestra", "bloque_muestra", "...")
+    ), duplicates.ok = FALSE))
+  }
+  argumentos_perfil <- .argumentos_para_perfilar(extras[hacia_perfilar])
+  .validar_argumentos_para_perfilar(
+    argumentos_perfil, propios = .ARGUMENTOS_PROPIOS_DBI
+  )
+  proteger <- .protege_argumentos(argumentos_perfil)
   # Sin proteccion, el mensaje del motor se publica entero -el de cada tabla y
   # el de la coleccion-: antes de la primera lectura, y hasta la salida. Ver
   # `.protege_mensaje_motor()`.
@@ -1026,6 +1070,10 @@ perfilar_coleccion <- function(coleccion, muestra = Inf,
   # las demas: ver `.valores_motor()`.
   valores_motor_previos <- .activar_valores_motor()
   on.exit(.fijar_valores_motor(valores_motor_previos), add = TRUE)
+  # Y cada mensaje del motor como llego, para volver a leerlo al final con todo
+  # lo que la coleccion leyo: ver `.activar_mensajes_motor()`. Ronda 33.
+  mensajes_motor_previos <- .activar_mensajes_motor()
+  on.exit(.fijar_mensajes_motor(mensajes_motor_previos), add = TRUE)
   nombres_columnas <- character()
   inicio <- Sys.time()
   cobertura <- list()
@@ -1039,44 +1087,42 @@ perfilar_coleccion <- function(coleccion, muestra = Inf,
   # los avisos de consola-, con los valores que conoce cuando corre: ver abajo,
   # donde se aplica. Una funcion y no un tramo del final, para que el aviso que
   # sale cuando la coleccion se corta pase por el MISMO piso.
+  #
+  # Ronda 33 (H2 y H3). Primero cada mensaje del motor se vuelve a leer desde
+  # como llego, con todo lo que la coleccion leyo (`.repasar_mensajes_motor()`):
+  # con la vista leida antes que su tabla base, el piso al armarlo no conocia
+  # el nombre y la segunda pasada dejaba su resto. Y el piso con las huellas de
+  # lo leido corre tambien con perfiles retenidos: corria solo sin ellos, y con
+  # perfiles usaba solo los valores de las tablas completas -una tabla base
+  # con una columna protegida `ntext`, que no admite `GROUP BY`, quedaba
+  # incompleta y el motivo de la vista citaba su valor ENTERO-.
   piso_final_textos <- function(tablas) {
-    if (!conservar_perfiles) {
-      textos_motor <- unlist(lapply(tablas, function(tabla) {
-        if (is.data.frame(tabla)) as.character(tabla$motivo)
-      }), use.names = FALSE)
-      conocidos <- .valores_conocidos_en(textos_motor)
-      if (length(conocidos)) {
-        intocables <- unique(c(
-          nombres_columnas, as.character(declaradas$tabla),
-          as.character(declaradas$esquema),
-          as.character(declaradas$identificador)
-        ))
-        intocables <- intocables[!is.na(intocables) & nzchar(intocables)]
-        tablas <- lapply(tablas, function(tabla) {
-          .proteger_textos_salida(tabla, conocidos, intocables = intocables)
-        })
-      }
-    }
+    pares <- .pares_mensajes_motor()
+    tablas <- lapply(tablas, .repasar_mensajes_motor, pares = pares)
+    textos_motor <- unlist(lapply(tablas, function(tabla) {
+      if (is.data.frame(tabla)) as.character(tabla$motivo)
+    }), use.names = FALSE)
+    valores <- .valores_conocidos_en(c(textos_motor, .crudos_mensajes_motor()))
     if (conservar_perfiles && length(protegidos_tablas)) {
       completos <- Filter(function(x) isTRUE(x$completo), protegidos_tablas)
       valores_tablas <- unique(unlist(lapply(completos, `[[`, "valores"),
                                       use.names = FALSE))
       fechas_tablas <- unique(unlist(lapply(completos, `[[`, "fechas"),
                                      use.names = FALSE))
-      identificantes <- .valores_identificantes(valores_tablas, fechas_tablas)
-      if (length(identificantes)) {
-        intocables <- unique(c(
-          unlist(lapply(perfiles, function(perfil) {
-            as.character(perfil$resumen_tabla$columnas$columna)
-          }), use.names = FALSE),
-          as.character(declaradas$tabla), as.character(declaradas$esquema),
-          as.character(declaradas$identificador)
-        ))
-        intocables <- intocables[!is.na(intocables) & nzchar(intocables)]
-        tablas <- lapply(tablas, function(tabla) {
-          .proteger_textos_salida(tabla, identificantes, intocables = intocables)
-        })
-      }
+      valores <- c(valores, .valores_identificantes(valores_tablas,
+                                                    fechas_tablas))
+    }
+    valores <- unique(valores)
+    if (length(valores)) {
+      intocables <- unique(c(
+        nombres_columnas, as.character(declaradas$tabla),
+        as.character(declaradas$esquema),
+        as.character(declaradas$identificador)
+      ))
+      intocables <- intocables[!is.na(intocables) & nzchar(intocables)]
+      tablas <- lapply(tablas, function(tabla) {
+        .proteger_textos_salida(tabla, valores, intocables = intocables)
+      })
     }
     tablas
   }
@@ -1501,9 +1547,26 @@ perfilar_coleccion <- function(coleccion, muestra = Inf,
   # valores desconocidos, y los perfiles de las demas se cerraban igual -la moda
   # `Montevideo` de una columna de ciudades salia `[valor protegido]`-: una
   # proteccion que el usuario apago y que costaba diagnostico.
+  # Ronda 33 (H2 y H3). Los perfiles conservados llevan los mismos mensajes del
+  # motor que los motivos de la coleccion -`resumen_tabla$sql`, `$cobertura`-:
+  # se vuelven a leer desde como llegaron antes del piso entre tablas, que
+  # puede cambiar su texto.
+  if (conservar_perfiles && proteger && length(perfiles)) {
+    pares <- .pares_mensajes_motor()
+    perfiles <- lapply(perfiles, .repasar_mensajes_motor, pares = pares)
+  }
   if (conservar_perfiles && proteger && length(perfiles) &&
       length(protegidos_tablas) > 1L) {
     perfiles <- .proteger_perfiles_entre_tablas(perfiles, protegidos_tablas)
+  }
+  # Y despues, el piso con las huellas de lo que los mensajes del motor citan:
+  # si una tabla quedo incompleta, el piso entre tablas cierra los valores de
+  # celda pero no los motivos, y el de la vista citaba el valor entero.
+  if (conservar_perfiles && proteger && length(perfiles)) {
+    perfiles <- .proteger_perfiles_con_mensajes_motor(perfiles, c(
+      as.character(declaradas$tabla), as.character(declaradas$esquema),
+      as.character(declaradas$identificador)
+    ))
   }
 
   resumen_coleccion <- if (length(resumenes)) {
@@ -1740,6 +1803,36 @@ perfilar_coleccion <- function(coleccion, muestra = Inf,
        motivo = paste0("la tabla `", identificador, "` ", motivo))
 }
 
+# Los valores protegidos que lee la coleccion y que citan los mensajes del motor
+# -con sus huellas, `.valores_conocidos_en()` sobre cada mensaje como llego-
+# se tapan en cada perfil conservado, con el piso de `perfilar()`. Ronda 33.
+.proteger_perfiles_con_mensajes_motor <- function(perfiles, nombres = character()) {
+  # Sobre lo que llego y sobre lo que se publico: un mensaje que no se puede
+  # leer por caracteres vuelve entero como valor conocido, y el que esta en los
+  # perfiles es el publicado.
+  conocidos <- tryCatch(
+    .valores_conocidos_en(c(.crudos_mensajes_motor(),
+                            .publicados_mensajes_motor())),
+    error = function(e) .publicados_mensajes_motor()
+  )
+  if (!length(conocidos)) return(perfiles)
+  for (identificador in names(perfiles)) {
+    perfil <- perfiles[[identificador]]
+    intocables <- unique(c(
+      as.character(perfil$resumen_tabla$columnas$columna), nombres
+    ))
+    intocables <- intocables[!is.na(intocables) & nzchar(intocables)]
+    perfil$resumen_tabla <- .proteger_textos_salida(
+      perfil$resumen_tabla, conocidos, intocables = intocables
+    )
+    perfil$perfil_muestra <- .proteger_textos_salida(
+      perfil$perfil_muestra, conocidos, intocables = intocables
+    )
+    perfiles[[identificador]] <- perfil
+  }
+  perfiles
+}
+
 # Cada perfil conservado se barre con los valores protegidos de las DEMAS tablas
 # de la coleccion, con el piso de `perfilar()`. Si los de alguna no se pudieron
 # leer, se cierra como en `perfilar_dbi()` cuando no verifica fuera de la
@@ -1848,7 +1941,7 @@ print.perfil_coleccion <- function(x, ...) {
     )
     if (!is.null(campos) && length(campos)) return(as.numeric(length(campos)))
     tryCatch({
-      esquema <- DBI::dbGetQuery(
+      esquema <- .traer_consulta_dbi(
         coleccion$conexion,
         paste0(
           "SELECT * FROM ",
@@ -2305,6 +2398,17 @@ estimar_costo_coleccion <- function(coleccion, pares = NULL,
   )
 }
 
+# La clave de una tabla en los entornos de cache, en ASCII: los bytes del
+# nombre ya normalizado, en hexadecimal. `assign()` y `exists()` vuelven la clave
+# un simbolo, y eso la traduce al nativo: bajo `C` una tabla con acento avisaba
+# "unable to translate" en cada lectura de `relaciones_coleccion()`, y el texto
+# `pa<U+00ED>s` escrito asi y la tabla `pa\u00eds` daban el mismo simbolo
+# (ronda 33-X, la construccion de `medir()`).
+.clave_cache_coleccion <- function(identificador) {
+  bytes <- charToRaw(.nombres_para_operar(identificador))
+  paste0("t", paste(as.character(bytes), collapse = ""))
+}
+
 .lector_tablas_coleccion <- function(conexion, coleccion, muestra, orden,
                                      tope_cache_mb, columnas_candidatas = NULL) {
   cache <- new.env(parent = emptyenv())
@@ -2349,7 +2453,7 @@ estimar_costo_coleccion <- function(coleccion, pares = NULL,
   }
 
   rangos_universo <- function(identificador, datos) {
-    cache_key <- .nombres_para_operar(identificador)
+    cache_key <- .clave_cache_coleccion(identificador)
     if (exists(cache_key, envir = cache_rangos, inherits = FALSE)) {
       return(get(cache_key, envir = cache_rangos, inherits = FALSE))
     }
@@ -2395,7 +2499,7 @@ estimar_costo_coleccion <- function(coleccion, pares = NULL,
       )
       resultado <- tryCatch({
         consultas_rangos <<- consultas_rangos + 1L
-        DBI::dbGetQuery(conexion, sql_rangos)
+        .traer_consulta_dbi(conexion, sql_rangos)
       }, error = function(e) e)
       if (inherits(resultado, "condition") || !nrow(resultado)) {
         motivo <- if (inherits(resultado, "condition")) {
@@ -2440,7 +2544,7 @@ estimar_costo_coleccion <- function(coleccion, pares = NULL,
   }
 
   leer <- function(identificador) {
-    cache_key <- .nombres_para_operar(identificador)
+    cache_key <- .clave_cache_coleccion(identificador)
     if (exists(cache_key, envir = cache, inherits = FALSE)) {
       reutilizaciones <<- reutilizaciones + 1L
       return(get(cache_key, envir = cache, inherits = FALSE))
@@ -2484,7 +2588,7 @@ estimar_costo_coleccion <- function(coleccion, pares = NULL,
       " LIMIT ", format(tope_lectura, scientific = FALSE)
     )
     resultado <- tryCatch(
-      list(datos = .marcar_utf8_tabla(DBI::dbGetQuery(conexion, sql_limite)),
+      list(datos = .marcar_utf8_tabla(.traer_consulta_dbi(conexion, sql_limite)),
            sql = sql_limite,
            via = "limit"),
       error = function(e) e
@@ -2496,7 +2600,7 @@ estimar_costo_coleccion <- function(coleccion, pares = NULL,
          "SELECT ", seleccion_sql, " FROM ", tabla_sql, orden_sql
        )
       resultado <- tryCatch({
-        consulta <- DBI::dbSendQuery(conexion, sql_llano)
+        consulta <- .enviar_consulta_dbi(conexion, sql_llano)
         on.exit(DBI::dbClearResult(consulta), add = TRUE)
         list(datos = .marcar_utf8_tabla(DBI::dbFetch(consulta, n = tope_lectura)),
              sql = sql_llano,

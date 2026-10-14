@@ -132,7 +132,8 @@ métricas restantes quedan en \code{no_disponible} con ese motivo.}
 declaran sin sondeo.}
 
 \item{incluir_valores}{Si el resumen informa valores de celda: moda, mínimo,
-máximo y mediana. Con \code{FALSE} esas consultas no se emiten.}
+máximo y mediana. Con \code{FALSE} esas consultas no se emiten. \code{TRUE} o
+\code{FALSE}.}
 
 \item{tamano_lote}{Cantidad máxima de columnas por consulta consolidada.
 Se conserva por compatibilidad y, si se informa, fija el tamaño de las dos

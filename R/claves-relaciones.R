@@ -66,6 +66,14 @@
   inferencia <- .inferir_tipo_interno(
     preparacion$valores_identidad, muestra = muestra, conservar_cache = TRUE
   )
+  # La convencion decimal, como la calcula `perfilar()` antes de leer la columna
+  # como numero: sin ella, `"-999,00"` en una columna `decimal_coma` contaba como
+  # disfrazado en el perfil y no en esta mascara, que es la que arma los
+  # `valores_nulos` de la `NoNulo` (refutacion 33-D).
+  if (is.character(x_analisis) || is.factor(x_analisis)) {
+    inferencia$convencion_numero_texto <-
+      .analizar_numeros_texto(x_analisis)$convencion
+  }
   formatos <- inferencia$formatos_fecha
   if (is.null(formatos)) {
     formatos <- detectar_formatos_fecha(x_analisis, muestra = muestra)

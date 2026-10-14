@@ -509,7 +509,12 @@
 #' separado con `NoNulo`; así un mismo ausente no se penaliza en dos factores.
 #' `NoNulo` acepta el vector opcional `valores_nulos` para aplicar de forma
 #' deliberada el diccionario de nulos que contempla el marco; sin configurarlo,
-#' sólo considera los `NA` reales.
+#' sólo considera los `NA` reales. Con `opcional = TRUE` mide sobre las celdas
+#' presentes: la ausencia no es defecto y sólo cuentan como faltantes los
+#' `valores_nulos`. Es como [proponer_modelo()] propone la `NoNulo` de una
+#' columna declarada en `columnas_opcionales` de [perfilar()], para medir sobre
+#' el mismo universo que el perfil: con un `NA` y tres `-999` en cuarenta
+#' celdas, 36/39 = 0,923 y no 36/40.
 #' `ValoresPosiblesPorComprension` sigue la misma convención y acepta un
 #' `predicado` o un rango definido por `minimo`, `maximo` e `inclusivo`.
 #'
@@ -1011,9 +1016,19 @@ modelo <- function(..., marco = NULL) {
 }
 
 .validar_config_no_nulo <- function(configuracion) {
-  desconocidas <- setdiff(names(configuracion), c("valores_nulos", "aplicable"))
+  desconocidas <- setdiff(
+    names(configuracion), c("valores_nulos", "aplicable", "opcional")
+  )
   if (length(desconocidas)) {
-    .detener("NoNulo s\u00f3lo acepta `valores_nulos` y `aplicable`.", call. = FALSE)
+    .detener(
+      "NoNulo s\u00f3lo acepta `valores_nulos`, `aplicable` y `opcional`.",
+      call. = FALSE
+    )
+  }
+  if (!is.null(configuracion$opcional) &&
+      (!is.logical(configuracion$opcional) ||
+       length(configuracion$opcional) != 1L || is.na(configuracion$opcional))) {
+    .detener("`opcional` debe ser TRUE o FALSE.", call. = FALSE)
   }
   if (!is.null(configuracion$aplicable) &&
       !(inherits(configuracion$aplicable, "formula") &&
@@ -1025,7 +1040,8 @@ modelo <- function(..., marco = NULL) {
   }
   if (is.null(configuracion$valores_nulos)) {
     return(list(
-      valores_nulos = NULL, aplicable = configuracion$aplicable
+      valores_nulos = NULL, aplicable = configuracion$aplicable,
+      opcional = configuracion$opcional
     ))
   }
   if (!is.atomic(configuracion$valores_nulos)) {
@@ -1124,11 +1140,24 @@ modelo <- function(..., marco = NULL) {
 # su cuenta con `nrow()`, `alcance_medidas` publicaba "midio 3 de 4 en el
 # universo aplicable" sobre una metrica que midio su universo entero -3 de 3-, y
 # el mismo universo declarado por `aplicabilidad` en `medir()` no publicaba nada.
+#
+# `opcional = TRUE` -la declaracion de `columnas_opcionales` que
+# `proponer_modelo()` le pasa a `NoNulo`- recorta ademas a las celdas presentes
+# de los atributos: es el universo de completitud que el perfil usa para esa
+# columna (refutacion 33-D). Va aca, y no en el metodo, para que las dos
+# preguntas sigan contestandose con el mismo universo.
 .mascara_aplicable_instancia <- function(tabla, instancia,
                                          entidad = instancia$entidad[[1L]]) {
   n <- nrow(tabla)
+  presentes <- rep(TRUE, n)
+  if (isTRUE(instancia$configuracion$opcional)) {
+    for (atributo in as.character(unlist(instancia[["atributos"]]))) {
+      presentes <- presentes &
+        !is.na(.obtener_columna_modelo(tabla, atributo, entidad))
+    }
+  }
   aplicable <- instancia$configuracion$aplicable
-  if (is.null(aplicable)) return(rep(TRUE, n))
+  if (is.null(aplicable)) return(presentes)
   crudo <- eval(aplicable[[2L]], envir = tabla, enclos = environment(aplicable))
   if (!is.logical(crudo)) {
     .detener(
@@ -1143,7 +1172,7 @@ modelo <- function(..., marco = NULL) {
       "` tiene ", n, " filas.", call. = FALSE
     )
   }
-  !is.na(crudo) & crudo
+  presentes & !is.na(crudo) & crudo
 }
 
 .metodo_no_nulo <- function(tablas, instancia) {
@@ -1381,7 +1410,8 @@ metricas_nucleo <- function() {
   c(list(
     NoNulo = metrica(
       "NoNulo", "Indica si una instancia de atributo no es nula.",
-      "instanciaAtributo", "booleano", propiedades = c("valores_nulos", "aplicable"),
+      "instanciaAtributo", "booleano",
+      propiedades = c("valores_nulos", "aplicable", "opcional"),
       dimension = "Completitud", factor = "Densidad", metodo = .metodo_no_nulo,
       validar_propiedades = .validar_config_no_nulo,
       orientacion = "conformidad"
@@ -1534,7 +1564,10 @@ metricas_nucleo <- function() {
 # verifica en la tabla que RECIBIO el metodo, antes de traducir las posiciones a
 # la original; las que caen fuera de esa tabla las rechaza la traduccion.
 .verificar_filas_aplicables <- function(salida, tablas, instancia) {
-  if (is.null(instancia$configuracion$aplicable)) return(invisible(NULL))
+  if (is.null(instancia$configuracion$aplicable) &&
+      !isTRUE(instancia$configuracion$opcional)) {
+    return(invisible(NULL))
+  }
   granularidad <- as.character(instancia$declaracion$granularidad)[1L]
   if (!granularidad %in% c("instanciaAtributo", "instanciaEntidad")) {
     return(invisible(NULL))
@@ -2043,9 +2076,13 @@ metricas_nucleo <- function() {
   )
 }
 
+# `format(%OS6)` escribe la fraccion con la marca de `LC_NUMERIC`: con coma el
+# id decia `T100005,250000` (ronda 33-X). Se escribe con punto en cualquier
+# sesion, como la configuracion.
 .nuevo_id_medicion <- function(fecha) {
   paste0(
-    "medicion-", format(fecha, "%Y%m%dT%H%M%OS6"), "-", Sys.getpid()
+    "medicion-", .marca_decimal_c(format(fecha, "%Y%m%dT%H%M%OS6")), "-",
+    Sys.getpid()
   )
 }
 

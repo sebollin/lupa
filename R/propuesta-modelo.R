@@ -211,6 +211,21 @@
   valores[.orden_por_bytes(valores)]
 }
 
+# La `NoNulo` de una columna declarada opcional en el perfil se mide sobre las
+# celdas presentes, el universo del perfil. Con un `NA` y tres `-999` en 40, el
+# perfil contaba 3 de 39 y la metrica que la decision D6 propone por los
+# disfrazados media 0,900 = 36/40: contaba como faltante el `NA` que la
+# declaracion legitima (refutacion 33-D). La declaracion viaja en la propiedad
+# `opcional` de la metrica -no en una formula `aplicable`, que tendria que
+# nombrar la columna como simbolo y bajo `LC_CTYPE = "C"` no puede con un nombre
+# no ASCII-, asi que vale igual por `medir()` directo, por `analizar()` y
+# sobre la entrega siguiente.
+.columna_declarada_opcional <- function(perfil, columna) {
+  opcionales <- perfil$meta[["columnas_opcionales"]]
+  is.character(opcionales) && length(opcionales) &&
+    .nombres_para_operar(columna) %in% .nombres_para_operar(opcionales)
+}
+
 #' Proponer un modelo de calidad desde el profiling
 #'
 #' Construye el puente entre el examen de datos y la medición. El resultado no
@@ -260,7 +275,11 @@
 #' `datos`, la propuesta no tiene de dónde sacarlos—, se mide igual con los
 #' valores crudos, y la justificación dice que cuenta sólo los `NA` y que
 #' sobrestima la completitud. [analizar()] la mide y [modelo_desde_propuesta()]
-#' la materializa como a cualquier otra sugerencia activa.
+#' la materializa como a cualquier otra sugerencia activa. Si la columna se
+#' declaró en `columnas_opcionales` de [perfilar()], la `NoNulo` lleva además
+#' `opcional = TRUE` y se mide sobre las celdas presentes, el mismo universo
+#' que el perfil: con un `NA` y tres `-999` en cuarenta celdas mide
+#' 36/39 = 0,923, que es `1 - prop_faltantes_totales`.
 #' Una sugerencia sobre una columna cuyo nombre la tabla repite sale inactiva y
 #' con estado `nombre_repetido`: una métrica se liga por nombre, y ese nombre no
 #' dice cuál de las columnas mide. [modelo_desde_propuesta()] no la materializa
@@ -367,6 +386,16 @@ proponer_modelo <- function(perfil, datos = NULL, relaciones = NULL,
       valores_nulos <- if (disfrazados_presentes) {
         .valores_nulos_disfrazados(perfil, datos, columna)
       } else NULL
+      # Declarada opcional: se mide sobre las celdas presentes, como el perfil.
+      # Ver `.columna_declarada_opcional()`.
+      opcional <- .columna_declarada_opcional(perfil, columna)
+      nota_opcional <- if (opcional) {
+        paste0(
+          " La columna se declar\u00f3 opcional: se mide sobre sus ",
+          fila$n_aplicables[[1L]], " celdas presentes y sus `NA` no cuentan ",
+          "como faltantes."
+        )
+      } else ""
       agregar_sugerencia(.nueva_sugerencia(
         "alta", TRUE, "NoNulo", entidad, columna, origen,
         if (disfrazados_presentes && length(valores_nulos)) {
@@ -374,7 +403,8 @@ proponer_modelo <- function(perfil, datos = NULL, relaciones = NULL,
             "La columna contiene ", fila$n_faltantes_totales[[1L]],
             " ausentes totales, incluidos ", n_disfrazados,
             " disfrazados. Se normalizan: sus valores se declaran en ",
-            "`valores_nulos` y la m\u00e9trica los cuenta como faltantes."
+            "`valores_nulos` y la m\u00e9trica los cuenta como faltantes.",
+            nota_opcional
           )
         } else if (disfrazados_presentes) {
           paste0(
@@ -387,7 +417,8 @@ proponer_modelo <- function(perfil, datos = NULL, relaciones = NULL,
             },
             " Se mide con los valores crudos: cuenta como faltantes s\u00f3lo los ",
             "`NA` (", fila$n_faltantes[[1L]], ") y sobrestima la completitud. ",
-            "Para contarlos, declararlos en `valores_nulos`."
+            "Para contarlos, declararlos en `valores_nulos`.",
+            nota_opcional
           )
         } else {
           paste0(
@@ -395,9 +426,11 @@ proponer_modelo <- function(perfil, datos = NULL, relaciones = NULL,
             " valores ausentes; la completitud debe medirse por separado."
           )
         },
-        configuracion = if (length(valores_nulos)) {
-          list(valores_nulos = valores_nulos)
-        } else list()
+        configuracion = c(
+          list(),
+          if (length(valores_nulos)) list(valores_nulos = valores_nulos),
+          if (opcional) list(opcional = TRUE)
+        )
       ))
     }
     patrones <- perfil$patrones[[i]]

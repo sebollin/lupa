@@ -144,7 +144,8 @@ métricas restantes quedan en \code{no_disponible} con ese motivo.}
 declaran sin sondeo.}
 
 \item{incluir_valores}{Si el resumen informa valores de celda: moda, mínimo,
-máximo y mediana. Con \code{FALSE} esas consultas no se emiten.}
+máximo y mediana. Con \code{FALSE} esas consultas no se emiten. \code{TRUE} o
+\code{FALSE}.}
 
 \item{tamano_lote}{Cantidad máxima de columnas por consulta consolidada.
 Se conserva por compatibilidad y, si se informa, fija el tamaño de las dos
@@ -298,7 +299,16 @@ señala. Declarar el valor lo vuelve a contar.}
 \code{columnas_codigo} vale además en \code{resumen_tabla}: \code{media}, \code{mediana} y
 \code{desvio} de una columna declarada quedan en \code{NA} y
 \code{resumen_tabla$cobertura} lo declara con estado \code{no_aplica}. Sus nombres se
-validan contra las columnas de la tabla aunque no haya muestra.}
+validan contra las columnas de la tabla aunque no haya muestra. Un nombre
+abreviado vale lo mismo que el entero, como lo completa R al llamar a
+\code{\link[=perfilar]{perfilar()}}: \code{proteger = FALSE} es \code{proteger_datos_personales = FALSE}
+también para \code{resumen_tabla}. La bandera, \code{fecha} y los nombres se validan
+al entrar, también con \code{bloque_muestra = "solo_agregados"}: un nombre que
+\code{\link[=perfilar]{perfilar()}} no tiene es un error, no un fallo parcial. Los demás valores
+los valida \code{\link[=perfilar]{perfilar()}} al perfilar la muestra —sin muestra no se
+validan—, y uno inválido deja \code{perfil_muestra = NULL} con el error de
+\code{\link[=perfilar]{perfilar()}} como motivo, legible también con la protección: un error que
+se repite sobre la muestra sin filas no cita ninguna celda.}
 }
 \value{
 Objeto de clase \code{perfil_dbi} con dos componentes: \code{resumen_tabla}, de
@@ -395,11 +405,19 @@ el estado \code{no_disponible}, el motivo y cómo resolverlo. Si se pide sólo
 agregados, \code{perfil_muestra = NULL} se acompaña de una fila \code{no_solicitado}:
 no se intentó leer la muestra. Si el motor rechaza una columna, esa columna
 queda con sus métricas en \code{no_disponible} y las demás se perfilan enteras.
+Lo mismo con una columna cuyo nombre la sesión no puede escribir: odbc pasa
+la consulta por la codificación nativa, y bajo el locale \code{C} —el de un
+\code{Rscript} de cron en Linux— un nombre con tilde no se puede mandar; mandarlo
+dejaba la conexión rota y la consulta siguiente hacía caer a R. La consulta
+no se envía: la columna queda en \code{no_disponible} con ese motivo, y una tabla
+con un nombre así da \code{lupa_error_codificacion_dbi}. Para leerlas, correr la
+sesión con un locale UTF-8 (\code{LC_ALL=C.UTF-8}). RPostgres, RSQLite y duckdb
+reciben la consulta en UTF-8 y leen esos nombres en cualquier locale.
 Los \code{stop()} de esta vía llevan clase de condición propia —todas heredan de
 \code{lupa_error_dbi}— para que se puedan rescatar con \code{tryCatch()}:
 \code{lupa_error_conexion_dbi}, \code{lupa_error_tabla_dbi}, \code{lupa_error_campos_dbi},
-\code{lupa_error_conteo_dbi}, \code{lupa_error_esquema_dbi} y
-\code{lupa_error_argumento_dbi}.
+\code{lupa_error_conteo_dbi}, \code{lupa_error_esquema_dbi},
+\code{lupa_error_codificacion_dbi} y \code{lupa_error_argumento_dbi}.
 }
 
 \section{Muestra y aproximaciones}{
@@ -573,7 +591,14 @@ como un valor que no se pudo leer como número.
 \item \strong{La media en coma flotante.} Cada lado suma a su modo; sobre una columna
 que mezcla magnitudes muy distintas —\code{1e20} junto a \code{1}— las medias pueden
 diferir entre motores y con la de R, y ninguna es la exacta. La
-corroboración cruzada lo declara cuando compara las dos.
+corroboración cruzada lo declara cuando compara las dos. La media y el
+desvío se le piden al motor como doble donde su aritmética decimal los
+recortaría: en SQL Server \verb{AVG(CAST(x AS FLOAT))}, porque \code{AVG} de un
+\code{numeric} devuelve seis decimales, y en PostgreSQL
+\verb{STDDEV_SAMP(CAST(x AS DOUBLE PRECISION))}, porque sobre magnitudes
+grandes el desvío de un \code{numeric} sale con cuatro; en MySQL y MariaDB
+\code{AVG(x * 1e0)}, porque \code{AVG} de un \code{DECIMAL} devuelve cinco decimales. En
+los demás motores, \code{x * 1.0}.
 \item \strong{El cotejamiento.} El resumen SQL agrupa y ordena con el cotejamiento
 de la columna: sobre una \verb{COLLATE NOCASE} de SQLite o una colación ICU no
 determinista de PostgreSQL, "Montevideo" y "montevideo" son un valor, y
@@ -780,7 +805,15 @@ como personal de la que se cerró porque, sin muestra, no se pudo clasificar.
 El desvío se oculta como la media, como en \code{\link[=perfilar]{perfilar()}}; también en
 \code{resumen_tabla$meta$familias}, donde la vía por bloques (\code{bloque_filas})
 guarda lo que devolvió cada acumulador: ahí se tapan los extremos, la media
-y el desvío de las columnas protegidas, y cada valor distinto.
+y el desvío de las columnas protegidas, y cada valor distinto. Y por la vía
+por bloques corre el mismo piso por valor que sin ella —con los valores de
+la muestra y, si la muestra no cubre la tabla, con los de la tabla entera—,
+sobre \strong{todas} las columnas: una cédula copiada en una columna de códigos o
+un nombre citado en un texto libre se tapan en \code{resumen_tabla$columnas}, en
+la corroboración y en \code{meta$familias} igual que sin \code{bloque_filas}; la misma
+tabla publica lo mismo por las dos vías. Lo que el piso tapa en la tabla de
+columnas —un extremo que es un documento, y la media y el desvío que lo
+reconstruyen— se tapa también en \code{meta$familias}.
 Si la muestra se recorta, la clasificación personal sólo cubre esas filas:
 las cifras de valor del resumen SQL completo quedan marcadas en
 \code{resumen_tabla$cobertura} y, con la protección activa, se ocultan hasta que
@@ -808,7 +841,8 @@ ese valor se sigue tapando. Y la protección es
 \strong{por tabla}: un valor protegido de otra tabla escrito en ésta no se
 conoce; \code{\link[=perfilar_coleccion]{perfilar_coleccion()}} los cruza. Se traen hasta dos millones de valores; si hay más, o si la consulta
 no se puede hacer, se tapan todos los valores de celda de las columnas no
-personales —moda, extremos, ejemplos— y la evidencia de sus hallazgos, y
+personales —moda, extremos, ejemplos y, por la vía por bloques, cada valor
+distinto y los extremos de \code{meta$familias}— y la evidencia de sus hallazgos, y
 \code{resumen_tabla$meta$proteccion_personal$fuera_de_muestra} dice por qué. En
 SQLite los valores se leen como texto, porque una columna de afinidad
 numérica guarda texto y el controlador lo convertía en número; también sin
@@ -838,7 +872,13 @@ mensaje se lee como lo dijo el motor: odbc lo arma con cli, que pone una
 viñeta después de cada salto de línea y corta las líneas al ancho de la
 consola, y un número partido en dos líneas —\code{"2901\\n1234"}— quedaba partido
 por la viñeta; se toman las líneas que guarda la condición, unidas por el
-salto que puso el motor, y así se publican, sin las viñetas. Así
+salto que puso el motor, y así se publican, sin las viñetas. Tampoco llevan
+los colores ni los enlaces que cli pone en una consola a color —la de
+RStudio—: las secuencias ANSI quedaban guardadas en el motivo, y con
+protección pegadas a los marcadores. Lo que cli agrega dentro de una línea
+no se distingue del texto del motor y queda: sin color, cli cita entre
+comillas el archivo del controlador (\code{'nanodbc/nanodbc.cpp:1802'}) y con
+protección esa cita sale \verb{[literal omitido]}; con color se publica. Así
 se tapa también el
 valor que el motor cita sin comillas —duckdb: \verb{Type INT64 with value 59899123456 can't be cast}, y la cadena que \code{strptime} repite en otra
 línea, que se tapa entera; SQL Server con la sesión en sueco o neerlandés—
@@ -850,7 +890,11 @@ con lo permitido —los apellidos \code{"Campos Cadena"}, dos palabras del
 vocabulario, o un nombre cuyas palabras son columnas de otra tabla— se
 tapa entero, y el nombre de una columna que es también uno de esos
 valores —la docente \code{"Florencia"} de una planilla con una columna por
-docente— deja de exceptuarse, con la comparación del piso. Lo que queda
+docente— deja de exceptuarse, con la comparación del piso. En
+\code{\link[=perfilar_coleccion]{perfilar_coleccion()}} cada mensaje se vuelve a leer al final, desde como
+llegó, con todo lo que la colección leyó: con una vista perfilada antes que
+su tabla base, el piso no conocía todavía el nombre y la segunda pasada
+dejaba su resto —\code{"De Los Campos"} de \code{"María De Los Campos"}—. Lo que queda
 abierto: un valor que la llamada \strong{no} leyó —la celda que hizo fallar la
 lectura de la muestra, de una columna que la vista castea— escrito sólo con
 lo permitido, o igual al nombre de una columna, se publica, porque el
@@ -862,8 +906,8 @@ El texto que PostgreSQL cita sin comillas al no poder leer un JSON
 publicaba tal cual, en PostgreSQL, en duckdb y en SQL Server.
 \strong{Sin protección} (\code{proteger_datos_personales = FALSE}) el mensaje del motor
 se publica entero, en todas esas salidas: el literal que hizo fallar la
-lectura y el SQL que la hacía, sólo sin las viñetas ni los cortes que agrega
-cli. El diagnóstico es el cometido del paquete —\verb{Conversion failed when converting the nvarchar value 'N/D' to data type int} dice que la columna
+lectura y el SQL que la hacía, sólo sin las viñetas, los cortes ni los
+colores que agrega cli. El diagnóstico es el cometido del paquete —\verb{Conversion failed when converting the nvarchar value 'N/D' to data type int} dice que la columna
 trae un faltante disfrazado—, y sin protección ya se publican valores de
 todas las columnas —modas, ejemplos, patrones—: omitirlo ahí no protegía
 nada y quitaba el diagnóstico. Vale igual en \code{\link[=perfilar_coleccion]{perfilar_coleccion()}}, que pasa

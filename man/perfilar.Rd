@@ -133,7 +133,10 @@ y sólo los que la superan quedan excluidos.}
 defecto. Su universo de completitud son las celdas presentes, y
 \code{cobertura_diagnosticos} declara el recorte. Sirve para el vacío por
 diseño: un historial con vigencia abierta, una columna que sólo
-corresponde a algunas filas.}
+corresponde a algunas filas. La declaración queda en
+\code{meta$columnas_opcionales}, y la \code{NoNulo} que \code{\link[=proponer_modelo]{proponer_modelo()}} propone
+para la columna —cuando tiene faltantes disfrazados— se mide sobre el mismo
+universo (\code{opcional = TRUE}).}
 
 \item{columnas_codigo}{Nombres de columnas que son \strong{códigos}, no
 magnitudes: un código de catálogo, un departamento numerado, una clave
@@ -152,9 +155,19 @@ los faltantes disfrazados. Vale igual por todas las vías que aceptan las
 declaraciones de \code{perfilar()}: \code{\link[=perfilar_dbi]{perfilar_dbi()}} —también en su
 \code{resumen_tabla}—, \code{\link[=perfilar_por]{perfilar_por()}}, \code{\link[=perfilar_coleccion]{perfilar_coleccion()}} y \code{\link[=analizar]{analizar()}}
 por \code{argumentos_perfil}. Vale también para el código guardado como texto
-o como factor, que el paquete lee como número; una columna sin resumen
-numérico —texto que no se lee como número, fechas— no cambia, porque no
-tiene esas cifras. Un nombre que la tabla no tiene es un error.}
+o como factor, que el paquete lee como número —y ese código no recibe el
+hallazgo \code{tipo_declarado_distinto}, que pedía convertirlo a número—; una
+columna sin resumen numérico —texto que no se lee como número, fechas— no
+cambia, porque no tiene esas cifras. Un nombre que la tabla no tiene es un
+error. Dentro de \code{\link[=analizar]{analizar()}} la declaración llega también a \code{variables}
+—escala \code{nominal}, rol \code{categoria}, confirmada— y a \code{asociaciones}, donde
+el código se asocia como categoría (eta cuadrado o V de Cramér) y no con
+una correlación que supone una magnitud. En \code{\link[=perfilar_dbi]{perfilar_dbi()}}, la
+corroboración entre \code{resumen_tabla} y \code{perfil_muestra} no compara la
+media, la mediana ni el desvío de una columna declarada: no se calculan.
+En \code{\link[=perfilar_coleccion]{perfilar_coleccion()}} la declaración vale igual para todas las
+tablas: una tabla que no tiene la columna declarada no se perfila
+(limitación conocida; ver la ayuda de esa función).}
 
 \item{aplicabilidad}{Lista con nombre por columna, donde cada elemento es
 una fórmula de un solo lado evaluada sobre \code{datos} — por ejemplo

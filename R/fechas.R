@@ -35,9 +35,7 @@
       # `strptime()` avisa en ingles sobre un huso fuera de +/-14:00 y devuelve
       # NA: el aviso salia crudo de `perfilar()`, sin nombrar la columna. El NA
       # ya dice que el valor no es una fecha.
-      convertido <- suppressWarnings(
-        strptime(preparados, format = formato, tz = "UTC")
-      )
+      convertido <- suppressWarnings(.strptime_utc(preparados, formato))
       valido_convertido <- !is.na(convertido)
       # Y acepta segundos hasta 61 -los intercalares-, que despues normaliza al
       # minuto siguiente: `23:59:60` del 2024-01-31 se publicaba como el
@@ -512,9 +510,7 @@ detectar_formatos_fecha <- function(x, muestra = 1e5) {
     plausibles <- anios >= 1800L & anios <= 2100L
     convertido <- rep(as.POSIXct(NA, tz = "UTC"), length(formas))
     if (any(plausibles)) {
-      convertido[plausibles] <- strptime(
-        formas[plausibles], format = "%Y%m%d", tz = "UTC"
-      )
+      convertido[plausibles] <- .strptime_utc(formas[plausibles], "%Y%m%d")
     }
     valido <- !is.na(convertido)
     n_validos <- sum(pesos[valido])
@@ -803,7 +799,7 @@ detectar_formatos_fecha <- function(x, muestra = 1e5) {
     if (!any(validos)) next
     preparados <- .preparar_fecha_parseo(formas[aplica][validos], formato)
     convertido <- as.numeric(as.POSIXct(suppressWarnings(
-      strptime(preparados, format = formato, tz = "UTC")
+      .strptime_utc(preparados, formato)
     ), tz = "UTC"))
     indices <- which(aplica)[validos]
     choca <- !is.na(elegida[indices]) & !is.na(convertido) &

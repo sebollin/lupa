@@ -841,11 +841,9 @@
   stats::median(expandido, na.rm = TRUE)
 }
 
-.fila_y_registros_bloques_dbi <- function(campo, n_total, metricas,
-                                          acumuladores, prototipo, tipos,
-                                          incluir_valores, fuente,
-                                          metricas_publicas = metricas,
-                                          decisiones_costo = NULL) {
+# La fila de una columna en la via por bloques, antes de llenarla: la misma forma
+# para la que se mide y para la que el esquema no pudo leer.
+.fila_vacia_bloques_dbi <- function(campo, n_total) {
   fila <- .fila_resumen_dbi(campo, n_total)
   fila$n_nan <- NA_real_
   fila$n_infinito_positivo <- NA_real_
@@ -853,6 +851,15 @@
   fila$longitud_minima <- NA_real_
   fila$longitud_maxima <- NA_real_
   fila$longitud_media <- NA_real_
+  fila
+}
+
+.fila_y_registros_bloques_dbi <- function(campo, n_total, metricas,
+                                          acumuladores, prototipo, tipos,
+                                          incluir_valores, fuente,
+                                          metricas_publicas = metricas,
+                                          decisiones_costo = NULL) {
+  fila <- .fila_vacia_bloques_dbi(campo, n_total)
   registros <- list()
   registros[[1L]] <- .registro_sql_dbi(
     campo, "n", "calculado", NA_character_, fuente$consulta,
@@ -1220,7 +1227,7 @@
                   rss_maximo = NA_real_),
                 locators = locators, error = fuente$motivo))
   }
-  resultado <- tryCatch(DBI::dbSendQuery(conexion, fuente$consulta), error = function(e) e)
+  resultado <- tryCatch(.enviar_consulta_dbi(conexion, fuente$consulta), error = function(e) e)
   if (inherits(resultado, "condition")) {
     return(list(acumuladores = acumuladores, sobres = list(),
                 bloques = bloques, bytes = list(max_bloque = 0,
@@ -1338,6 +1345,12 @@
   cobertura
 }
 
+# Los argumentos que la via DBI toma de `...` para si y no le pasa a
+# `perfilar()`: la validacion de la entrada (`.validar_argumentos_para_perfilar()`)
+# los acepta. `antes_segunda_pasada` corre entre las dos pasadas del recorrido
+# por bloques; lo usa la prueba que cambia la tabla en medio.
+.ARGUMENTOS_PROPIOS_DBI <- "antes_segunda_pasada"
+
 .verificar_identidad_row_locator_dbi <- function(conexion, fuente, locators,
                                                  bloque_filas = fuente$bloque_filas,
                                                  presupuesto = NULL,
@@ -1349,7 +1362,7 @@
   }
   if (is.function(antes_segunda_pasada)) antes_segunda_pasada()
   esperados <- unlist(locators, use.names = FALSE)
-  rs <- tryCatch(DBI::dbSendQuery(conexion, fuente$consulta), error = function(e) e)
+  rs <- tryCatch(.enviar_consulta_dbi(conexion, fuente$consulta), error = function(e) e)
   if (inherits(rs, "condition")) {
     return(list(estado = "no_disponible", identidad = NA,
                 motivo = paste0("no_disponible:dbSendQuery:", .mensaje_motor(rs)),
@@ -1605,10 +1618,28 @@
     filas[[campo]] <- resultado$fila
     sql[[length(sql) + 1L]] <- resultado$sql
   }
+  # Las columnas que el esquema no pudo leer -el motor las rechazo, o la sesion
+  # no puede escribir su nombre- se declaran como en la via SQL: esta via las
+  # dejaba fuera de `columnas`, de `sql` y de la cobertura, sin decirlo
+  # (ronda 33-X).
+  recorrida <- isTRUE(fuente$disponible) && is.null(recorrido$error)
+  for (campo in preparacion$esquema$ilegibles) {
+    filas[[length(filas) + 1L]] <- if (recorrida) {
+      .fila_vacia_bloques_dbi(campo, n_total)
+    } else .fila_resumen_dbi(campo, NA_real_)
+    sql[[length(sql) + 1L]] <- .registro_sql_dbi(
+      campo, unlist(.CAMPOS_METRICA_DBI[metricas], use.names = FALSE),
+      "no_disponible", preparacion$esquema$motivos[[campo]], NA_character_,
+      metadatos = .metadatos_sql_dbi(),
+      medicion = list(consulta_id = NA_integer_, etapa = "esquema")
+    )
+  }
   columnas <- if (length(filas)) {
-    do.call(rbind, lapply(filas, function(fila) {
+    # Sin los nombres de las columnas, como en `medir()` (ronda 33-X): bajo `C`
+    # una columna con acento avisaba "unable to translate".
+    do.call(rbind, unname(lapply(filas, function(fila) {
       as.data.frame(.fila_magnitudes_dobles_dbi(fila), stringsAsFactors = FALSE)
-    }))
+    })))
   } else .columnas_dbi_vacias()
   for (nombre in intersect(
     c("n", "n_validos", "n_faltantes", "n_distintos", "frecuencia_moda",
@@ -1626,6 +1657,9 @@
   sql <- if (length(sql)) do.call(rbind, sql) else data.frame()
   cobertura <- .cobertura_bloques_dbi(metricas, preparacion$campos,
                                       preparacion$bloque_muestra)
+  if (length(preparacion$esquema$ilegibles)) {
+    cobertura <- rbind(cobertura, .cobertura_ilegibles_dbi(preparacion$esquema))
+  }
   if (!isTRUE(fuente$disponible) || !is.null(recorrido$error)) {
     cobertura <- rbind(cobertura, .registro_cobertura_dbi(
       "fuente_bloques", .texto_tabla_dbi(tabla), "no_disponible",
@@ -1761,16 +1795,18 @@
   }
   proteger <- .protege_argumentos(argumentos)
   if (proteger) {
-    columnas_protegidas <- if (is.null(perfil_muestra)) {
-      preparacion$campos
-    } else {
-      .columnas_personales_protegidas(perfil_muestra$datos_personales)
-    }
-    resumen <- .proteger_resumen_dbi(
-      resumen, columnas_protegidas,
-      if (is.null(perfil_muestra)) "sin_clasificacion_disponible" else
-        "perfil_muestra"
+    # El mismo piso por valor que la via sin bloques, con la muestra y, si no
+    # cubre la tabla, con los valores de la tabla entera: ver
+    # `.proteger_salida_muestra_dbi()`. Aca corria solo con los extremos de las
+    # columnas protegidas, y una cedula copiada en una columna de codigos salia
+    # en `columnas$maximo` y en `meta$familias`. Ronda 33.
+    protegido <- .proteger_salida_muestra_dbi(
+      resumen,
+      if (is.null(perfil_muestra)) list(perfil = NULL) else bloque_muestra,
+      conexion, preparacion, preparacion$presupuesto
     )
+    resumen <- protegido$resumen
+    perfil_muestra <- protegido$perfil
   } else {
     resumen$meta$proteccion_personal <- list(
       aplicada = FALSE, base = "desactivada por el usuario", columnas = character()

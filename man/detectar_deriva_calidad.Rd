@@ -26,7 +26,16 @@ umbrales es \code{error}. \code{identidad_tabla} separa series de tablas distint
 corridas —cambió el marco o los tipos de resultado, y entonces la fila de
 resultado no se publica—. Cualquier otro cambio de modelo se declara en su
 fila \code{configuracion_modelo} sin esa etiqueta: la comparación se mantiene, y
-la fila de resultado del mismo par conserva su veredicto.
+la fila de resultado del mismo par conserva su veredicto. Limitación
+conocida: una corrida guardada por una versión anterior del paquete cuya
+configuración lleva un número que con 15 cifras no vuelve a su valor
+—\code{maximo = 1/3}, \code{0.1 + 0.2}, un umbral calculado con \code{quantile()}— o un
+instante con fracción de segundo declara \strong{una vez} esa fila, con
+severidad \code{error}, contra la primera corrida nueva: la versión anterior
+escribía el número con 15 cifras (\code{0.333333333333333}) y el instante cortado
+al segundo, y la actual con las cifras que los devuelven a su valor
+(\code{0.3333333333333333}). La fila de resultado de ese par conserva su
+veredicto, y desde ahí la serie aparea.
 
 \strong{Un par que no se puede comparar no recibe veredicto.} Si alguna de las
 dos corridas no evaluó su resultado, \code{delta}, \code{cambio_absoluto},
