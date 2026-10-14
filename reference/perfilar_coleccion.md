@@ -53,12 +53,13 @@ perfilar_coleccion(
 - conservar_perfiles:
 
   Si se retienen los objetos `perfil_dbi` completos. Por omisión
-  `FALSE`. Retenidos, cada uno se protege además con los valores
-  protegidos de las **demás** tablas de la colección: una observación de
-  `movimientos` que cita la cédula y el nombre de un cliente se tapa
-  aunque `movimientos` no tenga ninguna columna personal, porque la
-  colección es un solo objeto. Esos valores se leen de la base, una
-  consulta por columna protegida, con la regla de
+  `FALSE`. Retenidos y con la protección activa, cada uno se protege
+  además con los valores protegidos de las **demás** tablas de la
+  colección: una observación de `movimientos` que cita la cédula y el
+  nombre de un cliente se tapa aunque `movimientos` no tenga ninguna
+  columna personal, porque la colección es un solo objeto. Esos valores
+  se leen de la base, una consulta por columna protegida, con la regla
+  de
   [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md)
   —también la de los rellenos, con sus frecuencias—; si alguna lectura
   falla —también si una tabla entera no se pudo perfilar, por ejemplo
@@ -90,7 +91,10 @@ perfilar_coleccion(
   un error— después de leer alguna tabla: los avisos juntados salen por
   ese mismo piso, con los valores que se conocían.
   [`perfilar_dbi()`](https://sebollin.github.io/lupa/reference/perfilar_dbi.md)
-  sobre una tabla sola protege sólo con los de esa tabla.
+  sobre una tabla sola protege sólo con los de esa tabla. Sin protección
+  (`proteger_datos_personales = FALSE`) no se cruza nada: cada perfil
+  retenido sale como lo dio su tabla, también si otra no se pudo
+  perfilar.
 
 - cobertura_metricas:
 
@@ -116,6 +120,12 @@ perfilar_coleccion(
 - ...:
 
   Argumentos enviados a
+  [`perfilar_dbi()`](https://sebollin.github.io/lupa/reference/perfilar_dbi.md).
+  `proteger_datos_personales` vale para toda la colección: sin
+  protección, el mensaje de un error del motor se publica entero —el
+  literal que hizo fallar la lectura y el SQL— también en
+  `cobertura_coleccion`, `cobertura_metricas`, `meta$lecturas` y los
+  avisos; ver la sección «Datos personales» de
   [`perfilar_dbi()`](https://sebollin.github.io/lupa/reference/perfilar_dbi.md).
 
 ## Value

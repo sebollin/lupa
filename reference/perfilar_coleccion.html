@@ -94,7 +94,8 @@ menos filas, y sobre una coleccion grande conviene mirar antes
 
 <dt id="arg-conservar-perfiles">conservar_perfiles<a class="anchor" aria-label="anchor" href="#arg-conservar-perfiles"></a></dt>
 <dd><p>Si se retienen los objetos <code>perfil_dbi</code> completos.
-Por omisión <code>FALSE</code>. Retenidos, cada uno se protege además con los
+Por omisión <code>FALSE</code>. Retenidos y con la protección activa, cada uno se
+protege además con los
 valores protegidos de las <strong>demás</strong> tablas de la colección: una
 observación de <code>movimientos</code> que cita la cédula y el nombre de un cliente
 se tapa aunque <code>movimientos</code> no tenga ninguna columna personal, porque la
@@ -126,7 +127,10 @@ perfiles: el aviso de una vista perfilada antes que su tabla base citaba
 la celda. También si la colección se corta —una interrupción, un error—
 después de leer alguna tabla: los avisos juntados salen por ese mismo
 piso, con los valores que se conocían.
-<code><a href="perfilar_dbi.html">perfilar_dbi()</a></code> sobre una tabla sola protege sólo con los de esa tabla.</p></dd>
+<code><a href="perfilar_dbi.html">perfilar_dbi()</a></code> sobre una tabla sola protege sólo con los de esa tabla.
+Sin protección (<code>proteger_datos_personales = FALSE</code>) no se cruza nada:
+cada perfil retenido sale como lo dio su tabla, también si otra no se
+pudo perfilar.</p></dd>
 
 
 <dt id="arg-cobertura-metricas">cobertura_metricas<a class="anchor" aria-label="anchor" href="#arg-cobertura-metricas"></a></dt>
@@ -151,7 +155,11 @@ colección respeten la misma decisión.</p></dd>
 
 
 <dt id="arg--">...<a class="anchor" aria-label="anchor" href="#arg--"></a></dt>
-<dd><p>Argumentos enviados a <code><a href="perfilar_dbi.html">perfilar_dbi()</a></code>.</p></dd>
+<dd><p>Argumentos enviados a <code><a href="perfilar_dbi.html">perfilar_dbi()</a></code>. <code>proteger_datos_personales</code>
+vale para toda la colección: sin protección, el mensaje de un error del
+motor se publica entero —el literal que hizo fallar la lectura y el SQL—
+también en <code>cobertura_coleccion</code>, <code>cobertura_metricas</code>, <code>meta$lecturas</code> y
+los avisos; ver la sección «Datos personales» de <code><a href="perfilar_dbi.html">perfilar_dbi()</a></code>.</p></dd>
 
 </dl></div>
     <div class="section level2">

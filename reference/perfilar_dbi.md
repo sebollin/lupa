@@ -634,8 +634,9 @@ mediana consolidada tambien se sondea antes de usarla; en SQL Server
 requiere nivel de compatibilidad \>= 110. Se sondea; estos son los
 motivos conocidos de que no se active: la funcion no esta disponible o
 el motor rechaza la sonda. En ese caso el mensaje del motor queda en
-`meta$mediana_consolidada$motivo` —sin sus literales, como todo mensaje
-del motor: ver la protección—, y se conserva la mediana por columna.
+`meta$mediana_consolidada$motivo` —sin sus literales con la protección
+activa, entero sin ella, como todo mensaje del motor: ver «Datos
+personales»—, y se conserva la mediana por columna.
 
 ## Lo que el motor guarda distinto que R
 
@@ -935,11 +936,11 @@ el **mensaje de un error del motor**, que es texto ajeno y cita la celda
 que hizo fallar la consulta
 —`invalid input syntax for type bigint: "4.685.467-9"`, en una vista que
 castea una cédula escrita con puntos—: ese valor nunca se leyó, así que
-el piso no lo conoce y puede ser de cualquier columna. Todo mensaje de
-error que se publica —en `sql`, `cobertura`, `meta`, en la colección y
-en los avisos— lleva sus literales entre comillas —simples, dobles,
-tipográficas, bajas como las del polaco, angulares— cambiados por
-`[literal omitido]`, con o sin protección; también un identificador
+el piso no lo conoce y puede ser de cualquier columna. Con la protección
+activa, todo mensaje de error que se publica —en `sql`, `cobertura`,
+`meta`, en la colección y en los avisos— lleva sus literales entre
+comillas —simples, dobles, tipográficas, bajas como las del polaco,
+angulares— cambiados por `[literal omitido]`; también un identificador
 entre comillas, salvo el nombre de la tabla o de una de sus columnas. Y
 fuera de las comillas el mensaje publica **sólo lo permitido**: el
 vocabulario de los mensajes de los motores, en inglés y en castellano,
@@ -981,7 +982,24 @@ peor, que es el lado cerrado. Quedan una palabra de SQL entre comillas
 dialecto— y un signo suelto. El texto que PostgreSQL cita sin comillas
 al no poder leer un JSON (`CONTEXT: JSON data, line 1: ...`) se tapa
 hasta el fin de la línea. Se publicaba tal cual, en PostgreSQL, en
-duckdb y en SQL Server. `incluir_valores = FALSE` va más lejos: no emite
+duckdb y en SQL Server. **Sin protección**
+(`proteger_datos_personales = FALSE`) el mensaje del motor se publica
+entero, en todas esas salidas: el literal que hizo fallar la lectura y
+el SQL que la hacía, sólo sin las viñetas ni los cortes que agrega cli.
+El diagnóstico es el cometido del paquete
+—`Conversion failed when converting the nvarchar value 'N/D' to data type int`
+dice que la columna trae un faltante disfrazado—, y sin protección ya se
+publican valores de todas las columnas —modas, ejemplos, patrones—:
+omitirlo ahí no protegía nada y quitaba el diagnóstico. Vale igual en
+[`perfilar_coleccion()`](https://sebollin.github.io/lupa/reference/perfilar_coleccion.md),
+que pasa la bandera a cada tabla y la aplica a sus propios motivos.
+[`plan_perfilado_dbi()`](https://sebollin.github.io/lupa/reference/plan_perfilado_dbi.md),
+[`coleccion()`](https://sebollin.github.io/lupa/reference/coleccion.md),
+[`estimar_costo_coleccion()`](https://sebollin.github.io/lupa/reference/estimar_costo_coleccion.md)
+y
+[`relaciones_coleccion()`](https://sebollin.github.io/lupa/reference/relaciones_coleccion.md)
+no tienen la bandera: llamadas por su cuenta, tapan el mensaje como con
+la protección activa. `incluir_valores = FALSE` va más lejos: no emite
 las consultas de moda ni de mediana y no informa mínimo ni máximo, útil
 cuando la tabla es un padrón y la moda de un identificador único es un
 documento real. Si se pidió `desvio`, la sonda de magnitud que ese

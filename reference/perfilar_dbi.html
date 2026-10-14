@@ -674,8 +674,9 @@ La mediana consolidada tambien se sondea antes de usarla; en SQL Server
 requiere nivel de compatibilidad &gt;= 110. Se sondea; estos son los motivos
 conocidos de que no se active: la funcion no esta disponible o el motor
 rechaza la sonda. En ese caso el mensaje del motor queda en
-<code>meta$mediana_consolidada$motivo</code> —sin sus literales, como todo mensaje del
-motor: ver la protección—, y se conserva la mediana por columna.</p>
+<code>meta$mediana_consolidada$motivo</code> —sin sus literales con la protección
+activa, entero sin ella, como todo mensaje del motor: ver «Datos
+personales»—, y se conserva la mediana por columna.</p>
     </div>
     <div class="section level2">
     <h2 id="lo-que-el-motor-guarda-distinto-que-r">Lo que el motor guarda distinto que R<a class="anchor" aria-label="anchor" href="#lo-que-el-motor-guarda-distinto-que-r"></a></h2>
@@ -947,10 +948,10 @@ de una cifra que no se pudo leer como número no cita el valor de una columna
 protegida. Tampoco el <strong>mensaje de un error del motor</strong>, que es texto ajeno
 y cita la celda que hizo fallar la consulta —<code>invalid input syntax for type bigint: "4.685.467-9"</code>, en una vista que castea una cédula escrita con
 puntos—: ese valor nunca se leyó, así que el piso no lo conoce y puede ser
-de cualquier columna. Todo mensaje de error que se publica —en <code>sql</code>,
-<code>cobertura</code>, <code>meta</code>, en la colección y en los avisos— lleva sus literales
-entre comillas —simples, dobles, tipográficas, bajas como las del polaco,
-angulares— cambiados por <code>[literal omitido]</code>, con o sin protección; también
+de cualquier columna. Con la protección activa, todo mensaje de error que se
+publica —en <code>sql</code>, <code>cobertura</code>, <code>meta</code>, en la colección y en los avisos— lleva
+sus literales entre comillas —simples, dobles, tipográficas, bajas como las
+del polaco, angulares— cambiados por <code>[literal omitido]</code>; también
 un identificador entre comillas, salvo el nombre de la tabla o de una de sus
 columnas. Y fuera de las comillas el mensaje publica <strong>sólo lo permitido</strong>:
 el vocabulario de los mensajes de los motores, en inglés y en castellano,
@@ -988,6 +989,17 @@ lado cerrado. Quedan una palabra de SQL entre comillas —<code>Incorrect syntax
 El texto que PostgreSQL cita sin comillas al no poder leer un JSON
 (<code>CONTEXT:  JSON data, line 1: ...</code>) se tapa hasta el fin de la línea. Se
 publicaba tal cual, en PostgreSQL, en duckdb y en SQL Server.
+<strong>Sin protección</strong> (<code>proteger_datos_personales = FALSE</code>) el mensaje del motor
+se publica entero, en todas esas salidas: el literal que hizo fallar la
+lectura y el SQL que la hacía, sólo sin las viñetas ni los cortes que agrega
+cli. El diagnóstico es el cometido del paquete —<code>Conversion failed when converting the nvarchar value 'N/D' to data type int</code> dice que la columna
+trae un faltante disfrazado—, y sin protección ya se publican valores de
+todas las columnas —modas, ejemplos, patrones—: omitirlo ahí no protegía
+nada y quitaba el diagnóstico. Vale igual en <code><a href="perfilar_coleccion.html">perfilar_coleccion()</a></code>, que pasa
+la bandera a cada tabla y la aplica a sus propios motivos.
+<code><a href="plan_perfilado_dbi.html">plan_perfilado_dbi()</a></code>, <code><a href="coleccion.html">coleccion()</a></code>, <code><a href="estimar_costo_coleccion.html">estimar_costo_coleccion()</a></code> y
+<code><a href="relaciones_coleccion.html">relaciones_coleccion()</a></code> no tienen la bandera: llamadas por su cuenta, tapan
+el mensaje como con la protección activa.
 <code>incluir_valores = FALSE</code> va más lejos: no emite las consultas de moda ni de
 mediana y no informa mínimo ni máximo, útil cuando la tabla es un padrón y
 la moda de un identificador único es un documento real. Si se pidió <code>desvio</code>,

@@ -2,7 +2,7 @@
 
 ## lupa 0.1.0
 
-### Ronda 32: las entradas, la sesion otra vez, la proteccion y tres decisiones
+### Ronda 32: las entradas, la sesion otra vez, la proteccion y cuatro decisiones
 
 Tres refutaciones y una vuelta de decisiones. La de las entradas
 encontro once hallazgos -dos funciones que apagaban la proteccion con
@@ -15,9 +15,12 @@ arreglarlos: con `LC_NUMERIC` en coma los controladores de PostgreSQL y
 SQL Server leian 2.5 como 2; la de la proteccion, seis -un numero
 partido en lineas en el mensaje del motor- y uno mas, alto, al
 arreglarlos: la lectura por bloques publicaba los valores de las
-columnas protegidas. Y tres decisiones: las columnas de codigo se
-declaran, el id de una sugerencia del modelo se arma con lo que mide, y
-la `NoNulo` con faltantes disfrazados se mide.
+columnas protegidas. Y cuatro decisiones: las columnas de codigo se
+declaran, el id de una sugerencia del modelo se arma con lo que mide, la
+`NoNulo` con faltantes disfrazados se mide, y el paquete ya no tapa
+[`stop()`](https://rdrr.io/r/base/stop.html) ni
+[`warning()`](https://rdrr.io/r/base/warning.html) de base. Despues, sin
+proteccion, el mensaje del motor se publica entero.
 
 **La proteccion:**
 
@@ -439,6 +442,59 @@ la `NoNulo` con faltantes disfrazados se mide.
   [`stop()`](https://rdrr.io/r/base/stop.html) ni a
   [`warning()`](https://rdrr.io/r/base/warning.html) de base. El
   comportamiento no cambia.
+
+**El mensaje del motor sin proteccion (decision D8, antes de la ronda
+33):**
+
+- **Sin proteccion, el mensaje de un error del motor se publica
+  entero.** Una vista que castea a `int` una columna de texto con `N/D`
+  -un faltante disfrazado, que es justo el diagnostico- hace fallar la
+  lectura, y `perfilar_dbi(proteger_datos_personales = FALSE)` publicaba
+  `Conversion failed when converting the nvarchar value '[literal omitido]' to data type int. | <SQL> '[literal omitido]'`:
+  el literal y el SQL se omitian con o sin proteccion. Sin proteccion el
+  paquete ya publica valores de todas las columnas -modas, ejemplos,
+  patrones-, y omitirlos ahi no protegia nada y quitaba el diagnostico
+  (decision D8: el cometido principal del paquete es el diagnostico de
+  la calidad de los datos). Ahora, sin proteccion, el mensaje se publica
+  como lo dijo el motor -solo sin las vinetas ni los cortes que agrega
+  cli- en `resumen_tabla$sql$motivo`, `resumen_tabla$cobertura$motivo`,
+  `meta`, los motivos de
+  [`perfilar_coleccion()`](https://sebollin.github.io/lupa/reference/perfilar_coleccion.md)
+  (`cobertura_coleccion`, `cobertura_metricas`, `meta$lecturas`) y los
+  avisos de consola:
+  `... the nvarchar value 'N/D' to data type int. | <SQL> 'SELECT COUNT(*) AS "n_total_consulta", COUNT("codigo") ...'`.
+  Con la proteccion activa no cambia nada: el piso, la lista de lo
+  permitido y la fuga residual declarada quedan como estaban. La
+  decision se toma en la entrada y llega a la lectura del mensaje por un
+  solo camino:
+  [`perfilar_dbi()`](https://sebollin.github.io/lupa/reference/perfilar_dbi.md)
+  y
+  [`perfilar_coleccion()`](https://sebollin.github.io/lupa/reference/perfilar_coleccion.md)
+  la fijan al entrar y la devuelven al salir, tambien en error, y los
+  treinta sitios que publican un mensaje del motor la leen en
+  `.mensaje_motor()`;
+  [`coleccion()`](https://sebollin.github.io/lupa/reference/coleccion.md),
+  [`plan_perfilado_dbi()`](https://sebollin.github.io/lupa/reference/plan_perfilado_dbi.md),
+  [`estimar_costo_coleccion()`](https://sebollin.github.io/lupa/reference/estimar_costo_coleccion.md)
+  y
+  [`relaciones_coleccion()`](https://sebollin.github.io/lupa/reference/relaciones_coleccion.md)
+  no tienen la bandera: por su cuenta tapan como con proteccion, y
+  llamadas desde una que no protege heredan la de esa. Medido en SQL
+  Server, PostgreSQL y duckdb. Y la regla “si la llamada protege”, que
+  estaba escrita cuatro veces en la via DBI, es una sola
+  (`.protege_argumentos()`), y lee la bandera por su nombre exacto, como
+  la validacion: con `$` casaba tambien un nombre mas largo.
+- **Sin proteccion, `perfilar_coleccion(conservar_perfiles = TRUE)` ya
+  no cierra los perfiles de las demas tablas cuando una no se perfila.**
+  Una tabla que no se pudo perfilar -o declarada `tipo = "vista"`-
+  quedaba registrada con sus valores protegidos desconocidos, y los
+  perfiles retenidos de las otras se cerraban igual, con
+  `proteger_datos_personales = FALSE`: la moda `Montevideo` de una
+  columna de ciudades salia `[valor protegido]` y
+  `meta$proteccion_personal$otras_tablas` decia “No verificada”. Es la
+  misma propiedad que el mensaje del motor: una proteccion que el
+  usuario apago y que costaba diagnostico. Ahora el piso entre tablas
+  corre solo con la proteccion activa; con ella no cambia nada.
 
 **Rendimiento:**
 
