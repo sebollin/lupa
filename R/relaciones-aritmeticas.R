@@ -464,13 +464,37 @@
                                            min_filas = 3L,
                                            tolerancia = 1e-8,
                                            max_columnas = 20L,
-                                           nombres_texto = names(datos)) {
+                                           nombres_texto = names(datos),
+                                           columnas_codigo = character()) {
   numericas <- which(vapply(datos, .es_columna_aritmetica, logical(1L)))
+  # Una relacion aritmetica habla de magnitudes por fila, y una columna declarada
+  # en `columnas_codigo` no lo es: `cod_localidad = cod_depto * 100` se publicaba
+  # como "regularidad proporcional" igual con las dos declaradas (refutacion
+  # 34-D). Sale del analisis como sale de Tukey y de Benford, y se declara.
+  codigos <- numericas[.nombres_para_operar(names(datos)[numericas]) %in%
+                         .nombres_para_operar(as.character(columnas_codigo))]
+  numericas <- setdiff(numericas, codigos)
   seleccion <- utils::head(numericas, max_columnas)
   alcance <- .alcance_aritmetica_columnas(
     datos, numericas, seleccion, umbral, min_filas, tolerancia, max_columnas
   )
+  alcance$columnas_excluidas_codigo <- names(datos)[codigos]
   cobertura <- .cobertura_aritmetica_columnas(alcance)
+  if (length(codigos)) {
+    cobertura <- rbind(cobertura, do.call(rbind, lapply(codigos, function(i) {
+      .nuevo_diagnostico_no_evaluado(
+        "relacion_aritmetica_columnas", names(datos)[[i]],
+        paste(
+          "No se buscaron relaciones aritmeticas con la columna: se declaro en",
+          "`columnas_codigo`, asi que es un codigo y no una magnitud por fila."
+        ),
+        paste(
+          "Si la columna es una magnitud y no un codigo, quitarla de",
+          "`columnas_codigo`."
+        )
+      )
+    })))
+  }
   hallazgos_aditivos <- list()
   objetivos_aditivos <- list()
   if (length(seleccion) >= 3L && nrow(datos)) {

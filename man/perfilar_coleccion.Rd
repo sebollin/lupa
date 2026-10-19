@@ -75,6 +75,12 @@ la segunda pasada dejaba su resto —\code{"De Los Campos"} de
 \code{"María De Los Campos"} en SQL Server en sueco, \code{"Campos Cadena"} después
 de un apodo entre comillas—. El orden de las tablas no cambia lo que se
 publica; lo vuelto a leer reemplaza a lo publicado sólo si publica menos.
+La relectura corre también después del cruce entre tablas, sobre lo que
+el cruce escribe: el motivo de \code{otras_tablas} lleva el mensaje del motor
+de la tabla que no se pudo leer, y con la vista antes que su base citaba
+ese resto. En ese cierre, un valor igual al nombre de una tabla o de un
+esquema de la colección no se tapa: es estructura, como en
+\code{\link[=perfilar_dbi]{perfilar_dbi()}}.
 Se reemplaza el texto tal como se publicó: si el piso de la propia tabla
 ya lo había cambiado —el mensaje citaba entero, además, un valor
 protegido de esa misma tabla—, la relectura no lo encuentra y queda sólo
@@ -109,7 +115,13 @@ colección respeten la misma decisión.}
 vale para toda la colección: sin protección, el mensaje de un error del
 motor se publica entero —el literal que hizo fallar la lectura y el SQL—
 también en \code{cobertura_coleccion}, \code{cobertura_metricas}, \code{meta$lecturas} y
-los avisos; ver la sección «Datos personales» de \code{\link[=perfilar_dbi]{perfilar_dbi()}}.}
+los avisos; ver la sección «Datos personales» de \code{\link[=perfilar_dbi]{perfilar_dbi()}}.
+Lo que va a \code{\link[=perfilar]{perfilar()}} se valida al entrar, una vez. Los argumentos
+propios de \code{\link[=perfilar_dbi]{perfilar_dbi()}} —\code{estrategia_distintos}, \code{max_consultas},
+\code{umbral_cardinalidad} y los demás— los valida \code{perfilar_dbi()} en cada
+tabla: uno mal escrito deja cada tabla en \code{cobertura_coleccion} con ese
+motivo y sin aviso. Es una limitación conocida: si ninguna tabla se
+perfiló, mirar el motivo antes de sospechar de los permisos.}
 }
 \value{
 Objeto de clase \code{perfil_coleccion} con \code{resumen_coleccion},

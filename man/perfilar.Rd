@@ -134,7 +134,10 @@ defecto. Su universo de completitud son las celdas presentes, y
 \code{cobertura_diagnosticos} declara el recorte. Sirve para el vacío por
 diseño: un historial con vigencia abierta, una columna que sólo
 corresponde a algunas filas. La declaración queda en
-\code{meta$columnas_opcionales}, y la \code{NoNulo} que \code{\link[=proponer_modelo]{proponer_modelo()}} propone
+\code{meta$columnas_opcionales} —\code{\link[=comparar_perfiles]{comparar_perfiles()}} declara su cambio entre
+dos corridas con la fila \code{configuracion_columnas_opcionales}, porque los
+faltantes de esas columnas pasan a contarse sobre otro universo—, y la
+\code{NoNulo} que \code{\link[=proponer_modelo]{proponer_modelo()}} propone
 para la columna —cuando tiene faltantes disfrazados— se mide sobre el mismo
 universo (\code{opcional = TRUE}).}
 
@@ -146,7 +149,8 @@ de 1 a 284—, así que sin la declaración los mide como magnitudes. Una column
 declarada se perfila por sus valores y no recibe lo que sólo tiene sentido
 sobre una magnitud: ni límites de Tukey (\code{n_outliers} en \code{NA}, sin hallazgo
 \code{outliers} ni \code{posible_centinela_numerico}), ni la ley de Benford, ni
-\code{media}, \code{mediana} y \code{desvio}, que quedan en \code{NA} con
+relaciones aritméticas con otras columnas (\code{relacion_aritmetica_columnas}),
+ni \code{media}, \code{mediana} y \code{desvio}, que quedan en \code{NA} con
 \code{estado_resumen_cuantitativo = "omitidos_codigo"}. Lo que no se evaluó se
 declara en \code{cobertura_diagnosticos} con el motivo. Conserva lo que describe
 sus valores: \code{minimo} y \code{maximo} —el tramo de códigos observado, donde
@@ -155,11 +159,15 @@ los faltantes disfrazados. Vale igual por todas las vías que aceptan las
 declaraciones de \code{perfilar()}: \code{\link[=perfilar_dbi]{perfilar_dbi()}} —también en su
 \code{resumen_tabla}—, \code{\link[=perfilar_por]{perfilar_por()}}, \code{\link[=perfilar_coleccion]{perfilar_coleccion()}} y \code{\link[=analizar]{analizar()}}
 por \code{argumentos_perfil}. Vale también para el código guardado como texto
-o como factor, que el paquete lee como número —y ese código no recibe el
-hallazgo \code{tipo_declarado_distinto}, que pedía convertirlo a número—; una
-columna sin resumen numérico —texto que no se lee como número, fechas— no
-cambia, porque no tiene esas cifras. Un nombre que la tabla no tiene es un
-error. Dentro de \code{\link[=analizar]{analizar()}} la declaración llega también a \code{variables}
+o como factor, que el paquete lee como número —y ese código no recibe los
+hallazgos que lo leen como una cantidad escrita como texto y piden
+convertirlo: ni \code{tipo_declarado_distinto}, ni \code{numero_como_texto} (un rubro
+\code{"1.1"}, un \code{"10,5"}), ni \code{unidades_mixtas} o \code{monedas_mixtas}; tampoco
+\code{\link[=planificar_limpieza]{planificar_limpieza()}} le propone una acción que lo convierta en número—;
+el resumen de una columna sin resumen numérico —texto que no se lee como
+número, fechas— no cambia, porque no tiene esas cifras. Un nombre que la
+tabla no tiene es un error. Dentro de \code{\link[=analizar]{analizar()}} la declaración llega
+también a \code{variables}
 —escala \code{nominal}, rol \code{categoria}, confirmada— y a \code{asociaciones}, donde
 el código se asocia como categoría (eta cuadrado o V de Cramér) y no con
 una correlación que supone una magnitud. En \code{\link[=perfilar_dbi]{perfilar_dbi()}}, la
@@ -367,7 +375,31 @@ tenga o no columna a la que atribuirse, y también en los campos numéricos.
 Sin ese piso, una columna que el clasificador no marcó publicaba los
 documentos de la protegida con sólo repetirlos: una copia con nombre
 neutro, un texto libre que los contuviera, o los estadísticos de orden de
-una columna clasificada con poder discriminante \code{debil}. El vocabulario
+una columna clasificada con poder discriminante \code{debil}. Una columna que
+\strong{copia los documentos protegidos sin su verificador} —la cédula
+\verb{4.685.467-9} de cada fila guardada como el entero \code{4685467}, o como
+texto, en una columna de nombre neutro— se protege entera, como una
+columna personal: se clasifica \code{documento_identidad} con poder \code{alto}
+cuando al menos tres de sus valores distintos son el documento sin su
+verificador de un valor protegido —con la regla de los textos, ver
+abajo—, son el 90 \% de sus distintos —el umbral de \code{verificado}, que
+tolera tipeos aislados— y tantos no coinciden por azar con la densidad de
+esos documentos en el rango de la columna —una probabilidad binomial
+menor que una en un millón—. Publicaba sus dos extremos, que son dos
+cédulas. La regla es por \strong{columna} y no por valor: una columna que
+coincide por azar —uno de cada cinco importes de siete cifras coincide con
+un documento sin verificador frente a un millón de cédulas, y hasta tres
+de cada cuatro frente a cuatro millones— publica sus extremos aunque
+coincidan. Medido en \code{data-raw/medir_tapado_de_mas.R} sobre 400 columnas
+por familia, con uno y con cuatro millones de cédulas protegidas: no se
+protegió ninguna columna de importes de siete cifras —tampoco
+redondeados a miles, con 10, 50 o 500 valores distintos, aunque por azar
+coincidieran todos— ni de enteros de ocho cifras, y sí todas las copias
+de 50 valores distintos o más; con el 10 \% de tipeos, todas frente a un
+millón y la mitad frente a cuatro. Una copia de pocos valores distintos
+frente a muchos documentos —tres, o diez frente a cuatro millones— no se
+distingue del azar y publica sus extremos; tampoco una copia con más del
+10 \% de otros valores. El vocabulario
 corto no entra en el piso: \code{"S/D"} sigue publicándose donde describe a una
 columna que no es personal. Tampoco los \strong{rellenos} de una columna
 protegida, que ocupan el lugar de un dato y no son el de nadie: el que no
@@ -1646,7 +1678,27 @@ guardarlo— no hay valores con que barrer y se tapa entera;
 \item \code{medio}: el nombre de la columna expresa una categoría personal (por
 ejemplo \code{telefono}, \code{fecha_nacimiento} o \code{fecha_fallecimiento}); se protege aunque sus valores no
 se puedan validar. El nombre tiene prioridad sobre una forma numérica
-genérica y también determina la etiqueta de tipo. También es \code{medio} una
+genérica y también determina la etiqueta de tipo. Una palabra de nombre
+—\code{nombre}, \code{apellido}— la expresa en cualquier lugar del nombre:
+\code{nombre_cliente} es un nombre. Una palabra de \strong{persona} —\code{cliente},
+\code{socio}, \code{usuario}, \code{persona}, \code{paciente}, \code{titular}— dice de quién
+habla la columna, no que guarde su nombre: la clasifica como \code{nombre}
+sólo si ninguna otra palabra del nombre la clasificó —\code{direccion_cliente}
+es un domicilio—, si el resto del nombre no dice que es otra cosa —una
+clave (\code{cliente_id}, \code{id_usuario}, \code{cod_socio}), un tipo, un estado o una
+categoría (\code{tipo_cliente}, \code{estado_socio}), una fecha (\code{cliente_desde},
+\code{fecha_alta_socio}), una cantidad o un importe— y si sus valores pueden
+ser nombres: una columna de números, fechas o lógicos no lo es. Hasta la
+ronda 33 bastaba la palabra, y esas columnas se protegían como nombres:
+perdían su moda y sus extremos, y sus categorías —\code{"mayorista"},
+\code{"empresa"}— se tapaban también en las demás columnas. La misma regla vale
+para las demás palabras: \code{tipo_documento} es una categoría y no un
+documento, \code{fecha_contacto} y \code{medio_contacto} no son teléfonos,
+\code{estado_correo} no es un correo y \code{tipo_domicilio} no es un domicilio;
+sí lo siguen siendo \code{nro_documento}, \code{documento_id}, \code{numero_celular},
+\code{telefono_contacto}, \code{barrio_id}, \code{segundo_nombre} o una fecha de
+nacimiento guardada como número. Una columna de
+personas con otro nombre se declara en \code{columnas_personales}. También es \code{medio} una
 columna que trae correos completos sin que sean la mayoría de sus valores:
 un correo es un correo aunque esté solo, y la columna se protege;
 \item \code{alto}: una forma muy específica, como un correo, o nombre y forma se

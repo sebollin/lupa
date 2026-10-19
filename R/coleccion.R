@@ -57,7 +57,7 @@
 # `"mi.tabla"` es UNA tabla llamada `mi.tabla`, no un esquema `mi` con una tabla
 # `tabla`.
 .partir_identificador <- function(texto) {
-  caracteres <- strsplit(texto, "", fixed = TRUE)[[1L]]
+  caracteres <- .caracteres_identificador(texto)
   partes <- character()
   actual <- character()
   cierre <- NA_character_
@@ -86,10 +86,46 @@
   )
 }
 
+# Un texto que no es UTF-8 valido y no declara su codificacion -bytes latin1
+# sin marca, lo que deja `read.csv()` sin `fileEncoding`- no se puede partir
+# por caracteres bajo un locale UTF-8: `strsplit()` devolvia `NA` con un aviso,
+# y el nombre de la tabla pasaba a ser el texto "NA" -otro identificador; la
+# coleccion decia "no existe"- (ronda 34-X). Se parte por bytes: el punto, las
+# comillas y los corchetes son ASCII, y ningun byte alto los imita. Los bytes
+# se conservan tal cual; la guarda de la conexion decide despues si se pueden
+# mandar.
+.bytes_sin_declarar <- function(texto) {
+  !is.na(texto) && !Encoding(texto) %in% c("latin1", "UTF-8") &&
+    !validUTF8(texto)
+}
+
+.caracteres_identificador <- function(texto) {
+  if (!.bytes_sin_declarar(texto)) return(strsplit(texto, "", fixed = TRUE)[[1L]])
+  vapply(as.list(charToRaw(texto)), rawToChar, character(1L))
+}
+
 # Quita el entrecomillado externo y deshace el escape doblado de adentro. Sin
 # esto `"esquema"."tabla"` terminaba citado otra vez y el SQL era
 # `` `"esquema"`.`"tabla"` ``: dos identificadores que no existen.
 .quitar_comillas_identificador <- function(parte) {
+  if (.bytes_sin_declarar(parte)) {
+    # Por bytes, por lo mismo que `.caracteres_identificador()`: `nchar()` y
+    # `substr()` abortan sobre bytes invalidos bajo un locale UTF-8.
+    bytes <- charToRaw(parte)
+    largo <- length(bytes)
+    if (largo < 2L) return(parte)
+    indice <- match(rawToChar(bytes[[1L]]), .aperturas_comilla)
+    if (is.na(indice) ||
+        !identical(rawToChar(bytes[[largo]]), .cierres_comilla[[indice]])) {
+      return(parte)
+    }
+    interior <- if (largo > 2L) rawToChar(bytes[2:(largo - 1L)]) else ""
+    doble <- paste0(.aperturas_comilla[[indice]], .cierres_comilla[[indice]])
+    salida <- gsub(doble, .cierres_comilla[[indice]], interior, fixed = TRUE,
+                   useBytes = TRUE)
+    Encoding(salida) <- "unknown"
+    return(salida)
+  }
   largo <- nchar(parte)
   if (largo < 2L) return(parte)
   primero <- substr(parte, 1L, 1L)
@@ -362,6 +398,8 @@
       "data.frame con columnas `esquema` y `tabla`.", call. = FALSE
     )
   }
+  # Normalizado ANTES de partirlo: es el nombre que va a la conexion.
+  tablas <- .nombre_para_conexion_dbi(tablas)
   parseadas <- .parsear_identificadores_texto(tablas)
   data.frame(
     catalogo = if (!is.null(parseadas$catalogo)) {
@@ -632,6 +670,14 @@ coleccion <- function(conexion, tablas, nombre = NULL) {
   .fijar_numerica_c()  # LC_NUMERIC en "C" mientras lee de la conexion
   .validar_conexion_dbi(conexion, accion = "declarar una coleccion")
   declaradas <- .normalizar_tablas_coleccion(tablas)
+  # Los nombres declarados -por texto, por `data.frame` o por `DBI::Id`- son los
+  # que van a la conexion, y se normalizan una vez, aca, como en
+  # `perfilar_dbi()`: lo marcado latin1 pasa a UTF-8 y lo UTF-8 valido se marca
+  # (ver `.nombre_para_conexion_dbi()`). Con un `data.frame` leido de una
+  # planilla latin1, el nombre llegaba crudo a `dbListFields()`.
+  for (campo in c("catalogo", "esquema", "tabla")) {
+    declaradas[[campo]] <- .nombre_para_conexion_dbi(declaradas[[campo]])
+  }
   # La unicidad es por la identidad COMPLETA, catalogo incluido. Mirando solo
   # `esquema.tabla`, dos tablas legitimas en catalogos distintos -el caso de
   # `cat1.esq.personas` y `cat2.esq.personas`- se rechazaban como repetidas, que
@@ -961,6 +1007,12 @@ print.coleccion_lupa <- function(x, ...) {
 #'   `"María De Los Campos"` en SQL Server en sueco, `"Campos Cadena"` después
 #'   de un apodo entre comillas—. El orden de las tablas no cambia lo que se
 #'   publica; lo vuelto a leer reemplaza a lo publicado sólo si publica menos.
+#'   La relectura corre también después del cruce entre tablas, sobre lo que
+#'   el cruce escribe: el motivo de `otras_tablas` lleva el mensaje del motor
+#'   de la tabla que no se pudo leer, y con la vista antes que su base citaba
+#'   ese resto. En ese cierre, un valor igual al nombre de una tabla o de un
+#'   esquema de la colección no se tapa: es estructura, como en
+#'   [perfilar_dbi()].
 #'   Se reemplaza el texto tal como se publicó: si el piso de la propia tabla
 #'   ya lo había cambiado —el mensaje citaba entero, además, un valor
 #'   protegido de esa misma tabla—, la relectura no lo encuentra y queda sólo
@@ -987,6 +1039,12 @@ print.coleccion_lupa <- function(x, ...) {
 #'   motor se publica entero —el literal que hizo fallar la lectura y el SQL—
 #'   también en `cobertura_coleccion`, `cobertura_metricas`, `meta$lecturas` y
 #'   los avisos; ver la sección «Datos personales» de [perfilar_dbi()].
+#'   Lo que va a [perfilar()] se valida al entrar, una vez. Los argumentos
+#'   propios de [perfilar_dbi()] —`estrategia_distintos`, `max_consultas`,
+#'   `umbral_cardinalidad` y los demás— los valida `perfilar_dbi()` en cada
+#'   tabla: uno mal escrito deja cada tabla en `cobertura_coleccion` con ese
+#'   motivo y sin aviso. Es una limitación conocida: si ninguna tabla se
+#'   perfiló, mirar el motivo antes de sospechar de los permisos.
 #'
 #' @return Objeto de clase `perfil_coleccion` con `resumen_coleccion`,
 #'   `cobertura_coleccion`, `cobertura_metricas`, `meta` y, si se pidió,
@@ -1557,7 +1615,21 @@ perfilar_coleccion <- function(coleccion, muestra = Inf,
   }
   if (conservar_perfiles && proteger && length(perfiles) &&
       length(protegidos_tablas) > 1L) {
-    perfiles <- .proteger_perfiles_entre_tablas(perfiles, protegidos_tablas)
+    perfiles <- .proteger_perfiles_entre_tablas(perfiles, protegidos_tablas, c(
+      as.character(declaradas$tabla), as.character(declaradas$esquema),
+      as.character(declaradas$identificador)
+    ))
+    # Ronda 34 (H2). Y otra vez DESPUES: el piso entre tablas escribe en cada
+    # perfil `meta$proteccion_personal$otras_tablas` con el motivo de la tabla
+    # que no se pudo leer, que lleva el mensaje del motor como se publico al
+    # leerla. Con la vista antes que su base, ese mensaje citaba el resto de un
+    # nombre protegido -"De Los Campos" en sueco, "Campos Cadena" tras un apodo
+    # entre comillas en ingles- y se escribia despues del repaso, que no lo
+    # veia. El repaso es lo ultimo que cambia el texto de los perfiles; despues
+    # solo el piso de las huellas, que tapa. La primera pasada queda: el piso
+    # entre tablas puede cambiar el texto que ya estaba y entonces el repaso no
+    # lo encontraria.
+    perfiles <- lapply(perfiles, .repasar_mensajes_motor, pares = pares)
   }
   # Y despues, el piso con las huellas de lo que los mensajes del motor citan:
   # si una tabla quedo incompleta, el piso entre tablas cierra los valores de
@@ -1837,13 +1909,20 @@ perfilar_coleccion <- function(coleccion, muestra = Inf,
 # de la coleccion, con el piso de `perfilar()`. Si los de alguna no se pudieron
 # leer, se cierra como en `perfilar_dbi()` cuando no verifica fuera de la
 # muestra: se tapan los valores y la evidencia de las columnas no personales, y
-# se dice.
-.proteger_perfiles_entre_tablas <- function(perfiles, protegidos) {
+# se dice. `nombres`: los de las tablas y esquemas de la coleccion, intocables
+# como los de las columnas y fuera del cierre como valor (ronda 34, H5: ver
+# `.cerrar_fuera_de_muestra_dbi()`).
+.proteger_perfiles_entre_tablas <- function(perfiles, protegidos,
+                                            nombres = character()) {
+  nombres <- unique(as.character(nombres))
+  nombres <- nombres[!is.na(nombres) & nzchar(nombres)]
   for (identificador in names(perfiles)) {
     otros <- protegidos[setdiff(names(protegidos), identificador)]
     if (!length(otros)) next
     perfil <- perfiles[[identificador]]
-    intocables <- as.character(perfil$resumen_tabla$columnas$columna)
+    intocables <- unique(c(
+      as.character(perfil$resumen_tabla$columnas$columna), nombres
+    ))
     if (all(vapply(otros, function(x) isTRUE(x$completo), logical(1L)))) {
       valores <- unique(unlist(lapply(otros, `[[`, "valores"), use.names = FALSE))
       fechas <- unique(unlist(lapply(otros, `[[`, "fechas"), use.names = FALSE))
@@ -1859,7 +1938,8 @@ perfilar_coleccion <- function(coleccion, muestra = Inf,
         perfil$resumen_tabla$meta$proteccion_personal$columnas
       )
       cerrado <- .cerrar_fuera_de_muestra_dbi(
-        perfil$resumen_tabla, perfil$perfil_muestra, sensibles
+        perfil$resumen_tabla, perfil$perfil_muestra, sensibles,
+        nombres_tabla = nombres
       )
       perfil$resumen_tabla <- cerrado$resumen
       perfil$perfil_muestra <- cerrado$perfil
@@ -1936,7 +2016,7 @@ print.perfil_coleccion <- function(x, ...) {
     if (is.na(k)) return(NA_real_)
     referencia <- coleccion$tablas$referencia[[k]]
     campos <- tryCatch(
-      DBI::dbListFields(coleccion$conexion, referencia),
+      .listar_campos_dbi(coleccion$conexion, referencia),
       error = function(e) NULL
     )
     if (!is.null(campos) && length(campos)) return(as.numeric(length(campos)))
@@ -2256,7 +2336,7 @@ estimar_costo_coleccion <- function(coleccion, pares = NULL,
     }
     k <- .indice_identificador(identificador, declaradas)
     campos <- tryCatch(
-      DBI::dbListFields(coleccion$conexion, coleccion$tablas$referencia[[k]]),
+      .listar_campos_dbi(coleccion$conexion, coleccion$tablas$referencia[[k]]),
       error = function(e) NULL
     )
     if (!is.null(campos)) {
@@ -2356,7 +2436,7 @@ estimar_costo_coleccion <- function(coleccion, pares = NULL,
         "absoluto, donde un doble no distingue dos enteros consecutivos: si en ",
         "el motor es un entero ancho, dos valores distintos pudieron fundirse. ",
         if (como_doble) {
-          .remedio_entero_doble_dbi()
+          .remedio_entero_doble_dbi(conexion)
         } else {
           paste(
             "Si es HUGEINT o DECIMAL, comparar una vista que la convierta a",
@@ -2409,6 +2489,102 @@ estimar_costo_coleccion <- function(coleccion, pares = NULL,
   paste0("t", paste(as.character(bytes), collapse = ""))
 }
 
+# Las columnas que una lectura de la coleccion dejo afuera porque la sesion no
+# las puede escribir, dichas con el motivo y el remedio de la guarda. `NA` si no
+# dejo ninguna.
+.nota_columnas_no_escribibles_coleccion <- function(no_escribibles,
+                                                    orden_omitido) {
+  partes <- character()
+  if (length(no_escribibles)) {
+    partes <- c(partes, paste0(
+      if (length(no_escribibles) == 1L) {
+        "No se leyo la columna "
+      } else "No se leyeron las columnas ",
+      # Escrito sin consultar el locale: un nombre con bytes sueltos dejaba el
+      # motivo entero sin ser UTF-8 valido, y eso aborta al imprimirlo.
+      paste0("`", .comillas_sin_locale(no_escribibles), "`", collapse = ", "),
+      ": ",
+      .motivo_no_representable_dbi("su nombre", texto = no_escribibles)
+    ))
+  }
+  if (length(orden_omitido)) {
+    partes <- c(partes, paste0(
+      "La lectura va sin `ORDER BY`: se declaro `orden` (",
+      paste(.comillas_sin_locale(orden_omitido), collapse = ", "), ") y ",
+      .motivo_no_representable_dbi(
+        "el nombre de una de esas columnas", texto = orden_omitido
+      )
+    ))
+  }
+  if (!length(partes)) return(NA_character_)
+  paste(partes, collapse = " ")
+}
+
+# Las combinaciones de un par que no se compararon porque una de sus columnas
+# no se pudo escribir en la consulta: una fila por combinacion, como las demas
+# podas, con el motivo de la guarda en `detalle`.
+.podas_no_escribibles_coleccion <- function(t1, t2, candidatas_1, candidatas_2,
+                                            omitidas_1, omitidas_2) {
+  combinaciones <- rbind(
+    expand.grid(c1 = omitidas_1, c2 = c(candidatas_2, omitidas_2),
+                stringsAsFactors = FALSE),
+    expand.grid(c1 = candidatas_1, c2 = omitidas_2, stringsAsFactors = FALSE)
+  )
+  if (!nrow(combinaciones)) return(.cobertura_podas_vacia()[0L, , drop = FALSE])
+  omitida <- ifelse(.identificadores_en(combinaciones$c1, omitidas_1),
+                    combinaciones$c1, combinaciones$c2)
+  data.frame(
+    tabla_1 = rep(t1, nrow(combinaciones)),
+    tabla_2 = rep(t2, nrow(combinaciones)),
+    columna_tabla1 = combinaciones$c1, columna_tabla2 = combinaciones$c2,
+    motivo = rep("columna_no_escribible", nrow(combinaciones)),
+    detalle = vapply(omitida, function(columna) {
+      .motivo_no_representable_dbi(
+        paste0("La columna `", .comillas_sin_locale(columna), "`"),
+        texto = columna
+      )
+    }, character(1L), USE.NAMES = FALSE),
+    stringsAsFactors = FALSE
+  )
+}
+
+# Una lectura de la coleccion que fallo, con su motivo ya legible -paso por
+# `.mensaje_motor()` en la lectura- y si el fallo fue de codificacion, para
+# que el remedio sea el de la guarda y no el de permisos.
+.condicion_lectura_coleccion <- function(motivo, codificacion = FALSE) {
+  structure(
+    class = c("lupa_lectura_coleccion", "error", "condition"),
+    list(message = motivo, call = NULL, codificacion = isTRUE(codificacion))
+  )
+}
+
+# Los nombres leidos, tomados de la fuente del paquete (`dbListFields()` o la
+# seleccion resuelta contra el) cuando el controlador los devolvio en bytes que
+# no son UTF-8 valido. Se renombra por posicion solo si la lectura trae tantas
+# columnas como la fuente y todos los demas nombres coinciden en su lugar: si
+# no, no hay como saber cual es cual y quedan como llegaron.
+#
+# `fuente` es una funcion: se pide -un `dbListFields()` mas por tabla- solo
+# cuando hay algun nombre que corregir, que es el caso raro.
+.nombres_de_la_fuente_coleccion <- function(datos, fuente) {
+  actuales <- names(datos)
+  if (!length(actuales)) return(datos)
+  invalidos <- !is.na(actuales) & !Encoding(actuales) %in% c("latin1", "UTF-8") &
+    !validUTF8(actuales)
+  if (!any(invalidos)) return(datos)
+  # La fuente se publica como la da `dbListFields()`, con sus bytes y su marca:
+  # es lo que publica `perfilar_coleccion()`, y asi aparean por igualdad.
+  fuente <- fuente()
+  if (is.null(fuente) || length(fuente) != length(actuales)) return(datos)
+  fuente <- as.character(fuente)
+  if (!identical(.nombres_para_operar(actuales[!invalidos]),
+                 .nombres_para_operar(fuente[!invalidos]))) {
+    return(datos)
+  }
+  names(datos)[invalidos] <- fuente[invalidos]
+  datos
+}
+
 .lector_tablas_coleccion <- function(conexion, coleccion, muestra, orden,
                                      tope_cache_mb, columnas_candidatas = NULL) {
   cache <- new.env(parent = emptyenv())
@@ -2424,6 +2600,21 @@ estimar_costo_coleccion <- function(coleccion, pares = NULL,
     k <- .indice_identificador(identificador, coleccion$tablas$identificador)
     if (is.na(k)) identificador else coleccion$tablas$referencia[[k]]
   }
+  # Los nombres de las columnas como los da `dbListFields()`, una vez por tabla:
+  # resuelven el `orden` declarado y nombran las columnas de un `SELECT *`.
+  cache_campos <- new.env(parent = emptyenv())
+  campos_de <- function(identificador) {
+    cache_key <- .clave_cache_coleccion(identificador)
+    if (exists(cache_key, envir = cache_campos, inherits = FALSE)) {
+      return(get(cache_key, envir = cache_campos, inherits = FALSE))
+    }
+    campos <- tryCatch(
+      .listar_campos_dbi(conexion, referencia_de(identificador)),
+      error = function(e) NULL
+    )
+    assign(cache_key, campos, envir = cache_campos)
+    campos
+  }
   orden_de <- function(identificador) {
     if (is.null(orden)) return(character())
     columnas <- if (is.character(orden)) {
@@ -2433,11 +2624,8 @@ estimar_costo_coleccion <- function(coleccion, pares = NULL,
       if (is.na(indice)) NULL else orden[[indice]]
     }
     if (is.null(columnas)) return(character())
-    columnas <- as.character(columnas)
-    campos <- tryCatch(
-      DBI::dbListFields(conexion, referencia_de(identificador)),
-      error = function(e) NULL
-    )
+    columnas <- .nombre_para_conexion_dbi(as.character(columnas))
+    campos <- campos_de(identificador)
     if (!is.null(campos)) {
       indices <- .indice_nombre(columnas, campos)
       if (!anyNA(indices)) columnas <- campos[indices]
@@ -2556,9 +2744,64 @@ estimar_costo_coleccion <- function(coleccion, pares = NULL,
     )
     columnas_orden <- orden_de(identificador)
     columnas_seleccionadas <- candidatas_de(identificador)
-    columnas_lectura <- .identificadores_unicos(
-      c(columnas_seleccionadas, columnas_orden)
+    # `orden` dice POR QUE columnas ordenar, no CUALES leer. Sin candidatas
+    # declaradas para la tabla, la lectura trae todas sus columnas -lo que
+    # promete `?relaciones_coleccion`: una tabla no nombrada conserva todas-, y
+    # las de orden solo se suman a una seleccion que ya existe. Antes, con
+    # `orden` y sin candidatas, la consulta era `SELECT id ... ORDER BY id`: la
+    # comparacion veia una columna por tabla, las demas relaciones
+    # desaparecian sin aviso y el objeto se declaraba `estable` (ronda 34-X:
+    # 0 relaciones de 2, siguiendo el `como_resolverlo` del propio paquete).
+    # Una columna que la sesion no puede escribir -bajo `C`, una no ASCII por
+    # odbc- no entra en la consulta, y no se lleva a la tabla entera con ella:
+    # antes `columnas_candidatas = list(t = c("id", "a\u00f1o"))` perdia el par
+    # completo, tambien `id`, con un motivo de permisos (ronda 34-X). Es lo que
+    # hace `perfilar_dbi()`: lee las demas y declara la que no, con su remedio.
+    # Una de `orden` que no se puede escribir deja la lectura SIN `ORDER BY`
+    # -no se puede ordenar como se declaro-, y la bitacora lo dice: la lectura
+    # no es repetible y `estable` sale FALSE.
+    #
+    # Y un nombre con bytes que no son UTF-8 valido y no declaran codificacion
+    # -`orden` leido de un CSV latin1 sin `fileEncoding`- no se escribe con
+    # NINGUN controlador: RSQLite abortaba en `dbQuoteIdentifier()` con un error
+    # de R ("input string 1 is invalid"), y adivinarle la codificacion es
+    # inventar el nombre (ronda 34-X, H10).
+    escribible <- function(columna) {
+      !.bytes_sin_declarar(columna) &&
+        .nombre_representable_dbi(conexion, columna)
+    }
+    no_escribibles <- character()
+    if (length(columnas_seleccionadas)) {
+      escribibles <- vapply(columnas_seleccionadas, escribible, logical(1L),
+                            USE.NAMES = FALSE)
+      no_escribibles <- columnas_seleccionadas[!escribibles]
+      columnas_seleccionadas <- columnas_seleccionadas[escribibles]
+    }
+    orden_omitido <- character()
+    if (length(columnas_orden) &&
+        !all(vapply(columnas_orden, escribible, logical(1L), USE.NAMES = FALSE))) {
+      orden_omitido <- columnas_orden
+      columnas_orden <- character()
+    }
+    nota_lectura <- .nota_columnas_no_escribibles_coleccion(
+      no_escribibles, orden_omitido
     )
+    columnas_lectura <- if (is.null(columnas_seleccionadas)) {
+      character()
+    } else {
+      .identificadores_unicos(c(columnas_seleccionadas, columnas_orden))
+    }
+    if (length(no_escribibles) && !length(columnas_seleccionadas)) {
+      # Ninguna candidata se puede escribir: no queda nada que comparar.
+      lecturas <<- lecturas + 1L
+      bitacora[[length(bitacora) + 1L]] <<- data.frame(
+        tabla = identificador, sql = NA_character_, via = NA_character_,
+        filas_leidas = NA_real_, filas_totales = NA_real_, muestreado = NA,
+        orden_declarado = FALSE, momento = Sys.time(), ok = FALSE,
+        motivo = nota_lectura, stringsAsFactors = FALSE
+      )
+      return(.condicion_lectura_coleccion(nota_lectura, codificacion = TRUE))
+    }
     seleccion_sql <- if (length(columnas_lectura)) {
       paste(
         as.character(DBI::dbQuoteIdentifier(conexion, columnas_lectura)),
@@ -2612,15 +2855,17 @@ estimar_costo_coleccion <- function(coleccion, pares = NULL,
       # Fallaron las dos vias: se declaran las dos, y se nombra el `ORDER BY`
       # como causa posible cuando se declaro uno. Un motivo que solo cuenta el
       # segundo intento esconde por que se llego hasta ahi.
+      motivo_llano <- .mensaje_motor(resultado)
       motivo <- paste0(
         "con LIMIT: ", motivo_limite, "; sin LIMIT: ",
-        .mensaje_motor(resultado),
+        motivo_llano,
         if (length(columnas_orden)) {
           paste0(
             ". Se declaro `orden` (", paste(columnas_orden, collapse = ", "),
             "): comprobar que esas columnas existen en la tabla."
           )
-        } else ""
+        } else "",
+        if (!is.na(nota_lectura)) paste0(". ", nota_lectura) else ""
       )
       bitacora[[length(bitacora) + 1L]] <<- data.frame(
         tabla = identificador, sql = NA_character_, via = NA_character_,
@@ -2629,13 +2874,34 @@ estimar_costo_coleccion <- function(coleccion, pares = NULL,
         momento = momento, ok = FALSE,
         motivo = motivo, stringsAsFactors = FALSE
       )
-      return(simpleError(motivo))
+      # El motivo YA paso por `.mensaje_motor()`: viaja como condicion propia de
+      # la lectura, que `relaciones_coleccion()` publica tal cual. Como
+      # `simpleError()` se volvia a pasar como mensaje ajeno, y la segunda
+      # pasada tapaba las palabras del motivo legible: "El nombre no se puede
+      # [literal omitido] en la [literal omitido]..." (ronda 34-X).
+      return(.condicion_lectura_coleccion(
+        motivo,
+        codificacion = inherits(resultado, "lupa_error_codificacion_dbi")
+      ))
     }
     # La fila de sobra no viaja al resultado: sirvio para saber si habia mas.
     truncada <- is.finite(muestra) && nrow(resultado$datos) > muestra
     if (truncada) {
       resultado$datos <- resultado$datos[seq_len(muestra), , drop = FALSE]
     }
+    # Los nombres de las columnas leidas son los de la MISMA fuente que el resto
+    # del paquete: `dbListFields()` -o la seleccion, que ya se resolvio contra
+    # el-. Bajo `C`, FreeTDS devuelve los nombres de `SELECT *` en el juego de
+    # caracteres del cliente, latin1, y `dbListFields()` en UTF-8:
+    # `relaciones_coleccion()` publicaba `a\xf1o` donde `perfilar_coleccion()`
+    # de la misma sesion publicaba `a\u00f1o`, devuelto como candidata daba
+    # error, y leido en una sesion UTF-8 abortaba `nchar()` (ronda 34-X).
+    resultado$datos <- .nombres_de_la_fuente_coleccion(
+      resultado$datos,
+      function() {
+        if (length(columnas_lectura)) columnas_lectura else campos_de(identificador)
+      }
+    )
     bitacora[[length(bitacora) + 1L]] <<- data.frame(
       tabla = identificador, sql = resultado$sql, via = resultado$via,
       filas_leidas = as.numeric(nrow(resultado$datos)),
@@ -2646,7 +2912,9 @@ estimar_costo_coleccion <- function(coleccion, pares = NULL,
       filas_totales = if (truncada) NA_real_ else as.numeric(nrow(resultado$datos)),
       muestreado = truncada,
       orden_declarado = length(columnas_orden) > 0L,
-      momento = momento, ok = TRUE, motivo = NA_character_,
+      # Una lectura sin las columnas que no se pudieron escribir es una lectura
+      # hecha (`ok`), y su motivo dice cuales faltan y por que.
+      momento = momento, ok = TRUE, motivo = nota_lectura,
       stringsAsFactors = FALSE
     )
     tamano_mb <- as.numeric(utils::object.size(resultado$datos)) / 1024^2
@@ -2661,6 +2929,10 @@ estimar_costo_coleccion <- function(coleccion, pares = NULL,
 
   list(
     leer = leer,
+    # Las candidatas de una tabla salen de la MISMA busqueda con que se arma su
+    # lectura -por identificador normalizado-: la comparacion y la consulta no
+    # pueden contestar distinto sobre que columnas participan.
+    candidatas = candidatas_de,
     rangos_universo = rangos_universo,
     bitacora = function() {
       if (length(bitacora)) {
@@ -2707,6 +2979,18 @@ estimar_costo_coleccion <- function(coleccion, pares = NULL,
 #' **El orden no se supone.** Sin `orden`, una lectura acotada devuelve un
 #' subconjunto arbitrario y el resultado declara `meta$estable = FALSE`. Declarar
 #' columnas de orden hace la lectura repetible.
+#'
+#' **Una columna que la sesión no puede escribir no se lleva la tabla.** Con
+#' odbc bajo el locale `C` -un `Rscript` de cron- un nombre no ASCII no se
+#' puede mandar, y un nombre con bytes que no son UTF-8 válido y no declaran su
+#' codificación -un CSV latin1 leído sin `fileEncoding`- no se manda con ningún
+#' controlador. Una candidata así sale de la lectura y sus combinaciones quedan
+#' en `cobertura_podas` con motivo `columna_no_escribible` y el remedio en
+#' `detalle`; las demás se comparan. Una columna de `orden` así deja la lectura
+#' de esa tabla sin `ORDER BY` —no se puede ordenar como se declaró—, y
+#' `meta$lecturas` y `meta$estable` lo dicen. Los nombres publicados son los de
+#' `DBI::dbListFields()`, los mismos que publica [perfilar_coleccion()], aunque
+#' el controlador devuelva los de la lectura en otra codificación.
 #'
 #' Cada par se compara sobre una muestra de filas de cada tabla, y el resultado
 #' declara ese alcance: una relación candidata sobre una muestra **no es una
@@ -2776,7 +3060,10 @@ estimar_costo_coleccion <- function(coleccion, pares = NULL,
 #' @param umbral_cobertura Cobertura mínima para informar una relación.
 #' @param orden Columnas para `ORDER BY`: un vector de texto que se aplica a
 #'   todas las tablas, o una lista nombrada por identificador de tabla. Sin él
-#'   la lectura no es repetible y el objeto lo declara.
+#'   la lectura no es repetible y el objeto lo declara. Ordena la lectura y no
+#'   la recorta: una tabla sin `columnas_candidatas` se lee con todas sus
+#'   columnas, y a una con candidatas se le suman las de orden sólo para
+#'   ordenar.
 #' @param tope_cache_mb Presupuesto de memoria para la caché de lecturas, en
 #'   megabytes. Al agotarse se sigue leyendo sin cachear y `meta` lo declara.
 #' @param tope_memoria_mb Presupuesto de memoria para resultados de relaciones,
@@ -2882,26 +3169,53 @@ relaciones_coleccion <- function(coleccion, pares, muestra = 1e4,
       d1
     } else if (inherits(d2, "condition")) d2 else NULL
     if (!is.null(fallo)) {
+      # El motivo de una lectura de la coleccion ya es legible: no se vuelve a
+      # pasar por `.mensaje_motor()`, que lo leia como mensaje ajeno y lo tapaba.
+      propia <- inherits(fallo, "lupa_lectura_coleccion")
       sin_comparar[[length(sin_comparar) + 1L]] <- data.frame(
         tabla_1 = t1, tabla_2 = t2,
-        motivo = paste0("No se pudo leer el par: ", .mensaje_motor(fallo)),
-        como_resolverlo = paste(
-          "Comprobar que las dos tablas existen y que la credencial las puede",
-          "leer. El SQL exacto de cada intento queda en `meta$lecturas`."
+        motivo = paste0(
+          "No se pudo leer el par: ",
+          if (propia) conditionMessage(fallo) else .mensaje_motor(fallo)
         ),
+        como_resolverlo = if (propia && isTRUE(fallo$codificacion)) {
+          paste(
+            "La sesion no puede escribir un nombre de la consulta (ver el",
+            "motivo): correr la sesion con un locale UTF-8, o declarar la",
+            "codificacion del nombre al leerlo. El SQL exacto de cada intento",
+            "queda en `meta$lecturas`."
+          )
+        } else {
+          paste(
+            "Comprobar que las dos tablas existen y que la credencial las puede",
+            "leer. El SQL exacto de cada intento queda en `meta$lecturas`."
+          )
+        },
         stringsAsFactors = FALSE
       )
       next
     }
-    candidatas_1 <- if (is.null(columnas_candidatas)) {
+    # Las candidatas que se compararon son las declaradas que se LEYERON: una
+    # que la sesion no pudo escribir no esta en la lectura, y sus combinaciones
+    # quedan en `cobertura_podas` con el motivo (ronda 34-X).
+    declaradas_1 <- lector$candidatas(t1)
+    declaradas_2 <- lector$candidatas(t2)
+    candidatas_1 <- if (is.null(declaradas_1)) {
       names(d1)
-    } else {
-      columnas_candidatas[[t1]]
-    }
-    candidatas_2 <- if (is.null(columnas_candidatas)) {
+    } else .identificadores_intersect(declaradas_1, names(d1))
+    candidatas_2 <- if (is.null(declaradas_2)) {
       names(d2)
-    } else {
-      columnas_candidatas[[t2]]
+    } else .identificadores_intersect(declaradas_2, names(d2))
+    omitidas_1 <- if (is.null(declaradas_1)) character() else {
+      .identificadores_setdiff(declaradas_1, names(d1))
+    }
+    omitidas_2 <- if (is.null(declaradas_2)) character() else {
+      .identificadores_setdiff(declaradas_2, names(d2))
+    }
+    if (length(omitidas_1) || length(omitidas_2)) {
+      podas[[length(podas) + 1L]] <- .podas_no_escribibles_coleccion(
+        t1, t2, candidatas_1, candidatas_2, omitidas_1, omitidas_2
+      )
     }
     rangos <- list(
       tabla1 = .marcar_enteros_inexactos_coleccion(

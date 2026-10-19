@@ -46,6 +46,17 @@
   protege <- vapply(resultados, function(x) isTRUE(x$proteger), logical(1L))
   # Lo declarado se protege aunque el lexico no lo reconozca.
   protege <- protege | .nombres_presentes(names(datos), names(declaradas))
+  # Y la columna que copia los documentos protegidos sin su verificador, con la
+  # misma regla que `perfilar()` (`.copias_sin_verificador()`). Ronda 34.
+  copias <- tryCatch(
+    .copias_sin_verificador(datos, names(datos)[protege], names(datos)[!protege]),
+    error = function(e) NULL
+  )
+  es_copia <- if (is.data.frame(copias) && nrow(copias)) {
+    .nombres_para_operar(names(datos)) %in% .nombres_para_operar(copias$columna)
+  } else rep(FALSE, length(protege))
+  for (i in which(es_copia)) resultados[[i]]$tipo <- "documento_identidad"
+  protege <- protege | es_copia
   if (!detalle) return(names(datos)[protege])
   if (!any(protege)) {
     return(data.frame(columna = character(), tipo = character(),

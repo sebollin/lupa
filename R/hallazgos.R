@@ -3795,6 +3795,11 @@
 
     geometria <- resultado$geometria
     estado_outliers <- resultado$cuantitativo$estado_outliers
+    # Declarada en `columnas_codigo`. La marca del resumen -`codigo_declarado`-
+    # solo existe cuando hubo un resumen numerico que omitir: un codigo de texto
+    # como `"10,5"` o `"$10"` no lo tiene, y la declaracion vale igual.
+    codigo_declarado <- isTRUE(resultado$codigo) ||
+      identical(estado_outliers, "codigo_declarado")
     if (identical(estado_outliers, "codigo_declarado")) {
       agregar_cobertura(
         "outliers", nombre, resultado$cuantitativo$motivo_outliers,
@@ -4637,7 +4642,7 @@
     # tipo: el hallazgo pedia "convertir la columna de forma explicita" a numero,
     # que es la magnitud que la declaracion niega -`"006"` pierde el cero-
     # (refutacion 33-D).
-    codigo_en_texto <- identical(estado_outliers, "codigo_declarado") &&
+    codigo_en_texto <- codigo_declarado &&
       as.character(fila$tipo_declarado) %in%
         c("texto", "factor", "factor-ordenado") &&
       as.character(fila$tipo_inferido) %in% c("entero", "doble", "integer64")
@@ -4968,7 +4973,36 @@
         estado_reparacion = fila$estado_codificacion_reparacion[[1L]]
       ))
     }
-    if (isTRUE(fila$n_numeros_texto > 0L) &&
+    # Un codigo declarado no es un numero escrito como texto: `numero_como_texto`
+    # pedia "convertir de forma explicita", y el plan lo hacia -
+    # `convertir_numero_regional`, `lista`, `aplicar = TRUE`-, asi que `aplicar()`
+    # dejaba `numeric` el rubro `"1.1"` que el usuario declaro codigo y el perfil
+    # de la salida le publicaba media y desvio (refutacion 34-D). Es la misma
+    # promesa que `tipo_declarado_distinto` ya cumplia: el codigo no recibe lo que
+    # solo tiene sentido sobre una magnitud. Las unidades y las monedas mezcladas
+    # salen de la misma lectura de la columna como cantidad, y se omiten con ella.
+    # Se declara en `cobertura_diagnosticos`, solo si alguno habria salido.
+    lectura_numerica <- (isTRUE(fila$n_numeros_texto > 0L) &&
+      is.finite(fila$proporcion_numeros_texto) &&
+      fila$proporcion_numeros_texto >= 0.8) ||
+      length(resultado$numeros_texto$unidades) > 1L ||
+      length(resultado$numeros_texto$monedas) > 1L
+    if (codigo_declarado && lectura_numerica) {
+      agregar_cobertura(
+        "numero_como_texto", nombre,
+        paste(
+          "No se evaluaron `numero_como_texto`, `unidades_mixtas` ni",
+          "`monedas_mixtas`: la columna se declaro en `columnas_codigo`, asi",
+          "que es un codigo y no una cantidad escrita como texto, y no se",
+          "propone convertirla a numero."
+        ),
+        paste(
+          "Si la columna es una cantidad y no un codigo, quitarla de",
+          "`columnas_codigo`."
+        )
+      )
+    }
+    if (!codigo_declarado && isTRUE(fila$n_numeros_texto > 0L) &&
         is.finite(fila$proporcion_numeros_texto) &&
         fila$proporcion_numeros_texto >= 0.8) {
       agregar(.nuevo_hallazgo(
@@ -4994,7 +5028,7 @@
     }
 
     unidades <- resultado$numeros_texto$unidades
-    if (length(unidades) > 1L) {
+    if (!codigo_declarado && length(unidades) > 1L) {
       evidencia_unidades <- paste(
         paste0(names(unidades), " (", as.integer(unidades), ")"),
         collapse = "; "
@@ -5014,7 +5048,7 @@
     }
 
     monedas <- resultado$numeros_texto$monedas
-    if (length(monedas) > 1L) {
+    if (!codigo_declarado && length(monedas) > 1L) {
       evidencia_monedas <- paste(
         paste0(names(monedas), " (", as.integer(monedas), ")"),
         collapse = "; "

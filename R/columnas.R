@@ -3079,7 +3079,10 @@
     sentinelas_numericos_declarados = sentinelas_declarados,
     # La mascara viaja con el resultado para que la trazabilidad pueda nombrar
     # las filas del hallazgo de valor fuera de aplicabilidad.
-    aplicable = aplicable
+    aplicable = aplicable,
+    # La declaracion `columnas_codigo`, para los hallazgos: la marca del resumen
+    # numerico no existe en un codigo guardado como texto que no se lee numero.
+    codigo = isTRUE(codigo)
   )
 }
 

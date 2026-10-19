@@ -429,7 +429,10 @@ test_that("medir() protege lo que el usuario declara personal", {
 # "0.[valor protegido].0" y un patron `9+-9+-9+` salia como
 # "[valor protegido]+[valor protegido]+[valor protegido]+".
 test_that("la version del paquete no se enmascara", {
-  perfil <- perfilar(datos_administrativos)
+  # Desde la ronda 34 `id_persona` -una clave de enteros- no se protege por la
+  # palabra de persona de su nombre; la prueba la declara para seguir midiendo
+  # lo mismo: una columna protegida con valores de un digito.
+  perfil <- perfilar(datos_administrativos, columnas_personales = "id_persona")
   # Primero: la proteccion se activo. Sin columnas protegidas no prueba nada.
   expect_true(any(perfil$datos_personales$proteger))
   expect_true("id_persona" %in%

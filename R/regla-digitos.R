@@ -427,6 +427,33 @@
   grupos[-1L]
 }
 
+# Un numero redondo -`1.000.000`- es un conteo: que coincida con un documento SIN
+# su verificador no lo vuelve un dato. Lo comparten la regla de los textos
+# (`.candidatos_digitos()`) y la de la columna que copia los documentos sin su
+# verificador (`.prueba_copia_sin_verificador()`).
+.PATRON_NUMERO_REDONDO <- "^[1-9]0+$"
+
+# El documento SIN su verificador de cada documento en digitos: el de ocho
+# cifras o mas sin la ultima, sin ceros iniciales, si le quedan siete o mas; `NA`
+# para el que no tiene. UNA regla para el piso de los textos
+# (`.documentos_digitos()`) y la columna que copia los documentos sin su
+# verificador (`.copias_sin_verificador()`). Ronda 34.
+.prefijo_documento <- function(digitos) {
+  digitos <- as.character(digitos)
+  largo <- nchar(digitos, type = "bytes")
+  prefijos <- .sin_ceros_iniciales(substr(digitos, 1L, largo - 1L))
+  prefijos[is.na(digitos) |
+             largo - 1L < .MIN_LARGO_VALOR_IDENTIFICANTE + 1L |
+             nchar(prefijos, type = "bytes") <
+               .MIN_LARGO_VALOR_IDENTIFICANTE + 1L] <- NA_character_
+  prefijos
+}
+
+.prefijos_documentos <- function(digitos) {
+  prefijos <- .prefijo_documento(digitos)
+  unique(prefijos[!is.na(prefijos)])
+}
+
 # Los conjuntos contra los que se compara, armados una vez por llamada. Un cero a
 # la izquierda no cambia el numero: "041234567" es el documento 41234567, como lo
 # deja una exportacion de ancho fijo. Medido en una refutacion.
@@ -441,14 +468,11 @@
   nacionales <- sub(.PATRON_TELEFONO_UY_PEGADO, "\\1", digitos[internacionales],
                     perl = TRUE)
   completos <- .sin_ceros_iniciales(c(digitos, nacionales))
-  prefijos <- .sin_ceros_iniciales(substr(digitos, 1L, largo - 1L)[parcial])
   list(
     completos = unique(completos[
       nchar(completos, type = "bytes") >= .MIN_LARGO_VALOR_IDENTIFICANTE
     ]),
-    prefijos = unique(prefijos[
-      nchar(prefijos, type = "bytes") >= .MIN_LARGO_VALOR_IDENTIFICANTE + 1L
-    ]),
+    prefijos = .prefijos_documentos(digitos),
     sufijos = unique(substr(digitos, 2L, largo)[parcial]),
     # Con margen para los ceros iniciales, que no cuentan.
     maximo = if (length(largo)) max(largo) + 4L else 0L
@@ -622,7 +646,7 @@
   # Un numero redondo -`1.000.000`- es un conteo: que coincida con un documento
   # SIN su verificador no lo vuelve un dato. El documento entero, aunque sea
   # redondo -la cedula 5.000.000-0 tiene verificador valido-, si.
-  redondo <- function(v) v[!grepl("^[1-9]0+$", v, perl = TRUE)]
+  redondo <- function(v) v[!grepl(.PATRON_NUMERO_REDONDO, v, perl = TRUE)]
   completos <- c(fechas_hora, enteras)
   prefijos <- character()
   sufijos <- character()

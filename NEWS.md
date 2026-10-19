@@ -1,5 +1,244 @@
 # lupa 0.1.0
 
+## Ronda 34: la proteccion, las mediciones y la via DBI
+
+Tres refutaciones sobre la ronda 33. La de las piezas compartidas encontro tres altos -con `orden`,
+`relaciones_coleccion()` perdia todas las relaciones sin aviso; un nombre de tabla latin1 dejaba rota la
+conexion odbc; `coleccion()` cargaba RMySQL sobre una conexion RMariaDB y la dejaba inservible- y uno medio;
+la de las mediciones, siete medios -la corroboracion de `perfilar_dbi()` acusaba como divergencia lo que una
+declaracion o la precision del motor hacen distinto, `comparar_perfiles()` no declaraba `columnas_opcionales`,
+`money` de PostgreSQL se leia como 0-; la de la proteccion, cuatro medios -una columna que copia las cedulas
+sin su verificador publicaba sus extremos, y dos reglas tapaban de mas-. Al arreglarlos aparecio uno mas, alto:
+el desvio de una pasada de SQL Server publicaba 0 sobre marcas de tiempo en milisegundos.
+
+**La proteccion:**
+
+- **`perfilar_dbi()` publica los estadisticos de una columna que comparte el tipo
+  personal con una protegida.** La regla de las columnas "hermanas" tapaba el minimo,
+  el maximo, la mediana, la media y el desvio de toda columna clasificada con el mismo
+  tipo que una protegida aunque su poder discriminante fuera `debil` -un importe entero
+  de siete cifras, un numero de factura, ambos `documento_identidad` debil al lado de
+  la cedula-, con un motivo falso ("La columna se protegio como dato personal") en
+  `resumen_tabla$sql`, en `meta$familias` y en `cobertura_metricas` de la coleccion,
+  mientras `perfilar()` los publicaba y el mismo objeto tambien, en `perfil_muestra`.
+  La regla existia porque por esa puerta el piso por valor no veia la tabla entera;
+  desde la ronda 33 la ve, y quedo tapando sin proteger nada. Se retira: la misma
+  tabla publica lo mismo por las dos puertas, y una copia del documento la tapa el
+  piso por valor (medido: la cedula copiada en el medio de una columna de codigos,
+  como su moda, como REAL o escrita de otra forma en un texto, 0 apariciones en
+  SQLite y PostgreSQL, con y sin bloques).
+- **La columna que copia la cedula protegida sin su verificador se protege entera.**
+  Una columna de nombre neutro con la cedula de cada fila sin su verificador -el entero
+  `4685467` frente a `4.685.467-9`, o el mismo numero como texto- se clasificaba
+  `documento_identidad` debil y publicaba sus dos extremos, que son dos cedulas, en
+  `perfilar()`, en `perfil_muestra` de `perfilar_dbi()` y en los cuantiles de
+  `analizar()` y `distribucion_valores()`. Ahora se clasifica `documento_identidad`
+  `alto` ("documentos de `cedula` sin su verificador: 1.000 de sus valores distintos") y
+  se protege como cualquier columna personal, por las dos puertas y en `medir()`, si al
+  menos tres de sus valores distintos son el documento sin verificador de un valor
+  protegido (la regla de los textos, `.prefijo_documento()`), si son el 90 % de sus
+  distintos -el umbral de `verificado`- y si tantos no coinciden por azar con la
+  densidad de esos documentos en su rango (probabilidad binomial menor que 1e-6). Por
+  columna y no por valor: probar el parcial en el extremo de cualquier columna tapaba el
+  minimo o el maximo de uno de cada cinco importes de siete cifras frente a un millon de
+  cedulas, y en una base de cuatro millones coinciden hasta tres de cada cuatro. Medido en
+  `data-raw/medir_tapado_de_mas.R` sobre 400 columnas por familia, con un millon y con
+  cuatro millones de cedulas protegidas: 0 % de columnas de importes de siete cifras
+  (tambien redondeados a miles, con 10, 50 o 500 valores distintos, aunque por azar
+  coincidieran todos) y de enteros de ocho cifras; 100 % de las copias con 50 o 500
+  valores distintos, y con 10 frente a un millon; con el 10 % de tipeos, 100 % y 51,5 %.
+  Limitacion conocida (baja): una copia de pocos valores distintos frente a muchos
+  documentos protegidos no se distingue del azar -3 valores, ninguna; 10 frente a cuatro
+  millones, ninguna- y publica sus extremos; tampoco una copia con mas del 10 % de otros
+  valores. Una columna que coincide por azar publica sus extremos aunque coincidan.
+- **Una palabra de persona en el nombre de la columna ya no protege una clave, una
+  categoria ni una fecha.** `cliente_id`, `id_cliente`, `persona_id`, `usuario_id`,
+  `tipo_cliente`, `estado_socio` o `cliente_desde` se protegian como "nombre" por el
+  token `cliente`/`socio`/`usuario`: perdian la moda, los extremos y los ejemplos, y
+  sus categorias -"mayorista", "empresa"- entraban al piso y se tapaban en columnas que
+  no tenian nada que ver (`segmento`, un texto libre), por las dos puertas. La ayuda
+  dice que `medio` es que el nombre "expresa una categoria personal", y `tipo_cliente`
+  no la expresa. Ahora la palabra de persona clasifica la columna como nombre solo si
+  ninguna otra palabra la clasifico (`direccion_cliente` es un domicilio), si el resto
+  del nombre no dice que es una clave, un tipo, un estado, una categoria, una fecha,
+  una cantidad o un importe, y si sus valores pueden ser nombres (no numeros, fechas ni
+  logicos). `nombre_cliente`, `socio`, `cliente` o `titular` con nombres siguen
+  protegidas. Cambia `datos_administrativos`: `id_persona` (1 a 13) ya no se protege.
+  Y es la misma propiedad en las demas reglas de nombre, cerrada con la misma regla
+  (`.nombre_expresa_tipo()`: la palabra del tipo clasifica salvo que el RESTO del nombre
+  la califique, con los calificadores que valen para cada tipo): `tipo_documento` se
+  protegia como documento con poder `alto`, `fecha_contacto` y `medio_contacto` como
+  telefono, `estado_correo` como correo y `tipo_domicilio` como domicilio. Siguen
+  protegidos `nro_documento`, `documento_id`, `numero_celular`, `telefono_contacto`,
+  `barrio_id`, `segundo_nombre` y la fecha de nacimiento guardada como numero (medido: 0
+  apariciones con cedulas, celulares, correos y nombres reales en esas columnas).
+- **Con la vista antes que su base, `otras_tablas` no publica el resto de un nombre.**
+  `perfilar_coleccion(conservar_perfiles = TRUE)` volvia a leer los mensajes del motor
+  antes del cruce entre tablas, y el cruce escribia despues en
+  `resumen_tabla$meta$proteccion_personal$otras_tablas` el motivo de la tabla que no se
+  pudo leer, con el mensaje como se publico al leerla: "De Los Campos" (SQL Server en
+  sueco) o "Campos Cadena" tras un apodo entre comillas (en ingles, y en duckdb). La
+  relectura corre tambien despues del cruce; el orden de las tablas no cambia lo que
+  se publica.
+- **El cierre no borra el nombre de la tabla.** Con la lectura fuera de la muestra
+  fallida -o sin muestra, con `bloque_muestra = "solo_agregados"`-, un valor de una
+  columna no personal igual al nombre de la tabla entraba al cierre y tapaba el
+  nombre en `meta$tabla`, en cada SQL guardada (`FROM "[valor protegido]"`), en
+  `print()` y en `perfil_muestra$meta`. El nombre de la tabla y el de su esquema son
+  ahora intocables como los de las columnas en todos los pisos de `perfilar_dbi()` y
+  del cruce de la coleccion, y un valor igual a ellos no entra a un cierre: ya se
+  publica como estructura. Limitacion conocida (baja): un valor igual al nombre de una
+  COLUMNA si se tapa -un nombre de columna puede ser el de una persona-, y con el
+  cierre tapa ese nombre en `meta$dialecto$sondas` y, por bloques, en
+  `meta$fuente_bloques` y `meta$plan`.
+
+**Las mediciones:**
+
+* `analizar()` sin `fecha` ya no declara la fecha en su perfil: `perfil$meta$fecha_declarada` era `TRUE` porque
+  `analizar()` le pasa siempre la fecha a `perfilar()`, y `comparar_perfiles()` exigia el orden temporal entre dos
+  horas de corrida. Dos entregas analizadas fuera de orden abortaban con un error de orden falso, y seguir su
+  consejo -invertir los argumentos- publicaba el deterioro como mejora. Ahora el perfil lo dice igual que la
+  medicion del mismo objeto (refutacion 34-D, M5).
+* `comparar_perfiles()` declara el cambio de `columnas_opcionales` entre las dos corridas con la fila
+  `configuracion_columnas_opcionales` (severidad `error`), como ya lo hacia con `aplicabilidad`: el mismo dato
+  perfilado sin y con la declaracion -la que recomienda `posible_ausencia_estructural`- salia como mejora de
+  faltantes, y al retirarla como un deterioro con `hallazgo faltantes aparecido`, sin decir que cambio el universo
+  de completitud. Un perfil anterior a la ronda 33, que no registraba la declaracion, no se compara en ese aspecto
+  (refutacion 34-D, M4).
+* Un codigo declarado en `columnas_codigo` y escrito con separador decimal -un rubro `"1.1"`, un `"10,5"`, `"$10"`-
+  ya no recibe `numero_como_texto` (ni `unidades_mixtas` o `monedas_mixtas`), y `planificar_limpieza()` no le
+  propone `convertir_numero_regional`: el plan quedaba `lista` con `aplicar = TRUE`, tambien desde `analizar()`, y
+  `aplicar()` dejaba la columna `numeric`. Se declara en `cobertura_diagnosticos`. La guarda del plan vale tambien
+  para un perfil calculado antes (refutacion 34-D, M6).
+* Las relaciones aritmeticas entre columnas ya no incluyen las declaradas en `columnas_codigo`
+  (`cod_localidad = cod_depto * 100` salia como regularidad proporcional): se declaran en
+  `cobertura_diagnosticos`, como Tukey y Benford (refutacion 34-D, B2).
+* La corroboracion de `perfilar_dbi()` compara solo las metricas que `resumen_tabla` y `perfil_muestra` calculan
+  con la misma semantica, y lo decide una sola funcion: publicaba como `divergencia` -y `perfilar_coleccion()` subia
+  la tabla a `alcance = "divergencias"`- lo que una declaracion o una guarda hacen distinto a proposito:
+  `n_faltantes` con `columnas_opcionales` o `aplicabilidad`, cinco metricas de magnitud con `sentinelas_numericos`
+  declarados, y `n_ceros` y `n_negativos` de un BIGINT desde 2^53, que el resumen no publica. La ronda 33 lo habia
+  cerrado solo para `columnas_codigo`. Lo que no se compara se publica en
+  `meta$corroboracion_bloques$no_comparadas`, con su causa. `NaN` e infinitos se siguen comparando (refutacion
+  34-D, M1).
+* La corroboracion tolera en `media` y `desvio` -que cada lado acumula con su algoritmo- una diferencia relativa de
+  `1e-10`; los valores leidos (`minimo`, `maximo`, `mediana`, moda) siguen en `64 * .Machine$double.eps`. El `STDEV`
+  de SQL Server se apartaba de R hasta 2e-13 relativo sobre enteros de millones, y la corroboracion acusaba a la
+  muestra. Una divergencia real es de otro orden y sigue saliendo. Queda en `meta$corroboracion_bloques$tolerancia`
+  (refutacion 34-D, M2).
+* En PostgreSQL, las columnas `money` y `real` se leen convertidas en el motor -`CAST(x AS NUMERIC)` y
+  `CAST(CAST(x AS TEXT) AS DOUBLE PRECISION)`- en toda lectura, y el resumen SQL calcula sobre esa misma lectura.
+  RPostgres leia `0` en toda celda `money`, sin avisar: la muestra publicaba `constante` y `filas_duplicadas` con
+  severidad `error`, y con `bloque_filas` el resumen publicaba minimo, maximo, media y desvio `0` sin ninguna
+  divergencia. Y una columna `real` daba dos medias segun la via -el motor promediaba el binario y R leia el texto
+  corto- con divergencias falsas. Las columnas convertidas quedan en `resumen_tabla$meta$lectura_convertida`
+  (refutacion 34-D, M3 y M7).
+* El motivo de un BIGINT desde 2^53 ya no dice que el controlador lo entrego como doble cuando lo entrego como
+  `integer64`, ni le recomienda en PostgreSQL, SQL Server o MariaDB una opcion de RSQLite y duckdb: si llego exacto
+  lo dice, y si llego como doble nombra el argumento de cada controlador (refutacion 34-D, B3).
+* El desvio de `perfilar_dbi()` ya no pierde cifras cuando la media es muy grande frente al ancho de la columna.
+  `STDEV` de SQL Server acumula en una sola pasada y publicaba desvio `0` sobre una columna de marcas de tiempo en
+  milisegundos de una ventana de un segundo (desvio real 314,77), sin aviso con una muestra parcial; el desvio
+  nativo de SQLite, duckdb, MariaDB y MySQL se apartaba 4,5e-8, y `bloque_filas` 8,7e-8. Se pide al motor sobre los
+  valores centrados en la media ya calculada -siempre por columna, y en la consulta compartida otra vez, centrado,
+  cuando la media supera diez veces el desvio-, y `bloque_filas` acumula sus momentos centrados. Medido en los seis
+  motores: el error queda en 1e-14 y los datos comunes no cambian. Como red, un desvio `0` sobre una columna con un
+  minimo menor que el maximo queda `no_disponible` con su motivo (refutacion 34-D, segunda vuelta).
+* Limitacion conocida, documentada en `?perfilar_dbi`: un texto hexadecimal (`'0x10'`) en una columna `NUMERIC` de
+  SQLite pasa la sonda de magnitud como numero (refutacion 34-D, B1).
+* `?analizar` y `?perfiles_madurez` dicen que la evaluacion de `analizar()` usa la medicion agregada, y que sobre
+  medidas por fila de `0` o `1` los tres perfiles de madurez dan la misma cifra (refutacion 34-D, B4).
+
+**Las colecciones (altas):**
+
+- **`relaciones_coleccion(orden = )` ordena la lectura y no la recorta.** Sin
+  `columnas_candidatas`, declarar `orden` hacia que cada tabla se leyera solo por
+  sus columnas de orden (`SELECT id ... ORDER BY id`): la comparacion veia una
+  columna por tabla, las demas relaciones desaparecian sin aviso y el objeto se
+  declaraba `estable = TRUE`. Medido con SQLite: 0 relaciones de 2 siguiendo el
+  `como_resolverlo` del propio paquete, que pide declarar `orden`. Ahora una
+  tabla sin candidatas se lee entera, con su `ORDER BY`, y a una con candidatas
+  se le suman las de orden solo para ordenar. La comparacion toma las candidatas
+  de la misma busqueda que la lectura.
+- **`coleccion()` reconoce el controlador por la clase de la conexion y no
+  carga uno que el usuario no uso.** Una conexion de `RMariaDB::MariaDB()` a un
+  servidor MySQL informa "mysql", y `coleccion()` pedia RMySQL: sin RMySQL se
+  negaba, y con RMySQL lo cargaba; las dos clases se llaman `MySQLConnection`,
+  el metodo de RMySQL tomaba el despacho y la conexion del usuario quedaba
+  inservible (`perfilar_coleccion()` y la consulta siguiente del usuario daban
+  error; `relaciones_coleccion()`, 0 relaciones). Ahora el paquete pedido es el
+  que define la clase de la conexion -o el de una clase de la que hereda-; el
+  motor que informa el servidor solo elige la fila del catalogo. Lo mismo vale
+  para odbc contra MySQL o PostgreSQL (no medido: no hay esos controladores ODBC
+  en la maquina de pruebas).
+
+**Una sesion que no puede escribir un nombre (alta, la propiedad de la ronda 33 en
+otro sitio):**
+
+- **Un nombre de tabla marcado latin1 ya no deja rota la conexion de odbc.**
+  `perfilar_dbi()` y `plan_perfilado_dbi()` llamaban a `dbExistsTable()` con el
+  nombre crudo antes de la guarda de la ronda 33; odbc lo pasa al controlador sin
+  convertirlo, y con el nombre de `read.csv(encoding = "latin1")` -o esos bytes
+  sin marca- la conexion quedaba rota: todo lo siguiente fallaba y la segunda
+  consulta del usuario hacia caer a R (SQL Server por FreeTDS, sesion UTF-8). Bajo
+  `C`, `dbQuoteIdentifier()` escapaba el nombre a texto ASCII que la guarda dejaba
+  pasar: otro identificador. Ahora todo nombre que va a la conexion se normaliza
+  una vez -lo marcado latin1 pasa a UTF-8; lo UTF-8 valido se marca- y pasa por
+  la guarda antes de la primera llamada, tambien `dbExistsTable()` y
+  `dbListFields()`, que salen por dos envoltorios que la miran (una prueba
+  recorre el espacio de nombres). `perfilar_dbi()`, `plan_perfilado_dbi()` y
+  `coleccion()` -por texto, `data.frame` o `DBI::Id`- leen el nombre latin1; uno
+  con bytes que no son UTF-8 valido y no declaran codificacion da
+  `lupa_error_codificacion_dbi` antes de tocar la conexion, con el remedio de
+  leerlo con `fileEncoding` (correr con un locale UTF-8 no lo arregla). La guarda
+  bajo un locale UTF-8 ya no deja pasar esos bytes, y `coleccion()` ya no
+  convierte un nombre asi en el texto `"NA"`.
+
+**Las colecciones bajo `C` (media y bajas):**
+
+- **`relaciones_coleccion()` publica los nombres de columna de `dbListFields()`.**
+  Bajo `C`, FreeTDS devuelve los nombres de `SELECT *` en latin1 (`a\xf1o`) y
+  `dbListFields()` en UTF-8: `relaciones_coleccion()` publicaba los primeros, que
+  no aparean con los de `perfilar_coleccion()` de la misma sesion, devueltos como
+  `columnas_candidatas` daban error y en una sesion UTF-8 hacian abortar
+  `nchar()` y `toupper()`. Los nombres en bytes no UTF-8 se toman ahora de la
+  fuente del paquete, por posicion y solo si los demas coinciden.
+- **Una columna que la sesion no puede escribir no se lleva el par.** Bajo `C`,
+  una candidata o un `orden` no ASCII por odbc hacia fallar la lectura de la tabla
+  entera -se perdia tambien `id -> persona_id`- con un motivo tapado dos veces y
+  un remedio de permisos. Ahora la candidata sale de la lectura y sus
+  combinaciones van a `cobertura_podas` con motivo `columna_no_escribible`; un
+  `orden` asi deja la lectura sin `ORDER BY`, y `meta$lecturas` y
+  `meta$estable = FALSE` lo dicen. El motivo de una lectura fallida se publica
+  una sola vez, legible, con el remedio de la codificacion cuando corresponde.
+- **Un `orden` con bytes sin codificacion declarada no aborta.** Bajo una sesion
+  UTF-8, `relaciones_coleccion(orden = )` con los bytes de un CSV latin1 leido sin
+  `fileEncoding` daba un error de R desde `dbQuoteIdentifier()` de RSQLite; ahora
+  la lectura va sin `ORDER BY` y lo dice.
+
+**Las bajas de la misma construccion:**
+
+- **`analizar()` lee los argumentos de `perfilar()` con su nombre completo.** Con
+  `argumentos_perfil = list(aplic = ...)` el perfil usaba el universo declarado y
+  el tablero no: `NoNulo` 0,27 en vez de 0,9 sobre 300 filas aplicables de 1000,
+  sin aviso. Es la regla de la ronda 33 (`.argumentos_para_perfilar()`), que
+  faltaba en esta via.
+- **Un prefijo de varios argumentos por `...` dice que es ambiguo.** `n = TRUE`
+  en `perfilar_por()`, `perfilar_dbi()` o `perfilar_coleccion()` decia "`n` no es
+  un argumento de `perfilar()`"; ahora nombra los que casan (`nombre`,
+  `normalizar`).
+- **Los mensajes del paquete ya no escriben `character(0)`.** Un argumento `NULL`
+  -un `if` sin `else`- salia escrito en el texto ("la medida `x`character(0)"); se
+  descarta como en `stop()` de base.
+
+**Limitacion conocida:**
+
+- `perfilar_coleccion()` valida al entrar lo que va a `perfilar()`, no los
+  argumentos propios de `perfilar_dbi()` (`estrategia_distintos`,
+  `max_consultas`, `umbral_cardinalidad`...): uno mal escrito deja cada tabla en
+  `cobertura_coleccion` con ese motivo, sin aviso. Documentado en
+  `?perfilar_coleccion`.
+
 ## Ronda 33: la primera ronda con el porton por severidad
 
 Desde esta ronda la etapa de refutacion cierra cuando una ronda no encuentra nada alto ni

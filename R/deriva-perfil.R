@@ -228,6 +228,23 @@ rbind.deriva_perfil <- function(..., deparse.level = 1) {
   .clave_bytes(.ordenar_por_bytes(valores))
 }
 
+# `columnas_opcionales` redefine el universo de completitud de una columna -sus
+# celdas presentes- igual que `aplicabilidad` redefine el aplicable, y el perfil
+# la registra en `meta$columnas_opcionales` desde la ronda 33. La comparacion no
+# la leia: el mismo dato perfilado sin y con la declaracion -la que el paquete
+# recomienda en `posible_ausencia_estructural`- salia `faltantes 0,54 -> 0 ok`, y
+# al retirarla `0 -> 0,54 error` con `hallazgo faltantes aparecido`, un deterioro
+# que no ocurrio, sin la fila de configuracion que si tenia `aplicabilidad`
+# (refutacion 34-D). Un perfil anterior a la ronda 33 no la registraba aunque la
+# hubiera declarado: ahi no se sabe, y no se compara, como con `aplicabilidad`.
+.configuracion_opcionales_perfil <- function(perfil) {
+  if (!"columnas_opcionales" %in% names(perfil$meta)) return(NULL)
+  valores <- as.character(perfil$meta$columnas_opcionales)
+  valores <- valores[!is.na(valores)]
+  valores <- valores[!duplicated(.clave_bytes(valores))]
+  .clave_bytes(.ordenar_por_bytes(valores))
+}
+
 .configuracion_sentinelas_perfil <- function(perfil) {
   if (!"sentinelas_numericos" %in% names(perfil$meta)) return(NULL)
   # Un conjunto, no una secuencia: `c(999, -9)` y `c(-9, 999)` son la misma
@@ -1584,6 +1601,30 @@ comparar_perfiles <- function(anterior, actual, umbral_cambio = 0.05,
         "Cambiaron las columnas con regla de aplicabilidad; esa regla redefine",
         "el universo aplicable, asi que las diferencias de faltantes,",
         "cardinalidad y rango pueden ser del metodo y no de los datos."
+      ),
+      evidencia = paste(
+        "Se mantienen las comparaciones para que las corridas siguientes sigan",
+        "detectando deriva con la politica vigente."
+      )
+    )
+  }
+
+  # La misma fila para la otra declaracion que redefine un universo.
+  opcionales_a <- .configuracion_opcionales_perfil(anterior)
+  opcionales_b <- .configuracion_opcionales_perfil(actual)
+  if (!is.null(opcionales_a) && !is.null(opcionales_b) &&
+      !identical(opcionales_a, opcionales_b)) {
+    texto_opcionales <- function(x) {
+      if (!length(x)) "ninguna" else paste(x, collapse = "; ")
+    }
+    agregar(
+      NA_character_, "configuracion_columnas_opcionales", "modificado",
+      "error", texto_opcionales(opcionales_a),
+      texto_opcionales(opcionales_b),
+      descripcion = paste(
+        "Cambiaron las columnas declaradas en `columnas_opcionales`; su",
+        "universo de completitud son las celdas presentes, asi que las",
+        "diferencias de faltantes pueden ser del metodo y no de los datos."
       ),
       evidencia = paste(
         "Se mantienen las comparaciones para que las corridas siguientes sigan",

@@ -69,7 +69,12 @@ un índice global de calidad.
 \code{perfiles_madurez()} crea por omisión los perfiles \code{Básico}, \code{Intermedio} y
 \code{Avanzado} de AGESIC, con condiciones estrictas \verb{> 0.5}, \verb{> 0.7} y \verb{> 0.9}.
 El argumento \code{umbrales} permite construir otra familia con nombres y cortes
-crecientes propios sobre las mismas métricas instanciadas.
+crecientes propios sobre las mismas métricas instanciadas. Los cortes son
+umbrales sobre el \strong{resultado agregado} de cada métrica —una proporción en
+\verb{[0, 1]}, lo que deja \code{\link[=agregar]{agregar()}}—: sobre las medidas por fila de \code{\link[=medir]{medir()}},
+que valen \code{0} o \code{1}, los tres cortes son la misma condición y los tres
+perfiles dan la misma cifra, sin aviso. Es lo que hace \code{\link[=analizar]{analizar()}}, que
+evalúa la medición agregada.
 
 \code{regla_evaluacion()} almacena la función sin ejecutarla. \code{\link[=evaluar]{evaluar()}}
 selecciona las medidas mediante \code{metricas}, llama una vez a \code{condicion} y

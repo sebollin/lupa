@@ -1243,6 +1243,26 @@ planificar_limpieza <- function(perfil, datos = NULL,
     as.character(perfil$columnas$columna)
   }
   marcas_plan <- nombres_tabla[.marcas_del_plan(nombres_tabla)]
+  # Una columna declarada en `columnas_codigo` es un codigo y no una cantidad: no
+  # recibe acciones que la conviertan en numero. El perfil ya no publica esos
+  # hallazgos sobre un codigo declarado; la guarda vale tambien para un perfil
+  # calculado antes, que si los traia (refutacion 34-D).
+  codigos_declarados <- .nombres_para_operar(as.character(
+    perfil$meta[["columnas_codigo"]]
+  ))
+  convierte_a_numero <- function(tipo, columna) {
+    if (is.na(columna) || !length(codigos_declarados) ||
+        !.nombres_para_operar(columna) %in% codigos_declarados) {
+      return(FALSE)
+    }
+    if (tipo %in% c("numero_como_texto", "unidades_mixtas", "monedas_mixtas")) {
+      return(TRUE)
+    }
+    if (!identical(tipo, "tipo_declarado_distinto")) return(FALSE)
+    fila <- .fila_perfil(perfil, columna)
+    !is.null(fila) &&
+      as.character(fila$tipo_inferido[[1L]]) %in% c("entero", "doble", "integer64")
+  }
 
   for (i in seq_len(nrow(hallazgos))) {
     hallazgo <- hallazgos[i, , drop = FALSE]
@@ -1254,6 +1274,7 @@ planificar_limpieza <- function(perfil, datos = NULL,
         .nombres_para_operar(columna) %in% .nombres_para_operar(marcas_plan)) {
       next
     }
+    if (convierte_a_numero(tipo, columna)) next
     grupo_hallazgo <- .id_grupo(i)
     fila <- if (!is.na(columna)) .fila_perfil(perfil, columna) else NULL
     estado_columna <- if (!is.na(columna)) {

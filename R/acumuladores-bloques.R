@@ -125,7 +125,8 @@
       n_ceros = 0, n_negativos = 0
     ),
     cuantitativos = list(
-      n = 0, media = 0, m2 = 0, minimo = Inf, maximo = -Inf,
+      n = 0, media = 0, m2 = 0, centro = NA_real_, minimo = Inf,
+      maximo = -Inf,
       n_nan = 0, n_infinito_positivo = 0, n_infinito_negativo = 0,
       n_ceros = 0, n_negativos = 0, contar_signos = TRUE
     ),
@@ -511,9 +512,19 @@
     acumulador$estado_familia <- estado
     return(acumulador)
   }
-  n_bloque <- length(finitos)
-  media_bloque <- mean(finitos)
-  diferencias <- finitos - media_bloque
+  # Los momentos se acumulan centrados en una constante -la media del primer
+  # bloque-, y la media publicada es `centro + media`. Sin centrar, la fusion de
+  # bloques operaba con medias absolutas: sobre 61 marcas de tiempo en
+  # milisegundos de una ventana de un segundo el desvio salia 2,3e-8 relativo
+  # lejos del de R, porque la diferencia entre dos medias de 1,76e12 conserva
+  # pocas cifras (refutacion 34-D). Centrado, esa diferencia es la de dos medias
+  # chicas. Ver `.formas_desvio_dbi()`, la misma propiedad en el motor.
+  centro <- .centro_cuantitativo_bloques(estado, finitos)
+  estado$centro <- centro
+  centrados <- finitos - centro
+  n_bloque <- length(centrados)
+  media_bloque <- mean(centrados)
+  diferencias <- centrados - media_bloque
   m2_bloque <- sum(diferencias * diferencias)
   if (estado$n == 0L) {
     estado$media <- media_bloque
@@ -1251,6 +1262,31 @@
     identical(x$incluir_ausentes, y$incluir_ausentes)
 }
 
+# El centro de un estado de momentos: la constante a la que estan referidos su
+# media y su `m2`. Un estado sin centro -vacio, o anterior a la ronda 34-
+# acumula sin centrar, que es centro 0.
+.centro_estado_bloques <- function(estado) {
+  centro <- estado$centro
+  if (is.null(centro) || length(centro) != 1L || !is.finite(centro)) {
+    return(0)
+  }
+  centro
+}
+
+# El centro se fija con el primer bloque que trae valores y no se mueve: todos
+# los bloques de un mismo estado se restan la misma constante. Es la media de ese
+# bloque, o su primer valor si la media no es finita.
+.centro_cuantitativo_bloques <- function(estado, finitos) {
+  centro <- estado$centro
+  if (!is.null(centro) && length(centro) == 1L && is.finite(centro)) {
+    return(centro)
+  }
+  if (isTRUE(estado$n > 0)) return(0)
+  centro <- mean(finitos)
+  if (!is.finite(centro)) centro <- finitos[[1L]]
+  centro
+}
+
 .fusionar_estado_cuantitativo <- function(a, b) {
   a$n_nan <- a$n_nan + b$n_nan
   a$n_infinito_positivo <- a$n_infinito_positivo + b$n_infinito_positivo
@@ -1267,7 +1303,11 @@
     return(b)
   }
   total <- a$n + b$n
-  diferencia <- b$media - a$media
+  # Cada estado acumula centrado en su propia constante: la media de `b` se
+  # lleva al centro de `a` antes de fusionar. La resta de dos centros cercanos es
+  # exacta.
+  media_b <- b$media + (.centro_estado_bloques(b) - .centro_estado_bloques(a))
+  diferencia <- media_b - a$media
   a$m2 <- a$m2 + b$m2 + diferencia * diferencia * a$n * b$n / total
   a$media <- a$media + diferencia * b$n / total
   a$n <- total
@@ -1653,7 +1693,7 @@
       } else {
         list(
           minimo = estado$minimo, maximo = estado$maximo,
-          media = estado$media,
+          media = .centro_estado_bloques(estado) + estado$media,
           desvio = if (estado$n > 1L) sqrt(estado$m2 / (estado$n - 1)) else NA_real_,
           n_evaluados = estado$n, n_nan = estado$n_nan,
           n_infinito_positivo = estado$n_infinito_positivo,

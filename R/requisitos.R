@@ -225,9 +225,56 @@
   } else {
     NA_character_
   }
-  if (is.na(id)) return(NULL)
   catalogo <- .catalogo_requisitos_motor()
+  # El controlador es el que el usuario uso, y eso lo dice la CLASE de la
+  # conexion -el paquete que la define, o el de una clase de la que hereda-, no
+  # el texto de `dbGetInfo()`. Con el texto, una conexion de RMariaDB a un
+  # servidor MySQL ("mysqlconnection ... 8.4") pedia RMySQL: sin RMySQL
+  # `coleccion()` se negaba, y con RMySQL lo cargaba, las dos clases se llaman
+  # `MySQLConnection` y el metodo de RMySQL tomaba el despacho -la conexion del
+  # usuario quedaba inservible- (ronda 34-X). Lo mismo valia para odbc contra
+  # MySQL o PostgreSQL. `perfilar_dbi()` mide esa misma conexion sin pedir nada.
+  # El texto solo elige, entre las filas del mismo paquete, la del motor.
+  paquete <- .paquete_controlador_dbi(conexion, catalogo$paquete_r)
+  if (!is.na(paquete)) {
+    propias <- catalogo[catalogo$paquete_r %in% paquete, , drop = FALSE]
+    fila <- if (!is.na(id) && id %in% propias$id_motor) {
+      propias$id_motor == id
+    } else if (any(propias$id_motor == .minusculas_ascii(paquete))) {
+      propias$id_motor == .minusculas_ascii(paquete)
+    } else {
+      seq_len(nrow(propias)) == 1L
+    }
+    return(propias[fila, , drop = FALSE])
+  }
+  if (is.na(id)) return(NULL)
   catalogo[catalogo$id_motor == id, , drop = FALSE]
+}
+
+# El paquete del controlador de una conexion: el que define su clase S4 -el
+# atributo `package` de `class()`, que distingue la `MySQLConnection` de
+# RMariaDB de la de RMySQL- o, si la clase es de otro lado -una subclase
+# propia-, el de la primera clase de la que hereda que un solo paquete cargado
+# del catalogo define. `.class2()` da esas clases sin `methods`, y una clase S4
+# vive en el espacio de nombres que la define como `.__C__<clase>`. `NA` si
+# ninguna lo esta (una clase S3, un controlador fuera del catalogo).
+.paquete_controlador_dbi <- function(conexion, paquetes) {
+  paquetes <- setdiff(unique(paquetes[!is.na(paquetes)]), "DBI")
+  propio <- attr(class(conexion), "package")
+  if (is.character(propio) && length(propio) == 1L && !is.na(propio) &&
+      propio %in% paquetes) {
+    return(propio)
+  }
+  if (!isS4(conexion)) return(NA_character_)
+  cargados <- paquetes[vapply(paquetes, isNamespaceLoaded, logical(1L))]
+  for (superior in .class2(conexion)[-1L]) {
+    definen <- cargados[vapply(cargados, function(paquete) {
+      exists(paste0(".__C__", superior), envir = asNamespace(paquete),
+             inherits = FALSE)
+    }, logical(1L))]
+    if (length(definen) == 1L) return(definen)
+  }
+  NA_character_
 }
 
 .validar_conexion_dbi <- function(conexion, accion = "usar una conexion DBI") {
@@ -377,6 +424,12 @@ print.requisitos_motor <- function(x, ...) {
 #' significa que el dialecto está implementado pero no se comprobó contra ese
 #' motor real en este repositorio. Los motores que no figuran en esa tabla no se
 #' presentan como probados.
+#'
+#' Ante una conexión abierta, `coleccion()` y `perfilar_coleccion()` piden el
+#' paquete del **controlador con que se abrió**, que reconocen por la clase de
+#' la conexión y el paquete que la define, no por el motor que informa el
+#' servidor: un MySQL abierto con `RMariaDB::MariaDB()` usa RMariaDB y no pide
+#' ni carga RMySQL, cuya clase se llama igual y rompería la conexión.
 #'
 #' @param motor `NULL` para devolver el catálogo completo, o el nombre de un
 #'   motor, como `"oracle"`, `"postgresql"` o `"sql server"`.

@@ -41,9 +41,15 @@ analizar(
 \item{nombre}{Nombre de la entrega.}
 
 \item{fecha}{Fecha y hora reproducible de la corrida. Se lee una vez, como
-en \code{\link[=perfilar]{perfilar()}} y \code{\link[=medir]{medir()}}: en UTC, también un texto como \code{"2026-03-01"}.}
+en \code{\link[=perfilar]{perfilar()}} y \code{\link[=medir]{medir()}}: en UTC, también un texto como \code{"2026-03-01"}.
+Si se omite, el perfil y la medición lo registran igual que esas dos
+funciones (\code{fecha_declarada = FALSE}), y \code{\link[=comparar_perfiles]{comparar_perfiles()}} no les exige
+el orden temporal: la hora de la corrida no dice nada sobre las entregas.}
 
-\item{argumentos_perfil}{Lista de argumentos adicionales para \code{\link[=perfilar]{perfilar()}}.}
+\item{argumentos_perfil}{Lista de argumentos adicionales para \code{\link[=perfilar]{perfilar()}}.
+Los nombres se completan como los completa \code{perfilar()} —\code{aplic} es
+\code{aplicabilidad}— antes de leerlos, así que un nombre abreviado gobierna el
+perfil y la medición por igual.}
 
 \item{metadatos_variables}{Declaraciones para \code{\link[=clasificar_variables]{clasificar_variables()}}.}
 
@@ -156,8 +162,14 @@ concisa a \code{argumentos_perfil}.}
 \value{
 Objeto S3 \code{analisis} con todos los componentes y su cobertura.
 
-Dos diferencias respecto de llamar a las funciones sueltas, y las dos son
-deliberadas. La entrada puede ser una matriz de dos dimensiones: se la pasa
+Tres diferencias respecto de llamar a las funciones sueltas, y las tres son
+deliberadas. La evaluación usa la medición \strong{agregada}, no las medidas por
+fila: \code{evaluar(medir(...), perfil)} aplica la regla a cada medida y puede
+dar otra cifra que \code{analizar(perfil_evaluacion = perfil)} sobre los mismos
+datos —una proporción de medidas contra una proporción de métricas—, y
+sobre medidas de \code{0} o \code{1} los tres \code{\link[=perfiles_madurez]{perfiles_madurez()}} no se distinguen.
+Para reproducirla con las funciones sueltas, \code{\link[=agregar]{agregar()}} antes de
+\code{\link[=evaluar]{evaluar()}}. La entrada puede ser una matriz de dos dimensiones: se la pasa
 a \code{\link[=perfilar]{perfilar()}} sin convertir, para que sea él quien la convierta y lo
 declare en \code{meta$entrada_convertida}. Y cuando una columna temporal
 pertenece a una columna protegida, \code{temporal$resumen} gana la columna

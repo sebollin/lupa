@@ -186,7 +186,13 @@
 #' @param nombre Nombre de la entrega.
 #' @param fecha Fecha y hora reproducible de la corrida. Se lee una vez, como
 #'   en [perfilar()] y [medir()]: en UTC, también un texto como `"2026-03-01"`.
+#'   Si se omite, el perfil y la medición lo registran igual que esas dos
+#'   funciones (`fecha_declarada = FALSE`), y [comparar_perfiles()] no les exige
+#'   el orden temporal: la hora de la corrida no dice nada sobre las entregas.
 #' @param argumentos_perfil Lista de argumentos adicionales para [perfilar()].
+#'   Los nombres se completan como los completa `perfilar()` —`aplic` es
+#'   `aplicabilidad`— antes de leerlos, así que un nombre abreviado gobierna el
+#'   perfil y la medición por igual.
 #' @param metadatos_variables Declaraciones para [clasificar_variables()].
 #' @param modelo_confirmado Modelo creado por [modelo()] o `NULL`.
 #' @param propuesta_confirmada Propuesta editada por el usuario o `NULL`.
@@ -274,8 +280,14 @@
 #'
 #' @return Objeto S3 `analisis` con todos los componentes y su cobertura.
 #'
-#'   Dos diferencias respecto de llamar a las funciones sueltas, y las dos son
-#'   deliberadas. La entrada puede ser una matriz de dos dimensiones: se la pasa
+#'   Tres diferencias respecto de llamar a las funciones sueltas, y las tres son
+#'   deliberadas. La evaluación usa la medición **agregada**, no las medidas por
+#'   fila: `evaluar(medir(...), perfil)` aplica la regla a cada medida y puede
+#'   dar otra cifra que `analizar(perfil_evaluacion = perfil)` sobre los mismos
+#'   datos —una proporción de medidas contra una proporción de métricas—, y
+#'   sobre medidas de `0` o `1` los tres [perfiles_madurez()] no se distinguen.
+#'   Para reproducirla con las funciones sueltas, [agregar()] antes de
+#'   [evaluar()]. La entrada puede ser una matriz de dos dimensiones: se la pasa
 #'   a [perfilar()] sin convertir, para que sea él quien la convierta y lo
 #'   declare en `meta$entrada_convertida`. Y cuando una columna temporal
 #'   pertenece a una columna protegida, `temporal$resumen` gana la columna
@@ -338,6 +350,15 @@ analizar <- function(datos, nombre = .nombre_de_los_datos(substitute(datos)),
     .detener("Todos los argumentos de perfilar() deben tener nombre.", call. = FALSE)
   }
   argumentos_perfil <- c(argumentos_perfil, extras)
+  # Los nombres se completan como los completara `perfilar()` al recibirlos
+  # (ronda 34-X): `analizar()` lee `aplicabilidad`, `columnas_opcionales` y
+  # `sentinelas_numericos` de esta lista para la medicion, y por el nombre
+  # exacto. Con `aplic = ` el perfil contaba los faltantes sobre el universo
+  # -30 de 300, 0,1- y el tablero sobre la tabla -270/1000, `NoNulo` 0,27-, sin
+  # aviso. Es la regla de `.argumentos_para_perfilar()` de la ronda 33, que
+  # faltaba en esta via; y asi un abreviado de un argumento coordinado (`fech`)
+  # da el error de abajo y no el de R.
+  argumentos_perfil <- .argumentos_para_perfilar(argumentos_perfil)
   if (anyDuplicated(.nombres_para_operar(names(argumentos_perfil)))) {
     .detener("Los argumentos de perfilar() no pueden repetirse.", call. = FALSE)
   }
@@ -389,6 +410,16 @@ analizar <- function(datos, nombre = .nombre_de_los_datos(substitute(datos)),
     proteger_datos_personales = proteger_datos_personales
   ), argumentos_perfil)
   perfil <- do.call(perfilar, argumentos)
+  # `perfilar()` recibe SIEMPRE la fecha -la misma lectura que usa la medicion-,
+  # asi que su `!missing(fecha)` da TRUE aunque quien llamo a `analizar()` no la
+  # haya dado. El perfil decia `fecha_declarada = TRUE` sin `fecha`, y
+  # `comparar_perfiles()` exigia el orden temporal entre dos instantes de corrida:
+  # dos entregas analizadas fuera de orden abortaban con un error de orden falso,
+  # y seguir su consejo -invertir los argumentos- publicaba el deterioro como
+  # mejora (refutacion 34-D). Lo declara quien llamo, como en la medicion.
+  if (is.list(perfil) && is.list(perfil$meta)) {
+    perfil$meta$fecha_declarada <- fecha_declarada
+  }
   datos <- .tabla_base(datos_originales)
   # El universo declarado en `argumentos_perfil` gobierna tambien las
   # distribuciones. Ver `.universo_declarado_analisis()`.

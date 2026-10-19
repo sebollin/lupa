@@ -1058,10 +1058,26 @@
 .validar_argumentos_para_perfilar <- function(argumentos, propios = character()) {
   nombres <- names(argumentos)
   if (!is.null(nombres)) {
+    formales <- c(names(formals(perfilar)), propios)
     desconocidos <- nombres[!is.na(nombres) & nzchar(nombres) &
-                              !nombres %in% c(names(formals(perfilar)), propios)]
+                              !nombres %in% formales]
     if (length(desconocidos)) {
-      .detener("`", desconocidos[[1L]], "` no es un argumento de `perfilar()`.",
+      # Un prefijo de varios formales no es "un argumento que no existe": es
+      # ambiguo, y `perfilar()` directo lo dice asi (ronda 34-X). Se nombran los
+      # que casan para que quien llama sepa cual escribir.
+      primero <- desconocidos[[1L]]
+      posibles <- if (!grepl("[^\\001-\\177]", primero, useBytes = TRUE,
+                             perl = TRUE)) {
+        formales[startsWith(formales, primero)]
+      } else character()
+      if (length(posibles) > 1L) {
+        .detener(
+          "`", primero, "` abrevia varios argumentos de `perfilar()` (",
+          paste0("`", posibles, "`", collapse = ", "),
+          "): escribirlo completo.", call. = FALSE
+        )
+      }
+      .detener("`", primero, "` no es un argumento de `perfilar()`.",
                call. = FALSE)
     }
   }

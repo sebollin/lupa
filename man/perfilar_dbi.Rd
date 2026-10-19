@@ -279,17 +279,22 @@ parcial con resultados completos. \code{Inf} desactiva este límite.}
 
 \item{columnas_opcionales}{Nombres de columnas que sólo son aplicables a
 parte de las filas. Esta política se aplica al \code{perfil_muestra}; el
-resumen SQL no la traduce y lo declara en \code{resumen_tabla$cobertura}.}
+resumen SQL no la traduce y lo declara en \code{resumen_tabla$cobertura}. Los
+dos bloques cuentan \code{n_faltantes} sobre universos distintos, así que la
+corroboración no lo compara: ver «Lo que el motor guarda distinto que R».}
 
 \item{aplicabilidad}{Lista nombrada de fórmulas de un solo lado, con una
 regla por columna. Se reenvía al \code{perfil_muestra}; el resumen SQL no la
-traduce y lo declara en \code{resumen_tabla$cobertura}.}
+traduce y lo declara en \code{resumen_tabla$cobertura}, y la corroboración no
+compara lo que la regla cambia.}
 
 \item{sentinelas_numericos}{Vector completo de valores numéricos que se
 declaran como faltantes en el \code{perfil_muestra}. Se normaliza como un
 conjunto numérico, por lo que el orden, el tipo entero o doble y los
 duplicados no cambian el resultado. El resumen SQL no los excluye de sus
-agregados y lo declara en \code{resumen_tabla$cobertura}.
+agregados y lo declara en \code{resumen_tabla$cobertura}; la corroboración no
+compara las métricas de magnitud de una columna de la que la muestra
+excluyó alguno.
 
 Rige la misma reserva que en \code{\link[=perfilar]{perfilar()}}: un valor de la lista \strong{por
 omisión} que aparece una sola vez y dentro del rango de los demás no se
@@ -413,6 +418,13 @@ no se envía: la columna queda en \code{no_disponible} con ese motivo, y una tab
 con un nombre así da \code{lupa_error_codificacion_dbi}. Para leerlas, correr la
 sesión con un locale UTF-8 (\code{LC_ALL=C.UTF-8}). RPostgres, RSQLite y duckdb
 reciben la consulta en UTF-8 y leen esos nombres en cualquier locale.
+El nombre de la tabla se normaliza antes de la primera llamada a la conexión,
+también la que comprueba que existe: un nombre marcado \code{latin1} —el que da
+\code{read.csv(encoding = "latin1")}— se convierte a UTF-8 y se lee, y uno con
+bytes que no son UTF-8 válido y no declaran su codificación —\code{read.csv()}
+sin \code{fileEncoding} sobre un archivo latin1— no se adivina: con odbc da
+\code{lupa_error_codificacion_dbi} antes de tocar la conexión, que antes quedaba
+rota.
 Los \code{stop()} de esta vía llevan clase de condición propia —todas heredan de
 \code{lupa_error_dbi}— para que se puedan rescatar con \code{tryCatch()}:
 \code{lupa_error_conexion_dbi}, \code{lupa_error_tabla_dbi}, \code{lupa_error_campos_dbi},
@@ -588,6 +600,17 @@ afuera los infinitos, y su \code{sql} lo muestra. Donde la consulta no sabe
 escribir el infinito, o sobre una muestra del motor, esas métricas quedan
 \code{no_disponible} con ese motivo. Un infinito es un número: no se informa
 como un valor que no se pudo leer como número.
+\item \strong{\code{money} y \code{real} en PostgreSQL.} RPostgres lee \code{0} en toda celda
+\code{money}, sin avisar, y un \code{real} por su texto decimal corto —\code{21.3}—,
+mientras el motor opera sobre el binario guardado —21.299999237060547—.
+Las dos columnas se leen convertidas en el motor: \code{money} como
+\verb{CAST(x AS NUMERIC)} y \code{real} como \verb{CAST(CAST(x AS TEXT) AS DOUBLE PRECISION)}, la cifra que lee R. La conversión vale para toda lectura —la
+muestra, \code{bloque_filas}, \code{muestra_motor}— y el resumen SQL calcula sus
+agregados sobre esa misma lectura, así que las vías publican la misma
+cifra. Las columnas convertidas y su expresión quedan en
+\code{resumen_tabla$meta$lectura_convertida}. Se reconocen por el tipo que
+publica \code{DBI::dbColumnInfo()} de RPostgres; con otro controlador no se
+convierte nada.
 \item \strong{La media en coma flotante.} Cada lado suma a su modo; sobre una columna
 que mezcla magnitudes muy distintas —\code{1e20} junto a \code{1}— las medias pueden
 diferir entre motores y con la de R, y ninguna es la exacta. La
@@ -599,6 +622,21 @@ recortaría: en SQL Server \verb{AVG(CAST(x AS FLOAT))}, porque \code{AVG} de un
 grandes el desvío de un \code{numeric} sale con cuatro; en MySQL y MariaDB
 \code{AVG(x * 1e0)}, porque \code{AVG} de un \code{DECIMAL} devuelve cinco decimales. En
 los demás motores, \code{x * 1.0}.
+\item \strong{El desvío de una sola pasada.} \code{STDEV} de SQL Server —y, con menos
+pérdida, el desvío nativo de SQLite, duckdb, MariaDB y MySQL— acumula en
+una sola pasada, y cuando la media es muy grande frente al ancho de la
+columna pierde las cifras del desvío: sobre marcas de tiempo en
+milisegundos de una ventana de un segundo, SQL Server respondía \code{0}. El
+desvío no cambia si a cada valor se le resta una constante, así que se le
+pide al motor sobre los valores centrados en la media ya calculada: siempre
+en la consulta por columna, y en la consulta compartida —donde la media sale
+de la misma sentencia— se vuelve a pedir centrado cuando la media supera
+diez veces el desvío, con una consulta más que el plan no anticipa porque
+depende de los datos. Su fila de \code{sql} lo dice. Con \code{bloque_filas} los
+momentos se acumulan centrados. Bajo \code{muestra_motor} no se vuelve a pedir,
+porque otra consulta vería otras filas; ahí, como red en todas las vías, un
+desvío \code{0} sobre una columna con dos valores distintos —un mínimo menor que
+el máximo— es imposible y queda \code{no_disponible} con su motivo.
 \item \strong{El cotejamiento.} El resumen SQL agrupa y ordena con el cotejamiento
 de la columna: sobre una \verb{COLLATE NOCASE} de SQLite o una colación ICU no
 determinista de PostgreSQL, "Montevideo" y "montevideo" son un valor, y
@@ -622,6 +660,31 @@ cada divergencia con esa causa medida en \code{resumen_tabla$cobertura},
 y dice que las cifras de magnitud de \code{perfil_muestra} para esa columna no
 describen lo guardado. Para perfilar los valores guardados, leer la columna
 como texto (\verb{CAST(columna AS TEXT)} en una vista) o limpiarla en el origen.
+\strong{Limitación conocida:} un texto que R sí lee como número —\code{'0x10'},
+hexadecimal, que \code{as.numeric()} lee 16— pasa la sonda de magnitud como un
+número, y el resumen SQL publica \code{maximo = 16} sobre una columna \code{NUMERIC}
+cuyo máximo numérico es otro; las divergencias de la corroboración son la
+señal.
+\item \strong{Lo que la corroboración compara.} Sólo las métricas que los dos bloques
+calculan con la misma semántica. No compara lo que una declaración o una
+guarda hacen distinto a propósito, porque esa diferencia no es del motor,
+del controlador ni de un snapshot: la \code{media}, la \code{mediana} y el \code{desvio}
+de una columna de \code{columnas_codigo}, que no se calculan; \code{n_faltantes} de
+una columna de \code{columnas_opcionales} o de \code{aplicabilidad}, que la muestra
+cuenta sobre su universo —y todas las métricas de la columna con
+\code{aplicabilidad} si la muestra dejó afuera valores presentes—; las métricas
+de magnitud de una columna de la que la muestra excluyó los
+\code{sentinelas_numericos} declarados; y las de un entero de 64 bits desde
+2^53, que el resumen no publica. Un \code{NaN} o un infinito sí se compara: es
+la diferencia del motor que la corroboración existe para declarar. Lo que
+no se comparó queda en \code{resumen_tabla$meta$corroboracion_bloques$no_comparadas},
+una fila por columna y métrica con su causa. La tolerancia está en
+\code{meta$corroboracion_bloques$tolerancia}: \code{1e-10} absoluta más \code{64} épsilon
+de máquina relativos para los valores leídos —\code{minimo}, \code{maximo},
+\code{mediana}, la moda—, y \code{1e-10} relativa para \code{media} y \code{desvio}, que cada
+lado acumula con su algoritmo y en su orden. Medido en SQL Server, la
+diferencia de la acumulación llega a 2e-13; una divergencia real es de otro
+orden y sigue saliendo.
 }
 }
 
@@ -802,6 +865,14 @@ leer, la protección se aplica a todas las columnas y \code{meta} lo declara.
 Lo que se oculta no queda \code{calculado}: su fila de \code{resumen_tabla$sql} dice
 \code{omitido_por_privacidad}, con un motivo que distingue la columna clasificada
 como personal de la que se cerró porque, sin muestra, no se pudo clasificar.
+Una columna que no se protege publica sus estadísticos aunque comparta el
+tipo personal con una protegida, como en \code{\link[=perfilar]{perfilar()}}: un importe entero de
+siete cifras o un número de factura clasificado \code{documento_identidad}
+débil. Hasta la ronda 33 se tapaban sus cinco estadísticos con el motivo
+de una columna protegida, mientras \code{perfil_muestra} los publicaba; una
+copia del documento la tapa el piso por valor, que corre con la tabla
+entera, y la que lo copia sin su verificador se clasifica como columna
+personal con la regla de \code{\link[=perfilar]{perfilar()}}, sobre la muestra.
 El desvío se oculta como la media, como en \code{\link[=perfilar]{perfilar()}}; también en
 \code{resumen_tabla$meta$familias}, donde la vía por bloques (\code{bloque_filas})
 guarda lo que devolvió cada acumulador: ahí se tapan los extremos, la media
@@ -843,7 +914,17 @@ conoce; \code{\link[=perfilar_coleccion]{perfilar_coleccion()}} los cruza. Se tr
 no se puede hacer, se tapan todos los valores de celda de las columnas no
 personales —moda, extremos, ejemplos y, por la vía por bloques, cada valor
 distinto y los extremos de \code{meta$familias}— y la evidencia de sus hallazgos, y
-\code{resumen_tabla$meta$proteccion_personal$fuera_de_muestra} dice por qué. En
+\code{resumen_tabla$meta$proteccion_personal$fuera_de_muestra} dice por qué. Salvo
+un valor igual al nombre de la tabla o de su esquema, que es estructura: se
+publica en \code{meta}, en cada SQL guardada y en \code{print()}, y un valor de celda
+igual a él no se tapa —tapaba el nombre de todo el objeto—; lo mismo cuando
+sin muestra se cierran todas las columnas. Limitación conocida (baja): un
+valor igual al nombre de una \strong{columna} sí se tapa, porque un nombre de
+columna puede ser el de una persona —una planilla con una columna por
+docente—, y tapa también ese nombre en la descripción de las sondas de
+dialecto (\code{meta$dialecto$sondas}) y, con \code{bloque_filas}, en la de la fuente
+por bloques (\code{meta$fuente_bloques}, \code{meta$plan}); en \code{columnas$columna} y
+en la SQL guardada queda. En
 SQLite los valores se leen como texto, porque una columna de afinidad
 numérica guarda texto y el controlador lo convertía en número; también sin
 muestreo, cuando la muestra es la tabla entera: ahí se releen como texto, con

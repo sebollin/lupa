@@ -1330,7 +1330,27 @@
 #' - `medio`: el nombre de la columna expresa una categoría personal (por
 #'   ejemplo `telefono`, `fecha_nacimiento` o `fecha_fallecimiento`); se protege aunque sus valores no
 #'   se puedan validar. El nombre tiene prioridad sobre una forma numérica
-#'   genérica y también determina la etiqueta de tipo. También es `medio` una
+#'   genérica y también determina la etiqueta de tipo. Una palabra de nombre
+#'   —`nombre`, `apellido`— la expresa en cualquier lugar del nombre:
+#'   `nombre_cliente` es un nombre. Una palabra de **persona** —`cliente`,
+#'   `socio`, `usuario`, `persona`, `paciente`, `titular`— dice de quién
+#'   habla la columna, no que guarde su nombre: la clasifica como `nombre`
+#'   sólo si ninguna otra palabra del nombre la clasificó —`direccion_cliente`
+#'   es un domicilio—, si el resto del nombre no dice que es otra cosa —una
+#'   clave (`cliente_id`, `id_usuario`, `cod_socio`), un tipo, un estado o una
+#'   categoría (`tipo_cliente`, `estado_socio`), una fecha (`cliente_desde`,
+#'   `fecha_alta_socio`), una cantidad o un importe— y si sus valores pueden
+#'   ser nombres: una columna de números, fechas o lógicos no lo es. Hasta la
+#'   ronda 33 bastaba la palabra, y esas columnas se protegían como nombres:
+#'   perdían su moda y sus extremos, y sus categorías —`"mayorista"`,
+#'   `"empresa"`— se tapaban también en las demás columnas. La misma regla vale
+#'   para las demás palabras: `tipo_documento` es una categoría y no un
+#'   documento, `fecha_contacto` y `medio_contacto` no son teléfonos,
+#'   `estado_correo` no es un correo y `tipo_domicilio` no es un domicilio;
+#'   sí lo siguen siendo `nro_documento`, `documento_id`, `numero_celular`,
+#'   `telefono_contacto`, `barrio_id`, `segundo_nombre` o una fecha de
+#'   nacimiento guardada como número. Una columna de
+#'   personas con otro nombre se declara en `columnas_personales`. También es `medio` una
 #'   columna que trae correos completos sin que sean la mayoría de sus valores:
 #'   un correo es un correo aunque esté solo, y la columna se protege;
 #' - `alto`: una forma muy específica, como un correo, o nombre y forma se
@@ -1453,7 +1473,10 @@
 #'   `cobertura_diagnosticos` declara el recorte. Sirve para el vacío por
 #'   diseño: un historial con vigencia abierta, una columna que sólo
 #'   corresponde a algunas filas. La declaración queda en
-#'   `meta$columnas_opcionales`, y la `NoNulo` que [proponer_modelo()] propone
+#'   `meta$columnas_opcionales` —[comparar_perfiles()] declara su cambio entre
+#'   dos corridas con la fila `configuracion_columnas_opcionales`, porque los
+#'   faltantes de esas columnas pasan a contarse sobre otro universo—, y la
+#'   `NoNulo` que [proponer_modelo()] propone
 #'   para la columna —cuando tiene faltantes disfrazados— se mide sobre el mismo
 #'   universo (`opcional = TRUE`).
 #' @param columnas_codigo Nombres de columnas que son **códigos**, no
@@ -1464,7 +1487,8 @@
 #'   declarada se perfila por sus valores y no recibe lo que sólo tiene sentido
 #'   sobre una magnitud: ni límites de Tukey (`n_outliers` en `NA`, sin hallazgo
 #'   `outliers` ni `posible_centinela_numerico`), ni la ley de Benford, ni
-#'   `media`, `mediana` y `desvio`, que quedan en `NA` con
+#'   relaciones aritméticas con otras columnas (`relacion_aritmetica_columnas`),
+#'   ni `media`, `mediana` y `desvio`, que quedan en `NA` con
 #'   `estado_resumen_cuantitativo = "omitidos_codigo"`. Lo que no se evaluó se
 #'   declara en `cobertura_diagnosticos` con el motivo. Conserva lo que describe
 #'   sus valores: `minimo` y `maximo` —el tramo de códigos observado, donde
@@ -1473,11 +1497,15 @@
 #'   declaraciones de `perfilar()`: [perfilar_dbi()] —también en su
 #'   `resumen_tabla`—, [perfilar_por()], [perfilar_coleccion()] y [analizar()]
 #'   por `argumentos_perfil`. Vale también para el código guardado como texto
-#'   o como factor, que el paquete lee como número —y ese código no recibe el
-#'   hallazgo `tipo_declarado_distinto`, que pedía convertirlo a número—; una
-#'   columna sin resumen numérico —texto que no se lee como número, fechas— no
-#'   cambia, porque no tiene esas cifras. Un nombre que la tabla no tiene es un
-#'   error. Dentro de [analizar()] la declaración llega también a `variables`
+#'   o como factor, que el paquete lee como número —y ese código no recibe los
+#'   hallazgos que lo leen como una cantidad escrita como texto y piden
+#'   convertirlo: ni `tipo_declarado_distinto`, ni `numero_como_texto` (un rubro
+#'   `"1.1"`, un `"10,5"`), ni `unidades_mixtas` o `monedas_mixtas`; tampoco
+#'   [planificar_limpieza()] le propone una acción que lo convierta en número—;
+#'   el resumen de una columna sin resumen numérico —texto que no se lee como
+#'   número, fechas— no cambia, porque no tiene esas cifras. Un nombre que la
+#'   tabla no tiene es un error. Dentro de [analizar()] la declaración llega
+#'   también a `variables`
 #'   —escala `nominal`, rol `categoria`, confirmada— y a `asociaciones`, donde
 #'   el código se asocia como categoría (eta cuadrado o V de Cramér) y no con
 #'   una correlación que supone una magnitud. En [perfilar_dbi()], la
@@ -1740,7 +1768,31 @@
 #'   Sin ese piso, una columna que el clasificador no marcó publicaba los
 #'   documentos de la protegida con sólo repetirlos: una copia con nombre
 #'   neutro, un texto libre que los contuviera, o los estadísticos de orden de
-#'   una columna clasificada con poder discriminante `debil`. El vocabulario
+#'   una columna clasificada con poder discriminante `debil`. Una columna que
+#'   **copia los documentos protegidos sin su verificador** —la cédula
+#'   `4.685.467-9` de cada fila guardada como el entero `4685467`, o como
+#'   texto, en una columna de nombre neutro— se protege entera, como una
+#'   columna personal: se clasifica `documento_identidad` con poder `alto`
+#'   cuando al menos tres de sus valores distintos son el documento sin su
+#'   verificador de un valor protegido —con la regla de los textos, ver
+#'   abajo—, son el 90 % de sus distintos —el umbral de `verificado`, que
+#'   tolera tipeos aislados— y tantos no coinciden por azar con la densidad de
+#'   esos documentos en el rango de la columna —una probabilidad binomial
+#'   menor que una en un millón—. Publicaba sus dos extremos, que son dos
+#'   cédulas. La regla es por **columna** y no por valor: una columna que
+#'   coincide por azar —uno de cada cinco importes de siete cifras coincide con
+#'   un documento sin verificador frente a un millón de cédulas, y hasta tres
+#'   de cada cuatro frente a cuatro millones— publica sus extremos aunque
+#'   coincidan. Medido en `data-raw/medir_tapado_de_mas.R` sobre 400 columnas
+#'   por familia, con uno y con cuatro millones de cédulas protegidas: no se
+#'   protegió ninguna columna de importes de siete cifras —tampoco
+#'   redondeados a miles, con 10, 50 o 500 valores distintos, aunque por azar
+#'   coincidieran todos— ni de enteros de ocho cifras, y sí todas las copias
+#'   de 50 valores distintos o más; con el 10 % de tipeos, todas frente a un
+#'   millón y la mitad frente a cuatro. Una copia de pocos valores distintos
+#'   frente a muchos documentos —tres, o diez frente a cuatro millones— no se
+#'   distingue del azar y publica sus extremos; tampoco una copia con más del
+#'   10 % de otros valores. El vocabulario
 #'   corto no entra en el piso: `"S/D"` sigue publicándose donde describe a una
 #'   columna que no es personal. Tampoco los **rellenos** de una columna
 #'   protegida, que ocupan el lugar de un dato y no son el de nadie: el que no
@@ -2735,7 +2787,8 @@ perfilar <- function(datos,
     min_filas = min_filas_aritmetica,
     tolerancia = tolerancia_aritmetica,
     max_columnas = max_columnas_aritmetica,
-    nombres_texto = nombres_texto
+    nombres_texto = nombres_texto,
+    columnas_codigo = columnas_codigo
   )
   normalizacion_fusiones <- .normalizacion_fusiones_tabla(
     datos, normalizacion_resuelta

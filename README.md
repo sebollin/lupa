@@ -429,7 +429,11 @@ truth is 1/3 — or against an engine whose percentile is broken for large
 **cross-checks its two blocks** whenever both exist: if they differ beyond
 tolerance, a `divergencia` row lands in `resumen_tabla$cobertura` carrying both
 values and the sample's coverage. It picks no winner — the package does not know
-which one is true — but it does not keep quiet about the disagreement.
+which one is true — but it does not keep quiet about the disagreement. It only
+cross-checks what both blocks measure the same way: what a declaration changes on
+purpose — the missing count of an optional column, the mean without the declared
+sentinels — is not a divergence, and what it does not compare is listed in
+`meta$corroboracion_bloques$no_comparadas`.
 
 What that script checks is **behaviour**, and it can be redone against any
 connection. The **timings** of those runs — the seconds and row reads that appear

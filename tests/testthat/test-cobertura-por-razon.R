@@ -12,7 +12,7 @@
 # que la rama se ejecute de verdad en vez de saltearse cuando el paquete está
 # instalado.
 
-# Las veintiséis razones conocidas por las que `lupa` puede declarar que no
+# Las veintiocho razones conocidas por las que `lupa` puede declarar que no
 # midió. El inventario se compara contra el vocabulario que el paquete produce
 # de verdad, en la última prueba del archivo: la versión anterior decía que una
 # razón nueva hacía fallar esa prueba, y no era cierto —contaba el inventario
@@ -40,6 +40,8 @@
   "outliers__parece_identificador",
   "outliers__codigo_declarado",
   "ley_benford__codigo_declarado",
+  "relacion_aritmetica_columnas__codigo_declarado",
+  "numero_como_texto__codigo_declarado",
   "resumen_cuantitativo__valores_no_convertidos",
   "resumen_cuantitativo__valores_no_finitos",
   "resumen_cuantitativo__centinelas_declarados",
@@ -224,11 +226,11 @@ test_that("el catálogo de razones conocidas está completo", {
   # sumarla acá, esta lista deja de describir el comportamiento real. No se
   # puede leer `R/` desde un paquete instalado, así que la comprobación es de
   # forma: cada razón declarada nombra un diagnóstico y una causa.
-  expect_length(.razones_de_cobertura, 26L)
+  expect_length(.razones_de_cobertura, 28L)
   partes <- strsplit(.razones_de_cobertura, "__", fixed = TRUE)
   expect_true(all(lengths(partes) == 2L))
   diagnosticos <- unique(vapply(partes, `[[`, character(1L), 1L))
-  expect_length(diagnosticos, 14L)
+  expect_length(diagnosticos, 15L)
 })
 
 test_that("una columna numérica con clase declarada se declara dos veces", {

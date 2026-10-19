@@ -381,3 +381,66 @@ for (familia in names(ronda_32)) {
   cat(sprintf("%-32s %5.1f %%  (+- %.1f, dos errores estandar)   ej: %s\n",
               familia, 100 * p, 200 * sqrt(p * (1 - p) / m_r32), x[[1L]]))
 }
+
+# Ronda 34: la columna que copia los documentos protegidos SIN su verificador
+# -el entero `4685467` frente a `4.685.467-9`- se protege entera, como una
+# columna personal, si al menos tres de sus valores distintos son documentos sin
+# verificador, si son el 90 % de sus distintos y si tantos no coinciden por
+# azar con la densidad de esos documentos en su rango (probabilidad binomial
+# menor que 1e-6): `.prueba_copia_sin_verificador()`, la que usa `perfilar()`.
+# Cuenta que fraccion de 400 columnas de cada familia se protege, frente a los
+# documentos de arriba (un millon de cedulas sorteadas con reposicion) y frente
+# a cuatro millones de cedulas distintas; `max` es la mayor proporcion de
+# distintos que coincidio en la familia. Una columna que no se protege publica
+# sus extremos. Al final, con su semilla, para no cambiar los numeros de arriba.
+set.seed(3434)
+prefijos_de <- function(v) {
+  sort(unique(as.numeric(.prefijos_documentos(unique(stats::na.omit(
+    .cifras_de_columna(v)
+  ))))))
+}
+documentos_4m <- sample(1000000:6999999, 4e6)
+documentos_4m <- sprintf("%d.%03d.%03d-%d", documentos_4m %/% 1e6,
+                         (documentos_4m %/% 1e3) %% 1e3, documentos_4m %% 1e3,
+                         sample(0:9, 4e6, TRUE))
+conjuntos <- list(
+  "1 M" = prefijos_de(valores),
+  "4 M" = prefijos_de(c(documentos_4m, fijos, celulares))
+)
+rm(documentos_4m)
+columnas_r34 <- 400
+copia <- function(prefijos, n, tipeos = 0) {
+  x <- sample(prefijos[prefijos >= 1e6 & prefijos < 7e6], n)
+  malos <- seq_len(round(n * tipeos))
+  x[malos] <- sample(1000001:6999999, length(malos))
+  x
+}
+familias_r34 <- list(
+  importe_7_cifras_n10 = function(p) sample(1000001:6999999, 10),
+  importe_7_cifras_n50 = function(p) sample(1000001:6999999, 50),
+  importe_7_cifras_n500 = function(p) sample(1000001:6999999, 500),
+  importe_redondeado_a_miles_n10 = function(p) sample(1001:6999, 10) * 1000,
+  importe_redondeado_a_miles_n50 = function(p) sample(1001:6999, 50) * 1000,
+  entero_8_cifras_n50 = function(p) sample(10000000:69999999, 50),
+  copia_n3 = function(p) copia(p, 3),
+  copia_n10 = function(p) copia(p, 10),
+  copia_n50 = function(p) copia(p, 50),
+  copia_n500 = function(p) copia(p, 500),
+  copia_10_pct_tipeos_n50 = function(p) copia(p, 50, 0.1),
+  copia_20_pct_tipeos_n50 = function(p) copia(p, 50, 0.2)
+)
+cat("\nronda 34, columnas protegidas como copia sin verificador (de",
+    columnas_r34, "por familia):\n")
+for (familia in names(familias_r34)) {
+  fila <- vapply(names(conjuntos), function(cual) {
+    p <- conjuntos[[cual]]
+    pruebas <- lapply(seq_len(columnas_r34), function(i) {
+      x <- familias_r34[[familia]](p)
+      .prueba_copia_sin_verificador(x, .cifras_de_columna(x), p)
+    })
+    sprintf("%s: %5.1f %% (max %.2f)", cual,
+            100 * mean(vapply(pruebas, `[[`, logical(1L), "copia")),
+            max(vapply(pruebas, `[[`, numeric(1L), "proporcion")))
+  }, character(1L))
+  cat(sprintf("%-32s %s\n", familia, paste(fila, collapse = "   ")))
+}

@@ -27,6 +27,12 @@ El estado \code{probado} se copia de la tabla de motores de los README. \code{es
 significa que el dialecto está implementado pero no se comprobó contra ese
 motor real en este repositorio. Los motores que no figuran en esa tabla no se
 presentan como probados.
+
+Ante una conexión abierta, \code{coleccion()} y \code{perfilar_coleccion()} piden el
+paquete del \strong{controlador con que se abrió}, que reconocen por la clase de
+la conexión y el paquete que la define, no por el motor que informa el
+servidor: un MySQL abierto con \code{RMariaDB::MariaDB()} usa RMariaDB y no pide
+ni carga RMySQL, cuya clase se llama igual y rompería la conexión.
 }
 \examples{
 # El catálogo completo: una fila por variante documentada.

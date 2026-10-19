@@ -20,9 +20,25 @@
   if (length(argumentos) == 1L && inherits(argumentos[[1L]], "condition")) {
     return(base::stop(argumentos[[1L]]))
   }
-  mensaje <- .makeMessage(..., domain = if (is.null(domain)) NA else domain)
+  mensaje <- .mensaje_condicion(..., domain = domain)
   llamada <- if (isTRUE(call.) && sys.nframe() > 1L) sys.call(-1L) else NULL
   base::stop(simpleError(mensaje, llamada))
+}
+
+# El texto de la condicion, como lo arma `stop()` de base -cada argumento como
+# texto, unidos sin separador- pero sin `gettext()` salvo que se nombre un
+# dominio. `.makeMessage(domain = NA)` pegaba la LISTA de argumentos, y un
+# argumento `NULL` -un `if` sin `else`- salia escrito "character(0)": "No se
+# pudo leer como fecha: \"...\"character(0). Se espera..." (ronda 34-X). En
+# base el `NULL` desaparece porque `gettext()` aplana la lista; aca se aplana
+# sin traducir, con las marcas de cada pieza intactas.
+.mensaje_condicion <- function(..., domain = NULL) {
+  piezas <- unlist(lapply(list(...), as.character), use.names = FALSE)
+  if (!length(piezas)) return("")
+  if (!is.null(domain) && !is.na(domain)) {
+    piezas <- gettext(piezas, domain = domain)
+  }
+  paste(piezas, collapse = "")
 }
 
 # `.avisar()`: lo mismo para los avisos (ronda 32-S). `warning()` de base pasa el texto por
@@ -43,7 +59,7 @@
     return(base::warning(..., call. = call., immediate. = immediate.,
                          noBreaks. = noBreaks., domain = domain))
   }
-  mensaje <- .makeMessage(..., domain = if (is.null(domain)) NA else domain)
+  mensaje <- .mensaje_condicion(..., domain = domain)
   llamada <- if (isTRUE(call.) && sys.nframe() > 1L) sys.call(-1L) else NULL
   invisible(base::warning(simpleWarning(mensaje, llamada)))
 }

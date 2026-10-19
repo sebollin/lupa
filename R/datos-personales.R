@@ -149,6 +149,102 @@
   proporciones
 }
 
+# Una palabra de PERSONA en el nombre de la columna -`cliente`, `socio`,
+# `usuario`- dice de quien habla la columna, no que guarde su nombre. Hasta la
+# ronda 33 alcanzaba en cualquier posicion, y una clave foranea (`cliente_id`),
+# una categoria (`tipo_cliente`, `estado_socio`) o una fecha (`cliente_desde`)
+# se protegian como "nombre": se tapaban su moda, sus extremos y sus ejemplos,
+# y sus categorias -"mayorista", "empresa"- entraban al piso y se tapaban en
+# columnas que no tenian nada que ver, por las dos puertas. Medido en la ronda
+# 34 (H4). La ayuda dice que `medio` es "el nombre de la columna expresa una
+# categoria personal", y `tipo_cliente` no la expresa: el resto del nombre
+# dice que es otra cosa.
+#
+# Ahora la palabra de persona clasifica la columna como `nombre` solo si
+# ninguna otra regla de nombre la reconocio -`direccion_cliente` es un
+# domicilio, `telefono_socio` un telefono-, si el resto del nombre no la
+# califica como clave, tipo, estado, categoria, fecha, cantidad o importe, y si
+# sus valores pueden ser nombres: una columna de numeros, fechas o logicos no
+# es el nombre de nadie. Una palabra de nombre -`nombre`, `apellido`- protege
+# como siempre: `nombre_cliente` es un nombre.
+#
+# Y es la MISMA propiedad en las demas reglas de nombre, medida en la misma
+# ronda: `tipo_documento` ("CI", "PASAPORTE") se protegia como documento con
+# poder `alto`, `fecha_contacto` y `medio_contacto` como telefono,
+# `estado_correo` como correo, `tipo_domicilio` como domicilio. Una regla, no
+# siete sitios: la palabra del tipo personal clasifica la columna salvo que el
+# RESTO del nombre -lo que queda al sacarle esa palabra- la califique como otra
+# cosa (`.CALIFICADORES_DE_NOMBRE`), con los calificadores que valen para cada
+# tipo (`.CALIFICADORES_POR_TIPO`), o que sus valores no puedan ser de ese tipo
+# (`.TIPOS_QUE_NO_SON_POR_TIPO`). Que vale para cada tipo se decidio para el
+# lado cerrado: `nro_documento`, `numero_celular` y `documento_id` siguen
+# siendo el documento y el telefono -la clave no los califica-; `barrio_id` y
+# `cod_barrio` siguen siendo un domicilio -el codigo de un barrio dice lo mismo
+# que el barrio-; una fecha de nacimiento solo deja de serlo si el nombre dice
+# que es una categoria, y ningun tipo de valor la saca; `segundo_nombre` y
+# `nombre_medio` son nombres. Un calificador que falte deja la columna
+# protegida como antes.
+.PATRON_PERSONA_EN_NOMBRE <- paste0(
+  "(^|_)(persona|cliente|paciente|socio|beneficiario|titular|funcionario|",
+  "usuario|solicitante|responsable|contribuyente)($|_)"
+)
+
+.CALIFICADORES_DE_NOMBRE <- list(
+  categoria = paste0(
+    "tipo|tipos|estado|estados|categoria|clase|segmento|grupo|nivel|canal|",
+    "motivo|cantidad|cant|total|monto|importe|saldo"
+  ),
+  medio = "medio|medios|via",
+  fecha = "fecha|fec|desde|hasta|alta|baja",
+  clave = "id|ids|cod|codigo|nro|num|numero|uuid|key"
+)
+
+.CALIFICADORES_POR_TIPO <- list(
+  documento_identidad = c("categoria", "fecha"),
+  correo = c("categoria", "medio", "fecha", "clave"),
+  telefono = c("categoria", "medio", "fecha"),
+  fecha_nacimiento = "categoria",
+  fecha_fallecimiento = "categoria",
+  nombre = "categoria",
+  persona = c("categoria", "fecha", "clave"),
+  domicilio = c("categoria", "medio", "fecha")
+)
+
+# Los tipos -inferidos o declarados- cuyos valores no son de ese tipo personal:
+# una fecha o un logico no es un nombre, un correo ni un domicilio; un numero no
+# es un correo ni el nombre de nadie. El documento y el telefono no salen por el
+# tipo: un telefono fijo escrito `2901-12-12` tiene forma de fecha, y la
+# inferencia no los distingue.
+.TIPOS_QUE_NO_SON_POR_TIPO <- local({
+  fechas <- c("fecha", "fecha-hora", "Date", "POSIXct", "POSIXlt", "difftime",
+              "hms", "logico")
+  numeros <- c("entero", "doble", "integer64", "numeric", "integer")
+  list(
+    documento_identidad = character(), correo = c(fechas, numeros),
+    telefono = character(), fecha_nacimiento = character(),
+    fecha_fallecimiento = character(), nombre = fechas,
+    persona = c(fechas, numeros), domicilio = fechas
+  )
+})
+
+# Si la palabra de `patron` clasifica la columna `normalizado` como `tipo`
+# personal: esta, y ni el resto del nombre ni el tipo de sus valores dicen que
+# es otra cosa.
+.nombre_expresa_tipo <- function(normalizado, patron, tipo, tipo_valores) {
+  if (!isTRUE(grepl(patron, normalizado, perl = TRUE))) return(FALSE)
+  if (any(as.character(tipo_valores) %in% .TIPOS_QUE_NO_SON_POR_TIPO[[tipo]])) {
+    return(FALSE)
+  }
+  calificadores <- unlist(
+    .CALIFICADORES_DE_NOMBRE[.CALIFICADORES_POR_TIPO[[tipo]]],
+    use.names = FALSE
+  )
+  if (!length(calificadores)) return(TRUE)
+  resto <- sub(patron, "_", normalizado, perl = TRUE)
+  !isTRUE(grepl(paste0("(^|_)(", paste(calificadores, collapse = "|"), ")($|_)"),
+                resto, perl = TRUE))
+}
+
 .clasificar_dato_personal <- function(x, nombre, inferencia,
                                       validadores = list(),
                                       umbral_verificado = 0.9,
@@ -190,20 +286,25 @@
     # El lexico de nombres no puede ser completo: una columna se puede llamar
     # de cualquier forma. Cubre las mas frecuentes en registros administrativos
     # y `columnas_personales` esta para el resto, que lo declara quien conoce
-    # el dato.
-    nombre = paste0(
-      "(^|_)(nombre|nombres|apellido|apellidos|nombre_completo|persona|",
-      "cliente|paciente|socio|beneficiario|titular|funcionario|usuario|",
-      "solicitante|responsable|contribuyente)($|_)"
-    ),
+    # el dato. Las palabras de PERSONA -`cliente`, `socio`- van aparte: ver
+    # `.PATRON_PERSONA_EN_NOMBRE`.
+    nombre = "(^|_)(nombre|nombres|apellido|apellidos|nombre_completo)($|_)",
     domicilio = paste0(
       "(^|_)(direccion|domicilio|calle|address|residencia|",
       "lugar_residencia|barrio)($|_)"
     )
   )
   por_nombre <- names(reglas_nombre)[vapply(
-    reglas_nombre, grepl, logical(1L), x = normalizado, perl = TRUE
+    names(reglas_nombre), function(tipo) {
+      .nombre_expresa_tipo(normalizado, reglas_nombre[[tipo]], tipo,
+                           inferencia$tipo)
+    }, logical(1L)
   )]
+  if (!length(por_nombre) &&
+      .nombre_expresa_tipo(normalizado, .PATRON_PERSONA_EN_NOMBRE, "persona",
+                           inferencia$tipo)) {
+    por_nombre <- "nombre"
+  }
   textos <- .textos_para_clasificacion_personal(x)
   presentes <- !is.na(textos) & nzchar(textos)
   proporcion_correo <- if ("correo" %in% por_nombre ||
@@ -538,7 +639,195 @@
   )
   rownames(resultado) <- NULL
   class(resultado) <- c("clasificacion_datos_personales", "data.frame")
-  resultado
+  # Y la columna que copia los documentos protegidos sin su verificador: ver
+  # `.copias_sin_verificador()`. Ronda 34.
+  .reclasificar_copias_sin_verificador(resultado, datos, nombres,
+                                       umbral = umbral_verificado)
+}
+
+# Ronda 34 (H3, por columna). Una columna de nombre neutro con la cedula
+# protegida de cada fila SIN su verificador -el entero `4685467` frente a
+# `4.685.467-9`- publicaba sus extremos, que son dos cedulas, en `perfilar()`,
+# en `perfil_muestra` de `perfilar_dbi()` y en los cuantiles de `analizar()`.
+# Se clasificaba `documento_identidad` debil: siete cifras pelados no se
+# distinguen de un importe. Pero esta columna no es un importe: sus valores son
+# los documentos de otra columna protegida, y eso se puede medir. Se protege
+# ENTERA, como una columna personal, la que cumple las tres:
+#
+# - al menos tres de sus valores distintos son el documento sin su verificador
+#   de un valor protegido -con la regla de los textos, `.prefijo_documento()`-;
+# - son al menos `umbral` de sus valores distintos -el mismo 90 % que decide
+#   `verificado`: tolera tipeos aislados-;
+# - y no es azar: con la densidad de esos documentos en el rango de la columna
+#   -la chance de que un entero cualquiera de ese rango coincida con uno-, que
+#   tantos coincidan tiene probabilidad binomial menor que `cola`.
+#
+# La tercera es la que separa: con millones de cedulas protegidas, un importe
+# de siete cifras coincide por azar con una de cada cinco, o con la mitad, y una
+# columna de pocos importes llegaba al 90 % por azar. Medido en
+# `data-raw/medir_tapado_de_mas.R`. Se probo antes la otra forma -el parcial
+# valor por valor en los extremos de cualquier columna- y tapaba el minimo o el
+# maximo de uno de cada cinco importes: es diagnostico de rango que se pierde.
+# Con la regla por columna, una columna que coincide por azar publica sus
+# extremos aunque uno de ellos coincida.
+
+# Las cifras de cada celda de `x` -un numero entero, o un texto de digitos y
+# separadores como los de un documento-, sin ceros iniciales; `NA` para la que
+# no es eso. `NULL` si la columna no puede llevar documentos.
+.cifras_de_columna <- function(x) {
+  if (is.factor(x)) x <- as.character(x)
+  if (inherits(x, "integer64")) {
+    x <- tryCatch(as.character(x), error = function(e) NULL)
+    if (is.null(x)) return(NULL)
+  }
+  if (is.list(x) || inherits(x, c("Date", "POSIXt", "difftime"))) return(NULL)
+  if (is.numeric(x)) {
+    v <- suppressWarnings(as.numeric(x))
+    enteros <- !is.na(v) & is.finite(v) & v == round(v) & abs(v) < 1e15
+    salida <- rep(NA_character_, length(v))
+    salida[enteros] <- .sin_ceros_iniciales(
+      formatC(abs(v[enteros]), format = "f", digits = 0)
+    )
+    return(salida)
+  }
+  if (!is.character(x)) return(NULL)
+  t <- trimws(x)
+  escritos <- !is.na(t) & grepl("^[0-9][0-9 .,/'_-]*[0-9]$", t, useBytes = TRUE)
+  salida <- rep(NA_character_, length(t))
+  salida[escritos] <- .sin_ceros_iniciales(
+    gsub("[^0-9]", "", t[escritos], useBytes = TRUE)
+  )
+  salida
+}
+
+# La prueba de una columna -sus valores distintos `distintos`, sus cifras
+# `cifras`- contra los documentos sin verificador `prefijos` (ordenados, como
+# numeros). Devuelve los conteos y si la columna es una copia.
+.prueba_copia_sin_verificador <- function(distintos, cifras, prefijos,
+                                          umbral = 0.9, cola = 1e-6) {
+  n <- length(distintos)
+  candidatas <- unique(cifras[!is.na(cifras) &
+                                nchar(cifras, type = "bytes") >=
+                                  .MIN_LARGO_VALOR_IDENTIFICANTE + 1L &
+                                !grepl(.PATRON_NUMERO_REDONDO, cifras,
+                                       perl = TRUE)])
+  # Por busqueda en los ordenados, no con `%in%`: armar la tabla de millones de
+  # documentos una vez por columna costaba mas que la columna.
+  numeros <- as.numeric(candidatas)
+  posicion <- findInterval(numeros, prefijos)
+  k <- sum(posicion > 0L & prefijos[pmax(posicion, 1L)] == numeros)
+  densidad <- NA_real_
+  probabilidad <- NA_real_
+  copia <- FALSE
+  if (n > 0L && k >= 3L && k / n >= umbral) {
+    desde <- min(numeros)
+    hasta <- max(numeros)
+    en_rango <- findInterval(hasta, prefijos) -
+      findInterval(desde - 1, prefijos)
+    densidad <- min(1, en_rango / (hasta - desde + 1))
+    probabilidad <- stats::pbinom(k - 1L, n, densidad, lower.tail = FALSE)
+    copia <- isTRUE(probabilidad <= cola)
+  }
+  list(n = n, k = k, proporcion = if (n > 0L) k / n else NA_real_,
+       densidad = densidad, probabilidad = probabilidad, copia = copia)
+}
+
+# Las columnas de `candidatas` que copian los documentos de `protegidas` sin su
+# verificador: un data.frame con la columna, la proporcion de sus valores
+# distintos que coinciden, cuantos son y de que columna protegida salen.
+.copias_sin_verificador <- function(datos, protegidas, candidatas,
+                                    umbral = 0.9, cola = 1e-6) {
+  vacio <- data.frame(columna = character(), proporcion = numeric(),
+                      evaluados = integer(), de = character(),
+                      stringsAsFactors = FALSE)
+  if (!is.data.frame(datos) || !length(protegidas) || !length(candidatas)) {
+    return(vacio)
+  }
+  nombres <- names(datos)
+  operar <- function(v) .nombres_para_operar(as.character(v))
+  prefijos_de <- list()
+  for (columna in protegidas) {
+    j <- match(operar(columna), operar(nombres))
+    if (is.na(j)) next
+    cifras <- tryCatch(.cifras_de_columna(unique(datos[[j]])),
+                       error = function(e) NULL)
+    if (is.null(cifras)) next
+    prefijos <- .prefijos_documentos(unique(cifras[!is.na(cifras)]))
+    if (length(prefijos)) prefijos_de[[columna]] <- prefijos
+  }
+  if (!length(prefijos_de)) return(vacio)
+  todos <- .sort_por_bytes(unique(as.numeric(unlist(prefijos_de, use.names = FALSE))))
+  filas <- list()
+  for (columna in candidatas) {
+    j <- match(operar(columna), operar(nombres))
+    if (is.na(j)) next
+    valores <- datos[[j]]
+    if (is.numeric(valores) &&
+        !any(abs(suppressWarnings(as.numeric(valores))) >= 1e6, na.rm = TRUE)) {
+      next
+    }
+    distintos <- tryCatch(unique(valores[!is.na(valores)]),
+                          error = function(e) NULL)
+    if (is.null(distintos) || length(distintos) < 3L) next
+    cifras <- tryCatch(.cifras_de_columna(distintos), error = function(e) NULL)
+    if (is.null(cifras) || !any(!is.na(cifras))) next
+    prueba <- .prueba_copia_sin_verificador(distintos, cifras, todos,
+                                            umbral = umbral, cola = cola)
+    if (!prueba$copia) next
+    de <- names(prefijos_de)[which.max(vapply(prefijos_de, function(p) {
+      sum(cifras %in% p)
+    }, numeric(1L)))]
+    filas[[length(filas) + 1L]] <- data.frame(
+      columna = nombres[[j]], proporcion = prueba$proporcion,
+      evaluados = as.integer(prueba$n), de = de, stringsAsFactors = FALSE
+    )
+  }
+  if (!length(filas)) return(vacio)
+  do.call(rbind, filas)
+}
+
+# Cada copia encontrada pasa a ser una columna personal protegida en la
+# clasificacion: `documento_identidad`, poder `alto`, con su fundamento.
+.reclasificar_copias_sin_verificador <- function(clasificacion, datos, nombres,
+                                                 umbral = 0.9) {
+  if (!is.data.frame(clasificacion) || !nrow(clasificacion)) return(clasificacion)
+  operar <- function(v) .nombres_para_operar(as.character(v))
+  protegidas <- as.character(clasificacion$columna[clasificacion$proteger %in% TRUE])
+  candidatas <- nombres[!operar(nombres) %in% operar(protegidas)]
+  copias <- tryCatch(
+    .copias_sin_verificador(datos, protegidas, candidatas, umbral = umbral),
+    error = function(e) NULL
+  )
+  if (!is.data.frame(copias) || !nrow(copias)) return(clasificacion)
+  clase <- class(clasificacion)
+  clasificacion <- as.data.frame(unclass(clasificacion), stringsAsFactors = FALSE)
+  for (i in seq_len(nrow(copias))) {
+    fila <- data.frame(
+      columna = copias$columna[[i]], tipo = "documento_identidad",
+      proporcion_compatible = copias$proporcion[[i]],
+      proporcion_verificada = copias$proporcion[[i]],
+      valores_evaluados = copias$evaluados[[i]],
+      valores_totales = NA_integer_,
+      fundamento = paste0(
+        "documentos de `", copias$de[[i]], "` sin su verificador: ",
+        formatC(copias$proporcion[[i]], format = "f", digits = 3),
+        " de sus valores distintos"
+      ),
+      poder_discriminante = "alto", proteger = TRUE, stringsAsFactors = FALSE
+    )
+    k <- match(operar(fila$columna), operar(clasificacion$columna))
+    if (is.na(k)) {
+      clasificacion <- rbind(clasificacion, fila[names(clasificacion)])
+    } else {
+      clasificacion[k, names(fila)] <- fila
+    }
+  }
+  clasificacion <- clasificacion[
+    .orden_por_bytes(match(operar(clasificacion$columna), operar(nombres))), , drop = FALSE
+  ]
+  rownames(clasificacion) <- NULL
+  class(clasificacion) <- clase
+  clasificacion
 }
 
 .hallazgos_datos_personales <- function(clasificacion, permitidos) {

@@ -339,7 +339,7 @@
   if (is.null(tabla_sql)) {
     tabla_sql <- as.character(DBI::dbQuoteIdentifier(conexion, tabla))
   }
-  if (is.null(campos)) campos <- DBI::dbListFields(conexion, tabla)
+  if (is.null(campos)) campos <- .listar_campos_dbi(conexion, tabla)
   campos <- as.character(campos)
   if (is.null(campos_sql)) {
     campos_sql <- vapply(campos, function(campo) {

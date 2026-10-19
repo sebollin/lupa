@@ -8,7 +8,12 @@
 #' `perfiles_madurez()` crea por omisión los perfiles `Básico`, `Intermedio` y
 #' `Avanzado` de AGESIC, con condiciones estrictas `> 0.5`, `> 0.7` y `> 0.9`.
 #' El argumento `umbrales` permite construir otra familia con nombres y cortes
-#' crecientes propios sobre las mismas métricas instanciadas.
+#' crecientes propios sobre las mismas métricas instanciadas. Los cortes son
+#' umbrales sobre el **resultado agregado** de cada métrica —una proporción en
+#' `[0, 1]`, lo que deja [agregar()]—: sobre las medidas por fila de [medir()],
+#' que valen `0` o `1`, los tres cortes son la misma condición y los tres
+#' perfiles dan la misma cifra, sin aviso. Es lo que hace [analizar()], que
+#' evalúa la medición agregada.
 #'
 #' @param nombre Nombre de la regla o del perfil.
 #' @param condicion Función que recibe el vector `resultado` de las medidas

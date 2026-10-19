@@ -35,7 +35,10 @@ mitad.}
 
 \item{orden}{Columnas para \verb{ORDER BY}: un vector de texto que se aplica a
 todas las tablas, o una lista nombrada por identificador de tabla. Sin él
-la lectura no es repetible y el objeto lo declara.}
+la lectura no es repetible y el objeto lo declara. Ordena la lectura y no
+la recorta: una tabla sin \code{columnas_candidatas} se lee con todas sus
+columnas, y a una con candidatas se le suman las de orden sólo para
+ordenar.}
 
 \item{tope_cache_mb}{Presupuesto de memoria para la caché de lecturas, en
 megabytes. Al agotarse se sigue leyendo sin cachear y \code{meta} lo declara.}
@@ -76,6 +79,18 @@ usada, las filas leídas y el momento de cada lectura.
 \strong{El orden no se supone.} Sin \code{orden}, una lectura acotada devuelve un
 subconjunto arbitrario y el resultado declara \code{meta$estable = FALSE}. Declarar
 columnas de orden hace la lectura repetible.
+
+\strong{Una columna que la sesión no puede escribir no se lleva la tabla.} Con
+odbc bajo el locale \code{C} -un \code{Rscript} de cron- un nombre no ASCII no se
+puede mandar, y un nombre con bytes que no son UTF-8 válido y no declaran su
+codificación -un CSV latin1 leído sin \code{fileEncoding}- no se manda con ningún
+controlador. Una candidata así sale de la lectura y sus combinaciones quedan
+en \code{cobertura_podas} con motivo \code{columna_no_escribible} y el remedio en
+\code{detalle}; las demás se comparan. Una columna de \code{orden} así deja la lectura
+de esa tabla sin \verb{ORDER BY} —no se puede ordenar como se declaró—, y
+\code{meta$lecturas} y \code{meta$estable} lo dicen. Los nombres publicados son los de
+\code{DBI::dbListFields()}, los mismos que publica \code{\link[=perfilar_coleccion]{perfilar_coleccion()}}, aunque
+el controlador devuelva los de la lectura en otra codificación.
 
 Cada par se compara sobre una muestra de filas de cada tabla, y el resultado
 declara ese alcance: una relación candidata sobre una muestra \strong{no es una
