@@ -83,6 +83,11 @@ para la biblioteca del sistema: <code>no_comprobada</code> no significa instalad
 significa que el dialecto está implementado pero no se comprobó contra ese
 motor real en este repositorio. Los motores que no figuran en esa tabla no se
 presentan como probados.</p>
+<p>Ante una conexión abierta, <code><a href="coleccion.html">coleccion()</a></code> y <code><a href="perfilar_coleccion.html">perfilar_coleccion()</a></code> piden el
+paquete del <strong>controlador con que se abrió</strong>, que reconocen por la clase de
+la conexión y el paquete que la define, no por el motor que informa el
+servidor: un MySQL abierto con <code><a href="https://rmariadb.r-dbi.org/reference/dbConnect-MariaDBDriver-method.html" class="external-link">RMariaDB::MariaDB()</a></code> usa RMariaDB y no pide
+ni carga RMySQL, cuya clase se llama igual y rompería la conexión.</p>
     </div>
 
     <div class="section level2">

@@ -54,7 +54,10 @@ relaciones_coleccion(
 
   Columnas para `ORDER BY`: un vector de texto que se aplica a todas las
   tablas, o una lista nombrada por identificador de tabla. Sin él la
-  lectura no es repetible y el objeto lo declara.
+  lectura no es repetible y el objeto lo declara. Ordena la lectura y no
+  la recorta: una tabla sin `columnas_candidatas` se lee con todas sus
+  columnas, y a una con candidatas se le suman las de orden sólo para
+  ordenar.
 
 - tope_cache_mb:
 
@@ -103,6 +106,21 @@ exacto, la vía usada, las filas leídas y el momento de cada lectura.
 **El orden no se supone.** Sin `orden`, una lectura acotada devuelve un
 subconjunto arbitrario y el resultado declara `meta$estable = FALSE`.
 Declarar columnas de orden hace la lectura repetible.
+
+**Una columna que la sesión no puede escribir no se lleva la tabla.**
+Con odbc bajo el locale `C` -un `Rscript` de cron- un nombre no ASCII no
+se puede mandar, y un nombre con bytes que no son UTF-8 válido y no
+declaran su codificación -un CSV latin1 leído sin `fileEncoding`- no se
+manda con ningún controlador. Una candidata así sale de la lectura y sus
+combinaciones quedan en `cobertura_podas` con motivo
+`columna_no_escribible` y el remedio en `detalle`; las demás se
+comparan. Una columna de `orden` así deja la lectura de esa tabla sin
+`ORDER BY` —no se puede ordenar como se declaró—, y `meta$lecturas` y
+`meta$estable` lo dicen. Los nombres publicados son los de
+[`DBI::dbListFields()`](https://dbi.r-dbi.org/reference/dbListFields.html),
+los mismos que publica
+[`perfilar_coleccion()`](https://sebollin.github.io/lupa/reference/perfilar_coleccion.md),
+aunque el controlador devuelva los de la lectura en otra codificación.
 
 Cada par se compara sobre una muestra de filas de cada tabla, y el
 resultado declara ese alcance: una relación candidata sobre una muestra

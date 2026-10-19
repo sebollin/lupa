@@ -153,14 +153,12 @@ fila, `aspecto = "proteccion"`.
 
 attr(deriva, "campos_protegidos")
 #>            columna campo     lado
-#> 1       id_persona rango anterior
-#> 2       id_persona rango   actual
-#> 3           cedula rango anterior
-#> 4           cedula rango   actual
-#> 5 fecha_nacimiento rango anterior
-#> 6 fecha_nacimiento rango   actual
-#> 7           correo rango anterior
-#> 8           correo rango   actual
+#> 1           cedula rango anterior
+#> 2           cedula rango   actual
+#> 3 fecha_nacimiento rango anterior
+#> 4 fecha_nacimiento rango   actual
+#> 5           correo rango anterior
+#> 6           correo rango   actual
 ```
 
 Las configuraciones que contienen nombres o texto del usuario se

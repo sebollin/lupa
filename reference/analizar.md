@@ -55,12 +55,21 @@ analizar(
   Fecha y hora reproducible de la corrida. Se lee una vez, como en
   [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md)
   y [`medir()`](https://sebollin.github.io/lupa/reference/medir.md): en
-  UTC, también un texto como `"2026-03-01"`.
+  UTC, también un texto como `"2026-03-01"`. Si se omite, el perfil y la
+  medición lo registran igual que esas dos funciones
+  (`fecha_declarada = FALSE`), y
+  [`comparar_perfiles()`](https://sebollin.github.io/lupa/reference/comparar_perfiles.md)
+  no les exige el orden temporal: la hora de la corrida no dice nada
+  sobre las entregas.
 
 - argumentos_perfil:
 
   Lista de argumentos adicionales para
   [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md).
+  Los nombres se completan como los completa
+  [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md)
+  —`aplic` es `aplicabilidad`— antes de leerlos, así que un nombre
+  abreviado gobierna el perfil y la medición por igual.
 
 - metadatos_variables:
 
@@ -236,9 +245,18 @@ analizar(
 
 Objeto S3 `analisis` con todos los componentes y su cobertura.
 
-Dos diferencias respecto de llamar a las funciones sueltas, y las dos
-son deliberadas. La entrada puede ser una matriz de dos dimensiones: se
-la pasa a
+Tres diferencias respecto de llamar a las funciones sueltas, y las tres
+son deliberadas. La evaluación usa la medición **agregada**, no las
+medidas por fila: `evaluar(medir(...), perfil)` aplica la regla a cada
+medida y puede dar otra cifra que `analizar(perfil_evaluacion = perfil)`
+sobre los mismos datos —una proporción de medidas contra una proporción
+de métricas—, y sobre medidas de `0` o `1` los tres
+[`perfiles_madurez()`](https://sebollin.github.io/lupa/reference/reglas_evaluacion.md)
+no se distinguen. Para reproducirla con las funciones sueltas,
+[`agregar()`](https://sebollin.github.io/lupa/reference/agregar.md)
+antes de
+[`evaluar()`](https://sebollin.github.io/lupa/reference/evaluar.md). La
+entrada puede ser una matriz de dos dimensiones: se la pasa a
 [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md)
 sin convertir, para que sea él quien la convierta y lo declare en
 `meta$entrada_convertida`. Y cuando una columna temporal pertenece a una
@@ -281,7 +299,7 @@ resultado
 #> ── Analisis de datos: datos_administrativos ────────────────────────────────────
 #> Filas: 13
 #> Columnas: 10
-#> Hallazgos del perfil: 22
+#> Hallazgos del perfil: 21
 #> Advertencias de alcance: 2
 #> Asociaciones informadas: 4
 #> Series temporales: 1

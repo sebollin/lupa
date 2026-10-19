@@ -218,7 +218,10 @@ defecto. Su universo de completitud son las celdas presentes, y
 <code>cobertura_diagnosticos</code> declara el recorte. Sirve para el vacío por
 diseño: un historial con vigencia abierta, una columna que sólo
 corresponde a algunas filas. La declaración queda en
-<code>meta$columnas_opcionales</code>, y la <code>NoNulo</code> que <code><a href="proponer_modelo.html">proponer_modelo()</a></code> propone
+<code>meta$columnas_opcionales</code> —<code><a href="comparar_perfiles.html">comparar_perfiles()</a></code> declara su cambio entre
+dos corridas con la fila <code>configuracion_columnas_opcionales</code>, porque los
+faltantes de esas columnas pasan a contarse sobre otro universo—, y la
+<code>NoNulo</code> que <code><a href="proponer_modelo.html">proponer_modelo()</a></code> propone
 para la columna —cuando tiene faltantes disfrazados— se mide sobre el mismo
 universo (<code>opcional = TRUE</code>).</p></dd>
 
@@ -232,7 +235,8 @@ de 1 a 284—, así que sin la declaración los mide como magnitudes. Una column
 declarada se perfila por sus valores y no recibe lo que sólo tiene sentido
 sobre una magnitud: ni límites de Tukey (<code>n_outliers</code> en <code>NA</code>, sin hallazgo
 <code>outliers</code> ni <code>posible_centinela_numerico</code>), ni la ley de Benford, ni
-<code>media</code>, <code>mediana</code> y <code>desvio</code>, que quedan en <code>NA</code> con
+relaciones aritméticas con otras columnas (<code>relacion_aritmetica_columnas</code>),
+ni <code>media</code>, <code>mediana</code> y <code>desvio</code>, que quedan en <code>NA</code> con
 <code>estado_resumen_cuantitativo = "omitidos_codigo"</code>. Lo que no se evaluó se
 declara en <code>cobertura_diagnosticos</code> con el motivo. Conserva lo que describe
 sus valores: <code>minimo</code> y <code>maximo</code> —el tramo de códigos observado, donde
@@ -241,11 +245,15 @@ los faltantes disfrazados. Vale igual por todas las vías que aceptan las
 declaraciones de <code>perfilar()</code>: <code><a href="perfilar_dbi.html">perfilar_dbi()</a></code> —también en su
 <code>resumen_tabla</code>—, <code><a href="perfilar_por.html">perfilar_por()</a></code>, <code><a href="perfilar_coleccion.html">perfilar_coleccion()</a></code> y <code><a href="analizar.html">analizar()</a></code>
 por <code>argumentos_perfil</code>. Vale también para el código guardado como texto
-o como factor, que el paquete lee como número —y ese código no recibe el
-hallazgo <code>tipo_declarado_distinto</code>, que pedía convertirlo a número—; una
-columna sin resumen numérico —texto que no se lee como número, fechas— no
-cambia, porque no tiene esas cifras. Un nombre que la tabla no tiene es un
-error. Dentro de <code><a href="analizar.html">analizar()</a></code> la declaración llega también a <code>variables</code>
+o como factor, que el paquete lee como número —y ese código no recibe los
+hallazgos que lo leen como una cantidad escrita como texto y piden
+convertirlo: ni <code>tipo_declarado_distinto</code>, ni <code>numero_como_texto</code> (un rubro
+<code>"1.1"</code>, un <code>"10,5"</code>), ni <code>unidades_mixtas</code> o <code>monedas_mixtas</code>; tampoco
+<code><a href="planificar_limpieza.html">planificar_limpieza()</a></code> le propone una acción que lo convierta en número—;
+el resumen de una columna sin resumen numérico —texto que no se lee como
+número, fechas— no cambia, porque no tiene esas cifras. Un nombre que la
+tabla no tiene es un error. Dentro de <code><a href="analizar.html">analizar()</a></code> la declaración llega
+también a <code>variables</code>
 —escala <code>nominal</code>, rol <code>categoria</code>, confirmada— y a <code>asociaciones</code>, donde
 el código se asocia como categoría (eta cuadrado o V de Cramér) y no con
 una correlación que supone una magnitud. En <code><a href="perfilar_dbi.html">perfilar_dbi()</a></code>, la
@@ -466,7 +474,31 @@ tenga o no columna a la que atribuirse, y también en los campos numéricos.
 Sin ese piso, una columna que el clasificador no marcó publicaba los
 documentos de la protegida con sólo repetirlos: una copia con nombre
 neutro, un texto libre que los contuviera, o los estadísticos de orden de
-una columna clasificada con poder discriminante <code>debil</code>. El vocabulario
+una columna clasificada con poder discriminante <code>debil</code>. Una columna que
+<strong>copia los documentos protegidos sin su verificador</strong> —la cédula
+<code>4.685.467-9</code> de cada fila guardada como el entero <code>4685467</code>, o como
+texto, en una columna de nombre neutro— se protege entera, como una
+columna personal: se clasifica <code>documento_identidad</code> con poder <code>alto</code>
+cuando al menos tres de sus valores distintos son el documento sin su
+verificador de un valor protegido —con la regla de los textos, ver
+abajo—, son el 90 % de sus distintos —el umbral de <code>verificado</code>, que
+tolera tipeos aislados— y tantos no coinciden por azar con la densidad de
+esos documentos en el rango de la columna —una probabilidad binomial
+menor que una en un millón—. Publicaba sus dos extremos, que son dos
+cédulas. La regla es por <strong>columna</strong> y no por valor: una columna que
+coincide por azar —uno de cada cinco importes de siete cifras coincide con
+un documento sin verificador frente a un millón de cédulas, y hasta tres
+de cada cuatro frente a cuatro millones— publica sus extremos aunque
+coincidan. Medido en <code>data-raw/medir_tapado_de_mas.R</code> sobre 400 columnas
+por familia, con uno y con cuatro millones de cédulas protegidas: no se
+protegió ninguna columna de importes de siete cifras —tampoco
+redondeados a miles, con 10, 50 o 500 valores distintos, aunque por azar
+coincidieran todos— ni de enteros de ocho cifras, y sí todas las copias
+de 50 valores distintos o más; con el 10 % de tipeos, todas frente a un
+millón y la mitad frente a cuatro. Una copia de pocos valores distintos
+frente a muchos documentos —tres, o diez frente a cuatro millones— no se
+distingue del azar y publica sus extremos; tampoco una copia con más del
+10 % de otros valores. El vocabulario
 corto no entra en el piso: <code>"S/D"</code> sigue publicándose donde describe a una
 columna que no es personal. Tampoco los <strong>rellenos</strong> de una columna
 protegida, que ocupan el lugar de un dato y no son el de nadie: el que no
@@ -1757,7 +1789,27 @@ guardarlo— no hay valores con que barrer y se tapa entera;</p></li>
 <li><p><code>medio</code>: el nombre de la columna expresa una categoría personal (por
 ejemplo <code>telefono</code>, <code>fecha_nacimiento</code> o <code>fecha_fallecimiento</code>); se protege aunque sus valores no
 se puedan validar. El nombre tiene prioridad sobre una forma numérica
-genérica y también determina la etiqueta de tipo. También es <code>medio</code> una
+genérica y también determina la etiqueta de tipo. Una palabra de nombre
+—<code>nombre</code>, <code>apellido</code>— la expresa en cualquier lugar del nombre:
+<code>nombre_cliente</code> es un nombre. Una palabra de <strong>persona</strong> —<code>cliente</code>,
+<code>socio</code>, <code>usuario</code>, <code>persona</code>, <code>paciente</code>, <code>titular</code>— dice de quién
+habla la columna, no que guarde su nombre: la clasifica como <code>nombre</code>
+sólo si ninguna otra palabra del nombre la clasificó —<code>direccion_cliente</code>
+es un domicilio—, si el resto del nombre no dice que es otra cosa —una
+clave (<code>cliente_id</code>, <code>id_usuario</code>, <code>cod_socio</code>), un tipo, un estado o una
+categoría (<code>tipo_cliente</code>, <code>estado_socio</code>), una fecha (<code>cliente_desde</code>,
+<code>fecha_alta_socio</code>), una cantidad o un importe— y si sus valores pueden
+ser nombres: una columna de números, fechas o lógicos no lo es. Hasta la
+ronda 33 bastaba la palabra, y esas columnas se protegían como nombres:
+perdían su moda y sus extremos, y sus categorías —<code>"mayorista"</code>,
+<code>"empresa"</code>— se tapaban también en las demás columnas. La misma regla vale
+para las demás palabras: <code>tipo_documento</code> es una categoría y no un
+documento, <code>fecha_contacto</code> y <code>medio_contacto</code> no son teléfonos,
+<code>estado_correo</code> no es un correo y <code>tipo_domicilio</code> no es un domicilio;
+sí lo siguen siendo <code>nro_documento</code>, <code>documento_id</code>, <code>numero_celular</code>,
+<code>telefono_contacto</code>, <code>barrio_id</code>, <code>segundo_nombre</code> o una fecha de
+nacimiento guardada como número. Una columna de
+personas con otro nombre se declara en <code>columnas_personales</code>. También es <code>medio</code> una
 columna que trae correos completos sin que sean la mayoría de sus valores:
 un correo es un correo aunque esté solo, y la columna se protege;</p></li>
 <li><p><code>alto</code>: una forma muy específica, como un correo, o nombre y forma se
@@ -1840,7 +1892,7 @@ quedan en la evidencia del hallazgo.</p>
 <span class="r-msg co"><span class="r-pr">#&gt;</span> <span style="color: #00BBBB;">──</span> <span style="font-weight: bold;">Perfil de datos: datos_administrativos</span> <span style="color: #00BBBB;">──────────────────────────────────────</span></span>
 <span class="r-msg co"><span class="r-pr">#&gt;</span> <span style="color: #BB0000;">✖</span> 5 hallazgos con severidad error</span>
 <span class="r-msg co"><span class="r-pr">#&gt;</span> <span style="color: #BBBB00;">!</span> 9 hallazgos sospechosos</span>
-<span class="r-msg co"><span class="r-pr">#&gt;</span> <span style="color: #00BB00;">✔</span> 8 hallazgos informativos ok</span>
+<span class="r-msg co"><span class="r-pr">#&gt;</span> <span style="color: #00BB00;">✔</span> 7 hallazgos informativos ok</span>
 <span class="r-msg co"><span class="r-pr">#&gt;</span> <span style="color: #00BBBB;">ℹ</span> 8 diagnosticos no evaluados</span>
 <span class="r-msg co"><span class="r-pr">#&gt;</span> </span>
 <span class="r-msg co"><span class="r-pr">#&gt;</span> ── <span style="font-weight: bold;">Resumen general</span> ──</span>
@@ -1956,7 +2008,7 @@ quedan en la evidencia del hallazgo.</p>
 <span class="r-out co"><span class="r-pr">#&gt;</span> 9                    0             0.00000000          11     0.84615385</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> 10                   0             0.00000000          12     0.92307692</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>    secuencia_entera_densa densidad_secuencia_entera</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 1                   FALSE                        NA</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 1                   FALSE              1.000000e+00</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> 2                   FALSE                        NA</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> 3                   FALSE                        NA</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> 4                   FALSE                        NA</span>
@@ -1967,7 +2019,7 @@ quedan en la evidencia del hallazgo.</p>
 <span class="r-out co"><span class="r-pr">#&gt;</span> 9                   FALSE              1.000000e+00</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> 10                  FALSE                        NA</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>    n_posiciones_secuencia_entera n_huecos_secuencia_entera</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 1                             NA                        NA</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 1                             11                         0</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> 2                             NA                        NA</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> 3                             NA                        NA</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> 4                             NA                        NA</span>
@@ -1978,7 +2030,7 @@ quedan en la evidencia del hallazgo.</p>
 <span class="r-out co"><span class="r-pr">#&gt;</span> 9                             11                         0</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> 10                            NA                        NA</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>    hueco_maximo_secuencia_entera salto_de_escala_secuencia_entera</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 1                             NA                            FALSE</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 1                              1                            FALSE</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> 2                             NA                            FALSE</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> 3                             NA                            FALSE</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> 4                             NA                            FALSE</span>
@@ -2000,7 +2052,7 @@ quedan en la evidencia del hallazgo.</p>
 <span class="r-out co"><span class="r-pr">#&gt;</span> 9                            FALSE                              0.8</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> 10                           FALSE                              0.8</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>    min_distintos_secuencia_entera              moda frecuencia_moda</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 1                              20 [valor protegido]               2</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 1                              20                 1               2</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> 2                              20 [valor protegido]               2</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> 3                              20 [valor protegido]               2</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> 4                              20                 F               6</span>
@@ -2011,7 +2063,7 @@ quedan en la evidencia del hallazgo.</p>
 <span class="r-out co"><span class="r-pr">#&gt;</span> 9                              20                 1               2</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> 10                             20             TR001               2</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>    longitud_minima longitud_maxima longitud_media n_longitudes_resumidas minimo</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 1               NA              NA             NA                     NA     NA</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 1               NA              NA             NA                     NA      1</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> 2                3              11       9.692308                     13     NA</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> 3                4              10       9.384615                     13     NA</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> 4                0               3       1.076923                     13     NA</span>
@@ -2022,7 +2074,7 @@ quedan en la evidencia del hallazgo.</p>
 <span class="r-out co"><span class="r-pr">#&gt;</span> 9               NA              NA             NA                     NA      1</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> 10               5               5       5.000000                     13     NA</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>     maximo        media mediana       desvio minimo_exacto maximo_exacto</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 1       NA           NA      NA           NA          &lt;NA&gt;          &lt;NA&gt;</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 1       11 5.923077e+00       6 3.546396e+00          &lt;NA&gt;          &lt;NA&gt;</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> 2       NA           NA      NA           NA          &lt;NA&gt;          &lt;NA&gt;</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> 3       NA           NA      NA           NA          &lt;NA&gt;          &lt;NA&gt;</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> 4       NA           NA      NA           NA          &lt;NA&gt;          &lt;NA&gt;</span>
@@ -2165,7 +2217,7 @@ quedan en la evidencia del hallazgo.</p>
 <span class="r-out co"><span class="r-pr">#&gt;</span> 9         NA        NA        NA        NA</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> 10        NA        NA        NA        NA</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>                      detalle_proteccion_personal n_blancos n_espacios_borde</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 1  [estadisticos de orden y momentos protegidos]         0                0</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 1                                           &lt;NA&gt;         0                0</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> 2             [estadisticos de orden protegidos]         0                0</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> 3  [estadisticos de orden y momentos protegidos]         0                0</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> 4                                           &lt;NA&gt;         1                0</span>
@@ -2264,7 +2316,7 @@ quedan en la evidencia del hallazgo.</p>
 <span class="r-out co"><span class="r-pr">#&gt;</span> 9                 FALSE               FALSE                    </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> 10                FALSE               FALSE                    </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>    numero_texto_moneda numero_texto_convencion dato_personal_posible</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 1                                                               TRUE</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 1                                                              FALSE</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> 2                                                               TRUE</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> 3                                                               TRUE</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> 4                                                              FALSE</span>
@@ -2275,7 +2327,7 @@ quedan en la evidencia del hallazgo.</p>
 <span class="r-out co"><span class="r-pr">#&gt;</span> 9                                                              FALSE</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> 10                                                             FALSE</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>     tipo_dato_personal proporcion_dato_personal</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 1               nombre                       NA</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 1                 &lt;NA&gt;                       NA</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> 2  documento_identidad                0.8461538</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> 3     fecha_nacimiento                1.0000000</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> 4                 &lt;NA&gt;                       NA</span>
@@ -2286,7 +2338,7 @@ quedan en la evidencia del hallazgo.</p>
 <span class="r-out co"><span class="r-pr">#&gt;</span> 9                 &lt;NA&gt;                       NA</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> 10                &lt;NA&gt;                       NA</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>    poder_discriminante_dato_personal dato_personal_protegido</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 1                              medio                    TRUE</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 1                               &lt;NA&gt;                   FALSE</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> 2                               alto                    TRUE</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> 3                              medio                    TRUE</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> 4                               &lt;NA&gt;                   FALSE</span>

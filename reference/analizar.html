@@ -102,11 +102,17 @@ conceptual y plan de limpieza. No modifica los datos.</p>
 
 <dt id="arg-fecha">fecha<a class="anchor" aria-label="anchor" href="#arg-fecha"></a></dt>
 <dd><p>Fecha y hora reproducible de la corrida. Se lee una vez, como
-en <code><a href="perfilar.html">perfilar()</a></code> y <code><a href="medir.html">medir()</a></code>: en UTC, también un texto como <code>"2026-03-01"</code>.</p></dd>
+en <code><a href="perfilar.html">perfilar()</a></code> y <code><a href="medir.html">medir()</a></code>: en UTC, también un texto como <code>"2026-03-01"</code>.
+Si se omite, el perfil y la medición lo registran igual que esas dos
+funciones (<code>fecha_declarada = FALSE</code>), y <code><a href="comparar_perfiles.html">comparar_perfiles()</a></code> no les exige
+el orden temporal: la hora de la corrida no dice nada sobre las entregas.</p></dd>
 
 
 <dt id="arg-argumentos-perfil">argumentos_perfil<a class="anchor" aria-label="anchor" href="#arg-argumentos-perfil"></a></dt>
-<dd><p>Lista de argumentos adicionales para <code><a href="perfilar.html">perfilar()</a></code>.</p></dd>
+<dd><p>Lista de argumentos adicionales para <code><a href="perfilar.html">perfilar()</a></code>.
+Los nombres se completan como los completa <code><a href="perfilar.html">perfilar()</a></code> —<code>aplic</code> es
+<code>aplicabilidad</code>— antes de leerlos, así que un nombre abreviado gobierna el
+perfil y la medición por igual.</p></dd>
 
 
 <dt id="arg-metadatos-variables">metadatos_variables<a class="anchor" aria-label="anchor" href="#arg-metadatos-variables"></a></dt>
@@ -268,8 +274,14 @@ concisa a <code>argumentos_perfil</code>.</p></dd>
     <div class="section level2">
     <h2 id="value">Value<a class="anchor" aria-label="anchor" href="#value"></a></h2>
     <p>Objeto S3 <code>analisis</code> con todos los componentes y su cobertura.</p>
-<p>Dos diferencias respecto de llamar a las funciones sueltas, y las dos son
-deliberadas. La entrada puede ser una matriz de dos dimensiones: se la pasa
+<p>Tres diferencias respecto de llamar a las funciones sueltas, y las tres son
+deliberadas. La evaluación usa la medición <strong>agregada</strong>, no las medidas por
+fila: <code>evaluar(medir(...), perfil)</code> aplica la regla a cada medida y puede
+dar otra cifra que <code>analizar(perfil_evaluacion = perfil)</code> sobre los mismos
+datos —una proporción de medidas contra una proporción de métricas—, y
+sobre medidas de <code>0</code> o <code>1</code> los tres <code><a href="reglas_evaluacion.html">perfiles_madurez()</a></code> no se distinguen.
+Para reproducirla con las funciones sueltas, <code><a href="agregar.html">agregar()</a></code> antes de
+<code><a href="evaluar.html">evaluar()</a></code>. La entrada puede ser una matriz de dos dimensiones: se la pasa
 a <code><a href="perfilar.html">perfilar()</a></code> sin convertir, para que sea él quien la convierta y lo
 declare en <code>meta$entrada_convertida</code>. Y cuando una columna temporal
 pertenece a una columna protegida, <code>temporal$resumen</code> gana la columna
@@ -306,7 +318,7 @@ queden ocultos dentro del recorrido integral.</p>
 <span class="r-msg co"><span class="r-pr">#&gt;</span> <span style="color: #00BBBB;">──</span> <span style="font-weight: bold;">Analisis de datos: datos_administrativos</span> <span style="color: #00BBBB;">────────────────────────────────────</span></span>
 <span class="r-msg co"><span class="r-pr">#&gt;</span> Filas: 13</span>
 <span class="r-msg co"><span class="r-pr">#&gt;</span> Columnas: 10</span>
-<span class="r-msg co"><span class="r-pr">#&gt;</span> Hallazgos del perfil: 22</span>
+<span class="r-msg co"><span class="r-pr">#&gt;</span> Hallazgos del perfil: 21</span>
 <span class="r-msg co"><span class="r-pr">#&gt;</span> Advertencias de alcance: 2</span>
 <span class="r-msg co"><span class="r-pr">#&gt;</span> Asociaciones informadas: 4</span>
 <span class="r-msg co"><span class="r-pr">#&gt;</span> Series temporales: 1</span>

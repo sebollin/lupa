@@ -132,7 +132,12 @@ contenga.</p></dd>
     <p><code>perfiles_madurez()</code> crea por omisión los perfiles <code>Básico</code>, <code>Intermedio</code> y
 <code>Avanzado</code> de AGESIC, con condiciones estrictas <code>&gt; 0.5</code>, <code>&gt; 0.7</code> y <code>&gt; 0.9</code>.
 El argumento <code>umbrales</code> permite construir otra familia con nombres y cortes
-crecientes propios sobre las mismas métricas instanciadas.</p>
+crecientes propios sobre las mismas métricas instanciadas. Los cortes son
+umbrales sobre el <strong>resultado agregado</strong> de cada métrica —una proporción en
+<code>[0, 1]</code>, lo que deja <code><a href="agregar.html">agregar()</a></code>—: sobre las medidas por fila de <code><a href="medir.html">medir()</a></code>,
+que valen <code>0</code> o <code>1</code>, los tres cortes son la misma condición y los tres
+perfiles dan la misma cifra, sin aviso. Es lo que hace <code><a href="analizar.html">analizar()</a></code>, que
+evalúa la medición agregada.</p>
 <p><code>regla_evaluacion()</code> almacena la función sin ejecutarla. <code><a href="evaluar.html">evaluar()</a></code>
 selecciona las medidas mediante <code>metricas</code>, llama una vez a <code>condicion</code> y
 rechaza resultados que no sean lógicos, que tengan otra longitud o que

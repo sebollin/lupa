@@ -96,16 +96,23 @@ perfilar_coleccion(
   —`"De Los Campos"` de `"María De Los Campos"` en SQL Server en sueco,
   `"Campos Cadena"` después de un apodo entre comillas—. El orden de las
   tablas no cambia lo que se publica; lo vuelto a leer reemplaza a lo
-  publicado sólo si publica menos. Se reemplaza el texto tal como se
-  publicó: si el piso de la propia tabla ya lo había cambiado —el
-  mensaje citaba entero, además, un valor protegido de esa misma tabla—,
-  la relectura no lo encuentra y queda sólo el piso de las huellas, que
-  tapa los valores enteros y no el resto. Y los avisos de consola de
-  cada tabla se emiten al final, después del mismo piso que esos tres
-  campos, con o sin perfiles: el aviso de una vista perfilada antes que
-  su tabla base citaba la celda. También si la colección se corta —una
-  interrupción, un error— después de leer alguna tabla: los avisos
-  juntados salen por ese mismo piso, con los valores que se conocían.
+  publicado sólo si publica menos. La relectura corre también después
+  del cruce entre tablas, sobre lo que el cruce escribe: el motivo de
+  `otras_tablas` lleva el mensaje del motor de la tabla que no se pudo
+  leer, y con la vista antes que su base citaba ese resto. En ese
+  cierre, un valor igual al nombre de una tabla o de un esquema de la
+  colección no se tapa: es estructura, como en
+  [`perfilar_dbi()`](https://sebollin.github.io/lupa/reference/perfilar_dbi.md).
+  Se reemplaza el texto tal como se publicó: si el piso de la propia
+  tabla ya lo había cambiado —el mensaje citaba entero, además, un valor
+  protegido de esa misma tabla—, la relectura no lo encuentra y queda
+  sólo el piso de las huellas, que tapa los valores enteros y no el
+  resto. Y los avisos de consola de cada tabla se emiten al final,
+  después del mismo piso que esos tres campos, con o sin perfiles: el
+  aviso de una vista perfilada antes que su tabla base citaba la celda.
+  También si la colección se corta —una interrupción, un error— después
+  de leer alguna tabla: los avisos juntados salen por ese mismo piso,
+  con los valores que se conocían.
   [`perfilar_dbi()`](https://sebollin.github.io/lupa/reference/perfilar_dbi.md)
   sobre una tabla sola protege sólo con los de esa tabla. Sin protección
   (`proteger_datos_personales = FALSE`) no se cruza nada: cada perfil
@@ -143,6 +150,17 @@ perfilar_coleccion(
   `cobertura_coleccion`, `cobertura_metricas`, `meta$lecturas` y los
   avisos; ver la sección «Datos personales» de
   [`perfilar_dbi()`](https://sebollin.github.io/lupa/reference/perfilar_dbi.md).
+  Lo que va a
+  [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md)
+  se valida al entrar, una vez. Los argumentos propios de
+  [`perfilar_dbi()`](https://sebollin.github.io/lupa/reference/perfilar_dbi.md)
+  —`estrategia_distintos`, `max_consultas`, `umbral_cardinalidad` y los
+  demás— los valida
+  [`perfilar_dbi()`](https://sebollin.github.io/lupa/reference/perfilar_dbi.md)
+  en cada tabla: uno mal escrito deja cada tabla en
+  `cobertura_coleccion` con ese motivo y sin aviso. Es una limitación
+  conocida: si ninguna tabla se perfiló, mirar el motivo antes de
+  sospechar de los permisos.
 
 ## Value
 

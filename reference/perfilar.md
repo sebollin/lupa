@@ -171,7 +171,11 @@ perfilar(
   completitud son las celdas presentes, y `cobertura_diagnosticos`
   declara el recorte. Sirve para el vacío por diseño: un historial con
   vigencia abierta, una columna que sólo corresponde a algunas filas. La
-  declaración queda en `meta$columnas_opcionales`, y la `NoNulo` que
+  declaración queda en `meta$columnas_opcionales`
+  —[`comparar_perfiles()`](https://sebollin.github.io/lupa/reference/comparar_perfiles.md)
+  declara su cambio entre dos corridas con la fila
+  `configuracion_columnas_opcionales`, porque los faltantes de esas
+  columnas pasan a contarse sobre otro universo—, y la `NoNulo` que
   [`proponer_modelo()`](https://sebollin.github.io/lupa/reference/proponer_modelo.md)
   propone para la columna —cuando tiene faltantes disfrazados— se mide
   sobre el mismo universo (`opcional = TRUE`).
@@ -186,7 +190,9 @@ perfilar(
   declarada se perfila por sus valores y no recibe lo que sólo tiene
   sentido sobre una magnitud: ni límites de Tukey (`n_outliers` en `NA`,
   sin hallazgo `outliers` ni `posible_centinela_numerico`), ni la ley de
-  Benford, ni `media`, `mediana` y `desvio`, que quedan en `NA` con
+  Benford, ni relaciones aritméticas con otras columnas
+  (`relacion_aritmetica_columnas`), ni `media`, `mediana` y `desvio`,
+  que quedan en `NA` con
   `estado_resumen_cuantitativo = "omitidos_codigo"`. Lo que no se evaluó
   se declara en `cobertura_diagnosticos` con el motivo. Conserva lo que
   describe sus valores: `minimo` y `maximo` —el tramo de códigos
@@ -201,10 +207,15 @@ perfilar(
   [`analizar()`](https://sebollin.github.io/lupa/reference/analizar.md)
   por `argumentos_perfil`. Vale también para el código guardado como
   texto o como factor, que el paquete lee como número —y ese código no
-  recibe el hallazgo `tipo_declarado_distinto`, que pedía convertirlo a
-  número—; una columna sin resumen numérico —texto que no se lee como
-  número, fechas— no cambia, porque no tiene esas cifras. Un nombre que
-  la tabla no tiene es un error. Dentro de
+  recibe los hallazgos que lo leen como una cantidad escrita como texto
+  y piden convertirlo: ni `tipo_declarado_distinto`, ni
+  `numero_como_texto` (un rubro `"1.1"`, un `"10,5"`), ni
+  `unidades_mixtas` o `monedas_mixtas`; tampoco
+  [`planificar_limpieza()`](https://sebollin.github.io/lupa/reference/planificar_limpieza.md)
+  le propone una acción que lo convierta en número—; el resumen de una
+  columna sin resumen numérico —texto que no se lee como número, fechas—
+  no cambia, porque no tiene esas cifras. Un nombre que la tabla no
+  tiene es un error. Dentro de
   [`analizar()`](https://sebollin.github.io/lupa/reference/analizar.md)
   la declaración llega también a `variables` —escala `nominal`, rol
   `categoria`, confirmada— y a `asociaciones`, donde el código se asocia
@@ -464,26 +475,50 @@ perfilar(
   marcó publicaba los documentos de la protegida con sólo repetirlos:
   una copia con nombre neutro, un texto libre que los contuviera, o los
   estadísticos de orden de una columna clasificada con poder
-  discriminante `debil`. El vocabulario corto no entra en el piso:
-  `"S/D"` sigue publicándose donde describe a una columna que no es
-  personal. Tampoco los **rellenos** de una columna protegida, que
-  ocupan el lugar de un dato y no son el de nadie: el que no tiene
-  letras ni dígitos (`"------"`), y el dígito repetido que se repite
-  cinco veces o más en una columna que sin él es casi una clave
-  —cuarenta `"99999999"` entre cédulas que no se repiten—. Entraban, y
-  tapaban la moda, el mínimo, la mediana y el máximo de un `monto` con
-  su propio `99999999`. Donde el documento se repite —una tabla de
-  movimientos— el dígito repetido sigue en el piso: `2.222.222-2` es una
-  cédula válida. Fuera del piso no quiere decir publicados en la columna
-  protegida: su moda, sus ejemplos y los parámetros del plan sobre ella
-  los siguen tapando, y un centinela que el usuario declaró en
-  `sentinelas_numericos` y aparece en una columna protegida —también
-  como su relleno— sigue en el piso. Sin los datos, el declarado entra
-  siempre, porque no se sabe de qué columna es; con ellos, el que no
-  aparece en ninguna protegida no entra: entraba igual, se tapaba a sí
-  mismo en `meta` y la acción que lo convierte en un `monto` quedaba sin
-  efecto sin proteger nada. El piso tiene **una excepción declarada**, y
-  es la única:
+  discriminante `debil`. Una columna que **copia los documentos
+  protegidos sin su verificador** —la cédula `4.685.467-9` de cada fila
+  guardada como el entero `4685467`, o como texto, en una columna de
+  nombre neutro— se protege entera, como una columna personal: se
+  clasifica `documento_identidad` con poder `alto` cuando al menos tres
+  de sus valores distintos son el documento sin su verificador de un
+  valor protegido —con la regla de los textos, ver abajo—, son el 90 %
+  de sus distintos —el umbral de `verificado`, que tolera tipeos
+  aislados— y tantos no coinciden por azar con la densidad de esos
+  documentos en el rango de la columna —una probabilidad binomial menor
+  que una en un millón—. Publicaba sus dos extremos, que son dos
+  cédulas. La regla es por **columna** y no por valor: una columna que
+  coincide por azar —uno de cada cinco importes de siete cifras coincide
+  con un documento sin verificador frente a un millón de cédulas, y
+  hasta tres de cada cuatro frente a cuatro millones— publica sus
+  extremos aunque coincidan. Medido en `data-raw/medir_tapado_de_mas.R`
+  sobre 400 columnas por familia, con uno y con cuatro millones de
+  cédulas protegidas: no se protegió ninguna columna de importes de
+  siete cifras —tampoco redondeados a miles, con 10, 50 o 500 valores
+  distintos, aunque por azar coincidieran todos— ni de enteros de ocho
+  cifras, y sí todas las copias de 50 valores distintos o más; con el 10
+  % de tipeos, todas frente a un millón y la mitad frente a cuatro. Una
+  copia de pocos valores distintos frente a muchos documentos —tres, o
+  diez frente a cuatro millones— no se distingue del azar y publica sus
+  extremos; tampoco una copia con más del 10 % de otros valores. El
+  vocabulario corto no entra en el piso: `"S/D"` sigue publicándose
+  donde describe a una columna que no es personal. Tampoco los
+  **rellenos** de una columna protegida, que ocupan el lugar de un dato
+  y no son el de nadie: el que no tiene letras ni dígitos (`"------"`),
+  y el dígito repetido que se repite cinco veces o más en una columna
+  que sin él es casi una clave —cuarenta `"99999999"` entre cédulas que
+  no se repiten—. Entraban, y tapaban la moda, el mínimo, la mediana y
+  el máximo de un `monto` con su propio `99999999`. Donde el documento
+  se repite —una tabla de movimientos— el dígito repetido sigue en el
+  piso: `2.222.222-2` es una cédula válida. Fuera del piso no quiere
+  decir publicados en la columna protegida: su moda, sus ejemplos y los
+  parámetros del plan sobre ella los siguen tapando, y un centinela que
+  el usuario declaró en `sentinelas_numericos` y aparece en una columna
+  protegida —también como su relleno— sigue en el piso. Sin los datos,
+  el declarado entra siempre, porque no se sabe de qué columna es; con
+  ellos, el que no aparece en ninguna protegida no entra: entraba igual,
+  se tapaba a sí mismo en `meta` y la acción que lo convierte en un
+  `monto` quedaba sin efecto sin proteger nada. El piso tiene **una
+  excepción declarada**, y es la única:
   [`perfilar_por()`](https://sebollin.github.io/lupa/reference/perfilar_por.md)
   agrupando *por* una columna personal publica sus valores como
   etiquetas de grupo, porque la etiqueta es el eje del resultado y sin
@@ -1884,9 +1919,30 @@ protección. Cada clasificación declara `poder_discriminante` y
   ejemplo `telefono`, `fecha_nacimiento` o `fecha_fallecimiento`); se
   protege aunque sus valores no se puedan validar. El nombre tiene
   prioridad sobre una forma numérica genérica y también determina la
-  etiqueta de tipo. También es `medio` una columna que trae correos
-  completos sin que sean la mayoría de sus valores: un correo es un
-  correo aunque esté solo, y la columna se protege;
+  etiqueta de tipo. Una palabra de nombre —`nombre`, `apellido`— la
+  expresa en cualquier lugar del nombre: `nombre_cliente` es un nombre.
+  Una palabra de **persona** —`cliente`, `socio`, `usuario`, `persona`,
+  `paciente`, `titular`— dice de quién habla la columna, no que guarde
+  su nombre: la clasifica como `nombre` sólo si ninguna otra palabra del
+  nombre la clasificó —`direccion_cliente` es un domicilio—, si el resto
+  del nombre no dice que es otra cosa —una clave (`cliente_id`,
+  `id_usuario`, `cod_socio`), un tipo, un estado o una categoría
+  (`tipo_cliente`, `estado_socio`), una fecha (`cliente_desde`,
+  `fecha_alta_socio`), una cantidad o un importe— y si sus valores
+  pueden ser nombres: una columna de números, fechas o lógicos no lo es.
+  Hasta la ronda 33 bastaba la palabra, y esas columnas se protegían
+  como nombres: perdían su moda y sus extremos, y sus categorías
+  —`"mayorista"`, `"empresa"`— se tapaban también en las demás columnas.
+  La misma regla vale para las demás palabras: `tipo_documento` es una
+  categoría y no un documento, `fecha_contacto` y `medio_contacto` no
+  son teléfonos, `estado_correo` no es un correo y `tipo_domicilio` no
+  es un domicilio; sí lo siguen siendo `nro_documento`, `documento_id`,
+  `numero_celular`, `telefono_contacto`, `barrio_id`, `segundo_nombre` o
+  una fecha de nacimiento guardada como número. Una columna de personas
+  con otro nombre se declara en `columnas_personales`. También es
+  `medio` una columna que trae correos completos sin que sean la mayoría
+  de sus valores: un correo es un correo aunque esté solo, y la columna
+  se protege;
 
 - `alto`: una forma muy específica, como un correo, o nombre y forma se
   apoyan mutuamente; se protege;
@@ -1978,7 +2034,7 @@ perfil
 #> ── Perfil de datos: datos_administrativos ──────────────────────────────────────
 #> ✖ 5 hallazgos con severidad error
 #> ! 9 hallazgos sospechosos
-#> ✔ 8 hallazgos informativos ok
+#> ✔ 7 hallazgos informativos ok
 #> ℹ 8 diagnosticos no evaluados
 #> 
 #> ── Resumen general ──
@@ -2094,7 +2150,7 @@ summary(perfil)
 #> 9                    0             0.00000000          11     0.84615385
 #> 10                   0             0.00000000          12     0.92307692
 #>    secuencia_entera_densa densidad_secuencia_entera
-#> 1                   FALSE                        NA
+#> 1                   FALSE              1.000000e+00
 #> 2                   FALSE                        NA
 #> 3                   FALSE                        NA
 #> 4                   FALSE                        NA
@@ -2105,7 +2161,7 @@ summary(perfil)
 #> 9                   FALSE              1.000000e+00
 #> 10                  FALSE                        NA
 #>    n_posiciones_secuencia_entera n_huecos_secuencia_entera
-#> 1                             NA                        NA
+#> 1                             11                         0
 #> 2                             NA                        NA
 #> 3                             NA                        NA
 #> 4                             NA                        NA
@@ -2116,7 +2172,7 @@ summary(perfil)
 #> 9                             11                         0
 #> 10                            NA                        NA
 #>    hueco_maximo_secuencia_entera salto_de_escala_secuencia_entera
-#> 1                             NA                            FALSE
+#> 1                              1                            FALSE
 #> 2                             NA                            FALSE
 #> 3                             NA                            FALSE
 #> 4                             NA                            FALSE
@@ -2138,7 +2194,7 @@ summary(perfil)
 #> 9                            FALSE                              0.8
 #> 10                           FALSE                              0.8
 #>    min_distintos_secuencia_entera              moda frecuencia_moda
-#> 1                              20 [valor protegido]               2
+#> 1                              20                 1               2
 #> 2                              20 [valor protegido]               2
 #> 3                              20 [valor protegido]               2
 #> 4                              20                 F               6
@@ -2149,7 +2205,7 @@ summary(perfil)
 #> 9                              20                 1               2
 #> 10                             20             TR001               2
 #>    longitud_minima longitud_maxima longitud_media n_longitudes_resumidas minimo
-#> 1               NA              NA             NA                     NA     NA
+#> 1               NA              NA             NA                     NA      1
 #> 2                3              11       9.692308                     13     NA
 #> 3                4              10       9.384615                     13     NA
 #> 4                0               3       1.076923                     13     NA
@@ -2160,7 +2216,7 @@ summary(perfil)
 #> 9               NA              NA             NA                     NA      1
 #> 10               5               5       5.000000                     13     NA
 #>     maximo        media mediana       desvio minimo_exacto maximo_exacto
-#> 1       NA           NA      NA           NA          <NA>          <NA>
+#> 1       11 5.923077e+00       6 3.546396e+00          <NA>          <NA>
 #> 2       NA           NA      NA           NA          <NA>          <NA>
 #> 3       NA           NA      NA           NA          <NA>          <NA>
 #> 4       NA           NA      NA           NA          <NA>          <NA>
@@ -2303,7 +2359,7 @@ summary(perfil)
 #> 9         NA        NA        NA        NA
 #> 10        NA        NA        NA        NA
 #>                      detalle_proteccion_personal n_blancos n_espacios_borde
-#> 1  [estadisticos de orden y momentos protegidos]         0                0
+#> 1                                           <NA>         0                0
 #> 2             [estadisticos de orden protegidos]         0                0
 #> 3  [estadisticos de orden y momentos protegidos]         0                0
 #> 4                                           <NA>         1                0
@@ -2402,7 +2458,7 @@ summary(perfil)
 #> 9                 FALSE               FALSE                    
 #> 10                FALSE               FALSE                    
 #>    numero_texto_moneda numero_texto_convencion dato_personal_posible
-#> 1                                                               TRUE
+#> 1                                                              FALSE
 #> 2                                                               TRUE
 #> 3                                                               TRUE
 #> 4                                                              FALSE
@@ -2413,7 +2469,7 @@ summary(perfil)
 #> 9                                                              FALSE
 #> 10                                                             FALSE
 #>     tipo_dato_personal proporcion_dato_personal
-#> 1               nombre                       NA
+#> 1                 <NA>                       NA
 #> 2  documento_identidad                0.8461538
 #> 3     fecha_nacimiento                1.0000000
 #> 4                 <NA>                       NA
@@ -2424,7 +2480,7 @@ summary(perfil)
 #> 9                 <NA>                       NA
 #> 10                <NA>                       NA
 #>    poder_discriminante_dato_personal dato_personal_protegido
-#> 1                              medio                    TRUE
+#> 1                               <NA>                   FALSE
 #> 2                               alto                    TRUE
 #> 3                              medio                    TRUE
 #> 4                               <NA>                   FALSE

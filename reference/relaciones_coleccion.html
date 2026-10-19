@@ -97,7 +97,10 @@ mitad.</p></dd>
 <dt id="arg-orden">orden<a class="anchor" aria-label="anchor" href="#arg-orden"></a></dt>
 <dd><p>Columnas para <code>ORDER BY</code>: un vector de texto que se aplica a
 todas las tablas, o una lista nombrada por identificador de tabla. Sin él
-la lectura no es repetible y el objeto lo declara.</p></dd>
+la lectura no es repetible y el objeto lo declara. Ordena la lectura y no
+la recorta: una tabla sin <code>columnas_candidatas</code> se lee con todas sus
+columnas, y a una con candidatas se le suman las de orden sólo para
+ordenar.</p></dd>
 
 
 <dt id="arg-tope-cache-mb">tope_cache_mb<a class="anchor" aria-label="anchor" href="#arg-tope-cache-mb"></a></dt>
@@ -142,6 +145,17 @@ usada, las filas leídas y el momento de cada lectura.</p>
 <p><strong>El orden no se supone.</strong> Sin <code>orden</code>, una lectura acotada devuelve un
 subconjunto arbitrario y el resultado declara <code>meta$estable = FALSE</code>. Declarar
 columnas de orden hace la lectura repetible.</p>
+<p><strong>Una columna que la sesión no puede escribir no se lleva la tabla.</strong> Con
+odbc bajo el locale <code>C</code> -un <code>Rscript</code> de cron- un nombre no ASCII no se
+puede mandar, y un nombre con bytes que no son UTF-8 válido y no declaran su
+codificación -un CSV latin1 leído sin <code>fileEncoding</code>- no se manda con ningún
+controlador. Una candidata así sale de la lectura y sus combinaciones quedan
+en <code>cobertura_podas</code> con motivo <code>columna_no_escribible</code> y el remedio en
+<code>detalle</code>; las demás se comparan. Una columna de <code>orden</code> así deja la lectura
+de esa tabla sin <code>ORDER BY</code> —no se puede ordenar como se declaró—, y
+<code>meta$lecturas</code> y <code>meta$estable</code> lo dicen. Los nombres publicados son los de
+<code><a href="https://dbi.r-dbi.org/reference/dbListFields.html" class="external-link">DBI::dbListFields()</a></code>, los mismos que publica <code><a href="perfilar_coleccion.html">perfilar_coleccion()</a></code>, aunque
+el controlador devuelva los de la lectura en otra codificación.</p>
 <p>Cada par se compara sobre una muestra de filas de cada tabla, y el resultado
 declara ese alcance: una relación candidata sobre una muestra <strong>no es una
 clave foránea comprobada</strong>, es un indicio que hay que confirmar contra el

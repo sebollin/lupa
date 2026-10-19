@@ -133,6 +133,12 @@ la segunda pasada dejaba su resto —<code>"De Los Campos"</code> de
 <code>"María De Los Campos"</code> en SQL Server en sueco, <code>"Campos Cadena"</code> después
 de un apodo entre comillas—. El orden de las tablas no cambia lo que se
 publica; lo vuelto a leer reemplaza a lo publicado sólo si publica menos.
+La relectura corre también después del cruce entre tablas, sobre lo que
+el cruce escribe: el motivo de <code>otras_tablas</code> lleva el mensaje del motor
+de la tabla que no se pudo leer, y con la vista antes que su base citaba
+ese resto. En ese cierre, un valor igual al nombre de una tabla o de un
+esquema de la colección no se tapa: es estructura, como en
+<code><a href="perfilar_dbi.html">perfilar_dbi()</a></code>.
 Se reemplaza el texto tal como se publicó: si el piso de la propia tabla
 ya lo había cambiado —el mensaje citaba entero, además, un valor
 protegido de esa misma tabla—, la relectura no lo encuentra y queda sólo
@@ -175,7 +181,13 @@ colección respeten la misma decisión.</p></dd>
 vale para toda la colección: sin protección, el mensaje de un error del
 motor se publica entero —el literal que hizo fallar la lectura y el SQL—
 también en <code>cobertura_coleccion</code>, <code>cobertura_metricas</code>, <code>meta$lecturas</code> y
-los avisos; ver la sección «Datos personales» de <code><a href="perfilar_dbi.html">perfilar_dbi()</a></code>.</p></dd>
+los avisos; ver la sección «Datos personales» de <code><a href="perfilar_dbi.html">perfilar_dbi()</a></code>.
+Lo que va a <code><a href="perfilar.html">perfilar()</a></code> se valida al entrar, una vez. Los argumentos
+propios de <code><a href="perfilar_dbi.html">perfilar_dbi()</a></code> —<code>estrategia_distintos</code>, <code>max_consultas</code>,
+<code>umbral_cardinalidad</code> y los demás— los valida <code><a href="perfilar_dbi.html">perfilar_dbi()</a></code> en cada
+tabla: uno mal escrito deja cada tabla en <code>cobertura_coleccion</code> con ese
+motivo y sin aviso. Es una limitación conocida: si ninguna tabla se
+perfiló, mirar el motivo antes de sospechar de los permisos.</p></dd>
 
 </dl></div>
     <div class="section level2">

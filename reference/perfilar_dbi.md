@@ -363,13 +363,16 @@ perfilar_dbi(
 
   Nombres de columnas que sólo son aplicables a parte de las filas. Esta
   política se aplica al `perfil_muestra`; el resumen SQL no la traduce y
-  lo declara en `resumen_tabla$cobertura`.
+  lo declara en `resumen_tabla$cobertura`. Los dos bloques cuentan
+  `n_faltantes` sobre universos distintos, así que la corroboración no
+  lo compara: ver «Lo que el motor guarda distinto que R».
 
 - aplicabilidad:
 
   Lista nombrada de fórmulas de un solo lado, con una regla por columna.
   Se reenvía al `perfil_muestra`; el resumen SQL no la traduce y lo
-  declara en `resumen_tabla$cobertura`.
+  declara en `resumen_tabla$cobertura`, y la corroboración no compara lo
+  que la regla cambia.
 
 - sentinelas_numericos:
 
@@ -377,7 +380,8 @@ perfilar_dbi(
   el `perfil_muestra`. Se normaliza como un conjunto numérico, por lo
   que el orden, el tipo entero o doble y los duplicados no cambian el
   resultado. El resumen SQL no los excluye de sus agregados y lo declara
-  en `resumen_tabla$cobertura`.
+  en `resumen_tabla$cobertura`; la corroboración no compara las métricas
+  de magnitud de una columna de la que la muestra excluyó alguno.
 
   Rige la misma reserva que en
   [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md):
@@ -507,10 +511,18 @@ siguiente hacía caer a R. La consulta no se envía: la columna queda en
 `no_disponible` con ese motivo, y una tabla con un nombre así da
 `lupa_error_codificacion_dbi`. Para leerlas, correr la sesión con un
 locale UTF-8 (`LC_ALL=C.UTF-8`). RPostgres, RSQLite y duckdb reciben la
-consulta en UTF-8 y leen esos nombres en cualquier locale. Los
-[`stop()`](https://rdrr.io/r/base/stop.html) de esta vía llevan clase de
-condición propia —todas heredan de `lupa_error_dbi`— para que se puedan
-rescatar con [`tryCatch()`](https://rdrr.io/r/base/conditions.html):
+consulta en UTF-8 y leen esos nombres en cualquier locale. El nombre de
+la tabla se normaliza antes de la primera llamada a la conexión, también
+la que comprueba que existe: un nombre marcado `latin1` —el que da
+`read.csv(encoding = "latin1")`— se convierte a UTF-8 y se lee, y uno
+con bytes que no son UTF-8 válido y no declaran su codificación
+—[`read.csv()`](https://rdrr.io/r/utils/read.table.html) sin
+`fileEncoding` sobre un archivo latin1— no se adivina: con odbc da
+`lupa_error_codificacion_dbi` antes de tocar la conexión, que antes
+quedaba rota. Los [`stop()`](https://rdrr.io/r/base/stop.html) de esta
+vía llevan clase de condición propia —todas heredan de `lupa_error_dbi`—
+para que se puedan rescatar con
+[`tryCatch()`](https://rdrr.io/r/base/conditions.html):
 `lupa_error_conexion_dbi`, `lupa_error_tabla_dbi`,
 `lupa_error_campos_dbi`, `lupa_error_conteo_dbi`,
 `lupa_error_esquema_dbi`, `lupa_error_codificacion_dbi` y
@@ -693,6 +705,21 @@ eso no es lo mismo que la tabla en R:
   ese motivo. Un infinito es un número: no se informa como un valor que
   no se pudo leer como número.
 
+- **`money` y `real` en PostgreSQL.** RPostgres lee `0` en toda celda
+  `money`, sin avisar, y un `real` por su texto decimal corto —`21.3`—,
+  mientras el motor opera sobre el binario guardado
+  —21.299999237060547—. Las dos columnas se leen convertidas en el
+  motor: `money` como `CAST(x AS NUMERIC)` y `real` como
+  `CAST(CAST(x AS TEXT) AS DOUBLE PRECISION)`, la cifra que lee R. La
+  conversión vale para toda lectura —la muestra, `bloque_filas`,
+  `muestra_motor`— y el resumen SQL calcula sus agregados sobre esa
+  misma lectura, así que las vías publican la misma cifra. Las columnas
+  convertidas y su expresión quedan en
+  `resumen_tabla$meta$lectura_convertida`. Se reconocen por el tipo que
+  publica
+  [`DBI::dbColumnInfo()`](https://dbi.r-dbi.org/reference/dbColumnInfo.html)
+  de RPostgres; con otro controlador no se convierte nada.
+
 - **La media en coma flotante.** Cada lado suma a su modo; sobre una
   columna que mezcla magnitudes muy distintas —`1e20` junto a `1`— las
   medias pueden diferir entre motores y con la de R, y ninguna es la
@@ -704,6 +731,23 @@ eso no es lo mismo que la tabla en R:
   grandes el desvío de un `numeric` sale con cuatro; en MySQL y MariaDB
   `AVG(x * 1e0)`, porque `AVG` de un `DECIMAL` devuelve cinco decimales.
   En los demás motores, `x * 1.0`.
+
+- **El desvío de una sola pasada.** `STDEV` de SQL Server —y, con menos
+  pérdida, el desvío nativo de SQLite, duckdb, MariaDB y MySQL— acumula
+  en una sola pasada, y cuando la media es muy grande frente al ancho de
+  la columna pierde las cifras del desvío: sobre marcas de tiempo en
+  milisegundos de una ventana de un segundo, SQL Server respondía `0`.
+  El desvío no cambia si a cada valor se le resta una constante, así que
+  se le pide al motor sobre los valores centrados en la media ya
+  calculada: siempre en la consulta por columna, y en la consulta
+  compartida —donde la media sale de la misma sentencia— se vuelve a
+  pedir centrado cuando la media supera diez veces el desvío, con una
+  consulta más que el plan no anticipa porque depende de los datos. Su
+  fila de `sql` lo dice. Con `bloque_filas` los momentos se acumulan
+  centrados. Bajo `muestra_motor` no se vuelve a pedir, porque otra
+  consulta vería otras filas; ahí, como red en todas las vías, un desvío
+  `0` sobre una columna con dos valores distintos —un mínimo menor que
+  el máximo— es imposible y queda `no_disponible` con su motivo.
 
 - **El cotejamiento.** El resumen SQL agrupa y ordena con el
   cotejamiento de la columna: sobre una `COLLATE NOCASE` de SQLite o una
@@ -732,6 +776,34 @@ eso no es lo mismo que la tabla en R:
   `perfil_muestra` para esa columna no describen lo guardado. Para
   perfilar los valores guardados, leer la columna como texto
   (`CAST(columna AS TEXT)` en una vista) o limpiarla en el origen.
+  **Limitación conocida:** un texto que R sí lee como número —`'0x10'`,
+  hexadecimal, que [`as.numeric()`](https://rdrr.io/r/base/numeric.html)
+  lee 16— pasa la sonda de magnitud como un número, y el resumen SQL
+  publica `maximo = 16` sobre una columna `NUMERIC` cuyo máximo numérico
+  es otro; las divergencias de la corroboración son la señal.
+
+- **Lo que la corroboración compara.** Sólo las métricas que los dos
+  bloques calculan con la misma semántica. No compara lo que una
+  declaración o una guarda hacen distinto a propósito, porque esa
+  diferencia no es del motor, del controlador ni de un snapshot: la
+  `media`, la `mediana` y el `desvio` de una columna de
+  `columnas_codigo`, que no se calculan; `n_faltantes` de una columna de
+  `columnas_opcionales` o de `aplicabilidad`, que la muestra cuenta
+  sobre su universo —y todas las métricas de la columna con
+  `aplicabilidad` si la muestra dejó afuera valores presentes—; las
+  métricas de magnitud de una columna de la que la muestra excluyó los
+  `sentinelas_numericos` declarados; y las de un entero de 64 bits desde
+  2^53, que el resumen no publica. Un `NaN` o un infinito sí se compara:
+  es la diferencia del motor que la corroboración existe para declarar.
+  Lo que no se comparó queda en
+  `resumen_tabla$meta$corroboracion_bloques$no_comparadas`, una fila por
+  columna y métrica con su causa. La tolerancia está en
+  `meta$corroboracion_bloques$tolerancia`: `1e-10` absoluta más `64`
+  épsilon de máquina relativos para los valores leídos —`minimo`,
+  `maximo`, `mediana`, la moda—, y `1e-10` relativa para `media` y
+  `desvio`, que cada lado acumula con su algoritmo y en su orden. Medido
+  en SQL Server, la diferencia de la acumulación llega a 2e-13; una
+  divergencia real es de otro orden y sigue saliendo.
 
 ## Costo
 
@@ -916,8 +988,18 @@ muestra; si la muestra no se pudo leer, la protección se aplica a todas
 las columnas y `meta` lo declara. Lo que se oculta no queda `calculado`:
 su fila de `resumen_tabla$sql` dice `omitido_por_privacidad`, con un
 motivo que distingue la columna clasificada como personal de la que se
-cerró porque, sin muestra, no se pudo clasificar. El desvío se oculta
-como la media, como en
+cerró porque, sin muestra, no se pudo clasificar. Una columna que no se
+protege publica sus estadísticos aunque comparta el tipo personal con
+una protegida, como en
+[`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md):
+un importe entero de siete cifras o un número de factura clasificado
+`documento_identidad` débil. Hasta la ronda 33 se tapaban sus cinco
+estadísticos con el motivo de una columna protegida, mientras
+`perfil_muestra` los publicaba; una copia del documento la tapa el piso
+por valor, que corre con la tabla entera, y la que lo copia sin su
+verificador se clasifica como columna personal con la regla de
+[`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md),
+sobre la muestra. El desvío se oculta como la media, como en
 [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md);
 también en `resumen_tabla$meta$familias`, donde la vía por bloques
 (`bloque_filas`) guarda lo que devolvió cada acumulador: ahí se tapan
@@ -966,14 +1048,24 @@ columnas no personales —moda, extremos, ejemplos y, por la vía por
 bloques, cada valor distinto y los extremos de `meta$familias`— y la
 evidencia de sus hallazgos, y
 `resumen_tabla$meta$proteccion_personal$fuera_de_muestra` dice por qué.
-En SQLite los valores se leen como texto, porque una columna de afinidad
-numérica guarda texto y el controlador lo convertía en número; también
-sin muestreo, cuando la muestra es la tabla entera: ahí se releen como
-texto, con una consulta, las columnas protegidas que el controlador no
-leyó como texto. Y el motivo de una cifra que no se pudo leer como
-número no cita el valor de una columna protegida. Tampoco el **mensaje
-de un error del motor**, que es texto ajeno y cita la celda que hizo
-fallar la consulta
+Salvo un valor igual al nombre de la tabla o de su esquema, que es
+estructura: se publica en `meta`, en cada SQL guardada y en
+[`print()`](https://rdrr.io/r/base/print.html), y un valor de celda
+igual a él no se tapa —tapaba el nombre de todo el objeto—; lo mismo
+cuando sin muestra se cierran todas las columnas. Limitación conocida
+(baja): un valor igual al nombre de una **columna** sí se tapa, porque
+un nombre de columna puede ser el de una persona —una planilla con una
+columna por docente—, y tapa también ese nombre en la descripción de las
+sondas de dialecto (`meta$dialecto$sondas`) y, con `bloque_filas`, en la
+de la fuente por bloques (`meta$fuente_bloques`, `meta$plan`); en
+`columnas$columna` y en la SQL guardada queda. En SQLite los valores se
+leen como texto, porque una columna de afinidad numérica guarda texto y
+el controlador lo convertía en número; también sin muestreo, cuando la
+muestra es la tabla entera: ahí se releen como texto, con una consulta,
+las columnas protegidas que el controlador no leyó como texto. Y el
+motivo de una cifra que no se pudo leer como número no cita el valor de
+una columna protegida. Tampoco el **mensaje de un error del motor**, que
+es texto ajeno y cita la celda que hizo fallar la consulta
 —`invalid input syntax for type bigint: "4.685.467-9"`, en una vista que
 castea una cédula escrita con puntos—: ese valor nunca se leyó, así que
 el piso no lo conoce y puede ser de cualquier columna. Con la protección

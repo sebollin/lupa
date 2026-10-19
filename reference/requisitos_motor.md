@@ -34,6 +34,17 @@ El estado `probado` se copia de la tabla de motores de los README.
 comprobó contra ese motor real en este repositorio. Los motores que no
 figuran en esa tabla no se presentan como probados.
 
+Ante una conexión abierta,
+[`coleccion()`](https://sebollin.github.io/lupa/reference/coleccion.md)
+y
+[`perfilar_coleccion()`](https://sebollin.github.io/lupa/reference/perfilar_coleccion.md)
+piden el paquete del **controlador con que se abrió**, que reconocen por
+la clase de la conexión y el paquete que la define, no por el motor que
+informa el servidor: un MySQL abierto con
+[`RMariaDB::MariaDB()`](https://rmariadb.r-dbi.org/reference/dbConnect-MariaDBDriver-method.html)
+usa RMariaDB y no pide ni carga RMySQL, cuya clase se llama igual y
+rompería la conexión.
+
 ## Examples
 
 ``` r

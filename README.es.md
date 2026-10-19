@@ -495,6 +495,10 @@ grande, las dos vías **no** coinciden. Por eso
 la tolerancia, deja una fila `divergencia` en `resumen_tabla$cobertura`
 con los dos valores y la cobertura de la muestra. No elige un ganador
 —el paquete no sabe cuál es la verdad— pero no calla que no coinciden.
+Cruza sólo lo que los dos bloques miden igual: lo que una declaración
+cambia a propósito —los faltantes de una columna opcional, la media sin
+los centinelas declarados— no es una divergencia, y lo que no compara lo
+dice en `meta$corroboracion_bloques$no_comparadas`.
 
 Lo que ese script comprueba es el **comportamiento**, y se puede rehacer
 contra cualquier conexión. Los **cronometrajes** de esas corridas —los

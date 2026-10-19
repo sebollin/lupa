@@ -84,7 +84,15 @@ perfiles_madurez(metricas = NULL, umbrales = NULL)
 `Intermedio` y `Avanzado` de AGESIC, con condiciones estrictas `> 0.5`,
 `> 0.7` y `> 0.9`. El argumento `umbrales` permite construir otra
 familia con nombres y cortes crecientes propios sobre las mismas
-métricas instanciadas.
+métricas instanciadas. Los cortes son umbrales sobre el **resultado
+agregado** de cada métrica —una proporción en `[0, 1]`, lo que deja
+[`agregar()`](https://sebollin.github.io/lupa/reference/agregar.md)—:
+sobre las medidas por fila de
+[`medir()`](https://sebollin.github.io/lupa/reference/medir.md), que
+valen `0` o `1`, los tres cortes son la misma condición y los tres
+perfiles dan la misma cifra, sin aviso. Es lo que hace
+[`analizar()`](https://sebollin.github.io/lupa/reference/analizar.md),
+que evalúa la medición agregada.
 
 `regla_evaluacion()` almacena la función sin ejecutarla.
 [`evaluar()`](https://sebollin.github.io/lupa/reference/evaluar.md)
