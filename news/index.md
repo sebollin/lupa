@@ -2,6 +2,524 @@
 
 ## lupa 0.1.0
 
+### Ronda 35: la via DBI otra vez, las mediciones, la proteccion y la comparacion de perfiles
+
+La primera ronda con el porton acotado al camino principal
+([`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md)
+en memoria;
+[`perfilar_dbi()`](https://sebollin.github.io/lupa/reference/perfilar_dbi.md)
+y las colecciones sobre PostgreSQL y SQL Server; sesiones UTF-8 y la `C`
+de un cron). Tres refutaciones sobre la ronda 34. La de la via DBI
+encontro cinco altos -una columna con `DENY SELECT` hacia caer a R en
+SQL Server; bajo `C` los `varchar` con tilde de SQL Server se leian como
+bytes invalidos y perdian sus relaciones; con enmascaramiento dinamico
+las columnas completas salian vacias;
+[`relaciones_coleccion()`](https://sebollin.github.io/lupa/reference/relaciones_coleccion.md)
+leia `money` de PostgreSQL como 0; dentro de una transaccion de
+PostgreSQL
+[`perfilar_dbi()`](https://sebollin.github.io/lupa/reference/perfilar_dbi.md)
+abortaba y la dejaba inservible- y cinco medios; la de las mediciones,
+cuatro medios, dos de ellos regresiones de la ronda 34 -el `real` de
+PostgreSQL anterior a la 12 y el desvio centrado del `real` en SQL
+Server-; la de la proteccion, tres medios, uno de ellos regresion de la
+ronda 34 -los nombres de personas en columnas como `usuario_alta` o
+`nombre_jefe_grupo`-. Sobre los arreglos, antes de unirlos, una segunda
+refutacion de otras familias de modelos encontro que el arreglo de la
+proteccion tapaba de mas categorias de dos palabras, que
+[`comparar_perfiles()`](https://sebollin.github.io/lupa/reference/comparar_perfiles.md)
+callaba los hallazgos de varias columnas y que con
+`universo = "muestra_motor"` una columna sin permiso desaparecia sin
+aviso; tambien se arreglaron.
+
+**Los permisos por columna (alta en SQL Server, media en PostgreSQL):**
+
+- **Una columna con `DENY SELECT` ya no hace caer a R.** En SQL Server
+  por odbc + FreeTDS,
+  [`perfilar_dbi()`](https://sebollin.github.io/lupa/reference/perfilar_dbi.md),
+  [`plan_perfilado_dbi()`](https://sebollin.github.io/lupa/reference/plan_perfilado_dbi.md),
+  [`perfilar_coleccion()`](https://sebollin.github.io/lupa/reference/perfilar_coleccion.md)
+  y
+  [`relaciones_coleccion()`](https://sebollin.github.io/lupa/reference/relaciones_coleccion.md)
+  sobre una tabla con una columna negada morian con una violacion de
+  segmento, en UTF-8 y bajo `C`: la lectura conjunta del esquema
+  nombraba la columna, el motor la rechazaba, y una consulta PREPARADA
+  rechazada por un permiso de columna deja la conexion de odbc rota; la
+  siguiente caia. Medido: la misma consulta sin preparar falla con su
+  error y la conexion sigue. Ahora las columnas de la tabla y lo que la
+  credencial puede leer de cada una salen del catalogo del motor antes
+  de leer -`sys.columns` con `HAS_PERMS_BY_NAME()` en SQL Server,
+  `pg_attribute` con `has_column_privilege()` en PostgreSQL, legibles
+  por cualquier rol-, de una sola funcion que usan las cuatro puertas.
+  La columna negada no se nombra en ninguna consulta, aparece en
+  `resumen_tabla$columnas` con sus metricas `no_disponible` y una fila
+  de cobertura con el motivo y el remedio, y las demas se perfilan
+  enteras. SQL Server rechaza tambien `COUNT(*)` y
+  `SELECT 1 ... WHERE 1 = 0` sobre una tabla con una columna sin permiso
+  (medido): la lectura va sobre una tabla derivada con las columnas
+  legibles. Y con odbc toda consulta se ejecuta sin preparar
+  (`immediate = TRUE`, como el `dbGetQuery()` de odbc), asi que lo que
+  el catalogo no ve falla con su error y no rompe la conexion (medido
+  anulando la consulta al catalogo:
+  [`perfilar_dbi()`](https://sebollin.github.io/lupa/reference/perfilar_dbi.md)
+  declara la columna que el motor rechazo y
+  [`relaciones_coleccion()`](https://sebollin.github.io/lupa/reference/relaciones_coleccion.md)
+  el par, sin caida; los datos y `dbColumnInfo()` son los mismos con las
+  dos formas sobre 22 tipos de SQL Server).
+- **Con `GRANT SELECT` por columnas en PostgreSQL la tabla tiene sus
+  cuatro columnas.** `dbListFields()` de RPostgres lee
+  `information_schema.columns`, que filtra por privilegio:
+  [`perfilar_dbi()`](https://sebollin.github.io/lupa/reference/perfilar_dbi.md)
+  perfilaba 3 de 4 columnas y
+  [`perfilar_coleccion()`](https://sebollin.github.io/lupa/reference/perfilar_coleccion.md)
+  publicaba `n_columnas = 3` sin decirlo. Ahora la cuarta se declara
+  como en SQL Server.
+- **[`relaciones_coleccion()`](https://sebollin.github.io/lupa/reference/relaciones_coleccion.md)
+  compara el par cuando una columna no se puede leer.** Sin
+  `columnas_candidatas` la lectura era `SELECT *`, que con un permiso
+  por columna se rechaza entero: en PostgreSQL el par se perdia con el
+  nombre de la tabla tapado y un remedio de permisos de tabla, y en SQL
+  Server caia R. Ahora la lectura nombra las columnas legibles y las
+  combinaciones de la que no se leyo quedan en `cobertura_podas` con
+  motivo `columna_sin_permiso`. Una candidata que existe y no se puede
+  leer ya no se rechaza como inexistente.
+- **Con `universo = "muestra_motor"` la columna sin permiso tampoco
+  desaparece.** La via del spool -la de `muestra_motor` con muestra,
+  tambien desde
+  [`perfilar_coleccion()`](https://sebollin.github.io/lupa/reference/perfilar_coleccion.md)-
+  armaba `resumen_tabla$columnas` solo con las columnas legibles y no
+  declaraba las demas: una tabla de seis columnas con cuatro negadas
+  salia con dos y 0 filas de cobertura, y la coleccion con
+  `n_columnas = 2` (medido en SQL Server; lo encontro una refutacion
+  externa). Ahora la columna esta en `resumen_tabla$columnas` con sus
+  metricas `no_disponible` y una fila de cobertura con el motivo, como
+  sobre la tabla completa y por bloques. La misma omision valia antes
+  para cualquier columna que el esquema no pudiera leer (un nombre que
+  la sesion no puede escribir, una que el motor rechaza).
+
+**El enmascaramiento dinamico de SQL Server (alta):**
+
+- **Una columna enmascarada publica su completitud real y nada de lo que
+  describe la mascara.** Con `MASKED WITH` y una credencial sin
+  `UNMASK`, `COUNT(col)` sale enmascarado -0- y
+  [`perfilar_dbi()`](https://sebollin.github.io/lupa/reference/perfilar_dbi.md)
+  y
+  [`perfilar_coleccion()`](https://sebollin.github.io/lupa/reference/perfilar_coleccion.md)
+  publicaban 100 % de faltantes en columnas completas (medido: 400 de
+  400 donde habia 0, 0, 0 y 40), sin aviso con
+  `bloque_muestra = "solo_agregados"`; con la muestra, divergencias y
+  “un unico valor no ausente” sobre `xxxx`; y
+  [`relaciones_coleccion()`](https://sebollin.github.io/lupa/reference/relaciones_coleccion.md)
+  publicaba `cedula -> cedula` con cobertura 1 entre dos columnas
+  enmascaradas sin un valor comun. Ahora el paquete lee
+  `sys.masked_columns` y el permiso `UNMASK` (de la columna, 2022, o de
+  la base): la completitud se mide, y distintos, moda, extremos, media,
+  mediana y desvio quedan `no_disponible` con el motivo; la columna no
+  entra en `perfil_muestra` (fila `alcance_distinto`) ni en las
+  relaciones (`columna_enmascarada` en `cobertura_podas`). Con `UNMASK`
+  la columna se perfila entera (medido con
+  `GRANT UNMASK ON t (cedula)`).
+
+**El conteo de faltantes (media):**
+
+- **Los no nulos se cuentan con una sola expresion en todos los
+  motores.** `COUNT(CASE WHEN col IS NULL THEN NULL ELSE 1 END)`
+  reemplaza a `COUNT(col)` en la consulta compartida, la por columna, la
+  de lotes de distintos, el desvio y la mediana escalar. SQL Server
+  rechaza `COUNT()` sobre `text`, `ntext` e `image`, y la completitud de
+  esas columnas quedaba `no_disponible` (medido: 10, 10 y 0 nulos de 100
+  que el motor sabia contar); ahora se mide. Medido en siete motores
+  (SQLite, duckdb, PostgreSQL 16 y 9.3, SQL Server, MySQL, MariaDB): las
+  mismas cifras, con muestra, sin ella y por bloques; en una tabla de
+  3.000.000 de filas la consulta tarda 0,102 s contra 0,094 s en
+  PostgreSQL y 0,155 contra 0,140 en SQL Server, y
+  [`perfilar_dbi()`](https://sebollin.github.io/lupa/reference/perfilar_dbi.md)
+  entero lo mismo dentro del ruido.
+
+**La muestra de una vista que falla en una fila (media):**
+
+- **La columna que hace fallar la muestra se aisla sobre las filas de la
+  muestra.** Una vista que convierte un texto sucio en la fila 150
+  dejaba sin `perfil_muestra` a TODAS las columnas con un motivo falso
+  (“ninguna fallo por si sola”): la sonda que busca la columna culpable
+  leia una fila, y la fila 1 era sana. Ahora la sonda es la misma
+  lectura de la muestra con menos columnas: la culpable se declara
+  (`alcance_distinto`) y las demas se perfilan (medido en PostgreSQL y
+  SQL Server).
+
+**Limitaciones conocidas (bajas):**
+
+- En SQL Server, una columna sin permiso detras de un sinonimo, de una
+  tabla de otra base o de una tabla temporal no se ve en el catalogo: la
+  tabla da el error de la via (`lupa_error_tabla_dbi`) en vez de
+  perfilar las demas columnas. La conexion sigue.
+- Con `universo = "muestra_motor"` y una columna sin permiso en SQL
+  Server, `TABLESAMPLE` no se puede escribir sobre la tabla derivada: la
+  muestra del motor usa otra forma que el motor acepte (medido:
+  `NEWID()` con limite) o se degrada con su motivo.
+
+**La via DBI y las colecciones:**
+
+- **Dentro de una transaccion del usuario la via ya no la aborta.** En
+  PostgreSQL un error cualquiera aborta la transaccion abierta, y la via
+  manda consultas que pueden fallar a proposito -la sonda de dialecto
+  `SELECT STDEV(1.0)`, hecha para que el motor la rechace- o por el dato
+  -`COUNT(DISTINCT)` de un `json`, la vista rota-: dentro de una
+  transaccion `REPEATABLE READ` -lo que recomienda el propio motivo de
+  `consistencia`-
+  [`perfilar_dbi()`](https://sebollin.github.io/lupa/reference/perfilar_dbi.md)
+  abortaba sobre una tabla sana con `lupa_error_conteo_dbi` (“current
+  transaction is aborted”),
+  [`perfilar_coleccion()`](https://sebollin.github.io/lupa/reference/perfilar_coleccion.md)
+  no perfilaba ninguna tabla, y la conexion del usuario quedaba
+  inservible hasta su `ROLLBACK`. Ahora, con una transaccion abierta en
+  PostgreSQL -la de `dbBegin()`, o un `BEGIN` mandado a mano, que se
+  reconoce por el motor-, cada sentencia de la via va entre un
+  `SAVEPOINT` propio y su `RELEASE`, y si falla se vuelve con
+  `ROLLBACK TO SAVEPOINT`: por construccion, en los dos envios por los
+  que sale toda consulta y en los dos metadatos. El paquete nunca manda
+  `BEGIN`, `COMMIT` ni `ROLLBACK`, y fuera de una transaccion no agrega
+  nada. Medido en PostgreSQL 16 y 9.3, dentro de `dbBegin()` y de un
+  `BEGIN` crudo:
+  [`perfilar_dbi()`](https://sebollin.github.io/lupa/reference/perfilar_dbi.md)
+  sobre una tabla sana, una con `json`, una vista rota y una con
+  `money`,
+  [`plan_perfilado_dbi()`](https://sebollin.github.io/lupa/reference/plan_perfilado_dbi.md),
+  [`perfilar_coleccion()`](https://sebollin.github.io/lupa/reference/perfilar_coleccion.md)
+  de seis tablas y
+  [`relaciones_coleccion()`](https://sebollin.github.io/lupa/reference/relaciones_coleccion.md)
+  dan lo mismo que fuera, y el `INSERT` que el usuario hizo antes en su
+  transaccion sigue ahi -y sin confirmar-. duckdb tambien aborta la
+  transaccion por un error al ejecutar y no tiene `SAVEPOINT`: dentro de
+  una transaccion de duckdb un objeto que falla al leerse la deja
+  abortada (documentado en
+  [`?perfilar_dbi`](https://sebollin.github.io/lupa/reference/perfilar_dbi.md),
+  seccion “Dentro de una transaccion”).
+- **`relaciones_coleccion(muestra = Inf)` ya no manda `LIMIT Inf`.**
+  `format(Inf)` escribia una consulta que todo motor rechaza -PostgreSQL
+  busca una columna `inf`-: fuera de una transaccion costaba una
+  consulta rechazada por tabla, y dentro de una la abortaba (0
+  relaciones de 3). Sin tope se lee directo por la via sin `LIMIT`.
+- **[`relaciones_coleccion()`](https://sebollin.github.io/lupa/reference/relaciones_coleccion.md)
+  lee las columnas `money` de PostgreSQL convertidas.** RPostgres
+  entrega `0` en toda celda `money`, y `MIN`/`MAX` tambien: la coleccion
+  inventaba `fac.importe -> nota.importe` m:m con cobertura 1 entre dos
+  tablas sin un valor comun, y podaba con `rangos_disjuntos`
+  `fac.importe -> cobro.monto`, que comparte 60 importes (a mano en el
+  motor: 60 de 60). La ronda 34 lo habia cerrado en
+  [`perfilar_dbi()`](https://sebollin.github.io/lupa/reference/perfilar_dbi.md);
+  la lectura de cada tabla de la coleccion, la consulta de rangos de la
+  poda y la lectura de valores protegidos de
+  [`perfilar_coleccion()`](https://sebollin.github.io/lupa/reference/perfilar_coleccion.md)
+  usan ahora la misma expresion, `.lectura_convertida_dbi()` (una
+  consulta de cero filas por tabla, solo donde la lectura convierte
+  algo). Una prueba recorre las cuatro puertas exportadas sobre una
+  conexion que lee `money` como RPostgres y no encuentra ninguna lectura
+  cruda.
+- **El texto `varchar` que odbc entrega en latin1 se lee como latin1.**
+  Bajo el locale `C` -el de un `Rscript` de cron- FreeTDS entrega las
+  columnas de texto no Unicode en latin1 y odbc las marca UTF-8 sin
+  convertirlas: sobre una base SQL Server con cotejamiento latin1,
+  [`perfilar_dbi()`](https://sebollin.github.io/lupa/reference/perfilar_dbi.md)
+  publicaba “Hay texto con secuencias de bytes que no forman UTF-8
+  valido” sobre una base que no tiene ninguno, y
+  [`relaciones_coleccion()`](https://sebollin.github.io/lupa/reference/relaciones_coleccion.md)
+  perdia `nombre -> departamento` (200 de 200 en el motor) entre un
+  `nvarchar` y un `varchar`. Todo valor que llega del motor pasa por un
+  mismo punto, que lee como latin1 el texto de odbc marcado UTF-8 que no
+  es UTF-8 valido. Lo que no se puede recuperar -un caracter fuera de
+  latin1 llega `?`- se declara: cada columna de texto no Unicode leida
+  bajo una sesion que no es UTF-8 queda `degradado` en
+  `resumen_tabla$cobertura` con el remedio (un locale UTF-8), y la
+  coleccion lo dice en `meta$lecturas$motivo`. Medido bajo `C`,
+  `C.UTF-8` y `es_UY.UTF-8`: la misma relacion y el mismo hallazgo en
+  las tres.
+- **Con la referencia truncada, la FK que no alcanza el umbral se
+  declara aunque otra columna del par lo alcance.** El “sin conclusion”
+  de
+  [`relaciones_coleccion()`](https://sebollin.github.io/lupa/reference/relaciones_coleccion.md)
+  solo se publicaba si NINGUNA combinacion del par llegaba a
+  `umbral_cobertura`: un indicador `activo` de dos valores, con
+  cobertura 1 trivial, borraba de toda salida `id -> cliente_id` (0,4996
+  sobre las 10.000 filas leidas, 5.000 de 5.000 en el motor). Ahora el
+  par queda en `cobertura_pares` con una fila: cuantas combinaciones no
+  alcanzaron el umbral, las cinco de mayor cota, y cuantas lo
+  alcanzaron.
+- **Bajo `C`, `orden_muestra` con una columna que la sesion no puede
+  escribir da el motivo de la codificacion.**
+  [`perfilar_dbi()`](https://sebollin.github.io/lupa/reference/perfilar_dbi.md)
+  con una columna con tilde en `orden_muestra`, por odbc, decia “El
+  motor rechazo las columnas de `orden_muestra`”, y el motor no habia
+  recibido nada: ahora `lupa_error_codificacion_dbi` con el remedio del
+  locale UTF-8.
+- **Los motivos de
+  [`relaciones_coleccion()`](https://sebollin.github.io/lupa/reference/relaciones_coleccion.md)
+  nombran la tabla, el esquema y las columnas.** Se tapaban con
+  `[literal omitido]` -tambien la columna de `orden` que el usuario
+  escribio y un mensaje propio del paquete-; desde la ronda 34 eran
+  intocables en
+  [`perfilar_dbi()`](https://sebollin.github.io/lupa/reference/perfilar_dbi.md)
+  y en
+  [`perfilar_coleccion()`](https://sebollin.github.io/lupa/reference/perfilar_coleccion.md),
+  y ahora tambien aca.
+- **`columnas_candidatas` sigue la regla de mayusculas de `orden`.**
+  Sobre SQL Server `IMPORTE` daba “nombra columnas inexistentes”
+  mientras `orden = "ID"` se aceptaba; las dos resuelven como
+  `orden_muestra` de
+  [`perfilar_dbi()`](https://sebollin.github.io/lupa/reference/perfilar_dbi.md)
+  -la grafia exacta y, si no esta, sin distinguir mayusculas-, y un
+  argumento mal formado de
+  [`relaciones_coleccion()`](https://sebollin.github.io/lupa/reference/relaciones_coleccion.md)
+  da `lupa_error_argumento_dbi` y no un `simpleError`.
+
+**Las mediciones (medios):**
+
+- En PostgreSQL, una columna `real` se lee por la forma decimal mas
+  corta que vuelve al valor guardado, calculada en el motor -el valor se
+  redondea a 6, 7, 8 y 9 cifras y se queda la primera que vuelve al
+  mismo `real`-, y no por el texto con que la sesion lo escribe. Antes
+  de PostgreSQL 12, o con `extra_float_digits` de 0 o menos en cualquier
+  version, ese texto tiene seis cifras: en un 9.3, 200 enteros distintos
+  de siete cifras salian 21 distintos, con un minimo 1234500 que no
+  estaba en la columna y desvio 58,07 contra 57,88, en el resumen SQL y
+  en la muestra a la vez y sin ninguna divergencia. La ronda 34 habia
+  llevado esa lectura tambien al resumen SQL. Ahora la lectura da el
+  valor guardado en cualquier version y con cualquier
+  `extra_float_digits` desde -6, sin tocar el estado de la sesion; desde
+  PostgreSQL 12 el texto de la sesion se prueba primero, asi que con el
+  valor por omision la cifra es la de la ronda 34 (`21.3`). Medido en
+  9.3.25 y 16.15 con `extra_float_digits` -6, 0, 1 y 3 sobre 20.347
+  valores. Limitacion conocida, documentada: por debajo de -6 el
+  servidor escribe todo doble con menos de nueve cifras (refutacion
+  35-D, M1).
+- El desvio centrado de
+  [`perfilar_dbi()`](https://sebollin.github.io/lupa/reference/perfilar_dbi.md)
+  resta en doble sobre una columna `real` de SQL Server y una `FLOAT` de
+  duckdb: en los dos `real - decimal` es `real`, y el desvio centrado de
+  la ronda 34 se apartaba 1,4e-8 del de los valores guardados -peor que
+  el de una pasada que vino a reemplazar-; la corroboracion lo publicaba
+  como `divergencia` culpando al motor o al snapshot, y
+  [`perfilar_coleccion()`](https://sebollin.github.io/lupa/reference/perfilar_coleccion.md)
+  subia la tabla a `alcance = "divergencias"`. Lo decide la funcion que
+  arma la expresion, por el tipo declarado: una columna decimal o entera
+  sigue restando en su tipo, que es exacto. Medido en los seis motores
+  (refutacion 35-D, M2).
+- Una columna `numeric` o `decimal` con un valor de al menos 2^53 deja
+  sus siete metricas de magnitud en `no_disponible`, como un entero de
+  64 bits, y con `bloque_filas` tambien `n_distintos` y la moda. La
+  guarda miraba un texto `numeric(20,0)` que ni RPostgres ni odbc
+  publican -dan `numeric` y el codigo ODBC `2`-, asi que nunca se
+  disparaba: con `bloque_filas`, 60 valores distintos salian 4, con una
+  moda que no estaba en la columna y el desvio de los dobles, todo
+  `calculado` y sin aviso. Ahora decide el valor: un doble desde 2^53
+  que viene de un decimal ya no es exacto (refutacion 35-D, M3).
+- [`comparar_perfiles()`](https://sebollin.github.io/lupa/reference/comparar_perfiles.md)
+  publica `no_evaluado` -y no `resuelto, ok`- el hallazgo de un
+  diagnostico que el perfil nuevo apago o cuya declaracion retiro:
+  `casi_duplicados_vocabulario = FALSE` -lo que
+  [`?perfilar`](https://sebollin.github.io/lupa/reference/perfilar.md)
+  recomienda para tablas grandes-, `ausencia_estructural = FALSE`, y una
+  columna retirada de `columnas_sin_ceros`, `columnas_no_negativas` o
+  `columnas_personales`. El dato estaba en `meta` y la comparacion solo
+  lo leia para `clave`. Por construccion: cada argumento de
+  [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md)
+  esta clasificado -habilita un diagnostico, es una vara, tiene su fila
+  de configuracion, acota el trabajo o no cambia los hallazgos- y una
+  prueba exige que la lista coincida con los argumentos, para que el
+  proximo no quede afuera (refutacion 35-D, M4). La segunda vuelta
+  encontro dos que la lista dejaba pasar: una `clave` declarada sobre
+  OTRA columna -con `id` repetida y despues `clave = "ci"`,
+  `clave_no_unica` salia `resuelto, ok`- y `duplicados_aproximados`, que
+  estaba clasificado como un argumento que no produce hallazgos:
+  apagarlo, o correrlo sobre otras columnas, publicaba un par de
+  columnas duplicado como resuelto o no publicaba nada. Ahora los dos
+  salen `no_evaluado`, igual que una columna retirada de `aplicabilidad`
+  (`valor_fuera_de_aplicabilidad`); un cambio de los parametros de
+  `duplicados_aproximados` sobre las mismas columnas se declara en la
+  fila `configuracion_duplicados_aproximados`, y un hallazgo que aparece
+  porque el perfil nuevo encendio lo que lo habilita dice en su
+  descripcion que el anterior no lo evaluaba. La guarda ya no mira solo
+  que la lista tenga todos los argumentos: perfila un dato fijo con cada
+  uno movido y exige que su clase explique lo que cambia (refutacion
+  35-D, segunda vuelta).
+- [`comparar_perfiles()`](https://sebollin.github.io/lupa/reference/comparar_perfiles.md)
+  compara los hallazgos de varias columnas -un par de columnas duplicado
+  (`nombre, ciudad`), una relacion de orden o aritmetica
+  (`doble,monto`)-. La guarda que no presenta como resuelto el hallazgo
+  de una columna retirada preguntaba si su texto era una columna del
+  perfil nuevo, y el de varias no lo es nunca: con el diagnostico
+  encendido en las dos corridas y los datos cambiados, 100 pares
+  duplicados y una relacion aritmetica desaparecian sin ninguna fila.
+  Ahora solo se descarta si nombra una columna que desaparecio
+  (refutacion 35-D, segunda vuelta).
+- La corroboracion de
+  [`perfilar_dbi()`](https://sebollin.github.io/lupa/reference/perfilar_dbi.md)
+  no compara lo que un bloque no calculo: una metrica que el resumen SQL
+  declara `no_disponible` -el motor rechazo la consulta sobre el tipo
+  (`json`, `xml`, `point` y `bytea` de PostgreSQL; `text`, `ntext`,
+  `image`, `xml`, `geography` y `varbinary(max)` de SQL Server), una
+  guarda la retuvo-, la moda que la muestra no pudo contar -una columna
+  de blobs- y las metricas de una columna compuesta. Se publicaban como
+  `divergencia` (`faltante_un_lado`) y
+  [`perfilar_coleccion()`](https://sebollin.github.io/lupa/reference/perfilar_coleccion.md)
+  subia la tabla a `alcance = "divergencias"` pidiendo releer bajo una
+  lectura consistente, que da lo mismo. Lo que no se compara queda en
+  `meta$corroboracion_bloques$no_comparadas` con su causa. Un `NaN` o un
+  infinito, y un valor guardado como texto en una columna numerica, se
+  siguen comparando (refutacion 35-X, M1).
+
+**Las mediciones (bajos):**
+
+- [`comparar_perfiles()`](https://sebollin.github.io/lupa/reference/comparar_perfiles.md)
+  declara en la fila `configuracion_umbrales` las varas que cambiaban
+  hallazgos y severidades sin decirlo: los umbrales de las relaciones de
+  orden y aritmeticas entre columnas, los del vocabulario,
+  `datos_personales_permitidos`, `validadores_personales`,
+  `umbral_documento_verificado` y `muestra_validadores`.
+  [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md)
+  registra en `meta` las siete que no guardaba. Una vara que un perfil
+  de una version anterior no registra no se compara (refutacion 35-D,
+  B2).
+- En SQL Server, el centro del desvio de una columna de coma flotante va
+  como literal `float`: escrito como decimal, la media de una columna de
+  magnitud 1e40 o 1e-25 tenia mas de 38 cifras, SQL Server rechazaba la
+  consulta centrada y quedaba, sin decirlo, el desvio de una pasada
+  (2,7e-3 relativo). Limitacion conocida, documentada en
+  [`?perfilar_dbi`](https://sebollin.github.io/lupa/reference/perfilar_dbi.md):
+  en una columna cuyos valores son menores que 1e-10 en valor absoluto,
+  la tolerancia absoluta de la corroboracion cubre cualquier diferencia
+  (refutacion 35-D, B1).
+- Un desvio `0` sobre una columna con valores distintos se vuelve a
+  pedir centrado aunque el minimo y el maximo como dobles coincidan -un
+  `numeric` cuyos valores difieren por debajo de la resolucion del
+  doble-: el motor cuenta los distintos, y centrado la resta se hace en
+  `numeric`. El motivo ya no culpa solo a “una pasada” cuando la causa
+  es la conversion a doble (refutacion 35-D, B3).
+
+**La proteccion:**
+
+- **Una palabra de tipo personal calificada por el resto del nombre se
+  decide con sus valores.** La ronda 34 decidia solo por el nombre:
+  `usuario_alta`, `usuario_baja`, `funcionario_alta`,
+  `funcionario_baja`, `responsable_grupo`, `responsable_canal` o
+  `nombre_jefe_grupo` con nombres completos, `usuario_alta_login` con
+  logins, `celular_estado`, `celular_alta`, `telefono_tipo` o
+  `contacto_medio` con celulares, y `domicilio_alta`, `direccion_desde`
+  o `direccion_tipo` con domicilios dejaron de protegerse y publicaban
+  su moda, sus ejemplos, la evidencia de sus hallazgos y, por bloques,
+  cada valor distinto en `meta$familias` (117 a 120 de 120 en PostgreSQL
+  y SQL Server). La ronda 33 los tapaba: era una regresion. El tipo de
+  los valores solo servia para EXCLUIR -numeros, fechas, logicos-, nunca
+  para ver si el calificador decia la verdad. Ahora la columna
+  calificada es personal si sus valores lo muestran, con el tipo de los
+  VALORES y no el de la palabra, en el 80 % de sus distintos: un correo
+  (una `@`, tambien de una intranet), un telefono escrito como telefono
+  (con `+`, cero inicial, separadores, interno o en una lista; sin
+  centavos; con la palabra del telefono, tambien las cifras sueltas), un
+  domicilio con marca de calle (`Av.`, `calle`, `Bvar.`, `esq.`, `apto`…
+  en el 30 %) o un nombre con un nombre de pila conocido, sin cifras,
+  sin palabras de categoria (`sin`, `en`, `por`) y sin empezar como un
+  lugar (`San`, `Villa`). Y la palabra de quien actua (`usuario`,
+  `funcionario`, `responsable`, `solicitante`) con una de auditoria
+  (`alta`, `baja`) cae con cualquier texto que no sea una fecha: un
+  login `"jperez"` o un apellido solo dicen quien dio el alta. La
+  palabra de nombre (`nombre`, `apellido`) vuelve a expresarlo en
+  cualquier lugar del nombre, como dice la ayuda (`nombre_jefe_grupo`
+  con apellidos solos o logins, `nombre_grupo` como
+  `nombre_departamento`), y una columna de numeros no es un nombre
+  (`cantidad_nombres`). Una primera version tomaba la forma sola como
+  senal -dos palabras con mayuscula eran un nombre, una palabra con un
+  numero un domicilio, y la palabra de fecha caia con cualquier texto- y
+  tapaba `tipo_cliente` con `"Gran Empresa"`, `grupo_usuario` con
+  departamentos, `estado_socio` con `"Pendiente de Pago"`,
+  `tipo_domicilio` con `"Oficina 101"`, `cliente_desde` con
+  `"Sin fecha"`, `usuario_tipo` con productos, `importe_telefono` con
+  importes con centavos y codigos como `"NORTE01"`; la segunda
+  refutacion lo midio, y ahora publican como en la ronda 34. Medido: las
+  24 columnas de la primera refutacion en memoria y por
+  [`perfilar_dbi()`](https://sebollin.github.io/lupa/reference/perfilar_dbi.md)
+  en PostgreSQL 16 y SQL Server 2022, cada una como en la ronda 33 o
+  como lo decidio la ronda 34; y las de la segunda -celulares en
+  `responsable_canal`, nombres en `contacto_alta`, domicilios en
+  `cliente_tipo`, correos en `correo_alta`, el mismo apellido en
+  `responsable_estado`, dos personas, tres `Maria`- protegidas, con sus
+  categorias publicadas; por las dos puertas
+  ([`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md)
+  y [`medir()`](https://sebollin.github.io/lupa/reference/medir.md)).
+  Una prueba recorre cada palabra calificadora de cada tipo con valores
+  personales de los cuatro tipos y con los de su clase. Limitacion
+  conocida (baja): la lista de nombres de pila no es completa; una
+  localidad con nombre de persona (`"Jose Ignacio"`) se lee como un
+  nombre; y con una palabra de categoria o de clave, un login de solo
+  letras o un apellido solo (`responsable_grupo` con `"Rodriguez"`,
+  `usuario_id` con `"jperez_01"`) no se distinguen de una categoria o de
+  un codigo y se publican, como un domicilio sin marca de calle: se
+  declaran en `columnas_personales`.
+- **La copia sin verificador escrita como numero con decimales en un
+  texto se protege entera.** Una columna de texto con la cedula de cada
+  fila sin su verificador como la deja una planilla -`"4685467.0"`,
+  `"4685467,00"`, `"4.685.467,00"`, o mezclada con `"4685467"`- no se
+  reconocia: la prueba de la copia leia sus digitos (`46854670`)
+  mientras el resumen leia el numero `4685467` y lo publicaba como su
+  minimo; publicaba tambien sus ejemplos y, por bloques, cada valor (136
+  a 155 apariciones en PostgreSQL y SQL Server). Ahora el texto que el
+  paquete lee como numero da a la prueba las cifras de ese numero, con
+  la misma lectura que el resumen (`.leer_numeros_texto()`); un texto
+  con decimales que no son cero no es un documento. Tambien con signo o
+  en notacion cientifica (`"+4685467.0"`, `"4685467e0"`), que el paquete
+  lee como numero, y con espacios de miles y ceros decimales
+  (`"4 685 467.0"`), que no lee pero cuyo entero es el mismo; un texto
+  con centavos que no son cero (`"24 997.16"`) ya no se lee pegando los
+  centavos, que inventaba una cifra que podia ser una cedula y tapaba el
+  importe. Un importe con decimales en un texto pasa la misma prueba
+  binomial que el mismo importe guardado como numero, y publica sus
+  extremos (medido: 150 importes de siete cifras como `"5460537.00"` al
+  lado de 150 cedulas). El tapado de mas de la regla con cedulas
+  concentradas por tramos sigue sin medir: este cambio no toca la
+  prueba, solo como llegan las cifras de un texto. Decision documentada:
+  la regla compara contra los documentos protegidos, y sin la columna de
+  la que copia -la tabla de pagos perfilada sin la de personas, fuera de
+  una coleccion con perfiles conservados- una columna de siete cifras no
+  se distingue de un importe y publica sus extremos.
+- **En una coleccion, la copia sin verificador de los documentos de OTRA
+  tabla se protege entera.** Con `conservar_perfiles = TRUE`, una tabla
+  de tramites que referencia a la persona por su cedula sin verificador
+  quedaba `documento_identidad` debil y publicaba en `resumen_tabla` y
+  en `perfil_muestra` su minimo, su maximo y su mediana, que son cedulas
+  de la tabla de personas (6 apariciones en SQLite, PostgreSQL 16 y SQL
+  Server 2022), aunque la ayuda promete proteger cada perfil con los
+  valores de las demas tablas “con la regla de
+  [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md)”.
+  No era regresion: la regla de la copia corria con los documentos de la
+  propia tabla. Ahora la coleccion prueba, con la misma regla
+  (`.copia_de_documentos()`), cada columna no protegida que publica un
+  numero de siete cifras o mas -o que la muestra clasifico como
+  documento- contra los documentos de las demas tablas, sobre los
+  valores distintos de la tabla entera leidos de la base (una consulta
+  por columna candidata); la tabla con una copia se vuelve a perfilar
+  con esa columna declarada personal (“documentos de la tabla `personas`
+  sin su verificador”), y si la lectura o el nuevo perfil fallan, el
+  perfil se cierra como el de una tabla ilegible. El orden de las tablas
+  no cambia lo que se publica. Medido: 0 apariciones en los tres
+  motores, con y sin bloques; el importe de siete cifras de la misma
+  tabla publica sus extremos.
+- **Dos limitaciones conocidas (bajas) de
+  [`perfilar_dbi()`](https://sebollin.github.io/lupa/reference/perfilar_dbi.md),
+  declaradas en la ayuda.** La copia sin verificador se clasifica sobre
+  la muestra: con una muestra que ve menos de tres de sus valores
+  distintos -chica y ordenada sobre una tabla agrupada por persona- no
+  se clasifica, y el resumen de la tabla entera publica sus extremos,
+  que pueden ser documentos de personas que la muestra no vio; por
+  bloques, cada valor en `meta$familias`. Y por la via por bloques,
+  `meta$familias` guarda cada valor distinto de toda columna no
+  protegida: una columna `debil` con las cedulas sin verificador de
+  OTRAS personas -un garante- publica ahi cada una, donde
+  [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md)
+  publica sus dos extremos. Verificar la copia sobre la tabla entera
+  costaria una consulta por columna candidata en cada
+  [`perfilar_dbi()`](https://sebollin.github.io/lupa/reference/perfilar_dbi.md)
+  con muestra parcial; una muestra mayor o aleatoria, o
+  `columnas_personales`, lo evitan.
+
 ### Ronda 34: la proteccion, las mediciones y la via DBI
 
 Tres refutaciones sobre la ronda 33. La de las piezas compartidas

@@ -68,16 +68,25 @@ perfilar_coleccion(
   desconocidos—, o una tabla no se pudo clasificar porque su muestra no
   se leyó, en los perfiles de las otras tablas se tapan los valores y la
   evidencia de las columnas no personales, y
-  `resumen_tabla$meta$proteccion_personal$otras_tablas` dice por qué.
-  Con esos valores se barren también `cobertura_coleccion`,
-  `cobertura_metricas` y `meta$lecturas`, que juntan los motivos de
-  todas las tablas. Con o sin retenerlos, esos tres campos, los perfiles
-  retenidos y el mensaje del motor de cada tabla pasan además por el
-  piso con los valores que las tablas leyeron y que un mensaje del motor
-  puede llevar —todo valor con letras, porque cualquier palabra puede
-  ser el nombre de una columna de otra tabla, y el número que el mensaje
-  no omite entero, como `"099;123;456"`, escrito con un signo que no
-  une; ver
+  `resumen_tabla$meta$proteccion_personal$otras_tablas` dice por qué. Y
+  con esa regla, una columna que copia SIN su verificador los documentos
+  protegidos de OTRA tabla —`tramites.ref` con la cédula de `personas`
+  sin el dígito— se protege entera, como la que los copia en su propia
+  tabla, y su fundamento dice de qué tabla salen: sus valores distintos
+  se leen de la base, una consulta por columna no protegida que publica
+  un número de siete cifras o más o que la muestra clasificó como
+  documento, la prueba es sobre la tabla entera y en cualquier orden de
+  las tablas, y la tabla con una copia se vuelve a perfilar con esa
+  columna como personal; si la lectura o el nuevo perfil fallan, el
+  perfil de esa tabla se cierra igual. Con esos valores se barren
+  también `cobertura_coleccion`, `cobertura_metricas` y `meta$lecturas`,
+  que juntan los motivos de todas las tablas. Con o sin retenerlos, esos
+  tres campos, los perfiles retenidos y el mensaje del motor de cada
+  tabla pasan además por el piso con los valores que las tablas leyeron
+  y que un mensaje del motor puede llevar —todo valor con letras, porque
+  cualquier palabra puede ser el nombre de una columna de otra tabla, y
+  el número que el mensaje no omite entero, como `"099;123;456"`,
+  escrito con un signo que no une; ver
   [`perfilar_dbi()`](https://sebollin.github.io/lupa/reference/perfilar_dbi.md)—,
   sin consultas de más: el mensaje de una vista que citaba
   `"Campos Cadena"`, la celda de su tabla base, se publicaba; y con

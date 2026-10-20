@@ -477,7 +477,13 @@ neutro, un texto libre que los contuviera, o los estadísticos de orden de
 una columna clasificada con poder discriminante <code>debil</code>. Una columna que
 <strong>copia los documentos protegidos sin su verificador</strong> —la cédula
 <code>4.685.467-9</code> de cada fila guardada como el entero <code>4685467</code>, o como
-texto, en una columna de nombre neutro— se protege entera, como una
+texto, en una columna de nombre neutro; también el texto con los
+decimales que deja una planilla, <code>"4685467.0"</code> o <code>"4.685.467,00"</code>, con
+signo o en notación científica (<code>"+4685467.0"</code>, <code>"4685467e0"</code>), que se
+compara por el número que el paquete lee en él, con la misma lectura que
+el resumen, o con espacios de miles y una parte decimal de ceros
+(<code>"4 685 467.0"</code>); un texto con centavos que no son cero no es un
+documento— se protege entera, como una
 columna personal: se clasifica <code>documento_identidad</code> con poder <code>alto</code>
 cuando al menos tres de sus valores distintos son el documento sin su
 verificador de un valor protegido —con la regla de los textos, ver
@@ -498,7 +504,11 @@ de 50 valores distintos o más; con el 10 % de tipeos, todas frente a un
 millón y la mitad frente a cuatro. Una copia de pocos valores distintos
 frente a muchos documentos —tres, o diez frente a cuatro millones— no se
 distingue del azar y publica sus extremos; tampoco una copia con más del
-10 % de otros valores. El vocabulario
+10 % de otros valores. Y la regla compara contra los documentos
+protegidos: sin la columna de la que copia —la tabla de pagos perfilada
+sin la de personas, fuera de una colección con perfiles conservados— una
+columna de siete cifras no se distingue de un importe y publica sus
+extremos. El vocabulario
 corto no entra en el piso: <code>"S/D"</code> sigue publicándose donde describe a una
 columna que no es personal. Tampoco los <strong>rellenos</strong> de una columna
 protegida, que ocupan el lugar de un dato y no son el de nadie: el que no
@@ -1791,7 +1801,9 @@ ejemplo <code>telefono</code>, <code>fecha_nacimiento</code> o <code>fecha_falle
 se puedan validar. El nombre tiene prioridad sobre una forma numérica
 genérica y también determina la etiqueta de tipo. Una palabra de nombre
 —<code>nombre</code>, <code>apellido</code>— la expresa en cualquier lugar del nombre:
-<code>nombre_cliente</code> es un nombre. Una palabra de <strong>persona</strong> —<code>cliente</code>,
+<code>nombre_cliente</code> es un nombre, y también <code>nombre_jefe_grupo</code> o
+<code>nombre_grupo</code>; una columna de números o de fechas no lo es
+(<code>cantidad_nombres</code>). Una palabra de <strong>persona</strong> —<code>cliente</code>,
 <code>socio</code>, <code>usuario</code>, <code>persona</code>, <code>paciente</code>, <code>titular</code>— dice de quién
 habla la columna, no que guarde su nombre: la clasifica como <code>nombre</code>
 sólo si ninguna otra palabra del nombre la clasificó —<code>direccion_cliente</code>
@@ -1808,7 +1820,37 @@ documento, <code>fecha_contacto</code> y <code>medio_contacto</code> no son tel�
 <code>estado_correo</code> no es un correo y <code>tipo_domicilio</code> no es un domicilio;
 sí lo siguen siendo <code>nro_documento</code>, <code>documento_id</code>, <code>numero_celular</code>,
 <code>telefono_contacto</code>, <code>barrio_id</code>, <code>segundo_nombre</code> o una fecha de
-nacimiento guardada como número. Una columna de
+nacimiento guardada como número. Y una palabra que el resto del nombre
+califica se decide con sus <strong>valores</strong>, con el tipo que ellos muestran y
+no el de la palabra, en el 80 % de sus valores distintos: un correo —una
+<code>@</code>, también el de una intranet: <code>correo_alta</code> con <code>"jperez@intranet"</code>—;
+un teléfono de siete a quince cifras escrito como teléfono —con <code>+</code>, con
+un cero inicial, con separadores, con un interno o en una lista:
+<code>responsable_canal</code> con <code>"+598 99 123 456"</code>—, sin centavos y en una
+columna que no es de fechas, y con la palabra del teléfono también las
+cifras sueltas (<code>celular_estado</code>); un domicilio con una marca de calle
+—<code>Av.</code>, <code>calle</code>, <code>Bvar.</code>, <code>ruta</code>, <code>esq.</code>, <code>apto</code>— en al menos el 30 % de
+sus distintos (<code>cliente_tipo</code> con <code>"Av. Italia 2345"</code>); o un nombre con
+un nombre de pila conocido, sin cifras, sin una palabra que no va en un
+nombre —<code>sin</code>, <code>en</code>, <code>por</code>— y sin empezar como un lugar —<code>San</code>,
+<code>Villa</code>—, aunque sean dos personas (<code>responsable_grupo</code> con
+<code>"Perez Joaquin"</code>, <code>contacto_alta</code> con <code>"Ramon Acosta"</code>). La forma sola
+no alcanza: <code>"Gran Empresa"</code>, <code>"Cerro Largo"</code>, <code>"Arroz Premium"</code> u
+<code>"Oficina 101"</code> siguen siendo categorías. Y la palabra de quien actúa en
+el registro —<code>usuario</code>, <code>funcionario</code>, <code>responsable</code>, <code>solicitante</code>— con
+una de auditoría —<code>alta</code>, <code>baja</code>— dice quién dio el alta o la baja: ahí
+basta un texto que no sea una fecha —un login <code>"jperez"</code>, un apellido
+solo—; la de quien es objeto del registro pide la señal de los valores,
+y <code>cliente_desde</code> con <code>"Sin fecha"</code> o <code>paciente_alta</code> con <code>"Traslado"</code> se
+publican. En la ronda 34 el nombre decidía solo, y esas columnas
+publicaban nombres, celulares y domicilios. Limitación conocida: la lista
+de nombres de pila no es completa, y un nombre que falta deja la columna
+sin esa señal; una localidad con nombre de persona —<code>"Jose Ignacio"</code>,
+<code>"Juan Lacaze"</code>— se lee como un nombre; y con una palabra de categoría o
+de clave, un login de sólo letras o un apellido solo
+(<code>responsable_grupo</code> con <code>"Rodriguez"</code>, <code>usuario_id</code> con <code>"jperez_01"</code>)
+no se distinguen de una categoría o de un código y se publican, como un
+domicilio sin marca de calle. Una columna de
 personas con otro nombre se declara en <code>columnas_personales</code>. También es <code>medio</code> una
 columna que trae correos completos sin que sean la mayoría de sus valores:
 un correo es un correo aunque esté solo, y la columna se protege;</p></li>

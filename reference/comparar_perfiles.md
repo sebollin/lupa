@@ -151,7 +151,34 @@ Un hallazgo que ya no aparece se informa como `resuelto` sólo si el
 diagnóstico volvió a evaluarse. Si el perfil nuevo lo declinó —y lo dice
 en su `cobertura_diagnosticos`—, el cambio se informa como `no_evaluado`
 con severidad `sospechoso`, porque no se sabe si el hallazgo sigue:
-dejar de mirar no es lo mismo que arreglar.
+dejar de mirar no es lo mismo que arreglar. Lo mismo si el perfil nuevo
+apagó el diagnóstico con su argumento o retiró la declaración que lo
+habilita, cosa que se lee en `meta`:
+`casi_duplicados_vocabulario = FALSE`, `ausencia_estructural = FALSE`,
+`variantes_equifrecuentes_vocabulario = FALSE`, una `clave` retirada o
+declarada sobre otras columnas, una columna retirada de
+`columnas_sin_ceros`, `columnas_no_negativas`, `columnas_personales` o
+`aplicabilidad`, y `duplicados_aproximados` apagado o corrido sobre
+otras columnas —lo que corrió queda en `perfil$duplicados_aproximados`;
+si corrió sobre las mismas columnas con otros parámetros, la fila
+`configuracion_duplicados_aproximados` lo declara—; la descripción
+nombra el argumento. Al revés, un hallazgo que aparece porque el perfil
+nuevo encendió o declaró lo que lo habilita sigue saliendo `aparecido`,
+y su descripción dice que el anterior no lo evaluaba. Un hallazgo de
+varias columnas —un par de columnas duplicado, una relación entre
+columnas— se compara como cualquier otro: sólo no se presenta como
+resuelto si alguna de sus columnas desapareció. Cada argumento de
+[`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md)
+tiene su lugar en la comparación: habilita un diagnóstico, es una vara
+—su cambio se declara en la fila `configuracion_umbrales`, que desde
+esta versión incluye los umbrales de las relaciones de orden y
+aritméticas entre columnas, los del vocabulario y
+`datos_personales_permitidos`, `validadores_personales`,
+`umbral_documento_verificado` y `muestra_validadores`—, tiene su propia
+fila de configuración, acota el trabajo y lo declara en
+`cobertura_diagnosticos`, o no cambia los hallazgos. Una vara que uno de
+los dos perfiles no registra —un perfil de una versión anterior— no se
+compara.
 
 Los hallazgos que cuentan filas de la tabla y no pertenecen a una
 columna concreta tampoco se declaran resueltos si aparecieron o

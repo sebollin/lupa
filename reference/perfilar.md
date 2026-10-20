@@ -478,47 +478,57 @@ perfilar(
   discriminante `debil`. Una columna que **copia los documentos
   protegidos sin su verificador** —la cédula `4.685.467-9` de cada fila
   guardada como el entero `4685467`, o como texto, en una columna de
-  nombre neutro— se protege entera, como una columna personal: se
-  clasifica `documento_identidad` con poder `alto` cuando al menos tres
-  de sus valores distintos son el documento sin su verificador de un
-  valor protegido —con la regla de los textos, ver abajo—, son el 90 %
-  de sus distintos —el umbral de `verificado`, que tolera tipeos
-  aislados— y tantos no coinciden por azar con la densidad de esos
-  documentos en el rango de la columna —una probabilidad binomial menor
-  que una en un millón—. Publicaba sus dos extremos, que son dos
-  cédulas. La regla es por **columna** y no por valor: una columna que
-  coincide por azar —uno de cada cinco importes de siete cifras coincide
-  con un documento sin verificador frente a un millón de cédulas, y
-  hasta tres de cada cuatro frente a cuatro millones— publica sus
-  extremos aunque coincidan. Medido en `data-raw/medir_tapado_de_mas.R`
-  sobre 400 columnas por familia, con uno y con cuatro millones de
-  cédulas protegidas: no se protegió ninguna columna de importes de
-  siete cifras —tampoco redondeados a miles, con 10, 50 o 500 valores
-  distintos, aunque por azar coincidieran todos— ni de enteros de ocho
-  cifras, y sí todas las copias de 50 valores distintos o más; con el 10
-  % de tipeos, todas frente a un millón y la mitad frente a cuatro. Una
-  copia de pocos valores distintos frente a muchos documentos —tres, o
-  diez frente a cuatro millones— no se distingue del azar y publica sus
-  extremos; tampoco una copia con más del 10 % de otros valores. El
-  vocabulario corto no entra en el piso: `"S/D"` sigue publicándose
-  donde describe a una columna que no es personal. Tampoco los
-  **rellenos** de una columna protegida, que ocupan el lugar de un dato
-  y no son el de nadie: el que no tiene letras ni dígitos (`"------"`),
-  y el dígito repetido que se repite cinco veces o más en una columna
-  que sin él es casi una clave —cuarenta `"99999999"` entre cédulas que
-  no se repiten—. Entraban, y tapaban la moda, el mínimo, la mediana y
-  el máximo de un `monto` con su propio `99999999`. Donde el documento
-  se repite —una tabla de movimientos— el dígito repetido sigue en el
-  piso: `2.222.222-2` es una cédula válida. Fuera del piso no quiere
-  decir publicados en la columna protegida: su moda, sus ejemplos y los
-  parámetros del plan sobre ella los siguen tapando, y un centinela que
-  el usuario declaró en `sentinelas_numericos` y aparece en una columna
-  protegida —también como su relleno— sigue en el piso. Sin los datos,
-  el declarado entra siempre, porque no se sabe de qué columna es; con
-  ellos, el que no aparece en ninguna protegida no entra: entraba igual,
-  se tapaba a sí mismo en `meta` y la acción que lo convierte en un
-  `monto` quedaba sin efecto sin proteger nada. El piso tiene **una
-  excepción declarada**, y es la única:
+  nombre neutro; también el texto con los decimales que deja una
+  planilla, `"4685467.0"` o `"4.685.467,00"`, con signo o en notación
+  científica (`"+4685467.0"`, `"4685467e0"`), que se compara por el
+  número que el paquete lee en él, con la misma lectura que el resumen,
+  o con espacios de miles y una parte decimal de ceros
+  (`"4 685 467.0"`); un texto con centavos que no son cero no es un
+  documento— se protege entera, como una columna personal: se clasifica
+  `documento_identidad` con poder `alto` cuando al menos tres de sus
+  valores distintos son el documento sin su verificador de un valor
+  protegido —con la regla de los textos, ver abajo—, son el 90 % de sus
+  distintos —el umbral de `verificado`, que tolera tipeos aislados— y
+  tantos no coinciden por azar con la densidad de esos documentos en el
+  rango de la columna —una probabilidad binomial menor que una en un
+  millón—. Publicaba sus dos extremos, que son dos cédulas. La regla es
+  por **columna** y no por valor: una columna que coincide por azar —uno
+  de cada cinco importes de siete cifras coincide con un documento sin
+  verificador frente a un millón de cédulas, y hasta tres de cada cuatro
+  frente a cuatro millones— publica sus extremos aunque coincidan.
+  Medido en `data-raw/medir_tapado_de_mas.R` sobre 400 columnas por
+  familia, con uno y con cuatro millones de cédulas protegidas: no se
+  protegió ninguna columna de importes de siete cifras —tampoco
+  redondeados a miles, con 10, 50 o 500 valores distintos, aunque por
+  azar coincidieran todos— ni de enteros de ocho cifras, y sí todas las
+  copias de 50 valores distintos o más; con el 10 % de tipeos, todas
+  frente a un millón y la mitad frente a cuatro. Una copia de pocos
+  valores distintos frente a muchos documentos —tres, o diez frente a
+  cuatro millones— no se distingue del azar y publica sus extremos;
+  tampoco una copia con más del 10 % de otros valores. Y la regla
+  compara contra los documentos protegidos: sin la columna de la que
+  copia —la tabla de pagos perfilada sin la de personas, fuera de una
+  colección con perfiles conservados— una columna de siete cifras no se
+  distingue de un importe y publica sus extremos. El vocabulario corto
+  no entra en el piso: `"S/D"` sigue publicándose donde describe a una
+  columna que no es personal. Tampoco los **rellenos** de una columna
+  protegida, que ocupan el lugar de un dato y no son el de nadie: el que
+  no tiene letras ni dígitos (`"------"`), y el dígito repetido que se
+  repite cinco veces o más en una columna que sin él es casi una clave
+  —cuarenta `"99999999"` entre cédulas que no se repiten—. Entraban, y
+  tapaban la moda, el mínimo, la mediana y el máximo de un `monto` con
+  su propio `99999999`. Donde el documento se repite —una tabla de
+  movimientos— el dígito repetido sigue en el piso: `2.222.222-2` es una
+  cédula válida. Fuera del piso no quiere decir publicados en la columna
+  protegida: su moda, sus ejemplos y los parámetros del plan sobre ella
+  los siguen tapando, y un centinela que el usuario declaró en
+  `sentinelas_numericos` y aparece en una columna protegida —también
+  como su relleno— sigue en el piso. Sin los datos, el declarado entra
+  siempre, porque no se sabe de qué columna es; con ellos, el que no
+  aparece en ninguna protegida no entra: entraba igual, se tapaba a sí
+  mismo en `meta` y la acción que lo convierte en un `monto` quedaba sin
+  efecto sin proteger nada. El piso tiene **una excepción declarada**, y
+  es la única:
   [`perfilar_por()`](https://sebollin.github.io/lupa/reference/perfilar_por.md)
   agrupando *por* una columna personal publica sus valores como
   etiquetas de grupo, porque la etiqueta es el eje del resultado y sin
@@ -1920,29 +1930,62 @@ protección. Cada clasificación declara `poder_discriminante` y
   protege aunque sus valores no se puedan validar. El nombre tiene
   prioridad sobre una forma numérica genérica y también determina la
   etiqueta de tipo. Una palabra de nombre —`nombre`, `apellido`— la
-  expresa en cualquier lugar del nombre: `nombre_cliente` es un nombre.
-  Una palabra de **persona** —`cliente`, `socio`, `usuario`, `persona`,
-  `paciente`, `titular`— dice de quién habla la columna, no que guarde
-  su nombre: la clasifica como `nombre` sólo si ninguna otra palabra del
-  nombre la clasificó —`direccion_cliente` es un domicilio—, si el resto
-  del nombre no dice que es otra cosa —una clave (`cliente_id`,
-  `id_usuario`, `cod_socio`), un tipo, un estado o una categoría
-  (`tipo_cliente`, `estado_socio`), una fecha (`cliente_desde`,
-  `fecha_alta_socio`), una cantidad o un importe— y si sus valores
-  pueden ser nombres: una columna de números, fechas o lógicos no lo es.
-  Hasta la ronda 33 bastaba la palabra, y esas columnas se protegían
-  como nombres: perdían su moda y sus extremos, y sus categorías
-  —`"mayorista"`, `"empresa"`— se tapaban también en las demás columnas.
-  La misma regla vale para las demás palabras: `tipo_documento` es una
-  categoría y no un documento, `fecha_contacto` y `medio_contacto` no
-  son teléfonos, `estado_correo` no es un correo y `tipo_domicilio` no
-  es un domicilio; sí lo siguen siendo `nro_documento`, `documento_id`,
-  `numero_celular`, `telefono_contacto`, `barrio_id`, `segundo_nombre` o
-  una fecha de nacimiento guardada como número. Una columna de personas
-  con otro nombre se declara en `columnas_personales`. También es
-  `medio` una columna que trae correos completos sin que sean la mayoría
-  de sus valores: un correo es un correo aunque esté solo, y la columna
-  se protege;
+  expresa en cualquier lugar del nombre: `nombre_cliente` es un nombre,
+  y también `nombre_jefe_grupo` o `nombre_grupo`; una columna de números
+  o de fechas no lo es (`cantidad_nombres`). Una palabra de **persona**
+  —`cliente`, `socio`, `usuario`, `persona`, `paciente`, `titular`— dice
+  de quién habla la columna, no que guarde su nombre: la clasifica como
+  `nombre` sólo si ninguna otra palabra del nombre la clasificó
+  —`direccion_cliente` es un domicilio—, si el resto del nombre no dice
+  que es otra cosa —una clave (`cliente_id`, `id_usuario`, `cod_socio`),
+  un tipo, un estado o una categoría (`tipo_cliente`, `estado_socio`),
+  una fecha (`cliente_desde`, `fecha_alta_socio`), una cantidad o un
+  importe— y si sus valores pueden ser nombres: una columna de números,
+  fechas o lógicos no lo es. Hasta la ronda 33 bastaba la palabra, y
+  esas columnas se protegían como nombres: perdían su moda y sus
+  extremos, y sus categorías —`"mayorista"`, `"empresa"`— se tapaban
+  también en las demás columnas. La misma regla vale para las demás
+  palabras: `tipo_documento` es una categoría y no un documento,
+  `fecha_contacto` y `medio_contacto` no son teléfonos, `estado_correo`
+  no es un correo y `tipo_domicilio` no es un domicilio; sí lo siguen
+  siendo `nro_documento`, `documento_id`, `numero_celular`,
+  `telefono_contacto`, `barrio_id`, `segundo_nombre` o una fecha de
+  nacimiento guardada como número. Y una palabra que el resto del nombre
+  califica se decide con sus **valores**, con el tipo que ellos muestran
+  y no el de la palabra, en el 80 % de sus valores distintos: un correo
+  —una `@`, también el de una intranet: `correo_alta` con
+  `"jperez@intranet"`—; un teléfono de siete a quince cifras escrito
+  como teléfono —con `+`, con un cero inicial, con separadores, con un
+  interno o en una lista: `responsable_canal` con `"+598 99 123 456"`—,
+  sin centavos y en una columna que no es de fechas, y con la palabra
+  del teléfono también las cifras sueltas (`celular_estado`); un
+  domicilio con una marca de calle —`Av.`, `calle`, `Bvar.`, `ruta`,
+  `esq.`, `apto`— en al menos el 30 % de sus distintos (`cliente_tipo`
+  con `"Av. Italia 2345"`); o un nombre con un nombre de pila conocido,
+  sin cifras, sin una palabra que no va en un nombre —`sin`, `en`,
+  `por`— y sin empezar como un lugar —`San`, `Villa`—, aunque sean dos
+  personas (`responsable_grupo` con `"Perez Joaquin"`, `contacto_alta`
+  con `"Ramon Acosta"`). La forma sola no alcanza: `"Gran Empresa"`,
+  `"Cerro Largo"`, `"Arroz Premium"` u `"Oficina 101"` siguen siendo
+  categorías. Y la palabra de quien actúa en el registro —`usuario`,
+  `funcionario`, `responsable`, `solicitante`— con una de auditoría
+  —`alta`, `baja`— dice quién dio el alta o la baja: ahí basta un texto
+  que no sea una fecha —un login `"jperez"`, un apellido solo—; la de
+  quien es objeto del registro pide la señal de los valores, y
+  `cliente_desde` con `"Sin fecha"` o `paciente_alta` con `"Traslado"`
+  se publican. En la ronda 34 el nombre decidía solo, y esas columnas
+  publicaban nombres, celulares y domicilios. Limitación conocida: la
+  lista de nombres de pila no es completa, y un nombre que falta deja la
+  columna sin esa señal; una localidad con nombre de persona
+  —`"Jose Ignacio"`, `"Juan Lacaze"`— se lee como un nombre; y con una
+  palabra de categoría o de clave, un login de sólo letras o un apellido
+  solo (`responsable_grupo` con `"Rodriguez"`, `usuario_id` con
+  `"jperez_01"`) no se distinguen de una categoría o de un código y se
+  publican, como un domicilio sin marca de calle. Una columna de
+  personas con otro nombre se declara en `columnas_personales`. También
+  es `medio` una columna que trae correos completos sin que sean la
+  mayoría de sus valores: un correo es un correo aunque esté solo, y la
+  columna se protege;
 
 - `alto`: una forma muy específica, como un correo, o nombre y forma se
   apoyan mutuamente; se protege;

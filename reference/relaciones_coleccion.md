@@ -68,7 +68,11 @@ relaciones_coleccion(
 
   Lista nombrada por identificador de tabla. Cada vector declara las
   columnas que pueden participar; una tabla no nombrada conserva todas
-  sus columnas.
+  sus columnas. Un nombre se busca con la grafía exacta y, si no está,
+  sin distinguir mayúsculas —como `orden` y como `orden_muestra` de
+  [`perfilar_dbi()`](https://sebollin.github.io/lupa/reference/perfilar_dbi.md)—;
+  uno que no existe da `lupa_error_argumento_dbi`, la clase de todo
+  argumento mal formado de esta función.
 
 - podar:
 
@@ -122,6 +126,47 @@ los mismos que publica
 [`perfilar_coleccion()`](https://sebollin.github.io/lupa/reference/perfilar_coleccion.md),
 aunque el controlador devuelva los de la lectura en otra codificación.
 
+**Una columna que la credencial no puede leer, o que llega enmascarada,
+no se compara y no se lleva la tabla.** Las columnas de cada tabla y lo
+que la credencial puede leer de ellas salen del catálogo del motor, de
+la misma función que usa
+[`perfilar_dbi()`](https://sebollin.github.io/lupa/reference/perfilar_dbi.md):
+en PostgreSQL `pg_attribute` con `has_column_privilege()`
+—`dbListFields()` de RPostgres no lista las columnas sin privilegio—, y
+en SQL Server `sys.columns` con `HAS_PERMS_BY_NAME()` y
+`sys.masked_columns` (enmascaramiento dinámico, salvo que la credencial
+tenga `UNMASK`). Sin candidatas declaradas la lectura nombra las demás
+columnas en vez de `SELECT *`, que con un permiso por columna se rechaza
+entero, y la columna no se nombra en ninguna consulta. Sus combinaciones
+quedan en `cobertura_podas` con motivo `columna_sin_permiso` o
+`columna_enmascarada`: una columna enmascarada lee la máscara —`xxxx`—,
+y dos así parecían relacionadas sin compartir un solo valor. Una columna
+de `orden` así deja la lectura sin `ORDER BY`, como la que no se puede
+escribir.
+
+**Los valores se leen como los lee
+[`perfilar_dbi()`](https://sebollin.github.io/lupa/reference/perfilar_dbi.md).**
+RPostgres entrega `0` en toda celda `money`, y `MIN`/`MAX` de una
+columna `money` también: la lectura de cada tabla y la consulta de
+rangos de la poda la leen convertida en el motor —`CAST(x AS NUMERIC)`—,
+con la misma expresión que
+[`perfilar_dbi()`](https://sebollin.github.io/lupa/reference/perfilar_dbi.md)
+publica en `meta$lectura_convertida`. Saber el tipo cuesta una consulta
+de cero filas por tabla, sólo en las conexiones donde la lectura
+convierte algo. Y el texto que el controlador entrega en latin1 con la
+marca UTF-8 —odbc con FreeTDS bajo un locale que no es UTF-8, sobre una
+columna `varchar`— se lee como latin1, así que se compara con el de una
+`nvarchar`; la lectura lo declara en `meta$lecturas$motivo`, con el
+remedio, porque un carácter fuera de latin1 llega como `?` (ver «Fallo
+parcial» en
+[`perfilar_dbi()`](https://sebollin.github.io/lupa/reference/perfilar_dbi.md)).
+Con `muestra = Inf` no se escribe `LIMIT`: la tabla se lee entera por la
+vía sin tope. Dentro de una transacción del usuario, la lectura sigue la
+regla de
+[`perfilar_dbi()`](https://sebollin.github.io/lupa/reference/perfilar_dbi.md):
+en PostgreSQL cada sentencia va dentro de un punto de guardado y la
+transacción no queda abortada.
+
 Cada par se compara sobre una muestra de filas de cada tabla, y el
 resultado declara ese alcance: una relación candidata sobre una muestra
 **no es una clave foránea comprobada**, es un indicio que hay que
@@ -130,11 +175,22 @@ confirmar contra el diccionario de datos.
 **Con la tabla de referencia truncada la cobertura es una cota
 inferior.** Un valor de `tabla_2` que no está entre las filas leídas de
 `tabla_1` puede estar en las demás, así que la cobertura sólo puede
-subir al leer más. Un par que con la referencia truncada no alcanza
-`umbral_cobertura` no se descarta en silencio: queda en
-`cobertura_pares` como «sin conclusión», con la mayor cobertura medida y
-cómo resolverlo, y `meta$pares_sin_conclusion` los cuenta —también están
+subir al leer más. Una combinación de columnas que con la referencia
+truncada no alcanza `umbral_cobertura` no se descarta en silencio,
+**aunque otra del mismo par lo alcance**: un indicador de dos valores
+llega a cobertura 1 trivialmente, y no puede borrar la clave foránea que
+quedó en 0,5 por la lectura. El par queda en `cobertura_pares` como «sin
+conclusión» —una fila por par, no una por combinación—, con cuántas
+combinaciones no alcanzaron el umbral, las cinco de mayor cobertura
+medida con su cota, cuántas lo alcanzaron —que están en `relaciones`— y
+cómo resolverlo. `meta$pares_sin_conclusion` los cuenta —también están
 en `pares_comparados`, porque se compararon—.
+
+Los motivos de `cobertura_pares` citan en claro lo que el usuario
+declaró y lo que el resto de la salida ya publica: los nombres de las
+tablas, de sus esquemas y de sus columnas, y las de `orden` y
+`columnas_candidatas`; el resto del mensaje del motor sigue la regla de
+[`perfilar_dbi()`](https://sebollin.github.io/lupa/reference/perfilar_dbi.md).
 
 **El alcance se declara por par y en la fila.** Cada relación publica
 `filas_leidas_1`/`filas_leidas_2` —cuántas se compararon—, y además

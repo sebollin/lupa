@@ -462,28 +462,41 @@ muestra y por qué, con `diagnostico`, `columna`, `motivo` y
 Un motor que rechaza una columna aparece en la primera; una prueba
 estadística que no corresponde a esa columna, en la segunda. Comparten
 la palabra y no el vocabulario, así que conviene mirar cuál se está
-leyendo. Si una columna declarada como entero de 64 bits o mas ancho
-llega como doble y contiene un valor con valor absoluto de al menos
-2^53, `resumen_tabla` deja sus metricas de magnitud en `no_disponible`.
-**Las siete**: `minimo`, `maximo`, `media`, `n_ceros`, `n_negativos`,
+leyendo. Si una columna declarada como entero de 64 bits o mas ancho, o
+como decimal -`numeric`, `decimal`, con o sin precision-, llega como
+doble y contiene un valor con valor absoluto de al menos 2^53,
+`resumen_tabla` deja sus metricas de magnitud en `no_disponible`. **Las
+siete**: `minimo`, `maximo`, `media`, `n_ceros`, `n_negativos`,
 `mediana` y `desvio`. La condicion es de la columna y no de la metrica,
 aunque las dos ultimas se calculen en otras consultas; lo que el motor
-cuenta con exactitud -`n_distintos`, la moda- se sigue publicando. Para
-la muestra, la seleccion SQL trae esas columnas como texto y, si `bit64`
-esta instalado, las convierte a `integer64` antes de perfilar:
-`n_distintos`, la moda y los diagnosticos por identidad conservan los
-valores exactos. Los estadisticos de magnitud por encima de 2^53 siguen
-usando `estado_resumen_cuantitativo = "omitidos_precision"`, como en
-memoria. Si falta `bit64`, la columna queda como texto y
-`cobertura_diagnosticos` explica la limitacion y recomienda instalarlo o
-pedir `integer64` al conectar. Las columnas declaradas como `double`,
-`real` o `float` no entran en esta guarda. Con `bloque_filas` rige la
-misma regla, sobre los valores que el controlador entrega como
-`integer64` —un `BIGINT` o `bigserial` de PostgreSQL, un `INTEGER` de
-SQLite que no entra en 32 bits—: por debajo de 2^53 se opera con el
-valor exacto, y desde 2^53 las siete métricas quedan `no_disponible` con
-su motivo. Ninguna columna cambia la clase de un campo de la tabla:
-`minimo`, `maximo`, `media`, `mediana` y `desvio` de
+cuenta con exactitud -`n_distintos`, la moda- se sigue publicando. Lo
+decide el valor: un decimal desde 2^53 ya no cabe en un doble
+-90071992547409001 y 90071992547409002 son el mismo-, y el tipo solo
+dice que viene de un decimal: RPostgres lo publica como `numeric` sin
+precision y odbc con su codigo ODBC (2 y 3), asi que una regla que
+esperara `numeric(20,0)` no se ejerceria. Para la muestra, la seleccion
+SQL trae esas columnas como texto y, si `bit64` esta instalado, las
+convierte a `integer64` antes de perfilar: `n_distintos`, la moda y los
+diagnosticos por identidad conservan los valores exactos. Los
+estadisticos de magnitud por encima de 2^53 siguen usando
+`estado_resumen_cuantitativo = "omitidos_precision"`, como en memoria.
+Si falta `bit64`, la columna queda como texto y `cobertura_diagnosticos`
+explica la limitacion y recomienda instalarlo o pedir `integer64` al
+conectar. Las columnas declaradas como `double`, `real` o `float` no
+entran en esta guarda. Con `bloque_filas` rige la misma regla, sobre los
+valores que el controlador entrega como `integer64` —un `BIGINT` o
+`bigserial` de PostgreSQL, un `INTEGER` de SQLite que no entra en 32
+bits—: por debajo de 2^53 se opera con el valor exacto, y desde 2^53 las
+siete métricas quedan `no_disponible` con su motivo. Un decimal o un
+entero ancho que llega como doble desde 2^53 deja ademas `n_distintos`,
+`tasa_distintos`, la moda y su frecuencia en `no_disponible`: con
+bloques se contarian en R sobre esos dobles, que no distinguen los
+valores. Las cifras de `perfil_muestra` de esa columna salen de los
+mismos dobles; sin bloques, la corroboracion avisa la diferencia en
+`n_distintos` y la moda contra las del motor. Un decimal por debajo de
+2^53 con mas cifras de las que guarda un doble -`numeric(30,20)`- no
+entra en esta guarda. Ninguna columna cambia la clase de un campo de la
+tabla: `minimo`, `maximo`, `media`, `mediana` y `desvio` de
 `resumen_tabla$columnas` son siempre dobles. Si se omite el bloque con
 `bloque_muestra = "solo_agregados"`, la cobertura usa el estado
 `no_solicitado`: no es un fallo ni se cuenta como una métrica no
@@ -511,7 +524,40 @@ siguiente hacía caer a R. La consulta no se envía: la columna queda en
 `no_disponible` con ese motivo, y una tabla con un nombre así da
 `lupa_error_codificacion_dbi`. Para leerlas, correr la sesión con un
 locale UTF-8 (`LC_ALL=C.UTF-8`). RPostgres, RSQLite y duckdb reciben la
-consulta en UTF-8 y leen esos nombres en cualquier locale. El nombre de
+consulta en UTF-8 y leen esos nombres en cualquier locale. Una columna
+que la credencial no puede leer —un `GRANT SELECT` por columnas o un
+`DENY SELECT` sobre una columna— se sabe antes de leer, por el catálogo
+del motor: en PostgreSQL `pg_attribute` con `has_column_privilege()`,
+legibles por cualquier rol (`dbListFields()` de RPostgres no lista esas
+columnas), y en SQL Server `sys.columns` con `HAS_PERMS_BY_NAME()`. La
+columna aparece en `resumen_tabla$columnas` con sus métricas en
+`no_disponible` y una fila de cobertura con el motivo y el remedio, no
+se nombra en ninguna consulta, y las demás se perfilan enteras. SQL
+Server rechaza además cualquier consulta sobre la tabla, también
+`COUNT(*)`, cuando hay una columna sin permiso: la lectura va sobre una
+tabla derivada con las columnas legibles, y el SQL publicado lo muestra.
+Con `universo = "muestra_motor"` la columna se declara igual, en
+`resumen_tabla$columnas` y en la cobertura; `TABLESAMPLE` no se puede
+escribir sobre la tabla derivada, así que la muestra del motor usa otra
+forma que el motor acepte o se degrada con su motivo (limitación
+conocida). Con odbc las consultas se ejecutan sin preparar
+(`immediate = TRUE`, como el `dbGetQuery()` de odbc): preparada, una
+consulta rechazada por un permiso de columna dejaba la conexión rota y
+la siguiente hacía caer a R. Lo que el catálogo no ve —un sinónimo, una
+tabla de otra base, una tabla temporal— se lee como antes: el rechazo
+del motor se declara y la conexión sigue. Con enmascaramiento dinámico
+de SQL Server (`MASKED WITH`, 2016+) y una credencial sin `UNMASK` sobre
+la columna o la base, el motor devuelve la máscara y no el dato. La
+completitud de esa columna se publica —los no nulos se cuentan con una
+expresión que el motor no enmascara—; distintos, moda, extremos, media,
+mediana y desvío quedan `no_disponible` con el motivo, la columna no
+entra en `perfil_muestra` (una fila `alcance_distinto` lo dice) y
+`resumen_tabla$cobertura` la declara. Con `UNMASK` se perfila entera. Si
+la lectura de la muestra falla, la columna que la hace fallar se busca
+por descarte leyendo las MISMAS filas que la muestra con menos columnas
+—un fallo que está en una fila que no es la primera, como el `CAST` de
+un texto sucio en una vista, también se encuentra—; la muestra sale con
+las demás y una fila `alcance_distinto` nombra la culpable. El nombre de
 la tabla se normaliza antes de la primera llamada a la conexión, también
 la que comprueba que existe: un nombre marcado `latin1` —el que da
 `read.csv(encoding = "latin1")`— se convierte a UTF-8 y se lee, y uno
@@ -519,14 +565,57 @@ con bytes que no son UTF-8 válido y no declaran su codificación
 —[`read.csv()`](https://rdrr.io/r/utils/read.table.html) sin
 `fileEncoding` sobre un archivo latin1— no se adivina: con odbc da
 `lupa_error_codificacion_dbi` antes de tocar la conexión, que antes
-quedaba rota. Los [`stop()`](https://rdrr.io/r/base/stop.html) de esta
-vía llevan clase de condición propia —todas heredan de `lupa_error_dbi`—
-para que se puedan rescatar con
-[`tryCatch()`](https://rdrr.io/r/base/conditions.html):
+quedaba rota. Una columna de `orden_muestra` que la sesión no puede
+escribir da también `lupa_error_codificacion_dbi`, con ese remedio: no
+la rechazó el motor, no se le mandó. Los **valores** de texto tienen el
+mismo origen. Bajo un locale que no es UTF-8, FreeTDS entrega las
+columnas de texto no Unicode (`varchar`, `char`, `text`) en latin1 y
+odbc las marca UTF-8 sin convertirlas; las `nvarchar` llegan en UTF-8.
+Un valor así se lee como latin1 —lo que es—, y no como texto UTF-8 roto:
+no se publica el hallazgo de bytes que no forman UTF-8 válido, que sería
+del controlador y no del dato, y los valores entran en los análisis de
+texto y en las comparaciones de
+[`relaciones_coleccion()`](https://sebollin.github.io/lupa/reference/relaciones_coleccion.md).
+Lo que no se puede recuperar es un carácter que no está en latin1 —el
+signo del euro—: el controlador lo entrega como `?`. Por eso cada
+columna de texto no Unicode leída bajo una sesión así queda en
+`resumen_tabla$cobertura` con estado `degradado`, el motivo y el remedio
+—correr con un locale UTF-8—, salvo que el controlador haya entregado en
+ella texto UTF-8 no ASCII (está configurado en UTF-8). Bajo una sesión
+UTF-8, la columna que el controlador entregue en latin1 —un
+`ClientCharset` configurado así— se lee igual y se declara igual. Los
+[`stop()`](https://rdrr.io/r/base/stop.html) de esta vía llevan clase de
+condición propia —todas heredan de `lupa_error_dbi`— para que se puedan
+rescatar con [`tryCatch()`](https://rdrr.io/r/base/conditions.html):
 `lupa_error_conexion_dbi`, `lupa_error_tabla_dbi`,
 `lupa_error_campos_dbi`, `lupa_error_conteo_dbi`,
 `lupa_error_esquema_dbi`, `lupa_error_codificacion_dbi` y
 `lupa_error_argumento_dbi`.
+
+## Dentro de una transacción
+
+La vía se puede correr dentro de una transacción abierta por el usuario
+—es lo que recomienda el motivo de `consistencia` para una lectura
+consistente—, y la transacción sigue como estaba. En PostgreSQL un error
+cualquiera aborta la transacción, y la vía manda consultas que pueden
+fallar a propósito —las sondas de dialecto— o por el dato —una métrica
+que el motor no calcula sobre un tipo, una vista rota—: con una
+transacción abierta, cada sentencia de la vía va entre un `SAVEPOINT`
+propio y su `RELEASE`, y si falla se vuelve con `ROLLBACK TO SAVEPOINT`.
+La transacción se reconoce por RPostgres (`dbBegin()`,
+`dbWithTransaction()`) o por el motor, para un `BEGIN` mandado a mano.
+El paquete nunca manda `BEGIN`, `COMMIT` ni `ROLLBACK`; fuera de una
+transacción no agrega ninguna sentencia de ese tipo. Lo mismo vale para
+[`plan_perfilado_dbi()`](https://sebollin.github.io/lupa/reference/plan_perfilado_dbi.md),
+[`perfilar_coleccion()`](https://sebollin.github.io/lupa/reference/perfilar_coleccion.md)
+y
+[`relaciones_coleccion()`](https://sebollin.github.io/lupa/reference/relaciones_coleccion.md).
+SQL Server, MySQL, MariaDB y SQLite no abortan la transacción por el
+error de una consulta. duckdb sí la aborta por un error al ejecutar —no
+por uno al preparar, como el de una sonda de dialecto— y no tiene
+`SAVEPOINT`: dentro de una transacción de duckdb, un objeto que falla al
+leerse —una vista que convierte un texto sucio— la deja abortada, y hay
+que cerrarla con `ROLLBACK`.
 
 ## Muestra y aproximaciones
 
@@ -614,11 +703,11 @@ Las comparaciones que tienen una cota dura usan solo valores del mismo
 grupo de consistencia. En esta version, el grupo queda probado por el
 `consulta_id` que ya se registra en `resumen_tabla$sql`: dos metricas
 con el mismo identificador salieron de la misma sentencia. La consulta
-exacta de distintos trae `COUNT(columna) AS n_validos_guard` junto a
-`COUNT(DISTINCT columna)`. Si una capacidad aproximada sólo construye
-una consulta completa y no puede traer ese guardian, la cota no se
-comprueba y el motivo lo declara; no se atribuye un valor imposible al
-motor. La consulta de la moda intenta traer
+exacta de distintos trae el conteo de no nulos `AS n_validos_guard`
+junto a `COUNT(DISTINCT columna)`. Si una capacidad aproximada sólo
+construye una consulta completa y no puede traer ese guardian, la cota
+no se comprueba y el motivo lo declara; no se atribuye un valor
+imposible al motor. La consulta de la moda intenta traer
 `SUM(COUNT(*)) OVER () AS n_validos_guard` junto a su frecuencia. La
 forma se sondea antes de usarla; si el motor la rechaza, se conserva la
 consulta anterior y `meta$moda_guardian` publica el repliegue. Cuando la
@@ -706,17 +795,27 @@ eso no es lo mismo que la tabla en R:
   no se pudo leer como número.
 
 - **`money` y `real` en PostgreSQL.** RPostgres lee `0` en toda celda
-  `money`, sin avisar, y un `real` por su texto decimal corto —`21.3`—,
-  mientras el motor opera sobre el binario guardado
+  `money`, sin avisar, y un `real` por el texto con que lo escribe el
+  servidor, mientras el motor opera sobre el binario guardado
   —21.299999237060547—. Las dos columnas se leen convertidas en el
-  motor: `money` como `CAST(x AS NUMERIC)` y `real` como
-  `CAST(CAST(x AS TEXT) AS DOUBLE PRECISION)`, la cifra que lee R. La
-  conversión vale para toda lectura —la muestra, `bloque_filas`,
-  `muestra_motor`— y el resumen SQL calcula sus agregados sobre esa
-  misma lectura, así que las vías publican la misma cifra. Las columnas
-  convertidas y su expresión quedan en
-  `resumen_tabla$meta$lectura_convertida`. Se reconocen por el tipo que
-  publica
+  motor: `money` como `CAST(x AS NUMERIC)` y `real` por la forma decimal
+  más corta que vuelve al valor guardado —`21.3`, la cifra que lee R
+  desde PostgreSQL 12—, que se calcula en el motor redondeando a 6, 7, 8
+  y 9 cifras. No se toma del texto de la sesión: antes de PostgreSQL 12,
+  o con `extra_float_digits` de 0 o menos en cualquier versión, ese
+  texto tiene seis cifras y 1234501 se escribe `1.2345e+06` —200 valores
+  distintos se leían como 21, con un mínimo que no estaba en la
+  columna—. Así la lectura da el valor guardado en cualquier versión y
+  con cualquier `extra_float_digits` desde -6, sin tocar el estado de la
+  sesión; en un empate de la última cifra puede elegir la otra forma
+  corta, que vuelve al mismo `real`. Por debajo de -6 el servidor
+  escribe todo doble con menos de nueve cifras, y ninguna lectura
+  —tampoco la de un `double precision`— llega entera a R. La conversión
+  vale para toda lectura —la muestra, `bloque_filas`, `muestra_motor`— y
+  el resumen SQL calcula sus agregados sobre esa misma lectura, así que
+  las vías publican la misma cifra. Las columnas convertidas y su
+  expresión quedan en `resumen_tabla$meta$lectura_convertida`. Se
+  reconocen por el tipo que publica
   [`DBI::dbColumnInfo()`](https://dbi.r-dbi.org/reference/dbColumnInfo.html)
   de RPostgres; con otro controlador no se convierte nada.
 
@@ -741,9 +840,17 @@ eso no es lo mismo que la tabla en R:
   se le pide al motor sobre los valores centrados en la media ya
   calculada: siempre en la consulta por columna, y en la consulta
   compartida —donde la media sale de la misma sentencia— se vuelve a
-  pedir centrado cuando la media supera diez veces el desvío, con una
+  pedir centrado cuando la media supera diez veces el desvío, o cuando
+  respondió `0` sobre una columna con valores distintos, con una
   consulta más que el plan no anticipa porque depende de los datos. Su
-  fila de `sql` lo dice. Con `bloque_filas` los momentos se acumulan
+  fila de `sql` lo dice. La resta se hace en un tipo que no pierde
+  cifras: en SQL Server y duckdb una columna `real` (`FLOAT` en duckdb)
+  restaba en 24 bits —en T-SQL `real - decimal` es `real`— y el desvío
+  centrado se apartaba 1,4e-8 del de los valores guardados, así que se
+  convierte a doble antes de restar; en SQL Server el centro de una
+  columna de coma flotante va como literal `float`, que no tiene el tope
+  de 38 cifras de un decimal. Una columna decimal o entera resta en su
+  tipo, que es exacto. Con `bloque_filas` los momentos se acumulan
   centrados. Bajo `muestra_motor` no se vuelve a pedir, porque otra
   consulta vería otras filas; ahí, como red en todas las vías, un desvío
   `0` sobre una columna con dos valores distintos —un mínimo menor que
@@ -793,9 +900,16 @@ eso no es lo mismo que la tabla en R:
   `aplicabilidad` si la muestra dejó afuera valores presentes—; las
   métricas de magnitud de una columna de la que la muestra excluyó los
   `sentinelas_numericos` declarados; y las de un entero de 64 bits desde
-  2^53, que el resumen no publica. Un `NaN` o un infinito sí se compara:
-  es la diferencia del motor que la corroboración existe para declarar.
-  Lo que no se comparó queda en
+  2^53, que el resumen no publica. Tampoco lo que un bloque no calculó:
+  una métrica que `resumen_tabla$sql` declara `no_disponible` —el motor
+  rechazó la consulta sobre el tipo (`json`, `xml` o `point` de
+  PostgreSQL; `text`, `ntext`, `image` o `geography` de SQL Server), una
+  guarda la retuvo—, la moda que la muestra no pudo contar —una columna
+  de blobs— y las métricas de una columna compuesta, que la muestra no
+  analiza: su motivo ya está publicado, y una relectura daría lo mismo.
+  Un `NaN` o un infinito sí se compara, y un valor guardado como texto
+  en una columna numérica también: es la diferencia del motor que la
+  corroboración existe para declarar. Lo que no se comparó queda en
   `resumen_tabla$meta$corroboracion_bloques$no_comparadas`, una fila por
   columna y métrica con su causa. La tolerancia está en
   `meta$corroboracion_bloques$tolerancia`: `1e-10` absoluta más `64`
@@ -803,7 +917,11 @@ eso no es lo mismo que la tabla en R:
   `maximo`, `mediana`, la moda—, y `1e-10` relativa para `media` y
   `desvio`, que cada lado acumula con su algoritmo y en su orden. Medido
   en SQL Server, la diferencia de la acumulación llega a 2e-13; una
-  divergencia real es de otro orden y sigue saliendo.
+  divergencia real es de otro orden y sigue saliendo. Limitación
+  conocida: la tolerancia absoluta cubre cualquier diferencia en una
+  columna cuyos valores son menores que `1e-10` en valor absoluto
+  —p-valores, concentraciones en unidades del sistema internacional—,
+  así que ahí la corroboración no distingue dos lecturas.
 
 ## Costo
 
@@ -815,14 +933,19 @@ trae esa muestra; `universo`, `metricas`, `tamano_lote_planos`,
 dice cuántas consultas se van a emitir antes de emitirlas. El orden de
 degradación es agregados planos, total del universo cuando hace falta,
 distintos, moda y mediana. Los agregados planos sobre la misma tabla y
-filtro —`COUNT(col)`, mínimos, máximos, medias, ceros, negativos y
-desvío— comparten una consulta por lote y cada consulta que trae
-`n_validos` lleva además `COUNT(*) AS n_total_consulta` en la misma
+filtro —el conteo de no nulos, mínimos, máximos, medias, ceros,
+negativos y desvío— comparten una consulta por lote y cada consulta que
+trae `n_validos` lleva además `COUNT(*) AS n_total_consulta` en la misma
 sentencia. La completitud usa ese denominador local, no el total de otro
-lote. La fusión conserva la medición, no una identidad bit a bit entre
-agrupamientos: la media y el desvío pueden diferir en el último bit
-según cómo se agrupen las sumas, porque la suma en punto flotante no es
-asociativa.
+lote. Los no nulos se cuentan en todos los motores con
+`COUNT(CASE WHEN col IS NULL THEN NULL ELSE 1 END)` y no con
+`COUNT(col)`: SQL Server rechaza `COUNT()` sobre `text`, `ntext` e
+`image`, y con enmascaramiento dinámico devuelve `COUNT(col)`
+enmascarado —0—; la pregunta por el nulo la contesta sobre cualquier
+tipo y sin máscara. La fusión conserva la medición, no una identidad bit
+a bit entre agrupamientos: la media y el desvío pueden diferir en el
+último bit según cómo se agrupen las sumas, porque la suma en punto
+flotante no es asociativa.
 
 El total del universo se conserva por separado cuando el perfil se
 calcula sobre una muestra. Si el lote completo es rechazado, sus mitades
@@ -999,7 +1122,19 @@ estadísticos con el motivo de una columna protegida, mientras
 por valor, que corre con la tabla entera, y la que lo copia sin su
 verificador se clasifica como columna personal con la regla de
 [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md),
-sobre la muestra. El desvío se oculta como la media, como en
+sobre la muestra. Por la vía por bloques eso incluye `meta$familias`,
+que guarda cada valor distinto de toda columna no protegida: una columna
+`debil` —las cédulas sin su verificador de OTRAS personas, como las de
+un garante— publica ahí cada uno de sus valores, donde
+[`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md)
+publica sus dos extremos. Limitación conocida (baja): como la
+clasificación es sobre la muestra, con una muestra que ve menos de tres
+valores distintos de la copia —chica y ordenada sobre una tabla agrupada
+por persona— la copia no se clasifica, y el resumen de la tabla entera
+publica sus extremos, que pueden ser documentos de personas que la
+muestra no vio; por bloques, cada valor distinto en `meta$familias`. Una
+muestra mayor o aleatoria lo evita, y también declararla en
+`columnas_personales`. El desvío se oculta como la media, como en
 [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md);
 también en `resumen_tabla$meta$familias`, donde la vía por bloques
 (`bloque_filas`) guarda lo que devolvió cada acumulador: ahí se tapan

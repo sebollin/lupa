@@ -111,7 +111,10 @@ megabytes. Al agotarse se sigue leyendo sin cachear y <code>meta</code> lo decla
 <dt id="arg-columnas-candidatas">columnas_candidatas<a class="anchor" aria-label="anchor" href="#arg-columnas-candidatas"></a></dt>
 <dd><p>Lista nombrada por identificador de tabla. Cada
 vector declara las columnas que pueden participar; una tabla no nombrada
-conserva todas sus columnas.</p></dd>
+conserva todas sus columnas. Un nombre se busca con la grafía exacta y,
+si no está, sin distinguir mayúsculas —como <code>orden</code> y como <code>orden_muestra</code>
+de <code><a href="perfilar_dbi.html">perfilar_dbi()</a></code>—; uno que no existe da <code>lupa_error_argumento_dbi</code>, la
+clase de todo argumento mal formado de esta función.</p></dd>
 
 
 <dt id="arg-podar">podar<a class="anchor" aria-label="anchor" href="#arg-podar"></a></dt>
@@ -156,17 +159,55 @@ de esa tabla sin <code>ORDER BY</code> —no se puede ordenar como se declaró�
 <code>meta$lecturas</code> y <code>meta$estable</code> lo dicen. Los nombres publicados son los de
 <code><a href="https://dbi.r-dbi.org/reference/dbListFields.html" class="external-link">DBI::dbListFields()</a></code>, los mismos que publica <code><a href="perfilar_coleccion.html">perfilar_coleccion()</a></code>, aunque
 el controlador devuelva los de la lectura en otra codificación.</p>
+<p><strong>Una columna que la credencial no puede leer, o que llega enmascarada, no
+se compara y no se lleva la tabla.</strong> Las columnas de cada tabla y lo que la
+credencial puede leer de ellas salen del catálogo del motor, de la misma
+función que usa <code><a href="perfilar_dbi.html">perfilar_dbi()</a></code>: en PostgreSQL <code>pg_attribute</code> con
+<code>has_column_privilege()</code> —<code>dbListFields()</code> de RPostgres no lista las
+columnas sin privilegio—, y en SQL Server <code>sys.columns</code> con
+<code>HAS_PERMS_BY_NAME()</code> y <code>sys.masked_columns</code> (enmascaramiento dinámico, salvo
+que la credencial tenga <code>UNMASK</code>). Sin candidatas declaradas la lectura nombra
+las demás columnas en vez de <code>SELECT *</code>, que con un permiso por columna se
+rechaza entero, y la columna no se nombra en ninguna consulta. Sus
+combinaciones quedan en <code>cobertura_podas</code> con motivo <code>columna_sin_permiso</code> o
+<code>columna_enmascarada</code>: una columna enmascarada lee la máscara —<code>xxxx</code>—, y dos
+así parecían relacionadas sin compartir un solo valor. Una columna de <code>orden</code>
+así deja la lectura sin <code>ORDER BY</code>, como la que no se puede escribir.</p>
+<p><strong>Los valores se leen como los lee <code><a href="perfilar_dbi.html">perfilar_dbi()</a></code>.</strong> RPostgres entrega <code>0</code>
+en toda celda <code>money</code>, y <code>MIN</code>/<code>MAX</code> de una columna <code>money</code> también: la
+lectura de cada tabla y la consulta de rangos de la poda la leen convertida
+en el motor —<code>CAST(x AS NUMERIC)</code>—, con la misma expresión que
+<code><a href="perfilar_dbi.html">perfilar_dbi()</a></code> publica en <code>meta$lectura_convertida</code>. Saber el tipo cuesta
+una consulta de cero filas por tabla, sólo en las conexiones donde la lectura
+convierte algo. Y el texto que el controlador entrega en latin1 con la marca
+UTF-8 —odbc con FreeTDS bajo un locale que no es UTF-8, sobre una columna
+<code>varchar</code>— se lee como latin1, así que se compara con el de una <code>nvarchar</code>;
+la lectura lo declara en <code>meta$lecturas$motivo</code>, con el remedio, porque un
+carácter fuera de latin1 llega como <code>?</code> (ver «Fallo parcial» en
+<code><a href="perfilar_dbi.html">perfilar_dbi()</a></code>). Con <code>muestra = Inf</code> no se escribe <code>LIMIT</code>: la tabla se
+lee entera por la vía sin tope. Dentro de una transacción del usuario, la
+lectura sigue la regla de <code><a href="perfilar_dbi.html">perfilar_dbi()</a></code>: en PostgreSQL cada sentencia va
+dentro de un punto de guardado y la transacción no queda abortada.</p>
 <p>Cada par se compara sobre una muestra de filas de cada tabla, y el resultado
 declara ese alcance: una relación candidata sobre una muestra <strong>no es una
 clave foránea comprobada</strong>, es un indicio que hay que confirmar contra el
 diccionario de datos.</p>
 <p><strong>Con la tabla de referencia truncada la cobertura es una cota inferior.</strong> Un
 valor de <code>tabla_2</code> que no está entre las filas leídas de <code>tabla_1</code> puede
-estar en las demás, así que la cobertura sólo puede subir al leer más. Un par
-que con la referencia truncada no alcanza <code>umbral_cobertura</code> no se descarta
-en silencio: queda en <code>cobertura_pares</code> como «sin conclusión», con la mayor
-cobertura medida y cómo resolverlo, y <code>meta$pares_sin_conclusion</code> los cuenta
+estar en las demás, así que la cobertura sólo puede subir al leer más. Una
+combinación de columnas que con la referencia truncada no alcanza
+<code>umbral_cobertura</code> no se descarta en silencio, <strong>aunque otra del mismo par
+lo alcance</strong>: un indicador de dos valores llega a cobertura 1 trivialmente, y
+no puede borrar la clave foránea que quedó en 0,5 por la lectura. El par
+queda en <code>cobertura_pares</code> como «sin conclusión» —una fila por par, no una
+por combinación—, con cuántas combinaciones no alcanzaron el umbral, las
+cinco de mayor cobertura medida con su cota, cuántas lo alcanzaron —que están
+en <code>relaciones</code>— y cómo resolverlo. <code>meta$pares_sin_conclusion</code> los cuenta
 —también están en <code>pares_comparados</code>, porque se compararon—.</p>
+<p>Los motivos de <code>cobertura_pares</code> citan en claro lo que el usuario declaró y
+lo que el resto de la salida ya publica: los nombres de las tablas, de sus
+esquemas y de sus columnas, y las de <code>orden</code> y <code>columnas_candidatas</code>; el
+resto del mensaje del motor sigue la regla de <code><a href="perfilar_dbi.html">perfilar_dbi()</a></code>.</p>
 <p><strong>El alcance se declara por par y en la fila.</strong> Cada relación publica
 <code>filas_leidas_1</code>/<code>filas_leidas_2</code> —cuántas se compararon—, y además
 <code>filas_totales_1</code>/<code>filas_totales_2</code> y <code>muestreado_1</code>/<code>muestreado_2</code>: cuando la
