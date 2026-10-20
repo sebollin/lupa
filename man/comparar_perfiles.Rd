@@ -128,7 +128,30 @@ Un hallazgo que ya no aparece se informa como \code{resuelto} sólo si el
 diagnóstico volvió a evaluarse. Si el perfil nuevo lo declinó —y lo dice en
 su \code{cobertura_diagnosticos}—, el cambio se informa como \code{no_evaluado} con
 severidad \code{sospechoso}, porque no se sabe si el hallazgo sigue: dejar de
-mirar no es lo mismo que arreglar.
+mirar no es lo mismo que arreglar. Lo mismo si el perfil nuevo apagó el
+diagnóstico con su argumento o retiró la declaración que lo habilita, cosa
+que se lee en \code{meta}: \code{casi_duplicados_vocabulario = FALSE},
+\code{ausencia_estructural = FALSE}, \code{variantes_equifrecuentes_vocabulario = FALSE}, una \code{clave} retirada o declarada sobre otras columnas, una columna
+retirada de \code{columnas_sin_ceros}, \code{columnas_no_negativas},
+\code{columnas_personales} o \code{aplicabilidad}, y \code{duplicados_aproximados} apagado o
+corrido sobre otras columnas —lo que corrió queda en
+\code{perfil$duplicados_aproximados}; si corrió sobre las mismas columnas con
+otros parámetros, la fila \code{configuracion_duplicados_aproximados} lo
+declara—; la descripción nombra el argumento. Al revés, un hallazgo que
+aparece porque el perfil nuevo encendió o declaró lo que lo habilita sigue
+saliendo \code{aparecido}, y su descripción dice que el anterior no lo evaluaba.
+Un hallazgo de varias columnas —un par de columnas duplicado, una relación
+entre columnas— se compara como cualquier otro: sólo no se presenta como
+resuelto si alguna de sus columnas desapareció. Cada argumento de
+\code{\link[=perfilar]{perfilar()}} tiene su lugar en la comparación:
+habilita un diagnóstico, es una vara —su cambio se declara en la fila
+\code{configuracion_umbrales}, que desde esta versión incluye los umbrales de las
+relaciones de orden y aritméticas entre columnas, los del vocabulario y
+\code{datos_personales_permitidos}, \code{validadores_personales},
+\code{umbral_documento_verificado} y \code{muestra_validadores}—, tiene su propia fila
+de configuración, acota el trabajo y lo declara en \code{cobertura_diagnosticos},
+o no cambia los hallazgos. Una vara que uno de los dos perfiles no registra
+—un perfil de una versión anterior— no se compara.
 
 Los hallazgos que cuentan filas de la tabla y no pertenecen a una columna
 concreta tampoco se declaran resueltos si aparecieron o desaparecieron

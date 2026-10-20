@@ -143,6 +143,147 @@ rbind.deriva_perfil <- function(..., deparse.level = 1) {
   texto
 }
 
+# Como entra cada argumento de `perfilar()` en `comparar_perfiles()`. La lista
+# es de TODOS los argumentos, y una prueba exige que coincida con
+# `formals(perfilar)`: un argumento nuevo que habilite un hallazgo o mueva una
+# vara no puede quedar afuera en silencio, que es como quedaron
+# `casi_duplicados_vocabulario` y `ausencia_estructural` -un hallazgo
+# `resuelto, ok` con los mismos datos- y los umbrales de las relaciones entre
+# columnas -hallazgos que aparecian sin fila de configuracion- (refutacion
+# 35-D, M4 y B2). Las clases:
+#
+# * `habilita`: el argumento decide SI corre un diagnostico. Si el perfil nuevo
+#   lo apago o retiro la declaracion, sus hallazgos del anterior se publican
+#   `no_evaluado` y no `resuelto`; `forma` y `meta` dicen como leerlo (ver
+#   `.declinados_por_declaracion_retirada()`).
+# * `vara`: cambia si un hallazgo se emite o con que severidad; un cambio se
+#   declara en la fila `configuracion_umbrales` (`.configuracion_umbrales_perfil()`).
+#   Una declaracion puede ser las dos cosas (`columnas_sin_ceros`).
+# * `politica`: tiene su propia fila, `fila`.
+# * `limite`: acota el trabajo de un diagnostico; si lo corta, el perfil lo
+#   declara en `cobertura_diagnosticos` y el hallazgo sale `no_evaluado` por esa
+#   via (`.diagnosticos_declinados_deriva()`).
+# * `sin_hallazgo`: no cambia `perfil$hallazgos` -sus resultados viven en otra
+#   tabla, acotan la evidencia o solo avisan-.
+# * `identidad`: los datos, su nombre y la fecha.
+#
+# Que la lista coincida con los argumentos no alcanza: `duplicados_aproximados`
+# estaba en ella con la clase equivocada. Una prueba perfila un dato fijo con
+# cada argumento movido y exige que la clase explique lo que cambia: un
+# `sin_hallazgo` no cambia ningun hallazgo, y ningun `resuelto` sale sin una
+# fila de configuracion que lo explique (test-O164).
+.ARGUMENTOS_PERFIL_DERIVA <- list(
+  datos = list(clase = "identidad"),
+  nombre = list(clase = "identidad"),
+  fecha = list(clase = "identidad"),
+  muestra = list(clase = "politica", fila = "configuracion_patrones"),
+  max_patrones = list(clase = "politica", fila = "configuracion_patrones"),
+  distinguir_mayusculas = list(clase = "politica", fila = "configuracion_patrones"),
+  expandir = list(clase = "politica", fila = "configuracion_patrones"),
+  umbral_faltantes_sospechoso = list(clase = "vara", meta = "umbral_faltantes_sospechoso"),
+  umbral_faltantes_error = list(clase = "vara", meta = "umbral_faltantes_error"),
+  umbral_alta_cardinalidad = list(clase = "vara", meta = "umbral_alta_cardinalidad"),
+  umbral_patron_dominante = list(clase = "vara", meta = "umbral_patron_dominante"),
+  umbral_patron_raro = list(clase = "vara", meta = "umbral_patron_raro"),
+  columnas_sin_ceros = list(
+    clase = c("vara", "habilita"), meta = "columnas_sin_ceros",
+    forma = "columnas", hallazgos = "ceros_no_permitidos"
+  ),
+  columnas_no_negativas = list(
+    clase = c("vara", "habilita"), meta = "columnas_no_negativas",
+    forma = "columnas", hallazgos = "negativos_no_permitidos"
+  ),
+  columnas_codigo = list(clase = "vara", meta = "columnas_codigo"),
+  clave = list(
+    clase = "habilita", meta = "declaracion_clave", forma = "tabla",
+    hallazgos = c("clave_no_unica", "clave_con_ausentes")
+  ),
+  columnas_opcionales = list(clase = "politica", fila = "configuracion_columnas_opcionales"),
+  # Tambien habilita: un valor presente fuera del universo declarado es el
+  # hallazgo `valor_fuera_de_aplicabilidad`, que sin la declaracion no se busca.
+  aplicabilidad = list(
+    clase = c("politica", "habilita"), fila = "configuracion_aplicabilidad",
+    meta = "declaracion_aplicabilidad", forma = "columnas",
+    hallazgos = "valor_fuera_de_aplicabilidad"
+  ),
+  ausencia_estructural = list(
+    clase = "habilita", meta = "ausencia_estructural", forma = "interruptor",
+    hallazgos = "posible_ausencia_estructural"
+  ),
+  sentinelas_numericos = list(clase = "politica", fila = "configuracion_sentinelas_numericos"),
+  cadenas_ausencia = list(clase = "politica", fila = "configuracion_cadenas_ausencia"),
+  analizar_dependencias = list(clase = "sin_hallazgo"),
+  umbral_dependencia = list(clase = "sin_hallazgo"),
+  umbral_casi_clave_dependencia = list(clase = "sin_hallazgo"),
+  max_columnas_dependencias = list(clase = "sin_hallazgo"),
+  datos_personales_permitidos = list(clase = "vara", meta = "datos_personales_permitidos"),
+  proteger_datos_personales = list(clase = "politica", fila = "configuracion_proteccion"),
+  columnas_personales = list(
+    clase = c("politica", "habilita"), fila = "proteccion",
+    meta = "columnas_personales_declaradas", forma = "columnas",
+    hallazgos = "dato_personal_posible"
+  ),
+  validadores_personales = list(clase = "vara", meta = "validadores_personales"),
+  umbral_documento_verificado = list(clase = "vara", meta = "umbral_documento_verificado"),
+  muestra_validadores = list(clase = "vara", meta = "muestra_validadores"),
+  # Se clasificaba `sin_hallazgo` y produce hallazgos: apagarlo publicaba un
+  # par de columnas duplicado como `resuelto, ok` con los mismos datos
+  # (refutacion 35-D, segunda vuelta). No viaja en `meta`: lo que corrio queda
+  # en `perfil$duplicados_aproximados` (ver `.duplicados_evaluados_perfil()`).
+  duplicados_aproximados = list(
+    clase = c("habilita", "politica"), forma = "duplicados",
+    fila = "configuracion_duplicados_aproximados",
+    hallazgos = c(
+      "duplicados_exactos_columnas", "duplicados_exactos_normalizados",
+      "duplicados_aproximados"
+    )
+  ),
+  normalizar = list(clase = "politica", fila = "configuracion_normalizacion"),
+  max_filas_hallazgo = list(clase = "sin_hallazgo"),
+  umbral_orden_columnas = list(clase = "vara", meta = "umbral_orden_columnas"),
+  max_columnas_orden = list(clase = "vara", meta = "max_columnas_orden"),
+  umbral_solapamiento_orden = list(clase = "vara", meta = "umbral_solapamiento_orden"),
+  umbral_aritmetica = list(clase = "vara", meta = "umbral_aritmetica"),
+  min_filas_aritmetica = list(clase = "vara", meta = "min_filas_aritmetica"),
+  tolerancia_aritmetica = list(clase = "vara", meta = "tolerancia_aritmetica"),
+  max_columnas_aritmetica = list(clase = "vara", meta = "max_columnas_aritmetica"),
+  casi_duplicados_vocabulario = list(
+    clase = "habilita", meta = "casi_duplicados_vocabulario",
+    forma = "interruptor", hallazgos = "casi_duplicados_vocabulario"
+  ),
+  max_proporcion_grupo_vocabulario = list(clase = "limite"),
+  umbral_variante_rara_vocabulario = list(clase = "vara", meta = "umbral_variante_rara_vocabulario"),
+  min_asimetria_vocabulario_corto = list(clase = "vara", meta = "min_asimetria_vocabulario_corto"),
+  min_asimetria_vocabulario = list(clase = "vara", meta = "min_asimetria_vocabulario"),
+  min_participacion_dominante_vocabulario_corto = list(
+    clase = "vara", meta = "min_participacion_dominante_vocabulario_corto"
+  ),
+  variantes_equifrecuentes_vocabulario = list(
+    clase = "habilita", meta = "variantes_equifrecuentes_vocabulario",
+    forma = "interruptor", hallazgos = "variantes_equifrecuentes_vocabulario"
+  ),
+  max_asimetria_equifrecuente_vocabulario = list(
+    clase = "vara", meta = "max_asimetria_equifrecuente_vocabulario"
+  ),
+  max_comparaciones_dependencias = list(clase = "sin_hallazgo"),
+  max_trabajo_vocabulario = list(clase = "limite"),
+  max_trabajo_dependencias = list(clase = "sin_hallazgo"),
+  max_largo_valor_vocabulario = list(clase = "limite"),
+  max_celdas_muestra = list(clase = "limite"),
+  max_bytes_muestra = list(clase = "limite"),
+  avisar_costo_tabla_ancha = list(clase = "sin_hallazgo"),
+  umbral_celdas_aviso_tabla_ancha = list(clase = "sin_hallazgo")
+)
+
+# Los campos de `meta` de los argumentos de una clase, en el orden de la lista.
+.argumentos_perfil_deriva_de_clase <- function(clase) {
+  elegidos <- Filter(
+    function(x) clase %in% x$clase && !is.null(x$meta),
+    .ARGUMENTOS_PERFIL_DERIVA
+  )
+  unname(vapply(elegidos, function(x) x$meta, character(1L)))
+}
+
 .configuracion_patrones_perfil <- function(perfil) {
   campos <- c(
     "muestra", "max_patrones", "distinguir_mayusculas", "expandir",
@@ -179,12 +320,11 @@ rbind.deriva_perfil <- function(..., deparse.level = 1) {
 }
 
 .configuracion_umbrales_perfil <- function(perfil) {
-  campos <- c(
-    "umbral_faltantes_sospechoso", "umbral_faltantes_error",
-    "umbral_alta_cardinalidad", "umbral_patron_dominante",
-    "umbral_patron_raro", "columnas_sin_ceros", "columnas_no_negativas",
-    "columnas_codigo"
-  )
+  # Las varas son las de `.ARGUMENTOS_PERFIL_DERIVA` con clase `vara`, en su
+  # orden: las seis del principio y `columnas_codigo`, y desde la ronda 35 las
+  # de las relaciones entre columnas, el vocabulario y los datos personales, que
+  # cambiaban hallazgos y severidades sin esta fila (refutacion 35-D, B2).
+  campos <- .argumentos_perfil_deriva_de_clase("vara")
   presentes <- intersect(campos, names(perfil$meta))
   if (!length(presentes)) return(NULL)
   # `columnas_codigo` llego en la ronda 32 (decision D2): un perfil guardado
@@ -489,13 +629,61 @@ rbind.deriva_perfil <- function(..., deparse.level = 1) {
 #
 # Se mira `meta$declaracion_clave`, que se agrego para esto: `meta$clave` guarda el
 # RESULTADO de comprobar la clave y queda `NULL` cuando sale limpia, asi que no
-# distingue "no se declaro" de "se declaro y estaba bien". `clave` es la unica
-# declaracion que HABILITA hallazgos propios -medido: `clave_no_unica` y
-# `clave_con_ausentes` aparecen con ella y no sin ella-; el resto de los
-# argumentos cambia como se mide, no si se mide.
-.hallazgos_por_declaracion <- list(
-  declaracion_clave = c("clave_no_unica", "clave_con_ausentes")
-)
+# distingue "no se declaro" de "se declaro y estaba bien".
+#
+# `clave` no era la unica, como decia este comentario: apagar
+# `casi_duplicados_vocabulario` -lo que `?perfilar` recomienda para tablas
+# grandes- o `ausencia_estructural` publicaba el hallazgo como **resuelto,
+# severidad ok** con los mismos datos, y retirar `columnas_sin_ceros`,
+# `columnas_no_negativas` o `columnas_personales`, igual (refutacion 35-D, M4).
+# El dato estaba en `meta` y la comparacion no lo leia. Ahora la lista sale de
+# `.ARGUMENTOS_PERFIL_DERIVA`, que clasifica TODOS los argumentos de
+# `perfilar()`, y una prueba exige que no falte ninguno.
+#
+# Cada declaracion que habilita hallazgos tiene una forma:
+# * `tabla`: habilita sobre lo declarado (`clave`). Retirarla o declararla sobre
+#   otras columnas deja sin evaluar la anterior: con `clave = "id"` y despues
+#   `clave = "ci"`, `clave_no_unica` de `id` salia `resuelto, ok` con `id`
+#   todavia duplicado (refutacion 35-D, segunda vuelta).
+# * `interruptor`: un logico; habilita con `TRUE`.
+# * `columnas`: un conjunto de columnas; habilita en las declaradas, asi que
+#   retirarla de una columna deja sin evaluar los hallazgos de esa columna.
+# * `duplicados`: `duplicados_aproximados` compara filas sobre un conjunto de
+#   columnas, y sus hallazgos llevan ese conjunto como columna (`nombre,
+#   ciudad`): si el perfil nuevo no lo corrio, o lo corrio sobre otras
+#   columnas, los del anterior no se volvieron a evaluar.
+# Un perfil de otra version que no registra el campo no se declina: ahi no se
+# sabe.
+.hallazgos_por_declaracion <- function() {
+  habilitan <- Filter(
+    function(x) "habilita" %in% x$clase, .ARGUMENTOS_PERFIL_DERIVA
+  )
+  stats::setNames(lapply(habilitan, function(x) {
+    x[c("meta", "forma", "hallazgos")]
+  }), names(habilitan))
+}
+
+# Lo que `duplicados_aproximados` evaluo en un perfil: si corrio y pudo correr,
+# sobre que columnas y con que parametros. `NULL` si no corrio.
+.duplicados_evaluados_perfil <- function(perfil) {
+  x <- if (is.list(perfil)) perfil[["duplicados_aproximados", exact = TRUE]] else NULL
+  if (!is.list(x) || !isTRUE(x[["disponible", exact = TRUE]])) return(NULL)
+  columnas <- as.character(x[["columnas", exact = TRUE]])
+  parametro <- function(nombre) {
+    valor <- x[[nombre, exact = TRUE]]
+    if (is.null(valor) || !length(valor)) "ninguno" else {
+      paste(as.character(valor), collapse = "/")
+    }
+  }
+  list(
+    columnas = .clave_bytes(.ordenar_por_bytes(unique(.nombres_para_operar(columnas)))),
+    texto_columnas = paste(.ordenar_por_bytes(unique(columnas)), collapse = "/"),
+    parametros = c(
+      metodo = parametro("metodo"), umbral = parametro("umbral"),
+      p = parametro("p"), max_largo_valor = parametro("max_largo_valor")
+    )
+  )
+}
 
 # Diagnosticos que comparan valores ENTRE SI y que solo corren sobre texto.
 #
@@ -545,23 +733,108 @@ rbind.deriva_perfil <- function(..., deparse.level = 1) {
   as.vector(outer(dejaron, .diagnosticos_relacion_textual, paste))
 }
 
+# Las claves `columna tipo` que el perfil nuevo no evaluo porque se retiro o se
+# apago la declaracion que las habilita. El nombre de cada clave es el argumento
+# de `perfilar()`, que la descripcion de la fila nombra.
 .declinados_por_declaracion_retirada <- function(anterior, actual) {
   declinados <- character()
-  for (declaracion in names(.hallazgos_por_declaracion)) {
-    tenia <- length(anterior$meta[[declaracion]]) > 0L
-    tiene <- length(actual$meta[[declaracion]]) > 0L
-    if (tenia && !tiene) {
+  meta_a <- if (is.list(anterior$meta)) anterior$meta else list()
+  meta_b <- if (is.list(actual$meta)) actual$meta else list()
+  hallazgos_a <- anterior$hallazgos
+  columnas_hallazgo <- if (inherits(hallazgos_a, "data.frame") &&
+                           all(c("columna", "tipo_hallazgo") %in% names(hallazgos_a))) {
+    ifelse(is.na(hallazgos_a$columna), "<tabla>", as.character(hallazgos_a$columna))
+  } else character()
+  tipos_hallazgo <- if (length(columnas_hallazgo)) {
+    as.character(hallazgos_a$tipo_hallazgo)
+  } else character()
+  declaraciones <- .hallazgos_por_declaracion()
+  for (argumento in names(declaraciones)) {
+    declaracion <- declaraciones[[argumento]]
+    if (identical(declaracion$forma, "duplicados")) {
+      evaluado_a <- .duplicados_evaluados_perfil(anterior)
+      evaluado_b <- .duplicados_evaluados_perfil(actual)
+      if (is.null(evaluado_a) ||
+          (!is.null(evaluado_b) &&
+             identical(evaluado_a$columnas, evaluado_b$columnas))) {
+        next
+      }
+      columnas <- unique(columnas_hallazgo[tipos_hallazgo %in% declaracion$hallazgos])
+      if (!length(columnas)) next
+      claves <- as.vector(outer(
+        columnas, declaracion$hallazgos, .clave_declinacion_deriva
+      ))
       declinados <- c(
-        declinados,
-        paste("<tabla>", .hallazgos_por_declaracion[[declaracion]])
+        declinados, stats::setNames(claves, rep(argumento, length(claves)))
       )
+      next
     }
+    campo <- declaracion$meta
+    if (!campo %in% names(meta_a) || !campo %in% names(meta_b)) {
+      # `declaracion_clave` es anterior a esta regla y su ausencia decia
+      # "no se declaro": se conserva esa lectura.
+      if (!identical(declaracion$forma, "tabla")) next
+    }
+    valor_a <- meta_a[[campo, exact = TRUE]]
+    valor_b <- meta_b[[campo, exact = TRUE]]
+    columnas <- switch(
+      declaracion$forma,
+      tabla = {
+        declarada_a <- .clave_bytes(.ordenar_por_bytes(unique(
+          .nombres_para_operar(as.character(valor_a))
+        )))
+        declarada_b <- .clave_bytes(.ordenar_por_bytes(unique(
+          .nombres_para_operar(as.character(valor_b))
+        )))
+        if (length(declarada_a) > 0L && !identical(declarada_a, declarada_b)) {
+          "<tabla>"
+        } else character()
+      },
+      interruptor = if (isTRUE(as.logical(valor_a)[1L]) &&
+                        identical(as.logical(valor_b)[1L], FALSE)) {
+        unique(columnas_hallazgo[tipos_hallazgo %in% declaracion$hallazgos])
+      } else character(),
+      columnas = {
+        retiradas <- setdiff(
+          .nombres_para_operar(as.character(valor_a)),
+          .nombres_para_operar(as.character(valor_b))
+        )
+        retiradas[!is.na(retiradas)]
+      },
+      character()
+    )
+    if (!length(columnas)) next
+    claves <- as.vector(outer(
+      columnas, declaracion$hallazgos, .clave_declinacion_deriva
+    ))
+    declinados <- c(declinados, stats::setNames(claves, rep(argumento, length(claves))))
   }
   declinados
 }
 
 .clave_declinacion_deriva <- function(columna, tipo) {
   paste(.nombres_para_operar(columna), as.character(tipo))
+}
+
+# Si un hallazgo que desaparecio nombra una columna que el perfil nuevo ya no
+# tiene: ahi no se presenta como resuelto, porque la columna misma se retiro.
+# Un hallazgo de varias columnas las nombra juntas -`nombre, ciudad` en los
+# duplicados entre columnas, `doble,monto` y `monto,doble,total` en las
+# relaciones-, y ese texto no es ninguna columna: la guarda preguntaba si el
+# texto era una columna del perfil nuevo, y lo descartaba siempre. Un par que se
+# resolvio de verdad, con el diagnostico encendido en las dos corridas, o uno
+# que no se volvio a evaluar, no publicaba ninguna fila: 100 pares de
+# `duplicados_exactos_columnas` y una `relacion_aritmetica_columnas`
+# desaparecian sin rastro (refutacion 35-D, segunda vuelta). Ahora se descarta
+# solo si el texto nombra una columna retirada, entera o como una de sus partes.
+.hallazgo_nombra_columna_retirada <- function(columna, retiradas) {
+  retiradas <- .nombres_para_operar(as.character(retiradas))
+  retiradas <- retiradas[!is.na(retiradas)]
+  if (!length(retiradas)) return(FALSE)
+  texto <- .nombres_para_operar(as.character(columna))
+  if (texto %in% retiradas) return(TRUE)
+  partes <- trimws(strsplit(texto, ",", fixed = TRUE)[[1L]])
+  any(partes %in% retiradas)
 }
 
 
@@ -660,7 +933,14 @@ rbind.deriva_perfil <- function(..., deparse.level = 1) {
   unlist(lapply(seq_along(diagnosticos), function(i) {
     tipos <- .hallazgos_por_diagnostico[[diagnosticos[[i]]]]
     if (is.null(tipos)) tipos <- diagnosticos[[i]]
-    .clave_declinacion_deriva(rep(columnas[[i]], length(tipos)), tipos)
+    # Una fila que declina un diagnostico sobre varias columnas las nombra como
+    # una lista -`a,b,c`-: declina tambien cada una, para que un hallazgo de
+    # varias columnas que nombra alguna no se publique resuelto.
+    nombres <- columnas[[i]]
+    if (!is.na(nombres) && grepl(",", nombres, fixed = TRUE, useBytes = TRUE)) {
+      nombres <- unique(c(nombres, trimws(strsplit(nombres, ",", fixed = TRUE)[[1L]])))
+    }
+    as.vector(outer(nombres, tipos, .clave_declinacion_deriva))
   }), use.names = FALSE)
 }
 
@@ -889,7 +1169,31 @@ rbind.deriva_perfil <- function(..., deparse.level = 1) {
 #' diagnóstico volvió a evaluarse. Si el perfil nuevo lo declinó —y lo dice en
 #' su `cobertura_diagnosticos`—, el cambio se informa como `no_evaluado` con
 #' severidad `sospechoso`, porque no se sabe si el hallazgo sigue: dejar de
-#' mirar no es lo mismo que arreglar.
+#' mirar no es lo mismo que arreglar. Lo mismo si el perfil nuevo apagó el
+#' diagnóstico con su argumento o retiró la declaración que lo habilita, cosa
+#' que se lee en `meta`: `casi_duplicados_vocabulario = FALSE`,
+#' `ausencia_estructural = FALSE`, `variantes_equifrecuentes_vocabulario =
+#' FALSE`, una `clave` retirada o declarada sobre otras columnas, una columna
+#' retirada de `columnas_sin_ceros`, `columnas_no_negativas`,
+#' `columnas_personales` o `aplicabilidad`, y `duplicados_aproximados` apagado o
+#' corrido sobre otras columnas —lo que corrió queda en
+#' `perfil$duplicados_aproximados`; si corrió sobre las mismas columnas con
+#' otros parámetros, la fila `configuracion_duplicados_aproximados` lo
+#' declara—; la descripción nombra el argumento. Al revés, un hallazgo que
+#' aparece porque el perfil nuevo encendió o declaró lo que lo habilita sigue
+#' saliendo `aparecido`, y su descripción dice que el anterior no lo evaluaba.
+#' Un hallazgo de varias columnas —un par de columnas duplicado, una relación
+#' entre columnas— se compara como cualquier otro: sólo no se presenta como
+#' resuelto si alguna de sus columnas desapareció. Cada argumento de
+#' [perfilar()] tiene su lugar en la comparación:
+#' habilita un diagnóstico, es una vara —su cambio se declara en la fila
+#' `configuracion_umbrales`, que desde esta versión incluye los umbrales de las
+#' relaciones de orden y aritméticas entre columnas, los del vocabulario y
+#' `datos_personales_permitidos`, `validadores_personales`,
+#' `umbral_documento_verificado` y `muestra_validadores`—, tiene su propia fila
+#' de configuración, acota el trabajo y lo declara en `cobertura_diagnosticos`,
+#' o no cambia los hallazgos. Una vara que uno de los dos perfiles no registra
+#' —un perfil de una versión anterior— no se compara.
 #'
 #' Los hallazgos que cuentan filas de la tabla y no pertenecen a una columna
 #' concreta tampoco se declaran resueltos si aparecieron o desaparecieron
@@ -1532,8 +1836,51 @@ comparar_perfiles <- function(anterior, actual, umbral_cambio = 0.05,
     )
   }
 
+  # `duplicados_aproximados` corrio en las dos corridas con otra configuracion:
+  # sus pares no se comparan sobre lo mismo. Si corrio en una sola, sus
+  # hallazgos lo dicen uno por uno (`no_evaluado`, o `aparecido` con la causa).
+  duplicados_a <- .duplicados_evaluados_perfil(anterior)
+  duplicados_b <- .duplicados_evaluados_perfil(actual)
+  if (!is.null(duplicados_a) && !is.null(duplicados_b)) {
+    configuracion_a <- c(columnas = duplicados_a$texto_columnas, duplicados_a$parametros)
+    configuracion_b <- c(columnas = duplicados_b$texto_columnas, duplicados_b$parametros)
+    parametros <- names(duplicados_a$parametros)
+    difieren <- c(
+      if (!identical(duplicados_a$columnas, duplicados_b$columnas)) "columnas",
+      parametros[duplicados_a$parametros[parametros] !=
+                   duplicados_b$parametros[parametros]]
+    )
+    if (length(difieren)) {
+      texto_duplicados <- function(x) {
+        paste(paste0(difieren, "=", x[difieren]), collapse = "; ")
+      }
+      agregar(
+        NA_character_, "configuracion_duplicados_aproximados", "modificado",
+        "error", texto_duplicados(configuracion_a),
+        texto_duplicados(configuracion_b),
+        descripcion = paste(
+          "Cambi\u00f3 la configuraci\u00f3n de `duplicados_aproximados`: las",
+          "columnas que compara o sus par\u00e1metros."
+        ),
+        evidencia = paste(
+          "Un par de filas que aparece o desaparece entre las dos corridas",
+          "puede venir de esta configuraci\u00f3n y no de los datos."
+        )
+      )
+    }
+  }
+
   umbrales_a <- .configuracion_umbrales_perfil(anterior)
   umbrales_b <- .configuracion_umbrales_perfil(actual)
+  # Solo las varas que los dos perfiles registran: un perfil de otra version
+  # que no registraba una no la declaraba, y ahi no se sabe -como con
+  # `aplicabilidad`-. Compararla contra su ausencia publicaba un cambio de vara
+  # que no hubo.
+  if (!is.null(umbrales_a) && !is.null(umbrales_b)) {
+    comunes <- intersect(names(umbrales_a), names(umbrales_b))
+    umbrales_a <- umbrales_a[comunes]
+    umbrales_b <- umbrales_b[comunes]
+  }
   if (!is.null(umbrales_a) && !is.null(umbrales_b) &&
       !identical(umbrales_a, umbrales_b)) {
     difieren <- names(umbrales_a)[
@@ -1638,12 +1985,30 @@ comparar_perfiles <- function(anterior, actual, umbral_cambio = 0.05,
   nuevos <- setdiff(hallazgos_b$clave, hallazgos_a$clave)
   resueltos <- setdiff(hallazgos_a$clave, hallazgos_b$clave)
   nombres_actuales <- .nombres_para_operar(unique(mapa_b$original))
+  # Al reves de la declinacion: un hallazgo que aparece porque el perfil nuevo
+  # encendio el diagnostico o declaro lo que lo habilita no era un hallazgo que
+  # faltara en los datos de antes. Sigue siendo `aparecido` -esta en el perfil
+  # nuevo y no en el anterior-, pero la descripcion dice que el anterior no lo
+  # evaluaba, como la de `no_evaluado`.
+  habilitados_ahora <- .declinados_por_declaracion_retirada(actual, anterior)
   for (clave in nuevos) {
     x <- hallazgos_b[match(clave, hallazgos_b$clave), , drop = FALSE]
+    clave_habilitada <- .clave_declinacion_deriva(x$columna, x$tipo_hallazgo)
+    argumento_nuevo <- if (clave_habilitada %in% habilitados_ahora) {
+      names(habilitados_ahora)[match(clave_habilitada, habilitados_ahora)]
+    } else NA_character_
     agregar(
       if (x$columna == "<tabla>") NA_character_ else x$columna,
       "hallazgo", "aparecido", x$severidad, NA_character_, x$tipo_hallazgo,
-      descripcion = "Apareci\u00f3 un hallazgo que no estaba en el perfil anterior.",
+      descripcion = if (is.na(argumento_nuevo)) {
+        "Apareci\u00f3 un hallazgo que no estaba en el perfil anterior."
+      } else {
+        paste0(
+          "Apareci\u00f3 un hallazgo que el perfil anterior no evaluaba: no ",
+          "declaraba lo que lo habilita (`", argumento_nuevo, "`), as\u00ed que ",
+          "no es necesariamente un cambio de los datos."
+        )
+      },
       evidencia = x$evidencia
     )
   }
@@ -1673,10 +2038,12 @@ comparar_perfiles <- function(anterior, actual, umbral_cambio = 0.05,
   motivo_columnas_cambiadas <- if (length(nombres_columnas_cambiadas)) {
     paste(nombres_columnas_cambiadas, collapse = "; ")
   } else ""
+  columnas_retiradas <- mapa_a$original[match(desaparecidas, mapa_a$clave)]
   for (clave in resueltos) {
     x <- hallazgos_a[match(clave, hallazgos_a$clave), , drop = FALSE]
     if (x$columna != "<tabla>" &&
-        !.nombres_para_operar(x$columna) %in% nombres_actuales) next
+        !.nombres_para_operar(x$columna) %in% nombres_actuales &&
+        .hallazgo_nombra_columna_retirada(x$columna, columnas_retiradas)) next
     if (.hallazgo_cuenta_filas_tabla(x) &&
         nzchar(motivo_columnas_cambiadas)) {
       agregar(
@@ -1697,13 +2064,27 @@ comparar_perfiles <- function(anterior, actual, umbral_cambio = 0.05,
     clave_declinacion <- .clave_declinacion_deriva(
       x$columna, x$tipo_hallazgo
     )
-    declinado <- clave_declinacion %in% declinados_ahora
+    # Un hallazgo de varias columnas tampoco se volvio a evaluar si la
+    # cobertura del perfil nuevo declina su diagnostico sobre alguna de ellas:
+    # las relaciones entre columnas declaran las que omitieron como una lista
+    # (`a,b,c`), y la guarda las parte en `.diagnosticos_declinados_deriva()`.
+    componentes <- if (!identical(x$columna, "<tabla>") &&
+                       grepl(",", x$columna, fixed = TRUE, useBytes = TRUE)) {
+      trimws(strsplit(x$columna, ",", fixed = TRUE)[[1L]])
+    } else character()
+    declinado <- clave_declinacion %in% declinados_ahora ||
+      any(.clave_declinacion_deriva(
+        componentes, rep(x$tipo_hallazgo, length(componentes))
+      ) %in% declinados_ahora)
     # Los dos motivos de no evaluacion mandan a lugares distintos, y decir el
     # equivocado es peor que no decir ninguno: quien busque en
     # `cobertura_diagnosticos` un diagnostico que nunca se pidio no va a
     # encontrar nada y va a concluir que el aviso esta de mas.
-    por_declaracion <- clave_declinacion %in%
-      .declinados_por_declaracion_retirada(anterior, actual)
+    retiradas <- .declinados_por_declaracion_retirada(anterior, actual)
+    por_declaracion <- clave_declinacion %in% retiradas
+    argumento_retirado <- if (por_declaracion) {
+      names(retiradas)[match(clave_declinacion, retiradas)]
+    } else NA_character_
     por_tipo <- clave_declinacion %in%
       .declinados_por_cambio_de_tipo(anterior, actual)
     agregar(
@@ -1720,9 +2101,10 @@ comparar_perfiles <- function(anterior, actual, umbral_cambio = 0.05,
           "que arreglar."
         )
       } else if (por_declaracion) {
-        paste(
-          "El diagn\u00f3stico no se evalu\u00f3 en el perfil nuevo porque ya no se",
-          "declar\u00f3 lo que lo habilita, as\u00ed que no se sabe si el hallazgo sigue:",
+        paste0(
+          "El diagn\u00f3stico no se evalu\u00f3 en el perfil nuevo porque se apag\u00f3, ",
+          "se retir\u00f3 o se declar\u00f3 sobre otras columnas lo que lo habilita (`",
+          argumento_retirado, "`), as\u00ed que no se sabe si el hallazgo sigue: ",
           "dejar de mirar no es lo mismo que arreglar."
         )
       } else if (declinado) {

@@ -1332,7 +1332,9 @@
 #'   se puedan validar. El nombre tiene prioridad sobre una forma numérica
 #'   genérica y también determina la etiqueta de tipo. Una palabra de nombre
 #'   —`nombre`, `apellido`— la expresa en cualquier lugar del nombre:
-#'   `nombre_cliente` es un nombre. Una palabra de **persona** —`cliente`,
+#'   `nombre_cliente` es un nombre, y también `nombre_jefe_grupo` o
+#'   `nombre_grupo`; una columna de números o de fechas no lo es
+#'   (`cantidad_nombres`). Una palabra de **persona** —`cliente`,
 #'   `socio`, `usuario`, `persona`, `paciente`, `titular`— dice de quién
 #'   habla la columna, no que guarde su nombre: la clasifica como `nombre`
 #'   sólo si ninguna otra palabra del nombre la clasificó —`direccion_cliente`
@@ -1349,7 +1351,37 @@
 #'   `estado_correo` no es un correo y `tipo_domicilio` no es un domicilio;
 #'   sí lo siguen siendo `nro_documento`, `documento_id`, `numero_celular`,
 #'   `telefono_contacto`, `barrio_id`, `segundo_nombre` o una fecha de
-#'   nacimiento guardada como número. Una columna de
+#'   nacimiento guardada como número. Y una palabra que el resto del nombre
+#'   califica se decide con sus **valores**, con el tipo que ellos muestran y
+#'   no el de la palabra, en el 80 % de sus valores distintos: un correo —una
+#'   `@`, también el de una intranet: `correo_alta` con `"jperez@intranet"`—;
+#'   un teléfono de siete a quince cifras escrito como teléfono —con `+`, con
+#'   un cero inicial, con separadores, con un interno o en una lista:
+#'   `responsable_canal` con `"+598 99 123 456"`—, sin centavos y en una
+#'   columna que no es de fechas, y con la palabra del teléfono también las
+#'   cifras sueltas (`celular_estado`); un domicilio con una marca de calle
+#'   —`Av.`, `calle`, `Bvar.`, `ruta`, `esq.`, `apto`— en al menos el 30 % de
+#'   sus distintos (`cliente_tipo` con `"Av. Italia 2345"`); o un nombre con
+#'   un nombre de pila conocido, sin cifras, sin una palabra que no va en un
+#'   nombre —`sin`, `en`, `por`— y sin empezar como un lugar —`San`,
+#'   `Villa`—, aunque sean dos personas (`responsable_grupo` con
+#'   `"Perez Joaquin"`, `contacto_alta` con `"Ramon Acosta"`). La forma sola
+#'   no alcanza: `"Gran Empresa"`, `"Cerro Largo"`, `"Arroz Premium"` u
+#'   `"Oficina 101"` siguen siendo categorías. Y la palabra de quien actúa en
+#'   el registro —`usuario`, `funcionario`, `responsable`, `solicitante`— con
+#'   una de auditoría —`alta`, `baja`— dice quién dio el alta o la baja: ahí
+#'   basta un texto que no sea una fecha —un login `"jperez"`, un apellido
+#'   solo—; la de quien es objeto del registro pide la señal de los valores,
+#'   y `cliente_desde` con `"Sin fecha"` o `paciente_alta` con `"Traslado"` se
+#'   publican. En la ronda 34 el nombre decidía solo, y esas columnas
+#'   publicaban nombres, celulares y domicilios. Limitación conocida: la lista
+#'   de nombres de pila no es completa, y un nombre que falta deja la columna
+#'   sin esa señal; una localidad con nombre de persona —`"Jose Ignacio"`,
+#'   `"Juan Lacaze"`— se lee como un nombre; y con una palabra de categoría o
+#'   de clave, un login de sólo letras o un apellido solo
+#'   (`responsable_grupo` con `"Rodriguez"`, `usuario_id` con `"jperez_01"`)
+#'   no se distinguen de una categoría o de un código y se publican, como un
+#'   domicilio sin marca de calle. Una columna de
 #'   personas con otro nombre se declara en `columnas_personales`. También es `medio` una
 #'   columna que trae correos completos sin que sean la mayoría de sus valores:
 #'   un correo es un correo aunque esté solo, y la columna se protege;
@@ -1771,7 +1803,13 @@
 #'   una columna clasificada con poder discriminante `debil`. Una columna que
 #'   **copia los documentos protegidos sin su verificador** —la cédula
 #'   `4.685.467-9` de cada fila guardada como el entero `4685467`, o como
-#'   texto, en una columna de nombre neutro— se protege entera, como una
+#'   texto, en una columna de nombre neutro; también el texto con los
+#'   decimales que deja una planilla, `"4685467.0"` o `"4.685.467,00"`, con
+#'   signo o en notación científica (`"+4685467.0"`, `"4685467e0"`), que se
+#'   compara por el número que el paquete lee en él, con la misma lectura que
+#'   el resumen, o con espacios de miles y una parte decimal de ceros
+#'   (`"4 685 467.0"`); un texto con centavos que no son cero no es un
+#'   documento— se protege entera, como una
 #'   columna personal: se clasifica `documento_identidad` con poder `alto`
 #'   cuando al menos tres de sus valores distintos son el documento sin su
 #'   verificador de un valor protegido —con la regla de los textos, ver
@@ -1792,7 +1830,11 @@
 #'   millón y la mitad frente a cuatro. Una copia de pocos valores distintos
 #'   frente a muchos documentos —tres, o diez frente a cuatro millones— no se
 #'   distingue del azar y publica sus extremos; tampoco una copia con más del
-#'   10 % de otros valores. El vocabulario
+#'   10 % de otros valores. Y la regla compara contra los documentos
+#'   protegidos: sin la columna de la que copia —la tabla de pagos perfilada
+#'   sin la de personas, fuera de una colección con perfiles conservados— una
+#'   columna de siete cifras no se distingue de un importe y publica sus
+#'   extremos. El vocabulario
 #'   corto no entra en el piso: `"S/D"` sigue publicándose donde describe a una
 #'   columna que no es personal. Tampoco los **rellenos** de una columna
 #'   protegida, que ocupan el lugar de un dato y no son el de nadie: el que no
@@ -3140,6 +3182,18 @@ perfilar <- function(datos,
     min_asimetria_vocabulario_corto = min_asimetria_vocabulario_corto,
     min_participacion_dominante_vocabulario_corto =
       min_participacion_dominante_vocabulario_corto,
+    # Las varas y el interruptor que faltaban para que `comparar_perfiles()`
+    # declare todo argumento que cambia si un hallazgo se emite: ver
+    # `.ARGUMENTOS_PERFIL_DERIVA` (refutacion 35-D, M4 y B2). Ningun acceso
+    # `meta$...` del paquete es prefijo de estos nombres.
+    min_asimetria_vocabulario = min_asimetria_vocabulario,
+    variantes_equifrecuentes_vocabulario = variantes_equifrecuentes_vocabulario,
+    max_asimetria_equifrecuente_vocabulario =
+      max_asimetria_equifrecuente_vocabulario,
+    umbral_aritmetica = umbral_aritmetica,
+    min_filas_aritmetica = min_filas_aritmetica,
+    tolerancia_aritmetica = tolerancia_aritmetica,
+    max_columnas_aritmetica = max_columnas_aritmetica,
     orden_columnas = relaciones_orden$alcance,
     normalizacion = normalizacion_resuelta,
     normalizacion_resumen = .normalizacion_resumen(normalizacion_resuelta),

@@ -518,8 +518,11 @@ test_that("Guarda segfault: toda consulta de la via sale por los dos envios que 
     objeto <- get(nombre, envir = ns)
     if (is.function(objeto) && !is.primitive(objeto)) recorrer(body(objeto), nombre)
   }
+  # `.orden_transaccion_dbi()` manda solo las sentencias fijas, en ASCII, del
+  # punto de guardado (ronda 35-X2): no lleva texto que la guarda deba mirar.
   expect_identical(sort(unique(sitios)),
-                   c(".enviar_consulta_dbi", ".traer_consulta_dbi"))
+                   c(".enviar_consulta_dbi", ".orden_transaccion_dbi",
+                     ".traer_consulta_dbi"))
 })
 
 test_that("Segfault: una columna que la sesion no puede escribir se declara, por la via SQL y por bloques, sin mandarla", {

@@ -9,7 +9,11 @@
 # `[literal omitido]` con o sin proteccion.
 
 # Una vista que castea a entero una columna de texto con un faltante
-# disfrazado, `N/D`: leerla falla, y duckdb cita la celda y el SQL.
+# disfrazado, `N/D`: leerla falla, y duckdb cita la celda y el SQL. La vista
+# tiene UNA columna: con dos, desde la ronda 35-X la muestra aisla la que falla
+# sobre sus mismas filas y se lee la otra (antes la sonda leia una fila, la 25
+# no se veia y la muestra entera se perdia); aca lo que se mide es el mensaje
+# de una lectura de la muestra que falla.
 .r33a2_conexion <- function() {
   con <- DBI::dbConnect(duckdb::duckdb())
   d <- data.frame(id = 1:30, codigo_txt = as.character(1:30),
@@ -18,7 +22,7 @@
   DBI::dbWriteTable(con, "codigos", d)
   DBI::dbExecute(con, paste(
     "CREATE VIEW codigos_v AS",
-    "SELECT id, CAST(codigo_txt AS INTEGER) AS codigo FROM codigos"
+    "SELECT CAST(codigo_txt AS INTEGER) AS codigo FROM codigos"
   ))
   con
 }

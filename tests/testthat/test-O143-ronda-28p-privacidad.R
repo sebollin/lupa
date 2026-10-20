@@ -91,7 +91,19 @@ test_that("H1: perfilar_dbi() no publica la cedula que cita el error del motor",
     "FROM clientes"
   ))
   pd <- suppressWarnings(suppressMessages(perfilar_dbi(con, "v_ci")))
-  expect_true("ci" %in% pd$resumen_tabla$meta$proteccion_personal$columnas)
+  # Desde la ronda 35-X la muestra aisla `ci` -falla en la fila 25- sobre sus
+  # mismas filas y lee las demas: `ci` no entra en la muestra (antes se perdia
+  # la muestra entera y se tapaba todo) y ninguna metrica SQL suya se calcula,
+  # porque todas leen la fila 25. Lo que se promete es lo de abajo: la cedula
+  # que cita el motor no se publica en ningun lado.
+  expect_false("ci" %in% pd$perfil_muestra$columnas$columna)
+  fila_muestra <- pd$resumen_tabla$cobertura
+  fila_muestra <- fila_muestra[fila_muestra$bloque == "perfil_muestra", , drop = FALSE]
+  expect_true(grepl("ci", fila_muestra$motivo, fixed = TRUE))
+  sql_ci <- pd$resumen_tabla$sql[pd$resumen_tabla$sql$columna == "ci" &
+                                   pd$resumen_tabla$sql$metrica != "n", ]
+  expect_true(all(sql_ci$estado %in% c("no_disponible", "no_aplica",
+                                       "no_solicitado")))
   hojas <- .r28_hojas(pd)
   expect_identical(sum(grepl(cedulas[25L], hojas, fixed = TRUE)), 0L)
   # El motivo sigue diciendo por que fallo.

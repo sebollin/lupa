@@ -64,7 +64,8 @@ test_that("sin expresion aproximada no se consolida el conteo", {
   )
 
   expect_false(resultado$consolidada)
-  expect_match(resultado$validos$sql, "COUNT(x)", fixed = TRUE)
+  # Los no nulos se cuentan con la expresion de todos los motores (ronda 35-X).
+  expect_match(resultado$validos$sql, .contar_no_nulos_sql_dbi("x"), fixed = TRUE)
   expect_match(resultado$distintos$sql, "COUNT(x)", fixed = TRUE)
   expect_false(grepl("COUNT(DISTINCT", resultado$distintos$sql, fixed = TRUE))
   expect_identical(resultado$distintos$estado, "estimado")

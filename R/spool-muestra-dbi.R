@@ -417,7 +417,7 @@
   repeat {
     if (is.null(resultado)) break
     datos <- tryCatch(
-      .marcar_utf8_tabla(DBI::dbFetch(resultado, n = bloque_filas)),
+      .marcar_utf8_tabla(.traer_filas_dbi(resultado, n = bloque_filas, conexion)),
       error = function(e) {
         error_lectura <<- .mensaje_motor(e)
         NULL
@@ -432,7 +432,7 @@
     completado <- tryCatch(DBI::dbHasCompleted(resultado), error = function(e) NA)
     if (isTRUE(completado)) break
   }
-  if (!is.null(resultado)) try(DBI::dbClearResult(resultado), silent = TRUE)
+  if (!is.null(resultado)) .limpiar_consulta_dbi(resultado, conexion)
   if (!is.null(error_lectura)) {
     escritor$motivo <- paste0(
       "muestra_inestable:error_lectura_spool: ", error_lectura
@@ -841,6 +841,9 @@
   }
   perfil <- NULL
   cobertura <- .cobertura_dbi_vacia()
+  # Lo leido entero, tambien las columnas enmascaradas que no se perfilan: su
+  # completitud sale de aca (ver abajo).
+  datos_todos <- datos
   if (isTRUE(leido$ok) && nrow(datos) > 0L) {
     if (is.finite(max_bytes_procesamiento) &&
         as.numeric(utils::object.size(datos)) > max_bytes_procesamiento) {
@@ -854,6 +857,16 @@
       args$muestra <- Inf
       args$max_celdas_muestra <- Inf
       args$max_bytes_muestra <- Inf
+      # Las columnas enmascaradas (DDM) no se perfilan en la muestra: sus
+      # valores son la mascara. Ver `.bloque_muestra_dbi()`.
+      sacar <- .nombres_presentes(names(datos), preparacion$enmascaradas)
+      for (columna in names(datos)[sacar]) {
+        cobertura <- rbind(cobertura, .registro_cobertura_dbi(
+          "perfil_muestra", columna, "alcance_distinto",
+          .motivo_columna_enmascarada_dbi(), .remedio_columna_enmascarada_dbi()
+        ))
+      }
+      if (any(sacar)) datos <- .seleccionar_columnas(datos, which(!sacar))
       perfil <- tryCatch(
         do.call(perfilar, c(list(datos = datos), args)),
         error = function(e) e
@@ -930,13 +943,29 @@
                   stringsAsFactors = FALSE)
   } else .columnas_dbi_vacias()
   if (!is.null(perfil) && is.data.frame(perfil$columnas)) {
+    # Por nombre y no por posicion: una columna enmascarada no entra en el
+    # perfil (ronda 35-X), y copiar por posicion reciclaba las de las demas
+    # columnas sobre la tabla entera.
+    posicion <- .indice_nombre(
+      as.character(columnas$columna), as.character(perfil$columnas$columna)
+    )
     comunes <- intersect(names(columnas), names(perfil$columnas))
-    for (nombre in setdiff(comunes, "n")) {
-      columnas[[nombre]] <- perfil$columnas[[nombre]]
+    for (nombre in setdiff(comunes, c("n", "columna"))) {
+      columnas[[nombre]] <- perfil$columnas[[nombre]][posicion]
     }
     if (all(c("n", "n_faltantes") %in% names(perfil$columnas))) {
-      columnas$n_validos <- as.numeric(perfil$columnas$n) -
-        as.numeric(perfil$columnas$n_faltantes)
+      columnas$n_validos <- as.numeric(perfil$columnas$n)[posicion] -
+        as.numeric(perfil$columnas$n_faltantes)[posicion]
+    }
+    # La completitud de la que no se perfilo, sobre las mismas filas: DDM
+    # conserva el nulo, y es lo unico de la columna que describe el dato.
+    for (k in which(is.na(posicion))) {
+      j <- .indice_nombre(as.character(columnas$columna[[k]]), names(datos_todos))
+      if (is.na(j) || !nrow(datos_todos)) next
+      faltan <- sum(is.na(datos_todos[[j]]))
+      columnas$n_faltantes[[k]] <- faltan
+      columnas$n_validos[[k]] <- nrow(datos_todos) - faltan
+      columnas$prop_faltantes[[k]] <- faltan / nrow(datos_todos)
     }
     columnas$n <- .conteo_dbi(n_total)
   }
@@ -978,6 +1007,29 @@
       medicion = if (is.null(spool)) NULL else spool$consulta,
       etapa = "lectura_spool_muestra"
     )
+  }
+  # Las columnas que el esquema no pudo leer -sin permiso segun el catalogo,
+  # rechazadas por el motor, o con un nombre que la sesion no puede escribir- se
+  # declaran como en la via SQL y en la de bloques: esta via las dejaba fuera de
+  # `columnas`, de `sql` y de la cobertura, y la tabla salia con menos columnas
+  # sin decirlo (ronda 35-X, segunda vuelta). No hay completitud que publicar:
+  # no se leyeron.
+  ilegibles <- preparacion$esquema$ilegibles
+  if (length(ilegibles)) {
+    columnas <- rbind(columnas, do.call(rbind, lapply(ilegibles, function(campo) {
+      as.data.frame(.fila_resumen_dbi(campo, n_total), stringsAsFactors = FALSE)
+    })))
+    rownames(columnas) <- NULL
+    campos_metrica <- unlist(.CAMPOS_METRICA_DBI[metricas], use.names = FALSE)
+    for (campo in ilegibles) {
+      if (!length(campos_metrica)) break
+      registros[[length(registros) + 1L]] <- .registro_sql_dbi(
+        campo, campos_metrica, "no_disponible",
+        preparacion$esquema$motivos[[campo]], NA_character_,
+        metadatos = .metadatos_sql_dbi(),
+        medicion = list(consulta_id = NA_integer_, etapa = "esquema")
+      )
+    }
   }
   sql <- if (length(registros)) do.call(rbind, registros) else {
     .registro_sql_dbi(character(), character(), character(), character(), character())
@@ -1073,6 +1125,9 @@
         columnas = character()
       )
     }
+  }
+  if (length(ilegibles)) {
+    cobertura <- rbind(cobertura, .cobertura_ilegibles_dbi(preparacion$esquema))
   }
   resumen <- list(
     columnas = columnas, sql = sql, cobertura = cobertura,

@@ -434,8 +434,16 @@ test_that("un motor que rechaza LIMIT ya no tira todos los pares", {
                        stringsAsFactors = FALSE),
     muestra = 10
   )
-  # Antes: todos los pares a `sin_comparar` -honesto, e inutil-.
-  expect_equal(nrow(resultado$cobertura_pares), 0L)
+  # Antes: todos los pares a `sin_comparar` -honesto, e inutil-. Ningun par
+  # queda sin leer. La referencia se leyo truncada (10 de 20), asi que la
+  # combinacion que no alcanzo el umbral (`nombre -> persona_id`) se declara
+  # sin conclusion aunque `id -> persona_id` lo alcance: desde la ronda 35-X
+  # (M3) esa declaracion no depende de la vecina. Esta prueba pedia
+  # `cobertura_pares` vacia, y con eso sostenia el descarte en silencio.
+  expect_false(any(grepl("No se pudo leer", resultado$cobertura_pares$motivo,
+                         fixed = TRUE)))
+  expect_true(all(grepl("^Sin conclusion", resultado$cobertura_pares$motivo)))
+  expect_equal(nrow(resultado$relaciones), 1L)
   expect_equal(resultado$meta$pares_comparados, 1L)
   expect_true(all(resultado$meta$lecturas$via == "fetch_acotado"))
   expect_true(all(resultado$meta$lecturas$filas_leidas == 10))

@@ -982,7 +982,16 @@ print.coleccion_lupa <- function(x, ...) {
 #'   se pudo clasificar porque su muestra no se leyó, en los perfiles
 #'   de las otras tablas se tapan los valores y la evidencia de las columnas no
 #'   personales, y `resumen_tabla$meta$proteccion_personal$otras_tablas` dice
-#'   por qué. Con esos valores se barren también `cobertura_coleccion`,
+#'   por qué. Y con esa regla, una columna que copia SIN su verificador los
+#'   documentos protegidos de OTRA tabla —`tramites.ref` con la cédula de
+#'   `personas` sin el dígito— se protege entera, como la que los copia en su
+#'   propia tabla, y su fundamento dice de qué tabla salen: sus valores
+#'   distintos se leen de la base, una consulta por columna no protegida que
+#'   publica un número de siete cifras o más o que la muestra clasificó como
+#'   documento, la prueba es sobre la tabla entera y en cualquier orden de
+#'   las tablas, y la tabla con una copia se vuelve a perfilar con esa columna
+#'   como personal; si la lectura o el nuevo perfil fallan, el perfil de esa
+#'   tabla se cierra igual. Con esos valores se barren también `cobertura_coleccion`,
 #'   `cobertura_metricas` y `meta$lecturas`, que juntan los motivos de todas
 #'   las tablas. Con o sin retenerlos, esos tres campos, los perfiles
 #'   retenidos y el mensaje del motor de cada tabla pasan además por el piso
@@ -1598,6 +1607,62 @@ perfilar_coleccion <- function(coleccion, muestra = Inf,
         .valores_protegidos_tabla_coleccion(conexion, referencia, perfil)
     }
   }
+  # Ronda 35 (H1). La columna que copia SIN su verificador los documentos
+  # protegidos de OTRA tabla -`tramites.ref` con la cedula de `personas`- se
+  # protege entera, como la que los copia en su propia tabla: con perfiles
+  # retenidos publicaba su minimo, su maximo y su mediana, que son cedulas, y
+  # la ayuda promete proteger cada perfil con los valores de las demas tablas
+  # "con la regla de `perfilar()`". La prueba es la misma regla
+  # (`.copia_de_documentos()`) sobre los valores distintos de la tabla entera,
+  # leidos de la base; la tabla con una copia se vuelve a perfilar con esa
+  # copia declarada como columna personal (`.copias_externas()`), para que la
+  # proteja la misma maquinaria por las dos puertas, en `meta$familias` y en
+  # su piso. Si no se puede leer o perfilar otra vez, se cierra.
+  if (conservar_perfiles && proteger && length(perfiles) &&
+      length(protegidos_tablas) > 1L) {
+    copias_tablas <- .copias_entre_tablas_coleccion(
+      conexion, perfiles, protegidos_tablas, declaradas,
+      umbral = argumentos_perfil[["umbral_documento_verificado"]] %||% 0.9
+    )
+    for (identificador in names(copias_tablas)) {
+      copias <- copias_tablas[[identificador]]
+      referencia <- declaradas$referencia[[
+        match(identificador, declaradas$identificador)
+      ]]
+      perfil <- if (is.data.frame(copias) && nrow(copias)) {
+        previas <- .fijar_copias_externas(copias)
+        tryCatch(
+          suppressWarnings(perfilar_dbi(
+            conexion, referencia, muestra = muestra,
+            bloque_muestra = bloque_muestra, ...
+          )),
+          error = function(e) e,
+          finally = .fijar_copias_externas(previas)
+        )
+      } else NULL
+      protegidas <- tryCatch(
+        as.character(perfil$resumen_tabla$meta$proteccion_personal$columnas),
+        error = function(e) character()
+      )
+      if (!inherits(perfil, "perfil_dbi") || !is.data.frame(copias) ||
+          !all(.nombres_para_operar(copias$columna) %in%
+                 .nombres_para_operar(protegidas))) {
+        perfiles[[identificador]] <- .cerrar_perfil_coleccion(
+          perfiles[[identificador]],
+          attr(copias, "motivo", exact = TRUE) %||% paste0(
+            "no se pudo volver a perfilar `", identificador, "` con las ",
+            "columnas que copian documentos de otra tabla"
+          ),
+          c(as.character(declaradas$tabla), as.character(declaradas$esquema),
+            as.character(declaradas$identificador))
+        )
+        next
+      }
+      perfiles[[identificador]] <- perfil
+      protegidos_tablas[[identificador]] <-
+        .valores_protegidos_tabla_coleccion(conexion, referencia, perfil)
+    }
+  }
   # El piso cruza tablas: ver `.proteger_perfiles_entre_tablas()`. Con UNA
   # tabla conservada tambien, si otra quedo registrada sin leer. Solo con la
   # proteccion activa (ronda 33, por D8): sin ella ninguna tabla protege, pero
@@ -1825,9 +1890,18 @@ perfilar_coleccion <- function(coleccion, muestra = Inf,
     tabla_sql <- as.character(DBI::dbQuoteIdentifier(conexion, referencia))
     valores <- character()
     fechas <- character()
+    # La columna se lee con la expresion con que la leyo `perfilar_dbi()`
+    # -`meta$lectura_convertida`, ver `.lectura_convertida_dbi()`-: un `money`
+    # leido crudo por RPostgres da `0` en cada celda (ronda 35-X, A4).
+    convertidas <- tryCatch(perfil$resumen_tabla$meta$lectura_convertida,
+                            error = function(e) NULL)
     for (columna in sensibles) {
       campo <- as.character(DBI::dbQuoteIdentifier(conexion, columna))
       expresion <- if (sqlite) paste0("CAST(", campo, " AS TEXT)") else campo
+      if (NROW(convertidas)) {
+        indice <- .indice_nombre(columna, as.character(convertidas$columna))
+        if (!is.na(indice)) expresion <- as.character(convertidas$lectura[[indice]])
+      }
       sql <- paste0(
         "SELECT ", expresion, " AS valor, COUNT(*) AS n FROM ", tabla_sql,
         " WHERE ", campo, " IS NOT NULL GROUP BY ", expresion
@@ -1903,6 +1977,151 @@ perfilar_coleccion <- function(coleccion, muestra = Inf,
     perfiles[[identificador]] <- perfil
   }
   perfiles
+}
+
+# Las columnas de cada perfil conservado que copian SIN su verificador los
+# documentos protegidos de las DEMAS tablas de la coleccion, con la regla de
+# `perfilar()` (`.copia_de_documentos()`): una lista por identificador de
+# tabla con un data.frame de copias -columna, proporcion, evaluados, de (la
+# tabla de donde salen los documentos) y origen `"tabla"`-. Ronda 35 (H1).
+#
+# Las candidatas son las columnas no protegidas que publican un extremo de
+# siete cifras o mas -en el resumen o en la muestra- o que la muestra clasifico
+# como documento: las demas no publican un numero que pueda ser un documento
+# sin su verificador, y sus textos los barre el piso entre tablas. Sus valores
+# distintos se leen de la base, una consulta por candidata, como los de las
+# columnas protegidas (`.valores_protegidos_tabla_coleccion()`): la prueba es
+# sobre la tabla entera, no sobre la muestra. Una columna con mas distintos que
+# el tope no es una copia de una tabla que se pudo leer entera. Si la lectura
+# falla, la lista lleva para esa tabla un data.frame vacio con el `motivo`, y
+# quien llama la cierra.
+.copias_entre_tablas_coleccion <- function(conexion, perfiles, protegidos,
+                                           declaradas, umbral = 0.9) {
+  completos <- Filter(function(x) isTRUE(x$completo), protegidos)
+  prefijos_de <- lapply(completos, function(x) .prefijos_de_valores(x$valores))
+  prefijos_de <- prefijos_de[lengths(prefijos_de) > 0L]
+  if (!length(prefijos_de)) return(list())
+  salida <- list()
+  for (identificador in names(perfiles)) {
+    otros <- prefijos_de[setdiff(names(prefijos_de), identificador)]
+    if (!length(otros)) next
+    candidatas <- .candidatas_copia_coleccion(perfiles[[identificador]])
+    if (!length(candidatas)) next
+    indice <- match(identificador, declaradas$identificador)
+    if (is.na(indice)) next
+    referencia <- declaradas$referencia[[indice]]
+    todos <- .prefijos_ordenados(otros)
+    filas <- list()
+    fallida <- NULL
+    for (columna in candidatas) {
+      leidos <- .distintos_columna_coleccion(conexion, referencia, columna)
+      if (!isTRUE(leidos$ok)) {
+        fallida <- leidos$motivo
+        break
+      }
+      if (isTRUE(leidos$demasiados)) next
+      copia <- .copia_de_documentos(leidos$valores, otros, todos,
+                                    umbral = umbral)
+      if (is.null(copia)) next
+      filas[[length(filas) + 1L]] <- data.frame(
+        columna = columna, proporcion = copia$proporcion,
+        evaluados = copia$evaluados, de = copia$de, origen = "tabla",
+        stringsAsFactors = FALSE
+      )
+    }
+    if (!is.null(fallida)) {
+      salida[[identificador]] <- structure(.copias_vacias(), motivo = fallida)
+    } else if (length(filas)) {
+      salida[[identificador]] <- do.call(rbind, filas)
+    }
+  }
+  salida
+}
+
+.candidatas_copia_coleccion <- function(perfil) {
+  protegidas <- .nombres_para_operar(as.character(
+    perfil$resumen_tabla$meta$proteccion_personal$columnas
+  ))
+  candidatas <- character()
+  for (tabla in list(perfil$resumen_tabla$columnas,
+                     perfil$perfil_muestra$columnas)) {
+    if (!is.data.frame(tabla) || !"columna" %in% names(tabla)) next
+    grandes <- rep(FALSE, nrow(tabla))
+    for (campo in intersect(c("minimo", "maximo", "mediana"), names(tabla))) {
+      v <- tabla[[campo]]
+      if (!is.numeric(v)) next
+      v <- suppressWarnings(as.numeric(v))
+      grandes <- grandes | (!is.na(v) & abs(v) >= 1e6)
+    }
+    candidatas <- c(candidatas, as.character(tabla$columna[grandes]))
+  }
+  clasificacion <- perfil$perfil_muestra$datos_personales
+  if (is.data.frame(clasificacion) && nrow(clasificacion)) {
+    candidatas <- c(candidatas, as.character(
+      clasificacion$columna[clasificacion$tipo %in% "documento_identidad"]
+    ))
+  }
+  candidatas <- unique(candidatas[!is.na(candidatas)])
+  candidatas[!.nombres_para_operar(candidatas) %in% protegidas]
+}
+
+# Los valores distintos de una columna, leidos de la base con un `GROUP BY`,
+# como los de las protegidas: `ok`, `valores`, y `demasiados` si pasan el tope.
+.distintos_columna_coleccion <- function(conexion, referencia, columna) {
+  tryCatch({
+    sqlite <- grepl("sqlite", .senas_conexion_dbi(conexion), fixed = TRUE,
+                    useBytes = TRUE)
+    tabla_sql <- as.character(DBI::dbQuoteIdentifier(conexion, referencia))
+    campo <- as.character(DBI::dbQuoteIdentifier(conexion, columna))
+    expresion <- if (sqlite) paste0("CAST(", campo, " AS TEXT)") else campo
+    sql <- paste0(
+      "SELECT ", expresion, " AS valor FROM ", tabla_sql,
+      " WHERE ", campo, " IS NOT NULL GROUP BY ", expresion
+    )
+    respuesta <- .consultar_dbi(
+      conexion, sql, NULL, filas = .MAXIMO_VALORES_PROTEGIDOS_DBI + 1L,
+      etapa = "proteccion_coleccion"
+    )
+    if (!isTRUE(respuesta$ok)) {
+      return(list(ok = FALSE, motivo = paste0(
+        "no se pudieron leer los valores de `", columna, "`: ",
+        respuesta$motivo
+      )))
+    }
+    datos <- respuesta$datos
+    list(
+      ok = TRUE,
+      valores = if (NROW(datos)) datos[[1L]] else character(),
+      demasiados = NROW(datos) > .MAXIMO_VALORES_PROTEGIDOS_DBI
+    )
+  }, error = function(e) {
+    list(ok = FALSE, motivo = paste0(
+      "no se pudieron leer los valores de `", columna, "`: ", .mensaje_motor(e)
+    ))
+  })
+}
+
+# Un perfil conservado que no se pudo verificar contra las demas tablas se
+# cierra como cuando una tabla no se pudo leer (`.proteger_perfiles_entre_tablas()`):
+# se tapan los valores y la evidencia de las columnas no personales, y se dice.
+.cerrar_perfil_coleccion <- function(perfil, motivo, nombres = character()) {
+  if (is.null(perfil)) return(perfil)
+  sensibles <- as.character(
+    perfil$resumen_tabla$meta$proteccion_personal$columnas
+  )
+  nombres <- unique(as.character(nombres))
+  nombres <- nombres[!is.na(nombres) & nzchar(nombres)]
+  cerrado <- .cerrar_fuera_de_muestra_dbi(
+    perfil$resumen_tabla, perfil$perfil_muestra, sensibles,
+    nombres_tabla = nombres
+  )
+  perfil$resumen_tabla <- cerrado$resumen
+  perfil$perfil_muestra <- cerrado$perfil
+  perfil$resumen_tabla$meta$proteccion_personal$otras_tablas <- paste0(
+    "No verificada: ", motivo,
+    ". Se taparon los valores y la evidencia de las columnas no personales."
+  )
+  perfil
 }
 
 # Cada perfil conservado se barre con los valores protegidos de las DEMAS tablas
@@ -2015,8 +2234,10 @@ print.perfil_coleccion <- function(x, ...) {
     k <- indices[[j]]
     if (is.na(k)) return(NA_real_)
     referencia <- coleccion$tablas$referencia[[k]]
+    # Sin consultar el catalogo de permisos: con mil tablas son dos viajes mas
+    # por tabla para una estimacion (ver `.columnas_tabla_dbi()`).
     campos <- tryCatch(
-      .listar_campos_dbi(coleccion$conexion, referencia),
+      .columnas_tabla_dbi(coleccion$conexion, referencia, catalogo = FALSE)$campos,
       error = function(e) NULL
     )
     if (!is.null(campos) && length(campos)) return(as.numeric(length(campos)))
@@ -2335,12 +2556,22 @@ estimar_costo_coleccion <- function(coleccion, pares = NULL,
       )
     }
     k <- .indice_identificador(identificador, declaradas)
+    # Las columnas de la tabla, tambien las que la credencial no puede leer: en
+    # PostgreSQL `dbListFields()` no las lista, y una candidata que existe se
+    # rechazaba como inexistente. La lectura la deja afuera y lo declara.
     campos <- tryCatch(
-      .listar_campos_dbi(coleccion$conexion, coleccion$tablas$referencia[[k]]),
+      .columnas_tabla_dbi(
+        coleccion$conexion, coleccion$tablas$referencia[[k]]
+      )$campos,
       error = function(e) NULL
     )
-    if (!is.null(campos)) {
-      indices <- .indice_nombre(candidatas, campos)
+    if (length(campos)) {
+      # La misma regla que `orden` y que `orden_muestra` de `perfilar_dbi()`:
+      # la grafia exacta primero y, si no esta, sin distinguir mayusculas, como
+      # compara el motor. Antes `IMPORTE` daba "nombra columnas inexistentes"
+      # sobre la columna `importe` de SQL Server, mientras `orden = "ID"` en la
+      # misma conexion se aceptaba (ronda 35-X, B4).
+      indices <- .resolver_columnas_dbi(candidatas, campos)
       desconocidas <- candidatas[is.na(indices)]
       if (length(desconocidas)) {
         .detener(
@@ -2525,27 +2756,90 @@ estimar_costo_coleccion <- function(coleccion, pares = NULL,
 # podas, con el motivo de la guarda en `detalle`.
 .podas_no_escribibles_coleccion <- function(t1, t2, candidatas_1, candidatas_2,
                                             omitidas_1, omitidas_2) {
+  .podas_columnas_fuera_coleccion(
+    t1, t2, candidatas_1, candidatas_2,
+    stats::setNames(rep("columna_no_escribible", length(omitidas_1)), omitidas_1),
+    stats::setNames(rep("columna_no_escribible", length(omitidas_2)), omitidas_2)
+  )
+}
+
+# Lo mismo para cualquier columna que la lectura dejo afuera: `fuera_1` y
+# `fuera_2` nombran cada columna con su motivo -`columna_no_escribible`,
+# `columna_sin_permiso` (la credencial no la puede leer) o
+# `columna_enmascarada` (llega con la mascara de SQL Server)-. Una fila por
+# combinacion que no se comparo; el motivo es el de la columna que quedo afuera
+# (la de la primera tabla si quedaron las dos).
+.podas_columnas_fuera_coleccion <- function(t1, t2, candidatas_1, candidatas_2,
+                                            fuera_1, fuera_2) {
+  omitidas_1 <- names(fuera_1)
+  omitidas_2 <- names(fuera_2)
+  if (is.null(omitidas_1)) omitidas_1 <- character()
+  if (is.null(omitidas_2)) omitidas_2 <- character()
   combinaciones <- rbind(
     expand.grid(c1 = omitidas_1, c2 = c(candidatas_2, omitidas_2),
                 stringsAsFactors = FALSE),
     expand.grid(c1 = candidatas_1, c2 = omitidas_2, stringsAsFactors = FALSE)
   )
   if (!nrow(combinaciones)) return(.cobertura_podas_vacia()[0L, , drop = FALSE])
-  omitida <- ifelse(.identificadores_en(combinaciones$c1, omitidas_1),
-                    combinaciones$c1, combinaciones$c2)
+  de_la_1 <- .identificadores_en(combinaciones$c1, omitidas_1)
+  omitida <- ifelse(de_la_1, combinaciones$c1, combinaciones$c2)
+  motivo <- ifelse(
+    de_la_1,
+    unname(fuera_1)[.indice_identificador(combinaciones$c1, omitidas_1)],
+    unname(fuera_2)[.indice_identificador(combinaciones$c2, omitidas_2)]
+  )
   data.frame(
     tabla_1 = rep(t1, nrow(combinaciones)),
     tabla_2 = rep(t2, nrow(combinaciones)),
     columna_tabla1 = combinaciones$c1, columna_tabla2 = combinaciones$c2,
-    motivo = rep("columna_no_escribible", nrow(combinaciones)),
-    detalle = vapply(omitida, function(columna) {
-      .motivo_no_representable_dbi(
-        paste0("La columna `", .comillas_sin_locale(columna), "`"),
-        texto = columna
+    motivo = motivo,
+    detalle = vapply(seq_along(omitida), function(k) {
+      columna <- omitida[[k]]
+      switch(
+        motivo[[k]],
+        columna_sin_permiso = paste0(
+          "La columna `", .comillas_sin_locale(columna), "`: ",
+          .motivo_columna_sin_permiso_dbi()
+        ),
+        columna_enmascarada = paste0(
+          "La columna `", .comillas_sin_locale(columna), "`: ",
+          .motivo_columna_enmascarada_dbi()
+        ),
+        .motivo_no_representable_dbi(
+          paste0("La columna `", .comillas_sin_locale(columna), "`"),
+          texto = columna
+        )
       )
-    }, character(1L), USE.NAMES = FALSE),
+    }, character(1L)),
     stringsAsFactors = FALSE
   )
+}
+
+# Las columnas que una lectura de la coleccion dejo afuera por permiso o por
+# mascara, dichas en el motivo de la lectura. `NA` si no dejo ninguna.
+.nota_columnas_fuera_coleccion <- function(fuera, orden_fuera = character()) {
+  partes <- character()
+  for (codigo in c("columna_sin_permiso", "columna_enmascarada")) {
+    columnas <- names(fuera)[unname(fuera) == codigo]
+    if (!length(columnas)) next
+    partes <- c(partes, paste0(
+      if (length(columnas) == 1L) "No se comparo la columna " else
+        "No se compararon las columnas ",
+      paste0("`", .comillas_sin_locale(columnas), "`", collapse = ", "), ": ",
+      if (identical(codigo, "columna_sin_permiso")) {
+        .motivo_columna_sin_permiso_dbi()
+      } else .motivo_columna_enmascarada_dbi()
+    ))
+  }
+  if (length(orden_fuera)) {
+    partes <- c(partes, paste0(
+      "La lectura va sin `ORDER BY`: se declaro `orden` (",
+      paste(.comillas_sin_locale(orden_fuera), collapse = ", "),
+      ") y una de esas columnas no se puede leer o llega enmascarada."
+    ))
+  }
+  if (!length(partes)) return(NA_character_)
+  paste(partes, collapse = " ")
 }
 
 # Una lectura de la coleccion que fallo, con su motivo ya legible -paso por
@@ -2600,20 +2894,37 @@ estimar_costo_coleccion <- function(coleccion, pares = NULL,
     k <- .indice_identificador(identificador, coleccion$tablas$identificador)
     if (is.na(k)) identificador else coleccion$tablas$referencia[[k]]
   }
-  # Los nombres de las columnas como los da `dbListFields()`, una vez por tabla:
-  # resuelven el `orden` declarado y nombran las columnas de un `SELECT *`.
+  # Las columnas de cada tabla y cuales puede leer la credencial, una vez por
+  # tabla, de la MISMA funcion que usa `perfilar_dbi()`
+  # (`.columnas_tabla_dbi()`): resuelven el `orden` declarado, nombran las
+  # columnas de un `SELECT *` y dicen cuales no se pueden leer o llegan
+  # enmascaradas (ronda 35-X).
   cache_campos <- new.env(parent = emptyenv())
-  campos_de <- function(identificador) {
+  info_de <- function(identificador) {
     cache_key <- .clave_cache_coleccion(identificador)
     if (exists(cache_key, envir = cache_campos, inherits = FALSE)) {
       return(get(cache_key, envir = cache_campos, inherits = FALSE))
     }
-    campos <- tryCatch(
-      .listar_campos_dbi(conexion, referencia_de(identificador)),
+    info <- tryCatch(
+      .columnas_tabla_dbi(conexion, referencia_de(identificador)),
       error = function(e) NULL
     )
-    assign(cache_key, campos, envir = cache_campos)
-    campos
+    assign(cache_key, info, envir = cache_campos)
+    info
+  }
+  campos_de <- function(identificador) {
+    info <- info_de(identificador)
+    if (is.null(info) || !length(info$campos)) NULL else info$campos
+  }
+  # Las columnas que una lectura dejo afuera por permiso o por mascara, con su
+  # motivo: el par las declara en `cobertura_podas`.
+  cache_fuera <- new.env(parent = emptyenv())
+  fuera_de <- function(identificador) {
+    cache_key <- .clave_cache_coleccion(identificador)
+    if (exists(cache_key, envir = cache_fuera, inherits = FALSE)) {
+      return(get(cache_key, envir = cache_fuera, inherits = FALSE))
+    }
+    stats::setNames(character(), character())
   }
   orden_de <- function(identificador) {
     if (is.null(orden)) return(character())
@@ -2627,7 +2938,9 @@ estimar_costo_coleccion <- function(coleccion, pares = NULL,
     columnas <- .nombre_para_conexion_dbi(as.character(columnas))
     campos <- campos_de(identificador)
     if (!is.null(campos)) {
-      indices <- .indice_nombre(columnas, campos)
+      # La regla de `columnas_candidatas` y de `orden_muestra`: ver
+      # `.resolver_columnas_dbi()`.
+      indices <- .resolver_columnas_dbi(columnas, campos)
       if (!anyNA(indices)) columnas <- campos[indices]
     }
     columnas
@@ -2638,6 +2951,76 @@ estimar_costo_coleccion <- function(coleccion, pares = NULL,
     indice <- .indice_identificador(identificador, names(columnas_candidatas))
     columnas <- if (is.na(indice)) NULL else columnas_candidatas[[indice]]
     if (is.null(columnas)) NULL else as.character(columnas)
+  }
+
+  # La expresion con que se lee cada columna, la MISMA de `perfilar_dbi()`:
+  # `.lectura_convertida_dbi()`. RPostgres lee `0` en toda celda `money`, y
+  # `MIN`/`MAX` de una columna `money` tambien: la coleccion leia los importes
+  # en cero, inventaba `fac.importe -> nota.importe` m:m con cobertura 1 entre
+  # dos tablas sin un valor comun, y podaba con `rangos_disjuntos` la relacion
+  # que si existe (ronda 35-X, A4: 60 comunes en el motor). La ronda 34 lo habia
+  # cerrado en `perfilar_dbi()`; la lectura de la coleccion y la consulta de
+  # rangos no pasaban por ahi. Ahora las dos toman la expresion de aca.
+  #
+  # Saber el tipo en el motor cuesta una consulta de cero filas por tabla, y se
+  # paga solo en las conexiones donde la lectura convierte algo. `columnas`
+  # vacia es la tabla entera (`SELECT *`); con una lista -las candidatas, o las
+  # columnas legibles de la tabla- se leen esas. Sin conversion la consulta no
+  # cambia.
+  cache_lectura <- new.env(parent = emptyenv())
+  lectura_de <- function(identificador, tabla_sql, columnas) {
+    citar <- function(x) {
+      as.character(DBI::dbQuoteIdentifier(conexion, as.character(x)))
+    }
+    sin_conversion <- list(
+      seleccion_sql = if (length(columnas)) {
+        paste(citar(columnas), collapse = ", ")
+      } else "*",
+      expresiones = character()
+    )
+    guardar <- function(salida) {
+      assign(.clave_cache_coleccion(identificador), salida$expresiones,
+             envir = cache_lectura)
+      salida
+    }
+    if (is.na(tabla_sql) || !.lectura_puede_convertir_dbi(conexion)) {
+      return(guardar(sin_conversion))
+    }
+    esquema <- .leer_esquema_dbi(
+      conexion,
+      .sql_esquema_dbi(tabla_sql, if (length(columnas)) citar(columnas) else "*"),
+      NULL, etapa = "esquema"
+    )
+    campos <- if (length(columnas)) as.character(columnas) else {
+      names(esquema$datos)
+    }
+    if (!isTRUE(esquema$ok) || is.null(esquema$tipos_motor) ||
+        !length(campos) || length(campos) != length(esquema$tipos_motor)) {
+      return(guardar(sin_conversion))
+    }
+    campos_sql <- citar(campos)
+    convertida <- .lectura_convertida_dbi(
+      conexion, campos, campos_sql, esquema$tipos_motor
+    )
+    cambia <- convertida$campos_sql != campos_sql
+    if (!any(cambia)) return(guardar(sin_conversion))
+    proyeccion <- campos_sql
+    proyeccion[cambia] <- paste0(
+      convertida$campos_sql[cambia], " AS ", campos_sql[cambia]
+    )
+    guardar(list(
+      seleccion_sql = paste(proyeccion, collapse = ", "),
+      expresiones = stats::setNames(convertida$campos_sql[cambia], campos[cambia])
+    ))
+  }
+  expresion_de <- function(identificador, nombre, columna_sql) {
+    cache_key <- .clave_cache_coleccion(identificador)
+    expresiones <- if (exists(cache_key, envir = cache_lectura, inherits = FALSE)) {
+      get(cache_key, envir = cache_lectura, inherits = FALSE)
+    } else character()
+    if (!length(expresiones)) return(columna_sql)
+    indice <- .indice_nombre(nombre, names(expresiones))
+    if (is.na(indice)) columna_sql else unname(expresiones[[indice]])
   }
 
   rangos_universo <- function(identificador, datos) {
@@ -2677,6 +3060,7 @@ estimar_costo_coleccion <- function(coleccion, pares = NULL,
           as.character(DBI::dbQuoteIdentifier(conexion, nombre)),
           error = function(e) NA_character_
         )
+        columna_sql <- expresion_de(identificador, nombre, columna_sql)
         c(
           paste0("MIN(", columna_sql, ") AS ", alias_minimos[[k]]),
           paste0("MAX(", columna_sql, ") AS ", alias_maximos[[k]])
@@ -2744,6 +3128,35 @@ estimar_costo_coleccion <- function(coleccion, pares = NULL,
     )
     columnas_orden <- orden_de(identificador)
     columnas_seleccionadas <- candidatas_de(identificador)
+    # Una columna que la credencial no puede leer no se nombra en ninguna
+    # consulta, y una enmascarada no se compara: sus valores son la mascara, y
+    # dos columnas `xxxx` sin un solo valor comun salian relacionadas con
+    # cobertura 1 (ronda 35-X). Sin candidatas declaradas la lectura deja de ser
+    # `SELECT *` -que con un permiso por columna se rechaza entero: el par se
+    # perdia, y por odbc caia R- y nombra las demas.
+    info <- info_de(identificador)
+    fuera <- stats::setNames(character(), character())
+    if (!is.null(info) && (length(info$ilegibles) || length(info$enmascaradas))) {
+      fuera <- c(
+        stats::setNames(rep("columna_sin_permiso", length(info$ilegibles)),
+                        info$ilegibles),
+        stats::setNames(rep("columna_enmascarada", length(info$enmascaradas)),
+                        info$enmascaradas)
+      )
+      if (is.null(columnas_seleccionadas)) {
+        columnas_seleccionadas <- info$campos
+      }
+      sale <- .nombres_presentes(columnas_seleccionadas, names(fuera))
+      fuera <- fuera[.nombres_presentes(names(fuera), columnas_seleccionadas[sale])]
+      columnas_seleccionadas <- columnas_seleccionadas[!sale]
+      if (length(columnas_orden) &&
+          any(.nombres_presentes(columnas_orden,
+                                 c(info$ilegibles, info$enmascaradas)))) {
+        orden_fuera <- columnas_orden
+        columnas_orden <- character()
+      } else orden_fuera <- character()
+    } else orden_fuera <- character()
+    assign(.clave_cache_coleccion(identificador), fuera, envir = cache_fuera)
     # `orden` dice POR QUE columnas ordenar, no CUALES leer. Sin candidatas
     # declaradas para la tabla, la lectura trae todas sus columnas -lo que
     # promete `?relaciones_coleccion`: una tabla no nombrada conserva todas-, y
@@ -2786,13 +3199,20 @@ estimar_costo_coleccion <- function(coleccion, pares = NULL,
     nota_lectura <- .nota_columnas_no_escribibles_coleccion(
       no_escribibles, orden_omitido
     )
+    nota_fuera <- .nota_columnas_fuera_coleccion(fuera, orden_fuera)
+    if (!is.na(nota_fuera)) {
+      nota_lectura <- if (is.na(nota_lectura)) nota_fuera else {
+        paste(nota_lectura, nota_fuera)
+      }
+    }
     columnas_lectura <- if (is.null(columnas_seleccionadas)) {
       character()
     } else {
       .identificadores_unicos(c(columnas_seleccionadas, columnas_orden))
     }
-    if (length(no_escribibles) && !length(columnas_seleccionadas)) {
-      # Ninguna candidata se puede escribir: no queda nada que comparar.
+    if ((length(no_escribibles) || length(fuera)) &&
+        !length(columnas_seleccionadas)) {
+      # Ninguna candidata se puede escribir ni leer: no queda nada que comparar.
       lecturas <<- lecturas + 1L
       bitacora[[length(bitacora) + 1L]] <<- data.frame(
         tabla = identificador, sql = NA_character_, via = NA_character_,
@@ -2800,14 +3220,14 @@ estimar_costo_coleccion <- function(coleccion, pares = NULL,
         orden_declarado = FALSE, momento = Sys.time(), ok = FALSE,
         motivo = nota_lectura, stringsAsFactors = FALSE
       )
-      return(.condicion_lectura_coleccion(nota_lectura, codificacion = TRUE))
+      return(.condicion_lectura_coleccion(
+        nota_lectura, codificacion = length(no_escribibles) > 0L
+      ))
     }
-    seleccion_sql <- if (length(columnas_lectura)) {
-      paste(
-        as.character(DBI::dbQuoteIdentifier(conexion, columnas_lectura)),
-        collapse = ", "
-      )
-    } else "*"
+    # La proyeccion lee cada columna con la expresion de `perfilar_dbi()`: ver
+    # `lectura_de()`. `columnas_lectura` vacia es la tabla entera.
+    lectura <- lectura_de(identificador, tabla_sql, columnas_lectura)
+    seleccion_sql <- lectura$seleccion_sql
     orden_sql <- if (length(columnas_orden)) {
       paste0(
         " ORDER BY ",
@@ -2816,6 +3236,9 @@ estimar_costo_coleccion <- function(coleccion, pares = NULL,
       )
     } else ""
     momento <- Sys.time()
+    # Lo que el controlador entregue en latin1 en ESTA lectura se declara en su
+    # motivo: ver `.texto_del_controlador_dbi()`.
+    texto_antes <- .texto_anotado_dbi(conexion)
     # Se pide UNA fila mas que el tope. Con eso la lectura contesta exacto la
     # pregunta que faltaba -"¿de cuantas?"-: si vuelven `muestra + 1` filas, la
     # tabla tiene mas y la lectura esta truncada; si vuelven menos o iguales, la
@@ -2826,28 +3249,48 @@ estimar_costo_coleccion <- function(coleccion, pares = NULL,
     # 0,1 no se distinguia de "10.000 filas de 10.000". La alternativa era un
     # `COUNT(*)` por tabla, que en un motor grande cuesta mucho mas que una fila.
     tope_lectura <- if (is.finite(muestra)) muestra + 1 else muestra
-    sql_limite <- paste0(
-      "SELECT ", seleccion_sql, " FROM ", tabla_sql, orden_sql,
-      " LIMIT ", format(tope_lectura, scientific = FALSE)
-    )
-    resultado <- tryCatch(
-      list(datos = .marcar_utf8_tabla(.traer_consulta_dbi(conexion, sql_limite)),
-           sql = sql_limite,
-           via = "limit"),
-      error = function(e) e
-    )
+    # Sin tope no hay `LIMIT` que escribir: `format(Inf)` mandaba `LIMIT Inf`,
+    # una consulta que todo motor rechaza -PostgreSQL busca una columna `inf`-.
+    # Fuera de una transaccion costaba una consulta rechazada por tabla; dentro
+    # de una, la abortaba (ronda 35-X, A5). Se lee directo por la via sin
+    # `LIMIT`, la que ya terminaba leyendo.
+    resultado <- if (is.finite(muestra)) {
+      sql_limite <- paste0(
+        "SELECT ", seleccion_sql, " FROM ", tabla_sql, orden_sql,
+        " LIMIT ", format(tope_lectura, scientific = FALSE)
+      )
+      tryCatch(
+        list(datos = .marcar_utf8_tabla(.traer_consulta_dbi(conexion, sql_limite)),
+             sql = sql_limite,
+             via = "limit"),
+        error = function(e) e
+      )
+    } else {
+      simpleCondition("sin tope de lectura")
+    }
     motivo_limite <- NA_character_
     if (inherits(resultado, "condition")) {
-      motivo_limite <- .mensaje_motor(resultado)
+      # El mensaje del motor puede citar las columnas de la tabla -"Candidate
+      # bindings: \"id\""-, que el resto de la salida publica: se suman a los
+      # nombres que no se tapan (ronda 35-X, B3). Cuesta un `dbListFields()`,
+      # solo cuando la lectura fallo.
+      .sumar_identificadores_motor(campos_de(identificador))
+      if (is.finite(muestra)) motivo_limite <- .mensaje_motor(resultado)
        sql_llano <- paste0(
          "SELECT ", seleccion_sql, " FROM ", tabla_sql, orden_sql
        )
       resultado <- tryCatch({
         consulta <- .enviar_consulta_dbi(conexion, sql_llano)
-        on.exit(DBI::dbClearResult(consulta), add = TRUE)
-        list(datos = .marcar_utf8_tabla(DBI::dbFetch(consulta, n = tope_lectura)),
+        on.exit(.limpiar_consulta_dbi(consulta, conexion), add = TRUE)
+        # El tipo de cada columna segun el controlador: odbc da el codigo ODBC,
+        # que distingue el texto no Unicode (ver `.nota_texto_controlador_dbi()`).
+        tipos <- tryCatch(
+          as.character(DBI::dbColumnInfo(consulta)$type),
+          error = function(e) NULL
+        )
+        list(datos = .marcar_utf8_tabla(.traer_filas_dbi(consulta, n = tope_lectura, conexion)),
              sql = sql_llano,
-             via = "fetch_acotado")
+             via = "fetch_acotado", tipos = tipos)
       }, error = function(e) e)
     }
     lecturas <<- lecturas + 1L
@@ -2857,7 +3300,9 @@ estimar_costo_coleccion <- function(coleccion, pares = NULL,
       # segundo intento esconde por que se llego hasta ahi.
       motivo_llano <- .mensaje_motor(resultado)
       motivo <- paste0(
-        "con LIMIT: ", motivo_limite, "; sin LIMIT: ",
+        if (is.finite(muestra)) {
+          paste0("con LIMIT: ", motivo_limite, "; sin LIMIT: ")
+        } else "",
         motivo_llano,
         if (length(columnas_orden)) {
           paste0(
@@ -2884,6 +3329,9 @@ estimar_costo_coleccion <- function(coleccion, pares = NULL,
         codificacion = inherits(resultado, "lupa_error_codificacion_dbi")
       ))
     }
+    # Los nombres de las columnas leidas tambien los publica el resultado: el
+    # mensaje del motor de una consulta posterior (los rangos) los cita en claro.
+    .sumar_identificadores_motor(names(resultado$datos))
     # La fila de sobra no viaja al resultado: sirvio para saber si habia mas.
     truncada <- is.finite(muestra) && nrow(resultado$datos) > muestra
     if (truncada) {
@@ -2902,6 +3350,15 @@ estimar_costo_coleccion <- function(coleccion, pares = NULL,
         if (length(columnas_lectura)) columnas_lectura else campos_de(identificador)
       }
     )
+    nota_texto <- .nota_texto_controlador_dbi(
+      conexion, names(resultado$datos), resultado$tipos,
+      .texto_anotado_desde_dbi(conexion, texto_antes)
+    )
+    if (!is.na(nota_texto)) {
+      nota_lectura <- if (is.na(nota_lectura)) nota_texto else {
+        paste(nota_lectura, nota_texto)
+      }
+    }
     bitacora[[length(bitacora) + 1L]] <<- data.frame(
       tabla = identificador, sql = resultado$sql, via = resultado$via,
       filas_leidas = as.numeric(nrow(resultado$datos)),
@@ -2933,6 +3390,7 @@ estimar_costo_coleccion <- function(coleccion, pares = NULL,
     # lectura -por identificador normalizado-: la comparacion y la consulta no
     # pueden contestar distinto sobre que columnas participan.
     candidatas = candidatas_de,
+    fuera = fuera_de,
     rangos_universo = rangos_universo,
     bitacora = function() {
       if (length(bitacora)) {
@@ -2992,6 +3450,37 @@ estimar_costo_coleccion <- function(coleccion, pares = NULL,
 #' `DBI::dbListFields()`, los mismos que publica [perfilar_coleccion()], aunque
 #' el controlador devuelva los de la lectura en otra codificación.
 #'
+#' **Una columna que la credencial no puede leer, o que llega enmascarada, no
+#' se compara y no se lleva la tabla.** Las columnas de cada tabla y lo que la
+#' credencial puede leer de ellas salen del catálogo del motor, de la misma
+#' función que usa [perfilar_dbi()]: en PostgreSQL `pg_attribute` con
+#' `has_column_privilege()` —`dbListFields()` de RPostgres no lista las
+#' columnas sin privilegio—, y en SQL Server `sys.columns` con
+#' `HAS_PERMS_BY_NAME()` y `sys.masked_columns` (enmascaramiento dinámico, salvo
+#' que la credencial tenga `UNMASK`). Sin candidatas declaradas la lectura nombra
+#' las demás columnas en vez de `SELECT *`, que con un permiso por columna se
+#' rechaza entero, y la columna no se nombra en ninguna consulta. Sus
+#' combinaciones quedan en `cobertura_podas` con motivo `columna_sin_permiso` o
+#' `columna_enmascarada`: una columna enmascarada lee la máscara —`xxxx`—, y dos
+#' así parecían relacionadas sin compartir un solo valor. Una columna de `orden`
+#' así deja la lectura sin `ORDER BY`, como la que no se puede escribir.
+#'
+#' **Los valores se leen como los lee [perfilar_dbi()].** RPostgres entrega `0`
+#' en toda celda `money`, y `MIN`/`MAX` de una columna `money` también: la
+#' lectura de cada tabla y la consulta de rangos de la poda la leen convertida
+#' en el motor —`CAST(x AS NUMERIC)`—, con la misma expresión que
+#' `perfilar_dbi()` publica en `meta$lectura_convertida`. Saber el tipo cuesta
+#' una consulta de cero filas por tabla, sólo en las conexiones donde la lectura
+#' convierte algo. Y el texto que el controlador entrega en latin1 con la marca
+#' UTF-8 —odbc con FreeTDS bajo un locale que no es UTF-8, sobre una columna
+#' `varchar`— se lee como latin1, así que se compara con el de una `nvarchar`;
+#' la lectura lo declara en `meta$lecturas$motivo`, con el remedio, porque un
+#' carácter fuera de latin1 llega como `?` (ver «Fallo parcial» en
+#' [perfilar_dbi()]). Con `muestra = Inf` no se escribe `LIMIT`: la tabla se
+#' lee entera por la vía sin tope. Dentro de una transacción del usuario, la
+#' lectura sigue la regla de [perfilar_dbi()]: en PostgreSQL cada sentencia va
+#' dentro de un punto de guardado y la transacción no queda abortada.
+#'
 #' Cada par se compara sobre una muestra de filas de cada tabla, y el resultado
 #' declara ese alcance: una relación candidata sobre una muestra **no es una
 #' clave foránea comprobada**, es un indicio que hay que confirmar contra el
@@ -2999,11 +3488,21 @@ estimar_costo_coleccion <- function(coleccion, pares = NULL,
 #'
 #' **Con la tabla de referencia truncada la cobertura es una cota inferior.** Un
 #' valor de `tabla_2` que no está entre las filas leídas de `tabla_1` puede
-#' estar en las demás, así que la cobertura sólo puede subir al leer más. Un par
-#' que con la referencia truncada no alcanza `umbral_cobertura` no se descarta
-#' en silencio: queda en `cobertura_pares` como «sin conclusión», con la mayor
-#' cobertura medida y cómo resolverlo, y `meta$pares_sin_conclusion` los cuenta
+#' estar en las demás, así que la cobertura sólo puede subir al leer más. Una
+#' combinación de columnas que con la referencia truncada no alcanza
+#' `umbral_cobertura` no se descarta en silencio, **aunque otra del mismo par
+#' lo alcance**: un indicador de dos valores llega a cobertura 1 trivialmente, y
+#' no puede borrar la clave foránea que quedó en 0,5 por la lectura. El par
+#' queda en `cobertura_pares` como «sin conclusión» —una fila por par, no una
+#' por combinación—, con cuántas combinaciones no alcanzaron el umbral, las
+#' cinco de mayor cobertura medida con su cota, cuántas lo alcanzaron —que están
+#' en `relaciones`— y cómo resolverlo. `meta$pares_sin_conclusion` los cuenta
 #' —también están en `pares_comparados`, porque se compararon—.
+#'
+#' Los motivos de `cobertura_pares` citan en claro lo que el usuario declaró y
+#' lo que el resto de la salida ya publica: los nombres de las tablas, de sus
+#' esquemas y de sus columnas, y las de `orden` y `columnas_candidatas`; el
+#' resto del mensaje del motor sigue la regla de [perfilar_dbi()].
 #'
 #' **El alcance se declara por par y en la fila.** Cada relación publica
 #' `filas_leidas_1`/`filas_leidas_2` —cuántas se compararon—, y además
@@ -3048,7 +3547,10 @@ estimar_costo_coleccion <- function(coleccion, pares = NULL,
 #'   declaración válida de «ningún par».
 #' @param columnas_candidatas Lista nombrada por identificador de tabla. Cada
 #'   vector declara las columnas que pueden participar; una tabla no nombrada
-#'   conserva todas sus columnas.
+#'   conserva todas sus columnas. Un nombre se busca con la grafía exacta y,
+#'   si no está, sin distinguir mayúsculas —como `orden` y como `orden_muestra`
+#'   de [perfilar_dbi()]—; uno que no existe da `lupa_error_argumento_dbi`, la
+#'   clase de todo argumento mal formado de esta función.
 #' @param muestra Filas traídas por tabla para comparar, y **el mismo tope con
 #'   que se calcula cada cobertura**: se reenvía a [detectar_relaciones()]. Sin
 #'   reenviarlo valía el tope por omisión de esa función, así que con
@@ -3100,36 +3602,54 @@ relaciones_coleccion <- function(coleccion, pares, muestra = 1e4,
                                  podar = FALSE,
                                  tope_memoria_mb = 512) {
   .fijar_numerica_c()  # LC_NUMERIC en "C" mientras lee de la conexion
-  if (!inherits(coleccion, "coleccion_lupa")) {
-    .detener("`coleccion` debe venir de coleccion().", call. = FALSE)
-  }
-  if (!is.numeric(umbral_cobertura) || length(umbral_cobertura) != 1L ||
-      is.na(umbral_cobertura) || umbral_cobertura < 0 ||
-      umbral_cobertura > 1) {
-    .detener("`umbral_cobertura` debe estar entre 0 y 1.", call. = FALSE)
-  }
-  if (!is.numeric(tope_cache_mb) || length(tope_cache_mb) != 1L ||
-      is.na(tope_cache_mb) || tope_cache_mb < 0) {
-    .detener("`tope_cache_mb` debe ser un numero no negativo.", call. = FALSE)
-  }
-  if (!is.numeric(tope_memoria_mb) || length(tope_memoria_mb) != 1L ||
-      is.na(tope_memoria_mb) || tope_memoria_mb < 0) {
-    .detener("`tope_memoria_mb` debe ser un numero no negativo.", call. = FALSE)
-  }
-  if (!is.null(orden) && !is.character(orden) && !is.list(orden)) {
-    .detener(
-      "`orden` debe ser NULL, un vector de nombres de columnas o una lista ",
-      "nombrada por identificador de tabla.", call. = FALSE
+  # Un argumento malo aborta con la clase de la via, como en `perfilar_dbi()`:
+  # antes salia como `simpleError` (ronda 35-X, B4).
+  .argumento_dbi({
+    if (!inherits(coleccion, "coleccion_lupa")) {
+      .detener("`coleccion` debe venir de coleccion().", call. = FALSE)
+    }
+    if (!is.numeric(umbral_cobertura) || length(umbral_cobertura) != 1L ||
+        is.na(umbral_cobertura) || umbral_cobertura < 0 ||
+        umbral_cobertura > 1) {
+      .detener("`umbral_cobertura` debe estar entre 0 y 1.", call. = FALSE)
+    }
+    if (!is.numeric(tope_cache_mb) || length(tope_cache_mb) != 1L ||
+        is.na(tope_cache_mb) || tope_cache_mb < 0) {
+      .detener("`tope_cache_mb` debe ser un numero no negativo.", call. = FALSE)
+    }
+    if (!is.numeric(tope_memoria_mb) || length(tope_memoria_mb) != 1L ||
+        is.na(tope_memoria_mb) || tope_memoria_mb < 0) {
+      .detener("`tope_memoria_mb` debe ser un numero no negativo.", call. = FALSE)
+    }
+    if (!is.null(orden) && !is.character(orden) && !is.list(orden)) {
+      .detener(
+        "`orden` debe ser NULL, un vector de nombres de columnas o una lista ",
+        "nombrada por identificador de tabla.", call. = FALSE
+      )
+    }
+    pares <- .validar_pares_coleccion(coleccion, pares, exigir = TRUE)
+    columnas_candidatas <- .validar_columnas_candidatas_coleccion(
+      coleccion, columnas_candidatas
     )
-  }
-  pares <- .validar_pares_coleccion(coleccion, pares, exigir = TRUE)
-  columnas_candidatas <- .validar_columnas_candidatas_coleccion(
-    coleccion, columnas_candidatas
-  )
+    muestra <- .validar_muestra_dbi(muestra)
+  })
   repetidos <- attr(pares, "repetidos_descartados")
   if (is.null(repetidos)) repetidos <- 0
   conexion <- coleccion$conexion
-  muestra <- .validar_muestra_dbi(muestra)
+  # Los nombres que el mensaje del motor puede citar en claro: los de las tablas
+  # y sus esquemas, y los de las columnas que el usuario declaro en `orden` y en
+  # `columnas_candidatas` -la misma regla que `perfilar_dbi()` y
+  # `perfilar_coleccion()` desde la ronda 34-. Antes el motivo de una lectura
+  # publicaba `column "[literal omitido]" does not exist ... SELECT * FROM
+  # "[literal omitido]"."[literal omitido]"` para un `orden` mal escrito
+  # (ronda 35-X, B3). Cada lectura suma los nombres de las columnas que leyo.
+  declaradas <- .completar_columnas_coleccion(coleccion$tablas)
+  identificadores_previos <- .sumar_identificadores_motor(c(
+    declaradas$tabla, declaradas$esquema, declaradas$identificador,
+    if (is.list(orden)) unlist(orden, use.names = FALSE) else orden,
+    unlist(columnas_candidatas, use.names = FALSE)
+  ))
+  on.exit(.fijar_identificadores_motor(identificadores_previos), add = TRUE)
 
   lector <- .lector_tablas_coleccion(
     conexion, coleccion, muestra, orden, tope_cache_mb, columnas_candidatas
@@ -3206,15 +3726,24 @@ relaciones_coleccion <- function(coleccion, pares, muestra = 1e4,
     candidatas_2 <- if (is.null(declaradas_2)) {
       names(d2)
     } else .identificadores_intersect(declaradas_2, names(d2))
+    # Y las que la lectura dejo afuera por permiso o por mascara (ronda 35-X),
+    # declaradas o no: cada combinacion que no se comparo queda con su motivo.
+    fuera_1 <- lector$fuera(t1)
+    fuera_2 <- lector$fuera(t2)
     omitidas_1 <- if (is.null(declaradas_1)) character() else {
-      .identificadores_setdiff(declaradas_1, names(d1))
+      .identificadores_setdiff(declaradas_1, c(names(d1), names(fuera_1)))
     }
     omitidas_2 <- if (is.null(declaradas_2)) character() else {
-      .identificadores_setdiff(declaradas_2, names(d2))
+      .identificadores_setdiff(declaradas_2, c(names(d2), names(fuera_2)))
     }
-    if (length(omitidas_1) || length(omitidas_2)) {
-      podas[[length(podas) + 1L]] <- .podas_no_escribibles_coleccion(
-        t1, t2, candidatas_1, candidatas_2, omitidas_1, omitidas_2
+    if (length(omitidas_1) || length(omitidas_2) || length(fuera_1) ||
+        length(fuera_2)) {
+      podas[[length(podas) + 1L]] <- .podas_columnas_fuera_coleccion(
+        t1, t2, candidatas_1, candidatas_2,
+        c(stats::setNames(rep("columna_no_escribible", length(omitidas_1)),
+                          omitidas_1), fuera_1),
+        c(stats::setNames(rep("columna_no_escribible", length(omitidas_2)),
+                          omitidas_2), fuera_2)
       )
     }
     rangos <- list(
@@ -3249,9 +3778,14 @@ relaciones_coleccion <- function(coleccion, pares, muestra = 1e4,
       ), error = function(e) e
     )
     if (inherits(relacion, "condition")) {
+      # `detectar_relaciones()` compara en memoria lo ya leido: su error es del
+      # paquete, no del motor, y no se tapa como mensaje ajeno (ronda 35-X, B3:
+      # "`[literal omitido]` para [literal omitido] debe ser un [literal
+      # omitido]..."). Solo sus literales entre comillas, que podrian citar un
+      # valor, siguen la regla de la proteccion.
       sin_comparar[[length(sin_comparar) + 1L]] <- data.frame(
         tabla_1 = t1, tabla_2 = t2,
-        motivo = paste0("No se pudo comparar: ", .mensaje_motor(relacion)),
+        motivo = paste0("No se pudo comparar: ", .mensaje_propio_dbi(relacion)),
         como_resolverlo = "Revisar los tipos de las columnas comparadas.",
         stringsAsFactors = FALSE
       )
@@ -3284,44 +3818,90 @@ relaciones_coleccion <- function(coleccion, pares, muestra = 1e4,
     ]
     alcance_1 <- .alcance_lectura_tabla(lector$bitacora(), t1)
     alcance_2 <- .alcance_lectura_tabla(lector$bitacora(), t2)
-    if (!nrow(candidatas)) {
-      # Con la tabla de REFERENCIA truncada la cobertura no es una estimacion
-      # con ruido: es una cota inferior -un valor que no esta entre las filas
-      # leidas puede estar en las demas-. Medido en la ronda 25: una FK perfecta
-      # de 20.000 filas, leidas 10.000 de cada lado, daba 0,4962 y el par
-      # desaparecia de todas las salidas, cuando `detectar_relaciones()`
-      # promete para su propio muestreo conservar completa la referencia. El
-      # par se compara igual; lo que no se afirma es que no tenga relacion.
-      comparadas <- !.pegar_clave_compuesta(list(
-        relacion$columna_tabla1, relacion$columna_tabla2
-      )) %in% .pegar_clave_compuesta(list(
-        podas_relacion$columna_tabla1, podas_relacion$columna_tabla2
-      ))
-      if (isTRUE(alcance_1$muestreado) && any(comparadas)) {
-        pares_sin_conclusion <- pares_sin_conclusion + 1L
-        mejor <- suppressWarnings(max(
-          relacion$cobertura_tabla2_en_tabla1[comparadas], na.rm = TRUE
-        ))
-        sin_comparar[[length(sin_comparar) + 1L]] <- data.frame(
-          tabla_1 = t1, tabla_2 = t2,
-          motivo = paste0(
-            "Sin conclusion: la tabla de referencia `", t1, "` se leyo ",
-            "truncada (", nrow(d1), " filas) y ninguna columna alcanzo ",
-            "`umbral_cobertura` (", umbral_cobertura, "). Con la referencia ",
-            "incompleta la cobertura medida es una cota inferior",
-            if (is.finite(mejor)) paste0(" -la mayor fue ", signif(mejor, 4), "-"),
-            ", asi que el par no se descarta como sin relacion."
-          ),
-          como_resolverlo = paste(
-            "Aumentar `muestra` hasta leer completa la tabla de referencia, o",
-            "declarar `orden` por la clave en las dos tablas para alinear las",
-            "lecturas, y volver a comparar."
-          ),
-          stringsAsFactors = FALSE
-        )
-      }
-      next
+    # Con la tabla de REFERENCIA truncada la cobertura no es una estimacion
+    # con ruido: es una cota inferior -un valor que no esta entre las filas
+    # leidas puede estar en las demas-. Medido en la ronda 25: una FK perfecta
+    # de 20.000 filas, leidas 10.000 de cada lado, daba 0,4962 y el par
+    # desaparecia de todas las salidas, cuando `detectar_relaciones()`
+    # promete para su propio muestreo conservar completa la referencia. El
+    # par se compara igual; lo que no se afirma es que no tenga relacion.
+    #
+    # La declaracion es de las combinaciones que no alcanzaron el umbral, y no
+    # depende de las demas. Antes solo se declaraba si NINGUNA combinacion del
+    # par lo alcanzaba: un indicador `activo` de dos valores, que llega a
+    # cobertura 1 trivialmente, borraba de toda salida la FK
+    # `id -> cliente_id` (0,4996 sobre las filas leidas, 5000 de 5000 en el
+    # motor; ronda 35-X, M3). Sigue siendo UNA fila por par -no una por cada
+    # combinacion trivial-: cuantas quedaron sin conclusion y las que llegaron
+    # mas alto, hasta cinco, con su cota. Una sola no alcanzaba: `id -> activo`
+    # (0,5, dos valores) le ganaba a la FK (0,4996).
+    comparadas <- !.pegar_clave_compuesta(list(
+      relacion$columna_tabla1, relacion$columna_tabla2
+    )) %in% .pegar_clave_compuesta(list(
+      podas_relacion$columna_tabla1, podas_relacion$columna_tabla2
+    ))
+    cobertura_par <- relacion$cobertura_tabla2_en_tabla1
+    debajo <- comparadas &
+      (is.na(cobertura_par) | cobertura_par < umbral_cobertura)
+    if (isTRUE(alcance_1$muestreado) && any(debajo)) {
+      pares_sin_conclusion <- pares_sin_conclusion + 1L
+      # Las que llegaron a algo, de mayor a menor: son las que pueden ser una
+      # relacion recortada por la lectura. Las que quedaron en cero se cuentan.
+      medidas <- which(debajo & !is.na(cobertura_par) & cobertura_par > 0)
+      # La cobertura es numerica y no tiene `NA` en `medidas`; la ordenacion
+      # explicita conserva el desempate por bytes del paquete y no depende del
+      # locale de la sesion (guarda H4 de la ronda 30-L).
+      medidas <- medidas[.orden_por_bytes(cobertura_par[medidas],
+                                          decreasing = TRUE)]
+      mostradas <- utils::head(medidas, 5L)
+      cotas <- if (length(mostradas)) paste0(
+        "`", .comillas_sin_locale(relacion$columna_tabla1[mostradas]), "` -> `",
+        .comillas_sin_locale(relacion$columna_tabla2[mostradas]), "` ",
+        signif(cobertura_par[mostradas], 4), collapse = ", "
+      ) else NA_character_
+      sin_conclusion <- sum(debajo)
+      sin_comparar[[length(sin_comparar) + 1L]] <- data.frame(
+        tabla_1 = t1, tabla_2 = t2,
+        motivo = paste0(
+          "Sin conclusion: la tabla de referencia `", t1, "` se leyo ",
+          "truncada (", nrow(d1), " filas) y ",
+          if (nrow(candidatas)) {
+            paste0(sin_conclusion, " combinacion(es) de columnas no alcanzaron ")
+          } else "ninguna columna alcanzo ",
+          "`umbral_cobertura` (", umbral_cobertura, ")",
+          if (!is.na(cotas)) {
+            paste0(
+              " -la mayor fue ", signif(cobertura_par[[mostradas[[1L]]]], 4),
+              ": ", cotas,
+              if (sin_conclusion > length(mostradas)) {
+                paste0(
+                  "; ", sin_conclusion - length(mostradas),
+                  if (length(medidas) > length(mostradas)) " mas" else " en 0"
+                )
+              } else "",
+              "-"
+            )
+          } else " -todas en 0 sobre las filas leidas-",
+          ". Con la referencia incompleta la cobertura medida es una cota ",
+          "inferior, asi que ",
+          if (nrow(candidatas)) "no se descartan" else "el par no se descarta",
+          " como sin relacion.",
+          if (nrow(candidatas)) {
+            paste0(
+              " Lo alcanzaron ", nrow(candidatas), " combinacion(es), que ",
+              "estan en `relaciones`."
+            )
+          } else ""
+        ),
+        como_resolverlo = paste(
+          "Aumentar `muestra` hasta leer completa la tabla de referencia, o",
+          "declarar `orden` por la clave en las dos tablas para alinear las",
+          "lecturas, y volver a comparar."
+        ),
+        stringsAsFactors = FALSE
+      )
     }
+    if (!nrow(candidatas)) next
     candidatas$tabla_1 <- t1
     candidatas$tabla_2 <- t2
     candidatas$filas_leidas_1 <- nrow(d1)

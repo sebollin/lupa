@@ -45,7 +45,10 @@ megabytes. Al agotarse se sigue leyendo sin cachear y \code{meta} lo declara.}
 
 \item{columnas_candidatas}{Lista nombrada por identificador de tabla. Cada
 vector declara las columnas que pueden participar; una tabla no nombrada
-conserva todas sus columnas.}
+conserva todas sus columnas. Un nombre se busca con la grafía exacta y,
+si no está, sin distinguir mayúsculas —como \code{orden} y como \code{orden_muestra}
+de \code{\link[=perfilar_dbi]{perfilar_dbi()}}—; uno que no existe da \code{lupa_error_argumento_dbi}, la
+clase de todo argumento mal formado de esta función.}
 
 \item{podar}{Si se aplican las podas que cambiarían lo informado —tipos
 incompatibles y cardinalidades imposibles—, tal como en
@@ -92,6 +95,37 @@ de esa tabla sin \verb{ORDER BY} —no se puede ordenar como se declaró—, y
 \code{DBI::dbListFields()}, los mismos que publica \code{\link[=perfilar_coleccion]{perfilar_coleccion()}}, aunque
 el controlador devuelva los de la lectura en otra codificación.
 
+\strong{Una columna que la credencial no puede leer, o que llega enmascarada, no
+se compara y no se lleva la tabla.} Las columnas de cada tabla y lo que la
+credencial puede leer de ellas salen del catálogo del motor, de la misma
+función que usa \code{\link[=perfilar_dbi]{perfilar_dbi()}}: en PostgreSQL \code{pg_attribute} con
+\code{has_column_privilege()} —\code{dbListFields()} de RPostgres no lista las
+columnas sin privilegio—, y en SQL Server \code{sys.columns} con
+\code{HAS_PERMS_BY_NAME()} y \code{sys.masked_columns} (enmascaramiento dinámico, salvo
+que la credencial tenga \code{UNMASK}). Sin candidatas declaradas la lectura nombra
+las demás columnas en vez de \verb{SELECT *}, que con un permiso por columna se
+rechaza entero, y la columna no se nombra en ninguna consulta. Sus
+combinaciones quedan en \code{cobertura_podas} con motivo \code{columna_sin_permiso} o
+\code{columna_enmascarada}: una columna enmascarada lee la máscara —\code{xxxx}—, y dos
+así parecían relacionadas sin compartir un solo valor. Una columna de \code{orden}
+así deja la lectura sin \verb{ORDER BY}, como la que no se puede escribir.
+
+\strong{Los valores se leen como los lee \code{\link[=perfilar_dbi]{perfilar_dbi()}}.} RPostgres entrega \code{0}
+en toda celda \code{money}, y \code{MIN}/\code{MAX} de una columna \code{money} también: la
+lectura de cada tabla y la consulta de rangos de la poda la leen convertida
+en el motor —\verb{CAST(x AS NUMERIC)}—, con la misma expresión que
+\code{perfilar_dbi()} publica en \code{meta$lectura_convertida}. Saber el tipo cuesta
+una consulta de cero filas por tabla, sólo en las conexiones donde la lectura
+convierte algo. Y el texto que el controlador entrega en latin1 con la marca
+UTF-8 —odbc con FreeTDS bajo un locale que no es UTF-8, sobre una columna
+\code{varchar}— se lee como latin1, así que se compara con el de una \code{nvarchar};
+la lectura lo declara en \code{meta$lecturas$motivo}, con el remedio, porque un
+carácter fuera de latin1 llega como \verb{?} (ver «Fallo parcial» en
+\code{\link[=perfilar_dbi]{perfilar_dbi()}}). Con \code{muestra = Inf} no se escribe \code{LIMIT}: la tabla se
+lee entera por la vía sin tope. Dentro de una transacción del usuario, la
+lectura sigue la regla de \code{\link[=perfilar_dbi]{perfilar_dbi()}}: en PostgreSQL cada sentencia va
+dentro de un punto de guardado y la transacción no queda abortada.
+
 Cada par se compara sobre una muestra de filas de cada tabla, y el resultado
 declara ese alcance: una relación candidata sobre una muestra \strong{no es una
 clave foránea comprobada}, es un indicio que hay que confirmar contra el
@@ -99,11 +133,21 @@ diccionario de datos.
 
 \strong{Con la tabla de referencia truncada la cobertura es una cota inferior.} Un
 valor de \code{tabla_2} que no está entre las filas leídas de \code{tabla_1} puede
-estar en las demás, así que la cobertura sólo puede subir al leer más. Un par
-que con la referencia truncada no alcanza \code{umbral_cobertura} no se descarta
-en silencio: queda en \code{cobertura_pares} como «sin conclusión», con la mayor
-cobertura medida y cómo resolverlo, y \code{meta$pares_sin_conclusion} los cuenta
+estar en las demás, así que la cobertura sólo puede subir al leer más. Una
+combinación de columnas que con la referencia truncada no alcanza
+\code{umbral_cobertura} no se descarta en silencio, \strong{aunque otra del mismo par
+lo alcance}: un indicador de dos valores llega a cobertura 1 trivialmente, y
+no puede borrar la clave foránea que quedó en 0,5 por la lectura. El par
+queda en \code{cobertura_pares} como «sin conclusión» —una fila por par, no una
+por combinación—, con cuántas combinaciones no alcanzaron el umbral, las
+cinco de mayor cobertura medida con su cota, cuántas lo alcanzaron —que están
+en \code{relaciones}— y cómo resolverlo. \code{meta$pares_sin_conclusion} los cuenta
 —también están en \code{pares_comparados}, porque se compararon—.
+
+Los motivos de \code{cobertura_pares} citan en claro lo que el usuario declaró y
+lo que el resto de la salida ya publica: los nombres de las tablas, de sus
+esquemas y de sus columnas, y las de \code{orden} y \code{columnas_candidatas}; el
+resto del mensaje del motor sigue la regla de \code{\link[=perfilar_dbi]{perfilar_dbi()}}.
 
 \strong{El alcance se declara por par y en la fila.} Cada relación publica
 \code{filas_leidas_1}/\code{filas_leidas_2} —cuántas se compararon—, y además

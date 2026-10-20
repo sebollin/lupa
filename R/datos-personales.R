@@ -205,7 +205,7 @@
   telefono = c("categoria", "medio", "fecha"),
   fecha_nacimiento = "categoria",
   fecha_fallecimiento = "categoria",
-  nombre = "categoria",
+  nombre = character(),
   persona = c("categoria", "fecha", "clave"),
   domicilio = c("categoria", "medio", "fecha")
 )
@@ -222,28 +222,325 @@
   list(
     documento_identidad = character(), correo = c(fechas, numeros),
     telefono = character(), fecha_nacimiento = character(),
-    fecha_fallecimiento = character(), nombre = fechas,
+    fecha_fallecimiento = character(), nombre = c(fechas, numeros),
     persona = c(fechas, numeros), domicilio = fechas
   )
 })
 
-# Si la palabra de `patron` clasifica la columna `normalizado` como `tipo`
-# personal: esta, y ni el resto del nombre ni el tipo de sus valores dicen que
-# es otra cosa.
-.nombre_expresa_tipo <- function(normalizado, patron, tipo, tipo_valores) {
-  if (!isTRUE(grepl(patron, normalizado, perl = TRUE))) return(FALSE)
+# Que dice la palabra de `patron` sobre la columna `normalizado`, como tipo
+# personal `tipo`: `"no"` si no esta o el tipo de sus valores la excluye; `"si"`
+# si la clasifica; `"calificada"` si el resto del nombre -lo que queda al
+# sacarle la palabra- la califica como otra cosa, y entonces `calificadores`
+# dice con que palabras. Quien decide con los valores es
+# `.tipo_por_valores_calificada()`.
+.palabra_de_tipo <- function(normalizado, patron, tipo, tipo_valores) {
+  no <- list(estado = "no", calificadores = character())
+  if (!isTRUE(grepl(patron, normalizado, perl = TRUE))) return(no)
   if (any(as.character(tipo_valores) %in% .TIPOS_QUE_NO_SON_POR_TIPO[[tipo]])) {
+    return(no)
+  }
+  resto <- sub(patron, "_", normalizado, perl = TRUE)
+  palabras <- unlist(lapply(.CALIFICADORES_POR_TIPO[[tipo]], function(clase) {
+    strsplit(.CALIFICADORES_DE_NOMBRE[[clase]], "|", fixed = TRUE)[[1L]]
+  }), use.names = FALSE)
+  usadas <- palabras[vapply(palabras, function(palabra) {
+    isTRUE(grepl(paste0("(^|_)", palabra, "($|_)"), resto, perl = TRUE))
+  }, logical(1L))]
+  if (!length(usadas)) return(list(estado = "si", calificadores = character()))
+  list(estado = "calificada", calificadores = usadas)
+}
+
+# Ronda 35 (H3). La ronda 34 hizo que el resto del nombre calificara la palabra
+# del tipo -`tipo_cliente` es una categoria, `cliente_desde` una fecha- y decidia
+# solo por el nombre: el tipo de los valores servia para EXCLUIR -numeros,
+# fechas, logicos- y nunca para ver si el calificador decia la verdad.
+# `usuario_alta`, `funcionario_baja`, `responsable_grupo` con nombres,
+# `celular_estado` con celulares o `direccion_tipo` con domicilios dejaron de
+# protegerse: moda, ejemplos, evidencia y, por bloques, cada valor.
+#
+# Una columna CALIFICADA es personal si sus valores lo dicen, con el tipo de los
+# VALORES y no el de la palabra -`contacto_alta` con nombres es un nombre,
+# `usuario_canal` con celulares un telefono- (`.tipo_personal_de_valores()`).
+# La forma sola no alcanza: la primera version tomaba por nombre de persona
+# cualquier texto de dos palabras con mayuscula -`"Gran Empresa"`,
+# `"Cerro Largo"`, `"Arroz Premium"`- y por domicilio cualquier palabra con un
+# numero -`"Oficina 101"`-, y tapaba categorias que la ronda 34 publicaba
+# (segunda refutacion de la ronda 35). Cada forma pide una senal que una
+# categoria no tiene: un nombre de pila conocido, una `@`, un telefono escrito
+# como telefono, una marca de calle.
+#
+# Y la palabra de quien ACTUA en el registro -`usuario`, `funcionario`,
+# `responsable`, `solicitante`- con una de auditoria -`alta`, `baja`- dice quien
+# dio el alta o la baja: ahi el calificador de fecha cae con cualquier texto que
+# no sea una fecha (`.textos_que_no_son_fecha()`), porque un login `jperez` o un
+# apellido solo no se distinguen por su forma de una categoria, pero no son la
+# fecha que el nombre anuncia. La palabra de quien es OBJETO del registro
+# -`cliente_desde`, `paciente_alta`- pide la senal fuerte: `"Sin fecha"` o
+# `"Traslado"` siguen publicandose.
+.tipo_por_valores_calificada <- function(x, palabras, persona, normalizado) {
+  calificados <- names(palabras)[vapply(palabras, function(p) {
+    identical(p$estado, "calificada")
+  }, logical(1L))]
+  if (identical(persona$estado, "calificada")) {
+    calificados <- c(calificados, "nombre")
+  }
+  if (!length(calificados)) return(character())
+  # Si mirar los valores falla, la palabra protege, como hasta la ronda 33:
+  # ante la duda, el lado cerrado.
+  tipo <- tryCatch(.tipo_personal_de_valores(x, propios = calificados),
+                   error = function(e) calificados[[1L]])
+  if (length(tipo) == 1L && !is.na(tipo)) return(tipo)
+  quien_actua <- identical(persona$estado, "calificada") &&
+    isTRUE(grepl(.PATRON_QUIEN_ACTUA, normalizado, perl = TRUE)) &&
+    all(persona$calificadores %in% c("alta", "baja"))
+  if (quien_actua && isTRUE(tryCatch(.textos_que_no_son_fecha(x),
+                                     error = function(e) TRUE))) {
+    return("nombre")
+  }
+  character()
+}
+
+.PATRON_QUIEN_ACTUA <- "(^|_)(usuario|funcionario|responsable|solicitante)($|_)"
+
+# Si los valores de una columna son textos que no son fechas: la inferencia,
+# sobre sus distintos, no los lee como fecha ni como numero -sobre los valores y
+# no sobre el tipo que llega, para que `medir()`, que no infiere, decida igual
+# que `perfilar()`-, y el 80 % de sus distintos lleva letras.
+.textos_que_no_son_fecha <- function(x) {
+  if (!(is.character(x) || is.factor(x))) return(FALSE)
+  textos <- .distintos_forma_personal(x)
+  if (is.null(textos) || !length(textos)) return(FALSE)
+  inferido <- tryCatch(.inferir_tipo_interno(textos)$tipo,
+                       error = function(e) NA_character_)
+  if (!length(inferido) || is.na(inferido[[1L]]) ||
+      inferido[[1L]] %in% c("fecha", "fecha-hora", "entero", "doble",
+                            "logico")) {
     return(FALSE)
   }
-  calificadores <- unlist(
-    .CALIFICADORES_DE_NOMBRE[.CALIFICADORES_POR_TIPO[[tipo]]],
-    use.names = FALSE
-  )
-  if (!length(calificadores)) return(TRUE)
-  resto <- sub(patron, "_", normalizado, perl = TRUE)
-  !isTRUE(grepl(paste0("(^|_)(", paste(calificadores, collapse = "|"), ")($|_)"),
-                resto, perl = TRUE))
+  letras <- nchar(gsub("[^A-Za-z]", "", textos, perl = TRUE), type = "bytes")
+  mean(letras >= 3L) >= .PROPORCION_FORMA_PERSONAL
 }
+
+# La proporcion de los valores distintos que tiene que tener la forma: la de las
+# demas formas dominantes del clasificador (correo, documento).
+.PROPORCION_FORMA_PERSONAL <- 0.8
+
+# Los valores distintos no vacios de `x`, como texto ASCII para decidir una
+# forma: el `latin1` se pasa a UTF-8, se transliteran los acentos
+# (`.transliterar_ascii()`: `"Jose"` con o sin acento es el mismo nombre) y
+# cada byte no ASCII que quede pasa a `A`, una letra. No aborta sobre texto que
+# no es UTF-8 valido ni depende del locale. Un numero entero da sus cifras.
+# `NULL` si la columna no es de texto ni de numeros.
+.distintos_forma_personal <- function(x) {
+  if (is.factor(x)) x <- as.character(x)
+  if (inherits(x, c("Date", "POSIXt", "difftime")) || is.list(x) ||
+      is.logical(x)) {
+    return(NULL)
+  }
+  if (is.numeric(x)) {
+    x <- .cifras_de_numeros(x)
+  } else if (!is.character(x)) {
+    return(NULL)
+  }
+  x <- .recortar_bytes(.ascii_para_forma(unique(x[!is.na(x)])))
+  unique(x[nzchar(x)])
+}
+
+.ascii_para_forma <- function(x) {
+  x <- as.character(x)
+  if (!length(x)) return(x)
+  ascii <- !grepl("[^\\x01-\\x7f]", x, perl = TRUE, useBytes = TRUE)
+  if (all(ascii)) return(x)
+  latin <- !ascii & Encoding(x) == "latin1"
+  if (any(latin)) x[latin] <- iconv(x[latin], "latin1", "UTF-8", sub = "A")
+  validos <- !ascii & !is.na(x) & validUTF8(x)
+  if (any(validos)) {
+    Encoding(x[validos]) <- "UTF-8"
+    x[validos] <- tryCatch(.transliterar_ascii(x[validos]),
+                           error = function(e) x[validos])
+  }
+  gsub("[^\\x01-\\x7f]", "A", x, perl = TRUE, useBytes = TRUE)
+}
+
+# El tipo personal que los valores de una columna calificada muestran, o `NA`.
+# En este orden, cada uno con su senal, en el 80 % de los valores distintos:
+#
+# - correo: un texto con una `@` entre dos partes sin espacios -tambien el de
+#   una intranet, `"jperez@intranet"`-;
+# - telefono: de siete a quince cifras, en una columna que no es de fechas y
+#   sin centavos -`"12345.10"` es un importe-, escrito como telefono: con `+`,
+#   con un cero inicial, con separadores entre las cifras o con un interno
+#   (`"2901 1234 int 101"`). Con la palabra del telefono en el nombre
+#   (`propios`), tambien las cifras peladas: `celular_estado` con `91234567`;
+# - domicilio: una marca de calle -`av`, `calle`, `bvar`, `ruta`, `esq`,
+#   `apto`...- en al menos el 30 % de los distintos, y la calle con su numero o
+#   una marca en el 80 %: `"Av. Italia 2345"`, `"Rivera esq. Soca"`; no
+#   `"Oficina 101"`;
+# - nombre: un nombre de pila conocido (`.NOMBRES_DE_PILA`), sin cifras, sin una
+#   palabra que no va en un nombre -`sin`, `en`, `por`- y sin empezar como un
+#   lugar -`San`, `Villa`, `Puerto`-: `"Perez Joaquin"`, `"FERNANDEZ, MARIA"`;
+#   no `"Gran Empresa"`, `"Sin Asignar"`, `"Arroz Premium"`. Desde un valor: dos
+#   funcionarios son dos personas.
+#
+# Un documento lo confirma su verificador en el clasificador, no esto.
+.tipo_personal_de_valores <- function(x, propios = character()) {
+  textos <- .distintos_forma_personal(x)
+  if (is.null(textos) || !length(textos)) return(NA_character_)
+  basta <- function(forma) {
+    any(forma) && mean(forma) >= .PROPORCION_FORMA_PERSONAL
+  }
+  minusculas <- .minusculas_ascii(textos)
+  # Una lista -dos telefonos o dos correos unidos por una barra, un punto y
+  # coma o una barra vertical- tiene la forma si la tiene cada pieza.
+  piezas <- strsplit(minusculas, "[[:space:]]*[/;|][[:space:]]*", perl = TRUE)
+  en_cada_pieza <- function(forma) {
+    vapply(piezas, function(p) {
+      p <- p[nzchar(p)]
+      length(p) > 0L && all(forma(p))
+    }, logical(1L))
+  }
+  correo <- function(p) grepl("^[^@[:space:]]+@[^@[:space:]]+$", p, perl = TRUE)
+  if (basta(en_cada_pieza(correo))) return("correo")
+  if (!.columna_de_fechas(minusculas) &&
+      basta(en_cada_pieza(function(p) {
+        .forma_telefono(x, p, peladas = "telefono" %in% propios)
+      }))) {
+    return("telefono")
+  }
+  if (.forma_domicilio(textos, minusculas)) return("domicilio")
+  if (basta(.forma_nombre_de_persona(minusculas))) return("nombre")
+  NA_character_
+}
+
+# Si cada texto de `minusculas` tiene la forma de un telefono (ver
+# `.tipo_personal_de_valores()`). Por valor; quien llama mira la columna.
+.forma_telefono <- function(x, minusculas, peladas = FALSE) {
+  if (is.numeric(x) && !peladas) return(rep(FALSE, length(minusculas)))
+  sin_interno <- sub(
+    "[[:space:]]*(int|ext|interno|anexo|x)[.]?[[:space:]]*[0-9]{1,5}$", "",
+    minusculas, perl = TRUE
+  )
+  interno <- sin_interno != minusculas
+  limpio <- gsub("[ ().-]", "", sin_interno, perl = TRUE)
+  # Ni un importe con centavos -`"12345.10"`- ni un documento escrito como
+  # documento -`"4.685.467-9"`-, que confirma su verificador.
+  cifras <- grepl("^[+]?[0-9]{7,15}$", limpio, perl = TRUE) &
+    !grepl("[.,][0-9]{1,2}$", sin_interno, perl = TRUE) &
+    !grepl(paste0(
+      "^(?:[0-9]{1,2}\\.[0-9]{3}\\.[0-9]{3}-[0-9k]|",
+      "[0-9]{2}(?:[ .][0-9]{3}){2}[ .][0-9]{4})$"
+    ), sin_interno, perl = TRUE)
+  escrito <- interno | grepl("^([+]|0[1-9])", sin_interno, perl = TRUE) |
+    grepl("[0-9][ ().-]+[0-9]", sin_interno, perl = TRUE)
+  cifras & (peladas | escrito)
+}
+
+# Las marcas de calle, como palabra: castellano, portugues, ingles y frances.
+.MARCAS_DE_CALLE <- c(
+  "av", "avda", "avenida", "calle", "bv", "bvar", "bulevar", "boulevard",
+  "ruta", "camino", "pasaje", "psje", "rambla", "esq", "esquina", "apto",
+  "apartamento", "km", "manzana", "street", "road", "avenue", "rua", "rue"
+)
+
+.forma_domicilio <- function(textos, minusculas) {
+  marca <- grepl(paste0("(^|[^a-z])(", paste(.MARCAS_DE_CALLE, collapse = "|"),
+                        ")([^a-z]|$)"), minusculas, perl = TRUE)
+  numero <- grepl("[a-z]{3,}", minusculas, perl = TRUE) &
+    grepl("(^|[^0-9])[0-9]{1,5}($|[^0-9])", minusculas, perl = TRUE) &
+    grepl("[ ]", minusculas, perl = TRUE)
+  forma <- (marca | numero) & !.forma_de_fecha(textos)
+  any(forma) && mean(forma) >= .PROPORCION_FORMA_PERSONAL &&
+    mean(marca) >= 0.3
+}
+
+# Las palabras que van en una categoria y no en el nombre de una persona, y las
+# que empiezan el nombre de un lugar. Las particulas de un nombre -`de`, `del`,
+# `la`, `y`, `da`, `dos`- no estan: `"Maria de los Campos"` es una persona.
+.PALABRAS_QUE_NO_VAN_EN_UN_NOMBRE <- c(
+  "sin", "con", "por", "para", "en", "el", "al", "no", "ni", "a", "o", "u",
+  "un", "una", "uno", "otro", "otra", "otros", "otras", "sobre", "entre",
+  "segun", "sem", "com", "em", "of", "the", "and", "or", "for", "with", "to",
+  "in", "on", "at", "by", "et", "du", "des", "sur", "avec", "pour"
+)
+.PREFIJOS_DE_LUGAR <- c(
+  "san", "santa", "santo", "sao", "villa", "puerto", "nueva", "nuevo", "cerro",
+  "rio", "paso", "punta", "playa", "barrio", "parque", "colonia", "estacion",
+  "pueblo", "ciudad", "arroyo", "laguna", "isla", "monte", "valle", "cabo",
+  "bahia", "fray"
+)
+
+.forma_nombre_de_persona <- function(minusculas) {
+  palabras <- regmatches(minusculas, gregexpr("[a-z]+", minusculas,
+                                              perl = TRUE))
+  sin_cifras <- !grepl("[0-9@]", minusculas, perl = TRUE)
+  vapply(seq_along(minusculas), function(i) {
+    p <- palabras[[i]]
+    sin_cifras[[i]] && length(p) >= 1L && length(p) <= 8L &&
+      !p[[1L]] %in% .PREFIJOS_DE_LUGAR &&
+      !any(p %in% .PALABRAS_QUE_NO_VAN_EN_UN_NOMBRE) &&
+      any(p %in% .NOMBRES_DE_PILA)
+  }, logical(1L))
+}
+
+# Nombres de pila frecuentes en castellano, portugues, ingles, italiano, frances
+# y aleman, sin acentos -se comparan transliterados-. No pretende ser completa:
+# alcanza con que la mayoria de los valores de una columna de personas tenga
+# uno, y un nombre que falte deja la columna como la publicaba la ronda 34. No
+# estan los que son tambien palabras corrientes de una categoria -`paz`, `luz`,
+# `mar`, `flor`, `esperanza`, `gloria`-. Limitacion conocida: una localidad que
+# lleva el nombre de una persona -`"Jose Ignacio"`, `"Juan Lacaze"`- se lee como
+# un nombre.
+.NOMBRES_DE_PILA <- c(
+  # castellano y portugues
+  "adolfo", "adrian", "adriana", "agustin", "agustina", "aida", "alan",
+  "alba", "alberto", "alejandra", "alejandro", "alexis", "alfonso", "alfredo",
+  "alicia", "alvaro", "amalia", "ana", "analia", "andrea", "andres", "angel",
+  "angela", "angeles", "antonella", "antonia", "antonio", "araceli", "ariel",
+  "armando", "arturo", "aurora", "bautista", "beatriz", "belen", "benjamin",
+  "bernabe", "bernardo", "blanca", "brenda", "bruno", "camila", "camilo",
+  "candela", "carina", "carla", "carlos", "carmen", "carolina", "catalina",
+  "cecilia", "celeste", "cesar", "claudia", "claudio", "clara", "cristian",
+  "cristina", "cristobal", "damian", "daniel", "daniela", "dario", "david",
+  "delfina", "diana", "diego", "dolores", "domingo", "eduardo", "elena",
+  "elisa", "eliana", "emilia", "emiliano", "emilio", "enrique", "ernesto",
+  "esteban", "estela", "estefania", "eugenia", "eva", "ezequiel", "fabian",
+  "fabiana", "facundo", "federico", "felipe", "fernanda", "fernando", "florencia",
+  "francisco", "franco", "gabriel", "gabriela", "gaston", "german", "gerardo",
+  "gimena", "gonzalo", "graciela", "guadalupe", "guillermo", "gustavo",
+  "hector", "horacio", "hugo", "ignacio", "ines", "irene", "isabel", "ismael",
+  "ivan", "jaime", "javier", "jesus", "jimena", "joaquin", "joao", "jonathan",
+  "jorge", "jose", "josefina", "juan", "juana", "julia", "julian", "juliana",
+  "julio", "karina", "laura", "lautaro", "leandro", "leonardo", "leonel",
+  "leticia", "lorena", "lorenzo", "lourdes", "lucas", "lucia", "luciana",
+  "luciano", "lucila", "luis", "luisa", "macarena", "magdalena", "maite",
+  "manuel", "manuela", "marcela", "marcelo", "marcos", "margarita", "maria",
+  "mariana", "mariano", "maribel", "marina", "mario", "marta", "martin",
+  "martina", "mateo", "matias", "mauricio", "maximiliano", "mercedes",
+  "micaela", "miguel", "milagros", "miriam", "monica", "nadia", "natalia",
+  "nicolas", "noelia", "nora", "norma", "octavio", "olga", "omar", "oscar",
+  "osvaldo", "pablo", "pamela", "patricia", "patricio", "paula", "paulo",
+  "pedro", "pilar", "rafael", "ramiro", "ramon", "raquel", "raul", "renata",
+  "renzo", "ricardo", "roberto", "rocio", "rodrigo", "romina", "rosa",
+  "rosario", "ruben", "sabrina", "salvador", "samuel", "sandra", "santiago",
+  "sara", "sebastian", "sergio", "silvana", "silvia", "simon", "sofia",
+  "sol", "soledad", "susana", "tatiana", "teresa", "thiago", "tomas",
+  "valentin", "valentina", "valeria", "vanesa", "vanessa", "veronica",
+  "victor", "victoria", "virginia", "viviana", "walter", "washington",
+  "wilson", "ximena", "yolanda",
+  # ingles
+  "anne", "barbara", "betty", "brian", "carol", "charles", "christopher",
+  "donald", "donna", "edward", "elizabeth", "emily", "emma", "frank", "george",
+  "helen", "henry", "jack", "james", "jennifer", "jessica", "john", "joseph",
+  "karen", "kevin", "linda", "lisa", "mark", "mary", "matthew", "michael",
+  "michelle", "nancy", "olivia", "paul", "peter", "richard", "robert", "ruth",
+  "sarah", "sharon", "steven", "susan", "thomas", "william",
+  # italiano, frances y aleman
+  "alessandro", "chiara", "francesca", "francesco", "giovanni", "giulia",
+  "giuseppe", "luca", "marco", "paolo", "stefano", "camille", "claire",
+  "jacques", "jean", "julie", "louis", "marie", "michel", "nathalie",
+  "philippe", "pierre", "sophie", "hans", "heidi", "ingrid", "karl", "klaus",
+  "monika", "petra", "sabine", "ursula", "wolfgang", "max", "mia", "zoe"
+)
 
 .clasificar_dato_personal <- function(x, nombre, inferencia,
                                       validadores = list(),
@@ -294,16 +591,21 @@
       "lugar_residencia|barrio)($|_)"
     )
   )
-  por_nombre <- names(reglas_nombre)[vapply(
-    names(reglas_nombre), function(tipo) {
-      .nombre_expresa_tipo(normalizado, reglas_nombre[[tipo]], tipo,
-                           inferencia$tipo)
-    }, logical(1L)
-  )]
-  if (!length(por_nombre) &&
-      .nombre_expresa_tipo(normalizado, .PATRON_PERSONA_EN_NOMBRE, "persona",
-                           inferencia$tipo)) {
+  palabras <- lapply(names(reglas_nombre), function(tipo) {
+    .palabra_de_tipo(normalizado, reglas_nombre[[tipo]], tipo, inferencia$tipo)
+  })
+  names(palabras) <- names(reglas_nombre)
+  estados <- vapply(palabras, `[[`, character(1L), "estado")
+  por_nombre <- names(estados)[estados == "si"]
+  persona <- .palabra_de_tipo(normalizado, .PATRON_PERSONA_EN_NOMBRE, "persona",
+                              inferencia$tipo)
+  if (!length(por_nombre) && identical(persona$estado, "si")) {
     por_nombre <- "nombre"
+  }
+  # Ronda 35 (H3): la palabra calificada por el resto del nombre se decide con
+  # los valores. Ver `.tipo_por_valores_calificada()`.
+  if (!length(por_nombre)) {
+    por_nombre <- .tipo_por_valores_calificada(x, palabras, persona, normalizado)
   }
   textos <- .textos_para_clasificacion_personal(x)
   presentes <- !is.na(textos) & nzchar(textos)
@@ -674,6 +976,16 @@
 # Las cifras de cada celda de `x` -un numero entero, o un texto de digitos y
 # separadores como los de un documento-, sin ceros iniciales; `NA` para la que
 # no es eso. `NULL` si la columna no puede llevar documentos.
+#
+# Ronda 35 (H2). Un texto que el paquete lee como NUMERO da las cifras de ese
+# numero, con la misma lectura que el resumen (`.leer_numeros_texto()`): la
+# columna de cedulas sin verificador que paso por una planilla -`"4685467.0"`,
+# `"4685467,00"`, `"4.685.467,00"`- se leia aca como `46854670` y en el resumen
+# como el numero `4685467`, que publicaba como su minimo. Una sola lectura: el
+# numero que el perfil publica es el que se compara. Un texto con decimales que
+# no son cero no es un documento (`NA`); el que no se lee como numero -con
+# guion, con espacios, `"4.685.467-9"`- da sus digitos, sin una parte decimal
+# de ceros.
 .cifras_de_columna <- function(x) {
   if (is.factor(x)) x <- as.character(x)
   if (inherits(x, "integer64")) {
@@ -681,21 +993,62 @@
     if (is.null(x)) return(NULL)
   }
   if (is.list(x) || inherits(x, c("Date", "POSIXt", "difftime"))) return(NULL)
-  if (is.numeric(x)) {
-    v <- suppressWarnings(as.numeric(x))
-    enteros <- !is.na(v) & is.finite(v) & v == round(v) & abs(v) < 1e15
-    salida <- rep(NA_character_, length(v))
-    salida[enteros] <- .sin_ceros_iniciales(
-      formatC(abs(v[enteros]), format = "f", digits = 0)
-    )
-    return(salida)
-  }
+  if (is.numeric(x)) return(.cifras_de_numeros(x))
   if (!is.character(x)) return(NULL)
-  t <- trimws(x)
-  escritos <- !is.na(t) & grepl("^[0-9][0-9 .,/'_-]*[0-9]$", t, useBytes = TRUE)
+  t <- .recortar_bytes(x)
   salida <- rep(NA_character_, length(t))
-  salida[escritos] <- .sin_ceros_iniciales(
-    gsub("[^0-9]", "", t[escritos], useBytes = TRUE)
+  # Lo que la lectura numerica del paquete lee: con punto o coma, con signo, en
+  # notacion cientifica (`"1019433e0"`, `"+2499716.0"`; segunda refutacion de la
+  # ronda 35). Un numero con decimales que no son cero no es un documento.
+  # Sin separador, signo ni exponente las cifras ya son el numero, y una cedula
+  # con guion no se lee: leer solo estos le ahorra la lectura entera a una
+  # columna protegida de un millon de documentos.
+  numericos <- !is.na(t) & grepl(
+    "^[+-]?[0-9]+(?:[.,][0-9]+)*(?:[eE][+-]?[0-9]+)?$", t, perl = TRUE,
+    useBytes = TRUE
+  ) & !grepl("^[0-9]+$", t, perl = TRUE, useBytes = TRUE)
+  leidos <- rep(FALSE, length(t))
+  if (any(numericos)) {
+    numeros <- suppressWarnings(.leer_numeros_texto(t[numericos]))
+    # La notacion cientifica con punto que la convencion de la columna no
+    # decide (`"1019433.0e0"` junto a `"4.685.467,00"`) la lee `as.numeric()`,
+    # como la inferencia.
+    exponente <- is.na(numeros) &
+      grepl("^[^,]*[eE]", t[numericos], perl = TRUE, useBytes = TRUE)
+    numeros[exponente] <- suppressWarnings(as.numeric(t[numericos][exponente]))
+    leidos[numericos] <- !is.na(numeros)
+    salida[numericos][!is.na(numeros)] <-
+      .cifras_de_numeros(numeros[!is.na(numeros)])
+  }
+  # El resto con forma de documento -digitos y separadores, `"4.685.467-9"`,
+  # `"4 685 467"`- da sus digitos. Si termina en una parte decimal -una o dos
+  # cifras tras el ultimo punto o coma-, la de ceros se quita (`"2 499 716.0"`,
+  # que la lectura numerica no lee por los espacios) y la que no es cero dice
+  # que no es un documento (`"24 997.16"` es un importe): pegar los centavos
+  # inventaba una cifra que podia ser una cedula.
+  escritos <- !is.na(t) & !leidos &
+    grepl("^[0-9][0-9 .,/'_-]*[0-9]$", t, useBytes = TRUE)
+  if (any(escritos)) {
+    texto <- t[escritos]
+    decimal <- grepl("[0-9][.,][0-9]{1,2}$", texto, perl = TRUE)
+    ceros <- decimal & grepl("[.,]0{1,2}$", texto, perl = TRUE)
+    texto[ceros] <- sub("[.,]0{1,2}$", "", texto[ceros], perl = TRUE)
+    cifras <- .sin_ceros_iniciales(gsub("[^0-9]", "", texto, useBytes = TRUE))
+    cifras[decimal & !ceros] <- NA_character_
+    salida[escritos] <- cifras
+  }
+  salida
+}
+
+# Las cifras de cada numero entero, sin ceros iniciales ni signo; `NA` para el
+# que no es entero. La comparten la columna numerica y el texto que se lee como
+# numero (`.cifras_de_columna()`).
+.cifras_de_numeros <- function(v) {
+  v <- suppressWarnings(as.numeric(v))
+  enteros <- !is.na(v) & is.finite(v) & v == round(v) & abs(v) < 1e15
+  salida <- rep(NA_character_, length(v))
+  salida[enteros] <- .sin_ceros_iniciales(
+    formatC(abs(v[enteros]), format = "f", digits = 0)
   )
   salida
 }
@@ -737,9 +1090,7 @@
 # distintos que coinciden, cuantos son y de que columna protegida salen.
 .copias_sin_verificador <- function(datos, protegidas, candidatas,
                                     umbral = 0.9, cola = 1e-6) {
-  vacio <- data.frame(columna = character(), proporcion = numeric(),
-                      evaluados = integer(), de = character(),
-                      stringsAsFactors = FALSE)
+  vacio <- .copias_vacias()
   if (!is.data.frame(datos) || !length(protegidas) || !length(candidatas)) {
     return(vacio)
   }
@@ -749,48 +1100,104 @@
   for (columna in protegidas) {
     j <- match(operar(columna), operar(nombres))
     if (is.na(j)) next
-    cifras <- tryCatch(.cifras_de_columna(unique(datos[[j]])),
-                       error = function(e) NULL)
-    if (is.null(cifras)) next
-    prefijos <- .prefijos_documentos(unique(cifras[!is.na(cifras)]))
+    prefijos <- .prefijos_de_valores(datos[[j]])
     if (length(prefijos)) prefijos_de[[columna]] <- prefijos
   }
   if (!length(prefijos_de)) return(vacio)
-  todos <- .sort_por_bytes(unique(as.numeric(unlist(prefijos_de, use.names = FALSE))))
+  todos <- .prefijos_ordenados(prefijos_de)
   filas <- list()
   for (columna in candidatas) {
     j <- match(operar(columna), operar(nombres))
     if (is.na(j)) next
-    valores <- datos[[j]]
-    if (is.numeric(valores) &&
-        !any(abs(suppressWarnings(as.numeric(valores))) >= 1e6, na.rm = TRUE)) {
-      next
-    }
-    distintos <- tryCatch(unique(valores[!is.na(valores)]),
-                          error = function(e) NULL)
-    if (is.null(distintos) || length(distintos) < 3L) next
-    cifras <- tryCatch(.cifras_de_columna(distintos), error = function(e) NULL)
-    if (is.null(cifras) || !any(!is.na(cifras))) next
-    prueba <- .prueba_copia_sin_verificador(distintos, cifras, todos,
-                                            umbral = umbral, cola = cola)
-    if (!prueba$copia) next
-    de <- names(prefijos_de)[which.max(vapply(prefijos_de, function(p) {
-      sum(cifras %in% p)
-    }, numeric(1L)))]
+    copia <- .copia_de_documentos(datos[[j]], prefijos_de, todos,
+                                  umbral = umbral, cola = cola)
+    if (is.null(copia)) next
     filas[[length(filas) + 1L]] <- data.frame(
-      columna = nombres[[j]], proporcion = prueba$proporcion,
-      evaluados = as.integer(prueba$n), de = de, stringsAsFactors = FALSE
+      columna = nombres[[j]], proporcion = copia$proporcion,
+      evaluados = copia$evaluados, de = copia$de, origen = "columna",
+      stringsAsFactors = FALSE
     )
   }
   if (!length(filas)) return(vacio)
   do.call(rbind, filas)
 }
 
+.copias_vacias <- function() {
+  data.frame(columna = character(), proporcion = numeric(),
+             evaluados = integer(), de = character(), origen = character(),
+             stringsAsFactors = FALSE)
+}
+
+# Los documentos sin su verificador de los valores protegidos `valores` -los de
+# una columna, o los que la coleccion leyo de una tabla-, como texto de cifras.
+.prefijos_de_valores <- function(valores) {
+  cifras <- tryCatch(.cifras_de_columna(unique(valores)),
+                     error = function(e) NULL)
+  if (is.null(cifras)) return(character())
+  .prefijos_documentos(unique(cifras[!is.na(cifras)]))
+}
+
+.prefijos_ordenados <- function(prefijos_de) {
+  .sort_por_bytes(unique(as.numeric(unlist(prefijos_de, use.names = FALSE))))
+}
+
+# La prueba de UNA columna -sus valores `valores`- contra los documentos sin
+# verificador de cada fuente de `prefijos_de` (una lista con nombre: la columna
+# o la tabla de donde salen): `NULL` si no es una copia; si lo es, la proporcion
+# de sus distintos que coinciden, cuantos son y la fuente con mas
+# coincidencias. Una regla para la tabla (`.copias_sin_verificador()`) y para
+# la coleccion, que prueba las columnas de una tabla contra los documentos de
+# las demas (`.copias_entre_tablas_coleccion()`). Ronda 35 (H1).
+.copia_de_documentos <- function(valores, prefijos_de, todos = NULL,
+                                 umbral = 0.9, cola = 1e-6) {
+  if (is.numeric(valores) &&
+      !any(abs(suppressWarnings(as.numeric(valores))) >= 1e6, na.rm = TRUE)) {
+    return(NULL)
+  }
+  distintos <- tryCatch(unique(valores[!is.na(valores)]),
+                        error = function(e) NULL)
+  if (is.null(distintos) || length(distintos) < 3L) return(NULL)
+  cifras <- tryCatch(.cifras_de_columna(distintos), error = function(e) NULL)
+  if (is.null(cifras) || !any(!is.na(cifras))) return(NULL)
+  if (is.null(todos)) todos <- .prefijos_ordenados(prefijos_de)
+  prueba <- .prueba_copia_sin_verificador(distintos, cifras, todos,
+                                          umbral = umbral, cola = cola)
+  if (!prueba$copia) return(NULL)
+  de <- names(prefijos_de)[which.max(vapply(prefijos_de, function(p) {
+    sum(cifras %in% p)
+  }, numeric(1L)))]
+  list(proporcion = prueba$proporcion, evaluados = as.integer(prueba$n),
+       de = de)
+}
+
+# Las copias que la coleccion encontro en OTRA tabla, para la tabla que se
+# vuelve a perfilar: ver `.copias_entre_tablas_coleccion()`. Fuera de esa
+# relectura esta vacio. Un estado de la llamada y no un argumento, como los
+# valores del motor de la coleccion (`.valores_motor()`): la clasificacion
+# corre dentro de `perfilar()` sobre la muestra que `perfilar_dbi()` lee.
+.CONTEXTO_COPIAS <- new.env(parent = emptyenv())
+.CONTEXTO_COPIAS$externas <- NULL
+
+.copias_externas <- function() .CONTEXTO_COPIAS$externas
+
+.fijar_copias_externas <- function(copias) {
+  previas <- .CONTEXTO_COPIAS$externas
+  .CONTEXTO_COPIAS$externas <- copias
+  invisible(previas)
+}
+
 # Cada copia encontrada pasa a ser una columna personal protegida en la
-# clasificacion: `documento_identidad`, poder `alto`, con su fundamento.
+# clasificacion: `documento_identidad`, poder `alto`, con su fundamento. Las de
+# la tabla y, en la relectura de una coleccion, las que se encontraron contra
+# los documentos de otra tabla (`.copias_externas()`).
 .reclasificar_copias_sin_verificador <- function(clasificacion, datos, nombres,
                                                  umbral = 0.9) {
-  if (!is.data.frame(clasificacion) || !nrow(clasificacion)) return(clasificacion)
+  externas <- .copias_externas()
+  hay_externas <- is.data.frame(externas) && nrow(externas) > 0L
+  if (!is.data.frame(clasificacion) ||
+      (!nrow(clasificacion) && !hay_externas)) {
+    return(clasificacion)
+  }
   operar <- function(v) .nombres_para_operar(as.character(v))
   protegidas <- as.character(clasificacion$columna[clasificacion$proteger %in% TRUE])
   candidatas <- nombres[!operar(nombres) %in% operar(protegidas)]
@@ -798,10 +1205,23 @@
     .copias_sin_verificador(datos, protegidas, candidatas, umbral = umbral),
     error = function(e) NULL
   )
-  if (!is.data.frame(copias) || !nrow(copias)) return(clasificacion)
+  if (!is.data.frame(copias)) copias <- .copias_vacias()
+  if (hay_externas) {
+    externas <- externas[
+      operar(externas$columna) %in% operar(candidatas) &
+        !operar(externas$columna) %in% operar(copias$columna), , drop = FALSE
+    ]
+    if (nrow(externas)) copias <- rbind(copias, externas[names(copias)])
+  }
+  if (!nrow(copias)) return(clasificacion)
   clase <- class(clasificacion)
   clasificacion <- as.data.frame(unclass(clasificacion), stringsAsFactors = FALSE)
   for (i in seq_len(nrow(copias))) {
+    de <- if (identical(copias$origen[[i]], "tabla")) {
+      paste0("la tabla `", copias$de[[i]], "`")
+    } else {
+      paste0("`", copias$de[[i]], "`")
+    }
     fila <- data.frame(
       columna = copias$columna[[i]], tipo = "documento_identidad",
       proporcion_compatible = copias$proporcion[[i]],
@@ -809,7 +1229,7 @@
       valores_evaluados = copias$evaluados[[i]],
       valores_totales = NA_integer_,
       fundamento = paste0(
-        "documentos de `", copias$de[[i]], "` sin su verificador: ",
+        "documentos de ", de, " sin su verificador: ",
         formatC(copias$proporcion[[i]], format = "f", digits = 3),
         " de sus valores distintos"
       ),

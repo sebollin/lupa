@@ -370,13 +370,18 @@ comprobación no se corrió sobre la muestra y por qué, con \code{diagnostico},
 \code{\link[=perfilar]{perfilar()}}. Un motor que rechaza una columna aparece en la primera; una
 prueba estadística que no corresponde a esa columna, en la segunda. Comparten
 la palabra y no el vocabulario, así que conviene mirar cuál se está leyendo.
-Si una columna declarada como entero de 64 bits o mas ancho llega como doble
+Si una columna declarada como entero de 64 bits o mas ancho, o como decimal
+-\code{numeric}, \code{decimal}, con o sin precision-, llega como doble
 y contiene un valor con valor absoluto de al menos 2^53, \code{resumen_tabla}
 deja sus metricas de magnitud en \code{no_disponible}. \strong{Las siete}: \code{minimo},
 \code{maximo}, \code{media}, \code{n_ceros}, \code{n_negativos}, \code{mediana} y \code{desvio}. La condicion
 es de la columna y no de la metrica, aunque las dos ultimas se calculen en otras
 consultas; lo que el motor cuenta con exactitud -\code{n_distintos}, la moda- se sigue
-publicando. Para la muestra, la
+publicando. Lo decide el valor: un decimal desde 2^53 ya no cabe en un doble
+-90071992547409001 y 90071992547409002 son el mismo-, y el tipo solo dice
+que viene de un decimal: RPostgres lo publica como \code{numeric} sin precision y
+odbc con su codigo ODBC (2 y 3), asi que una regla que esperara
+\code{numeric(20,0)} no se ejerceria. Para la muestra, la
 seleccion SQL trae esas columnas como texto y, si \code{bit64} esta instalado,
 las convierte a \code{integer64} antes de perfilar: \code{n_distintos}, la moda y los
 diagnosticos por identidad conservan los valores exactos. Los estadisticos
@@ -389,7 +394,14 @@ Con \code{bloque_filas} rige la misma regla, sobre los valores que el
 controlador entrega como \code{integer64} —un \code{BIGINT} o \code{bigserial} de
 PostgreSQL, un \code{INTEGER} de SQLite que no entra en 32 bits—: por debajo de
 2^53 se opera con el valor exacto, y desde 2^53 las siete métricas quedan
-\code{no_disponible} con su motivo. Ninguna columna cambia la clase de un campo
+\code{no_disponible} con su motivo. Un decimal o un entero ancho que llega como
+doble desde 2^53 deja ademas \code{n_distintos}, \code{tasa_distintos}, la moda y su
+frecuencia en \code{no_disponible}: con bloques se contarian en R sobre esos
+dobles, que no distinguen los valores. Las cifras de \code{perfil_muestra} de esa
+columna salen de los mismos dobles; sin bloques, la corroboracion avisa la
+diferencia en \code{n_distintos} y la moda contra las del motor. Un decimal por
+debajo de 2^53 con mas cifras de las que guarda un doble -\code{numeric(30,20)}-
+no entra en esta guarda. Ninguna columna cambia la clase de un campo
 de la tabla: \code{minimo}, \code{maximo}, \code{media}, \code{mediana} y \code{desvio} de
 \code{resumen_tabla$columnas} son siempre dobles.
 Si se omite el bloque con \code{bloque_muestra = "solo_agregados"}, la cobertura
@@ -418,18 +430,88 @@ no se envía: la columna queda en \code{no_disponible} con ese motivo, y una tab
 con un nombre así da \code{lupa_error_codificacion_dbi}. Para leerlas, correr la
 sesión con un locale UTF-8 (\code{LC_ALL=C.UTF-8}). RPostgres, RSQLite y duckdb
 reciben la consulta en UTF-8 y leen esos nombres en cualquier locale.
+Una columna que la credencial no puede leer —un \verb{GRANT SELECT} por columnas o
+un \verb{DENY SELECT} sobre una columna— se sabe antes de leer, por el catálogo del
+motor: en PostgreSQL \code{pg_attribute} con \code{has_column_privilege()}, legibles
+por cualquier rol (\code{dbListFields()} de RPostgres no lista esas columnas), y en
+SQL Server \code{sys.columns} con \code{HAS_PERMS_BY_NAME()}. La columna aparece en
+\code{resumen_tabla$columnas} con sus métricas en \code{no_disponible} y una fila de
+cobertura con el motivo y el remedio, no se nombra en ninguna consulta, y las
+demás se perfilan enteras. SQL Server rechaza además cualquier consulta sobre
+la tabla, también \verb{COUNT(*)}, cuando hay una columna sin permiso: la lectura
+va sobre una tabla derivada con las columnas legibles, y el SQL publicado lo
+muestra. Con \code{universo = "muestra_motor"} la columna se declara igual, en
+\code{resumen_tabla$columnas} y en la cobertura; \code{TABLESAMPLE} no se puede
+escribir sobre la tabla derivada, así que la muestra del motor usa otra forma
+que el motor acepte o se degrada con su motivo (limitación conocida). Con odbc las consultas se ejecutan sin preparar
+(\code{immediate = TRUE}, como el \code{dbGetQuery()} de odbc): preparada, una consulta
+rechazada por un permiso de columna dejaba la conexión rota y la siguiente
+hacía caer a R. Lo que el catálogo no ve —un sinónimo, una tabla de otra
+base, una tabla temporal— se lee como antes: el rechazo del motor se declara
+y la conexión sigue.
+Con enmascaramiento dinámico de SQL Server (\verb{MASKED WITH}, 2016+) y una
+credencial sin \code{UNMASK} sobre la columna o la base, el motor devuelve la
+máscara y no el dato. La completitud de esa columna se publica —los no nulos
+se cuentan con una expresión que el motor no enmascara—; distintos, moda,
+extremos, media, mediana y desvío quedan \code{no_disponible} con el motivo, la
+columna no entra en \code{perfil_muestra} (una fila \code{alcance_distinto} lo dice) y
+\code{resumen_tabla$cobertura} la declara. Con \code{UNMASK} se perfila entera.
+Si la lectura de la muestra falla, la columna que la hace fallar se busca
+por descarte leyendo las MISMAS filas que la muestra con menos columnas —un
+fallo que está en una fila que no es la primera, como el \code{CAST} de un texto
+sucio en una vista, también se encuentra—; la muestra sale con las demás y
+una fila \code{alcance_distinto} nombra la culpable.
 El nombre de la tabla se normaliza antes de la primera llamada a la conexión,
 también la que comprueba que existe: un nombre marcado \code{latin1} —el que da
 \code{read.csv(encoding = "latin1")}— se convierte a UTF-8 y se lee, y uno con
 bytes que no son UTF-8 válido y no declaran su codificación —\code{read.csv()}
 sin \code{fileEncoding} sobre un archivo latin1— no se adivina: con odbc da
 \code{lupa_error_codificacion_dbi} antes de tocar la conexión, que antes quedaba
-rota.
+rota. Una columna de \code{orden_muestra} que la sesión no puede escribir da
+también \code{lupa_error_codificacion_dbi}, con ese remedio: no la rechazó el
+motor, no se le mandó.
+Los \strong{valores} de texto tienen el mismo origen. Bajo un locale que no es
+UTF-8, FreeTDS entrega las columnas de texto no Unicode (\code{varchar}, \code{char},
+\code{text}) en latin1 y odbc las marca UTF-8 sin convertirlas; las \code{nvarchar}
+llegan en UTF-8. Un valor así se lee como latin1 —lo que es—, y no como texto
+UTF-8 roto: no se publica el hallazgo de bytes que no forman UTF-8 válido, que
+sería del controlador y no del dato, y los valores entran en los análisis de
+texto y en las comparaciones de \code{\link[=relaciones_coleccion]{relaciones_coleccion()}}. Lo que no se puede
+recuperar es un carácter que no está en latin1 —el signo del euro—: el
+controlador lo entrega como \verb{?}. Por eso cada columna de texto no Unicode
+leída bajo una sesión así queda en \code{resumen_tabla$cobertura} con estado
+\code{degradado}, el motivo y el remedio —correr con un locale UTF-8—, salvo que
+el controlador haya entregado en ella texto UTF-8 no ASCII (está configurado
+en UTF-8).
+Bajo una sesión UTF-8, la columna que el controlador entregue en latin1 —un
+\code{ClientCharset} configurado así— se lee igual y se declara igual.
 Los \code{stop()} de esta vía llevan clase de condición propia —todas heredan de
 \code{lupa_error_dbi}— para que se puedan rescatar con \code{tryCatch()}:
 \code{lupa_error_conexion_dbi}, \code{lupa_error_tabla_dbi}, \code{lupa_error_campos_dbi},
 \code{lupa_error_conteo_dbi}, \code{lupa_error_esquema_dbi},
 \code{lupa_error_codificacion_dbi} y \code{lupa_error_argumento_dbi}.
+}
+
+\section{Dentro de una transacción}{
+
+La vía se puede correr dentro de una transacción abierta por el usuario —es
+lo que recomienda el motivo de \code{consistencia} para una lectura consistente—,
+y la transacción sigue como estaba. En PostgreSQL un error cualquiera aborta
+la transacción, y la vía manda consultas que pueden fallar a propósito —las
+sondas de dialecto— o por el dato —una métrica que el motor no calcula sobre
+un tipo, una vista rota—: con una transacción abierta, cada sentencia de la
+vía va entre un \code{SAVEPOINT} propio y su \code{RELEASE}, y si falla se vuelve con
+\verb{ROLLBACK TO SAVEPOINT}. La transacción se reconoce por RPostgres
+(\code{dbBegin()}, \code{dbWithTransaction()}) o por el motor, para un \code{BEGIN} mandado
+a mano. El paquete nunca manda \code{BEGIN}, \code{COMMIT} ni \code{ROLLBACK}; fuera de una
+transacción no agrega ninguna sentencia de ese tipo. Lo mismo vale para
+\code{\link[=plan_perfilado_dbi]{plan_perfilado_dbi()}}, \code{\link[=perfilar_coleccion]{perfilar_coleccion()}} y \code{\link[=relaciones_coleccion]{relaciones_coleccion()}}.
+SQL Server, MySQL, MariaDB y SQLite no abortan la transacción por el error de
+una consulta. duckdb sí la aborta por un error al ejecutar —no por uno al
+preparar, como el de una sonda de dialecto— y no tiene \code{SAVEPOINT}: dentro
+de una transacción de duckdb, un objeto que falla al leerse —una vista que
+convierte un texto sucio— la deja abortada, y hay que cerrarla con
+\code{ROLLBACK}.
 }
 
 \section{Muestra y aproximaciones}{
@@ -516,7 +598,7 @@ Las comparaciones que tienen una cota dura usan solo valores del mismo grupo
 de consistencia. En esta version, el grupo queda probado por el
 \code{consulta_id} que ya se registra en \code{resumen_tabla$sql}: dos metricas con el
 mismo identificador salieron de la misma sentencia. La consulta exacta de
-distintos trae \verb{COUNT(columna) AS n_validos_guard} junto a
+distintos trae el conteo de no nulos \verb{AS n_validos_guard} junto a
 \verb{COUNT(DISTINCT columna)}. Si una capacidad aproximada sólo construye una
 consulta completa y no puede traer ese guardian, la cota no se comprueba y
 el motivo lo declara; no se atribuye un valor imposible al motor.
@@ -601,10 +683,22 @@ escribir el infinito, o sobre una muestra del motor, esas métricas quedan
 \code{no_disponible} con ese motivo. Un infinito es un número: no se informa
 como un valor que no se pudo leer como número.
 \item \strong{\code{money} y \code{real} en PostgreSQL.} RPostgres lee \code{0} en toda celda
-\code{money}, sin avisar, y un \code{real} por su texto decimal corto —\code{21.3}—,
-mientras el motor opera sobre el binario guardado —21.299999237060547—.
-Las dos columnas se leen convertidas en el motor: \code{money} como
-\verb{CAST(x AS NUMERIC)} y \code{real} como \verb{CAST(CAST(x AS TEXT) AS DOUBLE PRECISION)}, la cifra que lee R. La conversión vale para toda lectura —la
+\code{money}, sin avisar, y un \code{real} por el texto con que lo escribe el
+servidor, mientras el motor opera sobre el binario guardado
+—21.299999237060547—. Las dos columnas se leen convertidas en el motor:
+\code{money} como \verb{CAST(x AS NUMERIC)} y \code{real} por la forma decimal más corta
+que vuelve al valor guardado —\code{21.3}, la cifra que lee R desde PostgreSQL
+12—, que se calcula en el motor redondeando a 6, 7, 8 y 9 cifras. No se
+toma del texto de la sesión: antes de PostgreSQL 12, o con
+\code{extra_float_digits} de 0 o menos en cualquier versión, ese texto tiene
+seis cifras y 1234501 se escribe \code{1.2345e+06} —200 valores distintos se
+leían como 21, con un mínimo que no estaba en la columna—. Así la lectura
+da el valor guardado en cualquier versión y con cualquier
+\code{extra_float_digits} desde -6, sin tocar el estado de la sesión; en un
+empate de la última cifra puede elegir la otra forma corta, que vuelve al
+mismo \code{real}. Por debajo de -6 el servidor escribe todo doble con menos de
+nueve cifras, y ninguna lectura —tampoco la de un \verb{double precision}—
+llega entera a R. La conversión vale para toda lectura —la
 muestra, \code{bloque_filas}, \code{muestra_motor}— y el resumen SQL calcula sus
 agregados sobre esa misma lectura, así que las vías publican la misma
 cifra. Las columnas convertidas y su expresión quedan en
@@ -631,8 +725,16 @@ desvío no cambia si a cada valor se le resta una constante, así que se le
 pide al motor sobre los valores centrados en la media ya calculada: siempre
 en la consulta por columna, y en la consulta compartida —donde la media sale
 de la misma sentencia— se vuelve a pedir centrado cuando la media supera
-diez veces el desvío, con una consulta más que el plan no anticipa porque
-depende de los datos. Su fila de \code{sql} lo dice. Con \code{bloque_filas} los
+diez veces el desvío, o cuando respondió \code{0} sobre una columna con valores
+distintos, con una consulta más que el plan no anticipa porque
+depende de los datos. Su fila de \code{sql} lo dice. La resta se hace en un tipo
+que no pierde cifras: en SQL Server y duckdb una columna \code{real} (\code{FLOAT} en
+duckdb) restaba en 24 bits —en T-SQL \code{real - decimal} es \code{real}— y el
+desvío centrado se apartaba 1,4e-8 del de los valores guardados, así que
+se convierte a doble antes de restar; en SQL Server el centro de una
+columna de coma flotante va como literal \code{float}, que no tiene el tope de 38
+cifras de un decimal. Una columna decimal o entera resta en su tipo, que es
+exacto. Con \code{bloque_filas} los
 momentos se acumulan centrados. Bajo \code{muestra_motor} no se vuelve a pedir,
 porque otra consulta vería otras filas; ahí, como red en todas las vías, un
 desvío \code{0} sobre una columna con dos valores distintos —un mínimo menor que
@@ -675,8 +777,15 @@ cuenta sobre su universo —y todas las métricas de la columna con
 \code{aplicabilidad} si la muestra dejó afuera valores presentes—; las métricas
 de magnitud de una columna de la que la muestra excluyó los
 \code{sentinelas_numericos} declarados; y las de un entero de 64 bits desde
-2^53, que el resumen no publica. Un \code{NaN} o un infinito sí se compara: es
-la diferencia del motor que la corroboración existe para declarar. Lo que
+2^53, que el resumen no publica. Tampoco lo que un bloque no calculó: una
+métrica que \code{resumen_tabla$sql} declara \code{no_disponible} —el motor rechazó
+la consulta sobre el tipo (\code{json}, \code{xml} o \code{point} de PostgreSQL; \code{text},
+\code{ntext}, \code{image} o \code{geography} de SQL Server), una guarda la retuvo—, la
+moda que la muestra no pudo contar —una columna de blobs— y las métricas
+de una columna compuesta, que la muestra no analiza: su motivo ya está
+publicado, y una relectura daría lo mismo. Un \code{NaN} o un infinito sí se
+compara, y un valor guardado como texto en una columna numérica también:
+es la diferencia del motor que la corroboración existe para declarar. Lo que
 no se comparó queda en \code{resumen_tabla$meta$corroboracion_bloques$no_comparadas},
 una fila por columna y métrica con su causa. La tolerancia está en
 \code{meta$corroboracion_bloques$tolerancia}: \code{1e-10} absoluta más \code{64} épsilon
@@ -684,7 +793,10 @@ de máquina relativos para los valores leídos —\code{minimo}, \code{maximo},
 \code{mediana}, la moda—, y \code{1e-10} relativa para \code{media} y \code{desvio}, que cada
 lado acumula con su algoritmo y en su orden. Medido en SQL Server, la
 diferencia de la acumulación llega a 2e-13; una divergencia real es de otro
-orden y sigue saliendo.
+orden y sigue saliendo. Limitación conocida: la tolerancia absoluta cubre
+cualquier diferencia en una columna cuyos valores son menores que \code{1e-10}
+en valor absoluto —p-valores, concentraciones en unidades del sistema
+internacional—, así que ahí la corroboración no distingue dos lecturas.
 }
 }
 
@@ -697,11 +809,15 @@ muestra; \code{universo}, \code{metricas}, \code{tamano_lote_planos}, \code{tama
 consultas se van a emitir antes de emitirlas. El orden de degradación es
 agregados planos, total del universo cuando hace falta, distintos, moda y
 mediana. Los
-agregados planos sobre la misma tabla y filtro —\code{COUNT(col)},
+agregados planos sobre la misma tabla y filtro —el conteo de no nulos,
 mínimos, máximos, medias, ceros, negativos y desvío— comparten una consulta
 por lote y cada consulta que trae \code{n_validos} lleva además
 \verb{COUNT(*) AS n_total_consulta} en la misma sentencia. La completitud usa ese
-denominador local, no el total de otro lote.
+denominador local, no el total de otro lote. Los no nulos se cuentan en
+todos los motores con \verb{COUNT(CASE WHEN col IS NULL THEN NULL ELSE 1 END)} y no
+con \code{COUNT(col)}: SQL Server rechaza \code{COUNT()} sobre \code{text}, \code{ntext} e
+\code{image}, y con enmascaramiento dinámico devuelve \code{COUNT(col)} enmascarado
+—0—; la pregunta por el nulo la contesta sobre cualquier tipo y sin máscara.
 La fusión conserva la medición, no una identidad bit a bit entre
 agrupamientos: la media y el desvío pueden diferir en el último bit según
 cómo se agrupen las sumas, porque la suma en punto flotante no es asociativa.
@@ -872,7 +988,18 @@ débil. Hasta la ronda 33 se tapaban sus cinco estadísticos con el motivo
 de una columna protegida, mientras \code{perfil_muestra} los publicaba; una
 copia del documento la tapa el piso por valor, que corre con la tabla
 entera, y la que lo copia sin su verificador se clasifica como columna
-personal con la regla de \code{\link[=perfilar]{perfilar()}}, sobre la muestra.
+personal con la regla de \code{\link[=perfilar]{perfilar()}}, sobre la muestra. Por la vía por
+bloques eso incluye \code{meta$familias}, que guarda cada valor distinto de
+toda columna no protegida: una columna \code{debil} —las cédulas sin su
+verificador de OTRAS personas, como las de un garante— publica ahí cada
+uno de sus valores, donde \code{\link[=perfilar]{perfilar()}} publica sus dos extremos.
+Limitación conocida (baja): como la clasificación es sobre la muestra, con
+una muestra que ve menos de tres valores distintos de la copia —chica y
+ordenada sobre una tabla agrupada por persona— la copia no se clasifica, y
+el resumen de la tabla entera publica sus extremos, que pueden ser
+documentos de personas que la muestra no vio; por bloques, cada valor
+distinto en \code{meta$familias}. Una muestra mayor o aleatoria lo evita, y
+también declararla en \code{columnas_personales}.
 El desvío se oculta como la media, como en \code{\link[=perfilar]{perfilar()}}; también en
 \code{resumen_tabla$meta$familias}, donde la vía por bloques (\code{bloque_filas})
 guarda lo que devolvió cada acumulador: ahí se tapan los extremos, la media

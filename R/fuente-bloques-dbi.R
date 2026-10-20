@@ -339,7 +339,11 @@
   if (is.null(tabla_sql)) {
     tabla_sql <- as.character(DBI::dbQuoteIdentifier(conexion, tabla))
   }
-  if (is.null(campos)) campos <- .listar_campos_dbi(conexion, tabla)
+  if (is.null(campos)) {
+    # Las legibles, de la misma funcion que usan las demas puertas.
+    info <- .columnas_tabla_dbi(conexion, tabla)
+    campos <- info$campos[!.nombres_presentes(info$campos, info$ilegibles)]
+  }
   campos <- as.character(campos)
   if (is.null(campos_sql)) {
     campos_sql <- vapply(campos, function(campo) {
@@ -1134,7 +1138,49 @@
       NA_character_, metadatos = .metadatos_sql_dbi()
     )
   }
-  list(fila = fila, sql = do.call(rbind, registros))
+  sql <- do.call(rbind, registros)
+  # La guarda del decimal desde 2^53 (ver `.tipo_declarado_decimal_dbi()`). Aca
+  # todo sale de los dobles que entrego el controlador: sobre un `numeric(20,0)`
+  # con 60 valores distintos desde 90071992547409001, `n_distintos` salia 4, una
+  # moda que no estaba en la columna y un desvio de 17,52 contra 17,46, todo
+  # `calculado` (refutacion 35-D, M3). Las siete de magnitud no se publican, como
+  # en la via SQL, y tampoco `n_distintos` y la moda: sin bloques los cuenta el
+  # motor sobre el valor exacto, y aca se contarian sobre los dobles. Lo mismo
+  # vale para un entero ancho que el controlador entrego como doble -un
+  # `integer64` no pasa por aca: lo retiene su propia regla-.
+  tipo_campo <- if (!is.null(tipos) && !is.na(posicion_campo) &&
+                    posicion_campo <= length(tipos)) {
+    tipos[[posicion_campo]]
+  } else NA_character_
+  extremos <- if (!is.null(sobre_cuantitativos) &&
+                  identical(sobre_cuantitativos$estado, "calculado")) {
+    c(sobre_cuantitativos$resultado$minimo, sobre_cuantitativos$resultado$maximo)
+  } else NULL
+  entero_ancho <- .tipo_declarado_entero_ancho_dbi(tipo_campo)
+  if ((entero_ancho || .tipo_declarado_decimal_dbi(tipo_campo)) &&
+      is.double(extremos) &&
+      any(is.finite(extremos) & abs(extremos) >= .MAX_ENTERO_EXACTO_DBI)) {
+    retenidas <- c(
+      "minimo", "maximo", "media", "n_ceros", "n_negativos", "mediana",
+      "desvio", "n_distintos", "tasa_distintos", "moda", "frecuencia_moda"
+    )
+    for (nombre in intersect(retenidas, names(fila))) {
+      fila[[nombre]] <- if (is.character(fila[[nombre]])) {
+        NA_character_
+      } else NA_real_
+    }
+    afectadas <- as.character(sql$metrica) %in% retenidas &
+      as.character(sql$estado) == "calculado"
+    sql$estado[afectadas] <- "no_disponible"
+    sql$motivo[afectadas] <- if (entero_ancho) {
+      paste(
+        .motivo_entero_doble_dbi(prefijo = "La columna ", tipo = tipo_campo),
+        "Con `bloque_filas` tampoco `n_distintos` ni la moda: se contarian en",
+        "R sobre esos dobles."
+      )
+    } else .motivo_decimal_doble_dbi(bloques = TRUE)
+  }
+  list(fila = fila, sql = sql)
 }
 
 .plan_bloques_fuente_dbi <- function(fuente, bloque_filas, campos, metricas,
@@ -1237,10 +1283,10 @@
                 error = paste0("no_disponible:dbSendQuery:", .mensaje_motor(resultado))))
   }
   bloques$consultas_sql <- 1L
-  on.exit(tryCatch(DBI::dbClearResult(resultado), error = function(e) NULL), add = TRUE)
+  on.exit(.limpiar_consulta_dbi(resultado, conexion), add = TRUE)
   ordinal <- 0
   repeat {
-    bloque <- tryCatch(DBI::dbFetch(resultado, n = as.integer(bloque_filas)),
+    bloque <- tryCatch(.traer_filas_dbi(resultado, n = as.integer(bloque_filas), conexion),
                        error = function(e) e)
     bloques$fetches <- bloques$fetches + 1L
     if (inherits(bloque, "condition")) {
@@ -1370,10 +1416,10 @@
   }
   consultas_sql <- 1L
   fetches <- 0L
-  on.exit(tryCatch(DBI::dbClearResult(rs), error = function(e) NULL), add = TRUE)
+  on.exit(.limpiar_consulta_dbi(rs, conexion), add = TRUE)
   observados <- list()
   repeat {
-    bloque <- tryCatch(DBI::dbFetch(rs, n = as.integer(bloque_filas)),
+    bloque <- tryCatch(.traer_filas_dbi(rs, n = as.integer(bloque_filas), conexion),
                        error = function(e) e)
     fetches <- fetches + 1L
     if (inherits(bloque, "condition")) {
@@ -1778,7 +1824,8 @@
       argumentos_muestra, muestreo = NULL, prototipo = preparacion$prototipo,
       tipos_declarados = preparacion$tipos,
       trazador = trazador, max_celdas_muestra = max_celdas_muestra,
-      max_bytes_muestra = max_bytes_muestra
+      max_bytes_muestra = max_bytes_muestra,
+      enmascaradas = preparacion$enmascaradas
     )
     perfil_muestra <- bloque_muestra$perfil
     if (!is.null(perfil_muestra) && nrow(resumen$cobertura)) {

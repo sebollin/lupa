@@ -333,8 +333,10 @@ test_that("SQLite usa la subconsulta escalar y la division entera", {
   sentencia <- candidato$construir(
     "v", "t", "mediana"
   )
-  expect_match(sentencia, "COUNT(v) % 2", fixed = TRUE)
-  expect_match(sentencia, "COUNT(v) - 1) / 2", fixed = TRUE)
+  # Los no nulos con la expresion de todos los motores (ronda 35-X).
+  cuenta <- lupa:::.contar_no_nulos_sql_dbi("v")
+  expect_match(sentencia, paste0(cuenta, " % 2"), fixed = TRUE)
+  expect_match(sentencia, paste0(cuenta, " - 1) / 2"), fixed = TRUE)
   expect_length(
     lupa:::.candidatos_mediana_escalar_dbi(
       conexion, lupa:::.dialectos_dbi()$fetch_first

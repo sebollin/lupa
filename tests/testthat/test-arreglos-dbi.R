@@ -149,6 +149,27 @@ if (.dbi_de_prueba) {
   )
 }
 
+# El backend de este archivo es local a sus pruebas. Sus clases y metodos S4
+# no pueden quedar registrados: una subclase de `SQLiteResult` altera la
+# representacion de `DBIResult` que usa la conexion fingida de O167.
+.limpiar_juguete <- function() {
+  suppressWarnings(try(methods::removeMethod(
+    "dbGetQuery", c("ConexionJugueteLupa", "character")
+  ), silent = TRUE))
+  suppressWarnings(try(methods::removeMethod(
+    "dbSendQuery", c("ConexionJugueteLupa", "character")
+  ), silent = TRUE))
+  suppressWarnings(try(methods::removeMethod(
+    "dbFetch", "ResultadoJugueteLupa"
+  ), silent = TRUE))
+  suppressWarnings(try(methods::removeMethod(
+    "dbListFields", c("ConexionJugueteLupa", "character")
+  ), silent = TRUE))
+  suppressWarnings(try(methods::removeClass("ResultadoJugueteLupa"), silent = TRUE))
+  suppressWarnings(try(methods::removeClass("SQLiteConexionJugueteLupa"), silent = TRUE))
+  suppressWarnings(try(methods::removeClass("ConexionJugueteLupa"), silent = TRUE))
+}
+
 .tabla_juguete <- function(n = 12L) {
   data.frame(
     id = seq_len(n),
@@ -517,7 +538,7 @@ test_that("el plan previo dice cuantas consultas se van a emitir", {
   expect_true(all(c("clase_consulta", "n_consultas", "alcance") %in% names(plan)))
   expect_equal(attr(plan, "columnas"), 3L)
   # El bloque de memoria se arma con datos ya disponibles: no puede agregar un
-  # viaje después de que el plan registró sus consultas de preparación.
+  # viaje despues de que el plan registro sus consultas de preparacion.
   expect_equal(emitidas_al_planificar, attr(plan, "consultas_emitidas"))
   expect_gt(attr(plan, "total"), emitidas_al_planificar)
 
@@ -1163,9 +1184,10 @@ test_that("un nombre calificado con punto se resuelve como en coleccion()", {
 })
 
 test_that("el desvio usa la funcion nativa del motor antes que el calculo casero", {
+  on.exit(.limpiar_juguete(), add = TRUE)
   ## Verificado contra SQL Server 2022 real: la forma de dos pasadas pone la
-  ## media como subconsulta escalar —para que el SQL guardado no lleve valores
-  ## derivados de los datos— y ese motor rechaza una subconsulta dentro de un
+  ## media como subconsulta escalar -para que el SQL guardado no lleve valores
+  ## derivados de los datos -y ese motor rechaza una subconsulta dentro de un
   ## agregado. El arreglo de privacidad habia roto la compatibilidad, y ningun
   ## motor simulado podia mostrarlo.
   skip_if_not_installed("DBI")

@@ -85,6 +85,20 @@ setMethod("dbColumnInfo", "ResultadoLobLupa", function(res, ...) {
   con
 }
 
+# Estas clases y metodos son solo del controlador fingido de este archivo.
+# Dejarlos registrados altera la representacion S4 de `DBIResult` que usa otra
+# prueba, aunque sus conexiones tengan clases distintas.
+.limpiar_lob <- function() {
+  suppressWarnings(try(methods::removeMethod(
+    "dbSendQuery", c("ConexionLobLupa", "character")
+  ), silent = TRUE))
+  suppressWarnings(try(methods::removeMethod(
+    "dbColumnInfo", "ResultadoLobLupa"
+  ), silent = TRUE))
+  suppressWarnings(try(methods::removeClass("ResultadoLobLupa"), silent = TRUE))
+  suppressWarnings(try(methods::removeClass("ConexionLobLupa"), silent = TRUE))
+}
+
 test_that("el patron reconoce los tipos que un controlador no sabe traer", {
   largos <- c("text", "NTEXT", "image", "varchar(max)", "NVARCHAR (MAX)",
               "varbinary(max)", "nvarbinary(max)", "clob", "nclob", "blob",
@@ -259,6 +273,7 @@ test_that("si el fallo no es de una columna, el descarte lo dice y no inventa un
 })
 
 test_that("el aislamiento por descarte cuesta lo que promete y respeta el saldo", {
+  on.exit(.limpiar_lob(), add = TRUE)
   # Biseccion sobre n columnas: a lo sumo 2n-1 sondas, que es el tamano del
   # arbol cuando todas las hojas son culpables. El tope de 2n no es un numero
   # elegido a dedo.

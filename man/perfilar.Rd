@@ -378,7 +378,13 @@ neutro, un texto libre que los contuviera, o los estadísticos de orden de
 una columna clasificada con poder discriminante \code{debil}. Una columna que
 \strong{copia los documentos protegidos sin su verificador} —la cédula
 \verb{4.685.467-9} de cada fila guardada como el entero \code{4685467}, o como
-texto, en una columna de nombre neutro— se protege entera, como una
+texto, en una columna de nombre neutro; también el texto con los
+decimales que deja una planilla, \code{"4685467.0"} o \code{"4.685.467,00"}, con
+signo o en notación científica (\code{"+4685467.0"}, \code{"4685467e0"}), que se
+compara por el número que el paquete lee en él, con la misma lectura que
+el resumen, o con espacios de miles y una parte decimal de ceros
+(\code{"4 685 467.0"}); un texto con centavos que no son cero no es un
+documento— se protege entera, como una
 columna personal: se clasifica \code{documento_identidad} con poder \code{alto}
 cuando al menos tres de sus valores distintos son el documento sin su
 verificador de un valor protegido —con la regla de los textos, ver
@@ -399,7 +405,11 @@ de 50 valores distintos o más; con el 10 \% de tipeos, todas frente a un
 millón y la mitad frente a cuatro. Una copia de pocos valores distintos
 frente a muchos documentos —tres, o diez frente a cuatro millones— no se
 distingue del azar y publica sus extremos; tampoco una copia con más del
-10 \% de otros valores. El vocabulario
+10 \% de otros valores. Y la regla compara contra los documentos
+protegidos: sin la columna de la que copia —la tabla de pagos perfilada
+sin la de personas, fuera de una colección con perfiles conservados— una
+columna de siete cifras no se distingue de un importe y publica sus
+extremos. El vocabulario
 corto no entra en el piso: \code{"S/D"} sigue publicándose donde describe a una
 columna que no es personal. Tampoco los \strong{rellenos} de una columna
 protegida, que ocupan el lugar de un dato y no son el de nadie: el que no
@@ -1680,7 +1690,9 @@ ejemplo \code{telefono}, \code{fecha_nacimiento} o \code{fecha_fallecimiento}); 
 se puedan validar. El nombre tiene prioridad sobre una forma numérica
 genérica y también determina la etiqueta de tipo. Una palabra de nombre
 —\code{nombre}, \code{apellido}— la expresa en cualquier lugar del nombre:
-\code{nombre_cliente} es un nombre. Una palabra de \strong{persona} —\code{cliente},
+\code{nombre_cliente} es un nombre, y también \code{nombre_jefe_grupo} o
+\code{nombre_grupo}; una columna de números o de fechas no lo es
+(\code{cantidad_nombres}). Una palabra de \strong{persona} —\code{cliente},
 \code{socio}, \code{usuario}, \code{persona}, \code{paciente}, \code{titular}— dice de quién
 habla la columna, no que guarde su nombre: la clasifica como \code{nombre}
 sólo si ninguna otra palabra del nombre la clasificó —\code{direccion_cliente}
@@ -1697,7 +1709,37 @@ documento, \code{fecha_contacto} y \code{medio_contacto} no son teléfonos,
 \code{estado_correo} no es un correo y \code{tipo_domicilio} no es un domicilio;
 sí lo siguen siendo \code{nro_documento}, \code{documento_id}, \code{numero_celular},
 \code{telefono_contacto}, \code{barrio_id}, \code{segundo_nombre} o una fecha de
-nacimiento guardada como número. Una columna de
+nacimiento guardada como número. Y una palabra que el resto del nombre
+califica se decide con sus \strong{valores}, con el tipo que ellos muestran y
+no el de la palabra, en el 80 \% de sus valores distintos: un correo —una
+\code{@}, también el de una intranet: \code{correo_alta} con \code{"jperez@intranet"}—;
+un teléfono de siete a quince cifras escrito como teléfono —con \code{+}, con
+un cero inicial, con separadores, con un interno o en una lista:
+\code{responsable_canal} con \code{"+598 99 123 456"}—, sin centavos y en una
+columna que no es de fechas, y con la palabra del teléfono también las
+cifras sueltas (\code{celular_estado}); un domicilio con una marca de calle
+—\code{Av.}, \code{calle}, \code{Bvar.}, \code{ruta}, \code{esq.}, \code{apto}— en al menos el 30 \% de
+sus distintos (\code{cliente_tipo} con \code{"Av. Italia 2345"}); o un nombre con
+un nombre de pila conocido, sin cifras, sin una palabra que no va en un
+nombre —\code{sin}, \code{en}, \code{por}— y sin empezar como un lugar —\code{San},
+\code{Villa}—, aunque sean dos personas (\code{responsable_grupo} con
+\code{"Perez Joaquin"}, \code{contacto_alta} con \code{"Ramon Acosta"}). La forma sola
+no alcanza: \code{"Gran Empresa"}, \code{"Cerro Largo"}, \code{"Arroz Premium"} u
+\code{"Oficina 101"} siguen siendo categorías. Y la palabra de quien actúa en
+el registro —\code{usuario}, \code{funcionario}, \code{responsable}, \code{solicitante}— con
+una de auditoría —\code{alta}, \code{baja}— dice quién dio el alta o la baja: ahí
+basta un texto que no sea una fecha —un login \code{"jperez"}, un apellido
+solo—; la de quien es objeto del registro pide la señal de los valores,
+y \code{cliente_desde} con \code{"Sin fecha"} o \code{paciente_alta} con \code{"Traslado"} se
+publican. En la ronda 34 el nombre decidía solo, y esas columnas
+publicaban nombres, celulares y domicilios. Limitación conocida: la lista
+de nombres de pila no es completa, y un nombre que falta deja la columna
+sin esa señal; una localidad con nombre de persona —\code{"Jose Ignacio"},
+\code{"Juan Lacaze"}— se lee como un nombre; y con una palabra de categoría o
+de clave, un login de sólo letras o un apellido solo
+(\code{responsable_grupo} con \code{"Rodriguez"}, \code{usuario_id} con \code{"jperez_01"})
+no se distinguen de una categoría o de un código y se publican, como un
+domicilio sin marca de calle. Una columna de
 personas con otro nombre se declara en \code{columnas_personales}. También es \code{medio} una
 columna que trae correos completos sin que sean la mayoría de sus valores:
 un correo es un correo aunque esté solo, y la columna se protege;
