@@ -367,10 +367,11 @@ test_that("H3, el recorrido: cada palabra calificadora de cada tipo, contra valo
       }
     }
   }
-  # La cifra a mano: 32 nombres de persona (17 de categoria, 6 de fecha y 9 de
+  # La cifra a mano: 35 nombres de persona (17 de categoria, 3 de medio desde
+  # la ronda 36, 6 de fecha y 9 de
   # clave), 26 de telefono y 26 de domicilio (17, 3 y 6); cada uno con los
   # cuatro tipos de valores personales y con los de su clase.
-  expect_identical(recorridas, 5L * (32L + 26L + 26L))
+  expect_identical(recorridas, 5L * (35L + 26L + 26L))
   expect_identical(fallos, character())
   # La palabra de nombre lo expresa en cualquier lugar del nombre, como dice la
   # ayuda: `nombre_jefe_grupo` con apellidos solos o logins es un nombre, y
@@ -441,7 +442,9 @@ test_that("H3, segunda vuelta: la forma sola no confirma un nombre ni un domicil
     responsable_grupo = r(c("Maria Rodriguez", "Maria Olivera",
                             "Maria Pereyra", "Ximena Silveira")),
     responsable_estado = r(c("Perez Joaquin", "Perez Bruno", "Perez Leticia")),
-    funcionario_tipo = r(paste(acento, c("Bruno", "Sol", "Max"))),
+    # Desde la ronda 36, sin `Max`, que tambien es una palabra de una
+    # categoria (`"Plan Max"`) y salio de la lista de nombres de pila.
+    funcionario_tipo = r(paste(acento, c("Bruno", "Lucia", "Ramon"))),
     nombre_jefe_grupo = r(c("Acosta", "Pereyra", "Cabral")),
     responsable_canal = r(c("099 123 456", "+598 98 234 567", "2 710 44 55")),
     telefono_estado = r(c("2901 1234 int 101", "2902 2345 int 202")),

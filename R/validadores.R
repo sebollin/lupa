@@ -246,7 +246,7 @@
 #' <https://www.six-group.com/en/products-services/financial-information/market-reference-data/data-standards.html>
 #'
 #' Resnick P (2008). *Internet Message Format*, RFC 5322.
-#' <https://www.rfc-editor.org/rfc/rfc5322>
+#' <https://www.rfc-editor.org/info/rfc5322/>
 #'
 #' Luhn HP (1960). *Computer for Verifying Numbers*, US Patent 2,950,048.
 #' <https://patents.google.com/patent/US2950048A/en>

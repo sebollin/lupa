@@ -402,6 +402,7 @@
   resultado <- tryCatch(
     .enviar_consulta_dbi(conexion, sql),
     error = function(e) {
+      .repropagar_transaccion_dbi(e)
       error_lectura <<- .mensaje_motor(e)
       NULL
     }
@@ -419,6 +420,7 @@
     datos <- tryCatch(
       .marcar_utf8_tabla(.traer_filas_dbi(resultado, n = bloque_filas, conexion)),
       error = function(e) {
+        .repropagar_transaccion_dbi(e)
         error_lectura <<- .mensaje_motor(e)
         NULL
       }
@@ -749,6 +751,8 @@
     motivo = motivo
   )
   spool <- NULL
+  perfil_aislado <- NULL
+  cobertura_aislada <- .cobertura_dbi_vacia()
   if (is.null(motivo)) {
     spool <- .materializar_muestra_spool_dbi(
       conexion, sql_muestra, campos, muestra_id, snapshot_id, orden_id,
@@ -765,6 +769,31 @@
     materializacion$bytes <- spool$bytes
     materializacion$n_filas <- spool$n_filas
     materializacion$validado_relectura <- isTRUE(spool$ok)
+    if (!isTRUE(spool$ok) && grepl(
+      "error_lectura_spool", as.character(spool$motivo), fixed = TRUE,
+      useBytes = TRUE
+    )) {
+      aislado <- tryCatch(
+        .bloque_muestra_dbi(
+          conexion, tabla, preparacion$tabla_sql, preparacion$campos,
+          preparacion$campos_sql, preparacion$muestra,
+          preparacion$muestra_motor, preparacion$orden_muestra,
+          preparacion$orden_sql, preparacion$dialecto, n_total, presupuesto,
+          info_conexion, argumentos, muestreo = preparacion$muestreo,
+          prototipo = preparacion$prototipo, tipos_declarados = preparacion$tipos,
+          max_celdas_muestra = Inf, max_bytes_muestra = Inf,
+          enmascaradas = preparacion$enmascaradas
+        ),
+        error = function(e) {
+          .repropagar_transaccion_dbi(e)
+          NULL
+        }
+      )
+      if (!is.null(aislado)) {
+        perfil_aislado <- aislado$perfil
+        cobertura_aislada <- aislado$cobertura
+      }
+    }
   }
   if (is.null(publico)) {
     publico <- list(
@@ -839,8 +868,8 @@
     datos <- if (n_diagnosticos > 0L) datos[seq_len(n_diagnosticos), , drop = FALSE] else
       datos[0L, , drop = FALSE]
   }
-  perfil <- NULL
-  cobertura <- .cobertura_dbi_vacia()
+  perfil <- perfil_aislado
+  cobertura <- cobertura_aislada
   # Lo leido entero, tambien las columnas enmascaradas que no se perfilan: su
   # completitud sale de aca (ver abajo).
   datos_todos <- datos
@@ -969,7 +998,12 @@
     }
     columnas$n <- .conteo_dbi(n_total)
   }
-  motivo_metricas <- if (is.null(motivo)) {
+  motivo_metricas <- if (!is.null(perfil)) {
+    paste(
+      "La materializacion completa fallo; se aislaron las columnas legibles",
+      "con la misma muestra y su perfil se conserva."
+    )
+  } else if (is.null(motivo)) {
     paste(
       "Medido sobre la unica seleccion materializada en el spool de sesion",
       "cliente; las pasadas de esta salida leen el mismo `muestra_id`."
@@ -993,8 +1027,7 @@
     if (!length(campos_metrica)) next
     registros[[length(registros) + 1L]] <- .registro_sql_dbi(
       campos[[i]], campos_metrica,
-      if (is.null(perfil) || !is.null(motivo)) "no_disponible" else
-        "observado_muestra",
+      if (is.null(perfil)) "no_disponible" else "observado_muestra",
       motivo_metricas, sql_muestra,
       metadatos = .metadatos_sql_dbi(
         alcance = "muestra", universo = n_total,

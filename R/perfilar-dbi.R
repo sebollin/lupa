@@ -193,12 +193,16 @@
 # encuentra otro `dbExistsTable()` ni `dbListFields()`).
 .existe_tabla_dbi <- function(conexion, nombre) {
   .exigir_nombre_representable_dbi(conexion, nombre)
-  .con_guarda_transaccion_dbi(conexion, DBI::dbExistsTable(conexion, nombre))
+  .con_guarda_transaccion_dbi(
+    conexion, function() DBI::dbExistsTable(conexion, nombre)
+  )
 }
 
 .listar_campos_dbi <- function(conexion, nombre) {
   .exigir_nombre_representable_dbi(conexion, nombre)
-  .con_guarda_transaccion_dbi(conexion, DBI::dbListFields(conexion, nombre))
+  .con_guarda_transaccion_dbi(
+    conexion, function() DBI::dbListFields(conexion, nombre)
+  )
 }
 
 # ---- Las columnas de la tabla y cuales puede leer la credencial ----------
@@ -257,7 +261,10 @@
     .contar_dbi(presupuesto)
     tryCatch(
       .marcar_utf8_tabla(.traer_consulta_dbi(conexion, sql)),
-      error = function(e) NULL
+      error = function(e) {
+        .repropagar_transaccion_dbi(e)
+        NULL
+      }
     )
   }
   if (identical(motor, "postgresql")) {
@@ -280,7 +287,7 @@
   )
   sql <- paste0(
     "SELECT c.column_id AS posicion, c.name AS columna, ",
-    "HAS_PERMS_BY_NAME(", objeto, ", 'OBJECT', 'SELECT', c.name, 'COLUMN') ",
+    "HAS_PERMS_BY_NAME(", objeto, ", 'OBJECT', 'SELECT', QUOTENAME(c.name), 'COLUMN') ",
     "AS legible FROM sys.columns c WHERE c.object_id = OBJECT_ID(", objeto,
     ") AND ", misma_base, " ORDER BY c.column_id"
   )
@@ -294,7 +301,7 @@
       "SELECT m.name AS columna, m.masking_function AS mascara, ",
       if (por_columna) paste0(
         "COALESCE(HAS_PERMS_BY_NAME(", objeto,
-        ", 'OBJECT', 'UNMASK', m.name, 'COLUMN'), 0) AS sin_mascara_columna, "
+        ", 'OBJECT', 'UNMASK', QUOTENAME(m.name), 'COLUMN'), 0) AS sin_mascara_columna, "
       ) else "0 AS sin_mascara_columna, ",
       "COALESCE(HAS_PERMS_BY_NAME(NULL, 'DATABASE', 'UNMASK'), 0) ",
       "AS sin_mascara_base FROM sys.masked_columns m WHERE m.object_id = ",
@@ -365,10 +372,19 @@
 # `catalogo = FALSE` no consulta el catalogo: lo usa la estimacion de costo de
 # la coleccion, que con mil tablas no puede pagar dos viajes mas por tabla y
 # solo cuenta columnas.
+.reconciliar_campos_catalogo_dbi <- function(listados, catalogo) {
+  catalogo <- as.character(catalogo)
+  if (length(catalogo) && all(!is.na(catalogo) & nzchar(catalogo))) {
+    return(catalogo)
+  }
+  listados
+}
+
 .columnas_tabla_dbi <- function(conexion, tabla, tabla_sql = NULL,
                                 presupuesto = NULL, catalogo = TRUE) {
   .contar_dbi(presupuesto)
   listados <- tryCatch(.listar_campos_dbi(conexion, tabla), error = function(e) e)
+  if (inherits(listados, "lupa_error_transaccion_dbi")) .detener(listados)
   error <- if (inherits(listados, "condition")) listados else NULL
   listados <- if (is.null(error) && length(listados)) as.character(listados) else
     character()
@@ -380,7 +396,10 @@
   }
   permisos <- if (isTRUE(catalogo)) tryCatch(
     .permisos_columnas_dbi(conexion, tabla_sql, presupuesto),
-    error = function(e) NULL
+    error = function(e) {
+      .repropagar_transaccion_dbi(e)
+      NULL
+    }
   ) else NULL
   vacio <- list(
     campos = listados, ilegibles = character(), enmascaradas = character(),
@@ -389,12 +408,7 @@
   )
   if (is.null(permisos)) return(vacio)
   catalogo <- permisos$columna
-  en_catalogo <- .indice_nombre(listados, catalogo)
-  campos <- if (!anyNA(en_catalogo)) {
-    nombres <- catalogo
-    nombres[en_catalogo] <- listados
-    nombres
-  } else listados
+  campos <- .reconciliar_campos_catalogo_dbi(listados, catalogo)
   posiciones <- .indice_nombre(campos, catalogo)
   marca <- function(columna) {
     salida <- rep(FALSE, length(campos))
@@ -480,6 +494,127 @@
   cobertura
 }
 
+# SQL Server puede deshacer la transaccion del usuario ante un error de
+# ejecucion aunque XACT_ABORT este apagado. Medir el estado solo al devolver el
+# perfil llega tarde: las consultas siguientes ya podrian leer en autocommit.
+# Esta guarda se ejerce alrededor de cada envio y cada fetch que puede fallar.
+.estado_transaccion_sqlserver_dbi <- function(conexion) {
+  if (!identical(.motor_permisos_columnas_dbi(conexion), "sqlserver")) {
+    return(NULL)
+  }
+  tryCatch({
+    datos <- DBI::dbGetQuery(
+      conexion,
+      "SELECT @@TRANCOUNT AS lupa_trancount, XACT_STATE() AS lupa_xact_state"
+    )
+    if (!is.data.frame(datos) || !nrow(datos) ||
+        !all(c("lupa_trancount", "lupa_xact_state") %in% names(datos))) {
+      return(NULL)
+    }
+    list(
+      ok = TRUE,
+      trancount = as.numeric(datos$lupa_trancount[[1L]]),
+      xact_state = as.numeric(datos$lupa_xact_state[[1L]])
+    )
+  }, error = function(e) NULL)
+}
+
+.vigilar_antes_consulta_dbi <- function(conexion, etapa) {
+  estado <- .estado_transaccion_sqlserver_dbi(conexion)
+  if (is.null(estado) || !isTRUE(estado$ok) ||
+      !is.finite(estado$trancount) || estado$trancount <= 0) {
+    return(NULL)
+  }
+  if (!identical(as.numeric(estado$xact_state), 1)) {
+    .detener_dbi(
+      "lupa_error_transaccion_dbi",
+      paste0(
+        "La via DBI no puede continuar: SQL Server recibio una transaccion",
+        " no utilizable antes de `", etapa, "` (@@TRANCOUNT = ",
+        estado$trancount, ", XACT_STATE() = ", estado$xact_state, ")."
+      ),
+      datos = list(etapa = etapa, antes = estado, despues = estado)
+    )
+  }
+  list(etapa = etapa, antes = estado)
+}
+
+.vigilar_despues_consulta_dbi <- function(conexion, vigilancia, error = NULL) {
+  if (is.null(vigilancia)) {
+    if (!is.null(error)) .detener(error)
+    return(invisible(NULL))
+  }
+  despues <- .estado_transaccion_sqlserver_dbi(conexion)
+  if (!is.null(despues) && isTRUE(despues$ok) &&
+      (despues$trancount != vigilancia$antes$trancount ||
+       despues$xact_state != vigilancia$antes$xact_state)) {
+    mensaje <- paste0(
+      "La via DBI detecto que SQL Server cambio la transaccion del usuario",
+      " durante `", vigilancia$etapa, "`: antes @@TRANCOUNT = ",
+      vigilancia$antes$trancount, ", XACT_STATE() = ",
+      vigilancia$antes$xact_state, "; despues @@TRANCOUNT = ",
+      despues$trancount, ", XACT_STATE() = ", despues$xact_state,
+      ". Se detiene la via y no se continua leyendo fuera de esa transaccion."
+    )
+    .detener_dbi(
+      "lupa_error_transaccion_dbi", mensaje,
+      datos = list(etapa = vigilancia$etapa, antes = vigilancia$antes,
+                   despues = despues, error = if (is.null(error)) {
+                     NA_character_
+                   } else conditionMessage(error))
+    )
+  }
+  if (!is.null(error)) .detener(error)
+  invisible(NULL)
+}
+
+.ejecutar_vigilado_dbi <- function(conexion, etapa, codigo, despues = TRUE,
+                                  devolver_vigilancia = FALSE) {
+  vigilancia <- .vigilar_antes_consulta_dbi(conexion, etapa)
+  valor <- tryCatch(
+    force(codigo()),
+    error = function(e) {
+      .vigilar_despues_consulta_dbi(conexion, vigilancia, e)
+      .detener(e)
+    }
+  )
+  if (isTRUE(despues)) .vigilar_despues_consulta_dbi(conexion, vigilancia)
+  if (isTRUE(devolver_vigilancia)) {
+    return(list(valor = valor, vigilancia = vigilancia))
+  }
+  valor
+}
+
+.guardar_vigilancia_resultado_dbi <- function(conexion, resultado, vigilancia) {
+  if (is.null(vigilancia)) return(invisible(NULL))
+  contexto <- .contexto_conexion_dbi(conexion)
+  if (is.null(contexto$resultados_vigilados)) {
+    contexto$resultados_vigilados <- list()
+  }
+  contexto$resultados_vigilados[[length(contexto$resultados_vigilados) + 1L]] <-
+    list(resultado = resultado, vigilancia = vigilancia)
+  invisible(NULL)
+}
+
+.sacar_vigilancia_resultado_dbi <- function(conexion, resultado) {
+  contexto <- .contexto_conexion_dbi(conexion, crear = FALSE)
+  if (is.null(contexto) || is.null(contexto$resultados_vigilados)) return(NULL)
+  vigilancia <- NULL
+  conservar <- vapply(contexto$resultados_vigilados, function(x) {
+    if (identical(x$resultado, resultado)) {
+      vigilancia <<- x$vigilancia
+      FALSE
+    } else TRUE
+  }, logical(1L))
+  contexto$resultados_vigilados <- contexto$resultados_vigilados[conservar]
+  vigilancia
+}
+
+.repropagar_transaccion_dbi <- function(error) {
+  if (inherits(error, "lupa_error_transaccion_dbi")) .detener(error)
+  error
+}
+
 # Toda consulta de la via sale por aca (una prueba recorre el espacio de nombres
 # y no encuentra otro `dbSendQuery()` ni `dbGetQuery()`). Y toda va dentro de
 # un punto de guardado cuando la conexion esta en una transaccion de un motor
@@ -504,10 +639,19 @@
     DBI::dbSendQuery(conexion, sql)
   }
   guarda <- .abrir_guarda_transaccion_dbi(conexion)
-  if (is.null(guarda)) return(enviar())
+  if (is.null(guarda)) {
+    return(.ejecutar_vigilado_dbi(
+      conexion, "dbSendQuery", enviar, despues = FALSE
+    ))
+  }
   abierta <- TRUE
   on.exit(if (abierta) .cerrar_guarda_transaccion_dbi(guarda), add = TRUE)
-  resultado <- enviar()
+  envio <- .ejecutar_vigilado_dbi(
+    conexion, "dbSendQuery", enviar, despues = FALSE,
+    devolver_vigilancia = TRUE
+  )
+  resultado <- envio$valor
+  .guardar_vigilancia_resultado_dbi(conexion, resultado, envio$vigilancia)
   # El error puede llegar al leer las filas, no al mandar la consulta: el punto
   # de guardado sigue abierto hasta que se cierra el resultado.
   guarda$transaccion$pendientes[[length(guarda$transaccion$pendientes) + 1L]] <-
@@ -518,17 +662,46 @@
 
 .traer_consulta_dbi <- function(conexion, sql) {
   .exigir_sentencia_representable_dbi(conexion, sql)
-  .texto_del_controlador_dbi(
-    conexion,
-    .con_guarda_transaccion_dbi(conexion, DBI::dbGetQuery(conexion, sql))
-  )
+  if (!inherits(conexion, "OdbcConnection")) {
+    valor <- .ejecutar_vigilado_dbi(
+      conexion, "dbGetQuery", function() {
+        .con_guarda_transaccion_dbi(
+          conexion, function() DBI::dbGetQuery(conexion, sql)
+        )
+      }
+    )
+    return(.texto_del_controlador_dbi(conexion, valor))
+  }
+  resultado <- .enviar_consulta_dbi(conexion, sql)
+  on.exit(.limpiar_consulta_dbi(resultado, conexion), add = TRUE)
+  .traer_filas_dbi(resultado, n = -1L, conexion = conexion)
 }
 
 # Las filas de un resultado abierto con `.enviar_consulta_dbi()`. Todo valor
 # que llega del motor entra por aca o por `.traer_consulta_dbi()` (una prueba
 # recorre el espacio de nombres y no encuentra otro `dbFetch()`).
 .traer_filas_dbi <- function(resultado, n = -1L, conexion) {
-  .texto_del_controlador_dbi(conexion, DBI::dbFetch(resultado, n = n))
+  informacion <- tryCatch(
+    DBI::dbColumnInfo(resultado),
+    error = function(e) {
+      if (inherits(e, "lupa_error_transaccion_dbi")) .detener(e)
+      NULL
+    }
+  )
+  tipos <- if (is.data.frame(informacion) && "type" %in% names(informacion)) {
+    as.character(informacion$type)
+  } else character()
+  vigilancia <- .sacar_vigilancia_resultado_dbi(conexion, resultado)
+  datos <- tryCatch(
+    DBI::dbFetch(resultado, n = n),
+    error = function(e) {
+      .vigilar_despues_consulta_dbi(conexion, vigilancia, e)
+      .detener(e)
+    }
+  )
+  .vigilar_despues_consulta_dbi(conexion, vigilancia)
+  attr(datos, "lupa_tipos_odbc") <- tipos
+  .texto_del_controlador_dbi(conexion, datos)
 }
 
 # ---- El texto que entrega el controlador ---------------------------------
@@ -569,12 +742,25 @@
   }
   latin1 <- character()
   utf8 <- character()
+  tipos <- attr(datos, "lupa_tipos_odbc", exact = TRUE)
+  if (is.null(tipos)) tipos <- character()
+  tipos <- as.character(tipos)
   for (i in seq_along(datos)) {
     valores <- datos[[i]]
     if (!is.character(valores) || !length(valores)) next
     nombre <- names(datos)[[i]]
     if (is.null(nombre) || is.na(nombre)) nombre <- as.character(i)
     marcados <- !is.na(valores) & Encoding(valores) == "UTF-8"
+    no_unicode <- length(tipos) == ncol(datos) &&
+      .texto_no_unicode_odbc_dbi(conexion, tipos[[i]])
+    if (!isTRUE(l10n_info()[["UTF-8"]]) && no_unicode && any(marcados)) {
+      trozo <- valores[marcados]
+      Encoding(trozo) <- "latin1"
+      valores[marcados] <- enc2utf8(trozo)
+      datos[[i]] <- valores
+      latin1 <- c(latin1, nombre)
+      next
+    }
     sueltos <- marcados & !validUTF8(valores)
     if (any(marcados & !sueltos)) utf8 <- c(utf8, nombre)
     if (!any(sueltos)) next
@@ -647,8 +833,8 @@
     .texto_no_unicode_odbc_dbi(conexion, tipos)
   }
   if (length(estrechas) != length(campos)) estrechas <- rep(FALSE, length(campos))
-  declarar <- en_latin1 | (estrechas & !con_utf8)
-  otras <- length(anotado$latin1) &&
+  declarar <- en_latin1 | estrechas
+  otras <- isTRUE(l10n_info()[["UTF-8"]]) && length(anotado$latin1) &&
     any(is.na(.indice_nombre(anotado$latin1, campos)))
   list(columnas = campos[declarar], latin1 = campos[declarar & en_latin1],
        otras = otras && !any(en_latin1))
@@ -741,6 +927,7 @@
 # no se ve desde aca.
 .limpiar_consulta_dbi <- function(resultado, conexion) {
   limpio <- try(DBI::dbClearResult(resultado), silent = TRUE)
+  .sacar_vigilancia_resultado_dbi(conexion, resultado)
   transaccion <- .transaccion_dbi(conexion, detectar = FALSE)
   if (!is.null(transaccion) && length(transaccion$pendientes)) {
     for (k in rev(seq_along(transaccion$pendientes))) {
@@ -916,10 +1103,18 @@
 # guardado si hace falta. Si falla, o si se interrumpe, se vuelve al punto.
 .con_guarda_transaccion_dbi <- function(conexion, codigo) {
   guarda <- .abrir_guarda_transaccion_dbi(conexion)
-  if (is.null(guarda)) return(codigo)
+  if (!is.function(codigo)) {
+    .detener_dbi(
+      "lupa_error_interno_dbi",
+      "La guarda de transaccion recibio una operacion que no se puede diferir."
+    )
+  }
+  if (is.null(guarda)) {
+    return(.ejecutar_vigilado_dbi(conexion, "metadatos", codigo))
+  }
   cerrada <- FALSE
   on.exit(if (!cerrada) .cerrar_guarda_transaccion_dbi(guarda), add = TRUE)
-  valor <- codigo
+  valor <- .ejecutar_vigilado_dbi(conexion, "metadatos", codigo)
   cerrada <- TRUE
   .cerrar_guarda_transaccion_dbi(guarda, fallo = FALSE)
   valor
@@ -4822,7 +5017,7 @@
       )
       return(cuerpo)
     }
-    cuenta <- .contar_no_nulos_sql_dbi(expr)
+    cuenta <- .contar_no_nulos_sql_dbi(expr, .senas_conexion_dbi(conexion))
     paste0(
       "SELECT AVG(", valor, " * 1.0) AS ", alias,
       " FROM (SELECT ", expr, " AS ", valor, " FROM ", tabla,
@@ -5673,6 +5868,7 @@
         .traer_consulta_dbi(conexion, sql)
       ), motivo = NA_character_),
       error = function(e) {
+        if (inherits(e, "lupa_error_transaccion_dbi")) .detener(e)
         list(ok = FALSE, datos = NULL, motivo = .mensaje_motor(e))
       }
     )
@@ -5691,6 +5887,7 @@
       .traer_filas_dbi(resultado, n = filas, conexion)
     ), motivo = NA_character_)
   }, error = function(e) {
+    if (inherits(e, "lupa_error_transaccion_dbi")) .detener(e)
     list(ok = FALSE, datos = NULL, motivo = .mensaje_motor(e))
   })
   .adjuntar_medicion_dbi(
@@ -7268,6 +7465,22 @@
   .texto_identidad(valor[[1L]])
 }
 
+.equivalentes_sentinela_real_dbi <- function(a, b, sentinelas) {
+  if (is.null(a) || is.null(b) || length(a) != 1L || length(b) != 1L ||
+      !length(sentinelas)) return(FALSE)
+  a_num <- suppressWarnings(as.numeric(a[[1L]]))
+  b_num <- suppressWarnings(as.numeric(b[[1L]]))
+  if (!is.finite(a_num) || !is.finite(b_num)) return(FALSE)
+  declarados <- suppressWarnings(as.numeric(sentinelas))
+  declarados <- declarados[is.finite(declarados)]
+  if (!length(declarados)) return(FALSE)
+  any(vapply(declarados, function(declarado) {
+    real <- .real_dbi_a_doble(declarado)
+    (isTRUE(a_num == declarado) && isTRUE(b_num == real)) ||
+      (isTRUE(b_num == declarado) && isTRUE(a_num == real))
+  }, logical(1L)))
+}
+
 .comparar_celda_corroboracion_dbi <- function(
     a, b, numerico, relativa = .TOLERANCIA_RELATIVA_CORROBORACION_DBI) {
   faltante_a <- .es_na_corroboracion_dbi(a)
@@ -7517,10 +7730,17 @@
       if (is.null(a_crudo) || is.null(b_crudo)) next
       es_numerica <- metrica %in% .METRICAS_CORROBORACION_NUMERICAS_DBI ||
         (identical(metrica, "moda") && tipo_numerico)
-      comparacion <- .comparar_celda_corroboracion_dbi(
-        a_crudo, b_crudo, es_numerica,
-        relativa = .tolerancia_relativa_corroboracion_dbi(metrica)
-      )
+      comparacion <- if (.equivalentes_sentinela_real_dbi(
+                           a_crudo, b_crudo, sentinelas_numericos
+                         )) {
+        list(difiere = FALSE, motivo = "igualdad_sentinela_real",
+             delta = 0)
+      } else {
+        .comparar_celda_corroboracion_dbi(
+          a_crudo, b_crudo, es_numerica,
+          relativa = .tolerancia_relativa_corroboracion_dbi(metrica)
+        )
+      }
       difiere <- if (completa) {
         isTRUE(comparacion$difiere)
       } else if (identical(comparacion$motivo, "faltante_un_lado")) {
@@ -9282,17 +9502,18 @@
                                  presupuesto = NULL,
                                  aproximacion_distintos = NULL,
                                  incluir_total = FALSE) {
+  senas <- .senas_conexion_dbi(conexion)
   total_alias <- alias("n_total_consulta")
   sql_validos <- paste0(
     "SELECT ", if (isTRUE(incluir_total)) {
       paste0("COUNT(*) AS ", total_alias, ", ")
     } else "",
-    .contar_no_nulos_sql_dbi(columna_sql), " AS ", alias("n_validos"),
+    .contar_no_nulos_sql_dbi(columna_sql, senas), " AS ", alias("n_validos"),
     " FROM ", tabla_sql
   )
   expresion_distintos <- if (is.null(aproximacion_distintos)) {
     c(
-      paste0(.contar_no_nulos_sql_dbi(columna_sql), " AS ",
+      paste0(.contar_no_nulos_sql_dbi(columna_sql, senas), " AS ",
              alias("n_validos_guard")),
       paste0(
         "COUNT(DISTINCT ", columna_sql, ") AS ", alias("n_distintos")
@@ -9300,7 +9521,7 @@
     )
   } else if (is.function(aproximacion_distintos$expresion)) {
     c(
-      paste0(.contar_no_nulos_sql_dbi(columna_sql), " AS ",
+      paste0(.contar_no_nulos_sql_dbi(columna_sql, senas), " AS ",
              alias("n_validos_guard")),
       aproximacion_distintos$expresion(
         columna_sql, alias("n_distintos")
@@ -9335,7 +9556,7 @@
         "SELECT ", if (isTRUE(incluir_total)) {
           paste0("COUNT(*) AS ", total_alias, ", ")
         } else "",
-        .contar_no_nulos_sql_dbi(columna_sql), " AS ", alias("n_validos"),
+        .contar_no_nulos_sql_dbi(columna_sql, senas), " AS ", alias("n_validos"),
         ", ", paste(expresion_distintos, collapse = ", "),
         " FROM ", tabla_sql
       )
@@ -9620,11 +9841,14 @@
 #   sale enmascarado -0-, y el resumen publicaba 400 de 400 faltantes en
 #   columnas completas.
 #
-# `CASE WHEN col IS NULL THEN NULL ELSE 1 END` pregunta solo por el nulo: `IS
-# NULL` vale sobre cualquier tipo, el resultado es una constante que el motor no
-# enmascara (medido: 400 y 360 contra los 400 y 360 que da `sa`), y `COUNT()` de
-# cero filas sigue siendo 0, como `COUNT(col)`.
-.contar_no_nulos_sql_dbi <- function(columna_sql) {
+# En PostgreSQL se usa `COUNT(col)`: asi un valor compuesto cuyos campos sean
+# todos nulos no se confunde con un valor SQL nulo. En los motores
+# que no admiten `COUNT(col)` sobre tipos LOB se conserva la expresion CASE, que
+# pregunta solo por el nulo SQL y no publica el valor enmascarado.
+.contar_no_nulos_sql_dbi <- function(columna_sql, senas = "") {
+  if (grepl("postgres|pqconnection", senas, useBytes = TRUE)) {
+    return(paste0("COUNT(", columna_sql, ")"))
+  }
   paste0("COUNT(CASE WHEN ", columna_sql, " IS NULL THEN NULL ELSE 1 END)")
 }
 
@@ -9710,22 +9934,46 @@
 # las tres formas operan sobre `(columna - centro)`. Como se resta lo decide el
 # tipo declarado de la columna: ver `.resta_centrada_dbi()`.
 .formas_desvio_dbi <- function(tabla_sql, columna_sql, alias, senas = "",
-                               centro = NULL, tipo = NA_character_) {
+                               centro = NULL, centro_sql = NULL,
+                               tipo = NA_character_) {
   resta <- .resta_centrada_dbi(tipo, senas)
+  pg_double <- grepl("postgres|pqconnection", senas, useBytes = TRUE) &&
+    length(tipo) == 1L && !is.na(tipo) &&
+    .minusculas_ascii(as.character(tipo)) %in% c(
+      "double", "float8", "double precision"
+    )
   if (is.numeric(centro)) {
     centro <- .literal_centro_desvio_dbi(
-      centro, flotante = resta$literal_flotante
+      centro, flotante = resta$literal_flotante,
+      digitos = if (pg_double) 17L else 15L
     )
   }
-  if (length(centro) == 1L && !is.na(centro) && nzchar(centro)) {
-    operando <- if (is.na(resta$conversion)) columna_sql else {
+  sqlserver <- grepl(
+    "sql server|microsoft sql|sqlserver|mssql", senas,
+    perl = TRUE, useBytes = TRUE
+  )
+  centro_sql <- if (length(centro_sql) == 1L && !is.na(centro_sql) &&
+                    nzchar(centro_sql)) as.character(centro_sql) else NULL
+  centro <- if (length(centro) == 1L && !is.na(centro) && nzchar(centro)) {
+    as.character(centro)
+  } else NULL
+  # SQL Server no admite una subconsulta agregada dentro de `STDEV`. Su forma
+  # nativa sobre FLOAT ya acumula en doble y evita tanto la escala de
+  # `decimal(38, s)` como la cancelacion de una sola pasada; no se le anida un
+  # `AVG` aunque la llamada traiga un centro.
+  centro_efectivo <- if (sqlserver) centro else centro_sql %||% centro
+  if (length(centro_efectivo) == 1L) {
+    operando <- if (pg_double) {
+      paste0("CAST(", columna_sql, " AS DOUBLE PRECISION)")
+    } else if (is.na(resta$conversion)) columna_sql else {
       paste0("CAST(", columna_sql, " AS ", resta$conversion, ")")
     }
-    columna_sql <- paste0("(", operando, " - ", centro, ")")
+    columna_sql <- paste0("(", operando, " - ", centro_efectivo, ")")
   }
-  media_sql <- paste0(
-    "(SELECT ", .media_sql_dbi(columna_sql, senas), " FROM ", tabla_sql, ")"
-  )
+  media_expr <- if (pg_double) {
+    paste0("AVG(CAST(", columna_sql, " AS DOUBLE PRECISION))")
+  } else .media_sql_dbi(columna_sql, senas)
+  media_sql <- paste0("(SELECT ", media_expr, " FROM ", tabla_sql, ")")
   # PostgreSQL calcula `STDDEV_SAMP` de un `numeric` -`int * 1.0`- con cuatro
   # decimales cuando la magnitud es grande: sobre 61 enteros de unos nueve
   # millones daba 8956265.3453 contra 8956265.3453457393, y la corroboracion
@@ -9740,12 +9988,12 @@
   list(
     paste0(desvio_muestral, " AS ", alias("desvio")),
     paste0(
-      "STDEV(", columna_sql, " * 1.0) AS ", alias("desvio")
+      "STDEV(CAST(", columna_sql, " AS FLOAT)) AS ", alias("desvio")
     ),
     paste0(
       "SQRT(SUM((", columna_sql, " - ", media_sql, ") * (",
       columna_sql, " - ", media_sql, ")) / (",
-      .contar_no_nulos_sql_dbi(columna_sql), " - 1.0)) AS ", alias("desvio")
+      .contar_no_nulos_sql_dbi(columna_sql, senas), " - 1.0)) AS ", alias("desvio")
     )
   )
 }
@@ -9754,10 +10002,37 @@
                                 forma, presupuesto = NULL, metadatos = NULL,
                                 centro = NULL, tipo = NA_character_) {
   centro <- suppressWarnings(as.numeric(centro))
+  senas <- .senas_conexion_dbi(conexion)
+  sqlserver <- grepl(
+    "sql server|microsoft sql|sqlserver|mssql", senas,
+    perl = TRUE, useBytes = TRUE
+  )
+  centro_valido <- length(centro) == 1L && is.finite(centro)
+  if (!centro_valido && sqlserver) {
+    sql_centro <- paste0(
+      "SELECT ", .media_sql_dbi(columna_sql, senas), " AS ", alias("centro"),
+      " FROM ", tabla_sql
+    )
+    media <- .escalar_dbi(
+      conexion, sql_centro, "centro", presupuesto, etapa = "media_desvio"
+    )
+    if (isTRUE(media$ok)) {
+      centro <- suppressWarnings(as.numeric(media$valor))
+      centro_valido <- length(centro) == 1L && is.finite(centro)
+    }
+  }
+  centro_sql <- if (!centro_valido && !sqlserver) {
+    paste0(
+      "(SELECT ", .media_sql_dbi(columna_sql, senas),
+      " FROM ", tabla_sql, ")"
+    )
+  } else {
+    NULL
+  }
   formas <- .formas_desvio_dbi(
-    tabla_sql, columna_sql, alias, .senas_conexion_dbi(conexion),
-    centro = if (length(centro) == 1L && is.finite(centro)) centro else NULL,
-    tipo = tipo
+    tabla_sql, columna_sql, alias, senas,
+    centro = if (centro_valido && is.null(centro_sql)) centro else NULL,
+    centro_sql = centro_sql, tipo = tipo
   )
   sql <- paste0("SELECT ", formas[[forma]], " FROM ", tabla_sql)
   resultado <- .escalar_dbi(
@@ -9781,7 +10056,7 @@
 # sin decirlo, el desvio de una pasada (refutacion 35-D, B1)-. Solo para
 # columnas de coma flotante: contra un `decimal`, un literal `float` convertiria
 # la columna a doble antes de restar. Ver `.resta_centrada_dbi()`.
-.literal_centro_desvio_dbi <- function(media, flotante = FALSE) {
+.literal_centro_desvio_dbi <- function(media, flotante = FALSE, digitos = 15L) {
   media <- suppressWarnings(as.numeric(media))
   if (length(media) != 1L || !is.finite(media)) return(NULL)
   if (isTRUE(flotante)) {
@@ -9792,7 +10067,7 @@
   # `trimws()`: con `"fg"`, `formatC()` rellena con espacios hasta el ancho de
   # las cifras pedidas.
   .marca_decimal_c(trimws(
-    formatC(media, format = "fg", digits = 15, decimal.mark = ".")
+    formatC(media, format = "fg", digits = digitos, decimal.mark = ".")
   ))
 }
 
@@ -10170,7 +10445,7 @@
     aliases <- alias_por_columna[[i]]
     c(
       if ("validos" %in% metricas) paste0(
-        .contar_no_nulos_sql_dbi(nombres_sql[[campo]]), " AS ", aliases$validos
+        .contar_no_nulos_sql_dbi(nombres_sql[[campo]], senas), " AS ", aliases$validos
       ),
       if ("basicos" %in% metricas && es_numerico[[i]]) c(
         if (incluir_valores) paste0(
@@ -10396,6 +10671,7 @@
     conexion, tabla_sql, lote, nombres_sql, alias, numero, presupuesto,
     aproximacion_distintos = NULL, incluir_total = FALSE,
     tabla_total_sql = tabla_sql) {
+  senas <- .senas_conexion_dbi(conexion)
   alias_por_columna <- vapply(seq_along(lote), function(i) {
     .alias_agregado_dbi(alias, numero, i, "n_distintos")
   }, character(1L), USE.NAMES = FALSE)
@@ -10459,7 +10735,7 @@
     if (is.null(aproximacion_distintos)) {
       return(c(
         paste0(
-          .contar_no_nulos_sql_dbi(nombres_sql[[lote[[i]]]]), " AS ",
+          .contar_no_nulos_sql_dbi(nombres_sql[[lote[[i]]]], senas), " AS ",
           guardian_por_columna[[i]]
         ),
         paste0(
@@ -10471,7 +10747,7 @@
     if (is.null(aproximacion_distintos$expresion)) return(NULL)
     c(
       paste0(
-        .contar_no_nulos_sql_dbi(nombres_sql[[lote[[i]]]]), " AS ",
+        .contar_no_nulos_sql_dbi(nombres_sql[[lote[[i]]]], senas), " AS ",
         guardian_por_columna[[i]]
       ),
       aproximacion_distintos$expresion(
@@ -10644,7 +10920,8 @@
                                         aproximacion_distintos = NULL,
                                         tabla_total_sql = tabla_sql,
                                         conteo_inicial = NULL,
-                                        columnas_distintos = NULL) {
+                                        columnas_distintos = NULL,
+                                        tipos_declarados = NULL) {
   alias <- function(nombre) {
     as.character(DBI::dbQuoteIdentifier(conexion, nombre))
   }
@@ -10672,6 +10949,24 @@
   }
 
   metricas_planas <- intersect(c("validos", "basicos", "desvio"), metricas)
+  if (grepl("sql server|microsoft sql|sqlserver|mssql", 
+            .senas_conexion_dbi(conexion), perl = TRUE, useBytes = TRUE)) {
+    # `STDEV` sobre una columna entera se cancela en una sola pasada. La
+    # consulta compartida no puede anidar el `AVG` que necesita el centro en
+    # otro agregado; el desvio de SQL Server va por la via por columna, que
+    # primero obtiene el centro y luego lo resta como literal FLOAT.
+    metricas_planas <- setdiff(metricas_planas, "desvio")
+  }
+  if (grepl("postgres|pqconnection", .senas_conexion_dbi(conexion),
+            useBytes = TRUE) && !is.null(tipos_declarados) &&
+      any(.minusculas_ascii(as.character(tipos_declarados)) %in%
+          c("double", "float8", "double precision"), na.rm = TRUE)) {
+    # La lectura convertida de float8 queda como NUMERIC en la relacion
+    # derivada para que R reciba todos los digitos. La forma por columna la
+    # vuelve a FLOAT8 antes de restar el centro, como lo hace R; una consulta
+    # consolidada sin el tipo no puede elegir esa conversion.
+    metricas_planas <- setdiff(metricas_planas, "desvio")
+  }
   incluir_total_muestra <- !identical(tabla_total_sql, tabla_sql)
   numericas <- columnas[es_numerico]
   columnas_planas <- if ("validos" %in% metricas_planas) {
@@ -12130,7 +12425,8 @@
     columnas_distintos = .columnas_distintos_ejecucion_dbi(
       metricas_ejecucion, estrategia_distintos, campos_consolidados,
       fuentes_cardinalidad_costo, politica_costo
-    )
+    ),
+    tipos_declarados = tipos_declarados
   )
   conteo <- agregados$conteo
   n_total <- agregados$n_total
@@ -12645,6 +12941,7 @@
     list(ok = TRUE, datos = prototipo, tipos = tipos, tipos_motor = tipos_motor,
          motivo = NA_character_)
   }, error = function(e) {
+    .repropagar_transaccion_dbi(e)
     list(ok = FALSE, datos = NULL, tipos = NULL, tipos_motor = NULL,
          motivo = .mensaje_motor(e),
          no_representable = inherits(e, "lupa_error_codificacion_dbi"))
@@ -12823,8 +13120,10 @@
   tipos <- .minusculas_ascii(trimws(as.character(tipos_motor)))
   money <- !is.na(tipos) & tipos == "money"
   real <- !is.na(tipos) & tipos == "float4"
-  if (!any(money | real)) return(salida)
+  doble <- !is.na(tipos) & tipos %in% c("float8", "double precision")
+  if (!any(money | real | doble)) return(salida)
   expresiones <- campos_sql
+  cambia <- money | real | doble
   expresiones[money] <- paste0("CAST(", campos_sql[money], " AS NUMERIC)")
   if (any(real)) {
     version <- .version_servidor_postgresql_dbi(conexion)
@@ -12833,13 +13132,64 @@
       version = version, USE.NAMES = FALSE
     )
   }
-  cambia <- money | real
+  if (any(doble)) {
+    expresiones[doble] <- vapply(
+      campos_sql[doble], .lectura_double_postgresql_dbi, character(1L),
+      USE.NAMES = FALSE
+    )
+  }
+  # Lo que se publica en `meta$lectura_convertida` es la expresion sola: la
+  # coleccion la usa dentro de `SELECT ... AS valor ... GROUP BY`, donde un
+  # alias propio rompe la consulta. El alias va solo en la lista de la
+  # proyeccion, porque el nombre de un `CASE` con `ELSE` calculado no es el de
+  # la columna.
+  lecturas <- expresiones
+  if (any(doble)) {
+    alias_dobles <- vapply(campos[doble], function(campo) {
+      tryCatch(
+        as.character(DBI::dbQuoteIdentifier(conexion, campo)),
+        error = function(e) paste0(
+          "\"", gsub("\"", "\"\"", as.character(campo), fixed = TRUE),
+          "\""
+        )
+      )
+    }, character(1L), USE.NAMES = FALSE)
+    expresiones[doble] <- paste0(
+      expresiones[doble], " AS ", alias_dobles
+    )
+  }
   salida$campos_sql <- expresiones
   salida$convertidas <- data.frame(
     columna = as.character(campos[cambia]), tipo_motor = tipos[cambia],
-    lectura = expresiones[cambia], stringsAsFactors = FALSE
+    lectura = lecturas[cambia], stringsAsFactors = FALSE
   )
   salida
+}
+
+# PostgreSQL antes de la 12, y cualquier sesion con `extra_float_digits <= 0`,
+# escribe un double con solo quince cifras significativas. RPostgres lee ese
+# texto, asi que dos float8 distintos pueden llegar como uno. El valor numeric
+# mas el residuo entre el y el double original reconstruye el valor sin tocar la
+# configuracion de la sesion. Los no finitos van como numeric que RPostgres lee
+# de vuelta como Inf, -Inf y NaN; PostgreSQL 9.3 no convierte
+# un infinito a numeric de forma directa.
+.lectura_double_postgresql_dbi <- function(columna_sql) {
+  binario <- paste0("CAST(", columna_sql, " AS DOUBLE PRECISION)")
+  base <- paste0("CAST(", binario, " AS NUMERIC)")
+  residuo <- paste0(
+    binario, " - CAST(", base, " AS DOUBLE PRECISION)"
+  )
+  reconstruida <- paste0(
+    "CAST(", base, " + CAST(", residuo, " AS NUMERIC) AS NUMERIC)"
+  )
+  paste0(
+    "CASE WHEN ", columna_sql, " = CAST('NaN' AS DOUBLE PRECISION) THEN ",
+    "CAST('NaN' AS NUMERIC) WHEN ", columna_sql,
+    " = CAST('Infinity' AS DOUBLE PRECISION) THEN CAST('1e100000' AS NUMERIC)",
+    " WHEN ", columna_sql,
+    " = CAST('-Infinity' AS DOUBLE PRECISION) THEN CAST('-1e100000' AS NUMERIC)",
+    " ELSE ", reconstruida, " END"
+  )
 }
 
 # La version del servidor que publica libpq -`90325`, `160015`-, sin consultar
@@ -15330,6 +15680,44 @@ print.plan_perfilado_dbi <- function(x, ...) {
   list(datos = datos, cobertura = cobertura)
 }
 
+.tipo_real_dbi <- function(tipo) {
+  if (length(tipo) != 1L || is.na(tipo)) return(FALSE)
+  limpio <- gsub("[[:space:]]+", "", .minusculas_ascii(as.character(tipo)))
+  limpio %in% c("7", "real", "float4") || identical(limpio, "float(24)")
+}
+
+.real_dbi_a_doble <- function(valor) {
+  if (length(valor) != 1L || is.na(valor) || !is.finite(valor)) {
+    return(as.numeric(valor))
+  }
+  bytes <- writeBin(as.numeric(valor), raw(), size = 4L)
+  readBin(bytes, what = "numeric", n = 1L, size = 4L)
+}
+
+# odbc devuelve el REAL de SQL Server con su valor binario de float32. Un
+# centinela fraccionario declarado es un double en R, y la igualdad exacta no lo
+# encuentra. Se alinean solo los valores iguales a la representacion float32 de
+# un centinela declarado; los demas `real` quedan como los entrego el driver.
+.ajustar_sentinelas_real_dbi <- function(datos, campos, tipos, sentinelas) {
+  if (!is.data.frame(datos) || !length(campos) || !length(sentinelas) ||
+      is.null(tipos)) return(datos)
+  declarados <- suppressWarnings(as.numeric(sentinelas))
+  declarados <- declarados[is.finite(declarados)]
+  if (!length(declarados)) return(datos)
+  for (i in seq_along(campos)) {
+    if (i > length(tipos) || !.tipo_real_dbi(tipos[[i]])) next
+    posicion <- match(campos[[i]], names(datos))
+    if (is.na(posicion) || !is.numeric(datos[[posicion]])) next
+    for (declarado in declarados) {
+      representado <- .real_dbi_a_doble(declarado)
+      iguales <- !is.na(datos[[posicion]]) &
+        datos[[posicion]] == representado
+      datos[[posicion]][iguales] <- declarado
+    }
+  }
+  datos
+}
+
 .bloque_muestra_dbi <- function(conexion, tabla, tabla_sql, campos, campos_sql,
                                 muestra, muestra_motor, orden_muestra, orden_sql, dialecto,
                                 n_total, presupuesto, info_conexion,
@@ -15431,6 +15819,15 @@ print.plan_perfilado_dbi <- function(x, ...) {
   # columnas, y lo que se declara sale de lo que se emitio.
   armar_muestra_dbi <- function(indices, filas_solicitadas = n_obtener) {
     sub_sql <- campos_sql_muestra[indices]
+    orden_indices <- if (length(orden_muestra)) {
+      .resolver_columnas_dbi(orden_muestra, campos)
+    } else integer()
+    orden_para <- if (length(orden_sql) && length(orden_indices) &&
+                       all(orden_indices %in% indices)) {
+      orden_sql
+    } else {
+      character()
+    }
     origen <- if (usa_muestreo) {
       .fuente_muestreada_dbi(
         tabla_sql, sub_sql, muestra_motor, n_total, dialecto,
@@ -15444,14 +15841,23 @@ print.plan_perfilado_dbi <- function(x, ...) {
     } else {
       paste0(
         "SELECT ", paste(sub_sql, collapse = ", "), " FROM ", tabla_sql,
-        if (length(orden_sql)) {
-          paste0(" ORDER BY ", paste(orden_sql, collapse = ", "))
+        if (length(orden_para)) {
+          paste0(" ORDER BY ", paste(orden_para, collapse = ", "))
         } else ""
       )
     }
+    # `origen$sql` ya contiene el limite del muestreo del motor. Aplicarle
+    # otro limite directamente arma `... LIMIT ... LIMIT ...` en PostgreSQL o
+    # duplica `TOP` en SQL Server. Si el perfil local pide menos filas, el
+    # recorte vive afuera de una tabla derivada: conserva las mismas filas que
+    # fallo la lectura original y cada dialecto limita una sentencia propia.
     recorte <- if (!is.null(origen) &&
                    filas_solicitadas < origen$filas_solicitadas) {
-      dialecto$limitar(base, filas_solicitadas, 0)
+      envoltura <- paste0(
+        "SELECT * FROM (", base, ")",
+        dialecto$alias_tabla("lupa_muestra_recorte")
+      )
+      dialecto$limitar(envoltura, filas_solicitadas, 0)
     } else if (!is.null(origen)) {
       NULL
     } else if (!total_conocido || filas_solicitadas < total_numero) {
@@ -15480,10 +15886,18 @@ print.plan_perfilado_dbi <- function(x, ...) {
       },
       metodo = if (!is.null(origen)) {
         origen$metodo
-      } else if (length(orden_sql)) {
+      } else if (length(orden_para)) {
         "primeras_filas_segun_orden"
       } else {
         "primeras_filas_sin_orden_garantizado"
+      },
+      orden_muestra_aplicado = length(orden_para) > 0L,
+      motivo_orden_muestra = if (length(orden_muestra) && !length(orden_para)) {
+        "No se aplico `orden_muestra` en este subconjunto: falta una columna del orden. La muestra recuperada no es estable."
+      } else if (length(orden_para)) {
+        "Se aplico `orden_muestra`."
+      } else {
+        "No se solicito `orden_muestra`."
       }
     )
   }
@@ -15590,6 +16004,8 @@ print.plan_perfilado_dbi <- function(x, ...) {
     dialecto = dialecto$nombre,
     columnas_leidas = campos,
     orden_muestra = orden_muestra,
+    orden_muestra_aplicado = isTRUE(armado$orden_muestra_aplicado),
+    motivo_orden_muestra = armado$motivo_orden_muestra,
     orden_unico_verificado = isTRUE(verificacion$unico),
     reproducible = isTRUE(verificacion$unico),
     motivo_reproducibilidad = verificacion$motivo,
@@ -15717,6 +16133,10 @@ print.plan_perfilado_dbi <- function(x, ...) {
       muestreo_meta$sql_muestra <- sql_muestra
       muestreo_meta$acotado_en <- recuperado$armado$acotado_en
       muestreo_meta$metodo <- recuperado$armado$metodo
+      muestreo_meta$orden_muestra_aplicado <- isTRUE(
+        recuperado$armado$orden_muestra_aplicado
+      )
+      muestreo_meta$motivo_orden_muestra <- recuperado$armado$motivo_orden_muestra
       if (!is.null(recuperado$armado$fuente)) {
         muestreo_meta$fraccion <- recuperado$armado$fuente$fraccion
         muestreo_meta$tamano_muestra <- recuperado$armado$fuente$filas_solicitadas
@@ -15779,7 +16199,10 @@ print.plan_perfilado_dbi <- function(x, ...) {
     ))
     return(list(perfil = NULL, cobertura = cobertura, muestreo = muestreo_meta))
   }
-  datos_muestra <- consulta$datos
+  datos_muestra <- .ajustar_sentinelas_real_dbi(
+    consulta$datos, campos, tipos_declarados,
+    argumentos[["sentinelas_numericos"]]
+  )
   conversion_muestra <- .convertir_enteros_ancho_muestra_dbi(
     datos_muestra, columnas_castadas
   )
@@ -16797,6 +17220,11 @@ print.plan_perfilado_dbi <- function(x, ...) {
 #' fallo que está en una fila que no es la primera, como el `CAST` de un texto
 #' sucio en una vista, también se encuentra—; la muestra sale con las demás y
 #' una fila `alcance_distinto` nombra la culpable.
+#' Si una vista falla en una fila durante `universo = "muestra_motor"` o
+#' `bloque_filas`, la vía intenta el mismo resumen SQL sobre la tabla completa:
+#' así conserva las métricas de las columnas sanas y declara la muestra o el
+#' recorrido de bloques como `no_disponible`, en vez de convertir todas las
+#' columnas en `NA`.
 #' El nombre de la tabla se normaliza antes de la primera llamada a la conexión,
 #' también la que comprueba que existe: un nombre marcado `latin1` —el que da
 #' `read.csv(encoding = "latin1")`— se convierte a UTF-8 y se lee, y uno con
@@ -16825,13 +17253,14 @@ print.plan_perfilado_dbi <- function(x, ...) {
 #' `lupa_error_dbi`— para que se puedan rescatar con `tryCatch()`:
 #' `lupa_error_conexion_dbi`, `lupa_error_tabla_dbi`, `lupa_error_campos_dbi`,
 #' `lupa_error_conteo_dbi`, `lupa_error_esquema_dbi`,
-#' `lupa_error_codificacion_dbi` y `lupa_error_argumento_dbi`.
+#' `lupa_error_codificacion_dbi`, `lupa_error_argumento_dbi` y
+#' `lupa_error_transaccion_dbi`.
 #'
 #' @section Dentro de una transacción:
 #' La vía se puede correr dentro de una transacción abierta por el usuario —es
-#' lo que recomienda el motivo de `consistencia` para una lectura consistente—,
-#' y la transacción sigue como estaba. En PostgreSQL un error cualquiera aborta
-#' la transacción, y la vía manda consultas que pueden fallar a propósito —las
+#' lo que recomienda el motivo de `consistencia` para una lectura consistente—.
+#' En PostgreSQL un error cualquiera aborta la transacción, y la vía manda
+#' consultas que pueden fallar a propósito —las
 #' sondas de dialecto— o por el dato —una métrica que el motor no calcula sobre
 #' un tipo, una vista rota—: con una transacción abierta, cada sentencia de la
 #' vía va entre un `SAVEPOINT` propio y su `RELEASE`, y si falla se vuelve con
@@ -16840,8 +17269,13 @@ print.plan_perfilado_dbi <- function(x, ...) {
 #' a mano. El paquete nunca manda `BEGIN`, `COMMIT` ni `ROLLBACK`; fuera de una
 #' transacción no agrega ninguna sentencia de ese tipo. Lo mismo vale para
 #' [plan_perfilado_dbi()], [perfilar_coleccion()] y [relaciones_coleccion()].
-#' SQL Server, MySQL, MariaDB y SQLite no abortan la transacción por el error de
-#' una consulta. duckdb sí la aborta por un error al ejecutar —no por uno al
+#' SQL Server puede deshacer la transacción completa ante un error de ejecución,
+#' incluso con `XACT_ABORT` apagado: antes y después de cada envío y lectura la
+#' vía mide `@@TRANCOUNT` y `XACT_STATE()`. Si cambian, levanta
+#' `lupa_error_transaccion_dbi` y no continúa leyendo en autocommit como si la
+#' instantánea siguiera viva. `SAVE TRANSACTION` no evita los errores del motor
+#' que deshacen la transacción completa. MySQL, MariaDB y SQLite no abortan la
+#' transacción por el error de una consulta. duckdb sí la aborta por un error al
 #' preparar, como el de una sonda de dialecto— y no tiene `SAVEPOINT`: dentro
 #' de una transacción de duckdb, un objeto que falla al leerse —una vista que
 #' convierte un texto sucio— la deja abortada, y hay que cerrarla con
@@ -16961,6 +17395,20 @@ print.plan_perfilado_dbi <- function(x, ...) {
 #' consulta completa, se emite por separado. Una consulta no emitida o sin un
 #' valor utilizable queda `no_disponible`.
 #'
+#' @section Motores medidos:
+#' El camino principal —el que se mide en cada versión contra motores reales— es
+#' PostgreSQL por RPostgres, medido en la 9.3 y en la 16, y SQL Server 2022 por
+#' odbc con el controlador FreeTDS, en sesiones UTF-8 y bajo el locale `C` de un
+#' `Rscript` de cron. SQLite (RSQLite) y duckdb se ejercitan en las pruebas del
+#' paquete; MySQL y MariaDB (RMariaDB) se midieron en rondas puntuales. Con otro
+#' motor, otro controlador u otra versión la función corre por la vía portable
+#' (ver «Dialecto») y declara en la cobertura lo que no pudo medir, pero sus
+#' cifras no están comprobadas contra ese motor. Las configuraciones avanzadas
+#' —una transacción abierta por el usuario, permisos por columna,
+#' enmascaramiento dinámico, `universo = "muestra_motor"`, `bloque_filas`—
+#' tienen sus limitaciones conocidas en «Fallo parcial» y «Dentro de una
+#' transacción».
+#'
 #' @section Dialecto:
 #' Acotar filas no es SQL estándar. En vez de suponer `LIMIT`, la función
 #' sondea el motor con una consulta de cero filas y elige la primera capacidad
@@ -17034,6 +17482,13 @@ print.plan_perfilado_dbi <- function(x, ...) {
 #'   `resumen_tabla$meta$lectura_convertida`. Se reconocen por el tipo que
 #'   publica `DBI::dbColumnInfo()` de RPostgres; con otro controlador no se
 #'   convierte nada.
+#'   Para `double precision`, la lectura no depende de esa escritura corta:
+#'   se suma al `NUMERIC` de quince cifras el residuo entre ese valor y el
+#'   doble guardado. Asi se conservan los dobles distintos y casos como
+#'   `0.1 * 3` frente a `0.3`, sin cambiar `extra_float_digits` ni dejar el
+#'   estado de la sesion modificado. `NaN` e infinitos se representan por sus
+#'   equivalentes numericos y la expresion se usa tambien dentro de las
+#'   relaciones derivadas de los agregados.
 #' * **La media en coma flotante.** Cada lado suma a su modo; sobre una columna
 #'   que mezcla magnitudes muy distintas —`1e20` junto a `1`— las medias pueden
 #'   diferir entre motores y con la de R, y ninguna es la exacta. La
@@ -17122,10 +17577,12 @@ print.plan_perfilado_dbi <- function(x, ...) {
 #'   `mediana`, la moda—, y `1e-10` relativa para `media` y `desvio`, que cada
 #'   lado acumula con su algoritmo y en su orden. Medido en SQL Server, la
 #'   diferencia de la acumulación llega a 2e-13; una divergencia real es de otro
-#'   orden y sigue saliendo. Limitación conocida: la tolerancia absoluta cubre
-#'   cualquier diferencia en una columna cuyos valores son menores que `1e-10`
-#'   en valor absoluto —p-valores, concentraciones en unidades del sistema
-#'   internacional—, así que ahí la corroboración no distingue dos lecturas.
+#'   orden y sigue saliendo. Limitación conocida: la tolerancia absoluta se
+#'   suma siempre, tambien a `desvio`; por eso puede ocultar diferencias en
+#'   columnas cuyos valores no son pequeños pero cuyo desvio es menor que
+#'   `1e-4`. En valores menores que `1e-10` —p-valores, concentraciones en
+#'   unidades del sistema internacional— la corroboración tampoco distingue
+#'   dos lecturas.
 #'
 #' @section Costo:
 #' Los agregados de una tabla ancha se emiten por lotes; `muestra` acota lo que
@@ -17140,10 +17597,10 @@ print.plan_perfilado_dbi <- function(x, ...) {
 #' por lote y cada consulta que trae `n_validos` lleva además
 #' `COUNT(*) AS n_total_consulta` en la misma sentencia. La completitud usa ese
 #' denominador local, no el total de otro lote. Los no nulos se cuentan en
-#' todos los motores con `COUNT(CASE WHEN col IS NULL THEN NULL ELSE 1 END)` y no
-#' con `COUNT(col)`: SQL Server rechaza `COUNT()` sobre `text`, `ntext` e
-#' `image`, y con enmascaramiento dinámico devuelve `COUNT(col)` enmascarado
-#' —0—; la pregunta por el nulo la contesta sobre cualquier tipo y sin máscara.
+#' PostgreSQL con `COUNT(col)`, para no contar como faltante un tipo compuesto
+#' cuyos campos sean todos nulos. En SQL Server y en los motores que
+#' rechazan `COUNT()` sobre `text`, `ntext` e `image` se usa una expresión CASE;
+#' la pregunta por el nulo se contesta sin publicar el valor enmascarado.
 #' La fusión conserva la medición, no una identidad bit a bit entre
 #' agrupamientos: la media y el desvío pueden diferir en el último bit según
 #' cómo se agrupen las sumas, porque la suma en punto flotante no es asociativa.
@@ -17664,7 +18121,9 @@ print.plan_perfilado_dbi <- function(x, ...) {
 #'   duplicados no cambian el resultado. El resumen SQL no los excluye de sus
 #'   agregados y lo declara en `resumen_tabla$cobertura`; la corroboración no
 #'   compara las métricas de magnitud de una columna de la que la muestra
-#'   excluyó alguno.
+#'   excluyó alguno. En una columna `real`, una representacion float32 del
+#'   centinela fraccionario se alinea antes de perfilar la muestra; la
+#'   corroboración reconoce esa representacion como el mismo centinela.
 #'
 #'   Rige la misma reserva que en [perfilar()]: un valor de la lista **por
 #'   omisión** que aparece una sola vez y dentro del rango de los demás no se
@@ -18097,6 +18556,83 @@ perfilar_dbi <- function(conexion, tabla,
     )
   }
 
+  campos_consolidados <- preparacion$campos
+  campos_sql_consolidados <- preparacion$esquema$campos_sql
+  es_numerico_consolidados <- preparacion$es_numerico
+  motivos_resumen <- preparacion$esquema$motivos
+  cobertura_aislamiento_muestra <- .cobertura_dbi_vacia()
+  if (identical(preparacion$universo, "muestra_motor") &&
+      identical(preparacion$bloque_muestra, "solo_agregados") &&
+      !is.null(fuente_muestreada)) {
+    sondear_muestra <- function(indices) {
+      fuente <- .fuente_muestreada_dbi(
+        preparacion$tabla_sql, preparacion$campos_sql[indices],
+        preparacion$muestra_motor, preparacion$n_total, preparacion$dialecto,
+        preparacion$muestreo
+      )
+      if (is.null(fuente)) return(FALSE)
+      consulta <- .consultar_dbi(
+        conexion, fuente$sql, preparacion$presupuesto, filas = fuente$filas,
+        etapa = "sonda_lectura_muestra"
+      )
+      isTRUE(consulta$ok)
+    }
+    consulta_muestra <- .consultar_dbi(
+      conexion, fuente_muestreada$sql, preparacion$presupuesto,
+      filas = fuente_muestreada$filas, etapa = "lectura_muestra"
+    )
+    if (!isTRUE(consulta_muestra$ok) && length(preparacion$campos) > 1L) {
+      hay_saldo_muestra <- function() {
+        is.null(preparacion$presupuesto) ||
+          .saldo_dbi(preparacion$presupuesto) >= 1
+      }
+      saldo_muestra <- if (is.null(preparacion$presupuesto)) Inf else
+        .saldo_dbi(preparacion$presupuesto)
+      tope_muestra <- min(
+        2L * length(preparacion$campos), .TOPE_SONDAS_DESCARTE_DBI,
+        max(0, floor(saldo_muestra / 2))
+      )
+      aislamiento_muestra <- .aislar_ilegibles_dbi(
+        sondear_muestra, hay_saldo_muestra, length(preparacion$campos),
+        tope_muestra
+      )
+      culpables_muestra <- aislamiento_muestra$culpables
+      if (length(culpables_muestra) &&
+          length(culpables_muestra) < length(preparacion$campos)) {
+        quedan_muestra <- setdiff(seq_along(preparacion$campos), culpables_muestra)
+        fuente_legible <- .fuente_muestreada_dbi(
+          preparacion$tabla_sql, preparacion$campos_sql[quedan_muestra],
+          preparacion$muestra_motor, preparacion$n_total, preparacion$dialecto,
+          preparacion$muestreo
+        )
+        if (!is.null(fuente_legible)) {
+          campos_consolidados <- preparacion$campos[quedan_muestra]
+          campos_sql_consolidados <- preparacion$campos_sql[quedan_muestra]
+          es_numerico_consolidados <- preparacion$es_numerico[quedan_muestra]
+          motivos_aislados <- paste(
+            "La lectura de la muestra fallo; la columna se aislo por descarte",
+            "sobre las mismas filas y se dejo fuera de los agregados."
+          )
+          motivos_resumen[preparacion$campos[culpables_muestra]] <-
+            motivos_aislados
+          tabla_metricas_sql <- paste0(
+            "(", fuente_legible$sql, ")",
+            preparacion$dialecto$alias_tabla("lupa_muestra_legible")
+          )
+          cobertura_aislamiento_muestra <- .registro_cobertura_dbi(
+            "resumen_tabla", paste(preparacion$campos[culpables_muestra], collapse = ", "),
+            "alcance_distinto",
+            paste(
+              motivos_aislados, "La muestra queda disponible para las demas",
+              "columnas; `n` sigue describiendo el universo declarado."
+            ),
+            "Corregir la vista para incluir la columna; mientras tanto, sus metricas quedan no disponibles."
+          )
+        }
+      }
+    }
+  }
+
   campos_todos <- unique(c(preparacion$campos, preparacion$esquema$ilegibles))
   trazador <- .trazador_tiempos_dbi(preparacion$instrumentar)
   consultas_antes_resumen <- presupuesto$usadas
@@ -18107,7 +18643,7 @@ perfilar_dbi <- function(conexion, tabla,
     metricas = preparacion$metricas, presupuesto = presupuesto,
     metricas_ejecucion = preparacion$metricas_ejecucion,
     incluir_valores = incluir_valores, tipos_declarados = preparacion$tipos,
-    motivos_ilegibles = preparacion$esquema$motivos,
+    motivos_ilegibles = motivos_resumen,
      universo = preparacion$universo,
      estrategia_mediana = preparacion$estrategia_mediana,
      tabla_metricas_sql = tabla_metricas_sql,
@@ -18116,9 +18652,9 @@ perfilar_dbi <- function(conexion, tabla,
        fuente_muestreada$filas_solicitadas,
      fraccion_muestra = if (is.null(fuente_muestreada)) NA_real_ else
        fuente_muestreada$fraccion,
-     campos_consolidados = preparacion$campos,
-     campos_sql_consolidados = preparacion$esquema$campos_sql,
-     es_numerico_consolidados = preparacion$es_numerico,
+    campos_consolidados = campos_consolidados,
+    campos_sql_consolidados = campos_sql_consolidados,
+    es_numerico_consolidados = es_numerico_consolidados,
     tamano_lote_planos = preparacion$tamano_lote_planos,
     tamano_lote_distintos = preparacion$tamano_lote_distintos,
     conteo = preparacion$conteo,
@@ -18131,6 +18667,12 @@ perfilar_dbi <- function(conexion, tabla,
     estrategia_distintos = preparacion$estrategia_distintos,
     politica_costo = preparacion$politica_costo
   )
+  if (nrow(cobertura_aislamiento_muestra)) {
+    resumen$cobertura <- rbind(
+      resumen$cobertura, cobertura_aislamiento_muestra
+    )
+    rownames(resumen$cobertura) <- NULL
+  }
   derrame <- .publicar_derrame_dbi(presupuesto)
   resumen$sql <- .adjuntar_derrame_sql_dbi(
     resumen$sql, presupuesto$derrame
@@ -18307,6 +18849,9 @@ perfilar_dbi <- function(conexion, tabla,
       resumen$columnas, resumen$sql
     )
   )
+  if (nrow(cobertura_aislamiento_muestra)) {
+    cobertura <- rbind(cobertura, cobertura_aislamiento_muestra)
+  }
   if (identical(preparacion$universo, "muestra_motor")) {
     if (!is.null(muestreo_publico) &&
         length(resumen$meta$filas_obtenidas_muestra) == 1L &&

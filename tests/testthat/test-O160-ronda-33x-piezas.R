@@ -518,10 +518,12 @@ test_that("Guarda segfault: toda consulta de la via sale por los dos envios que 
     objeto <- get(nombre, envir = ns)
     if (is.function(objeto) && !is.primitive(objeto)) recorrer(body(objeto), nombre)
   }
-  # `.orden_transaccion_dbi()` manda solo las sentencias fijas, en ASCII, del
-  # punto de guardado (ronda 35-X2): no lleva texto que la guarda deba mirar.
+  # `.orden_transaccion_dbi()` y `.estado_transaccion_sqlserver_dbi()` mandan
+  # solo sentencias fijas, en ASCII, del punto de guardado y de la vigilancia
+  # de SQL Server: no llevan texto que la guarda de codificacion deba mirar.
   expect_identical(sort(unique(sitios)),
-                   c(".enviar_consulta_dbi", ".orden_transaccion_dbi",
+                   c(".enviar_consulta_dbi", ".estado_transaccion_sqlserver_dbi",
+                     ".orden_transaccion_dbi",
                      ".traer_consulta_dbi"))
 })
 

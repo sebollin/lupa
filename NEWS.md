@@ -1,5 +1,117 @@
 # lupa 0.1.0
 
+## Ronda 36: la via DBI, las mediciones y la proteccion, refutadas sobre la ronda 35
+
+La segunda ronda con el porton acotado al camino principal (`perfilar()` en memoria; `perfilar_dbi()` y las
+colecciones sobre PostgreSQL y SQL Server; sesiones UTF-8 y la `C` de un cron). Tres refutaciones sobre la ronda
+35. La de la via DBI encontro dos altos -en SQL Server, una vista que fallaba dentro de una transaccion del
+usuario la deshacia sin aviso y la lectura seguia en autocommit; y, regresion de la ronda 35, las columnas con
+punto en el nombre se declaraban sin permiso- y cuatro medios; la de las mediciones, seis medios; la de la
+proteccion, cuatro altos -dos fugas de la coleccion y dos familias de formas comunes sin reconocer- y un medio
+por tapar de mas. Al unir los tres arreglos aparecio un defecto que ninguno tenia solo: la lectura nueva de los
+`float8` y la proteccion nueva de la coleccion armaban juntas una consulta invalida; tambien se arreglo. Desde
+esta ronda, la severidad de la proteccion sigue una regla escrita: es alto solo publicar lo que el paquete ya
+clasifico como personal o no reconocer una forma comun de los datos reales; las formas raras son bajas y quedan
+documentadas, y tapar de mas una categoria comun es medio.
+
+**La via DBI:**
+
+- SQL Server: la via DBI mide `@@TRANCOUNT` y `XACT_STATE()` alrededor de cada lectura; si un error destruye la transaccion del usuario, levanta una condicion propia y no continua en autocommit.
+- SQL Server: los nombres de columnas usados por `HAS_PERMS_BY_NAME()` y `UNMASK` se citan con `QUOTENAME()`.
+- SQL Server: las columnas publicadas para una tabla homonima salen del mismo catalogo que gobierna el objeto leido.
+- Vistas: `muestra_motor`, el spool y `bloque_filas` aislan la columna culpable de una fila invalida; las columnas sanas conservan su diagnostico y el alcance omitido queda en cobertura.
+- Muestras DBI: el reintento del spool recorta la fuente muestreada desde una tabla derivada, sin duplicar `LIMIT` ni `TOP` y conservando el alcance pedido para el perfil local.
+- PostgreSQL: los tipos compuestos con todos sus campos nulos ya no se cuentan como faltantes.
+- Muestras: si `orden_muestra` queda fuera al aislar una columna, la metadata declara que no se aplico y que la muestra no es estable.
+- Colecciones: candidatas completamente enmascaradas quedan registradas en `cobertura_podas`.
+- ODBC: bajo una sesion no UTF-8, la conversion de texto no Unicode se decide por columna y por el tipo entregado por el controlador, no por la validez accidental de cada valor.
+- Colecciones: una clave de `orden` que no nombra una tabla declarada ahora es un error explicito.
+
+**Las mediciones:**
+
+- `perfilar_dbi()` conserva los dobles `float8` de PostgreSQL cuando la sesion escribe pocas cifras y centra el desvio con la misma aritmetica que recibe R.
+- SQL Server calcula el desvio decimal en `FLOAT` y no depende de haber pedido `basicos`; la via por columna obtiene el centro cuando hace falta.
+- Los centinelas fraccionarios declarados sobre `real` se reconocen aunque el controlador entregue el valor float32; la corroboracion considera equivalente esa representacion.
+- `comparar_perfiles()` declara como `no_evaluado` un diagnostico recortado por un tope y compara pares de columnas por su contenido, no por su posicion.
+- Las muestras truncadas declinan los hallazgos que no pudieron evaluarse, en vez de publicarlos como resueltos.
+- Limitacion conocida: la tolerancia absoluta de la corroboracion tambien se suma al desvio, por lo que puede ocultar diferencias pequenas frente a un desvio menor que `1e-4`.
+
+**La proteccion:**
+
+- **En una coleccion, la copia sin verificador escrita como texto de cifras en
+  OTRA tabla se protege.** Con `conservar_perfiles = TRUE`, una columna de
+  tramites con la cedula de `personas` escrita `"4.685.467,00"`, `"4 685 467.0"`,
+  `"4.685467e6"` o con `"S/D"` entre sus valores no era candidata a copia: la
+  coleccion solo probaba las columnas que publicaban un extremo numerico de siete
+  cifras o las que la muestra clasificaba como documento, y esas se infieren texto
+  o identificador. El perfil conservado publicaba su moda, sus ejemplos y la
+  evidencia de sus hallazgos (22 apariciones de 10 cedulas en PostgreSQL 16 y SQL
+  Server 2022), mientras `perfilar()` sobre las dos tablas juntas la protegia.
+  Ahora tambien es candidata toda columna que no es de numeros ni de fechas cuyo
+  patron en la muestra son cifras con separadores o con exponente; se prueba con
+  la misma regla, asi que una de mas solo cuesta su consulta. Medido: 0
+  apariciones en los dos motores.
+- **La coleccion lee las candidatas a copia convertidas, como `perfilar_dbi()`.**
+  La copia en una columna `money` de PostgreSQL -o `real` con
+  `extra_float_digits = 0`- se leia cruda: en ceros, o redondeada a seis cifras,
+  y la prueba no la reconocia, mientras el perfil, que la leyo convertida,
+  publicaba su minimo, su maximo, su mediana y su media. Las dos lecturas de
+  valores de la coleccion -las columnas protegidas y las candidatas- usan ahora
+  una sola expresion (`.expresion_lectura_coleccion()`). Medido en PostgreSQL 16:
+  `money` y `real` protegidas, extremos `NA`.
+- **Las formas comunes de los datos de la region se reconocen en una columna
+  calificada.** Telefonos con puntos de a dos cifras (`"099.12.34.56"`), con el
+  `.0` de una planilla (`"59899123456.0"`), con `00598` o `598` pegado, con el
+  espacio duro o la raya de Unicode entre los grupos; domicilios con `Br.`,
+  `Cno.`, `Rbla.`, `Pje.`, `Gral.`, `Dpto.`, `Mza.`; nombres con una inicial
+  (`"Juan A. Perez"`) o un `O'`, con espacio duro, o con acentos en `latin1` sin
+  marca -un CSV de Windows leido bajo `C`-; y fechas de nacimiento o de
+  defuncion en una columna calificada como categoria (`nacimiento_estado`). Todas
+  se publicaban; ahora se protegen, por `perfilar()` y por `medir()`, tambien
+  bajo `C`.
+- **Lo que la ronda 35 tapaba de mas se publica.** Importes con separadores de
+  miles o redondos (`importe_cliente` con `"1.250.000"`, `importe_telefono` con
+  `1250000`), codigos con un ano (`cliente_id` con `"2024-00001"`), medios
+  (`medio_pago_cliente`: la palabra de persona ahora tambien la califica `medio`),
+  lugares de nacimiento (`pais_nacimiento`, y el `"Uruguay"` que tapaba en
+  `pais_destino`), estados de una baja (`usuario_baja` con `"Sin baja"`,
+  `"Baja definitiva"`), categorias con una palabra que tambien es un nombre de
+  pila (`"Primer Pilar"`, `"Convenio Marco"`, `"Turno Domingo"`, `"Plan Max"`:
+  `pilar`, `marco`, `norma`, `franco`, `domingo`, `julio`, `blanca`, `celeste`,
+  `rosa` y `max` salieron de la lista) o una marca de calle (`"Radio 5 km"`,
+  `"En ruta"`) y los metros de una calle (`calle_metros`: una columna de numeros
+  es un domicilio solo con una palabra de clave, `barrio_id`). Medido celda por
+  celda contra `proteger_datos_personales = FALSE`: las mismas modas y extremos.
+- **Limitaciones conocidas (bajas), declaradas en la ayuda.** Las escrituras raras
+  de un numero -coma decimal con exponente, `"4.685.467,00e0"`- no se leen como
+  copia; un nombre de pila que es tambien una palabra corriente (`Max`, `Pilar`)
+  no cuenta como senal, y en una columna de tres personas basta una con ese
+  nombre para que no llegue al 80 % (`"Nunez Bruno"`, `"Diaz Sol"`,
+  `"Acosta Max"`); y cuando la coleccion vuelve a perfilar una tabla por una
+  copia, `resumen_coleccion`, `cobertura_coleccion`, `cobertura_metricas` y
+  `meta$lecturas` quedan con el primer perfil (sus estados dicen `calculado`
+  donde el perfil dice que se ocultaron; no publican valores).
+
+**Lo que aparecio al unir:**
+
+- **Una coleccion con una columna `float8` de PostgreSQL verifica su proteccion.**
+  La lectura de los `float8` se proyecta con un alias propio, y la proteccion de
+  la coleccion usaba la lectura publicada en `meta$lectura_convertida` dentro de
+  `SELECT ... AS valor ... GROUP BY`. Con el alias adentro la consulta no se podia
+  preparar: con una cedula guardada como `double precision`, la coleccion
+  declaraba la proteccion sin verificar y, del lado seguro, tapaba columnas que no
+  son personales (el minimo y el maximo de un importe). Ahora la lectura publicada
+  es la expresion sola, como la de `money` y `real`, y el alias va solo en la
+  proyeccion. Medido en PostgreSQL 16: la copia sigue tapada y el importe publica.
+
+**La ayuda:**
+
+- `?perfilar_dbi` declara en "Motores medidos" que motores, versiones y
+  controladores son el camino que se mide en cada version, y que con otro motor
+  la funcion corre por la via portable sin cifras comprobadas contra el.
+- La referencia del RFC 5322 en `?validadores_formato` apunta a la direccion
+  vigente del editor de RFC.
+
 ## Ronda 35: la via DBI otra vez, las mediciones, la proteccion y la comparacion de perfiles
 
 La primera ronda con el porton acotado al camino principal (`perfilar()` en memoria; `perfilar_dbi()` y las

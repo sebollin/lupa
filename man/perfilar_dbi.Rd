@@ -294,7 +294,9 @@ conjunto numérico, por lo que el orden, el tipo entero o doble y los
 duplicados no cambian el resultado. El resumen SQL no los excluye de sus
 agregados y lo declara en \code{resumen_tabla$cobertura}; la corroboración no
 compara las métricas de magnitud de una columna de la que la muestra
-excluyó alguno.
+excluyó alguno. En una columna \code{real}, una representacion float32 del
+centinela fraccionario se alinea antes de perfilar la muestra; la
+corroboración reconoce esa representacion como el mismo centinela.
 
 Rige la misma reserva que en \code{\link[=perfilar]{perfilar()}}: un valor de la lista \strong{por
 omisión} que aparece una sola vez y dentro del rango de los demás no se
@@ -461,6 +463,11 @@ por descarte leyendo las MISMAS filas que la muestra con menos columnas —un
 fallo que está en una fila que no es la primera, como el \code{CAST} de un texto
 sucio en una vista, también se encuentra—; la muestra sale con las demás y
 una fila \code{alcance_distinto} nombra la culpable.
+Si una vista falla en una fila durante \code{universo = "muestra_motor"} o
+\code{bloque_filas}, la vía intenta el mismo resumen SQL sobre la tabla completa:
+así conserva las métricas de las columnas sanas y declara la muestra o el
+recorrido de bloques como \code{no_disponible}, en vez de convertir todas las
+columnas en \code{NA}.
 El nombre de la tabla se normaliza antes de la primera llamada a la conexión,
 también la que comprueba que existe: un nombre marcado \code{latin1} —el que da
 \code{read.csv(encoding = "latin1")}— se convierte a UTF-8 y se lee, y uno con
@@ -489,15 +496,16 @@ Los \code{stop()} de esta vía llevan clase de condición propia —todas hereda
 \code{lupa_error_dbi}— para que se puedan rescatar con \code{tryCatch()}:
 \code{lupa_error_conexion_dbi}, \code{lupa_error_tabla_dbi}, \code{lupa_error_campos_dbi},
 \code{lupa_error_conteo_dbi}, \code{lupa_error_esquema_dbi},
-\code{lupa_error_codificacion_dbi} y \code{lupa_error_argumento_dbi}.
+\code{lupa_error_codificacion_dbi}, \code{lupa_error_argumento_dbi} y
+\code{lupa_error_transaccion_dbi}.
 }
 
 \section{Dentro de una transacción}{
 
 La vía se puede correr dentro de una transacción abierta por el usuario —es
-lo que recomienda el motivo de \code{consistencia} para una lectura consistente—,
-y la transacción sigue como estaba. En PostgreSQL un error cualquiera aborta
-la transacción, y la vía manda consultas que pueden fallar a propósito —las
+lo que recomienda el motivo de \code{consistencia} para una lectura consistente—.
+En PostgreSQL un error cualquiera aborta la transacción, y la vía manda
+consultas que pueden fallar a propósito —las
 sondas de dialecto— o por el dato —una métrica que el motor no calcula sobre
 un tipo, una vista rota—: con una transacción abierta, cada sentencia de la
 vía va entre un \code{SAVEPOINT} propio y su \code{RELEASE}, y si falla se vuelve con
@@ -506,8 +514,13 @@ vía va entre un \code{SAVEPOINT} propio y su \code{RELEASE}, y si falla se vuel
 a mano. El paquete nunca manda \code{BEGIN}, \code{COMMIT} ni \code{ROLLBACK}; fuera de una
 transacción no agrega ninguna sentencia de ese tipo. Lo mismo vale para
 \code{\link[=plan_perfilado_dbi]{plan_perfilado_dbi()}}, \code{\link[=perfilar_coleccion]{perfilar_coleccion()}} y \code{\link[=relaciones_coleccion]{relaciones_coleccion()}}.
-SQL Server, MySQL, MariaDB y SQLite no abortan la transacción por el error de
-una consulta. duckdb sí la aborta por un error al ejecutar —no por uno al
+SQL Server puede deshacer la transacción completa ante un error de ejecución,
+incluso con \code{XACT_ABORT} apagado: antes y después de cada envío y lectura la
+vía mide \verb{@TRANCOUNT} y \code{XACT_STATE()}. Si cambian, levanta
+\code{lupa_error_transaccion_dbi} y no continúa leyendo en autocommit como si la
+instantánea siguiera viva. \verb{SAVE TRANSACTION} no evita los errores del motor
+que deshacen la transacción completa. MySQL, MariaDB y SQLite no abortan la
+transacción por el error de una consulta. duckdb sí la aborta por un error al
 preparar, como el de una sonda de dialecto— y no tiene \code{SAVEPOINT}: dentro
 de una transacción de duckdb, un objeto que falla al leerse —una vista que
 convierte un texto sucio— la deja abortada, y hay que cerrarla con
@@ -629,6 +642,22 @@ consulta completa, se emite por separado. Una consulta no emitida o sin un
 valor utilizable queda \code{no_disponible}.
 }
 
+\section{Motores medidos}{
+
+El camino principal —el que se mide en cada versión contra motores reales— es
+PostgreSQL por RPostgres, medido en la 9.3 y en la 16, y SQL Server 2022 por
+odbc con el controlador FreeTDS, en sesiones UTF-8 y bajo el locale \code{C} de un
+\code{Rscript} de cron. SQLite (RSQLite) y duckdb se ejercitan en las pruebas del
+paquete; MySQL y MariaDB (RMariaDB) se midieron en rondas puntuales. Con otro
+motor, otro controlador u otra versión la función corre por la vía portable
+(ver «Dialecto») y declara en la cobertura lo que no pudo medir, pero sus
+cifras no están comprobadas contra ese motor. Las configuraciones avanzadas
+—una transacción abierta por el usuario, permisos por columna,
+enmascaramiento dinámico, \code{universo = "muestra_motor"}, \code{bloque_filas}—
+tienen sus limitaciones conocidas en «Fallo parcial» y «Dentro de una
+transacción».
+}
+
 \section{Dialecto}{
 
 Acotar filas no es SQL estándar. En vez de suponer \code{LIMIT}, la función
@@ -705,6 +734,13 @@ cifra. Las columnas convertidas y su expresión quedan en
 \code{resumen_tabla$meta$lectura_convertida}. Se reconocen por el tipo que
 publica \code{DBI::dbColumnInfo()} de RPostgres; con otro controlador no se
 convierte nada.
+Para \verb{double precision}, la lectura no depende de esa escritura corta:
+se suma al \code{NUMERIC} de quince cifras el residuo entre ese valor y el
+doble guardado. Asi se conservan los dobles distintos y casos como
+\code{0.1 * 3} frente a \code{0.3}, sin cambiar \code{extra_float_digits} ni dejar el
+estado de la sesion modificado. \code{NaN} e infinitos se representan por sus
+equivalentes numericos y la expresion se usa tambien dentro de las
+relaciones derivadas de los agregados.
 \item \strong{La media en coma flotante.} Cada lado suma a su modo; sobre una columna
 que mezcla magnitudes muy distintas —\code{1e20} junto a \code{1}— las medias pueden
 diferir entre motores y con la de R, y ninguna es la exacta. La
@@ -793,10 +829,12 @@ de máquina relativos para los valores leídos —\code{minimo}, \code{maximo},
 \code{mediana}, la moda—, y \code{1e-10} relativa para \code{media} y \code{desvio}, que cada
 lado acumula con su algoritmo y en su orden. Medido en SQL Server, la
 diferencia de la acumulación llega a 2e-13; una divergencia real es de otro
-orden y sigue saliendo. Limitación conocida: la tolerancia absoluta cubre
-cualquier diferencia en una columna cuyos valores son menores que \code{1e-10}
-en valor absoluto —p-valores, concentraciones en unidades del sistema
-internacional—, así que ahí la corroboración no distingue dos lecturas.
+orden y sigue saliendo. Limitación conocida: la tolerancia absoluta se
+suma siempre, tambien a \code{desvio}; por eso puede ocultar diferencias en
+columnas cuyos valores no son pequeños pero cuyo desvio es menor que
+\code{1e-4}. En valores menores que \code{1e-10} —p-valores, concentraciones en
+unidades del sistema internacional— la corroboración tampoco distingue
+dos lecturas.
 }
 }
 
@@ -814,10 +852,10 @@ mínimos, máximos, medias, ceros, negativos y desvío— comparten una consulta
 por lote y cada consulta que trae \code{n_validos} lleva además
 \verb{COUNT(*) AS n_total_consulta} en la misma sentencia. La completitud usa ese
 denominador local, no el total de otro lote. Los no nulos se cuentan en
-todos los motores con \verb{COUNT(CASE WHEN col IS NULL THEN NULL ELSE 1 END)} y no
-con \code{COUNT(col)}: SQL Server rechaza \code{COUNT()} sobre \code{text}, \code{ntext} e
-\code{image}, y con enmascaramiento dinámico devuelve \code{COUNT(col)} enmascarado
-—0—; la pregunta por el nulo la contesta sobre cualquier tipo y sin máscara.
+PostgreSQL con \code{COUNT(col)}, para no contar como faltante un tipo compuesto
+cuyos campos sean todos nulos. En SQL Server y en los motores que
+rechazan \code{COUNT()} sobre \code{text}, \code{ntext} e \code{image} se usa una expresión CASE;
+la pregunta por el nulo se contesta sin publicar el valor enmascarado.
 La fusión conserva la medición, no una identidad bit a bit entre
 agrupamientos: la media y el desvío pueden diferir en el último bit según
 cómo se agrupen las sumas, porque la suma en punto flotante no es asociativa.

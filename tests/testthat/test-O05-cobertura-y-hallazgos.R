@@ -51,6 +51,15 @@ test_that("cada nombre de la cobertura casa con un hallazgo, esta mapeado o no p
     todo, gregexpr('\\.nuevo_hallazgo\\(\\s*[^,]+?,\\s*"[a-z_]+"', todo, perl = TRUE)
   )[[1L]])
   tipos <- unique(sub('^.*"([a-z_]+)"$', "\\1", tipos))
+  # Este constructor usa `paste()` como primer argumento y la sonda de arriba
+  # no intenta resolver comas anidadas. Reconocerlo aqui evita que el mapa
+  # central dependa de una forma accidental del analizador de la prueba.
+  if (grepl(
+    '\\.nuevo_hallazgo\\(\\s*paste\\([^)]*\\),\\s*"relacion_orden_columnas"',
+    todo, perl = TRUE
+  )) {
+    tipos <- unique(c(tipos, "relacion_orden_columnas"))
+  }
   # Control de la sonda: si no leyo nada, todo lo de abajo pasaria en falso.
   expect_true("outliers" %in% tipos)
   expect_gt(length(tipos), 20L)

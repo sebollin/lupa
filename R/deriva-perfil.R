@@ -906,6 +906,7 @@ rbind.deriva_perfil <- function(..., deparse.level = 1) {
 # cobertura escribe y exige que cada uno caiga en alguno de los tres casos,
 # para que un diagnostico nuevo no se desencuentre en silencio.
 .hallazgos_por_diagnostico <- list(
+  relacion_orden_columnas = "relacion_orden_columnas",
   proximidad_vocabulario = c(
     "casi_duplicados_vocabulario", "variantes_equifrecuentes_vocabulario"
   ),
@@ -931,6 +932,17 @@ rbind.deriva_perfil <- function(..., deparse.level = 1) {
   diagnosticos <- as.character(cobertura$diagnostico)
   columnas <- as.character(cobertura$columna)
   unlist(lapply(seq_along(diagnosticos), function(i) {
+    if (identical(diagnosticos[[i]], "muestra_perfilado") &&
+        identical(as.character(columnas[[i]]), "")) {
+      hallazgos <- perfil$hallazgos
+      if (is.data.frame(hallazgos) && nrow(hallazgos)) {
+        columnas_h <- as.character(hallazgos$columna)
+        columnas_h[is.na(columnas_h)] <- "<tabla>"
+        return(.clave_declinacion_deriva(
+          columnas_h, as.character(hallazgos$tipo_hallazgo)
+        ))
+      }
+    }
     tipos <- .hallazgos_por_diagnostico[[diagnosticos[[i]]]]
     if (is.null(tipos)) tipos <- diagnosticos[[i]]
     # Una fila que declina un diagnostico sobre varias columnas las nombra como
@@ -942,6 +954,60 @@ rbind.deriva_perfil <- function(..., deparse.level = 1) {
     }
     as.vector(outer(nombres, tipos, .clave_declinacion_deriva))
   }), use.names = FALSE)
+}
+
+.clave_columna_duplicada_deriva <- function(perfil, fila, columna,
+                                            indice_hallazgo = NA_integer_) {
+  if (!identical(as.character(fila$tipo_hallazgo), "columnas_duplicadas")) {
+    return(columna)
+  }
+  pares <- perfil$general$columnas_duplicadas
+  if (!is.data.frame(pares) || !nrow(pares) ||
+      !all(c("columna_1", "columna_2") %in% names(pares))) {
+    return(columna)
+  }
+  # `evidencia` puede estar protegida y entonces ya no contiene los dos
+  # nombres. El constructor de hallazgos recorre `columnas_duplicadas` en el
+  # mismo orden en que los guarda el perfil: usar ese rango recupera el par
+  # completo sin publicar ni leer valores de las celdas.
+  tipos <- as.character(perfil$hallazgos$tipo_hallazgo)
+  indices_pares <- which(tipos == "columnas_duplicadas")
+  if (length(indice_hallazgo) == 1L && is.finite(indice_hallazgo)) {
+    orden <- match(indice_hallazgo, indices_pares)
+    if (length(orden) == 1L && !is.na(orden) && orden <= nrow(pares)) {
+      candidatas <- .nombres_para_operar(c(
+        pares$columna_1[[orden]], pares$columna_2[[orden]]
+      ))
+      return(paste(.sort_por_bytes(candidatas), collapse = ","))
+    }
+  }
+  # Fallback para perfiles resumidos o llamadas antiguas: si el extremo solo
+  # pertenece a un par, el contenido del par sigue siendo identificable.
+  candidatas_por_extremo <- which(vapply(seq_len(nrow(pares)), function(i) {
+    columna %in% c(pares$columna_1[[i]], pares$columna_2[[i]])
+  }, logical(1L)))
+  if (length(candidatas_por_extremo) == 1L) {
+    i <- candidatas_por_extremo[[1L]]
+    candidatas <- .nombres_para_operar(c(
+      pares$columna_1[[i]], pares$columna_2[[i]]
+    ))
+    return(paste(.sort_por_bytes(candidatas), collapse = ","))
+  }
+  evidencia <- as.character(fila$evidencia)
+  evidencia <- trimws(sub(";.*$", "", evidencia))
+  partes <- strsplit(evidencia, " = ", fixed = TRUE)[[1L]]
+  if (length(partes) == 2L) {
+    buscadas <- .nombres_para_operar(partes)
+    for (i in seq_len(nrow(pares))) {
+      candidatas <- .nombres_para_operar(
+        c(pares$columna_1[[i]], pares$columna_2[[i]])
+      )
+      if (setequal(buscadas, candidatas)) {
+        return(paste(.sort_por_bytes(candidatas), collapse = ","))
+      }
+    }
+  }
+  columna
 }
 
 .hallazgo_cuenta_filas_tabla <- function(fila) {
@@ -962,8 +1028,13 @@ rbind.deriva_perfil <- function(..., deparse.level = 1) {
     ))
   }
   columna <- ifelse(is.na(x$columna), "<tabla>", as.character(x$columna))
+  columna_clave <- vapply(seq_len(nrow(x)), function(i) {
+    .clave_columna_duplicada_deriva(
+      perfil, x[i, , drop = FALSE], columna[[i]], indice_hallazgo = i
+    )
+  }, character(1L))
   clave <- .clave_bytes(paste(
-    .clave_bytes(columna), .clave_bytes(x$tipo_hallazgo), sep = "\034"
+    .clave_bytes(columna_clave), .clave_bytes(x$tipo_hallazgo), sep = "\034"
   ))
   grupos <- .dividir_por_bytes(seq_len(nrow(x)), clave, drop = TRUE)
   partes <- lapply(grupos, function(indices) {
@@ -1183,8 +1254,11 @@ rbind.deriva_perfil <- function(..., deparse.level = 1) {
 #' aparece porque el perfil nuevo encendió o declaró lo que lo habilita sigue
 #' saliendo `aparecido`, y su descripción dice que el anterior no lo evaluaba.
 #' Un hallazgo de varias columnas —un par de columnas duplicado, una relación
-#' entre columnas— se compara como cualquier otro: sólo no se presenta como
-#' resuelto si alguna de sus columnas desapareció. Cada argumento de
+#' entre columnas— se compara por el contenido de sus columnas, no por sus
+#' posiciones en la tabla: reordenar columnas no hace aparecer ni desaparecer
+#' un par. Sólo no se presenta como resuelto si alguna de sus columnas
+#' desapareció. Si el tope de un diagnóstico deja un hallazgo fuera del alcance
+#' nuevo, se publica `no_evaluado` con el motivo de cobertura. Cada argumento de
 #' [perfilar()] tiene su lugar en la comparación:
 #' habilita un diagnóstico, es una vara —su cambio se declara en la fila
 #' `configuracion_umbrales`, que desde esta versión incluye los umbrales de las

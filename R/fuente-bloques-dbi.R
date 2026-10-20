@@ -1273,7 +1273,13 @@
                   rss_maximo = NA_real_),
                 locators = locators, error = fuente$motivo))
   }
-  resultado <- tryCatch(.enviar_consulta_dbi(conexion, fuente$consulta), error = function(e) e)
+  resultado <- tryCatch(
+    .enviar_consulta_dbi(conexion, fuente$consulta),
+    error = function(e) {
+      .repropagar_transaccion_dbi(e)
+      e
+    }
+  )
   if (inherits(resultado, "condition")) {
     return(list(acumuladores = acumuladores, sobres = list(),
                 bloques = bloques, bytes = list(max_bloque = 0,
@@ -1286,8 +1292,13 @@
   on.exit(.limpiar_consulta_dbi(resultado, conexion), add = TRUE)
   ordinal <- 0
   repeat {
-    bloque <- tryCatch(.traer_filas_dbi(resultado, n = as.integer(bloque_filas), conexion),
-                       error = function(e) e)
+    bloque <- tryCatch(
+      .traer_filas_dbi(resultado, n = as.integer(bloque_filas), conexion),
+      error = function(e) {
+        .repropagar_transaccion_dbi(e)
+        e
+      }
+    )
     bloques$fetches <- bloques$fetches + 1L
     if (inherits(bloque, "condition")) {
       return(list(acumuladores = acumuladores, sobres = list(),
@@ -1408,7 +1419,13 @@
   }
   if (is.function(antes_segunda_pasada)) antes_segunda_pasada()
   esperados <- unlist(locators, use.names = FALSE)
-  rs <- tryCatch(.enviar_consulta_dbi(conexion, fuente$consulta), error = function(e) e)
+  rs <- tryCatch(
+    .enviar_consulta_dbi(conexion, fuente$consulta),
+    error = function(e) {
+      .repropagar_transaccion_dbi(e)
+      e
+    }
+  )
   if (inherits(rs, "condition")) {
     return(list(estado = "no_disponible", identidad = NA,
                 motivo = paste0("no_disponible:dbSendQuery:", .mensaje_motor(rs)),
@@ -1419,8 +1436,13 @@
   on.exit(.limpiar_consulta_dbi(rs, conexion), add = TRUE)
   observados <- list()
   repeat {
-    bloque <- tryCatch(.traer_filas_dbi(rs, n = as.integer(bloque_filas), conexion),
-                       error = function(e) e)
+    bloque <- tryCatch(
+      .traer_filas_dbi(rs, n = as.integer(bloque_filas), conexion),
+      error = function(e) {
+        .repropagar_transaccion_dbi(e)
+        e
+      }
+    )
     fetches <- fetches + 1L
     if (inherits(bloque, "condition")) {
       return(list(estado = "no_disponible", identidad = NA,
@@ -1533,6 +1555,69 @@
     incluir_valores = incluir_valores,
     max_bytes_procesamiento = max_bytes_procesamiento
   )
+  if (isTRUE(fuente$disponible) && !is.null(recorrido$error)) {
+    extras <- argumentos
+    extras$antes_segunda_pasada <- NULL
+    extras$columnas_opcionales <- NULL
+    extras$aplicabilidad <- NULL
+    extras$sentinelas_numericos <- NULL
+    fallback <- tryCatch(
+      do.call(
+        perfilar_dbi,
+        c(
+          list(
+            conexion = conexion, tabla = tabla, universo = "tabla_completa",
+            muestra = Inf, orden_muestra = NULL,
+            metricas = metricas_publicas,
+            estrategia_distintos = preparacion$estrategia_distintos$estrategia_solicitada %||%
+              "exacta",
+            estrategia_mediana = preparacion$estrategia_mediana,
+            politica_costo = preparacion$politica_costo$nombre %||% "todas",
+            bloque_muestra = "solo_agregados", max_consultas = Inf,
+            dialecto = "auto", incluir_valores = incluir_valores,
+            tamano_lote = preparacion$tamano_lote,
+            tamano_lote_planos = preparacion$tamano_lote_planos,
+            tamano_lote_distintos = preparacion$tamano_lote_distintos,
+            instrumentar = preparacion$instrumentar,
+            umbral_cardinalidad = preparacion$politica_costo$umbral %||% 0.5,
+            columnas_opcionales = argumentos$columnas_opcionales %||% character(),
+            aplicabilidad = argumentos$aplicabilidad,
+            sentinelas_numericos = argumentos$sentinelas_numericos %||%
+              c(-9, -99, -999, -9999, 999),
+            max_bytes_procesamiento = max_bytes_procesamiento,
+            max_bytes_materializacion = preparacion$max_bytes_materializacion
+          ),
+          extras
+        )
+      ),
+      error = function(e) {
+        .repropagar_transaccion_dbi(e)
+        NULL
+      }
+    )
+    if (!is.null(fallback) && !is.null(fallback$resumen_tabla)) {
+      fallback$resumen_tabla$cobertura <- rbind(
+        fallback$resumen_tabla$cobertura,
+        .registro_cobertura_dbi(
+          "fuente_bloques", .texto_tabla_dbi(tabla), "no_disponible",
+          paste0(
+            "El recorrido por bloques fallo (", recorrido$error,
+            "); se devolvio el resumen SQL aislado por columna."
+          ),
+          paste(
+            "Corregir la vista o usar el resumen SQL hasta contar con un",
+            "recorrido de bloques que pueda aislar la columna culpable."
+          ),
+          fuente$consulta
+        )
+      )
+      fallback$resumen_tabla$meta$fuente_bloques_fallback <- list(
+        motivo = recorrido$error, bloques = recorrido$bloques
+      )
+      rownames(fallback$resumen_tabla$cobertura) <- NULL
+      return(fallback)
+    }
+  }
   n_total <- recorrido$bloques$filas_vistas
   recorrido$bloques$solicitados <- if (n_total > 0) {
     as.integer(ceiling(n_total / bloque_filas))

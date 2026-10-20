@@ -106,7 +106,7 @@ SIX Group. \emph{ISO 4217 Currency Codes}.
 \url{https://www.six-group.com/en/products-services/financial-information/market-reference-data/data-standards.html}
 
 Resnick P (2008). \emph{Internet Message Format}, RFC 5322.
-\url{https://www.rfc-editor.org/rfc/rfc5322}
+\url{https://www.rfc-editor.org/info/rfc5322/}
 
 Luhn HP (1960). \emph{Computer for Verifying Numbers}, US Patent 2,950,048.
 \url{https://patents.google.com/patent/US2950048A/en}
