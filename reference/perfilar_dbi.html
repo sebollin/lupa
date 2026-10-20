@@ -433,7 +433,9 @@ conjunto numérico, por lo que el orden, el tipo entero o doble y los
 duplicados no cambian el resultado. El resumen SQL no los excluye de sus
 agregados y lo declara en <code>resumen_tabla$cobertura</code>; la corroboración no
 compara las métricas de magnitud de una columna de la que la muestra
-excluyó alguno.</p>
+excluyó alguno. En una columna <code>real</code>, una representacion float32 del
+centinela fraccionario se alinea antes de perfilar la muestra; la
+corroboración reconoce esa representacion como el mismo centinela.</p>
 <p>Rige la misma reserva que en <code><a href="perfilar.html">perfilar()</a></code>: un valor de la lista <strong>por
 omisión</strong> que aparece una sola vez y dentro del rango de los demás no se
 señala. Declarar el valor lo vuelve a contar.</p></dd>
@@ -596,6 +598,11 @@ por descarte leyendo las MISMAS filas que la muestra con menos columnas —un
 fallo que está en una fila que no es la primera, como el <code>CAST</code> de un texto
 sucio en una vista, también se encuentra—; la muestra sale con las demás y
 una fila <code>alcance_distinto</code> nombra la culpable.
+Si una vista falla en una fila durante <code>universo = "muestra_motor"</code> o
+<code>bloque_filas</code>, la vía intenta el mismo resumen SQL sobre la tabla completa:
+así conserva las métricas de las columnas sanas y declara la muestra o el
+recorrido de bloques como <code>no_disponible</code>, en vez de convertir todas las
+columnas en <code>NA</code>.
 El nombre de la tabla se normaliza antes de la primera llamada a la conexión,
 también la que comprueba que existe: un nombre marcado <code>latin1</code> —el que da
 <code>read.csv(encoding = "latin1")</code>— se convierte a UTF-8 y se lee, y uno con
@@ -624,16 +631,17 @@ Los <code><a href="https://rdrr.io/r/base/stop.html" class="external-link">stop(
 <code>lupa_error_dbi</code>— para que se puedan rescatar con <code><a href="https://rdrr.io/r/base/conditions.html" class="external-link">tryCatch()</a></code>:
 <code>lupa_error_conexion_dbi</code>, <code>lupa_error_tabla_dbi</code>, <code>lupa_error_campos_dbi</code>,
 <code>lupa_error_conteo_dbi</code>, <code>lupa_error_esquema_dbi</code>,
-<code>lupa_error_codificacion_dbi</code> y <code>lupa_error_argumento_dbi</code>.</p>
+<code>lupa_error_codificacion_dbi</code>, <code>lupa_error_argumento_dbi</code> y
+<code>lupa_error_transaccion_dbi</code>.</p>
     </div>
     <div class="section level2">
     <h2 id="dentro-de-una-transacci-n">Dentro de una transacción<a class="anchor" aria-label="anchor" href="#dentro-de-una-transacci-n"></a></h2>
 
 
 <p>La vía se puede correr dentro de una transacción abierta por el usuario —es
-lo que recomienda el motivo de <code>consistencia</code> para una lectura consistente—,
-y la transacción sigue como estaba. En PostgreSQL un error cualquiera aborta
-la transacción, y la vía manda consultas que pueden fallar a propósito —las
+lo que recomienda el motivo de <code>consistencia</code> para una lectura consistente—.
+En PostgreSQL un error cualquiera aborta la transacción, y la vía manda
+consultas que pueden fallar a propósito —las
 sondas de dialecto— o por el dato —una métrica que el motor no calcula sobre
 un tipo, una vista rota—: con una transacción abierta, cada sentencia de la
 vía va entre un <code>SAVEPOINT</code> propio y su <code>RELEASE</code>, y si falla se vuelve con
@@ -642,8 +650,13 @@ vía va entre un <code>SAVEPOINT</code> propio y su <code>RELEASE</code>, y si f
 a mano. El paquete nunca manda <code>BEGIN</code>, <code>COMMIT</code> ni <code>ROLLBACK</code>; fuera de una
 transacción no agrega ninguna sentencia de ese tipo. Lo mismo vale para
 <code><a href="plan_perfilado_dbi.html">plan_perfilado_dbi()</a></code>, <code><a href="perfilar_coleccion.html">perfilar_coleccion()</a></code> y <code><a href="relaciones_coleccion.html">relaciones_coleccion()</a></code>.
-SQL Server, MySQL, MariaDB y SQLite no abortan la transacción por el error de
-una consulta. duckdb sí la aborta por un error al ejecutar —no por uno al
+SQL Server puede deshacer la transacción completa ante un error de ejecución,
+incluso con <code>XACT_ABORT</code> apagado: antes y después de cada envío y lectura la
+vía mide <code>@TRANCOUNT</code> y <code>XACT_STATE()</code>. Si cambian, levanta
+<code>lupa_error_transaccion_dbi</code> y no continúa leyendo en autocommit como si la
+instantánea siguiera viva. <code>SAVE TRANSACTION</code> no evita los errores del motor
+que deshacen la transacción completa. MySQL, MariaDB y SQLite no abortan la
+transacción por el error de una consulta. duckdb sí la aborta por un error al
 preparar, como el de una sonda de dialecto— y no tiene <code>SAVEPOINT</code>: dentro
 de una transacción de duckdb, un objeto que falla al leerse —una vista que
 convierte un texto sucio— la deja abortada, y hay que cerrarla con
@@ -763,6 +776,23 @@ consulta completa, se emite por separado. Una consulta no emitida o sin un
 valor utilizable queda <code>no_disponible</code>.</p>
     </div>
     <div class="section level2">
+    <h2 id="motores-medidos">Motores medidos<a class="anchor" aria-label="anchor" href="#motores-medidos"></a></h2>
+
+
+<p>El camino principal —el que se mide en cada versión contra motores reales— es
+PostgreSQL por RPostgres, medido en la 9.3 y en la 16, y SQL Server 2022 por
+odbc con el controlador FreeTDS, en sesiones UTF-8 y bajo el locale <code>C</code> de un
+<code>Rscript</code> de cron. SQLite (RSQLite) y duckdb se ejercitan en las pruebas del
+paquete; MySQL y MariaDB (RMariaDB) se midieron en rondas puntuales. Con otro
+motor, otro controlador u otra versión la función corre por la vía portable
+(ver «Dialecto») y declara en la cobertura lo que no pudo medir, pero sus
+cifras no están comprobadas contra ese motor. Las configuraciones avanzadas
+—una transacción abierta por el usuario, permisos por columna,
+enmascaramiento dinámico, <code>universo = "muestra_motor"</code>, <code>bloque_filas</code>—
+tienen sus limitaciones conocidas en «Fallo parcial» y «Dentro de una
+transacción».</p>
+    </div>
+    <div class="section level2">
     <h2 id="dialecto">Dialecto<a class="anchor" aria-label="anchor" href="#dialecto"></a></h2>
 
 
@@ -838,7 +868,14 @@ agregados sobre esa misma lectura, así que las vías publican la misma
 cifra. Las columnas convertidas y su expresión quedan en
 <code>resumen_tabla$meta$lectura_convertida</code>. Se reconocen por el tipo que
 publica <code><a href="https://dbi.r-dbi.org/reference/dbColumnInfo.html" class="external-link">DBI::dbColumnInfo()</a></code> de RPostgres; con otro controlador no se
-convierte nada.</p></li>
+convierte nada.
+Para <code>double precision</code>, la lectura no depende de esa escritura corta:
+se suma al <code>NUMERIC</code> de quince cifras el residuo entre ese valor y el
+doble guardado. Asi se conservan los dobles distintos y casos como
+<code>0.1 * 3</code> frente a <code>0.3</code>, sin cambiar <code>extra_float_digits</code> ni dejar el
+estado de la sesion modificado. <code>NaN</code> e infinitos se representan por sus
+equivalentes numericos y la expresion se usa tambien dentro de las
+relaciones derivadas de los agregados.</p></li>
 <li><p><strong>La media en coma flotante.</strong> Cada lado suma a su modo; sobre una columna
 que mezcla magnitudes muy distintas —<code>1e20</code> junto a <code>1</code>— las medias pueden
 diferir entre motores y con la de R, y ninguna es la exacta. La
@@ -927,10 +964,12 @@ de máquina relativos para los valores leídos —<code>minimo</code>, <code>max
 <code>mediana</code>, la moda—, y <code>1e-10</code> relativa para <code>media</code> y <code>desvio</code>, que cada
 lado acumula con su algoritmo y en su orden. Medido en SQL Server, la
 diferencia de la acumulación llega a 2e-13; una divergencia real es de otro
-orden y sigue saliendo. Limitación conocida: la tolerancia absoluta cubre
-cualquier diferencia en una columna cuyos valores son menores que <code>1e-10</code>
-en valor absoluto —p-valores, concentraciones en unidades del sistema
-internacional—, así que ahí la corroboración no distingue dos lecturas.</p></li>
+orden y sigue saliendo. Limitación conocida: la tolerancia absoluta se
+suma siempre, tambien a <code>desvio</code>; por eso puede ocultar diferencias en
+columnas cuyos valores no son pequeños pero cuyo desvio es menor que
+<code>1e-4</code>. En valores menores que <code>1e-10</code> —p-valores, concentraciones en
+unidades del sistema internacional— la corroboración tampoco distingue
+dos lecturas.</p></li>
 </ul></div>
     <div class="section level2">
     <h2 id="costo">Costo<a class="anchor" aria-label="anchor" href="#costo"></a></h2>
@@ -948,10 +987,10 @@ mínimos, máximos, medias, ceros, negativos y desvío— comparten una consulta
 por lote y cada consulta que trae <code>n_validos</code> lleva además
 <code>COUNT(*) AS n_total_consulta</code> en la misma sentencia. La completitud usa ese
 denominador local, no el total de otro lote. Los no nulos se cuentan en
-todos los motores con <code>COUNT(CASE WHEN col IS NULL THEN NULL ELSE 1 END)</code> y no
-con <code>COUNT(col)</code>: SQL Server rechaza <code>COUNT()</code> sobre <code>text</code>, <code>ntext</code> e
-<code>image</code>, y con enmascaramiento dinámico devuelve <code>COUNT(col)</code> enmascarado
-—0—; la pregunta por el nulo la contesta sobre cualquier tipo y sin máscara.
+PostgreSQL con <code>COUNT(col)</code>, para no contar como faltante un tipo compuesto
+cuyos campos sean todos nulos. En SQL Server y en los motores que
+rechazan <code>COUNT()</code> sobre <code>text</code>, <code>ntext</code> e <code>image</code> se usa una expresión CASE;
+la pregunta por el nulo se contesta sin publicar el valor enmascarado.
 La fusión conserva la medición, no una identidad bit a bit entre
 agrupamientos: la media y el desvío pueden diferir en el último bit según
 cómo se agrupen las sumas, porque la suma en punto flotante no es asociativa.</p>

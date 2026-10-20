@@ -874,7 +874,11 @@ perfilar(
 
   Máximo de columnas numéricas o temporales que se comparan entre sí
   para detectar relaciones de orden. Las columnas que exceden el límite
-  se conservan en `meta$orden_columnas$columnas_omitidas`.
+  se conservan en `meta$orden_columnas$columnas_omitidas` y el
+  diagnóstico se declara `no_evaluado` en `cobertura_diagnosticos`.
+  [`comparar_perfiles()`](https://sebollin.github.io/lupa/reference/comparar_perfiles.md)
+  no presenta como `resuelto` un hallazgo anterior que quedó fuera de
+  ese alcance.
 
 - umbral_solapamiento_orden:
 
@@ -1955,37 +1959,57 @@ protección. Cada clasificación declara `poder_discriminante` y
   y no el de la palabra, en el 80 % de sus valores distintos: un correo
   —una `@`, también el de una intranet: `correo_alta` con
   `"jperez@intranet"`—; un teléfono de siete a quince cifras escrito
-  como teléfono —con `+`, con un cero inicial, con separadores, con un
-  interno o en una lista: `responsable_canal` con `"+598 99 123 456"`—,
-  sin centavos y en una columna que no es de fechas, y con la palabra
-  del teléfono también las cifras sueltas (`celular_estado`); un
-  domicilio con una marca de calle —`Av.`, `calle`, `Bvar.`, `ruta`,
-  `esq.`, `apto`— en al menos el 30 % de sus distintos (`cliente_tipo`
-  con `"Av. Italia 2345"`); o un nombre con un nombre de pila conocido,
-  sin cifras, sin una palabra que no va en un nombre —`sin`, `en`,
-  `por`— y sin empezar como un lugar —`San`, `Villa`—, aunque sean dos
-  personas (`responsable_grupo` con `"Perez Joaquin"`, `contacto_alta`
-  con `"Ramon Acosta"`). La forma sola no alcanza: `"Gran Empresa"`,
-  `"Cerro Largo"`, `"Arroz Premium"` u `"Oficina 101"` siguen siendo
-  categorías. Y la palabra de quien actúa en el registro —`usuario`,
-  `funcionario`, `responsable`, `solicitante`— con una de auditoría
-  —`alta`, `baja`— dice quién dio el alta o la baja: ahí basta un texto
-  que no sea una fecha —un login `"jperez"`, un apellido solo—; la de
-  quien es objeto del registro pide la señal de los valores, y
+  como teléfono —con `+`, con el prefijo `00598` o `598` pegado, con un
+  cero inicial, con separadores (también puntos de a dos cifras,
+  `"099.12.34.56"`, o el espacio duro y la raya de una planilla), con el
+  `.0` de una planilla, con un interno o en una lista:
+  `responsable_canal` con `"+598 99 123 456"`—, en una columna que no es
+  de fechas; con la palabra del teléfono, también las cifras sueltas
+  (`celular_estado`), salvo que el resto del nombre diga que son un
+  importe (`importe_telefono`). No son teléfonos un importe con centavos
+  (`"12345.10"`) o con separadores de miles (`"1.250.000"`), un número
+  redondo, un código con un año (`"2024-00001"`) ni un documento escrito
+  como documento. Un domicilio con una marca de calle —`Av.`, `calle`,
+  `Bvar.`, `Br.`, `Cno.`, `Rbla.`, `Pje.`, `Gral.`, `ruta`, `esq.`,
+  `apto`, `Dpto.`, `Mza.`, `km` seguido de un número— en al menos el 30
+  % de sus distintos y sin una palabra de categoría (`cliente_tipo` con
+  `"Av. Italia 2345"`; `"En ruta"`, `"Radio 5 km"` no lo son). O un
+  nombre con un nombre de pila conocido —también con una inicial,
+  `"Juan A. Perez"`, o un `O'`—, sin cifras, sin una palabra que no va
+  en un nombre —`sin`, `en`, `por`— y sin empezar como un lugar —`San`,
+  `Villa`—, aunque sean dos personas (`responsable_grupo` con
+  `"Perez Joaquin"`, `contacto_alta` con `"Ramon Acosta"`). Los acentos
+  se leen también en `latin1` sin marca, como lo deja un CSV de Windows
+  bajo `C`. Y una fecha de nacimiento o de defunción calificada como
+  categoría (`nacimiento_estado`) es esa fecha si sus valores son
+  fechas; su lugar no (`pais_nacimiento`). La forma sola no alcanza:
+  `"Gran Empresa"`, `"Cerro Largo"`, `"Arroz Premium"` u `"Oficina 101"`
+  siguen siendo categorías, y los nombres de pila que también son
+  palabras de una categoría —`Pilar`, `Marco`, `Norma`, `Franco`,
+  `Domingo`, `Julio`, `Blanca`, `Celeste`, `Rosa`, `Max`— no cuentan
+  (`"Primer Pilar"`, `"Convenio Marco"`). Y la palabra de quien actúa en
+  el registro —`usuario`, `funcionario`, `responsable`, `solicitante`—
+  con una de auditoría —`alta`, `baja`— dice quién dio el alta o la
+  baja: ahí basta un texto que no sea una fecha ni un estado —un login
+  `"jperez"`, un apellido solo; no `"Sin baja"` ni `"Baja definitiva"`—;
+  la de quien es objeto del registro pide la señal de los valores, y
   `cliente_desde` con `"Sin fecha"` o `paciente_alta` con `"Traslado"`
   se publican. En la ronda 34 el nombre decidía solo, y esas columnas
   publicaban nombres, celulares y domicilios. Limitación conocida: la
-  lista de nombres de pila no es completa, y un nombre que falta deja la
-  columna sin esa señal; una localidad con nombre de persona
-  —`"Jose Ignacio"`, `"Juan Lacaze"`— se lee como un nombre; y con una
-  palabra de categoría o de clave, un login de sólo letras o un apellido
-  solo (`responsable_grupo` con `"Rodriguez"`, `usuario_id` con
+  lista de nombres de pila no es completa, y un nombre que falta —o que
+  es también una palabra corriente, como `Max` o `Pilar`— deja la
+  columna sin esa señal: con tres personas, una basta para que no llegue
+  al 80 %; una localidad con nombre de persona —`"Jose Ignacio"`,
+  `"Juan Lacaze"`— se lee como un nombre; con una palabra de categoría o
+  de clave, un login de sólo letras o un apellido solo
+  (`responsable_grupo` con `"Rodriguez"`, `usuario_id` con
   `"jperez_01"`) no se distinguen de una categoría o de un código y se
-  publican, como un domicilio sin marca de calle. Una columna de
-  personas con otro nombre se declara en `columnas_personales`. También
-  es `medio` una columna que trae correos completos sin que sean la
-  mayoría de sus valores: un correo es un correo aunque esté solo, y la
-  columna se protege;
+  publican, como un domicilio sin marca de calle; y las escrituras raras
+  de un número —coma decimal con exponente, `"4.685.467,00e0"`— no se
+  leen. Una columna de personas con otro nombre se declara en
+  `columnas_personales`. También es `medio` una columna que trae correos
+  completos sin que sean la mayoría de sus valores: un correo es un
+  correo aunque esté solo, y la columna se protege;
 
 - `alto`: una forma muy específica, como un correo, o nombre y forma se
   apoyan mutuamente; se protege;

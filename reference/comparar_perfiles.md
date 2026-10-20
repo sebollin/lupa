@@ -166,8 +166,12 @@ nombra el argumento. Al revés, un hallazgo que aparece porque el perfil
 nuevo encendió o declaró lo que lo habilita sigue saliendo `aparecido`,
 y su descripción dice que el anterior no lo evaluaba. Un hallazgo de
 varias columnas —un par de columnas duplicado, una relación entre
-columnas— se compara como cualquier otro: sólo no se presenta como
-resuelto si alguna de sus columnas desapareció. Cada argumento de
+columnas— se compara por el contenido de sus columnas, no por sus
+posiciones en la tabla: reordenar columnas no hace aparecer ni
+desaparecer un par. Sólo no se presenta como resuelto si alguna de sus
+columnas desapareció. Si el tope de un diagnóstico deja un hallazgo
+fuera del alcance nuevo, se publica `no_evaluado` con el motivo de
+cobertura. Cada argumento de
 [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md)
 tiene su lugar en la comparación: habilita un diagnóstico, es una vara
 —su cambio se declara en la fila `configuracion_umbrales`, que desde
