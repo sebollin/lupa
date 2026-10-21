@@ -90,7 +90,11 @@ plan_perfilado_dbi(
   Cantidad positiva y finita de filas que el motor debe tomar cuando
   `universo = "muestra_motor"`. Es obligatorio en ese universo y debe
   quedar `NULL` para `"tabla_completa"`; la función rechaza temprano
-  valores no enteros, no positivos o `Inf`.
+  valores no enteros, no positivos o `Inf`. Si una vista falla en una
+  fila, el resumen conserva el alcance de la materialización que sí se
+  pudo leer: las columnas legibles se perfilan y la columna rota queda
+  `no_disponible`; la cobertura no presenta esa lectura parcial como una
+  lectura completa de la vista.
 
 - muestra:
 
@@ -99,7 +103,10 @@ plan_perfilado_dbi(
   independiente de `universo`: en `muestra_motor`, `muestra_motor`
   decide las filas del resumen SQL y `muestra` decide las filas del
   bloque `perfil_muestra`. En `tabla_completa`, `muestra` no cambia los
-  agregados.
+  agregados. Cuando `universo = "muestra_motor"`, el resumen usa toda la
+  materialización del motor y este argumento solo recorta el diagnóstico
+  en R; por eso `meta$materializacion$n_filas` puede ser mayor que
+  `perfil_muestra$meta$filas`.
 
   Sin `orden_muestra`, las filas del bloque en R no son una muestra
   aleatoria garantizada sino las primeras que devuelva el motor. El
@@ -116,7 +123,11 @@ plan_perfilado_dbi(
   `bloque_muestra = "solo_agregados"`. En la via I1, la identidad de la
   fuente por bloques gobierna el recorrido y este pedido queda declarado
   en `meta$orden_muestra` con el motivo estable de que no gobierna esa
-  via.
+  via. Si el motor falla al evaluar una columna del `ORDER BY`, la vía
+  prueba cada componente, recupera las columnas legibles sin ese orden
+  cuando puede y publica `alcance_distinto` con el motivo de que el
+  orden pedido no se pudo aplicar; no lo presenta como si ninguna
+  columna fallara.
 
 - metricas:
 

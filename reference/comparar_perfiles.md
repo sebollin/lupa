@@ -171,7 +171,10 @@ posiciones en la tabla: reordenar columnas no hace aparecer ni
 desaparecer un par. Sólo no se presenta como resuelto si alguna de sus
 columnas desapareció. Si el tope de un diagnóstico deja un hallazgo
 fuera del alcance nuevo, se publica `no_evaluado` con el motivo de
-cobertura. Cada argumento de
+cobertura. La proximidad de vocabulario también puede dejar pares con
+frecuencias parejas bajo su piso de asimetría sin emitir un hallazgo;
+esa cobertura parcial se conserva como `no_evaluado` al comparar, aunque
+el diagnóstico haya recorrido todos sus valores. Cada argumento de
 [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md)
 tiene su lugar en la comparación: habilita un diagnóstico, es una vara
 —su cambio se declara en la fila `configuracion_umbrales`, que desde

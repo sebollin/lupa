@@ -78,7 +78,11 @@ perfilar_dbi(
   Cantidad positiva y finita de filas que el motor debe tomar cuando
   `universo = "muestra_motor"`. Es obligatorio en ese universo y debe
   quedar `NULL` para `"tabla_completa"`; la función rechaza temprano
-  valores no enteros, no positivos o `Inf`.
+  valores no enteros, no positivos o `Inf`. Si una vista falla en una
+  fila, el resumen conserva el alcance de la materialización que sí se
+  pudo leer: las columnas legibles se perfilan y la columna rota queda
+  `no_disponible`; la cobertura no presenta esa lectura parcial como una
+  lectura completa de la vista.
 
 - muestra:
 
@@ -87,7 +91,10 @@ perfilar_dbi(
   independiente de `universo`: en `muestra_motor`, `muestra_motor`
   decide las filas del resumen SQL y `muestra` decide las filas del
   bloque `perfil_muestra`. En `tabla_completa`, `muestra` no cambia los
-  agregados.
+  agregados. Cuando `universo = "muestra_motor"`, el resumen usa toda la
+  materialización del motor y este argumento solo recorta el diagnóstico
+  en R; por eso `meta$materializacion$n_filas` puede ser mayor que
+  `perfil_muestra$meta$filas`.
 
   Sin `orden_muestra`, las filas del bloque en R no son una muestra
   aleatoria garantizada sino las primeras que devuelva el motor. El
@@ -104,7 +111,11 @@ perfilar_dbi(
   `bloque_muestra = "solo_agregados"`. En la via I1, la identidad de la
   fuente por bloques gobierna el recorrido y este pedido queda declarado
   en `meta$orden_muestra` con el motivo estable de que no gobierna esa
-  via.
+  via. Si el motor falla al evaluar una columna del `ORDER BY`, la vía
+  prueba cada componente, recupera las columnas legibles sin ese orden
+  cuando puede y publica `alcance_distinto` con el motivo de que el
+  orden pedido no se pudo aplicar; no lo presenta como si ninguna
+  columna fallara.
 
 - metricas:
 
@@ -343,7 +354,12 @@ perfilar_dbi(
   conserva `no_solicitado`. Bajo `bloque_filas`, `perfil_muestra` sigue
   siendo la muestra diagnóstica acotada por `muestra`,
   `max_celdas_muestra` y `max_bytes_muestra`; su `general$filas` no es
-  la cobertura, que se publica en `meta$bloques$filas_vistas`.
+  la cobertura, que se publica en `meta$bloques$filas_vistas`. Si el
+  recorrido por bloques no puede leer una columna de una vista, se
+  vuelve a leer la muestra diagnóstica por columnas: las columnas sanas
+  conservan su perfil y sus magnitudes, y la columna rota queda en
+  `no_disponible` con el motivo del motor. No se publica como privacidad
+  ni como `no_solicitado`.
 
 - max_bytes_procesamiento:
 
@@ -507,7 +523,10 @@ disponible. En `muestra_motor`, la selección materializada se hace una
 sola vez antes de las pasadas; el spool se relee y se verifica mediante
 su trailer. Un trailer ausente publica
 `spool_incompleto:trailer_ausente`; un trailer o checksum que no
-coincide publica `spool_checksum_invalido`.
+coincide publica `spool_checksum_invalido`. Si la lectura materializada
+falla, se cierran el resultado DBI y el archivo del spool aun cuando el
+error deshaga una transacción; no queda una conexión de archivo abierta
+para un finalizador posterior.
 
 ## Fallo parcial
 
@@ -565,11 +584,14 @@ falla en una fila durante `universo = "muestra_motor"` o `bloque_filas`,
 la vía intenta el mismo resumen SQL sobre la tabla completa: así
 conserva las métricas de las columnas sanas y declara la muestra o el
 recorrido de bloques como `no_disponible`, en vez de convertir todas las
-columnas en `NA`. El nombre de la tabla se normaliza antes de la primera
-llamada a la conexión, también la que comprueba que existe: un nombre
-marcado `latin1` —el que da `read.csv(encoding = "latin1")`— se
-convierte a UTF-8 y se lee, y uno con bytes que no son UTF-8 válido y no
-declaran su codificación
+columnas en `NA`. Si el resumen completo tampoco puede ejecutarse sobre
+la vista, sólo se conservan las métricas que el motor alcanzó a
+contestar y las demás quedan `no_disponible`; la cobertura identifica la
+columna o la consulta que impidió completar el resumen. El nombre de la
+tabla se normaliza antes de la primera llamada a la conexión, también la
+que comprueba que existe: un nombre marcado `latin1` —el que da
+`read.csv(encoding = "latin1")`— se convierte a UTF-8 y se lee, y uno
+con bytes que no son UTF-8 válido y no declaran su codificación
 —[`read.csv()`](https://rdrr.io/r/utils/read.table.html) sin
 `fileEncoding` sobre un archivo latin1— no se adivina: con odbc da
 `lupa_error_codificacion_dbi` antes de tocar la conexión, que antes
@@ -623,12 +645,14 @@ ejecución, incluso con `XACT_ABORT` apagado: antes y después de cada
 envío y lectura la vía mide `@TRANCOUNT` y `XACT_STATE()`. Si cambian,
 levanta `lupa_error_transaccion_dbi` y no continúa leyendo en autocommit
 como si la instantánea siguiera viva. `SAVE TRANSACTION` no evita los
-errores del motor que deshacen la transacción completa. MySQL, MariaDB y
-SQLite no abortan la transacción por el error de una consulta. duckdb sí
-la aborta por un error al preparar, como el de una sonda de dialecto— y
-no tiene `SAVEPOINT`: dentro de una transacción de duckdb, un objeto que
-falla al leerse —una vista que convierte un texto sucio— la deja
-abortada, y hay que cerrarla con `ROLLBACK`.
+errores del motor que deshacen la transacción completa. La etapa
+publicada en el motivo es la que detectó el cambio: `dbSendQuery`,
+`dbFetch` o `dbClearResult`. MySQL, MariaDB y SQLite no abortan la
+transacción por el error de una consulta. duckdb sí la aborta por un
+error al preparar, como el de una sonda de dialecto— y no tiene
+`SAVEPOINT`: dentro de una transacción de duckdb, un objeto que falla al
+leerse —una vista que convierte un texto sucio— la deja abortada, y hay
+que cerrarla con `ROLLBACK`.
 
 ## Muestra y aproximaciones
 
@@ -847,13 +871,52 @@ eso no es lo mismo que la tabla en R:
   reconocen por el tipo que publica
   [`DBI::dbColumnInfo()`](https://dbi.r-dbi.org/reference/dbColumnInfo.html)
   de RPostgres; con otro controlador no se convierte nada. Para
-  `double precision`, la lectura no depende de esa escritura corta: se
-  suma al `NUMERIC` de quince cifras el residuo entre ese valor y el
-  doble guardado. Asi se conservan los dobles distintos y casos como
-  `0.1 * 3` frente a `0.3`, sin cambiar `extra_float_digits` ni dejar el
-  estado de la sesion modificado. `NaN` e infinitos se representan por
-  sus equivalentes numericos y la expresion se usa tambien dentro de las
-  relaciones derivadas de los agregados.
+  `double precision`, PostgreSQL 12 o posterior con
+  `extra_float_digits >= 1` conserva la lectura nativa: el servidor ya
+  escribe una representación redonda de 17 cifras y no se agrega una
+  reconstrucción que pueda cambiar el valor ni encarecer cada consulta.
+  En PostgreSQL 9.3, en versiones anteriores a la 12 o con
+  `extra_float_digits <= 0`, la lectura usa `float8send()` para
+  decodificar los ocho bytes IEEE-754 y formar el valor exacto como
+  `NUMERIC`; esto conserva también los dobles vecinos bajo una potencia
+  de dos, los valores desde `2^53` y los extremos finitos. `NaN` e
+  infinitos se representan por sentinelas numéricos que RPostgres vuelve
+  a leer como sus valores originales. La expresión de lectura se
+  mantiene sin alias para poder entrar en una consulta derivada; sólo la
+  lista de proyección le agrega el alias original. Esa misma distinción
+  se usa en el resumen SQL, la muestra, los bloques, las expresiones
+  anidadas y las relaciones de una colección. Los agregados de esa misma
+  lectura excluyen `NaN` e infinitos con sentinelas de `NUMERIC`; la
+  media se escala en `NUMERIC` para no desbordar ni perder subnormales
+  por underflow. La lectura nativa de PostgreSQL 12+ con 17 cifras no
+  pasa por esa reconstrucción. En PostgreSQL 9.3 y en sesiones con pocas
+  cifras la decodificación exacta es más costosa que la lectura nativa;
+  se conserva ese costo para no publicar cifras falsas y se aplica sólo
+  cuando la sesión no garantiza los 17 dígitos.
+
+  **`datetimeoffset` en SQL Server.** FreeTDS puede entregar a `odbc` un
+  `datetimeoffset` con desplazamiento distinto de `+00:00` ya convertido
+  a UTC. Una vez perdido el desplazamiento, Lupa no puede reconstruirlo
+  desde el valor recibido: la corroboración lo deja como divergencia de
+  una fecha, no como diferencia de cotejamiento. Para conservar el
+  desplazamiento hay que leer la columna como texto o normalizarla en la
+  consulta de origen.
+
+- **Extremos y equivalencia entre motores.** SQL Server puede desbordar
+  al agregar un `float` que contiene `-DBL_MAX` o `+DBL_MAX`; en ese
+  caso sus métricas de magnitud quedan `no_disponible` con el mensaje
+  del motor, aunque la muestra conserve el valor. El mismo `real` puede
+  mostrar una última cifra distinta entre PostgreSQL y SQL Server porque
+  RPostgres lee la forma decimal corta y FreeTDS/odbc entrega el
+  `float32`; cada resumen es coherente con los valores que su
+  controlador devolvió, pero la comparación entre motores puede
+  declararlo `materialmente_distinto`. En un `real`, un centinela
+  fraccionario se alinea a `float32`; si el valor declarado tiene más
+  precisión que la representación binaria almacenada, no se considera el
+  mismo centinela y no se cuentan faltantes disfrazados. La lista
+  explícita de centinelas conserva además la reserva documentada de los
+  valores por omisión: declarar un valor lo vuelve a contar incluso si
+  aparece una sola vez.
 
 - **La media en coma flotante.** Cada lado suma a su modo; sobre una
   columna que mezcla magnitudes muy distintas —`1e20` junto a `1`— las
@@ -904,6 +967,14 @@ eso no es lo mismo que la tabla en R:
   SQL, con la moda y la frecuencia que de ahí se siguen, o una moda
   empatada que cada lado desempata con su orden—: la deja en una fila
   `no_corroborada` con ese motivo.
+
+- **`datetimeoffset` en SQL Server.** FreeTDS/odbc puede entregar un
+  `datetimeoffset` con desplazamiento distinto de `+00:00` como
+  `POSIXct` en UTC y perder el desplazamiento original. La lectura no lo
+  puede recuperar después; la corroboración no lo excusa como un
+  cotejamiento y deja la divergencia publicada. Para conservar el
+  instante y el desplazamiento, leer la columna como texto con el
+  desplazamiento o normalizarla en el origen antes de perfilar.
 
 - **Una columna que mezcla tipos de almacenamiento.** SQLite admite
   texto en una columna de afinidad numérica, y RSQLite la lee como

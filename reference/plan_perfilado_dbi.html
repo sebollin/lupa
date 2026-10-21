@@ -195,7 +195,11 @@ reemplazan silenciosamente por resultados de la tabla completa.</p></dd>
 <dd><p>Cantidad positiva y finita de filas que el motor debe
 tomar cuando <code>universo = "muestra_motor"</code>. Es obligatorio en ese universo y
 debe quedar <code>NULL</code> para <code>"tabla_completa"</code>; la función rechaza temprano
-valores no enteros, no positivos o <code>Inf</code>.</p></dd>
+valores no enteros, no positivos o <code>Inf</code>. Si una vista falla en una fila,
+el resumen conserva el alcance de la materialización que sí se pudo leer:
+las columnas legibles se perfilan y la columna rota queda
+<code>no_disponible</code>; la cobertura no presenta esa lectura parcial como una
+lectura completa de la vista.</p></dd>
 
 
 <dt id="arg-muestra">muestra<a class="anchor" aria-label="anchor" href="#arg-muestra"></a></dt>
@@ -203,7 +207,11 @@ valores no enteros, no positivos o <code>Inf</code>.</p></dd>
 muestra que se trae a R, o <code>Inf</code> para traer la tabla entera. Este límite es
 independiente de <code>universo</code>: en <code>muestra_motor</code>, <code>muestra_motor</code> decide las
 filas del resumen SQL y <code>muestra</code> decide las filas del bloque
-<code>perfil_muestra</code>. En <code>tabla_completa</code>, <code>muestra</code> no cambia los agregados.</p>
+<code>perfil_muestra</code>. En <code>tabla_completa</code>, <code>muestra</code> no cambia los agregados.
+Cuando <code>universo = "muestra_motor"</code>, el resumen usa toda la materialización
+del motor y este argumento solo recorta el diagnóstico en R; por eso
+<code>meta$materializacion$n_filas</code> puede ser mayor que
+<code>perfil_muestra$meta$filas</code>.</p>
 <p>Sin <code>orden_muestra</code>, las filas del bloque en R no son una muestra aleatoria
 garantizada sino las primeras que devuelva el motor. El límite también
 alcanza la muestra común con que se buscan dependencias. Use un entero
@@ -217,7 +225,11 @@ argumento, DBI no garantiza el orden ni la pertenencia de una muestra
 limitada, y <code>meta</code> lo declara expresamente. No se usa cuando
 <code>bloque_muestra = "solo_agregados"</code>. En la via I1, la identidad de la
 fuente por bloques gobierna el recorrido y este pedido queda declarado en
-<code>meta$orden_muestra</code> con el motivo estable de que no gobierna esa via.</p></dd>
+<code>meta$orden_muestra</code> con el motivo estable de que no gobierna esa via. Si
+el motor falla al evaluar una columna del <code>ORDER BY</code>, la vía prueba cada
+componente, recupera las columnas legibles sin ese orden cuando puede y
+publica <code>alcance_distinto</code> con el motivo de que el orden pedido no se pudo
+aplicar; no lo presenta como si ninguna columna fallara.</p></dd>
 
 
 <dt id="arg-metricas">metricas<a class="anchor" aria-label="anchor" href="#arg-metricas"></a></dt>

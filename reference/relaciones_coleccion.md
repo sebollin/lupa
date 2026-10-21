@@ -172,6 +172,12 @@ resultado declara ese alcance: una relación candidata sobre una muestra
 **no es una clave foránea comprobada**, es un indicio que hay que
 confirmar contra el diccionario de datos.
 
+Las columnas de ancho fijo (`char(n)` y equivalentes del controlador) se
+leen sin el relleno final que forma parte de su representación en el
+motor. Así, una clave `char` y su contraparte `varchar` se comparan por
+el valor lógico que el motor iguala, no por los espacios que entrega
+DBI.
+
 **Con la tabla de referencia truncada la cobertura es una cota
 inferior.** Un valor de `tabla_2` que no está entre las filas leídas de
 `tabla_1` puede estar en las demás, así que la cobertura sólo puede

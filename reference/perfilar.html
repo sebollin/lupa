@@ -487,7 +487,8 @@ documento— se protege entera, como una
 columna personal: se clasifica <code>documento_identidad</code> con poder <code>alto</code>
 cuando al menos tres de sus valores distintos son el documento sin su
 verificador de un valor protegido —con la regla de los textos, ver
-abajo—, son el 90 % de sus distintos —el umbral de <code>verificado</code>, que
+abajo; también la cédula de seis cifras, <code>854321</code> de <code>"854.321-2"</code>, que
+una sola entre las de siete dejaba publicar la columna—, son el 90 % de sus distintos —el umbral de <code>verificado</code>, que
 tolera tipeos aislados— y tantos no coinciden por azar con la densidad de
 esos documentos en el rango de la columna —una probabilidad binomial
 menor que una en un millón—. Publicaba sus dos extremos, que son dos
@@ -1802,17 +1803,31 @@ guardarlo— no hay valores con que barrer y se tapa entera;</p></li>
 <li><p><code>medio</code>: el nombre de la columna expresa una categoría personal (por
 ejemplo <code>telefono</code>, <code>fecha_nacimiento</code> o <code>fecha_fallecimiento</code>); se protege aunque sus valores no
 se puedan validar. El nombre tiene prioridad sobre una forma numérica
-genérica y también determina la etiqueta de tipo. Una palabra de nombre
+genérica y también determina la etiqueta de tipo. Cada palabra vale
+también abreviada como se la escribe en una base —<code>tel</code>, <code>telef</code>, <code>fono</code>,
+<code>cel</code>, <code>dir</code>, <code>domic</code>, <code>nom</code>, <code>ape</code>, <code>doc</code>, <code>ced</code>, <code>e_mail</code>—, en plural,
+con un número pegado (<code>telefono2</code>, <code>apellido1</code>) y en camelCase
+(<code>NombreCliente</code>, <code>nroDoc</code>); <code>mov</code> no, que es también un movimiento.
+Una palabra de nombre
 —<code>nombre</code>, <code>apellido</code>— la expresa en cualquier lugar del nombre:
 <code>nombre_cliente</code> es un nombre, y también <code>nombre_jefe_grupo</code> o
 <code>nombre_grupo</code>; una columna de números o de fechas no lo es
-(<code>cantidad_nombres</code>). Una palabra de <strong>persona</strong> —<code>cliente</code>,
+(<code>cantidad_nombres</code>), y con un lugar —<code>nombre_departamento</code>,
+<code>nom_localidad</code>, la categoría de cualquier base pública— decide la
+señal de los valores, como la palabra de persona con un lugar. Un
+documento por el nombre tiene que tener algún valor con seis cifras o
+más: <code>cedula_valida</code> con <code>"S"</code>/<code>"N"</code> o <code>cod_documento</code> con <code>1</code>, <code>2</code>, <code>9</code>
+no lo son. Y la dirección de una red o de un organismo no es un domicilio
+(<code>dir_ip</code>, <code>dir_web</code>, <code>direccion_general</code> con <code>"Direccion de Salud"</code>).
+Una palabra de <strong>persona</strong> —<code>cliente</code>,
 <code>socio</code>, <code>usuario</code>, <code>persona</code>, <code>paciente</code>, <code>titular</code>— dice de quién
 habla la columna, no que guarde su nombre: la clasifica como <code>nombre</code>
 sólo si ninguna otra palabra del nombre la clasificó —<code>direccion_cliente</code>
 es un domicilio—, si el resto del nombre no dice que es otra cosa —una
 clave (<code>cliente_id</code>, <code>id_usuario</code>, <code>cod_socio</code>), un tipo, un estado o una
-categoría (<code>tipo_cliente</code>, <code>estado_socio</code>), una fecha (<code>cliente_desde</code>,
+categoría (<code>tipo_cliente</code>, <code>estado_socio</code>), un medio o una forma
+(<code>medio_pago_cliente</code>, <code>forma_pago_cliente</code>), un lugar (<code>pais_cliente</code>,
+<code>nacionalidad_socio</code>), una fecha (<code>cliente_desde</code>,
 <code>fecha_alta_socio</code>), una cantidad o un importe— y si sus valores pueden
 ser nombres: una columna de números, fechas o lógicos no lo es. Hasta la
 ronda 33 bastaba la palabra, y esas columnas se protegían como nombres:
@@ -1834,23 +1849,30 @@ la raya de una planilla), con el <code>.0</code> de una planilla, con un interno
 en una lista: <code>responsable_canal</code> con <code>"+598 99 123 456"</code>—, en una
 columna que no es de fechas; con la palabra del teléfono, también las
 cifras sueltas (<code>celular_estado</code>), salvo que el resto del nombre diga
-que son un importe (<code>importe_telefono</code>). No son teléfonos un importe con
-centavos (<code>"12345.10"</code>) o con separadores de miles (<code>"1.250.000"</code>), un
-número redondo, un código con un año (<code>"2024-00001"</code>) ni un documento
-escrito como documento. Un domicilio con una marca de calle —<code>Av.</code>,
+que son un importe (<code>importe_telefono</code>) o un plazo
+(<code>telefono_plazo_dias</code>); el celular escrito de a tres sin su cero
+(<code>"99.123.456"</code>) con esa palabra, y el <code>598</code> pegado aunque la columna sea
+de números. No son teléfonos un importe —negativo, con centavos o con
+cuatro decimales (<code>"-12345.10"</code>, <code>"1234.5000"</code>), con separadores de miles
+(<code>"1.250.000"</code>, <code>"12 345.50"</code>)—, un número redondo, un código con un año
+o con un grupo rellenado con ceros (<code>"2024-00001"</code>, <code>"10-0012345"</code>) ni un
+documento escrito como documento. Un domicilio con una marca de calle —<code>Av.</code>,
 <code>calle</code>, <code>Bvar.</code>, <code>Br.</code>, <code>Cno.</code>, <code>Rbla.</code>, <code>Pje.</code>, <code>Gral.</code>, <code>ruta</code>,
 <code>esq.</code>, <code>apto</code>, <code>Dpto.</code>, <code>Mza.</code>, <code>km</code> seguido de un número— en al menos
-el 30 % de sus distintos y sin una palabra de categoría (<code>cliente_tipo</code>
-con <code>"Av. Italia 2345"</code>; <code>"En ruta"</code>, <code>"Radio 5 km"</code> no lo son). O un
-nombre con un nombre de pila conocido —también con una inicial,
-<code>"Juan A. Perez"</code>, o un <code>O'</code>—, sin cifras, sin una palabra que no va en
-un nombre —<code>sin</code>, <code>en</code>, <code>por</code>— y sin empezar como un lugar —<code>San</code>,
-<code>Villa</code>—, aunque sean dos personas (<code>responsable_grupo</code> con
+el 30 % de sus distintos y sin empezar con una palabra de categoría
+(<code>cliente_tipo</code> con <code>"Av. Italia 2345"</code>, también <code>"Rivera entre Soca y Ellauri 1234"</code>; <code>"En ruta"</code>, <code>"Radio 5 km"</code> no lo son). O un
+nombre con un nombre de pila conocido —también con iniciales,
+<code>"Juan A. Perez"</code>, <code>"Juan M. A. Perez"</code>, <code>"Juan A Perez"</code>, o un <code>O'</code>—,
+sin cifras, sin una palabra que no va en un nombre —<code>sin</code>, <code>en</code>, <code>por</code>—,
+sin empezar como un lugar —<code>San</code>, <code>Villa</code>— y que no sea una frase escrita
+como frase (<code>"Dolores musculares agudos"</code>, <code>"Victoria local"</code>), aunque
+sean dos personas (<code>responsable_grupo</code> con
 <code>"Perez Joaquin"</code>, <code>contacto_alta</code> con <code>"Ramon Acosta"</code>). Los acentos se
 leen también en <code>latin1</code> sin marca, como lo deja un CSV de Windows bajo
 <code>C</code>. Y una fecha de nacimiento o de defunción calificada como categoría
-(<code>nacimiento_estado</code>) es esa fecha si sus valores son fechas; su lugar
-no (<code>pais_nacimiento</code>). La forma sola no alcanza: <code>"Gran Empresa"</code>,
+(<code>nacimiento_estado</code>) es esa fecha si sus valores son fechas; su lugar,
+su causa o una parte no (<code>pais_nacimiento</code>, <code>causa_defuncion</code>,
+<code>edad_fallecimiento</code>, <code>anio_nacimiento</code>). La forma sola no alcanza: <code>"Gran Empresa"</code>,
 <code>"Cerro Largo"</code>, <code>"Arroz Premium"</code> u <code>"Oficina 101"</code> siguen siendo
 categorías, y los nombres de pila que también son palabras de una
 categoría —<code>Pilar</code>, <code>Marco</code>, <code>Norma</code>, <code>Franco</code>, <code>Domingo</code>, <code>Julio</code>,
@@ -1859,7 +1881,11 @@ categoría —<code>Pilar</code>, <code>Marco</code>, <code>Norma</code>, <code>
 —<code>usuario</code>, <code>funcionario</code>, <code>responsable</code>, <code>solicitante</code>— con una de
 auditoría —<code>alta</code>, <code>baja</code>— dice quién dio el alta o la baja: ahí basta un
 texto que no sea una fecha ni un estado —un login <code>"jperez"</code>, un
-apellido solo; no <code>"Sin baja"</code> ni <code>"Baja definitiva"</code>—; la de quien es
+apellido solo, <code>"A. Rodriguez"</code>; no <code>"Sin baja"</code>, <code>"Baja definitiva"</code>,
+ni lo que tiene la forma de un estado o de un motivo en todas sus
+palabras, <code>"Cancelada"</code>, <code>"Renuncia"</code>, <code>"Jubilacion"</code>; un nombre completo
+con un apellido de esa forma, <code>"Laura Machado Delgado"</code>, sigue siendo un
+nombre, y un nombre de pila de la lista nunca es un estado—; la de quien es
 objeto del registro pide la señal de los valores, y <code>cliente_desde</code> con
 <code>"Sin fecha"</code> o <code>paciente_alta</code> con <code>"Traslado"</code> se publican. En la
 ronda 34 el nombre decidía solo, y esas columnas publicaban nombres,
@@ -1871,7 +1897,12 @@ nombre de persona —<code>"Jose Ignacio"</code>, <code>"Juan Lacaze"</code>— 
 nombre; con una palabra de categoría o de clave, un login de sólo letras
 o un apellido solo (<code>responsable_grupo</code> con <code>"Rodriguez"</code>, <code>usuario_id</code>
 con <code>"jperez_01"</code>) no se distinguen de una categoría o de un código y se
-publican, como un domicilio sin marca de calle; y las escrituras raras de
+publican, como un domicilio sin marca de calle; un apellido solo con la
+forma de un estado —<code>"Machado"</code>— cuenta como estado en la regla de quien
+actúa, que necesita el 80 % de la columna; una palabra de persona
+con otra que no es un calificador conocido —<code>victoria_equipo_socio</code>— se
+protege por el nombre, y <code>dir</code> es una dirección aunque la columna sea de
+puntos cardinales; y las escrituras raras de
 un número —coma decimal con exponente, <code>"4.685.467,00e0"</code>— no se leen.
 Una columna de
 personas con otro nombre se declara en <code>columnas_personales</code>. También es <code>medio</code> una

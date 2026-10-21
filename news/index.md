@@ -2,6 +2,161 @@
 
 ## lupa 0.1.0
 
+### Ronda 37: la via DBI, las mediciones y la proteccion, refutadas sobre la ronda 36
+
+La tercera ronda con el porton acotado al camino principal. Las
+refutaciones sobre la ronda 36 encontraron cuatro altos: en SQL Server,
+un error al traer las filas -no al enviar la consulta- deshacia la
+transaccion del usuario sin aviso, y la promesa de la ronda 36 no lo
+cubria; regresion de la ronda 36,
+[`relaciones_coleccion()`](https://sebollin.github.io/lupa/reference/relaciones_coleccion.md)
+no leia ninguna tabla con una columna `double precision`, porque la
+lectura nueva del `float8` llevaba un alias dentro de otra consulta; las
+columnas `tel`, `cel`, `telef` o `nro_tel` con celulares no se
+reconocian como telefono; y en una coleccion una sola cedula de seis
+cifras bastaba para que la copia de las cedulas en otra tabla dejara de
+reconocerse y publicara sus extremos. Ademas, unos quince medios. Dos
+arreglos de esta misma ronda trajeron un alto nuevo cada uno -la forma
+de un estado tomaba por estados apellidos como `Machado` y nombres como
+`Laura`, y la lectura exacta del `float8` en PostgreSQL 9.3 perdia los
+decimales-; la auditoria los encontro al correr cada copia y se
+corrigieron antes de unir.
+
+**La via DBI:**
+
+- SQL Server: la vigilancia de la transaccion del usuario cubre tambien
+  `dbFetch()` y el cierre del resultado; si SQL Server la deshace al
+  traer las filas -por bloques, con `muestra_motor` o en
+  [`relaciones_coleccion()`](https://sebollin.github.io/lupa/reference/relaciones_coleccion.md)-,
+  la via se detiene con `lupa_error_transaccion_dbi`, y el mensaje dice
+  en que paso (`dbSendQuery`, `dbFetch` o `dbClearResult`) se detecto.
+- Vistas que fallan en una fila: con `bloque_filas`, las columnas sanas
+  conservan minimo, maximo, media, desvio y mediana;
+  [`relaciones_coleccion()`](https://sebollin.github.io/lupa/reference/relaciones_coleccion.md)
+  aisla la columna ilegible y no pierde el par entero; `muestra_motor`
+  resume toda su materializacion aunque `muestra` recorte el perfil
+  diagnostico, y su motivo ya no afirma que la materializacion fallo
+  cuando no fallo.
+- `orden_muestra`: al aislar la columna que falla se conserva el orden
+  pedido; si la que falla es la propia columna de orden, la muestra se
+  lee sin ese orden y se declara, en vez del motivo falso “ninguna fallo
+  por si sola”.
+- `char(n)`: el relleno del tipo no se lee como dato (sin
+  `espacios_sobrantes` falso), y las relaciones entre `char` y `varchar`
+  se encuentran, en PostgreSQL y SQL Server.
+- El spool cierra su archivo y su resultado tambien cuando la lectura
+  termina en error.
+
+**Las mediciones:**
+
+- PostgreSQL 12 o posterior con `extra_float_digits >= 1` -la sesion por
+  omision- lee el `float8` tal como llega, sin reconstruirlo: los
+  enteros de 2^55 o mas ya no cambian (`filas_duplicadas` falsas,
+  `n_distintos` de menos).
+- PostgreSQL anterior a la 12, o con `extra_float_digits <= 0`: el
+  `float8` se lee exacto desde sus ocho bytes (`float8send()`), con
+  potencias positivas de dos -en 9.3 las negativas se redondean-; medido
+  valor por valor con
+  [`identical()`](https://rdrr.io/r/base/identical.html) sobre 2811
+  dobles (subnormales, `DBL_MAX`, decimales) en 9.3 y en 16. Cuesta unas
+  cuatro veces la lectura nativa en 9.3, y solo se paga donde hace
+  falta.
+- Ninguna lectura del `float8` lleva alias dentro de otra consulta: la
+  verificacion `fuera_de_muestra` de la proteccion y
+  [`relaciones_coleccion()`](https://sebollin.github.io/lupa/reference/relaciones_coleccion.md)
+  vuelven a funcionar con columnas `double precision`.
+- Un `Infinity` o un `-DBL_MAX` en un `float8` ya no dejan los agregados
+  `no_disponible`.
+- Los centinelas fraccionarios sobre un `real` de SQL Server se
+  reconocen tambien con `muestra_motor` y con `bloque_filas`.
+- [`comparar_perfiles()`](https://sebollin.github.io/lupa/reference/comparar_perfiles.md):
+  una muestra truncada ya no publica como resueltos los hallazgos que no
+  pudo evaluar, y un par de columnas duplicadas cuya segunda columna
+  desaparece no se presenta como resuelto.
+- Limitaciones documentadas: SQL Server lee un `datetimeoffset` que no
+  es UTC como UTC (FreeTDS y odbc pierden el desplazamiento; la
+  corroboracion lo marca como divergencia); los extremos de `float` en
+  SQL Server desbordan el promedio del motor; un `real` puede publicarse
+  distinto entre motores.
+
+**La proteccion:**
+
+- **Las abreviaturas comunes de cada palabra personal en el nombre de
+  una columna se reconocen.** `tel`, `tel_particular`, `nro_tel`,
+  `telef` o `cel` con celulares se clasificaban documento debil y
+  publicaban su moda. Ahora cada palabra vale tambien abreviada como se
+  la escribe en una base -`tel`, `telf`, `tlf`, `tfno`, `telef`, `fono`,
+  `cel`, `dir`, `direc`, `domic`, `nom`, `ape`, `doc`, `ced`, `e_mail`-,
+  en plural, con un numero pegado (`telefono2`, `apellido1`) y en
+  camelCase (`NombreCliente`, `nroDoc`). `mov` no: es tambien un
+  movimiento. Una prueba recorre 40 palabras de cinco tipos en seis
+  formas cada una.
+- **La copia de las cedulas de otra tabla se protege aunque haya cedulas
+  de seis cifras.** En una coleccion con perfiles conservados, una sola
+  cedula de seis cifras sin su verificador (`854321` de `"854.321-2"`)
+  entre las copias de siete bastaba para que la columna no se
+  reconociera como copia y publicara su minimo, su maximo y su mediana,
+  que son cedulas; con todas de seis, tambien su moda. La regla de la
+  copia exigia siete cifras al documento sin verificador y un extremo de
+  un millon. Ahora cuenta las de seis: la prueba binomial sigue
+  separando la copia del azar. El piso por valor, que no tiene esa
+  prueba, sigue pidiendo siete. Medido en PostgreSQL 16 y SQL Server
+  2022 (`solo6`, `mezcla`, `uno_en_50`): protegidas.
+- **Lo que la ronda 36 tapaba de mas se publica.** Por las formas nuevas
+  del telefono: importes negativos (`"-12345.10"`, `"-1.250.000"`), con
+  cuatro decimales (`"1234.5000"`), con miles con espacio y centavos
+  (`"12 345.50"`) y codigos con un grupo rellenado con ceros
+  (`"2024.00001"`, `"10-0012345"`). Y de antes: lugares con palabra de
+  persona (`pais_cliente`, `nacionalidad_socio`, `departamento_cliente`)
+  y de domicilio (`ciudad_domicilio`), la causa, la edad y el ano de una
+  defuncion o un nacimiento (`causa_defuncion`, `edad_fallecimiento`,
+  `anio_nacimiento`, `municipio_nacimiento`), la forma o el metodo de
+  pago (`forma_pago_cliente`), el resultado (`resultado_socio`), un
+  plazo (`telefono_plazo_dias`), estados y motivos de una baja
+  (`usuario_baja` con `"Cancelada"`, `funcionario_baja` con
+  `"Renuncia"`, `"Jubilacion"`: la regla de quien actua los reconoce por
+  la forma de un estado o de un motivo) y frases que empiezan con un
+  nombre de pila (`"Dolores musculares agudos"`, `"Victoria local"`).
+  Medido celda por celda contra `proteger_datos_personales = FALSE`: las
+  mismas modas y extremos.
+- **Nombres con dos iniciales, con una inicial sin punto o con una
+  inicial antes de un `O'`** (`"Juan M. A. Perez"`, `"Juan A Perez"`,
+  `"Maria E. O'Neill"`) se reconocen en una columna calificada; y en la
+  regla de quien actua, `"A. Rodriguez"` u `"O'Connor"`.
+- **Formas bajas de la misma construccion:** el celular con el `.0000`
+  de un `DECIMAL(15,4)`, el celular de Uruguay escrito de a tres sin su
+  cero con la palabra del telefono (`tipo_telefono` con `"99.123.456"`),
+  el `598` pegado en una columna de numeros, y los domicilios con
+  `entre`, `el` o `Calle A`.
+- **Limitaciones conocidas (bajas), declaradas en la ayuda:** un
+  apellido SOLO con la forma de un estado (`"Machado"`) cuenta como
+  estado en la regla de quien actua, que necesita el 80 % de la columna;
+  una palabra de persona con otra que no es un calificador conocido
+  (`victoria_equipo_socio`) se protege por el nombre; `dir` es una
+  direccion aunque la columna sea de puntos cardinales.
+- **La forma de un estado no se confunde con un nombre.** Un texto
+  cuenta como estado o motivo por su forma -participio o sustantivo de
+  accion: `"Cancelada"`, `"Renuncia"`, `"Jubilacion"`- solo si TODAS sus
+  palabras la tienen y ninguna es un nombre de pila de la lista:
+  `"Laura Machado"`, `"Florencia Cabral Gomez"` o
+  `"MACHADO PEREZ, JUAN"` en `usuario_alta` siguen siendo nombres. La
+  lista de nombres de pila suma nombres corrientes en Uruguay (`Nelson`,
+  `Heber`, `Gladys`, `Mirta`, `Vicente`, `Clemente`, `Dante`…). Medido
+  con nombres completos de distribucion realista, apellido primero y en
+  mayusculas, con la mitad de los nombres de pila fuera de la lista:
+  protegidos.
+- **Un nombre de lugar, un documento sin cifras y la direccion de una
+  red o de un organismo se publican.** `nombre_departamento`,
+  `nom_depto` o `nom_localidad` -la categoria de cualquier base publica-
+  piden la senal de los valores: con departamentos se publican, con
+  nombres de personas se protegen. Un documento por el nombre necesita
+  algun valor de seis cifras o mas (`cedula_valida` con `"S"`/`"N"`,
+  `cod_documento` con `1`, `2`, `9`). `dir_ip`, `dir_web` y
+  `direccion_general` (`"Direccion de Salud"`) ya no son domicilios, y
+  una direccion IP no es un telefono. Siguen protegidos por decision
+  `nombre_<cosa>` con otras palabras (`nombre_programa`, `nom_archivo`)
+  y el numero de puerta (`nro_dir`).
+
 ### Ronda 36: la via DBI, las mediciones y la proteccion, refutadas sobre la ronda 35
 
 La segunda ronda con el porton acotado al camino principal
