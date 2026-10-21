@@ -67,7 +67,8 @@ escoger la dirección PK/FK sin imponerla de antemano.</p>
 <span>  umbral_cobertura <span class="op">=</span> <span class="fl">0.9</span>,</span>
 <span>  podar <span class="op">=</span> <span class="cn">FALSE</span>,</span>
 <span>  tope_memoria_mb <span class="op">=</span> <span class="cn">Inf</span>,</span>
-<span>  .rangos <span class="op">=</span> <span class="cn">NULL</span></span>
+<span>  .rangos <span class="op">=</span> <span class="cn">NULL</span>,</span>
+<span>  .rellenos_finales <span class="op">=</span> <span class="cn">NULL</span></span>
 <span><span class="op">)</span></span></code></pre></div>
     </div>
 
@@ -113,6 +114,13 @@ alcanza; <code>Inf</code> no limita el procesamiento.</p></dd>
 rangos solo acepta rangos de la columna completa o del universo DBI. Una
 columna cuya lectura no permite comparar exacto lo declara en
 <code>no_comparable</code>, y sus pares salen <code>sin_comparar</code> con ese motivo.</p></dd>
+
+
+<dt id="arg--rellenos-finales">.rellenos_finales<a class="anchor" aria-label="anchor" href="#arg--rellenos-finales"></a></dt>
+<dd><p>Uso interno de <code><a href="relaciones_coleccion.html">relaciones_coleccion()</a></code>. Declara
+las columnas cuyo controlador compara ignorando espacios finales. Se aplica
+solo al par que tiene una columna declarada, para conservar la semantica de
+comparacion del motor sin convertir todas las columnas de texto.</p></dd>
 
 </dl></div>
     <div class="section level2">

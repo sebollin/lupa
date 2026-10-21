@@ -1937,48 +1937,56 @@ protección. Cada clasificación declara `poder_discriminante` y
   prioridad sobre una forma numérica genérica y también determina la
   etiqueta de tipo. Cada palabra vale también abreviada como se la
   escribe en una base —`tel`, `telef`, `fono`, `cel`, `dir`, `domic`,
-  `nom`, `ape`, `doc`, `ced`, `e_mail`—, en plural, con un número pegado
-  (`telefono2`, `apellido1`) y en camelCase (`NombreCliente`, `nroDoc`);
-  `mov` no, que es también un movimiento. Una palabra de nombre
-  —`nombre`, `apellido`— la expresa en cualquier lugar del nombre:
-  `nombre_cliente` es un nombre, y también `nombre_jefe_grupo` o
+  `nom`, `ape`, `doc`, `ced`, `e_mail`—, en plural —también la
+  abreviatura: `tels`, `cels`, `fonos`, `noms`, `dirs`—, con un número
+  pegado (`telefono2`, `apellido1`), en camelCase (`NombreCliente`,
+  `nroDoc`) y en las formas pegadas de los sistemas heredados,
+  enumeradas (`nrotel`, `TELCEL`, `nomape`, `NOMBRECOMPLETO`, `nrodoc`,
+  `dirpart`); `mov` no, que es también un movimiento. Una palabra de
+  nombre —`nombre`, `apellido`— la expresa en cualquier lugar del
+  nombre: `nombre_cliente` es un nombre, y también `nombre_jefe_grupo` o
   `nombre_grupo`; una columna de números o de fechas no lo es
   (`cantidad_nombres`), y con un lugar —`nombre_departamento`,
   `nom_localidad`, la categoría de cualquier base pública— decide la
   señal de los valores, como la palabra de persona con un lugar. Un
   documento por el nombre tiene que tener algún valor con seis cifras o
   más: `cedula_valida` con `"S"`/`"N"` o `cod_documento` con `1`, `2`,
-  `9` no lo son. Y la dirección de una red o de un organismo no es un
-  domicilio (`dir_ip`, `dir_web`, `direccion_general` con
-  `"Direccion de Salud"`). Una palabra de **persona** —`cliente`,
-  `socio`, `usuario`, `persona`, `paciente`, `titular`— dice de quién
-  habla la columna, no que guarde su nombre: la clasifica como `nombre`
-  sólo si ninguna otra palabra del nombre la clasificó
-  —`direccion_cliente` es un domicilio—, si el resto del nombre no dice
-  que es otra cosa —una clave (`cliente_id`, `id_usuario`, `cod_socio`),
-  un tipo, un estado o una categoría (`tipo_cliente`, `estado_socio`),
-  un medio o una forma (`medio_pago_cliente`, `forma_pago_cliente`), un
-  lugar (`pais_cliente`, `nacionalidad_socio`), una fecha
-  (`cliente_desde`, `fecha_alta_socio`), una cantidad o un importe— y si
-  sus valores pueden ser nombres: una columna de números, fechas o
-  lógicos no lo es. Hasta la ronda 33 bastaba la palabra, y esas
-  columnas se protegían como nombres: perdían su moda y sus extremos, y
-  sus categorías —`"mayorista"`, `"empresa"`— se tapaban también en las
-  demás columnas. La misma regla vale para las demás palabras:
-  `tipo_documento` es una categoría y no un documento, `fecha_contacto`
-  y `medio_contacto` no son teléfonos, `estado_correo` no es un correo y
-  `tipo_domicilio` no es un domicilio; sí lo siguen siendo
-  `nro_documento`, `documento_id`, `numero_celular`,
-  `telefono_contacto`, `barrio_id`, `segundo_nombre` o una fecha de
-  nacimiento guardada como número. Y una palabra que el resto del nombre
-  califica se decide con sus **valores**, con el tipo que ellos muestran
-  y no el de la palabra, en el 80 % de sus valores distintos: un correo
-  —una `@`, también el de una intranet: `correo_alta` con
-  `"jperez@intranet"`—; un teléfono de siete a quince cifras escrito
-  como teléfono —con `+`, con el prefijo `00598` o `598` pegado, con un
-  cero inicial, con separadores (también puntos de a dos cifras,
-  `"099.12.34.56"`, o el espacio duro y la raya de una planilla), con el
-  `.0` de una planilla, con un interno o en una lista:
+  `9` no lo son, si son al menos veinte valores de dos distintos o más;
+  sin valores —una columna rala que la muestra de
+  [`perfilar_dbi()`](https://sebollin.github.io/lupa/reference/perfilar_dbi.md)
+  no alcanzó—, con pocos o con un solo valor repetido —el `0` o el
+  `"S/D"` del que no tiene— decide el nombre, porque el resumen de la
+  tabla entera publicaría sus documentos. Y la dirección de una red o de
+  un organismo no es un domicilio (`dir_ip`, `dir_web`,
+  `direccion_general` con `"Direccion de Salud"`). Una palabra de
+  **persona** —`cliente`, `socio`, `usuario`, `persona`, `paciente`,
+  `titular`— dice de quién habla la columna, no que guarde su nombre: la
+  clasifica como `nombre` sólo si ninguna otra palabra del nombre la
+  clasificó —`direccion_cliente` es un domicilio—, si el resto del
+  nombre no dice que es otra cosa —una clave (`cliente_id`,
+  `id_usuario`, `cod_socio`), un tipo, un estado o una categoría
+  (`tipo_cliente`, `estado_socio`), un medio o una forma
+  (`medio_pago_cliente`, `forma_pago_cliente`), un lugar
+  (`pais_cliente`, `nacionalidad_socio`), una fecha (`cliente_desde`,
+  `fecha_alta_socio`), una cantidad o un importe— y si sus valores
+  pueden ser nombres: una columna de números, fechas o lógicos no lo es.
+  Hasta la ronda 33 bastaba la palabra, y esas columnas se protegían
+  como nombres: perdían su moda y sus extremos, y sus categorías
+  —`"mayorista"`, `"empresa"`— se tapaban también en las demás columnas.
+  La misma regla vale para las demás palabras: `tipo_documento` es una
+  categoría y no un documento, `fecha_contacto` y `medio_contacto` no
+  son teléfonos, `estado_correo` no es un correo y `tipo_domicilio` no
+  es un domicilio; sí lo siguen siendo `nro_documento`, `documento_id`,
+  `numero_celular`, `telefono_contacto`, `barrio_id`, `segundo_nombre` o
+  una fecha de nacimiento guardada como número. Y una palabra que el
+  resto del nombre califica se decide con sus **valores**, con el tipo
+  que ellos muestran y no el de la palabra, en el 80 % de sus valores
+  distintos: un correo —una `@`, también el de una intranet:
+  `correo_alta` con `"jperez@intranet"`—; un teléfono de siete a quince
+  cifras escrito como teléfono —con `+`, con el prefijo `00598` o `598`
+  pegado, con un cero inicial, con separadores (también puntos de a dos
+  cifras, `"099.12.34.56"`, o el espacio duro y la raya de una
+  planilla), con el `.0` de una planilla, con un interno o en una lista:
   `responsable_canal` con `"+598 99 123 456"`—, en una columna que no es
   de fechas; con la palabra del teléfono, también las cifras sueltas
   (`celular_estado`), salvo que el resto del nombre diga que son un
@@ -1987,63 +1995,90 @@ protección. Cada clasificación declara `poder_discriminante` y
   palabra, y el `598` pegado aunque la columna sea de números. No son
   teléfonos un importe —negativo, con centavos o con cuatro decimales
   (`"-12345.10"`, `"1234.5000"`), con separadores de miles
-  (`"1.250.000"`, `"12 345.50"`)—, un número redondo, un código con un
-  año o con un grupo rellenado con ceros (`"2024-00001"`,
-  `"10-0012345"`) ni un documento escrito como documento. Un domicilio
-  con una marca de calle —`Av.`, `calle`, `Bvar.`, `Br.`, `Cno.`,
-  `Rbla.`, `Pje.`, `Gral.`, `ruta`, `esq.`, `apto`, `Dpto.`, `Mza.`,
-  `km` seguido de un número— en al menos el 30 % de sus distintos y sin
-  empezar con una palabra de categoría (`cliente_tipo` con
-  `"Av. Italia 2345"`, también `"Rivera entre Soca y Ellauri 1234"`;
-  `"En ruta"`, `"Radio 5 km"` no lo son). O un nombre con un nombre de
-  pila conocido —también con iniciales, `"Juan A. Perez"`,
-  `"Juan M. A. Perez"`, `"Juan A Perez"`, o un `O'`—, sin cifras, sin
-  una palabra que no va en un nombre —`sin`, `en`, `por`—, sin empezar
-  como un lugar —`San`, `Villa`— y que no sea una frase escrita como
-  frase (`"Dolores musculares agudos"`, `"Victoria local"`), aunque sean
-  dos personas (`responsable_grupo` con `"Perez Joaquin"`,
-  `contacto_alta` con `"Ramon Acosta"`). Los acentos se leen también en
-  `latin1` sin marca, como lo deja un CSV de Windows bajo `C`. Y una
-  fecha de nacimiento o de defunción calificada como categoría
-  (`nacimiento_estado`) es esa fecha si sus valores son fechas; su
-  lugar, su causa o una parte no (`pais_nacimiento`, `causa_defuncion`,
-  `edad_fallecimiento`, `anio_nacimiento`). La forma sola no alcanza:
-  `"Gran Empresa"`, `"Cerro Largo"`, `"Arroz Premium"` u `"Oficina 101"`
-  siguen siendo categorías, y los nombres de pila que también son
-  palabras de una categoría —`Pilar`, `Marco`, `Norma`, `Franco`,
-  `Domingo`, `Julio`, `Blanca`, `Celeste`, `Rosa`, `Max`— no cuentan
-  (`"Primer Pilar"`, `"Convenio Marco"`). Y la palabra de quien actúa en
-  el registro —`usuario`, `funcionario`, `responsable`, `solicitante`—
-  con una de auditoría —`alta`, `baja`— dice quién dio el alta o la
-  baja: ahí basta un texto que no sea una fecha ni un estado —un login
-  `"jperez"`, un apellido solo, `"A. Rodriguez"`; no `"Sin baja"`,
-  `"Baja definitiva"`, ni lo que tiene la forma de un estado o de un
-  motivo en todas sus palabras, `"Cancelada"`, `"Renuncia"`,
-  `"Jubilacion"`; un nombre completo con un apellido de esa forma,
-  `"Laura Machado Delgado"`, sigue siendo un nombre, y un nombre de pila
-  de la lista nunca es un estado—; la de quien es objeto del registro
-  pide la señal de los valores, y `cliente_desde` con `"Sin fecha"` o
-  `paciente_alta` con `"Traslado"` se publican. En la ronda 34 el nombre
-  decidía solo, y esas columnas publicaban nombres, celulares y
-  domicilios. Limitación conocida: la lista de nombres de pila no es
-  completa, y un nombre que falta —o que es también una palabra
-  corriente, como `Max` o `Pilar`— deja la columna sin esa señal: con
-  tres personas, una basta para que no llegue al 80 %; una localidad con
-  nombre de persona —`"Jose Ignacio"`, `"Juan Lacaze"`— se lee como un
-  nombre; con una palabra de categoría o de clave, un login de sólo
-  letras o un apellido solo (`responsable_grupo` con `"Rodriguez"`,
-  `usuario_id` con `"jperez_01"`) no se distinguen de una categoría o de
-  un código y se publican, como un domicilio sin marca de calle; un
-  apellido solo con la forma de un estado —`"Machado"`— cuenta como
-  estado en la regla de quien actúa, que necesita el 80 % de la columna;
-  una palabra de persona con otra que no es un calificador conocido
-  —`victoria_equipo_socio`— se protege por el nombre, y `dir` es una
-  dirección aunque la columna sea de puntos cardinales; y las escrituras
-  raras de un número —coma decimal con exponente, `"4.685.467,00e0"`— no
-  se leen. Una columna de personas con otro nombre se declara en
-  `columnas_personales`. También es `medio` una columna que trae correos
-  completos sin que sean la mayoría de sus valores: un correo es un
-  correo aunque esté solo, y la columna se protege;
+  (`"1.250.000"`, `"12 345.50"`, `"1.456.651,89"`)—, un número redondo,
+  un código con un año o con un grupo rellenado con ceros
+  (`"2024-00001"`, `"10-0012345"`) ni un documento escrito como
+  documento; un importe con miles no empieza con cero y separa los
+  decimales con otro signo que los miles, y el celular escrito de a tres
+  con su cero (`"099.123.456"`, `"099 123.456"`, `"098.765.000"`) o el
+  fijo `"4.732.1234"` son teléfonos. Un domicilio con una marca de calle
+  —`Av.`, `calle`, `Bvar.`, `Br.`, `Cno.`, `Rbla.`, `Pje.`, `Gral.`,
+  `ruta`, `esq.`, `apto`, `Dpto.`, `Mza.`, `km` seguido de un número— en
+  al menos el 30 % de sus distintos y sin empezar con una palabra de
+  categoría (`cliente_tipo` con `"Av. Italia 2345"`, también
+  `"Rivera entre Soca y Ellauri 1234"`; `"En ruta"`, `"Radio 5 km"` no
+  lo son). O un nombre con un nombre de pila conocido —también con
+  iniciales, `"Juan A. Perez"`, `"Juan M. A. Perez"`, `"Juan A Perez"`,
+  o un `O'`—, sin cifras, sin una palabra que no va en un nombre —`sin`,
+  `en`, `por`—, sin empezar como un lugar —`San`, `Villa`— y que no sea
+  una frase que empieza con un nombre de pila que es también una palabra
+  —`Dolores`, `Victoria`— seguido de minúsculas
+  (`"Dolores musculares agudos"`, `"Victoria local"`), aunque sean dos
+  personas (`responsable_grupo` con `"Perez Joaquin"`, `contacto_alta`
+  con `"Ramon Acosta"`); con otro nombre de pila la minúscula no cuenta,
+  y `"Juan perez"` o `"Juan carlos Perez"` —lo que deja el
+  autocapitalizado de un formulario— son nombres. Los acentos se leen
+  también en `latin1` sin marca, como lo deja un CSV de Windows bajo
+  `C`, también en el nombre de la columna: el encabezado `Dirección`,
+  `Teléfono` o `Cédula` de un CSV de Windows leído sin declarar la
+  codificación —`read.csv(check.names = FALSE)`,
+  [`data.table::fread()`](https://rdrr.io/pkg/data.table/man/fread.html)—
+  se reconoce en cualquier sesión. Y una fecha de nacimiento o de
+  defunción calificada como categoría (`nacimiento_estado`) es esa fecha
+  si sus valores son fechas; su lugar, su causa o una parte no
+  (`pais_nacimiento`, `causa_defuncion`, `edad_fallecimiento`,
+  `anio_nacimiento`). La forma sola no alcanza: `"Gran Empresa"`,
+  `"Cerro Largo"`, `"Arroz Premium"` u `"Oficina 101"` siguen siendo
+  categorías, y los nombres de pila que también son palabras de una
+  categoría —`Pilar`, `Marco`, `Norma`, `Franco`, `Domingo`, `Julio`,
+  `Blanca`, `Celeste`, `Rosa`, `Max`— no cuentan (`"Primer Pilar"`,
+  `"Convenio Marco"`). Y la palabra de quien actúa en el registro
+  —`usuario`, `funcionario`, `responsable`, `solicitante`— con una de
+  auditoría —`alta`, `baja`— dice quién dio el alta o la baja: ahí basta
+  un texto que no sea una fecha ni un estado —un login `"jperez"`, un
+  apellido solo, `"A. Rodriguez"`; no `"Sin baja"`, `"Baja definitiva"`
+  ni un estado o un motivo de una lista cerrada —`"Cancelada"`,
+  `"Rechazada"`, `"Renuncia"`, `"Jubilacion"`, `"Despido"`,
+  `"Fallecimiento"`, `"Traslado"`, `"Cese"`, `"Fin de contrato"`,
+  también en mayúsculas y en plural—; un login o un apellido que termina
+  como un estado —`"lmachado"`, `"MACHADO, L."`, `"j.machado"`,
+  `"Machado"`—, un nombre autocapitalizado —`"Juan perez"`— y un usuario
+  del sistema —`"SISTEMA"`, `"MIGRACION"`— cuentan como personas: junto
+  a tres logins, uno solo que pasara por estado dejaría la columna en el
+  75 % y publicaría los logins de todos—; la de quien es objeto del
+  registro pide la señal de los valores, y `cliente_desde` con
+  `"Sin fecha"` o `paciente_alta` con `"Traslado"` se publican. En la
+  ronda 34 el nombre decidía solo, y esas columnas publicaban nombres,
+  celulares y domicilios. Limitación conocida: la lista de nombres de
+  pila no es completa, y un nombre que falta —o que es también una
+  palabra corriente, como `Max` o `Pilar`— deja la columna sin esa
+  señal: con tres personas, una basta para que no llegue al 80 %; una
+  localidad con nombre de persona —`"Jose Ignacio"`, `"Juan Lacaze"`— se
+  lee como un nombre; con una palabra de categoría o de clave, un login
+  de sólo letras o un apellido solo (`responsable_grupo` con
+  `"Rodriguez"`, `usuario_id` con `"jperez_01"`) no se distinguen de una
+  categoría o de un código y se publican, como un domicilio sin marca de
+  calle; en la regla de quien actúa, un estado o un motivo que no está
+  en la lista —`"Ingresos superiores"`, `"Abandono de cargo"` sí está—
+  se toma por una persona y la columna se protege; una frase que empieza
+  con otro nombre de pila —`"Mercedes centro"`— se lee como un nombre, y
+  `"Victoria perez"` escrito así no; el fijo con punto cuyo último grupo
+  termina en cero (`"4732.1230"`) se lee como un importe con cuatro
+  decimales y el que tiene un grupo que empieza con `00` (`"2400-0010"`)
+  como un código rellenado, y no cuentan para el 80 % de la columna; con
+  `check.names = TRUE` bajo `C`, R cambia la letra con tilde de un
+  encabezado de Windows por un punto (`Direcci.n`) y ese nombre no se
+  reconoce; los códigos con un dígito tras un guion (`"170177-3"`,
+  `"025-082916-3"`, `"10-0123456"`) en una columna calificada se leen
+  como teléfonos y se protegen; una palabra de persona con otra que no
+  es un calificador conocido —`victoria_equipo_socio`— se protege por el
+  nombre, y `dir` es una dirección aunque la columna sea de puntos
+  cardinales; y las escrituras raras de un número —coma decimal con
+  exponente, `"4.685.467,00e0"`— no se leen. Una columna de personas con
+  otro nombre se declara en `columnas_personales`. También es `medio`
+  una columna que trae correos completos sin que sean la mayoría de sus
+  valores: un correo es un correo aunque esté solo, y la columna se
+  protege;
 
 - `alto`: una forma muy específica, como un correo, o nombre y forma se
   apoyan mutuamente; se protege;

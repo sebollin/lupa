@@ -312,9 +312,13 @@ declaran sin sondeo.</p></dd>
 
 
 <dt id="arg-incluir-valores">incluir_valores<a class="anchor" aria-label="anchor" href="#arg-incluir-valores"></a></dt>
-<dd><p>Si el resumen informa valores de celda: moda, mínimo,
-máximo y mediana. Con <code>FALSE</code> esas consultas no se emiten. <code>TRUE</code> o
-<code>FALSE</code>.</p></dd>
+<dd><p>Si publica valores de celda. Con <code>FALSE</code> no se emiten
+las consultas de moda, extremos y mediana, y se limpian esos campos en el
+resumen, la muestra, los bloques, la cobertura y los motivos; también se
+retiran ejemplos de patrones, familias de acumuladores y cualquier muestra
+cruda. Los conteos, proporciones y agregados que no son valores de celda
+pueden seguir publicándose. La elección queda en
+<code>resumen_tabla$meta$incluir_valores</code> y <code>perfil_muestra$meta</code>.</p></dd>
 
 
 <dt id="arg-tamano-lote">tamano_lote<a class="anchor" aria-label="anchor" href="#arg-tamano-lote"></a></dt>

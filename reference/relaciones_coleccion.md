@@ -176,7 +176,19 @@ Las columnas de ancho fijo (`char(n)` y equivalentes del controlador) se
 leen sin el relleno final que forma parte de su representación en el
 motor. Así, una clave `char` y su contraparte `varchar` se comparan por
 el valor lógico que el motor iguala, no por los espacios que entrega
-DBI.
+DBI. En SQL Server la misma regla alcanza a los pares de texto `varchar`
+contra `varchar`, porque su cotejamiento ignora los espacios finales. En
+PostgreSQL no se recortan todas las columnas de texto: sólo se normaliza
+el par que tiene una columna de ancho fijo, para conservar la diferencia
+entre dos `varchar` con y sin relleno cuando el motor sí la distingue.
+
+Si una lectura conjunta falla en una fila, la colección aísla por
+descarte las columnas culpables y deja sus nombres en `cobertura_podas`
+con motivo `columna_lectura_fallida`; las columnas sanas conservan sus
+relaciones. Si se declaró `orden`, el aislamiento repite las sondas sin
+`ORDER BY` sólo cuando la propia columna de orden es la culpable, y
+`meta$estable` se calcula desde las lecturas que realmente llevaron ese
+orden.
 
 **Con la tabla de referencia truncada la cobertura es una cota
 inferior.** Un valor de `tabla_2` que no está entre las filas leídas de

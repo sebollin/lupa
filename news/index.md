@@ -2,6 +2,155 @@
 
 ## lupa 0.1.0
 
+### Ronda 38: la via DBI, las mediciones y la proteccion, refutadas sobre la ronda 37
+
+La cuarta ronda con el porton acotado al camino principal, y la que
+midio cuanto rompe un arreglo: de los nueve altos que encontraron las
+refutaciones, cinco eran regresiones del desarrollo de la ronda 37
+-cuatro de la proteccion, por reglas nuevas que buscaban no tapar de
+mas, y una de la via DBI, el `RTRIM()` de `char(n)`-. Los otros cuatro
+venian de antes: un nombre de tabla con bytes latin1 hacia caer R en
+RPostgres; en SQL Server con `XACT_ABORT ON` una sonda de sintaxis de
+Oracle deshacia la transaccion del usuario; `incluir_valores = FALSE` no
+valia con `muestra_motor`; y un CSV Windows-1252 leido sin codificacion
+dejaba sin reconocer los encabezados con tilde. Los arreglos de esta
+ronda siguen una regla escrita: el lado cerrado -volver a la conducta
+anterior en lo que la ronda 37 rompio, una lista cerrada antes que una
+regla por forma, `no_disponible` antes que una cifra dudosa-, y cada uno
+se midio tambien contra los casos que la ronda 37 habia cerrado.
+
+**La via DBI:**
+
+- Rechaza identificadores con bytes no validos antes de llamar al
+  controlador.
+- Evita sondas de sintaxis de otros motores y publica la etapa real de
+  los errores de transaccion.
+- Aisla y declara columnas que fallan al leer una fila, incluso con
+  orden declarado.
+- Respeta la igualdad de espacios finales de char, bpchar y SQL Server;
+  conserva la diferencia de varchar en PostgreSQL.
+- No publica como resumen un perfil aislado de una materializacion rota;
+  deja las metricas no_disponible.
+- Documenta que un desborde de float puede abortar la transaccion en SQL
+  Server y que n_distintos por bloques compara textos con sus espacios.
+- [`relaciones_coleccion()`](https://sebollin.github.io/lupa/reference/relaciones_coleccion.md):
+  con `orden` o `orden_muestra` sobre un `char(n)` de una vista con una
+  fila sucia, la lectura ordena por la columna cruda y conserva la
+  muestra y el par.
+
+**Las mediciones:**
+
+- La media y la mediana de float8 en PostgreSQL conservan la lectura
+  IEEE-754 cuando el transporte no garantiza 17 cifras.
+- `incluir_valores = FALSE` cierra valores de celda, ejemplos, familias,
+  cobertura y motivos en resumen, muestra y bloques.
+- Los decimales que llegan como dobles desde 2^53 dejan sus siete
+  magnitudes `no_disponible` tambien en `muestra_motor`.
+- [`comparar_perfiles()`](https://sebollin.github.io/lupa/reference/comparar_perfiles.md)
+  declara no comparables los rangos, cardinalidades y hallazgos de
+  muestras DBI distintas.
+- Los bloques ya no reescriben el resumen completo por un centinela
+  fraccionario de `real`.
+- Se corrigieron nombres de columnas retiradas con coma, avisos de
+  [`stats::cor()`](https://rdrr.io/r/stats/cor.html) y motivos de tipo
+  de fecha.
+- Limitacion declarada: en PostgreSQL 12 o posterior con la sesion por
+  omision, `+DBL_MAX` o `-DBL_MAX` junto a infinitos en un `float8` deja
+  minimo, maximo, media y desvio `no_disponible` (el motor desborda);
+  antes de la 12 o con `extra_float_digits <= 0` se calculan sobre los
+  finitos.
+
+**La proteccion:**
+
+- **La regla de quien actua vuelve a proteger logins y apellidos.** En
+  la ronda 37 un estado o un motivo se reconocia por su forma -la
+  terminacion de un participio o de un sustantivo de accion- y por la
+  frase, y un login es una palabra: `usuario_alta` con
+  `jperez | mgonzalez | lmachado | asilva`,
+  `"PEREZ, J." | "MACHADO, L."`, `j.machado`, `"Nelida Machado"` o
+  `"Juan perez"` publicaba la moda y los ejemplos -con cuatro
+  funcionarios uno bastaba para que la columna no llegara al 80 %-, en
+  memoria, por la via DBI en los tres motores y por las colecciones, en
+  UTF-8 y en `C`. Regresion de la ronda 37: la ronda 36 protegia los
+  once casos. Ahora el estado y el motivo salen de una lista cerrada
+  -`Cancelada`, `Rechazada`, `Bloqueada`, `Renuncia`, `Jubilacion`,
+  `Despido`, `Fallecimiento`, `Traslado`, `Cese`, `Fin de contrato`…-,
+  tambien en mayusculas y en plural; lo que no esta en la lista cuenta
+  como una persona, como en la ronda 36, y tambien un usuario del
+  sistema (`"SISTEMA"`, `"MIGRACION"`). Un apellido solo con forma de
+  estado (`"Machado"`) ya no cuenta como estado. Una prueba recorre 22
+  apellidos con forma de estado como logins en las ocho columnas de
+  quien actua, y la lista entera, en mayusculas y en plural, como
+  estados que se publican.
+- **El nombre autocapitalizado vuelve a ser un nombre.** `"Juan perez"`
+  o `"Juan carlos Perez"` -lo que deja el autocapitalizado de un
+  formulario- en `responsable_grupo` o `contacto_alta` se tomaban por
+  frases y se publicaban (regresion de la ronda 37). La frase anula el
+  nombre solo si empieza con un nombre de pila que es tambien una
+  palabra corriente, de una lista cerrada:
+  `"Dolores musculares agudos"`, `"Victoria local"` se siguen
+  publicando.
+- **El celular con puntos de a tres y su cero vuelve a ser un
+  telefono.** `"099.123.456"` se leia como un importe con tres decimales
+  y `telefono_tipo`, `celular_estado`, `responsable_canal`,
+  `usuario_canal`, `contacto_alta` y `cliente_medio` lo publicaban
+  (regresion de la ronda 37). Un importe con miles no empieza con cero y
+  separa los decimales con otro signo que los miles: `"099.123.456"`,
+  `"099 123.456"`, `"098.765.000"` y `"4.732.1234"` son telefonos;
+  `"1.456.651,89"`, `"1,456,651.89"`, `"12 345.50"` siguen siendo
+  importes. Una prueba recorre 40 escrituras de un telefono, con la
+  palabra y sin ella, por
+  [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md).
+- **Un documento por el nombre sin valores en la muestra se protege.**
+  “Un documento por el nombre necesita algun valor de seis cifras” se
+  juzgaba sobre la muestra de
+  [`perfilar_dbi()`](https://sebollin.github.io/lupa/reference/perfilar_dbi.md):
+  `cedula_conyuge` o `ci_tutor` ralas, con `muestra = 200`, no se
+  protegian y el resumen de la tabla entera publicaba su minimo, su
+  maximo y su mediana -cedulas-, y por bloques cada valor en
+  `meta$familias`, en PostgreSQL 16 y 9.3 y SQL Server (regresion de la
+  ronda 37). Ahora desmienten el nombre al menos veinte valores de dos
+  distintos o mas que no sean vacios ni solo ceros: sin valores, con
+  pocos o con un solo valor repetido (`0`, `"S/D"`) decide el nombre;
+  `cedula_valida` con `"S"`/`"N"` y `cod_documento` con `1`, `2`, `9` se
+  siguen publicando.
+- **Los encabezados con tilde de un CSV de Windows se reconocen.**
+  `Direccion`, `Telefono`, `Cedula` o `Fecha de defuncion` con su tilde,
+  leidos sin declarar la codificacion (`read.csv(check.names = FALSE)`,
+  [`data.table::fread()`](https://rdrr.io/pkg/data.table/man/fread.html)),
+  quedaban sin reconocer y publicaban sus valores en cualquier sesion.
+  El nombre de la columna se lee ahora como sus valores: lo que no es
+  UTF-8 valido, como `latin1`. Con `check.names = TRUE` bajo `C`, R
+  cambia la letra por un punto (`Direcci.n`) y ese nombre no se
+  reconoce: limitacion declarada.
+- **Formas bajas de la misma construccion:** el plural de la abreviatura
+  (`tels`, `cels`, `fonos`, `noms`, `dirs`) y las formas pegadas de los
+  sistemas heredados (`nrotel`, `TELCEL`, `nomape`, `NOMBRECOMPLETO`,
+  `nrodoc`, `dirpart`), enumeradas como `fechanac`.
+- **Ayuda:**
+  [`?perfilar_coleccion`](https://sebollin.github.io/lupa/reference/perfilar_coleccion.md)
+  decia “siete cifras” para las candidatas de la copia y el codigo usa
+  seis desde la ronda 37. Limitaciones declaradas en
+  [`?perfilar`](https://sebollin.github.io/lupa/reference/perfilar.md):
+  un motivo fuera de la lista en la regla de quien actua tapa de mas
+  (`"Ingresos superiores"`); una frase que empieza con otro nombre de
+  pila se lee como un nombre (`"Mercedes centro"`) y `"Victoria perez"`
+  asi escrito no; el fijo con punto cuyo ultimo grupo termina en cero
+  (`"4732.1230"`) y el que tiene un grupo que empieza con `00`
+  (`"2400-0010"`) no cuentan para el 80 %; los codigos con un digito
+  tras un guion (`"170177-3"`, `"10-0123456"`) en una calificada se
+  protegen como telefonos. En
+  [`?perfilar_dbi`](https://sebollin.github.io/lupa/reference/perfilar_dbi.md):
+  una calificada rala (`celular_estado`, `contacto_alta`,
+  `nombre_departamento`) cuya muestra no trae ninguno de sus valores, o
+  unos pocos sin su forma, no se protege y por bloques publica cada
+  valor en `meta$familias`, como la copia; protegerla por la palabra sin
+  valores taparia en
+  [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md)
+  la evidencia de toda columna vacia con un nombre asi (medido: los
+  hallazgos `faltantes` y `columnas_duplicadas` de una columna vacia
+  salian `[evidencia protegida]`), y no se hace.
+
 ### Ronda 37: la via DBI, las mediciones y la proteccion, refutadas sobre la ronda 36
 
 La tercera ronda con el porton acotado al camino principal. Las

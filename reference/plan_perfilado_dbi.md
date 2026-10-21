@@ -210,8 +210,13 @@ plan_perfilado_dbi(
 
 - incluir_valores:
 
-  Si el resumen informa valores de celda: moda, mínimo, máximo y
-  mediana. Con `FALSE` esas consultas no se emiten. `TRUE` o `FALSE`.
+  Si publica valores de celda. Con `FALSE` no se emiten las consultas de
+  moda, extremos y mediana, y se limpian esos campos en el resumen, la
+  muestra, los bloques, la cobertura y los motivos; también se retiran
+  ejemplos de patrones, familias de acumuladores y cualquier muestra
+  cruda. Los conteos, proporciones y agregados que no son valores de
+  celda pueden seguir publicándose. La elección queda en
+  `resumen_tabla$meta$incluir_valores` y `perfil_muestra$meta`.
 
 - tamano_lote:
 

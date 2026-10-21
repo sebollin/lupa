@@ -18,7 +18,8 @@ detectar_relaciones(
   umbral_cobertura = 0.9,
   podar = FALSE,
   tope_memoria_mb = Inf,
-  .rangos = NULL
+  .rangos = NULL,
+  .rellenos_finales = NULL
 )
 ```
 
@@ -65,6 +66,15 @@ detectar_relaciones(
   completa o del universo DBI. Una columna cuya lectura no permite
   comparar exacto lo declara en `no_comparable`, y sus pares salen
   `sin_comparar` con ese motivo.
+
+- .rellenos_finales:
+
+  Uso interno de
+  [`relaciones_coleccion()`](https://sebollin.github.io/lupa/reference/relaciones_coleccion.md).
+  Declara las columnas cuyo controlador compara ignorando espacios
+  finales. Se aplica solo al par que tiene una columna declarada, para
+  conservar la semantica de comparacion del motor sin convertir todas
+  las columnas de texto.
 
 ## Value
 

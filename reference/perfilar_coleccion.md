@@ -74,7 +74,7 @@ perfilar_coleccion(
   sin el dígito— se protege entera, como la que los copia en su propia
   tabla, y su fundamento dice de qué tabla salen: sus valores distintos
   se leen de la base, una consulta por columna no protegida que publica
-  un número de siete cifras o más, que la muestra clasificó como
+  un número de seis cifras o más, que la muestra clasificó como
   documento o cuyos valores la muestra describe como cifras con
   separadores —`"4.685.467,00"`, `"4 685 467.0"`, `"4.685467e6"`, aunque
   los acompañe un `"S/D"`—, con la misma expresión con que la leyó

@@ -1805,9 +1805,12 @@ ejemplo <code>telefono</code>, <code>fecha_nacimiento</code> o <code>fecha_falle
 se puedan validar. El nombre tiene prioridad sobre una forma numérica
 genérica y también determina la etiqueta de tipo. Cada palabra vale
 también abreviada como se la escribe en una base —<code>tel</code>, <code>telef</code>, <code>fono</code>,
-<code>cel</code>, <code>dir</code>, <code>domic</code>, <code>nom</code>, <code>ape</code>, <code>doc</code>, <code>ced</code>, <code>e_mail</code>—, en plural,
-con un número pegado (<code>telefono2</code>, <code>apellido1</code>) y en camelCase
-(<code>NombreCliente</code>, <code>nroDoc</code>); <code>mov</code> no, que es también un movimiento.
+<code>cel</code>, <code>dir</code>, <code>domic</code>, <code>nom</code>, <code>ape</code>, <code>doc</code>, <code>ced</code>, <code>e_mail</code>—, en plural
+—también la abreviatura: <code>tels</code>, <code>cels</code>, <code>fonos</code>, <code>noms</code>, <code>dirs</code>—, con un
+número pegado (<code>telefono2</code>, <code>apellido1</code>), en camelCase (<code>NombreCliente</code>,
+<code>nroDoc</code>) y en las formas pegadas de los sistemas heredados, enumeradas
+(<code>nrotel</code>, <code>TELCEL</code>, <code>nomape</code>, <code>NOMBRECOMPLETO</code>, <code>nrodoc</code>, <code>dirpart</code>);
+<code>mov</code> no, que es también un movimiento.
 Una palabra de nombre
 —<code>nombre</code>, <code>apellido</code>— la expresa en cualquier lugar del nombre:
 <code>nombre_cliente</code> es un nombre, y también <code>nombre_jefe_grupo</code> o
@@ -1817,7 +1820,11 @@ Una palabra de nombre
 señal de los valores, como la palabra de persona con un lugar. Un
 documento por el nombre tiene que tener algún valor con seis cifras o
 más: <code>cedula_valida</code> con <code>"S"</code>/<code>"N"</code> o <code>cod_documento</code> con <code>1</code>, <code>2</code>, <code>9</code>
-no lo son. Y la dirección de una red o de un organismo no es un domicilio
+no lo son, si son al menos veinte valores de dos distintos o más; sin
+valores —una columna rala que la muestra de <code><a href="perfilar_dbi.html">perfilar_dbi()</a></code> no
+alcanzó—, con pocos o con un solo valor repetido —el <code>0</code> o el <code>"S/D"</code>
+del que no tiene— decide el nombre, porque el resumen de la tabla entera
+publicaría sus documentos. Y la dirección de una red o de un organismo no es un domicilio
 (<code>dir_ip</code>, <code>dir_web</code>, <code>direccion_general</code> con <code>"Direccion de Salud"</code>).
 Una palabra de <strong>persona</strong> —<code>cliente</code>,
 <code>socio</code>, <code>usuario</code>, <code>persona</code>, <code>paciente</code>, <code>titular</code>— dice de quién
@@ -1854,9 +1861,13 @@ que son un importe (<code>importe_telefono</code>) o un plazo
 (<code>"99.123.456"</code>) con esa palabra, y el <code>598</code> pegado aunque la columna sea
 de números. No son teléfonos un importe —negativo, con centavos o con
 cuatro decimales (<code>"-12345.10"</code>, <code>"1234.5000"</code>), con separadores de miles
-(<code>"1.250.000"</code>, <code>"12 345.50"</code>)—, un número redondo, un código con un año
-o con un grupo rellenado con ceros (<code>"2024-00001"</code>, <code>"10-0012345"</code>) ni un
-documento escrito como documento. Un domicilio con una marca de calle —<code>Av.</code>,
+(<code>"1.250.000"</code>, <code>"12 345.50"</code>, <code>"1.456.651,89"</code>)—, un número redondo, un
+código con un año o con un grupo rellenado con ceros (<code>"2024-00001"</code>,
+<code>"10-0012345"</code>) ni un documento escrito como documento; un importe con
+miles no empieza con cero y separa los decimales con otro signo que los
+miles, y el celular escrito de a tres con su cero (<code>"099.123.456"</code>,
+<code>"099 123.456"</code>, <code>"098.765.000"</code>) o el fijo <code>"4.732.1234"</code> son teléfonos.
+Un domicilio con una marca de calle —<code>Av.</code>,
 <code>calle</code>, <code>Bvar.</code>, <code>Br.</code>, <code>Cno.</code>, <code>Rbla.</code>, <code>Pje.</code>, <code>Gral.</code>, <code>ruta</code>,
 <code>esq.</code>, <code>apto</code>, <code>Dpto.</code>, <code>Mza.</code>, <code>km</code> seguido de un número— en al menos
 el 30 % de sus distintos y sin empezar con una palabra de categoría
@@ -1864,12 +1875,18 @@ el 30 % de sus distintos y sin empezar con una palabra de categoría
 nombre con un nombre de pila conocido —también con iniciales,
 <code>"Juan A. Perez"</code>, <code>"Juan M. A. Perez"</code>, <code>"Juan A Perez"</code>, o un <code>O'</code>—,
 sin cifras, sin una palabra que no va en un nombre —<code>sin</code>, <code>en</code>, <code>por</code>—,
-sin empezar como un lugar —<code>San</code>, <code>Villa</code>— y que no sea una frase escrita
-como frase (<code>"Dolores musculares agudos"</code>, <code>"Victoria local"</code>), aunque
-sean dos personas (<code>responsable_grupo</code> con
-<code>"Perez Joaquin"</code>, <code>contacto_alta</code> con <code>"Ramon Acosta"</code>). Los acentos se
-leen también en <code>latin1</code> sin marca, como lo deja un CSV de Windows bajo
-<code>C</code>. Y una fecha de nacimiento o de defunción calificada como categoría
+sin empezar como un lugar —<code>San</code>, <code>Villa</code>— y que no sea una frase que
+empieza con un nombre de pila que es también una palabra —<code>Dolores</code>,
+<code>Victoria</code>— seguido de minúsculas (<code>"Dolores musculares agudos"</code>,
+<code>"Victoria local"</code>), aunque sean dos personas (<code>responsable_grupo</code> con
+<code>"Perez Joaquin"</code>, <code>contacto_alta</code> con <code>"Ramon Acosta"</code>); con otro nombre
+de pila la minúscula no cuenta, y <code>"Juan perez"</code> o <code>"Juan carlos Perez"</code>
+—lo que deja el autocapitalizado de un formulario— son nombres. Los
+acentos se leen también en <code>latin1</code> sin marca, como lo deja un CSV de
+Windows bajo <code>C</code>, también en el nombre de la columna: el encabezado
+<code>Dirección</code>, <code>Teléfono</code> o <code>Cédula</code> de un CSV de Windows leído sin
+declarar la codificación —<code>read.csv(check.names = FALSE)</code>,
+<code><a href="https://rdrr.io/pkg/data.table/man/fread.html" class="external-link">data.table::fread()</a></code>— se reconoce en cualquier sesión. Y una fecha de nacimiento o de defunción calificada como categoría
 (<code>nacimiento_estado</code>) es esa fecha si sus valores son fechas; su lugar,
 su causa o una parte no (<code>pais_nacimiento</code>, <code>causa_defuncion</code>,
 <code>edad_fallecimiento</code>, <code>anio_nacimiento</code>). La forma sola no alcanza: <code>"Gran Empresa"</code>,
@@ -1881,11 +1898,15 @@ categoría —<code>Pilar</code>, <code>Marco</code>, <code>Norma</code>, <code>
 —<code>usuario</code>, <code>funcionario</code>, <code>responsable</code>, <code>solicitante</code>— con una de
 auditoría —<code>alta</code>, <code>baja</code>— dice quién dio el alta o la baja: ahí basta un
 texto que no sea una fecha ni un estado —un login <code>"jperez"</code>, un
-apellido solo, <code>"A. Rodriguez"</code>; no <code>"Sin baja"</code>, <code>"Baja definitiva"</code>,
-ni lo que tiene la forma de un estado o de un motivo en todas sus
-palabras, <code>"Cancelada"</code>, <code>"Renuncia"</code>, <code>"Jubilacion"</code>; un nombre completo
-con un apellido de esa forma, <code>"Laura Machado Delgado"</code>, sigue siendo un
-nombre, y un nombre de pila de la lista nunca es un estado—; la de quien es
+apellido solo, <code>"A. Rodriguez"</code>; no <code>"Sin baja"</code>, <code>"Baja definitiva"</code> ni
+un estado o un motivo de una lista cerrada —<code>"Cancelada"</code>, <code>"Rechazada"</code>,
+<code>"Renuncia"</code>, <code>"Jubilacion"</code>, <code>"Despido"</code>, <code>"Fallecimiento"</code>,
+<code>"Traslado"</code>, <code>"Cese"</code>, <code>"Fin de contrato"</code>, también en mayúsculas y en
+plural—; un login o un apellido que termina como un estado —<code>"lmachado"</code>,
+<code>"MACHADO, L."</code>, <code>"j.machado"</code>, <code>"Machado"</code>—, un nombre autocapitalizado
+—<code>"Juan perez"</code>— y un usuario del sistema —<code>"SISTEMA"</code>, <code>"MIGRACION"</code>—
+cuentan como personas: junto a tres logins, uno solo que pasara por
+estado dejaría la columna en el 75 % y publicaría los logins de todos—; la de quien es
 objeto del registro pide la señal de los valores, y <code>cliente_desde</code> con
 <code>"Sin fecha"</code> o <code>paciente_alta</code> con <code>"Traslado"</code> se publican. En la
 ronda 34 el nombre decidía solo, y esas columnas publicaban nombres,
@@ -1897,9 +1918,19 @@ nombre de persona —<code>"Jose Ignacio"</code>, <code>"Juan Lacaze"</code>— 
 nombre; con una palabra de categoría o de clave, un login de sólo letras
 o un apellido solo (<code>responsable_grupo</code> con <code>"Rodriguez"</code>, <code>usuario_id</code>
 con <code>"jperez_01"</code>) no se distinguen de una categoría o de un código y se
-publican, como un domicilio sin marca de calle; un apellido solo con la
-forma de un estado —<code>"Machado"</code>— cuenta como estado en la regla de quien
-actúa, que necesita el 80 % de la columna; una palabra de persona
+publican, como un domicilio sin marca de calle; en la regla de quien
+actúa, un estado o un motivo que no está en la lista —<code>"Ingresos superiores"</code>, <code>"Abandono de cargo"</code> sí está— se toma por una persona y la
+columna se protege; una frase que empieza con otro nombre de pila
+—<code>"Mercedes centro"</code>— se lee como un nombre, y <code>"Victoria perez"</code>
+escrito así no; el fijo con punto cuyo último grupo termina en cero
+(<code>"4732.1230"</code>) se lee como un importe con cuatro decimales y el que
+tiene un grupo que empieza con <code>00</code> (<code>"2400-0010"</code>) como un código
+rellenado, y no cuentan para el 80 % de la columna; con
+<code>check.names = TRUE</code> bajo <code>C</code>, R cambia la letra con tilde de un
+encabezado de Windows por un punto (<code>Direcci.n</code>) y ese nombre no se
+reconoce; los códigos con un dígito tras un guion (<code>"170177-3"</code>,
+<code>"025-082916-3"</code>, <code>"10-0123456"</code>) en una columna calificada se leen como
+teléfonos y se protegen; una palabra de persona
 con otra que no es un calificador conocido —<code>victoria_equipo_socio</code>— se
 protege por el nombre, y <code>dir</code> es una dirección aunque la columna sea de
 puntos cardinales; y las escrituras raras de

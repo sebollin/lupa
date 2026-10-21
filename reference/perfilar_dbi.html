@@ -252,9 +252,13 @@ declaran sin sondeo.</p></dd>
 
 
 <dt id="arg-incluir-valores">incluir_valores<a class="anchor" aria-label="anchor" href="#arg-incluir-valores"></a></dt>
-<dd><p>Si el resumen informa valores de celda: moda, mínimo,
-máximo y mediana. Con <code>FALSE</code> esas consultas no se emiten. <code>TRUE</code> o
-<code>FALSE</code>.</p></dd>
+<dd><p>Si publica valores de celda. Con <code>FALSE</code> no se emiten
+las consultas de moda, extremos y mediana, y se limpian esos campos en el
+resumen, la muestra, los bloques, la cobertura y los motivos; también se
+retiran ejemplos de patrones, familias de acumuladores y cualquier muestra
+cruda. Los conteos, proporciones y agregados que no son valores de celda
+pueden seguir publicándose. La elección queda en
+<code>resumen_tabla$meta$incluir_valores</code> y <code>perfil_muestra$meta</code>.</p></dd>
 
 
 <dt id="arg-tamano-lote">tamano_lote<a class="anchor" aria-label="anchor" href="#arg-tamano-lote"></a></dt>
@@ -556,6 +560,13 @@ debajo de 2^53 con mas cifras de las que guarda un doble -<code>numeric(30,20)</
 no entra en esta guarda. Ninguna columna cambia la clase de un campo
 de la tabla: <code>minimo</code>, <code>maximo</code>, <code>media</code>, <code>mediana</code> y <code>desvio</code> de
 <code>resumen_tabla$columnas</code> son siempre dobles.
+Cuando <code>incluir_valores = FALSE</code>, la promesa de privacidad alcanza las tres
+vias de salida: resumen SQL, <code>perfil_muestra</code> y <code>bloque_filas</code>. Se omiten los
+valores de celda -incluidos moda, extremos, medianas, centinelas y ejemplos
+de patrones-, se limpian cobertura y motivos, y no se conservan familias de
+acumuladores ni una muestra cruda en el resultado. Los conteos, proporciones
+y agregados que no son valores de celda pueden seguir publicandose. La marca
+queda registrada como <code>meta$incluir_valores = FALSE</code> en ambos resultados.
 Si se omite el bloque con <code>bloque_muestra = "solo_agregados"</code>, la cobertura
 usa el estado <code>no_solicitado</code>: no es un fallo ni se cuenta como una métrica
 no disponible. En <code>muestra_motor</code>, la selección materializada se hace una
@@ -676,9 +687,16 @@ SQL Server puede deshacer la transacción completa ante un error de ejecución,
 incluso con <code>XACT_ABORT</code> apagado: antes y después de cada envío y lectura la
 vía mide <code>@TRANCOUNT</code> y <code>XACT_STATE()</code>. Si cambian, levanta
 <code>lupa_error_transaccion_dbi</code> y no continúa leyendo en autocommit como si la
-instantánea siguiera viva. <code>SAVE TRANSACTION</code> no evita los errores del motor
-que deshacen la transacción completa. La etapa publicada en el motivo es la
-que detectó el cambio: <code>dbSendQuery</code>, <code>dbFetch</code> o <code>dbClearResult</code>. MySQL,
+instantánea siguiera viva. Si la sesión tiene <code>IMPLICIT_TRANSACTIONS ON</code>, el
+motivo lo declara como una transacción implícita de la sesión, no como una
+transacción abierta por el usuario. <code>SAVE TRANSACTION</code> no evita los errores
+del motor que deshacen la transacción completa. La etapa publicada en el
+motivo es la que detectó el cambio: <code>dbSendQuery</code>, <code>dbFetch</code> o
+<code>dbClearResult</code>. Las sondas de sintaxis de otros motores no se ejecutan
+cuando el controlador ya fue reconocido; así se evita que <code>XACT_ABORT ON</code>
+aborte la transacción por una sentencia que nunca correspondía a ese motor.
+Un desbordamiento de datos que el motor no puede aislar puede abortarla
+igualmente y queda documentado en <code>lupa_error_transaccion_dbi</code>. MySQL,
 MariaDB y SQLite no abortan la transacción por el error de una consulta.
 duckdb sí la aborta por un error al
 preparar, como el de una sonda de dialecto— y no tiene <code>SAVEPOINT</code>: dentro
@@ -753,6 +771,11 @@ tienen una cota simple sin supuestos o un estimador declarado, y <code>no_aplica
 cuando no hubo muestreo efectivo. El <code>motivo</code> de cada registro explica la
 distincion. <code>metodo</code>, <code>tamano_muestra</code> y <code>fraccion</code> conservan las condiciones
 de la corrida; no se publica una cota numerica sin una formula justificada.
+Si la materialización completa falla y sólo se puede construir un perfil
+aislado de las columnas legibles, ese perfil queda como diagnóstico. Las
+métricas SQL del resumen pasan a <code>no_disponible</code>, con <code>tamano_muestra</code> y
+<code>fraccion</code> en <code>NA</code>, y la cobertura nombra que la muestra aislada no
+representa la materialización solicitada.
 Los distintos de una muestra se publican como cardinalidad de la muestra,
 no como cardinalidad del universo. <code>estrategia_distintos</code> es explicita y
 vale <code>"exacta"</code> por omision: calcula <code>COUNT(DISTINCT)</code> sobre las filas de la
@@ -914,7 +937,12 @@ con 17 cifras no pasa por esa reconstrucción.
 En PostgreSQL 9.3 y en sesiones con pocas cifras la decodificación exacta
 es más costosa que la lectura nativa; se conserva ese costo para no
 publicar cifras falsas y se aplica sólo cuando la sesión no garantiza los
-17 dígitos.</p>
+17 dígitos.
+Cuando la media o el desvío de esa lectura vuelven por una sesión de
+PostgreSQL 9.3 o con <code>extra_float_digits &lt;= 0</code>, el resultado se decodifica
+por sus ocho bytes antes de publicarse. Así no queda recortado a 15 cifras
+por el transporte; la aritmética del motor todavía puede diferir de R en
+unos ulps, y esa diferencia se conserva como tal en la corroboración.</p>
 <p><strong><code>datetimeoffset</code> en SQL Server.</strong> FreeTDS puede entregar a <code>odbc</code> un
 <code>datetimeoffset</code> con desplazamiento distinto de <code>+00:00</code> ya convertido a
 UTC. Una vez perdido el desplazamiento, Lupa no puede reconstruirlo desde
@@ -934,7 +962,15 @@ declarado tiene más precisión que la representación binaria almacenada,
 no se considera el mismo centinela y no se cuentan faltantes disfrazados.
 La lista explícita de centinelas conserva además la reserva documentada de
 los valores por omisión: declarar un valor lo vuelve a contar incluso si
-aparece una sola vez.</p></li>
+aparece una sola vez.
+En PostgreSQL anterior a la 12, o con <code>extra_float_digits &lt;= 0</code>, una
+combinación de <code>+DBL_MAX</code> o <code>-DBL_MAX</code> con infinitos se calcula sobre los
+finitos que sobreviven la limpieza. En PostgreSQL 12 o posterior con la
+sesión por omisión, esa misma combinación hace desbordar el motor y el
+mínimo, el máximo, la media y el desvío quedan <code>no_disponible</code>, con el
+error del motor como motivo: se declara, no se calcula. Si una columna que
+conserva ambos extremos finitos hace desbordar la suma de cuadrados, el
+desvío puede quedar <code>Inf</code>: es una limitación aritmética declarada.</p></li>
 <li><p><strong>La media en coma flotante.</strong> Cada lado suma a su modo; sobre una columna
 que mezcla magnitudes muy distintas —<code>1e20</code> junto a <code>1</code>— las medias pueden
 diferir entre motores y con la de R, y ninguna es la exacta. La
@@ -979,7 +1015,12 @@ perfil de muestra. Cada <code>resumen_tabla</code> lo dice en
 llama divergencia a la diferencia que ese criterio explica —menos
 distintos en el resumen SQL, con la moda y la frecuencia que de ahí se
 siguen, o una moda empatada que cada lado desempata con su orden—: la deja
-en una fila <code>no_corroborada</code> con ese motivo.</p></li>
+en una fila <code>no_corroborada</code> con ese motivo.
+En SQL Server, el resumen SQL aplica la igualdad de texto que ignora los
+espacios finales; la vía por bloques compara en R los valores que recibió
+y, por eso, puede contar <code>"A1"</code> y <code>"A1 "</code> como distintos en
+<code>n_distintos</code>. Esa diferencia de alcance se publica como criterio de
+comparación y no se corrige inventando una equivalencia en R.</p></li>
 <li><p><strong><code>datetimeoffset</code> en SQL Server.</strong> FreeTDS/odbc puede entregar un
 <code>datetimeoffset</code> con desplazamiento distinto de <code>+00:00</code> como <code>POSIXct</code> en
 UTC y perder el desplazamiento original. La lectura no lo puede recuperar
@@ -1234,7 +1275,17 @@ ordenada sobre una tabla agrupada por persona— la copia no se clasifica, y
 el resumen de la tabla entera publica sus extremos, que pueden ser
 documentos de personas que la muestra no vio; por bloques, cada valor
 distinto en <code>meta$familias</code>. Una muestra mayor o aleatoria lo evita, y
-también declararla en <code>columnas_personales</code>.
+también declararla en <code>columnas_personales</code>. Lo mismo vale para una columna
+cuya palabra el resto del nombre califica y que decide por sus valores
+—<code>celular_estado</code>, <code>contacto_alta</code>, <code>usuario_baja</code>, <code>nombre_departamento</code>—:
+rala, con una muestra que no trae ninguno de sus valores o unos pocos sin
+su forma, no se protege, y por bloques publica cada valor en
+<code>meta$familias</code>. No se cierra protegiendo por la palabra a la columna sin
+valores, porque en <code><a href="perfilar.html">perfilar()</a></code> taparía la evidencia de toda columna vacía
+con un nombre así. Un documento por el nombre, en cambio, se protege aunque
+la muestra no traiga valores —una columna rala de documentos,
+<code>cedula_conyuge</code>, <code>ci_tutor</code>—: se publica sólo si la muestra trae veinte
+valores o más, de dos distintos, que lo desmientan.
 El desvío se oculta como la media, como en <code><a href="perfilar.html">perfilar()</a></code>; también en
 <code>resumen_tabla$meta$familias</code>, donde la vía por bloques (<code>bloque_filas</code>)
 guarda lo que devolvió cada acumulador: ahí se tapan los extremos, la media
