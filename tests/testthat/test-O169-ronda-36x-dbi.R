@@ -304,7 +304,7 @@ test_that("O169 H3: la relacion conserva texto latin1 bajo la locale C", {
   )
   perfil <- suppressWarnings(suppressMessages(perfilar_dbi(
     con, "r36x_h3_a", metricas = "validos",
-    incluir_valores = FALSE, instrumentar = FALSE,
+    incluir_valores = TRUE, instrumentar = FALSE,
     proteger_datos_personales = FALSE, muestra = 3
   )))
   leido <- perfil$perfil_muestra$columnas$moda[[1L]]

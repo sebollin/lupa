@@ -739,6 +739,19 @@ detectar_claves <- function(datos, max_combinacion = 3, normalizar = NULL,
   )
 }
 
+.normalizar_relleno_final_relacion <- function(x) {
+  if (!is.character(x)) return(x)
+  sub(" +$", "", x, perl = TRUE)
+}
+
+.rehacer_resumen_relleno_relacion <- function(x, resumen, muestra) {
+  normalizado <- .normalizar_relleno_final_relacion(x)
+  if (identical(normalizado, x)) return(resumen)
+  .resumir_columna_relacion(
+    normalizado, muestra, resumen$rango, resumen$origen_rango
+  )
+}
+
 .validar_columnas_candidatas_relacion <- function(datos, columnas, lado) {
   nombres <- if (is.character(datos)) datos else names(datos)
   if (is.null(columnas)) return(nombres)
@@ -1004,6 +1017,10 @@ detectar_claves <- function(datos, max_combinacion = 3, normalizar = NULL,
 #'   rangos solo acepta rangos de la columna completa o del universo DBI. Una
 #'   columna cuya lectura no permite comparar exacto lo declara en
 #'   `no_comparable`, y sus pares salen `sin_comparar` con ese motivo.
+#' @param .rellenos_finales Uso interno de [relaciones_coleccion()]. Declara
+#'   las columnas cuyo controlador compara ignorando espacios finales. Se aplica
+#'   solo al par que tiene una columna declarada, para conservar la semantica de
+#'   comparacion del motor sin convertir todas las columnas de texto.
 #'
 #' @return Data frame con `columna_tabla1`, `columna_tabla2`, `cardinalidad`
 #'   —`1:1`, `1:m`, `m:1`, `m:m`, `sin_coincidencias` o `sin_comparar`—,
@@ -1024,7 +1041,8 @@ detectar_relaciones <- function(tabla1, tabla2, muestra = 1e5,
                                 columnas_candidatas = NULL,
                                 umbral_cobertura = 0.9,
                                 podar = FALSE,
-                                tope_memoria_mb = Inf, .rangos = NULL) {
+                                tope_memoria_mb = Inf, .rangos = NULL,
+                                .rellenos_finales = NULL) {
   if (!inherits(tabla1, "data.frame") || !inherits(tabla2, "data.frame")) {
     .detener("`tabla1` y `tabla2` deben heredar de data.frame.", call. = FALSE)
   }
@@ -1060,6 +1078,18 @@ detectar_relaciones <- function(tabla1, tabla2, muestra = 1e5,
       call. = FALSE
     )
   }
+  relleno_de <- function(lado, nombre) {
+    if (is.null(.rellenos_finales) ||
+        (!is.list(.rellenos_finales[[lado]]) &&
+         !is.character(.rellenos_finales[[lado]]) &&
+         !is.logical(.rellenos_finales[[lado]]))) return(FALSE)
+    marcadas <- .rellenos_finales[[lado]]
+    if (is.logical(marcadas) && !is.null(names(marcadas))) {
+      return(isTRUE(marcadas[[nombre]]))
+    }
+    nombre %in% as.character(marcadas)
+  }
+  todo_texto <- isTRUE(.rellenos_finales$todo_texto)
   rango_de <- function(lado, nombre) {
     if (is.null(.rangos)) return(NULL)
     disponibles <- .rangos[[lado]]
@@ -1121,11 +1151,27 @@ detectar_relaciones <- function(tabla1, tabla2, muestra = 1e5,
   lectura_1 <- lapply(nombres_1[indices_1], function(n) lectura_de("tabla1", n))
   lectura_2 <- lapply(nombres_2[indices_2], function(n) lectura_de("tabla2", n))
   for (i in seq_along(indices_1)) {
-    x <- columnas_1[[i]]
     for (j in seq_along(indices_2)) {
+      x <- columnas_1[[i]]
       y <- columnas_2[[j]]
       nombre_1 <- candidatas$tabla1[[i]]
       nombre_2 <- candidatas$tabla2[[j]]
+      # PostgreSQL `char` y SQL Server comparan sin los espacios finales. La
+      # expresion de lectura ya recorta `char`, pero el valor opuesto puede ser
+      # `varchar` y conservar el relleno. Se recalcula solo este par; recortar
+      # toda la tabla cambiaria la semantica de `varchar` contra `varchar` en
+      # PostgreSQL.
+      if ((relleno_de("tabla1", nombre_1) ||
+           relleno_de("tabla2", nombre_2) || todo_texto) &&
+          (is.character(tabla1[[indices_1[[i]]]]) ||
+           is.character(tabla2[[indices_2[[j]]]]))) {
+        x <- .rehacer_resumen_relleno_relacion(
+          tabla1[[indices_1[[i]]]], x, limite_muestra
+        )
+        y <- .rehacer_resumen_relleno_relacion(
+          tabla2[[indices_2[[j]]]], y, limite_muestra
+        )
+      }
       # Dos pares que no se pueden comparar, con `podar` o sin el, porque la
       # respuesta de la comparacion seria falsa y no solo cara:
       #

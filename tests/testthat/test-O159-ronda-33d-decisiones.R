@@ -333,10 +333,12 @@ test_that("H7: en T-SQL la media se pide como doble y en los demas motores como 
 
 test_that("H7: en PostgreSQL el desvio se pide como doble", {
   alias <- function(nombre) nombre
-  expect_identical(
-    lupa:::.formas_desvio_dbi("t", "\"x\"", alias, "pqconnection rpostgres")[[1L]],
-    "STDDEV_SAMP(CAST(\"x\" AS DOUBLE PRECISION)) AS desvio"
-  )
+  forma_pg <- lupa:::.formas_desvio_dbi(
+    "t", "\"x\"", alias, "pqconnection rpostgres"
+  )[[1L]]
+  expect_match(forma_pg, "STDDEV_SAMP(CAST(\"x\" AS DOUBLE PRECISION))",
+               fixed = TRUE)
+  expect_match(forma_pg, "float8send", fixed = TRUE)
   expect_identical(
     lupa:::.formas_desvio_dbi("t", "\"x\"", alias, "duckdb_connection duckdb")[[1L]],
     "STDDEV_SAMP(\"x\" * 1.0) AS desvio"
@@ -355,7 +357,7 @@ test_that("H7: en PostgreSQL el desvio se pide como doble", {
   d <- .datos_media_O159()
   DBI::dbWriteTable(con, "t", d)
   expresion <- lupa:::.formas_desvio_dbi(
-    "t", "grande", alias, "pqconnection rpostgres"
+    "t", "grande", alias, "duckdb_connection duckdb"
   )[[1L]]
   valor <- DBI::dbGetQuery(con, paste("SELECT", expresion, "FROM t"))$desvio
   expect_equal(valor, stats::sd(d$grande), tolerance = 1e-12)

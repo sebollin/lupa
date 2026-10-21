@@ -155,9 +155,13 @@ métricas restantes quedan en \code{no_disponible} con ese motivo.}
 \code{"limit"}, \code{"top"}, \code{"fetch_first"}, \code{"rownum"} o \code{"portable"} la
 declaran sin sondeo.}
 
-\item{incluir_valores}{Si el resumen informa valores de celda: moda, mínimo,
-máximo y mediana. Con \code{FALSE} esas consultas no se emiten. \code{TRUE} o
-\code{FALSE}.}
+\item{incluir_valores}{Si publica valores de celda. Con \code{FALSE} no se emiten
+las consultas de moda, extremos y mediana, y se limpian esos campos en el
+resumen, la muestra, los bloques, la cobertura y los motivos; también se
+retiran ejemplos de patrones, familias de acumuladores y cualquier muestra
+cruda. Los conteos, proporciones y agregados que no son valores de celda
+pueden seguir publicándose. La elección queda en
+\code{resumen_tabla$meta$incluir_valores} y \code{perfil_muestra$meta}.}
 
 \item{tamano_lote}{Cantidad máxima de columnas por consulta consolidada.
 Se conserva por compatibilidad y, si se informa, fija el tamaño de las dos
@@ -422,6 +426,13 @@ debajo de 2^53 con mas cifras de las que guarda un doble -\code{numeric(30,20)}-
 no entra en esta guarda. Ninguna columna cambia la clase de un campo
 de la tabla: \code{minimo}, \code{maximo}, \code{media}, \code{mediana} y \code{desvio} de
 \code{resumen_tabla$columnas} son siempre dobles.
+Cuando \code{incluir_valores = FALSE}, la promesa de privacidad alcanza las tres
+vias de salida: resumen SQL, \code{perfil_muestra} y \code{bloque_filas}. Se omiten los
+valores de celda -incluidos moda, extremos, medianas, centinelas y ejemplos
+de patrones-, se limpian cobertura y motivos, y no se conservan familias de
+acumuladores ni una muestra cruda en el resultado. Los conteos, proporciones
+y agregados que no son valores de celda pueden seguir publicandose. La marca
+queda registrada como \code{meta$incluir_valores = FALSE} en ambos resultados.
 Si se omite el bloque con \code{bloque_muestra = "solo_agregados"}, la cobertura
 usa el estado \code{no_solicitado}: no es un fallo ni se cuenta como una métrica
 no disponible. En \code{muestra_motor}, la selección materializada se hace una
@@ -540,9 +551,16 @@ SQL Server puede deshacer la transacción completa ante un error de ejecución,
 incluso con \code{XACT_ABORT} apagado: antes y después de cada envío y lectura la
 vía mide \verb{@TRANCOUNT} y \code{XACT_STATE()}. Si cambian, levanta
 \code{lupa_error_transaccion_dbi} y no continúa leyendo en autocommit como si la
-instantánea siguiera viva. \verb{SAVE TRANSACTION} no evita los errores del motor
-que deshacen la transacción completa. La etapa publicada en el motivo es la
-que detectó el cambio: \code{dbSendQuery}, \code{dbFetch} o \code{dbClearResult}. MySQL,
+instantánea siguiera viva. Si la sesión tiene \verb{IMPLICIT_TRANSACTIONS ON}, el
+motivo lo declara como una transacción implícita de la sesión, no como una
+transacción abierta por el usuario. \verb{SAVE TRANSACTION} no evita los errores
+del motor que deshacen la transacción completa. La etapa publicada en el
+motivo es la que detectó el cambio: \code{dbSendQuery}, \code{dbFetch} o
+\code{dbClearResult}. Las sondas de sintaxis de otros motores no se ejecutan
+cuando el controlador ya fue reconocido; así se evita que \verb{XACT_ABORT ON}
+aborte la transacción por una sentencia que nunca correspondía a ese motor.
+Un desbordamiento de datos que el motor no puede aislar puede abortarla
+igualmente y queda documentado en \code{lupa_error_transaccion_dbi}. MySQL,
 MariaDB y SQLite no abortan la transacción por el error de una consulta.
 duckdb sí la aborta por un error al
 preparar, como el de una sonda de dialecto— y no tiene \code{SAVEPOINT}: dentro
@@ -617,6 +635,11 @@ tienen una cota simple sin supuestos o un estimador declarado, y \code{no_aplica
 cuando no hubo muestreo efectivo. El \code{motivo} de cada registro explica la
 distincion. \code{metodo}, \code{tamano_muestra} y \code{fraccion} conservan las condiciones
 de la corrida; no se publica una cota numerica sin una formula justificada.
+Si la materialización completa falla y sólo se puede construir un perfil
+aislado de las columnas legibles, ese perfil queda como diagnóstico. Las
+métricas SQL del resumen pasan a \code{no_disponible}, con \code{tamano_muestra} y
+\code{fraccion} en \code{NA}, y la cobertura nombra que la muestra aislada no
+representa la materialización solicitada.
 Los distintos de una muestra se publican como cardinalidad de la muestra,
 no como cardinalidad del universo. \code{estrategia_distintos} es explicita y
 vale \code{"exacta"} por omision: calcula \code{COUNT(DISTINCT)} sobre las filas de la
@@ -780,6 +803,11 @@ En PostgreSQL 9.3 y en sesiones con pocas cifras la decodificación exacta
 es más costosa que la lectura nativa; se conserva ese costo para no
 publicar cifras falsas y se aplica sólo cuando la sesión no garantiza los
 17 dígitos.
+Cuando la media o el desvío de esa lectura vuelven por una sesión de
+PostgreSQL 9.3 o con \code{extra_float_digits <= 0}, el resultado se decodifica
+por sus ocho bytes antes de publicarse. Así no queda recortado a 15 cifras
+por el transporte; la aritmética del motor todavía puede diferir de R en
+unos ulps, y esa diferencia se conserva como tal en la corroboración.
 
 \strong{\code{datetimeoffset} en SQL Server.} FreeTDS puede entregar a \code{odbc} un
 \code{datetimeoffset} con desplazamiento distinto de \code{+00:00} ya convertido a
@@ -801,6 +829,14 @@ no se considera el mismo centinela y no se cuentan faltantes disfrazados.
 La lista explícita de centinelas conserva además la reserva documentada de
 los valores por omisión: declarar un valor lo vuelve a contar incluso si
 aparece una sola vez.
+En PostgreSQL anterior a la 12, o con \code{extra_float_digits <= 0}, una
+combinación de \code{+DBL_MAX} o \code{-DBL_MAX} con infinitos se calcula sobre los
+finitos que sobreviven la limpieza. En PostgreSQL 12 o posterior con la
+sesión por omisión, esa misma combinación hace desbordar el motor y el
+mínimo, el máximo, la media y el desvío quedan \code{no_disponible}, con el
+error del motor como motivo: se declara, no se calcula. Si una columna que
+conserva ambos extremos finitos hace desbordar la suma de cuadrados, el
+desvío puede quedar \code{Inf}: es una limitación aritmética declarada.
 \item \strong{La media en coma flotante.} Cada lado suma a su modo; sobre una columna
 que mezcla magnitudes muy distintas —\code{1e20} junto a \code{1}— las medias pueden
 diferir entre motores y con la de R, y ninguna es la exacta. La
@@ -846,6 +882,11 @@ llama divergencia a la diferencia que ese criterio explica —menos
 distintos en el resumen SQL, con la moda y la frecuencia que de ahí se
 siguen, o una moda empatada que cada lado desempata con su orden—: la deja
 en una fila \code{no_corroborada} con ese motivo.
+En SQL Server, el resumen SQL aplica la igualdad de texto que ignora los
+espacios finales; la vía por bloques compara en R los valores que recibió
+y, por eso, puede contar \code{"A1"} y \code{"A1 "} como distintos en
+\code{n_distintos}. Esa diferencia de alcance se publica como criterio de
+comparación y no se corrige inventando una equivalencia en R.
 \item \strong{\code{datetimeoffset} en SQL Server.} FreeTDS/odbc puede entregar un
 \code{datetimeoffset} con desplazamiento distinto de \code{+00:00} como \code{POSIXct} en
 UTC y perder el desplazamiento original. La lectura no lo puede recuperar
@@ -1104,7 +1145,17 @@ ordenada sobre una tabla agrupada por persona— la copia no se clasifica, y
 el resumen de la tabla entera publica sus extremos, que pueden ser
 documentos de personas que la muestra no vio; por bloques, cada valor
 distinto en \code{meta$familias}. Una muestra mayor o aleatoria lo evita, y
-también declararla en \code{columnas_personales}.
+también declararla en \code{columnas_personales}. Lo mismo vale para una columna
+cuya palabra el resto del nombre califica y que decide por sus valores
+—\code{celular_estado}, \code{contacto_alta}, \code{usuario_baja}, \code{nombre_departamento}—:
+rala, con una muestra que no trae ninguno de sus valores o unos pocos sin
+su forma, no se protege, y por bloques publica cada valor en
+\code{meta$familias}. No se cierra protegiendo por la palabra a la columna sin
+valores, porque en \code{\link[=perfilar]{perfilar()}} taparía la evidencia de toda columna vacía
+con un nombre así. Un documento por el nombre, en cambio, se protege aunque
+la muestra no traiga valores —una columna rala de documentos,
+\code{cedula_conyuge}, \code{ci_tutor}—: se publica sólo si la muestra trae veinte
+valores o más, de dos distintos, que lo desmientan.
 El desvío se oculta como la media, como en \code{\link[=perfilar]{perfilar()}}; también en
 \code{resumen_tabla$meta$familias}, donde la vía por bloques (\code{bloque_filas})
 guarda lo que devolvió cada acumulador: ahí se tapan los extremos, la media

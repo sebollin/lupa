@@ -987,7 +987,7 @@ print.coleccion_lupa <- function(x, ...) {
 #'   `personas` sin el dígito— se protege entera, como la que los copia en su
 #'   propia tabla, y su fundamento dice de qué tabla salen: sus valores
 #'   distintos se leen de la base, una consulta por columna no protegida que
-#'   publica un número de siete cifras o más, que la muestra clasificó como
+#'   publica un número de seis cifras o más, que la muestra clasificó como
 #'   documento o cuyos valores la muestra describe como cifras con
 #'   separadores —`"4.685.467,00"`, `"4 685 467.0"`, `"4.685467e6"`, aunque
 #'   los acompañe un `"S/D"`—, con la misma expresión con que la leyó
@@ -1898,7 +1898,7 @@ perfilar_coleccion <- function(coleccion, muestra = Inf,
   }
   tryCatch({
     sqlite <- grepl("sqlite", .senas_conexion_dbi(conexion), fixed = TRUE, useBytes = TRUE)
-    tabla_sql <- as.character(DBI::dbQuoteIdentifier(conexion, referencia))
+    tabla_sql <- .citar_identificador_dbi(conexion, referencia)
     valores <- character()
     fechas <- character()
     # La columna se lee con la expresion con que la leyo `perfilar_dbi()`
@@ -1995,7 +1995,7 @@ perfilar_coleccion <- function(coleccion, muestra = Inf,
 # tabla de donde salen los documentos) y origen `"tabla"`-. Ronda 35 (H1).
 #
 # Las candidatas son las columnas no protegidas que publican un extremo de
-# siete cifras o mas -en el resumen o en la muestra- o que la muestra clasifico
+# seis cifras o mas -en el resumen o en la muestra- o que la muestra clasifico
 # como documento: las demas no publican un numero que pueda ser un documento
 # sin su verificador, y sus textos los barre el piso entre tablas. Sus valores
 # distintos se leen de la base, una consulta por candidata, como los de las
@@ -2120,7 +2120,7 @@ perfilar_coleccion <- function(coleccion, muestra = Inf,
   tryCatch({
     sqlite <- grepl("sqlite", .senas_conexion_dbi(conexion), fixed = TRUE,
                     useBytes = TRUE)
-    tabla_sql <- as.character(DBI::dbQuoteIdentifier(conexion, referencia))
+    tabla_sql <- .citar_identificador_dbi(conexion, referencia)
     lectura <- .expresion_lectura_coleccion(conexion, columna, convertidas,
                                             sqlite)
     campo <- lectura$campo
@@ -2162,7 +2162,7 @@ perfilar_coleccion <- function(coleccion, muestra = Inf,
 # cruda (ronda 36, H2).
 .expresion_lectura_coleccion <- function(conexion, columna, convertidas = NULL,
                                          sqlite = FALSE) {
-  campo <- as.character(DBI::dbQuoteIdentifier(conexion, columna))
+  campo <- .citar_identificador_dbi(conexion, columna)
   expresion <- if (isTRUE(sqlite)) paste0("CAST(", campo, " AS TEXT)") else campo
   if (NROW(convertidas)) {
     indice <- .indice_nombre(columna, as.character(convertidas$columna))
@@ -2319,7 +2319,7 @@ print.perfil_coleccion <- function(x, ...) {
         coleccion$conexion,
         paste0(
           "SELECT * FROM ",
-          as.character(DBI::dbQuoteIdentifier(coleccion$conexion, referencia)),
+          .citar_identificador_dbi(coleccion$conexion, referencia),
           " WHERE 1 = 0"
         )
       )
@@ -3076,9 +3076,20 @@ estimar_costo_coleccion <- function(coleccion, pares = NULL,
   # columnas legibles de la tabla- se leen esas. Sin conversion la consulta no
   # cambia.
   cache_lectura <- new.env(parent = emptyenv())
+  cache_relleno <- new.env(parent = emptyenv())
+  todo_texto_relleno <- identical(
+    .motor_permisos_columnas_dbi(conexion), "sqlserver"
+  )
   lectura_de <- function(identificador, tabla_sql, columnas) {
     citar <- function(x) {
-      as.character(DBI::dbQuoteIdentifier(conexion, as.character(x)))
+      .citar_identificador_dbi(conexion, as.character(x))
+    }
+    if (length(columnas)) {
+      columnas <- columnas[vapply(
+        columnas, function(columna) .nombre_representable_dbi(
+          conexion, columna
+        ), logical(1L), USE.NAMES = FALSE
+      )]
     }
     sin_conversion <- list(
       seleccion_sql = if (length(columnas)) {
@@ -3089,6 +3100,16 @@ estimar_costo_coleccion <- function(coleccion, pares = NULL,
     guardar <- function(salida) {
       assign(.clave_cache_coleccion(identificador), salida$expresiones,
              envir = cache_lectura)
+      actuales <- if (is.data.frame(salida$convertidas) &&
+                      "columna" %in% names(salida$convertidas)) {
+        as.character(salida$convertidas$columna)
+      } else character()
+      cache_key <- .clave_cache_coleccion(identificador)
+      previos <- if (exists(cache_key, envir = cache_relleno,
+                            inherits = FALSE)) {
+        get(cache_key, envir = cache_relleno, inherits = FALSE)
+      } else character()
+      assign(cache_key, unique(c(previos, actuales)), envir = cache_relleno)
       salida
     }
     if (is.na(tabla_sql) || !.lectura_puede_convertir_dbi(conexion)) {
@@ -3101,6 +3122,13 @@ estimar_costo_coleccion <- function(coleccion, pares = NULL,
     )
     campos <- if (length(columnas)) as.character(columnas) else {
       names(esquema$datos)
+    }
+    if (length(campos)) {
+      campos <- campos[vapply(
+        campos, function(campo) .nombre_representable_dbi(
+          conexion, campo
+        ), logical(1L), USE.NAMES = FALSE
+      )]
     }
     tipos_para_conversion <- if (!is.null(esquema$tipos_motor)) {
       esquema$tipos_motor
@@ -3119,7 +3147,8 @@ estimar_costo_coleccion <- function(coleccion, pares = NULL,
     proyeccion <- convertida$proyeccion_sql
     guardar(list(
       seleccion_sql = paste(proyeccion, collapse = ", "),
-      expresiones = stats::setNames(convertida$campos_sql[cambia], campos[cambia])
+      expresiones = stats::setNames(convertida$campos_sql[cambia], campos[cambia]),
+      convertidas = convertida$convertidas
     ))
   }
   expresion_de <- function(identificador, nombre, columna_sql) {
@@ -3130,6 +3159,13 @@ estimar_costo_coleccion <- function(coleccion, pares = NULL,
     if (!length(expresiones)) return(columna_sql)
     indice <- .indice_nombre(nombre, names(expresiones))
     if (is.na(indice)) columna_sql else unname(expresiones[[indice]])
+  }
+  rellenos_de <- function(identificador) {
+    cache_key <- .clave_cache_coleccion(identificador)
+    if (exists(cache_key, envir = cache_relleno, inherits = FALSE)) {
+      return(get(cache_key, envir = cache_relleno, inherits = FALSE))
+    }
+    character()
   }
 
   rangos_universo <- function(identificador, datos) {
@@ -3158,7 +3194,7 @@ estimar_costo_coleccion <- function(coleccion, pares = NULL,
     if (length(medibles)) {
       referencia <- referencia_de(identificador)
       tabla_sql <- tryCatch(
-        as.character(DBI::dbQuoteIdentifier(conexion, referencia)),
+          .citar_identificador_dbi(conexion, referencia),
         error = function(e) NA_character_
       )
       alias_minimos <- paste0("lupa_rango_", seq_along(medibles), "_min")
@@ -3166,7 +3202,7 @@ estimar_costo_coleccion <- function(coleccion, pares = NULL,
       expresiones <- unlist(lapply(seq_along(medibles), function(k) {
         nombre <- nombres[[medibles[[k]]]]
         columna_sql <- tryCatch(
-          as.character(DBI::dbQuoteIdentifier(conexion, nombre)),
+          .citar_identificador_dbi(conexion, nombre),
           error = function(e) NA_character_
         )
         columna_sql <- expresion_de(identificador, nombre, columna_sql)
@@ -3235,7 +3271,7 @@ estimar_costo_coleccion <- function(coleccion, pares = NULL,
     }
     referencia <- referencia_de(identificador)
     tabla_sql <- tryCatch(
-      as.character(DBI::dbQuoteIdentifier(conexion, referencia)),
+      .citar_identificador_dbi(conexion, referencia),
       error = function(e) NA_character_
     )
     columnas_orden <- orden_de(identificador)
@@ -3296,6 +3332,16 @@ estimar_costo_coleccion <- function(coleccion, pares = NULL,
         .nombre_representable_dbi(conexion, columna)
     }
     no_escribibles <- character()
+    if (is.null(columnas_seleccionadas) && !is.null(info) &&
+        length(info$campos)) {
+      campos_escribibles <- vapply(
+        info$campos, escribible, logical(1L), USE.NAMES = FALSE
+      )
+      if (any(!campos_escribibles)) {
+        no_escribibles <- info$campos[!campos_escribibles]
+        columnas_seleccionadas <- info$campos[campos_escribibles]
+      }
+    }
     if (length(columnas_seleccionadas)) {
       escribibles <- vapply(columnas_seleccionadas, escribible, logical(1L),
                             USE.NAMES = FALSE)
@@ -3322,6 +3368,12 @@ estimar_costo_coleccion <- function(coleccion, pares = NULL,
     } else {
       .identificadores_unicos(c(columnas_seleccionadas, columnas_orden))
     }
+    alias_orden <- if (length(columnas_orden)) {
+      .citar_identificador_dbi(conexion, "lupa_orden")
+    } else ""
+    tabla_fuente_sql <- if (nzchar(alias_orden)) {
+      paste0(tabla_sql, " AS ", alias_orden)
+    } else tabla_sql
     if ((length(no_escribibles) || length(fuera)) &&
         !length(columnas_seleccionadas)) {
       # Ninguna candidata se puede escribir ni leer: no queda nada que comparar.
@@ -3343,7 +3395,7 @@ estimar_costo_coleccion <- function(coleccion, pares = NULL,
     orden_sql <- if (length(columnas_orden)) {
       paste0(
         " ORDER BY ",
-        paste(as.character(DBI::dbQuoteIdentifier(conexion, columnas_orden)),
+        paste(.citar_identificador_dbi(conexion, columnas_orden),
               collapse = ", ")
       )
     } else ""
@@ -3372,7 +3424,8 @@ estimar_costo_coleccion <- function(coleccion, pares = NULL,
       orden_local <- if (length(columnas_orden) && isTRUE(aplicar_orden)) {
         paste0(
           " ORDER BY ",
-          paste(as.character(DBI::dbQuoteIdentifier(conexion, columnas_orden)),
+          paste(paste0(alias_orden, ".",
+                       .citar_identificador_dbi(conexion, columnas_orden)),
                 collapse = ", ")
         )
       } else ""
@@ -3387,20 +3440,22 @@ estimar_costo_coleccion <- function(coleccion, pares = NULL,
           datos = .marcar_utf8_tabla(
             .traer_filas_dbi(consulta, n = tope_lectura, conexion)
           ),
-          sql = sql, via = "fetch_acotado", tipos = tipos
+          sql = sql, via = "fetch_acotado", tipos = tipos,
+          orden_aplicado = length(columnas_orden) > 0L && isTRUE(aplicar_orden)
         )
       }
       motivo_limite_local <- NA_character_
       if (is.finite(muestra)) {
         sql_limite <- paste0(
-          "SELECT ", seleccion_local, " FROM ", tabla_sql, orden_local,
+          "SELECT ", seleccion_local, " FROM ", tabla_fuente_sql, orden_local,
           " LIMIT ", format(tope_lectura, scientific = FALSE)
         )
         limitado <- tryCatch(
           list(ok = TRUE, valor = list(
             datos = .marcar_utf8_tabla(
               .traer_consulta_dbi(conexion, sql_limite)
-            ), sql = sql_limite, via = "limit"
+            ), sql = sql_limite, via = "limit",
+            orden_aplicado = length(columnas_orden) > 0L && isTRUE(aplicar_orden)
           )),
           error = function(e) {
             .repropagar_transaccion_dbi(e)
@@ -3413,7 +3468,7 @@ estimar_costo_coleccion <- function(coleccion, pares = NULL,
         motivo_limite_local <- limitado$motivo
       }
       sql_llano <- paste0(
-        "SELECT ", seleccion_local, " FROM ", tabla_sql, orden_local
+        "SELECT ", seleccion_local, " FROM ", tabla_fuente_sql, orden_local
       )
       sin_limite <- tryCatch(
         list(ok = TRUE, valor = leer_sin_limite(sql_llano)),
@@ -3483,6 +3538,15 @@ estimar_costo_coleccion <- function(coleccion, pares = NULL,
         if (isTRUE(recuperada$ok)) {
           resultado <- recuperada$valor
           columnas_lectura <- columnas_para_aislar[quedan]
+          fuera <- c(
+            fuera,
+            stats::setNames(
+              rep("columna_lectura_fallida", length(culpables)),
+              columnas_para_aislar[culpables]
+            )
+          )
+          fuera <- fuera[!duplicated(names(fuera))]
+          assign(.clave_cache_coleccion(identificador), fuera, envir = cache_fuera)
           nota_aislamiento <- paste(
             "La lectura conjunta fallo; se aislaron por descarte las columnas",
             paste(columnas_para_aislar[culpables], collapse = ", "),
@@ -3523,7 +3587,7 @@ estimar_costo_coleccion <- function(coleccion, pares = NULL,
       bitacora[[length(bitacora) + 1L]] <<- data.frame(
         tabla = identificador, sql = NA_character_, via = NA_character_,
         filas_leidas = NA_real_, filas_totales = NA_real_, muestreado = NA,
-        orden_declarado = length(columnas_orden) > 0L,
+        orden_declarado = FALSE,
         momento = momento, ok = FALSE,
         motivo = motivo, stringsAsFactors = FALSE
       )
@@ -3567,6 +3631,11 @@ estimar_costo_coleccion <- function(coleccion, pares = NULL,
         paste(nota_lectura, nota_texto)
       }
     }
+    if (!is.na(nota_aislamiento)) {
+      nota_lectura <- if (is.na(nota_lectura)) nota_aislamiento else {
+        paste(nota_lectura, nota_aislamiento)
+      }
+    }
     bitacora[[length(bitacora) + 1L]] <<- data.frame(
       tabla = identificador, sql = resultado$sql, via = resultado$via,
       filas_leidas = as.numeric(nrow(resultado$datos)),
@@ -3576,7 +3645,7 @@ estimar_costo_coleccion <- function(coleccion, pares = NULL,
       # esto viene a cerrar.
       filas_totales = if (truncada) NA_real_ else as.numeric(nrow(resultado$datos)),
       muestreado = truncada,
-      orden_declarado = length(columnas_orden) > 0L,
+      orden_declarado = isTRUE(resultado$orden_aplicado),
       # Una lectura sin las columnas que no se pudieron escribir es una lectura
       # hecha (`ok`), y su motivo dice cuales faltan y por que.
       momento = momento, ok = TRUE, motivo = nota_lectura,
@@ -3599,6 +3668,8 @@ estimar_costo_coleccion <- function(coleccion, pares = NULL,
     # pueden contestar distinto sobre que columnas participan.
     candidatas = candidatas_de,
     fuera = fuera_de,
+    rellenos = rellenos_de,
+    todo_texto = todo_texto_relleno,
     rangos_universo = rangos_universo,
     bitacora = function() {
       if (length(bitacora)) {
@@ -3698,6 +3769,18 @@ estimar_costo_coleccion <- function(coleccion, pares = NULL,
 #' leen sin el relleno final que forma parte de su representación en el motor.
 #' Así, una clave `char` y su contraparte `varchar` se comparan por el valor
 #' lógico que el motor iguala, no por los espacios que entrega DBI.
+#' En SQL Server la misma regla alcanza a los pares de texto `varchar` contra
+#' `varchar`, porque su cotejamiento ignora los espacios finales. En PostgreSQL
+#' no se recortan todas las columnas de texto: sólo se normaliza el par que
+#' tiene una columna de ancho fijo, para conservar la diferencia entre dos
+#' `varchar` con y sin relleno cuando el motor sí la distingue.
+#'
+#' Si una lectura conjunta falla en una fila, la colección aísla por descarte
+#' las columnas culpables y deja sus nombres en `cobertura_podas` con motivo
+#' `columna_lectura_fallida`; las columnas sanas conservan sus relaciones. Si
+#' se declaró `orden`, el aislamiento repite las sondas sin `ORDER BY` sólo
+#' cuando la propia columna de orden es la culpable, y `meta$estable` se calcula
+#' desde las lecturas que realmente llevaron ese orden.
 #'
 #' **Con la tabla de referencia truncada la cobertura es una cota inferior.** Un
 #' valor de `tabla_2` que no está entre las filas leídas de `tabla_1` puede
@@ -3860,6 +3943,7 @@ relaciones_coleccion <- function(coleccion, pares, muestra = 1e4,
   declaradas <- .completar_columnas_coleccion(coleccion$tablas)
   identificadores_previos <- .sumar_identificadores_motor(c(
     declaradas$tabla, declaradas$esquema, declaradas$identificador,
+    "lupa_orden",
     if (is.list(orden)) unlist(orden, use.names = FALSE) else orden,
     unlist(columnas_candidatas, use.names = FALSE)
   ))
@@ -4004,7 +4088,11 @@ relaciones_coleccion <- function(coleccion, pares, muestra = 1e4,
         tope_memoria_mb = if (is.finite(tope_memoria_mb)) {
           max(0, tope_memoria_mb - memoria_resultado_mb)
         } else Inf,
-        .rangos = rangos
+        .rangos = rangos,
+        .rellenos_finales = list(
+          tabla1 = lector$rellenos(t1), tabla2 = lector$rellenos(t2),
+          todo_texto = lector$todo_texto
+        )
       ), error = function(e) e
     )
     if (inherits(relacion, "condition")) {

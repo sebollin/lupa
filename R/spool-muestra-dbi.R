@@ -894,8 +894,44 @@
       datos[0L, , drop = FALSE]
   }
   perfil <- perfil_aislado
-  perfil_resumen <- perfil
+  # El perfil aislado sirve para el diagnostico de la muestra pedida, pero no
+  # representa la materializacion de `muestra_motor`: el resumen no reutiliza
+  # sus cifras ni publica una fraccion de otro universo.
+  perfil_resumen <- if (is.null(perfil_aislado)) perfil else NULL
+  motivo_metricas <- if (!is.null(perfil_aislado)) {
+    paste(
+      "La materializacion completa fallo; el perfil aislado es solo",
+      "diagnostico y no representa la materializacion solicitada.",
+      "Las metricas del resumen quedan no_disponible."
+    )
+  } else if (is.null(motivo)) {
+    paste(
+      "Medido sobre la unica seleccion materializada en el spool de sesion",
+      "cliente; las pasadas de esta salida leen el mismo `muestra_id`."
+    )
+  } else as.character(motivo)
+  estado_metricas <- if (!is.null(perfil_aislado)) {
+    "no_disponible"
+  } else if (is.null(perfil)) {
+    "no_disponible"
+  } else "observado_muestra"
+  tamano_muestra_metricas <- if (!is.null(perfil_aislado)) {
+    NA_real_
+  } else publico$filas_obtenidas
+  fraccion_muestra_metricas <- if (!is.null(perfil_aislado)) {
+    NA_real_
+  } else publico$fraccion
   cobertura <- cobertura_aislada
+  if (!is.null(perfil_aislado)) {
+    cobertura <- rbind(
+      cobertura,
+      .registro_cobertura_dbi(
+        "resumen_tabla", paste(campos, collapse = ", "), "no_disponible",
+        motivo_metricas,
+        "Corregir la vista o repetir la materializacion completa antes de usar el resumen."
+      )
+    )
+  }
   # Lo leido entero, tambien las columnas enmascaradas que no se perfilan: su
   # completitud sale de aca (ver abajo).
   datos_todos <- datos_completos
@@ -986,6 +1022,33 @@
     } else as.character(publico$metodo)
     motivo <- paste0("muestra_vacia:", metodo_vacio, "_sin_filas")
   }
+  # El perfil se puede construir despues de leer el spool. Recalcular el
+  # estado aqui evita publicar `no_disponible` solo porque al entrar todavia no
+  # existia el perfil local; si la materializacion completa fallo, en cambio,
+  # la marca queda cerrada aunque el perfil aislado haya llegado.
+  motivo_metricas <- if (!is.null(perfil_aislado)) {
+    paste(
+      "La materializacion completa fallo; el perfil aislado es solo",
+      "diagnostico y no representa la materializacion solicitada.",
+      "Las metricas del resumen quedan no_disponible."
+    )
+  } else if (is.null(motivo)) {
+    paste(
+      "Medido sobre la unica seleccion materializada en el spool de sesion",
+      "cliente; las pasadas de esta salida leen el mismo `muestra_id`."
+    )
+  } else as.character(motivo)
+  estado_metricas <- if (!is.null(perfil_aislado)) {
+    "no_disponible"
+  } else if (is.null(perfil)) {
+    "no_disponible"
+  } else "observado_muestra"
+  tamano_muestra_metricas <- if (!is.null(perfil_aislado)) {
+    NA_real_
+  } else publico$filas_obtenidas
+  fraccion_muestra_metricas <- if (!is.null(perfil_aislado)) {
+    NA_real_
+  } else publico$fraccion
   if (!is.null(perfil)) {
     if (nrow(conversion_muestra$cobertura)) {
       perfil$cobertura_diagnosticos <- rbind(
@@ -994,6 +1057,7 @@
       rownames(perfil$cobertura_diagnosticos) <- NULL
     }
     perfil$meta$filas_analizadas <- as.numeric(nrow(datos))
+    perfil$meta$filas_totales_fuente <- .numero_dbi(n_total)
     perfil$meta$alcance <- list(
       universo_id = "muestra_motor",
       fuente_id = paste0("dbi:", .texto_tabla_dbi(tabla)),
@@ -1048,25 +1112,14 @@
     }
     columnas$n <- .conteo_dbi(n_total)
   }
-  motivo_metricas <- if (!is.null(perfil_aislado)) {
-    paste(
-      "La materializacion completa fallo; se aislaron las columnas legibles",
-      "con la misma muestra y su perfil se conserva."
-    )
-  } else if (is.null(motivo)) {
-    paste(
-      "Medido sobre la unica seleccion materializada en el spool de sesion",
-      "cliente; las pasadas de esta salida leen el mismo `muestra_id`."
-    )
-  } else as.character(motivo)
   metricas <- preparacion$metricas_ejecucion
   registros <- list(.registro_sql_dbi(
     campos, rep("n", length(campos)), "calculado", NA_character_,
     preparacion$sql_conteo,
     metadatos = .metadatos_sql_dbi(
       alcance = "tabla_completa", universo = n_total,
-      tamano_muestra = publico$filas_obtenidas,
-      fraccion = publico$fraccion, metodo = "conteo_universo",
+      tamano_muestra = tamano_muestra_metricas,
+      fraccion = fraccion_muestra_metricas, metodo = "conteo_universo",
       error_esperado = "no_aplica", id_consulta = id_consulta_n
     ),
     medicion = if (is.null(consulta_n)) NULL else consulta_n,
@@ -1077,12 +1130,12 @@
     if (!length(campos_metrica)) next
     registros[[length(registros) + 1L]] <- .registro_sql_dbi(
       campos[[i]], campos_metrica,
-      if (is.null(perfil)) "no_disponible" else "observado_muestra",
+      estado_metricas,
       motivo_metricas, sql_muestra,
       metadatos = .metadatos_sql_dbi(
         alcance = "muestra", universo = n_total,
-        tamano_muestra = publico$filas_obtenidas,
-        fraccion = publico$fraccion, metodo = "spool_sesion_cliente",
+        tamano_muestra = tamano_muestra_metricas,
+        fraccion = fraccion_muestra_metricas, metodo = "spool_sesion_cliente",
         error_esperado = "no_estimable", id_consulta = if (is.null(spool)) {
           NA_integer_
         } else spool$consulta$consulta_id
@@ -1216,9 +1269,22 @@
     columnas = columnas, sql = sql, cobertura = cobertura,
     literales = character(), meta = meta
   )
+  columnas_decimal <- .columnas_decimal_doble_muestra_dbi(
+    datos_completos, campos, preparacion$tipos
+  )
   estructura <- list(
     resumen_tabla = resumen,
     perfil_muestra = perfil
+  )
+  estructura <- .aplicar_guardas_salida_muestra_dbi(
+    estructura, incluir_valores = incluir_valores,
+    columnas_decimal = columnas_decimal,
+    motivos_decimal = if (length(columnas_decimal)) {
+      stats::setNames(
+        rep(.motivo_decimal_doble_dbi(), length(columnas_decimal)),
+        columnas_decimal
+      )
+    } else NULL
   )
   if (!is.null(spool$path)) unlink(spool$path, force = TRUE)
   estructura <- .sellar_perfil_dbi(estructura)

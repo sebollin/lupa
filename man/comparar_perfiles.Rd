@@ -39,6 +39,14 @@ no sobre los valores originales ni una distribución completa. Si las dos
 corridas usaron configuraciones de patrones diferentes, se informa un error
 de comparabilidad y esa parte de la comparación se omite.
 
+Un perfil DBI con \code{meta$origen_dbi$muestreo} o con
+\code{meta$alcance$universo_id = "muestra_motor"} describe una muestra de la tabla
+fuente. Si uno de los perfiles es de ese tipo, las filas se comparan con
+\code{filas_totales_fuente} cuando está disponible, pero rangos, cardinalidades,
+patrones y hallazgos no se interpretan como cambios de la tabla completa. La
+salida agrega una fila \code{muestra / no_comparable} y deja fuera esos aspectos;
+una muestra distinta no se convierte en un cambio ni en un hallazgo resuelto.
+
 Los nombres de columnas y las configuraciones que contienen texto del usuario
 se comparan por sus bytes, no por la marca de codificación ni por la
 intercalación del locale.

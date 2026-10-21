@@ -1,3 +1,14 @@
+# `cor()` avisa cuando una columna constante deja su desvio en cero. El
+# analisis ya convierte ese resultado en una medida no finita y lo declara en
+# su cobertura; el aviso crudo del paquete stats no agrega informacion y llega
+# en ingles, aun cuando el resto de la salida esta localizada.
+.cor_sin_aviso_analisis <- function(x, y, method = "pearson") {
+  withCallingHandlers(
+    stats::cor(x, y, method = method),
+    warning = function(condicion) invokeRestart("muffleWarning")
+  )
+}
+
 .validar_entero_positivo <- function(x, nombre) {
   if (!is.numeric(x) || length(x) != 1L || is.na(x) || !is.finite(x) ||
       x < 1 || x != floor(x)) {
@@ -716,8 +727,10 @@ detectar_asociaciones <- function(datos, dependencias = NULL, umbral = 0.3,
       y <- y[completos]
       valor <- tryCatch(switch(
           metodo,
-          pearson_absoluto = abs(stats::cor(x, y)),
-          spearman_absoluto = abs(stats::cor(x, y, method = "spearman")),
+          pearson_absoluto = abs(.cor_sin_aviso_analisis(x, y)),
+          spearman_absoluto = abs(.cor_sin_aviso_analisis(
+            x, y, method = "spearman"
+          )),
           cramer_v = .cramer_v(x, y),
           eta2 = if (tipos[[i]] == "categorica") .eta2(x, y) else .eta2(y, x)
         ), error = function(e) NA_real_

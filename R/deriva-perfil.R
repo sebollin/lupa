@@ -828,11 +828,26 @@ rbind.deriva_perfil <- function(..., deparse.level = 1) {
 # desaparecian sin rastro (refutacion 35-D, segunda vuelta). Ahora se descarta
 # solo si el texto nombra una columna retirada, entera o como una de sus partes.
 .hallazgo_nombra_columna_retirada <- function(columna, retiradas) {
-  retiradas <- .nombres_para_operar(as.character(retiradas))
+  retiradas_originales <- as.character(retiradas)
+  columna_original <- as.character(columna)
+  # Una coma puede ser parte del nombre real de una columna. La coincidencia
+  # exacta se resuelve antes de interpretar el texto como una lista de columnas.
+  if (length(columna_original) == 1L && !is.na(columna_original) &&
+      columna_original %in% retiradas_originales) return(TRUE)
+  retiradas <- .nombres_para_operar(retiradas_originales)
   retiradas <- retiradas[!is.na(retiradas)]
   if (!length(retiradas)) return(FALSE)
-  texto <- .nombres_para_operar(as.character(columna))
+  texto <- .nombres_para_operar(columna_original)
   if (texto %in% retiradas) return(TRUE)
+  # Las relaciones se publican con coma entre columnas, pero la coma tambien
+  # puede pertenecer al nombre original. Antes de partir el texto, reconoce un
+  # nombre retirado en los bordes del compuesto; asi `monto, usd,z` conserva la
+  # informacion de que el primer elemento real era `monto, usd`.
+  if (any(vapply(retiradas_originales, function(nombre) {
+    nombre <- .nombres_para_operar(nombre)
+    startsWith(texto, paste0(nombre, ",")) ||
+      endsWith(texto, paste0(",", nombre))
+  }, logical(1L)))) return(TRUE)
   partes <- trimws(strsplit(texto, ",", fixed = TRUE)[[1L]])
   any(partes %in% retiradas)
 }
@@ -889,6 +904,38 @@ rbind.deriva_perfil <- function(..., deparse.level = 1) {
   list(
     comparables = names(requeridos)[!falta_alguno],
     ausentes = ausentes[falta_alguno]
+  )
+}
+
+# Un perfil de muestra DBI no representa todas las filas aunque conserve el
+# nombre de la tabla. La comparacion necesita distinguirlo de un perfil en
+# memoria: las cifras de la muestra sirven para describir esa muestra, no para
+# afirmar que el rango, la cardinalidad o un hallazgo cambio en la fuente.
+.informacion_muestra_deriva <- function(perfil) {
+  meta <- if (is.list(perfil$meta)) perfil$meta else list()
+  origen <- meta$origen_dbi
+  es_dbi <- is.list(origen) && identical(as.character(origen$tipo), "DBI")
+  muestreo <- if (is.list(origen$muestreo)) origen$muestreo else NULL
+  if (is.null(muestreo) && is.list(meta$muestreo)) muestreo <- meta$muestreo
+  numero <- function(x) {
+    if (is.null(x) || length(x) != 1L || is.na(x)) return(NA_real_)
+    suppressWarnings(as.numeric(x[[1L]]))
+  }
+  total <- numero(meta$filas_totales_fuente)
+  if (!is.finite(total) && is.list(muestreo)) {
+    total <- numero(muestreo$filas_totales_fuente)
+  }
+  observado <- numero(meta$filas_analizadas)
+  es_muestra <- es_dbi && (
+    isTRUE(meta$muestreo) ||
+      (is.list(muestreo) && identical(muestreo$tabla_completa, FALSE)) ||
+      (is.list(meta$alcance) &&
+       identical(meta$alcance$universo_id, "muestra_motor")) ||
+      identical(meta$alcance, "tabla_muestreada")
+  )
+  list(
+    es_dbi = es_dbi, es_muestra = isTRUE(es_muestra),
+    filas_totales_fuente = total, filas_observadas = observado
   )
 }
 
@@ -1153,6 +1200,14 @@ rbind.deriva_perfil <- function(..., deparse.level = 1) {
 #' corridas usaron configuraciones de patrones diferentes, se informa un error
 #' de comparabilidad y esa parte de la comparación se omite.
 #'
+#' Un perfil DBI con `meta$origen_dbi$muestreo` o con
+#' `meta$alcance$universo_id = "muestra_motor"` describe una muestra de la tabla
+#' fuente. Si uno de los perfiles es de ese tipo, las filas se comparan con
+#' `filas_totales_fuente` cuando está disponible, pero rangos, cardinalidades,
+#' patrones y hallazgos no se interpretan como cambios de la tabla completa. La
+#' salida agrega una fila `muestra / no_comparable` y deja fuera esos aspectos;
+#' una muestra distinta no se convierte en un cambio ni en un hallazgo resuelto.
+#'
 #' Los nombres de columnas y las configuraciones que contienen texto del usuario
 #' se comparan por sus bytes, no por la marca de codificación ni por la
 #' intercalación del locale.
@@ -1320,6 +1375,10 @@ comparar_perfiles <- function(anterior, actual, umbral_cambio = 0.05,
   fecha_actual <- .fecha_utc(actual$meta$fecha_hora)
   mapa_a <- .mapa_columnas_perfil(anterior)
   mapa_b <- .mapa_columnas_perfil(actual)
+  muestra_a <- .informacion_muestra_deriva(anterior)
+  muestra_b <- .informacion_muestra_deriva(actual)
+  muestra_no_comparable <- isTRUE(muestra_a$es_muestra) ||
+    isTRUE(muestra_b$es_muestra)
   cambios <- list()
   k <- 0L
   agregar <- function(columna, aspecto, cambio, severidad, valor_anterior,
@@ -1341,6 +1400,26 @@ comparar_perfiles <- function(anterior, actual, umbral_cambio = 0.05,
       fecha_anterior = fecha_anterior, fecha_actual = fecha_actual,
       descripcion = descripcion, evidencia = evidencia,
       stringsAsFactors = FALSE
+    )
+  }
+
+  if (muestra_no_comparable) {
+    agregar(
+      NA_character_, "muestra", "no_comparable", "sospechoso",
+      if (is.finite(muestra_a$filas_observadas)) muestra_a$filas_observadas else NA,
+      if (is.finite(muestra_b$filas_observadas)) muestra_b$filas_observadas else NA,
+      significativo = FALSE,
+      descripcion = paste(
+        "Al menos uno de los perfiles DBI fue calculado sobre una muestra;",
+        "sus rangos, cardinalidades, patrones y hallazgos no se comparan como",
+        "cambios de la tabla fuente."
+      ),
+      evidencia = paste0(
+        "Filas observadas: ", .texto_numero_deriva(muestra_a$filas_observadas),
+        " -> ", .texto_numero_deriva(muestra_b$filas_observadas), "; total de",
+        " la fuente: ", .texto_numero_deriva(muestra_a$filas_totales_fuente),
+        " -> ", .texto_numero_deriva(muestra_b$filas_totales_fuente), "."
+      )
     )
   }
 
@@ -1875,8 +1954,12 @@ comparar_perfiles <- function(anterior, actual, umbral_cambio = 0.05,
   # no publicaba nada del crecimiento, aunque el perfil lo trae y la propia
   # evidencia de otras filas lo imprimia. Perder filas es sospechoso; ganarlas se
   # declara sin alarma.
-  filas_a <- anterior$meta$filas_totales
-  filas_b <- actual$meta$filas_totales
+  filas_a <- if (is.finite(muestra_a$filas_totales_fuente)) {
+    muestra_a$filas_totales_fuente
+  } else anterior$meta$filas_totales
+  filas_b <- if (is.finite(muestra_b$filas_totales_fuente)) {
+    muestra_b$filas_totales_fuente
+  } else actual$meta$filas_totales
   if (is.numeric(filas_a) && is.numeric(filas_b) && length(filas_a) == 1L &&
       length(filas_b) == 1L && !is.na(filas_a) && !is.na(filas_b) &&
       filas_a != filas_b) {
@@ -2229,6 +2312,20 @@ comparar_perfiles <- function(anterior, actual, umbral_cambio = 0.05,
         evidencia = hallazgos_b$tipo_hallazgo[[indice_b]]
       )
     }
+  }
+
+  if (muestra_no_comparable && length(cambios)) {
+    # La fila `muestra` y los cambios estructurales/configuraciones siguen
+    # siendo observables. Lo que depende de los valores vistos queda declarado
+    # en vez de presentarse como una deriva de la tabla fuente.
+    aspectos_no_comparables <- c(
+      "faltantes", "cardinalidad", "alcance_resumen", "rango", "patron",
+      "hallazgo", "severidad_hallazgo"
+    )
+    cambios <- cambios[!vapply(
+      cambios, function(x) x$aspecto[[1L]] %in% aspectos_no_comparables,
+      logical(1L)
+    )]
   }
 
   rownames(campos_protegidos) <- NULL

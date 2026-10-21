@@ -12,7 +12,8 @@ detectar_relaciones(
   umbral_cobertura = 0.9,
   podar = FALSE,
   tope_memoria_mb = Inf,
-  .rangos = NULL
+  .rangos = NULL,
+  .rellenos_finales = NULL
 )
 }
 \arguments{
@@ -41,6 +42,11 @@ alcanza; \code{Inf} no limita el procesamiento.}
 rangos solo acepta rangos de la columna completa o del universo DBI. Una
 columna cuya lectura no permite comparar exacto lo declara en
 \code{no_comparable}, y sus pares salen \code{sin_comparar} con ese motivo.}
+
+\item{.rellenos_finales}{Uso interno de \code{\link[=relaciones_coleccion]{relaciones_coleccion()}}. Declara
+las columnas cuyo controlador compara ignorando espacios finales. Se aplica
+solo al par que tiene una columna declarada, para conservar la semantica de
+comparacion del motor sin convertir todas las columnas de texto.}
 }
 \value{
 Data frame con \code{columna_tabla1}, \code{columna_tabla2}, \code{cardinalidad}

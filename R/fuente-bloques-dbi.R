@@ -337,7 +337,7 @@
   bloque_filas <- .validar_bloque_filas_dbi(bloque_filas)
   capacidad <- .capacidad_fuente_bloques_dbi(conexion)
   if (is.null(tabla_sql)) {
-    tabla_sql <- as.character(DBI::dbQuoteIdentifier(conexion, tabla))
+    tabla_sql <- .citar_identificador_dbi(conexion, tabla)
   }
   if (is.null(campos)) {
     # Las legibles, de la misma funcion que usan las demas puertas.
@@ -347,7 +347,7 @@
   campos <- as.character(campos)
   if (is.null(campos_sql)) {
     campos_sql <- vapply(campos, function(campo) {
-      as.character(DBI::dbQuoteIdentifier(conexion, campo))
+      .citar_identificador_dbi(conexion, campo)
     }, character(1L), USE.NAMES = FALSE)
   }
   if (length(campos) != length(campos_sql)) {
@@ -366,7 +366,7 @@
     }
     orden_muestra <- campos[posiciones]
     orden_sql <- vapply(orden_muestra, function(campo) {
-      as.character(DBI::dbQuoteIdentifier(conexion, campo))
+      .citar_identificador_dbi(conexion, campo)
     }, character(1L), USE.NAMES = FALSE)
   } else if (is.null(orden_sql)) {
     orden_sql <- character()
@@ -448,7 +448,7 @@
     if (!is.null(candidatos)) {
       prueba <- paste0(
         "SELECT ", candidatos$sql, " AS ",
-        as.character(DBI::dbQuoteIdentifier(conexion, .ALIAS_LOCALIZADOR_DBI)),
+        .citar_identificador_dbi(conexion, .ALIAS_LOCALIZADOR_DBI),
         " FROM ", tabla_sql, " WHERE 1 = 0"
       )
       if (.sondar_expresion_fuente_bloques_dbi(conexion, prueba, presupuesto)) {
@@ -466,7 +466,7 @@
   if (usa_pk) {
     metodo <- "pk"
     orden_expresiones <- vapply(pk, function(campo) {
-      as.character(DBI::dbQuoteIdentifier(conexion, campo))
+      .citar_identificador_dbi(conexion, campo)
     }, character(1L), USE.NAMES = FALSE)
     orden_componentes <- pk
     determinismos <- colaciones$determinista[pk]
@@ -485,7 +485,7 @@
     orden_expresiones <- character()
     row_number <- paste0(
       "ROW_NUMBER() OVER () AS ",
-      as.character(DBI::dbQuoteIdentifier(conexion, .ALIAS_ORDINAL_DBI))
+      .citar_identificador_dbi(conexion, .ALIAS_ORDINAL_DBI)
     )
     prueba <- paste0(
       "SELECT ", row_number, " FROM ", tabla_sql, " WHERE 1 = 0"
@@ -520,7 +520,7 @@
     proyeccion <- c(
       proyeccion,
       paste0(localizador$sql, " AS ",
-             as.character(DBI::dbQuoteIdentifier(conexion, .ALIAS_LOCALIZADOR_DBI)))
+             .citar_identificador_dbi(conexion, .ALIAS_LOCALIZADOR_DBI))
     )
   }
   if (identical(metodo, "row_number")) {
@@ -528,7 +528,7 @@
       proyeccion,
       paste0(
         "ROW_NUMBER() OVER () AS ",
-        as.character(DBI::dbQuoteIdentifier(conexion, .ALIAS_ORDINAL_DBI))
+        .citar_identificador_dbi(conexion, .ALIAS_ORDINAL_DBI)
       )
     )
   }
@@ -1313,9 +1313,10 @@
                   error = paste0("no_disponible:dbFetch:", .mensaje_motor(bloque))))
     }
     if (!inherits(bloque, "data.frame")) bloque <- as.data.frame(bloque)
-    bloque <- .ajustar_sentinelas_real_dbi(
-      bloque, fuente$campos, tipos, sentinelas, tipos_motor = tipos_motor
-    )
+    # La fuente por bloques calcula el resumen de la tabla completa. Un
+    # centinela fraccionario declarado para `real` solo se alinea al perfilar la
+    # muestra, donde hace falta para que R reconozca la ausencia; reescribirlo
+    # aca cambiaba el minimo y la media publicados por el resumen completo.
     bloque <- .marcar_utf8_tabla(bloque)
     n <- nrow(bloque)
     if (!n) break
