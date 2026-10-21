@@ -63,6 +63,7 @@ Suggests:
     duckdb,
     jsonlite,
     knitr,
+    odbc,
     rmarkdown,
     RPostgres,
     RSQLite,

@@ -523,6 +523,7 @@ test_that("Guarda segfault: toda consulta de la via sale por los dos envios que 
   # de SQL Server: no llevan texto que la guarda de codificacion deba mirar.
   expect_identical(sort(unique(sitios)),
                    c(".enviar_consulta_dbi", ".estado_transaccion_sqlserver_dbi",
+                     ".extra_float_digits_postgresql_dbi",
                      ".orden_transaccion_dbi",
                      ".traer_consulta_dbi"))
 })

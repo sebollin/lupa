@@ -1330,17 +1330,31 @@
 #' - `medio`: el nombre de la columna expresa una categoría personal (por
 #'   ejemplo `telefono`, `fecha_nacimiento` o `fecha_fallecimiento`); se protege aunque sus valores no
 #'   se puedan validar. El nombre tiene prioridad sobre una forma numérica
-#'   genérica y también determina la etiqueta de tipo. Una palabra de nombre
+#'   genérica y también determina la etiqueta de tipo. Cada palabra vale
+#'   también abreviada como se la escribe en una base —`tel`, `telef`, `fono`,
+#'   `cel`, `dir`, `domic`, `nom`, `ape`, `doc`, `ced`, `e_mail`—, en plural,
+#'   con un número pegado (`telefono2`, `apellido1`) y en camelCase
+#'   (`NombreCliente`, `nroDoc`); `mov` no, que es también un movimiento.
+#'   Una palabra de nombre
 #'   —`nombre`, `apellido`— la expresa en cualquier lugar del nombre:
 #'   `nombre_cliente` es un nombre, y también `nombre_jefe_grupo` o
 #'   `nombre_grupo`; una columna de números o de fechas no lo es
-#'   (`cantidad_nombres`). Una palabra de **persona** —`cliente`,
+#'   (`cantidad_nombres`), y con un lugar —`nombre_departamento`,
+#'   `nom_localidad`, la categoría de cualquier base pública— decide la
+#'   señal de los valores, como la palabra de persona con un lugar. Un
+#'   documento por el nombre tiene que tener algún valor con seis cifras o
+#'   más: `cedula_valida` con `"S"`/`"N"` o `cod_documento` con `1`, `2`, `9`
+#'   no lo son. Y la dirección de una red o de un organismo no es un domicilio
+#'   (`dir_ip`, `dir_web`, `direccion_general` con `"Direccion de Salud"`).
+#'   Una palabra de **persona** —`cliente`,
 #'   `socio`, `usuario`, `persona`, `paciente`, `titular`— dice de quién
 #'   habla la columna, no que guarde su nombre: la clasifica como `nombre`
 #'   sólo si ninguna otra palabra del nombre la clasificó —`direccion_cliente`
 #'   es un domicilio—, si el resto del nombre no dice que es otra cosa —una
 #'   clave (`cliente_id`, `id_usuario`, `cod_socio`), un tipo, un estado o una
-#'   categoría (`tipo_cliente`, `estado_socio`), una fecha (`cliente_desde`,
+#'   categoría (`tipo_cliente`, `estado_socio`), un medio o una forma
+#'   (`medio_pago_cliente`, `forma_pago_cliente`), un lugar (`pais_cliente`,
+#'   `nacionalidad_socio`), una fecha (`cliente_desde`,
 #'   `fecha_alta_socio`), una cantidad o un importe— y si sus valores pueden
 #'   ser nombres: una columna de números, fechas o lógicos no lo es. Hasta la
 #'   ronda 33 bastaba la palabra, y esas columnas se protegían como nombres:
@@ -1362,23 +1376,31 @@
 #'   en una lista: `responsable_canal` con `"+598 99 123 456"`—, en una
 #'   columna que no es de fechas; con la palabra del teléfono, también las
 #'   cifras sueltas (`celular_estado`), salvo que el resto del nombre diga
-#'   que son un importe (`importe_telefono`). No son teléfonos un importe con
-#'   centavos (`"12345.10"`) o con separadores de miles (`"1.250.000"`), un
-#'   número redondo, un código con un año (`"2024-00001"`) ni un documento
-#'   escrito como documento. Un domicilio con una marca de calle —`Av.`,
+#'   que son un importe (`importe_telefono`) o un plazo
+#'   (`telefono_plazo_dias`); el celular escrito de a tres sin su cero
+#'   (`"99.123.456"`) con esa palabra, y el `598` pegado aunque la columna sea
+#'   de números. No son teléfonos un importe —negativo, con centavos o con
+#'   cuatro decimales (`"-12345.10"`, `"1234.5000"`), con separadores de miles
+#'   (`"1.250.000"`, `"12 345.50"`)—, un número redondo, un código con un año
+#'   o con un grupo rellenado con ceros (`"2024-00001"`, `"10-0012345"`) ni un
+#'   documento escrito como documento. Un domicilio con una marca de calle —`Av.`,
 #'   `calle`, `Bvar.`, `Br.`, `Cno.`, `Rbla.`, `Pje.`, `Gral.`, `ruta`,
 #'   `esq.`, `apto`, `Dpto.`, `Mza.`, `km` seguido de un número— en al menos
-#'   el 30 % de sus distintos y sin una palabra de categoría (`cliente_tipo`
-#'   con `"Av. Italia 2345"`; `"En ruta"`, `"Radio 5 km"` no lo son). O un
-#'   nombre con un nombre de pila conocido —también con una inicial,
-#'   `"Juan A. Perez"`, o un `O'`—, sin cifras, sin una palabra que no va en
-#'   un nombre —`sin`, `en`, `por`— y sin empezar como un lugar —`San`,
-#'   `Villa`—, aunque sean dos personas (`responsable_grupo` con
+#'   el 30 % de sus distintos y sin empezar con una palabra de categoría
+#'   (`cliente_tipo` con `"Av. Italia 2345"`, también `"Rivera entre Soca y
+#'   Ellauri 1234"`; `"En ruta"`, `"Radio 5 km"` no lo son). O un
+#'   nombre con un nombre de pila conocido —también con iniciales,
+#'   `"Juan A. Perez"`, `"Juan M. A. Perez"`, `"Juan A Perez"`, o un `O'`—,
+#'   sin cifras, sin una palabra que no va en un nombre —`sin`, `en`, `por`—,
+#'   sin empezar como un lugar —`San`, `Villa`— y que no sea una frase escrita
+#'   como frase (`"Dolores musculares agudos"`, `"Victoria local"`), aunque
+#'   sean dos personas (`responsable_grupo` con
 #'   `"Perez Joaquin"`, `contacto_alta` con `"Ramon Acosta"`). Los acentos se
 #'   leen también en `latin1` sin marca, como lo deja un CSV de Windows bajo
 #'   `C`. Y una fecha de nacimiento o de defunción calificada como categoría
-#'   (`nacimiento_estado`) es esa fecha si sus valores son fechas; su lugar
-#'   no (`pais_nacimiento`). La forma sola no alcanza: `"Gran Empresa"`,
+#'   (`nacimiento_estado`) es esa fecha si sus valores son fechas; su lugar,
+#'   su causa o una parte no (`pais_nacimiento`, `causa_defuncion`,
+#'   `edad_fallecimiento`, `anio_nacimiento`). La forma sola no alcanza: `"Gran Empresa"`,
 #'   `"Cerro Largo"`, `"Arroz Premium"` u `"Oficina 101"` siguen siendo
 #'   categorías, y los nombres de pila que también son palabras de una
 #'   categoría —`Pilar`, `Marco`, `Norma`, `Franco`, `Domingo`, `Julio`,
@@ -1387,7 +1409,11 @@
 #'   —`usuario`, `funcionario`, `responsable`, `solicitante`— con una de
 #'   auditoría —`alta`, `baja`— dice quién dio el alta o la baja: ahí basta un
 #'   texto que no sea una fecha ni un estado —un login `"jperez"`, un
-#'   apellido solo; no `"Sin baja"` ni `"Baja definitiva"`—; la de quien es
+#'   apellido solo, `"A. Rodriguez"`; no `"Sin baja"`, `"Baja definitiva"`,
+#'   ni lo que tiene la forma de un estado o de un motivo en todas sus
+#'   palabras, `"Cancelada"`, `"Renuncia"`, `"Jubilacion"`; un nombre completo
+#'   con un apellido de esa forma, `"Laura Machado Delgado"`, sigue siendo un
+#'   nombre, y un nombre de pila de la lista nunca es un estado—; la de quien es
 #'   objeto del registro pide la señal de los valores, y `cliente_desde` con
 #'   `"Sin fecha"` o `paciente_alta` con `"Traslado"` se publican. En la
 #'   ronda 34 el nombre decidía solo, y esas columnas publicaban nombres,
@@ -1399,7 +1425,12 @@
 #'   nombre; con una palabra de categoría o de clave, un login de sólo letras
 #'   o un apellido solo (`responsable_grupo` con `"Rodriguez"`, `usuario_id`
 #'   con `"jperez_01"`) no se distinguen de una categoría o de un código y se
-#'   publican, como un domicilio sin marca de calle; y las escrituras raras de
+#'   publican, como un domicilio sin marca de calle; un apellido solo con la
+#'   forma de un estado —`"Machado"`— cuenta como estado en la regla de quien
+#'   actúa, que necesita el 80 % de la columna; una palabra de persona
+#'   con otra que no es un calificador conocido —`victoria_equipo_socio`— se
+#'   protege por el nombre, y `dir` es una dirección aunque la columna sea de
+#'   puntos cardinales; y las escrituras raras de
 #'   un número —coma decimal con exponente, `"4.685.467,00e0"`— no se leen.
 #'   Una columna de
 #'   personas con otro nombre se declara en `columnas_personales`. También es `medio` una
@@ -1833,7 +1864,8 @@
 #'   columna personal: se clasifica `documento_identidad` con poder `alto`
 #'   cuando al menos tres de sus valores distintos son el documento sin su
 #'   verificador de un valor protegido —con la regla de los textos, ver
-#'   abajo—, son el 90 % de sus distintos —el umbral de `verificado`, que
+#'   abajo; también la cédula de seis cifras, `854321` de `"854.321-2"`, que
+#'   una sola entre las de siete dejaba publicar la columna—, son el 90 % de sus distintos —el umbral de `verificado`, que
 #'   tolera tipeos aislados— y tantos no coinciden por azar con la densidad de
 #'   esos documentos en el rango de la columna —una probabilidad binomial
 #'   menor que una en un millón—. Publicaba sus dos extremos, que son dos

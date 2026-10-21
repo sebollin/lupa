@@ -67,12 +67,15 @@ test_that("las unidades mixtas se informan sin convertir y no confunden codigos"
 })
 
 test_that("las celdas multivaluadas exigen homogeneidad y delimitador", {
+  # Desde la ronda 37 `tel` es la palabra del telefono y la columna se protege:
+  # la evidencia de sus hallazgos se tapa. Aca se mide la deteccion de las
+  # celdas multivaluadas, asi que se perfila sin la proteccion.
   telefonos <- perfilar(
     data.frame(tel = c(
       "099111222", "099111222; 24001234", "24005678",
       "099333444, 24009999"
     )),
-    analizar_dependencias = FALSE
+    analizar_dependencias = FALSE, proteger_datos_personales = FALSE
   )
   hallazgo <- telefonos$hallazgos[
     telefonos$hallazgos$tipo_hallazgo == "celdas_multivaluadas", , drop = FALSE

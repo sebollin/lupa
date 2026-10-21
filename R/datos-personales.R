@@ -192,30 +192,48 @@
 .CALIFICADORES_DE_NOMBRE <- list(
   categoria = paste0(
     "tipo|tipos|estado|estados|categoria|clase|segmento|grupo|nivel|canal|",
-    "motivo|cantidad|cant|total|monto|importe|saldo"
+    "motivo|causa|causas|resultado|resultados|cantidad|cant|total|monto|",
+    "importe|saldo"
   ),
-  medio = "medio|medios|via",
+  # Y la forma o el metodo -`forma_pago_cliente`, `metodo_pago_cliente`-
+  # (ronda 37).
+  medio = "medio|medios|via|forma|formas|metodo|metodos|modo|modalidad",
   fecha = "fecha|fec|desde|hasta|alta|baja",
   # Ronda 36: el lugar de un nacimiento o de una defuncion no es su fecha
   # (`pais_nacimiento` con `"Uruguay"`).
   lugar = paste0(
-    "pais|lugar|ciudad|localidad|departamento|depto|provincia|region|",
-    "nacionalidad"
+    "pais|lugar|ciudad|localidad|departamento|depto|dpto|provincia|region|",
+    "nacionalidad|municipio"
   ),
+  # Ronda 37: una parte de la fecha no es la fecha -`edad_fallecimiento`,
+  # `anio_nacimiento`-.
+  parte = "edad|edades|anio|anios|ano|anos|year|mes|dia",
+  # Y una medida o un plazo no es un telefono, un correo ni un domicilio
+  # (`telefono_plazo_dias`, `calle_metros`; ronda 37).
+  medida = "plazo|plazos|dias|duracion|tiempo|minutos|segundos|horas|metros",
+  # Ronda 37: la direccion de una red o de un organismo no es un domicilio
+  # (`dir_ip`, `dir_web`, `direccion_general` con `"Direccion de Salud"`).
+  red = "web|url|ip|ipv4|ipv6|mac|host|servidor|ftp|http|https|red",
+  institucion = "general|nacional|departamental|ejecutiva|tecnica|regional",
   clave = "id|ids|cod|codigo|nro|num|numero|uuid|key"
 )
 
 .CALIFICADORES_POR_TIPO <- list(
   documento_identidad = c("categoria", "fecha"),
-  correo = c("categoria", "medio", "fecha", "clave"),
-  telefono = c("categoria", "medio", "fecha"),
-  fecha_nacimiento = c("categoria", "lugar"),
-  fecha_fallecimiento = c("categoria", "lugar"),
-  nombre = character(),
+  correo = c("categoria", "medio", "fecha", "clave", "medida"),
+  telefono = c("categoria", "medio", "fecha", "medida"),
+  fecha_nacimiento = c("categoria", "lugar", "parte"),
+  fecha_fallecimiento = c("categoria", "lugar", "parte"),
+  # Ronda 37: el nombre de un departamento o de una localidad es la categoria
+  # de una base publica (`nombre_departamento`, `nom_depto`), y pide la senal
+  # de los valores, como la palabra de persona con un lugar.
+  nombre = "lugar",
   # Ronda 36: tambien el medio -`medio_pago_cliente`, `via_ingreso_usuario`-,
   # como en las demas palabras.
-  persona = c("categoria", "medio", "fecha", "clave"),
-  domicilio = c("categoria", "medio", "fecha")
+  # Ronda 37: y el lugar -`pais_cliente`, `nacionalidad_socio`-.
+  persona = c("categoria", "medio", "fecha", "clave", "lugar"),
+  domicilio = c("categoria", "medio", "fecha", "lugar", "medida", "red",
+                "institucion")
 )
 
 # Los tipos -inferidos o declarados- cuyos valores no son de ese tipo personal:
@@ -241,7 +259,34 @@
 # sacarle la palabra- la califica como otra cosa, y entonces `calificadores`
 # dice con que palabras. Quien decide con los valores es
 # `.tipo_por_valores_calificada()`.
-.palabra_de_tipo <- function(normalizado, patron, tipo, tipo_valores) {
+# Si algun valor de `x` tiene las seis cifras de un documento -la cedula de seis
+# sin su verificador es el mas corto que reconoce la regla de la copia-.
+# Con la representacion de texto del clasificador, que escribe tambien un
+# `integer64` o un numero de mas de quince cifras con todas sus cifras.
+.tiene_cifras_de_documento <- function(x) {
+  if (inherits(x, c("Date", "POSIXt", "difftime")) || is.list(x)) return(TRUE)
+  textos <- tryCatch(.textos_para_clasificacion_personal(unique(x)),
+                     error = function(e) NULL)
+  if (is.null(textos)) return(TRUE)
+  textos <- textos[!is.na(textos)]
+  if (!length(textos)) return(FALSE)
+  any(nchar(gsub("[^0-9]", "", textos, useBytes = TRUE), type = "bytes") >= 6L)
+}
+
+# `NombreCliente`, `nroDoc`, `eMail`: una mayuscula despues de una minuscula o de
+# una cifra separa palabras, como el guion bajo. Por bytes ASCII: un nombre con
+# letras de otra escritura queda como esta.
+.separar_camel <- function(nombre) {
+  nombre <- as.character(nombre)
+  tryCatch(
+    gsub("([a-z0-9])([A-Z])", "\\1_\\2", nombre, perl = TRUE,
+         useBytes = TRUE),
+    error = function(e) nombre
+  )
+}
+
+.palabra_de_tipo <- function(normalizado, patron, tipo, tipo_valores,
+                             x = NULL) {
   no <- list(estado = "no", calificadores = character())
   if (!isTRUE(grepl(patron, normalizado, perl = TRUE))) return(no)
   # Excluida por el tipo de sus valores: no es de ESTE tipo -un numero no es el
@@ -261,6 +306,13 @@
             c("entero", "doble", "integer64", "numeric", "integer")) &&
       !isTRUE(grepl(paste0("(^|_)(", .CALIFICADORES_DE_NOMBRE$clave, ")($|_)"),
                     resto, perl = TRUE))) {
+    return(excluida)
+  }
+  # Un documento tiene cifras: una columna sin un solo valor de seis cifras o
+  # mas -`cedula_valida` con `"S"`/`"N"`, `cod_documento` con `1`, `2`, `9`- no
+  # guarda documentos, es una marca o un codigo de su tipo (ronda 37).
+  if (identical(tipo, "documento_identidad") && !is.null(x) &&
+      !isTRUE(tryCatch(.tiene_cifras_de_documento(x), error = function(e) TRUE))) {
     return(excluida)
   }
   palabras <- unlist(lapply(.CALIFICADORES_POR_TIPO[[tipo]], function(clase) {
@@ -385,12 +437,43 @@
   # Ni un estado del registro -`"Sin baja"`, `"Baja definitiva"`, `"Activo"`
   # en `usuario_baja` (ronda 36)-: un texto con una palabra de categoria o de
   # estado no dice quien dio el alta o la baja.
-  minusculas <- .minusculas_ascii(textos)
+  # Las iniciales y el `O'` no son palabras de categoria (`"A. Rodriguez"`,
+  # `"O'Connor"`; ronda 37). Y un estado o un motivo se reconoce por su forma
+  # ademas de por la lista: un participio o un sustantivo de accion
+  # -`"Cancelada"`, `"Rechazada"`, `"Renuncia"`, `"Jubilacion"`, `"Despido"`,
+  # `"Activos"`- (`.parece_estado()`). Un apellido con esa terminacion
+  # -`Machado`, `Delgado`- no llega a ser la mayoria de una columna de personas.
+  minusculas <- .minusculas_ascii(.sin_iniciales(textos))
   palabras <- regmatches(minusculas, gregexpr("[a-z]+", minusculas, perl = TRUE))
-  estado <- vapply(palabras, function(p) {
-    any(p %in% c(.PALABRAS_QUE_NO_VAN_EN_UN_NOMBRE, .PALABRAS_DE_ESTADO))
+  # Por la forma, un estado es un texto cuyas palabras son TODAS de estado -una
+  # palabra sola, `"Cancelada"`, o `"Renuncia Voluntaria"`-, y una palabra de
+  # `.NOMBRES_DE_PILA` nunca lo es. La primera version contaba una sola palabra:
+  # `"Laura Machado"`, `"Florencia Cabral"` o `"Vicente Garrido"` pasaban por
+  # estados y una columna de nombres completos no llegaba al 80 % (segunda
+  # vuelta de la ronda 37). Y una frase escrita como frase (`"Fin de
+  # contrato"`) tampoco dice quien.
+  frase <- .es_frase(.sin_iniciales(textos))
+  estado <- vapply(seq_along(palabras), function(i) {
+    p <- palabras[[i]]
+    if (any(p %in% c(.PALABRAS_QUE_NO_VAN_EN_UN_NOMBRE, .PALABRAS_DE_ESTADO))) {
+      return(TRUE)
+    }
+    if (frase[[i]]) return(TRUE)
+    p <- p[!p %in% .PARTICULAS_DE_NOMBRE]
+    length(p) > 0L && !any(p %in% .NOMBRES_DE_PILA) && all(.parece_estado(p))
   }, logical(1L))
   mean(letras >= 3L & !estado) >= .PROPORCION_FORMA_PERSONAL
+}
+
+# Si una palabra tiene la forma de un estado o de un motivo: las terminaciones
+# del participio y de los sustantivos de accion o de estado, en singular o
+# plural.
+.parece_estado <- function(palabras) {
+  singular <- sub("(?<=[aeiou])s$", "", palabras, perl = TRUE)
+  grepl(paste0(
+    "(ada|ado|ida|ido|cion|sion|miento|ncia|idad|ivo|iva|ente|ante|able|ible|",
+    "ura|aje)$"
+  ), singular, perl = TRUE) & nchar(singular, type = "bytes") >= 5L
 }
 
 .PALABRAS_DE_ESTADO <- c(
@@ -500,16 +583,22 @@
     return("telefono")
   }
   if (.forma_domicilio(textos, minusculas)) return("domicilio")
-  if (basta(.forma_nombre_de_persona(minusculas))) return("nombre")
+  if (basta(.forma_nombre_de_persona(minusculas, textos))) return("nombre")
   NA_character_
 }
 
 # Si cada texto de `minusculas` tiene la forma de un telefono (ver
 # `.tipo_personal_de_valores()`). Por valor; quien llama mira la columna.
 .forma_telefono <- function(x, minusculas, peladas = FALSE) {
-  if (is.numeric(x) && !peladas) return(rep(FALSE, length(minusculas)))
-  # El `.0` de planilla no es parte del numero (`"59899123456.0"`, ronda 36).
-  texto <- sub("[.,]0{1,2}$", "", minusculas, perl = TRUE)
+  # Un numero no es un telefono escrito: solo con la palabra del telefono
+  # (`peladas`) o si es el de Uruguay con su prefijo pegado (`59899123456`,
+  # ronda 37).
+  if (is.numeric(x) && !peladas) {
+    return(grepl(.PATRON_TELEFONO_UY_PEGADO, minusculas, perl = TRUE))
+  }
+  # El `.0` de planilla no es parte del numero (`"59899123456.0"`, ronda 36), ni
+  # el `.0000` de un `DECIMAL(15,4)` (ronda 37).
+  texto <- sub("[.,]0+$", "", minusculas, perl = TRUE)
   sin_interno <- sub(
     "[[:space:]]*(int|ext|interno|anexo|x)[.]?[[:space:]]*[0-9]{1,5}$", "",
     texto, perl = TRUE
@@ -517,30 +606,53 @@
   interno <- sin_interno != texto
   limpio <- gsub("[ ().-]", "", sin_interno, perl = TRUE)
   cifras <- grepl("^[+]?[0-9]{7,15}$", limpio, perl = TRUE)
-  # Lo que no es un telefono aunque tenga sus cifras: un importe con centavos
-  # -un solo separador y una o dos cifras, `"12345.10"`-; un importe con
-  # separadores de miles -`"1.250.000"`, `"1 250 000"`; un telefono con grupos
-  # de tres empieza con cero-; un codigo con un ano -`"2024-00001"`-; un
-  # documento escrito como documento -`"4.685.467-9"`, lo confirma su
-  # verificador-. Ronda 36: los telefonos con puntos de a dos cifras
-  # (`"099.12.34.56"`) caian en la regla de los centavos.
-  no_es <- grepl("^[0-9]+[.,][0-9]{1,2}$", sin_interno, perl = TRUE) |
-    grepl("^[1-9][0-9]{0,2}(?:[., ][0-9]{3})+$", sin_interno, perl = TRUE) |
-    (grepl("[-/]", sin_interno, perl = TRUE) &
-       grepl("(^|[-/])(19|20)[0-9]{2}([-/]|$)", sin_interno, perl = TRUE)) |
-    grepl(paste0(
-      "^(?:[0-9]{1,2}\\.[0-9]{3}\\.[0-9]{3}-[0-9k]|",
-      "[0-9]{2}(?:[ .][0-9]{3}){2}[ .][0-9]{4})$"
-    ), sin_interno, perl = TRUE)
+  # Lo que no es un telefono aunque tenga sus cifras:
+  # - un importe: con signo menos (`"-12345.10"`, `"-1.250.000"`); con centavos
+  #   -un solo separador y de una a cuatro cifras, o una parte decimal que
+  #   termina en cero, `"12345.10"`, `"1234.5000"`-; con separadores de miles y
+  #   centavos (`"12 345.50"`); o con separadores de miles (`"1.250.000"`,
+  #   `"1 250 000"`; un telefono con grupos de tres empieza con cero);
+  # - un codigo: con un ano entre guiones o barras (`"2024-00001"`) o con un
+  #   grupo de cuatro cifras o mas rellenado con ceros despues de un guion, una
+  #   barra o un punto (`"10-0012345"`, `"2024.00001"`);
+  # - un documento escrito como documento (`"4.685.467-9"`), que confirma su
+  #   verificador.
+  # Ronda 37: los importes negativos, con cuatro decimales o con miles con
+  # espacio, y los codigos con ano o con ceros, se tomaban por telefonos.
+  importe <- grepl("^-", sin_interno, perl = TRUE) |
+    grepl("^[0-9]+[.,][0-9]{1,2}$", sin_interno, perl = TRUE) |
+    grepl("^[0-9]+[.,][0-9]*0$", sin_interno, perl = TRUE) |
+    grepl("^[0-9]{1,3}(?:[., ][0-9]{3})*[.,][0-9]{1,4}$", sin_interno,
+          perl = TRUE)
+  miles <- grepl("^[1-9][0-9]{0,2}(?:[., ][0-9]{3})+$", sin_interno,
+                 perl = TRUE)
+  # Con la palabra del telefono, el celular de Uruguay escrito de a tres sin su
+  # cero (`"99.123.456"`, `"99 123 456"`) es un celular, no un importe.
+  celular <- peladas & grepl("^9[1-9][., ][0-9]{3}[., ][0-9]{3}$", sin_interno,
+                             perl = TRUE)
+  miles <- miles & !celular
+  importe <- importe & !celular
+  codigo <- (grepl("[-/]", sin_interno, perl = TRUE) &
+               grepl("(^|[-/])(19|20)[0-9]{2}([-/]|$)", sin_interno,
+                     perl = TRUE)) |
+    grepl("[-/.]00[0-9]{2,}", sin_interno, perl = TRUE)
+  documento <- grepl(paste0(
+    "^(?:[0-9]{1,2}\\.[0-9]{3}\\.[0-9]{3}-[0-9k]|",
+    "[0-9]{2}(?:[ .][0-9]{3}){2}[ .][0-9]{4})$"
+  ), sin_interno, perl = TRUE)
+  # Ni una direccion IP: cuatro grupos de una a tres cifras hasta 255, sin cero
+  # inicial (`"10.23.45.67"`; `"099.12.34.56"` es un celular).
+  ip <- grepl("^(?:(?:25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9]?[0-9])[.]){3}(?:25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9]?[0-9])$",
+              sin_interno, perl = TRUE)
+  # Y tres ceros no son un prefijo de nada (`"0001-2345"`).
+  no_es <- importe | miles | codigo | documento | ip |
+    grepl("^000", limpio, perl = TRUE)
   # Escrito como telefono: con `+`, con el prefijo internacional `00` o el de
-  # Uruguay pegado (`"0059899123456"`, `"59899123456"`), con un cero inicial,
+  # Uruguay pegado (`"0059899123456"`, `"59899123456"`), con un cero inicial
+  # -con las cifras pegadas, desde nueve: `"0123456"` es un codigo rellenado-,
   # con separadores entre las cifras o con un interno. Las cifras sueltas, solo
   # con la palabra del telefono (`peladas`), y no un numero redondo, que es un
   # importe (`1250000`).
-  # Un cero inicial con las cifras pegadas cuenta desde nueve -el celular
-  # `"099123456"`-: `"0123456"` es un codigo rellenado con ceros. Y tres ceros
-  # no son un prefijo de nada (`"0001-2345"`).
-  no_es <- no_es | grepl("^000", limpio, perl = TRUE)
   escrito <- interno |
     grepl("^([+]|00[1-9])", sin_interno, perl = TRUE) |
     (grepl("^0[1-9]", limpio, perl = TRUE) &
@@ -569,11 +681,14 @@
   numero <- grepl("[a-z]{3,}", minusculas, perl = TRUE) &
     grepl("(^|[^0-9])[0-9]{1,5}($|[^0-9])", minusculas, perl = TRUE) &
     grepl("[ ]", minusculas, perl = TRUE)
-  # Una palabra de categoria no va en un domicilio: `"En ruta"`, `"En camino"`
-  # son estados (ronda 36).
+  # Un domicilio no empieza con una palabra de categoria: `"En ruta"`,
+  # `"En camino"`, `"Sin calle"` son estados (ronda 36). Al principio y no en
+  # cualquier lugar: `"Rivera entre Soca y Ellauri"`, `"Cno. El Dorado 123"`,
+  # `"Calle A 1234"` son domicilios (ronda 37).
   palabras <- regmatches(minusculas, gregexpr("[a-z]+", minusculas, perl = TRUE))
   categoria <- vapply(palabras, function(p) {
-    any(p %in% .PALABRAS_QUE_NO_VAN_EN_UN_NOMBRE)
+    length(p) > 0L && p[[1L]] %in% c("en", "sin", "por", "para", "con", "no",
+                                     "a", "al")
   }, logical(1L))
   marca <- marca & !categoria
   forma <- (marca | numero) & !categoria & !.forma_de_fecha(textos)
@@ -597,22 +712,54 @@
   "bahia", "fray"
 )
 
-.forma_nombre_de_persona <- function(minusculas) {
-  # Una inicial -`"Juan A. Perez"`- o el `O'` de un apellido -`"O'Connor"`- no
-  # es la conjuncion `"o"` ni la preposicion `"a"` (ronda 36).
-  sin_iniciales <- gsub("(^|[^a-z])[a-z][.'][ ]*", "\\1 ", minusculas,
-                        perl = TRUE)
+.forma_nombre_de_persona <- function(minusculas, textos = minusculas) {
+  sin_iniciales <- .minusculas_ascii(.sin_iniciales(textos))
   palabras <- regmatches(sin_iniciales, gregexpr("[a-z]+", sin_iniciales,
                                                  perl = TRUE))
   sin_cifras <- !grepl("[0-9@]", minusculas, perl = TRUE)
+  # Una frase escrita como frase -la primera palabra con mayuscula y otra
+  # despues en minuscula, `"Dolores musculares agudos"`, `"Victoria local"`- no
+  # es un nombre aunque empiece con uno (ronda 37). Un nombre se escribe todo
+  # con mayusculas iniciales, todo en mayusculas o todo en minusculas.
+  frase <- .es_frase(.sin_iniciales(textos))
   vapply(seq_along(minusculas), function(i) {
     p <- palabras[[i]]
-    sin_cifras[[i]] && length(p) >= 1L && length(p) <= 8L &&
+    sin_cifras[[i]] && !frase[[i]] && length(p) >= 1L && length(p) <= 8L &&
       !p[[1L]] %in% .PREFIJOS_DE_LUGAR &&
       !any(p %in% .PALABRAS_QUE_NO_VAN_EN_UN_NOMBRE) &&
       any(p %in% .NOMBRES_DE_PILA)
   }, logical(1L))
 }
+
+# Las iniciales -`"Juan A. Perez"`, `"Juan M. A. Perez"`, `"Gomez, A."`- y el
+# `O'` de un apellido -`"O'Connor"`, `"Maria E. O'Neill"`- fuera: no son la
+# conjuncion `"o"` ni la preposicion `"a"`. Ronda 36 quitaba una sola inicial (la
+# regla consumia el espacio que separaba la siguiente) y la regla de quien
+# actua ninguna (ronda 37).
+# Y la mayuscula sola entre palabras, sin punto -`"Juan A Perez"`-: en un texto
+# en minusculas no se distingue de la preposicion, y queda.
+.sin_iniciales <- function(x) {
+  x <- gsub("(?<![A-Za-z])[A-Za-z][.'](?=[ ,]|[A-Za-z]|$)", " ", x, perl = TRUE)
+  gsub("(?<![A-Za-z'.])[A-Z](?![A-Za-z'.])", " ", x, perl = TRUE)
+}
+
+# Si cada texto es una frase: dos palabras o mas, la primera con mayuscula
+# inicial y alguna de las siguientes, de tres letras o mas y que no es una
+# particula de nombre, toda en minusculas.
+.es_frase <- function(textos) {
+  palabras <- regmatches(textos, gregexpr("[A-Za-z]+", textos, perl = TRUE))
+  vapply(palabras, function(p) {
+    if (length(p) < 2L || !grepl("^[A-Z]", p[[1L]], perl = TRUE)) return(FALSE)
+    resto <- p[-1L]
+    resto <- resto[nchar(resto, type = "bytes") >= 3L &
+                     !.minusculas_ascii(resto) %in% .PARTICULAS_DE_NOMBRE]
+    any(grepl("^[a-z]+$", resto, perl = TRUE))
+  }, logical(1L))
+}
+
+.PARTICULAS_DE_NOMBRE <- c("de", "del", "la", "las", "los", "y", "e", "da",
+                           "das", "do", "dos", "di", "van", "von", "der", "den",
+                           "le")
 
 # Nombres de pila frecuentes en castellano, portugues, ingles, italiano, frances
 # y aleman, sin acentos -se comparan transliterados-. No pretende ser completa:
@@ -661,6 +808,13 @@
   "valentin", "valentina", "valeria", "vanesa", "vanessa", "veronica",
   "victor", "victoria", "virginia", "viviana", "walter", "washington",
   "wilson", "ximena", "yolanda",
+  # Ronda 37: nombres corrientes en Uruguay y la region que faltaban, y los que
+  # terminan como un estado (`Vicente`, `Clemente`, `Dante`, `Conrado`): una
+  # palabra de la lista nunca es un estado por su forma.
+  "alcides", "bryan", "clemente", "conrado", "danilo", "dante", "dinorah",
+  "elbio", "gisela", "gladys", "heber", "hebert", "jhonatan", "lilian",
+  "mabel", "maicol", "milton", "mirta", "nelly", "nelson", "nestor", "nilda",
+  "shirley", "ulises", "vicente", "wilmar", "yamandu", "yanina",
   # ingles
   "anne", "barbara", "betty", "brian", "carol", "charles", "christopher",
   "donald", "donna", "edward", "elizabeth", "emily", "emma", "frank", "george",
@@ -686,15 +840,24 @@
       poder_discriminante = NA_character_, proteger = FALSE
     ))
   }
-  normalizado <- .normalizar_nombre_fecha(nombre)
+  # `NombreCliente` y `nroDoc` son `nombre_cliente` y `nro_doc` (ronda 37).
+  normalizado <- .normalizar_nombre_fecha(.separar_camel(nombre))
+  # Ronda 37 (P-A1): las abreviaturas comunes de cada palabra -`tel`, `cel`,
+  # `telef`, `fono`, `dir`, `domic`, `nom`, `ape`, `doc`, `ced`-, sus plurales y
+  # un numero pegado -`telefono2`, `apellido1`-. `tel`, `nro_tel` o `cel` con
+  # celulares se clasificaban documento `debil` y publicaban. No `mov`, que es
+  # tambien un movimiento.
   reglas_nombre <- c(
     documento_identidad = paste0(
-      "(^|_)(cedula|ci|dni|rut|curp|documento|documento_identidad|",
-      "numero_documento|nro_documento|identificacion|id_nacional|",
-      "pasaporte|passport)($|_)"
+      "(^|_)(cedula|cedulas|ced|ci|dni|rut|curp|documento|documentos|doc|",
+      "docs|documento_identidad|numero_documento|nro_documento|",
+      "identificacion|id_nacional|pasaporte|passport)[0-9]*($|_)"
     ),
-    correo = "(^|_)(correo|email|mail|casilla)($|_)",
-    telefono = "(^|_)(telefono|celular|movil|contacto)($|_)",
+    correo = "(^|_)(correo|correos|email|emails|mail|mails|casilla)[0-9]*($|_)",
+    telefono = paste0(
+      "(^|_)(telefono|telefonos|tel|telf|tlf|tfno|telef|fono|celular|",
+      "celulares|cel|movil|moviles|contacto)[0-9]*($|_)"
+    ),
     # El patron abreviaba la PRIMERA palabra (`f_nacimiento`) y no la segunda,
     # asi que `fecha_nac` -de las formas mas frecuentes en registros
     # administrativos de la region- no se clasificaba y la fecha de nacimiento
@@ -719,14 +882,18 @@
     # y `columnas_personales` esta para el resto, que lo declara quien conoce
     # el dato. Las palabras de PERSONA -`cliente`, `socio`- van aparte: ver
     # `.PATRON_PERSONA_EN_NOMBRE`.
-    nombre = "(^|_)(nombre|nombres|apellido|apellidos|nombre_completo)($|_)",
+    nombre = paste0(
+      "(^|_)(nombre|nombres|apellido|apellidos|nombre_completo|nom|ape)",
+      "[0-9]*($|_)"
+    ),
     domicilio = paste0(
-      "(^|_)(direccion|domicilio|calle|address|residencia|",
-      "lugar_residencia|barrio)($|_)"
+      "(^|_)(direccion|direcciones|direc|dir|domicilio|domicilios|domic|",
+      "calle|address|residencia|lugar_residencia|barrio)[0-9]*($|_)"
     )
   )
   palabras <- lapply(names(reglas_nombre), function(tipo) {
-    .palabra_de_tipo(normalizado, reglas_nombre[[tipo]], tipo, inferencia$tipo)
+    .palabra_de_tipo(normalizado, reglas_nombre[[tipo]], tipo, inferencia$tipo,
+                     x = x)
   })
   names(palabras) <- names(reglas_nombre)
   estados <- vapply(palabras, `[[`, character(1L), "estado")
@@ -1195,7 +1362,7 @@
   n <- length(distintos)
   candidatas <- unique(cifras[!is.na(cifras) &
                                 nchar(cifras, type = "bytes") >=
-                                  .MIN_LARGO_VALOR_IDENTIFICANTE + 1L &
+                                  .MIN_LARGO_COPIA_SIN_VERIFICADOR &
                                 !grepl(.PATRON_NUMERO_REDONDO, cifras,
                                        perl = TRUE)])
   # Por busqueda en los ordenados, no con `%in%`: armar la tabla de millones de
@@ -1268,7 +1435,8 @@
   cifras <- tryCatch(.cifras_de_columna(unique(valores)),
                      error = function(e) NULL)
   if (is.null(cifras)) return(character())
-  .prefijos_documentos(unique(cifras[!is.na(cifras)]))
+  .prefijos_documentos(unique(cifras[!is.na(cifras)]),
+                       minimo = .MIN_LARGO_COPIA_SIN_VERIFICADOR)
 }
 
 .prefijos_ordenados <- function(prefijos_de) {
@@ -1284,8 +1452,10 @@
 # las demas (`.copias_entre_tablas_coleccion()`). Ronda 35 (H1).
 .copia_de_documentos <- function(valores, prefijos_de, todos = NULL,
                                  umbral = 0.9, cola = 1e-6) {
+  # Seis cifras o mas: la cedula de seis cifras sin su verificador tambien
+  # (ronda 37, P-A2).
   if (is.numeric(valores) &&
-      !any(abs(suppressWarnings(as.numeric(valores))) >= 1e6, na.rm = TRUE)) {
+      !any(abs(suppressWarnings(as.numeric(valores))) >= 1e5, na.rm = TRUE)) {
     return(NULL)
   }
   distintos <- tryCatch(unique(valores[!is.na(valores)]),

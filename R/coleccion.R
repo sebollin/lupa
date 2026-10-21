@@ -2066,7 +2066,9 @@ perfilar_coleccion <- function(coleccion, muestra = Inf,
       v <- tabla[[campo]]
       if (!is.numeric(v)) next
       v <- suppressWarnings(as.numeric(v))
-      grandes <- grandes | (!is.na(v) & abs(v) >= 1e6)
+      # Seis cifras o mas: tambien la cedula de seis cifras sin su
+      # verificador (ronda 37, P-A2).
+      grandes <- grandes | (!is.na(v) & abs(v) >= 1e5)
     }
     candidatas <- c(candidatas, as.character(tabla$columna[grandes]))
   }
@@ -3100,20 +3102,21 @@ estimar_costo_coleccion <- function(coleccion, pares = NULL,
     campos <- if (length(columnas)) as.character(columnas) else {
       names(esquema$datos)
     }
-    if (!isTRUE(esquema$ok) || is.null(esquema$tipos_motor) ||
-        !length(campos) || length(campos) != length(esquema$tipos_motor)) {
+    tipos_para_conversion <- if (!is.null(esquema$tipos_motor)) {
+      esquema$tipos_motor
+    } else esquema$tipos
+    if (!isTRUE(esquema$ok) || is.null(tipos_para_conversion) ||
+        !length(campos) || length(campos) != length(tipos_para_conversion)) {
       return(guardar(sin_conversion))
     }
     campos_sql <- citar(campos)
     convertida <- .lectura_convertida_dbi(
-      conexion, campos, campos_sql, esquema$tipos_motor
+      conexion, campos, campos_sql, esquema$tipos_motor,
+      tipos = esquema$tipos
     )
     cambia <- convertida$campos_sql != campos_sql
     if (!any(cambia)) return(guardar(sin_conversion))
-    proyeccion <- campos_sql
-    proyeccion[cambia] <- paste0(
-      convertida$campos_sql[cambia], " AS ", campos_sql[cambia]
-    )
+    proyeccion <- convertida$proyeccion_sql
     guardar(list(
       seleccion_sql = paste(proyeccion, collapse = ", "),
       expresiones = stats::setNames(convertida$campos_sql[cambia], campos[cambia])
@@ -3363,53 +3366,142 @@ estimar_costo_coleccion <- function(coleccion, pares = NULL,
     # Fuera de una transaccion costaba una consulta rechazada por tabla; dentro
     # de una, la abortaba (ronda 35-X, A5). Se lee directo por la via sin
     # `LIMIT`, la que ya terminaba leyendo.
-    resultado <- if (is.finite(muestra)) {
-      sql_limite <- paste0(
-        "SELECT ", seleccion_sql, " FROM ", tabla_sql, orden_sql,
-        " LIMIT ", format(tope_lectura, scientific = FALSE)
-      )
-      tryCatch(
-        list(datos = .marcar_utf8_tabla(.traer_consulta_dbi(conexion, sql_limite)),
-             sql = sql_limite,
-             via = "limit"),
-        error = function(e) {
-          .repropagar_transaccion_dbi(e)
-          e
-        }
-      )
-    } else {
-      simpleCondition("sin tope de lectura")
-    }
-    motivo_limite <- NA_character_
-    if (inherits(resultado, "condition")) {
-      # El mensaje del motor puede citar las columnas de la tabla -"Candidate
-      # bindings: \"id\""-, que el resto de la salida publica: se suman a los
-      # nombres que no se tapan (ronda 35-X, B3). Cuesta un `dbListFields()`,
-      # solo cuando la lectura fallo.
-      .sumar_identificadores_motor(campos_de(identificador))
-      if (is.finite(muestra)) motivo_limite <- .mensaje_motor(resultado)
-       sql_llano <- paste0(
-         "SELECT ", seleccion_sql, " FROM ", tabla_sql, orden_sql
-       )
-      resultado <- tryCatch({
-        consulta <- .enviar_consulta_dbi(conexion, sql_llano)
+    ejecutar_lectura <- function(columnas, aplicar_orden = TRUE) {
+      lectura_local <- lectura_de(identificador, tabla_sql, columnas)
+      seleccion_local <- lectura_local$seleccion_sql
+      orden_local <- if (length(columnas_orden) && isTRUE(aplicar_orden)) {
+        paste0(
+          " ORDER BY ",
+          paste(as.character(DBI::dbQuoteIdentifier(conexion, columnas_orden)),
+                collapse = ", ")
+        )
+      } else ""
+      leer_sin_limite <- function(sql) {
+        consulta <- .enviar_consulta_dbi(conexion, sql)
         on.exit(.limpiar_consulta_dbi(consulta, conexion), add = TRUE)
-        # El tipo de cada columna segun el controlador: odbc da el codigo ODBC,
-        # que distingue el texto no Unicode (ver `.nota_texto_controlador_dbi()`).
         tipos <- tryCatch(
           as.character(DBI::dbColumnInfo(consulta)$type),
           error = function(e) NULL
         )
-        list(datos = .marcar_utf8_tabla(.traer_filas_dbi(consulta, n = tope_lectura, conexion)),
-             sql = sql_llano,
-             via = "fetch_acotado", tipos = tipos)
-      }, error = function(e) {
-        .repropagar_transaccion_dbi(e)
-        e
-      })
+        list(
+          datos = .marcar_utf8_tabla(
+            .traer_filas_dbi(consulta, n = tope_lectura, conexion)
+          ),
+          sql = sql, via = "fetch_acotado", tipos = tipos
+        )
+      }
+      motivo_limite_local <- NA_character_
+      if (is.finite(muestra)) {
+        sql_limite <- paste0(
+          "SELECT ", seleccion_local, " FROM ", tabla_sql, orden_local,
+          " LIMIT ", format(tope_lectura, scientific = FALSE)
+        )
+        limitado <- tryCatch(
+          list(ok = TRUE, valor = list(
+            datos = .marcar_utf8_tabla(
+              .traer_consulta_dbi(conexion, sql_limite)
+            ), sql = sql_limite, via = "limit"
+          )),
+          error = function(e) {
+            .repropagar_transaccion_dbi(e)
+            list(ok = FALSE, error = e, motivo = e)
+          }
+        )
+        if (isTRUE(limitado$ok)) {
+          return(list(ok = TRUE, valor = limitado$valor))
+        }
+        motivo_limite_local <- limitado$motivo
+      }
+      sql_llano <- paste0(
+        "SELECT ", seleccion_local, " FROM ", tabla_sql, orden_local
+      )
+      sin_limite <- tryCatch(
+        list(ok = TRUE, valor = leer_sin_limite(sql_llano)),
+        error = function(e) {
+          .repropagar_transaccion_dbi(e)
+          list(ok = FALSE, error = e)
+        }
+      )
+      if (isTRUE(sin_limite$ok)) {
+        return(list(ok = TRUE, valor = sin_limite$valor))
+      }
+      list(ok = FALSE, error = sin_limite$error,
+           motivo_limite = motivo_limite_local)
+    }
+    columnas_para_aislar <- if (length(columnas_lectura)) {
+      columnas_lectura
+    } else campos_de(identificador)
+    # Sin candidatas declaradas la promesa es `SELECT *`: solo se enumeran las
+    # columnas si esa lectura falla y hace falta aislar la culpable.
+    lectura_emitida <- ejecutar_lectura(columnas_lectura)
+    resultado <- if (isTRUE(lectura_emitida$ok)) {
+      lectura_emitida$valor
+    } else lectura_emitida$error
+    motivo_limite <- NA_character_
+    nota_aislamiento <- NA_character_
+    if (inherits(resultado, "condition") && length(columnas_para_aislar) > 1L) {
+      tope_descarte <- min(
+        (if (length(columnas_orden)) 4L else 2L) *
+          length(columnas_para_aislar), .TOPE_SONDAS_DESCARTE_DBI
+      )
+      aislamiento <- .aislar_ilegibles_dbi(
+        function(indices) {
+          prueba <- ejecutar_lectura(columnas_para_aislar[indices])
+          isTRUE(prueba$ok)
+        },
+        function() TRUE, length(columnas_para_aislar), tope_descarte
+      )
+      culpables <- aislamiento$culpables
+      if (length(columnas_orden) &&
+          length(culpables) == length(columnas_para_aislar) &&
+          aislamiento$sondas < tope_descarte) {
+        # Si la propia columna de orden falla, mantenerla en todas las sondas
+        # hace que parezcan culpables tambien las columnas sanas. Se repite el
+        # aislamiento sin `ORDER BY` solo en ese caso y con el saldo restante.
+        sin_orden <- .aislar_ilegibles_dbi(
+          function(indices) {
+            prueba <- ejecutar_lectura(
+              columnas_para_aislar[indices], aplicar_orden = FALSE
+            )
+            isTRUE(prueba$ok)
+          },
+          function() TRUE, length(columnas_para_aislar),
+          tope_descarte - aislamiento$sondas
+        )
+        culpables <- sin_orden$culpables
+        aislamiento$sondas <- aislamiento$sondas + sin_orden$sondas
+      }
+      if (length(culpables) && length(culpables) < length(columnas_para_aislar)) {
+        quedan <- setdiff(seq_along(columnas_para_aislar), culpables)
+        indices_orden <- .resolver_columnas_dbi(
+          columnas_orden, columnas_para_aislar
+        )
+        recuperada <- ejecutar_lectura(
+          columnas_para_aislar[quedan],
+          aplicar_orden = !any(indices_orden %in% culpables)
+        )
+        if (isTRUE(recuperada$ok)) {
+          resultado <- recuperada$valor
+          columnas_lectura <- columnas_para_aislar[quedan]
+          nota_aislamiento <- paste(
+            "La lectura conjunta fallo; se aislaron por descarte las columnas",
+            paste(columnas_para_aislar[culpables], collapse = ", "),
+            "y se compararon las demas."
+          )
+        }
+      }
     }
     lecturas <<- lecturas + 1L
     if (inherits(resultado, "condition")) {
+      # El motor puede citar columnas de la tabla en su diagnostico (por
+      # ejemplo, `Candidate bindings`). Se suman antes de publicar el motivo,
+      # igual que en la via anterior, para no ocultar un nombre de columna que
+      # ya forma parte del objeto de salida.
+      .sumar_identificadores_motor(campos_de(identificador))
+      if (!isTRUE(lectura_emitida$ok) &&
+          inherits(lectura_emitida$motivo_limite, "condition")) {
+        motivo_limite <- .mensaje_motor(lectura_emitida$motivo_limite)
+      }
       # Fallaron las dos vias: se declaran las dos, y se nombra el `ORDER BY`
       # como causa posible cuando se declaro uno. Un motivo que solo cuenta el
       # segundo intento esconde por que se llego hasta ahi.
@@ -3425,6 +3517,7 @@ estimar_costo_coleccion <- function(coleccion, pares = NULL,
             "): comprobar que esas columnas existen en la tabla."
           )
         } else "",
+        if (!is.na(nota_aislamiento)) paste0(". ", nota_aislamiento) else "",
         if (!is.na(nota_lectura)) paste0(". ", nota_lectura) else ""
       )
       bitacora[[length(bitacora) + 1L]] <<- data.frame(
@@ -3600,6 +3693,11 @@ estimar_costo_coleccion <- function(coleccion, pares = NULL,
 #' declara ese alcance: una relación candidata sobre una muestra **no es una
 #' clave foránea comprobada**, es un indicio que hay que confirmar contra el
 #' diccionario de datos.
+#'
+#' Las columnas de ancho fijo (`char(n)` y equivalentes del controlador) se
+#' leen sin el relleno final que forma parte de su representación en el motor.
+#' Así, una clave `char` y su contraparte `varchar` se comparan por el valor
+#' lógico que el motor iguala, no por los espacios que entrega DBI.
 #'
 #' **Con la tabla de referencia truncada la cobertura es una cota inferior.** Un
 #' valor de `tabla_2` que no está entre las filas leídas de `tabla_1` puede

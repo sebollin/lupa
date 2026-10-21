@@ -330,7 +330,16 @@ test_that("H3, el recorrido: cada palabra calificadora de cada tipo, contra valo
     categoria = rep(c("alfa", "alfa", "beta", "gamma"), length.out = n),
     medio = rep(c("llamada", "llamada", "visita", "correo"), length.out = n),
     fecha = as.character(as.Date("2020-01-01") + sample(0:900, n, TRUE)),
-    clave = sample(1:25, n, TRUE)
+    clave = sample(1:25, n, TRUE),
+    # Las clases de la ronda 37: un lugar y una medida.
+    lugar = rep(c("Montevideo", "Montevideo", "Salto", "Rivera"),
+                length.out = n),
+    medida = rep(c(30L, 30L, 60L, 90L), length.out = n),
+    # Y las de la segunda vuelta: la direccion de una red o de un organismo.
+    red = rep(c("10.1.2.3", "10.1.2.3", "192.168.0.10", "172.16.5.4"),
+              length.out = n),
+    institucion = rep(c("Direccion de Salud", "Direccion de Salud",
+                        "Direccion de Cultura"), length.out = n)
   )
   palabra_de <- c(persona = "usuario", telefono = "celular",
                   domicilio = "direccion")
@@ -367,17 +376,20 @@ test_that("H3, el recorrido: cada palabra calificadora de cada tipo, contra valo
       }
     }
   }
-  # La cifra a mano: 35 nombres de persona (17 de categoria, 3 de medio desde
-  # la ronda 36, 6 de fecha y 9 de
-  # clave), 26 de telefono y 26 de domicilio (17, 3 y 6); cada uno con los
-  # cuatro tipos de valores personales y con los de su clase.
-  expect_identical(recorridas, 5L * (35L + 26L + 26L))
+  # La cifra a mano, con las palabras de la ronda 37: 21 de categoria, 9 de
+  # medio, 6 de fecha, 9 de clave, 11 de lugar, 9 de medida, 12 de red y 6 de
+  # institucion. La persona lleva categoria, medio, fecha, clave y lugar (56);
+  # el telefono categoria, medio, fecha y medida (45); el domicilio categoria,
+  # medio, fecha, lugar, medida, red e institucion (74). Cada una con los cuatro
+  # tipos de valores personales y con los de su clase.
+  expect_identical(recorridas, 5L * (56L + 45L + 74L))
   expect_identical(fallos, character())
   # La palabra de nombre lo expresa en cualquier lugar del nombre, como dice la
   # ayuda: `nombre_jefe_grupo` con apellidos solos o logins es un nombre, y
-  # `nombre_grupo` tambien -como `nombre_departamento`-; una columna de numeros
-  # no es el nombre de nadie.
-  expect_length(.CALIFICADORES_POR_TIPO$nombre, 0L)
+  # `nombre_grupo` tambien; una columna de numeros no es el nombre de nadie.
+  # Desde la segunda vuelta de la ronda 37, solo un lugar la califica
+  # (`nombre_departamento`, que decide con sus valores).
+  expect_identical(.CALIFICADORES_POR_TIPO$nombre, "lugar")
   for (columna in c("nombre_jefe_grupo", "nombre_tipo", "nombre_alta")) {
     x <- rep(c("Acosta", "jperez", "Pereyra"), length.out = n)
     expect_true(isTRUE(.clasificar_dato_personal(

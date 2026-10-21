@@ -45,13 +45,21 @@ reemplazan silenciosamente por resultados de la tabla completa.}
 \item{muestra_motor}{Cantidad positiva y finita de filas que el motor debe
 tomar cuando \code{universo = "muestra_motor"}. Es obligatorio en ese universo y
 debe quedar \code{NULL} para \code{"tabla_completa"}; la función rechaza temprano
-valores no enteros, no positivos o \code{Inf}.}
+valores no enteros, no positivos o \code{Inf}. Si una vista falla en una fila,
+el resumen conserva el alcance de la materialización que sí se pudo leer:
+las columnas legibles se perfilan y la columna rota queda
+\code{no_disponible}; la cobertura no presenta esa lectura parcial como una
+lectura completa de la vista.}
 
 \item{muestra}{Cantidad positiva de filas solicitadas para el perfil de
 muestra que se trae a R, o \code{Inf} para traer la tabla entera. Este límite es
 independiente de \code{universo}: en \code{muestra_motor}, \code{muestra_motor} decide las
 filas del resumen SQL y \code{muestra} decide las filas del bloque
 \code{perfil_muestra}. En \code{tabla_completa}, \code{muestra} no cambia los agregados.
+Cuando \code{universo = "muestra_motor"}, el resumen usa toda la materialización
+del motor y este argumento solo recorta el diagnóstico en R; por eso
+\code{meta$materializacion$n_filas} puede ser mayor que
+\code{perfil_muestra$meta$filas}.
 
 Sin \code{orden_muestra}, las filas del bloque en R no son una muestra aleatoria
 garantizada sino las primeras que devuelva el motor. El límite también
@@ -64,7 +72,11 @@ argumento, DBI no garantiza el orden ni la pertenencia de una muestra
 limitada, y \code{meta} lo declara expresamente. No se usa cuando
 \code{bloque_muestra = "solo_agregados"}. En la via I1, la identidad de la
 fuente por bloques gobierna el recorrido y este pedido queda declarado en
-\code{meta$orden_muestra} con el motivo estable de que no gobierna esa via.}
+\code{meta$orden_muestra} con el motivo estable de que no gobierna esa via. Si
+el motor falla al evaluar una columna del \verb{ORDER BY}, la vía prueba cada
+componente, recupera las columnas legibles sin ese orden cuando puede y
+publica \code{alcance_distinto} con el motivo de que el orden pedido no se pudo
+aplicar; no lo presenta como si ninguna columna fallara.}
 
 \item{metricas}{Selección explícita de grupos de métricas: \code{"validos"},
 \code{"distintos"}, \code{"moda"}, \code{"basicos"}, \code{"mediana"} y \code{"desvio"}. El

@@ -1241,7 +1241,9 @@
                                          vigilante = NULL,
                                          incluir_valores = TRUE,
                                          max_bytes_procesamiento =
-                                           .MAX_BYTES_ESTADO_BLOQUES) {
+                                           .MAX_BYTES_ESTADO_BLOQUES,
+                                         tipos_motor = NULL,
+                                         sentinelas = NULL) {
   metricas_acumuladores <- unique(c(
     metricas,
     if (isTRUE(incluir_valores) &&
@@ -1311,6 +1313,9 @@
                   error = paste0("no_disponible:dbFetch:", .mensaje_motor(bloque))))
     }
     if (!inherits(bloque, "data.frame")) bloque <- as.data.frame(bloque)
+    bloque <- .ajustar_sentinelas_real_dbi(
+      bloque, fuente$campos, tipos, sentinelas, tipos_motor = tipos_motor
+    )
     bloque <- .marcar_utf8_tabla(bloque)
     n <- nrow(bloque)
     if (!n) break
@@ -1488,7 +1493,7 @@
       estable = FALSE, snapshot_id = NA_character_,
       fuente_id = paste0("dbi:", .texto_tabla_dbi(tabla)), tabla = tabla,
       tabla_sql = preparacion$tabla_sql, campos = preparacion$campos,
-      campos_sql = preparacion$campos_sql, localizador = NULL,
+      campos_sql = preparacion$campos_sql_proyeccion, localizador = NULL,
       clave = preparacion$catalogo_cardinalidad, bloque_filas = bloque_filas
     ), class = "fuente_bloques_dbi")
     recorrido <- list(
@@ -1534,7 +1539,8 @@
   }
   fuente <- .fuente_bloques_dbi(
     conexion, tabla, tabla_sql = preparacion$tabla_sql,
-    campos = preparacion$campos, campos_sql = preparacion$campos_sql,
+    campos = preparacion$campos,
+    campos_sql = preparacion$campos_sql_proyeccion,
     prototipo = preparacion$prototipo, tipos = preparacion$tipos,
     orden_muestra = preparacion$orden_muestra, orden_sql = preparacion$orden_sql,
     clave = preparacion$catalogo_cardinalidad,
@@ -1553,7 +1559,9 @@
     conexion, fuente, metricas, preparacion$prototipo, preparacion$tipos,
     bloque_filas, vigilante = vigilante,
     incluir_valores = incluir_valores,
-    max_bytes_procesamiento = max_bytes_procesamiento
+    max_bytes_procesamiento = max_bytes_procesamiento,
+    tipos_motor = preparacion$esquema$tipos_motor,
+    sentinelas = argumentos[["sentinelas_numericos"]]
   )
   if (isTRUE(fuente$disponible) && !is.null(recorrido$error)) {
     extras <- argumentos
@@ -1567,13 +1575,14 @@
         c(
           list(
             conexion = conexion, tabla = tabla, universo = "tabla_completa",
-            muestra = Inf, orden_muestra = NULL,
+            muestra = preparacion$muestra,
+            orden_muestra = preparacion$orden_muestra,
             metricas = metricas_publicas,
             estrategia_distintos = preparacion$estrategia_distintos$estrategia_solicitada %||%
               "exacta",
             estrategia_mediana = preparacion$estrategia_mediana,
             politica_costo = preparacion$politica_costo$nombre %||% "todas",
-            bloque_muestra = "solo_agregados", max_consultas = Inf,
+            bloque_muestra = preparacion$bloque_muestra, max_consultas = Inf,
             dialecto = "auto", incluir_valores = incluir_valores,
             tamano_lote = preparacion$tamano_lote,
             tamano_lote_planos = preparacion$tamano_lote_planos,
@@ -1901,13 +1910,15 @@
     argumentos_muestra$antes_segunda_pasada <- NULL
     bloque_muestra <- .bloque_muestra_dbi(
       conexion, tabla, preparacion$tabla_sql, preparacion$campos,
-      preparacion$campos_sql, preparacion$muestra, preparacion$muestra,
+      preparacion$campos_sql_proyeccion, preparacion$muestra,
+      preparacion$muestra,
       if (length(fuente$orden_expresiones)) fuente$orden_expresiones else
         preparacion$orden_muestra,
       fuente$orden_expresiones, preparacion$dialecto, n_total,
       preparacion$presupuesto, .info_conexion_dbi(conexion),
       argumentos_muestra, muestreo = NULL, prototipo = preparacion$prototipo,
       tipos_declarados = preparacion$tipos,
+      tipos_motor = preparacion$esquema$tipos_motor,
       trazador = trazador, max_celdas_muestra = max_celdas_muestra,
       max_bytes_muestra = max_bytes_muestra,
       enmascaradas = preparacion$enmascaradas

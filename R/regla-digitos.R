@@ -438,21 +438,36 @@
 # para el que no tiene. UNA regla para el piso de los textos
 # (`.documentos_digitos()`) y la columna que copia los documentos sin su
 # verificador (`.copias_sin_verificador()`). Ronda 34.
-.prefijo_documento <- function(digitos) {
+#
+# `minimo`: las cifras que tiene que tener el documento sin su verificador. El
+# piso por valor pide siete -no tiene con que separar una copia del azar-; la
+# regla de la COLUMNA que copia los documentos pide seis
+# (`.MIN_LARGO_COPIA_SIN_VERIFICADOR`), porque su prueba binomial si lo tiene.
+.prefijo_documento <- function(digitos,
+                               minimo = .MIN_LARGO_VALOR_IDENTIFICANTE + 1L) {
   digitos <- as.character(digitos)
   largo <- nchar(digitos, type = "bytes")
   prefijos <- .sin_ceros_iniciales(substr(digitos, 1L, largo - 1L))
   prefijos[is.na(digitos) |
-             largo - 1L < .MIN_LARGO_VALOR_IDENTIFICANTE + 1L |
-             nchar(prefijos, type = "bytes") <
-               .MIN_LARGO_VALOR_IDENTIFICANTE + 1L] <- NA_character_
+             largo - 1L < minimo |
+             nchar(prefijos, type = "bytes") < minimo] <- NA_character_
   prefijos
 }
 
-.prefijos_documentos <- function(digitos) {
-  prefijos <- .prefijo_documento(digitos)
+.prefijos_documentos <- function(digitos,
+                                 minimo = .MIN_LARGO_VALOR_IDENTIFICANTE + 1L) {
+  prefijos <- .prefijo_documento(digitos, minimo = minimo)
   unique(prefijos[!is.na(prefijos)])
 }
+
+# Ronda 37 (P-A2). La cedula de seis cifras sin su verificador -`854321` de
+# `"854.321-2"`, la de una persona mayor- no era un documento para la regla de la
+# copia: no entraba a los prefijos y, entre las copias de siete cifras, bajaba la
+# proporcion de la columna, que dejaba de ser una copia y publicaba su minimo, su
+# maximo y su mediana. En una base real siempre hay cedulas de seis cifras. La
+# regla por columna las cuenta: la binomial separa la copia del azar igual que
+# con siete.
+.MIN_LARGO_COPIA_SIN_VERIFICADOR <- 6L
 
 # Los conjuntos contra los que se compara, armados una vez por llamada. Un cero a
 # la izquierda no cambia el numero: "041234567" es el documento 41234567, como lo

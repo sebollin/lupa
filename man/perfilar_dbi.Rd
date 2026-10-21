@@ -57,13 +57,21 @@ reemplazan silenciosamente por resultados de la tabla completa.}
 \item{muestra_motor}{Cantidad positiva y finita de filas que el motor debe
 tomar cuando \code{universo = "muestra_motor"}. Es obligatorio en ese universo y
 debe quedar \code{NULL} para \code{"tabla_completa"}; la función rechaza temprano
-valores no enteros, no positivos o \code{Inf}.}
+valores no enteros, no positivos o \code{Inf}. Si una vista falla en una fila,
+el resumen conserva el alcance de la materialización que sí se pudo leer:
+las columnas legibles se perfilan y la columna rota queda
+\code{no_disponible}; la cobertura no presenta esa lectura parcial como una
+lectura completa de la vista.}
 
 \item{muestra}{Cantidad positiva de filas solicitadas para el perfil de
 muestra que se trae a R, o \code{Inf} para traer la tabla entera. Este límite es
 independiente de \code{universo}: en \code{muestra_motor}, \code{muestra_motor} decide las
 filas del resumen SQL y \code{muestra} decide las filas del bloque
 \code{perfil_muestra}. En \code{tabla_completa}, \code{muestra} no cambia los agregados.
+Cuando \code{universo = "muestra_motor"}, el resumen usa toda la materialización
+del motor y este argumento solo recorta el diagnóstico en R; por eso
+\code{meta$materializacion$n_filas} puede ser mayor que
+\code{perfil_muestra$meta$filas}.
 
 Sin \code{orden_muestra}, las filas del bloque en R no son una muestra aleatoria
 garantizada sino las primeras que devuelva el motor. El límite también
@@ -76,7 +84,11 @@ argumento, DBI no garantiza el orden ni la pertenencia de una muestra
 limitada, y \code{meta} lo declara expresamente. No se usa cuando
 \code{bloque_muestra = "solo_agregados"}. En la via I1, la identidad de la
 fuente por bloques gobierna el recorrido y este pedido queda declarado en
-\code{meta$orden_muestra} con el motivo estable de que no gobierna esa via.}
+\code{meta$orden_muestra} con el motivo estable de que no gobierna esa via. Si
+el motor falla al evaluar una columna del \verb{ORDER BY}, la vía prueba cada
+componente, recupera las columnas legibles sin ese orden cuando puede y
+publica \code{alcance_distinto} con el motivo de que el orden pedido no se pudo
+aplicar; no lo presenta como si ninguna columna fallara.}
 
 \item{metricas}{Selección explícita de grupos de métricas: \code{"validos"},
 \code{"distintos"}, \code{"moda"}, \code{"basicos"}, \code{"mediana"} y \code{"desvio"}. El
@@ -264,7 +276,11 @@ depende de ese mapa y la fila \code{n_distintos} conserva \code{no_solicitado}.
 Bajo \code{bloque_filas}, \code{perfil_muestra} sigue siendo la muestra diagnóstica
 acotada por \code{muestra}, \code{max_celdas_muestra} y \code{max_bytes_muestra}; su
 \code{general$filas} no es la cobertura, que se publica en
-\code{meta$bloques$filas_vistas}.}
+\code{meta$bloques$filas_vistas}. Si el recorrido por bloques no puede leer una
+columna de una vista, se vuelve a leer la muestra diagnóstica por columnas:
+las columnas sanas conservan su perfil y sus magnitudes, y la columna rota
+queda en \code{no_disponible} con el motivo del motor. No se publica como
+privacidad ni como \code{no_solicitado}.}
 
 \item{max_bytes_procesamiento}{Límite de bytes del estado retenido por el
 procesamiento por bloques y por la lectura del spool en R. Se comprueba
@@ -413,6 +429,9 @@ sola vez antes de las pasadas; el spool se relee y se verifica mediante su
 trailer. Un trailer ausente publica
 \code{spool_incompleto:trailer_ausente}; un trailer o checksum que no coincide
 publica \code{spool_checksum_invalido}.
+Si la lectura materializada falla, se cierran el resultado DBI y el archivo
+del spool aun cuando el error deshaga una transacción; no queda una conexión
+de archivo abierta para un finalizador posterior.
 }
 
 \section{Fallo parcial}{
@@ -467,7 +486,10 @@ Si una vista falla en una fila durante \code{universo = "muestra_motor"} o
 \code{bloque_filas}, la vía intenta el mismo resumen SQL sobre la tabla completa:
 así conserva las métricas de las columnas sanas y declara la muestra o el
 recorrido de bloques como \code{no_disponible}, en vez de convertir todas las
-columnas en \code{NA}.
+columnas en \code{NA}. Si el resumen completo tampoco puede ejecutarse sobre la
+vista, sólo se conservan las métricas que el motor alcanzó a contestar y las
+demás quedan \code{no_disponible}; la cobertura identifica la columna o la
+consulta que impidió completar el resumen.
 El nombre de la tabla se normaliza antes de la primera llamada a la conexión,
 también la que comprueba que existe: un nombre marcado \code{latin1} —el que da
 \code{read.csv(encoding = "latin1")}— se convierte a UTF-8 y se lee, y uno con
@@ -519,8 +541,10 @@ incluso con \code{XACT_ABORT} apagado: antes y después de cada envío y lectura
 vía mide \verb{@TRANCOUNT} y \code{XACT_STATE()}. Si cambian, levanta
 \code{lupa_error_transaccion_dbi} y no continúa leyendo en autocommit como si la
 instantánea siguiera viva. \verb{SAVE TRANSACTION} no evita los errores del motor
-que deshacen la transacción completa. MySQL, MariaDB y SQLite no abortan la
-transacción por el error de una consulta. duckdb sí la aborta por un error al
+que deshacen la transacción completa. La etapa publicada en el motivo es la
+que detectó el cambio: \code{dbSendQuery}, \code{dbFetch} o \code{dbClearResult}. MySQL,
+MariaDB y SQLite no abortan la transacción por el error de una consulta.
+duckdb sí la aborta por un error al
 preparar, como el de una sonda de dialecto— y no tiene \code{SAVEPOINT}: dentro
 de una transacción de duckdb, un objeto que falla al leerse —una vista que
 convierte un texto sucio— la deja abortada, y hay que cerrarla con
@@ -734,13 +758,49 @@ cifra. Las columnas convertidas y su expresión quedan en
 \code{resumen_tabla$meta$lectura_convertida}. Se reconocen por el tipo que
 publica \code{DBI::dbColumnInfo()} de RPostgres; con otro controlador no se
 convierte nada.
-Para \verb{double precision}, la lectura no depende de esa escritura corta:
-se suma al \code{NUMERIC} de quince cifras el residuo entre ese valor y el
-doble guardado. Asi se conservan los dobles distintos y casos como
-\code{0.1 * 3} frente a \code{0.3}, sin cambiar \code{extra_float_digits} ni dejar el
-estado de la sesion modificado. \code{NaN} e infinitos se representan por sus
-equivalentes numericos y la expresion se usa tambien dentro de las
-relaciones derivadas de los agregados.
+Para \verb{double precision}, PostgreSQL 12 o posterior con
+\code{extra_float_digits >= 1} conserva la lectura nativa: el servidor ya
+escribe una representación redonda de 17 cifras y no se agrega una
+reconstrucción que pueda cambiar el valor ni encarecer cada consulta. En
+PostgreSQL 9.3, en versiones anteriores a la 12 o con
+\code{extra_float_digits <= 0}, la lectura usa \code{float8send()} para decodificar
+los ocho bytes IEEE-754 y formar el valor exacto como \code{NUMERIC}; esto
+conserva también los dobles vecinos bajo una potencia de dos, los valores
+desde \code{2^53} y los extremos finitos. \code{NaN} e infinitos se representan por
+sentinelas numéricos que RPostgres vuelve a leer como sus valores originales.
+La expresión de lectura se mantiene sin alias para poder entrar en una
+consulta derivada; sólo la lista de proyección le agrega el alias original.
+Esa misma distinción se usa en el resumen SQL, la muestra, los bloques, las
+expresiones anidadas y las relaciones de una colección.
+Los agregados de esa misma lectura excluyen \code{NaN} e infinitos con
+sentinelas de \code{NUMERIC}; la media se escala en \code{NUMERIC} para no desbordar
+ni perder subnormales por underflow. La lectura nativa de PostgreSQL 12+
+con 17 cifras no pasa por esa reconstrucción.
+En PostgreSQL 9.3 y en sesiones con pocas cifras la decodificación exacta
+es más costosa que la lectura nativa; se conserva ese costo para no
+publicar cifras falsas y se aplica sólo cuando la sesión no garantiza los
+17 dígitos.
+
+\strong{\code{datetimeoffset} en SQL Server.} FreeTDS puede entregar a \code{odbc} un
+\code{datetimeoffset} con desplazamiento distinto de \code{+00:00} ya convertido a
+UTC. Una vez perdido el desplazamiento, Lupa no puede reconstruirlo desde
+el valor recibido: la corroboración lo deja como divergencia de una fecha,
+no como diferencia de cotejamiento. Para conservar el desplazamiento hay
+que leer la columna como texto o normalizarla en la consulta de origen.
+\item \strong{Extremos y equivalencia entre motores.} SQL Server puede desbordar al
+agregar un \code{float} que contiene \code{-DBL_MAX} o \code{+DBL_MAX}; en ese caso sus
+métricas de magnitud quedan \code{no_disponible} con el mensaje del motor,
+aunque la muestra conserve el valor. El mismo \code{real} puede mostrar una
+última cifra distinta entre PostgreSQL y SQL Server porque RPostgres lee
+la forma decimal corta y FreeTDS/odbc entrega el \code{float32}; cada resumen
+es coherente con los valores que su controlador devolvió, pero la
+comparación entre motores puede declararlo \code{materialmente_distinto}.
+En un \code{real}, un centinela fraccionario se alinea a \code{float32}; si el valor
+declarado tiene más precisión que la representación binaria almacenada,
+no se considera el mismo centinela y no se cuentan faltantes disfrazados.
+La lista explícita de centinelas conserva además la reserva documentada de
+los valores por omisión: declarar un valor lo vuelve a contar incluso si
+aparece una sola vez.
 \item \strong{La media en coma flotante.} Cada lado suma a su modo; sobre una columna
 que mezcla magnitudes muy distintas —\code{1e20} junto a \code{1}— las medias pueden
 diferir entre motores y con la de R, y ninguna es la exacta. La
@@ -786,6 +846,13 @@ llama divergencia a la diferencia que ese criterio explica —menos
 distintos en el resumen SQL, con la moda y la frecuencia que de ahí se
 siguen, o una moda empatada que cada lado desempata con su orden—: la deja
 en una fila \code{no_corroborada} con ese motivo.
+\item \strong{\code{datetimeoffset} en SQL Server.} FreeTDS/odbc puede entregar un
+\code{datetimeoffset} con desplazamiento distinto de \code{+00:00} como \code{POSIXct} en
+UTC y perder el desplazamiento original. La lectura no lo puede recuperar
+después; la corroboración no lo excusa como un cotejamiento y deja la
+divergencia publicada. Para conservar el instante y el desplazamiento,
+leer la columna como texto con el desplazamiento o normalizarla en el
+origen antes de perfilar.
 \item \strong{Una columna que mezcla tipos de almacenamiento.} SQLite admite texto en
 una columna de afinidad numérica, y RSQLite la lee como número: convierte
 ese texto en \code{0} y lo avisa ("mixed type"). El resumen SQL ve los valores

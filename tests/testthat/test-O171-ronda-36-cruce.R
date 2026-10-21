@@ -11,7 +11,8 @@ test_that("O171: la lectura publicada de un float8 no lleva el alias de la proye
     con, c("cedula", "monto"), c("\"cedula\"", "\"monto\""),
     c("float8", "money")
   )
-  expect_true(endsWith(lectura$campos_sql[[1L]], " AS \"cedula\""))
+  expect_false(grepl("AS \"cedula\"", lectura$campos_sql[[1L]], fixed = TRUE))
+  expect_true(endsWith(lectura$proyeccion_sql[[1L]], " AS \"cedula\""))
   publicada <- lectura$convertidas$lectura[[1L]]
   expect_false(grepl("AS \"cedula\"", publicada, fixed = TRUE))
   expect_true(endsWith(publicada, " END"))

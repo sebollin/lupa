@@ -923,7 +923,7 @@ rbind.deriva_perfil <- function(..., deparse.level = 1) {
   )
 )
 
-.diagnosticos_declinados_deriva <- function(perfil) {
+.diagnosticos_declinados_deriva <- function(perfil, hallazgos_retirados = NULL) {
   cobertura <- perfil$cobertura_diagnosticos
   if (!inherits(cobertura, "data.frame") || !nrow(cobertura) ||
         !all(c("columna", "diagnostico") %in% names(cobertura))) {
@@ -934,7 +934,7 @@ rbind.deriva_perfil <- function(..., deparse.level = 1) {
   unlist(lapply(seq_along(diagnosticos), function(i) {
     if (identical(diagnosticos[[i]], "muestra_perfilado") &&
         identical(as.character(columnas[[i]]), "")) {
-      hallazgos <- perfil$hallazgos
+      hallazgos <- hallazgos_retirados %||% perfil$hallazgos
       if (is.data.frame(hallazgos) && nrow(hallazgos)) {
         columnas_h <- as.character(hallazgos$columna)
         columnas_h[is.na(columnas_h)] <- "<tabla>"
@@ -1024,7 +1024,8 @@ rbind.deriva_perfil <- function(..., deparse.level = 1) {
     return(data.frame(
       clave = character(), columna = character(), tipo_hallazgo = character(),
       severidad = character(), evidencia = character(),
-      unidad_conteo = character(), stringsAsFactors = FALSE
+      unidad_conteo = character(), columna_clave = character(),
+      stringsAsFactors = FALSE
     ))
   }
   columna <- ifelse(is.na(x$columna), "<tabla>", as.character(x$columna))
@@ -1049,6 +1050,7 @@ rbind.deriva_perfil <- function(..., deparse.level = 1) {
       unidad_conteo = if ("unidad_conteo" %in% names(x)) {
         as.character(x$unidad_conteo[[elegido]])
       } else NA_character_,
+      columna_clave = columna_clave[[elegido]],
       stringsAsFactors = FALSE
     )
   })
@@ -1258,7 +1260,11 @@ rbind.deriva_perfil <- function(..., deparse.level = 1) {
 #' posiciones en la tabla: reordenar columnas no hace aparecer ni desaparecer
 #' un par. Sólo no se presenta como resuelto si alguna de sus columnas
 #' desapareció. Si el tope de un diagnóstico deja un hallazgo fuera del alcance
-#' nuevo, se publica `no_evaluado` con el motivo de cobertura. Cada argumento de
+#' nuevo, se publica `no_evaluado` con el motivo de cobertura. La proximidad de
+#' vocabulario también puede dejar pares con frecuencias parejas bajo su piso de
+#' asimetría sin emitir un hallazgo; esa cobertura parcial se conserva como
+#' `no_evaluado` al comparar, aunque el diagnóstico haya recorrido todos sus
+#' valores. Cada argumento de
 #' [perfilar()] tiene su lugar en la comparación:
 #' habilita un diagnóstico, es una vara —su cambio se declara en la fila
 #' `configuracion_umbrales`, que desde esta versión incluye los umbrales de las
@@ -2093,7 +2099,9 @@ comparar_perfiles <- function(anterior, actual, umbral_cambio = 0.05,
   # informaba "resuelto" con severidad `ok` sobre un diagnostico que decia, en
   # esa misma tabla, "no se evaluaron los limites de Tukey".
   declinados_ahora <- c(
-    .diagnosticos_declinados_deriva(actual),
+    .diagnosticos_declinados_deriva(
+      actual, hallazgos_retirados = anterior$hallazgos
+    ),
     .declinados_por_declaracion_retirada(anterior, actual),
     .declinados_por_cambio_de_tipo(anterior, actual)
   )
@@ -2115,9 +2123,20 @@ comparar_perfiles <- function(anterior, actual, umbral_cambio = 0.05,
   columnas_retiradas <- mapa_a$original[match(desaparecidas, mapa_a$clave)]
   for (clave in resueltos) {
     x <- hallazgos_a[match(clave, hallazgos_a$clave), , drop = FALSE]
+    columna_hallazgo <- if ("columna_clave" %in% names(x)) {
+      x$columna_clave
+    } else {
+      x$columna
+    }
     if (x$columna != "<tabla>" &&
         !.nombres_para_operar(x$columna) %in% nombres_actuales &&
-        .hallazgo_nombra_columna_retirada(x$columna, columnas_retiradas)) next
+        .hallazgo_nombra_columna_retirada(
+          columna_hallazgo, columnas_retiradas
+        )) next
+    if (identical(as.character(x$tipo_hallazgo), "columnas_duplicadas") &&
+        .hallazgo_nombra_columna_retirada(
+          columna_hallazgo, columnas_retiradas
+        )) next
     if (.hallazgo_cuenta_filas_tabla(x) &&
         nzchar(motivo_columnas_cambiadas)) {
       agregar(

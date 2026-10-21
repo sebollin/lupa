@@ -131,6 +131,11 @@ declara ese alcance: una relación candidata sobre una muestra \strong{no es una
 clave foránea comprobada}, es un indicio que hay que confirmar contra el
 diccionario de datos.
 
+Las columnas de ancho fijo (\code{char(n)} y equivalentes del controlador) se
+leen sin el relleno final que forma parte de su representación en el motor.
+Así, una clave \code{char} y su contraparte \code{varchar} se comparan por el valor
+lógico que el motor iguala, no por los espacios que entrega DBI.
+
 \strong{Con la tabla de referencia truncada la cobertura es una cota inferior.} Un
 valor de \code{tabla_2} que no está entre las filas leídas de \code{tabla_1} puede
 estar en las demás, así que la cobertura sólo puede subir al leer más. Una

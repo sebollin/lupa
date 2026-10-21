@@ -373,6 +373,21 @@
   bloque_filas <- .validar_bloque_filas_dbi(bloque_filas)
   backend <- backend %||% .BACKEND_SPOOL_MUESTRA_DBI
   path <- tempfile("lupa-spool-muestra-", fileext = ".bin")
+  resultado <- NULL
+  escritor <- NULL
+  materializacion_exitosa <- FALSE
+  limpiar_salida_error <- function() {
+    if (!is.null(resultado)) {
+      try(.limpiar_consulta_dbi(resultado, conexion), silent = TRUE)
+    }
+    if (!is.null(escritor) && !is.null(escritor$conexion)) {
+      try(close(escritor$conexion), silent = TRUE)
+    }
+    if (!isTRUE(materializacion_exitosa)) {
+      try(unlink(path, force = TRUE), silent = TRUE)
+    }
+  }
+  on.exit(limpiar_salida_error(), add = TRUE)
   escritor <- .abrir_spool_muestra_dbi(
     path, campos, muestra_id, snapshot_id, orden_id, max_bytes, backend, sql
   )
@@ -434,7 +449,10 @@
     completado <- tryCatch(DBI::dbHasCompleted(resultado), error = function(e) NA)
     if (isTRUE(completado)) break
   }
-  if (!is.null(resultado)) .limpiar_consulta_dbi(resultado, conexion)
+  if (!is.null(resultado)) {
+    .limpiar_consulta_dbi(resultado, conexion)
+    resultado <- NULL
+  }
   if (!is.null(error_lectura)) {
     escritor$motivo <- paste0(
       "muestra_inestable:error_lectura_spool: ", error_lectura
@@ -470,6 +488,7 @@
       ))
     ))
   }
+  materializacion_exitosa <- TRUE
   list(
     ok = TRUE, path = path, consulta = medicion_final,
     n_filas = verificada$n_filas, bytes = verificada$bytes,
@@ -492,7 +511,7 @@
                                             max_bytes_materializacion) {
   candidato <- preparacion$muestreo$candidato
   proyeccion_muestra <- .campos_sql_muestra_dbi(
-    conexion, preparacion$campos, preparacion$campos_sql,
+    conexion, preparacion$campos, preparacion$campos_sql_proyeccion,
     preparacion$prototipo, preparacion$tipos, preparacion$dialecto
   )
   fuente <- if (!is.null(candidato)) tryCatch(
@@ -683,7 +702,7 @@
   presupuesto <- preparacion$presupuesto
   campos <- as.character(preparacion$campos)
   proyeccion_muestra <- .campos_sql_muestra_dbi(
-    conexion, preparacion$campos, preparacion$campos_sql,
+    conexion, preparacion$campos, preparacion$campos_sql_proyeccion,
     preparacion$prototipo, preparacion$tipos, preparacion$dialecto
   )
   columnas_castadas <- proyeccion_muestra$columnas_castadas
@@ -776,11 +795,12 @@
       aislado <- tryCatch(
         .bloque_muestra_dbi(
           conexion, tabla, preparacion$tabla_sql, preparacion$campos,
-          preparacion$campos_sql, preparacion$muestra,
+          preparacion$campos_sql_proyeccion, preparacion$muestra,
           preparacion$muestra_motor, preparacion$orden_muestra,
           preparacion$orden_sql, preparacion$dialecto, n_total, presupuesto,
           info_conexion, argumentos, muestreo = preparacion$muestreo,
           prototipo = preparacion$prototipo, tipos_declarados = preparacion$tipos,
+          tipos_motor = preparacion$esquema$tipos_motor,
           max_celdas_muestra = Inf, max_bytes_muestra = Inf,
           enmascaradas = preparacion$enmascaradas
         ),
@@ -859,7 +879,12 @@
   conversion_muestra <- .convertir_enteros_ancho_muestra_dbi(
     datos_materializados, columnas_castadas
   )
-  datos <- conversion_muestra$datos
+  datos_completos <- .ajustar_sentinelas_real_dbi(
+    conversion_muestra$datos, campos, preparacion$tipos,
+    argumentos[["sentinelas_numericos"]],
+    tipos_motor = preparacion$esquema$tipos_motor
+  )
+  datos <- datos_completos
   if (!is.null(datos) && is.finite(preparacion$muestra) &&
       nrow(datos) > preparacion$muestra) {
     # El recorte diagnostico es una lectura local del mismo spool; no vuelve a
@@ -869,13 +894,14 @@
       datos[0L, , drop = FALSE]
   }
   perfil <- perfil_aislado
+  perfil_resumen <- perfil
   cobertura <- cobertura_aislada
   # Lo leido entero, tambien las columnas enmascaradas que no se perfilan: su
   # completitud sale de aca (ver abajo).
-  datos_todos <- datos
+  datos_todos <- datos_completos
   if (isTRUE(leido$ok) && nrow(datos) > 0L) {
     if (is.finite(max_bytes_procesamiento) &&
-        as.numeric(utils::object.size(datos)) > max_bytes_procesamiento) {
+        as.numeric(utils::object.size(datos_completos)) > max_bytes_procesamiento) {
       motivo <- "muestra_inestable:presupuesto_procesamiento"
       leido$ok <- FALSE
     } else {
@@ -907,6 +933,14 @@
         )
         perfil <- NULL
       }
+      if (!is.null(datos_completos) && nrow(datos_completos) != nrow(datos)) {
+        perfil_resumen <- tryCatch(
+          do.call(perfilar, c(list(datos = datos_completos), args)),
+          error = function(e) NULL
+        )
+      } else {
+        perfil_resumen <- perfil
+      }
       # `perfilar()` decidio los rellenos de las columnas protegidas sobre la
       # muestra del motor, y con `universo = "muestra_motor"` no hay conteo de
       # la tabla entera que los confirme: vuelven al piso, como los no
@@ -932,6 +966,16 @@
           perfil <- .proteger_con_valores_dbi(
             perfil, candidatos, as.character(perfil$columnas$columna)
           )
+          if (!is.null(perfil_resumen) && !identical(perfil_resumen, perfil)) {
+            # El resumen de `muestra_motor` usa la materializacion completa,
+            # pero los rellenos se deciden sobre la muestra diagnostica. La
+            # proteccion que esa muestra justifico tambien debe alcanzar el
+            # perfil completo, o sus ejemplos vuelven a publicar el valor.
+            perfil_resumen <- .proteger_con_valores_dbi(
+              perfil_resumen, candidatos,
+              as.character(perfil_resumen$columnas$columna)
+            )
+          }
         }
       }
     }
@@ -971,20 +1015,26 @@
     as.data.frame(do.call(rbind, lapply(columnas, as.data.frame)),
                   stringsAsFactors = FALSE)
   } else .columnas_dbi_vacias()
-  if (!is.null(perfil) && is.data.frame(perfil$columnas)) {
+  perfil_columnas <- if (!is.null(perfil_resumen) &&
+                         is.data.frame(perfil_resumen$columnas)) {
+    perfil_resumen$columnas
+  } else if (!is.null(perfil) && is.data.frame(perfil$columnas)) {
+    perfil$columnas
+  } else NULL
+  if (!is.null(perfil_columnas) && is.data.frame(perfil_columnas)) {
     # Por nombre y no por posicion: una columna enmascarada no entra en el
     # perfil (ronda 35-X), y copiar por posicion reciclaba las de las demas
     # columnas sobre la tabla entera.
     posicion <- .indice_nombre(
-      as.character(columnas$columna), as.character(perfil$columnas$columna)
+      as.character(columnas$columna), as.character(perfil_columnas$columna)
     )
-    comunes <- intersect(names(columnas), names(perfil$columnas))
+    comunes <- intersect(names(columnas), names(perfil_columnas))
     for (nombre in setdiff(comunes, c("n", "columna"))) {
-      columnas[[nombre]] <- perfil$columnas[[nombre]][posicion]
+      columnas[[nombre]] <- perfil_columnas[[nombre]][posicion]
     }
-    if (all(c("n", "n_faltantes") %in% names(perfil$columnas))) {
-      columnas$n_validos <- as.numeric(perfil$columnas$n)[posicion] -
-        as.numeric(perfil$columnas$n_faltantes)[posicion]
+    if (all(c("n", "n_faltantes") %in% names(perfil_columnas))) {
+      columnas$n_validos <- as.numeric(perfil_columnas$n)[posicion] -
+        as.numeric(perfil_columnas$n_faltantes)[posicion]
     }
     # La completitud de la que no se perfilo, sobre las mismas filas: DDM
     # conserva el nulo, y es lo unico de la columna que describe el dato.
@@ -998,7 +1048,7 @@
     }
     columnas$n <- .conteo_dbi(n_total)
   }
-  motivo_metricas <- if (!is.null(perfil)) {
+  motivo_metricas <- if (!is.null(perfil_aislado)) {
     paste(
       "La materializacion completa fallo; se aislaron las columnas legibles",
       "con la misma muestra y su perfil se conserva."
