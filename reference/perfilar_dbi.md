@@ -598,26 +598,30 @@ quedan `no_disponible` con su motivo y no se manda una sentencia que el
 motor rechazaría. Si `orden_muestra` pide una de esas columnas, la
 llamada se rechaza antes de enviar el orden. En una vista SQL Server,
 `universo = "muestra_motor"` usa el límite pseudoaleatorio compatible en
-vez de `TABLESAMPLE`, que sólo acepta tablas locales. Limitación: un
-sinónimo se muestrea como una tabla, y si apunta a una vista el motor
-rechaza el `TABLESAMPLE`: la vía pasa al límite pseudoaleatorio, salvo
-con `XACT_ABORT ON` y una transacción abierta, que el motor deshace; la
-vía lo informa con `lupa_error_transaccion_dbi`. Si la lectura de la
-muestra falla, la columna que la hace fallar se busca por descarte
-leyendo las MISMAS filas que la muestra con menos columnas —un fallo que
-está en una fila que no es la primera, como el `CAST` de un texto sucio
-en una vista, también se encuentra—; la muestra sale con las demás y una
-fila `alcance_distinto` nombra la culpable. Si una vista falla en una
-fila durante `universo = "muestra_motor"` o `bloque_filas`, la vía
-intenta el mismo resumen SQL sobre la tabla completa: así conserva las
-métricas de las columnas sanas y declara la muestra o el recorrido de
-bloques como `no_disponible`, en vez de convertir todas las columnas en
-`NA`. Si el resumen completo tampoco puede ejecutarse sobre la vista,
-sólo se conservan las métricas que el motor alcanzó a contestar y las
-demás quedan `no_disponible`; la cobertura identifica la columna o la
-consulta que impidió completar el resumen. El nombre de la tabla se
-normaliza antes de la primera llamada a la conexión, también la que
-comprueba que existe: un nombre marcado `latin1` —el que da
+vez de `TABLESAMPLE`, que sólo acepta tablas locales. Limitación: el
+catálogo no resuelve el objeto al que apunta un sinónimo. Si apunta a
+una vista, `muestra_motor` prueba `TABLESAMPLE`, el motor lo rechaza y
+la vía pasa al límite pseudoaleatorio; si apunta a una tabla con `text`,
+`ntext`, `image`, `xml` o `geography`, la vía pide los distintos y la
+moda de esas columnas, el motor los rechaza y quedan sin medir. Con
+`XACT_ABORT ON` y una transacción abierta, en los dos casos el motor
+deshace la transacción, y la vía lo informa con
+`lupa_error_transaccion_dbi`. Si la lectura de la muestra falla, la
+columna que la hace fallar se busca por descarte leyendo las MISMAS
+filas que la muestra con menos columnas —un fallo que está en una fila
+que no es la primera, como el `CAST` de un texto sucio en una vista,
+también se encuentra—; la muestra sale con las demás y una fila
+`alcance_distinto` nombra la culpable. Si una vista falla en una fila
+durante `universo = "muestra_motor"` o `bloque_filas`, la vía intenta el
+mismo resumen SQL sobre la tabla completa: así conserva las métricas de
+las columnas sanas y declara la muestra o el recorrido de bloques como
+`no_disponible`, en vez de convertir todas las columnas en `NA`. Si el
+resumen completo tampoco puede ejecutarse sobre la vista, sólo se
+conservan las métricas que el motor alcanzó a contestar y las demás
+quedan `no_disponible`; la cobertura identifica la columna o la consulta
+que impidió completar el resumen. El nombre de la tabla se normaliza
+antes de la primera llamada a la conexión, también la que comprueba que
+existe: un nombre marcado `latin1` —el que da
 `read.csv(encoding = "latin1")`— se convierte a UTF-8 y se lee, y uno
 con bytes que no son UTF-8 válido y no declaran su codificación
 —[`read.csv()`](https://rdrr.io/r/utils/read.table.html) sin

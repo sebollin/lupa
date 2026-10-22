@@ -34,11 +34,13 @@ volvia a leerse como dato- que se corrigieron antes de unir.
   argumento.
 - En SQL Server, `muestra_motor` sobre una vista no usa `TABLESAMPLE`
   (el motor no lo admite sobre vistas). Un sinonimo se sigue muestreando
-  como una tabla. Limitacion declarada: un sinonimo que apunta a una
-  vista prueba `TABLESAMPLE` y, con `XACT_ABORT ON` y una transaccion
-  abierta, el motor la deshace; la via DBI lo informa con
-  `lupa_error_transaccion_dbi`. Sin `XACT_ABORT ON` pasa al limite
-  pseudoaleatorio.
+  como una tabla. Limitacion declarada: el catalogo no resuelve el
+  objeto al que apunta un sinonimo. Si es una vista, `muestra_motor`
+  prueba `TABLESAMPLE` y pasa al limite pseudoaleatorio; si es una tabla
+  con `text`, `ntext`, `image`, `xml` o `geography`, sus distintos y su
+  moda quedan sin medir. Con `XACT_ABORT ON` y una transaccion abierta,
+  en los dos casos el motor deshace la transaccion y la via DBI lo
+  informa con `lupa_error_transaccion_dbi`.
 
 **Las mediciones:**
 
