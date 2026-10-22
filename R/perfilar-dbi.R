@@ -18319,11 +18319,14 @@ print.plan_perfilado_dbi <- function(x, ...) {
 #' rechazaría. Si `orden_muestra` pide una de esas columnas, la llamada se
 #' rechaza antes de enviar el orden. En una vista SQL Server,
 #' `universo = "muestra_motor"` usa el límite pseudoaleatorio compatible en
-#' vez de `TABLESAMPLE`, que sólo acepta tablas locales. Limitación: un
-#' sinónimo se muestrea como una tabla, y si apunta a una vista el motor
-#' rechaza el `TABLESAMPLE`: la vía pasa al límite pseudoaleatorio, salvo con
-#' `XACT_ABORT ON` y una transacción abierta, que el motor deshace; la vía lo
-#' informa con `lupa_error_transaccion_dbi`.
+#' vez de `TABLESAMPLE`, que sólo acepta tablas locales. Limitación: el
+#' catálogo no resuelve el objeto al que apunta un sinónimo. Si apunta a una
+#' vista, `muestra_motor` prueba `TABLESAMPLE`, el motor lo rechaza y la vía
+#' pasa al límite pseudoaleatorio; si apunta a una tabla con `text`, `ntext`,
+#' `image`, `xml` o `geography`, la vía pide los distintos y la moda de esas
+#' columnas, el motor los rechaza y quedan sin medir. Con `XACT_ABORT ON` y una
+#' transacción abierta, en los dos casos el motor deshace la transacción, y la
+#' vía lo informa con `lupa_error_transaccion_dbi`.
 #' Si la lectura de la muestra falla, la columna que la hace fallar se busca
 #' por descarte leyendo las MISMAS filas que la muestra con menos columnas —un
 #' fallo que está en una fila que no es la primera, como el `CAST` de un texto
