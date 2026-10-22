@@ -877,7 +877,7 @@
     }
   } else NULL
   conversion_muestra <- .convertir_enteros_ancho_muestra_dbi(
-    datos_materializados, columnas_castadas
+    datos_materializados, columnas_castadas, preparacion$tipos
   )
   datos_completos <- .ajustar_sentinelas_real_dbi(
     conversion_muestra$datos, campos, preparacion$tipos,

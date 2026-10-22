@@ -328,6 +328,44 @@
   )
 }
 
+# Las siglas de un documento de identidad en la lista del nombre.
+.SIGLAS_DE_DOCUMENTO <- c("ci", "dni", "rut", "curp")
+
+# Ronda 39 (H-08): una sigla escrita con un punto o un guion bajo tras cada
+# letra -`C.I.`, como se encabeza la cedula en una planilla uruguaya, y `C.I`,
+# `c.i.`, `C. I.`, `Nro. C.I.`, `C.I. Titular`, `D.N.I.`; y `c_i`,
+# `nro_c_i`, como lo deja `janitor::clean_names()`- llegaba al patron con un
+# separador entre cada letra (`c_i_`), el patron pide la sigla entera, y el
+# encabezado no aportaba: una columna de cedulas sin su digito verificador se
+# clasificaba documento `debil` y publicaba sus valores. Se junta la sigla
+# ENTERA, de la primera letra con separador a la ultima, y solo si es una de
+# `.SIGLAS_DE_DOCUMENTO`: `C.I.I.U.` -la actividad economica- es `ciiu` y
+# sigue sin ser un documento. La ultima letra lleva su punto o va pegada al
+# separador anterior: en `C.I. N` seguido del signo de numero la `N` es el
+# numero, no otra letra de la sigla. Limitacion: `n_c_i` -el mismo encabezado
+# con el numero delante, pasado por `clean_names()`- es una sigla de tres
+# letras y no se reconoce.
+.juntar_siglas_de_documento <- function(nombre) {
+  nombre <- as.character(nombre)
+  if (!length(nombre)) return(nombre)
+  patron <- paste0(
+    "(?<![A-Za-z0-9])[A-Za-z][._](?: ?[A-Za-z][._])*",
+    "(?:[A-Za-z](?![A-Za-z0-9]))?"
+  )
+  tryCatch({
+    marcas <- gregexpr(patron, nombre, perl = TRUE)
+    piezas <- regmatches(nombre, marcas)
+    regmatches(nombre, marcas) <- lapply(piezas, function(p) {
+      if (!length(p)) return(p)
+      letras <- gsub("[^A-Za-z]", "", p, perl = TRUE)
+      sigla <- nchar(letras, type = "bytes") >= 2L &
+        .minusculas_ascii(letras) %in% .SIGLAS_DE_DOCUMENTO
+      ifelse(sigla, paste0(" ", letras, " "), p)
+    })
+    nombre
+  }, error = function(e) nombre)
+}
+
 .palabra_de_tipo <- function(normalizado, patron, tipo, tipo_valores,
                              x = NULL) {
   no <- list(estado = "no", calificadores = character())
@@ -823,8 +861,18 @@
 # actua ninguna (ronda 37).
 # Y la mayuscula sola entre palabras, sin punto -`"Juan A Perez"`-: en un texto
 # en minusculas no se distingue de la preposicion, y queda.
+# Ronda 39 (H-01): y la letra sola PEGADA a una palabra por un guion bajo, un
+# guion o un punto, delante o detras -el login `a_perez`, `a-perez`,
+# `perez_a`, `perez.a`, `A_PEREZ`-: una preposicion o una conjuncion va entre
+# espacios, no pegada. Con el `j.perez` ya se sacaba; con el `_` y el `-` la
+# `a`, la `o` o la `u` se leia como la palabra de `.PALABRAS_QUE_NO_VAN_EN_UN_NOMBRE`,
+# el login contaba como un estado y, con un quinto de los nombres de pila que
+# empiezan asi, la columna de quien actua no llegaba al 80 % en un tercio de las
+# tablas y publicaba los logins de todos.
 .sin_iniciales <- function(x) {
   x <- gsub("(?<![A-Za-z])[A-Za-z][.'](?=[ ,]|[A-Za-z]|$)", " ", x, perl = TRUE)
+  x <- gsub("(?<![A-Za-z])[A-Za-z][_-](?=[A-Za-z])", " ", x, perl = TRUE)
+  x <- gsub("(?<=[A-Za-z][._-])[A-Za-z](?![A-Za-z])", " ", x, perl = TRUE)
   gsub("(?<![A-Za-z'.])[A-Z](?![A-Za-z'.])", " ", x, perl = TRUE)
 }
 
@@ -932,9 +980,10 @@
       poder_discriminante = NA_character_, proteger = FALSE
     ))
   }
-  # `NombreCliente` y `nroDoc` son `nombre_cliente` y `nro_doc` (ronda 37).
+  # `NombreCliente` y `nroDoc` son `nombre_cliente` y `nro_doc` (ronda 37), y
+  # `C.I.` es `ci` (ronda 39, `.juntar_siglas_de_documento()`).
   normalizado <- .normalizar_nombre_fecha(.separar_camel(
-    .nombre_para_clasificar(nombre)
+    .juntar_siglas_de_documento(.nombre_para_clasificar(nombre))
   ))
   # Ronda 37 (P-A1): las abreviaturas comunes de cada palabra -`tel`, `cel`,
   # `telef`, `fono`, `dir`, `domic`, `nom`, `ape`, `doc`, `ced`-, sus plurales y
@@ -947,7 +996,8 @@
   # `fechanac`: palabras enteras, no una regla por forma.
   reglas_nombre <- c(
     documento_identidad = paste0(
-      "(^|_)(cedula|cedulas|ced|ceds|ci|dni|rut|curp|documento|documentos|doc|",
+      "(^|_)(cedula|cedulas|ced|ceds|",
+      paste(.SIGLAS_DE_DOCUMENTO, collapse = "|"), "|documento|documentos|doc|",
       "docs|documento_identidad|numero_documento|nro_documento|",
       "nrodoc|numdoc|nrodocumento|numdocumento|nrocedula|numcedula|nroci|",
       "identificacion|id_nacional|pasaporte|passport)[0-9]*($|_)"
@@ -966,17 +1016,32 @@
     # de agregar la que aparecio: entera, primera palabra, segunda palabra, las
     # dos, y pegada. Con dos casos parecia una convencion; con cinco era un
     # hueco.
+    #
+    # Ronda 39 (H-17): y la fecha de la nomenclatura GIK de GeneXus -objeto,
+    # categoria y calificador, con la categoria fecha abreviada `Fch`-, con la
+    # que estan hechos buena parte de los sistemas del Estado uruguayo:
+    # `PerFchNac`, `CliFchNac`, `FchNac` (`fch_nac` al separar el camelCase), y
+    # `FNac` (`fnac`). Publicaban la moda y los extremos de la fecha de
+    # nacimiento en memoria y en los tres motores. `fch_nacimiento` ya lo
+    # reconocia `nacimiento`.
     fecha_nacimiento = paste0(
       "(^|_)(fecha_nacimiento|f_nacimiento|fec_nacimiento|nacimiento|",
-      "fecha_nac|f_nac|fec_nac|fechanac)($|_)"
+      "fecha_nac|f_nac|fec_nac|fch_nac|fechanac|fnac)($|_)"
     ),
     # La hermana tenia el mismo hueco por el mismo lado. No se agrega
     # `fecha_fall`: `fall` es tambien "falla" en datos de mantenimiento, y una
     # clasificacion de mas enmascara una columna que no es personal.
+    # Ronda 39 (H-17): en GIK, el calificador de la categoria `Fch` es el
+    # hecho de la fecha, abreviado: `PerFchDef`, `PerFchFall` (`fch_def`,
+    # `fch_fall`). El riesgo que dejo afuera a `fecha_fall` -la falla de un
+    # equipo- queda acotado a la palabra entera tras `fch`: `FchFalla`,
+    # `FchFal` y `FchDefinitiva` siguen siendo fechas que no son personales.
+    # Limitacion (declarada en la ayuda): un `FchFall` que sea la fecha de una
+    # falla, o un `FchDef` que sea una fecha definitiva, se protege de mas.
     fecha_fallecimiento = paste0(
       "(^|_)(fallecimiento|defuncion|deceso|obito|fecha_muerte|",
       "f_fallecimiento|fecha_defuncion|f_defuncion|fec_defuncion|",
-      "fecha_deceso)($|_)"
+      "fecha_deceso|fch_def|fch_fall)($|_)"
     ),
     # El lexico de nombres no puede ser completo: una columna se puede llamar
     # de cualquier forma. Cubre las mas frecuentes en registros administrativos

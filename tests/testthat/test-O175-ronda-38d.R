@@ -166,7 +166,7 @@ testthat::test_that("comparar_perfiles no convierte dos muestras DBI en deriva",
   testthat::expect_true(any(deriva$aspecto == "muestra" &
                               deriva$cambio == "no_comparable"))
   no_afirmado <- c("rango", "cardinalidad", "hallazgo", "patron",
-                   "faltantes", "alcance_resumen")
+                   "alcance_resumen")
   testthat::expect_false(any(deriva$aspecto %in% no_afirmado))
 })
 

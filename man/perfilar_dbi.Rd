@@ -430,9 +430,11 @@ Cuando \code{incluir_valores = FALSE}, la promesa de privacidad alcanza las tres
 vias de salida: resumen SQL, \code{perfil_muestra} y \code{bloque_filas}. Se omiten los
 valores de celda -incluidos moda, extremos, medianas, centinelas y ejemplos
 de patrones-, se limpian cobertura y motivos, y no se conservan familias de
-acumuladores ni una muestra cruda en el resultado. Los conteos, proporciones
-y agregados que no son valores de celda pueden seguir publicandose. La marca
-queda registrada como \code{meta$incluir_valores = FALSE} en ambos resultados.
+acumuladores ni una muestra cruda en el resultado. La limpieza recorre también
+los atributos de cada hoja del resultado, incluidos los resúmenes de patrones.
+Los conteos, proporciones y agregados que no son valores de celda pueden seguir
+publicandose. La marca queda registrada como \code{meta$incluir_valores = FALSE} en
+ambos resultados.
 Si se omite el bloque con \code{bloque_muestra = "solo_agregados"}, la cobertura
 usa el estado \code{no_solicitado}: no es un fallo ni se cuenta como una métrica
 no disponible. En \code{muestra_motor}, la selección materializada se hace una
@@ -488,6 +490,19 @@ se cuentan con una expresión que el motor no enmascara—; distintos, moda,
 extremos, media, mediana y desvío quedan \code{no_disponible} con el motivo, la
 columna no entra en \code{perfil_muestra} (una fila \code{alcance_distinto} lo dice) y
 \code{resumen_tabla$cobertura} la declara. Con \code{UNMASK} se perfila entera.
+SQL Server tampoco admite \code{COUNT(DISTINCT)}, \verb{GROUP BY}, \verb{ORDER BY} ni
+\code{MIN}/\code{MAX} sobre \code{text}, \code{ntext}, \code{image}, \code{xml} y \code{geography}. El catálogo
+reconoce esos tipos antes de armar las consultas: \code{validos} se conserva con
+la expresión de nulos, mientras \code{n_distintos} y \code{moda} quedan
+\code{no_disponible} con su motivo y no se manda una sentencia que el motor
+rechazaría. Si \code{orden_muestra} pide una de esas columnas, la llamada se
+rechaza antes de enviar el orden. En una vista SQL Server,
+\code{universo = "muestra_motor"} usa el límite pseudoaleatorio compatible en
+vez de \code{TABLESAMPLE}, que sólo acepta tablas locales. Limitación: un
+sinónimo se muestrea como una tabla, y si apunta a una vista el motor
+rechaza el \code{TABLESAMPLE}: la vía pasa al límite pseudoaleatorio, salvo con
+\verb{XACT_ABORT ON} y una transacción abierta, que el motor deshace; la vía lo
+informa con \code{lupa_error_transaccion_dbi}.
 Si la lectura de la muestra falla, la columna que la hace fallar se busca
 por descarte leyendo las MISMAS filas que la muestra con menos columnas —un
 fallo que está en una fila que no es la primera, como el \code{CAST} de un texto

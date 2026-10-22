@@ -1335,9 +1335,18 @@
 #'   `cel`, `dir`, `domic`, `nom`, `ape`, `doc`, `ced`, `e_mail`—, en plural
 #'   —también la abreviatura: `tels`, `cels`, `fonos`, `noms`, `dirs`—, con un
 #'   número pegado (`telefono2`, `apellido1`), en camelCase (`NombreCliente`,
-#'   `nroDoc`) y en las formas pegadas de los sistemas heredados, enumeradas
-#'   (`nrotel`, `TELCEL`, `nomape`, `NOMBRECOMPLETO`, `nrodoc`, `dirpart`);
-#'   `mov` no, que es también un movimiento.
+#'   `nroDoc`), en las formas pegadas de los sistemas heredados, enumeradas
+#'   (`nrotel`, `TELCEL`, `nomape`, `NOMBRECOMPLETO`, `nrodoc`, `dirpart`), y
+#'   en la nomenclatura GIK de GeneXus, con la fecha abreviada `Fch`
+#'   (`PerFchNac`, `CliFchNac`, `FchNac`, `PerFchDef`, `PerFchFall`; también
+#'   `FNac`); `mov` no, que es también un movimiento, ni `FchFalla` o
+#'   `FchDefinitiva`, que son otras fechas. La sigla del documento vale
+#'   también escrita con un punto o un guion bajo tras cada letra, entera
+#'   —`C.I.`, como se encabeza la cédula en una planilla, `C.I`, `C. I.`,
+#'   `Nro. C.I.`, `C.I. Titular`, `D.N.I.`, y `c_i` o `nro_c_i`, como los deja
+#'   `janitor::clean_names()`—: con `C.I.`, como con `CI`, las cédulas sin
+#'   dígito verificador se protegen. `C.I.I.U.`, la actividad económica, no es
+#'   un documento.
 #'   Una palabra de nombre
 #'   —`nombre`, `apellido`— la expresa en cualquier lugar del nombre:
 #'   `nombre_cliente` es un nombre, y también `nombre_jefe_grupo` o
@@ -1425,7 +1434,10 @@
 #'   `"Convenio Marco"`). Y la palabra de quien actúa en el registro
 #'   —`usuario`, `funcionario`, `responsable`, `solicitante`— con una de
 #'   auditoría —`alta`, `baja`— dice quién dio el alta o la baja: ahí basta un
-#'   texto que no sea una fecha ni un estado —un login `"jperez"`, un
+#'   texto que no sea una fecha ni un estado —un login `"jperez"`, también
+#'   con la inicial pegada por un guion bajo, un guion o un punto, delante o
+#'   detrás (`"a_perez"`, `"o-silva"`, `"perez.a"`: la `a`, la `o` o la `u`
+#'   pegadas son una inicial, no la preposición ni la conjunción), un
 #'   apellido solo, `"A. Rodriguez"`; no `"Sin baja"`, `"Baja definitiva"` ni
 #'   un estado o un motivo de una lista cerrada —`"Cancelada"`, `"Rechazada"`,
 #'   `"Renuncia"`, `"Jubilacion"`, `"Despido"`, `"Fallecimiento"`,
@@ -1457,7 +1469,15 @@
 #'   rellenado, y no cuentan para el 80 % de la columna; con
 #'   `check.names = TRUE` bajo `C`, R cambia la letra con tilde de un
 #'   encabezado de Windows por un punto (`Direcci.n`) y ese nombre no se
-#'   reconoce; los códigos con un dígito tras un guion (`"170177-3"`,
+#'   reconoce; un nombre GIK todo en minúsculas —`perfchnac`, `pernom`, como
+#'   lo deja un motor que pliega a minúsculas los identificadores creados sin
+#'   comillas— no se separa en palabras y no se reconoce, ni la sigla con el
+#'   número delante pasada por `clean_names()` (`n_c_i`), ni con la `N.` del
+#'   número detrás (`C.I. N.`, que se lee como una sigla de tres letras), ni
+#'   `FchNac1`, `PerFchNacim` o `FCHNAC`; `FchFall` o
+#'   `FchDef` se leen como la fecha de defunción aunque sean la de una falla o
+#'   una fecha definitiva, y se protegen de más; los códigos con un
+#'   dígito tras un guion (`"170177-3"`,
 #'   `"025-082916-3"`, `"10-0123456"`) en una columna calificada se leen como
 #'   teléfonos y se protegen; una palabra de persona
 #'   con otra que no es un calificador conocido —`victoria_equipo_socio`— se

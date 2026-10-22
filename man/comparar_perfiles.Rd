@@ -44,8 +44,10 @@ Un perfil DBI con \code{meta$origen_dbi$muestreo} o con
 fuente. Si uno de los perfiles es de ese tipo, las filas se comparan con
 \code{filas_totales_fuente} cuando está disponible, pero rangos, cardinalidades,
 patrones y hallazgos no se interpretan como cambios de la tabla completa. La
-salida agrega una fila \code{muestra / no_comparable} y deja fuera esos aspectos;
-una muestra distinta no se convierte en un cambio ni en un hallazgo resuelto.
+proporción de faltantes sí se estima sobre las filas observadas y se compara;
+los extremos, las cardinalidades y los conteos absolutos que dependen del
+universo completo quedan fuera. La salida agrega una fila \code{muestra / no_comparable} y deja fuera esos aspectos; una muestra distinta no se
+convierte en un cambio ni en un hallazgo resuelto.
 
 Los nombres de columnas y las configuraciones que contienen texto del usuario
 se comparan por sus bytes, no por la marca de codificación ni por la

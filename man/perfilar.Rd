@@ -1697,9 +1697,18 @@ también abreviada como se la escribe en una base —\code{tel}, \code{telef}, \
 \code{cel}, \code{dir}, \code{domic}, \code{nom}, \code{ape}, \code{doc}, \code{ced}, \code{e_mail}—, en plural
 —también la abreviatura: \code{tels}, \code{cels}, \code{fonos}, \code{noms}, \code{dirs}—, con un
 número pegado (\code{telefono2}, \code{apellido1}), en camelCase (\code{NombreCliente},
-\code{nroDoc}) y en las formas pegadas de los sistemas heredados, enumeradas
-(\code{nrotel}, \code{TELCEL}, \code{nomape}, \code{NOMBRECOMPLETO}, \code{nrodoc}, \code{dirpart});
-\code{mov} no, que es también un movimiento.
+\code{nroDoc}), en las formas pegadas de los sistemas heredados, enumeradas
+(\code{nrotel}, \code{TELCEL}, \code{nomape}, \code{NOMBRECOMPLETO}, \code{nrodoc}, \code{dirpart}), y
+en la nomenclatura GIK de GeneXus, con la fecha abreviada \code{Fch}
+(\code{PerFchNac}, \code{CliFchNac}, \code{FchNac}, \code{PerFchDef}, \code{PerFchFall}; también
+\code{FNac}); \code{mov} no, que es también un movimiento, ni \code{FchFalla} o
+\code{FchDefinitiva}, que son otras fechas. La sigla del documento vale
+también escrita con un punto o un guion bajo tras cada letra, entera
+—\code{C.I.}, como se encabeza la cédula en una planilla, \code{C.I}, \verb{C. I.},
+\verb{Nro. C.I.}, \verb{C.I. Titular}, \code{D.N.I.}, y \code{c_i} o \code{nro_c_i}, como los deja
+\code{janitor::clean_names()}—: con \code{C.I.}, como con \code{CI}, las cédulas sin
+dígito verificador se protegen. \code{C.I.I.U.}, la actividad económica, no es
+un documento.
 Una palabra de nombre
 —\code{nombre}, \code{apellido}— la expresa en cualquier lugar del nombre:
 \code{nombre_cliente} es un nombre, y también \code{nombre_jefe_grupo} o
@@ -1786,7 +1795,10 @@ categoría —\code{Pilar}, \code{Marco}, \code{Norma}, \code{Franco}, \code{Dom
 \code{"Convenio Marco"}). Y la palabra de quien actúa en el registro
 —\code{usuario}, \code{funcionario}, \code{responsable}, \code{solicitante}— con una de
 auditoría —\code{alta}, \code{baja}— dice quién dio el alta o la baja: ahí basta un
-texto que no sea una fecha ni un estado —un login \code{"jperez"}, un
+texto que no sea una fecha ni un estado —un login \code{"jperez"}, también
+con la inicial pegada por un guion bajo, un guion o un punto, delante o
+detrás (\code{"a_perez"}, \code{"o-silva"}, \code{"perez.a"}: la \code{a}, la \code{o} o la \code{u}
+pegadas son una inicial, no la preposición ni la conjunción), un
 apellido solo, \code{"A. Rodriguez"}; no \code{"Sin baja"}, \code{"Baja definitiva"} ni
 un estado o un motivo de una lista cerrada —\code{"Cancelada"}, \code{"Rechazada"},
 \code{"Renuncia"}, \code{"Jubilacion"}, \code{"Despido"}, \code{"Fallecimiento"},
@@ -1817,7 +1829,15 @@ tiene un grupo que empieza con \code{00} (\code{"2400-0010"}) como un código
 rellenado, y no cuentan para el 80 \% de la columna; con
 \code{check.names = TRUE} bajo \code{C}, R cambia la letra con tilde de un
 encabezado de Windows por un punto (\code{Direcci.n}) y ese nombre no se
-reconoce; los códigos con un dígito tras un guion (\code{"170177-3"},
+reconoce; un nombre GIK todo en minúsculas —\code{perfchnac}, \code{pernom}, como
+lo deja un motor que pliega a minúsculas los identificadores creados sin
+comillas— no se separa en palabras y no se reconoce, ni la sigla con el
+número delante pasada por \code{clean_names()} (\code{n_c_i}), ni con la \code{N.} del
+número detrás (\verb{C.I. N.}, que se lee como una sigla de tres letras), ni
+\code{FchNac1}, \code{PerFchNacim} o \code{FCHNAC}; \code{FchFall} o
+\code{FchDef} se leen como la fecha de defunción aunque sean la de una falla o
+una fecha definitiva, y se protegen de más; los códigos con un
+dígito tras un guion (\code{"170177-3"},
 \code{"025-082916-3"}, \code{"10-0123456"}) en una columna calificada se leen como
 teléfonos y se protegen; una palabra de persona
 con otra que no es un calificador conocido —\code{victoria_equipo_socio}— se

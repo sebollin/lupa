@@ -291,7 +291,9 @@
   if (identical(motor, "postgresql")) {
     sql <- paste0(
       "SELECT a.attnum AS posicion, a.attname AS columna, ",
-      "has_column_privilege(a.attrelid, a.attnum, 'SELECT') AS legible ",
+      "has_column_privilege(a.attrelid, a.attnum, 'SELECT') AS legible, ",
+      "format_type(a.atttypid, a.atttypmod) AS tipo_motor, ",
+      "NULL::text AS tipo_objeto ",
       "FROM pg_catalog.pg_attribute a WHERE a.attrelid = ", literal,
       "::regclass AND a.attnum > 0 AND NOT a.attisdropped ORDER BY a.attnum"
     )
@@ -309,7 +311,9 @@
   sql <- paste0(
     "SELECT c.column_id AS posicion, c.name AS columna, ",
     "HAS_PERMS_BY_NAME(", objeto, ", 'OBJECT', 'SELECT', QUOTENAME(c.name), 'COLUMN') ",
-    "AS legible FROM sys.columns c WHERE c.object_id = OBJECT_ID(", objeto,
+    "AS legible, TYPE_NAME(c.user_type_id) AS tipo_motor, ",
+    "o.type AS tipo_objeto FROM sys.columns c ",
+    "JOIN sys.objects o ON o.object_id = c.object_id WHERE c.object_id = OBJECT_ID(", objeto,
     ") AND ", misma_base, " ORDER BY c.column_id"
   )
   columnas <- traer(sql)
@@ -358,6 +362,9 @@
     mascara = rep(NA_character_, length(nombres)),
     stringsAsFactors = FALSE
   )
+  salida$tipo_motor <- if ("tipo_motor" %in% names(columnas)) {
+    as.character(columnas$tipo_motor)
+  } else rep(NA_character_, length(nombres))
   if (is.data.frame(mascaras) && nrow(mascaras) &&
       "columna" %in% names(mascaras)) {
     sin_mascara <- function(campo) {
@@ -375,6 +382,11 @@
   }
   attr(salida, "proyectar") <- isTRUE(proyectar)
   attr(salida, "sql") <- sql
+  objetos <- if ("tipo_objeto" %in% names(columnas)) {
+    unique(trimws(as.character(columnas$tipo_objeto)))
+  } else character()
+  objetos <- objetos[!is.na(objetos) & nzchar(objetos)]
+  attr(salida, "tipo_objeto") <- if (length(objetos)) objetos[[1L]] else NA_character_
   salida
 }
 
@@ -425,7 +437,8 @@
   vacio <- list(
     campos = listados, ilegibles = character(), enmascaradas = character(),
     mascaras = stats::setNames(character(), character()), proyectar = FALSE,
-    catalogo = FALSE, sql_catalogo = NA_character_, error = error
+    catalogo = FALSE, sql_catalogo = NA_character_, tipos_motor = NULL,
+    tipo_objeto = NA_character_, error = error
   )
   if (is.null(permisos)) return(vacio)
   catalogo <- permisos$columna
@@ -441,11 +454,17 @@
   mascaras <- stats::setNames(
     permisos$mascara[posiciones[enmascarada]], campos[enmascarada]
   )
+  tipos_motor <- if ("tipo_motor" %in% names(permisos)) {
+    valores <- as.character(permisos$tipo_motor[posiciones])
+    stats::setNames(valores, campos)
+  } else NULL
   list(
     campos = campos, ilegibles = campos[ilegible],
     enmascaradas = campos[enmascarada], mascaras = mascaras,
     proyectar = isTRUE(attr(permisos, "proyectar")) && any(ilegible),
     catalogo = TRUE, sql_catalogo = attr(permisos, "sql"),
+    tipos_motor = tipos_motor,
+    tipo_objeto = attr(permisos, "tipo_objeto"),
     error = if (length(campos)) NULL else error
   )
 }
@@ -4741,7 +4760,8 @@
   )
 }
 
-.candidatos_muestreo_dbi <- function(conexion, dialecto) {
+.candidatos_muestreo_dbi <- function(conexion, dialecto,
+                                     tipo_objeto = NA_character_) {
   nombres <- if (!is.null(dialecto$muestreo)) dialecto$muestreo else character()
   todas <- list(
     # Primero la forma de cantidad fija, y la razon salio de medir contra
@@ -4853,6 +4873,30 @@
     }, logical(1L))
     candidatos <- candidatos[conserva]
   }
+  # SQL Server acepta `TABLESAMPLE` sobre tablas locales, pero no sobre vistas.
+  # El catalogo conoce el objeto antes de armar la sonda; quitar esas formas
+  # evita una sentencia que `XACT_ABORT ON` convertiria en perdida de la
+  # transaccion del usuario.
+  es_sqlserver <- any(grepl(
+    "sql server|microsoft sql|sqlserver|mssql", senas, perl = TRUE
+  ))
+  # Un sinonimo, una tabla externa o una funcion de tabla puede no aparecer en
+  # `sys.objects`: en ese caso el catalogo deja `tipo_objeto` vacio y rige el
+  # camino anterior para lo que no es una vista. La condicion debe seguir
+  # siendo escalar aun cuando el lector de campos no haya podido clasificarlo.
+  tipo_objeto <- if (length(tipo_objeto) == 1L) {
+    valor <- as.character(tipo_objeto)
+    if (is.na(valor)) NA_character_ else
+      .minusculas_ascii(trimws(valor))
+  } else {
+    NA_character_
+  }
+  if (es_sqlserver && isTRUE(tipo_objeto %in% c("v", "view"))) {
+    candidatos <- candidatos[!vapply(
+      candidatos, function(candidato) identical(candidato$tipo, "tablesample"),
+      logical(1L)
+    )]
+  }
   candidatos
 }
 
@@ -4960,8 +5004,9 @@
   list(forma_construible = TRUE, motivo = NA_character_)
 }
 
-.sondar_muestreo_dbi <- function(conexion, tabla_sql, dialecto, presupuesto) {
-  candidatos <- .candidatos_muestreo_dbi(conexion, dialecto)
+.sondar_muestreo_dbi <- function(conexion, tabla_sql, dialecto, presupuesto,
+                                 tipo_objeto = NA_character_) {
+  candidatos <- .candidatos_muestreo_dbi(conexion, dialecto, tipo_objeto)
   if (!length(candidatos)) {
     return(list(
       disponible = FALSE, candidato = NULL, sondas = character(),
@@ -8995,6 +9040,25 @@
   grepl(.PATRON_TIPO_TEMPORAL_DBI, limpio, perl = TRUE)
 }
 
+# SQL Server no admite estas columnas como expresion comparable en
+# `COUNT(DISTINCT)`, `GROUP BY`, `ORDER BY` ni `MIN/MAX`. El nombre sale del
+# catalogo `sys.columns`; los codigos ODBC no bastan porque mezclan tipos
+# binarios que si admiten esas operaciones con `geography`.
+.tipo_sqlserver_sin_agregados_dbi <- function(tipo) {
+  if (is.null(tipo) || !length(tipo) || is.na(tipo[[1L]])) return(FALSE)
+  limpio <- .minusculas_ascii(trimws(as.character(tipo[[1L]])))
+  base <- sub("\\(.*", "", limpio)
+  base %in% c("text", "ntext", "image", "xml", "geography")
+}
+
+.motivo_tipo_sqlserver_sin_agregados_dbi <- function(tipo) {
+  paste0(
+    "SQL Server no admite el tipo `", as.character(tipo[[1L]]),
+    "` en los agregados y ordenamientos solicitados; la metrica queda",
+    " `no_disponible` y no se emite una consulta sobre la columna."
+  )
+}
+
 # `dbExistsTable()` no distingue una tabla que no existe de una que existe y no
 # se puede ver, y el mensaje lo decia asi. Pero cuando la consulta de
 # comprobacion falla, **el motor suele decir cual de las dos es**: PostgreSQL
@@ -11442,6 +11506,7 @@
                                  metricas = .METRICAS_DBI, presupuesto = NULL,
                                  incluir_valores = TRUE,
                                  tipo_declarado = NA_character_,
+                                 tipo_motor = NA_character_,
                                  motivo_ilegible = NA_character_,
                                  universo = "tabla_completa", muestreo = NULL,
                                  aproximacion_distintos = NULL,
@@ -11472,6 +11537,21 @@
       publica = isTRUE(publica_distintos), para_costo = FALSE,
       requiere_medicion = isTRUE(publica_distintos), sondas = character()
     )
+  }
+  tipo_operacion <- if (length(tipo_motor) == 1L && !is.na(tipo_motor)) {
+    as.character(tipo_motor)
+  } else tipo_declarado
+  tipo_sin_agregados <- any(grepl(
+    "sql server|microsoft sql|sqlserver|mssql",
+    .senas_conexion_dbi(conexion), perl = TRUE, useBytes = TRUE
+  )) && .tipo_sqlserver_sin_agregados_dbi(tipo_operacion)
+  motivo_tipo_sin_agregados <- if (tipo_sin_agregados) {
+    .motivo_tipo_sqlserver_sin_agregados_dbi(tipo_operacion)
+  } else NA_character_
+  if (tipo_sin_agregados) {
+    estrategia_distintos$disponible <- FALSE
+    estrategia_distintos$estado <- "no_disponible"
+    estrategia_distintos$motivo <- motivo_tipo_sin_agregados
   }
   fila <- .fila_resumen_dbi(columna, n_total)
   infinitos_columna_como_numeric <- isTRUE(infinitos_como_numeric) ||
@@ -11911,6 +11991,10 @@
     registros <- omitir(registros, "moda", "no_solicitado", motivo_no_pedida)
   } else if (!incluir_valores) {
     registros <- omitir(registros, "moda", "omitido_por_privacidad", motivo_privacidad)
+  } else if (tipo_sin_agregados) {
+    registros <- omitir(
+      registros, "moda", "no_disponible", motivo_tipo_sin_agregados
+    )
   } else if (!is.null(decisiones_costo) &&
              identical(decisiones_costo$moda, FALSE)) {
     registros <- omitir(
@@ -12714,7 +12798,8 @@
                                   umbral = .UMBRAL_CARDINALIDAD_COSTO_DBI
                                 ),
                                 infinitos_como_numeric = FALSE,
-                                columnas_float8_numeric = character()) {
+                                columnas_float8_numeric = character(),
+                                tipos_motor = NULL) {
   if (is.null(dialecto)) dialecto <- .dialectos_dbi()$limit
   if (is.null(campos_consolidados)) campos_consolidados <- campos
   if (is.null(campos_sql_consolidados)) {
@@ -12729,6 +12814,20 @@
         if (i <= length(tipos_declarados)) tipos_declarados[[i]] else NA_character_
       )
     }, logical(1L))
+  }
+  tipo_motor_de <- function(campo) {
+    indice <- .indice_nombre(campo, campos_consolidados)
+    if (is.na(indice) || is.null(tipos_motor) || indice > length(tipos_motor)) {
+      return(NA_character_)
+    }
+    tipos_motor[[indice]]
+  }
+  tipo_sin_agregados_de <- function(campo) {
+    tipo <- tipo_motor_de(campo)
+    if (any(grepl(
+      "sql server|microsoft sql|sqlserver|mssql",
+      .senas_conexion_dbi(conexion), perl = TRUE, useBytes = TRUE
+    ))) .tipo_sqlserver_sin_agregados_dbi(tipo) else FALSE
   }
   sql_de <- function(campo) {
     if (!.nombre_representable_dbi(conexion, campo)) return(NA_character_)
@@ -12749,16 +12848,20 @@
   if (!is.null(presupuesto)) .iniciar_instrumentacion_derrame_dbi(
     conexion, presupuesto, exacto = exacto_derrame
   )
+  columnas_distintos_resumen <- .columnas_distintos_ejecucion_dbi(
+    metricas_ejecucion, estrategia_distintos, campos_consolidados,
+    fuentes_cardinalidad_costo, politica_costo
+  )
+  columnas_distintos_resumen <- columnas_distintos_resumen[
+    !vapply(columnas_distintos_resumen, tipo_sin_agregados_de, logical(1L))
+  ]
   agregados <- .agregados_consolidados_dbi(
     conexion, tabla_metricas_sql, campos_consolidados,
     campos_sql_consolidados, es_numerico_consolidados, metricas_ejecucion,
     incluir_valores, presupuesto, tamano_lote_planos, tamano_lote_distintos,
     aproximacion_distintos = aproximaciones$distintos,
     tabla_total_sql = tabla_total_sql, conteo_inicial = conteo,
-    columnas_distintos = .columnas_distintos_ejecucion_dbi(
-      metricas_ejecucion, estrategia_distintos, campos_consolidados,
-      fuentes_cardinalidad_costo, politica_costo
-    ),
+    columnas_distintos = columnas_distintos_resumen,
     tipos_declarados = tipos_declarados,
     columnas_float8_numeric = columnas_float8_numeric,
     infinitos_como_numeric = infinitos_como_numeric
@@ -12844,6 +12947,7 @@
         motivos_ilegibles[[.indice_nombre(campo, names(motivos_ilegibles))]]
       }
       "moda" %in% metricas_ejecucion && isTRUE(incluir_valores) &&
+        !tipo_sin_agregados_de(campo) &&
         (is.null(decision) || isTRUE(decision$moda)) &&
         is.na(motivo)
     }, logical(1L))
@@ -13004,7 +13108,8 @@
       if (i <= length(prototipo)) prototipo[[i]] else NA,
       n_total, dialecto = dialecto, metricas = metricas,
       presupuesto = presupuesto, incluir_valores = incluir_valores,
-      tipo_declarado = tipo_de(i), motivo_ilegible = motivo_de(campo),
+      tipo_declarado = tipo_de(i), tipo_motor = tipo_motor_de(campo),
+      motivo_ilegible = motivo_de(campo),
       universo = universo, muestreo = muestreo,
       aproximacion_distintos = aproximaciones$distintos,
       aproximacion_mediana = aproximaciones$mediana,
@@ -13215,7 +13320,8 @@
     return(list(
       campos = columnas$campos, motivo = NA_character_,
       origen = if (isTRUE(columnas$catalogo)) "catalogo" else "dbListFields",
-      columnas = columnas
+      columnas = columnas, tipos_motor = columnas$tipos_motor,
+      tipo_objeto = columnas$tipo_objeto
     ))
   }
   campos <- if (is.null(columnas$error)) character() else columnas$error
@@ -16076,7 +16182,8 @@ print.plan_perfilado_dbi <- function(x, ...) {
       (is.integer(prototipo_campo) &&
         .conexion_entrega_bigint_como_doble_dbi(conexion))) &&
       !inherits(prototipo_campo, "integer64")
-    .tipo_declarado_entero_ancho_dbi(tipo) &&
+    (.tipo_declarado_entero_ancho_dbi(tipo) ||
+      .tipo_declarado_decimal_dbi(tipo)) &&
       prototipo_doble
   }, logical(1L))
   expresiones <- campos_sql
@@ -16094,13 +16201,19 @@ print.plan_perfilado_dbi <- function(x, ...) {
 }
 
 .convertir_enteros_ancho_muestra_dbi <- function(
-    datos, columnas_castadas) {
+    datos, columnas_castadas, tipos_declarados = NULL) {
   cobertura <- .cobertura_diagnosticos_vacia()
   if (!is.data.frame(datos) || !length(columnas_castadas)) {
     return(list(datos = datos, cobertura = cobertura))
   }
   for (columna in intersect(columnas_castadas, names(datos))) {
     posicion <- match(columna, names(datos))
+    tipo <- if (!is.null(tipos_declarados) && posicion <= length(tipos_declarados)) {
+      tipos_declarados[[posicion]]
+    } else {
+      NA_character_
+    }
+    es_decimal <- .tipo_declarado_decimal_dbi(tipo)
     if (.bit64_disponible_dbi()) {
       texto <- as.character(datos[[posicion]])
       convertido <- tryCatch(
@@ -16134,6 +16247,15 @@ print.plan_perfilado_dbi <- function(x, ...) {
           convertido
         }
         next
+      }
+      texto_no_entero <- !is.na(texto) &
+        !grepl("^[+-]?[0-9]+$", texto, perl = TRUE)
+      if (es_decimal && any(texto_no_entero)) {
+        convertido_decimal <- suppressWarnings(as.numeric(texto))
+        if (all(is.na(texto) | !is.na(convertido_decimal))) {
+          datos[[posicion]] <- convertido_decimal
+          next
+        }
       }
       motivo <- paste0(
         "No se pudo convertir a `integer64` la columna `", columna,
@@ -16844,7 +16966,7 @@ print.plan_perfilado_dbi <- function(x, ...) {
     argumentos[["sentinelas_numericos"]], tipos_motor = tipos_motor
   )
   conversion_muestra <- .convertir_enteros_ancho_muestra_dbi(
-    datos_muestra, columnas_castadas
+    datos_muestra, columnas_castadas, tipos_declarados
   )
   datos_muestra <- conversion_muestra$datos
   n_obtenidas <- nrow(datos_muestra)
@@ -17184,24 +17306,34 @@ print.plan_perfilado_dbi <- function(x, ...) {
 }
 
 .redactar_campos_privacidad_dbi <- function(x, campos, mensaje) {
-  if (is.data.frame(x)) {
-    for (campo in intersect(campos, names(x))) {
-      x[[campo]] <- .redactar_campo_privacidad_dbi(x[[campo]], mensaje)
+  recorrer <- function(valor, nombre = NULL) {
+    if (!is.null(nombre) && length(nombre) == 1L &&
+        !is.na(nombre) && nombre %in% campos) {
+      valor <- .redactar_campo_privacidad_dbi(valor, mensaje)
     }
-    return(x)
-  }
-  if (is.list(x)) {
-    for (campo in names(x)) {
-      if (campo %in% campos) {
-        x[[campo]] <- .redactar_campo_privacidad_dbi(x[[campo]], mensaje)
-      } else {
-        x[[campo]] <- .redactar_campos_privacidad_dbi(
-          x[[campo]], campos, mensaje
+    if (is.data.frame(valor)) {
+      nombres <- names(valor)
+      for (i in seq_along(valor)) {
+        valor[[i]] <- recorrer(valor[[i]], nombres[[i]])
+      }
+    } else if (is.list(valor)) {
+      nombres <- names(valor)
+      for (i in seq_along(valor)) {
+        nombre_hijo <- if (is.null(nombres)) NULL else nombres[[i]]
+        valor[i] <- list(recorrer(valor[[i]], nombre_hijo))
+      }
+    }
+    atributos <- attributes(valor)
+    if (length(atributos)) {
+      for (atributo in names(atributos)) {
+        attr(valor, atributo) <- recorrer(
+          attr(valor, atributo, exact = TRUE), atributo
         )
       }
     }
+    valor
   }
-  x
+  recorrer(x)
 }
 
 .redactar_salida_privacidad_dbi <- function(resumen, perfil) {
@@ -17558,6 +17690,32 @@ print.plan_perfilado_dbi <- function(x, ...) {
     sin_permiso = sin_permiso,
     sql_catalogo = if (is.null(permisos)) NA_character_ else permisos$sql_catalogo
   )
+  # SQL Server/FreeTDS publica codigos ODBC que no distinguen `geography` de
+  # otros tipos binarios. El catalogo ya leyo el nombre del tipo: usarlo en
+  # todas las decisiones evita mandar agregados que el motor rechaza.
+  tipos_catalogo <- if (is.null(permisos)) NULL else permisos$tipos_motor
+  # En PostgreSQL el catalogo devuelve `format_type()` -por ejemplo,
+  # `character(10)`-, pero la lectura comun necesita el `typname` de DBI
+  # (`bpchar`) para emitir `RTRIM()` en todas sus puertas. El tipo del catalogo
+  # se conserva para las relaciones; solo reemplaza el codigo ODBC en SQL
+  # Server, donde hace falta distinguir LOB y geography para no emitir SQL que
+  # el motor rechaza.
+  if (identical(.motor_permisos_columnas_dbi(conexion), "sqlserver") &&
+      is.list(permisos) && length(tipos_catalogo) &&
+      length(esquema$campos)) {
+    posiciones_tipo <- .indice_nombre(esquema$campos, names(tipos_catalogo))
+    conocidos <- !is.na(posiciones_tipo)
+    if (any(conocidos)) {
+      tipos_motor <- if (is.null(esquema$tipos_motor)) {
+        rep(NA_character_, length(esquema$campos))
+      } else as.character(esquema$tipos_motor)
+      if (length(tipos_motor) < length(esquema$campos)) {
+        length(tipos_motor) <- length(esquema$campos)
+      }
+      tipos_motor[conocidos] <- unname(tipos_catalogo[posiciones_tipo[conocidos]])
+      esquema$tipos_motor <- tipos_motor
+    }
+  }
   # Las que llegan enmascaradas se leen -su completitud es la del dato- y se
   # declaran: ver `.columnas_tabla_dbi()` y `perfilar_dbi()`.
   enmascaradas <- if (is.null(permisos)) character() else {
@@ -17627,6 +17785,27 @@ print.plan_perfilado_dbi <- function(x, ...) {
       ))
     }
     orden_muestra <- campos[posicion]
+    tipos_orden <- if (length(lista_campos$tipos_motor)) {
+      posiciones_tipo <- .indice_nombre(orden_muestra,
+                                        names(lista_campos$tipos_motor))
+      as.character(lista_campos$tipos_motor[posiciones_tipo])
+    } else character()
+    si_tipo_no_ordenable <- if (any(grepl(
+      "sql server|microsoft sql|sqlserver|mssql",
+      .senas_conexion_dbi(conexion), perl = TRUE, useBytes = TRUE
+    )) && length(tipos_orden)) {
+      vapply(tipos_orden, .tipo_sqlserver_sin_agregados_dbi, logical(1L))
+    } else logical(length(tipos_orden))
+    if (any(si_tipo_no_ordenable, na.rm = TRUE)) {
+      .detener_dbi(
+        "lupa_error_argumento_dbi",
+        paste0(
+          "SQL Server no puede ordenar `orden_muestra` por las columnas de tipo ",
+          "no comparable: ",
+          paste(orden_muestra[which(si_tipo_no_ordenable)], collapse = ", "), "."
+        )
+      )
+    }
     vapply(orden_muestra, function(campo) {
       .citar_identificador_dbi(conexion, campo)
     }, character(1L), USE.NAMES = FALSE)
@@ -17649,11 +17828,28 @@ print.plan_perfilado_dbi <- function(x, ...) {
       if (i <= length(esquema$tipos)) esquema$tipos[[i]] else NA_character_
     )
   }, logical(1L))
+  tipos_motor <- if (is.null(esquema$tipos_motor)) {
+    rep(NA_character_, length(campos))
+  } else as.character(esquema$tipos_motor)
+  if (length(tipos_motor) < length(campos)) length(tipos_motor) <- length(campos)
+  tipos_sin_agregados <- if (any(grepl(
+    "sql server|microsoft sql|sqlserver|mssql",
+    .senas_conexion_dbi(conexion), perl = TRUE, useBytes = TRUE
+  ))) {
+    vapply(
+      tipos_motor[seq_along(campos)], .tipo_sqlserver_sin_agregados_dbi,
+      logical(1L)
+    )
+  } else logical(length(campos))
+  # Estas columnas siguen pudiendo aportar `validos`, pero no se incluyen en
+  # ninguna consulta de distintos, moda, magnitudes u ordenamiento SQL.
+  es_numerico[tipos_sin_agregados] <- FALSE
   muestreo <- NULL
   if (identical(universo, "muestra_motor")) {
     if (isTRUE(sondar_muestreo)) {
       muestreo <- .sondar_muestreo_dbi(
-        conexion, tabla_sql, resolucion$dialecto, presupuesto
+        conexion, tabla_sql, resolucion$dialecto, presupuesto,
+        tipo_objeto = lista_campos$tipo_objeto
       )
       muestreo$sondas_previstas <- length(muestreo$sondas)
     } else {
@@ -17661,7 +17857,9 @@ print.plan_perfilado_dbi <- function(x, ...) {
       # el plan no puede pagar una sonda que ya lee la tabla solo para saberlo.
       # Publica las sondas que la corrida intentara y deja la verificacion para
       # la corrida; si fallan, el resultado se degrada como cualquier capacidad.
-      candidatos <- .candidatos_muestreo_dbi(conexion, resolucion$dialecto)
+      candidatos <- .candidatos_muestreo_dbi(
+        conexion, resolucion$dialecto, lista_campos$tipo_objeto
+      )
       muestreo <- list(
         disponible = length(candidatos) > 0L,
         candidato = if (length(candidatos)) candidatos[[1L]] else NULL,
@@ -17861,9 +18059,12 @@ print.plan_perfilado_dbi <- function(x, ...) {
     metricas, estrategia_distintos, campos,
     fuentes_cardinalidad_costo, politica_costo
   )
+  columnas_distintos_ejecucion <- setdiff(
+    columnas_distintos_ejecucion, campos[tipos_sin_agregados]
+  )
   columnas_moda_estimacion <- if (
     "moda" %in% metricas && isTRUE(incluir_valores)
-  ) campos else character()
+  ) setdiff(campos, campos[tipos_sin_agregados]) else character()
   columnas_mediana_estimacion <- if (
     "mediana" %in% metricas && isTRUE(incluir_valores)
   ) campos[es_numerico] else character()
@@ -17975,7 +18176,7 @@ print.plan_perfilado_dbi <- function(x, ...) {
     max_bytes_procesamiento = max_bytes_procesamiento,
     max_bytes_materializacion = max_bytes_materializacion,
     resolucion = resolucion, campos_declarados = campos_declarados,
-    lista_campos = lista_campos
+    lista_campos = lista_campos, tipo_objeto = lista_campos$tipo_objeto
   )
 }
 
@@ -18052,9 +18253,11 @@ print.plan_perfilado_dbi <- function(x, ...) {
 #' vias de salida: resumen SQL, `perfil_muestra` y `bloque_filas`. Se omiten los
 #' valores de celda -incluidos moda, extremos, medianas, centinelas y ejemplos
 #' de patrones-, se limpian cobertura y motivos, y no se conservan familias de
-#' acumuladores ni una muestra cruda en el resultado. Los conteos, proporciones
-#' y agregados que no son valores de celda pueden seguir publicandose. La marca
-#' queda registrada como `meta$incluir_valores = FALSE` en ambos resultados.
+#' acumuladores ni una muestra cruda en el resultado. La limpieza recorre también
+#' los atributos de cada hoja del resultado, incluidos los resúmenes de patrones.
+#' Los conteos, proporciones y agregados que no son valores de celda pueden seguir
+#' publicandose. La marca queda registrada como `meta$incluir_valores = FALSE` en
+#' ambos resultados.
 #' Si se omite el bloque con `bloque_muestra = "solo_agregados"`, la cobertura
 #' usa el estado `no_solicitado`: no es un fallo ni se cuenta como una métrica
 #' no disponible. En `muestra_motor`, la selección materializada se hace una
@@ -18108,6 +18311,19 @@ print.plan_perfilado_dbi <- function(x, ...) {
 #' extremos, media, mediana y desvío quedan `no_disponible` con el motivo, la
 #' columna no entra en `perfil_muestra` (una fila `alcance_distinto` lo dice) y
 #' `resumen_tabla$cobertura` la declara. Con `UNMASK` se perfila entera.
+#' SQL Server tampoco admite `COUNT(DISTINCT)`, `GROUP BY`, `ORDER BY` ni
+#' `MIN`/`MAX` sobre `text`, `ntext`, `image`, `xml` y `geography`. El catálogo
+#' reconoce esos tipos antes de armar las consultas: `validos` se conserva con
+#' la expresión de nulos, mientras `n_distintos` y `moda` quedan
+#' `no_disponible` con su motivo y no se manda una sentencia que el motor
+#' rechazaría. Si `orden_muestra` pide una de esas columnas, la llamada se
+#' rechaza antes de enviar el orden. En una vista SQL Server,
+#' `universo = "muestra_motor"` usa el límite pseudoaleatorio compatible en
+#' vez de `TABLESAMPLE`, que sólo acepta tablas locales. Limitación: un
+#' sinónimo se muestrea como una tabla, y si apunta a una vista el motor
+#' rechaza el `TABLESAMPLE`: la vía pasa al límite pseudoaleatorio, salvo con
+#' `XACT_ABORT ON` y una transacción abierta, que el motor deshace; la vía lo
+#' informa con `lupa_error_transaccion_dbi`.
 #' Si la lectura de la muestra falla, la columna que la hace fallar se busca
 #' por descarte leyendo las MISMAS filas que la muestra con menos columnas —un
 #' fallo que está en una fila que no es la primera, como el `CAST` de un texto
@@ -19692,6 +19908,7 @@ perfilar_dbi <- function(conexion, tabla,
     metricas = preparacion$metricas, presupuesto = presupuesto,
     metricas_ejecucion = preparacion$metricas_ejecucion,
     incluir_valores = incluir_valores, tipos_declarados = preparacion$tipos,
+    tipos_motor = preparacion$esquema$tipos_motor,
     motivos_ilegibles = motivos_resumen,
      universo = preparacion$universo,
      estrategia_mediana = preparacion$estrategia_mediana,

@@ -3077,6 +3077,7 @@ estimar_costo_coleccion <- function(coleccion, pares = NULL,
   # cambia.
   cache_lectura <- new.env(parent = emptyenv())
   cache_relleno <- new.env(parent = emptyenv())
+  cache_tipos <- new.env(parent = emptyenv())
   todo_texto_relleno <- identical(
     .motor_permisos_columnas_dbi(conexion), "sqlserver"
   )
@@ -3097,9 +3098,13 @@ estimar_costo_coleccion <- function(coleccion, pares = NULL,
       } else "*",
       expresiones = character()
     )
-    guardar <- function(salida) {
+    guardar <- function(salida, tipos = NULL) {
       assign(.clave_cache_coleccion(identificador), salida$expresiones,
              envir = cache_lectura)
+      if (!is.null(tipos) && length(tipos)) {
+        assign(.clave_cache_coleccion(identificador), tipos,
+               envir = cache_tipos)
+      }
       actuales <- if (is.data.frame(salida$convertidas) &&
                       "columna" %in% names(salida$convertidas)) {
         as.character(salida$convertidas$columna)
@@ -3133,9 +3138,13 @@ estimar_costo_coleccion <- function(coleccion, pares = NULL,
     tipos_para_conversion <- if (!is.null(esquema$tipos_motor)) {
       esquema$tipos_motor
     } else esquema$tipos
+    tipos_lectura <- if (!is.null(tipos_para_conversion) &&
+                         length(tipos_para_conversion) == length(campos)) {
+      stats::setNames(as.character(tipos_para_conversion), campos)
+    } else NULL
     if (!isTRUE(esquema$ok) || is.null(tipos_para_conversion) ||
         !length(campos) || length(campos) != length(tipos_para_conversion)) {
-      return(guardar(sin_conversion))
+      return(guardar(sin_conversion, tipos_lectura))
     }
     campos_sql <- citar(campos)
     convertida <- .lectura_convertida_dbi(
@@ -3143,13 +3152,13 @@ estimar_costo_coleccion <- function(coleccion, pares = NULL,
       tipos = esquema$tipos
     )
     cambia <- convertida$campos_sql != campos_sql
-    if (!any(cambia)) return(guardar(sin_conversion))
+    if (!any(cambia)) return(guardar(sin_conversion, tipos_lectura))
     proyeccion <- convertida$proyeccion_sql
     guardar(list(
       seleccion_sql = paste(proyeccion, collapse = ", "),
       expresiones = stats::setNames(convertida$campos_sql[cambia], campos[cambia]),
       convertidas = convertida$convertidas
-    ))
+    ), tipos_lectura)
   }
   expresion_de <- function(identificador, nombre, columna_sql) {
     cache_key <- .clave_cache_coleccion(identificador)
@@ -3164,6 +3173,13 @@ estimar_costo_coleccion <- function(coleccion, pares = NULL,
     cache_key <- .clave_cache_coleccion(identificador)
     if (exists(cache_key, envir = cache_relleno, inherits = FALSE)) {
       return(get(cache_key, envir = cache_relleno, inherits = FALSE))
+    }
+    character()
+  }
+  tipos_de <- function(identificador) {
+    cache_key <- .clave_cache_coleccion(identificador)
+    if (exists(cache_key, envir = cache_tipos, inherits = FALSE)) {
+      return(get(cache_key, envir = cache_tipos, inherits = FALSE))
     }
     character()
   }
@@ -3283,6 +3299,25 @@ estimar_costo_coleccion <- function(coleccion, pares = NULL,
     # `SELECT *` -que con un permiso por columna se rechaza entero: el par se
     # perdia, y por odbc caia R- y nombra las demas.
     info <- info_de(identificador)
+    if (length(columnas_orden) && !is.null(info) &&
+        identical(.motor_permisos_columnas_dbi(conexion), "sqlserver") &&
+        length(info$tipos_motor)) {
+      posiciones_tipo <- .indice_nombre(
+        columnas_orden, names(info$tipos_motor)
+      )
+      tipos_orden <- as.character(info$tipos_motor[posiciones_tipo])
+      no_ordenables <- vapply(
+        tipos_orden, .tipo_sqlserver_sin_agregados_dbi, logical(1L)
+      )
+      if (any(no_ordenables, na.rm = TRUE)) {
+        .detener(
+          "SQL Server no puede ordenar la coleccion por las columnas de tipo ",
+          "no comparable: ",
+          paste(columnas_orden[which(no_ordenables)], collapse = ", "), ".",
+          call. = FALSE
+        )
+      }
+    }
     fuera <- stats::setNames(character(), character())
     if (!is.null(info) && (length(info$ilegibles) || length(info$enmascaradas))) {
       fuera <- c(
@@ -3669,6 +3704,7 @@ estimar_costo_coleccion <- function(coleccion, pares = NULL,
     candidatas = candidatas_de,
     fuera = fuera_de,
     rellenos = rellenos_de,
+    tipos = tipos_de,
     todo_texto = todo_texto_relleno,
     rangos_universo = rangos_universo,
     bitacora = function() {
@@ -3771,9 +3807,10 @@ estimar_costo_coleccion <- function(coleccion, pares = NULL,
 #' lógico que el motor iguala, no por los espacios que entrega DBI.
 #' En SQL Server la misma regla alcanza a los pares de texto `varchar` contra
 #' `varchar`, porque su cotejamiento ignora los espacios finales. En PostgreSQL
-#' no se recortan todas las columnas de texto: sólo se normaliza el par que
-#' tiene una columna de ancho fijo, para conservar la diferencia entre dos
-#' `varchar` con y sin relleno cuando el motor sí la distingue.
+#' no se recortan todas las columnas de texto: se normaliza el lado `bpchar` y
+#' la contraparte `varchar` que el motor compara con él, pero un `text` conserva
+#' su espacio final porque PostgreSQL lo distingue. Así la relación publicada
+#' sigue la igualdad del motor, no una igualdad de cadenas recortadas.
 #'
 #' Si una lectura conjunta falla en una fila, la colección aísla por descarte
 #' las columnas culpables y deja sus nombres en `cobertura_podas` con motivo
@@ -4091,7 +4128,11 @@ relaciones_coleccion <- function(coleccion, pares, muestra = 1e4,
         .rangos = rangos,
         .rellenos_finales = list(
           tabla1 = lector$rellenos(t1), tabla2 = lector$rellenos(t2),
-          todo_texto = lector$todo_texto
+          todo_texto = lector$todo_texto,
+          tipos = list(
+            tabla1 = lector$tipos(t1), tabla2 = lector$tipos(t2)
+          ),
+          motor = .motor_permisos_columnas_dbi(conexion)
         )
       ), error = function(e) e
     )

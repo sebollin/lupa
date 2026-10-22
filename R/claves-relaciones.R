@@ -1090,6 +1090,27 @@ detectar_relaciones <- function(tabla1, tabla2, muestra = 1e5,
     nombre %in% as.character(marcadas)
   }
   todo_texto <- isTRUE(.rellenos_finales$todo_texto)
+  motor_relleno <- if (!is.null(.rellenos_finales$motor)) {
+    as.character(.rellenos_finales$motor[[1L]])
+  } else NA_character_
+  tipo_de_relleno <- function(lado, nombre) {
+    tipos <- .rellenos_finales$tipos[[lado]]
+    if (is.null(tipos) || !length(tipos)) return(NA_character_)
+    indice <- .indice_nombre(nombre, names(tipos))
+    if (is.na(indice)) return(NA_character_)
+    .minusculas_ascii(trimws(as.character(tipos[[indice]])))
+  }
+  normalizar_relleno_de <- function(lado, nombre) {
+    if (isTRUE(todo_texto)) return(TRUE)
+    if (identical(motor_relleno, "postgresql")) {
+      tipo <- tipo_de_relleno(lado, nombre)
+      tipo <- sub("\\(.*", "", tipo)
+      return(tipo %in% c(
+        "bpchar", "char", "character", "varchar", "character varying"
+      ))
+    }
+    relleno_de(lado, nombre)
+  }
   rango_de <- function(lado, nombre) {
     if (is.null(.rangos)) return(NULL)
     disponibles <- .rangos[[lado]]
@@ -1165,12 +1186,16 @@ detectar_relaciones <- function(tabla1, tabla2, muestra = 1e5,
            relleno_de("tabla2", nombre_2) || todo_texto) &&
           (is.character(tabla1[[indices_1[[i]]]]) ||
            is.character(tabla2[[indices_2[[j]]]]))) {
-        x <- .rehacer_resumen_relleno_relacion(
-          tabla1[[indices_1[[i]]]], x, limite_muestra
-        )
-        y <- .rehacer_resumen_relleno_relacion(
-          tabla2[[indices_2[[j]]]], y, limite_muestra
-        )
+        if (normalizar_relleno_de("tabla1", nombre_1)) {
+          x <- .rehacer_resumen_relleno_relacion(
+            tabla1[[indices_1[[i]]]], x, limite_muestra
+          )
+        }
+        if (normalizar_relleno_de("tabla2", nombre_2)) {
+          y <- .rehacer_resumen_relleno_relacion(
+            tabla2[[indices_2[[j]]]], y, limite_muestra
+          )
+        }
       }
       # Dos pares que no se pueden comparar, con `podar` o sin el, porque la
       # respuesta de la comparacion seria falsa y no solo cara:
