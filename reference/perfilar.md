@@ -1940,19 +1940,28 @@ protección. Cada clasificación declara `poder_discriminante` y
   `nom`, `ape`, `doc`, `ced`, `e_mail`—, en plural —también la
   abreviatura: `tels`, `cels`, `fonos`, `noms`, `dirs`—, con un número
   pegado (`telefono2`, `apellido1`), en camelCase (`NombreCliente`,
-  `nroDoc`) y en las formas pegadas de los sistemas heredados,
-  enumeradas (`nrotel`, `TELCEL`, `nomape`, `NOMBRECOMPLETO`, `nrodoc`,
-  `dirpart`); `mov` no, que es también un movimiento. Una palabra de
-  nombre —`nombre`, `apellido`— la expresa en cualquier lugar del
-  nombre: `nombre_cliente` es un nombre, y también `nombre_jefe_grupo` o
-  `nombre_grupo`; una columna de números o de fechas no lo es
-  (`cantidad_nombres`), y con un lugar —`nombre_departamento`,
-  `nom_localidad`, la categoría de cualquier base pública— decide la
-  señal de los valores, como la palabra de persona con un lugar. Un
-  documento por el nombre tiene que tener algún valor con seis cifras o
-  más: `cedula_valida` con `"S"`/`"N"` o `cod_documento` con `1`, `2`,
-  `9` no lo son, si son al menos veinte valores de dos distintos o más;
-  sin valores —una columna rala que la muestra de
+  `nroDoc`), en las formas pegadas de los sistemas heredados, enumeradas
+  (`nrotel`, `TELCEL`, `nomape`, `NOMBRECOMPLETO`, `nrodoc`, `dirpart`),
+  y en la nomenclatura GIK de GeneXus, con la fecha abreviada `Fch`
+  (`PerFchNac`, `CliFchNac`, `FchNac`, `PerFchDef`, `PerFchFall`;
+  también `FNac`); `mov` no, que es también un movimiento, ni `FchFalla`
+  o `FchDefinitiva`, que son otras fechas. La sigla del documento vale
+  también escrita con un punto o un guion bajo tras cada letra, entera
+  —`C.I.`, como se encabeza la cédula en una planilla, `C.I`, `C. I.`,
+  `Nro. C.I.`, `C.I. Titular`, `D.N.I.`, y `c_i` o `nro_c_i`, como los
+  deja `janitor::clean_names()`—: con `C.I.`, como con `CI`, las cédulas
+  sin dígito verificador se protegen. `C.I.I.U.`, la actividad
+  económica, no es un documento. Una palabra de nombre —`nombre`,
+  `apellido`— la expresa en cualquier lugar del nombre: `nombre_cliente`
+  es un nombre, y también `nombre_jefe_grupo` o `nombre_grupo`; una
+  columna de números o de fechas no lo es (`cantidad_nombres`), y con un
+  lugar —`nombre_departamento`, `nom_localidad`, la categoría de
+  cualquier base pública— decide la señal de los valores, como la
+  palabra de persona con un lugar. Un documento por el nombre tiene que
+  tener algún valor con seis cifras o más: `cedula_valida` con
+  `"S"`/`"N"` o `cod_documento` con `1`, `2`, `9` no lo son, si son al
+  menos veinte valores de dos distintos o más; sin valores —una columna
+  rala que la muestra de
   [`perfilar_dbi()`](https://sebollin.github.io/lupa/reference/perfilar_dbi.md)
   no alcanzó—, con pocos o con un solo valor repetido —el `0` o el
   `"S/D"` del que no tiene— decide el nombre, porque el resumen de la
@@ -2035,50 +2044,61 @@ protección. Cada clasificación declara `poder_discriminante` y
   `"Convenio Marco"`). Y la palabra de quien actúa en el registro
   —`usuario`, `funcionario`, `responsable`, `solicitante`— con una de
   auditoría —`alta`, `baja`— dice quién dio el alta o la baja: ahí basta
-  un texto que no sea una fecha ni un estado —un login `"jperez"`, un
-  apellido solo, `"A. Rodriguez"`; no `"Sin baja"`, `"Baja definitiva"`
-  ni un estado o un motivo de una lista cerrada —`"Cancelada"`,
-  `"Rechazada"`, `"Renuncia"`, `"Jubilacion"`, `"Despido"`,
-  `"Fallecimiento"`, `"Traslado"`, `"Cese"`, `"Fin de contrato"`,
-  también en mayúsculas y en plural—; un login o un apellido que termina
-  como un estado —`"lmachado"`, `"MACHADO, L."`, `"j.machado"`,
-  `"Machado"`—, un nombre autocapitalizado —`"Juan perez"`— y un usuario
-  del sistema —`"SISTEMA"`, `"MIGRACION"`— cuentan como personas: junto
-  a tres logins, uno solo que pasara por estado dejaría la columna en el
-  75 % y publicaría los logins de todos—; la de quien es objeto del
-  registro pide la señal de los valores, y `cliente_desde` con
-  `"Sin fecha"` o `paciente_alta` con `"Traslado"` se publican. En la
-  ronda 34 el nombre decidía solo, y esas columnas publicaban nombres,
-  celulares y domicilios. Limitación conocida: la lista de nombres de
-  pila no es completa, y un nombre que falta —o que es también una
-  palabra corriente, como `Max` o `Pilar`— deja la columna sin esa
-  señal: con tres personas, una basta para que no llegue al 80 %; una
-  localidad con nombre de persona —`"Jose Ignacio"`, `"Juan Lacaze"`— se
-  lee como un nombre; con una palabra de categoría o de clave, un login
-  de sólo letras o un apellido solo (`responsable_grupo` con
-  `"Rodriguez"`, `usuario_id` con `"jperez_01"`) no se distinguen de una
-  categoría o de un código y se publican, como un domicilio sin marca de
-  calle; en la regla de quien actúa, un estado o un motivo que no está
-  en la lista —`"Ingresos superiores"`, `"Abandono de cargo"` sí está—
-  se toma por una persona y la columna se protege; una frase que empieza
-  con otro nombre de pila —`"Mercedes centro"`— se lee como un nombre, y
+  un texto que no sea una fecha ni un estado —un login `"jperez"`,
+  también con la inicial pegada por un guion bajo, un guion o un punto,
+  delante o detrás (`"a_perez"`, `"o-silva"`, `"perez.a"`: la `a`, la
+  `o` o la `u` pegadas son una inicial, no la preposición ni la
+  conjunción), un apellido solo, `"A. Rodriguez"`; no `"Sin baja"`,
+  `"Baja definitiva"` ni un estado o un motivo de una lista cerrada
+  —`"Cancelada"`, `"Rechazada"`, `"Renuncia"`, `"Jubilacion"`,
+  `"Despido"`, `"Fallecimiento"`, `"Traslado"`, `"Cese"`,
+  `"Fin de contrato"`, también en mayúsculas y en plural—; un login o un
+  apellido que termina como un estado —`"lmachado"`, `"MACHADO, L."`,
+  `"j.machado"`, `"Machado"`—, un nombre autocapitalizado
+  —`"Juan perez"`— y un usuario del sistema —`"SISTEMA"`, `"MIGRACION"`—
+  cuentan como personas: junto a tres logins, uno solo que pasara por
+  estado dejaría la columna en el 75 % y publicaría los logins de
+  todos—; la de quien es objeto del registro pide la señal de los
+  valores, y `cliente_desde` con `"Sin fecha"` o `paciente_alta` con
+  `"Traslado"` se publican. En la ronda 34 el nombre decidía solo, y
+  esas columnas publicaban nombres, celulares y domicilios. Limitación
+  conocida: la lista de nombres de pila no es completa, y un nombre que
+  falta —o que es también una palabra corriente, como `Max` o `Pilar`—
+  deja la columna sin esa señal: con tres personas, una basta para que
+  no llegue al 80 %; una localidad con nombre de persona
+  —`"Jose Ignacio"`, `"Juan Lacaze"`— se lee como un nombre; con una
+  palabra de categoría o de clave, un login de sólo letras o un apellido
+  solo (`responsable_grupo` con `"Rodriguez"`, `usuario_id` con
+  `"jperez_01"`) no se distinguen de una categoría o de un código y se
+  publican, como un domicilio sin marca de calle; en la regla de quien
+  actúa, un estado o un motivo que no está en la lista
+  —`"Ingresos superiores"`, `"Abandono de cargo"` sí está— se toma por
+  una persona y la columna se protege; una frase que empieza con otro
+  nombre de pila —`"Mercedes centro"`— se lee como un nombre, y
   `"Victoria perez"` escrito así no; el fijo con punto cuyo último grupo
   termina en cero (`"4732.1230"`) se lee como un importe con cuatro
   decimales y el que tiene un grupo que empieza con `00` (`"2400-0010"`)
   como un código rellenado, y no cuentan para el 80 % de la columna; con
   `check.names = TRUE` bajo `C`, R cambia la letra con tilde de un
   encabezado de Windows por un punto (`Direcci.n`) y ese nombre no se
-  reconoce; los códigos con un dígito tras un guion (`"170177-3"`,
-  `"025-082916-3"`, `"10-0123456"`) en una columna calificada se leen
-  como teléfonos y se protegen; una palabra de persona con otra que no
-  es un calificador conocido —`victoria_equipo_socio`— se protege por el
-  nombre, y `dir` es una dirección aunque la columna sea de puntos
-  cardinales; y las escrituras raras de un número —coma decimal con
-  exponente, `"4.685.467,00e0"`— no se leen. Una columna de personas con
-  otro nombre se declara en `columnas_personales`. También es `medio`
-  una columna que trae correos completos sin que sean la mayoría de sus
-  valores: un correo es un correo aunque esté solo, y la columna se
-  protege;
+  reconoce; un nombre GIK todo en minúsculas —`perfchnac`, `pernom`,
+  como lo deja un motor que pliega a minúsculas los identificadores
+  creados sin comillas— no se separa en palabras y no se reconoce, ni la
+  sigla con el número delante pasada por `clean_names()` (`n_c_i`), ni
+  con la `N.` del número detrás (`C.I. N.`, que se lee como una sigla de
+  tres letras), ni `FchNac1`, `PerFchNacim` o `FCHNAC`; `FchFall` o
+  `FchDef` se leen como la fecha de defunción aunque sean la de una
+  falla o una fecha definitiva, y se protegen de más; los códigos con un
+  dígito tras un guion (`"170177-3"`, `"025-082916-3"`, `"10-0123456"`)
+  en una columna calificada se leen como teléfonos y se protegen; una
+  palabra de persona con otra que no es un calificador conocido
+  —`victoria_equipo_socio`— se protege por el nombre, y `dir` es una
+  dirección aunque la columna sea de puntos cardinales; y las escrituras
+  raras de un número —coma decimal con exponente, `"4.685.467,00e0"`— no
+  se leen. Una columna de personas con otro nombre se declara en
+  `columnas_personales`. También es `medio` una columna que trae correos
+  completos sin que sean la mayoría de sus valores: un correo es un
+  correo aunque esté solo, y la columna se protege;
 
 - `alto`: una forma muy específica, como un correo, o nombre y forma se
   apoyan mutuamente; se protege;

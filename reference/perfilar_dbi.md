@@ -527,8 +527,10 @@ vias de salida: resumen SQL, `perfil_muestra` y `bloque_filas`. Se
 omiten los valores de celda -incluidos moda, extremos, medianas,
 centinelas y ejemplos de patrones-, se limpian cobertura y motivos, y no
 se conservan familias de acumuladores ni una muestra cruda en el
-resultado. Los conteos, proporciones y agregados que no son valores de
-celda pueden seguir publicandose. La marca queda registrada como
+resultado. La limpieza recorre también los atributos de cada hoja del
+resultado, incluidos los resúmenes de patrones. Los conteos,
+proporciones y agregados que no son valores de celda pueden seguir
+publicandose. La marca queda registrada como
 `meta$incluir_valores = FALSE` en ambos resultados. Si se omite el
 bloque con `bloque_muestra = "solo_agregados"`, la cobertura usa el
 estado `no_solicitado`: no es un fallo ni se cuenta como una métrica no
@@ -587,22 +589,35 @@ completitud de esa columna se publica —los no nulos se cuentan con una
 expresión que el motor no enmascara—; distintos, moda, extremos, media,
 mediana y desvío quedan `no_disponible` con el motivo, la columna no
 entra en `perfil_muestra` (una fila `alcance_distinto` lo dice) y
-`resumen_tabla$cobertura` la declara. Con `UNMASK` se perfila entera. Si
-la lectura de la muestra falla, la columna que la hace fallar se busca
-por descarte leyendo las MISMAS filas que la muestra con menos columnas
-—un fallo que está en una fila que no es la primera, como el `CAST` de
-un texto sucio en una vista, también se encuentra—; la muestra sale con
-las demás y una fila `alcance_distinto` nombra la culpable. Si una vista
-falla en una fila durante `universo = "muestra_motor"` o `bloque_filas`,
-la vía intenta el mismo resumen SQL sobre la tabla completa: así
-conserva las métricas de las columnas sanas y declara la muestra o el
-recorrido de bloques como `no_disponible`, en vez de convertir todas las
-columnas en `NA`. Si el resumen completo tampoco puede ejecutarse sobre
-la vista, sólo se conservan las métricas que el motor alcanzó a
-contestar y las demás quedan `no_disponible`; la cobertura identifica la
-columna o la consulta que impidió completar el resumen. El nombre de la
-tabla se normaliza antes de la primera llamada a la conexión, también la
-que comprueba que existe: un nombre marcado `latin1` —el que da
+`resumen_tabla$cobertura` la declara. Con `UNMASK` se perfila entera.
+SQL Server tampoco admite `COUNT(DISTINCT)`, `GROUP BY`, `ORDER BY` ni
+`MIN`/`MAX` sobre `text`, `ntext`, `image`, `xml` y `geography`. El
+catálogo reconoce esos tipos antes de armar las consultas: `validos` se
+conserva con la expresión de nulos, mientras `n_distintos` y `moda`
+quedan `no_disponible` con su motivo y no se manda una sentencia que el
+motor rechazaría. Si `orden_muestra` pide una de esas columnas, la
+llamada se rechaza antes de enviar el orden. En una vista SQL Server,
+`universo = "muestra_motor"` usa el límite pseudoaleatorio compatible en
+vez de `TABLESAMPLE`, que sólo acepta tablas locales. Limitación: un
+sinónimo se muestrea como una tabla, y si apunta a una vista el motor
+rechaza el `TABLESAMPLE`: la vía pasa al límite pseudoaleatorio, salvo
+con `XACT_ABORT ON` y una transacción abierta, que el motor deshace; la
+vía lo informa con `lupa_error_transaccion_dbi`. Si la lectura de la
+muestra falla, la columna que la hace fallar se busca por descarte
+leyendo las MISMAS filas que la muestra con menos columnas —un fallo que
+está en una fila que no es la primera, como el `CAST` de un texto sucio
+en una vista, también se encuentra—; la muestra sale con las demás y una
+fila `alcance_distinto` nombra la culpable. Si una vista falla en una
+fila durante `universo = "muestra_motor"` o `bloque_filas`, la vía
+intenta el mismo resumen SQL sobre la tabla completa: así conserva las
+métricas de las columnas sanas y declara la muestra o el recorrido de
+bloques como `no_disponible`, en vez de convertir todas las columnas en
+`NA`. Si el resumen completo tampoco puede ejecutarse sobre la vista,
+sólo se conservan las métricas que el motor alcanzó a contestar y las
+demás quedan `no_disponible`; la cobertura identifica la columna o la
+consulta que impidió completar el resumen. El nombre de la tabla se
+normaliza antes de la primera llamada a la conexión, también la que
+comprueba que existe: un nombre marcado `latin1` —el que da
 `read.csv(encoding = "latin1")`— se convierte a UTF-8 y se lee, y uno
 con bytes que no son UTF-8 válido y no declaran su codificación
 —[`read.csv()`](https://rdrr.io/r/utils/read.table.html) sin

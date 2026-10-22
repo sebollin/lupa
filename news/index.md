@@ -2,6 +2,111 @@
 
 ## lupa 0.1.0
 
+### Ronda 39: solo los altos de las refutaciones sobre la ronda 38
+
+La quinta ronda con el porton acotado al camino principal, y la primera
+que arregla solo lo alto: un hallazgo es alto si ocurre en el uso por
+omision o con datos comunes -una caida de R, un valor ya clasificado
+como personal publicado, un resultado equivocado sin aviso con los
+argumentos por omision o una opcion de uso comun-; una combinacion rara
+es a lo sumo media y queda documentada para despues de esta version. Las
+refutaciones encontraron nueve altos, dos de ellos regresiones de la
+ronda 38 (los faltantes en
+[`comparar_perfiles()`](https://sebollin.github.io/lupa/reference/comparar_perfiles.md)
+y el `char` contra `text` en PostgreSQL). Cada arreglo se midio tambien
+contra las sondas de las rondas 37 y 38, y eso encontro dos regresiones
+del primer arreglo de la via DBI -un sinonimo de SQL Server con
+`muestra_motor` terminaba en un error de R, y el relleno de `char(n)`
+volvia a leerse como dato- que se corrigieron antes de unir.
+
+**La via DBI:**
+
+- En PostgreSQL, una relacion entre un `char(n)` y un `text` con
+  espacios finales ya no se publica cuando el motor no la iguala: se
+  recorta el lado `bpchar` y la contraparte `varchar`, y el `text`
+  conserva su espacio final.
+- En SQL Server, las columnas `text`, `ntext`, `image`, `xml` y
+  `geography` no entran en `COUNT(DISTINCT)`, `GROUP BY`, `ORDER BY` ni
+  `MIN`/`MAX`: sus distintos y su moda quedan `no_disponible` con el
+  motivo, en vez de mandar una consulta que el motor rechaza y que con
+  `XACT_ABORT ON` deshacia la transaccion del usuario. Ordenar la
+  muestra o la coleccion por una de esas columnas es un error de
+  argumento.
+- En SQL Server, `muestra_motor` sobre una vista no usa `TABLESAMPLE`
+  (el motor no lo admite sobre vistas). Un sinonimo se sigue muestreando
+  como una tabla. Limitacion declarada: un sinonimo que apunta a una
+  vista prueba `TABLESAMPLE` y, con `XACT_ABORT ON` y una transaccion
+  abierta, el motor la deshace; la via DBI lo informa con
+  `lupa_error_transaccion_dbi`. Sin `XACT_ABORT ON` pasa al limite
+  pseudoaleatorio.
+
+**Las mediciones:**
+
+- Con `incluir_valores = FALSE`, el redactor recorre todos los atributos
+  de las salidas DBI y de las colecciones: los ejemplos de
+  `resumen_patrones` de la muestra ya no publican valores de celda.
+- [`comparar_perfiles()`](https://sebollin.github.io/lupa/reference/comparar_perfiles.md)
+  entre perfiles DBI de muestra vuelve a comparar la proporcion de
+  faltantes: un cambio de 0 a 100 % se informa. Siguen fuera los
+  extremos, las cardinalidades y los conteos absolutos.
+- En las muestras DBI -tambien con `muestra_motor`-, un `decimal` o
+  `numeric` que el controlador entrega como doble se lee como texto y
+  vuelve como `integer64` cuando la conversion es exacta: un
+  `decimal(18,0)` desde 2^53 ya no da `n_distintos` ni moda falsos, ni
+  `clave_no_unica` o `filas_duplicadas` con severidad de error. Un
+  `numeric(10,2)` sigue siendo un doble. Limitacion declarada: sin
+  `bit64` instalado esas columnas quedan como texto en la muestra.
+
+**La proteccion:**
+
+- **El encabezado `C.I.` es la cedula.** La sigla del documento escrita
+  con un punto tras cada letra -`C.I.`, como se encabeza la cedula en
+  una planilla uruguaya, y `C.I`, `c.i.`, `C. I.`, `Nro. C.I.`,
+  `C.I. Titular`, `D.N.I.`, `R.U.T.`- o con un guion bajo -`c_i`,
+  `nro_c_i`, como los deja `janitor::clean_names()`- se normalizaba con
+  un separador entre las letras (`c_i_`) y no se reconocia: con cedulas
+  sin digito verificador (`"1509704"`, `"4.484.777"`, o un entero) la
+  columna quedaba documento `debil` o sin clasificar y publicaba su
+  minimo y los ejemplos de sus patrones. Ahora la sigla entera, si es
+  una de la lista del documento (`ci`, `dni`, `rut`, `curp`), se junta
+  antes de comparar, y la columna se protege como con `CI` (`alto`).
+  `C.I.I.U.` -la actividad economica-, `C.I.E.` o `S.A.` siguen sin ser
+  documentos. Limitacion declarada: la sigla con el numero delante
+  pasada por `clean_names()` (`n_c_i`) no se reconoce, ni `C.I. N.`, con
+  la `N.` del numero detras.
+- **La fecha de nacimiento y de defuncion de la nomenclatura GIK de
+  GeneXus se reconoce.** `PerFchNac`, `CliFchNac`, `FchNac`, `AfiFchNac`
+  -la categoria fecha abreviada `Fch`-, `FNac`, `PerFchDef` y
+  `PerFchFall` publicaban la moda y los extremos de la fecha de
+  nacimiento o de defuncion en memoria y por la via DBI en PostgreSQL
+  16, 9.3 y SQL Server (por omision, con muestra y por bloques). Ahora
+  `fch_nac`, `fnac`, `fch_def` y `fch_fall` estan en los patrones;
+  `PerFchAlta`, `CliFchIng`, `TrmFch`, `EqpFchFalla`, `OrdFchDefinitiva`
+  y `PerCod` se siguen publicando enteros. Limitaciones declaradas: un
+  nombre GIK todo en minusculas (`perfchnac`, `pernom`) no se separa en
+  palabras, y `FchNac1`, `PerFchNacim` o `FCHNAC` no se reconocen;
+  `FchFall` o `FchDef` que sean la fecha de una falla o una fecha
+  definitiva se protegen de mas.
+- **El login con la inicial `a`, `o` o `u` pegada es un login.** En la
+  regla de quien actua, `usuario_alta` o `funcionario_baja` con
+  `a_perez | j_gonzalez | o_silva`, o con `a-perez`, leia la inicial
+  como la preposicion o la conjuncion y contaba el login como un estado:
+  con un quinto de los nombres de pila que empiezan asi, la columna no
+  llegaba al 80 % y publicaba la moda y los ejemplos de todos en un
+  tercio de las tablas, en memoria, por la via DBI en los tres motores y
+  por las colecciones. Ahora la letra sola pegada a una palabra por un
+  guion bajo, un guion o un punto, delante o detras (`a_perez`,
+  `a-perez`, `perez_a`, `perez.a`, `PEREZ.A`), es una inicial; los
+  estados con guion bajo (`sin_baja`, `baja_definitiva`) se siguen
+  publicando. Limitacion declarada: una columna de quien actua hecha de
+  categorias con una letra pegada (`tipo_a`, `grupo-o`) se protege de
+  mas.
+
+**Las pruebas:**
+
+- Tres pruebas nuevas (O178, O179, O180) fijan los nueve altos, con sus
+  caras 2.
+
 ### Ronda 38: la via DBI, las mediciones y la proteccion, refutadas sobre la ronda 37
 
 La cuarta ronda con el porton acotado al camino principal, y la que

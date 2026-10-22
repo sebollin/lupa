@@ -1808,9 +1808,18 @@ también abreviada como se la escribe en una base —<code>tel</code>, <code>tel
 <code>cel</code>, <code>dir</code>, <code>domic</code>, <code>nom</code>, <code>ape</code>, <code>doc</code>, <code>ced</code>, <code>e_mail</code>—, en plural
 —también la abreviatura: <code>tels</code>, <code>cels</code>, <code>fonos</code>, <code>noms</code>, <code>dirs</code>—, con un
 número pegado (<code>telefono2</code>, <code>apellido1</code>), en camelCase (<code>NombreCliente</code>,
-<code>nroDoc</code>) y en las formas pegadas de los sistemas heredados, enumeradas
-(<code>nrotel</code>, <code>TELCEL</code>, <code>nomape</code>, <code>NOMBRECOMPLETO</code>, <code>nrodoc</code>, <code>dirpart</code>);
-<code>mov</code> no, que es también un movimiento.
+<code>nroDoc</code>), en las formas pegadas de los sistemas heredados, enumeradas
+(<code>nrotel</code>, <code>TELCEL</code>, <code>nomape</code>, <code>NOMBRECOMPLETO</code>, <code>nrodoc</code>, <code>dirpart</code>), y
+en la nomenclatura GIK de GeneXus, con la fecha abreviada <code>Fch</code>
+(<code>PerFchNac</code>, <code>CliFchNac</code>, <code>FchNac</code>, <code>PerFchDef</code>, <code>PerFchFall</code>; también
+<code>FNac</code>); <code>mov</code> no, que es también un movimiento, ni <code>FchFalla</code> o
+<code>FchDefinitiva</code>, que son otras fechas. La sigla del documento vale
+también escrita con un punto o un guion bajo tras cada letra, entera
+—<code>C.I.</code>, como se encabeza la cédula en una planilla, <code>C.I</code>, <code>C. I.</code>,
+<code>Nro. C.I.</code>, <code>C.I. Titular</code>, <code>D.N.I.</code>, y <code>c_i</code> o <code>nro_c_i</code>, como los deja
+<code>janitor::clean_names()</code>—: con <code>C.I.</code>, como con <code>CI</code>, las cédulas sin
+dígito verificador se protegen. <code>C.I.I.U.</code>, la actividad económica, no es
+un documento.
 Una palabra de nombre
 —<code>nombre</code>, <code>apellido</code>— la expresa en cualquier lugar del nombre:
 <code>nombre_cliente</code> es un nombre, y también <code>nombre_jefe_grupo</code> o
@@ -1897,7 +1906,10 @@ categoría —<code>Pilar</code>, <code>Marco</code>, <code>Norma</code>, <code>
 <code>"Convenio Marco"</code>). Y la palabra de quien actúa en el registro
 —<code>usuario</code>, <code>funcionario</code>, <code>responsable</code>, <code>solicitante</code>— con una de
 auditoría —<code>alta</code>, <code>baja</code>— dice quién dio el alta o la baja: ahí basta un
-texto que no sea una fecha ni un estado —un login <code>"jperez"</code>, un
+texto que no sea una fecha ni un estado —un login <code>"jperez"</code>, también
+con la inicial pegada por un guion bajo, un guion o un punto, delante o
+detrás (<code>"a_perez"</code>, <code>"o-silva"</code>, <code>"perez.a"</code>: la <code>a</code>, la <code>o</code> o la <code>u</code>
+pegadas son una inicial, no la preposición ni la conjunción), un
 apellido solo, <code>"A. Rodriguez"</code>; no <code>"Sin baja"</code>, <code>"Baja definitiva"</code> ni
 un estado o un motivo de una lista cerrada —<code>"Cancelada"</code>, <code>"Rechazada"</code>,
 <code>"Renuncia"</code>, <code>"Jubilacion"</code>, <code>"Despido"</code>, <code>"Fallecimiento"</code>,
@@ -1928,7 +1940,15 @@ tiene un grupo que empieza con <code>00</code> (<code>"2400-0010"</code>) como u
 rellenado, y no cuentan para el 80 % de la columna; con
 <code>check.names = TRUE</code> bajo <code>C</code>, R cambia la letra con tilde de un
 encabezado de Windows por un punto (<code>Direcci.n</code>) y ese nombre no se
-reconoce; los códigos con un dígito tras un guion (<code>"170177-3"</code>,
+reconoce; un nombre GIK todo en minúsculas —<code>perfchnac</code>, <code>pernom</code>, como
+lo deja un motor que pliega a minúsculas los identificadores creados sin
+comillas— no se separa en palabras y no se reconoce, ni la sigla con el
+número delante pasada por <code>clean_names()</code> (<code>n_c_i</code>), ni con la <code>N.</code> del
+número detrás (<code>C.I. N.</code>, que se lee como una sigla de tres letras), ni
+<code>FchNac1</code>, <code>PerFchNacim</code> o <code>FCHNAC</code>; <code>FchFall</code> o
+<code>FchDef</code> se leen como la fecha de defunción aunque sean la de una falla o
+una fecha definitiva, y se protegen de más; los códigos con un
+dígito tras un guion (<code>"170177-3"</code>,
 <code>"025-082916-3"</code>, <code>"10-0123456"</code>) en una columna calificada se leen como
 teléfonos y se protegen; una palabra de persona
 con otra que no es un calificador conocido —<code>victoria_equipo_socio</code>— se

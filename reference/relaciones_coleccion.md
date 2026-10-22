@@ -178,9 +178,11 @@ motor. Así, una clave `char` y su contraparte `varchar` se comparan por
 el valor lógico que el motor iguala, no por los espacios que entrega
 DBI. En SQL Server la misma regla alcanza a los pares de texto `varchar`
 contra `varchar`, porque su cotejamiento ignora los espacios finales. En
-PostgreSQL no se recortan todas las columnas de texto: sólo se normaliza
-el par que tiene una columna de ancho fijo, para conservar la diferencia
-entre dos `varchar` con y sin relleno cuando el motor sí la distingue.
+PostgreSQL no se recortan todas las columnas de texto: se normaliza el
+lado `bpchar` y la contraparte `varchar` que el motor compara con él,
+pero un `text` conserva su espacio final porque PostgreSQL lo distingue.
+Así la relación publicada sigue la igualdad del motor, no una igualdad
+de cadenas recortadas.
 
 Si una lectura conjunta falla en una fila, la colección aísla por
 descarte las columnas culpables y deja sus nombres en `cobertura_podas`
