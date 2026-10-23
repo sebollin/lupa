@@ -163,10 +163,9 @@ test_that("la senal cuenta como el resto bajo muestreo y sobrevive al viaje", {
 
 # La primera version de este diagnostico afirmaba, en el `.Rd` y en NEWS, que
 # "no hay magnitud real a esa escala" y lo marcaba como `error`. Es falso: una
-# probabilidad de cola calculada cae legitimamente en el rango subnormal, y el
-# refutador lo encontro atacando este mismo arreglo. El hallazgo se conserva
-# -sigue detectando el caso que lo motivo- pero dice lo que midio y no lo que
-# supone.
+# probabilidad de cola calculada cae legitimamente en el rango subnormal. El
+# hallazgo se conserva -sigue detectando el caso que lo motivo- pero dice lo que
+# midio y no lo que supone.
 test_that("el diagnostico no afirma el origen de los valores subnormales", {
   # `2^-1050` da 8,3e-317: aritmetica IEEE pura, subnormal, y el mismo valor en
   # cualquier version de R. La primera version de este test usaba `pnorm(-38)`,

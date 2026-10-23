@@ -25,7 +25,7 @@ if (length(.archivo) != 1L) {
   ambiente$skip_if_not_installed <- function(...) invisible(NULL)
   ambiente$skip_on_cran <- function(...) invisible(NULL)
   ambiente$skip_on_ci <- function(...) invisible(NULL)
-  sys.source(file.path(ruta, "tests", "testthat", "test-ronda107.R"),
+  sys.source(file.path(ruta, "tests", "testthat", "test-regresion-107.R"),
              envir = ambiente)
   ambiente$.tablas_limpias_r107()
 }

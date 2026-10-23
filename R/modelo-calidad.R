@@ -17,7 +17,7 @@
   }
   # Un instante con todas sus cifras y sin `digits.secs`: con la opcion en 6 la
   # misma `fecha_acceso` se leia como un cambio de modelo, y con el valor por
-  # omision dos que difieren en medio segundo se escribian igual (ronda 32-S).
+  # omision dos que difieren en medio segundo se escribian igual.
   # La forma compacta es la que se guardaba: lo guardado sin fraccion aparea.
   if (inherits(x, "POSIXt")) {
     return(paste0(
@@ -782,7 +782,7 @@ instanciar <- function(metrica_especifica, entidad, atributos = character(),
   # con un encabezado vacio-. `perfilar()` la perfila con ese nombre y
   # `proponer_modelo()` la propone con ese nombre; exigir aca un nombre no vacio
   # hacia abortar `analizar()` entero con un mensaje sobre un argumento que
-  # nadie paso (medido en la ronda 30). Un nombre que la tabla no tiene no se
+  # nadie paso (medido). Un nombre que la tabla no tiene no se
   # rechaza aca: `medir()` declara la metrica `no_medible` con el atributo que
   # no encontro, igual que con cualquier otro nombre.
   if (!is.character(atributos)) {
@@ -1113,7 +1113,7 @@ modelo <- function(..., marco = NULL) {
 # ("100000") y un doble por la coercion interna ("1e+05"), asi que el centinela
 # `1e5` no se encontraba en una columna `integer64` y NoNulo publicaba como
 # presentes las ausencias disfrazadas; y una columna `haven_labelled` igualaba
-# `0.1 + 0.2` con `0.3`. Medido en la ronda 22.
+# `0.1 + 0.2` con `0.3`. Medido.
 .en_conjunto_por_valor <- function(x, conjunto) {
   .texto_identidad(.valores_relacion(x)) %in%
     .texto_identidad(.valores_relacion(conjunto))
@@ -1144,7 +1144,7 @@ modelo <- function(..., marco = NULL) {
 # `opcional = TRUE` -la declaracion de `columnas_opcionales` que
 # `proponer_modelo()` le pasa a `NoNulo`- recorta ademas a las celdas presentes
 # de los atributos: es el universo de completitud que el perfil usa para esa
-# columna (refutacion 33-D). Va aca, y no en el metodo, para que las dos
+# columna. Va aca, y no en el metodo, para que las dos
 # preguntas sigan contestandose con el mismo universo.
 .mascara_aplicable_instancia <- function(tabla, instancia,
                                          entidad = instancia$entidad[[1L]]) {
@@ -1387,7 +1387,7 @@ modelo <- function(..., marco = NULL) {
   }
   # Un valor infinito no se descarta en silencio: `sd()` de lo que queda es la
   # dispersion de otra columna, y Escala, sobre la misma columna y en la misma
-  # corrida, ya se declaraba no medible por lo mismo. Medido en la ronda 22: se
+  # corrida, ya se declaraba no medible por lo mismo. Medido: se
   # publicaba 0,7071 -la de 1 y 2- sobre 1, 2 e `Inf`.
   valores <- x[!is.na(x)]
   if (any(!is.finite(valores))) {
@@ -1544,7 +1544,7 @@ metricas_nucleo <- function() {
 # paquete se daban por traducidos, y solo cuatro de once lo estaban: con
 # `aplicabilidad`, ocho metricas publicaban la fila del recorte -"t$x[3]" donde
 # habian medido la 6- y el plan de desenlaces mandaba suprimir otra celda.
-# Medido en la ronda 22.
+# Medido.
 .metodo_del_paquete <- function(metodo) {
   is.function(metodo) &&
     identical(topenv(environment(metodo)), asNamespace("lupa"))
@@ -1558,7 +1558,7 @@ metricas_nucleo <- function() {
 # lo que hacen los metodos del paquete, y es lo que `alcance_medidas` afirma al
 # contar "midio 4 de 5 en el universo aplicable". Un metodo propio que medía
 # tambien filas de afuera publicaba esas medidas, las metia en el agregado y el
-# alcance las contaba como de adentro: medido en una refutacion, "4 de 5" cuando
+# alcance las contaba como de adentro: medido, "4 de 5" cuando
 # adentro se habian medido 3. Es una salida que no cumple el contrato, igual que
 # una `fila` que no existe, y deja la metrica `no_medible` con el motivo. Se
 # verifica en la tabla que RECIBIO el metodo, antes de traducir las posiciones a
@@ -1687,9 +1687,9 @@ metricas_nucleo <- function() {
 }
 
 # El motivo de `no_medible` trae el mensaje del METODO, que puede incluir un valor
-# de la tabla -`stop(sprintf("valor invalido: %s", x))` es practica comun-. Antes
-# de esta ronda ese mensaje iba solo a la consola de quien corria; ahora es un
-# dato publicado -atributo, impresion, historico, informe- y tiene que pasar por
+# de la tabla -`stop(sprintf("valor invalido: %s", x))` es practica comun-. Ese
+# mensaje no se queda en la consola de quien corre: es un dato publicado
+# -atributo, impresion, historico, informe- y tiene que pasar por
 # la misma proteccion que todo lo demas.
 .proteger_motivo_no_medible <- function(motivo, tablas, declaradas, validadores) {
   valores <- character()
@@ -2077,7 +2077,7 @@ metricas_nucleo <- function() {
 }
 
 # `format(%OS6)` escribe la fraccion con la marca de `LC_NUMERIC`: con coma el
-# id decia `T100005,250000` (ronda 33-X). Se escribe con punto en cualquier
+# id decia `T100005,250000`. Se escribe con punto en cualquier
 # sesion, como la configuracion.
 .nuevo_id_medicion <- function(fecha) {
   paste0(
@@ -2088,10 +2088,10 @@ metricas_nucleo <- function() {
 
 # El `id_medida` lleva escrita su metrica instanciada y se numera DENTRO de ella.
 # Se numeraba en la llamada -`M-000001`, `M-000002`-, y una corrida armada por
-# partes con el mismo `id_medicion`, que `rbind()` une desde la ronda 22, repetia
+# partes con el mismo `id_medicion`, que `rbind()` une, repetia
 # los identificadores: `evaluar()` y `historico_calidad()` la rechazaban como una
 # medicion unida consigo misma. La misma metrica medida dos veces en la corrida
-# sigue repitiendo, que es lo que esas guardas buscan. Medido en la ronda 23.
+# sigue repitiendo, que es lo que esas guardas buscan. Medido.
 .ids_medida <- function(id_medicion, metrica_instanciada, prefijo = "") {
   if (!length(metrica_instanciada)) return(character())
   clave <- as.character(metrica_instanciada)
@@ -2224,7 +2224,7 @@ metricas_nucleo <- function() {
   # TODOS los atributos de la instancia, con `[[` exacto. `instancia$atributo`
   # casaba por coincidencia parcial con `atributos` y tomaba solo el primero: en
   # una metrica de varias columnas el universo dependia del orden -DensidadPonderada
-  # con c("a", "b") media 5 filas y con c("b", "a"), 2-. Medido en la ronda 22. La
+  # con c("a", "b") media 5 filas y con c("b", "a"), 2-. Medido. La
   # medida de varias columnas se toma donde corresponden todas.
   atributos <- as.character(unlist(instancia[["atributos"]]))
   atributos <- atributos[!is.na(atributos) & nzchar(atributos)]
@@ -2382,7 +2382,7 @@ medir <- function(modelo, datos, id_medicion = NULL, fecha = Sys.time(),
   fecha_declarada <- !missing(fecha)
   # Por `.fecha_utc()`, como el historico: una fecha de TEXTO se leia en el huso
   # de la sesion, y la misma llamada medía a las 03:00 UTC en una maquina y a las
-  # 00:00 en otra. Medido en la ronda 22.
+  # 00:00 en otra. Medido.
   fecha <- .fecha_argumento_utc(fecha)
   .validar_bandera_proteccion(proteger_datos_personales)
   # El lexico por omision no puede conocer lo que solo el usuario sabe. Se
@@ -2545,10 +2545,10 @@ medir <- function(modelo, datos, id_medicion = NULL, fecha = Sys.time(),
   partes <- lapply(partes, `[[`, "salida")
   # Sin nombres: `partes` viene nombrada por las instancias, y con esos nombres
   # `do.call()` arma los de los argumentos y `rbind()` los de las filas -que se
-  # tiran en la linea siguiente-. Dos defectos de la ronda 32: R no admite un
+  # tiran en la linea siguiente-. Dos defectos: R no admite un
   # nombre de argumento de mas de 10.000 bytes, y una columna con un nombre asi
   # abortaba `medir()`; y `rbind()` traduce los nombres al nativo, asi que bajo
-  # `C` un id con acento (`NoNulo:a\u00f1o`, desde la decision D3) avisaba "unable
+  # `C` un id con acento (`NoNulo:a\u00f1o`) avisaba "unable
   # to translate" en cada medicion y abortaba con `warn = 2`.
   resultado <- do.call(rbind, unname(partes))
   rownames(resultado) <- NULL

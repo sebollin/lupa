@@ -58,7 +58,7 @@
   # Lo declarado se protege aunque el lexico no lo reconozca.
   protege <- protege | .nombres_presentes(names(datos), names(declaradas))
   # Y la columna que copia los documentos protegidos sin su verificador, con la
-  # misma regla que `perfilar()` (`.copias_sin_verificador()`). Ronda 34.
+  # misma regla que `perfilar()` (`.copias_sin_verificador()`).
   copias <- tryCatch(
     .copias_sin_verificador(datos, names(datos)[protege], names(datos)[!protege]),
     error = function(e) NULL
@@ -106,8 +106,8 @@
 # -`aplicabilidad`, `columnas_opcionales` y `sentinelas_numericos`-, gobierna
 # tambien sus distribuciones. Sin esto el mismo objeto publicaba dos maximos:
 # el perfil 60 y `$distribuciones` 999 con `-999`/`999` declarados, 20000
-# contra 999999 con un universo declarado, y 3 marcas distintas contra 4
-# (ronda 31). No se escribe ninguna regla nueva: las mascaras salen de
+# contra 999999 con un universo declarado, y 3 marcas distintas contra 4.
+# No se escribe ninguna regla nueva: las mascaras salen de
 # `.resolver_aplicabilidad()` sobre la misma entrada que ve `perfilar()`, y los
 # centinelas declarados de `.sentinelas_numericos_declarados()` dentro de
 # `.universo_del_resumen()`.
@@ -181,7 +181,7 @@
   }
   textos <- .valores_relacion(valores)
   # `.valores_relacion()` compara los bytes invalidos sin declarar por sus bytes
-  # -ronda 25: como `NA` casaban entre si en relaciones y referencial-, pero
+  # -como `NA` casaban entre si en relaciones y referencial-, pero
   # esta tabla los PUBLICA, y un byte suelto no es texto que se pueda escribir
   # en el reporte. Aca se siguen descartando, y se cuentan abajo.
   #
@@ -190,7 +190,7 @@
   # `as.character()` escribe 15 cifras. La tabla agrupaba por esa escritura:
   # `0.1 + 0.2` y `0.3` salian un solo valor con frecuencia 3, y `1e15` y
   # `1e15 + 1`, uno con 2, mientras `perfilar()` contaba bien sobre los mismos
-  # datos. Medido en la ronda 27. Un `NA` logico conserva el tipo de la clave, y
+  # datos. Medido. Un `NA` logico conserva el tipo de la clave, y
   # los dobles se agrupan por valor.
   textos[.texto_analizable(valores)$invalidos] <- NA
   # Cuantos se perdieron aca, ANTES de descartarlos. Lo que no se puede
@@ -227,11 +227,11 @@
   # publicaban "0.3". Son 15 cifras cuando alcanzan, que es casi siempre.
   # Una duracion tambien, por su numero en la unidad de la columna: con
   # `as.character()` la etiqueta seguia a `OutDec`, `LC_NUMERIC` y `scipen`
-  # -`1,5` o `1.5e+00`- (ronda 32-S).
+  # -`1,5` o `1.5e+00`-.
   validos <- valores[!is.na(textos)]
   publicables <- if (inherits(validos, "POSIXt")) {
     # Un instante, en UTC y con su rotulo, como el resto del paquete: con
-    # `as.character()` salia en la hora de la sesion y sin zona (ronda 31-S).
+    # `as.character()` salia en la hora de la sesion y sin zona.
     .texto_instante_utc(validos)
   } else if (inherits(validos, "difftime")) {
     .etiqueta_numero_reversible(as.double(unclass(validos)))
@@ -262,7 +262,7 @@
   # a, c` publicaba `b` y la misma tabla reordenada, `a`, con `perfilar()`
   # diciendo `a` en los dos-. Es el desempate de la moda, `.moda_de_mapa()`:
   # el texto por sus bytes y lo demas por `.orden_seguro()`, que ordena los
-  # numeros como numeros. Medido en la ronda 27.
+  # numeros como numeros. Medido.
   originales <- validos[primeros]
   if (is.factor(originales)) originales <- as.character(originales)
   posicion_valor <- integer(length(originales))
@@ -386,7 +386,7 @@ distribucion_valores <- function(datos, perfil = NULL, max_valores = 20L,
   # La misma entrada que el perfil: un `POSIXlt` es el instante de su
   # `POSIXct` y un nivel `NA` de un factor es un faltante. El `POSIXlt` salia
   # `tipo_no_comparable`, con 0 analizados, donde `perfilar()`, `inferir_tipo()`
-  # y `medir()` leian 7 presentes y 4 distintos (ronda 31). Ver
+  # y `medir()` leian 7 presentes y 4 distintos. Ver
   # `.normalizar_columnas_entrada()`.
   datos <- .normalizar_columnas_entrada(datos)
   max_valores <- .validar_entero_positivo(max_valores, "max_valores")
@@ -493,7 +493,7 @@ distribucion_valores <- function(datos, perfil = NULL, max_valores = 20L,
           # Una columna que el perfil declaro en `columnas_codigo` publica sus
           # extremos -el tramo de codigos, como `minimo` y `maximo` del perfil-
           # y no sus cuantiles intermedios, que el perfil tampoco publica:
-          # la mediana de unos codigos no es un dato (decision D2, ronda 32).
+          # la mediana de unos codigos no es un dato.
           if (!protegida && .nombres_para_operar(nombre) %in% codigos) {
             interior <- probabilidades > 0 & probabilidades < 1
             valor_q[interior] <- NA_real_
@@ -585,7 +585,7 @@ distribucion_valores <- function(datos, perfil = NULL, max_valores = 20L,
   # comparar: eta cuadrado no esta definida, como Cramer con una sola fila o
   # columna -que ya devolvia `NA`-. Devolvia 0 y el par se publicaba como "no
   # hay asociacion", o desaparecia bajo el umbral, cuando no se habia podido
-  # medir. Medido en la ronda 27: la misma situacion daba `eta2 = 0` publicado
+  # medir. Medido: la misma situacion daba `eta2 = 0` publicado
   # y, con dos categoricas, un par omitido y declarado.
   if (length(grupos) < 2L) return(NA_real_)
   entre <- sum(vapply(grupos, function(x) length(x) * (mean(x) - media)^2,
@@ -869,7 +869,7 @@ detectar_asociaciones <- function(datos, dependencias = NULL, umbral = 0.3,
   # lo unico que cambiaba era si se decia. Y `perfilar()` sobre esa misma tabla
   # ya declaraba los 50, asi que las dos salidas del paquete se contradecian.
   # Declarado antes del recorte, y lo que no es UTF-8 valido no es una fecha en
-  # ninguna sesion (`.texto_legible_recortado()`, ronda 30-L).
+  # ninguna sesion (`.texto_legible_recortado()`).
   valores <- .texto_legible_recortado(x)
   # Un blanco es un valor PRESENTE que no llego a fecha, igual que un texto
   # ilegible: `trimws()` lo deja en `""` y el `nzchar()` lo descartaba de la
@@ -1177,7 +1177,7 @@ analizar_tiempo <- function(datos, perfil = NULL, columnas = NULL,
   # Sin perfil, la misma clasificacion rapida que `clasificar_variables()`:
   # antes no habia "declaracion que leer" y el resumen publicaba el minimo y el
   # maximo de una `fecha_nacimiento` que `perfilar()` protege por su nombre
-  # sobre la misma tabla. Medido en la ronda 26.
+  # sobre la misma tabla. Medido.
   protegidas <- if (!proteger_datos_personales) {
     character()
   } else if (!is.null(perfil)) {

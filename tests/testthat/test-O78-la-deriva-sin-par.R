@@ -4,13 +4,9 @@
 # `detectar_deriva_calidad()` sobre un historico de UNA sola medicion devolvia cero
 # filas y ningun atributo -ni uno-, y el informe imprimia la seccion con "No hay
 # registros para mostrar." sin decir en ninguna parte que no habia par que comparar.
-# Salio de leer los descartes de una refutacion, que lo habia anotado como
-# "observacion menor, no acusada" con el motivo de que el objeto no traia ningun
-# motivo publicable: eso describia el defecto, no lo excusaba.
 
-# Regresion de una ronda de refutacion: corre en la suite completa, en el CI y en
-# R-hub, que usan NOT_CRAN=true; en CRAN se saltea para que el check entre en sus
-# tiempos (medicion del 2026-10-23).
+# Prueba de regresion: corre en la suite completa, en el CI y en R-hub, que usan
+# NOT_CRAN=true; en CRAN se saltea para que el check entre en sus tiempos.
 testthat::skip_on_cran()
 
 deriva_o78 <- function(n_mediciones, nivel = "perfil") {

@@ -2,7 +2,7 @@
 # medía, y el mensaje decía que faltaba implementarla. Lo que faltaba era el
 # objeto: nadie le decía a `lupa` qué tablas la componen.
 #
-# Las pruebas siguen los criterios que salieron de refutar el diseño contra
+# Las pruebas siguen los criterios que salieron de contrastar el diseño con
 # bases reales de más de mil tablas: frontera declarada, esquema como parte de
 # la identidad, permisos parciales como caso normal, muestreo por tabla, y
 # ninguna lectura instantánea.
@@ -160,10 +160,10 @@ test_that("una colección mal declarada se rechaza", {
 
 # --- Agregar al nivel de colección ---------------------------------------
 #
-# El hallazgo central de refutar este diseño: un número sobre «la colección»
-# calculado sólo con las tablas que se pudieron medir informa como medido lo que
-# no se midió. El peso de la tabla ausente desaparece en vez de manifestar la
-# falta de cobertura. Por eso la cobertura viaja pegada al número.
+# El punto central del diseño: un número sobre «la colección» calculado sólo con
+# las tablas que se pudieron medir informa como medido lo que no se midió. El
+# peso de la tabla ausente desaparece en vez de manifestar la falta de
+# cobertura. Por eso la cobertura viaja pegada al número.
 
 .medicion_de_dos_tablas <- function() {
   nucleo <- metricas_nucleo()
@@ -359,7 +359,7 @@ test_that("un par que no se pudo leer se declara en vez de desaparecer", {
   expect_true(nzchar(resultado$cobertura_pares$motivo))
 })
 
-# --- Los tres defectos que encontró la auditoría cruzada ------------------
+# --- Entidades, esquemas y nombres compuestos -----------------------------
 
 test_that("un número de colección no puede mezclar entidades ajenas", {
   con <- .con_de_prueba()
@@ -429,12 +429,12 @@ test_that("una tabla con esquema se cita como identificador compuesto", {
 })
 
 test_that("un resultado malformado no se lleva puesta toda la colección", {
-  # Lo encontró la refutación externa. `perfilar_dbi()` puede no fallar y aun
-  # así devolver algo con otra forma —otra versión del paquete, un objeto a
-  # medio construir—. Si el error al leer sus piezas escapa del `tryCatch`,
-  # rompe el bucle y se pierden **todas** las tablas ya perfiladas: el usuario
-  # se queda sin resumen y sin cobertura. Un silencio total es el peor
-  # resultado posible para este paquete.
+  # `perfilar_dbi()` puede no fallar y aun así devolver algo con otra forma
+  # —otra versión del paquete, un objeto a medio construir—. Si el error al
+  # leer sus piezas escapa del `tryCatch`, rompe el bucle y se pierden
+  # **todas** las tablas ya perfiladas: el usuario se queda sin resumen y sin
+  # cobertura. Un silencio total es el peor resultado posible para este
+  # paquete.
   con <- .con_de_prueba()
   on.exit(DBI::dbDisconnect(con), add = TRUE)
   DBI::dbWriteTable(con, "tercera", data.frame(z = 1:5))

@@ -8,9 +8,8 @@
 # publicaba el delta de ese par dos secciones mas abajo, sin marca. Ahora el delta
 # sale de la deriva.
 
-# Regresion de una ronda de refutacion: corre en la suite completa, en el CI y en
-# R-hub, que usan NOT_CRAN=true; en CRAN se saltea para que el check entre en sus
-# tiempos (medicion del 2026-10-23).
+# Prueba de regresion: corre en la suite completa, en el CI y en R-hub, que usan
+# NOT_CRAN=true; en CRAN se saltea para que el check entre en sus tiempos.
 testthat::skip_on_cran()
 
 .o88_historico <- function(marcos) {
@@ -68,8 +67,8 @@ test_that("el informe entero dice lo mismo que su seccion de deriva", {
   on.exit(unlink(archivo), add = TRUE)
   reportar(historico, detectar_deriva_calidad(historico), archivo = archivo)
   html <- paste(readLines(archivo, warn = FALSE, encoding = "UTF-8"), collapse = "")
-  # Con todas sus cifras: el informe ya no redondea a ocho. Y desde la ronda 26,
-  # con las que vuelven al valor: 1 - 1/3 necesita dieciseis -con quince,
+  # Con todas sus cifras: el informe ya no redondea a ocho. Y con las que
+  # vuelven al valor: 1 - 1/3 necesita dieciseis -con quince,
   # 0.666666666666667, no es el doble del objeto-.
   expect_false(grepl("-0.6666666666666667", html, fixed = TRUE))
   expect_true(grepl("0.6666666666666667", html, fixed = TRUE))

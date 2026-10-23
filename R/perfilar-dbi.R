@@ -38,7 +38,7 @@
 
 # Un argumento malo de la via DBI que valida un ayudante comun -`.elegir_opcion()`,
 # la bandera de proteccion, los topes de la muestra- salia como `simpleError`, sin
-# la clase que promete `?perfilar_dbi` (ronda 33-X: 44 combinaciones de nueve
+# la clase que promete `?perfilar_dbi` (medido en 44 combinaciones de nueve
 # argumentos y la bandera por `...`). El mismo mensaje, con
 # `lupa_error_argumento_dbi`; una condicion que ya es de la via pasa como esta.
 .argumento_dbi <- function(expr) {
@@ -52,7 +52,7 @@
 #
 # odbc pasa el texto de la consulta por la codificacion NATIVA de la sesion
 # antes de mandarlo, y bajo el locale `C` -el de un `Rscript` de cron en Linux-
-# lo nativo es ASCII. Medido en la ronda 33-X con SQL Server (FreeTDS) y una
+# lo nativo es ASCII. Medido con SQL Server (FreeTDS) y una
 # columna `a\u00f1o`: con los bytes UTF-8 sin marca que devuelve
 # `dbListFields()`, la conversion falla, odbc manda el texto "NA" ("Could not
 # find stored procedure 'NA'") y deja la conexion con un resultado a medio
@@ -71,8 +71,8 @@
 # Y bajo un locale UTF-8 lo nativo es UTF-8, pero no todo texto lo es: unos bytes
 # latin1 sin marca -los de `read.csv()` sin `fileEncoding` sobre una planilla
 # exportada en Windows- no son UTF-8 valido, odbc los convierte "desde el
-# nativo", la conversion falla igual, y la conexion queda igual de rota (ronda
-# 34-X: la consulta siguiente del usuario, violacion de segmento). Antes esta
+# nativo", la conversion falla igual, y la conexion queda igual de rota (la
+# consulta siguiente del usuario, violacion de segmento). Antes esta
 # guarda contestaba TRUE a todo bajo UTF-8 sin mirar los bytes.
 .sentencia_representable_dbi <- function(conexion, sql) {
   if (!inherits(conexion, "OdbcConnection")) return(TRUE)
@@ -133,7 +133,7 @@
 # convertirlo: odbc le manda los bytes tal cual a `SQLTables()`. Un nombre
 # marcado latin1 -lo que da `read.csv(encoding = "latin1")`- dejaba asi la
 # conexion rota ANTES de cualquier consulta, y la siguiente del usuario hacia
-# caer a R (ronda 34-X, SQL Server por FreeTDS bajo C.UTF-8). Y bajo `C`
+# caer a R (medido con SQL Server por FreeTDS bajo C.UTF-8). Y bajo `C`
 # `dbQuoteIdentifier()` escapaba ese nombre a `a<f1>o`, texto ASCII que la
 # guarda dejaba pasar: otro identificador. `coleccion()` no tenia el problema
 # porque normalizaba el nombre al partirlo.
@@ -228,7 +228,7 @@
 
 # ---- Las columnas de la tabla y cuales puede leer la credencial ----------
 #
-# Ronda 35-X. `dbListFields()` contesta una pregunta distinta en cada motor, y
+# `dbListFields()` contesta una pregunta distinta en cada motor, y
 # ninguno contesta la que hace falta -que columnas tiene la tabla y cuales puede
 # leer esta credencial-:
 #
@@ -508,8 +508,8 @@
 }
 
 # Las columnas que el esquema no pudo leer, declaradas en la cobertura: la via SQL
-# y la via por bloques usan la misma (ronda 33-X: la de bloques las dejaba fuera
-# del resumen sin decirlo).
+# y la via por bloques usan la misma (con una propia, la de bloques las dejaba
+# fuera del resumen sin decirlo).
 .cobertura_ilegibles_dbi <- function(esquema) {
   cobertura <- .cobertura_dbi_vacia()
   for (campo in esquema$ilegibles) {
@@ -695,7 +695,7 @@
 #
 # Con odbc la consulta se ejecuta sin preparar (`immediate = TRUE`), como la
 # ejecuta el propio `dbGetQuery()` de odbc cuando no hay parametros. Medido con
-# odbc 1.7.0 + FreeTDS (ronda 35-X): una consulta PREPARADA que SQL Server
+# odbc 1.7.0 + FreeTDS: una consulta PREPARADA que SQL Server
 # rechaza por un permiso de columna deja la conexion rota, y la siguiente hace
 # caer a R (violacion de segmento); la misma consulta sin preparar falla con su
 # error y la conexion sigue. Los datos y `dbColumnInfo()` son los mismos con las
@@ -798,8 +798,8 @@
 # no forman UTF-8 valido" sobre una base que no tiene ninguno, sacaba esos
 # valores de los analisis de texto, y `relaciones_coleccion()` perdia
 # `nombre -> departamento` (200 de 200 en el motor) porque comparaba por bytes
-# un `nvarchar` en UTF-8 con un `varchar` en latin1 (ronda 35-X, A2, SQL Server
-# con cotejamiento latin1). La ronda 34 cerro lo mismo para los nombres.
+# un `nvarchar` en UTF-8 con un `varchar` en latin1 (medido en SQL Server
+# con cotejamiento latin1). Lo mismo vale para los nombres.
 #
 # Un valor de odbc marcado `UTF-8` que no es UTF-8 valido es el controlador
 # diciendo mal en que codificacion lo entrega: un `varchar` latin1 no guarda
@@ -1042,7 +1042,7 @@
 # `perfilar_coleccion()` no perfilaba ninguna, y la conexion del usuario quedaba
 # inservible hasta su `ROLLBACK` -que se llevaba lo que hubiera hecho en ella-.
 # Es lo que el propio paquete recomienda para una lectura consistente
-# ("repetir bajo una transaccion"; ronda 35-X, A5, en PostgreSQL 16 y 9.3).
+# ("repetir bajo una transaccion"; medido en PostgreSQL 16 y 9.3).
 #
 # La regla, una para toda consulta y por construccion: con una transaccion
 # abierta en un motor que la aborta, cada sentencia de la via va entre un
@@ -1223,7 +1223,7 @@
 # celda de CUALQUIER columna, tambien de una protegida. Se publicaba tal cual en
 # `sql$motivo`, `cobertura$motivo`, `meta$proteccion_personal` y en la
 # coleccion: con una vista que castea una cedula escrita con puntos, la cedula
-# salia en cuatro campos con su columna protegida. Medido en la ronda 28, en
+# salia en cuatro campos con su columna protegida. Medido en
 # PostgreSQL y duckdb.
 #
 # Todo mensaje de un error atrapado en la via DBI pasa por aca antes de
@@ -1242,14 +1242,14 @@
 #    -`Incorrect syntax near 'LIMIT'` dice que el motor no acepta ese dialecto- y
 #    un literal sin una letra ni un digito -`near ','`-.
 #
-# 2. Ronda 29: la primera pasada es una lista de lo que se TAPA, y cada forma
+# 2. La primera pasada es una lista de lo que se TAPA, y cada forma
 #    nueva de citar se escapaba. duckdb cita el valor sin comillas -`Type INT64
 #    with value 59899123456 can't be cast`, `(59899123456 * 1000000000)`, y
 #    `strptime` repite la cadena en otra linea-; SQL Server, con la sesion en
 #    sueco, neerlandes, finlandes, checo o noruego, tambien, y en polaco o
 #    hungaro entre una comilla baja que la lista no tenia; y un valor con una
-#    comilla adentro dejaba visible su cola. Medido en la ronda 29, de punta a
-#    punta, en duckdb y en SQL Server. Es "la lista que falla abierta". Ahora,
+#    comilla adentro dejaba visible su cola. Medido de punta a
+#    punta, en duckdb y en SQL Server. Ahora,
 #    despues de la primera, se publica SOLO lo que esta en una lista de lo
 #    permitido: las palabras del vocabulario de los mensajes de los motores
 #    -`.VOCABULARIO_MENSAJE_MOTOR`, en ingles y en castellano-, las de SQL, los
@@ -1264,7 +1264,7 @@
 #    consulta (`LINE 1:`). Un mensaje en otro idioma conserva su SQL, sus tipos,
 #    sus nombres y sus numeros cortos: se lee peor, que es el lado cerrado.
 #
-# 3. Ronda 30: el numero se lee como lo lee el piso (`.numeros_del_texto()`), y
+# 3. El numero se lee como lo lee el piso (`.numeros_del_texto()`), y
 #    el mensaje pasa por el piso con los valores que la llamada conoce
 #    (`.valores_motor()`): lo permitido no alcanza cuando la celda citada se
 #    escribe con lo permitido.
@@ -1273,7 +1273,7 @@
 # trae el mensaje del motor pasado por aca: su texto es del paquete y solo se le
 # aplica la primera pasada, como antes.
 #
-# 4. Ronda 33: todo esto vale con la proteccion activa. Sin ella el mensaje se
+# 4. Todo esto vale con la proteccion activa. Sin ella el mensaje se
 #    publica entero, sin las vinetas de cli: ver `.protege_mensaje_motor()`.
 .LITERAL_MOTOR_OMITIDO <- "[literal omitido]"
 # El marcador del piso de la proteccion (`.reemplazar_valores_protegidos()`).
@@ -1317,7 +1317,7 @@
 
 # El vocabulario de los mensajes de error: el de duckdb, PostgreSQL, SQLite,
 # SQL Server, MySQL y MariaDB y sus controladores -medido sobre sus mensajes
-# reales en las rondas 28 y 29-, en ingles y en castellano, mas las palabras
+# reales-, en ingles y en castellano, mas las palabras
 # corrientes de esas frases. En minusculas; se compara sin caja. Una palabra que
 # falte se tapa: el mensaje se lee peor, y no se publica el dato de nadie.
 .VOCABULARIO_MENSAJE_MOTOR <- c(
@@ -1435,9 +1435,9 @@
   invisible(previos)
 }
 
-# Y si la llamada PROTEGE. Ronda 33 (A-2, por la decision D8 de Sebastian: el
-# cometido principal del paquete es el diagnostico de la calidad de los datos,
-# y una proteccion que cuesta diagnostico importante no va por omision). El
+# Y si la llamada PROTEGE. El cometido principal del paquete es el diagnostico
+# de la calidad de los datos, y una proteccion que cuesta diagnostico
+# importante no va por omision. El
 # mensaje del motor cita la celda que hizo fallar la lectura -`Conversion
 # failed when converting the nvarchar value 'N/D' to data type int`, un
 # faltante disfrazado: el diagnostico mismo- y el SQL que la leia, y los dos se
@@ -1473,7 +1473,7 @@
   invisible(NULL)
 }
 
-# Y los VALORES protegidos que la llamada ya leyo. Ronda 30: la segunda pasada
+# Y los VALORES protegidos que la llamada ya leyo. La segunda pasada
 # publica solo lo permitido, y un valor hecho de lo permitido -los apellidos
 # `Campos Cadena`, dos palabras del vocabulario castellano- o igual al nombre de
 # una columna -la docente `Florencia` en la planilla pivoteada por docente- es
@@ -1487,12 +1487,12 @@
 # mensaje puede llevar despues de la segunda pasada
 # (`.valores_que_lleva_el_motor()`): los demas -el documento, el celular, la
 # tarjeta: un numero que se lee como uno de seis cifras o mas- el mensaje ya los
-# omite. Desde la ronda 31 un valor con letras se guarda siempre: cualquier
+# omite. Un valor con letras se guarda siempre: cualquier
 # palabra puede ser el nombre de una columna de otra tabla.
 #
-# Ronda 32 (D7). Se guardaba el TEXTO de cada uno, y con todo valor con letras
-# la memoria crecia con los nombres que la coleccion leia: +66 MB y +8 % de
-# tiempo sobre 800.000 filas con nombres (`aud31-07`). Ahora se guarda una
+# Se guardaba el TEXTO de cada uno, y con todo valor con letras la memoria
+# crecia con los nombres que la coleccion leia: +66 MB y +8 % de tiempo sobre
+# 800.000 filas con nombres. Ahora se guarda una
 # HUELLA por valor (`.huellas_claves_motor()`): un numero de 52 bits de su
 # forma plegada y sin separadores -la de la regla de variantes del piso-, ocho
 # bytes en lugar del texto, y los largos de esas formas. El mensaje se compara
@@ -1535,7 +1535,7 @@
 }
 
 # Si cada valor esta guardado: con la misma huella que se guarda. Para las
-# pruebas y las sondas, que ya no pueden mirar el texto.
+# pruebas, que ya no pueden mirar el texto.
 .valor_motor_guardado <- function(valores) {
   indice <- .CONTEXTO_MOTOR$valores
   valores <- as.character(valores)
@@ -1544,7 +1544,7 @@
   !is.na(huellas) & huellas %in% indice$huellas
 }
 
-# Ronda 33 (H2 y H3). Y el mensaje CRUDO de cada error del motor que se publica
+# Y el mensaje CRUDO de cada error del motor que se publica
 # mientras una coleccion junta valores. El piso del mensaje corre al armarlo
 # (`.sin_literales_motor()`), con los valores que se conocen en ese momento, y
 # con una vista leida antes que su tabla base no conoce los de la base: la
@@ -1875,12 +1875,12 @@
 # segunda pasada omite entero: un numero que se lee como uno de seis cifras o
 # mas, con sus signos.
 #
-# Ronda 31. La seleccion tenia su propia lectura -"un numero de seis cifras con
+# La seleccion tenia su propia lectura -"un numero de seis cifras con
 # hasta tres signos entre las cifras" y "a lo sumo una palabra fuera de lo
 # permitido"- y descartaba valores que el mensaje lleva: `099;123;456`, con un
 # signo que no une, la segunda pasada lo lee como tres numeros de tres cifras y
 # los publica; y "Florencia Martinez", con dos columnas de otra tabla que son
-# sus palabras, salia entero. Era la regla escrita dos veces.
+# sus palabras, salia entero.
 #
 # Se pregunta por la FORMA del valor y no valor por valor: la segunda pasada
 # cuesta cerca de dos milisegundos por texto, y una tabla tiene millones. Cada
@@ -1890,7 +1890,7 @@
 # pliegue lleva a un signo que une cifras, y ahi la forma deja pasar MAS que el
 # valor: guarda de mas, que es el lado cerrado.
 #
-# Ronda 32. El valor se lee SOLO y el mensaje lo lleva con lo que lo rodea. La
+# El valor se lee SOLO y el mensaje lo lleva con lo que lo rodea. La
 # unica regla de la segunda pasada que mira eso -la linea que el motor repite
 # sobre un `^`- omitia entero el valor que termina en `\n^`, y no se guardaba;
 # en el mensaje sueco de SQL Server la linea del `^` sigue con `till datatypen
@@ -1994,7 +1994,7 @@
   # lo que esta entre comillas; la segunda, la palabra que no esta permitida- y
   # el resto -"Florencia Martinez" de "Ana Florencia Martinez", con dos
   # columnas de otra tabla que son esas palabras; "099" y "456" de
-  # "099 ' 123 ' 456"- ya no es el valor que el piso busca. Ronda 31. Las dos
+  # "099 ' 123 ' 456"- ya no es el valor que el piso busca. Las dos
   # pasadas dejan el marcador como esta, y el piso vuelve a pasar al final.
   entrada <- texto
   if (length(conocidos)) {
@@ -2049,7 +2049,7 @@
 # permitido -el de una columna de cualquier tabla-, y la linea sobre un `^` no
 # se omite: dentro del mensaje, el `^` en que termina el valor sigue con el
 # texto del motor -`099;123;456\n^ till datatypen int`- y la linea no se
-# omite. Ronda 32: con esa regla, la seleccion leia `099;123;456\n^` como una
+# omite. Con esa regla, la seleccion leia `099;123;456\n^` como una
 # linea que el motor repite, no lo guardaba, y el mensaje lo publicaba. Las dos
 # reglas que miran el contexto se contestan del lado que guarda de mas.
 .publicar_lo_permitido_motor <- function(texto, identificadores = character(),
@@ -2133,7 +2133,7 @@
   }, character(1L), USE.NAMES = FALSE)
 }
 
-# El motivo de una muestra que se leyo y no se pudo perfilar (ronda 33-X). El
+# El motivo de una muestra que se leyo y no se pudo perfilar. El
 # error de `perfilar()` pasaba por el piso entero, como un mensaje del motor, y
 # con la proteccion activa un error del propio paquete salia ilegible: "`fecha`
 # debe [literal omitido] una fecha y hora valida", "`[literal omitido]` debe ser
@@ -2199,7 +2199,7 @@
   }, error = function(e) texto)
 }
 
-# El mensaje, como lo dijo el motor. Ronda 32. odbc arma su error con cli
+# El mensaje, como lo dijo el motor. odbc arma su error con cli
 # (`cli::cli_abort()`): guarda cada linea del mensaje del motor como un elemento
 # de `body`, y `conditionMessage()` las une con una vineta -`\n` y U+2022-,
 # junta los blancos y corta las lineas al ancho de la consola. Un numero partido
@@ -2248,7 +2248,7 @@
   }
 }
 
-# Ronda 33 (H4). Y sin los colores de cli. En una consola a color -la de
+# Y sin los colores de cli. En una consola a color -la de
 # RStudio, `cli.num_colors = 256`- cli formatea las partes al senalar el error
 # (`cli_abort()` aplica `format_inline()`): `message` y `body` traen las
 # secuencias ANSI -`\033[32m[FreeTDS][SQL Server]\033[39m`, el enlace de
@@ -2339,7 +2339,7 @@
   "quantile" = "acotado",
   # El spool saturado recorre la tabla completa y su trabajo crece con las filas.
   "spool_sesion_cliente" = "creciente",
-  # I1 libera cada bloque antes de pedir el siguiente. El estado de los
+  # La lectura por bloques libera cada bloque antes de pedir el siguiente. El estado de los
   # acumuladores queda acotado por `E_distintos` y `P_estado`, no por `n`.
   "dbfetch_bloques" = "acotado",
   "tabla_completa" = "acotado",
@@ -2887,7 +2887,7 @@
   } else if (isTRUE(usar_referencia_banco)) {
     referencia <- .REFERENCIA_BANCO_MEDIANA_MS_POR_MILLON_FILAS_DBI / 1e6
     # Con la escritura publicada: `paste()` del doble decia "6.8e+01" con
-    # `scipen = -9` (ronda 32-S).
+    # `scipen = -9`.
     fuente <- paste(
       "referencia de banco de otra corrida:",
       .formatear_numero_publicado(
@@ -3695,8 +3695,8 @@
     paste0(" para ", familia)
   }
   # En la moda y la mediana el metodo puede ser solo de cada lote: el campo de la
-  # estimacion llegaba vacio y el aviso decia "Metodo: ." -medido en la tercera
-  # evaluacion real, siete veces-. Manda el de la estimacion cuando lo hay
+  # estimacion llegaba vacio y el aviso decia "Metodo: ." -medido siete
+  # veces-. Manda el de la estimacion cuando lo hay
   # -`por_columna` dice algo que ningun lote dice-, y si falta, el de los lotes
   # que avisan.
   sin_valor <- function(v) {
@@ -4646,7 +4646,7 @@
 # punto. `formatC()` toma la marca de `OutDec` y el `sprintf()` de C la de
 # `LC_NUMERIC`: con cualquiera de las dos en coma el porcentaje de `TABLESAMPLE`
 # salia `12,5`, el motor respondia "syntax error at or near ','" y
-# `perfilar_dbi(universo = "muestra_motor")` se quedaba sin muestra (ronda 32-S).
+# `perfilar_dbi(universo = "muestra_motor")` se quedaba sin muestra.
 # La sonda de capacidad no lo veia: usa el literal `"1"`, sin decimales.
 .decimal_sql_dbi <- function(x) {
   .marca_decimal_c(formatC(x, format = "fg", digits = 8, decimal.mark = "."))
@@ -6034,7 +6034,7 @@
 # del numero, pedia `tail()` de la salida y la hacia crecer con `c()`: cuadratica
 # en el largo de la consulta, y se llamaba sobre cada fila de
 # `pg_stat_statements` y, en `.adjuntar_derrame_sql_dbi()`, sobre cada fila del
-# SQL una vez POR consulta medida. Medido en la ronda 29 con 4807 filas en
+# SQL una vez POR consulta medida. Medido con 4807 filas en
 # `pg_stat_statements`: una tabla de una columna y 23 filas tardaba 47 s con
 # `instrumentar = TRUE` y 3,6 s sin el, el 90 % aca. La salida es la misma -se
 # comparo contra la version anterior sobre cada consulta del catalogo-: solo
@@ -6267,7 +6267,7 @@
   # anidada- o ausente no se puede emparejar. Antes, si habia UNO repetido en
   # todo el catalogo, ninguna fila se emparejaba: cada una quedaba sin "antes"
   # y sus llamadas y bloques de TODA la historia del servidor se publicaban
-  # como de esta ventana. Medido en la ronda 29: 712 consultas "observadas" y
+  # como de esta ventana. Medido: 712 consultas "observadas" y
   # 5333 llamadas en una corrida que emitio cinco. La fila que no se puede
   # emparejar no se atribuye; las demas si.
   ambiguas <- if (tiene_queryid) {
@@ -7024,7 +7024,7 @@
 # se publicaban mientras `perfil_muestra` las callaba. Se aplica la MISMA
 # declaracion, ya validada por `.normalizar_columnas_codigo()`: esas tres
 # cifras quedan en `NA` y la cobertura lo declara por columna. Ver
-# `.resumen_codigo_declarado()` (decision D2, ronda 32).
+# `.resumen_codigo_declarado()`.
 .aplicar_columnas_codigo_dbi <- function(resumen, columnas_codigo) {
   if (!length(columnas_codigo) || !is.list(resumen) ||
       !is.data.frame(resumen$columnas) || !nrow(resumen$columnas)) {
@@ -7217,7 +7217,7 @@
 # `media` y `desvio` se ACUMULAN, y cada lado acumula con su algoritmo y en su
 # orden: sobre 61 enteros de un millon, el `STDEV` de SQL Server da
 # 31312.270967375953 y R 31312.270967376771 -2,6e-14 relativo, la de R es la
-# exacta- y la corroboracion acusaba a la muestra (refutacion 34-D). Medido en
+# exacta- y la corroboracion acusaba a la muestra. Medido en
 # SQL Server con 5 semillas por magnitud, de 1e2 a 1e9: hasta 1,9e-13. Para esas
 # dos, 1e-10 relativo: mil veces el error medido, y cinco ordenes por debajo de
 # una diferencia real -la media de `{1e16, 1, -1e16}`, 0 contra 1/3, o el desvio
@@ -7241,10 +7241,10 @@
 # que miden cosas distintas a proposito no es una divergencia del motor, del
 # controlador ni de un snapshot, que es lo que el motivo de la divergencia
 # enumera. Es una sola funcion para todas las razones, porque la propiedad es
-# una: la ronda 33 la cerro solo para `columnas_codigo`, y la refutacion 34-D
-# encontro las otras cuatro puertas -tres declaraciones que el resumen SQL no
-# honra y una guarda que no publica-, con `perfilar_coleccion()` subiendo la
-# tabla a `alcance = "divergencias"`:
+# una: cerrarla solo para `columnas_codigo` dejaba abiertas otras cuatro
+# puertas -tres declaraciones que el resumen SQL no honra y una guarda que no
+# publica-, con `perfilar_coleccion()` subiendo la tabla a
+# `alcance = "divergencias"`:
 #
 # * `columnas_codigo`: `media`, `mediana` y `desvio` no se calculan.
 # * `columnas_opcionales`: `n_faltantes` se cuenta sobre las celdas presentes.
@@ -7267,7 +7267,7 @@
 #   publicaban como `divergencia` (`faltante_un_lado`) y `perfilar_coleccion()`
 #   subia la tabla a `alcance = "divergencias"` pidiendo releer bajo una
 #   lectura consistente, que da lo mismo: un lado no dio un valor, y su motivo
-#   ya esta publicado (refutacion 35-X, M1). Las excepciones son las causas que
+#   ya esta publicado. Las excepciones son las causas que
 #   la corroboracion existe para declarar, y se siguen comparando: un `NaN` o un
 #   infinito que el motor cuenta y R no, y un valor que el motor guarda como
 #   texto en una columna numerica (ver `.no_disponible_que_se_compara_dbi()`).
@@ -7454,7 +7454,7 @@
 }
 
 # Que el motor guarda TEXTO en una columna numerica se MIDE, no se deduce de que
-# una metrica no se pudo leer como numero: en la ronda 31 un `Inf` -un numero-
+# una metrica no se pudo leer como numero: un `Inf` -un numero-
 # hacia publicar "Causa medida: el motor guarda en esta columna valores que no
 # son numeros" sobre una columna con cinco `real` y un `null`. En SQLite, que
 # es el motor que admite texto en una columna de afinidad numerica, se cuenta
@@ -7489,14 +7489,14 @@
 
 # La causa de una divergencia que se puede MEDIR: el motor guarda en la columna
 # valores que no son numeros -una de sus metricas de magnitud no se pudo leer
-# como numero- y el controlador la entrego a la muestra como numerica. Medido en
-# la ronda 30 con SQLite: una columna de afinidad INTEGER con dos `'abc'` daba
+# como numero- y el controlador la entrego a la muestra como numerica. Medido
+# con SQLite: una columna de afinidad INTEGER con dos `'abc'` daba
 # en el resumen SQL `moda = "abc"` y en la muestra `moda = 0`, `minimo = 0` y una
 # relacion aritmetica sobre las dos filas, porque RSQLite convierte a 0 el
 # texto de una columna que tipa como numerica (con su aviso "mixed type"). La
 # divergencia ya se declaraba, con una lista de causas posibles; ahora con la
 # medida. Se declara y no se relee la columna como texto: la decision esta
-# escrita en `?perfilar_dbi`. Medida de verdad desde la ronda 31: la causa exige
+# escrita en `?perfilar_dbi`. Medida de verdad: la causa exige
 # el conteo de `typeof()` en el motivo -ver `.texto_guardado_medido_dbi()`-, y
 # no solo que una magnitud no se haya podido leer.
 .causa_divergencia_no_numero_dbi <- function(sql, columnas, columna) {
@@ -7595,7 +7595,7 @@
   if (is.null(valor) || !length(valor)) return(NA_character_)
   # El texto que identifica el valor, no el que imprime la sesion: un conteo llega
   # entero de un lado y doble del otro, y con `scipen = -9` `as.character()` daba
-  # "12" contra "1.2e+01" -nueve divergencias falsas de nueve- (ronda 31-S).
+  # "12" contra "1.2e+01" -nueve divergencias falsas de nueve-.
   .texto_identidad(valor[[1L]])
 }
 
@@ -7820,9 +7820,9 @@
   # ver `.no_comparables_corroboracion_dbi()`. Lo que la declaracion
   # `columnas_codigo` manda no calcular era la primera de esas razones (la
   # corroboracion corre antes de que `.aplicar_columnas_codigo_dbi()` borre
-  # `media`, `mediana` y `desvio` del resumen SQL, refutacion 33-D); las
+  # `media`, `mediana` y `desvio` del resumen SQL); las
   # demas declaraciones y la guarda del entero de 64 bits son la misma
-  # propiedad (refutacion 34-D). Lo que no se compara queda en
+  # propiedad. Lo que no se compara queda en
   # `meta$no_comparadas`, con su causa.
   no_comparadas <- .no_comparables_corroboracion_dbi(
     resumen, perfil, columnas_codigo = columnas_codigo,
@@ -8992,7 +8992,7 @@
 # del entero ancho miraba solo `numeric(20,0)`, un texto que ni RPostgres ni odbc
 # publican -dan `numeric` por `.typname` y el codigo ODBC `2`-, asi que nunca se
 # disparaba en el camino principal: con `bloque_filas`, 60 distintos salian 4, con
-# una moda que no estaba en la columna, sin aviso (refutacion 35-D, M3). Por eso
+# una moda que no estaba en la columna, sin aviso. Por eso
 # decide el valor -un doble de al menos 2^53 que viene de un decimal ya no es
 # exacto-, y el tipo solo dice que viene de un decimal. odbc publica el codigo
 # ODBC: 2 es `SQL_NUMERIC` y 3 `SQL_DECIMAL` -SQL Server da 2 para `decimal` y
@@ -9159,7 +9159,7 @@
 # PostgreSQL y duckdb los admiten en una columna de punto flotante- y el motor
 # los cuenta en `MIN`, `MAX`, `AVG` y el orden de la mediana, mientras que la
 # regla del paquete es una: los estadisticos de magnitud se calculan solo con
-# valores finitos. Medido en la ronda 31: `c(1, 2, 3, 4, Inf, NA)` salia con
+# valores finitos. Medido: `c(1, 2, 3, 4, Inf, NA)` salia con
 # `minimo`, `maximo`, `media` y `mediana` en `NA` "porque la columna no es de
 # la magnitud que estas metricas suponen", y la corroboracion publicaba como
 # causa MEDIDA que la columna guardaba texto. `typeof()` daba cinco `real`.
@@ -9320,7 +9320,7 @@
 # omision y se le pide en `duckdb::duckdb()`; RSQLite, RPostgres, RMariaDB y
 # odbc lo piden en `DBI::dbConnect()`, y entregan `integer64` por omision.
 # Recomendar "RSQLite o duckdb" en una conexion de PostgreSQL era un consejo que
-# no aplicaba (refutacion 34-D).
+# no aplicaba.
 .remedio_entero_doble_dbi <- function(conexion = NULL) {
   if (inherits(conexion, "duckdb_connection")) {
     return(paste(
@@ -9349,7 +9349,7 @@
 # `valor` es lo que entrego el controlador. Un `integer64` llego EXACTO -el
 # driver no lo paso por un doble- y la metrica no se publica porque las de
 # magnitud son dobles: decir "el driver entrego como doble" y recomendar pedir
-# `integer64` describia otra cosa. Medido en la ronda 34-D sobre PostgreSQL,
+# `integer64` describia otra cosa. Medido sobre PostgreSQL,
 # SQL Server y MariaDB, que entregan `integer64`.
 .motivo_entero_doble_dbi <- function(metrica = NULL, prefijo = NULL,
                                      valor = NULL, conexion = NULL,
@@ -9428,7 +9428,7 @@
     # El aviso de bit64 -"integer precision lost while converting to double"- es
     # la perdida que esta funcion mide: se recoge aca y la declara quien llama,
     # como el resto. El `tryCatch()` solo atrapaba errores: con `warn = 0` el
-    # aviso crudo, en ingles, le llegaba al usuario (ronda 31-S).
+    # aviso crudo, en ingles, le llegaba al usuario.
     avisada <- FALSE
     regreso <- tryCatch(
       withCallingHandlers(
@@ -10010,7 +10010,7 @@
 # `numeric` devuelve seis decimales. Sobre 61 enteros el motor publicaba
 # 16.934426 y la muestra 16.934426229508198, y la corroboracion declaraba
 # `divergencia` en la media de TODA columna entera -tambien `bigint`- de una
-# tabla perfilada entera (refutacion 33-D). En T-SQL -SQL Server y Sybase, las
+# tabla perfilada entera. En T-SQL -SQL Server y Sybase, las
 # senas del dialecto `top`- se pide como `FLOAT`, que es el doble de 53 bits:
 # la misma cifra que lee R, y no una tolerancia que esconda la diferencia.
 # MySQL y MariaDB hacen lo mismo con otra escala: `AVG` de un `DECIMAL` suma
@@ -10034,7 +10034,7 @@
 # Cuantos valores no nulos tiene una columna: UNA expresion para todos los
 # motores y todas las consultas que lo cuentan -la compartida, la por columna,
 # la de lotes de distintos, la del desvio y la de la mediana escalar-.
-# `COUNT(col)` no sirve en SQL Server en dos casos medidos (ronda 35-X):
+# `COUNT(col)` no sirve en SQL Server en dos casos medidos:
 #
 # * sobre `text`, `ntext` e `image` es invalido ("Operand data type text is
 #   invalid for count operator"), y la completitud de esas columnas quedaba
@@ -10177,7 +10177,7 @@
 # cercana a la media evita la cancelacion: `STDEV` de SQL Server -y el
 # `STDDEV_SAMP` de SQLite, duckdb, MariaDB y MySQL, en menor medida- acumula en
 # una sola pasada, y cuando la media es grande frente al ancho de la columna
-# pierde las cifras del desvio. Medido en la refutacion 34-D sobre 61 marcas de
+# pierde las cifras del desvio. Medido sobre 61 marcas de
 # tiempo en milisegundos de una ventana de un segundo, `1760000000000 +
 # runif(61, 0, 1000)`: SQL Server publicaba desvio `0` contra 314,77, sin aviso;
 # los otros cuatro, 4,5e-8 relativo. `centro` es la media ya calculada -un
@@ -10335,7 +10335,7 @@
 # que T-SQL lee como `float` y no como `decimal`: un literal decimal no admite
 # mas de 38 cifras, y la media de una columna `float` de magnitud 1e40 o 1e-25
 # se escribia con 41 o 39 -SQL Server rechazaba la consulta centrada y quedaba,
-# sin decirlo, el desvio de una pasada (refutacion 35-D, B1)-. Solo para
+# sin decirlo, el desvio de una pasada-. Solo para
 # columnas de coma flotante: contra un `decimal`, un literal `float` convertiria
 # la columna a doble antes de restar. Ver `.resta_centrada_dbi()`.
 .literal_centro_desvio_dbi <- function(media, flotante = FALSE, digitos = 15L) {
@@ -10359,7 +10359,7 @@
 # redondeaba a 24 bits, y el desvio centrado se apartaba 1,44e-8 del de los
 # valores guardados -peor que el de una pasada que vino a reemplazar-; la
 # corroboracion lo publicaba como `divergencia` y `perfilar_coleccion()` subia
-# la tabla a `alcance = "divergencias"` (refutacion 35-D, M2). duckdb hace lo
+# la tabla a `alcance = "divergencias"`. duckdb hace lo
 # mismo con `FLOAT`/`REAL`: medido, 1,44e-8. PostgreSQL, MySQL y MariaDB restan
 # un `real` en doble (4e-16), y SQLite no tiene coma flotante simple.
 #
@@ -10409,8 +10409,7 @@
 # alcanzan: sobre un `numeric` cuyos valores difieren por debajo de la
 # resolucion del doble -1000 + g * 1e-15- el minimo y el maximo como dobles son
 # iguales, el desvio sobre `CAST(x AS DOUBLE PRECISION)` es 0 y el motor cuenta
-# 500 distintos; centrado, la resta se hace en `numeric` y el desvio sale
-# (refutacion 35-D, B3).
+# 500 distintos; centrado, la resta se hace en `numeric` y el desvio sale.
 .RAZON_CANCELACION_DESVIO_DBI <- 10
 
 .riesgo_cancelacion_desvio_dbi <- function(media, desvio, minimo = NA_real_,
@@ -12260,8 +12259,8 @@
             isTRUE(is.nan(celda$valor[[1L]]))
           # Sin `MIN` ni `MAX` -`incluir_valores = FALSE`-, un `Inf` y un `-Inf`
           # en la misma columna solo se ven en `AVG`: duckdb y PostgreSQL
-          # responden `NaN` y SQLite, que no guarda `NaN`, `NULL`. Medido en la
-          # ronda 31: SQLite publicaba `media = NA` como `calculado` y
+          # responden `NaN` y SQLite, que no guarda `NaN`, `NULL`. Medido:
+          # SQLite publicaba `media = NA` como `calculado` y
           # `n_negativos = 2` -contando el `-Inf`- donde los finitos dan 1, y
           # duckdb culpaba a un `NaN` que la columna no tenia. Antes de leerlo
           # como `NaN` o como nulo, se cuentan los infinitos.
@@ -12312,7 +12311,7 @@
             # El valor, solo si se pidieron valores y entre comillas, como la
             # sonda de magnitud: escrito entre parentesis era el MAXIMO de una
             # columna personal en claro -la prosa del paquete solo se revisa en
-            # lo citado-. Medido en la ronda 22.
+            # lo citado-. Medido.
             basicos$motivo <- paste0(
               .motivo_no_numero_dbi(
                 paste0("`", metrica, "`"),
@@ -13442,7 +13441,7 @@
 # consulta: no entran a la lectura conjunta ni a la sonda por columna, y se
 # declaran como las que el motor rechazo, con su motivo. Antes la lectura
 # conjunta las nombraba, el motor la rechazaba, y con odbc la sonda siguiente
-# hacia caer a R (ronda 35-X).
+# hacia caer a R.
 .esquema_dbi <- function(conexion, tabla_sql, campos, presupuesto,
                          sin_permiso = character(),
                          sql_catalogo = NA_character_) {
@@ -13569,7 +13568,7 @@
 #   `0`-. La muestra publicaba `constante` y `filas_duplicadas` con severidad
 #   `error` sobre cinco importes distintos, y con `bloque_filas` el resumen
 #   publicaba minimo, maximo, media y desvio `0` y ninguna divergencia: una cifra
-#   falsa sin aviso (refutacion 34-D). Se lee como `NUMERIC`, que es exacto.
+#   falsa sin aviso. Se lee como `NUMERIC`, que es exacto.
 # * `real` (`float4`): lee el texto decimal corto del valor -`21.3`-, mientras
 #   el motor promedia el binario guardado -21.299999237060547-. La media y el
 #   desvio del resumen SQL salian de un valor y los de la muestra y
@@ -13778,10 +13777,10 @@
 # por omision (1), es la forma decimal mas corta que vuelve al valor guardado
 # -`21.3`-; antes de la 12 -donde el valor por omision es 0- y con
 # `extra_float_digits <= 0` en cualquier version son `6 + extra_float_digits`
-# cifras, y 1234501 se escribe `1.2345e+06`. La ronda 34 leia por ese texto:
-# en un 9.3, 200 enteros distintos de siete cifras salian 21 distintos, con un
+# cifras, y 1234501 se escribe `1.2345e+06`. Con la lectura de ese texto, en
+# un 9.3, 200 enteros distintos de siete cifras salian 21 distintos, con un
 # minimo 1234500 que no estaba en la columna y desvio 58,07 contra 57,88, en
-# las dos puertas a la vez y sin divergencia (refutacion 35-D, M1).
+# las dos puertas a la vez y sin divergencia.
 #
 # Por eso la forma corta se calcula en el motor y no se toma del texto de la
 # sesion: el valor se redondea a 6, 7, 8 y 9 cifras significativas y se queda
@@ -13796,7 +13795,7 @@
 # Desde la 12 el texto de la sesion se prueba primero, porque es mas barato
 # -redondear en `NUMERIC` cuesta unas nueve veces mas que leer el texto-: si
 # vuelve al valor guardado es la forma corta -con el valor por omision lo es
-# siempre, y es la cifra de la ronda 34-, y si la sesion lo acorto se redondea.
+# siempre-, y si la sesion lo acorto se redondea.
 # Antes de la 12 un texto que vuelve al valor puede no ser el corto
 # -`extra_float_digits = 3` escribe `21.2999992`-, asi que ahi, y si la
 # version no se conoce, se redondea siempre. Las dos ramas coinciden salvo en
@@ -14557,7 +14556,7 @@
 #' 500.000, y la elección prioriza identidad.
 #'
 #' @inheritParams perfilar_dbi
-#' @param bloque_filas En la via I1, entero positivo que activa la fuente por
+#' @param bloque_filas Entero positivo que activa la fuente por
 #'   bloques de `tabla_completa`. Cada bloque se obtiene con un unico result
 #'   set (`dbSendQuery()` + `dbFetch(n = bloque_filas)`) y se absorbe antes de
 #'   liberar la entrada. `NULL` conserva el plan historico. El plan publica la
@@ -15312,8 +15311,8 @@ print.plan_perfilado_dbi <- function(x, ...) {
 # Lo que se publica de las columnas NO personales -moda, extremos, ejemplos,
 # evidencia de los hallazgos- puede ser un valor que en la columna protegida esta
 # solo FUERA de la muestra: el titular que es la moda de otra columna se
-# publicaba exacto. La ronda 20 lo cerro con una consulta por los candidatos
-# escritos tal cual, y una refutacion la rompio de cuatro maneras: comparaba
+# publicaba exacto. Una consulta por los candidatos escritos tal cual no
+# alcanzaba, por cuatro motivos: comparaba
 # exacto -sin caja ni separadores-, no miraba la evidencia, no corria sobre una
 # columna personal NUMERICA -una cedula guardada como entero, lo corriente en
 # una base- y se cortaba en 500 candidatos sin avisar.
@@ -15353,7 +15352,7 @@ print.plan_perfilado_dbi <- function(x, ...) {
     # Sin muestreo la muestra es la tabla, salvo en SQLite: RSQLite tipa una
     # columna de afinidad numerica por sus primeras filas y lee el texto
     # "5.765.432-1" guardado en ella como 5. La via por omision protegia MENOS
-    # que la muestreada sobre la misma tabla. Medido en la ronda 24. Ahi se
+    # que la muestreada sobre la misma tabla. Medido. Ahi se
     # relee como texto la columna protegida que no llego como texto.
     if (!sqlite || !is.data.frame(perfil$columnas)) return(completo)
     tipos <- perfil$columnas$tipo_declarado[
@@ -15371,8 +15370,8 @@ print.plan_perfilado_dbi <- function(x, ...) {
   for (indice in indices) {
     campo <- preparacion$campos_sql[[indice]]
     # En SQLite una columna de afinidad NUMERIC guarda texto, y RSQLite la lee
-    # como numero: "5.765.432-1" llegaba como 5 y no tapaba nada. Medido en la
-    # ronda 22. Ahi se lee como texto; en los demas motores el tipo de la
+    # como numero: "5.765.432-1" llegaba como 5 y no tapaba nada. Medido.
+    # Ahi se lee como texto; en los demas motores el tipo de la
     # columna manda, y un CAST a VARCHAR sin largo trunca en SQL Server.
     expresion <- if (sqlite) paste0("CAST(", campo, " AS TEXT)") else campo
     sql <- paste0(
@@ -15397,7 +15396,7 @@ print.plan_perfilado_dbi <- function(x, ...) {
       fechas <- unique(c(fechas, .fechas_de_columna_no_fecha(leidos)))
       # Y en una columna de fechas -tambien AAAAMMDD o con el ano en dos
       # cifras- sus fechas no entran al piso: la misma regla que en memoria,
-      # `.columna_de_fechas()`. Por aca entraban enteras. Ronda 25.
+      # `.columna_de_fechas()`. Por aca entraban enteras.
       if (.columna_de_fechas(leidos)) leidos <- leidos[!.forma_de_fecha(leidos)]
       # Los rellenos confirmados de ESTA columna no entran; los de otra, si.
       if (is.data.frame(rellenos_columna) && nrow(rellenos_columna)) {
@@ -15443,7 +15442,6 @@ print.plan_perfilado_dbi <- function(x, ...) {
 # media y el desvio, que con dos cedulas entre noventa codigos las
 # reconstruyen. Se tapa en `cuantitativos` cada campo que el piso dejo en NA en
 # `columnas`, comparando antes y despues: un campo que ya era NA no cuenta.
-# Ronda 33.
 .tapar_familias_como_columnas_dbi <- function(x, columnas_antes) {
   familias <- if (is.list(x$meta)) x$meta$familias
   despues <- x$columnas
@@ -15497,7 +15495,7 @@ print.plan_perfilado_dbi <- function(x, ...) {
 # Lo que un cierre tapa sin saber de quien es -los valores de las columnas no
 # personales, o los de todas cuando no hay clasificacion- no incluye un valor
 # igual al nombre de la tabla o de su esquema, con la clave de los nombres
-# iguales a valores (`.nombres_iguales_a_valores()`). Ronda 34 (H5): con la
+# iguales a valores (`.nombres_iguales_a_valores()`). Con la
 # lectura fuera de la muestra fallida, una columna no personal con el valor
 # `pedidos` en una tabla `pedidos` borraba el nombre de todo el objeto
 # -`meta$tabla`, cada SQL guardada, el encabezado de `print()`-: el valor
@@ -15542,7 +15540,7 @@ print.plan_perfilado_dbi <- function(x, ...) {
   # Y lo que la via por bloques guarda de cada columna no personal en
   # `meta$familias`: cada valor distinto y los extremos son valores de celda,
   # como la moda. Sin esto, con la lectura fuera de la muestra fallida, salian
-  # enteros. Ronda 33.
+  # enteros.
   candidatos <- c(candidatos, .valores_familias_bloques_dbi(
     resumen$meta$familias, no_personal
   ))
@@ -15594,15 +15592,15 @@ print.plan_perfilado_dbi <- function(x, ...) {
 # nada mas, y una cedula repetida en una columna de codigos salia en
 # `columnas$maximo`, en la corroboracion -con una divergencia que la proteccion
 # inventaba- y en `meta$familias`; los nombres citados en una columna de texto
-# libre, igual. La ronda 32 habia cerrado `meta$familias` solo en las columnas
-# protegidas. Ronda 33.
+# libre, igual. Cerrar `meta$familias` solo en las columnas protegidas no
+# alcanzaba.
 #
 # `bloque` es lo que devuelve `.bloque_muestra_dbi()`; sin perfil de muestra no
 # hay clasificacion y se protege todo.
 .proteger_salida_muestra_dbi <- function(resumen, bloque, conexion, preparacion,
                                          presupuesto) {
   # Los nombres de la tabla y de su esquema son intocables como los de las
-  # columnas, en todos los pisos de la llamada. Ronda 34 (H5).
+  # columnas, en todos los pisos de la llamada.
   nombres_tabla <- .nombres_tabla_dbi(
     if (is.null(preparacion$tabla_nombre_sql)) preparacion$tabla_sql else
       preparacion$tabla_nombre_sql
@@ -15644,7 +15642,7 @@ print.plan_perfilado_dbi <- function(x, ...) {
   # Los rellenos confirmados salen del piso SOLO en su columna: si otra
   # columna protegida tiene el mismo valor, entra. Se sacaban de todas, y
   # el `1.111.111-1` de relleno de `cedula` dejaba publicada la cedula
-  # `1.111.111-1` de un conyuge en la moda de `obs`. Ronda 27.
+  # `1.111.111-1` de un conyuge en la moda de `obs`.
   fuera <- .valores_protegidos_fuera_de_muestra_dbi(
     conexion, preparacion, bloque$perfil, sensibles_muestra, presupuesto,
     rellenos_columna = rellenos_columna
@@ -15696,7 +15694,7 @@ print.plan_perfilado_dbi <- function(x, ...) {
   if (!any(indices)) return(resumen)
   # Los valores identificantes se cosechan ANTES de taparlos, que es el unico
   # momento en que estan a la vista: por esta puerta no hay tabla original de
-  # donde sacarlos despues. Lo encontro una refutacion externa, y era una
+  # donde sacarlos despues. Sin esto habia una
   # divergencia entre puertas: sobre la misma tabla `perfilar()` enmascaraba
   # `minimo`, `maximo` y `media` de una copia no clasificada y
   # `perfilar_dbi()` los publicaba enteros.
@@ -15752,7 +15750,7 @@ print.plan_perfilado_dbi <- function(x, ...) {
   # Los estadisticos de orden son valores reales de una celda. Los momentos
   # tambien identifican cuando la columna es un documento: la media de las
   # cedulas de una tabla chica reconstruye demasiado.
-  # Y el desvio, desde la ronda 32, como en `perfilar()`: la misma lista de
+  # Y el desvio, como en `perfilar()`: la misma lista de
   # momentos (`.CAMPOS_MOMENTO_PROTEGIDOS`).
   campos <- intersect(
     c("minimo", "maximo", "mediana", .CAMPOS_MOMENTO_PROTEGIDOS),
@@ -15762,7 +15760,7 @@ print.plan_perfilado_dbi <- function(x, ...) {
   # diga lo mismo que dice `perfilar()` sobre la misma columna: el motor escribia
   # siempre "estadisticos de orden y la media" aunque la media no estuviera, y la
   # comparacion entre las dos puertas marcaba el campo como distinto sin que la
-  # proteccion lo fuera -en la tercera evaluacion real, en cuatro corridas-.
+  # proteccion lo fuera -medido en cuatro corridas-.
   oculto_orden <- rep(FALSE, nrow(columnas))
   oculto_media <- rep(FALSE, nrow(columnas))
   oculto_desvio <- rep(FALSE, nrow(columnas))
@@ -15786,15 +15784,15 @@ print.plan_perfilado_dbi <- function(x, ...) {
   # clasificada `documento_identidad` con poder discriminante debil- ya no se
   # tapan por esa sola razon. Se tapaban sus estadisticos de orden y sus
   # momentos porque por esta puerta el piso por valor no veia la tabla entera.
-  # Desde la ronda 33 la ve -los valores de la muestra y, si la muestra no la
+  # Ahora la ve -los valores de la muestra y, si la muestra no la
   # cubre, los de la tabla entera, o el cierre-, y la regla quedo tapando sin
   # proteger nada: los cinco estadisticos de un importe entero de siete cifras o
   # de un numero de factura, con el motivo falso de que la columna se protegio
   # como dato personal, mientras `perfilar()` los publicaba y el mismo objeto
-  # tambien, en `perfil_muestra`. Ronda 34 (H1). Lo que la sostenia -una copia
+  # tambien, en `perfil_muestra`. Lo que la sostenia -una copia
   # del documento- lo tapa el piso por valor; y la copia SIN su verificador la
   # clasifica la muestra como columna personal (`.copias_sin_verificador()`).
-  # Ronda 32. Y la otra publicacion de esos estadisticos: con `bloque_filas`,
+  # Y la otra publicacion de esos estadisticos: con `bloque_filas`,
   # `meta$familias` guarda por columna lo que devolvio cada acumulador -los
   # extremos, la media y el desvio en `cuantitativos`, y cada valor distinto
   # con su frecuencia en `distintos`- y salia entero: todas las cedulas y los
@@ -15821,7 +15819,7 @@ print.plan_perfilado_dbi <- function(x, ...) {
   # con `bloque_muestra = "solo_agregados"` y la proteccion por omision, el
   # `minimo`, el `maximo`, la `media` y la `mediana` de TODAS las columnas. Se
   # declara con el estado que el paquete ya usa cuando no se publica un valor
-  # por privacidad. Tambien el `desvio`, desde la ronda 32, como en
+  # por privacidad. Tambien el `desvio`, como en
   # `perfilar()`.
   tapadas <- do.call(rbind, tapadas)
   if (is.data.frame(tapadas) && nrow(tapadas) && is.data.frame(resumen$sql) &&
@@ -15856,7 +15854,7 @@ print.plan_perfilado_dbi <- function(x, ...) {
   # atribuible, y tambien en los campos numericos.
   # Sin muestra no hay clasificacion y se cierran todas las columnas: es un
   # cierre, y un valor igual al nombre de la tabla no entra
-  # (`.sin_nombres_de_estructura()`). Ronda 34 (H5).
+  # (`.sin_nombres_de_estructura()`).
   if (identical(base_clasificacion, "sin_clasificacion_disponible")) {
     identificantes <- .sin_nombres_de_estructura(identificantes, nombres_tabla)
   }
@@ -15886,14 +15884,14 @@ print.plan_perfilado_dbi <- function(x, ...) {
   # Y lo que el motivo de una columna protegida cita entre comillas: el valor que
   # el motor devolvio y R no pudo leer como numero. No pasa por el piso porque R
   # leyo ESA celda como otra cosa -una cedula "5.765.432-1" en una columna de
-  # afinidad numerica-, y el motivo la publicaba en claro. Medido en la ronda 22.
+  # afinidad numerica-, y el motivo la publicaba en claro. Medido.
   if (is.data.frame(resumen$sql) && all(c("columna", "motivo") %in% names(resumen$sql))) {
     filas_sensibles <- .nombres_para_operar(resumen$sql$columna) %in%
       .nombres_para_operar(sensibles) & !is.na(resumen$sql$motivo)
     if (any(filas_sensibles)) {
       # Desde la primera comilla hasta la ultima: una cedula guardada con sus
       # comillas de CSV -`"5.765.432-1"`, citada como `""5.765.432-1""`-
-      # dejaba el valor entre dos pares de comillas vacias. Medido en la ronda 23.
+      # dejaba el valor entre dos pares de comillas vacias. Medido.
       resumen$sql$motivo[filas_sensibles] <- sub(
         "\"(.*)\"", "\"[valor protegido]\"",
         resumen$sql$motivo[filas_sensibles], useBytes = TRUE
@@ -16365,7 +16363,7 @@ print.plan_perfilado_dbi <- function(x, ...) {
   # Una columna enmascarada (DDM de SQL Server) no entra en la muestra: sus
   # valores son la mascara -`xxxx`, `1900-01-01`, `0`- y la muestra publicaba
   # "un unico valor no ausente" y divergencias contra el resumen sobre columnas
-  # completas (ronda 35-X). Su completitud la mide el resumen SQL.
+  # completas. Su completitud la mide el resumen SQL.
   sacar <- .nombres_presentes(campos, enmascaradas)
   if (any(sacar)) {
     for (columna in campos[sacar]) {
@@ -16566,7 +16564,7 @@ print.plan_perfilado_dbi <- function(x, ...) {
   # que esta en una fila que no es la primera -una vista que convierte un texto
   # sucio en la fila 150- no se veia nunca: la muestra de las demas columnas se
   # perdia con un motivo que afirmaba lo contrario de lo que pasaba, "ninguna
-  # fallo por si sola" (ronda 35-X). Cuesta lo que la lectura, a lo sumo
+  # fallo por si sola". Cuesta lo que la lectura, a lo sumo
   # `2n - 1` veces, y solo despues de que la lectura completa fallo.
   sondear_muestra_dbi <- function(indices, aplicar_orden = TRUE,
                                   orden_indices = NULL) {
@@ -17093,8 +17091,8 @@ print.plan_perfilado_dbi <- function(x, ...) {
   # columnas que no son personales, el valor de una persona que es su moda o su
   # minimo. Antes se buscaban en `perfil_muestra$datos`, que no existe: `$` hacia
   # coincidencia parcial con `datos_personales` y no salia ningun valor, de modo
-  # que solo la moda SQL de la columna protegida contaba como protegida. Medido en
-  # una refutacion: el titular que era la moda de otra columna se publicaba en el
+  # que solo la moda SQL de la columna protegida contaba como protegida. Medido:
+  # el titular que era la moda de otra columna se publicaba en el
   # resumen y en la corroboracion cruzada. Viajan en el bloque, nunca en el perfil.
   valores_protegidos <- tryCatch({
     protegidas <- .columnas_personales_protegidas(perfil$datos_personales)
@@ -17105,7 +17103,7 @@ print.plan_perfilado_dbi <- function(x, ...) {
   }, error = function(e) character())
   # Y que columnas protegidas son de fechas, con la misma regla que en memoria
   # -`.columna_de_fechas()`-: la cosecha del resumen no tiene la muestra y sus
-  # ejemplos y estadisticos entraban al piso enteros. Ronda 25.
+  # ejemplos y estadisticos entraban al piso enteros.
   columnas_de_fechas <- tryCatch({
     protegidas <- .columnas_personales_protegidas(perfil$datos_personales)
     indices <- .indice_nombre(protegidas, names(datos_muestra))
@@ -17117,7 +17115,7 @@ print.plan_perfilado_dbi <- function(x, ...) {
   # la lectura de la tabla entera trae sin sus frecuencias. Con su cuenta en la
   # muestra: aca solo son CANDIDATOS. La regla pide que la columna sin ellos sea
   # casi una clave, y en una muestra los clientes que se repiten casi no se
-  # repiten -ronda 26: la cedula valida de un cliente con 600 movimientos salia
+  # repiten -la cedula valida de un cliente con 600 movimientos salia
   # como moda de otra columna-. Los confirma la tabla entera, en
   # `.rellenos_confirmados_tabla_dbi()`.
   rellenos_detalle <- tryCatch({
@@ -17160,7 +17158,7 @@ print.plan_perfilado_dbi <- function(x, ...) {
 # son los de la relacion muestreada por el motor, y con `muestra = Inf` la
 # muestra en R ES esa relacion (`tabla_completa`). No se confirma ninguno: la
 # cedula valida de un cliente frecuente se confirmaba como relleno sobre la
-# muestra del motor y salia en la moda de otra columna. Medido en la ronda 27.
+# muestra del motor y salia en la moda de otra columna. Medido.
 #
 # Devuelve los confirmados POR COLUMNA -`columna`, `valor`-: un relleno de la
 # cedula no saca del piso el mismo valor de otra columna protegida, como en
@@ -17213,7 +17211,7 @@ print.plan_perfilado_dbi <- function(x, ...) {
 # columna enmascarada (DDM de SQL Server, sin `UNMASK`) conserva su completitud
 # -el conteo de no nulos no se enmascara: `.contar_no_nulos_sql_dbi()`- y todo
 # lo demas del resumen queda `no_disponible` con su motivo: distintos, moda,
-# extremos, media, mediana y desvio salian de `xxxx` y de `0` (ronda 35-X).
+# extremos, media, mediana y desvio salian de `xxxx` y de `0`.
 # Corre sobre el resultado de las tres vias -la SQL, la de bloques y la del
 # spool- antes de la corroboracion, para que esta no compare la mascara.
 .declarar_enmascaradas_dbi <- function(resultado, preparacion) {
@@ -17548,7 +17546,7 @@ print.plan_perfilado_dbi <- function(x, ...) {
     orden_muestra <- NULL
   }
   # Sin validar, `incluir_valores = NA` abortaba con el error de R "valor
-  # ausente donde TRUE/FALSE es necesario" (ronda 33-X).
+  # ausente donde TRUE/FALSE es necesario".
   if (!is.logical(incluir_valores) || length(incluir_valores) != 1L ||
       is.na(incluir_valores)) {
     .detener_dbi(
@@ -17593,8 +17591,8 @@ print.plan_perfilado_dbi <- function(x, ...) {
   .contar_dbi(presupuesto)
   # El nombre se normaliza y pasa por la guarda ANTES de la primera llamada que
   # toca la conexion: con un nombre marcado latin1, `dbExistsTable()` de odbc
-  # dejaba la conexion rota y la consulta siguiente del usuario hacia caer a R
-  # (ronda 34-X). Ver `.nombre_para_conexion_dbi()`.
+  # dejaba la conexion rota y la consulta siguiente del usuario hacia caer a R.
+  # Ver `.nombre_para_conexion_dbi()`.
   tabla <- .nombre_para_conexion_dbi(tabla)
   .exigir_nombre_representable_dbi(
     conexion, tabla, que = "La tabla no se puede leer: su nombre"
@@ -17760,9 +17758,9 @@ print.plan_perfilado_dbi <- function(x, ...) {
       }
       # Una columna que la sesion no puede escribir no la rechazo el motor: no
       # se le mando. El motivo es el de la guarda, con su remedio, como en
-      # `relaciones_coleccion()` desde la ronda 34. Antes, bajo `C`,
+      # `relaciones_coleccion()`. Antes, bajo `C`,
       # `orden_muestra = "a\u00f1o"` por odbc decia "El motor rechazo las
-      # columnas de `orden_muestra`: a\u00f1o." (ronda 35-X, B1).
+      # columnas de `orden_muestra`: a\u00f1o."
       sin_escribir <- if (length(esquema$no_representables)) {
         faltan[!is.na(.indice_nombre(faltan, esquema$no_representables))]
       } else character()
@@ -18529,7 +18527,7 @@ print.plan_perfilado_dbi <- function(x, ...) {
 #' PostgreSQL por RPostgres, medido en la 9.3 y en la 16, y SQL Server 2022 por
 #' odbc con el controlador FreeTDS, en sesiones UTF-8 y bajo el locale `C` de un
 #' `Rscript` de cron. SQLite (RSQLite) y duckdb se ejercitan en las pruebas del
-#' paquete; MySQL y MariaDB (RMariaDB) se midieron en rondas puntuales. Con otro
+#' paquete; MySQL y MariaDB (RMariaDB) se midieron de forma puntual. Con otro
 #' motor, otro controlador u otra versión la función corre por la vía portable
 #' (ver «Dialecto») y declara en la cobertura lo que no pudo medir, pero sus
 #' cifras no están comprobadas contra ese motor. Las configuraciones avanzadas
@@ -18851,8 +18849,8 @@ print.plan_perfilado_dbi <- function(x, ...) {
 #' 42 para `numeric`. El plan usa `n_validos` de catálogo. En la meta y en el
 #' aviso, cuando se pidió la familia `validos`, ese denominador se reemplaza por
 #' el medido en los agregados planos y se conserva también el valor de catálogo;
-#' si no se midió, el motivo declara que se retuvo el catálogo. Por arbitraje
-#' H5, este alcance K2 gobierna solo el denominador: si la estimación publicada
+#' si no se midió, el motivo declara que se retuvo el catálogo. Ese reemplazo
+#' alcanza solo al denominador: si la estimación publicada
 #' marca `supera_memoria = TRUE`, el aviso se emite también con catálogo y
 #' declara su fuente. La consolidada
 #' decide por el máximo de columna y publica la suma de tapes sólo como
@@ -18953,10 +18951,8 @@ print.plan_perfilado_dbi <- function(x, ...) {
 #' Una columna que no se protege publica sus estadísticos aunque comparta el
 #' tipo personal con una protegida, como en [perfilar()]: un importe entero de
 #' siete cifras o un número de factura clasificado `documento_identidad`
-#' débil. Hasta la ronda 33 se tapaban sus cinco estadísticos con el motivo
-#' de una columna protegida, mientras `perfil_muestra` los publicaba; una
-#' copia del documento la tapa el piso por valor, que corre con la tabla
-#' entera, y la que lo copia sin su verificador se clasifica como columna
+#' débil. Una copia del documento la tapa el piso por valor, que corre con la
+#' tabla entera, y la que lo copia sin su verificador se clasifica como columna
 #' personal con la regla de [perfilar()], sobre la muestra. Por la vía por
 #' bloques eso incluye `meta$familias`, que guarda cada valor distinto de
 #' toda columna no protegida: una columna `debil` —las cédulas sin su
@@ -19163,14 +19159,14 @@ print.plan_perfilado_dbi <- function(x, ...) {
 #'   `spool_presupuesto_excedido` y
 #'   `muestra_inestable:presupuesto_materializacion` sin mezclar una muestra
 #'   parcial con resultados completos. `Inf` desactiva este límite.
-#' @param bloque_filas En la via I1, entero positivo que activa el recorrido de
+#' @param bloque_filas Entero positivo que activa el recorrido de
 #'   `tabla_completa` por bloques. Se abre un unico result set con
 #'   `dbSendQuery()` y cada bloque se lee con `dbFetch(n = bloque_filas)` antes
 #'   de liberar la entrada; `NULL` conserva la via existente. El resultado
 #'   publica `meta$alcance$orden`, `meta$bloques`, `meta$bytes` y los eventos del
 #'   vigilante. Los drivers sin retencion incremental demostrada (incluido
 #'   DuckDB en esta matriz) quedan `no_disponible` con su motivo, sin caer en
-#'   `dbGetQuery()`. Si se pide `moda` o `mediana`, I1 inicia tambien el mapa
+#'   `dbGetQuery()`. Si se pide `moda` o `mediana`, la lectura por bloques inicia tambien el mapa
 #'   central de distintos aunque `n_distintos` no se haya pedido: la mediana
 #'   depende de ese mapa y la fila `n_distintos` conserva `no_solicitado`.
 #'   Bajo `bloque_filas`, `perfil_muestra` sigue siendo la muestra diagnóstica
@@ -19185,7 +19181,7 @@ print.plan_perfilado_dbi <- function(x, ...) {
 #'   reproducible cuando la combinación es única en toda la tabla. Sin este
 #'   argumento, DBI no garantiza el orden ni la pertenencia de una muestra
 #'   limitada, y `meta` lo declara expresamente. No se usa cuando
-#'   `bloque_muestra = "solo_agregados"`. En la via I1, la identidad de la
+#'   `bloque_muestra = "solo_agregados"`. Con la lectura por bloques, la identidad de la
 #'   fuente por bloques gobierna el recorrido y este pedido queda declarado en
 #'   `meta$orden_muestra` con el motivo estable de que no gobierna esa via. Si
 #'   el motor falla al evaluar una columna del `ORDER BY`, la vía prueba cada

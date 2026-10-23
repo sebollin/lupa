@@ -36,7 +36,7 @@
   # Una columna llamada `NA` no tiene un nombre que se parezca a una clave:
   # `nzchar(NA)` es TRUE, y `startsWith(NA, ...)` hacia abortar
   # `sugerir_clave()` y `elegir_clave()` en una tabla que `perfilar()`
-  # perfila (ronda 30, al cerrar 30-K H3).
+  # perfila.
   if (is.na(n) || !nzchar(n)) return(0)
   if (n %in% .NOMBRES_CLAVE_PROBABLE) return(3)
   empieza <- any(vapply(

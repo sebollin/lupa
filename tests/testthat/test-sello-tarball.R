@@ -1,9 +1,6 @@
-# El nombre de este archivo dice QUE prueba, no de que pendiente salio.
-# Se llamaba `test-cola-pendientes.R` y la comprobacion de higiene lo marcaba
-# como archivo de notas versionado -busca `PENDIENTES` en los nombres de lo que
-# viaja-. La guarda tenia razon en desconfiar: un nombre que evoca la
-# contabilidad interna del proyecto no describe una conducta del paquete, y
-# ademas viaja en el tarball a CRAN.
+# El sello de un log lo ata al tarball que se midio: un log sellado sobre otro
+# tarball se rechaza. Usa una herramienta de desarrollo que no viaja con el
+# paquete; sin ella, la prueba se saltea.
 test_that("el sello ata el log al tarball medido y rechaza otro", {
   script_disponible <- testthat::test_path(
     "..", "..", "..", "notas-desarrollo", "sellar-log.sh"

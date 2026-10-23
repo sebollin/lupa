@@ -1,7 +1,7 @@
 ## Mide cuanto cambia el resultado del detector de vocabulario segun el orden de
 ## las filas. Es el banco del que salen los numeros de NEWS y de la vinieta.
 ##
-## El caso que lo origino: la tercera vuelta contra bases reales dejo sin
+## El caso que lo origino: una corrida contra bases reales dejo sin
 ## verificar la afirmacion "el recorte toma las primeras formas y puede costar
 ## detecciones", porque no se encontro una columna real que la ejercitara. La
 ## columna existia, y es publica.

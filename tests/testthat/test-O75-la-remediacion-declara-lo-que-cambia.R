@@ -1,13 +1,12 @@
 # Tres cosas que la capa de remediacion hacia y no declaraba.
 #
-# Las promesas centrales de la capa aguantaron una ronda de refutacion completa
-# -planificar no toca los datos, aplicar obedece el plan recibido, lo que no se
-# puede aplicar se declara, `permitir_eliminacion = FALSE` no elimina nada-. Lo que
-# fallaba estaba en tres fronteras que el paquete no habia escrito.
+# Las promesas centrales de la capa se sostienen -planificar no toca los datos,
+# aplicar obedece el plan recibido, lo que no se puede aplicar se declara,
+# `permitir_eliminacion = FALSE` no elimina nada-. Lo que fallaba estaba en tres
+# fronteras que el paquete no habia escrito.
 
-# Regresion de una ronda de refutacion: corre en la suite completa, en el CI y en
-# R-hub, que usan NOT_CRAN=true; en CRAN se saltea para que el check entre en sus
-# tiempos (medicion del 2026-10-23).
+# Prueba de regresion: corre en la suite completa, en el CI y en R-hub, que usan
+# NOT_CRAN=true; en CRAN se saltea para que el check entre en sus tiempos.
 testthat::skip_on_cran()
 
 test_that("winsorizar una columna entera declara que deja de ser entera", {

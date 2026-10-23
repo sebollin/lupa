@@ -160,7 +160,7 @@ cat(paste(
 
 ## ---- 4. Cadenas que comparten prefijo ------------------------------------
 ##
-## Una refutacion pregunto si el modelo de costo vale para cadenas reales, que
+## La pregunta es si el modelo de costo vale para cadenas reales, que
 ## comparten prefijos, y no solo para letras al azar. Importa porque
 ## Jaro-Winkler pondera el prefijo comun, y porque el caso que origino todo
 ## esto -WKT de proyecciones- empieza igual en todos los valores.

@@ -3,14 +3,14 @@
 testthat::skip_on_cran()
 
 if (!exists(".tablas_limpias_r107", mode = "function")) {
-  .r107_path <- if (file.exists("test-ronda107.R")) {
-    "test-ronda107.R"
+  .r107_path <- if (file.exists("test-regresion-107.R")) {
+    "test-regresion-107.R"
   } else {
-    file.path("tests", "testthat", "test-ronda107.R")
+    file.path("tests", "testthat", "test-regresion-107.R")
   }
   .r107_ast <- parse(file = .r107_path)
   # Por nombre, no por posicion: el 2026-10-23 el `skip_on_cran()` que abre
-  # test-ronda107.R corrio la definicion al segundo lugar, y esto evaluaba el
+  # test-regresion-107.R corrio la definicion al segundo lugar, y esto evaluaba el
   # salto en vez de la funcion.
   for (.r107_expr in .r107_ast) {
     if (is.call(.r107_expr) && identical(.r107_expr[[1L]], as.name("<-")) &&

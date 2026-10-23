@@ -70,7 +70,7 @@ finito para acotar ese trabajo cuando el tiempo no sea la restricción.}
 reproducible cuando la combinación es única en toda la tabla. Sin este
 argumento, DBI no garantiza el orden ni la pertenencia de una muestra
 limitada, y \code{meta} lo declara expresamente. No se usa cuando
-\code{bloque_muestra = "solo_agregados"}. En la via I1, la identidad de la
+\code{bloque_muestra = "solo_agregados"}. Con la lectura por bloques, la identidad de la
 fuente por bloques gobierna el recorrido y este pedido queda declarado en
 \code{meta$orden_muestra} con el motivo estable de que no gobierna esa via. Si
 el motor falla al evaluar una columna del \verb{ORDER BY}, la vía prueba cada
@@ -192,7 +192,7 @@ resto. Si reduce la muestra, \code{cobertura_diagnosticos} informa los bytes
 observados, el umbral y cuál tope mandó. \code{Inf} desactiva este tope. No
 modifica los agregados SQL.}
 
-\item{bloque_filas}{En la via I1, entero positivo que activa la fuente por
+\item{bloque_filas}{Entero positivo que activa la fuente por
 bloques de \code{tabla_completa}. Cada bloque se obtiene con un unico result
 set (\code{dbSendQuery()} + \code{dbFetch(n = bloque_filas)}) y se absorbe antes de
 liberar la entrada. \code{NULL} conserva el plan historico. El plan publica la

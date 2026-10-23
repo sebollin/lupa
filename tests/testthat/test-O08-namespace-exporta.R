@@ -6,12 +6,10 @@
 # exportar `.estrategias_por_celda` y dejo de exportar `planificar_limpieza`.
 # La suite entera paso en verde, porque `load_all()` expone todo, exportado o
 # no. Instalado, el paquete habria dejado a los usuarios sin una de sus
-# funciones centrales. Lo atrapo un `git status`, no una prueba: esto es la
-# prueba.
+# funciones centrales. Ninguna prueba lo veia: esta es la prueba.
 
-# Regresion de una ronda de refutacion: corre en la suite completa, en el CI y en
-# R-hub, que usan NOT_CRAN=true; en CRAN se saltea para que el check entre en sus
-# tiempos (medicion del 2026-10-23).
+# Prueba de regresion: corre en la suite completa, en el CI y en R-hub, que usan
+# NOT_CRAN=true; en CRAN se saltea para que el check entre en sus tiempos.
 testthat::skip_on_cran()
 
 .o08_exports <- function() {
@@ -26,7 +24,7 @@ testthat::skip_on_cran()
 test_that("ningun objeto interno queda exportado", {
   exports <- .o08_exports()
   skip_if(is.null(exports), "el NAMESPACE no esta a la vista")
-  # Control de la sonda: si no leyo exports, lo de abajo pasaria en falso.
+  # Control del lector: si no leyo exports, lo de abajo pasaria en falso.
   expect_gt(length(exports), 20L)
   internos <- exports[startsWith(exports, ".")]
   expect_identical(internos, character())

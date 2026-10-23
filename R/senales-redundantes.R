@@ -174,8 +174,8 @@ print.senal_redundante <- function(x, ...) {
 # La identidad de cada valor en la comparacion NO numerica de una senal. Se
 # comparan valores, no su impresion: `as.character()` escribe cada fecha-hora en
 # la zona de SU columna, asi que el mismo instante guardado en UTC y en
-# `America/Montevideo` salia discordante en todas las filas -medido en la ronda
-# 27: 3 de 3, con 0 a mano-; y escribe un doble con 15 cifras y `1e5` como
+# `America/Montevideo` salia discordante en todas las filas -medido: 3 de 3,
+# con 0 a mano-; y escribe un doble con 15 cifras y `1e5` como
 # "1e+05", asi que dos numeros distintos salian iguales y el mismo numero
 # guardado como doble y como texto, distinto. Es la propiedad que
 # `.valores_relacion()` ya resolvio para las relaciones entre tablas, y se usa
@@ -441,7 +441,7 @@ detectar_discordancias <- function(datos, senales, max_ejemplos = 5L,
       # resta lo perdia: `Inf - Inf` es `NaN`, `NaN > ventana` es `NA`, y ese
       # `NA` entraba a `indices`. Con `max_ejemplos` por omision la cita
       # abortaba -"subindice fuera de los limites"-, y con `max_ejemplos = 0` la
-      # fila concordante se contaba discordante. Medido en la ronda 27: `a = b =
+      # fila concordante se contaba discordante. Medido: `a = b =
       # Inf` en una fila de cinco publicaba 3 discordantes donde hay 2. Valores
       # iguales concuerdan sin restar; entre distintos la resta nunca es `NaN`.
       maximo <- do.call(pmax, comparables)
@@ -465,7 +465,8 @@ detectar_discordancias <- function(datos, senales, max_ejemplos = 5L,
     # el numero de fila ya las localiza. Saber que la fila 5 discrepa y en que
     # par de columnas es todo lo que hace falta para ir a corregirla.
     # La primitiva concentra las selecciones de tablas de entrada; seleccionar a
-    # mano con `[, , drop = FALSE]` esta topeado y auditado por `test-ronda160`.
+    # mano con `[, , drop = FALSE]` esta topeado, y lo vigila
+    # `test-regresion-160.R`.
     personales <- if (isTRUE(proteger_datos_personales)) {
       .columnas_personales_rapidas(
         .seleccionar_columnas(datos, senal$columnas),
@@ -484,8 +485,8 @@ detectar_discordancias <- function(datos, senales, max_ejemplos = 5L,
         # leia no podia rehacer el veredicto. Si la fila tiene mas valores que
         # escrituras, se citan con la escritura que los distingue.
         #
-        # La ronda 15 lo cerro solo para los dobles, y es una propiedad, no un
-        # tipo: dos instantes a 0,3 s se citaban los dos `12:00:00 UTC`, y `cafe`
+        # Y no es solo de los dobles: es una propiedad, no un tipo. Dos
+        # instantes a 0,3 s se citaban los dos `12:00:00 UTC`, y `cafe`
         # con la tilde compuesta y descompuesta, los dos igual. Los valores se
         # cuentan con la misma clave que decide el veredicto -en la via numerica
         # tambien, que con dobles da lo mismo que contar los numeros-. Y se
@@ -563,7 +564,7 @@ detectar_discordancias <- function(datos, senales, max_ejemplos = 5L,
   # `distribucion_valores()`: la mascara de arriba es por columna, y el
   # documento protegido escrito en una columna de la senal -`obs`, un reclamo
   # que cita la cedula- salia en `evidencia` mientras las tres hermanas lo
-  # tapaban sobre la misma tabla. Medido en la ronda 25. Necesita las columnas
+  # tapaban sobre la misma tabla. Medido. Necesita las columnas
   # personales de la tabla ENTERA, tambien las que ninguna senal nombra, y
   # clasificarlas costaba diez veces la funcion -2,5 s contra 0,2 s sobre
   # 50.000 filas y 43 columnas-: se hace solo si la evidencia cita filas, que es

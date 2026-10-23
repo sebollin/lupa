@@ -1,11 +1,10 @@
-# Cuatro cosas de la ronda O67, todas de la misma familia: un estadistico que se
+# Cuatro casos, todos de la misma familia: un estadistico que se
 # calculo sobre parte de los valores -o que no se pudo calcular- tiene que decirlo.
 # Las tres primeras eran la MISMA pregunta contestada dos veces, con las dos ramas
 # en desacuerdo; la cuarta rompia.
 
-# Regresion de una ronda de refutacion: corre en la suite completa, en el CI y en
-# R-hub, que usan NOT_CRAN=true; en CRAN se saltea para que el check entre en sus
-# tiempos (medicion del 2026-10-23).
+# Prueba de regresion: corre en la suite completa, en el CI y en R-hub, que usan
+# NOT_CRAN=true; en CRAN se saltea para que el check entre en sus tiempos.
 testthat::skip_on_cran()
 
 test_that("una columna que no admite cuantiles interpolados no rompe el analisis", {
@@ -44,8 +43,8 @@ test_that("una columna que no admite cuantiles interpolados no rompe el analisis
   # `analizar()` NO se comprueba con la falla simulada, y el motivo es una medicion:
   # el mock rompe `stats::quantile` para todo el proceso, y `analizar()` la usa
   # tambien para los outliers, donde no hay -ni corresponde- una guarda de clase.
-  # Con la clase real que lo motivo, `analizar()` completo termina bien; eso quedo
-  # medido a mano y anotado en PENDIENTES 2.460, no se afirma desde aca.
+  # Con la clase real que lo motivo, `analizar()` completo termina bien; eso se
+  # midio a mano y no se afirma desde aca.
 })
 
 test_that("con el cuantil andando, el estado sigue siendo calculado", {
@@ -151,9 +150,7 @@ test_that("las longitudes declaran sobre cuantos valores se calcularon", {
                mean(nchar(c("hola", "mundo"), type = "chars")))
 
   # Un `NA` NO es un valor no medible: es una ausencia. Con cuatro valores y uno
-  # ausente, las longitudes se calculan sobre tres y eso es lo que se declara. El
-  # primer intento de este arreglo contaba las dos cosas juntas y lo delato un
-  # fixture de la suite que tiene un `NA_character_`.
+  # ausente, las longitudes se calculan sobre tres y eso es lo que se declara.
   con_na <- as.data.frame(columnas(perfilar(
     data.frame(t = c("a", "abcd", NA_character_, "xy")),
     analizar_dependencias = FALSE)))

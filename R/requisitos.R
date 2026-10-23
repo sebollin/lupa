@@ -232,7 +232,7 @@
   # servidor MySQL ("mysqlconnection ... 8.4") pedia RMySQL: sin RMySQL
   # `coleccion()` se negaba, y con RMySQL lo cargaba, las dos clases se llaman
   # `MySQLConnection` y el metodo de RMySQL tomaba el despacho -la conexion del
-  # usuario quedaba inservible- (ronda 34-X). Lo mismo valia para odbc contra
+  # usuario quedaba inservible-. Lo mismo valia para odbc contra
   # MySQL o PostgreSQL. `perfilar_dbi()` mide esa misma conexion sin pedir nada.
   # El texto solo elige, entre las filas del mismo paquete, la del motor.
   paquete <- .paquete_controlador_dbi(conexion, catalogo$paquete_r)

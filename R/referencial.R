@@ -172,7 +172,7 @@
 # latin1 sin declarar-. La pertenencia las compara por sus bytes, que es lo que
 # hace `%in%`; la proximidad es una descripcion TEXTUAL y no las puede leer:
 # medir la distancia entre sus claves de bytes ofrecia como candidato cualquier
-# otro valor ilegible, porque todas comparten el prefijo de la clave. Ronda 25.
+# otro valor ilegible, porque todas comparten el prefijo de la clave.
 .filas_texto_ilegible <- function(tabla) {
   n <- nrow(tabla)
   if (!n || !ncol(tabla)) return(rep(FALSE, n))
@@ -664,8 +664,8 @@ print.referencial <- function(x, ...) {
   }
   # Y sobre una entidad sin valores -sin filas, o con la clave toda ausente- no
   # hay nada que medir: publicaba 0, que el tablero lee como un fallo. La ayuda
-  # ya decia `sin_valores` "igual que cuando la entidad no tiene filas". Ronda
-  # 25. Cero medidas es como lo dicen las demas metricas: `medir()` declara el
+  # ya decia `sin_valores` "igual que cuando la entidad no tiene filas". Cero
+  # medidas es como lo dicen las demas metricas: `medir()` declara el
   # alcance vacio con su motivo, el mismo que para la correctitud.
   if (!nrow(objetivo)) {
     return(.salida_metodo(
@@ -694,7 +694,7 @@ print.referencial <- function(x, ...) {
   # El universo se cuenta con la MISMA identidad con que se empareja.
   # `referencial()` exige claves unicas por identidad exacta, y `A` y `a` pasan;
   # bajo la normalizacion por omision son una sola, y cubrir `a` contaba las dos
-  # filas: medido en la ronda 25, 0,667 sobre un padron de dos claves
+  # filas: medido, 0,667 sobre un padron de dos claves
   # comparables -0,5- o de tres exactas -0,333-, ninguna de las dos.
   universo <- universo[!duplicated(.codigos_filas(universo)), , drop = FALSE]
   cubiertas <- .filas_en_referencial(universo, objetivo_comparable)

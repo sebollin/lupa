@@ -10,9 +10,8 @@
 # es un RECORRIDO sobre los atributos que `medir()` pone de verdad, que exige que
 # cada uno este decidido. Un atributo nuevo no puede volver a perderse callado.
 
-# Regresion de una ronda de refutacion: corre en la suite completa, en el CI y en
-# R-hub, que usan NOT_CRAN=true; en CRAN se saltea para que el check entre en sus
-# tiempos (medicion del 2026-10-23).
+# Prueba de regresion: corre en la suite completa, en el CI y en R-hub, que usan
+# NOT_CRAN=true; en CRAN se saltea para que el check entre en sus tiempos.
 testthat::skip_on_cran()
 
 .o82_metrica_tipo <- function(tipo, nombre = paste0("M", tipo)) {
@@ -316,8 +315,7 @@ test_that("con unidades distintas en un grupo el alcance declara y no suma", {
     motivo = c("x", "y"), stringsAsFactors = FALSE
   )
   # Con `entidad` y `atributo`: el alcance se empareja por metrica, entidad y
-  # atributo desde la ronda 23 -antes por el par, desde la ronda 11-, y las
-  # medidas reales siempre los traen: `agregar()` los exige.
+  # atributo, y las medidas reales siempre los traen: `agregar()` los exige.
   medidas <- data.frame(
     metrica_instanciada = c("M@t.a", "M@t.b"), entidad = c("t", "t"),
     atributo = c("a", "b"), stringsAsFactors = FALSE

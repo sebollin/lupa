@@ -27,7 +27,7 @@
 # Una columna cuyos valores no se pueden escribir como texto entra por la misma
 # puerta que la matriz y la tabla anidada: el paquete no tiene un valor por fila
 # que leer, y cualquier escritura que eligiera inventaria el dato. El caso medido
-# en la ronda 30 es la `vctrs_rcrd` -varios campos por fila, como una tabla
+# es la `vctrs_rcrd` -varios campos por fila, como una tabla
 # anidada sin serlo-, sobre la que `as.character()` y `format()` abortan, igual
 # que sobre un `vctrs_vctr` sin conversion declarada. Abortaba 22 de las 29
 # llamadas del catalogo desde tres sitios distintos -los formatos de fecha, el
@@ -603,8 +603,8 @@
   # frecuencia sea grande sino que haya un ACANTILADO entre el grupo que
   # sobresale y el resto.
   #
-  # Tres versiones anteriores cayeron, y cada una la rompio una refutacion
-  # externa. Contra el segundo valor: derrotada por un senuelo legitimo que
+  # Tres reglas alternativas no sirven, y cada una tiene un caso que la rompe.
+  # Contra el segundo valor: derrotada por un senuelo legitimo que
   # infla el segundo puesto -{6, 5, 1, ...} da 1,2-. Contra la frecuencia
   # tipica exigiendo forma de numeracion: derrotada por un centinela masivo
   # sobre una clave foranea -{100, 4, 4, ...}, mediana 4-. Y la disyuncion de
@@ -773,12 +773,11 @@
   # que nadie la pida. Pedir `sentinelas_naniar` es -en palabras del propio
   # paquete- "optar por una heuristica MAS ANCHA", y angostarla aca contradice
   # esa eleccion: sobre `c(66, 77, 88, 45, 30, ...)` sacaba el `66` porque cae
-  # dentro del rango de las edades y aparece una vez. La primera version de esta
-  # regla no hacia esa distincion, y la atrapo
+  # dentro del rango de las edades y aparece una vez. Lo vigila
   # `test-declarado-contra-sospechado.R`.
   #
-  # La comparacion es de CONJUNTO y no con `identical()`: esa fue la leccion de
-  # §2.296, donde la misma lista escrita al reves daba el resultado contrario.
+  # La comparacion es de CONJUNTO y no con `identical()`: con `identical()`, la
+  # misma lista escrita al reves daba el resultado contrario.
   if (!identical(.numeros_na(sentinelas_numericos),
                  .numeros_na(.numeros_na_locales))) {
     return(sentinelas_numericos)
@@ -1027,7 +1026,7 @@
   )
 }
 
-# `columnas_codigo` (decision D2, ronda 32). La regla de numeracion de
+# `columnas_codigo`. La regla de numeracion de
 # `hallazgos.R` dejo de tratar como identificador a un codigo que se repite
 # -un codigo de catalogo no se distingue por su forma de una magnitud que lleno
 # su rango-, y un `EstCod` de 1 a 284 recibia 181 outliers falsos. Pasarlo como
@@ -1234,9 +1233,8 @@
   # `aplicabilidad = list(v = ~ FALSE)` sobre cinco valores: `n_aplicables = 0`,
   # `n_faltantes = 0`, y el estado sale `sin_valores` -correcto, porque en el
   # universo que se resume no hay ningun valor presente-, mientras la fila
-  # declara los cinco en `n_presentes_fuera_de_aplicabilidad`. Un refutador leyo
-  # esto como una contradiccion y propuso `sin_valores_utilizables`; medirlo
-  # mostro que eso seria lo falso.
+  # declara los cinco en `n_presentes_fuera_de_aplicabilidad`. No es una
+  # contradiccion, y un estado como `sin_valores_utilizables` seria lo falso.
   n_presentes_resumen <- as.integer(sum(!is.na(valores_originales)))
   mascara_sentinelas <- if (identical(cuantitativos$clase, "numero")) {
     .mascara_sentinelas_resumen(
@@ -1571,7 +1569,7 @@
 }
 
 .componentes_numero_texto <- function(x) {
-  # La declaracion va antes de la primera primitiva (ronda 30-L). Sin ella, un
+  # La declaracion va antes de la primera primitiva. Sin ella, un
   # importe con el simbolo del euro en UTF-8 sin marca -un CSV leido sin
   # `encoding`- no casaba con `\\p{Sc}` bajo `C`: el perfil proponia
   # `convertir_numero_regional`, la comprobacion del plan la daba por no
@@ -2516,7 +2514,7 @@
 # Los faltantes disfrazados de una columna -sentinelas numericos y cadenas que
 # dicen ausencia-, con la politica entera de `perfilar()`. Estaba escrita dentro
 # de `.perfilar_columna()`, y `detectar_claves()` llamaba a la casi-clave SIN
-# mascara: medido en la ronda 25, 190 documentos distintos mas diez "SIN DATO"
+# mascara: medido, 190 documentos distintos mas diez "SIN DATO"
 # salian casi-clave con concentracion 1 y colision "SIN DATO (10)", mientras
 # `perfilar()` sobre la misma tabla contaba diez faltantes disfrazados y ningun
 # hallazgo de clave. Una regla escrita dos veces contestaba distinto sobre la
@@ -2657,7 +2655,7 @@
   # Un byte no es un texto escrito por una persona. `.texto_analizable()` da a
   # una columna `raw` su escritura hexadecimal -`0a`, `1f`-, que sirve para
   # compararla y publicarla, pero no es una convencion que el dato tenga: leida
-  # como texto escrito, la ronda 30 midio `numero_como_texto` y
+  # como texto escrito, se median `numero_como_texto` y
   # `unidades_mixtas` sobre los doce bytes con una letra hexadecimal -"0a" era
   # un cero con la unidad "a"- y `patron_raro` sobre `9a` entre `99`. Las
   # etapas que interpretan la escritura reciben ausentes, como una lista de

@@ -140,11 +140,11 @@ test_that("el piso no tapa el vocabulario corto que se comparte", {
 })
 
 test_that("el piso alcanza a los campos numericos, no solo al texto", {
-  # Lo encontro una refutacion externa y el piso no lo cubria: `copia` se
-  # clasifica `documento_identidad` con poder discriminante debil, asi que no se
-  # protege, y publicaba en `minimo`, `maximo`, `media` y `mediana` los
-  # documentos de `documento`, que en el mismo objeto sale enmascarada. Sobre
-  # doce filas, `minimo` y `maximo` son dos documentos exactos.
+  # El piso no cubria este caso: `copia` se clasifica `documento_identidad` con
+  # poder discriminante debil, asi que no se protege, y publicaba en `minimo`,
+  # `maximo`, `media` y `mediana` los documentos de `documento`, que en el mismo
+  # objeto sale enmascarada. Sobre doce filas, `minimo` y `maximo` son dos
+  # documentos exactos.
   datos <- data.frame(
     documento = sprintf("707771%02d", 1:12), stringsAsFactors = FALSE
   )
@@ -176,11 +176,10 @@ test_that("el piso numerico no toca un numero que no es un valor protegido", {
 })
 
 test_that("distribucion_valores aplica el mismo piso que perfilar", {
-  # Lo encontro una refutacion externa: `distribucion_valores()` protege POR
-  # COLUMNA -si la columna es personal, sus cuantiles van NA- pero no aplicaba
-  # el piso, asi que una copia que el clasificador no marca publicaba los
-  # documentos de la protegida. Medido: los cinco cuantiles y las sesenta
-  # frecuencias los traian enteros.
+  # `distribucion_valores()` protege POR COLUMNA -si la columna es personal, sus
+  # cuantiles van NA- pero no aplicaba el piso, asi que una copia que el
+  # clasificador no marca publicaba los documentos de la protegida. Medido: los
+  # cinco cuantiles y las sesenta frecuencias los traian enteros.
   documentos <- sprintf("771771%02d", 1:30)
   datos <- data.frame(
     documento = documentos,
@@ -207,8 +206,8 @@ test_that("distribucion_valores aplica el mismo piso que perfilar", {
 
 test_that("el mismo documento con separadores no escapa al piso", {
   # El reemplazo busca la cadena exacta, asi que `"771.771-01"` no contiene
-  # `"77177101"` y se publicaba. Lo encontro una refutacion externa. La
-  # separacion es cosmetica: el valor es el mismo.
+  # `"77177101"` y se publicaba. La separacion es cosmetica: el valor es el
+  # mismo.
   documentos <- sprintf("771771%02d", 1:30)
   con_puntos <- sub("^(...)(...)(..)$", "\\1.\\2-\\3", documentos)
   datos <- data.frame(
@@ -271,12 +270,12 @@ test_that("el marcador de proteccion no se enmascara a si mismo", {
 })
 
 test_that("comparar_perfiles declara que un lado esta protegido y el otro no", {
-  # Salio de una refutacion externa. Comparando un perfil protegido contra uno
-  # sin proteger de la MISMA tabla, la salida publicaba el rango que el lado
-  # protegido oculta y la diferencia se leia como deriva del dato, cuando lo que
-  # cambio es la politica. No es una fuga -quien corre esa comparacion ya tiene
-  # el perfil sin proteger- pero es la misma forma que ya tienen las varas y la
-  # normalizacion: un cambio de politica se declara con su propia fila.
+  # Comparando un perfil protegido contra uno sin proteger de la MISMA tabla, la
+  # salida publicaba el rango que el lado protegido oculta y la diferencia se
+  # leia como deriva del dato, cuando lo que cambio es la politica. No es una
+  # fuga -quien corre esa comparacion ya tiene el perfil sin proteger- pero es
+  # la misma forma que ya tienen las varas y la normalizacion: un cambio de
+  # politica se declara con su propia fila.
   datos <- data.frame(
     documento = sprintf("707771%02d", 1:40), stringsAsFactors = FALSE
   )
@@ -303,9 +302,9 @@ test_that("comparar_perfiles declara que un lado esta protegido y el otro no", {
 })
 
 test_that("detectar_duplicados_aproximados aplica el piso", {
-  # Lo encontro una refutacion externa: la proteccion de esa puerta es por
-  # columna, asi que publicaba el documento en la MISMA cadena donde la columna
-  # protegida iba enmascarada -- `documento=[valor protegido]; codigo=77177101`.
+  # La proteccion de esa puerta es por columna, asi que publicaba el documento
+  # en la MISMA cadena donde la columna protegida iba enmascarada --
+  # `documento=[valor protegido]; codigo=77177101`.
   datos <- data.frame(
     documento = c("77177101", "77177101", "77177102"),
     codigo = c("77177101", "77177101", "77177102"),
@@ -334,7 +333,7 @@ test_that("detectar_duplicados_aproximados aplica el piso", {
 })
 
 test_that("perfilar_dbi tapa lo mismo que perfilar sobre la misma tabla", {
-  # Divergencia entre puertas encontrada por una refutacion externa:
+  # Divergencia entre puertas:
   # `resumen_tabla$columnas` traia `minimo`, `maximo`, `media` y `mediana` de una
   # copia numerica con los treinta documentos enteros, mientras `perfilar()` los
   # enmascaraba. Por esta puerta el piso por valor es imposible -el resumen se

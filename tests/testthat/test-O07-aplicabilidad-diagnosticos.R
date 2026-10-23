@@ -46,7 +46,7 @@ test_that("sin aplicabilidad declarada, el diagnostico sigue mirando la columna 
 
 # --- Fase 2: las acciones de limpieza tambien respetan el universo -----------
 #
-# Decidido por Sebastian el 2026-09-22: respetar la aplicabilidad en todo. Las
+# Decidido el 2026-09-22: respetar la aplicabilidad en todo. Las
 # acciones por celda solo tocan filas del universo; las conversiones de tipo,
 # que no se pueden aplicar a medias, declaran en el plan su alcance real.
 

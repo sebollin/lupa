@@ -983,7 +983,7 @@
       # confirmados de la via SQL (`.rellenos_confirmados_tabla_dbi()`). Sin
       # esto la cedula valida de un cliente frecuente -600 de 20.600
       # movimientos- era "relleno" en la muestra y salia en la moda, los
-      # ejemplos y la evidencia de `obs`. Medido en la ronda 27.
+      # ejemplos y la evidencia de `obs`. Medido.
       proteger_spool <- .protege_argumentos(args)
       if (!is.null(perfil) && proteger_spool) {
         # Los valores protegidos de la muestra, para el mensaje del motor de las
@@ -1087,7 +1087,7 @@
   } else NULL
   if (!is.null(perfil_columnas) && is.data.frame(perfil_columnas)) {
     # Por nombre y no por posicion: una columna enmascarada no entra en el
-    # perfil (ronda 35-X), y copiar por posicion reciclaba las de las demas
+    # perfil, y copiar por posicion reciclaba las de las demas
     # columnas sobre la tabla entera.
     posicion <- .indice_nombre(
       as.character(columnas$columna), as.character(perfil_columnas$columna)
@@ -1148,7 +1148,7 @@
   # rechazadas por el motor, o con un nombre que la sesion no puede escribir- se
   # declaran como en la via SQL y en la de bloques: esta via las dejaba fuera de
   # `columnas`, de `sql` y de la cobertura, y la tabla salia con menos columnas
-  # sin decirlo (ronda 35-X, segunda vuelta). No hay completitud que publicar:
+  # sin decirlo. No hay completitud que publicar:
   # no se leyeron.
   ilegibles <- preparacion$esquema$ilegibles
   if (length(ilegibles)) {

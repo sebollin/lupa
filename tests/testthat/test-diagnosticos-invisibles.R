@@ -195,7 +195,7 @@ test_that("los invisibles Unicode se clasifican sin borrar ZWJ ni ZWNJ", {
   expect_true(any(plan$estrategia == "normalizar_espacios_invisibles"))
   # Las dos hermanas de esta rama se trataban al reves: `eliminar_controles_`
   # se recomendaba y se activaba sola y `normalizar_espacios_` era destructiva y
-  # exigia confirmacion. Se igualaron el 2026-09-29, por decision de Sebastian y
+  # exigia confirmacion. Se igualaron el 2026-09-29, y
   # con el argumento medido: normalizar un espacio Unicode deja un espacio -es
   # cambio de forma, no de valor-, y el paquete recomienda y activa
   # `recortar_espacios`, que quita espacios enteros.

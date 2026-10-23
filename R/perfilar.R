@@ -914,9 +914,8 @@
 #' es parte de la señal: una columna con menos categorías no recibe una fila de
 #' `cobertura_diagnosticos`, porque allí la moda es la distribución. La
 #' evidencia publica el valor modal, ambas frecuencias, el cociente y la
-#' fracción. M2 fue la regla seleccionada en
-#' `.trabajo-agente/medicion-concentracion.md`: produjo cero falsos positivos en
-#' 114 columnas limpias, con un margen medido de 2,2 veces. Es una sospecha, no
+#' fracción. La regla se calibró sobre 114 columnas limpias: no produjo ningún
+#' falso positivo, con un margen medido de 2,2 veces. Es una sospecha, no
 #' una acusación: un valor legítimo puede dominar. Sus puntos ciegos medidos
 #' son las concentraciones por debajo de 15 % y los empates naturales en
 #' columnas enteras pequeñas, donde el cociente puede quedar por debajo de
@@ -1323,10 +1322,10 @@
 #'   con importes, facturas y códigos; se informa y no se ocultan su moda, sus
 #'   ejemplos ni sus estadísticos. En la evidencia de sus hallazgos se tapan
 #'   sus valores de seis caracteres o más —la colisión de una casi clave—, no
-#'   la evidencia entera: hasta la ronda 26 se tapaba entera, también la que no
-#'   cita ningún valor (`"4939 valores distintos de 5000 (0.988)"`, `"3
-#'   valores"`); sin la tabla —un perfil que se vuelve a proteger al
-#'   guardarlo— no hay valores con que barrer y se tapa entera;
+#'   la evidencia entera, así que la que no cita ningún valor se publica
+#'   (`"4939 valores distintos de 5000 (0.988)"`, `"3 valores"`); sin la
+#'   tabla —un perfil que se vuelve a proteger al guardarlo— no hay valores
+#'   con que barrer y se tapa entera;
 #' - `medio`: el nombre de la columna expresa una categoría personal (por
 #'   ejemplo `telefono`, `fecha_nacimiento` o `fecha_fallecimiento`); se protege aunque sus valores no
 #'   se puedan validar. El nombre tiene prioridad sobre una forma numérica
@@ -1372,10 +1371,10 @@
 #'   (`medio_pago_cliente`, `forma_pago_cliente`), un lugar (`pais_cliente`,
 #'   `nacionalidad_socio`), una fecha (`cliente_desde`,
 #'   `fecha_alta_socio`), una cantidad o un importe— y si sus valores pueden
-#'   ser nombres: una columna de números, fechas o lógicos no lo es. Hasta la
-#'   ronda 33 bastaba la palabra, y esas columnas se protegían como nombres:
-#'   perdían su moda y sus extremos, y sus categorías —`"mayorista"`,
-#'   `"empresa"`— se tapaban también en las demás columnas. La misma regla vale
+#'   ser nombres: una columna de números, fechas o lógicos no lo es. No basta
+#'   la palabra: si bastara, esas columnas se protegerían como nombres,
+#'   perderían su moda y sus extremos, y sus categorías —`"mayorista"`,
+#'   `"empresa"`— se taparían también en las demás columnas. La misma regla vale
 #'   para las demás palabras: `tipo_documento` es una categoría y no un
 #'   documento, `fecha_contacto` y `medio_contacto` no son teléfonos,
 #'   `estado_correo` no es un correo y `tipo_domicilio` no es un domicilio;
@@ -1448,8 +1447,8 @@
 #'   cuentan como personas: junto a tres logins, uno solo que pasara por
 #'   estado dejaría la columna en el 75 % y publicaría los logins de todos—; la de quien es
 #'   objeto del registro pide la señal de los valores, y `cliente_desde` con
-#'   `"Sin fecha"` o `paciente_alta` con `"Traslado"` se publican. En la
-#'   ronda 34 el nombre decidía solo, y esas columnas publicaban nombres,
+#'   `"Sin fecha"` o `paciente_alta` con `"Traslado"` se publican. El nombre
+#'   no decide solo: si decidiera, esas columnas publicarían nombres,
 #'   celulares y domicilios. Limitación conocida: la lista de nombres de pila
 #'   no es completa, y un nombre que falta —o que es también una palabra
 #'   corriente, como `Max` o `Pilar`— deja la columna sin esa señal: con tres
@@ -1513,8 +1512,7 @@
 #' extremos o medianas que corresponden a observaciones reales. También los
 #' momentos: las medias en sus dos formas (`media` y `media_fecha`), porque la
 #' media de una columna personal puede reconstruir demasiado, y el desvío, que
-#' es una magnitud de sus valores —hasta la ronda 32 se conservaba, por una
-#' decisión declarada que se revirtió—. `detalle_proteccion_personal` hace
+#' es una magnitud de sus valores. `detalle_proteccion_personal` hace
 #' visible la supresión y dice qué se tapó: los estadísticos de orden, la media,
 #' el desvío o los dos momentos. En fechas de
 #' nacimiento y fallecimiento, un hallazgo separado conserva el diagnóstico de
@@ -2184,12 +2182,11 @@
 #'   buscar, así que `"2012/11/05"` no lo encuentra); una columna es de fechas
 #'   si es `Date` o `POSIXt`, o si la mitad o más de sus valores distintos
 #'   tienen forma de fecha —con el año en cuatro cifras o en dos, o compacta
-#'   `AAAAMMDD`—. Es una sola regla, en memoria y en [perfilar_dbi()]: hasta la
-#'   ronda 24 la columna `AAAAMMDD` tenía que serlo entera y el año en dos
-#'   cifras no contaba, y una columna de nacimientos con el 60 % en `dd/mm/aa`
-#'   tapaba la moda y los ejemplos de las fechas de otra columna. En la columna
-#'   de fechas, lo que no tiene forma de fecha —un relleno— sigue entrando al
-#'   piso. En la **prosa del paquete**
+#'   `AAAAMMDD`—. Es una sola regla, en memoria y en [perfilar_dbi()]: una
+#'   columna de nacimientos con el 60 % en `dd/mm/aa` es de fechas, y sus
+#'   valores no tapan la moda ni los ejemplos de las fechas de otra columna.
+#'   En la columna de fechas, lo que no tiene forma de fecha —un relleno— sigue
+#'   entrando al piso. En la **prosa del paquete**
 #'   —descripción, sugerencia, motivo, cómo resolverlo, justificación— se exige
 #'   además que la variante no tenga una letra pegada antes o después: con los
 #'   nombres de millones de personas como valores protegidos, alguno aparecía
@@ -2523,8 +2520,8 @@ perfilar <- function(datos,
   # nombre no dependa de que ninguna rama posterior toque la variable.
   force(nombre)
   # Sin validar, `nombre = function(x) x` construia el perfil y su `print()`
-  # abortaba; `c("a", "b")` imprimia dos encabezados pegados. Medido en la
-  # ronda 32. Un nombre es una cadena, como el de una metrica.
+  # abortaba; `c("a", "b")` imprimia dos encabezados pegados. Medido. Un
+  # nombre es una cadena, como el de una metrica.
   if (!.es_texto_escalar(nombre)) {
     .detener("`nombre` debe ser una cadena no vac\u00eda.", call. = FALSE)
   }
@@ -3265,7 +3262,7 @@ perfilar <- function(datos,
     columnas_codigo = columnas_codigo,
     # Las columnas declaradas opcionales, con el nombre de la tabla. Las lee
     # `proponer_modelo()`: la `NoNulo` de una opcional se mide sobre las celdas
-    # presentes, el mismo universo que el perfil (ronda 33-D). Sin este registro
+    # presentes, el mismo universo que el perfil. Sin este registro
     # la propuesta no sabia de la declaracion y media sobre todas las filas.
     # Tampoco aca hay un acceso `meta$...` que sea prefijo de este nombre.
     columnas_opcionales = .nombres_resueltos(columnas_opcionales, nombres),
@@ -3307,9 +3304,9 @@ perfilar <- function(datos,
     min_asimetria_vocabulario_corto = min_asimetria_vocabulario_corto,
     min_participacion_dominante_vocabulario_corto =
       min_participacion_dominante_vocabulario_corto,
-    # Las varas y el interruptor que faltaban para que `comparar_perfiles()`
+    # Las varas y el interruptor que hacen falta para que `comparar_perfiles()`
     # declare todo argumento que cambia si un hallazgo se emite: ver
-    # `.ARGUMENTOS_PERFIL_DERIVA` (refutacion 35-D, M4 y B2). Ningun acceso
+    # `.ARGUMENTOS_PERFIL_DERIVA`. Ningun acceso
     # `meta$...` del paquete es prefijo de estos nombres.
     min_asimetria_vocabulario = min_asimetria_vocabulario,
     variantes_equifrecuentes_vocabulario = variantes_equifrecuentes_vocabulario,

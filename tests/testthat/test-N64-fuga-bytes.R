@@ -16,9 +16,8 @@
 # La guarda se probo contra el defecto: antes del arreglo,
 # `.avisar_costo_tabla_ancha()` publicaba `f_a<c3><b1>o` y este archivo fallaba.
 
-# Regresion de una ronda de refutacion: corre en la suite completa, en el CI y en
-# R-hub, que usan NOT_CRAN=true; en CRAN se saltea para que el check entre en sus
-# tiempos (medicion del 2026-10-23).
+# Prueba de regresion: corre en la suite completa, en el CI y en R-hub, que usan
+# NOT_CRAN=true; en CRAN se saltea para que el check entre en sus tiempos.
 testthat::skip_on_cran()
 
 .sin_marca_n64 <- function(x) rawToChar(charToRaw(x))
@@ -97,7 +96,7 @@ test_that("los metodos print y los avisos no publican bytes crudos bajo C", {
 
   # Los cuatro metodos que publican prosa por `stdout` salen del mismo auxiliar
   # -`.cat_publicado()`-, asi que los cuatro entran aca. Se enumeraron desde el
-  # codigo, buscando quien publica, no desde los que se me ocurrieron.
+  # codigo, buscando quien publica, y no de memoria.
   canales$normalizacion <- function() print(normalizacion())
   canales$inferencia <- function() print(inferir_tipo(c("1", "2", "3")))
   canales$referencial <- function() {

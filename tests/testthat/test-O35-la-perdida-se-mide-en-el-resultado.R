@@ -5,9 +5,8 @@
 # sobre el resultado: una celda pierde su valor cuando la transformacion la
 # vuelve indistinguible de otra que era distinta, o cuando la deja ausente.
 
-# Regresion de una ronda de refutacion: corre en la suite completa, en el CI y en
-# R-hub, que usan NOT_CRAN=true; en CRAN se saltea para que el check entre en sus
-# tiempos (medicion del 2026-10-23).
+# Prueba de regresion: corre en la suite completa, en el CI y en R-hub, que usan
+# NOT_CRAN=true; en CRAN se saltea para que el check entre en sus tiempos.
 testthat::skip_on_cran()
 
 .blando <- function() {

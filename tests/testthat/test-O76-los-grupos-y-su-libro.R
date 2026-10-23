@@ -4,9 +4,8 @@
 # no se pierde ninguna fila; la cuarta es el rotulo del grupo, que tiene que volver
 # al valor del que salio.
 
-# Regresion de una ronda de refutacion: corre en la suite completa, en el CI y en
-# R-hub, que usan NOT_CRAN=true; en CRAN se saltea para que el check entre en sus
-# tiempos (medicion del 2026-10-23).
+# Prueba de regresion: corre en la suite completa, en el CI y en R-hub, que usan
+# NOT_CRAN=true; en CRAN se saltea para que el check entre en sus tiempos.
 testthat::skip_on_cran()
 
 reconciliar_o76 <- function(hallazgos) {
@@ -43,8 +42,8 @@ test_that("el libro de cobertura reconcilia con las filas de la tabla", {
 
 test_that("la marca de la fila de colision se mide y no se supone", {
   # Si el grupo fusionado queda por debajo de `min_filas` NO se perfila, y la fila de
-  # colision tiene que decirlo. La primera version del arreglo dejaba la marca fija
-  # en TRUE y era falsa justo en este caso.
+  # colision tiene que decirlo. Una marca fija en TRUE seria falsa justo en este
+  # caso.
   datos <- data.frame(
     g = c(rep(NA_character_, 8), rep("(ausente)", 2), rep("B", 40)),
     x = rep(c(1, 2, 3, 4), length.out = 50),

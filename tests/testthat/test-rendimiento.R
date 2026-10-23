@@ -59,8 +59,8 @@ test_that("los predicados invisibles decodifican cada celda como maximo una vez"
   expect_equal(llamadas, ncol(datos))
   celdas <- nrow(datos) * ncol(datos)
   expect_equal(valores_decodificados, celdas)
-  # Margen cero a propósito: cinco pasadas por valor (la regresión de la
-  # ronda 75) tiene que fallar este mismo guardián.
+  # Margen cero a propósito: cinco pasadas por valor (una regresión que ya
+  # ocurrió) tiene que fallar este mismo guardián.
   expect_failure(expect_lte(valores_decodificados * 5L, celdas))
 })
 
@@ -109,7 +109,7 @@ test_that("texto libre de cardinalidad alta no degrada el perfil", {
 
   tiempo <- system.time(resultado <- perfilar(datos))[["elapsed"]]
 
-  # La ronda 78 triplicó el costo del diagnóstico de vocabulario y lo llevó
+  # Una regresión ya triplicó el costo del diagnóstico de vocabulario y lo llevó
   # de 1,5 s a casi 5 s. El contador determinista del test siguiente vigila
   # el trabajo fino; este reloj queda como red de arrastre con margen para el
   # calentamiento de un proceso limpio, pero sigue detectando un desastre
@@ -130,15 +130,14 @@ test_that("texto libre de cardinalidad alta no degrada el perfil", {
   # de 36 s a 12— sino el costo propio de comparar 5.000 formas en tres
   # columnas.
   #
-  # Queda anotado en PENDIENTES que dos de las tres columnas de este fixture son
-  # idénticas y el diagnóstico las recorre por separado: ahí hay una mejora real
-  # que no se hace ahora.
+  # Dos de las tres columnas de este fixture son idénticas y el diagnóstico las
+  # recorre por separado: ahí hay una mejora real que no se hace ahora.
   #
   # El propósito del guardián se conserva: un desastre algorítmico llevaría esto
   # a un orden de magnitud, no a un 20 % más.
   expect_lt(unname(tiempo), 25)
 
-  # Decisión de §2.308: no se deduplican columnas por su vocabulario. El costo
+  # No se deduplican columnas por su vocabulario. El costo
   # puede repetirse, pero cada columna conserva su propia cobertura, aun cuando
   # `obs1` y `obs3` sean idénticas.
   cobertura <- resultado$cobertura_diagnosticos[

@@ -3,9 +3,8 @@
 # entrada"-, aunque la medicion SI sabia que la vacia tenia cero filas: lo dejo en
 # `cobertura_metricas`. Ahora ese motivo viaja a la cobertura de la coleccion.
 
-# Regresion de una ronda de refutacion: corre en la suite completa, en el CI y en
-# R-hub, que usan NOT_CRAN=true; en CRAN se saltea para que el check entre en sus
-# tiempos (medicion del 2026-10-23).
+# Prueba de regresion: corre en la suite completa, en el CI y en R-hub, que usan
+# NOT_CRAN=true; en CRAN se saltea para que el check entre en sus tiempos.
 testthat::skip_on_cran()
 
 test_that("la tabla vacia dice que tiene cero filas; la ausente, que no hay medida", {

@@ -159,8 +159,8 @@ test_that("nombre correo y documentos con evidencia fuerte siguen protegidos", {
     perfil$datos_personales$poder_discriminante,
     c("verificado", "alto", "medio")
   )
-  # Ninguna columna repite valores: no hay moda, y la proteccion no la inventa
-  # (ronda 31). `repetido`, abajo, si tiene moda y la tapa.
+  # Ninguna columna repite valores: no hay moda, y la proteccion no la inventa.
+  # `repetido`, abajo, si tiene moda y la tapa.
   expect_true(all(perfil$columnas$dato_personal_protegido))
   expect_true(all(is.na(perfil$columnas$moda)))
 
@@ -172,7 +172,7 @@ test_that("nombre correo y documentos con evidencia fuerte siguen protegidos", {
   expect_true(sin_nombre$datos_personales$proteger)
   expect_true(sin_nombre$columnas$dato_personal_protegido)
 
-  ## Decision cambiada el 2026-08-20, por Sebastian, a favor de la coherencia.
+  ## Decision cambiada el 2026-08-20, a favor de la coherencia.
   ## Antes una columna con un solo documento repetido no se protegia, con el
   ## argumento de que no discrimina a nadie DENTRO de la tabla. Es cierto, y
   ## tambien es cierto que identifica a una persona fuera de ella. La evidencia

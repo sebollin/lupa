@@ -106,7 +106,7 @@ test_that("muestra_motor materializa una vez y todas las métricas leen el spool
   expect_false("muestra_id" %in% names(resultado$resumen_tabla$sql))
   # Los indices se retienen, pero la traza no es `NULL` -fuera de los cuatro
   # estados-: es `no_disponible` con su alcance, o `no_aplica` si no nombra
-  # filas (ronda 24-C).
+  # filas.
   expect_true(all(vapply(
     resultado$perfil_muestra$hallazgos$trazabilidad,
     function(traza) {

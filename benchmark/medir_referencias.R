@@ -1,4 +1,4 @@
-## Rehace las cifras de referencia que publican los README y PENDIENTES:
+## Rehace las cifras de referencia que publican los README:
 ## tablas anchas (500 filas x 50/300/1000 columnas) y valores largos
 ## (2.000 filas x 1.000/20.000/200.000 caracteres).
 ##

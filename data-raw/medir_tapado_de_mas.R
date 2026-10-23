@@ -65,8 +65,8 @@ familias <- list(
                                                    format = "d", big.mark = ".",
                                                    decimal.mark = ",")),
   entero_8_cifras = sprintf("expediente %d", sample(10000000:69999999, m)),
-  # Ronda 24: las familias que la refutacion encontro tapadas de mas. Van al
-  # final para no cambiar los numeros de las de arriba.
+  # Familias que se tapaban de mas. Van al final para no cambiar los numeros de
+  # las de arriba.
   tras_una_equis = sprintf("serie X%d", sample(1000001:6999999, m)),
   por_una_equis = sprintf("%d x %d", sample(2:99, m, TRUE), sample(1000001:6999999, m)),
   coordenada_cero_adelante = sprintf("lon -0%.6f", runif(m, 53, 58)),
@@ -90,8 +90,8 @@ familias <- list(
                                     sample(2015:2025, m, TRUE), sample(1:12, m, TRUE),
                                     sample(1:28, m, TRUE), sample(0:23, m, TRUE),
                                     sample(0:59, m, TRUE), sample(0:59, m, TRUE)),
-  # Ronda 25: las familias que la refutacion midio. Al final, otra vez, para no
-  # cambiar los numeros de las de arriba.
+  # Mas familias medidas. Al final, otra vez, para no cambiar los numeros de las
+  # de arriba.
   ip_con_mascara = sprintf("%d.%d.%d.%d/%d", sample(1:255, m, TRUE),
                            sample(0:255, m, TRUE), sample(0:255, m, TRUE),
                            sample(0:255, m, TRUE), sample(8:32, m, TRUE)),
@@ -130,7 +130,7 @@ familias <- list(
                             sample(10:999, m, TRUE), sample(10:999, m, TRUE)),
   dos_numeros_en_dos_lineas = sprintf("%d\n%d", sample(1000:9999, m, TRUE),
                                       sample(1000:9999, m, TRUE)),
-  # Ronda 26: las familias que la refutacion midio sin cifra en la ayuda, y
+  # Familias medidas que no tenian cifra en la ayuda, y
   # los importes de cuatro grupos que comparten forma con un celular con su
   # prefijo de pais. Al final, para no cambiar los numeros de las de arriba.
   version_cuatro_partes = sprintf("v%d.%d.%d.%d", sample(1:9, m, TRUE),
@@ -148,7 +148,7 @@ familias <- list(
                                  big.mark = ","),
   monto_10_cifras_apostrofo = formatC(runif(m, 1e9, 1e10), format = "f", digits = 0,
                                       big.mark = "'"),
-  # Ronda 27: las familias que la refutacion midio -los importes de cuatro grupos
+  # Mas familias medidas -los importes de cuatro grupos
   # cuyo segundo empieza con cero, el telefono con su prefijo de pais pegado o
   # con espacios, la version de cinco partes, el correo en palabras- y, para
   # comparar, el telefono con guiones, pegado y sin el prefijo. Al final, para
@@ -201,7 +201,7 @@ cat("control, deben taparse los 12:",
 # es ruido: la ayuda decia "entre tres y seis de cada cien, igual con su prefijo"
 # y estas mismas familias daban 5,5 sin el prefijo, 2,8 con el prefijo y 1,5
 # pegado. Escritos con las mismas cifras se tapan exactamente los mismos: la
-# regla prueba la parte nacional, se escriba como se escriba. Ronda 28. Al
+# regla prueba la parte nacional, se escriba como se escriba. Al
 # final y con su propia semilla, para no cambiar los numeros de arriba.
 set.seed(2809)
 m_fijos <- 4000
@@ -228,7 +228,7 @@ for (familia in names(fijos_por_escritura)) {
 cat("tapados en todas las escrituras:", sum(rowSums(tapados_fijos) == ncol(tapados_fijos)),
     "| en alguna:", sum(rowSums(tapados_fijos) > 0), "\n")
 
-# Y las listas de telefonos unidos por una barra: desde la ronda 28 cada numero
+# Y las listas de telefonos unidos por una barra: cada numero
 # E.164 de la lista se prueba por su parte nacional, como con " / " o con ";",
 # y la lista pegada se tapa lo mismo que la separada. Al final, con su semilla.
 set.seed(2810)
@@ -254,12 +254,11 @@ for (familia in names(listas)) {
 
 # Y los importes con centavos, por ESCRITURA, sobre las mismas cifras enteras:
 # la familia `monto_con_decimales` de arriba sortea centavos al azar, y uno de
-# cada cien termina en `.00`. Ronda 30: la ronda 29 leia el decimal de ceros como
-# el entero y el importe REDONDO de siete cifras -`"5460537.00"`, un sueldo, una
-# cuota- se tapaba como el entero de siete cifras, uno de cada cinco, contra
-# ninguno en la ronda 28. La cifra entera entra ahora solo como documento entero.
-# El de ocho cifras con centavos se tapa como el entero de ocho: su parte entera
-# coincide con un documento entero, y eso ya pasaba en la ronda 28. Al final, con
+# cada cien termina en `.00`. Leer el decimal de ceros como el entero tapaba el
+# importe REDONDO de siete cifras -`"5460537.00"`, un sueldo, una cuota- como el
+# entero de siete cifras, uno de cada cinco. La cifra entera entra ahora solo como
+# documento entero. El de ocho cifras con centavos se tapa como el entero de ocho:
+# su parte entera coincide con un documento entero. Al final, con
 # su semilla, para no cambiar los numeros de arriba.
 set.seed(3012)
 m_importes <- 4000
@@ -286,7 +285,7 @@ for (familia in names(importes)) {
               familia, 100 * p, 200 * sqrt(p * (1 - p) / m_importes), x[[1L]]))
 }
 
-# Ronda 31: el numero de planilla con separador de miles -"52.317.219,00",
+# El numero de planilla con separador de miles -"52.317.219,00",
 # "59.898.617.353"- y la cientifica con un espacio antes del exponente
 # -"5.2317219 e+07"- se leen como la misma cifra entera que sin miles y con el
 # exponente pegado, y el celular con su prefijo de pais escrito asi, por su
@@ -322,11 +321,10 @@ for (familia in names(planilla)) {
               familia, 100 * p, 200 * sqrt(p * (1 - p) / m_importes), x[[1L]]))
 }
 
-# Ronda 32: las familias que la refutacion midio sin cifra en la ayuda -el fijo
-# que no es de nadie escrito como numero de planilla, que se lee desde la ronda
-# 31 por su parte nacional como el celular, y el entero de ocho cifras que
-# empieza con 9, que es la forma de un celular protegido sin su cero- y las dos
-# escrituras del numero de planilla que se suman en esta ronda: el punto medio
+# Familias medidas que no tenian cifra en la ayuda -el fijo que no es de nadie
+# escrito como numero de planilla, que se lee por su parte nacional como el
+# celular, y el entero de ocho cifras que empieza con 9, que es la forma de un
+# celular protegido sin su cero- y otras dos escrituras del numero de planilla: el punto medio
 # como separador de miles y el agrupado indio. Las mismas cifras en cada
 # escritura de un grupo, con su control pegado. Al final, con su semilla, para
 # no cambiar los numeros de arriba.
@@ -355,7 +353,7 @@ fijos_libres <- as.numeric(sprintf("598%d%07d", sample(c(2, 4), m_r32, TRUE),
 celulares_libres_r32 <- as.numeric(sprintf("5989%d%06d",
                                            sample(1:9, m_r32, TRUE),
                                            sample(0:999999, m_r32, TRUE)))
-ronda_32 <- list(
+r32 <- list(
   entero_8_empieza_9 = sprintf("%d", ent8_9),
   entero_8_empieza_9_miles = con_miles_r32(ent8_9, "."),
   entero_8_empieza_9_miles_00 = paste0(con_miles_r32(ent8_9, "."), ",00"),
@@ -374,15 +372,15 @@ ronda_32 <- list(
   celular_e164_indio = agrupado_indio(celulares_libres_r32),
   celular_e164_indio_00 = paste0(agrupado_indio(celulares_libres_r32), ".00")
 )
-cat("\nronda 32, las mismas", m_r32, "cifras en cada escritura de un grupo:\n")
-for (familia in names(ronda_32)) {
-  x <- ronda_32[[familia]]
+cat("\nlas mismas", m_r32, "cifras en cada escritura de un grupo:\n")
+for (familia in names(r32)) {
+  x <- r32[[familia]]
   p <- mean(.reemplazar_valores_protegidos(x, valores, exigir_limites = FALSE) != x)
   cat(sprintf("%-32s %5.1f %%  (+- %.1f, dos errores estandar)   ej: %s\n",
               familia, 100 * p, 200 * sqrt(p * (1 - p) / m_r32), x[[1L]]))
 }
 
-# Ronda 34: la columna que copia los documentos protegidos SIN su verificador
+# La columna que copia los documentos protegidos SIN su verificador
 # -el entero `4685467` frente a `4.685.467-9`- se protege entera, como una
 # columna personal, si al menos tres de sus valores distintos son documentos sin
 # verificador, si son el 90 % de sus distintos y si tantos no coinciden por
@@ -429,7 +427,7 @@ familias_r34 <- list(
   copia_10_pct_tipeos_n50 = function(p) copia(p, 50, 0.1),
   copia_20_pct_tipeos_n50 = function(p) copia(p, 50, 0.2)
 )
-cat("\nronda 34, columnas protegidas como copia sin verificador (de",
+cat("\ncolumnas protegidas como copia sin verificador (de",
     columnas_r34, "por familia):\n")
 for (familia in names(familias_r34)) {
   fila <- vapply(names(conjuntos), function(cual) {

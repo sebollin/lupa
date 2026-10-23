@@ -12,9 +12,8 @@
 #     filas- salia por `hallazgos()` y por el informe sin que nada dijera que la
 #     cifra y su respaldo no coinciden.
 
-# Regresion de una ronda de refutacion: corre en la suite completa, en el CI y en
-# R-hub, que usan NOT_CRAN=true; en CRAN se saltea para que el check entre en sus
-# tiempos (medicion del 2026-10-23).
+# Prueba de regresion: corre en la suite completa, en el CI y en R-hub, que usan
+# NOT_CRAN=true; en CRAN se saltea para que el check entre en sus tiempos.
 testthat::skip_on_cran()
 
 .o24_perfil <- function(valores, fecha) {
@@ -97,8 +96,8 @@ test_that("dos corridas de la misma sesion se siguen comparando", {
   # `fecha` por omision es la hora de LA CORRIDA, no la de la entrega: dos
   # perfiles hechos seguidos quedan a segundos uno del otro, en el orden en que
   # se corrieron, y ese orden no dice nada. La guarda de orden solo tiene
-  # sentido cuando las dos fechas las declaro quien llama. Lo atrapo la suite:
-  # la primera version paraba sobre pruebas que perfilan dos veces seguidas.
+  # sentido cuando las dos fechas las declaro quien llama. Una guarda que no lo
+  # distinga se detiene en cualquier prueba que perfile dos veces seguidas.
   primero <- perfilar(data.frame(v = c(1, 2, 3)))
   segundo <- perfilar(data.frame(v = c(1, NA, 3)))
   expect_false(isTRUE(primero$meta$fecha_declarada))

@@ -3,9 +3,8 @@
 # El invariante de esta tabla es que `n_evaluados` y `n_afectados` estan en la unidad
 # que `unidad_conteo` declara, y que `n_afectados` nunca puede ser mayor.
 
-# Regresion de una ronda de refutacion: corre en la suite completa, en el CI y en
-# R-hub, que usan NOT_CRAN=true; en CRAN se saltea para que el check entre en sus
-# tiempos (medicion del 2026-10-23).
+# Prueba de regresion: corre en la suite completa, en el CI y en R-hub, que usan
+# NOT_CRAN=true; en CRAN se saltea para que el check entre en sus tiempos.
 testthat::skip_on_cran()
 
 test_that("el conteo de fecha partida no sale de partir su propia evidencia", {
@@ -128,7 +127,7 @@ test_that("el centinela declara el mismo universo que sus hermanos", {
   # `filas_duplicadas`- como "su universo real", y para `patron_raro` la premisa
   # era falsa: la fila `NA` no tiene patron, sus proporciones se calculan sobre
   # las filas con valor y su traza no la mira. Su universo son las 27 filas con
-  # valor (ronda 24-C). `faltantes` y `filas_duplicadas` si miran la columna
+  # valor. `faltantes` y `filas_duplicadas` si miran la columna
   # entera y siguen en 28.
   expect_identical(universo("patron_raro"), 27)
 })

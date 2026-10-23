@@ -330,8 +330,8 @@ medicion_desde_estimaciones <- function(estimaciones, entidad, fuente,
   # llamada, no entre llamadas: dos tabulados de la misma entidad y la misma
   # fecha -declarada, o la de omision dentro del mismo segundo- daban
   # `...-Estimacion-0001` a "Norte" en uno y a "Mujer" en el otro, y `evaluar()`
-  # rechazaba la union como una medicion unida consigo misma. Medido en la ronda
-  # 27. Se numera antes de descartar celdas, asi que descartar una no renumera a
+  # rechazaba la union como una medicion unida consigo misma. Medido. Se numera
+  # antes de descartar celdas, asi que descartar una no renumera a
   # las demas; la misma celda medida dos veces sigue repitiendo, que es lo que
   # las guardas de `evaluar()` y `historico_calidad()` buscan.
   salida$id_medida <- .ids_medida(
@@ -377,8 +377,8 @@ medicion_desde_estimaciones <- function(estimaciones, entidad, fuente,
   # medicion -`historico_calidad()`, `rbind()`, `[` y la proteccion de
   # `reportar()` despachan por ella- y la ayuda promete "el contrato de
   # `medir()`". Sin ella, `historico_calidad(m1, m2)` rechazaba la salida, y es
-  # justo adonde manda el mensaje de `evaluar()` para reunir corridas. Medido en
-  # la ronda 27. `medicion_calidad` se conserva delante: quien ya despachaba por
+  # justo adonde manda el mensaje de `evaluar()` para reunir corridas. Medido.
+  # `medicion_calidad` se conserva delante: quien ya despachaba por
   # ella no cambia.
   class(salida) <- c("medicion_calidad", "medicion", "data.frame")
   salida

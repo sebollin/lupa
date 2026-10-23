@@ -64,8 +64,8 @@ test_that("el perfil vuelve a servir para planificar y analizar", {
 test_that("el valor que coincide con un nombre SIGUE enmascarado", {
   # La mitad que hace que el arreglo no sea "proteger los nombres en todas
   # partes": el valor de la columna `documento` es `"documento"`, y es un dato
-  # personal. Su moda tiene que seguir tapada. Desde la ronda 37 una columna
-  # `documento` sin un solo valor con las cifras de un documento no se toma por
+  # personal. Su moda tiene que seguir tapada. Una columna `documento` sin un
+  # solo valor con las cifras de un documento no se toma por
   # documento por su nombre, asi que aca se la declara personal: lo que se mide
   # es que la excepcion del nombre de columna no destape un valor protegido.
   datos <- .o86_datos()

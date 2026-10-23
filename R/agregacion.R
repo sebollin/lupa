@@ -215,7 +215,7 @@ transiciones_granularidad <- function() {
   if (length(no_unicos)) {
     # Dos corridas no son una: el agregado describe un momento. El mensaje decia
     # solo "deben compartir: fecha", y la ayuda de `organizacion()` prometia
-    # reunir colecciones de momentos distintos. Ronda 24.
+    # reunir colecciones de momentos distintos.
     corridas <- if (any(c("id_medicion", "fecha") %in% no_unicos)) {
       paste0(
         " Las medidas vienen de ", length(unique(paste(medidas$id_medicion,
@@ -232,7 +232,7 @@ transiciones_granularidad <- function() {
   }
   # Una medida repetida se contaba dos veces, y dos datos con el mismo
   # identificador salian como UNA celda mezclada. `evaluar()` ya lo rechazaba:
-  # mismo criterio. Medido en la ronda 23.
+  # mismo criterio. Medido.
   if ("id_medida" %in% names(medidas)) {
     repetidas <- duplicated(.nombres_para_operar(as.character(medidas$id_medida)))
     if (any(repetidas)) {
@@ -249,7 +249,7 @@ transiciones_granularidad <- function() {
       any(medidas$resultado < 0 | medidas$resultado > 1)) {
     # El mensaje nombra la metrica y la causa: decia solo "[0, 1]", y la misma
     # metrica no acotada daba otro mensaje segun sus valores -con 0 y 0 la
-    # guarda por tipo, con 0 y 91 esta-. Medido en la ronda 23.
+    # guarda por tipo, con 0 y 91 esta-. Medido.
     nombres <- if ("metrica_instanciada" %in% names(medidas)) {
       medidas$metrica_instanciada
     } else medidas$metrica_especifica
@@ -292,7 +292,7 @@ transiciones_granularidad <- function() {
   # la columna `mes` y la tabla `ventas` con la columna `total.mes` caian en el
   # mismo grupo -un solo atributo con 0,625 donde habia dos, 1 y 0,25-. Los
   # codigos van rellenados para que el orden lexicografico siga siendo el de los
-  # niveles. Medido en la ronda 24.
+  # niveles. Medido.
   clave <- do.call(
     interaction,
     c(lapply(claves, function(x) {
@@ -311,7 +311,7 @@ transiciones_granularidad <- function() {
     funcion,
     ratio = mean(valores == 1),
     # Con tolerancia de redondeo: `1 - 0.9` da 0,0999...9, que se imprime 0,1 y
-    # no alcanzaba el umbral 0,1. Medido en la ronda 23.
+    # no alcanzaba el umbral 0,1. Medido.
     ratio_umbral = mean(valores >= umbral - 64 * .Machine$double.eps),
     promedio = mean(valores),
     promedio_ponderado = sum(valores * pesos)
@@ -320,7 +320,7 @@ transiciones_granularidad <- function() {
 
 # Las partes de un objeto de varias, unidas con coma. Un nombre que ya trae una
 # coma va entre comillas invertidas: `a, b` y `c` daban "a, b, c", lo mismo que
-# `a` y `b, c`, y el tablero no podia distinguir las dos celdas. Ronda 24.
+# `a` y `b, c`, y el tablero no podia distinguir las dos celdas.
 .unir_nombres_partes <- function(x) {
   x <- .identificadores_ordenados(x)
   con_coma <- grepl(",", x, fixed = TRUE, useBytes = TRUE)
@@ -354,7 +354,7 @@ transiciones_granularidad <- function() {
 # nombran sus PARTES: el conjunto se llamaba siempre `conjuntoColecciones`, una
 # coleccion sin nombre siempre `coleccion`, y dos objetos distintos salian con
 # el mismo `id_medida` -la union se rechazaba como "unida consigo misma"-.
-# Medido en la ronda 24.
+# Medido.
 .escapar_parte_id <- function(x) {
   gsub("([\\]\\[\\\\.,#@])", "\\\\\\1", as.character(x), perl = TRUE)
 }
@@ -575,7 +575,7 @@ transiciones_granularidad <- function() {
   # El nombre de lista manda, y el del objeto -el que `agregar()` escribio en la
   # coleccion- la sigue reconociendo: el alias que ya tenia el conjunto de
   # organizaciones. Sin el, la lista que renombraba sus colecciones abortaba.
-  # Medido en la ronda 24.
+  # Medido.
   list(nombre = "conjuntoColecciones", declaradas = nombres,
        alias = unname(desde_objeto))
 }
@@ -639,7 +639,7 @@ transiciones_granularidad <- function() {
   # solo se conocen por las `completas` del paso anterior. Antes, sin ninguna
   # parte parcial, se devolvia NULL y las completas se perdian: el conjunto de
   # una coleccion completa y una parcial publicaba "5 de 9" donde eran 12 de 16.
-  # Medido en la ronda 24.
+  # Medido.
   desde_la_base <- NROW(medidas) > 0L && all(
     as.character(medidas$granularidad) %in% c("instanciaAtributo", "instanciaEntidad")
   )
@@ -695,7 +695,7 @@ transiciones_granularidad <- function() {
   # de la columna entera: cada fila cuenta cuantas de las instancias de su tabla
   # tienen medida en ella, y se declaran las que no estan completas. Antes las
   # filas completas decian "5 de 6" -lo de la columna- y la unica parcial no
-  # decia nada. Medido en la ronda 23.
+  # decia nada. Medido.
   por_fila <- identical(as.character(resultado$granularidad[[1L]]), "instanciaEntidad") &&
     all(as.character(medidas$granularidad) == "instanciaAtributo")
   instancias_por_entidad <- tapply(
@@ -837,7 +837,7 @@ transiciones_granularidad <- function() {
 # la evaluacion de `analizar()` llegaba al historico sin ellas, la deriva no
 # separaba un cambio de modelo ni dos tablas -`identidad_tabla` salia
 # `<sin_configuracion>`- y publicaba `error` sobre corridas que la puerta
-# `medir()` -> `evaluar()` declara no comparables (refutacion 33-D).
+# `medir()` -> `evaluar()` declara no comparables.
 .trasladar_atributos_medicion <- function(destino, origen) {
   for (nombre_atributo in .ATRIBUTOS_TRASLADADOS_AGREGACION) {
     valor_atributo <- attr(origen, nombre_atributo, exact = TRUE)
@@ -1266,14 +1266,14 @@ agregar <- function(medidas, destino,
   # Lo mismo con `pesos`, y peor: con `ratio` o `promedio` los pesos no pesaban
   # nada y se publicaban igual en `pesos_declarados` -y `partes_con_peso_cero`
   # declaraba partes que si habian entrado-; uno de otro largo abortaba con un
-  # error de R al nombrarlos. Medido en la ronda 32.
+  # error de R al nombrarlos. Medido.
   if (!is.null(pesos) && !identical(funcion, "promedio_ponderado")) {
     .detener(
       "`pesos` s\u00f3lo se usa con `promedio_ponderado`; la agregaci\u00f3n ",
       "pedida es `", funcion, "`.", call. = FALSE
     )
   }
-  # Un `umbral` con otra funcion se aceptaba en silencio. Medido en la ronda 23.
+  # Un `umbral` con otra funcion se aceptaba en silencio. Medido.
   if (!is.null(umbral) && !identical(funcion, "ratio_umbral")) {
     .detener(
       "`umbral` s\u00f3lo se usa con `ratio_umbral`; la agregaci\u00f3n pedida es `",
@@ -1357,7 +1357,7 @@ agregar <- function(medidas, destino,
       # el mismo idioma.
       # El nombre del objeto sigue reconociendo a la parte que la lista renombro:
       # los pesos escritos con el se traducen al nombre declarado, como las
-      # medidas. Ronda 24.
+      # medidas.
       frontera_con_alias <- if (!is.null(conjunto)) {
         conjunto
       } else if (!is.null(organismo)) {
@@ -1377,8 +1377,8 @@ agregar <- function(medidas, destino,
         !length(.identificadores_setdiff(entidades_medidas, names(pesos)))
       # Si los nombres casan con los DOS vocabularios y reparten distinto, no hay
       # como saber a cual se refieren: ganaba `objeto_medible` en silencio, y una
-      # coleccion `a` con la tabla `b` recibia el peso escrito para `b`. Medido
-      # en la ronda 24: 0,925 publicado donde el peso por coleccion daba 0,325.
+      # coleccion `a` con la tabla `b` recibia el peso escrito para `b`. Medido:
+      # 0,925 publicado donde el peso por coleccion daba 0,325.
       if (por_objeto && por_entidad) {
         segun_objeto <- unname(pesos[.indice_identificador(partes_medidas, names(pesos))])
         segun_entidad <- unname(pesos[.indice_identificador(entidades_medidas, names(pesos))])
@@ -1533,7 +1533,7 @@ agregar <- function(medidas, destino,
   # Numeraba desde 1 en cada llamada, y dos colecciones agregadas por separado
   # -el camino documentado para subir a `conjuntoColecciones`- salian con el
   # mismo `id_medida`: `evaluar()` rechazaba la union. El mismo agregado repetido
-  # sigue repitiendo su identificador. Medido en la ronda 23.
+  # sigue repitiendo su identificador. Medido.
   objeto_id <- vapply(grupos, function(indices) {
     .id_objeto_agregado(medidas, indices, destino, nombre_frontera)
   }, character(1L), USE.NAMES = FALSE)
@@ -1581,8 +1581,7 @@ agregar <- function(medidas, destino,
   # La coleccion lleva la cobertura de SUS tablas. Medidas tomadas de una
   # `medir()` que reunia dos colecciones traian la de la otra -"la entidad `a3`
   # tiene cero filas" en la coleccion que no tiene `a3`-, y con una regla sin
-  # `metricas` el veredicto de una coleccion completa salia NA. Medido en la
-  # ronda 24.
+  # `metricas` el veredicto de una coleccion completa salia NA. Medido.
   cobertura_metricas <- attr(resultado, "cobertura_metricas", exact = TRUE)
   if (identical(destino, "coleccion") &&
       inherits(cobertura_metricas, "data.frame") && nrow(cobertura_metricas) &&

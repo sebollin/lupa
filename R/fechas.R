@@ -6,8 +6,7 @@
 
 .es_fecha_valida <- function(x, formato, expresion, granularidad = "dia") {
   # Declarado, y solo lo legible: un texto que no es UTF-8 valido no es una
-  # fecha en ninguna sesion, y bajo un locale UTF-8 hacia abortar el `grepl()`
-  # (ronda 30-L).
+  # fecha en ninguna sesion, y bajo un locale UTF-8 hacia abortar el `grepl()`.
   x <- .declarar_utf8_valido(as.character(x))
   legibles <- !is.na(x) & (Encoding(x) == "latin1" | validUTF8(x))
   coincide <- rep(FALSE, length(x))

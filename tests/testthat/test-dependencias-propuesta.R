@@ -84,8 +84,8 @@ test_that("perfilar conserva dependencias y la propuesta explica su origen", {
   expect_false(inherits(recortada[, "metrica", drop = FALSE], "propuesta_modelo"))
 })
 
-# Hasta la ronda 31 se proponia inactiva; la decision D6 de la ronda 32 la
-# activa y la mide contando los disfrazados (ver test-O156).
+# NoNulo se propone activa y se mide contando los disfrazados (ver
+# test-O156-decisiones.R).
 test_that("NoNulo se propone activa ante ausentes disfrazados, contandolos", {
   disfrazados <- data.frame(a = c(rep("S/D", 8), "x", "y"))
   propuesta <- proponer_modelo(

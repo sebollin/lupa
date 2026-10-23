@@ -9,9 +9,8 @@
 # entero. Es el invariante central del paquete: un resumen sobre parte declara lo
 # que quedo afuera.
 
-# Regresion de una ronda de refutacion: corre en la suite completa, en el CI y en
-# R-hub, que usan NOT_CRAN=true; en CRAN se saltea para que el check entre en sus
-# tiempos (medicion del 2026-10-23).
+# Prueba de regresion: corre en la suite completa, en el CI y en R-hub, que usan
+# NOT_CRAN=true; en CRAN se saltea para que el check entre en sus tiempos.
 testthat::skip_on_cran()
 
 test_that("un campo registrado presente en un solo lado queda declarado", {
@@ -67,8 +66,9 @@ test_that("un campo medido en los dos lados sigue comparandose, no declarandose"
 })
 
 test_that("un campo SIN eje registrado sigue declarandose como antes", {
-  # El otro control: los campos no registrados ya se declaraban, y la vuelta nueva
-  # no tiene que duplicarlos ni cambiarles el motivo.
+  # El otro control: los campos no registrados ya se declaraban, y la
+  # declaracion de los registrados no tiene que duplicarlos ni cambiarles el
+  # motivo.
   anterior <- data.frame(
     columna = "monto", minimo = 1, inventado = 3, stringsAsFactors = FALSE
   )

@@ -62,7 +62,7 @@ jobs:
       #
       # El que representa la mirada de CRAN -incluido el reloj- es win-builder, y
       # el check local en configuracion de granja: `Suggests` instalados y sin
-      # `NOT_CRAN`. Ver PENDIENTES 2.452.
+      # `NOT_CRAN`.
       NOT_CRAN: true
 
     steps:
@@ -98,7 +98,7 @@ jobs:
       #
       # El que representa la mirada de CRAN -incluido el reloj- es win-builder, y
       # el check local en configuracion de granja: `Suggests` instalados y sin
-      # `NOT_CRAN`. Ver PENDIENTES 2.452.
+      # `NOT_CRAN`.
       NOT_CRAN: true
 
     steps:

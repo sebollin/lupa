@@ -1,6 +1,6 @@
-# Salidos de una refutacion adversarial sobre la consolidacion. Los tres son la
-# misma familia: el motor devolvio algo, R no lo pudo leer como el numero que la
-# metrica supone, y el resultado se publicaba igual.
+# Tres defectos de la consolidacion, de la misma familia: el motor devolvio
+# algo, R no lo pudo leer como el numero que la metrica supone, y el resultado
+# se publicaba igual.
 
 test_that("un valor que la conversion pierde no se publica como calculado", {
   skip_if_not_installed("DBI")
@@ -199,6 +199,6 @@ test_that("el sondeo de magnitud cierra la puerta sin pedir basicos", {
   expect_equal(sondeo$estado[[1L]], "no_disponible")
   expect_true(!is.na(sondeo$sql[[1L]]))
   # `MAX` y no `MIN`: en SQLite el texto se ordena despues de los numeros, y en
-  # duckdb y PostgreSQL el `NaN` despues de todo numero. Ver la ronda 11.
+  # duckdb y PostgreSQL el `NaN` despues de todo numero.
   expect_true(grepl("MAX", sondeo$sql[[1L]], fixed = TRUE))
 })

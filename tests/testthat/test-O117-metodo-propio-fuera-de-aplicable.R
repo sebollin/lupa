@@ -1,11 +1,10 @@
 # Un metodo propio que mide filas fuera del universo que su metrica declara con
-# `aplicable`. Residuo de la ronda 9: la medicion publicaba esas medidas, las
+# `aplicable`. Antes la medicion publicaba esas medidas, las
 # metia en el agregado y `alcance_medidas` decia "4 de 5" cuando adentro se
 # habian medido 3.
 
-# Regresion de una ronda de refutacion: corre en la suite completa, en el CI y en
-# R-hub, que usan NOT_CRAN=true; en CRAN se saltea para que el check entre en sus
-# tiempos (medicion del 2026-10-23).
+# Prueba de regresion: corre en la suite completa, en el CI y en R-hub, que usan
+# NOT_CRAN=true; en CRAN se saltea para que el check entre en sus tiempos.
 testthat::skip_on_cran()
 
 .datos_O117 <- function() {

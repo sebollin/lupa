@@ -350,13 +350,13 @@ analizar <- function(datos, nombre = .nombre_de_los_datos(substitute(datos)),
     .detener("Todos los argumentos de perfilar() deben tener nombre.", call. = FALSE)
   }
   argumentos_perfil <- c(argumentos_perfil, extras)
-  # Los nombres se completan como los completara `perfilar()` al recibirlos
-  # (ronda 34-X): `analizar()` lee `aplicabilidad`, `columnas_opcionales` y
+  # Los nombres se completan como los completara `perfilar()` al recibirlos:
+  # `analizar()` lee `aplicabilidad`, `columnas_opcionales` y
   # `sentinelas_numericos` de esta lista para la medicion, y por el nombre
   # exacto. Con `aplic = ` el perfil contaba los faltantes sobre el universo
   # -30 de 300, 0,1- y el tablero sobre la tabla -270/1000, `NoNulo` 0,27-, sin
-  # aviso. Es la regla de `.argumentos_para_perfilar()` de la ronda 33, que
-  # faltaba en esta via; y asi un abreviado de un argumento coordinado (`fech`)
+  # aviso. Es la regla de `.argumentos_para_perfilar()`, que faltaba en esta
+  # via; y asi un abreviado de un argumento coordinado (`fech`)
   # da el error de abajo y no el de R.
   argumentos_perfil <- .argumentos_para_perfilar(argumentos_perfil)
   if (anyDuplicated(.nombres_para_operar(names(argumentos_perfil)))) {
@@ -396,7 +396,7 @@ analizar <- function(datos, nombre = .nombre_de_los_datos(substitute(datos)),
   }
   # La fecha se lee UNA vez, en la entrada, como la leen `perfilar()` y
   # `medir()`: el texto crudo llegaba a `.nuevo_id_medicion()` y abortaba con un
-  # error de R lo que las dos piezas aceptan. Medido en la ronda 32.
+  # error de R lo que las dos piezas aceptan. Medido.
   # Si la fecha la declaro quien llama se pregunta ANTES de leerla: despues de
   # asignarla, `missing()` ya no lo dice. La medicion lo declara como `medir()`.
   fecha_declarada <- !missing(fecha)
@@ -416,7 +416,7 @@ analizar <- function(datos, nombre = .nombre_de_los_datos(substitute(datos)),
   # `comparar_perfiles()` exigia el orden temporal entre dos instantes de corrida:
   # dos entregas analizadas fuera de orden abortaban con un error de orden falso,
   # y seguir su consejo -invertir los argumentos- publicaba el deterioro como
-  # mejora (refutacion 34-D). Lo declara quien llamo, como en la medicion.
+  # mejora. Lo declara quien llamo, como en la medicion.
   if (is.list(perfil) && is.list(perfil$meta)) {
     perfil$meta$fecha_declarada <- fecha_declarada
   }
@@ -437,7 +437,7 @@ analizar <- function(datos, nombre = .nombre_de_los_datos(substitute(datos)),
   # Una columna declarada en `columnas_codigo` es un codigo: se asocia como
   # categoria, no con una correlacion que supone una magnitud. Sin esto el mismo
   # objeto publicaba `cod` como codigo en el perfil y su Pearson con `monto` en
-  # `asociaciones` (refutacion 33-D). Se convierte una copia; los datos del
+  # `asociaciones`. Se convierte una copia; los datos del
   # usuario no se tocan.
   datos_asociaciones <- .codigos_como_categoria(
     datos, perfil$meta[["columnas_codigo"]]
@@ -521,7 +521,7 @@ analizar <- function(datos, nombre = .nombre_de_los_datos(substitute(datos)),
   # arma entero: se mide y se agrega METRICA POR METRICA. Medirlo todo junto
   # materializaba una fila por celda y por metrica antes de agregar -21 filas de
   # medida por fila de datos en una tabla de 19 columnas-, y sobre 4,24 millones
-  # de filas eso mato el proceso con 103 GB en una evaluacion real. Medido en
+  # de filas eso mato el proceso con 103 GB. Medido en
   # 100.000 filas: `analizar()` 2,41 GB, y 0,95 GB sin medir. Con el detalle
   # pedido se sigue el camino de siempre, porque ahi el detalle ES el resultado.
   detalle_medicion <- NULL
@@ -840,7 +840,7 @@ print.analisis <- function(x, ...) {
 # valores: son lo unico que conserva una columna protegida de la copia. Todo lo
 # demas puede llevar sus valores -las etiquetas de un `haven_labelled`, los
 # nombres de un vector, un atributo propio- y se quita: `x[] <- NA` vaciaba las
-# celdas y dejaba los nombres de las docentes en `labels`. Ronda 28.
+# celdas y dejaba los nombres de las docentes en `labels`.
 .ATRIBUTOS_DE_CLASE_COLUMNA <- c("class", "tzone", "units", "dim")
 
 .proteger_datos_conservados <- function(datos, sensibles) {
@@ -868,7 +868,7 @@ print.analisis <- function(x, ...) {
 
 # El PISO sobre todo lo demas de la copia conservada: un valor de una columna
 # protegida que identifica no se publica en ninguna parte, tampoco en la columna
-# de al lado de la copia. Medido en la ronda 27: `analizar(conservar_datos =
+# de al lado de la copia. Medido: `analizar(conservar_datos =
 # TRUE)` tapaba `cedula` y dejaba las sesenta cedulas en `obs`, "pago CI
 # 3.738.538-0". Celda por celda, con la regla de los valores -la misma que tapa
 # la moda de `obs`-, y en los numeros, la cedula guardada como entero en otra
@@ -882,7 +882,7 @@ print.analisis <- function(x, ...) {
 # de cualquier clase -una copia `POSIXct` de la fecha con hora protegida, que
 # `perfilar()` si tapa- y las listas, elemento por elemento. Se recorrian solo el
 # texto, el factor y `is.numeric()`, y la copia publicaba las ciento veinte
-# cedulas por cada una de esas cuatro puertas. Medido en la ronda 28. Es una
+# cedulas por cada una de esas cuatro puertas. Medido. Es una
 # sola regla, recursiva: cada valor, donde este, pasa por el piso.
 .proteger_piso_datos_conservados <- function(datos, identificantes, sensibles) {
   if (!inherits(datos, "data.frame") || !length(identificantes)) return(datos)
@@ -894,9 +894,8 @@ print.analisis <- function(x, ...) {
   # La columna protegida ya no tiene valores, pero conserva los atributos de su
   # clase -`.ATRIBUTOS_DE_CLASE_COLUMNA`-, y uno de ellos puede llevar uno:
   # `units = "Cliente Apellidoso 009"` en la cedula guardada como numero o en
-  # la fecha de nacimiento se publicaba, mientras en `monto` se tapaba. Medido en
-  # la ronda 30. Pasan por el piso como los de las demas, salvo la clase y la
-  # forma.
+  # la fecha de nacimiento se publicaba, mientras en `monto` se tapaba. Medido.
+  # Pasan por el piso como los de las demas, salvo la clase y la forma.
   for (j in propias) {
     datos[[j]] <- .piso_atributos_conservados(datos[[j]], identificantes,
                                               estructurales = c("class", "dim"))
@@ -909,7 +908,7 @@ print.analisis <- function(x, ...) {
 # a ser los numeros de fila. Los nombres de columna de la copia son estructura y
 # quedan; los de una tabla ANIDADA en una columna lista (`nombres = TRUE`) son
 # valores del usuario y pasan por el piso: un data.frame cuyos nombres de columna
-# eran tres cedulas quedaba entero en la copia. Medido en la ronda 30.
+# eran tres cedulas quedaba entero en la copia. Medido.
 .piso_marco_conservado <- function(datos, identificantes, vistos = list(),
                                    nombres = FALSE) {
   filas <- attr(datos, "row.names", exact = TRUE)
@@ -938,7 +937,7 @@ print.analisis <- function(x, ...) {
   # vector: se leen como el texto que los escribe -`deparse()`- y, la funcion,
   # tambien por su entorno. `quote(buscar(doc == "4.685.467-9"))` y
   # `function() "4.685.467-9"` en una columna lista quedaban enteros en la
-  # copia. Medido en la ronda 30. Como con un entorno, si llevan un valor
+  # copia. Medido. Como con un entorno, si llevan un valor
   # protegido la copia lleva el marcador en su lugar.
   if (is.function(x) || is.language(x)) {
     return(.piso_lenguaje_conservado(x, identificantes, vistos))
@@ -953,10 +952,10 @@ print.analisis <- function(x, ...) {
   # LISTA por dentro, y `x[[i]]` de una `POSIXlt` es otra `POSIXlt`: el
   # recorrido de las listas no terminaba nunca y `analizar(conservar_datos =
   # TRUE)` abortaba con "stack desbordado" sobre una columna cualquiera, con la
-  # proteccion puesta y sin ella no. Medido en la ronda 29. Es una fecha con
+  # proteccion puesta y sin ella no. Medido. Es una fecha con
   # hora y se tapa como la `POSIXct`, celda por celda. Y sus atributos, como los
   # de cualquier objeto, abajo: devolverla aca dejaba `comment` y `label` en
-  # claro. Medido en la ronda 30.
+  # claro. Medido.
   es_posixlt <- inherits(x, "POSIXlt")
   if (es_posixlt) {
     tapadas <- tryCatch(
@@ -979,7 +978,7 @@ print.analisis <- function(x, ...) {
     }, logical(1L))
     # Una lista de puros `NULL` no tiene nada que tapar: `unlist()` daba `NULL`
     # y `split()` abortaba `analizar(conservar_datos = TRUE)` sobre una columna
-    # lista vacia. Medido en la ronda 31.
+    # lista vacia. Medido.
     if (length(x) && all(textos) && any(lengths(x) > 0L)) {
       # Lo comun -una lista de textos, como `I(list(c("pago", "CI ...")))`- de
       # una vez y no elemento por elemento.
@@ -1021,7 +1020,7 @@ print.analisis <- function(x, ...) {
   }
   # Todo atributo que no hace a la forma del objeto pasa por el piso, tambien
   # `levels` en lo que no es un factor y `units`: un entero con `levels` y una
-  # columna con `units` guardaban cedulas en la copia. Medido en la ronda 29.
+  # columna con `units` guardaban cedulas en la copia. Medido.
   # La unidad y la zona horaria de una fecha -`secs`, `UTC`- no llevan un valor
   # protegido y quedan como estan.
   estructurales <- c("class", "dim", "row.names", if (is.factor(x)) "levels")
@@ -1031,7 +1030,7 @@ print.analisis <- function(x, ...) {
 # Los atributos de un objeto de la copia, cada uno por el piso: su VALOR, con
 # el recorrido de arriba, y su NOMBRE, que tambien es texto del usuario:
 # `attr(x, "2.037.187-5") <- TRUE` quedaba en la copia y `print()` lo
-# mostraba. Medido en la ronda 31. Un nombre que lleva un valor protegido se
+# mostraba. Medido. Un nombre que lleva un valor protegido se
 # cambia por el marcador -sin repetir otro nombre-; los que R usa para la forma
 # de un objeto (`.ATRIBUTOS_DE_FORMA_R`) no son texto de nadie y no se miran.
 # `estructurales`: los que no se recorren.
@@ -1085,7 +1084,7 @@ print.analisis <- function(x, ...) {
 # Un BLOB -un vector `raw`, como devuelve DBI un BYTEA o un BLOB- con texto
 # adentro es ese texto: los sesenta nombres protegidos guardados en bytes
 # quedaban enteros en la copia, porque el piso solo miraba sus cifras
-# hexadecimales. Medido en la ronda 29. Se lee como texto -un byte nulo, como un
+# hexadecimales. Medido. Se lee como texto -un byte nulo, como un
 # salto de linea; lo que no es UTF-8 valido, como latin1- y, si lleva un valor
 # protegido, la copia guarda los bytes del texto tapado.
 .piso_bytes_conservados <- function(x, identificantes) {
@@ -1119,12 +1118,11 @@ print.analisis <- function(x, ...) {
 # no la copia. Se recorre su contenido con el mismo piso -sin entrar dos veces en
 # el mismo, ni en los entornos con nombre: el global, el de un paquete- y, si
 # guarda un valor protegido, la copia lleva el marcador en su lugar. Una cedula
-# en un entorno de una columna lista quedaba en la copia. Medido en la ronda 29.
+# en un entorno de una columna lista quedaba en la copia. Medido.
 .piso_entorno_conservado <- function(e, identificantes, vistos = list()) {
   # Los del sistema se reconocen por lo que son, no por su nombre:
   # `environmentName()` lee el atributo `name`, y un entorno del usuario con
-  # ese atributo y una cedula adentro quedaba entero en la copia. Medido en la
-  # ronda 30.
+  # ese atributo y una cedula adentro quedaba entero en la copia. Medido.
   if (identical(e, emptyenv()) || identical(e, globalenv()) ||
       identical(e, baseenv()) || isNamespace(e) ||
       .es_entorno_de_la_busqueda(e)) {
@@ -1133,7 +1131,7 @@ print.analisis <- function(x, ...) {
   for (visto in vistos) if (identical(visto, e)) return(e)
   # Una cadena de entornos sin fin a la vista: el lado cerrado.
   if (length(vistos) >= 8L) return("[valor protegido]")
-  # Ronda 32, dos puertas del mismo recorrido. (1) Los ATRIBUTOS del entorno,
+  # Dos puertas del mismo recorrido. (1) Los ATRIBUTOS del entorno,
   # valor y nombre, como los de cualquier objeto: un entorno con la cedula en
   # su atributo `name` -que `print()` muestra- o en otro, y el entorno de una
   # funcion con ese atributo, quedaban enteros en la copia, porque se recorria
@@ -1184,7 +1182,7 @@ print.analisis <- function(x, ...) {
 # su entorno. Se leia solo el codigo, sin atributos ni fuente, y se devolvia
 # antes de recorrerlos: `structure(function() NULL, nota = <cedula>)`, la
 # formula y la llamada con ese atributo, el comentario `# titular <cedula>` de
-# una funcion y el de una expresion quedaban en la copia. Medido en la ronda 31.
+# una funcion y el de una expresion quedaban en la copia. Medido.
 .piso_lenguaje_conservado <- function(x, identificantes, vistos = list()) {
   escribir <- function(control) {
     tryCatch(

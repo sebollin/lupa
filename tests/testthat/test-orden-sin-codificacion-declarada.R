@@ -5,7 +5,7 @@
 #
 # Lo destapo un registro publico de sanciones del catalogo nacional: el valor
 # "Combustibles liquidos" con tilde rompia el perfil entero. Ninguna de las
-# cuatro auditorias lo encontro, porque todos sus fixtures eran ASCII.
+# pruebas lo veia, porque todos sus fixtures eran ASCII.
 
 # `rawToChar()` produce exactamente la marca que rompe: bytes UTF-8 validos con
 # `Encoding()` en "unknown". Construirlo con literales del archivo no serviria,

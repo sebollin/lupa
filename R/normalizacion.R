@@ -243,7 +243,7 @@ print.normalizacion_lupa <- function(x, ...) {
 # `salida <- c(salida, ...)` en cada vuelta del `while`, una vuelta por caracter:
 # cuadratico en el largo. `detectar_discordancias()`, que normaliza la celda
 # entera, tardaba 1,7 / 4,6 / 15,4 s con celdas de 25.000 / 50.000 / 100.000
-# caracteres. Medido en la ronda 32. Ahora se reordena en su lugar, tramo por
+# caracteres. Medido. Ahora se reordena en su lugar, tramo por
 # tramo, sobre una copia: la misma salida, en tiempo lineal.
 .normalizacion_ordenar <- function(codigos) {
   if (length(codigos) < 2L) return(codigos)
@@ -290,7 +290,7 @@ print.normalizacion_lupa <- function(x, ...) {
 # La misma construccion que `.normalizacion_ordenar()` -crecer la salida con
 # `c()` en un `while`, una vuelta por caracter- y el mismo costo cuadratico:
 # 0,8 / 1,9 / 5,9 s con 25.000 / 50.000 / 100.000 caracteres, en el perfil de
-# normalizacion por omision. Medido en la ronda 32. La regla no cambia: toda base
+# normalizacion por omision. Medido. La regla no cambia: toda base
 # se conserva; un tramo de marcas se conserva solo si, con la base que lo
 # precede, es un grafema protegido; las marcas sin base se descartan. Se decide
 # por tramo y se toma de una vez.
@@ -369,7 +369,7 @@ print.normalizacion_lupa <- function(x, ...) {
 # minusculas con el mapa del paquete. Con `tolower()` de base, bajo `C` la I con
 # tilde no bajaba: una columna `SI`/`NO` con tilde era `logico` en una sesion
 # UTF-8 y `texto` en un `Rscript` de cron, y `SIN INFORMACION` con tilde no se
-# contaba como faltante disfrazado (ronda 30-L). Como es para comparar, pliega
+# contaba como faltante disfrazado. Como es para comparar, pliega
 # tambien la sigma final; los dos lados de la comparacion pasan por aca.
 #
 # La declaracion va antes del recorte (`.textos_para_plegar()`), y el pliegue se
@@ -788,8 +788,7 @@ print.normalizacion_lupa <- function(x, ...) {
 # aproximados()` arma la misma clave por su cuenta, sobre cualquier tipo.
 .clave_para_normalizar <- function(x) {
   # Un instante entra por su valor y no por su texto en la hora de la sesion: en
-  # America/Adak dos instantes distintos se escribian igual y se fundian
-  # (ronda 31-S).
+  # America/Adak dos instantes distintos se escribian igual y se fundian.
   if (inherits(x, "POSIXt")) return(.texto_instante_utc(x))
   if (is.character(x) || is.factor(x)) x <- .clave_bytes(x)
   suppressWarnings(as.character(.texto_analizable(x)$valores))

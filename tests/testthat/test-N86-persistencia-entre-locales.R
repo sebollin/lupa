@@ -28,9 +28,8 @@
 # Y MARCA para indexar la tabla del usuario. Bajo `C`, una cadena marcada y la
 # misma sin marcar no son iguales ni para `==` ni para `[[`.
 
-# Regresion de una ronda de refutacion: corre en la suite completa, en el CI y en
-# R-hub, que usan NOT_CRAN=true; en CRAN se saltea para que el check entre en sus
-# tiempos (medicion del 2026-10-23).
+# Prueba de regresion: corre en la suite completa, en el CI y en R-hub, que usan
+# NOT_CRAN=true; en CRAN se saltea para que el check entre en sus tiempos.
 testthat::skip_on_cran()
 
 .n87_sin_marca <- function(x) rawToChar(charToRaw(x))

@@ -82,7 +82,7 @@ finito para acotar ese trabajo cuando el tiempo no sea la restricción.}
 reproducible cuando la combinación es única en toda la tabla. Sin este
 argumento, DBI no garantiza el orden ni la pertenencia de una muestra
 limitada, y \code{meta} lo declara expresamente. No se usa cuando
-\code{bloque_muestra = "solo_agregados"}. En la via I1, la identidad de la
+\code{bloque_muestra = "solo_agregados"}. Con la lectura por bloques, la identidad de la
 fuente por bloques gobierna el recorrido y este pedido queda declarado en
 \code{meta$orden_muestra} con el motivo estable de que no gobierna esa via. Si
 el motor falla al evaluar una columna del \verb{ORDER BY}, la vía prueba cada
@@ -267,14 +267,14 @@ resto. Si reduce la muestra, \code{cobertura_diagnosticos} informa los bytes
 observados, el umbral y cuál tope mandó. \code{Inf} desactiva este tope. No
 modifica los agregados SQL.}
 
-\item{bloque_filas}{En la via I1, entero positivo que activa el recorrido de
+\item{bloque_filas}{Entero positivo que activa el recorrido de
 \code{tabla_completa} por bloques. Se abre un unico result set con
 \code{dbSendQuery()} y cada bloque se lee con \code{dbFetch(n = bloque_filas)} antes
 de liberar la entrada; \code{NULL} conserva la via existente. El resultado
 publica \code{meta$alcance$orden}, \code{meta$bloques}, \code{meta$bytes} y los eventos del
 vigilante. Los drivers sin retencion incremental demostrada (incluido
 DuckDB en esta matriz) quedan \code{no_disponible} con su motivo, sin caer en
-\code{dbGetQuery()}. Si se pide \code{moda} o \code{mediana}, I1 inicia tambien el mapa
+\code{dbGetQuery()}. Si se pide \code{moda} o \code{mediana}, la lectura por bloques inicia tambien el mapa
 central de distintos aunque \code{n_distintos} no se haya pedido: la mediana
 depende de ese mapa y la fila \code{n_distintos} conserva \code{no_solicitado}.
 Bajo \code{bloque_filas}, \code{perfil_muestra} sigue siendo la muestra diagnóstica
@@ -713,7 +713,7 @@ El camino principal —el que se mide en cada versión contra motores reales— 
 PostgreSQL por RPostgres, medido en la 9.3 y en la 16, y SQL Server 2022 por
 odbc con el controlador FreeTDS, en sesiones UTF-8 y bajo el locale \code{C} de un
 \code{Rscript} de cron. SQLite (RSQLite) y duckdb se ejercitan en las pruebas del
-paquete; MySQL y MariaDB (RMariaDB) se midieron en rondas puntuales. Con otro
+paquete; MySQL y MariaDB (RMariaDB) se midieron de forma puntual. Con otro
 motor, otro controlador u otra versión la función corre por la vía portable
 (ver «Dialecto») y declara en la cobertura lo que no pudo medir, pero sus
 cifras no están comprobadas contra ese motor. Las configuraciones avanzadas
@@ -1042,8 +1042,8 @@ siempre un sort contra \code{work_mem}, con pisos de 32 bytes para tipos fijos y
 42 para \code{numeric}. El plan usa \code{n_validos} de catálogo. En la meta y en el
 aviso, cuando se pidió la familia \code{validos}, ese denominador se reemplaza por
 el medido en los agregados planos y se conserva también el valor de catálogo;
-si no se midió, el motivo declara que se retuvo el catálogo. Por arbitraje
-H5, este alcance K2 gobierna solo el denominador: si la estimación publicada
+si no se midió, el motivo declara que se retuvo el catálogo. Ese reemplazo
+alcanza solo al denominador: si la estimación publicada
 marca \code{supera_memoria = TRUE}, el aviso se emite también con catálogo y
 declara su fuente. La consolidada
 decide por el máximo de columna y publica la suma de tapes sólo como
@@ -1148,10 +1148,8 @@ como personal de la que se cerró porque, sin muestra, no se pudo clasificar.
 Una columna que no se protege publica sus estadísticos aunque comparta el
 tipo personal con una protegida, como en \code{\link[=perfilar]{perfilar()}}: un importe entero de
 siete cifras o un número de factura clasificado \code{documento_identidad}
-débil. Hasta la ronda 33 se tapaban sus cinco estadísticos con el motivo
-de una columna protegida, mientras \code{perfil_muestra} los publicaba; una
-copia del documento la tapa el piso por valor, que corre con la tabla
-entera, y la que lo copia sin su verificador se clasifica como columna
+débil. Una copia del documento la tapa el piso por valor, que corre con la
+tabla entera, y la que lo copia sin su verificador se clasifica como columna
 personal con la regla de \code{\link[=perfilar]{perfilar()}}, sobre la muestra. Por la vía por
 bloques eso incluye \code{meta$familias}, que guarda cada valor distinto de
 toda columna no protegida: una columna \code{debil} —las cédulas sin su

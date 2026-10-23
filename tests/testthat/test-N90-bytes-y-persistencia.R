@@ -1,10 +1,9 @@
-# Vuelta n90. Cuatro arreglos, y los valores se construyen con `as.raw()` y se
+# N90. Cuatro arreglos, y los valores se construyen con `as.raw()` y se
 # comparan por bytes o por `Encoding()`: es la unica forma que no engania cuando
 # lo que se mide ES la codificacion.
 
-# Regresion de una ronda de refutacion: corre en la suite completa, en el CI y en
-# R-hub, que usan NOT_CRAN=true; en CRAN se saltea para que el check entre en sus
-# tiempos (medicion del 2026-10-23).
+# Prueba de regresion: corre en la suite completa, en el CI y en R-hub, que usan
+# NOT_CRAN=true; en CRAN se saltea para que el check entre en sus tiempos.
 testthat::skip_on_cran()
 
 .n90_bytes <- function(codigos) {

@@ -1,7 +1,7 @@
 # Los dos README publican la lista de nombres de `tipo_hallazgo` y su cantidad.
 # Esa cifra ya envejecio una vez: la tabla de evidencia decia 43 tablas de
-# control cuando eran 31, y nadie se entero hasta que una auditoria las conto.
-# La leccion quedo escrita en `test-ronda107.R` -«un numero publicado que
+# control cuando eran 31, y nadie se entero hasta que alguien las conto.
+# La leccion quedo escrita en `test-regresion-107.R` -«un numero publicado que
 # ninguna prueba vigila se vuelve mentira sin que nadie se entere»- y esta
 # comprobacion la aplica al otro numero publicado que seguia sin vigilancia.
 #

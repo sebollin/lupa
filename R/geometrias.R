@@ -5,7 +5,7 @@
 # `requireNamespace()` da FALSE tambien cuando sf esta instalado y no carga: con
 # `LC_NUMERIC` en coma falla la carga de `units`, una de sus dependencias, y el
 # perfil publicaba "falta el paquete opcional 'sf'" y "Instalar el paquete 'sf'"
-# sobre una maquina que lo tiene (ronda 32-S). La causa y el remedio publicados
+# sobre una maquina que lo tiene. La causa y el remedio publicados
 # tienen que ser los ciertos: se distingue lo que no esta instalado de lo que
 # no se pudo cargar en esta sesion.
 .sf_no_disponible <- function() {
@@ -976,7 +976,7 @@
     # A sf el WKT le llega en mayusculas ASCII. La gramatica no distingue la
     # caja, pero el lector de GDAL compara las palabras con la caja del locale:
     # bajo uno turco `point(1 2)` daba "Unsupported geometry type" y la columna
-    # perdia tres de cuatro valores (ronda 31-S). Lo que llega aca ya paso la
+    # perdia tres de cuatro valores. Lo que llega aca ya paso la
     # guarda: palabras de la gramatica, numeros y separadores.
     textos <- .mayusculas_ascii(sub(
       .regex_sin_caja("^\\s*SRID=[0-9]+;\\s*"), "", as.character(valores),

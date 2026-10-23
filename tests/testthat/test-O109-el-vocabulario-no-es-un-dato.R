@@ -1,4 +1,4 @@
-# Tercera evaluacion real: el vocabulario del paquete no es un dato.
+# El vocabulario del paquete no es un dato.
 #
 # La proteccion enmascara por contenido: una celda que, sin separadores y en
 # mayusculas, contiene un valor protegido de seis caracteres o mas se tapa
@@ -67,7 +67,7 @@ test_that("el nombre protegido sigue sin publicarse", {
   }
   expect_false(any(grepl("Faltantes", utils::capture.output(print(p)),
                          fixed = TRUE)))
-  # Control: sin proteccion, el valor si aparece -la sonda puede verlo-.
+  # Control: sin proteccion, el valor si aparece -la busqueda puede verlo-.
   abierto <- suppressWarnings(perfilar(d, proteger_datos_personales = FALSE))
   expect_true(any(grepl("Faltantes", .hojas_texto_O109(abierto), fixed = TRUE)))
 })

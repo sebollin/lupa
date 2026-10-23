@@ -13,9 +13,8 @@
 #    oportuna. La gemela por atributo ya declaraba "inclusive", asi que la
 #    conducta era la correcta y la descripcion la que mentia.
 
-# Regresion de una ronda de refutacion: corre en la suite completa, en el CI y en
-# R-hub, que usan NOT_CRAN=true; en CRAN se saltea para que el check entre en sus
-# tiempos (medicion del 2026-10-23).
+# Prueba de regresion: corre en la suite completa, en el CI y en R-hub, que usan
+# NOT_CRAN=true; en CRAN se saltea para que el check entre en sus tiempos.
 testthat::skip_on_cran()
 
 datos_o61 <- function(columna = as.Date(c("2026-01-10", "2026-01-31",
@@ -50,7 +49,7 @@ test_that("un contrato incompleto se abstiene y no se lleva la corrida", {
     expect_true(grepl("no se midi", cobertura$motivo[[1L]]))
     # La abstencion tiene que NOMBRAR el campo que falta: sin eso queda muda y no
     # se distingue de una metrica que no se pidio. Es lo que garantizaba el
-    # `stop()` que esta ronda retiro.
+    # `stop()` que la abstencion reemplazo.
     expect_true(grepl(caso$campo, cobertura$motivo[[1L]], fixed = TRUE),
                 info = caso$campo)
     expect_true(nzchar(cobertura$como_resolverlo[[1L]]))
@@ -147,8 +146,8 @@ test_that("la impresion de la medicion declara la metrica que no midio", {
   expect_true(grepl("contrato_incompleto", texto, fixed = TRUE))
   expect_true(grepl("fecha_limite", texto, fixed = TRUE))
 
-  # Y el caso donde NINGUNA metrica midio, que antes de esta ronda era imposible
-  # porque `medir()` abortaba: lo unico que se imprimia era el encabezado de un
+  # Y el caso donde NINGUNA metrica midio, que antes era imposible porque
+  # `medir()` abortaba: lo unico que se imprimia era el encabezado de un
   # cuadro vacio, sin una palabra sobre el motivo.
   sola <- instanciar(
     especializar(metricas_nucleo()$OportunidadEntPorFecha,
@@ -169,9 +168,9 @@ test_that("la impresion de la medicion declara la metrica que no midio", {
 })
 
 # El defecto no estaba en un sitio sino en una propiedad: **comparar temporales de
-# clases distintas**. Lo escribi primero para los cuatro sitios que tenia delante
-# -las metricas de frescura por entidad-, y habia once mas. Siete los encontro
-# este recorrido y no yo, midiendo cada uno contra su control:
+# clases distintas**. Estaba en los cuatro sitios de las metricas de frescura por
+# entidad, y en once mas. Siete los encuentra este recorrido, que mide cada uno
+# contra su control:
 #
 #   las cuatro de oportunidad POR ATRIBUTO: la fila que cae exactamente en el
 #     limite daba `1 1 0` con `TZ=UTC` y `1 0 0` con `TZ=Asia/Tokyo`, sin aviso;

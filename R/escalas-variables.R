@@ -328,7 +328,7 @@ clasificar_variables <- function(datos, perfil = NULL, metadatos = NULL,
     # Declarada en `columnas_codigo` del perfil: es un codigo, no una magnitud,
     # asi que no se propone una escala de magnitud ni el rol de medida. La
     # declaracion es del usuario, como `metadatos`, y `metadatos` la sigue
-    # pudiendo corregir (refutacion 33-D).
+    # pudiendo corregir.
     if (!is.null(perfil) && propuesta$escala %in% c("discreta", "continua") &&
         .nombres_para_operar(nombre) %in%
           .nombres_para_operar(as.character(perfil$meta[["columnas_codigo"]]))) {
@@ -397,7 +397,7 @@ clasificar_variables <- function(datos, perfil = NULL, metadatos = NULL,
       # Con la clave estable (`.identificadores_en()`): los valores ya estan
       # declarados UTF-8 y los niveles llegan como el usuario los dejo, y bajo
       # `C` `%in%` entre un `unknown` y un `UTF-8` traduce el primero desde
-      # ASCII y no casa -un nivel observado salia ausente- (ronda 30-L).
+      # ASCII y no casa -un nivel observado salia ausente-.
       .identificadores_en(
         declarados, as.character(valores_seguros[!is.na(valores_seguros)])
       )
@@ -477,7 +477,7 @@ clasificar_variables <- function(datos, perfil = NULL, metadatos = NULL,
   # bajo `C` un nivel UTF-8 sin marca hacia abortar `print()` de la tabla
   # ("invalid multibyte string" en `format.AsIs()`), que en una sesion UTF-8
   # se imprime; y al reves, un nivel con un byte latin1 suelto la hacia abortar
-  # en una sesion UTF-8 y no bajo `C` (ronda 30-L). Lo legible se marca -no
+  # en una sesion UTF-8 y no bajo `C`. Lo legible se marca -no
   # cambia los bytes- y lo que no es UTF-8 valido se rinde como lo muestra la
   # consola, igual que lo declarado `bytes`.
   publicar <- function(x) {
@@ -491,7 +491,7 @@ clasificar_variables <- function(datos, perfil = NULL, metadatos = NULL,
   rownames(resultado) <- NULL
   # El mismo piso que aplican `perfilar()`, `analizar()` y
   # `distribucion_valores()`. Proteger solo por columna dejaba publicar el
-  # documento protegido escrito en OTRA columna: medido en la ronda 25, los
+  # documento protegido escrito en OTRA columna: medido, los
   # niveles de `obs` traian `reclamo CI 5.311.832-3` -y en mayusculas en `obs2`-
   # mientras las tres hermanas lo tapaban sobre la misma tabla.
   identificantes <- .valores_identificantes(

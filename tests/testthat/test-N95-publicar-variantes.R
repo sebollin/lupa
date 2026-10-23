@@ -14,9 +14,8 @@
 # paquete es ASCII y porque escribir el acento en el archivo no permitiria
 # elegir la marca, que es la propiedad que se mide.
 
-# Regresion de una ronda de refutacion: corre en la suite completa, en el CI y en
-# R-hub, que usan NOT_CRAN=true; en CRAN se saltea para que el check entre en sus
-# tiempos (medicion del 2026-10-23).
+# Prueba de regresion: corre en la suite completa, en el CI y en R-hub, que usan
+# NOT_CRAN=true; en CRAN se saltea para que el check entre en sus tiempos.
 testthat::skip_on_cran()
 
 .n95_marcar <- function(bytes, codificacion) {

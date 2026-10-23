@@ -150,13 +150,13 @@
 }
 
 # Una palabra de PERSONA en el nombre de la columna -`cliente`, `socio`,
-# `usuario`- dice de quien habla la columna, no que guarde su nombre. Hasta la
-# ronda 33 alcanzaba en cualquier posicion, y una clave foranea (`cliente_id`),
-# una categoria (`tipo_cliente`, `estado_socio`) o una fecha (`cliente_desde`)
-# se protegian como "nombre": se tapaban su moda, sus extremos y sus ejemplos,
-# y sus categorias -"mayorista", "empresa"- entraban al piso y se tapaban en
-# columnas que no tenian nada que ver, por las dos puertas. Medido en la ronda
-# 34 (H4). La ayuda dice que `medio` es "el nombre de la columna expresa una
+# `usuario`- dice de quien habla la columna, no que guarde su nombre. Cuando
+# alcanzaba en cualquier posicion, una clave foranea (`cliente_id`), una
+# categoria (`tipo_cliente`, `estado_socio`) o una fecha (`cliente_desde`) se
+# protegian como "nombre": se tapaban su moda, sus extremos y sus ejemplos, y
+# sus categorias -"mayorista", "empresa"- entraban al piso y se tapaban en
+# columnas que no tenian nada que ver, por las dos puertas. Medido. La ayuda
+# dice que `medio` es "el nombre de la columna expresa una
 # categoria personal", y `tipo_cliente` no la expresa: el resto del nombre
 # dice que es otra cosa.
 #
@@ -168,8 +168,8 @@
 # es el nombre de nadie. Una palabra de nombre -`nombre`, `apellido`- protege
 # como siempre: `nombre_cliente` es un nombre.
 #
-# Y es la MISMA propiedad en las demas reglas de nombre, medida en la misma
-# ronda: `tipo_documento` ("CI", "PASAPORTE") se protegia como documento con
+# Y es la MISMA propiedad en las demas reglas de nombre, tambien medida:
+# `tipo_documento` ("CI", "PASAPORTE") se protegia como documento con
 # poder `alto`, `fecha_contacto` y `medio_contacto` como telefono,
 # `estado_correo` como correo, `tipo_domicilio` como domicilio. Una regla, no
 # siete sitios: la palabra del tipo personal clasifica la columna salvo que el
@@ -195,23 +195,22 @@
     "motivo|causa|causas|resultado|resultados|cantidad|cant|total|monto|",
     "importe|saldo"
   ),
-  # Y la forma o el metodo -`forma_pago_cliente`, `metodo_pago_cliente`-
-  # (ronda 37).
+  # Y la forma o el metodo -`forma_pago_cliente`, `metodo_pago_cliente`-.
   medio = "medio|medios|via|forma|formas|metodo|metodos|modo|modalidad",
   fecha = "fecha|fec|desde|hasta|alta|baja",
-  # Ronda 36: el lugar de un nacimiento o de una defuncion no es su fecha
+  # El lugar de un nacimiento o de una defuncion no es su fecha
   # (`pais_nacimiento` con `"Uruguay"`).
   lugar = paste0(
     "pais|lugar|ciudad|localidad|departamento|depto|dpto|provincia|region|",
     "nacionalidad|municipio"
   ),
-  # Ronda 37: una parte de la fecha no es la fecha -`edad_fallecimiento`,
+  # Una parte de la fecha no es la fecha -`edad_fallecimiento`,
   # `anio_nacimiento`-.
   parte = "edad|edades|anio|anios|ano|anos|year|mes|dia",
   # Y una medida o un plazo no es un telefono, un correo ni un domicilio
-  # (`telefono_plazo_dias`, `calle_metros`; ronda 37).
+  # (`telefono_plazo_dias`, `calle_metros`).
   medida = "plazo|plazos|dias|duracion|tiempo|minutos|segundos|horas|metros",
-  # Ronda 37: la direccion de una red o de un organismo no es un domicilio
+  # La direccion de una red o de un organismo no es un domicilio
   # (`dir_ip`, `dir_web`, `direccion_general` con `"Direccion de Salud"`).
   red = "web|url|ip|ipv4|ipv6|mac|host|servidor|ftp|http|https|red",
   institucion = "general|nacional|departamental|ejecutiva|tecnica|regional",
@@ -224,13 +223,12 @@
   telefono = c("categoria", "medio", "fecha", "medida"),
   fecha_nacimiento = c("categoria", "lugar", "parte"),
   fecha_fallecimiento = c("categoria", "lugar", "parte"),
-  # Ronda 37: el nombre de un departamento o de una localidad es la categoria
+  # El nombre de un departamento o de una localidad es la categoria
   # de una base publica (`nombre_departamento`, `nom_depto`), y pide la senal
   # de los valores, como la palabra de persona con un lugar.
   nombre = "lugar",
-  # Ronda 36: tambien el medio -`medio_pago_cliente`, `via_ingreso_usuario`-,
-  # como en las demas palabras.
-  # Ronda 37: y el lugar -`pais_cliente`, `nacionalidad_socio`-.
+  # Tambien el medio -`medio_pago_cliente`, `via_ingreso_usuario`-, como en
+  # las demas palabras, y el lugar -`pais_cliente`, `nacionalidad_socio`-.
   persona = c("categoria", "medio", "fecha", "clave", "lugar"),
   domicilio = c("categoria", "medio", "fecha", "lugar", "medida", "red",
                 "institucion")
@@ -266,15 +264,15 @@
 # clasificador, que escribe tambien un `integer64` o un numero de mas de quince
 # cifras con todas sus cifras.
 #
-# Ronda 38 (P-H5): sin valores, la ronda 37 desmentia el nombre. La via DBI
-# clasifica sobre la MUESTRA y publica el resumen de la tabla entera: la cedula
-# del conyuge o del tutor, rala, con `muestra = 200` no traia un solo valor, la
-# columna dejaba de protegerse y el resumen publicaba su minimo, su maximo y su
-# mediana -cedulas-, y por bloques cada valor. Desmienten el nombre al menos
-# `.MIN_VALORES_DESMIENTEN_DOCUMENTO` valores, de dos distintos o mas, que
-# digan algo -no vacios ni solo ceros-: sin valores, con pocos o con un solo
-# valor repetido -el `0` o el `"S/D"` del que no tiene- decide el nombre, como
-# en la ronda 36.
+# Sin valores, el nombre no se desmiente. La via DBI clasifica sobre la
+# MUESTRA y publica el resumen de la tabla entera: la cedula del conyuge o del
+# tutor, rala, con `muestra = 200` no traia un solo valor, y si eso desmentia
+# el nombre la columna dejaba de protegerse y el resumen publicaba su minimo,
+# su maximo y su mediana -cedulas-, y por bloques cada valor. Desmienten el
+# nombre al menos `.MIN_VALORES_DESMIENTEN_DOCUMENTO` valores, de dos
+# distintos o mas, que digan algo -no vacios ni solo ceros-: sin valores, con
+# pocos o con un solo valor repetido -el `0` o el `"S/D"` del que no tiene-
+# decide el nombre.
 .tiene_cifras_de_documento <- function(x) {
   if (inherits(x, c("Date", "POSIXt", "difftime")) || is.list(x)) return(TRUE)
   if (is.factor(x)) x <- as.character(x)
@@ -299,9 +297,9 @@
 # el `latin1` marcado, se leen como `latin1`, como sus valores
 # (`.ascii_para_forma()`). Solo para decidir si la columna es personal: la
 # identidad del nombre sigue siendo la de sus bytes (`.nombres_para_operar()`).
-# Ronda 38 (P-H4): la clave `<lupa-byte:..>` dejaba `direcci_..._n`, que ningun
-# patron reconoce, y `Direccion`, `Telefono`, `Cedula` o `Fecha de defuncion`
-# con su tilde publicaban sus valores en cualquier sesion.
+# Leido por la clave `<lupa-byte:..>`, el nombre quedaba `direcci_..._n`, que
+# ningun patron reconoce, y `Direccion`, `Telefono`, `Cedula` o `Fecha de
+# defuncion` con su tilde publicaban sus valores en cualquier sesion.
 .nombre_para_clasificar <- function(nombre) {
   nombre <- as.character(nombre)
   if (!length(nombre)) return(nombre)
@@ -331,7 +329,7 @@
 # Las siglas de un documento de identidad en la lista del nombre.
 .SIGLAS_DE_DOCUMENTO <- c("ci", "dni", "rut", "curp")
 
-# Ronda 39 (H-08): una sigla escrita con un punto o un guion bajo tras cada
+# Una sigla escrita con un punto o un guion bajo tras cada
 # letra -`C.I.`, como se encabeza la cedula en una planilla uruguaya, y `C.I`,
 # `c.i.`, `C. I.`, `Nro. C.I.`, `C.I. Titular`, `D.N.I.`; y `c_i`,
 # `nro_c_i`, como lo deja `janitor::clean_names()`- llegaba al patron con un
@@ -372,16 +370,16 @@
   if (!isTRUE(grepl(patron, normalizado, perl = TRUE))) return(no)
   # Excluida por el tipo de sus valores: no es de ESTE tipo -un numero no es el
   # nombre de nadie-, pero sus valores pueden mostrar otro: `usuario_canal` con
-  # `"0059899123456"`, que la inferencia lee como entero, es un telefono (ronda
-  # 36). Lo decide `.tipo_por_valores_calificada()`.
+  # `"0059899123456"`, que la inferencia lee como entero, es un telefono. Lo
+  # decide `.tipo_por_valores_calificada()`.
   excluida <- list(estado = "excluida", calificadores = character())
   if (any(as.character(tipo_valores) %in% .TIPOS_QUE_NO_SON_POR_TIPO[[tipo]])) {
     return(excluida)
   }
   resto <- sub(patron, "_", normalizado, perl = TRUE)
   # Una columna de numeros es un domicilio solo si el resto del nombre dice que
-  # es su codigo -`barrio_id`, `cod_barrio`, decision de la ronda 34-: los
-  # metros de una calle no lo son (`calle_metros`, ronda 36).
+  # es su codigo -`barrio_id`, `cod_barrio`-: los metros de una calle no lo son
+  # (`calle_metros`).
   if (identical(tipo, "domicilio") &&
       any(as.character(tipo_valores) %in%
             c("entero", "doble", "integer64", "numeric", "integer")) &&
@@ -391,7 +389,7 @@
   }
   # Un documento tiene cifras: una columna sin un solo valor de seis cifras o
   # mas -`cedula_valida` con `"S"`/`"N"`, `cod_documento` con `1`, `2`, `9`- no
-  # guarda documentos, es una marca o un codigo de su tipo (ronda 37).
+  # guarda documentos, es una marca o un codigo de su tipo.
   if (identical(tipo, "documento_identidad") && !is.null(x) &&
       !isTRUE(tryCatch(.tiene_cifras_de_documento(x), error = function(e) TRUE))) {
     return(excluida)
@@ -406,22 +404,22 @@
   list(estado = "calificada", calificadores = usadas)
 }
 
-# Ronda 35 (H3). La ronda 34 hizo que el resto del nombre calificara la palabra
-# del tipo -`tipo_cliente` es una categoria, `cliente_desde` una fecha- y decidia
-# solo por el nombre: el tipo de los valores servia para EXCLUIR -numeros,
-# fechas, logicos- y nunca para ver si el calificador decia la verdad.
-# `usuario_alta`, `funcionario_baja`, `responsable_grupo` con nombres,
-# `celular_estado` con celulares o `direccion_tipo` con domicilios dejaron de
-# protegerse: moda, ejemplos, evidencia y, por bloques, cada valor.
+# El resto del nombre califica la palabra del tipo -`tipo_cliente` es una
+# categoria, `cliente_desde` una fecha-, pero decidir solo por el nombre no
+# alcanza: con el tipo de los valores solo para EXCLUIR -numeros, fechas,
+# logicos- y nunca para ver si el calificador decia la verdad, `usuario_alta`,
+# `funcionario_baja`, `responsable_grupo` con nombres, `celular_estado` con
+# celulares o `direccion_tipo` con domicilios dejaban de protegerse: moda,
+# ejemplos, evidencia y, por bloques, cada valor.
 #
 # Una columna CALIFICADA es personal si sus valores lo dicen, con el tipo de los
 # VALORES y no el de la palabra -`contacto_alta` con nombres es un nombre,
 # `usuario_canal` con celulares un telefono- (`.tipo_personal_de_valores()`).
-# La forma sola no alcanza: la primera version tomaba por nombre de persona
-# cualquier texto de dos palabras con mayuscula -`"Gran Empresa"`,
-# `"Cerro Largo"`, `"Arroz Premium"`- y por domicilio cualquier palabra con un
-# numero -`"Oficina 101"`-, y tapaba categorias que la ronda 34 publicaba
-# (segunda refutacion de la ronda 35). Cada forma pide una senal que una
+# La forma sola no alcanza: tomar por nombre de persona cualquier texto de dos
+# palabras con mayuscula -`"Gran Empresa"`, `"Cerro Largo"`,
+# `"Arroz Premium"`- y por domicilio cualquier palabra con un numero
+# -`"Oficina 101"`- tapaba categorias que no son datos personales. Cada forma
+# pide una senal que una
 # categoria no tiene: un nombre de pila conocido, una `@`, un telefono escrito
 # como telefono, una marca de calle.
 #
@@ -455,7 +453,7 @@
   }
   # Una fecha de nacimiento o de defuncion calificada como categoria -
   # `nacimiento_estado`, `defuncion_tipo`- con FECHAS por valores es esa fecha:
-  # una categoria no se escribe con fechas (ronda 36).
+  # una categoria no se escribe con fechas.
   fechas <- intersect(c("fecha_nacimiento", "fecha_fallecimiento"), calificados)
   if (length(fechas) &&
       isTRUE(tryCatch(.son_fechas(x), error = function(e) TRUE))) {
@@ -463,11 +461,11 @@
   }
   # Las cifras sueltas son un telefono solo con la palabra del telefono, y no si
   # el resto del nombre dice que son un importe o una cantidad
-  # (`importe_telefono`, `monto_celular`; ronda 36).
+  # (`importe_telefono`, `monto_celular`).
   peladas <- "telefono" %in% calificados &&
     !any(palabras$telefono$calificadores %in% .PALABRAS_DE_IMPORTE)
-  # Si mirar los valores falla, la palabra protege, como hasta la ronda 33:
-  # ante la duda, el lado cerrado.
+  # Si mirar los valores falla, la palabra protege: ante la duda, el lado
+  # cerrado.
   tipo <- tryCatch(.tipo_personal_de_valores(x, propios = calificados,
                                              peladas = peladas),
                    error = function(e) calificados[[1L]])
@@ -516,19 +514,19 @@
   }
   letras <- nchar(gsub("[^A-Za-z]", "", textos, perl = TRUE), type = "bytes")
   # Ni un estado del registro -`"Sin baja"`, `"Baja definitiva"`, `"Activo"`
-  # en `usuario_baja` (ronda 36)-: un texto con una palabra de categoria o de
+  # en `usuario_baja`-: un texto con una palabra de categoria o de
   # estado no dice quien dio el alta o la baja. Las iniciales y el `O'` no son
-  # palabras de categoria (`"A. Rodriguez"`, `"O'Connor"`; ronda 37).
+  # palabras de categoria (`"A. Rodriguez"`, `"O'Connor"`).
   #
-  # Ronda 38 (P-H1, P-H3): el estado y el motivo, por una LISTA cerrada
-  # (`.PALABRAS_DE_ESTADO`, en singular o plural) y no por su forma. La ronda 37
-  # los reconocia tambien por la terminacion -`-ado`, `-ente`, `-cion`- y por la
-  # frase -`"Fin de contrato"`-, y un login es UNA palabra: `lmachado`,
+  # El estado y el motivo, por una LISTA cerrada (`.PALABRAS_DE_ESTADO`, en
+  # singular o plural) y no por su forma. Reconocerlos tambien por la
+  # terminacion -`-ado`, `-ente`, `-cion`- y por la frase -`"Fin de
+  # contrato"`- no sirve, porque un login es UNA palabra: `lmachado`,
   # `pfuentes`, `"MACHADO, L."` sin la inicial y `"Juan perez"`, como lo deja el
   # autocapitalizado de un formulario, pasaban por estados; con cuatro
   # funcionarios uno bastaba para que la columna no llegara al 80 % y publicara
-  # los logins de todos. Lo que no esta en la lista cuenta como una persona,
-  # como en la ronda 36: un motivo que falta tapa de mas una columna de motivos
+  # los logins de todos. Lo que no esta en la lista cuenta como una persona:
+  # un motivo que falta tapa de mas una columna de motivos
   # (`"Ingresos superiores"`), y un login que pasara por estado publicaria los
   # de todos.
   minusculas <- .minusculas_ascii(.sin_iniciales(textos))
@@ -549,18 +547,18 @@
 }
 
 # Las palabras de un estado del registro o del motivo de un alta o de una baja,
-# en singular, en minusculas y sin acentos. Una lista CERRADA (ronda 38): una
+# en singular, en minusculas y sin acentos. Una lista CERRADA: una
 # palabra que falta tapa de mas, una de mas puede publicar logins. No estan las
 # que son o parecen apellidos o nombres -`amado`, `prado`, `delgado`, `rosado`,
 # `cortes`- ni los usuarios del sistema -`sistema`, `migracion`, `batch`, `web`-,
 # que conviven con los logins en la misma columna: `"SISTEMA"` junto a tres
 # logins dejaria la columna en el 75 %.
 .PALABRAS_DE_ESTADO <- c(
-  # estados del registro (ronda 36)
+  # estados del registro
   "alta", "baja", "activo", "activa", "inactivo", "inactiva", "vigente",
   "pendiente", "anulado", "anulada", "suspendido", "suspendida", "definitiva",
   "definitivo", "temporal", "provisoria", "provisorio",
-  # estados de un tramite, de una cuenta o de un vinculo (ronda 38)
+  # estados de un tramite, de una cuenta o de un vinculo
   "cancelado", "cancelada", "rechazado", "rechazada", "bloqueado", "bloqueada",
   "desbloqueado", "desbloqueada", "confirmado", "confirmada", "aprobado",
   "aprobada", "denegado", "denegada", "autorizado", "autorizada", "habilitado",
@@ -580,7 +578,7 @@
   "concedida", "iniciado", "iniciada", "completado", "completada", "resuelto",
   "resuelta", "observado", "observada", "devuelto", "devuelta",
   "voluntario", "voluntaria", "mutuo",
-  # motivos de un alta o de una baja (ronda 38)
+  # motivos de un alta o de una baja
   "renuncia", "jubilacion", "despido", "fallecimiento", "defuncion", "deceso",
   "traslado", "cese", "cesantia", "retiro", "abandono", "pase", "destitucion",
   "rescision", "vencimiento", "expiracion", "cancelacion", "anulacion",
@@ -619,8 +617,8 @@
   ascii <- !grepl("[^\\x01-\\x7f]", x, perl = TRUE, useBytes = TRUE)
   if (all(ascii)) return(x)
   # El `latin1` marcado, y el que llega SIN marca y no es UTF-8 valido -un CSV
-  # de Windows leido bajo `C`-, se pasan a UTF-8 (ronda 36: `"Jos\xe9"` sin
-  # marca quedaba `"JosA"` y no era un nombre de pila).
+  # de Windows leido bajo `C`-, se pasan a UTF-8 (`"Jos\xe9"` sin marca
+  # quedaba `"JosA"` y no era un nombre de pila).
   latin <- !ascii & (Encoding(x) == "latin1" | !validUTF8(x))
   if (any(latin)) x[latin] <- iconv(x[latin], "latin1", "UTF-8", sub = "A")
   validos <- !ascii & !is.na(x) & validUTF8(x)
@@ -628,8 +626,8 @@
     Encoding(x[validos]) <- "UTF-8"
     # Los signos de Unicode, como sus parecidos ASCII, con la regla de los
     # digitos: el espacio duro, la raya, el punto medio entre los grupos de un
-    # telefono o entre las palabras de un nombre (ronda 36: `"Juan\u00a0Perez"`
-    # quedaba `"JuanAAPerez"`).
+    # telefono o entre las palabras de un nombre (`"Juan\u00a0Perez"` quedaba
+    # `"JuanAAPerez"`).
     signos <- tryCatch(.normalizar_signos_digitos(x[validos]),
                        error = function(e) NULL)
     if (length(signos) == sum(validos)) {
@@ -697,15 +695,14 @@
 # `.tipo_personal_de_valores()`). Por valor; quien llama mira la columna.
 .forma_telefono <- function(x, minusculas, peladas = FALSE) {
   # Un numero no es un telefono escrito: solo con la palabra del telefono
-  # (`peladas`) o si es el de Uruguay con su prefijo pegado (`59899123456`,
-  # ronda 37).
+  # (`peladas`) o si es el de Uruguay con su prefijo pegado (`59899123456`).
   if (is.numeric(x) && !peladas) {
     return(grepl(.PATRON_TELEFONO_UY_PEGADO, minusculas, perl = TRUE))
   }
-  # El `.0` de planilla no es parte del numero (`"59899123456.0"`, ronda 36), ni
-  # el `.0000` de un `DECIMAL(15,4)` (ronda 37), si antes no hay otro punto ni
-  # otra coma: en `"098.765.000"` el `.000` es el ultimo grupo de un celular
-  # escrito de a tres (ronda 38).
+  # El `.0` de planilla no es parte del numero (`"59899123456.0"`), ni el
+  # `.0000` de un `DECIMAL(15,4)`, si antes no hay otro punto ni otra coma: en
+  # `"098.765.000"` el `.000` es el ultimo grupo de un celular escrito de a
+  # tres.
   texto <- sub("^([^.,]*)[.,]0+$", "\\1", minusculas, perl = TRUE)
   sin_interno <- sub(
     "[[:space:]]*(int|ext|interno|anexo|x)[.]?[[:space:]]*[0-9]{1,5}$", "",
@@ -725,14 +722,14 @@
   #   barra o un punto (`"10-0012345"`, `"2024.00001"`);
   # - un documento escrito como documento (`"4.685.467-9"`), que confirma su
   #   verificador.
-  # Ronda 37: los importes negativos, con cuatro decimales o con miles con
-  # espacio, y los codigos con ano o con ceros, se tomaban por telefonos.
-  # Ronda 38 (P-H2): un importe con separadores de miles no empieza con cero,
-  # como en la forma de los miles de abajo, y separa los decimales con otro
-  # signo que los miles -`"1.456.651,89"`, `"1,234.5000"`, `"12 345.50"`-: el
-  # celular escrito de a tres con su cero, `"099.123.456"` o `"099 123.456"`, es
-  # `"099"` y dos grupos, y el fijo `"4.732.1234"` un grupo de cuatro; la forma
-  # de la ronda 37 los leia como importes con tres o cuatro decimales.
+  # Sin estas reglas, los importes negativos, con cuatro decimales o con miles
+  # con espacio, y los codigos con ano o con ceros, se tomaban por telefonos.
+  # Un importe con separadores de miles no empieza con cero, como en la forma
+  # de los miles de abajo, y separa los decimales con otro signo que los miles
+  # -`"1.456.651,89"`, `"1,234.5000"`, `"12 345.50"`-: el celular escrito de a
+  # tres con su cero, `"099.123.456"` o `"099 123.456"`, es `"099"` y dos
+  # grupos, y el fijo `"4.732.1234"` un grupo de cuatro; sin esa exigencia se
+  # leian como importes con tres o cuatro decimales.
   importe <- grepl("^-", sin_interno, perl = TRUE) |
     grepl("^[0-9]+[.,][0-9]{1,2}$", sin_interno, perl = TRUE) |
     grepl("^[0-9]+[.,][0-9]*0$", sin_interno, perl = TRUE) |
@@ -781,7 +778,7 @@
 }
 
 # Las marcas de calle, como palabra: castellano, portugues, ingles y frances.
-# Ronda 36: las abreviaturas corrientes en Uruguay y la region -`Br.`, `Cno.`,
+# Y las abreviaturas corrientes en Uruguay y la region -`Br.`, `Cno.`,
 # `Rbla.`, `Pje.`, `Gral.`, `Dpto.`, `Mza.`-. El `km` cuenta solo seguido de un
 # numero (`"Ruta 8 km 23"`; `"Radio 5 km"` es una categoria).
 .MARCAS_DE_CALLE <- c(
@@ -799,9 +796,9 @@
     grepl("(^|[^0-9])[0-9]{1,5}($|[^0-9])", minusculas, perl = TRUE) &
     grepl("[ ]", minusculas, perl = TRUE)
   # Un domicilio no empieza con una palabra de categoria: `"En ruta"`,
-  # `"En camino"`, `"Sin calle"` son estados (ronda 36). Al principio y no en
+  # `"En camino"`, `"Sin calle"` son estados. Al principio y no en
   # cualquier lugar: `"Rivera entre Soca y Ellauri"`, `"Cno. El Dorado 123"`,
-  # `"Calle A 1234"` son domicilios (ronda 37).
+  # `"Calle A 1234"` son domicilios.
   palabras <- regmatches(minusculas, gregexpr("[a-z]+", minusculas, perl = TRUE))
   categoria <- vapply(palabras, function(p) {
     length(p) > 0L && p[[1L]] %in% c("en", "sin", "por", "para", "con", "no",
@@ -836,11 +833,11 @@
   sin_cifras <- !grepl("[0-9@]", minusculas, perl = TRUE)
   # Una frase escrita como frase -la primera palabra con mayuscula y otra
   # despues en minuscula, `"Dolores musculares agudos"`, `"Victoria local"`- no
-  # es un nombre aunque empiece con uno (ronda 37), si ese nombre de pila es
+  # es un nombre aunque empiece con uno, si ese nombre de pila es
   # tambien una palabra corriente (`.NOMBRES_QUE_SON_PALABRAS`) y no sigue otro.
-  # Ronda 38 (P-H3): la ronda 37 lo decidia con cualquier nombre de pila, y
-  # `"Juan perez"` o `"Juan carlos Perez"` -lo que deja el autocapitalizado de un
-  # celular o de un formulario- dejaban de ser nombres.
+  # Decidirlo con cualquier nombre de pila hacia que `"Juan perez"` o `"Juan
+  # carlos Perez"` -lo que deja el autocapitalizado de un celular o de un
+  # formulario- dejaran de ser nombres.
   frase <- .es_frase(.sin_iniciales(textos))
   vapply(seq_along(minusculas), function(i) {
     p <- palabras[[i]]
@@ -856,12 +853,12 @@
 
 # Las iniciales -`"Juan A. Perez"`, `"Juan M. A. Perez"`, `"Gomez, A."`- y el
 # `O'` de un apellido -`"O'Connor"`, `"Maria E. O'Neill"`- fuera: no son la
-# conjuncion `"o"` ni la preposicion `"a"`. Ronda 36 quitaba una sola inicial (la
-# regla consumia el espacio que separaba la siguiente) y la regla de quien
-# actua ninguna (ronda 37).
+# conjuncion `"o"` ni la preposicion `"a"`. Todas, tambien en la regla de quien
+# actua: una regla que consume el espacio que separa la siguiente inicial
+# quita una sola.
 # Y la mayuscula sola entre palabras, sin punto -`"Juan A Perez"`-: en un texto
 # en minusculas no se distingue de la preposicion, y queda.
-# Ronda 39 (H-01): y la letra sola PEGADA a una palabra por un guion bajo, un
+# Y la letra sola PEGADA a una palabra por un guion bajo, un
 # guion o un punto, delante o detras -el login `a_perez`, `a-perez`,
 # `perez_a`, `perez.a`, `A_PEREZ`-: una preposicion o una conjuncion va entre
 # espacios, no pegada. Con el `j.perez` ya se sacaba; con el `_` y el `-` la
@@ -896,17 +893,17 @@
 
 # Los nombres de pila que empiezan tambien una frase corriente de una categoria:
 # un sintoma (`"Dolores musculares agudos"`) o un resultado (`"Victoria
-# local"`). Una lista CERRADA (ronda 38): con otro nombre de pila la frase sigue
+# local"`). Una lista CERRADA: con otro nombre de pila la frase sigue
 # siendo un nombre (`"Juan perez"`), y una frase que empieza con otro
-# -`"Mercedes centro"`- se lee como un nombre, como en la ronda 36.
+# -`"Mercedes centro"`- se lee como un nombre.
 .NOMBRES_QUE_SON_PALABRAS <- c("dolores", "victoria")
 
 # Nombres de pila frecuentes en castellano, portugues, ingles, italiano, frances
 # y aleman, sin acentos -se comparan transliterados-. No pretende ser completa:
 # alcanza con que la mayoria de los valores de una columna de personas tenga
-# uno, y un nombre que falte deja la columna como la publicaba la ronda 34. No
+# uno, y un nombre que falte deja la columna publicada. No
 # estan los que son tambien palabras corrientes de una categoria -`paz`, `luz`,
-# `mar`, `flor`, `esperanza`, `gloria`; y desde la ronda 36 `pilar`, `marco`,
+# `mar`, `flor`, `esperanza`, `gloria`, `pilar`, `marco`,
 # `norma`, `franco`, `domingo`, `julio`, `blanca`, `celeste`, `rosa` y `max`:
 # `"Primer Pilar"`, `"Convenio Marco"`, `"Plan Max"` se tapaban-. Limitacion conocida: una localidad que
 # lleva el nombre de una persona -`"Jose Ignacio"`, `"Juan Lacaze"`- se lee como
@@ -948,7 +945,7 @@
   "valentin", "valentina", "valeria", "vanesa", "vanessa", "veronica",
   "victor", "victoria", "virginia", "viviana", "walter", "washington",
   "wilson", "ximena", "yolanda",
-  # Ronda 37: nombres corrientes en Uruguay y la region que faltaban, y los que
+  # Nombres corrientes en Uruguay y la region, y los que
   # terminan como un estado (`Vicente`, `Clemente`, `Dante`, `Conrado`): una
   # palabra de la lista nunca es un estado por su forma.
   "alcides", "bryan", "clemente", "conrado", "danilo", "dante", "dinorah",
@@ -980,17 +977,17 @@
       poder_discriminante = NA_character_, proteger = FALSE
     ))
   }
-  # `NombreCliente` y `nroDoc` son `nombre_cliente` y `nro_doc` (ronda 37), y
-  # `C.I.` es `ci` (ronda 39, `.juntar_siglas_de_documento()`).
+  # `NombreCliente` y `nroDoc` son `nombre_cliente` y `nro_doc`, y
+  # `C.I.` es `ci` (`.juntar_siglas_de_documento()`).
   normalizado <- .normalizar_nombre_fecha(.separar_camel(
     .juntar_siglas_de_documento(.nombre_para_clasificar(nombre))
   ))
-  # Ronda 37 (P-A1): las abreviaturas comunes de cada palabra -`tel`, `cel`,
+  # Las abreviaturas comunes de cada palabra -`tel`, `cel`,
   # `telef`, `fono`, `dir`, `domic`, `nom`, `ape`, `doc`, `ced`-, sus plurales y
   # un numero pegado -`telefono2`, `apellido1`-. `tel`, `nro_tel` o `cel` con
   # celulares se clasificaban documento `debil` y publicaban. No `mov`, que es
   # tambien un movimiento.
-  # Ronda 38 (B1): el plural de la abreviatura -`tels`, `cels`, `fonos`,
+  # Y el plural de la abreviatura -`tels`, `cels`, `fonos`,
   # `noms`, `dirs`- y las formas pegadas de los sistemas heredados -`nrotel`,
   # `TELCEL`, `nomape`, `NOMBRECOMPLETO`, `nrodoc`, `dirpart`-, enumeradas como
   # `fechanac`: palabras enteras, no una regla por forma.
@@ -1017,7 +1014,7 @@
     # dos, y pegada. Con dos casos parecia una convencion; con cinco era un
     # hueco.
     #
-    # Ronda 39 (H-17): y la fecha de la nomenclatura GIK de GeneXus -objeto,
+    # Y la fecha de la nomenclatura GIK de GeneXus -objeto,
     # categoria y calificador, con la categoria fecha abreviada `Fch`-, con la
     # que estan hechos buena parte de los sistemas del Estado uruguayo:
     # `PerFchNac`, `CliFchNac`, `FchNac` (`fch_nac` al separar el camelCase), y
@@ -1031,7 +1028,7 @@
     # La hermana tenia el mismo hueco por el mismo lado. No se agrega
     # `fecha_fall`: `fall` es tambien "falla" en datos de mantenimiento, y una
     # clasificacion de mas enmascara una columna que no es personal.
-    # Ronda 39 (H-17): en GIK, el calificador de la categoria `Fch` es el
+    # En GIK, el calificador de la categoria `Fch` es el
     # hecho de la fecha, abreviado: `PerFchDef`, `PerFchFall` (`fch_def`,
     # `fch_fall`). El riesgo que dejo afuera a `fecha_fall` -la falla de un
     # equipo- queda acotado a la palabra entera tras `fch`: `FchFalla`,
@@ -1073,7 +1070,7 @@
   if (!length(por_nombre) && identical(persona$estado, "si")) {
     por_nombre <- "nombre"
   }
-  # Ronda 35 (H3): la palabra calificada por el resto del nombre se decide con
+  # La palabra calificada por el resto del nombre se decide con
   # los valores. Ver `.tipo_por_valores_calificada()`.
   if (!length(por_nombre)) {
     por_nombre <- .tipo_por_valores_calificada(x, palabras, persona, normalizado)
@@ -1124,7 +1121,7 @@
       # Los dos puntos de miles van juntos o no va ninguno: con un solo punto
       # opcional, un p-valor de siete decimales -"0.4649203"- tenia forma de
       # cedula, y la columna se clasificaba documento y perdia la evidencia de
-      # sus hallazgos. Medido en una refutacion.
+      # sus hallazgos. Medido.
       paste0(
         "^(?:[0-9]{7,12}|",
         "[0-9]{1,2}(?:\\.[0-9]{3}\\.[0-9]{3}|[0-9]{6})-?[0-9Kk]|",
@@ -1413,12 +1410,12 @@
   rownames(resultado) <- NULL
   class(resultado) <- c("clasificacion_datos_personales", "data.frame")
   # Y la columna que copia los documentos protegidos sin su verificador: ver
-  # `.copias_sin_verificador()`. Ronda 34.
+  # `.copias_sin_verificador()`.
   .reclasificar_copias_sin_verificador(resultado, datos, nombres,
                                        umbral = umbral_verificado)
 }
 
-# Ronda 34 (H3, por columna). Una columna de nombre neutro con la cedula
+# Una columna de nombre neutro con la cedula
 # protegida de cada fila SIN su verificador -el entero `4685467` frente a
 # `4.685.467-9`- publicaba sus extremos, que son dos cedulas, en `perfilar()`,
 # en `perfil_muestra` de `perfilar_dbi()` y en los cuantiles de `analizar()`.
@@ -1448,7 +1445,7 @@
 # separadores como los de un documento-, sin ceros iniciales; `NA` para la que
 # no es eso. `NULL` si la columna no puede llevar documentos.
 #
-# Ronda 35 (H2). Un texto que el paquete lee como NUMERO da las cifras de ese
+# Un texto que el paquete lee como NUMERO da las cifras de ese
 # numero, con la misma lectura que el resumen (`.leer_numeros_texto()`): la
 # columna de cedulas sin verificador que paso por una planilla -`"4685467.0"`,
 # `"4685467,00"`, `"4.685.467,00"`- se leia aca como `46854670` y en el resumen
@@ -1469,8 +1466,8 @@
   t <- .recortar_bytes(x)
   salida <- rep(NA_character_, length(t))
   # Lo que la lectura numerica del paquete lee: con punto o coma, con signo, en
-  # notacion cientifica (`"1019433e0"`, `"+2499716.0"`; segunda refutacion de la
-  # ronda 35). Un numero con decimales que no son cero no es un documento.
+  # notacion cientifica (`"1019433e0"`, `"+2499716.0"`). Un numero con
+  # decimales que no son cero no es un documento.
   # Sin separador, signo ni exponente las cifras ya son el numero, y una cedula
   # con guion no se lee: leer solo estos le ahorra la lectura entera a una
   # columna protegida de un millon de documentos.
@@ -1619,11 +1616,10 @@
 # de sus distintos que coinciden, cuantos son y la fuente con mas
 # coincidencias. Una regla para la tabla (`.copias_sin_verificador()`) y para
 # la coleccion, que prueba las columnas de una tabla contra los documentos de
-# las demas (`.copias_entre_tablas_coleccion()`). Ronda 35 (H1).
+# las demas (`.copias_entre_tablas_coleccion()`).
 .copia_de_documentos <- function(valores, prefijos_de, todos = NULL,
                                  umbral = 0.9, cola = 1e-6) {
-  # Seis cifras o mas: la cedula de seis cifras sin su verificador tambien
-  # (ronda 37, P-A2).
+  # Seis cifras o mas: la cedula de seis cifras sin su verificador tambien.
   if (is.numeric(valores) &&
       !any(abs(suppressWarnings(as.numeric(valores))) >= 1e5, na.rm = TRUE)) {
     return(NULL)
@@ -1796,11 +1792,11 @@
 # APAGADA llevan la marca `datos_personales_sin_proteger`, y `reportar()` -que
 # protege por omision- la lee para no publicarlos en claro. `[` con columnas
 # nombradas -lo que hace `subset()`- devuelve la misma clase SIN la marca: el
-# objeto filtrado se publicaba entero. Medido en la ronda 21.
+# objeto filtrado se publicaba entero. Medido.
 #
-# Y sin NINGUNO de sus atributos, no solo la marca: la ronda 21 repuso la marca y
-# dejo afuera el modelo, la cobertura y la configuracion de cada corrida. Medido
-# en la ronda 22: `evaluar(subset(medicion, TRUE))` abortaba con "la regla no
+# Y sin NINGUNO de sus atributos, no solo la marca: reponer solo la marca dejaba
+# afuera el modelo, la cobertura y la configuracion de cada corrida. Medido:
+# `evaluar(subset(medicion, TRUE))` abortaba con "la regla no
 # coincide con ninguna metrica instanciada" -se habia perdido
 # `cobertura_metricas`-, y la deriva de un historico filtrado leia un cambio de
 # modelo como deterioro de datos. Se reponen todos mientras el resultado siga
@@ -1966,13 +1962,13 @@
 # valores distintos tienen forma de fecha -ver `.forma_de_fecha()`-. Es la UNICA
 # regla y la usan todas las puertas: el piso en memoria, la cosecha de los
 # estadisticos, las fechas que identifican y la lectura de la tabla entera en
-# `perfilar_dbi()`. Hasta la ronda 24 eran dos: la columna AAAAMMDD tenia que
-# serlo en TODAS sus celdas y la de fechas con separadores en la mitad, y el ano
-# en dos cifras no contaba. Medido en la ronda 25: una columna de nacimientos
-# con el 60 % en `dd/mm/aa`, o una AAAAMMDD con UNA celda mala, no era "de
-# fechas", sus fechas entraban al piso y tapaban la moda y los ejemplos de las
-# fechas de OTRA columna -con 20.000 personas, el 16 % de sus celdas-. Ante
-# cualquier duda, no es de fechas: la columna sigue aportando sus valores.
+# `perfilar_dbi()`. Con dos reglas -la columna AAAAMMDD tenia que serlo en
+# TODAS sus celdas y la de fechas con separadores en la mitad, y el ano en dos
+# cifras no contaba-, una columna de nacimientos con el 60 % en `dd/mm/aa`, o
+# una AAAAMMDD con UNA celda mala, no era "de fechas", sus fechas entraban al
+# piso y tapaban la moda y los ejemplos de las fechas de OTRA columna -con
+# 20.000 personas, el 16 % de sus celdas-. Medido. Ante cualquier duda, no es
+# de fechas: la columna sigue aportando sus valores.
 .columna_de_fechas <- function(x) {
   if (inherits(x, c("Date", "POSIXt"))) return(TRUE)
   if (!(is.numeric(x) || is.character(x) || is.factor(x)) ||
@@ -2020,7 +2016,7 @@
 # -"99999999", "0000-0000"- que aparece al menos `.MIN_REPETICIONES_CENTINELA`
 # veces en una columna que, sin el, es casi una clave -nueve de cada diez de sus
 # valores, distintos-. Ahi el dato de una persona aparece una vez y lo que se
-# repite cuarenta veces ocupa el lugar de un dato. Medido en la ronda 25: el
+# repite cuarenta veces ocupa el lugar de un dato. Medido: el
 # `99999999` de una cedula entraba al piso y tapaba la moda, el minimo, la
 # mediana y el maximo de un `monto` que tenia su propio `99999999`, y el hallazgo
 # decia "el valor [valor protegido] aparece 30 veces". En una tabla de
@@ -2101,13 +2097,13 @@
     # en dos cifras- una fecha sola no entra en el piso (ver
     # `.valores_identificantes()`). Se decide por la COLUMNA y no por el valor:
     # una cedula de ocho digitos puede parecer una fecha, una columna entera de
-    # cedulas no. Medido en una refutacion: tapaba los estadisticos de fecha de
+    # cedulas no. Medido: tapaba los estadisticos de fecha de
     # las demas columnas. Lo que en ella NO tiene forma de fecha -un relleno, un
     # texto- sigue entrando.
     de_fechas <- .columna_de_fechas(x)
     # Con la escritura de la sesion por omision: con `scipen = -9` el `11` de
     # la columna protegida salia `1.1e+01`, pasaba el piso de seis caracteres y
-    # tapaba el maximo 11 de otra columna (ronda 31-S). Lo publicado con la marca
+    # tapaba el maximo 11 de otra columna. Lo publicado con la marca
     # de la sesion lo cubren los `formateados`.
     crudos <- tryCatch(.caracter_por_omision(x), error = function(e) character())
     formateados <- tryCatch(c(
@@ -2119,8 +2115,8 @@
     # de la columna, y "99999999   " no es "99999999". Y la aguja tampoco va
     # rellena: "Maria Lopez Fernandez " -relleno hasta el largo de "Carlos
     # Rodriguez Silva"- se tragaba el espacio de la prosa que la cita, "La
-    # relacion [valor protegido] -> [valor protegido]es exacta". Medido en la
-    # ronda 29. El valor recortado tapa lo mismo: esta adentro del relleno.
+    # relacion [valor protegido] -> [valor protegido]es exacta". Medido. El
+    # valor recortado tapa lo mismo: esta adentro del relleno.
     salida <- .recortar_bytes(c(crudos, formateados))
     if (de_fechas) salida <- salida[!.forma_de_fecha(salida)]
     rellenos <- .rellenos_de_columna(x)
@@ -2202,7 +2198,7 @@
   # El catalogo de centinelas DEL PAQUETE -`.numeros_na_locales`- es vocabulario y
   # no entra: como aguja se tapaba a si mismo en `meta`, y el plan quedaba con la
   # accion que convierte `-999` en `NA` sin efecto en una columna de montos,
-  # recomendada y activa. Medido en una refutacion.
+  # recomendada y activa. Medido.
   #
   # Y CON los datos, lo declarado entra solo si aparece en una columna
   # protegida -como su valor o como su relleno: el 99999999 que se repite en la
@@ -2210,8 +2206,8 @@
   # -de donde el plan toma la lista-: con `sentinelas_numericos = c(-999,
   # 99999999)` la accion de `monto` salia `valores = -999, NA` y `aplicar()` la
   # registraba `fallida` sin un solo 99999999 en la columna protegida: el piso
-  # no protegia nada. Es lo que la ronda 26 arreglo para el catalogo, en la
-  # declaracion. Medido en la ronda 28.
+  # no protegia nada. Es el mismo arreglo que el del catalogo, en la
+  # declaracion. Medido.
   declarados <- character()
   if (is.list(meta) && length(meta$sentinelas_numericos)) {
     propios <- meta$sentinelas_numericos[
@@ -2317,7 +2313,7 @@
 # (U+FF61), las variantes chicas (U+FE50 a U+FE6B: la coma, el punto, el punto
 # y coma, los parentesis, la arroba...), la barra partida (U+00A6) y su ancha
 # (U+FFE4) como barra vertical, y el salto de linea de C1 (U+0085), que es un
-# espacio de Unicode y PCRE no lo casa con `\\p{Z}`. Medido en la ronda 27: el
+# espacio de Unicode y PCRE no lo casa con `\\p{Z}`. Medido: el
 # correo `juan.perez<U+FF5F>at<U+FF60>empresa.com.uy`, el dominio con el punto
 # ideografico y la fecha con hora con la arroba chica se publicaban, mientras
 # la cedula escrita con esos mismos puntos se tapaba.
@@ -2326,10 +2322,10 @@
 # es UN signo ASCII -los parentesis superindice y subindice (U+207D, U+207E,
 # U+208D, U+208E), las formas de presentacion vertical (U+FE10 a U+FE48), el
 # punto de guia (U+2024), los guiones bajos de U+FE4D a U+FE4F, el signo de
-# interrogacion griego-. La ronda 27 enumero las formas que conocia y el
+# interrogacion griego-. Enumerar solo las formas conocidas no alcanza: el
 # correo `juan.perez<U+207D>at<U+207E>empresa.com.uy` se publicaba frente al
-# protegido: era la misma propiedad con otros cuatro caracteres. Medido en la
-# ronda 28. La lista se genero recorriendo Unicode 15.1 con
+# protegido, y era la misma propiedad con otros cuatro caracteres. Medido. La
+# lista se genero recorriendo Unicode 15.1 con
 # `unicodedata.normalize("NFKC", x)`: son 82, y estas 28 faltaban (la raya chica
 # U+FE63 la lleva al guion la regla de digitos). Las letras encerradas -un
 # circulo, un parentesis- no son un signo y no se leen.
@@ -2363,7 +2359,7 @@
 # parentesis: suelta es una preposicion. Ante un texto que no se puede
 # examinar, se devuelve como esta.
 #
-# Ronda 26, tres puertas de la misma regla. (1) Los espacios de Unicode -el duro
+# Tres puertas de la misma regla. (1) Los espacios de Unicode -el duro
 # U+00A0, el ideografico U+3000- y los signos de ancho completo -los parentesis
 # U+FF08 y U+FF09, la arroba U+FF20- son cosmeticos para la proteccion, pero
 # aca se leian crudos: `\s` de PCRE no casa el espacio duro, y el correo con
@@ -2416,7 +2412,7 @@
                                            exigir_limites = FALSE) {
   # El reemplazo de arriba busca la cadena EXACTA, asi que el mismo documento
   # escrito con separadores se le escapa: `"771.771-01"` no contiene
-  # `"77177101"`. Lo encontro una refutacion externa.
+  # `"77177101"`.
   #
   # Aca se compara la forma SIN separadores. Si al sacarle todo lo que no es
   # alfanumerico una cadena contiene un valor protegido igualmente normalizado,
@@ -2433,7 +2429,7 @@
   # La caja, la tilde y la codificacion tambien son cosmeticas. El mismo nombre
   # en minusculas dentro de un texto libre se publicaba mientras la forma
   # canonica quedaba enmascarada en todo el informe; "juan.perez" se publicaba
-  # frente al protegido "Juan Perez" con tilde; y una refutacion lo midio despues
+  # frente al protegido "Juan Perez" con tilde; y lo mismo pasaba
   # fuera del latin occidental -vietnamita sin marcas, griego y cirilico en
   # mayusculas, ancho completo- y con el protegido en latin1 sin marca frente a la
   # celda en UTF-8. Agujas y celdas pasan por `.plegar_para_comparar()`, que deja
@@ -2456,7 +2452,7 @@
   # Un texto sin marca que no es UTF-8 valido se lee de las dos maneras -byte por
   # byte y entero como CP1252-: en latin1, una E acentuada seguida de un espacio
   # duro es por azar una letra UTF-8 valida, y la lectura por byte daba otra
-  # letra. Medido en una refutacion.
+  # letra. Medido.
   ambiguos <- function(v) {
     !is.na(v) & Encoding(v) %in% c("unknown", "bytes", "UTF-8") & !validUTF8(v)
   }
@@ -2478,7 +2474,7 @@
   # escapes del paquete deshechos -un espacio duro sale `<U+00A0>`- y, si no es
   # UTF-8 valido, leido entero como CP1252. Basta que una contenga el valor. El
   # valor protegido no se desescapa: un valor con una barra literal y su cita, que
-  # dobla la barra, solo coinciden asi. Medido en una refutacion.
+  # dobla la barra, solo coinciden asi. Medido.
   elegidos <- x[candidatas]
   crudos <- list(plegar(elegidos), plegar(elegidos, desescapar = TRUE))
   rotos <- ambiguos(elegidos)
@@ -2489,7 +2485,7 @@
   }
   # Y el correo escrito para que no lo lean las maquinas -`juan(at)gmail.com`,
   # `juan arroba gmail punto com`-, con esas palabras leidas como la arroba y el
-  # punto. Sin esto se publicaba en diez de doce formas. Medido en la ronda 25:
+  # punto. Sin esto se publicaba en diez de doce formas. Medido:
   # sobre 3000 correos protegidos, el costo de leerlas asi en correos NO
   # protegidos fue el mismo que con la arroba comun -los separadores ya eran
   # cosmeticos-, y 2009 frases con esas palabras no se taparon. Solo las filas
@@ -2498,7 +2494,7 @@
   # Sobre cada forma plegada, no sobre la cruda: el pliegue deja todo en UTF-8
   # valido, y un texto latin1 con una tilde -`contactar a Jose: juan(at)...`
   # escrito con la tilde, como lo deja `read.csv(encoding = "latin1")`- no lo es
-  # en bytes y el lector lo saltaba. Medido en la ronda 26.
+  # en bytes y el lector lo saltaba. Medido.
   # Cada forma solo donde difiere de la primera: lo mismo no se lee dos veces.
   bases <- crudos
   for (k in seq_along(bases)) {
@@ -2534,7 +2530,7 @@
   # Lo que la prosa cita entre comillas dobles no es prosa: es un valor de celda
   # que el paquete incrusta, como los niveles de un determinante en la sugerencia
   # de `posible_ausencia_estructural` -`~ proveedor == "juanperezsrl"`-. Ahi vale
-  # la regla fuerte. Medido en una refutacion: con el titular "Juan Perez"
+  # la regla fuerte. Medido: con el titular "Juan Perez"
   # protegido, ese nivel salia entero porque la aguja esta pegada a "srl". Se tapa
   # solo lo citado, no el texto entero, para que la sugerencia se siga leyendo.
   # Las citas se buscan en el texto ORIGINAL y no en el transliterado: la
@@ -2573,7 +2569,7 @@
   # cayendo en limites: "771.771-01" contra el documento 77177101, "Maria Nunez"
   # contra el nombre escrito junto. Fuera de la prosa no se exige: un valor del
   # usuario -un ejemplo, una moda, una evidencia- con el nombre pegado a otras
-  # letras es justo lo que hay que tapar. Medido en una refutacion:
+  # letras es justo lo que hay que tapar. Medido:
   # "juanperezsrl@correo.uy" frente al titular protegido se publicaba en los
   # ejemplos de los patrones cuando la regla de limites valia en todas partes.
   for (aguja in agujas) {
@@ -2684,7 +2680,7 @@
   # lo que la prosa cita -entre comillas dobles- y el codigo que sugiere -entre
   # comillas invertidas-: el umbral de una sugerencia, `~ nro_tramite <
   # 48889997`, es un valor de la tabla sin comillas, y era la cedula protegida.
-  # Medido en una refutacion. Y se tapa el tramo, no la sugerencia entera.
+  # Medido. Y se tapa el tramo, no la sugerencia entera.
   prosa <- which(limites & !golpea)
   numeros_tapar <- vector("list", length(pajar))
   if (length(prosa)) {
@@ -2701,8 +2697,7 @@
                  rep("codigo", NROW(tramos) - NROW(citas[[i]])))
       partes <- texto_tramos(textos_candidatos[[i]], tramos)
       # Contados DESPUES de plegar: una cita con digitos de ancho completo o
-      # arabigo-indicos no tenia seis digitos ASCII y no se probaba. Medido en
-      # la ronda 22.
+      # arabigo-indicos no tenia seis digitos ASCII y no se probaba. Medido.
       con_digitos <- seis_digitos(plegar(partes))
       if (!any(con_digitos)) next
       tramos_prosa[[i]] <- list(tramos = tramos[con_digitos, , drop = FALSE],
@@ -2826,7 +2821,7 @@
 # coincidencia en modo bytes, y R marca `bytes` a las que no son ASCII; los
 # nombres llegan en UTF-8. `match()` entre las dos marcas ABORTA -"no se permite
 # traduccion de cadenas con bytes"- en cuanto hay dos piezas, y con una sola no
-# aborta pero tampoco encuentra. Medido en la ronda 25: `perfilar()`,
+# aborta pero tampoco encuentra. Medido: `perfilar()`,
 # `analizar()`, `perfilar_por()` y `perfilar_dbi()`, con la proteccion por
 # omision, abortaban sobre una planilla con `Anio Ingreso` -con enie- y una
 # cedula -la evidencia del nombre no sintactico cita las dos formas- y sobre
@@ -2942,7 +2937,7 @@
 # marca y reposicion por ORDEN, si la proteccion tapaba un tramo que llevaba una
 # marca las siguientes se corrian una, y el texto publicado nombraba otra
 # columna -`escribir a [valor protegido], con copia a juan_perez` donde decia
-# `maria_lopez`-. Medido en la ronda 24.
+# `maria_lopez`-. Medido.
 .codigo_de_orden <- function(i, borde) {
   cifras <- integer()
   repeat {
@@ -3083,7 +3078,7 @@
 # de etiqueta -`<br>`- se busca tal cual, en cualquier caja; un nombre, por su
 # clave plegada sin separadores, de cuatro caracteres o mas y mas corta que la
 # del valor: una columna `d` esta dentro de casi cualquier valor y no dice nada,
-# y con ella "segundo" pasaba a contener estructura. Medido en la ronda 24.
+# y con ella "segundo" pasaba a contener estructura. Medido.
 .contiene_estructura <- function(valores, claves_valores, presentes) {
   contienen <- logical(length(valores))
   if (!length(valores)) return(contienen)
@@ -3144,8 +3139,8 @@
   # Los NOMBRES DE COLUMNA tambien son estructura cuando el texto los nombra: con
   # "Segundo" -un nombre de pila corriente- protegido, la SQL guardada de
   # `perfilar_dbi()` decia `COUNT(\`[valor protegido]_nombre\`)` y la prosa
-  # nombraba una columna que no existe. Medido a partir de la cuarta evaluacion
-  # real. Se apartan solo los que van entre comillas -invertidas, dobles o
+  # nombraba una columna que no existe. Medido. Se apartan solo los que van
+  # entre comillas -invertidas, dobles o
   # corchetes, como los escriben el paquete y la SQL- o con la forma de una marca
   # -`segundo_nombre`-: un nombre corto suelto podria estar adentro de un valor.
   # Un nombre que es el mismo un valor protegido no se aparta.
@@ -3155,7 +3150,7 @@
   # `columnas$columna`. Con un nombre de columna igual a un valor protegido salvo
   # la tilde, `perfilar_dbi()` tapaba ENTERAS las 33 sentencias de su lote -que
   # citan tambien `id` y las demas columnas- mientras la SQL de la muestra lo
-  # citaba igual. Medido en la ronda 26.
+  # citaba igual. Medido.
   nombres <- if (isTRUE(apartar_iguales)) {
     setdiff(unique(as.character(intocables)), "")
   } else setdiff(unique(as.character(intocables)), c(valores, ""))
@@ -3169,7 +3164,7 @@
     # son UTF-8 valido, y entonces se compara sin plegar la caja.
     # Con el mismo pliegue que la proteccion -tildes, escritura, codificacion-:
     # con `tolower()` y clases por byte, la columna `jose_perez` frente a "Jose
-    # Perez" con tildes se exceptuaba y el valor salia. Medido en la ronda 22.
+    # Perez" con tildes se exceptuaba y el valor salia. Medido.
     clave <- function(v) {
       plegado <- tryCatch(.plegar_para_comparar(v), error = function(e) as.character(v))
       tryCatch(
@@ -3226,10 +3221,10 @@
   # Un valor protegido que CONTIENE una marca o un nombre de columna -el correo
   # `juan_perez@empresa.com.uy` con una columna `juan_perez`- se busca ANTES de
   # apartar, en los textos que tienen alguno: si no, al texto se le aparta el
-  # nombre y el valor ya no esta. La ronda 23 apartaba el nombre tambien de la
-  # aguja, y eso dejaba escapar el valor con otra caja -`JUAN_PEREZ@...`- y
-  # tapaba de mas: la aguja recortada `@empresa.com.uy` casaba con el dominio y
-  # con el correo de cualquier otra columna. Medido en la ronda 24. Antes de
+  # nombre y el valor ya no esta. Apartar el nombre tambien de la aguja dejaba
+  # escapar el valor con otra caja -`JUAN_PEREZ@...`- y tapaba de mas: la aguja
+  # recortada `@empresa.com.uy` casaba con el dominio y con el correo de
+  # cualquier otra columna. Medido. Antes de
   # apartar, lo que hay en el texto es el valor entero; despues, la estructura
   # sigue a salvo de los valores que no la contienen.
   previo <- .apartar_marcas_paquete(x, nombres)
@@ -3249,7 +3244,7 @@
       # Y en esta pasada siguen apartados los nombres y las marcas que ninguno de
       # esos valores contiene: sin eso, "segundo" -protegido, y dentro de un
       # valor con estructura- se buscaba dentro de `segundo_nombre` en la SQL.
-      # Medido en la ronda 24.
+      # Medido.
       claves_estructura <- .clave_estructura(estructura)
       contenida <- vapply(presentes, function(marca) {
         any(.contiene_estructura(estructura, claves_estructura, marca))
@@ -3304,7 +3299,7 @@
   claves <- .nombres_para_operar(nombres)
   # La tabla, como la nombra el paquete donde una medida no es de una columna
   # -`(tabla)`, `(tabla: t1)`-, tambien es estructura: `objeto` mezcla las dos
-  # cosas. Ronda 28.
+  # cosas.
   tabla <- "^\\(tabla(: [^()]+)?\\)$"
   exactos <- .nombres_para_operar(valores) %in% claves |
     grepl(tabla, valores, perl = TRUE, useBytes = TRUE)
@@ -3316,7 +3311,7 @@
   # Por bytes, como el resto del barrido: sin `useBytes`, `strsplit()` AVISA
   # "input string 1 is invalid UTF-8" por cada texto `latin1` sin marca -el que
   # deja `read.csv()` sin declarar la codificacion- y, con `options(warn = 2)`,
-  # `perfilar()` abortaba. Medido en la ronda 27. Los separadores son ASCII, asi
+  # `perfilar()` abortaba. Medido. Los separadores son ASCII, asi
   # que cortar por bytes da las mismas piezas; se les devuelve la marca del texto,
   # que el corte por bytes no conserva.
   compuestos <- vapply(restantes, function(v) {
@@ -3339,7 +3334,7 @@
 # datos: con "Segundo" -un nombre de pila- protegido en `Primer Nombre`, la
 # evidencia decia `"Segundo Nombre" -> "[valor protegido].Nombre"`, el plan
 # PROPONIA ese nombre y `aplicar()` se lo ponia a la columna en los datos del
-# usuario. Medido en la ronda 26, en la llamada por omision.
+# usuario. Medido en la llamada por omision.
 #
 # No abre nada que el nombre de columna no abra ya: el derivado se escribe con
 # las letras del nombre, que se publica por decision. Y valen las mismas
@@ -3388,10 +3383,10 @@
 # barrido los trataba como cualquier texto, y como enmascara por CONTENIDO -una
 # celda que, sin separadores y en mayusculas, contiene un valor protegido de seis
 # caracteres o mas se tapa entera-, bastaba un nombre de persona contenido en
-# `faltantes_disfrazados` para que el tipo saliera `[valor protegido]`. Medido en
-# la tercera evaluacion real, sobre tres columnas de nombres de persona: seis
-# hallazgos sin tipo; y reproducido aca, el plan quedaba ademas SIN NINGUNA
-# accion para ellos, porque ninguna estrategia casa con un tipo que no se lee.
+# `faltantes_disfrazados` para que el tipo saliera `[valor protegido]`. Medido
+# sobre tres columnas de nombres de persona: seis hallazgos sin tipo, y el plan
+# quedaba ademas SIN NINGUNA accion para ellos, porque ninguna estrategia casa
+# con un tipo que no se lee.
 #
 # La decision sigue siendo por campo y por contenido, la misma de los nombres
 # (`.es_columna_de_nombres()`): se recolecta lo que el objeto trae en sus campos
@@ -3407,7 +3402,7 @@
   "agregacion", "componente", "tipo", "cambio", "aspecto", "direccion", "nivel",
   # La unidad de una columna -`segundos` en las fechas, la de un objeto `units`-
   # no es el dato de nadie, y `Segundo` protegido tapaba la de toda columna de
-  # fechas. Medido en una refutacion.
+  # fechas. Medido.
   "unidad"
 )
 
@@ -3470,7 +3465,7 @@
 # valor protegido: un campo de vocabulario puede llevar texto del usuario -la
 # `unidad` es el atributo `units` de su columna-, y `attr(y, "units") <- "CI
 # 3.006.514-3"` se publicaba entero en `columnas$unidad` por ser "vocabulario".
-# Medido en la ronda 29. Sale del vocabulario lo que lleva un valor protegido
+# Medido. Sale del vocabulario lo que lleva un valor protegido
 # ENTRE LIMITES de palabra -la regla de la prosa-, sin contar los nombres de
 # columna que cita -un hallazgo `columnas_duplicadas@Juan Perez Gonzalez`
 # nombra la columna-: "segundos" frente al nombre protegido "Segundo" sigue
@@ -3482,7 +3477,7 @@
   revisar <- !grepl("^[a-z0-9_]*$", vocabulario, useBytes = TRUE)
   if (!any(revisar)) return(vocabulario)
   # Declarados antes de la primera primitiva, y solo lo que se puede leer por
-  # caracteres (ronda 30-L). Bajo `C` un nombre UTF-8 sin marca no se traducia
+  # caracteres. Bajo `C` un nombre UTF-8 sin marca no se traducia
   # al armar el patron -avisaba "unable to translate"-, y bajo un locale UTF-8
   # un nombre con un byte latin1 suelto ABORTABA `analizar()` en el
   # `gsub(fixed = TRUE)` que escapa el literal, que estaba fuera del
@@ -3524,16 +3519,16 @@
 # lado cerrado: un campo de nombres que falte aca se tapa en ese caso -raro-,
 # no se publica.
 #
-# Ronda 29: la lista y el patron se revisaron RECORRIENDO las salidas -perfil,
+# La lista y el patron se revisaron RECORRIENDO las salidas -perfil,
 # plan, `analizar()`, `perfilar_por()`, `perfilar_dbi()`, la coleccion, las
 # dependencias, los duplicados, la distribucion, las asociaciones,
 # `guiar_limpieza()` y `comparar_perfiles()`- y anotando todo campo cuyas hojas
-# son nombres de columna. Faltaban `columna_1` y `columna_2` -las columnas
+# son nombres de columna. Sin `columna_1` y `columna_2` -las columnas
 # duplicadas, en el perfil y en los parametros de sus dos acciones-, `eliminar`
-# y `datos_personales_sin_proteger`: con la columna que se llama como una
+# y `datos_personales_sin_proteger`, con la columna que se llama como una
 # persona protegida, las dos acciones de la columna duplicada salian
 # `bloqueada`, sin parametros, cuando sin la proteccion la recomendada estaba
-# `lista`. La prueba de la ronda 29 repite el recorrido.
+# `lista`. Una prueba de la suite repite el recorrido.
 .CAMPOS_DE_NOMBRES <- c(
   "determinante", "dependiente", "variable", "objeto", "objeto_medible",
   "atributo", "atributos", "atributos_ligados", "grupo", "por", "clave",
@@ -3546,7 +3541,7 @@
 # `dependiente`, y lleva los valores de las dos columnas, no sus nombres. Con
 # la docente protegida y una columna de notas por docente, el mapa se publicaba
 # en claro -los cuatro nombres- porque sus valores eran todos nombres de
-# columna. Medido en la ronda 29. Adentro de un contenedor de estos, cada hoja
+# columna. Medido. Adentro de un contenedor de estos, cada hoja
 # hereda el nombre del contenedor, que no es de nombres: se barre como valores.
 # Lo que se EJECUTA no cambia: un mapa tapado queda `mapa_enmascarado` y
 # `aplicar()` lo resuelve sobre los datos que recibe.
@@ -3559,7 +3554,7 @@
 # `perfil:n_faltantes_totales` con las dependencias, no era "toda nombres" y se
 # barria: con la docente protegida y una columna por docente, decia
 # `dependencia_funcional:[valor protegido]->[valor protegido]` donde nombraba
-# dos COLUMNAS, que salen igual en `atributos`. Medido en la ronda 28. Sin el
+# dos COLUMNAS, que salen igual en `atributos`. Medido. Sin el
 # prefijo no: un nombre suelto se decide por la hoja entera
 # (`.es_columna_de_nombres()`), porque `mapa$dependiente` tambien se llama como
 # un campo de nombres y lleva VALORES -"Mercedes", la persona, igual a la columna
@@ -3591,7 +3586,7 @@
 }
 
 # Un campo que REFIERE columnas -ver `.CAMPOS_DE_NOMBRES`-, sin los de
-# vocabulario: es lo que la prueba de la ronda 29 exige de todo campo cuyas
+# vocabulario: es lo que la prueba del recorrido exige de todo campo cuyas
 # hojas son nombres de columna. El vocabulario se saltea por otra razon -una
 # palabra del paquete, `faltantes`, igual a un nombre protegido, sigue siendo el
 # tipo del hallazgo-, y el texto del usuario que llega a un campo de vocabulario
@@ -3628,7 +3623,7 @@
 # Se saltea esta hoja por ser estructura? Si todos sus valores son nombres o
 # vocabulario -como antes-, salvo que alguno sea un valor protegido y el campo no
 # refiera columnas: ahi es un campo de valores y se barre, y el reemplazo no
-# aparta esos nombres. Medido en la ronda 27: `patrones$aprobo$ejemplos` decia
+# aparta esos nombres. Medido: `patrones$aprobo$ejemplos` decia
 # `Florencia Rodriguez | Martin Gomez` -dos docentes protegidas- porque la tabla
 # tenia columnas con esos nombres, y lo mismo `niveles_observados`, la
 # configuracion propuesta y el informe HTML.
@@ -3710,7 +3705,7 @@
   # Y un vector suelto hecho entero de nombres de columna -`columnas_analizadas`,
   # `columnas_datos_personales_protegidas`- tambien es estructura: con "Segundo"
   # protegido, `segundo_nombre` salia `[valor protegido]_nombre` en esos
-  # atributos. Medido en la cuarta evaluacion real.
+  # atributos. Medido.
   if (is.character(x)) {
     if (.saltear_hoja_de_nombres(x, intocables, sin_iguales, campo)) return(x)
     return(aplicar(x, campo))
@@ -3820,8 +3815,8 @@
 # configuracion de la accion: el soporte lo declara el usuario y el cumplimiento
 # es una proporcion. Con una columna `id_persona = 1..40` protegida, el 2 del
 # soporte coincidia con un valor y salia NA, y `aplicar()` dejaba la imputacion
-# `fallida` ("no conserva un soporte de dependencia valido"). Medido en la ronda
-# 27 por la guarda que recorre todos los parametros del plan.
+# `fallida` ("no conserva un soporte de dependencia valido"). Medido por la
+# guarda que recorre todos los parametros del plan.
 .PATRON_NUMERICO_DE_ESTRUCTURA <- paste0(
   "^(n|n_.+|indices_.+|fila|filas|filas_.+|total|.+_totales|valores_evaluados|",
   "pares_.+|celdas|celdas_.+|columnas|columnas_.+|lote|lotes_.+|tamano_.+|",
@@ -3849,15 +3844,15 @@
   # Un numero es el documento aunque el documento este ESCRITO: "5.432.198-6" en
   # la columna protegida y 54321986 como `maximo` de una copia numerica. Se
   # comparaba solo la escritura exacta, y la misma cifra como texto se tapaba en
-  # otra hoja del mismo perfil: dos reglas para el mismo dato. Medido en una
-  # refutacion. Se agrega la forma en digitos, sin ceros iniciales, de cada valor
+  # otra hoja del mismo perfil: dos reglas para el mismo dato. Medido. Se agrega
+  # la forma en digitos, sin ceros iniciales, de cada valor
   # que solo tiene digitos y separadores; una vez, arriba del recorrido.
   if (!ampliados) {
     escritos <- valores[!is.na(valores) &
                           grepl("^[0-9][0-9 .,/'_-]*[0-9]$", valores, useBytes = TRUE)]
     digitos <- .sin_ceros_iniciales(gsub("[^0-9]", "", escritos, useBytes = TRUE))
     # La cifra escrita con un decimal de ceros o en notacion cientifica es la
-    # misma: ver `.cifra_entera_escrita()`. Ronda 29.
+    # misma: ver `.cifra_entera_escrita()`.
     enteras <- .sin_ceros_iniciales(.cifra_entera_escrita(valores))
     digitos <- c(digitos, enteras[!is.na(enteras)])
     valores <- unique(c(valores, digitos[
@@ -4025,8 +4020,8 @@
 
 # El piso tapa un extremo de una columna NO protegida porque es un documento, y
 # los campos de la secuencia entera lo devolvian: `minimo` 8 y
-# `n_posiciones_secuencia_entera` 54321979 dan el maximo, 54321986. Medido en una
-# refutacion. Es lo que ya esta escrito para las columnas protegidas -proteger el
+# `n_posiciones_secuencia_entera` 54321979 dan el maximo, 54321986. Medido. Es
+# lo que ya esta escrito para las columnas protegidas -proteger el
 # minimo y el maximo y dejar publicado su rango no protege nada-, aplicado a la
 # fila donde el piso tapo algo. Se compara la tabla antes y despues del piso.
 .tapar_derivados_del_piso <- function(antes, despues) {
@@ -4041,9 +4036,9 @@
   }))
   if (!any(tocadas)) return(despues)
   # `desvio` tambien: con el extremo dominando la columna, el desvio y `n` lo
-  # reconstruyen -48.890.008 contra el documento 48.889.997-. Medido en la ronda
-  # 22. Aca el extremo tapado ES un documento. (En las columnas protegidas el
-  # desvio tambien se tapa desde la ronda 32: `.CAMPOS_MOMENTO_PROTEGIDOS`.)
+  # reconstruyen -48.890.008 contra el documento 48.889.997-. Medido. Aca el
+  # extremo tapado ES un documento. (En las columnas protegidas el desvio
+  # tambien se tapa: `.CAMPOS_MOMENTO_PROTEGIDOS`.)
   derivados <- intersect(c(
     "minimo", "maximo", "mediana", "media", "desvio", "n_posiciones_secuencia_entera",
     "n_huecos_secuencia_entera", "hueco_maximo_secuencia_entera",
@@ -4065,7 +4060,7 @@
   if (!inherits(plan, "data.frame")) return(plan)
   # Con la proteccion apagada en el perfil, el plan tampoco se protege: el
   # usuario declaro que quiere los valores, y el plan tapaba igual los
-  # parametros de sus acciones. Medido en una refutacion.
+  # parametros de sus acciones. Medido.
   if (is.list(perfil$meta) && isFALSE(perfil$meta$proteger_datos_personales)) {
     attr(plan, "columnas_datos_personales_protegidas") <- character()
     # Queda escrito que lleva datos personales en claro, para que `reportar()`
@@ -4141,8 +4136,9 @@
     # `[valor protegido]` y `aplicar()` creaba en los datos una columna con ese
     # nombre; y el `dependiente` de su imputacion salia tapado y la accion
     # quedaba `fallida`. Lo que el plan EJECUTA -los nombres de columna y los
-    # que deriva de ellos- guarda su valor real. Medido en la ronda 27, en la
-    # llamada por omision: era la puerta de al lado de la ronda 26.
+    # que deriva de ellos- guarda su valor real. Medido en la llamada por
+    # omision: era la puerta de al lado de la de los nombres derivados
+    # (`.nombres_derivados_de_columnas()`).
     plan$parametros <- I(lapply(seq_along(plan$parametros), function(i) {
       parametros <- plan$parametros[[i]]
       if (isTRUE(propias[[i]])) {
@@ -4174,8 +4170,8 @@
   # Con los nombres de columna INTOCABLES, como en el plan. Sin eso, "Segundo"
   # -un nombre de pila corriente- protegido tapaba la columna `segundo_nombre`
   # del atributo, que salia `[valor protegido]_nombre`: el hallazgo declarado ya
-  # no correspondia a su columna. Medido en la cuarta evaluacion real, sobre
-  # tres columnas de nombres, como "hallazgo sin accion ni declaracion".
+  # no correspondia a su columna. Medido sobre tres columnas de nombres, como
+  # "hallazgo sin accion ni declaracion".
   sin_accion <- attr(plan, "hallazgos_sin_accion", exact = TRUE)
   if (inherits(sin_accion, "data.frame")) {
     attr(plan, "hallazgos_sin_accion") <- .proteger_textos_salida(
@@ -4197,8 +4193,8 @@
 # del mapa: con "Rodriguez Perez" protegido en `titular`, el mapa de `cod_suc ->
 # sucursal` decia `S01 -> Farmacia [valor protegido]`, la accion `lista` quedaba
 # `fallida` ("los datos actuales contradicen la dependencia") y, al reves
-# (`sucursal -> cod_suc`), `ejecutada` con 12 de 24 celdas y sin avisar. Medido
-# en la ronda 27. Es el mismo mecanismo que el centinela tapado de una columna
+# (`sucursal -> cod_suc`), `ejecutada` con 12 de 24 celdas y sin avisar.
+# Medido. Es el mismo mecanismo que el centinela tapado de una columna
 # protegida (`valores_enmascarados`): lo que se ejecuta se resuelve sobre los
 # datos y el plan no publica el valor.
 #
@@ -4230,8 +4226,8 @@
 # resuelve sobre los datos, y un mapa tocado se marca para reconstruirse. Lo
 # llaman `.proteger_plan_limpieza()` y el barrido de `analizar()` sobre su plan:
 # alli solo se volvia a marcar el mapa, y el barrido de `analizar()` volvia a
-# tapar los marcadores que el plan ya habia devuelto. Medido en la ronda 28 por
-# la guarda de los parametros ejecutables. `originales`: los parametros antes
+# tapar los marcadores que el plan ya habia devuelto. Medido por la guarda de
+# los parametros ejecutables. `originales`: los parametros antes
 # del barrido; `antes`: antes del barrido por columna, si lo hubo.
 .ejecutables_tras_barrido <- function(plan, originales, antes = originales,
                                       datos = NULL, declarados = NULL) {
@@ -4248,9 +4244,9 @@
 # igual -el por columna con todos los valores de la protegida; el piso, en
 # cualquier columna, si el marcador declarado aparecia tambien en la protegida-
 # y la accion quedaba `lista`, activa, con `valores = "[valor protegido]"`, y
-# `aplicar()` la registraba `fallida`. Medido en la ronda 28, en la llamada por
-# omision. Es la ronda 26 y la 27 otra vez: lo que se ejecuta no pasa por el
-# barrido; se tapa lo que solo se muestra. Lo que no es marcador -un texto que
+# `aplicar()` la registraba `fallida`. Medido en la llamada por omision. Es otra
+# vez el caso de los nombres derivados y de los parametros del plan: lo que se
+# ejecuta no pasa por el barrido; se tapa lo que solo se muestra. Lo que no es marcador -un texto que
 # el detector leyo de una evidencia ya tapada- sigue como lo dejo el barrido.
 .marcadores_ausencia_ejecutables <- function(plan, originales,
                                              declarados = NULL) {
@@ -4299,7 +4295,7 @@
 # la registraba `fallida` con el -999 en la tabla. Con `sentinelas_numericos =
 # 99999999` -que el perfil protegido ya no conserva- `valores` era `NA` y las seis
 # celdas seguian. Y el hueco no ocultaba nada: estaba en la posicion de -999 del
-# catalogo fijo. Medido en la refutacion 26-R.
+# catalogo fijo. Medido.
 #
 # Dos reglas, cada una con su precedente:
 #
@@ -4320,8 +4316,7 @@
 # en una tabla de movimientos, donde puede ser una cedula-. La accion de `monto`
 # salia `lista` con `valores = -999, NA`, sin marca, y `aplicar()` la registraba
 # `fallida`. Ahora lo declara igual: lo resuelve con los rellenos de `monto`, si
-# eso reproduce lo que el plan estima, o queda `bloqueada`. Medido en la ronda
-# 28.
+# eso reproduce lo que el plan estima, o queda `bloqueada`. Medido.
 .centinelas_tapados_en_plan <- function(plan, antes, datos) {
   indices <- which(
     as.character(plan$estrategia) == "convertir_sentinelas_numericos"
@@ -4432,7 +4427,7 @@
 
 # Los MOMENTOS que se tapan en una columna protegida, en todas las vias -la de
 # memoria, `perfilar_dbi()` con o sin bloques, `perfilar_por()`-: la media, en
-# sus dos formas, y el desvio. Ronda 32: el desvio se publicaba por una decision
+# sus dos formas, y el desvio. El desvio se publicaba por una decision
 # declarada (F-6, "una dispersion no identifica a nadie") que se revirtio.
 .CAMPOS_MOMENTO_PROTEGIDOS <- c("media", "media_fecha", "desvio")
 
@@ -4502,7 +4497,7 @@
   # dos ecuaciones con dos incognitas y devuelven **27 y 599.917 exactos**,
   # mientras `minimo` y `maximo` salian en NA como corresponde. Proteger el
   # minimo y el maximo y dejar publicado su rango no protege nada.
-  # Y `desvio`, como la media, desde la ronda 32. Era la unica excepcion
+  # Y `desvio`, como la media. Era la unica excepcion
   # declarada -la decision F-6: "una dispersion no identifica a nadie"-, y la
   # decision cambio: el desvio de una columna protegida es una magnitud de sus
   # valores, y junto con lo que el resto del perfil publica de la columna
@@ -4586,8 +4581,8 @@
   # Solo donde habia un alcance que declarar: una geometria que no se pudo
   # convertir no tiene bbox, y decir que no se publico "por geometria
   # protegida" declararia un tapado que no ocurrio. Con el nombre de campo mal
-  # escrito -`representacion_geometrica`- esas filas nunca llegaban aca; al
-  # corregirlo, la sonda mostro que llegaban a esta linea con `bbox_alcance` NA.
+  # escrito -`representacion_geometrica`- esas filas nunca llegaban aca; con el
+  # nombre correcto llegan a esta linea con `bbox_alcance` NA.
   if ("bbox_alcance" %in% names(columnas)) {
     con_alcance <- geometria & !is.na(columnas$bbox_alcance)
     columnas$bbox_alcance[con_alcance] <-
@@ -4636,8 +4631,8 @@
   # se tapa entera: se le tapan sus valores, con el piso. Tapada entera, sus
   # hallazgos perdian tambien la evidencia que no tiene ningun valor de celda
   # -"4939 valores distintos de 5000 (0.988)", "3 valores", "N/D (30)"-, y la
-  # ayuda dice que lo debil se informa sin ocultar valores. Medido en la ronda
-  # 26: nueve de nueve hallazgos de columnas debiles sin evidencia. Sin los
+  # ayuda dice que lo debil se informa sin ocultar valores. Medido: nueve de
+  # nueve hallazgos de columnas debiles sin evidencia. Sin los
   # datos -un perfil que se vuelve a proteger sin su tabla- no hay valores con
   # que barrer, y se tapa entera como antes: el lado cerrado.
   if (is.null(valores_debiles)) {
@@ -4796,8 +4791,8 @@
   medianoche <- "([T ]00:00(:00(\\.0+)?)?(Z| ?UTC)?)?"
   # Con un ANO plausible, el mismo rango que la regla de digitos: con cualquiera,
   # el telefono guardado "2901-12-12" se trataba como fecha, salia del piso y se
-  # publicaba exacto. La misma regla estaba escrita dos veces y la ronda 22 la
-  # arreglo en una. Medido en la ronda 23.
+  # publicaba exacto. La misma regla estaba escrita dos veces y el arreglo habia
+  # cubierto solo una. Medido.
   anio <- .ANIO_PLAUSIBLE
   # Y con espacios y el ano al final -"16 01 2002"-, como la regla de digitos.
   fecha <- paste0(
@@ -4816,10 +4811,9 @@
 # COLUMNA, con `.columna_de_fechas()`, la misma regla que saca del piso las
 # fechas de una columna de fechas en `.valores_publicables_protegidos()`: es de
 # fechas si es `Date` o `POSIXt`, o si la mitad o mas de sus valores distintos
-# tienen forma de fecha. La ronda 23 estrecho el rango de anos y el piso seguia
-# decidiendo por el valor: un fijo de Montevideo escrito 4-2-2 que empieza con
-# `20` y tiene mes y dia validos -uno de cada trescientos- se publicaba exacto.
-# Medido en la ronda 24.
+# tienen forma de fecha. Estrechar el rango de anos no alcanza si el piso decide
+# por el valor: un fijo de Montevideo escrito 4-2-2 que empieza con `20` y tiene
+# mes y dia validos -uno de cada trescientos- se publicaba exacto. Medido.
 .fechas_que_identifican <- function(datos, sensibles) {
   if (!inherits(datos, "data.frame") || !length(sensibles)) {
     return(character())
@@ -4875,7 +4869,7 @@
   largos <- nchar(.declarar_utf8_valido(valores), type = "chars", allowNA = TRUE)
   valores <- valores[is.na(largos) | largos >= .MIN_LARGO_VALOR_IDENTIFICANTE]
   # Un relleno sin una letra ni un digito -"------", "......"- no es el dato de
-  # nadie y no puede identificar a nadie. Medido en la ronda 25: el "------" de
+  # nadie y no puede identificar a nadie. Medido: el "------" de
   # un telefono protegido tapaba `sin observaciones ------ revisar` en otra
   # columna. Solo ASCII: un signo de otra escritura puede ser parte de un nombre.
   valores <- valores[
@@ -4886,8 +4880,8 @@
   # una tabla de miles de personas casi todo dia es el cumpleanos de alguien. Con
   # la fecha de nacimiento protegida, el piso tapaba la media, la mediana, el
   # minimo y la moda de TODAS las demas columnas de fechas -doce estadisticos con
-  # 50.000 personas, medido en una refutacion- y el umbral de fecha de una
-  # sugerencia, que no son la fecha de nadie. La columna de fechas se sigue
+  # 50.000 personas- y el umbral de fecha de una
+  # sugerencia, que no son la fecha de nadie. Medido. La columna de fechas se sigue
   # protegiendo entera, por columna; lo que sale del piso es la busqueda de sus
   # valores en el resto de la salida. Una fecha con hora si queda: con segundos
   # vuelve a ser casi unica.
@@ -4895,19 +4889,19 @@
   # Salvo las de `fechas_que_identifican`: un valor con forma de fecha de una
   # columna protegida que NO es de fechas -el telefono "2012-11-05" entre
   # cuatrocientos telefonos- es el dato de alguien, y salia del piso. Se decide
-  # por la columna: ver `.fechas_que_identifican()`. Medido en la ronda 24.
+  # por la columna: ver `.fechas_que_identifican()`. Medido.
   es_fecha <- .es_fecha_sola(valores)
   valores <- valores[!es_fecha | valores %in% fechas_que_identifican]
   # Y un marcador de ausencia del catalogo del paquete -`sin dato`, `N/A`- no es
   # el dato de nadie aunque aparezca en una columna de nombres: es vocabulario
   # compartido, como dice `?perfilar`. Como aguja tapaba el marcador en las
   # demas columnas, y en el plan dejaba sin efecto la accion que lo convierte en
-  # `NA` en una columna vecina, recomendada y activa. Medido en una refutacion.
+  # `NA` en una columna vecina, recomendada y activa. Medido.
   # La columna protegida lo sigue tapando, por columna.
   # El pliegue de los detectores de ausencia (`.minusculas_para_comparar()`):
   # el `trimws()` antes de declarar avisaba bajo `C` con un nombre latin1, y
   # bajo un locale UTF-8 un solo valor con un byte suelto hacia caer el filtro
-  # entero en el `tryCatch` (ronda 30-L).
+  # entero en el `tryCatch`.
   catalogo <- .minusculas_para_comparar(c(
     .cadenas_na_naniar_1_1_0, .cadenas_na_locales
   ))
@@ -4962,7 +4956,7 @@
   # La magnitud de Benford y el `log10(max/min)` de la cobertura, solo de las
   # columnas PROTEGIDAS: de una con clasificacion debil se publican el minimo y
   # el maximo, y su cociente no oculta nada. Se tapaban las de toda columna con
-  # tipo de dato personal. Medido en la ronda 26.
+  # tipo de dato personal. Medido.
   sensibles <- .columnas_personales_protegidas(perfil)
   valores <- .valores_publicables_protegidos(
     datos, .columnas_personales_protegidas(perfil)

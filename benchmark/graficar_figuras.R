@@ -75,8 +75,8 @@ if (all(!is.finite(lsh_umbral$perdida)) || all(lsh_umbral$pares_exhaustivo <= 0)
 
 # ------------------------------------------------------- guardas de contenido
 # Las guardas de arriba miran que los CSV existan y hablen del mismo commit.
-# Estas miran lo que traen adentro, y salen de una refutacion que le dio de
-# comer al graficador CSV rotos de a uno: con un `NA` en `perdida` dibujaba el
+# Estas miran lo que traen adentro, y salen de darle al graficador CSV rotos
+# de a uno: con un `NA` en `perdida` dibujaba el
 # titulo "entre NA % y NA %", con `perdida` 1,5 anunciaba "150 %", con dos filas
 # en `bloqueo.csv` usaba la primera y callaba la otra, y con un nivel de
 # cardinalidad desconocido dibujaba una fila rotulada "NA". Ninguno de esos

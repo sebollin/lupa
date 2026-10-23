@@ -1,4 +1,4 @@
-# Fuente incremental DBI para la etapa I1.
+# Fuente incremental DBI para la lectura por bloques.
 #
 # Esta via es optativa: `perfilar_dbi()` solo la usa cuando recibe
 # `bloque_filas`. El camino historico de agregados SQL y su bloque de muestra
@@ -579,7 +579,7 @@
         filas_pedidas = NA_real_, objetivo = bloque_filas,
         minimo = 1L, maximo = bloque_filas, bytes_esperados = NA_real_
       ),
-      pasadas = list(primera = "dbSendQuery + dbFetch", valor = "acumuladores I1",
+      pasadas = list(primera = "dbSendQuery + dbFetch", valor = "acumuladores por bloques",
                      indice = "no_solicitado", lsh = "no_solicitado",
                      materializacion = "fuera_de_alcance_I1"),
       muestra_diagnostica = "perfil_muestra acotado, si se solicita",
@@ -830,7 +830,7 @@
   # misma fila -que salen de `.absorber_cuantitativos()` sobre `finitos`- y como
   # la mediana de `perfilar()`. `na.rm` saca `NA` y `NaN`, no los infinitos:
   # sobre `c(-Inf x3, 10, 20, 30, 40)` la mediana salia 10 -el minimo- al lado
-  # de una media de 25 (ronda 31).
+  # de una media de 25.
   finitos <- is.finite(valores)
   valores <- valores[finitos]
   frecuencias <- frecuencias[finitos]
@@ -1025,7 +1025,7 @@
       )
     }
   }
-  # Moda y mediana quedan como familias de valores no fusionables en I1. Si el
+  # Moda y mediana quedan como familias de valores no fusionables en la lectura por bloques. Si el
   # mapa exacto ya existe se publica la moda; la mediana se calcula solo sobre
   # un mapa no truncado y se declara como acotada por esa representacion.
   distintos <- acumuladores[[.clave_par_identificador(campo, "distintos", sep = "\u001f")]]
@@ -1143,7 +1143,7 @@
   # todo sale de los dobles que entrego el controlador: sobre un `numeric(20,0)`
   # con 60 valores distintos desde 90071992547409001, `n_distintos` salia 4, una
   # moda que no estaba en la columna y un desvio de 17,52 contra 17,46, todo
-  # `calculado` (refutacion 35-D, M3). Las siete de magnitud no se publican, como
+  # `calculado`. Las siete de magnitud no se publican, como
   # en la via SQL, y tampoco `n_distintos` y la moda: sin bloques los cuenta el
   # motor sobre el valor exacto, y aca se contarian sobre los dobles. Lo mismo
   # vale para un entero ancho que el controlador entrego como doble -un
@@ -1211,7 +1211,7 @@
     sin_solapamiento = TRUE, primer_ordinal = NA_real_, ultimo_ordinal = NA_real_
   )
   attr(plan, "pasadas") <- list(
-    primera = "dbFetch incremental", valor = "acumuladores I1",
+    primera = "dbFetch incremental", valor = "acumuladores por bloques",
     indice = "solo con orden estable y snapshot demostrado",
     lsh = "fuera_de_alcance_I1", materializacion = "fuera_de_alcance_I1"
   )
@@ -1394,7 +1394,7 @@
     "no_solicitado"
   } else "no_disponible"
   motivo <- if (identical(estado, "no_solicitado")) {
-    "La muestra diagnostica no fue solicitada en I1."
+    "La muestra diagnostica no fue solicitada en la lectura por bloques."
   } else {
     "muestra_diagnostica_acotada:se_resuelve_en_perfil_muestra"
   }
@@ -1521,7 +1521,7 @@
       columnas = columnas, sql = sql,
       cobertura = .registro_cobertura_dbi(
         "fuente_bloques", .texto_tabla_dbi(tabla), "no_disponible", motivo,
-        "Usar `bloque_filas` solo con `universo = \"tabla_completa\"` en I1.",
+        "Usar `bloque_filas` solo con `universo = \"tabla_completa\"` en la lectura por bloques.",
         NA_character_
       ),
       meta = list(
@@ -1761,8 +1761,7 @@
   }
   # Las columnas que el esquema no pudo leer -el motor las rechazo, o la sesion
   # no puede escribir su nombre- se declaran como en la via SQL: esta via las
-  # dejaba fuera de `columnas`, de `sql` y de la cobertura, sin decirlo
-  # (ronda 33-X).
+  # dejaba fuera de `columnas`, de `sql` y de la cobertura, sin decirlo.
   recorrida <- isTRUE(fuente$disponible) && is.null(recorrido$error)
   for (campo in preparacion$esquema$ilegibles) {
     filas[[length(filas) + 1L]] <- if (recorrida) {
@@ -1776,7 +1775,7 @@
     )
   }
   columnas <- if (length(filas)) {
-    # Sin los nombres de las columnas, como en `medir()` (ronda 33-X): bajo `C`
+    # Sin los nombres de las columnas, como en `medir()`: bajo `C`
     # una columna con acento avisaba "unable to translate".
     do.call(rbind, unname(lapply(filas, function(fila) {
       as.data.frame(.fila_magnitudes_dobles_dbi(fila), stringsAsFactors = FALSE)
@@ -1824,7 +1823,7 @@
     list(
       solicitado = orden_muestra_solicitado, aplicado = FALSE,
       motivo = paste(
-        "orden_muestra_no_gobierna_fuente_bloques: la via I1 prioriza la",
+        "orden_muestra_no_gobierna_fuente_bloques: la lectura por bloques prioriza la",
         "clave primaria o el localizador para preservar la identidad entre",
         "pasadas."
       )
@@ -1943,7 +1942,7 @@
     # cubre la tabla, con los valores de la tabla entera: ver
     # `.proteger_salida_muestra_dbi()`. Aca corria solo con los extremos de las
     # columnas protegidas, y una cedula copiada en una columna de codigos salia
-    # en `columnas$maximo` y en `meta$familias`. Ronda 33.
+    # en `columnas$maximo` y en `meta$familias`.
     protegido <- .proteger_salida_muestra_dbi(
       resumen,
       if (is.null(perfil_muestra)) list(perfil = NULL) else bloque_muestra,

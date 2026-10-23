@@ -1,7 +1,7 @@
 # N96. El render de evidencia no aborta, y las dos capas publican la misma
 # cadena.
 #
-# Dos defectos que salieron de refutacion externa sobre N95:
+# Dos defectos que quedaban despues de N95:
 #
 #   * `.escapar_texto_visible()` ABORTABA sobre cualquier texto que no
 #     decodificara como UTF-8. `utf8ToInt()` devuelve `NA` -no vacio, no
@@ -19,9 +19,8 @@
 # paquete es ASCII y ademas hay que poder elegir la marca, que es la propiedad
 # que se mide.
 
-# Regresion de una ronda de refutacion: corre en la suite completa, en el CI y en
-# R-hub, que usan NOT_CRAN=true; en CRAN se saltea para que el check entre en sus
-# tiempos (medicion del 2026-10-23).
+# Prueba de regresion: corre en la suite completa, en el CI y en R-hub, que usan
+# NOT_CRAN=true; en CRAN se saltea para que el check entre en sus tiempos.
 testthat::skip_on_cran()
 
 .n96_marcar <- function(bytes, codificacion) {

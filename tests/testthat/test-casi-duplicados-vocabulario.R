@@ -426,12 +426,11 @@ test_that("la distancia en nombres de vias queda declarada como sospecha", {
 
 test_that("la participacion del dominante decide, y la frontera esta donde dice", {
   skip_if_not_installed("stringdist")
-  # Salio de una refutacion que buscaba un contraejemplo a «la regla del grupo
-  # dominante no depende del tamano». Lo encontro: en la ruta de edicion corta
-  # -cadenas de pocos caracteres, donde Jaro-Winkler no alcanza y entra la
-  # distancia de edicion- hay una puerta de frecuencia, `min_participacion_
-  # dominante`, y la misma familia con las MISMAS frecuencias absolutas se
-  # entrega o no segun cuantas filas la acompanen.
+  # Un contraejemplo a «la regla del grupo dominante no depende del tamano»: en
+  # la ruta de edicion corta -cadenas de pocos caracteres, donde Jaro-Winkler no
+  # alcanza y entra la distancia de edicion- hay una puerta de frecuencia,
+  # `min_participacion_dominante`, y la misma familia con las MISMAS frecuencias
+  # absolutas se entrega o no segun cuantas filas la acompanen.
   #
   # No es un defecto: si la forma dominante deja de ser la mitad de la columna,
   # ya no domina. Lo que faltaba era una prueba que lo fijara, porque una puerta

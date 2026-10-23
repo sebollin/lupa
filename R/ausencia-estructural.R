@@ -60,7 +60,7 @@
 # como `blob`-. Un `NULL` o un `integer(0)` en una lista sin clase no es un
 # faltante para el perfil (decision escrita en `.posiciones_presentes()`, en
 # `R/geometrias.R`). Aca la lista tenia su propia regla -largo cero o `NULL`
-# era ausencia- y el objeto se contradecia: medido en la ronda 30, una lista
+# era ausencia- y el objeto se contradecia: una lista
 # con `integer(0)` en diez de treinta filas publicaba `n_faltantes = 0` y un
 # `posible_ausencia_estructural` que "explicaba 10 de las 10 ausencias"; y
 # seguir su sugerencia al pie de la letra fabricaba un

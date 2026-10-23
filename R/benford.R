@@ -197,7 +197,7 @@
 
   # Una columna declarada en `columnas_codigo` es un codigo por declaracion, y
   # sobre un codigo Benford no se aplica: la unica precondicion que se publica
-  # es esa, porque las demas no llegan a importar (decision D2, ronda 32).
+  # es esa, porque las demas no llegan a importar.
   fallas <- if (isTRUE(codigo_declarado)) {
     "codigo_declarado"
   } else {
@@ -346,12 +346,12 @@
   # la regla del paquete y aca no se cumplia.
   #
   # No se amplia el alcance de Benford a `integer64` -eso cambiaria conducta
-  # estadistica y merece su propia vuelta-: se declara la no evaluacion, que es
-  # lo que faltaba.
+  # estadistica y es otra decision-: se declara la no evaluacion, que es lo que
+  # faltaba.
   #
-  # La misma leccion, una vuelta despues: `inherits(x, "integer64")` volvia a
-  # ser una lista de una sola clase, y `units`, `Period` o `haven_labelled`
-  # quedaban en el mismo silencio del que este comentario habla. La pregunta es
+  # Y no solo para `integer64`: `inherits(x, "integer64")` es una lista de una
+  # sola clase, y con ella `units`, `Period` o `haven_labelled` quedarian en el
+  # mismo silencio del que este comentario habla. La pregunta es
   # si la columna es numerica y trae clase declarada, no cual clase es.
   excluidas_por_tipo <- which(vapply(datos, function(x) {
     .es_numerica_con_clase(x) && !.es_columna_compuesta(x) &&

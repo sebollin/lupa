@@ -237,10 +237,10 @@
 # `fileEncoding` sobre un archivo latin1, el caso mas comun del mundo real, y no
 # es texto: `nchar()`, `trimws()` y las expresiones regulares abortan sobre eso.
 # El paquete lo trataba como texto porque solo miraba la marca `bytes`, y el
-# mismo defecto aparecio en dos sitios de la misma ronda -la limpieza y el
-# reporte-: por eso la regla vive en un solo lugar.
+# mismo defecto aparecio en dos sitios -la limpieza y el reporte-: por eso la
+# regla vive en un solo lugar.
 #
-# Y no mira el locale (ronda 30-L). Decia que en una sesion que no es UTF-8
+# Y no mira el locale. Decia que en una sesion que no es UTF-8
 # "sin marca" es la codificacion nativa y es legible, y bajo `C` eso hacia que
 # `aplicar()` transformara por bytes la celda que el perfil -que decide con
 # `validUTF8()` en cualquier locale- declaro `codificacion_invalida` y no midio,
@@ -583,7 +583,7 @@
     # la barra invertida, y tomar su clave tambien para lo ASCII hacia que el
     # mismo `a\b` saliera intacto en un vector todo ASCII y con la barra
     # duplicada en uno con algun acento: una clave decidida por la tanda.
-    # Medido en la ronda 25: `detectar_relaciones()` no encontraba `a\b` entre
+    # Medido: `detectar_relaciones()` no encontraba `a\b` entre
     # dos tablas porque solo una tenia una enie. Lo ASCII no puede chocar
     # con lo que no lo es, y lo reservado se escapa abajo igual.
     salida[validos & no_ascii] <- claves[validos & no_ascii]
@@ -672,8 +672,8 @@
   # como nombre de variable del entorno, y R no admite uno de mas de 10.000
   # bytes: un nombre de columna de 2.501 bytes abortaba `perfilar()` y otras
   # cuatro con "nombres de variables se limitan a 10000 bytes", un limite del
-  # instrumento que no es de los datos ni esta documentado. El caso real, medido
-  # en la ronda 32: un CSV de 300 columnas separado por `;` leido con `sep = ","`
+  # instrumento que no es de los datos ni esta documentado. El caso real
+  # medido: un CSV de 300 columnas separado por `;` leido con `sep = ","`
   # deja una sola columna cuyo nombre es la cabecera entera, justo la tabla mal
   # leida que hay que poder diagnosticar.
   #
@@ -814,8 +814,8 @@
   x[order(.clave_bytes(x), method = "radix")]
 }
 
-# `order()` y `sort()` del paquete, sin la intercalacion del locale (ronda
-# 30-L). Sobre texto, `order()` de base usa la de `LC_COLLATE`: el desempate de
+# `order()` y `sort()` del paquete, sin la intercalacion del locale. Sobre
+# texto, `order()` de base usa la de `LC_COLLATE`: el desempate de
 # `formatos_fecha` ponia `%Y-%m-%d` primero bajo `C` y `%d/%m/%Y` bajo
 # `es_UY.UTF-8`, y la propuesta de modelo se ordenaba por el nombre de la
 # columna ANTES de numerar `sugerencia-NNNN`, asi que el mismo id media
@@ -860,7 +860,7 @@
 }
 
 # `factor()`, `split()`, `table()` y `tapply()` ordenan los niveles de un texto
-# con la intercalacion del locale, igual que `sort()` (ronda 30-L): el resumen de
+# con la intercalacion del locale, igual que `sort()`: el resumen de
 # hallazgos de `comparar_perfiles()` salia en otro orden bajo `C` que en una
 # sesion UTF-8. Estos ayudantes arman el factor con los niveles por bytes; lo
 # que no es texto queda como lo deja base, que ahi no consulta el locale.
@@ -923,8 +923,8 @@
 # un data.frame y una tabla de una columna en un tibble, una data.table o un
 # grouped_df: la misma expresion, otra respuesta. `inferir_tipo()` contestaba
 # sobre la tabla -`tipo = "tbl_df"`, "4 de 4 valores compatibles"- donde el
-# vector daba `texto`, mientras sus hermanas la rechazaban. Medido en la ronda
-# 32. Se rechaza con el mensaje que ya daba `detectar_formatos_fecha()`.
+# vector daba `texto`, mientras sus hermanas la rechazaban. Medido. Se rechaza
+# con el mensaje que ya daba `detectar_formatos_fecha()`.
 .validar_vector_no_tabla <- function(x) {
   if (inherits(x, "data.frame")) {
     .detener("`x` debe ser un vector, no un data.frame.", call. = FALSE)
@@ -938,7 +938,7 @@
 # archivo de configuracion-, `c(TRUE, TRUE)` o `-1` APAGABAN la proteccion y
 # publicaban los correos crudos, mientras las once hermanas rechazaban esos
 # mismos valores. Una proteccion que ante la duda abre falla del lado que
-# expone. Medido en la ronda 32. Las puertas que la reciben por `...`
+# expone. Medido. Las puertas que la reciben por `...`
 # (`perfilar_por()`, `perfilar_dbi()`, `perfilar_coleccion()`) la validan aca
 # tambien cuando se pasa: por DBI el resumen SQL la leia con `isTRUE()` y
 # publicaba el valor que el mismo resumen ocultaba con `TRUE`.
@@ -958,7 +958,7 @@
 # `match.arg()` con el error del paquete. Sobre `NA`, un numero, `TRUE` o
 # `list()` R decia "'arg' must be NULL or a character vector", y con dos textos
 # "'arg' must be of length 1": ninguno nombraba el argumento ni sus opciones.
-# Medido en la ronda 32 en diez argumentos exportados. Se usa como
+# Medido en diez argumentos exportados. Se usa como
 # `match.arg()` -las opciones salen de los formales de quien llama, como alli,
 # o se pasan- y sobre todo valor que `match.arg()` acepta devuelve lo mismo:
 # `NULL` y el vector entero de opciones dan la primera, y un prefijo unico se
@@ -990,7 +990,7 @@
 # `c()` borra un `NULL` o un `list()`, junta un `TRUE` como 1 y aplana un vector
 # de dos: el valor malo pasaba la guarda y abortaba despues con un error de R
 # -"argumento tiene longitud cero", "valor ausente donde TRUE/FALSE es
-# necesario", "unsupported type" en `formatC()`-. Medido en la ronda 32. Antes
+# necesario", "unsupported type" en `formatC()`-. Medido. Antes
 # de unirlos, cada uno tiene que ser UN numero.
 .son_numeros_escalares <- function(valores) {
   all(vapply(valores, function(v) is.numeric(v) && length(v) == 1L,
@@ -1010,7 +1010,7 @@
 # vale la omision, que protege. Por el nombre exacto, como la validacion de
 # arriba: `$` casaba tambien un nombre que empieza con este. La regla estaba
 # escrita cuatro veces en la via DBI -`perfilar_dbi()`, las dos del spool y la
-# via por bloques-, y la ronda 33 la necesitaba en la entrada de
+# via por bloques-, y hace falta tambien en la entrada de
 # `perfilar_dbi()` y de `perfilar_coleccion()`, para el mensaje del motor
 # (`.fijar_proteccion_motor()`): una sola, para que no se separen.
 .protege_argumentos <- function(argumentos) {
@@ -1019,7 +1019,7 @@
 }
 
 # Los argumentos que viajan por `...` hasta `perfilar()` se leen con el nombre
-# COMPLETO del formal que R les asigna (ronda 33-X). `do.call(perfilar, ...)`
+# COMPLETO del formal que R les asigna. `do.call(perfilar, ...)`
 # completa un nombre abreviado -`proteger = FALSE` es
 # `proteger_datos_personales = FALSE`-, y quien leia la lista antes lo leia por
 # el nombre exacto: `perfilar_dbi(proteger = FALSE)` perfilaba la muestra sin
@@ -1045,11 +1045,11 @@
 }
 
 # Lo que viaja por `...` hasta `perfilar()` se valida en la ENTRADA, haya o no
-# algo que perfilar (ronda 33-X). La ronda 32 lo hizo con la bandera: sin
-# grupos que lleguen a `min_filas` o con `bloque_muestra = "solo_agregados"`,
-# `perfilar()` no corre y nada se validaba. Seguian pasando en silencio una
-# `fecha` invalida -`"ayer"`, `NA`, dos fechas- y un nombre que `perfilar()` no
-# tiene -`no_existe = 1`, una errata-. Se validan aca la bandera, la `fecha`
+# algo que perfilar. Sin grupos que lleguen a `min_filas`, o con
+# `bloque_muestra = "solo_agregados"`, `perfilar()` no corre y nada se
+# validaba: pasaban en silencio una `fecha` invalida -`"ayer"`, `NA`, dos
+# fechas- y un nombre que `perfilar()` no tiene -`no_existe = 1`, una errata-.
+# Se validan aca la bandera, la `fecha`
 # -la misma regla de las cinco puertas, `.fecha_argumento_utc()`- y los nombres,
 # ya completados por `.argumentos_para_perfilar()` -los que la via toma para si,
 # `propios`, tambien valen-. Los demas valores los valida
@@ -1063,7 +1063,7 @@
                               !nombres %in% formales]
     if (length(desconocidos)) {
       # Un prefijo de varios formales no es "un argumento que no existe": es
-      # ambiguo, y `perfilar()` directo lo dice asi (ronda 34-X). Se nombran los
+      # ambiguo, y `perfilar()` directo lo dice asi. Se nombran los
       # que casan para que quien llama sepa cual escribir.
       primero <- desconocidos[[1L]]
       posibles <- if (!grepl("[^\\001-\\177]", primero, useBytes = TRUE,
@@ -1108,7 +1108,7 @@
   # Por posicion, tambien un nombre `NA`: una tabla de R puede tener una
   # columna llamada asi, y `[.data.frame` no la selecciona por nombre
   # ("columnas no definidas seleccionadas"). `perfilar_por()` abortaba con
-  # ella (ronda 30, al cerrar 30-K H3). Un nombre que la tabla no tiene sigue
+  # ella. Un nombre que la tabla no tiene sigue
   # cayendo en `[` y su error.
   if (is.character(columnas) && !is.null(names(datos))) {
     indices <- .indice_nombre(columnas, names(datos))
@@ -1317,7 +1317,7 @@
   # con el argumento de que el NA diria que la columna no repite ningun valor.
   # Pero eso ya lo dicen `frecuencia_moda = 1` y `n_distintos`, que se publican
   # con o sin proteccion: el marcador no ocultaba nada y afirmaba una moda que
-  # no existe (ronda 31). La proteccion corre antes que esto y solo tapa una
+  # no existe. La proteccion corre antes que esto y solo tapa una
   # moda presente, asi que el NA no se vuelve a tapar.
   if (any(sin_moda)) {
     columnas[["moda"]][sin_moda] <- NA
@@ -1481,10 +1481,10 @@
 # `scipen` -no con `OutDec` ni con `digits`-: con `scipen = -9`, `valor > 0.5`
 # se escribe `valor > 5e-01`, y la configuracion de un perfil de evaluacion, la
 # formula de una aplicabilidad o el nombre de los datos cambiaban con la sesion;
-# la deriva publicaba "Cambio el perfil de evaluacion" sobre el mismo perfil
-# (ronda 31-S). Todo `deparse()` del paquete pasa por aca.
+# la deriva publicaba "Cambio el perfil de evaluacion" sobre el mismo perfil.
+# Todo `deparse()` del paquete pasa por aca.
 #
-# Y no era la unica perilla (ronda 32-S). `deparse()` escribe la marca decimal
+# Y no es la unica perilla. `deparse()` escribe la marca decimal
 # de `LC_NUMERIC` -`x > 0,9` con `Sys.setlocale("LC_NUMERIC", "es_UY.utf8")`- y
 # bajo el locale `C` escapa el texto no ASCII: `"S<U+00ED>"` en una formula,
 # `"S\303\255"` en una funcion y el simbolo entre comillas invertidas. Lo que
@@ -1530,8 +1530,8 @@
   FALSE
 }
 
-# Lo que se LEE de una conexion tampoco puede depender de `LC_NUMERIC` (ronda
-# 32-S, segunda vuelta). Los controladores convierten el texto que devuelve el
+# Lo que se LEE de una conexion tampoco puede depender de `LC_NUMERIC`. Los
+# controladores convierten el texto que devuelve el
 # motor con `strtod()` de C, que sigue la marca decimal del locale: con
 # `Sys.setlocale("LC_NUMERIC", "es_UY.utf8")` RPostgres leia `2.5` como `2` -y
 # odbc, un `decimal` de SQL Server-, y `perfilar_dbi()` publicaba en silencio
@@ -1558,7 +1558,7 @@
   invisible(TRUE)
 }
 
-# Un texto con fraccion de segundo tambien se LEE con `LC_NUMERIC` (ronda 33-X).
+# Un texto con fraccion de segundo tambien se LEE con `LC_NUMERIC`.
 # `strptime()` lee la fraccion de `%OS` con el `strtod()` de C, que sigue la
 # marca decimal del locale: con `Sys.setlocale("LC_NUMERIC", "es_UY.utf8")`
 # `"10:00:05.25"` se leia `10:00:05`, sin aviso. Un plan armado en una sesion
@@ -1600,11 +1600,11 @@
 # `as.character()` y `format()` escriben en la hora de la sesion: la etiqueta de
 # `distribucion_valores()` y de `perfilar_por()` cambiaba con `TZ`, y en
 # America/Adak dos instantes distintos -10:30 y 11:30 UTC del dia del cambio de
-# hora- salian los dos `01:30:00`; la clave de la normalizacion los fundia
-# (ronda 31-S). La zona declarada de la columna se publica aparte, en
+# hora- salian los dos `01:30:00`; la clave de la normalizacion los fundia.
+# La zona declarada de la columna se publica aparte, en
 # `zona_horaria_origen`.
 #
-# Es tambien la escritura de un instante que se COMPARA (ronda 32-S): `format()`
+# Es tambien la escritura de un instante que se COMPARA: `format()`
 # sin formato toma los decimales de `options(digits.secs)`, asi que con el valor
 # por omision dos instantes del mismo segundo salian iguales. El plan contaba
 # "10 valores participan en una conversion no inyectiva" y bloqueaba una
@@ -1914,7 +1914,7 @@
 # medicion lo lee asi (los factores se miden como texto), y tambien
 # `distribucion_valores()` e `inferir_tipo()`. Pero `is.na()` sobre el factor
 # dice FALSE, porque el codigo apunta a un nivel, y el perfil y las
-# dependencias cuentan presencia con `is.na()`. Medido en la ronda 30, un factor
+# dependencias cuentan presencia con `is.na()`. Medido: un factor
 # con 13 de 40 celdas en el nivel `NA` se leia de cinco maneras en un mismo
 # analisis: el perfil 0 faltantes -y entonces no se proponia `NoNulo` y esas
 # celdas no entraban a ninguna completitud- y `n_distintos = NA`;
@@ -1945,7 +1945,7 @@
 #   - El nivel `NA` de un factor pasa a ausente (arriba).
 #   - Un `POSIXlt` -lo que deja `strptime()`- pasa a `POSIXct`, que es el mismo
 #     instante en la misma zona. Por dentro es una lista, y el perfil lo leia
-#     distinto que a la misma columna `POSIXct`: medido en la ronda 30, `moda` y
+#     distinto que a la misma columna `POSIXct`: medido, `moda` y
 #     `frecuencia_moda` en `NA` sin declararlo (la `POSIXct` publica el instante
 #     y 10), `n_filas_fecha_civil_distinta_utc = 0` donde la `POSIXct` en
 #     `America/Montevideo` dice 30 -y su hallazgo de zona horaria no salia-, y
@@ -2000,12 +2000,12 @@
   # columnas crudas: `addNA(f)` contra `f` -o un `POSIXlt` contra su
   # `POSIXct`- salian "duplicadas" en el perfil y en el plan, y `aplicar()` las
   # registraba `fallida` con "dejaron de tener contenido duplicado" sobre la
-  # tabla original (ronda 31). La comparacion es una sola, aca.
+  # tabla original. La comparacion es una sola, aca.
   x <- .normalizar_columna_entrada(x)
   y <- .normalizar_columna_entrada(y)
   # `identical()` iguala todos los NaN, y un `integer64` negativo ES un NaN en
   # sus bits: `-1` y `-2` salian identicos. Comparar los bits es exacto para
-  # `integer64` -los bits son el valor-. Ronda 25.
+  # `integer64` -los bits son el valor-.
   if (inherits(x, "integer64") && inherits(y, "integer64")) {
     return(identical(class(x), class(y)) &&
       identical(x, y, num.eq = FALSE, single.NA = FALSE))
@@ -2037,7 +2037,7 @@
   .pegar_texto(x, collapse = sep)
 }
 
-# `paste()` que no depende del locale (ronda 30-L). `paste()` de base traduce al
+# `paste()` que no depende del locale. `paste()` de base traduce al
 # nativo lo marcado `latin1` cuando nada del vector esta marcado UTF-8, y bajo
 # `C` lo nativo es ASCII: el nombre `descripcion` con tilde en latin1 salia como
 # el texto `descripci<f3>n`, que no indexa la tabla, y una columna llamada como
@@ -2080,20 +2080,20 @@
 # `paste0()` del paquete sobre texto del usuario: los `objeto_medible` de
 # `medir()` -`tabla$columna[fila]`- y las evidencias `columna=valor` de
 # duplicados. Con `paste0()` de base, bajo `C` un nombre latin1 salia
-# `df$descripci<f3>n[1]` (ronda 30-L).
+# `df$descripci<f3>n[1]`.
 .pegar_texto0 <- function(..., collapse = NULL) {
   .pegar_texto(..., sep = "", collapse = collapse)
 }
 
 # Parte cada texto por un separador ASCII y recorta los blancos de cada pieza,
 # por bytes, y devuelve a las piezas la marca del texto de origen. Es la regla
-# de la ronda 27 (A1) para los nombres de columna: lo que no es UTF-8 valido se
+# de los nombres de columna: lo que no es UTF-8 valido se
 # corta por bytes, porque `strsplit()` y `trimws()` sin `useBytes` avisan o
 # abortan sobre el segun el locale -bajo un locale UTF-8 "input string N is
 # invalid in this locale", que con `warn = 2` tumbaba `perfilar()`; bajo `C`,
 # nada-. Cortar por un separador ASCII es exacto en UTF-8 y en latin1, pero el
 # corte por bytes pierde la marca, y sin ella un nombre `latin1` deja de ser el
-# mismo nombre (ronda 30-L).
+# mismo nombre.
 .partir_conservando_marca <- function(x, separador) {
   x <- as.character(x)
   marcas <- Encoding(x)
@@ -2358,7 +2358,7 @@
   publicables
 }
 
-# `encodeString()` sin consultar el locale (ronda 30-L). La de base escapa como
+# `encodeString()` sin consultar el locale. La de base escapa como
 # `\uXXXX` todo lo que el locale no imprime, y bajo `C` eso es todo lo que no
 # es ASCII: la evidencia citaba `Jos\u00e9` en un `Rscript` de cron y la e con
 # tilde en RStudio -33 bytes contra 29-, el plan y el reporte heredaban la

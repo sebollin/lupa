@@ -87,7 +87,7 @@ rbind.deriva_perfil <- function(..., deparse.level = 1) {
 # que vuelve al valor, la de `.texto_identidad()`: un entero con todas sus
 # cifras, una fraccion con 15, 16 o 17. No mira `scipen` ni `digits`.
 # La marca decimal SI sigue a `OutDec`: mostrar `3,5` a quien pidio coma es una
-# decision del paquete (RESUELTOS 2.245 y 2.314), y la evidencia de la deriva ya
+# decision del paquete, y la evidencia de la deriva ya
 # la respeta con `.formatear_decimal_publicado()`. Un objeto con las dos marcas
 # es peor que cualquiera de las dos.
 .texto_numero_deriva <- function(x) {
@@ -104,7 +104,7 @@ rbind.deriva_perfil <- function(..., deparse.level = 1) {
 #
 # La coma no viene solo de `OutDec`: con `LC_NUMERIC` en coma la escritura
 # publicada -`format()`, el `sprintf()` de C- ya la trae aunque `OutDec` sea
-# punto, y `detectar_relaciones()` publicaba `[0,125, 0,75]` (ronda 32-S). Se
+# punto, y `detectar_relaciones()` publicaba `[0,125, 0,75]`. Se
 # mira tambien el texto de los extremos: el separador es "; " si alguno lleva
 # coma. Quien publica varios rangos juntos pasa el separador de todos.
 .separador_rango_deriva <- function(textos) {
@@ -149,8 +149,7 @@ rbind.deriva_perfil <- function(..., deparse.level = 1) {
 # vara no puede quedar afuera en silencio, que es como quedaron
 # `casi_duplicados_vocabulario` y `ausencia_estructural` -un hallazgo
 # `resuelto, ok` con los mismos datos- y los umbrales de las relaciones entre
-# columnas -hallazgos que aparecian sin fila de configuracion- (refutacion
-# 35-D, M4 y B2). Las clases:
+# columnas -hallazgos que aparecian sin fila de configuracion-. Las clases:
 #
 # * `habilita`: el argumento decide SI corre un diagnostico. Si el perfil nuevo
 #   lo apago o retiro la declaracion, sus hallazgos del anterior se publican
@@ -227,8 +226,8 @@ rbind.deriva_perfil <- function(..., deparse.level = 1) {
   umbral_documento_verificado = list(clase = "vara", meta = "umbral_documento_verificado"),
   muestra_validadores = list(clase = "vara", meta = "muestra_validadores"),
   # Se clasificaba `sin_hallazgo` y produce hallazgos: apagarlo publicaba un
-  # par de columnas duplicado como `resuelto, ok` con los mismos datos
-  # (refutacion 35-D, segunda vuelta). No viaja en `meta`: lo que corrio queda
+  # par de columnas duplicado como `resuelto, ok` con los mismos datos. No viaja
+  # en `meta`: lo que corrio queda
   # en `perfil$duplicados_aproximados` (ver `.duplicados_evaluados_perfil()`).
   duplicados_aproximados = list(
     clase = c("habilita", "politica"), forma = "duplicados",
@@ -321,14 +320,14 @@ rbind.deriva_perfil <- function(..., deparse.level = 1) {
 
 .configuracion_umbrales_perfil <- function(perfil) {
   # Las varas son las de `.ARGUMENTOS_PERFIL_DERIVA` con clase `vara`, en su
-  # orden: las seis del principio y `columnas_codigo`, y desde la ronda 35 las
-  # de las relaciones entre columnas, el vocabulario y los datos personales, que
-  # cambiaban hallazgos y severidades sin esta fila (refutacion 35-D, B2).
+  # orden: las seis del principio y `columnas_codigo`, y tambien las de las
+  # relaciones entre columnas, el vocabulario y los datos personales, que
+  # cambiaban hallazgos y severidades sin esta fila.
   campos <- .argumentos_perfil_deriva_de_clase("vara")
   presentes <- intersect(campos, names(perfil$meta))
   if (!length(presentes)) return(NULL)
-  # `columnas_codigo` llego en la ronda 32 (decision D2): un perfil guardado
-  # antes no la trae, y no declaraba ningun codigo. Se la cuenta como "ninguna",
+  # Un perfil que no trae `columnas_codigo` -guardado antes de que el argumento
+  # existiera- no declaraba ningun codigo. Se la cuenta como "ninguna",
   # en su lugar de la lista, para que comparar contra un perfil viejo no
   # publique un cambio de vara que no hubo.
   presentes <- intersect(campos, c(presentes, "columnas_codigo"))
@@ -370,13 +369,13 @@ rbind.deriva_perfil <- function(..., deparse.level = 1) {
 
 # `columnas_opcionales` redefine el universo de completitud de una columna -sus
 # celdas presentes- igual que `aplicabilidad` redefine el aplicable, y el perfil
-# la registra en `meta$columnas_opcionales` desde la ronda 33. La comparacion no
+# la registra en `meta$columnas_opcionales`. La comparacion no
 # la leia: el mismo dato perfilado sin y con la declaracion -la que el paquete
 # recomienda en `posible_ausencia_estructural`- salia `faltantes 0,54 -> 0 ok`, y
 # al retirarla `0 -> 0,54 error` con `hallazgo faltantes aparecido`, un deterioro
-# que no ocurrio, sin la fila de configuracion que si tenia `aplicabilidad`
-# (refutacion 34-D). Un perfil anterior a la ronda 33 no la registraba aunque la
-# hubiera declarado: ahi no se sabe, y no se compara, como con `aplicabilidad`.
+# que no ocurrio, sin la fila de configuracion que si tenia `aplicabilidad`.
+# Un perfil que no trae ese campo -guardado antes de que se registrara- no dice
+# si la declaro: ahi no se sabe, y no se compara, como con `aplicabilidad`.
 .configuracion_opcionales_perfil <- function(perfil) {
   if (!"columnas_opcionales" %in% names(perfil$meta)) return(NULL)
   valores <- as.character(perfil$meta$columnas_opcionales)
@@ -631,11 +630,11 @@ rbind.deriva_perfil <- function(..., deparse.level = 1) {
 # RESULTADO de comprobar la clave y queda `NULL` cuando sale limpia, asi que no
 # distingue "no se declaro" de "se declaro y estaba bien".
 #
-# `clave` no era la unica, como decia este comentario: apagar
+# `clave` no es la unica: apagar
 # `casi_duplicados_vocabulario` -lo que `?perfilar` recomienda para tablas
 # grandes- o `ausencia_estructural` publicaba el hallazgo como **resuelto,
 # severidad ok** con los mismos datos, y retirar `columnas_sin_ceros`,
-# `columnas_no_negativas` o `columnas_personales`, igual (refutacion 35-D, M4).
+# `columnas_no_negativas` o `columnas_personales`, igual.
 # El dato estaba en `meta` y la comparacion no lo leia. Ahora la lista sale de
 # `.ARGUMENTOS_PERFIL_DERIVA`, que clasifica TODOS los argumentos de
 # `perfilar()`, y una prueba exige que no falte ninguno.
@@ -644,7 +643,7 @@ rbind.deriva_perfil <- function(..., deparse.level = 1) {
 # * `tabla`: habilita sobre lo declarado (`clave`). Retirarla o declararla sobre
 #   otras columnas deja sin evaluar la anterior: con `clave = "id"` y despues
 #   `clave = "ci"`, `clave_no_unica` de `id` salia `resuelto, ok` con `id`
-#   todavia duplicado (refutacion 35-D, segunda vuelta).
+#   todavia duplicado.
 # * `interruptor`: un logico; habilita con `TRUE`.
 # * `columnas`: un conjunto de columnas; habilita en las declaradas, asi que
 #   retirarla de una columna deja sin evaluar los hallazgos de esa columna.
@@ -825,7 +824,7 @@ rbind.deriva_perfil <- function(..., deparse.level = 1) {
 # resolvio de verdad, con el diagnostico encendido en las dos corridas, o uno
 # que no se volvio a evaluar, no publicaba ninguna fila: 100 pares de
 # `duplicados_exactos_columnas` y una `relacion_aritmetica_columnas`
-# desaparecian sin rastro (refutacion 35-D, segunda vuelta). Ahora se descarta
+# desaparecian sin rastro. Ahora se descarta
 # solo si el texto nombra una columna retirada, entera o como una de sus partes.
 .hallazgo_nombra_columna_retirada <- function(columna, retiradas) {
   retiradas_originales <- as.character(retiradas)

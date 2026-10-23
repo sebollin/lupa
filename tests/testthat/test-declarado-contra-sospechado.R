@@ -128,7 +128,7 @@ test_that("pedir `sentinelas_naniar` es elegir heuristica, no declarar", {
   # concreta, asi que no puede sacar valores del promedio ni escalar a `error`.
   #
   # Se detecto porque `test-hallazgos-administrativos.R` fallo al arreglar
-  # §2.215: la primera version tomaba por declaracion todo vector distinto del
+  # La primera version tomaba por declaracion todo vector distinto del
   # de por omision, incluida la lista del propio paquete.
   edades <- c(66, 77, 88, 45, 30, 22, 51, 63, 70, 41)
 

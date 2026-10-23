@@ -1,11 +1,8 @@
-# Dos defectos de la misma familia que el paquete ya declaro cerrada dos veces:
-# una fila que se contradice a si misma, y un umbral que decide con la resta en
-# coma flotante. Los encontro una vuelta corrida por otra familia de modelo
-# sobre un terreno que la anterior habia dado por limpio.
+# Dos defectos de la misma familia: una fila que se contradice a si misma, y un
+# umbral que decide con la resta en coma flotante.
 
-# Regresion de una ronda de refutacion: corre en la suite completa, en el CI y en
-# R-hub, que usan NOT_CRAN=true; en CRAN se saltea para que el check entre en sus
-# tiempos (medicion del 2026-10-23).
+# Prueba de regresion: corre en la suite completa, en el CI y en R-hub, que usan
+# NOT_CRAN=true; en CRAN se saltea para que el check entre en sus tiempos.
 testthat::skip_on_cran()
 
 test_that("la deriva nombra de que lado esta el resultado sin evaluar", {

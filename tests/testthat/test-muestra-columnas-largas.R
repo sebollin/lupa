@@ -10,9 +10,9 @@ library(DBI)
 .lob_prueba <- new.env(parent = emptyenv())
 .lob_prueba$sql <- character()
 # El tipo que declara el controlador es un parametro del banco, no una
-# constante: la vuelta contra base real mostro que `{SQL Server}` informa
-# codigos ODBC ("-1") y no nombres, y un banco que solo habla en nombres no
-# ejercita el caso que rompe.
+# constante: contra una base real, `{SQL Server}` informa codigos ODBC ("-1")
+# y no nombres, y un banco que solo habla en nombres no ejercita el caso que
+# rompe.
 .lob_prueba$tipo_nota <- "text"
 .lob_prueba$rechazar_todo <- FALSE
 
@@ -43,8 +43,8 @@ setMethod(
   function(conn, statement, ...) {
     .lob_prueba$sql <- c(.lob_prueba$sql, statement)
     # El nombre se busca sin comillas a proposito: cada dialecto cita distinto
-    # -SQLite usa acentos graves, no comillas dobles- y una sonda que solo
-    # reconoce una de las formas no ejercita nada.
+    # -SQLite usa acentos graves, no comillas dobles- y un doble de prueba que
+    # solo reconoce una de las formas no ejercita nada.
     # `LIMIT 0` y `WHERE 1 = 0` son las consultas de metadatos: piden la forma,
     # no los datos, y un controlador que no sabe traer un LOB las contesta
     # igual. Rechazarlas seria simular una base caida, que es otro caso.

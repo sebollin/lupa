@@ -5,15 +5,13 @@
 # `C` lo que no es ASCII sale escapado, `conditionMessage()` devolvia
 # "num<U+00E9>rico", y ese texto entraba como dato al plan -`justificacion`,
 # `motivo_no_reversible`-, al registro de `aplicar()`, a la guia, a `analizar()`
-# y al HTML (ronda 31-S). El paquete no trae catalogo de traducciones, asi que
+# y al HTML. El paquete no trae catalogo de traducciones, asi que
 # el mensaje se arma sin `gettext()` -salvo que quien llama nombre un dominio- y
 # viaja en una condicion armada, que no se traduce: llega a quien la atrapa con
 # sus bytes y su marca, en cualquier locale. Sin atrapar, R la imprime como a
 # cualquier error. Una condicion ya armada -un error que se vuelve a levantar-
-# pasa como esta. La ronda 31 lo habia escrito como un `stop()` que tapaba al de
-# base en el espacio de nombres; desde la ronda 32 (decision D4 de Sebastian:
-# "que quede limpio") tiene nombre propio, ningun nombre de base queda tapado, y
-# una prueba recorre el codigo del paquete y no encuentra otro `stop()` ni
+# pasa como esta. El ayudante tiene nombre propio: ningun nombre de base queda
+# tapado en el espacio de nombres, y una prueba recorre el codigo del paquete y no encuentra otro `stop()` ni
 # `warning()` de base fuera de estos dos ayudantes.
 .detener <- function(..., call. = TRUE, domain = NULL) {
   argumentos <- list(...)
@@ -29,7 +27,7 @@
 # texto, unidos sin separador- pero sin `gettext()` salvo que se nombre un
 # dominio. `.makeMessage(domain = NA)` pegaba la LISTA de argumentos, y un
 # argumento `NULL` -un `if` sin `else`- salia escrito "character(0)": "No se
-# pudo leer como fecha: \"...\"character(0). Se espera..." (ronda 34-X). En
+# pudo leer como fecha: \"...\"character(0). Se espera...". En
 # base el `NULL` desaparece porque `gettext()` aplana la lista; aca se aplana
 # sin traducir, con las marcas de cada pieza intactas.
 .mensaje_condicion <- function(..., domain = NULL) {
@@ -41,7 +39,7 @@
   paste(piezas, collapse = "")
 }
 
-# `.avisar()`: lo mismo para los avisos (ronda 32-S). `warning()` de base pasa el texto por
+# `.avisar()`: lo mismo para los avisos. `warning()` de base pasa el texto por
 # `gettext()` igual que `stop()`, y bajo `C` el aviso de `medir()` llegaba a quien
 # lo atrapa como "1 m<U+00E9>trica(s) no se midieron...". Y el texto de un aviso
 # es dato: `perfilar_coleccion()` junta los de cada tabla, los pasa por el piso

@@ -1,4 +1,4 @@
-# Tercera evaluacion real: la prosa del paquete no se tapa por azar.
+# La prosa del paquete no se tapa por azar.
 #
 # La regla de variantes tapa una celda entera si su forma sin separadores
 # contiene un valor protegido. Con los nombres de millones de personas como
@@ -31,8 +31,8 @@ test_that("en la prosa la variante exige limites; en los valores, no", {
   expect_true(tapado[["separado"]])
   expect_true(tapado[["documento"]])
   # Fuera de la prosa no hace falta limite: el nombre pegado a otras letras es
-  # un valor de una persona. Una refutacion lo encontro publicado cuando la
-  # regla de limites valia en todas partes.
+  # un valor de una persona. Se publicaba cuando la regla de limites valia en
+  # todas partes.
   expect_true(tapado[["pegado"]])
   # Y la tilde es cosmetica: antes "juan.perez" se publicaba frente a "Juan
   # Perez" con tilde.

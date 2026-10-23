@@ -11,9 +11,8 @@
 # no son iguales- y la cuarta hace que un numero publicado no se pueda rehacer con la
 # receta documentada.
 
-# Regresion de una ronda de refutacion: corre en la suite completa, en el CI y en
-# R-hub, que usan NOT_CRAN=true; en CRAN se saltea para que el check entre en sus
-# tiempos (medicion del 2026-10-23).
+# Prueba de regresion: corre en la suite completa, en el CI y en R-hub, que usan
+# NOT_CRAN=true; en CRAN se saltea para que el check entre en sus tiempos.
 testthat::skip_on_cran()
 
 test_that("dos columnas de texto con el mismo nombre no se comparan en silencio", {
@@ -65,10 +64,10 @@ test_that("un valor declarado bytes no se iguala al literal de su escape", {
   datos <- data.frame(txt = c(crudo, literal), stringsAsFactors = FALSE)
 
   # La promesa es que no se IGUALAN, y se mide con el par a la vista. Esta prueba
-  # pedia cero pares con el umbral por omision, y lo cumplia por la barra
-  # cuadruplicada de la ronda 27 -la distancia quedaba en 0,107, apenas sobre
-  # 0,10-: arreglada la doble clave de bytes, la distancia que sale de la receta
-  # es 0,098 y el par entra como `aproximado`, que es lo que es. Se pide el par
+  # pedia cero pares con el umbral por omision, y lo cumplia por una barra
+  # cuadruplicada -la distancia quedaba en 0,107, apenas sobre 0,10-: arreglada
+  # la doble clave de bytes, la distancia que sale de la receta es 0,098 y el
+  # par entra como `aproximado`, que es lo que es. Se pide el par
   # con `umbral = 1` y se afirma lo que la promesa dice.
   resultado <- detectar_duplicados_aproximados(
     datos, columnas = "txt", normalizar = FALSE, max_resultados = Inf,
@@ -109,7 +108,7 @@ test_that("el mismo texto en UTF-8 y en latin1 sigue siendo el mismo valor", {
   expect_identical(nrow(resultado$pares), 1L)
   expect_identical(as.character(resultado$pares$tipo_par), "exacto")
   # Con tolerancia: en macOS arm64 la distancia de stringdist entre dos textos iguales
-  # sale 3.3e-17 y no 0 (ruido de coma flotante; PENDIENTES, 2026-10-23).
+  # sale 3.3e-17 y no 0 (ruido de coma flotante).
   expect_equal(resultado$pares$distancia, 0, tolerance = 1e-12)
 })
 
@@ -193,7 +192,7 @@ test_that("la descomposicion canonica llega hasta donde el manual dice", {
 
   expect_identical(as.character(dentro$pares$tipo_par), "exacto_normalizado")
   # Con tolerancia: en macOS arm64 la distancia de stringdist entre dos textos iguales
-  # sale 3.3e-17 y no 0 (ruido de coma flotante; PENDIENTES, 2026-10-23).
+  # sale 3.3e-17 y no 0 (ruido de coma flotante).
   expect_equal(dentro$pares$distancia, 0, tolerance = 1e-12)
   # Fuera del subconjunto latino no colapsan, y el numero se rehace SIN descomponer,
   # que es la receta que el manual da para ese caso.

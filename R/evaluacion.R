@@ -189,7 +189,7 @@ propiedades_regla <- function(regla) {
     if (is.null(x) || !length(x)) return(NA_character_)
     # Un umbral es un parametro, no prosa: punto decimal y la escritura mas corta
     # que vuelve al valor, sin `OutDec`, `scipen` ni `digits` -con `OutDec = ","`
-    # dos umbrales salian "0,1, 0,5"- (ronda 31-S).
+    # dos umbrales salian "0,1, 0,5"-.
     if (is.numeric(x) && !is.object(x)) {
       return(paste(.etiqueta_numero_reversible(x), collapse = ", "))
     }
@@ -336,7 +336,7 @@ perfiles_madurez <- function(metricas = NULL, umbrales = NULL) {
     # El nombre de la regla es la clave con la que el historico aparea corridas:
     # se escribe con punto decimal y la escritura mas corta que vuelve al valor,
     # sin `OutDec` ni `scipen`. Con `paste0()`, `Resultado > 0,9` en una sesion y
-    # `Resultado > 0.9` en otra no se apareaban (ronda 31-S).
+    # `Resultado > 0.9` en otra no se apareaban.
     perfil_evaluacion(
       nombre,
       .regla_umbral(
@@ -378,7 +378,7 @@ perfiles_madurez <- function(metricas = NULL, umbrales = NULL) {
     rep(FALSE, nrow(medicion))
   }
   # Una medida repetida se contaba dos veces: `evaluar(rbind(m, m))` publicaba
-  # el doble de medidas y dos desenlaces para una. Medido en la ronda 22.
+  # el doble de medidas y dos desenlaces para una. Medido.
   if (.identificadores_en("id_medida", names(medicion))) {
     repetidas <- duplicated(.nombres_para_operar(as.character(medicion$id_medida)))
     if (any(repetidas)) {
@@ -396,7 +396,7 @@ perfiles_madurez <- function(metricas = NULL, umbrales = NULL) {
   sin_valor <- !suprimidas & is.na(medicion$resultado)
   if (any(sin_valor)) {
     # Nombrar el NA y la medida: el mensaje decia que los resultados "no
-    # respetan su tipo", sin decir cual ni por que. Medido en la ronda 22.
+    # respetan su tipo", sin decir cual ni por que. Medido.
     ids <- if (.identificadores_en("id_medida", names(medicion))) {
       as.character(medicion$id_medida[sin_valor])
     } else as.character(which(sin_valor))
@@ -490,8 +490,7 @@ perfiles_madurez <- function(metricas = NULL, umbrales = NULL) {
   )
   # POR CORRIDA. Una medicion puede reunir varias, y la cobertura se miraba en la
   # medicion entera: la metrica que faltaba en una corrida la "cubria" otra, y la
-  # misma corrida evaluada sola avisaba y evaluada junto a otra no. Medido en la
-  # ronda 22.
+  # misma corrida evaluada sola avisaba y evaluada junto a otra no. Medido.
   corridas <- if ("id_medicion" %in% names(medicion) && nrow(medicion)) {
     split(seq_len(nrow(medicion)),
           factor(as.character(medicion$id_medicion),
@@ -531,7 +530,7 @@ perfiles_madurez <- function(metricas = NULL, umbrales = NULL) {
   # sus argumentos, y bajo `C` una regla, un perfil o un id con acento avisaba
   # "unable to translate" en cada `evaluar()` -con `warn = 2`, abortaba-. Los
   # nombres eran los de las reglas y los grupos, y se tiraban en la linea
-  # siguiente (ronda 33-X).
+  # siguiente.
   salida <- do.call(rbind, unname(partes))
   rownames(salida) <- NULL
   salida
@@ -615,7 +614,7 @@ perfiles_madurez <- function(metricas = NULL, umbrales = NULL) {
     .factor_por_bytes(.nombres_para_operar(evaluaciones$regla)),
     # Con el separador por omision -"."- las etiquetas pegadas decidian el
     # grupo: la corrida "x" con la regla "P.y" y la corrida "x.P" con la regla
-    # "y" se fundian. Medido en la ronda 22. Un caracter de control no aparece
+    # "y" se fundian. Medido. Un caracter de control no aparece
     # en un nombre.
     drop = TRUE, lex.order = TRUE, sep = "\034"
   )
@@ -642,7 +641,7 @@ perfiles_madurez <- function(metricas = NULL, umbrales = NULL) {
 # casaban nunca, y el numero que excluia la parte sin medir se evaluaba como
 # completo. La deriva lo leia como mejora. Una fila de la cobertura afecta a la
 # regla si alguna fila agregada de la medicion es de la misma metrica
-# especifica y la regla la nombra. Medido en la ronda 24.
+# especifica y la regla la nombra. Medido.
 .faltante_en_agregado <- function(faltantes, medicion, metricas) {
   if (!nrow(faltantes) || !"metrica_especifica" %in% names(faltantes) ||
       !all(c("agregacion", "metrica_especifica") %in% names(medicion))) {
@@ -763,7 +762,7 @@ perfiles_madurez <- function(metricas = NULL, umbrales = NULL) {
     .factor_por_bytes(.nombres_para_operar(evaluaciones$perfil)),
     # Con el separador por omision -"."- las etiquetas pegadas decidian el
     # grupo: la corrida "x" con la regla "P.y" y la corrida "x.P" con la regla
-    # "y" se fundian. Medido en la ronda 22. Un caracter de control no aparece
+    # "y" se fundian. Medido. Un caracter de control no aparece
     # en un nombre.
     drop = TRUE, lex.order = TRUE, sep = "\034"
   )
@@ -934,8 +933,7 @@ perfiles_madurez <- function(metricas = NULL, umbrales = NULL) {
   # generica -`x$metrica` contra el nombre antes de la arroba, que es el
   # ESPECIFICO- no casaban: una especializacion con nombre propio publicaba en
   # el tablero, el indice y el informe el valor que la regla mando suprimir, y
-  # sin nombre propio se tapaba tambien la instancia que cumplia. Medido en la
-  # ronda 23.
+  # sin nombre propio se tapaba tambien la instancia que cumplia. Medido.
   suprimidas <- if ("metrica_instanciada" %in% names(x)) {
     .identificadores_en(
       as.character(x$metrica_instanciada),
@@ -959,7 +957,7 @@ perfiles_madurez <- function(metricas = NULL, umbrales = NULL) {
 # en `reportar(ev1, ev2)` la medida que `ev1` manda no publicar salia en las
 # medidas de `ev2` -"no cumple x > 0.5", que en una medida booleana es el 0-,
 # mientras la medicion y el historico del mismo informe la tapaban con las de
-# todos. La promesa es por medida del documento. Medido en la ronda 26.
+# todos. La promesa es por medida del documento. Medido.
 .proteger_evaluacion_desenlaces <- function(x, reemplazo = "[valor suprimido]",
                                             incluir_medidas = TRUE,
                                             desenlaces = NULL,
@@ -1038,8 +1036,8 @@ rbind.medicion <- function(..., deparse.level = 1) {
   # lleva UN modelo, asi que unir dos de modelos distintos dejaba el del primero
   # para las dos, y la deriva leia el cambio de modelo como cambio de datos; y la
   # cobertura del segundo se perdia, y `evaluar()` publicaba como exito la regla
-  # cuya metrica no se pudo medir -y NA con el orden al reves-. Medido en la ronda
-  # 22. Las coberturas se unen; dos modelos distintos no se juntan.
+  # cuya metrica no se pudo medir -y NA con el orden al reves-. Medido. Las
+  # coberturas se unen; dos modelos distintos no se juntan.
   mismo <- function(atributo) {
     valores <- lapply(mediciones, attr, which = atributo, exact = TRUE)
     all(vapply(valores[-1L], identical, logical(1L), valores[[1L]]))
@@ -1073,7 +1071,7 @@ rbind.medicion <- function(..., deparse.level = 1) {
   }
   # `alcance_medidas` tambien: sin el, el tablero de `rbind(completa, parcial)`
   # publicaba el 0,5 de la parcial sin decir que midio 5 de 6, y con el orden al
-  # reves si lo decia. Medido en la ronda 23.
+  # reves si lo decia. Medido.
   for (atributo in c("cobertura_metricas", "alcance_metricas", "alcance_medidas")) {
     tablas <- Filter(
       function(t) inherits(t, "data.frame"),
@@ -1084,7 +1082,7 @@ rbind.medicion <- function(..., deparse.level = 1) {
       rownames(tabla) <- NULL
       # Las partes COMPLETAS del alcance viajan en un atributo de la tabla, y
       # `rbind()` se quedaba con las del primero: una coleccion completa unida a
-      # una parcial entraba al conjunto como "1 de 1". Ronda 24.
+      # una parcial entraba al conjunto como "1 de 1".
       completas <- Filter(
         function(t) inherits(t, "data.frame") && nrow(t),
         lapply(tablas, attr, which = "completas", exact = TRUE)
@@ -1102,13 +1100,13 @@ rbind.medicion <- function(..., deparse.level = 1) {
   # conjunto salia completo o incompleto segun el orden de la union, y la tabla
   # que no habia entrado desaparecia. Si todas las partes traen la misma, queda;
   # si no, todas pasan a `cobertura_de_partes`, que es donde `agregar()` y los
-  # lectores las buscan. Medido en la ronda 24.
+  # lectores las buscan. Medido.
   #
   # Y entre corridas DISTINTAS cada cobertura lleva su `id_medicion`: sin el, la
   # de una corrida no se distinguia de la de otra -dos iguales se fundian en una-
   # y `historico_calidad(rbind(ene, feb))` no podia decir a que corrida le
   # faltaba la tabla, asi que no guardaba ninguna `parte_no_medida`, donde
-  # `historico_calidad(ene, feb)` guardaba las dos. Medido en la ronda 25.
+  # `historico_calidad(ene, feb)` guardaba las dos. Medido.
   de_su_corrida <- function(medicion, cobertura) {
     if (misma_corrida || !is.list(cobertura) || !is.null(cobertura$id_medicion)) {
       return(cobertura)
@@ -1193,8 +1191,8 @@ print.medicion <- function(x, ...) {
   # atributo y esta impresion la tiraba: sobre tres tablas declaradas con una que
   # no se pudo leer, la fila publica `entidad = tres_tablas`, `resultado = 0.625`
   # -el promedio de dos- y `advertencia_agregacion = NA`, sin nada que diga que
-  # falta una. Es la tercera capa con la misma pregunta: el indice ya la imprimia
-  # y el tablero se arreglo en su vuelta; esta quedaba muda, y es la que se mira
+  # falta una. Es la tercera capa con la misma pregunta: el indice y el tablero
+  # ya la imprimen; esta quedaba muda, y es la que se mira
   # primero despues de agregar.
   .imprimir_coberturas_frontera(x)
   # Una metrica por celda que midio menos celdas de las que hay en el universo
@@ -1401,7 +1399,7 @@ evaluar <- function(medicion, perfil) {
   }
   # La cobertura de la FRONTERA tambien: la evaluacion de una coleccion a la que
   # le falto una tabla no la nombraba, ni en pantalla ni en su informe, y el
-  # historico tampoco. La medicion si. Medido en la ronda 24.
+  # historico tampoco. La medicion si. Medido.
   for (atributo in c(.ATRIBUTOS_COBERTURA_FRONTERA, "cobertura_de_partes")) {
     valor <- attr(medicion, atributo, exact = TRUE)
     if (!is.null(valor)) attr(estructura, atributo) <- valor
@@ -1483,7 +1481,7 @@ comparar_evaluaciones <- function(anterior, actual) {
 # la copia no sabia lo que la original decide: publicaba -0,75 entre dos tablas
 # distintas medidas con el mismo perfil, y entre un marco y otro, donde la deriva
 # del historico de LAS MISMAS dos evaluaciones no arma par o declara
-# `no_comparable`. Medido en la ronda 25. `comparacion` dice, con la palabra de la
+# `no_comparable`. Medido. `comparacion` dice, con la palabra de la
 # deriva, por que falta un delta o que acompana al que hay.
 .delta_desde_la_deriva <- function(combinado, anterior, actual) {
   combinado$delta <- NA_real_

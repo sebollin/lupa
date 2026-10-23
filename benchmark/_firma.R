@@ -23,8 +23,7 @@
 # afuera fue un hueco real -un CSV podia firmarse con un commit teniendo el
 # guion que lo produjo modificado, o sin versionar-.
 #
-# Este archivo se incluye a si mismo, y no es cosmetico: una refutacion mostro
-# que con `_firma.R` afuera bastaba con sacarle la rama `+sucio` para que un
+# Este archivo se incluye a si mismo, y no es cosmetico: se comprobo que con `_firma.R` afuera bastaba con sacarle la rama `+sucio` para que un
 # arbol sucio se firmara limpio, sin que nada lo notara. El archivo que decide
 # el veredicto era justo el que el veredicto no cubria.
 #

@@ -106,8 +106,8 @@
   # tiene `fromLast` y lo traga en `...`, asi que solo marcaba la segunda
   # aparicion -0 0 1 donde son 0 1 1- y la proporcion de duplicados salia la
   # mitad, justo en la columna donde mas se busca uno: un identificador leido de
-  # una base. Medido en la ronda 22; la remediacion ya lo tenia arreglado
-  # (`.codigos_filas_exactos()`), y la metrica no.
+  # una base. Medido. Es la misma regla que sigue la remediacion
+  # (`.codigos_filas_exactos()`).
   if (inherits(x, "integer64")) {
     x <- as.character(x)
     attributes(x) <- NULL

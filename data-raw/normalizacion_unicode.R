@@ -21,7 +21,7 @@
 # Necesita `stringi`, que no es dependencia del paquete en tiempo de ejecucion:
 # el calculo se hace aca, una vez, y el paquete lleva el resultado como numeros
 # para no depender de ninguna biblioteca ni de la version de Unicode de la
-# plataforma. La prueba `test-O144-ronda-29t-texto.R` compara las tablas con
+# plataforma. La prueba `test-O144-texto.R` compara las tablas con
 # `stringi` cuando esta instalado.
 
 argumentos <- commandArgs(trailingOnly = TRUE)

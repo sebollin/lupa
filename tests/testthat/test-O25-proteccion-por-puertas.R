@@ -26,9 +26,9 @@ test_that("analizar_tiempo respeta la proteccion del perfil, y sin perfil clasif
   expect_equal(fila$proteccion_temporal, "[rangos y huecos protegidos]")
 
   # Sin perfil, la columna se clasifica aca -por su nombre- como en
-  # `clasificar_variables()`, y se protege igual. Hasta la ronda 26 este control
-  # pedia lo contrario: sin perfil "no habia declaracion que leer" y se
-  # publicaban el minimo y el maximo de los nacimientos.
+  # `clasificar_variables()`, y se protege igual. Antes este control pedia lo
+  # contrario: sin perfil "no habia declaracion que leer" y se publicaban el
+  # minimo y el maximo de los nacimientos.
   sin_perfil <- analizar_tiempo(datos, columnas = "nacimiento")
   fila_sin_perfil <- sin_perfil$resumen[
     sin_perfil$resumen$columna == "nacimiento", , drop = FALSE

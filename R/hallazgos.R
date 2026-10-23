@@ -1005,8 +1005,8 @@
 # al quitar caja, acentos y puntuacion.
 .clave_sin_escritura <- function(x) {
   # Declarado antes de `enc2utf8()`, que sobre un `unknown` consulta `LC_CTYPE`
-  # y bajo `C` escapa sus bytes (ronda 30-L; la misma regla que la reparacion
-  # de codificacion).
+  # y bajo `C` escapa sus bytes (la misma regla que la reparacion de
+  # codificacion).
   y <- tryCatch(enc2utf8(.declarar_utf8_valido(as.character(x))),
                 error = function(e) as.character(x))
   y <- tryCatch(
@@ -2491,8 +2491,7 @@
   # cuenta en dos lugares. Medido: publicaba "cuenta 7 y traza 5" con el aviso del
   # paquete contra si mismo.
   #
-  # Restar solo `n_no_aplica` -lo que se hacia hasta la ronda 28-G- dejaba
-  # adentro las filas donde la regla quedo
+  # Restar solo `n_no_aplica` dejaba adentro las filas donde la regla quedo
   # indeterminada, que tampoco son del universo: "cuenta 5 y traza 3" otra vez,
   # y 2 afectadas sobre un universo vacio. El universo de los hallazgos de unidad
   # `geometria` es el de las geometrias MEDIDAS del universo -el analisis ya lo
@@ -2912,7 +2911,7 @@
 # los limites de Tukey -cuartiles del universo- y la traza nombraba 3 -cuartiles
 # con los 50 de afuera-, y el paquete se acusaba de una traza incoherente. Sobre
 # enteros no se veia porque la guarda de densidad tomaba la columna por
-# numeracion y callaba Tukey; en decimales salia igual antes de la ronda 28-N.
+# numeracion y callaba Tukey; en decimales salia igual.
 .cuantitativos_en_el_universo <- function(cuantitativos, aplicable) {
   if (is.null(cuantitativos) || is.null(aplicable) ||
       length(aplicable) != length(cuantitativos$valores) ||
@@ -3512,9 +3511,8 @@
 # dejo. El nombre no la identifica si la tabla lo repite: buscandola por nombre
 # siempre salia la primera, y la traza del outlier de la segunda columna `x`
 # apuntaba a la fila del outlier de la primera, publicada como `disponible`
-# (medido en la ronda 30: filas 4 y 4 donde a mano son 4 y 10). Es la leccion
-# de la ronda 27 con los nombres marcados `bytes`: la columna se busca por su
-# posicion.
+# (medido: filas 4 y 4 donde a mano son 4 y 10). Es la misma regla que con los
+# nombres marcados `bytes`: la columna se busca por su posicion.
 #
 # Sin posicion y con un nombre repetido no hay respuesta, y se dice: `NA`, que
 # deja la traza `no_disponible` en vez de apuntar a la columna equivocada.
@@ -4235,7 +4233,7 @@
       # mismo hueco que tenia `MotId` por el lado de la densidad, visto desde el
       # otro extremo.
       #
-      # Ronda 28-N: la coherencia se mantiene por el otro lado. Una numeracion
+      # La coherencia se mantiene por el otro lado. Una numeracion
       # que se repite no se distingue de una magnitud que lleno su rango -una
       # edad de 18 a 90 con 20.000 filas recibia este texto de "codigo de
       # catalogo"-, asi que ni las guardas ni este hallazgo la tratan ya como
@@ -4640,8 +4638,7 @@
       fila$tasa_distintos >= .MIN_TASA_DISTINTOS_IDENTIFICADOR
     # Un codigo declarado en `columnas_codigo` y guardado como texto ya tiene su
     # tipo: el hallazgo pedia "convertir la columna de forma explicita" a numero,
-    # que es la magnitud que la declaracion niega -`"006"` pierde el cero-
-    # (refutacion 33-D).
+    # que es la magnitud que la declaracion niega -`"006"` pierde el cero-.
     codigo_en_texto <- codigo_declarado &&
       as.character(fila$tipo_declarado) %in%
         c("texto", "factor", "factor-ordenado") &&
@@ -4977,7 +4974,7 @@
     # pedia "convertir de forma explicita", y el plan lo hacia -
     # `convertir_numero_regional`, `lista`, `aplicar = TRUE`-, asi que `aplicar()`
     # dejaba `numeric` el rubro `"1.1"` que el usuario declaro codigo y el perfil
-    # de la salida le publicaba media y desvio (refutacion 34-D). Es la misma
+    # de la salida le publicaba media y desvio. Es la misma
     # promesa que `tipo_declarado_distinto` ya cumplia: el codigo no recibe lo que
     # solo tiene sentido sobre una magnitud. Las unidades y las monedas mezcladas
     # salen de la misma lectura de la columna como cantidad, y se omiten con ella.

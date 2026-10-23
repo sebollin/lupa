@@ -469,8 +469,8 @@
   numericas <- which(vapply(datos, .es_columna_aritmetica, logical(1L)))
   # Una relacion aritmetica habla de magnitudes por fila, y una columna declarada
   # en `columnas_codigo` no lo es: `cod_localidad = cod_depto * 100` se publicaba
-  # como "regularidad proporcional" igual con las dos declaradas (refutacion
-  # 34-D). Sale del analisis como sale de Tukey y de Benford, y se declara.
+  # como "regularidad proporcional" igual con las dos declaradas. Sale del
+  # analisis como sale de Tukey y de Benford, y se declara.
   codigos <- numericas[.nombres_para_operar(names(datos)[numericas]) %in%
                          .nombres_para_operar(as.character(columnas_codigo))]
   numericas <- setdiff(numericas, codigos)

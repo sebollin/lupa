@@ -91,7 +91,7 @@ test_that("analizar protege valores crudos de los cuatro tipos personales", {
   # por la otra. El argumento esta escrito del lado DBI desde antes: la media de
   # las cedulas de una tabla chica reconstruye demasiado.
   expect_true(all(is.na(columnas$media[documentos])))
-  # Y el desvio, desde la ronda 32 (D9).
+  # Y el desvio.
   expect_true(all(is.na(columnas$desvio[documentos])))
   expect_true(all(
     columnas$detalle_proteccion_personal[documentos] ==
@@ -205,9 +205,8 @@ test_that("protege momentos de nacimiento y fallecimiento, tambien el desvio", {
   expect_true(all(is.na(columnas$maximo[fechas])))
   expect_true(all(is.na(columnas$media[fechas])))
   expect_true(all(is.na(columnas$mediana[fechas])))
-  # El desvio se conservaba -la decision F-6- y desde la ronda 32 (D9) se tapa
-  # como la media: es una magnitud de las fechas protegidas. La etiqueta dice
-  # los dos momentos.
+  # El desvio se tapa como la media: es una magnitud de las fechas protegidas.
+  # La etiqueta dice los dos momentos.
   expect_true(all(is.na(columnas$desvio[fechas])))
   expect_equal(
     columnas$detalle_proteccion_personal[fechas],

@@ -1,7 +1,7 @@
-# La cuarta evaluacion real: un nombre de columna que contiene un valor
-# protegido -"Segundo" es un nombre de pila corriente- no se tapa en ninguna
-# salida. Se tapaba en los atributos del plan, y el hallazgo declarado sin accion
-# dejaba de corresponder a su columna.
+# Un nombre de columna que contiene un valor protegido -"Segundo" es un nombre
+# de pila corriente- no se tapa en ninguna salida. Se tapaba en los atributos
+# del plan, y el hallazgo declarado sin accion dejaba de corresponder a su
+# columna.
 
 # Pesada para CRAN (mas de 1 s en la medicion sin red del 2026-10-23): corre en la
 # suite completa, en el CI y en R-hub, que usan NOT_CRAN=true.

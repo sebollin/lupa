@@ -517,7 +517,7 @@
   # bloques operaba con medias absolutas: sobre 61 marcas de tiempo en
   # milisegundos de una ventana de un segundo el desvio salia 2,3e-8 relativo
   # lejos del de R, porque la diferencia entre dos medias de 1,76e12 conserva
-  # pocas cifras (refutacion 34-D). Centrado, esa diferencia es la de dos medias
+  # pocas cifras. Centrado, esa diferencia es la de dos medias
   # chicas. Ver `.formas_desvio_dbi()`, la misma propiedad en el motor.
   centro <- .centro_cuantitativo_bloques(estado, finitos)
   estado$centro <- centro
@@ -1263,7 +1263,7 @@
 }
 
 # El centro de un estado de momentos: la constante a la que estan referidos su
-# media y su `m2`. Un estado sin centro -vacio, o anterior a la ronda 34-
+# media y su `m2`. Un estado sin centro -vacio, o guardado sin ese campo-
 # acumula sin centrar, que es centro 0.
 .centro_estado_bloques <- function(estado) {
   centro <- estado$centro

@@ -4,7 +4,7 @@
 #    atributo y su impresion la tiraba: sobre tres tablas declaradas con una que
 #    no se pudo leer, la fila publica `entidad = tres_tablas` y el promedio de
 #    DOS, con `advertencia_agregacion = NA`. El indice ya imprimia esa cobertura y
-#    el tablero se arreglo en su vuelta; esta era la tercera capa con la misma
+#    el tablero tambien; esta era la tercera capa con la misma
 #    pregunta, y la primera que se mira despues de agregar.
 # 2. Los pesos se emparejaban solo contra `objeto_medible`, que en los niveles
 #    altos es la lista de partes unida con coma -una construccion interna-. Los
@@ -12,9 +12,8 @@
 #    rechazaban, y el error los enumeraba separados por coma: dos partes llamadas
 #    `t1, t3` y `u1, u2` se leian como cuatro.
 
-# Regresion de una ronda de refutacion: corre en la suite completa, en el CI y en
-# R-hub, que usan NOT_CRAN=true; en CRAN se saltea para que el check entre en sus
-# tiempos (medicion del 2026-10-23).
+# Prueba de regresion: corre en la suite completa, en el CI y en R-hub, que usan
+# NOT_CRAN=true; en CRAN se saltea para que el check entre en sus tiempos.
 testthat::skip_on_cran()
 
 .o58_medidas_por_tabla <- function(tablas, id = "o58") {

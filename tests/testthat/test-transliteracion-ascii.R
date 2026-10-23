@@ -102,7 +102,7 @@ test_that("los cuatro consumidores igualan nombres con y sin acentos", {
 })
 
 test_that("los dos mapas cubren lo mismo y la forma descompuesta colapsa", {
-  # Los tres casos salen de una auditoria caracter por caracter de los mapas.
+  # Los tres casos salen de recorrer los mapas caracter por caracter.
   codigo <- function(...) {
     x <- intToUtf8(c(...))
     Encoding(x) <- "UTF-8"

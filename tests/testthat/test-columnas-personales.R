@@ -25,7 +25,7 @@ test_that("declarar una columna personal gana sobre el lexico", {
   expect_true(all(con$datos_personales$proteger))
   expect_true(all(con$datos_personales$poder_discriminante == "declarado"))
   # `apodo` repite valores y su moda se tapa. `cod_benef` no repite ninguno: no
-  # tiene moda, y la proteccion no la inventa (ronda 31).
+  # tiene moda, y la proteccion no la inventa.
   modas <- con$columnas$moda[match(c("cod_benef", "apodo"), con$columnas$columna)]
   expect_true(all(con$columnas$dato_personal_protegido[
     match(c("cod_benef", "apodo"), con$columnas$columna)

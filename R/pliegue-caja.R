@@ -109,7 +109,7 @@
 # determinista aunque quede feo. Lo marcado UTF-8 se deja como esta.
 #
 # Lo marcado `latin1` se CONVIERTE, y la reparacion lee los bytes como UTF-8.
-# Las dos cosas dependian del locale (ronda 30-L): `chartr()` traduce un
+# Las dos cosas dependian del locale: `chartr()` traduce un
 # `latin1` al nativo, y bajo `C` lo escapaba -la I con tilde `latin1` bajaba a
 # `s<cd>` y no a la i con tilde que da una sesion UTF-8-; y `iconv()` sin `from`
 # lee la cadena en la codificacion de la sesion, asi que bajo `C` una celda con
@@ -153,7 +153,7 @@
 # `ignore.case = TRUE` ni `(?i)`. Sobre texto ASCII R no entra en modo UTF, y TRE
 # y PCRE pliegan con las tablas de caja del locale: bajo un locale turco la `I` y
 # la `i` no se pliegan, y `grepl("abril", "ABRIL", ignore.case = TRUE)` da FALSE
-# -`ABRIL 2024` dejaba de ser fecha y `point(1 2)` de ser WKT- (ronda 31-S). Cada
+# -`ABRIL 2024` dejaba de ser fecha y `point(1 2)` de ser WKT-. Cada
 # letra ASCII fuera de un escape y de una clase entre corchetes se escribe con sus
 # dos cajas -`abril` pasa a `[aA][bB][rR][iI][lL]`-, que casa igual en cualquier
 # locale y en los dos motores. Una clase entre corchetes se deja como esta y
@@ -240,7 +240,7 @@
 # Pliegue para COMPARAR un valor protegido con sus variantes, que no es el de la
 # normalizacion: alla se conservan los acentos -`papa` y `papá` son palabras
 # distintas-, y aca todo lo cosmetico se pliega porque el error caro es publicar
-# el nombre de una persona. Dos refutaciones midieron por donde se escapaba:
+# el nombre de una persona. Se midio por donde se escapaba:
 # fuera del latin occidental (vietnamita sin marcas, griego, cirilico, armenio y
 # georgiano en otra caja, ancho completo y medio ancho, ligaduras, letras
 # matematicas), con el valor en otra codificacion, y con el valor ESCAPADO, que
@@ -338,9 +338,9 @@
     # letras (`Lm`), el mapa las conservaba y nada mas las sacaba: el nombre
     # protegido escrito con el agudo modificador en lugar de la tilde se
     # publicaba, mientras con el acento U+00B4, que es un signo, se tapaba.
-    # Medido en la ronda 25.
+    # Medido.
     #
-    # Y en la ronda 26, el resto de las letras modificadoras que hacen de acento
+    # Y tambien el resto de las letras modificadoras que hacen de acento
     # o de apostrofo: la prima U+02B9, el apostrofo modificador U+02BC -el que la
     # ayuda acepta en ASCII-, los semianillos, el circunflejo bajo U+A788, la
     # tilde vertical U+2E2F, y las del armenio y el n'ko. Doce de cuarenta y

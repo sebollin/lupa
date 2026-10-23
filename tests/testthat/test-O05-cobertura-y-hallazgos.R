@@ -12,9 +12,8 @@
 # abajo recorre esos nombres leyendo las fuentes, asi que un diagnostico nuevo
 # que se desencuentre falla aca en vez de callar en la deriva.
 
-# Regresion de una ronda de refutacion: corre en la suite completa, en el CI y en
-# R-hub, que usan NOT_CRAN=true; en CRAN se saltea para que el check entre en sus
-# tiempos (medicion del 2026-10-23).
+# Prueba de regresion: corre en la suite completa, en el CI y en R-hub, que usan
+# NOT_CRAN=true; en CRAN se saltea para que el check entre en sus tiempos.
 testthat::skip_on_cran()
 
 .o05_raiz <- function() {
@@ -56,7 +55,7 @@ test_that("cada nombre de la cobertura casa con un hallazgo, esta mapeado o no p
     todo, gregexpr('\\.nuevo_hallazgo\\(\\s*[^,]+?,\\s*"[a-z_]+"', todo, perl = TRUE)
   )[[1L]])
   tipos <- unique(sub('^.*"([a-z_]+)"$', "\\1", tipos))
-  # Este constructor usa `paste()` como primer argumento y la sonda de arriba
+  # Este constructor usa `paste()` como primer argumento y la busqueda de arriba
   # no intenta resolver comas anidadas. Reconocerlo aqui evita que el mapa
   # central dependa de una forma accidental del analizador de la prueba.
   if (grepl(
@@ -65,15 +64,15 @@ test_that("cada nombre de la cobertura casa con un hallazgo, esta mapeado o no p
   )) {
     tipos <- unique(c(tipos, "relacion_orden_columnas"))
   }
-  # Control de la sonda: si no leyo nada, todo lo de abajo pasaria en falso.
+  # Control de la busqueda: si no leyo nada, todo lo de abajo pasaria en falso.
   expect_true("outliers" %in% tipos)
   expect_gt(length(tipos), 20L)
 
-  # TRES constructores declaran cobertura, no uno. La primera version de esta
-  # guarda miraba solo `.nuevo_diagnostico_no_evaluado` y veia 17 de 54
-  # declaraciones: `validez_geometria`, escrita con `agregar_cobertura()`, se
-  # desencontraba de `geometria_invalida` sin que esto se enterara. Una guarda
-  # con un punto ciego es peor que ninguna, porque da confianza.
+  # TRES constructores declaran cobertura, no uno. Mirando solo
+  # `.nuevo_diagnostico_no_evaluado` se veian 17 de 54 declaraciones:
+  # `validez_geometria`, escrita con `agregar_cobertura()`, se desencontraba de
+  # `geometria_invalida` sin que esto se enterara. Una guarda con un punto ciego
+  # es peor que ninguna, porque da confianza.
   constructores <- c(
     "\\.nuevo_diagnostico_no_evaluado", "agregar_cobertura",
     "\\.registro_cobertura_dbi"
@@ -84,7 +83,7 @@ test_that("cada nombre de la cobertura casa con un hallazgo, esta mapeado o no p
       todo, gregexpr(paste0(constructor, '\\(\\s*"[a-z_]+"'), todo, perl = TRUE)
     )[[1L]]
     # Cada constructor tiene que aportar algo: si uno deja de encontrarse, la
-    # sonda dejo de leerlo, y eso no puede pasar en silencio.
+    # busqueda dejo de leerlo, y eso no puede pasar en silencio.
     expect_gt(length(encontrados), 0L, label = constructor)
     diagnosticos <- c(diagnosticos, sub('^.*"([a-z_]+)"$', "\\1", encontrados))
   }
@@ -102,8 +101,7 @@ test_that("cada nombre de la cobertura casa con un hallazgo, esta mapeado o no p
     # `detectar_deriva_calidad` declara que una serie de UNA sola medicion no tiene
     # par que comparar. Es una nota de la capa de comparacion, igual que
     # `comparar_equivalencia`: no declina un hallazgo del perfil, porque la deriva no
-    # produce hallazgos. Esta sonda lo atrapo el mismo dia en que se agrego el
-    # motivo, que es justo para lo que existe.
+    # produce hallazgos.
     "detectar_deriva_calidad",
     # Notas PARCIALES: el chequeo se hizo, sobre menos valores o menos
     # dimensiones. No declinan un hallazgo entero.

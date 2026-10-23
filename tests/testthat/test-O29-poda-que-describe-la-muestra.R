@@ -1,6 +1,5 @@
-# Regresion de una ronda de refutacion: corre en la suite completa, en el CI y en
-# R-hub, que usan NOT_CRAN=true; en CRAN se saltea para que el check entre en sus
-# tiempos (medicion del 2026-10-23).
+# Prueba de regresion: corre en la suite completa, en el CI y en R-hub, que usan
+# NOT_CRAN=true; en CRAN se saltea para que el check entre en sus tiempos.
 testthat::skip_on_cran()
 
 test_that("un rango de muestra no poda un solape del universo", {
@@ -29,8 +28,8 @@ test_that("un rango de muestra no poda un solape del universo", {
   # Y con `t1` leida truncada -500 de 1000 filas- ninguna cobertura alcanza el
   # umbral, pero en el motor la mitad de `t2` esta en `t1`: eso no es ausencia
   # de relacion. Esta prueba pedia `cobertura_pares` vacia como senal de "se
-  # comparo", y con eso sostenia el descarte en silencio; desde la ronda 25 el
-  # par queda declarado sin conclusion.
+  # comparo", y con eso sostenia el descarte en silencio; ahora el par queda
+  # declarado sin conclusion.
   expect_equal(nrow(resultado$cobertura_pares), 1L)
   expect_match(resultado$cobertura_pares$motivo, "^Sin conclusion")
 })

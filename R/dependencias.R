@@ -14,7 +14,7 @@
   }
   # Con el separador por omision -"."- el par (`a.b`, `c`) y el par (`a`,
   # `b.c`) eran el mismo, y una dependencia que no se cumple parecia cumplirse.
-  # Ronda 24; el mismo arreglo que las evaluaciones en la ronda 22.
+  # Es el mismo arreglo que el de las evaluaciones.
   as.integer(interaction(
     .factor_por_bytes(grupo), .factor_por_bytes(.nombres_para_operar(y), exclude = NULL),
     drop = TRUE, lex.order = TRUE, sep = "\034"
@@ -85,7 +85,7 @@
   }, character(1L)), collapse = "; ")
 }
 
-# Desde la ronda 25 un texto con bytes invalidos se compara por su clave de
+# Un texto con bytes invalidos se compara por su clave de
 # bytes, `<lupa-byte:4D6172ED61>`, y no como `NA`. Esa clave sirve para agrupar;
 # la evidencia vuelve a los bytes, que `encodeString()` escribe como la
 # consola: `"Mar\xeda"`.
@@ -493,13 +493,12 @@ detectar_dependencias <- function(datos, umbral = 0.995, muestra = 1e5,
   # La evidencia cita VALORES de la tabla -`"2.107.507-7" -> "Rosario ..." |
   # ...`- y esta funcion es exportada: sin esto publicaba la cedula y el nombre
   # de las columnas personales en `evidencia` y en `print()` mientras
-  # `perfilar()`, sobre la misma tabla, decia `[evidencia protegida]`. Medido
-  # en la ronda 26: 536 apariciones, 72 cedulas, en una tabla de movimientos.
-  # Es el defecto que la ronda 25 cerro en `clasificar_variables()` y
-  # `detectar_discordancias()`, con la misma regla: por columna, la evidencia de
-  # un par que nombra una columna personal sale entera como en `perfilar()`; y
-  # el piso, para el documento escrito en otra columna -una observacion que lo
-  # cita-. `perfilar()` llama con la proteccion apagada porque protege el
+  # `perfilar()`, sobre la misma tabla, decia `[evidencia protegida]`. Medido:
+  # 536 apariciones, 72 cedulas, en una tabla de movimientos. Se cierra como en
+  # `clasificar_variables()` y `detectar_discordancias()`, con la misma regla:
+  # por columna, la evidencia de un par que nombra una columna personal sale
+  # entera como en `perfilar()`; y el piso, para el documento escrito en otra
+  # columna -una observacion que lo cita-. `perfilar()` llama con la proteccion apagada porque protege el
   # perfil entero despues, respetando la declaracion del usuario.
   if (proteger_datos_personales && nrow(resultado) &&
       any(nzchar(resultado$evidencia))) {
@@ -569,7 +568,7 @@ detectar_dependencias <- function(datos, umbral = 0.995, muestra = 1e5,
 # Por indice y no por nombre: `datos[[nombre]]` traduce el nombre, y uno marcado
 # `bytes` -un encabezado `latin1` declarado asi- hacia abortar `analizar()` y
 # `planificar_limpieza()`, con y sin proteccion ("no se permite traduccion de
-# cadenas con \"bytes\""), mientras `perfilar()` corria. Medido en la ronda 27.
+# cadenas con \"bytes\""), mientras `perfilar()` corria. Medido.
 .mapa_dependencia <- function(datos, determinante, dependiente,
                               soporte_minimo = 2L) {
   indices <- .indice_nombre(c(determinante, dependiente), names(datos))

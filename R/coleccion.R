@@ -90,7 +90,7 @@
 # sin marca, lo que deja `read.csv()` sin `fileEncoding`- no se puede partir
 # por caracteres bajo un locale UTF-8: `strsplit()` devolvia `NA` con un aviso,
 # y el nombre de la tabla pasaba a ser el texto "NA" -otro identificador; la
-# coleccion decia "no existe"- (ronda 34-X). Se parte por bytes: el punto, las
+# coleccion decia "no existe"-. Se parte por bytes: el punto, las
 # comillas y los corchetes son ASCII, y ningun byte alto los imita. Los bytes
 # se conservan tal cual; la guarda de la conexion decide despues si se pueden
 # mandar.
@@ -1097,8 +1097,7 @@ perfilar_coleccion <- function(coleccion, muestra = Inf,
   }
   # Lo que `perfilar_dbi()` no toma por nombre viaja a `perfilar()`, y se valida
   # aca, una vez: tabla por tabla, una `fecha` invalida o una errata hacian
-  # fallar cada `perfilar_dbi()` entero y la coleccion perdia los resumenes SQL
-  # (ronda 33-X; la bandera, desde la ronda 32).
+  # fallar cada `perfilar_dbi()` entero y la coleccion perdia los resumenes SQL.
   extras <- list(...)
   hacia_perfilar <- if (is.null(names(extras))) {
     rep(TRUE, length(extras))
@@ -1146,7 +1145,7 @@ perfilar_coleccion <- function(coleccion, muestra = Inf,
   valores_motor_previos <- .activar_valores_motor()
   on.exit(.fijar_valores_motor(valores_motor_previos), add = TRUE)
   # Y cada mensaje del motor como llego, para volver a leerlo al final con todo
-  # lo que la coleccion leyo: ver `.activar_mensajes_motor()`. Ronda 33.
+  # lo que la coleccion leyo: ver `.activar_mensajes_motor()`.
   mensajes_motor_previos <- .activar_mensajes_motor()
   on.exit(.fijar_mensajes_motor(mensajes_motor_previos), add = TRUE)
   nombres_columnas <- character()
@@ -1163,7 +1162,7 @@ perfilar_coleccion <- function(coleccion, muestra = Inf,
   # donde se aplica. Una funcion y no un tramo del final, para que el aviso que
   # sale cuando la coleccion se corta pase por el MISMO piso.
   #
-  # Ronda 33 (H2 y H3). Primero cada mensaje del motor se vuelve a leer desde
+  # Primero cada mensaje del motor se vuelve a leer desde
   # como llego, con todo lo que la coleccion leyo (`.repasar_mensajes_motor()`):
   # con la vista leida antes que su tabla base, el piso al armarlo no conocia
   # el nombre y la segunda pasada dejaba su resto. Y el piso con las huellas de
@@ -1203,7 +1202,7 @@ perfilar_coleccion <- function(coleccion, muestra = Inf,
   }
   # Y los avisos de consola de cada `perfilar_dbi()`, que se juntan y se emiten
   # al final, despues del mismo piso que los tres campos de motivos: ver
-  # `.emitir_avisos_coleccion()`. Ronda 32: si la coleccion se cortaba despues
+  # `.emitir_avisos_coleccion()`. Si la coleccion se cortaba despues
   # de leer una tabla y antes del piso final -una interrupcion, un error-, los
   # avisos juntados salian como llegaron, y el de una vista leida antes que su
   # tabla base citaba el celular protegido que la coleccion ya habia leido.
@@ -1222,10 +1221,10 @@ perfilar_coleccion <- function(coleccion, muestra = Inf,
   # TODO camino que saltea una tabla pasa por aca: la cobertura dice por que, y
   # la tabla queda registrada como no leida, asi que las demas cierran del lado
   # seguro -sus valores protegidos son tan desconocidos como los de una tabla
-  # ilegible-. La ronda 27 registro las dos tablas que fallan y el objeto
+  # ilegible-. Con solo las dos tablas que fallan registradas, el objeto
   # declarado `tipo = "vista"` seguia haciendo `next` antes de registrarse: el
   # perfil conservado de `movimientos` publicaba la cedula y el nombre de los
-  # clientes de la vista y `otras_tablas` no decia nada. Medido en la ronda 28.
+  # clientes de la vista y `otras_tablas` no decia nada. Medido.
   # Una regla escrita tres veces es una regla escrita una vez.
   saltear_tabla <- function(motivo, como_resolverlo, motivo_protegidos) {
     cobertura[[length(cobertura) + 1L]] <<- .fila_cobertura_coleccion(
@@ -1304,7 +1303,7 @@ perfilar_coleccion <- function(coleccion, muestra = Inf,
       # registrarla y `.proteger_perfiles_entre_tablas()` solo miraba las
       # registradas: con un rol sin permiso sobre `clientes`, el perfil
       # conservado de `movimientos` publicaba en su moda la cedula y el nombre
-      # del cliente. Medido en la ronda 27. En bases institucionales los
+      # del cliente. Medido. En bases institucionales los
       # permisos parciales son el caso normal.
       saltear_tabla(
         paste0("No se pudo perfilar la tabla: ", .mensaje_motor(perfil)),
@@ -1528,7 +1527,7 @@ perfilar_coleccion <- function(coleccion, muestra = Inf,
       cobertura[[length(cobertura) + 1L]] <- .fila_cobertura_coleccion(
         fila, "metricas",
         # Las cifras, con la escritura publicada: `paste0()` de un doble sigue
-        # a `scipen` y con -9 decia "1.4e+01 de 1.05e+02" (ronda 32-S).
+        # a `scipen` y con -9 decia "1.4e+01 de 1.05e+02".
         paste0(
           "No se calcularon ",
           .formatear_numero_publicado(estado_metricas$no_disponibles), " de ",
@@ -1618,7 +1617,7 @@ perfilar_coleccion <- function(coleccion, muestra = Inf,
         .valores_protegidos_tabla_coleccion(conexion, referencia, perfil)
     }
   }
-  # Ronda 35 (H1). La columna que copia SIN su verificador los documentos
+  # La columna que copia SIN su verificador los documentos
   # protegidos de OTRA tabla -`tramites.ref` con la cedula de `personas`- se
   # protege entera, como la que los copia en su propia tabla: con perfiles
   # retenidos publicaba su minimo, su maximo y su mediana, que son cedulas, y
@@ -1676,12 +1675,12 @@ perfilar_coleccion <- function(coleccion, muestra = Inf,
   }
   # El piso cruza tablas: ver `.proteger_perfiles_entre_tablas()`. Con UNA
   # tabla conservada tambien, si otra quedo registrada sin leer. Solo con la
-  # proteccion activa (ronda 33, por D8): sin ella ninguna tabla protege, pero
+  # proteccion activa: sin ella ninguna tabla protege, pero
   # una tabla sin leer -o declarada `tipo = "vista"`- quedaba registrada con sus
   # valores desconocidos, y los perfiles de las demas se cerraban igual -la moda
   # `Montevideo` de una columna de ciudades salia `[valor protegido]`-: una
   # proteccion que el usuario apago y que costaba diagnostico.
-  # Ronda 33 (H2 y H3). Los perfiles conservados llevan los mismos mensajes del
+  # Los perfiles conservados llevan los mismos mensajes del
   # motor que los motivos de la coleccion -`resumen_tabla$sql`, `$cobertura`-:
   # se vuelven a leer desde como llegaron antes del piso entre tablas, que
   # puede cambiar su texto.
@@ -1695,7 +1694,7 @@ perfilar_coleccion <- function(coleccion, muestra = Inf,
       as.character(declaradas$tabla), as.character(declaradas$esquema),
       as.character(declaradas$identificador)
     ))
-    # Ronda 34 (H2). Y otra vez DESPUES: el piso entre tablas escribe en cada
+    # Y otra vez DESPUES: el piso entre tablas escribe en cada
     # perfil `meta$proteccion_personal$otras_tablas` con el motivo de la tabla
     # que no se pudo leer, que lleva el mensaje del motor como se publico al
     # leerla. Con la vista antes que su base, ese mensaje citaba el resto de un
@@ -1753,12 +1752,12 @@ perfilar_coleccion <- function(coleccion, muestra = Inf,
   # cuenta: los motivos de `cobertura_coleccion`, `cobertura_metricas` y
   # `meta$lecturas` juntan los de todas las tablas, y un mensaje del motor de
   # una vista citaba el celular protegido de `clientes`, que el piso entre
-  # tablas solo buscaba en `perfiles`. Medido en la ronda 29. Con los valores
+  # tablas solo buscaba en `perfiles`. Medido. Con los valores
   # que se leyeron -los de `conservar_perfiles = TRUE`-. Solo el texto: los
   # numeros de estas tablas son conteos y momentos.
   #
   # Sin perfiles, el mensaje del motor llega con solo lo permitido
-  # (`.sin_literales_motor()`), y la ronda 30 midio lo que eso deja: un valor
+  # (`.sin_literales_motor()`), que no lo tapa todo. Medido: un valor
   # hecho de lo permitido -`Campos Cadena`, dos palabras del vocabulario- citado
   # por la vista se publicaba en los tres campos aunque la coleccion habia leido
   # la tabla base. El mensaje ya pasa por el piso con los valores que la
@@ -1769,7 +1768,7 @@ perfilar_coleccion <- function(coleccion, muestra = Inf,
   # Y el aviso de consola es una salida mas: con la vista antes que su tabla
   # base, el objeto quedaba limpio y el aviso "El resumen SQL se calculo ...
   # pero la muestra no" de la vista publicaba `Campos Cadena`, porque se emitia
-  # antes de leer la base. Medido en la ronda 31. Los avisos se juntaron
+  # antes de leer la base. Medido. Los avisos se juntaron
   # arriba y pasan aca por el mismo piso, como una cuarta tabla de motivos.
   # Con `piso_final_textos()`, armada arriba.
   tablas_textos <- piso_final_textos(list(
@@ -1864,7 +1863,7 @@ perfilar_coleccion <- function(coleccion, muestra = Inf,
 }
 
 # Los valores protegidos de UNA tabla de la coleccion, leidos de la base, para
-# tapar los de esa tabla en el perfil de las OTRAS. Medido en la ronda 26: con
+# tapar los de esa tabla en el perfil de las OTRAS. Medido: con
 # `clientes` (cedula y nombre) y `movimientos` (una observacion que cita al
 # cliente), el perfil de `movimientos` conservado en la coleccion publicaba en
 # su moda y sus ejemplos la cedula y el nombre que el perfil de `clientes`
@@ -1903,7 +1902,7 @@ perfilar_coleccion <- function(coleccion, muestra = Inf,
     fechas <- character()
     # La columna se lee con la expresion con que la leyo `perfilar_dbi()`
     # -`meta$lectura_convertida`, ver `.lectura_convertida_dbi()`-: un `money`
-    # leido crudo por RPostgres da `0` en cada celda (ronda 35-X, A4).
+    # leido crudo por RPostgres da `0` en cada celda.
     convertidas <- tryCatch(perfil$resumen_tabla$meta$lectura_convertida,
                             error = function(e) NULL)
     for (columna in sensibles) {
@@ -1960,7 +1959,7 @@ perfilar_coleccion <- function(coleccion, muestra = Inf,
 
 # Los valores protegidos que lee la coleccion y que citan los mensajes del motor
 # -con sus huellas, `.valores_conocidos_en()` sobre cada mensaje como llego-
-# se tapan en cada perfil conservado, con el piso de `perfilar()`. Ronda 33.
+# se tapan en cada perfil conservado, con el piso de `perfilar()`.
 .proteger_perfiles_con_mensajes_motor <- function(perfiles, nombres = character()) {
   # Sobre lo que llego y sobre lo que se publico: un mensaje que no se puede
   # leer por caracteres vuelve entero como valor conocido, y el que esta en los
@@ -1992,7 +1991,7 @@ perfilar_coleccion <- function(coleccion, muestra = Inf,
 # documentos protegidos de las DEMAS tablas de la coleccion, con la regla de
 # `perfilar()` (`.copia_de_documentos()`): una lista por identificador de
 # tabla con un data.frame de copias -columna, proporcion, evaluados, de (la
-# tabla de donde salen los documentos) y origen `"tabla"`-. Ronda 35 (H1).
+# tabla de donde salen los documentos) y origen `"tabla"`-.
 #
 # Las candidatas son las columnas no protegidas que publican un extremo de
 # seis cifras o mas -en el resumen o en la muestra- o que la muestra clasifico
@@ -2067,7 +2066,7 @@ perfilar_coleccion <- function(coleccion, muestra = Inf,
       if (!is.numeric(v)) next
       v <- suppressWarnings(as.numeric(v))
       # Seis cifras o mas: tambien la cedula de seis cifras sin su
-      # verificador (ronda 37, P-A2).
+      # verificador.
       grandes <- grandes | (!is.na(v) & abs(v) >= 1e5)
     }
     candidatas <- c(candidatas, as.character(tabla$columna[grandes]))
@@ -2078,7 +2077,7 @@ perfilar_coleccion <- function(coleccion, muestra = Inf,
       clasificacion$columna[clasificacion$tipo %in% "documento_identidad"]
     ))
   }
-  # Ronda 36 (H1): y toda columna cuyos valores la muestra describe como cifras
+  # Y toda columna cuyos valores la muestra describe como cifras
   # con separadores -un patron de `9` con puntos, comas, espacios, guiones o un
   # exponente: `"4.685.467,00"`, `"4 685 467.0"`, `"4.685467e6"`, aunque la
   # acompanen centinelas como `"S/D"`-, que no es de fechas. Esas copias no
@@ -2110,7 +2109,7 @@ perfilar_coleccion <- function(coleccion, muestra = Inf,
 # Los valores distintos de una columna, leidos de la base con un `GROUP BY`,
 # como los de las protegidas: `ok`, `valores`, y `demasiados` si pasan el tope.
 #
-# Ronda 36 (H2): con la expresion con que la leyo `perfilar_dbi()`
+# Con la expresion con que la leyo `perfilar_dbi()`
 # (`.expresion_lectura_coleccion()`). Leida cruda, una copia en una columna
 # `money` llegaba en ceros y en una `real` con `extra_float_digits = 0`
 # redondeada a seis cifras, la prueba no la reconocia, y el perfil -que si la
@@ -2155,11 +2154,11 @@ perfilar_coleccion <- function(coleccion, muestra = Inf,
 # La expresion con que la coleccion lee los valores de una columna: la MISMA
 # con que la leyo `perfilar_dbi()` (`meta$lectura_convertida`, ver
 # `.lectura_convertida_dbi()`) -un `money` leido crudo por RPostgres da `0` en
-# cada celda (ronda 35-X, A4)-; en SQLite, como texto. Una funcion para las dos
-# lecturas de valores de la coleccion: la de las columnas protegidas
+# cada celda-; en SQLite, como texto. Una funcion para las dos lecturas de
+# valores de la coleccion: la de las columnas protegidas
 # (`.valores_protegidos_tabla_coleccion()`) y la de las candidatas a copia
-# (`.distintos_columna_coleccion()`), que la ronda 35 escribio de nuevo y leia
-# cruda (ronda 36, H2).
+# (`.distintos_columna_coleccion()`), que con una expresion propia leia la
+# columna cruda.
 .expresion_lectura_coleccion <- function(conexion, columna, convertidas = NULL,
                                          sqlite = FALSE) {
   campo <- .citar_identificador_dbi(conexion, columna)
@@ -2199,7 +2198,7 @@ perfilar_coleccion <- function(coleccion, muestra = Inf,
 # leer, se cierra como en `perfilar_dbi()` cuando no verifica fuera de la
 # muestra: se tapan los valores y la evidencia de las columnas no personales, y
 # se dice. `nombres`: los de las tablas y esquemas de la coleccion, intocables
-# como los de las columnas y fuera del cierre como valor (ronda 34, H5: ver
+# como los de las columnas y fuera del cierre como valor (ver
 # `.cerrar_fuera_de_muestra_dbi()`).
 .proteger_perfiles_entre_tablas <- function(perfiles, protegidos,
                                             nombres = character()) {
@@ -2646,7 +2645,7 @@ estimar_costo_coleccion <- function(coleccion, pares = NULL,
       # la grafia exacta primero y, si no esta, sin distinguir mayusculas, como
       # compara el motor. Antes `IMPORTE` daba "nombra columnas inexistentes"
       # sobre la columna `importe` de SQL Server, mientras `orden = "ID"` en la
-      # misma conexion se aceptaba (ronda 35-X, B4).
+      # misma conexion se aceptaba.
       indices <- .resolver_columnas_dbi(candidatas, campos)
       desconocidas <- candidatas[is.na(indices)]
       if (length(desconocidas)) {
@@ -2720,8 +2719,8 @@ estimar_costo_coleccion <- function(coleccion, pares = NULL,
       # numerica: en SQLite una columna sin afinidad guarda tipos mezclados, y
       # todo TEXT ordena despues de todo numero, asi que un solo '5' guardado
       # como texto ES el `MAX`. `as.numeric()` lo convertia y la poda "cierta"
-      # declaraba disjuntos [1, 5] y [50, 60] sobre 11 filas comunes -medido en
-      # la ronda 25-. Sin un rango numerico confiable la poda no se aplica, que
+      # declaraba disjuntos [1, 5] y [50, 60] sobre 11 filas comunes. Medido.
+      # Sin un rango numerico confiable la poda no se aplica, que
       # es lo que la ayuda promete cuando el motor no puede entregarlo.
       numerico <- function(v) is.numeric(v) || inherits(v, "integer64")
       if (!numerico(minimo) || !numerico(maximo)) {
@@ -2736,7 +2735,7 @@ estimar_costo_coleccion <- function(coleccion, pares = NULL,
 
 # Un entero de 64 bits que el driver entrega como doble pierde exactitud por
 # encima de 2^53: dos BIGINT distintos caen en el mismo doble y la comparacion
-# los iguala. Medido en la ronda 25 sobre `dbConnect(duckdb::duckdb())`, que
+# los iguala. Medido sobre `dbConnect(duckdb::duckdb())`, que
 # entrega BIGINT como doble por omision: tres identificadores contra otros tres,
 # ninguno comun en el motor -`fk IN (SELECT id ...)` da 0-, y el objeto
 # publicaba `m:1`, 2 valores comunes y cobertura 1. `perfilar_dbi()` ya se
@@ -2821,8 +2820,7 @@ estimar_costo_coleccion <- function(coleccion, pares = NULL,
 # nombre ya normalizado, en hexadecimal. `assign()` y `exists()` vuelven la clave
 # un simbolo, y eso la traduce al nativo: bajo `C` una tabla con acento avisaba
 # "unable to translate" en cada lectura de `relaciones_coleccion()`, y el texto
-# `pa<U+00ED>s` escrito asi y la tabla `pa\u00eds` daban el mismo simbolo
-# (ronda 33-X, la construccion de `medir()`).
+# `pa<U+00ED>s` escrito asi y la tabla `pa\u00eds` daban el mismo simbolo.
 .clave_cache_coleccion <- function(identificador) {
   bytes <- charToRaw(.nombres_para_operar(identificador))
   paste0("t", paste(as.character(bytes), collapse = ""))
@@ -3006,7 +3004,7 @@ estimar_costo_coleccion <- function(coleccion, pares = NULL,
   # tabla, de la MISMA funcion que usa `perfilar_dbi()`
   # (`.columnas_tabla_dbi()`): resuelven el `orden` declarado, nombran las
   # columnas de un `SELECT *` y dicen cuales no se pueden leer o llegan
-  # enmascaradas (ronda 35-X).
+  # enmascaradas.
   cache_campos <- new.env(parent = emptyenv())
   info_de <- function(identificador) {
     cache_key <- .clave_cache_coleccion(identificador)
@@ -3066,9 +3064,9 @@ estimar_costo_coleccion <- function(coleccion, pares = NULL,
   # `MIN`/`MAX` de una columna `money` tambien: la coleccion leia los importes
   # en cero, inventaba `fac.importe -> nota.importe` m:m con cobertura 1 entre
   # dos tablas sin un valor comun, y podaba con `rangos_disjuntos` la relacion
-  # que si existe (ronda 35-X, A4: 60 comunes en el motor). La ronda 34 lo habia
-  # cerrado en `perfilar_dbi()`; la lectura de la coleccion y la consulta de
-  # rangos no pasaban por ahi. Ahora las dos toman la expresion de aca.
+  # que si existe (60 comunes en el motor). Estaba cerrado en `perfilar_dbi()`,
+  # pero la lectura de la coleccion y la consulta de rangos no pasaban por ahi.
+  # Ahora las dos toman la expresion de aca.
   #
   # Saber el tipo en el motor cuesta una consulta de cero filas por tabla, y se
   # paga solo en las conexiones donde la lectura convierte algo. `columnas`
@@ -3295,7 +3293,7 @@ estimar_costo_coleccion <- function(coleccion, pares = NULL,
     # Una columna que la credencial no puede leer no se nombra en ninguna
     # consulta, y una enmascarada no se compara: sus valores son la mascara, y
     # dos columnas `xxxx` sin un solo valor comun salian relacionadas con
-    # cobertura 1 (ronda 35-X). Sin candidatas declaradas la lectura deja de ser
+    # cobertura 1. Sin candidatas declaradas la lectura deja de ser
     # `SELECT *` -que con un permiso por columna se rechaza entero: el par se
     # perdia, y por odbc caia R- y nombra las demas.
     info <- info_de(identificador)
@@ -3346,12 +3344,12 @@ estimar_costo_coleccion <- function(coleccion, pares = NULL,
     # las de orden solo se suman a una seleccion que ya existe. Antes, con
     # `orden` y sin candidatas, la consulta era `SELECT id ... ORDER BY id`: la
     # comparacion veia una columna por tabla, las demas relaciones
-    # desaparecian sin aviso y el objeto se declaraba `estable` (ronda 34-X:
-    # 0 relaciones de 2, siguiendo el `como_resolverlo` del propio paquete).
+    # desaparecian sin aviso y el objeto se declaraba `estable` (0 relaciones
+    # de 2, siguiendo el `como_resolverlo` del propio paquete).
     # Una columna que la sesion no puede escribir -bajo `C`, una no ASCII por
     # odbc- no entra en la consulta, y no se lleva a la tabla entera con ella:
     # antes `columnas_candidatas = list(t = c("id", "a\u00f1o"))` perdia el par
-    # completo, tambien `id`, con un motivo de permisos (ronda 34-X). Es lo que
+    # completo, tambien `id`, con un motivo de permisos. Es lo que
     # hace `perfilar_dbi()`: lee las demas y declara la que no, con su remedio.
     # Una de `orden` que no se puede escribir deja la lectura SIN `ORDER BY`
     # -no se puede ordenar como se declaro-, y la bitacora lo dice: la lectura
@@ -3361,7 +3359,7 @@ estimar_costo_coleccion <- function(coleccion, pares = NULL,
     # -`orden` leido de un CSV latin1 sin `fileEncoding`- no se escribe con
     # NINGUN controlador: RSQLite abortaba en `dbQuoteIdentifier()` con un error
     # de R ("input string 1 is invalid"), y adivinarle la codificacion es
-    # inventar el nombre (ronda 34-X, H10).
+    # inventar el nombre.
     escribible <- function(columna) {
       !.bytes_sin_declarar(columna) &&
         .nombre_representable_dbi(conexion, columna)
@@ -3451,7 +3449,7 @@ estimar_costo_coleccion <- function(coleccion, pares = NULL,
     # Sin tope no hay `LIMIT` que escribir: `format(Inf)` mandaba `LIMIT Inf`,
     # una consulta que todo motor rechaza -PostgreSQL busca una columna `inf`-.
     # Fuera de una transaccion costaba una consulta rechazada por tabla; dentro
-    # de una, la abortaba (ronda 35-X, A5). Se lee directo por la via sin
+    # de una, la abortaba. Se lee directo por la via sin
     # `LIMIT`, la que ya terminaba leyendo.
     ejecutar_lectura <- function(columnas, aplicar_orden = TRUE) {
       lectura_local <- lectura_de(identificador, tabla_sql, columnas)
@@ -3630,7 +3628,7 @@ estimar_costo_coleccion <- function(coleccion, pares = NULL,
       # la lectura, que `relaciones_coleccion()` publica tal cual. Como
       # `simpleError()` se volvia a pasar como mensaje ajeno, y la segunda
       # pasada tapaba las palabras del motivo legible: "El nombre no se puede
-      # [literal omitido] en la [literal omitido]..." (ronda 34-X).
+      # [literal omitido] en la [literal omitido]...".
       return(.condicion_lectura_coleccion(
         motivo,
         codificacion = inherits(resultado, "lupa_error_codificacion_dbi")
@@ -3650,7 +3648,7 @@ estimar_costo_coleccion <- function(coleccion, pares = NULL,
     # caracteres del cliente, latin1, y `dbListFields()` en UTF-8:
     # `relaciones_coleccion()` publicaba `a\xf1o` donde `perfilar_coleccion()`
     # de la misma sesion publicaba `a\u00f1o`, devuelto como candidata daba
-    # error, y leido en una sesion UTF-8 abortaba `nchar()` (ronda 34-X).
+    # error, y leido en una sesion UTF-8 abortaba `nchar()`.
     resultado$datos <- .nombres_de_la_fuente_coleccion(
       resultado$datos,
       function() {
@@ -3936,7 +3934,7 @@ relaciones_coleccion <- function(coleccion, pares, muestra = 1e4,
                                  tope_memoria_mb = 512) {
   .fijar_numerica_c()  # LC_NUMERIC en "C" mientras lee de la conexion
   # Un argumento malo aborta con la clase de la via, como en `perfilar_dbi()`:
-  # antes salia como `simpleError` (ronda 35-X, B4).
+  # antes salia como `simpleError`.
   .argumento_dbi({
     if (!inherits(coleccion, "coleccion_lupa")) {
       .detener("`coleccion` debe venir de coleccion().", call. = FALSE)
@@ -3973,10 +3971,10 @@ relaciones_coleccion <- function(coleccion, pares, muestra = 1e4,
   # Los nombres que el mensaje del motor puede citar en claro: los de las tablas
   # y sus esquemas, y los de las columnas que el usuario declaro en `orden` y en
   # `columnas_candidatas` -la misma regla que `perfilar_dbi()` y
-  # `perfilar_coleccion()` desde la ronda 34-. Antes el motivo de una lectura
+  # `perfilar_coleccion()`-. Antes el motivo de una lectura
   # publicaba `column "[literal omitido]" does not exist ... SELECT * FROM
-  # "[literal omitido]"."[literal omitido]"` para un `orden` mal escrito
-  # (ronda 35-X, B3). Cada lectura suma los nombres de las columnas que leyo.
+  # "[literal omitido]"."[literal omitido]"` para un `orden` mal escrito.
+  # Cada lectura suma los nombres de las columnas que leyo.
   declaradas <- .completar_columnas_coleccion(coleccion$tablas)
   identificadores_previos <- .sumar_identificadores_motor(c(
     declaradas$tabla, declaradas$esquema, declaradas$identificador,
@@ -4068,7 +4066,7 @@ relaciones_coleccion <- function(coleccion, pares, muestra = 1e4,
     }
     # Las candidatas que se compararon son las declaradas que se LEYERON: una
     # que la sesion no pudo escribir no esta en la lectura, y sus combinaciones
-    # quedan en `cobertura_podas` con el motivo (ronda 34-X).
+    # quedan en `cobertura_podas` con el motivo.
     declaradas_1 <- lector$candidatas(t1)
     declaradas_2 <- lector$candidatas(t2)
     candidatas_1 <- if (is.null(declaradas_1)) {
@@ -4077,7 +4075,7 @@ relaciones_coleccion <- function(coleccion, pares, muestra = 1e4,
     candidatas_2 <- if (is.null(declaradas_2)) {
       names(d2)
     } else .identificadores_intersect(declaradas_2, names(d2))
-    # Y las que la lectura dejo afuera por permiso o por mascara (ronda 35-X),
+    # Y las que la lectura dejo afuera por permiso o por mascara,
     # declaradas o no: cada combinacion que no se comparo queda con su motivo.
     fuera_1 <- lector$fuera(t1)
     fuera_2 <- lector$fuera(t2)
@@ -4138,9 +4136,9 @@ relaciones_coleccion <- function(coleccion, pares, muestra = 1e4,
     )
     if (inherits(relacion, "condition")) {
       # `detectar_relaciones()` compara en memoria lo ya leido: su error es del
-      # paquete, no del motor, y no se tapa como mensaje ajeno (ronda 35-X, B3:
-      # "`[literal omitido]` para [literal omitido] debe ser un [literal
-      # omitido]..."). Solo sus literales entre comillas, que podrian citar un
+      # paquete, no del motor, y no se tapa como mensaje ajeno: tapado asi se
+      # leia "`[literal omitido]` para [literal omitido] debe ser un [literal
+      # omitido]...". Solo sus literales entre comillas, que podrian citar un
       # valor, siguen la regla de la proteccion.
       sin_comparar[[length(sin_comparar) + 1L]] <- data.frame(
         tabla_1 = t1, tabla_2 = t2,
@@ -4179,7 +4177,7 @@ relaciones_coleccion <- function(coleccion, pares, muestra = 1e4,
     alcance_2 <- .alcance_lectura_tabla(lector$bitacora(), t2)
     # Con la tabla de REFERENCIA truncada la cobertura no es una estimacion
     # con ruido: es una cota inferior -un valor que no esta entre las filas
-    # leidas puede estar en las demas-. Medido en la ronda 25: una FK perfecta
+    # leidas puede estar en las demas-. Medido: una FK perfecta
     # de 20.000 filas, leidas 10.000 de cada lado, daba 0,4962 y el par
     # desaparecia de todas las salidas, cuando `detectar_relaciones()`
     # promete para su propio muestreo conservar completa la referencia. El
@@ -4190,7 +4188,7 @@ relaciones_coleccion <- function(coleccion, pares, muestra = 1e4,
     # par lo alcanzaba: un indicador `activo` de dos valores, que llega a
     # cobertura 1 trivialmente, borraba de toda salida la FK
     # `id -> cliente_id` (0,4996 sobre las filas leidas, 5000 de 5000 en el
-    # motor; ronda 35-X, M3). Sigue siendo UNA fila por par -no una por cada
+    # motor). Sigue siendo UNA fila por par -no una por cada
     # combinacion trivial-: cuantas quedaron sin conclusion y las que llegaron
     # mas alto, hasta cinco, con su cota. Una sola no alcanzaba: `id -> activo`
     # (0,5, dos valores) le ganaba a la FK (0,4996).
@@ -4209,7 +4207,7 @@ relaciones_coleccion <- function(coleccion, pares, muestra = 1e4,
       medidas <- which(debajo & !is.na(cobertura_par) & cobertura_par > 0)
       # La cobertura es numerica y no tiene `NA` en `medidas`; la ordenacion
       # explicita conserva el desempate por bytes del paquete y no depende del
-      # locale de la sesion (guarda H4 de la ronda 30-L).
+      # locale de la sesion.
       medidas <- medidas[.orden_por_bytes(cobertura_par[medidas],
                                           decreasing = TRUE)]
       # La cota de una clave de alta cardinalidad no puede quedar enterrada

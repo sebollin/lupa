@@ -40,7 +40,7 @@
   if (inherits(medidas, "data.frame") && nrow(medidas) &&
       all(c("dimension", "factor") %in% names(medidas))) {
     # Una metrica sin dimension -lo que `metrica()` deja por omision- abortaba
-    # aca con un mensaje que no la nombraba. Medido en la ronda 23.
+    # aca con un mensaje que no la nombraba. Medido.
     sin_casilla <- is.na(medidas$dimension) | !nzchar(as.character(medidas$dimension)) |
       is.na(medidas$factor) | !nzchar(as.character(medidas$factor))
     if (any(sin_casilla)) {
@@ -211,8 +211,8 @@
     )
   }
   # Una medida repetida, como en `agregar()` y `evaluar()`: dos datos con el
-  # mismo identificador salian como una sola celda mezclada. Medido en la ronda
-  # 23. Las filas ya agregadas no tienen identificador propio.
+  # mismo identificador salian como una sola celda mezclada. Medido. Las filas
+  # ya agregadas no tienen identificador propio.
   if ("id_medida" %in% names(medidas)) {
     ids <- as.character(medidas$id_medida)
     con_id <- !is.na(ids) & nzchar(ids)
@@ -355,7 +355,7 @@
   }
   # Un umbral para una metrica que no lo usa se aceptaba en silencio, y el
   # tablero lo publicaba al lado de un valor que no se calculo contra el.
-  # Medido en la ronda 23.
+  # Medido.
   sobrantes <- names(umbral)[!is.na(umbral) & !names(umbral) %in% requieren]
   if (length(sobrantes)) {
     .detener(
@@ -374,9 +374,9 @@
 
 .claves_objeto_tablero <- function(medidas) {
   # Con el separador por omision -"."- la entidad `a.b` con el objeto `c` y la
-  # entidad `a` con el objeto `b.c` caian en la misma celda: el defecto que la
-  # ronda 22 cerro en las evaluaciones y la 24 en `agregar()`. Un caracter de
-  # control no aparece en un nombre.
+  # entidad `a` con el objeto `b.c` caian en la misma celda, como pasaba en las
+  # evaluaciones y en `agregar()`. Un caracter de control no aparece en un
+  # nombre.
   granularidad <- unique(medidas$granularidad)[[1L]]
   switch(
     granularidad,
@@ -523,8 +523,7 @@
       primero <- i[[1L]]
       valores <- actuales$resultado[i]
       # La misma cuenta que `agregar()`: el tablero tenia la suya, sin la
-      # tolerancia del borde, y las dos se equivocaban igual. Medido en la ronda
-      # 23.
+      # tolerancia del borde, y las dos se equivocaban igual. Medido.
       valor <- .calcular_agregacion(
         valores, contrato$agregacion, contrato$umbral, NULL
       )
@@ -541,7 +540,7 @@
         granularidad = destino,
         # El promedio de una duracion sigue siendo una duracion: rebautizarlo
         # "real" lo hacia pasar por una proporcion, y `agregar()` lo aceptaba
-        # despues. Medido en la ronda 23.
+        # despues. Medido.
         tipo_resultado = if (identical(contrato$agregacion, "promedio") &&
                              !actuales$tipo_resultado[[primero]] %in%
                                c("booleano", "real")) {
@@ -594,7 +593,7 @@
   pares <- .clave_par_identificador(tablero$dimension, tablero$factor)
   declarable <- !is.na(tablero$dimension) & !is.na(tablero$factor)
   # Una fila sin dimension tambien esta fuera del marco: no tiene casilla, y no
-  # contaba en `medidos_fuera_del_marco`. Medido en la ronda 23.
+  # contaba en `medidos_fuera_del_marco`. Medido.
   # `paste0()` con un vector vacio devuelve UN elemento: sin la guarda de
   # `any()`, un tablero sin filas huerfanas publicaba "sin dimension: ".
   sin_casilla <- if (any(!declarable) &&
@@ -626,7 +625,7 @@
     # El universo es la unidad que CUENTA la proporcion -las celdas de un
     # NoNulo-, y la medicion agregada ya lo trae: recalcularlo con la
     # granularidad de la fila agregada decia "columnas", y el indice afirmaba
-    # "comparables" o "no comparables" segun el camino. Medido en la ronda 23.
+    # "comparables" o "no comparables" segun el camino. Medido.
     # Solo se calcula el que falta.
     calculado <- vapply(medidas$granularidad, .universo_tablero, character(1L))
     if ("universo_tablero" %in% names(medidas)) {
@@ -876,20 +875,19 @@ tablero_calidad <- function(medidas, agregaciones = NULL, umbrales = NULL,
 # unidas con `rbind()`. Se leia una sola -la primera- y la tabla que no habia
 # entrado en la segunda no aparecia en el tablero, el indice ni el informe.
 # Ahora se reunen en una: todas las tablas declaradas, las que entraron, las que
-# no, y el motivo de cada una con su coleccion. Medido en la ronda 24.
+# no, y el motivo de cada una con su coleccion. Medido.
 .cobertura_coleccion_de <- function(x) {
   .cobertura_frontera_de(x, "cobertura_coleccion")
 }
 
-# Las cuatro coberturas de frontera, con UN lector. Hasta la ronda 26 solo se
-# leia la de la coleccion: `cobertura_organizacion` y las de los dos conjuntos no
+# Las cuatro coberturas de frontera, con UN lector. Se leia solo la de la
+# coleccion: `cobertura_organizacion` y las de los dos conjuntos no
 # llegaban al informe ni a `print()`, y como una organizacion hereda en
 # `cobertura_de_partes` las coberturas de las colecciones que SI entraron, el
 # informe de un organismo con una coleccion sin medir publicaba "4 de 4 tablas,
 # ninguna sin medir": lo no medido como medido. `?agregar` promete que el
 # tablero, el indice, el informe, `evaluar()` e `historico_calidad()` las
-# publican TODAS, y el historico del mismo objeto ya la registraba. Medido en la
-# ronda 26.
+# publican TODAS, y el historico del mismo objeto ya la registraba. Medido.
 #
 # Cada nivel nombra sus campos -la coleccion cuenta tablas; los otros, partes- y
 # se lee igual: el atributo directo y las guardadas en `cobertura_de_partes` con
@@ -1130,7 +1128,7 @@ print.tablero_calidad <- function(x, ...) {
 # Un nombre que solo difiere en la forma -la tilde compuesta o separada, la
 # caja- se compara por sus bytes, y el mensaje lo imprimia identico a lo
 # declarado. La pista vive en un solo lugar: el validador de `agregar()` no la
-# tenia, y su ayuda decia "igual que en `indice_calidad()`". Ronda 24.
+# tenia, y su ayuda decia "igual que en `indice_calidad()`".
 .pista_forma_distinta <- function(faltan, sobran) {
   if (!length(faltan) || !length(sobran)) return("")
   plegar <- function(v) tryCatch(.plegar_para_comparar(v), error = function(e) v)
@@ -1156,7 +1154,7 @@ print.tablero_calidad <- function(x, ...) {
   sobran <- .identificadores_setdiff(names(pesos), esperados)
   # Un nombre que solo difiere en la forma -la tilde compuesta o separada, la
   # caja- se compara por sus bytes, como en todo el paquete, y el mensaje lo
-  # imprimia identico a lo declarado. Medido en la ronda 23. Se dice.
+  # imprimia identico a lo declarado. Medido. Se dice.
   if (length(faltan) && length(sobran)) {
     plegar <- function(v) tryCatch(.plegar_para_comparar(v), error = function(e) v)
     parecidos <- faltan[plegar(faltan) %in% plegar(sobran)]
@@ -1300,7 +1298,7 @@ print.tablero_calidad <- function(x, ...) {
   # `attr(x, "cobertura_coleccion")` -el mismo que funciona con el tablero- la
   # perdia al llegar al indice, que es el ultimo consumidor. La declaracion viaja
   # por las dos vias, que es lo que costaba cero y evitaba el agujero. Y las
-  # cuatro coberturas de frontera, no solo la de la coleccion: ronda 26.
+  # cuatro coberturas de frontera, no solo la de la coleccion.
   .con_coberturas_frontera(resultado, tablero)
 }
 
@@ -1374,7 +1372,7 @@ indice_calidad <- function(medidas, pesos, pesos_internos = NULL, ...) {
   cobertura_metricas <- attr(tablero, "cobertura_metricas", exact = TRUE)
   # Una metrica sin dimension no entra: el indice combina dimensiones, y pedia
   # "Faltan pesos para: NA", un nombre que su propia validacion prohibe.
-  # Medido en la ronda 23. Se excluye y se dice por que, como la no_aplica.
+  # Medido. Se excluye y se dice por que, como la no_aplica.
   sin_dimension <- is.na(tablero$dimension) | !nzchar(as.character(tablero$dimension))
   componentes <- tablero[tablero$orientacion != "no_aplica" & !sin_dimension, ,
                          drop = FALSE]
@@ -1393,7 +1391,7 @@ indice_calidad <- function(medidas, pesos, pesos_internos = NULL, ...) {
   }
   dimensiones <- .identificadores_unicos(componentes$dimension)
   # Un peso para una dimension cuyas metricas se excluyeron se dice asi, y no
-  # como un peso que sobra sin razon. Medido en la ronda 23.
+  # como un peso que sobra sin razon. Medido.
   excluidas_dimension <- .identificadores_setdiff(
     .identificadores_unicos(tablero$dimension[!sin_dimension]), dimensiones
   )
@@ -1483,7 +1481,7 @@ indice_calidad <- function(medidas, pesos, pesos_internos = NULL, ...) {
   # `attr(x, "cobertura_coleccion")` -el mismo que funciona con el tablero- la
   # perdia al llegar al indice, que es el ultimo consumidor. La declaracion viaja
   # por las dos vias, que es lo que costaba cero y evitaba el agujero. Y las
-  # cuatro coberturas de frontera, no solo la de la coleccion: ronda 26.
+  # cuatro coberturas de frontera, no solo la de la coleccion.
   .con_coberturas_frontera(resultado, tablero)
 }
 

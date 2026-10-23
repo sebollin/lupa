@@ -10,9 +10,8 @@
 # metodo que devolvia dos filas por celda publicaba seis medidas para tres celdas
 # y `agregar(, "ratio")` daba 0,5 donde la respuesta es 0,667.
 
-# Regresion de una ronda de refutacion: corre en la suite completa, en el CI y en
-# R-hub, que usan NOT_CRAN=true; en CRAN se saltea para que el check entre en sus
-# tiempos (medicion del 2026-10-23).
+# Prueba de regresion: corre en la suite completa, en el CI y en R-hub, que usan
+# NOT_CRAN=true; en CRAN se saltea para que el check entre en sus tiempos.
 testthat::skip_on_cran()
 
 .o93_medir <- function(metodo, granularidad = "atributo") {

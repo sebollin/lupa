@@ -80,7 +80,7 @@
 }
 
 # El id de una sugerencia se arma con lo que la identifica, nunca con su
-# posicion (decision D3, ronda 32). Era `sugerencia-NNNN`, numerado tras ordenar
+# posicion. Era `sugerencia-NNNN`, numerado tras ordenar
 # por nombre de columna: una columna nueva corria los numeros y una regla que
 # nombraba `sugerencia-0002` -la `NoNulo` de `edad`- pasaba a medir la de
 # `apellido` en la corrida siguiente. Medido: de siete sugerencias comunes a dos
@@ -182,10 +182,9 @@
   base
 }
 
-# Los faltantes disfrazados de una columna, para contarlos en su `NoNulo`
-# (decision D6, ronda 32). La ronda 31 dejaba esa `NoNulo` sin medir; Sebastian
-# lo revirtio: primero normalizar, y si no se puede, medir igual con los valores
-# crudos. Normalizar es declarar en `valores_nulos` los valores que el perfil
+# Los faltantes disfrazados de una columna, para contarlos en su `NoNulo`: esa
+# `NoNulo` no queda sin medir. Primero se normaliza, y si no se puede, se mide
+# igual con los valores crudos. Normalizar es declarar en `valores_nulos` los valores que el perfil
 # conto como disfrazados, y la mascara sale de la MISMA funcion que usa el perfil
 # (`.faltantes_disfrazados_columna()`, por `.contexto_casi_clave()`) con la
 # politica que el perfil declaro -sus `sentinelas_numericos` y sus
@@ -213,9 +212,9 @@
 
 # La `NoNulo` de una columna declarada opcional en el perfil se mide sobre las
 # celdas presentes, el universo del perfil. Con un `NA` y tres `-999` en 40, el
-# perfil contaba 3 de 39 y la metrica que la decision D6 propone por los
-# disfrazados media 0,900 = 36/40: contaba como faltante el `NA` que la
-# declaracion legitima (refutacion 33-D). La declaracion viaja en la propiedad
+# perfil contaba 3 de 39 y la metrica que se propone por los disfrazados
+# media 0,900 = 36/40: contaba como faltante el `NA` que la declaracion
+# legitima. La declaracion viaja en la propiedad
 # `opcional` de la metrica -no en una formula `aplicable`, que tendria que
 # nombrar la columna como simbolo y bajo `LC_CTYPE = "C"` no puede con un nombre
 # no ASCII-, asi que vale igual por `medir()` directo, por `analizar()` y
@@ -374,9 +373,8 @@ proponer_modelo <- function(perfil, datos = NULL, relaciones = NULL,
         "perfil:n_faltantes_totales"
       }
       n_disfrazados <- fila$n_faltantes_disfrazados[[1L]]
-      # Con ausentes disfrazados la `NoNulo` SE MIDE (decision D6, ronda 32;
-      # revierte la de la ronda 31, que la dejaba sin medir con estado
-      # `faltantes_disfrazados`). El paquete existe para dar la medicion. Primero
+      # Con ausentes disfrazados la `NoNulo` SE MIDE, no se deja sin medir: el
+      # paquete existe para dar la medicion. Primero
       # se normaliza: los valores que el perfil conto como disfrazados van a
       # `valores_nulos`, y la metrica los cuenta como faltantes -0,90 en vez de
       # 0,975 sobre 1 `NA` y 3 `-999`-. Si no se pueden identificar -sin
@@ -460,8 +458,8 @@ proponer_modelo <- function(perfil, datos = NULL, relaciones = NULL,
       # El dominio son los valores que el paquete puede LEER: una columna cuyo
       # texto no es UTF-8 valido tiene distintos en el perfil -que cuenta por
       # identidad- y ninguno decodificable, y la metrica propuesta no media
-      # nada: `analizar()` avisaba que su metodo fallo, en cualquier locale
-      # (ronda 30-L, variante de bytes latin1 sin marca).
+      # nada: `analizar()` avisaba que su metodo fallo, en cualquier locale,
+      # con bytes latin1 sin marca.
       if (length(valores) >= 2L) agregar_sugerencia(.nueva_sugerencia(
         "baja", FALSE, "ValoresPosiblesPorExtension", entidad, columna,
         "perfil:dominio_observado",
@@ -552,7 +550,7 @@ proponer_modelo <- function(perfil, datos = NULL, relaciones = NULL,
   # Un nombre de columna que la tabla repite no identifica una columna, y una
   # metrica se liga por nombre: mediria siempre la primera. Con dos columnas `x`
   # con faltantes, las dos sugerencias `NoNulo` sobre `x` eran el mismo
-  # instrumento y `analizar()` abortaba entero (medido en la ronda 30). Se
+  # instrumento y `analizar()` abortaba entero (medido). Se
   # proponen sin activar y con estado `nombre_repetido`: no se materializan
   # hasta renombrar, como el plan de limpieza omite las acciones por columna.
   nombres_perfil <- as.character(perfil$columnas$columna)
@@ -583,8 +581,8 @@ proponer_modelo <- function(perfil, datos = NULL, relaciones = NULL,
     orden_prioridad <- match(resultado$prioridad, c("alta", "media", "baja"))
     # Por los bytes de los nombres (`.orden_por_bytes()`): con la intercalacion
     # del locale la propuesta salia en otro orden bajo `C` que en una sesion
-    # UTF-8 (ronda 30-L). La clave de bytes tampoco aborta sobre un nombre
-    # marcado `bytes`, que tumbaba `order()` y con el `analizar()` (ronda 27).
+    # UTF-8. La clave de bytes tampoco aborta sobre un nombre marcado `bytes`,
+    # que tumbaba `order()` y con el `analizar()`.
     orden <- .orden_por_bytes(
       orden_prioridad, resultado$metrica, resultado$entidad, resultado$atributos
     )

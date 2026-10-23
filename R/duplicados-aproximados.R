@@ -156,7 +156,7 @@
   # Los conteos que salen de COMPARAR filas son `NA` si no se comparo ninguna:
   # sin `stringdist`, con un valor sobre el tope de largo, con dos columnas del
   # mismo nombre o sin columnas comparables. Publicaba `0`, y `0` es una medicion
-  # -"no hay pares"- que nadie hizo: medido en la ronda 27, seis filas con un par
+  # -"no hay pares"- que nadie hizo: medido, seis filas con un par
   # identico daban `n_filas_validas = 0` y `n_pares_exactos = 0`. Es la doctrina
   # que este mismo constructor aplica a `largo_maximo` mas abajo. Solo quien
   # recorrio las filas y no encontro dos validas pasa `conteos_medidos = TRUE`:
@@ -1638,7 +1638,7 @@
     # Un valor hecho solo de blancos no tiene texto que medir, igual que la cadena
     # vacia: la normalizacion por omision lo recorta despues y `"   "`, `" "` y
     # `"\t"` se comparaban como `""` a distancia 0 -tres pares
-    # `exacto_normalizado` entre filas sin texto, medido en la ronda 27-. Es el
+    # `exacto_normalizado` entre filas sin texto, medido-. Es el
     # mismo criterio con que `perfilar()` los cuenta juntos en `n_blancos`.
     presentes <- !is.na(legible) & nzchar(trimws(legible))
     salida[is.na(legible) | is.na(salida)] <- ""
@@ -1660,12 +1660,12 @@
   # invertida, asi que escapar la barra vertical despues deja una sola forma de leer
   # la cadena y el separador vuelve a separar.
   # Y la clave de bytes se aplica UNA vez por valor: la del `Map()` de arriba,
-  # antes de normalizar. La nota anterior decia esto mismo y el codigo la aplicaba
-  # DOS -una en el `Map()` y otra aca, antes de pegar-, asi que cada `\` del dato
-  # llegaba cuadruplicado a `stringdist` y la distancia publicada no salia de
-  # ninguna receta: medido en la ronda 27, `x\y` contra `x\z` publicaba 0,067 y
-  # entraba al umbral por omision. La segunda aplicacion no hacia otra cosa: la
-  # primera ya marco UTF-8 lo valido y escapo lo que no lo es.
+  # antes de normalizar. Aplicarla DOS veces -una en el `Map()` y otra aca, antes
+  # de pegar- hacia llegar cada `\` del dato cuadruplicado a `stringdist`, y la
+  # distancia publicada no salia de ninguna receta: medido, `x\y` contra `x\z`
+  # publicaba 0,067 y entraba al umbral por omision. La segunda aplicacion no
+  # hacia otra cosa: la primera ya marco UTF-8 lo valido y escapo lo que no lo
+  # es.
   #
   # La receta publicada queda entonces en una linea, y es la que documenta el Rd:
   # cada valor con su `\` escrito `\\` y su `|` escrito `\|`, unidos con `" | "`.
@@ -1714,7 +1714,7 @@
 # doble con las cifras que lo devuelven a su valor, no con las 15 de
 # `as.character()`-, y la celda
 # ausente se compara como la cadena vacia, que es como entra. Las dos cosas
-# daban clasificaciones falsas, medidas en la ronda 27: `0.1 + 0.2` contra `0.3`
+# daban clasificaciones falsas, medidas: `0.1 + 0.2` contra `0.3`
 # y `1e15` contra `1e15 + 1` salian `exacto` -"los mismos valores"- con
 # evidencia `m=0.3`/`m=0.3`; y `NA` contra `""` con `normalizar = FALSE` salia
 # `exacto_normalizado` con `igualo_normalizar = TRUE`, atribuyendo a una
@@ -2389,8 +2389,8 @@
   # El mismo piso que aplican `perfilar()`, `analizar()` y
   # `distribucion_valores()`. La proteccion de arriba es POR COLUMNA, asi que
   # una copia que el clasificador no marca publicaba el documento en la misma
-  # cadena donde la columna protegida iba enmascarada: lo encontro una
-  # refutacion externa, con `documento=[valor protegido]; codigo=77177101`.
+  # cadena donde la columna protegida iba enmascarada, como en
+  # `documento=[valor protegido]; codigo=77177101`.
   if (length(protegidas)) {
     identificantes <- .valores_identificantes(
       .valores_publicables_protegidos(datos, protegidas),

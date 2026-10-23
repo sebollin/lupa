@@ -103,9 +103,9 @@ test_that("seleccionar columnas para dependencias no reinyecta la geometria", {
 })
 
 test_that("el lexico cubre los nombres frecuentes de columnas con personas", {
-  ## Una refutacion adversarial mostro que `persona`, `cliente`, `paciente` y
-  ## `lugar_residencia` no se clasificaban, y sus valores quedaban visibles en
-  ## la moda. El lexico no puede ser completo, pero si cubrir lo frecuente.
+  ## `persona`, `cliente`, `paciente` y `lugar_residencia` no se clasificaban,
+  ## y sus valores quedaban visibles en la moda. El lexico no puede ser
+  ## completo, pero si cubrir lo frecuente.
   for (nombre in c("persona", "cliente", "paciente", "socio", "beneficiario",
                    "titular", "lugar_residencia")) {
     datos <- data.frame(

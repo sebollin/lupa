@@ -291,7 +291,7 @@ test_that("perfilar sobrevive a un CSV en espanol bajo LC_CTYPE=C", {
     x = c(rep(minuscula, 3L), rep(mayuscula, 2L)), stringsAsFactors = FALSE
   )
   # Bajo `C` el paquete AVISA -"unable to translate ... to UTF-8"- por caminos
-  # que todavia intentan traducir. Eso esta medido y anotado en §2.304 y no es
+  # que todavia intentan traducir. Eso esta medido y no es
   # lo que esta prueba vigila: lo que vigila es que **no aborte** y que **pliegue
   # bien**. Se silencian para no mover el conteo de avisos de la suite, que es
   # `WARN 0` y sirve como senal.

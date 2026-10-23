@@ -13,9 +13,8 @@
 # dice otra cosa- y `medir()` avisa, porque el error era la unica senal y
 # callarlo habria dejado una medicion con menos filas en silencio.
 
-# Regresion de una ronda de refutacion: corre en la suite completa, en el CI y en
-# R-hub, que usan NOT_CRAN=true; en CRAN se saltea para que el check entre en sus
-# tiempos (medicion del 2026-10-23).
+# Prueba de regresion: corre en la suite completa, en el CI y en R-hub, que usan
+# NOT_CRAN=true; en CRAN se saltea para que el check entre en sus tiempos.
 testthat::skip_on_cran()
 
 .o87_modelo <- function(otra) {

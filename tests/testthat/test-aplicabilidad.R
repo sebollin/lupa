@@ -269,9 +269,9 @@ test_that("el universo declarado es el denominador de los diagnosticos por fila"
 })
 
 test_that("el universo aplicable tambien saca las filas del analisis", {
-  ## Lo encontro una refutacion adversarial. Con filas no aplicables que tienen
-  ## VALOR (no ausente), el conteo de distintos las incluia mientras el de
-  ## validos ya no, y `tasa_distintos` podia pasar de 1, que es imposible.
+  ## Con filas no aplicables que tienen VALOR (no ausente), el conteo de
+  ## distintos las incluia mientras el de validos ya no, y `tasa_distintos`
+  ## podia pasar de 1, que es imposible.
   datos <- data.frame(
     flag = c(rep("Si", 5), rep("No", 10)),
     valor = c(LETTERS[1:5], rep("XX", 10)),

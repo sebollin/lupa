@@ -956,8 +956,7 @@ test_that("el resumen de tabla completa pasa por la proteccion personal", {
   personales <- columnas$columna %in%
     c("documento_texto", "ci", "nombre", "correo")
   # Las cuatro no repiten ningun valor: no hay moda, y la proteccion no la
-  # inventa (ronda 31). Que ningun valor salga lo comprueba la busqueda de
-  # arriba.
+  # inventa. Que ningun valor salga lo comprueba la busqueda de arriba.
   expect_true(all(is.na(columnas$moda[personales])))
   # Los momentos tambien: la media de las cedulas reconstruye demasiado.
   expect_true(all(is.na(columnas$media[personales])))
@@ -1049,7 +1048,7 @@ test_that("incluir_valores = FALSE no emite las consultas de valores", {
   expect_equal(nrow(con_valores$resumen_tabla$columnas), nrow(columnas))
 })
 
-# ---- 2.52: defectos menores de la misma ronda ----------------------------
+# ---- 2.52: defectos menores ----------------------------------------------
 
 test_that("una conexion que no es DBI recibe el mensaje del paquete", {
   # Sin DBI el paquete se queja de que falta DBI, no de la clase del argumento:
@@ -1134,9 +1133,9 @@ test_that("ninguna metrica no medida sale como cero", {
 })
 
 test_that("una metrica internamente imposible se declara en vez de publicarse", {
-  ## Una refutacion adversarial falseo el resultado del motor: mas valores
-  ## distintos que validos, y una frecuencia de moda mayor que las filas. El
-  ## paquete los aceptaba como `calculado`. Un numero imposible no es un dato.
+  ## Con un resultado del motor falseado -mas valores distintos que validos, y
+  ## una frecuencia de moda mayor que las filas- el paquete lo aceptaba como
+  ## `calculado`. Un numero imposible no es un dato.
   skip_if_not_installed("DBI")
   skip_if_not_installed("RSQLite")
   con <- DBI::dbConnect(RSQLite::SQLite(), ":memory:")

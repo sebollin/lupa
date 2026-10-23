@@ -151,7 +151,7 @@ redistribuida**. Se repite sin red con `PED_DATA_DIR` y `RIOLU_DATA_DIR`.
 > vocabulario: se elegian las formas a comparar por orden de llegada y ahora se
 > ordenan antes de recortar. Eso cambia que se compara, y por lo tanto que se
 > encuentra. Los numeros viejos no eran falsos cuando se publicaron; dejaron de
-> valer y **nadie se entero hasta que una auditoria los volvio a correr**, que es
+> valer y **nadie se entero hasta que se volvieron a correr**, que es
 > justamente lo que esta pagina existe para evitar.
 >
 > | conjunto | antes (prec / cob) | ahora |

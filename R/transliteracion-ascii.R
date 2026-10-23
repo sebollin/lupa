@@ -12,8 +12,8 @@
   `00D4` = "O", `00D5` = "O", `00D6` = "O", `00D8` = "O",
   `00D9` = "U", `00DA` = "U", `00DB` = "U", `00DC` = "U",
   `00DD` = "Y", `00DE` = "TH", `00DF` = "ss",
-  # U+1E9E, la doble ese mayuscula, estaba en el mapa de pliegue de caja y no
-  # en este: una auditoria carácter por carácter mostro que "\u1E9Eeta" perdia
+  # U+1E9E, la doble ese mayuscula, esta en el mapa de pliegue de caja y tiene
+  # que estar tambien en este: sin ella, "\u1E9Eeta" perdia
   # la letra entera. Los dos mapas tienen que cubrir lo mismo.
   `1E9E` = "SS",
   # Un puñado de Latin Extended-B que aparece en nombres europeos y que el

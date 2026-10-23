@@ -1,6 +1,6 @@
-# M2: valor modal frente al segundo valor mas frecuente. La medicion de
-# .trabajo-agente/medicion-concentracion.md encontro cero falsos positivos en 114 columnas
-# limpias y un margen de 2,2x con k = 5 y fraccion minima = 0,15.
+# M2: valor modal frente al segundo valor mas frecuente. Medido: cero falsos
+# positivos en 114 columnas limpias y un margen de 2,2x con k = 5 y fraccion
+# minima = 0,15.
 #
 # La elegibilidad es parte de la senal: una columna numerica necesita al menos
 # 20 valores validos y 10 valores distintos. Con menos categorias la moda es la

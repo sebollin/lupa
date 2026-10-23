@@ -3,7 +3,7 @@
 # `stats::complete.cases()` no despacha. Las dos leen los dobles crudos, y el
 # patron de bits de todo entero de -1 a -4503599627370495 -y de los de
 # 9218868437227405313 para arriba- es un NaN: `complete.cases()` lo lee ausente
-# y `anyDuplicated()` iguala dos cualesquiera. Medido en la ronda 25:
+# y `anyDuplicated()` iguala dos cualesquiera. Medido:
 # `detectar_claves()` no proponia `id = -1, -2, -3` -y `sugerir_clave()` si-,
 # `referencial()` lo rechazaba por "valores ausentes", la correctitud borraba
 # en silencio la fila que FALLABA, y `perfilar()` publicaba `filas_completas =
@@ -25,7 +25,7 @@
 # un factor es un faltante -ver `.normalizar_columnas_entrada()`-. Con
 # `complete.cases()` sobre el factor crudo el nivel contaba presente, y
 # `referencial()` aceptaba como clave sin ausentes la columna que `perfilar()`
-# cuenta con un faltante. Medido en la ronda 31.
+# cuenta con un faltante. Medido.
 .filas_completas <- function(datos) {
   stats::complete.cases(.integer64_como_texto(.normalizar_columnas_entrada(datos)))
 }
@@ -45,7 +45,7 @@
   # Sin los nombres: `as.data.frame()` de una lista los pasa por `do.call()`
   # como nombres de argumento, que son simbolos en la codificacion nativa, y
   # bajo `C` un nombre UTF-8 avisaba "unable to translate" -con `warn = 2`,
-  # `detectar_claves()` abortaba- (ronda 30-L). Para buscar filas repetidas
+  # `detectar_claves()` abortaba-. Para buscar filas repetidas
   # el nombre no importa.
   combinado <- as.data.frame(unname(columnas), optional = TRUE,
                              stringsAsFactors = FALSE)
@@ -69,7 +69,7 @@
   # La convencion decimal, como la calcula `perfilar()` antes de leer la columna
   # como numero: sin ella, `"-999,00"` en una columna `decimal_coma` contaba como
   # disfrazado en el perfil y no en esta mascara, que es la que arma los
-  # `valores_nulos` de la `NoNulo` (refutacion 33-D).
+  # `valores_nulos` de la `NoNulo`.
   if (is.character(x_analisis) || is.factor(x_analisis)) {
     inferencia$convencion_numero_texto <-
       .analizar_numeros_texto(x_analisis)$convencion
@@ -354,7 +354,7 @@ detectar_claves <- function(datos, max_combinacion = 3, normalizar = NULL,
   # La misma entrada que el perfil: un nivel `NA` de un factor es un faltante y
   # un `POSIXlt` es el instante de su `POSIXct`. Sin esto, un codigo unico
   # salvo una fila en el nivel `NA` salia clave exacta con 40 distintos, y
-  # `perfilar(clave = )` la refutaba con 1 faltante y 39 distintos (ronda 31).
+  # `perfilar(clave = )` la refutaba con 1 faltante y 39 distintos.
   # Ver `.normalizar_columnas_entrada()`.
   datos <- .normalizar_columnas_entrada(datos)
   normalizacion_resuelta <- .resolver_normalizacion(normalizar, perfil)
@@ -543,7 +543,7 @@ detectar_claves <- function(datos, max_combinacion = 3, normalizar = NULL,
   if (inherits(x, "POSIXt")) {
     # `format(tz = "UTC")` no convierte un `POSIXlt`: lo escribe en la zona en
     # que se descompuso, asi que el mismo instante en `POSIXlt` local y en
-    # `POSIXct` UTC daba dos claves. Medido en la ronda 27. Se pasa por el
+    # `POSIXct` UTC daba dos claves. Medido. Se pasa por el
     # instante antes de escribir.
     x <- as.POSIXct(x)
     return(.escritura_exacta_temporal(
@@ -556,7 +556,7 @@ detectar_claves <- function(datos, max_combinacion = 3, normalizar = NULL,
   # Una duracion se compara por su valor, como el doble que es. Con la clase,
   # `match()` y `%in%` la pasan por `as.character()` -15 cifras-, y
   # `distribucion_valores()` juntaba `0.1 + 0.2` con `0.3` en un solo grupo y
-  # agregaba una fila `NA` con frecuencia 0 (ronda 32-S). La unidad es una sola
+  # agregaba una fila `NA` con frecuencia 0. La unidad es una sola
   # por columna: no distingue valores dentro de ella.
   if (inherits(x, "difftime")) x <- as.double(unclass(x))
   analisis <- .texto_analizable(x)
@@ -567,8 +567,8 @@ detectar_claves <- function(datos, max_combinacion = 3, normalizar = NULL,
   # archivo latin1- sale de `.texto_analizable()` como `NA`, y aca se compara:
   # la relacion lo sacaba del denominador, el referencial hacia del `NA` un
   # nivel -todo invalido del objetivo casaba con cualquier invalido del padron-
-  # y las dependencias juntaban los invalidos en un solo grupo. Medido en la
-  # ronda 25: el padron {Ana, Mar<ed>a} declaraba conforme a `Jos<e9>`, y dos
+  # y las dependencias juntaban los invalidos en un solo grupo. Medido: el
+  # padron {Ana, Mar<ed>a} declaraba conforme a `Jos<e9>`, y dos
   # tablas con una sola fila en comun publicaban coberturas 1 y 1.
   #
   # Es el mismo arreglo que `.resumen_clave_normalizada()`: lo que no se puede
@@ -584,7 +584,7 @@ detectar_claves <- function(datos, max_combinacion = 3, normalizar = NULL,
 
 # Un instante se escribia al segundo y una fecha al dia: dos instantes del mismo
 # segundo eran el mismo valor. Y la poda por rangos disjuntos usa el numero sin
-# truncar, asi que la respuesta dependia de los vecinos: medido en la ronda 25,
+# truncar, asi que la respuesta dependia de los vecinos: medido,
 # `a = t0 + 0.2` contra `b = t0 + 0.7` salia `sin_coincidencias` por la poda, y
 # agregando `t0 + 0.9` a `a` -el mismo valor de `b`- salia `m:1` con cobertura
 # 1. Las dependencias agrupaban los dos instantes de cada segundo y no omitian
@@ -661,9 +661,9 @@ detectar_claves <- function(datos, max_combinacion = 3, normalizar = NULL,
 #     respuesta, y la senal abortaba con un error crudo de R.
 #   - Una magnitud con unidad (`units`) no se compara por su numero: el mismo
 #     numero en otra unidad es otro valor. Su aritmetica abortaba al mezclarla
-#     con un numero sin unidad (`abs(x) < 2^63`) o con otra unidad -medido en
-#     la ronda 30: `detectar_relaciones()` abortaba aunque la columna no fuera
-#     candidata-. Es la decision de los validadores (ronda 27): se pregunta por
+#     con un numero sin unidad (`abs(x) < 2^63`) o con otra unidad -medido:
+#     `detectar_relaciones()` abortaba aunque la columna no fuera
+#     candidata-. Es la decision de los validadores: se pregunta por
 #     la clase antes de operar con la magnitud.
 .columna_no_comparable <- function(x) {
   if (.es_columna_compuesta(x)) {
@@ -712,7 +712,7 @@ detectar_claves <- function(datos, max_combinacion = 3, normalizar = NULL,
   # Por su valor, como el camino referencial: el mismo numero guardado como
   # `integer64` en una tabla y como doble en la otra -100000 y 1e5- no se
   # encontraba, y la cobertura de una clave foranea daba 0 sobre 2 de 3.
-  # Medido en la ronda 22.
+  # Medido.
   valores <- .texto_identidad(.valores_relacion(x))
   valores_muestra <- .muestrear_vector(valores, muestra)$valores
   valores_completos <- valores[!is.na(valores)]
@@ -852,9 +852,9 @@ detectar_claves <- function(datos, max_combinacion = 3, normalizar = NULL,
   # `[[valor protegido], [valor protegido]]` no se lee.
   # Cada extremo con sus propias cifras y sin `scipen` ni `digits`, y con coma
   # decimal los extremos se separan con punto y coma, como en
-  # `comparar_perfiles()`: con `OutDec = ","` salia `[0,10, 0,75]` (ronda 31-S).
+  # `comparar_perfiles()`: con `OutDec = ","` salia `[0,10, 0,75]`.
   # Los dos rangos con el mismo separador: con `LC_NUMERIC` en coma solo los
-  # extremos con fraccion la traen (ronda 32-S).
+  # extremos con fraccion la traen.
   extremos <- function(rango) {
     vapply(c(rango[["minimo"]], rango[["maximo"]]),
            .formatear_numero_publicado, character(1L))
@@ -896,7 +896,7 @@ detectar_claves <- function(datos, max_combinacion = 3, normalizar = NULL,
   #
   # Pero esa cota es de VALORES DISTINTOS, y la cobertura que se compara con el
   # umbral es por FILAS: `mean(y$muestra %in% x$unicos)`. Un solo valor comun
-  # puede cubrir casi todas las filas. Medido en la ronda 25: `a = {1}` contra
+  # puede cubrir casi todas las filas. Medido: `a = {1}` contra
   # `b` con 91 filas en 1 y nueve valores mas daba cobertura 0,91 y la poda la
   # declaraba "imposible" con umbral 0,9 -la FK se perdia con un motivo falso-.
   #

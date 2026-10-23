@@ -92,7 +92,7 @@ sentinelas_naniar <- c(-9, -99, -999, -9999, 9999, 66, 77, 88)
 # mas un `S/D`, el perfil detectaba solo `S/D`, y el plan publicaba
 # `valores = c("sd", "nd", "s/d")`, decia que "sd, nd" podian ser legitimos -no
 # se habian detectado- y por eso dejaba sin recomendar la conversion que el
-# hallazgo si sostenia. Medido en la refutacion 26-R.
+# hallazgo si sostenia. Medido.
 #
 # Lo declarado atraviesa la guarda del vocabulario, igual que un centinela
 # numerico declarado atraviesa la de la secuencia densa: el paquete no tiene con
@@ -131,7 +131,7 @@ sentinelas_naniar <- c(-9, -99, -999, -9999, 9999, 66, 77, 88)
 # lee el resto del perfil -`.leer_numeros_texto()`-: `"-999,00"` en una columna
 # `decimal_coma` es -999, como su `minimo`. Con `as.numeric()` era `NA`, y la
 # columna publicaba `minimo = -999` con cero disfrazados y sin `NoNulo`, al
-# lado de la misma cifra escrita `"-999.00"`, que si contaba (refutacion 33-D).
+# lado de la misma cifra escrita `"-999.00"`, que si contaba.
 # Sin convencion -o vacia: la columna no se lee como numero- la lectura es la
 # de siempre.
 .detectar_faltantes_disfrazados <- function(
@@ -189,7 +189,7 @@ sentinelas_naniar <- c(-9, -99, -999, -9999, 9999, 66, 77, 88)
     mascara <- mascara_numerica
     # La etiqueta del valor, no su escritura en la sesion: con `scipen = -9` el
     # centinela -99 salia `-9.9e+01` en la evidencia, que ademas se relee como
-    # lista de marcadores (ronda 31-S).
+    # lista de marcadores.
     etiquetas <- .etiqueta_numero_reversible(numero[mascara])
   } else {
     etiquetas <- character()

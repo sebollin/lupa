@@ -1,6 +1,6 @@
-# Las tres correcciones de la vuelta n88, todas sobre arreglos del mismo dia.
+# N88: tres correcciones sobre arreglos anteriores.
 #
-# La leccion comun: dos de las tres eran arreglos MIOS que cerraban el caso que
+# La leccion comun: dos de los tres arreglos corregidos cerraban el caso que
 # nombraban y abrian otro al lado.
 
 # --- H6: el parseo de dependencias del workflow de macOS --------------------
@@ -26,9 +26,8 @@
 # `test_path()`, y las dos SALTEABAN en silencio segun desde donde se corriera.
 # El control rojo lo destapo: revirtiendo el arreglo del workflow la guarda
 # seguia verde. Una guarda que saltea no se distingue de una que no mide.
-# Regresion de una ronda de refutacion: corre en la suite completa, en el CI y en
-# R-hub, que usan NOT_CRAN=true; en CRAN se saltea para que el check entre en sus
-# tiempos (medicion del 2026-10-23).
+# Prueba de regresion: corre en la suite completa, en el CI y en R-hub, que usan
+# NOT_CRAN=true; en CRAN se saltea para que el check entre en sus tiempos.
 testthat::skip_on_cran()
 
 .n88_raiz_fuentes <- function() {

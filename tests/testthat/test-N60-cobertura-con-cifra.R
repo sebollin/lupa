@@ -6,9 +6,8 @@
 #
 # No rompia nada, no avisaba y no cambiaba ningun calculo. Por eso sobrevivio.
 
-# Regresion de una ronda de refutacion: corre en la suite completa, en el CI y en
-# R-hub, que usan NOT_CRAN=true; en CRAN se saltea para que el check entre en sus
-# tiempos (medicion del 2026-10-23).
+# Prueba de regresion: corre en la suite completa, en el CI y en R-hub, que usan
+# NOT_CRAN=true; en CRAN se saltea para que el check entre en sus tiempos.
 testthat::skip_on_cran()
 
 test_that("el motivo de cobertura trae su cifra y no un hueco", {

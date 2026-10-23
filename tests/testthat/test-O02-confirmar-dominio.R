@@ -4,8 +4,8 @@
 # de codigos de pais ISO, donde `NA` **es** Namibia: tres valores reales
 # destruidos en silencio por el plan recomendado.
 #
-# La vuelta anterior corrigio la JUSTIFICACION para que pidiera confirmar el
-# dominio, y el plan siguio marcandose `recomendada`, `aplicar = TRUE` y
+# Corregir la JUSTIFICACION para que pidiera confirmar el dominio no alcanzaba:
+# el plan siguio marcandose `recomendada`, `aplicar = TRUE` y
 # `destructiva = FALSE` sobre un cambio que la misma fila declaraba
 # `reversible = FALSE`. Cambiar la frase no cambia lo que el paquete hace: por
 # eso esta prueba mide la CONDUCTA y no el texto.
@@ -15,9 +15,8 @@
 # "podria ser un valor legitimo": `NA` es Namibia y `NULL` puede ser un
 # apellido, pero nadie escribe `S/D` ni `sin dato` como dato.
 
-# Regresion de una ronda de refutacion: corre en la suite completa, en el CI y en
-# R-hub, que usan NOT_CRAN=true; en CRAN se saltea para que el check entre en sus
-# tiempos (medicion del 2026-10-23).
+# Prueba de regresion: corre en la suite completa, en el CI y en R-hub, que usan
+# NOT_CRAN=true; en CRAN se saltea para que el check entre en sus tiempos.
 testthat::skip_on_cran()
 
 .o02_plan <- function(valores) {

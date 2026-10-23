@@ -2,7 +2,7 @@
 ## contra comprobaciones independientes escritas a mano en R base.
 ##
 ## Es la fila "Registro real de sanciones" de la tabla de evidencia de los
-## README. Existia como numero desde una ronda vieja y **no habia forma de
+## README. Existia como numero desde hacia tiempo y **no habia forma de
 ## reproducirlo desde el repositorio**: se midio una vez, quedo en notas que no
 ## se publican, y el numero viajo al README. Un numero publicado que nadie puede
 ## comprobar se vuelve mentira sin que nadie se entere.

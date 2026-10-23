@@ -1,13 +1,12 @@
-# Una declaracion vale en todas las salidas, no solo en la primera. La vuelta
-# anterior hizo que `evaluar()` avisara -y su impresion declarara- cuando una
-# regla nombra una metrica que la medicion no trae. El informe HTML, que es el
-# que se manda a otra persona, seguia publicando `resultado = 0.9` y nada mas:
+# Una declaracion vale en todas las salidas, no solo en la primera. `evaluar()`
+# avisa -y su impresion declara- cuando una regla nombra una metrica que la
+# medicion no trae. El informe HTML, que es el que se manda a otra persona,
+# seguia publicando `resultado = 0.9` y nada mas:
 # el veredicto se leia como completo. El documento no contenia ni el nombre de la
 # metrica sin medidas ni la palabra `sin_medidas`.
 
-# Regresion de una ronda de refutacion: corre en la suite completa, en el CI y en
-# R-hub, que usan NOT_CRAN=true; en CRAN se saltea para que el check entre en sus
-# tiempos (medicion del 2026-10-23).
+# Prueba de regresion: corre en la suite completa, en el CI y en R-hub, que usan
+# NOT_CRAN=true; en CRAN se saltea para que el check entre en sus tiempos.
 testthat::skip_on_cran()
 
 evaluacion_o59 <- function() {

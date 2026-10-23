@@ -537,8 +537,8 @@ test_that("un WKB declarado con un valor invalido declara la perdida sin sf", {
   metricas <- lupa:::.perfilar_geometria(columna)
 
   ## El invalido nunca llega a sf. Antes, ademas, borraba la medicion de la
-  ## columna entera; desde la ronda 28-G el valido se mide y la perdida se
-  ## declara con su cifra: un solo valor basura no deja la columna sin medir.
+  ## columna entera; ahora el valido se mide y la perdida se declara con su
+  ## cifra: un solo valor basura no deja la columna sin medir.
   expect_false(any(vapply(recibidos, identical, logical(1L), invalido)))
   expect_true(metricas$aplica)
   expect_identical(metricas$representacion_geometria, "WKB")

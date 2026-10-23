@@ -76,10 +76,10 @@ test_that("una clave foranea reparte, y perder la numeracion no acusa nada", {
   # Control: las reglas que miran el TAMANO de la moda rompen esto, porque una
   # clave foranea legitima tiene modas grandes. La que mira la FORMA no.
   #
-  # Ronda 28-N: una clave que se repite ya no es numeracion -no se distingue de
-  # una magnitud que lleno su rango-, y la promesa del paquete es que perder esa
-  # condicion "no genera un hallazgo por si solo: solo devuelve la columna a la
-  # mirada de la lista de centinelas". Eso es lo que se fija.
+  # Una clave que se repite no es numeracion -no se distingue de una magnitud
+  # que lleno su rango-, y la promesa del paquete es que perder esa condicion
+  # "no genera un hallazgo por si solo: solo devuelve la columna a la mirada de
+  # la lista de centinelas". Eso es lo que se fija.
   id <- rep(1:100, times = c(8L, rep(5L, 99L)))
   perfil <- perfilar(
     data.frame(id = id),
@@ -109,11 +109,11 @@ test_that("una moda legitima no inventa un hallazgo", {
 })
 
 test_that("un senuelo frecuente no tapa al centinela", {
-  # Lo encontro una refutacion externa. Comparar la moda contra el SEGUNDO valor
-  # supone que el centinela ES la moda, y es derrotable: con `1:60`, cinco `-9` y
-  # un `7` repetido seis veces las frecuencias quedan {6, 5, 1, ...}, el cociente
-  # moda/segundo da 1,2 y los cinco centinelas se callaban. Por eso la frecuencia
-  # maxima se compara contra la TIPICA, no contra la segunda.
+  # Comparar la moda contra el SEGUNDO valor supone que el centinela ES la moda,
+  # y es derrotable: con `1:60`, cinco `-9` y un `7` repetido seis veces las
+  # frecuencias quedan {6, 5, 1, ...}, el cociente moda/segundo da 1,2 y los
+  # cinco centinelas se callaban. Por eso la frecuencia maxima se compara contra
+  # la TIPICA, no contra la segunda.
   for (repeticiones in c(6L, 20L)) {
     id <- c(1:60, rep(-9L, 5L), rep(7L, repeticiones))
     perfil <- perfilar(
@@ -141,8 +141,8 @@ test_that("una clave foranea con distribucion pareja conserva su escudo", {
     analizar_dependencias = FALSE, proteger_datos_personales = FALSE
   )
   expect_false(pareja$columnas$moda_sobresale_secuencia_entera[[1L]])
-  # Ronda 28-N: repetida cuatro veces cada una, no es numeracion; sin valores de
-  # la lista de centinelas, no hay nada que acusar.
+  # Repetida cuatro veces cada una, no es numeracion; sin valores de la lista de
+  # centinelas, no hay nada que acusar.
   expect_false(pareja$columnas$secuencia_entera_densa[[1L]])
   expect_equal(as.numeric(pareja$columnas$n_faltantes_disfrazados[[1L]]), 0)
 
@@ -173,19 +173,19 @@ test_that("perder el escudo con una moda dominante legitima no acusa nada", {
 })
 
 test_that("un centinela masivo dentro de una clave foranea no queda callado", {
-  # Lo encontro una refutacion externa, y era un agujero del arreglo anterior:
-  # `rep(1:40, each = 4)` con cien `-9` da frecuencias {100, 4, 4, ...}. La
-  # regla exigia forma de numeracion -frecuencia tipica 1- y una clave foranea
-  # nunca la tiene, asi que el escudo se tragaba cien ausencias codificadas.
-  # Contra el SEGUNDO valor mas frecuente si se ve: 100 contra 4.
+  # Era un agujero de un arreglo anterior: `rep(1:40, each = 4)` con cien `-9`
+  # da frecuencias {100, 4, 4, ...}. La regla exigia forma de numeracion
+  # -frecuencia tipica 1- y una clave foranea nunca la tiene, asi que el escudo
+  # se tragaba cien ausencias codificadas. Contra el SEGUNDO valor mas frecuente
+  # si se ve: 100 contra 4.
   perfil <- perfilar(
     data.frame(id = c(rep(1:40, each = 4L), rep(-9L, 100L))),
     analizar_dependencias = FALSE, proteger_datos_personales = FALSE
   )
 
   expect_true(perfil$columnas$moda_sobresale_secuencia_entera[[1L]])
-  # Ronda 28-N: la clave se repite y no es numeracion; el centinela se acusa
-  # igual, que es lo que esta prueba defiende.
+  # La clave se repite y no es numeracion; el centinela se acusa igual, que es
+  # lo que esta prueba defiende.
   expect_false(perfil$columnas$secuencia_entera_densa[[1L]])
   expect_equal(as.numeric(perfil$columnas$n_faltantes_disfrazados[[1L]]), 100)
 })
@@ -216,16 +216,16 @@ test_that("un grupo bajo el umbral de densidad no acusa lo que la tabla calla", 
   # que solo cubria `faltantes_disfrazados`, asi que las dos puertas discrepaban
   # sobre las mismas cuatro filas.
   #
-  # Ronda 28-N: el grupo B repetia 1..34, que en la tabla completa duplicaba un
-  # tercio de los valores, y una columna que se repite ya no es numeracion. El
-  # caso es el de una numeracion de la tabla entera que el grupo corta.
+  # El grupo B no repite 1..34: en la tabla completa eso duplicaria un tercio de
+  # los valores, y una columna que se repite no es numeracion. El caso es el de
+  # una numeracion de la tabla entera que el grupo corta.
   #
-  # Ronda 29-E: el caso anterior era 1..94 con ocho -9, y la tabla completa SI
-  # acusaba -el -9 cae fuera del rango y reabre la guarda: 8
-  # `faltantes_disfrazados`-; esta prueba exigia que `perfilar_por()` los
-  # callara. Ahora el centinela es el 999 de la lista, dentro del rango y sin
-  # sobresalir: la tabla completa no acusa nada (comprobado abajo) y el grupo B,
-  # 33 numeros espaciados de la numeracion mas cuatro 999, si.
+  # Un grupo B de 1..94 con ocho -9 haria acusar a la tabla completa -el -9 cae
+  # fuera del rango y reabre la guarda: 8 `faltantes_disfrazados`-, y la prueba
+  # exigiria que `perfilar_por()` los callara. Por eso el centinela es el 999 de
+  # la lista, dentro del rango y sin sobresalir: la tabla completa no acusa nada
+  # (comprobado abajo) y el grupo B, 33 numeros espaciados de la numeracion mas
+  # cuatro 999, si.
   b_numeros <- seq(10L, 970L, by = 30L)
   a <- setdiff(1:1000, c(b_numeros, 999L))
   b <- c(b_numeros, rep(999L, 4L))
@@ -277,9 +277,8 @@ test_that("una ausencia real del grupo NO se reubica", {
 })
 
 test_that("varios centinelas empatados no se cubren entre si", {
-  # La tercera version de esta regla la rompio una refutacion externa. Comparar
-  # la frecuencia maxima contra la del SEGUNDO valor queda vacua cuando hay
-  # varios centinelas con la misma frecuencia: `{499, 499, 499, 2, ...}` da
+  # Comparar la frecuencia maxima contra la del SEGUNDO valor queda vacua cuando
+  # hay varios centinelas con la misma frecuencia: `{499, 499, 499, 2, ...}` da
   # `max == segundo`, y mil cuatrocientos noventa y siete valores se callaban.
   # El acantilado no mira quien es el segundo sino donde se corta la
   # distribucion: de 499 a 2 hay un salto de 249.

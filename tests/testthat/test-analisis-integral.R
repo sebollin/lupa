@@ -385,8 +385,8 @@ test_that("analizar mide por omision sin conservar el detalle", {
   expect_s3_class(resultado$plan_limpieza, "plan_limpieza")
   expect_true(all(c("estado", "motivo", "como_resolverlo") %in%
                     names(resultado$cobertura)))
-  # Ronda 111: la propuesta lista se mide y queda agregada en vez de retener
-  # una fila por celda o fila de entrada.
+  # La propuesta lista se mide y queda agregada en vez de retener una fila por
+  # celda o fila de entrada.
   expect_s3_class(resultado$medicion, "medicion")
   expect_s3_class(resultado$tablero, "tablero_calidad")
   expect_null(resultado$detalle_medicion)
@@ -403,8 +403,8 @@ test_that("analizar mide por omision sin conservar el detalle", {
 })
 
 test_that("analizar puede desactivar solo la medicion automatica", {
-  # Ronda 111: este argumento conserva deliberadamente el contrato anterior
-  # para quienes necesitan un analisis puramente descriptivo.
+  # Este argumento conserva deliberadamente el contrato anterior para quienes
+  # necesitan un analisis puramente descriptivo.
   resultado <- analizar(
     datos_administrativos, medir_propuesta = FALSE,
     analizar_dependencias = FALSE
@@ -478,8 +478,8 @@ test_that("analizar valida decisiones y argumentos coordinados", {
   expect_error(analizar(
     datos, modelo_confirmado = modelo_x, propuesta_confirmada = propuesta
   ), "no ambos")
-  # Ronda 111: la evaluacion consume la medicion agregada; el diagnostico nombra
-  # ese requisito aunque la propuesta automatica no tenga filas medibles.
+  # La evaluacion consume la medicion agregada; el diagnostico nombra ese
+  # requisito aunque la propuesta automatica no tenga filas medibles.
   expect_error(
     analizar(datos, perfil_evaluacion = list()), "requiere una medici"
   )

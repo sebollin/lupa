@@ -6,9 +6,8 @@
 # emitia su propio aviso `lupa_trazabilidad_incoherente` sobre un perfil INTACTO,
 # cuando hay una prueba que declara que un perfil intacto no lo emite.
 
-# Regresion de una ronda de refutacion: corre en la suite completa, en el CI y en
-# R-hub, que usan NOT_CRAN=true; en CRAN se saltea para que el check entre en sus
-# tiempos (medicion del 2026-10-23).
+# Prueba de regresion: corre en la suite completa, en el CI y en R-hub, que usan
+# NOT_CRAN=true; en CRAN se saltea para que el check entre en sus tiempos.
 testthat::skip_on_cran()
 
 avisos_de <- function(expr) {
@@ -31,10 +30,10 @@ fila_de <- function(perfil, tipo) {
 filas_trazadas <- function(fila) {
   traza <- fila$trazabilidad[[1L]]
   if (is.list(traza) && !is.null(traza$indices_fila)) {
-    # El CONJUNTO de filas, que es lo que este archivo compara. Desde la ronda
-    # 24-C la traza de `mayusculas_inconsistentes` entrega primero las filas de
-    # las formas variantes -como `casi_duplicados_vocabulario`-, asi que su
-    # orden ya no es el de las filas.
+    # El CONJUNTO de filas, que es lo que este archivo compara. La traza de
+    # `mayusculas_inconsistentes` entrega primero las filas de las formas
+    # variantes -como `casi_duplicados_vocabulario`-, asi que su orden no es el
+    # de las filas.
     sort(as.integer(traza$indices_fila))
   } else {
     integer()
@@ -165,7 +164,7 @@ test_that("la lista de campos de indices de geometria esta en un solo lugar", {
   vacias <- lupa:::.metricas_geometria_vacias()
 
   expect_true(all(campos %in% names(vacias)))
-  # Ronda 28-G: se suman las posiciones medidas y las analizadas, que el recorte
+  # Incluyen las posiciones medidas y las analizadas, que el recorte
   # al universo necesita para contar lo evaluado dentro de el.
   expect_identical(length(campos), 7L)
 })

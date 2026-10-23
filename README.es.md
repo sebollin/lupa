@@ -76,7 +76,7 @@ escritura, números guardados como texto, casi-claves, constantes y ausencia
 estructural. Sobre un banco de referencia con defectos conocidos recuperó 9 de
 9 defectos plantados; sobre 31 tablas limpias produjo 0 hallazgos de severidad
 error y 8 señales para revisar. Las tres cifras las fija
-`tests/testthat/test-ronda107.R`, para que no puedan envejecer en silencio.
+`tests/testthat/test-regresion-107.R`, para que no puedan envejecer en silencio.
 
 El vocabulario canónico actual contiene 58 nombres de `tipo_hallazgo`. Los
 nombres están en español porque forman parte de la API pública:
@@ -466,8 +466,8 @@ simulado podía encontrar. El de DuckDB es el más filoso: acepta
 porque con un filtro trivialmente falso su parser no llega a validar el método
 de muestreo. La sonda de capacidad usaba justo ese filtro para salir barata, así
 que pasaba, y la consulta real fallaba. **Una sonda que no ejercita la forma que
-después se emite no prueba nada** — la misma lección que había dejado la sonda
-del desvío una ronda antes.
+después se emite no prueba nada**: por eso cada sonda de `lupa` prueba la misma
+forma que va a emitir.
 
 El dialecto se puede declarar con `dialecto =` si la sonda no acierta. Un fallo
 parcial nunca descarta lo ya medido: si la lectura de la muestra falla, el objeto
@@ -1075,7 +1075,7 @@ El criterio se eligió midiendo. Un banco de trece columnas con la respuesta
 conocida —cinco numeraciones y ocho magnitudes con un dato malo adentro—
 comparó cuatro variantes: cruzar las dos señales acierta las trece y **no calla
 ningún dato malo real**; la densidad sola acertaba once y callaba dos. Está en
-`test-ronda118.R`. Desde que se exige que una numeración casi no se repita, una de
+`test-regresion-118.R`. Desde que se exige que una numeración casi no se repita, una de
 las cinco —un código de 1 a 284 que se repite— ya no se reconoce y recibe los
 límites de Tukey: acierta doce, y el error queda del lado barato, el de hablar de
 más y no el de callar. Quien conoce la columna lo corrige declarándola en
@@ -1393,7 +1393,7 @@ Ninguna estima una exactitud única para todo el paquete.
 | Comprobación | Unidad declarada | Resultado | Se reproduce con |
 | --- | --- | ---: | --- |
 | Pares dirty/clean de Raha | columnas que contienen al menos una celda cambiada | 26/26 recibieron al menos un hallazgo; se señalaron 8 columnas más | `benchmark/medir_lupa.R` |
-| Controles limpios construidos | 31 tablas | 0 hallazgos de severidad error; 8 señales para revisar | `test-ronda107.R` |
+| Controles limpios construidos | 31 tablas | 0 hallazgos de severidad error; 8 señales para revisar | `test-regresion-107.R` |
 | Registro real de sanciones | hallazgos de severidad error sobre 2.556 filas | 9/9 confirmados de manera independiente | `benchmark/medir_sanciones.R` |
 
 **Cada fila dice con qué se reproduce, y eso es parte de la comprobación.** Esta

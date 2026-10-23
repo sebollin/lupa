@@ -19,9 +19,9 @@ testthat::skip_on_cran()
 test_that("los valores que no convierten se cuentan con y sin muestreo", {
   # 900 se leen como numero y 40 no son numero. Ninguno es NA de origen: los
   # 1000 estan presentes. Los 60 `1.234,5` se contaban como separadores que no
-  # convierten porque el resumen los leia con `sub(",", ".")`; desde la ronda
-  # 27-V los lee con la convencion que el perfil publica -`decimal_coma`, por la
-  # coma con un decimal- y son 1234,5, como los convierte la remediacion.
+  # convierten porque el resumen los leia con `sub(",", ".")`; ahora los lee con
+  # la convencion que el perfil publica -`decimal_coma`, por la coma con un
+  # decimal- y son 1234,5, como los convierte la remediacion.
   valores <- c(rep("100", 900L), rep("1.234,5", 60L), rep("no-numero", 40L))
   datos <- data.frame(x = valores, stringsAsFactors = FALSE)
 

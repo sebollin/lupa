@@ -255,12 +255,12 @@ print.inferencia_tipo <- function(x, ...) {
 # no destructiva.
 # Un instante, con todas sus cifras: `format()` sin formato sigue a
 # `options(digits.secs)`, y con el valor por omision dos instantes del mismo
-# segundo eran una colision (ronda 32-S). Ver `.texto_instante_utc()`.
+# segundo eran una colision. Ver `.texto_instante_utc()`.
 .texto_representacion_conversion <- function(x) {
   if (inherits(x, "POSIXt")) {
     return(.texto_instante_utc(x))
   }
   # Declarada: se compara con `.nombres_para_operar()` y se recorta, y un
-  # `unknown` junto a un `UTF-8` avisaba bajo `C` (ronda 30-L).
+  # `unknown` junto a un `UTF-8` avisaba bajo `C`.
   .declarar_utf8_valido(as.character(x))
 }

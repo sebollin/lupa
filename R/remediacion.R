@@ -51,7 +51,7 @@
 # filas de la columna-. Estaba escrito una vez bien -las acciones informativas,
 # donde `alta_cardinalidad` publicaba 80 "columnas" sobre 1- y otra mal:
 # `desambiguar_fecha_en_origen` publicaba `n_afectadas = 40` con la unidad
-# "formato" de un hallazgo que declara 2 formatos (ronda 31). La regla es una.
+# "formato" de un hallazgo que declara 2 formatos. La regla es una.
 .n_afectadas_del_hallazgo <- function(hallazgo, fila) {
   if (!is.null(hallazgo) && "n_afectados" %in% names(hallazgo)) {
     return(suppressWarnings(as.numeric(hallazgo$n_afectados[[1L]])))
@@ -120,11 +120,10 @@
 # Las columnas de una tabla que son marcas que agrega el propio plan:
 # `.fila_duplicada`, `.grupo_duplicado`, y `.ausente_<x>` y `.outlier_<x>` de una
 # columna `x` de la misma tabla. Volver a planificar sobre lo aplicado -el idioma
-# documentado `plan$aplicar <- plan$recomendada`, ronda tras ronda- trataba la
+# documentado `plan$aplicar <- plan$recomendada`, una y otra vez- trataba la
 # marca como dato: recomendaba `marcar_filas_ausentes` sobre `.grupo_duplicado`,
 # cuyo `NA` significa "no participa de ningun grupo", y publicaba cinco filas
-# "ausentes" que no lo eran; proponia ademas borrarla por constante. Medido en la
-# refutacion 26-R.
+# "ausentes" que no lo eran; proponia ademas borrarla por constante. Medido.
 .marcas_del_plan <- function(nombres) {
   nombres <- as.character(nombres)
   if (!length(nombres)) return(logical())
@@ -139,10 +138,9 @@
 
 # Una accion que agrega una marca cuya columna YA esta en la tabla no puede
 # ejecutarse: `.agregar_marca()` aborta. El plan la recomendaba y activaba igual
-# en cada ronda, y `aplicar()` la registraba `fallida` -"La columna de marca ya
-# existe"- sin que el ciclo llegara nunca a un plan sin fallas. Medido en la
-# refutacion 26-R. Se bloquea y se dice por que, la misma pregunta que hace el
-# ejecutor.
+# cada vez, y `aplicar()` la registraba `fallida` -"La columna de marca ya
+# existe"- sin que el ciclo llegara nunca a un plan sin fallas. Medido. Se
+# bloquea y se dice por que, la misma pregunta que hace el ejecutor.
 .bloquear_marcas_existentes <- function(plan, nombres_tabla) {
   if (!nrow(plan) || !length(nombres_tabla)) return(plan)
   existentes <- .nombres_para_operar(as.character(nombres_tabla))
@@ -328,12 +326,12 @@
 # solo una ambiguedad que el usuario resuelve -`punto_sin_coma`,
 # `coma_sin_punto`-: esa accion sigue `lista`, se configura y se ejecuta. Pero
 # si falla con todas las configuraciones no hay nada que decidir, y es
-# `bloqueada`. La ronda 30 lo resolvio para UNA de esas fallas -la columna que no
-# es texto, mirando su clase- y la regla quedo escrita como un caso: sobre
+# `bloqueada`. Resolverlo para UNA de esas fallas -la columna que no es texto,
+# mirando su clase- deja la regla escrita como un caso: sobre
 # `c("1.234,56", "100.000", "1e5", ...)` -`1e5` no responde al formato
 # regional- la accion salia `lista` con un `motivo_no_reversible` que decia "no
-# es ejecutable sobre los datos completos" (ronda 31). Ahora se pregunta al
-# conversor, que es quien decide. Sin datos no se sabe, y no se afirma.
+# es ejecutable sobre los datos completos". Por eso se pregunta al conversor,
+# que es quien decide. Sin datos no se sabe, y no se afirma.
 .regional_no_ejecutable_plan <- function(datos, columna, parametros,
                                          comprobacion) {
   if (!isTRUE(comprobacion$verificable) || isTRUE(comprobacion$ejecutable)) {
@@ -500,9 +498,9 @@
     # La perdida ocurre al parsear, y se mide sobre el texto EXACTO que el
     # conversor le pasa a `as.numeric()`: el que devuelve su propia
     # normalizacion, antes de cualquier unidad. Esta guarda rearmaba antes ese
-    # texto por su cuenta, con una rama por formato, y en cinco rondas cada
-    # formato nuevo fue un agujero -entero plano, con `%`, cientifica, mantisa
-    # con coma, entero es-UY con `,0`-. Con la normalizacion compartida no hay
+    # texto por su cuenta, con una rama por formato, y cada formato nuevo fue
+    # un agujero -entero plano, con `%`, cientifica, mantisa con coma, entero
+    # es-UY con `,0`-. Con la normalizacion compartida no hay
     # formato que el conversor lea y la guarda no vea.
     texto <- tryCatch(
       if (identical(estrategia, "convertir_numero_regional")) {
@@ -587,7 +585,7 @@
 # `aplicar()` no recortaba. Con `descripcion ~ flag == "si"`, el perfil contaba 1
 # faltante y la accion imputaba 3, incluidas las 2 filas que el usuario declaro
 # vacias por diseno; el re-perfil acusaba `valor_fuera_de_aplicabilidad`.
-# Medido en la refutacion 26-R. Una sola pregunta para las dos puertas.
+# Medido. Una sola pregunta para las dos puertas.
 .estrategia_por_celda <- function(estrategia) {
   estrategia <- as.character(estrategia)
   estrategia %in% .estrategias_por_celda |
@@ -596,8 +594,8 @@
 
 # Las acciones de outliers reciben la regla de `aplicabilidad` y la aplican ELLAS
 # MISMAS: los limites de Tukey dependen de que valores entran en el calculo, asi
-# que no alcanza con restaurar despues las celdas de afuera. Medido en una
-# refutacion: `marcar_outliers` marcaba una fila fuera del universo y
+# que no alcanza con restaurar despues las celdas de afuera. Medido:
+# `marcar_outliers` marcaba una fila fuera del universo y
 # `winsorizar_outliers` recortaba 400 a 242,5 -limite de la columna entera- en vez
 # de 106,5, el del universo que el perfil midio. Y restaurar despues confundia la
 # winsorizacion con una fusion al recontar las irreversibles.
@@ -1264,7 +1262,7 @@ planificar_limpieza <- function(perfil, datos = NULL,
   # Una columna declarada en `columnas_codigo` es un codigo y no una cantidad: no
   # recibe acciones que la conviertan en numero. El perfil ya no publica esos
   # hallazgos sobre un codigo declarado; la guarda vale tambien para un perfil
-  # calculado antes, que si los traia (refutacion 34-D).
+  # calculado antes, que si los traia.
   codigos_declarados <- .nombres_para_operar(as.character(
     perfil$meta[["columnas_codigo"]]
   ))
@@ -1622,7 +1620,7 @@ planificar_limpieza <- function(perfil, datos = NULL,
         # datos no sale `lista`: sobre una columna que no es texto su propio
         # `motivo_no_reversible` decia "requiere una columna de texto", el
         # estado invitaba a activarla y `aplicar()` la registraba `fallida`
-        # (medido en la ronda 30 sobre una columna `raw`). Ninguna
+        # (medido sobre una columna `raw`). Ninguna
         # configuracion la cambia. Una conversion que solo espera que se
         # resuelva una ambiguedad -`punto_sin_coma`, `coma_sin_punto`- sigue
         # `lista`: se configura y se ejecuta. La pregunta es una, y se le hace
@@ -2276,7 +2274,7 @@ planificar_limpieza <- function(perfil, datos = NULL,
   # `orden` fija la secuencia, y como texto se ordena alfabeticamente: `"35"` va
   # despues de `"200"`. Una asignacion de R sobre cero filas basta para volverlo
   # texto, y el plan editado eliminaba tres filas en vez de una sin decir nada.
-  # Medido en una refutacion.
+  # Medido.
   if (!is.numeric(plan$orden) || anyNA(plan$orden)) {
     .detener(
       "`orden` debe ser num\u00e9rico sin NA: fija la secuencia en que se ",
@@ -2363,8 +2361,7 @@ planificar_limpieza <- function(perfil, datos = NULL,
                as.character(plan$decision_grupo[[indices[[1L]]]]) %in%
                  c("pendiente", "omitida", "desactivada")) {
       # La activa es la recomendada: el grupo no esta sin revisar ni omitido, y el
-      # registro publicaba `pendiente` u `omitida` junto a `ejecutada`. Medido en
-      # una refutacion.
+      # registro publicaba `pendiente` u `omitida` junto a `ejecutada`. Medido.
       plan$decision_grupo[indices] <- "recomendada"
     } else if (!length(activas) && length(recomendacion) &&
                recomendacion[[1L]] != "no_hacer_nada" &&
@@ -2439,7 +2436,7 @@ rbind.plan_limpieza <- function(..., deparse.level = 1) {
   # las `"B"` en la tabla con el registro `ejecutada` publicando
   # `valores = c("s/d", "n/a", "b")`, parametros que no aplico; la accion
   # hermana `convertir_sentinelas_numericos` si honra la lista ampliada.
-  # Medido en la refutacion 26-R. El plan arma la lista con lo que el detector
+  # Medido. El plan arma la lista con lo que el detector
   # encontro, asi que sin editar convierte lo mismo que antes.
   deteccion <- .detectar_faltantes_disfrazados(
     x, detectar_sentinelas_numericos = FALSE,
@@ -2453,7 +2450,7 @@ rbind.plan_limpieza <- function(..., deparse.level = 1) {
   # lista vacia dejaba de acotar: sacar el unico marcador para conservarlo lo
   # convertia igual, y aplicado a otra entrega convertia `NULL` o `sin dato`, que
   # el plan nunca nombro, mientras el registro publicaba `valores = character(0)`
-  # junto a cuatro celdas cambiadas. Medido en una refutacion. El plan siempre
+  # junto a cuatro celdas cambiadas. Medido. El plan siempre
   # arma la lista con lo observado, asi que vacia o ausente es lo mismo: nada
   # autorizado.
   if (!length(parametros$valores)) {
@@ -2515,7 +2512,7 @@ rbind.plan_limpieza <- function(..., deparse.level = 1) {
 # proteccion queda `fallida` -una fila PUBLICADA en claro que los datos
 # contradicen, o la fila tapada con otro valor- salia `ejecutada` y escribia
 # valores que el plan nunca mostro, e imputaba una clave nueva que no estaba en
-# el plan. Medido en la ronda 28. Ahora hace lo mismo que sin proteccion:
+# el plan. Medido. Ahora hace lo mismo que sin proteccion:
 #
 #   * las filas que el plan publica EN CLARO son el mapa, tal cual, y se validan
 #     como sin proteccion;
@@ -2628,7 +2625,7 @@ rbind.plan_limpieza <- function(..., deparse.level = 1) {
   # salteaba en silencio: con la entrega que trae solo las filas a completar, la
   # accion salia `ejecutada` con 12 celdas de 24 -las de esa clave quedaban NA,
   # sin motivo-; y sin el par ni el titular, `ejecutada` con 11 de 22 donde la
-  # ayuda promete `fallida`. Medido en la ronda 29. Si los datos piden imputar
+  # ayuda promete `fallida`. Medido. Si los datos piden imputar
   # una clave -dependiente ausente- que no cubren ni el mapa en claro ni una
   # fila tapada resuelta, y que tiene la forma de una fila tapada sin resolver,
   # la accion no puede hacer lo que el plan dice: queda `fallida`, con el
@@ -3036,8 +3033,8 @@ rbind.plan_limpieza <- function(..., deparse.level = 1) {
 # HTML5 lee las referencias numericas entre 0x80 y 0x9F como Windows-1252, no como
 # los controles C1 que esos numeros son en Unicode: `&#146;` es el apostrofo
 # tipografico de los textos que vienen de Word. Decodificarlas como controles
-# dejaba un caracter invisible donde iba una letra o una comilla. Medido en una
-# refutacion. Tabla del estandar, escrita aca para no depender de `iconv`; los
+# dejaba un caracter invisible donde iba una letra o una comilla. Medido. Tabla
+# del estandar, escrita aca para no depender de `iconv`; los
 # cinco numeros que Windows-1252 no define quedan como estan.
 .REFERENCIAS_HTML_WINDOWS_1252 <- c(
   `128` = 0x20AC, `130` = 0x201A, `131` = 0x0192, `132` = 0x201E,
@@ -3102,8 +3099,8 @@ rbind.plan_limpieza <- function(..., deparse.level = 1) {
   # `normalizar_espacios_invisibles`, y el plan que estimaba 1 celda cambiaba 4.
   # En la rama por bytes casaba el BYTE 0x85, que es de continuacion en UTF-8:
   # `c3 85` (A con anillo) y `c4 85` (a con ogonek) quedaban `c3 20` y `c4 20`,
-  # dos celdas UTF-8 invalido con el registro en `ejecutada`. Medido en la
-  # refutacion 26-R. `\x09` a `\x0D` son ASCII: no aparecen dentro de ningun
+  # dos celdas UTF-8 invalido con el registro en `ejecutada`. Medido.
+  # `\x09` a `\x0D` son ASCII: no aparecen dentro de ningun
   # caracter multibyte, asi que la rama por bytes no puede partir una letra.
   patron <- "\\x0D\\x0A|[\\x09-\\x0D]"
   nuevo <- .aplicar_por_marca(
@@ -3180,7 +3177,7 @@ rbind.plan_limpieza <- function(..., deparse.level = 1) {
 # Vive aparte porque la guarda de precision de `.evaluar_conversion()` necesita
 # exactamente este texto. Antes lo rearmaba por su cuenta a partir del original,
 # y cada formato que el conversor aceptaba era un agujero posible en la guarda:
-# en cinco rondas aparecieron cinco -entero plano, con `%`, notacion
+# aparecieron cinco -entero plano, con `%`, notacion
 # cientifica, mantisa con coma, y entero es-UY con `,0` final-. Con una sola
 # normalizacion para los dos, lo que el conversor sabe leer la guarda lo ve.
 # El texto que `.convertir_tipo()` le pasa a `as.numeric()`. Aparte por el
@@ -3331,7 +3328,7 @@ rbind.plan_limpieza <- function(..., deparse.level = 1) {
 .convertir_logico <- function(x) {
   # El mismo pliegue con que `inferir_tipo()` reconocio el logico: con
   # `tolower()`, un plan armado en una sesion UTF-8 sobre `SI` con tilde quedaba
-  # `fallida` en un `Rscript` bajo `C` (ronda 30-L).
+  # `fallida` en un `Rscript` bajo `C`.
   texto <- .minusculas_para_comparar(x)
   verdaderos <- c("true", "t", "si", "s\u00ed", "s", "1")
   falsos <- c("false", "f", "no", "n", "0")
@@ -3350,7 +3347,7 @@ rbind.plan_limpieza <- function(..., deparse.level = 1) {
   if (!length(formatos)) {
     .detener("La conversi\u00f3n de fecha requiere formatos confirmados.", call. = FALSE)
   }
-  # Declarado antes del recorte (ronda 30-L): lo mismo que la conversion a
+  # Declarado antes del recorte: lo mismo que la conversion a
   # numero, `.texto_legible_recortado()`.
   valores <- .texto_legible_recortado(x)
   presentes <- !is.na(x)
@@ -3402,8 +3399,8 @@ rbind.plan_limpieza <- function(..., deparse.level = 1) {
     # de `NA_integer_`. El limite inferior estaba en `-.Machine$integer.max - 1`
     # y ese valor pasaba la guarda, se volvia `NA` con un aviso de R, y el plan
     # -que comprueba con este mismo conversor- lo publicaba recomendado, activo
-    # e inyectivo, con `n_no_reversibles = 0` sobre un valor perdido. Medido en
-    # la refutacion 26-R. Ademas de corregir el limite se mira el resultado: un
+    # e inyectivo, con `n_no_reversibles = 0` sobre un valor perdido. Medido.
+    # Ademas de corregir el limite se mira el resultado: un
     # presente que sale `NA` es un valor que el conversor no pudo representar,
     # cualquiera sea la razon.
     limites <- c(-.Machine$integer.max, .Machine$integer.max)
@@ -3476,7 +3473,7 @@ rbind.plan_limpieza <- function(..., deparse.level = 1) {
   # la columna ENTERA a un solo valor. Cuando los extremos mueven los cuartiles
   # -seis de veinticuatro sobre `41 ... 59, 100, 100, 150, 1000, 1000, 5000`-
   # las 24 celdas quedaban en 52,5 y el re-perfil acusaba `constante`, con el
-  # plan diciendo 6 afectadas. Medido en la refutacion 26-R. Que el perfil del
+  # plan diciendo 6 afectadas. Medido. Que el perfil del
   # resultado pueda volver a ver extremos con los cuartiles nuevos es lo que hace
   # Tukey, y no se corrige reescribiendo valores que no eran extremos.
   cambio <- limites$validos & limites$valores != salida
@@ -3489,7 +3486,7 @@ rbind.plan_limpieza <- function(..., deparse.level = 1) {
 # una columna de TEXTO con numeros pasaba entera a `double` -perdia los ceros
 # iniciales que el propio plan protege al bloquear `convertir_tipo`, y el
 # registro contaba una celda de veintiuna-, un factor tambien, y una fecha forzada
-# volvia como numero. Medido en una refutacion. Una columna entera si queda en
+# volvia como numero. Medido. Una columna entera si queda en
 # doble precision: los limites son cuartiles, y el plan lo dice.
 .columna_winsorizada <- function(x, salida, cambio) {
   if (inherits(x, "Date")) {
@@ -3523,7 +3520,7 @@ rbind.plan_limpieza <- function(..., deparse.level = 1) {
 # `0.1 + 0.2` quedaba igual a `0.3`, y `.nombres_para_operar()` igualaba un texto
 # `latin1` con el mismo en UTF-8. Las dos acciones del grupo de duplicados
 # contestaban distinto a "es esta fila un duplicado", y `conservar_mas_completa`
-# borraba una fila con clave distinta. Medido en una refutacion. `match()` sobre
+# borraba una fila con clave distinta. Medido. `match()` sobre
 # cada columna es exacto en los dobles, distingue `NaN` de `NA` y no ordena, asi
 # que tampoco aborta con bytes invalidos. `integer64` va por su texto exacto: su
 # `NA` tiene el patron de bits de `-0` como doble, y `match()` lo igualaria al 0.
@@ -3533,11 +3530,11 @@ rbind.plan_limpieza <- function(..., deparse.level = 1) {
 # como el nivel `NA`: sobre codigos `1, 2, NA, NA` con niveles `c("a", NA)` el
 # perfil contaba 1 duplicada y 2 filas en grupos, `marcar_filas_duplicadas`
 # metia la fila 2 en el grupo de las filas 3 y 4 -3 filas, 2 repetidas- y
-# `conservar_primera_duplicada` quitaba 1. Medido en la refutacion 26-R. Un
+# `conservar_primera_duplicada` quitaba 1. Medido. Un
 # `POSIXlt` -lo que deja `strptime()`- es una lista por dentro: va por su
 # instante, como lo iguala el perfil.
 #
-# Desde la ronda 30 el nivel `NA` es un faltante en el perfil -ver
+# El nivel `NA` es un faltante en el perfil -ver
 # `.factor_sin_nivel_na()`-, y el perfil cuenta los duplicados sobre su copia
 # sin ese nivel: el nivel `NA` y el codigo ausente son el mismo valor, ausente.
 # Los codigos se toman de la misma copia, para que el ejecutor siga agrupando
@@ -3561,7 +3558,7 @@ rbind.plan_limpieza <- function(..., deparse.level = 1) {
   if (!length(codigos)) return(integer())
   # Sin los nombres de las columnas: `do.call()` los vuelve nombres de argumento
   # y bajo `C` una columna con acento avisaba "unable to translate" en
-  # `aplicar()` (ronda 33-X, la construccion de `medir()`).
+  # `aplicar()`. Es la construccion de `medir()`.
   as.integer(do.call(interaction, c(
     unname(lapply(codigos, factor)), list(drop = TRUE, lex.order = TRUE)
   )))
@@ -3575,7 +3572,7 @@ rbind.plan_limpieza <- function(..., deparse.level = 1) {
 # ACTIVABA `marcar_filas_duplicadas`, y `aplicar()` la registraba `fallida`
 # ("replacement has 6 rows, data has 3" / "No se pueden agrupar duplicados con
 # columnas de lista") mientras `conservar_primera_duplicada` -que iba por otro
-# camino- si quitaba la fila. Medido en la refutacion 26-R.
+# camino- si quitaba la fila. Medido.
 .tabla_identidad_filas <- function(datos) {
   .expandir_datos_identidad(.tabla_base(datos))
 }
@@ -3639,7 +3636,7 @@ rbind.plan_limpieza <- function(..., deparse.level = 1) {
 # ya habia corregido para las acciones de texto-. Y sobre un `data.table` con
 # clave, rearmar la tabla con `as.data.table()` perdia la clave: quitar filas de
 # una tabla ordenada la deja ordenada, y `aplicar()` solo saca la clave si la
-# accion toca su columna. Medido en la refutacion 26-R.
+# accion toca su columna. Medido.
 .filtrar_filas <- function(datos, conservar) {
   if (inherits(datos, "data.table")) {
     clave <- data.table::key(datos)
@@ -3689,7 +3686,7 @@ rbind.plan_limpieza <- function(..., deparse.level = 1) {
   codigos <- .codigos_filas_exactos(claves)
   # Una clave AUSENTE no identifica a nadie: las filas sin documento formaban un
   # solo grupo y sobrevivia una -personas distintas, eliminadas por no tener
-  # clave-. Medido en una refutacion. Una fila con la clave incompleta no se
+  # clave-. Medido. Una fila con la clave incompleta no se
   # agrupa con ninguna.
   incompletas <- !.filas_completas(as.data.frame(claves))
   grupos <- split(which(!incompletas), codigos[!incompletas])
@@ -3783,8 +3780,8 @@ rbind.plan_limpieza <- function(..., deparse.level = 1) {
 
 # Los nombres que aplica una accion de nombres son los del PLAN: el usuario puede
 # editar `nombres_propuestos`, y el ejecutor los recalculaba desde cero -se
-# aplicaban otros y el registro publicaba los editados como aplicados; medido en
-# una refutacion-. Se aplica el mapa `nombres_esperados` -> `nombres_propuestos`;
+# aplicaban otros y el registro publicaba los editados como aplicados; medido-.
+# Se aplica el mapa `nombres_esperados` -> `nombres_propuestos`;
 # una columna que no estaba en el plan conserva su nombre, y eso incluye las
 # marcas que el propio plan agrega -`.fila_duplicada`-, que snake_case renombraba.
 # Sin el mapa -un plan armado a mano- se calcula como antes.
@@ -3832,7 +3829,7 @@ rbind.plan_limpieza <- function(..., deparse.level = 1) {
 # original. Los ejecutores empiezan con `as.character()`, que los descarta, y
 # `recortar_espacios` -recomendada y activa por omision- borraba la etiqueta de
 # variable que deja `haven` en las seis filas, tambien en las que no toco;
-# medido en una refutacion. La clase y los niveles se copian solo si el tipo no
+# medido. La clase y los niveles se copian solo si el tipo no
 # cambio y la columna no era un factor: un factor vuelve como texto, que es el
 # contrato escrito.
 .con_atributos_de <- function(original, nuevo) {
@@ -3863,7 +3860,7 @@ rbind.plan_limpieza <- function(..., deparse.level = 1) {
     # Un `sf` guarda el nombre de su geometria en `sf_column` y el de los
     # atributos en `agr`: renombrar las columnas sin esos dos dejaba un objeto
     # roto -la geometria `SHAPE` pasaba a `shape` y `sf` ya no la encontraba-
-    # mientras el registro decia `ejecutada`. Medido en una refutacion.
+    # mientras el registro decia `ejecutada`. Medido.
     if (inherits(datos, "sf")) {
       geometria <- attr(datos, "sf_column", exact = TRUE)
       if (length(geometria) == 1L && geometria %in% anteriores) {
@@ -3894,7 +3891,7 @@ rbind.plan_limpieza <- function(..., deparse.level = 1) {
     # saca la clase a un `integer64`: dos negativos distintos -patron NaN como
     # doble- eran la misma fila. Sobre `id = -1, -2, 3, -1` el perfil contaba 1
     # duplicada, el marcador marcaba la fila 4 y esta accion borraba ademas la
-    # fila 2, con `n_cambiadas = 2`. Medido en la refutacion 26-R.
+    # fila 2, con `n_cambiadas = 2`. Medido.
     eliminar <- .grupos_filas_duplicadas(datos)$repetidas
     retiradas <- .filtrar_filas(datos, eliminar)
     datos <- .filtrar_filas(datos, !eliminar)
@@ -4099,7 +4096,7 @@ rbind.plan_limpieza <- function(..., deparse.level = 1) {
     convertido <- .convertir_tipo(x, parametros)
     # La etiqueta de variable sobrevive a la conversion como a las acciones de
     # texto; la clase y los niveles no, porque el tipo cambio. Ver
-    # `.con_atributos_de()`. Medido en la refutacion 26-R.
+    # `.con_atributos_de()`. Medido.
     datos[[indice]] <- .con_atributos_de(x, convertido)
     evaluacion <- .evaluar_conversion(
       x, convertido, estrategia, parametros
@@ -4388,7 +4385,7 @@ aplicar <- function(plan, datos, permitir_eliminacion = FALSE,
     }
     # La accion de quitar una columna duplicada va en el plan bajo la columna que
     # se CONSERVA -es la del hallazgo-, y el registro la publicaba como la tocada:
-    # nombraba la que quedo y no la que se elimino. Medido en una refutacion.
+    # nombraba la que quedo y no la que se elimino. Medido.
     columna_registro <- accion$columna[[1L]]
     if (identical(accion$estrategia[[1L]], "eliminar_columna_duplicada") &&
         length(accion$parametros[[1L]]$eliminar) == 1L) {
@@ -4451,8 +4448,8 @@ aplicar <- function(plan, datos, permitir_eliminacion = FALSE,
   # Una accion asigna con `datos[[indice]] <- ...`, que es `[[<-.data.frame`: R
   # copia la tabla y la data.table vuelve sin espacio reservado -`truelength` 0-
   # y con la autorreferencia rota, asi que el primer `:=` del usuario avisaba
-  # "Se tomo una copia superficial". La clase volvia, pero degradada. Medido en
-  # la ronda 32. Se le devuelve el espacio, como lo haria `data.table` misma.
+  # "Se tomo una copia superficial". La clase volvia, pero degradada. Medido.
+  # Se le devuelve el espacio, como lo haria `data.table` misma.
   if (inherits(salida, "data.table") &&
       requireNamespace("data.table", quietly = TRUE)) {
     salida <- data.table::setalloccol(salida)
@@ -4495,8 +4492,8 @@ aplicar <- function(plan, datos, permitir_eliminacion = FALSE,
   # Los ejemplos van a la consola y al `selector`, y solo la rama de filas
   # duplicadas miraba las columnas protegidas: para todo grupo POR COLUMNA se
   # publicaban sus valores tal cual -nombres, correos y cedulas como "Ejemplos
-  # reales"- mientras el mismo plan tapaba su evidencia. Medido en una
-  # refutacion. Una columna protegida no da ejemplos, y los de cualquier otra se
+  # reales"- mientras el mismo plan tapaba su evidencia. Medido. Una columna
+  # protegida no da ejemplos, y los de cualquier otra se
   # barren con el piso, como el perfil.
   columna <- acciones$columna[[1L]]
   if (!is.na(columna) && length(columnas_protegidas) &&
@@ -4591,7 +4588,7 @@ aplicar <- function(plan, datos, permitir_eliminacion = FALSE,
 
 # El recorte viaja con su total. `guiar_limpieza()` mostraba cinco ejemplos de
 # cuarenta sin decirlo, mientras el paquete declara cada recorte en sus
-# informes y -desde esta misma vuelta- en sus impresiones. Una lista recortada
+# informes y en sus impresiones. Una lista recortada
 # que no dice que lo es se lee como la lista entera, y aca se lee justo antes
 # de decidir si aplicar una accion.
 .recortar_ejemplos <- function(valores, max_ejemplos) {
@@ -4816,7 +4813,7 @@ guiar_limpieza <- function(plan, datos, selector = NULL,
     # imprimia el indice dentro del grupo: con una bloqueada antes de una
     # elegible -un plan reordenado, edicion que la ayuda declara inocua- la
     # lista decia "1., 2., 4." y elegir el 4 que se veia dejaba el grupo
-    # `omitida`. Medido en la refutacion 26-R.
+    # `omitida`. Medido.
     for (posicion in seq_along(elegibles)) {
       k <- elegibles[[posicion]]
       marca <- if (acciones$recomendada[[k]]) " (Recomendado)" else ""

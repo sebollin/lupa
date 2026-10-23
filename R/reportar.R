@@ -1,7 +1,7 @@
 # Lo marcado UTF-8 que no es UTF-8 valido -lo que deja `fread(encoding = "UTF-8")`
 # sobre un CSV latin1- tampoco es texto: se trata como lo marcado `bytes`. Antes
 # pasaba de largo y el informe entero abortaba en `nchar()` o en `gsub()`, aunque
-# `print()` del mismo perfil funcionara. Medido en una refutacion.
+# `print()` del mismo perfil funcionara. Medido.
 .declarar_utf8_roto <- function(x) {
   if (!is.character(x) || !length(x)) return(x)
   rotos <- !is.na(x) & Encoding(x) == "UTF-8" & !validUTF8(x)
@@ -48,7 +48,7 @@
 # `ctlx` se veian iguales en la tabla de patrones, en la moda y en los ejemplos,
 # mientras la evidencia del hallazgo del mismo informe lo escribia `<U+0001>`
 # "para que se vea". Se escribe con su codigo, como en la evidencia, y el
-# encabezado lo declara. Ronda 26.
+# encabezado lo declara.
 .html_controles_visibles <- function(x) {
   con_control <- !is.na(x) & grepl(
     "[\\x01-\\x08\\x0B\\x0C\\x0E-\\x1F\\x7F]|\\xC2[\\x80-\\x9F]", x,
@@ -83,7 +83,7 @@
 
 .html_texto <- function(x) {
   # Un numero se escribe sin `scipen`: con `scipen = -9` el reporte decia "Se
-  # muestran 1e+02 de 101 filas" (ronda 31-S).
+  # muestran 1e+02 de 101 filas".
   if (is.numeric(x) && !is.object(x)) {
     x <- vapply(x, .formatear_numero_publicado, character(1L), USE.NAMES = FALSE)
   }
@@ -122,7 +122,7 @@
 # magnitud: el ausente de Stata 8.988e307 se publicaba como 239 cifras y "...",
 # que se leen 8.988e238, igual que su media cien veces menor. La que no cabe se
 # escribe con exponente, con las mismas cifras: es el mismo valor, entero.
-# Medido en la ronda 26.
+# Medido.
 .formatear_numeros_reporte <- function(x, max_caracteres = 240L) {
   texto <- .formatear_numeros_uno_a_uno(as.numeric(x))
   valores <- as.double(x) + 0
@@ -163,7 +163,7 @@
   }
   if (is.list(x) && !is.null(x$estado) &&
       "indices_fila" %in% names(x) && "mostrados" %in% names(x)) {
-    # Sin `scipen`: con `scipen = -9` salia "12 de 1.2e+01" (ronda 31-S).
+    # Sin `scipen`: con `scipen = -9` salia "12 de 1.2e+01".
     total <- if (length(x$total) && is.na(x$total)) "NA" else
       .formatear_numero_publicado(x$total)
     return(paste0(
@@ -197,8 +197,8 @@
   } else if (is.numeric(x)) {
     # Con la regla de numeros publicados del paquete -sin depender de `digits`
     # ni de `scipen`-, no con `digits = 8`: la mediana 123456789.5 se publicaba
-    # 123456790, que no esta en el objeto ni en la tabla. Medido en una
-    # refutacion. Y con las cifras que vuelven al valor: ver
+    # 123456790, que no esta en el objeto ni en la tabla. Medido. Y con las
+    # cifras que vuelven al valor: ver
     # `.formatear_numeros_reporte()`.
     texto <- .formatear_numeros_reporte(x, max_caracteres)
     texto[is.na(x)] <- NA_character_
@@ -217,7 +217,7 @@
   }
   # Con `.pegar_texto()`: `paste()` de base escribia `t<e9>` bajo `C` para un
   # valor latin1, y la celda del reporte decia otra cosa que en una sesion
-  # UTF-8 (ronda 30-L).
+  # UTF-8.
   texto <- .pegar_texto(texto, collapse = ", ")
   if (nchar(texto, type = "chars") > max_caracteres) {
     texto <- paste0(substr(texto, 1L, max_caracteres - 1L), "\u2026")
@@ -329,7 +329,7 @@
 # texto, el doble 100000 salia "1e+05" -`as.character()`- en la fila de debajo
 # de "Filas 10000"; entre enteros, el logico salia 0/1 donde el resto del
 # informe escribe "si"/"no"; y un atributo NULL corria las filas una posicion.
-# Cada valor conserva su tipo y lo escribe la regla del informe. Ronda 26.
+# Cada valor conserva su tipo y lo escribe la regla del informe.
 .tabla_indicadores_reporte <- function(indicador, valor) {
   tabla <- data.frame(indicador = indicador, stringsAsFactors = FALSE)
   tabla$valor <- I(unname(valor))
@@ -343,7 +343,7 @@
   if (!is.numeric(bytes) || length(bytes) != 1L || is.na(bytes)) {
     return(NA_character_)
   }
-  # La lectura sin `scipen`: con `scipen = -9` salia "8.2e+00 Kb" (ronda 31-S).
+  # La lectura sin `scipen`: con `scipen = -9` salia "8.2e+00 Kb".
   opciones <- options(scipen = 0)
   on.exit(options(opciones), add = TRUE)
   paste0(
@@ -598,8 +598,8 @@
     )
   }
   # Una regla que declara mas metricas de las que la medicion trae deja su hueco
-  # en `cobertura_reglas`. La consola lo avisa y lo imprime desde la vuelta
-  # anterior; el informe -que es el que se manda a otra persona- publicaba el
+  # en `cobertura_reglas`. La consola lo avisa y lo imprime; el informe -que es
+  # el que se manda a otra persona- publicaba el
   # `resultado` de la regla y nada mas, asi que el veredicto se leia como
   # completo. Una declaracion vale en todas las salidas, no solo en la primera.
   alcance_medidas <- attr(x, "alcance_medidas", exact = TRUE)
@@ -630,7 +630,7 @@
   # Las cuatro coberturas de frontera, con el lector de la impresion. Solo se
   # publicaba la de la coleccion, y la de una organizacion -la que dice que una
   # de sus colecciones no se midio- se perdia; en su lugar quedaba la union de
-  # las colecciones que SI entraron, que se lee como completa. Ronda 26.
+  # las colecciones que SI entraron, que se lee como completa.
   #
   # El informe publicaba el NOMBRE de cada parte sin medir y tiraba su MOTIVO,
   # que el objeto si trae: quien lee el HTML -que es quien no abre R- veia que
@@ -674,7 +674,6 @@
 # El alcance CUENTA los pares medidos que el marco no declara
 # (`medidos_fuera_del_marco`) y el atributo `pares_fuera_del_marco` los NOMBRA;
 # `print()` los nombra y el informe solo los contaba: "4" sin decir cuales.
-# Ronda 26.
 .html_pares_fuera_del_marco <- function(x) {
   fuera <- attr(x, "pares_fuera_del_marco", exact = TRUE)
   if (!length(fuera)) return("")
@@ -725,7 +724,6 @@
 # `reportar(historico_calidad(ev), med)` publicaba en la medicion el valor que el
 # historico de al lado tapaba. Se reunen solo las columnas que leen los que
 # enmascaran -la medida, la corrida, la metrica-, que son las que todos traen.
-# Ronda 26.
 .desenlaces_reporte <- function(objetos) {
   columnas <- c("id_medida", "id_medicion", "metrica_instanciada", "regla", "desenlace")
   partes <- lapply(objetos, function(x) {
@@ -760,7 +758,7 @@
 # una medida suprimida- conserva en sus DEMAS celdas la escritura del informe.
 # Se convertia con `as.character()`: el logico salia "TRUE" donde la misma tabla
 # sin supresion dice "si", y el doble con quince cifras, que no es la regla de
-# las cifras publicadas. Medido en la ronda 26.
+# las cifras publicadas. Medido.
 .textos_celdas_reporte <- function(x) {
   if (is.logical(x)) return(.texto_logico_reporte(x))
   if (is.numeric(x) && !inherits(x, "integer64")) {
@@ -805,7 +803,7 @@
   # `id_medida`, `metrica_instanciada`- y su `resultado`: una medida suprimida en
   # la evaluacion se publicaba en la seccion Historico del mismo informe. La
   # promesa es sobre "las mismas medidas incluidas en el documento", no sobre una
-  # lista de clases. Medido en una refutacion.
+  # lista de clases. Medido.
   if (inherits(x, "historico_calidad")) {
     return(.proteger_medicion_desenlaces(
       x, desenlaces, como_texto = .textos_celdas_reporte
@@ -996,12 +994,12 @@
     # Todas las filas del par -la de resultado y las que declaran un cambio-, y
     # una sola lectura, la de `comparar_evaluaciones()`. Mirar solo la etiqueta
     # `no_comparable` borraba el delta de un cambio de modelo que la deriva
-    # declara comparable -"se mantienen las comparaciones"- y publica. Ronda 25.
+    # declara comparable -"se mantienen las comparaciones"- y publica.
     #
     # Y una corrida que la deriva no junta con ninguna -la anterior del perfil
     # mide otra tabla- dejaba delta, `comparado_con` y `comparacion` vacios, y la
     # serie 0.75 -> 1 de dos tablas se leia como una mejora. Se nombra la corrida
-    # anterior del perfil y la lectura dice por que no se comparan. Ronda 26.
+    # anterior del perfil y la lectura dice por que no se comparan.
     for (k in seq_along(claves)) {
       filas <- which(claves_deriva == claves[[k]])
       if (!length(filas)) {
@@ -1066,7 +1064,7 @@
   # del corte de `max_filas` por omision, y el informe solo decia "se muestran
   # 100 de 121 filas". La misma medicion reportada directamente la publica en su
   # cobertura, sin tope. Aca tambien: aparte y sin tope, como las coberturas de
-  # las demas secciones. Ronda 26.
+  # las demas secciones.
   ausencias <- as.character(x$nivel) %in% c("metrica_no_evaluada", "parte_no_medida")
   no_medido <- if (any(ausencias)) {
     paste0(
@@ -1153,7 +1151,7 @@
   # El informe publicaba dos: `cobertura_diagnosticos` -los diagnosticos que el
   # perfil no pudo evaluar- se quedaba en la consola, y un plan mandado solo, sin
   # su perfil al lado, se leia como "lo demas esta bien". Sin tope, como la
-  # cobertura de diagnosticos del perfil: es lo que no se midio. Ronda 26.
+  # cobertura de diagnosticos del perfil: es lo que no se midio.
   no_evaluados <- attr(x, "cobertura_diagnosticos", exact = TRUE)
   if (inherits(no_evaluados, "data.frame") && nrow(no_evaluados)) {
     partes <- c(partes, paste0(
@@ -1369,8 +1367,7 @@
 # Una seccion que no se puede armar se declara dentro del informe y no lo
 # interrumpe, como promete `?reportar`: un perfil al que le faltaba
 # `dependencias` o `hallazgos` mataba el informe entero con un mensaje de R base
-# -"argumento tiene longitud cero"-, sin nombrar el objeto. Medido en una
-# refutacion.
+# -"argumento tiene longitud cero"-, sin nombrar el objeto. Medido.
 .renderizar_objeto_reporte_declarado <- function(x, ...) {
   tryCatch(
     .renderizar_objeto_reporte(x, ...),
@@ -1394,8 +1391,8 @@
   # Un plan, una deriva, una medicion o un historico armados con la proteccion APAGADA sobre
   # columnas personales llevan sus valores en claro, y el informe -que protege por
   # omision- no los puede volver a tapar: no tiene la clasificacion ni la tabla.
-  # Se publicaban al lado de un perfil enmascarado del mismo archivo; medido en
-  # una refutacion. La seccion se omite y se dice por que: para publicarla, hay
+  # Se publicaban al lado de un perfil enmascarado del mismo archivo. Medido.
+  # La seccion se omite y se dice por que: para publicarla, hay
   # que pedirlo tambien aca, con `proteger_datos_personales = FALSE`.
   sin_proteger <- attr(x, "datos_personales_sin_proteger", exact = TRUE)
   if (isTRUE(proteger_datos_personales) && length(sin_proteger)) {
@@ -1417,7 +1414,7 @@
   # vuelve a proteger con lo que conserva: modas, ejemplos, estadisticos. Sin la
   # tabla, una variante de un valor protegido escrita en otra columna -la cedula
   # con puntos dentro de un texto libre- puede quedar, cuando `perfilar()` con la
-  # proteccion puesta la tapa. Medido en una refutacion. No se omite -la
+  # proteccion puesta la tapa. Medido. No se omite -la
   # re-proteccion tapa casi todo y esta documentada-, pero se dice en la seccion.
   nota <- ""
   if (isTRUE(proteger_datos_personales)) {

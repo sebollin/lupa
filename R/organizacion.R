@@ -24,7 +24,7 @@
 # declarar colecciones de motores distintos. Exigir una conexion habria atado la
 # declaracion institucional a una sesion. Agregar, en cambio, pide una corrida:
 # la ayuda prometia reunir colecciones de momentos distintos y `agregar()` lo
-# rechazaba, y la unica salida era declarar una fecha falsa. Ronda 24.
+# rechazaba, y la unica salida era declarar una fecha falsa.
 
 .nombre_de_frontera <- function(x) {
   if (inherits(x, "coleccion_lupa")) return(x$nombre)
@@ -183,7 +183,7 @@ print.organizacion_lupa <- function(x, ...) {
   }
   # El alias -el nombre del objeto de cada coleccion- reconoce la medida que
   # `agregar()` escribio con ese nombre cuando la lista la renombro. Una
-  # organizacion guardada antes de la ronda 24 no lo trae: sin alias.
+  # organizacion guardada sin ese campo se lee sin alias.
   list(nombre = organizacion$nombre, declaradas = organizacion$declaradas,
        alias = organizacion$alias)
 }

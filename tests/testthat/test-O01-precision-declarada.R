@@ -191,7 +191,7 @@ test_that("las acciones que destruyen valores cuentan sus perdidas", {
 
 test_that("la guarda ve cualquier formato que el conversor sepa leer", {
   # La guarda rearmaba el texto numerico por su cuenta, con una rama por
-  # formato, y en cinco rondas aparecieron cinco agujeros. Ahora compara
+  # formato, y aparecieron cinco agujeros. Ahora compara
   # contra la normalizacion del propio conversor. Estos dos eran los ultimos:
   # una mantisa con coma decimal y un entero es-UY escrito con `,0`.
   plan_de <- function(valores) {

@@ -673,9 +673,9 @@ test_that("la cobertura por grupo distingue por que no quedo nada que perfilar",
   expect_true(all(cobertura2$columnas_descartadas == "x"))
 
   # Y un caso normal no declara nada que no se haya perfilado: sus unicas filas
-  # son las de los grupos perfilados SIN hallazgos, que estan ahi desde la ronda
-  # 14 para que cierre la reconciliacion que la documentacion promete -sin ellas,
-  # un grupo limpio no aparecia en ninguna tabla y la suma de filas no daba-.
+  # son las de los grupos perfilados SIN hallazgos, que estan ahi para que
+  # cierre la reconciliacion que la documentacion promete -sin ellas, un grupo
+  # limpio no aparece en ninguna tabla y la suma de filas no da-.
   normal <- data.frame(
     zona = c("a", "a", "b", "b"), x = c(1, 2, 3, 4), stringsAsFactors = FALSE
   )
@@ -727,17 +727,17 @@ test_that("las guardas de tabla completa sobreviven al agrupamiento", {
   #    verifica aparte, mas abajo, y aca haria que la guarda no tuviera trabajo
   #    y la prueba no midiera nada.
   #
-  #    Ronda 28-N: el grupo "No" repetia 1..1000, que en la tabla entera
-  #    duplicaba casi todos los valores, y una columna que se repite ya no es
-  #    numeracion. El caso es el de una numeracion de la tabla entera que el
-  #    agrupamiento corta.
+  #    El grupo "No" no repite 1..1000: en la tabla entera eso duplicaria casi
+  #    todos los valores, y una columna que se repite no es numeracion. El
+  #    caso es el de una numeracion de la tabla entera que el agrupamiento
+  #    corta.
   #
-  #    Ronda 29-E: el caso anterior repetia el 999 cincuenta veces, y la tabla
-  #    entera SI acusaba -la moda sobresale y reabre la guarda: `perfilar()`
-  #    publica los 50 como `faltantes_disfrazados`-; esta prueba exigia que
-  #    `perfilar_por()` los callara. Ahora el 999 aparece dos veces: la tabla
-  #    entera no acusa (comprobado abajo) y el grupo, intercalado y sin
-  #    densidad, si. Ese es el hueco de la particion.
+  #    Con el 999 repetido cincuenta veces la tabla entera SI acusaria -la moda
+  #    sobresale y reabre la guarda: `perfilar()` publica los 50 como
+  #    `faltantes_disfrazados`-, y la prueba exigiria que `perfilar_por()` los
+  #    callara. Por eso el 999 aparece dos veces: la tabla entera no acusa
+  #    (comprobado abajo) y el grupo, intercalado y sin densidad, si. Ese es el
+  #    hueco de la particion.
   id <- seq_len(2000L)
   id[c(997L, 1001L)] <- 999L
   denso <- data.frame(

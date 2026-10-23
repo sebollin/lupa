@@ -35,8 +35,8 @@ rangos <- c(
 )
 # Los digitos decimales de TODAS las escrituras, esten o no en los rangos: los
 # arabigo-indicos, persas o devanagari no tienen descomposicion y quedaban como
-# estaban, asi que un documento escrito con ellos no se reconocia. Medido en una
-# refutacion. Unicode los ordena en tramos de diez consecutivos que empiezan en
+# estaban, asi que un documento escrito con ellos no se reconocia. Medido.
+# Unicode los ordena en tramos de diez consecutivos que empiezan en
 # el cero, asi que el valor es la posicion dentro del tramo.
 todos <- setdiff(0x80:0x1FFFF, 0xD800:0xDFFF)
 digitos <- todos[stringi::stri_detect_regex(

@@ -1,14 +1,13 @@
-# La vuelta n89: la marca `bytes` en identidad, publicacion y alcance.
+# N89: la marca `bytes` en identidad, publicacion y alcance.
 #
 # Los valores se construyen con `as.raw()` y se comparan por BYTES o por
-# `Encoding()`, nunca por como se ven. Las tres veces que hoy me equivoque
-# midiendo esto fue por confiar en una impresion: el shell interpreto escapes,
-# R parseo octales, y `cat()` colapso barras. Cuando lo que se mide es el manejo
-# de la codificacion, el instrumento no puede usar nada que dependa de ella.
+# `Encoding()`, nunca por como se ven. Confiar en una impresion engania al
+# medir esto: el shell interpreta escapes, R parsea octales, y `cat()` colapsa
+# barras. Cuando lo que se mide es el manejo de la codificacion, el instrumento
+# no puede usar nada que dependa de ella.
 
-# Regresion de una ronda de refutacion: corre en la suite completa, en el CI y en
-# R-hub, que usan NOT_CRAN=true; en CRAN se saltea para que el check entre en sus
-# tiempos (medicion del 2026-10-23).
+# Prueba de regresion: corre en la suite completa, en el CI y en R-hub, que usan
+# NOT_CRAN=true; en CRAN se saltea para que el check entre en sus tiempos.
 testthat::skip_on_cran()
 
 .n89_bytes <- function(codigos) {

@@ -19,7 +19,7 @@ skip_if_not_installed("RSQLite")
   conexion
 }
 
-test_that("I1 conserva la identidad de los acumuladores con uno o muchos bloques", {
+test_that("La lectura por bloques conserva la identidad de los acumuladores con uno o muchos bloques", {
   conexion <- DBI::dbConnect(RSQLite::SQLite(), ":memory:")
   on.exit(DBI::dbDisconnect(conexion), add = TRUE)
   datos <- data.frame(
@@ -115,7 +115,7 @@ test_that("rss_maximo conserva una lectura finita del vigilante", {
   expect_equal(resultado$resumen_tabla$meta$bytes$rss_maximo, 123456)
 })
 
-test_that("I1 inicia el mapa para moda y mediana sin publicar n_distintos", {
+test_that("La lectura por bloques inicia el mapa para moda y mediana sin publicar n_distintos", {
   conexion <- DBI::dbConnect(RSQLite::SQLite(), ":memory:")
   on.exit(DBI::dbDisconnect(conexion), add = TRUE)
   DBI::dbExecute(conexion, "CREATE TABLE valores (id INTEGER PRIMARY KEY, v REAL)")
@@ -149,7 +149,7 @@ test_that("I1 inicia el mapa para moda y mediana sin publicar n_distintos", {
   expect_identical(distinto_moda$motivo, "La metrica no fue solicitada.")
 })
 
-test_that("I1 distingue mapa truncado del tope de reconstruccion de mediana", {
+test_that("La lectura por bloques distingue mapa truncado del tope de reconstruccion de mediana", {
   mapa <- data.frame(
     representante = seq_len(10L), frecuencia = rep(120000, 10L)
   )
@@ -171,7 +171,7 @@ test_that("I1 distingue mapa truncado del tope de reconstruccion de mediana", {
   expect_false(grepl("mapa_distintos_truncado", registro$motivo, fixed = TRUE))
 })
 
-test_that("I1 aplica la politica de costo a la moda del mapa", {
+test_that("La lectura por bloques aplica la politica de costo a la moda del mapa", {
   conexion <- DBI::dbConnect(RSQLite::SQLite(), ":memory:")
   on.exit(DBI::dbDisconnect(conexion), add = TRUE)
   DBI::dbWriteTable(conexion, "cardinal", data.frame(v = seq_len(1000L)))
@@ -192,7 +192,7 @@ test_that("I1 aplica la politica de costo a la moda del mapa", {
   )))
 })
 
-test_that("I1 registra n, memoria acotada y las dos pasadas del localizador", {
+test_that("La lectura por bloques registra n, memoria acotada y las dos pasadas del localizador", {
   conexion <- DBI::dbConnect(RSQLite::SQLite(), ":memory:")
   on.exit(DBI::dbDisconnect(conexion), add = TRUE)
   DBI::dbWriteTable(conexion, "sin_clave", data.frame(valor = seq_len(7L)))
@@ -279,14 +279,14 @@ test_that("DuckDB decide la ausencia de dbFetch incremental en el preflight", {
   )))
 })
 
-test_that("bloque_filas valida la API minima de I1", {
+test_that("bloque_filas valida la API minima de la lectura por bloques", {
   expect_error(
     lupa::perfilar_dbi(NULL, "x", bloque_filas = 0),
     class = "lupa_error_argumento_dbi"
   )
 })
 
-test_that("I1 conserva la identidad contra PostgreSQL real", {
+test_that("La lectura por bloques conserva la identidad contra PostgreSQL real", {
   conexion <- .conexion_i1_postgres()
   on.exit(DBI::dbDisconnect(conexion), add = TRUE)
   tabla <- paste0("lupa_i1_pg_", Sys.getpid())
@@ -321,7 +321,7 @@ test_that("I1 conserva la identidad contra PostgreSQL real", {
   expect_identical(corrida$meta$bloques$recorridos, 4L)
 })
 
-test_that("I1 no publica estable una PK textual con collation no determinista", {
+test_that("La lectura por bloques no publica estable una PK textual con collation no determinista", {
   conexion <- .conexion_i1_postgres()
   on.exit(DBI::dbDisconnect(conexion), add = TRUE)
   tabla <- paste0("lupa_i1_collation_", Sys.getpid())

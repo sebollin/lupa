@@ -10,8 +10,8 @@
 # un registro de personas- los valores protegidos son palabras sueltas. Varias son
 # tambien palabras del paquete: `Blanco` tapaba toda evidencia que llevara la
 # marca `<blanco>`, `Maximo` toda la que llevara la clave `grupo_maximo`, y
-# `Patron` o `Constante` descripciones enteras. Medido en una refutacion, con
-# nombres y apellidos reales; ninguna de esas celdas tenia un valor de nadie.
+# `Patron` o `Constante` descripciones enteras. Medido con nombres y apellidos
+# reales; ninguna de esas celdas tenia un valor de nadie.
 #
 #   * `palabras`: las palabras de seis letras o mas, plegadas como las compara la
 #     proteccion. En la prosa del paquete, fuera de lo citado entre comillas,

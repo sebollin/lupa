@@ -3,13 +3,13 @@
 # verificador, o sin su primer digito-. Vive aparte de
 # `.reemplazar_variantes_separadas()` para poder probarla sola.
 #
-# Ronda 21. La regla de la ronda 20 aceptaba solo la forma de miles -grupos del
-# medio de tres cifras- y un unico separador de una lista corta. Un telefono
-# "2901 1234", "099 12 34 56", una tarjeta "4111 1111 1111 1111", un IBAN, o la
-# cedula escrita "4 . 123 . 456-7" no dejaban ningun tramo que fuera el valor, y
-# se publicaban enteros; antes de esa ronda se tapaban. Y del otro lado tapaba
-# de mas: la parte decimal de una coordenada o de un p-valor de siete cifras
-# coincidia con un documento sin su primer digito. Medido en una refutacion.
+# Con solo la forma de miles -grupos del medio de tres cifras- y un unico
+# separador de una lista corta, un telefono "2901 1234", "099 12 34 56", una
+# tarjeta "4111 1111 1111 1111", un IBAN, o la cedula escrita
+# "4 . 123 . 456-7" no dejaban ningun tramo que fuera el valor, y se publicaban
+# enteros. Y del otro lado se tapaba de mas: la parte decimal de una coordenada
+# o de un p-valor de siete cifras coincidia con un documento sin su primer
+# digito. Medido.
 #
 # Ahora hay dos niveles. Un numero COMPACTO une grupos de digitos con un solo
 # signo -"4.123.456-7", "6723640.38"-; un numero SUELTO une compactos con espacios
@@ -35,11 +35,11 @@
   # Con espacios alrededor solo unen el guion y el punto -"2600 - 1122",
   # "4 . 123 . 456-7"- y el parentesis de un prefijo -"(2) 487 1234"-; los demas
   # signos, pegados. Con cualquiera, "2983 4272 / 2988 2968" eran un solo numero
-  # y su tramo del medio coincidia con un telefono. Medido en la ronda 22.
+  # y su tramo del medio coincidia con un telefono. Medido.
   #
   # Los dos puntos y la barra vertical NO unen: una razon "494:2714" y una lista
   # "12|345|6789" coincidian con una cedula en uno de cada siete y uno de cada
-  # cuatro casos. Medido en la ronda 23. Un documento escrito con ellos no se
+  # cuatro casos. Medido. Un documento escrito con ellos no se
   # reconoce, y la ayuda lo dice.
   separador <- paste0(
     "(?:", espacio, "{1,2}|", espacio, "?[-.]{1,2}", espacio, "?|",
@@ -47,9 +47,9 @@
     ",(?!", espacio, "))"
   )
   signo_compacto <- "[-./,'_+\u00b7]"
-  # Entre la fecha y la hora -ver `fecha_hora`-. La barra, la arroba, el guion
-  # doble y el corchete se sumaron en la ronda 25: la fecha con hora protegida
-  # se publicaba escrita "2024-06-07 / 09:04:05", " @ ", " -- " o con la hora
+  # Entre la fecha y la hora -ver `fecha_hora`-. Tambien la barra, la arroba, el
+  # guion doble y el corchete: sin ellos la fecha con hora protegida se
+  # publicaba escrita "2024-06-07 / 09:04:05", " @ ", " -- " o con la hora
   # entre corchetes, mientras sus hermanas " - ", ";" y "|" se tapaban.
   entre_fecha_hora <- "(?:[Tt_]| {1,3}| *(?:--|[-;,|/@]) *| *[(\\[] *)"
   numero <- paste0("[0-9]+(?:", separador, "[0-9]+)*")
@@ -59,13 +59,12 @@
     signo_compacto = signo_compacto,
     # El comodin es el que tapa cifras: el asterisco y la equis. El numeral, el
     # signo de pregunta y la vineta precedian numeros de ticket y de lista, y
-    # uno de cada cuatro se tapaba como documento recortado. Medido en la ronda
-    # 23.
+    # uno de cada cuatro se tapaba como documento recortado. Medido.
     # El asterisco vale tambien pegado a una letra -"CI*123.456-7"-; la equis no,
     # porque es parte de la palabra. Y tras la equis el numero sigue pegado o con
     # un signo de los que unen, no con un espacio: "92 x 6931234" y
     # "pack x 1781643" son una multiplicacion y una cantidad, y tres de cada diez
-    # se tapaban. Medido en la ronda 24.
+    # se tapaban. Medido.
     comodin = paste0(
       "(?:(?<!\\p{N})\\*[*xX]*(?:", separador, ")?|",
       "(?<![\\p{L}\\p{N}])[xX][*xX]*(?:", signo_compacto, "{1,2})?)(", numero, ")"
@@ -73,9 +72,9 @@
     # Una fecha de calendario no es un documento: partida en tramos,
     # `2003-05-17` da `20030517`, que con un millon de cedulas es la de
     # alguien. Con un ANO plausible, 1800 a 2199: con cualquiera, el telefono
-    # "2901-12-12" se borraba como fecha y se publicaba. Medido en la ronda 22.
+    # "2901-12-12" se borraba como fecha y se publicaba. Medido.
     # Y con espacios, solo con el ano al final -"16 01 2002"-: una de cada
-    # veintidos se tapaba. Medido en la ronda 24. Con el ano adelante no, porque
+    # veintidos se tapaba. Medido. Con el ano adelante no, porque
     # "2012 11 05" es tambien un telefono fijo escrito de a pares.
     fecha = paste0(
       "(?<![0-9])(?:", anio, "[-/.](?:0?[1-9]|1[0-2])[-/.](?:0?[1-9]|[12][0-9]|3[01])|",
@@ -92,7 +91,7 @@
     # los diez millonesimos de .NET, nanosegundos-, nunca ocho; y la fraccion no
     # va seguida de un guion y una sola cifra, que es un verificador:
     # "10:30:00.41234567" y "10:30:00.4123456-7" se tragaban un documento.
-    # Medido en la ronda 24.
+    # Medido.
     hora = paste0(
       "(?<![0-9])(?:[01]?[0-9]|2[0-3]):[0-5][0-9]",
       "(?::[0-5][0-9](?:[.](?:[0-9]{1,7}|[0-9]{9})|,[0-9]{1,3})?)?",
@@ -104,7 +103,7 @@
     # signo: guiones, espacios o puntos -con espacios o puntos se tapaba uno de
     # cada treinta-. Solo con su digito de control valido o precedido de "ISBN":
     # con cualquier diez cifras en cuatro grupos se borraba tambien un NIT
-    # "900-123-456-7", y se publicaba. Medido en la ronda 24.
+    # "900-123-456-7", y se publicaba. Medido.
     isbn10 = paste0(
       "(?<![0-9])((?:[iI][sS][bB][nN])(?:-?1[03])?[ :#]{0,3})?",
       "([0-9]{1,5}([- .])[0-9]{1,7}\\3[0-9]{1,7}\\3[0-9Xx])(?![0-9])"
@@ -112,12 +111,12 @@
     # Una direccion IPv4 -cuatro octetos de 0 a 255, sin ceros a la izquierda-
     # no se borra: se reconoce como documento ENTERO y no como parcial. Borrarla
     # dejaba pasar el telefono "29.10.12.34" y la cedula "1.234.123.4", que
-    # tienen esa forma. Medido en la ronda 23.
+    # tienen esa forma. Medido.
     ip = paste0("^(?:", octeto, "\\.){3}", octeto, "$"),
     # Y la IP con su mascara CIDR, "10.4.123.234/24": la barra une, el numero
     # ya no tenia forma de IP y se probaban sus tramos de octetos -una de cada
     # seis se tapaba-. La mascara se separa con una barra vertical, que no une,
-    # y la IP queda sola: se prueba entera. Medido en la ronda 25.
+    # y la IP queda sola: se prueba entera. Medido.
     miles_largo = "^[0-9]{1,3}([.,'])[0-9]{3}(?:\\1[0-9]{3}){2,}$",
     cidr = paste0("(?<![0-9.])((?:", octeto, "\\.){3}", octeto,
                   ")/(3[0-2]|[12]?[0-9])(?![0-9]|[./][0-9])"),
@@ -129,7 +128,7 @@
     # entre horas, minutos y segundos, dos puntos, punto, guion o las letras h y
     # m. Y la forma compacta ISO, "20240627T212425". Con un solo espacio, la
     # fecha con hora se publicaba escrita con dos, con " - ", con ";", en un
-    # nombre de archivo o como "21h24m25s". Medido en la ronda 24.
+    # nombre de archivo o como "21h24m25s". Medido.
     fecha_hora = list(
       paste0("(?<![0-9])(", anio, ")[-/.]([0-9]{1,2})[-/.]([0-9]{1,2})", entre_fecha_hora,
              "([0-9]{1,2})[-:.hH]([0-9]{2})(?:[-:.mM]([0-9]{2}))?"),
@@ -138,7 +137,7 @@
       paste0("(?<![0-9])(", anio, ")([0-9]{2})([0-9]{2})[Tt]",
              "([0-9]{2})([0-9]{2})([0-9]{2})?(?![0-9])"),
       # La fecha con separadores y la hora compacta, "2024-06-07T090405": la
-      # mezcla de las dos formas ISO, que se publicaba. Medido en la ronda 25.
+      # mezcla de las dos formas ISO, que se publicaba. Medido.
       paste0("(?<![0-9])(", anio, ")[-/.]([0-9]{1,2})[-/.]([0-9]{1,2})[Tt]",
              "([0-9]{2})([0-9]{2})([0-9]{2})?(?![0-9])")
     )
@@ -195,7 +194,7 @@
     # tiene tres cifras, y lo de antes es un entero: un solo grupo, o un numero
     # de miles con OTRO signo -"4.123.456,7"-. Con solo mirar el ultimo signo,
     # "099.12.34.56", "01.23.45.67.89" o "CI 4.123.456.7" eran importes y se
-    # publicaban. Medido en la ronda 22: el mismo signo no separa miles y
+    # publicaban. Medido: el mismo signo no separa miles y
     # decimales a la vez.
     es_decimal <- ultimo %in% c(".", ",") && largos[[k]] != 3L && (
       k == 2L || (
@@ -209,7 +208,7 @@
     # cifras enteras y cuatro o mas decimales -una coordenada "-33.340517", un
     # p-valor-, que se tapaba si con la entera formaba una cedula.
     # Un entero con un cero adelante -"099.123456"- no es la parte entera de
-    # un decimal: es un telefono. Medido en la ronda 23.
+    # un decimal: es un telefono. Medido.
     inequivoca <- es_decimal && (k > 2L || (
       largos[[1L]] <= 3L && largos[[k]] >= 4L &&
         !(largos[[1L]] >= 2L && startsWith(partes[[1L]], "0"))
@@ -268,17 +267,17 @@
 # nacional: "llamar al 093 897 037" se publicaba en 80 de 80 notas, porque la
 # parte decimal hacia que la regla no lo leyera como E.164; y al reves, el
 # celular E.164 escrito asi en un texto no se leia frente al protegido "099 123
-# 456". Medido en la ronda 29. Devuelve las cifras del entero, o NA si el texto
+# 456". Medido. Devuelve las cifras del entero, o NA si el texto
 # no es una cifra entera escrita asi. La comparten las agujas de la regla de
 # digitos, el piso numerico y los numeros de un texto
 # (`.cifras_enteras_en_texto()`).
 #
 # El exponente, con cualquier cantidad de cifras: el `printf("%e")` de Windows
 # escribe tres -`5.9894215856e+010`- y con dos como tope el celular escrito asi
-# se publicaba en 80 de 80 notas. Medido en la ronda 30. Hasta 20: ningun
+# se publicaba en 80 de 80 notas. Medido. Hasta 20: ningun
 # documento tiene mas cifras, y un exponente enorme armaria una cadena enorme.
 #
-# Ronda 31, dos escrituras mas de la misma cifra. Con SEPARADOR DE MILES -el
+# Y dos escrituras mas de la misma cifra. Con SEPARADOR DE MILES -el
 # formato "Numero" de una planilla: "59.893.425.706,00", "59,898,617,353",
 # "59 898 617 353", "59'898'617'353", con o sin la parte decimal de ceros, que
 # usa el otro signo- y en cientifica con un ESPACIO antes del exponente
@@ -291,8 +290,8 @@
 # (`.telefono_internacional_uy()`). Con al menos tres grupos: dos ya son el
 # millar de un conteo.
 #
-# Ronda 32. El separador de miles era una lista propia -punto, coma, apostrofo y
-# espacio- y el celular E.164 escrito con el punto medio -`59.895.271.823` con
+# Con el separador de miles en una lista propia -punto, coma, apostrofo y
+# espacio-, el celular E.164 escrito con el punto medio -`59.895.271.823` con
 # U+00B7, o con el operador vineta o el punto medio katakana, que
 # `.normalizar_signos_digitos()` lleva al punto medio- se publicaba en 60 de 60
 # notas de la copia de `analizar()` y en los ejemplos del perfil, mientras el
@@ -359,14 +358,14 @@
 # cifras delante no hay un millar posible- y la notacion cientifica entera, con
 # cualquier exponente. Devuelve las cifras, y el texto no se toca.
 #
-# Ronda 30, dos defectos de la misma lectura. (1) Leia uno o dos ceros y un
-# exponente de dos cifras: el celular E.164 escrito "59894215856.0000" -un
+# Dos defectos de la misma lectura. (1) Leyendo solo uno o dos ceros y un
+# exponente de dos cifras, el celular E.164 escrito "59894215856.0000" -un
 # `DECIMAL(15,4)`, el `MONEY` de SQL Server- o "5.9894215856e+010" se publicaba
 # en 80 de 80 notas de la copia de `analizar()` y en los ejemplos del perfil. (2)
-# La ronda 29 reescribia el texto con la cifra entera, y el entero de un importe
-# redondo -"5460537.00", lo mas comun en una columna de importes- alimentaba la
-# regla del documento PARCIAL: con el universo de `data-raw/medir_tapado_de_mas.R`
-# se tapaba uno de cada cinco, contra ninguno en la ronda 28. La cifra entera es
+# Reescribiendo el texto con la cifra entera, el entero de un importe redondo
+# -"5460537.00", lo mas comun en una columna de importes- alimentaba la regla
+# del documento PARCIAL: con el universo de `data-raw/medir_tapado_de_mas.R` se
+# tapaba uno de cada cinco, contra ninguno sin esa reescritura. La cifra entera es
 # la de la aguja COMPLETA -el celular de once cifras, la cedula con su
 # verificador- y entra solo como documento entero (`.candidatos_digitos()`); el
 # decimal sigue siendo un decimal para el parcial.
@@ -402,7 +401,7 @@
 # exportaciones de un CRM- o separado -"+598 4499 0917"-. Devuelve los grupos de
 # la parte nacional, o NULL si el numero no tiene esa forma.
 #
-# Ronda 27, dos defectos de la misma forma. (1) Pegado no dejaba ningun tramo
+# Dos defectos de la misma forma. (1) Pegado no dejaba ningun tramo
 # que fuera el telefono: "+59899123456" se publicaba frente al celular
 # protegido "099 123 456", y al reves. (2) Separado, el prefijo se pegaba al
 # primer grupo: "598" y "4499" formaban "5984499", una cedula de siete cifras
@@ -437,7 +436,7 @@
 # cifras o mas sin la ultima, sin ceros iniciales, si le quedan siete o mas; `NA`
 # para el que no tiene. UNA regla para el piso de los textos
 # (`.documentos_digitos()`) y la columna que copia los documentos sin su
-# verificador (`.copias_sin_verificador()`). Ronda 34.
+# verificador (`.copias_sin_verificador()`).
 #
 # `minimo`: las cifras que tiene que tener el documento sin su verificador. El
 # piso por valor pide siete -no tiene con que separar una copia del azar-; la
@@ -460,7 +459,7 @@
   unique(prefijos[!is.na(prefijos)])
 }
 
-# Ronda 37 (P-A2). La cedula de seis cifras sin su verificador -`854321` de
+# La cedula de seis cifras sin su verificador -`854321` de
 # `"854.321-2"`, la de una persona mayor- no era un documento para la regla de la
 # copia: no entraba a los prefijos y, entre las copias de siete cifras, bajaba la
 # proporcion de la columna, que dejaba de ser una copia y publicaba su minimo, su
@@ -471,14 +470,14 @@
 
 # Los conjuntos contra los que se compara, armados una vez por llamada. Un cero a
 # la izquierda no cambia el numero: "041234567" es el documento 41234567, como lo
-# deja una exportacion de ancho fijo. Medido en una refutacion.
+# deja una exportacion de ancho fijo. Medido.
 .documentos_digitos <- function(digitos) {
   digitos <- unique(digitos[!is.na(digitos) & nzchar(digitos)])
   largo <- nchar(digitos, type = "bytes")
   parcial <- largo - 1L >= .MIN_LARGO_VALOR_IDENTIFICANTE + 1L
   # El telefono protegido con su prefijo de pais -"+59899123456"- tambien es su
   # parte nacional: el texto "llamar al 099 123 456" es el mismo telefono.
-  # Medido en la ronda 27.
+  # Medido.
   internacionales <- grepl(.PATRON_TELEFONO_UY_PEGADO, digitos, perl = TRUE)
   nacionales <- sub(.PATRON_TELEFONO_UY_PEGADO, "\\1", digitos[internacionales],
                     perl = TRUE)
@@ -496,14 +495,14 @@
 
 # Los guiones, espacios e invisibles de Unicode cortaban el numero: el telefono
 # "2901 1234" con un guion largo, un espacio de cifra, un guion suave o un
-# espacio de ancho cero entre los grupos se publicaba. Medido en la ronda 22. Se
+# espacio de ancho cero entre los grupos se publicaba. Medido. Se
 # llevan a los de ASCII antes de buscar.
 .normalizar_signos_digitos <- function(texto) {
   tryCatch({
-    # Los asteriscos de Unicode son el comodin, como el de ASCII. Medido en la
-    # ronda 24: el documento sin su primer digito tras el asterisco de ancho
-    # completo o el operador asterisco se publicaba. Y en la ronda 25, con los
-    # otros treinta y ocho que Unicode llama asterisco: el de ocho rayos del
+    # Los asteriscos de Unicode son el comodin, como el de ASCII. Medido: el
+    # documento sin su primer digito tras el asterisco de ancho completo o el
+    # operador asterisco se publicaba. Y lo mismo con los otros treinta y ocho
+    # que Unicode llama asterisco: el de ocho rayos del
     # emoji, el de centro abierto, los de rayos y globos, el encerrado en un
     # circulo o un cuadrado, el eslavo y los combinantes. No los dos signos
     # cuneiformes, que son letras, ni la etiqueta, que no se ve. Va PRIMERO: los
@@ -518,19 +517,19 @@
     # las letras y las cifras anchas, y aca habia una lista de signos. La fecha
     # con hora protegida se publicaba escrita con la arroba, el punto y coma o
     # la barra vertical anchos (U+FF20, U+FF1B, U+FF5C) mientras sus hermanas
-    # -la coma, la barra y la T anchas- se tapaban. Medido en la ronda 26. La
+    # -la coma, la barra y la T anchas- se tapaban. Medido. La
     # misma lectura que la del correo en palabras: `.ancho_y_espacios_ascii()`.
     texto <- .ancho_y_espacios_ascii(texto)
     # Un control C1 en un texto es casi siempre un CSV de Windows -CP1252- leido
     # como `latin1`: la raya 0x96 queda como U+0096 y cortaba el numero. Se lee
     # como lo que es en CP1252: la raya y la raya larga, las comillas simples, la
-    # coma baja y la vineta. Medido en la ronda 24.
+    # coma baja y la vineta. Medido.
     texto <- chartr("\u0082\u0091\u0092\u0095\u0096\u0097",
                     "\u201a\u2018\u2019\u2022\u2013\u2014", texto)
     texto <- gsub("\\p{Cf}", "", texto, perl = TRUE)
     # Y los selectores de variante, que tampoco se ven; las marcas que no ocupan
     # lugar -combinantes y envolventes- y los demas ignorables de Unicode, tambien
-    # los no asignados. Medido en la ronda 24: U+17B4, U+180B y U+20DD entre los
+    # los no asignados. Medido: U+17B4, U+180B y U+20DD entre los
     # grupos cortaban el numero.
     texto <- gsub(
       paste0("[\uFE00-\uFE0F\U000E0100-\U000E01EF\\p{Mn}\\p{Me}\u034f",
@@ -538,14 +537,13 @@
       "", texto, perl = TRUE
     )
     # Y los parecidos del guion: el menos modificador, el guion vineta, el menos
-    # grueso, la linea de caja y la marca de prolongacion katakana. Medido en la
-    # ronda 24.
+    # grueso, la linea de caja y la marca de prolongacion katakana. Medido.
     texto <- gsub("[\\p{Pd}\u2212\u02d7\u2043\u2796\u2500\u30fc]", "-", texto,
                   perl = TRUE)
     # Todo separador de Unicode -tambien el de linea y el de parrafo-, el salto
     # de linea de C1 y los rellenos que se ven como un espacio: el hangul, el
-    # braille en blanco. Medido en la ronda 23. Y los demas controles, que son
-    # invisibles: tambien unen, como un espacio. Medido en la ronda 24.
+    # braille en blanco. Medido. Y los demas controles, que son
+    # invisibles: tambien unen, como un espacio. Medido.
     texto <- gsub(
       "[\\p{Z}\\p{Cc}\u3164\u115f\u1160\uffa0\u2800]", " ",
       texto, perl = TRUE
@@ -553,7 +551,7 @@
     # Y los que se parecen a un punto, una barra, una coma o un punto medio: el
     # punto de guia, la barra de fraccion y la de division, la coma y el
     # separador de miles arabes, el punto medio katakana y el operador punto.
-    # La ronda 24 agrego el acento agudo que el teclado en espanol pone por
+    # Y tambien el acento agudo que el teclado en espanol pone por
     # apostrofo, las comillas simples, el ano teleia -el mismo caracter que el
     # punto medio-, la vineta, la coma ideografica de medio ancho y la chica, la
     # cedilla, el punto arabe y el armenio, y las diagonales. Sin guiones: `chartr()` los
@@ -576,7 +574,7 @@
 # La fecha con hora como documento entero, en el orden en que se guarda: el
 # valor protegido "2024-06-27 21:24:25" se publicaba escrito
 # "2024-06-27T21:24:25" o "27/06/2024 21:24:25", porque la fecha y la hora se
-# borran antes de buscar. Medido en la ronda 22. Una fecha SOLA no es un dato
+# borran antes de buscar. Medido. Una fecha SOLA no es un dato
 # -`.valores_identificantes()` no la lleva-; con hora, si.
 .fechas_hora_digitos <- function(texto) {
   salida <- character()
@@ -644,7 +642,7 @@
     # La mascara queda entre dos barras verticales, que no unen: con una sola,
     # el rango de redes "10.4.1.0/24-10.4.9.0/24" pegaba la mascara "24" a la IP
     # siguiente por el guion, y uno de cada cuatro se tapaba por los tramos de
-    # ese numero. Medido en la ronda 26.
+    # ese numero. Medido.
     texto <- gsub(regla$cidr, "\\1|\\2|", texto, perl = TRUE)
     isbn <- regmatches(texto, gregexpr(regla$isbn, texto, perl = TRUE))[[1L]]
     isbn <- isbn[nchar(gsub("[^0-9Xx]", "", isbn)) == 13L]
@@ -692,7 +690,7 @@
     # por una barra o un guion -"+59899123456/+59899765432", "29011234/+598..."-,
     # el numero tiene dos grupos, el primero no es "598" y su parte nacional no se
     # probaba: los cuatro celulares de una lista asi se publicaban frente a los
-    # protegidos, mientras con " / " o con ";" se tapaban. Medido en la ronda 28.
+    # protegidos, mientras con " / " o con ";" se tapaban. Medido.
     # La parte nacional de cada grupo con esa forma, como si estuviera escrita
     # sola; el resto del numero sigue su camino.
     if (!any(partes$decimal) && length(partes$grupos) > 1L) {
@@ -710,18 +708,18 @@
     }
     # Con forma de IP, solo como documento entero, y entera: probar cada tramo
     # de octetos tapaba una de cada cincuenta direcciones -"218.235.90.247" por
-    # el tramo "21823590"-. Medido en la ronda 24.
+    # el tramo "21823590"-. Medido.
     # Lo mismo un importe con miles de cuatro grupos o mas -"3.919.024.166",
     # "$ 12.345.678.901"-: el tramo de sus tres primeros grupos tiene la forma
-    # del documento sin su verificador, y uno de cada seis se tapaba. Medido en
-    # la ronda 25. Entero si: la cedula colombiana "1.023.456.789" se escribe
+    # del documento sin su verificador, y uno de cada seis se tapaba. Medido.
+    # Entero si: la cedula colombiana "1.023.456.789" se escribe
     # asi. Sin el espacio como separador de miles: "598 099 123 456" es un
     # celular con su prefijo, y su tramo es el celular.
     #
     # Y del importe de cuatro grupos, tambien la COLA sin el primero, entera: el
     # celular con su prefijo de pais agrupado de a tres con puntos, comas o
     # apostrofos -"598.099.123.456"- se probaba solo entero y se publicaba,
-    # mientras con espacios o guiones se tapaba. Medido en la ronda 26. La cola
+    # mientras con espacios o guiones se tapaba. Medido. La cola
     # tiene nueve cifras y solo coincide con un documento cuando empieza con un
     # cero, como el celular; el costo en importes esta en
     # `data-raw/medir_tapado_de_mas.R`.
@@ -775,9 +773,9 @@
 
 # Los numeros de un texto AJENO -el mensaje de un error del motor- leidos con
 # la regla de digitos: los tramos que el piso lee como UN numero escrito con
-# separadores, en caracteres del texto original, con sus cifras. Ronda 30: la
-# segunda pasada del mensaje del motor tenia su propia lectura -cifras unidas
-# por uno solo de `[.,:/ -]`- y de 67 separadores entre los grupos de una cedula
+# separadores, en caracteres del texto original, con sus cifras. Medido: con
+# una lectura propia en la segunda pasada del mensaje del motor -cifras unidas
+# por uno solo de `[.,:/ -]`-, de 67 separadores entre los grupos de una cedula
 # o un celular el piso reconocia el valor en 45 y el mensaje lo publicaba en 39
 # de esos 45 -el espacio duro, los espacios finos, el punto medio, la raya,
 # ` - `, dos espacios, el tabulador, el salto de linea-: era la misma regla
@@ -828,7 +826,7 @@
 # cuentan. Si el delimitador aparece una cantidad IMPAR de veces, uno esta suelto
 # -una comilla en el NOMBRE de una columna, como deja `read.csv(check.names =
 # FALSE)`- y corre todo el apareo: el valor citado despues quedaba afuera de toda
-# cita. Medido en una refutacion. Entonces se prueban tambien los apareos que
+# cita. Medido. Entonces se prueban tambien los apareos que
 # saltean cada delimitador, y se devuelven todos los tramos: quien los usa
 # decide cuales tapar.
 .tramos_entre_delimitadores <- function(texto, delimitador = "\"") {

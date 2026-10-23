@@ -1,5 +1,5 @@
-# Los arreglos que salieron de correr `lupa` contra bases reales: §2.46 a §2.49
-# y la regla de §2.51.
+# Los arreglos que salieron de correr `lupa` contra bases reales,
+# y la regla que los generaliza.
 #
 # La regla que gobierna todo lo que sigue: ante un fallo PARCIAL se devuelve lo
 # medido con su alcance declarado. Nunca el todo descartado, y nunca `0` -ni
@@ -7,7 +7,7 @@
 # significa «medido y ninguno»; usarlo para «no se midió» es una afirmación
 # falsa.
 #
-# La otra causa estructural, §2.50: toda la superficie DBI estaba probada contra
+# La otra causa estructural: toda la superficie DBI estaba probada contra
 # un solo motor, y SQLite comparte justamente las propiedades cuya ausencia es
 # el modo de falla —acepta `LIMIT`, calcula el desvio sin quejarse—. Acá se
 # construyen conexiones
@@ -23,7 +23,7 @@ testthat::skip_on_cran()
   DBI::dbConnect(RSQLite::SQLite(), ":memory:")
 }
 
-# --- §2.46 (a) y (b): la tabla vacía ---------------------------------------
+# --- La tabla vacía --------------------------------------------------------
 #
 # Una tabla vacía no es un caso exótico: es rutina institucional —tabla recién
 # creada, staging truncada, partición del mes que viene—.
@@ -94,7 +94,7 @@ test_that("una proporcion parcialmente conocida declara sobre cuantas columnas s
   expect_equal(resumen$n_columnas_sin_faltantes, 0)
 })
 
-# --- §2.46 (c): la cobertura por metrica ------------------------------------
+# --- La cobertura por metrica ----------------------------------------------
 #
 # Un motor que rechaza un agregado producia un informe INDISTINGUIBLE de uno
 # donde todo se midio. El backend simulado rechaza las tres formas del desvio
@@ -213,7 +213,7 @@ test_that("los modos de cobertura por metrica y su tope se respetan", {
                no_medidas$meta$n_metricas_no_medidas)
 })
 
-# --- §2.47: el costo se estima en O(n), no en O(n^2) ------------------------
+# --- El costo se estima en O(n), no en O(n^2) -----------------------------
 
 test_that("el costo de todos los pares sale por formula cerrada y coincide", {
   con <- .con_arreglos()
@@ -240,7 +240,7 @@ test_that("el costo de todos los pares sale por formula cerrada y coincide", {
 })
 
 test_that("estimar el costo no materializa los pares ni tarda con muchas tablas", {
-  # El punto de §2.47: estimar el costo no puede costar mas que medirlo. Con
+  # El punto: estimar el costo no puede costar mas que medirlo. Con
   # 1700 tablas eran 22 s y 245 MB para devolver cuatro numeros.
   skip_on_cran()
   con <- .con_arreglos()
@@ -369,7 +369,7 @@ test_that("los pares repetidos se descartan y los autorreferenciales se rechazan
   expect_equal(repetidos$meta$pares_repetidos_descartados, 1)
 })
 
-# --- §2.48: cada tabla se lee una sola vez ----------------------------------
+# --- Cada tabla se lee una sola vez ----------------------------------------
 
 test_that("las tablas se leen una vez y no una vez por par", {
   con <- .con_arreglos()
@@ -422,7 +422,7 @@ test_that("declarar el orden hace la lectura repetible y lo dice", {
 })
 
 test_that("un motor que rechaza LIMIT ya no tira todos los pares", {
-  # §2.50: el entorno de prueba compartia la propiedad cuya ausencia es el modo
+  # El entorno de prueba compartia la propiedad cuya ausencia es el modo
   # de falla. Este backend simulado no la comparte.
   con <- .con_arreglos()
   on.exit(DBI::dbDisconnect(con), add = TRUE)
@@ -440,10 +440,10 @@ test_that("un motor que rechaza LIMIT ya no tira todos los pares", {
   )
   # Antes: todos los pares a `sin_comparar` -honesto, e inutil-. Ningun par
   # queda sin leer. La referencia se leyo truncada (10 de 20), asi que la
-  # combinacion que no alcanzo el umbral (`nombre -> persona_id`) se declara
-  # sin conclusion aunque `id -> persona_id` lo alcance: desde la ronda 35-X
-  # (M3) esa declaracion no depende de la vecina. Esta prueba pedia
-  # `cobertura_pares` vacia, y con eso sostenia el descarte en silencio.
+  # combinacion que no alcanzo el umbral (`nombre -> persona_id`) se declara sin
+  # conclusion aunque `id -> persona_id` lo alcance: esa declaracion no depende
+  # de la vecina. Esta prueba pedia `cobertura_pares` vacia, y con eso sostenia
+  # el descarte en silencio.
   expect_false(any(grepl("No se pudo leer", resultado$cobertura_pares$motivo,
                          fixed = TRUE)))
   expect_true(all(grepl("^Sin conclusion", resultado$cobertura_pares$motivo)))
@@ -453,7 +453,7 @@ test_that("un motor que rechaza LIMIT ya no tira todos los pares", {
   expect_true(all(resultado$meta$lecturas$filas_leidas == 10))
 })
 
-# --- §2.49: identificadores -------------------------------------------------
+# --- Identificadores -------------------------------------------------------
 
 test_that("un identificador de tres partes se rechaza nombrando la causa real", {
   con <- .con_arreglos()
@@ -678,7 +678,7 @@ test_that("el unicode y las palabras reservadas siguen funcionando", {
   )
 })
 
-# --- §2.52 vecino: la entrada data.frame tambien se valida ------------------
+# --- La entrada data.frame tambien se valida -------------------------------
 
 test_that("el data.frame de tablas valida NA, cadenas vacias y tipos", {
   con <- .con_arreglos()
@@ -696,7 +696,7 @@ test_that("el data.frame de tablas valida NA, cadenas vacias y tipos", {
   expect_silent(coleccion(con, data.frame(esquema = NA, tabla = "a")))
 })
 
-# --- §2.51: la regla, comprobada como invariante ----------------------------
+# --- La regla, comprobada como invariante ----------------------------------
 
 test_that("ningun na.rm colapsa un conjunto entero de NA en un numero", {
   con <- .con_arreglos()

@@ -294,8 +294,8 @@ perfilar_por <- function(datos, por, clave = NULL, min_filas = 30L, ...) {
     # para dos cosas: avisar si una etiqueta de grupo lleva uno, y barrer la
     # salida al final. Cada grupo se perfila sobre su rebanada y solo conoce los
     # protegidos de sus filas, asi que el titular que en la columna protegida esta
-    # solo en el grupo A se publicaba exacto en la evidencia del grupo B -medido
-    # en una refutacion-, mientras `perfilar()` sobre la misma tabla lo tapa.
+    # solo en el grupo A se publicaba exacto en la evidencia del grupo B,
+    # mientras `perfilar()` sobre la misma tabla lo tapa.
     indices_otras <- setdiff(seq_along(datos), indice_por)
     otras <- .seleccionar_columnas(datos, names(datos)[indices_otras])
     sensibles_otras <- tryCatch(
@@ -328,7 +328,7 @@ perfilar_por <- function(datos, por, clave = NULL, min_filas = 30L, ...) {
       # adentro el valor de otra que si lo es: con el titular "Juan Perez"
       # protegido, agrupar por un proveedor "juanperezsrl" publicaba esa etiqueta
       # sin aviso, mientras `perfilar()` sobre la misma tabla la tapa en la moda y
-      # en los ejemplos del proveedor. Lo encontro una refutacion. Se decide igual
+      # en los ejemplos del proveedor. Se decide igual
       # que arriba -la etiqueta se publica porque es el eje- y por eso tampoco
       # aca en silencio: se avisa y se declara. Las etiquetas son valores, asi
       # que se comparan con la regla fuerte, la de los valores y no la de la
@@ -503,7 +503,7 @@ perfilar_por <- function(datos, por, clave = NULL, min_filas = 30L, ...) {
   ) > 0L
   # "La columna entera" es la que `perfilar()` mide con la MISMA declaracion:
   # las filas que `aplicabilidad` deja fuera no son de la columna. Las tres
-  # senales se calculaban sobre todos los valores presentes. Medido (ronda 29):
+  # senales se calculaban sobre todos los valores presentes. Medido:
   # con `aplicabilidad = list(ingreso = ~ edad >= 18)`, el relleno 999999 de los
   # menores ganaba la conjetura de la columna entera, el 88888 del universo
   # -el que `perfilar()` publica, con 18 afectados- se declaraba "de la
@@ -864,7 +864,7 @@ perfilar_por <- function(datos, por, clave = NULL, min_filas = 30L, ...) {
     if (nrow(perfil$hallazgos) && length(columnas_densas) &&
           !hay_centinelas_declarados) {
       # `faltantes` entra tambien, pero SOLO cuando su contenido es enteramente
-      # disfrazado. Lo encontro una refutacion externa: sobre una columna densa
+      # disfrazado. Sobre una columna densa
       # en la tabla completa, un grupo cuya densidad cae bajo el umbral emitia
       # `faltantes` -"0 ausentes reales y 4 disfrazados"- y ese tipo no estaba en
       # la lista, asi que las dos puertas discrepaban sobre las mismas cuatro
