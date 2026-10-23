@@ -74,7 +74,7 @@ variants, numbers stored as text, near-keys, constants and structural
 absence. On a reference bank with known defects it recovered 9 of 9
 planted defects; on 31 clean tables it produced 0 error-severity
 findings and 8 signals to review. The three figures are pinned by
-`tests/testthat/test-ronda107.R`, so they cannot age in silence.
+`tests/testthat/test-regresion-107.R`, so they cannot age in silence.
 
 The current canonical vocabulary has 58 `tipo_hallazgo` names. The names
 are Spanish because they are part of the public API:
@@ -509,8 +509,9 @@ engine could. DuckDB found the sharpest one: it accepts
 without the filter, because with a trivially false filter its parser
 never validates the sampling method. The capability probe used exactly
 that filter to stay cheap, so it passed and the real query failed. **A
-probe that does not exercise the form it later emits proves nothing** —
-the same lesson the standard-deviation probe taught one round earlier.
+probe that does not exercise the form it later emits proves nothing**,
+which is why every probe in `lupa` tests the same form it is going to
+emit.
 
 The dialect can be declared with `dialecto =` if the probe gets it
 wrong. A partial failure never discards what was already measured: if
@@ -1169,9 +1170,9 @@ The criterion was chosen by measuring. A bench of thirteen columns with
 the known answer — five numberings and eight magnitudes with a bad value
 inside — compared four variants: crossing both signals gets all thirteen
 right and **never silences a real bad value**; density alone got eleven
-and silenced two. It lives in `test-ronda118.R`. Since requiring that a
-numbering barely repeat, one of the five numberings — a code from 1 to
-284 that repeats — is no longer recognised and gets Tukey’s fences:
+and silenced two. It lives in `test-regresion-118.R`. Since requiring
+that a numbering barely repeat, one of the five numberings — a code from
+1 to 284 that repeats — is no longer recognised and gets Tukey’s fences:
 twelve right, and the miss is on the cheap side, saying too much rather
 than silencing. Whoever knows the column corrects it by declaring it in
 `columnas_codigo`: a declared code gets no Tukey fences, no Benford and
@@ -1540,7 +1541,7 @@ them estimates a single package-wide accuracy.
 | Check | Declared unit | Result | Reproduced by |
 |----|----|---:|----|
 | Raha dirty/clean pairs | columns containing at least one changed cell | 26/26 received at least one finding; 8 further columns were flagged | `benchmark/medir_lupa.R` |
-| Constructed clean controls | 31 tables | 0 error-severity findings; 8 review signals | `test-ronda107.R` |
+| Constructed clean controls | 31 tables | 0 error-severity findings; 8 review signals | `test-regresion-107.R` |
 | Real sanctions register | error-severity findings over 2,556 rows | 9/9 independently confirmed | `benchmark/medir_sanciones.R` |
 
 **Every row names what reproduces it, and that is part of the check.**

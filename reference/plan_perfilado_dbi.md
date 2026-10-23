@@ -120,14 +120,14 @@ plan_perfilado_dbi(
   cuando la combinación es única en toda la tabla. Sin este argumento,
   DBI no garantiza el orden ni la pertenencia de una muestra limitada, y
   `meta` lo declara expresamente. No se usa cuando
-  `bloque_muestra = "solo_agregados"`. En la via I1, la identidad de la
-  fuente por bloques gobierna el recorrido y este pedido queda declarado
-  en `meta$orden_muestra` con el motivo estable de que no gobierna esa
-  via. Si el motor falla al evaluar una columna del `ORDER BY`, la vía
-  prueba cada componente, recupera las columnas legibles sin ese orden
-  cuando puede y publica `alcance_distinto` con el motivo de que el
-  orden pedido no se pudo aplicar; no lo presenta como si ninguna
-  columna fallara.
+  `bloque_muestra = "solo_agregados"`. Con la lectura por bloques, la
+  identidad de la fuente por bloques gobierna el recorrido y este pedido
+  queda declarado en `meta$orden_muestra` con el motivo estable de que
+  no gobierna esa via. Si el motor falla al evaluar una columna del
+  `ORDER BY`, la vía prueba cada componente, recupera las columnas
+  legibles sin ese orden cuando puede y publica `alcance_distinto` con
+  el motivo de que el orden pedido no se pudo aplicar; no lo presenta
+  como si ninguna columna fallara.
 
 - metricas:
 
@@ -277,12 +277,11 @@ plan_perfilado_dbi(
 
 - bloque_filas:
 
-  En la via I1, entero positivo que activa la fuente por bloques de
-  `tabla_completa`. Cada bloque se obtiene con un unico result set
-  (`dbSendQuery()` + `dbFetch(n = bloque_filas)`) y se absorbe antes de
-  liberar la entrada. `NULL` conserva el plan historico. El plan publica
-  la proyeccion, el orden, los bloques previstos y el costo declarado
-  sin leer las filas.
+  Entero positivo que activa la fuente por bloques de `tabla_completa`.
+  Cada bloque se obtiene con un unico result set (`dbSendQuery()` +
+  `dbFetch(n = bloque_filas)`) y se absorbe antes de liberar la entrada.
+  `NULL` conserva el plan historico. El plan publica la proyeccion, el
+  orden, los bloques previstos y el costo declarado sin leer las filas.
 
 - max_bytes_procesamiento:
 

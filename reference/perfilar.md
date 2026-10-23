@@ -767,9 +767,8 @@ perfilar(
   en cuatro cifras o en dos, o compacta `AAAAMMDD`—. Es una sola regla,
   en memoria y en
   [`perfilar_dbi()`](https://sebollin.github.io/lupa/reference/perfilar_dbi.md):
-  hasta la ronda 24 la columna `AAAAMMDD` tenía que serlo entera y el
-  año en dos cifras no contaba, y una columna de nacimientos con el 60 %
-  en `dd/mm/aa` tapaba la moda y los ejemplos de las fechas de otra
+  una columna de nacimientos con el 60 % en `dd/mm/aa` es de fechas, y
+  sus valores no tapan la moda ni los ejemplos de las fechas de otra
   columna. En la columna de fechas, lo que no tiene forma de fecha —un
   relleno— sigue entrando al piso. En la **prosa del paquete**
   —descripción, sugerencia, motivo, cómo resolverlo, justificación— se
@@ -1486,13 +1485,12 @@ valor más frecuente y representa al menos 0,15 de los valores válidos.
 La elegibilidad es parte de la señal: una columna con menos categorías
 no recibe una fila de `cobertura_diagnosticos`, porque allí la moda es
 la distribución. La evidencia publica el valor modal, ambas frecuencias,
-el cociente y la fracción. M2 fue la regla seleccionada en
-`.trabajo-agente/medicion-concentracion.md`: produjo cero falsos
-positivos en 114 columnas limpias, con un margen medido de 2,2 veces. Es
-una sospecha, no una acusación: un valor legítimo puede dominar. Sus
-puntos ciegos medidos son las concentraciones por debajo de 15 % y los
-empates naturales en columnas enteras pequeñas, donde el cociente puede
-quedar por debajo de cinco.
+el cociente y la fracción. La regla se calibró sobre 114 columnas
+limpias: no produjo ningún falso positivo, con un margen medido de 2,2
+veces. Es una sospecha, no una acusación: un valor legítimo puede
+dominar. Sus puntos ciegos medidos son las concentraciones por debajo de
+15 % y los empates naturales en columnas enteras pequeñas, donde el
+cociente puede quedar por debajo de cinco.
 
 La ley de Benford se evalúa sólo en columnas numéricas con al menos 50
 valores finitos; las columnas compuestas —matrices, arreglos de más de
@@ -1925,11 +1923,10 @@ protección. Cada clasificación declara `poder_discriminante` y
   también con importes, facturas y códigos; se informa y no se ocultan
   su moda, sus ejemplos ni sus estadísticos. En la evidencia de sus
   hallazgos se tapan sus valores de seis caracteres o más —la colisión
-  de una casi clave—, no la evidencia entera: hasta la ronda 26 se
-  tapaba entera, también la que no cita ningún valor
-  (`"4939 valores distintos de 5000 (0.988)"`, `"3 valores"`); sin la
-  tabla —un perfil que se vuelve a proteger al guardarlo— no hay valores
-  con que barrer y se tapa entera;
+  de una casi clave—, no la evidencia entera, así que la que no cita
+  ningún valor se publica (`"4939 valores distintos de 5000 (0.988)"`,
+  `"3 valores"`); sin la tabla —un perfil que se vuelve a proteger al
+  guardarlo— no hay valores con que barrer y se tapa entera;
 
 - `medio`: el nombre de la columna expresa una categoría personal (por
   ejemplo `telefono`, `fecha_nacimiento` o `fecha_fallecimiento`); se
@@ -1979,23 +1976,24 @@ protección. Cada clasificación declara `poder_discriminante` y
   (`pais_cliente`, `nacionalidad_socio`), una fecha (`cliente_desde`,
   `fecha_alta_socio`), una cantidad o un importe— y si sus valores
   pueden ser nombres: una columna de números, fechas o lógicos no lo es.
-  Hasta la ronda 33 bastaba la palabra, y esas columnas se protegían
-  como nombres: perdían su moda y sus extremos, y sus categorías
-  —`"mayorista"`, `"empresa"`— se tapaban también en las demás columnas.
-  La misma regla vale para las demás palabras: `tipo_documento` es una
-  categoría y no un documento, `fecha_contacto` y `medio_contacto` no
-  son teléfonos, `estado_correo` no es un correo y `tipo_domicilio` no
-  es un domicilio; sí lo siguen siendo `nro_documento`, `documento_id`,
-  `numero_celular`, `telefono_contacto`, `barrio_id`, `segundo_nombre` o
-  una fecha de nacimiento guardada como número. Y una palabra que el
-  resto del nombre califica se decide con sus **valores**, con el tipo
-  que ellos muestran y no el de la palabra, en el 80 % de sus valores
-  distintos: un correo —una `@`, también el de una intranet:
-  `correo_alta` con `"jperez@intranet"`—; un teléfono de siete a quince
-  cifras escrito como teléfono —con `+`, con el prefijo `00598` o `598`
-  pegado, con un cero inicial, con separadores (también puntos de a dos
-  cifras, `"099.12.34.56"`, o el espacio duro y la raya de una
-  planilla), con el `.0` de una planilla, con un interno o en una lista:
+  No basta la palabra: si bastara, esas columnas se protegerían como
+  nombres, perderían su moda y sus extremos, y sus categorías
+  —`"mayorista"`, `"empresa"`— se taparían también en las demás
+  columnas. La misma regla vale para las demás palabras:
+  `tipo_documento` es una categoría y no un documento, `fecha_contacto`
+  y `medio_contacto` no son teléfonos, `estado_correo` no es un correo y
+  `tipo_domicilio` no es un domicilio; sí lo siguen siendo
+  `nro_documento`, `documento_id`, `numero_celular`,
+  `telefono_contacto`, `barrio_id`, `segundo_nombre` o una fecha de
+  nacimiento guardada como número. Y una palabra que el resto del nombre
+  califica se decide con sus **valores**, con el tipo que ellos muestran
+  y no el de la palabra, en el 80 % de sus valores distintos: un correo
+  —una `@`, también el de una intranet: `correo_alta` con
+  `"jperez@intranet"`—; un teléfono de siete a quince cifras escrito
+  como teléfono —con `+`, con el prefijo `00598` o `598` pegado, con un
+  cero inicial, con separadores (también puntos de a dos cifras,
+  `"099.12.34.56"`, o el espacio duro y la raya de una planilla), con el
+  `.0` de una planilla, con un interno o en una lista:
   `responsable_canal` con `"+598 99 123 456"`—, en una columna que no es
   de fechas; con la palabra del teléfono, también las cifras sueltas
   (`celular_estado`), salvo que el resto del nombre diga que son un
@@ -2060,8 +2058,8 @@ protección. Cada clasificación declara `poder_discriminante` y
   estado dejaría la columna en el 75 % y publicaría los logins de
   todos—; la de quien es objeto del registro pide la señal de los
   valores, y `cliente_desde` con `"Sin fecha"` o `paciente_alta` con
-  `"Traslado"` se publican. En la ronda 34 el nombre decidía solo, y
-  esas columnas publicaban nombres, celulares y domicilios. Limitación
+  `"Traslado"` se publican. El nombre no decide solo: si decidiera, esas
+  columnas publicarían nombres, celulares y domicilios. Limitación
   conocida: la lista de nombres de pila no es completa, y un nombre que
   falta —o que es también una palabra corriente, como `Max` o `Pilar`—
   deja la columna sin esa señal: con tres personas, una basta para que
@@ -2129,8 +2127,7 @@ del dato es correcta. La protección sustituye modas, ejemplos, evidencia
 y extremos o medianas que corresponden a observaciones reales. También
 los momentos: las medias en sus dos formas (`media` y `media_fecha`),
 porque la media de una columna personal puede reconstruir demasiado, y
-el desvío, que es una magnitud de sus valores —hasta la ronda 32 se
-conservaba, por una decisión declarada que se revirtió—.
+el desvío, que es una magnitud de sus valores.
 `detalle_proteccion_personal` hace visible la supresión y dice qué se
 tapó: los estadísticos de orden, la media, el desvío o los dos momentos.
 En fechas de nacimiento y fallecimiento, un hallazgo separado conserva

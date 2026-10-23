@@ -223,7 +223,7 @@ finito para acotar ese trabajo cuando el tiempo no sea la restricción.</p></dd>
 reproducible cuando la combinación es única en toda la tabla. Sin este
 argumento, DBI no garantiza el orden ni la pertenencia de una muestra
 limitada, y <code>meta</code> lo declara expresamente. No se usa cuando
-<code>bloque_muestra = "solo_agregados"</code>. En la via I1, la identidad de la
+<code>bloque_muestra = "solo_agregados"</code>. Con la lectura por bloques, la identidad de la
 fuente por bloques gobierna el recorrido y este pedido queda declarado en
 <code>meta$orden_muestra</code> con el motivo estable de que no gobierna esa via. Si
 el motor falla al evaluar una columna del <code>ORDER BY</code>, la vía prueba cada
@@ -377,7 +377,7 @@ modifica los agregados SQL.</p></dd>
 
 
 <dt id="arg-bloque-filas">bloque_filas<a class="anchor" aria-label="anchor" href="#arg-bloque-filas"></a></dt>
-<dd><p>En la via I1, entero positivo que activa la fuente por
+<dd><p>Entero positivo que activa la fuente por
 bloques de <code>tabla_completa</code>. Cada bloque se obtiene con un unico result
 set (<code>dbSendQuery()</code> + <code>dbFetch(n = bloque_filas)</code>) y se absorbe antes de
 liberar la entrada. <code>NULL</code> conserva el plan historico. El plan publica la

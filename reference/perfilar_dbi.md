@@ -108,14 +108,14 @@ perfilar_dbi(
   cuando la combinación es única en toda la tabla. Sin este argumento,
   DBI no garantiza el orden ni la pertenencia de una muestra limitada, y
   `meta` lo declara expresamente. No se usa cuando
-  `bloque_muestra = "solo_agregados"`. En la via I1, la identidad de la
-  fuente por bloques gobierna el recorrido y este pedido queda declarado
-  en `meta$orden_muestra` con el motivo estable de que no gobierna esa
-  via. Si el motor falla al evaluar una columna del `ORDER BY`, la vía
-  prueba cada componente, recupera las columnas legibles sin ese orden
-  cuando puede y publica `alcance_distinto` con el motivo de que el
-  orden pedido no se pudo aplicar; no lo presenta como si ninguna
-  columna fallara.
+  `bloque_muestra = "solo_agregados"`. Con la lectura por bloques, la
+  identidad de la fuente por bloques gobierna el recorrido y este pedido
+  queda declarado en `meta$orden_muestra` con el motivo estable de que
+  no gobierna esa via. Si el motor falla al evaluar una columna del
+  `ORDER BY`, la vía prueba cada componente, recupera las columnas
+  legibles sin ese orden cuando puede y publica `alcance_distinto` con
+  el motivo de que el orden pedido no se pudo aplicar; no lo presenta
+  como si ninguna columna fallara.
 
 - metricas:
 
@@ -346,25 +346,25 @@ perfilar_dbi(
 
 - bloque_filas:
 
-  En la via I1, entero positivo que activa el recorrido de
-  `tabla_completa` por bloques. Se abre un unico result set con
-  `dbSendQuery()` y cada bloque se lee con `dbFetch(n = bloque_filas)`
-  antes de liberar la entrada; `NULL` conserva la via existente. El
-  resultado publica `meta$alcance$orden`, `meta$bloques`, `meta$bytes` y
-  los eventos del vigilante. Los drivers sin retencion incremental
-  demostrada (incluido DuckDB en esta matriz) quedan `no_disponible` con
-  su motivo, sin caer en `dbGetQuery()`. Si se pide `moda` o `mediana`,
-  I1 inicia tambien el mapa central de distintos aunque `n_distintos` no
-  se haya pedido: la mediana depende de ese mapa y la fila `n_distintos`
-  conserva `no_solicitado`. Bajo `bloque_filas`, `perfil_muestra` sigue
-  siendo la muestra diagnóstica acotada por `muestra`,
-  `max_celdas_muestra` y `max_bytes_muestra`; su `general$filas` no es
-  la cobertura, que se publica en `meta$bloques$filas_vistas`. Si el
-  recorrido por bloques no puede leer una columna de una vista, se
-  vuelve a leer la muestra diagnóstica por columnas: las columnas sanas
-  conservan su perfil y sus magnitudes, y la columna rota queda en
-  `no_disponible` con el motivo del motor. No se publica como privacidad
-  ni como `no_solicitado`.
+  Entero positivo que activa el recorrido de `tabla_completa` por
+  bloques. Se abre un unico result set con `dbSendQuery()` y cada bloque
+  se lee con `dbFetch(n = bloque_filas)` antes de liberar la entrada;
+  `NULL` conserva la via existente. El resultado publica
+  `meta$alcance$orden`, `meta$bloques`, `meta$bytes` y los eventos del
+  vigilante. Los drivers sin retencion incremental demostrada (incluido
+  DuckDB en esta matriz) quedan `no_disponible` con su motivo, sin caer
+  en `dbGetQuery()`. Si se pide `moda` o `mediana`, la lectura por
+  bloques inicia tambien el mapa central de distintos aunque
+  `n_distintos` no se haya pedido: la mediana depende de ese mapa y la
+  fila `n_distintos` conserva `no_solicitado`. Bajo `bloque_filas`,
+  `perfil_muestra` sigue siendo la muestra diagnóstica acotada por
+  `muestra`, `max_celdas_muestra` y `max_bytes_muestra`; su
+  `general$filas` no es la cobertura, que se publica en
+  `meta$bloques$filas_vistas`. Si el recorrido por bloques no puede leer
+  una columna de una vista, se vuelve a leer la muestra diagnóstica por
+  columnas: las columnas sanas conservan su perfil y sus magnitudes, y
+  la columna rota queda en `no_disponible` con el motivo del motor. No
+  se publica como privacidad ni como `no_solicitado`.
 
 - max_bytes_procesamiento:
 
@@ -823,7 +823,7 @@ reales— es PostgreSQL por RPostgres, medido en la 9.3 y en la 16, y SQL
 Server 2022 por odbc con el controlador FreeTDS, en sesiones UTF-8 y
 bajo el locale `C` de un `Rscript` de cron. SQLite (RSQLite) y duckdb se
 ejercitan en las pruebas del paquete; MySQL y MariaDB (RMariaDB) se
-midieron en rondas puntuales. Con otro motor, otro controlador u otra
+midieron de forma puntual. Con otro motor, otro controlador u otra
 versión la función corre por la vía portable (ver «Dialecto») y declara
 en la cobertura lo que no pudo medir, pero sus cifras no están
 comprobadas contra ese motor. Las configuraciones avanzadas —una
@@ -1173,11 +1173,11 @@ para tipos fijos y 42 para `numeric`. El plan usa `n_validos` de
 catálogo. En la meta y en el aviso, cuando se pidió la familia
 `validos`, ese denominador se reemplaza por el medido en los agregados
 planos y se conserva también el valor de catálogo; si no se midió, el
-motivo declara que se retuvo el catálogo. Por arbitraje H5, este alcance
-K2 gobierna solo el denominador: si la estimación publicada marca
-`supera_memoria = TRUE`, el aviso se emite también con catálogo y
-declara su fuente. La consolidada decide por el máximo de columna y
-publica la suma de tapes sólo como `estado_io_total_bytes` informativo.
+motivo declara que se retuvo el catálogo. Ese reemplazo alcanza solo al
+denominador: si la estimación publicada marca `supera_memoria = TRUE`,
+el aviso se emite también con catálogo y declara su fuente. La
+consolidada decide por el máximo de columna y publica la suma de tapes
+sólo como `estado_io_total_bytes` informativo.
 
 Los avisos de esta vía son deliberadamente distintos de los de
 [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md):
@@ -1285,10 +1285,8 @@ protege publica sus estadísticos aunque comparta el tipo personal con
 una protegida, como en
 [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md):
 un importe entero de siete cifras o un número de factura clasificado
-`documento_identidad` débil. Hasta la ronda 33 se tapaban sus cinco
-estadísticos con el motivo de una columna protegida, mientras
-`perfil_muestra` los publicaba; una copia del documento la tapa el piso
-por valor, que corre con la tabla entera, y la que lo copia sin su
+`documento_identidad` débil. Una copia del documento la tapa el piso por
+valor, que corre con la tabla entera, y la que lo copia sin su
 verificador se clasifica como columna personal con la regla de
 [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md),
 sobre la muestra. Por la vía por bloques eso incluye `meta$familias`,
