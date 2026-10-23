@@ -1,5 +1,33 @@
 # lupa 0.1.0
 
+## La quinta evaluacion sobre datos reales: el mapa de la imputacion por dependencia
+
+La evaluacion de `3e11c5b` sobre tablas reales encontro un alto: en una tabla de personas con la fecha de nacimiento
+entera (`AAAAMMDD`, protegida) y la edad, el perfil encuentra la dependencia exacta `FechaNacimiento -> Edad` y
+`planificar_limpieza(perfil, datos = datos)` propone imputar la edad con el mapa de esa relacion: **el mapa publicaba
+en claro todas las fechas de nacimiento**, aunque se marcaba `mapa_enmascarado = TRUE`, y `analizar()` lo publicaba
+igual en su `plan_limpieza`. El barrido por columna del plan solo miraba la columna de la accion -en una imputacion,
+el dependiente- y el barrido de numeros dejaba intactas las fechas.
+
+- Si el determinante o el dependiente de una imputacion por dependencia es una columna protegida, **todo ese lado del
+  mapa se tapa por construccion**, en cualquier clase: el texto y los factores con `[valor protegido]`, los numeros
+  (tambien `integer64`), `Date` y `POSIXct` con `NA`. El otro lado conserva lo que dejan los barridos, incluido el
+  piso por contenido: la sucursal que se llama como un titular protegido sigue tapada.
+- Los demas parametros de una accion sobre una columna protegida tampoco publican un `Date` ni un `POSIXct`.
+- `aplicar()` resuelve el mapa tapado sobre los datos que recibe, con el soporte declarado: sobre los mismos datos
+  del plan imputa las mismas celdas con los mismos valores que el plan sin proteccion. Con un lado entero tapado,
+  una entrega parcial -las filas a completar y un par de cada clave- queda `fallida` con su motivo, donde antes se
+  ejecutaba porque el mapa estaba en claro. Limitacion declarada: una contradiccion en una clave que no hay que
+  completar ya no se detecta, porque el plan no publica esa clave; la accion sale `ejecutada` y lo que imputa es
+  correcto sobre los datos recibidos.
+- Lo demas de la evaluacion no era de `lupa` o ya estaba documentado: el numero de documento que el buscador
+  encontro en el HTML eran ocho cifras dentro de los dieciseis decimales de una proporcion; el minimo que no se
+  podia rehacer era el de una columna con un documento tecleado entre sus valores, que el piso tapa a proposito
+  (falta el aviso en la fila: queda para despues de esta version); y la diferencia de tipo entre la muestra DBI y la
+  memoria es la del decimal exacto de la ronda 39.
+- Una prueba nueva (O181) fija el mapa en las cuatro clases y los dos lados, `analizar()`, la ida y vuelta de
+  `aplicar()` celda por celda y el lado publico con un valor protegido adentro.
+
 ## Ronda 39: solo los altos de las refutaciones sobre la ronda 38
 
 La quinta ronda con el porton acotado al camino principal, y la primera que arregla solo lo alto: un hallazgo es alto

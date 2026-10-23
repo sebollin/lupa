@@ -1090,6 +1090,24 @@
 #' celda: no llena las filas declaradas fuera, que son vacío por diseño, y
 #' `n_afectadas` las excluye.
 #'
+#' Cuando el determinante o el dependiente es una columna protegida, se tapa por
+#' construcción todo ese lado del mapa: el texto usa `[valor protegido]` y las
+#' columnas numéricas, `Date` y `POSIXct` usan `NA`. El lado no protegido conserva
+#' el resultado de los barridos generales, incluido el piso por contenido. Los
+#' demás parámetros de una acción sobre una columna protegida tampoco publican
+#' objetos de clase `Date` o `POSIXct`.
+#'
+#' Con un lado entero tapado, todas sus filas quedan tapadas y `aplicar()` sólo
+#' puede resolverlas con datos que traigan la relación y el soporte declarado.
+#' Una entrega parcial —las filas a completar y un par de cada clave— queda
+#' `fallida`, con el motivo de que los datos no traen un par de esa clave que la
+#' resuelva. Una
+#' contradicción en una clave que no hay que completar —una fila con el
+#' dependiente presente que cambió de valor— ya no se detecta: el plan no publica
+#' esa clave para compararla, la acción sale `ejecutada` y lo que imputa es
+#' correcto sobre los datos recibidos. Es una limitación de esta representación
+#' tapada.
+#'
 #' Sobre una columna protegida, `convertir_sentinelas_numericos` publica el
 #' catálogo de centinelas del paquete tal cual —es vocabulario, no un dato— y
 #' tapa el resto. Lo tapado se marca con `valores_enmascarados = TRUE` y
@@ -2570,6 +2588,12 @@ rbind.plan_limpieza <- function(..., deparse.level = 1) {
   # datos recibidos: el piso, y si la accion es sobre una columna protegida,
   # todos sus valores, como el barrido por columna del plan.
   protegidas <- as.character(protegidas)
+  determinante_protegida <- .nombres_para_operar(
+    names(datos)[[i_determinante]]
+  ) %in% .nombres_para_operar(protegidas)
+  dependiente_protegida <- .nombres_para_operar(
+    names(datos)[[i_dependiente]]
+  ) %in% .nombres_para_operar(protegidas)
   valores <- .valores_publicables_protegidos(datos, protegidas)
   identificantes <- .valores_identificantes(
     valores, .fechas_que_identifican(datos, protegidas)
@@ -2584,6 +2608,11 @@ rbind.plan_limpieza <- function(..., deparse.level = 1) {
       todos <- unique(c(valores, .rellenos_de_columnas(datos, protegidas)))
       vistos <- .proteger_textos_salida(vistos, todos, intocables = names(datos))
       vistos <- .proteger_numeros_parametros(vistos, todos)
+    }
+    if (determinante_protegida || dependiente_protegida) {
+      vistos$mapa <- .enmascarar_mapa_lados_protegidos(
+        vistos$mapa, determinante_protegida, dependiente_protegida
+      )
     }
     vistos$mapa
   }
@@ -4834,6 +4863,7 @@ guiar_limpieza <- function(plan, datos, selector = NULL,
       plan$decision_grupo[indices] <- "elegida"
     }
   }
+  plan <- .proteger_fechas_acciones_plan(plan, columnas_protegidas)
   plan
 }
 

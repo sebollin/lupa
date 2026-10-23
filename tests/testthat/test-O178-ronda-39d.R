@@ -150,21 +150,31 @@ testthat::test_that("O178: decimal grande conserva identidad en muestra_motor", 
     try(DBI::dbDisconnect(con), silent = TRUE)
   }, add = TRUE)
   DBI::dbExecute(con, paste0("DROP TABLE IF EXISTS ", tabla))
+  # La tabla ocupa unas veinte paginas: `TABLESAMPLE SYSTEM` elige paginas, y
+  # con las 60 filas en una sola pagina la muestra salia vacia una de cada tres
+  # veces (`muestra_vacia`, declarado) y la prueba fallaba al azar. El relleno
+  # sin compresion (`STORAGE PLAIN`) deja tres filas por pagina.
   DBI::dbExecute(con, paste0(
-    "CREATE TABLE ", tabla, " (idd numeric(18,0), grupo integer)"
+    "CREATE TABLE ", tabla, " (idd numeric(18,0), grupo integer, relleno text)"
+  ))
+  DBI::dbExecute(con, paste0(
+    "ALTER TABLE ", tabla, " ALTER COLUMN relleno SET STORAGE PLAIN"
   ))
   ids <- as.character(bit64::as.integer64("201903150001234500") + 0:59)
   DBI::dbExecute(con, paste0(
     "INSERT INTO ", tabla, " VALUES ",
-    paste(sprintf("(%s, %d)", ids, seq_along(ids) %% 3), collapse = ",")
+    paste(sprintf("(%s, %d, repeat('x', 2000))", ids, seq_along(ids) %% 3),
+          collapse = ",")
   ))
   salida <- suppressMessages(lupa::perfilar_dbi(
     con, tabla, universo = "muestra_motor", muestra_motor = 40L,
     clave = "idd", proteger_datos_personales = FALSE,
     analizar_dependencias = FALSE
   ))
+  testthat::expect_false(is.null(salida$perfil_muestra))
   muestra <- salida$perfil_muestra$columnas
   muestra <- muestra[muestra$columna == "idd", , drop = FALSE]
+  testthat::expect_equal(nrow(muestra), 1L)
   n_validos <- as.numeric(muestra$n)
   n_distintos <- as.numeric(muestra$n_distintos)
   frecuencia <- as.numeric(muestra$frecuencia_moda)

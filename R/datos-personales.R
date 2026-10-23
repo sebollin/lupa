@@ -3907,6 +3907,122 @@
   x
 }
 
+# Una fecha de un parametro de una accion sobre una columna protegida sigue
+# siendo un valor de la tabla aunque no coincida con el piso de identificantes.
+# Se la tapa por clase, no por una lista de escrituras, y se conserva la clase
+# para que una accion que la pueda resolver no cambie de contrato sin avisar.
+.proteger_fechas_parametros <- function(x) {
+  if (inherits(x, c("Date", "POSIXt"))) {
+    salida <- tryCatch({
+      x[] <- NA
+      x
+    }, error = function(e) rep(NA, length(x)))
+    return(salida)
+  }
+  if (inherits(x, "data.frame")) {
+    for (j in seq_along(x)) {
+      x[[j]] <- .proteger_fechas_parametros(x[[j]])
+    }
+    return(x)
+  }
+  if (is.list(x)) {
+    for (i in seq_along(x)) {
+      x[[i]] <- .proteger_fechas_parametros(x[[i]])
+    }
+    return(x)
+  }
+  x
+}
+
+# El mapa tiene dos lados con contratos distintos: una columna protegida se
+# tapa completo, y la otra conserva el barrido general. Esto evita que el
+# enmascarado por construccion afloje el piso por contenido del lado publico.
+# En texto se conserva la convencion del paquete; en las demas clases una `NA`
+# no publica la escritura ni la clase del valor.
+.enmascarar_lado_mapa <- function(x) {
+  if (is.character(x) || is.factor(x)) {
+    salida <- as.character(x)
+    salida[!is.na(x)] <- "[valor protegido]"
+    salida[is.na(x)] <- NA_character_
+    return(salida)
+  }
+  tryCatch({
+    x[] <- NA
+    x
+  }, error = function(e) rep(NA, length(x)))
+}
+
+.enmascarar_mapa_lados_protegidos <- function(mapa, determinante = FALSE,
+                                              dependiente = FALSE) {
+  if (!inherits(mapa, "data.frame")) return(mapa)
+  if (isTRUE(determinante) && "determinante" %in% names(mapa)) {
+    mapa$determinante <- .enmascarar_lado_mapa(mapa$determinante)
+  }
+  if (isTRUE(dependiente) && "dependiente" %in% names(mapa)) {
+    mapa$dependiente <- .enmascarar_lado_mapa(mapa$dependiente)
+  }
+  mapa
+}
+
+# Repara el mapa despues de todos los barridos genericos. Solo reemplaza el
+# lado protegido: el otro ya trae el piso por contenido y debe conservarlo. El
+# mapa se marca aunque una clase no necesite el piso: `aplicar()` debe
+# reconstruirlo sobre los datos que recibe.
+.proteger_lados_mapa_plan <- function(plan, sensibles) {
+  if (!inherits(plan, "data.frame") || !is.list(plan$parametros) ||
+      !length(plan$parametros)) {
+    return(plan)
+  }
+  sensibles <- .nombres_para_operar(sensibles)
+  estrategias <- as.character(plan$estrategia)
+  for (i in which(startsWith(estrategias, "imputar_dependencia_funcional__"))) {
+    parametros <- plan$parametros[[i]]
+    if (!is.list(parametros) || !inherits(parametros$mapa, "data.frame")) next
+    determinante <- .nombres_para_operar(parametros$determinante)
+    dependiente <- .nombres_para_operar(parametros$dependiente)
+    det_protegida <- length(determinante) == 1L && determinante %in% sensibles
+    dep_protegida <- length(dependiente) == 1L && dependiente %in% sensibles
+    if (!det_protegida && !dep_protegida) next
+    mapa <- parametros$mapa
+    if (!all(c("determinante", "dependiente") %in% names(mapa))) next
+    if (det_protegida) {
+      mapa$determinante <- .enmascarar_lado_mapa(mapa$determinante)
+    }
+    if (dep_protegida) {
+      mapa$dependiente <- .enmascarar_lado_mapa(mapa$dependiente)
+    }
+    parametros$mapa <- mapa
+    parametros$mapa_enmascarado <- TRUE
+    plan$parametros[[i]] <- parametros
+  }
+  plan
+}
+
+# La ayuda y `aplicar()` sólo necesitan que se tapen las fechas de acciones
+# cuyo objeto directo es protegido. El mapa se trata aparte para no tapar por
+# accidente su lado no protegido.
+.proteger_fechas_acciones_plan <- function(plan, sensibles) {
+  if (!inherits(plan, "data.frame") || !is.list(plan$parametros)) return(plan)
+  sensibles <- .nombres_para_operar(sensibles)
+  propias <- !is.na(plan$columna) &
+    .nombres_para_operar(as.character(plan$columna)) %in% sensibles
+  plan$parametros <- I(lapply(seq_along(plan$parametros), function(i) {
+    parametros <- plan$parametros[[i]]
+    if (isTRUE(propias[[i]])) {
+      if (!is.list(parametros)) return(parametros)
+      mapa <- parametros$mapa
+      parametros <- .proteger_fechas_parametros(parametros)
+      # El mapa se enmascara por lado en la segunda pasada; aca no se lo toca
+      # para conservar el lado no protegido despues del barrido.
+      if (!is.null(mapa)) parametros$mapa <- mapa
+      parametros
+    } else {
+      parametros
+    }
+  }))
+  plan
+}
+
 # El piso tapa un extremo de una columna NO protegida porque es un documento, y
 # los campos de la secuencia entera lo devolvian: `minimo` 8 y
 # `n_posiciones_secuencia_entera` 54321979 dan el maximo, 54321986. Medido en una
@@ -3961,6 +4077,7 @@
     return(plan)
   }
   sensibles <- .columnas_personales_protegidas(perfil)
+  parametros_originales <- if (is.list(plan$parametros)) plan$parametros
   indices_dependencias <- which(startsWith(
     as.character(plan$estrategia), "imputar_dependencia_funcional__"
   ))
@@ -3988,6 +4105,8 @@
   valores <- valores[.orden_por_bytes(nchar(valores, type = "bytes"), decreasing = TRUE,
                            method = "radix")]
   if (!length(valores)) {
+    plan <- .proteger_fechas_acciones_plan(plan, sensibles)
+    plan <- .proteger_lados_mapa_plan(plan, sensibles)
     attr(plan, "columnas_datos_personales_protegidas") <- sensibles
     return(plan)
   }
@@ -4002,7 +4121,6 @@
   identificantes <- .valores_identificantes(
     valores, .fechas_que_identifican(datos, sensibles)
   )
-  parametros_originales <- if (is.list(plan$parametros)) plan$parametros
   plan <- .proteger_textos_salida(
     plan, identificantes, intocables = nombres_entrada
   )
@@ -4039,6 +4157,8 @@
     plan <- .ejecutables_tras_barrido(
       plan, parametros_originales, antes, datos, perfil$meta$cadenas_ausencia
     )
+    plan <- .proteger_fechas_acciones_plan(plan, sensibles)
+    plan <- .proteger_lados_mapa_plan(plan, sensibles)
   }
   cobertura <- attr(plan, "cobertura_diagnosticos", exact = TRUE)
   if (inherits(cobertura, "data.frame")) {

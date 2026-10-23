@@ -1222,6 +1222,10 @@ print.analisis <- function(x, ...) {
 
 .proteger_analisis <- function(x, datos = NULL) {
   sensibles <- .columnas_personales_protegidas(x$perfil)
+  parametros_plan_originales <- if (inherits(x$plan_limpieza, "data.frame") &&
+                                    is.list(x$plan_limpieza$parametros)) {
+    x$plan_limpieza$parametros
+  }
   # `datos` es la tabla original y llega por argumento porque `analizar()` por
   # omision NO la conserva: `x$datos` viene NULL, y sin ella los valores
   # identificantes no se pueden recuperar despues. La cosecha del perfil sola no
@@ -1334,6 +1338,12 @@ print.analisis <- function(x, ...) {
       }
     }
   }
+  x$plan_limpieza <- .proteger_fechas_acciones_plan(
+    x$plan_limpieza, sensibles
+  )
+  x$plan_limpieza <- .proteger_lados_mapa_plan(
+    x$plan_limpieza, sensibles
+  )
   x
 }
 
