@@ -465,6 +465,11 @@ test_that("H7: un error que no se repite sin filas sigue pasando por el piso ent
 # mandar la consulta, con un nombre que la sesion no puede escribir.
 
 test_that("Segfault: bajo C la guarda no deja mandar por odbc un nombre que la sesion no puede escribir", {
+  # La caida se midio en Linux con FreeTDS. En Windows, bajo C, la sesion lee como
+  # nativos los bytes UTF-8 sin marca y la guarda los da por escribibles: la premisa
+  # de esta prueba no vale ahi, y no hay un odbc real en Windows con que medir si
+  # hay algo que guardar (PENDIENTES, 2026-10-23).
+  skip_on_os("windows")
   odbc_falso <- structure(list(), class = "OdbcConnection")
   otra <- structure(list(), class = "SQLiteConnection")
   marcado <- paste0("SELECT [a", intToUtf8(0xf1L), "o] FROM t WHERE 1 = 0")

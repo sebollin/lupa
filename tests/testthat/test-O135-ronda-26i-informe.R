@@ -160,14 +160,18 @@ test_that("H2: una cifra que no cabe en 240 caracteres no se corta como un texto
   celdas <- .celdas_O135(html, "Resumen por columna")
   # A mano: sin exponente tiene 308 cifras enteras; cortado a 239 y "...", vale
   # 8.988e238 -69 ordenes menos-. Ahora vuelve al valor del objeto.
-  expect_true(any(celdas == "8.98846567431158e+307"))
-  expect_identical(as.numeric("8.98846567431158e+307"), centinela)
+  # Por valor y no por texto: en macOS arm64 R elige otras ultimas cifras al escribir
+  # la misma cifra (no tiene la precision extendida que usa para elegirlas), y lo que
+  # se guarda es que no se corte y que vuelva a su valor, no la escritura.
+  numeros <- suppressWarnings(as.numeric(celdas))
+  cerca <- function(x, y) !is.na(x) & abs(x / y - 1) < 1e-14
+  expect_true(any(cerca(numeros, centinela) & grepl("e\\+307$", celdas)))
   expect_false(any(grepl("^8988465674", celdas)))
   # La media, un cuarto del centinela mas 15: otra cifra, con su propia magnitud
   # -antes las dos salian con las mismas 239 cifras-, y vuelve a su valor.
   media <- mean(c(10, 20, 30, centinela))
-  vuelven <- suppressWarnings(as.numeric(celdas)) == media
-  expect_true(any(vuelven, na.rm = TRUE))
+  vuelven <- cerca(numeros, media)
+  expect_true(any(vuelven))
   expect_match(celdas[which(vuelven)[[1L]]], "e\\+307$")
   # Las chicas: 3e-301 escrito sin exponente es "0.000..." y se leia 0.
   expect_identical(lupa:::.resumir_valor_reporte(3e-301), "3e-301")

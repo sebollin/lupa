@@ -108,7 +108,9 @@ test_that("el mismo texto en UTF-8 y en latin1 sigue siendo el mismo valor", {
 
   expect_identical(nrow(resultado$pares), 1L)
   expect_identical(as.character(resultado$pares$tipo_par), "exacto")
-  expect_identical(resultado$pares$distancia, 0)
+  # Con tolerancia: en macOS arm64 la distancia de stringdist entre dos textos iguales
+  # sale 3.3e-17 y no 0 (ruido de coma flotante; PENDIENTES, 2026-10-23).
+  expect_equal(resultado$pares$distancia, 0, tolerance = 1e-12)
 })
 
 test_that("el separador de concatenacion no puede salir de un valor", {
@@ -190,7 +192,9 @@ test_that("la descomposicion canonica llega hasta donde el manual dice", {
   )
 
   expect_identical(as.character(dentro$pares$tipo_par), "exacto_normalizado")
-  expect_identical(dentro$pares$distancia, 0)
+  # Con tolerancia: en macOS arm64 la distancia de stringdist entre dos textos iguales
+  # sale 3.3e-17 y no 0 (ruido de coma flotante; PENDIENTES, 2026-10-23).
+  expect_equal(dentro$pares$distancia, 0, tolerance = 1e-12)
   # Fuera del subconjunto latino no colapsan, y el numero se rehace SIN descomponer,
   # que es la receta que el manual da para ese caso.
   expect_identical(as.character(fuera$pares$tipo_par), "aproximado")

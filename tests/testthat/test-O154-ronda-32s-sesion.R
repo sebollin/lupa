@@ -328,6 +328,13 @@ test_that("B2: con LC_NUMERIC en coma detectar_relaciones() separa los extremos 
   d <- data.frame(id = 1:12, p = c(0.125, 0.25, 0.375, 0.5, 0.625, 0.75,
                                    0.875, 1, 0.1, 0.2, 0.3, 0.4))
   detalle <- .con_numerica_o154({
+    # La premisa: que con `LC_NUMERIC` en coma el C escriba la coma. En Linux si; en
+    # Windows R da formato a las cifras por su cuenta y escribe el punto, y entonces
+    # no hay coma con la que el separador pueda chocar (el CI de Windows fallaba aca
+    # desde el 2026-10-13 con la salida correcta, `[0.125, 0.75]`).
+    if (!identical(sprintf("%.3f", 0.125), "0,125")) {
+      skip("con LC_NUMERIC en coma esta plataforma sigue escribiendo el punto")
+    }
     podas <- attr(detectar_relaciones(d, d[1:6, , drop = FALSE]), "podas")
     unique(podas$detalle[grepl("[", podas$detalle, fixed = TRUE)])
   })
