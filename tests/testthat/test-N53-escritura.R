@@ -1,5 +1,10 @@
 # N53: las salidas a disco no dependen del locale de la sesion.
 
+# Regresion de una ronda de refutacion: corre en la suite completa, en el CI y en
+# R-hub, que usan NOT_CRAN=true; en CRAN se saltea para que el check entre en sus
+# tiempos (medicion del 2026-10-23).
+testthat::skip_on_cran()
+
 suppressPackageStartupMessages(library(lupa))
 
 .bytes_N53 <- function(...) {

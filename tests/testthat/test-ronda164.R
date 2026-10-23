@@ -11,6 +11,11 @@
 # MariaDB no podia distinguir un privilegio que le falta, un motor no cubierto o
 # un limite del catalogo. Donde no hay senal, el paquete habla.
 
+# Regresion de una ronda de refutacion: corre en la suite completa, en el CI y en
+# R-hub, que usan NOT_CRAN=true; en CRAN se saltea para que el check entre en sus
+# tiempos (medicion del 2026-10-23).
+testthat::skip_on_cran()
+
 test_that("una garantia desconocida explica que campo falto y en que motor", {
   datos <- data.frame(
     column_name = "id", ordinal_position = 1L,

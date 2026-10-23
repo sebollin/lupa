@@ -9,6 +9,11 @@
 # funciones centrales. Lo atrapo un `git status`, no una prueba: esto es la
 # prueba.
 
+# Regresion de una ronda de refutacion: corre en la suite completa, en el CI y en
+# R-hub, que usan NOT_CRAN=true; en CRAN se saltea para que el check entre en sus
+# tiempos (medicion del 2026-10-23).
+testthat::skip_on_cran()
+
 .o08_exports <- function() {
   raiz <- normalizePath(testthat::test_path("..", ".."), mustWork = FALSE)
   archivo <- file.path(raiz, "NAMESPACE")

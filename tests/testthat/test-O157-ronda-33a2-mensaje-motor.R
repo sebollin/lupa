@@ -14,6 +14,10 @@
 # sobre sus mismas filas y se lee la otra (antes la sonda leia una fila, la 25
 # no se veia y la muestra entera se perdia); aca lo que se mide es el mensaje
 # de una lectura de la muestra que falla.
+# Pesada para CRAN (mas de 1 s en la medicion sin red del 2026-10-23): corre en la
+# suite completa, en el CI y en R-hub, que usan NOT_CRAN=true.
+testthat::skip_on_cran()
+
 .r33a2_conexion <- function() {
   con <- DBI::dbConnect(duckdb::duckdb())
   d <- data.frame(id = 1:30, codigo_txt = as.character(1:30),

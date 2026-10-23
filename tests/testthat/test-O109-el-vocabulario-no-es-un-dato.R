@@ -5,6 +5,10 @@
 # entera. Un nombre de persona contenido en `faltantes_disfrazados` borraba el
 # tipo del hallazgo, y el plan se quedaba sin accion para el.
 
+# Pesada para CRAN (mas de 1 s en la medicion sin red del 2026-10-23): corre en la
+# suite completa, en el CI y en R-hub, que usan NOT_CRAN=true.
+testthat::skip_on_cran()
+
 .datos_O109 <- function() {
   set.seed(4)
   n <- 400

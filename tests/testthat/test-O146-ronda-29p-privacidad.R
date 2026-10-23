@@ -3,6 +3,10 @@
 
 # Todas las hojas de texto de un objeto, tambien los atributos y los nombres de
 # fila.
+# Pesada para CRAN (mas de 1 s en la medicion sin red del 2026-10-23): corre en la
+# suite completa, en el CI y en R-hub, que usan NOT_CRAN=true.
+testthat::skip_on_cran()
+
 .r29_hojas <- function(x) {
   if (is.null(x) || is.function(x) || is.environment(x)) return(character())
   salida <- character()

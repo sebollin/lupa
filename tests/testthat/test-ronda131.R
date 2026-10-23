@@ -13,6 +13,10 @@
 # cercanos cuando el corte cae dentro de un empate. Eso no se arregla: se
 # declara, en `corte_en_empate`.
 
+# Pesada para CRAN (mas de 1 s en la medicion sin red del 2026-10-23): corre en la
+# suite completa, en el CI y en R-hub, que usan NOT_CRAN=true.
+testthat::skip_on_cran()
+
 .tabla_con_empates <- function(g = 60L) {
   set.seed(7)
   pref <- unique(vapply(

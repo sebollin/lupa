@@ -11,6 +11,11 @@
 # no son iguales- y la cuarta hace que un numero publicado no se pueda rehacer con la
 # receta documentada.
 
+# Regresion de una ronda de refutacion: corre en la suite completa, en el CI y en
+# R-hub, que usan NOT_CRAN=true; en CRAN se saltea para que el check entre en sus
+# tiempos (medicion del 2026-10-23).
+testthat::skip_on_cran()
+
 test_that("dos columnas de texto con el mismo nombre no se comparan en silencio", {
   skip_if_not_installed("stringdist")
   # El camino explicito rechaza los nombres repetidos; el automatico tomaba

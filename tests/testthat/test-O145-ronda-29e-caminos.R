@@ -2,6 +2,10 @@
 # encontro. Una prueba por hallazgo, con la cifra rehecha a mano y tablas
 # chicas en SQLite en memoria.
 
+# Pesada para CRAN (mas de 1 s en la medicion sin red del 2026-10-23): corre en la
+# suite completa, en el CI y en R-hub, que usan NOT_CRAN=true.
+testthat::skip_on_cran()
+
 conexion_sqlite_r29e <- function() {
   DBI::dbConnect(RSQLite::SQLite(), ":memory:")
 }

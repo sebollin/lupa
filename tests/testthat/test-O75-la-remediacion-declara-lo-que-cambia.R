@@ -5,6 +5,11 @@
 # puede aplicar se declara, `permitir_eliminacion = FALSE` no elimina nada-. Lo que
 # fallaba estaba en tres fronteras que el paquete no habia escrito.
 
+# Regresion de una ronda de refutacion: corre en la suite completa, en el CI y en
+# R-hub, que usan NOT_CRAN=true; en CRAN se saltea para que el check entre en sus
+# tiempos (medicion del 2026-10-23).
+testthat::skip_on_cran()
+
 test_that("winsorizar una columna entera declara que deja de ser entera", {
   # Los limites de Tukey son cuartiles: sobre una columna entera la sustitucion
   # devuelve dobles. La fila salia `destructiva = FALSE`, la justificacion hablaba

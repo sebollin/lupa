@@ -1,5 +1,9 @@
 # N50: los nombres de columna se comparan por su contenido, no por el locale.
 
+# Pesada para CRAN (mas de 1 s en la medicion sin red del 2026-10-23): corre en la
+# suite completa, en el CI y en R-hub, que usan NOT_CRAN=true.
+testthat::skip_on_cran()
+
 suppressPackageStartupMessages(library(lupa))
 
 .nombre_u8_N50 <- function() {

@@ -2,6 +2,11 @@
 # paquete. Dos ediciones legitimas lo rompian: un `orden` repetido y una
 # decision de grupo sin accion activa.
 
+# Regresion de una ronda de refutacion: corre en la suite completa, en el CI y en
+# R-hub, que usan NOT_CRAN=true; en CRAN se saltea para que el check entre en sus
+# tiempos (medicion del 2026-10-23).
+testthat::skip_on_cran()
+
 test_that("un orden repetido no vuelve el resultado dependiente del orden de filas", {
   datos <- data.frame(x = c("\u200b A ", "B"), stringsAsFactors = FALSE)
   plan <- planificar_limpieza(

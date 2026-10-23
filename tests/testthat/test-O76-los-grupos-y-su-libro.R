@@ -4,6 +4,11 @@
 # no se pierde ninguna fila; la cuarta es el rotulo del grupo, que tiene que volver
 # al valor del que salio.
 
+# Regresion de una ronda de refutacion: corre en la suite completa, en el CI y en
+# R-hub, que usan NOT_CRAN=true; en CRAN se saltea para que el check entre en sus
+# tiempos (medicion del 2026-10-23).
+testthat::skip_on_cran()
+
 reconciliar_o76 <- function(hallazgos) {
   cobertura <- attr(hallazgos, "cobertura_grupos", exact = TRUE)
   # Hay una fila por grupo y motivo, asi que la cuenta va sobre grupos DISTINTOS.

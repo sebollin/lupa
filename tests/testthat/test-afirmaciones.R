@@ -4,6 +4,10 @@
 # aborte y que la declaracion NOMBRE el campo que falta, que es el unico dato con
 # el que quien llama puede completar el contrato-, porque exigir solo la primera
 # dejaria pasar una abstencion muda.
+# Pesada para CRAN (mas de 1 s en la medicion sin red del 2026-10-23): corre en la
+# suite completa, en el CI y en R-hub, que usan NOT_CRAN=true.
+testthat::skip_on_cran()
+
 abstiene_nombrando_el_campo <- function(instancia, campos) {
   medicion <- medir(modelo(instancia), data.frame(f = as.Date("2026-01-01")))
   expect_equal(nrow(medicion), 0L)

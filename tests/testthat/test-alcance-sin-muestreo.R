@@ -12,6 +12,10 @@
 # Lo que fija este archivo es justamente eso: que las dos corridas coincidan.
 # Un test que solo mirara el caso muestreado habria pasado con el defecto vivo.
 
+# Pesada para CRAN (mas de 1 s en la medicion sin red del 2026-10-23): corre en la
+# suite completa, en el CI y en R-hub, que usan NOT_CRAN=true.
+testthat::skip_on_cran()
+
 test_that("los valores que no convierten se cuentan con y sin muestreo", {
   # 900 se leen como numero y 40 no son numero. Ninguno es NA de origen: los
   # 1000 estan presentes. Los 60 `1.234,5` se contaban como separadores que no

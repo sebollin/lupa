@@ -26,6 +26,11 @@
 # `test_path()`, y las dos SALTEABAN en silencio segun desde donde se corriera.
 # El control rojo lo destapo: revirtiendo el arreglo del workflow la guarda
 # seguia verde. Una guarda que saltea no se distingue de una que no mide.
+# Regresion de una ronda de refutacion: corre en la suite completa, en el CI y en
+# R-hub, que usan NOT_CRAN=true; en CRAN se saltea para que el check entre en sus
+# tiempos (medicion del 2026-10-23).
+testthat::skip_on_cran()
+
 .n88_raiz_fuentes <- function() {
   candidatos <- c(".", "..", "../..", "../../..", "../../../..")
   for (base in candidatos) {

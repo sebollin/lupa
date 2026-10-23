@@ -1,5 +1,9 @@
 # Ronda 26-I: el informe HTML, refutado.
 
+# Pesada para CRAN (mas de 1 s en la medicion sin red del 2026-10-23): corre en la
+# suite completa, en el CI y en R-hub, que usan NOT_CRAN=true.
+testthat::skip_on_cran()
+
 .fecha_O135 <- as.POSIXct("2026-03-01", tz = "UTC")
 
 .medicion_O135 <- function(datos, id = "M", fecha = .fecha_O135) {

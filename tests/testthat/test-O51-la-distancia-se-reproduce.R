@@ -8,6 +8,11 @@
 # La conducta se conserva -es la correcta- y ahora esta escrita en la pagina de
 # la funcion; esta prueba fija que lo escrito siga siendo cierto.
 
+# Regresion de una ronda de refutacion: corre en la suite completa, en el CI y en
+# R-hub, que usan NOT_CRAN=true; en CRAN se saltea para que el check entre en sus
+# tiempos (medicion del 2026-10-23).
+testthat::skip_on_cran()
+
 if (requireNamespace("stringdist", quietly = TRUE) &&
     requireNamespace("stringi", quietly = TRUE)) {
 

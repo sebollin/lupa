@@ -6,6 +6,10 @@
 # publicaba una relacion aritmetica sobre una columna que el mismo perfil declara
 # `tipo_compuesto_no_analizado`.
 
+# Pesada para CRAN (mas de 1 s en la medicion sin red del 2026-10-23): corre en la
+# suite completa, en el CI y en R-hub, que usan NOT_CRAN=true.
+testthat::skip_on_cran()
+
 test_that("una tabla con matriz y arreglo de otra dimension se perfila sin abortar", {
   datos <- data.frame(num = c(1, 2, NA, 4))
   datos$m <- I(matrix(1:8, nrow = 4L))

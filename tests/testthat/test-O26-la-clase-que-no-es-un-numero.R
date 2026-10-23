@@ -14,6 +14,10 @@
 # al despacho desde el espacio de nombres del paquete -"invalid object
 # (non-function) used as method"-. El fixture sin aritmetica, que alcanza para
 # las pruebas que solo miden la declaracion, esta en el helper.
+# Pesada para CRAN (mas de 1 s en la medicion sin red del 2026-10-23): corre en la
+# suite completa, en el CI y en R-hub, que usan NOT_CRAN=true.
+testthat::skip_on_cran()
+
 setClass("lupaCantidadEntera", contains = "numeric",
          validity = function(object) {
            if (any(object@.Data != round(object@.Data))) {

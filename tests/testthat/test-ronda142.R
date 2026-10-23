@@ -9,6 +9,11 @@
 # redondean distinto, y la diferencia llegaba a la mediana informada. Ahorrar un
 # recorrido no vale cambiar un numero que se publica.
 
+# Regresion de una ronda de refutacion: corre en la suite completa, en el CI y en
+# R-hub, que usan NOT_CRAN=true; en CRAN se saltea para que el check entre en sus
+# tiempos (medicion del 2026-10-23).
+testthat::skip_on_cran()
+
 test_that("la mediana informada es la de `median()`, hasta el ultimo bit", {
   casos <- list(
     c(-1000, 0.000111, 0.25, 1000),

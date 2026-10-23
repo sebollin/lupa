@@ -1,5 +1,9 @@
 # Ronda 24-C: lo que afirma el perfil, contado otra vez.
 
+# Pesada para CRAN (mas de 1 s en la medicion sin red del 2026-10-23): corre en la
+# suite completa, en el CI y en R-hub, que usan NOT_CRAN=true.
+testthat::skip_on_cran()
+
 .trazas_dentro_de_la_tabla_O129 <- function(h, n) {
   all(vapply(h$trazabilidad, function(tr) {
     is.null(tr$indices_fila) || all(tr$indices_fila >= 1L & tr$indices_fila <= n)

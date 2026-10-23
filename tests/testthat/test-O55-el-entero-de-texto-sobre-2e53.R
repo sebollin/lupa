@@ -6,6 +6,11 @@
 # `integer64` recibia la respuesta correcta desde el primer dia: medidas en `NA`,
 # extremos exactos y `omitidos_precision`. Dos caminos, un dato, dos respuestas.
 
+# Regresion de una ronda de refutacion: corre en la suite completa, en el CI y en
+# R-hub, que usan NOT_CRAN=true; en CRAN se saltea para que el check entre en sus
+# tiempos (medicion del 2026-10-23).
+testthat::skip_on_cran()
+
 valores_o55 <- function() {
   c("9007199254740993", "9007199254740994", "9007199254740995")
 }

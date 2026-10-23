@@ -1,5 +1,9 @@
 # Ronda 14: fechas, validadores y perfil por grupos.
 
+# Pesada para CRAN (mas de 1 s en la medicion sin red del 2026-10-23): corre en la
+# suite completa, en el CI y en R-hub, que usan NOT_CRAN=true.
+testthat::skip_on_cran()
+
 test_that("el formato compacto respeta su rango de anos tambien en el resumen", {
   x <- c(sprintf("202401%02d", 10:19), "99991231")
   columnas <- suppressWarnings(perfilar(data.frame(f = x)))$columnas

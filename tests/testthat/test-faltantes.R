@@ -7,6 +7,10 @@
 # unica columna del banco que los contiene es una de codigos de estado de
 # EE.UU., donde `perfilar()` publicaba `faltantes_disfrazados` con severidad
 # **error** y evidencia "NC (59); SD (7)".
+# Pesada para CRAN (mas de 1 s en la medicion sin red del 2026-10-23): corre en la
+# suite completa, en el CI y en R-hub, que usan NOT_CRAN=true.
+testthat::skip_on_cran()
+
 test_that("una forma de dos letras se juzga por el vocabulario, no sola", {
   # Un sistema de codigos: `SD` es Dakota del Sur. Antes se publicaba
   # `faltantes_disfrazados` con severidad error y evidencia "NC (59); SD (7)"

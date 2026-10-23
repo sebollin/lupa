@@ -4,6 +4,10 @@
 # es ASCII: lo que no lo es se arma con `intToUtf8()`.
 
 # Un `LC_NUMERIC` con coma decimal, el primero que la maquina tenga.
+# Pesada para CRAN (mas de 1 s en la medicion sin red del 2026-10-23): corre en la
+# suite completa, en el CI y en R-hub, que usan NOT_CRAN=true.
+testthat::skip_on_cran()
+
 .con_numerica_o160 <- function(codigo) {
   anterior <- Sys.getlocale("LC_NUMERIC")
   on.exit(suppressWarnings(Sys.setlocale("LC_NUMERIC", anterior)), add = TRUE)

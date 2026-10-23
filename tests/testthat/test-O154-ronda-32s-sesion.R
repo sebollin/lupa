@@ -7,6 +7,10 @@
 # por construccion recorren el espacio de nombres. El archivo es ASCII: lo que
 # no lo es se arma con `intToUtf8()`.
 
+# Pesada para CRAN (mas de 1 s en la medicion sin red del 2026-10-23): corre en la
+# suite completa, en el CI y en R-hub, que usan NOT_CRAN=true.
+testthat::skip_on_cran()
+
 .con_ctype_o154 <- function(locale, codigo) {
   anterior <- Sys.getlocale("LC_CTYPE")
   on.exit(suppressWarnings(Sys.setlocale("LC_CTYPE", anterior)), add = TRUE)

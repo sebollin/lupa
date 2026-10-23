@@ -5,6 +5,11 @@
 # el veredicto se leia como completo. El documento no contenia ni el nombre de la
 # metrica sin medidas ni la palabra `sin_medidas`.
 
+# Regresion de una ronda de refutacion: corre en la suite completa, en el CI y en
+# R-hub, que usan NOT_CRAN=true; en CRAN se saltea para que el check entre en sus
+# tiempos (medicion del 2026-10-23).
+testthat::skip_on_cran()
+
 evaluacion_o59 <- function() {
   instancia <- instanciar(especializar(metricas_nucleo()$NoNulo),
                           "personas", "edad")

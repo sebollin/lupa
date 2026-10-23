@@ -1,5 +1,10 @@
 # N63: `cli` recibe textos desconocidos como bytes y los escapa bajo LC_CTYPE=C.
 
+# Regresion de una ronda de refutacion: corre en la suite completa, en el CI y en
+# R-hub, que usan NOT_CRAN=true; en CRAN se saltea para que el check entre en sus
+# tiempos (medicion del 2026-10-23).
+testthat::skip_on_cran()
+
 .sin_marca_n63 <- function(x) rawToChar(charToRaw(x))
 
 .fijar_locale_n63 <- function(locale) {

@@ -8,6 +8,10 @@
 # cambiarían la tabla al usuario sin que se entere. Estas pruebas existen para
 # que eso no pueda pasar inadvertido.
 
+# Pesada para CRAN (mas de 1 s en la medicion sin red del 2026-10-23): corre en la
+# suite completa, en el CI y en R-hub, que usan NOT_CRAN=true.
+testthat::skip_on_cran()
+
 .tabla_de_prueba <- function(n = 120L) {
   set.seed(20260817)
   data.frame(

@@ -3,6 +3,10 @@
 
 # Todas las hojas de texto de un objeto, tambien los atributos y los nombres de
 # fila; las funciones, las llamadas y los entornos, por su texto y su contenido.
+# Pesada para CRAN (mas de 1 s en la medicion sin red del 2026-10-23): corre en la
+# suite completa, en el CI y en R-hub, que usan NOT_CRAN=true.
+testthat::skip_on_cran()
+
 .r30_hojas <- function(x, profundidad = 0L) {
   if (is.null(x) || profundidad > 8L) return(character())
   if (is.function(x) || is.language(x)) {

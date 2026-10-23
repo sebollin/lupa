@@ -2,6 +2,10 @@
 # defectos refutados sino cambios de promesa; cada prueba rehace su cifra a mano
 # y falla contra el codigo anterior a la ronda.
 
+# Pesada para CRAN (mas de 1 s en la medicion sin red del 2026-10-23): corre en la
+# suite completa, en el CI y en R-hub, que usan NOT_CRAN=true.
+testthat::skip_on_cran()
+
 .fecha_O156 <- as.POSIXct("2026-01-01", tz = "UTC")
 
 # Un codigo de catalogo que se repite: 1..284 con mucho peso en los primeros, como

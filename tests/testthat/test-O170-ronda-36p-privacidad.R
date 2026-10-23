@@ -6,6 +6,10 @@
 # tapado de mas que la ronda 35 trajo (H5). Cada bloque rehace la cifra a mano y
 # falla contra el commit de la ronda 35 (a042822).
 
+# Pesada para CRAN (mas de 1 s en la medicion sin red del 2026-10-23): corre en la
+# suite completa, en el CI y en R-hub, que usan NOT_CRAN=true.
+testthat::skip_on_cran()
+
 .r36p_dv <- function(x) {
   d <- as.integer(strsplit(sprintf("%07d", x), "")[[1L]])
   (10L - sum(d * c(2L, 9L, 8L, 7L, 6L, 3L, 4L)) %% 10L) %% 10L

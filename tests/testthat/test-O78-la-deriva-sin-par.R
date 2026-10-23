@@ -8,6 +8,11 @@
 # "observacion menor, no acusada" con el motivo de que el objeto no traia ningun
 # motivo publicable: eso describia el defecto, no lo excusaba.
 
+# Regresion de una ronda de refutacion: corre en la suite completa, en el CI y en
+# R-hub, que usan NOT_CRAN=true; en CRAN se saltea para que el check entre en sus
+# tiempos (medicion del 2026-10-23).
+testthat::skip_on_cran()
+
 deriva_o78 <- function(n_mediciones, nivel = "perfil") {
   instancia <- instanciar(
     especializar(metricas_nucleo()$NoNulo, nombre_especifico = "PresenciaCodigo"),

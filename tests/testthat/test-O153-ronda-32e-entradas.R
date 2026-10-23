@@ -5,6 +5,10 @@
 # que no lo es se arma con `intToUtf8()`.
 
 # 2026-01-15 00:00:00 UTC: 20468 dias desde 1970 por 86400 segundos.
+# Pesada para CRAN (mas de 1 s en la medicion sin red del 2026-10-23): corre en la
+# suite completa, en el CI y en R-hub, que usan NOT_CRAN=true.
+testthat::skip_on_cran()
+
 .fecha_fija_o153 <- function() .POSIXct(1768435200, tz = "UTC")
 
 .tabla_o153 <- function() {

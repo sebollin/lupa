@@ -3,6 +3,11 @@
 # ninguna fila tiene la clave completa, la unicidad entre claves completas es
 # cierta sobre un conjunto vacio. Decirlo "verificada" seria cierto y enganoso.
 
+# Regresion de una ronda de refutacion: corre en la suite completa, en el CI y en
+# R-hub, que usan NOT_CRAN=true; en CRAN se saltea para que el check entre en sus
+# tiempos (medicion del 2026-10-23).
+testthat::skip_on_cran()
+
 .ronda161_clave <- function(datos, clave) {
   suppressWarnings(perfilar(datos, clave = clave))$meta$clave
 }

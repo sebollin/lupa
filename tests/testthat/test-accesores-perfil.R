@@ -1,3 +1,7 @@
+# Pesada para CRAN (mas de 1 s en la medicion sin red del 2026-10-23): corre en la
+# suite completa, en el CI y en R-hub, que usan NOT_CRAN=true.
+testthat::skip_on_cran()
+
 test_that("los accesores leen las tres formas de salida sin conocer su forma", {
   perfil <- perfilar(datos_administrativos, analizar_dependencias = FALSE)
   expect_s3_class(hallazgos(perfil), "data.frame")

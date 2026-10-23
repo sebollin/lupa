@@ -7,6 +7,10 @@
 # antes de la siguiente. El resultado tiene que ser el MISMO: el camino de siempre
 # sigue vivo con `conservar_detalle_medicion = TRUE`, y es el control.
 
+# Pesada para CRAN (mas de 1 s en la medicion sin red del 2026-10-23): corre en la
+# suite completa, en el CI y en R-hub, que usan NOT_CRAN=true.
+testthat::skip_on_cran()
+
 .o96_las_dos <- function(datos, ...) {
   fecha <- as.POSIXct("2026-01-01", tz = "UTC")
   correr <- function(detalle) suppressWarnings(analizar(

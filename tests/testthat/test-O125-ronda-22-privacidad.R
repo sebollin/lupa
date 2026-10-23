@@ -1,6 +1,10 @@
 # Ronda 22: lo que la regla de digitos de la ronda 21 dejaba pasar o tapaba de
 # mas, y dos puertas de `perfilar_dbi()`.
 
+# Pesada para CRAN (mas de 1 s en la medicion sin red del 2026-10-23): corre en la
+# suite completa, en el CI y en R-hub, que usan NOT_CRAN=true.
+testthat::skip_on_cran()
+
 .tapa_O125 <- function(texto, protegidos) {
   identical(
     lupa:::.reemplazar_valores_protegidos(texto, protegidos, exigir_limites = FALSE),

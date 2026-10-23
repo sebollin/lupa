@@ -5,6 +5,10 @@
 # saltan, y la guarda por construccion que viaja recorre el espacio de nombres.
 # El archivo es ASCII: lo que no lo es se arma con escapes.
 
+# Pesada para CRAN (mas de 1 s en la medicion sin red del 2026-10-23): corre en la
+# suite completa, en el CI y en R-hub, que usan NOT_CRAN=true.
+testthat::skip_on_cran()
+
 .locale_turco_o152 <- function() {
   for (candidato in c("tr_TR.UTF-8", "tr_TR.utf8")) {
     puesto <- suppressWarnings(tryCatch(

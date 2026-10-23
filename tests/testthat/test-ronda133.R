@@ -6,6 +6,10 @@
 # Lo que estas pruebas cuidan es que la barra sea *sola* una barra: que no se
 # abra donde molesta y que no cambie ni un valor de lo que se mide.
 
+# Pesada para CRAN (mas de 1 s en la medicion sin red del 2026-10-23): corre en la
+# suite completa, en el CI y en R-hub, que usan NOT_CRAN=true.
+testthat::skip_on_cran()
+
 test_that("la barra decide bien cuando abrirse", {
   casos <- list(
     list(previstas = 25, opcion = TRUE, espera = TRUE),

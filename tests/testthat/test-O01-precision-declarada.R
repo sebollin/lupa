@@ -13,6 +13,10 @@
 # Es la misma regla que el perfil ya aplica, que por encima de 2^53 se niega a
 # medir la secuencia entera en vez de publicar un número redondeado.
 
+# Pesada para CRAN (mas de 1 s en la medicion sin red del 2026-10-23): corre en la
+# suite completa, en el CI y en R-hub, que usan NOT_CRAN=true.
+testthat::skip_on_cran()
+
 .o01_plan <- function(valores) {
   datos <- data.frame(v = valores, id = seq_along(valores), stringsAsFactors = FALSE)
   list(

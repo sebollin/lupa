@@ -1,6 +1,11 @@
 # Dos cosas que una corrida contra bases reales dejo abiertas, las dos sobre que
 # le llega al usuario y ninguna sobre el calculo.
 
+# Regresion de una ronda de refutacion: corre en la suite completa, en el CI y en
+# R-hub, que usan NOT_CRAN=true; en CRAN se saltea para que el check entre en sus
+# tiempos (medicion del 2026-10-23).
+testthat::skip_on_cran()
+
 test_that("el aviso de trazabilidad dice de quien es el problema", {
   # Las seis condiciones que lo disparan comparan dos salidas del propio `lupa`
   # -lo que el hallazgo afirma contra las filas que se le adjuntaron- y ninguna

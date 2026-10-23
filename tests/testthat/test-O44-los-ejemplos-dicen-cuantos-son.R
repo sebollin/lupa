@@ -3,6 +3,11 @@
 # impresiones. Una lista recortada que no dice que lo es se lee como la lista
 # entera, y esta se lee justo antes de decidir si aplicar una accion.
 
+# Regresion de una ronda de refutacion: corre en la suite completa, en el CI y en
+# R-hub, que usan NOT_CRAN=true; en CRAN se saltea para que el check entre en sus
+# tiempos (medicion del 2026-10-23).
+testthat::skip_on_cran()
+
 test_that("la guia declara cuantos ejemplos muestra de cuantos hay", {
   datos <- data.frame(
     v = c(paste0("dato", seq_len(30L)), rep(NA_character_, 40L)),

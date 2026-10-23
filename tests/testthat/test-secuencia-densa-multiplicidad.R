@@ -1,3 +1,7 @@
+# Pesada para CRAN (mas de 1 s en la medicion sin red del 2026-10-23): corre en la
+# suite completa, en el CI y en R-hub, que usan NOT_CRAN=true.
+testthat::skip_on_cran()
+
 test_that("una numeracion conserva su condicion aunque la moda sobresalga", {
   # `densa` responde por la cobertura del rango. La moda es una señal aparte de
   # la guarda de centinelas: no debe contaminar los tres escudos de forma.

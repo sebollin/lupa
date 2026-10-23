@@ -1,6 +1,10 @@
 # Ronda 20-B: el plan de limpieza, su aplicacion y la guia. Cada bloque es un
 # hallazgo de la refutacion, con el caso que lo reproducia.
 
+# Pesada para CRAN (mas de 1 s en la medicion sin red del 2026-10-23): corre en la
+# suite completa, en el CI y en R-hub, que usan NOT_CRAN=true.
+testthat::skip_on_cran()
+
 .solo_O119 <- function(plan, estrategia, columna = NULL) {
   cuales <- plan$estrategia == estrategia
   if (!is.null(columna)) cuales <- cuales & plan$columna %in% columna

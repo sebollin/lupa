@@ -16,6 +16,11 @@
 # La guarda se probo contra el defecto: antes del arreglo,
 # `.avisar_costo_tabla_ancha()` publicaba `f_a<c3><b1>o` y este archivo fallaba.
 
+# Regresion de una ronda de refutacion: corre en la suite completa, en el CI y en
+# R-hub, que usan NOT_CRAN=true; en CRAN se saltea para que el check entre en sus
+# tiempos (medicion del 2026-10-23).
+testthat::skip_on_cran()
+
 .sin_marca_n64 <- function(x) rawToChar(charToRaw(x))
 
 .patron_bytes_crudos_n64 <- "<[0-9a-f][0-9a-f]>"

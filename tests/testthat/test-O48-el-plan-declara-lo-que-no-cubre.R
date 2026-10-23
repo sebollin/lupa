@@ -4,6 +4,10 @@
 # columna identificada, que ninguna rama del planificador convierte en accion.
 # Quien leia el plan no tenia forma de distinguirlo de "no hay nada que hacer".
 
+# Pesada para CRAN (mas de 1 s en la medicion sin red del 2026-10-23): corre en la
+# suite completa, en el CI y en R-hub, que usan NOT_CRAN=true.
+testthat::skip_on_cran()
+
 tabla_o48 <- function() {
   set.seed(48)
   n <- 40

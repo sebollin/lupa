@@ -19,6 +19,18 @@ library(lupa)
 # `notas-desarrollo/.trabajo-agente/probar-reporte.sh`, que corre el check sobre
 # una copia con una prueba que debe fallar y otra vez sin ella.
 #
+# Que corre en CRAN. En la configuracion de la granja -Suggests instalados, sin
+# NOT_CRAN- `checking tests` tardaba 17 minutos aca el 2026-10-23, unos 45 en
+# win-builder. Desde entonces empiezan con `testthat::skip_on_cran()` las pruebas
+# de regresion de las rondas de refutacion (`O*`, `N*`, `ronda*`) y los archivos
+# que tardaban mas de 1 s en la medicion sin red: 328 de 413. Siguen corriendo
+# enteras en la suite local, en el CI y en R-hub, que usan NOT_CRAN=true. En CRAN
+# quedan las pruebas generales de un segundo o menos y siete que se conservan por
+# lo que protegen: el perfil, el plan y `aplicar()`, la proteccion de datos
+# personales, el informe HTML, los datos del paquete, el locale (O148) y el mapa
+# de la quinta evaluacion real (O181). La lista y los tiempos:
+# `notas-desarrollo/.trabajo-agente/cran/`.
+#
 # Sin colores ni caracteres fuera de ASCII: esto se lee en un log de Windows.
 options(cli.unicode = FALSE, crayon.enabled = FALSE,
         testthat.use_colours = FALSE)

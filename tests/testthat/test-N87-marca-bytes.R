@@ -18,6 +18,11 @@
 # interpretar no pierde nada. La regla es por destino: interpretar para
 # analizar, no interpretar para publicar ni para decidir identidad.
 
+# Regresion de una ronda de refutacion: corre en la suite completa, en el CI y en
+# R-hub, que usan NOT_CRAN=true; en CRAN se saltea para que el check entre en sus
+# tiempos (medicion del 2026-10-23).
+testthat::skip_on_cran()
+
 .n87_bytes <- function(texto) {
   x <- texto
   Encoding(x) <- "bytes"

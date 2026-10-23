@@ -1,5 +1,10 @@
 # Ronda 23-B: la agregacion, el tablero y el indice de calidad.
 
+# Regresion de una ronda de refutacion: corre en la suite completa, en el CI y en
+# R-hub, que usan NOT_CRAN=true; en CRAN se saltea para que el check entre en sus
+# tiempos (medicion del 2026-10-23).
+testthat::skip_on_cran()
+
 .fecha_O126 <- as.POSIXct("2026-02-01", tz = "UTC")
 
 test_that("la supresion del tablero se empareja por la metrica instanciada", {

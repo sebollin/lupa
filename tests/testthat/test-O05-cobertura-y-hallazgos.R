@@ -12,6 +12,11 @@
 # abajo recorre esos nombres leyendo las fuentes, asi que un diagnostico nuevo
 # que se desencuentre falla aca en vez de callar en la deriva.
 
+# Regresion de una ronda de refutacion: corre en la suite completa, en el CI y en
+# R-hub, que usan NOT_CRAN=true; en CRAN se saltea para que el check entre en sus
+# tiempos (medicion del 2026-10-23).
+testthat::skip_on_cran()
+
 .o05_raiz <- function() {
   raiz <- normalizePath(testthat::test_path("..", ".."), mustWork = FALSE)
   if (!file.exists(file.path(raiz, "DESCRIPTION"))) return(NULL)

@@ -5,6 +5,11 @@
 # podia preparar: la coleccion declaraba la proteccion sin verificar y tapaba
 # columnas que no son personales. El archivo es ASCII.
 
+# Regresion de una ronda de refutacion: corre en la suite completa, en el CI y en
+# R-hub, que usan NOT_CRAN=true; en CRAN se saltea para que el check entre en sus
+# tiempos (medicion del 2026-10-23).
+testthat::skip_on_cran()
+
 test_that("O171: la lectura publicada de un float8 no lleva el alias de la proyeccion", {
   con <- structure(list(), class = "PqConnection")
   lectura <- lupa:::.lectura_convertida_dbi(

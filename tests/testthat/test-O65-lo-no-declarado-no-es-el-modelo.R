@@ -11,6 +11,10 @@
 # sin que hubiera cambiado nada. El principio del arreglo: LO QUE QUIEN LLAMA NO
 # DECLARO NO ES PARTE DEL MODELO.
 
+# Pesada para CRAN (mas de 1 s en la medicion sin red del 2026-10-23): corre en la
+# suite completa, en el CI y en R-hub, que usan NOT_CRAN=true.
+testthat::skip_on_cran()
+
 .o65_contrato_sin_declarar <- function() {
   vigencia("actualizado", fecha_limite = as.Date("2026-01-31"))
 }

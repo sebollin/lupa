@@ -5,6 +5,10 @@
 # Server por odbc/FreeTDS- se verifico con sondas y no entra aca: estas pruebas
 # usan duckdb y RSQLite en memoria, o los bloques armados a mano.
 
+# Pesada para CRAN (mas de 1 s en la medicion sin red del 2026-10-23): corre en la
+# suite completa, en el CI y en R-hub, que usan NOT_CRAN=true.
+testthat::skip_on_cran()
+
 .f4_O164 <- function(z) {
   readBin(writeBin(as.numeric(z), raw(), size = 4), "double", size = 4,
           n = length(z))

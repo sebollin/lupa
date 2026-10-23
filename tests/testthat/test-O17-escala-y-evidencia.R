@@ -14,6 +14,11 @@
 #     para cualquier vector. El chi-cuadrado y su p-valor iban al lado de un
 #     desglose que no tenia ningun numero.
 
+# Regresion de una ronda de refutacion: corre en la suite completa, en el CI y en
+# R-hub, que usan NOT_CRAN=true; en CRAN se saltea para que el check entre en sus
+# tiempos (medicion del 2026-10-23).
+testthat::skip_on_cran()
+
 test_that("la equivalencia declara cuando la escala fue la unidad", {
   chico <- comparar_equivalencia(
     perfilar(data.frame(m = c(0.0005, 0.0015))),

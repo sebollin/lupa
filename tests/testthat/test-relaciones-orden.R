@@ -1,3 +1,7 @@
+# Pesada para CRAN (mas de 1 s en la medicion sin red del 2026-10-23): corre en la
+# suite completa, en el CI y en R-hub, que usan NOT_CRAN=true.
+testthat::skip_on_cran()
+
 test_that("el perfil detecta fechas invertidas y conserva la trazabilidad", {
   datos <- data.frame(
     inicio = as.Date(c("2024-01-10", "2024-05-01", "2024-03-01")),

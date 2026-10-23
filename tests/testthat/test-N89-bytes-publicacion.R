@@ -6,6 +6,11 @@
 # R parseo octales, y `cat()` colapso barras. Cuando lo que se mide es el manejo
 # de la codificacion, el instrumento no puede usar nada que dependa de ella.
 
+# Regresion de una ronda de refutacion: corre en la suite completa, en el CI y en
+# R-hub, que usan NOT_CRAN=true; en CRAN se saltea para que el check entre en sus
+# tiempos (medicion del 2026-10-23).
+testthat::skip_on_cran()
+
 .n89_bytes <- function(codigos) {
   x <- rawToChar(as.raw(codigos))
   Encoding(x) <- "bytes"

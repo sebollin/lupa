@@ -3,6 +3,11 @@
 # El invariante de esta tabla es que `n_evaluados` y `n_afectados` estan en la unidad
 # que `unidad_conteo` declara, y que `n_afectados` nunca puede ser mayor.
 
+# Regresion de una ronda de refutacion: corre en la suite completa, en el CI y en
+# R-hub, que usan NOT_CRAN=true; en CRAN se saltea para que el check entre en sus
+# tiempos (medicion del 2026-10-23).
+testthat::skip_on_cran()
+
 test_that("el conteo de fecha partida no sale de partir su propia evidencia", {
   # El conteo se derivaba partiendo el TEXTO de la evidencia por `+`, asi que un
   # nombre de columna con un `+` -legal en R y en cualquier base- publicaba

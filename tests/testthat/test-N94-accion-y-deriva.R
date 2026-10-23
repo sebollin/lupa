@@ -1,6 +1,11 @@
 # La capa de accion, segunda pasada: lo que el plan propone se tiene que poder
 # ejecutar, y lo que la deriva publica tiene que ser lo que el perfil publica.
 
+# Regresion de una ronda de refutacion: corre en la suite completa, en el CI y en
+# R-hub, que usan NOT_CRAN=true; en CRAN se saltea para que el check entre en sus
+# tiempos (medicion del 2026-10-23).
+testthat::skip_on_cran()
+
 .n94_bytes <- function(codigos) {
   x <- rawToChar(as.raw(codigos))
   Encoding(x) <- "bytes"

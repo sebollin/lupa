@@ -12,6 +12,11 @@
 # magnitudes conocidas y exige que ningun campo publicado las traiga, sin
 # excepciones. Un campo nuevo que filtre cae aca aunque nadie lo anote.
 
+# Regresion de una ronda de refutacion: corre en la suite completa, en el CI y en
+# R-hub, que usan NOT_CRAN=true; en CRAN se saltea para que el check entre en sus
+# tiempos (medicion del 2026-10-23).
+testthat::skip_on_cran()
+
 .columna_protegida_de_prueba <- function() {
   set.seed(536)
   as.numeric(sample(10000000:99999999, 40L))

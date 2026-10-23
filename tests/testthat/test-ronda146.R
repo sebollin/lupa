@@ -13,6 +13,11 @@
 # es aritmetica entera. Para un umbral escrito con hasta seis decimales,
 # `u = k / 1e6`, y podar equivale a `(n - d) * 1e6 < n * k`.
 
+# Regresion de una ronda de refutacion: corre en la suite completa, en el CI y en
+# R-hub, que usan NOT_CRAN=true; en CRAN se saltea para que el check entre en sus
+# tiempos (medicion del 2026-10-23).
+testthat::skip_on_cran()
+
 .ronda146_debe_podar <- function(n, d, k, escala = 1000000) {
   (as.numeric(n - d) * escala) < (as.numeric(n) * k)
 }

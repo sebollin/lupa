@@ -3,6 +3,10 @@
 # dos arreglos que los habrian cerrado se midieron, callaban cosas reales, y se
 # retiraron dejando escrito por que en `R/hallazgos.R` y `R/columnas.R`.
 
+# Pesada para CRAN (mas de 1 s en la medicion sin red del 2026-10-23): corre en la
+# suite completa, en el CI y en R-hub, que usan NOT_CRAN=true.
+testthat::skip_on_cran()
+
 test_that("una clave dispersa recibe Benford, que es el limite conocido", {
   # No es lo deseable, es lo medido y declarado. Se prefiere hablar de mas sobre
   # un identificador disperso antes que callar el dato malo de una magnitud, que

@@ -10,6 +10,11 @@
 # Es la misma familia que el NBSP de la evidencia: el paquete manda a mirar una
 # superficie donde lo que cambio es invisible.
 
+# Regresion de una ronda de refutacion: corre en la suite completa, en el CI y en
+# R-hub, que usan NOT_CRAN=true; en CRAN se saltea para que el check entre en sus
+# tiempos (medicion del 2026-10-23).
+testthat::skip_on_cran()
+
 test_that("la deriva hace visible un cambio que solo esta en los espacios del borde", {
   con_espacio <- c(rep("ab ", 6L), rep("cd ", 3L), "EF", "gh ")
   datos <- data.frame(t = con_espacio, id = seq_along(con_espacio),

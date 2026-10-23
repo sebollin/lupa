@@ -13,6 +13,11 @@
 # universo vacio decia "1000 afectados de 0 evaluados", porque tomaba como
 # denominador el universo aplicable cuando cuenta filas de AFUERA de el.
 
+# Regresion de una ronda de refutacion: corre en la suite completa, en el CI y en
+# R-hub, que usan NOT_CRAN=true; en CRAN se saltea para que el check entre en sus
+# tiempos (medicion del 2026-10-23).
+testthat::skip_on_cran()
+
 .o19_datos <- function(indeterminadas = 250L) {
   n <- 1000L
   grupos <- rep(c("Si", "No", NA, "Si"), each = n / 4L)

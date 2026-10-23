@@ -12,6 +12,11 @@
 # que compara valores entre si no desaparece con el tipo: `1200` y `1201`
 # siguen ahi despues de convertirlos, solo que nadie los volvio a comparar.
 
+# Regresion de una ronda de refutacion: corre en la suite completa, en el CI y en
+# R-hub, que usan NOT_CRAN=true; en CRAN se saltea para que el check entre en sus
+# tiempos (medicion del 2026-10-23).
+testthat::skip_on_cran()
+
 .o03_fechas <- list(
   antes = as.POSIXct("2026-01-01", tz = "UTC"),
   despues = as.POSIXct("2026-01-02", tz = "UTC")

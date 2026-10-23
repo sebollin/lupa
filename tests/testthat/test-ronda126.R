@@ -1,6 +1,11 @@
 # La huella de mascaras desbordaba el entero y perdia su tercer numero justo en
 # las tablas grandes, que es donde comparar cuesta.
 
+# Regresion de una ronda de refutacion: corre en la suite completa, en el CI y en
+# R-hub, que usan NOT_CRAN=true; en CRAN se saltea para que el check entre en sus
+# tiempos (medicion del 2026-10-23).
+testthat::skip_on_cran()
+
 test_that("la huella no desborda ni pierde su tercer numero en tablas grandes", {
   # `idx * idx` desborda el entero a partir de la fila 46.341. El aviso era lo
   # menos importante: el tercer componente salia `NA`, asi que la huella pasaba

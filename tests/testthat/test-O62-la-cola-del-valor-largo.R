@@ -8,6 +8,11 @@
 # FILAS, asi que cual llega primero depende de como este ordenada la tabla: el
 # defecto era silencioso y dependiente de los datos.
 
+# Regresion de una ronda de refutacion: corre en la suite completa, en el CI y en
+# R-hub, que usan NOT_CRAN=true; en CRAN se saltea para que el check entre en sus
+# tiempos (medicion del 2026-10-23).
+testthat::skip_on_cran()
+
 .o62_piso <- function() lupa:::.MIN_LARGO_VALOR_IDENTIFICANTE
 
 test_that("la cola del valor largo no se publica, venga en cualquier orden", {

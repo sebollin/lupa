@@ -18,6 +18,10 @@
 # es el comienzo de la transaccion, y fuera de una cambia entre sentencias. Y
 # como PostgreSQL, nombra `CAST("x" AS NUMERIC)` de una proyeccion con el nombre
 # de la columna (duckdb lo nombra con la expresion).
+# Pesada para CRAN (mas de 1 s en la medicion sin red del 2026-10-23): corre en la
+# suite completa, en el CI y en R-hub, que usan NOT_CRAN=true.
+testthat::skip_on_cran()
+
 .r35x2 <- new.env()
 .R35X2_ABORTADA <- paste(
   "ERROR:  current transaction is aborted, commands ignored until end of",

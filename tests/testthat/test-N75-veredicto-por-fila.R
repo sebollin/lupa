@@ -11,6 +11,10 @@
 # La prueba no mira la aritmetica: compara la fila publicada con la fila que la
 # misma comparacion publica cuando viaja sola.
 
+# Pesada para CRAN (mas de 1 s en la medicion sin red del 2026-10-23): corre en la
+# suite completa, en el CI y en R-hub, que usan NOT_CRAN=true.
+testthat::skip_on_cran()
+
 .n75_armar_corridas <- function() {
   nucleo <- metricas_nucleo()
   par_a <- especializar(nucleo$NoNulo, nombre_especifico = "NNA")

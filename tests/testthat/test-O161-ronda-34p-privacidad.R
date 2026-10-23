@@ -7,6 +7,10 @@
 # commit de la ronda 33 (8e95a3e).
 
 # Las hojas de un objeto, por tipo, con el nombre del campo de donde vienen.
+# Pesada para CRAN (mas de 1 s en la medicion sin red del 2026-10-23): corre en la
+# suite completa, en el CI y en R-hub, que usan NOT_CRAN=true.
+testthat::skip_on_cran()
+
 .r34p_hojas <- function(x) {
   numeros <- list()
   textos <- character()

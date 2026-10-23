@@ -7,6 +7,11 @@
 # columnas vuelve el resultado independiente de como esten ordenadas en el
 # archivo, y el objeto publica el orden que uso.
 
+# Regresion de una ronda de refutacion: corre en la suite completa, en el CI y en
+# R-hub, que usan NOT_CRAN=true; en CRAN se saltea para que el check entre en sus
+# tiempos (medicion del 2026-10-23).
+testthat::skip_on_cran()
+
 datos_o52 <- function(orden = c("nombre", "domicilio")) {
   completo <- data.frame(
     nombre = c("Ana Perez", "Luis Diaz", "Juan Perez", "Ana Peres",

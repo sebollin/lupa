@@ -10,6 +10,10 @@
 # 1:10 (10 valores, todos en `id` = 1:12) y `depto_visita` toma el departamento
 # de esas personas, `(1:10) %% 5 + 1` -> 5 valores, todos en `departamento`.
 # `visita` (101:115) no comparte valores con nada.
+# Pesada para CRAN (mas de 1 s en la medicion sin red del 2026-10-23): corre en la
+# suite completa, en el CI y en R-hub, que usan NOT_CRAN=true.
+testthat::skip_on_cran()
+
 .coleccion_dos_relaciones_o163 <- function() {
   con <- DBI::dbConnect(RSQLite::SQLite(), ":memory:")
   DBI::dbWriteTable(con, "personas", data.frame(

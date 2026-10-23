@@ -1,6 +1,11 @@
 # La ausencia de filas en un catalogo puede ser falta de visibilidad, no falta
 # de una clave. SQLite permite ademas una PRIMARY KEY de texto con NULL.
 
+# Regresion de una ronda de refutacion: corre en la suite completa, en el CI y en
+# R-hub, que usan NOT_CRAN=true; en CRAN se saltea para que el check entre en sus
+# tiempos (medicion del 2026-10-23).
+testthat::skip_on_cran()
+
 .ronda159_clave_vacia <- function(conexion) {
   testthat::with_mocked_bindings(
     lupa:::.clave_primaria_dbi(conexion, "tabla"),

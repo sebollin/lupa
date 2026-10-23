@@ -1,6 +1,11 @@
 # Tres diagnosticos que decidian con una sola senal teniendo otra al lado, ya
 # calculada, sin usar. Los tres se arreglaron cruzandolas.
 
+# Regresion de una ronda de refutacion: corre en la suite completa, en el CI y en
+# R-hub, que usan NOT_CRAN=true; en CRAN se saltea para que el check entre en sus
+# tiempos (medicion del 2026-10-23).
+testthat::skip_on_cran()
+
 .perfil_r119 <- function(datos) {
   perfilar(
     datos, analizar_dependencias = FALSE, proteger_datos_personales = FALSE,

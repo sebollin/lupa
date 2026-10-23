@@ -10,6 +10,11 @@
 # es un RECORRIDO sobre los atributos que `medir()` pone de verdad, que exige que
 # cada uno este decidido. Un atributo nuevo no puede volver a perderse callado.
 
+# Regresion de una ronda de refutacion: corre en la suite completa, en el CI y en
+# R-hub, que usan NOT_CRAN=true; en CRAN se saltea para que el check entre en sus
+# tiempos (medicion del 2026-10-23).
+testthat::skip_on_cran()
+
 .o82_metrica_tipo <- function(tipo, nombre = paste0("M", tipo)) {
   metodo <- function(tablas, instancia) {
     x <- tablas[[instancia$entidad]][[instancia$atributos]]

@@ -6,6 +6,10 @@
 
 # La conjetura de centinelas necesita una columna entera con muchos distintos;
 # con `integer64` es donde el caso aparece, y `bit64` ya esta en Suggests.
+# Pesada para CRAN (mas de 1 s en la medicion sin red del 2026-10-23): corre en la
+# suite completa, en el CI y en R-hub, que usan NOT_CRAN=true.
+testthat::skip_on_cran()
+
 .datos_con_centinelas_por_grupo <- function() {
   set.seed(17)
   normales <- function(n) bit64::as.integer64(round(stats::rnorm(n, 10, 1) * 1000))

@@ -1,6 +1,11 @@
 # Ronda 22-B: el modelo de calidad -medir(), evaluar(), el historico y la
 # deriva-.
 
+# Regresion de una ronda de refutacion: corre en la suite completa, en el CI y en
+# R-hub, que usan NOT_CRAN=true; en CRAN se saltea para que el check entre en sus
+# tiempos (medicion del 2026-10-23).
+testthat::skip_on_cran()
+
 .fecha_O124 <- function(dia) as.POSIXct(dia, tz = "UTC")
 
 test_that("con aplicabilidad, toda metrica del paquete cita la fila de la tabla original", {

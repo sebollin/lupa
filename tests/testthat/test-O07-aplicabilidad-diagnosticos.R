@@ -7,6 +7,10 @@
 # `espacios_sobrantes` contaba la columna entera y trazaba solo lo aplicable, y
 # el paquete disparaba su propia alarma: "cuenta 6 y traza 4".
 
+# Pesada para CRAN (mas de 1 s en la medicion sin red del 2026-10-23): corre en la
+# suite completa, en el CI y en R-hub, que usan NOT_CRAN=true.
+testthat::skip_on_cran()
+
 .o07_datos <- function() {
   data.frame(
     activo = c("si", "si", "si", "si", "no", "no"),

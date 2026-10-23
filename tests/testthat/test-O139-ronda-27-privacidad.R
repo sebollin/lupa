@@ -5,6 +5,10 @@
 # los nombres de columna: "Segundo" en `Segundo Nombre` y `Monto Segundo Pago`,
 # "Rosario" en `Sucursal Rosario`, "Mercedes" en `Barrio Mercedes`. Nada
 # declarado: las protege el clasificador por su nombre.
+# Pesada para CRAN (mas de 1 s en la medicion sin red del 2026-10-23): corre en la
+# suite completa, en el CI y en R-hub, que usan NOT_CRAN=true.
+testthat::skip_on_cran()
+
 .r27_tabla_nombres <- function() {
   set.seed(27L)
   n <- 160L

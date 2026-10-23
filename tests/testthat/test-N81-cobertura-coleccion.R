@@ -3,6 +3,10 @@
 # afuera las otras. El objeto la traia y cada consumidor conservaba menos que el
 # anterior. `NEWS.md` promete que una declaracion vale en todas las salidas.
 
+# Pesada para CRAN (mas de 1 s en la medicion sin red del 2026-10-23): corre en la
+# suite completa, en el CI y en R-hub, que usan NOT_CRAN=true.
+testthat::skip_on_cran()
+
 .n81_coleccion <- function() {
   con <- DBI::dbConnect(RSQLite::SQLite(), ":memory:")
   DBI::dbWriteTable(con, "buena", data.frame(valor = c(1, 2, NA, 4)))

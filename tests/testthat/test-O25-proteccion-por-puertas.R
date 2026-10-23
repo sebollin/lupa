@@ -1,6 +1,10 @@
 # O25: la proteccion debe mantenerse entre las puertas que publican un
 # resumen temporal, un analisis persistido y un perfil DBI.
 
+# Pesada para CRAN (mas de 1 s en la medicion sin red del 2026-10-23): corre en la
+# suite completa, en el CI y en R-hub, que usan NOT_CRAN=true.
+testthat::skip_on_cran()
+
 test_that("analizar_tiempo respeta la proteccion del perfil, y sin perfil clasifica", {
   datos <- data.frame(
     id = 1:30,

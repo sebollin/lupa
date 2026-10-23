@@ -1,6 +1,10 @@
 # Ronda 26: lo que la refutacion de la proteccion encontro. Una prueba por
 # hallazgo, barata: tablas de decenas o pocos cientos de filas.
 
+# Pesada para CRAN (mas de 1 s en la medicion sin red del 2026-10-23): corre en la
+# suite completa, en el CI y en R-hub, que usan NOT_CRAN=true.
+testthat::skip_on_cran()
+
 test_that("T1: el nombre que el plan propone no pasa por el barrido", {
   n <- 60L
   d <- data.frame(

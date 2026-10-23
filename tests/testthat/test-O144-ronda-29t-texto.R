@@ -2,6 +2,10 @@
 # hallazgo de la refutacion, con el caso que lo reproducia y la cifra rehecha a
 # mano. Los datos se arman con `rawToChar()` o con escapes: el archivo es ASCII.
 
+# Pesada para CRAN (mas de 1 s en la medicion sin red del 2026-10-23): corre en la
+# suite completa, en el CI y en R-hub, que usan NOT_CRAN=true.
+testthat::skip_on_cran()
+
 .locale_o144 <- function(locale) {
   puesto <- suppressWarnings(tryCatch(
     Sys.setlocale("LC_CTYPE", locale), error = function(e) NA_character_

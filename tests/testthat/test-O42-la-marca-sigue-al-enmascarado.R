@@ -4,6 +4,11 @@
 # por esa marca para saber que columnas traen evidencia enmascarada no
 # encontraba ninguna, sobre un archivo que si las ocultaba.
 
+# Regresion de una ronda de refutacion: corre en la suite completa, en el CI y en
+# R-hub, que usan NOT_CRAN=true; en CRAN se saltea para que el check entre en sus
+# tiempos (medicion del 2026-10-23).
+testthat::skip_on_cran()
+
 .analisis_con_documentos <- function() {
   datos <- data.frame(
     cedula = c(12345678, 87654321, 87654321, 13579246, 24681357, 11223344)

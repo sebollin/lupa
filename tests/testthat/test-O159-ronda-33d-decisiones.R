@@ -1,6 +1,10 @@
 # Ronda 33-D: lo que la refutacion de las decisiones de la ronda 32 encontro.
 # Cada prueba rehace su cifra a mano y falla contra el codigo anterior al arreglo.
 
+# Pesada para CRAN (mas de 1 s en la medicion sin red del 2026-10-23): corre en la
+# suite completa, en el CI y en R-hub, que usan NOT_CRAN=true.
+testthat::skip_on_cran()
+
 .fecha_O159 <- as.POSIXct("2026-01-01", tz = "UTC")
 
 # Cuarenta celdas: 36 valores, un `NA` y tres `-999` disfrazados.

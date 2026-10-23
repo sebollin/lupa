@@ -14,6 +14,10 @@
 # enmascarar la moda de esa columna y filtraba el valor. La proteccion va por
 # CAMPO, y el campo se reconoce por su contenido.
 
+# Pesada para CRAN (mas de 1 s en la medicion sin red del 2026-10-23): corre en la
+# suite completa, en el CI y en R-hub, que usan NOT_CRAN=true.
+testthat::skip_on_cran()
+
 .o86_datos <- function() {
   data.frame(
     tipo_documento = rep(c("DNI", "PAS"), 6),

@@ -8,6 +8,10 @@
 # corroboracion cruzada no tiene divergencia que declarar: el absurdo se
 # publicaba como un dato calculado, con estado sano.
 
+# Pesada para CRAN (mas de 1 s en la medicion sin red del 2026-10-23): corre en la
+# suite completa, en el CI y en R-hub, que usan NOT_CRAN=true.
+testthat::skip_on_cran()
+
 subnormales <- function(n) rep(c(1.06e-314, 2.47e-314), length.out = n)
 
 test_that("una columna con valores subnormales se declara", {

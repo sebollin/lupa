@@ -3,6 +3,10 @@
 # que cita la celda sin comillas -SQL Server con la sesion en sueco- va a
 # nivel de unidad, con su mensaje.
 
+# Pesada para CRAN (mas de 1 s en la medicion sin red del 2026-10-23): corre en la
+# suite completa, en el CI y en R-hub, que usan NOT_CRAN=true.
+testthat::skip_on_cran()
+
 .r31_cedulas <- function(numeros) {
   vapply(numeros, function(num) {
     s <- sprintf("%07d", num)

@@ -1,5 +1,9 @@
 # Cruces medidos contra datos con la respuesta conocida.
 
+# Pesada para CRAN (mas de 1 s en la medicion sin red del 2026-10-23): corre en la
+# suite completa, en el CI y en R-hub, que usan NOT_CRAN=true.
+testthat::skip_on_cran()
+
 test_that("un valor centinela se reconoce por tres senales y no por su forma", {
   # `9999` es una edad imposible y un codigo postal valido, asi que la lista de
   # `sentinelas_numericos` no lo trae por omision y hace bien. Lo que si lo

@@ -1,3 +1,7 @@
+# Pesada para CRAN (mas de 1 s en la medicion sin red del 2026-10-23): corre en la
+# suite completa, en el CI y en R-hub, que usan NOT_CRAN=true.
+testthat::skip_on_cran()
+
 test_that("las fechas admiten campos sin relleno y señalan años cortos", {
   sin_relleno <- detectar_formatos_fecha(c("3/1/2023", "30/11/2023"))
   corto <- detectar_formatos_fecha(c("30/11/23 08:28", "31/12/24 09:00"))

@@ -2,6 +2,10 @@
 # personales -el desescapado, las marcas, la regla de digitos, la muestra del
 # motor- y lo que todavia tapaba de mas.
 
+# Pesada para CRAN (mas de 1 s en la medicion sin red del 2026-10-23): corre en la
+# suite completa, en el CI y en R-hub, que usan NOT_CRAN=true.
+testthat::skip_on_cran()
+
 .hojas_O120 <- function(x) {
   hojas <- character()
   recorrer <- function(y) {

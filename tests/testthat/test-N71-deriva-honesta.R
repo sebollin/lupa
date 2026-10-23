@@ -3,6 +3,11 @@
 # coma flotante. Los encontro una vuelta corrida por otra familia de modelo
 # sobre un terreno que la anterior habia dado por limpio.
 
+# Regresion de una ronda de refutacion: corre en la suite completa, en el CI y en
+# R-hub, que usan NOT_CRAN=true; en CRAN se saltea para que el check entre en sus
+# tiempos (medicion del 2026-10-23).
+testthat::skip_on_cran()
+
 test_that("la deriva nombra de que lado esta el resultado sin evaluar", {
   # La descripcion miraba SOLO si el delta era NA, no de que lado venia, asi
   # que culpaba siempre al resultado anterior. Con el NA del lado actual, la

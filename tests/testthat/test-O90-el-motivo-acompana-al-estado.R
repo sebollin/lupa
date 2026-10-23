@@ -1,5 +1,10 @@
 # El motivo publicado no puede contradecir al estado que acompana.
 
+# Regresion de una ronda de refutacion: corre en la suite completa, en el CI y en
+# R-hub, que usan NOT_CRAN=true; en CRAN se saltea para que el check entre en sus
+# tiempos (medicion del 2026-10-23).
+testthat::skip_on_cran()
+
 test_that("un marco propio que el perfil no mide no recibe el motivo de medido", {
   # Los dos motivos que precisan que examino el perfil se asignaban por clave, sin
   # mirar el estado: un marco propio con `Densidad` y `perfil_mide = FALSE`

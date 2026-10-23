@@ -3,6 +3,11 @@
 # distinguir "no se miro" de "salio limpio" por la forma del objeto:
 # `x$tipo_hallazgo` devolvia NULL y `x[, "columna"]` rompia.
 
+# Regresion de una ronda de refutacion: corre en la suite completa, en el CI y en
+# R-hub, que usan NOT_CRAN=true; en CRAN se saltea para que el check entre en sus
+# tiempos (medicion del 2026-10-23).
+testthat::skip_on_cran()
+
 test_that("sin hallazgos el objeto por grupo conserva su esquema", {
   datos <- data.frame(
     g = rep(c("a", "b"), each = 10L),

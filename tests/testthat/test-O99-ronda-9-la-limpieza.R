@@ -1,6 +1,11 @@
 # Ronda 9 sobre el plan de limpieza: tres casos donde lo aplicado o lo registrado
 # no era lo que el plan decia.
 
+# Regresion de una ronda de refutacion: corre en la suite completa, en el CI y en
+# R-hub, que usan NOT_CRAN=true; en CRAN se saltea para que el check entre en sus
+# tiempos (medicion del 2026-10-23).
+testthat::skip_on_cran()
+
 test_that("guiar la limpieza con un diccionario conserva la regla de aplicabilidad", {
   datos <- data.frame(grupo = c("a", "a", "b", "b", "a", "a"),
                       txt = c("ANA", "ana", "ANA", "Ana", "ana", "ANA"),

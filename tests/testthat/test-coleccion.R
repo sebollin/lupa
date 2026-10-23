@@ -7,6 +7,10 @@
 # la identidad, permisos parciales como caso normal, muestreo por tabla, y
 # ninguna lectura instantánea.
 
+# Pesada para CRAN (mas de 1 s en la medicion sin red del 2026-10-23): corre en la
+# suite completa, en el CI y en R-hub, que usan NOT_CRAN=true.
+testthat::skip_on_cran()
+
 .con_de_prueba <- function() {
   skip_if_not_installed("RSQLite")
   skip_if_not_installed("DBI")

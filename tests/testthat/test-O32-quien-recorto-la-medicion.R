@@ -2,6 +2,11 @@
 # del presupuesto declarado por quien llama. Con `max_consultas = 3` ninguna
 # consulta la rechaza el motor: se emiten exactamente las tres permitidas.
 
+# Regresion de una ronda de refutacion: corre en la suite completa, en el CI y en
+# R-hub, que usan NOT_CRAN=true; en CRAN se saltea para que el check entre en sus
+# tiempos (medicion del 2026-10-23).
+testthat::skip_on_cran()
+
 test_that("el resumen no le imputa al motor un recorte del presupuesto", {
   skip_if_not_installed("DBI")
   skip_if_not_installed("RSQLite")

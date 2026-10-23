@@ -11,6 +11,10 @@
 # equivocada, no ausente- y ABORTABA con `m^2`, porque el numerador de un
 # `symbolic_units` es un vector.
 
+# Pesada para CRAN (mas de 1 s en la medicion sin red del 2026-10-23): corre en la
+# suite completa, en el CI y en R-hub, que usan NOT_CRAN=true.
+testthat::skip_on_cran()
+
 test_that("la unidad declarada sale canonica y de una sola pieza", {
   skip_if_not_installed("units")
   esperado <- c(

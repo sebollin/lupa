@@ -4,6 +4,10 @@
 
 # El valor citado de una columna en una evidencia `col=valor; ...`, sin la nota
 # de escapes que puede seguir a la ultima fila citada.
+# Pesada para CRAN (mas de 1 s en la medicion sin red del 2026-10-23): corre en la
+# suite completa, en el CI y en R-hub, que usan NOT_CRAN=true.
+testthat::skip_on_cran()
+
 .r27d_citado <- function(evidencia, columna) {
   trozo <- regmatches(
     evidencia, regexpr(paste0(columna, "=[^;|]*"), evidencia)

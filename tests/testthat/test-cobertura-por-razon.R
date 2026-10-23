@@ -18,6 +18,10 @@
 # razón nueva hacía fallar esa prueba, y no era cierto —contaba el inventario
 # contra sí mismo—. La razón de Benford por tipo declarado existía desde antes
 # de que se escribiera esa frase y no estaba en la lista.
+# Pesada para CRAN (mas de 1 s en la medicion sin red del 2026-10-23): corre en la
+# suite completa, en el CI y en R-hub, que usan NOT_CRAN=true.
+testthat::skip_on_cran()
+
 .razones_de_cobertura <- c(
   "normalizacion_unicode__falta_stringi",
   "proximidad_vocabulario__falta_stringdist",

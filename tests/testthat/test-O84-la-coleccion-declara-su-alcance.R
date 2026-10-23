@@ -13,6 +13,10 @@
 #   3. Una coleccion sin una columna posterior a la primera version del objeto
 #      mataba `perfilar_coleccion()` con un error de `data.frame()`.
 
+# Pesada para CRAN (mas de 1 s en la medicion sin red del 2026-10-23): corre en la
+# suite completa, en el CI y en R-hub, que usan NOT_CRAN=true.
+testthat::skip_on_cran()
+
 skip_if_not_installed("DBI")
 skip_if_not_installed("RSQLite")
 

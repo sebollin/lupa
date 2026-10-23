@@ -1,6 +1,10 @@
 # Regresiones N62. Las cadenas acentuadas se construyen desde sus bytes para
 # reproducir la marca `unknown` que deja `read.csv()`.
 
+# Pesada para CRAN (mas de 1 s en la medicion sin red del 2026-10-23): corre en la
+# suite completa, en el CI y en R-hub, que usan NOT_CRAN=true.
+testthat::skip_on_cran()
+
 .sin_marca_n62 <- function(x) rawToChar(charToRaw(x))
 
 .fixture_texto_n62 <- function(n = 30L) {

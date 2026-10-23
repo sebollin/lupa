@@ -1,6 +1,11 @@
 # O169: las cinco decisiones de la refutacion DBI, ejercidas por las puertas
 # publicas sobre RSQLite con respuestas de motor fingidas. El archivo es ASCII.
 
+# Regresion de una ronda de refutacion: corre en la suite completa, en el CI y en
+# R-hub, que usan NOT_CRAN=true; en CRAN se saltea para que el check entre en sus
+# tiempos (medicion del 2026-10-23).
+testthat::skip_on_cran()
+
 .r36x_catalogo <- function(columnas, legible = 1L) {
   data.frame(
     posicion = seq_along(columnas), columna = columnas,

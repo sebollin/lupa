@@ -6,6 +6,10 @@
 # y en una base real quedaron tapadas 38 de 64 descripciones, tambien de
 # columnas que no eran personales.
 
+# Pesada para CRAN (mas de 1 s en la medicion sin red del 2026-10-23): corre en la
+# suite completa, en el CI y en R-hub, que usan NOT_CRAN=true.
+testthat::skip_on_cran()
+
 test_that("en la prosa la variante exige limites; en los valores, no", {
   casos <- c(
     correo = "contactar a maria.nunez123@correo.uy",

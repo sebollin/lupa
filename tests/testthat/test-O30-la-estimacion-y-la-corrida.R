@@ -2,6 +2,10 @@
 # afirmaba "exhaustiva_por_bloques" siempre, y con los mismos argumentos la
 # corrida podia mirar 447 filas de 5000 y declararse muestreada.
 
+# Pesada para CRAN (mas de 1 s en la medicion sin red del 2026-10-23): corre en la
+# suite completa, en el CI y en R-hub, que usan NOT_CRAN=true.
+testthat::skip_on_cran()
+
 test_that("la estimacion declara el modo y las filas que va a mirar", {
   skip_if_not_installed("stringdist")
   datos <- data.frame(nombre = paste0("nom ", seq_len(5000L)),

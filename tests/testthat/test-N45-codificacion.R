@@ -1,3 +1,8 @@
+# Regresion de una ronda de refutacion: corre en la suite completa, en el CI y en
+# R-hub, que usan NOT_CRAN=true; en CRAN se saltea para que el check entre en sus
+# tiempos (medicion del 2026-10-23).
+testthat::skip_on_cran()
+
 test_that("N45: los nombres UTF-8 desconocidos no rompen bajo locale C", {
   nombre <- rawToChar(as.raw(c(0x4e, 0xc3, 0x89, 0x6d, 0x65, 0x72, 0x6f)))
   datos <- data.frame(1:3, c("x", "y", "z"), stringsAsFactors = FALSE)

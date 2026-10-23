@@ -1,6 +1,10 @@
 # Ronda 31-R: dos funciones, dos respuestas sobre el mismo hecho. Cada prueba
 # rehace su cifra a mano y falla contra el codigo anterior a la ronda.
 
+# Pesada para CRAN (mas de 1 s en la medicion sin red del 2026-10-23): corre en la
+# suite completa, en el CI y en R-hub, que usan NOT_CRAN=true.
+testthat::skip_on_cran()
+
 .fecha_O151 <- as.POSIXct("2026-01-01", tz = "UTC")
 
 test_that("H1: con bloque_filas la mediana se calcula solo con valores finitos", {

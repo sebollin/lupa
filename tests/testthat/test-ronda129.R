@@ -1,6 +1,11 @@
 # Dos canales que no tenian donde poner la cobertura de diagnosticos, asi que
 # cualquier supresion era invisible desde esas puertas.
 
+# Regresion de una ronda de refutacion: corre en la suite completa, en el CI y en
+# R-hub, que usan NOT_CRAN=true; en CRAN se saltea para que el check entre en sus
+# tiempos (medicion del 2026-10-23).
+testthat::skip_on_cran()
+
 test_that("perfilar_por declara por grupo lo que no se evaluo", {
   # Cada grupo se perfila por separado y declina los suyos: una columna puede
   # tener bastantes filas en un grupo y muy pocas en otro. Sin esta tabla, un

@@ -1,6 +1,11 @@
 # Ronda 15-B: estimaciones externas, senales redundantes, clases de variable,
 # patrones y proteccion de correos.
 
+# Regresion de una ronda de refutacion: corre en la suite completa, en el CI y en
+# R-hub, que usan NOT_CRAN=true; en CRAN se saltea para que el check entre en sus
+# tiempos (medicion del 2026-10-23).
+testthat::skip_on_cran()
+
 test_that("medicion_desde_estimaciones lee un factor por su texto", {
   est <- data.frame(
     celda = c("Montevideo", "Interior"),

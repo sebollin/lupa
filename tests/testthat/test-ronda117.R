@@ -1,5 +1,10 @@
 # Lo que quedaba abierto de las cinco auditorias externas.
 
+# Regresion de una ronda de refutacion: corre en la suite completa, en el CI y en
+# R-hub, que usan NOT_CRAN=true; en CRAN se saltea para que el check entre en sus
+# tiempos (medicion del 2026-10-23).
+testthat::skip_on_cran()
+
 test_that("el desvio de una columna temporal esta en segundos", {
   # Los demas momentos viajan formateados en `minimo_fecha` y companía; el
   # desvio no es un momento sino una duracion, queda como numero, y ese numero

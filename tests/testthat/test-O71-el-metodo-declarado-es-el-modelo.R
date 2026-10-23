@@ -11,6 +11,11 @@
 # paquete: serializar su texto haria que cada version nueva de lupa acusara un
 # cambio de modelo en toda serie existente. Las dos mitades se prueban.
 
+# Regresion de una ronda de refutacion: corre en la suite completa, en el CI y en
+# R-hub, que usan NOT_CRAN=true; en CRAN se saltea para que el check entre en sus
+# tiempos (medicion del 2026-10-23).
+testthat::skip_on_cran()
+
 metodo_presente <- function(tablas, instancia) {
   x <- tablas[[instancia$entidad]][[instancia$atributos]]
   lupa:::.salida_metodo(

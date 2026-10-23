@@ -1,6 +1,10 @@
 # Ronda 34-D: lo que la refutacion de las mediciones de la ronda 33 encontro.
 # Cada prueba rehace su cifra a mano y falla contra el codigo anterior al arreglo.
 
+# Pesada para CRAN (mas de 1 s en la medicion sin red del 2026-10-23): corre en la
+# suite completa, en el CI y en R-hub, que usan NOT_CRAN=true.
+testthat::skip_on_cran()
+
 .fecha_O162 <- as.POSIXct("2026-01-01", tz = "UTC")
 
 test_that("M5: el perfil de analizar() sin `fecha` no la declara y dos entregas fuera de orden se comparan", {

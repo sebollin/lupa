@@ -3,6 +3,10 @@
 # salida. Se tapaba en los atributos del plan, y el hallazgo declarado sin accion
 # dejaba de corresponder a su columna.
 
+# Pesada para CRAN (mas de 1 s en la medicion sin red del 2026-10-23): corre en la
+# suite completa, en el CI y en R-hub, que usan NOT_CRAN=true.
+testthat::skip_on_cran()
+
 .datos_O123 <- function() {
   set.seed(123)
   n <- 600L

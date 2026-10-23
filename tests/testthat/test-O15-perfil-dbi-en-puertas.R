@@ -6,6 +6,11 @@
 # decia lo unico que el usuario necesita: que el perfil esta adentro, en
 # `$perfil_muestra`. No es una cifra que mienta, es una salida sin salida.
 
+# Regresion de una ronda de refutacion: corre en la suite completa, en el CI y en
+# R-hub, que usan NOT_CRAN=true; en CRAN se saltea para que el check entre en sus
+# tiempos (medicion del 2026-10-23).
+testthat::skip_on_cran()
+
 .o15_perfil_dbi <- function() {
   skip_if_not_installed("DBI")
   skip_if_not_installed("RSQLite")

@@ -3,6 +3,11 @@
 # metia en el agregado y `alcance_medidas` decia "4 de 5" cuando adentro se
 # habian medido 3.
 
+# Regresion de una ronda de refutacion: corre en la suite completa, en el CI y en
+# R-hub, que usan NOT_CRAN=true; en CRAN se saltea para que el check entre en sus
+# tiempos (medicion del 2026-10-23).
+testthat::skip_on_cran()
+
 .datos_O117 <- function() {
   data.frame(
     cod = c("A1", "A2", "A3", NA, NA, "B1", NA, NA, "C9", "D1"),

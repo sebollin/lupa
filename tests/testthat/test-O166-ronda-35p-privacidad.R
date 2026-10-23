@@ -7,6 +7,10 @@
 # falla contra el commit de la ronda 34 (afd202a).
 
 # Las hojas de un objeto, numeros y textos por separado.
+# Pesada para CRAN (mas de 1 s en la medicion sin red del 2026-10-23): corre en la
+# suite completa, en el CI y en R-hub, que usan NOT_CRAN=true.
+testthat::skip_on_cran()
+
 .r35p_hojas <- function(x) {
   numeros <- numeric()
   textos <- character()

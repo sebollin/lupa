@@ -1,6 +1,11 @@
 # Ronda 25-K: claves, relaciones y el referencial. Cada prueba rehace la cifra
 # a mano con base R y la compara con lo que publica el paquete.
 
+# Regresion de una ronda de refutacion: corre en la suite completa, en el CI y en
+# R-hub, que usan NOT_CRAN=true; en CRAN se saltea para que el check entre en sus
+# tiempos (medicion del 2026-10-23).
+testthat::skip_on_cran()
+
 .o132_medicion_referencial <- function(metrica, ref, objetivo, ...) {
   inst <- instanciar(
     especializar(metricas_referencial()[[metrica]], ...), "t", "k",

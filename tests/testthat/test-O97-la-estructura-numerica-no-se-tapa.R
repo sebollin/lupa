@@ -9,6 +9,11 @@
 # filas; aca se ejercita el piso sobre las estructuras reales de un perfil chico,
 # con los valores protegidos elegidos para coincidir.
 
+# Regresion de una ronda de refutacion: corre en la suite completa, en el CI y en
+# R-hub, que usan NOT_CRAN=true; en CRAN se saltea para que el check entre en sus
+# tiempos (medicion del 2026-10-23).
+testthat::skip_on_cran()
+
 test_that("los indices de la traza y los conteos sobreviven a un valor que coincide", {
   datos <- data.frame(
     x = c("a", "SIN DATO", "b", "SIN DATO", "c", "d", "SIN DATO", "e"),

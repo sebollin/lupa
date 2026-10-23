@@ -1,6 +1,10 @@
 # El minimo y el maximo de una columna protegida se recuperaban exactos a partir
 # de dos campos que no muestran ningun valor de celda.
 
+# Pesada para CRAN (mas de 1 s en la medicion sin red del 2026-10-23): corre en la
+# suite completa, en el CI y en R-hub, que usan NOT_CRAN=true.
+testthat::skip_on_cran()
+
 test_that("el rango de una columna protegida no se despeja desde el perfil", {
   # `n_posiciones` es `maximo - minimo + 1` y los ordenes de magnitud que guarda
   # Benford son `log10(maximo/minimo)`: dos ecuaciones con dos incognitas. Sobre

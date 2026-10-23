@@ -8,6 +8,11 @@
 # `stringdist`, no de la que estaba guardada.
 
 # U+FB04 en bytes, para que este archivo siga siendo ASCII.
+# Regresion de una ronda de refutacion: corre en la suite completa, en el CI y en
+# R-hub, que usan NOT_CRAN=true; en CRAN se saltea para que el check entre en sus
+# tiempos (medicion del 2026-10-23).
+testthat::skip_on_cran()
+
 .ligadura_ffl <- function() {
   x <- rawToChar(as.raw(c(0xef, 0xac, 0x84)))
   Encoding(x) <- "UTF-8"

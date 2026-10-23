@@ -9,6 +9,10 @@
 # Y hay una tensión que este rasgo no puede ignorar: **la clave que permite ir a
 # verificar es exactamente lo que identifica a una persona.**
 
+# Pesada para CRAN (mas de 1 s en la medicion sin red del 2026-10-23): corre en la
+# suite completa, en el CI y en R-hub, que usan NOT_CRAN=true.
+testthat::skip_on_cran()
+
 .tabla_con_clave <- function(n = 120L) {
   data.frame(
     id = sprintf("K%03d", seq_len(n)),

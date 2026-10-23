@@ -2,6 +2,10 @@
 # completa suministrada por el usuario declara sus valores y esos valores salen
 # de los resumenes cuantitativos.
 
+# Pesada para CRAN (mas de 1 s en la medicion sin red del 2026-10-23): corre en la
+# suite completa, en el CI y en R-hub, que usan NOT_CRAN=true.
+testthat::skip_on_cran()
+
 test_that("el default no excluye y una politica reemplazada si excluye", {
   datos <- data.frame(x = c(999, 1:9))
 

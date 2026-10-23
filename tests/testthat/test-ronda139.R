@@ -1,3 +1,7 @@
+# Pesada para CRAN (mas de 1 s en la medicion sin red del 2026-10-23): corre en la
+# suite completa, en el CI y en R-hub, que usan NOT_CRAN=true.
+testthat::skip_on_cran()
+
 test_that("los cuantiles compartidos conservan el resumen numerico", {
   valores <- c(seq_len(60L), rep(999, 5L))
   observado <- lupa:::.resumen_cuantitativo(

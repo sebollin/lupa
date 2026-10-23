@@ -19,6 +19,10 @@
 #   (SQL Server lo rechaza sobre `text`, `ntext` e `image`, medido).
 # * `listados`: lo que devuelve `dbListFields()` por tabla, cuando el motor la
 #   filtra (RPostgres lee `information_schema.columns`, medido).
+# Pesada para CRAN (mas de 1 s en la medicion sin red del 2026-10-23): corre en la
+# suite completa, en el CI y en R-hub, que usan NOT_CRAN=true.
+testthat::skip_on_cran()
+
 .emular_motor_r35x1 <- function(senas = NULL, catalogo = list(),
                                 mascaras = list(), negadas = character(),
                                 rechaza_tabla = character(),

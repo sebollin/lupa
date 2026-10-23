@@ -12,6 +12,10 @@
 # Las mitades de control son la mitad de la prueba: un piso que tapa de mas
 # silencia el informe, que es el otro modo de fallar.
 
+# Pesada para CRAN (mas de 1 s en la medicion sin red del 2026-10-23): corre en la
+# suite completa, en el CI y en R-hub, que usan NOT_CRAN=true.
+testthat::skip_on_cran()
+
 cedulas_o73 <- c("4.123.456-7", "1.987.654-3", "3.456.789-0", "5.678.901-2")
 
 html_de <- function(objeto) {

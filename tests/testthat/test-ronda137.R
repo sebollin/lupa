@@ -3,6 +3,11 @@
 # desconocida hasta que la corrida la mida. Los topes de la muestra acotan el
 # trabajo que se hara en R, sin convertir esa cota en un conteo de la tabla.
 
+# Regresion de una ronda de refutacion: corre en la suite completa, en el CI y en
+# R-hub, que usan NOT_CRAN=true; en CRAN se saltea para que el check entre en sus
+# tiempos (medicion del 2026-10-23).
+testthat::skip_on_cran()
+
 .tabla_plan_137 <- function() {
   set.seed(137L)
   n <- 5000L

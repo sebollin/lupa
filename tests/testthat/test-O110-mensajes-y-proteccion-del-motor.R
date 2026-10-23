@@ -1,5 +1,9 @@
 # Tercera evaluacion real: lo que dice perfilar_dbi() de si mismo.
 
+# Pesada para CRAN (mas de 1 s en la medicion sin red del 2026-10-23): corre en la
+# suite completa, en el CI y en R-hub, que usan NOT_CRAN=true.
+testthat::skip_on_cran()
+
 .estimacion_moda_O110 <- function(metodo_lote = "hash", metodo = NULL) {
   lotes <- data.frame(
     lote = 1L, columnas = "codigo", tamano_estimado_bytes = 1e9,

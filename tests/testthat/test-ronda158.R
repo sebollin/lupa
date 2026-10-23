@@ -1,3 +1,7 @@
+# Pesada para CRAN (mas de 1 s en la medicion sin red del 2026-10-23): corre en la
+# suite completa, en el CI y en R-hub, que usan NOT_CRAN=true.
+testthat::skip_on_cran()
+
 .tabla_ronda158 <- function(repetidas = FALSE) {
   base <- data.frame(
     codigo = c("a01", "a02", "a03", "a04", "a05", "a06"),

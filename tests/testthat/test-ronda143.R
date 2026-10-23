@@ -1,3 +1,7 @@
+# Pesada para CRAN (mas de 1 s en la medicion sin red del 2026-10-23): corre en la
+# suite completa, en el CI y en R-hub, que usan NOT_CRAN=true.
+testthat::skip_on_cran()
+
 test_that("la inferencia ponderada por vocabulario conserva cada resultado", {
   acento <- paste0("Jos", "\u00e9")
   chico <- rep(

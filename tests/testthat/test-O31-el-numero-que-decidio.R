@@ -3,6 +3,11 @@
 # columna con el 90 % de las cedulas validas -el umbral- publicaba exactamente
 # lo mismo que una con el 100 %.
 
+# Regresion de una ronda de refutacion: corre en la suite completa, en el CI y en
+# R-hub, que usan NOT_CRAN=true; en CRAN se saltea para que el check entre en sus
+# tiempos (medicion del 2026-10-23).
+testthat::skip_on_cran()
+
 .cedulas_de_prueba <- function(n_malas, n = 200L) {
   pesos <- c(2L, 9L, 8L, 7L, 6L, 3L, 4L)
   bases <- seq(1000000L, by = 37L, length.out = n)

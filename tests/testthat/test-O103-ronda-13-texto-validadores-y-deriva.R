@@ -1,5 +1,9 @@
 # Ronda 13: reparacion de texto, validadores y deriva entre perfiles.
 
+# Pesada para CRAN (mas de 1 s en la medicion sin red del 2026-10-23): corre en la
+# suite completa, en el CI y en R-hub, que usan NOT_CRAN=true.
+testthat::skip_on_cran()
+
 test_that("los validadores de URL rechazan tres formas que no son sintaxis", {
   # Antes: TRUE las tres.
   expect_false(validar_url("http://[:::]/"))

@@ -3,6 +3,10 @@
 # Una prueba por hallazgo. La cifra esperada se rehace a mano en cada prueba, y
 # cada una falla contra 0b8e360. Tablas chicas: el check tiene presupuesto.
 
+# Pesada para CRAN (mas de 1 s en la medicion sin red del 2026-10-23): corre en la
+# suite completa, en el CI y en R-hub, que usan NOT_CRAN=true.
+testthat::skip_on_cran()
+
 .f1_o140 <- as.POSIXct("2026-01-01", tz = "UTC")
 .f2_o140 <- as.POSIXct("2026-02-01", tz = "UTC")
 

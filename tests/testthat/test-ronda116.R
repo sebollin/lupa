@@ -4,6 +4,10 @@
 # falsa deje de emitirse Y que quede declarada, porque bajar el ruido callando
 # seria mejorar el numero sin mejorar el paquete.
 
+# Pesada para CRAN (mas de 1 s en la medicion sin red del 2026-10-23): corre en la
+# suite completa, en el CI y en R-hub, que usan NOT_CRAN=true.
+testthat::skip_on_cran()
+
 .perfil_r116 <- function(datos) {
   perfilar(
     datos, analizar_dependencias = FALSE, proteger_datos_personales = FALSE,

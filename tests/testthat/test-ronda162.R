@@ -8,6 +8,11 @@
 #   FROM ONLY padre  -> 5000 validos, 5000 distintos
 # El catalogo decia `garantizada` en los dos casos.
 
+# Regresion de una ronda de refutacion: corre en la suite completa, en el CI y en
+# R-hub, que usan NOT_CRAN=true; en CRAN se saltea para que el check entre en sus
+# tiempos (medicion del 2026-10-23).
+testthat::skip_on_cran()
+
 .ronda162_catalogo <- function(descendientes = 0L, validated = TRUE,
                                diferible = FALSE, relkind = "r",
                                indice_unico = TRUE) {

@@ -9,6 +9,11 @@
 # Es el invariante en su forma mas directa: informar como medido lo que no se
 # midio. La correccion tiene DOS capas, y las dos se prueban aca.
 
+# Regresion de una ronda de refutacion: corre en la suite completa, en el CI y en
+# R-hub, que usan NOT_CRAN=true; en CRAN se saltea para que el check entre en sus
+# tiempos (medicion del 2026-10-23).
+testthat::skip_on_cran()
+
 test_that("la clave se descarta entera cuando nombra columnas ajenas", {
   catalogo <- list(
     columnas = c("y", "x"), fuente = "information_schema",

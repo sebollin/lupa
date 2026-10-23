@@ -11,6 +11,10 @@
 # transfiere a otra.
 
 # La referencia: el recorrido hoja por hoja, tal como estaba antes del arreglo.
+# Pesada para CRAN (mas de 1 s en la medicion sin red del 2026-10-23): corre en la
+# suite completa, en el CI y en R-hub, que usan NOT_CRAN=true.
+testthat::skip_on_cran()
+
 .o63_referencia <- function(x, valores) {
   if (!length(valores)) return(x)
   atributos <- attributes(x)

@@ -1,6 +1,11 @@
 # Ronda 9 sobre `medir()` y `modelo()`: siete casos donde lo que el paquete
 # publicaba no era lo que decia, cada uno con su control.
 
+# Regresion de una ronda de refutacion: corre en la suite completa, en el CI y en
+# R-hub, que usan NOT_CRAN=true; en CRAN se saltea para que el check entre en sus
+# tiempos (medicion del 2026-10-23).
+testthat::skip_on_cran()
+
 test_that("un atributo unido con + se reconoce aunque una columna traiga +", {
   tabla <- data.frame(num = 1:5, "a+b" = as.character(1:5), c = letters[1:5],
                       v = as.character(10:14), check.names = FALSE)

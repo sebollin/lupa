@@ -2,6 +2,10 @@
 # por hallazgo, barata: tablas de decenas de filas. Las cifras esperadas se
 # rehacen a mano en cada prueba, no se copian de la salida del paquete.
 
+# Pesada para CRAN (mas de 1 s en la medicion sin red del 2026-10-23): corre en la
+# suite completa, en el CI y en R-hub, que usan NOT_CRAN=true.
+testthat::skip_on_cran()
+
 test_that("H1: el resumen lee los numeros con la convencion que el perfil publica", {
   b <- c("1.500", "2.000", "12.345", "3.250", "4.100", "7.800", "9.999",
          "2.000", "5.500", "2,5")
