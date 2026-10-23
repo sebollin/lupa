@@ -321,6 +321,24 @@ la columna dependiente, la imputación respeta su universo como las demás
 acciones por celda: no llena las filas declaradas fuera, que son vacío
 por diseño, y `n_afectadas` las excluye.
 
+Cuando el determinante o el dependiente es una columna protegida, se
+tapa por construcción todo ese lado del mapa: el texto usa
+`[valor protegido]` y las columnas numéricas, `Date` y `POSIXct` usan
+`NA`. El lado no protegido conserva el resultado de los barridos
+generales, incluido el piso por contenido. Los demás parámetros de una
+acción sobre una columna protegida tampoco publican objetos de clase
+`Date` o `POSIXct`.
+
+Con un lado entero tapado, todas sus filas quedan tapadas y `aplicar()`
+sólo puede resolverlas con datos que traigan la relación y el soporte
+declarado. Una entrega parcial —las filas a completar y un par de cada
+clave— queda `fallida`, con el motivo de que los datos no traen un par
+de esa clave que la resuelva. Una contradicción en una clave que no hay
+que completar —una fila con el dependiente presente que cambió de valor—
+ya no se detecta: el plan no publica esa clave para compararla, la
+acción sale `ejecutada` y lo que imputa es correcto sobre los datos
+recibidos. Es una limitación de esta representación tapada.
+
 Sobre una columna protegida, `convertir_sentinelas_numericos` publica el
 catálogo de centinelas del paquete tal cual —es vocabulario, no un dato—
 y tapa el resto. Lo tapado se marca con `valores_enmascarados = TRUE` y
