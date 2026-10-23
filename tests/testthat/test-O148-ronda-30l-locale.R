@@ -5,6 +5,10 @@
 # fija LC_COLLATE en C, asi que hay que nombrar los dos locales que se comparan.
 # Los datos se arman con `rawToChar()`: el archivo es ASCII.
 
+# Regresion de una ronda (locale): 20 s en win-builder. En CRAN se saltea; corre entera
+# en la suite local, en el CI y en R-hub, que la ejercen en Linux, Windows y macOS.
+testthat::skip_on_cran()
+
 .hex_o148 <- function(x) {
   vapply(x, function(s) {
     if (is.na(s)) NA_character_ else paste(as.character(charToRaw(s)), collapse = "")

@@ -1,5 +1,9 @@
 # Q5: el mapa de una dependencia tapa por construccion el lado protegido.
 
+# Proteccion de datos (la quinta evaluacion real): en CRAN se saltea para que el check
+# entre en sus tiempos. Corre entera en la suite local, en el CI y en R-hub.
+testthat::skip_on_cran()
+
 .q5_clase <- function(fechas, clase) {
   switch(
     clase,

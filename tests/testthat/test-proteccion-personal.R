@@ -1,3 +1,8 @@
+# La proteccion de datos es un complemento del paquete, no su cometido: en CRAN se
+# saltea para que el check entre en sus tiempos (29 s en win-builder). Corre entera en la
+# suite local, en el CI y en R-hub, que usan NOT_CRAN=true.
+testthat::skip_on_cran()
+
 .datos_personales_cinco <- function() {
   data.frame(
     documento_texto = c(

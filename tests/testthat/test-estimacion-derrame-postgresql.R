@@ -2,6 +2,10 @@
 # los tiene disponibles; la logica que no necesita servidor esta en el archivo
 # de dobles de arriba.
 
+# Necesita un PostgreSQL de prueba: en CRAN no hay, y esperar la conexion costaba 8 s.
+# Corre en la suite local.
+testthat::skip_on_cran()
+
 .conexion_pg_estimacion <- function(port, user = "postgres",
                                     password = Sys.getenv(
                                       "LUPA_PG_PASSWORD", "lupa"
