@@ -14,7 +14,7 @@ hereda el perfil declarado por
 La normalización sólo cambia la representación usada para emparejar: no
 modifica los datos. La proximidad es evidencia para los valores ausentes
 y nunca cambia su veredicto; si el paquete opcional
-[stringdist](https://cran.r-project.org/package=stringdist) no está
+[stringdist](https://CRAN.R-project.org/package=stringdist) no está
 instalado, se declara que no se calculó. Se calcula una sola vez por
 valor fallido distinto y la evidencia se reparte a las filas repetidas.
 El alcance conserva por separado `n_fallos` (filas),
@@ -82,11 +82,11 @@ fuerte <- instanciar(especializar(m$CorrectitudSemFuerte),
   "personas", "id", referencial = ref)
 medir(modelo(fuerte), data.frame(id = c(1, 4)))
 #>                                                                      id_medida
-#> 1 medicion-20261023T224003.618265-7734-CorrectitudSemFuerte@personas.id-000001
-#> 2 medicion-20261023T224003.618265-7734-CorrectitudSemFuerte@personas.id-000002
+#> 1 medicion-20261024T131417.559593-7840-CorrectitudSemFuerte@personas.id-000001
+#> 2 medicion-20261024T131417.559593-7840-CorrectitudSemFuerte@personas.id-000002
 #>                            id_medicion               fecha              metrica
-#> 1 medicion-20261023T224003.618265-7734 2026-10-23 22:40:03 CorrectitudSemFuerte
-#> 2 medicion-20261023T224003.618265-7734 2026-10-23 22:40:03 CorrectitudSemFuerte
+#> 1 medicion-20261024T131417.559593-7840 2026-10-24 13:14:17 CorrectitudSemFuerte
+#> 2 medicion-20261024T131417.559593-7840 2026-10-24 13:14:17 CorrectitudSemFuerte
 #>     metrica_especifica              metrica_instanciada dimension
 #> 1 CorrectitudSemFuerte CorrectitudSemFuerte@personas.id Exactitud
 #> 2 CorrectitudSemFuerte CorrectitudSemFuerte@personas.id Exactitud

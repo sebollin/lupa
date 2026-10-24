@@ -62,13 +62,13 @@ estimar_costo(
   unen con `" | "`; dentro de cada valor, cada barra invertida `\` se
   escribe `\\` y cada `|` se escribe `\|`. Los escapes no son
   cosméticos: sin el de `|`, `c1 = "x | y", c2 = "z"` y
-  `c1 = "x", c2 = "y | z"` producían la misma cadena y dos filas que
-  **no comparten ningún valor** salían `exacto_normalizado` a distancia
-  `0`; el de `\` es el que deja leer ese `\|` de una sola manera, y el
-  que distingue un valor declarado `bytes` del literal de su escape. Con
-  los dos, la distancia publicada de una comparación de varias columnas
-  se rehace así —y la de una sola, con el mismo `escapar()` y sin
-  pegar—:
+  `c1 = "x", c2 = "y | z"` producirían la misma cadena y dos filas que
+  **no comparten ningún valor** saldrían `exacto_normalizado` a
+  distancia `0`; el de `\` es el que deja leer ese `\|` de una sola
+  manera, y el que distingue un valor declarado `bytes` del literal de
+  su escape. Con los dos, la distancia publicada de una comparación de
+  varias columnas se rehace así —y la de una sola, con el mismo
+  `escapar()` y sin pegar—:
 
       escapar <- function(v) {
         gsub("|", "\\|", gsub("\\", "\\\\", v, fixed = TRUE), fixed = TRUE)
@@ -270,8 +270,7 @@ estimar_costo(
   fuera de alcance en `alcance$columnas_excluidas_largo`, y
   `alcance$largo_maximo` publica el largo comparado; no se recortan
   valores en silencio. Con el tope en `Inf` no se mide ningun largo y
-  `largo_maximo` vale `NA`, no cero. `Inf` recupera explicitamente el
-  comportamiento anterior sin tope.
+  `largo_maximo` vale `NA`, no cero. `Inf` quita el tope.
 
 ## Value
 

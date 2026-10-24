@@ -46,9 +46,9 @@ anterior del paquete cuya configuración lleva un número que con 15
 cifras no vuelve a su valor —`maximo = 1/3`, `0.1 + 0.2`, un umbral
 calculado con [`quantile()`](https://rdrr.io/r/stats/quantile.html)— o
 un instante con fracción de segundo declara **una vez** esa fila, con
-severidad `error`, contra la primera corrida nueva: la versión anterior
-escribía el número con 15 cifras (`0.333333333333333`) y el instante
-cortado al segundo, y la actual con las cifras que los devuelven a su
+severidad `error`, contra la primera corrida nueva: esas corridas
+guardan el número con 15 cifras (`0.333333333333333`) y el instante
+cortado al segundo, y las nuevas con las cifras que los devuelven a su
 valor (`0.3333333333333333`). La fila de resultado de ese par conserva
 su veredicto, y desde ahí la serie aparea.
 
@@ -80,5 +80,22 @@ corridas a las que les falta la misma parte sí se comparan.
 ## Examples
 
 ``` r
-# El ejemplo de historico_calidad() muestra cómo construir las corridas.
+nucleo <- metricas_nucleo()
+instancia <- instanciar(especializar(nucleo$NoNulo), "personas", "edad")
+perfil <- perfil_evaluacion(
+  "Completa", regla_evaluacion("Al menos 90%", function(x) x >= 0.9)
+)
+corrida <- function(edades, id, fecha) {
+  medidas <- medir(modelo(instancia), data.frame(edad = edades),
+                   id_medicion = id, fecha = as.POSIXct(fecha, tz = "UTC"))
+  historico_calidad(medidas, evaluar(medidas, perfil))
+}
+historico <- rbind(
+  corrida(c(20, NA, 35, NA), "enero", "2026-01-31"),
+  corrida(c(20, 41, 35, 52), "febrero", "2026-02-28")
+)
+deriva <- detectar_deriva_calidad(historico)
+deriva[, c("perfil", "resultado_anterior", "resultado_actual", "direccion")]
+#>     perfil resultado_anterior resultado_actual direccion
+#> 1 Completa                0.5                1    mejora
 ```

@@ -55,11 +55,10 @@ métricas se excluyeron se rechaza diciéndolo.
 objeto publica**, no es un texto fijo. Con un solo universo lo nombra y
 dice que las unidades son comparables; con varios dice cuántos son y
 nombra, por universo, qué componentes caen en cada uno; sin componentes
-no afirma nada sobre universos. Antes era una sola frase idéntica en
-toda corrida, que afirmaba «salen de universos distintos» incluso cuando
-los tres componentes publicaban `universo = "celdas"` —una afirmación
-que el mismo objeto desmentía en su columna `universo`— y que no
-nombraba nunca ningún componente, que es justamente lo que prometía
+no afirma nada sobre universos. Así no afirma «salen de universos
+distintos» cuando los tres componentes publican `universo = "celdas"`
+—una afirmación que el mismo objeto desmentiría en su columna
+`universo`—, y nombra los componentes, que es justamente lo que promete
 declarar.
 
 ## See also

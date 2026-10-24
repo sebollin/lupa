@@ -3,7 +3,7 @@
 Devuelve, en una tabla, lo que una regla declara: a qué métricas se
 engancha, en qué nivel evalúa, qué desenlace produce y **qué umbrales
 usa**. Los umbrales viajan aparte de la condición justamente para esto:
-encerrados en el *closure* quedaban invisibles y obligaban a escribir
+encerrados en el *closure* quedarían invisibles y obligarían a escribir
 otra regla para mover un número.
 
 ## Usage
@@ -28,7 +28,7 @@ Data frame con una fila por propiedad: `propiedad`, `valor`.
 Es la contraparte de
 [`propiedades_metrica()`](https://sebollin.github.io/lupa/reference/modelo_calidad.md),
 que describe métricas. Un umbral pertenece a una regla, no a una
-métrica, así que no cabía allí.
+métrica, así que no cabe allí.
 
 ## See also
 

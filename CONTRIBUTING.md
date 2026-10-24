@@ -120,6 +120,6 @@ entrar, es una conversación aparte del cambio que estés enviando.
 **Nombrar es enlazar.** En cualquier lugar del repositorio donde se
 nombre otro paquete o a una persona, va el enlace: al repositorio del
 paquete o al perfil de quien lo hizo. Vale para el README, la
-documentación `roxygen`, las viñetas, `NEWS.md` y `LICENSE.note`.
+documentación `roxygen`, las viñetas, `NEWS.md` e `inst/COPYRIGHTS`.
 También para las referencias bibliográficas: si hay DOI o el texto es de
 acceso libre, va.

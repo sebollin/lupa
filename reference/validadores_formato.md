@@ -64,8 +64,9 @@ sin validar los días o segundos que guarda. `NaN` es ausente y devuelve
 mayúsculas sólo dentro de ASCII:
 [`toupper()`](https://rdrr.io/r/base/chartr.html) convierte la s larga
 (U+017F) en `S` y la i sin punto (U+0131) en `I`, y con eso una s larga
-seguida de `e` pasaba por un código ISO; ahora es inválida. Y la marca
-de codificación del texto —`latin1` o UTF-8— no cambia la respuesta.
+seguida de `e` pasaría por un código ISO; con la conversión limitada a
+ASCII es inválida. Y la marca de codificación del texto —`latin1` o
+UTF-8— no cambia la respuesta.
 
 `validar_correo()` comprueba un subconjunto práctico y deliberadamente
 conservador de la sintaxis `addr-spec`: parte local de puntos y

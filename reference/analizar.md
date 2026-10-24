@@ -114,9 +114,9 @@ analizar(
 
 - medir_propuesta:
 
-  Si se mide automáticamente la propuesta en estado `"lista"` cuando no
-  se recibe un modelo o una propuesta confirmada. Use `FALSE` para
-  conservar el comportamiento descriptivo anterior.
+  Si se mide automáticamente la propuesta con estado `"lista"` e
+  `incluir = TRUE` cuando no se recibe un modelo o una propuesta
+  confirmada. Con `FALSE`, `analizar()` describe y no mide.
 
 - conservar_detalle_medicion:
 
@@ -269,10 +269,13 @@ respeta la misma declaración cuando recibe ese `perfil`.
 
 ## Details
 
-Por omisión mide todas las sugerencias de la propuesta cuyo estado es
-`"lista"`, aunque no estuvieran activas, y declara que esa selección fue
-realizada por `lupa` sin confirmación. Agrega inmediatamente el detalle
-y conserva
+Por omisión mide las sugerencias de la propuesta cuyo estado es
+`"lista"` y cuya marca `incluir` es `TRUE`; los patrones y dominios
+observados que
+[`proponer_modelo()`](https://sebollin.github.io/lupa/reference/proponer_modelo.md)
+deja inactivos no llegan al tablero sin confirmación. Declara que esa
+selección fue realizada por `lupa` sin confirmación. Agrega
+inmediatamente el detalle y conserva
 [`tablero_calidad()`](https://sebollin.github.io/lupa/reference/tablero_calidad.md);
 las medidas fila a fila sólo quedan en el resultado si
 `conservar_detalle_medicion = TRUE`. La evaluación, cuando se solicita,
@@ -309,66 +312,36 @@ resultado
 #> ── Tablero de calidad ──
 #> 
 #> ── Tablero de calidad ──────────────────────────────────────────────────────────
-#>       componente    dimension                 factor
-#>  componente-0001     Unicidad         No-duplicación
-#>  componente-0002  Completitud               Densidad
-#>  componente-0003  Completitud               Densidad
-#>  componente-0004  Completitud               Densidad
-#>  componente-0005  Completitud               Densidad
-#>  componente-0006    Exactitud Correctitud sintáctica
-#>  componente-0007    Exactitud Correctitud sintáctica
-#>  componente-0008    Exactitud Correctitud sintáctica
-#>  componente-0009    Exactitud Correctitud sintáctica
-#>  componente-0010    Exactitud Correctitud sintáctica
-#>  componente-0011 Consistencia  Integridad de dominio
-#>                      metrica              metrica_instanciada
-#>             EntidadDuplicada                 EntidadDuplicada
-#>                       NoNulo                    NoNulo:cedula
-#>                       NoNulo          NoNulo:fecha_nacimiento
-#>                       NoNulo                   NoNulo:ingreso
-#>                       NoNulo                      NoNulo:sexo
-#>                      Formato                   Formato:correo
-#>                      Formato             Formato:departamento
-#>                      Formato               Formato:id_tramite
-#>                      Formato                     Formato:pais
-#>                      Formato                     Formato:sexo
-#>  ValoresPosiblesPorExtension ValoresPosiblesPorExtension:sexo
-#>                entidad           objeto     valor orientacion agregacion umbral
-#>  datos_administrativos          (tabla) 0.1538462     defecto      ratio     NA
-#>  datos_administrativos           cedula 0.9230769 conformidad      ratio     NA
-#>  datos_administrativos fecha_nacimiento 0.9230769 conformidad      ratio     NA
-#>  datos_administrativos          ingreso 0.9230769 conformidad      ratio     NA
-#>  datos_administrativos             sexo 0.8461538 conformidad      ratio     NA
-#>  datos_administrativos           correo 0.8461538 conformidad      ratio     NA
-#>  datos_administrativos     departamento 0.9230769 conformidad      ratio     NA
-#>  datos_administrativos       id_tramite 1.0000000 conformidad      ratio     NA
-#>  datos_administrativos             pais 1.0000000 conformidad      ratio     NA
-#>  datos_administrativos             sexo 0.8461538 conformidad      ratio     NA
-#>  datos_administrativos             sexo 1.0000000 conformidad      ratio     NA
-#>  universo
-#>     filas
-#>    celdas
-#>    celdas
-#>    celdas
-#>    celdas
-#>    celdas
-#>    celdas
-#>    celdas
-#>    celdas
-#>    celdas
-#>    celdas
+#>       componente   dimension         factor          metrica
+#>  componente-0001    Unicidad No-duplicación EntidadDuplicada
+#>  componente-0002 Completitud       Densidad           NoNulo
+#>  componente-0003 Completitud       Densidad           NoNulo
+#>  componente-0004 Completitud       Densidad           NoNulo
+#>  componente-0005 Completitud       Densidad           NoNulo
+#>      metrica_instanciada               entidad           objeto     valor
+#>         EntidadDuplicada datos_administrativos          (tabla) 0.1538462
+#>            NoNulo:cedula datos_administrativos           cedula 0.9230769
+#>  NoNulo:fecha_nacimiento datos_administrativos fecha_nacimiento 0.9230769
+#>           NoNulo:ingreso datos_administrativos          ingreso 0.9230769
+#>              NoNulo:sexo datos_administrativos             sexo 0.8461538
+#>  orientacion agregacion umbral universo
+#>      defecto      ratio     NA    filas
+#>  conformidad      ratio     NA   celdas
+#>  conformidad      ratio     NA   celdas
+#>  conformidad      ratio     NA   celdas
+#>  conformidad      ratio     NA   celdas
 #> 
 #> ── Alcance del marco ──
 #> 
 #>  factores_marco factores_medidos sin_metrica_declarada no_aplican
-#>              17                4                     8          4
+#>              17                2                    10          4
 #>  fuera_de_alcance medidos_fuera_del_marco
 #>                 1                       0
 #> ── Cobertura conceptual ──
 #> 
 #>            estado factores
-#>            medida        4
-#>      no_declarada        8
+#>            medida        2
+#>      no_declarada       10
 #>         no_aplica        4
 #>  fuera_de_alcance        1
 #> ── Advertencias de alcance ──

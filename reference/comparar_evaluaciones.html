@@ -20,17 +20,29 @@ de N corridas use historico_calidad() y detectar_deriva_calidad()."><meta proper
     </button>
 
     <div id="navbar" class="collapse navbar-collapse ms-3">
-      <ul class="navbar-nav me-auto"><li class="active nav-item"><a class="nav-link" href="../reference/index.html">Reference</a></li>
+      <ul class="navbar-nav me-auto"><li class="nav-item"><a class="nav-link" href="../articles/lupa.html">Get started</a></li>
+<li class="active nav-item"><a class="nav-link" href="../reference/index.html">Reference</a></li>
 <li class="nav-item dropdown">
   <button class="nav-link dropdown-toggle" type="button" id="dropdown-articles" data-bs-toggle="dropdown" aria-expanded="false" aria-haspopup="true">Articles</button>
-  <ul class="dropdown-menu" aria-labelledby="dropdown-articles"><li><a class="dropdown-item" href="../articles/empezar-con-lupa.html">Empezar con lupa</a></li>
-    <li><a class="dropdown-item" href="../articles/flujo-guiado.html">Flujo guiado: del perfil a la evaluación</a></li>
-    <li><a class="dropdown-item" href="../articles/definir-la-calidad.html">Definir la calidad</a></li>
-    <li><a class="dropdown-item" href="../articles/medir-y-evaluar.html">Medir y evaluar</a></li>
-    <li><a class="dropdown-item" href="../articles/limpiar-con-un-plan.html">Limpiar con un plan auditable</a></li>
-    <li><a class="dropdown-item" href="../articles/historico-y-deriva.html">Histórico y monitoreo de deriva</a></li>
+  <ul class="dropdown-menu" aria-labelledby="dropdown-articles"><li><a class="dropdown-item" href="../articles/leer-un-perfil.html">2. Leer un perfil</a></li>
+    <li><a class="dropdown-item" href="../articles/explorar-columnas.html">3. Explorar columnas con `analizar()`</a></li>
+    <li><a class="dropdown-item" href="../articles/estructura-no-declarada.html">4. Estructura no declarada</a></li>
+    <li><a class="dropdown-item" href="../articles/vacio-por-diseno.html">5. El vacío por diseño</a></li>
+    <li><a class="dropdown-item" href="../articles/limpiar-con-un-plan.html">6. Limpiar con un plan</a></li>
+    <li><a class="dropdown-item" href="../articles/del-hallazgo-a-la-metrica.html">7. Del hallazgo a la métrica</a></li>
+    <li><a class="dropdown-item" href="../articles/marcos-y-modelos.html">8. Marcos y modelos de calidad</a></li>
+    <li><a class="dropdown-item" href="../articles/historico-y-deriva.html">9. Comparar entregas y seguir la calidad</a></li>
     <li><hr class="dropdown-divider"></li>
-    <li><a class="dropdown-item" href="../articles/index.html">More articles...</a></li>
+    <li><h6 class="dropdown-header" data-toc-skip>Bases y escala</h6></li>
+    <li><a class="dropdown-item" href="../articles/perfilar-una-base.html">10. Perfilar una base</a></li>
+    <li><a class="dropdown-item" href="../articles/colecciones.html">11. Colecciones</a></li>
+    <li><a class="dropdown-item" href="../articles/escala-y-duplicados.html">12. Escala y duplicados aproximados</a></li>
+    <li><hr class="dropdown-divider"></li>
+    <li><h6 class="dropdown-header" data-toc-skip>Referencia en línea</h6></li>
+    <li><a class="dropdown-item" href="../articles/motores-y-escala.html">Motores y escala</a></li>
+    <li><a class="dropdown-item" href="../articles/alcance-y-cobertura.html">Alcance y cobertura</a></li>
+    <li><a class="dropdown-item" href="../articles/evidencia-y-rendimiento.html">Evidencia y rendimiento</a></li>
+    <li><a class="dropdown-item" href="../articles/codificacion-y-locales.html">Codificación y locales</a></li>
   </ul></li>
 <li class="nav-item"><a class="nav-link" href="../news/index.html">Changelog</a></li>
       </ul><ul class="navbar-nav"></ul></div>
@@ -77,7 +89,24 @@ lo dan los argumentos, no la fecha: <code>anterior</code> es siempre el primero.
 
     <div class="section level2">
     <h2 id="ref-examples">Examples<a class="anchor" aria-label="anchor" href="#ref-examples"></a></h2>
-    <div class="sourceCode"><pre class="sourceCode r"><code><span class="r-in"><span><span class="co"># Ver ejemplos de evaluar().</span></span></span>
+    <div class="sourceCode"><pre class="sourceCode r"><code><span class="r-in"><span><span class="va">nucleo</span> <span class="op">&lt;-</span> <span class="fu"><a href="modelo_calidad.html">metricas_nucleo</a></span><span class="op">(</span><span class="op">)</span></span></span>
+<span class="r-in"><span><span class="va">instancia</span> <span class="op">&lt;-</span> <span class="fu"><a href="modelo_calidad.html">instanciar</a></span><span class="op">(</span><span class="fu"><a href="modelo_calidad.html">especializar</a></span><span class="op">(</span><span class="va">nucleo</span><span class="op">$</span><span class="va">NoNulo</span><span class="op">)</span>, <span class="st">"personas"</span>, <span class="st">"edad"</span><span class="op">)</span></span></span>
+<span class="r-in"><span><span class="va">perfil</span> <span class="op">&lt;-</span> <span class="fu"><a href="reglas_evaluacion.html">perfil_evaluacion</a></span><span class="op">(</span></span></span>
+<span class="r-in"><span>  <span class="st">"Completa"</span>, <span class="fu"><a href="reglas_evaluacion.html">regla_evaluacion</a></span><span class="op">(</span><span class="st">"Al menos 90%"</span>, <span class="kw">function</span><span class="op">(</span><span class="va">x</span><span class="op">)</span> <span class="va">x</span> <span class="op">&gt;=</span> <span class="fl">0.9</span><span class="op">)</span></span></span>
+<span class="r-in"><span><span class="op">)</span></span></span>
+<span class="r-in"><span><span class="va">medir_en</span> <span class="op">&lt;-</span> <span class="kw">function</span><span class="op">(</span><span class="va">edades</span>, <span class="va">id</span>, <span class="va">fecha</span><span class="op">)</span> <span class="op">{</span></span></span>
+<span class="r-in"><span>  <span class="fu"><a href="medir.html">medir</a></span><span class="op">(</span><span class="fu"><a href="modelo_calidad.html">modelo</a></span><span class="op">(</span><span class="va">instancia</span><span class="op">)</span>, <span class="fu"><a href="https://rdrr.io/r/base/data.frame.html" class="external-link">data.frame</a></span><span class="op">(</span>edad <span class="op">=</span> <span class="va">edades</span><span class="op">)</span>, id_medicion <span class="op">=</span> <span class="va">id</span>,</span></span>
+<span class="r-in"><span>        fecha <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/as.POSIXlt.html" class="external-link">as.POSIXct</a></span><span class="op">(</span><span class="va">fecha</span>, tz <span class="op">=</span> <span class="st">"UTC"</span><span class="op">)</span><span class="op">)</span></span></span>
+<span class="r-in"><span><span class="op">}</span></span></span>
+<span class="r-in"><span><span class="va">enero</span> <span class="op">&lt;-</span> <span class="fu"><a href="evaluar.html">evaluar</a></span><span class="op">(</span><span class="fu">medir_en</span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">20</span>, <span class="cn">NA</span>, <span class="fl">35</span><span class="op">)</span>, <span class="st">"enero"</span>, <span class="st">"2026-01-31"</span><span class="op">)</span>, <span class="va">perfil</span><span class="op">)</span></span></span>
+<span class="r-in"><span><span class="va">febrero</span> <span class="op">&lt;-</span> <span class="fu"><a href="evaluar.html">evaluar</a></span><span class="op">(</span><span class="fu">medir_en</span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">20</span>, <span class="fl">41</span>, <span class="fl">35</span><span class="op">)</span>, <span class="st">"febrero"</span>, <span class="st">"2026-02-28"</span><span class="op">)</span>, <span class="va">perfil</span><span class="op">)</span></span></span>
+<span class="r-in"><span><span class="fu">comparar_evaluaciones</span><span class="op">(</span><span class="va">enero</span>, <span class="va">febrero</span><span class="op">)</span></span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>     perfil id_medicion_anterior fecha_anterior resultado_anterior</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 1 Completa                enero     2026-01-31          0.6666667</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>   id_medicion_actual fecha_actual resultado_actual     delta</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 1            febrero   2026-02-28                1 0.3333333</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>                             comparacion</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 1 Cambió el resultado de la evaluación.</span>
 </code></pre></div>
     </div>
   </main><aside class="col-md-3"><nav id="toc" aria-label="Table of contents"><h2>On this page</h2>

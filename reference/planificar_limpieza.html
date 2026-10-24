@@ -28,17 +28,29 @@ quedan bloqueados."><meta property="og:image" content="https://sebollin.github.i
     </button>
 
     <div id="navbar" class="collapse navbar-collapse ms-3">
-      <ul class="navbar-nav me-auto"><li class="active nav-item"><a class="nav-link" href="../reference/index.html">Reference</a></li>
+      <ul class="navbar-nav me-auto"><li class="nav-item"><a class="nav-link" href="../articles/lupa.html">Get started</a></li>
+<li class="active nav-item"><a class="nav-link" href="../reference/index.html">Reference</a></li>
 <li class="nav-item dropdown">
   <button class="nav-link dropdown-toggle" type="button" id="dropdown-articles" data-bs-toggle="dropdown" aria-expanded="false" aria-haspopup="true">Articles</button>
-  <ul class="dropdown-menu" aria-labelledby="dropdown-articles"><li><a class="dropdown-item" href="../articles/empezar-con-lupa.html">Empezar con lupa</a></li>
-    <li><a class="dropdown-item" href="../articles/flujo-guiado.html">Flujo guiado: del perfil a la evaluación</a></li>
-    <li><a class="dropdown-item" href="../articles/definir-la-calidad.html">Definir la calidad</a></li>
-    <li><a class="dropdown-item" href="../articles/medir-y-evaluar.html">Medir y evaluar</a></li>
-    <li><a class="dropdown-item" href="../articles/limpiar-con-un-plan.html">Limpiar con un plan auditable</a></li>
-    <li><a class="dropdown-item" href="../articles/historico-y-deriva.html">Histórico y monitoreo de deriva</a></li>
+  <ul class="dropdown-menu" aria-labelledby="dropdown-articles"><li><a class="dropdown-item" href="../articles/leer-un-perfil.html">2. Leer un perfil</a></li>
+    <li><a class="dropdown-item" href="../articles/explorar-columnas.html">3. Explorar columnas con `analizar()`</a></li>
+    <li><a class="dropdown-item" href="../articles/estructura-no-declarada.html">4. Estructura no declarada</a></li>
+    <li><a class="dropdown-item" href="../articles/vacio-por-diseno.html">5. El vacío por diseño</a></li>
+    <li><a class="dropdown-item" href="../articles/limpiar-con-un-plan.html">6. Limpiar con un plan</a></li>
+    <li><a class="dropdown-item" href="../articles/del-hallazgo-a-la-metrica.html">7. Del hallazgo a la métrica</a></li>
+    <li><a class="dropdown-item" href="../articles/marcos-y-modelos.html">8. Marcos y modelos de calidad</a></li>
+    <li><a class="dropdown-item" href="../articles/historico-y-deriva.html">9. Comparar entregas y seguir la calidad</a></li>
     <li><hr class="dropdown-divider"></li>
-    <li><a class="dropdown-item" href="../articles/index.html">More articles...</a></li>
+    <li><h6 class="dropdown-header" data-toc-skip>Bases y escala</h6></li>
+    <li><a class="dropdown-item" href="../articles/perfilar-una-base.html">10. Perfilar una base</a></li>
+    <li><a class="dropdown-item" href="../articles/colecciones.html">11. Colecciones</a></li>
+    <li><a class="dropdown-item" href="../articles/escala-y-duplicados.html">12. Escala y duplicados aproximados</a></li>
+    <li><hr class="dropdown-divider"></li>
+    <li><h6 class="dropdown-header" data-toc-skip>Referencia en línea</h6></li>
+    <li><a class="dropdown-item" href="../articles/motores-y-escala.html">Motores y escala</a></li>
+    <li><a class="dropdown-item" href="../articles/alcance-y-cobertura.html">Alcance y cobertura</a></li>
+    <li><a class="dropdown-item" href="../articles/evidencia-y-rendimiento.html">Evidencia y rendimiento</a></li>
+    <li><a class="dropdown-item" href="../articles/codificacion-y-locales.html">Codificación y locales</a></li>
   </ul></li>
 <li class="nav-item"><a class="nav-link" href="../news/index.html">Changelog</a></li>
       </ul><ul class="navbar-nav"></ul></div>
@@ -343,8 +355,8 @@ con los valores protegidos de esos mismos datos, da lo que el plan publicó;
 la relación de los datos se toma con el soporte declarado, sin publicar sus
 valores. Si los datos contradicen una fila —la publicada en claro o la
 tapada—, la acción queda <code>fallida</code>, y una clave que no está en el plan no
-se imputa. Se reconstruía entera sobre los datos recibidos, y sobre otra
-entrega escribía valores que el plan nunca mostró. Una fila tapada no se
+se imputa: reconstruir el mapa sobre los datos recibidos escribiría, en otra
+entrega, valores que el plan nunca mostró. Una fila tapada no se
 puede validar si los datos recibidos no traen el valor protegido que la
 tapó —un subconjunto sin ese titular—: también queda <code>fallida</code>, con el
 motivo, y se aplica planificando sobre esos datos. Y si los datos piden
@@ -368,7 +380,7 @@ Una entrega parcial —las filas a completar y un par de cada clave— queda
 <code>fallida</code>, con el motivo de que los datos no traen un par de esa clave que la
 resuelva. Una
 contradicción en una clave que no hay que completar —una fila con el
-dependiente presente que cambió de valor— ya no se detecta: el plan no publica
+dependiente presente que cambió de valor— no se detecta: el plan no publica
 esa clave para compararla, la acción sale <code>ejecutada</code> y lo que imputa es
 correcto sobre los datos recibidos. Es una limitación de esta representación
 tapada.</p>
@@ -423,10 +435,10 @@ columna con <code>"N/A"</code> y <code>"sin dato"</code> tiene ausentes disfraza
 <code>convertir_ausencias_textuales</code> convierte en <code>NA</code> reales; si la marca
 corriera primero, quedaría una columna <code>.ausente_x</code> que dice <code>FALSE</code> en
 filas que terminan en <code>NA</code> —una afirmación falsa sobre los datos, publicada
-con las dos acciones en <code>ejecutada</code> y sin error—. Medido sobre siete formas
-de tabla antes de corregirlo, tres producían esa marca falsa siguiendo el
-idioma documentado <code>plan$aplicar &lt;- plan$recomendada</code>. Por la misma razón,
-<code>eliminar_filas_ausentes</code> también va después: eliminar antes deja sin
+con las dos acciones en <code>ejecutada</code> y sin error—. El plan ordena la marca
+después de la conversión, así que el idioma documentado
+<code>plan$aplicar &lt;- plan$recomendada</code> no produce esa marca falsa. Por la misma
+razón, <code>eliminar_filas_ausentes</code> también va después: eliminar antes deja sin
 eliminar las filas cuyo ausente todavía estaba disfrazado.</p>
 <p><code>convertir_ausencias_textuales</code> convierte exactamente los textos de
 <code>parametros$valores</code>, comparados sin mayúsculas ni espacios al borde. El
@@ -436,8 +448,8 @@ quitar un texto lo conserva y agregar uno lo convierte, como si se hubiera
 declarado. Con protección, la lista y la declaración guardan su valor
 también sobre una columna protegida: un marcador del catálogo —<code>sin dato</code>—
 o uno declarado —<code>SIN REGISTRO</code>— no es el dato de nadie, y la declaración ya
-se publica en <code>meta$cadenas_ausencia</code>. Salían <code>[valor protegido]</code> y
-<code>aplicar()</code> registraba <code>fallida</code> la acción recomendada.</p>
+se publica en <code>meta$cadenas_ausencia</code>. Tapados, saldrían <code>[valor protegido]</code>
+y <code>aplicar()</code> registraría <code>fallida</code> la acción recomendada.</p>
     </div>
     <div class="section level2">
     <h2 id="see-also">See also<a class="anchor" aria-label="anchor" href="#see-also"></a></h2>

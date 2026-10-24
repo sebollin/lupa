@@ -133,11 +133,11 @@ devuelve `NA`—, devolvió una salida que no cumple el contrato de
 `metodo`, o no devolvió ninguna medida sobre un universo que sí tiene
 valores. Cuando el método falló, el motivo conserva su mensaje, con los
 valores de las columnas personales enmascarados si
-`proteger_datos_personales = TRUE`, y `medir()` **avisa**: la falla ya
-no se lleva la medición de las demás métricas, pero tampoco queda muda.
-Y cuando **sí** pudo medirse pero sobre **menos** elementos de los que
-hay en su universo aplicable —una métrica por celda no mide la celda
-vacía, que no produce medida ni cuenta como incumplimiento—, el atributo
+`proteger_datos_personales = TRUE`, y `medir()` **avisa**: la falla no
+se lleva la medición de las demás métricas, pero tampoco queda muda. Y
+cuando **sí** pudo medirse pero sobre **menos** elementos de los que hay
+en su universo aplicable —una métrica por celda no mide la celda vacía,
+que no produce medida ni cuenta como incumplimiento—, el atributo
 `alcance_medidas` publica cuántos midió de cuántos, con su unidad: sin
 ese número, el agregado de tres celdas de cuatro no se distingue del de
 cuatro. Viaja al tablero, se imprime con la medición y se publica en el
@@ -166,13 +166,13 @@ especifica <- especializar(nucleo$NoNulo, nombre_especifico = "NoNuloEdad")
 instancia <- instanciar(especifica, "personas", "edad")
 medir(modelo(instancia), data.frame(edad = c(20, NA, 35)))
 #>                                                              id_medida
-#> 1 medicion-20261023T224003.458276-7734-NoNuloEdad@personas.edad-000001
-#> 2 medicion-20261023T224003.458276-7734-NoNuloEdad@personas.edad-000002
-#> 3 medicion-20261023T224003.458276-7734-NoNuloEdad@personas.edad-000003
+#> 1 medicion-20261024T131417.320262-7840-NoNuloEdad@personas.edad-000001
+#> 2 medicion-20261024T131417.320262-7840-NoNuloEdad@personas.edad-000002
+#> 3 medicion-20261024T131417.320262-7840-NoNuloEdad@personas.edad-000003
 #>                            id_medicion               fecha metrica
-#> 1 medicion-20261023T224003.458276-7734 2026-10-23 22:40:03  NoNulo
-#> 2 medicion-20261023T224003.458276-7734 2026-10-23 22:40:03  NoNulo
-#> 3 medicion-20261023T224003.458276-7734 2026-10-23 22:40:03  NoNulo
+#> 1 medicion-20261024T131417.320262-7840 2026-10-24 13:14:17  NoNulo
+#> 2 medicion-20261024T131417.320262-7840 2026-10-24 13:14:17  NoNulo
+#> 3 medicion-20261024T131417.320262-7840 2026-10-24 13:14:17  NoNulo
 #>   metrica_especifica      metrica_instanciada   dimension   factor orientacion
 #> 1         NoNuloEdad NoNuloEdad@personas.edad Completitud Densidad conformidad
 #> 2         NoNuloEdad NoNuloEdad@personas.edad Completitud Densidad conformidad

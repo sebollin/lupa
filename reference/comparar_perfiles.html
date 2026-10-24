@@ -20,17 +20,29 @@ un objeto de datos filtrable."><meta property="og:image" content="https://seboll
     </button>
 
     <div id="navbar" class="collapse navbar-collapse ms-3">
-      <ul class="navbar-nav me-auto"><li class="active nav-item"><a class="nav-link" href="../reference/index.html">Reference</a></li>
+      <ul class="navbar-nav me-auto"><li class="nav-item"><a class="nav-link" href="../articles/lupa.html">Get started</a></li>
+<li class="active nav-item"><a class="nav-link" href="../reference/index.html">Reference</a></li>
 <li class="nav-item dropdown">
   <button class="nav-link dropdown-toggle" type="button" id="dropdown-articles" data-bs-toggle="dropdown" aria-expanded="false" aria-haspopup="true">Articles</button>
-  <ul class="dropdown-menu" aria-labelledby="dropdown-articles"><li><a class="dropdown-item" href="../articles/empezar-con-lupa.html">Empezar con lupa</a></li>
-    <li><a class="dropdown-item" href="../articles/flujo-guiado.html">Flujo guiado: del perfil a la evaluación</a></li>
-    <li><a class="dropdown-item" href="../articles/definir-la-calidad.html">Definir la calidad</a></li>
-    <li><a class="dropdown-item" href="../articles/medir-y-evaluar.html">Medir y evaluar</a></li>
-    <li><a class="dropdown-item" href="../articles/limpiar-con-un-plan.html">Limpiar con un plan auditable</a></li>
-    <li><a class="dropdown-item" href="../articles/historico-y-deriva.html">Histórico y monitoreo de deriva</a></li>
+  <ul class="dropdown-menu" aria-labelledby="dropdown-articles"><li><a class="dropdown-item" href="../articles/leer-un-perfil.html">2. Leer un perfil</a></li>
+    <li><a class="dropdown-item" href="../articles/explorar-columnas.html">3. Explorar columnas con `analizar()`</a></li>
+    <li><a class="dropdown-item" href="../articles/estructura-no-declarada.html">4. Estructura no declarada</a></li>
+    <li><a class="dropdown-item" href="../articles/vacio-por-diseno.html">5. El vacío por diseño</a></li>
+    <li><a class="dropdown-item" href="../articles/limpiar-con-un-plan.html">6. Limpiar con un plan</a></li>
+    <li><a class="dropdown-item" href="../articles/del-hallazgo-a-la-metrica.html">7. Del hallazgo a la métrica</a></li>
+    <li><a class="dropdown-item" href="../articles/marcos-y-modelos.html">8. Marcos y modelos de calidad</a></li>
+    <li><a class="dropdown-item" href="../articles/historico-y-deriva.html">9. Comparar entregas y seguir la calidad</a></li>
     <li><hr class="dropdown-divider"></li>
-    <li><a class="dropdown-item" href="../articles/index.html">More articles...</a></li>
+    <li><h6 class="dropdown-header" data-toc-skip>Bases y escala</h6></li>
+    <li><a class="dropdown-item" href="../articles/perfilar-una-base.html">10. Perfilar una base</a></li>
+    <li><a class="dropdown-item" href="../articles/colecciones.html">11. Colecciones</a></li>
+    <li><a class="dropdown-item" href="../articles/escala-y-duplicados.html">12. Escala y duplicados aproximados</a></li>
+    <li><hr class="dropdown-divider"></li>
+    <li><h6 class="dropdown-header" data-toc-skip>Referencia en línea</h6></li>
+    <li><a class="dropdown-item" href="../articles/motores-y-escala.html">Motores y escala</a></li>
+    <li><a class="dropdown-item" href="../articles/alcance-y-cobertura.html">Alcance y cobertura</a></li>
+    <li><a class="dropdown-item" href="../articles/evidencia-y-rendimiento.html">Evidencia y rendimiento</a></li>
+    <li><a class="dropdown-item" href="../articles/codificacion-y-locales.html">Codificación y locales</a></li>
   </ul></li>
 <li class="nav-item"><a class="nav-link" href="../news/index.html">Changelog</a></li>
       </ul><ul class="navbar-nav"></ul></div>
@@ -84,7 +96,7 @@ para que la serie sea exportable sin ocultar diferencias.
 El atributo <code>campos_protegidos</code> declara lo que no se comparó porque la
 protección de datos personales lo tapa: un data frame con <code>columna</code>,
 <code>campo</code> y <code>lado</code> —<code>anterior</code> o <code>actual</code>—, la misma forma que usa
-<code><a href="comparar_equivalencia.html">comparar_equivalencia()</a></code>. Hoy el único campo que puede figurar es
+<code><a href="comparar_equivalencia.html">comparar_equivalencia()</a></code>. El único campo que puede figurar es
 <code>rango</code>. Está siempre, vacío si no hay nada que declarar, y <code><a href="https://rdrr.io/r/base/cbind.html" class="external-link">rbind()</a></code> une
 los de todas las derivas.</p>
     </div>
@@ -135,9 +147,11 @@ que está dos párrafos más abajo, que la evita en lugar de detectarla.</p>
 <p>Entre las propiedades comparadas está la <strong>unidad</strong> en la que la columna
 publica sus cifras, con la misma severidad que un cambio de tipo: dos entregas
 con los mismos valores y la unidad cambiada de <code>m</code> a <code>km</code> son un cambio real
-—la cifra dejó de significar lo mismo— y antes devolvían cero filas. Un perfil
-guardado antes de que ese campo existiera no hace mentir la comparación: esa
-parte se declara <strong>no comparable</strong>, como el resto de los campos ausentes.</p>
+—la cifra dejó de significar lo mismo— y la comparación lo informa en una
+fila. Un perfil guardado por una versión anterior del paquete, que no
+registra la unidad, no hace
+mentir la comparación: esa parte se declara <strong>no comparable</strong>, como el resto
+de los campos ausentes.</p>
 <p>El <strong>rango</strong> se compara por los valores de sus extremos, no por su texto
 impreso: un cambio chico sale como fila <code>ok</code> y uno que alcanza
 <code>umbral_cambio</code> —medido contra el ancho del rango anterior— como
@@ -205,7 +219,7 @@ asimetría sin emitir un hallazgo; esa cobertura parcial se conserva como
 valores. Cada argumento de
 <code><a href="perfilar.html">perfilar()</a></code> tiene su lugar en la comparación:
 habilita un diagnóstico, es una vara —su cambio se declara en la fila
-<code>configuracion_umbrales</code>, que desde esta versión incluye los umbrales de las
+<code>configuracion_umbrales</code>, que incluye los umbrales de las
 relaciones de orden y aritméticas entre columnas, los del vocabulario y
 <code>datos_personales_permitidos</code>, <code>validadores_personales</code>,
 <code>umbral_documento_verificado</code> y <code>muestra_validadores</code>—, tiene su propia fila

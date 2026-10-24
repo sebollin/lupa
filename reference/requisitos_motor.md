@@ -29,10 +29,13 @@ instalada.
 
 ## Details
 
-El estado `probado` se copia de la tabla de motores de los README.
+El estado `probado` se toma de la verificación que corre
+`benchmark/verificar_motor.R` en el repositorio del paquete; el artículo
+"Motores y escala" del sitio publica, por motor, la versión del
+servidor, el controlador, la fecha y el resultado de cada comprobación.
 `esperado` significa que el dialecto está implementado pero no se
-comprobó contra ese motor real en este repositorio. Los motores que no
-figuran en esa tabla no se presentan como probados.
+comprobó contra ese motor real en esa verificación. Los motores que no
+cubre no se presentan como probados.
 
 Ante una conexión abierta,
 [`coleccion()`](https://sebollin.github.io/lupa/reference/coleccion.md)

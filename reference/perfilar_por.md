@@ -114,7 +114,7 @@ las declaraciones recortadas por grupo. Su columna lógica
 `grupo_perfilado` dice de qué clase de grupo habla cada fila: hay filas
 sobre grupos que **sí** se perfilaron —la colisión de `"(ausente)"`, las
 columnas descartadas— y filas sobre grupos que no. Sin esa distinción
-`n_filas_grupo` no se podía sumar, porque un grupo perfilado aparecía en
+`n_filas_grupo` no se podría sumar, porque un grupo perfilado aparece en
 los hallazgos y otra vez en la cobertura.
 
 **Cómo reconciliar las filas.** Hay una fila por grupo y motivo, así que

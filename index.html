@@ -5,7 +5,7 @@
 <meta charset="utf-8">
 <meta http-equiv="X-UA-Compatible" content="IE=edge">
 <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
-<title>lupa — profiling y calidad de datos • lupa</title>
+<title>lupa — perfilado y calidad de datos • lupa</title>
 <!-- favicons --><link rel="icon" type="image/png" sizes="96x96" href="favicon-96x96.png">
 <link rel="icon" type="”image/svg+xml”" href="favicon.svg">
 <link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png">
@@ -16,7 +16,7 @@
 <script src="deps/bootstrap-5.3.8/bootstrap.bundle.min.js"></script><link href="deps/font-awesome-6.5.2/css/all.min.css" rel="stylesheet">
 <link href="deps/font-awesome-6.5.2/css/v4-shims.min.css" rel="stylesheet">
 <script src="deps/headroom-0.11.0/headroom.min.js"></script><script src="deps/headroom-0.11.0/jQuery.headroom.min.js"></script><script src="deps/bootstrap-toc-1.0.1/bootstrap-toc.min.js"></script><script src="deps/clipboard.js-2.0.11/clipboard.min.js"></script><script src="deps/search-1.0.0/autocomplete.jquery.min.js"></script><script src="deps/search-1.0.0/fuse.min.js"></script><script src="deps/search-1.0.0/mark.min.js"></script><link rel="icon" type="image/png" sizes="180x180" href="https://sebollin.github.io/lupa/apple-touch-icon.png">
-<!-- pkgdown --><script src="pkgdown.js"></script><meta property="og:title" content="lupa — profiling y calidad de datos">
+<!-- pkgdown --><script src="pkgdown.js"></script><meta property="og:title" content="lupa — perfilado y calidad de datos">
 <meta name="description" content="Examinar, medir, evaluar, remediar y monitorear calidad de datos con resultados auditables.
 ">
 <meta property="og:description" content="Examinar, medir, evaluar, remediar y monitorear calidad de datos con resultados auditables.
@@ -41,18 +41,30 @@
 
     <div id="navbar" class="collapse navbar-collapse ms-3">
       <ul class="navbar-nav me-auto">
+<li class="nav-item"><a class="nav-link" href="articles/lupa.html">Get started</a></li>
 <li class="nav-item"><a class="nav-link" href="reference/index.html">Reference</a></li>
 <li class="nav-item dropdown">
   <button class="nav-link dropdown-toggle" type="button" id="dropdown-articles" data-bs-toggle="dropdown" aria-expanded="false" aria-haspopup="true">Articles</button>
   <ul class="dropdown-menu" aria-labelledby="dropdown-articles">
-<li><a class="dropdown-item" href="articles/empezar-con-lupa.html">Empezar con lupa</a></li>
-    <li><a class="dropdown-item" href="articles/flujo-guiado.html">Flujo guiado: del perfil a la evaluación</a></li>
-    <li><a class="dropdown-item" href="articles/definir-la-calidad.html">Definir la calidad</a></li>
-    <li><a class="dropdown-item" href="articles/medir-y-evaluar.html">Medir y evaluar</a></li>
-    <li><a class="dropdown-item" href="articles/limpiar-con-un-plan.html">Limpiar con un plan auditable</a></li>
-    <li><a class="dropdown-item" href="articles/historico-y-deriva.html">Histórico y monitoreo de deriva</a></li>
+<li><a class="dropdown-item" href="articles/leer-un-perfil.html">2. Leer un perfil</a></li>
+    <li><a class="dropdown-item" href="articles/explorar-columnas.html">3. Explorar columnas con `analizar()`</a></li>
+    <li><a class="dropdown-item" href="articles/estructura-no-declarada.html">4. Estructura no declarada</a></li>
+    <li><a class="dropdown-item" href="articles/vacio-por-diseno.html">5. El vacío por diseño</a></li>
+    <li><a class="dropdown-item" href="articles/limpiar-con-un-plan.html">6. Limpiar con un plan</a></li>
+    <li><a class="dropdown-item" href="articles/del-hallazgo-a-la-metrica.html">7. Del hallazgo a la métrica</a></li>
+    <li><a class="dropdown-item" href="articles/marcos-y-modelos.html">8. Marcos y modelos de calidad</a></li>
+    <li><a class="dropdown-item" href="articles/historico-y-deriva.html">9. Comparar entregas y seguir la calidad</a></li>
     <li><hr class="dropdown-divider"></li>
-    <li><a class="dropdown-item" href="articles/index.html">More articles...</a></li>
+    <li><h6 class="dropdown-header" data-toc-skip>Bases y escala</h6></li>
+    <li><a class="dropdown-item" href="articles/perfilar-una-base.html">10. Perfilar una base</a></li>
+    <li><a class="dropdown-item" href="articles/colecciones.html">11. Colecciones</a></li>
+    <li><a class="dropdown-item" href="articles/escala-y-duplicados.html">12. Escala y duplicados aproximados</a></li>
+    <li><hr class="dropdown-divider"></li>
+    <li><h6 class="dropdown-header" data-toc-skip>Referencia en línea</h6></li>
+    <li><a class="dropdown-item" href="articles/motores-y-escala.html">Motores y escala</a></li>
+    <li><a class="dropdown-item" href="articles/alcance-y-cobertura.html">Alcance y cobertura</a></li>
+    <li><a class="dropdown-item" href="articles/evidencia-y-rendimiento.html">Evidencia y rendimiento</a></li>
+    <li><a class="dropdown-item" href="articles/codificacion-y-locales.html">Codificación y locales</a></li>
   </ul>
 </li>
 <li class="nav-item"><a class="nav-link" href="news/index.html">Changelog</a></li>
@@ -70,128 +82,332 @@
 <a class="anchor" aria-label="anchor" href="#lupa-"></a>
 </h1>
 </div>
-<p>Auditable data profiling and quality measurement: every result carries its scope and its evidence.</p>
+<p>Perfilado y medición de calidad de datos con evidencia: cada resultado declara su alcance y lo que no pudo medir.</p>
 <!-- badges: start -->
 
 <div class="section level2">
-<h2 id="what-problem-does-lupa-solve">What problem does <code>lupa</code> solve?<a class="anchor" aria-label="anchor" href="#what-problem-does-lupa-solve"></a>
+<h2 id="qué-hace-y-para-quién">Qué hace y para quién<a class="anchor" aria-label="anchor" href="#qu%C3%A9-hace-y-para-qui%C3%A9n"></a>
 </h2>
-<p><code>lupa</code> helps an analyst inspect a table or database before trusting it: it makes visible inconsistent representations, missingness, duplicated or suspicious rows, implicit structure and values that deserve review; then it lets the analyst turn confirmed rules into explicit measurements, evaluate them, plan cleanup on a copy, and follow changes over time. It is useful when a <code><a href="https://rdrr.io/r/base/summary.html" class="external-link">summary()</a></code> is too shallow to answer whether the same fact was encoded in more than one way, whether a missing value is hiding behind a code, or which rows need to be checked in the source system.</p>
-<p>Printed results no longer fail because of encoding in any locale, LC_CTYPE = C included. The displayed copy converts whatever carries a declared encoding, declares as UTF-8 the valid undeclared bytes — R escapes them as &lt;U+00F1&gt; wherever the locale cannot represent them — and leaves the rest untouched for as long as R can print it. Under a UTF-8 locale the output is the same as R’s, unless one of your classes defines a format() that inspects Encoding(): that one sees the displayed copy’s mark. Under a locale that cannot represent a character the output differs on purpose, and for the better: where R escapes the bytes, lupa publishes the code point. Like every escaped representation — R’s included — that form is ambiguous with text that contains it literally; what does not change is the data, only how it is shown. Only where R cannot print does it retry with R’s own octal form, \377, so the table stays aligned there too. That does not make printing infallible: if one of your classes has a format() method that raises an error, that error reaches you unaltered. This includes the list columns in the propuesta_modelo returned by proponer_modelo(); comparing two identical profiles also stays silent in that locale. ## What does it tell me that <code><a href="https://rdrr.io/r/base/summary.html" class="external-link">summary()</a></code> does not?</p>
-<p><code><a href="https://rdrr.io/r/base/summary.html" class="external-link">summary()</a></code> describes columns one at a time. <code>lupa</code> compares representations, crosses columns and rows, and returns <code>perfil$hallazgos</code>: an inspectable table with a finding type, severity, evidence, counts, a suggestion and bounded row traceability. A zero finding means that a diagnostic ran and found nothing; a diagnostic that could not run is kept separately in <code>perfil$cobertura_diagnosticos</code>, rather than being silently reported as clean.</p>
-<p>This is a real slice of the output from the included data:</p>
+<p><code>lupa</code> examina una tabla o una base de datos antes de confiar en ella. Encuentra lo que un <code><a href="https://rdrr.io/r/base/summary.html" class="external-link">summary()</a></code> no ve: faltantes disfrazados de <code>"S/D"</code> o de <code>-99</code>, el mismo dato escrito de varias formas, fechas en formatos mezclados, filas y columnas repetidas, estructura que nadie declaró. Dice en qué filas está cada problema y qué controles no pudo hacer. Después ayuda a convertir lo confirmado en mediciones explícitas, a evaluarlas, a limpiar una copia con un plan editable y a comparar entregas. Está pensado para quien analiza, produce o publica datos tabulares y necesita saber qué tan confiables son antes de usarlos.</p>
+<p>Lo que lo distingue está por dentro. No resume la calidad en un puntaje: junta las contradicciones que encuentra, cada una con su tipo, su severidad y su evidencia. Cada cifra viaja con su alcance: sobre cuántas filas se calculó y si hubo muestra. Lo que no se pudo medir queda declarado con su motivo y nunca cuenta como cero. Y el perfilado no modifica la entrada.</p>
+</div>
+<div class="section level2">
+<h2 id="instalación">Instalación<a class="anchor" aria-label="anchor" href="#instalaci%C3%B3n"></a>
+</h2>
+<p>La versión publicada se instala desde CRAN:</p>
 <div class="sourceCode" id="cb1"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/utils/data.html" class="external-link">data</a></span><span class="op">(</span><span class="va">datos_operativos</span><span class="op">)</span></span>
-<span><span class="va">perfil</span> <span class="op">&lt;-</span> <span class="fu"><a href="reference/perfilar.html">perfilar</a></span><span class="op">(</span><span class="va">datos_operativos</span>, analizar_dependencias <span class="op">=</span> <span class="cn">FALSE</span><span class="op">)</span></span>
-<span><span class="va">perfil</span><span class="op">$</span><span class="va">hallazgos</span><span class="op">[</span>, <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"columna"</span>, <span class="st">"tipo_hallazgo"</span>, <span class="st">"severidad"</span>, <span class="st">"evidencia"</span><span class="op">)</span><span class="op">]</span></span></code></pre></div>
-<p>Among the outputs of that run are:</p>
+<code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/utils/install.packages.html" class="external-link">install.packages</a></span><span class="op">(</span><span class="st">"lupa"</span><span class="op">)</span></span></code></pre></div>
+<p>y la versión de desarrollo, desde GitHub:</p>
+<div class="sourceCode" id="cb2"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="co"># install.packages("pak")</span></span>
+<span><span class="fu">pak</span><span class="fu">::</span><span class="fu"><a href="https://pak.r-lib.org/reference/pak.html" class="external-link">pak</a></span><span class="op">(</span><span class="st">"sebollin/lupa"</span><span class="op">)</span></span></code></pre></div>
+<p>Depende sólo de <a href="https://CRAN.R-project.org/package=cli" class="external-link"><code>cli</code></a> y <a href="https://CRAN.R-project.org/package=data.table" class="external-link"><code>data.table</code></a>. Los sugeridos habilitan capacidades acotadas: <a href="https://CRAN.R-project.org/package=DBI" class="external-link"><code>DBI</code></a> con un controlador (<a href="https://CRAN.R-project.org/package=RSQLite" class="external-link"><code>RSQLite</code></a>, <a href="https://CRAN.R-project.org/package=duckdb" class="external-link"><code>duckdb</code></a>, <a href="https://CRAN.R-project.org/package=RPostgres" class="external-link"><code>RPostgres</code></a> u <a href="https://CRAN.R-project.org/package=odbc" class="external-link"><code>odbc</code></a>) para perfilar dentro de una base, <a href="https://CRAN.R-project.org/package=stringdist" class="external-link"><code>stringdist</code></a> para comparar texto de forma aproximada y <a href="https://CRAN.R-project.org/package=sf" class="external-link"><code>sf</code></a> para geometrías. La API, la ayuda y las guías están en castellano; los nombres públicos son parte del contrato.</p>
+</div>
+<div class="section level2">
+<h2 id="treinta-segundos">Treinta segundos<a class="anchor" aria-label="anchor" href="#treinta-segundos"></a>
+</h2>
+<p><code>datos_operativos</code> viene con el paquete: 13 filas y 10 columnas con defectos sembrados. Se perfila con una llamada y se empieza por los hallazgos de severidad <code>error</code>:</p>
+<div class="sourceCode" id="cb3"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va"><a href="https://github.com/sebollin/lupa" class="external-link">lupa</a></span><span class="op">)</span></span>
+<span><span class="va">perfil</span> <span class="op">&lt;-</span> <span class="fu"><a href="reference/perfilar.html">perfilar</a></span><span class="op">(</span><span class="va">datos_operativos</span><span class="op">)</span></span>
+<span><span class="va">h</span> <span class="op">&lt;-</span> <span class="fu"><a href="reference/accesores_perfil.html">hallazgos</a></span><span class="op">(</span><span class="va">perfil</span><span class="op">)</span></span>
+<span><span class="va">errores_primero</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/order.html" class="external-link">order</a></span><span class="op">(</span><span class="va">h</span><span class="op">$</span><span class="va">severidad</span>, decreasing <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span></span>
+<span><span class="fu"><a href="https://rdrr.io/r/base/print.html" class="external-link">print</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/utils/head.html" class="external-link">head</a></span><span class="op">(</span><span class="va">h</span><span class="op">[</span><span class="va">errores_primero</span>, <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"columna"</span>, <span class="st">"tipo_hallazgo"</span>, <span class="st">"severidad"</span><span class="op">)</span><span class="op">]</span>, <span class="fl">8</span><span class="op">)</span>,</span>
+<span>      row.names <span class="op">=</span> <span class="cn">FALSE</span><span class="op">)</span></span>
+<span><span class="co">#&gt;         columna           tipo_hallazgo  severidad</span></span>
+<span><span class="co">#&gt;  codigo_usuario   faltantes_disfrazados      error</span></span>
+<span><span class="co">#&gt;    fecha_evento   faltantes_disfrazados      error</span></span>
+<span><span class="co">#&gt;    fecha_evento   formatos_fecha_mixtos      error</span></span>
+<span><span class="co">#&gt;           canal   faltantes_disfrazados      error</span></span>
+<span><span class="co">#&gt;            &lt;NA&gt;        filas_duplicadas      error</span></span>
+<span><span class="co">#&gt;  codigo_usuario       alta_cardinalidad sospechoso</span></span>
+<span><span class="co">#&gt;    fecha_evento       alta_cardinalidad sospechoso</span></span>
+<span><span class="co">#&gt;    fecha_evento tipo_declarado_distinto sospechoso</span></span></code></pre></div>
+<p>Una <code>columna</code> en <code>&lt;NA&gt;</code> es un hallazgo de la tabla entera, como las filas duplicadas.</p>
+<p>Lo que no se pudo medir no desaparece. En esta tabla quedaron 9 diagnósticos sin evaluar, contando cada uno en cada columna donde no pudo correr (la búsqueda de valores atípicos, por ejemplo, necesita más valores de los que hay), y <code>cobertura(perfil)</code> dice cuáles, en qué columna, por qué y cómo resolverlo:</p>
+<div class="sourceCode" id="cb4"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/base/as.data.frame.html" class="external-link">as.data.frame</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/table.html" class="external-link">table</a></span><span class="op">(</span>diagnostico <span class="op">=</span> <span class="fu"><a href="reference/accesores_perfil.html">cobertura</a></span><span class="op">(</span><span class="va">perfil</span><span class="op">)</span><span class="op">$</span><span class="va">diagnostico</span><span class="op">)</span>, responseName <span class="op">=</span> <span class="st">"columnas"</span><span class="op">)</span></span>
+<span><span class="co">#&gt;              diagnostico columnas</span></span>
+<span><span class="co">#&gt; 1               outliers        4</span></span>
+<span><span class="co">#&gt; 2            patron_raro        1</span></span>
+<span><span class="co">#&gt; 3 proximidad_vocabulario        3</span></span>
+<span><span class="co">#&gt; 4   resumen_cuantitativo        1</span></span></code></pre></div>
+</div>
+<div class="section level2">
+<h2 id="qué-deja-visible-que-summary-no">Qué deja visible que <code>summary()</code> no<a class="anchor" aria-label="anchor" href="#qu%C3%A9-deja-visible-que-summary-no"></a>
+</h2>
+<p><code><a href="https://rdrr.io/r/base/summary.html" class="external-link">summary()</a></code> describe las columnas una por una. <code>lupa</code> compara representaciones, cruza columnas y filas, y devuelve los hallazgos como una tabla: tipo, severidad, evidencia, conteos, una sugerencia y la trazabilidad hasta las filas. Un tipo de hallazgo que no aparece es un diagnóstico que corrió y no encontró nada; lo que no corrió está en <code><a href="reference/accesores_perfil.html">cobertura()</a></code>.</p>
+<p>Entre las salidas de esa corrida aparecen:</p>
 <table class="table">
 <colgroup>
 <col width="33%">
-<col width="33%">
-<col width="33%">
+<col width="20%">
+<col width="45%">
 </colgroup>
 <thead><tr>
-<th>What it exposes</th>
+<th>Qué deja visible</th>
 <th><code>tipo_hallazgo</code></th>
-<th>Example in <code>evidencia</code>
-</th>
+<th>Evidencia (recorte)</th>
 </tr></thead>
 <tbody>
 <tr>
-<td>Missing values hidden behind codes</td>
+<td>Faltantes escondidos detrás de códigos</td>
 <td><code>faltantes_disfrazados</code></td>
-<td><code>NULL (1)</code></td>
+<td><code>&lt;blanco&gt; (1); S/D (1)</code></td>
 </tr>
 <tr>
-<td>Mixed date representations</td>
+<td>Fechas en formatos mezclados</td>
 <td><code>formatos_fecha_mixtos</code></td>
-<td><code>%d/%m/%Y (4); %Y-%m-%d (4); ...</code></td>
+<td><code>%Y-%m-%d (4); %d/%m/%Y (4); ...</code></td>
 </tr>
 <tr>
-<td>Trailing whitespace</td>
+<td>Espacios sobrantes</td>
 <td><code>espacios_sobrantes</code></td>
-<td><code>1 valores; ejemplos: "web "</code></td>
+<td><code>1 valor; ejemplos: "web "</code></td>
 </tr>
 <tr>
-<td>Inconsistent capitalization</td>
+<td>Mayúsculas inconsistentes</td>
 <td><code>mayusculas_inconsistentes</code></td>
 <td><code>"web"; "Web"</code></td>
 </tr>
 <tr>
-<td>Declared and inferred types disagree</td>
+<td>El tipo declarado y el inferido no coinciden</td>
 <td><code>tipo_declarado_distinto</code></td>
-<td><code>Declarado: texto; inferido: fecha</code></td>
+<td><code>Declarado: texto; inferido: fecha (0.846 compatible); ...</code></td>
 </tr>
 <tr>
-<td>A constant column</td>
+<td>Una columna constante</td>
 <td><code>constante</code></td>
 <td><code>Valor: principal; frecuencia: 13</code></td>
 </tr>
 <tr>
-<td>Exact duplicate rows</td>
+<td>Filas duplicadas exactas</td>
 <td><code>filas_duplicadas</code></td>
-<td><code>2 filas en grupos duplicados (1 excedentes)</code></td>
+<td><code>2 filas en grupos duplicados (1 excedente)</code></td>
 </tr>
 <tr>
-<td>Repeated columns</td>
+<td>Columnas repetidas</td>
 <td><code>columnas_duplicadas</code></td>
-<td><code>id_registro = id_copia</code></td>
+<td><code>id_registro = id_copia; comparadas sobre 13 filas</code></td>
 </tr>
 </tbody>
 </table>
-<p>In a purpose-built table, the profile emitted 15 kinds of finding, including mixed currencies and units, mixed date formats, disguised missingness, extra spaces, inconsistent capitalization, spelling variants, numbers stored as text, near-keys, constants and structural absence. On a reference bank with known defects it recovered 9 of 9 planted defects; on 31 clean tables it produced 0 error-severity findings and 8 signals to review. The three figures are pinned by <code>tests/testthat/test-regresion-107.R</code>, so they cannot age in silence.</p>
-<p>The current canonical vocabulary has 58 <code>tipo_hallazgo</code> names. The names are Spanish because they are part of the public API:</p>
-<pre class="text"><code>alta_cardinalidad                    anio_de_dos_digitos
-bloqueo_por_con_perdida              casi_clave
-casi_duplicados_vocabulario          celdas_multivaluadas
-ceros_no_permitidos                  clave_con_ausentes
-clave_no_unica                       codificacion_invalida
-codificacion_rota                    columnas_duplicadas
-constante                            controles_invisibles
-coordenada_fuera_dominio             crs_no_declarado
-dato_personal_posible                desviacion_benford
-duplicados_aproximados               duplicados_exactos_columnas
-duplicados_exactos_normalizados      entidades_html
-espacios_sobrantes                   faltantes
-faltantes_disfrazados                fecha_fallecimiento_fuera_rango
-fecha_nacimiento_fuera_rango         fecha_partida_columnas
-filas_duplicadas                     formato_fecha_ambiguo
-formatos_fecha_mixtos                geometria_invalida
-geometria_vacia                      integer64_fuera_precision_double
-mayusculas_inconsistentes            monedas_mixtas
-negativos_no_permitidos              nombres_columnas_problematicos
-normalizacion_unicode                numero_como_texto
-outliers                             patron_raro
-posible_ausencia_estructural         posible_centinela_numerico
-posible_identificador                regla_silencia_ausencia
-relacion_aritmetica_columnas         relacion_orden_columnas
-separadores_en_campo                 tipo_compuesto_no_analizado
-tipo_declarado_distinto              tipos_geometria_mixtos
-unidades_mixtas                      valor_concentrado
-valor_fuera_de_aplicabilidad         valores_no_finitos
-variantes_equifrecuentes_vocabulario zona_horaria_fecha_hora</code></pre>
-<p>The <code>valor_concentrado</code> signal implements the measured M2 rule. It considers only numeric columns with at least 20 non-missing valid values and at least 10 distinct values. It emits a <code>sospechoso</code> finding when the modal frequency is at least five times the second-highest frequency and the modal value accounts for at least 0.15 of valid values. Its evidence reports the modal value, both frequencies, the ratio, and the fraction. A legitimate value can dominate, so this is never an <code>error</code>. Non-eligible columns do not receive a <code>cobertura_diagnosticos</code> row: categorical distributions are outside the signal’s intended scope.</p>
-<p>The measured blind spots are part of this contract: concentrations below 15% are not detected, and natural ties in small integer columns can keep the ratio below five. The measurement found zero false positives in 114 clean eligible columns, with a 2.2x margin.</p>
+<p>El vocabulario completo, con lo que significa cada tipo de hallazgo, está en el artículo <a href="https://sebollin.github.io/lupa/articles/alcance-y-cobertura.html">Alcance y cobertura</a>.</p>
 </div>
 <div class="section level2">
-<h2 id="what-it-does-not-do">What it does not do<a class="anchor" aria-label="anchor" href="#what-it-does-not-do"></a>
+<h2 id="cómo-se-lee-un-perfil">Cómo se lee un perfil<a class="anchor" aria-label="anchor" href="#c%C3%B3mo-se-lee-un-perfil"></a>
 </h2>
-<p><code>lupa</code> does not turn the name of a quality framework into a measurement. A framework is a taxonomy; a factor is measured only when the data provide evidence or the user declares the requirement and metric that will measure it. The following is the measured coverage of the included frameworks:</p>
+<p><code>severidad</code> es un factor ordenado: <code>ok &lt; sospechoso &lt; error</code>.</p>
+<ul>
+<li>
+<code>ok</code> registra una condición informativa, no una aprobación: que una columna parezca un identificador es <code>ok</code>.</li>
+<li>
+<code>sospechoso</code> pide mirar con contexto: <code>alta_cardinalidad</code> en <code>codigo_usuario</code> sugiere revisar si es texto libre, un identificador o una categoría mal normalizada.</li>
+<li>
+<code>error</code> dice que un control cruzó su criterio declarado. Es el único nivel que conviene usar como barrera automática, y sólo después de aceptar ese criterio.</li>
+</ul>
+<p>Con <code>clave</code>, cada hallazgo trae los valores que identifican sus filas, y el caso se busca en el sistema de origen sin abrir la tabla:</p>
+<div class="sourceCode" id="cb5"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">con_clave</span> <span class="op">&lt;-</span> <span class="fu"><a href="reference/perfilar.html">perfilar</a></span><span class="op">(</span><span class="va">datos_operativos</span>, clave <span class="op">=</span> <span class="st">"id_evento"</span><span class="op">)</span></span>
+<span><span class="co">#&gt; Warning: La clave declarada no es única: entre las 13 filas con la clave completa, 1 repite su</span></span>
+<span><span class="co">#&gt; valor (2 filas participan en colisiones). La clave cumple la ausencia de nulos: no tiene</span></span>
+<span><span class="co">#&gt; valores ausentes.</span></span>
+<span><span class="va">h</span> <span class="op">&lt;-</span> <span class="fu"><a href="reference/accesores_perfil.html">hallazgos</a></span><span class="op">(</span><span class="va">con_clave</span><span class="op">)</span></span>
+<span><span class="va">fila</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/which.html" class="external-link">which</a></span><span class="op">(</span><span class="va">h</span><span class="op">$</span><span class="va">tipo_hallazgo</span> <span class="op">==</span> <span class="st">"faltantes_disfrazados"</span> <span class="op">&amp;</span></span>
+<span>                <span class="va">h</span><span class="op">$</span><span class="va">columna</span> <span class="op">==</span> <span class="st">"fecha_evento"</span><span class="op">)</span></span>
+<span><span class="va">claves</span> <span class="op">&lt;-</span> <span class="va">h</span><span class="op">$</span><span class="va">trazabilidad</span><span class="op">[[</span><span class="va">fila</span><span class="op">]</span><span class="op">]</span><span class="op">$</span><span class="va">claves</span></span>
+<span><span class="va">claves</span></span>
+<span><span class="co">#&gt;   id_evento</span></span>
+<span><span class="co">#&gt; 1    EVT011</span></span>
+<span><span class="va">datos_operativos</span><span class="op">[</span><span class="va">datos_operativos</span><span class="op">$</span><span class="va">id_evento</span> <span class="op"><a href="https://rdrr.io/r/base/match.html" class="external-link">%in%</a></span> <span class="va">claves</span><span class="op">$</span><span class="va">id_evento</span>,</span>
+<span>                 <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"id_evento"</span>, <span class="st">"fecha_evento"</span><span class="op">)</span><span class="op">]</span></span>
+<span><span class="co">#&gt;    id_evento fecha_evento</span></span>
+<span><span class="co">#&gt; 13    EVT011         NULL</span></span></code></pre></div>
+<p>El aviso es parte de la respuesta: <code>datos_operativos</code> tiene una fila duplicada, así que ninguna clave puede ser única, y el perfil lo registra como hallazgo <code>clave_no_unica</code> de severidad <code>error</code>.</p>
+<p>Lo que no se pudo medir queda registrado, nunca contado como cero. Por eso una automatización que busca <code>error</code> tiene que leer también <code><a href="reference/accesores_perfil.html">cobertura()</a></code>: cero errores con diagnósticos sin evaluar no es un perfil limpio.</p>
+<p>Los conteos (filas, faltantes, valores distintos, duplicados exactos y resúmenes) usan todas las filas; los patrones, los tipos y los formatos de fecha se infieren sobre una muestra sistemática de hasta 100.000 filas (<code>muestra</code>). La guía <a href="https://sebollin.github.io/lupa/articles/leer-un-perfil.html">Leer un perfil</a> explica cada columna de los hallazgos, las claves, las discordancias entre columnas y el glosario.</p>
+</div>
+<div class="section level2">
+<h2 id="qué-lo-distingue-y-dónde-se-ubica">Qué lo distingue y dónde se ubica<a class="anchor" aria-label="anchor" href="#qu%C3%A9-lo-distingue-y-d%C3%B3nde-se-ubica"></a>
+</h2>
+<p>Para resumir y graficar columnas están <a href="https://CRAN.R-project.org/package=skimr" class="external-link"><code>skimr</code></a> y <a href="https://CRAN.R-project.org/package=DataExplorer" class="external-link"><code>DataExplorer</code></a>; para diagnosticar una tabla y redactar su informe, <a href="https://CRAN.R-project.org/package=dlookr" class="external-link"><code>dlookr</code></a> y <a href="https://CRAN.R-project.org/package=dataReporter" class="external-link"><code>dataReporter</code></a>; para evaluar reglas que alguien ya escribió, <a href="https://CRAN.R-project.org/package=validate" class="external-link"><code>validate</code></a>, <a href="https://CRAN.R-project.org/package=pointblank" class="external-link"><code>pointblank</code></a>, <a href="https://CRAN.R-project.org/package=assertr" class="external-link"><code>assertr</code></a> y <a href="https://CRAN.R-project.org/package=dataquieR" class="external-link"><code>dataquieR</code></a>. <code>lupa</code> trabaja en el tramo anterior a la regla y en el siguiente: encuentra lo que todavía ninguna regla nombra, propone qué medir sin umbrales de fábrica y, cuando la regla se confirma, la mide con su alcance, limpia una copia y compara entregas. Se usa junto a esos paquetes, no en su lugar.</p>
+</div>
+<div class="section level2">
+<h2 id="mapa-de-funciones">Mapa de funciones<a class="anchor" aria-label="anchor" href="#mapa-de-funciones"></a>
+</h2>
+<table class="table">
+<colgroup>
+<col width="13%">
+<col width="35%">
+<col width="51%">
+</colgroup>
+<thead><tr>
+<th>Tarea</th>
+<th>Funciones principales</th>
+<th>Guía</th>
+</tr></thead>
+<tbody>
+<tr>
+<td>Mirar una tabla por primera vez</td>
+<td>
+<code><a href="reference/perfilar.html">perfilar()</a></code>, <code><a href="reference/accesores_perfil.html">hallazgos()</a></code>, <code><a href="reference/accesores_perfil.html">columnas()</a></code>, <code><a href="reference/accesores_perfil.html">cobertura()</a></code>
+</td>
+<td>
+<a href="https://sebollin.github.io/lupa/articles/lupa.html">Empezar en diez minutos</a>, <a href="https://sebollin.github.io/lupa/articles/leer-un-perfil.html">Leer un perfil</a>
+</td>
+</tr>
+<tr>
+<td>Explorar columnas y compartir el resultado</td>
+<td>
+<code><a href="reference/analizar.html">analizar()</a></code>, <code><a href="reference/distribucion_valores.html">distribucion_valores()</a></code>, <code><a href="reference/detectar_asociaciones.html">detectar_asociaciones()</a></code>, <code><a href="reference/analizar_tiempo.html">analizar_tiempo()</a></code>, <code><a href="reference/reportar.html">reportar()</a></code>, <code><a href="reference/persistir_analisis.html">guardar_analisis()</a></code>
+</td>
+<td><a href="https://sebollin.github.io/lupa/articles/explorar-columnas.html">Explorar columnas con <code>analizar()</code></a></td>
+</tr>
+<tr>
+<td>Encontrar estructura y vacíos legítimos</td>
+<td>
+<code><a href="reference/detectar_claves.html">detectar_claves()</a></code>, <code><a href="reference/sugerir_clave.html">sugerir_clave()</a></code>, <code><a href="reference/detectar_relaciones.html">detectar_relaciones()</a></code>, <code><a href="reference/detectar_dependencias.html">detectar_dependencias()</a></code>, <code><a href="reference/detectar_discordancias.html">detectar_discordancias()</a></code>, <code><a href="reference/perfilar_por.html">perfilar_por()</a></code>
+</td>
+<td>
+<a href="https://sebollin.github.io/lupa/articles/estructura-no-declarada.html">Estructura no declarada</a>, <a href="https://sebollin.github.io/lupa/articles/vacio-por-diseno.html">El vacío por diseño</a>
+</td>
+</tr>
+<tr>
+<td>Limpiar sin tocar el original</td>
+<td>
+<code><a href="reference/planificar_limpieza.html">planificar_limpieza()</a></code>, <code><a href="reference/guiar_limpieza.html">guiar_limpieza()</a></code>, <code><a href="reference/planificar_limpieza.html">aplicar()</a></code>; la estrategia <code>reparar_codificacion</code> para texto mal codificado</td>
+<td><a href="https://sebollin.github.io/lupa/articles/limpiar-con-un-plan.html">Limpiar con un plan</a></td>
+</tr>
+<tr>
+<td>Definir, medir y evaluar la calidad</td>
+<td>
+<code><a href="reference/proponer_modelo.html">proponer_modelo()</a></code>, <code><a href="reference/marco_calidad.html">marco_calidad()</a></code>, <code><a href="reference/modelo_calidad.html">metrica()</a></code>, <code><a href="reference/modelo_calidad.html">modelo()</a></code>, <code><a href="reference/medir.html">medir()</a></code>, <code><a href="reference/agregar.html">agregar()</a></code>, <code><a href="reference/evaluar.html">evaluar()</a></code>, <code><a href="reference/tablero_calidad.html">tablero_calidad()</a></code>
+</td>
+<td>
+<a href="https://sebollin.github.io/lupa/articles/del-hallazgo-a-la-metrica.html">Del hallazgo a la métrica</a>, <a href="https://sebollin.github.io/lupa/articles/marcos-y-modelos.html">Marcos y modelos de calidad</a>
+</td>
+</tr>
+<tr>
+<td>Comparar entregas y seguir la calidad en el tiempo</td>
+<td>
+<code><a href="reference/comparar_perfiles.html">comparar_perfiles()</a></code>, <code><a href="reference/comparar_equivalencia.html">comparar_equivalencia()</a></code>, <code><a href="reference/historico_calidad.html">historico_calidad()</a></code>, <code><a href="reference/detectar_deriva_calidad.html">detectar_deriva_calidad()</a></code>
+</td>
+<td><a href="https://sebollin.github.io/lupa/articles/historico-y-deriva.html">Comparar entregas y seguir la calidad</a></td>
+</tr>
+<tr>
+<td>Perfilar una base o una colección de tablas</td>
+<td>
+<code><a href="reference/perfilar_dbi.html">perfilar_dbi()</a></code>, <code><a href="reference/plan_perfilado_dbi.html">plan_perfilado_dbi()</a></code>, <code><a href="reference/requisitos_motor.html">requisitos_motor()</a></code>, <code><a href="reference/coleccion.html">coleccion()</a></code>, <code><a href="reference/perfilar_coleccion.html">perfilar_coleccion()</a></code>
+</td>
+<td>
+<a href="https://sebollin.github.io/lupa/articles/perfilar-una-base.html">Perfilar una base</a>, <a href="https://sebollin.github.io/lupa/articles/colecciones.html">Colecciones</a>
+</td>
+</tr>
+<tr>
+<td>Encontrar duplicados aproximados</td>
+<td>
+<code><a href="reference/detectar_duplicados_aproximados.html">detectar_duplicados_aproximados()</a></code>, <code><a href="reference/estimar_costo.html">estimar_costo()</a></code>
+</td>
+<td><a href="https://sebollin.github.io/lupa/articles/escala-y-duplicados.html">Escala y duplicados aproximados</a></td>
+</tr>
+</tbody>
+</table>
+<p>La <a href="https://sebollin.github.io/lupa/reference/">referencia</a> documenta cada función.</p>
+</div>
+<div class="section level2">
+<h2 id="perfilar-una-base-qué-trae-a-r">Perfilar una base: qué trae a R<a class="anchor" aria-label="anchor" href="#perfilar-una-base-qu%C3%A9-trae-a-r"></a>
+</h2>
+<p><code><a href="reference/perfilar_dbi.html">perfilar_dbi()</a></code> devuelve dos bloques: <code>resumen_tabla</code>, con los agregados que el motor calcula por SQL, y <code>perfil_muestra</code>, el perfil por fila de lo que se lee a R. Por omisión los agregados usan toda la tabla y el perfil por fila intenta traer <strong>todas</strong> las filas que entran en los topes: no es una muestra barata.</p>
+<div class="sourceCode" id="cb6"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">con</span> <span class="op">&lt;-</span> <span class="fu">DBI</span><span class="fu">::</span><span class="fu"><a href="https://dbi.r-dbi.org/reference/dbConnect.html" class="external-link">dbConnect</a></span><span class="op">(</span><span class="fu">RSQLite</span><span class="fu">::</span><span class="fu"><a href="https://rsqlite.r-dbi.org/reference/SQLite.html" class="external-link">SQLite</a></span><span class="op">(</span><span class="op">)</span>, <span class="st">":memory:"</span><span class="op">)</span></span>
+<span><span class="fu">DBI</span><span class="fu">::</span><span class="fu"><a href="https://dbi.r-dbi.org/reference/dbWriteTable.html" class="external-link">dbWriteTable</a></span><span class="op">(</span><span class="va">con</span>, <span class="st">"eventos"</span>, <span class="va">datos_operativos</span><span class="op">)</span></span>
+<span><span class="va">en_la_base</span> <span class="op">&lt;-</span> <span class="fu"><a href="reference/perfilar_dbi.html">perfilar_dbi</a></span><span class="op">(</span><span class="va">con</span>, <span class="st">"eventos"</span><span class="op">)</span></span>
+<span><span class="fu"><a href="https://rdrr.io/r/base/names.html" class="external-link">names</a></span><span class="op">(</span><span class="va">en_la_base</span><span class="op">)</span></span>
+<span><span class="co">#&gt; [1] "resumen_tabla"  "perfil_muestra"</span></span></code></pre></div>
+<table class="table">
+<colgroup>
+<col width="40%">
+<col width="19%">
+<col width="39%">
+</colgroup>
+<thead><tr>
+<th>Opción</th>
+<th>Agregados SQL sobre</th>
+<th>¿Trae filas a R?</th>
+</tr></thead>
+<tbody>
+<tr>
+<td>Por omisión: <code>universo = "tabla_completa"</code>, <code>muestra = Inf</code>
+</td>
+<td>toda la tabla</td>
+<td>Sí: todas las que entran en los topes de celdas y de bytes</td>
+</tr>
+<tr>
+<td><code>muestra = n</code></td>
+<td>toda la tabla</td>
+<td>Sí, hasta <code>n</code>: acota la lectura, no los agregados</td>
+</tr>
+<tr>
+<td>
+<code>universo = "muestra_motor"</code>, <code>muestra_motor = n</code>
+</td>
+<td>una muestra que toma el motor</td>
+<td>Sí, las de esa muestra</td>
+</tr>
+<tr>
+<td><code>bloque_muestra = "solo_agregados"</code></td>
+<td>lo que diga <code>universo</code>
+</td>
+<td>No: sólo agregados, sin hallazgos por fila</td>
+</tr>
+</tbody>
+</table>
+<p>Sin <code>orden_muestra</code>, la lectura de <code>muestra = n</code> son las primeras filas que entrega el motor, en un orden que SQL no garantiza; con <code>orden_muestra</code> se puede rehacer. Lo leído a R se describe en <code>perfil_muestra$meta$origen_dbi$muestreo</code>; <code>resumen_tabla$meta$muestreo</code> existe sólo con <code>universo = "muestra_motor"</code>. No hay lectura instantánea: <code>resumen_tabla$meta$snapshot</code> es <code>FALSE</code>, porque cada agregado se mide en su propia consulta y la tabla puede cambiar entre una y otra.</p>
+<p>El paquete se prueba contra DuckDB, MariaDB, MySQL, PostgreSQL, SQL Server y SQLite; <code><a href="reference/requisitos_motor.html">requisitos_motor()</a></code> dice qué necesita cada motor. Las versiones, los controladores y la fecha de cada corrida están en el artículo <a href="https://sebollin.github.io/lupa/articles/motores-y-escala.html#motores-probados">Motores y escala</a>, y el recorrido paso a paso, en <a href="https://sebollin.github.io/lupa/articles/perfilar-una-base.html">Perfilar una base</a>.</p>
+</div>
+<div class="section level2">
+<h2 id="límites-que-conviene-conocer-antes-de-una-corrida-grande">Límites que conviene conocer antes de una corrida grande<a class="anchor" aria-label="anchor" href="#l%C3%ADmites-que-conviene-conocer-antes-de-una-corrida-grande"></a>
+</h2>
+<ul>
+<li>
+<strong>Topes de muestra.</strong> Lo que se trae o se muestrea en R se corta en 1.000.000 celdas (<code>max_celdas_muestra</code>) y 512 MiB (<code>max_bytes_muestra</code>), y el recorte queda en <code><a href="reference/accesores_perfil.html">cobertura()</a></code> con el tope que mandó (<a href="https://sebollin.github.io/lupa/articles/motores-y-escala.html#topes">Motores y escala</a>).</li>
+<li>
+<strong>Política de costo.</strong> En <code><a href="reference/perfilar_dbi.html">perfilar_dbi()</a></code>, <code>politica_costo = "todas"</code> (por omisión) mide moda y mediana en todas las columnas; <code>"por_cardinalidad"</code> omite la moda donde la proporción de distintos llega a <code>umbral_cardinalidad</code> (0,5), y <code><a href="reference/plan_perfilado_dbi.html">plan_perfilado_dbi()</a></code> muestra las consultas antes de correrlas (<a href="https://sebollin.github.io/lupa/articles/motores-y-escala.html#politica-de-costo">Motores y escala</a>).</li>
+<li>
+<strong>Duplicados aproximados.</strong> Están apagados por omisión. <code><a href="reference/detectar_duplicados_aproximados.html">detectar_duplicados_aproximados()</a></code> compara de forma exacta hasta 50.000.000 pares (<code>max_pares</code>). Con la estrategia por omisión (<code>"auto"</code>), sin muestra y con ese tope, más de diez mil filas la llevan a MinHash/LSH, que puede perder pares y lo declara (candidatos, bandas y garantía de colisión); con un <code>max_pares</code> menor o una muestra se queda en la comparación exacta o muestreada, y <code>estrategia = "lsh"</code> lo fuerza. <code><a href="reference/estimar_costo.html">estimar_costo()</a></code> lo anticipa (<a href="https://sebollin.github.io/lupa/articles/escala-y-duplicados.html">Escala y duplicados aproximados</a>).</li>
+<li>
+<strong>Tablas anchas.</strong> Desde 100.000 celdas, una sesión interactiva recibe un aviso de cuánto puede tardar <code><a href="reference/perfilar.html">perfilar()</a></code>; la estimación usa un supuesto del código (10.000 celdas por segundo), no una medición de la máquina; las mediciones fechadas están en <a href="https://sebollin.github.io/lupa/articles/evidencia-y-rendimiento.html">Evidencia y rendimiento</a>.</li>
+<li>
+<strong>Millones de filas en memoria.</strong> <code><a href="reference/perfilar.html">perfilar()</a></code> y <code><a href="reference/analizar.html">analizar()</a></code> tardan minutos, no segundos: conviene perfilar una muestra o usar <code><a href="reference/perfilar_dbi.html">perfilar_dbi()</a></code>. Las cifras medidas, con su fecha, están en <a href="https://sebollin.github.io/lupa/articles/evidencia-y-rendimiento.html">Evidencia y rendimiento</a>.</li>
+</ul>
+</div>
+<div class="section level2">
+<h2 id="un-informe-en-un-archivo">Un informe en un archivo<a class="anchor" aria-label="anchor" href="#un-informe-en-un-archivo"></a>
+</h2>
+<p><code><a href="reference/analizar.html">analizar()</a></code> reúne en un objeto el perfil, las distribuciones, las asociaciones, el análisis temporal, una propuesta de modelo de calidad con su tablero y un plan de limpieza; <code><a href="reference/reportar.html">reportar()</a></code> lo escribe en un HTML autocontenido para compartir.</p>
+<div class="sourceCode" id="cb7"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">analisis</span> <span class="op">&lt;-</span> <span class="fu"><a href="reference/analizar.html">analizar</a></span><span class="op">(</span><span class="va">datos_operativos</span><span class="op">)</span></span>
+<span><span class="fu"><a href="reference/reportar.html">reportar</a></span><span class="op">(</span><span class="va">analisis</span>, archivo <span class="op">=</span> <span class="st">"informe-lupa.html"</span><span class="op">)</span></span></code></pre></div>
+<p>La propuesta es una sugerencia: los dominios y los patrones aprendidos de la misma entrega se proponen inactivos y no se miden hasta que alguien los confirma. <code><a href="reference/persistir_analisis.html">guardar_analisis()</a></code> y <code><a href="reference/persistir_analisis.html">leer_analisis()</a></code> conservan el recorrido entero. La guía es <a href="https://sebollin.github.io/lupa/articles/explorar-columnas.html">Explorar columnas con <code>analizar()</code></a>.</p>
+</div>
+<div class="section level2">
+<h2 id="qué-no-hace">Qué no hace<a class="anchor" aria-label="anchor" href="#qu%C3%A9-no-hace"></a>
+</h2>
+<p><code>lupa</code> no convierte el nombre de un marco de calidad en una medición. Un marco es una taxonomía: un factor se mide cuando los datos aportan evidencia o cuando se declaran el requisito y la métrica que lo mide. Esta es la cobertura de los marcos incluidos:</p>
 <table class="table">
 <colgroup>
 <col width="15%">
-<col width="21%">
-<col width="21%">
-<col width="21%">
-<col width="21%">
+<col width="9%">
+<col width="25%">
+<col width="18%">
+<col width="30%">
 </colgroup>
 <thead><tr>
-<th>framework</th>
-<th align="right">factors</th>
-<th align="right">reachable by declaring requirements</th>
-<th align="right">out of scope</th>
-<th align="right">measured by <code><a href="reference/perfilar.html">perfilar()</a></code> alone</th>
+<th>Marco</th>
+<th align="right">Factores</th>
+<th align="right">Alcanzables declarando</th>
+<th align="right">Fuera de alcance</th>
+<th align="right">Los mide <code><a href="reference/perfilar.html">perfilar()</a></code> solo</th>
 </tr></thead>
 <tbody>
 <tr>
@@ -209,7 +425,7 @@ variantes_equifrecuentes_vocabulario zona_horaria_fecha_hora</code></pre>
 <td align="right">0</td>
 </tr>
 <tr>
-<td>ISO 25012</td>
+<td>ISO/IEC 25012</td>
 <td align="right">15</td>
 <td align="right">15</td>
 <td align="right">0</td>
@@ -217,768 +433,86 @@ variantes_equifrecuentes_vocabulario zona_horaria_fecha_hora</code></pre>
 </tr>
 </tbody>
 </table>
-<p>The 13 CEPAL principles outside scope are not an engine limitation: they speak about the statistical system and its institutional or production process, not about values in a table. ISO 25012 is fully coverable when its requirements and metrics are declared. <code><a href="reference/cobertura_analisis.html">cobertura_analisis()</a></code> keeps these distinctions visible; an absent finding is not a claim that the data are good.</p>
-<p><code>lupa</code> also does not certify a dataset, invent a global score, or modify the input as a side effect of profiling. A score is available only when the user declares weights and a measurement model; cleanup returns a copy and keeps the original data intact.</p>
+<p>Los 13 principios de CEPAL fuera de alcance hablan del sistema estadístico y de su proceso institucional, no de los valores de una tabla. ISO/IEC 25012 se cubre entero cuando se declaran sus requisitos y métricas. <code><a href="reference/cobertura_analisis.html">cobertura_analisis()</a></code> informa qué factores quedaron medidos; que no haya hallazgos no afirma que los datos sean buenos.</p>
+<p>Tampoco certifica un conjunto de datos ni inventa un puntaje global: <code><a href="reference/indice_calidad.html">indice_calidad()</a></code> calcula un índice sólo con los pesos que declara el proyecto. Y no modifica la entrada: ninguna función de análisis altera la tabla que recibe (ni sus valores, ni sus tipos, ni sus nombres, ni sus atributos), tampoco un <code>data.table</code>. La limpieza devuelve una copia y deja el original intacto.</p>
 </div>
 <div class="section level2">
-<h2 id="which-databases-does-it-run-on">Which databases does it run on?<a class="anchor" aria-label="anchor" href="#which-databases-does-it-run-on"></a>
+<h2 id="el-camino-de-aprendizaje">El camino de aprendizaje<a class="anchor" aria-label="anchor" href="#el-camino-de-aprendizaje"></a>
 </h2>
-<p>Seven engine/version combinations were measured against real engines today. Each produced the 38 requested metrics, declared 7 as <code>no_aplica</code>, and detected the <code>id</code> key in the test table.</p>
-<table class="table">
-<thead><tr>
-<th>engine</th>
-<th>version</th>
-<th>status</th>
-</tr></thead>
-<tbody>
-<tr>
-<td>PostgreSQL</td>
-<td>16</td>
-<td><strong>measured against the real engine</strong></td>
-</tr>
-<tr>
-<td>PostgreSQL</td>
-<td>9.3.25</td>
-<td><strong>measured against the real engine</strong></td>
-</tr>
-<tr>
-<td>MariaDB</td>
-<td>11.8</td>
-<td><strong>measured against the real engine</strong></td>
-</tr>
-<tr>
-<td>MySQL</td>
-<td>8.4</td>
-<td><strong>measured against the real engine</strong></td>
-</tr>
-<tr>
-<td>SQLite</td>
-<td>—</td>
-<td><strong>measured against the real engine</strong></td>
-</tr>
-<tr>
-<td>DuckDB</td>
-<td>—</td>
-<td><strong>measured against the real engine</strong></td>
-</tr>
-<tr>
-<td>SQL Server</td>
-<td>2022</td>
-<td><strong>measured against the real engine</strong></td>
-</tr>
-<tr>
-<td>Oracle</td>
-<td>—</td>
-<td>not measured in this matrix</td>
-</tr>
-<tr>
-<td>BigQuery</td>
-<td>—</td>
-<td>not measured in this matrix</td>
-</tr>
-</tbody>
-</table>
-<p><code><a href="reference/requisitos_motor.html">requisitos_motor()</a></code> contains 12 entries. Nine are named engine entries when the two Oracle version rows are counted separately; <code>dbi</code>, <code>odbc</code> and <code>otro_dbi</code> are generic compatibility entries, not additional measured engines.</p>
-</div>
-<div class="section level2">
-<h2 id="how-to-start">How to start<a class="anchor" aria-label="anchor" href="#how-to-start"></a>
-</h2>
-<p>Until the first CRAN release, install the development version from GitHub:</p>
-<div class="sourceCode" id="cb3"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="fu">pak</span><span class="fu">::</span><span class="fu"><a href="https://pak.r-lib.org/reference/pak.html" class="external-link">pak</a></span><span class="op">(</span><span class="st">"sebollin/lupa"</span><span class="op">)</span></span></code></pre></div>
-<p>Then these five lines take a first look at a table and its declared coverage:</p>
-<div class="sourceCode" id="cb4"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va"><a href="https://github.com/sebollin/lupa" class="external-link">lupa</a></span><span class="op">)</span></span>
-<span><span class="fu"><a href="https://rdrr.io/r/utils/data.html" class="external-link">data</a></span><span class="op">(</span><span class="va">datos_operativos</span><span class="op">)</span></span>
-<span><span class="va">perfil</span> <span class="op">&lt;-</span> <span class="fu"><a href="reference/perfilar.html">perfilar</a></span><span class="op">(</span><span class="va">datos_operativos</span>, analizar_dependencias <span class="op">=</span> <span class="cn">FALSE</span><span class="op">)</span></span>
-<span><span class="fu"><a href="https://rdrr.io/r/utils/head.html" class="external-link">head</a></span><span class="op">(</span><span class="va">perfil</span><span class="op">$</span><span class="va">hallazgos</span><span class="op">[</span>, <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"columna"</span>, <span class="st">"tipo_hallazgo"</span>, <span class="st">"severidad"</span><span class="op">)</span><span class="op">]</span>, <span class="fl">5</span><span class="op">)</span></span>
-<span><span class="fu"><a href="reference/cobertura_analisis.html">cobertura_analisis</a></span><span class="op">(</span><span class="va">perfil</span><span class="op">)</span></span></code></pre></div>
-<p><code><a href="reference/perfilar.html">perfilar()</a></code> is read-only. The next step, when a finding is confirmed as a requirement, is the guided route described in <a href="https://sebollin.github.io/lupa/articles/flujo-guiado.html"><code>flujo-guiado</code></a>.</p>
-</div>
-<div class="section level2">
-<h2 id="mag_right-how-lupa-works-in-practice">🔎 How lupa works in practice<a class="anchor" aria-label="anchor" href="#mag_right-how-lupa-works-in-practice"></a>
-</h2>
-<p><code>lupa</code> is an auditable R toolkit that connects first-pass profiling with a quality model declared for a particular use, explicit measurement, controlled cleanup of a copy, and approximate duplicate detection at scale. Instead of a single opaque score, every result carries its scope, evidence, and uncertainty.</p>
-<p><strong>Whole databases, not just one table.</strong> <code><a href="reference/coleccion.html">coleccion()</a></code> declares which tables make up a database — schema included, because the schema is part of a table’s identity — and <code><a href="reference/perfilar_coleccion.html">perfilar_coleccion()</a></code> returns one row per table plus the coverage of what it could not measure. The boundary is <em>declared</em>, never discovered: walking a catalogue would turn a permissions error into a result, and real collections run past a thousand tables across dozens of schemas. Tables a credential cannot read land in <code>cobertura_coleccion</code> with their reason, never as a zero — partial permissions are the normal case, not the edge. There is no snapshot: every table carries the moment it was measured, and the object says so.</p>
-<p><strong>Contradictions no single column shows.</strong> Declare that several columns encode the same fact with <code><a href="reference/senal_redundante.html">senal_redundante()</a></code>, and <code><a href="reference/detectar_discordancias.html">detectar_discordancias()</a></code> reports the rows where they disagree — the year of the date against the fiscal year against the file year. Each of the three can be perfectly plausible on its own and still contradict the others. The group is declared, never guessed: two year columns might be birth year and enrolment year, and there is no reason for those to match.</p>
-<p><strong>Findings you can verify, not just read.</strong> Pass <code>clave</code> to <code><a href="reference/perfilar.html">perfilar()</a></code> with the columns that identify a row, and every finding’s traceability carries those values for the rows it points at — so you can look the case up in the source system without opening the table. Row indices stay as the fallback; <code>trazabilidad$localizador</code> says which one you got. There is a tension the feature cannot ignore: the key that lets you verify is exactly what identifies a person, so a key column classified as personal data comes back masked, the same way evidence does, and <code>claves_protegidas</code> says which.</p>
-<p><strong>And it reaches the quality model too.</strong> Referential metrics report which candidate was closest and at what distance; when that reference table is a register of people, the value comes out as <code>[valor protegido]</code> and the distance is kept. A reference table carrying no personal data keeps its evidence intact.</p>
-<p><strong>And masking reaches every output, not just the mode</strong> —scoped <strong>by column</strong>: what describes the protected column is replaced, not every occurrence of that text. <code>"S/D"</code> can be a sentinel in the ID column and the “no data” marker in <code>sexo</code>, and publishing it in <code>sexo</code> reveals nothing about the ID; what has no column to attribute it to, such as a duplicate-rows finding, stays masked everywhere—. Each finding’s description, evidence and suggestion; the coverage <code>motivo</code> and <code>como_resolverlo</code>; the parameters of a plan action; the “Ejemplos reales” that <code><a href="reference/guiar_limpieza.html">guiar_limpieza()</a></code> prints to the console; and the bounding box of a protected geometry, whose four <code>bbox_*</code> fields become <code>NA</code> with <code>bbox_alcance = "no_publicado_por_geometria_protegida"</code>. In every case the signal is kept and the value hidden: the example still shows which rows match and in which columns, and the structural-absence finding is still raised without naming the threshold. Values are replaced <strong>longest first</strong>, so a protected value that is a prefix of another —<code>Maria Nunez</code> and <code>Maria Nunez de Castro</code> in the same column— does not leave the longer one’s tail published. A sweep over the finding types watches this, checking first that each one was actually raised.</p>
-<p><strong>The floor recognises three shapes of the same value</strong>: the exact one, the one that differs only in separators or in the case of its ASCII letters, and the one that shares a run of six or more digits with a protected value —an ID without its check digit—. It also splits the values an <code>ejemplos</code> cell publishes <strong>joined</strong>: without that, a document that only travelled inside a free-text column was published in full, because the needle was the joined string and that string exists nowhere else in the output. The run comparison is limited to digits on purpose: applied to text it would mask an ordinary word for sharing a stretch with a surname, and that silences report content instead of protecting a datum.</p>
-<p><strong>Profiling never touches your data.</strong> No analysis function alters the table it receives — not its values, its types, its names, or its attributes — including <code>data.table</code> inputs, which R allows to be modified by reference. Only the remediation layer produces different data, and it returns a copy: the table you passed in is still the table you have. A regression test asserts this for every entry point.</p>
-</div>
-<div class="section level2">
-<h2 id="earth_americas-api-language">🌎 API language<a class="anchor" aria-label="anchor" href="#earth_americas-api-language"></a>
-</h2>
-<p>The public names are Spanish in examples, help pages, and vignettes:</p>
-<table class="table">
-<colgroup>
-<col width="50%">
-<col width="50%">
-</colgroup>
-<thead><tr>
-<th>Spanish API</th>
-<th>English meaning</th>
-</tr></thead>
-<tbody>
-<tr>
-<td><code><a href="reference/perfilar.html">perfilar()</a></code></td>
-<td>profile</td>
-</tr>
-<tr>
-<td><code><a href="reference/analizar.html">analizar()</a></code></td>
-<td>analyse</td>
-</tr>
-<tr>
-<td><code><a href="reference/marco_calidad.html">marco_calidad()</a></code></td>
-<td>quality framework</td>
-</tr>
-<tr>
-<td><code><a href="reference/planificar_limpieza.html">planificar_limpieza()</a></code></td>
-<td>plan a cleanup</td>
-</tr>
-<tr>
-<td><code><a href="reference/guiar_limpieza.html">guiar_limpieza()</a></code></td>
-<td>guide a cleanup</td>
-</tr>
-<tr>
-<td><code><a href="reference/planificar_limpieza.html">aplicar()</a></code></td>
-<td>apply a selected cleanup</td>
-</tr>
-<tr>
-<td>
-<code><a href="reference/medir.html">medir()</a></code> / <code><a href="reference/tablero_calidad.html">tablero_calidad()</a></code> / <code><a href="reference/evaluar.html">evaluar()</a></code>
-</td>
-<td>measure / dashboard / evaluate</td>
-</tr>
-<tr>
-<td><code><a href="reference/detectar_duplicados_aproximados.html">detectar_duplicados_aproximados()</a></code></td>
-<td>find approximate duplicates</td>
-</tr>
-<tr>
-<td><code><a href="reference/reportar.html">reportar()</a></code></td>
-<td>create a report</td>
-</tr>
-</tbody>
-</table>
-<p>The <a href="https://github.com/sebollin/lupa/blob/main/README.es.md" class="external-link">Spanish README</a> tells the same story. Contributors should keep the public contract in Spanish; the surrounding guidance can be internationalised.</p>
-</div>
-<div class="section level2">
-<h2 id="zap-a-complete-analysis-and-report">⚡ A complete analysis and report<a class="anchor" aria-label="anchor" href="#zap-a-complete-analysis-and-report"></a>
-</h2>
-<p>Until the first CRAN release, install the development version from GitHub:</p>
-<div class="sourceCode" id="cb5"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="co"># install.packages("pak")</span></span>
-<span><span class="fu">pak</span><span class="fu">::</span><span class="fu"><a href="https://pak.r-lib.org/reference/pak.html" class="external-link">pak</a></span><span class="op">(</span><span class="st">"sebollin/lupa"</span><span class="op">)</span></span></code></pre></div>
-<p>Then profile a table or run the complete analysis route:</p>
-<div class="sourceCode" id="cb6"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va"><a href="https://github.com/sebollin/lupa" class="external-link">lupa</a></span><span class="op">)</span></span>
-<span><span class="fu"><a href="https://rdrr.io/r/utils/data.html" class="external-link">data</a></span><span class="op">(</span><span class="va">datos_operativos</span><span class="op">)</span></span>
-<span></span>
-<span><span class="va">perfil</span> <span class="op">&lt;-</span> <span class="fu"><a href="reference/perfilar.html">perfilar</a></span><span class="op">(</span><span class="va">datos_operativos</span>, analizar_dependencias <span class="op">=</span> <span class="cn">FALSE</span><span class="op">)</span></span>
-<span><span class="fu"><a href="https://rdrr.io/r/utils/head.html" class="external-link">head</a></span><span class="op">(</span><span class="va">perfil</span><span class="op">$</span><span class="va">hallazgos</span><span class="op">[</span>, <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"columna"</span>, <span class="st">"tipo_hallazgo"</span>, <span class="st">"severidad"</span><span class="op">)</span><span class="op">]</span>, <span class="fl">5</span><span class="op">)</span></span>
-<span></span>
-<span><span class="va">analisis</span> <span class="op">&lt;-</span> <span class="fu"><a href="reference/analizar.html">analizar</a></span><span class="op">(</span><span class="va">datos_operativos</span><span class="op">)</span></span>
-<span><span class="va">analisis</span><span class="op">$</span><span class="va">tablero</span></span>
-<span><span class="va">archivo</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/tempfile.html" class="external-link">tempfile</a></span><span class="op">(</span>fileext <span class="op">=</span> <span class="st">".html"</span><span class="op">)</span></span>
-<span><span class="fu"><a href="reference/reportar.html">reportar</a></span><span class="op">(</span><span class="va">analisis</span>, archivo <span class="op">=</span> <span class="va">archivo</span><span class="op">)</span></span>
-<span><span class="fu"><a href="https://rdrr.io/r/base/stopifnot.html" class="external-link">stopifnot</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/files.html" class="external-link">file.exists</a></span><span class="op">(</span><span class="va">archivo</span><span class="op">)</span><span class="op">)</span></span>
-<span><span class="fu"><a href="https://rdrr.io/r/base/unlink.html" class="external-link">unlink</a></span><span class="op">(</span><span class="va">archivo</span><span class="op">)</span></span></code></pre></div>
-<p>Profiling is read-only: it never changes the input table. Findings are ordinary inspectable data frames, and personal-data evidence is masked when the classification warrants it. This is a real console preview:</p>
-<div class="float">
-<img src="reference/figures/perfil-console.png" alt="A captured perfilar() console result"><div class="figcaption">A captured <code><a href="reference/perfilar.html">perfilar()</a></code> console result</div>
-</div>
-</div>
-<div class="section level2">
-<h2 id="compass-what-can-i-do-with-lupa">🧭 What can I do with lupa?<a class="anchor" aria-label="anchor" href="#compass-what-can-i-do-with-lupa"></a>
-</h2>
-<p>The <a href="https://sebollin.github.io/lupa/reference/">pkgdown reference</a> and the linked vignettes are the detailed manual. This table is the short map:</p>
-<table class="table">
-<colgroup>
-<col width="33%">
-<col width="33%">
-<col width="33%">
-</colgroup>
-<thead><tr>
-<th>Task</th>
-<th>Main functions</th>
-<th>Read more</th>
-</tr></thead>
-<tbody>
-<tr>
-<td>Look at data for the first time</td>
-<td>
-<code><a href="reference/perfilar.html">perfilar()</a></code>, <code><a href="reference/analizar.html">analizar()</a></code>, <code><a href="reference/distribucion_valores.html">distribucion_valores()</a></code>, <code><a href="reference/detectar_asociaciones.html">detectar_asociaciones()</a></code>, <code><a href="reference/analizar_tiempo.html">analizar_tiempo()</a></code>, <code><a href="reference/clasificar_variables.html">clasificar_variables()</a></code>, <code><a href="reference/inferir_tipo.html">inferir_tipo()</a></code>, <code><a href="reference/descubrir_patrones.html">descubrir_patrones()</a></code>, <code><a href="reference/detectar_formatos_fecha.html">detectar_formatos_fecha()</a></code>, <code>sentinelas_naniar</code>
-</td>
-<td><a href="https://sebollin.github.io/lupa/articles/empezar-con-lupa.html">Getting started</a></td>
-</tr>
-<tr>
-<td>Profile against a database</td>
-<td>
-<code><a href="reference/perfilar_dbi.html">perfilar_dbi()</a></code> — full-table SQL aggregates plus, by default, a 117-analytic-field profile from a declared sample; <code>bloque_muestra = "solo_agregados"</code> requests only aggregates</td>
-<td><a href="https://sebollin.github.io/lupa/articles/perfilar-una-base.html">Profiling a database</a></td>
-</tr>
-<tr>
-<td>Find undeclared structure</td>
-<td>
-<code><a href="reference/detectar_claves.html">detectar_claves()</a></code>, <code><a href="reference/detectar_relaciones.html">detectar_relaciones()</a></code>, <code><a href="reference/detectar_dependencias.html">detectar_dependencias()</a></code>, <code><a href="reference/granularidades.html">granularidades()</a></code>, <code><a href="reference/granularidades.html">transiciones_granularidad()</a></code>
-</td>
-<td><a href="https://sebollin.github.io/lupa/articles/estructura-no-declarada.html">Undeclared structure</a></td>
-</tr>
-<tr>
-<td>Define quality</td>
-<td>
-<code><a href="reference/marco_calidad.html">marco_calidad()</a></code>, <code><a href="reference/marco_calidad.html">marco_agesic()</a></code>, <code><a href="reference/marco_calidad.html">marco_iso25012()</a></code>, <code><a href="reference/marco_calidad.html">marco_cepal()</a></code>, <code><a href="reference/catalogo_agesic.html">catalogo_agesic()</a></code>, <code><a href="reference/modelo_calidad.html">metrica()</a></code>, <code><a href="reference/modelo_calidad.html">especializar()</a></code>, <code><a href="reference/modelo_calidad.html">instanciar()</a></code>, <code><a href="reference/modelo_calidad.html">modelo()</a></code>, <code><a href="reference/modelo_calidad.html">metricas_nucleo()</a></code>, <code><a href="reference/metricas_referencial.html">metricas_referencial()</a></code>, <code><a href="reference/proponer_modelo.html">proponer_modelo()</a></code>, <code><a href="reference/modelo_desde_propuesta.html">modelo_desde_propuesta()</a></code>, <code><a href="reference/reglas_evaluacion.html">perfiles_madurez()</a></code>, <code><a href="reference/cobertura_analisis.html">cobertura_analisis()</a></code>
-</td>
-<td><a href="https://sebollin.github.io/lupa/articles/definir-la-calidad.html">Define quality</a></td>
-</tr>
-<tr>
-<td>Measure and evaluate</td>
-<td>
-<code><a href="reference/medir.html">medir()</a></code>, <code><a href="reference/agregar.html">agregar()</a></code>, <code><a href="reference/tablero_calidad.html">tablero_calidad()</a></code>, <code><a href="reference/indice_calidad.html">indice_calidad()</a></code> with project weights, <code><a href="reference/evaluar.html">evaluar()</a></code>, <code><a href="reference/reglas_evaluacion.html">regla_evaluacion()</a></code> with the user-declared instruction <code>desenlace = "suprimir"</code> (not a factory threshold), <code><a href="reference/reglas_evaluacion.html">perfil_evaluacion()</a></code>, <code><a href="reference/contratos_medicion.html">escala()</a></code>, <code><a href="reference/referencial.html">referencial()</a></code>, <code><a href="reference/contratos_medicion.html">vigencia()</a></code>
-</td>
-<td><a href="https://sebollin.github.io/lupa/articles/medir-y-evaluar.html">Measure and evaluate</a></td>
-</tr>
-<tr>
-<td>Clean safely</td>
-<td>
-<code><a href="reference/planificar_limpieza.html">planificar_limpieza()</a></code>, <code><a href="reference/guiar_limpieza.html">guiar_limpieza()</a></code>, <code><a href="reference/planificar_limpieza.html">aplicar()</a></code>
-</td>
-<td><a href="https://sebollin.github.io/lupa/articles/limpiar-con-un-plan.html">Cleaning plan</a></td>
-</tr>
-<tr>
-<td>Find approximate duplicates</td>
-<td>
-<code><a href="reference/detectar_duplicados_aproximados.html">detectar_duplicados_aproximados()</a></code>, <code><a href="reference/estimar_costo.html">estimar_costo()</a></code>
-</td>
-<td><a href="https://sebollin.github.io/lupa/articles/escala-y-duplicados.html">Scale and duplicates</a></td>
-</tr>
-<tr>
-<td>Repair encoding damage</td>
-<td>
-<code>reparar_codificacion</code> through <code><a href="reference/planificar_limpieza.html">planificar_limpieza()</a></code> and <code><a href="reference/planificar_limpieza.html">aplicar()</a></code>
-</td>
-<td><a href="https://sebollin.github.io/lupa/reference/planificar_limpieza.html">Cleanup reference</a></td>
-</tr>
-<tr>
-<td>Follow quality over time</td>
-<td>
-<code><a href="reference/historico_calidad.html">historico_calidad()</a></code>, <code><a href="reference/historico_calidad.html">acumular_historico()</a></code>, <code><a href="reference/guardar_historico.html">guardar_historico()</a></code>, <code><a href="reference/guardar_historico.html">leer_historico()</a></code>, <code><a href="reference/detectar_deriva_calidad.html">detectar_deriva_calidad()</a></code>, <code><a href="reference/comparar_perfiles.html">comparar_perfiles()</a></code>, <code><a href="reference/comparar_equivalencia.html">comparar_equivalencia()</a></code>, <code><a href="reference/comparar_evaluaciones.html">comparar_evaluaciones()</a></code>
-</td>
-<td><a href="https://sebollin.github.io/lupa/articles/historico-y-deriva.html">History and drift</a></td>
-</tr>
-<tr>
-<td>Share results</td>
-<td>
-<code><a href="reference/reportar.html">reportar()</a></code>, <code><a href="reference/persistir_analisis.html">guardar_analisis()</a></code>, <code><a href="reference/persistir_analisis.html">leer_analisis()</a></code>
-</td>
-<td><a href="https://sebollin.github.io/lupa/reference/reportar.html">Reporting reference</a></td>
-</tr>
-<tr>
-<td>Validate and extend</td>
-<td>
-<code><a href="reference/pack_validadores.html">validadores_internacionales()</a></code>, <code><a href="reference/pack_validadores.html">validadores_uruguay()</a></code>, <code><a href="reference/pack_validadores.html">pack_validadores()</a></code>, <code><a href="reference/validadores_uy.html">validar_ci_uy()</a></code>, <code><a href="reference/validadores_uy.html">validar_rut_uy()</a></code>, <code><a href="reference/validadores_formato.html">validar_luhn()</a></code>, <code><a href="reference/validadores_formato.html">validar_mod97()</a></code>, <code><a href="reference/validadores_formato.html">validar_iso3166()</a></code>, <code><a href="reference/validadores_formato.html">validar_iso4217()</a></code>, <code><a href="reference/validadores_formato.html">validar_correo()</a></code>, <code><a href="reference/validadores_formato.html">validar_url()</a></code>
-</td>
-<td><a href="https://sebollin.github.io/lupa/reference/">Reference</a></td>
-</tr>
-</tbody>
-</table>
-</div>
-<div class="section level2">
-<h2 id="triangular_ruler-scope-what-uses-every-row-and-what-is-sampled">📐 Scope: what uses every row and what is sampled<a class="anchor" aria-label="anchor" href="#triangular_ruler-scope-what-uses-every-row-and-what-is-sampled"></a>
-</h2>
-<p><code><a href="reference/perfilar.html">perfilar()</a></code> uses every row for table and column counts, real and disguised missingness, distinct values, exact duplicates, quantitative summaries, and the findings derived from those quantities. <strong>«Every row» is the scope, not the content</strong>: a quantitative summary still leaves out what does not count as a number — <code>NaN</code>, <code>Inf</code>, text the conversion cannot read, and the sentinels declared in <code>sentinelas_numericos</code> — and when it does, it says so: <code>n_valores_excluidos_resumen</code> counts them, <code>estado_resumen_cuantitativo</code> stops saying <code>"calculados"</code>, and <code>cobertura_diagnosticos</code> gets its row. The breakdown of the non-finite values stays in <code>n_nan</code>, <code>n_infinito_positivo</code> and <code>n_infinito_negativo</code>, and when no usable value survives the state says so instead of claiming it computed anything, and it <strong>tells two different cases apart</strong>: <code>"sin_valores"</code> when the column held no present value <strong>in the universe the summary measures</strong> —empty, all <code>NA</code>, or with declared applicability leaving that universe without values, in which case the ones outside are declared in <code>n_presentes_fuera_de_aplicabilidad</code>— and <code>"sin_valores_utilizables"</code> when it did hold values and none of them was usable, as in a column of thirty <code>Inf</code> —which publishes <code>n_faltantes = 0</code> and <code>n_distintos = 1</code>— or one whose sentinels took every value. It says so for an <code>integer64</code> column just as for a double one. The exclusion of non-finite values is declared <strong>in every class</strong>: a date column holding an <code>Inf</code> publishes <code>n_valores_excluidos_resumen = 1</code> and does not count it among the summarised dates. Text lengths declare their own universe through <code>n_longitudes_resumidas</code>, because <code><a href="https://rdrr.io/r/base/nchar.html" class="external-link">nchar()</a></code> cannot measure a value whose bytes are not valid UTF-8 and that one stays out of the average. None of that depends on sampling being on. By default, <code>muestra = 1e5</code> limits pattern discovery, type inference, date-format discovery, and the common sample used to search for functional dependencies. Set another limit or <code>Inf</code> to change or disable that sampling.</p>
-<p>For inferred temporal types, <code>estado_tipo_inferido</code> distinguishes <code>confirmado</code>, <code>candidato</code>, and <code>NA</code>; a 100% compatible ambiguous date remains a candidate.</p>
-<p>Personal-document validators have a separate preliminary filter: <code>muestra_validadores = 1000</code> by default. A validator that passes that filter is then evaluated on the complete column; <code>Inf</code> makes even the preliminary pass complete. Approximate duplicates are off by default and have their own declared bounds when enabled.</p>
-<p>In <code><a href="reference/detectar_duplicados_aproximados.html">detectar_duplicados_aproximados()</a></code>, <code>pares$tipo_par</code> is self-describing: <code>exacto</code> means the stored texts are equal, <code>exacto_normalizado</code> means they only match after the declared normalization, and <code>aproximado</code> means they remain similar rather than equal. <code>pares$igualo_normalizar</code> marks the middle case. The corresponding scope counts are <code>n_pares_exactos</code>, <code>n_pares_exactos_normalizados</code>, and <code>n_pares_aproximados</code>.</p>
-<p>The <code>casi_duplicados_vocabulario</code> diagnostic runs per column. Even when two columns have the same vocabulary, each keeps its own coverage row and findings; the cost of comparing identical vocabularies may therefore repeat. This is deliberate, so frequencies and scope from different columns are never mixed.</p>
-<p>The result records the effective scope in <code>meta$muestra</code>, <code>meta$filas_analizadas</code>, and <code>meta$muestreo</code>; each column also records <code>n_filas_analizadas_tipo</code> and <code>muestreado_tipo_inferido</code>, while the dependency table carries its analysed-row and sampling attributes. <code><a href="reference/analizar.html">analizar()</a></code> reuses <code>muestra = 1e5</code> for its profile, distributions, and observed-level enumeration, and declares separate limits for associations and the other components.</p>
-</div>
-<div class="section level2">
-<h2 id="file_cabinet-engines-what-is-tested-and-what-is-expected">🗄️ Engines: what is tested and what is expected<a class="anchor" aria-label="anchor" href="#file_cabinet-engines-what-is-tested-and-what-is-expected"></a>
-</h2>
-<p><code><a href="reference/perfilar_dbi.html">perfilar_dbi()</a></code> does not promise a universal dialect. It resolves the dialect with a zero-row probe <strong>before</strong> issuing the aggregate block, and whatever the engine rejects is recorded as unavailable with its reason — never as zero.</p>
-<table class="table">
-<colgroup>
-<col width="33%">
-<col width="33%">
-<col width="33%">
-</colgroup>
-<thead><tr>
-<th>engine</th>
-<th>dialect</th>
-<th>status</th>
-</tr></thead>
-<tbody>
-<tr>
-<td><strong>SQLite</strong></td>
-<td><code>limit</code></td>
-<td>
-<strong>tested</strong> against the real engine: 38 metrics, 7 <code>no_aplica</code>, and key <code>id</code> detected</td>
-</tr>
-<tr>
-<td>engine that rejects <code>LIMIT</code>
-</td>
-<td>
-<code>top</code> / <code>portable</code>
-</td>
-<td>
-<strong>tested</strong> with a simulated engine in the suite</td>
-</tr>
-<tr>
-<td>engine that folds aliases to upper case</td>
-<td>any</td>
-<td>
-<strong>tested</strong> with a simulated engine</td>
-</tr>
-<tr>
-<td>engine that rejects <code>SELECT *</code> over one column</td>
-<td>any</td>
-<td>
-<strong>tested</strong> with a simulated engine</td>
-</tr>
-<tr>
-<td><strong>PostgreSQL 16</strong></td>
-<td><code>limit</code></td>
-<td>
-<strong>tested</strong> against the real engine: 38 metrics, 7 <code>no_aplica</code>, and key <code>id</code> detected</td>
-</tr>
-<tr>
-<td><strong>PostgreSQL 9.3.25</strong></td>
-<td><code>limit</code></td>
-<td>
-<strong>tested</strong> against the real engine: 38 metrics, 7 <code>no_aplica</code>, and key <code>id</code> detected</td>
-</tr>
-<tr>
-<td><strong>MySQL 8.4</strong></td>
-<td><code>limit</code></td>
-<td>
-<strong>tested</strong> against the real engine: 38 metrics, 7 <code>no_aplica</code>, and key <code>id</code> detected</td>
-</tr>
-<tr>
-<td><strong>SQL Server 2022</strong></td>
-<td><code>top</code></td>
-<td>
-<strong>tested</strong> against the real engine: 38 metrics, 7 <code>no_aplica</code>, and key <code>id</code> detected</td>
-</tr>
-<tr>
-<td><strong>DuckDB</strong></td>
-<td><code>limit</code></td>
-<td>
-<strong>tested</strong> against the real engine: 38 metrics, 7 <code>no_aplica</code>, and key <code>id</code> detected</td>
-</tr>
-<tr>
-<td><strong>MariaDB 11.8</strong></td>
-<td><code>limit</code></td>
-<td>
-<strong>tested</strong> against the real engine: 38 metrics, 7 <code>no_aplica</code>, and key <code>id</code> detected</td>
-</tr>
-<tr>
-<td><strong>Oracle</strong></td>
-<td>
-<code>fetch_first</code> / <code>rownum</code>
-</td>
-<td>not measured in the current matrix</td>
-</tr>
-<tr>
-<td><strong>BigQuery</strong></td>
-<td><code>portable</code></td>
-<td>not measured in the current matrix</td>
-</tr>
-<tr>
-<td>any other DBI-compatible engine</td>
-<td><code>portable</code></td>
-<td>fallback: <code>dbSendQuery()</code> + <code>dbFetch(n)</code>
-</td>
-</tr>
-</tbody>
-</table>
-<p>The claim is reproducible: <code>benchmark/verificar_motor.R</code> takes any DBI connection and checks five things — that the profile has five columns, the dialect is resolved by probe, the engine’s mean agrees with R <strong>over finite values of ordinary scale</strong>, the primary key is read from the catalogue, and coverage is returned as a table.</p>
-<p>That qualifier is not an excuse: it is what was measured. With <code>NaN</code> or infinities, with values that make an accumulated sum lose precision — <code>{1e16, 1, -1e16}</code>, whose mean the engine gives as <code>0</code> and R as 0.3337 when the truth is 1/3 — or against an engine whose percentile is broken for large <code>DECIMAL</code>, the two paths do <strong>not</strong> agree. That is why <code><a href="reference/perfilar_dbi.html">perfilar_dbi()</a></code> <strong>cross-checks its two blocks</strong> whenever both exist: if they differ beyond tolerance, a <code>divergencia</code> row lands in <code>resumen_tabla$cobertura</code> carrying both values and the sample’s coverage. It picks no winner — the package does not know which one is true — but it does not keep quiet about the disagreement. It only cross-checks what both blocks measure the same way: what a declaration changes on purpose — the missing count of an optional column, the mean without the declared sentinels — is not a divergence, and what it does not compare is listed in <code>meta$corroboracion_bloques$no_comparadas</code>.</p>
-<p>What that script checks is <strong>behaviour</strong>, and it can be redone against any connection. The <strong>timings</strong> of those runs — the seconds and row reads that appear in the release notes — cannot be redone from the repository: they need the infrastructure of the run, up to two million rows by forty columns on an engine brought up for the occasion. They are published as what they are, references from a one-off run, and no result of the package depends on them.</p>
-<p><strong>Expected</strong> means the dialect is built and tested against a simulated engine that reproduces the restriction, not that it has been run against the real engine. The distinction matters, which is why it is written down: the defects this version fixed did not surface in eight green environments precisely because all of them used the same engine.</p>
-<p>Every engine added to this table so far has found a defect no simulated engine could. DuckDB found the sharpest one: it accepts <code>TABLESAMPLE SYSTEM (10) WHERE 1 = 0</code> and rejects the same clause without the filter, because with a trivially false filter its parser never validates the sampling method. The capability probe used exactly that filter to stay cheap, so it passed and the real query failed. <strong>A probe that does not exercise the form it later emits proves nothing</strong>, which is why every probe in <code>lupa</code> tests the same form it is going to emit.</p>
-<p>The dialect can be declared with <code>dialecto =</code> if the probe gets it wrong. A partial failure never discards what was already measured: if reading the sample fails, the object comes back with a complete <code>resumen_tabla</code>, <code>perfil_muestra = NULL</code>, and a coverage row carrying the reason. If the sample was not requested, coverage uses <code>no_solicitado</code>, which is not a failure; request only aggregates with <code>bloque_muestra = "solo_agregados"</code>. This option is independent of <code>universo</code>: with <code>muestra_motor</code> the SQL aggregates still use the engine’s sampled relation, but no sample rows are fetched or materialized in the client spool. The coverage row is <code>no_solicitado</code> and the materialization metadata records <code>filas_vistas = 0</code>.</p>
-<p><strong>And it declares what the engine cannot do.</strong> <code>sentinelas_numericos</code>, <code>aplicabilidad</code> and <code>columnas_opcionales</code> change what <code><a href="reference/perfilar.html">perfilar()</a></code> summarises, but the SQL aggregates are computed without them: <code>AVG()</code> knows nothing about sentinels. When one of them is used, coverage gets a <code>degradado</code> row saying so and pointing at <code>perfil_muestra</code> — because a single call could publish two different means over the same rows, 1045.09 in the engine summary and 50.21 in the sample one, with nothing to warn you.</p>
-<div class="section level3">
-<h3 id="knowing-what-is-missing-before-you-hit-it">Knowing what is missing before you hit it<a class="anchor" aria-label="anchor" href="#knowing-what-is-missing-before-you-hit-it"></a>
-</h3>
-<p><code>lupa</code> has two hard dependencies, <code>cli</code> and <code>data.table</code>. <code>data.table</code> is used only to accelerate the exact count of duplicated rows, and it is never imported into the namespace; tables with list or matrix columns, or with <code>NaN</code>, fall back to base R, which is what fixes the result. Everything else is optional — and what used to happen when something was missing was an R error, or a driver error, that named neither what was missing nor how to get it. The hard case is not the R package but the <strong>system library underneath it</strong>: <code>RMariaDB</code> does not compile without the MySQL or MariaDB client headers, <code>ROracle</code> needs Oracle Instant Client, and someone staring at <code>installation of package 'RMariaDB' had non-zero exit status</code> has no way to know the answer is <code>libmariadb-dev</code>.</p>
-<div class="sourceCode" id="cb7"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="fu"><a href="reference/requisitos_motor.html">requisitos_motor</a></span><span class="op">(</span><span class="op">)</span>            <span class="co"># the whole catalogue</span></span>
-<span><span class="fu"><a href="reference/requisitos_motor.html">requisitos_motor</a></span><span class="op">(</span><span class="st">"oracle"</span><span class="op">)</span>    <span class="co"># what Oracle needs, and how to get it</span></span></code></pre></div>
-<p>For each engine it declares the R package, the system library with its name on Debian and on Fedora, <strong>the way around it without administrator rights</strong> where one exists, the expected dialect, and whether it is tested against the real engine. The escape hatches are not hypothetical: SQL Server had no ODBC driver and no way to install one, and it was solved by compiling FreeTDS into a user prefix and pointing <code>odbc</code> at the <code>.so</code> by path; Oracle Instant Client unzips into a user directory. Neither needed <code>sudo</code>.</p>
-<p>What it does <strong>not</strong> do is claim to have checked a system library it cannot check. When it can only say “the R package is missing, and if installing it fails to compile, this is what you need”, it says exactly that — the package’s own invariant applied to its own installation.</p>
-</div>
-<div class="section level3">
-<h3 id="one-query-per-batch-not-one-per-column">One query per batch, not one per column<a class="anchor" aria-label="anchor" href="#one-query-per-batch-not-one-per-column"></a>
-</h3>
-<p>Profiling issued <strong>one query per column</strong> for each block of metrics. On a table of tens of millions of rows that is the cost: not the sampling, the number of scans. The flat aggregates — <code>COUNT(col)</code>, min/max/mean/zeros/negatives, and standard deviation — are now asked for <strong>several columns in one query</strong>, in batches. <code>COUNT(DISTINCT ...)</code> keeps a separate query class; the mode stays one per column, because it groups. The median keeps a per-column fallback, but where the engine probe accepts <code>PERCENTILE_CONT(...) WITHIN GROUP</code> several medians travel in a single <code>SELECT</code> per batch. On PostgreSQL 9.3 and SQLite, where that function is unavailable, the per-column median keeps <code>LIMIT</code> but makes the count a scalar subquery of the same statement. The probe also checks integer division (<code>%</code> and <code>/</code>); if a dialect does not accept that form, the result declares that it kept the two-query path.</p>
-<p>With <code>estrategia_distintos = "aproximada_motor"</code>, a distinct count is consolidated only when the capability provides an expression that can be embedded in the <code>SELECT</code>. If it only builds a complete query, valid counts and distinct counts are issued separately, and each record keeps the method of the query that was actually run.</p>
-<p>Median strategy is independent. <code>estrategia_mediana = "aproximada_motor"</code> probes an exact native form first, then the exact per-column form, and only then an approximate native function. An exact median therefore remains <code>calculado</code>, with <code>error_esperado = "no_aplica"</code>; only an approximation that actually ran is <code>estimado</code>.</p>
-<p>Consolidated medians are probed before use; on SQL Server they require compatibility level &gt;= 110. The probe is not a promise of activation: known reasons for it not to activate are that the function is unavailable or that the engine rejects the probe. The engine message is kept in <code>meta$mediana_consolidada$motivo</code>, and the per-column median is retained.</p>
-<p>Measured against PostgreSQL 16 with <strong>2 million rows by 40 columns</strong>:</p>
-<table class="table">
-<colgroup>
-<col width="33%">
-<col width="33%">
-<col width="33%">
-</colgroup>
-<thead><tr>
-<th>configuration</th>
-<th>before</th>
-<th>after</th>
-</tr></thead>
-<tbody>
-<tr>
-<td><code>metricas = "validos"</code></td>
-<td>46 queries, 5.4 s</td>
-<td><strong>8 queries, 2.4 s</strong></td>
-</tr>
-<tr>
-<td><code>metricas = c("validos", "basicos", "desvio")</code></td>
-<td>128 queries, 15.2 s</td>
-<td>14 queries, 5.3 s; <strong>10 queries</strong> with flat fusion</td>
-</tr>
-</tbody>
-</table>
-<p>Same 160 and 400 metrics computed, and the same numbers: on one table seeded once, the consolidated profile and the previous one agree on all sixteen summary fields across six column types.</p>
-<p><strong>If a batch fails, the batch is not lost.</strong> Its halves are probed by bisection: accepted groups are reused as measurements and culprit columns are retried per metric. Whatever still fails is left <code>no_disponible</code> with its reason while its neighbours are computed. If the probe budget runs out, pending columns remain unmeasured; they are not assumed to be culprits or readable. The degradation has its own tests.</p>
-<p><code>resumen_tabla$sql</code> keeps <strong>one row per column and metric</strong> with every field it had, and adds <code>lote</code> and <code>columnas_compartidas</code> so a shared query is visible. It also adds <code>consulta_id</code>, which identifies the statement that produced each measurement and defines the verifiable consistency group. The inherited query field is now named <code>id_consulta</code>, without an alias; it identifies the data query. <code>muestra_id</code> is reserved for the materialized relationship and is published in <code>meta$materializacion</code>, never as a second name for the query identifier.</p>
-<p>For <code>universo = "muestra_motor"</code> with <code>bloque_muestra = "con_muestra"</code>, the engine selection is materialized exactly once in an external client-session spool. Its trailer verifies <code>muestra_id</code>, <code>snapshot_id</code>, <code>orden_id</code>, <code>n_filas</code>, <code>bytes</code> and checksum on reread. Every profile pass reads that spool; it never re-samples the engine. With <code>bloque_muestra = "solo_agregados"</code>, the SQL aggregates still use the sampled relation, but the row block is not selected, fetched or materialized. A chunk is checked against <code>max_bytes_materializacion</code> before writing, and an excess publishes <code>spool_presupuesto_excedido</code> plus <code>muestra_inestable:presupuesto_materializacion</code>, with no hybrid result. The spool does not write to the DBI connection or create temporary engine objects. <code>meta$materializacion</code> records backend, version, checksum, bytes and budget when a spool exists; the no-solicitud path records <code>estado = "no_solicitado"</code> and zero rows viewed. The measured crossover is part of the declared cost, not a speed promise: against PostgreSQL 16 with 2 million rows, a 500,000-row sample took about 5.6 s with the spool versus 3.3 s when every pass re-sorted independently; the spool is chosen for identity and bounded reuse. Across 10,000, 100,000 and 500,000 rows, spool totals were 0.448, 1.684 and 5.598 s, while independent re-sorts were 0.814, 2.178 and 3.265 s (crossover between 100,000 and 500,000).</p>
-<p>The same SQL audit includes <code>memoria_trabajo</code>: <code>creciente</code>, <code>acotado</code>, or <code>NA</code>, to flag work that should not be recomputed incrementally over a larger table.</p>
-<p>Every flat aggregate query that carries <code>n_validos</code> also carries <code>COUNT(*) AS n_total_consulta</code> in the same statement. Completeness uses that local denominator, including after bisection; it does not combine a total from another batch. The universe total is kept separately when profiling a sample or when no aggregate can carry it. The exact distinct query includes <code>COUNT(column) AS n_validos_guard</code> beside <code>COUNT(DISTINCT column)</code>: the hard bound is applied only when both values have the same <code>consulta_id</code>. If an approximate capability cannot provide that guardian, the check is reported as unavailable and no inconsistency is attributed to the engine. Batch sizes are separate: <code>tamano_lote_planos</code> controls flat aggregates and <code>tamano_lote_distintos</code> controls cardinalities. The latter defaults to 2: the measured shared read was constant between batches on the reference PostgreSQL server, so two cardinalities share one pass. The measured two-cardinality batch kept nearly the same time per column as one and spilled less than wider batches. The moda query also tries to bring <code>SUM(COUNT(*)) OVER () AS n_validos_guard</code> beside its frequency. The form is probed before use; if the engine rejects it, the previous moda query is retained and the fallback is published in <code>resumen_tabla$meta$moda_guardian</code>. When accepted, the bound <code>frecuencia_moda &lt;= n_validos</code> is checked inside that same statement.</p>
-</div>
-<div class="section level3">
-<h3 id="cost-and-spill-are-announced-before-they-are-paid">Cost and spill are announced before they are paid<a class="anchor" aria-label="anchor" href="#cost-and-spill-are-announced-before-they-are-paid"></a>
-</h3>
-<p>When <code><a href="reference/perfilar_dbi.html">perfilar_dbi()</a></code> asks for <code>COUNT(DISTINCT ...)</code>, the flat aggregates run first when they were requested, but they are not a time reference for distinct counts. With <code>instrumentar = TRUE</code> the package measures the first distinct batch in the same run and, if another batch remains, announces a projection after that batch and before the second. The figure is the median duration of the queries in the first distinct batch multiplied by the number of distinct batches; the message names that source and labels itself an estimate. With one batch there is nothing left to avoid, so no projection is published. A request with <code>metricas = "distintos"</code> therefore still receives the warning when there are multiple batches. This time projection does not use <code>reltuples</code>.</p>
-<p>The same channel now announces the cost of the two expensive metrics that were missing: <code>mode</code> is projected from the sum of the columns’ cardinalities, and <code>median</code> from the row count. Each has its own switch and seconds threshold, enabled by default from 30 seconds: <code>avisar_costo_moda</code>/<code>umbral_segundos_aviso_moda</code> and <code>avisar_costo_mediana</code>/<code>umbral_segundos_aviso_mediana</code>. The warning is emitted before the projected query runs and remains in <code>meta$costo_moda</code> or <code>meta$costo_mediana</code>, separate from <code>meta$costo_distintos</code> because each projection follows a different cost dimension.</p>
-<p>When possible, mode measures the first query in the current run and uses its milliseconds per distinct value for the remaining columns. If exact cardinality is unavailable, it uses whatever source exists (for example, the catalog) and says so; with no source, the projection is unavailable. Median knows the row count after the first count. The first measured median becomes the local reference for the remaining ones; if a single total median leaves no local measurement, it uses the declared bank reference of 68 ms per million rows, taken from another run. That reference is never presented as a measurement of the current run. If the initial query that obtained the row count was measured and gives a higher bound, that bound is also published as observed reading time —not as a median measurement—so a freshly loaded large table does not stay falsely quiet.</p>
-<p>On PostgreSQL, preparation also reads <code>pg_stats.n_distinct</code>, <code>pg_stats.avg_width</code>, <code>pg_class.reltuples</code> and the session’s <code>work_mem</code> — plus <code>hash_mem_multiplier</code> from PostgreSQL 13 on — to estimate the size of the aggregation hash. If it exceeds the effective limit, the package warns before the first <code>COUNT(DISTINCT)</code> and says that raising <code>work_mem</code> for this session can avoid the spill. The diagnosis lands in <code>meta$estimacion_derrame</code>, always as an estimate and never as a measurement; the package changes no setting and waits for no confirmation.</p>
-<p>Also on PostgreSQL, when <code>pg_stat_statements</code> allows attributing exactly one call from this run, the report adds the real spill and the number of temporary blocks written. When attribution is not possible the state is declared unavailable: elapsed time is never presented as evidence of a spill. Where the measurement exists, <strong>it prevails over the estimate</strong> — even if the estimate stayed below the limit, the report says a spill was measured.</p>
-</div>
-<div class="section level3">
-<h3 id="sql-durations-have-a-sum-safe-unit">SQL durations have a sum-safe unit<a class="anchor" aria-label="anchor" href="#sql-durations-have-a-sum-safe-unit"></a>
-</h3>
-<p><code>resumen_tabla$sql</code> has one row per column and metric, but <code>duracion_ms</code> is the duration of the query and is repeated on every row produced by that query. The table now includes <code>nivel</code>, following <code>resumen_tabla$tiempos</code>: the first row of each <code>consulta_id</code> is <code>nivel = 1</code> and the repeated rows are <code>nivel = 2</code>. Sum <code>duracion_ms</code> only for <code>nivel = 1</code> (and use <code>na.rm = TRUE</code> when needed); summing the whole column counts shared queries more than once. Rows without a query keep <code>NA</code> in their duration and do not claim a measurement.</p>
-</div>
-<div class="section level3">
-<h3 id="reading-a-profile-without-knowing-its-shape">Reading a profile without knowing its shape<a class="anchor" aria-label="anchor" href="#reading-a-profile-without-knowing-its-shape"></a>
-</h3>
-<p><code><a href="reference/perfilar.html">perfilar()</a></code> returns a flat <code>perfil</code>; <code><a href="reference/perfilar_dbi.html">perfilar_dbi()</a></code> returns a container. So <code>perfil$general$filas</code> worked on one and returned <code>NULL</code> on the other, where the count lives in <code>resumen_tabla$meta$filas</code>. A silent <code>NULL</code> in a measurement script is the worst way to fail: it does not warn, and everything after it computes on nothing.</p>
-<div class="sourceCode" id="cb8"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb8-1"><a href="#cb8-1" tabindex="-1"></a><span class="fu">hallazgos</span>(x)    <span class="fu">columnas</span>(x)    <span class="fu">cobertura</span>(x)    <span class="fu">n_filas</span>(x)    <span class="fu">sql_perfil</span>(x)</span></code></pre></div>
-<p>They work over <code>perfil</code>, <code>analisis</code>, <code>perfil_dbi</code> and <code>perfil_coleccion</code>, and they do not invent what is not there: a DBI profile with no sample read returns an empty findings table <strong>with its warning</strong>, and <code><a href="reference/accesores_perfil.html">sql_perfil()</a></code> on an in-memory profile returns <code>NULL</code>, because a table with no rows would suggest SQL was issued and found nothing.</p>
-</div>
-<div class="section level3">
-<h3 id="a-budget-measures-work-it-does-not-count-units">A budget measures work, it does not count units<a class="anchor" aria-label="anchor" href="#a-budget-measures-work-it-does-not-count-units"></a>
-</h3>
-<p>A cap that counts units treats a column of ten-character codes and one of thousand-character WKT alike. A table in the PostGIS catalogue — 3,912 rows — took 243 seconds, and the vocabulary detector was 99.6% of it: 800 distinct values are 319,600 pairs, well under the two-million cap, but each comparison was a Jaro-Winkler over 900 characters.</p>
-<p>The budget is now measured in <strong>character comparisons</strong>, the inner loop of the distance. Calibrated against measurement, the pathological column drops from 61.3 s to 4.6 s. An ordinary column of two thousand values is compared in full <strong>as long as its values are under about a hundred characters</strong>: the budget bites when <code>L² · n(n−1)/2</code> exceeds <code>2e10</code>, which for two thousand distinct values means a length of 101. Saying “two thousand values are compared in full” without that qualifier was wrong, and wrong in the worst place — the 900-character WKT column that motivated the budget is exactly the kind that gets trimmed. What does get trimmed is declared: how many normalised forms went uncompared, how much work that was, and which cap did the trimming.</p>
-</div>
-<div class="section level3">
-<h3 id="a-length-cap-protects-the-distance-signal">A length cap protects the distance signal<a class="anchor" aria-label="anchor" href="#a-length-cap-protects-the-distance-signal"></a>
-</h3>
-<p>Normalised edit distance is designed for names, addresses and identifiers, not documents. Five seeds were measured with random text pairs: one pair differed in one character and the other in 1,000. The table shows their median. The many-character pair stopped being distinct at the default <code>0.10</code> threshold before the one-character pair stopped looking close:</p>
-<table class="table">
-<thead><tr>
-<th align="right">length</th>
-<th align="right">distance, 1 character</th>
-<th align="right">distance, 1,000 characters</th>
-</tr></thead>
-<tbody>
-<tr>
-<td align="right">10,000</td>
-<td align="right">0.000400</td>
-<td align="right">0.193195</td>
-</tr>
-<tr>
-<td align="right">20,000</td>
-<td align="right">0.000150</td>
-<td align="right">0.125923</td>
-</tr>
-<tr>
-<td align="right">25,000</td>
-<td align="right">0.000347</td>
-<td align="right">0.104511</td>
-</tr>
-<tr>
-<td align="right">50,000</td>
-<td align="right">0.000053</td>
-<td align="right">0.064559</td>
-</tr>
-</tbody>
-</table>
-<p>The observed crossing is between 25,000 and 50,000 characters. The default <code>10,000</code> cap leaves a five-fold margin before that loss of discrimination. <code><a href="reference/detectar_duplicados_aproximados.html">detectar_duplicados_aproximados()</a></code> publishes it in <code>alcance$max_largo_valor</code>; when a column exceeds it, the complete combination is out of scope and <code>alcance$columnas_excluidas_largo</code> explains why. In <code><a href="reference/perfilar.html">perfilar()</a></code>, the same decision appears in <code>cobertura_diagnosticos</code> with the reason, observed length and threshold. <code>max_largo_valor = Inf</code> or <code>max_largo_valor_vocabulario = Inf</code> explicitly restores the previous behaviour.</p>
-<p>The cap is measured on the string that is actually compared: columns already combined and already normalised. Both halves of that sentence are load-bearing. Two columns of nine thousand characters each are below the cap on their own and reach eighteen thousand once joined; and the <code>amplio</code> normalisation expands ligatures, so a value can sit below the stored cap and above the compared one. <code>alcance$largo_maximo</code> reports that compared length, and is <code>NA</code> — not zero — when the cap does not apply and no length was measured.</p>
-<p>The two caps are separate knobs on purpose. <code>max_largo_valor_vocabulario</code> governs the vocabulary rule inside <code><a href="reference/perfilar.html">perfilar()</a></code>; the row-pair detector keeps its own, set through <code>duplicados_aproximados = list(max_largo_valor = ...)</code>.</p>
-</div>
-<div class="section level3">
-<h3 id="wide-table-cost-is-announced-first">Wide-table cost is announced first<a class="anchor" aria-label="anchor" href="#wide-table-cost-is-announced-first"></a>
-</h3>
-<p><code><a href="reference/perfilar.html">perfilar()</a></code> projects the cell count before expensive work starts. The default warning starts at <code>100,000</code> cells, uses a reference of <code>10,000</code> cells per second and says that it is an estimate together with its source. The reference follows these measurements (run of 2026-08-30, reproducible with <code>benchmark/medir_referencias.R</code>): 500 rows by 50, 300 and 1,000 columns took 3.34, 13.63 and 43.85 seconds — about 11,000 cells per second, which is why the reference uses 10,000. There is no warning below the threshold or in non-interactive scripts. The projection is stored in <code>meta$costo_tabla_ancha</code>. <code>avisar_costo_tabla_ancha = FALSE</code> disables it per call and <code>umbral_celdas_aviso_tabla_ancha = Inf</code> silences it explicitly.</p>
-<p>And when a budget must trim, the forms it keeps are the <strong>alphabetically first</strong>, not the first to appear. That distinction was a defect, measured on a real column — 45,400 street names from the national open-data catalogue, 8,318 distinct forms. The same rows yielded 26 near-duplicate groups in the order the file arrives, 70–85 shuffled, and 148 sorted. A profiler whose verdict depends on the row order is measuring the physical shape of the table rather than the data. Sorting first, all five orders yield 148 — and sorting also keeps near-duplicates adjacent, so the cut falls between families instead of splitting them.</p>
-<p><strong>The other trim, the one over pairs, follows the same rule, from the same kind of measurement.</strong> <code>max_resultados</code> keeps the closest pairs by ordering on distance, and among <strong>tied</strong> pairs it used to break ties by row position. Measured over 60 groups whose internal pairs share exactly the same distance, with the cut at 30, five different orders each returned 30 groups <strong>sharing none of them</strong>. It now breaks ties by the canonical order of the values, with a symmetric key so the result does not depend on which row came first within a pair either, and all five orders return exactly the same groups.</p>
-<p>What no ordering fixes is that a cut inside a tie leaves out pairs that are equally close. That is not fixed: it is declared. <code>alcance</code> carries <code>distancia_corte</code>, <code>n_en_distancia_corte</code> and <code>corte_en_empate</code>, and that last one is not <code>truncado</code> under another name — it is <code>FALSE</code> when the cut lands on a unique distance.</p>
-</div>
-<div class="section level3">
-<h3 id="sample-size-caps-protect-remote-reads">Sample-size caps protect remote reads<a class="anchor" aria-label="anchor" href="#sample-size-caps-protect-remote-reads"></a>
-</h3>
-<p><code><a href="reference/perfilar.html">perfilar()</a></code> and <code><a href="reference/perfilar_dbi.html">perfilar_dbi()</a></code> use the same sample-cap defaults: <code>max_celdas_muestra = 1,000,000</code> cells and <code>max_bytes_muestra = 512 MiB</code>. In DBI profiles these caps apply only to <code>perfil_muestra</code>; the SQL aggregates still run over their declared scope. The cell cap is resolved from the row count and schema width before reading. The byte cap first reads a probe of up to 100 rows, then puts the resulting limit in the final SQL or <code>dbFetch(n)</code> call, so the full sample is not fetched and trimmed later in R.</p>
-<p>When <code>muestra = n</code> and a cap is stricter, the smaller limit wins. The profile coverage declares the observed cells or bytes, threshold and reason, including which cap won. Passing <code>Inf</code> for both caps produces no crop declaration. <code><a href="reference/plan_perfilado_dbi.html">plan_perfilado_dbi()</a></code> exposes the same limits and says in advance when the cell cap will reduce the sample or when a byte probe will be needed.</p>
-</div>
-<div class="section level3">
-<h3 id="cost-is-planned-before-it-is-paid">Cost is planned before it is paid<a class="anchor" aria-label="anchor" href="#cost-is-planned-before-it-is-paid"></a>
-</h3>
-<p>Profiling a 158-column table with the default <code>universo = "tabla_completa"</code> emits 335 queries, and 327 of them scan, sort or group the whole table. The count follows the composition, not the column count: the same 158 columns as text only cost 252, because a median asks for a full sort per numeric column. <code>muestra</code> does not bound any of it — it bounds what is brought into R, not the work the engine does. So the cost is declared and chosen (<code>benchmark/medir_plan_ancho.R</code> reproduces the four numbers):</p>
-<div class="sourceCode" id="cb9"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="fu"><a href="reference/plan_perfilado_dbi.html">plan_perfilado_dbi</a></span><span class="op">(</span></span>
-<span>  <span class="va">con</span>, <span class="st">"tabla"</span>, universo <span class="op">=</span> <span class="st">"muestra_motor"</span>, muestra_motor <span class="op">=</span> <span class="fl">5000</span></span>
-<span><span class="op">)</span>   <span class="co"># prepares and publishes a range</span></span></code></pre></div>
-<p>The plan gives a <strong>range</strong> for how many queries the profiling will emit, and it says so in <code>attr(plan, "supuesto")</code>. It does not scan data to decide cost: it reads the schema, probes capabilities and, with <code>politica_costo = "por_cardinalidad"</code>, may read a structural guarantee or a catalogue source. It never launches <code>COUNT(DISTINCT ...)</code> just to resolve uncertainty. Consequently, the plan does not publish a temporal projection for <code>COUNT(DISTINCT)</code>: the honest reference is the first distinct batch measured during execution, and the plan emits no data queries.</p>
-<p>The low end is <code>total</code>: when cardinality is unknown, it assumes the policy will omit <code>moda</code>. The high end is <code>total_maximo</code> —also exposed as <code>total_lotes_rechazados</code> after adding bisection— and leaves open the path that executes them. If the engine rejects batches, up to <code>2n - 1</code> probes are added per batch of <code>n</code> columns. The real cost falls between the two <strong>when the sample can be built</strong>: if <code>universo = "muestra_motor"</code> and the engine does not accept the resolved form, the plan declares it in <code>attr(plan, "muestreo")</code> and drops the metrics that depended on it from the range. The run, in turn, publishes each of them as <code>no_disponible</code> with its reason: nothing that was not measured is reported as measured.</p>
-<p>Distinct-count provenance is selected explicitly with <code>estrategia_distintos</code>. <code>"exacta"</code> is the default and emits <code>COUNT(DISTINCT)</code>; <code>"aproximada_motor"</code> uses a native function only when the engine accepts its probe; <code>"catalogo"</code> reads PostgreSQL’s <code>pg_stats.n_distinct</code> and publishes it as an estimate, with guards for inheritance and sampled modes; on other engines it is <code>no_disponible</code> with its reason; and <code>"omitida"</code> emits no distinct-count query. An unavailable approximation does not silently become exact. The result separates the requested strategy, the resolved strategy, and its state in <code>meta$estrategia_distintos</code> and in the SQL rows.</p>
-<p>The primary-key catalogue is queried on every run, even when the cost policy does not need cardinality. The response is published in <code>resumen_tabla$meta$clave</code>, with <code>columnas</code>, <code>fuente</code>, <code>motivo</code>, <code>garantia</code>, and <code>estado</code>. This is a metadata query and does not scan the table. A visible key without enough evidence keeps <code>garantia = "desconocida"</code>; a table without a declared key keeps <code>"no_declarada"</code>, and a failed query keeps its reason instead of turning it into an absence of a key.</p>
-<p>Structural sources used by the cost policy are resolved whenever the policy needs cardinality, even if the requested strategy is omitted or unavailable. The strategy’s availability controls whether cardinality may be measured; it does not hide a guaranteed key. If no structural source exists and measuring is not allowed, cardinality remains unknown and the policy follows its explicit unknown-cardinality rule.</p>
-<p><code>estrategia_distintos</code> and <code>fuente_cardinalidad_costo</code> are independent: the former controls how <code>n_distintos</code> is obtained or omitted, while the latter says where the ratio used by the cost policy comes from. A cost-policy decision cannot turn a requested approximate or catalogue strategy into <code>COUNT(DISTINCT ...)</code>.</p>
-<p>Each flat batch that computes valid counts carries its own <code>COUNT(*) AS n_total_consulta</code>, with no additional query; the plan publishes that composition. When a separate universe total is needed — for example, for a sample or when there are no flat aggregates — it remains an explicit query.</p>
-<p>The part that <em>is</em> a hard design constraint is that the prediction does not depend on the engine: every capability probe costs a fixed number of queries even when it succeeds on the first form, because a cost that varied by engine would leave the user guessing again.</p>
-<p>The decision to pay moda and median is explicit. <code>politica_costo = "todas"</code> is the default and preserves all requested metrics. With <code>politica_costo = "por_cardinalidad"</code>, structural sources are resolved first. Valid and distinct values are measured only when no exact structural source is available and the selected strategy permits measurement; then only moda is omitted per column when <code>n_distintos / n_validos &gt;= umbral_cardinalidad</code>. The default threshold is <code>0.5</code>, it can be changed in the call, and it governs moda only. Median is not omitted by cardinality: the measured sweep is flat against the number of distinct values and is governed by row count. Every omission is declared in <code>resumen_tabla$sql</code> as <code>omitido_por_costo</code>, with the reason and how to ask for it anyway. <code>meta$decisiones_costo</code> records the reason for keeping or omitting each metric separately. An omitted, catalogue or unavailable approximate strategy never falls back to <code>COUNT(DISTINCT ...)</code>.</p>
-<p>The table summary declares <code>meta$snapshot = FALSE</code>, because its aggregates are separate statements and the table may change between them. When exact <code>n_validos</code> and <code>n_distintos</code> from different <code>consulta_id</code> groups are incoherent, <code>cobertura</code> adds <code>alcance_distinto</code> with both statements in the reason: it is evidence that the table changed during the run, not an error attributed to the engine or the package.</p>
-<p>But counting queries does not answer the question the reader actually brings: fourteen queries over two million rows are far more work than two hundred over a thousand. So the plan also estimates <strong>magnitude</strong>, in real counts rather than an invented index — and it estimates it in <strong>two halves</strong>, because the clock is not always set by the engine. The engine half is <code>filas_leidas</code> and <code>ordenaciones_completas</code>, summarised in <code>magnitud_motor</code>; the client half is <code>columnas_texto</code> and <code>pares_texto</code> — how many pairs of forms the vocabulary detector could compare in R over the sample — summarised in <code>magnitud_texto</code>. <code>magnitud</code> is the larger of the two.</p>
-<p>On PostgreSQL, when preparation has already read the catalog hierarchy, a positive <code>pg_class.reltuples</code> also supplies the row magnitude. The plan prints it as an estimate of catalog, not a measurement, and exposes the source in <code>filas_fuente</code>/<code>estimacion_filas</code>; the work projections for mode and median are published in <code>proyecciones</code> with the same label. A zero or negative <code>reltuples</code> (the usual pre-<code>ANALYZE</code> state) leaves rows and those projections unknown. Other engines keep the current unknown state.</p>
-<p>Counting only the engine gave false verdicts out of true numbers: a 3,912-row PostGIS catalogue table with one geometry column stored as text asked for 64,592 row reads and no sorts — magnitude <code>"baja"</code> — and took 35 seconds <strong>with the work budget already calibrated</strong>, because what remained was in comparing forms, which is not a row read. It is the same table that took 243 seconds above, before the budget measured work instead of counting units. Printing the plan shows both halves, and the high-work warning names the levers that bound it, which differ on each side. It is an estimate and says so: the engine half counts the rows that would have to be read if no index helped, and the client half counts pairs, whose unit cost depends on value length — something the plan cannot know without reading them, so for very long text the real time is several times what the reference suggests. The published numbers do not depend on those assumptions, so anyone who disagrees with them can redo the arithmetic.</p>
-</div>
-<div class="section level3">
-<h3 id="processing-memory-is-not-estimated">Processing memory is not estimated<a class="anchor" aria-label="anchor" href="#processing-memory-is-not-estimated"></a>
-</h3>
-<p><code><a href="reference/plan_perfilado_dbi.html">plan_perfilado_dbi()</a></code> explicitly says that processing memory is <strong>not estimated</strong>: it does not scale predictably with rows or cells, as measured. The plan still publishes the known <strong>work magnitude</strong>—rows, cells and text pairs—clearly labeled as magnitude, not memory consumption.</p>
-<p>Measured reference data, <strong>not a prediction for the table in the plan</strong> — a single dated run (2026-08-28) against a remote production engine that this repository cannot re-run — put bringing the table at about 0.13 GB per million rows and processing in R at about 1.0–1.5 MB per thousand rows. The second figure varied by 1.62x between tables of the same magnitude; that variation is precisely why it is not used as an estimate.</p>
-<p>Seeing all rows and having all rows in memory are not the same. In reference runs, 4.5 million rows fit in 0.6 GB and took 25 seconds to bring, while processing 4.5 million took about 7 GB and 12.8 million about 19 GB. The observed problem is processing in R, not the network or the database engine.</p>
-<table class="table">
-<colgroup>
-<col width="50%">
-<col width="50%">
-</colgroup>
-<thead><tr>
-<th>dimension</th>
-<th>what it does</th>
-</tr></thead>
-<tbody>
-<tr>
-<td>defaults</td>
-<td>every metric over the whole table</td>
-</tr>
-<tr>
-<td><code>metricas = c("validos", "basicos", "desvio")</code></td>
-<td>the historical <code>seguro</code> preset</td>
-</tr>
-<tr>
-<td><code>metricas = "validos"</code></td>
-<td>the historical <code>conteos</code> preset</td>
-</tr>
-<tr>
-<td><code>universo = "muestra_motor"</code></td>
-<td>one engine selection materialized in a client spool; <code>TABLESAMPLE</code> or a pseudo-random limited source is read once and reused</td>
-</tr>
-<tr>
-<td><code>estrategia_mediana = "aproximada_motor"</code></td>
-<td>exact native first, approximate only at the end; only an executed approximation is <code>estimado</code>
-</td>
-</tr>
-</tbody>
-</table>
-<p>Every sampled or approximated metric travels saying so. <code>estado</code> distinguishes <code>calculado</code>, <code>estimado</code> and <code>no_disponible</code>, and each row carries <code>universo</code>, <code>tamano_muestra</code>, <code>fraccion</code>, <code>metodo</code> and <code>error_esperado</code>. For sampled SQL metrics, <code>error_esperado</code> is <code>no_estimado</code> when an error could be calculated under a probabilistic sampling plan but was not, <code>no_estimable</code> for the mode, median and observed cardinality, which have no simple bound without additional assumptions or a declared estimator, and <code>no_aplica</code> when no sampling took place. The <code>motivo</code> column gives the reason; <code>metodo</code>, <code>tamano_muestra</code> and <code>fraccion</code> retain the conditions of the run. No numeric bound is published without a justified formula.</p>
-<p>In <code>resumen_tabla$meta$muestreo</code>, <code>tamano_muestra</code> is retained for compatibility and records the effective size requested from the query, <code>filas_solicitadas</code> records the original request, and <code>filas_obtenidas</code> records the rows returned by the <code>perfil_muestra</code> read. The latter is <code>NA</code> when that block was not requested or failed before reading. Distinct counts get their own state, <code>observado_muestra</code>: the cardinality of a sample does not estimate the cardinality of the universe without a declared estimator, so it is reported as what it is — what was seen in the sample, with the universe stated beside it. An engine with no sampling capability does not break: the engine sample degrades and says so in the coverage table.</p>
-<p>If the sample query returns zero rows, there is no basis for measuring sample-scope metrics. They are published as <code>NA</code> with state <code>no_disponible</code> and a reason naming the empty sample; <code>n</code> remains the count from the full table. This does not imply that the column is empty, so <code>lupa</code> does not publish zero or start the <code>sin_valores</code> cascade.</p>
-<p>An approximation is not marked as estimated when its query was not issued or did not return a usable value. Distinct-count provenance is selected separately with <code>estrategia_distintos</code>; if <code>"aproximada_motor"</code> is requested and the engine lacks the function, the metric is <code>no_disponible</code> and <code>COUNT(DISTINCT ...)</code> is not executed.</p>
-</div>
-</div>
-<div class="section level2">
-<h2 id="hole-emptiness-by-design-is-declared-not-counted-as-a-defect">🕳️ Emptiness by design is declared, not counted as a defect<a class="anchor" aria-label="anchor" href="#hole-emptiness-by-design-is-declared-not-counted-as-a-defect"></a>
-</h2>
-<p>Every profiler assumes a table shape. <code>lupa</code> assumes one row is one fact, one column is one semantic domain, and an empty cell should have had a value. The third assumption is the one that hurts: an administrative table is full of legitimate emptiness — an open-ended validity interval, a survey skip pattern, columns that are mutually exclusive by subtype, an entity-attribute-value model. Counting those as missing is arithmetically right and semantically wrong.</p>
-<p><code>aplicabilidad</code> declares, per column, the rows where the column applies. Rows outside that universe leave <code>n_faltantes</code> and <code>prop_faltantes</code> instead of being reported as absence:</p>
-<div class="sourceCode" id="cb10"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="fu"><a href="reference/perfilar.html">perfilar</a></span><span class="op">(</span><span class="va">encuesta</span>, aplicabilidad <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span>marca_auto <span class="op">=</span> <span class="op">~</span> <span class="va">tiene_auto</span> <span class="op">==</span> <span class="st">"Si"</span><span class="op">)</span><span class="op">)</span></span></code></pre></div>
-<p><code>columnas_opcionales</code> covers the simpler case, where absence is never a defect and there is no rule to write. The declared rule, the resulting universe, and the rows where the rule could not be evaluated all land in <code>cobertura_diagnosticos</code>: a narrowed universe without a record would be the same defect in reverse. Rows whose rule cannot be determined are counted apart, in <code>n_aplicabilidad_indeterminada</code>, because not knowing is not the same as not applying.</p>
-<p>Declaring the universe also enables the symmetric error, which had no way to appear before: <code>valor_fuera_de_aplicabilidad</code> reports a value present where the rule says the column does not apply.</p>
-<p>The same idea governs the statistical tests. Benford assumes a multiplicative process and Tukey’s fences assume a distribution; a numbering — an identifier, a code — is neither, and a code sitting far from the median says nothing about its quality.</p>
-<p>Recognising a numbering uses <strong>density</strong>: an identifier occupies a compact stretch of the integers while a magnitude spreads across several orders. Uniqueness alone does not work, since an amount is nearly unique too. It is needed as the second half, though: a bounded integer magnitude also fills every integer of its range once enough rows are loaded — repeating them — and with density alone an age from 18 to 90 with 20,000 rows came out as a “catalogue code” and the verdict depended on how many rows were read. A numbering is dense <strong>and</strong> barely repeats; a code that repeats cannot be told apart from that magnitude by its shape, and the package would rather say too much about it. The public <code>secuencia_entera_densa</code> field answers only that coverage question; the separate <code>moda_sobresale_secuencia_entera</code> signal must not switch off the form shields that use the numbering. The sentinel guard reopens when a candidate is outside the range of the remaining numbering, or when that candidate is the standout frequency. The range signal is deliberately independent of frequency: <code>-9</code> in a numbering from 1 to 1,505 is suspicious even when five legitimate values tie with it, while <code>999</code> appearing once inside 1..1,000 is not.</p>
-<p>The criterion was chosen by measuring. A bench of thirteen columns with the known answer — five numberings and eight magnitudes with a bad value inside — compared four variants: crossing both signals gets all thirteen right and <strong>never silences a real bad value</strong>; density alone got eleven and silenced two. It lives in <code>test-regresion-118.R</code>. Since requiring that a numbering barely repeat, one of the five numberings — a code from 1 to 284 that repeats — is no longer recognised and gets Tukey’s fences: twelve right, and the miss is on the cheap side, saying too much rather than silencing. Whoever knows the column corrects it by declaring it in <code>columnas_codigo</code>: a declared code gets no Tukey fences, no Benford and no <code>media</code>, <code>mediana</code> or <code>desvio</code>, keeps its range, mode and counts, and the coverage says why. Passing it as text or as a factor does not help, because the package reads it as a number. Inside <code><a href="reference/analizar.html">analizar()</a></code> the declaration also reaches <code>variables</code> — nominal scale, category role — and <code>asociaciones</code>, where the code is associated as a category rather than with a correlation.</p>
-<p>For an <code>integer64</code> column, <code>bit64</code> is loaded lazily when it is installed so its methods are registered before measuring. If it is not installed, the five sequence measures are <code>NA</code> and <code>cobertura_diagnosticos</code> records that <code>secuencia_entera</code> could not be evaluated. Numeric values that become published text use fixed notation at full precision, independent of <code>scipen</code> and <code>digits</code>, while preserving <code>OutDec</code>.</p>
-<p>The same fixed representation drives personal-data classification, so <code>scipen</code> and <code>digits</code> cannot change that decision or erase declared numeric sentinels from <code>meta</code>. Drift and history keys compare names and configurations by bytes, including across a <code><a href="https://rdrr.io/r/base/readRDS.html" class="external-link">saveRDS()</a></code> boundary and a changed locale.</p>
-<p>Structural-absence suggestions mark names only in the copy used to compose text. They preserve the table’s names exactly as received and publish copy-and-paste code identically under <code>LC_CTYPE = "C"</code>, including names with accents.</p>
-<p><strong>And what is not run is not switched off silently</strong>: it leaves its row in <code>cobertura_diagnosticos</code> with the measured reason — what share of the integers the column covers, how many values would have been flagged, how many rows out of how many the sample carries.</p>
-<p>The same idea, reversed, yields a diagnostic no single signal could give. A <code>9999</code> may be an impossible age or a perfectly valid postal code, so the <code>sentinelas_numericos</code> list does not include it by default — and rightly so: flagging it always would break any column where that number is data. But a value that <strong>falls outside the fences, repeats, and has the shape of a repeated digit</strong> is a sentinel with all three together, and <code>posible_centinela_numerico</code> reports it without counting it as missing — that call belongs to whoever knows the column, by adding it to the list. A postal code <code>9999</code> repeated thirty times is not extreme within its column; a real amount of <code>9999</code> does not repeat; a year <code>1999</code> does not have that shape.</p>
-<p><strong>And adding it to the list has a consequence</strong>, which is the other half of the same idea: the package <strong>excludes what the user declares and includes what it merely suspects</strong>. A value declared in <code>sentinelas_numericos</code> leaves <code>media</code>, <code>mediana</code>, <code>minimo</code>, <code>maximo</code> and <code>desvio</code> — with <code>n_valores_excluidos_resumen</code> reporting how many it left out — just as <code>NA</code>s do, and just as the rows that <code>aplicabilidad</code> places outside the universe do. What is declared outside the universe — sentinels or <code>aplicabilidad</code> — also leaves Benford’s law and the arithmetic relations: the same cell cannot be missing in the summary and a value in a diagnostic. The default list, by contrast, reports without touching the numbers: it is a guess, and a guess does not move an average. <code>moda</code> and <code>n_distintos</code> keep describing what is stored, as they already did with an <code>Inf</code>.</p>
-<p>The sentinel policy is compared as a numeric set. Reordering the values, supplying integers instead of doubles, or repeating a value therefore has the same meaning through both <code><a href="reference/perfilar.html">perfilar()</a></code> and <code><a href="reference/perfilar_dbi.html">perfilar_dbi()</a></code>.</p>
-<p><strong>Uniqueness is not guessed: it is asked — and in a database, read.</strong> When the data arrives over DBI the primary key is <strong>declared in the engine’s catalogue</strong>, so nothing is suggested: it is read, in a single query chosen by the driver. And «this table declares no key» is kept apart from «the key could not be read», which are not the same thing.</p>
-<p>For an unqualified name, the key published is the one of <strong>the relation the engine resolves</strong>, not that of a same-named table in another schema: the schema is asked of the engine, under its own rules. On top of that, a key whose columns are not among those just measured is discarded whole, on any engine, stating why. A key that does not belong to the measured table is worse than none.</p>
-<p><strong>Uniqueness is not guessed: it is asked.</strong> Declare the key with <code>perfilar(clave = ...)</code> and a key that repeats among the rows whose key is complete is a finding of severity <code>error</code> carrying the offending rows. When no row has a complete key the state is <code>sin_casos_evaluables</code>, not <code>verificada</code>: true over an empty set is true and misleading at once. The warning and <code>meta$clave</code> keep that check apart from missing values: a key may have no non-missing collision and still violate <code>NOT NULL</code>. The findings separate both facts: <code>clave_con_ausentes</code> enumerates rows that prevent that guarantee, while <code>clave_no_unica</code> reports repeated values only among rows with a complete key. A collision between missing values belongs to the first category and does not refute <code>meta$clave$unicidad</code>; if traceability groups those missing values with R semantics, the difference remains explicit. So that the user is not left facing a blank field, <code><a href="reference/sugerir_clave.html">sugerir_clave()</a></code> ranks the candidate columns by three signals it publishes separately — whether it identifies every row, whether it has no missing values, and how closely its name resembles a key’s — and <code><a href="reference/elegir_clave.html">elegir_clave()</a></code> offers them numbered with an option to type another. Ranking is not deciding: a unique column may be a key or a magnitude that happens not to repeat, and that difference is not in the data.</p>
-<p>DBI key lookup also keeps catalogue source apart from guarantee. Oracle is reported as guaranteed only when <code>STATUS</code> is <code>ENABLED</code> and <code>VALIDATED</code>; PostgreSQL and MySQL publish comparable catalogue states. MariaDB, SQL Server, SQLite, and DuckDB do not let this path distinguish that state, so a visible key there keeps an unknown guarantee.</p>
-<p>Where no signal discriminates, <code>lupa</code> speaks. High cardinality in a text column is always reported, because the length of the values does not tell a catalogue from prose — it fails in both directions, measured — and the finding does not claim it is a defect: it offers the three possible readings so that whoever knows the column decides.</p>
-<p><code><a href="reference/perfilar_por.html">perfilar_por()</a></code> answers the long format, where one column stacks unrelated domains. It profiles each group separately, drops the wholly-absent columns inside each group before profiling, and declares what it dropped.</p>
-<p><code>lupa</code> does not infer the model. But declaring the universe requires knowing the option exists, and someone profiling a conditioned table without declaring anything got exactly the misleading report the feature was built to prevent. So the package <strong>measures the evidence and offers it</strong>: when the value of one column decides which rows have another, or when two columns split the rows without overlapping, <code>posible_ausencia_estructural</code> reports it with severity <code>ok</code>, the measured evidence, and the line to paste:</p>
-<pre><code>valor_a  posible_ausencia_estructural  ok
-  evidence  `tipo` predicts the presence of `valor_a` in 100.0 % of 200 rows,
-            with 2 distinct values. The rule explains 100 of the column's 100
-            missing values. The column applies when tipo is "A".
-  suggests  perfilar(datos, aplicabilidad = list(valor_a = ~ tipo == "A"))</code></pre>
-<p>It suggests; it does not decide, and it never rewrites the universe on its own. Columns already declared are left out of the examination. On twenty real datasets shipped with R and sixty random tables with independent missingness it produces zero signals (rerun of 2026-08-30, reproducible with <code>benchmark/banco_ausencia_estructural.R</code>); it fires on the entity-attribute-value model, the survey skip pattern and the mutually exclusive columns, and stays quiet when ten per cent of the rows break the rule, because then the relation exists and is not a rule.</p>
-<p>The other side of the same coin is <code>regla_silencia_ausencia</code>, also <code>ok</code>: a column declared optional or with its own universe that stays almost empty <em>inside</em> that universe gets a notice. The declaration worked and that is why the profile came out clean — the notice exists so that is a decision and not a side effect.</p>
-<p><code>columnas_personales</code> closes the equivalent gap on the other declaration the package cannot make alone. No lexicon of column names can be complete: a column holding identity documents can be called <code>cod_benef</code>, and no list of frequent names will recognise it. Declaring it wins over inference and is not re-examined.</p>
-<p>The vignette <code>vacio-por-diseno</code> documents the assumption and the six table shapes where it does not hold.</p>
-</div>
-<div class="section level2">
-<h2 id="id_1234-declared-units-and-row-traceability">🔢 Declared units and row traceability<a class="anchor" aria-label="anchor" href="#id_1234-declared-units-and-row-traceability"></a>
-</h2>
-<p>Every finding declares the unit used by <code>n_evaluados</code>, <code>n_afectados</code>, and <code>unidad_conteo</code>. <code>mayusculas_inconsistentes</code> and <code>normalizacion_unicode</code> use <code>valor_distinto</code>: they count distinct values, while their trace remains a row trace. It lists every row containing an affected value, not only rows that are themselves defective. <code>casi_duplicados_vocabulario</code> follows the same contract: its count is the number of variant values, and its trace lists every row whose value belongs to a selected group, including the dominant form. A trace can therefore contain more rows than <code>n_afectados</code>; those rows are useful when a whole collision group must be reviewed or unified. The vocabulary detector is heuristic, so the trace is evidence for review, not a verdict that every row must be corrected. The trace presents non-dominant forms first and dominant forms afterward; its evidence reports how many displayed rows belong to each.</p>
-<p>For <code>patron_raro</code>, <code>resumen_patrones</code> and the evidence show at most six rare patterns. Traceability uses the complete set of rare pattern names, without retaining their frequency table, up to a separate limit of 5,000 names. If that limit is reached, the trace scope is partial and <code>cobertura_diagnosticos</code> states the limit; the six-pattern presentation cap is not itself a trace gap. Every finding also reports the dominant pattern proportion and how many rows belong to non-dominant patterns excluded for exceeding <code>umbral_patron_raro</code>. If no dominant pattern reaches <code>umbral_patron_dominante</code>, no finding is emitted: the non-measurement, its observed proportion, and how to adjust that argument are recorded in <code>cobertura_diagnosticos</code>.</p>
-<p><code>filas_duplicadas</code> counts all rows participating in duplicate groups, matching the metric and the default action that marks those rows. The number of excess duplicates remains in the evidence. <code>0</code> means the check measured no affected units; <code>NA</code> means the count was not measured. The same distinction applies to diagnostic coverage: a check that could not run is listed in <code>cobertura_diagnosticos</code>, never silently converted to zero.</p>
-<p>Traceability uses the same comparison in both directions as the count, including when an <code>integer64</code> column does not honor <code><a href="https://rdrr.io/r/base/duplicated.html" class="external-link">duplicated()</a></code>’s <code>fromLast</code> argument. Therefore <code>n_afectados</code> and <code>trazabilidad$total</code> always describe the same rows.</p>
-<p>When a finding and its trace disagree, <code><a href="reference/perfilar.html">perfilar()</a></code> preserves the finding and emits a warning with class <code>lupa_trazabilidad_incoherente</code>. The guard compares the pre-truncation total, checks both directions, and respects the declared counting unit; it is a diagnostic net, not a substitute for aligning the detector and its trace.</p>
-</div>
-<div class="section level2">
-<h2 id="motorway-perfilar-or-analizar">🛣️ <code>perfilar()</code> or <code>analizar()</code>?<a class="anchor" aria-label="anchor" href="#motorway-perfilar-or-analizar"></a>
-</h2>
-<p>Use <code><a href="reference/perfilar.html">perfilar()</a></code> when you want the focused, inspectable profile: column summaries, patterns, inferred types, findings, diagnostic coverage, and undeclared structural relationships. Use <code><a href="reference/analizar.html">analizar()</a></code> when you want the full route around that profile: distributions, associations, temporal analysis, confirmable variable classification, a model proposal, a cleanup plan, conceptual coverage, and a dashboard.</p>
-<p>With no confirmed model or proposal, <code><a href="reference/analizar.html">analizar()</a></code> measures every proposal row whose state is <code>"lista"</code> by default. That proposal was inferred by <code>lupa</code>; nobody has confirmed it. Use <code>medir_propuesta = FALSE</code> to keep the route descriptive, or supply a confirmed proposal/model. The function aggregates immediately and keeps the small dashboard; <code>conservar_detalle_medicion = TRUE</code> retains the row-level measurement detail.</p>
-<p><strong>Where the value distribution and the correlations live.</strong> Both are in <code><a href="reference/analizar.html">analizar()</a></code>, not in <code><a href="reference/perfilar.html">perfilar()</a></code>, and that separation is deliberate: <code><a href="reference/perfilar.html">perfilar()</a></code> is the cheap pass whose object you carry around, while <code><a href="reference/distribucion_valores.html">distribucion_valores()</a></code> and <code><a href="reference/detectar_asociaciones.html">detectar_asociaciones()</a></code> cost more and produce tables of their own. <code><a href="reference/distribucion_valores.html">distribucion_valores()</a></code> returns per-column frequencies and quantiles with a declared cap and truncation flag; <code><a href="reference/detectar_asociaciones.html">detectar_asociaciones()</a></code> returns Pearson between numeric columns — or Spearman, with <code>metodo_numerico = "spearman"</code>, for a monotone relationship that isn’t linear — plus Cramér’s V and eta squared, each row declaring its method and its assumption. Both are exported, so you can call them on their own without paying for the whole route.</p>
-<p><strong>What it costs on millions of rows.</strong> <code><a href="reference/perfilar.html">perfilar()</a></code> and <code><a href="reference/analizar.html">analizar()</a></code> work in memory, and on tables of millions of rows they are not a quick pass. These are measured reference data, <strong>not a prediction</strong> —a single, dated evaluation (2026-09-29) on production databases this repository cannot reproduce—: on three tables of between 3.7 and 4.3 million rows and 7 to 19 columns, <code><a href="reference/perfilar.html">perfilar()</a></code> took between 14 and 59 minutes, and the <strong>same call</strong> repeated on the same table took 53 and 29; <code><a href="reference/analizar.html">analizar()</a></code> finished in 20 minutes on the 7-column table and in 97 on a 13-column one. The cost depends on the columns and their content as much as on the rows, and it varies between runs, so the figure does not extrapolate. At that scale, profile a sample of the table and call the pieces of <code><a href="reference/analizar.html">analizar()</a></code> you need on their own. [perfilar_dbi()] computes the aggregates inside the engine and brings back only a sample, but in that evaluation it was never measured on those tables. The sample <code><a href="reference/perfilar.html">perfilar()</a></code> takes by itself is systematic and has no randomness, so the same profile is reproduced on the same data.</p>
-</div>
-<div class="section level2">
-<h2 id="vertical_traffic_light-severities-and-automation">🚦 Severities and automation<a class="anchor" aria-label="anchor" href="#vertical_traffic_light-severities-and-automation"></a>
-</h2>
-<p><code>severidad</code> is an <strong>ordered factor</strong>: <code>ok &lt; sospechoso &lt; error</code>.</p>
-<ul>
+<p>Las guías se leen en este orden. Están en el sitio y viajan con el paquete (<code><a href="articles/lupa.html">vignette("lupa")</a></code> abre la primera):</p>
+<ol style="list-style-type: decimal">
 <li>
-<code>ok</code> records an observed condition that is acceptable or informational; it is not an adverse decision.</li>
+<a href="https://sebollin.github.io/lupa/articles/lupa.html">Empezar en diez minutos</a>: perfilar una tabla, empezar por los errores, ir de un hallazgo a sus filas con <code>clave</code>, leer la cobertura, guardar un informe y limpiar una columna en una copia.</li>
 <li>
-<code>sospechoso</code> is evidence worth reviewing. It is heuristic or needs domain context and must not by itself reject, repair, or suppress data automatically.</li>
+<a href="https://sebollin.github.io/lupa/articles/leer-un-perfil.html">Leer un perfil</a>: las severidades, qué trae cada hallazgo, los accesores, las claves, las contradicciones entre columnas y el glosario.</li>
 <li>
-<code>error</code> states that the applicable check crossed its declared criterion. Of these three levels, it is the only candidate for an adverse automated gate, and only after the project accepts that criterion and verifies the scope.</li>
-</ul>
-<p><code>cobertura_diagnosticos</code> is outside this scale. It lists checks that could not be evaluated and how to resolve them. Automation must inspect it as well as <code>error</code>: zero errors does not mean a clean profile when diagnostics were not run. Cleanup is always explicit—<code><a href="reference/planificar_limpieza.html">aplicar()</a></code> changes only actions selected from an editable plan.</p>
-<p>That plan <strong>states the unit it counts in</strong>: <code>n_afectadas</code> travels with its <code>unidad_conteo</code>, because a case-folding action announces three — the distinct values that collide — and changes ninety rows, and whoever decides needs to know which of the two they are reading. And <code><a href="reference/planificar_limpieza.html">aplicar()</a></code> <strong>does not claim work it did not do</strong>: an action whose effect turns out to be nil is recorded as <code>fallida</code> with its reason, not <code>ejecutada</code>, even when an edited plan has no valid <code>n_afectadas</code> estimate. The observed effect is the control; the estimate is evidence, not a switch that can turn it off.</p>
+<a href="https://sebollin.github.io/lupa/articles/explorar-columnas.html">Explorar columnas con <code>analizar()</code></a>: qué arma <code><a href="reference/analizar.html">analizar()</a></code> en una llamada, cómo se leen patrones, tipos, fechas, distribuciones, asociaciones y tiempo, y cómo se guarda y se informa.</li>
+<li>
+<a href="https://sebollin.github.io/lupa/articles/estructura-no-declarada.html">Estructura no declarada</a>: claves candidatas, relaciones entre tablas y dependencias entre columnas.</li>
+<li>
+<a href="https://sebollin.github.io/lupa/articles/vacio-por-diseno.html">El vacío por diseño</a>: celdas vacías que son correctas, la señal que pide declararlas y todo lo que se le declara al paquete.</li>
+<li>
+<a href="https://sebollin.github.io/lupa/articles/limpiar-con-un-plan.html">Limpiar con un plan</a>: qué propone el plan, cómo se aplica sobre una copia y qué deja sin cubrir.</li>
+<li>
+<a href="https://sebollin.github.io/lupa/articles/del-hallazgo-a-la-metrica.html">Del hallazgo a la métrica</a>: de los hallazgos a una propuesta de métricas, que se miden, se agregan y se evalúan contra un umbral.</li>
+<li>
+<a href="https://sebollin.github.io/lupa/articles/marcos-y-modelos.html">Marcos y modelos de calidad</a>: un marco propio, métricas en tres niveles, el tablero, un índice con pesos declarados y los marcos incluidos.</li>
+<li>
+<a href="https://sebollin.github.io/lupa/articles/historico-y-deriva.html">Comparar entregas y seguir la calidad</a>: comparar entregas, separar un cambio real de un redondeo y buscar deriva en un histórico.</li>
+<li>
+<a href="https://sebollin.github.io/lupa/articles/perfilar-una-base.html">Perfilar una base</a>: los dos bloques de <code><a href="reference/perfilar_dbi.html">perfilar_dbi()</a></code>, qué trae a R cada opción y dónde queda el metadato del muestreo.</li>
+<li>
+<a href="https://sebollin.github.io/lupa/articles/colecciones.html">Colecciones</a>: perfilar las tablas de una base, leer lo que no se pudo medir y buscar relaciones entre ellas.</li>
+<li>
+<a href="https://sebollin.github.io/lupa/articles/escala-y-duplicados.html">Escala y duplicados aproximados</a>: pedir la comparación aproximada, estimar su costo, saber cuándo entra LSH y qué recorta cada tope.</li>
+</ol>
 </div>
 <div class="section level2">
-<h2 id="sparkles-what-lupa-does-in-detail">✨ What lupa does in detail<a class="anchor" aria-label="anchor" href="#sparkles-what-lupa-does-in-detail"></a>
+<h2 id="para-usuarios-avanzados">Para usuarios avanzados<a class="anchor" aria-label="anchor" href="#para-usuarios-avanzados"></a>
 </h2>
-<ul>
-<li>Profiles a delivery and surfaces missingness, types, patterns, dates, and personal-data evidence.</li>
-<li>Profiles <code>sf</code> geometries and declares CRS, geometry families, emptiness, planar validity, coordinate domain, and bounding-box scope; it does not perform spatial analysis. Over PostGIS it reads the SRID of each EWKB or EWKT value, so a column with mixed SRIDs is declared as such and its domain is evaluated by group: an <code><a href="https://r-spatial.github.io/sf/reference/sfc.html" class="external-link">sf::sfc</a></code> column can only carry one CRS. A value that does not convert does not erase the column: the rest is measured and the loss is declared with its count.</li>
-<li>Applies Benford’s law only when its preconditions hold, and records non-applicability in <code>cobertura_diagnosticos</code>.</li>
-<li>Reports <code>unidades_mixtas</code> and <code>monedas_mixtas</code> in a column without converting values or assuming exchange rates.</li>
-<li>Reports <code>celdas_multivaluadas</code> only when homogeneous parts match the column’s patterns.</li>
-<li>Finds <code>relacion_aritmetica_columnas</code> as observed identities or proportions between numeric columns, not as domain rules.</li>
-<li>Finds <code>relacion_orden_columnas</code> between comparable columns and declares the comparison scope.</li>
-<li>Finds keys, relationships, dependencies, and measurement granularities that were never declared.</li>
-<li>Reports <code>casi_clave</code> when a non-temporal column has at least 100 rows, is almost unique, and its collisions concentrate in a few values, which separates a key with duplicates from free text of high cardinality.</li>
-<li>Lets a project define its own quality framework instead of forcing a global score.</li>
-<li>Measures and evaluates explicit metrics, scales, validity rules, and referential domains. A contract that is missing a field <strong>abstains and says which field</strong> in <code>cobertura_metricas</code>, instead of aborting the measurement of every other metric; a metric whose method fails on the data —a column without two values for <code>ErrorEstandar</code>, an attribute the table does not have— becomes <strong><code>no_medible</code></strong>, with the method’s message and a warning, and the others are still measured; and any metric comparing a column against a declared temporal value <strong>warns when the two ends are not of the same class</strong>, because a <code>Date</code> is anchored to UTC midnight while a <code>POSIXct</code> stands for its instant, and mixing them changes the number invisibly.</li>
-<li>Produces editable cleanup plans, applies only selected actions to a copy, and keeps an audit log.</li>
-<li>Finds approximate duplicates with exact tiles, deterministic MinHash/LSH, blocking, cost estimates, and disk-backed lots.</li>
-<li>Repairs encoding damage in R, including repeated mojibake and CESU-8, while refusing unsafe lossy conversions.</li>
-<li>Follows quality through time and creates self-contained HTML reports.</li>
-</ul>
-</div>
-<div class="section level2">
-<h2 id="test_tube-evidence-with-its-declared-scope">🧪 Evidence, with its declared scope<a class="anchor" aria-label="anchor" href="#test_tube-evidence-with-its-declared-scope"></a>
-</h2>
-<p>Each check below uses a different declared unit and reference. None of them estimates a single package-wide accuracy.</p>
+<p>La referencia larga está en cuatro artículos del sitio, en castellano. Lo que cambia el costo, la memoria o el significado de un resultado también está en la ayuda de cada función, que viaja con el paquete (<code><a href="reference/perfilar.html">?perfilar</a></code>, <code><a href="reference/perfilar_dbi.html">?perfilar_dbi</a></code>, <code><a href="reference/plan_perfilado_dbi.html">?plan_perfilado_dbi</a></code>, <code><a href="reference/detectar_duplicados_aproximados.html">?detectar_duplicados_aproximados</a></code>).</p>
 <table class="table">
 <colgroup>
-<col width="23%">
-<col width="23%">
-<col width="30%">
-<col width="23%">
+<col width="65%">
+<col width="34%">
 </colgroup>
 <thead><tr>
-<th>Check</th>
-<th>Declared unit</th>
-<th align="right">Result</th>
-<th>Reproduced by</th>
+<th>Tema</th>
+<th>Dónde</th>
 </tr></thead>
 <tbody>
 <tr>
-<td>Raha dirty/clean pairs</td>
-<td>columns containing at least one changed cell</td>
-<td align="right">26/26 received at least one finding; 8 further columns were flagged</td>
-<td><code>benchmark/medir_lupa.R</code></td>
+<td>Universos y muestreo en SQL, metadatos, motores probados con versión y fecha, costos, lotes, presupuestos de memoria, consistencia entre consultas, dialectos e hilos</td>
+<td><a href="https://sebollin.github.io/lupa/articles/motores-y-escala.html">Motores y escala</a></td>
 </tr>
 <tr>
-<td>Constructed clean controls</td>
-<td>31 tables</td>
-<td align="right">0 error-severity findings; 8 review signals</td>
-<td><code>test-regresion-107.R</code></td>
+<td>Qué usa todas las filas y qué se muestrea, <code>no_aplica</code> y <code>no_disponible</code>, unidades y trazabilidad, numeraciones, centinelas, el vocabulario completo de hallazgos y qué se enmascara</td>
+<td><a href="https://sebollin.github.io/lupa/articles/alcance-y-cobertura.html">Alcance y cobertura</a></td>
 </tr>
 <tr>
-<td>Real sanctions register</td>
-<td>error-severity findings over 2,556 rows</td>
-<td align="right">9/9 independently confirmed</td>
-<td><code>benchmark/medir_sanciones.R</code></td>
+<td>Bancos de evidencia, figuras de rendimiento y cifras de producción, cada una con su fecha y su reproductor</td>
+<td><a href="https://sebollin.github.io/lupa/articles/evidencia-y-rendimiento.html">Evidencia y rendimiento</a></td>
+</tr>
+<tr>
+<td>Impresión en cualquier locale y reparación de texto mal codificado</td>
+<td><a href="https://sebollin.github.io/lupa/articles/codificacion-y-locales.html">Codificación y locales</a></td>
+</tr>
+<tr>
+<td>Cada firma, valor por omisión y estructura de retorno</td>
+<td><a href="https://sebollin.github.io/lupa/reference/">Referencia</a></td>
 </tr>
 </tbody>
 </table>
-<p><strong>Every row names what reproduces it, and that is part of the check.</strong> This table once carried three numbers nobody could verify from the repository: one described a control set that had shrunk from 43 tables to 31 — and its noise from 25 signals to 8, meaning the package had improved while the text still said the old figures — another counted nine seeded defects whose fixture is not here, and the third a real registry with no script to fetch it. The first was measured again, the second was removed until its fixture exists, and the third now has its script.</p>
-<p>In the Raha pairs the dirty/clean comparison labels changed cells; it does not label every property observable in an unchanged column. Manual review found a supported observation in each of the eight further columns—constants, duplicated columns, inconsistent case, empty strings, and high-cardinality text. We therefore report neither precision nor diagnostic recall from Raha: 26/26 is column coverage, not evidence that every changed cell was identified. <a href="https://github.com/sebollin/lupa/tree/main/benchmark" class="external-link"><code>benchmark/</code></a> reproduces the table from the published sources and records the exact file fingerprints used by the published run, but only when <code>lupa</code> is installed from a build of these same sources. From the repository root, reproduce that condition and run the scripts with:</p>
-<div class="sourceCode" id="cb12"><pre class="sourceCode sh"><code class="sourceCode bash"><span id="cb12-1"><a href="#cb12-1" tabindex="-1"></a><span class="ex">R</span> CMD build . <span class="kw">&amp;&amp;</span> <span class="ex">R</span> CMD INSTALL lupa_0.1.0.tar.gz</span>
-<span id="cb12-2"><a href="#cb12-2" tabindex="-1"></a><span class="ex">Rscript</span> benchmark/verdad_raha.R</span>
-<span id="cb12-3"><a href="#cb12-3" tabindex="-1"></a><span class="ex">Rscript</span> benchmark/medir_lupa.R</span></code></pre></div>
-<p>The benchmark records the installed version and full <code>Built</code> stamp and stops when that installation lacks a capability required by the published table.</p>
-<div class="section level3">
-<h3 id="performance-four-figures-that-come-out-of-a-csv">Performance: four figures that come out of a CSV<a class="anchor" aria-label="anchor" href="#performance-four-figures-that-come-out-of-a-csv"></a>
-</h3>
-<p>A published timing ages with every commit, and a number nobody can rebuild turns into a lie without anyone noticing. So the figures below are not pasted from a console: <code>benchmark/medir_figuras.R</code> measures the <code>lupa</code> installation visible in <code><a href="https://rdrr.io/r/base/libPaths.html" class="external-link">.libPaths()</a></code> —it prints its <code>Built</code> stamp, stops if it is missing, and also stops if that installation predates the last commit to the code, since then it cannot contain what the CSV would sign— and leaves the raw data in <code>benchmark/datos/</code>, one CSV per table with the commit as its last column; <code>benchmark/graficar_figuras.R</code> draws only what those CSVs hold, with base R and no graphics dependencies. Every figure carries the commit, the date and the machine in its footer. The counts —candidates, pairs, recall, loss— are deterministic and reproduce on any machine; times and memory belong to this machine and serve as an order of magnitude, not as a promise.</p>
-<div class="float">
-<img src="reference/figures/banco-escala.png" alt="Scale: candidates, time, memory and threads on a synthetic register from 20,000 to 500,000 rows"><div class="figcaption">Scale: candidates, time, memory and threads on a synthetic register from 20,000 to 500,000 rows</div>
-</div>
-<p>The synthetic register has homonyms and seeded typos over a small vocabulary: the shape that fills LSH buckets the most, that is, the expensive case. Candidates grow with the square of the rows —6,201,626 at 20,000, 3,197,456,226 at 500,000— and time and memory follow them: 15.8 s and 499 MiB at 20,000 rows, 49 minutes and 2.8 GiB at 500,000, with two threads. <strong>Of the seeded pairs that the final measure accepts, none is lost at any size</strong> (ceiling recall: 100 %). The fourth panel measures what the default of two threads costs at 100,000 rows: 153 s with two threads, 118 with four, 99 with eight and 85 with sixteen (1.8× between two and sixteen), and 83 with twenty-nine; candidates and pairs do not change with the threads, only the clock does. Two threads remain the default because it is the cap CRAN asks to respect, and because the gain depends on what fraction of the work falls in the comparison: on another register the curve is much flatter (the <code>escala-y-duplicados</code> vignette has both).</p>
-<div class="float">
-<img src="reference/figures/banco-estimacion.png" alt="Prior estimate: error at four sizes and the loss of blocking by key"><div class="figcaption">Prior estimate: error at four sizes and the loss of blocking by key</div>
-</div>
-<p><code><a href="reference/estimar_costo.html">estimar_costo()</a></code> says how many candidate pairs the traversal will generate <strong>before</strong> paying for it, with a deterministic sample of signatures. At the four sizes measured the error runs from −1.47 % to +1.28 %; the package promises no tolerance, the measurement is what it is. And when blocking by an arbitrary business key —<code>anio</code>, unrelated to the name— blocking discards 83 % of the pairs the exhaustive comparison reports (1,040,183 of 1,247,654, over 4,000 rows), and the prior estimate anticipates it with an error of +0.46 %. The key is useless for this data, and that is visible before using it.</p>
-<div class="float">
-<img src="reference/figures/banco-cardinalidad.png" alt="Cardinality: candidates at the same number of rows, with three vocabulary richnesses"><div class="figcaption">Cardinality: candidates at the same number of rows, with three vocabulary richnesses</div>
-</div>
-<p>What rules is not the number of rows: it is how much the values repeat. The same 20,000 rows yield 411,051 candidates with a wide vocabulary and 50,105,210 when half of them share one value, 121.9 times more. It is the number <code><a href="reference/estimar_costo.html">estimar_costo()</a></code> anticipates and the reason the package estimates before traversing.</p>
-<div class="float">
-<img src="reference/figures/banco-tamiz.png" alt="LSH sieve: loss against the exhaustive comparison, by threshold and by bands"><div class="figcaption">LSH sieve: loss against the exhaustive comparison, by threshold and by bands</div>
-</div>
-<p>The LSH path is a sieve, not a substitute for the exhaustive one, and this figure sizes the warning that <code>alcance</code> already declares. Measured against the exhaustive comparison on the same input, with the other causes of loss neutralised: with 12 bands, the default, the sieve leaves out between 62 % and 72 % of the pairs Jaro-Winkler accepts at threshold 0.10 on this corpus of 400 and 800 rows; with 20 bands the loss drops to between 48 % and 61 % in exchange for more comparisons. The loss is not a property of the sieve but the distance between what it proposes and what the final method accepts: at threshold 0.02 it loses 1 of 2 pairs and at 0.20 it loses 22,336 of 31,609 (71 %). Whoever needs exhaustiveness has the exhaustive path, at its cost. The experimental design and its limits are in <a href="https://github.com/sebollin/lupa/blob/main/benchmark/perdida_lsh.md" class="external-link"><code>benchmark/perdida_lsh.md</code></a>.</p>
-<p>To rebuild the four figures from the repository root, on a quiet machine (the full run takes 3 h 34 min on this machine; with <code>LUPA_FIGURAS_SOLO_BARATAS=1</code> the smoke test takes 130 s):</p>
-<div class="sourceCode" id="cb13"><pre class="sourceCode sh"><code class="sourceCode bash"><span id="cb13-1"><a href="#cb13-1" tabindex="-1"></a><span class="ex">R</span> CMD build . <span class="kw">&amp;&amp;</span> <span class="ex">R</span> CMD INSTALL lupa_0.1.0.tar.gz</span>
-<span id="cb13-2"><a href="#cb13-2" tabindex="-1"></a><span class="ex">Rscript</span> benchmark/medir_figuras.R</span>
-<span id="cb13-3"><a href="#cb13-3" tabindex="-1"></a><span class="ex">Rscript</span> benchmark/perdida_lsh.R</span>
-<span id="cb13-4"><a href="#cb13-4" tabindex="-1"></a><span class="ex">Rscript</span> benchmark/graficar_figuras.R</span></code></pre></div>
-</div>
+<p>Cada bloque de evidencia dice con qué se reproduce: si se regenera sin red, si requiere un motor o si depende de un recurso descargado, con su fecha y su suma de control (<a href="https://sebollin.github.io/lupa/articles/evidencia-y-rendimiento.html">Evidencia y rendimiento</a>).</p>
 </div>
 <div class="section level2">
-<h2 id="mag-limits-fit-stability-and-references">🔍 Limits, fit, stability, and references<a class="anchor" aria-label="anchor" href="#mag-limits-fit-stability-and-references"></a>
+<h2 id="cita-licencia-y-contribuciones">Cita, licencia y contribuciones<a class="anchor" aria-label="anchor" href="#cita-licencia-y-contribuciones"></a>
 </h2>
-<p>There is no factory quality score: <code><a href="reference/indice_calidad.html">indice_calidad()</a></code> returns the dashboard unless a project supplies complete named weights, and a calculated index always travels with its coverage, weights, transformations, and heterogeneous universes. The core is universal and catalogues are pluggable; <a href="https://www.gub.uy/agencia-gobierno-electronico-sociedad-informacion-conocimiento/" class="external-link">AGESIC</a> v1.6 is a reference implementation, not a country lock. It has two hard dependencies, <a href="https://cran.r-project.org/package=cli" class="external-link"><code>cli</code></a> and <a href="https://cran.r-project.org/package=data.table" class="external-link"><code>data.table</code></a>, and it imports <strong>neither</strong> into its namespace: both are called with <code>::</code>. That is deliberate — <code>data.table</code> changes what <code>[</code> means for any package that imports it. Suggested packages enable bounded capabilities: <a href="https://cran.r-project.org/package=sf" class="external-link"><code>sf</code></a> enables geometry profiling; <a href="https://cran.r-project.org/package=DBI" class="external-link"><code>DBI</code></a> provides the database interface and <a href="https://cran.r-project.org/package=RSQLite" class="external-link"><code>RSQLite</code></a> a backend for <code><a href="reference/perfilar_dbi.html">perfilar_dbi()</a></code>; <a href="https://cran.r-project.org/package=stringdist" class="external-link"><code>stringdist</code></a> enables approximate text comparison.</p>
-<p>Work that can be parallelised uses <strong>two threads by default</strong>, the ceiling CRAN asks packages to respect. On your own machine you can raise it per call with <code>nucleos = 8</code> or for the whole session with <code>options(lupa.nucleos = 8)</code>; the result does not change, only how long it takes.</p>
-<div class="section level3">
-<h3 id="where-it-fits">Where it fits<a class="anchor" aria-label="anchor" href="#where-it-fits"></a>
-</h3>
-<p><a href="https://cran.r-project.org/package=skimr" class="external-link"><code>skimr</code></a> and <a href="https://cran.r-project.org/package=DataExplorer" class="external-link"><code>DataExplorer</code></a> explore; <a href="https://cran.r-project.org/package=pointblank" class="external-link"><code>pointblank</code></a>, <a href="https://cran.r-project.org/package=validate" class="external-link"><code>validate</code></a>, and <a href="https://cran.r-project.org/package=dataquieR" class="external-link"><code>dataquieR</code></a> express or evaluate rules; <a href="https://cran.r-project.org/package=zoomerjoin" class="external-link"><code>zoomerjoin</code></a>, <a href="https://cran.r-project.org/package=textreuse" class="external-link"><code>textreuse</code></a>, and <a href="https://cran.r-project.org/package=reclin2" class="external-link"><code>reclin2</code></a> focus on text comparison or record linkage. <a href="https://github.com/inesscc/calidad" class="external-link"><code>calidad</code></a>, maintained by <a href="https://github.com/Klauslehmann" class="external-link">Klaus Lehmann</a> and <a href="https://github.com/ricardoflopiza" class="external-link">Ricardo Pizarro</a>, is a complementary axis: it evaluates the quality of <strong>survey estimates</strong>, while <code>lupa</code> evaluates the tabular data that produces an estimate.</p>
-<p>Encoding repair follows the approach and frozen data of <a href="https://github.com/rspeer/python-ftfy" class="external-link"><code>ftfy</code></a> 6.3.1 by <a href="https://github.com/rspeer" class="external-link">Robyn Speer</a>, in R. It includes eleven byte tables, CESU-8 and Java <code>C0 80</code> handling, and five deliberate extensions documented in the <a href="NEWS.html">NEWS</a>. It reproduces 159 of the 161 distributed corpus cases and leaves 30 of the 31 negative cases untouched. The remaining one is labelled <em>mostly</em> negative and the corpus itself expects the repair: only its C1 control characters are fixed. It deliberately does not provide <code>ftfy</code>’s style-oriented <code>fix_text</code> steps such as HTML unescaping, quote curling, width normalization, or Unicode normalization: changing legitimate data silently is not repair.</p>
-</div>
-<div class="section level3">
-<h3 id="citation-and-references">Citation and references<a class="anchor" aria-label="anchor" href="#citation-and-references"></a>
-</h3>
-<div class="sourceCode" id="cb14"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb8"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/utils/citation.html" class="external-link">citation</a></span><span class="op">(</span><span class="st">"lupa"</span><span class="op">)</span></span></code></pre></div>
-<p>Conceptual references are <a href="https://doi.org/10.1007/978-3-319-24106-7" class="external-link">Batini and Scannapieco (2016)</a>, the <a href="https://www.gub.uy/agencia-gobierno-electronico-sociedad-informacion-conocimiento/" class="external-link">AGESIC Digital Government Data Quality Framework v1.6</a>, and <a href="https://www.iso.org/standard/35736.html" class="external-link">ISO/IEC 25012:2008</a>.</p>
-</div>
-<div class="section level3">
-<h3 id="stability-contribution-and-license">Stability, contribution, and license<a class="anchor" aria-label="anchor" href="#stability-contribution-and-license"></a>
-</h3>
-<p>Version 0.1.0 is pre-CRAN: the public API may change before 1.0; breaking changes will be announced in <code>NEWS.md</code> and release notes, with a deprecation warning first whenever practical.</p>
-<p>Please use the <a href="https://github.com/sebollin/lupa/issues" class="external-link">issue tracker</a> for bugs, proposals, and documentation fixes. The stable contracts are the declared units, scope, protection, and audit trail; implementation details and benchmark times can change between releases when those contracts remain true.</p>
-<p><code>lupa</code> is released under the <a href="https://www.gnu.org/licenses/gpl-3.0.html" class="external-link">GPL-3</a>. See <a href="LICENSE.note"><code>LICENSE.note</code></a> for the Apache-2.0 data derived from <a href="https://github.com/rspeer/python-ftfy" class="external-link"><code>ftfy</code></a> and the MIT data derived from <a href="https://github.com/njtierney/naniar" class="external-link"><code>naniar</code></a>.</p>
-</div>
+<p>Las referencias conceptuales son <a href="https://doi.org/10.1007/978-3-319-24106-7" class="external-link">Batini y Scannapieco (2016)</a>, el <a href="https://www.gub.uy/agencia-gobierno-electronico-sociedad-informacion-conocimiento/comunicacion/publicaciones/marco-trabajo-para-gestion-calidad-datos" class="external-link">Marco de trabajo para la Gestión de la Calidad de Datos en Gobierno Digital v1.6</a> de AGESIC, el <a href="https://repositorio.cepal.org/handle/11362/47464" class="external-link">marco de aseguramiento de la calidad de CEA/CEPAL (2022)</a> e <a href="https://www.iso.org/standard/35736.html" class="external-link">ISO/IEC 25012:2008</a>.</p>
+<p>La API pública de <code>lupa</code> puede cambiar antes de la 1.0; los cambios incompatibles se anuncian en <a href="news/index.html">NEWS</a>, con una advertencia previa siempre que se pueda. Los contratos estables son las unidades declaradas, el alcance, la protección de datos personales y el registro de auditoría; los detalles de implementación y los tiempos pueden cambiar mientras esos contratos sigan siendo ciertos.</p>
+<p>Los errores, las propuestas y las correcciones de documentación van al <a href="https://github.com/sebollin/lupa/issues" class="external-link">registro de issues</a>, y <a href="https://github.com/sebollin/lupa/blob/main/CONTRIBUTING.md" class="external-link">CONTRIBUTING.md</a> explica cómo contribuir. <code>lupa</code> se distribuye bajo la <a href="https://www.gnu.org/licenses/gpl-3.0.html" class="external-link">GPL-3</a>; <a href="https://github.com/sebollin/lupa/blob/main/inst/COPYRIGHTS" class="external-link"><code>inst/COPYRIGHTS</code></a> detalla el material Apache-2.0 traducido de <a href="https://github.com/rspeer/python-ftfy" class="external-link"><code>ftfy</code></a> y los datos MIT tomados de <a href="https://github.com/njtierney/naniar" class="external-link"><code>naniar</code></a>.</p>
 </div>
 </div>
   </main><aside class="col-md-3"><div class="links">
@@ -1014,7 +548,7 @@ variantes_equifrecuentes_vocabulario zona_horaria_fecha_hora</code></pre>
 <div class="developers">
 <h2 data-toc-skip>Developers</h2>
 <ul class="list-unstyled">
-<li>Sebastián Lucas <br><small class="roles"> Author, maintainer </small> <a href="https://orcid.org/0009-0009-9068-0276" target="orcid.widget" aria-label="ORCID" class="external-link"><span class="fab fa-orcid orcid" aria-hidden="true"></span></a>  </li>
+<li>Sebastián Lucas <br><small class="roles"> Author, maintainer, copyright holder </small> <a href="https://orcid.org/0009-0009-9068-0276" target="orcid.widget" aria-label="ORCID" class="external-link"><span class="fab fa-orcid orcid" aria-hidden="true"></span></a>  </li>
 <li><a href="authors.html">More about authors...</a></li>
 </ul>
 </div>
@@ -1022,10 +556,10 @@ variantes_equifrecuentes_vocabulario zona_horaria_fecha_hora</code></pre>
 <div class="dev-status">
 <h2 data-toc-skip>Dev status</h2>
 <ul class="list-unstyled">
-<li><a href="https://www.gnu.org/licenses/gpl-3.0.html" class="external-link"><img src="https://img.shields.io/badge/license-GPL--3-blue.svg" alt="License: GPL-3"></a></li>
+<li><a href="https://www.gnu.org/licenses/gpl-3.0.html" class="external-link"><img src="https://img.shields.io/badge/licencia-GPL--3-blue.svg" alt="Licencia: GPL-3"></a></li>
 <li><a href="https://github.com/sebollin/lupa/actions/workflows/R-CMD-check.yaml" class="external-link"><img src="https://github.com/sebollin/lupa/actions/workflows/R-CMD-check.yaml/badge.svg" alt="R-CMD-check"></a></li>
-<li><a href="https://www.repostatus.org/#active" class="external-link"><img src="https://www.repostatus.org/badges/latest/active.svg" alt="Repo status: active"></a></li>
-<li><a href="https://github.com/sebollin/lupa/blob/main/README.es.md" class="external-link"><img src="https://img.shields.io/badge/README-espa%C3%B1ol-2e7d32.svg" alt="README en español"></a></li>
+<li><a href="https://www.repostatus.org/#active" class="external-link"><img src="https://www.repostatus.org/badges/latest/active.svg" alt="Estado del repositorio: activo"></a></li>
+<li><a href="https://github.com/sebollin/lupa/blob/main/README.md" class="external-link"><img src="https://img.shields.io/badge/README-English-1f6feb.svg" alt="README in English"></a></li>
 </ul>
 </div>
 

@@ -16,17 +16,29 @@
     </button>
 
     <div id="navbar" class="collapse navbar-collapse ms-3">
-      <ul class="navbar-nav me-auto"><li class="nav-item"><a class="nav-link" href="reference/index.html">Reference</a></li>
+      <ul class="navbar-nav me-auto"><li class="nav-item"><a class="nav-link" href="articles/lupa.html">Get started</a></li>
+<li class="nav-item"><a class="nav-link" href="reference/index.html">Reference</a></li>
 <li class="nav-item dropdown">
   <button class="nav-link dropdown-toggle" type="button" id="dropdown-articles" data-bs-toggle="dropdown" aria-expanded="false" aria-haspopup="true">Articles</button>
-  <ul class="dropdown-menu" aria-labelledby="dropdown-articles"><li><a class="dropdown-item" href="articles/empezar-con-lupa.html">Empezar con lupa</a></li>
-    <li><a class="dropdown-item" href="articles/flujo-guiado.html">Flujo guiado: del perfil a la evaluación</a></li>
-    <li><a class="dropdown-item" href="articles/definir-la-calidad.html">Definir la calidad</a></li>
-    <li><a class="dropdown-item" href="articles/medir-y-evaluar.html">Medir y evaluar</a></li>
-    <li><a class="dropdown-item" href="articles/limpiar-con-un-plan.html">Limpiar con un plan auditable</a></li>
-    <li><a class="dropdown-item" href="articles/historico-y-deriva.html">Histórico y monitoreo de deriva</a></li>
+  <ul class="dropdown-menu" aria-labelledby="dropdown-articles"><li><a class="dropdown-item" href="articles/leer-un-perfil.html">2. Leer un perfil</a></li>
+    <li><a class="dropdown-item" href="articles/explorar-columnas.html">3. Explorar columnas con `analizar()`</a></li>
+    <li><a class="dropdown-item" href="articles/estructura-no-declarada.html">4. Estructura no declarada</a></li>
+    <li><a class="dropdown-item" href="articles/vacio-por-diseno.html">5. El vacío por diseño</a></li>
+    <li><a class="dropdown-item" href="articles/limpiar-con-un-plan.html">6. Limpiar con un plan</a></li>
+    <li><a class="dropdown-item" href="articles/del-hallazgo-a-la-metrica.html">7. Del hallazgo a la métrica</a></li>
+    <li><a class="dropdown-item" href="articles/marcos-y-modelos.html">8. Marcos y modelos de calidad</a></li>
+    <li><a class="dropdown-item" href="articles/historico-y-deriva.html">9. Comparar entregas y seguir la calidad</a></li>
     <li><hr class="dropdown-divider"></li>
-    <li><a class="dropdown-item" href="articles/index.html">More articles...</a></li>
+    <li><h6 class="dropdown-header" data-toc-skip>Bases y escala</h6></li>
+    <li><a class="dropdown-item" href="articles/perfilar-una-base.html">10. Perfilar una base</a></li>
+    <li><a class="dropdown-item" href="articles/colecciones.html">11. Colecciones</a></li>
+    <li><a class="dropdown-item" href="articles/escala-y-duplicados.html">12. Escala y duplicados aproximados</a></li>
+    <li><hr class="dropdown-divider"></li>
+    <li><h6 class="dropdown-header" data-toc-skip>Referencia en línea</h6></li>
+    <li><a class="dropdown-item" href="articles/motores-y-escala.html">Motores y escala</a></li>
+    <li><a class="dropdown-item" href="articles/alcance-y-cobertura.html">Alcance y cobertura</a></li>
+    <li><a class="dropdown-item" href="articles/evidencia-y-rendimiento.html">Evidencia y rendimiento</a></li>
+    <li><a class="dropdown-item" href="articles/codificacion-y-locales.html">Codificación y locales</a></li>
   </ul></li>
 <li class="nav-item"><a class="nav-link" href="news/index.html">Changelog</a></li>
       </ul><ul class="navbar-nav"></ul></div>
@@ -43,28 +55,16 @@
       <h2>Authors</h2>
 
       <ul class="list-unstyled"><li>
-          <p><strong>Sebastián Lucas</strong>. Author, maintainer. <a href="https://orcid.org/0009-0009-9068-0276" target="orcid.widget" aria-label="ORCID" class="external-link"><span class="fab fa-orcid orcid" aria-hidden="true"></span></a>
+          <p><strong>Sebastián Lucas</strong>. Author, maintainer, copyright holder. <a href="https://orcid.org/0009-0009-9068-0276" target="orcid.widget" aria-label="ORCID" class="external-link"><span class="fab fa-orcid orcid" aria-hidden="true"></span></a>
           </p>
         </li>
         <li>
-          <p><strong>Robyn Speer</strong>. Copyright holder.
-          <br><small>encoding-repair design and character tables, from ftfy 6.3.1</small></p>
+          <p><strong>Robyn Speer</strong>. Contributor, copyright holder.
+          <br><small>byte tables, character categories, regular expressions and repair functions of the encoding-repair engine, translated from ftfy 6.3.1 (Apache-2.0)</small></p>
         </li>
         <li>
-          <p><strong>Nicholas Tierney</strong>. Copyright holder.
-          <br><small>missing-value sentinel vectors, from naniar 1.1.0</small></p>
-        </li>
-        <li>
-          <p><strong>Di Cook</strong>. Copyright holder.
-          <br><small>missing-value sentinel vectors, from naniar 1.1.0</small></p>
-        </li>
-        <li>
-          <p><strong>Miles McBain</strong>. Copyright holder.
-          <br><small>missing-value sentinel vectors, from naniar 1.1.0</small></p>
-        </li>
-        <li>
-          <p><strong>Colin Fay</strong>. Copyright holder.
-          <br><small>missing-value sentinel vectors, from naniar 1.1.0</small></p>
+          <p><strong>Nicholas Tierney</strong>. Contributor, copyright holder.
+          <br><small>missing-value sentinel values from naniar 1.1.0 (MIT)</small></p>
         </li>
       </ul></div>
 
@@ -79,14 +79,14 @@
   year = {2026},
   note = {R package version 0.1.0},
 }</pre>
-      <p>AGESIC (2020). Marco de trabajo para la Gestión de la Calidad de Datos en Gobierno Digital, versión 1.6. Presidencia de la República y Facultad de Ingeniería, Universidad de la República, Uruguay.</p>
+      <p>AGESIC (2020). Marco de trabajo para la Gestión de la Calidad de Datos en Gobierno Digital, versión 1.6. Presidencia de la República y Facultad de Ingeniería, Universidad de la República, Uruguay. https://www.gub.uy/agencia-gobierno-electronico-sociedad-informacion-conocimiento/comunicacion/publicaciones/marco-trabajo-para-gestion-calidad-datos</p>
       <pre>@TechReport{,
   title = {Marco de trabajo para la Gestión de la Calidad de Datos en Gobierno Digital, versión 1.6},
   author = {{AGESIC}},
   institution = {Presidencia de la República y Facultad de Ingeniería, Universidad de la República},
   year = {2020},
   address = {Montevideo, Uruguay},
-  url = {https://www.gub.uy/agencia-gobierno-electronico-sociedad-informacion-conocimiento/},
+  url = {https://www.gub.uy/agencia-gobierno-electronico-sociedad-informacion-conocimiento/comunicacion/publicaciones/marco-trabajo-para-gestion-calidad-datos},
 }</pre>
     </div>
 

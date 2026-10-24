@@ -133,10 +133,8 @@ plan_perfilado_dbi(
 
   Selección explícita de grupos de métricas: `"validos"`, `"distintos"`,
   `"moda"`, `"basicos"`, `"mediana"` y `"desvio"`. El valor por omisión
-  solicita las seis. Para traducir presets de versiones anteriores:
-  `seguro` equivale a `c("validos", "basicos", "desvio")` y `conteos`
-  equivale a `"validos"`; `exacto` equivale a los valores por omisión de
-  esta firma.
+  solicita las seis. `c("validos", "basicos", "desvio")` omite
+  distintos, moda y mediana, y `"validos"` sólo cuenta los no nulos.
 
 - estrategia_distintos:
 
@@ -233,11 +231,14 @@ plan_perfilado_dbi(
 - tamano_lote_distintos:
 
   Cantidad máxima de columnas por consulta de cardinalidades exactas. El
-  valor por omisión es 2, medido sobre el servidor de referencia: el
-  `Shared Read` fue constante entre lotes y el costo por columna fue
-  casi igual para uno y dos, mientras el lote de dos derramó menos que
-  los lotes mayores. Una sola cardinalidad todavía puede forzar un
-  agregado pesado y derramar mucho más que un lote plano.
+  valor por omisión es 2, un supuesto del código medido sobre un
+  PostgreSQL de referencia: el motor hace una sola pasada por la tabla
+  para todos los conteos de una consulta, así que un lote de uno cuesta
+  por columna bastante más que uno de dos; uno de dos cuesta por columna
+  casi lo mismo que uno de cuatro y derrama menos, y los lotes mayores
+  derraman más porque los conteos compiten por `work_mem`. Una sola
+  cardinalidad todavía puede forzar un agregado pesado y derramar mucho
+  más que un lote plano.
 
 - instrumentar:
 
@@ -389,13 +390,13 @@ se consulta siempre para conservar esa respuesta en
 `resumen_tabla$meta$clave`; es una lectura de metadatos y no un
 recorrido de la tabla.
 
-Contar sólo el motor daba juicios falsos con números ciertos: una tabla
-de 3.912 filas con una columna de geometría en texto pedía 64.592
-lecturas —magnitud `"baja"`— y tardaba 35 segundos, porque el trabajo
-estaba en la comparación de formas, que no es una lectura de fila. El
-método de impresión muestra las dos mitades, avisa cuando la magnitud es
-alta y nombra las palancas para acotarla, que no son las mismas de un
-lado que del otro.
+Contar sólo el motor daría juicios falsos con números ciertos: una tabla
+chica con una columna de geometría en texto pide pocas lecturas
+—magnitud `"baja"` del lado del motor— y puede tardar mucho más de lo
+que eso sugiere, porque el trabajo está en la comparación de formas, que
+no es una lectura de fila. El método de impresión muestra las dos
+mitades, avisa cuando la magnitud es alta y nombra las palancas para
+acotarla, que no son las mismas de un lado que del otro.
 
 ## Details
 

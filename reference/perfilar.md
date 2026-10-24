@@ -239,8 +239,8 @@ perfilar(
   como ausencia. Las filas donde el predicado no se puede determinar se
   declaran aparte, sin contarse ni como aplicables ni como no
   aplicables. Un valor presente fuera del universo produce el hallazgo
-  `valor_fuera_de_aplicabilidad`, que es el error simétrico y hoy no
-  tiene otra forma de aparecer. Las filas fuera del universo —y las
+  `valor_fuera_de_aplicabilidad`, que es el error simétrico y no tiene
+  otra forma de aparecer. Las filas fuera del universo —y las
   indeterminadas— salen también de la ley de Benford y de las relaciones
   aritméticas, con la misma máscara que usa el resumen.
 
@@ -396,13 +396,12 @@ perfilar(
   ninguna columna en particular. Los **nombres de columna** nunca se
   enmascaran, aunque un valor protegido aparezca dentro de uno: un
   nombre es estructura, existía antes y aparte del dato, y el paquete lo
-  necesita para cruzar el perfil con los datos. Se enmascaraban, y en
-  una base real `fecha_nacimiento` salió publicada como
-  `fecha_[valor protegido]`:
+  necesita para cruzar el perfil con los datos. Si se enmascararan,
+  `fecha_nacimiento` saldría publicada como `fecha_[valor protegido]`, y
   [`planificar_limpieza()`](https://sebollin.github.io/lupa/reference/planificar_limpieza.md)
   y
   [`analizar()`](https://sebollin.github.io/lupa/reference/analizar.md)
-  abortaban porque los nombres del perfil ya no coincidían con los de
+  abortarían porque los nombres del perfil no coincidirían con los de
   los datos. Un campo se reconoce como de nombres por su **contenido**
   —todos sus valores son nombres de la entrada, solos o unidos—, así que
   la protección de los valores no se afloja: si un valor protegido es
@@ -433,23 +432,24 @@ perfilar(
   protegido coincida con ella. Y un texto que nombra una columna entre
   comillas —la prosa del paquete, la SQL que guarda
   [`perfilar_dbi()`](https://sebollin.github.io/lupa/reference/perfilar_dbi.md)—
-  la conserva entera: con «Segundo» protegido, `segundo_nombre` salía
-  `[valor protegido]_nombre` en los hallazgos sin acción del plan y en
-  la SQL. Lo mismo los **nombres que el paquete deriva** de un nombre de
-  columna: el que propone el plan en `nombres_propuestos` —con
+  la conserva entera: con «Segundo» protegido, `segundo_nombre` se
+  publica tal cual —y no como `[valor protegido]_nombre`— en los
+  hallazgos sin acción del plan y en la SQL. Lo mismo los **nombres que
+  el paquete deriva** de un nombre de columna: el que propone el plan en
+  `nombres_propuestos` —con
   [`make.names()`](https://rdrr.io/r/base/make.names.html) y en
   snake_case— y las marcas `.ausente_<nombre>` y `.outlier_<nombre>` que
-  crean sus acciones. Se barrían como texto de los datos: con «Segundo»
-  protegido en `Primer Nombre`, la evidencia decía
-  `"Segundo Nombre" -> "[valor protegido].Nombre"`, el plan proponía ese
-  nombre y
+  crean sus acciones. Barridos como texto de los datos, con «Segundo»
+  protegido en `Primer Nombre` la evidencia diría
+  `"Segundo Nombre" -> "[valor protegido].Nombre"`, el plan propondría
+  ese nombre y
   [`aplicar()`](https://sebollin.github.io/lupa/reference/planificar_limpieza.md)
-  se lo ponía a la columna en los datos del usuario. Un nombre que es él
-  mismo un valor protegido, con otra caja, otros separadores, tildes o
-  codificación, no se exceptúa —salvo citado en la SQL que guarda
+  se lo pondría a la columna en los datos del usuario. Un nombre que es
+  él mismo un valor protegido, con otra caja, otros separadores, tildes
+  o codificación, no se exceptúa —salvo citado en la SQL que guarda
   [`perfilar_dbi()`](https://sebollin.github.io/lupa/reference/perfilar_dbi.md),
   donde es un identificador y se publica igual en `columnas$columna`:
-  antes tapaba enteras las sentencias de su lote—. Y un valor protegido
+  tapado, taparía las sentencias enteras del lote—. Y un valor protegido
   que **contiene** un nombre de columna —el correo
   `juan_perez@empresa.com.uy` con una columna `juan_perez`— se busca
   entero, con cualquier caja, antes de apartar el nombre: se tapa el
@@ -461,76 +461,75 @@ perfilar(
   valor protegido o lo contengan. El principio es el de los nombres de
   columna: son estructura, no salen de las celdas, y publicarlos no dice
   nada de ninguna fila —el tipo `constante` aparece porque otra columna
-  es constante, no porque alguien se apellide así—. Se enmascaraban: en
-  una base real, un nombre de persona contenido en
-  `faltantes_disfrazados` dejó seis hallazgos con el tipo
-  `[valor protegido]`, y el plan sin ninguna acción para ellos. La regla
-  es por campo y por contenido: un campo cuyos valores son todos
-  vocabulario del propio objeto queda afuera, uno que mezcla no. Ese
-  alcance tiene un **piso**: un valor de una columna protegida que
-  identifique —seis caracteres o más, el mismo corte con el que la
-  batería de fugas decide qué cuenta como filtración— no se publica en
-  ninguna parte, tenga o no columna a la que atribuirse, y también en
-  los campos numéricos. Sin ese piso, una columna que el clasificador no
-  marcó publicaba los documentos de la protegida con sólo repetirlos:
-  una copia con nombre neutro, un texto libre que los contuviera, o los
-  estadísticos de orden de una columna clasificada con poder
-  discriminante `debil`. Una columna que **copia los documentos
-  protegidos sin su verificador** —la cédula `4.685.467-9` de cada fila
-  guardada como el entero `4685467`, o como texto, en una columna de
-  nombre neutro; también el texto con los decimales que deja una
-  planilla, `"4685467.0"` o `"4.685.467,00"`, con signo o en notación
-  científica (`"+4685467.0"`, `"4685467e0"`), que se compara por el
-  número que el paquete lee en él, con la misma lectura que el resumen,
-  o con espacios de miles y una parte decimal de ceros
+  es constante, no porque alguien se apellide así—. Si el vocabulario se
+  enmascarara, un nombre de persona contenido en `faltantes_disfrazados`
+  dejaría los hallazgos con el tipo `[valor protegido]` y el plan sin
+  ninguna acción para ellos. La regla es por campo y por contenido: un
+  campo cuyos valores son todos vocabulario del propio objeto queda
+  afuera, uno que mezcla no. Ese alcance tiene un **piso**: un valor de
+  una columna protegida que identifique —seis caracteres o más, el mismo
+  corte con el que la batería de fugas decide qué cuenta como
+  filtración— no se publica en ninguna parte, tenga o no columna a la
+  que atribuirse, y también en los campos numéricos. Sin ese piso, una
+  columna que el clasificador no marcó publicaría los documentos de la
+  protegida con sólo repetirlos: una copia con nombre neutro, un texto
+  libre que los contuviera, o los estadísticos de orden de una columna
+  clasificada con poder discriminante `debil`. Una columna que **copia
+  los documentos protegidos sin su verificador** —la cédula
+  `4.685.467-9` de cada fila guardada como el entero `4685467`, o como
+  texto, en una columna de nombre neutro; también el texto con los
+  decimales que deja una planilla, `"4685467.0"` o `"4.685.467,00"`, con
+  signo o en notación científica (`"+4685467.0"`, `"4685467e0"`), que se
+  compara por el número que el paquete lee en él, con la misma lectura
+  que el resumen, o con espacios de miles y una parte decimal de ceros
   (`"4 685 467.0"`); un texto con centavos que no son cero no es un
   documento— se protege entera, como una columna personal: se clasifica
   `documento_identidad` con poder `alto` cuando al menos tres de sus
   valores distintos son el documento sin su verificador de un valor
   protegido —con la regla de los textos, ver abajo; también la cédula de
-  seis cifras, `854321` de `"854.321-2"`, que una sola entre las de
-  siete dejaba publicar la columna—, son el 90 % de sus distintos —el
-  umbral de `verificado`, que tolera tipeos aislados— y tantos no
+  seis cifras, `854321` de `"854.321-2"`: sin ella, una sola entre las
+  de siete dejaría publicar la columna—, son el 90 % de sus distintos
+  —el umbral de `verificado`, que tolera tipeos aislados— y tantos no
   coinciden por azar con la densidad de esos documentos en el rango de
-  la columna —una probabilidad binomial menor que una en un millón—.
-  Publicaba sus dos extremos, que son dos cédulas. La regla es por
-  **columna** y no por valor: una columna que coincide por azar —uno de
-  cada cinco importes de siete cifras coincide con un documento sin
-  verificador frente a un millón de cédulas, y hasta tres de cada cuatro
-  frente a cuatro millones— publica sus extremos aunque coincidan.
-  Medido en `data-raw/medir_tapado_de_mas.R` sobre 400 columnas por
-  familia, con uno y con cuatro millones de cédulas protegidas: no se
-  protegió ninguna columna de importes de siete cifras —tampoco
-  redondeados a miles, con 10, 50 o 500 valores distintos, aunque por
-  azar coincidieran todos— ni de enteros de ocho cifras, y sí todas las
-  copias de 50 valores distintos o más; con el 10 % de tipeos, todas
-  frente a un millón y la mitad frente a cuatro. Una copia de pocos
-  valores distintos frente a muchos documentos —tres, o diez frente a
-  cuatro millones— no se distingue del azar y publica sus extremos;
-  tampoco una copia con más del 10 % de otros valores. Y la regla
-  compara contra los documentos protegidos: sin la columna de la que
-  copia —la tabla de pagos perfilada sin la de personas, fuera de una
-  colección con perfiles conservados— una columna de siete cifras no se
-  distingue de un importe y publica sus extremos. El vocabulario corto
-  no entra en el piso: `"S/D"` sigue publicándose donde describe a una
-  columna que no es personal. Tampoco los **rellenos** de una columna
-  protegida, que ocupan el lugar de un dato y no son el de nadie: el que
-  no tiene letras ni dígitos (`"------"`), y el dígito repetido que se
-  repite cinco veces o más en una columna que sin él es casi una clave
-  —cuarenta `"99999999"` entre cédulas que no se repiten—. Entraban, y
-  tapaban la moda, el mínimo, la mediana y el máximo de un `monto` con
-  su propio `99999999`. Donde el documento se repite —una tabla de
-  movimientos— el dígito repetido sigue en el piso: `2.222.222-2` es una
-  cédula válida. Fuera del piso no quiere decir publicados en la columna
-  protegida: su moda, sus ejemplos y los parámetros del plan sobre ella
-  los siguen tapando, y un centinela que el usuario declaró en
-  `sentinelas_numericos` y aparece en una columna protegida —también
-  como su relleno— sigue en el piso. Sin los datos, el declarado entra
-  siempre, porque no se sabe de qué columna es; con ellos, el que no
-  aparece en ninguna protegida no entra: entraba igual, se tapaba a sí
-  mismo en `meta` y la acción que lo convierte en un `monto` quedaba sin
-  efecto sin proteger nada. El piso tiene **una excepción declarada**, y
-  es la única:
+  la columna —una probabilidad binomial menor que una en un millón—. Sin
+  protegerla, publicaría sus dos extremos, que son dos cédulas. La regla
+  es por **columna** y no por valor: una columna que coincide por azar
+  —uno de cada cinco importes de siete cifras coincide con un documento
+  sin verificador frente a un millón de cédulas, y hasta tres de cada
+  cuatro frente a cuatro millones— publica sus extremos aunque
+  coincidan. Medido en `data-raw/medir_tapado_de_mas.R` sobre 400
+  columnas por familia, con uno y con cuatro millones de cédulas
+  protegidas: no se protege ninguna columna de importes de siete cifras
+  —tampoco redondeados a miles, con 10, 50 o 500 valores distintos,
+  aunque por azar coincidan todos— ni de enteros de ocho cifras, y sí
+  todas las copias de 50 valores distintos o más; con el 10 % de tipeos,
+  todas frente a un millón y la mitad frente a cuatro. Una copia de
+  pocos valores distintos frente a muchos documentos —tres, o diez
+  frente a cuatro millones— no se distingue del azar y publica sus
+  extremos; tampoco una copia con más del 10 % de otros valores. Y la
+  regla compara contra los documentos protegidos: sin la columna de la
+  que copia —la tabla de pagos perfilada sin la de personas, fuera de
+  una colección con perfiles conservados— una columna de siete cifras no
+  se distingue de un importe y publica sus extremos. El vocabulario
+  corto no entra en el piso: `"S/D"` sigue publicándose donde describe a
+  una columna que no es personal. Tampoco los **rellenos** de una
+  columna protegida, que ocupan el lugar de un dato y no son el de
+  nadie: el que no tiene letras ni dígitos (`"------"`), y el dígito
+  repetido que se repite cinco veces o más en una columna que sin él es
+  casi una clave —cuarenta `"99999999"` entre cédulas que no se
+  repiten—. En el piso taparían la moda, el mínimo, la mediana y el
+  máximo de un `monto` con su propio `99999999`. Donde el documento se
+  repite —una tabla de movimientos— el dígito repetido sigue en el piso:
+  `2.222.222-2` es una cédula válida. Fuera del piso no quiere decir
+  publicados en la columna protegida: su moda, sus ejemplos y los
+  parámetros del plan sobre ella los siguen tapando, y un centinela que
+  el usuario declaró en `sentinelas_numericos` y aparece en una columna
+  protegida —también como su relleno— sigue en el piso. Sin los datos,
+  el declarado entra siempre, porque no se sabe de qué columna es; con
+  ellos, el que no aparece en ninguna protegida no entra: si entrara, se
+  taparía a sí mismo en `meta` y la acción que lo convierte en un
+  `monto` quedaría sin efecto sin proteger nada. El piso tiene **una
+  excepción declarada**, y es la única:
   [`perfilar_por()`](https://sebollin.github.io/lupa/reference/perfilar_por.md)
   agrupando *por* una columna personal publica sus valores como
   etiquetas de grupo, porque la etiqueta es el eje del resultado y sin
@@ -597,43 +596,44 @@ perfilar(
   forma de dirección IPv4 —con o sin máscara CIDR— y de un importe con
   miles de cuatro grupos o más (`"3.919.024.166"`), que se prueban
   enteros —el importe, también sin su primer grupo: es el prefijo de
-  país de un celular agrupado de a tres, `"598.099.123.456"`, que se
-  publicaba— (`"4.123.456"` frente a `"4.123.456-7"`, el verificador mal
-  tipeado, el documento seguido de un año), y sin su primer dígito sólo
-  detrás de un asterisco o una equis (`"*.123.456-7"`, `"X.012.345-8"`,
-  `"X2345678"`) —también los asteriscos de Unicode, todo signo que
-  Unicode llama asterisco salvo el combinante de abajo, que el pliegue
-  borra como a una tilde, y el asterisco pegado a una letra,
-  `"CI*123.456-7"`—; la equis seguida de un espacio no es comodín,
-  porque `"92 x 6931234"` es una multiplicación; un número redondo
-  (`1.000.000`) no cuenta como parcial. Es un **decimal** el número cuyo
-  último signo es un punto o una coma con otra cantidad de cifras que
-  tres, y antes un entero o miles separados con otro signo:
-  `"4.123.456,7"` es un importe, `"4.123.456.7"` no; su parte decimal no
-  se pega al resto cuando es la de un importe con miles o la de un
-  decimal suelto —una coordenada, un par lat lon—, pero sí cuando el
-  número es otra cosa, como `"(02) 901.1234"`. Una fecha con un año
-  entre 1800 y 2100 —también con espacios y el año al final,
-  `"16 01 2002"`; con el año adelante no, porque `"2012 11 05"` es
-  también un teléfono escrito de a pares—, una hora —con su fracción de
-  segundo: hasta siete cifras o nueve tras un punto, nunca ocho, y no
-  seguida de un guion y una cifra, que sería un verificador—, un ISBN y
-  una lista separada por comas no son documentos. El ISBN-10 —con
-  guiones, espacios o puntos— sólo si su dígito de control es válido o
-  lo precede `ISBN`: un NIT `"900-123-456-7"` tiene su forma, y uno de
-  cada once documentos de diez cifras escritos así valida por azar y no
-  se reconoce. Una fracción de nueve cifras tras un punto se lee como
-  nanosegundos: un documento con un cero adelante pegado así a una hora
-  no se reconoce. En la prosa del paquete los números son conteos suyos,
-  y ahí la regla mira sólo lo que la prosa cita entre comillas y el
-  código que sugiere entre comillas invertidas, y tapa la cita o el
-  número, no la frase. **El parcial tiene un costo, medido**: un número
-  entero de siete cifras que coincide con un documento protegido sin su
-  verificador no se distingue de él, y se tapa. Con un millón de
-  cédulas, 300.000 teléfonos fijos y 300.000 celulares protegidos, eso
-  le pasó a uno de cada cinco números de siete cifras en ejemplos, modas
-  y evidencia —en cualquier escritura: con puntos o apóstrofos de miles,
-  con un guion, tras un numeral o tras una equis seguida de un espacio
+  país de un celular agrupado de a tres, `"598.099.123.456"`, que de
+  otro modo se publicaría— (`"4.123.456"` frente a `"4.123.456-7"`, el
+  verificador mal tipeado, el documento seguido de un año), y sin su
+  primer dígito sólo detrás de un asterisco o una equis
+  (`"*.123.456-7"`, `"X.012.345-8"`, `"X2345678"`) —también los
+  asteriscos de Unicode, todo signo que Unicode llama asterisco salvo el
+  combinante de abajo, que el pliegue borra como a una tilde, y el
+  asterisco pegado a una letra, `"CI*123.456-7"`—; la equis seguida de
+  un espacio no es comodín, porque `"92 x 6931234"` es una
+  multiplicación; un número redondo (`1.000.000`) no cuenta como
+  parcial. Es un **decimal** el número cuyo último signo es un punto o
+  una coma con otra cantidad de cifras que tres, y antes un entero o
+  miles separados con otro signo: `"4.123.456,7"` es un importe,
+  `"4.123.456.7"` no; su parte decimal no se pega al resto cuando es la
+  de un importe con miles o la de un decimal suelto —una coordenada, un
+  par lat lon—, pero sí cuando el número es otra cosa, como
+  `"(02) 901.1234"`. Una fecha con un año entre 1800 y 2100 —también con
+  espacios y el año al final, `"16 01 2002"`; con el año adelante no,
+  porque `"2012 11 05"` es también un teléfono escrito de a pares—, una
+  hora —con su fracción de segundo: hasta siete cifras o nueve tras un
+  punto, nunca ocho, y no seguida de un guion y una cifra, que sería un
+  verificador—, un ISBN y una lista separada por comas no son
+  documentos. El ISBN-10 —con guiones, espacios o puntos— sólo si su
+  dígito de control es válido o lo precede `ISBN`: un NIT
+  `"900-123-456-7"` tiene su forma, y uno de cada once documentos de
+  diez cifras escritos así valida por azar y no se reconoce. Una
+  fracción de nueve cifras tras un punto se lee como nanosegundos: un
+  documento con un cero adelante pegado así a una hora no se reconoce.
+  En la prosa del paquete los números son conteos suyos, y ahí la regla
+  mira sólo lo que la prosa cita entre comillas y el código que sugiere
+  entre comillas invertidas, y tapa la cita o el número, no la frase.
+  **El parcial tiene un costo, medido**: un número entero de siete
+  cifras que coincide con un documento protegido sin su verificador no
+  se distingue de él, y se tapa. Con un millón de cédulas, 300.000
+  teléfonos fijos y 300.000 celulares protegidos, eso le pasa a uno de
+  cada cinco números de siete cifras en ejemplos, modas y evidencia —en
+  cualquier escritura: con puntos o apóstrofos de miles, con un guion,
+  tras un numeral o tras una equis seguida de un espacio
   (`"92 x 6931234"`); tras un asterisco, o tras una equis pegada
   (`"serie X6276963"`, que es como se escribe el documento recortado sin
   formato, `"X2345678"`), a uno de cada cuatro—, y a uno o dos de cada
@@ -653,7 +653,7 @@ perfilar(
   la cédula con su verificador tras un punto—, las horas, los ISBN
   —también el ISBN-10 con espacios o puntos—, las fechas con espacios,
   las listas separadas por comas con espacio o por barras verticales,
-  las razones no se taparon; los importes con miles de cuatro grupos o
+  las razones no se tapan; los importes con miles de cuatro grupos o
   más, uno o dos de cada mil —su cola sin el primer grupo coincide con
   un documento cuando empieza con un cero—; una dirección IP —también
   con su máscara CIDR, `"10.4.123.234/24"`, o su puerto, y en un rango
@@ -677,25 +677,24 @@ perfilar(
   espacios (`"59.822.877.006,00"`, `"59 822 877 006"`), 4,4 %: como en
   el celular, sus primeras ocho cifras tienen además la forma de una
   cédula entera. Las familias del reproductor que sortean 400 fijos por
-  escritura dan entre 1,5 y 5,5 %: es el sorteo, no la escritura. Con el
-  prefijo era uno de cada seis, porque `"598"` y el primer grupo
-  formaban una cédula de siete cifras sin su verificador. Y una lista de
-  dos teléfonos unidos por una barra —`"+59894364556/+59849290458"`—,
-  entre cinco y ocho de cada cien, como la misma lista con `" / "`: cada
-  uno se prueba por su parte nacional. Un celular que no es de nadie,
-  entre dos y tres de cada cien —2,0 a 2,5 % con 400 por escritura,
-  pegado con su prefijo, con espacios o sin el prefijo; 3,0 % sobre
-  4.000 con las mismas cifras, pegado (`"+59895257283"`) o como número
-  de planilla con separador de miles (`"59.895.257.283"`)—: coincide con
-  uno protegido. Con los miles y los decimales en cero, o con espacios
+  escritura dan entre 1,5 y 5,5 %: es el sorteo, no la escritura. El
+  prefijo no se une al primer grupo: `"598"` y ese grupo formarían una
+  cédula de siete cifras sin su verificador. Y una lista de dos
+  teléfonos unidos por una barra —`"+59894364556/+59849290458"`—, entre
+  cinco y ocho de cada cien, como la misma lista con `" / "`: cada uno
+  se prueba por su parte nacional. Un celular que no es de nadie, entre
+  dos y tres de cada cien —2,0 a 2,5 % con 400 por escritura, pegado con
+  su prefijo, con espacios o sin el prefijo; 3,0 % sobre 4.000 con las
+  mismas cifras, pegado (`"+59895257283"`) o como número de planilla con
+  separador de miles (`"59.895.257.283"`)—: coincide con uno protegido.
+  Con los miles y los decimales en cero, o con espacios
   (`"59 895 257 283"`), 4,4 %: sus primeras ocho cifras tienen además la
   forma de una cédula entera. Con el punto medio como separador de
   miles, 5,3 % sobre otros 4.000 que pegados dan 4,0 %, y 7,8 % con los
   decimales en cero: como con espacios, sus grupos se prueban también
   sueltos. Con el agrupado indio (`"59,89,52,57,283"`), uno de cada
   cinco —20,3 %, y 32,0 % con `".00"`—: sus grupos de dos forman números
-  de siete cifras que coinciden con un documento sin su verificador, y
-  eso ya pasaba antes de leerlo como la misma cifra (17,2 y 29,3 %). Y,
+  de siete cifras que coinciden con un documento sin su verificador. Y,
   por el mismo parcial, una versión de cuatro partes
   (`"v4.62.660.4361"`), trece de cada cien, la de cinco partes
   (`"v2.76.527.6327.3"`), quince de cada cien, y un expediente
@@ -703,9 +702,9 @@ perfilar(
   `"6-880041"` es un número de siete cifras con un signo que une, y no
   se distingue del documento escrito así. Y por la regla de la hora, una
   fracción de ocho cifras (`"18:54:14.80786977"`) no es fracción —así no
-  se traga un documento pegado— y se taparon cuatro o cinco de cada
-  cien; lo mismo un número de diez cifras con la forma de un ISBN-10 y
-  su dígito de control inválido. La medición se rehace con
+  se traga un documento pegado— y se tapan cuatro o cinco de cada cien;
+  lo mismo un número de diez cifras con la forma de un ISBN-10 y su
+  dígito de control inválido. La medición se rehace con
   `data-raw/medir_tapado_de_mas.R`. Las tildes, la caja y la escritura
   también son cosméticas: `juan.perez` se enmascara frente al nombre
   protegido «Juan Pérez», y el nombre pegado a otras letras dentro de un
@@ -735,37 +734,37 @@ perfilar(
   el punto, los paréntesis o la arroba (U+FE50 a U+FE6B), la barra
   partida, los paréntesis superíndice y subíndice (U+207D, U+207E,
   U+208D, U+208E), las formas de presentación vertical (U+FE10 a U+FE48)
-  y el punto de guía (U+2024). Se enumeraban las conocidas, y el correo
-  escrito con los paréntesis superíndice alrededor de `at` se publicaba.
-  Las letras de otro alfabeto que se parecen —una «a» cirílica (U+0430)
-  en lugar de la latina— no son el mismo signo y no se leen, ni una
-  letra encerrada en un círculo (U+24D0): es otra forma de la letra, no
-  un signo. Y en cualquier codificación: un texto `latin1` con una tilde
-  se lee como el mismo texto en UTF-8. Medido sobre 3.000 correos
-  protegidos: los no protegidos escritos así se taparon lo mismo que con
-  la arroba común —cuatro de cada mil, por los separadores cosméticos—,
-  y ninguna de 3.015 frases con esas palabras, mil de ellas con una
-  arroba y el punto en palabras. **No** se leen otras ofuscaciones: el
-  punto entre corchetes o paréntesis (`[at]...[.]`, `(.)`), `<at>`,
-  `"at"`, `-at-`, `/at/`, el punto con espacios alrededor
-  (`empresa . com`) ni un dominio con guion bajo; un correo protegido
-  escrito así se publica. Las marcas del paquete se apartan del texto, y
-  un valor protegido que contiene una se busca entero antes de
-  apartarla. **Una fecha de calendario sola no entra en el piso**,
-  tampoco escrita como `AAAAMMDD` o con el año en dos cifras en una
-  columna de esas fechas, ni como fecha-hora ISO a medianoche: en una
-  tabla de miles de personas casi todo día es el cumpleaños de alguien,
-  y con la fecha de nacimiento protegida se tapaban los estadísticos de
-  todas las demás columnas de fechas. La columna de fechas protegida se
-  sigue protegiendo entera; una fecha con hora sí cuenta. Se decide
-  **por la columna**: en una columna protegida que no es de fechas —un
-  teléfono fijo `"2012-11-05"` entre otros teléfonos— el valor con forma
-  de fecha sí entra en el piso, escrito como está guardado (la regla de
-  dígitos borra las fechas antes de buscar, así que `"2012/11/05"` no lo
-  encuentra); una columna es de fechas si es `Date` o `POSIXt`, o si la
-  mitad o más de sus valores distintos tienen forma de fecha —con el año
-  en cuatro cifras o en dos, o compacta `AAAAMMDD`—. Es una sola regla,
-  en memoria y en
+  y el punto de guía (U+2024). Se toma la normalización entera y no una
+  lista de las formas conocidas: con una lista, el correo escrito con
+  los paréntesis superíndice alrededor de `at` se publicaría. Las letras
+  de otro alfabeto que se parecen —una «a» cirílica (U+0430) en lugar de
+  la latina— no son el mismo signo y no se leen, ni una letra encerrada
+  en un círculo (U+24D0): es otra forma de la letra, no un signo. Y en
+  cualquier codificación: un texto `latin1` con una tilde se lee como el
+  mismo texto en UTF-8. Medido sobre 3.000 correos protegidos: los no
+  protegidos escritos así se tapan lo mismo que con la arroba común
+  —cuatro de cada mil, por los separadores cosméticos—, y ninguna de
+  3.015 frases con esas palabras, mil de ellas con una arroba y el punto
+  en palabras. **No** se leen otras ofuscaciones: el punto entre
+  corchetes o paréntesis (`[at]...[.]`, `(.)`), `<at>`, `"at"`, `-at-`,
+  `/at/`, el punto con espacios alrededor (`empresa . com`) ni un
+  dominio con guion bajo; un correo protegido escrito así se publica.
+  Las marcas del paquete se apartan del texto, y un valor protegido que
+  contiene una se busca entero antes de apartarla. **Una fecha de
+  calendario sola no entra en el piso**, tampoco escrita como `AAAAMMDD`
+  o con el año en dos cifras en una columna de esas fechas, ni como
+  fecha-hora ISO a medianoche: en una tabla de miles de personas casi
+  todo día es el cumpleaños de alguien, y con la fecha de nacimiento
+  protegida se taparían los estadísticos de todas las demás columnas de
+  fechas. La columna de fechas protegida se sigue protegiendo entera;
+  una fecha con hora sí cuenta. Se decide **por la columna**: en una
+  columna protegida que no es de fechas —un teléfono fijo `"2012-11-05"`
+  entre otros teléfonos— el valor con forma de fecha sí entra en el
+  piso, escrito como está guardado (la regla de dígitos borra las fechas
+  antes de buscar, así que `"2012/11/05"` no lo encuentra); una columna
+  es de fechas si es `Date` o `POSIXt`, o si la mitad o más de sus
+  valores distintos tienen forma de fecha —con el año en cuatro cifras o
+  en dos, o compacta `AAAAMMDD`—. Es una sola regla, en memoria y en
   [`perfilar_dbi()`](https://sebollin.github.io/lupa/reference/perfilar_dbi.md):
   una columna de nacimientos con el 60 % en `dd/mm/aa` es de fechas, y
   sus valores no tapan la moda ni los ejemplos de las fechas de otra
@@ -774,8 +773,8 @@ perfilar(
   —descripción, sugerencia, motivo, cómo resolverlo, justificación— se
   exige además que la variante no tenga una letra pegada antes o
   después: con los nombres de millones de personas como valores
-  protegidos, alguno aparecía cruzando palabras de esas frases y las
-  tapaba enteras, también en columnas no personales. Lo que esa prosa
+  protegidos, alguno aparecería cruzando palabras de esas frases y las
+  taparía enteras, también en columnas no personales. Lo que esa prosa
   cita entre comillas dobles —el nivel de un determinante en la
   sugerencia de `posible_ausencia_estructural`— no es prosa sino un
   valor: se compara con la regla de los valores y se tapa sólo la cita,
@@ -795,17 +794,16 @@ perfilar(
   ejemplos, la calle `"Av. Rivera 1343"`, el `"Instituto Rivera"`; seis
   de los diecinueve departamentos de Uruguay son apellidos así, y
   ciudades como Mercedes o Dolores son nombres de pila—. Medido sobre
-  5.000 personas con esos nombres y apellidos: trece campos de cuatro
-  columnas que no eran personales. Es el costo del piso y no se afloja:
-  sin él, «llamó la Sra. Rivera» publicaría el apellido. Y lo aplican
-  también
+  5.000 personas con esos nombres y apellidos, se tapan trece campos de
+  cuatro columnas que no son personales. Es el costo del piso y no se
+  afloja: sin él, «llamó la Sra. Rivera» publicaría el apellido. Y lo
+  aplican también
   [`analizar()`](https://sebollin.github.io/lupa/reference/analizar.md),
   [`distribucion_valores()`](https://sebollin.github.io/lupa/reference/distribucion_valores.md),
   [`clasificar_variables()`](https://sebollin.github.io/lupa/reference/clasificar_variables.md)
   y
   [`detectar_discordancias()`](https://sebollin.github.io/lupa/reference/detectar_discordancias.md),
-  que antes protegían sólo por columna y publicaban lo que `perfilar()`
-  tapaba sobre la misma tabla.
+  así que no publican lo que `perfilar()` tapa sobre la misma tabla.
 
 - columnas_personales:
 
@@ -995,11 +993,10 @@ perfilar(
   Lo que lo dispara no es el tamaño de la tabla sino el reparto: dos
   formas parecidas con frecuencias del mismo orden lo activan igual con
   cuatro filas que con quinientas, y en una tabla chica ese reparto sale
-  por casualidad más seguido. Decía «tablas de menos de veinte filas», y
-  se midió de cuatro a quinientas: dispara en todas. Es aditivo:
-  encenderlo no cambia ni pierde ninguna detección de
-  `casi_duplicados_vocabulario`. El límite que deja de cubrir se declara
-  igual, encendido o apagado, en `n_grupos_sin_variante_rara`.
+  por casualidad más seguido. Es aditivo: encenderlo no cambia ni pierde
+  ninguna detección de `casi_duplicados_vocabulario`. El límite que deja
+  de cubrir se declara igual, encendido o apagado, en
+  `n_grupos_sin_variante_rara`.
 
 - max_asimetria_equifrecuente_vocabulario:
 
@@ -1021,10 +1018,10 @@ perfilar(
   del vocabulario. Comparar dos valores cuesta del orden del producto de
   sus largos, así que el trabajo es la suma de ese producto sobre todos
   los pares. Contar pares por longitud media subestima las cadenas
-  largas: medido, el mismo presupuesto compraba 5,3 millones de unidades
-  por segundo con valores de 900 caracteres y 44 millones con valores
-  de 40. Se combina con el límite interno de pares del detector y manda
-  el más restrictivo; ese límite interno no es un argumento de
+  largas: medido así, el mismo presupuesto rinde 5,3 millones de
+  unidades por segundo con valores de 900 caracteres y 44 millones con
+  valores de 40. Se combina con el límite interno de pares del detector
+  y manda el más restrictivo; ese límite interno no es un argumento de
   `perfilar()`. El recorte declara valores, pares y trabajo sin
   comparar. `Inf` lo desactiva.
 
@@ -1043,8 +1040,7 @@ perfilar(
   forma estable una diferencia local de muchas diferencias en textos
   largos. Una columna que supera el tope se declara completa fuera de
   alcance en `cobertura_diagnosticos`; no se recortan valores en
-  silencio. `Inf` recupera explicitamente el comportamiento anterior sin
-  tope.
+  silencio. `Inf` quita el tope.
 
 - max_celdas_muestra:
 
@@ -1251,8 +1247,8 @@ lectura: `"confirmado"` si todo formato con casamientos es inequívoco, y
 de una columna donde `proporcion_tipo_inferido` llega a 1 sin un solo
 valor inequívoco. En los demás tipos la columna queda `NA`. El resumen
 impreso anota `(candidato)` junto al tipo cuando corresponde; la
-conversión, el rango temporal y la remediación ya exigían formatos
-confirmados y no cambian.
+conversión, el rango temporal y la remediación sólo usan formatos
+confirmados.
 
 En una columna temporal, `minimo`, `maximo`, `media` y `mediana` quedan
 en `NA` y su valor viaja en `minimo_fecha`, `maximo_fecha`,
@@ -1308,12 +1304,12 @@ columna de treinta `NaN` es `"sin_valores"`.
 `mediana` es exacta.** El paquete no promete exactitud bit a bit para la
 media —sí para la mediana, que se calcula con
 [`median()`](https://rdrr.io/r/stats/median.html) sobre el vector entero
-y por eso no se reemplazó por el cuantil 0,5—. Medido: sobre veinte mil
-valores de `1e12` y veinte mil de `1e-6` la diferencia es de `6,1e-05`,
-y sobre treinta mil valores con signo del orden de `1e9` es de
-`2,3e-10`; con valores de magnitud parecida no hay diferencia en ningún
-bit. Quien rehaga [`mean()`](https://rdrr.io/r/base/mean.html) sobre una
-columna grande y vea otro último dígito está viendo esto y no un error.
+y no como el cuantil 0,5—. Medido: sobre veinte mil valores de `1e12` y
+veinte mil de `1e-6` la diferencia es de `6,1e-05`, y sobre treinta mil
+valores con signo del orden de `1e9` es de `2,3e-10`; con valores de
+magnitud parecida no hay diferencia en ningún bit. Quien rehaga
+[`mean()`](https://rdrr.io/r/base/mean.html) sobre una columna grande y
+vea otro último dígito está viendo esto y no un error.
 
 ## La unidad viaja al lado de la cifra
 
@@ -1325,23 +1321,20 @@ valor de texto traía pegada al número (`"12 kg"`), ni con la `unidad` de
 [`clasificar_variables()`](https://sebollin.github.io/lupa/reference/clasificar_variables.md),
 que es la unidad **declarada** del dato.
 
-Sin este campo, cuatro columnas medidas en unidades distintas publicaban
-filas idénticas: `units::set_units(c(1, 2, 3), "m")` y la misma en
-`"km"` dan las dos `media = 2` y `desvio = 1`, y un `Period` de dos días
-publicaba `172800` sin decir que eran segundos. Por clase:
+Sin este campo, columnas medidas en unidades distintas publicarían filas
+idénticas: `units::set_units(c(1, 2, 3), "m")` y la misma en `"km"` dan
+las dos `media = 2` y `desvio = 1`, y un `Period` de dos días publicaría
+`172800` sin decir que son segundos. Por clase:
 
 - `units` y `difftime`: la unidad declarada, en forma canónica (`km/h`,
   `m^2`, `kg*m/s^2`). `difftime` **publica sus estadísticos en esa
   unidad**: una columna de minutos publica `media = 75` con
-  `unidad = "mins"`. Se abstuvo mientras no existía dónde publicar la
-  unidad —un `75` sin decir de qué no es una medida—, y era el único que
-  se abstenia: `Date` y `POSIXt` publican `desvio` en segundos desde
-  antes. Los valores van en la unidad declarada por la columna, sin
-  convertir a segundos: convertirlos publicaría un número que no está en
-  la columna.
+  `unidad = "mins"`: sin la unidad al lado, un `75` no sería una medida.
+  Los valores van en la unidad declarada por la columna, sin convertir a
+  segundos: convertirlos publicaría un número que no está en la columna.
 
 - `Period`, `Duration`, `Date` y `POSIXt`: `"segundos"`, que es la
-  unidad en la que sale `desvio` y que antes sólo estaba dicha en prosa.
+  unidad en la que sale `desvio`.
 
 - cualquier otra columna que **declare** un atributo `units` —eso
   circula como metadato en datos importados— publica lo declarado,
@@ -1352,7 +1345,7 @@ publicaba `172800` sin decir que eran segundos. Por clase:
 **Y se calla cuando la fila no publica ninguna cifra cuantitativa**, o
 sea cuando `estado_resumen_cuantitativo` vale `"no_aplica"`: el atributo
 `units` lo puede llevar cualquier clase, y un `factor` con
-`attr(x, "units") <- "kg"` publicaba `unidad = "kg"` al lado de
+`attr(x, "units") <- "kg"` publicaría `unidad = "kg"` al lado de
 `media = NA`. Una unidad de cifras que no existen no contesta la
 pregunta del campo. El discriminador es ese estado y no una lista de
 clases, así que una columna `units` de puros `NA` **sí** declara su
@@ -1362,15 +1355,13 @@ Si una columna declara **más de una** unidad —un atributo `units` de
 largo mayor que uno, que ningún objeto `units` produce pero un dato
 importado sí—, el campo las publica todas separadas por coma. Ese valor
 no es una unidad: dice que la declaración está mal. Quedarse con la
-primera sería elegir una por el usuario, que es el defecto que este
-campo vino a cerrar.
+primera sería elegir una por el usuario, justo lo que este campo evita.
 
 Y
 [`comparar_perfiles()`](https://sebollin.github.io/lupa/reference/comparar_perfiles.md)
 compara este campo como un aspecto propio, con la severidad de un cambio
-de tipo: publicar la unidad sin compararla dejaba en pie el defecto
-entero, porque el problema era que **una entrega donde cambió la unidad
-no mostraba cambio**.
+de tipo: publicar la unidad sin compararla no alcanzaría, porque lo que
+importa es que **una entrega donde cambió la unidad muestre el cambio**.
 
 Una columna de períodos expresados sólo como mes y año informa la
 `granularidad` `"mes"` en `formatos_fecha` y deja los resúmenes de fecha
@@ -1472,11 +1463,11 @@ clases da la misma fila. Cuando todos los valores válidos aparecen una
 sola vez **no hay moda**, y `moda` queda en `NA`. Lo que se publicaría
 es el ganador de un desempate de tantas vías como valores haya, y ese
 desempate sigue el orden de ordenamiento, que depende de cómo esté
-guardada la columna: la misma columna `c(-5.5, -1, 0, 3.75)` daba `-5.5`
-como número y `-1` como texto. `frecuencia_moda` se conserva —vale 1, es
-cierto y es la evidencia de por qué la moda quedó callada—. Con un solo
-valor distinto sí hay moda, aunque su frecuencia sea 1: ahí no hay
-empate que resolver.
+guardada la columna: la misma columna `c(-5.5, -1, 0, 3.75)` daría
+`-5.5` como número y `-1` como texto. `frecuencia_moda` se conserva
+—vale 1, es cierto y es la evidencia de por qué la moda quedó callada—.
+Con un solo valor distinto sí hay moda, aunque su frecuencia sea 1: ahí
+no hay empate que resolver.
 
 Una columna numérica emite `valor_concentrado` como señal `sospechoso`
 cuando tiene al menos 20 valores válidos y 10 valores distintos, y su
@@ -1528,11 +1519,10 @@ cuantitativas** y quedan fuera por su clase se declaran una por una en
 [`is.numeric()`](https://rdrr.io/r/base/numeric.html) —que responde
 `FALSE` sobre un `difftime`— sino si la fila publica `minimo`, `maximo`
 y `media` como números: ahí la ausencia de hallazgo se lee como
-conformidad y por eso hay que declararla. `difftime` entró en esa
-categoría cuando dejó de abstenerse del resumen cuantitativo, y sin
-declararlo quedaba mudo en los dos diagnósticos mientras `units` los
-declaraba —la misma columna, con las mismas cifras, tratada de dos
-maneras—.
+conformidad y por eso hay que declararla. `difftime` está en esa
+categoría porque publica su resumen cuantitativo: sin declararlo
+quedaría mudo en los dos diagnósticos mientras `units` los declara —la
+misma columna, con las mismas cifras, tratada de dos maneras—.
 
 Una **fecha** y una **hora** no entran en esa declaración, y eso es
 deliberado: no publican `media` como número pelado —su resumen sale en
@@ -1860,32 +1850,33 @@ la cobertura del rango —`densidad_secuencia_entera` por encima de su
 umbral— y a que los valores **casi no se repitan**: al menos un 90 % de
 valores distintos, descontando el excedente de la moda. Cubrir el rango
 sola lo cumple también una magnitud entera acotada cuando se cargan
-filas suficientes, y el veredicto dependía de cuántas filas se leyeron;
-una numeración que se repite —un código de catálogo, una clave foránea—
-no se distingue por su forma de esa magnitud y no se trata como
-numeración. Es la misma regla que deciden `posible_identificador`, la
-guarda de los límites de Tukey, la de los patrones raros y la de
-Benford. Por eso un código de catálogo que se repite —un `EstCod` de 1 a
-284— recibe límites de Tukey y, con tres órdenes de magnitud, Benford,
-aunque se lo pase como texto o como factor: el paquete infiere número.
-Para eso está `columnas_codigo`. `moda_sobresale_secuencia_entera` es
-una señal independiente y no cambia los tres escudos de forma que
-dependen de la numeración. En una columna `integer64`, `bit64` se carga
-de manera diferida si está instalado para registrar sus métodos antes de
-medir. Si no está instalado, las cinco medidas públicas de la secuencia
-quedan en `NA` y `cobertura_diagnosticos` declara que `secuencia_entera`
-no se evaluó por falta de esa dependencia. Lo mismo pasa si la columna
-tiene valores por encima de 2^53: en un doble se redondean, la densidad
-no se mide sobre números redondeados, y la secuencia queda en `NA` y
-declarada, no como «no densa». La guarda vuelve a abrirse si un
-candidato presente queda fuera del rango de los valores restantes de la
-numeración, o si la frecuencia del candidato es la moda sobresaliente.
-Esta segunda señal se mide por el **salto entre frecuencias
-consecutivas**, ordenadas de mayor a menor y mirando sólo las primeras
-posiciones. Es el mismo idioma que `salto_de_escala_secuencia_entera`
-usa con los huecos: lo que delata a un centinela no es que su frecuencia
-sea grande, sino que haya un **acantilado** entre el grupo que sobresale
-y el resto de la distribución.
+filas suficientes, y con esa condición sola el veredicto dependería de
+cuántas filas se leyeron; una numeración que se repite —un código de
+catálogo, una clave foránea— no se distingue por su forma de esa
+magnitud y no se trata como numeración. Es la misma regla que deciden
+`posible_identificador`, la guarda de los límites de Tukey, la de los
+patrones raros y la de Benford. Por eso un código de catálogo que se
+repite —un `EstCod` de 1 a 284— recibe límites de Tukey y, con tres
+órdenes de magnitud, Benford, aunque se lo pase como texto o como
+factor: el paquete infiere número. Para eso está `columnas_codigo`.
+`moda_sobresale_secuencia_entera` es una señal independiente y no cambia
+los tres escudos de forma que dependen de la numeración. En una columna
+`integer64`, `bit64` se carga de manera diferida si está instalado para
+registrar sus métodos antes de medir. Si no está instalado, las cinco
+medidas públicas de la secuencia quedan en `NA` y
+`cobertura_diagnosticos` declara que `secuencia_entera` no se evaluó por
+falta de esa dependencia. Lo mismo pasa si la columna tiene valores por
+encima de 2^53: en un doble se redondean, la densidad no se mide sobre
+números redondeados, y la secuencia queda en `NA` y declarada, no como
+«no densa». La guarda vuelve a abrirse si un candidato presente queda
+fuera del rango de los valores restantes de la numeración, o si la
+frecuencia del candidato es la moda sobresaliente. Esta segunda señal se
+mide por el **salto entre frecuencias consecutivas**, ordenadas de mayor
+a menor y mirando sólo las primeras posiciones. Es el mismo idioma que
+`salto_de_escala_secuencia_entera` usa con los huecos: lo que delata a
+un centinela no es que su frecuencia sea grande, sino que haya un
+**acantilado** entre el grupo que sobresale y el resto de la
+distribución.
 
 Comparar contra un valor concreto no alcanza, y cada intento lo rompió
 un caso distinto: contra el **segundo** valor, un señuelo legítimo y
@@ -2188,7 +2179,7 @@ perfil
 #> ✖ 5 hallazgos con severidad error
 #> ! 9 hallazgos sospechosos
 #> ✔ 7 hallazgos informativos ok
-#> ℹ 8 diagnosticos no evaluados
+#> ℹ 8 diagnósticos no evaluados
 #> 
 #> ── Resumen general ──
 #> 

@@ -5,7 +5,7 @@
 <meta charset="utf-8">
 <meta http-equiv="X-UA-Compatible" content="IE=edge">
 <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
-<title>Perfilar una base • lupa</title>
+<title>10. Perfilar una base • lupa</title>
 <!-- favicons --><link rel="icon" type="image/png" sizes="96x96" href="../favicon-96x96.png">
 <link rel="icon" type="”image/svg+xml”" href="../favicon.svg">
 <link rel="apple-touch-icon" sizes="180x180" href="../apple-touch-icon.png">
@@ -16,7 +16,7 @@
 <script src="../deps/bootstrap-5.3.8/bootstrap.bundle.min.js"></script><link href="../deps/font-awesome-6.5.2/css/all.min.css" rel="stylesheet">
 <link href="../deps/font-awesome-6.5.2/css/v4-shims.min.css" rel="stylesheet">
 <script src="../deps/headroom-0.11.0/headroom.min.js"></script><script src="../deps/headroom-0.11.0/jQuery.headroom.min.js"></script><script src="../deps/bootstrap-toc-1.0.1/bootstrap-toc.min.js"></script><script src="../deps/clipboard.js-2.0.11/clipboard.min.js"></script><script src="../deps/search-1.0.0/autocomplete.jquery.min.js"></script><script src="../deps/search-1.0.0/fuse.min.js"></script><script src="../deps/search-1.0.0/mark.min.js"></script><link rel="icon" type="image/png" sizes="180x180" href="https://sebollin.github.io/lupa/apple-touch-icon.png">
-<!-- pkgdown --><script src="../pkgdown.js"></script><meta property="og:title" content="Perfilar una base">
+<!-- pkgdown --><script src="../pkgdown.js"></script><meta property="og:title" content="10. Perfilar una base">
 </head>
 <body>
     <a href="#main" class="visually-hidden-focusable">Skip to contents</a>
@@ -36,18 +36,30 @@
 
     <div id="navbar" class="collapse navbar-collapse ms-3">
       <ul class="navbar-nav me-auto">
+<li class="nav-item"><a class="nav-link" href="../articles/lupa.html">Get started</a></li>
 <li class="nav-item"><a class="nav-link" href="../reference/index.html">Reference</a></li>
 <li class="active nav-item dropdown">
   <button class="nav-link dropdown-toggle" type="button" id="dropdown-articles" data-bs-toggle="dropdown" aria-expanded="false" aria-haspopup="true">Articles</button>
   <ul class="dropdown-menu" aria-labelledby="dropdown-articles">
-<li><a class="dropdown-item" href="../articles/empezar-con-lupa.html">Empezar con lupa</a></li>
-    <li><a class="dropdown-item" href="../articles/flujo-guiado.html">Flujo guiado: del perfil a la evaluación</a></li>
-    <li><a class="dropdown-item" href="../articles/definir-la-calidad.html">Definir la calidad</a></li>
-    <li><a class="dropdown-item" href="../articles/medir-y-evaluar.html">Medir y evaluar</a></li>
-    <li><a class="dropdown-item" href="../articles/limpiar-con-un-plan.html">Limpiar con un plan auditable</a></li>
-    <li><a class="dropdown-item" href="../articles/historico-y-deriva.html">Histórico y monitoreo de deriva</a></li>
+<li><a class="dropdown-item" href="../articles/leer-un-perfil.html">2. Leer un perfil</a></li>
+    <li><a class="dropdown-item" href="../articles/explorar-columnas.html">3. Explorar columnas con `analizar()`</a></li>
+    <li><a class="dropdown-item" href="../articles/estructura-no-declarada.html">4. Estructura no declarada</a></li>
+    <li><a class="dropdown-item" href="../articles/vacio-por-diseno.html">5. El vacío por diseño</a></li>
+    <li><a class="dropdown-item" href="../articles/limpiar-con-un-plan.html">6. Limpiar con un plan</a></li>
+    <li><a class="dropdown-item" href="../articles/del-hallazgo-a-la-metrica.html">7. Del hallazgo a la métrica</a></li>
+    <li><a class="dropdown-item" href="../articles/marcos-y-modelos.html">8. Marcos y modelos de calidad</a></li>
+    <li><a class="dropdown-item" href="../articles/historico-y-deriva.html">9. Comparar entregas y seguir la calidad</a></li>
     <li><hr class="dropdown-divider"></li>
-    <li><a class="dropdown-item" href="../articles/index.html">More articles...</a></li>
+    <li><h6 class="dropdown-header" data-toc-skip>Bases y escala</h6></li>
+    <li><a class="dropdown-item" href="../articles/perfilar-una-base.html">10. Perfilar una base</a></li>
+    <li><a class="dropdown-item" href="../articles/colecciones.html">11. Colecciones</a></li>
+    <li><a class="dropdown-item" href="../articles/escala-y-duplicados.html">12. Escala y duplicados aproximados</a></li>
+    <li><hr class="dropdown-divider"></li>
+    <li><h6 class="dropdown-header" data-toc-skip>Referencia en línea</h6></li>
+    <li><a class="dropdown-item" href="../articles/motores-y-escala.html">Motores y escala</a></li>
+    <li><a class="dropdown-item" href="../articles/alcance-y-cobertura.html">Alcance y cobertura</a></li>
+    <li><a class="dropdown-item" href="../articles/evidencia-y-rendimiento.html">Evidencia y rendimiento</a></li>
+    <li><a class="dropdown-item" href="../articles/codificacion-y-locales.html">Codificación y locales</a></li>
   </ul>
 </li>
 <li class="nav-item"><a class="nav-link" href="../news/index.html">Changelog</a></li>
@@ -64,7 +76,7 @@
 
 <div class="row">
   <main id="main" class="col-md-9"><div class="page-header">
-      <img src="../logo.png" class="logo" alt=""><h1>Perfilar una base</h1>
+      <img src="../logo.png" class="logo" alt=""><h1>10. Perfilar una base</h1>
             
       
       <small class="dont-index">Source: <a href="https://github.com/sebollin/lupa/blob/main/vignettes/perfilar-una-base.Rmd" class="external-link"><code>vignettes/perfilar-una-base.Rmd</code></a></small>
@@ -73,933 +85,400 @@
 
     
     
-<p>Por omisión, <code><a href="../reference/perfilar_dbi.html">perfilar_dbi()</a></code> mantiene separados dos
-resultados porque provienen de universos distintos:</p>
+<p>Tenemos una tabla de ventas en una base de datos, quizá demasiado
+grande para la memoria de la sesión. ¿Cómo decidimos qué calcula el
+motor, cuántas filas llegan a R y dónde queda escrito cómo se
+eligieron?</p>
+<blockquote>
+<p><strong>En esta guía:</strong></p>
 <ul>
-<li>
-<code>resumen_tabla</code> calcula agregados SQL sobre la tabla
-completa;</li>
-<li>
-<code>perfil_muestra</code> ejecuta <code><a href="../reference/perfilar.html">perfilar()</a></code> sobre
-las filas traídas a memoria.</li>
+<li>perfilamos una tabla con <code><a href="../reference/perfilar_dbi.html">perfilar_dbi()</a></code> y separamos sus
+dos bloques, <code>resumen_tabla</code> y
+<code>perfil_muestra</code>;</li>
+<li>comparamos qué trae a R cada opción: la llamada por omisión,
+<code>muestra = n</code>, <code>universo = "muestra_motor"</code> y
+<code>bloque_muestra = "solo_agregados"</code>;</li>
+<li>encontramos el metadato del muestreo, que vive en dos lugares según
+la opción;</li>
+<li>leemos el resultado con los mismos accesores que un perfil en
+memoria.</li>
 </ul>
-<p>El resumen SQL usa <code>universo = "tabla_completa"</code> por
-omisión. Para tablas grandes se puede pedir
-<code>universo = "muestra_motor"</code> junto con
-<code>muestra_motor = n</code>: las métricas se calculan sobre una
-relación muestreada por el motor, no sobre una tabla traída a R. La
-capacidad se sondea antes de medir; PostgreSQL y SQL Server pueden
-resolverla con <code>TABLESAMPLE</code>, y otros motores con una función
-pseudoaleatoria y el límite de su dialecto. Si ninguna forma es
-aceptada, las métricas quedan en <code>NA</code> y
-<code>resumen_tabla$cobertura</code> conserva el motivo.</p>
-<p>Cada registro de <code>resumen_tabla$sql</code> declara
-<code>alcance</code>, <code>universo</code>,
-<code>tamano_muestra</code>, <code>fraccion</code>, <code>metodo</code>
-y <code>error_esperado</code>. En el universo muestreado,
-<code>error_esperado</code> distingue <code>no_estimado</code> —el error
-podría calcularse bajo un plan probabilístico, pero no se calculó— de
-<code>no_estimable</code> —moda, mediana y cardinalidad observada no
-tienen una cota simple sin supuestos adicionales—.
-<code>no_aplica</code> indica que no hubo muestreo efectivo. El motivo
-queda en <code>resumen_tabla$sql$motivo</code>, junto con el método, el
-tamaño y la fracción. <code>n_distintos</code> se conserva como
-cardinalidad observada en la muestra, no como una estimación de la
-cardinalidad de la tabla completa.</p>
-<p>El metadato <code>resumen_tabla$meta$muestreo</code> conserva
-<code>tamano_muestra</code> por compatibilidad como tamaño efectivo
-solicitado a la consulta. Además publica <code>filas_solicitadas</code>,
-el pedido original, y <code>filas_obtenidas</code>, las filas que
-devolvió la lectura de <code>perfil_muestra</code>; esta última puede
-ser <code>NA</code> cuando el bloque no se solicitó o falló antes de
-leer. Si la consulta de la muestra devuelve cero filas, no hay base para
-medir las métricas de alcance <code>muestra</code>: quedan en
-<code>NA</code>, con estado <code>no_disponible</code> y un motivo que
-nombra la muestra vacía. Esto no permite concluir que la columna esté
-vacía, por lo que no se publica cero ni se dispara
-<code>sin_valores</code>; <code>n</code> conserva el conteo de la tabla
-completa. <code>estrategia_distintos</code> es explícita:
-<code>"exacta"</code> es el valor por omisión y emite
-<code>COUNT(DISTINCT)</code>; <code>"aproximada_motor"</code> usa una
-función nativa sólo si el motor la acepta; <code>"catalogo"</code> lee
-<code>pg_stats.n_distinct</code> en PostgreSQL y lo publica como
-estimación, con guardas de herencia y de modos muestreados; en otros
-motores queda <code>no_disponible</code> con su motivo; y
-<code>"omitida"</code> no emite la consulta. Una estrategia aproximada
-sin capacidad no se convierte en exacta. El resultado distingue la
-estrategia solicitada, la resuelta y su estado.</p>
-<p>Además, <code>id_consulta</code> identifica la consulta de datos que
-produjo cada métrica; <code>muestra_id</code> queda reservado para la
-relación materializada en el spool cliente. Dos métricas con el mismo
-valor vieron exactamente las mismas filas y se pueden comparar
-directamente, sin cruzar <code>lote</code> ni
-<code>columnas_compartidas</code>. Un <code>NA</code> declara que esa
-garantía no se puede hacer; en particular, moda, frecuencia de la moda y
-mediana son métricas por columna y no comparten filas con otras.
-<code>consulta_id</code> identifica la sentencia que produjo cada
-medición y permite formar el grupo de consistencia: las cotas duras sólo
-comparan valores con el mismo identificador. La consulta exacta de
-distintos trae <code>COUNT(columna) AS n_validos_guard</code> junto a
-<code>COUNT(DISTINCT columna)</code>; si una capacidad aproximada no
-puede traer ese guardián, la cota se declara no comprobable y no se
-atribuye una inconsistencia al motor.</p>
-<p>El catálogo de la clave primaria se consulta siempre, aunque la
-política de costo no necesite cardinalidad. La respuesta queda en
-<code>resumen_tabla$meta$clave</code>, con sus <code>columnas</code>,
-<code>fuente</code>, <code>motivo</code>, <code>garantia</code> y
-<code>estado</code>. La consulta es de metadatos y no recorre la tabla.
-La fuente estructural sólo gobierna la medición de cardinalidad cuando
-la política lo necesita; no se pierde el conocimiento de una clave
-garantizada si <code>estrategia_distintos</code> está omitida o no
-disponible. Si la fuente estructural no alcanza y la estrategia no
-permite medir, la cardinalidad queda desconocida y se aplica la regla
-explícita de la política.</p>
-<p>El resumen declara <code>meta$snapshot = FALSE</code>, porque sus
-agregados son sentencias separadas. Cuando <code>n_validos</code> y
-<code>n_distintos</code> exactos son incoherentes y vienen de grupos
-<code>consulta_id</code> distintos, <code>cobertura</code> agrega
-<code>alcance_distinto</code> y el motivo conserva ambas sentencias: es
-evidencia de que la tabla cambió durante la corrida, no una acusación
-contra el motor.</p>
-<p>Mezclarlos en una fila, aun con un campo de alcance por resultado,
-permitiría comparar cantidades como si pertenecieran al mismo perfil.
-Los dos bloques impiden esa lectura.</p>
-<p>Si sólo se necesitan los agregados del motor,
-<code>bloque_muestra = "solo_agregados"</code> evita traer filas a R y
-deja <code>perfil_muestra = NULL</code>. La cobertura lo declara como
-<code>no_solicitado</code>, que no es un fallo. Esto vale para los dos
-universos: con <code>muestra_motor</code>, los agregados se calculan
-sobre la relación muestreada, pero no se abre un spool ni se ven filas
-(<code>meta$bloques$filas_vistas = 0</code>). La lectura habitual se
-conserva con <code>bloque_muestra = "con_muestra"</code>, que es el
-valor por omisión; allí la selección del motor se materializa una sola
-vez y se reutiliza para todo el perfil.</p>
-<p><code>max_celdas_muestra</code> y <code>max_bytes_muestra</code>
-acotan sólo el bloque <code>perfil_muestra</code>: el primero se
-resuelve con las columnas del esquema y el segundo con una sonda de
-hasta 100 filas, antes de leer el resto. Los agregados SQL conservan su
-alcance y la cobertura declara cuál tope redujo la muestra.</p>
+</blockquote>
 <div class="section level2">
-<h2 id="un-ejemplo-en-memoria">Un ejemplo en memoria<a class="anchor" aria-label="anchor" href="#un-ejemplo-en-memoria"></a>
+<h2 id="una-tabla-en-una-base">Una tabla en una base<a class="anchor" aria-label="anchor" href="#una-tabla-en-una-base"></a>
 </h2>
-<p>Para ejecutar el bloque se necesitan los paquetes opcionales
-<code>DBI</code> y <code>RSQLite</code>, ambos declarados en
-<code>Suggests</code>. Si falta cualquiera de ellos, knitr omite el
-bloque y la viñeta se construye sin error.</p>
-<p>La llamada a <code><a href="https://dbi.r-dbi.org/reference/dbWriteTable.html" class="external-link">DBI::dbWriteTable()</a></code> crea la base de
-demostración en memoria. Pertenece a la preparación del ejemplo;
-<code><a href="../reference/perfilar_dbi.html">perfilar_dbi()</a></code> no escribe en la base, no crea tablas
-temporales y sólo emite consultas de lectura.</p>
+<p>Usamos SQLite en memoria, con los paquetes <code>DBI</code> y
+<code>RSQLite</code>. La tabla tiene mil filas para que la guía corra en
+segundos; las decisiones son las mismas con millones.
+<code><a href="https://dbi.r-dbi.org/reference/dbWriteTable.html" class="external-link">DBI::dbWriteTable()</a></code> sólo prepara el ejemplo:
+<code><a href="../reference/perfilar_dbi.html">perfilar_dbi()</a></code> emite consultas de lectura, no escribe en la
+base ni crea tablas temporales.</p>
 <div class="sourceCode" id="cb1"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va"><a href="https://github.com/sebollin/lupa" class="external-link">lupa</a></span><span class="op">)</span></span>
 <span></span>
-<span><span class="va">datos_base</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/data.frame.html" class="external-link">data.frame</a></span><span class="op">(</span></span>
-<span>  id <span class="op">=</span> <span class="fl">1</span><span class="op">:</span><span class="fl">12</span>,</span>
-<span>  grupo <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/rep.html" class="external-link">rep</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"A"</span>, <span class="st">"B"</span>, <span class="st">"C"</span><span class="op">)</span>, each <span class="op">=</span> <span class="fl">4</span><span class="op">)</span>,</span>
-<span>  valor <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">10</span>, <span class="fl">12</span>, <span class="cn">NA</span>, <span class="fl">14</span>, <span class="fl">20</span>, <span class="fl">22</span>, <span class="fl">24</span>, <span class="fl">26</span>, <span class="fl">30</span>, <span class="fl">32</span>, <span class="fl">34</span>, <span class="fl">36</span><span class="op">)</span>,</span>
-<span>  fecha <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/character.html" class="external-link">as.character</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/as.Date.html" class="external-link">as.Date</a></span><span class="op">(</span><span class="st">"2026-01-01"</span><span class="op">)</span> <span class="op">+</span> <span class="fl">0</span><span class="op">:</span><span class="fl">11</span><span class="op">)</span>,</span>
+<span><span class="va">n</span> <span class="op">&lt;-</span> <span class="fl">1000</span></span>
+<span><span class="va">ventas</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/data.frame.html" class="external-link">data.frame</a></span><span class="op">(</span></span>
+<span>  id_venta <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/seq.html" class="external-link">seq_len</a></span><span class="op">(</span><span class="va">n</span><span class="op">)</span>,</span>
+<span>  sucursal <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/rep.html" class="external-link">rep</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"Norte"</span>, <span class="st">"Sur"</span>, <span class="st">"Este"</span>, <span class="st">"Oeste"</span><span class="op">)</span>, length.out <span class="op">=</span> <span class="va">n</span><span class="op">)</span>,</span>
+<span>  monto <span class="op">=</span> <span class="fl">100</span> <span class="op">+</span> <span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/seq.html" class="external-link">seq_len</a></span><span class="op">(</span><span class="va">n</span><span class="op">)</span> <span class="op">*</span> <span class="fl">37</span><span class="op">)</span> <span class="op"><a href="https://rdrr.io/r/base/Arithmetic.html" class="external-link">%%</a></span> <span class="fl">800</span>,</span>
+<span>  fecha <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/format.html" class="external-link">format</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/as.Date.html" class="external-link">as.Date</a></span><span class="op">(</span><span class="st">"2026-01-01"</span><span class="op">)</span> <span class="op">+</span> <span class="fu"><a href="https://rdrr.io/r/base/seq.html" class="external-link">seq_len</a></span><span class="op">(</span><span class="va">n</span><span class="op">)</span> <span class="op"><a href="https://rdrr.io/r/base/Arithmetic.html" class="external-link">%%</a></span> <span class="fl">180</span><span class="op">)</span>,</span>
 <span>  stringsAsFactors <span class="op">=</span> <span class="cn">FALSE</span></span>
 <span><span class="op">)</span></span>
-<span><span class="va">datos_base</span></span>
-<span><span class="co">#&gt;    id grupo valor      fecha</span></span>
-<span><span class="co">#&gt; 1   1     A    10 2026-01-01</span></span>
-<span><span class="co">#&gt; 2   2     A    12 2026-01-02</span></span>
-<span><span class="co">#&gt; 3   3     A    NA 2026-01-03</span></span>
-<span><span class="co">#&gt; 4   4     A    14 2026-01-04</span></span>
-<span><span class="co">#&gt; 5   5     B    20 2026-01-05</span></span>
-<span><span class="co">#&gt; 6   6     B    22 2026-01-06</span></span>
-<span><span class="co">#&gt; 7   7     B    24 2026-01-07</span></span>
-<span><span class="co">#&gt; 8   8     B    26 2026-01-08</span></span>
-<span><span class="co">#&gt; 9   9     C    30 2026-01-09</span></span>
-<span><span class="co">#&gt; 10 10     C    32 2026-01-10</span></span>
-<span><span class="co">#&gt; 11 11     C    34 2026-01-11</span></span>
-<span><span class="co">#&gt; 12 12     C    36 2026-01-12</span></span>
-<span></span>
-<span><span class="va">conexion</span> <span class="op">&lt;-</span> <span class="fu">DBI</span><span class="fu">::</span><span class="fu"><a href="https://dbi.r-dbi.org/reference/dbConnect.html" class="external-link">dbConnect</a></span><span class="op">(</span><span class="fu">RSQLite</span><span class="fu">::</span><span class="fu"><a href="https://rsqlite.r-dbi.org/reference/SQLite.html" class="external-link">SQLite</a></span><span class="op">(</span><span class="op">)</span>, <span class="st">":memory:"</span><span class="op">)</span></span>
-<span><span class="va">creada</span> <span class="op">&lt;-</span> <span class="fu">DBI</span><span class="fu">::</span><span class="fu"><a href="https://dbi.r-dbi.org/reference/dbWriteTable.html" class="external-link">dbWriteTable</a></span><span class="op">(</span><span class="va">conexion</span>, <span class="st">"entregas"</span>, <span class="va">datos_base</span><span class="op">)</span></span>
-<span></span>
-<span><span class="va">sin_orden</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/perfilar_dbi.html">perfilar_dbi</a></span><span class="op">(</span></span>
-<span>  <span class="va">conexion</span>, <span class="st">"entregas"</span>, muestra <span class="op">=</span> <span class="fl">5</span></span>
-<span><span class="op">)</span></span>
-<span><span class="va">perfil</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/perfilar_dbi.html">perfilar_dbi</a></span><span class="op">(</span></span>
-<span>  <span class="va">conexion</span>, <span class="st">"entregas"</span>, muestra <span class="op">=</span> <span class="fl">5</span>, orden_muestra <span class="op">=</span> <span class="st">"id"</span></span>
-<span><span class="op">)</span></span>
-<span><span class="va">solo_agregados</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/perfilar_dbi.html">perfilar_dbi</a></span><span class="op">(</span></span>
-<span>  <span class="va">conexion</span>, <span class="st">"entregas"</span>, metricas <span class="op">=</span> <span class="st">"validos"</span>,</span>
-<span>  bloque_muestra <span class="op">=</span> <span class="st">"solo_agregados"</span></span>
-<span><span class="op">)</span></span></code></pre></div>
-<p>La conexión y los dos perfiles ya están preparados. Los bloques
-siguientes consultan ese mismo estado: partir la explicación no implica
-recrear la base ni volver a medirla.</p>
-<p>Cuando el perfil es de una tabla en memoria, <code><a href="../reference/perfilar.html">perfilar()</a></code>
-proyecta el costo de las celdas antes de iniciar las etapas caras. Desde
-100.000 celdas puede mostrar, sólo en una sesion interactiva, un aviso
-con la duracion estimada y la fuente de la referencia; en un guion no
-interactivo queda en silencio. La proyeccion se conserva en
-<code>meta$costo_tabla_ancha</code>. Para la proximidad del vocabulario,
-valores de mas de 10.000 caracteres quedan fuera de la distancia
-normalizada y la cobertura lo declara con el umbral; <code>Inf</code> es
-la forma explicita de recuperar el comportamiento anterior.</p>
-</div>
-<div class="section level2">
-<h2 id="antes-de-conectarse-qué-hace-falta-para-cada-motor">Antes de conectarse: qué hace falta para cada motor<a class="anchor" aria-label="anchor" href="#antes-de-conectarse-qu%C3%A9-hace-falta-para-cada-motor"></a>
-</h2>
-<p><code>lupa</code> tiene dos dependencias obligatorias,
-<code>cli</code> y <code>data.table</code>. El paquete del motor y la
-biblioteca del sistema que va debajo son cosa de quien instala, y el
-error que aparece cuando falta alguna rara vez dice cuál es.</p>
+<span><span class="va">ventas</span><span class="op">$</span><span class="va">monto</span><span class="op">[</span><span class="fu"><a href="https://rdrr.io/r/base/seq.html" class="external-link">seq</a></span><span class="op">(</span><span class="fl">7</span>, <span class="va">n</span>, by <span class="op">=</span> <span class="fl">50</span><span class="op">)</span><span class="op">]</span> <span class="op">&lt;-</span> <span class="cn">NA</span></span>
+<span><span class="fu"><a href="https://rdrr.io/r/utils/head.html" class="external-link">head</a></span><span class="op">(</span><span class="va">ventas</span>, <span class="fl">3</span><span class="op">)</span></span>
+<span><span class="co">#&gt;   id_venta sucursal monto      fecha</span></span>
+<span><span class="co">#&gt; 1        1    Norte   137 2026-01-02</span></span>
+<span><span class="co">#&gt; 2        2      Sur   174 2026-01-03</span></span>
+<span><span class="co">#&gt; 3        3     Este   211 2026-01-04</span></span></code></pre></div>
 <div class="sourceCode" id="cb2"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="fu"><a href="../reference/requisitos_motor.html">requisitos_motor</a></span><span class="op">(</span><span class="op">)</span>            <span class="co"># el catálogo entero</span></span>
-<span><span class="fu"><a href="../reference/requisitos_motor.html">requisitos_motor</a></span><span class="op">(</span><span class="st">"mariadb"</span><span class="op">)</span>   <span class="co"># qué necesita MariaDB, y cómo conseguirlo</span></span></code></pre></div>
-<p>Por cada motor devuelve el paquete de R, la biblioteca del sistema
-con su nombre en Debian y en Fedora, <strong>la salida sin permisos de
-administrador</strong> cuando existe, el dialecto esperado y si está
-probado contra motor real o sólo esperado.</p>
-<p>Eso último importa y conviene leerlo con cuidado: la columna dice si
-<strong><code>lupa</code></strong> se probó contra ese motor, no si tu
-instalación funciona. Y la comprobación de la biblioteca del sistema es
-honesta sobre su propio límite — cuando sólo puede decir «el paquete de
-R no está, y si al instalarlo falla la compilación lo que falta es
-esto», dice eso, porque comprobar de verdad exigiría intentar
-compilar.</p>
-<p>La clave primaria que se lee después de esa conexión conserva dos
-datos distintos: <code>fuente</code> dice qué catálogo respondió y
-<code>garantia</code> dice si el estado consultado alcanza para confiar
-en el motor. Oracle sólo queda garantizado con
-<code>STATUS = ENABLED</code> y <code>VALIDATED</code>; PostgreSQL
-consulta <code>enforced</code> y la validación, y MySQL
-<code>enforced</code>. MariaDB, SQL Server, SQLite y DuckDB no ofrecen
-en esta lectura un estado comparable, así que allí una clave visible
-queda con garantía desconocida. No hay que leer una entrada del catálogo
-como prueba de los datos existentes cuando el estado no fue consultable.
-Una tabla sin clave declarada queda con
-<code>garantia = "no_declarada"</code>; una consulta fallida o un
-catálogo cuya visibilidad no se puede establecer queda con
-<code>garantia = "desconocida"</code> y su motivo.</p>
-<p>El método de impresión muestra esta línea de metadatos junto al
-resumen. Por ejemplo, una tabla sin clave dice «Clave primaria: no
-declara clave», mientras que una consulta fallida dice que no se pudo
-preguntar al catálogo.</p>
+<code class="sourceCode R"><span><span class="va">conexion</span> <span class="op">&lt;-</span> <span class="fu">DBI</span><span class="fu">::</span><span class="fu"><a href="https://dbi.r-dbi.org/reference/dbConnect.html" class="external-link">dbConnect</a></span><span class="op">(</span><span class="fu">RSQLite</span><span class="fu">::</span><span class="fu"><a href="https://rsqlite.r-dbi.org/reference/SQLite.html" class="external-link">SQLite</a></span><span class="op">(</span><span class="op">)</span>, <span class="st">":memory:"</span><span class="op">)</span></span>
+<span><span class="fu">DBI</span><span class="fu">::</span><span class="fu"><a href="https://dbi.r-dbi.org/reference/dbWriteTable.html" class="external-link">dbWriteTable</a></span><span class="op">(</span><span class="va">conexion</span>, <span class="st">"ventas"</span>, <span class="va">ventas</span><span class="op">)</span></span></code></pre></div>
 </div>
 <div class="section level2">
-<h2 id="leer-el-resultado-sin-memorizar-su-forma">Leer el resultado sin memorizar su forma<a class="anchor" aria-label="anchor" href="#leer-el-resultado-sin-memorizar-su-forma"></a>
+<h2 id="perfilar-con-los-valores-por-omisión">Perfilar con los valores por omisión<a class="anchor" aria-label="anchor" href="#perfilar-con-los-valores-por-omisi%C3%B3n"></a>
 </h2>
-<p><code><a href="../reference/perfilar.html">perfilar()</a></code> devuelve un <code>perfil</code> plano y
-<code><a href="../reference/perfilar_dbi.html">perfilar_dbi()</a></code> un contenedor con dos componentes: el
-segundo puede ser <code>NULL</code> si la muestra no se pidió o no
-estuvo disponible. Es una diferencia real —una tabla en memoria y una
-tabla remota no son lo mismo— pero convertía la lectura en un acertijo:
-<code>perfil$general$filas</code> funciona sobre el primero y devuelve
-<code>NULL</code> sobre el segundo.</p>
 <div class="sourceCode" id="cb3"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va"><a href="https://github.com/sebollin/lupa" class="external-link">lupa</a></span><span class="op">)</span></span>
-<span><span class="va">en_memoria</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/perfilar.html">perfilar</a></span><span class="op">(</span><span class="va">datos_administrativos</span>, analizar_dependencias <span class="op">=</span> <span class="cn">FALSE</span><span class="op">)</span></span>
-<span><span class="fu"><a href="../reference/accesores_perfil.html">n_filas</a></span><span class="op">(</span><span class="va">en_memoria</span><span class="op">)</span></span>
-<span><span class="co">#&gt; [1] 13</span></span>
-<span><span class="fu"><a href="https://rdrr.io/r/base/nrow.html" class="external-link">nrow</a></span><span class="op">(</span><span class="fu"><a href="../reference/accesores_perfil.html">columnas</a></span><span class="op">(</span><span class="va">en_memoria</span><span class="op">)</span><span class="op">)</span></span>
-<span><span class="co">#&gt; [1] 10</span></span>
-<span><span class="fu"><a href="https://rdrr.io/r/base/nrow.html" class="external-link">nrow</a></span><span class="op">(</span><span class="fu"><a href="../reference/accesores_perfil.html">hallazgos</a></span><span class="op">(</span><span class="va">en_memoria</span><span class="op">)</span><span class="op">)</span></span>
-<span><span class="co">#&gt; [1] 21</span></span>
-<span><span class="fu"><a href="https://rdrr.io/r/base/nrow.html" class="external-link">nrow</a></span><span class="op">(</span><span class="fu"><a href="../reference/accesores_perfil.html">cobertura</a></span><span class="op">(</span><span class="va">en_memoria</span><span class="op">)</span><span class="op">)</span></span>
-<span><span class="co">#&gt; [1] 8</span></span>
-<span><span class="fu"><a href="../reference/accesores_perfil.html">sql_perfil</a></span><span class="op">(</span><span class="va">en_memoria</span><span class="op">)</span>   <span class="co"># NULL: un perfil en memoria no emitió SQL</span></span>
-<span><span class="co">#&gt; NULL</span></span></code></pre></div>
-<p>Los mismos cinco nombres sirven para las cuatro formas de salida. Y
-no inventan lo que no hay: un perfil DBI sin muestra leída, o con la
-muestra no solicitada, devuelve una tabla de hallazgos vacía <strong>con
-su aviso</strong>, no una tabla que aparente que se midió y no había
-nada.</p>
+<code class="sourceCode R"><span><span class="va">completo</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/perfilar_dbi.html">perfilar_dbi</a></span><span class="op">(</span><span class="va">conexion</span>, <span class="st">"ventas"</span><span class="op">)</span></span>
+<span><span class="va">completo</span></span>
+<span><span class="co">#&gt; Perfil DBI de <span style="font-weight: bold;">ventas</span></span></span>
+<span><span class="co">#&gt; Resumen de tabla completa: 4 columnas sobre 1000 filas</span></span>
+<span><span class="co">#&gt; Clave primaria: no declara clave (fuente `pragma`).</span></span>
+<span><span class="co">#&gt; Métricas: calculado 46, no_aplica 14</span></span>
+<span><span class="co">#&gt; Consultas emitidas: 20 (dialecto limit)</span></span>
+<span><span class="co">#&gt; Derrame estimado: no se pudo estimar (No se pudo estimar el derrame: la conexión no fue</span></span>
+<span><span class="co">#&gt; reconocida como PostgreSQL y no hay un `pg_stats` portable.).</span></span>
+<span><span class="co">#&gt; Derrame: no disponible (El controlador no fue reconocido como PostgreSQL; no se puede</span></span>
+<span><span class="co">#&gt; consultar una estadistica de bloques temporales portable.).</span></span>
+<span><span class="co">#&gt; Perfil de muestra: 1000 filas, reproducible: FALSE</span></span>
+<span><span class="co">#&gt; Diagnósticos no evaluados sobre la muestra: 3, en `perfil_muestra$cobertura_diagnosticos`</span></span>
+<span><span class="co">#&gt; No se imprime ningún valor de celda: están en `resumen_tabla$columnas`.</span></span></code></pre></div>
+<p>La impresión ya muestra los dos bloques. «Resumen de tabla completa»
+es <code>resumen_tabla</code>: agregados que el motor calcula en SQL
+sobre todas las filas. «Perfil de muestra» es
+<code>perfil_muestra</code>: <code><a href="../reference/perfilar.html">perfilar()</a></code> corrido en R sobre
+las filas que se leyeron. Las líneas de derrame sólo tienen contenido en
+PostgreSQL.</p>
+<p>Por omisión, <code>universo = "tabla_completa"</code> y
+<code>muestra = Inf</code>. Eso quiere decir que los agregados recorren
+la tabla entera y que, además, <code>lupa</code> trae a R <strong>todas
+las filas que entran en los topes de lectura</strong>:
+<code>max_celdas_muestra</code> (1.000.000 celdas por omisión) y
+<code>max_bytes_muestra</code> (512 MiB). Con esta tabla entran las mil.
+La llamada por omisión no es una muestra barata: es la tabla completa,
+si cabe.</p>
 </div>
 <div class="section level2">
-<h2 id="los-dos-bloques-posibles-del-resultado">Los dos bloques posibles del resultado<a class="anchor" aria-label="anchor" href="#los-dos-bloques-posibles-del-resultado"></a>
+<h2 id="qué-trae-a-r-cada-opción">Qué trae a R cada opción<a class="anchor" aria-label="anchor" href="#qu%C3%A9-trae-a-r-cada-opci%C3%B3n"></a>
 </h2>
-<p><code>names(perfil)</code> hace visible la separación que devuelve
-<code><a href="../reference/perfilar_dbi.html">perfilar_dbi()</a></code>. La tabla siguiente compara el alcance de
-cada bloque: las filas de origen y la cantidad de campos analíticos, sin
-presentarlos como un único perfil.</p>
+<p>Probamos las otras tres decisiones sobre la misma tabla y armamos una
+fila por opción: cuántas filas describe el resumen SQL, cuántas se
+leyeron a R y en cuál de los dos lugares quedó el metadato del
+muestreo.</p>
 <div class="sourceCode" id="cb4"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span></span>
-<span><span class="fu"><a href="https://rdrr.io/r/base/names.html" class="external-link">names</a></span><span class="op">(</span><span class="va">perfil</span><span class="op">)</span></span>
-<span><span class="co">#&gt; [1] "resumen_tabla"  "perfil_muestra"</span></span>
-<span><span class="va">solo_agregados</span><span class="op">$</span><span class="va">perfil_muestra</span></span>
-<span><span class="co">#&gt; NULL</span></span>
-<span><span class="va">solo_agregados</span><span class="op">$</span><span class="va">resumen_tabla</span><span class="op">$</span><span class="va">cobertura</span><span class="op">[</span></span>
-<span>  <span class="va">solo_agregados</span><span class="op">$</span><span class="va">resumen_tabla</span><span class="op">$</span><span class="va">cobertura</span><span class="op">$</span><span class="va">bloque</span> <span class="op">==</span> <span class="st">"perfil_muestra"</span>, ,</span>
-<span>  drop <span class="op">=</span> <span class="cn">FALSE</span></span>
-<span><span class="op">]</span></span>
-<span><span class="co">#&gt;           bloque elemento        estado</span></span>
-<span><span class="co">#&gt; 1 perfil_muestra entregas no_solicitado</span></span>
-<span><span class="co">#&gt;                                                                                                                   motivo</span></span>
-<span><span class="co">#&gt; 1 No se solicito el perfil de muestra: este resultado contiene unicamente los agregados SQL de la configuracion elegida.</span></span>
-<span><span class="co">#&gt;                                                                                                         como_resolverlo</span></span>
-<span><span class="co">#&gt; 1 Para obtener diagnosticos sobre valores y hallazgos por fila, volver a perfilar con `bloque_muestra = "con_muestra"`.</span></span>
-<span><span class="co">#&gt;    sql</span></span>
-<span><span class="co">#&gt; 1 &lt;NA&gt;</span></span>
-<span></span>
-<span><span class="fu"><a href="https://rdrr.io/r/base/data.frame.html" class="external-link">data.frame</a></span><span class="op">(</span></span>
-<span>  bloque <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"resumen_tabla"</span>, <span class="st">"perfil_muestra"</span><span class="op">)</span>,</span>
-<span>  filas_fuente <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span></span>
-<span>    <span class="va">perfil</span><span class="op">$</span><span class="va">resumen_tabla</span><span class="op">$</span><span class="va">meta</span><span class="op">$</span><span class="va">filas</span>,</span>
-<span>    <span class="va">perfil</span><span class="op">$</span><span class="va">perfil_muestra</span><span class="op">$</span><span class="va">meta</span><span class="op">$</span><span class="va">filas_analizadas</span></span>
-<span>  <span class="op">)</span>,</span>
-<span>  campos_analiticos <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span></span>
-<span>    <span class="fu"><a href="https://rdrr.io/r/base/nrow.html" class="external-link">ncol</a></span><span class="op">(</span><span class="va">perfil</span><span class="op">$</span><span class="va">resumen_tabla</span><span class="op">$</span><span class="va">columnas</span><span class="op">)</span> <span class="op">-</span> <span class="fl">1L</span>,</span>
-<span>    <span class="fu"><a href="https://rdrr.io/r/base/nrow.html" class="external-link">ncol</a></span><span class="op">(</span><span class="va">perfil</span><span class="op">$</span><span class="va">perfil_muestra</span><span class="op">$</span><span class="va">columnas</span><span class="op">)</span> <span class="op">-</span> <span class="fl">1L</span></span>
-<span>  <span class="op">)</span>,</span>
-<span>  columnas_del_resultado <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span></span>
-<span>    <span class="fu"><a href="https://rdrr.io/r/base/nrow.html" class="external-link">ncol</a></span><span class="op">(</span><span class="va">perfil</span><span class="op">$</span><span class="va">resumen_tabla</span><span class="op">$</span><span class="va">columnas</span><span class="op">)</span>,</span>
-<span>    <span class="fu"><a href="https://rdrr.io/r/base/nrow.html" class="external-link">ncol</a></span><span class="op">(</span><span class="va">perfil</span><span class="op">$</span><span class="va">perfil_muestra</span><span class="op">$</span><span class="va">columnas</span><span class="op">)</span></span>
-<span>  <span class="op">)</span></span>
+<code class="sourceCode R"><span><span class="va">acotado</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/perfilar_dbi.html">perfilar_dbi</a></span><span class="op">(</span><span class="va">conexion</span>, <span class="st">"ventas"</span>, muestra <span class="op">=</span> <span class="fl">200</span>, orden_muestra <span class="op">=</span> <span class="st">"id_venta"</span><span class="op">)</span></span>
+<span><span class="va">en_motor</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/perfilar_dbi.html">perfilar_dbi</a></span><span class="op">(</span></span>
+<span>  <span class="va">conexion</span>, <span class="st">"ventas"</span>, universo <span class="op">=</span> <span class="st">"muestra_motor"</span>, muestra_motor <span class="op">=</span> <span class="fl">150</span></span>
 <span><span class="op">)</span></span>
-<span><span class="co">#&gt;           bloque filas_fuente campos_analiticos columnas_del_resultado</span></span>
-<span><span class="co">#&gt; 1  resumen_tabla           12                15                     16</span></span>
-<span><span class="co">#&gt; 2 perfil_muestra            5               117                    118</span></span></code></pre></div>
-</div>
-<div class="section level2">
-<h2 id="resumen_tabla-agregados-sobre-la-tabla-completa">
-<code>resumen_tabla</code>: agregados sobre la tabla completa<a class="anchor" aria-label="anchor" href="#resumen_tabla-agregados-sobre-la-tabla-completa"></a>
-</h2>
-<p><code>resumen_tabla$columnas</code> contiene quince campos
-analíticos, además del nombre de la columna. Son los conteos y agregados
-que esta interfaz puede calcular en SQL sin traer la tabla: faltantes,
-distintos, moda y resúmenes cuantitativos, entre otros. La salida se
-calcula sobre las doce filas completas de <code>entregas</code>.</p>
-<div class="sourceCode" id="cb5"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span></span>
-<span><span class="va">perfil</span><span class="op">$</span><span class="va">resumen_tabla</span><span class="op">$</span><span class="va">columnas</span><span class="op">[</span>, <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span></span>
-<span>  <span class="st">"columna"</span>, <span class="st">"n"</span>, <span class="st">"n_faltantes"</span>, <span class="st">"n_distintos"</span>, <span class="st">"minimo"</span>, <span class="st">"maximo"</span>, <span class="st">"media"</span></span>
-<span><span class="op">)</span><span class="op">]</span></span>
-<span><span class="co">#&gt;   columna  n n_faltantes n_distintos minimo maximo    media</span></span>
-<span><span class="co">#&gt; 1      id 12           0          12      1     12  6.50000</span></span>
-<span><span class="co">#&gt; 2   grupo 12           0           3     NA     NA       NA</span></span>
-<span><span class="co">#&gt; 3   valor 12           1          11     10     36 23.63636</span></span>
-<span><span class="co">#&gt; 4   fecha 12           0          12     NA     NA       NA</span></span></code></pre></div>
-<p><code>perfil_muestra$columnas</code> trae 117 campos analíticos
-además del nombre de la columna, pero su universo son cinco filas en
-este ejemplo. Llamar <em>perfil</em> al resumen SQL afirmaría una
-completitud que no tiene: el resumen cubre quince de esos aspectos sobre
-doce filas; el perfil cubre sus 117 sobre las cinco filas obtenidas. Las
-consultas, estados y motivos de los agregados SQL quedan en
-<code>resumen_tabla$sql</code> para que también se vea qué aceptó o
-rechazó el motor.</p>
-<p>La instrumentación queda activa por omisión y sólo agrega metadatos.
-Cada fila de <code>resumen_tabla$sql</code> conserva la métrica que ya
-representaba y suma <code>duracion_ms</code>, <code>cpu_ms</code>,
-<code>n_filas_resultado</code>, <code>bytes_resultado_r</code>,
-<code>consulta_id</code> e <code>id_consulta</code>, además de
-<code>etapa</code> y <code>nivel</code>. La duración incluye la
-ejecución y la lectura del resultado que DBI entregó a R; el tamaño es
-<code><a href="https://rdrr.io/r/utils/object.size.html" class="external-link">object.size()</a></code> de ese resultado. <code>cpu_ms</code> es la
-suma de <code>user.self</code> y <code>sys.self</code> de
-<code><a href="https://rdrr.io/r/base/proc.time.html" class="external-link">proc.time()</a></code>: cerca de cero indica espera y cerca de uno al
-dividirlo por <code>duracion_ms</code> indica trabajo del cliente. Las
-filas que no emitieron consulta dejan esos campos en <code>NA</code>,
-que significa «no medido», no <code>0</code>. Como una consulta puede
-producir varias filas (una por columna y métrica), su duración se repite
-en ellas: <code>nivel = 1</code> marca la primera fila de cada
-<code>consulta_id</code> y <code>nivel = 2</code> las repeticiones. Para
-sumar tiempos SQL se deben usar sólo las filas de
-<code>nivel = 1</code>.</p>
-<div class="sourceCode" id="cb6"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="va">perfil</span><span class="op">$</span><span class="va">resumen_tabla</span><span class="op">$</span><span class="va">sql</span><span class="op">[</span>, <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span></span>
-<span>  <span class="st">"metrica"</span>, <span class="st">"estado"</span>, <span class="st">"duracion_ms"</span>, <span class="st">"cpu_ms"</span>, <span class="st">"n_filas_resultado"</span>,</span>
-<span>  <span class="st">"bytes_resultado_r"</span>, <span class="st">"consulta_id"</span>, <span class="st">"id_consulta"</span>, <span class="st">"etapa"</span>, <span class="st">"nivel"</span></span>
-<span><span class="op">)</span><span class="op">]</span></span>
-<span><span class="co">#&gt;            metrica    estado duracion_ms cpu_ms n_filas_resultado bytes_resultado_r</span></span>
-<span><span class="co">#&gt; 1                n calculado   0.6568432      1                 1              3192</span></span>
-<span><span class="co">#&gt; 2                n calculado   0.6568432      1                 1              3192</span></span>
-<span><span class="co">#&gt; 3                n calculado   0.6568432      1                 1              3192</span></span>
-<span><span class="co">#&gt; 4                n calculado   0.6568432      1                 1              3192</span></span>
-<span><span class="co">#&gt; 5        n_validos calculado   0.6568432      1                 1              3192</span></span>
-<span><span class="co">#&gt; 6      n_faltantes calculado   0.6568432      1                 1              3192</span></span>
-<span><span class="co">#&gt; 7   prop_faltantes calculado   0.6568432      1                 1              3192</span></span>
-<span><span class="co">#&gt; 8      n_distintos calculado   0.5705357      0                 1              1216</span></span>
-<span><span class="co">#&gt; 9   tasa_distintos calculado   0.5705357      0                 1              1216</span></span>
-<span><span class="co">#&gt; 10            moda calculado   0.5507469      1                 1              1024</span></span>
-<span><span class="co">#&gt; 11 frecuencia_moda calculado   0.5507469      1                 1              1024</span></span>
-<span><span class="co">#&gt; 12          minimo calculado   0.6568432      1                 1              3192</span></span>
-<span><span class="co">#&gt; 13          maximo calculado   0.6568432      1                 1              3192</span></span>
-<span><span class="co">#&gt; 14           media calculado   0.6568432      1                 1              3192</span></span>
-<span><span class="co">#&gt; 15         n_ceros calculado   0.6568432      1                 1              3192</span></span>
-<span><span class="co">#&gt; 16     n_negativos calculado   0.6568432      1                 1              3192</span></span>
-<span><span class="co">#&gt; 17         mediana calculado   0.5803108      1                 1               736</span></span>
-<span><span class="co">#&gt; 18          desvio calculado   0.6568432      1                 1              3192</span></span>
-<span><span class="co">#&gt; 19       n_validos calculado   0.6568432      1                 1              3192</span></span>
-<span><span class="co">#&gt; 20     n_faltantes calculado   0.6568432      1                 1              3192</span></span>
-<span><span class="co">#&gt; 21  prop_faltantes calculado   0.6568432      1                 1              3192</span></span>
-<span><span class="co">#&gt; 22     n_distintos calculado   0.5705357      0                 1              1216</span></span>
-<span><span class="co">#&gt; 23  tasa_distintos calculado   0.5705357      0                 1              1216</span></span>
-<span><span class="co">#&gt; 24            moda calculado   0.5550385      1                 1              1080</span></span>
-<span><span class="co">#&gt; 25 frecuencia_moda calculado   0.5550385      1                 1              1080</span></span>
-<span><span class="co">#&gt; 26          minimo no_aplica          NA     NA                NA                NA</span></span>
-<span><span class="co">#&gt; 27          maximo no_aplica          NA     NA                NA                NA</span></span>
-<span><span class="co">#&gt; 28           media no_aplica          NA     NA                NA                NA</span></span>
-<span><span class="co">#&gt; 29         n_ceros no_aplica          NA     NA                NA                NA</span></span>
-<span><span class="co">#&gt; 30     n_negativos no_aplica          NA     NA                NA                NA</span></span>
-<span><span class="co">#&gt; 31         mediana no_aplica          NA     NA                NA                NA</span></span>
-<span><span class="co">#&gt; 32          desvio no_aplica          NA     NA                NA                NA</span></span>
-<span><span class="co">#&gt; 33       n_validos calculado   0.6568432      1                 1              3192</span></span>
-<span><span class="co">#&gt; 34     n_faltantes calculado   0.6568432      1                 1              3192</span></span>
-<span><span class="co">#&gt; 35  prop_faltantes calculado   0.6568432      1                 1              3192</span></span>
-<span><span class="co">#&gt; 36     n_distintos calculado   0.5471706      1                 1              1216</span></span>
-<span><span class="co">#&gt; 37  tasa_distintos calculado   0.5471706      1                 1              1216</span></span>
-<span><span class="co">#&gt; 38            moda calculado   0.5152225      0                 1              1024</span></span>
-<span><span class="co">#&gt; 39 frecuencia_moda calculado   0.5152225      0                 1              1024</span></span>
-<span><span class="co">#&gt; 40          minimo calculado   0.6568432      1                 1              3192</span></span>
-<span><span class="co">#&gt; 41          maximo calculado   0.6568432      1                 1              3192</span></span>
-<span><span class="co">#&gt; 42           media calculado   0.6568432      1                 1              3192</span></span>
-<span><span class="co">#&gt; 43         n_ceros calculado   0.6568432      1                 1              3192</span></span>
-<span><span class="co">#&gt; 44     n_negativos calculado   0.6568432      1                 1              3192</span></span>
-<span><span class="co">#&gt; 45         mediana calculado   0.5459785      0                 1               736</span></span>
-<span><span class="co">#&gt; 46          desvio calculado   0.6568432      1                 1              3192</span></span>
-<span><span class="co">#&gt; 47       n_validos calculado   0.6568432      1                 1              3192</span></span>
-<span><span class="co">#&gt; 48     n_faltantes calculado   0.6568432      1                 1              3192</span></span>
-<span><span class="co">#&gt; 49  prop_faltantes calculado   0.6568432      1                 1              3192</span></span>
-<span><span class="co">#&gt; 50     n_distintos calculado   0.5471706      1                 1              1216</span></span>
-<span><span class="co">#&gt; 51  tasa_distintos calculado   0.5471706      1                 1              1216</span></span>
-<span><span class="co">#&gt; 52            moda calculado   0.5428791      0                 1              1088</span></span>
-<span><span class="co">#&gt; 53 frecuencia_moda calculado   0.5428791      0                 1              1088</span></span>
-<span><span class="co">#&gt; 54          minimo no_aplica          NA     NA                NA                NA</span></span>
-<span><span class="co">#&gt; 55          maximo no_aplica          NA     NA                NA                NA</span></span>
-<span><span class="co">#&gt; 56           media no_aplica          NA     NA                NA                NA</span></span>
-<span><span class="co">#&gt; 57         n_ceros no_aplica          NA     NA                NA                NA</span></span>
-<span><span class="co">#&gt; 58     n_negativos no_aplica          NA     NA                NA                NA</span></span>
-<span><span class="co">#&gt; 59         mediana no_aplica          NA     NA                NA                NA</span></span>
-<span><span class="co">#&gt; 60          desvio no_aplica          NA     NA                NA                NA</span></span>
-<span><span class="co">#&gt;    consulta_id id_consulta       etapa nivel</span></span>
-<span><span class="co">#&gt; 1            8           8     basicos     1</span></span>
-<span><span class="co">#&gt; 2            8           8     basicos     2</span></span>
-<span><span class="co">#&gt; 3            8           8     basicos     2</span></span>
-<span><span class="co">#&gt; 4            8           8     basicos     2</span></span>
-<span><span class="co">#&gt; 5            8           8     basicos     2</span></span>
-<span><span class="co">#&gt; 6            8           8     basicos     2</span></span>
-<span><span class="co">#&gt; 7            8           8     basicos     2</span></span>
-<span><span class="co">#&gt; 8            9           9     conteos     1</span></span>
-<span><span class="co">#&gt; 9            9           9     conteos     2</span></span>
-<span><span class="co">#&gt; 10          11          NA        moda     1</span></span>
-<span><span class="co">#&gt; 11          11          NA        moda     2</span></span>
-<span><span class="co">#&gt; 12           8           8     basicos     2</span></span>
-<span><span class="co">#&gt; 13           8           8     basicos     2</span></span>
-<span><span class="co">#&gt; 14           8           8     basicos     2</span></span>
-<span><span class="co">#&gt; 15           8           8     basicos     2</span></span>
-<span><span class="co">#&gt; 16           8           8     basicos     2</span></span>
-<span><span class="co">#&gt; 17          15          NA     mediana     1</span></span>
-<span><span class="co">#&gt; 18           8           8     basicos     2</span></span>
-<span><span class="co">#&gt; 19           8           8     basicos     2</span></span>
-<span><span class="co">#&gt; 20           8           8     basicos     2</span></span>
-<span><span class="co">#&gt; 21           8           8     basicos     2</span></span>
-<span><span class="co">#&gt; 22           9           9     conteos     2</span></span>
-<span><span class="co">#&gt; 23           9           9     conteos     2</span></span>
-<span><span class="co">#&gt; 24          12          NA        moda     1</span></span>
-<span><span class="co">#&gt; 25          12          NA        moda     2</span></span>
-<span><span class="co">#&gt; 26          NA          NA resumen_sql     1</span></span>
-<span><span class="co">#&gt; 27          NA          NA resumen_sql     1</span></span>
-<span><span class="co">#&gt; 28          NA          NA resumen_sql     1</span></span>
-<span><span class="co">#&gt; 29          NA          NA resumen_sql     1</span></span>
-<span><span class="co">#&gt; 30          NA          NA resumen_sql     1</span></span>
-<span><span class="co">#&gt; 31          NA          NA resumen_sql     1</span></span>
-<span><span class="co">#&gt; 32          NA          NA resumen_sql     1</span></span>
-<span><span class="co">#&gt; 33           8           8     basicos     2</span></span>
-<span><span class="co">#&gt; 34           8           8     basicos     2</span></span>
-<span><span class="co">#&gt; 35           8           8     basicos     2</span></span>
-<span><span class="co">#&gt; 36          10          10     conteos     1</span></span>
-<span><span class="co">#&gt; 37          10          10     conteos     2</span></span>
-<span><span class="co">#&gt; 38          13          NA        moda     1</span></span>
-<span><span class="co">#&gt; 39          13          NA        moda     2</span></span>
-<span><span class="co">#&gt; 40           8           8     basicos     2</span></span>
-<span><span class="co">#&gt; 41           8           8     basicos     2</span></span>
-<span><span class="co">#&gt; 42           8           8     basicos     2</span></span>
-<span><span class="co">#&gt; 43           8           8     basicos     2</span></span>
-<span><span class="co">#&gt; 44           8           8     basicos     2</span></span>
-<span><span class="co">#&gt; 45          16          NA     mediana     1</span></span>
-<span><span class="co">#&gt; 46           8           8     basicos     2</span></span>
-<span><span class="co">#&gt; 47           8           8     basicos     2</span></span>
-<span><span class="co">#&gt; 48           8           8     basicos     2</span></span>
-<span><span class="co">#&gt; 49           8           8     basicos     2</span></span>
-<span><span class="co">#&gt; 50          10          10     conteos     2</span></span>
-<span><span class="co">#&gt; 51          10          10     conteos     2</span></span>
-<span><span class="co">#&gt; 52          14          NA        moda     1</span></span>
-<span><span class="co">#&gt; 53          14          NA        moda     2</span></span>
-<span><span class="co">#&gt; 54          NA          NA resumen_sql     1</span></span>
-<span><span class="co">#&gt; 55          NA          NA resumen_sql     1</span></span>
-<span><span class="co">#&gt; 56          NA          NA resumen_sql     1</span></span>
-<span><span class="co">#&gt; 57          NA          NA resumen_sql     1</span></span>
-<span><span class="co">#&gt; 58          NA          NA resumen_sql     1</span></span>
-<span><span class="co">#&gt; 59          NA          NA resumen_sql     1</span></span>
-<span><span class="co">#&gt; 60          NA          NA resumen_sql     1</span></span>
+<span><span class="va">agregados</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/perfilar_dbi.html">perfilar_dbi</a></span><span class="op">(</span><span class="va">conexion</span>, <span class="st">"ventas"</span>, bloque_muestra <span class="op">=</span> <span class="st">"solo_agregados"</span><span class="op">)</span></span>
 <span></span>
-<span><span class="va">perfil</span><span class="op">$</span><span class="va">resumen_tabla</span><span class="op">$</span><span class="va">tiempos</span></span>
-<span><span class="co">#&gt;                            etapa duracion_ms cpu_ms        estado nivel n_ejecuciones</span></span>
-<span><span class="co">#&gt; 1           ausencia_estructural   0.5183220      2        medido     2             1</span></span>
-<span><span class="co">#&gt; 2    casi_duplicados_vocabulario   7.3869228     11        medido     2             1</span></span>
-<span><span class="co">#&gt; 3 clasificacion_datos_personales   3.4365654      7        medido     2             1</span></span>
-<span><span class="co">#&gt; 4                   dependencias   0.9217262      1        medido     2             1</span></span>
-<span><span class="co">#&gt; 5         duplicados_aproximados          NA     NA no_solicitado     2             1</span></span>
-<span><span class="co">#&gt; 6                lectura_muestra   1.8963814      2        medido     1             1</span></span>
-<span><span class="co">#&gt; 7             perfilado_columnas 241.3949966    242        medido     2             1</span></span>
-<span><span class="co">#&gt; 8              perfilado_muestra 316.8690205    327        medido     1             1</span></span>
-<span><span class="co">#&gt; 9    proteccion_datos_personales   0.4072189      1        medido     2             1</span></span></code></pre></div>
-<p><code>resumen_tabla$tiempos</code> reúne en milisegundos las etapas
-grandes del lado R, incluidas la lectura y el perfilado de la muestra,
-el perfilado por columna y los análisis opcionales. La columna
-<code>nivel</code> dice cuáles se pueden sumar: las de
-<code>nivel = 1</code> son disjuntas entre sí y las de nivel mayor están
-contenidas en alguna de ellas. <code>perfilado_muestra</code> es
-inclusivo —contiene el perfilado por columna, las dependencias y los
-casi-duplicados—, así que sumar la columna entera da más que la corrida
-completa. <code>instrumentar = FALSE</code> conserva el mismo plan, la
-misma cantidad y el mismo orden de consultas, pero deja las duraciones,
-el CPU y los metadatos de tamaño en <code>NA</code> y marca las etapas
-como <code>no_medido</code>.</p>
-<p><code>resumen_tabla$sql$memoria_trabajo</code> responde a la pregunta
-«¿qué trabajo no debo recomputar incrementalmente sobre una tabla
-mayor?». Sus tres valores son <code>creciente</code>,
-<code>acotado</code> y <code>NA</code> cuando la fila no tiene
-medición.</p>
-<div class="sourceCode" id="cb7"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="va">sql_memoria</span> <span class="op">&lt;-</span> <span class="va">perfil</span><span class="op">$</span><span class="va">resumen_tabla</span><span class="op">$</span><span class="va">sql</span></span>
-<span><span class="va">filtro_memoria</span> <span class="op">&lt;-</span> <span class="op">(</span></span>
-<span>  <span class="va">sql_memoria</span><span class="op">$</span><span class="va">memoria_trabajo</span> <span class="op"><a href="https://rdrr.io/r/base/match.html" class="external-link">%in%</a></span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"acotado"</span>, <span class="st">"creciente"</span><span class="op">)</span> <span class="op">|</span></span>
-<span>    <span class="fu"><a href="https://rdrr.io/r/base/NA.html" class="external-link">is.na</a></span><span class="op">(</span><span class="va">sql_memoria</span><span class="op">$</span><span class="va">memoria_trabajo</span><span class="op">)</span></span>
-<span><span class="op">)</span> <span class="op">&amp;</span> <span class="op">(</span></span>
-<span>  <span class="op">(</span><span class="va">sql_memoria</span><span class="op">$</span><span class="va">columna</span> <span class="op">==</span> <span class="st">"id"</span> <span class="op">&amp;</span></span>
-<span>     <span class="va">sql_memoria</span><span class="op">$</span><span class="va">metrica</span> <span class="op"><a href="https://rdrr.io/r/base/match.html" class="external-link">%in%</a></span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"n_validos"</span>, <span class="st">"n_distintos"</span><span class="op">)</span><span class="op">)</span> <span class="op">|</span></span>
-<span>    <span class="op">(</span><span class="va">sql_memoria</span><span class="op">$</span><span class="va">columna</span> <span class="op">==</span> <span class="st">"grupo"</span> <span class="op">&amp;</span> <span class="va">sql_memoria</span><span class="op">$</span><span class="va">metrica</span> <span class="op">==</span> <span class="st">"minimo"</span><span class="op">)</span></span>
-<span><span class="op">)</span></span>
-<span><span class="va">ejemplos_memoria</span> <span class="op">&lt;-</span> <span class="va">sql_memoria</span><span class="op">[</span></span>
-<span>  <span class="va">filtro_memoria</span>,</span>
-<span>  <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"columna"</span>, <span class="st">"metrica"</span>, <span class="st">"estado"</span>, <span class="st">"alcance"</span>, <span class="st">"fraccion"</span>, <span class="st">"metodo"</span>,</span>
-<span>    <span class="st">"memoria_trabajo"</span><span class="op">)</span></span>
-<span><span class="op">]</span></span>
-<span><span class="va">ejemplos_memoria</span></span>
-<span><span class="co">#&gt;    columna     metrica    estado        alcance fraccion          metodo memoria_trabajo</span></span>
-<span><span class="co">#&gt; 5       id   n_validos calculado tabla_completa        1  tabla_completa         acotado</span></span>
-<span><span class="co">#&gt; 8       id n_distintos calculado tabla_completa        1 COUNT(DISTINCT)       creciente</span></span>
-<span><span class="co">#&gt; 26   grupo      minimo no_aplica tabla_completa        1  tabla_completa            &lt;NA&gt;</span></span>
-<span><span class="fu"><a href="https://rdrr.io/r/base/stopifnot.html" class="external-link">stopifnot</a></span><span class="op">(</span></span>
-<span>  <span class="fu"><a href="https://rdrr.io/r/base/identical.html" class="external-link">identical</a></span><span class="op">(</span></span>
-<span>    <span class="fu"><a href="https://rdrr.io/r/base/character.html" class="external-link">as.character</a></span><span class="op">(</span><span class="va">ejemplos_memoria</span><span class="op">$</span><span class="va">memoria_trabajo</span><span class="op">)</span>,</span>
-<span>    <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"acotado"</span>, <span class="st">"creciente"</span>, <span class="cn">NA_character_</span><span class="op">)</span></span>
-<span>  <span class="op">)</span></span>
-<span><span class="op">)</span></span></code></pre></div>
-<p>La regla es: alcance efectivo con tope real, <code>acotado</code>; si
-no, el método resuelto; sin medición, <code>NA</code>.</p>
-</div>
-<div class="section level2">
-<h2 id="perfil_muestra-el-perfil-completo-de-la-muestra">
-<code>perfil_muestra</code>: el perfil completo de la muestra<a class="anchor" aria-label="anchor" href="#perfil_muestra-el-perfil-completo-de-la-muestra"></a>
-</h2>
-<p>El perfil completo se obtiene en memoria sobre las cinco filas
-seleccionadas. La salida muestra algunos de sus 117 campos analíticos
-para que se vean, junto con los conteos, los faltantes, los distintos y
-el tipo inferido.</p>
-<div class="sourceCode" id="cb8"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span></span>
-<span><span class="va">perfil</span><span class="op">$</span><span class="va">perfil_muestra</span><span class="op">$</span><span class="va">columnas</span><span class="op">[</span>, <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span></span>
-<span>  <span class="st">"columna"</span>, <span class="st">"n"</span>, <span class="st">"n_faltantes"</span>, <span class="st">"n_distintos"</span>, <span class="st">"tipo_inferido"</span></span>
-<span><span class="op">)</span><span class="op">]</span></span>
-<span><span class="co">#&gt;   columna n n_faltantes n_distintos tipo_inferido</span></span>
-<span><span class="co">#&gt; 1      id 5           0           5        entero</span></span>
-<span><span class="co">#&gt; 2   grupo 5           0           2         texto</span></span>
-<span><span class="co">#&gt; 3   valor 5           1           4         doble</span></span>
-<span><span class="co">#&gt; 4   fecha 5           0           5         fecha</span></span></code></pre></div>
-<p>Los hallazgos de <code>perfil_muestra</code> conservan sus unidades
-declaradas. En particular, las inconsistencias de mayúsculas, las
-equivalencias Unicode y <code>casi_duplicados_vocabulario</code> cuentan
-valores distintos, pero su trazabilidad enumera por fila todas las filas
-que contienen esos valores. En el último caso incluye las formas
-seleccionadas por el grupo, incluida la dominante. Por eso la traza
-puede tener más filas que <code>n_afectados</code>; no es una
-contradicción de alcance, sino el localizador del grupo que se debe
-revisar. El orden de la traza prioriza las formas no dominantes antes de
-las dominantes, para que <code>max_filas_hallazgo</code> conserve
-primero las filas accionables; la evidencia declara cuántas filas
-mostradas pertenecen a cada forma. En <code>patron_raro</code>, la
-evidencia agrega la proporción del patrón dominante y las filas en
-patrones no dominantes excluidos por superar
-<code>umbral_patron_raro</code>; si el dominante no alcanza
-<code>umbral_patron_dominante</code>, la no medición queda en
-<code>cobertura_diagnosticos</code>.</p>
-<p>Las columnas <code>integer64</code> tienen una condición equivalente:
-si <code>bit64</code> está instalado, <code>lupa</code> registra sus
-métodos antes de medir la secuencia; si falta, las cinco medidas
-públicas quedan en <code>NA</code> y <code>cobertura_diagnosticos</code>
-deja constancia de que <code>secuencia_entera</code> no se evaluó. En
-los textos publicados, los números usan notación fija con precisión
-completa, independiente de <code>scipen</code> y de <code>digits</code>,
-y conservan <code>OutDec</code>.</p>
-<p>Las sugerencias de ausencia estructural componen el código con una
-copia UTF-8 marcada de cada nombre. El nombre que queda en
-<code>columnas$columna</code> conserva los bytes y la marca que llegaron
-desde la tabla; la sugerencia sigue siendo código para copiar y pegar
-bajo <code>LC_CTYPE = "C"</code>.</p>
-<p>Algunos controladores no saben traer ciertas columnas en una lectura
-corriente —<code>TEXT</code> y <code>NTEXT</code> en SQL Server,
-<code>CLOB</code> y <code>BLOB</code> en Oracle, <code>bytea</code> en
-PostgreSQL— y responden con un error al pedirlas junto con el resto. Una
-sola columna así se llevaba puesta la muestra entera. Ahora, cuando la
-lectura falla, <code>lupa</code> <strong>averigua cuáles no se pueden
-leer y reintenta sin ellas</strong>: la muestra vuelve con las columnas
-que sí se pudieron leer, y <code>resumen_tabla$cobertura</code> gana una
-fila <code>alcance_distinto</code> que nombra las que quedaron afuera y
-conserva el motivo textual del motor.</p>
-<p>Averiguarlo, y no deducirlo, es lo que hace que esto funcione contra
-un controlador cualquiera. La versión anterior miraba el tipo que
-declara el motor y lo comparaba contra una lista de nombres. Contra el
-driver <code>{SQL Server}</code> eso no reconocía
-<strong>ninguna</strong> columna, porque ese driver no informa nombres
-sino códigos numéricos de ODBC —<code>"-1"</code> en vez de
-<code>"varchar(max)"</code>—, y la muestra se perdía igual, en silencio.
-Ahora el reintento <strong>le pregunta al motor</strong>: divide el
-conjunto de columnas y va podando los subconjuntos que sí se leen, hasta
-aislar las que fallan. El nombre del tipo sigue sirviendo de atajo —si
-se reconoce, se ahorra el descarte—, pero ya no decide.</p>
-<p>Eso cambia también lo que se puede afirmar. Cuando la omisión se
-resolvió por descarte, <code>omision_comprobada</code> es
-<code>TRUE</code> y el aviso lo dice: cada una de esas columnas falló
-por sí sola y el resto se leyó junto. Cuando la resolvió el atajo, es
-<code>FALSE</code> y el aviso mantiene el “no se comprobó que sean la
-causa”, porque el reintento salta ante cualquier fallo y un corte de red
-que se recupera en el segundo intento daría el mismo camino.
-<code>sondas_descarte</code> publica cuántas consultas costó
-averiguarlo. El descarte está acotado: como mucho dos sondas por
-columna, y nunca más de la mitad del saldo de
-<code>max_consultas</code>.</p>
-<p>Si el descarte no aísla nada, no se inventa una culpable: la muestra
-se declara no disponible y el motivo dice cuántos subconjuntos se
-probaron y cómo terminó. En todos los casos el resumen por columna las
-cubre igual, porque los agregados se calculan en el motor; lo que falta
-es su perfil por fila. Para incluirlas, conviene convertirlas a texto
-acotado en una vista y perfilar la vista.</p>
-<p>El bloque de metadatos del muestreo
-—<code>perfil_muestra$meta$origen_dbi$muestreo</code>— describe lo que
-<strong>de verdad</strong> se leyó y no lo que se había planeado leer:
-<code>columnas_leidas</code> son las columnas que la muestra trae,
-<code>sql_muestra</code> es la consulta que se emitió,
-<code>metodo</code> y <code>acotado_en</code> describen la lectura que
-salió —no la que se había planeado, que el reintento puede cambiar—, y
-<code>columnas_omitidas</code> con <code>motivo_columnas_omitidas</code>
-dicen cuáles quedaron afuera y qué respondió el motor.</p>
-</div>
-<div class="section level2">
-<h2 id="el-muestreo-declarado">El muestreo declarado<a class="anchor" aria-label="anchor" href="#el-muestreo-declarado"></a>
-</h2>
-<p><code>muestra = 5</code> declara las filas pedidas. La metadata
-registra además las filas obtenidas, las doce filas totales, el método y
-el orden. Sin <code>orden_muestra</code>, un <code>LIMIT 5</code> no
-tiene orden garantizado y <code>reproducible</code> es
-<code>FALSE</code>.</p>
-<p>Con <code>orden_muestra = "id"</code>, <code>lupa</code> verifica en
-la tabla completa que el orden sea único. Sólo entonces informa
-<code>reproducible = TRUE</code>. Indicar una columna que se repite no
-alcanza: el orden puede quedar declarado y aun así no determinar qué
-filas ocupan el límite.</p>
-<div class="sourceCode" id="cb9"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="va">resumir_muestreo</span> <span class="op">&lt;-</span> <span class="kw">function</span><span class="op">(</span><span class="va">x</span>, <span class="va">caso</span><span class="op">)</span> <span class="op">{</span></span>
-<span>  <span class="va">m</span> <span class="op">&lt;-</span> <span class="va">x</span><span class="op">$</span><span class="va">perfil_muestra</span><span class="op">$</span><span class="va">meta</span><span class="op">$</span><span class="va">origen_dbi</span><span class="op">$</span><span class="va">muestreo</span></span>
+<span><span class="va">que_trae</span> <span class="op">&lt;-</span> <span class="kw">function</span><span class="op">(</span><span class="va">perfil</span>, <span class="va">opcion</span><span class="op">)</span> <span class="op">{</span></span>
+<span>  <span class="va">muestreo_sql</span> <span class="op">&lt;-</span> <span class="va">perfil</span><span class="op">$</span><span class="va">resumen_tabla</span><span class="op">$</span><span class="va">meta</span><span class="op">$</span><span class="va">muestreo</span></span>
+<span>  <span class="va">muestreo_r</span> <span class="op">&lt;-</span> <span class="va">perfil</span><span class="op">$</span><span class="va">perfil_muestra</span><span class="op">$</span><span class="va">meta</span><span class="op">$</span><span class="va">origen_dbi</span><span class="op">$</span><span class="va">muestreo</span></span>
 <span>  <span class="fu"><a href="https://rdrr.io/r/base/data.frame.html" class="external-link">data.frame</a></span><span class="op">(</span></span>
-<span>    caso <span class="op">=</span> <span class="va">caso</span>,</span>
-<span>    filas_pedidas <span class="op">=</span> <span class="va">m</span><span class="op">$</span><span class="va">filas_solicitadas</span>,</span>
-<span>    filas_obtenidas <span class="op">=</span> <span class="va">m</span><span class="op">$</span><span class="va">filas_obtenidas</span>,</span>
-<span>    filas_totales <span class="op">=</span> <span class="va">m</span><span class="op">$</span><span class="va">filas_totales_fuente</span>,</span>
-<span>    metodo <span class="op">=</span> <span class="va">m</span><span class="op">$</span><span class="va">metodo</span>,</span>
-<span>    orden <span class="op">=</span> <span class="kw">if</span> <span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/length.html" class="external-link">length</a></span><span class="op">(</span><span class="va">m</span><span class="op">$</span><span class="va">orden_muestra</span><span class="op">)</span><span class="op">)</span> <span class="op">{</span></span>
-<span>      <span class="fu"><a href="https://rdrr.io/r/base/paste.html" class="external-link">paste</a></span><span class="op">(</span><span class="va">m</span><span class="op">$</span><span class="va">orden_muestra</span>, collapse <span class="op">=</span> <span class="st">", "</span><span class="op">)</span></span>
+<span>    opcion <span class="op">=</span> <span class="va">opcion</span>,</span>
+<span>    filas_resumen <span class="op">=</span> <span class="kw">if</span> <span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/NULL.html" class="external-link">is.null</a></span><span class="op">(</span><span class="va">muestreo_sql</span><span class="op">)</span><span class="op">)</span> <span class="op">{</span></span>
+<span>      <span class="fu"><a href="../reference/accesores_perfil.html">n_filas</a></span><span class="op">(</span><span class="va">perfil</span><span class="op">)</span></span>
 <span>    <span class="op">}</span> <span class="kw">else</span> <span class="op">{</span></span>
-<span>      <span class="st">"no declarado"</span></span>
+<span>      <span class="va">muestreo_sql</span><span class="op">$</span><span class="va">filas_obtenidas</span></span>
 <span>    <span class="op">}</span>,</span>
-<span>    orden_unico_verificado <span class="op">=</span> <span class="va">m</span><span class="op">$</span><span class="va">orden_unico_verificado</span>,</span>
-<span>    reproducible <span class="op">=</span> <span class="va">m</span><span class="op">$</span><span class="va">reproducible</span>,</span>
-<span>    stringsAsFactors <span class="op">=</span> <span class="cn">FALSE</span></span>
+<span>    filas_en_r <span class="op">=</span> <span class="kw">if</span> <span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/NULL.html" class="external-link">is.null</a></span><span class="op">(</span><span class="va">muestreo_r</span><span class="op">)</span><span class="op">)</span> <span class="fl">0</span> <span class="kw">else</span> <span class="va">muestreo_r</span><span class="op">$</span><span class="va">filas_obtenidas</span>,</span>
+<span>    meta_resumen <span class="op">=</span> <span class="op">!</span><span class="fu"><a href="https://rdrr.io/r/base/NULL.html" class="external-link">is.null</a></span><span class="op">(</span><span class="va">muestreo_sql</span><span class="op">)</span>,</span>
+<span>    meta_lectura <span class="op">=</span> <span class="op">!</span><span class="fu"><a href="https://rdrr.io/r/base/NULL.html" class="external-link">is.null</a></span><span class="op">(</span><span class="va">muestreo_r</span><span class="op">)</span></span>
 <span>  <span class="op">)</span></span>
 <span><span class="op">}</span></span>
 <span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/base/cbind.html" class="external-link">rbind</a></span><span class="op">(</span></span>
-<span>  <span class="fu">resumir_muestreo</span><span class="op">(</span><span class="va">sin_orden</span>, <span class="st">"sin orden"</span><span class="op">)</span>,</span>
-<span>  <span class="fu">resumir_muestreo</span><span class="op">(</span><span class="va">perfil</span>, <span class="st">"orden por id"</span><span class="op">)</span></span>
+<span>  <span class="fu">que_trae</span><span class="op">(</span><span class="va">completo</span>, <span class="st">"por omisión"</span><span class="op">)</span>,</span>
+<span>  <span class="fu">que_trae</span><span class="op">(</span><span class="va">acotado</span>, <span class="st">"muestra = 200"</span><span class="op">)</span>,</span>
+<span>  <span class="fu">que_trae</span><span class="op">(</span><span class="va">en_motor</span>, <span class="st">"universo = \"muestra_motor\""</span><span class="op">)</span>,</span>
+<span>  <span class="fu">que_trae</span><span class="op">(</span><span class="va">agregados</span>, <span class="st">"bloque_muestra = \"solo_agregados\""</span><span class="op">)</span></span>
 <span><span class="op">)</span></span>
-<span><span class="co">#&gt;           caso filas_pedidas filas_obtenidas filas_totales</span></span>
-<span><span class="co">#&gt; 1    sin orden             5               5            12</span></span>
-<span><span class="co">#&gt; 2 orden por id             5               5            12</span></span>
-<span><span class="co">#&gt;                                 metodo        orden orden_unico_verificado reproducible</span></span>
-<span><span class="co">#&gt; 1 primeras_filas_sin_orden_garantizado no declarado                  FALSE        FALSE</span></span>
-<span><span class="co">#&gt; 2           primeras_filas_segun_orden           id                   TRUE         TRUE</span></span>
-<span></span>
-<span><span class="fu"><a href="https://rdrr.io/r/base/data.frame.html" class="external-link">data.frame</a></span><span class="op">(</span></span>
+<span><span class="co">#&gt;                              opcion filas_resumen filas_en_r meta_resumen meta_lectura</span></span>
+<span><span class="co">#&gt; 1                       por omisión          1000       1000        FALSE         TRUE</span></span>
+<span><span class="co">#&gt; 2                     muestra = 200          1000        200        FALSE         TRUE</span></span>
+<span><span class="co">#&gt; 3        universo = "muestra_motor"           150        150         TRUE         TRUE</span></span>
+<span><span class="co">#&gt; 4 bloque_muestra = "solo_agregados"          1000          0        FALSE        FALSE</span></span></code></pre></div>
+<p>Cada fila contesta una pregunta distinta:</p>
+<ul>
+<li>
+<strong><code>muestra = n</code></strong> acota la lectura a R, no
+los agregados: el resumen sigue describiendo las mil filas y el perfil
+por fila, doscientas.</li>
+<li>
+<strong><code>universo = "muestra_motor"</code></strong> con
+<code>muestra_motor = n</code> cambia el universo de los agregados. El
+motor elige la muestra una sola vez, <code>lupa</code> la guarda en una
+copia de la sesión de R y todo lo demás se calcula sobre esas mismas
+filas: resumen y perfil describen las mismas ciento cincuenta.</li>
+<li>
+<strong><code>bloque_muestra = "solo_agregados"</code></strong> no
+trae ninguna fila: <code>perfil_muestra</code> queda en
+<code>NULL</code> y sólo hay conteos y resúmenes calculados en el motor.
+Vale para los dos universos.</li>
+</ul>
+<p><code><a href="../reference/accesores_perfil.html">n_filas()</a></code> devuelve siempre el conteo de la tabla
+completa, también con <code>muestra_motor</code>.</p>
+</div>
+<div class="section level2">
+<h2 id="dónde-queda-escrito-cómo-se-muestreó">Dónde queda escrito cómo se muestreó<a class="anchor" aria-label="anchor" href="#d%C3%B3nde-queda-escrito-c%C3%B3mo-se-muestre%C3%B3"></a>
+</h2>
+<p>Las dos últimas columnas de la tabla de arriba dicen si existe cada
+uno de los dos lugares donde vive el metadato del muestreo:
+<code>meta_resumen</code> mira <code>resumen_tabla$meta$muestreo</code>
+y <code>meta_lectura</code>,
+<code>perfil_muestra$meta$origen_dbi$muestreo</code>. Cada uno existe
+bajo su propia condición:</p>
+<table class="table">
+<colgroup>
+<col width="33%">
+<col width="33%">
+<col width="33%">
+</colgroup>
+<thead><tr class="header">
+<th>ruta</th>
+<th>describe</th>
+<th>existe cuando</th>
+</tr></thead>
+<tbody>
+<tr class="odd">
+<td><code>perfil_muestra$meta$origen_dbi$muestreo</code></td>
+<td>las filas leídas a R</td>
+<td>hay <code>perfil_muestra</code>, con cualquier universo</td>
+</tr>
+<tr class="even">
+<td><code>resumen_tabla$meta$muestreo</code></td>
+<td>la muestra elegida por el motor</td>
+<td>
+<code>universo = "muestra_motor"</code>; si no, es
+<code>NULL</code>
+</td>
+</tr>
+</tbody>
+</table>
+<p>Para la lectura a R, el metadato dice cuántas filas se pidieron,
+cuántas llegaron, cuántas tiene la tabla, cómo se eligieron y si la
+elección se puede repetir:</p>
+<div class="sourceCode" id="cb5"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">lectura</span> <span class="op">&lt;-</span> <span class="va">acotado</span><span class="op">$</span><span class="va">perfil_muestra</span><span class="op">$</span><span class="va">meta</span><span class="op">$</span><span class="va">origen_dbi</span><span class="op">$</span><span class="va">muestreo</span></span>
+<span><span class="fu"><a href="https://rdrr.io/r/utils/str.html" class="external-link">str</a></span><span class="op">(</span><span class="va">lectura</span><span class="op">[</span><span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span></span>
+<span>  <span class="st">"filas_solicitadas"</span>, <span class="st">"filas_obtenidas"</span>, <span class="st">"filas_totales_fuente"</span>, <span class="st">"metodo"</span>,</span>
+<span>  <span class="st">"reproducible"</span></span>
+<span><span class="op">)</span><span class="op">]</span><span class="op">)</span></span>
+<span><span class="co">#&gt; List of 5</span></span>
+<span><span class="co">#&gt;  $ filas_solicitadas   : num 200</span></span>
+<span><span class="co">#&gt;  $ filas_obtenidas     : num 200</span></span>
+<span><span class="co">#&gt;  $ filas_totales_fuente: num 1000</span></span>
+<span><span class="co">#&gt;  $ metodo              : chr "primeras_filas_segun_orden"</span></span>
+<span><span class="co">#&gt;  $ reproducible        : logi TRUE</span></span></code></pre></div>
+<p><code>reproducible</code> es <code>TRUE</code> porque declaramos
+<code>orden_muestra = "id_venta"</code> y <code>lupa</code> comprobó en
+la tabla completa que ese orden es único. Sin orden declarado, un
+<code>LIMIT</code> no tiene orden garantizado y
+<code>reproducible</code> vale <code>FALSE</code>, como en la llamada
+por omisión:</p>
+<div class="sourceCode" id="cb6"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">sin_orden</span> <span class="op">&lt;-</span> <span class="va">completo</span><span class="op">$</span><span class="va">perfil_muestra</span><span class="op">$</span><span class="va">meta</span><span class="op">$</span><span class="va">origen_dbi</span><span class="op">$</span><span class="va">muestreo</span></span>
+<span><span class="va">sin_orden</span><span class="op">$</span><span class="va">reproducible</span></span>
+<span><span class="co">#&gt; [1] FALSE</span></span>
+<span><span class="fu"><a href="https://rdrr.io/r/base/writeLines.html" class="external-link">writeLines</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/strwrap.html" class="external-link">strwrap</a></span><span class="op">(</span><span class="va">sin_orden</span><span class="op">$</span><span class="va">motivo_reproducibilidad</span>, <span class="fl">88</span><span class="op">)</span><span class="op">)</span></span>
+<span><span class="co">#&gt; No se declaró `orden_muestra`; SQL no garantiza el orden de las filas.</span></span></code></pre></div>
+<p>Para la muestra del motor, el metadato está en el resumen. El método
+depende de lo que el motor acepte: <code>lupa</code> prueba primero las
+variantes de <code>TABLESAMPLE</code> y, si ninguna sirve, ordena por
+una función pseudoaleatoria con el límite del dialecto, que es lo que
+hace SQLite.</p>
+<div class="sourceCode" id="cb7"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">del_motor</span> <span class="op">&lt;-</span> <span class="va">en_motor</span><span class="op">$</span><span class="va">resumen_tabla</span><span class="op">$</span><span class="va">meta</span><span class="op">$</span><span class="va">muestreo</span></span>
+<span><span class="fu"><a href="https://rdrr.io/r/utils/str.html" class="external-link">str</a></span><span class="op">(</span><span class="va">del_motor</span><span class="op">[</span><span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"metodo"</span>, <span class="st">"tamano_muestra"</span>, <span class="st">"fraccion"</span>, <span class="st">"universo"</span>, <span class="st">"reproducible"</span><span class="op">)</span><span class="op">]</span><span class="op">)</span></span>
+<span><span class="co">#&gt; List of 5</span></span>
+<span><span class="co">#&gt;  $ metodo        : chr "random_limit"</span></span>
+<span><span class="co">#&gt;  $ tamano_muestra: num 150</span></span>
+<span><span class="co">#&gt;  $ fraccion      : num 0.15</span></span>
+<span><span class="co">#&gt;  $ universo      : num 1000</span></span>
+<span><span class="co">#&gt;  $ reproducible  : logi FALSE</span></span></code></pre></div>
+<p>Ahí <code>universo</code> es el tamaño de la tabla de la que salió la
+muestra y <code>fraccion</code> la parte que se tomó. La muestra
+pseudoaleatoria cambia en cada corrida, y <code>reproducible</code> lo
+dice. Cada métrica de <code>resumen_tabla$sql</code> declara además su
+alcance: el conteo de filas es de la tabla completa y el resto, de la
+muestra.</p>
+<div class="sourceCode" id="cb8"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">sql</span> <span class="op">&lt;-</span> <span class="va">en_motor</span><span class="op">$</span><span class="va">resumen_tabla</span><span class="op">$</span><span class="va">sql</span></span>
+<span><span class="va">sql</span><span class="op">[</span><span class="va">sql</span><span class="op">$</span><span class="va">columna</span> <span class="op">==</span> <span class="st">"monto"</span>, <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"columna"</span>, <span class="st">"metrica"</span>, <span class="st">"estado"</span>, <span class="st">"alcance"</span><span class="op">)</span><span class="op">]</span><span class="op">[</span><span class="fl">1</span><span class="op">:</span><span class="fl">6</span>, <span class="op">]</span></span>
+<span><span class="co">#&gt;    columna        metrica            estado        alcance</span></span>
+<span><span class="co">#&gt; 3    monto              n         calculado tabla_completa</span></span>
+<span><span class="co">#&gt; 33   monto      n_validos observado_muestra        muestra</span></span>
+<span><span class="co">#&gt; 34   monto    n_faltantes observado_muestra        muestra</span></span>
+<span><span class="co">#&gt; 35   monto prop_faltantes observado_muestra        muestra</span></span>
+<span><span class="co">#&gt; 36   monto    n_distintos observado_muestra        muestra</span></span>
+<span><span class="co">#&gt; 37   monto tasa_distintos observado_muestra        muestra</span></span></code></pre></div>
+<p>El estado <code>observado_muestra</code> avisa que el valor describe
+la muestra. En particular, <code>n_distintos</code> es la cardinalidad
+observada en esas ciento cincuenta filas, no una estimación de la
+cardinalidad de la tabla.</p>
+</div>
+<div class="section level2">
+<h2 id="los-dos-bloques-uno-al-lado-del-otro">Los dos bloques, uno al lado del otro<a class="anchor" aria-label="anchor" href="#los-dos-bloques-uno-al-lado-del-otro"></a>
+</h2>
+<div class="sourceCode" id="cb9"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/base/data.frame.html" class="external-link">data.frame</a></span><span class="op">(</span></span>
 <span>  bloque <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"resumen_tabla"</span>, <span class="st">"perfil_muestra"</span><span class="op">)</span>,</span>
-<span>  solo_lectura <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span></span>
-<span>    <span class="va">perfil</span><span class="op">$</span><span class="va">resumen_tabla</span><span class="op">$</span><span class="va">meta</span><span class="op">$</span><span class="va">solo_lectura</span>,</span>
-<span>    <span class="va">perfil</span><span class="op">$</span><span class="va">perfil_muestra</span><span class="op">$</span><span class="va">meta</span><span class="op">$</span><span class="va">origen_dbi</span><span class="op">$</span><span class="va">solo_lectura</span></span>
-<span>  <span class="op">)</span>,</span>
-<span>  objetos_temporales <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span></span>
-<span>    <span class="va">perfil</span><span class="op">$</span><span class="va">resumen_tabla</span><span class="op">$</span><span class="va">meta</span><span class="op">$</span><span class="va">objetos_temporales</span>,</span>
-<span>    <span class="va">perfil</span><span class="op">$</span><span class="va">perfil_muestra</span><span class="op">$</span><span class="va">meta</span><span class="op">$</span><span class="va">origen_dbi</span><span class="op">$</span><span class="va">objetos_temporales</span></span>
+<span>  calculado_en <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"el motor"</span>, <span class="st">"R"</span><span class="op">)</span>,</span>
+<span>  filas <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fu"><a href="../reference/accesores_perfil.html">n_filas</a></span><span class="op">(</span><span class="va">acotado</span><span class="op">)</span>, <span class="fu"><a href="../reference/accesores_perfil.html">n_filas</a></span><span class="op">(</span><span class="va">acotado</span><span class="op">$</span><span class="va">perfil_muestra</span><span class="op">)</span><span class="op">)</span>,</span>
+<span>  campos_analiticos <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span></span>
+<span>    <span class="fu"><a href="https://rdrr.io/r/base/nrow.html" class="external-link">ncol</a></span><span class="op">(</span><span class="va">acotado</span><span class="op">$</span><span class="va">resumen_tabla</span><span class="op">$</span><span class="va">columnas</span><span class="op">)</span> <span class="op">-</span> <span class="fl">1L</span>,</span>
+<span>    <span class="fu"><a href="https://rdrr.io/r/base/nrow.html" class="external-link">ncol</a></span><span class="op">(</span><span class="va">acotado</span><span class="op">$</span><span class="va">perfil_muestra</span><span class="op">$</span><span class="va">columnas</span><span class="op">)</span> <span class="op">-</span> <span class="fl">1L</span></span>
 <span>  <span class="op">)</span></span>
 <span><span class="op">)</span></span>
-<span><span class="co">#&gt;           bloque solo_lectura objetos_temporales</span></span>
-<span><span class="co">#&gt; 1  resumen_tabla         TRUE              FALSE</span></span>
-<span><span class="co">#&gt; 2 perfil_muestra         TRUE              FALSE</span></span>
-<span></span>
-<span><span class="fu"><a href="https://rdrr.io/r/base/invisible.html" class="external-link">invisible</a></span><span class="op">(</span><span class="fu">DBI</span><span class="fu">::</span><span class="fu"><a href="https://dbi.r-dbi.org/reference/dbDisconnect.html" class="external-link">dbDisconnect</a></span><span class="op">(</span><span class="va">conexion</span><span class="op">)</span><span class="op">)</span></span></code></pre></div>
-<p>La metadata no convierte una muestra en la tabla completa. Permite
-que quien consume el resultado compare cada bloque dentro de su propio
-alcance.</p>
+<span><span class="co">#&gt;           bloque calculado_en filas campos_analiticos</span></span>
+<span><span class="co">#&gt; 1  resumen_tabla     el motor  1000                15</span></span>
+<span><span class="co">#&gt; 2 perfil_muestra            R   200               117</span></span></code></pre></div>
+<p>El resumen tiene 15 campos analíticos por columna, los que SQL puede
+calcular sin traer los datos: faltantes, distintos, moda, mínimo,
+máximo, media, mediana y desvío, entre otros. El perfil de la muestra
+tiene los 117 de <code><a href="../reference/perfilar.html">perfilar()</a></code>, pero sobre las filas leídas.
+Por eso <code>lupa</code> no los mezcla: llamar <em>perfil</em> al
+resumen afirmaría una completitud que no tiene, y leer el perfil como si
+fuera de la tabla entera, también.</p>
 </div>
 <div class="section level2">
-<h2 id="muestras-y-aproximaciones-para-tablas-grandes">Muestras y aproximaciones para tablas grandes<a class="anchor" aria-label="anchor" href="#muestras-y-aproximaciones-para-tablas-grandes"></a>
+<h2 id="leer-el-resultado-con-los-accesores">Leer el resultado con los accesores<a class="anchor" aria-label="anchor" href="#leer-el-resultado-con-los-accesores"></a>
 </h2>
-<p>La muestra usada por <code>perfil_muestra</code> y la relación usada
-por <code>universo = "muestra_motor"</code> son declaradas por separado.
-La primera se trae a R para ejecutar el perfil completo; la segunda
-permanece en SQL para que los agregados no recorran la tabla completa.
-La metadata de ambos bloques publica el universo y el método
-efectivo.</p>
+<p>Los accesores de <a href="leer-un-perfil.html">Leer un perfil</a>
+funcionan igual sobre el resultado de <code><a href="../reference/perfilar_dbi.html">perfilar_dbi()</a></code>.
+<code><a href="../reference/accesores_perfil.html">columnas()</a></code> devuelve el resumen del motor y
+<code><a href="../reference/accesores_perfil.html">hallazgos()</a></code>, los del perfil de la muestra:</p>
 <div class="sourceCode" id="cb10"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="va">estimado</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/perfilar_dbi.html">perfilar_dbi</a></span><span class="op">(</span></span>
-<span>  <span class="va">conexion</span>, <span class="st">"entregas"</span>, universo <span class="op">=</span> <span class="st">"muestra_motor"</span>, muestra_motor <span class="op">=</span> <span class="fl">5000</span>,</span>
-<span>  muestra <span class="op">=</span> <span class="fl">5000</span>, metricas <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span></span>
-<span>    <span class="st">"validos"</span>, <span class="st">"distintos"</span>, <span class="st">"moda"</span>, <span class="st">"basicos"</span>, <span class="st">"mediana"</span>, <span class="st">"desvio"</span></span>
-<span>  <span class="op">)</span></span>
+<code class="sourceCode R"><span><span class="fu"><a href="../reference/accesores_perfil.html">columnas</a></span><span class="op">(</span><span class="va">acotado</span><span class="op">)</span><span class="op">[</span>, <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"columna"</span>, <span class="st">"n"</span>, <span class="st">"n_faltantes"</span>, <span class="st">"n_distintos"</span>, <span class="st">"minimo"</span>, <span class="st">"maximo"</span><span class="op">)</span><span class="op">]</span></span>
+<span><span class="co">#&gt;    columna    n n_faltantes n_distintos minimo maximo</span></span>
+<span><span class="co">#&gt; 1 id_venta 1000           0        1000      1   1000</span></span>
+<span><span class="co">#&gt; 2 sucursal 1000           0           4     NA     NA</span></span>
+<span><span class="co">#&gt; 3    monto 1000          20         784    100    899</span></span>
+<span><span class="co">#&gt; 4    fecha 1000           0         180     NA     NA</span></span>
+<span><span class="fu"><a href="../reference/accesores_perfil.html">hallazgos</a></span><span class="op">(</span><span class="va">acotado</span><span class="op">)</span><span class="op">[</span>, <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"columna"</span>, <span class="st">"tipo_hallazgo"</span>, <span class="st">"severidad"</span>, <span class="st">"n_afectados"</span><span class="op">)</span><span class="op">]</span></span>
+<span><span class="co">#&gt;    columna               tipo_hallazgo  severidad n_afectados</span></span>
+<span><span class="co">#&gt; 1 id_venta       posible_identificador         ok           1</span></span>
+<span><span class="co">#&gt; 2    fecha           alta_cardinalidad sospechoso           1</span></span>
+<span><span class="co">#&gt; 3    fecha     tipo_declarado_distinto sospechoso           1</span></span>
+<span><span class="co">#&gt; 4 sucursal casi_duplicados_vocabulario         ok           0</span></span>
+<span><span class="co">#&gt; 5    fecha casi_duplicados_vocabulario         ok           0</span></span>
+<span><span class="fu"><a href="https://rdrr.io/r/base/nrow.html" class="external-link">nrow</a></span><span class="op">(</span><span class="fu"><a href="../reference/accesores_perfil.html">sql_perfil</a></span><span class="op">(</span><span class="va">acotado</span><span class="op">)</span><span class="op">)</span></span>
+<span><span class="co">#&gt; [1] 60</span></span></code></pre></div>
+<p>El motor contó los 20 faltantes de <code>monto</code> en las mil
+filas. El perfil por fila encontró, en sus doscientas, que
+<code>fecha</code> está guardada como texto aunque contiene fechas
+(<code>tipo_declarado_distinto</code>) y que casi cada fila trae una
+fecha distinta (<code>alta_cardinalidad</code>).
+<code><a href="../reference/accesores_perfil.html">sql_perfil()</a></code> devuelve una fila por columna y métrica, con
+la consulta que la produjo, su estado y su motivo.</p>
+<p>Cuando no se pidió la muestra, los accesores no inventan lo que no
+hay: <code><a href="../reference/accesores_perfil.html">hallazgos()</a></code> devuelve una tabla vacía con un aviso, y
+<code><a href="../reference/accesores_perfil.html">cobertura()</a></code> declara el bloque como
+<code>no_solicitado</code>, que no es un fallo.</p>
+<div class="sourceCode" id="cb11"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">aviso</span> <span class="op">&lt;-</span> <span class="cn">NULL</span></span>
+<span><span class="va">sin_filas</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/conditions.html" class="external-link">withCallingHandlers</a></span><span class="op">(</span></span>
+<span>  <span class="fu"><a href="../reference/accesores_perfil.html">hallazgos</a></span><span class="op">(</span><span class="va">agregados</span><span class="op">)</span>,</span>
+<span>  warning <span class="op">=</span> <span class="kw">function</span><span class="op">(</span><span class="va">w</span><span class="op">)</span> <span class="op">{</span></span>
+<span>    <span class="va">aviso</span> <span class="op">&lt;&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/conditions.html" class="external-link">conditionMessage</a></span><span class="op">(</span><span class="va">w</span><span class="op">)</span></span>
+<span>    <span class="fu"><a href="https://rdrr.io/r/base/conditions.html" class="external-link">invokeRestart</a></span><span class="op">(</span><span class="st">"muffleWarning"</span><span class="op">)</span></span>
+<span>  <span class="op">}</span></span>
 <span><span class="op">)</span></span>
-<span></span>
-<span><span class="va">estimado</span><span class="op">$</span><span class="va">resumen_tabla</span><span class="op">$</span><span class="va">sql</span><span class="op">[</span></span>
-<span>  <span class="va">estimado</span><span class="op">$</span><span class="va">resumen_tabla</span><span class="op">$</span><span class="va">sql</span><span class="op">$</span><span class="va">estado</span> <span class="op"><a href="https://rdrr.io/r/base/match.html" class="external-link">%in%</a></span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"estimado"</span>, <span class="st">"observado_muestra"</span><span class="op">)</span>,</span>
-<span>  <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"columna"</span>, <span class="st">"metrica"</span>, <span class="st">"estado"</span>, <span class="st">"universo"</span>, <span class="st">"tamano_muestra"</span>,</span>
-<span>    <span class="st">"metodo"</span>, <span class="st">"fraccion"</span>, <span class="st">"error_esperado"</span><span class="op">)</span></span>
-<span><span class="op">]</span></span>
-<span></span>
-<span><span class="va">aproximado</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/perfilar_dbi.html">perfilar_dbi</a></span><span class="op">(</span></span>
-<span>  <span class="va">conexion</span>, <span class="st">"entregas"</span>, muestra <span class="op">=</span> <span class="fl">5000</span>,</span>
-<span>  estrategia_mediana <span class="op">=</span> <span class="st">"aproximada_motor"</span>,</span>
-<span>  estrategia_distintos <span class="op">=</span> <span class="st">"aproximada_motor"</span></span>
-<span><span class="op">)</span></span>
-<span><span class="va">aproximado</span><span class="op">$</span><span class="va">resumen_tabla</span><span class="op">$</span><span class="va">meta</span><span class="op">$</span><span class="va">aproximaciones</span></span></code></pre></div>
-<p>Las estrategias de mediana y de distintos son independientes. Para
-pedir una función nativa de cardinalidad hay que usar
-<code>estrategia_distintos = "aproximada_motor"</code>; para habilitar
-la aproximación de mediana se usa
-<code>estrategia_mediana = "aproximada_motor"</code>. La sonda de
-mediana prueba primero una forma nativa exacta consolidada, luego la
-forma exacta por columna y deja la aproximada para el final. Por eso una
-mediana exacta queda <code>calculado</code>, aunque se haya pedido la
-estrategia aproximada; sólo queda <code>estimado</code> cuando esa forma
-aproximada efectivamente corrió. Una consulta no emitida o sin un valor
-utilizable queda <code>no_disponible</code>.</p>
-<p><code><a href="../reference/plan_perfilado_dbi.html">plan_perfilado_dbi()</a></code> emite las sondas de capacidad y
-publica un <strong>rango</strong> de consultas en
-<code>attr(plan, "supuesto")</code>. No escanea datos para decidir el
-costo: lee el esquema, sondea capacidades y, con
-<code>politica_costo = "por_cardinalidad"</code>, puede usar una
-garantía estructural o una fuente de catálogo. Nunca lanza
-<code>COUNT(DISTINCT ...)</code> sólo para despejar una duda. Por eso el
-plan no proyecta el costo temporal de <code>COUNT(DISTINCT)</code> antes
-de correr: la referencia honesta es el primer lote de distintos medido
-durante la ejecución, y el plan no emite consultas de datos.</p>
+<span><span class="fu"><a href="https://rdrr.io/r/base/nrow.html" class="external-link">nrow</a></span><span class="op">(</span><span class="va">sin_filas</span><span class="op">)</span></span>
+<span><span class="co">#&gt; [1] 0</span></span>
+<span><span class="fu"><a href="https://rdrr.io/r/base/writeLines.html" class="external-link">writeLines</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/strwrap.html" class="external-link">strwrap</a></span><span class="op">(</span><span class="va">aviso</span>, <span class="fl">88</span><span class="op">)</span><span class="op">)</span></span>
+<span><span class="co">#&gt; Este perfil DBI no solicito la muestra, asi que no hay hallazgos por fila. El resumen</span></span>
+<span><span class="co">#&gt; por columna sigue disponible en columnas(); el detalle, en cobertura().</span></span>
+<span><span class="fu"><a href="../reference/accesores_perfil.html">cobertura</a></span><span class="op">(</span><span class="va">agregados</span><span class="op">)</span><span class="op">[</span>, <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"bloque"</span>, <span class="st">"elemento"</span>, <span class="st">"estado"</span><span class="op">)</span><span class="op">]</span></span>
+<span><span class="co">#&gt;           bloque elemento        estado</span></span>
+<span><span class="co">#&gt; 1 perfil_muestra   ventas no_solicitado</span></span></code></pre></div>
 </div>
 <div class="section level2">
-<h2 id="la-memoria-del-procesamiento-no-se-estima">La memoria del procesamiento no se estima<a class="anchor" aria-label="anchor" href="#la-memoria-del-procesamiento-no-se-estima"></a>
+<h2 id="lo-que-el-resumen-no-garantiza">Lo que el resumen no garantiza<a class="anchor" aria-label="anchor" href="#lo-que-el-resumen-no-garantiza"></a>
 </h2>
-<p>El plan declara explícitamente que la memoria del procesamiento
-<strong>no se estima</strong>: no escala de forma predecible con las
-filas ni con las celdas, según lo medido. Conserva la <strong>magnitud
-del trabajo</strong> que se conoce —filas, celdas y pares de texto—,
-rotulada como magnitud y no como consumo de memoria.</p>
-<p>Las cifras que ayudan a decidir son datos de referencia medidos,
-<strong>no una predicción para la tabla del plan, sino una corrida única
-y fechada (2026-08-28) contra un motor remoto</strong>: traer la tabla
-costó aproximadamente 0,13 GB por millón de filas y procesar en R
-aproximadamente 1,0-1,5 MB por cada mil filas. La segunda cifra varió
-por 1,62x entre tablas de la misma magnitud; esa variación es justamente
-el motivo por el que no se usa para estimar.</p>
-<p>Ver todas las filas y tener todas las filas en memoria no son lo
-mismo. En corridas de referencia, 4,5 millones de filas entraron en 0,6
-GB y tardaron 25 segundos en llegar, mientras que procesar 4,5 millones
-ocupó aproximadamente 7 GB y procesar 12,8 millones aproximadamente 19
-GB. El problema observado está en el procesamiento en R, no en la red ni
-en el motor.</p>
-<p>El extremo inferior es <code>total</code>: si la fuente de
-cardinalidad queda desconocida, supone que la política omite la moda. El
-extremo superior es <code>total_maximo</code> —también reflejado en
-<code>total_lotes_rechazados</code> tras sumar la bisección— y deja
-abierto el camino que las ejecuta. Si un lote es rechazado, se agregan
-hasta <code>2n - 1</code> sondas por lote de <code>n</code> columnas. El
-costo real cae entre los dos, y el plan lo declara en las dos
-direcciones.</p>
-<p><code>estrategia_distintos</code> dice cómo se obtiene o se omite
-<code>n_distintos</code>, y publica la estrategia solicitada, la
-resuelta y el estado antes y después de la corrida.
-<code>fuente_cardinalidad_costo</code> dice de dónde sale la proporción
-usada por la política de costo; es independiente y no puede convertir
-una petición <code>"aproximada_motor"</code> o <code>"catalogo"</code>
-en un agregado exacto.</p>
-<p>Cada consulta de agregados planos que trae <code>n_validos</code>
-incluye <code>COUNT(*) AS n_total_consulta</code> en la misma sentencia.
-La completitud usa ese denominador local por lote, incluso después de
-una bisección, y no cruza el total de otra consulta. El total del
-universo se mantiene separado cuando hace falta para una muestra o
-cuando no hay agregados planos. Después se ejecutan distintos, moda y
-mediana. <code>tamano_lote_planos</code> y
-<code>tamano_lote_distintos</code> son independientes; este último vale
-2 por omisión. La medición contra el servidor de referencia mostró un
-<code>Shared Read</code> constante entre lotes: dos cardinalidades se
-amortizan en una pasada de la tabla. El derrame crece con el ancho del
-lote; dos mantuvo casi el mismo tiempo por columna que una y derramó
-menos que los lotes más anchos.</p>
-<p>El costo de <code>COUNT(DISTINCT ...)</code> se anuncia después de
-completar el primer lote de distintos y antes de iniciar el segundo,
-cuando hay una referencia medida. Con <code>instrumentar = TRUE</code>,
-la proyección usa la mediana de las duraciones de las consultas de ese
-primer lote en esta misma corrida y la multiplica por la cantidad total
-de lotes de distintos. El mensaje dice que es una estimación y de dónde
-sale; no usa <code>reltuples</code>. Con un solo lote no hay nada que
-proyectar ni que evitar, así que no se publica una proyección. La misma
-regla funciona si se pide sólo <code>metricas = "distintos"</code>. Sólo
-se muestra cuando supera 30 segundos y no pide confirmación, por lo que
-<code><a href="../reference/perfilar_dbi.html">perfilar_dbi()</a></code> no queda esperando en un guion.</p>
-<p>Los avisos de <code>moda</code> y <code>mediana</code> tienen
-interruptores y umbrales propios:
-<code>avisar_costo_moda</code>/<code>umbral_segundos_aviso_moda</code>
-proyectan por cardinalidad y
-<code>avisar_costo_mediana</code>/<code>umbral_segundos_aviso_mediana</code>
-proyectan por filas. Cada aviso llega antes de pagar la consulta y su
-proyección queda separada en <code>meta$costo_moda</code> o
-<code>meta$costo_mediana</code>; la fuente de cada cardinalidad se
-publica, incluso cuando proviene de una estimación de catálogo.</p>
-<p><code><a href="../reference/plan_perfilado_dbi.html">plan_perfilado_dbi()</a></code> no publica esa proyección temporal:
-no emite consultas de datos y, por lo tanto, no puede medir el primer
-lote. El plan lo declara explícitamente; la medición y la proyección
-quedan en <code>resumen_tabla$meta$costo_distintos</code> después de
-ejecutar.</p>
-<p>En PostgreSQL, la preparación puede consultar
-<code>pg_stats.n_distinct</code>, <code>pg_stats.avg_width</code>,
-<code>pg_class.reltuples</code>, <code>SHOW work_mem</code> y, desde la
-versión 13, <code>SHOW hash_mem_multiplier</code>. Con esos metadatos
-estima el tamaño del hash de agregación y avisa antes del primer
-<code>COUNT(DISTINCT)</code> si supera el límite efectivo.
-<code>meta$estimacion_derrame</code> conserva ese diagnóstico como
-estimación, no como medición; subir <code>work_mem</code> en la sesión
-puede evitar el derrame y el paquete nunca modifica ese parámetro. Si
-faltan estadísticas, permisos o el motor no es PostgreSQL, declara que
-no pudo estimar.</p>
-<p>El informe conserva el derrame real sólo cuando PostgreSQL permite
-atribuirlo sin ambigüedad mediante <code>pg_stat_statements</code>:
-<code>resumen_tabla$sql</code> publica los bloques temporales escritos y
-<code>meta$derrame</code> resume las consultas observadas. Si esa
-evidencia no está disponible, el estado lo dice y el paquete no deduce
-un derrame del tiempo transcurrido ni cambia <code>work_mem</code>. La
-medición real manda sobre <code>meta$estimacion_derrame</code>: un
-derrame medido se informa aunque la estimación previa no hubiera
-superado el límite.</p>
-<p>La decisión de pagar moda y mediana es explícita.
-<code>politica_costo = "todas"</code> es el valor por omisión y conserva
-todas las métricas solicitadas. Con
-<code>politica_costo = "por_cardinalidad"</code>, la corrida resuelve
-primero las fuentes estructurales y mide los valores válidos y distintos
-sólo cuando no hay una fuente exacta y la estrategia lo permite; luego
-omite, por columna, sólo la moda cuando
-<code>n_distintos / n_validos &gt;= umbral_cardinalidad</code>. El
-umbral por omisión es <code>0.5</code> y gobierna sólo la moda. La
-mediana se conserva: el barrido medido queda plano frente a la
-cardinalidad y su costo lo gobierna el número de filas. Cada omisión
-queda declarada en <code>resumen_tabla$sql</code> y
-<code>meta$decisiones_costo</code> explica por separado cada decisión.
-Una estrategia omitida, de catálogo o aproximada sin capacidad nunca se
-convierte en <code>COUNT(DISTINCT ...)</code>.</p>
-<p>Ahora bien, <strong>cuántas consultas se emiten no dice cuánto
-cuestan</strong>: catorce consultas sobre dos millones de filas son
-mucho más trabajo que doscientas sobre mil, y quien mira el plan quiere
-saber si esto tarda segundos, minutos u horas. Por eso el plan estima
-además la magnitud, en cuentas de verdad y no en un índice inventado, y
-la estima en <strong>dos mitades</strong>, porque el reloj de una
-corrida no lo decide siempre el motor.</p>
-<p>La del motor son <code>filas_leidas</code>, cuántas filas habría que
-leer, y <code>ordenaciones_completas</code>, cuántas veces habría que
-ordenar la tabla entera; se resume en <code>magnitud_motor</code>. La
-del cliente son <code>columnas_texto</code> y <code>pares_texto</code>,
-cuántos pares de formas podría comparar en R el detector de vocabulario
-sobre la muestra; se resume en <code>magnitud_texto</code>.
-<code>magnitud</code> es <strong>la mayor de las dos</strong>
-—<code>"baja"</code>, <code>"media"</code>, <code>"alta"</code>, o
-<code>"desconocida"</code> si no se conoce el número de filas—.</p>
-<p>Contar sólo el motor daba juicios falsos con números ciertos. Una
-tabla del catálogo de PostGIS de 3.912 filas, con una columna de
-geometría guardada como texto, pedía 64.592 lecturas de fila y cero
-ordenaciones: magnitud <code>"baja"</code>. Y tardaba 35 segundos,
-<strong>ya con el presupuesto de trabajo calibrado</strong> —la misma
-tabla tardaba 243 segundos antes, y esa medición es la que aparece en
-<code><a href="../articles/escala-y-duplicados.html">vignette("escala-y-duplicados")</a></code>—. El trabajo que quedaba
-estaba del otro lado, comparando formas, que no es una lectura de fila.
-Al imprimir el plan se ven las dos mitades, y el aviso de magnitud alta
-viene con las palancas concretas para acotarla —que no son las mismas de
-un lado que del otro—: <code>universo = "muestra_motor"</code>, recortar
-<code>metricas</code>, bajar <code>muestra</code> o poner
-<code>max_consultas</code> para el motor, y
-<code>max_trabajo_vocabulario</code> para lo que se hace en R.</p>
-<p>Es una estimación y lo dice en
-<code>attr(plan, "supuesto_costo")</code>. La del motor cuenta las filas
-que habría que leer <strong>si ningún índice ayudara</strong>, y cada
-ordenación completa como <code>log2(filas)</code> pasadas; un índice
-sobre la columna ordenada, o una tabla que entra en la memoria del
-motor, la bajan mucho. La del cliente cuenta pares: el conteo es exacto,
-pero <strong>cuánto cuesta cada par depende del largo de los valores,
-que el plan no conoce sin leerlos</strong>. Medido con
-<code>benchmark/medir_costo_texto.R</code>, entre 660.000 y 1.150.000
-pares por segundo con valores de cuarenta caracteres —la banda cubre dos
-máquinas—, y entre 70.000 y 80.000 con valores de doscientos: con textos
-muy largos el tiempo real es varias veces el que sugiere la referencia.
-Los números publicados no dependen de esos supuestos, así que quien no
-los comparta puede rehacer la cuenta.</p>
-<div class="section level3">
-<h3 id="lo-que-el-muestreo-en-el-motor-no-puede-darte">Lo que el muestreo en el motor no puede darte<a class="anchor" aria-label="anchor" href="#lo-que-el-muestreo-en-el-motor-no-puede-darte"></a>
-</h3>
-<p>Los agregados planos que comparten lote —<code>COUNT(col)</code>,
-mínimo, máximo, media, ceros, negativos y desvío— se piden en una sola
-consulta. <code>COUNT(DISTINCT ...)</code> y la moda conservan consultas
-separadas por sus planes propios. La moda intenta traer
-<code>SUM(COUNT(*)) OVER () AS n_validos_guard</code> junto a su
-frecuencia y sondea esa forma antes de emitirla; si el motor la rechaza,
-conserva la consulta anterior y lo declara en
-<code>resumen_tabla$meta$moda_guardian</code>. La mediana también
-conserva ese camino como respaldo; en PostgreSQL 9.3 y SQLite el conteo
-de la mediana queda como subconsulta escalar en la misma sentencia que
-ordena y recorta. Un motor que acepta
-<code>PERCENTILE_CONT(...) WITHIN GROUP</code> puede consolidar varias
-en un solo <code>SELECT</code> por lote.</p>
-<p>Con <code>universo = "muestra_motor"</code>, <code>TABLESAMPLE</code>
-o la fuente pseudoaleatoria resuelta se ejecuta una sola vez y se
-materializa en un spool externo de sesión cliente. El trailer conserva y
-verifica <code>muestra_id</code>, <code>snapshot_id</code>,
-<code>orden_id</code>, <code>n_filas</code>, <code>bytes</code> y
-checksum; las pasadas de resumen y diagnóstico releen esa misma
-relación. <code>id_consulta</code> sigue identificando la sentencia que
-produjo una medición, mientras <code>muestra_id</code> identifica la
-materialización. Un chunk que supera el presupuesto se rechaza antes de
-escribir y publica <code>spool_presupuesto_excedido</code> y
-<code>muestra_inestable:presupuesto_materializacion</code>; no se
-entrega una muestra híbrida. El spool no escribe en la conexión DBI ni
-crea objetos temporales del motor.</p>
-<p>Por eso las formas candidatas están ordenadas por
-<strong>previsibilidad del tamaño</strong> y no por costo. Primero la de
-cantidad fija, <code>TABLESAMPLE RESERVOIR (n ROWS)</code>; después la
-de nivel de fila, <code>TABLESAMPLE BERNOULLI (p)</code>; y recién al
-final las de bloque. Medido contra PostgreSQL 16, pidiendo el 20 % de
-una tabla de 5.000 filas en cuatro corridas:</p>
-<pre><code>TABLESAMPLE SYSTEM (20)      678  904  452  1384
-TABLESAMPLE BERNOULLI (20)  1011 1017  981  1050</code></pre>
-<p><code>SYSTEM</code> elige bloques enteros, así que el tamaño de la
-muestra salta de un tercio al doble de lo pedido, y sobre una tabla
-chica puede dar cero. Con tamaños tan distintos entre consultas, dos
-métricas del mismo perfil dejan de ser comparables entre sí. La guarda
-de coherencia interna compara la frecuencia de la moda con
-<code>n_validos_guard</code> de su propia sentencia; si la sonda de la
-ventana no pasa, deja la cota como no comprobable y conserva la medición
-sin culpar al motor.</p>
-<p>Si necesitás que todas las métricas describan exactamente las mismas
-filas, el camino es <code>perfil_muestra</code>: trae una muestra a R
-<strong>una sola vez</strong> y corre sobre ella el perfil completo.
-Cuesta traer los datos; a cambio, todo lo que informa habla del mismo
-conjunto.</p>
+<p>Los agregados son consultas separadas, y la tabla puede cambiar entre
+una y otra. El resumen lo declara:</p>
+<div class="sourceCode" id="cb12"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">completo</span><span class="op">$</span><span class="va">resumen_tabla</span><span class="op">$</span><span class="va">meta</span><span class="op">$</span><span class="va">snapshot</span></span>
+<span><span class="co">#&gt; [1] FALSE</span></span>
+<span><span class="fu"><a href="https://rdrr.io/r/base/writeLines.html" class="external-link">writeLines</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/strwrap.html" class="external-link">strwrap</a></span><span class="op">(</span><span class="va">completo</span><span class="op">$</span><span class="va">resumen_tabla</span><span class="op">$</span><span class="va">meta</span><span class="op">$</span><span class="va">nota_snapshot</span>, <span class="fl">88</span><span class="op">)</span><span class="op">)</span></span>
+<span><span class="co">#&gt; No hubo lectura instantanea: cada agregado se midio en su propio momento y la tabla</span></span>
+<span><span class="co">#&gt; pudo cambiar entre consultas. La cobertura declara las comparaciones incoherentes entre</span></span>
+<span><span class="co">#&gt; grupos de consistencia distintos.</span></span></code></pre></div>
+<p>Si <code>n_validos</code> y <code>n_distintos</code> salen
+incoherentes y vienen de consultas distintas, <code><a href="../reference/accesores_perfil.html">cobertura()</a></code>
+agrega una fila <code>alcance_distinto</code> con las dos sentencias: es
+evidencia de que la tabla cambió durante la corrida, no una acusación
+contra el motor.</p>
 </div>
+<div class="section level2">
+<h2 id="antes-de-conectar-a-otro-motor">Antes de conectar a otro motor<a class="anchor" aria-label="anchor" href="#antes-de-conectar-a-otro-motor"></a>
+</h2>
+<p>El paquete del motor y la biblioteca del sistema que va debajo los
+instala quien usa <code>lupa</code>, y el error que aparece cuando falta
+alguno rara vez dice cuál es. <code><a href="../reference/requisitos_motor.html">requisitos_motor()</a></code> lo dice
+antes de conectar:</p>
+<div class="sourceCode" id="cb13"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="fu"><a href="../reference/requisitos_motor.html">requisitos_motor</a></span><span class="op">(</span><span class="op">)</span>            <span class="co"># el catálogo entero</span></span>
+<span><span class="fu"><a href="../reference/requisitos_motor.html">requisitos_motor</a></span><span class="op">(</span><span class="st">"mariadb"</span><span class="op">)</span>   <span class="co"># qué necesita MariaDB y cómo conseguirlo</span></span></code></pre></div>
+<p>Por cada motor devuelve el paquete de R, la biblioteca del sistema
+con su nombre en Debian y en Fedora, la forma de instalarla sin permisos
+de administrador cuando existe, el dialecto esperado y el estado de
+prueba del motor.</p>
+</div>
+<div class="section level2">
+<h2 id="para-una-tabla-grande">Para una tabla grande<a class="anchor" aria-label="anchor" href="#para-una-tabla-grande"></a>
+</h2>
+<p>Antes de perfilar una tabla de millones de filas conviene mirar el
+plan: <code><a href="../reference/plan_perfilado_dbi.html">plan_perfilado_dbi()</a></code> cuenta las consultas y el
+trabajo que haría <code><a href="../reference/perfilar_dbi.html">perfilar_dbi()</a></code> con los mismos argumentos,
+sin leer datos. El artículo <a href="https://sebollin.github.io/lupa/articles/motores-y-escala.html">Motores
+y escala</a> reúne lo que hace falta para decidir: el costo de cada
+métrica y los lotes de consultas, la política de costo, los presupuestos
+de memoria, la copia de la muestra que guarda la sesión, los dialectos,
+la garantía de la clave primaria según el motor y la matriz de motores
+probados.</p>
+<div class="sourceCode" id="cb14"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="fu">DBI</span><span class="fu">::</span><span class="fu"><a href="https://dbi.r-dbi.org/reference/dbDisconnect.html" class="external-link">dbDisconnect</a></span><span class="op">(</span><span class="va">conexion</span><span class="op">)</span></span></code></pre></div>
+</div>
+<div class="section level2">
+<h2 id="resumen">Resumen<a class="anchor" aria-label="anchor" href="#resumen"></a>
+</h2>
+<ul>
+<li>
+<code><a href="../reference/perfilar_dbi.html">perfilar_dbi()</a></code> devuelve dos bloques:
+<code>resumen_tabla</code>, calculado en el motor, y
+<code>perfil_muestra</code>, calculado en R sobre las filas leídas.</li>
+<li>Por omisión los agregados cubren toda la tabla y el perfil por fila
+también trae todas las filas que entran en los topes de lectura.</li>
+<li>
+<code>muestra = n</code> acota la lectura a R;
+<code>universo = "muestra_motor"</code> muestrea en el motor;
+<code>bloque_muestra = "solo_agregados"</code> no trae filas.</li>
+<li>El muestreo de lo leído está en
+<code>perfil_muestra$meta$origen_dbi$muestreo</code>; el del motor, en
+<code>resumen_tabla$meta$muestreo</code>, sólo con
+<code>muestra_motor</code>.</li>
+<li>
+<code>meta$snapshot = FALSE</code>: los agregados no son una lectura
+instantánea.</li>
+</ul>
+</div>
+<div class="section level2">
+<h2 id="paso-siguiente">Paso siguiente<a class="anchor" aria-label="anchor" href="#paso-siguiente"></a>
+</h2>
+<p>Una base no es una tabla: <a href="colecciones.html">Colecciones</a>
+perfila varias tablas a la vez y busca las relaciones entre ellas.</p>
 </div>
   </main><aside class="col-md-3"><nav id="toc" aria-label="Table of contents"><h2>On this page</h2>
     </nav></aside>

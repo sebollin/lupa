@@ -5,7 +5,7 @@
 <meta charset="utf-8">
 <meta http-equiv="X-UA-Compatible" content="IE=edge">
 <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
-<title>Escala y duplicados • lupa</title>
+<title>12. Escala y duplicados aproximados • lupa</title>
 <!-- favicons --><link rel="icon" type="image/png" sizes="96x96" href="../favicon-96x96.png">
 <link rel="icon" type="”image/svg+xml”" href="../favicon.svg">
 <link rel="apple-touch-icon" sizes="180x180" href="../apple-touch-icon.png">
@@ -16,7 +16,7 @@
 <script src="../deps/bootstrap-5.3.8/bootstrap.bundle.min.js"></script><link href="../deps/font-awesome-6.5.2/css/all.min.css" rel="stylesheet">
 <link href="../deps/font-awesome-6.5.2/css/v4-shims.min.css" rel="stylesheet">
 <script src="../deps/headroom-0.11.0/headroom.min.js"></script><script src="../deps/headroom-0.11.0/jQuery.headroom.min.js"></script><script src="../deps/bootstrap-toc-1.0.1/bootstrap-toc.min.js"></script><script src="../deps/clipboard.js-2.0.11/clipboard.min.js"></script><script src="../deps/search-1.0.0/autocomplete.jquery.min.js"></script><script src="../deps/search-1.0.0/fuse.min.js"></script><script src="../deps/search-1.0.0/mark.min.js"></script><link rel="icon" type="image/png" sizes="180x180" href="https://sebollin.github.io/lupa/apple-touch-icon.png">
-<!-- pkgdown --><script src="../pkgdown.js"></script><meta property="og:title" content="Escala y duplicados">
+<!-- pkgdown --><script src="../pkgdown.js"></script><meta property="og:title" content="12. Escala y duplicados aproximados">
 </head>
 <body>
     <a href="#main" class="visually-hidden-focusable">Skip to contents</a>
@@ -36,18 +36,30 @@
 
     <div id="navbar" class="collapse navbar-collapse ms-3">
       <ul class="navbar-nav me-auto">
+<li class="nav-item"><a class="nav-link" href="../articles/lupa.html">Get started</a></li>
 <li class="nav-item"><a class="nav-link" href="../reference/index.html">Reference</a></li>
 <li class="active nav-item dropdown">
   <button class="nav-link dropdown-toggle" type="button" id="dropdown-articles" data-bs-toggle="dropdown" aria-expanded="false" aria-haspopup="true">Articles</button>
   <ul class="dropdown-menu" aria-labelledby="dropdown-articles">
-<li><a class="dropdown-item" href="../articles/empezar-con-lupa.html">Empezar con lupa</a></li>
-    <li><a class="dropdown-item" href="../articles/flujo-guiado.html">Flujo guiado: del perfil a la evaluación</a></li>
-    <li><a class="dropdown-item" href="../articles/definir-la-calidad.html">Definir la calidad</a></li>
-    <li><a class="dropdown-item" href="../articles/medir-y-evaluar.html">Medir y evaluar</a></li>
-    <li><a class="dropdown-item" href="../articles/limpiar-con-un-plan.html">Limpiar con un plan auditable</a></li>
-    <li><a class="dropdown-item" href="../articles/historico-y-deriva.html">Histórico y monitoreo de deriva</a></li>
+<li><a class="dropdown-item" href="../articles/leer-un-perfil.html">2. Leer un perfil</a></li>
+    <li><a class="dropdown-item" href="../articles/explorar-columnas.html">3. Explorar columnas con `analizar()`</a></li>
+    <li><a class="dropdown-item" href="../articles/estructura-no-declarada.html">4. Estructura no declarada</a></li>
+    <li><a class="dropdown-item" href="../articles/vacio-por-diseno.html">5. El vacío por diseño</a></li>
+    <li><a class="dropdown-item" href="../articles/limpiar-con-un-plan.html">6. Limpiar con un plan</a></li>
+    <li><a class="dropdown-item" href="../articles/del-hallazgo-a-la-metrica.html">7. Del hallazgo a la métrica</a></li>
+    <li><a class="dropdown-item" href="../articles/marcos-y-modelos.html">8. Marcos y modelos de calidad</a></li>
+    <li><a class="dropdown-item" href="../articles/historico-y-deriva.html">9. Comparar entregas y seguir la calidad</a></li>
     <li><hr class="dropdown-divider"></li>
-    <li><a class="dropdown-item" href="../articles/index.html">More articles...</a></li>
+    <li><h6 class="dropdown-header" data-toc-skip>Bases y escala</h6></li>
+    <li><a class="dropdown-item" href="../articles/perfilar-una-base.html">10. Perfilar una base</a></li>
+    <li><a class="dropdown-item" href="../articles/colecciones.html">11. Colecciones</a></li>
+    <li><a class="dropdown-item" href="../articles/escala-y-duplicados.html">12. Escala y duplicados aproximados</a></li>
+    <li><hr class="dropdown-divider"></li>
+    <li><h6 class="dropdown-header" data-toc-skip>Referencia en línea</h6></li>
+    <li><a class="dropdown-item" href="../articles/motores-y-escala.html">Motores y escala</a></li>
+    <li><a class="dropdown-item" href="../articles/alcance-y-cobertura.html">Alcance y cobertura</a></li>
+    <li><a class="dropdown-item" href="../articles/evidencia-y-rendimiento.html">Evidencia y rendimiento</a></li>
+    <li><a class="dropdown-item" href="../articles/codificacion-y-locales.html">Codificación y locales</a></li>
   </ul>
 </li>
 <li class="nav-item"><a class="nav-link" href="../news/index.html">Changelog</a></li>
@@ -64,7 +76,7 @@
 
 <div class="row">
   <main id="main" class="col-md-9"><div class="page-header">
-      <img src="../logo.png" class="logo" alt=""><h1>Escala y duplicados</h1>
+      <img src="../logo.png" class="logo" alt=""><h1>12. Escala y duplicados aproximados</h1>
             
       
       <small class="dont-index">Source: <a href="https://github.com/sebollin/lupa/blob/main/vignettes/escala-y-duplicados.Rmd" class="external-link"><code>vignettes/escala-y-duplicados.Rmd</code></a></small>
@@ -73,649 +85,456 @@
 
     
     
-<p>Esta guía muestra cómo elegir una estrategia para comparar registros
-sin ocultar el costo ni la pérdida de alcance. La comparación aproximada
-está apagada en <code><a href="../reference/perfilar.html">perfilar()</a></code>; se solicita de forma explícita
-y siempre informa qué pares se miraron.</p>
-<p>Las llamadas a <code>stringdist</code> usan por omisión
-<code>nucleos = getOption("lupa.nucleos", 2L)</code>. El valor efectivo
-queda en <code>alcance$nucleos_usados</code>; se puede cambiar por
-llamada o mediante la opción, pero la cantidad de hilos no cambia los
-pares ni los hallazgos, sólo el tiempo. Las mediciones de escala fijan
-dos hilos para que los tiempos sean comparables entre corridas.</p>
-<p>Los tiempos de las dos tablas siguientes se midieron en la máquina
-que describe <code>benchmark/datos/entorno.csv</code> (un Intel Core
-i9-14900HX, Linux, R 4.6.1). Son una referencia de escala, no una
-predicción para otra máquina.</p>
-<p>Sobre el padrón sintético de
-<code>benchmark/_padron_sintetico.R</code> —100.000 filas, vocabulario
-chico con homónimos y erratas sembradas, la forma que más llena las
-cubetas del LSH— con 140.097.499 candidatos y 205.865 pares informados,
-la cantidad de hilos produjo estas medianas (tres procesos separados por
-configuración; <code>benchmark/medir_figuras.R</code> las deja en
-<code>benchmark/datos/hilos.csv</code> y es lo que dibuja el cuarto
-panel de la figura de escala del README):</p>
-<table class="table">
-<thead><tr class="header">
-<th align="right">hilos</th>
-<th align="right">mediana (s)</th>
-<th align="right">relativo a 2</th>
-</tr></thead>
-<tbody>
-<tr class="odd">
-<td align="right">2</td>
-<td align="right">153,20</td>
-<td align="right">1,00x</td>
-</tr>
-<tr class="even">
-<td align="right">4</td>
-<td align="right">118,38</td>
-<td align="right">0,77x</td>
-</tr>
-<tr class="odd">
-<td align="right">8</td>
-<td align="right">99,29</td>
-<td align="right">0,65x</td>
-</tr>
-<tr class="even">
-<td align="right">16</td>
-<td align="right">85,01</td>
-<td align="right">0,55x</td>
-</tr>
-<tr class="odd">
-<td align="right">29</td>
-<td align="right">83,27</td>
-<td align="right">0,54x</td>
-</tr>
-</tbody>
-</table>
-<p>Sobre otro padrón sintético —100.000 filas, 23.800 nombres distintos,
-la misma máquina; lo genera <code>benchmark/medir_escala_hilos.R</code>—
-la curva es mucho más plana:</p>
-<table class="table">
-<thead><tr class="header">
-<th align="right">hilos</th>
-<th align="right">mediana (s)</th>
-<th align="right">relativo a 2</th>
-</tr></thead>
-<tbody>
-<tr class="odd">
-<td align="right">2</td>
-<td align="right">324,36</td>
-<td align="right">1,00x</td>
-</tr>
-<tr class="even">
-<td align="right">4</td>
-<td align="right">303,84</td>
-<td align="right">0,94x</td>
-</tr>
-<tr class="odd">
-<td align="right">8</td>
-<td align="right">296,93</td>
-<td align="right">0,92x</td>
-</tr>
-<tr class="even">
-<td align="right">16</td>
-<td align="right">290,42</td>
-<td align="right">0,90x</td>
-</tr>
-<tr class="odd">
-<td align="right">31</td>
-<td align="right">302,18</td>
-<td align="right">0,93x</td>
-</tr>
-</tbody>
-</table>
-<p><strong>La ganancia no es una propiedad del paquete: depende de qué
-fracción del trabajo cae en la parte que se paraleliza.</strong> Los
-hilos los usa <code>stringdist</code> al comparar; generar los
-candidatos y armar los grupos no los usa. En el primer padrón la
-comparación domina el reloj y dieciséis hilos lo bajan a 0,55× de lo que
-tarda con dos; en el segundo domina el resto y la ganancia es de un 10 %
-(290,42 s frente a 324,36 s). Quien vaya a subir el valor conviene que
-mida su propio caso, no que copie una de estas dos tablas.</p>
-<p>Lo que <strong>sí</strong> vale en las dos: pasados dieciséis hilos
-la ganancia queda dentro del ruido entre corridas (un 2 % en la primera
-tabla, con corridas de 16 y de 29 hilos que se solapan; ninguna en la
-segunda) —el valor predeterminado de <code>stringdist</code>, todos los
-núcleos menos uno, no es el mejor— y el resultado no cambia, sólo el
-reloj. En la primera tabla, las cinco configuraciones dan los mismos
-140.097.499 candidatos y los mismos 205.865 pares, y el medidor se
-detiene si las tres corridas de una configuración no coinciden; en la
-segunda, la comprobación compara los 50.000 pares informados uno por uno
-entre las cinco configuraciones, y no su cantidad: como el tope de
-resultados se alcanza en todas, contar pares habría dado siempre el
-mismo número y la comprobación se habría cumplido sola. El valor por
-omisión de dos hilos es deliberadamente conservador.</p>
+<p>Un registro de proveedores puede tener al mismo proveedor dos veces,
+escrito de dos maneras. ¿Cómo encontramos esas filas, cuánto cuesta
+buscarlas en una tabla grande y qué dejamos de mirar cuando el costo
+obliga a recortar?</p>
+<blockquote>
+<p><strong>En esta guía:</strong></p>
+<ul>
+<li>pedimos la comparación aproximada, que está apagada por
+omisión;</li>
+<li>estimamos el costo antes de comparar y fijamos un presupuesto;</li>
+<li>vemos cuándo se compara por teselas y cuándo entra LSH;</li>
+<li>acotamos el trabajo con bloqueo y con lotes, y leemos qué pierde
+cada uno;</li>
+<li>reconocemos los topes que recortan la comparación y dónde lo
+declaran.</li>
+</ul>
+</blockquote>
 <div class="section level2">
-<h2 id="un-conjunto-pequeño">Un conjunto pequeño<a class="anchor" aria-label="anchor" href="#un-conjunto-peque%C3%B1o"></a>
+<h2 id="un-registro-de-proveedores">Un registro de proveedores<a class="anchor" aria-label="anchor" href="#un-registro-de-proveedores"></a>
 </h2>
 <div class="sourceCode" id="cb1"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va"><a href="https://github.com/sebollin/lupa" class="external-link">lupa</a></span><span class="op">)</span></span>
-<span><span class="va">datos</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/data.frame.html" class="external-link">data.frame</a></span><span class="op">(</span></span>
+<span></span>
+<span><span class="va">proveedores</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/data.frame.html" class="external-link">data.frame</a></span><span class="op">(</span></span>
 <span>  id <span class="op">=</span> <span class="fl">1</span><span class="op">:</span><span class="fl">8</span>,</span>
-<span>  nombre <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span></span>
-<span>    <span class="st">"Ana Perez"</span>, <span class="st">"Ana Peres"</span>, <span class="st">"Luis Silva"</span>, <span class="st">"Luis Silva"</span>,</span>
-<span>    <span class="st">"Marta Gómez"</span>, <span class="st">"Marta Gomez"</span>, <span class="st">"Rosa Díaz"</span>, <span class="st">"Rosa Diaz"</span></span>
+<span>  proveedor <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span></span>
+<span>    <span class="st">"Ferretería Central"</span>, <span class="st">"Ferreteria Central"</span>, <span class="st">"Distribuidora Sur"</span>,</span>
+<span>    <span class="st">"Distribuidora Sur"</span>, <span class="st">"Lácteos del Este"</span>, <span class="st">"Lacteos del Este"</span>,</span>
+<span>    <span class="st">"Imprenta Norte"</span>, <span class="st">"Imprenta Nortes"</span></span>
 <span>  <span class="op">)</span>,</span>
-<span>  domicilio <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span></span>
-<span>    <span class="st">"Calle 1 123"</span>, <span class="st">"Calle 1 123"</span>, <span class="st">"Ruta 5 40"</span>, <span class="st">"Ruta 5 40"</span>,</span>
-<span>    <span class="st">"Plaza 2 8"</span>, <span class="st">"Plaza 2 8"</span>, <span class="st">"Calle 9 20"</span>, <span class="st">"Calle 9 20"</span></span>
+<span>  rubro <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span></span>
+<span>    <span class="st">"ferretería"</span>, <span class="st">"ferretería"</span>, <span class="st">"alimentos"</span>, <span class="st">"alimentos"</span>, <span class="st">"alimentos"</span>,</span>
+<span>    <span class="st">"alimentos"</span>, <span class="st">"gráfica"</span>, <span class="st">"gráfica"</span></span>
 <span>  <span class="op">)</span>,</span>
-<span>  anio <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">2022</span>, <span class="fl">2022</span>, <span class="fl">2021</span>, <span class="fl">2021</span>, <span class="fl">2020</span>, <span class="fl">2020</span>, <span class="cn">NA</span>, <span class="cn">NA</span><span class="op">)</span>,</span>
+<span>  anio_alta <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">2022</span>, <span class="fl">2022</span>, <span class="fl">2021</span>, <span class="fl">2021</span>, <span class="fl">2020</span>, <span class="fl">2020</span>, <span class="cn">NA</span>, <span class="cn">NA</span><span class="op">)</span>,</span>
 <span>  stringsAsFactors <span class="op">=</span> <span class="cn">FALSE</span></span>
-<span><span class="op">)</span></span></code></pre></div>
+<span><span class="op">)</span></span>
+<span><span class="va">proveedores</span></span>
+<span><span class="co">#&gt;   id          proveedor      rubro anio_alta</span></span>
+<span><span class="co">#&gt; 1  1 Ferretería Central ferretería      2022</span></span>
+<span><span class="co">#&gt; 2  2 Ferreteria Central ferretería      2022</span></span>
+<span><span class="co">#&gt; 3  3  Distribuidora Sur  alimentos      2021</span></span>
+<span><span class="co">#&gt; 4  4  Distribuidora Sur  alimentos      2021</span></span>
+<span><span class="co">#&gt; 5  5   Lácteos del Este  alimentos      2020</span></span>
+<span><span class="co">#&gt; 6  6   Lacteos del Este  alimentos      2020</span></span>
+<span><span class="co">#&gt; 7  7     Imprenta Norte    gráfica        NA</span></span>
+<span><span class="co">#&gt; 8  8    Imprenta Nortes    gráfica        NA</span></span></code></pre></div>
+<p><code><a href="../reference/perfilar.html">perfilar()</a></code> ya informa las filas idénticas
+(<code>filas_duplicadas</code>). Las parecidas son otra pregunta, más
+cara, y por eso no se responden por omisión: se piden con
+<code>perfilar(datos, duplicados_aproximados = TRUE)</code> o, como acá,
+directamente con <code><a href="../reference/detectar_duplicados_aproximados.html">detectar_duplicados_aproximados()</a></code>. La
+comparación usa el paquete <code>stringdist</code>.</p>
+</div>
+<div class="section level2">
+<h2 id="la-primera-detección">La primera detección<a class="anchor" aria-label="anchor" href="#la-primera-detecci%C3%B3n"></a>
+</h2>
+<div class="sourceCode" id="cb2"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">pares</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/detectar_duplicados_aproximados.html">detectar_duplicados_aproximados</a></span><span class="op">(</span></span>
+<span>  <span class="va">proveedores</span>, columnas <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"proveedor"</span>, <span class="st">"rubro"</span><span class="op">)</span></span>
+<span><span class="op">)</span></span>
+<span><span class="va">pares</span><span class="op">$</span><span class="va">pares</span><span class="op">[</span>, <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"fila_1"</span>, <span class="st">"fila_2"</span>, <span class="st">"distancia"</span>, <span class="st">"tipo_par"</span>, <span class="st">"igualo_normalizar"</span><span class="op">)</span><span class="op">]</span></span>
+<span><span class="co">#&gt;   fila_1 fila_2 distancia           tipo_par igualo_normalizar</span></span>
+<span><span class="co">#&gt; 1      3      4     0.000             exacto             FALSE</span></span>
+<span><span class="co">#&gt; 2      1      2     0.000 exacto_normalizado              TRUE</span></span>
+<span><span class="co">#&gt; 3      5      6     0.000 exacto_normalizado              TRUE</span></span>
+<span><span class="co">#&gt; 4      7      8     0.008         aproximado             FALSE</span></span>
+<span><span class="va">pares</span><span class="op">$</span><span class="va">alcance</span><span class="op">[</span>, <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"modo_comparacion"</span>, <span class="st">"n_pares_comparados"</span>, <span class="st">"n_pares_hallados"</span><span class="op">)</span><span class="op">]</span></span>
+<span><span class="co">#&gt;         modo_comparacion n_pares_comparados n_pares_hallados</span></span>
+<span><span class="co">#&gt; 1 exhaustiva_por_bloques                 28                4</span></span></code></pre></div>
+<p>El detector unió <code>proveedor</code> y <code>rubro</code> en una
+sola cadena por fila, normalizó mayúsculas, espacios y acentos, y
+comparó los 28 pares posibles. <code>tipo_par</code> separa tres
+casos:</p>
+<ul>
+<li>
+<code>exacto</code>: los textos guardados son iguales (filas 3 y
+4);</li>
+<li>
+<code>exacto_normalizado</code>: son iguales después de normalizar,
+y <code>igualo_normalizar</code> lo marca (las tildes de las filas 1 y
+2, y de las 5 y 6);</li>
+<li>
+<code>aproximado</code>: siguen siendo distintos, pero quedan a una
+distancia menor que el umbral (<code>umbral = 0.10</code> con
+Jaro-Winkler, por omisión).</li>
+</ul>
+<p>Un par parecido nunca se presenta como identidad, y el detector no
+propone eliminar ni fusionar filas: la sugerencia de cada hallazgo es
+revisarlas.</p>
 </div>
 <div class="section level2">
 <h2 id="estimar-antes-de-comparar">Estimar antes de comparar<a class="anchor" aria-label="anchor" href="#estimar-antes-de-comparar"></a>
 </h2>
-<p><code><a href="../reference/estimar_costo.html">estimar_costo()</a></code> es un acto deliberado: devuelve la
-cantidad prevista de candidatos, la muestra usada y, cuando corresponde,
-un pronóstico de tiempo marcado como no determinista. En el camino
-exacto la cuenta de pares es exacta.</p>
-<div class="sourceCode" id="cb2"><pre class="downlit sourceCode r">
+<p>En el camino exhaustivo la cuenta es exacta: con <code>n</code> filas
+hay <code>n(n - 1)/2</code> pares. <code><a href="../reference/estimar_costo.html">estimar_costo()</a></code> la
+devuelve sin comparar nada, y <code>presupuesto_pares</code> corta la
+detección <strong>antes</strong> de empezar si la cuenta lo supera:</p>
+<div class="sourceCode" id="cb3"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="fu"><a href="../reference/estimar_costo.html">estimar_costo</a></span><span class="op">(</span><span class="va">proveedores</span>, columnas <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"proveedor"</span>, <span class="st">"rubro"</span><span class="op">)</span><span class="op">)</span><span class="op">$</span><span class="va">candidatos_previstos</span></span>
+<span><span class="co">#&gt; [1] 28</span></span>
+<span></span>
+<span><span class="va">corte</span> <span class="op">&lt;-</span> <span class="kw"><a href="https://rdrr.io/r/base/conditions.html" class="external-link">tryCatch</a></span><span class="op">(</span></span>
+<span>  <span class="fu"><a href="../reference/detectar_duplicados_aproximados.html">detectar_duplicados_aproximados</a></span><span class="op">(</span></span>
+<span>    <span class="va">proveedores</span>, columnas <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"proveedor"</span>, <span class="st">"rubro"</span><span class="op">)</span>, presupuesto_pares <span class="op">=</span> <span class="fl">10</span></span>
+<span>  <span class="op">)</span>,</span>
+<span>  error <span class="op">=</span> <span class="va">conditionMessage</span></span>
+<span><span class="op">)</span></span>
+<span><span class="fu"><a href="https://rdrr.io/r/base/writeLines.html" class="external-link">writeLines</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/strwrap.html" class="external-link">strwrap</a></span><span class="op">(</span><span class="va">corte</span>, <span class="fl">88</span><span class="op">)</span><span class="op">)</span></span>
+<span><span class="co">#&gt; La estimación exacta (28 pares) supera `presupuesto_pares` (10). No se inició la</span></span>
+<span><span class="co">#&gt; comparación; aumente el presupuesto, reduzca los datos, suba el umbral o divida el</span></span>
+<span><span class="co">#&gt; conjunto por una clave.</span></span></code></pre></div>
+<p>En un guion la detección se detiene con ese mensaje; en una sesión
+interactiva se puede decidir continuar. Separar la estimación de la
+corrida deja la decisión a la vista, antes de pagar el costo.</p>
+</div>
+<div class="section level2">
+<h2 id="teselas-o-lsh">Teselas o LSH<a class="anchor" aria-label="anchor" href="#teselas-o-lsh"></a>
+</h2>
+<p>Hasta su tope de pares, la comparación es
+<strong>exhaustiva</strong>: recorre todos los pares por teselas de
+<code>bloque</code> filas, y la respuesta es la misma que sin teselas.
+El tope es <code>max_pares</code>, 50.000.000 pares por omisión.</p>
+<p>Con <code>estrategia = "auto"</code>, el valor por omisión, el
+detector pasa a MinHash con LSH cuando se cumplen tres condiciones a la
+vez:</p>
+<ul>
+<li>la tabla tiene <strong>más de diez mil filas</strong> (diez mil
+filas son 49.995.000 pares, justo por debajo del tope por omisión);</li>
+<li>no se pidió una muestra de filas (<code>muestra = Inf</code>, el
+valor por omisión);</li>
+<li>
+<code>max_pares</code> es infinito o vale al menos 50.000.000.</li>
+</ul>
+<p>Si <code>max_pares</code> se baja de ese valor, <code>auto</code> no
+usa LSH: compara una muestra sistemática de filas y lo declara en
+<code>alcance$modo_comparacion</code>. Con
+<code>estrategia = "lsh"</code> se fuerza LSH con cualquier tamaño de
+tabla, y con <code>estrategia = "teselas"</code> se evita.</p>
+<p>LSH no compara todos los pares: propone candidatos y compara sólo
+ésos. Lo forzamos sobre la misma tabla para ver qué declara:</p>
+<div class="sourceCode" id="cb4"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">lsh</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/detectar_duplicados_aproximados.html">detectar_duplicados_aproximados</a></span><span class="op">(</span></span>
+<span>  <span class="va">proveedores</span>, columnas <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"proveedor"</span>, <span class="st">"rubro"</span><span class="op">)</span>, estrategia <span class="op">=</span> <span class="st">"lsh"</span></span>
+<span><span class="op">)</span></span>
+<span><span class="fu"><a href="https://rdrr.io/r/utils/str.html" class="external-link">str</a></span><span class="op">(</span><span class="va">lsh</span><span class="op">$</span><span class="va">alcance</span><span class="op">[</span><span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span></span>
+<span>  <span class="st">"modo_comparacion"</span>, <span class="st">"lsh_pares_comparados"</span>, <span class="st">"lsh_garantia_aplica_a"</span>,</span>
+<span>  <span class="st">"lsh_candidatos_dependen_orden_filas"</span></span>
+<span><span class="op">)</span><span class="op">]</span><span class="op">)</span></span>
+<span><span class="co">#&gt; 'data.frame':    1 obs. of  4 variables:</span></span>
+<span><span class="co">#&gt;  $ modo_comparacion                   : chr "lsh_minhash"</span></span>
+<span><span class="co">#&gt;  $ lsh_pares_comparados               : num 4</span></span>
+<span><span class="co">#&gt;  $ lsh_garantia_aplica_a              : chr "Jaccard de q-gramas; no garantiza la medida final"</span></span>
+<span><span class="co">#&gt;  $ lsh_candidatos_dependen_orden_filas: logi TRUE</span></span>
+<span><span class="fu"><a href="https://rdrr.io/r/base/Round.html" class="external-link">signif</a></span><span class="op">(</span><span class="va">lsh</span><span class="op">$</span><span class="va">alcance</span><span class="op">$</span><span class="va">lsh_garantia_jaccard_08</span>, <span class="fl">4</span><span class="op">)</span></span>
+<span><span class="co">#&gt; [1] 0.9998</span></span></code></pre></div>
+<p>La garantía, <code>lsh_garantia_jaccard_08</code>, es una
+probabilidad: un par cuyos q-gramas tienen un Jaccard de 0,8 o más llega
+a ser candidato al menos con esa probabilidad; uno menos parecido puede
+no llegar. Se refiere a los q-gramas, no a la distancia final, y el
+alcance lo dice. Además, los candidatos dependen del orden de las filas,
+y el alcance también lo declara. La estimación de costo del camino LSH
+se calcula sobre una muestra reproducible de pares:</p>
+<div class="sourceCode" id="cb5"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">estimacion</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/estimar_costo.html">estimar_costo</a></span><span class="op">(</span></span>
-<span>  <span class="va">datos</span>, columnas <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"nombre"</span>, <span class="st">"domicilio"</span><span class="op">)</span>, estrategia <span class="op">=</span> <span class="st">"lsh"</span>,</span>
+<span>  <span class="va">proveedores</span>, columnas <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"proveedor"</span>, <span class="st">"rubro"</span><span class="op">)</span>, estrategia <span class="op">=</span> <span class="st">"lsh"</span>,</span>
 <span>  lsh_muestra_estimacion <span class="op">=</span> <span class="fl">100</span></span>
 <span><span class="op">)</span></span>
-<span><span class="va">estimacion</span><span class="op">[</span><span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span></span>
-<span>  <span class="st">"candidatos_previstos"</span>, <span class="st">"probabilidad_candidato_estimada"</span>,</span>
-<span>  <span class="st">"muestra_estimacion"</span>, <span class="st">"vocabulario"</span></span>
-<span><span class="op">)</span><span class="op">]</span></span>
+<span><span class="va">estimacion</span><span class="op">[</span><span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"candidatos_previstos"</span>, <span class="st">"muestra_estimacion"</span>, <span class="st">"tiempo_estimado_etapa"</span><span class="op">)</span><span class="op">]</span></span>
 <span><span class="co">#&gt; $candidatos_previstos</span></span>
 <span><span class="co">#&gt; [1] 4</span></span>
-<span><span class="co">#&gt; </span></span>
-<span><span class="co">#&gt; $probabilidad_candidato_estimada</span></span>
-<span><span class="co">#&gt; [1] 0.1428571</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; $muestra_estimacion</span></span>
 <span><span class="co">#&gt; [1] 28</span></span>
 <span><span class="co">#&gt; </span></span>
-<span><span class="co">#&gt; $vocabulario</span></span>
-<span><span class="co">#&gt; [1] 72</span></span></code></pre></div>
-<p>El pronóstico de tiempo, cuando aparece, es un piso de la etapa de
-comparación <code>stringdist</code>: no incluye la firma MinHash, el
-bandeo, las cubetas ni el troceo. Su campo
-<code>estimacion$tiempo_estimado_etapa</code> lo deja explícito.</p>
-<p>Con dos hilos, ese piso cubrió aproximadamente el 80 % del tiempo
-total en el control de 100.000 filas (106,18 s estimados frente a 133,28
-s medidos). Sigue siendo un piso de la comparación
-<code>stringdist</code>, no una promesa de duración de la corrida
-completa.</p>
-<p>Si el pronóstico supera el límite elegido,
-<code>presupuesto_pares</code> corta antes de comparar. En una sesión
-interactiva se puede decidir explícitamente continuar; en un script no
-se solicita entrada.</p>
-</div>
-<div class="section level2">
-<h2 id="un-tope-de-largo-para-la-señal-de-proximidad">Un tope de largo para la señal de proximidad<a class="anchor" aria-label="anchor" href="#un-tope-de-largo-para-la-se%C3%B1al-de-proximidad"></a>
-</h2>
-<p>La distancia normalizada sirve para nombres, direcciones e
-identificadores, pero pierde capacidad de distinguir documentos largos.
-En cinco semillas de textos aleatorios, un par con una diferencia y otro
-con 1.000 diferencias dio estas medianas sobre cinco semillas:</p>
-<table class="table">
-<thead><tr class="header">
-<th align="right">largo</th>
-<th align="right">una diferencia</th>
-<th align="right">1.000 diferencias</th>
-</tr></thead>
-<tbody>
-<tr class="odd">
-<td align="right">10.000</td>
-<td align="right">0,000400</td>
-<td align="right">0,193195</td>
-</tr>
-<tr class="even">
-<td align="right">20.000</td>
-<td align="right">0,000150</td>
-<td align="right">0,125923</td>
-</tr>
-<tr class="odd">
-<td align="right">25.000</td>
-<td align="right">0,000347</td>
-<td align="right">0,104511</td>
-</tr>
-<tr class="even">
-<td align="right">50.000</td>
-<td align="right">0,000053</td>
-<td align="right">0,064559</td>
-</tr>
-</tbody>
-</table>
-<p>Con el umbral predeterminado <code>0,10</code>, el segundo par cruza
-hacia un falso parecido entre 25.000 y 50.000 caracteres. Por eso el
-tope predeterminado es <code>max_largo_valor = 10000</code>: deja margen
-antes de ese cruce y no aplica una distancia sin señal a textos largos.
-Una columna que lo supera queda fuera de la combinacion completa y se
-declara en <code>alcance$columnas_excluidas_largo</code>. En
-<code><a href="../reference/perfilar.html">perfilar()</a></code>, la cobertura explica la columna, el largo
-observado y el umbral. <code>Inf</code> es la eleccion explicita para
-recuperar el comportamiento anterior; en el diagnostico de vocabulario
-se escribe como <code>max_largo_valor_vocabulario = Inf</code>.</p>
-<div class="section level3">
-<h3 id="qué-largo-es-el-que-cuenta">Qué largo es el que cuenta<a class="anchor" aria-label="anchor" href="#qu%C3%A9-largo-es-el-que-cuenta"></a>
-</h3>
-<p>El tope no se mide sobre el valor tal como está guardado, sino sobre
-<strong>la cadena que entra a la comparación</strong>: las columnas ya
-combinadas y ya normalizadas. La diferencia no es teórica y se ve en dos
-casos que parecen inocentes.</p>
-<p>Dos columnas de nueve mil caracteres cada una están las dos por
-debajo del tope, y la comparación no las mira por separado: las une con
-un separador y compara los dieciocho mil de la fila entera. Y la
-normalización <code>amplio</code> <strong>expande ligaduras</strong> —la
-tipográfica de f-f-l es un solo carácter que se convierte en tres—, de
-modo que un valor puede quedar por debajo del tope guardado y por encima
-del comparado.</p>
-<p>Por eso <code>alcance$largo_maximo</code> publica el largo
-<strong>comparado</strong> y no el guardado. Cuando el tope no aplica
-—<code>Inf</code>— no se mide ningún largo, y ese campo vale
-<code>NA</code>: un cero ahí sería afirmar una medición que no
-ocurrió.</p>
-</div>
-<div class="section level3">
-<h3 id="dos-topes-dos-perillas">Dos topes, dos perillas<a class="anchor" aria-label="anchor" href="#dos-topes-dos-perillas"></a>
-</h3>
-<p><code>max_largo_valor_vocabulario</code> gobierna la regla de
-vocabulario dentro de <code><a href="../reference/perfilar.html">perfilar()</a></code>. El detector de pares de
-filas tiene el suyo y <strong>no se hereda</strong>: se configura por
-separado, con
-<code>duplicados_aproximados = list(max_largo_valor = ...)</code>. Son
-dos análisis distintos sobre los mismos datos, y ponerle a uno el tope
-del otro sería decidir por quien perfila.</p>
-</div>
-</div>
-<div class="section level2">
-<h2 id="avisar-el-costo-de-tablas-anchas">Avisar el costo de tablas anchas<a class="anchor" aria-label="anchor" href="#avisar-el-costo-de-tablas-anchas"></a>
-</h2>
-<p><code><a href="../reference/perfilar.html">perfilar()</a></code> calcula una proyeccion antes de empezar las
-etapas costosas. Desde <code>100.000</code> celdas avisa en una sesion
-interactiva, con una referencia de 10.000 celdas por segundo y un texto
-que dice que es una estimacion y cual es su fuente. El aviso queda en
-silencio en scripts no interactivos y se puede desactivar con
-<code>avisar_costo_tabla_ancha = FALSE</code>; usar
-<code>umbral_celdas_aviso_tabla_ancha = Inf</code> tambien es una
-decision explicita. La proyeccion completa queda en
-<code>meta$costo_tabla_ancha</code>.</p>
-</div>
-<div class="section level2">
-<h2 id="comparación-exacta-y-lsh">Comparación exacta y LSH<a class="anchor" aria-label="anchor" href="#comparaci%C3%B3n-exacta-y-lsh"></a>
-</h2>
-<p>Hasta el tope de pares, la estrategia por teselas es exhaustiva y
-conserva la misma respuesta que una corrida sin lotes. Para tablas
-grandes, LSH genera candidatos mediante MinHash y declara en
-<code>alcance</code> su muestra, sus bandas y la garantía de
-colisión.</p>
-<div class="sourceCode" id="cb3"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="va">exacto</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/detectar_duplicados_aproximados.html">detectar_duplicados_aproximados</a></span><span class="op">(</span></span>
-<span>  <span class="va">datos</span>, columnas <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"nombre"</span>, <span class="st">"domicilio"</span><span class="op">)</span>, estrategia <span class="op">=</span> <span class="st">"teselas"</span>,</span>
-<span>  max_resultados <span class="op">=</span> <span class="fl">100</span></span>
-<span><span class="op">)</span></span>
-<span><span class="va">lsh</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/detectar_duplicados_aproximados.html">detectar_duplicados_aproximados</a></span><span class="op">(</span></span>
-<span>  <span class="va">datos</span>, columnas <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"nombre"</span>, <span class="st">"domicilio"</span><span class="op">)</span>, estrategia <span class="op">=</span> <span class="st">"lsh"</span>,</span>
-<span>  max_resultados <span class="op">=</span> <span class="fl">100</span></span>
-<span><span class="op">)</span></span>
-<span><span class="co">#&gt; LSH: 4 candidatos previstos; referencia de 0,000 s (piso, no incluye firma ni cubetas;</span></span>
-<span><span class="co">#&gt; subir nucleos puede acortar esta etapa; hoy usa 2 hilos), medida con 29.232 pares en</span></span>
-<span><span class="co">#&gt; 0,051 s.</span></span>
-<span><span class="va">exacto</span><span class="op">$</span><span class="va">pares</span><span class="op">[</span>, <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span></span>
-<span>  <span class="st">"fila_1"</span>, <span class="st">"fila_2"</span>, <span class="st">"distancia"</span>, <span class="st">"tipo_par"</span>, <span class="st">"igualo_normalizar"</span></span>
-<span><span class="op">)</span><span class="op">]</span></span>
-<span><span class="co">#&gt;   fila_1 fila_2 distancia           tipo_par igualo_normalizar</span></span>
-<span><span class="co">#&gt; 1      3      4 0.0000000             exacto             FALSE</span></span>
-<span><span class="co">#&gt; 2      5      6 0.0000000 exacto_normalizado              TRUE</span></span>
-<span><span class="co">#&gt; 3      7      8 0.0000000 exacto_normalizado              TRUE</span></span>
-<span><span class="co">#&gt; 4      1      2 0.0173913         aproximado             FALSE</span></span>
-<span><span class="va">lsh</span><span class="op">$</span><span class="va">alcance</span><span class="op">[</span>, <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"modo_comparacion"</span>, <span class="st">"n_pares_comparados"</span>, <span class="st">"n_pares_hallados"</span><span class="op">)</span><span class="op">]</span></span>
-<span><span class="co">#&gt;   modo_comparacion n_pares_comparados n_pares_hallados</span></span>
-<span><span class="co">#&gt; 1      lsh_minhash                  4                4</span></span></code></pre></div>
-<p><code>tipo_par = "exacto"</code> se reserva para textos guardados
-iguales. <code>"exacto_normalizado"</code> identifica una coincidencia
-producida por la normalización y <code>igualo_normalizar</code> la marca
-fila a fila; <code>"aproximado"</code> queda para los pares que siguen
-siendo similares. Un par parecido nunca se presenta como identidad y no
-se propone eliminar ni fusionar registros. Si <code>stringdist</code> no
-está disponible, el resultado declara que la comparación no se ejecutó
-en vez de fallar con un error críptico.</p>
-<p>El diagnóstico de casi duplicados del vocabulario se ejecuta por
-columna. Dos columnas con el mismo vocabulario conservan filas de
-cobertura y hallazgos separados; el costo puede repetirse para no
-mezclar sus frecuencias ni su alcance.</p>
-<p>Los duplicados exactos que informa <code><a href="../reference/perfilar.html">perfilar()</a></code> siguen
-otra unidad: el hallazgo <code>filas_duplicadas</code> cuenta todas las
-filas que participan en grupos duplicados y las enumera en la traza. La
-evidencia conserva además cuántas son excedentes, porque esa cifra sólo
-corresponde a la acción que conserva la primera fila.</p>
+<span><span class="co">#&gt; $tiempo_estimado_etapa</span></span>
+<span><span class="co">#&gt; [1] "comparacion_stringdist"</span></span></code></pre></div>
+<p>Cuando hay pronóstico de tiempo, es una cota inferior de la etapa de
+comparación de <code>stringdist</code>: no incluye las firmas, el bandeo
+ni las cubetas, y su valor no es determinista, así que no lo imprimimos.
+Las mediciones de la pérdida de LSH y de su dependencia del orden están
+en el artículo <a href="https://sebollin.github.io/lupa/articles/evidencia-y-rendimiento.html">Evidencia
+y rendimiento</a>.</p>
 </div>
 <div class="section level2">
 <h2 id="bloquear-declarando-la-pérdida">Bloquear declarando la pérdida<a class="anchor" aria-label="anchor" href="#bloquear-declarando-la-p%C3%A9rdida"></a>
 </h2>
-<p>Una clave indicada por el usuario puede bajar la constante del
-trabajo, pero es con pérdida: dos filas cuya clave difiere no se
-comparan. Las filas con <code>NA</code> forman un bloque propio y
-también quedan contabilizadas. <code>alcance</code> informa los pares
-fuera del alcance y su estimación sobre la muestra.</p>
-<p>En <code>perfilar(clave = ...)</code>, la unicidad y la ausencia de
-nulos son comprobaciones separadas. <code>meta$clave</code> conserva el
-estado de cada una cuando alguna no queda verificada: una colisión entre
-<code>NA</code> puede ser útil para seguir la traza con la semántica de
-R, pero no prueba una colisión de <code>NULL</code> en SQL; los ausentes
-son la evidencia independiente contra <code>NOT NULL</code>.</p>
-<p>Por eso la unicidad se evalúa <strong>sólo entre las filas con la
-clave completa</strong>, y <code>filas_evaluadas</code> cuenta esas
-filas frente a <code>filas_totales</code>. Si ninguna fila tiene la
-clave completa, el estado no es <code>verificada</code> —sería cierto
-sobre un conjunto vacío— sino <code>sin_casos_evaluables</code>. Una
-clave sin ausentes y única no agrega ese metadato al perfil
-histórico.</p>
-<div class="sourceCode" id="cb4"><pre class="downlit sourceCode r">
+<p>Bloquear compara sólo las filas que comparten el valor de una
+columna. Baja el trabajo, pero con pérdida: dos filas de distinto bloque
+no se comparan nunca. La columna la elige quien conoce el dato;
+<code>lupa</code> no adivina una clave de bloqueo.</p>
+<div class="sourceCode" id="cb6"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">bloqueado</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/detectar_duplicados_aproximados.html">detectar_duplicados_aproximados</a></span><span class="op">(</span></span>
-<span>  <span class="va">datos</span>, columnas <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"nombre"</span>, <span class="st">"domicilio"</span><span class="op">)</span>, estrategia <span class="op">=</span> <span class="st">"teselas"</span>,</span>
-<span>  bloquear_por <span class="op">=</span> <span class="st">"anio"</span>, max_resultados <span class="op">=</span> <span class="fl">100</span></span>
+<span>  <span class="va">proveedores</span>, columnas <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"proveedor"</span>, <span class="st">"rubro"</span><span class="op">)</span>, estrategia <span class="op">=</span> <span class="st">"teselas"</span>,</span>
+<span>  bloquear_por <span class="op">=</span> <span class="st">"anio_alta"</span></span>
 <span><span class="op">)</span></span>
-<span><span class="va">bloqueado</span><span class="op">$</span><span class="va">alcance</span><span class="op">[</span>, <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span></span>
-<span>  <span class="st">"bloqueo_por"</span>, <span class="st">"bloqueo_pares_fuera_alcance"</span>,</span>
-<span>  <span class="st">"bloqueo_perdida"</span>, <span class="st">"bloqueo_severidad"</span></span>
-<span><span class="op">)</span><span class="op">]</span></span>
-<span><span class="co">#&gt;   bloqueo_por bloqueo_pares_fuera_alcance bloqueo_perdida bloqueo_severidad</span></span>
-<span><span class="co">#&gt; 1        anio                          24            TRUE        sospechoso</span></span></code></pre></div>
-<p>El paquete no adivina una clave por su nombre ni por una jerarquía
-territorial: la columna la elige quien conoce el dato.</p>
+<span><span class="fu"><a href="https://rdrr.io/r/utils/str.html" class="external-link">str</a></span><span class="op">(</span><span class="va">bloqueado</span><span class="op">$</span><span class="va">alcance</span><span class="op">[</span><span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span></span>
+<span>  <span class="st">"bloqueo_n_bloques"</span>, <span class="st">"bloqueo_n_filas_na"</span>, <span class="st">"bloqueo_pares_alcanzables"</span>,</span>
+<span>  <span class="st">"bloqueo_pares_fuera_alcance"</span>, <span class="st">"bloqueo_perdida"</span>,</span>
+<span>  <span class="st">"bloqueo_candidatos_perdidos_estimados"</span>, <span class="st">"bloqueo_perdida_estimacion_estado"</span></span>
+<span><span class="op">)</span><span class="op">]</span><span class="op">)</span></span>
+<span><span class="co">#&gt; 'data.frame':    1 obs. of  7 variables:</span></span>
+<span><span class="co">#&gt;  $ bloqueo_n_bloques                    : int 4</span></span>
+<span><span class="co">#&gt;  $ bloqueo_n_filas_na                   : int 2</span></span>
+<span><span class="co">#&gt;  $ bloqueo_pares_alcanzables            : num 4</span></span>
+<span><span class="co">#&gt;  $ bloqueo_pares_fuera_alcance          : num 24</span></span>
+<span><span class="co">#&gt;  $ bloqueo_perdida                      : logi TRUE</span></span>
+<span><span class="co">#&gt;  $ bloqueo_candidatos_perdidos_estimados: num 0</span></span>
+<span><span class="co">#&gt;  $ bloqueo_perdida_estimacion_estado    : chr "estimada_por_muestra"</span></span></code></pre></div>
+<p>Las dos filas sin año forman un bloque propio y también se cuentan.
+De los 28 pares, 24 quedaron fuera de alcance, y
+<code>bloqueo_perdida</code> lo marca. En esta tabla ningún par parecido
+cruzaba bloques, pero eso es una estimación sobre una muestra de pares,
+y el alcance dice que lo es.</p>
 </div>
 <div class="section level2">
 <h2 id="lotes-sin-pérdida">Lotes sin pérdida<a class="anchor" aria-label="anchor" href="#lotes-sin-p%C3%A9rdida"></a>
 </h2>
-<p><code>lotes = TRUE</code> escribe parciales en un directorio elegido
-por el usuario (por omisión se usa uno temporal), cruza los grupos y une
-la misma respuesta exacta. El objeto declara los archivos, bytes,
-directorio y que los parciales no son reanudables. La comparación sigue
-siendo exacta; sólo cambia cuánta memoria se usa a la vez.</p>
-<div class="sourceCode" id="cb5"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="va">dir</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/tempfile.html" class="external-link">tempfile</a></span><span class="op">(</span><span class="st">"lupa-lotes-"</span><span class="op">)</span></span>
+<p>Los lotes no cambian qué se compara, sino cuánta memoria se usa a la
+vez: los resultados parciales se escriben en un directorio y después se
+unen.</p>
+<div class="sourceCode" id="cb7"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">directorio</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/tempfile.html" class="external-link">tempfile</a></span><span class="op">(</span><span class="st">"lupa-lotes-"</span><span class="op">)</span></span>
 <span><span class="va">por_lotes</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/detectar_duplicados_aproximados.html">detectar_duplicados_aproximados</a></span><span class="op">(</span></span>
-<span>  <span class="va">datos</span>, columnas <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"nombre"</span>, <span class="st">"domicilio"</span><span class="op">)</span>, estrategia <span class="op">=</span> <span class="st">"teselas"</span>,</span>
-<span>  lotes <span class="op">=</span> <span class="cn">TRUE</span>, tamano_lote <span class="op">=</span> <span class="fl">3</span>, directorio_lotes <span class="op">=</span> <span class="va">dir</span>,</span>
-<span>  max_resultados <span class="op">=</span> <span class="fl">100</span></span>
+<span>  <span class="va">proveedores</span>, columnas <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"proveedor"</span>, <span class="st">"rubro"</span><span class="op">)</span>, estrategia <span class="op">=</span> <span class="st">"teselas"</span>,</span>
+<span>  lotes <span class="op">=</span> <span class="cn">TRUE</span>, tamano_lote <span class="op">=</span> <span class="fl">3</span>, directorio_lotes <span class="op">=</span> <span class="va">directorio</span></span>
 <span><span class="op">)</span></span>
-<span><span class="va">por_lotes</span><span class="op">$</span><span class="va">lotes</span><span class="op">[</span><span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span></span>
-<span>  <span class="st">"directorio"</span>, <span class="st">"n_parciales"</span>, <span class="st">"bytes_totales"</span>, <span class="st">"reanudable"</span>, <span class="st">"perdida"</span></span>
-<span><span class="op">)</span><span class="op">]</span></span>
-<span><span class="co">#&gt; $directorio</span></span>
-<span><span class="co">#&gt; [1] "/tmp/Rtmp8fZM7d/lupa-lotes-23a527c34907/lupa-lotes-23a53a114997"</span></span>
-<span><span class="co">#&gt; </span></span>
+<span><span class="va">por_lotes</span><span class="op">$</span><span class="va">lotes</span><span class="op">[</span><span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"n_parciales"</span>, <span class="st">"reanudable"</span>, <span class="st">"perdida"</span><span class="op">)</span><span class="op">]</span></span>
 <span><span class="co">#&gt; $n_parciales</span></span>
 <span><span class="co">#&gt; [1] 6</span></span>
-<span><span class="co">#&gt; </span></span>
-<span><span class="co">#&gt; $bytes_totales</span></span>
-<span><span class="co">#&gt; [1] 1519</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; $reanudable</span></span>
 <span><span class="co">#&gt; [1] FALSE</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; $perdida</span></span>
 <span><span class="co">#&gt; [1] FALSE</span></span>
-<span><span class="fu"><a href="https://rdrr.io/r/base/unlink.html" class="external-link">unlink</a></span><span class="op">(</span><span class="va">dir</span>, recursive <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span></span></code></pre></div>
-<p>Para decidir si la operación cabe, se recomienda llamar primero a
-<code><a href="../reference/estimar_costo.html">estimar_costo()</a></code> y establecer <code>presupuesto_pares</code>
-en la detección. Así la decisión queda separada del recorrido y el
-alcance permanece auditable.</p>
+<span><span class="fu"><a href="https://rdrr.io/r/base/identical.html" class="external-link">identical</a></span><span class="op">(</span><span class="va">por_lotes</span><span class="op">$</span><span class="va">pares</span>, <span class="va">pares</span><span class="op">$</span><span class="va">pares</span><span class="op">)</span></span>
+<span><span class="co">#&gt; [1] TRUE</span></span>
+<span><span class="fu"><a href="https://rdrr.io/r/base/unlink.html" class="external-link">unlink</a></span><span class="op">(</span><span class="va">directorio</span>, recursive <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span></span></code></pre></div>
+<p>La respuesta es idéntica a la de la primera detección. El objeto
+declara además los archivos, sus tamaños y el directorio, y que los
+parciales no sirven para retomar una corrida cortada.</p>
 </div>
 <div class="section level2">
-<h2 id="presupuestos-que-miden-trabajo-y-no-unidades">Presupuestos que miden trabajo y no unidades<a class="anchor" aria-label="anchor" href="#presupuestos-que-miden-trabajo-y-no-unidades"></a>
+<h2 id="los-topes-que-recortan-y-dónde-lo-dicen">Los topes que recortan, y dónde lo dicen<a class="anchor" aria-label="anchor" href="#los-topes-que-recortan-y-d%C3%B3nde-lo-dicen"></a>
 </h2>
-<p>Un tope que cuenta unidades trata igual a una columna de códigos de
-diez caracteres y a una de WKT de mil. Una tabla del catálogo de PostGIS
-—3.912 filas, 5 columnas— tardaba <strong>243 segundos</strong>, y el
-detector de vocabulario era el 99,6 % del costo: 800 valores distintos
-son 319.600 pares, muy por debajo del tope de dos millones, pero cada
-comparación era una Jaro-Winkler sobre 900 caracteres.</p>
-<p>Por eso <code>max_trabajo_vocabulario</code> se mide en
-<strong>comparaciones de carácter</strong>, que es el bucle interno de
-la distancia: comparar dos valores de largos <code>L1</code> y
-<code>L2</code> cuesta del orden de <code>L1 × L2</code>. Contar pares
-por longitud media no alcanzaba —el mismo presupuesto compraba 5,3
-millones de unidades por segundo con valores de 900 caracteres y 44
-millones con valores de 40—.</p>
-<p>El valor por omisión está calibrado contra la medición, no contra la
-intuición, y el criterio no fue sólo cortar el caso patológico sino
-<strong>no tocar el común</strong>:</p>
-<table class="table">
-<thead><tr class="header">
-<th>valores</th>
-<th>largo</th>
-<th>sin tope</th>
-<th>con tope</th>
-<th>comparado</th>
-</tr></thead>
-<tbody>
-<tr class="odd">
-<td>800</td>
-<td>900</td>
-<td>61,3 s</td>
-<td>4,6 s</td>
-<td>27,8 %</td>
-</tr>
-<tr class="even">
-<td>2000</td>
-<td>80</td>
-<td>5,0 s</td>
-<td>5,1 s</td>
-<td>100 %</td>
-</tr>
-</tbody>
-</table>
-<p>Una columna corriente de dos mil valores se compara entera
-<strong>mientras sus valores midan menos de unos cien
-caracteres</strong>. El tope por trabajo muerde cuando
-<code>L² · n(n-1)/2</code> supera <code>2e10</code>, así que para dos
-mil valores distintos el corte está en 101 caracteres:</p>
-<table class="table">
-<thead><tr class="header">
-<th align="right">valores</th>
-<th align="right">largo</th>
-<th>¿se recorta?</th>
-<th align="right">formas comparadas</th>
-</tr></thead>
-<tbody>
-<tr class="odd">
-<td align="right">2000</td>
-<td align="right">80</td>
-<td>no</td>
-<td align="right">2000</td>
-</tr>
-<tr class="even">
-<td align="right">2000</td>
-<td align="right">100</td>
-<td>no</td>
-<td align="right">2000</td>
-</tr>
-<tr class="odd">
-<td align="right">2000</td>
-<td align="right">101</td>
-<td>
-<strong>sí</strong>, por <code>max_trabajo</code>
-</td>
-<td align="right">1980</td>
-</tr>
-<tr class="even">
-<td align="right">2000</td>
-<td align="right">200</td>
-<td>sí, por <code>max_trabajo</code>
-</td>
-<td align="right">1000</td>
-</tr>
-</tbody>
-</table>
-<p>Conviene tenerlo presente porque la columna que motivó el presupuesto
-—WKT de 900 caracteres— cae del lado recortado: la tranquilidad de «dos
-mil valores se comparan enteros» no alcanza a los datos que hicieron
-falta el tope.</p>
-<p>Y lo que sí se recorta <strong>se declara</strong>, con las dos
-cuentas separadas: cuántas formas normalizadas quedaron sin comparar y
-cuánto trabajo eran, junto con cuál de los topes recortó, en el alcance
-del hallazgo y en <code>cobertura_diagnosticos</code>. Si aprietan los
-dos, el motivo los nombra a los dos, porque hay que poder elegir cuál
-aflojar.</p>
-<p>Un detalle que conviene saber antes de confiar en un recorte: las
-formas que sí se comparan son <strong>las primeras en orden
-alfabético</strong>, no una muestra ni las primeras en aparecer. Lo que
-queda afuera es el tramo final del alfabeto, y eso se declara.</p>
-<p>Que sea el alfabeto y no el orden de llegada no es una preferencia de
-estilo: <strong>tomarlas en orden de llegada hacía que el veredicto
-dependiera de cómo viniera ordenado el archivo.</strong> Medido sobre la
-columna <code>nombre</code> de <em>Ejes de vías de circulación</em> de
-Montevideo —45.400 filas, 8.318 formas distintas, del catálogo nacional
-de datos abiertos—, las mismas filas daban:</p>
-<table class="table">
-<thead><tr class="header">
-<th>orden de las filas</th>
-<th>grupos de casi-duplicados</th>
-</tr></thead>
-<tbody>
-<tr class="odd">
-<td>tal como viene el archivo</td>
-<td>26</td>
-</tr>
-<tr class="even">
-<td>desordenado (tres semillas)</td>
-<td>70, 71, 85</td>
-</tr>
-<tr class="odd">
-<td>alfabético</td>
-<td>148</td>
-</tr>
-</tbody>
-</table>
-<p>Un perfilador que da 26 o 148 según el orden de las filas está
-midiendo la forma física de la tabla y no los datos. Ordenando antes de
-recortar, los cinco órdenes dan <strong>148</strong>.</p>
-<p>El alfabeto además no es una elección arbitraria entre órdenes
-estables: deja los casi-duplicados <strong>adyacentes</strong>
-—<code>CAMINO CARRASCO</code> al lado de <code>CAMINO AGRARIOS</code>—,
-así que el corte cae entre familias en vez de partirlas. Una muestra al
-azar rompe pares: si de un grupo de dos sobrevive uno, el grupo
-desaparece. Por eso el azar rinde 70–85 y el orden rinde 148 con el
-mismo presupuesto.</p>
-<p><code><a href="../reference/detectar_dependencias.html">detectar_dependencias()</a></code> tiene el suyo,
-<code>max_trabajo</code>, en unidades <strong>fila-par</strong>: ahí el
-costo es del orden de <code>columnas² × filas</code>, y
-<code>max_comparaciones</code> no lo veía —158 columnas son 24.806
-pares, muy por debajo de las 200.000 del tope—. Se combina con
-<code>max_comparaciones</code> y manda el más restrictivo. Desde
-<code><a href="../reference/perfilar.html">perfilar()</a></code> los dos presupuestos se llaman
-<code>max_trabajo_vocabulario</code> y
-<code>max_trabajo_dependencias</code>, y <code>Inf</code> desactiva
-cualquiera de ellos.</p>
-<p>El banco <code>benchmark/medir_costo_texto.R</code> reproduce el
-barrido completo, para que la calibración se pueda rehacer si cambia la
-implementación de la distancia.</p>
+<div class="section level3">
+<h3 id="el-largo-de-los-valores">El largo de los valores<a class="anchor" aria-label="anchor" href="#el-largo-de-los-valores"></a>
+</h3>
+<p>Una distancia normalizada pierde capacidad de distinguir cuando los
+textos son largos. Lo vemos con la medida que usa el detector
+(Jaro-Winkler con <code>p = 0.1</code>): dos textos al azar que difieren
+en exactamente cien caracteres, a distintos largos.</p>
+<div class="sourceCode" id="cb8"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">distancia_cien_cambios</span> <span class="op">&lt;-</span> <span class="kw">function</span><span class="op">(</span><span class="va">largo</span>, <span class="va">semilla</span><span class="op">)</span> <span class="op">{</span></span>
+<span>  <span class="fu"><a href="https://rdrr.io/r/base/Random.html" class="external-link">set.seed</a></span><span class="op">(</span><span class="va">semilla</span><span class="op">)</span></span>
+<span>  <span class="va">texto</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/sample.html" class="external-link">sample</a></span><span class="op">(</span><span class="va">letters</span>, <span class="va">largo</span>, replace <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span></span>
+<span>  <span class="va">otro</span> <span class="op">&lt;-</span> <span class="va">texto</span></span>
+<span>  <span class="va">cambios</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/sample.html" class="external-link">sample</a></span><span class="op">(</span><span class="va">largo</span>, <span class="fl">100</span><span class="op">)</span></span>
+<span>  <span class="va">otro</span><span class="op">[</span><span class="va">cambios</span><span class="op">]</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/ifelse.html" class="external-link">ifelse</a></span><span class="op">(</span><span class="va">otro</span><span class="op">[</span><span class="va">cambios</span><span class="op">]</span> <span class="op">==</span> <span class="st">"a"</span>, <span class="st">"b"</span>, <span class="st">"a"</span><span class="op">)</span></span>
+<span>  <span class="fu">stringdist</span><span class="fu">::</span><span class="fu"><a href="https://rdrr.io/pkg/stringdist/man/stringdist.html" class="external-link">stringdist</a></span><span class="op">(</span></span>
+<span>    <span class="fu"><a href="https://rdrr.io/r/base/paste.html" class="external-link">paste</a></span><span class="op">(</span><span class="va">texto</span>, collapse <span class="op">=</span> <span class="st">""</span><span class="op">)</span>, <span class="fu"><a href="https://rdrr.io/r/base/paste.html" class="external-link">paste</a></span><span class="op">(</span><span class="va">otro</span>, collapse <span class="op">=</span> <span class="st">""</span><span class="op">)</span>,</span>
+<span>    method <span class="op">=</span> <span class="st">"jw"</span>, p <span class="op">=</span> <span class="fl">0.1</span></span>
+<span>  <span class="op">)</span></span>
+<span><span class="op">}</span></span>
+<span><span class="va">largos</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">500</span>, <span class="fl">1000</span>, <span class="fl">2000</span>, <span class="fl">4000</span>, <span class="fl">8000</span><span class="op">)</span></span>
+<span><span class="fu"><a href="https://rdrr.io/r/base/data.frame.html" class="external-link">data.frame</a></span><span class="op">(</span></span>
+<span>  largo <span class="op">=</span> <span class="va">largos</span>,</span>
+<span>  distancia <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/lapply.html" class="external-link">vapply</a></span><span class="op">(</span><span class="va">largos</span>, <span class="kw">function</span><span class="op">(</span><span class="va">largo</span><span class="op">)</span> <span class="op">{</span></span>
+<span>    <span class="fu"><a href="https://rdrr.io/r/base/Round.html" class="external-link">round</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/stats/median.html" class="external-link">median</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/lapply.html" class="external-link">vapply</a></span><span class="op">(</span><span class="fl">1</span><span class="op">:</span><span class="fl">5</span>, <span class="va">distancia_cien_cambios</span>, <span class="fu"><a href="https://rdrr.io/r/base/numeric.html" class="external-link">numeric</a></span><span class="op">(</span><span class="fl">1</span><span class="op">)</span>, largo <span class="op">=</span> <span class="va">largo</span><span class="op">)</span><span class="op">)</span>, <span class="fl">3</span><span class="op">)</span></span>
+<span>  <span class="op">}</span>, <span class="fu"><a href="https://rdrr.io/r/base/numeric.html" class="external-link">numeric</a></span><span class="op">(</span><span class="fl">1</span><span class="op">)</span><span class="op">)</span></span>
+<span><span class="op">)</span></span>
+<span><span class="co">#&gt;   largo distancia</span></span>
+<span><span class="co">#&gt; 1   500     0.162</span></span>
+<span><span class="co">#&gt; 2  1000     0.142</span></span>
+<span><span class="co">#&gt; 3  2000     0.074</span></span>
+<span><span class="co">#&gt; 4  4000     0.047</span></span>
+<span><span class="co">#&gt; 5  8000     0.027</span></span></code></pre></div>
+<p>Las cien diferencias son las mismas; lo que cambia es cuánto pesan en
+el texto. Pasado cierto largo, la distancia baja del umbral de 0,10 y
+dos textos que difieren en cien caracteres cuentan como casi
+iguales.</p>
+<p>Por eso el detector no compara valores más largos que
+<code>max_largo_valor</code> (10.000 caracteres por omisión, un supuesto
+del código). El tope no elimina el efecto, lo acota: una columna de
+textos largos puede pedir uno menor. Se mide sobre la cadena que de
+verdad se compara, con las columnas ya unidas y normalizadas, y si se
+supera, la combinación entera queda fuera de alcance y se declara. Con
+un tope de 20 caracteres, nuestra cadena de proveedor y rubro no
+entra:</p>
+<div class="sourceCode" id="cb9"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">corto</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/detectar_duplicados_aproximados.html">detectar_duplicados_aproximados</a></span><span class="op">(</span></span>
+<span>  <span class="va">proveedores</span>, columnas <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"proveedor"</span>, <span class="st">"rubro"</span><span class="op">)</span>, max_largo_valor <span class="op">=</span> <span class="fl">20</span></span>
+<span><span class="op">)</span></span>
+<span><span class="va">corto</span><span class="op">$</span><span class="va">alcance</span><span class="op">[</span>, <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span></span>
+<span>  <span class="st">"max_largo_valor"</span>, <span class="st">"largo_maximo"</span>, <span class="st">"columnas_excluidas_largo"</span>, <span class="st">"n_pares_hallados"</span></span>
+<span><span class="op">)</span><span class="op">]</span></span>
+<span><span class="co">#&gt;   max_largo_valor largo_maximo columnas_excluidas_largo n_pares_hallados</span></span>
+<span><span class="co">#&gt; 1              20           31         proveedor, rubro               NA</span></span></code></pre></div>
+<p><code>largo_maximo</code> es el largo de la cadena comparada, no el
+de cada columna, y <code>n_pares_hallados</code> vale <code>NA</code>,
+no cero: no se comparó nada. Con <code>max_largo_valor = Inf</code> no
+hay tope y no se mide ningún largo: ese campo vale <code>NA</code>, no
+cero. El diagnóstico de vocabulario de <code><a href="../reference/perfilar.html">perfilar()</a></code> tiene su
+propio tope, <code>max_largo_valor_vocabulario</code>, que no se hereda:
+al detector se le pasa con
+<code>perfilar(duplicados_aproximados = list(max_largo_valor = ...))</code>.</p>
+</div>
+<div class="section level3">
+<h3 id="el-trabajo-del-vocabulario-en-perfilar">El trabajo del vocabulario en <code>perfilar()</code><a class="anchor" aria-label="anchor" href="#el-trabajo-del-vocabulario-en-perfilar"></a>
+</h3>
+<p><code><a href="../reference/perfilar.html">perfilar()</a></code> busca variantes casi iguales dentro de cada
+columna de texto (<code>casi_duplicados_vocabulario</code>), comparando
+sus valores distintos de a pares. Comparar dos valores de largos
+<code>L1</code> y <code>L2</code> cuesta del orden de
+<code>L1 × L2</code>, así que el presupuesto,
+<code>max_trabajo_vocabulario</code>, se mide en comparaciones de
+carácter: <code>2e10</code> por omisión. Cuando no alcanza, compara las
+primeras formas en orden alfabético —no una muestra— y declara el resto.
+Con un presupuesto mínimo se ve:</p>
+<div class="sourceCode" id="cb10"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">ajustado</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/perfilar.html">perfilar</a></span><span class="op">(</span></span>
+<span>  <span class="va">proveedores</span>, analizar_dependencias <span class="op">=</span> <span class="cn">FALSE</span>, max_trabajo_vocabulario <span class="op">=</span> <span class="fl">2000</span></span>
+<span><span class="op">)</span></span>
+<span><span class="va">recorte</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/accesores_perfil.html">cobertura</a></span><span class="op">(</span><span class="va">ajustado</span><span class="op">)</span></span>
+<span><span class="va">recorte</span> <span class="op">&lt;-</span> <span class="va">recorte</span><span class="op">[</span><span class="va">recorte</span><span class="op">$</span><span class="va">diagnostico</span> <span class="op">==</span> <span class="st">"proximidad_vocabulario"</span>, <span class="op">]</span></span>
+<span><span class="fu"><a href="https://rdrr.io/r/base/writeLines.html" class="external-link">writeLines</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/strwrap.html" class="external-link">strwrap</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/paste.html" class="external-link">paste0</a></span><span class="op">(</span><span class="va">recorte</span><span class="op">$</span><span class="va">columna</span>, <span class="st">": "</span>, <span class="va">recorte</span><span class="op">$</span><span class="va">motivo</span><span class="op">)</span>, <span class="fl">88</span><span class="op">)</span><span class="op">)</span></span>
+<span><span class="co">#&gt; proveedor: El vocabulario excede el alcance de comparacion: se evaluaron 7 de 7 valores</span></span>
+<span><span class="co">#&gt; distintos, que son 5 formas normalizadas, y se comparo entre si a las 4 primeras en</span></span>
+<span><span class="co">#&gt; orden alfabetico. Eso son 6 de 10 pares posibles y 1.531 de 2.555 comparaciones de</span></span>
+<span><span class="co">#&gt; caracter. Quedaron 1 formas y 4 pares sin comparar por max_trabajo.</span></span></code></pre></div>
+<p>El orden alfabético hace que el resultado no dependa del orden de las
+filas del archivo. La búsqueda de dependencias tiene su propio
+presupuesto, <code>max_trabajo_dependencias</code> (<code>1e8</code>
+comparaciones fila-par por omisión), y <code>Inf</code> desactiva
+cualquiera de los dos.</p>
+</div>
+<div class="section level3">
+<h3 id="cuántos-pares-se-devuelven">Cuántos pares se devuelven<a class="anchor" aria-label="anchor" href="#cu%C3%A1ntos-pares-se-devuelven"></a>
+</h3>
+<p><code>max_resultados</code> (100 por omisión) no decide qué se
+compara, sino cuántos pares se devuelven: conserva los más cercanos. Con
+un corte de dos, sobre los tres pares a distancia cero:</p>
+<div class="sourceCode" id="cb11"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">dos</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/detectar_duplicados_aproximados.html">detectar_duplicados_aproximados</a></span><span class="op">(</span></span>
+<span>  <span class="va">proveedores</span>, columnas <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"proveedor"</span>, <span class="st">"rubro"</span><span class="op">)</span>, max_resultados <span class="op">=</span> <span class="fl">2</span></span>
+<span><span class="op">)</span></span>
+<span><span class="va">dos</span><span class="op">$</span><span class="va">pares</span><span class="op">[</span>, <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"fila_1"</span>, <span class="st">"fila_2"</span>, <span class="st">"distancia"</span>, <span class="st">"tipo_par"</span><span class="op">)</span><span class="op">]</span></span>
+<span><span class="co">#&gt;   fila_1 fila_2 distancia           tipo_par</span></span>
+<span><span class="co">#&gt; 1      3      4         0             exacto</span></span>
+<span><span class="co">#&gt; 2      1      2         0 exacto_normalizado</span></span>
+<span><span class="va">dos</span><span class="op">$</span><span class="va">alcance</span><span class="op">[</span>, <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"truncado"</span>, <span class="st">"distancia_corte"</span>, <span class="st">"corte_en_empate"</span><span class="op">)</span><span class="op">]</span></span>
+<span><span class="co">#&gt;   truncado distancia_corte corte_en_empate</span></span>
+<span><span class="co">#&gt; 1     TRUE               0            TRUE</span></span></code></pre></div>
+<p><code>corte_en_empate = TRUE</code> avisa que quedó afuera al menos
+un par <strong>igual de cercano</strong> que los conservados. No es
+<code>truncado</code> con otro nombre: si el corte cae en una distancia
+única, vale <code>FALSE</code> aunque haya recorte. Para traer todos los
+empatados hay que subir <code>max_resultados</code>.</p>
+<p>Entre empatados, el desempate usa el contenido de los valores y no la
+posición de las filas, así que reordenar la tabla no cambia qué pares
+quedan:</p>
+<div class="sourceCode" id="cb12"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">ids_conservados</span> <span class="op">&lt;-</span> <span class="kw">function</span><span class="op">(</span><span class="va">datos</span>, <span class="va">resultado</span><span class="op">)</span> <span class="op">{</span></span>
+<span>  <span class="va">a</span> <span class="op">&lt;-</span> <span class="va">datos</span><span class="op">$</span><span class="va">id</span><span class="op">[</span><span class="va">resultado</span><span class="op">$</span><span class="va">pares</span><span class="op">$</span><span class="va">fila_1</span><span class="op">]</span></span>
+<span>  <span class="va">b</span> <span class="op">&lt;-</span> <span class="va">datos</span><span class="op">$</span><span class="va">id</span><span class="op">[</span><span class="va">resultado</span><span class="op">$</span><span class="va">pares</span><span class="op">$</span><span class="va">fila_2</span><span class="op">]</span></span>
+<span>  <span class="fu"><a href="https://rdrr.io/r/base/sort.html" class="external-link">sort</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/paste.html" class="external-link">paste</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/Extremes.html" class="external-link">pmin</a></span><span class="op">(</span><span class="va">a</span>, <span class="va">b</span><span class="op">)</span>, <span class="fu"><a href="https://rdrr.io/r/base/Extremes.html" class="external-link">pmax</a></span><span class="op">(</span><span class="va">a</span>, <span class="va">b</span><span class="op">)</span>, sep <span class="op">=</span> <span class="st">"-"</span><span class="op">)</span><span class="op">)</span></span>
+<span><span class="op">}</span></span>
+<span><span class="va">invertidos</span> <span class="op">&lt;-</span> <span class="va">proveedores</span><span class="op">[</span><span class="fl">8</span><span class="op">:</span><span class="fl">1</span>, <span class="op">]</span></span>
+<span><span class="va">dos_invertidos</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/detectar_duplicados_aproximados.html">detectar_duplicados_aproximados</a></span><span class="op">(</span></span>
+<span>  <span class="va">invertidos</span>, columnas <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"proveedor"</span>, <span class="st">"rubro"</span><span class="op">)</span>, max_resultados <span class="op">=</span> <span class="fl">2</span></span>
+<span><span class="op">)</span></span>
+<span><span class="fu">ids_conservados</span><span class="op">(</span><span class="va">proveedores</span>, <span class="va">dos</span><span class="op">)</span></span>
+<span><span class="co">#&gt; [1] "1-2" "3-4"</span></span>
+<span><span class="fu">ids_conservados</span><span class="op">(</span><span class="va">invertidos</span>, <span class="va">dos_invertidos</span><span class="op">)</span></span>
+<span><span class="co">#&gt; [1] "1-2" "3-4"</span></span></code></pre></div>
+</div>
 </div>
 <div class="section level2">
-<h2 id="el-recorte-de-pares-y-por-qué-también-se-ordena-por-contenido">El recorte de pares, y por qué también se ordena por contenido<a class="anchor" aria-label="anchor" href="#el-recorte-de-pares-y-por-qu%C3%A9-tambi%C3%A9n-se-ordena-por-contenido"></a>
+<h2 id="el-aviso-de-las-tablas-anchas">El aviso de las tablas anchas<a class="anchor" aria-label="anchor" href="#el-aviso-de-las-tablas-anchas"></a>
 </h2>
-<p>Hay un segundo recorte, y hasta acá lo veníamos usando sin mirarlo:
-<code>max_resultados</code>, que en todos los ejemplos de arriba vale
-<code>100</code>. Ese tope no decide <strong>qué formas se
-comparan</strong> —eso era el presupuesto de vocabulario— sino
-<strong>cuántos pares se devuelven</strong> una vez comparadas.</p>
-<p>Conserva los más cercanos, ordenando por distancia. El problema
-aparecía entre pares <strong>empatados</strong>: ahí desempataba por
-posición de fila, así que cuáles sobrevivían al corte dependía del orden
-en que llegaron las filas.</p>
-<p>No es un caso raro. Los empates son la regla cuando las variantes se
-parecen del mismo modo —un espacio de más, un sufijo societario, una
-letra caída—, porque la distancia sale idéntica. Medido sobre 60 grupos
-construidos para que sus 60 pares internos compartan exactamente la
-misma distancia, con el corte en 30:</p>
-<table class="table">
-<thead><tr class="header">
-<th>orden de las filas</th>
-<th>grupos representados</th>
-<th>en común con el natural</th>
-</tr></thead>
-<tbody>
-<tr class="odd">
-<td>natural</td>
-<td>30</td>
-<td>—</td>
-</tr>
-<tr class="even">
-<td>inverso</td>
-<td>30</td>
-<td><strong>0</strong></td>
-</tr>
-<tr class="odd">
-<td>barajado (tres semillas)</td>
-<td>30</td>
-<td><strong>0</strong></td>
-</tr>
-</tbody>
-</table>
-<p>Cinco órdenes, treinta grupos cada uno, ni uno compartido. Es el
-mismo defecto que la sección anterior ya había encontrado y resuelto
-para el recorte de formas, así que la respuesta es la misma:
-<strong>ordenar por contenido</strong>. El desempate usa ahora el rango
-canónico del valor, con una clave simétrica —<code>min</code> y
-<code>max</code> del rango— para que tampoco dependa de cuál fila quedó
-primera dentro del par. Los cinco órdenes devuelven exactamente los
-mismos grupos.</p>
-<p>El rango se calcula una sola vez sobre el universo completo de la
-corrida, no por lote ni por tesela: una numeración local volvería a
-hacer que la comparación entre lotes dependiera de cómo se
-repartieron.</p>
-<div class="section level3">
-<h3 id="lo-que-ordenar-no-arregla">Lo que ordenar no arregla<a class="anchor" aria-label="anchor" href="#lo-que-ordenar-no-arregla"></a>
-</h3>
-<p>Un corte dentro de un empate deja afuera pares <strong>igual de
-cercanos</strong> que los que conserva. Eso no lo arregla ningún orden,
-y por eso se declara:</p>
-<div class="sourceCode" id="cb6"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="va">alcance</span><span class="op">$</span><span class="va">distancia_corte</span>        <span class="co"># la distancia donde cayó el corte</span></span>
-<span><span class="va">alcance</span><span class="op">$</span><span class="va">n_en_distancia_corte</span>   <span class="co"># cuántos de los conservados la comparten</span></span>
-<span><span class="va">alcance</span><span class="op">$</span><span class="va">corte_en_empate</span>        <span class="co"># TRUE si el corte cayó dentro de un empate</span></span></code></pre></div>
-<p><code>corte_en_empate</code> <strong>no es <code>truncado</code> con
-otro nombre</strong>: cuando el corte cae en una distancia única, da
-<code>FALSE</code> aunque haya habido recorte. Si da <code>TRUE</code>,
-el número de grupos que ve es un subconjunto de los que había —estable y
-reproducible, pero subconjunto—, y subir <code>max_resultados</code> por
-encima del empate los trae a todos.</p>
-<p>Se mide contra <strong>lo que el recorte descartó</strong>, no contra
-lo que quedó: si en el borde sobrevive un solo par, contar los
-conservados daría 1 y la señal diría que no hubo empate, cuando puede
-haber tirado varios a esa misma distancia.</p>
-<p>Y hay un límite que ningún orden saca: si varias filas comparten el
-valor comparado, el conjunto de <strong>pares de valores</strong> sale
-idéntico en cualquier orden, pero <strong>cuáles filas</strong> los
-representan cambia. Esas filas son indistinguibles en la columna que se
-compara, así que su única identidad es la posición —justo lo que varía
-al reordenar—. Si importa qué instancia se informa, hace falta una clave
-que las distinga.</p>
+<p>Antes de empezar las etapas caras, <code><a href="../reference/perfilar.html">perfilar()</a></code> proyecta
+cuánto puede tardar una tabla por su cantidad de celdas. Desde 100.000
+celdas avisa la duración estimada, sólo en una sesión interactiva; en un
+guion queda en silencio. La proyección se guarda siempre:</p>
+<div class="sourceCode" id="cb13"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/utils/str.html" class="external-link">str</a></span><span class="op">(</span><span class="va">ajustado</span><span class="op">$</span><span class="va">meta</span><span class="op">$</span><span class="va">costo_tabla_ancha</span><span class="op">[</span><span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span></span>
+<span>  <span class="st">"celdas"</span>, <span class="st">"duracion_estimada_segundos"</span>, <span class="st">"umbral_celdas"</span></span>
+<span><span class="op">)</span><span class="op">]</span><span class="op">)</span></span>
+<span><span class="co">#&gt; List of 3</span></span>
+<span><span class="co">#&gt;  $ celdas                    : num 32</span></span>
+<span><span class="co">#&gt;  $ duracion_estimada_segundos: num 0.0032</span></span>
+<span><span class="co">#&gt;  $ umbral_celdas             : int 100000</span></span></code></pre></div>
+<p>La duración sale de dividir las celdas por una velocidad de
+referencia de 10.000 celdas por segundo. Esa velocidad es un supuesto
+del código, no una medición de la máquina que corre el perfil: las
+mediciones con tablas anchas, con su fecha y su entorno, están en el
+artículo <a href="https://sebollin.github.io/lupa/articles/evidencia-y-rendimiento.html">Evidencia
+y rendimiento</a>. El aviso se apaga con
+<code>avisar_costo_tabla_ancha = FALSE</code>, y
+<code>umbral_celdas_aviso_tabla_ancha = Inf</code> es la misma decisión,
+explícita.</p>
 </div>
-<div class="section level3">
-<h3 id="y-una-advertencia-sobre-el-camino-lsh">Y una advertencia sobre el camino LSH<a class="anchor" aria-label="anchor" href="#y-una-advertencia-sobre-el-camino-lsh"></a>
-</h3>
-<p>Con más de diez mil valores distintos entra MinHash/LSH, y ahí el
-<strong>conjunto de candidatos</strong> depende del orden de las filas:
-el vocabulario de q-gramas se numera por orden de primera aparición y
-esa numeración alimenta las firmas. Reordenar la tabla cambia qué pares
-se proponen.</p>
-<p>Eso está <strong>dentro de la garantía declarada</strong>, no es un
-defecto: medido sobre 1.200 filas, de los 11.822 pares que cambian al
-barajar, el Jaccard de q-gramas más alto es 0,7857 y no se pierde
-<strong>ninguno</strong> por encima de 0,8, donde el alcance declara un
-recall de 0,9998. La rotación está entera en la cola de pares apenas
-parecidos, donde LSH dice que no promete nada.</p>
-<p>Pero es una propiedad del resultado, así que el alcance la declara y
-no hay que venir a buscarla acá:</p>
-<div class="sourceCode" id="cb7"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="va">alcance</span><span class="op">$</span><span class="va">lsh_candidatos_dependen_orden_filas</span>   <span class="co"># TRUE bajo LSH</span></span>
-<span><span class="va">alcance</span><span class="op">$</span><span class="va">lsh_orden_vocabulario</span>                 <span class="co"># "primera_aparicion"</span></span></code></pre></div>
-<p>El segundo no es decorativo. Nombra <strong>el mecanismo</strong>: el
-vocabulario se numera por orden de primera aparición, y si alguna vez
-esa numeración se canoniza, ese valor cambia y la dependencia deja de
-declararse sola. Ninguno de los dos aparece en el camino exhaustivo, que
-no tiene esa dependencia.</p>
+<div class="section level2">
+<h2 id="los-hilos">Los hilos<a class="anchor" aria-label="anchor" href="#los-hilos"></a>
+</h2>
+<p>La comparación de <code>stringdist</code> usa
+<code>nucleos = getOption("lupa.nucleos", 2L)</code> hilos. Se cambia
+por llamada o con la opción, y el valor efectivo queda en
+<code>alcance$nucleos_usados</code>. La cantidad de hilos cambia el
+tiempo, no la respuesta:</p>
+<div class="sourceCode" id="cb14"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">un_hilo</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/detectar_duplicados_aproximados.html">detectar_duplicados_aproximados</a></span><span class="op">(</span></span>
+<span>  <span class="va">proveedores</span>, columnas <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"proveedor"</span>, <span class="st">"rubro"</span><span class="op">)</span>, nucleos <span class="op">=</span> <span class="fl">1</span></span>
+<span><span class="op">)</span></span>
+<span><span class="va">un_hilo</span><span class="op">$</span><span class="va">alcance</span><span class="op">$</span><span class="va">nucleos_usados</span></span>
+<span><span class="co">#&gt; [1] 1</span></span>
+<span><span class="fu"><a href="https://rdrr.io/r/base/identical.html" class="external-link">identical</a></span><span class="op">(</span><span class="va">un_hilo</span><span class="op">$</span><span class="va">pares</span>, <span class="va">pares</span><span class="op">$</span><span class="va">pares</span><span class="op">)</span></span>
+<span><span class="co">#&gt; [1] TRUE</span></span></code></pre></div>
+<p>Cuánto se gana con más hilos depende de qué parte del trabajo cae en
+la comparación, que es la única que se reparte. Por eso conviene medir
+el caso propio; las mediciones de escala por hilos están en el artículo
+<a href="https://sebollin.github.io/lupa/articles/evidencia-y-rendimiento.html">Evidencia
+y rendimiento</a>.</p>
 </div>
+<div class="section level2">
+<h2 id="resumen">Resumen<a class="anchor" aria-label="anchor" href="#resumen"></a>
+</h2>
+<ul>
+<li>La comparación aproximada está apagada en <code><a href="../reference/perfilar.html">perfilar()</a></code>;
+se pide con <code>duplicados_aproximados = TRUE</code> o con
+<code><a href="../reference/detectar_duplicados_aproximados.html">detectar_duplicados_aproximados()</a></code>.</li>
+<li>
+<code><a href="../reference/estimar_costo.html">estimar_costo()</a></code> cuenta los pares antes de comparar, y
+<code>presupuesto_pares</code> corta antes de empezar.</li>
+<li>Por omisión la comparación es exhaustiva; LSH entra con más de diez
+mil filas, sin muestra y sin bajar <code>max_pares</code>, y declara su
+garantía.</li>
+<li>El bloqueo baja el trabajo con pérdida declarada; los lotes no
+pierden nada.</li>
+<li>Cada tope que recorta —largo, trabajo del vocabulario, resultados
+devueltos— lo dice en el alcance o en la cobertura.</li>
+</ul>
+</div>
+<div class="section level2">
+<h2 id="paso-siguiente">Paso siguiente<a class="anchor" aria-label="anchor" href="#paso-siguiente"></a>
+</h2>
+<p>Las mediciones de escala, con su fecha, su entorno y el guion que las
+reproduce, están en el artículo <a href="https://sebollin.github.io/lupa/articles/evidencia-y-rendimiento.html">Evidencia
+y rendimiento</a>.</p>
 </div>
   </main><aside class="col-md-3"><nav id="toc" aria-label="Table of contents"><h2>On this page</h2>
     </nav></aside>

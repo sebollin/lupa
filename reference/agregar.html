@@ -20,17 +20,29 @@ contra el grafo de transiciones_granularidad()."><meta property="og:image" conte
     </button>
 
     <div id="navbar" class="collapse navbar-collapse ms-3">
-      <ul class="navbar-nav me-auto"><li class="active nav-item"><a class="nav-link" href="../reference/index.html">Reference</a></li>
+      <ul class="navbar-nav me-auto"><li class="nav-item"><a class="nav-link" href="../articles/lupa.html">Get started</a></li>
+<li class="active nav-item"><a class="nav-link" href="../reference/index.html">Reference</a></li>
 <li class="nav-item dropdown">
   <button class="nav-link dropdown-toggle" type="button" id="dropdown-articles" data-bs-toggle="dropdown" aria-expanded="false" aria-haspopup="true">Articles</button>
-  <ul class="dropdown-menu" aria-labelledby="dropdown-articles"><li><a class="dropdown-item" href="../articles/empezar-con-lupa.html">Empezar con lupa</a></li>
-    <li><a class="dropdown-item" href="../articles/flujo-guiado.html">Flujo guiado: del perfil a la evaluación</a></li>
-    <li><a class="dropdown-item" href="../articles/definir-la-calidad.html">Definir la calidad</a></li>
-    <li><a class="dropdown-item" href="../articles/medir-y-evaluar.html">Medir y evaluar</a></li>
-    <li><a class="dropdown-item" href="../articles/limpiar-con-un-plan.html">Limpiar con un plan auditable</a></li>
-    <li><a class="dropdown-item" href="../articles/historico-y-deriva.html">Histórico y monitoreo de deriva</a></li>
+  <ul class="dropdown-menu" aria-labelledby="dropdown-articles"><li><a class="dropdown-item" href="../articles/leer-un-perfil.html">2. Leer un perfil</a></li>
+    <li><a class="dropdown-item" href="../articles/explorar-columnas.html">3. Explorar columnas con `analizar()`</a></li>
+    <li><a class="dropdown-item" href="../articles/estructura-no-declarada.html">4. Estructura no declarada</a></li>
+    <li><a class="dropdown-item" href="../articles/vacio-por-diseno.html">5. El vacío por diseño</a></li>
+    <li><a class="dropdown-item" href="../articles/limpiar-con-un-plan.html">6. Limpiar con un plan</a></li>
+    <li><a class="dropdown-item" href="../articles/del-hallazgo-a-la-metrica.html">7. Del hallazgo a la métrica</a></li>
+    <li><a class="dropdown-item" href="../articles/marcos-y-modelos.html">8. Marcos y modelos de calidad</a></li>
+    <li><a class="dropdown-item" href="../articles/historico-y-deriva.html">9. Comparar entregas y seguir la calidad</a></li>
     <li><hr class="dropdown-divider"></li>
-    <li><a class="dropdown-item" href="../articles/index.html">More articles...</a></li>
+    <li><h6 class="dropdown-header" data-toc-skip>Bases y escala</h6></li>
+    <li><a class="dropdown-item" href="../articles/perfilar-una-base.html">10. Perfilar una base</a></li>
+    <li><a class="dropdown-item" href="../articles/colecciones.html">11. Colecciones</a></li>
+    <li><a class="dropdown-item" href="../articles/escala-y-duplicados.html">12. Escala y duplicados aproximados</a></li>
+    <li><hr class="dropdown-divider"></li>
+    <li><h6 class="dropdown-header" data-toc-skip>Referencia en línea</h6></li>
+    <li><a class="dropdown-item" href="../articles/motores-y-escala.html">Motores y escala</a></li>
+    <li><a class="dropdown-item" href="../articles/alcance-y-cobertura.html">Alcance y cobertura</a></li>
+    <li><a class="dropdown-item" href="../articles/evidencia-y-rendimiento.html">Evidencia y rendimiento</a></li>
+    <li><a class="dropdown-item" href="../articles/codificacion-y-locales.html">Codificación y locales</a></li>
   </ul></li>
 <li class="nav-item"><a class="nav-link" href="../news/index.html">Changelog</a></li>
       </ul><ul class="navbar-nav"></ul></div>
@@ -146,9 +158,9 @@ producen resultado real en <code>[0, 1]</code>. Los tres tipos no acotados
 los declara: el promedio de una duración en días es un número de días, y
 publicarlo como resultado real en <code>[0, 1]</code> lo presentaría como una
 proporción. La guarda es por <strong>tipo declarado</strong>, no por el valor observado:
-antes una duración de <code>0,25</code> y <code>0,75</code> días pasaba y la misma métrica con
-<code>1,5</code> días abortaba, así que el mismo modelo cambiaba de conducta según los
-datos que le tocaran. Para el promedio ponderado, los pesos deben estar en
+una duración de <code>0,25</code> y <code>0,75</code> días se rechaza igual que una de <code>1,5</code> días,
+así que el mismo modelo se comporta igual con cualquier dato que le toque.
+Para el promedio ponderado, los pesos deben estar en
 <code>[0, 1]</code> y sumar uno dentro de cada objeto de destino. La columna
 <code>orientacion</code> se conserva sin invertir el resultado: un ratio de una métrica
 de defecto sigue siendo la proporción de defectos.</p>
@@ -167,9 +179,10 @@ con el signo al revés.</p>
 <p><code>alcance_medidas</code> —«midió tres celdas de cuatro»— también viaja, pero
 <strong>reexpresado en la clave del agregado</strong>: la tabla que publica <code><a href="medir.html">medir()</a></code> está
 indexada por <code>metrica_instanciada</code> (<code>Formato@t.cod</code>) y el agregado renombra la
-métrica (<code>agregada:ratio:Formato</code>), así que arrastrarla tal cual dejaba una
-declaración que no se podía atribuir a ninguna fila. Los conteos se <strong>suman</strong>
-por objeto de destino, y sólo cuando todas las partes declaran la misma
+métrica (<code>agregada:ratio:Formato</code>), así que arrastrarla tal cual dejaría una
+declaración que no se podría atribuir a ninguna fila. Los conteos se
+<strong>suman</strong> por objeto de destino, y sólo cuando todas las partes declaran la
+misma
 unidad; si no, la fila declara la mezcla en lugar de publicar un total que no
 estaría en ninguna unidad. Las partes <strong>completas</strong> también suman —una
 columna de 6 de 6 junto a una de 5 de 6 da 11 de 12—, también cuando se
@@ -209,9 +222,10 @@ de la parte que recibió cada uno, de modo que el número se pueda rehacer con
 lo que el objeto trae. Y si alguna parte entró con peso cero, se declara en
 <code>partes_con_peso_cero</code>: entró al número sin aportarle nada, queda contada en
 la identidad de la fila y leerlo sin saberlo es leer otra cosa. La
-declaración depende de que <strong>haya</strong> un peso cero, no del destino: antes sólo
-existía en los cuatro destinos que tienen cobertura de frontera, y en
-<code>conjuntoEntidades</code> el mismo peso cero pasaba en silencio.</p>
+declaración depende de que <strong>haya</strong> un peso cero, no del destino: va como
+atributo en todos, también en <code>conjuntoEntidades</code>, y en los cuatro destinos
+que tienen cobertura de frontera entra además en esa cobertura, que es la
+que se imprime.</p>
 <p>Cuando el destino es <code>conjuntoEntidades</code>, <code>promedio</code> combina las partes sin
 pesos porque las medidas de nivel <code>entidad</code> no llevan su cantidad de filas.
 El resultado lo declara en <code>advertencia_agregacion</code>: es un promedio sin pesos
@@ -230,9 +244,9 @@ taxonómicos y esta función no calcula un índice global.</p>
 <span class="r-in"><span><span class="va">medidas</span> <span class="op">&lt;-</span> <span class="fu"><a href="medir.html">medir</a></span><span class="op">(</span><span class="fu"><a href="modelo_calidad.html">modelo</a></span><span class="op">(</span><span class="va">instancia</span><span class="op">)</span>, <span class="fu"><a href="https://rdrr.io/r/base/data.frame.html" class="external-link">data.frame</a></span><span class="op">(</span>edad <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">20</span>, <span class="cn">NA</span>, <span class="fl">35</span><span class="op">)</span><span class="op">)</span><span class="op">)</span></span></span>
 <span class="r-in"><span><span class="fu">agregar</span><span class="op">(</span><span class="va">medidas</span>, <span class="st">"atributo"</span>, <span class="st">"ratio"</span><span class="op">)</span></span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>                                                                      id_medida</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 1 medicion-20261023T223943.761248-7734-agg-atributo-ratio-NoNulo@personas.edad</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 1 medicion-20261024T131354.086175-7840-agg-atributo-ratio-NoNulo@personas.edad</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>                            id_medicion               fecha metrica</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 1 medicion-20261023T223943.761248-7734 2026-10-23 22:39:43  NoNulo</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 1 medicion-20261024T131354.086175-7840 2026-10-24 13:13:54  NoNulo</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>   metrica_especifica   metrica_instanciada   dimension   factor orientacion</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> 1             NoNulo agregada:ratio:NoNulo Completitud Densidad conformidad</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>   granularidad tipo_resultado  entidad atributo fila objeto_medible resultado</span>

@@ -5,7 +5,7 @@
 <meta charset="utf-8">
 <meta http-equiv="X-UA-Compatible" content="IE=edge">
 <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
-<title>El vacío por diseño • lupa</title>
+<title>5. El vacío por diseño • lupa</title>
 <!-- favicons --><link rel="icon" type="image/png" sizes="96x96" href="../favicon-96x96.png">
 <link rel="icon" type="”image/svg+xml”" href="../favicon.svg">
 <link rel="apple-touch-icon" sizes="180x180" href="../apple-touch-icon.png">
@@ -16,7 +16,7 @@
 <script src="../deps/bootstrap-5.3.8/bootstrap.bundle.min.js"></script><link href="../deps/font-awesome-6.5.2/css/all.min.css" rel="stylesheet">
 <link href="../deps/font-awesome-6.5.2/css/v4-shims.min.css" rel="stylesheet">
 <script src="../deps/headroom-0.11.0/headroom.min.js"></script><script src="../deps/headroom-0.11.0/jQuery.headroom.min.js"></script><script src="../deps/bootstrap-toc-1.0.1/bootstrap-toc.min.js"></script><script src="../deps/clipboard.js-2.0.11/clipboard.min.js"></script><script src="../deps/search-1.0.0/autocomplete.jquery.min.js"></script><script src="../deps/search-1.0.0/fuse.min.js"></script><script src="../deps/search-1.0.0/mark.min.js"></script><link rel="icon" type="image/png" sizes="180x180" href="https://sebollin.github.io/lupa/apple-touch-icon.png">
-<!-- pkgdown --><script src="../pkgdown.js"></script><meta property="og:title" content="El vacío por diseño">
+<!-- pkgdown --><script src="../pkgdown.js"></script><meta property="og:title" content="5. El vacío por diseño">
 </head>
 <body>
     <a href="#main" class="visually-hidden-focusable">Skip to contents</a>
@@ -36,18 +36,30 @@
 
     <div id="navbar" class="collapse navbar-collapse ms-3">
       <ul class="navbar-nav me-auto">
+<li class="nav-item"><a class="nav-link" href="../articles/lupa.html">Get started</a></li>
 <li class="nav-item"><a class="nav-link" href="../reference/index.html">Reference</a></li>
 <li class="active nav-item dropdown">
   <button class="nav-link dropdown-toggle" type="button" id="dropdown-articles" data-bs-toggle="dropdown" aria-expanded="false" aria-haspopup="true">Articles</button>
   <ul class="dropdown-menu" aria-labelledby="dropdown-articles">
-<li><a class="dropdown-item" href="../articles/empezar-con-lupa.html">Empezar con lupa</a></li>
-    <li><a class="dropdown-item" href="../articles/flujo-guiado.html">Flujo guiado: del perfil a la evaluación</a></li>
-    <li><a class="dropdown-item" href="../articles/definir-la-calidad.html">Definir la calidad</a></li>
-    <li><a class="dropdown-item" href="../articles/medir-y-evaluar.html">Medir y evaluar</a></li>
-    <li><a class="dropdown-item" href="../articles/limpiar-con-un-plan.html">Limpiar con un plan auditable</a></li>
-    <li><a class="dropdown-item" href="../articles/historico-y-deriva.html">Histórico y monitoreo de deriva</a></li>
+<li><a class="dropdown-item" href="../articles/leer-un-perfil.html">2. Leer un perfil</a></li>
+    <li><a class="dropdown-item" href="../articles/explorar-columnas.html">3. Explorar columnas con `analizar()`</a></li>
+    <li><a class="dropdown-item" href="../articles/estructura-no-declarada.html">4. Estructura no declarada</a></li>
+    <li><a class="dropdown-item" href="../articles/vacio-por-diseno.html">5. El vacío por diseño</a></li>
+    <li><a class="dropdown-item" href="../articles/limpiar-con-un-plan.html">6. Limpiar con un plan</a></li>
+    <li><a class="dropdown-item" href="../articles/del-hallazgo-a-la-metrica.html">7. Del hallazgo a la métrica</a></li>
+    <li><a class="dropdown-item" href="../articles/marcos-y-modelos.html">8. Marcos y modelos de calidad</a></li>
+    <li><a class="dropdown-item" href="../articles/historico-y-deriva.html">9. Comparar entregas y seguir la calidad</a></li>
     <li><hr class="dropdown-divider"></li>
-    <li><a class="dropdown-item" href="../articles/index.html">More articles...</a></li>
+    <li><h6 class="dropdown-header" data-toc-skip>Bases y escala</h6></li>
+    <li><a class="dropdown-item" href="../articles/perfilar-una-base.html">10. Perfilar una base</a></li>
+    <li><a class="dropdown-item" href="../articles/colecciones.html">11. Colecciones</a></li>
+    <li><a class="dropdown-item" href="../articles/escala-y-duplicados.html">12. Escala y duplicados aproximados</a></li>
+    <li><hr class="dropdown-divider"></li>
+    <li><h6 class="dropdown-header" data-toc-skip>Referencia en línea</h6></li>
+    <li><a class="dropdown-item" href="../articles/motores-y-escala.html">Motores y escala</a></li>
+    <li><a class="dropdown-item" href="../articles/alcance-y-cobertura.html">Alcance y cobertura</a></li>
+    <li><a class="dropdown-item" href="../articles/evidencia-y-rendimiento.html">Evidencia y rendimiento</a></li>
+    <li><a class="dropdown-item" href="../articles/codificacion-y-locales.html">Codificación y locales</a></li>
   </ul>
 </li>
 <li class="nav-item"><a class="nav-link" href="../news/index.html">Changelog</a></li>
@@ -64,7 +76,7 @@
 
 <div class="row">
   <main id="main" class="col-md-9"><div class="page-header">
-      <img src="../logo.png" class="logo" alt=""><h1>El vacío por diseño</h1>
+      <img src="../logo.png" class="logo" alt=""><h1>5. El vacío por diseño</h1>
             
       
       <small class="dont-index">Source: <a href="https://github.com/sebollin/lupa/blob/main/vignettes/vacio-por-diseno.Rmd" class="external-link"><code>vignettes/vacio-por-diseno.Rmd</code></a></small>
@@ -73,8 +85,23 @@
 
     
     
+<p>¿Por qué un perfil puede decir que falta la mayor parte de una
+columna que está completa en todas las filas donde corresponde? Porque
+nadie le dijo al paquete dónde corresponde.</p>
+<blockquote>
+<p><strong>En esta guía:</strong></p>
+<ul>
+<li>por qué una celda vacía puede ser correcta, y qué informa el perfil
+si no se declara;</li>
+<li>la señal con que <code>lupa</code> avisa que hay algo para
+declarar;</li>
+<li>cómo declaramos el universo de una columna, y qué error nuevo se
+vuelve visible;</li>
+<li>todo lo que se le puede declarar al paquete, en una sola tabla.</li>
+</ul>
+</blockquote>
 <div class="section level2">
-<h2 id="el-supuesto-que-lupa-hace-y-no-hacía-explícito">El supuesto que <code>lupa</code> hace y no hacía explícito<a class="anchor" aria-label="anchor" href="#el-supuesto-que-lupa-hace-y-no-hac%C3%ADa-expl%C3%ADcito"></a>
+<h2 id="el-supuesto-que-lupa-hace">El supuesto que <code>lupa</code> hace<a class="anchor" aria-label="anchor" href="#el-supuesto-que-lupa-hace"></a>
 </h2>
 <p>Todo perfilador de datos asume una forma de tabla. <code>lupa</code>
 asume tres cosas a la vez:</p>
@@ -85,14 +112,39 @@ asume tres cosas a la vez:</p>
 </ol>
 <p>Las tres son razonables y ninguna es universal. La tercera es la que
 hace daño, porque una base administrativa está llena de vacíos
-legítimos: la celda que no corresponde que tenga valor.</p>
-<p>Sin declarar nada, <code>lupa</code> cuenta esos vacíos como ausencia
-y los informa como defecto. El conteo es correcto y la lectura es
-falsa.</p>
+legítimos: la celda que no corresponde que tenga valor. Sin declarar
+nada, <code>lupa</code> cuenta esos vacíos como ausencia y los informa
+como defecto. El conteo es correcto y la lectura es falsa.</p>
+</div>
+<div class="section level2">
+<h2 id="qué-pasa-si-no-se-declara-nada">Qué pasa si no se declara nada<a class="anchor" aria-label="anchor" href="#qu%C3%A9-pasa-si-no-se-declara-nada"></a>
+</h2>
+<p>Para que el vacío por diseño se vea entero usamos una encuesta
+construida acá, con una columna que sólo corresponde a parte de las
+filas; <code>datos_operativos</code> no tiene ninguna. Pregunta si la
+persona tiene auto y, sólo si tiene, de qué marca:</p>
+<div class="sourceCode" id="cb1"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">tiene_auto</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/rep.html" class="external-link">rep</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"Si"</span>, <span class="st">"No"</span><span class="op">)</span>, <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">600</span>, <span class="fl">1400</span><span class="op">)</span><span class="op">)</span></span>
+<span><span class="va">encuesta</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/data.frame.html" class="external-link">data.frame</a></span><span class="op">(</span></span>
+<span>  tiene_auto <span class="op">=</span> <span class="va">tiene_auto</span>,</span>
+<span>  marca_auto <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/ifelse.html" class="external-link">ifelse</a></span><span class="op">(</span><span class="va">tiene_auto</span> <span class="op">==</span> <span class="st">"Si"</span>, <span class="st">"Ford"</span>, <span class="cn">NA</span><span class="op">)</span>,</span>
+<span>  stringsAsFactors <span class="op">=</span> <span class="cn">FALSE</span></span>
+<span><span class="op">)</span></span>
+<span></span>
+<span><span class="va">perfil</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/perfilar.html">perfilar</a></span><span class="op">(</span><span class="va">encuesta</span>, analizar_dependencias <span class="op">=</span> <span class="cn">FALSE</span><span class="op">)</span></span>
+<span><span class="va">h</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/accesores_perfil.html">hallazgos</a></span><span class="op">(</span><span class="va">perfil</span><span class="op">)</span></span>
+<span><span class="va">h</span><span class="op">[</span><span class="va">h</span><span class="op">$</span><span class="va">tipo_hallazgo</span> <span class="op">==</span> <span class="st">"faltantes"</span>, <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"columna"</span>, <span class="st">"severidad"</span>, <span class="st">"n_afectados"</span>, <span class="st">"n_evaluados"</span><span class="op">)</span><span class="op">]</span></span>
+<span><span class="co">#&gt;      columna severidad n_afectados n_evaluados</span></span>
+<span><span class="co">#&gt; 3 marca_auto     error        1400        2000</span></span></code></pre></div>
+<p>Falta el 70 % de <code>marca_auto</code>, con severidad
+<code>error</code>, en una columna que está completa en todas las filas
+donde corresponde que tenga valor.</p>
 </div>
 <div class="section level2">
 <h2 id="seis-formas-de-tabla-donde-el-vacío-es-la-estructura">Seis formas de tabla donde el vacío es la estructura<a class="anchor" aria-label="anchor" href="#seis-formas-de-tabla-donde-el-vac%C3%ADo-es-la-estructura"></a>
 </h2>
+<p>La encuesta no es un caso raro. En estas formas de tabla, los vacíos
+son parte del diseño:</p>
 <table class="table">
 <colgroup>
 <col width="50%">
@@ -118,7 +170,7 @@ falsa.</p>
 </tr>
 <tr class="even">
 <td>documento por tipo</td>
-<td>quien tiene cédula no tiene pasaporte ni RUT</td>
+<td>quien tiene cédula no tiene pasaporte</td>
 </tr>
 <tr class="odd">
 <td>entidad-atributo-valor</td>
@@ -132,84 +184,65 @@ falsa.</p>
 </table>
 </div>
 <div class="section level2">
-<h2 id="qué-pasa-si-no-se-declara-nada">Qué pasa si no se declara nada<a class="anchor" aria-label="anchor" href="#qu%C3%A9-pasa-si-no-se-declara-nada"></a>
-</h2>
-<div class="sourceCode" id="cb1"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/base/Random.html" class="external-link">set.seed</a></span><span class="op">(</span><span class="fl">3</span><span class="op">)</span></span>
-<span><span class="va">n</span> <span class="op">&lt;-</span> <span class="fl">2000</span></span>
-<span><span class="va">tiene_auto</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/rep.html" class="external-link">rep</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"Si"</span>, <span class="st">"No"</span><span class="op">)</span>, <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">600</span>, <span class="fl">1400</span><span class="op">)</span><span class="op">)</span></span>
-<span><span class="va">encuesta</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/data.frame.html" class="external-link">data.frame</a></span><span class="op">(</span></span>
-<span>  tiene_auto <span class="op">=</span> <span class="va">tiene_auto</span>,</span>
-<span>  marca_auto <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/ifelse.html" class="external-link">ifelse</a></span><span class="op">(</span><span class="va">tiene_auto</span> <span class="op">==</span> <span class="st">"Si"</span>, <span class="st">"Ford"</span>, <span class="cn">NA</span><span class="op">)</span>,</span>
-<span>  stringsAsFactors <span class="op">=</span> <span class="cn">FALSE</span></span>
-<span><span class="op">)</span></span>
-<span></span>
-<span><span class="va">perfil</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/perfilar.html">perfilar</a></span><span class="op">(</span><span class="va">encuesta</span>, analizar_dependencias <span class="op">=</span> <span class="cn">FALSE</span><span class="op">)</span></span>
-<span><span class="va">perfil</span><span class="op">$</span><span class="va">hallazgos</span><span class="op">[</span></span>
-<span>  <span class="va">perfil</span><span class="op">$</span><span class="va">hallazgos</span><span class="op">$</span><span class="va">tipo_hallazgo</span> <span class="op">==</span> <span class="st">"faltantes"</span>,</span>
-<span>  <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"columna"</span>, <span class="st">"severidad"</span>, <span class="st">"n_afectados"</span>, <span class="st">"n_evaluados"</span><span class="op">)</span></span>
-<span><span class="op">]</span></span>
-<span><span class="co">#&gt;      columna severidad n_afectados n_evaluados</span></span>
-<span><span class="co">#&gt; 3 marca_auto     error        1400        2000</span></span></code></pre></div>
-<p>Setenta por ciento de ausencia, severidad <code>error</code>, sobre
-una columna que está completa en todas las filas donde corresponde que
-tenga valor.</p>
-</div>
-<div class="section level2">
 <h2 id="la-señal-que-dice-que-hay-algo-para-declarar">La señal que dice que hay algo para declarar<a class="anchor" aria-label="anchor" href="#la-se%C3%B1al-que-dice-que-hay-algo-para-declarar"></a>
 </h2>
-<p>El arreglo de arriba exige que quien perfila sepa que
-<code>aplicabilidad</code> existe. Si no lo sabe, recibe el informe
-engañoso y nada más. Por eso el mismo perfil trae otra fila:</p>
+<p>El arreglo, que se ve más abajo, exige saber que existe
+<code>aplicabilidad</code>, el argumento que declara en qué filas
+corresponde una columna. Quien no lo sabe recibe el informe engañoso y
+nada más. Por eso el mismo perfil trae otra fila:</p>
 <div class="sourceCode" id="cb2"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="va">perfil</span><span class="op">$</span><span class="va">hallazgos</span><span class="op">[</span></span>
-<span>  <span class="va">perfil</span><span class="op">$</span><span class="va">hallazgos</span><span class="op">$</span><span class="va">tipo_hallazgo</span> <span class="op">==</span> <span class="st">"posible_ausencia_estructural"</span>,</span>
-<span>  <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"columna"</span>, <span class="st">"severidad"</span>, <span class="st">"n_afectados"</span><span class="op">)</span></span>
-<span><span class="op">]</span></span>
+<code class="sourceCode R"><span><span class="va">estructural</span> <span class="op">&lt;-</span> <span class="va">h</span><span class="op">[</span><span class="va">h</span><span class="op">$</span><span class="va">tipo_hallazgo</span> <span class="op">==</span> <span class="st">"posible_ausencia_estructural"</span>, <span class="op">]</span></span>
+<span><span class="va">estructural</span><span class="op">[</span>, <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"columna"</span>, <span class="st">"severidad"</span>, <span class="st">"n_afectados"</span><span class="op">)</span><span class="op">]</span></span>
 <span><span class="co">#&gt;      columna severidad n_afectados</span></span>
 <span><span class="co">#&gt; 5 marca_auto        ok        1400</span></span>
-<span><span class="fu"><a href="https://rdrr.io/r/base/cat.html" class="external-link">cat</a></span><span class="op">(</span><span class="va">perfil</span><span class="op">$</span><span class="va">hallazgos</span><span class="op">$</span><span class="va">evidencia</span><span class="op">[</span></span>
-<span>  <span class="va">perfil</span><span class="op">$</span><span class="va">hallazgos</span><span class="op">$</span><span class="va">tipo_hallazgo</span> <span class="op">==</span> <span class="st">"posible_ausencia_estructural"</span></span>
-<span><span class="op">]</span><span class="op">)</span></span>
-<span><span class="co">#&gt; `tiene_auto` predice la presencia de `marca_auto` en 100.0 % de 2000 filas, con 2 valores distintos. La regla explica 1400 de las 1400 ausencias de la columna. La columna corresponde cuando tiene_auto es "Si".</span></span>
-<span><span class="fu"><a href="https://rdrr.io/r/base/cat.html" class="external-link">cat</a></span><span class="op">(</span><span class="va">perfil</span><span class="op">$</span><span class="va">hallazgos</span><span class="op">$</span><span class="va">sugerencia</span><span class="op">[</span></span>
-<span>  <span class="va">perfil</span><span class="op">$</span><span class="va">hallazgos</span><span class="op">$</span><span class="va">tipo_hallazgo</span> <span class="op">==</span> <span class="st">"posible_ausencia_estructural"</span></span>
-<span><span class="op">]</span><span class="op">)</span></span>
-<span><span class="co">#&gt; Si es así, declararlo y volver a perfilar: `perfilar(datos, aplicabilidad = list(marca_auto = ~ tiene_auto == "Si"))`. Con la regla declarada, la ausencia fuera de ese universo deja de contarse como defecto y el alcance queda escrito en `cobertura_diagnosticos`.</span></span></code></pre></div>
+<span><span class="fu"><a href="https://rdrr.io/r/base/writeLines.html" class="external-link">writeLines</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/strwrap.html" class="external-link">strwrap</a></span><span class="op">(</span><span class="va">estructural</span><span class="op">$</span><span class="va">evidencia</span>, <span class="fl">88</span><span class="op">)</span><span class="op">)</span></span>
+<span><span class="co">#&gt; `tiene_auto` predice la presencia de `marca_auto` en 100.0 % de 2000 filas, con 2</span></span>
+<span><span class="co">#&gt; valores distintos. La regla explica 1400 de las 1400 ausencias de la columna. La</span></span>
+<span><span class="co">#&gt; columna corresponde cuando tiene_auto es "Si".</span></span>
+<span><span class="fu"><a href="https://rdrr.io/r/base/writeLines.html" class="external-link">writeLines</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/strwrap.html" class="external-link">strwrap</a></span><span class="op">(</span><span class="va">estructural</span><span class="op">$</span><span class="va">sugerencia</span>, <span class="fl">88</span><span class="op">)</span><span class="op">)</span></span>
+<span><span class="co">#&gt; Si es así, declararlo y volver a perfilar: `perfilar(datos, aplicabilidad =</span></span>
+<span><span class="co">#&gt; list(marca_auto = ~ tiene_auto == "Si"))`. Con la regla declarada, la ausencia fuera de</span></span>
+<span><span class="co">#&gt; ese universo deja de contarse como defecto y el alcance queda escrito en</span></span>
+<span><span class="co">#&gt; `cobertura_diagnosticos`.</span></span></code></pre></div>
 <p>Severidad <code>ok</code>: no es un defecto, es una lectura de la
-estructura. La evidencia es un hecho medido sobre los datos —qué
+estructura. La evidencia es un hecho medido sobre los datos: qué
 proporción de las filas queda explicada por el valor de la otra columna,
 y cuántas de las ausencias caen donde la regla dice que la columna no
-corresponde, que es lo que cuenta <code>n_afectados</code>— y la
-sugerencia trae la línea exacta que habría que escribir. Quien decide
-sigue siendo el usuario: el paquete no reescribe el universo por su
-cuenta, y las columnas ya declaradas quedan fuera del examen.</p>
-<p>La señal sale por dos caminos. Uno es el de arriba: <strong>una
+corresponde, que es lo que cuenta <code>n_afectados</code>. La
+sugerencia trae la línea exacta que habría que escribir. La decisión
+sigue siendo nuestra: el paquete no cambia por su cuenta el
+<em>universo</em> de la columna (las filas donde corresponde que tenga
+valor; ver el <a href="leer-un-perfil.html#glosario">glosario</a> de
+<em>Leer un perfil</em>), y las columnas ya declaradas quedan fuera del
+examen.</p>
+<p>La señal sale por dos caminos. Uno es el de la encuesta: <strong>una
 columna determina la presencia de otra</strong>, con un cumplimiento de
 al menos 0,99, y entonces se puede escribir la fórmula. El otro es el
 reparto: <strong>dos o más columnas se turnan las filas sin
 pisarse</strong> y entre todas cubren la tabla, que es la forma de los
-atributos excluyentes por subtipo. Ahí no hay fórmula que ofrecer —falta
-la columna que diga cuál corresponde— y la sugerencia es la honesta: si
-existe esa columna, <code>aplicabilidad</code>; si no existe y la
-ausencia es por diseño, <code>columnas_opcionales</code>.</p>
-<p>Y no dispara por cualquier cosa. Con un diez por ciento de las filas
-fuera del patrón se calla, porque entonces la relación existe y no es
-una regla, y ofrecer una fórmula sería afirmar de más:</p>
+atributos excluyentes por subtipo. Ahí no hay fórmula que ofrecer,
+porque falta la columna que diga cuál corresponde, y la sugerencia es la
+honesta: si existe esa columna, <code>aplicabilidad</code>; si no existe
+y la ausencia es por diseño, <code>columnas_opcionales</code>.</p>
+<p>Y no dispara por cualquier cosa. Si una parte de las filas rompe el
+patrón, se calla, porque entonces la relación existe y no es una regla,
+y ofrecer una fórmula sería afirmar de más. El sorteo de abajo pone
+marca de auto a algunas personas que dicen no tener:</p>
 <div class="sourceCode" id="cb3"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/base/Random.html" class="external-link">set.seed</a></span><span class="op">(</span><span class="fl">4</span><span class="op">)</span></span>
 <span><span class="va">ruidosa</span> <span class="op">&lt;-</span> <span class="va">encuesta</span></span>
 <span><span class="va">fuera</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/sample.html" class="external-link">sample</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/which.html" class="external-link">which</a></span><span class="op">(</span><span class="va">ruidosa</span><span class="op">$</span><span class="va">tiene_auto</span> <span class="op">==</span> <span class="st">"No"</span><span class="op">)</span>, <span class="fl">200</span><span class="op">)</span></span>
 <span><span class="va">ruidosa</span><span class="op">$</span><span class="va">marca_auto</span><span class="op">[</span><span class="va">fuera</span><span class="op">]</span> <span class="op">&lt;-</span> <span class="st">"Ford"</span></span>
-<span><span class="fu"><a href="https://rdrr.io/r/base/sum.html" class="external-link">sum</a></span><span class="op">(</span><span class="fu"><a href="../reference/perfilar.html">perfilar</a></span><span class="op">(</span><span class="va">ruidosa</span>, analizar_dependencias <span class="op">=</span> <span class="cn">FALSE</span><span class="op">)</span><span class="op">$</span><span class="va">hallazgos</span><span class="op">$</span><span class="va">tipo_hallazgo</span> <span class="op">==</span></span>
+<span><span class="fu"><a href="https://rdrr.io/r/base/sum.html" class="external-link">sum</a></span><span class="op">(</span><span class="fu"><a href="../reference/accesores_perfil.html">hallazgos</a></span><span class="op">(</span><span class="fu"><a href="../reference/perfilar.html">perfilar</a></span><span class="op">(</span><span class="va">ruidosa</span>, analizar_dependencias <span class="op">=</span> <span class="cn">FALSE</span><span class="op">)</span><span class="op">)</span><span class="op">$</span><span class="va">tipo_hallazgo</span> <span class="op">==</span></span>
 <span>      <span class="st">"posible_ausencia_estructural"</span><span class="op">)</span></span>
 <span><span class="co">#&gt; [1] 0</span></span></code></pre></div>
+<p>Con el 10 % de las filas fuera del patrón, la señal no aparece.</p>
 </div>
 <div class="section level2">
 <h2 id="declarar-el-universo">Declarar el universo<a class="anchor" aria-label="anchor" href="#declarar-el-universo"></a>
 </h2>
 <p><code>aplicabilidad</code> toma una fórmula por columna. Las filas
-donde el predicado no se cumple salen del universo de esa columna.</p>
+donde el predicado no se cumple salen del universo de esa columna:</p>
 <div class="sourceCode" id="cb4"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">declarado</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/perfilar.html">perfilar</a></span><span class="op">(</span></span>
 <span>  <span class="va">encuesta</span>,</span>
@@ -217,10 +250,10 @@ donde el predicado no se cumple salen del universo de esa columna.</p>
 <span>  aplicabilidad <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span>marca_auto <span class="op">=</span> <span class="op">~</span> <span class="va">tiene_auto</span> <span class="op">==</span> <span class="st">"Si"</span><span class="op">)</span></span>
 <span><span class="op">)</span></span>
 <span></span>
-<span><span class="fu"><a href="https://rdrr.io/r/base/sum.html" class="external-link">sum</a></span><span class="op">(</span><span class="va">declarado</span><span class="op">$</span><span class="va">hallazgos</span><span class="op">$</span><span class="va">tipo_hallazgo</span> <span class="op">==</span> <span class="st">"faltantes"</span><span class="op">)</span></span>
+<span><span class="fu"><a href="https://rdrr.io/r/base/sum.html" class="external-link">sum</a></span><span class="op">(</span><span class="fu"><a href="../reference/accesores_perfil.html">hallazgos</a></span><span class="op">(</span><span class="va">declarado</span><span class="op">)</span><span class="op">$</span><span class="va">tipo_hallazgo</span> <span class="op">==</span> <span class="st">"faltantes"</span><span class="op">)</span></span>
 <span><span class="co">#&gt; [1] 0</span></span>
-<span><span class="va">declarado</span><span class="op">$</span><span class="va">columnas</span><span class="op">[</span></span>
-<span>  <span class="va">declarado</span><span class="op">$</span><span class="va">columnas</span><span class="op">$</span><span class="va">columna</span> <span class="op">==</span> <span class="st">"marca_auto"</span>,</span>
+<span><span class="fu"><a href="../reference/accesores_perfil.html">columnas</a></span><span class="op">(</span><span class="va">declarado</span><span class="op">)</span><span class="op">[</span></span>
+<span>  <span class="fu"><a href="../reference/accesores_perfil.html">columnas</a></span><span class="op">(</span><span class="va">declarado</span><span class="op">)</span><span class="op">$</span><span class="va">columna</span> <span class="op">==</span> <span class="st">"marca_auto"</span>,</span>
 <span>  <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"n"</span>, <span class="st">"n_aplicables"</span>, <span class="st">"n_no_aplica"</span>, <span class="st">"n_faltantes"</span>, <span class="st">"prop_faltantes"</span><span class="op">)</span></span>
 <span><span class="op">]</span></span>
 <span><span class="co">#&gt;      n n_aplicables n_no_aplica n_faltantes prop_faltantes</span></span>
@@ -228,11 +261,14 @@ donde el predicado no se cumple salen del universo de esa columna.</p>
 <p>El recorte no es silencioso. La regla queda escrita donde se busca lo
 que no se midió:</p>
 <div class="sourceCode" id="cb5"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="va">cobertura</span> <span class="op">&lt;-</span> <span class="va">declarado</span><span class="op">$</span><span class="va">cobertura_diagnosticos</span></span>
-<span><span class="va">cobertura</span><span class="op">$</span><span class="va">motivo</span><span class="op">[</span><span class="va">cobertura</span><span class="op">$</span><span class="va">columna</span> <span class="op">==</span> <span class="st">"marca_auto"</span><span class="op">]</span></span>
-<span><span class="co">#&gt; [1] "La completitud se midió sobre 600 filas aplicables de 2000; la regla declarada es `~tiene_auto == \"Si\"`."</span></span></code></pre></div>
+<code class="sourceCode R"><span><span class="va">cobertura_declarada</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/accesores_perfil.html">cobertura</a></span><span class="op">(</span><span class="va">declarado</span><span class="op">)</span></span>
+<span><span class="fu"><a href="https://rdrr.io/r/base/writeLines.html" class="external-link">writeLines</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/strwrap.html" class="external-link">strwrap</a></span><span class="op">(</span></span>
+<span>  <span class="va">cobertura_declarada</span><span class="op">$</span><span class="va">motivo</span><span class="op">[</span><span class="va">cobertura_declarada</span><span class="op">$</span><span class="va">columna</span> <span class="op">==</span> <span class="st">"marca_auto"</span><span class="op">]</span>, <span class="fl">88</span></span>
+<span><span class="op">)</span><span class="op">)</span></span>
+<span><span class="co">#&gt; La completitud se midió sobre 600 filas aplicables de 2000; la regla declarada es</span></span>
+<span><span class="co">#&gt; `~tiene_auto == "Si"`.</span></span></code></pre></div>
 <p>Cuando la ausencia nunca es defecto y no hay una regla que escribir
-—el historial con vigencia abierta es el caso típico— alcanza con
+(el historial con vigencia abierta es el caso típico), alcanza con
 <code>columnas_opcionales</code>:</p>
 <div class="sourceCode" id="cb6"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">historial</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/data.frame.html" class="external-link">data.frame</a></span><span class="op">(</span></span>
@@ -243,15 +279,18 @@ que no se midió:</p>
 <span>  <span class="va">historial</span>, analizar_dependencias <span class="op">=</span> <span class="cn">FALSE</span>,</span>
 <span>  columnas_opcionales <span class="op">=</span> <span class="st">"valido_hasta"</span></span>
 <span><span class="op">)</span></span>
-<span><span class="fu"><a href="https://rdrr.io/r/base/sum.html" class="external-link">sum</a></span><span class="op">(</span><span class="va">opcional</span><span class="op">$</span><span class="va">hallazgos</span><span class="op">$</span><span class="va">tipo_hallazgo</span> <span class="op">==</span> <span class="st">"faltantes"</span><span class="op">)</span></span>
+<span><span class="fu"><a href="https://rdrr.io/r/base/sum.html" class="external-link">sum</a></span><span class="op">(</span><span class="fu"><a href="../reference/accesores_perfil.html">hallazgos</a></span><span class="op">(</span><span class="va">opcional</span><span class="op">)</span><span class="op">$</span><span class="va">tipo_hallazgo</span> <span class="op">==</span> <span class="st">"faltantes"</span><span class="op">)</span></span>
 <span><span class="co">#&gt; [1] 0</span></span></code></pre></div>
+<p>Con el 40 % de la columna vacío, el perfil suma además un aviso de
+severidad <code>ok</code>, <code>regla_silencia_ausencia</code>, que se
+explica al final de la guía.</p>
 </div>
 <div class="section level2">
 <h2 id="el-error-simétrico">El error simétrico<a class="anchor" aria-label="anchor" href="#el-error-sim%C3%A9trico"></a>
 </h2>
-<p>Declarar el universo habilita un diagnóstico que antes no tenía forma
-de existir: el valor que aparece donde la regla dice que no
-corresponde.</p>
+<p>Declarar el universo hace visible un diagnóstico que sin la
+declaración no puede existir: el valor que aparece donde la regla dice
+que no corresponde.</p>
 <div class="sourceCode" id="cb7"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">inconsistente</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/data.frame.html" class="external-link">data.frame</a></span><span class="op">(</span></span>
 <span>  tiene_auto <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"Si"</span>, <span class="st">"No"</span>, <span class="st">"No"</span>, <span class="st">"Si"</span><span class="op">)</span>,</span>
@@ -262,16 +301,19 @@ corresponde.</p>
 <span>  <span class="va">inconsistente</span>, analizar_dependencias <span class="op">=</span> <span class="cn">FALSE</span>,</span>
 <span>  aplicabilidad <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span>marca_auto <span class="op">=</span> <span class="op">~</span> <span class="va">tiene_auto</span> <span class="op">==</span> <span class="st">"Si"</span><span class="op">)</span></span>
 <span><span class="op">)</span></span>
-<span><span class="va">h</span> <span class="op">&lt;-</span> <span class="va">p</span><span class="op">$</span><span class="va">hallazgos</span><span class="op">[</span><span class="va">p</span><span class="op">$</span><span class="va">hallazgos</span><span class="op">$</span><span class="va">tipo_hallazgo</span> <span class="op">==</span> <span class="st">"valor_fuera_de_aplicabilidad"</span>, <span class="op">]</span></span>
-<span><span class="va">h</span><span class="op">[</span>, <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"columna"</span>, <span class="st">"severidad"</span>, <span class="st">"n_afectados"</span>, <span class="st">"evidencia"</span><span class="op">)</span><span class="op">]</span></span>
+<span><span class="va">fuera_de_universo</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/accesores_perfil.html">hallazgos</a></span><span class="op">(</span><span class="va">p</span><span class="op">)</span><span class="op">[</span></span>
+<span>  <span class="fu"><a href="../reference/accesores_perfil.html">hallazgos</a></span><span class="op">(</span><span class="va">p</span><span class="op">)</span><span class="op">$</span><span class="va">tipo_hallazgo</span> <span class="op">==</span> <span class="st">"valor_fuera_de_aplicabilidad"</span>,</span>
+<span><span class="op">]</span></span>
+<span><span class="va">fuera_de_universo</span><span class="op">[</span>, <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"columna"</span>, <span class="st">"severidad"</span>, <span class="st">"n_afectados"</span><span class="op">)</span><span class="op">]</span></span>
 <span><span class="co">#&gt;      columna  severidad n_afectados</span></span>
 <span><span class="co">#&gt; 2 marca_auto sospechoso           1</span></span>
-<span><span class="co">#&gt;                                                      evidencia</span></span>
-<span><span class="co">#&gt; 2 1 valores presentes fuera del universo aplicable de 2 filas.</span></span>
-<span><span class="va">h</span><span class="op">$</span><span class="va">trazabilidad</span><span class="op">[[</span><span class="fl">1</span><span class="op">]</span><span class="op">]</span><span class="op">$</span><span class="va">indices_fila</span></span>
+<span><span class="fu"><a href="https://rdrr.io/r/base/writeLines.html" class="external-link">writeLines</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/strwrap.html" class="external-link">strwrap</a></span><span class="op">(</span><span class="va">fuera_de_universo</span><span class="op">$</span><span class="va">evidencia</span>, <span class="fl">88</span><span class="op">)</span><span class="op">)</span></span>
+<span><span class="co">#&gt; 1 valores presentes fuera del universo aplicable de 2 filas.</span></span>
+<span><span class="va">fuera_de_universo</span><span class="op">$</span><span class="va">trazabilidad</span><span class="op">[[</span><span class="fl">1</span><span class="op">]</span><span class="op">]</span><span class="op">$</span><span class="va">indices_fila</span></span>
 <span><span class="co">#&gt; [1] 3</span></span></code></pre></div>
-<p>La tercera fila declara no tener auto y tiene marca. Es un error
-real, y sin el universo declarado <code>lupa</code> no puede verlo.</p>
+<p>La tercera fila declara no tener auto y tiene marca. Es un error en
+los datos, o en la regla, y sin el universo declarado <code>lupa</code>
+no puede verlo.</p>
 </div>
 <div class="section level2">
 <h2 id="cuando-la-regla-no-se-puede-determinar">Cuando la regla no se puede determinar<a class="anchor" aria-label="anchor" href="#cuando-la-regla-no-se-puede-determinar"></a>
@@ -290,8 +332,8 @@ corresponder.</p>
 <span>  <span class="va">dudoso</span>, analizar_dependencias <span class="op">=</span> <span class="cn">FALSE</span>,</span>
 <span>  aplicabilidad <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span>marca_auto <span class="op">=</span> <span class="op">~</span> <span class="va">tiene_auto</span> <span class="op">==</span> <span class="st">"Si"</span><span class="op">)</span></span>
 <span><span class="op">)</span></span>
-<span><span class="va">pd</span><span class="op">$</span><span class="va">columnas</span><span class="op">[</span></span>
-<span>  <span class="va">pd</span><span class="op">$</span><span class="va">columnas</span><span class="op">$</span><span class="va">columna</span> <span class="op">==</span> <span class="st">"marca_auto"</span>,</span>
+<span><span class="fu"><a href="../reference/accesores_perfil.html">columnas</a></span><span class="op">(</span><span class="va">pd</span><span class="op">)</span><span class="op">[</span></span>
+<span>  <span class="fu"><a href="../reference/accesores_perfil.html">columnas</a></span><span class="op">(</span><span class="va">pd</span><span class="op">)</span><span class="op">$</span><span class="va">columna</span> <span class="op">==</span> <span class="st">"marca_auto"</span>,</span>
 <span>  <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"n_aplicables"</span>, <span class="st">"n_no_aplica"</span>, <span class="st">"n_aplicabilidad_indeterminada"</span><span class="op">)</span></span>
 <span><span class="op">]</span></span>
 <span><span class="co">#&gt;   n_aplicables n_no_aplica n_aplicabilidad_indeterminada</span></span>
@@ -302,7 +344,8 @@ corresponder.</p>
 </h2>
 <p>Una tabla en formato largo no es una tabla: son muchas apiladas.
 Perfilarla entera mezcla dominios que no tienen nada que ver, y el
-resultado no describe a ninguno.</p>
+resultado no describe a ninguno. La tabla de abajo apila tres atributos
+de cada entidad; sus valores se sortean:</p>
 <div class="sourceCode" id="cb9"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/base/Random.html" class="external-link">set.seed</a></span><span class="op">(</span><span class="fl">9</span><span class="op">)</span></span>
 <span><span class="va">n</span> <span class="op">&lt;-</span> <span class="fl">900</span></span>
@@ -320,7 +363,7 @@ resultado no describe a ninguno.</p>
 <span><span class="op">)</span></span>
 <span></span>
 <span><span class="va">plano</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/perfilar.html">perfilar</a></span><span class="op">(</span><span class="va">largo</span>, analizar_dependencias <span class="op">=</span> <span class="cn">FALSE</span><span class="op">)</span></span>
-<span><span class="fu"><a href="https://rdrr.io/r/base/table.html" class="external-link">table</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/character.html" class="external-link">as.character</a></span><span class="op">(</span><span class="va">plano</span><span class="op">$</span><span class="va">hallazgos</span><span class="op">$</span><span class="va">tipo_hallazgo</span><span class="op">)</span><span class="op">)</span></span>
+<span><span class="fu"><a href="https://rdrr.io/r/base/table.html" class="external-link">table</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/character.html" class="external-link">as.character</a></span><span class="op">(</span><span class="fu"><a href="../reference/accesores_perfil.html">hallazgos</a></span><span class="op">(</span><span class="va">plano</span><span class="op">)</span><span class="op">$</span><span class="va">tipo_hallazgo</span><span class="op">)</span><span class="op">)</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt;            alta_cardinalidad  casi_duplicados_vocabulario        dato_personal_posible </span></span>
 <span><span class="co">#&gt;                            1                            1                            1 </span></span>
@@ -371,11 +414,11 @@ cuando agrupa ausentes.</p>
 <p>No infiere el modelo. No mira una tabla y decide por su cuenta que es
 un entidad-atributo-valor, ni que dos columnas son mutuamente
 excluyentes. Una heurística de ese tipo fallaría sobre tablas anchas
-legítimas, y el paquete ya se niega a adivinar claves y jerarquías por
-la misma razón.</p>
+legítimas, y por la misma razón el paquete tampoco adivina claves ni
+jerarquías.</p>
 <p>El universo lo declara quien conoce el dato. Sin declaración, toda la
-columna aplica y el resultado es el de siempre: es la única omisión que
-no supone nada.</p>
+columna aplica y el resultado es el del principio de esta guía: es la
+única omisión que no supone nada.</p>
 <p>Lo que sí hace es medir la evidencia y ofrecerla. La diferencia
 importa: sugerir con la evidencia a la vista deja la decisión donde
 estaba, y adivinar la mueve.</p>
@@ -384,9 +427,8 @@ estaba, y adivinar la mueve.</p>
 <h2 id="y-el-reverso-cuando-la-declaración-tapa-un-problema">Y el reverso: cuando la declaración tapa un problema<a class="anchor" aria-label="anchor" href="#y-el-reverso-cuando-la-declaraci%C3%B3n-tapa-un-problema"></a>
 </h2>
 <p>Una regla declarada puede silenciar algo real. Declarar opcional una
-columna con ochenta por ciento de ausentes deja el perfil limpio, y
-quien no lea <code>cobertura_diagnosticos</code> no se entera de
-nada.</p>
+columna casi vacía deja el perfil limpio, y quien no lea la cobertura de
+diagnósticos no se entera de nada:</p>
 <div class="sourceCode" id="cb12"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">casi_vacia</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/data.frame.html" class="external-link">data.frame</a></span><span class="op">(</span></span>
 <span>  x <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/rep.html" class="external-link">rep</a></span><span class="op">(</span><span class="cn">NA_character_</span>, <span class="fl">160</span><span class="op">)</span>, <span class="fu"><a href="https://rdrr.io/r/base/rep.html" class="external-link">rep</a></span><span class="op">(</span><span class="va">letters</span><span class="op">[</span><span class="fl">1</span><span class="op">:</span><span class="fl">20</span><span class="op">]</span>, <span class="fl">2</span><span class="op">)</span><span class="op">)</span>,</span>
@@ -394,22 +436,199 @@ nada.</p>
 <span><span class="op">)</span></span>
 <span><span class="va">p</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/perfilar.html">perfilar</a></span><span class="op">(</span><span class="va">casi_vacia</span>, columnas_opcionales <span class="op">=</span> <span class="st">"x"</span>,</span>
 <span>              analizar_dependencias <span class="op">=</span> <span class="cn">FALSE</span><span class="op">)</span></span>
-<span><span class="va">p</span><span class="op">$</span><span class="va">hallazgos</span><span class="op">[</span></span>
-<span>  <span class="va">p</span><span class="op">$</span><span class="va">hallazgos</span><span class="op">$</span><span class="va">tipo_hallazgo</span> <span class="op">==</span> <span class="st">"regla_silencia_ausencia"</span>,</span>
-<span>  <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"columna"</span>, <span class="st">"severidad"</span>, <span class="st">"n_afectados"</span>, <span class="st">"n_evaluados"</span><span class="op">)</span></span>
-<span><span class="op">]</span></span>
+<span><span class="va">silencio</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/accesores_perfil.html">hallazgos</a></span><span class="op">(</span><span class="va">p</span><span class="op">)</span><span class="op">[</span><span class="fu"><a href="../reference/accesores_perfil.html">hallazgos</a></span><span class="op">(</span><span class="va">p</span><span class="op">)</span><span class="op">$</span><span class="va">tipo_hallazgo</span> <span class="op">==</span> <span class="st">"regla_silencia_ausencia"</span>, <span class="op">]</span></span>
+<span><span class="va">silencio</span><span class="op">[</span>, <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"columna"</span>, <span class="st">"severidad"</span>, <span class="st">"n_afectados"</span>, <span class="st">"n_evaluados"</span><span class="op">)</span><span class="op">]</span></span>
 <span><span class="co">#&gt;   columna severidad n_afectados n_evaluados</span></span>
 <span><span class="co">#&gt; 2       x        ok         160         200</span></span>
-<span><span class="fu"><a href="https://rdrr.io/r/base/cat.html" class="external-link">cat</a></span><span class="op">(</span><span class="va">p</span><span class="op">$</span><span class="va">hallazgos</span><span class="op">$</span><span class="va">evidencia</span><span class="op">[</span></span>
-<span>  <span class="va">p</span><span class="op">$</span><span class="va">hallazgos</span><span class="op">$</span><span class="va">tipo_hallazgo</span> <span class="op">==</span> <span class="st">"regla_silencia_ausencia"</span></span>
-<span><span class="op">]</span><span class="op">)</span></span>
-<span><span class="co">#&gt; Faltan 160 de 200 celdas de la columna (80.0 %), y la columna se declaró con `columnas_opcionales`: la ausencia no es defecto en esta columna.</span></span></code></pre></div>
-<p>También es <code>ok</code>, y por la misma razón: la declaración hizo
-su trabajo. El aviso existe para que eso sea una decisión y no un efecto
-lateral. Vale igual cuando el universo se declaró con
-<code>aplicabilidad</code> y la columna sigue casi vacía <em>dentro</em>
-de ese universo, que es el caso donde la regla resultó más ancha que el
-universo real.</p>
+<span><span class="fu"><a href="https://rdrr.io/r/base/writeLines.html" class="external-link">writeLines</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/strwrap.html" class="external-link">strwrap</a></span><span class="op">(</span><span class="va">silencio</span><span class="op">$</span><span class="va">evidencia</span>, <span class="fl">88</span><span class="op">)</span><span class="op">)</span></span>
+<span><span class="co">#&gt; Faltan 160 de 200 celdas de la columna (80.0 %), y la columna se declaró con</span></span>
+<span><span class="co">#&gt; `columnas_opcionales`: la ausencia no es defecto en esta columna.</span></span></code></pre></div>
+<p>Con el 80 % de la columna vacío, el aviso es
+<code>regla_silencia_ausencia</code>, el mismo que apareció en el
+historial. También es <code>ok</code>, y por la misma razón: la
+declaración hizo su trabajo. El aviso existe para que eso sea una
+decisión y no un efecto lateral. Vale igual cuando el universo se
+declaró con <code>aplicabilidad</code> y la columna sigue casi vacía
+<em>dentro</em> de ese universo, que es el caso donde la regla resultó
+más ancha que el universo real.</p>
+</div>
+<div class="section level2">
+<h2 id="todo-lo-que-se-le-declara-al-paquete">Todo lo que se le declara al paquete<a class="anchor" aria-label="anchor" href="#todo-lo-que-se-le-declara-al-paquete"></a>
+</h2>
+<p>El universo de una columna es una de varias cosas que
+<code>lupa</code> no puede saber mirando los datos. Todas siguen la
+misma idea: quien conoce el dato lo declara, el paquete lo respeta y
+deja constancia. Son argumentos de <code><a href="../reference/perfilar.html">perfilar()</a></code> (y, por
+<code>argumentos_perfil</code> o <code>...</code>, de
+<code><a href="../reference/analizar.html">analizar()</a></code> y de las demás vías de perfilado), salvo la
+unidad, que viaja con la columna:</p>
+<table class="table">
+<colgroup>
+<col width="33%">
+<col width="33%">
+<col width="33%">
+</colgroup>
+<thead><tr class="header">
+<th>qué declaramos</th>
+<th>argumento</th>
+<th>qué cambia en el perfil</th>
+</tr></thead>
+<tbody>
+<tr class="odd">
+<td>en qué filas corresponde una columna</td>
+<td><code>aplicabilidad</code></td>
+<td>las filas fuera del universo no cuentan como faltantes; aparece
+<code>valor_fuera_de_aplicabilidad</code>; la regla queda en
+<code><a href="../reference/accesores_perfil.html">cobertura()</a></code>
+</td>
+</tr>
+<tr class="even">
+<td>que la ausencia nunca es defecto</td>
+<td><code>columnas_opcionales</code></td>
+<td>los faltantes no se informan; si la columna sigue muy vacía,
+<code>regla_silencia_ausencia</code>
+</td>
+</tr>
+<tr class="odd">
+<td>que un número es un código, no una magnitud</td>
+<td><code>columnas_codigo</code></td>
+<td>sin media, mediana, desvío, límites de Tukey ni Benford; se
+conservan mínimo, máximo, moda y conteos; en <code><a href="../reference/analizar.html">analizar()</a></code>,
+escala nominal</td>
+</tr>
+<tr class="even">
+<td>qué números significan “sin dato”</td>
+<td><code>sentinelas_numericos</code></td>
+<td>se cuentan como faltantes disfrazados y salen de media, mediana,
+mínimo, máximo, desvío y de los cuantiles de
+<code><a href="../reference/analizar.html">analizar()</a></code>
+</td>
+</tr>
+<tr class="odd">
+<td>qué textos significan “sin dato”</td>
+<td><code>cadenas_ausencia</code></td>
+<td>se suman a los que el paquete reconoce y se cuentan como faltantes
+disfrazados</td>
+</tr>
+<tr class="even">
+<td>dónde un cero o un negativo no es admisible</td>
+<td>
+<code>columnas_sin_ceros</code>,
+<code>columnas_no_negativas</code>
+</td>
+<td>aparecen <code>ceros_no_permitidos</code> y
+<code>negativos_no_permitidos</code>
+</td>
+</tr>
+<tr class="odd">
+<td>qué columnas identifican una fila</td>
+<td><code>clave</code></td>
+<td>la trazabilidad trae el valor de la clave de cada fila señalada; una
+clave repetida o con ausentes es un <code>error</code>
+(<code>clave_no_unica</code>, <code>clave_con_ausentes</code>)</td>
+</tr>
+<tr class="even">
+<td>qué columnas traen datos personales</td>
+<td><code>columnas_personales</code></td>
+<td>sus valores salen enmascarados aunque ni el nombre ni la forma los
+delaten</td>
+</tr>
+<tr class="odd">
+<td>en qué unidad está una magnitud</td>
+<td>atributo <code>units</code> de la columna</td>
+<td>
+<code><a href="../reference/accesores_perfil.html">columnas()</a></code> publica la unidad junto a las cifras, y
+<code><a href="../reference/clasificar_variables.html">clasificar_variables()</a></code> la usa para proponer la escala</td>
+</tr>
+</tbody>
+</table>
+<p>Dos de ellas cambian lo que el perfil calcula, y conviene verlas. Un
+código de rubro con un valor fuera de catálogo, sin declarar y
+declarado:</p>
+<div class="sourceCode" id="cb13"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">rubros</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/data.frame.html" class="external-link">data.frame</a></span><span class="op">(</span>rubro <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/rep.html" class="external-link">rep</a></span><span class="op">(</span><span class="fl">1</span><span class="op">:</span><span class="fl">19</span>, length.out <span class="op">=</span> <span class="fl">60</span><span class="op">)</span><span class="op">)</span></span>
+<span><span class="va">rubros</span><span class="op">$</span><span class="va">rubro</span><span class="op">[</span><span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">5</span>, <span class="fl">9</span><span class="op">)</span><span class="op">]</span> <span class="op">&lt;-</span> <span class="fl">99</span></span>
+<span></span>
+<span><span class="va">campos</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"columna"</span>, <span class="st">"minimo"</span>, <span class="st">"maximo"</span>, <span class="st">"media"</span>, <span class="st">"n_outliers"</span>,</span>
+<span>            <span class="st">"estado_resumen_cuantitativo"</span><span class="op">)</span></span>
+<span><span class="fu"><a href="https://rdrr.io/r/base/cbind.html" class="external-link">rbind</a></span><span class="op">(</span></span>
+<span>  <span class="fu"><a href="../reference/accesores_perfil.html">columnas</a></span><span class="op">(</span><span class="fu"><a href="../reference/perfilar.html">perfilar</a></span><span class="op">(</span><span class="va">rubros</span>, analizar_dependencias <span class="op">=</span> <span class="cn">FALSE</span><span class="op">)</span><span class="op">)</span><span class="op">[</span>, <span class="va">campos</span><span class="op">]</span>,</span>
+<span>  <span class="fu"><a href="../reference/accesores_perfil.html">columnas</a></span><span class="op">(</span><span class="fu"><a href="../reference/perfilar.html">perfilar</a></span><span class="op">(</span><span class="va">rubros</span>, analizar_dependencias <span class="op">=</span> <span class="cn">FALSE</span>,</span>
+<span>                    columnas_codigo <span class="op">=</span> <span class="st">"rubro"</span><span class="op">)</span><span class="op">)</span><span class="op">[</span>, <span class="va">campos</span><span class="op">]</span></span>
+<span><span class="op">)</span></span>
+<span><span class="co">#&gt;   columna minimo maximo    media n_outliers estado_resumen_cuantitativo</span></span>
+<span><span class="co">#&gt; 1   rubro      1     99 12.66667          2                  calculados</span></span>
+<span><span class="co">#&gt; 2   rubro      1     99       NA         NA             omitidos_codigo</span></span></code></pre></div>
+<p>Sin declarar, el código se mide como magnitud: tiene media y el
+<code>99</code> sale como valor atípico. Declarado, la media no se
+calcula (<code>omitidos_codigo</code>) y el <code>99</code> sigue a la
+vista en el máximo, que es donde aparece un código fuera de
+catálogo.</p>
+<p>Una edad donde <code>999</code> significa “no informada”.
+<code>999</code> está en la lista que el paquete sospecha por omisión,
+pero una sospecha sólo se informa: no mueve los números. Declarado, sale
+del resumen:</p>
+<div class="sourceCode" id="cb14"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">edades</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/data.frame.html" class="external-link">data.frame</a></span><span class="op">(</span>edad <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">34</span>, <span class="fl">51</span>, <span class="fl">999</span>, <span class="fl">27</span>, <span class="fl">999</span>, <span class="fl">45</span>, <span class="fl">62</span>, <span class="fl">999</span>, <span class="fl">38</span>, <span class="fl">29</span><span class="op">)</span><span class="op">)</span></span>
+<span></span>
+<span><span class="va">campos</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"columna"</span>, <span class="st">"n_faltantes_disfrazados"</span>, <span class="st">"media"</span>, <span class="st">"maximo"</span>,</span>
+<span>            <span class="st">"n_valores_excluidos_resumen"</span><span class="op">)</span></span>
+<span><span class="fu"><a href="https://rdrr.io/r/base/cbind.html" class="external-link">rbind</a></span><span class="op">(</span></span>
+<span>  <span class="fu"><a href="../reference/accesores_perfil.html">columnas</a></span><span class="op">(</span><span class="fu"><a href="../reference/perfilar.html">perfilar</a></span><span class="op">(</span><span class="va">edades</span>, analizar_dependencias <span class="op">=</span> <span class="cn">FALSE</span><span class="op">)</span><span class="op">)</span><span class="op">[</span>, <span class="va">campos</span><span class="op">]</span>,</span>
+<span>  <span class="fu"><a href="../reference/accesores_perfil.html">columnas</a></span><span class="op">(</span><span class="fu"><a href="../reference/perfilar.html">perfilar</a></span><span class="op">(</span><span class="va">edades</span>, analizar_dependencias <span class="op">=</span> <span class="cn">FALSE</span>,</span>
+<span>                    sentinelas_numericos <span class="op">=</span> <span class="fl">999</span><span class="op">)</span><span class="op">)</span><span class="op">[</span>, <span class="va">campos</span><span class="op">]</span></span>
+<span><span class="op">)</span></span>
+<span><span class="co">#&gt;   columna n_faltantes_disfrazados     media maximo n_valores_excluidos_resumen</span></span>
+<span><span class="co">#&gt; 1    edad                       3 328.30000    999                           0</span></span>
+<span><span class="co">#&gt; 2    edad                       3  40.85714     62                           3</span></span></code></pre></div>
+<p><code>sentinelas_numericos</code> reemplaza la lista entera:
+declaramos exactamente los valores que valen como “sin dato” en nuestros
+datos. El paquete trae además <code>sentinelas_naniar</code>, una lista
+más amplia que se pide de manera explícita, porque valores como
+<code>66</code>, <code>77</code> y <code>88</code> pueden ser datos
+legítimos:</p>
+<div class="sourceCode" id="cb15"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">codigos</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/data.frame.html" class="external-link">data.frame</a></span><span class="op">(</span>codigo <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">1</span>, <span class="fl">66</span>, <span class="fl">9999</span><span class="op">)</span><span class="op">)</span></span>
+<span><span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span></span>
+<span>  por_omision <span class="op">=</span> <span class="fu"><a href="../reference/accesores_perfil.html">columnas</a></span><span class="op">(</span><span class="fu"><a href="../reference/perfilar.html">perfilar</a></span><span class="op">(</span><span class="va">codigos</span>, analizar_dependencias <span class="op">=</span> <span class="cn">FALSE</span><span class="op">)</span><span class="op">)</span><span class="op">$</span></span>
+<span>    <span class="va">n_faltantes_disfrazados</span>,</span>
+<span>  naniar <span class="op">=</span> <span class="fu"><a href="../reference/accesores_perfil.html">columnas</a></span><span class="op">(</span><span class="fu"><a href="../reference/perfilar.html">perfilar</a></span><span class="op">(</span><span class="va">codigos</span>, analizar_dependencias <span class="op">=</span> <span class="cn">FALSE</span>,</span>
+<span>                             sentinelas_numericos <span class="op">=</span> <span class="va">sentinelas_naniar</span><span class="op">)</span><span class="op">)</span><span class="op">$</span></span>
+<span>    <span class="va">n_faltantes_disfrazados</span></span>
+<span><span class="op">)</span></span>
+<span><span class="co">#&gt; por_omision      naniar </span></span>
+<span><span class="co">#&gt;           0           2</span></span></code></pre></div>
+<p>Los detalles de cada declaración (qué se excluye de cada diagnóstico,
+cómo se reconoce una numeración sin declararla, qué se enmascara) están
+en el artículo <a href="https://sebollin.github.io/lupa/articles/alcance-y-cobertura.html">Alcance
+y cobertura</a>.</p>
+</div>
+<div class="section level2">
+<h2 id="resumen">Resumen<a class="anchor" aria-label="anchor" href="#resumen"></a>
+</h2>
+<ul>
+<li>Sin declarar nada, <code>lupa</code> cuenta como faltante toda celda
+vacía, aunque esté vacía por diseño.</li>
+<li>
+<code>posible_ausencia_estructural</code> (severidad
+<code>ok</code>) avisa cuándo pasa y trae la línea para declararlo.</li>
+<li>
+<code>aplicabilidad</code> recorta el universo de una columna;
+<code>columnas_opcionales</code> exime la columna entera, y
+<code>regla_silencia_ausencia</code> avisa si la declaración tapó
+algo.</li>
+<li>Declarar el universo hace visible
+<code>valor_fuera_de_aplicabilidad</code>, el error del otro lado.</li>
+<li>Códigos, centinelas, claves, datos personales y unidades se declaran
+igual: el paquete no los adivina.</li>
+</ul>
+</div>
+<div class="section level2">
+<h2 id="paso-siguiente">Paso siguiente<a class="anchor" aria-label="anchor" href="#paso-siguiente"></a>
+</h2>
+<p><a href="limpiar-con-un-plan.html">6. Limpiar con un plan</a>
+(<code><a href="../articles/limpiar-con-un-plan.html">vignette("limpiar-con-un-plan")</a></code>): cómo corregir una copia
+de los datos sin perder el registro de lo que se hizo.</p>
 </div>
   </main><aside class="col-md-3"><nav id="toc" aria-label="Table of contents"><h2>On this page</h2>
     </nav></aside>

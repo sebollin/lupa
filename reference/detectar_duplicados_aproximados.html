@@ -8,10 +8,9 @@ otros). Si quedan mas de dos columnas, la funcion pide indicar columnas
 explicitamente en vez de mezclar campos que pueden diluir la similitud. La
 medida predeterminada es Jaro–Winkler ("jw"), con p = 0.1: Winkler
 favorece coincidencias con el mismo prefijo y, por eso, premia una errata al
-final mas que una al comienzo. El umbral predeterminado es 0.10. Estos dos
-valores cambian respecto de versiones anteriores y pueden cambiar los pares
-informados; el umbral se eligio como una precision prudente, no como una
-calibracion fina. Ambos argumentos se pueden cambiar.'><meta property="og:description" content='Compara filas seleccionadas de una tabla con stringdist y devuelve pares cuya
+final mas que una al comienzo. El umbral predeterminado es 0.10, que apunta
+a una precisión prudente y no es una calibración fina. Ambos argumentos se
+pueden cambiar.'><meta property="og:description" content='Compara filas seleccionadas de una tabla con stringdist y devuelve pares cuya
 distancia esta bajo el umbral. El resultado describe similitud, distancia,
 medida y alcance; nunca afirma que dos filas representen la misma entidad.
 Por omision se combinan como maximo dos columnas de texto o factores, despues
@@ -20,10 +19,9 @@ otros). Si quedan mas de dos columnas, la funcion pide indicar columnas
 explicitamente en vez de mezclar campos que pueden diluir la similitud. La
 medida predeterminada es Jaro–Winkler ("jw"), con p = 0.1: Winkler
 favorece coincidencias con el mismo prefijo y, por eso, premia una errata al
-final mas que una al comienzo. El umbral predeterminado es 0.10. Estos dos
-valores cambian respecto de versiones anteriores y pueden cambiar los pares
-informados; el umbral se eligio como una precision prudente, no como una
-calibracion fina. Ambos argumentos se pueden cambiar.'><meta property="og:image" content="https://sebollin.github.io/lupa/logo.png"></head><body>
+final mas que una al comienzo. El umbral predeterminado es 0.10, que apunta
+a una precisión prudente y no es una calibración fina. Ambos argumentos se
+pueden cambiar.'><meta property="og:image" content="https://sebollin.github.io/lupa/logo.png"></head><body>
     <a href="#main" class="visually-hidden-focusable">Skip to contents</a>
 
 
@@ -40,17 +38,29 @@ calibracion fina. Ambos argumentos se pueden cambiar.'><meta property="og:image"
     </button>
 
     <div id="navbar" class="collapse navbar-collapse ms-3">
-      <ul class="navbar-nav me-auto"><li class="active nav-item"><a class="nav-link" href="../reference/index.html">Reference</a></li>
+      <ul class="navbar-nav me-auto"><li class="nav-item"><a class="nav-link" href="../articles/lupa.html">Get started</a></li>
+<li class="active nav-item"><a class="nav-link" href="../reference/index.html">Reference</a></li>
 <li class="nav-item dropdown">
   <button class="nav-link dropdown-toggle" type="button" id="dropdown-articles" data-bs-toggle="dropdown" aria-expanded="false" aria-haspopup="true">Articles</button>
-  <ul class="dropdown-menu" aria-labelledby="dropdown-articles"><li><a class="dropdown-item" href="../articles/empezar-con-lupa.html">Empezar con lupa</a></li>
-    <li><a class="dropdown-item" href="../articles/flujo-guiado.html">Flujo guiado: del perfil a la evaluación</a></li>
-    <li><a class="dropdown-item" href="../articles/definir-la-calidad.html">Definir la calidad</a></li>
-    <li><a class="dropdown-item" href="../articles/medir-y-evaluar.html">Medir y evaluar</a></li>
-    <li><a class="dropdown-item" href="../articles/limpiar-con-un-plan.html">Limpiar con un plan auditable</a></li>
-    <li><a class="dropdown-item" href="../articles/historico-y-deriva.html">Histórico y monitoreo de deriva</a></li>
+  <ul class="dropdown-menu" aria-labelledby="dropdown-articles"><li><a class="dropdown-item" href="../articles/leer-un-perfil.html">2. Leer un perfil</a></li>
+    <li><a class="dropdown-item" href="../articles/explorar-columnas.html">3. Explorar columnas con `analizar()`</a></li>
+    <li><a class="dropdown-item" href="../articles/estructura-no-declarada.html">4. Estructura no declarada</a></li>
+    <li><a class="dropdown-item" href="../articles/vacio-por-diseno.html">5. El vacío por diseño</a></li>
+    <li><a class="dropdown-item" href="../articles/limpiar-con-un-plan.html">6. Limpiar con un plan</a></li>
+    <li><a class="dropdown-item" href="../articles/del-hallazgo-a-la-metrica.html">7. Del hallazgo a la métrica</a></li>
+    <li><a class="dropdown-item" href="../articles/marcos-y-modelos.html">8. Marcos y modelos de calidad</a></li>
+    <li><a class="dropdown-item" href="../articles/historico-y-deriva.html">9. Comparar entregas y seguir la calidad</a></li>
     <li><hr class="dropdown-divider"></li>
-    <li><a class="dropdown-item" href="../articles/index.html">More articles...</a></li>
+    <li><h6 class="dropdown-header" data-toc-skip>Bases y escala</h6></li>
+    <li><a class="dropdown-item" href="../articles/perfilar-una-base.html">10. Perfilar una base</a></li>
+    <li><a class="dropdown-item" href="../articles/colecciones.html">11. Colecciones</a></li>
+    <li><a class="dropdown-item" href="../articles/escala-y-duplicados.html">12. Escala y duplicados aproximados</a></li>
+    <li><hr class="dropdown-divider"></li>
+    <li><h6 class="dropdown-header" data-toc-skip>Referencia en línea</h6></li>
+    <li><a class="dropdown-item" href="../articles/motores-y-escala.html">Motores y escala</a></li>
+    <li><a class="dropdown-item" href="../articles/alcance-y-cobertura.html">Alcance y cobertura</a></li>
+    <li><a class="dropdown-item" href="../articles/evidencia-y-rendimiento.html">Evidencia y rendimiento</a></li>
+    <li><a class="dropdown-item" href="../articles/codificacion-y-locales.html">Codificación y locales</a></li>
   </ul></li>
 <li class="nav-item"><a class="nav-link" href="../news/index.html">Changelog</a></li>
       </ul><ul class="navbar-nav"></ul></div>
@@ -75,10 +85,9 @@ otros). Si quedan mas de dos columnas, la funcion pide indicar <code>columnas</c
 explicitamente en vez de mezclar campos que pueden diluir la similitud. La
 medida predeterminada es Jaro–Winkler (<code>"jw"</code>), con <code>p = 0.1</code>: Winkler
 favorece coincidencias con el mismo prefijo y, por eso, premia una errata al
-final mas que una al comienzo. El umbral predeterminado es <code>0.10</code>. Estos dos
-valores cambian respecto de versiones anteriores y pueden cambiar los pares
-informados; el umbral se eligio como una precision prudente, no como una
-calibracion fina. Ambos argumentos se pueden cambiar.</p>
+final mas que una al comienzo. El umbral predeterminado es <code>0.10</code>, que apunta
+a una precisión prudente y no es una calibración fina. Ambos argumentos se
+pueden cambiar.</p>
     </div>
 
     <div class="section level2">
@@ -134,9 +143,10 @@ vuelve independiente de cómo estén ordenadas las columnas del archivo.</p>
 <p><strong>Cómo se concatena, para poder rehacer la distancia.</strong> Los valores se unen
 con <code>" | "</code>; dentro de cada valor, cada barra invertida <code>\</code> se escribe <code>\\</code>
 y cada <code>|</code> se escribe <code>\|</code>. Los escapes no son cosméticos: sin el de <code>|</code>,
-<code>c1 = "x | y", c2 = "z"</code> y <code>c1 = "x", c2 = "y | z"</code> producían la misma cadena
-y dos filas que <strong>no comparten ningún valor</strong> salían <code>exacto_normalizado</code> a
-distancia <code>0</code>; el de <code>\</code> es el que deja leer ese <code>\|</code> de una sola manera, y
+<code>c1 = "x | y", c2 = "z"</code> y <code>c1 = "x", c2 = "y | z"</code> producirían la misma
+cadena y dos filas que <strong>no comparten ningún valor</strong> saldrían
+<code>exacto_normalizado</code> a distancia <code>0</code>; el de <code>\</code> es el que deja leer ese
+<code>\|</code> de una sola manera, y
 el que distingue un valor declarado <code>bytes</code> del literal de su escape. Con
 los dos, la distancia publicada de una comparación de varias columnas se
 rehace así —y la de una sola, con el mismo <code>escapar()</code> y sin pegar—:</p>
@@ -334,7 +344,7 @@ combinacion completa se declara fuera de alcance en
 <code>alcance$columnas_excluidas_largo</code>, y <code>alcance$largo_maximo</code> publica el
 largo comparado; no se recortan valores en silencio. Con el tope en <code>Inf</code> no
 se mide ningun largo y <code>largo_maximo</code> vale <code>NA</code>, no cero.
-<code>Inf</code> recupera explicitamente el comportamiento anterior sin tope.</p></dd>
+<code>Inf</code> quita el tope.</p></dd>
 
 </dl></div>
     <div class="section level2">
@@ -397,10 +407,10 @@ modo, el tamaño de las teselas o los parámetros LSH y los que quedaron fuera. 
 <p>El recorte conserva los pares mas cercanos y, entre los empatados en
 distancia, desempata por el <strong>rango canonico del valor</strong> con una clave
 simetrica. Es la misma regla que gobierna el recorte del vocabulario, y existe
-por lo mismo: desempatar por posicion de fila hacia que cuales pares
-sobrevivieran dependiera de como viniera ordenado el archivo. Medido sobre 60
-pares empatados con el corte en 30, cinco ordenes distintos devolvian 30 grupos
-cada uno sin compartir ninguno; ahora devuelven los mismos.</p>
+por lo mismo: desempatar por posición de fila haría que los pares que
+sobreviven dependieran de cómo viene ordenado el archivo. Con la clave
+simétrica, el mismo archivo en cualquier orden de filas conserva los mismos
+pares.</p>
 <p>Lo que ningun orden evita es que un corte dentro de un empate deje afuera pares
 igual de cercanos, asi que se declara. <code>alcance</code> publica <code>distancia_corte</code> —la
 distancia donde cayo el corte—, <code>n_en_distancia_corte</code> —cuantos de los
@@ -448,8 +458,8 @@ MinHash con bandas LSH sobre todas las filas cuando <code>muestra = Inf</code>. 
 salida declara las bandas, las filas por banda, las cubetas descartadas y la
 probabilidad teorica de colision. Esa probabilidad se refiere al Jaccard de
 los q-gramas, no a la medida final (<code>metodo</code>). <code>estrategia = "lsh"</code> fuerza
-este camino; <code>"teselas"</code> y <code>"muestra"</code> conservan el camino exacto o
-muestreado de las versiones anteriores. Las cubetas que superan
+este camino; <code>"teselas"</code> y <code>"muestra"</code> fuerzan el camino exacto por teselas
+o el muestreado. Las cubetas que superan
 <code>lsh_max_cubeta</code> se procesan igualmente por lotes; el parámetro identifica
 cubetas potencialmente costosas, pero no descarta sus pares. El alcance
 separa <code>lsh_teselas_cubetas_grandes</code> (matrices del primer tramo) de
@@ -457,9 +467,11 @@ separa <code>lsh_teselas_cubetas_grandes</code> (matrices del primer tramo) de
 no son la misma unidad. Los pares aceptados por ambos recorridos entran al
 resumen de Jaccard. Si alguna implementación futura descarta una cubeta,
 la garantía se devuelve como <code>NA</code> y <code>lsh_garantia_estado</code> lo deja explícito.
-La familia MinHash usa una permutación aleatoria inyectiva del vocabulario,
-con una semilla interna fija, y restaura el estado global del generador de R;
-por eso es determinista sin depender de <code><a href="https://rdrr.io/r/base/Random.html" class="external-link">set.seed()</a></code> ni de <code><a href="https://rdrr.io/r/base/Random.html" class="external-link">RNGkind()</a></code>. La
+La familia MinHash usa un hash entero biyectivo y determinista del
+vocabulario, con una semilla distinta por función de hash. No usa el
+generador de números aleatorios de R ni toca su estado: el resultado no
+depende de <code><a href="https://rdrr.io/r/base/Random.html" class="external-link">set.seed()</a></code> ni de <code><a href="https://rdrr.io/r/base/Random.html" class="external-link">RNGkind()</a></code>, y la muestra de la estimación
+sale del mismo hash. La
 tabla de consulta de cada hash evita repetir trabajo para cada celda de la
 matriz de q-gramas y hace que el resultado no dependa de cómo se numeraron
 esos q-gramas. Antes de recorrer las bandas se toma una muestra interna y se

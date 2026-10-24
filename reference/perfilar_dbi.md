@@ -121,10 +121,8 @@ perfilar_dbi(
 
   Selección explícita de grupos de métricas: `"validos"`, `"distintos"`,
   `"moda"`, `"basicos"`, `"mediana"` y `"desvio"`. El valor por omisión
-  solicita las seis. Para traducir presets de versiones anteriores:
-  `seguro` equivale a `c("validos", "basicos", "desvio")` y `conteos`
-  equivale a `"validos"`; `exacto` equivale a los valores por omisión de
-  esta firma.
+  solicita las seis. `c("validos", "basicos", "desvio")` omite
+  distintos, moda y mediana, y `"validos"` sólo cuenta los no nulos.
 
 - estrategia_distintos:
 
@@ -221,11 +219,14 @@ perfilar_dbi(
 - tamano_lote_distintos:
 
   Cantidad máxima de columnas por consulta de cardinalidades exactas. El
-  valor por omisión es 2, medido sobre el servidor de referencia: el
-  `Shared Read` fue constante entre lotes y el costo por columna fue
-  casi igual para uno y dos, mientras el lote de dos derramó menos que
-  los lotes mayores. Una sola cardinalidad todavía puede forzar un
-  agregado pesado y derramar mucho más que un lote plano.
+  valor por omisión es 2, un supuesto del código medido sobre un
+  PostgreSQL de referencia: el motor hace una sola pasada por la tabla
+  para todos los conteos de una consulta, así que un lote de uno cuesta
+  por columna bastante más que uno de dos; uno de dos cuesta por columna
+  casi lo mismo que uno de cuatro y derrama menos, y los lotes mayores
+  derraman más porque los conteos compiten por `work_mem`. Una sola
+  cardinalidad todavía puede forzar un agregado pesado y derramar mucho
+  más que un lote plano.
 
 - instrumentar:
 
@@ -460,14 +461,13 @@ no declarada.
 
 ## Details
 
-Antes, la promesa era literalmente: "la función no escribe en la
-conexión ni crea objetos temporales". Ahora es: "no escribe en la
-conexión ni crea objetos temporales del motor; `muestra_motor` puede
-crear un spool externo temporal de sesión, con bytes, checksum,
-presupuesto y estado". `DBI` es una dependencia opcional. Cada agregado
-no disponible queda en `NA` y su consulta, estado y motivo se conservan
-en `resumen_tabla$sql`. Las expresiones se ejecutan como capacidades a
-comprobar, no como un dialecto SQL universal.
+La función no escribe en la conexión ni crea objetos temporales del
+motor; `muestra_motor` puede crear un spool externo temporal de sesión,
+con bytes, checksum, presupuesto y estado. `DBI` es una dependencia
+opcional. Cada agregado no disponible queda en `NA` y su consulta,
+estado y motivo se conservan en `resumen_tabla$sql`. Las expresiones se
+ejecutan como capacidades a comprobar, no como un dialecto SQL
+universal.
 
 ## Dos tablas se llaman cobertura
 
@@ -556,8 +556,8 @@ queda con sus métricas en `no_disponible` y las demás se perfilan
 enteras. Lo mismo con una columna cuyo nombre la sesión no puede
 escribir: odbc pasa la consulta por la codificación nativa, y bajo el
 locale `C` —el de un `Rscript` de cron en Linux— un nombre con tilde no
-se puede mandar; mandarlo dejaba la conexión rota y la consulta
-siguiente hacía caer a R. La consulta no se envía: la columna queda en
+se puede mandar; mandarlo dejaría la conexión rota y la consulta
+siguiente haría caer a R. La consulta no se envía: la columna queda en
 `no_disponible` con ese motivo, y una tabla con un nombre así da
 `lupa_error_codificacion_dbi`. Para leerlas, correr la sesión con un
 locale UTF-8 (`LC_ALL=C.UTF-8`). RPostgres, RSQLite y duckdb reciben la
@@ -579,12 +579,12 @@ escribir sobre la tabla derivada, así que la muestra del motor usa otra
 forma que el motor acepte o se degrada con su motivo (limitación
 conocida). Con odbc las consultas se ejecutan sin preparar
 (`immediate = TRUE`, como el `dbGetQuery()` de odbc): preparada, una
-consulta rechazada por un permiso de columna dejaba la conexión rota y
-la siguiente hacía caer a R. Lo que el catálogo no ve —un sinónimo, una
-tabla de otra base, una tabla temporal— se lee como antes: el rechazo
-del motor se declara y la conexión sigue. Con enmascaramiento dinámico
-de SQL Server (`MASKED WITH`, 2016+) y una credencial sin `UNMASK` sobre
-la columna o la base, el motor devuelve la máscara y no el dato. La
+consulta rechazada por un permiso de columna dejaría la conexión rota y
+la siguiente haría caer a R. Lo que el catálogo no ve —un sinónimo, una
+tabla de otra base, una tabla temporal— se intenta leer: el rechazo del
+motor se declara y la conexión sigue. Con enmascaramiento dinámico de
+SQL Server (`MASKED WITH`, 2016+) y una credencial sin `UNMASK` sobre la
+columna o la base, el motor devuelve la máscara y no el dato. La
 completitud de esa columna se publica —los no nulos se cuentan con una
 expresión que el motor no enmascara—; distintos, moda, extremos, media,
 mediana y desvío quedan `no_disponible` con el motivo, la columna no
@@ -626,8 +626,8 @@ existe: un nombre marcado `latin1` —el que da
 con bytes que no son UTF-8 válido y no declaran su codificación
 —[`read.csv()`](https://rdrr.io/r/utils/read.table.html) sin
 `fileEncoding` sobre un archivo latin1— no se adivina: con odbc da
-`lupa_error_codificacion_dbi` antes de tocar la conexión, que antes
-quedaba rota. Una columna de `orden_muestra` que la sesión no puede
+`lupa_error_codificacion_dbi` antes de tocar la conexión, que así no
+queda rota. Una columna de `orden_muestra` que la sesión no puede
 escribir da también `lupa_error_codificacion_dbi`, con ese remedio: no
 la rechazó el motor, no se le mandó. Los **valores** de texto tienen el
 mismo origen. Bajo un locale que no es UTF-8, FreeTDS entrega las
@@ -684,8 +684,8 @@ transacción completa. La etapa publicada en el motivo es la que detectó
 el cambio: `dbSendQuery`, `dbFetch` o `dbClearResult`. Las sondas de
 sintaxis de otros motores no se ejecutan cuando el controlador ya fue
 reconocido; así se evita que `XACT_ABORT ON` aborte la transacción por
-una sentencia que nunca correspondía a ese motor. Un desbordamiento de
-datos que el motor no puede aislar puede abortarla igualmente y queda
+una sentencia que no corresponde a ese motor. Un desbordamiento de datos
+que el motor no puede aislar puede abortarla igualmente y queda
 documentado en `lupa_error_transaccion_dbi`. MySQL, MariaDB y SQLite no
 abortan la transacción por el error de una consulta. duckdb sí la aborta
 por un error al preparar, como el de una sonda de dialecto— y no tiene
@@ -781,14 +781,14 @@ consulta. Cada resultado y el atributo `meta$estrategia_distintos`
 separan `estrategia_solicitada`, `estrategia_resuelta` y `estado`.
 
 Las comparaciones que tienen una cota dura usan solo valores del mismo
-grupo de consistencia. En esta version, el grupo queda probado por el
-`consulta_id` que ya se registra en `resumen_tabla$sql`: dos metricas
-con el mismo identificador salieron de la misma sentencia. La consulta
-exacta de distintos trae el conteo de no nulos `AS n_validos_guard`
-junto a `COUNT(DISTINCT columna)`. Si una capacidad aproximada sólo
-construye una consulta completa y no puede traer ese guardian, la cota
-no se comprueba y el motivo lo declara; no se atribuye un valor
-imposible al motor. La consulta de la moda intenta traer
+grupo de consistencia. El grupo queda probado por el `consulta_id` que
+ya se registra en `resumen_tabla$sql`: dos metricas con el mismo
+identificador salieron de la misma sentencia. La consulta exacta de
+distintos trae el conteo de no nulos `AS n_validos_guard` junto a
+`COUNT(DISTINCT columna)`. Si una capacidad aproximada sólo construye
+una consulta completa y no puede traer ese guardian, la cota no se
+comprueba y el motivo lo declara; no se atribuye un valor imposible al
+motor. La consulta de la moda intenta traer
 `SUM(COUNT(*)) OVER () AS n_validos_guard` junto a su frecuencia. La
 forma se sondea antes de usarla; si el motor la rechaza, se conserva la
 consulta anterior y `meta$moda_guardian` publica el repliegue. Cuando la
@@ -818,14 +818,15 @@ sin un valor utilizable queda `no_disponible`.
 
 ## Motores medidos
 
-El camino principal —el que se mide en cada versión contra motores
-reales— es PostgreSQL por RPostgres, medido en la 9.3 y en la 16, y SQL
-Server 2022 por odbc con el controlador FreeTDS, en sesiones UTF-8 y
-bajo el locale `C` de un `Rscript` de cron. SQLite (RSQLite) y duckdb se
-ejercitan en las pruebas del paquete; MySQL y MariaDB (RMariaDB) se
-midieron de forma puntual. Con otro motor, otro controlador u otra
-versión la función corre por la vía portable (ver «Dialecto») y declara
-en la cobertura lo que no pudo medir, pero sus cifras no están
+El camino principal es PostgreSQL por RPostgres, en la 9.3 y en la 16, y
+SQL Server 2022 por odbc con el controlador FreeTDS, en sesiones UTF-8 y
+bajo el locale `C` de un `Rscript` de cron. Los siete motores
+—PostgreSQL 9.3 y 16, SQL Server 2022, MySQL y MariaDB (RMariaDB),
+SQLite (RSQLite) y duckdb— se verifican contra el motor real con el
+guion `benchmark/verificar_motor.R`, y SQLite y duckdb se ejercitan
+además en las pruebas del paquete. Con otro motor, otro controlador u
+otra versión la función corre por la vía portable (ver «Dialecto») y
+declara en la cobertura lo que no pudo medir, pero sus cifras no están
 comprobadas contra ese motor. Las configuraciones avanzadas —una
 transacción abierta por el usuario, permisos por columna,
 enmascaramiento dinámico, `universo = "muestra_motor"`, `bloque_filas`—
@@ -901,7 +902,7 @@ eso no es lo mismo que la tabla en R:
   y 9 cifras. No se toma del texto de la sesión: antes de PostgreSQL 12,
   o con `extra_float_digits` de 0 o menos en cualquier versión, ese
   texto tiene seis cifras y 1234501 se escribe `1.2345e+06` —200 valores
-  distintos se leían como 21, con un mínimo que no estaba en la
+  distintos se leerían como 21, con un mínimo que no está en la
   columna—. Así la lectura da el valor guardado en cualquier versión y
   con cualquier `extra_float_digits` desde -6, sin tocar el estado de la
   sesión; en un empate de la última cifra puede elegir la otra forma
@@ -991,26 +992,26 @@ eso no es lo mismo que la tabla en R:
   pérdida, el desvío nativo de SQLite, duckdb, MariaDB y MySQL— acumula
   en una sola pasada, y cuando la media es muy grande frente al ancho de
   la columna pierde las cifras del desvío: sobre marcas de tiempo en
-  milisegundos de una ventana de un segundo, SQL Server respondía `0`.
-  El desvío no cambia si a cada valor se le resta una constante, así que
-  se le pide al motor sobre los valores centrados en la media ya
-  calculada: siempre en la consulta por columna, y en la consulta
-  compartida —donde la media sale de la misma sentencia— se vuelve a
-  pedir centrado cuando la media supera diez veces el desvío, o cuando
-  respondió `0` sobre una columna con valores distintos, con una
-  consulta más que el plan no anticipa porque depende de los datos. Su
-  fila de `sql` lo dice. La resta se hace en un tipo que no pierde
-  cifras: en SQL Server y duckdb una columna `real` (`FLOAT` en duckdb)
-  restaba en 24 bits —en T-SQL `real - decimal` es `real`— y el desvío
-  centrado se apartaba 1,4e-8 del de los valores guardados, así que se
-  convierte a doble antes de restar; en SQL Server el centro de una
-  columna de coma flotante va como literal `float`, que no tiene el tope
-  de 38 cifras de un decimal. Una columna decimal o entera resta en su
-  tipo, que es exacto. Con `bloque_filas` los momentos se acumulan
-  centrados. Bajo `muestra_motor` no se vuelve a pedir, porque otra
-  consulta vería otras filas; ahí, como red en todas las vías, un desvío
-  `0` sobre una columna con dos valores distintos —un mínimo menor que
-  el máximo— es imposible y queda `no_disponible` con su motivo.
+  milisegundos de una ventana de un segundo, SQL Server responde `0`. El
+  desvío no cambia si a cada valor se le resta una constante, así que se
+  le pide al motor sobre los valores centrados en la media ya calculada:
+  siempre en la consulta por columna, y en la consulta compartida —donde
+  la media sale de la misma sentencia— se vuelve a pedir centrado cuando
+  la media supera diez veces el desvío, o cuando respondió `0` sobre una
+  columna con valores distintos, con una consulta más que el plan no
+  anticipa porque depende de los datos. Su fila de `sql` lo dice. La
+  resta se hace en un tipo que no pierde cifras: en SQL Server y duckdb
+  una columna `real` (`FLOAT` en duckdb) restaría en 24 bits —en T-SQL
+  `real - decimal` es `real`— y el desvío centrado se apartaría del de
+  los valores guardados, así que se convierte a doble antes de restar;
+  en SQL Server el centro de una columna de coma flotante va como
+  literal `float`, que no tiene el tope de 38 cifras de un decimal. Una
+  columna decimal o entera resta en su tipo, que es exacto. Con
+  `bloque_filas` los momentos se acumulan centrados. Bajo
+  `muestra_motor` no se vuelve a pedir, porque otra consulta vería otras
+  filas; ahí, como red en todas las vías, un desvío `0` sobre una
+  columna con dos valores distintos —un mínimo menor que el máximo— es
+  imposible y queda `no_disponible` con su motivo.
 
 - **El cotejamiento.** El resumen SQL agrupa y ordena con el
   cotejamiento de la columna: sobre una `COLLATE NOCASE` de SQLite o una
@@ -1294,20 +1295,19 @@ que guarda cada valor distinto de toda columna no protegida: una columna
 `debil` —las cédulas sin su verificador de OTRAS personas, como las de
 un garante— publica ahí cada uno de sus valores, donde
 [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md)
-publica sus dos extremos. Limitación conocida (baja): como la
-clasificación es sobre la muestra, con una muestra que ve menos de tres
-valores distintos de la copia —chica y ordenada sobre una tabla agrupada
-por persona— la copia no se clasifica, y el resumen de la tabla entera
-publica sus extremos, que pueden ser documentos de personas que la
-muestra no vio; por bloques, cada valor distinto en `meta$familias`. Una
-muestra mayor o aleatoria lo evita, y también declararla en
-`columnas_personales`. Lo mismo vale para una columna cuya palabra el
-resto del nombre califica y que decide por sus valores
-—`celular_estado`, `contacto_alta`, `usuario_baja`,
-`nombre_departamento`—: rala, con una muestra que no trae ninguno de sus
-valores o unos pocos sin su forma, no se protege, y por bloques publica
-cada valor en `meta$familias`. No se cierra protegiendo por la palabra a
-la columna sin valores, porque en
+publica sus dos extremos. Limitación conocida: como la clasificación es
+sobre la muestra, con una muestra que ve menos de tres valores distintos
+de la copia —chica y ordenada sobre una tabla agrupada por persona— la
+copia no se clasifica, y el resumen de la tabla entera publica sus
+extremos, que pueden ser documentos de personas que la muestra no vio;
+por bloques, cada valor distinto en `meta$familias`. Una muestra mayor o
+aleatoria lo evita, y también declararla en `columnas_personales`. Lo
+mismo vale para una columna cuya palabra el resto del nombre califica y
+que decide por sus valores —`celular_estado`, `contacto_alta`,
+`usuario_baja`, `nombre_departamento`—: rala, con una muestra que no
+trae ninguno de sus valores o unos pocos sin su forma, no se protege, y
+por bloques publica cada valor en `meta$familias`. No se cierra
+protegiendo por la palabra a la columna sin valores, porque en
 [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md)
 taparía la evidencia de toda columna vacía con un nombre así. Un
 documento por el nombre, en cambio, se protege aunque la muestra no
@@ -1344,7 +1344,7 @@ piso en memoria —el dígito repetido cinco veces o más en una columna que
 sin él es casi una clave— se decide sobre la tabla entera, no sobre la
 muestra: en la muestra de una tabla de movimientos los clientes que se
 repiten casi no se repiten, y la cédula válida de un cliente con
-seiscientos movimientos salía como moda de otra columna. Con la tabla
+seiscientos movimientos saldría como moda de otra columna. Con la tabla
 leída completa decide la muestra, que es la tabla; si no, la confirman
 los conteos exactos de la tabla —`n_distintos` y `n_validos`
 calculados—, y sin ellos el relleno sigue en el piso. Con
@@ -1366,16 +1366,16 @@ evidencia de sus hallazgos, y
 Salvo un valor igual al nombre de la tabla o de su esquema, que es
 estructura: se publica en `meta`, en cada SQL guardada y en
 [`print()`](https://rdrr.io/r/base/print.html), y un valor de celda
-igual a él no se tapa —tapaba el nombre de todo el objeto—; lo mismo
-cuando sin muestra se cierran todas las columnas. Limitación conocida
-(baja): un valor igual al nombre de una **columna** sí se tapa, porque
+igual a él no se tapa —taparlo taparía el nombre en todo el objeto—; lo
+mismo cuando sin muestra se cierran todas las columnas. Limitación
+conocida: un valor igual al nombre de una **columna** sí se tapa, porque
 un nombre de columna puede ser el de una persona —una planilla con una
 columna por docente—, y tapa también ese nombre en la descripción de las
 sondas de dialecto (`meta$dialecto$sondas`) y, con `bloque_filas`, en la
 de la fuente por bloques (`meta$fuente_bloques`, `meta$plan`); en
 `columnas$columna` y en la SQL guardada queda. En SQLite los valores se
 leen como texto, porque una columna de afinidad numérica guarda texto y
-el controlador lo convertía en número; también sin muestreo, cuando la
+el controlador lo convertiría en número; también sin muestreo, cuando la
 muestra es la tabla entera: ahí se releen como texto, con una consulta,
 las columnas protegidas que el controlador no leyó como texto. Y el
 motivo de una cifra que no se pudo leer como número no cita el valor de
@@ -1402,11 +1402,11 @@ tabulador o un salto de línea entre los grupos: `"099 - 123 - 456"` es
 uno de nueve—. El mensaje se lee como lo dijo el motor: odbc lo arma con
 cli, que pone una viñeta después de cada salto de línea y corta las
 líneas al ancho de la consola, y un número partido en dos líneas
-—`"2901\n1234"`— quedaba partido por la viñeta; se toman las líneas que
+—`"2901\n1234"`— quedaría partido por la viñeta; se toman las líneas que
 guarda la condición, unidas por el salto que puso el motor, y así se
 publican, sin las viñetas. Tampoco llevan los colores ni los enlaces que
 cli pone en una consola a color —la de RStudio—: las secuencias ANSI
-quedaban guardadas en el motivo, y con protección pegadas a los
+quedarían guardadas en el motivo y, con protección, pegadas a los
 marcadores. Lo que cli agrega dentro de una línea no se distingue del
 texto del motor y queda: sin color, cli cita entre comillas el archivo
 del controlador (`'nanodbc/nanodbc.cpp:1802'`) y con protección esa cita
@@ -1428,27 +1428,28 @@ exceptuarse, con la comparación del piso. En
 [`perfilar_coleccion()`](https://sebollin.github.io/lupa/reference/perfilar_coleccion.md)
 cada mensaje se vuelve a leer al final, desde como llegó, con todo lo
 que la colección leyó: con una vista perfilada antes que su tabla base,
-el piso no conocía todavía el nombre y la segunda pasada dejaba su resto
-—`"De Los Campos"` de `"María De Los Campos"`—. Lo que queda abierto: un
-valor que la llamada **no** leyó —la celda que hizo fallar la lectura de
-la muestra, de una columna que la vista castea— escrito sólo con lo
-permitido, o igual al nombre de una columna, se publica, porque el
-mensaje no tiene cómo distinguirlo del vocabulario ni de un nombre. Un
-mensaje en otro idioma conserva su SQL, sus tipos y sus nombres y se lee
-peor, que es el lado cerrado. Quedan una palabra de SQL entre comillas
+el piso todavía no conoce el nombre cuando llega el mensaje, y releer el
+texto ya tapado dejaría su resto —`"De Los Campos"` de
+`"María De Los Campos"`—. Lo que queda abierto: un valor que la llamada
+**no** leyó —la celda que hizo fallar la lectura de la muestra, de una
+columna que la vista castea— escrito sólo con lo permitido, o igual al
+nombre de una columna, se publica, porque el mensaje no tiene cómo
+distinguirlo del vocabulario ni de un nombre. Un mensaje en otro idioma
+conserva su SQL, sus tipos y sus nombres y se lee peor, que es el lado
+cerrado. Quedan una palabra de SQL entre comillas
 —`Incorrect syntax near 'LIMIT'` dice que el motor no acepta ese
 dialecto— y un signo suelto. El texto que PostgreSQL cita sin comillas
 al no poder leer un JSON (`CONTEXT: JSON data, line 1: ...`) se tapa
-hasta el fin de la línea. Se publicaba tal cual, en PostgreSQL, en
-duckdb y en SQL Server. **Sin protección**
-(`proteger_datos_personales = FALSE`) el mensaje del motor se publica
-entero, en todas esas salidas: el literal que hizo fallar la lectura y
-el SQL que la hacía, sólo sin las viñetas, los cortes ni los colores que
-agrega cli. El diagnóstico es el cometido del paquete
+hasta el fin de la línea, en PostgreSQL, en duckdb y en SQL Server.
+**Sin protección** (`proteger_datos_personales = FALSE`) el mensaje del
+motor se publica entero, en todas esas salidas: el literal que hizo
+fallar la lectura y el SQL de esa lectura, sólo sin las viñetas, los
+cortes ni los colores que agrega cli. El diagnóstico es el cometido del
+paquete
 —`Conversion failed when converting the nvarchar value 'N/D' to data type int`
 dice que la columna trae un faltante disfrazado—, y sin protección ya se
 publican valores de todas las columnas —modas, ejemplos, patrones—:
-omitirlo ahí no protegía nada y quitaba el diagnóstico. Vale igual en
+omitirlo ahí no protegería nada y quitaría el diagnóstico. Vale igual en
 [`perfilar_coleccion()`](https://sebollin.github.io/lupa/reference/perfilar_coleccion.md),
 que pasa la bandera a cada tabla y la aplica a sus propios motivos.
 [`plan_perfilado_dbi()`](https://sebollin.github.io/lupa/reference/plan_perfilado_dbi.md),

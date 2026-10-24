@@ -22,17 +22,29 @@ conceptual y plan de limpieza. No modifica los datos."><meta property="og:image"
     </button>
 
     <div id="navbar" class="collapse navbar-collapse ms-3">
-      <ul class="navbar-nav me-auto"><li class="active nav-item"><a class="nav-link" href="../reference/index.html">Reference</a></li>
+      <ul class="navbar-nav me-auto"><li class="nav-item"><a class="nav-link" href="../articles/lupa.html">Get started</a></li>
+<li class="active nav-item"><a class="nav-link" href="../reference/index.html">Reference</a></li>
 <li class="nav-item dropdown">
   <button class="nav-link dropdown-toggle" type="button" id="dropdown-articles" data-bs-toggle="dropdown" aria-expanded="false" aria-haspopup="true">Articles</button>
-  <ul class="dropdown-menu" aria-labelledby="dropdown-articles"><li><a class="dropdown-item" href="../articles/empezar-con-lupa.html">Empezar con lupa</a></li>
-    <li><a class="dropdown-item" href="../articles/flujo-guiado.html">Flujo guiado: del perfil a la evaluación</a></li>
-    <li><a class="dropdown-item" href="../articles/definir-la-calidad.html">Definir la calidad</a></li>
-    <li><a class="dropdown-item" href="../articles/medir-y-evaluar.html">Medir y evaluar</a></li>
-    <li><a class="dropdown-item" href="../articles/limpiar-con-un-plan.html">Limpiar con un plan auditable</a></li>
-    <li><a class="dropdown-item" href="../articles/historico-y-deriva.html">Histórico y monitoreo de deriva</a></li>
+  <ul class="dropdown-menu" aria-labelledby="dropdown-articles"><li><a class="dropdown-item" href="../articles/leer-un-perfil.html">2. Leer un perfil</a></li>
+    <li><a class="dropdown-item" href="../articles/explorar-columnas.html">3. Explorar columnas con `analizar()`</a></li>
+    <li><a class="dropdown-item" href="../articles/estructura-no-declarada.html">4. Estructura no declarada</a></li>
+    <li><a class="dropdown-item" href="../articles/vacio-por-diseno.html">5. El vacío por diseño</a></li>
+    <li><a class="dropdown-item" href="../articles/limpiar-con-un-plan.html">6. Limpiar con un plan</a></li>
+    <li><a class="dropdown-item" href="../articles/del-hallazgo-a-la-metrica.html">7. Del hallazgo a la métrica</a></li>
+    <li><a class="dropdown-item" href="../articles/marcos-y-modelos.html">8. Marcos y modelos de calidad</a></li>
+    <li><a class="dropdown-item" href="../articles/historico-y-deriva.html">9. Comparar entregas y seguir la calidad</a></li>
     <li><hr class="dropdown-divider"></li>
-    <li><a class="dropdown-item" href="../articles/index.html">More articles...</a></li>
+    <li><h6 class="dropdown-header" data-toc-skip>Bases y escala</h6></li>
+    <li><a class="dropdown-item" href="../articles/perfilar-una-base.html">10. Perfilar una base</a></li>
+    <li><a class="dropdown-item" href="../articles/colecciones.html">11. Colecciones</a></li>
+    <li><a class="dropdown-item" href="../articles/escala-y-duplicados.html">12. Escala y duplicados aproximados</a></li>
+    <li><hr class="dropdown-divider"></li>
+    <li><h6 class="dropdown-header" data-toc-skip>Referencia en línea</h6></li>
+    <li><a class="dropdown-item" href="../articles/motores-y-escala.html">Motores y escala</a></li>
+    <li><a class="dropdown-item" href="../articles/alcance-y-cobertura.html">Alcance y cobertura</a></li>
+    <li><a class="dropdown-item" href="../articles/evidencia-y-rendimiento.html">Evidencia y rendimiento</a></li>
+    <li><a class="dropdown-item" href="../articles/codificacion-y-locales.html">Codificación y locales</a></li>
   </ul></li>
 <li class="nav-item"><a class="nav-link" href="../news/index.html">Changelog</a></li>
       </ul><ul class="navbar-nav"></ul></div>
@@ -149,9 +161,9 @@ cuantiles, y un centinela declarado sale de los cuantiles como sale de
 
 
 <dt id="arg-medir-propuesta">medir_propuesta<a class="anchor" aria-label="anchor" href="#arg-medir-propuesta"></a></dt>
-<dd><p>Si se mide automáticamente la propuesta en estado
-<code>"lista"</code> cuando no se recibe un modelo o una propuesta confirmada. Use
-<code>FALSE</code> para conservar el comportamiento descriptivo anterior.</p></dd>
+<dd><p>Si se mide automáticamente la propuesta con estado
+<code>"lista"</code> e <code>incluir = TRUE</code> cuando no se recibe un modelo o una propuesta
+confirmada. Con <code>FALSE</code>, <code>analizar()</code> describe y no mide.</p></dd>
 
 
 <dt id="arg-conservar-detalle-medicion">conservar_detalle_medicion<a class="anchor" aria-label="anchor" href="#arg-conservar-detalle-medicion"></a></dt>
@@ -292,12 +304,13 @@ declaración cuando recibe ese <code>perfil</code>.</p>
     </div>
     <div class="section level2">
     <h2 id="details">Details<a class="anchor" aria-label="anchor" href="#details"></a></h2>
-    <p>Por omisión mide todas las sugerencias de la propuesta cuyo estado es
-<code>"lista"</code>, aunque no estuvieran activas, y declara que esa selección fue
-realizada por <code>lupa</code> sin confirmación. Agrega inmediatamente el detalle y
-conserva <code><a href="tablero_calidad.html">tablero_calidad()</a></code>; las medidas fila a fila sólo quedan en el
-resultado si <code>conservar_detalle_medicion = TRUE</code>. La evaluación, cuando se
-solicita, usa la medición agregada.
+    <p>Por omisión mide las sugerencias de la propuesta cuyo estado es <code>"lista"</code> y
+cuya marca <code>incluir</code> es <code>TRUE</code>; los patrones y dominios observados que
+<code><a href="proponer_modelo.html">proponer_modelo()</a></code> deja inactivos no llegan al tablero sin confirmación.
+Declara que esa selección fue realizada por <code>lupa</code> sin confirmación. Agrega
+inmediatamente el detalle y conserva <code><a href="tablero_calidad.html">tablero_calidad()</a></code>; las medidas fila a
+fila sólo quedan en el resultado si <code>conservar_detalle_medicion = TRUE</code>. La
+evaluación, cuando se solicita, usa la medición agregada.
 Los hallazgos <code>casi_clave</code> del perfil se reiteran en <code>advertencias</code>, con su
 columna, valores en colisión, frecuencias y criterio observado, para que no
 queden ocultos dentro del recorrido integral.</p>
@@ -328,66 +341,36 @@ queden ocultos dentro del recorrido integral.</p>
 <span class="r-msg co"><span class="r-pr">#&gt;</span> ── <span style="font-weight: bold;">Tablero de calidad</span> ──</span>
 <span class="r-msg co"><span class="r-pr">#&gt;</span> </span>
 <span class="r-msg co"><span class="r-pr">#&gt;</span> <span style="color: #00BBBB;">──</span> <span style="font-weight: bold;">Tablero de calidad</span> <span style="color: #00BBBB;">──────────────────────────────────────────────────────────</span></span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>       componente    dimension                 factor</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>  componente-0001     Unicidad         No-duplicación</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>  componente-0002  Completitud               Densidad</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>  componente-0003  Completitud               Densidad</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>  componente-0004  Completitud               Densidad</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>  componente-0005  Completitud               Densidad</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>  componente-0006    Exactitud Correctitud sintáctica</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>  componente-0007    Exactitud Correctitud sintáctica</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>  componente-0008    Exactitud Correctitud sintáctica</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>  componente-0009    Exactitud Correctitud sintáctica</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>  componente-0010    Exactitud Correctitud sintáctica</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>  componente-0011 Consistencia  Integridad de dominio</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>                      metrica              metrica_instanciada</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>             EntidadDuplicada                 EntidadDuplicada</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>                       NoNulo                    NoNulo:cedula</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>                       NoNulo          NoNulo:fecha_nacimiento</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>                       NoNulo                   NoNulo:ingreso</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>                       NoNulo                      NoNulo:sexo</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>                      Formato                   Formato:correo</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>                      Formato             Formato:departamento</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>                      Formato               Formato:id_tramite</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>                      Formato                     Formato:pais</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>                      Formato                     Formato:sexo</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>  ValoresPosiblesPorExtension ValoresPosiblesPorExtension:sexo</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>                entidad           objeto     valor orientacion agregacion umbral</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>  datos_administrativos          (tabla) 0.1538462     defecto      ratio     NA</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>  datos_administrativos           cedula 0.9230769 conformidad      ratio     NA</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>  datos_administrativos fecha_nacimiento 0.9230769 conformidad      ratio     NA</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>  datos_administrativos          ingreso 0.9230769 conformidad      ratio     NA</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>  datos_administrativos             sexo 0.8461538 conformidad      ratio     NA</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>  datos_administrativos           correo 0.8461538 conformidad      ratio     NA</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>  datos_administrativos     departamento 0.9230769 conformidad      ratio     NA</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>  datos_administrativos       id_tramite 1.0000000 conformidad      ratio     NA</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>  datos_administrativos             pais 1.0000000 conformidad      ratio     NA</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>  datos_administrativos             sexo 0.8461538 conformidad      ratio     NA</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>  datos_administrativos             sexo 1.0000000 conformidad      ratio     NA</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>  universo</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>     filas</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>    celdas</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>    celdas</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>    celdas</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>    celdas</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>    celdas</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>    celdas</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>    celdas</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>    celdas</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>    celdas</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>    celdas</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>       componente   dimension         factor          metrica</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>  componente-0001    Unicidad No-duplicación EntidadDuplicada</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>  componente-0002 Completitud       Densidad           NoNulo</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>  componente-0003 Completitud       Densidad           NoNulo</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>  componente-0004 Completitud       Densidad           NoNulo</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>  componente-0005 Completitud       Densidad           NoNulo</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>      metrica_instanciada               entidad           objeto     valor</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>         EntidadDuplicada datos_administrativos          (tabla) 0.1538462</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>            NoNulo:cedula datos_administrativos           cedula 0.9230769</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>  NoNulo:fecha_nacimiento datos_administrativos fecha_nacimiento 0.9230769</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>           NoNulo:ingreso datos_administrativos          ingreso 0.9230769</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>              NoNulo:sexo datos_administrativos             sexo 0.8461538</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>  orientacion agregacion umbral universo</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>      defecto      ratio     NA    filas</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>  conformidad      ratio     NA   celdas</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>  conformidad      ratio     NA   celdas</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>  conformidad      ratio     NA   celdas</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>  conformidad      ratio     NA   celdas</span>
 <span class="r-msg co"><span class="r-pr">#&gt;</span> </span>
 <span class="r-msg co"><span class="r-pr">#&gt;</span> ── <span style="font-weight: bold;">Alcance del marco</span> ──</span>
 <span class="r-msg co"><span class="r-pr">#&gt;</span> </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>  factores_marco factores_medidos sin_metrica_declarada no_aplican</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>              17                4                     8          4</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>              17                2                    10          4</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>  fuera_de_alcance medidos_fuera_del_marco</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>                 1                       0</span>
 <span class="r-msg co"><span class="r-pr">#&gt;</span> ── <span style="font-weight: bold;">Cobertura conceptual</span> ──</span>
 <span class="r-msg co"><span class="r-pr">#&gt;</span> </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>            estado factores</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>            medida        4</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>      no_declarada        8</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>            medida        2</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>      no_declarada       10</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>         no_aplica        4</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>  fuera_de_alcance        1</span>
 <span class="r-msg co"><span class="r-pr">#&gt;</span> ── <span style="font-weight: bold;">Advertencias de alcance</span> ──</span>

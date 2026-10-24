@@ -20,17 +20,29 @@ se pudieron comparar."><meta property="og:image" content="https://sebollin.githu
     </button>
 
     <div id="navbar" class="collapse navbar-collapse ms-3">
-      <ul class="navbar-nav me-auto"><li class="active nav-item"><a class="nav-link" href="../reference/index.html">Reference</a></li>
+      <ul class="navbar-nav me-auto"><li class="nav-item"><a class="nav-link" href="../articles/lupa.html">Get started</a></li>
+<li class="active nav-item"><a class="nav-link" href="../reference/index.html">Reference</a></li>
 <li class="nav-item dropdown">
   <button class="nav-link dropdown-toggle" type="button" id="dropdown-articles" data-bs-toggle="dropdown" aria-expanded="false" aria-haspopup="true">Articles</button>
-  <ul class="dropdown-menu" aria-labelledby="dropdown-articles"><li><a class="dropdown-item" href="../articles/empezar-con-lupa.html">Empezar con lupa</a></li>
-    <li><a class="dropdown-item" href="../articles/flujo-guiado.html">Flujo guiado: del perfil a la evaluación</a></li>
-    <li><a class="dropdown-item" href="../articles/definir-la-calidad.html">Definir la calidad</a></li>
-    <li><a class="dropdown-item" href="../articles/medir-y-evaluar.html">Medir y evaluar</a></li>
-    <li><a class="dropdown-item" href="../articles/limpiar-con-un-plan.html">Limpiar con un plan auditable</a></li>
-    <li><a class="dropdown-item" href="../articles/historico-y-deriva.html">Histórico y monitoreo de deriva</a></li>
+  <ul class="dropdown-menu" aria-labelledby="dropdown-articles"><li><a class="dropdown-item" href="../articles/leer-un-perfil.html">2. Leer un perfil</a></li>
+    <li><a class="dropdown-item" href="../articles/explorar-columnas.html">3. Explorar columnas con `analizar()`</a></li>
+    <li><a class="dropdown-item" href="../articles/estructura-no-declarada.html">4. Estructura no declarada</a></li>
+    <li><a class="dropdown-item" href="../articles/vacio-por-diseno.html">5. El vacío por diseño</a></li>
+    <li><a class="dropdown-item" href="../articles/limpiar-con-un-plan.html">6. Limpiar con un plan</a></li>
+    <li><a class="dropdown-item" href="../articles/del-hallazgo-a-la-metrica.html">7. Del hallazgo a la métrica</a></li>
+    <li><a class="dropdown-item" href="../articles/marcos-y-modelos.html">8. Marcos y modelos de calidad</a></li>
+    <li><a class="dropdown-item" href="../articles/historico-y-deriva.html">9. Comparar entregas y seguir la calidad</a></li>
     <li><hr class="dropdown-divider"></li>
-    <li><a class="dropdown-item" href="../articles/index.html">More articles...</a></li>
+    <li><h6 class="dropdown-header" data-toc-skip>Bases y escala</h6></li>
+    <li><a class="dropdown-item" href="../articles/perfilar-una-base.html">10. Perfilar una base</a></li>
+    <li><a class="dropdown-item" href="../articles/colecciones.html">11. Colecciones</a></li>
+    <li><a class="dropdown-item" href="../articles/escala-y-duplicados.html">12. Escala y duplicados aproximados</a></li>
+    <li><hr class="dropdown-divider"></li>
+    <li><h6 class="dropdown-header" data-toc-skip>Referencia en línea</h6></li>
+    <li><a class="dropdown-item" href="../articles/motores-y-escala.html">Motores y escala</a></li>
+    <li><a class="dropdown-item" href="../articles/alcance-y-cobertura.html">Alcance y cobertura</a></li>
+    <li><a class="dropdown-item" href="../articles/evidencia-y-rendimiento.html">Evidencia y rendimiento</a></li>
+    <li><a class="dropdown-item" href="../articles/codificacion-y-locales.html">Codificación y locales</a></li>
   </ul></li>
 <li class="nav-item"><a class="nav-link" href="../news/index.html">Changelog</a></li>
       </ul><ul class="navbar-nav"></ul></div>
@@ -81,13 +93,12 @@ declaración válida de «ningún par».</p></dd>
 
 <dt id="arg-muestra">muestra<a class="anchor" aria-label="anchor" href="#arg-muestra"></a></dt>
 <dd><p>Filas traídas por tabla para comparar, y <strong>el mismo tope con
-que se calcula cada cobertura</strong>: se reenvía a <code><a href="detectar_relaciones.html">detectar_relaciones()</a></code>. Sin
-reenviarlo valía el tope por omisión de esa función, así que con
-<code>muestra &gt; 1e5</code> el objeto publicaba como evidencia las filas leídas y
-calculaba la cobertura sobre un submuestreo que no declaraba en ningún
-campo: la fila llegaba a contradecirse a sí misma, con <code>n_valores_comunes</code>
-contado sobre la lectura entera junto a una cobertura calculada sobre la
-mitad.</p></dd>
+que se calcula cada cobertura</strong>: se reenvía a <code><a href="detectar_relaciones.html">detectar_relaciones()</a></code>, así
+que la evidencia publicada y la cobertura salen de las mismas filas,
+también con <code>muestra &gt; 1e5</code>. Sin reenviarlo regiría el tope por omisión de
+esa función, y la fila se contradiría a sí misma: <code>n_valores_comunes</code>
+contado sobre la lectura entera junto a una cobertura calculada sobre un
+submuestreo que ningún campo declara.</p></dd>
 
 
 <dt id="arg-umbral-cobertura">umbral_cobertura<a class="anchor" aria-label="anchor" href="#arg-umbral-cobertura"></a></dt>
@@ -143,7 +154,7 @@ una opción imposible. <code><a href="estimar_costo_coleccion.html">estimar_cost
 <p><strong>Cada tabla se lee una sola vez.</strong> Los pares repetidos se descartan, los
 pares de una tabla consigo misma se rechazan, y las lecturas se guardan en
 una caché con presupuesto de memoria declarado: dos pares que comparten una
-tabla ya no la leen dos veces. <code>meta$lecturas</code> deja el SQL exacto, la vía
+tabla no la leen dos veces. <code>meta$lecturas</code> deja el SQL exacto, la vía
 usada, las filas leídas y el momento de cada lectura.</p>
 <p><strong>El orden no se supone.</strong> Sin <code>orden</code>, una lectura acotada devuelve un
 subconjunto arbitrario y el resultado declara <code>meta$estable = FALSE</code>. Declarar
@@ -171,8 +182,8 @@ las demás columnas en vez de <code>SELECT *</code>, que con un permiso por colu
 rechaza entero, y la columna no se nombra en ninguna consulta. Sus
 combinaciones quedan en <code>cobertura_podas</code> con motivo <code>columna_sin_permiso</code> o
 <code>columna_enmascarada</code>: una columna enmascarada lee la máscara —<code>xxxx</code>—, y dos
-así parecían relacionadas sin compartir un solo valor. Una columna de <code>orden</code>
-así deja la lectura sin <code>ORDER BY</code>, como la que no se puede escribir.</p>
+así parecerían relacionadas sin compartir un solo valor. Una columna de
+<code>orden</code> así deja la lectura sin <code>ORDER BY</code>, como la que no se puede escribir.</p>
 <p><strong>Los valores se leen como los lee <code><a href="perfilar_dbi.html">perfilar_dbi()</a></code>.</strong> RPostgres entrega <code>0</code>
 en toda celda <code>money</code>, y <code>MIN</code>/<code>MAX</code> de una columna <code>money</code> también: la
 lectura de cada tabla y la consulta de rangos de la poda la leen convertida
@@ -233,12 +244,12 @@ que hay más filas que el tope. Publicar el tope como si fuera el total sería
 decir que se leyó todo. Para saberlo se pide <strong>una fila más</strong> que el tope, que
 cuesta mucho menos que un <code>COUNT(*)</code> por tabla y contesta exacto; esa fila de
 sobra no viaja al resultado.</p>
-<p>Antes, lo único que sobrevivía eran los atributos de <code><a href="detectar_relaciones.html">detectar_relaciones()</a></code>
-del <strong>primer</strong> par publicado —<code><a href="https://rdrr.io/r/base/cbind.html" class="external-link">rbind()</a></code> conserva los del primer argumento—,
-con etiquetas <code>tabla1</code>/<code>tabla2</code> que no nombran a ningún par: con dos pares
-decían <code>muestreado = FALSE</code> mientras el segundo había leído 10.000 filas de
-20.000. Esos atributos ya no viajan en <code>relaciones</code>; lo que decían vive en las
-columnas, una por par, y el conteo de pares en <code>meta</code>, que cuenta todos.</p>
+<p>Los atributos de <code><a href="detectar_relaciones.html">detectar_relaciones()</a></code> no viajan en <code>relaciones</code>:
+sobrevivirían sólo los del <strong>primer</strong> par publicado —<code><a href="https://rdrr.io/r/base/cbind.html" class="external-link">rbind()</a></code> conserva los
+del primer argumento—, con etiquetas <code>tabla1</code>/<code>tabla2</code> que no nombran a
+ningún par, y con dos pares dirían <code>muestreado = FALSE</code> aunque el segundo
+hubiera leído 10.000 filas de 20.000. Lo que dirían vive en las columnas, una
+por par, y el conteo de pares en <code>meta</code>, que cuenta todos.</p>
 <p>Las columnas candidatas se podan antes de materializar cada comparación. Las
 podas quedan declaradas en <code>cobertura_podas</code>, con su motivo y conteo.
 La poda cierta por rangos usa <code>MIN</code> y <code>MAX</code> sobre el universo completo de
@@ -247,9 +258,9 @@ ese rango, la comparación sigue sin aplicar esa poda.</p>
 <p><strong>Un entero ancho que llega como doble no se compara.</strong> Por encima de 2^53 un
 doble no distingue dos enteros consecutivos, y <code>dbConnect(duckdb::duckdb())</code>
 entrega BIGINT como doble por omisión: dos identificadores distintos se
-fundían y el objeto afirmaba una relación que el motor no tiene. Una columna
-leída como doble con algún valor de al menos 2^53 en valor absoluto deja sus
-pares en <code>sin_comparar</code>, con motivo <code>entero_como_doble</code> en
+fundirían y el objeto afirmaría una relación que el motor no tiene. Una
+columna leída como doble con algún valor de al menos 2^53 en valor absoluto
+deja sus pares en <code>sin_comparar</code>, con motivo <code>entero_como_doble</code> en
 <code>cobertura_podas</code> y el remedio en el detalle: conectar pidiendo <code>integer64</code>
 —<code>duckdb(bigint = "integer64")</code>, o <code>bigint = "integer64"</code> en RSQLite—.</p>
 <p>El campo <code>detalle</code> de una poda por rangos disjuntos <strong>no publica extremos que

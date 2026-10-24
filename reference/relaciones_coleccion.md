@@ -38,13 +38,12 @@ relaciones_coleccion(
 
   Filas traídas por tabla para comparar, y **el mismo tope con que se
   calcula cada cobertura**: se reenvía a
-  [`detectar_relaciones()`](https://sebollin.github.io/lupa/reference/detectar_relaciones.md).
-  Sin reenviarlo valía el tope por omisión de esa función, así que con
-  `muestra > 1e5` el objeto publicaba como evidencia las filas leídas y
-  calculaba la cobertura sobre un submuestreo que no declaraba en ningún
-  campo: la fila llegaba a contradecirse a sí misma, con
+  [`detectar_relaciones()`](https://sebollin.github.io/lupa/reference/detectar_relaciones.md),
+  así que la evidencia publicada y la cobertura salen de las mismas
+  filas, también con `muestra > 1e5`. Sin reenviarlo regiría el tope por
+  omisión de esa función, y la fila se contradiría a sí misma:
   `n_valores_comunes` contado sobre la lectura entera junto a una
-  cobertura calculada sobre la mitad.
+  cobertura calculada sobre un submuestreo que ningún campo declara.
 
 - umbral_cobertura:
 
@@ -104,7 +103,7 @@ permite verlo antes.
 **Cada tabla se lee una sola vez.** Los pares repetidos se descartan,
 los pares de una tabla consigo misma se rechazan, y las lecturas se
 guardan en una caché con presupuesto de memoria declarado: dos pares que
-comparten una tabla ya no la leen dos veces. `meta$lecturas` deja el SQL
+comparten una tabla no la leen dos veces. `meta$lecturas` deja el SQL
 exacto, la vía usada, las filas leídas y el momento de cada lectura.
 
 **El orden no se supone.** Sin `orden`, una lectura acotada devuelve un
@@ -140,9 +139,9 @@ columnas en vez de `SELECT *`, que con un permiso por columna se rechaza
 entero, y la columna no se nombra en ninguna consulta. Sus combinaciones
 quedan en `cobertura_podas` con motivo `columna_sin_permiso` o
 `columna_enmascarada`: una columna enmascarada lee la máscara —`xxxx`—,
-y dos así parecían relacionadas sin compartir un solo valor. Una columna
-de `orden` así deja la lectura sin `ORDER BY`, como la que no se puede
-escribir.
+y dos así parecerían relacionadas sin compartir un solo valor. Una
+columna de `orden` así deja la lectura sin `ORDER BY`, como la que no se
+puede escribir.
 
 **Los valores se leen como los lee
 [`perfilar_dbi()`](https://sebollin.github.io/lupa/reference/perfilar_dbi.md).**
@@ -223,15 +222,14 @@ pide **una fila más** que el tope, que cuesta mucho menos que un
 `COUNT(*)` por tabla y contesta exacto; esa fila de sobra no viaja al
 resultado.
 
-Antes, lo único que sobrevivía eran los atributos de
+Los atributos de
 [`detectar_relaciones()`](https://sebollin.github.io/lupa/reference/detectar_relaciones.md)
-del **primer** par publicado
-—[`rbind()`](https://rdrr.io/r/base/cbind.html) conserva los del primer
-argumento—, con etiquetas `tabla1`/`tabla2` que no nombran a ningún par:
-con dos pares decían `muestreado = FALSE` mientras el segundo había
-leído 10.000 filas de 20.000. Esos atributos ya no viajan en
-`relaciones`; lo que decían vive en las columnas, una por par, y el
-conteo de pares en `meta`, que cuenta todos.
+no viajan en `relaciones`: sobrevivirían sólo los del **primer** par
+publicado —[`rbind()`](https://rdrr.io/r/base/cbind.html) conserva los
+del primer argumento—, con etiquetas `tabla1`/`tabla2` que no nombran a
+ningún par, y con dos pares dirían `muestreado = FALSE` aunque el
+segundo hubiera leído 10.000 filas de 20.000. Lo que dirían vive en las
+columnas, una por par, y el conteo de pares en `meta`, que cuenta todos.
 
 Las columnas candidatas se podan antes de materializar cada comparación.
 Las podas quedan declaradas en `cobertura_podas`, con su motivo y
@@ -242,12 +240,12 @@ puede entregar ese rango, la comparación sigue sin aplicar esa poda.
 **Un entero ancho que llega como doble no se compara.** Por encima de
 2^53 un doble no distingue dos enteros consecutivos, y
 `dbConnect(duckdb::duckdb())` entrega BIGINT como doble por omisión: dos
-identificadores distintos se fundían y el objeto afirmaba una relación
-que el motor no tiene. Una columna leída como doble con algún valor de
-al menos 2^53 en valor absoluto deja sus pares en `sin_comparar`, con
-motivo `entero_como_doble` en `cobertura_podas` y el remedio en el
-detalle: conectar pidiendo `integer64` —`duckdb(bigint = "integer64")`,
-o `bigint = "integer64"` en RSQLite—.
+identificadores distintos se fundirían y el objeto afirmaría una
+relación que el motor no tiene. Una columna leída como doble con algún
+valor de al menos 2^53 en valor absoluto deja sus pares en
+`sin_comparar`, con motivo `entero_como_doble` en `cobertura_podas` y el
+remedio en el detalle: conectar pidiendo `integer64`
+—`duckdb(bigint = "integer64")`, o `bigint = "integer64"` en RSQLite—.
 
 El campo `detalle` de una poda por rangos disjuntos **no publica
 extremos que identifiquen**: si el mínimo o el máximo de un lado llega

@@ -5,7 +5,7 @@
 <meta charset="utf-8">
 <meta http-equiv="X-UA-Compatible" content="IE=edge">
 <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
-<title>Limpiar con un plan auditable • lupa</title>
+<title>6. Limpiar con un plan • lupa</title>
 <!-- favicons --><link rel="icon" type="image/png" sizes="96x96" href="../favicon-96x96.png">
 <link rel="icon" type="”image/svg+xml”" href="../favicon.svg">
 <link rel="apple-touch-icon" sizes="180x180" href="../apple-touch-icon.png">
@@ -16,7 +16,7 @@
 <script src="../deps/bootstrap-5.3.8/bootstrap.bundle.min.js"></script><link href="../deps/font-awesome-6.5.2/css/all.min.css" rel="stylesheet">
 <link href="../deps/font-awesome-6.5.2/css/v4-shims.min.css" rel="stylesheet">
 <script src="../deps/headroom-0.11.0/headroom.min.js"></script><script src="../deps/headroom-0.11.0/jQuery.headroom.min.js"></script><script src="../deps/bootstrap-toc-1.0.1/bootstrap-toc.min.js"></script><script src="../deps/clipboard.js-2.0.11/clipboard.min.js"></script><script src="../deps/search-1.0.0/autocomplete.jquery.min.js"></script><script src="../deps/search-1.0.0/fuse.min.js"></script><script src="../deps/search-1.0.0/mark.min.js"></script><link rel="icon" type="image/png" sizes="180x180" href="https://sebollin.github.io/lupa/apple-touch-icon.png">
-<!-- pkgdown --><script src="../pkgdown.js"></script><meta property="og:title" content="Limpiar con un plan auditable">
+<!-- pkgdown --><script src="../pkgdown.js"></script><meta property="og:title" content="6. Limpiar con un plan">
 </head>
 <body>
     <a href="#main" class="visually-hidden-focusable">Skip to contents</a>
@@ -36,18 +36,30 @@
 
     <div id="navbar" class="collapse navbar-collapse ms-3">
       <ul class="navbar-nav me-auto">
+<li class="nav-item"><a class="nav-link" href="../articles/lupa.html">Get started</a></li>
 <li class="nav-item"><a class="nav-link" href="../reference/index.html">Reference</a></li>
 <li class="active nav-item dropdown">
   <button class="nav-link dropdown-toggle" type="button" id="dropdown-articles" data-bs-toggle="dropdown" aria-expanded="false" aria-haspopup="true">Articles</button>
   <ul class="dropdown-menu" aria-labelledby="dropdown-articles">
-<li><a class="dropdown-item" href="../articles/empezar-con-lupa.html">Empezar con lupa</a></li>
-    <li><a class="dropdown-item" href="../articles/flujo-guiado.html">Flujo guiado: del perfil a la evaluación</a></li>
-    <li><a class="dropdown-item" href="../articles/definir-la-calidad.html">Definir la calidad</a></li>
-    <li><a class="dropdown-item" href="../articles/medir-y-evaluar.html">Medir y evaluar</a></li>
-    <li><a class="dropdown-item" href="../articles/limpiar-con-un-plan.html">Limpiar con un plan auditable</a></li>
-    <li><a class="dropdown-item" href="../articles/historico-y-deriva.html">Histórico y monitoreo de deriva</a></li>
+<li><a class="dropdown-item" href="../articles/leer-un-perfil.html">2. Leer un perfil</a></li>
+    <li><a class="dropdown-item" href="../articles/explorar-columnas.html">3. Explorar columnas con `analizar()`</a></li>
+    <li><a class="dropdown-item" href="../articles/estructura-no-declarada.html">4. Estructura no declarada</a></li>
+    <li><a class="dropdown-item" href="../articles/vacio-por-diseno.html">5. El vacío por diseño</a></li>
+    <li><a class="dropdown-item" href="../articles/limpiar-con-un-plan.html">6. Limpiar con un plan</a></li>
+    <li><a class="dropdown-item" href="../articles/del-hallazgo-a-la-metrica.html">7. Del hallazgo a la métrica</a></li>
+    <li><a class="dropdown-item" href="../articles/marcos-y-modelos.html">8. Marcos y modelos de calidad</a></li>
+    <li><a class="dropdown-item" href="../articles/historico-y-deriva.html">9. Comparar entregas y seguir la calidad</a></li>
     <li><hr class="dropdown-divider"></li>
-    <li><a class="dropdown-item" href="../articles/index.html">More articles...</a></li>
+    <li><h6 class="dropdown-header" data-toc-skip>Bases y escala</h6></li>
+    <li><a class="dropdown-item" href="../articles/perfilar-una-base.html">10. Perfilar una base</a></li>
+    <li><a class="dropdown-item" href="../articles/colecciones.html">11. Colecciones</a></li>
+    <li><a class="dropdown-item" href="../articles/escala-y-duplicados.html">12. Escala y duplicados aproximados</a></li>
+    <li><hr class="dropdown-divider"></li>
+    <li><h6 class="dropdown-header" data-toc-skip>Referencia en línea</h6></li>
+    <li><a class="dropdown-item" href="../articles/motores-y-escala.html">Motores y escala</a></li>
+    <li><a class="dropdown-item" href="../articles/alcance-y-cobertura.html">Alcance y cobertura</a></li>
+    <li><a class="dropdown-item" href="../articles/evidencia-y-rendimiento.html">Evidencia y rendimiento</a></li>
+    <li><a class="dropdown-item" href="../articles/codificacion-y-locales.html">Codificación y locales</a></li>
   </ul>
 </li>
 <li class="nav-item"><a class="nav-link" href="../news/index.html">Changelog</a></li>
@@ -64,7 +76,7 @@
 
 <div class="row">
   <main id="main" class="col-md-9"><div class="page-header">
-      <img src="../logo.png" class="logo" alt=""><h1>Limpiar con un plan auditable</h1>
+      <img src="../logo.png" class="logo" alt=""><h1>6. Limpiar con un plan</h1>
             
       
       <small class="dont-index">Source: <a href="https://github.com/sebollin/lupa/blob/main/vignettes/limpiar-con-un-plan.Rmd" class="external-link"><code>vignettes/limpiar-con-un-plan.Rmd</code></a></small>
@@ -73,101 +85,120 @@
 
     
     
-<p>Diagnosticar no autoriza a modificar datos. En <code>lupa</code>, el
-producto de la etapa de mejora es primero un plan inspeccionable,
-filtrable y editable.</p>
+<p>El perfil encontró problemas. ¿Cómo corregimos los que se pueden
+corregir sin romper nada, decidiendo nosotros lo que depende del dominio
+y dejando registro de cada cambio?</p>
+<blockquote>
+<p><strong>En esta guía:</strong></p>
+<ul>
+<li>qué propone <code><a href="../reference/planificar_limpieza.html">planificar_limpieza()</a></code>, qué recomienda y qué
+deja para nosotros;</li>
+<li>cómo elegir entre alternativas excluyentes para un mismo
+hallazgo;</li>
+<li>cómo aplicar el plan sobre una copia y comparar los valores antes y
+después;</li>
+<li>qué dice el plan de lo que no cubre;</li>
+<li>cómo imputar un valor desde una dependencia que confirmamos.</li>
+</ul>
+</blockquote>
+<p>Usamos <code>datos_administrativos</code>, el otro conjunto de
+ejemplo del paquete: 13 registros de personas con defectos sembrados,
+como una cédula <code>S/D</code>, un sexo en blanco, fechas de
+nacimiento en formatos mezclados, un ingreso <code>-99</code>, una
+columna constante y dos filas idénticas.</p>
 <div class="sourceCode" id="cb1"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va"><a href="https://github.com/sebollin/lupa" class="external-link">lupa</a></span><span class="op">)</span></span>
-<span><span class="fu"><a href="https://rdrr.io/r/utils/data.html" class="external-link">data</a></span><span class="op">(</span><span class="va">datos_administrativos</span><span class="op">)</span></span>
 <span></span>
-<span><span class="va">perfil</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/perfilar.html">perfilar</a></span><span class="op">(</span><span class="va">datos_administrativos</span><span class="op">)</span></span>
+<span><span class="va">datos_administrativos</span><span class="op">[</span>, <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"id_persona"</span>, <span class="st">"cedula"</span>, <span class="st">"fecha_nacimiento"</span>, <span class="st">"sexo"</span>, <span class="st">"ingreso"</span><span class="op">)</span><span class="op">]</span></span>
+<span><span class="co">#&gt;    id_persona      cedula fecha_nacimiento sexo ingreso</span></span>
+<span><span class="co">#&gt; 1           1 0.000.001-1       1980-01-31    F   25000</span></span>
+<span><span class="co">#&gt; 2           2 0.000.002-2       31/01/1981    M   31000</span></span>
+<span><span class="co">#&gt; 3           3    00000033       1982/02/15    F   28500</span></span>
+<span><span class="co">#&gt; 4           4 0.000.004-4       16-03-1983    M     -99</span></span>
+<span><span class="co">#&gt; 5           5       MAL-5       1984.04.17  S/D       0</span></span>
+<span><span class="co">#&gt; 6           6 0.000.006-6         19850518    F   33000</span></span>
+<span><span class="co">#&gt; 7           7 0.000.007-7       19/06/1986    M   34500</span></span>
+<span><span class="co">#&gt; 8           8 0.000.008-8       1987-07-20    F   29900</span></span>
+<span><span class="co">#&gt; 9           9 0.000.009-9       21/08/1988    M   31500</span></span>
+<span><span class="co">#&gt; 10         10 0.000.010-0       1989-09-22    F   32000</span></span>
+<span><span class="co">#&gt; 11         10 0.000.010-0       23/10/1989    M     -50</span></span>
+<span><span class="co">#&gt; 12          1 0.000.001-1       1980-01-31    F   25000</span></span>
+<span><span class="co">#&gt; 13         11         S/D             NULL      9999999</span></span></code></pre></div>
+<div class="section level2">
+<h2 id="un-plan-no-un-cambio">Un plan, no un cambio<a class="anchor" aria-label="anchor" href="#un-plan-no-un-cambio"></a>
+</h2>
+<p>Diagnosticar no autoriza a modificar datos.
+<code><a href="../reference/planificar_limpieza.html">planificar_limpieza()</a></code> no toca nada: devuelve una tabla de
+acciones posibles, una por fila, que se puede filtrar y editar como
+cualquier <code>data.frame</code>.</p>
+<div class="sourceCode" id="cb2"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">perfil</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/perfilar.html">perfilar</a></span><span class="op">(</span><span class="va">datos_administrativos</span><span class="op">)</span></span>
 <span><span class="va">plan</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/planificar_limpieza.html">planificar_limpieza</a></span><span class="op">(</span><span class="va">perfil</span>, <span class="va">datos_administrativos</span><span class="op">)</span></span>
-<span><span class="va">plan</span><span class="op">[</span>, <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span></span>
-<span>  <span class="st">"id_accion"</span>, <span class="st">"grupo"</span>, <span class="st">"columna"</span>, <span class="st">"estrategia"</span>,</span>
-<span>  <span class="st">"recomendada"</span>, <span class="st">"aplicar"</span>, <span class="st">"reversible"</span>, <span class="st">"estado"</span></span>
-<span><span class="op">)</span><span class="op">]</span></span>
-<span><span class="co">#&gt;      id_accion      grupo          columna                     estrategia recomendada</span></span>
-<span><span class="co">#&gt; 1  accion-0001       &lt;NA&gt;           cedula           revisar_cardinalidad       FALSE</span></span>
-<span><span class="co">#&gt; 2  accion-0002       &lt;NA&gt;           cedula  convertir_ausencias_textuales        TRUE</span></span>
-<span><span class="co">#&gt; 3  accion-0003       &lt;NA&gt; fecha_nacimiento           revisar_cardinalidad       FALSE</span></span>
-<span><span class="co">#&gt; 4  accion-0004       &lt;NA&gt; fecha_nacimiento  convertir_ausencias_textuales       FALSE</span></span>
-<span><span class="co">#&gt; 5  accion-0005       &lt;NA&gt; fecha_nacimiento     convertir_fecha_confirmada       FALSE</span></span>
-<span><span class="co">#&gt; 6  accion-0006       &lt;NA&gt;             sexo  convertir_ausencias_textuales        TRUE</span></span>
-<span><span class="co">#&gt; 7  accion-0007 grupo-0010          ingreso convertir_sentinelas_numericos       FALSE</span></span>
-<span><span class="co">#&gt; 8  accion-0008       &lt;NA&gt;     departamento           revisar_cardinalidad       FALSE</span></span>
-<span><span class="co">#&gt; 9  accion-0009 grupo-0012             pais     eliminar_columna_constante       FALSE</span></span>
-<span><span class="co">#&gt; 10 accion-0010       &lt;NA&gt;           correo           revisar_cardinalidad       FALSE</span></span>
-<span><span class="co">#&gt; 11 accion-0011 grupo-0017             &lt;NA&gt;        marcar_filas_duplicadas        TRUE</span></span>
-<span><span class="co">#&gt; 12 accion-0012 grupo-0017             &lt;NA&gt;    conservar_primera_duplicada       FALSE</span></span>
-<span><span class="co">#&gt; 13 accion-0013 grupo-0017             &lt;NA&gt;         conservar_mas_completa       FALSE</span></span>
-<span><span class="co">#&gt; 14 accion-0014 grupo-0018       id_persona     marcar_columnas_duplicadas        TRUE</span></span>
-<span><span class="co">#&gt; 15 accion-0015 grupo-0018       id_persona     eliminar_columna_duplicada       FALSE</span></span>
-<span><span class="co">#&gt;    aplicar reversible      estado</span></span>
-<span><span class="co">#&gt; 1    FALSE         NA informativa</span></span>
-<span><span class="co">#&gt; 2     TRUE      FALSE       lista</span></span>
-<span><span class="co">#&gt; 3    FALSE         NA informativa</span></span>
-<span><span class="co">#&gt; 4    FALSE      FALSE       lista</span></span>
-<span><span class="co">#&gt; 5    FALSE      FALSE   bloqueada</span></span>
-<span><span class="co">#&gt; 6     TRUE      FALSE       lista</span></span>
-<span><span class="co">#&gt; 7    FALSE      FALSE       lista</span></span>
-<span><span class="co">#&gt; 8    FALSE         NA informativa</span></span>
-<span><span class="co">#&gt; 9    FALSE      FALSE       lista</span></span>
-<span><span class="co">#&gt; 10   FALSE         NA informativa</span></span>
-<span><span class="co">#&gt; 11    TRUE       TRUE       lista</span></span>
-<span><span class="co">#&gt; 12   FALSE      FALSE       lista</span></span>
-<span><span class="co">#&gt; 13   FALSE      FALSE   bloqueada</span></span>
-<span><span class="co">#&gt; 14    TRUE       TRUE       lista</span></span>
-<span><span class="co">#&gt; 15   FALSE      FALSE       lista</span></span></code></pre></div>
+<span><span class="va">plan</span><span class="op">[</span>, <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"id_accion"</span>, <span class="st">"columna"</span>, <span class="st">"estrategia"</span>, <span class="st">"recomendada"</span>, <span class="st">"aplicar"</span><span class="op">)</span><span class="op">]</span></span>
+<span><span class="co">#&gt;      id_accion          columna                     estrategia recomendada aplicar</span></span>
+<span><span class="co">#&gt; 1  accion-0001           cedula           revisar_cardinalidad       FALSE   FALSE</span></span>
+<span><span class="co">#&gt; 2  accion-0002           cedula  convertir_ausencias_textuales        TRUE    TRUE</span></span>
+<span><span class="co">#&gt; 3  accion-0003 fecha_nacimiento           revisar_cardinalidad       FALSE   FALSE</span></span>
+<span><span class="co">#&gt; 4  accion-0004 fecha_nacimiento  convertir_ausencias_textuales       FALSE   FALSE</span></span>
+<span><span class="co">#&gt; 5  accion-0005 fecha_nacimiento     convertir_fecha_confirmada       FALSE   FALSE</span></span>
+<span><span class="co">#&gt; 6  accion-0006             sexo  convertir_ausencias_textuales        TRUE    TRUE</span></span>
+<span><span class="co">#&gt; 7  accion-0007          ingreso convertir_sentinelas_numericos       FALSE   FALSE</span></span>
+<span><span class="co">#&gt; 8  accion-0008     departamento           revisar_cardinalidad       FALSE   FALSE</span></span>
+<span><span class="co">#&gt; 9  accion-0009             pais     eliminar_columna_constante       FALSE   FALSE</span></span>
+<span><span class="co">#&gt; 10 accion-0010           correo           revisar_cardinalidad       FALSE   FALSE</span></span>
+<span><span class="co">#&gt; 11 accion-0011             &lt;NA&gt;        marcar_filas_duplicadas        TRUE    TRUE</span></span>
+<span><span class="co">#&gt; 12 accion-0012             &lt;NA&gt;    conservar_primera_duplicada       FALSE   FALSE</span></span>
+<span><span class="co">#&gt; 13 accion-0013             &lt;NA&gt;         conservar_mas_completa       FALSE   FALSE</span></span>
+<span><span class="co">#&gt; 14 accion-0014       id_persona     marcar_columnas_duplicadas        TRUE    TRUE</span></span>
+<span><span class="co">#&gt; 15 accion-0015       id_persona     eliminar_columna_duplicada       FALSE   FALSE</span></span></code></pre></div>
+<p><code>aplicar</code> dice qué se ejecutaría si aplicáramos el plan
+tal como está: por omisión, sólo lo recomendado. <code>estado</code>
+separa lo que está listo de lo que sólo pide revisar
+(<code>informativa</code>) y de lo que no se puede ejecutar sin una
+decisión previa (<code>bloqueada</code>):</p>
+<div class="sourceCode" id="cb3"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">plan</span><span class="op">[</span><span class="va">plan</span><span class="op">$</span><span class="va">estado</span> <span class="op">!=</span> <span class="st">"lista"</span>, <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"id_accion"</span>, <span class="st">"estrategia"</span>, <span class="st">"estado"</span><span class="op">)</span><span class="op">]</span></span>
+<span><span class="co">#&gt;      id_accion                 estrategia      estado</span></span>
+<span><span class="co">#&gt; 1  accion-0001       revisar_cardinalidad informativa</span></span>
+<span><span class="co">#&gt; 3  accion-0003       revisar_cardinalidad informativa</span></span>
+<span><span class="co">#&gt; 5  accion-0005 convertir_fecha_confirmada   bloqueada</span></span>
+<span><span class="co">#&gt; 8  accion-0008       revisar_cardinalidad informativa</span></span>
+<span><span class="co">#&gt; 10 accion-0010       revisar_cardinalidad informativa</span></span>
+<span><span class="co">#&gt; 13 accion-0013     conservar_mas_completa   bloqueada</span></span></code></pre></div>
+</div>
 <div class="section level2">
 <h2 id="recomendaciones-y-decisiones-de-dominio">Recomendaciones y decisiones de dominio<a class="anchor" aria-label="anchor" href="#recomendaciones-y-decisiones-de-dominio"></a>
 </h2>
 <p>Una acción se recomienda sólo si es correcta con independencia del
-dominio: por ejemplo, convertir un sentinela textual inequívoco a
+dominio: por ejemplo, convertir un centinela textual inequívoco a
 <code>NA</code> o quitar espacios de borde. Normalizar mayúsculas,
-convertir un sentinela numérico o winsorizar un valor extremo exige
-contexto y queda desactivado.</p>
-<p>La justificación acompaña cada alternativa.</p>
-<div class="sourceCode" id="cb2"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="va">plan</span><span class="op">[</span>, <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"estrategia"</span>, <span class="st">"justificacion"</span><span class="op">)</span><span class="op">]</span></span>
-<span><span class="co">#&gt;                        estrategia</span></span>
-<span><span class="co">#&gt; 1            revisar_cardinalidad</span></span>
-<span><span class="co">#&gt; 2   convertir_ausencias_textuales</span></span>
-<span><span class="co">#&gt; 3            revisar_cardinalidad</span></span>
-<span><span class="co">#&gt; 4   convertir_ausencias_textuales</span></span>
-<span><span class="co">#&gt; 5      convertir_fecha_confirmada</span></span>
-<span><span class="co">#&gt; 6   convertir_ausencias_textuales</span></span>
-<span><span class="co">#&gt; 7  convertir_sentinelas_numericos</span></span>
-<span><span class="co">#&gt; 8            revisar_cardinalidad</span></span>
-<span><span class="co">#&gt; 9      eliminar_columna_constante</span></span>
-<span><span class="co">#&gt; 10           revisar_cardinalidad</span></span>
-<span><span class="co">#&gt; 11        marcar_filas_duplicadas</span></span>
-<span><span class="co">#&gt; 12    conservar_primera_duplicada</span></span>
-<span><span class="co">#&gt; 13         conservar_mas_completa</span></span>
-<span><span class="co">#&gt; 14     marcar_columnas_duplicadas</span></span>
-<span><span class="co">#&gt; 15     eliminar_columna_duplicada</span></span>
-<span><span class="co">#&gt;                                                                                                                                                                                                                                             justificacion</span></span>
-<span><span class="co">#&gt; 1                                                                                                                                      El perfil señala el problema, pero no contiene conocimiento suficiente del dominio para elegir una transformación.</span></span>
-<span><span class="co">#&gt; 2   Las representaciones textuales del catálogo son marcadores habituales de ausencia. El cambio no es reversible: confirmar que ninguno de esos textos sea un valor legítimo de la columna -`NA` es el código de Namibia, `NULL` puede ser un apellido-.</span></span>
-<span><span class="co">#&gt; 3                                                                                                                                      El perfil señala el problema, pero no contiene conocimiento suficiente del dominio para elegir una transformación.</span></span>
-<span><span class="co">#&gt; 4    Uno de los textos detectados (null) podría ser un valor legítimo de la columna: `NA` es el código de Namibia, `NULL` puede ser un apellido. El cambio no es reversible y el paquete no puede decidirlo, así que la acción queda para activar a mano.</span></span>
-<span><span class="co">#&gt; 5                                                                        La conversión no es ejecutable sobre los datos completos: Hay valores presentes que no responden a los formatos confirmados. Se conserva como acción destructiva no recomendada.</span></span>
-<span><span class="co">#&gt; 6   Las representaciones textuales del catálogo son marcadores habituales de ausencia. El cambio no es reversible: confirmar que ninguno de esos textos sea un valor legítimo de la columna -`NA` es el código de Namibia, `NULL` puede ser un apellido-.</span></span>
-<span><span class="co">#&gt; 7                                                                                                                                                 Un sentinela numérico también puede ser un valor legítimo; requiere confirmar el diccionario del campo.</span></span>
-<span><span class="co">#&gt; 8                                                                                                                                      El perfil señala el problema, pero no contiene conocimiento suficiente del dominio para elegir una transformación.</span></span>
-<span><span class="co">#&gt; 9                                                                                                                             Eliminarla pierde contexto potencial; dejarla es la recomendación hasta confirmar que no aporta significado administrativo.</span></span>
-<span><span class="co">#&gt; 10                                                                                                                                     El perfil señala el problema, pero no contiene conocimiento suficiente del dominio para elegir una transformación.</span></span>
-<span><span class="co">#&gt; 11 Marcar conserva todas las filas, identifica las repeticiones y asigna un grupo a todos los registros que participan. No elimina filas; mientras las marcas esten incluidas, un perfil posterior no vuelve a contar esas filas como duplicadas exactas.</span></span>
-<span><span class="co">#&gt; 12                                                                                                                           Conserva la primera aparición exacta y elimina las siguientes; el orden de entrada pasa a determinar qué registro sobrevive.</span></span>
-<span><span class="co">#&gt; 13                                                                                                      Requiere configurar una clave: entre duplicados exactos todas las filas tienen la misma completitud y esta opción sería equivalente a la primera.</span></span>
-<span><span class="co">#&gt; 14                                                                                                                                                                         La anotación conserva ambas columnas y registra explícitamente la redundancia.</span></span>
-<span><span class="co">#&gt; 15                                                                                                                                           Eliminar una columna puede romper consumidores que dependan de su nombre aunque el contenido sea redundante.</span></span></code></pre></div>
-<p><code><a href="../reference/normalizacion.html">normalizacion()</a></code> permite declarar qué diferencias se
-ignoran al comparar. El perfil cambia sólo la representación de
-comparación; nunca modifica los datos. Los pasos de ligaduras y ancho
-completo se aplican por punto de código y los bytes UTF-8 válidos se
-declaran antes de operar, así que cumplen igual bajo un locale UTF-8 y
-bajo <code>LC_CTYPE = "C"</code>.</p>
-<div class="sourceCode" id="cb3"><pre class="downlit sourceCode r">
+convertir un centinela numérico o eliminar una columna constante exige
+contexto y queda desactivado. La justificación acompaña cada
+alternativa:</p>
+<div class="sourceCode" id="cb4"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">justificaciones</span> <span class="op">&lt;-</span> <span class="va">plan</span><span class="op">[</span><span class="va">plan</span><span class="op">$</span><span class="va">columna</span> <span class="op"><a href="https://rdrr.io/r/base/match.html" class="external-link">%in%</a></span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"sexo"</span>, <span class="st">"ingreso"</span><span class="op">)</span>, <span class="op">]</span></span>
+<span><span class="kw">for</span> <span class="op">(</span><span class="va">i</span> <span class="kw">in</span> <span class="fu"><a href="https://rdrr.io/r/base/seq.html" class="external-link">seq_len</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/nrow.html" class="external-link">nrow</a></span><span class="op">(</span><span class="va">justificaciones</span><span class="op">)</span><span class="op">)</span><span class="op">)</span> <span class="op">{</span></span>
+<span>  <span class="fu"><a href="https://rdrr.io/r/base/cat.html" class="external-link">cat</a></span><span class="op">(</span><span class="va">justificaciones</span><span class="op">$</span><span class="va">id_accion</span><span class="op">[</span><span class="va">i</span><span class="op">]</span>, <span class="va">justificaciones</span><span class="op">$</span><span class="va">estrategia</span><span class="op">[</span><span class="va">i</span><span class="op">]</span>, <span class="st">"\n"</span><span class="op">)</span></span>
+<span>  <span class="fu"><a href="https://rdrr.io/r/base/writeLines.html" class="external-link">writeLines</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/strwrap.html" class="external-link">strwrap</a></span><span class="op">(</span><span class="va">justificaciones</span><span class="op">$</span><span class="va">justificacion</span><span class="op">[</span><span class="va">i</span><span class="op">]</span>, <span class="fl">86</span>, indent <span class="op">=</span> <span class="fl">2</span>, exdent <span class="op">=</span> <span class="fl">2</span><span class="op">)</span><span class="op">)</span></span>
+<span><span class="op">}</span></span>
+<span><span class="co">#&gt; accion-0006 convertir_ausencias_textuales </span></span>
+<span><span class="co">#&gt;   Las representaciones textuales del catálogo son marcadores habituales de ausencia.</span></span>
+<span><span class="co">#&gt;   El cambio no es reversible: confirmar que ninguno de esos textos sea un valor</span></span>
+<span><span class="co">#&gt;   legítimo de la columna -`NA` es el código de Namibia, `NULL` puede ser un</span></span>
+<span><span class="co">#&gt;   apellido-.</span></span>
+<span><span class="co">#&gt; accion-0007 convertir_sentinelas_numericos </span></span>
+<span><span class="co">#&gt;   Un sentinela numérico también puede ser un valor legítimo; requiere confirmar el</span></span>
+<span><span class="co">#&gt;   diccionario del campo.</span></span></code></pre></div>
+<p>Convertir <code>S/D</code> en ausencia es seguro en casi cualquier
+columna, y aun así la justificación pide confirmarlo. Que
+<code>-99</code> signifique “sin dato” en <code>ingreso</code> sólo lo
+sabe quien conoce el sistema, así que la acción queda propuesta y sin
+activar.</p>
+<p>Si lo que molesta es sólo la comparación (mayúsculas, acentos,
+puntuación), no hace falta limpiar. <code><a href="../reference/normalizacion.html">normalizacion()</a></code> declara
+qué diferencias ignora el perfil al comparar valores; cambia la
+representación de comparación y nunca los datos:</p>
+<div class="sourceCode" id="cb5"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="../reference/normalizacion.html">normalizacion</a></span><span class="op">(</span>acentos <span class="op">=</span> <span class="cn">FALSE</span>, puntuacion <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span></span>
 <span><span class="co">#&gt; Perfil de normalizacion de lupa</span></span>
 <span><span class="co">#&gt;   minusculas = TRUE</span></span>
@@ -182,16 +213,15 @@ bajo <code>LC_CTYPE = "C"</code>.</p>
 <div class="section level2">
 <h2 id="grupos-mutuamente-excluyentes">Grupos mutuamente excluyentes<a class="anchor" aria-label="anchor" href="#grupos-mutuamente-excluyentes"></a>
 </h2>
-<p>Las alternativas de un mismo hallazgo comparten <code>grupo</code>.
-Como máximo una puede tener <code>aplicar = TRUE</code>.
+<p>Las alternativas para un mismo hallazgo comparten <code>grupo</code>,
+y como máximo una puede tener <code>aplicar = TRUE</code>.
 <code>decision_grupo</code> distingue un grupo pendiente de una decisión
-explícita de no actuar; no se inventa una fila ficticia de “no hacer
+explícita de no actuar: no se inventa una fila ficticia de “no hacer
 nada”.</p>
-<div class="sourceCode" id="cb4"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="va">grupos</span> <span class="op">&lt;-</span> <span class="va">plan</span><span class="op">[</span><span class="op">!</span><span class="fu"><a href="https://rdrr.io/r/base/NA.html" class="external-link">is.na</a></span><span class="op">(</span><span class="va">plan</span><span class="op">$</span><span class="va">grupo</span><span class="op">)</span>, <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span></span>
+<div class="sourceCode" id="cb6"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">plan</span><span class="op">[</span><span class="op">!</span><span class="fu"><a href="https://rdrr.io/r/base/NA.html" class="external-link">is.na</a></span><span class="op">(</span><span class="va">plan</span><span class="op">$</span><span class="va">grupo</span><span class="op">)</span>, <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span></span>
 <span>  <span class="st">"grupo"</span>, <span class="st">"estrategia"</span>, <span class="st">"recomendada"</span>, <span class="st">"aplicar"</span>, <span class="st">"decision_grupo"</span></span>
 <span><span class="op">)</span><span class="op">]</span></span>
-<span><span class="va">grupos</span></span>
 <span><span class="co">#&gt;         grupo                     estrategia recomendada aplicar decision_grupo</span></span>
 <span><span class="co">#&gt; 7  grupo-0010 convertir_sentinelas_numericos       FALSE   FALSE      pendiente</span></span>
 <span><span class="co">#&gt; 9  grupo-0012     eliminar_columna_constante       FALSE   FALSE    recomendada</span></span>
@@ -200,61 +230,112 @@ nada”.</p>
 <span><span class="co">#&gt; 13 grupo-0017         conservar_mas_completa       FALSE   FALSE    recomendada</span></span>
 <span><span class="co">#&gt; 14 grupo-0018     marcar_columnas_duplicadas        TRUE    TRUE    recomendada</span></span>
 <span><span class="co">#&gt; 15 grupo-0018     eliminar_columna_duplicada       FALSE   FALSE    recomendada</span></span></code></pre></div>
-<p>El modo guiado es una capa opcional. Fuera de una sesión interactiva
-devuelve el plan sin bloquear; en una consola recorre sólo decisiones
-pendientes o riesgosas.</p>
-<div class="sourceCode" id="cb5"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/base/identical.html" class="external-link">identical</a></span><span class="op">(</span><span class="fu"><a href="../reference/guiar_limpieza.html">guiar_limpieza</a></span><span class="op">(</span><span class="va">plan</span>, <span class="va">datos_administrativos</span><span class="op">)</span>, <span class="va">plan</span><span class="op">)</span></span>
-<span><span class="co">#&gt; [1] TRUE</span></span></code></pre></div>
+<p>En el grupo de las filas duplicadas, por ejemplo, las alternativas
+son marcarlas, conservar la primera o conservar la más completa; marcar
+es lo recomendado porque no elimina nada. <code>decision_grupo</code>
+vale <code>pendiente</code> donde falta nuestra decisión (el
+<code>-99</code> de <code>ingreso</code>) y <code>recomendada</code>
+donde el plan sigue su propia recomendación, aunque esa recomendación
+sea no actuar: la columna constante se deja como está.</p>
+<p>El modo guiado, <code><a href="../reference/guiar_limpieza.html">guiar_limpieza()</a></code>, es una capa opcional.
+En una consola recorre sólo las decisiones pendientes o riesgosas,
+pregunta qué hacer con cada una y devuelve el plan con nuestras
+respuestas:</p>
+<div class="sourceCode" id="cb7"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">plan</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/guiar_limpieza.html">guiar_limpieza</a></span><span class="op">(</span><span class="va">plan</span>, <span class="va">datos_administrativos</span><span class="op">)</span></span></code></pre></div>
+<p>Al tejer esta guía no hay nadie que conteste, y fuera de una sesión
+interactiva <code><a href="../reference/guiar_limpieza.html">guiar_limpieza()</a></code> devuelve el plan sin cambios y
+sin bloquear; por eso seguimos con las acciones que marcamos a mano.</p>
 </div>
 <div class="section level2">
-<h2 id="aplicar-conserva-evidencia">Aplicar conserva evidencia<a class="anchor" aria-label="anchor" href="#aplicar-conserva-evidencia"></a>
+<h2 id="aplicar-sobre-una-copia">Aplicar sobre una copia<a class="anchor" aria-label="anchor" href="#aplicar-sobre-una-copia"></a>
 </h2>
-<div class="sourceCode" id="cb6"><pre class="downlit sourceCode r">
+<p><code><a href="../reference/planificar_limpieza.html">aplicar()</a></code> ejecuta las acciones con
+<code>aplicar = TRUE</code> sobre una copia. El original queda intacto,
+y el registro dice qué hizo cada acción:</p>
+<div class="sourceCode" id="cb8"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">copia</span> <span class="op">&lt;-</span> <span class="va">datos_administrativos</span></span>
 <span><span class="va">resultado</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/planificar_limpieza.html">aplicar</a></span><span class="op">(</span><span class="va">plan</span>, <span class="va">datos_administrativos</span><span class="op">)</span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/base/identical.html" class="external-link">identical</a></span><span class="op">(</span><span class="va">datos_administrativos</span>, <span class="va">copia</span><span class="op">)</span></span>
 <span><span class="co">#&gt; [1] TRUE</span></span>
-<span><span class="va">resultado</span><span class="op">$</span><span class="va">registro</span><span class="op">[</span>, <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span></span>
-<span>  <span class="st">"estrategia"</span>, <span class="st">"n_cambiadas"</span>, <span class="st">"n_filas_eliminadas"</span>, <span class="st">"n_columnas_eliminadas"</span></span>
-<span><span class="op">)</span><span class="op">]</span></span>
-<span><span class="co">#&gt;                      estrategia n_cambiadas n_filas_eliminadas n_columnas_eliminadas</span></span>
-<span><span class="co">#&gt; 1       marcar_filas_duplicadas           2                  0                     0</span></span>
-<span><span class="co">#&gt; 2 convertir_ausencias_textuales           1                  0                     0</span></span>
-<span><span class="co">#&gt; 3 convertir_ausencias_textuales           2                  0                     0</span></span>
-<span><span class="co">#&gt; 4    marcar_columnas_duplicadas           1                  0                     0</span></span></code></pre></div>
+<span><span class="va">resultado</span><span class="op">$</span><span class="va">registro</span><span class="op">[</span>, <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"id_accion"</span>, <span class="st">"estrategia"</span>, <span class="st">"estado"</span>, <span class="st">"n_cambiadas"</span><span class="op">)</span><span class="op">]</span></span>
+<span><span class="co">#&gt;     id_accion                    estrategia    estado n_cambiadas</span></span>
+<span><span class="co">#&gt; 1 accion-0011       marcar_filas_duplicadas ejecutada           2</span></span>
+<span><span class="co">#&gt; 2 accion-0002 convertir_ausencias_textuales ejecutada           1</span></span>
+<span><span class="co">#&gt; 3 accion-0006 convertir_ausencias_textuales ejecutada           2</span></span>
+<span><span class="co">#&gt; 4 accion-0014    marcar_columnas_duplicadas ejecutada           1</span></span></code></pre></div>
+<p>Veamos los valores antes y después en las dos columnas que
+cambiaron:</p>
+<div class="sourceCode" id="cb9"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/base/data.frame.html" class="external-link">data.frame</a></span><span class="op">(</span></span>
+<span>  cedula_antes <span class="op">=</span> <span class="va">datos_administrativos</span><span class="op">$</span><span class="va">cedula</span>,</span>
+<span>  cedula_despues <span class="op">=</span> <span class="va">resultado</span><span class="op">$</span><span class="va">datos</span><span class="op">$</span><span class="va">cedula</span>,</span>
+<span>  sexo_antes <span class="op">=</span> <span class="va">datos_administrativos</span><span class="op">$</span><span class="va">sexo</span>,</span>
+<span>  sexo_despues <span class="op">=</span> <span class="va">resultado</span><span class="op">$</span><span class="va">datos</span><span class="op">$</span><span class="va">sexo</span></span>
+<span><span class="op">)</span></span>
+<span><span class="co">#&gt;    cedula_antes cedula_despues sexo_antes sexo_despues</span></span>
+<span><span class="co">#&gt; 1   0.000.001-1    0.000.001-1          F            F</span></span>
+<span><span class="co">#&gt; 2   0.000.002-2    0.000.002-2          M            M</span></span>
+<span><span class="co">#&gt; 3      00000033       00000033          F            F</span></span>
+<span><span class="co">#&gt; 4   0.000.004-4    0.000.004-4          M            M</span></span>
+<span><span class="co">#&gt; 5         MAL-5          MAL-5        S/D         &lt;NA&gt;</span></span>
+<span><span class="co">#&gt; 6   0.000.006-6    0.000.006-6          F            F</span></span>
+<span><span class="co">#&gt; 7   0.000.007-7    0.000.007-7          M            M</span></span>
+<span><span class="co">#&gt; 8   0.000.008-8    0.000.008-8          F            F</span></span>
+<span><span class="co">#&gt; 9   0.000.009-9    0.000.009-9          M            M</span></span>
+<span><span class="co">#&gt; 10  0.000.010-0    0.000.010-0          F            F</span></span>
+<span><span class="co">#&gt; 11  0.000.010-0    0.000.010-0          M            M</span></span>
+<span><span class="co">#&gt; 12  0.000.001-1    0.000.001-1          F            F</span></span>
+<span><span class="co">#&gt; 13          S/D           &lt;NA&gt;                    &lt;NA&gt;</span></span></code></pre></div>
+<p><code>S/D</code> y la celda en blanco pasaron a <code>NA</code>.
+<code>MAL-5</code> y <code>00000033</code> siguen igual: corregir una
+cédula exige saber cuál era, y eso no sale de los datos.</p>
+<p>Las marcas no cambian valores: agregan información. Las filas
+duplicadas quedan señaladas en dos columnas nuevas,
+<code>.fila_duplicada</code> (la repetición) y
+<code>.grupo_duplicado</code> (todas las filas del grupo), y las
+columnas duplicadas, en un atributo:</p>
+<div class="sourceCode" id="cb10"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">marcadas</span> <span class="op">&lt;-</span> <span class="op">!</span><span class="fu"><a href="https://rdrr.io/r/base/NA.html" class="external-link">is.na</a></span><span class="op">(</span><span class="va">resultado</span><span class="op">$</span><span class="va">datos</span><span class="op">$</span><span class="va">.grupo_duplicado</span><span class="op">)</span></span>
+<span><span class="va">resultado</span><span class="op">$</span><span class="va">datos</span><span class="op">[</span><span class="va">marcadas</span>, <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"id_persona"</span>, <span class="st">"cedula"</span>, <span class="st">".fila_duplicada"</span>, <span class="st">".grupo_duplicado"</span><span class="op">)</span><span class="op">]</span></span>
+<span><span class="co">#&gt;    id_persona      cedula .fila_duplicada .grupo_duplicado</span></span>
+<span><span class="co">#&gt; 1           1 0.000.001-1           FALSE                1</span></span>
+<span><span class="co">#&gt; 12          1 0.000.001-1            TRUE                1</span></span>
+<span><span class="fu"><a href="https://rdrr.io/r/base/attr.html" class="external-link">attr</a></span><span class="op">(</span><span class="va">resultado</span><span class="op">$</span><span class="va">datos</span>, <span class="st">"columnas_duplicadas_marcadas"</span><span class="op">)</span></span>
+<span><span class="co">#&gt;    columna_1 columna_2</span></span>
+<span><span class="co">#&gt; 1 id_persona  id_copia</span></span></code></pre></div>
 <p>El plan se puede editar antes de aplicar: quitar una acción, corregir
 un parámetro o cambiar <code>n_afectadas</code> no altera la obligación
 de observar qué pasó. Si una acción seleccionada no cambia ningún valor,
 el registro dice <code>fallida</code> con su motivo, incluso cuando el
 estimado está ausente (<code>NA</code>).</p>
-<p>Las acciones destructivas nunca son recomendadas. Aunque el usuario
-las active en el plan, <code><a href="../reference/planificar_limpieza.html">aplicar()</a></code> exige además
+<p>Las acciones destructivas nunca son recomendadas. Aunque las
+activemos en el plan, <code><a href="../reference/planificar_limpieza.html">aplicar()</a></code> exige además
 <code>permitir_eliminacion = TRUE</code>; lo retirado se conserva en
 <code>resultado$eliminados</code> salvo decisión contraria. Sin ese
-consentimiento la llamada se niega <strong>antes de tocar nada</strong>:
-no corre ninguna acción del plan, tampoco las que no eliminan, y el
-error dice cuáles son los dos caminos.</p>
-<p><code>n_no_reversibles</code> no se lee por el nombre de la acción
-sino por lo que quedó en el resultado: una normalización que funde dos
-valores que eran distintos —pasar <code>ana</code> y <code>ANA</code> a
-<code>ANA</code>— cuenta esas celdas, porque lo que las separaba no
-quedó en ningún lado.</p>
+consentimiento, la llamada se niega <strong>antes de tocar
+nada</strong>: no corre ninguna acción del plan, tampoco las que no
+eliminan, y el error dice cuáles son los dos caminos.</p>
+<p><code>n_no_reversibles</code>, en el registro, no se lee por el
+nombre de la acción sino por lo que quedó en el resultado: una
+normalización que funde dos valores que eran distintos (pasar
+<code>ana</code> y <code>ANA</code> a <code>ANA</code>) cuenta esas
+celdas, porque lo que las separaba no quedó en ningún lado.</p>
 </div>
 <div class="section level2">
 <h2 id="lo-que-el-plan-no-cubre-lo-dice">Lo que el plan no cubre lo dice<a class="anchor" aria-label="anchor" href="#lo-que-el-plan-no-cubre-lo-dice"></a>
 </h2>
-<p>Leer tres acciones no significa que lo demás esté bien, así que el
-plan declara sus huecos en tres atributos:
-<code>cobertura_diagnosticos</code> —los diagnósticos que el perfil no
-pudo evaluar—, <code>hallazgos_sin_accion_por_columna_ambigua</code>
-—los hallazgos cuya columna comparte nombre con otra, así que no hay
-forma de saber sobre cuál actuaría la limpieza— y
-<code>hallazgos_sin_accion</code> —los hallazgos que el perfil midió y
-que ninguna acción atiende, con el motivo medido de cada uno—. La
+<p>Que el plan tenga pocas acciones no significa que lo demás esté bien,
+así que declara sus huecos en tres atributos:
+<code>cobertura_diagnosticos</code> (los diagnósticos que el perfil no
+pudo evaluar), <code>hallazgos_sin_accion_por_columna_ambigua</code>
+(los hallazgos cuya columna comparte nombre con otra, así que no hay
+forma de saber sobre cuál actuaría la limpieza) y
+<code>hallazgos_sin_accion</code> (los hallazgos que el perfil midió y
+que ninguna acción atiende, con el motivo medido de cada uno). La
 impresión del plan los anuncia y el informe HTML les da su propia
 sección.</p>
-<div class="sourceCode" id="cb7"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb11"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">sin_accion</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/attr.html" class="external-link">attr</a></span><span class="op">(</span><span class="va">plan</span>, <span class="st">"hallazgos_sin_accion"</span><span class="op">)</span></span>
 <span><span class="va">sin_accion</span><span class="op">[</span>, <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"hallazgo"</span>, <span class="st">"columna"</span>, <span class="st">"severidad"</span><span class="op">)</span><span class="op">]</span></span>
 <span><span class="co">#&gt;                  hallazgo          columna  severidad</span></span>
@@ -262,59 +343,126 @@ sección.</p>
 <span><span class="co">#&gt; 2               faltantes             sexo sospechoso</span></span></code></pre></div>
 </div>
 <div class="section level2">
+<h2 id="volver-a-perfilar">Volver a perfilar<a class="anchor" aria-label="anchor" href="#volver-a-perfilar"></a>
+</h2>
+<p>El ciclo termina volviendo a perfilar el resultado y comparándolo con
+el perfil de partida. <code><a href="../reference/comparar_perfiles.html">comparar_perfiles()</a></code> dice qué
+hallazgos se resolvieron y cuáles aparecieron:</p>
+<div class="sourceCode" id="cb12"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">perfil_despues</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/perfilar.html">perfilar</a></span><span class="op">(</span><span class="va">resultado</span><span class="op">$</span><span class="va">datos</span><span class="op">)</span></span>
+<span><span class="va">cambios</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/comparar_perfiles.html">comparar_perfiles</a></span><span class="op">(</span><span class="va">perfil</span>, <span class="va">perfil_despues</span><span class="op">)</span></span>
+<span><span class="va">cambios</span><span class="op">[</span><span class="va">cambios</span><span class="op">$</span><span class="va">aspecto</span> <span class="op">==</span> <span class="st">"hallazgo"</span>, <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"columna"</span>, <span class="st">"cambio"</span>, <span class="st">"valor_anterior"</span>, <span class="st">"valor_actual"</span><span class="op">)</span><span class="op">]</span></span>
+<span><span class="co">#&gt;             columna        cambio        valor_anterior valor_actual</span></span>
+<span><span class="co">#&gt; 10 .grupo_duplicado     aparecido                  &lt;NA&gt;    constante</span></span>
+<span><span class="co">#&gt; 11 .grupo_duplicado     aparecido                  &lt;NA&gt;    faltantes</span></span>
+<span><span class="co">#&gt; 12             &lt;NA&gt; no_comparable      filas_duplicadas         &lt;NA&gt;</span></span>
+<span><span class="co">#&gt; 13           cedula      resuelto faltantes_disfrazados         &lt;NA&gt;</span></span>
+<span><span class="co">#&gt; 14             sexo      resuelto faltantes_disfrazados         &lt;NA&gt;</span></span></code></pre></div>
+<p>Los faltantes disfrazados de <code>cedula</code> y <code>sexo</code>
+quedaron <code>resuelto</code>. Los hallazgos <code>aparecido</code> en
+<code>.grupo_duplicado</code> son la huella de la marca: esa columna
+sólo tiene valor en las filas duplicadas, así que el perfil la encuentra
+casi vacía y con un único valor. Y <code>filas_duplicadas</code> queda
+<code>no_comparable</code>: la tabla ganó las columnas de marca, y con
+otro conjunto de columnas no se puede decidir si las filas repetidas se
+resolvieron. La comparación entre entregas se explica en <a href="historico-y-deriva.html">9. Comparar entregas y seguir la
+calidad</a>.</p>
+</div>
+<div class="section level2">
 <h2 id="imputar-por-una-dependencia">Imputar por una dependencia<a class="anchor" aria-label="anchor" href="#imputar-por-una-dependencia"></a>
 </h2>
-<p>Una dependencia funcional exacta permite deducir un valor desde los
-propios datos, pero sigue siendo una regularidad observada en una
-entrega. Puede representar una regla real o un error sistemático. Por
-eso la acción se ofrece con mapa y soporte, pero no queda recomendada ni
-activa.</p>
-<div class="sourceCode" id="cb8"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="va">datos</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/data.frame.html" class="external-link">data.frame</a></span><span class="op">(</span></span>
+<p>Una dependencia funcional exacta, como las que muestra <a href="estructura-no-declarada.html">4. Estructura no declarada</a>,
+permite deducir un valor desde los propios datos. Pero sigue siendo una
+regularidad observada en una entrega: puede representar una regla real o
+un error sistemático. Por eso la acción se ofrece con su mapa y su
+soporte, pero no queda recomendada ni activa.</p>
+<p>En esta tabla de trámites, <code>codigo</code> determina
+<code>descripcion</code>, y faltan algunas descripciones:</p>
+<div class="sourceCode" id="cb13"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">tramites</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/data.frame.html" class="external-link">data.frame</a></span><span class="op">(</span></span>
+<span>  id_tramite <span class="op">=</span> <span class="fl">101</span><span class="op">:</span><span class="fl">112</span>,</span>
 <span>  codigo <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/rep.html" class="external-link">rep</a></span><span class="op">(</span><span class="fl">1</span><span class="op">:</span><span class="fl">3</span>, each <span class="op">=</span> <span class="fl">4</span><span class="op">)</span>,</span>
-<span>  descripcion <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/rep.html" class="external-link">rep</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"A"</span>, <span class="st">"B"</span>, <span class="st">"C"</span><span class="op">)</span>, each <span class="op">=</span> <span class="fl">4</span><span class="op">)</span>,</span>
+<span>  descripcion <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/rep.html" class="external-link">rep</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"Alta"</span>, <span class="st">"Baja"</span>, <span class="st">"Cambio"</span><span class="op">)</span>, each <span class="op">=</span> <span class="fl">4</span><span class="op">)</span>,</span>
 <span>  stringsAsFactors <span class="op">=</span> <span class="cn">FALSE</span></span>
 <span><span class="op">)</span></span>
-<span><span class="va">datos</span><span class="op">$</span><span class="va">descripcion</span><span class="op">[</span><span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">2</span>, <span class="fl">6</span><span class="op">)</span><span class="op">]</span> <span class="op">&lt;-</span> <span class="cn">NA</span></span>
-<span><span class="va">perfil_fd</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/perfilar.html">perfilar</a></span><span class="op">(</span><span class="va">datos</span>, muestra <span class="op">=</span> <span class="cn">Inf</span><span class="op">)</span></span>
-<span><span class="va">plan_fd</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/planificar_limpieza.html">planificar_limpieza</a></span><span class="op">(</span><span class="va">perfil_fd</span>, <span class="va">datos</span><span class="op">)</span></span>
-<span><span class="va">imputacion</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/grep.html" class="external-link">grep</a></span><span class="op">(</span></span>
-<span>  <span class="st">"^imputar_dependencia_funcional"</span>, <span class="va">plan_fd</span><span class="op">$</span><span class="va">estrategia</span></span>
+<span><span class="va">tramites</span><span class="op">$</span><span class="va">descripcion</span><span class="op">[</span><span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">2</span>, <span class="fl">6</span><span class="op">)</span><span class="op">]</span> <span class="op">&lt;-</span> <span class="cn">NA</span></span>
+<span></span>
+<span><span class="va">perfil_fd</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/perfilar.html">perfilar</a></span><span class="op">(</span><span class="va">tramites</span>, muestra <span class="op">=</span> <span class="cn">Inf</span><span class="op">)</span></span>
+<span><span class="va">plan_fd</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/planificar_limpieza.html">planificar_limpieza</a></span><span class="op">(</span><span class="va">perfil_fd</span>, <span class="va">tramites</span><span class="op">)</span></span>
+<span><span class="va">imputacion</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/grep.html" class="external-link">grep</a></span><span class="op">(</span><span class="st">"^imputar_dependencia_funcional"</span>, <span class="va">plan_fd</span><span class="op">$</span><span class="va">estrategia</span><span class="op">)</span></span>
+<span><span class="va">plan_fd</span><span class="op">[</span><span class="va">imputacion</span>, <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"id_accion"</span>, <span class="st">"estrategia"</span>, <span class="st">"recomendada"</span>, <span class="st">"aplicar"</span><span class="op">)</span><span class="op">]</span></span>
+<span><span class="co">#&gt;     id_accion                            estrategia recomendada aplicar</span></span>
+<span><span class="co">#&gt; 3 accion-0003 imputar_dependencia_funcional__codigo       FALSE   FALSE</span></span>
+<span><span class="fu"><a href="https://rdrr.io/r/base/writeLines.html" class="external-link">writeLines</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/strwrap.html" class="external-link">strwrap</a></span><span class="op">(</span><span class="va">plan_fd</span><span class="op">$</span><span class="va">justificacion</span><span class="op">[</span><span class="va">imputacion</span><span class="op">]</span>, <span class="fl">88</span><span class="op">)</span><span class="op">)</span></span>
+<span><span class="co">#&gt; La relación codigo -&gt; descripcion es exacta en 10 filas presentes y cada valor usado</span></span>
+<span><span class="co">#&gt; tiene al menos 2 observaciones de soporte. Debe confirmarse como regla antes de</span></span>
+<span><span class="co">#&gt; imputar.</span></span>
+<span><span class="va">plan_fd</span><span class="op">$</span><span class="va">parametros</span><span class="op">[[</span><span class="va">imputacion</span><span class="op">]</span><span class="op">]</span><span class="op">$</span><span class="va">mapa</span></span>
+<span><span class="co">#&gt;   determinante dependiente</span></span>
+<span><span class="co">#&gt; 1            1        Alta</span></span>
+<span><span class="co">#&gt; 2            2        Baja</span></span>
+<span><span class="co">#&gt; 3            3      Cambio</span></span></code></pre></div>
+<p>El mapa es la regla observada: cada código con su descripción.
+Después de confirmar que es una regla del sistema, activamos la acción y
+registramos la decisión. La dependencia vuelve a validarse al aplicar el
+plan:</p>
+<div class="sourceCode" id="cb14"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">plan_fd</span><span class="op">$</span><span class="va">aplicar</span><span class="op">[</span><span class="va">imputacion</span><span class="op">]</span> <span class="op">&lt;-</span> <span class="cn">TRUE</span></span>
+<span><span class="va">plan_fd</span><span class="op">$</span><span class="va">decision_grupo</span><span class="op">[</span><span class="va">imputacion</span><span class="op">]</span> <span class="op">&lt;-</span> <span class="st">"elegida"</span></span>
+<span><span class="va">resultado_fd</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/planificar_limpieza.html">aplicar</a></span><span class="op">(</span><span class="va">plan_fd</span>, <span class="va">tramites</span><span class="op">)</span></span>
+<span><span class="va">resultado_fd</span><span class="op">$</span><span class="va">registro</span><span class="op">[</span>, <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"id_accion"</span>, <span class="st">"estrategia"</span>, <span class="st">"estado"</span>, <span class="st">"n_cambiadas"</span><span class="op">)</span><span class="op">]</span></span>
+<span><span class="co">#&gt;     id_accion                            estrategia    estado n_cambiadas</span></span>
+<span><span class="co">#&gt; 1 accion-0003 imputar_dependencia_funcional__codigo ejecutada           2</span></span>
+<span><span class="fu"><a href="https://rdrr.io/r/base/data.frame.html" class="external-link">data.frame</a></span><span class="op">(</span></span>
+<span>  codigo <span class="op">=</span> <span class="va">tramites</span><span class="op">$</span><span class="va">codigo</span>,</span>
+<span>  antes <span class="op">=</span> <span class="va">tramites</span><span class="op">$</span><span class="va">descripcion</span>,</span>
+<span>  despues <span class="op">=</span> <span class="va">resultado_fd</span><span class="op">$</span><span class="va">datos</span><span class="op">$</span><span class="va">descripcion</span></span>
 <span><span class="op">)</span></span>
-<span><span class="va">plan_fd</span><span class="op">[</span><span class="va">imputacion</span>, <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span></span>
-<span>  <span class="st">"estrategia"</span>, <span class="st">"recomendada"</span>, <span class="st">"aplicar"</span>, <span class="st">"justificacion"</span></span>
-<span><span class="op">)</span><span class="op">]</span></span>
-<span><span class="co">#&gt;                              estrategia recomendada aplicar</span></span>
-<span><span class="co">#&gt; 6 imputar_dependencia_funcional__codigo       FALSE   FALSE</span></span>
-<span><span class="co">#&gt;                                                                                                                                                                   justificacion</span></span>
-<span><span class="co">#&gt; 6 La relación codigo -&gt; descripcion es exacta en 10 filas presentes y cada valor usado tiene al menos 2 observaciones de soporte. Debe confirmarse como regla antes de imputar.</span></span></code></pre></div>
-<p>Después de confirmar la regla, el usuario activa una alternativa y
-registra la decisión. La dependencia vuelve a validarse al aplicar el
-plan.</p>
-<div class="sourceCode" id="cb9"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="va">plan_fd</span><span class="op">$</span><span class="va">aplicar</span><span class="op">[</span><span class="va">imputacion</span><span class="op">[</span><span class="fl">1</span><span class="op">]</span><span class="op">]</span> <span class="op">&lt;-</span> <span class="cn">TRUE</span></span>
-<span><span class="va">plan_fd</span><span class="op">$</span><span class="va">decision_grupo</span><span class="op">[</span><span class="va">imputacion</span><span class="op">[</span><span class="fl">1</span><span class="op">]</span><span class="op">]</span> <span class="op">&lt;-</span> <span class="st">"elegida"</span></span>
-<span><span class="va">resultado_fd</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/planificar_limpieza.html">aplicar</a></span><span class="op">(</span><span class="va">plan_fd</span>, <span class="va">datos</span><span class="op">)</span></span>
-<span><span class="va">resultado_fd</span><span class="op">$</span><span class="va">datos</span></span>
-<span><span class="co">#&gt;    codigo descripcion .fila_duplicada .grupo_duplicado</span></span>
-<span><span class="co">#&gt; 1       1           A           FALSE                1</span></span>
-<span><span class="co">#&gt; 2       1           A           FALSE               NA</span></span>
-<span><span class="co">#&gt; 3       1           A            TRUE                1</span></span>
-<span><span class="co">#&gt; 4       1           A            TRUE                1</span></span>
-<span><span class="co">#&gt; 5       2           B           FALSE                2</span></span>
-<span><span class="co">#&gt; 6       2           B           FALSE               NA</span></span>
-<span><span class="co">#&gt; 7       2           B            TRUE                2</span></span>
-<span><span class="co">#&gt; 8       2           B            TRUE                2</span></span>
-<span><span class="co">#&gt; 9       3           C           FALSE                3</span></span>
-<span><span class="co">#&gt; 10      3           C            TRUE                3</span></span>
-<span><span class="co">#&gt; 11      3           C            TRUE                3</span></span>
-<span><span class="co">#&gt; 12      3           C            TRUE                3</span></span>
-<span><span class="va">resultado_fd</span><span class="op">$</span><span class="va">registro</span><span class="op">[</span>, <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"estrategia"</span>, <span class="st">"n_cambiadas"</span><span class="op">)</span><span class="op">]</span></span>
-<span><span class="co">#&gt;                              estrategia n_cambiadas</span></span>
-<span><span class="co">#&gt; 1               marcar_filas_duplicadas          10</span></span>
-<span><span class="co">#&gt; 2 imputar_dependencia_funcional__codigo           2</span></span></code></pre></div>
-<p>El ciclo termina volviendo a perfilar. Así la mejora queda vinculada
-a un plan y a un registro, no a una transformación invisible.</p>
+<span><span class="co">#&gt;    codigo  antes despues</span></span>
+<span><span class="co">#&gt; 1       1   Alta    Alta</span></span>
+<span><span class="co">#&gt; 2       1   &lt;NA&gt;    Alta</span></span>
+<span><span class="co">#&gt; 3       1   Alta    Alta</span></span>
+<span><span class="co">#&gt; 4       1   Alta    Alta</span></span>
+<span><span class="co">#&gt; 5       2   Baja    Baja</span></span>
+<span><span class="co">#&gt; 6       2   &lt;NA&gt;    Baja</span></span>
+<span><span class="co">#&gt; 7       2   Baja    Baja</span></span>
+<span><span class="co">#&gt; 8       2   Baja    Baja</span></span>
+<span><span class="co">#&gt; 9       3 Cambio  Cambio</span></span>
+<span><span class="co">#&gt; 10      3 Cambio  Cambio</span></span>
+<span><span class="co">#&gt; 11      3 Cambio  Cambio</span></span>
+<span><span class="co">#&gt; 12      3 Cambio  Cambio</span></span></code></pre></div>
+<p>Las descripciones que faltaban se completaron desde el mapa
+(<code>n_cambiadas</code> las cuenta), y nada más cambió.</p>
+</div>
+<div class="section level2">
+<h2 id="resumen">Resumen<a class="anchor" aria-label="anchor" href="#resumen"></a>
+</h2>
+<ul>
+<li>
+<code><a href="../reference/planificar_limpieza.html">planificar_limpieza()</a></code> propone acciones y no toca los
+datos; sólo activa lo que es correcto con independencia del
+dominio.</li>
+<li>Las alternativas para un mismo hallazgo forman un grupo, y como
+máximo una se aplica.</li>
+<li>
+<code><a href="../reference/planificar_limpieza.html">aplicar()</a></code> trabaja sobre una copia, registra cada acción
+y exige consentimiento explícito para eliminar.</li>
+<li>El plan declara lo que no cubre, y volver a perfilar muestra qué se
+resolvió.</li>
+<li>Imputar desde una dependencia exige confirmarla antes como
+regla.</li>
+</ul>
+<p>Si la limpieza es parte de entregas periódicas y la pregunta es qué
+cambió entre una y otra, se puede saltar directamente a <a href="historico-y-deriva.html">9. Comparar entregas y seguir la
+calidad</a>.</p>
+</div>
+<div class="section level2">
+<h2 id="paso-siguiente">Paso siguiente<a class="anchor" aria-label="anchor" href="#paso-siguiente"></a>
+</h2>
+<p><a href="del-hallazgo-a-la-metrica.html">7. Del hallazgo a la
+métrica</a> (<code><a href="../articles/del-hallazgo-a-la-metrica.html">vignette("del-hallazgo-a-la-metrica")</a></code>): cómo
+pasar de lo que el perfil encontró a métricas que se miden y se evalúan
+contra un umbral.</p>
 </div>
   </main><aside class="col-md-3"><nav id="toc" aria-label="Table of contents"><h2>On this page</h2>
     </nav></aside>
