@@ -24,7 +24,7 @@ test_that("la no-medicion vive fuera de hallazgos y se cuenta por diagnostico", 
   ))
   salida <- salida_cli(print(sin_stringdist))
   expect_true(any(grepl("0 hallazgos sospechosos", salida, fixed = TRUE)))
-  expect_true(any(grepl("40 diagnosticos no evaluados", salida, fixed = TRUE)))
+  expect_true(any(grepl("40 diagn\u00f3sticos no evaluados", salida, fixed = TRUE)))
 })
 
 test_that("con stringdist una columna limpia no registra no-medicion", {

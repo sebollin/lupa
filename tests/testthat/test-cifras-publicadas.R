@@ -10,13 +10,18 @@
 
 test_that("la cifra de campos analiticos que publica la documentacion es la real", {
   raiz <- testthat::test_path("..", "..")
+  # Bajo `R CMD check` ni los README ni las fuentes de las vinetas estan a la
+  # vista; en el arbol de desarrollo estan todos, y ahi se recorren todos: una
+  # cifra escrita a mano puede aparecer en cualquier pagina.
+  skip_if_not(file.exists(file.path(raiz, "README.es.md")),
+              "Sin README a la vista: bajo R CMD check no viajan.")
   archivos <- c(
-    file.path(raiz, "vignettes", "perfilar-una-base.Rmd"),
-    file.path(raiz, "README.md"),
-    file.path(raiz, "README.es.md")
+    file.path(raiz, c("README.md", "README.es.md")),
+    list.files(file.path(raiz, "vignettes"), "\\.Rmd$", full.names = TRUE,
+               recursive = TRUE)
   )
-  skip_if_not(all(file.exists(archivos)),
-              "Sin vinetas ni README a la vista: bajo R CMD check no viajan todos.")
+  archivos <- archivos[file.exists(archivos)]
+  expect_gt(length(archivos), 10L)
 
   perfil <- perfilar(
     data.frame(a = 1:50, b = letters[rep(1:5, 10L)], stringsAsFactors = FALSE),
@@ -29,13 +34,18 @@ test_that("la cifra de campos analiticos que publica la documentacion es la real
   # una tabla vacia, todo lo de abajo pasaria sin medir nada.
   expect_gt(campos, 50L)
 
-  patron <- "([0-9]{2,4})[ -](campos anal|analytic-field|cam)"
+  # Las dos formas en que la documentacion cuenta los campos: nombrandolos
+  # ("117 campos analiticos") y sin nombrarlos ("el perfil cubre sus 117"). Una
+  # guarda que buscaba solo la primera paso sobre el caso que la motivo. Lo
+  # calculado en linea no aparece como numero en la fuente, y cero menciones
+  # escritas a mano es lo esperado.
+  patron <- "([0-9]{2,4})[ -](campos anal|analytic-field|analytic field|cam)|cubre sus ([0-9]{2,4})"
   for (archivo in archivos) {
     texto <- paste(readLines(archivo, warn = FALSE, encoding = "UTF-8"),
                    collapse = " ")
     encontradas <- regmatches(texto, gregexpr(patron, texto, perl = TRUE))[[1L]]
     if (!length(encontradas)) next
-    cifras <- unique(as.integer(sub("^([0-9]+).*$", "\\1", encontradas)))
+    cifras <- unique(as.integer(sub("^\\D*([0-9]+).*$", "\\1", encontradas)))
     for (cifra in cifras) {
       expect_equal(cifra, campos, info = basename(archivo))
     }
@@ -63,7 +73,11 @@ test_that("la tabla de evidencia del README sale de la corrida que dice", {
   for (idioma in names(archivos)) {
     lineas <- readLines(archivos[[idioma]], warn = FALSE, encoding = "UTF-8")
     inicio <- grep(encabezados[[idioma]], lineas, fixed = TRUE)
-    skip_if(!length(inicio), paste("sin el encabezado en", idioma))
+    # Sin el encabezado la guarda no tiene que mirar: eso es una falla, no un
+    # salto. Saltearla dejaba de medir la tabla en silencio el dia en que alguien
+    # reescribiera la frase.
+    expect_gt(length(inicio), 0L, label = paste("encabezado de la tabla en", idioma))
+    if (!length(inicio)) next
     # La tabla termina en la primera linea en blanco despues de empezar.
     resto <- lineas[seq(inicio[[1L]] + 1L, length(lineas))]
     fin <- which(!nzchar(trimws(resto)) & seq_along(resto) > 2L)[[1L]]
@@ -75,7 +89,7 @@ test_that("la tabla de evidencia del README sale de la corrida que dice", {
     tabla <- tabla[!grepl("`tipo_hallazgo`", tabla, fixed = TRUE)]
 
     citados <- unique(unlist(regmatches(
-      tabla, gregexpr("(?<=\\| `)[a-z_]+(?=` \\|)", tabla, perl = TRUE)
+      tabla, gregexpr("(?<=\\| `)[a-z_]+(?=` *\\|)", tabla, perl = TRUE)
     )))
     expect_gt(length(citados), 5L)
     # Cada `tipo_hallazgo` que la tabla cita tiene que salir de esa corrida: la

@@ -197,8 +197,8 @@
 #' segundos que guarda. `NaN` es ausente y devuelve `NA`, igual que
 #' en el resto del paquete. Las letras se pasan a mayúsculas sólo dentro de ASCII:
 #' `toupper()` convierte la s larga (U+017F) en `S` y la i sin punto (U+0131) en
-#' `I`, y con eso una s larga seguida de `e` pasaba por un código ISO; ahora es
-#' inválida. Y la marca de codificación del texto
+#' `I`, y con eso una s larga seguida de `e` pasaría por un código ISO; con la
+#' conversión limitada a ASCII es inválida. Y la marca de codificación del texto
 #' —`latin1` o UTF-8— no cambia la respuesta.
 #'
 #' `validar_correo()` comprueba un subconjunto práctico y deliberadamente

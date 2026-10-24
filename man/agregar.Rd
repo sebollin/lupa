@@ -79,9 +79,9 @@ producen resultado real en \verb{[0, 1]}. Los tres tipos no acotados
 los declara: el promedio de una duración en días es un número de días, y
 publicarlo como resultado real en \verb{[0, 1]} lo presentaría como una
 proporción. La guarda es por \strong{tipo declarado}, no por el valor observado:
-antes una duración de \verb{0,25} y \verb{0,75} días pasaba y la misma métrica con
-\verb{1,5} días abortaba, así que el mismo modelo cambiaba de conducta según los
-datos que le tocaran. Para el promedio ponderado, los pesos deben estar en
+una duración de \verb{0,25} y \verb{0,75} días se rechaza igual que una de \verb{1,5} días,
+así que el mismo modelo se comporta igual con cualquier dato que le toque.
+Para el promedio ponderado, los pesos deben estar en
 \verb{[0, 1]} y sumar uno dentro de cada objeto de destino. La columna
 \code{orientacion} se conserva sin invertir el resultado: un ratio de una métrica
 de defecto sigue siendo la proporción de defectos.
@@ -99,9 +99,10 @@ con el signo al revés.
 \code{alcance_medidas} —«midió tres celdas de cuatro»— también viaja, pero
 \strong{reexpresado en la clave del agregado}: la tabla que publica \code{\link[=medir]{medir()}} está
 indexada por \code{metrica_instanciada} (\code{Formato@t.cod}) y el agregado renombra la
-métrica (\code{agregada:ratio:Formato}), así que arrastrarla tal cual dejaba una
-declaración que no se podía atribuir a ninguna fila. Los conteos se \strong{suman}
-por objeto de destino, y sólo cuando todas las partes declaran la misma
+métrica (\code{agregada:ratio:Formato}), así que arrastrarla tal cual dejaría una
+declaración que no se podría atribuir a ninguna fila. Los conteos se
+\strong{suman} por objeto de destino, y sólo cuando todas las partes declaran la
+misma
 unidad; si no, la fila declara la mezcla en lugar de publicar un total que no
 estaría en ninguna unidad. Las partes \strong{completas} también suman —una
 columna de 6 de 6 junto a una de 5 de 6 da 11 de 12—, también cuando se
@@ -142,9 +143,10 @@ de la parte que recibió cada uno, de modo que el número se pueda rehacer con
 lo que el objeto trae. Y si alguna parte entró con peso cero, se declara en
 \code{partes_con_peso_cero}: entró al número sin aportarle nada, queda contada en
 la identidad de la fila y leerlo sin saberlo es leer otra cosa. La
-declaración depende de que \strong{haya} un peso cero, no del destino: antes sólo
-existía en los cuatro destinos que tienen cobertura de frontera, y en
-\code{conjuntoEntidades} el mismo peso cero pasaba en silencio.
+declaración depende de que \strong{haya} un peso cero, no del destino: va como
+atributo en todos, también en \code{conjuntoEntidades}, y en los cuatro destinos
+que tienen cobertura de frontera entra además en esa cobertura, que es la
+que se imprime.
 
 Cuando el destino es \code{conjuntoEntidades}, \code{promedio} combina las partes sin
 pesos porque las medidas de nivel \code{entidad} no llevan su cantidad de filas.

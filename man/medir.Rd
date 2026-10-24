@@ -98,7 +98,7 @@ método falló sobre estos datos —una columna sin dos valores para
 devolvió ninguna medida sobre un universo que sí tiene valores. Cuando el
 método falló, el motivo conserva su mensaje, con los valores de las
 columnas personales enmascarados si \code{proteger_datos_personales = TRUE}, y
-\code{medir()} \strong{avisa}: la falla ya no se lleva la medición de las demás
+\code{medir()} \strong{avisa}: la falla no se lleva la medición de las demás
 métricas, pero tampoco queda muda. Y cuando \strong{sí} pudo medirse
 pero sobre \strong{menos} elementos de los que hay en su universo aplicable —una
 métrica por celda no mide la celda vacía, que no produce medida ni cuenta

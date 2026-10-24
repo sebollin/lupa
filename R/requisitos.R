@@ -60,13 +60,13 @@
       "No aplica: RSQLite incluye SQLite.",
       "Usar un cliente libpq ya instalado en un prefijo del usuario o compilarlo alli y se\u00f1alar su `pg_config` al instalar `RPostgres`.",
       "Compilar MySQL Connector/C o MariaDB Connector/C en un prefijo del usuario y se\u00f1alar sus rutas de cabeceras y bibliotecas al instalar `RMySQL`.",
-      "Compilar FreeTDS en un prefijo del usuario y pasar la ruta directa del controlador en la cadena de conexion; no hace falta registrar un DSN.",
+      "Compilar FreeTDS en un prefijo del usuario y pasar la ruta directa del controlador en la cadena de conexi\u00f3n; no hace falta registrar un DSN.",
       "No aplica: duckdb incluye su biblioteca.",
       "Compilar MariaDB Connector/C en un prefijo del usuario y se\u00f1alarlo mediante `MARIADB_HOME` al instalar `RMariaDB`.",
       "Descargar el Instant Client como zip, descomprimirlo en una carpeta del usuario y declarar `OCI_LIB` y `OCI_INC` al compilar `ROracle`.",
       "Descargar el Instant Client como zip, descomprimirlo en una carpeta del usuario y declarar `OCI_LIB` y `OCI_INC` al compilar `ROracle`.",
       "Usar la biblioteca libcurl de la instalacion de R; si no alcanza, compilar libcurl en un prefijo del usuario.",
-      "Compilar FreeTDS en un prefijo del usuario y pasar la ruta del controlador en la cadena de conexion; no hace falta registrarlo en el sistema.",
+      "Compilar FreeTDS en un prefijo del usuario y pasar la ruta del controlador en la cadena de conexi\u00f3n; no hace falta registrarlo en el sistema.",
       "Instalar el paquete R y su cliente en un prefijo del usuario, usando las variables que documente ese controlador."
     ),
     dialecto = c(
@@ -91,18 +91,18 @@
       "reserva"
     ),
     fuente_estado = c(
-      "Interfaz DBI; no es un motor de la tabla del README.",
-      "README.md y README.es.md, tabla de motores.",
-      "README.md y README.es.md, tabla de motores.",
-      "README.md y README.es.md, tabla de motores.",
-      "README.md y README.es.md, tabla de motores.",
-      "README.md y README.es.md, tabla de motores.",
-      "README.md y README.es.md, tabla de motores.",
-      "README.md y README.es.md: esperado, no comprobado contra el motor.",
-      "README.md y README.es.md: esperado, no comprobado contra el motor.",
-      "No figura como fila de motor en los README.",
-      "No figura como fila de motor en los README.",
-      "README.md y README.es.md: reserva para cualquier compatible con DBI."
+      "Interfaz DBI, no un motor: no tiene estado de prueba propio.",
+      "Verificado con benchmark/verificar_motor.R, en el repositorio del paquete; versi\u00f3n, controlador y fecha de la corrida en el art\u00edculo \"Motores y escala\".",
+      "Verificado con benchmark/verificar_motor.R, en el repositorio del paquete; versi\u00f3n, controlador y fecha de la corrida en el art\u00edculo \"Motores y escala\".",
+      "Verificado con benchmark/verificar_motor.R, en el repositorio del paquete; versi\u00f3n, controlador y fecha de la corrida en el art\u00edculo \"Motores y escala\".",
+      "Verificado con benchmark/verificar_motor.R, en el repositorio del paquete; versi\u00f3n, controlador y fecha de la corrida en el art\u00edculo \"Motores y escala\".",
+      "Verificado con benchmark/verificar_motor.R, en el repositorio del paquete; versi\u00f3n, controlador y fecha de la corrida en el art\u00edculo \"Motores y escala\".",
+      "Verificado con benchmark/verificar_motor.R, en el repositorio del paquete; versi\u00f3n, controlador y fecha de la corrida en el art\u00edculo \"Motores y escala\".",
+      "Fuera de la verificaci\u00f3n de benchmark/verificar_motor.R: el dialecto est\u00e1 implementado y no se comprob\u00f3 contra un servidor real.",
+      "Fuera de la verificaci\u00f3n de benchmark/verificar_motor.R: el dialecto est\u00e1 implementado y no se comprob\u00f3 contra un servidor real.",
+      "Fuera de la verificaci\u00f3n de benchmark/verificar_motor.R: sin medici\u00f3n publicada.",
+      "Fuera de la verificaci\u00f3n de benchmark/verificar_motor.R: requiere una corrida espec\u00edfica.",
+      "Reserva para cualquier controlador compatible con DBI: benchmark/verificar_motor.R no lo cubre sin una configuraci\u00f3n espec\u00edfica."
     ),
     sinonimos = c(
       "dbi,interfaz dbi", "sqlite", "postgres,postgresql,postgresql 16",
@@ -135,10 +135,14 @@
 .detener_error_requisito <- function(clase, lineas) {
   herencia <- if (grepl("dbi", clase, fixed = TRUE, useBytes = TRUE)) "lupa_error_dbi" else character()
   lineas <- .marcar_objeto_para_exhibir(lineas)
-  cli::cli_abort(
-    .cli_literal(lineas),
-    class = c(clase, "lupa_error_requisito", herencia, "error", "condition")
-  )
+  # `cli::cli_abort()` necesita rlang, que cli solo sugiere y el paquete no
+  # declara: sin rlang instalado, el error que dice que falta un paquete abortaba
+  # con otro error. `format_error()` arma el mismo texto, con sus vinetas, sin
+  # rlang, y la condicion conserva sus clases.
+  .detener(structure(
+    class = c(clase, "lupa_error_requisito", herencia, "error", "condition"),
+    list(message = cli::format_error(.cli_literal(lineas)), call = NULL)
+  ))
 }
 
 .requerir_dbi_accionable <- function(accion = "usar una conexion DBI") {
@@ -420,10 +424,13 @@ print.requisitos_motor <- function(x, ...) {
 #' una comprobación específica: cuando corresponde, la columna lo deja como
 #' `no_comprobada` y conserva las rutas de resolución posibles.
 #'
-#' El estado `probado` se copia de la tabla de motores de los README. `esperado`
+#' El estado `probado` se toma de la verificación que corre
+#' `benchmark/verificar_motor.R` en el repositorio del paquete; el artículo
+#' "Motores y escala" del sitio publica, por motor, la versión del servidor, el
+#' controlador, la fecha y el resultado de cada comprobación. `esperado`
 #' significa que el dialecto está implementado pero no se comprobó contra ese
-#' motor real en este repositorio. Los motores que no figuran en esa tabla no se
-#' presentan como probados.
+#' motor real en esa verificación. Los motores que no cubre no se presentan como
+#' probados.
 #'
 #' Ante una conexión abierta, `coleccion()` y `perfilar_coleccion()` piden el
 #' paquete del **controlador con que se abrió**, que reconocen por la clase de

@@ -3426,7 +3426,7 @@
              .senas_conexion_dbi(conexion), perl = TRUE)) {
     return(.estimacion_derrame_vacia_postgresql_dbi(
       motivo = paste(
-        "No se pudo estimar el derrame: la conexion no fue reconocida como",
+        "No se pudo estimar el derrame: la conexi\u00f3n no fue reconocida como",
         "PostgreSQL y no hay un `pg_stats` portable."
       )
     ))
@@ -3980,7 +3980,7 @@
   if (!grepl(.regex_sin_caja("postgres|pqconnection"),
              .senas_conexion_dbi(conexion), perl = TRUE)) {
     return(vacia(motivo = paste(
-      "No se pudo estimar el derrame de", familia, ": la conexion no fue",
+      "No se pudo estimar el derrame de", familia, ": la conexi\u00f3n no fue",
       "reconocida como PostgreSQL y no hay un `pg_stats` portable."
     )))
   }
@@ -8198,7 +8198,7 @@
     } else {
       .detener_dbi(
         "lupa_error_argumento_dbi",
-        "`politica_costo` debe ser un unico valor: `todas` o `por_cardinalidad`."
+        "`politica_costo` debe ser un \u00fanico valor: `todas` o `por_cardinalidad`."
       )
     }
   }
@@ -8208,7 +8208,7 @@
     .detener_dbi(
       "lupa_error_argumento_dbi",
       paste0(
-        "`politica_costo` debe ser un unico valor: `todas` o `por_cardinalidad`."
+        "`politica_costo` debe ser un \u00fanico valor: `todas` o `por_cardinalidad`."
       )
     )
   }
@@ -9083,7 +9083,7 @@
     ))
   }
   paste(
-    "La tabla solicitada no existe en la conexion DBI, o la credencial no",
+    "La tabla solicitada no existe en la conexi\u00f3n DBI, o la credencial no",
     "tiene permiso para verla. El motor no distinguio entre las dos, y",
     "`dbExistsTable()` tampoco.", detalle
   )
@@ -9541,10 +9541,10 @@
     conservar$moda <- FALSE
     detalle$moda$estado <- "omitida_por_costo"
     detalle$moda$motivo <- paste0(
-      "Se omitio la moda de la columna `", columna, "`: tiene ", distintos,
+      "Se omiti\u00f3 la moda de la columna `", columna, "`: tiene ", distintos,
       " valores distintos de ",
-      validos, " validos (", formatC(proporcion, format = "f", digits = 3),
-      ") sobre ", alcance, "; la politica optativa considera que agrupar u",
+      validos, " v\u00e1lidos (", formatC(proporcion, format = "f", digits = 3),
+      ") sobre ", alcance, "; la pol\u00edtica optativa considera que agrupar u",
       " ordenar toda la columna no justifica el costo. Para pedirla igual, use",
       " `politica_costo = \"todas\"`; para mover el criterio, cambie",
       " `umbral_cardinalidad`."
@@ -14654,10 +14654,11 @@
 #'   respuesta en `resumen_tabla$meta$clave`; es una lectura de metadatos y no
 #'   un recorrido de la tabla.
 #'
-#'   Contar sólo el motor daba juicios falsos con números ciertos: una tabla de
-#'   3.912 filas con una columna de geometría en texto pedía 64.592 lecturas
-#'   —magnitud `"baja"`— y tardaba 35 segundos, porque el trabajo estaba en la
-#'   comparación de formas, que no es una lectura de fila. El método de
+#'   Contar sólo el motor daría juicios falsos con números ciertos: una tabla
+#'   chica con una columna de geometría en texto pide pocas lecturas —magnitud
+#'   `"baja"` del lado del motor— y puede tardar mucho más de lo que eso
+#'   sugiere, porque el trabajo está en la comparación de formas, que no es una
+#'   lectura de fila. El método de
 #'   impresión muestra las dos mitades, avisa cuando la magnitud es alta y
 #'   nombra las palancas para acotarla, que no son las mismas de un lado que
 #'   del otro.
@@ -16426,7 +16427,7 @@ print.plan_perfilado_dbi <- function(x, ...) {
   } else {
     list(
       unico = FALSE, sql = NA_character_,
-      motivo = "No se declaro `orden_muestra`; SQL no garantiza el orden de las filas."
+      motivo = "No se declar\u00f3 `orden_muestra`; SQL no garantiza el orden de las filas."
     )
   }
   total_numero <- .numero_dbi(n_total)
@@ -18190,10 +18191,9 @@ print.plan_perfilado_dbi <- function(x, ...) {
 #' `bloque_muestra = "solo_agregados"` sigue omitiendo el objeto
 #' `perfil_muestra`, pero no vuelve a seleccionar filas.
 #'
-#' Antes, la promesa era literalmente: "la función no escribe en la conexión ni
-#' crea objetos temporales". Ahora es: "no escribe en la conexión ni crea
-#' objetos temporales del motor; `muestra_motor` puede crear un spool externo
-#' temporal de sesión, con bytes, checksum, presupuesto y estado". `DBI` es una
+#' La función no escribe en la conexión ni crea objetos temporales del motor;
+#' `muestra_motor` puede crear un spool externo temporal de sesión, con bytes,
+#' checksum, presupuesto y estado. `DBI` es una
 #' dependencia opcional. Cada agregado no disponible queda en `NA` y su
 #' consulta, estado y motivo se conservan en `resumen_tabla$sql`.
 #' Las expresiones se ejecutan como capacidades a comprobar, no como un
@@ -18278,7 +18278,7 @@ print.plan_perfilado_dbi <- function(x, ...) {
 #' Lo mismo con una columna cuyo nombre la sesión no puede escribir: odbc pasa
 #' la consulta por la codificación nativa, y bajo el locale `C` —el de un
 #' `Rscript` de cron en Linux— un nombre con tilde no se puede mandar; mandarlo
-#' dejaba la conexión rota y la consulta siguiente hacía caer a R. La consulta
+#' dejaría la conexión rota y la consulta siguiente haría caer a R. La consulta
 #' no se envía: la columna queda en `no_disponible` con ese motivo, y una tabla
 #' con un nombre así da `lupa_error_codificacion_dbi`. Para leerlas, correr la
 #' sesión con un locale UTF-8 (`LC_ALL=C.UTF-8`). RPostgres, RSQLite y duckdb
@@ -18298,9 +18298,9 @@ print.plan_perfilado_dbi <- function(x, ...) {
 #' escribir sobre la tabla derivada, así que la muestra del motor usa otra forma
 #' que el motor acepte o se degrada con su motivo (limitación conocida). Con odbc las consultas se ejecutan sin preparar
 #' (`immediate = TRUE`, como el `dbGetQuery()` de odbc): preparada, una consulta
-#' rechazada por un permiso de columna dejaba la conexión rota y la siguiente
-#' hacía caer a R. Lo que el catálogo no ve —un sinónimo, una tabla de otra
-#' base, una tabla temporal— se lee como antes: el rechazo del motor se declara
+#' rechazada por un permiso de columna dejaría la conexión rota y la siguiente
+#' haría caer a R. Lo que el catálogo no ve —un sinónimo, una tabla de otra
+#' base, una tabla temporal— se intenta leer: el rechazo del motor se declara
 #' y la conexión sigue.
 #' Con enmascaramiento dinámico de SQL Server (`MASKED WITH`, 2016+) y una
 #' credencial sin `UNMASK` sobre la columna o la base, el motor devuelve la
@@ -18343,7 +18343,7 @@ print.plan_perfilado_dbi <- function(x, ...) {
 #' `read.csv(encoding = "latin1")`— se convierte a UTF-8 y se lee, y uno con
 #' bytes que no son UTF-8 válido y no declaran su codificación —`read.csv()`
 #' sin `fileEncoding` sobre un archivo latin1— no se adivina: con odbc da
-#' `lupa_error_codificacion_dbi` antes de tocar la conexión, que antes quedaba
+#' `lupa_error_codificacion_dbi` antes de tocar la conexión, que así no queda
 #' rota. Una columna de `orden_muestra` que la sesión no puede escribir da
 #' también `lupa_error_codificacion_dbi`, con ese remedio: no la rechazó el
 #' motor, no se le mandó.
@@ -18393,7 +18393,7 @@ print.plan_perfilado_dbi <- function(x, ...) {
 #' motivo es la que detectó el cambio: `dbSendQuery`, `dbFetch` o
 #' `dbClearResult`. Las sondas de sintaxis de otros motores no se ejecutan
 #' cuando el controlador ya fue reconocido; así se evita que `XACT_ABORT ON`
-#' aborte la transacción por una sentencia que nunca correspondía a ese motor.
+#' aborte la transacción por una sentencia que no corresponde a ese motor.
 #' Un desbordamiento de datos que el motor no puede aislar puede abortarla
 #' igualmente y queda documentado en `lupa_error_transaccion_dbi`. MySQL,
 #' MariaDB y SQLite no abortan la transacción por el error de una consulta.
@@ -18488,7 +18488,7 @@ print.plan_perfilado_dbi <- function(x, ...) {
 #' `estrategia_solicitada`, `estrategia_resuelta` y `estado`.
 #'
 #' Las comparaciones que tienen una cota dura usan solo valores del mismo grupo
-#' de consistencia. En esta version, el grupo queda probado por el
+#' de consistencia. El grupo queda probado por el
 #' `consulta_id` que ya se registra en `resumen_tabla$sql`: dos metricas con el
 #' mismo identificador salieron de la misma sentencia. La consulta exacta de
 #' distintos trae el conteo de no nulos `AS n_validos_guard` junto a
@@ -18523,11 +18523,12 @@ print.plan_perfilado_dbi <- function(x, ...) {
 #' valor utilizable queda `no_disponible`.
 #'
 #' @section Motores medidos:
-#' El camino principal —el que se mide en cada versión contra motores reales— es
-#' PostgreSQL por RPostgres, medido en la 9.3 y en la 16, y SQL Server 2022 por
-#' odbc con el controlador FreeTDS, en sesiones UTF-8 y bajo el locale `C` de un
-#' `Rscript` de cron. SQLite (RSQLite) y duckdb se ejercitan en las pruebas del
-#' paquete; MySQL y MariaDB (RMariaDB) se midieron de forma puntual. Con otro
+#' El camino principal es PostgreSQL por RPostgres, en la 9.3 y en la 16, y SQL
+#' Server 2022 por odbc con el controlador FreeTDS, en sesiones UTF-8 y bajo el
+#' locale `C` de un `Rscript` de cron. Los siete motores —PostgreSQL 9.3 y 16,
+#' SQL Server 2022, MySQL y MariaDB (RMariaDB), SQLite (RSQLite) y duckdb— se
+#' verifican contra el motor real con el guion `benchmark/verificar_motor.R`, y
+#' SQLite y duckdb se ejercitan además en las pruebas del paquete. Con otro
 #' motor, otro controlador u otra versión la función corre por la vía portable
 #' (ver «Dialecto») y declara en la cobertura lo que no pudo medir, pero sus
 #' cifras no están comprobadas contra ese motor. Las configuraciones avanzadas
@@ -18596,7 +18597,7 @@ print.plan_perfilado_dbi <- function(x, ...) {
 #'   toma del texto de la sesión: antes de PostgreSQL 12, o con
 #'   `extra_float_digits` de 0 o menos en cualquier versión, ese texto tiene
 #'   seis cifras y 1234501 se escribe `1.2345e+06` —200 valores distintos se
-#'   leían como 21, con un mínimo que no estaba en la columna—. Así la lectura
+#'   leerían como 21, con un mínimo que no está en la columna—. Así la lectura
 #'   da el valor guardado en cualquier versión y con cualquier
 #'   `extra_float_digits` desde -6, sin tocar el estado de la sesión; en un
 #'   empate de la última cifra puede elegir la otra forma corta, que vuelve al
@@ -18680,7 +18681,7 @@ print.plan_perfilado_dbi <- function(x, ...) {
 #'   pérdida, el desvío nativo de SQLite, duckdb, MariaDB y MySQL— acumula en
 #'   una sola pasada, y cuando la media es muy grande frente al ancho de la
 #'   columna pierde las cifras del desvío: sobre marcas de tiempo en
-#'   milisegundos de una ventana de un segundo, SQL Server respondía `0`. El
+#'   milisegundos de una ventana de un segundo, SQL Server responde `0`. El
 #'   desvío no cambia si a cada valor se le resta una constante, así que se le
 #'   pide al motor sobre los valores centrados en la media ya calculada: siempre
 #'   en la consulta por columna, y en la consulta compartida —donde la media sale
@@ -18689,9 +18690,9 @@ print.plan_perfilado_dbi <- function(x, ...) {
 #'   distintos, con una consulta más que el plan no anticipa porque
 #'   depende de los datos. Su fila de `sql` lo dice. La resta se hace en un tipo
 #'   que no pierde cifras: en SQL Server y duckdb una columna `real` (`FLOAT` en
-#'   duckdb) restaba en 24 bits —en T-SQL `real - decimal` es `real`— y el
-#'   desvío centrado se apartaba 1,4e-8 del de los valores guardados, así que
-#'   se convierte a doble antes de restar; en SQL Server el centro de una
+#'   duckdb) restaría en 24 bits —en T-SQL `real - decimal` es `real`— y el
+#'   desvío centrado se apartaría del de los valores guardados, así que se
+#'   convierte a doble antes de restar; en SQL Server el centro de una
 #'   columna de coma flotante va como literal `float`, que no tiene el tope de 38
 #'   cifras de un decimal. Una columna decimal o entera resta en su tipo, que es
 #'   exacto. Con `bloque_filas` los
@@ -18958,7 +18959,7 @@ print.plan_perfilado_dbi <- function(x, ...) {
 #' toda columna no protegida: una columna `debil` —las cédulas sin su
 #' verificador de OTRAS personas, como las de un garante— publica ahí cada
 #' uno de sus valores, donde [perfilar()] publica sus dos extremos.
-#' Limitación conocida (baja): como la clasificación es sobre la muestra, con
+#' Limitación conocida: como la clasificación es sobre la muestra, con
 #' una muestra que ve menos de tres valores distintos de la copia —chica y
 #' ordenada sobre una tabla agrupada por persona— la copia no se clasifica, y
 #' el resumen de la tabla entera publica sus extremos, que pueden ser
@@ -19001,7 +19002,7 @@ print.plan_perfilado_dbi <- function(x, ...) {
 #' veces o más en una columna que sin él es casi una clave— se decide sobre la
 #' tabla entera, no sobre la muestra: en la muestra de una tabla de movimientos
 #' los clientes que se repiten casi no se repiten, y la cédula válida de un
-#' cliente con seiscientos movimientos salía como moda de otra columna. Con
+#' cliente con seiscientos movimientos saldría como moda de otra columna. Con
 #' la tabla leída completa decide la muestra, que es la tabla; si no, la
 #' confirman los conteos exactos de la tabla —`n_distintos` y `n_validos`
 #' calculados—, y sin ellos el relleno sigue en el piso. Con
@@ -19019,8 +19020,9 @@ print.plan_perfilado_dbi <- function(x, ...) {
 #' `resumen_tabla$meta$proteccion_personal$fuera_de_muestra` dice por qué. Salvo
 #' un valor igual al nombre de la tabla o de su esquema, que es estructura: se
 #' publica en `meta`, en cada SQL guardada y en `print()`, y un valor de celda
-#' igual a él no se tapa —tapaba el nombre de todo el objeto—; lo mismo cuando
-#' sin muestra se cierran todas las columnas. Limitación conocida (baja): un
+#' igual a él no se tapa —taparlo taparía el nombre en todo el objeto—; lo
+#' mismo cuando
+#' sin muestra se cierran todas las columnas. Limitación conocida: un
 #' valor igual al nombre de una **columna** sí se tapa, porque un nombre de
 #' columna puede ser el de una persona —una planilla con una columna por
 #' docente—, y tapa también ese nombre en la descripción de las sondas de
@@ -19028,7 +19030,7 @@ print.plan_perfilado_dbi <- function(x, ...) {
 #' por bloques (`meta$fuente_bloques`, `meta$plan`); en `columnas$columna` y
 #' en la SQL guardada queda. En
 #' SQLite los valores se leen como texto, porque una columna de afinidad
-#' numérica guarda texto y el controlador lo convertía en número; también sin
+#' numérica guarda texto y el controlador lo convertiría en número; también sin
 #' muestreo, cuando la muestra es la tabla entera: ahí se releen como texto, con
 #' una consulta, las columnas protegidas que el controlador no leyó como texto.
 #' Y el motivo
@@ -19054,12 +19056,12 @@ print.plan_perfilado_dbi <- function(x, ...) {
 #' salto de línea entre los grupos: `"099 - 123 - 456"` es uno de nueve—. El
 #' mensaje se lee como lo dijo el motor: odbc lo arma con cli, que pone una
 #' viñeta después de cada salto de línea y corta las líneas al ancho de la
-#' consola, y un número partido en dos líneas —`"2901\n1234"`— quedaba partido
+#' consola, y un número partido en dos líneas —`"2901\n1234"`— quedaría partido
 #' por la viñeta; se toman las líneas que guarda la condición, unidas por el
 #' salto que puso el motor, y así se publican, sin las viñetas. Tampoco llevan
 #' los colores ni los enlaces que cli pone en una consola a color —la de
-#' RStudio—: las secuencias ANSI quedaban guardadas en el motivo, y con
-#' protección pegadas a los marcadores. Lo que cli agrega dentro de una línea
+#' RStudio—: las secuencias ANSI quedarían guardadas en el motivo y, con
+#' protección, pegadas a los marcadores. Lo que cli agrega dentro de una línea
 #' no se distingue del texto del motor y queda: sin color, cli cita entre
 #' comillas el archivo del controlador (`'nanodbc/nanodbc.cpp:1802'`) y con
 #' protección esa cita sale `[literal omitido]`; con color se publica. Así
@@ -19078,8 +19080,9 @@ print.plan_perfilado_dbi <- function(x, ...) {
 #' docente— deja de exceptuarse, con la comparación del piso. En
 #' [perfilar_coleccion()] cada mensaje se vuelve a leer al final, desde como
 #' llegó, con todo lo que la colección leyó: con una vista perfilada antes que
-#' su tabla base, el piso no conocía todavía el nombre y la segunda pasada
-#' dejaba su resto —`"De Los Campos"` de `"María De Los Campos"`—. Lo que queda
+#' su tabla base, el piso todavía no conoce el nombre cuando llega el mensaje,
+#' y releer el texto ya tapado dejaría su resto —`"De Los Campos"` de
+#' `"María De Los Campos"`—. Lo que queda
 #' abierto: un valor que la llamada **no** leyó —la celda que hizo fallar la
 #' lectura de la muestra, de una columna que la vista castea— escrito sólo con
 #' lo permitido, o igual al nombre de una columna, se publica, porque el
@@ -19088,17 +19091,17 @@ print.plan_perfilado_dbi <- function(x, ...) {
 #' lado cerrado. Quedan una palabra de SQL entre comillas —`Incorrect syntax
 #' near 'LIMIT'` dice que el motor no acepta ese dialecto— y un signo suelto.
 #' El texto que PostgreSQL cita sin comillas al no poder leer un JSON
-#' (`CONTEXT:  JSON data, line 1: ...`) se tapa hasta el fin de la línea. Se
-#' publicaba tal cual, en PostgreSQL, en duckdb y en SQL Server.
+#' (`CONTEXT:  JSON data, line 1: ...`) se tapa hasta el fin de la línea, en
+#' PostgreSQL, en duckdb y en SQL Server.
 #' **Sin protección** (`proteger_datos_personales = FALSE`) el mensaje del motor
 #' se publica entero, en todas esas salidas: el literal que hizo fallar la
-#' lectura y el SQL que la hacía, sólo sin las viñetas, los cortes ni los
+#' lectura y el SQL de esa lectura, sólo sin las viñetas, los cortes ni los
 #' colores que agrega cli. El diagnóstico es el cometido del paquete —`Conversion failed when
 #' converting the nvarchar value 'N/D' to data type int` dice que la columna
 #' trae un faltante disfrazado—, y sin protección ya se publican valores de
-#' todas las columnas —modas, ejemplos, patrones—: omitirlo ahí no protegía
-#' nada y quitaba el diagnóstico. Vale igual en [perfilar_coleccion()], que pasa
-#' la bandera a cada tabla y la aplica a sus propios motivos.
+#' todas las columnas —modas, ejemplos, patrones—: omitirlo ahí no protegería
+#' nada y quitaría el diagnóstico. Vale igual en [perfilar_coleccion()], que
+#' pasa la bandera a cada tabla y la aplica a sus propios motivos.
 #' [plan_perfilado_dbi()], [coleccion()], [estimar_costo_coleccion()] y
 #' [relaciones_coleccion()] no tienen la bandera: llamadas por su cuenta, tapan
 #' el mensaje como con la protección activa.
@@ -19214,10 +19217,8 @@ print.plan_perfilado_dbi <- function(x, ...) {
 #'   `"aproximada_motor"` se rechaza temprano.
 #' @param metricas Selección explícita de grupos de métricas: `"validos"`,
 #'   `"distintos"`, `"moda"`, `"basicos"`, `"mediana"` y `"desvio"`. El
-#'   valor por omisión solicita las seis. Para traducir presets de versiones
-#'   anteriores: `seguro` equivale a
-#'   `c("validos", "basicos", "desvio")` y `conteos` equivale a
-#'   `"validos"`; `exacto` equivale a los valores por omisión de esta firma.
+#'   valor por omisión solicita las seis. `c("validos", "basicos", "desvio")`
+#'   omite distintos, moda y mediana, y `"validos"` sólo cuenta los no nulos.
 #' @param estrategia_distintos Procedencia explícita para `n_distintos`:
 #'   `"exacta"` (por omisión) emite `COUNT(DISTINCT)`; `"aproximada_motor"`
 #'   usa una función nativa aceptada por el motor y deja la métrica en
@@ -19247,11 +19248,14 @@ print.plan_perfilado_dbi <- function(x, ...) {
 #' @param tamano_lote_planos Cantidad máxima de columnas por consulta de
 #'   agregados planos. El valor por omisión es 20.
 #' @param tamano_lote_distintos Cantidad máxima de columnas por consulta de
-#'   cardinalidades exactas. El valor por omisión es 2, medido sobre el servidor
-#'   de referencia: el `Shared Read` fue constante entre lotes y el costo por
-#'   columna fue casi igual para uno y dos, mientras el lote de dos derramó
-#'   menos que los lotes mayores. Una sola cardinalidad todavía puede forzar un
-#'   agregado pesado y derramar mucho más que un lote plano.
+#'   cardinalidades exactas. El valor por omisión es 2, un supuesto del código
+#'   medido sobre un PostgreSQL de referencia: el motor hace una sola pasada por
+#'   la tabla para todos los conteos de una consulta, así que un lote de uno
+#'   cuesta por columna bastante más que uno de dos; uno de dos cuesta por
+#'   columna casi lo mismo que uno de cuatro y derrama menos, y los lotes
+#'   mayores derraman más porque los conteos compiten por `work_mem`. Una sola
+#'   cardinalidad todavía puede forzar un agregado pesado y derramar mucho más
+#'   que un lote plano.
 #' @param dialecto Capacidad de acotar filas: `"auto"` la sondea, y
 #'   `"limit"`, `"top"`, `"fetch_first"`, `"rownum"` o `"portable"` la
 #'   declaran sin sondeo.

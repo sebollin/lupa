@@ -49,9 +49,10 @@ vuelve independiente de cómo estén ordenadas las columnas del archivo.
 \strong{Cómo se concatena, para poder rehacer la distancia.} Los valores se unen
 con \code{" | "}; dentro de cada valor, cada barra invertida \verb{\\} se escribe \verb{\\\\}
 y cada \code{|} se escribe \verb{\\|}. Los escapes no son cosméticos: sin el de \code{|},
-\verb{c1 = "x | y", c2 = "z"} y \verb{c1 = "x", c2 = "y | z"} producían la misma cadena
-y dos filas que \strong{no comparten ningún valor} salían \code{exacto_normalizado} a
-distancia \code{0}; el de \verb{\\} es el que deja leer ese \verb{\\|} de una sola manera, y
+\verb{c1 = "x | y", c2 = "z"} y \verb{c1 = "x", c2 = "y | z"} producirían la misma
+cadena y dos filas que \strong{no comparten ningún valor} saldrían
+\code{exacto_normalizado} a distancia \code{0}; el de \verb{\\} es el que deja leer ese
+\verb{\\|} de una sola manera, y
 el que distingue un valor declarado \code{bytes} del literal de su escape. Con
 los dos, la distancia publicada de una comparación de varias columnas se
 rehace así —y la de una sola, con el mismo \code{escapar()} y sin pegar—:
@@ -203,7 +204,7 @@ combinacion completa se declara fuera de alcance en
 \code{alcance$columnas_excluidas_largo}, y \code{alcance$largo_maximo} publica el
 largo comparado; no se recortan valores en silencio. Con el tope en \code{Inf} no
 se mide ningun largo y \code{largo_maximo} vale \code{NA}, no cero.
-\code{Inf} recupera explicitamente el comportamiento anterior sin tope.}
+\code{Inf} quita el tope.}
 }
 \value{
 Lista de clase \code{estimacion_costo_lupa} con los campos de la

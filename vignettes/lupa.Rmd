@@ -1,0 +1,311 @@
+---
+title: "1. Empezar en diez minutos"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{1. Empezar en diez minutos}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(collapse = TRUE, comment = "#>")
+# El ancho se restaura al terminar la viñeta, como pide el CRAN Cookbook.
+.opciones_previas <- options(width = 90)
+
+# La impresión de un perfil informa la memoria que ocupa la tabla. Esa cifra
+# cambia con la plataforma y la versión de R, y una viñeta no publica tamaños de
+# memoria: en los bloques marcados con `sin_memoria = TRUE` se quita esa línea.
+.quitar_memoria <- function(gancho) {
+  force(gancho)
+  function(x, options) {
+    if (isTRUE(options$sin_memoria)) {
+      lineas <- strsplit(x, "\n", fixed = TRUE)[[1L]]
+      lineas <- lineas[!grepl("Memoria: ", lineas, fixed = TRUE)]
+      # Cada línea del resumen general llega como un mensaje propio: si la
+      # única línea era la de memoria, no queda nada que mostrar.
+      if (!length(lineas)) return("")
+      x <- paste0(paste(lineas, collapse = "\n"), "\n")
+    }
+    gancho(x, options)
+  }
+}
+knitr::knit_hooks$set(
+  message = .quitar_memoria(knitr::knit_hooks$get("message")),
+  output = .quitar_memoria(knitr::knit_hooks$get("output"))
+)
+```
+
+Llega una tabla y, antes de usarla, queremos saber si podemos confiar en ella:
+qué tiene mal, en qué filas está cada problema y qué no se pudo revisar.
+
+> **En esta guía:**
+>
+> - perfilamos una tabla con `perfilar()` y leemos su resumen;
+> - empezamos por los hallazgos de severidad `error`;
+> - vamos de un hallazgo a las filas del sistema de origen con `clave`;
+> - leemos en `cobertura()` lo que no se pudo evaluar;
+> - guardamos un informe y limpiamos una columna en una copia.
+
+## Los datos
+
+`datos_operativos` viene con el paquete: `r nrow(lupa::datos_operativos)`
+registros sintéticos de un sistema de eventos, con defectos sembrados a
+propósito. Antes de perfilar, los miramos.
+
+```{r datos}
+library(lupa)
+datos_operativos
+```
+
+Esto es lo que trae cada columna (lo describe `?datos_operativos`) y el hallazgo
+que lo va a señalar:
+
+| columna | qué trae a propósito | hallazgo que lo señala |
+| --- | --- | --- |
+| `id_registro` | `1` y `10` repetidos; las dos filas con `10` no coinciden en lo demás | `posible_identificador`; la repetición, al declararla clave (guía 2) |
+| `codigo_usuario` | `"S/D"` en lugar de un ausente; `USR0003` y `MAL-5` fuera del formato | `faltantes_disfrazados`; los formatos, ninguno (se ve más abajo por qué) |
+| `fecha_evento` | cinco formatos de fecha y un `"NULL"` | `formatos_fecha_mixtos`, `faltantes_disfrazados` |
+| `canal` | `"web"`, `"Web"` y `"web "`; `"S/D"` y una celda vacía | `mayusculas_inconsistentes`, `espacios_sobrantes`, `faltantes_disfrazados` |
+| `monto` | `-99`, `0`, `-50` y `999999` | `faltantes_disfrazados` para el `-99`; el `0` y el `-50`, sólo si declaramos que no se admiten (`columnas_sin_ceros`, `columnas_no_negativas`); el `999999`, ninguno (se ve más abajo por qué) |
+| `sistema` | el mismo valor en todas las filas | `constante` |
+| `contacto` | correos sintéticos y uno mal formado | `dato_personal_posible`; el mal formado, ninguno (por la misma razón que los formatos de `codigo_usuario`) |
+| `id_copia` | una copia de `id_registro` | `columnas_duplicadas` |
+| `id_evento` | el identificador del evento; `EVT001` dos veces | `clave_no_unica`, al declararla clave |
+| filas 1 y 12 | idénticas | `filas_duplicadas` |
+
+`zona` no trae defectos.
+
+## Perfilar
+
+`perfilar()` lee la tabla y no la modifica. Le pasamos en `clave` la columna que
+identifica cada evento en el sistema de origen: así cada hallazgo podrá decir en
+qué eventos está.
+
+```{r perfilar}
+perfil <- perfilar(datos_operativos, clave = "id_evento")
+```
+
+El aviso ya es un resultado: la clave que declaramos se repite. `lupa` no la da
+por buena; la comprueba. Al imprimir el perfil vemos el resumen:
+
+```{r imprimir, sin_memoria = TRUE}
+perfil
+```
+
+Las cuatro primeras líneas cuentan los hallazgos por severidad y los
+diagnósticos que no se pudieron evaluar. `error` quiere decir que un control
+cruzó su criterio; `sospechoso`, que algo merece que lo revisemos; `ok`, que es
+una lectura informativa, no un defecto. Debajo vienen el resumen general y unas
+pocas medidas por columna. (La impresión trae también la memoria que ocupa la
+tabla; acá no la mostramos porque cambia según la instalación de R).
+
+## Empezar por los errores
+
+Los hallazgos son una tabla, y se filtran como cualquier `data.frame`.
+
+```{r errores}
+h <- hallazgos(perfil)
+h[h$severidad == "error", c("columna", "tipo_hallazgo", "n_afectados")]
+```
+
+```{r cifras-errores, include = FALSE}
+errores <- h[h$severidad == "error", ]
+n_errores <- nrow(errores)
+de_tabla <- errores$tipo_hallazgo[is.na(errores$columna)]
+```
+
+Son `r n_errores`. Una `columna` en `NA` quiere decir que el hallazgo es de la
+tabla entera: las filas 1 y 12 son idénticas (`filas_duplicadas`), y por eso
+`EVT001` aparece dos veces en la clave (`clave_no_unica`).
+
+```{r comprobar-errores, echo = FALSE}
+# La tabla de defectos sembrados promete estos hallazgos.
+prometidos <- list(
+  c("id_registro", "posible_identificador"), c("codigo_usuario", "faltantes_disfrazados"),
+  c("fecha_evento", "formatos_fecha_mixtos"), c("fecha_evento", "faltantes_disfrazados"),
+  c("canal", "mayusculas_inconsistentes"), c("canal", "espacios_sobrantes"),
+  c("canal", "faltantes_disfrazados"), c("monto", "faltantes_disfrazados"),
+  c("sistema", "constante"), c("contacto", "dato_personal_posible")
+)
+for (par in prometidos) {
+  stopifnot(any(h$columna %in% par[1] & h$tipo_hallazgo == par[2]))
+}
+stopifnot(
+  "columnas_duplicadas" %in% h$tipo_hallazgo,
+  !any(h$columna %in% "zona"),
+  setequal(de_tabla, c("clave_no_unica", "filas_duplicadas")),
+  all(c("faltantes_disfrazados", "formatos_fecha_mixtos") %in% errores$tipo_hallazgo)
+)
+```
+
+## Del hallazgo a la fila
+
+Tomamos uno: los ausentes disfrazados de `canal`. La evidencia dice qué se vio, y
+la sugerencia, qué se podría hacer.
+
+```{r un-hallazgo}
+canal <- h[h$columna %in% "canal" & h$tipo_hallazgo == "faltantes_disfrazados", ]
+writeLines(canal$evidencia)
+writeLines(strwrap(canal$sugerencia, 88))
+```
+
+La trazabilidad dice en qué filas está, con los valores de la clave que
+declaramos.
+
+```{r traza}
+eventos <- canal$trazabilidad[[1]]$claves$id_evento
+eventos
+```
+
+Con esos identificadores buscamos los eventos en el sistema de origen, sin abrir
+la tabla entera. Acá podemos cotejarlos (con comillas, para que se vea la celda
+vacía):
+
+```{r cotejo}
+filas <- datos_operativos$id_evento %in% eventos
+print(datos_operativos[filas, c("id_evento", "canal")], quote = TRUE)
+```
+
+```{r comprobar-traza, echo = FALSE}
+stopifnot(identical(eventos, c("EVT005", "EVT011")))
+```
+
+Sin `clave`, la trazabilidad trae sólo los números de fila, que sirven dentro de
+R pero no en el sistema de origen.
+
+## Lo que no se pudo evaluar
+
+Un control que no encontró nada no es lo mismo que un control que no corrió. Lo
+segundo queda en `cobertura()`, con el motivo y cómo resolverlo.
+
+```{r cobertura}
+no_evaluados <- cobertura(perfil)
+no_evaluados[, c("diagnostico", "columna")]
+```
+
+El `999999` de `monto` no aparece entre los hallazgos, y no porque esté bien: la
+búsqueda de valores extremos no corrió en esa columna.
+
+```{r motivo}
+motivo <- no_evaluados$motivo[
+  no_evaluados$diagnostico == "outliers" & no_evaluados$columna == "monto"
+]
+writeLines(strwrap(motivo, 88))
+```
+
+Lo que no se pudo medir queda registrado; nunca cuenta como cero.
+
+Los formatos raros de `codigo_usuario` (`USR0003` y `MAL-5`) tampoco tienen
+hallazgo, por otra razón: ese control sí corrió, pero cada formato ocupa una
+fila de `r nrow(datos_operativos)`, y por omisión un formato es raro cuando no
+llega al `r 100 * formals(perfilar)$umbral_patron_raro` % de los valores
+(`umbral_patron_raro`). En una tabla más larga lo señalaría.
+
+```{r comprobar-cobertura, echo = FALSE}
+stopifnot(
+  length(motivo) == 1L,
+  !any(h$columna %in% "monto" & h$tipo_hallazgo == "outliers"),
+  !any(h$columna %in% c("codigo_usuario", "contacto") & h$tipo_hallazgo == "patron_raro"),
+  !any(h$tipo_hallazgo %in% c("ceros_no_permitidos", "negativos_no_permitidos")),
+  1 / nrow(datos_operativos) > formals(perfilar)$umbral_patron_raro
+)
+```
+
+## Un informe para compartir
+
+`reportar()` escribe un único archivo HTML, que se abre en cualquier navegador y
+no necesita red ni programas aparte.
+
+```{r informe}
+archivo <- file.path(tempdir(), "calidad-de-la-entrega.html")
+reportar(perfil, archivo = archivo, titulo = "Calidad de la entrega")
+```
+
+```{r secciones, include = FALSE}
+html <- paste(readLines(archivo, encoding = "UTF-8", warn = FALSE), collapse = "\n")
+secciones <- regmatches(html, gregexpr("<h3[^>]*>.*?</h3>", html, perl = TRUE))[[1]]
+secciones <- gsub("<[^>]+>", "", secciones)
+stopifnot(length(secciones) > 0L)
+```
+
+El informe tiene estas secciones: `r paste(secciones, collapse = "; ")`.
+`reportar()` devuelve la ruta del archivo: en una sesión interactiva,
+`browseURL(archivo)` lo abre en el navegador. También recibe el resultado completo de `analizar()`, con las
+mediciones y el plan de limpieza; eso lo vemos en
+[3. Explorar columnas con `analizar()`](explorar-columnas.html).
+
+## Limpiar una columna
+
+`lupa` no cambia los datos que perfila. Para limpiar, propone un plan editable, y
+`aplicar()` ejecuta sobre una copia sólo las acciones que marcamos.
+
+```{r plan}
+plan <- planificar_limpieza(perfil, datos_operativos)
+plan[plan$columna %in% "canal", c("id_accion", "estrategia", "recomendada", "aplicar")]
+```
+
+Para `canal`, el plan recomienda y deja marcadas dos acciones: convertir en `NA`
+los ausentes escritos como texto y recortar los espacios del borde. Entre
+minúsculas, mayúsculas o un diccionario no elige: esa decisión es nuestra. Cada
+acción trae su justificación, que dice también qué conviene confirmar:
+
+```{r justificacion}
+justificacion <- plan$justificacion[
+  plan$columna %in% "canal" & plan$estrategia == "convertir_ausencias_textuales"
+]
+writeLines(strwrap(justificacion, 88))
+```
+
+Para esta guía aplicamos sólo esas dos.
+
+```{r aplicar}
+plan$aplicar <- plan$columna %in% "canal" & plan$recomendada
+limpio <- aplicar(plan, datos_operativos)
+limpio$registro[, c("columna", "estrategia", "n_cambiadas", "estado")]
+```
+
+Comparamos los valores antes y después en las filas que cambiaron:
+
+```{r antes-despues}
+antes <- datos_operativos$canal
+despues <- limpio$datos$canal
+cambiaron <- is.na(despues) | antes != despues
+print(data.frame(id_evento = datos_operativos$id_evento, antes, despues)[cambiaron, ],
+      quote = TRUE)
+```
+
+La columna `antes` se leyó de `datos_operativos` después de aplicar el plan: el
+original sigue como estaba. `"Web"` y `"APP"` quedaron igual, porque no elegimos
+ninguna convención de mayúsculas. El plan completo, con los grupos de acciones
+y su registro, está en [6. Limpiar con un plan](limpiar-con-un-plan.html).
+
+```{r comprobar-limpieza, echo = FALSE}
+stopifnot(
+  identical(sum(cambiaron), 3L),
+  identical(antes[cambiaron], c("S/D", "web ", "")),
+  identical(despues[!is.na(despues) & cambiaron], "web")
+)
+```
+
+## Resumen
+
+- `perfilar()` lee la tabla sin modificarla; imprimir el perfil da el recuento
+  por severidad y lo que no se pudo evaluar.
+- `hallazgos()` es una tabla: empezamos por `severidad == "error"`.
+- Con `clave`, la trazabilidad de cada hallazgo trae los identificadores para ir
+  al sistema de origen.
+- `cobertura()` lista los controles que no corrieron: un hallazgo que falta no
+  prueba que el dato esté bien.
+- `reportar()` guarda un informe HTML; `planificar_limpieza()` y `aplicar()`
+  limpian una copia con las acciones que elegimos.
+
+## Paso siguiente
+
+[2. Leer un perfil](leer-un-perfil.html) (`vignette("leer-un-perfil")`) explica
+las severidades, cada campo de un hallazgo, las claves y el vocabulario del
+paquete.
+
+```{r cierre, include = FALSE}
+unlink(archivo)
+options(.opciones_previas)
+```

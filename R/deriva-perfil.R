@@ -1189,7 +1189,7 @@ rbind.deriva_perfil <- function(..., deparse.level = 1) {
 #'   El atributo `campos_protegidos` declara lo que no se comparó porque la
 #'   protección de datos personales lo tapa: un data frame con `columna`,
 #'   `campo` y `lado` —`anterior` o `actual`—, la misma forma que usa
-#'   [comparar_equivalencia()]. Hoy el único campo que puede figurar es
+#'   [comparar_equivalencia()]. El único campo que puede figurar es
 #'   `rango`. Está siempre, vacío si no hay nada que declarar, y `rbind()` une
 #'   los de todas las derivas.
 #'
@@ -1247,9 +1247,11 @@ rbind.deriva_perfil <- function(..., deparse.level = 1) {
 #' Entre las propiedades comparadas está la **unidad** en la que la columna
 #' publica sus cifras, con la misma severidad que un cambio de tipo: dos entregas
 #' con los mismos valores y la unidad cambiada de `m` a `km` son un cambio real
-#' —la cifra dejó de significar lo mismo— y antes devolvían cero filas. Un perfil
-#' guardado antes de que ese campo existiera no hace mentir la comparación: esa
-#' parte se declara **no comparable**, como el resto de los campos ausentes.
+#' —la cifra dejó de significar lo mismo— y la comparación lo informa en una
+#' fila. Un perfil guardado por una versión anterior del paquete, que no
+#' registra la unidad, no hace
+#' mentir la comparación: esa parte se declara **no comparable**, como el resto
+#' de los campos ausentes.
 #'
 #' El **rango** se compara por los valores de sus extremos, no por su texto
 #' impreso: un cambio chico sale como fila `ok` y uno que alcanza
@@ -1324,7 +1326,7 @@ rbind.deriva_perfil <- function(..., deparse.level = 1) {
 #' valores. Cada argumento de
 #' [perfilar()] tiene su lugar en la comparación:
 #' habilita un diagnóstico, es una vara —su cambio se declara en la fila
-#' `configuracion_umbrales`, que desde esta versión incluye los umbrales de las
+#' `configuracion_umbrales`, que incluye los umbrales de las
 #' relaciones de orden y aritméticas entre columnas, los del vocabulario y
 #' `datos_personales_permitidos`, `validadores_personales`,
 #' `umbral_documento_verificado` y `muestra_validadores`—, tiene su propia fila

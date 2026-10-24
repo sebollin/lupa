@@ -23,13 +23,12 @@ relaciones_coleccion(
 declaración válida de «ningún par».}
 
 \item{muestra}{Filas traídas por tabla para comparar, y \strong{el mismo tope con
-que se calcula cada cobertura}: se reenvía a \code{\link[=detectar_relaciones]{detectar_relaciones()}}. Sin
-reenviarlo valía el tope por omisión de esa función, así que con
-\code{muestra > 1e5} el objeto publicaba como evidencia las filas leídas y
-calculaba la cobertura sobre un submuestreo que no declaraba en ningún
-campo: la fila llegaba a contradecirse a sí misma, con \code{n_valores_comunes}
-contado sobre la lectura entera junto a una cobertura calculada sobre la
-mitad.}
+que se calcula cada cobertura}: se reenvía a \code{\link[=detectar_relaciones]{detectar_relaciones()}}, así
+que la evidencia publicada y la cobertura salen de las mismas filas,
+también con \code{muestra > 1e5}. Sin reenviarlo regiría el tope por omisión de
+esa función, y la fila se contradiría a sí misma: \code{n_valores_comunes}
+contado sobre la lectura entera junto a una cobertura calculada sobre un
+submuestreo que ningún campo declara.}
 
 \item{umbral_cobertura}{Cobertura mínima para informar una relación.}
 
@@ -76,7 +75,7 @@ una opción imposible. \code{\link[=estimar_costo_coleccion]{estimar_costo_colec
 \strong{Cada tabla se lee una sola vez.} Los pares repetidos se descartan, los
 pares de una tabla consigo misma se rechazan, y las lecturas se guardan en
 una caché con presupuesto de memoria declarado: dos pares que comparten una
-tabla ya no la leen dos veces. \code{meta$lecturas} deja el SQL exacto, la vía
+tabla no la leen dos veces. \code{meta$lecturas} deja el SQL exacto, la vía
 usada, las filas leídas y el momento de cada lectura.
 
 \strong{El orden no se supone.} Sin \code{orden}, una lectura acotada devuelve un
@@ -107,8 +106,8 @@ las demás columnas en vez de \verb{SELECT *}, que con un permiso por columna se
 rechaza entero, y la columna no se nombra en ninguna consulta. Sus
 combinaciones quedan en \code{cobertura_podas} con motivo \code{columna_sin_permiso} o
 \code{columna_enmascarada}: una columna enmascarada lee la máscara —\code{xxxx}—, y dos
-así parecían relacionadas sin compartir un solo valor. Una columna de \code{orden}
-así deja la lectura sin \verb{ORDER BY}, como la que no se puede escribir.
+así parecerían relacionadas sin compartir un solo valor. Una columna de
+\code{orden} así deja la lectura sin \verb{ORDER BY}, como la que no se puede escribir.
 
 \strong{Los valores se leen como los lee \code{\link[=perfilar_dbi]{perfilar_dbi()}}.} RPostgres entrega \code{0}
 en toda celda \code{money}, y \code{MIN}/\code{MAX} de una columna \code{money} también: la
@@ -177,12 +176,12 @@ decir que se leyó todo. Para saberlo se pide \strong{una fila más} que el tope
 cuesta mucho menos que un \verb{COUNT(*)} por tabla y contesta exacto; esa fila de
 sobra no viaja al resultado.
 
-Antes, lo único que sobrevivía eran los atributos de \code{\link[=detectar_relaciones]{detectar_relaciones()}}
-del \strong{primer} par publicado —\code{rbind()} conserva los del primer argumento—,
-con etiquetas \code{tabla1}/\code{tabla2} que no nombran a ningún par: con dos pares
-decían \code{muestreado = FALSE} mientras el segundo había leído 10.000 filas de
-20.000. Esos atributos ya no viajan en \code{relaciones}; lo que decían vive en las
-columnas, una por par, y el conteo de pares en \code{meta}, que cuenta todos.
+Los atributos de \code{\link[=detectar_relaciones]{detectar_relaciones()}} no viajan en \code{relaciones}:
+sobrevivirían sólo los del \strong{primer} par publicado —\code{rbind()} conserva los
+del primer argumento—, con etiquetas \code{tabla1}/\code{tabla2} que no nombran a
+ningún par, y con dos pares dirían \code{muestreado = FALSE} aunque el segundo
+hubiera leído 10.000 filas de 20.000. Lo que dirían vive en las columnas, una
+por par, y el conteo de pares en \code{meta}, que cuenta todos.
 
 Las columnas candidatas se podan antes de materializar cada comparación. Las
 podas quedan declaradas en \code{cobertura_podas}, con su motivo y conteo.
@@ -193,9 +192,9 @@ ese rango, la comparación sigue sin aplicar esa poda.
 \strong{Un entero ancho que llega como doble no se compara.} Por encima de 2^53 un
 doble no distingue dos enteros consecutivos, y \code{dbConnect(duckdb::duckdb())}
 entrega BIGINT como doble por omisión: dos identificadores distintos se
-fundían y el objeto afirmaba una relación que el motor no tiene. Una columna
-leída como doble con algún valor de al menos 2^53 en valor absoluto deja sus
-pares en \code{sin_comparar}, con motivo \code{entero_como_doble} en
+fundirían y el objeto afirmaría una relación que el motor no tiene. Una
+columna leída como doble con algún valor de al menos 2^53 en valor absoluto
+deja sus pares en \code{sin_comparar}, con motivo \code{entero_como_doble} en
 \code{cobertura_podas} y el remedio en el detalle: conectar pidiendo \code{integer64}
 —\code{duckdb(bigint = "integer64")}, o \code{bigint = "integer64"} en RSQLite—.
 

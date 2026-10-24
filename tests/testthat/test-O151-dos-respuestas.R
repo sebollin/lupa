@@ -217,8 +217,13 @@ test_that("H6: analizar() mide la NoNulo con disfrazados contandolos", {
   # A mano: 36/40 y 34/40, no 39/40.
   expect_equal(mean(medidas$resultado[medidas$atributo == "edad"]), 36 / 40)
   expect_equal(mean(medidas$resultado[medidas$atributo == "estado"]), 34 / 40)
-  # La misma regla que `analizar()` ya aplicaba: medida si y solo si lista.
-  expect_identical(decision$medida, decision$estado == "lista")
+  # La medicion automatica sigue exactamente la seleccion publicada por la
+  # propuesta: medida si y solo si esta lista Y activa. Una lista pero inactiva
+  # queda fuera, y una activa que no esta lista tambien.
+  expect_identical(
+    decision$medida,
+    as.character(a$propuesta_modelo$estado) == "lista" & a$propuesta_modelo$incluir
+  )
 })
 
 test_that("H8: distribucion_valores() cuenta un POSIXlt como su POSIXct", {

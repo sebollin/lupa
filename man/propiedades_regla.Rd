@@ -16,12 +16,12 @@ Data frame con una fila por propiedad: \code{propiedad}, \code{valor}.
 Devuelve, en una tabla, lo que una regla declara: a qué métricas se engancha,
 en qué nivel evalúa, qué desenlace produce y \strong{qué umbrales usa}. Los
 umbrales viajan aparte de la condición justamente para esto: encerrados en el
-\emph{closure} quedaban invisibles y obligaban a escribir otra regla para mover un
-número.
+\emph{closure} quedarían invisibles y obligarían a escribir otra regla para mover
+un número.
 }
 \details{
 Es la contraparte de \code{\link[=propiedades_metrica]{propiedades_metrica()}}, que describe métricas. Un
-umbral pertenece a una regla, no a una métrica, así que no cabía allí.
+umbral pertenece a una regla, no a una métrica, así que no cabe allí.
 }
 \examples{
 regla <- regla_evaluacion(

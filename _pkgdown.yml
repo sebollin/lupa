@@ -15,8 +15,10 @@ template:
     head: |
       <link rel="icon" type="image/png" sizes="180x180" href="https://sebollin.github.io/lupa/apple-touch-icon.png">
 
+lang: es
+
 home:
-  title: "lupa — profiling y calidad de datos"
+  title: "lupa — perfilado y calidad de datos"
   description: >
     Examinar, medir, evaluar, remediar y monitorear calidad de datos con
     resultados auditables.
@@ -27,27 +29,48 @@ navbar:
     right: []
 
 articles:
-- title: Examinar
-  desc: Descubrir estructura y perfilar tablas remotas con alcance declarado.
-  contents:
-  - estructura-no-declarada
-  - vacio-por-diseno
-  - perfilar-una-base
-
 - title: Recorrido
   navbar: ~
+  desc: >
+    Los tutoriales en orden: de la primera tabla al plan de limpieza, la
+    medición y el seguimiento entre entregas.
   contents:
-  - empezar-con-lupa
-  - flujo-guiado
-  - definir-la-calidad
-  - medir-y-evaluar
+  - lupa
+  - leer-un-perfil
+  - explorar-columnas
+  - estructura-no-declarada
+  - vacio-por-diseno
   - limpiar-con-un-plan
+  - del-hallazgo-a-la-metrica
+  - marcos-y-modelos
   - historico-y-deriva
 
-- title: Escala
-  desc: Estimar, comparar, bloquear y lotear búsquedas de duplicados.
+- title: Bases y escala
+  navbar: Bases y escala
+  desc: >
+    Perfilar en el motor, declarar una base de varias tablas y buscar
+    duplicados en tablas grandes.
   contents:
+  - perfilar-una-base
+  - colecciones
   - escala-y-duplicados
+
+- title: Referencia en línea
+  navbar: Referencia en línea
+  desc: >
+    Motores, alcance, evidencia y codificación, con el detalle que la ayuda de
+    cada función no alcanza a reunir.
+  contents:
+  - articles/motores-y-escala
+  - articles/alcance-y-cobertura
+  - articles/evidencia-y-rendimiento
+  - articles/codificacion-y-locales
+
+redirects:
+- ["articles/empezar-con-lupa.html", "articles/explorar-columnas.html"]
+- ["articles/flujo-guiado.html", "articles/del-hallazgo-a-la-metrica.html"]
+- ["articles/medir-y-evaluar.html", "articles/marcos-y-modelos.html"]
+- ["articles/definir-la-calidad.html", "articles/marcos-y-modelos.html"]
 
 reference:
 - title: Examinar

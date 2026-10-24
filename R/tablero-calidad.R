@@ -768,21 +768,22 @@
 #' **La identidad de cada celda son tres columnas: `metrica_instanciada`,
 #' `entidad` y `objeto`.** No alcanza con `metrica` y `objeto`, porque `metrica`
 #' es el nombre genérico: dos tablas con una columna del mismo nombre, o dos
-#' especializaciones de la misma genérica sobre la misma columna, publicaban dos
-#' filas con la **misma** identidad y valores distintos, y rehacer la celda con
-#' las claves publicadas mezclaba las medidas de las dos sin reproducir ninguna.
+#' especializaciones de la misma genérica sobre la misma columna, publicarían
+#' dos filas con la **misma** identidad y valores distintos, y rehacer la celda
+#' con las claves publicadas mezclaría las medidas de las dos sin reproducir
+#' ninguna.
 #' `metrica_instanciada` sola tampoco alcanza: sobre un agregado vale
 #' `agregada:<funcion>:<metrica>` para todas las filas, y ahí la entidad es lo
 #' único que separa. Cuando hay varias entidades, `objeto` además nombra la
 #' tabla —`cod (tabla: t1)`—, en el mismo idioma con el que la granularidad de
-#' tabla ya publicaba `(tabla: t1)`.
+#' tabla publica `(tabla: t1)`.
 #'
 #' Ese trío es la clave con la que se **agrupan** las medidas, y no sólo la que se
 #' publica: agrupar por menos de lo que se declara como identidad funde dos cosas
-#' que el objeto dice distintas. Antes, las granularidades sin rama propia
-#' —`conjuntoAtributos` entre ellas— agrupaban sólo por el objeto, y dos entidades
-#' con el mismo objeto salían como **una** celda con la entidad de la primera y el
-#' promedio de las dos.
+#' que el objeto dice distintas. Vale también en las granularidades sin rama
+#' propia —`conjuntoAtributos` entre ellas—: agrupando sólo por el objeto, dos
+#' entidades con el mismo objeto saldrían como **una** celda con la entidad de
+#' la primera y el promedio de las dos.
 #'
 #' Y la unicidad **se verifica**: si dos celdas quedaran con el mismo trío, la
 #' función falla nombrando las dos y sus valores, en lugar de publicar dos filas
@@ -1322,11 +1323,10 @@ print.tablero_calidad <- function(x, ...) {
 #' publica**, no es un texto fijo. Con un solo universo lo nombra y dice que las
 #' unidades son comparables; con varios dice cuántos son y nombra, por universo,
 #' qué componentes caen en cada uno; sin componentes no afirma nada sobre
-#' universos. Antes era una sola frase idéntica en toda corrida, que afirmaba
-#' «salen de universos distintos» incluso cuando los tres componentes publicaban
-#' `universo = "celdas"` —una afirmación que el mismo objeto desmentía en su
-#' columna `universo`— y que no nombraba nunca ningún componente, que es
-#' justamente lo que prometía declarar.
+#' universos. Así no afirma «salen de universos distintos» cuando los tres
+#' componentes publican `universo = "celdas"` —una afirmación que el mismo
+#' objeto desmentiría en su columna `universo`—, y nombra los componentes, que
+#' es justamente lo que promete declarar.
 #'
 #' @param medidas Medición, tablero o análisis de `lupa`.
 #' @param pesos Vector numérico nombrado por dimensión, en `[0, 1]` y con

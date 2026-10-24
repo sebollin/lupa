@@ -93,7 +93,7 @@
   motivo <- ifelse(
     medida,
     if (medicion_automatica) {
-      "lupa la eligi\u00f3 porque la propuesta qued\u00f3 en estado 'lista'."
+      "lupa la eligi\u00f3 porque qued\u00f3 en estado 'lista' y `incluir = TRUE`."
     } else {
       "La propuesta confirmada incluy\u00f3 esta m\u00e9trica."
     },
@@ -172,12 +172,13 @@
 #' de variables, propuesta de modelo, medición agregada, tablero, cobertura
 #' conceptual y plan de limpieza. No modifica los datos.
 #'
-#' Por omisión mide todas las sugerencias de la propuesta cuyo estado es
-#' `"lista"`, aunque no estuvieran activas, y declara que esa selección fue
-#' realizada por `lupa` sin confirmación. Agrega inmediatamente el detalle y
-#' conserva [tablero_calidad()]; las medidas fila a fila sólo quedan en el
-#' resultado si `conservar_detalle_medicion = TRUE`. La evaluación, cuando se
-#' solicita, usa la medición agregada.
+#' Por omisión mide las sugerencias de la propuesta cuyo estado es `"lista"` y
+#' cuya marca `incluir` es `TRUE`; los patrones y dominios observados que
+#' [proponer_modelo()] deja inactivos no llegan al tablero sin confirmación.
+#' Declara que esa selección fue realizada por `lupa` sin confirmación. Agrega
+#' inmediatamente el detalle y conserva [tablero_calidad()]; las medidas fila a
+#' fila sólo quedan en el resultado si `conservar_detalle_medicion = TRUE`. La
+#' evaluación, cuando se solicita, usa la medición agregada.
 #' Los hallazgos `casi_clave` del perfil se reiteran en `advertencias`, con su
 #' columna, valores en colisión, frecuencias y criterio observado, para que no
 #' queden ocultos dentro del recorrido integral.
@@ -208,9 +209,9 @@
 #'   que queda fuera del universo no entra en sus frecuencias ni en sus
 #'   cuantiles, y un centinela declarado sale de los cuantiles como sale de
 #'   `minimo` y `maximo` del perfil.
-#' @param medir_propuesta Si se mide automáticamente la propuesta en estado
-#'   `"lista"` cuando no se recibe un modelo o una propuesta confirmada. Use
-#'   `FALSE` para conservar el comportamiento descriptivo anterior.
+#' @param medir_propuesta Si se mide automáticamente la propuesta con estado
+#'   `"lista"` e `incluir = TRUE` cuando no se recibe un modelo o una propuesta
+#'   confirmada. Con `FALSE`, `analizar()` describe y no mide.
 #' @param conservar_detalle_medicion Si se retienen las medidas fila a fila.
 #'   Es `FALSE` por omisión: el tablero y la medición agregada permanecen, y la
 #'   medición se hace métrica por métrica, agregando cada una antes de pasar a
@@ -465,7 +466,7 @@ analizar <- function(datos, nombre = .nombre_de_los_datos(substitute(datos)),
   seleccion_automatica <- if (is.null(modelo_confirmado) &&
                               is.null(propuesta_confirmada) &&
                               medir_propuesta) {
-    which(as.character(propuesta$estado) == "lista")
+    which(as.character(propuesta$estado) == "lista" & propuesta$incluir)
   } else integer()
   propuesta_medida <- if (length(seleccion_automatica)) {
     propuesta_automatica <- propuesta

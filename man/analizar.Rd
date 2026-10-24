@@ -72,9 +72,9 @@ que queda fuera del universo no entra en sus frecuencias ni en sus
 cuantiles, y un centinela declarado sale de los cuantiles como sale de
 \code{minimo} y \code{maximo} del perfil.}
 
-\item{medir_propuesta}{Si se mide automáticamente la propuesta en estado
-\code{"lista"} cuando no se recibe un modelo o una propuesta confirmada. Use
-\code{FALSE} para conservar el comportamiento descriptivo anterior.}
+\item{medir_propuesta}{Si se mide automáticamente la propuesta con estado
+\code{"lista"} e \code{incluir = TRUE} cuando no se recibe un modelo o una propuesta
+confirmada. Con \code{FALSE}, \code{analizar()} describe y no mide.}
 
 \item{conservar_detalle_medicion}{Si se retienen las medidas fila a fila.
 Es \code{FALSE} por omisión: el tablero y la medición agregada permanecen, y la
@@ -185,12 +185,13 @@ de variables, propuesta de modelo, medición agregada, tablero, cobertura
 conceptual y plan de limpieza. No modifica los datos.
 }
 \details{
-Por omisión mide todas las sugerencias de la propuesta cuyo estado es
-\code{"lista"}, aunque no estuvieran activas, y declara que esa selección fue
-realizada por \code{lupa} sin confirmación. Agrega inmediatamente el detalle y
-conserva \code{\link[=tablero_calidad]{tablero_calidad()}}; las medidas fila a fila sólo quedan en el
-resultado si \code{conservar_detalle_medicion = TRUE}. La evaluación, cuando se
-solicita, usa la medición agregada.
+Por omisión mide las sugerencias de la propuesta cuyo estado es \code{"lista"} y
+cuya marca \code{incluir} es \code{TRUE}; los patrones y dominios observados que
+\code{\link[=proponer_modelo]{proponer_modelo()}} deja inactivos no llegan al tablero sin confirmación.
+Declara que esa selección fue realizada por \code{lupa} sin confirmación. Agrega
+inmediatamente el detalle y conserva \code{\link[=tablero_calidad]{tablero_calidad()}}; las medidas fila a
+fila sólo quedan en el resultado si \code{conservar_detalle_medicion = TRUE}. La
+evaluación, cuando se solicita, usa la medición agregada.
 Los hallazgos \code{casi_clave} del perfil se reiteran en \code{advertencias}, con su
 columna, valores en colisión, frecuencias y criterio observado, para que no
 queden ocultos dentro del recorrido integral.

@@ -684,7 +684,7 @@ test_that("reportar acepta el analisis entero sin exponer valores personales", {
   html <- paste(readLines(archivo, warn = FALSE, encoding = "UTF-8"),
                 collapse = "\n")
 
-  expect_match(html, "Analisis integral", fixed = TRUE)
+  expect_match(html, "An\u00e1lisis integral", fixed = TRUE)
   expect_match(html, "Distribuciones y cuantiles", fixed = TRUE)
   expect_match(html, "Escalas y roles propuestos", fixed = TRUE)
   expect_match(html, "Cobertura del análisis", fixed = TRUE)

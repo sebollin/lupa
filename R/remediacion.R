@@ -1074,8 +1074,8 @@
 #' la relación de los datos se toma con el soporte declarado, sin publicar sus
 #' valores. Si los datos contradicen una fila —la publicada en claro o la
 #' tapada—, la acción queda `fallida`, y una clave que no está en el plan no
-#' se imputa. Se reconstruía entera sobre los datos recibidos, y sobre otra
-#' entrega escribía valores que el plan nunca mostró. Una fila tapada no se
+#' se imputa: reconstruir el mapa sobre los datos recibidos escribiría, en otra
+#' entrega, valores que el plan nunca mostró. Una fila tapada no se
 #' puede validar si los datos recibidos no traen el valor protegido que la
 #' tapó —un subconjunto sin ese titular—: también queda `fallida`, con el
 #' motivo, y se aplica planificando sobre esos datos. Y si los datos piden
@@ -1101,7 +1101,7 @@
 #' `fallida`, con el motivo de que los datos no traen un par de esa clave que la
 #' resuelva. Una
 #' contradicción en una clave que no hay que completar —una fila con el
-#' dependiente presente que cambió de valor— ya no se detecta: el plan no publica
+#' dependiente presente que cambió de valor— no se detecta: el plan no publica
 #' esa clave para compararla, la acción sale `ejecutada` y lo que imputa es
 #' correcto sobre los datos recibidos. Es una limitación de esta representación
 #' tapada.
@@ -1161,10 +1161,10 @@
 #' `convertir_ausencias_textuales` convierte en `NA` reales; si la marca
 #' corriera primero, quedaría una columna `.ausente_x` que dice `FALSE` en
 #' filas que terminan en `NA` —una afirmación falsa sobre los datos, publicada
-#' con las dos acciones en `ejecutada` y sin error—. Medido sobre siete formas
-#' de tabla antes de corregirlo, tres producían esa marca falsa siguiendo el
-#' idioma documentado `plan$aplicar <- plan$recomendada`. Por la misma razón,
-#' `eliminar_filas_ausentes` también va después: eliminar antes deja sin
+#' con las dos acciones en `ejecutada` y sin error—. El plan ordena la marca
+#' después de la conversión, así que el idioma documentado
+#' `plan$aplicar <- plan$recomendada` no produce esa marca falsa. Por la misma
+#' razón, `eliminar_filas_ausentes` también va después: eliminar antes deja sin
 #' eliminar las filas cuyo ausente todavía estaba disfrazado.
 #'
 #' `convertir_ausencias_textuales` convierte exactamente los textos de
@@ -1175,8 +1175,8 @@
 #' declarado. Con protección, la lista y la declaración guardan su valor
 #' también sobre una columna protegida: un marcador del catálogo —`sin dato`—
 #' o uno declarado —`SIN REGISTRO`— no es el dato de nadie, y la declaración ya
-#' se publica en `meta$cadenas_ausencia`. Salían `[valor protegido]` y
-#' `aplicar()` registraba `fallida` la acción recomendada.
+#' se publica en `meta$cadenas_ausencia`. Tapados, saldrían `[valor protegido]`
+#' y `aplicar()` registraría `fallida` la acción recomendada.
 #'
 #' @param perfil Objeto de clase `perfil` creado por [perfilar()].
 #' @param datos Datos opcionales que originaron el perfil. Son necesarios para

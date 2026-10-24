@@ -2418,10 +2418,9 @@
 #' explicitamente en vez de mezclar campos que pueden diluir la similitud. La
 #' medida predeterminada es Jaro--Winkler (`"jw"`), con `p = 0.1`: Winkler
 #' favorece coincidencias con el mismo prefijo y, por eso, premia una errata al
-#' final mas que una al comienzo. El umbral predeterminado es `0.10`. Estos dos
-#' valores cambian respecto de versiones anteriores y pueden cambiar los pares
-#' informados; el umbral se eligio como una precision prudente, no como una
-#' calibracion fina. Ambos argumentos se pueden cambiar.
+#' final mas que una al comienzo. El umbral predeterminado es `0.10`, que apunta
+#' a una precisión prudente y no es una calibración fina. Ambos argumentos se
+#' pueden cambiar.
 #'
 #' `tipo_par = "exacto"` indica que los textos guardados son iguales en las
 #' columnas comparadas; una celda ausente (`NA`) y una cadena vacía cuentan como
@@ -2469,10 +2468,10 @@
 #' El recorte conserva los pares mas cercanos y, entre los empatados en
 #' distancia, desempata por el **rango canonico del valor** con una clave
 #' simetrica. Es la misma regla que gobierna el recorte del vocabulario, y existe
-#' por lo mismo: desempatar por posicion de fila hacia que cuales pares
-#' sobrevivieran dependiera de como viniera ordenado el archivo. Medido sobre 60
-#' pares empatados con el corte en 30, cinco ordenes distintos devolvian 30 grupos
-#' cada uno sin compartir ninguno; ahora devuelven los mismos.
+#' por lo mismo: desempatar por posición de fila haría que los pares que
+#' sobreviven dependieran de cómo viene ordenado el archivo. Con la clave
+#' simétrica, el mismo archivo en cualquier orden de filas conserva los mismos
+#' pares.
 #'
 #' Lo que ningun orden evita es que un corte dentro de un empate deje afuera pares
 #' igual de cercanos, asi que se declara. `alcance` publica `distancia_corte` —la
@@ -2526,8 +2525,8 @@
 #' salida declara las bandas, las filas por banda, las cubetas descartadas y la
 #' probabilidad teorica de colision. Esa probabilidad se refiere al Jaccard de
 #' los q-gramas, no a la medida final (`metodo`). `estrategia = "lsh"` fuerza
-#' este camino; `"teselas"` y `"muestra"` conservan el camino exacto o
-#' muestreado de las versiones anteriores. Las cubetas que superan
+#' este camino; `"teselas"` y `"muestra"` fuerzan el camino exacto por teselas
+#' o el muestreado. Las cubetas que superan
 #' `lsh_max_cubeta` se procesan igualmente por lotes; el parámetro identifica
 #' cubetas potencialmente costosas, pero no descarta sus pares. El alcance
 #' separa `lsh_teselas_cubetas_grandes` (matrices del primer tramo) de
@@ -2579,9 +2578,10 @@
 #'   **Cómo se concatena, para poder rehacer la distancia.** Los valores se unen
 #'   con `" | "`; dentro de cada valor, cada barra invertida `\` se escribe `\\`
 #'   y cada `|` se escribe `\|`. Los escapes no son cosméticos: sin el de `|`,
-#'   `c1 = "x | y", c2 = "z"` y `c1 = "x", c2 = "y | z"` producían la misma cadena
-#'   y dos filas que **no comparten ningún valor** salían `exacto_normalizado` a
-#'   distancia `0`; el de `\` es el que deja leer ese `\|` de una sola manera, y
+#'   `c1 = "x | y", c2 = "z"` y `c1 = "x", c2 = "y | z"` producirían la misma
+#'   cadena y dos filas que **no comparten ningún valor** saldrían
+#'   `exacto_normalizado` a distancia `0`; el de `\` es el que deja leer ese
+#'   `\|` de una sola manera, y
 #'   el que distingue un valor declarado `bytes` del literal de su escape. Con
 #'   los dos, la distancia publicada de una comparación de varias columnas se
 #'   rehace así —y la de una sola, con el mismo `escapar()` y sin pegar—:
@@ -2640,7 +2640,7 @@
 #'   `alcance$columnas_excluidas_largo`, y `alcance$largo_maximo` publica el
 #'   largo comparado; no se recortan valores en silencio. Con el tope en `Inf` no
 #'   se mide ningun largo y `largo_maximo` vale `NA`, no cero.
-#'   `Inf` recupera explicitamente el comportamiento anterior sin tope.
+#'   `Inf` quita el tope.
 #' @param bloque Cantidad de filas por tesela de comparación. Por defecto
 #'   `1000`; controla la memoria temporal, no el número de pares comparados.
 #' @param nucleos Cantidad máxima de hilos que `stringdist` puede usar. Por

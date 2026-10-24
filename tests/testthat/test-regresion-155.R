@@ -73,7 +73,7 @@ test_that("the five key cases publish separate states", {
     duplicada_sin_ausencias = list(
       datos = data.frame(k = c("a", "b", "b", "d")),
       unicidad = "refutada", ausencia = "verificada",
-      advertencia = "no es unica"
+      advertencia = "no es \u00fanica"
     ),
     # Las unicas repeticiones son los dos ausentes. Entre las claves COMPLETAS
     # -"a" y "d"- no hay ninguna, asi que la unicidad esta verificada. Llamarla
@@ -82,7 +82,7 @@ test_that("the five key cases publish separate states", {
     duplicada_con_ausencias = list(
       datos = data.frame(k = c("a", NA_character_, NA_character_, "d")),
       unicidad = "verificada", ausencia = "refutada",
-      advertencia = "colision"
+      advertencia = "colisi\u00f3n"
     ),
     valida = list(
       datos = data.frame(k = c("a", "b", "c", "d")),
@@ -130,9 +130,9 @@ test_that("a key whose only repetitions are missing values gets its own finding"
   )
   perfil <- capturado$valor
   # Lo que NO tiene que decir: la unicidad no esta refutada.
-  expect_false(grepl("no es unica", capturado$mensaje, fixed = TRUE))
+  expect_false(grepl("no es \u00fanica", capturado$mensaje, fixed = TRUE))
   expect_match(capturado$mensaje, "ausencia de nulos")
-  expect_match(capturado$mensaje, "colision")
+  expect_match(capturado$mensaje, "colisi\u00f3n")
   meta <- perfil$meta$clave
   expect_identical(meta$unicidad$estado, "verificada")
   expect_identical(meta$unicidad$filas_evaluadas, 2L)
@@ -167,7 +167,7 @@ test_that("a missing value is not blamed for another collision", {
   meta <- capturado$valor$meta$clave
   expect_false(meta$trazabilidad$colisiona_con_ausentes)
   expect_equal(meta$trazabilidad$filas_colision_con_ausentes, 0)
-  expect_match(capturado$mensaje, "no es unica")
+  expect_match(capturado$mensaje, "no es \u00fanica")
   expect_match(capturado$mensaje, "ausencia de nulos")
 
   duplicada <- capturado$valor$hallazgos[

@@ -92,10 +92,8 @@ aplicar; no lo presenta como si ninguna columna fallara.}
 
 \item{metricas}{Selección explícita de grupos de métricas: \code{"validos"},
 \code{"distintos"}, \code{"moda"}, \code{"basicos"}, \code{"mediana"} y \code{"desvio"}. El
-valor por omisión solicita las seis. Para traducir presets de versiones
-anteriores: \code{seguro} equivale a
-\code{c("validos", "basicos", "desvio")} y \code{conteos} equivale a
-\code{"validos"}; \code{exacto} equivale a los valores por omisión de esta firma.}
+valor por omisión solicita las seis. \code{c("validos", "basicos", "desvio")}
+omite distintos, moda y mediana, y \code{"validos"} sólo cuenta los no nulos.}
 
 \item{estrategia_distintos}{Procedencia explícita para \code{n_distintos}:
 \code{"exacta"} (por omisión) emite \code{COUNT(DISTINCT)}; \code{"aproximada_motor"}
@@ -172,11 +170,14 @@ familias. Para control separado, usar \code{tamano_lote_planos} y
 agregados planos. El valor por omisión es 20.}
 
 \item{tamano_lote_distintos}{Cantidad máxima de columnas por consulta de
-cardinalidades exactas. El valor por omisión es 2, medido sobre el servidor
-de referencia: el \verb{Shared Read} fue constante entre lotes y el costo por
-columna fue casi igual para uno y dos, mientras el lote de dos derramó
-menos que los lotes mayores. Una sola cardinalidad todavía puede forzar un
-agregado pesado y derramar mucho más que un lote plano.}
+cardinalidades exactas. El valor por omisión es 2, un supuesto del código
+medido sobre un PostgreSQL de referencia: el motor hace una sola pasada por
+la tabla para todos los conteos de una consulta, así que un lote de uno
+cuesta por columna bastante más que uno de dos; uno de dos cuesta por
+columna casi lo mismo que uno de cuatro y derrama menos, y los lotes
+mayores derraman más porque los conteos compiten por \code{work_mem}. Una sola
+cardinalidad todavía puede forzar un agregado pesado y derramar mucho más
+que un lote plano.}
 
 \item{instrumentar}{Si se cronometra cada consulta y las etapas grandes de R
 y, en PostgreSQL, se intenta atribuir el uso de bloques temporales de los
@@ -368,10 +369,9 @@ sin seleccionar filas para el cliente.
 \code{perfil_muestra}, pero no vuelve a seleccionar filas.
 }
 \details{
-Antes, la promesa era literalmente: "la función no escribe en la conexión ni
-crea objetos temporales". Ahora es: "no escribe en la conexión ni crea
-objetos temporales del motor; \code{muestra_motor} puede crear un spool externo
-temporal de sesión, con bytes, checksum, presupuesto y estado". \code{DBI} es una
+La función no escribe en la conexión ni crea objetos temporales del motor;
+\code{muestra_motor} puede crear un spool externo temporal de sesión, con bytes,
+checksum, presupuesto y estado. \code{DBI} es una
 dependencia opcional. Cada agregado no disponible queda en \code{NA} y su
 consulta, estado y motivo se conservan en \code{resumen_tabla$sql}.
 Las expresiones se ejecutan como capacidades a comprobar, no como un
@@ -459,7 +459,7 @@ queda con sus métricas en \code{no_disponible} y las demás se perfilan enteras
 Lo mismo con una columna cuyo nombre la sesión no puede escribir: odbc pasa
 la consulta por la codificación nativa, y bajo el locale \code{C} —el de un
 \code{Rscript} de cron en Linux— un nombre con tilde no se puede mandar; mandarlo
-dejaba la conexión rota y la consulta siguiente hacía caer a R. La consulta
+dejaría la conexión rota y la consulta siguiente haría caer a R. La consulta
 no se envía: la columna queda en \code{no_disponible} con ese motivo, y una tabla
 con un nombre así da \code{lupa_error_codificacion_dbi}. Para leerlas, correr la
 sesión con un locale UTF-8 (\code{LC_ALL=C.UTF-8}). RPostgres, RSQLite y duckdb
@@ -479,9 +479,9 @@ muestra. Con \code{universo = "muestra_motor"} la columna se declara igual, en
 escribir sobre la tabla derivada, así que la muestra del motor usa otra forma
 que el motor acepte o se degrada con su motivo (limitación conocida). Con odbc las consultas se ejecutan sin preparar
 (\code{immediate = TRUE}, como el \code{dbGetQuery()} de odbc): preparada, una consulta
-rechazada por un permiso de columna dejaba la conexión rota y la siguiente
-hacía caer a R. Lo que el catálogo no ve —un sinónimo, una tabla de otra
-base, una tabla temporal— se lee como antes: el rechazo del motor se declara
+rechazada por un permiso de columna dejaría la conexión rota y la siguiente
+haría caer a R. Lo que el catálogo no ve —un sinónimo, una tabla de otra
+base, una tabla temporal— se intenta leer: el rechazo del motor se declara
 y la conexión sigue.
 Con enmascaramiento dinámico de SQL Server (\verb{MASKED WITH}, 2016+) y una
 credencial sin \code{UNMASK} sobre la columna o la base, el motor devuelve la
@@ -524,7 +524,7 @@ también la que comprueba que existe: un nombre marcado \code{latin1} —el que 
 \code{read.csv(encoding = "latin1")}— se convierte a UTF-8 y se lee, y uno con
 bytes que no son UTF-8 válido y no declaran su codificación —\code{read.csv()}
 sin \code{fileEncoding} sobre un archivo latin1— no se adivina: con odbc da
-\code{lupa_error_codificacion_dbi} antes de tocar la conexión, que antes quedaba
+\code{lupa_error_codificacion_dbi} antes de tocar la conexión, que así no queda
 rota. Una columna de \code{orden_muestra} que la sesión no puede escribir da
 también \code{lupa_error_codificacion_dbi}, con ese remedio: no la rechazó el
 motor, no se le mandó.
@@ -576,7 +576,7 @@ del motor que deshacen la transacción completa. La etapa publicada en el
 motivo es la que detectó el cambio: \code{dbSendQuery}, \code{dbFetch} o
 \code{dbClearResult}. Las sondas de sintaxis de otros motores no se ejecutan
 cuando el controlador ya fue reconocido; así se evita que \verb{XACT_ABORT ON}
-aborte la transacción por una sentencia que nunca correspondía a ese motor.
+aborte la transacción por una sentencia que no corresponde a ese motor.
 Un desbordamiento de datos que el motor no puede aislar puede abortarla
 igualmente y queda documentado en \code{lupa_error_transaccion_dbi}. MySQL,
 MariaDB y SQLite no abortan la transacción por el error de una consulta.
@@ -673,7 +673,7 @@ consulta. Cada resultado y el atributo \code{meta$estrategia_distintos} separan
 \code{estrategia_solicitada}, \code{estrategia_resuelta} y \code{estado}.
 
 Las comparaciones que tienen una cota dura usan solo valores del mismo grupo
-de consistencia. En esta version, el grupo queda probado por el
+de consistencia. El grupo queda probado por el
 \code{consulta_id} que ya se registra en \code{resumen_tabla$sql}: dos metricas con el
 mismo identificador salieron de la misma sentencia. La consulta exacta de
 distintos trae el conteo de no nulos \verb{AS n_validos_guard} junto a
@@ -709,11 +709,12 @@ valor utilizable queda \code{no_disponible}.
 
 \section{Motores medidos}{
 
-El camino principal —el que se mide en cada versión contra motores reales— es
-PostgreSQL por RPostgres, medido en la 9.3 y en la 16, y SQL Server 2022 por
-odbc con el controlador FreeTDS, en sesiones UTF-8 y bajo el locale \code{C} de un
-\code{Rscript} de cron. SQLite (RSQLite) y duckdb se ejercitan en las pruebas del
-paquete; MySQL y MariaDB (RMariaDB) se midieron de forma puntual. Con otro
+El camino principal es PostgreSQL por RPostgres, en la 9.3 y en la 16, y SQL
+Server 2022 por odbc con el controlador FreeTDS, en sesiones UTF-8 y bajo el
+locale \code{C} de un \code{Rscript} de cron. Los siete motores —PostgreSQL 9.3 y 16,
+SQL Server 2022, MySQL y MariaDB (RMariaDB), SQLite (RSQLite) y duckdb— se
+verifican contra el motor real con el guion \code{benchmark/verificar_motor.R}, y
+SQLite y duckdb se ejercitan además en las pruebas del paquete. Con otro
 motor, otro controlador u otra versión la función corre por la vía portable
 (ver «Dialecto») y declara en la cobertura lo que no pudo medir, pero sus
 cifras no están comprobadas contra ese motor. Las configuraciones avanzadas
@@ -786,7 +787,7 @@ que vuelve al valor guardado —\code{21.3}, la cifra que lee R desde PostgreSQL
 toma del texto de la sesión: antes de PostgreSQL 12, o con
 \code{extra_float_digits} de 0 o menos en cualquier versión, ese texto tiene
 seis cifras y 1234501 se escribe \code{1.2345e+06} —200 valores distintos se
-leían como 21, con un mínimo que no estaba en la columna—. Así la lectura
+leerían como 21, con un mínimo que no está en la columna—. Así la lectura
 da el valor guardado en cualquier versión y con cualquier
 \code{extra_float_digits} desde -6, sin tocar el estado de la sesión; en un
 empate de la última cifra puede elegir la otra forma corta, que vuelve al
@@ -870,7 +871,7 @@ los demás motores, \code{x * 1.0}.
 pérdida, el desvío nativo de SQLite, duckdb, MariaDB y MySQL— acumula en
 una sola pasada, y cuando la media es muy grande frente al ancho de la
 columna pierde las cifras del desvío: sobre marcas de tiempo en
-milisegundos de una ventana de un segundo, SQL Server respondía \code{0}. El
+milisegundos de una ventana de un segundo, SQL Server responde \code{0}. El
 desvío no cambia si a cada valor se le resta una constante, así que se le
 pide al motor sobre los valores centrados en la media ya calculada: siempre
 en la consulta por columna, y en la consulta compartida —donde la media sale
@@ -879,9 +880,9 @@ diez veces el desvío, o cuando respondió \code{0} sobre una columna con valore
 distintos, con una consulta más que el plan no anticipa porque
 depende de los datos. Su fila de \code{sql} lo dice. La resta se hace en un tipo
 que no pierde cifras: en SQL Server y duckdb una columna \code{real} (\code{FLOAT} en
-duckdb) restaba en 24 bits —en T-SQL \code{real - decimal} es \code{real}— y el
-desvío centrado se apartaba 1,4e-8 del de los valores guardados, así que
-se convierte a doble antes de restar; en SQL Server el centro de una
+duckdb) restaría en 24 bits —en T-SQL \code{real - decimal} es \code{real}— y el
+desvío centrado se apartaría del de los valores guardados, así que se
+convierte a doble antes de restar; en SQL Server el centro de una
 columna de coma flotante va como literal \code{float}, que no tiene el tope de 38
 cifras de un decimal. Una columna decimal o entera resta en su tipo, que es
 exacto. Con \code{bloque_filas} los
@@ -1155,7 +1156,7 @@ bloques eso incluye \code{meta$familias}, que guarda cada valor distinto de
 toda columna no protegida: una columna \code{debil} —las cédulas sin su
 verificador de OTRAS personas, como las de un garante— publica ahí cada
 uno de sus valores, donde \code{\link[=perfilar]{perfilar()}} publica sus dos extremos.
-Limitación conocida (baja): como la clasificación es sobre la muestra, con
+Limitación conocida: como la clasificación es sobre la muestra, con
 una muestra que ve menos de tres valores distintos de la copia —chica y
 ordenada sobre una tabla agrupada por persona— la copia no se clasifica, y
 el resumen de la tabla entera publica sus extremos, que pueden ser
@@ -1198,7 +1199,7 @@ igual. El \strong{relleno} que sale del piso en memoria —el dígito repetido c
 veces o más en una columna que sin él es casi una clave— se decide sobre la
 tabla entera, no sobre la muestra: en la muestra de una tabla de movimientos
 los clientes que se repiten casi no se repiten, y la cédula válida de un
-cliente con seiscientos movimientos salía como moda de otra columna. Con
+cliente con seiscientos movimientos saldría como moda de otra columna. Con
 la tabla leída completa decide la muestra, que es la tabla; si no, la
 confirman los conteos exactos de la tabla —\code{n_distintos} y \code{n_validos}
 calculados—, y sin ellos el relleno sigue en el piso. Con
@@ -1216,8 +1217,9 @@ distinto y los extremos de \code{meta$familias}— y la evidencia de sus hallazg
 \code{resumen_tabla$meta$proteccion_personal$fuera_de_muestra} dice por qué. Salvo
 un valor igual al nombre de la tabla o de su esquema, que es estructura: se
 publica en \code{meta}, en cada SQL guardada y en \code{print()}, y un valor de celda
-igual a él no se tapa —tapaba el nombre de todo el objeto—; lo mismo cuando
-sin muestra se cierran todas las columnas. Limitación conocida (baja): un
+igual a él no se tapa —taparlo taparía el nombre en todo el objeto—; lo
+mismo cuando
+sin muestra se cierran todas las columnas. Limitación conocida: un
 valor igual al nombre de una \strong{columna} sí se tapa, porque un nombre de
 columna puede ser el de una persona —una planilla con una columna por
 docente—, y tapa también ese nombre en la descripción de las sondas de
@@ -1225,7 +1227,7 @@ dialecto (\code{meta$dialecto$sondas}) y, con \code{bloque_filas}, en la de la f
 por bloques (\code{meta$fuente_bloques}, \code{meta$plan}); en \code{columnas$columna} y
 en la SQL guardada queda. En
 SQLite los valores se leen como texto, porque una columna de afinidad
-numérica guarda texto y el controlador lo convertía en número; también sin
+numérica guarda texto y el controlador lo convertiría en número; también sin
 muestreo, cuando la muestra es la tabla entera: ahí se releen como texto, con
 una consulta, las columnas protegidas que el controlador no leyó como texto.
 Y el motivo
@@ -1250,12 +1252,12 @@ fino, el punto medio, una raya, \code{" - "}, dos espacios, un tabulador o un
 salto de línea entre los grupos: \code{"099 - 123 - 456"} es uno de nueve—. El
 mensaje se lee como lo dijo el motor: odbc lo arma con cli, que pone una
 viñeta después de cada salto de línea y corta las líneas al ancho de la
-consola, y un número partido en dos líneas —\code{"2901\\n1234"}— quedaba partido
+consola, y un número partido en dos líneas —\code{"2901\\n1234"}— quedaría partido
 por la viñeta; se toman las líneas que guarda la condición, unidas por el
 salto que puso el motor, y así se publican, sin las viñetas. Tampoco llevan
 los colores ni los enlaces que cli pone en una consola a color —la de
-RStudio—: las secuencias ANSI quedaban guardadas en el motivo, y con
-protección pegadas a los marcadores. Lo que cli agrega dentro de una línea
+RStudio—: las secuencias ANSI quedarían guardadas en el motivo y, con
+protección, pegadas a los marcadores. Lo que cli agrega dentro de una línea
 no se distingue del texto del motor y queda: sin color, cli cita entre
 comillas el archivo del controlador (\code{'nanodbc/nanodbc.cpp:1802'}) y con
 protección esa cita sale \verb{[literal omitido]}; con color se publica. Así
@@ -1273,8 +1275,9 @@ valores —la docente \code{"Florencia"} de una planilla con una columna por
 docente— deja de exceptuarse, con la comparación del piso. En
 \code{\link[=perfilar_coleccion]{perfilar_coleccion()}} cada mensaje se vuelve a leer al final, desde como
 llegó, con todo lo que la colección leyó: con una vista perfilada antes que
-su tabla base, el piso no conocía todavía el nombre y la segunda pasada
-dejaba su resto —\code{"De Los Campos"} de \code{"María De Los Campos"}—. Lo que queda
+su tabla base, el piso todavía no conoce el nombre cuando llega el mensaje,
+y releer el texto ya tapado dejaría su resto —\code{"De Los Campos"} de
+\code{"María De Los Campos"}—. Lo que queda
 abierto: un valor que la llamada \strong{no} leyó —la celda que hizo fallar la
 lectura de la muestra, de una columna que la vista castea— escrito sólo con
 lo permitido, o igual al nombre de una columna, se publica, porque el
@@ -1282,16 +1285,16 @@ mensaje no tiene cómo distinguirlo del vocabulario ni de un nombre. Un mensaje 
 idioma conserva su SQL, sus tipos y sus nombres y se lee peor, que es el
 lado cerrado. Quedan una palabra de SQL entre comillas —\verb{Incorrect syntax near 'LIMIT'} dice que el motor no acepta ese dialecto— y un signo suelto.
 El texto que PostgreSQL cita sin comillas al no poder leer un JSON
-(\verb{CONTEXT:  JSON data, line 1: ...}) se tapa hasta el fin de la línea. Se
-publicaba tal cual, en PostgreSQL, en duckdb y en SQL Server.
+(\verb{CONTEXT:  JSON data, line 1: ...}) se tapa hasta el fin de la línea, en
+PostgreSQL, en duckdb y en SQL Server.
 \strong{Sin protección} (\code{proteger_datos_personales = FALSE}) el mensaje del motor
 se publica entero, en todas esas salidas: el literal que hizo fallar la
-lectura y el SQL que la hacía, sólo sin las viñetas, los cortes ni los
+lectura y el SQL de esa lectura, sólo sin las viñetas, los cortes ni los
 colores que agrega cli. El diagnóstico es el cometido del paquete —\verb{Conversion failed when converting the nvarchar value 'N/D' to data type int} dice que la columna
 trae un faltante disfrazado—, y sin protección ya se publican valores de
-todas las columnas —modas, ejemplos, patrones—: omitirlo ahí no protegía
-nada y quitaba el diagnóstico. Vale igual en \code{\link[=perfilar_coleccion]{perfilar_coleccion()}}, que pasa
-la bandera a cada tabla y la aplica a sus propios motivos.
+todas las columnas —modas, ejemplos, patrones—: omitirlo ahí no protegería
+nada y quitaría el diagnóstico. Vale igual en \code{\link[=perfilar_coleccion]{perfilar_coleccion()}}, que
+pasa la bandera a cada tabla y la aplica a sus propios motivos.
 \code{\link[=plan_perfilado_dbi]{plan_perfilado_dbi()}}, \code{\link[=coleccion]{coleccion()}}, \code{\link[=estimar_costo_coleccion]{estimar_costo_coleccion()}} y
 \code{\link[=relaciones_coleccion]{relaciones_coleccion()}} no tienen la bandera: llamadas por su cuenta, tapan
 el mensaje como con la protección activa.

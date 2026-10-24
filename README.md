@@ -1,1552 +1,357 @@
+
+<!-- README.md is generated from README.Rmd: edit that file and knit it with data-raw/tejer-readmes.R. -->
+
 # lupa <a href="https://sebollin.github.io/lupa/"><img src="man/figures/logo.png" align="right" height="139" alt="lupa website" /></a>
 
-Auditable data profiling and quality measurement: every result carries its
-scope and its evidence.
+Data profiling and quality measurement with evidence: every result declares
+its scope and what it could not measure.
 
 <!-- badges: start -->
+
 [![License: GPL-3](https://img.shields.io/badge/license-GPL--3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0.html)
 [![R-CMD-check](https://github.com/sebollin/lupa/actions/workflows/R-CMD-check.yaml/badge.svg)](https://github.com/sebollin/lupa/actions/workflows/R-CMD-check.yaml)
 [![Repo status: active](https://www.repostatus.org/badges/latest/active.svg)](https://www.repostatus.org/#active)
 [![README en español](https://img.shields.io/badge/README-espa%C3%B1ol-2e7d32.svg)](https://github.com/sebollin/lupa/blob/main/README.es.md)
 <!-- badges: end -->
 
-## What problem does `lupa` solve?
+## What it does and who it is for
 
-`lupa` helps an analyst inspect a table or database before trusting it: it makes
-visible inconsistent representations, missingness, duplicated or suspicious
-rows, implicit structure and values that deserve review; then it lets the
-analyst turn confirmed rules into explicit measurements, evaluate them, plan
-cleanup on a copy, and follow changes over time. It is useful when a
-`summary()` is too shallow to answer whether the same fact was encoded in more
-than one way, whether a missing value is hiding behind a code, or which rows
-need to be checked in the source system.
+`lupa` examines a table or a database before you trust it. It finds what
+`summary()` misses: missing values disguised as `"S/D"` (*sin dato*, “no data”)
+or `-99`, the same value written in several ways, dates in mixed formats,
+repeated rows and columns, structure nobody declared. It reports which rows each
+problem is in and which checks it could not run. It then helps turn what has
+been confirmed into explicit measurements, evaluate them, clean a copy with an
+editable plan and compare successive deliveries of the same data. It is meant
+for anyone who analyzes, produces or publishes tabular data and needs to know
+how far it can be trusted before using it.
 
-Printed results no longer fail because of encoding in any locale, LC_CTYPE = C
-included. The displayed copy converts whatever carries a declared encoding,
-declares as UTF-8 the valid undeclared bytes — R escapes them as <U+00F1>
-wherever the locale cannot represent them — and leaves the rest untouched for as
-long as R can print it. Under a UTF-8 locale the output is the same as R's,
-unless one of your classes defines a format() that inspects Encoding(): that one
-sees the displayed copy's mark. Under a locale that cannot represent a character
-the output differs on purpose, and for the better: where R escapes the bytes,
-lupa publishes the code point. Like every escaped representation — R's included
-— that form is ambiguous with text that contains it literally; what does not
-change is the data, only how it is shown. Only where R cannot
-print does it retry with R's own octal form, \377, so the table stays aligned
-there too. That does
-not make printing infallible: if one of your classes has a format() method that
-raises an error, that error reaches you unaltered. This includes the list
-columns in the propuesta_modelo returned by proponer_modelo(); comparing two
-identical profiles also stays silent in that locale.
-## What does it tell me that `summary()` does not?
+What sets it apart is under the hood. It does not reduce quality to a score: it
+collects the contradictions it finds, each with its type, its severity and its
+evidence. Every figure carries its scope: how many rows it was computed on and
+whether a sample was taken. Whatever could not be measured is declared with its
+reason and never counts as zero. And profiling does not modify the input.
 
-`summary()` describes columns one at a time. `lupa` compares representations,
-crosses columns and rows, and returns `perfil$hallazgos`: an inspectable table
-with a finding type, severity, evidence, counts, a suggestion and bounded row
-traceability. A zero finding means that a diagnostic ran and found nothing; a
-diagnostic that could not run is kept separately in
-`perfil$cobertura_diagnosticos`, rather than being silently reported as clean.
+## Installation
 
-This is a real slice of the output from the included data:
+Install the development version from GitHub:
 
-```r
-data(datos_operativos)
-perfil <- perfilar(datos_operativos, analizar_dependencias = FALSE)
-perfil$hallazgos[, c("columna", "tipo_hallazgo", "severidad", "evidencia")]
+``` r
+# install.packages("pak")
+pak::pak("sebollin/lupa")
 ```
+
+It depends only on [`cli`](https://cran.r-project.org/package=cli) and
+[`data.table`](https://cran.r-project.org/package=data.table). Suggested packages enable specific capabilities: [`DBI`](https://cran.r-project.org/package=DBI)
+with a driver ([`RSQLite`](https://cran.r-project.org/package=RSQLite),
+[`duckdb`](https://cran.r-project.org/package=duckdb), [`RPostgres`](https://cran.r-project.org/package=RPostgres)
+or [`odbc`](https://cran.r-project.org/package=odbc)) to profile inside a
+database, [`stringdist`](https://cran.r-project.org/package=stringdist) for
+approximate text comparison and [`sf`](https://cran.r-project.org/package=sf) for
+geometries. The API, the help pages and the guides are in Spanish, and the
+public names are part of the contract. What the package prints is in Spanish
+too, so the outputs below appear exactly as `lupa` writes them.
+
+## In thirty seconds
+
+`datos_operativos` ships with the package: 13 rows and 10 columns
+with planted defects. One call profiles it; start with the findings of severity
+`error`:
+
+``` r
+library(lupa)
+perfil <- perfilar(datos_operativos)
+h <- hallazgos(perfil)
+errores_primero <- order(h$severidad, decreasing = TRUE)
+print(head(h[errores_primero, c("columna", "tipo_hallazgo", "severidad")], 8),
+      row.names = FALSE)
+#>         columna           tipo_hallazgo  severidad
+#>  codigo_usuario   faltantes_disfrazados      error
+#>    fecha_evento   faltantes_disfrazados      error
+#>    fecha_evento   formatos_fecha_mixtos      error
+#>           canal   faltantes_disfrazados      error
+#>            <NA>        filas_duplicadas      error
+#>  codigo_usuario       alta_cardinalidad sospechoso
+#>    fecha_evento       alta_cardinalidad sospechoso
+#>    fecha_evento tipo_declarado_distinto sospechoso
+```
+
+A `columna` of `<NA>` marks a finding about the whole table, such as the
+duplicate rows.
+
+What could not be measured does not disappear. In this table 9 diagnostics
+were left unevaluated, counting each one in every column where it could not run
+(the outlier search, for instance, needs more values than the table has), and
+`cobertura(perfil)` says which ones, in which column, why and how to resolve them:
+
+``` r
+as.data.frame(table(diagnostico = cobertura(perfil)$diagnostico), responseName = "columnas")
+#>              diagnostico columnas
+#> 1               outliers        4
+#> 2            patron_raro        1
+#> 3 proximidad_vocabulario        3
+#> 4   resumen_cuantitativo        1
+```
+
+## What it reveals that `summary()` does not
+
+`summary()` describes columns one at a time. `lupa` compares representations
+and cross-checks columns and rows. It returns its findings as a table: type,
+severity, evidence, counts, a suggestion and traceability down to the rows.
+A finding type that does not appear is a diagnostic that ran and found nothing;
+what did not run is in `cobertura()`.
 
 Among the outputs of that run are:
 
-| What it exposes | `tipo_hallazgo` | Example in `evidencia` |
-| --- | --- | --- |
-| Missing values hidden behind codes | `faltantes_disfrazados` | `NULL (1)` |
-| Mixed date representations | `formatos_fecha_mixtos` | `%d/%m/%Y (4); %Y-%m-%d (4); ...` |
-| Trailing whitespace | `espacios_sobrantes` | `1 valores; ejemplos: "web "` |
-| Inconsistent capitalization | `mayusculas_inconsistentes` | `"web"; "Web"` |
-| Declared and inferred types disagree | `tipo_declarado_distinto` | `Declarado: texto; inferido: fecha` |
-| A constant column | `constante` | `Valor: principal; frecuencia: 13` |
-| Exact duplicate rows | `filas_duplicadas` | `2 filas en grupos duplicados (1 excedentes)` |
-| Repeated columns | `columnas_duplicadas` | `id_registro = id_copia` |
+| What it reveals                      | `tipo_hallazgo`             | Evidence (excerpt)                                          |
+| ------------------------------------ | --------------------------- | ----------------------------------------------------------- |
+| Missing values hidden behind codes   | `faltantes_disfrazados`     | `<blanco> (1); S/D (1)`                                     |
+| Dates in mixed formats               | `formatos_fecha_mixtos`     | `%Y-%m-%d (4); %d/%m/%Y (4); ...`                           |
+| Extra whitespace                     | `espacios_sobrantes`        | `1 valor; ejemplos: "web "`                                 |
+| Inconsistent capitalization          | `mayusculas_inconsistentes` | `"web"; "Web"`                                              |
+| Declared and inferred types disagree | `tipo_declarado_distinto`   | `Declarado: texto; inferido: fecha (0.846 compatible); ...` |
+| A constant column                    | `constante`                 | `Valor: principal; frecuencia: 13`                          |
+| Exact duplicate rows                 | `filas_duplicadas`          | `2 filas en grupos duplicados (1 excedente)`                |
+| Repeated columns                     | `columnas_duplicadas`       | `id_registro = id_copia; comparadas sobre 13 filas`         |
 
-In a purpose-built table, the profile emitted 15 kinds of finding, including
-mixed currencies and units, mixed date formats, disguised missingness, extra
-spaces, inconsistent capitalization, spelling variants, numbers stored as
-text, near-keys, constants and structural absence. On a reference bank with
-known defects it recovered 9 of 9 planted defects; on 31 clean tables it
-produced 0 error-severity findings and 8 signals to review. The three figures
-are pinned by `tests/testthat/test-regresion-107.R`, so they cannot age in silence.
+The full vocabulary, with what each finding type means, is in the article
+[Alcance y cobertura](https://sebollin.github.io/lupa/articles/alcance-y-cobertura.html) (*Scope and coverage*).
 
-The current canonical vocabulary has 58 `tipo_hallazgo` names. The names are
-Spanish because they are part of the public API:
+## How to read a profile
 
-```text
-alta_cardinalidad                    anio_de_dos_digitos
-bloqueo_por_con_perdida              casi_clave
-casi_duplicados_vocabulario          celdas_multivaluadas
-ceros_no_permitidos                  clave_con_ausentes
-clave_no_unica                       codificacion_invalida
-codificacion_rota                    columnas_duplicadas
-constante                            controles_invisibles
-coordenada_fuera_dominio             crs_no_declarado
-dato_personal_posible                desviacion_benford
-duplicados_aproximados               duplicados_exactos_columnas
-duplicados_exactos_normalizados      entidades_html
-espacios_sobrantes                   faltantes
-faltantes_disfrazados                fecha_fallecimiento_fuera_rango
-fecha_nacimiento_fuera_rango         fecha_partida_columnas
-filas_duplicadas                     formato_fecha_ambiguo
-formatos_fecha_mixtos                geometria_invalida
-geometria_vacia                      integer64_fuera_precision_double
-mayusculas_inconsistentes            monedas_mixtas
-negativos_no_permitidos              nombres_columnas_problematicos
-normalizacion_unicode                numero_como_texto
-outliers                             patron_raro
-posible_ausencia_estructural         posible_centinela_numerico
-posible_identificador                regla_silencia_ausencia
-relacion_aritmetica_columnas         relacion_orden_columnas
-separadores_en_campo                 tipo_compuesto_no_analizado
-tipo_declarado_distinto              tipos_geometria_mixtos
-unidades_mixtas                      valor_concentrado
-valor_fuera_de_aplicabilidad         valores_no_finitos
-variantes_equifrecuentes_vocabulario zona_horaria_fecha_hora
+`severidad` (severity) is an ordered factor: `ok < sospechoso < error`.
+
+  - `ok` records an informative condition, not an approval: a column that looks
+    like an identifier is `ok`.
+  - `sospechoso` (suspicious) asks for a look in context: `alta_cardinalidad`
+    (high cardinality) in `codigo_usuario` suggests checking whether the column is
+    free text, an identifier or a poorly normalized category.
+  - `error` means that a check crossed its declared criterion. It is the only
+    level worth using as an automatic gate, and only after accepting that criterion.
+
+With `clave` (key), each finding carries the values that identify its rows, so
+the case can be looked up in the source system without opening the table:
+
+``` r
+con_clave <- perfilar(datos_operativos, clave = "id_evento")
+#> Warning: La clave declarada no es única: entre las 13 filas con la clave completa, 1 repite su
+#> valor (2 filas participan en colisiones). La clave cumple la ausencia de nulos: no tiene
+#> valores ausentes.
+h <- hallazgos(con_clave)
+fila <- which(h$tipo_hallazgo == "faltantes_disfrazados" &
+                h$columna == "fecha_evento")
+claves <- h$trazabilidad[[fila]]$claves
+claves
+#>   id_evento
+#> 1    EVT011
+datos_operativos[datos_operativos$id_evento %in% claves$id_evento,
+                 c("id_evento", "fecha_evento")]
+#>    id_evento fecha_evento
+#> 13    EVT011         NULL
 ```
 
-The `valor_concentrado` signal implements the measured M2 rule. It considers
-only numeric columns with at least 20 non-missing valid values and at least 10
-distinct values. It emits a `sospechoso` finding when the modal frequency is
-at least five times the second-highest frequency and the modal value accounts
-for at least 0.15 of valid values. Its evidence reports the modal value, both
-frequencies, the ratio, and the fraction. A legitimate value can dominate, so
-this is never an `error`. Non-eligible columns do not receive a
-`cobertura_diagnosticos` row: categorical distributions are outside the
-signal's intended scope.
+The warning, which says that the declared key is not unique, is part of the
+answer: `datos_operativos` has a duplicated row, so no key can be unique, and
+the profile records this as a `clave_no_unica` finding of severity `error`.
 
-The measured blind spots are part of this contract: concentrations below 15%
-are not detected, and natural ties in small integer columns can keep the ratio
-below five. The measurement found zero false positives in 114 clean eligible
-columns, with a 2.2x margin.
+What could not be measured is recorded, never counted as zero. That is why an
+automated check that looks for `error` must also read `cobertura()`: zero
+errors with unevaluated diagnostics is not a clean profile.
+
+Counts (rows, missing values, distinct values, exact duplicates and summaries)
+use every row; patterns, types and date formats are inferred from a systematic
+sample of up to 100,000 rows (`muestra`). The guide
+[Leer un perfil](https://sebollin.github.io/lupa/articles/leer-un-perfil.html) (*Reading a profile*)
+explains each column of the findings, keys, disagreements between columns and
+the glossary.
+
+## What sets it apart and where it fits
+
+To summarize and plot columns there are [`skimr`](https://cran.r-project.org/package=skimr)
+and [`DataExplorer`](https://cran.r-project.org/package=DataExplorer); to
+diagnose a table and write up its report, [`dlookr`](https://cran.r-project.org/package=dlookr)
+and [`dataReporter`](https://cran.r-project.org/package=dataReporter); to evaluate
+rules that someone has already written, [`validate`](https://cran.r-project.org/package=validate),
+[`pointblank`](https://cran.r-project.org/package=pointblank), [`assertr`](https://cran.r-project.org/package=assertr)
+and [`dataquieR`](https://cran.r-project.org/package=dataquieR). `lupa` works on the stretch before the
+rule and on the one after it: it finds what no rule names yet, proposes what to
+measure without built-in thresholds and, once a rule is confirmed, measures it
+with its scope, cleans a copy and compares deliveries. It is meant to be used
+alongside those packages, not instead of them.
+
+## Function map
+
+| Task                                           | Main functions                                                                                                                           | Guide                                                                                                                                                                                               |
+| ---------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Look at a table for the first time             | `perfilar()`, `hallazgos()`, `columnas()`, `cobertura()`                                                                                 | [Empezar en diez minutos](https://sebollin.github.io/lupa/articles/lupa.html), [Leer un perfil](https://sebollin.github.io/lupa/articles/leer-un-perfil.html)                                       |
+| Explore columns and share the result           | `analizar()`, `distribucion_valores()`, `detectar_asociaciones()`, `analizar_tiempo()`, `reportar()`, `guardar_analisis()`               | [Explorar columnas con `analizar()`](https://sebollin.github.io/lupa/articles/explorar-columnas.html)                                                                                               |
+| Find structure and legitimately empty cells    | `detectar_claves()`, `sugerir_clave()`, `detectar_relaciones()`, `detectar_dependencias()`, `detectar_discordancias()`, `perfilar_por()` | [Estructura no declarada](https://sebollin.github.io/lupa/articles/estructura-no-declarada.html), [El vacío por diseño](https://sebollin.github.io/lupa/articles/vacio-por-diseno.html)             |
+| Clean without touching the original            | `planificar_limpieza()`, `guiar_limpieza()`, `aplicar()`; the `reparar_codificacion` strategy for mis-encoded text                       | [Limpiar con un plan](https://sebollin.github.io/lupa/articles/limpiar-con-un-plan.html)                                                                                                            |
+| Define, measure and evaluate quality           | `proponer_modelo()`, `marco_calidad()`, `metrica()`, `modelo()`, `medir()`, `agregar()`, `evaluar()`, `tablero_calidad()`                | [Del hallazgo a la métrica](https://sebollin.github.io/lupa/articles/del-hallazgo-a-la-metrica.html), [Marcos y modelos de calidad](https://sebollin.github.io/lupa/articles/marcos-y-modelos.html) |
+| Compare deliveries and track quality over time | `comparar_perfiles()`, `comparar_equivalencia()`, `historico_calidad()`, `detectar_deriva_calidad()`                                     | [Comparar entregas y seguir la calidad](https://sebollin.github.io/lupa/articles/historico-y-deriva.html)                                                                                           |
+| Profile a database or a collection of tables   | `perfilar_dbi()`, `plan_perfilado_dbi()`, `requisitos_motor()`, `coleccion()`, `perfilar_coleccion()`                                    | [Perfilar una base](https://sebollin.github.io/lupa/articles/perfilar-una-base.html), [Colecciones](https://sebollin.github.io/lupa/articles/colecciones.html)                                      |
+| Find approximate duplicates                    | `detectar_duplicados_aproximados()`, `estimar_costo()`                                                                                   | [Escala y duplicados aproximados](https://sebollin.github.io/lupa/articles/escala-y-duplicados.html)                                                                                                |
+
+The [reference](https://sebollin.github.io/lupa/reference/) documents every function.
+
+## Profiling a database: what comes into R
+
+`perfilar_dbi()` returns two blocks: `resumen_tabla`, with the aggregates that
+the engine computes in SQL, and `perfil_muestra`, the row-level profile of what
+is read into R. By default the aggregates use the whole table and the row-level
+profile tries to bring in **all** the rows that fit within the caps: it is not a
+cheap sample.
+
+``` r
+con <- DBI::dbConnect(RSQLite::SQLite(), ":memory:")
+DBI::dbWriteTable(con, "eventos", datos_operativos)
+en_la_base <- perfilar_dbi(con, "eventos")
+names(en_la_base)
+#> [1] "resumen_tabla"  "perfil_muestra"
+```
+
+| Option                                                  | SQL aggregates over          | Brings rows into R?                                    |
+| ------------------------------------------------------- | ---------------------------- | ------------------------------------------------------ |
+| Default: `universo = "tabla_completa"`, `muestra = Inf` | the whole table              | Yes: all that fit within the cell and byte caps        |
+| `muestra = n`                                           | the whole table              | Yes, up to `n`: it bounds the read, not the aggregates |
+| `universo = "muestra_motor"`, `muestra_motor = n`       | a sample taken by the engine | Yes, the rows in that sample                           |
+| `bloque_muestra = "solo_agregados"`                     | whatever `universo` says     | No: aggregates only, no row-level findings             |
+
+Without `orden_muestra`, a `muestra = n` read gets the first rows the engine
+returns, in an order SQL does not guarantee; with `orden_muestra` the read can be
+reproduced. What was read into R is described in `perfil_muestra$meta$origen_dbi$muestreo`;
+`resumen_tabla$meta$muestreo` exists only with `universo = "muestra_motor"`. There
+is no snapshot: `resumen_tabla$meta$snapshot` is `FALSE`, because each aggregate
+is measured in its own query and the table can change from one query to the next.
+
+The package is tested against DuckDB, MariaDB, MySQL, PostgreSQL, SQL Server and SQLite;
+`requisitos_motor()` says what each engine needs. The versions, the drivers and
+the date of each run are in the article [Motores y escala](https://sebollin.github.io/lupa/articles/motores-y-escala.html#motores-probados) (*Engines and scale*),
+and the step-by-step walkthrough is in [Perfilar una base](https://sebollin.github.io/lupa/articles/perfilar-una-base.html).
+
+## Limits to know before a large run
+
+  - **Sample caps.** What is read into R, or sampled within R, stops at
+    1,000,000 cells (`max_celdas_muestra`) and 512 MiB (`max_bytes_muestra`),
+    and the cut is recorded in `cobertura()` together with the cap that triggered it ([Motores y escala](https://sebollin.github.io/lupa/articles/motores-y-escala.html#topes)).
+  - **Cost policy.** In `perfilar_dbi()`, `politica_costo = "todas"` (the
+    default) computes the mode and the median in every column; `"por_cardinalidad"` skips
+    the mode where the proportion of distinct values reaches `umbral_cardinalidad` (0.5),
+    and `plan_perfilado_dbi()` shows the queries before running them ([Motores y escala](https://sebollin.github.io/lupa/articles/motores-y-escala.html#politica-de-costo)).
+  - **Approximate duplicates.** They are off by default. `detectar_duplicados_aproximados()`
+    runs an exact comparison of up to 50,000,000 pairs (`max_pares`). With the
+    default strategy (`"auto"`), no sample and that cap, more than ten thousand
+    rows take it to MinHash/LSH, which can miss pairs and says so (candidates,
+    bands and the collision guarantee); with a lower `max_pares` or a sample it
+    stays with the exact or sampled comparison, and `estrategia = "lsh"` forces it.
+    `estimar_costo()` anticipates the switch ([Escala y duplicados aproximados](https://sebollin.github.io/lupa/articles/escala-y-duplicados.html)).
+  - **Wide tables.** From 100,000 cells up, an interactive session
+    gets a notice of how long `perfilar()` may take; the estimate relies on an
+    assumption built into the code (10,000 cells per second), not on a measurement
+    of the machine; the dated measurements are in [Evidencia y rendimiento](https://sebollin.github.io/lupa/articles/evidencia-y-rendimiento.html).
+  - **Millions of rows in memory.** `perfilar()` and `analizar()` take minutes, not
+    seconds: profile a sample or use `perfilar_dbi()` instead. The measured figures,
+    with their dates, are in [Evidencia y rendimiento](https://sebollin.github.io/lupa/articles/evidencia-y-rendimiento.html) (*Evidence and performance*).
+
+## A report in a single file
+
+`analizar()` gathers the profile, the distributions, the associations and the
+temporal analysis into one object, together with a proposed quality model, its
+dashboard and a cleaning plan; `reportar()` writes it all to a self-contained
+HTML file for sharing.
+
+``` r
+analisis <- analizar(datos_operativos)
+reportar(analisis, archivo = "informe-lupa.html")
+```
+
+The proposal is only a suggestion: domains and patterns learned from the same
+delivery are proposed as inactive and are not measured until someone confirms them.
+`guardar_analisis()` and `leer_analisis()` save and restore the whole analysis. The guide
+is [Explorar columnas con `analizar()`](https://sebollin.github.io/lupa/articles/explorar-columnas.html) (*Exploring columns with `analizar()`*).
 
 ## What it does not do
 
 `lupa` does not turn the name of a quality framework into a measurement. A
-framework is a taxonomy; a factor is measured only when the data provide
-evidence or the user declares the requirement and metric that will measure it.
-The following is the measured coverage of the included frameworks:
-
-| framework | factors | reachable by declaring requirements | out of scope | measured by `perfilar()` alone |
-| --- | ---: | ---: | ---: | ---: |
-| AGESIC | 17 | 12 | 5 | 2 |
-| CEPAL | 19 | 6 | 13 | 0 |
-| ISO 25012 | 15 | 15 | 0 | 0 |
-
-The 13 CEPAL principles outside scope are not an engine limitation: they speak
-about the statistical system and its institutional or production process, not
-about values in a table. ISO 25012 is fully coverable when its requirements and
-metrics are declared. `cobertura_analisis()` keeps these distinctions visible;
-an absent finding is not a claim that the data are good.
-
-`lupa` also does not certify a dataset, invent a global score, or modify the
-input as a side effect of profiling. A score is available only when the user
-declares weights and a measurement model; cleanup returns a copy and keeps the
-original data intact.
-
-## Which databases does it run on?
-
-Seven engine/version combinations were measured against real engines today.
-Each produced the 38 requested metrics, declared 7 as `no_aplica`, and
-detected the `id` key in the test table.
-
-| engine | version | status |
-| --- | --- | --- |
-| PostgreSQL | 16 | **measured against the real engine** |
-| PostgreSQL | 9.3.25 | **measured against the real engine** |
-| MariaDB | 11.8 | **measured against the real engine** |
-| MySQL | 8.4 | **measured against the real engine** |
-| SQLite | — | **measured against the real engine** |
-| DuckDB | — | **measured against the real engine** |
-| SQL Server | 2022 | **measured against the real engine** |
-| Oracle | — | not measured in this matrix |
-| BigQuery | — | not measured in this matrix |
-
-`requisitos_motor()` contains 12 entries. Nine are named engine entries when
-the two Oracle version rows are counted separately; `dbi`, `odbc` and
-`otro_dbi` are generic compatibility entries, not additional measured engines.
-
-## How to start
-
-Until the first CRAN release, install the development version from GitHub:
-
-```r
-pak::pak("sebollin/lupa")
-```
-
-Then these five lines take a first look at a table and its declared coverage:
-
-```r
-library(lupa)
-data(datos_operativos)
-perfil <- perfilar(datos_operativos, analizar_dependencias = FALSE)
-head(perfil$hallazgos[, c("columna", "tipo_hallazgo", "severidad")], 5)
-cobertura_analisis(perfil)
-```
-
-`perfilar()` is read-only. The next step, when a finding is confirmed as a
-requirement, is the guided route described in
-[`flujo-guiado`](https://sebollin.github.io/lupa/articles/flujo-guiado.html).
-
-## 🔎 How lupa works in practice
-
-`lupa` is an auditable R toolkit that connects first-pass profiling with a
-quality model declared for a particular use, explicit measurement, controlled
-cleanup of a copy, and approximate duplicate detection at scale. Instead of a
-single opaque score, every result carries its scope, evidence, and uncertainty.
-
-**Whole databases, not just one table.** `coleccion()` declares which tables
-make up a database — schema included, because the schema is part of a table's
-identity — and `perfilar_coleccion()` returns one row per table plus the
-coverage of what it could not measure. The boundary is *declared*, never
-discovered: walking a catalogue would turn a permissions error into a result,
-and real collections run past a thousand tables across dozens of schemas.
-Tables a credential cannot read land in `cobertura_coleccion` with their reason,
-never as a zero — partial permissions are the normal case, not the edge. There
-is no snapshot: every table carries the moment it was measured, and the object
-says so.
-
-**Contradictions no single column shows.** Declare that several columns encode
-the same fact with `senal_redundante()`, and `detectar_discordancias()` reports
-the rows where they disagree — the year of the date against the fiscal year
-against the file year. Each of the three can be perfectly plausible on its own
-and still contradict the others. The group is declared, never guessed: two year
-columns might be birth year and enrolment year, and there is no reason for those
-to match.
-
-**Findings you can verify, not just read.** Pass `clave` to `perfilar()` with
-the columns that identify a row, and every finding's traceability carries those
-values for the rows it points at — so you can look the case up in the source
-system without opening the table. Row indices stay as the fallback;
-`trazabilidad$localizador` says which one you got. There is a tension the
-feature cannot ignore: the key that lets you verify is exactly what identifies a
-person, so a key column classified as personal data comes back masked, the same
-way evidence does, and `claves_protegidas` says which.
-
-**And it reaches the quality model too.** Referential metrics report which
-candidate was closest and at what distance; when that reference table is a
-register of people, the value comes out as `[valor protegido]` and the distance
-is kept. A reference table carrying no personal data keeps its evidence intact.
-
-**And masking reaches every output, not just the mode** —scoped **by column**: what describes the protected column is replaced, not every occurrence of that text. `"S/D"` can be a sentinel in the ID column and the "no data" marker in `sexo`, and publishing it in `sexo` reveals nothing about the ID; what has no column to attribute it to, such as a duplicate-rows finding, stays masked everywhere—. Each finding's
-description, evidence and suggestion; the coverage `motivo` and
-`como_resolverlo`; the parameters of a plan action; the "Ejemplos reales" that
-`guiar_limpieza()` prints to the console; and the bounding box of a protected
-geometry, whose four `bbox_*` fields become `NA` with
-`bbox_alcance = "no_publicado_por_geometria_protegida"`. In every case the
-signal is kept and the value hidden: the example still shows which rows match
-and in which columns, and the structural-absence finding is still raised without
-naming the threshold. Values are replaced **longest first**, so a protected value
-that is a prefix of another —`Maria Nunez` and `Maria Nunez de Castro` in the same
-column— does not leave the longer one's tail published. A sweep over the finding types watches this, checking
-first that each one was actually raised.
-
-**The floor recognises three shapes of the same value**: the exact one, the one
-that differs only in separators or in the case of its ASCII letters, and the one
-that shares a run of six or more digits with a protected value —an ID without its
-check digit—. It also splits the values an `ejemplos` cell publishes **joined**:
-without that, a document that only travelled inside a free-text column was
-published in full, because the needle was the joined string and that string exists
-nowhere else in the output. The run comparison is limited to digits on purpose:
-applied to text it would mask an ordinary word for sharing a stretch with a
-surname, and that silences report content instead of protecting a datum.
-
-**Profiling never touches your data.** No analysis function alters the table it
-receives — not its values, its types, its names, or its attributes — including
-`data.table` inputs, which R allows to be modified by reference. Only the
-remediation layer produces different data, and it returns a copy: the table you
-passed in is still the table you have. A regression test asserts this for every
-entry point.
-
-## 🌎 API language
-
-The public names are Spanish in examples, help pages, and vignettes:
-
-| Spanish API | English meaning |
-| --- | --- |
-| `perfilar()` | profile |
-| `analizar()` | analyse |
-| `marco_calidad()` | quality framework |
-| `planificar_limpieza()` | plan a cleanup |
-| `guiar_limpieza()` | guide a cleanup |
-| `aplicar()` | apply a selected cleanup |
-| `medir()` / `tablero_calidad()` / `evaluar()` | measure / dashboard / evaluate |
-| `detectar_duplicados_aproximados()` | find approximate duplicates |
-| `reportar()` | create a report |
-
-The [Spanish README](https://github.com/sebollin/lupa/blob/main/README.es.md)
-tells the same story. Contributors should keep the public contract in Spanish;
-the surrounding guidance can be internationalised.
-
-## ⚡ A complete analysis and report
-
-Until the first CRAN release, install the development version from GitHub:
-
-~~~r
-# install.packages("pak")
-pak::pak("sebollin/lupa")
-~~~
-
-Then profile a table or run the complete analysis route:
-
-~~~r
-library(lupa)
-data(datos_operativos)
-
-perfil <- perfilar(datos_operativos, analizar_dependencias = FALSE)
-head(perfil$hallazgos[, c("columna", "tipo_hallazgo", "severidad")], 5)
-
-analisis <- analizar(datos_operativos)
-analisis$tablero
-archivo <- tempfile(fileext = ".html")
-reportar(analisis, archivo = archivo)
-stopifnot(file.exists(archivo))
-unlink(archivo)
-~~~
-
-Profiling is read-only: it never changes the input table. Findings are ordinary
-inspectable data frames, and personal-data evidence is masked when the
-classification warrants it. This is a real console preview:
-
-![A captured `perfilar()` console result](man/figures/perfil-console.png)
-
-## 🧭 What can I do with lupa?
-
-The [pkgdown reference](https://sebollin.github.io/lupa/reference/) and the
-linked vignettes are the detailed manual. This table is the short map:
-
-| Task | Main functions | Read more |
-| --- | --- | --- |
-| Look at data for the first time | `perfilar()`, `analizar()`, `distribucion_valores()`, `detectar_asociaciones()`, `analizar_tiempo()`, `clasificar_variables()`, `inferir_tipo()`, `descubrir_patrones()`, `detectar_formatos_fecha()`, `sentinelas_naniar` | [Getting started](https://sebollin.github.io/lupa/articles/empezar-con-lupa.html) |
-| Profile against a database | `perfilar_dbi()` — full-table SQL aggregates plus, by default, a 117-analytic-field profile from a declared sample; `bloque_muestra = "solo_agregados"` requests only aggregates | [Profiling a database](https://sebollin.github.io/lupa/articles/perfilar-una-base.html) |
-| Find undeclared structure | `detectar_claves()`, `detectar_relaciones()`, `detectar_dependencias()`, `granularidades()`, `transiciones_granularidad()` | [Undeclared structure](https://sebollin.github.io/lupa/articles/estructura-no-declarada.html) |
-| Define quality | `marco_calidad()`, `marco_agesic()`, `marco_iso25012()`, `marco_cepal()`, `catalogo_agesic()`, `metrica()`, `especializar()`, `instanciar()`, `modelo()`, `metricas_nucleo()`, `metricas_referencial()`, `proponer_modelo()`, `modelo_desde_propuesta()`, `perfiles_madurez()`, `cobertura_analisis()` | [Define quality](https://sebollin.github.io/lupa/articles/definir-la-calidad.html) |
-| Measure and evaluate | `medir()`, `agregar()`, `tablero_calidad()`, `indice_calidad()` with project weights, `evaluar()`, `regla_evaluacion()` with the user-declared instruction `desenlace = "suprimir"` (not a factory threshold), `perfil_evaluacion()`, `escala()`, `referencial()`, `vigencia()` | [Measure and evaluate](https://sebollin.github.io/lupa/articles/medir-y-evaluar.html) |
-| Clean safely | `planificar_limpieza()`, `guiar_limpieza()`, `aplicar()` | [Cleaning plan](https://sebollin.github.io/lupa/articles/limpiar-con-un-plan.html) |
-| Find approximate duplicates | `detectar_duplicados_aproximados()`, `estimar_costo()` | [Scale and duplicates](https://sebollin.github.io/lupa/articles/escala-y-duplicados.html) |
-| Repair encoding damage | `reparar_codificacion` through `planificar_limpieza()` and `aplicar()` | [Cleanup reference](https://sebollin.github.io/lupa/reference/planificar_limpieza.html) |
-| Follow quality over time | `historico_calidad()`, `acumular_historico()`, `guardar_historico()`, `leer_historico()`, `detectar_deriva_calidad()`, `comparar_perfiles()`, `comparar_equivalencia()`, `comparar_evaluaciones()` | [History and drift](https://sebollin.github.io/lupa/articles/historico-y-deriva.html) |
-| Share results | `reportar()`, `guardar_analisis()`, `leer_analisis()` | [Reporting reference](https://sebollin.github.io/lupa/reference/reportar.html) |
-| Validate and extend | `validadores_internacionales()`, `validadores_uruguay()`, `pack_validadores()`, `validar_ci_uy()`, `validar_rut_uy()`, `validar_luhn()`, `validar_mod97()`, `validar_iso3166()`, `validar_iso4217()`, `validar_correo()`, `validar_url()` | [Reference](https://sebollin.github.io/lupa/reference/) |
-
-## 📐 Scope: what uses every row and what is sampled
-
-`perfilar()` uses every row for table and column counts, real and disguised
-missingness, distinct values, exact duplicates, quantitative summaries, and
-the findings derived from those quantities. **«Every row» is the scope, not the
-content**: a quantitative summary still leaves out what does not count as a
-number — `NaN`, `Inf`, text the conversion cannot read, and the sentinels
-declared in `sentinelas_numericos` — and when it does, it says so:
-`n_valores_excluidos_resumen` counts them, `estado_resumen_cuantitativo` stops
-saying `"calculados"`, and `cobertura_diagnosticos` gets its row. The breakdown of
-the non-finite values stays in `n_nan`, `n_infinito_positivo` and
-`n_infinito_negativo`, and when no usable value survives the state says so
-instead of claiming it computed anything, and it **tells two different cases
-apart**: `"sin_valores"` when the column held no present value **in the universe the
-summary measures** —empty, all `NA`, or with declared applicability leaving that
-universe without values, in which case the ones outside are declared in
-`n_presentes_fuera_de_aplicabilidad`— and `"sin_valores_utilizables"` when it did hold values and none of them was
-usable, as in a column of thirty `Inf` —which publishes `n_faltantes = 0` and
-`n_distintos = 1`— or one whose sentinels took every value. It says so for an
-`integer64` column just as for a double one. The exclusion of non-finite values is
-declared **in every class**: a date column holding an `Inf` publishes
-`n_valores_excluidos_resumen = 1` and does not count it among the summarised dates.
-Text lengths declare their own universe through `n_longitudes_resumidas`, because
-`nchar()` cannot measure a value whose bytes are not valid UTF-8 and that one stays
-out of the average. None of that
-depends on sampling being on. By default, `muestra = 1e5` limits
-pattern discovery, type inference, date-format discovery, and the common sample
-used to search for functional dependencies. Set another limit or `Inf` to
-change or disable that sampling.
-
-For inferred temporal types, `estado_tipo_inferido` distinguishes `confirmado`,
-`candidato`, and `NA`; a 100% compatible ambiguous date remains a candidate.
-
-Personal-document validators have a separate preliminary filter:
-`muestra_validadores = 1000` by default. A validator that passes that filter is
-then evaluated on the complete column; `Inf` makes even the preliminary pass
-complete. Approximate duplicates are off by default and have their own declared
-bounds when enabled.
-
-In `detectar_duplicados_aproximados()`, `pares$tipo_par` is self-describing:
-`exacto` means the stored texts are equal, `exacto_normalizado` means they only
-match after the declared normalization, and `aproximado` means they remain
-similar rather than equal. `pares$igualo_normalizar` marks the middle case.
-The corresponding scope counts are `n_pares_exactos`,
-`n_pares_exactos_normalizados`, and `n_pares_aproximados`.
-
-The `casi_duplicados_vocabulario` diagnostic runs per column. Even when two
-columns have the same vocabulary, each keeps its own coverage row and findings;
-the cost of comparing identical vocabularies may therefore repeat. This is
-deliberate, so frequencies and scope from different columns are never mixed.
-
-The result records the effective scope in `meta$muestra`,
-`meta$filas_analizadas`, and `meta$muestreo`; each column also records
-`n_filas_analizadas_tipo` and `muestreado_tipo_inferido`, while the dependency
-table carries its analysed-row and sampling attributes. `analizar()` reuses
-`muestra = 1e5` for its profile, distributions, and observed-level enumeration,
-and declares separate limits for associations and the other components.
-
-## 🗄️ Engines: what is tested and what is expected
-
-`perfilar_dbi()` does not promise a universal dialect. It resolves the dialect
-with a zero-row probe **before** issuing the aggregate block, and whatever the
-engine rejects is recorded as unavailable with its reason — never as zero.
-
-| engine | dialect | status |
-| --- | --- | --- |
-| **SQLite** | `limit` | **tested** against the real engine: 38 metrics, 7 `no_aplica`, and key `id` detected |
-| engine that rejects `LIMIT` | `top` / `portable` | **tested** with a simulated engine in the suite |
-| engine that folds aliases to upper case | any | **tested** with a simulated engine |
-| engine that rejects `SELECT *` over one column | any | **tested** with a simulated engine |
-| **PostgreSQL 16** | `limit` | **tested** against the real engine: 38 metrics, 7 `no_aplica`, and key `id` detected |
-| **PostgreSQL 9.3.25** | `limit` | **tested** against the real engine: 38 metrics, 7 `no_aplica`, and key `id` detected |
-| **MySQL 8.4** | `limit` | **tested** against the real engine: 38 metrics, 7 `no_aplica`, and key `id` detected |
-| **SQL Server 2022** | `top` | **tested** against the real engine: 38 metrics, 7 `no_aplica`, and key `id` detected |
-| **DuckDB** | `limit` | **tested** against the real engine: 38 metrics, 7 `no_aplica`, and key `id` detected |
-| **MariaDB 11.8** | `limit` | **tested** against the real engine: 38 metrics, 7 `no_aplica`, and key `id` detected |
-| **Oracle** | `fetch_first` / `rownum` | not measured in the current matrix |
-| **BigQuery** | `portable` | not measured in the current matrix |
-| any other DBI-compatible engine | `portable` | fallback: `dbSendQuery()` + `dbFetch(n)` |
-
-The claim is reproducible: `benchmark/verificar_motor.R` takes any DBI
-connection and checks five things — that the profile has five columns, the
-dialect is resolved by probe, the engine's mean agrees with R **over finite
-values of ordinary scale**, the primary key
-is read from the catalogue, and coverage is returned as a table.
-
-That qualifier is not an excuse: it is what was measured. With `NaN` or
-infinities, with values that make an accumulated sum lose precision —
-`{1e16, 1, -1e16}`, whose mean the engine gives as `0` and R as 0.3337 when the
-truth is 1/3 — or against an engine whose percentile is broken for large
-`DECIMAL`, the two paths do **not** agree. That is why `perfilar_dbi()`
-**cross-checks its two blocks** whenever both exist: if they differ beyond
-tolerance, a `divergencia` row lands in `resumen_tabla$cobertura` carrying both
-values and the sample's coverage. It picks no winner — the package does not know
-which one is true — but it does not keep quiet about the disagreement. It only
-cross-checks what both blocks measure the same way: what a declaration changes on
-purpose — the missing count of an optional column, the mean without the declared
-sentinels — is not a divergence, and what it does not compare is listed in
-`meta$corroboracion_bloques$no_comparadas`.
-
-What that script checks is **behaviour**, and it can be redone against any
-connection. The **timings** of those runs — the seconds and row reads that appear
-in the release notes — cannot be redone from the repository: they need the
-infrastructure of the run, up to two million rows by forty columns on an engine
-brought up for the occasion. They are published as what they are, references from
-a one-off run, and no result of the package depends on them.
-
-**Expected** means the dialect is built and tested against a simulated engine that
-reproduces the restriction, not that it has been run against the real engine. The
-distinction matters, which is why it is written down: the defects this version
-fixed did not surface in eight green environments precisely because all of them
-used the same engine.
-
-Every engine added to this table so far has found a defect no simulated engine
-could. DuckDB found the sharpest one: it accepts
-`TABLESAMPLE SYSTEM (10) WHERE 1 = 0` and rejects the same clause without the
-filter, because with a trivially false filter its parser never validates the
-sampling method. The capability probe used exactly that filter to stay cheap, so
-it passed and the real query failed. **A probe that does not exercise the form it
-later emits proves nothing**, which is why every probe in `lupa` tests the same
-form it is going to emit.
-
-The dialect can be declared with `dialecto =` if the probe gets it wrong. A
-partial failure never discards what was already measured: if reading the sample
-fails, the object comes back with a complete `resumen_tabla`, `perfil_muestra =
-NULL`, and a coverage row carrying the reason. If the sample was not requested,
-coverage uses `no_solicitado`, which is not a failure; request only aggregates
-with `bloque_muestra = "solo_agregados"`. This option is independent of
-`universo`: with `muestra_motor` the SQL aggregates still use the engine's
-sampled relation, but no sample rows are fetched or materialized in the client
-spool. The coverage row is `no_solicitado` and the materialization metadata
-records `filas_vistas = 0`.
-
-**And it declares what the engine cannot do.** `sentinelas_numericos`,
-`aplicabilidad` and `columnas_opcionales` change what `perfilar()` summarises,
-but the SQL aggregates are computed without them: `AVG()` knows nothing about
-sentinels. When one of them is used, coverage gets a `degradado` row saying so
-and pointing at `perfil_muestra` — because a single call could publish two
-different means over the same rows, 1045.09 in the engine summary and 50.21 in
-the sample one, with nothing to warn you.
-
-### Knowing what is missing before you hit it
-
-`lupa` has two hard dependencies, `cli` and `data.table`. `data.table` is used
-only to accelerate the exact count of duplicated rows, and it is never imported
-into the namespace; tables with list or matrix columns, or with `NaN`, fall back
-to base R, which is what fixes the result. Everything else is optional — and what used
-to happen when something was missing was an R error, or a driver error,
-that named neither what was missing nor how to get it. The hard case is not the
-R package but the **system library underneath it**: `RMariaDB` does not compile
-without the MySQL or MariaDB client headers, `ROracle` needs Oracle Instant
-Client, and someone staring at `installation of package 'RMariaDB' had non-zero
-exit status` has no way to know the answer is `libmariadb-dev`.
-
-```r
-requisitos_motor()            # the whole catalogue
-requisitos_motor("oracle")    # what Oracle needs, and how to get it
-```
-
-For each engine it declares the R package, the system library with its name on
-Debian and on Fedora, **the way around it without administrator rights** where
-one exists, the expected dialect, and whether it is tested against the real
-engine. The escape hatches are not hypothetical: SQL Server had no ODBC driver
-and no way to install one, and it was solved by compiling FreeTDS into a user
-prefix and pointing `odbc` at the `.so` by path; Oracle Instant Client unzips
-into a user directory. Neither needed `sudo`.
-
-What it does **not** do is claim to have checked a system library it cannot
-check. When it can only say "the R package is missing, and if installing it
-fails to compile, this is what you need", it says exactly that — the package's
-own invariant applied to its own installation.
-
-### One query per batch, not one per column
-
-Profiling issued **one query per column** for each block of metrics. On a table
-of tens of millions of rows that is the cost: not the sampling, the number of
-scans. The flat aggregates — `COUNT(col)`, min/max/mean/zeros/negatives, and
-standard deviation — are now asked for **several columns in one query**, in
-batches. `COUNT(DISTINCT ...)` keeps a separate query class; the mode
-stays one per column, because it groups. The median keeps a per-column fallback,
-but where the engine probe accepts `PERCENTILE_CONT(...) WITHIN GROUP` several
-medians travel in a single `SELECT` per batch. On PostgreSQL 9.3 and
-SQLite, where that function is unavailable, the per-column median keeps
-`LIMIT` but makes the count a scalar subquery of the same statement. The probe
-also checks integer division (`%` and `/`); if a dialect does not accept that
-form, the result declares that it kept the two-query path.
-
-With `estrategia_distintos = "aproximada_motor"`, a distinct count is
-consolidated only when the capability provides an expression that can be
-embedded in the `SELECT`. If it only builds a complete query, valid counts and
-distinct counts are issued separately, and each record keeps the method of the
-query that was actually run.
-
-Median strategy is independent. `estrategia_mediana = "aproximada_motor"`
-probes an exact native form first, then the exact per-column form, and only then
-an approximate native function. An exact median therefore remains
-`calculado`, with `error_esperado = "no_aplica"`; only an approximation that
-actually ran is `estimado`.
-
-Consolidated medians are probed before use; on SQL Server they require
-compatibility level >= 110. The probe is not a promise of activation: known
-reasons for it not to activate are that the function is unavailable or that the
-engine rejects the probe. The engine message is kept in
-`meta$mediana_consolidada$motivo`, and the per-column median is retained.
-
-Measured against PostgreSQL 16 with **2 million rows by 40 columns**:
-
-| configuration | before | after |
-| --- | --- | --- |
-| `metricas = "validos"` | 46 queries, 5.4 s | **8 queries, 2.4 s** |
-| `metricas = c("validos", "basicos", "desvio")` | 128 queries, 15.2 s | 14 queries, 5.3 s; **10 queries** with flat fusion |
-
-Same 160 and 400 metrics computed, and the same numbers: on one table seeded
-once, the consolidated profile and the previous one agree on all sixteen summary
-fields across six column types.
-
-**If a batch fails, the batch is not lost.** Its halves are probed by bisection:
-accepted groups are reused as measurements and culprit columns are retried per
-metric. Whatever still fails is left `no_disponible` with its reason while its
-neighbours are computed. If the probe budget runs out, pending columns remain
-unmeasured; they are not assumed to be culprits or readable. The degradation has
-its own tests.
-
-`resumen_tabla$sql` keeps **one row per column and metric** with every field it
-had, and adds `lote` and `columnas_compartidas` so a shared query is visible. It
-also adds `consulta_id`, which identifies the statement that produced each
-measurement and defines the verifiable consistency group. The inherited query
-field is now named `id_consulta`, without an alias; it identifies
-the data query. `muestra_id` is reserved for the materialized relationship and
-is published in `meta$materializacion`, never as a second name for the query
-identifier.
-
-For `universo = "muestra_motor"` with `bloque_muestra = "con_muestra"`, the
-engine selection is materialized exactly once in an external client-session
-spool. Its trailer verifies `muestra_id`, `snapshot_id`, `orden_id`, `n_filas`,
-`bytes` and checksum on reread. Every profile pass reads that spool; it never
-re-samples the engine. With `bloque_muestra = "solo_agregados"`, the SQL
-aggregates still use the sampled relation, but the row block is not selected,
-fetched or materialized. A chunk is checked against
-`max_bytes_materializacion` before writing, and an excess publishes
-`spool_presupuesto_excedido` plus
-`muestra_inestable:presupuesto_materializacion`, with no hybrid result. The
-spool does not write to the DBI connection or create temporary engine objects.
-`meta$materializacion` records backend, version, checksum, bytes and budget
-when a spool exists; the no-solicitud path records `estado = "no_solicitado"`
-and zero rows viewed.
-The measured crossover is part of the declared cost, not a speed promise:
-against PostgreSQL 16 with 2 million rows, a 500,000-row sample took about
-5.6 s with the spool versus 3.3 s when every pass re-sorted independently; the
-spool is chosen for identity and bounded reuse. Across 10,000, 100,000 and
-500,000 rows, spool totals were 0.448, 1.684 and 5.598 s, while independent
-re-sorts were 0.814, 2.178 and 3.265 s (crossover between 100,000 and 500,000).
-
-The same SQL audit includes `memoria_trabajo`: `creciente`, `acotado`, or `NA`,
-to flag work that should not be recomputed incrementally over a larger table.
-
-Every flat aggregate query that carries `n_validos` also carries
-`COUNT(*) AS n_total_consulta` in the same statement. Completeness uses that
-local denominator, including after bisection; it does not combine a total from
-another batch. The universe total is kept separately when profiling a sample or
-when no aggregate can carry it. The exact distinct query includes
-`COUNT(column) AS n_validos_guard` beside `COUNT(DISTINCT column)`: the hard
-bound is applied only when both values have the same `consulta_id`. If an
-approximate capability cannot provide that guardian, the check is reported as
-unavailable and no inconsistency is attributed to the engine. Batch sizes are
-separate: `tamano_lote_planos` controls flat aggregates and
-`tamano_lote_distintos` controls cardinalities. The latter defaults to 2: the
-measured shared read was constant between batches on the reference PostgreSQL
-server, so two cardinalities share one pass. The measured two-cardinality batch
-kept nearly the same time per column as one and spilled less than wider batches.
-The moda query also tries to bring `SUM(COUNT(*)) OVER () AS n_validos_guard`
-beside its frequency. The form is probed before use; if the engine rejects it,
-the previous moda query is retained and the fallback is published in
-`resumen_tabla$meta$moda_guardian`. When accepted, the bound
-`frecuencia_moda <= n_validos` is checked inside that same statement.
-
-### Cost and spill are announced before they are paid
-
-When `perfilar_dbi()` asks for `COUNT(DISTINCT ...)`, the flat aggregates run
-first when they were requested, but they are not a time reference for distinct
-counts. With `instrumentar = TRUE` the package measures the first distinct
-batch in the same run and, if another batch remains, announces a projection
-after that batch and before the second. The figure is the median duration of
-the queries in the first distinct batch multiplied by the number of distinct
-batches; the message names that source and labels itself an estimate. With one
-batch there is nothing left to avoid, so no projection is published. A request
-with `metricas = "distintos"` therefore still receives the warning when there
-are multiple batches. This time projection does not use `reltuples`.
-
-The same channel now announces the cost of the two expensive metrics that were
-missing: `mode` is projected from the sum of the columns' cardinalities, and
-`median` from the row count. Each has its own switch and seconds threshold,
-enabled by default from 30 seconds:
-`avisar_costo_moda`/`umbral_segundos_aviso_moda` and
-`avisar_costo_mediana`/`umbral_segundos_aviso_mediana`. The warning is emitted
-before the projected query runs and remains in `meta$costo_moda` or
-`meta$costo_mediana`, separate from `meta$costo_distintos` because each
-projection follows a different cost dimension.
-
-When possible, mode measures the first query in the current run and uses its
-milliseconds per distinct value for the remaining columns. If exact
-cardinality is unavailable, it uses whatever source exists (for example, the
-catalog) and says so; with no source, the projection is unavailable. Median
-knows the row count after the first count. The first measured median becomes
-the local reference for the remaining ones; if a single total median leaves no
-local measurement, it uses the declared bank reference of 68 ms per million
-rows, taken from another run. That reference is never presented as a
-measurement of the current run.
-If the initial query that obtained the row count was measured and gives a
-higher bound, that bound is also published as observed reading time —not as a
-median measurement—so a freshly loaded large table does not stay falsely quiet.
-
-On PostgreSQL, preparation also reads `pg_stats.n_distinct`,
-`pg_stats.avg_width`, `pg_class.reltuples` and the session's `work_mem` — plus
-`hash_mem_multiplier` from PostgreSQL 13 on — to estimate the size of the
-aggregation hash. If it exceeds the effective limit, the package warns before
-the first `COUNT(DISTINCT)` and says that raising `work_mem` for this session
-can avoid the spill. The diagnosis lands in `meta$estimacion_derrame`, always as
-an estimate and never as a measurement; the package changes no setting and waits
-for no confirmation.
-
-Also on PostgreSQL, when `pg_stat_statements` allows attributing exactly one
-call from this run, the report adds the real spill and the number of temporary
-blocks written. When attribution is not possible the state is declared
-unavailable: elapsed time is never presented as evidence of a spill. Where the
-measurement exists, **it prevails over the estimate** — even if the estimate
-stayed below the limit, the report says a spill was measured.
-
-### SQL durations have a sum-safe unit
-
-`resumen_tabla$sql` has one row per column and metric, but `duracion_ms` is the
-duration of the query and is repeated on every row produced by that query. The
-table now includes `nivel`, following `resumen_tabla$tiempos`: the first row of
-each `consulta_id` is `nivel = 1` and the repeated rows are `nivel = 2`. Sum
-`duracion_ms` only for `nivel = 1` (and use `na.rm = TRUE` when needed); summing
-the whole column counts shared queries more than once. Rows without a query
-keep `NA` in their duration and do not claim a measurement.
-
-### Reading a profile without knowing its shape
-
-`perfilar()` returns a flat `perfil`; `perfilar_dbi()` returns a container. So
-`perfil$general$filas` worked on one and returned `NULL` on the other, where the
-count lives in `resumen_tabla$meta$filas`. A silent `NULL` in a measurement
-script is the worst way to fail: it does not warn, and everything after it
-computes on nothing.
-
-```r
-hallazgos(x)    columnas(x)    cobertura(x)    n_filas(x)    sql_perfil(x)
-```
-
-They work over `perfil`, `analisis`, `perfil_dbi` and `perfil_coleccion`, and
-they do not invent what is not there: a DBI profile with no sample read returns
-an empty findings table **with its warning**, and `sql_perfil()` on an in-memory
-profile returns `NULL`, because a table with no rows would suggest SQL was
-issued and found nothing.
-
-### A budget measures work, it does not count units
-
-A cap that counts units treats a column of ten-character codes and one of
-thousand-character WKT alike. A table in the PostGIS catalogue — 3,912 rows —
-took 243 seconds, and the vocabulary detector was 99.6% of it: 800 distinct
-values are 319,600 pairs, well under the two-million cap, but each comparison
-was a Jaro-Winkler over 900 characters.
-
-The budget is now measured in **character comparisons**, the inner loop of the
-distance. Calibrated against measurement, the pathological column drops from
-61.3 s to 4.6 s. An ordinary column of two thousand values is compared in full
-**as long as its values are under about a hundred characters**: the budget bites
-when `L² · n(n−1)/2` exceeds `2e10`, which for two thousand distinct values means
-a length of 101. Saying "two thousand values are compared in full" without that
-qualifier was wrong, and wrong in the worst place — the 900-character WKT column
-that motivated the budget is exactly the kind that gets trimmed. What does get trimmed is declared: how many normalised forms
-went uncompared, how much work that was, and which cap did the trimming.
-
-### A length cap protects the distance signal
-
-Normalised edit distance is designed for names, addresses and identifiers, not
-documents. Five seeds were measured with random text pairs: one pair differed
-in one character and the other in 1,000. The table shows their median. The
-many-character pair stopped being
-distinct at the default `0.10` threshold before the one-character pair stopped
-looking close:
-
-| length | distance, 1 character | distance, 1,000 characters |
-| ---: | ---: | ---: |
-| 10,000 | 0.000400 | 0.193195 |
-| 20,000 | 0.000150 | 0.125923 |
-| 25,000 | 0.000347 | 0.104511 |
-| 50,000 | 0.000053 | 0.064559 |
-
-The observed crossing is between 25,000 and 50,000 characters. The default
-`10,000` cap leaves a five-fold margin before that loss of discrimination.
-`detectar_duplicados_aproximados()` publishes it in
-`alcance$max_largo_valor`; when a column exceeds it, the complete combination
-is out of scope and `alcance$columnas_excluidas_largo` explains why. In
-`perfilar()`, the same decision appears in `cobertura_diagnosticos` with the
-reason, observed length and threshold. `max_largo_valor = Inf` or
-`max_largo_valor_vocabulario = Inf` explicitly restores the previous behaviour.
-
-The cap is measured on the string that is actually compared: columns already
-combined and already normalised. Both halves of that sentence are load-bearing.
-Two columns of nine thousand characters each are below the cap on their own and
-reach eighteen thousand once joined; and the `amplio` normalisation expands
-ligatures, so a value can sit below the stored cap and above the compared one.
-`alcance$largo_maximo` reports that compared length, and is `NA` — not zero —
-when the cap does not apply and no length was measured.
-
-The two caps are separate knobs on purpose. `max_largo_valor_vocabulario`
-governs the vocabulary rule inside `perfilar()`; the row-pair detector keeps its
-own, set through `duplicados_aproximados = list(max_largo_valor = ...)`.
-
-### Wide-table cost is announced first
-
-`perfilar()` projects the cell count before expensive work starts. The default
-warning starts at `100,000` cells, uses a reference of `10,000` cells per second
-and says that it is an estimate together with its source. The reference follows
-these measurements (run of 2026-08-30, reproducible with
-`benchmark/medir_referencias.R`): 500 rows by 50, 300 and 1,000 columns took
-3.34, 13.63 and 43.85 seconds — about 11,000 cells per second, which is why the
-reference uses 10,000. There is no warning below the threshold or in non-interactive
-scripts. The projection is stored in `meta$costo_tabla_ancha`.
-`avisar_costo_tabla_ancha = FALSE` disables it per call and
-`umbral_celdas_aviso_tabla_ancha = Inf` silences it explicitly.
-
-And when a budget must trim, the forms it keeps are the **alphabetically first**,
-not the first to appear. That distinction was a defect, measured on a real column
-— 45,400 street names from the national open-data catalogue, 8,318 distinct
-forms. The same rows yielded 26 near-duplicate groups in the order the file
-arrives, 70–85 shuffled, and 148 sorted. A profiler whose verdict depends on the
-row order is measuring the physical shape of the table rather than the data.
-Sorting first, all five orders yield 148 — and sorting also keeps near-duplicates
-adjacent, so the cut falls between families instead of splitting them.
-
-**The other trim, the one over pairs, follows the same rule, from the same kind
-of measurement.** `max_resultados` keeps the closest pairs by ordering on
-distance, and among **tied** pairs it used to break ties by row position.
-Measured over 60 groups whose internal pairs share exactly the same distance,
-with the cut at 30, five different orders each returned 30 groups **sharing none
-of them**. It now breaks ties by the canonical order of the values, with a
-symmetric key so the result does not depend on which row came first within a
-pair either, and all five orders return exactly the same groups.
-
-What no ordering fixes is that a cut inside a tie leaves out pairs that are
-equally close. That is not fixed: it is declared. `alcance` carries
-`distancia_corte`, `n_en_distancia_corte` and `corte_en_empate`, and that last
-one is not `truncado` under another name — it is `FALSE` when the cut lands on a
-unique distance.
-
-### Sample-size caps protect remote reads
-
-`perfilar()` and `perfilar_dbi()` use the same sample-cap defaults:
-`max_celdas_muestra = 1,000,000` cells and
-`max_bytes_muestra = 512 MiB`. In DBI profiles these caps apply only to
-`perfil_muestra`; the SQL aggregates still run over their declared scope. The
-cell cap is resolved from the row count and schema width before reading. The
-byte cap first reads a probe of up to 100 rows, then puts the resulting limit in
-the final SQL or `dbFetch(n)` call, so the full sample is not fetched and
-trimmed later in R.
-
-When `muestra = n` and a cap is stricter, the smaller limit wins. The profile
-coverage declares the observed cells or bytes, threshold and reason, including
-which cap won. Passing `Inf` for both caps produces no crop declaration.
-`plan_perfilado_dbi()` exposes the same limits and says in advance when the
-cell cap will reduce the sample or when a byte probe will be needed.
-
-### Cost is planned before it is paid
-
-Profiling a 158-column table with the default `universo = "tabla_completa"` emits 335 queries, and 327 of
-them scan, sort or group the whole table. The count follows the composition, not
-the column count: the same 158 columns as text only cost 252, because a median
-asks for a full sort per numeric column. `muestra` does not bound any of it — it
-bounds what is brought into R, not the work the engine does. So the cost is declared and chosen
-(`benchmark/medir_plan_ancho.R` reproduces the four numbers):
-
-```r
-plan_perfilado_dbi(
-  con, "tabla", universo = "muestra_motor", muestra_motor = 5000
-)   # prepares and publishes a range
-```
-
-The plan gives a **range** for how many queries the profiling will emit, and it
-says so in `attr(plan, "supuesto")`. It does not scan data to decide cost: it
-reads the schema, probes capabilities and, with
-`politica_costo = "por_cardinalidad"`, may read a structural guarantee or a
-catalogue source. It never launches `COUNT(DISTINCT ...)` just to resolve
-uncertainty. Consequently, the plan does not publish a temporal projection for
-`COUNT(DISTINCT)`: the honest reference is the first distinct batch measured
-during execution, and the plan emits no data queries.
-
-The low end is `total`: when cardinality is unknown, it assumes the policy will
-omit `moda`. The high end is `total_maximo` —also exposed as
-`total_lotes_rechazados` after adding bisection— and leaves open the path that
-executes them. If the engine rejects batches, up to `2n - 1` probes are added per
-batch of `n` columns. The real cost falls between the two **when the sample can be
-built**: if `universo = "muestra_motor"` and the engine does not accept the resolved
-form, the plan declares it in `attr(plan, "muestreo")` and drops the metrics that
-depended on it from the range. The run, in turn, publishes each of them as
-`no_disponible` with its reason: nothing that was not measured is reported as
-measured.
-
-Distinct-count provenance is selected explicitly with `estrategia_distintos`.
-`"exacta"` is the default and emits `COUNT(DISTINCT)`; `"aproximada_motor"`
-uses a native function only when the engine accepts its probe; `"catalogo"`
-reads PostgreSQL's `pg_stats.n_distinct` and publishes it as an estimate, with
-guards for inheritance and sampled modes; on other engines it is
-`no_disponible` with its reason; and `"omitida"` emits no distinct-count query.
-An unavailable approximation does not silently become exact. The result
-separates the requested strategy, the resolved strategy, and its state in
-`meta$estrategia_distintos` and in the SQL rows.
-
-The primary-key catalogue is queried on every run, even when the cost policy
-does not need cardinality. The response is published in
-`resumen_tabla$meta$clave`, with `columnas`, `fuente`, `motivo`, `garantia`, and
-`estado`. This is a metadata query and does not scan the table. A visible key
-without enough evidence keeps `garantia = "desconocida"`; a table without a
-declared key keeps `"no_declarada"`, and a failed query keeps its reason instead
-of turning it into an absence of a key.
-
-Structural sources used by the cost policy are resolved whenever the policy
-needs cardinality, even if the requested strategy is omitted or unavailable.
-The strategy's availability controls whether cardinality may be measured; it
-does not hide a guaranteed key. If no structural source exists and measuring is
-not allowed, cardinality remains unknown and the policy follows its explicit
-unknown-cardinality rule.
-
-`estrategia_distintos` and `fuente_cardinalidad_costo` are independent: the
-former controls how `n_distintos` is obtained or omitted, while the latter says
-where the ratio used by the cost policy comes from. A cost-policy decision
-cannot turn a requested approximate or catalogue strategy into
-`COUNT(DISTINCT ...)`.
-
-Each flat batch that computes valid counts carries its own
-`COUNT(*) AS n_total_consulta`, with no additional query; the plan publishes
-that composition. When a separate universe total is needed — for example, for a
-sample or when there are no flat aggregates — it remains an explicit query.
-
-The part that *is* a hard design constraint is that the prediction does not depend
-on the engine: every capability probe costs a fixed number of queries even when
-it succeeds on the first form, because a cost that varied by engine would leave
-the user guessing again.
-
-The decision to pay moda and median is explicit. `politica_costo = "todas"` is
-the default and preserves all requested metrics. With
-`politica_costo = "por_cardinalidad"`, structural sources are resolved first.
-Valid and distinct values are measured only when no exact structural source is
-available and the selected strategy permits measurement; then only moda is
-omitted per column when `n_distintos / n_validos >= umbral_cardinalidad`.
-The default threshold is `0.5`, it can be changed in the call, and it governs
-moda only. Median is not omitted by cardinality: the measured sweep is flat
-against the number of distinct values and is governed by row count. Every
-omission is declared in `resumen_tabla$sql` as `omitido_por_costo`, with the
-reason and how to ask for it anyway. `meta$decisiones_costo` records the reason
-for keeping or omitting each metric separately. An omitted, catalogue or
-unavailable approximate strategy never falls back to `COUNT(DISTINCT ...)`.
-
-The table summary declares `meta$snapshot = FALSE`, because its aggregates are
-separate statements and the table may change between them. When exact
-`n_validos` and `n_distintos` from different `consulta_id` groups are
-incoherent, `cobertura` adds `alcance_distinto` with both statements in the
-reason: it is evidence that the table changed during the run, not an error
-attributed to the engine or the package.
-
-But counting queries does not answer the question the reader actually brings:
-fourteen queries over two million rows are far more work than two hundred over a
-thousand. So the plan also estimates **magnitude**, in real counts rather than an
-invented index — and it estimates it in **two halves**, because the clock is not
-always set by the engine. The engine half is `filas_leidas` and
-`ordenaciones_completas`, summarised in `magnitud_motor`; the client half is
-`columnas_texto` and `pares_texto` — how many pairs of forms the vocabulary
-detector could compare in R over the sample — summarised in `magnitud_texto`.
-`magnitud` is the larger of the two.
-
-On PostgreSQL, when preparation has already read the catalog hierarchy, a
-positive `pg_class.reltuples` also supplies the row magnitude. The plan prints
-it as an estimate of catalog, not a measurement, and exposes the source in
-`filas_fuente`/`estimacion_filas`; the work projections for mode and median are
-published in `proyecciones` with the same label. A zero or negative
-`reltuples` (the usual pre-`ANALYZE` state) leaves rows and those projections
-unknown. Other engines keep the current unknown state.
-
-Counting only the engine gave false verdicts out of true numbers: a 3,912-row
-PostGIS catalogue table with one geometry column stored as text asked for 64,592
-row reads and no sorts — magnitude `"baja"` — and took 35 seconds **with the
-work budget already calibrated**, because what remained was in comparing forms,
-which is not a row read. It is the same table that took 243 seconds above,
-before the budget measured work instead of counting units. Printing the plan shows
-both halves, and the high-work warning names the levers that bound it, which
-differ on each side. It is an estimate and says so: the engine half counts the
-rows that would have to be read if no index helped, and the client half counts
-pairs, whose unit cost depends on value length — something the plan cannot know
-without reading them, so for very long text the real time is several times what
-the reference suggests. The published
-numbers do not depend on those assumptions, so anyone who disagrees with them can
-redo the arithmetic.
-
-### Processing memory is not estimated
-
-`plan_perfilado_dbi()` explicitly says that processing memory is **not estimated**:
-it does not scale predictably with rows or cells, as measured. The plan still
-publishes the known **work magnitude**—rows, cells and text pairs—clearly labeled
-as magnitude, not memory consumption.
-
-Measured reference data, **not a prediction for the table in the plan** — a
-single dated run (2026-08-28) against a remote production engine that this
-repository cannot re-run — put bringing the table at about 0.13 GB per million rows and processing in R at about
-1.0–1.5 MB per thousand rows. The second figure varied by 1.62x between tables
-of the same magnitude; that variation is precisely why it is not used as an
-estimate.
-
-Seeing all rows and having all rows in memory are not the same. In reference runs,
-4.5 million rows fit in 0.6 GB and took 25 seconds to bring, while processing
-4.5 million took about 7 GB and 12.8 million about 19 GB. The observed problem is
-processing in R, not the network or the database engine.
-
-| dimension | what it does |
-| --- | --- |
-| defaults | every metric over the whole table |
-| `metricas = c("validos", "basicos", "desvio")` | the historical `seguro` preset |
-| `metricas = "validos"` | the historical `conteos` preset |
-| `universo = "muestra_motor"` | one engine selection materialized in a client spool; `TABLESAMPLE` or a pseudo-random limited source is read once and reused |
-| `estrategia_mediana = "aproximada_motor"` | exact native first, approximate only at the end; only an executed approximation is `estimado` |
-
-Every sampled or approximated metric travels saying so. `estado` distinguishes
-`calculado`, `estimado` and `no_disponible`, and each row carries `universo`,
-`tamano_muestra`, `fraccion`, `metodo` and `error_esperado`. For sampled SQL
-metrics, `error_esperado` is `no_estimado` when an error could be calculated
-under a probabilistic sampling plan but was not, `no_estimable` for the mode,
-median and observed cardinality, which have no simple bound without additional
-assumptions or a declared estimator, and `no_aplica` when no sampling took
-place. The `motivo` column gives the reason; `metodo`, `tamano_muestra` and
-`fraccion` retain the conditions of the run. No numeric bound is published
-without a justified formula.
-
-In `resumen_tabla$meta$muestreo`, `tamano_muestra` is retained for compatibility
-and records the effective size requested from the query, `filas_solicitadas`
-records the original request, and `filas_obtenidas` records the rows returned
-by the `perfil_muestra` read. The latter is `NA` when that block was not
-requested or failed before reading. Distinct counts get their own state,
-`observado_muestra`: the cardinality of a sample does not estimate the
-cardinality of the universe without a declared estimator, so it is reported as
-what it is — what was seen in the sample, with the universe stated beside it.
-An engine with no sampling capability does not break: the engine sample degrades and says
-so in the coverage table.
-
-If the sample query returns zero rows, there is no basis for measuring
-sample-scope metrics. They are published as `NA` with state `no_disponible` and
-a reason naming the empty sample; `n` remains the count from the full table.
-This does not imply that the column is empty, so `lupa` does not publish zero or
-start the `sin_valores` cascade.
-
-An approximation is not marked as estimated when its query was not issued or
-did not return a usable value. Distinct-count provenance is selected separately
-with `estrategia_distintos`; if `"aproximada_motor"` is requested and the engine
-lacks the function, the metric is `no_disponible` and `COUNT(DISTINCT ...)` is
-not executed.
-
-## 🕳️ Emptiness by design is declared, not counted as a defect
-
-Every profiler assumes a table shape. `lupa` assumes one row is one fact, one
-column is one semantic domain, and an empty cell should have had a value. The
-third assumption is the one that hurts: an administrative table is full of
-legitimate emptiness — an open-ended validity interval, a survey skip pattern,
-columns that are mutually exclusive by subtype, an entity-attribute-value model.
-Counting those as missing is arithmetically right and semantically wrong.
-
-`aplicabilidad` declares, per column, the rows where the column applies. Rows
-outside that universe leave `n_faltantes` and `prop_faltantes` instead of being
-reported as absence:
-
-```r
-perfilar(encuesta, aplicabilidad = list(marca_auto = ~ tiene_auto == "Si"))
-```
-
-`columnas_opcionales` covers the simpler case, where absence is never a defect
-and there is no rule to write. The declared rule, the resulting universe, and
-the rows where the rule could not be evaluated all land in
-`cobertura_diagnosticos`: a narrowed universe without a record would be the same
-defect in reverse. Rows whose rule cannot be determined are counted apart, in
-`n_aplicabilidad_indeterminada`, because not knowing is not the same as not
-applying.
-
-Declaring the universe also enables the symmetric error, which had no way to
-appear before: `valor_fuera_de_aplicabilidad` reports a value present where the
-rule says the column does not apply.
-
-The same idea governs the statistical tests. Benford assumes a multiplicative
-process and Tukey's fences assume a distribution; a numbering — an identifier, a
-code — is neither, and a code sitting far from the median says nothing about its
-quality.
-
-Recognising a numbering uses **density**: an identifier occupies a compact
-stretch of the integers while a magnitude spreads across several orders.
-Uniqueness alone does not work, since an amount is nearly unique too. It is
-needed as the second half, though: a bounded integer magnitude also fills every
-integer of its range once enough rows are loaded — repeating them — and with
-density alone an age from 18 to 90 with 20,000 rows came out as a "catalogue
-code" and the verdict depended on how many rows were read. A numbering is dense
-**and** barely repeats; a code that repeats cannot be told apart from that
-magnitude by its shape, and the package would rather say too much about it. The
-public
-`secuencia_entera_densa` field answers only that coverage question; the separate
-`moda_sobresale_secuencia_entera` signal must not switch off the form shields
-that use the numbering. The sentinel guard reopens when a candidate is outside
-the range of the remaining numbering, or when that candidate is the standout
-frequency. The range signal is deliberately independent of frequency: `-9` in
-a numbering from 1 to 1,505 is suspicious even when five legitimate values tie
-with it, while `999` appearing once inside 1..1,000 is not.
-
-The criterion was chosen by measuring. A bench of thirteen columns with the known
-answer — five numberings and eight magnitudes with a bad value inside — compared
-four variants: crossing both signals gets all thirteen right and **never silences
-a real bad value**; density alone got eleven and silenced two. It lives in
-`test-regresion-118.R`. Since requiring that a numbering barely repeat, one of the five
-numberings — a code from 1 to 284 that repeats — is no longer recognised and
-gets Tukey's fences: twelve right, and the miss is on the cheap side, saying too
-much rather than silencing. Whoever knows the column corrects it by declaring it in
-`columnas_codigo`: a declared code gets no Tukey fences, no Benford and no
-`media`, `mediana` or `desvio`, keeps its range, mode and counts, and the coverage
-says why. Passing it as text or as a factor does not help, because the package
-reads it as a number. Inside `analizar()` the declaration also reaches
-`variables` — nominal scale, category role — and `asociaciones`, where the code
-is associated as a category rather than with a correlation.
-
-For an `integer64` column, `bit64` is loaded lazily when it is installed so its
-methods are registered before measuring. If it is not installed, the five
-sequence measures are `NA` and `cobertura_diagnosticos` records that
-`secuencia_entera` could not be evaluated. Numeric values that become published
-text use fixed notation at full precision, independent of `scipen` and
-`digits`, while preserving `OutDec`.
-
-The same fixed representation drives personal-data classification, so `scipen`
-and `digits` cannot change that decision or erase declared numeric sentinels
-from `meta`. Drift and history keys compare names and configurations by bytes,
-including across a `saveRDS()` boundary and a changed locale.
-
-Structural-absence suggestions mark names only in the copy used to compose text.
-They preserve the table's names exactly as received and publish copy-and-paste
-code identically under `LC_CTYPE = "C"`, including names with accents.
-
-**And what is not run is not switched off silently**: it leaves its row in
-`cobertura_diagnosticos` with the measured reason — what share of the integers
-the column covers, how many values would have been flagged, how many rows out of
-how many the sample carries.
-
-The same idea, reversed, yields a diagnostic no single signal could give. A
-`9999` may be an impossible age or a perfectly valid postal code, so the
-`sentinelas_numericos` list does not include it by default — and rightly so:
-flagging it always would break any column where that number is data. But a value
-that **falls outside the fences, repeats, and has the shape of a repeated digit**
-is a sentinel with all three together, and `posible_centinela_numerico` reports it
-without counting it as missing — that call belongs to whoever knows the column,
-by adding it to the list. A postal code `9999` repeated thirty times is not
-extreme within its column; a real amount of `9999` does not repeat; a year `1999`
-does not have that shape.
-
-**And adding it to the list has a consequence**, which is the other half of the
-same idea: the package **excludes what the user declares and includes what it
-merely suspects**. A value declared in `sentinelas_numericos` leaves `media`,
-`mediana`, `minimo`, `maximo` and `desvio` — with `n_valores_excluidos_resumen`
-reporting how many it left out — just as `NA`s do, and just as the rows that
-`aplicabilidad` places outside the universe do. What is declared outside the
-universe — sentinels or `aplicabilidad` — also leaves Benford's law and the
-arithmetic relations: the same cell cannot be missing in the summary and a
-value in a diagnostic. The default list, by contrast,
-reports without touching the numbers: it is a guess, and a guess does not move
-an average. `moda` and `n_distintos` keep describing what is stored, as they
-already did with an `Inf`.
-
-The sentinel policy is compared as a numeric set. Reordering the values,
-supplying integers instead of doubles, or repeating a value therefore has the
-same meaning through both `perfilar()` and `perfilar_dbi()`.
-
-**Uniqueness is not guessed: it is asked — and in a database, read.** When the
-data arrives over DBI the primary key is **declared in the engine's catalogue**,
-so nothing is suggested: it is read, in a single query chosen by the driver. And
-«this table declares no key» is kept apart from «the key could not be read»,
-which are not the same thing.
-
-For an unqualified name, the key published is the one of **the relation the
-engine resolves**, not that of a same-named table in another schema: the schema
-is asked of the engine, under its own rules. On top of that, a key whose columns
-are not among those just measured is discarded whole, on any engine, stating
-why. A key that does not belong to the measured table is worse than none.
-
-**Uniqueness is not guessed: it is asked.** Declare the key with
-`perfilar(clave = ...)` and a key that repeats among the rows whose key is
-complete is a finding of severity `error` carrying the offending rows. When no
-row has a complete key the state is `sin_casos_evaluables`, not `verificada`:
-true over an empty set is true and misleading at once. The warning and `meta$clave` keep that check apart
-from missing values: a key may have no non-missing collision and still violate
-`NOT NULL`. The findings separate both facts: `clave_con_ausentes` enumerates
-rows that prevent that guarantee, while `clave_no_unica` reports repeated values
-only among rows with a complete key. A collision between missing values belongs
-to the first category and does not refute `meta$clave$unicidad`; if traceability
-groups those missing values with R semantics, the difference remains explicit.
-So that the user is not left facing a blank field,
-`sugerir_clave()` ranks the candidate columns by three signals it publishes
-separately — whether it identifies every row, whether it has no missing values,
-and how closely its name resembles a key's — and `elegir_clave()` offers them
-numbered with an option to type another. Ranking is not deciding: a unique
-column may be a key or a magnitude that happens not to repeat, and that
-difference is not in the data.
-
-DBI key lookup also keeps catalogue source apart from guarantee. Oracle is
-reported as guaranteed only when `STATUS` is `ENABLED` and `VALIDATED`;
-PostgreSQL and MySQL publish comparable catalogue states. MariaDB, SQL Server,
-SQLite, and DuckDB do not let this path distinguish that state, so a visible key
-there keeps an unknown guarantee.
-
-Where no signal discriminates, `lupa` speaks. High cardinality in a text column is
-always reported, because the length of the values does not tell a catalogue from
-prose — it fails in both directions, measured — and the finding does not claim it
-is a defect: it offers the three possible readings so that whoever knows the
-column decides.
-
-`perfilar_por()` answers the long format, where one column stacks unrelated
-domains. It profiles each group separately, drops the wholly-absent columns
-inside each group before profiling, and declares what it dropped.
-
-`lupa` does not infer the model. But declaring the universe requires knowing the
-option exists, and someone profiling a conditioned table without declaring
-anything got exactly the misleading report the feature was built to prevent. So
-the package **measures the evidence and offers it**: when the value of one
-column decides which rows have another, or when two columns split the rows
-without overlapping, `posible_ausencia_estructural` reports it with severity
-`ok`, the measured evidence, and the line to paste:
-
-```
-valor_a  posible_ausencia_estructural  ok
-  evidence  `tipo` predicts the presence of `valor_a` in 100.0 % of 200 rows,
-            with 2 distinct values. The rule explains 100 of the column's 100
-            missing values. The column applies when tipo is "A".
-  suggests  perfilar(datos, aplicabilidad = list(valor_a = ~ tipo == "A"))
-```
-
-It suggests; it does not decide, and it never rewrites the universe on its own.
-Columns already declared are left out of the examination. On twenty real
-datasets shipped with R and sixty random tables with independent missingness it
-produces zero signals (rerun of 2026-08-30, reproducible with
-`benchmark/banco_ausencia_estructural.R`); it fires on the entity-attribute-value model, the survey
-skip pattern and the mutually exclusive columns, and stays quiet when ten per
-cent of the rows break the rule, because then the relation exists and is not a
-rule.
-
-The other side of the same coin is `regla_silencia_ausencia`, also `ok`: a
-column declared optional or with its own universe that stays almost empty
-*inside* that universe gets a notice. The declaration worked and that is why the
-profile came out clean — the notice exists so that is a decision and not a side
-effect.
-
-`columnas_personales` closes the equivalent gap on the other declaration the
-package cannot make alone. No lexicon of column names can be complete: a column
-holding identity documents can be called `cod_benef`, and no list of frequent
-names will recognise it. Declaring it wins over inference and is not re-examined.
-
-The vignette `vacio-por-diseno` documents the assumption and the six table
-shapes where it does not hold.
-
-## 🔢 Declared units and row traceability
-
-Every finding declares the unit used by `n_evaluados`, `n_afectados`, and
-`unidad_conteo`. `mayusculas_inconsistentes` and `normalizacion_unicode` use
-`valor_distinto`: they count distinct values, while their trace remains a row
-trace. It lists every row containing an affected value, not only rows that are
-themselves defective. `casi_duplicados_vocabulario` follows the same contract:
-its count is the number of variant values, and its trace lists every row whose
-value belongs to a selected group, including the dominant form. A trace can
-therefore contain more rows than `n_afectados`; those rows are useful when a
-whole collision group must be reviewed or unified. The vocabulary detector is
-heuristic, so the trace is evidence for review, not a verdict that every row
-must be corrected. The trace presents non-dominant forms first and dominant
-forms afterward; its evidence reports how many displayed rows belong to each.
-
-For `patron_raro`, `resumen_patrones` and the evidence show at most six rare
-patterns. Traceability uses the complete set of rare pattern names, without
-retaining their frequency table, up to a separate limit of 5,000 names. If
-that limit is reached, the trace scope is partial and `cobertura_diagnosticos`
-states the limit; the six-pattern presentation cap is not itself a trace gap.
-Every finding also reports the dominant pattern proportion and how many rows
-belong to non-dominant patterns excluded for exceeding `umbral_patron_raro`.
-If no dominant pattern reaches `umbral_patron_dominante`, no finding is emitted:
-the non-measurement, its observed proportion, and how to adjust that argument
-are recorded in `cobertura_diagnosticos`.
-
-`filas_duplicadas` counts all rows participating in duplicate groups, matching
-the metric and the default action that marks those rows. The number of excess
-duplicates remains in the evidence. `0` means the check measured no affected
-units; `NA` means the count was not measured. The same distinction applies to
-diagnostic coverage: a check that could not run is listed in
-`cobertura_diagnosticos`, never silently converted to zero.
-
-Traceability uses the same comparison in both directions as the count, including
-when an `integer64` column does not honor `duplicated()`'s `fromLast` argument.
-Therefore `n_afectados` and `trazabilidad$total` always describe the same rows.
-
-When a finding and its trace disagree, `perfilar()` preserves the finding and
-emits a warning with class `lupa_trazabilidad_incoherente`. The guard compares
-the pre-truncation total, checks both directions, and respects the declared
-counting unit; it is a diagnostic net, not a substitute for aligning the
-detector and its trace.
-
-## 🛣️ `perfilar()` or `analizar()`?
-
-Use `perfilar()` when you want the focused, inspectable profile: column
-summaries, patterns, inferred types, findings, diagnostic coverage, and
-undeclared structural relationships. Use `analizar()` when you want the full
-route around that profile: distributions, associations, temporal analysis,
-confirmable variable classification, a model proposal, a cleanup plan,
-conceptual coverage, and a dashboard.
-
-With no confirmed model or proposal, `analizar()` measures every proposal row
-whose state is `"lista"` by default. That proposal was inferred by `lupa`; nobody
-has confirmed it. Use `medir_propuesta = FALSE` to keep the route descriptive,
-or supply a confirmed proposal/model. The function aggregates immediately and
-keeps the small dashboard; `conservar_detalle_medicion = TRUE` retains the
-row-level measurement detail.
-
-**Where the value distribution and the correlations live.** Both are in
-`analizar()`, not in `perfilar()`, and that separation is deliberate:
-`perfilar()` is the cheap pass whose object you carry around, while
-`distribucion_valores()` and `detectar_asociaciones()` cost more and produce
-tables of their own. `distribucion_valores()` returns per-column frequencies
-and quantiles with a declared cap and truncation flag; `detectar_asociaciones()`
-returns Pearson between numeric columns — or Spearman, with
-`metodo_numerico = "spearman"`, for a monotone relationship that isn't linear —
-plus Cramér's V and eta squared, each row declaring its method and its
-assumption. Both are exported, so you can call them on their own without paying
-for the whole route.
-
-**What it costs on millions of rows.** `perfilar()` and `analizar()` work in
-memory, and on tables of millions of rows they are not a quick pass. These are
-measured reference data, **not a prediction** —a single, dated evaluation
-(2026-09-29) on production databases this repository cannot reproduce—: on three
-tables of between 3.7 and 4.3 million rows and 7 to 19 columns, `perfilar()`
-took between 14 and 59 minutes, and the **same call** repeated on the same table
-took 53 and 29; `analizar()` finished in 20 minutes on the 7-column table and in
-97 on a 13-column one. The cost depends on the columns and their content as much
-as on the rows, and it varies between runs, so the figure does not extrapolate.
-At that scale, profile a sample of the table and call the pieces of `analizar()`
-you need on their own. [perfilar_dbi()] computes the aggregates inside the
-engine and brings back only a sample, but in that evaluation it was never
-measured on those tables. The sample `perfilar()` takes by itself is systematic
-and has no randomness, so the same profile is reproduced on the same data.
-
-## 🚦 Severities and automation
-
-`severidad` is an **ordered factor**: `ok < sospechoso < error`.
-
-- `ok` records an observed condition that is acceptable or informational; it
-  is not an adverse decision.
-- `sospechoso` is evidence worth reviewing. It is heuristic or needs domain
-  context and must not by itself reject, repair, or suppress data automatically.
-- `error` states that the applicable check crossed its declared criterion. Of
-  these three levels, it is the only candidate for an adverse automated gate,
-  and only after the project accepts that criterion and verifies the scope.
-
-`cobertura_diagnosticos` is outside this scale. It lists checks that could not
-be evaluated and how to resolve them. Automation must inspect it as well as
-`error`: zero errors does not mean a clean profile when diagnostics were not
-run. Cleanup is always explicit—`aplicar()` changes only actions selected from
-an editable plan.
-
-That plan **states the unit it counts in**: `n_afectadas` travels with its
-`unidad_conteo`, because a case-folding action announces three — the distinct
-values that collide — and changes ninety rows, and whoever decides needs to know
-which of the two they are reading. And `aplicar()` **does not claim work it did
-not do**: an action whose effect turns out to be nil is recorded as `fallida`
-with its reason, not `ejecutada`, even when an edited plan has no valid
-`n_afectadas` estimate. The observed effect is the control; the estimate is
-evidence, not a switch that can turn it off.
-
-## ✨ What lupa does in detail
-
-- Profiles a delivery and surfaces missingness, types, patterns, dates, and
-  personal-data evidence.
-- Profiles `sf` geometries and declares CRS, geometry families, emptiness,
-  planar validity, coordinate domain, and bounding-box scope; it does not
-  perform spatial analysis. Over PostGIS it reads the SRID of each EWKB or
-  EWKT value, so a column with mixed SRIDs is declared as such and its domain
-  is evaluated by group: an `sf::sfc` column can only carry one CRS. A value
-  that does not convert does not erase the column: the rest is measured and
-  the loss is declared with its count.
-- Applies Benford's law only when its preconditions hold, and records
-  non-applicability in `cobertura_diagnosticos`.
-- Reports `unidades_mixtas` and `monedas_mixtas` in a column without converting
-  values or assuming exchange rates.
-- Reports `celdas_multivaluadas` only when homogeneous parts match the
-  column's patterns.
-- Finds `relacion_aritmetica_columnas` as observed identities or proportions
-  between numeric columns, not as domain rules.
-- Finds `relacion_orden_columnas` between comparable columns and declares the
-  comparison scope.
-- Finds keys, relationships, dependencies, and measurement granularities that
-  were never declared.
-- Reports `casi_clave` when a non-temporal column has at least 100 rows, is
-  almost unique, and its collisions concentrate in a few values, which
-  separates a key with duplicates from free text of high cardinality.
-- Lets a project define its own quality framework instead of forcing a global
-  score.
-- Measures and evaluates explicit metrics, scales, validity rules, and
-  referential domains. A contract that is missing a field **abstains and says
-  which field** in `cobertura_metricas`, instead of aborting the measurement of
-  every other metric; a metric whose method fails on the data —a column without
-  two values for `ErrorEstandar`, an attribute the table does not have— becomes
-  **`no_medible`**, with the method's message and a warning, and the others are
-  still measured; and any metric comparing a column against a declared
-  temporal value **warns when the two ends are not of the same class**, because a
-  `Date` is anchored to UTC midnight while a `POSIXct` stands for its instant, and
-  mixing them changes the number invisibly.
-- Produces editable cleanup plans, applies only selected actions to a copy, and
-  keeps an audit log.
-- Finds approximate duplicates with exact tiles, deterministic MinHash/LSH,
-  blocking, cost estimates, and disk-backed lots.
-- Repairs encoding damage in R, including repeated mojibake and CESU-8, while
-  refusing unsafe lossy conversions.
-- Follows quality through time and creates self-contained HTML reports.
-
-## 🧪 Evidence, with its declared scope
-
-Each check below uses a different declared unit and reference. None of them
-estimates a single package-wide accuracy.
-
-| Check | Declared unit | Result | Reproduced by |
-| --- | --- | ---: | --- |
-| Raha dirty/clean pairs | columns containing at least one changed cell | 26/26 received at least one finding; 8 further columns were flagged | `benchmark/medir_lupa.R` |
-| Constructed clean controls | 31 tables | 0 error-severity findings; 8 review signals | `test-regresion-107.R` |
-| Real sanctions register | error-severity findings over 2,556 rows | 9/9 independently confirmed | `benchmark/medir_sanciones.R` |
-
-**Every row names what reproduces it, and that is part of the check.** This table
-once carried three numbers nobody could verify from the repository: one described
-a control set that had shrunk from 43 tables to 31 — and its noise from 25
-signals to 8, meaning the package had improved while the text still said the old
-figures — another counted nine seeded defects whose fixture is not here, and the
-third a real registry with no script to fetch it. The first was measured again,
-the second was removed until its fixture exists, and the third now has its
-script.
-
-In the Raha pairs the dirty/clean comparison labels changed cells; it does not
-label every property observable in an unchanged column. Manual review found a
-supported observation in each of the eight further columns—constants,
-duplicated columns, inconsistent case, empty strings, and high-cardinality
-text. We therefore report neither precision nor diagnostic recall from Raha:
-26/26 is column coverage, not evidence that every changed cell was identified.
-[`benchmark/`](https://github.com/sebollin/lupa/tree/main/benchmark) reproduces the table from the published sources and
-records the exact file fingerprints used by the published run, but only when
-`lupa` is installed from a build of these same sources. From the repository
-root, reproduce that condition and run the scripts with:
-
-```sh
-R CMD build . && R CMD INSTALL lupa_0.1.0.tar.gz
-Rscript benchmark/verdad_raha.R
-Rscript benchmark/medir_lupa.R
-```
-
-The benchmark records the installed version and full `Built` stamp and stops
-when that installation lacks a capability required by the published table.
-
-### Performance: four figures that come out of a CSV
-
-A published timing ages with every commit, and a number nobody can rebuild
-turns into a lie without anyone noticing. So the figures below are not pasted
-from a console: `benchmark/medir_figuras.R` measures the `lupa` installation
-visible in `.libPaths()` —it prints its `Built` stamp, stops if it is missing,
-and also stops if that installation predates the last commit to the code, since
-then it cannot contain what the CSV would sign— and leaves the raw data in
-`benchmark/datos/`, one CSV per table with
-the commit as its last column; `benchmark/graficar_figuras.R` draws only what
-those CSVs hold, with base R and no graphics dependencies. Every figure
-carries the commit, the date and the machine in its footer. The counts
-—candidates, pairs, recall, loss— are deterministic and reproduce on any
-machine; times and memory belong to this machine and serve as an order of
-magnitude, not as a promise.
-
-![Scale: candidates, time, memory and threads on a synthetic register from 20,000 to 500,000 rows](man/figures/banco-escala.png)
-
-The synthetic register has homonyms and seeded typos over a small vocabulary:
-the shape that fills LSH buckets the most, that is, the expensive case.
-Candidates grow with the square of the rows —6,201,626 at 20,000,
-3,197,456,226 at 500,000— and time and memory follow them: 15.8 s and 499 MiB
-at 20,000 rows, 49 minutes and 2.8 GiB at 500,000, with two threads. **Of the
-seeded pairs that the final measure accepts, none is lost at any size**
-(ceiling recall: 100 %). The fourth panel measures what the default of two
-threads costs at 100,000 rows: 153 s with two threads, 118 with four, 99 with
-eight and 85 with sixteen (1.8× between two and sixteen), and 83 with
-twenty-nine; candidates and pairs do not change with the threads, only the
-clock does. Two threads remain the default because it is the cap CRAN asks to
-respect, and because the gain depends on what fraction of the work falls in
-the comparison: on another register the curve is much flatter (the
-`escala-y-duplicados` vignette has both).
-
-![Prior estimate: error at four sizes and the loss of blocking by key](man/figures/banco-estimacion.png)
-
-`estimar_costo()` says how many candidate pairs the traversal will generate
-**before** paying for it, with a deterministic sample of signatures. At the
-four sizes measured the error runs from −1.47 % to +1.28 %; the package
-promises no tolerance, the measurement is what it is. And when
-blocking by an arbitrary business key —`anio`, unrelated to the name— blocking
-discards 83 % of the pairs the exhaustive comparison reports (1,040,183 of
-1,247,654, over 4,000 rows), and the prior estimate anticipates it with an
-error of +0.46 %. The key is useless for this data, and that is visible before
-using it.
-
-![Cardinality: candidates at the same number of rows, with three vocabulary richnesses](man/figures/banco-cardinalidad.png)
-
-What rules is not the number of rows: it is how much the values repeat. The
-same 20,000 rows yield 411,051 candidates with a wide vocabulary and
-50,105,210 when half of them share one value, 121.9 times more. It is the number
-`estimar_costo()` anticipates and the reason the package estimates before
-traversing.
-
-![LSH sieve: loss against the exhaustive comparison, by threshold and by bands](man/figures/banco-tamiz.png)
-
-The LSH path is a sieve, not a substitute for the exhaustive one, and this
-figure sizes the warning that `alcance` already declares. Measured against the
-exhaustive comparison on the same input, with the other causes of loss
-neutralised: with 12 bands, the default, the sieve leaves out between 62 % and
-72 % of the pairs Jaro-Winkler accepts at threshold 0.10 on this corpus of 400
-and 800 rows; with 20 bands the loss drops to between 48 % and 61 % in
-exchange for more comparisons. The loss is not a property of the sieve but the
-distance between what it proposes and what the final method accepts: at
-threshold 0.02 it loses 1 of 2 pairs and at 0.20 it loses 22,336 of 31,609 (71
-%). Whoever needs exhaustiveness has the exhaustive path, at its cost. The
-experimental design and its limits are in
-[`benchmark/perdida_lsh.md`](https://github.com/sebollin/lupa/blob/main/benchmark/perdida_lsh.md).
-
-To rebuild the four figures from the repository root, on a quiet machine (the
-full run takes 3 h 34 min on this machine; with `LUPA_FIGURAS_SOLO_BARATAS=1`
-the smoke test takes 130 s):
-
-```sh
-R CMD build . && R CMD INSTALL lupa_0.1.0.tar.gz
-Rscript benchmark/medir_figuras.R
-Rscript benchmark/perdida_lsh.R
-Rscript benchmark/graficar_figuras.R
-```
-
-## 🔍 Limits, fit, stability, and references
-
-There is no factory quality score: `indice_calidad()` returns the dashboard
-unless a project supplies complete named weights, and a calculated index always
-travels with its coverage, weights, transformations, and heterogeneous
-universes. The core is universal and catalogues are pluggable;
-[AGESIC](https://www.gub.uy/agencia-gobierno-electronico-sociedad-informacion-conocimiento/)
-v1.6 is a reference implementation, not a country lock. It has two hard
-dependencies, [`cli`](https://cran.r-project.org/package=cli) and
-[`data.table`](https://cran.r-project.org/package=data.table), and it imports
-**neither** into its namespace: both are called with `::`. That is deliberate —
-`data.table` changes what `[` means for any package that imports it. Suggested packages
-enable bounded capabilities: [`sf`](https://cran.r-project.org/package=sf)
-enables geometry profiling; [`DBI`](https://cran.r-project.org/package=DBI)
-provides the database interface and
-[`RSQLite`](https://cran.r-project.org/package=RSQLite) a backend for
-`perfilar_dbi()`; [`stringdist`](https://cran.r-project.org/package=stringdist)
-enables approximate text comparison.
-
-Work that can be parallelised uses **two threads by default**, the ceiling CRAN
-asks packages to respect. On your own machine you can raise it per call with
-`nucleos = 8` or for the whole session with `options(lupa.nucleos = 8)`; the
-result does not change, only how long it takes.
-
-### Where it fits
-
-[`skimr`](https://cran.r-project.org/package=skimr) and
-[`DataExplorer`](https://cran.r-project.org/package=DataExplorer) explore;
-[`pointblank`](https://cran.r-project.org/package=pointblank),
-[`validate`](https://cran.r-project.org/package=validate), and
-[`dataquieR`](https://cran.r-project.org/package=dataquieR) express or evaluate
-rules; [`zoomerjoin`](https://cran.r-project.org/package=zoomerjoin),
-[`textreuse`](https://cran.r-project.org/package=textreuse), and
-[`reclin2`](https://cran.r-project.org/package=reclin2) focus on text comparison
-or record linkage. [`calidad`](https://github.com/inesscc/calidad), maintained
-by [Klaus Lehmann](https://github.com/Klauslehmann) and
-[Ricardo Pizarro](https://github.com/ricardoflopiza), is a complementary axis:
-it evaluates the quality of **survey estimates**, while `lupa` evaluates the
-tabular data that produces an estimate.
-
-Encoding repair follows the approach and frozen data of
-[`ftfy`](https://github.com/rspeer/python-ftfy) 6.3.1 by
-[Robyn Speer](https://github.com/rspeer), in R. It includes eleven byte tables,
-CESU-8 and Java `C0 80` handling, and five deliberate extensions documented in
-the [NEWS](NEWS.md). It reproduces 159 of the 161 distributed corpus cases and
-leaves 30 of the 31 negative cases untouched. The remaining one is labelled
-*mostly* negative and the corpus itself expects the repair: only its C1 control
-characters are fixed. It deliberately does not provide
-`ftfy`'s style-oriented `fix_text` steps such as HTML unescaping, quote curling,
-width normalization, or Unicode normalization: changing legitimate data
-silently is not repair.
-
-### Citation and references
-
-~~~r
+framework is a taxonomy: a factor is measured when the data provide evidence for
+it or when the requirement and the metric that measures it are declared. This is
+the coverage of the included frameworks:
+
+| Framework     | Factors | Reachable by declaring | Out of scope | Measured by `perfilar()` alone |
+| ------------- | ------: | ---------------------: | -----------: | -----------------------------: |
+| AGESIC        |      17 |                     12 |            5 |                              2 |
+| CEPAL         |      19 |                      6 |           13 |                              0 |
+| ISO/IEC 25012 |      15 |                     15 |            0 |                              0 |
+
+The 13 CEPAL principles that are out of scope concern the
+statistical system and its institutional process, not the values in a
+table. ISO/IEC 25012 is fully covered once its requirements and metrics are
+declared. `cobertura_analisis()` reports which factors were measured; the
+absence of findings is not a claim that the data are good.
+
+Nor does it certify a dataset or invent a global score:
+`indice_calidad()` computes an index only from the weights the project declares.
+And it does not modify the input: no analysis function alters the table it
+receives (not its values, types, names or attributes), not even a
+`data.table`. Cleaning returns a copy and leaves the original intact.
+
+## The learning path
+
+The guides are meant to be read in this order. They are on the website and ship
+with the package (`vignette("lupa")` opens the first one):
+
+1.  [Empezar en diez minutos](https://sebollin.github.io/lupa/articles/lupa.html) (*Getting started in ten minutes*): profile a table, start with the errors, go from a finding to its rows with `clave`, read the coverage, save a report and clean a column in a copy.
+2.  [Leer un perfil](https://sebollin.github.io/lupa/articles/leer-un-perfil.html) (*Reading a profile*): the severities, what each finding carries, the accessors, keys, contradictions between columns and the glossary.
+3.  [Explorar columnas con `analizar()`](https://sebollin.github.io/lupa/articles/explorar-columnas.html) (*Exploring columns with `analizar()`*): what `analizar()` builds in a single call; how to read patterns, types, dates, distributions, associations and time; and how to save and report the result.
+4.  [Estructura no declarada](https://sebollin.github.io/lupa/articles/estructura-no-declarada.html) (*Undeclared structure*): candidate keys, relationships between tables and dependencies between columns.
+5.  [El vacío por diseño](https://sebollin.github.io/lupa/articles/vacio-por-diseno.html) (*Empty by design*): empty cells that are correct, the signal that asks for them to be declared and everything else that can be declared to the package.
+6.  [Limpiar con un plan](https://sebollin.github.io/lupa/articles/limpiar-con-un-plan.html) (*Cleaning with a plan*): what the plan proposes, how it is applied to a copy and what it leaves uncovered.
+7.  [Del hallazgo a la métrica](https://sebollin.github.io/lupa/articles/del-hallazgo-a-la-metrica.html) (*From finding to metric*): from findings to a proposed set of metrics, which are measured, aggregated and evaluated against a threshold.
+8.  [Marcos y modelos de calidad](https://sebollin.github.io/lupa/articles/marcos-y-modelos.html) (*Quality frameworks and models*): a custom framework, metrics at three levels, the dashboard, an index with declared weights and the included frameworks.
+9.  [Comparar entregas y seguir la calidad](https://sebollin.github.io/lupa/articles/historico-y-deriva.html) (*Comparing deliveries and tracking quality*): compare deliveries, tell a real change from a rounding difference and look for drift in a history.
+10. [Perfilar una base](https://sebollin.github.io/lupa/articles/perfilar-una-base.html) (*Profiling a database*): the two blocks of `perfilar_dbi()`, what each option brings into R and where the sampling metadata is kept.
+11. [Colecciones](https://sebollin.github.io/lupa/articles/colecciones.html) (*Collections*): profile the tables of a database, read what could not be measured and look for relationships between them.
+12. [Escala y duplicados aproximados](https://sebollin.github.io/lupa/articles/escala-y-duplicados.html) (*Scale and approximate duplicates*): request the approximate comparison, estimate its cost, know when LSH takes over and what each cap trims.
+
+## For advanced users
+
+The detailed reference lives in four articles on the website, in Spanish.
+Whatever changes the cost, the memory use or the meaning of a result is also in
+the help page of each function, which ships with the package (`?perfilar`, `?perfilar_dbi`,
+`?plan_perfilado_dbi`, `?detectar_duplicados_aproximados`).
+
+| Topic                                                                                                                                                                                | Where                                                                                            |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------ |
+| Universes and sampling in SQL, metadata, tested engines with version and date, costs, batches, memory budgets, consistency across queries, dialects and threads                      | [Motores y escala](https://sebollin.github.io/lupa/articles/motores-y-escala.html)               |
+| What uses every row and what is sampled, `no_aplica` and `no_disponible`, units and traceability, sequential numberings, sentinels, the full finding vocabulary and what gets masked | [Alcance y cobertura](https://sebollin.github.io/lupa/articles/alcance-y-cobertura.html)         |
+| Evidence benchmarks, performance figures and figures from production data, each with its date and its reproducer                                                                     | [Evidencia y rendimiento](https://sebollin.github.io/lupa/articles/evidencia-y-rendimiento.html) |
+| Printing in any locale and repairing mis-encoded text                                                                                                                                | [Codificación y locales](https://sebollin.github.io/lupa/articles/codificacion-y-locales.html)   |
+| Every signature, default value and return structure                                                                                                                                  | [Reference](https://sebollin.github.io/lupa/reference/)                                          |
+
+Each piece of evidence states how it is reproduced: whether it regenerates
+offline, needs a database engine or depends on a downloaded resource, with its
+date and checksum ([Evidencia y rendimiento](https://sebollin.github.io/lupa/articles/evidencia-y-rendimiento.html)).
+
+## Citation, license and contributing
+
+``` r
 citation("lupa")
-~~~
+```
 
-Conceptual references are [Batini and Scannapieco
-(2016)](https://doi.org/10.1007/978-3-319-24106-7), the
-[AGESIC Digital Government Data Quality Framework
-v1.6](https://www.gub.uy/agencia-gobierno-electronico-sociedad-informacion-conocimiento/),
+The conceptual references are [Batini and Scannapieco (2016)](https://doi.org/10.1007/978-3-319-24106-7),
+the [Data Quality Management Framework for Digital Government v1.6](https://www.gub.uy/agencia-gobierno-electronico-sociedad-informacion-conocimiento/)
+by AGESIC, the [CEA/CEPAL quality assurance framework (2022)](https://repositorio.cepal.org/handle/11362/47464)
 and [ISO/IEC 25012:2008](https://www.iso.org/standard/35736.html).
 
-### Stability, contribution, and license
+`lupa` is not on CRAN yet, and its public API may change before 1.0;
+breaking changes are announced in [NEWS](NEWS.md), with a deprecation warning
+first whenever possible. The stable contracts are the declared units, the
+scope, the protection of personal data and the audit log; implementation
+details and timings may change as long as those contracts still hold.
 
-Version 0.1.0 is pre-CRAN: the public API may change before 1.0; breaking
-changes will be announced in `NEWS.md` and release notes, with a deprecation
-warning first whenever practical.
-
-Please use the [issue tracker](https://github.com/sebollin/lupa/issues) for
-bugs, proposals, and documentation fixes. The stable contracts are the
-declared units, scope, protection, and audit trail; implementation details and
-benchmark times can change between releases when those contracts remain true.
-
-`lupa` is released under the [GPL-3](https://www.gnu.org/licenses/gpl-3.0.html).
-See [`LICENSE.note`](LICENSE.note) for the Apache-2.0 data derived from
-[`ftfy`](https://github.com/rspeer/python-ftfy) and the MIT data derived from
-[`naniar`](https://github.com/njtierney/naniar).
+Bugs, proposals and documentation fixes go to the
+[issue tracker](https://github.com/sebollin/lupa/issues), and
+[CONTRIBUTING.md](CONTRIBUTING.md) explains how to contribute. `lupa` is released
+under the [GPL-3](https://www.gnu.org/licenses/gpl-3.0.html); [`LICENSE.note`](LICENSE.note)
+details the Apache-2.0 data derived from [`ftfy`](https://github.com/rspeer/python-ftfy)
+and the MIT data derived from [`naniar`](https://github.com/njtierney/naniar).

@@ -18,7 +18,7 @@ test_that("cuando el motor dijo que es permiso, el mensaje no repite la disyunci
     expect_match(mensaje, "no tiene permiso para verla")
     # Cuidado con la subcadena: "pero la credencial" contiene "o la credencial".
     # Lo que no puede aparecer es la disyuncion completa.
-    expect_false(grepl("no existe en la conexion DBI", mensaje, fixed = TRUE))
+    expect_false(grepl("no existe en la conexi\u00f3n DBI", mensaje, fixed = TRUE))
     # El texto del motor se conserva: el diagnostico no reemplaza la evidencia.
     expect_true(grepl(substr(motivo, 1, 20), mensaje, fixed = TRUE))
   }
@@ -27,7 +27,7 @@ test_that("cuando el motor dijo que es permiso, el mensaje no repite la disyunci
 test_that("sin evidencia del motor, la disyuncion se mantiene", {
   for (motivo in c(NA_character_, "connection timed out", "syntax error")) {
     mensaje <- .mensaje_tabla_inaccesible_dbi(motivo)
-    expect_match(mensaje, "no existe en la conexion DBI, o la credencial")
+    expect_match(mensaje, "no existe en la conexi\u00f3n DBI, o la credencial")
     expect_false(grepl("lo dijo explicitamente", mensaje, fixed = TRUE))
   }
 })

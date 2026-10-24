@@ -257,9 +257,11 @@ test_that("analizar mide y agrega sin retener detalle salvo pedido", {
   expect_null(resultado$detalle_medicion)
   expect_gt(nrow(con_detalle$detalle_medicion), nrow(con_detalle$medicion))
   expect_true(all(!resultado$decision_medicion$confirmada))
-  expect_true(all(resultado$decision_medicion$medida[
-    resultado$decision_medicion$estado == "lista"
-  ]))
+  expect_identical(
+    resultado$decision_medicion$medida,
+    as.character(resultado$propuesta_modelo$estado) == "lista" &
+      resultado$propuesta_modelo$incluir
+  )
 
   apagado <- analizar(
     datos, medir_propuesta = FALSE, analizar_dependencias = FALSE

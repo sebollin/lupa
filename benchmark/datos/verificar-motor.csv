@@ -1,0 +1,11 @@
+"motor","version_servidor","controlador","version_controlador","fixture","revision_paquete","fecha","estado_motor","motivo","cinco_columnas","dialecto","media","clave_primaria","cobertura"
+"PostgreSQL 16","PostgreSQL 16.15 on x86_64-pc-linux-musl, compiled by gcc (Alpine 15.2.0) 15.2.0, 64-bit","RPostgres","1.4.10","tramites: cinco columnas; padron: clave primaria id_persona","5cc39f7","2026-10-23T23:06:43Z","medido","","ok","ok","ok","ok","ok"
+"PostgreSQL 9.3","PostgreSQL 9.3.25 on x86_64-pc-linux-gnu (Debian 9.3.25-1.pgdg90+1), compiled by gcc (Debian 6.3.0-18+deb9u1) 6.3.0 20170516, 64-bit","RPostgres","1.4.10","tramites: cinco columnas; padron: clave primaria id_persona","5cc39f7","2026-10-23T23:06:43Z","medido","","ok","ok","ok","ok","ok"
+"MySQL 8.4","8.4.11","RMySQL","0.11.3","tramites: cinco columnas; padron: clave primaria id_persona","5cc39f7","2026-10-23T23:06:43Z","medido","","ok","ok","ok","ok","ok"
+"MariaDB 11.8","11.8.8-MariaDB-ubu2404","RMariaDB","1.3.5","tramites: cinco columnas; padron: clave primaria id_persona","5cc39f7","2026-10-23T23:06:43Z","medido","","ok","ok","ok","ok","ok"
+"SQL Server 2022","Microsoft SQL Server 2022 (RTM-CU26) (KB5093420) - 16.0.4265.3 (X64) 
+	Jul  7 2026 14:37:25 
+	Copyright (C) 2022 Microsoft Corporation
+	Developer Edition (64-bit) on Linux (Ubuntu 22.04.5 LTS) <X64>","odbc/FreeTDS","1.7.0","tramites: cinco columnas; padron: clave primaria id_persona","5cc39f7","2026-10-23T23:06:43Z","medido","","ok","ok","ok","ok","ok"
+"SQLite","3.53.3","RSQLite","3.53.3","tramites: cinco columnas; padron: clave primaria id_persona","5cc39f7","2026-10-23T23:06:43Z","medido","","ok","ok","ok","ok","ok"
+"DuckDB","v1.5.5","duckdb","1.5.5","tramites: cinco columnas; padron: clave primaria id_persona","5cc39f7","2026-10-23T23:06:43Z","medido","","ok","ok","ok","ok","ok"

@@ -54,21 +54,22 @@ aplica cuando se declara también el umbral correspondiente.
 \strong{La identidad de cada celda son tres columnas: \code{metrica_instanciada},
 \code{entidad} y \code{objeto}.} No alcanza con \code{metrica} y \code{objeto}, porque \code{metrica}
 es el nombre genérico: dos tablas con una columna del mismo nombre, o dos
-especializaciones de la misma genérica sobre la misma columna, publicaban dos
-filas con la \strong{misma} identidad y valores distintos, y rehacer la celda con
-las claves publicadas mezclaba las medidas de las dos sin reproducir ninguna.
+especializaciones de la misma genérica sobre la misma columna, publicarían
+dos filas con la \strong{misma} identidad y valores distintos, y rehacer la celda
+con las claves publicadas mezclaría las medidas de las dos sin reproducir
+ninguna.
 \code{metrica_instanciada} sola tampoco alcanza: sobre un agregado vale
 \verb{agregada:<funcion>:<metrica>} para todas las filas, y ahí la entidad es lo
 único que separa. Cuando hay varias entidades, \code{objeto} además nombra la
 tabla —\code{cod (tabla: t1)}—, en el mismo idioma con el que la granularidad de
-tabla ya publicaba \code{(tabla: t1)}.
+tabla publica \code{(tabla: t1)}.
 
 Ese trío es la clave con la que se \strong{agrupan} las medidas, y no sólo la que se
 publica: agrupar por menos de lo que se declara como identidad funde dos cosas
-que el objeto dice distintas. Antes, las granularidades sin rama propia
-—\code{conjuntoAtributos} entre ellas— agrupaban sólo por el objeto, y dos entidades
-con el mismo objeto salían como \strong{una} celda con la entidad de la primera y el
-promedio de las dos.
+que el objeto dice distintas. Vale también en las granularidades sin rama
+propia —\code{conjuntoAtributos} entre ellas—: agrupando sólo por el objeto, dos
+entidades con el mismo objeto saldrían como \strong{una} celda con la entidad de
+la primera y el promedio de las dos.
 
 Y la unicidad \strong{se verifica}: si dos celdas quedaran con el mismo trío, la
 función falla nombrando las dos y sus valores, en lugar de publicar dos filas

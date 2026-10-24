@@ -86,6 +86,17 @@ test_that("las metricas textuales de medir son invariantes y persisten", {
     suppressWarnings(Sys.setlocale(categoria, estado$anteriores[[categoria]]))
   }, add = TRUE)
   datos <- .fixture_dominio_n62()
+  propuesta <- proponer_modelo(
+    perfilar(
+      datos,
+      analizar_dependencias = FALSE,
+      proteger_datos_personales = FALSE
+    ),
+    datos
+  )
+  propuesta$incluir[
+    propuesta$metrica == "ValoresPosiblesPorExtension"
+  ] <- TRUE
   resultados <- lapply(c(estado$locale_utf8, "C"), function(locale) {
     for (categoria in estado$categorias) {
       suppressWarnings(Sys.setlocale(categoria, locale))
@@ -95,7 +106,8 @@ test_that("las metricas textuales de medir son invariantes y persisten", {
       datos, nombre = "tabla",
       fecha = as.POSIXct("2026-09-17", tz = "UTC"),
       analizar_dependencias = FALSE,
-      proteger_datos_personales = FALSE
+      proteger_datos_personales = FALSE,
+      propuesta_confirmada = propuesta
     ))
     medido <- analisis$medicion$resultado[
       analisis$medicion$metrica == "ValoresPosiblesPorExtension"

@@ -184,7 +184,7 @@ test_that("La lectura por bloques aplica la politica de costo a la moda del mapa
   moda <- resultado$sql[resultado$sql$metrica == "moda", , drop = FALSE]
 
   expect_true(all(moda$estado == "omitido_por_costo"))
-  expect_true(all(grepl("politica optativa", moda$motivo, fixed = TRUE)))
+  expect_true(all(grepl("pol\u00edtica optativa", moda$motivo, fixed = TRUE)))
   expect_true(is.list(resultado$meta$decisiones_costo))
   expect_true(all(vapply(
     resultado$meta$decisiones_costo, function(x) identical(x$moda, FALSE),

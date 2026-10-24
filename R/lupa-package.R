@@ -1,49 +1,51 @@
-#' lupa: examinar, medir y mejorar la calidad de datos
+#' lupa: perfilar y medir la calidad de datos con evidencia
 #'
-#' `lupa` implementa un modelo de calidad de datos de uso general: dimensiones
-#' y factores declarables, métricas con granularidad explícita, agregación
-#' tipada y una cadena de evaluación auditable. El paquete nunca modifica datos
-#' como efecto del diagnóstico: cada etapa devuelve objetos inspeccionables.
-#' [marco_agesic()] y [catalogo_agesic()] aportan de fábrica la implementación
-#' trazable del marco uruguayo, y [marco_iso25012()] ofrece una segunda
-#' taxonomía opcional. Ninguna restringe las declaraciones del usuario.
+#' `lupa` examina una tabla o una base de datos antes de confiar en ella:
+#' encuentra faltantes disfrazados, el mismo dato escrito de varias formas,
+#' fechas en formatos mezclados, filas y columnas repetidas y estructura que
+#' nadie declaró; dice en qué filas está cada problema y qué controles no pudo
+#' hacer. Cada resultado conserva su alcance y su evidencia, y ningún
+#' diagnóstico modifica los datos que recibe.
 #'
-#' El punto de entrada es [analizar()]. En una llamada reúne el diagnóstico
-#' descriptivo y su cobertura, sin medir requisitos observados automáticamente.
-#' Sus componentes también se pueden construir por separado. El recorrido es:
+#' La puerta de entrada es [perfilar()]. Sus hallazgos ([hallazgos()]) traen
+#' tipo, severidad (`ok < sospechoso < error`), evidencia y trazabilidad hasta
+#' las filas; su cobertura ([cobertura()]) enumera los diagnósticos que no se
+#' pudieron evaluar, con su motivo, y que nunca cuentan como cero. La viñeta
+#' "Empezar en diez minutos" (`vignette("lupa")`) recorre el primer uso, y
+#' "Leer un perfil" (`vignette("leer-un-perfil")`) explica cada parte.
 #'
-#' 1. examinar estructura, tipos, patrones, ausencias, distribuciones,
-#'    asociaciones y comportamiento temporal; [cobertura_analisis()] explicita
-#'    qué factores no fueron evaluados;
-#' 2. convertir el diagnóstico en una propuesta editable con
-#'    [proponer_modelo()];
-#' 3. declarar y ejecutar métricas mediante [modelo()] y [medir()];
-#' 4. evaluar reglas y perfiles de madurez con [evaluar()];
-#' 5. planificar y aplicar mejoras auditables mediante
-#'    [planificar_limpieza()] y [aplicar()];
-#' 6. acumular corridas y detectar deriva con [historico_calidad()],
-#'    [detectar_deriva_calidad()] y [comparar_perfiles()];
-#' 7. persistir el recorrido con [guardar_analisis()] y producir un archivo HTML
-#'    autocontenido con [reportar()].
+#' Desde el perfil, el recorrido sigue estas etapas, cada una con su guía:
 #'
-#' Las taxonomías se declaran con [marco_calidad()]. Los padrones externos se
-#' declaran con [referencial()], y los contratos que
-#' no se pueden inferir se expresan con [vigencia()] y [escala()]. La correspondencia
-#' exacta con las 49 entradas de AGESIC se consulta en [catalogo_agesic()]. No
-#' se calcula un índice global: la jerarquía dimensión–factor–métrica es
-#' taxonómica y requiere un contrato adicional para producirlo.
-#' Los formatos se pueden verificar con funciones propias o con los packs de
-#' [validadores_internacionales()] y [validadores_uruguay()];
-#' [pack_validadores()] permite añadir otro país sin registrar estado global.
+#' 1. explorar columnas y reunir el diagnóstico en un objeto con [analizar()],
+#'    y compartirlo en un HTML autocontenido con [reportar()];
+#' 2. perfilar dentro de una base con [perfilar_dbi()], o una colección de
+#'    tablas con [perfilar_coleccion()];
+#' 3. limpiar una copia con un plan editable: [planificar_limpieza()] y
+#'    [aplicar()];
+#' 4. convertir lo confirmado en mediciones explícitas y evaluarlas:
+#'    [proponer_modelo()], [modelo()], [medir()] y [evaluar()];
+#' 5. comparar entregas y seguir la calidad en el tiempo con
+#'    [comparar_perfiles()] y [historico_calidad()].
+#'
+#' Un marco de calidad es una taxonomía que se declara con [marco_calidad()].
+#' El paquete incluye tres, [marco_agesic()], [marco_cepal()] y
+#' [marco_iso25012()], y ninguno restringe las declaraciones de quien lo usa:
+#' un factor se mide cuando los datos aportan evidencia o cuando se declaran el
+#' requisito y la métrica. [cobertura_analisis()] informa qué factores quedaron
+#' medidos. No hay un puntaje de fábrica: [indice_calidad()] calcula un índice
+#' sólo con los pesos que declara el proyecto.
 #'
 #' @references Batini C, Scannapieco M (2016) \doi{10.1007/978-3-319-24106-7}.
 #'   *Data and Information Quality: Dimensions, Principles and Techniques*.
 #'   Springer.
 #'
 #'   [AGESIC (2020)](https://www.gub.uy/agencia-gobierno-electronico-sociedad-informacion-conocimiento/).
-#'   *Marco de trabajo para la Gestión de la Calidad
-#'   de Datos en Gobierno Digital*, versión 1.6, Presidencia de la República,
-#'   Uruguay.
+#'   *Marco de trabajo para la Gestión de la Calidad de Datos en Gobierno
+#'   Digital*, versión 1.6.
+#'
+#'   [CEA/CEPAL (2022)](https://repositorio.cepal.org/handle/11362/47464).
+#'   *Guía para la implementación del marco de aseguramiento de la calidad para
+#'   procesos y productos estadísticos*. LC/CEA.11/19. Santiago.
 #'
 #'   [ISO/IEC (2008)](https://www.iso.org/standard/35736.html).
 #'   *ISO/IEC 25012:2008 Software engineering — Software product
@@ -53,6 +55,8 @@
 #' @keywords internal
 #'
 #' @examples
-#' resultado <- analizar(datos_operativos, analizar_dependencias = FALSE)
-#' subset(resultado$perfil$hallazgos, severidad != "ok")
+#' perfil <- perfilar(datos_operativos)
+#' subset(hallazgos(perfil), severidad == "error",
+#'        c(columna, tipo_hallazgo, evidencia))
+#' cobertura(perfil)[, c("diagnostico", "columna")]
 "_PACKAGE"

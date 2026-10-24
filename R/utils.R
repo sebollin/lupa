@@ -1811,7 +1811,7 @@
 
 #' Preparar una columna para las etapas de texto
 #'
-#' Separa dos usos que hasta ahora viajaban juntos y que no son el mismo:
+#' Separa dos usos que no son el mismo:
 #' aplicar una primitiva de texto sobre los valores, y compararlos por
 #' igualdad.
 #'

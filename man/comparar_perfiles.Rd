@@ -24,7 +24,7 @@ para que la serie sea exportable sin ocultar diferencias.
 El atributo \code{campos_protegidos} declara lo que no se comparó porque la
 protección de datos personales lo tapa: un data frame con \code{columna},
 \code{campo} y \code{lado} —\code{anterior} o \code{actual}—, la misma forma que usa
-\code{\link[=comparar_equivalencia]{comparar_equivalencia()}}. Hoy el único campo que puede figurar es
+\code{\link[=comparar_equivalencia]{comparar_equivalencia()}}. El único campo que puede figurar es
 \code{rango}. Está siempre, vacío si no hay nada que declarar, y \code{rbind()} une
 los de todas las derivas.
 }
@@ -86,9 +86,11 @@ que está dos párrafos más abajo, que la evita en lugar de detectarla.
 Entre las propiedades comparadas está la \strong{unidad} en la que la columna
 publica sus cifras, con la misma severidad que un cambio de tipo: dos entregas
 con los mismos valores y la unidad cambiada de \code{m} a \code{km} son un cambio real
-—la cifra dejó de significar lo mismo— y antes devolvían cero filas. Un perfil
-guardado antes de que ese campo existiera no hace mentir la comparación: esa
-parte se declara \strong{no comparable}, como el resto de los campos ausentes.
+—la cifra dejó de significar lo mismo— y la comparación lo informa en una
+fila. Un perfil guardado por una versión anterior del paquete, que no
+registra la unidad, no hace
+mentir la comparación: esa parte se declara \strong{no comparable}, como el resto
+de los campos ausentes.
 
 El \strong{rango} se compara por los valores de sus extremos, no por su texto
 impreso: un cambio chico sale como fila \code{ok} y uno que alcanza
@@ -162,7 +164,7 @@ asimetría sin emitir un hallazgo; esa cobertura parcial se conserva como
 valores. Cada argumento de
 \code{\link[=perfilar]{perfilar()}} tiene su lugar en la comparación:
 habilita un diagnóstico, es una vara —su cambio se declara en la fila
-\code{configuracion_umbrales}, que desde esta versión incluye los umbrales de las
+\code{configuracion_umbrales}, que incluye los umbrales de las
 relaciones de orden y aritméticas entre columnas, los del vocabulario y
 \code{datos_personales_permitidos}, \code{validadores_personales},
 \code{umbral_documento_verificado} y \code{muestra_validadores}—, tiene su propia fila

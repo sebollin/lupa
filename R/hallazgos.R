@@ -3803,7 +3803,7 @@
         "outliers", nombre, resultado$cuantitativo$motivo_outliers,
         paste(
           "Si la columna es una magnitud y no un codigo, quitarla de",
-          "`columnas_codigo` para medir sus limites de Tukey."
+          "`columnas_codigo` para medir sus l\u00edmites de Tukey."
         )
       )
     } else if (identical(estado_outliers, "no_evaluado")) {
@@ -4824,7 +4824,9 @@
         nombre, "espacios_sobrantes", "sospechoso",
         "Hay texto con espacios sobrantes al inicio o al final.",
         paste0(
-          fila$n_espacios_borde, " valores; ejemplos: ",
+          fila$n_espacios_borde,
+          if (identical(as.numeric(fila$n_espacios_borde), 1)) " valor" else " valores",
+          "; ejemplos: ",
           resultado$diagnostico_texto$evidencia_espacios
         ),
         "Aplicar trimws() despu\u00e9s de confirmar que los espacios no son significativos."
@@ -4989,7 +4991,7 @@
         "numero_como_texto", nombre,
         paste(
           "No se evaluaron `numero_como_texto`, `unidades_mixtas` ni",
-          "`monedas_mixtas`: la columna se declaro en `columnas_codigo`, asi",
+          "`monedas_mixtas`: la columna se declar\u00f3 en `columnas_codigo`, as\u00ed",
           "que es un codigo y no una cantidad escrita como texto, y no se",
           "propone convertirla a numero."
         ),
@@ -5234,12 +5236,12 @@
         if (isTRUE(fila$dato_personal_protegido)) {
           paste0(
             "Repeticiones: ", fila$centinela_repeticiones,
-            "; valores fuera de los limites: ", fila$n_outliers
+            "; valores fuera de los l\u00edmites: ", fila$n_outliers
           )
         } else {
           paste0(
             "Valor: ", .texto_valor(fila$centinela_valor), "; repeticiones: ",
-            fila$centinela_repeticiones, "; valores fuera de los limites: ",
+            fila$centinela_repeticiones, "; valores fuera de los l\u00edmites: ",
             fila$n_outliers
           )
         },
@@ -5251,7 +5253,7 @@
         # declarado. `moda` y `n_distintos` siguen describiendo lo guardado,
         # igual que con `Inf` y `NaN`.
         paste0(
-          "Si es un codigo de ausencia, agregarlo a `sentinelas_numericos`: ",
+          "Si es un c\u00f3digo de ausencia, agregarlo a `sentinelas_numericos`: ",
           "pasa a contarse como faltante y sale de `media`, `mediana`, ",
           "`minimo`, `maximo` y `desvio`, que declaran cuantos valores dejaron ",
           "afuera en `n_valores_excluidos_resumen`. `moda` y `n_distintos` ",
@@ -5266,7 +5268,7 @@
         cobertura[[length(cobertura) + 1L]] <- .nuevo_diagnostico_no_evaluado(
           "outliers", nombre,
           paste0(
-            "No se evaluaron los limites de Tukey: la columna es de enteros y ",
+            "No se evaluaron los l\u00edmites de Tukey: la columna es de enteros y ",
             "cubre ",
             # La decision se toma con la densidad sin el centinela cuando hay
             # uno, y el texto imprimia la otra: sobre `1..1000` con quince
@@ -5292,7 +5294,7 @@
             },
             ", asi que es una ",
             "numeracion -un identificador o un codigo- y no una magnitud. ",
-            "Los limites de Tukey describen una distribucion; que un codigo ",
+            "Los l\u00edmites de Tukey describen una distribuci\u00f3n; que un c\u00f3digo ",
             "quede lejos de la mediana no dice nada de su calidad. Se habrian ",
             "senalado ", fila$n_outliers, " valores."
           ),
@@ -5611,7 +5613,7 @@
             paste(
               "Revisar si sobra una columna en la clave, si hay duplicados",
               "de carga o si la clave real es otra. La trazabilidad sigue",
-              "localizando por ella, pero un valor puede senalar mas de una",
+              "localizando por ella, pero un valor puede se\u00f1alar m\u00e1s de una",
               "fila."
             ),
             length(indices_completas), length(indices_colision), "fila"
@@ -5626,7 +5628,8 @@
       "La tabla contiene filas duplicadas exactas.",
       paste0(
         n_filas_en_grupos_duplicados, " filas en grupos duplicados (",
-        n_filas_duplicadas, " excedentes)"
+        n_filas_duplicadas,
+        if (identical(as.numeric(n_filas_duplicadas), 1)) " excedente)" else " excedentes)"
       ),
       "Definir una clave y revisar la causa antes de eliminar duplicados.",
       nrow(datos), n_filas_en_grupos_duplicados, "fila"

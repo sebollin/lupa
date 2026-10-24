@@ -88,8 +88,8 @@
 #'   lógica `grupo_perfilado` dice de qué clase de grupo habla cada fila: hay
 #'   filas sobre grupos que **sí** se perfilaron —la colisión de `"(ausente)"`,
 #'   las columnas descartadas— y filas sobre grupos que no. Sin esa distinción
-#'   `n_filas_grupo` no se podía sumar, porque un grupo perfilado aparecía en los
-#'   hallazgos y otra vez en la cobertura.
+#'   `n_filas_grupo` no se podría sumar, porque un grupo perfilado aparece en
+#'   los hallazgos y otra vez en la cobertura.
 #'
 #'   **Cómo reconciliar las filas.** Hay una fila por grupo y motivo, así que un
 #'   grupo puede aparecer más de una vez; la cuenta se hace sobre grupos

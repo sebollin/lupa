@@ -297,7 +297,7 @@
 #'
 #' @return Data frame S3 de clase `propuesta_modelo`; las columnas de listas
 #'   contienen la configuración y los vínculos sin convertirlos en texto. Su
-#'   método `print()` ya no falla por codificación en ningún locale: la copia
+#'   método `print()` no falla por codificación en ningún locale: la copia
 #'   que se exhibe convierte lo que trae codificación declarada, declara como
 #'   UTF-8 los bytes válidos sin declarar —R los escapa como `<U+00F1>` donde el
 #'   locale no los represente— y deja el resto tal cual mientras R pueda

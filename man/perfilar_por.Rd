@@ -80,8 +80,8 @@ enteramente ausentes y las declaraciones recortadas por grupo. Su columna
 lógica \code{grupo_perfilado} dice de qué clase de grupo habla cada fila: hay
 filas sobre grupos que \strong{sí} se perfilaron —la colisión de \code{"(ausente)"},
 las columnas descartadas— y filas sobre grupos que no. Sin esa distinción
-\code{n_filas_grupo} no se podía sumar, porque un grupo perfilado aparecía en los
-hallazgos y otra vez en la cobertura.
+\code{n_filas_grupo} no se podría sumar, porque un grupo perfilado aparece en
+los hallazgos y otra vez en la cobertura.
 
 \strong{Cómo reconciliar las filas.} Hay una fila por grupo y motivo, así que un
 grupo puede aparecer más de una vez; la cuenta se hace sobre grupos

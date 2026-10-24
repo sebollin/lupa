@@ -14,7 +14,7 @@ print.perfil <- function(x, ...) {
   cli::cli_alert_danger(.cli_literal(paste(errores, "hallazgos con severidad error")))
   cli::cli_alert_warning(.cli_literal(paste(sospechosos, "hallazgos sospechosos")))
   cli::cli_alert_success(.cli_literal(paste(correctos, "hallazgos informativos ok")))
-  cli::cli_alert_info(.cli_literal(paste(no_evaluados, "diagnosticos no evaluados")))
+  cli::cli_alert_info(.cli_literal(paste(no_evaluados, "diagn\u00f3sticos no evaluados")))
   # Lo que se midio sobre la muestra se dice aca, donde se lee el veredicto: un
   # "0 hallazgos sospechosos" sobre 10 de 10.000 filas no es lo mismo que sobre
   # la tabla, y la consola no lo mencionaba en ninguna parte.
@@ -141,7 +141,67 @@ as_tibble.perfil <- function(x, ...) {
   if (inherits(x, "perfil_dbi")) {
     return(if (is.null(x$perfil_muestra)) NULL else x$perfil_muestra$hallazgos)
   }
+  if (inherits(x, "perfil_coleccion")) return(.hallazgos_coleccion(x))
   NULL
+}
+
+# Una coleccion no tiene hallazgos propios: son los de cada tabla, y viven en
+# los perfiles conservados. La tabla vacia y callada se leia como "ninguna tabla
+# tiene hallazgos" aunque los perfiles conservados tuvieran decenas. Se unen los
+# de cada perfil con la identidad de la tabla adelante -como `sql_perfil()`- y
+# lo que no esta se dice: sin perfiles conservados, y las tablas sin muestra.
+.hallazgos_coleccion <- function(x) {
+  identidad <- c("tabla", "esquema", "identificador")
+  con_identidad <- function(h, fila) {
+    marca <- attr(h, "datos_personales_sin_proteger", exact = TRUE)
+    n <- nrow(h)
+    valores <- lapply(identidad, function(campo) {
+      rep(as.character(fila[[campo]][[1L]]), n)
+    })
+    names(valores) <- identidad
+    salida <- cbind(as.data.frame(valores, stringsAsFactors = FALSE), h)
+    if (length(marca)) attr(salida, "datos_personales_sin_proteger") <- marca
+    salida
+  }
+  vacia <- function() {
+    fila <- stats::setNames(rep(list(NA_character_), 3L), identidad)
+    con_identidad(.hallazgos_sin_filas(), fila)
+  }
+  perfiles <- x$perfiles
+  if (!length(perfiles)) {
+    .avisar(
+      "Esta coleccion no conservo los perfiles de sus tablas, asi que no hay ",
+      "hallazgos por fila. Se conservan con perfilar_coleccion(..., ",
+      "conservar_perfiles = TRUE); el resumen por tabla sigue en columnas() y ",
+      "lo no evaluado, en cobertura().", call. = FALSE
+    )
+    return(vacia())
+  }
+  resumen <- x$resumen_coleccion
+  sin_muestra <- character()
+  partes <- list()
+  for (id in names(perfiles)) {
+    h <- .fuente_hallazgos(perfiles[[id]])
+    if (is.null(h)) {
+      sin_muestra <- c(sin_muestra, id)
+      next
+    }
+    fila <- resumen[resumen$identificador %in% id, , drop = FALSE]
+    if (!nrow(fila)) fila <- list(tabla = id, esquema = NA, identificador = id)
+    partes[[length(partes) + 1L]] <- con_identidad(h, fila)
+  }
+  if (length(sin_muestra)) {
+    .avisar(
+      "Sin muestra leida no hay hallazgos por fila de ",
+      if (length(sin_muestra) == 1L) "la tabla " else "las tablas ",
+      paste(sin_muestra, collapse = ", "),
+      "; el motivo esta en cobertura().", call. = FALSE
+    )
+  }
+  if (!length(partes)) return(vacia())
+  salida <- do.call(.unir_con_marca_sin_proteger, partes)
+  rownames(salida) <- NULL
+  salida
 }
 
 .estado_bloque_muestra_dbi <- function(x) {
@@ -210,7 +270,10 @@ as_tibble.perfil <- function(x, ...) {
 #'   [perfilar_coleccion()].
 #' @param ... Sin uso, para compatibilidad de métodos.
 #'
-#' @return `hallazgos()` devuelve un `data.frame` con una fila por hallazgo;
+#' @return `hallazgos()` devuelve un `data.frame` con una fila por hallazgo
+#'   —sobre una colección, los de cada perfil conservado con la identidad de su
+#'   tabla adelante (`tabla`, `esquema`, `identificador`), como `sql_perfil()`;
+#'   si la colección no conservó los perfiles, una tabla vacía con su aviso—;
 #'   `columnas()`, un `data.frame` con una fila por columna de la tabla
 #'   perfilada y sus métricas y diagnósticos; `cobertura()` devuelve la tabla de
 #'   diagnósticos no evaluados —y, sobre un `perfil_dbi`, la de **métricas

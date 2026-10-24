@@ -42,11 +42,10 @@ excluyeron se rechaza diciéndolo.
 publica}, no es un texto fijo. Con un solo universo lo nombra y dice que las
 unidades son comparables; con varios dice cuántos son y nombra, por universo,
 qué componentes caen en cada uno; sin componentes no afirma nada sobre
-universos. Antes era una sola frase idéntica en toda corrida, que afirmaba
-«salen de universos distintos» incluso cuando los tres componentes publicaban
-\code{universo = "celdas"} —una afirmación que el mismo objeto desmentía en su
-columna \code{universo}— y que no nombraba nunca ningún componente, que es
-justamente lo que prometía declarar.
+universos. Así no afirma «salen de universos distintos» cuando los tres
+componentes publican \code{universo = "celdas"} —una afirmación que el mismo
+objeto desmentiría en su columna \code{universo}—, y nombra los componentes, que
+es justamente lo que promete declarar.
 }
 \examples{
 nucleo <- metricas_nucleo()

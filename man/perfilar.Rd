@@ -184,7 +184,7 @@ se cumple salen del universo de esa columna: no cuentan como ausencia. Las
 filas donde el predicado no se puede determinar se declaran aparte, sin
 contarse ni como aplicables ni como no aplicables. Un valor presente fuera
 del universo produce el hallazgo \code{valor_fuera_de_aplicabilidad}, que es el
-error simétrico y hoy no tiene otra forma de aparecer. Las filas fuera del
+error simétrico y no tiene otra forma de aparecer. Las filas fuera del
 universo —y las indeterminadas— salen también de la ley de Benford y de las
 relaciones aritméticas, con la misma máscara que usa el resumen.
 
@@ -311,9 +311,9 @@ cobertura, los formatos de fecha— no son de ninguna columna en particular.
 Los \strong{nombres de columna} nunca se enmascaran, aunque un valor protegido
 aparezca dentro de uno: un nombre es estructura, existía antes y aparte
 del dato, y el paquete lo necesita para cruzar el perfil con los datos.
-Se enmascaraban, y en una base real \code{fecha_nacimiento} salió publicada
-como \verb{fecha_[valor protegido]}: \code{\link[=planificar_limpieza]{planificar_limpieza()}} y \code{\link[=analizar]{analizar()}}
-abortaban porque los nombres del perfil ya no coincidían con los de los
+Si se enmascararan, \code{fecha_nacimiento} saldría publicada como
+\verb{fecha_[valor protegido]}, y \code{\link[=planificar_limpieza]{planificar_limpieza()}} y \code{\link[=analizar]{analizar()}}
+abortarían porque los nombres del perfil no coincidirían con los de los
 datos. Un campo se reconoce como de nombres por su \strong{contenido} —todos sus
 valores son nombres de la entrada, solos o unidos—, así que la protección
 de los valores no se afloja: si un valor protegido es igual a un nombre de
@@ -338,19 +338,20 @@ vocabulario: un valor protegido entre límites de palabra se tapa, y una
 palabra del paquete —\code{faltantes}, \code{segundos}— sigue siendo vocabulario
 aunque un valor protegido coincida con ella. Y un texto que nombra una columna entre
 comillas —la prosa del paquete, la SQL que guarda \code{\link[=perfilar_dbi]{perfilar_dbi()}}— la
-conserva entera: con «Segundo» protegido, \code{segundo_nombre} salía
-\verb{[valor protegido]_nombre} en los hallazgos sin acción del plan y en la
-SQL. Lo mismo los \strong{nombres que el paquete deriva} de un nombre de
+conserva entera: con «Segundo» protegido, \code{segundo_nombre} se publica tal
+cual —y no como \verb{[valor protegido]_nombre}— en los hallazgos sin acción del
+plan y en la SQL. Lo mismo los \strong{nombres que el paquete deriva} de un
+nombre de
 columna: el que propone el plan en \code{nombres_propuestos} —con
 \code{make.names()} y en snake_case— y las marcas \verb{.ausente_<nombre>} y
-\verb{.outlier_<nombre>} que crean sus acciones. Se barrían como texto de los
-datos: con «Segundo» protegido en \verb{Primer Nombre}, la evidencia decía
-\code{"Segundo Nombre" -> "[valor protegido].Nombre"}, el plan proponía ese
-nombre y \code{\link[=aplicar]{aplicar()}} se lo ponía a la columna en los datos del usuario.
+\verb{.outlier_<nombre>} que crean sus acciones. Barridos como texto de los
+datos, con «Segundo» protegido en \verb{Primer Nombre} la evidencia diría
+\code{"Segundo Nombre" -> "[valor protegido].Nombre"}, el plan propondría ese
+nombre y \code{\link[=aplicar]{aplicar()}} se lo pondría a la columna en los datos del usuario.
 Un nombre que es él mismo un valor protegido, con otra caja, otros
 separadores, tildes o codificación, no se exceptúa —salvo citado en la SQL
 que guarda \code{\link[=perfilar_dbi]{perfilar_dbi()}}, donde es un identificador y se publica igual
-en \code{columnas$columna}: antes tapaba enteras las sentencias de su lote—.
+en \code{columnas$columna}: tapado, taparía las sentencias enteras del lote—.
 Y un valor protegido
 que \strong{contiene} un nombre de columna —el correo
 \code{juan_perez@empresa.com.uy} con una columna \code{juan_perez}— se busca entero,
@@ -363,16 +364,17 @@ factor de un marco que declaró el usuario, no se enmascaran aunque coincidan
 con un valor protegido o lo contengan. El principio es el de los nombres de
 columna: son estructura, no salen de las celdas, y publicarlos no dice nada
 de ninguna fila —el tipo \code{constante} aparece porque otra columna es
-constante, no porque alguien se apellide así—. Se enmascaraban: en una base
-real, un nombre de persona contenido en \code{faltantes_disfrazados} dejó seis
-hallazgos con el tipo \verb{[valor protegido]}, y el plan sin ninguna acción para
-ellos. La regla es por campo y por contenido: un campo cuyos valores son
+constante, no porque alguien se apellide así—. Si el vocabulario se
+enmascarara, un nombre de persona contenido en \code{faltantes_disfrazados}
+dejaría los hallazgos con el tipo \verb{[valor protegido]} y el plan sin ninguna
+acción para ellos. La regla es por campo y por contenido: un campo cuyos
+valores son
 todos vocabulario del propio objeto queda afuera, uno que mezcla no.
 Ese alcance tiene un \strong{piso}: un valor de una columna protegida que
 identifique —seis caracteres o más, el mismo corte con el que la batería de
 fugas decide qué cuenta como filtración— no se publica en ninguna parte,
 tenga o no columna a la que atribuirse, y también en los campos numéricos.
-Sin ese piso, una columna que el clasificador no marcó publicaba los
+Sin ese piso, una columna que el clasificador no marcó publicaría los
 documentos de la protegida con sólo repetirlos: una copia con nombre
 neutro, un texto libre que los contuviera, o los estadísticos de orden de
 una columna clasificada con poder discriminante \code{debil}. Una columna que
@@ -388,20 +390,22 @@ documento— se protege entera, como una
 columna personal: se clasifica \code{documento_identidad} con poder \code{alto}
 cuando al menos tres de sus valores distintos son el documento sin su
 verificador de un valor protegido —con la regla de los textos, ver
-abajo; también la cédula de seis cifras, \code{854321} de \code{"854.321-2"}, que
-una sola entre las de siete dejaba publicar la columna—, son el 90 \% de sus distintos —el umbral de \code{verificado}, que
+abajo; también la cédula de seis cifras, \code{854321} de \code{"854.321-2"}: sin
+ella, una sola entre las de siete dejaría publicar la columna—, son el
+90 \% de sus distintos —el umbral de \code{verificado}, que
 tolera tipeos aislados— y tantos no coinciden por azar con la densidad de
 esos documentos en el rango de la columna —una probabilidad binomial
-menor que una en un millón—. Publicaba sus dos extremos, que son dos
-cédulas. La regla es por \strong{columna} y no por valor: una columna que
+menor que una en un millón—. Sin protegerla, publicaría sus dos extremos,
+que son dos cédulas. La regla es por \strong{columna} y no por valor: una
+columna que
 coincide por azar —uno de cada cinco importes de siete cifras coincide con
 un documento sin verificador frente a un millón de cédulas, y hasta tres
 de cada cuatro frente a cuatro millones— publica sus extremos aunque
 coincidan. Medido en \code{data-raw/medir_tapado_de_mas.R} sobre 400 columnas
 por familia, con uno y con cuatro millones de cédulas protegidas: no se
-protegió ninguna columna de importes de siete cifras —tampoco
+protege ninguna columna de importes de siete cifras —tampoco
 redondeados a miles, con 10, 50 o 500 valores distintos, aunque por azar
-coincidieran todos— ni de enteros de ocho cifras, y sí todas las copias
+coincidan todos— ni de enteros de ocho cifras, y sí todas las copias
 de 50 valores distintos o más; con el 10 \% de tipeos, todas frente a un
 millón y la mitad frente a cuatro. Una copia de pocos valores distintos
 frente a muchos documentos —tres, o diez frente a cuatro millones— no se
@@ -416,8 +420,9 @@ columna que no es personal. Tampoco los \strong{rellenos} de una columna
 protegida, que ocupan el lugar de un dato y no son el de nadie: el que no
 tiene letras ni dígitos (\code{"------"}), y el dígito repetido que se repite
 cinco veces o más en una columna que sin él es casi una clave —cuarenta
-\code{"99999999"} entre cédulas que no se repiten—. Entraban, y tapaban la moda,
-el mínimo, la mediana y el máximo de un \code{monto} con su propio \code{99999999}.
+\code{"99999999"} entre cédulas que no se repiten—. En el piso taparían la
+moda, el mínimo, la mediana y el máximo de un \code{monto} con su propio
+\code{99999999}.
 Donde el documento se repite —una tabla de movimientos— el dígito repetido
 sigue en el piso: \verb{2.222.222-2} es una cédula válida. Fuera del piso no
 quiere decir publicados en la columna protegida: su moda, sus ejemplos y
@@ -425,8 +430,8 @@ los parámetros del plan sobre ella los siguen tapando, y un centinela que
 el usuario declaró en \code{sentinelas_numericos} y aparece en una columna
 protegida —también como su relleno— sigue en el piso. Sin los datos, el
 declarado entra siempre, porque no se sabe de qué columna es; con ellos, el
-que no aparece en ninguna protegida no entra: entraba igual, se tapaba a sí
-mismo en \code{meta} y la acción que lo convierte en un \code{monto} quedaba sin
+que no aparece en ninguna protegida no entra: si entrara, se taparía a sí
+mismo en \code{meta} y la acción que lo convierte en un \code{monto} quedaría sin
 efecto sin proteger nada. El piso tiene
 \strong{una excepción declarada}, y es
 la única: \code{\link[=perfilar_por]{perfilar_por()}} agrupando \emph{por} una columna personal publica sus
@@ -493,9 +498,10 @@ decimal, de un número con forma de dirección IPv4 —con o sin máscara
 CIDR— y de un importe con miles de cuatro grupos o más
 (\code{"3.919.024.166"}), que se prueban enteros —el importe, también sin su
 primer grupo: es el prefijo de país de un celular agrupado de a tres,
-\code{"598.099.123.456"}, que se publicaba— (\code{"4.123.456"} frente a
-\code{"4.123.456-7"}, el verificador mal tipeado, el documento seguido de un
-año), y sin su primer dígito sólo detrás de un asterisco o una equis
+\code{"598.099.123.456"}, que de otro modo se publicaría— (\code{"4.123.456"}
+frente a \code{"4.123.456-7"}, el verificador mal tipeado, el documento
+seguido de un año), y sin su primer dígito sólo detrás de un asterisco o
+una equis
 (\code{"*.123.456-7"}, \code{"X.012.345-8"}, \code{"X2345678"}) —también los asteriscos
 de Unicode, todo signo que Unicode llama asterisco salvo el combinante de
 abajo, que el pliegue borra como a una tilde, y el asterisco pegado a una
@@ -524,7 +530,7 @@ invertidas, y tapa la cita o el número, no la frase. \strong{El parcial tiene u
 costo, medido}: un número entero de siete cifras que coincide con un
 documento protegido sin su verificador no se distingue de él, y se tapa.
 Con un millón de cédulas, 300.000 teléfonos fijos y 300.000 celulares
-protegidos, eso le pasó a uno de cada cinco números de siete cifras en
+protegidos, eso le pasa a uno de cada cinco números de siete cifras en
 ejemplos, modas y evidencia —en cualquier escritura: con puntos o
 apóstrofos de miles, con un guion, tras un numeral o tras una equis
 seguida de un espacio (\code{"92 x 6931234"}); tras un asterisco, o tras una
@@ -546,7 +552,7 @@ frase; con un solo cero, \code{"5460537.0"}, dos de cada cien, que se leen
 también como la cédula con su verificador tras un punto—, las horas, los
 ISBN —también el ISBN-10 con espacios o puntos—, las fechas con espacios,
 las listas separadas por comas con espacio o por barras verticales, las
-razones no se taparon; los importes con miles de cuatro grupos o más,
+razones no se tapan; los importes con miles de cuatro grupos o más,
 uno o dos de cada mil —su cola sin el primer grupo coincide con un
 documento cuando empieza con un cero—; una
 dirección IP —también con su máscara CIDR, \code{"10.4.123.234/24"}, o su
@@ -570,9 +576,9 @@ la de planilla con los miles y los decimales en cero o con espacios
 (\code{"59.822.877.006,00"}, \code{"59 822 877 006"}), 4,4 \%: como en el celular,
 sus primeras ocho cifras tienen además la forma de una cédula entera. Las
 familias del reproductor que sortean 400 fijos por escritura dan entre 1,5
-y 5,5 \%: es el sorteo, no la escritura. Con el prefijo era uno de cada
-seis, porque \code{"598"} y el primer grupo formaban una cédula de siete cifras
-sin su verificador. Y una lista de dos teléfonos unidos por una barra
+y 5,5 \%: es el sorteo, no la escritura. El prefijo no se une al primer
+grupo: \code{"598"} y ese grupo formarían una cédula de siete cifras sin su
+verificador. Y una lista de dos teléfonos unidos por una barra
 —\code{"+59894364556/+59849290458"}—, entre cinco y ocho de cada cien, como la
 misma lista con \code{" / "}: cada uno se prueba por su parte nacional.
 Un celular que no es de nadie, entre dos y tres de cada cien —2,0 a 2,5 \%
@@ -586,8 +592,8 @@ medio como separador de miles, 5,3 \% sobre otros 4.000 que pegados dan
 4,0 \%, y 7,8 \% con los decimales en cero: como con espacios, sus grupos se
 prueban también sueltos. Con el agrupado indio (\code{"59,89,52,57,283"}), uno
 de cada cinco —20,3 \%, y 32,0 \% con \code{".00"}—: sus grupos de dos forman
-números de siete cifras que coinciden con un documento sin su verificador,
-y eso ya pasaba antes de leerlo como la misma cifra (17,2 y 29,3 \%).
+números de siete cifras que coinciden con un documento sin su
+verificador.
 Y, por el mismo parcial, una versión de cuatro partes
 (\code{"v4.62.660.4361"}), trece de cada cien, la de cinco partes
 (\code{"v2.76.527.6327.3"}), quince de cada cien, y un expediente
@@ -596,7 +602,7 @@ Y, por el mismo parcial, una versión de cuatro partes
 distingue del documento escrito así.
 Y por la regla de la hora, una fracción de ocho cifras
 (\code{"18:54:14.80786977"}) no es fracción —así no se traga un documento
-pegado— y se taparon cuatro o cinco de cada cien; lo mismo un número de
+pegado— y se tapan cuatro o cinco de cada cien; lo mismo un número de
 diez cifras con la forma de un ISBN-10 y su dígito de control inválido. La
 medición se rehace con \code{data-raw/medir_tapado_de_mas.R}.
 Las tildes, la caja y la escritura también son cosméticas: \code{juan.perez} se
@@ -627,14 +633,15 @@ ideográfico y el de medio ancho (U+3002, U+FF61), las variantes chicas de
 la coma, el punto, los paréntesis o la arroba (U+FE50 a U+FE6B), la barra
 partida, los paréntesis superíndice y subíndice (U+207D, U+207E, U+208D,
 U+208E), las formas de presentación vertical (U+FE10 a U+FE48) y el punto
-de guía (U+2024). Se enumeraban las conocidas, y el correo escrito con los
-paréntesis superíndice alrededor de \code{at} se publicaba. Las letras de otro
+de guía (U+2024). Se toma la normalización entera y no una lista de las
+formas conocidas: con una lista, el correo escrito con los paréntesis
+superíndice alrededor de \code{at} se publicaría. Las letras de otro
 alfabeto que se parecen —una «a» cirílica (U+0430) en lugar de la latina—
 no son el mismo signo y no se leen, ni una letra encerrada en un círculo
 (U+24D0): es otra forma de la letra, no un signo. Y en cualquier
 codificación: un texto \code{latin1} con
 una tilde se lee como el mismo texto en UTF-8. Medido sobre 3.000 correos
-protegidos: los no protegidos escritos así se taparon lo mismo que con la
+protegidos: los no protegidos escritos así se tapan lo mismo que con la
 arroba común —cuatro de cada mil, por los separadores cosméticos—, y
 ninguna de 3.015 frases con esas palabras, mil de ellas con una arroba y
 el punto en palabras. \strong{No} se leen otras ofuscaciones: el punto entre
@@ -647,9 +654,10 @@ calendario sola no entra en el piso}, tampoco escrita como \code{AAAAMMDD} o
 con el año en dos cifras en una columna de esas fechas, ni como fecha-hora
 ISO a medianoche: en una tabla
 de miles de personas casi todo día es el cumpleaños de alguien, y con la
-fecha de nacimiento protegida se tapaban los estadísticos de todas las demás
-columnas de fechas. La columna de fechas protegida se sigue protegiendo
-entera; una fecha con hora sí cuenta. Se decide \strong{por la columna}: en una
+fecha de nacimiento protegida se taparían los estadísticos de todas las
+demás columnas de fechas. La columna de fechas protegida se sigue
+protegiendo entera; una fecha con hora sí cuenta. Se decide \strong{por la
+columna}: en una
 columna protegida que no es de fechas —un teléfono fijo \code{"2012-11-05"}
 entre otros teléfonos— el valor con forma de fecha sí entra en el piso,
 escrito como está guardado (la regla de dígitos borra las fechas antes de
@@ -663,8 +671,8 @@ En la columna de fechas, lo que no tiene forma de fecha —un relleno— sigue
 entrando al piso. En la \strong{prosa del paquete}
 —descripción, sugerencia, motivo, cómo resolverlo, justificación— se exige
 además que la variante no tenga una letra pegada antes o después: con los
-nombres de millones de personas como valores protegidos, alguno aparecía
-cruzando palabras de esas frases y las tapaba enteras, también en columnas
+nombres de millones de personas como valores protegidos, alguno aparecería
+cruzando palabras de esas frases y las taparía enteras, también en columnas
 no personales. Lo que esa prosa cita entre comillas dobles —el nivel de un
 determinante en la sugerencia de \code{posible_ausencia_estructural}— no es
 prosa sino un valor: se compara con la regla de los valores y se tapa sólo
@@ -683,13 +691,12 @@ una palabra de seis letras o más con uno de ellos se tapa —el departamento
 \code{"Maldonado"} entre los ejemplos, la calle \code{"Av. Rivera 1343"}, el
 \code{"Instituto Rivera"}; seis de los diecinueve departamentos de Uruguay son
 apellidos así, y ciudades como Mercedes o Dolores son nombres de pila—.
-Medido sobre 5.000 personas con esos nombres y apellidos: trece campos de
-cuatro columnas que no eran personales. Es el costo del piso y no se
-afloja: sin él, «llamó la Sra. Rivera» publicaría el apellido. Y lo
+Medido sobre 5.000 personas con esos nombres y apellidos, se tapan trece
+campos de cuatro columnas que no son personales. Es el costo del piso y no
+se afloja: sin él, «llamó la Sra. Rivera» publicaría el apellido. Y lo
 aplican también \code{\link[=analizar]{analizar()}}, \code{\link[=distribucion_valores]{distribucion_valores()}},
-\code{\link[=clasificar_variables]{clasificar_variables()}} y \code{\link[=detectar_discordancias]{detectar_discordancias()}}, que antes
-protegían sólo por columna y publicaban lo que \code{perfilar()} tapaba sobre la
-misma tabla.}
+\code{\link[=clasificar_variables]{clasificar_variables()}} y \code{\link[=detectar_discordancias]{detectar_discordancias()}}, así que no
+publican lo que \code{perfilar()} tapa sobre la misma tabla.}
 
 \item{columnas_personales}{Columnas que traen datos personales, declaradas
 por quien conoce el dato. \code{c("cod_benef", "apodo")} las nombra sin decir de
@@ -833,8 +840,7 @@ de dos operadores, una plantilla rota o una migración parcial—.
 lo dispara no es el tamaño de la tabla sino el reparto: dos formas
 parecidas con frecuencias del mismo orden lo activan igual con cuatro filas
 que con quinientas, y en una tabla chica ese reparto sale por casualidad
-más seguido. Decía «tablas de menos de veinte filas», y se midió de cuatro
-a quinientas: dispara en todas. Es aditivo: encenderlo no cambia ni pierde ninguna
+más seguido. Es aditivo: encenderlo no cambia ni pierde ninguna
 detección de \code{casi_duplicados_vocabulario}. El límite que deja de cubrir se
 declara igual, encendido o apagado, en \code{n_grupos_sin_variante_rara}.}
 
@@ -852,7 +858,7 @@ se declara en \code{cobertura_diagnosticos}, nunca como cero.}
 comparaciones de distancia del vocabulario. Comparar dos valores cuesta del
 orden del producto de sus largos, así que el trabajo es la suma de ese
 producto sobre todos los pares. Contar pares por longitud media subestima
-las cadenas largas: medido, el mismo presupuesto compraba 5,3 millones de
+las cadenas largas: medido así, el mismo presupuesto rinde 5,3 millones de
 unidades por segundo con valores de 900 caracteres y 44 millones con
 valores de 40. Se combina con el límite interno de pares del detector y
 manda el más restrictivo; ese límite interno no es un argumento de
@@ -870,7 +876,7 @@ defecto es \code{10000}, elegido porque la distancia normalizada deja de
 distinguir de forma estable una diferencia local de muchas diferencias en
 textos largos. Una columna que supera el tope se declara completa fuera
 de alcance en \code{cobertura_diagnosticos}; no se recortan valores en silencio.
-\code{Inf} recupera explicitamente el comportamiento anterior sin tope.}
+\code{Inf} quita el tope.}
 
 \item{max_celdas_muestra}{Maximo de celdas que puede contener la muestra
 comun de los diagnosticos que muestrean filas. Por defecto es \code{1000000};
@@ -1068,8 +1074,7 @@ Cuando el tipo inferido es \code{"fecha"} o \code{"fecha-hora"},
 una columna donde \code{proporcion_tipo_inferido} llega a 1 sin un solo valor
 inequívoco. En los demás tipos la columna queda \code{NA}. El resumen impreso
 anota \code{(candidato)} junto al tipo cuando corresponde; la conversión, el
-rango temporal y la remediación ya exigían formatos confirmados y no
-cambian.
+rango temporal y la remediación sólo usan formatos confirmados.
 
 En una columna temporal, \code{minimo}, \code{maximo}, \code{media} y \code{mediana} quedan en
 \code{NA} y su valor viaja en \code{minimo_fecha}, \code{maximo_fecha}, \code{media_fecha} y
@@ -1118,7 +1123,7 @@ ausente: una columna de treinta \code{NaN} es \code{"sin_valores"}.
 \strong{La \code{media} se acumula por bloques y puede diferir de \code{mean()} en los últimos
 bits; la \code{mediana} es exacta.} El paquete no promete exactitud bit a bit para
 la media —sí para la mediana, que se calcula con \code{median()} sobre el vector
-entero y por eso no se reemplazó por el cuantil 0,5—. Medido: sobre veinte mil
+entero y no como el cuantil 0,5—. Medido: sobre veinte mil
 valores de \code{1e12} y veinte mil de \code{1e-6} la diferencia es de \verb{6,1e-05}, y sobre
 treinta mil valores con signo del orden de \code{1e9} es de \verb{2,3e-10}; con valores de
 magnitud parecida no hay diferencia en ningún bit. Quien rehaga \code{mean()} sobre
@@ -1134,21 +1139,20 @@ columna no declara ninguna. Es una sola pregunta, y por eso no se confunde con
 número (\code{"12 kg"}), ni con la \code{unidad} de \code{\link[=clasificar_variables]{clasificar_variables()}}, que es la
 unidad \strong{declarada} del dato.
 
-Sin este campo, cuatro columnas medidas en unidades distintas publicaban filas
+Sin este campo, columnas medidas en unidades distintas publicarían filas
 idénticas: \code{units::set_units(c(1, 2, 3), "m")} y la misma en \code{"km"} dan las dos
-\code{media = 2} y \code{desvio = 1}, y un \code{Period} de dos días publicaba \code{172800} sin
-decir que eran segundos. Por clase:
+\code{media = 2} y \code{desvio = 1}, y un \code{Period} de dos días publicaría \code{172800} sin
+decir que son segundos. Por clase:
 \itemize{
 \item \code{units} y \code{difftime}: la unidad declarada, en forma canónica (\code{km/h}, \code{m^2},
 \code{kg*m/s^2}). \code{difftime} \strong{publica sus estadísticos en esa unidad}: una
-columna de minutos publica \code{media = 75} con \code{unidad = "mins"}. Se abstuvo
-mientras no existía dónde publicar la unidad —un \code{75} sin decir de qué no es
-una medida—, y era el único que se abstenia: \code{Date} y \code{POSIXt} publican
-\code{desvio} en segundos desde antes. Los valores van en la unidad declarada por
+columna de minutos publica \code{media = 75} con \code{unidad = "mins"}: sin la
+unidad al lado, un \code{75} no sería una medida. Los valores van en la unidad
+declarada por
 la columna, sin convertir a segundos: convertirlos publicaría un número que
 no está en la columna.
 \item \code{Period}, \code{Duration}, \code{Date} y \code{POSIXt}: \code{"segundos"}, que es la unidad en la
-que sale \code{desvio} y que antes sólo estaba dicha en prosa.
+que sale \code{desvio}.
 \item cualquier otra columna que \strong{declare} un atributo \code{units} —eso circula como
 metadato en datos importados— publica lo declarado, porque sus cifras están
 en esa unidad.
@@ -1158,21 +1162,22 @@ en esa unidad.
 \strong{Y se calla cuando la fila no publica ninguna cifra cuantitativa}, o sea
 cuando \code{estado_resumen_cuantitativo} vale \code{"no_aplica"}: el atributo \code{units} lo
 puede llevar cualquier clase, y un \code{factor} con \code{attr(x, "units") <- "kg"}
-publicaba \code{unidad = "kg"} al lado de \code{media = NA}. Una unidad de cifras que no
-existen no contesta la pregunta del campo. El discriminador es ese estado y no
-una lista de clases, así que una columna \code{units} de puros \code{NA} \strong{sí} declara
-su unidad: su clase se resume, y la unidad dice en qué estarían sus cifras.
+publicaría \code{unidad = "kg"} al lado de \code{media = NA}. Una unidad de cifras que
+no existen no contesta la pregunta del campo. El discriminador es ese estado
+y no una lista de clases, así que una columna \code{units} de puros \code{NA} \strong{sí}
+declara su unidad: su clase se resume, y la unidad dice en qué estarían sus
+cifras.
 
 Si una columna declara \strong{más de una} unidad —un atributo \code{units} de largo
 mayor que uno, que ningún objeto \code{units} produce pero un dato importado sí—,
 el campo las publica todas separadas por coma. Ese valor no es una unidad: dice
 que la declaración está mal. Quedarse con la primera sería elegir una por el
-usuario, que es el defecto que este campo vino a cerrar.
+usuario, justo lo que este campo evita.
 
 Y \code{\link[=comparar_perfiles]{comparar_perfiles()}} compara este campo como un aspecto propio, con la
-severidad de un cambio de tipo: publicar la unidad sin compararla dejaba en pie
-el defecto entero, porque el problema era que \strong{una entrega donde cambió la
-unidad no mostraba cambio}.
+severidad de un cambio de tipo: publicar la unidad sin compararla no
+alcanzaría, porque lo que importa es que \strong{una entrega donde cambió la unidad
+muestre el cambio}.
 
 Una columna de períodos expresados sólo como mes y año informa la
 \code{granularidad} \code{"mes"} en \code{formatos_fecha} y deja los resúmenes de fecha en
@@ -1264,7 +1269,7 @@ Cuando todos los valores válidos aparecen una sola vez \strong{no hay moda}, y
 \code{moda} queda en \code{NA}. Lo que se publicaría es el ganador de un desempate de
 tantas vías como valores haya, y ese desempate sigue el orden de
 ordenamiento, que depende de cómo esté guardada la columna: la misma columna
-\code{c(-5.5, -1, 0, 3.75)} daba \code{-5.5} como número y \code{-1} como texto.
+\code{c(-5.5, -1, 0, 3.75)} daría \code{-5.5} como número y \code{-1} como texto.
 \code{frecuencia_moda} se conserva —vale 1, es cierto y es la evidencia de por qué
 la moda quedó callada—. Con un solo valor distinto sí hay moda, aunque su
 frecuencia sea 1: ahí no hay empate que resolver.
@@ -1317,10 +1322,10 @@ se declaran una por una en \code{cobertura_diagnosticos}: \code{integer64}, \cod
 \code{lubridate::Period}, \code{haven_labelled} y \code{difftime}. El criterio \strong{no} es
 \code{is.numeric()} —que responde \code{FALSE} sobre un \code{difftime}— sino si la fila
 publica \code{minimo}, \code{maximo} y \code{media} como números: ahí la ausencia de hallazgo
-se lee como conformidad y por eso hay que declararla. \code{difftime} entró en esa
-categoría cuando dejó de abstenerse del resumen cuantitativo, y sin declararlo
-quedaba mudo en los dos diagnósticos mientras \code{units} los declaraba —la misma
-columna, con las mismas cifras, tratada de dos maneras—.
+se lee como conformidad y por eso hay que declararla. \code{difftime} está en esa
+categoría porque publica su resumen cuantitativo: sin declararlo quedaría
+mudo en los dos diagnósticos mientras \code{units} los declara —la misma columna,
+con las mismas cifras, tratada de dos maneras—.
 
 Una \strong{fecha} y una \strong{hora} no entran en esa declaración, y eso es deliberado:
 no publican \code{media} como número pelado —su resumen sale en \code{media_fecha} y
@@ -1625,7 +1630,8 @@ cobertura del rango —\code{densidad_secuencia_entera} por encima de su umbral�
 a que los valores \strong{casi no se repitan}: al menos un 90 \% de valores
 distintos, descontando el excedente de la moda. Cubrir el rango sola lo
 cumple también una magnitud entera acotada cuando se cargan filas
-suficientes, y el veredicto dependía de cuántas filas se leyeron; una
+suficientes, y con esa condición sola el veredicto dependería de cuántas
+filas se leyeron; una
 numeración que se repite —un código de catálogo, una clave foránea— no se
 distingue por su forma de esa magnitud y no se trata como numeración. Es la
 misma regla que deciden \code{posible_identificador}, la guarda de los límites de

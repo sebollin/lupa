@@ -894,7 +894,7 @@ print.coleccion_lupa <- function(x, ...) {
 #' identidad —`catalogo`, `esquema` y `tabla`—, las mismas que [coleccion()]
 #' declaró. Es lo que permite que el motivo siga pegado a la tabla cuando el
 #' número sube de nivel: sin el catálogo, una tabla declarada como
-#' `catalogo.esquema.tabla` se publicaba río abajo como `esquema.tabla`.
+#' `catalogo.esquema.tabla` se publicaría río abajo como `esquema.tabla`.
 #'
 #' **Lo que no se pudo medir se declara, y nunca a cero.** Una tabla que la
 #' credencial no puede leer, un objeto que no es una tabla base y una tabla
@@ -907,11 +907,11 @@ print.coleccion_lupa <- function(x, ...) {
 #' son el caso normal, no el borde.
 #'
 #' **Donde no hubo medición va `NA`, no `0`.** Una tabla vacía deja
-#' `prop_faltantes` en `NA` en todas sus columnas: antes eso producía
-#' `prop_faltantes_maxima = -Inf` —fuera del `[0, 1]` que el paquete promete, y
-#' ordenada como la tabla de mejor calidad de la base— y
-#' `n_columnas_sin_faltantes = 0`, que afirmaba tres columnas sin ausencias
-#' sobre una tabla de la que no se sabía nada. `n_columnas_medidas` declara
+#' `prop_faltantes` en `NA` en todas sus columnas, y entonces
+#' `prop_faltantes_maxima` y `n_columnas_sin_faltantes` también quedan en `NA`:
+#' un máximo de `-Inf` saldría del `[0, 1]` que el paquete promete y ordenaría
+#' la tabla como la de mejor calidad de la base, y un conteo afirmaría algo
+#' sobre una tabla de la que no se sabe nada. `n_columnas_medidas` declara
 #' sobre cuántas columnas se conoce la proporción de ausentes, para que los dos
 #' números anteriores se lean con su alcance.
 #'
@@ -944,17 +944,15 @@ print.coleccion_lupa <- function(x, ...) {
 #' esas tablas por separado o partir la colección.
 #'
 #' @param coleccion Objeto creado por [coleccion()].
-#' Una colección **guardada por una versión anterior** se perfila igual. El objeto
-#' fue creciendo —`catalogo`, `tipo`, `declaracion`— y las columnas que a un
-#' objeto viejo le faltan se completan con el valor que significa «esta colección
-#' no lo declaró», mientras `identificador` y `referencia`, que son derivados, se
-#' recalculan con las mismas funciones que los arman. Lo único que no se puede
-#' inventar es `tabla`, que es el nombre mismo: su ausencia se rechaza nombrando
-#' la columna. Antes faltaba cualquiera de seis columnas y la corrida entera
-#' moría con un error de `data.frame()` que no nombraba ni la columna ni la
-#' tabla —o, sin `referencia`, perfilaba **cero** tablas sin abortar—, y eso
-#' contradice la decisión de que ante un fallo parcial se devuelve lo medido con
-#' su alcance declarado.
+#' Una colección **guardada por una versión anterior** se perfila igual: las
+#' columnas que a un objeto viejo le faltan —`catalogo`, `tipo`, `declaracion`—
+#' se completan con el valor que significa «esta colección no lo declaró»,
+#' mientras `identificador` y `referencia`, que son derivados, se recalculan con
+#' las mismas funciones que los arman. Lo único que no se puede inventar es
+#' `tabla`, que es el nombre mismo: su ausencia se rechaza nombrando la columna.
+#' Así una columna faltante no corta la corrida con un error que no nombra ni la
+#' columna ni la tabla, ni deja **cero** tablas perfiladas sin abortar: ante un
+#' fallo parcial se devuelve lo medido con su alcance declarado.
 #'
 #' @param muestra Filas solicitadas por tabla para el bloque en memoria. Por
 #'   omision `Inf`: cada tabla se trae entera. El resumen por tabla se calcula en
@@ -995,7 +993,7 @@ print.coleccion_lupa <- function(x, ...) {
 #'   tabla entera y en cualquier orden de las tablas, y la tabla con una copia
 #'   se vuelve a perfilar con esa columna como personal; si la lectura o el
 #'   nuevo perfil fallan, el perfil de esa tabla se cierra igual. Limitación
-#'   conocida (baja): ese nuevo perfil reemplaza al conservado, pero
+#'   conocida: ese nuevo perfil reemplaza al conservado, pero
 #'   `resumen_coleccion`, `cobertura_coleccion`, `cobertura_metricas` y
 #'   `meta$lecturas` quedan con lo del primero —los estados de las métricas
 #'   de la copia dicen `calculado` donde el perfil dice que se ocultaron—; no
@@ -1007,39 +1005,41 @@ print.coleccion_lupa <- function(x, ...) {
 #'   llevar —todo valor con letras,
 #'   porque cualquier palabra puede ser el nombre de una columna de otra tabla,
 #'   y el número que el mensaje no omite entero, como `"099;123;456"`, escrito
-#'   con un signo que no une; ver [perfilar_dbi()]—, sin consultas de más: el
-#'   mensaje de una vista que citaba `"Campos Cadena"`, la celda de su tabla
-#'   base, se publicaba; y con perfiles retenidos y una tabla base incompleta
-#'   —una columna protegida `ntext` de SQL Server, que no admite el `GROUP BY`
-#'   que lee sus valores— el piso usaba sólo las tablas completas y el motivo
-#'   de la vista citaba el valor entero. De cada uno se guarda una huella —ocho bytes de su
-#'   forma plegada y sin separadores— y no el texto: la memoria no crece con el
+#'   con un signo que no une; ver [perfilar_dbi()]—, sin consultas de más: así
+#'   se tapa el mensaje de una vista que cita `"Campos Cadena"`, la celda de su
+#'   tabla base; y con perfiles retenidos y una tabla base incompleta —una
+#'   columna protegida `ntext` de SQL Server, que no admite el `GROUP BY` que
+#'   lee sus valores— el piso no se limita a las tablas completas, y el motivo
+#'   de la vista no cita el valor entero. De cada uno se guarda una huella
+#'   —ocho bytes de su forma plegada y sin separadores— y no el texto: la
+#'   memoria no crece con el
 #'   largo de los nombres que se leen, y un tramo del mensaje con la huella de
 #'   uno se tapa como esté escrito; dos formas con la misma huella, una en
 #'   2^52, sólo pueden tapar de más. Y cada mensaje del motor se guarda como
 #'   llegó mientras dura la colección —en memoria; nunca entra al objeto— y al
 #'   final se vuelve a leer con todo lo que la colección leyó: con una vista
-#'   perfilada antes que su tabla base el piso no conocía todavía el nombre, y
-#'   la segunda pasada dejaba su resto —`"De Los Campos"` de
-#'   `"María De Los Campos"` en SQL Server en sueco, `"Campos Cadena"` después
-#'   de un apodo entre comillas—. El orden de las tablas no cambia lo que se
+#'   perfilada antes que su tabla base, el piso todavía no conoce el nombre
+#'   cuando llega el mensaje, y releer el texto ya tapado dejaría su resto
+#'   —`"De Los Campos"` de `"María De Los Campos"` en SQL Server en sueco,
+#'   `"Campos Cadena"` después de un apodo entre comillas—. El orden de las
+#'   tablas no cambia lo que se
 #'   publica; lo vuelto a leer reemplaza a lo publicado sólo si publica menos.
 #'   La relectura corre también después del cruce entre tablas, sobre lo que
 #'   el cruce escribe: el motivo de `otras_tablas` lleva el mensaje del motor
-#'   de la tabla que no se pudo leer, y con la vista antes que su base citaba
+#'   de la tabla que no se pudo leer, y con la vista antes que su base citaría
 #'   ese resto. En ese cierre, un valor igual al nombre de una tabla o de un
 #'   esquema de la colección no se tapa: es estructura, como en
 #'   [perfilar_dbi()].
 #'   Se reemplaza el texto tal como se publicó: si el piso de la propia tabla
-#'   ya lo había cambiado —el mensaje citaba entero, además, un valor
-#'   protegido de esa misma tabla—, la relectura no lo encuentra y queda sólo
-#'   el piso de las huellas, que tapa los valores enteros y no el resto.
+#'   ya lo cambió —porque el mensaje cita entero, además, un valor protegido de
+#'   esa misma tabla—, la relectura no lo encuentra y queda sólo el piso de las
+#'   huellas, que tapa los valores enteros y no el resto.
 #'   Y los avisos de consola de cada tabla se
 #'   emiten al final, después del mismo piso que esos tres campos, con o sin
-#'   perfiles: el aviso de una vista perfilada antes que su tabla base citaba
-#'   la celda. También si la colección se corta —una interrupción, un error—
-#'   después de leer alguna tabla: los avisos juntados salen por ese mismo
-#'   piso, con los valores que se conocían.
+#'   perfiles: emitido en el momento, el aviso de una vista perfilada antes que
+#'   su tabla base citaría la celda. También si la colección se corta —una
+#'   interrupción, un error— después de leer alguna tabla: los avisos juntados
+#'   salen por ese mismo piso, con los valores conocidos hasta el corte.
 #'   [perfilar_dbi()] sobre una tabla sola protege sólo con los de esa tabla.
 #'   Sin protección (`proteger_datos_personales = FALSE`) no se cruza nada:
 #'   cada perfil retenido sale como lo dio su tabla, también si otra no se
@@ -3744,7 +3744,7 @@ estimar_costo_coleccion <- function(coleccion, pares = NULL,
 #' **Cada tabla se lee una sola vez.** Los pares repetidos se descartan, los
 #' pares de una tabla consigo misma se rechazan, y las lecturas se guardan en
 #' una caché con presupuesto de memoria declarado: dos pares que comparten una
-#' tabla ya no la leen dos veces. `meta$lecturas` deja el SQL exacto, la vía
+#' tabla no la leen dos veces. `meta$lecturas` deja el SQL exacto, la vía
 #' usada, las filas leídas y el momento de cada lectura.
 #'
 #' **El orden no se supone.** Sin `orden`, una lectura acotada devuelve un
@@ -3775,8 +3775,8 @@ estimar_costo_coleccion <- function(coleccion, pares = NULL,
 #' rechaza entero, y la columna no se nombra en ninguna consulta. Sus
 #' combinaciones quedan en `cobertura_podas` con motivo `columna_sin_permiso` o
 #' `columna_enmascarada`: una columna enmascarada lee la máscara —`xxxx`—, y dos
-#' así parecían relacionadas sin compartir un solo valor. Una columna de `orden`
-#' así deja la lectura sin `ORDER BY`, como la que no se puede escribir.
+#' así parecerían relacionadas sin compartir un solo valor. Una columna de
+#' `orden` así deja la lectura sin `ORDER BY`, como la que no se puede escribir.
 #'
 #' **Los valores se leen como los lee [perfilar_dbi()].** RPostgres entrega `0`
 #' en toda celda `money`, y `MIN`/`MAX` de una columna `money` también: la
@@ -3845,12 +3845,12 @@ estimar_costo_coleccion <- function(coleccion, pares = NULL,
 #' cuesta mucho menos que un `COUNT(*)` por tabla y contesta exacto; esa fila de
 #' sobra no viaja al resultado.
 #'
-#' Antes, lo único que sobrevivía eran los atributos de [detectar_relaciones()]
-#' del **primer** par publicado —`rbind()` conserva los del primer argumento—,
-#' con etiquetas `tabla1`/`tabla2` que no nombran a ningún par: con dos pares
-#' decían `muestreado = FALSE` mientras el segundo había leído 10.000 filas de
-#' 20.000. Esos atributos ya no viajan en `relaciones`; lo que decían vive en las
-#' columnas, una por par, y el conteo de pares en `meta`, que cuenta todos.
+#' Los atributos de [detectar_relaciones()] no viajan en `relaciones`:
+#' sobrevivirían sólo los del **primer** par publicado —`rbind()` conserva los
+#' del primer argumento—, con etiquetas `tabla1`/`tabla2` que no nombran a
+#' ningún par, y con dos pares dirían `muestreado = FALSE` aunque el segundo
+#' hubiera leído 10.000 filas de 20.000. Lo que dirían vive en las columnas, una
+#' por par, y el conteo de pares en `meta`, que cuenta todos.
 #'
 #' Las columnas candidatas se podan antes de materializar cada comparación. Las
 #' podas quedan declaradas en `cobertura_podas`, con su motivo y conteo.
@@ -3861,9 +3861,9 @@ estimar_costo_coleccion <- function(coleccion, pares = NULL,
 #' **Un entero ancho que llega como doble no se compara.** Por encima de 2^53 un
 #' doble no distingue dos enteros consecutivos, y `dbConnect(duckdb::duckdb())`
 #' entrega BIGINT como doble por omisión: dos identificadores distintos se
-#' fundían y el objeto afirmaba una relación que el motor no tiene. Una columna
-#' leída como doble con algún valor de al menos 2^53 en valor absoluto deja sus
-#' pares en `sin_comparar`, con motivo `entero_como_doble` en
+#' fundirían y el objeto afirmaría una relación que el motor no tiene. Una
+#' columna leída como doble con algún valor de al menos 2^53 en valor absoluto
+#' deja sus pares en `sin_comparar`, con motivo `entero_como_doble` en
 #' `cobertura_podas` y el remedio en el detalle: conectar pidiendo `integer64`
 #' —`duckdb(bigint = "integer64")`, o `bigint = "integer64"` en RSQLite—.
 #'
@@ -3883,13 +3883,12 @@ estimar_costo_coleccion <- function(coleccion, pares = NULL,
 #'   de [perfilar_dbi()]—; uno que no existe da `lupa_error_argumento_dbi`, la
 #'   clase de todo argumento mal formado de esta función.
 #' @param muestra Filas traídas por tabla para comparar, y **el mismo tope con
-#'   que se calcula cada cobertura**: se reenvía a [detectar_relaciones()]. Sin
-#'   reenviarlo valía el tope por omisión de esa función, así que con
-#'   `muestra > 1e5` el objeto publicaba como evidencia las filas leídas y
-#'   calculaba la cobertura sobre un submuestreo que no declaraba en ningún
-#'   campo: la fila llegaba a contradecirse a sí misma, con `n_valores_comunes`
-#'   contado sobre la lectura entera junto a una cobertura calculada sobre la
-#'   mitad.
+#'   que se calcula cada cobertura**: se reenvía a [detectar_relaciones()], así
+#'   que la evidencia publicada y la cobertura salen de las mismas filas,
+#'   también con `muestra > 1e5`. Sin reenviarlo regiría el tope por omisión de
+#'   esa función, y la fila se contradiría a sí misma: `n_valores_comunes`
+#'   contado sobre la lectura entera junto a una cobertura calculada sobre un
+#'   submuestreo que ningún campo declara.
 #' @param umbral_cobertura Cobertura mínima para informar una relación.
 #' @param orden Columnas para `ORDER BY`: un vector de texto que se aplica a
 #'   todas las tablas, o una lista nombrada por identificador de tabla. Sin él

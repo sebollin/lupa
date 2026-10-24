@@ -594,16 +594,16 @@
   mensajes <- character()
   if (identical(unicidad$estado, "refutada")) {
     mensajes <- c(mensajes, paste0(
-      "La clave declarada no es unica: entre las ", unicidad$filas_evaluadas,
+      "La clave declarada no es \u00fanica: entre las ", unicidad$filas_evaluadas,
       " filas con la clave completa, ", unicidad$filas_repetidas,
-      " repiten su valor (", unicidad$filas_en_colision,
+      if (identical(as.numeric(unicidad$filas_repetidas), 1)) " repite" else " repiten",
+      " su valor (", unicidad$filas_en_colision,
       " filas participan en colisiones)."
     ))
   } else if (identical(unicidad$estado, "verificada")) {
     mensajes <- c(mensajes, paste0(
-      "La comprobacion de unicidad fue verificada entre las ",
-      unicidad$filas_evaluadas, " filas con la clave completa: no se ",
-      "encontraron colisiones."
+      "La clave declarada no se repite entre las ", unicidad$filas_evaluadas,
+      " filas con la clave completa."
     ))
   } else if (identical(unicidad$estado, "sin_casos_evaluables")) {
     # No es "verificada" -seria cierto sobre un conjunto vacio y enganoso- ni
@@ -612,36 +612,40 @@
     mensajes <- c(mensajes, paste0(
       "No se pudo evaluar la unicidad: ninguna de las ",
       unicidad$filas_totales,
-      " filas tiene la clave completa, asi que no hay casos que comparar."
+      " filas tiene la clave completa, as\u00ed que no hay casos que comparar."
     ))
   } else {
     mensajes <- c(mensajes,
-      "La comprobacion de unicidad no fue verificada: no se pudo comparar la clave."
+      "No se pudo comprobar la unicidad: no se pudo comparar la clave."
     )
   }
   if (identical(ausencia$estado, "refutada")) {
     mensajes <- c(mensajes, paste0(
-      "La comprobacion de ausencia de nulos fue refutada: se encontraron ",
-      ausencia$valores_ausentes, " valores ausentes en la clave (",
-      ausencia$filas_con_ausentes, " filas afectadas)."
+      "La clave no cumple la ausencia de nulos (NOT NULL): tiene ",
+      ausencia$valores_ausentes,
+      if (identical(as.numeric(ausencia$valores_ausentes), 1)) " valor ausente (" else " valores ausentes (",
+      ausencia$filas_con_ausentes,
+      if (identical(as.numeric(ausencia$filas_con_ausentes), 1)) " fila afectada)." else " filas afectadas)."
     ))
   } else if (identical(ausencia$estado, "verificada")) {
-    mensajes <- c(mensajes,
-      "La comprobacion de ausencia de nulos fue verificada: no se encontraron valores ausentes."
-    )
+    mensajes <- c(mensajes, "La clave cumple la ausencia de nulos: no tiene valores ausentes.")
   } else {
     mensajes <- c(mensajes,
-      "La comprobacion de ausencia de nulos no fue verificada: no habia filas o no se pudo leer la clave."
+      "No se pudo comprobar la ausencia de nulos: no hab\u00eda filas o no se pudo leer la clave."
     )
   }
   if (isTRUE(evaluacion$trazabilidad$colisiona_con_ausentes)) {
     mensajes <- c(mensajes, paste(
-      "La trazabilidad conserva la semantica de R para localizar esas filas;",
-      "la colision entre ausentes no demuestra por si sola una violacion de",
-      "unicidad SQL, pero los valores ausentes impiden la garantia NOT NULL."
+      "La trazabilidad conserva la sem\u00e1ntica de R para localizar esas filas;",
+      "la colisi\u00f3n entre ausentes no demuestra por s\u00ed sola una violaci\u00f3n de",
+      "unicidad SQL, pero los valores ausentes impiden la garant\u00eda NOT NULL."
     ))
   }
-  cli::cli_warn(.cli_literal(paste(mensajes, collapse = " ")))
+  # `cli::cli_warn()` necesita rlang, que cli solo sugiere y el paquete no
+  # declara: sin rlang instalado, una clave repetida abortaba la corrida en vez de
+  # avisar. `format_warning()` arma el mismo texto sin rlang.
+  .avisar(cli::format_warning(.cli_literal(paste(mensajes, collapse = " "))),
+          call. = FALSE)
   invisible(NULL)
 }
 
@@ -707,8 +711,7 @@
 #' una columna donde `proporcion_tipo_inferido` llega a 1 sin un solo valor
 #' inequívoco. En los demás tipos la columna queda `NA`. El resumen impreso
 #' anota `(candidato)` junto al tipo cuando corresponde; la conversión, el
-#' rango temporal y la remediación ya exigían formatos confirmados y no
-#' cambian.
+#' rango temporal y la remediación sólo usan formatos confirmados.
 #'
 #' En una columna temporal, `minimo`, `maximo`, `media` y `mediana` quedan en
 #' `NA` y su valor viaja en `minimo_fecha`, `maximo_fecha`, `media_fecha` y
@@ -757,7 +760,7 @@
 #' **La `media` se acumula por bloques y puede diferir de `mean()` en los últimos
 #' bits; la `mediana` es exacta.** El paquete no promete exactitud bit a bit para
 #' la media —sí para la mediana, que se calcula con `median()` sobre el vector
-#' entero y por eso no se reemplazó por el cuantil 0,5—. Medido: sobre veinte mil
+#' entero y no como el cuantil 0,5—. Medido: sobre veinte mil
 #' valores de `1e12` y veinte mil de `1e-6` la diferencia es de `6,1e-05`, y sobre
 #' treinta mil valores con signo del orden de `1e9` es de `2,3e-10`; con valores de
 #' magnitud parecida no hay diferencia en ningún bit. Quien rehaga `mean()` sobre
@@ -772,21 +775,20 @@
 #' número (`"12 kg"`), ni con la `unidad` de [clasificar_variables()], que es la
 #' unidad **declarada** del dato.
 #'
-#' Sin este campo, cuatro columnas medidas en unidades distintas publicaban filas
+#' Sin este campo, columnas medidas en unidades distintas publicarían filas
 #' idénticas: `units::set_units(c(1, 2, 3), "m")` y la misma en `"km"` dan las dos
-#' `media = 2` y `desvio = 1`, y un `Period` de dos días publicaba `172800` sin
-#' decir que eran segundos. Por clase:
+#' `media = 2` y `desvio = 1`, y un `Period` de dos días publicaría `172800` sin
+#' decir que son segundos. Por clase:
 #'
 #' - `units` y `difftime`: la unidad declarada, en forma canónica (`km/h`, `m^2`,
 #'   `kg*m/s^2`). `difftime` **publica sus estadísticos en esa unidad**: una
-#'   columna de minutos publica `media = 75` con `unidad = "mins"`. Se abstuvo
-#'   mientras no existía dónde publicar la unidad —un `75` sin decir de qué no es
-#'   una medida—, y era el único que se abstenia: `Date` y `POSIXt` publican
-#'   `desvio` en segundos desde antes. Los valores van en la unidad declarada por
+#'   columna de minutos publica `media = 75` con `unidad = "mins"`: sin la
+#'   unidad al lado, un `75` no sería una medida. Los valores van en la unidad
+#'   declarada por
 #'   la columna, sin convertir a segundos: convertirlos publicaría un número que
 #'   no está en la columna.
 #' - `Period`, `Duration`, `Date` y `POSIXt`: `"segundos"`, que es la unidad en la
-#'   que sale `desvio` y que antes sólo estaba dicha en prosa.
+#'   que sale `desvio`.
 #' - cualquier otra columna que **declare** un atributo `units` —eso circula como
 #'   metadato en datos importados— publica lo declarado, porque sus cifras están
 #'   en esa unidad.
@@ -795,21 +797,22 @@
 #' **Y se calla cuando la fila no publica ninguna cifra cuantitativa**, o sea
 #' cuando `estado_resumen_cuantitativo` vale `"no_aplica"`: el atributo `units` lo
 #' puede llevar cualquier clase, y un `factor` con `attr(x, "units") <- "kg"`
-#' publicaba `unidad = "kg"` al lado de `media = NA`. Una unidad de cifras que no
-#' existen no contesta la pregunta del campo. El discriminador es ese estado y no
-#' una lista de clases, así que una columna `units` de puros `NA` **sí** declara
-#' su unidad: su clase se resume, y la unidad dice en qué estarían sus cifras.
+#' publicaría `unidad = "kg"` al lado de `media = NA`. Una unidad de cifras que
+#' no existen no contesta la pregunta del campo. El discriminador es ese estado
+#' y no una lista de clases, así que una columna `units` de puros `NA` **sí**
+#' declara su unidad: su clase se resume, y la unidad dice en qué estarían sus
+#' cifras.
 #'
 #' Si una columna declara **más de una** unidad —un atributo `units` de largo
 #' mayor que uno, que ningún objeto `units` produce pero un dato importado sí—,
 #' el campo las publica todas separadas por coma. Ese valor no es una unidad: dice
 #' que la declaración está mal. Quedarse con la primera sería elegir una por el
-#' usuario, que es el defecto que este campo vino a cerrar.
+#' usuario, justo lo que este campo evita.
 #'
 #' Y [comparar_perfiles()] compara este campo como un aspecto propio, con la
-#' severidad de un cambio de tipo: publicar la unidad sin compararla dejaba en pie
-#' el defecto entero, porque el problema era que **una entrega donde cambió la
-#' unidad no mostraba cambio**.
+#' severidad de un cambio de tipo: publicar la unidad sin compararla no
+#' alcanzaría, porque lo que importa es que **una entrega donde cambió la unidad
+#' muestre el cambio**.
 #'
 #' Una columna de períodos expresados sólo como mes y año informa la
 #' `granularidad` `"mes"` en `formatos_fecha` y deja los resúmenes de fecha en
@@ -902,7 +905,7 @@
 #' `moda` queda en `NA`. Lo que se publicaría es el ganador de un desempate de
 #' tantas vías como valores haya, y ese desempate sigue el orden de
 #' ordenamiento, que depende de cómo esté guardada la columna: la misma columna
-#' `c(-5.5, -1, 0, 3.75)` daba `-5.5` como número y `-1` como texto.
+#' `c(-5.5, -1, 0, 3.75)` daría `-5.5` como número y `-1` como texto.
 #' `frecuencia_moda` se conserva —vale 1, es cierto y es la evidencia de por qué
 #' la moda quedó callada—. Con un solo valor distinto sí hay moda, aunque su
 #' frecuencia sea 1: ahí no hay empate que resolver.
@@ -955,10 +958,10 @@
 #' `lubridate::Period`, `haven_labelled` y `difftime`. El criterio **no** es
 #' `is.numeric()` —que responde `FALSE` sobre un `difftime`— sino si la fila
 #' publica `minimo`, `maximo` y `media` como números: ahí la ausencia de hallazgo
-#' se lee como conformidad y por eso hay que declararla. `difftime` entró en esa
-#' categoría cuando dejó de abstenerse del resumen cuantitativo, y sin declararlo
-#' quedaba mudo en los dos diagnósticos mientras `units` los declaraba —la misma
-#' columna, con las mismas cifras, tratada de dos maneras—.
+#' se lee como conformidad y por eso hay que declararla. `difftime` está en esa
+#' categoría porque publica su resumen cuantitativo: sin declararlo quedaría
+#' mudo en los dos diagnósticos mientras `units` los declara —la misma columna,
+#' con las mismas cifras, tratada de dos maneras—.
 #'
 #' Una **fecha** y una **hora** no entran en esa declaración, y eso es deliberado:
 #' no publican `media` como número pelado —su resumen sale en `media_fecha` y
@@ -1263,7 +1266,8 @@
 #' a que los valores **casi no se repitan**: al menos un 90 % de valores
 #' distintos, descontando el excedente de la moda. Cubrir el rango sola lo
 #' cumple también una magnitud entera acotada cuando se cargan filas
-#' suficientes, y el veredicto dependía de cuántas filas se leyeron; una
+#' suficientes, y con esa condición sola el veredicto dependería de cuántas
+#' filas se leyeron; una
 #' numeración que se repite —un código de catálogo, una clave foránea— no se
 #' distingue por su forma de esa magnitud y no se trata como numeración. Es la
 #' misma regla que deciden `posible_identificador`, la guarda de los límites de
@@ -1654,7 +1658,7 @@
 #'   filas donde el predicado no se puede determinar se declaran aparte, sin
 #'   contarse ni como aplicables ni como no aplicables. Un valor presente fuera
 #'   del universo produce el hallazgo `valor_fuera_de_aplicabilidad`, que es el
-#'   error simétrico y hoy no tiene otra forma de aparecer. Las filas fuera del
+#'   error simétrico y no tiene otra forma de aparecer. Las filas fuera del
 #'   universo —y las indeterminadas— salen también de la ley de Benford y de las
 #'   relaciones aritméticas, con la misma máscara que usa el resumen.
 #'
@@ -1734,8 +1738,7 @@
 #'   lo dispara no es el tamaño de la tabla sino el reparto: dos formas
 #'   parecidas con frecuencias del mismo orden lo activan igual con cuatro filas
 #'   que con quinientas, y en una tabla chica ese reparto sale por casualidad
-#'   más seguido. Decía «tablas de menos de veinte filas», y se midió de cuatro
-#'   a quinientas: dispara en todas. Es aditivo: encenderlo no cambia ni pierde ninguna
+#'   más seguido. Es aditivo: encenderlo no cambia ni pierde ninguna
 #'   detección de `casi_duplicados_vocabulario`. El límite que deja de cubrir se
 #'   declara igual, encendido o apagado, en `n_grupos_sin_variante_rara`.
 #' @param max_asimetria_equifrecuente_vocabulario Razón máxima entre la
@@ -1756,7 +1759,7 @@
 #'   distinguir de forma estable una diferencia local de muchas diferencias en
 #'   textos largos. Una columna que supera el tope se declara completa fuera
 #'   de alcance en `cobertura_diagnosticos`; no se recortan valores en silencio.
-#'   `Inf` recupera explicitamente el comportamiento anterior sin tope.
+#'   `Inf` quita el tope.
 #' @param max_celdas_muestra Maximo de celdas que puede contener la muestra
 #'   comun de los diagnosticos que muestrean filas. Por defecto es `1000000`;
 #'   se calcula como filas efectivas por columnas de la tabla. Si reduce la
@@ -1837,9 +1840,9 @@
 #'   Los **nombres de columna** nunca se enmascaran, aunque un valor protegido
 #'   aparezca dentro de uno: un nombre es estructura, existía antes y aparte
 #'   del dato, y el paquete lo necesita para cruzar el perfil con los datos.
-#'   Se enmascaraban, y en una base real `fecha_nacimiento` salió publicada
-#'   como `fecha_[valor protegido]`: [planificar_limpieza()] y [analizar()]
-#'   abortaban porque los nombres del perfil ya no coincidían con los de los
+#'   Si se enmascararan, `fecha_nacimiento` saldría publicada como
+#'   `fecha_[valor protegido]`, y [planificar_limpieza()] y [analizar()]
+#'   abortarían porque los nombres del perfil no coincidirían con los de los
 #'   datos. Un campo se reconoce como de nombres por su **contenido** —todos sus
 #'   valores son nombres de la entrada, solos o unidos—, así que la protección
 #'   de los valores no se afloja: si un valor protegido es igual a un nombre de
@@ -1864,19 +1867,20 @@
 #'   palabra del paquete —`faltantes`, `segundos`— sigue siendo vocabulario
 #'   aunque un valor protegido coincida con ella. Y un texto que nombra una columna entre
 #'   comillas —la prosa del paquete, la SQL que guarda [perfilar_dbi()]— la
-#'   conserva entera: con «Segundo» protegido, `segundo_nombre` salía
-#'   `[valor protegido]_nombre` en los hallazgos sin acción del plan y en la
-#'   SQL. Lo mismo los **nombres que el paquete deriva** de un nombre de
+#'   conserva entera: con «Segundo» protegido, `segundo_nombre` se publica tal
+#'   cual —y no como `[valor protegido]_nombre`— en los hallazgos sin acción del
+#'   plan y en la SQL. Lo mismo los **nombres que el paquete deriva** de un
+#'   nombre de
 #'   columna: el que propone el plan en `nombres_propuestos` —con
 #'   `make.names()` y en snake_case— y las marcas `.ausente_<nombre>` y
-#'   `.outlier_<nombre>` que crean sus acciones. Se barrían como texto de los
-#'   datos: con «Segundo» protegido en `Primer Nombre`, la evidencia decía
-#'   `"Segundo Nombre" -> "[valor protegido].Nombre"`, el plan proponía ese
-#'   nombre y [aplicar()] se lo ponía a la columna en los datos del usuario.
+#'   `.outlier_<nombre>` que crean sus acciones. Barridos como texto de los
+#'   datos, con «Segundo» protegido en `Primer Nombre` la evidencia diría
+#'   `"Segundo Nombre" -> "[valor protegido].Nombre"`, el plan propondría ese
+#'   nombre y [aplicar()] se lo pondría a la columna en los datos del usuario.
 #'   Un nombre que es él mismo un valor protegido, con otra caja, otros
 #'   separadores, tildes o codificación, no se exceptúa —salvo citado en la SQL
 #'   que guarda [perfilar_dbi()], donde es un identificador y se publica igual
-#'   en `columnas$columna`: antes tapaba enteras las sentencias de su lote—.
+#'   en `columnas$columna`: tapado, taparía las sentencias enteras del lote—.
 #'   Y un valor protegido
 #'   que **contiene** un nombre de columna —el correo
 #'   `juan_perez@empresa.com.uy` con una columna `juan_perez`— se busca entero,
@@ -1889,16 +1893,17 @@
 #'   con un valor protegido o lo contengan. El principio es el de los nombres de
 #'   columna: son estructura, no salen de las celdas, y publicarlos no dice nada
 #'   de ninguna fila —el tipo `constante` aparece porque otra columna es
-#'   constante, no porque alguien se apellide así—. Se enmascaraban: en una base
-#'   real, un nombre de persona contenido en `faltantes_disfrazados` dejó seis
-#'   hallazgos con el tipo `[valor protegido]`, y el plan sin ninguna acción para
-#'   ellos. La regla es por campo y por contenido: un campo cuyos valores son
+#'   constante, no porque alguien se apellide así—. Si el vocabulario se
+#'   enmascarara, un nombre de persona contenido en `faltantes_disfrazados`
+#'   dejaría los hallazgos con el tipo `[valor protegido]` y el plan sin ninguna
+#'   acción para ellos. La regla es por campo y por contenido: un campo cuyos
+#'   valores son
 #'   todos vocabulario del propio objeto queda afuera, uno que mezcla no.
 #'   Ese alcance tiene un **piso**: un valor de una columna protegida que
 #'   identifique —seis caracteres o más, el mismo corte con el que la batería de
 #'   fugas decide qué cuenta como filtración— no se publica en ninguna parte,
 #'   tenga o no columna a la que atribuirse, y también en los campos numéricos.
-#'   Sin ese piso, una columna que el clasificador no marcó publicaba los
+#'   Sin ese piso, una columna que el clasificador no marcó publicaría los
 #'   documentos de la protegida con sólo repetirlos: una copia con nombre
 #'   neutro, un texto libre que los contuviera, o los estadísticos de orden de
 #'   una columna clasificada con poder discriminante `debil`. Una columna que
@@ -1914,20 +1919,22 @@
 #'   columna personal: se clasifica `documento_identidad` con poder `alto`
 #'   cuando al menos tres de sus valores distintos son el documento sin su
 #'   verificador de un valor protegido —con la regla de los textos, ver
-#'   abajo; también la cédula de seis cifras, `854321` de `"854.321-2"`, que
-#'   una sola entre las de siete dejaba publicar la columna—, son el 90 % de sus distintos —el umbral de `verificado`, que
+#'   abajo; también la cédula de seis cifras, `854321` de `"854.321-2"`: sin
+#'   ella, una sola entre las de siete dejaría publicar la columna—, son el
+#'   90 % de sus distintos —el umbral de `verificado`, que
 #'   tolera tipeos aislados— y tantos no coinciden por azar con la densidad de
 #'   esos documentos en el rango de la columna —una probabilidad binomial
-#'   menor que una en un millón—. Publicaba sus dos extremos, que son dos
-#'   cédulas. La regla es por **columna** y no por valor: una columna que
+#'   menor que una en un millón—. Sin protegerla, publicaría sus dos extremos,
+#'   que son dos cédulas. La regla es por **columna** y no por valor: una
+#'   columna que
 #'   coincide por azar —uno de cada cinco importes de siete cifras coincide con
 #'   un documento sin verificador frente a un millón de cédulas, y hasta tres
 #'   de cada cuatro frente a cuatro millones— publica sus extremos aunque
 #'   coincidan. Medido en `data-raw/medir_tapado_de_mas.R` sobre 400 columnas
 #'   por familia, con uno y con cuatro millones de cédulas protegidas: no se
-#'   protegió ninguna columna de importes de siete cifras —tampoco
+#'   protege ninguna columna de importes de siete cifras —tampoco
 #'   redondeados a miles, con 10, 50 o 500 valores distintos, aunque por azar
-#'   coincidieran todos— ni de enteros de ocho cifras, y sí todas las copias
+#'   coincidan todos— ni de enteros de ocho cifras, y sí todas las copias
 #'   de 50 valores distintos o más; con el 10 % de tipeos, todas frente a un
 #'   millón y la mitad frente a cuatro. Una copia de pocos valores distintos
 #'   frente a muchos documentos —tres, o diez frente a cuatro millones— no se
@@ -1942,8 +1949,9 @@
 #'   protegida, que ocupan el lugar de un dato y no son el de nadie: el que no
 #'   tiene letras ni dígitos (`"------"`), y el dígito repetido que se repite
 #'   cinco veces o más en una columna que sin él es casi una clave —cuarenta
-#'   `"99999999"` entre cédulas que no se repiten—. Entraban, y tapaban la moda,
-#'   el mínimo, la mediana y el máximo de un `monto` con su propio `99999999`.
+#'   `"99999999"` entre cédulas que no se repiten—. En el piso taparían la
+#'   moda, el mínimo, la mediana y el máximo de un `monto` con su propio
+#'   `99999999`.
 #'   Donde el documento se repite —una tabla de movimientos— el dígito repetido
 #'   sigue en el piso: `2.222.222-2` es una cédula válida. Fuera del piso no
 #'   quiere decir publicados en la columna protegida: su moda, sus ejemplos y
@@ -1951,8 +1959,8 @@
 #'   el usuario declaró en `sentinelas_numericos` y aparece en una columna
 #'   protegida —también como su relleno— sigue en el piso. Sin los datos, el
 #'   declarado entra siempre, porque no se sabe de qué columna es; con ellos, el
-#'   que no aparece en ninguna protegida no entra: entraba igual, se tapaba a sí
-#'   mismo en `meta` y la acción que lo convierte en un `monto` quedaba sin
+#'   que no aparece en ninguna protegida no entra: si entrara, se taparía a sí
+#'   mismo en `meta` y la acción que lo convierte en un `monto` quedaría sin
 #'   efecto sin proteger nada. El piso tiene
 #'   **una excepción declarada**, y es
 #'   la única: [perfilar_por()] agrupando *por* una columna personal publica sus
@@ -2019,9 +2027,10 @@
 #'   CIDR— y de un importe con miles de cuatro grupos o más
 #'   (`"3.919.024.166"`), que se prueban enteros —el importe, también sin su
 #'   primer grupo: es el prefijo de país de un celular agrupado de a tres,
-#'   `"598.099.123.456"`, que se publicaba— (`"4.123.456"` frente a
-#'   `"4.123.456-7"`, el verificador mal tipeado, el documento seguido de un
-#'   año), y sin su primer dígito sólo detrás de un asterisco o una equis
+#'   `"598.099.123.456"`, que de otro modo se publicaría— (`"4.123.456"`
+#'   frente a `"4.123.456-7"`, el verificador mal tipeado, el documento
+#'   seguido de un año), y sin su primer dígito sólo detrás de un asterisco o
+#'   una equis
 #'   (`"*.123.456-7"`, `"X.012.345-8"`, `"X2345678"`) —también los asteriscos
 #'   de Unicode, todo signo que Unicode llama asterisco salvo el combinante de
 #'   abajo, que el pliegue borra como a una tilde, y el asterisco pegado a una
@@ -2050,7 +2059,7 @@
 #'   costo, medido**: un número entero de siete cifras que coincide con un
 #'   documento protegido sin su verificador no se distingue de él, y se tapa.
 #'   Con un millón de cédulas, 300.000 teléfonos fijos y 300.000 celulares
-#'   protegidos, eso le pasó a uno de cada cinco números de siete cifras en
+#'   protegidos, eso le pasa a uno de cada cinco números de siete cifras en
 #'   ejemplos, modas y evidencia —en cualquier escritura: con puntos o
 #'   apóstrofos de miles, con un guion, tras un numeral o tras una equis
 #'   seguida de un espacio (`"92 x 6931234"`); tras un asterisco, o tras una
@@ -2072,7 +2081,7 @@
 #'   también como la cédula con su verificador tras un punto—, las horas, los
 #'   ISBN —también el ISBN-10 con espacios o puntos—, las fechas con espacios,
 #'   las listas separadas por comas con espacio o por barras verticales, las
-#'   razones no se taparon; los importes con miles de cuatro grupos o más,
+#'   razones no se tapan; los importes con miles de cuatro grupos o más,
 #'   uno o dos de cada mil —su cola sin el primer grupo coincide con un
 #'   documento cuando empieza con un cero—; una
 #'   dirección IP —también con su máscara CIDR, `"10.4.123.234/24"`, o su
@@ -2096,9 +2105,9 @@
 #'   (`"59.822.877.006,00"`, `"59 822 877 006"`), 4,4 %: como en el celular,
 #'   sus primeras ocho cifras tienen además la forma de una cédula entera. Las
 #'   familias del reproductor que sortean 400 fijos por escritura dan entre 1,5
-#'   y 5,5 %: es el sorteo, no la escritura. Con el prefijo era uno de cada
-#'   seis, porque `"598"` y el primer grupo formaban una cédula de siete cifras
-#'   sin su verificador. Y una lista de dos teléfonos unidos por una barra
+#'   y 5,5 %: es el sorteo, no la escritura. El prefijo no se une al primer
+#'   grupo: `"598"` y ese grupo formarían una cédula de siete cifras sin su
+#'   verificador. Y una lista de dos teléfonos unidos por una barra
 #'   —`"+59894364556/+59849290458"`—, entre cinco y ocho de cada cien, como la
 #'   misma lista con `" / "`: cada uno se prueba por su parte nacional.
 #'   Un celular que no es de nadie, entre dos y tres de cada cien —2,0 a 2,5 %
@@ -2112,8 +2121,8 @@
 #'   4,0 %, y 7,8 % con los decimales en cero: como con espacios, sus grupos se
 #'   prueban también sueltos. Con el agrupado indio (`"59,89,52,57,283"`), uno
 #'   de cada cinco —20,3 %, y 32,0 % con `".00"`—: sus grupos de dos forman
-#'   números de siete cifras que coinciden con un documento sin su verificador,
-#'   y eso ya pasaba antes de leerlo como la misma cifra (17,2 y 29,3 %).
+#'   números de siete cifras que coinciden con un documento sin su
+#'   verificador.
 #'   Y, por el mismo parcial, una versión de cuatro partes
 #'   (`"v4.62.660.4361"`), trece de cada cien, la de cinco partes
 #'   (`"v2.76.527.6327.3"`), quince de cada cien, y un expediente
@@ -2122,7 +2131,7 @@
 #'   distingue del documento escrito así.
 #'   Y por la regla de la hora, una fracción de ocho cifras
 #'   (`"18:54:14.80786977"`) no es fracción —así no se traga un documento
-#'   pegado— y se taparon cuatro o cinco de cada cien; lo mismo un número de
+#'   pegado— y se tapan cuatro o cinco de cada cien; lo mismo un número de
 #'   diez cifras con la forma de un ISBN-10 y su dígito de control inválido. La
 #'   medición se rehace con `data-raw/medir_tapado_de_mas.R`.
 #'   Las tildes, la caja y la escritura también son cosméticas: `juan.perez` se
@@ -2153,14 +2162,15 @@
 #'   la coma, el punto, los paréntesis o la arroba (U+FE50 a U+FE6B), la barra
 #'   partida, los paréntesis superíndice y subíndice (U+207D, U+207E, U+208D,
 #'   U+208E), las formas de presentación vertical (U+FE10 a U+FE48) y el punto
-#'   de guía (U+2024). Se enumeraban las conocidas, y el correo escrito con los
-#'   paréntesis superíndice alrededor de `at` se publicaba. Las letras de otro
+#'   de guía (U+2024). Se toma la normalización entera y no una lista de las
+#'   formas conocidas: con una lista, el correo escrito con los paréntesis
+#'   superíndice alrededor de `at` se publicaría. Las letras de otro
 #'   alfabeto que se parecen —una «a» cirílica (U+0430) en lugar de la latina—
 #'   no son el mismo signo y no se leen, ni una letra encerrada en un círculo
 #'   (U+24D0): es otra forma de la letra, no un signo. Y en cualquier
 #'   codificación: un texto `latin1` con
 #'   una tilde se lee como el mismo texto en UTF-8. Medido sobre 3.000 correos
-#'   protegidos: los no protegidos escritos así se taparon lo mismo que con la
+#'   protegidos: los no protegidos escritos así se tapan lo mismo que con la
 #'   arroba común —cuatro de cada mil, por los separadores cosméticos—, y
 #'   ninguna de 3.015 frases con esas palabras, mil de ellas con una arroba y
 #'   el punto en palabras. **No** se leen otras ofuscaciones: el punto entre
@@ -2173,9 +2183,10 @@
 #'   con el año en dos cifras en una columna de esas fechas, ni como fecha-hora
 #'   ISO a medianoche: en una tabla
 #'   de miles de personas casi todo día es el cumpleaños de alguien, y con la
-#'   fecha de nacimiento protegida se tapaban los estadísticos de todas las demás
-#'   columnas de fechas. La columna de fechas protegida se sigue protegiendo
-#'   entera; una fecha con hora sí cuenta. Se decide **por la columna**: en una
+#'   fecha de nacimiento protegida se taparían los estadísticos de todas las
+#'   demás columnas de fechas. La columna de fechas protegida se sigue
+#'   protegiendo entera; una fecha con hora sí cuenta. Se decide **por la
+#'   columna**: en una
 #'   columna protegida que no es de fechas —un teléfono fijo `"2012-11-05"`
 #'   entre otros teléfonos— el valor con forma de fecha sí entra en el piso,
 #'   escrito como está guardado (la regla de dígitos borra las fechas antes de
@@ -2189,8 +2200,8 @@
 #'   entrando al piso. En la **prosa del paquete**
 #'   —descripción, sugerencia, motivo, cómo resolverlo, justificación— se exige
 #'   además que la variante no tenga una letra pegada antes o después: con los
-#'   nombres de millones de personas como valores protegidos, alguno aparecía
-#'   cruzando palabras de esas frases y las tapaba enteras, también en columnas
+#'   nombres de millones de personas como valores protegidos, alguno aparecería
+#'   cruzando palabras de esas frases y las taparía enteras, también en columnas
 #'   no personales. Lo que esa prosa cita entre comillas dobles —el nivel de un
 #'   determinante en la sugerencia de `posible_ausencia_estructural`— no es
 #'   prosa sino un valor: se compara con la regla de los valores y se tapa sólo
@@ -2209,13 +2220,12 @@
 #'   `"Maldonado"` entre los ejemplos, la calle `"Av. Rivera 1343"`, el
 #'   `"Instituto Rivera"`; seis de los diecinueve departamentos de Uruguay son
 #'   apellidos así, y ciudades como Mercedes o Dolores son nombres de pila—.
-#'   Medido sobre 5.000 personas con esos nombres y apellidos: trece campos de
-#'   cuatro columnas que no eran personales. Es el costo del piso y no se
-#'   afloja: sin él, «llamó la Sra. Rivera» publicaría el apellido. Y lo
+#'   Medido sobre 5.000 personas con esos nombres y apellidos, se tapan trece
+#'   campos de cuatro columnas que no son personales. Es el costo del piso y no
+#'   se afloja: sin él, «llamó la Sra. Rivera» publicaría el apellido. Y lo
 #'   aplican también [analizar()], [distribucion_valores()],
-#'   [clasificar_variables()] y [detectar_discordancias()], que antes
-#'   protegían sólo por columna y publicaban lo que `perfilar()` tapaba sobre la
-#'   misma tabla.
+#'   [clasificar_variables()] y [detectar_discordancias()], así que no
+#'   publican lo que `perfilar()` tapa sobre la misma tabla.
 #' @param validadores_personales Pack o lista nombrada de funciones que reciben
 #'   un vector de texto y devuelven un lógico de igual longitud. `NULL` usa
 #'   `validadores_uruguay()` por compatibilidad; `FALSE` o `numeric()` desactiva
@@ -2252,7 +2262,7 @@
 #'   comparaciones de distancia del vocabulario. Comparar dos valores cuesta del
 #'   orden del producto de sus largos, así que el trabajo es la suma de ese
 #'   producto sobre todos los pares. Contar pares por longitud media subestima
-#'   las cadenas largas: medido, el mismo presupuesto compraba 5,3 millones de
+#'   las cadenas largas: medido así, el mismo presupuesto rinde 5,3 millones de
 #'   unidades por segundo con valores de 900 caracteres y 44 millones con
 #'   valores de 40. Se combina con el límite interno de pares del detector y
 #'   manda el más restrictivo; ese límite interno no es un argumento de

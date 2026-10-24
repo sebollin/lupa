@@ -26,7 +26,10 @@ sql_perfil(x, ...)
 \item{...}{Sin uso, para compatibilidad de métodos.}
 }
 \value{
-\code{hallazgos()} devuelve un \code{data.frame} con una fila por hallazgo;
+\code{hallazgos()} devuelve un \code{data.frame} con una fila por hallazgo
+—sobre una colección, los de cada perfil conservado con la identidad de su
+tabla adelante (\code{tabla}, \code{esquema}, \code{identificador}), como \code{sql_perfil()};
+si la colección no conservó los perfiles, una tabla vacía con su aviso—;
 \code{columnas()}, un \code{data.frame} con una fila por columna de la tabla
 perfilada y sus métricas y diagnósticos; \code{cobertura()} devuelve la tabla de
 diagnósticos no evaluados —y, sobre un \code{perfil_dbi}, la de \strong{métricas

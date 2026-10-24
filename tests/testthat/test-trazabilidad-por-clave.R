@@ -130,7 +130,7 @@ test_that("una clave que no es única avisa y no rompe", {
   datos <- data.frame(
     k = c("a", "a", "b"), x = 1:3, stringsAsFactors = FALSE
   )
-  expect_warning(perfilar(datos, clave = "k"), "no es unica")
+  expect_warning(perfilar(datos, clave = "k"), "no es \u00fanica")
 })
 
 test_that("analizar() traslada la clave por las dos vías", {

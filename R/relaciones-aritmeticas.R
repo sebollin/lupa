@@ -486,7 +486,7 @@
         "relacion_aritmetica_columnas", names(datos)[[i]],
         paste(
           "No se buscaron relaciones aritmeticas con la columna: se declaro en",
-          "`columnas_codigo`, asi que es un codigo y no una magnitud por fila."
+          "`columnas_codigo`, as\u00ed que es un c\u00f3digo y no una magnitud por fila."
         ),
         paste(
           "Si la columna es una magnitud y no un codigo, quitarla de",

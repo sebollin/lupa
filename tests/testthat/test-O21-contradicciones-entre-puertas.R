@@ -81,6 +81,7 @@ test_that("la relectura declara la propuesta rederivada y la reporta", {
   expect_false(any(
     original$advertencias$tipo == "persistencia_funciones_sustituidas"
   ))
+  decision_original <- original$decision_medicion$medida
   archivo <- tempfile(fileext = ".rds")
   on.exit(unlink(archivo), add = TRUE)
   guardar_analisis(original, archivo)
@@ -99,7 +100,10 @@ test_that("la relectura declara la propuesta rederivada y la reporta", {
   expect_equal(sum(funciones), 5L)
   expect_true(all(releido$propuesta_modelo$estado[funciones] == "requiere_datos"))
   expect_true(all(releido$decision_medicion$estado == "lista"))
-  expect_true(all(releido$decision_medicion$medida))
+  expect_identical(
+    releido$decision_medicion$medida,
+    decision_original
+  )
 
   informe <- tempfile(fileext = ".html")
   on.exit(unlink(informe), add = TRUE)

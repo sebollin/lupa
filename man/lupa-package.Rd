@@ -4,49 +4,50 @@
 \name{lupa-package}
 \alias{lupa}
 \alias{lupa-package}
-\title{lupa: examinar, medir y mejorar la calidad de datos}
+\title{lupa: perfilar y medir la calidad de datos con evidencia}
 \description{
-\code{lupa} implementa un modelo de calidad de datos de uso general: dimensiones
-y factores declarables, métricas con granularidad explícita, agregación
-tipada y una cadena de evaluación auditable. El paquete nunca modifica datos
-como efecto del diagnóstico: cada etapa devuelve objetos inspeccionables.
-\code{\link[=marco_agesic]{marco_agesic()}} y \code{\link[=catalogo_agesic]{catalogo_agesic()}} aportan de fábrica la implementación
-trazable del marco uruguayo, y \code{\link[=marco_iso25012]{marco_iso25012()}} ofrece una segunda
-taxonomía opcional. Ninguna restringe las declaraciones del usuario.
+\code{lupa} examina una tabla o una base de datos antes de confiar en ella:
+encuentra faltantes disfrazados, el mismo dato escrito de varias formas,
+fechas en formatos mezclados, filas y columnas repetidas y estructura que
+nadie declaró; dice en qué filas está cada problema y qué controles no pudo
+hacer. Cada resultado conserva su alcance y su evidencia, y ningún
+diagnóstico modifica los datos que recibe.
 }
 \details{
-El punto de entrada es \code{\link[=analizar]{analizar()}}. En una llamada reúne el diagnóstico
-descriptivo y su cobertura, sin medir requisitos observados automáticamente.
-Sus componentes también se pueden construir por separado. El recorrido es:
+La puerta de entrada es \code{\link[=perfilar]{perfilar()}}. Sus hallazgos (\code{\link[=hallazgos]{hallazgos()}}) traen
+tipo, severidad (\verb{ok < sospechoso < error}), evidencia y trazabilidad hasta
+las filas; su cobertura (\code{\link[=cobertura]{cobertura()}}) enumera los diagnósticos que no se
+pudieron evaluar, con su motivo, y que nunca cuentan como cero. La viñeta
+"Empezar en diez minutos" (\code{vignette("lupa")}) recorre el primer uso, y
+"Leer un perfil" (\code{vignette("leer-un-perfil")}) explica cada parte.
+
+Desde el perfil, el recorrido sigue estas etapas, cada una con su guía:
 \enumerate{
-\item examinar estructura, tipos, patrones, ausencias, distribuciones,
-asociaciones y comportamiento temporal; \code{\link[=cobertura_analisis]{cobertura_analisis()}} explicita
-qué factores no fueron evaluados;
-\item convertir el diagnóstico en una propuesta editable con
-\code{\link[=proponer_modelo]{proponer_modelo()}};
-\item declarar y ejecutar métricas mediante \code{\link[=modelo]{modelo()}} y \code{\link[=medir]{medir()}};
-\item evaluar reglas y perfiles de madurez con \code{\link[=evaluar]{evaluar()}};
-\item planificar y aplicar mejoras auditables mediante
-\code{\link[=planificar_limpieza]{planificar_limpieza()}} y \code{\link[=aplicar]{aplicar()}};
-\item acumular corridas y detectar deriva con \code{\link[=historico_calidad]{historico_calidad()}},
-\code{\link[=detectar_deriva_calidad]{detectar_deriva_calidad()}} y \code{\link[=comparar_perfiles]{comparar_perfiles()}};
-\item persistir el recorrido con \code{\link[=guardar_analisis]{guardar_analisis()}} y producir un archivo HTML
-autocontenido con \code{\link[=reportar]{reportar()}}.
+\item explorar columnas y reunir el diagnóstico en un objeto con \code{\link[=analizar]{analizar()}},
+y compartirlo en un HTML autocontenido con \code{\link[=reportar]{reportar()}};
+\item perfilar dentro de una base con \code{\link[=perfilar_dbi]{perfilar_dbi()}}, o una colección de
+tablas con \code{\link[=perfilar_coleccion]{perfilar_coleccion()}};
+\item limpiar una copia con un plan editable: \code{\link[=planificar_limpieza]{planificar_limpieza()}} y
+\code{\link[=aplicar]{aplicar()}};
+\item convertir lo confirmado en mediciones explícitas y evaluarlas:
+\code{\link[=proponer_modelo]{proponer_modelo()}}, \code{\link[=modelo]{modelo()}}, \code{\link[=medir]{medir()}} y \code{\link[=evaluar]{evaluar()}};
+\item comparar entregas y seguir la calidad en el tiempo con
+\code{\link[=comparar_perfiles]{comparar_perfiles()}} y \code{\link[=historico_calidad]{historico_calidad()}}.
 }
 
-Las taxonomías se declaran con \code{\link[=marco_calidad]{marco_calidad()}}. Los padrones externos se
-declaran con \code{\link[=referencial]{referencial()}}, y los contratos que
-no se pueden inferir se expresan con \code{\link[=vigencia]{vigencia()}} y \code{\link[=escala]{escala()}}. La correspondencia
-exacta con las 49 entradas de AGESIC se consulta en \code{\link[=catalogo_agesic]{catalogo_agesic()}}. No
-se calcula un índice global: la jerarquía dimensión–factor–métrica es
-taxonómica y requiere un contrato adicional para producirlo.
-Los formatos se pueden verificar con funciones propias o con los packs de
-\code{\link[=validadores_internacionales]{validadores_internacionales()}} y \code{\link[=validadores_uruguay]{validadores_uruguay()}};
-\code{\link[=pack_validadores]{pack_validadores()}} permite añadir otro país sin registrar estado global.
+Un marco de calidad es una taxonomía que se declara con \code{\link[=marco_calidad]{marco_calidad()}}.
+El paquete incluye tres, \code{\link[=marco_agesic]{marco_agesic()}}, \code{\link[=marco_cepal]{marco_cepal()}} y
+\code{\link[=marco_iso25012]{marco_iso25012()}}, y ninguno restringe las declaraciones de quien lo usa:
+un factor se mide cuando los datos aportan evidencia o cuando se declaran el
+requisito y la métrica. \code{\link[=cobertura_analisis]{cobertura_analisis()}} informa qué factores quedaron
+medidos. No hay un puntaje de fábrica: \code{\link[=indice_calidad]{indice_calidad()}} calcula un índice
+sólo con los pesos que declara el proyecto.
 }
 \examples{
-resultado <- analizar(datos_operativos, analizar_dependencias = FALSE)
-subset(resultado$perfil$hallazgos, severidad != "ok")
+perfil <- perfilar(datos_operativos)
+subset(hallazgos(perfil), severidad == "error",
+       c(columna, tipo_hallazgo, evidencia))
+cobertura(perfil)[, c("diagnostico", "columna")]
 }
 \references{
 Batini C, Scannapieco M (2016) \doi{10.1007/978-3-319-24106-7}.
@@ -54,9 +55,12 @@ Batini C, Scannapieco M (2016) \doi{10.1007/978-3-319-24106-7}.
 Springer.
 
 \href{https://www.gub.uy/agencia-gobierno-electronico-sociedad-informacion-conocimiento/}{AGESIC (2020)}.
-\emph{Marco de trabajo para la Gestión de la Calidad
-de Datos en Gobierno Digital}, versión 1.6, Presidencia de la República,
-Uruguay.
+\emph{Marco de trabajo para la Gestión de la Calidad de Datos en Gobierno
+Digital}, versión 1.6.
+
+\href{https://repositorio.cepal.org/handle/11362/47464}{CEA/CEPAL (2022)}.
+\emph{Guía para la implementación del marco de aseguramiento de la calidad para
+procesos y productos estadísticos}. LC/CEA.11/19. Santiago.
 
 \href{https://www.iso.org/standard/35736.html}{ISO/IEC (2008)}.
 \emph{ISO/IEC 25012:2008 Software engineering — Software product

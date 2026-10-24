@@ -16,17 +16,15 @@ perfilar_coleccion(
 }
 \arguments{
 \item{coleccion}{Objeto creado por \code{\link[=coleccion]{coleccion()}}.
-Una colección \strong{guardada por una versión anterior} se perfila igual. El objeto
-fue creciendo —\code{catalogo}, \code{tipo}, \code{declaracion}— y las columnas que a un
-objeto viejo le faltan se completan con el valor que significa «esta colección
-no lo declaró», mientras \code{identificador} y \code{referencia}, que son derivados, se
-recalculan con las mismas funciones que los arman. Lo único que no se puede
-inventar es \code{tabla}, que es el nombre mismo: su ausencia se rechaza nombrando
-la columna. Antes faltaba cualquiera de seis columnas y la corrida entera
-moría con un error de \code{data.frame()} que no nombraba ni la columna ni la
-tabla —o, sin \code{referencia}, perfilaba \strong{cero} tablas sin abortar—, y eso
-contradice la decisión de que ante un fallo parcial se devuelve lo medido con
-su alcance declarado.}
+Una colección \strong{guardada por una versión anterior} se perfila igual: las
+columnas que a un objeto viejo le faltan —\code{catalogo}, \code{tipo}, \code{declaracion}—
+se completan con el valor que significa «esta colección no lo declaró»,
+mientras \code{identificador} y \code{referencia}, que son derivados, se recalculan con
+las mismas funciones que los arman. Lo único que no se puede inventar es
+\code{tabla}, que es el nombre mismo: su ausencia se rechaza nombrando la columna.
+Así una columna faltante no corta la corrida con un error que no nombra ni la
+columna ni la tabla, ni deja \strong{cero} tablas perfiladas sin abortar: ante un
+fallo parcial se devuelve lo medido con su alcance declarado.}
 
 \item{muestra}{Filas solicitadas por tabla para el bloque en memoria. Por
 omision \code{Inf}: cada tabla se trae entera. El resumen por tabla se calcula en
@@ -63,7 +61,7 @@ los acompañe un \code{"S/D"}—, con la misma expresión con que la leyó
 tabla entera y en cualquier orden de las tablas, y la tabla con una copia
 se vuelve a perfilar con esa columna como personal; si la lectura o el
 nuevo perfil fallan, el perfil de esa tabla se cierra igual. Limitación
-conocida (baja): ese nuevo perfil reemplaza al conservado, pero
+conocida: ese nuevo perfil reemplaza al conservado, pero
 \code{resumen_coleccion}, \code{cobertura_coleccion}, \code{cobertura_metricas} y
 \code{meta$lecturas} quedan con lo del primero —los estados de las métricas
 de la copia dicen \code{calculado} donde el perfil dice que se ocultaron—; no
@@ -75,39 +73,41 @@ con los valores que las tablas leyeron y que un mensaje del motor puede
 llevar —todo valor con letras,
 porque cualquier palabra puede ser el nombre de una columna de otra tabla,
 y el número que el mensaje no omite entero, como \code{"099;123;456"}, escrito
-con un signo que no une; ver \code{\link[=perfilar_dbi]{perfilar_dbi()}}—, sin consultas de más: el
-mensaje de una vista que citaba \code{"Campos Cadena"}, la celda de su tabla
-base, se publicaba; y con perfiles retenidos y una tabla base incompleta
-—una columna protegida \code{ntext} de SQL Server, que no admite el \verb{GROUP BY}
-que lee sus valores— el piso usaba sólo las tablas completas y el motivo
-de la vista citaba el valor entero. De cada uno se guarda una huella —ocho bytes de su
-forma plegada y sin separadores— y no el texto: la memoria no crece con el
+con un signo que no une; ver \code{\link[=perfilar_dbi]{perfilar_dbi()}}—, sin consultas de más: así
+se tapa el mensaje de una vista que cita \code{"Campos Cadena"}, la celda de su
+tabla base; y con perfiles retenidos y una tabla base incompleta —una
+columna protegida \code{ntext} de SQL Server, que no admite el \verb{GROUP BY} que
+lee sus valores— el piso no se limita a las tablas completas, y el motivo
+de la vista no cita el valor entero. De cada uno se guarda una huella
+—ocho bytes de su forma plegada y sin separadores— y no el texto: la
+memoria no crece con el
 largo de los nombres que se leen, y un tramo del mensaje con la huella de
 uno se tapa como esté escrito; dos formas con la misma huella, una en
 2^52, sólo pueden tapar de más. Y cada mensaje del motor se guarda como
 llegó mientras dura la colección —en memoria; nunca entra al objeto— y al
 final se vuelve a leer con todo lo que la colección leyó: con una vista
-perfilada antes que su tabla base el piso no conocía todavía el nombre, y
-la segunda pasada dejaba su resto —\code{"De Los Campos"} de
-\code{"María De Los Campos"} en SQL Server en sueco, \code{"Campos Cadena"} después
-de un apodo entre comillas—. El orden de las tablas no cambia lo que se
+perfilada antes que su tabla base, el piso todavía no conoce el nombre
+cuando llega el mensaje, y releer el texto ya tapado dejaría su resto
+—\code{"De Los Campos"} de \code{"María De Los Campos"} en SQL Server en sueco,
+\code{"Campos Cadena"} después de un apodo entre comillas—. El orden de las
+tablas no cambia lo que se
 publica; lo vuelto a leer reemplaza a lo publicado sólo si publica menos.
 La relectura corre también después del cruce entre tablas, sobre lo que
 el cruce escribe: el motivo de \code{otras_tablas} lleva el mensaje del motor
-de la tabla que no se pudo leer, y con la vista antes que su base citaba
+de la tabla que no se pudo leer, y con la vista antes que su base citaría
 ese resto. En ese cierre, un valor igual al nombre de una tabla o de un
 esquema de la colección no se tapa: es estructura, como en
 \code{\link[=perfilar_dbi]{perfilar_dbi()}}.
 Se reemplaza el texto tal como se publicó: si el piso de la propia tabla
-ya lo había cambiado —el mensaje citaba entero, además, un valor
-protegido de esa misma tabla—, la relectura no lo encuentra y queda sólo
-el piso de las huellas, que tapa los valores enteros y no el resto.
+ya lo cambió —porque el mensaje cita entero, además, un valor protegido de
+esa misma tabla—, la relectura no lo encuentra y queda sólo el piso de las
+huellas, que tapa los valores enteros y no el resto.
 Y los avisos de consola de cada tabla se
 emiten al final, después del mismo piso que esos tres campos, con o sin
-perfiles: el aviso de una vista perfilada antes que su tabla base citaba
-la celda. También si la colección se corta —una interrupción, un error—
-después de leer alguna tabla: los avisos juntados salen por ese mismo
-piso, con los valores que se conocían.
+perfiles: emitido en el momento, el aviso de una vista perfilada antes que
+su tabla base citaría la celda. También si la colección se corta —una
+interrupción, un error— después de leer alguna tabla: los avisos juntados
+salen por ese mismo piso, con los valores conocidos hasta el corte.
 \code{\link[=perfilar_dbi]{perfilar_dbi()}} sobre una tabla sola protege sólo con los de esa tabla.
 Sin protección (\code{proteger_datos_personales = FALSE}) no se cruza nada:
 cada perfil retenido sale como lo dio su tabla, también si otra no se
@@ -160,7 +160,7 @@ Cada fila de \code{cobertura_coleccion} nombra la tabla con las tres partes de s
 identidad —\code{catalogo}, \code{esquema} y \code{tabla}—, las mismas que \code{\link[=coleccion]{coleccion()}}
 declaró. Es lo que permite que el motivo siga pegado a la tabla cuando el
 número sube de nivel: sin el catálogo, una tabla declarada como
-\code{catalogo.esquema.tabla} se publicaba río abajo como \code{esquema.tabla}.
+\code{catalogo.esquema.tabla} se publicaría río abajo como \code{esquema.tabla}.
 
 \strong{Lo que no se pudo medir se declara, y nunca a cero.} Una tabla que la
 credencial no puede leer, un objeto que no es una tabla base y una tabla
@@ -173,11 +173,11 @@ calcula antes de descartar el perfil}, así que existe también con
 son el caso normal, no el borde.
 
 \strong{Donde no hubo medición va \code{NA}, no \code{0}.} Una tabla vacía deja
-\code{prop_faltantes} en \code{NA} en todas sus columnas: antes eso producía
-\code{prop_faltantes_maxima = -Inf} —fuera del \verb{[0, 1]} que el paquete promete, y
-ordenada como la tabla de mejor calidad de la base— y
-\code{n_columnas_sin_faltantes = 0}, que afirmaba tres columnas sin ausencias
-sobre una tabla de la que no se sabía nada. \code{n_columnas_medidas} declara
+\code{prop_faltantes} en \code{NA} en todas sus columnas, y entonces
+\code{prop_faltantes_maxima} y \code{n_columnas_sin_faltantes} también quedan en \code{NA}:
+un máximo de \code{-Inf} saldría del \verb{[0, 1]} que el paquete promete y ordenaría
+la tabla como la de mejor calidad de la base, y un conteo afirmaría algo
+sobre una tabla de la que no se sabe nada. \code{n_columnas_medidas} declara
 sobre cuántas columnas se conoce la proporción de ausentes, para que los dos
 números anteriores se lean con su alcance.
 

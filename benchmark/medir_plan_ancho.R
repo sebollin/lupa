@@ -1,38 +1,58 @@
-## Mide el costo que declara `plan_perfilado_dbi()` sobre una tabla ancha, y
-## cuantas de esas consultas tocan la tabla entera.
+## Mide el costo declarado por plan_perfilado_dbi() sobre una tabla ancha.
 ##
-## Es la afirmacion "el costo se planifica antes de pagarlo" de los README.
-## Existia como numero -158 columnas, 623 consultas, 777 de 778- medido una vez
-## contra una base que no esta en el repositorio, asi que **nadie podia
-## rehacerlo**. Peor: el numero se leia como una propiedad de "158 columnas",
-## cuando depende de la composicion. Una tabla de 158 columnas casi todas de
-## texto cuesta la mitad que una casi toda numerica, porque la mediana pide un
-## orden total por columna numerica.
-##
-## Este banco arma la tabla, publica el desglose por clase de consulta y separa
-## las que escanean u ordenan la tabla completa de las que no. No necesita red
-## ni base externa: SQLite en memoria alcanza, porque el plan se predice sin
-## ejecutar ninguna de las consultas que cuenta.
+## El resultado no ejecuta las consultas del plan. Compara una tabla mixta,
+## una tabla sólo de texto y un plan con muestra del motor, y deja un CSV
+## fechado junto con el entorno que lo produjo.
 
-if (!requireNamespace("lupa", quietly = TRUE)) {
-  stop("Instalar `lupa` antes de correr el banco.", call. = FALSE)
+.archivo_script <- grep("^--file=", commandArgs(), value = TRUE)
+.archivo_script <- if (length(.archivo_script)) {
+  sub("^--file=", "", .archivo_script[[1L]])
+} else {
+  file.path(getwd(), "benchmark", "medir_plan_ancho.R")
+}
+.raiz_paquete <- normalizePath(
+  file.path(dirname(normalizePath(.archivo_script, mustWork = FALSE)), ".."),
+  mustWork = TRUE
+)
+if (file.exists(file.path(.raiz_paquete, "DESCRIPTION")) &&
+    requireNamespace("pkgload", quietly = TRUE)) {
+  pkgload::load_all(.raiz_paquete, quiet = TRUE)
+} else if (!requireNamespace("lupa", quietly = TRUE)) {
+  stop("No se encuentra la fuente ni una instalación de lupa.", call. = FALSE)
 }
 for (paquete in c("DBI", "RSQLite")) {
   if (!requireNamespace(paquete, quietly = TRUE)) {
-    stop("Instalar `", paquete, "` antes de correr el banco.", call. = FALSE)
+    stop("Falta el paquete ", paquete, ".", call. = FALSE)
   }
 }
 
-## Medir contra la biblioteca equivocada ya costo una vez publicar un numero
-## falso, asi que el script dice contra que esta midiendo antes de medir.
-.descripcion <- utils::packageDescription("lupa")
-cat("lupa ", as.character(utils::packageVersion("lupa")), "\n", sep = "")
-cat("armado: ", .descripcion$Built, "\n\n", sep = "")
+# La revision medida es la huella del codigo de R/, como en verificar_motor.R:
+# sobrevive a reescribir la historia y se rehace desde cualquier copia.
+.revision <- Sys.getenv("LUPA_REVISION", unset = "")
+if (!nzchar(.revision)) {
+  .archivos_r <- sort(list.files(file.path(.raiz_paquete, "R"), "\\.R$",
+                                 full.names = TRUE))
+  .lista_r <- tempfile()
+  writeLines(paste(unname(tools::md5sum(.archivos_r)), basename(.archivos_r)), .lista_r)
+  .revision <- paste0(as.character(utils::packageVersion("lupa")), "; R/ md5 ",
+                      substr(unname(tools::md5sum(.lista_r)), 1L, 12L))
+  unlink(.lista_r)
+}
+.fecha <- format(Sys.time(), tz = "UTC", format = "%Y-%m-%dT%H:%M:%SZ")
+.sello <- format(Sys.time(), tz = "UTC", format = "%Y%m%dT%H%M%SZ")
+.entorno <- data.frame(
+  fecha = .fecha,
+  revision_paquete = .revision,
+  version_paquete = as.character(utils::packageVersion("lupa")),
+  version_R = R.version.string,
+  plataforma = R.version$platform,
+  sistema = unname(Sys.info()[["sysname"]]),
+  version_sistema = unname(Sys.info()[["release"]]),
+  maquina = unname(Sys.info()[["machine"]]),
+  nucleos = parallel::detectCores(logical = TRUE),
+  stringsAsFactors = FALSE
+)
 
-## ---- La tabla ------------------------------------------------------------
-##
-## 158 columnas con la mezcla de una tabla administrativa: mas texto que
-## numeros, algunos enteros de codigo y algunas fechas guardadas como texto.
 set.seed(1)
 N_FILAS <- 200L
 columnas <- list()
@@ -56,31 +76,9 @@ conexion <- DBI::dbConnect(RSQLite::SQLite(), ":memory:")
 on.exit(DBI::dbDisconnect(conexion), add = TRUE)
 DBI::dbWriteTable(conexion, "ancha", tabla)
 
-## ---- El plan -------------------------------------------------------------
-plan <- lupa::plan_perfilado_dbi(conexion, "ancha", modo = "exacto")
-
-total <- attr(plan, "total")
-techo <- attr(plan, "total_lotes_rechazados")
-
-## Las clases que no tocan la tabla entera: las sondas de apertura y la lectura
-## de la muestra. El resto escanea, ordena o agrupa toda la tabla, y ese es el
-## punto: `muestra` acota lo que se trae a R, no el trabajo del motor.
-alcance <- as.character(plan$alcance)
-sin_escanear <- alcance %in% c("una vez", "lee las filas pedidas")
-tabla_entera <- sum(plan$n_consultas[!sin_escanear])
-
-cat("columnas: ", ncol(tabla), " sobre ", N_FILAS, " filas\n", sep = "")
-cat("consultas si ningun lote se rechaza: ", total, "\n", sep = "")
-cat("consultas si se rechazan todos los lotes: ", techo, "\n", sep = "")
-cat("de las ", total, ", escanean u ordenan la tabla entera: ", tabla_entera,
-    "\n\n", sep = "")
-print(plan[, c("clase_consulta", "n_consultas", "alcance")])
-
-## ---- Lo que cambia con la composicion -------------------------------------
-##
-## La misma cantidad de columnas, todas de texto: sin mediana ni desvio ni
-## MIN/MAX numerico, el costo cae. Es la razon por la que el numero del README
-## no puede presentarse como una propiedad de "158 columnas".
+plan <- lupa::plan_perfilado_dbi(
+  conexion, "ancha", universo = "tabla_completa"
+)
 solo_texto <- as.data.frame(
   stats::setNames(
     lapply(seq_len(158L), function(i) sample(letters, N_FILAS, replace = TRUE)),
@@ -89,13 +87,79 @@ solo_texto <- as.data.frame(
   stringsAsFactors = FALSE
 )
 DBI::dbWriteTable(conexion, "ancha_texto", solo_texto)
-plan_texto <- lupa::plan_perfilado_dbi(conexion, "ancha_texto", modo = "exacto")
-cat("\n158 columnas todas de texto: ", attr(plan_texto, "total"),
-    " consultas\n", sep = "")
-
-## ---- Lo que acota `muestra` ----------------------------------------------
-plan_muestreado <- lupa::plan_perfilado_dbi(
-  conexion, "ancha", modo = "muestreado"
+plan_texto <- lupa::plan_perfilado_dbi(
+  conexion, "ancha_texto", universo = "tabla_completa"
 )
-cat("modo muestreado sobre la misma tabla: ", attr(plan_muestreado, "total"),
+plan_muestreado <- lupa::plan_perfilado_dbi(
+  conexion, "ancha", universo = "muestra_motor",
+  muestra_motor = 100L, muestra = 100L
+)
+
+.alcance <- as.character(plan$alcance)
+sin_escanear <- .alcance %in% c("una vez", "lee las filas pedidas")
+tabla_entera <- sum(plan$n_consultas[!sin_escanear])
+
+cat("lupa ", as.character(utils::packageVersion("lupa")), "\n", sep = "")
+cat("revision: ", .revision, "\n", sep = "")
+cat("fecha: ", .fecha, "\n", sep = "")
+cat("columnas: ", ncol(tabla), " sobre ", N_FILAS, " filas\n", sep = "")
+cat("consultas tabla completa: ", attr(plan, "total"), "\n", sep = "")
+cat("consultas si se rechazan todos los lotes: ",
+    attr(plan, "total_lotes_rechazados"), "\n", sep = "")
+cat("consultas que escanean u ordenan la tabla entera: ",
+    tabla_entera, "\n", sep = "")
+cat("158 columnas todas de texto: ", attr(plan_texto, "total"),
     " consultas\n", sep = "")
+cat("muestra del motor: ", attr(plan_muestreado, "total"),
+    " consultas\n", sep = "")
+print(plan[, c("clase_consulta", "n_consultas", "alcance")])
+
+.fila <- function(escenario, medida, valor, unidad = NA_character_,
+                  clase = NA_character_, n_consultas = NA_real_,
+                  alcance = NA_character_) {
+  data.frame(
+    escenario = escenario, medida = medida, valor = as.character(valor),
+    unidad = unidad, clase_consulta = clase, n_consultas = n_consultas,
+    alcance = alcance, stringsAsFactors = FALSE
+  )
+}
+
+resumen <- rbind(
+  .fila("ancha_tabla_completa", "columnas", ncol(tabla), "columna"),
+  .fila("ancha_tabla_completa", "filas_fixture", N_FILAS, "fila"),
+  .fila("ancha_tabla_completa", "consultas", attr(plan, "total"), "consulta"),
+  .fila("ancha_tabla_completa", "consultas_maximas",
+        attr(plan, "total_lotes_rechazados"), "consulta"),
+  .fila("ancha_tabla_completa", "consultas_tabla_entera",
+        tabla_entera, "consulta"),
+  .fila("ancha_solo_texto", "columnas", ncol(solo_texto), "columna"),
+  .fila("ancha_solo_texto", "consultas", attr(plan_texto, "total"), "consulta"),
+  .fila("ancha_muestra_motor", "muestra_motor", 100L, "fila"),
+  .fila("ancha_muestra_motor", "consultas", attr(plan_muestreado, "total"),
+        "consulta")
+)
+detalle <- rbind(
+  .fila(
+    "ancha_tabla_completa", "plan", NA_character_, NA_character_,
+    as.character(plan$clase_consulta), plan$n_consultas, plan$alcance
+  ),
+  .fila(
+    "ancha_solo_texto", "plan", NA_character_, NA_character_,
+    as.character(plan_texto$clase_consulta), plan_texto$n_consultas,
+    plan_texto$alcance
+  ),
+  .fila(
+    "ancha_muestra_motor", "plan", NA_character_, NA_character_,
+    as.character(plan_muestreado$clase_consulta),
+    plan_muestreado$n_consultas, plan_muestreado$alcance
+  )
+)
+salida <- rbind(resumen, detalle)
+salida <- cbind(.entorno[rep(1L, nrow(salida)), , drop = FALSE], salida)
+directorio_datos <- file.path(.raiz_paquete, "benchmark", "datos")
+dir.create(directorio_datos, recursive = TRUE, showWarnings = FALSE)
+archivo_salida <- file.path(
+  directorio_datos, paste0("medir-plan-ancho-", .sello, ".csv")
+)
+utils::write.csv(salida, archivo_salida, row.names = FALSE, na = "")
+cat("Salida:", archivo_salida, "\n")

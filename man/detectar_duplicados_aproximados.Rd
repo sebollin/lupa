@@ -49,9 +49,10 @@ vuelve independiente de cómo estén ordenadas las columnas del archivo.
 \strong{Cómo se concatena, para poder rehacer la distancia.} Los valores se unen
 con \code{" | "}; dentro de cada valor, cada barra invertida \verb{\\} se escribe \verb{\\\\}
 y cada \code{|} se escribe \verb{\\|}. Los escapes no son cosméticos: sin el de \code{|},
-\verb{c1 = "x | y", c2 = "z"} y \verb{c1 = "x", c2 = "y | z"} producían la misma cadena
-y dos filas que \strong{no comparten ningún valor} salían \code{exacto_normalizado} a
-distancia \code{0}; el de \verb{\\} es el que deja leer ese \verb{\\|} de una sola manera, y
+\verb{c1 = "x | y", c2 = "z"} y \verb{c1 = "x", c2 = "y | z"} producirían la misma
+cadena y dos filas que \strong{no comparten ningún valor} saldrían
+\code{exacto_normalizado} a distancia \code{0}; el de \verb{\\} es el que deja leer ese
+\verb{\\|} de una sola manera, y
 el que distingue un valor declarado \code{bytes} del literal de su escape. Con
 los dos, la distancia publicada de una comparación de varias columnas se
 rehace así —y la de una sola, con el mismo \code{escapar()} y sin pegar—:
@@ -208,7 +209,7 @@ combinacion completa se declara fuera de alcance en
 \code{alcance$columnas_excluidas_largo}, y \code{alcance$largo_maximo} publica el
 largo comparado; no se recortan valores en silencio. Con el tope en \code{Inf} no
 se mide ningun largo y \code{largo_maximo} vale \code{NA}, no cero.
-\code{Inf} recupera explicitamente el comportamiento anterior sin tope.}
+\code{Inf} quita el tope.}
 }
 \value{
 Lista de clase \code{duplicados_aproximados} con \code{pares}, \code{hallazgos},
@@ -236,10 +237,9 @@ otros). Si quedan mas de dos columnas, la funcion pide indicar \code{columnas}
 explicitamente en vez de mezclar campos que pueden diluir la similitud. La
 medida predeterminada es Jaro--Winkler (\code{"jw"}), con \code{p = 0.1}: Winkler
 favorece coincidencias con el mismo prefijo y, por eso, premia una errata al
-final mas que una al comienzo. El umbral predeterminado es \code{0.10}. Estos dos
-valores cambian respecto de versiones anteriores y pueden cambiar los pares
-informados; el umbral se eligio como una precision prudente, no como una
-calibracion fina. Ambos argumentos se pueden cambiar.
+final mas que una al comienzo. El umbral predeterminado es \code{0.10}, que apunta
+a una precisión prudente y no es una calibración fina. Ambos argumentos se
+pueden cambiar.
 }
 \details{
 \code{tipo_par = "exacto"} indica que los textos guardados son iguales en las
@@ -288,10 +288,10 @@ modo, el tamaño de las teselas o los parámetros LSH y los que quedaron fuera. 
 El recorte conserva los pares mas cercanos y, entre los empatados en
 distancia, desempata por el \strong{rango canonico del valor} con una clave
 simetrica. Es la misma regla que gobierna el recorte del vocabulario, y existe
-por lo mismo: desempatar por posicion de fila hacia que cuales pares
-sobrevivieran dependiera de como viniera ordenado el archivo. Medido sobre 60
-pares empatados con el corte en 30, cinco ordenes distintos devolvian 30 grupos
-cada uno sin compartir ninguno; ahora devuelven los mismos.
+por lo mismo: desempatar por posición de fila haría que los pares que
+sobreviven dependieran de cómo viene ordenado el archivo. Con la clave
+simétrica, el mismo archivo en cualquier orden de filas conserva los mismos
+pares.
 
 Lo que ningun orden evita es que un corte dentro de un empate deje afuera pares
 igual de cercanos, asi que se declara. \code{alcance} publica \code{distancia_corte} —la
@@ -345,8 +345,8 @@ MinHash con bandas LSH sobre todas las filas cuando \code{muestra = Inf}. La
 salida declara las bandas, las filas por banda, las cubetas descartadas y la
 probabilidad teorica de colision. Esa probabilidad se refiere al Jaccard de
 los q-gramas, no a la medida final (\code{metodo}). \code{estrategia = "lsh"} fuerza
-este camino; \code{"teselas"} y \code{"muestra"} conservan el camino exacto o
-muestreado de las versiones anteriores. Las cubetas que superan
+este camino; \code{"teselas"} y \code{"muestra"} fuerzan el camino exacto por teselas
+o el muestreado. Las cubetas que superan
 \code{lsh_max_cubeta} se procesan igualmente por lotes; el parámetro identifica
 cubetas potencialmente costosas, pero no descarta sus pares. El alcance
 separa \code{lsh_teselas_cubetas_grandes} (matrices del primer tramo) de

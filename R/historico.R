@@ -1422,9 +1422,9 @@ leer_historico <- function(archivo) {
 #'   configuración lleva un número que con 15 cifras no vuelve a su valor
 #'   —`maximo = 1/3`, `0.1 + 0.2`, un umbral calculado con `quantile()`— o un
 #'   instante con fracción de segundo declara **una vez** esa fila, con
-#'   severidad `error`, contra la primera corrida nueva: la versión anterior
-#'   escribía el número con 15 cifras (`0.333333333333333`) y el instante cortado
-#'   al segundo, y la actual con las cifras que los devuelven a su valor
+#'   severidad `error`, contra la primera corrida nueva: esas corridas guardan
+#'   el número con 15 cifras (`0.333333333333333`) y el instante cortado al
+#'   segundo, y las nuevas con las cifras que los devuelven a su valor
 #'   (`0.3333333333333333`). La fila de resultado de ese par conserva su
 #'   veredicto, y desde ahí la serie aparea.
 #'

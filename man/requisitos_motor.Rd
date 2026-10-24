@@ -23,10 +23,13 @@ una comprobación específica: cuando corresponde, la columna lo deja como
 \code{no_comprobada} y conserva las rutas de resolución posibles.
 }
 \details{
-El estado \code{probado} se copia de la tabla de motores de los README. \code{esperado}
+El estado \code{probado} se toma de la verificación que corre
+\code{benchmark/verificar_motor.R} en el repositorio del paquete; el artículo
+"Motores y escala" del sitio publica, por motor, la versión del servidor, el
+controlador, la fecha y el resultado de cada comprobación. \code{esperado}
 significa que el dialecto está implementado pero no se comprobó contra ese
-motor real en este repositorio. Los motores que no figuran en esa tabla no se
-presentan como probados.
+motor real en esa verificación. Los motores que no cubre no se presentan como
+probados.
 
 Ante una conexión abierta, \code{coleccion()} y \code{perfilar_coleccion()} piden el
 paquete del \strong{controlador con que se abrió}, que reconocen por la clase de

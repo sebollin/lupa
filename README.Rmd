@@ -1,0 +1,341 @@
+---
+output:
+  github_document:
+    html_preview: false
+    pandoc_args: ["--wrap=preserve"]
+params:
+  idioma: "en"
+---
+
+<!-- README.md is generated from README.Rmd: edit that file and knit it with data-raw/tejer-readmes.R. -->
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(collapse = TRUE, comment = "#>")
+knitr::read_chunk("data-raw/readme-trozos.R")
+```
+
+```{r preparar, include = FALSE}
+```
+
+# lupa <a href="https://sebollin.github.io/lupa/"><img src="man/figures/logo.png" align="right" height="139" alt="lupa website" /></a>
+
+Data profiling and quality measurement with evidence: every result declares
+its scope and what it could not measure.
+
+<!-- badges: start -->
+[![License: GPL-3](https://img.shields.io/badge/license-GPL--3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0.html)
+[![R-CMD-check](https://github.com/sebollin/lupa/actions/workflows/R-CMD-check.yaml/badge.svg)](https://github.com/sebollin/lupa/actions/workflows/R-CMD-check.yaml)
+[![Repo status: active](https://www.repostatus.org/badges/latest/active.svg)](https://www.repostatus.org/#active)
+[![README en español](https://img.shields.io/badge/README-espa%C3%B1ol-2e7d32.svg)](https://github.com/sebollin/lupa/blob/main/README.es.md)
+<!-- badges: end -->
+
+## What it does and who it is for
+
+`lupa` examines a table or a database before you trust it. It finds what
+`summary()` misses: missing values disguised as `"S/D"` (*sin dato*, "no data")
+or `-99`, the same value written in several ways, dates in mixed formats,
+repeated rows and columns, structure nobody declared. It reports which rows each
+problem is in and which checks it could not run. It then helps turn what has
+been confirmed into explicit measurements, evaluate them, clean a copy with an
+editable plan and compare successive deliveries of the same data. It is meant
+for anyone who analyzes, produces or publishes tabular data and needs to know
+how far it can be trusted before using it.
+
+What sets it apart is under the hood. It does not reduce quality to a score: it
+collects the contradictions it finds, each with its type, its severity and its
+evidence. Every figure carries its scope: how many rows it was computed on and
+whether a sample was taken. Whatever could not be measured is declared with its
+reason and never counts as zero. And profiling does not modify the input.
+
+## Installation
+
+Install the development version from GitHub:
+
+```{r instalar, eval = FALSE}
+```
+
+It depends only on [`cli`](https://cran.r-project.org/package=cli) and
+[`data.table`](https://cran.r-project.org/package=data.table). Suggested packages enable specific capabilities: [`DBI`](https://cran.r-project.org/package=DBI)
+with a driver ([`RSQLite`](https://cran.r-project.org/package=RSQLite),
+[`duckdb`](https://cran.r-project.org/package=duckdb), [`RPostgres`](https://cran.r-project.org/package=RPostgres)
+or [`odbc`](https://cran.r-project.org/package=odbc)) to profile inside a
+database, [`stringdist`](https://cran.r-project.org/package=stringdist) for
+approximate text comparison and [`sf`](https://cran.r-project.org/package=sf) for
+geometries. The API, the help pages and the guides are in Spanish, and the
+public names are part of the contract. What the package prints is in Spanish
+too, so the outputs below appear exactly as `lupa` writes them.
+
+## In thirty seconds
+
+`datos_operativos` ships with the package: `r nrow(datos_operativos)` rows and `r ncol(datos_operativos)` columns
+with planted defects. One call profiles it; start with the findings of severity
+`error`:
+
+```{r treinta-segundos}
+```
+
+```{r cifras, include = FALSE}
+```
+
+```{r comprobar-perfil, include = FALSE}
+```
+
+A `columna` of `<NA>` marks a finding about the whole table, such as the
+duplicate rows.
+
+What could not be measured does not disappear. In this table `r n_sin_evaluar` diagnostics
+were left unevaluated, counting each one in every column where it could not run
+(the outlier search, for instance, needs more values than the table has), and
+`cobertura(perfil)` says which ones, in which column, why and how to resolve them:
+
+```{r treinta-segundos-cobertura}
+```
+
+## What it reveals that `summary()` does not
+
+`summary()` describes columns one at a time. `lupa` compares representations
+and cross-checks columns and rows. It returns its findings as a table: type,
+severity, evidence, counts, a suggestion and traceability down to the rows.
+A finding type that does not appear is a diagnostic that ran and found nothing;
+what did not run is in `cobertura()`.
+
+Among the outputs of that run are:
+
+| What it reveals | `tipo_hallazgo` | Evidence (excerpt) |
+| --- | --- | --- |
+| Missing values hidden behind codes | `faltantes_disfrazados` | `r ev("faltantes_disfrazados", "canal")` |
+| Dates in mixed formats | `formatos_fecha_mixtos` | `r ev("formatos_fecha_mixtos")` |
+| Extra whitespace | `espacios_sobrantes` | `r ev("espacios_sobrantes")` |
+| Inconsistent capitalization | `mayusculas_inconsistentes` | `r ev("mayusculas_inconsistentes")` |
+| Declared and inferred types disagree | `tipo_declarado_distinto` | `r ev("tipo_declarado_distinto")` |
+| A constant column | `constante` | `r ev("constante")` |
+| Exact duplicate rows | `filas_duplicadas` | `r ev("filas_duplicadas")` |
+| Repeated columns | `columnas_duplicadas` | `r ev("columnas_duplicadas")` |
+
+The full vocabulary, with what each finding type means, is in the article
+[Alcance y cobertura](https://sebollin.github.io/lupa/articles/alcance-y-cobertura.html) (*Scope and coverage*).
+
+## How to read a profile
+
+`severidad` (severity) is an ordered factor: `ok < sospechoso < error`.
+
+- `ok` records an informative condition, not an approval: a column that looks
+  like an identifier is `ok`.
+- `sospechoso` (suspicious) asks for a look in context: `alta_cardinalidad`
+  (high cardinality) in `codigo_usuario` suggests checking whether the column is
+  free text, an identifier or a poorly normalized category.
+- `error` means that a check crossed its declared criterion. It is the only
+  level worth using as an automatic gate, and only after accepting that criterion.
+
+With `clave` (key), each finding carries the values that identify its rows, so
+the case can be looked up in the source system without opening the table:
+
+```{r clave}
+```
+
+```{r comprobar-clave, include = FALSE}
+```
+
+The warning, which says that the declared key is not unique, is part of the
+answer: `datos_operativos` has a duplicated row, so no key can be unique, and
+the profile records this as a `clave_no_unica` finding of severity `error`.
+
+What could not be measured is recorded, never counted as zero. That is why an
+automated check that looks for `error` must also read `cobertura()`: zero
+errors with unevaluated diagnostics is not a clean profile.
+
+Counts (rows, missing values, distinct values, exact duplicates and summaries)
+use every row; patterns, types and date formats are inferred from a systematic
+sample of up to `r muestra_perfilar` rows (`muestra`). The guide
+[Leer un perfil](https://sebollin.github.io/lupa/articles/leer-un-perfil.html) (*Reading a profile*)
+explains each column of the findings, keys, disagreements between columns and
+the glossary.
+
+## What sets it apart and where it fits
+
+To summarize and plot columns there are [`skimr`](https://cran.r-project.org/package=skimr)
+and [`DataExplorer`](https://cran.r-project.org/package=DataExplorer); to
+diagnose a table and write up its report, [`dlookr`](https://cran.r-project.org/package=dlookr)
+and [`dataReporter`](https://cran.r-project.org/package=dataReporter); to evaluate
+rules that someone has already written, [`validate`](https://cran.r-project.org/package=validate),
+[`pointblank`](https://cran.r-project.org/package=pointblank), [`assertr`](https://cran.r-project.org/package=assertr)
+and [`dataquieR`](https://cran.r-project.org/package=dataquieR). `lupa` works on the stretch before the
+rule and on the one after it: it finds what no rule names yet, proposes what to
+measure without built-in thresholds and, once a rule is confirmed, measures it
+with its scope, cleans a copy and compares deliveries. It is meant to be used
+alongside those packages, not instead of them.
+
+## Function map
+
+| Task | Main functions | Guide |
+| --- | --- | --- |
+| Look at a table for the first time | `perfilar()`, `hallazgos()`, `columnas()`, `cobertura()` | [Empezar en diez minutos](https://sebollin.github.io/lupa/articles/lupa.html), [Leer un perfil](https://sebollin.github.io/lupa/articles/leer-un-perfil.html) |
+| Explore columns and share the result | `analizar()`, `distribucion_valores()`, `detectar_asociaciones()`, `analizar_tiempo()`, `reportar()`, `guardar_analisis()` | [Explorar columnas con `analizar()`](https://sebollin.github.io/lupa/articles/explorar-columnas.html) |
+| Find structure and legitimately empty cells | `detectar_claves()`, `sugerir_clave()`, `detectar_relaciones()`, `detectar_dependencias()`, `detectar_discordancias()`, `perfilar_por()` | [Estructura no declarada](https://sebollin.github.io/lupa/articles/estructura-no-declarada.html), [El vacío por diseño](https://sebollin.github.io/lupa/articles/vacio-por-diseno.html) |
+| Clean without touching the original | `planificar_limpieza()`, `guiar_limpieza()`, `aplicar()`; the `reparar_codificacion` strategy for mis-encoded text | [Limpiar con un plan](https://sebollin.github.io/lupa/articles/limpiar-con-un-plan.html) |
+| Define, measure and evaluate quality | `proponer_modelo()`, `marco_calidad()`, `metrica()`, `modelo()`, `medir()`, `agregar()`, `evaluar()`, `tablero_calidad()` | [Del hallazgo a la métrica](https://sebollin.github.io/lupa/articles/del-hallazgo-a-la-metrica.html), [Marcos y modelos de calidad](https://sebollin.github.io/lupa/articles/marcos-y-modelos.html) |
+| Compare deliveries and track quality over time | `comparar_perfiles()`, `comparar_equivalencia()`, `historico_calidad()`, `detectar_deriva_calidad()` | [Comparar entregas y seguir la calidad](https://sebollin.github.io/lupa/articles/historico-y-deriva.html) |
+| Profile a database or a collection of tables | `perfilar_dbi()`, `plan_perfilado_dbi()`, `requisitos_motor()`, `coleccion()`, `perfilar_coleccion()` | [Perfilar una base](https://sebollin.github.io/lupa/articles/perfilar-una-base.html), [Colecciones](https://sebollin.github.io/lupa/articles/colecciones.html) |
+| Find approximate duplicates | `detectar_duplicados_aproximados()`, `estimar_costo()` | [Escala y duplicados aproximados](https://sebollin.github.io/lupa/articles/escala-y-duplicados.html) |
+
+The [reference](https://sebollin.github.io/lupa/reference/) documents every function.
+
+## Profiling a database: what comes into R
+
+`perfilar_dbi()` returns two blocks: `resumen_tabla`, with the aggregates that
+the engine computes in SQL, and `perfil_muestra`, the row-level profile of what
+is read into R. By default the aggregates use the whole table and the row-level
+profile tries to bring in **all** the rows that fit within the caps: it is not a
+cheap sample.
+
+```{r base}
+```
+
+```{r comprobar-base, include = FALSE}
+```
+
+| Option | SQL aggregates over | Brings rows into R? |
+| --- | --- | --- |
+| Default: `universo = "tabla_completa"`, `muestra = Inf` | the whole table | Yes: all that fit within the cell and byte caps |
+| `muestra = n` | the whole table | Yes, up to `n`: it bounds the read, not the aggregates |
+| `universo = "muestra_motor"`, `muestra_motor = n` | a sample taken by the engine | Yes, the rows in that sample |
+| `bloque_muestra = "solo_agregados"` | whatever `universo` says | No: aggregates only, no row-level findings |
+
+Without `orden_muestra`, a `muestra = n` read gets the first rows the engine
+returns, in an order SQL does not guarantee; with `orden_muestra` the read can be
+reproduced. What was read into R is described in `perfil_muestra$meta$origen_dbi$muestreo`;
+`resumen_tabla$meta$muestreo` exists only with `universo = "muestra_motor"`. There
+is no snapshot: `resumen_tabla$meta$snapshot` is `FALSE`, because each aggregate
+is measured in its own query and the table can change from one query to the next.
+
+The package is tested against `r motores_probados`;
+`requisitos_motor()` says what each engine needs. The versions, the drivers and
+the date of each run are in the article [Motores y escala](https://sebollin.github.io/lupa/articles/motores-y-escala.html#motores-probados) (*Engines and scale*),
+and the step-by-step walkthrough is in [Perfilar una base](https://sebollin.github.io/lupa/articles/perfilar-una-base.html).
+
+## Limits to know before a large run
+
+- **Sample caps.** What is read into R, or sampled within R, stops at
+  `r max_celdas` cells (`max_celdas_muestra`) and `r max_mib` MiB (`max_bytes_muestra`),
+  and the cut is recorded in `cobertura()` together with the cap that triggered it ([Motores y escala](https://sebollin.github.io/lupa/articles/motores-y-escala.html#topes)).
+- **Cost policy.** In `perfilar_dbi()`, `politica_costo = "todas"` (the
+  default) computes the mode and the median in every column; `"por_cardinalidad"` skips
+  the mode where the proportion of distinct values reaches `umbral_cardinalidad` (`r umbral_cardinalidad`),
+  and `plan_perfilado_dbi()` shows the queries before running them ([Motores y escala](https://sebollin.github.io/lupa/articles/motores-y-escala.html#politica-de-costo)).
+- **Approximate duplicates.** They are off by default. `detectar_duplicados_aproximados()`
+  runs an exact comparison of up to `r max_pares` pairs (`max_pares`). With the
+  default strategy (`"auto"`), no sample and that cap, more than ten thousand
+  rows take it to MinHash/LSH, which can miss pairs and says so (candidates,
+  bands and the collision guarantee); with a lower `max_pares` or a sample it
+  stays with the exact or sampled comparison, and `estrategia = "lsh"` forces it.
+  `estimar_costo()` anticipates the switch ([Escala y duplicados aproximados](https://sebollin.github.io/lupa/articles/escala-y-duplicados.html)).
+- **Wide tables.** From `r celdas_aviso_ancha` cells up, an interactive session
+  gets a notice of how long `perfilar()` may take; the estimate relies on an
+  assumption built into the code (`r celdas_por_segundo` cells per second), not on a measurement
+  of the machine; the dated measurements are in [Evidencia y rendimiento](https://sebollin.github.io/lupa/articles/evidencia-y-rendimiento.html).
+- **Millions of rows in memory.** `perfilar()` and `analizar()` take minutes, not
+  seconds: profile a sample or use `perfilar_dbi()` instead. The measured figures,
+  with their dates, are in [Evidencia y rendimiento](https://sebollin.github.io/lupa/articles/evidencia-y-rendimiento.html) (*Evidence and performance*).
+
+## A report in a single file
+
+`analizar()` gathers the profile, the distributions, the associations and the
+temporal analysis into one object, together with a proposed quality model, its
+dashboard and a cleaning plan; `reportar()` writes it all to a self-contained
+HTML file for sharing.
+
+```{r informe, eval = FALSE}
+```
+
+```{r comprobar-informe, include = FALSE}
+```
+
+The proposal is only a suggestion: domains and patterns learned from the same
+delivery are proposed as inactive and are not measured until someone confirms them.
+`guardar_analisis()` and `leer_analisis()` save and restore the whole analysis. The guide
+is [Explorar columnas con `analizar()`](https://sebollin.github.io/lupa/articles/explorar-columnas.html) (*Exploring columns with `analizar()`*).
+
+## What it does not do
+
+`lupa` does not turn the name of a quality framework into a measurement. A
+framework is a taxonomy: a factor is measured when the data provide evidence for
+it or when the requirement and the metric that measures it are declared. This is
+the coverage of the included frameworks:
+
+| Framework | Factors | Reachable by declaring | Out of scope | Measured by `perfilar()` alone |
+| --- | ---: | ---: | ---: | ---: |
+| AGESIC | `r cob["AGESIC", "filas"]` | `r cob["AGESIC", "declarando"]` | `r cob["AGESIC", "fuera"]` | `r cob["AGESIC", "solo"]` |
+| CEPAL | `r cob["CEPAL", "filas"]` | `r cob["CEPAL", "declarando"]` | `r cob["CEPAL", "fuera"]` | `r cob["CEPAL", "solo"]` |
+| ISO/IEC 25012 | `r cob["ISO", "filas"]` | `r cob["ISO", "declarando"]` | `r cob["ISO", "fuera"]` | `r cob["ISO", "solo"]` |
+
+The `r cob["CEPAL", "fuera"]` CEPAL principles that are out of scope concern the
+statistical system and its institutional process, not the values in a
+table. ISO/IEC 25012 is fully covered once its requirements and metrics are
+declared. `cobertura_analisis()` reports which factors were measured; the
+absence of findings is not a claim that the data are good.
+
+Nor does it certify a dataset or invent a global score:
+`indice_calidad()` computes an index only from the weights the project declares.
+And it does not modify the input: no analysis function alters the table it
+receives (not its values, types, names or attributes), not even a
+`data.table`. Cleaning returns a copy and leaves the original intact.
+
+## The learning path
+
+The guides are meant to be read in this order. They are on the website and ship
+with the package (`vignette("lupa")` opens the first one):
+
+1. [Empezar en diez minutos](https://sebollin.github.io/lupa/articles/lupa.html) (*Getting started in ten minutes*): profile a table, start with the errors, go from a finding to its rows with `clave`, read the coverage, save a report and clean a column in a copy.
+2. [Leer un perfil](https://sebollin.github.io/lupa/articles/leer-un-perfil.html) (*Reading a profile*): the severities, what each finding carries, the accessors, keys, contradictions between columns and the glossary.
+3. [Explorar columnas con `analizar()`](https://sebollin.github.io/lupa/articles/explorar-columnas.html) (*Exploring columns with `analizar()`*): what `analizar()` builds in a single call; how to read patterns, types, dates, distributions, associations and time; and how to save and report the result.
+4. [Estructura no declarada](https://sebollin.github.io/lupa/articles/estructura-no-declarada.html) (*Undeclared structure*): candidate keys, relationships between tables and dependencies between columns.
+5. [El vacío por diseño](https://sebollin.github.io/lupa/articles/vacio-por-diseno.html) (*Empty by design*): empty cells that are correct, the signal that asks for them to be declared and everything else that can be declared to the package.
+6. [Limpiar con un plan](https://sebollin.github.io/lupa/articles/limpiar-con-un-plan.html) (*Cleaning with a plan*): what the plan proposes, how it is applied to a copy and what it leaves uncovered.
+7. [Del hallazgo a la métrica](https://sebollin.github.io/lupa/articles/del-hallazgo-a-la-metrica.html) (*From finding to metric*): from findings to a proposed set of metrics, which are measured, aggregated and evaluated against a threshold.
+8. [Marcos y modelos de calidad](https://sebollin.github.io/lupa/articles/marcos-y-modelos.html) (*Quality frameworks and models*): a custom framework, metrics at three levels, the dashboard, an index with declared weights and the included frameworks.
+9. [Comparar entregas y seguir la calidad](https://sebollin.github.io/lupa/articles/historico-y-deriva.html) (*Comparing deliveries and tracking quality*): compare deliveries, tell a real change from a rounding difference and look for drift in a history.
+10. [Perfilar una base](https://sebollin.github.io/lupa/articles/perfilar-una-base.html) (*Profiling a database*): the two blocks of `perfilar_dbi()`, what each option brings into R and where the sampling metadata is kept.
+11. [Colecciones](https://sebollin.github.io/lupa/articles/colecciones.html) (*Collections*): profile the tables of a database, read what could not be measured and look for relationships between them.
+12. [Escala y duplicados aproximados](https://sebollin.github.io/lupa/articles/escala-y-duplicados.html) (*Scale and approximate duplicates*): request the approximate comparison, estimate its cost, know when LSH takes over and what each cap trims.
+
+## For advanced users
+
+The detailed reference lives in four articles on the website, in Spanish.
+Whatever changes the cost, the memory use or the meaning of a result is also in
+the help page of each function, which ships with the package (`?perfilar`, `?perfilar_dbi`,
+`?plan_perfilado_dbi`, `?detectar_duplicados_aproximados`).
+
+| Topic | Where |
+| --- | --- |
+| Universes and sampling in SQL, metadata, tested engines with version and date, costs, batches, memory budgets, consistency across queries, dialects and threads | [Motores y escala](https://sebollin.github.io/lupa/articles/motores-y-escala.html) |
+| What uses every row and what is sampled, `no_aplica` and `no_disponible`, units and traceability, sequential numberings, sentinels, the full finding vocabulary and what gets masked | [Alcance y cobertura](https://sebollin.github.io/lupa/articles/alcance-y-cobertura.html) |
+| Evidence benchmarks, performance figures and figures from production data, each with its date and its reproducer | [Evidencia y rendimiento](https://sebollin.github.io/lupa/articles/evidencia-y-rendimiento.html) |
+| Printing in any locale and repairing mis-encoded text | [Codificación y locales](https://sebollin.github.io/lupa/articles/codificacion-y-locales.html) |
+| Every signature, default value and return structure | [Reference](https://sebollin.github.io/lupa/reference/) |
+
+Each piece of evidence states how it is reproduced: whether it regenerates
+offline, needs a database engine or depends on a downloaded resource, with its
+date and checksum ([Evidencia y rendimiento](https://sebollin.github.io/lupa/articles/evidencia-y-rendimiento.html)).
+
+## Citation, license and contributing
+
+```{r cita, eval = FALSE}
+```
+
+The conceptual references are [Batini and Scannapieco (2016)](https://doi.org/10.1007/978-3-319-24106-7),
+the [Data Quality Management Framework for Digital Government v1.6](https://www.gub.uy/agencia-gobierno-electronico-sociedad-informacion-conocimiento/)
+by AGESIC, the [CEA/CEPAL quality assurance framework (2022)](https://repositorio.cepal.org/handle/11362/47464)
+and [ISO/IEC 25012:2008](https://www.iso.org/standard/35736.html).
+
+`lupa` is not on CRAN yet, and its public API may change before 1.0;
+breaking changes are announced in [NEWS](NEWS.md), with a deprecation warning
+first whenever possible. The stable contracts are the declared units, the
+scope, the protection of personal data and the audit log; implementation
+details and timings may change as long as those contracts still hold.
+
+Bugs, proposals and documentation fixes go to the
+[issue tracker](https://github.com/sebollin/lupa/issues), and
+[CONTRIBUTING.md](CONTRIBUTING.md) explains how to contribute. `lupa` is released
+under the [GPL-3](https://www.gnu.org/licenses/gpl-3.0.html); [`LICENSE.note`](LICENSE.note)
+details the Apache-2.0 data derived from [`ftfy`](https://github.com/rspeer/python-ftfy)
+and the MIT data derived from [`naniar`](https://github.com/njtierney/naniar).

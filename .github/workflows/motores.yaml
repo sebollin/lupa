@@ -1,14 +1,12 @@
-# Verifica la superficie DBI contra motores REALES levantados como servicios.
+# Verifica la superficie DBI contra motores REALES levantados como servicios, con
+# `benchmark/verificar_motor.R`: el mismo guion que produce la matriz de motores
+# del articulo "Motores y escala", corrido en cada push sobre dos de ellos.
 #
-# Existe porque la fila "probado contra el motor real" de la tabla de motores de
-# los README dependia de que alguien se acordara de correrlo a mano: se media
-# una vez, quedaba en notas, y la tabla envejecia sin avisar. Ahora se rehace en
-# cada push.
-#
-# PostgreSQL y MariaDB corren como servicios de GitHub Actions. Los que exigen
-# un cliente propietario -Oracle, SQL Server- se verifican a mano y su fila de la
-# tabla dice con que fecha; meterlos aca pediria credenciales o imagenes que no
-# corresponde poner en un repositorio publico.
+# PostgreSQL y MariaDB corren como servicios de GitHub Actions. Los demas -MySQL,
+# SQL Server, PostgreSQL 9.3- se verifican con el mismo guion contra contenedores
+# locales, y la matriz publicada dice con que fecha y sobre que codigo; meter SQL
+# Server aca pediria un cliente propietario. El guion sale con 1 si el motor no
+# responde: un trabajo verde es un motor medido.
 on:
   push:
     branches: [main, master]
@@ -30,8 +28,10 @@ jobs:
         include:
           - motor: postgres
             paquete: RPostgres
+            puerto: 5432
           - motor: mariadb
             paquete: RMariaDB
+            puerto: 3306
 
     services:
       postgres:
@@ -60,6 +60,7 @@ jobs:
       GITHUB_PAT: ${{ secrets.GITHUB_TOKEN }}
       LUPA_MOTOR: ${{ matrix.motor }}
       LUPA_DB_HOST: 127.0.0.1
+      LUPA_DB_PORT: ${{ matrix.puerto }}
       LUPA_DB_NAME: lupa
       LUPA_DB_USER: lupa
       LUPA_DB_PASS: lupa_ci

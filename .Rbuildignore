@@ -18,3 +18,6 @@
 ^lupa_.*\.tar\.gz$
 ^.*\.Rcheck$
 ^LICENSE\.md$
+^README\.Rmd$
+^README\.es\.Rmd$
+^vignettes/articles$

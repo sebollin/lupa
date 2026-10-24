@@ -1254,7 +1254,7 @@
     .html_tabla(x$asociaciones, max_filas), "</section>"
   )
   temporal <- paste0(
-    "<section><h2>Analisis temporal</h2>",
+    "<section><h2>An\u00e1lisis temporal</h2>",
     paste0(
       "<p class=\"nota\">Las frecuencias inferidas son propuestas no ",
       "confirmadas; los rangos y huecos personales se marcan como ",
@@ -1296,7 +1296,7 @@
     .html_tabla(x$advertencias, max_filas), "</section>"
   )
   paste0(
-    "<section><h2>Analisis integral</h2><p class=\"meta\">Esquema ",
+    "<section><h2>An\u00e1lisis integral</h2><p class=\"meta\">Esquema ",
     .html_texto(x$meta$version_esquema), "; datos conservados: ",
     .html_texto(x$meta$datos_conservados), ".</p></section>",
     advertencias,

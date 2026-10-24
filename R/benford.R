@@ -276,7 +276,7 @@
   etiquetas <- c(
     sin_variacion = "sin variacion",
     codigo_declarado = paste(
-      "la columna se declaro en `columnas_codigo`, asi que es un codigo y no",
+      "la columna se declar\u00f3 en `columnas_codigo`, as\u00ed que es un c\u00f3digo y no",
       "una magnitud"
     ),
     parece_identificador = if (isTRUE(resultado$clave_declarada)) {

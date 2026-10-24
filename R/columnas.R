@@ -1081,8 +1081,8 @@
   cuantitativo$densidad_sin_centinela <- NA_real_
   cuantitativo$estado_outliers <- "codigo_declarado"
   cuantitativo$motivo_outliers <- paste(
-    "No se evaluaron los limites de Tukey: la columna se declaro en",
-    "`columnas_codigo`, asi que es un codigo y no una magnitud. Que un codigo",
+    "No se evaluaron los l\u00edmites de Tukey: la columna se declar\u00f3 en",
+    "`columnas_codigo`, as\u00ed que es un c\u00f3digo y no una magnitud. Que un c\u00f3digo",
     "quede lejos de la mediana no dice nada de su calidad."
   )
   cuantitativo$estado_resumen_cuantitativo <- "omitidos_codigo"
@@ -1334,7 +1334,7 @@
     if (cuantitativos$clase %in% c("numero", "integer64")) {
       vacio$estado_outliers <- "no_evaluado"
       vacio$motivo_outliers <- paste(
-        "No se evaluaron los limites de Tukey porque no hay valores finitos;",
+        "No se evaluaron los l\u00edmites de Tukey porque no hay valores finitos;",
         "se requieren al menos 20 valores finitos y un IQR positivo."
       )
     }
@@ -1377,15 +1377,15 @@
     n_outliers <- NA_integer_
     estado_outliers <- "no_evaluado"
     motivo_outliers <- paste0(
-      "No se evaluaron los limites de Tukey: hay ", length(valores),
-      " valores finitos y se requieren al menos 20. Reunir mas observaciones",
+      "No se evaluaron los l\u00edmites de Tukey: hay ", length(valores),
+      " valores finitos y se requieren al menos 20. Reunir m\u00e1s observaciones",
       " o declarar otro criterio antes de interpretar outliers."
     )
   } else if (!is.finite(iqr) || iqr <= 0) {
     n_outliers <- NA_integer_
     estado_outliers <- "no_evaluado"
     motivo_outliers <- paste(
-      "No se evaluaron los limites de Tukey porque el recorrido",
+      "No se evaluaron los l\u00edmites de Tukey porque el recorrido",
       "intercuartilico es cero; no hay una distancia distributiva que medir.",
       "Reunir valores con variacion o declarar otro criterio antes de",
       "interpretar outliers."
