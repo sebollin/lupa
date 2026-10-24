@@ -1,0 +1,138 @@
+# Validadores internacionales de sintaxis y dígitos de control
+
+Estas funciones son puras y vectorizadas: no consultan la red ni prueban
+la existencia de un país, moneda, buzón o entidad emisora. Los códigos
+se contrastan con copias locales de las listas vigentes al preparar esta
+versión del paquete. Los valores ausentes devuelven `NA`; todo valor
+presente que no cumple el contrato devuelve `FALSE`. Los espacios **al
+borde** se recortan antes de validar —son ruido de captura, no parte del
+dato—, salvo en `validar_url()`, donde un espacio literal en cualquier
+posición rompe la sintaxis y el valor es inválido. Se recorta todo
+espacio: el ASCII, el tabulador y los separadores de Unicode, como el
+espacio duro (U+00A0) que dejan las planillas y las páginas web. Un
+espacio en el medio no se recorta en ningún validador.
+
+## Usage
+
+``` r
+validar_url(x, esquema_obligatorio = TRUE)
+
+validar_iso3166(x, tipo = c("alpha2", "alpha3", "numerico"))
+
+validar_iso4217(x)
+
+validar_correo(x)
+
+validar_luhn(x)
+
+validar_mod97(x)
+```
+
+## Arguments
+
+- x:
+
+  Vector que se desea validar.
+
+- esquema_obligatorio:
+
+  Si es `TRUE`, exige `http://` o `https://`. `TRUE` es el valor
+  estricto por omisión; `FALSE` permite una URL con host sin esquema,
+  como `ejemplo.uy`.
+
+- tipo:
+
+  Forma de código ISO 3166: dos letras (`"alpha2"`), tres (`"alpha3"`) o
+  tres dígitos (`"numerico"`). Los valores numéricos de uno o dos
+  dígitos se completan con ceros a la izquierda.
+
+## Value
+
+Vector lógico de la misma longitud que `x`.
+
+## Details
+
+La respuesta es sobre el dato, no sobre cómo lo escribe R. Un número se
+valida por sus dígitos: el doble `12000000` se lee como `"12000000"`
+aunque `scipen` lo imprima en notación científica. Un doble desde 2^53
+no conserva sus dígitos —es el más cercano de varios enteros— y devuelve
+`FALSE`; el mismo número como texto o como `integer64` sí se valida. Una
+magnitud con clase —`Date`, `POSIXct`, `difftime`, `hms`, `units`— no es
+la escritura de un documento y devuelve `FALSE` (o `NA` donde falta),
+sin validar los días o segundos que guarda. `NaN` es ausente y devuelve
+`NA`, igual que en el resto del paquete. Las letras se pasan a
+mayúsculas sólo dentro de ASCII:
+[`toupper()`](https://rdrr.io/r/base/chartr.html) convierte la s larga
+(U+017F) en `S` y la i sin punto (U+0131) en `I`, y con eso una s larga
+seguida de `e` pasaría por un código ISO; con la conversión limitada a
+ASCII es inválida. Y la marca de codificación del texto —`latin1` o
+UTF-8— no cambia la respuesta.
+
+`validar_correo()` comprueba un subconjunto práctico y deliberadamente
+conservador de la sintaxis `addr-spec`: parte local de puntos y
+caracteres ASCII habituales, seguida por un dominio DNS con al menos un
+punto. No admite comentarios, cadenas entre comillas ni literales de
+dominio válidos en la gramática completa de RFC 5322, y no prueba
+entrega ni existencia.
+
+`validar_url()` comprueba URLs jerárquicas con host y acepta sólo los
+esquemas `http` y `https`: son los esquemas de red que el paquete puede
+reconocer sin atribuir semántica a protocolos arbitrarios. `javascript:`
+y `data:` se rechazan deliberadamente, incluso si se parecen a una
+cadena con dos puntos. Por omisión el esquema es obligatorio; con
+`esquema_obligatorio = FALSE` también se acepta un host como
+`ejemplo.uy`. Se aceptan nombres de dominio Unicode (IDN) y nombres
+ASCII en punycode, puertos entre 1 y 65535, rutas, consultas y
+fragmentos con codificación porcentual válida. No se consultan DNS ni se
+afirma que el recurso exista. Los espacios, separadores Unicode y
+caracteres de control literales hacen que el valor sea inválido; un
+espacio porcentualmente codificado sigue la sintaxis de una URL y no es
+un espacio literal.
+
+`validar_luhn()` acepta únicamente dígitos y aplica el algoritmo de
+Luhn. `validar_mod97()` acepta letras ASCII y dígitos, transforma las
+letras a `A = 10, ..., Z = 35` y exige resto 1 conforme a ISO 7064 MOD
+97-10. No reordena caracteres: protocolos como IBAN deben hacer antes su
+transformación propia.
+
+## References
+
+International Organization for Standardization. *ISO 3166 Country
+Codes*. <https://www.iso.org/iso-3166-country-codes.html>
+
+SIX Group. *ISO 4217 Currency Codes*.
+<https://www.six-group.com/en/products-services/financial-information/market-reference-data/data-standards.html>
+
+Resnick P (2008). *Internet Message Format*, RFC 5322.
+<https://www.rfc-editor.org/info/rfc5322/>
+
+Luhn HP (1960). *Computer for Verifying Numbers*, US Patent 2,950,048.
+<https://patents.google.com/patent/US2950048A/en>
+
+International Organization for Standardization. *ISO/IEC 7064:2003*.
+<https://www.iso.org/standard/31531.html>
+
+## See also
+
+[`pack_validadores()`](https://sebollin.github.io/lupa/reference/pack_validadores.md),
+[`validar_ci_uy()`](https://sebollin.github.io/lupa/reference/validadores_uy.md),
+[`especializar()`](https://sebollin.github.io/lupa/reference/modelo_calidad.md)
+
+## Examples
+
+``` r
+validar_iso3166(c("UY", "CL", "ZZ"))
+#> [1]  TRUE  TRUE FALSE
+validar_iso4217(c("UYU", "CLP", "ZZZ"))
+#> [1]  TRUE  TRUE FALSE
+validar_correo(c("persona@example.org", "sin-arroba"))
+#> [1]  TRUE FALSE
+validar_url(c("https://ejemplo.uy", "ejemplo.uy"))
+#> [1]  TRUE FALSE
+validar_url("ejemplo.uy", esquema_obligatorio = FALSE)
+#> [1] TRUE
+validar_luhn(c("79927398713", "79927398714"))
+#> [1]  TRUE FALSE
+validar_mod97(c("9999123456789012141490", "9999123456789012141491"))
+#> [1]  TRUE FALSE
+```

@@ -1,0 +1,183 @@
+# Detectar dependencias funcionales entre columnas
+
+Busca pares ordenados `determinante -> dependiente`. El cumplimiento es
+la proporción de filas que coincide con el valor modal del dependiente
+para cada valor del determinante; por eso una dependencia aproximada
+señala directamente las filas minoritarias que pueden ser errores de
+carga.
+
+## Usage
+
+``` r
+detectar_dependencias(
+  datos,
+  umbral = 0.995,
+  muestra = 1e+05,
+  max_columnas = 100L,
+  umbral_casi_constante = 0.95,
+  umbral_casi_clave = 0.8,
+  incluir_claves = FALSE,
+  min_observaciones = 10L,
+  max_ejemplos = 5L,
+  max_comparaciones = 200000L,
+  max_trabajo = 1e+08,
+  proteger_datos_personales = TRUE,
+  columnas_personales = character()
+)
+```
+
+## Arguments
+
+- datos:
+
+  Tabla que se desea examinar.
+
+- umbral:
+
+  Cumplimiento mínimo en `[0, 1]`.
+
+- muestra:
+
+  Máximo de filas; `Inf` desactiva el muestreo.
+
+- max_columnas:
+
+  Máximo de columnas analizadas.
+
+- umbral_casi_constante:
+
+  Proporción modal a partir de la cual un determinante se descarta por
+  casi constante.
+
+- umbral_casi_clave:
+
+  Tasa de valores distintos a partir de la cual un determinante se
+  descarta por casi clave, salvo que `incluir_claves` sea verdadero.
+
+- incluir_claves:
+
+  Si se incluyen determinantes únicos, que satisfacen dependencias de
+  forma trivial.
+
+- min_observaciones:
+
+  Mínimo de pares presentes para informar una dependencia.
+
+- max_ejemplos:
+
+  Máximo de contradicciones concretas en `evidencia`.
+
+- max_comparaciones:
+
+  Máximo de pares determinante-dependiente que se comparan. `Inf`
+  desactiva el presupuesto.
+
+- max_trabajo:
+
+  Máximo de unidades fila-par estimadas. `Inf` desactiva el presupuesto
+  que escala con las filas; se combina con `max_comparaciones` y se
+  aplica el límite más restrictivo.
+
+- proteger_datos_personales:
+
+  Si los valores de las columnas clasificadas como dato personal se
+  ocultan en `evidencia`. `TRUE` por omisión; los nombres de columna y
+  los conteos se conservan igual. La clasificación se hace aquí por
+  léxico y por forma —esta función no recibe un perfil—, así que lo que
+  sólo quien conoce los datos sabe personal entra por
+  `columnas_personales`.
+  [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md)
+  la llama con `FALSE` porque protege el perfil entero después.
+
+- columnas_personales:
+
+  Columnas que traen datos personales, declaradas con la misma forma que
+  acepta
+  [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md):
+  nombres de columna, o un vector con nombre donde el nombre es la
+  columna y el valor es el tipo. Sin ella, una columna que el léxico no
+  reconoce —un legajo interno— publica sus valores en `evidencia`. Sólo
+  tiene efecto con `proteger_datos_personales = TRUE`.
+
+## Value
+
+Data frame de clase `dependencias_funcionales`, ordenado por
+cumplimiento y soporte. `evidencia` cita contradicciones concretas, y
+**no publica los valores de una columna clasificada como dato
+personal**: la evidencia de un par que nombra una columna personal sale
+entera como `[evidencia protegida]` —lo mismo que en el perfil— y, en
+las demás, lo que repite un valor de una columna personal de la tabla
+—una observación que cita la cédula— se tapa con el mismo piso que
+aplica
+[`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md).
+Los atributos `muestreado`, `filas_analizadas`, `columnas_analizadas`,
+`columnas_omitidas`, `columnas_descartadas` y `truncado` documentan el
+alcance efectivo. `n_pares_posibles`, `n_pares_comparados`,
+`n_pares_sin_comparar` y `max_comparaciones` documentan el presupuesto
+de comparaciones. `trabajo_estimado`, `trabajo_comparado`,
+`trabajo_sin_comparar`, `unidad_trabajo` y `max_trabajo` documentan el
+presupuesto por filas. `columnas_descartadas` es un data frame que
+explica por qué una columna no se usó como determinante. Una columna
+cuyo nombre se repite en la tabla no entra en ninguna dependencia, de
+ningún lado, y se descarta con el motivo `nombre_repetido`: la fila
+diría `k -> k` sin decir cuál columna es cuál.
+
+## Details
+
+Para evitar resultados vacíos o triviales, se omiten por defecto las
+claves únicas, los determinantes cuya tasa de valores distintos alcanza
+`umbral_casi_clave`, los determinantes cuya moda alcanza
+`umbral_casi_constante` y los dependientes constantes. El valor
+predeterminado de `umbral = 0.995` exige que como máximo 5 de cada 1.000
+filas contradigan la relación. Los ausentes de cualquiera de las dos
+columnas no integran el cálculo. El descarte ocurre antes de construir
+agrupaciones. El valor predeterminado `umbral_casi_clave = 0.8` excluye
+determinantes con menos de 1,25 filas por valor distinto en promedio:
+aun si cumplen, suelen describir una casi-clave y no una regla
+reutilizable. Las columnas compuestas —matrices o arreglos de más de una
+dimensión— no se toman como determinantes ni dependientes: no son
+valores escalares por fila.
+
+El costo crece aproximadamente como `columnas^2 * filas`. `max_columnas`
+conserva las primeras columnas analizables, `max_comparaciones` limita
+el número de pares columna a columna y `muestra` aplica una única
+muestra sistemática a toda la tabla, de modo que las relaciones entre
+filas no se rompen. `max_trabajo` acota el producto entre pares posibles
+y filas analizadas. Es un presupuesto estimado, no una medición de
+segundos: permite que el tope efectivo de pares baje cuando la tabla
+tiene muchas filas. Los atributos del resultado declaran todos los
+recortes.
+
+Una muestra conserva cada fila entera, pero no la cantidad de filas por
+valor: sobre datos agrupados en filas consecutivas, la muestra
+sistemática toma una fila de cada grupo y el determinante parece una
+clave. Por eso los descartes por casi-clave y casi-constante se
+verifican sobre la columna completa; si sólo la muestra los produjo, el
+motivo es `casi_clave_solo_en_muestra` o
+`casi_constante_solo_en_muestra`, la columna sigue fuera —evaluarla
+sobre esa muestra daría dependencias exactas sin evidencia— y
+[`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md) lo
+declara en `cobertura_diagnosticos`.
+
+## See also
+
+[`detectar_claves()`](https://sebollin.github.io/lupa/reference/detectar_claves.md),
+[`proponer_modelo()`](https://sebollin.github.io/lupa/reference/proponer_modelo.md),
+[`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md)
+
+## Examples
+
+``` r
+datos <- data.frame(
+  codigo = rep(1:3, each = 4),
+  descripcion = rep(c("A", "B", "C"), each = 4),
+  valor = seq_len(12)
+)
+detectar_dependencias(datos, min_observaciones = 4)
+#>   determinante dependiente cumplimiento n_evaluados n_grupos n_violaciones
+#> 1       codigo descripcion            1          12        3             0
+#> 2  descripcion      codigo            1          12        3             0
+#>   exacta evidencia
+#> 1   TRUE          
+#> 2   TRUE          
+```

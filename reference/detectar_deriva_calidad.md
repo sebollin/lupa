@@ -1,0 +1,101 @@
+# Detectar deriva en una serie de evaluaciones
+
+Compara corridas consecutivas, ordenadas por fecha dentro de cada perfil
+o regla, y marca cambios significativos en la escala `[0, 1]`. Los
+empates de fecha se resuelven por los bytes de `id_medicion`, de modo
+que la misma secuencia persiste igual bajo cualquier locale.
+
+## Usage
+
+``` r
+detectar_deriva_calidad(historico, nivel = c("perfil", "regla"), umbral = 0.05)
+```
+
+## Arguments
+
+- historico:
+
+  Objeto creado por
+  [`historico_calidad()`](https://sebollin.github.io/lupa/reference/historico_calidad.md).
+
+- nivel:
+
+  `"perfil"` o `"regla"`.
+
+- umbral:
+
+  Cambio absoluto mínimo considerado significativo. El valor
+  predeterminado de `0.05` representa cinco puntos porcentuales: evita
+  tratar como deriva diferencias de redondeo, pero sigue siendo sensible
+  a cambios operativamente visibles.
+
+## Value
+
+Data frame `deriva_calidad` con una fila por par de corridas
+consecutivas. Una mejora significativa conserva severidad `ok`; un
+deterioro de al menos un umbral es `sospechoso` y uno de al menos dos
+umbrales es `error`. `identidad_tabla` separa series de tablas distintas
+y `aspecto` marca el resultado o un cambio de configuracion; `cambio`
+usa `no_comparable` cuando una configuracion del modelo impide comparar
+las corridas —cambió el marco o los tipos de resultado, y entonces la
+fila de resultado no se publica—. Cualquier otro cambio de modelo se
+declara en su fila `configuracion_modelo` sin esa etiqueta: la
+comparación se mantiene, y la fila de resultado del mismo par conserva
+su veredicto. Limitación conocida: una corrida guardada por una versión
+anterior del paquete cuya configuración lleva un número que con 15
+cifras no vuelve a su valor —`maximo = 1/3`, `0.1 + 0.2`, un umbral
+calculado con [`quantile()`](https://rdrr.io/r/stats/quantile.html)— o
+un instante con fracción de segundo declara **una vez** esa fila, con
+severidad `error`, contra la primera corrida nueva: esas corridas
+guardan el número con 15 cifras (`0.333333333333333`) y el instante
+cortado al segundo, y las nuevas con las cifras que los devuelven a su
+valor (`0.3333333333333333`). La fila de resultado de ese par conserva
+su veredicto, y desde ahí la serie aparea.
+
+**Un par que no se puede comparar no recibe veredicto.** Si alguna de
+las dos corridas no evaluó su resultado, `delta`, `cambio_absoluto`,
+`significativo`, `direccion` y `severidad` quedan en `NA` —no en
+`estable` ni en `ok`— y `descripcion` nombra de qué lado falta el
+resultado. Filtrar por `severidad != "ok"` deja fuera esas filas a
+propósito: no son filas sanas, son filas sin medición, y se encuentran
+con `is.na(significativo)`. La comparación es entre corridas
+**consecutivas**: una corrida sin evaluar en medio de la serie deja sin
+veredicto sus dos pares y la deriva no compara por encima de ella. Para
+comparar las corridas de los dos lados, quitar la del medio del
+histórico —`h[h$id_medicion != "B", ]`—. Lo mismo cuando a una de las
+dos corridas le falta su configuración —una tabla armada a mano, o un
+CSV exportado sin las columnas `identidad_tabla` y `configuracion_*`—:
+sin ella no se sabe si las dos miden la misma tabla con el mismo marco,
+así que `cambio` es `no_comparable`, el veredicto queda en `NA` y el
+atributo `cobertura_diagnosticos` lo declara.
+
+**Un cambio de frontera tampoco se compara.** Si las dos corridas no
+dejan afuera las mismas partes declaradas —el nivel `parte_no_medida`
+del histórico: una tabla de la colección que entró o salió del número—,
+sus números no cubren lo mismo: la fila de resultado no se publica y una
+fila `aspecto = "cobertura_frontera"`, `cambio = "no_comparable"`, lo
+declara, con las partes sin medir de cada lado en `evidencia`. Dos
+corridas a las que les falta la misma parte sí se comparan.
+
+## Examples
+
+``` r
+nucleo <- metricas_nucleo()
+instancia <- instanciar(especializar(nucleo$NoNulo), "personas", "edad")
+perfil <- perfil_evaluacion(
+  "Completa", regla_evaluacion("Al menos 90%", function(x) x >= 0.9)
+)
+corrida <- function(edades, id, fecha) {
+  medidas <- medir(modelo(instancia), data.frame(edad = edades),
+                   id_medicion = id, fecha = as.POSIXct(fecha, tz = "UTC"))
+  historico_calidad(medidas, evaluar(medidas, perfil))
+}
+historico <- rbind(
+  corrida(c(20, NA, 35, NA), "enero", "2026-01-31"),
+  corrida(c(20, 41, 35, 52), "febrero", "2026-02-28")
+)
+deriva <- detectar_deriva_calidad(historico)
+deriva[, c("perfil", "resultado_anterior", "resultado_actual", "direccion")]
+#>     perfil resultado_anterior resultado_actual direccion
+#> 1 Completa                0.5                1    mejora
+```

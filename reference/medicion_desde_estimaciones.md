@@ -1,0 +1,174 @@
+# Llevar estimaciones ya calculadas al contrato de medición
+
+`lupa` **no estima**: eso necesita un diseño muestral, estimación de
+varianza y otra disciplina. Lo que sabe hacer es evaluar contra un marco
+declarado. Esta función recibe estimaciones calculadas por otra
+herramienta —`survey`, el paquete
+[`calidad`](https://github.com/inesscc/calidad) del INE de Chile, o
+cualquier otra— y las convierte en una medición que
+[`evaluar()`](https://sebollin.github.io/lupa/reference/evaluar.md)
+entiende.
+
+## Usage
+
+``` r
+medicion_desde_estimaciones(
+  estimaciones,
+  entidad,
+  fuente,
+  atributo = NULL,
+  columnas = NULL,
+  fecha = Sys.time()
+)
+```
+
+## Arguments
+
+- estimaciones:
+
+  Data frame con una fila por estimación y una columna por estadístico.
+  Los nombres reconocidos son los de
+  [`estadisticos_estimacion()`](https://sebollin.github.io/lupa/reference/estadisticos_estimacion.md);
+  se puede renombrar con `columnas`.
+
+- entidad:
+
+  Nombre de la entidad estimada, por ejemplo el tabulado o la población
+  de referencia.
+
+- fuente:
+
+  Texto que declara quién calculó las estimaciones. Es obligatorio: sin
+  él, el resultado no dice de dónde viene.
+
+- atributo:
+
+  Columna opcional de `estimaciones` que nombra el atributo o la celda
+  estimada. Cuando falta, se numeran las filas.
+
+- columnas:
+
+  Vector con nombres para traducir columnas de `estimaciones` a
+  estadísticos reconocidos, en la forma `c(cv = "coef_var")`.
+
+- fecha:
+
+  Fecha y hora de la medición. Se lee como en
+  [`medir()`](https://sebollin.github.io/lupa/reference/medir.md): se
+  guarda en UTC y un texto —`"2026-03-01"`— se lee en UTC, no en el huso
+  de la sesión, así que la misma llamada registra el mismo instante —y
+  el mismo `id_medicion`— en cualquier máquina. Una sola fecha: `NA`,
+  `NULL`, dos fechas o un texto que no se puede leer entero se rechazan.
+
+## Value
+
+Data frame de clase `medicion_calidad` y `medicion` con el contrato de
+[`medir()`](https://sebollin.github.io/lupa/reference/medir.md), más las
+columnas `fuente` y `unidad`: se acumula con
+[`historico_calidad()`](https://sebollin.github.io/lupa/reference/historico_calidad.md)
+y se une con [`rbind()`](https://rdrr.io/r/base/cbind.html) como
+cualquier medición. Su `id_medida` nombra la métrica y la celda estimada
+—`objeto_medible`— y no el número de fila, así que dos tabulados de la
+misma entidad y la misma fecha se pueden unir y evaluar juntos; la misma
+celda medida dos veces sí repite su identificador, y
+[`evaluar()`](https://sebollin.github.io/lupa/reference/evaluar.md) lo
+rechaza.
+
+## Details
+
+Cada estadístico se convierte en **una medida canónica propia**, con su
+métrica, su tipo y su orientación, porque los siete tienen unidades y
+dominios distintos: un coeficiente de variación y un tamaño de muestra
+no se evalúan con la misma regla. Los reconocidos están en
+[`estadisticos_estimacion()`](https://sebollin.github.io/lupa/reference/estadisticos_estimacion.md).
+
+Cada medida declara su procedencia en `fuente`, de modo que nadie lea el
+resultado como si `lupa` lo hubiera calculado. Los estadísticos que la
+tabla no traiga simplemente no producen medidas: no se rellenan con
+ceros ni se estiman.
+
+**Una columna vacía tampoco produce medidas.** Un estadístico cuya
+columna está presente pero no trae ningún valor utilizable no es una
+estimación: no se publica con `resultado = NA`, porque eso sería
+informar como medido lo que nadie midió —y además deja la medición
+inservible, porque
+[`evaluar()`](https://sebollin.github.io/lupa/reference/evaluar.md) la
+rechaza entera—. Esos estadísticos se declaran en el atributo
+`estadisticos_sin_valores`, separados de `estadisticos_ausentes`: no es
+lo mismo no mandar la columna que mandarla sin datos, y la acción de
+quien la preparó es distinta en cada caso. Dentro de una columna que sí
+trae datos, la celda vacía se descarta por la misma razón, y el resto de
+las estimaciones se publica.
+
+**Una celda que no es una estimación también se descarta, y se
+declara.** Un texto que no es un número, o un número fuera del dominio
+de su estadístico —un infinito, en cualquiera; un tamaño de muestra que
+no es un entero no negativo; un error estándar, un coeficiente de
+variación, unos grados de libertad, un efecto de diseño o un tamaño
+efectivo negativos— no se publica: se avisa y queda en el atributo
+`celdas_descartadas`, con la métrica, la celda, el valor recibido y el
+motivo (`no_numerica` o `fuera_de_dominio`). Una columna `factor` se lee
+por el texto de sus niveles, no por sus códigos.
+
+## See also
+
+[`estadisticos_estimacion()`](https://sebollin.github.io/lupa/reference/estadisticos_estimacion.md),
+[`evaluar()`](https://sebollin.github.io/lupa/reference/evaluar.md),
+[`marco_cepal()`](https://sebollin.github.io/lupa/reference/marco_calidad.md)
+
+## Examples
+
+``` r
+estimaciones <- data.frame(
+  celda = c("Montevideo", "Interior"),
+  stat = c(0.42, 0.38),
+  cv = c(0.08, 0.34),
+  n = c(1200L, 90L)
+)
+medicion_desde_estimaciones(
+  estimaciones, entidad = "ech2024", atributo = "celda",
+  fuente = "survey 4.4, diseno complejo declarado por el equipo"
+)
+#>                                                                             id_medida
+#> 1           estimaciones-20261024T234430-ech2024-Estimacion@ech2024$Montevideo-000001
+#> 2             estimaciones-20261024T234430-ech2024-Estimacion@ech2024$Interior-000001
+#> 3 estimaciones-20261024T234430-ech2024-CoeficienteVariacion@ech2024$Montevideo-000001
+#> 4   estimaciones-20261024T234430-ech2024-CoeficienteVariacion@ech2024$Interior-000001
+#> 5        estimaciones-20261024T234430-ech2024-TamanoMuestra@ech2024$Montevideo-000001
+#> 6          estimaciones-20261024T234430-ech2024-TamanoMuestra@ech2024$Interior-000001
+#>                            id_medicion               fecha              metrica
+#> 1 estimaciones-20261024T234430-ech2024 2026-10-24 23:44:30           Estimacion
+#> 2 estimaciones-20261024T234430-ech2024 2026-10-24 23:44:30           Estimacion
+#> 3 estimaciones-20261024T234430-ech2024 2026-10-24 23:44:30 CoeficienteVariacion
+#> 4 estimaciones-20261024T234430-ech2024 2026-10-24 23:44:30 CoeficienteVariacion
+#> 5 estimaciones-20261024T234430-ech2024 2026-10-24 23:44:30        TamanoMuestra
+#> 6 estimaciones-20261024T234430-ech2024 2026-10-24 23:44:30        TamanoMuestra
+#>     metrica_especifica          metrica_instanciada dimension
+#> 1           Estimacion           Estimacion@ech2024 Precision
+#> 2           Estimacion           Estimacion@ech2024 Precision
+#> 3 CoeficienteVariacion CoeficienteVariacion@ech2024 Precision
+#> 4 CoeficienteVariacion CoeficienteVariacion@ech2024 Precision
+#> 5        TamanoMuestra        TamanoMuestra@ech2024 Precision
+#> 6        TamanoMuestra        TamanoMuestra@ech2024 Precision
+#>                 factor orientacion      granularidad tipo_resultado entidad
+#> 1           Estimacion   no_aplica conjuntoEntidades    numero_real ech2024
+#> 2           Estimacion   no_aplica conjuntoEntidades    numero_real ech2024
+#> 3 CoeficienteVariacion     defecto conjuntoEntidades    numero_real ech2024
+#> 4 CoeficienteVariacion     defecto conjuntoEntidades    numero_real ech2024
+#> 5        TamanoMuestra conformidad conjuntoEntidades         entero ech2024
+#> 6        TamanoMuestra conformidad conjuntoEntidades         entero ech2024
+#>     atributo fila     objeto_medible resultado agregacion
+#> 1 Montevideo    1 ech2024$Montevideo      0.42       <NA>
+#> 2   Interior    2   ech2024$Interior      0.38       <NA>
+#> 3 Montevideo    1 ech2024$Montevideo      0.08       <NA>
+#> 4   Interior    2   ech2024$Interior      0.34       <NA>
+#> 5 Montevideo    1 ech2024$Montevideo   1200.00       <NA>
+#> 6   Interior    2   ech2024$Interior     90.00       <NA>
+#>                    unidad                                              fuente
+#> 1 unidad de la estimacion survey 4.4, diseno complejo declarado por el equipo
+#> 2 unidad de la estimacion survey 4.4, diseno complejo declarado por el equipo
+#> 3              proporcion survey 4.4, diseno complejo declarado por el equipo
+#> 4              proporcion survey 4.4, diseno complejo declarado por el equipo
+#> 5                   casos survey 4.4, diseno complejo declarado por el equipo
+#> 6                   casos survey 4.4, diseno complejo declarado por el equipo
+```

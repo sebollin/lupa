@@ -1,0 +1,222 @@
+# Perfilar una tabla por grupos de filas
+
+Aplica
+[`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md) a
+cada grupo de filas por separado y devuelve los hallazgos de todos los
+grupos en una sola tabla. Es la respuesta al formato largo: una tabla
+donde cada fila describe un atributo distinto no es una tabla, son
+muchas apiladas, y perfilarla como si fuera una sola mezcla dominios que
+no tienen nada que ver entre sí.
+
+## Usage
+
+``` r
+perfilar_por(datos, por, clave = NULL, min_filas = 30L, ...)
+```
+
+## Arguments
+
+- datos:
+
+  Data frame a perfilar. Sus nombres de columna tienen que ser
+  distintos: cada grupo se arma por nombre, y con dos columnas iguales
+  se perfilaría una en lugar de la otra. Si los hay, la función se
+  detiene; renómbrelas, por ejemplo con
+  `names(datos) <- make.unique(names(datos))`.
+
+- por:
+
+  Nombre de una columna atómica cuyos valores definen los grupos. Los
+  ausentes forman un grupo propio, con la etiqueta `"(ausente)"`. Si la
+  columna trae ese mismo texto como valor real **y además hay
+  ausentes**, los dos caen en un solo grupo —no se pierde ninguna fila—
+  y la colisión se declara en `cobertura_grupos`, con cuántas filas
+  aporta cada una. Sin ausentes no hay colisión y no se declara ninguna.
+
+  La etiqueta de cada grupo **vuelve a su valor**. En una columna de
+  dobles, [`as.character()`](https://rdrr.io/r/base/character.html) usa
+  15 cifras significativas y dos valores distintos pueden escribirse
+  igual —`1e17` y `1e17 + 32` dan los dos `"1e+17"`—; en ese caso la
+  etiqueta lleva las cifras que hacen falta para distinguirlos
+  (`"1.0000000000000003e+17"`), de modo que cada grupo corresponde a un
+  valor y [`as.numeric()`](https://rdrr.io/r/base/numeric.html) de la
+  etiqueta recupera ese valor exacto. Para la enorme mayoría de los
+  números la etiqueta es la de siempre.
+
+  Lo mismo vale para las otras clases: un `integer64` se etiqueta con
+  sus cifras exactas, aun por encima de 2^53; un complejo, con sus dos
+  partes; una fecha, con su escritura `AAAA-MM-DD`, y una fecha-hora,
+  con su instante en UTC y el rótulo `UTC` —al segundo, con la fracción
+  exacta si la tiene—, la misma escritura en cualquier sesión; la zona
+  declarada de la columna la publica
+  [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md)
+  en `zona_horaria_origen`. No con su número de días o de segundos.
+
+  Si la columna es un **factor**, un nivel declarado sin ninguna fila es
+  un grupo de cero filas: no se perfila y se declara en
+  `cobertura_grupos`, igual que cualquier grupo por debajo de
+  `min_filas`. Eso incluye un nivel llamado `"(ausente)"` sin filas
+  cuando la columna también tiene `NA`: los `NA` se perfilan como su
+  propio grupo, y el nivel vacío se declara aparte.
+
+- clave:
+
+  Nombres de columnas de identidad que se conservan en cada grupo aunque
+  estén enteramente ausentes. Importa: sin la clave de entidad, el
+  diagnóstico de filas duplicadas informa como duplicada cada repetición
+  del valor del atributo.
+
+  **La declaración viaja al perfilado de cada grupo**, igual que si se
+  pasara `clave` a
+  [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md):
+  la ley de Benford no corre sobre esas columnas y la cobertura publica
+  que la clave fue declarada, en vez de deducir que «parece un
+  identificador». Si la clave nombra la columna de agrupación, ese
+  nombre se recorta antes de reenviarlo, porque en la rebanada esa
+  columna ya no está.
+
+- min_filas:
+
+  Grupos con menos filas que este número no se perfilan y se declaran en
+  la cobertura. Tiene que ser un entero positivo: un valor fraccionario
+  se rechaza, en vez de truncarlo y perfilar un grupo que estaba por
+  debajo del umbral. El valor por omisión evita conclusiones sobre
+  grupos donde ningún diagnóstico tiene soporte.
+
+- ...:
+
+  Argumentos enviados a
+  [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md)
+  para cada grupo. Los que acotan el trabajo —`muestra` entre ellos— se
+  aplican **dentro de cada grupo**, no sobre la tabla entera: con
+  `muestra = 100` y grupos de 500 filas, los diagnósticos que muestrean
+  miran 100 de cada grupo. El alcance viaja en la evidencia de cada
+  hallazgo, que declara sobre cuántos valores se midió; `n_filas_grupo`
+  sigue siendo el tamaño del grupo, no el de la muestra. Un nombre
+  abreviado vale lo mismo que el entero, como lo completa R al llamar a
+  [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md):
+  `proteger = FALSE` es `proteger_datos_personales = FALSE` también para
+  las etiquetas de grupo. La bandera, `fecha` y los nombres se validan
+  al entrar, aunque ningún grupo llegue a `min_filas`. Los demás valores
+  los valida
+  [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md)
+  al perfilar el primer grupo: si ninguno llega a `min_filas`, uno
+  inválido no da error.
+
+## Value
+
+Data frame de clase `hallazgos_por_grupo` con las columnas de
+`hallazgos` de
+[`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md)
+precedidas por `grupo` y `n_filas_grupo`. El atributo `cobertura_grupos`
+declara los grupos no perfilados, las columnas enteramente ausentes y
+las declaraciones recortadas por grupo. Su columna lógica
+`grupo_perfilado` dice de qué clase de grupo habla cada fila: hay filas
+sobre grupos que **sí** se perfilaron —la colisión de `"(ausente)"`, las
+columnas descartadas— y filas sobre grupos que no. Sin esa distinción
+`n_filas_grupo` no se podría sumar, porque un grupo perfilado aparece en
+los hallazgos y otra vez en la cobertura.
+
+**Cómo reconciliar las filas.** Hay una fila por grupo y motivo, así que
+un grupo puede aparecer más de una vez; la cuenta se hace sobre grupos
+distintos. La suma de `n_filas_grupo` sobre los grupos distintos —los
+perfilados, que están en los hallazgos y en las filas con
+`grupo_perfilado = TRUE`, más los no perfilados— da las filas de la
+tabla. Para que la cuenta cierre, un grupo perfilado que no produjo
+ningún hallazgo también tiene su fila en `cobertura_grupos`, con
+`grupo_perfilado = TRUE` y ese motivo: si no, no estaría en ninguna de
+las dos tablas.
+
+El atributo `etiquetas_personales` declara si la columna de agrupación
+lleva datos personales. Las etiquetas de grupo **son** valores de esa
+columna, así que la salida los publica —en los hallazgos y en las dos
+tablas de cobertura— aunque
+[`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md)
+enmascare esa misma columna. No se enmascaran aquí porque la etiqueta es
+el eje del resultado y sin ella los grupos no se distinguen; pero
+tampoco ocurre en silencio: se avisa al ejecutar y queda declarado en el
+objeto. Para que no se publiquen, agrupe por una columna seudonimizada.
+Lo mismo, con tipo `contiene_valor_protegido`, cuando la columna de
+agrupación no es personal pero alguna etiqueta contiene un valor
+protegido de otra columna —un proveedor `juanperezsrl` junto a un
+titular protegido «Juan Perez»—: la etiqueta se publica igual, y
+`n_grupos` cuenta cuántas lo contienen. Cada grupo se perfila sobre sus
+filas, pero la salida entera se barre además con los valores protegidos
+de toda la tabla: el titular que en la columna protegida sólo aparece en
+un grupo no se publica en la evidencia de otro. El atributo queda vacío
+cuando ninguna etiqueta lleva datos personales, y también cuando
+`proteger_datos_personales` es `FALSE`, porque entonces ya está
+declarado que se quieren los valores. Si el léxico no reconoce el nombre
+de la columna, decláresela con `columnas_personales`: ese argumento
+—como `columnas_opcionales`, `clave`, `columnas_sin_ceros`,
+`columnas_no_negativas`, `columnas_codigo` y `aplicabilidad`— puede
+nombrar la columna de agrupación, y se recorta de lo que se envía a
+[`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md)
+para cada grupo, donde esa columna ya no está. El recorte se publica por
+grupo en `cobertura_grupos$columnas_descartadas`, junto con el nombre de
+la declaración y el motivo. Para `aplicabilidad`, también se recorta una
+regla cuando alguna variable de su fórmula —según
+[`all.vars()`](https://rdrr.io/r/base/allnames.html)— es una columna
+original ausente de la rebanada; las referencias que no son columnas
+originales se conservan como referencias posibles al entorno de la
+fórmula.
+
+El atributo `cobertura_diagnosticos` declara, **por grupo**, los
+diagnósticos que no se evaluaron y por qué. Cada grupo se perfila por
+separado, así que cada uno declina los suyos: una columna puede tener
+bastantes filas en un grupo y muy pocas en otro. Sin esa tabla, un grupo
+sin hallazgos se lee como un grupo sano, cuando puede ser un grupo sobre
+el que no se miró.
+
+Las senales de numeracion densa y de identificacion se miden tambien
+sobre columnas `integer64` con comparaciones exactas. Si un grupo vuelve
+a conjeturar un centinela por la particion, el hallazgo se mueve a esta
+cobertura y no se publica como defecto del grupo. "La columna entera" es
+la que
+[`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md)
+mide con la misma declaración: las filas que `aplicabilidad` deja fuera
+no cuentan para el centinela, la numeración ni la guarda de Benford. Y
+lo que la columna entera sí conjetura —una numeración cuya moda
+sobresale, o un candidato fuera de su rango— no es de la partición: el
+grupo lo publica.
+
+## Details
+
+Dentro de cada grupo se descartan las columnas enteramente ausentes
+antes de perfilar. En un modelo entidad-atributo-valor bien formado eso
+deja viva exactamente la columna de valor que corresponde al atributo
+del grupo, y es lo que evita informar como falta lo que es la forma del
+dato. Las declaraciones que nombran columnas retiradas se recortan para
+ese grupo y el nombre de cada recorte, con su motivo, se declara en
+`cobertura_grupos$columnas_descartadas`. En `aplicabilidad` también se
+recorta una regla si
+[`all.vars()`](https://rdrr.io/r/base/allnames.html) de su fórmula
+menciona una columna original que no está en la rebanada; una variable
+que no es columna de la tabla se conserva porque puede venir
+legítimamente del entorno de la fórmula.
+
+La función no adivina cuál es la columna de agrupación: la declara quien
+conoce el dato, igual que
+[`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md) no
+adivina claves ni jerarquías.
+
+## See also
+
+[`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md),
+[`cobertura_analisis()`](https://sebollin.github.io/lupa/reference/cobertura_analisis.md)
+
+## Examples
+
+``` r
+largo <- data.frame(
+  entidad = rep(1:40, each = 2),
+  atributo = rep(c("pais", "edad"), 40),
+  valor = c(rbind(sample(c("UY", "AR"), 40, TRUE), as.character(20:59)))
+)
+hallazgos <- perfilar_por(largo, "atributo", clave = "entidad", min_filas = 10)
+head(hallazgos[, c("grupo", "columna", "tipo_hallazgo")])
+#>   grupo columna         tipo_hallazgo
+#> 1  pais entidad posible_identificador
+#> 2  edad entidad posible_identificador
+#> 3  edad   valor posible_identificador
+```

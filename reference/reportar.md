@@ -1,0 +1,149 @@
+# Crear un reporte HTML autocontenido
+
+Genera un unico archivo HTML en espanol usando solo funciones de R base.
+El estilo se incluye dentro del documento: no requiere red, navegador
+especial, conversor externo ni archivos auxiliares. Cada valor dinamico
+se escapa antes de incorporarlo al documento.
+
+## Usage
+
+``` r
+reportar(
+  x,
+  ...,
+  archivo = tempfile("reporte-lupa-", fileext = ".html"),
+  sobrescribir = FALSE,
+  titulo = "Reporte de calidad de datos",
+  fecha = Sys.time(),
+  max_filas = 100L,
+  max_patrones = 20L,
+  proteger_datos_personales = TRUE
+)
+```
+
+## Arguments
+
+- x:
+
+  Un objeto compatible o una lista de objetos compatibles.
+
+- ...:
+
+  Objetos adicionales de clase `analisis`, `perfil`, `medicion`,
+  `evaluacion_calidad`, `historico_calidad`, `deriva_perfil`,
+  `deriva_calidad`, `plan_limpieza` o `duplicados_aproximados`.
+
+- archivo:
+
+  Ruta de salida. De forma predeterminada crea un archivo en
+  [`tempdir()`](https://rdrr.io/r/base/tempfile.html). Una ruta que ya
+  es un directorio se rechaza.
+
+- sobrescribir:
+
+  Si se permite reemplazar un archivo existente.
+
+- titulo:
+
+  Titulo visible del reporte.
+
+- fecha:
+
+  Fecha y hora de generacion, inyectable para obtener resultados
+  reproducibles. Se normaliza a UTC.
+
+- max_filas:
+
+  Maximo de filas por tabla y de columnas del perfil cuyos patrones se
+  detallan. Las omisiones se informan dentro del reporte.
+
+- max_patrones:
+
+  Maximo de patrones mostrados por columna. Las omisiones se informan
+  dentro del reporte.
+
+- proteger_datos_personales:
+
+  Si se enmascaran modas, ejemplos, evidencia, estadisticos de orden,
+  cuantiles y rangos temporales de columnas cuya clasificacion activa
+  proteccion automatica. Es `TRUE` por defecto. Las coincidencias
+  debiles se informan sin suprimir. Para ver valores concretos deben
+  haberse conservado tambien con
+  `perfilar(..., proteger_datos_personales = FALSE)`.
+
+  El enmascarado es el mismo que el de
+  [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md)
+  -ver su `proteger_datos_personales`-: la forma exacta, la que solo
+  difiere en separadores, tildes, caja o escritura, y en los digitos, el
+  documento entero con cualquier agrupacion, sin su verificador, o sin
+  su primer digito detras de un comodin. La comparacion parcial se
+  limita a digitos a proposito: aplicada al texto taparia una palabra
+  corriente por compartir un tramo con un apellido, y eso silencia
+  contenido del informe en vez de proteger un dato.
+
+  Un plan de limpieza, una medicion, un historico que incluye una
+  medicion o una comparacion de deriva armados con la proteccion
+  desactivada no se publican en un informe protegido: su seccion se
+  reemplaza por una que dice por que se omitio y como pedirla. Lo sabe
+  por una marca que el objeto lleva, y que `[`,
+  [`subset()`](https://rdrr.io/r/base/subset.html) y
+  [`rbind()`](https://rdrr.io/r/base/cbind.html) conservan. En el
+  historico, una medida suprimida por una regla se enmascara como en la
+  evaluacion. Un perfil -o un analisis que no conserva la tabla- armado
+  con la proteccion desactivada se vuelve a proteger con lo que
+  conserva, y su seccion lo declara: sin la tabla, una variante de un
+  valor protegido escrita en otra columna puede quedar a la vista. Para
+  la proteccion completa, el perfil se arma con la proteccion activa.
+
+## Value
+
+La ruta normalizada del archivo, de forma invisible.
+
+## Details
+
+Se pueden combinar objetos producidos por el profiling, la medicion, la
+evaluacion, el historico, las comparaciones de deriva y la planificacion
+de limpieza. Cada tipo anade su seccion; el reporte no modifica datos ni
+aplica planes. Si una evaluacion contiene desenlaces de supresion
+declarados por reglas, el reporte enmascara su `valor_medido` y el
+`resultado` de las mismas medidas incluidas en el documento, también en
+las otras evaluaciones del informe: la supresión de una vale para todas,
+en cualquier orden, y la de una medida que un histórico del informe ya
+trae suprimida, también. El enmascarado se hace sobre copias y no
+modifica los objetos recibidos.
+
+Una seccion que no se puede armar **se declara dentro del informe** y no
+lo interrumpe: si a un `historico_calidad` le faltan campos que su
+seccion necesita -`fecha`, `id_medicion`, `nivel`, `perfil` o
+`resultado`-, la seccion dice cuales faltan y el resto del documento se
+escribe igual. Lo mismo vale para cualquier otra seccion que falle al
+armarse -un perfil al que le falta un componente-: queda una seccion que
+lo dice. Un texto con bytes que no son UTF-8 valido se muestra con esos
+bytes en hexadecimal, como los muestra la consola, y no interrumpe el
+informe. Un carácter de control —que un navegador no dibuja— se escribe
+con su código, `<U+0001>`, como en la evidencia de los hallazgos. Las
+cifras se escriben con todos sus digitos significativos, sin el redondeo
+de la consola: con las cifras que vuelven al valor del objeto —quince, o
+dieciséis o diecisiete cuando hacen falta: `0.1 + 0.2` se escribe
+`0.30000000000000004`— y sin notación científica. Una cifra no se
+abrevia como un texto: la que sin exponente pasaría de 240 caracteres
+—`8.98846567431158e+307`, el ausente de Stata leído como número— se
+escribe con exponente y las mismas cifras, y una celda con varias se
+abrevia por cifras enteras.
+
+## See also
+
+[`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md),
+[`medir()`](https://sebollin.github.io/lupa/reference/medir.md),
+[`evaluar()`](https://sebollin.github.io/lupa/reference/evaluar.md),
+[`historico_calidad()`](https://sebollin.github.io/lupa/reference/historico_calidad.md),
+[`comparar_perfiles()`](https://sebollin.github.io/lupa/reference/comparar_perfiles.md),
+[`planificar_limpieza()`](https://sebollin.github.io/lupa/reference/planificar_limpieza.md)
+
+## Examples
+
+``` r
+perfil <- perfilar(datos_administrativos)
+archivo <- reportar(perfil)
+unlink(archivo)
+```

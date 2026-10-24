@@ -1,0 +1,219 @@
+# Agregar medidas entre granularidades
+
+Aplica exactamente una de las cuatro agregaciones del marco: `ratio`,
+`ratio_umbral`, `promedio` o `promedio_ponderado`. La transición se
+valida contra el grafo de
+[`transiciones_granularidad()`](https://sebollin.github.io/lupa/reference/granularidades.md).
+
+## Usage
+
+``` r
+agregar(
+  medidas,
+  destino,
+  funcion = c("ratio", "ratio_umbral", "promedio", "promedio_ponderado"),
+  umbral = NULL,
+  pesos = NULL,
+  coleccion = NULL,
+  colecciones = NULL,
+  organizacion = NULL,
+  organizaciones = NULL
+)
+```
+
+## Arguments
+
+- medidas:
+
+  Data frame producido por
+  [`medir()`](https://sebollin.github.io/lupa/reference/medir.md) o una
+  agregación anterior. Debe contener una sola métrica específica, una
+  corrida y una granularidad.
+
+- destino:
+
+  Granularidad de destino.
+
+- funcion:
+
+  Una de `"ratio"`, `"ratio_umbral"`, `"promedio"` o
+  `"promedio_ponderado"`.
+
+- umbral:
+
+  Umbral en `[0, 1]` requerido por `ratio_umbral`.
+
+- pesos:
+
+  Vector numérico requerido por `promedio_ponderado`, con una entrada
+  por fila de `medidas`. Si trae nombres, se emparejan con
+  `objeto_medible` o con el nombre de la parte —el que declaró la
+  frontera, o el del objeto que la lista renombró— y se falla nombrando
+  lo que sobra o falta —igual que en
+  [`indice_calidad()`](https://sebollin.github.io/lupa/reference/indice_calidad.md),
+  también cuando un nombre sólo difiere en su forma Unicode—, así que la
+  misma declaración escrita en otro orden da el mismo número. Si los
+  nombres casan con los dos vocabularios y reparten distinto, se
+  rechaza: no se puede saber a cuáles se refieren. Sin nombres se leen
+  por posición. Con otra `funcion` se rechaza, como `umbral` fuera de
+  `ratio_umbral`: no pesarían nada y se publicarían igual.
+
+- coleccion:
+
+  Frontera declarada, exigida cuando `destino` es `"coleccion"`: el
+  objeto de
+  [`coleccion()`](https://sebollin.github.io/lupa/reference/coleccion.md)
+  o el perfil de
+  [`perfilar_coleccion()`](https://sebollin.github.io/lupa/reference/perfilar_coleccion.md).
+  Sin ella no se sabe sobre qué tablas se está agregando, y el número
+  resultante no describiría nada.
+
+- colecciones:
+
+  Lista nombrada de objetos de
+  [`coleccion()`](https://sebollin.github.io/lupa/reference/coleccion.md)
+  o
+  [`perfilar_coleccion()`](https://sebollin.github.io/lupa/reference/perfilar_coleccion.md),
+  exigida cuando `destino` es `"conjuntoColecciones"`. Los nombres
+  declaran la identidad y la frontera del conjunto, y mandan sobre el
+  del objeto, que la sigue reconociendo; no se agregan organizaciones ni
+  otros alcances implícitos.
+
+- organizacion:
+
+  Frontera institucional declarada con
+  [`organizacion()`](https://sebollin.github.io/lupa/reference/organizacion.md),
+  exigida cuando `destino` es `"organizacion"`. Qué bases pertenecen a
+  un organismo **no está en los datos**, así que lo declara quien lo
+  sabe.
+
+- organizaciones:
+
+  Lista de objetos de
+  [`organizacion()`](https://sebollin.github.io/lupa/reference/organizacion.md),
+  exigida cuando `destino` es `"conjuntoOrganizaciones"`.
+
+  Los dos niveles institucionales son **opcionales**: un análisis de
+  calidad no siempre tiene una organización detrás —una entrega suelta,
+  un archivo que alguien mandó, una base sin dueño declarado—, y nada
+  obliga a pasar por ellos. Existen para quien los necesita, y sin
+  declaración `agregar()` se niega y explica cómo declararla, que es
+  distinto de inventar una frontera que nadie nombró.
+
+## Value
+
+Objeto `medicion` agregado, con una fila por objeto de destino.
+
+## Details
+
+`ratio` sólo acepta medidas booleanas. `ratio_umbral` sólo acepta
+medidas reales. Los promedios aceptan **esos dos tipos y ningún otro**,
+y siempre producen resultado real en `[0, 1]`. Los tres tipos no
+acotados —`numero_real`, `entero` y `duracion`— se rechazan nombrando la
+métrica que los declara: el promedio de una duración en días es un
+número de días, y publicarlo como resultado real en `[0, 1]` lo
+presentaría como una proporción. La guarda es por **tipo declarado**, no
+por el valor observado: una duración de `0,25` y `0,75` días se rechaza
+igual que una de `1,5` días, así que el mismo modelo se comporta igual
+con cualquier dato que le toque. Para el promedio ponderado, los pesos
+deben estar en `[0, 1]` y sumar uno dentro de cada objeto de destino. La
+columna `orientacion` se conserva sin invertir el resultado: un ratio de
+una métrica de defecto sigue siendo la proporción de defectos.
+
+## Lo que el agregado conserva de la medición
+
+Una agregación hereda lo que sus partes declararon:
+`configuracion_modelo`, `configuracion_aplicabilidad`,
+`cobertura_metricas`, `marco_calidad` y `fecha_declarada` viajan en el
+objeto. Lo último no es decorativo: sin `fecha_declarada`, la guarda que
+impide comparar dos entregas en orden invertido queda desactivada y
+[`comparar_evaluaciones()`](https://sebollin.github.io/lupa/reference/comparar_evaluaciones.md)
+publicaría el delta con el signo al revés.
+
+`alcance_medidas` —«midió tres celdas de cuatro»— también viaja, pero
+**reexpresado en la clave del agregado**: la tabla que publica
+[`medir()`](https://sebollin.github.io/lupa/reference/medir.md) está
+indexada por `metrica_instanciada` (`Formato@t.cod`) y el agregado
+renombra la métrica (`agregada:ratio:Formato`), así que arrastrarla tal
+cual dejaría una declaración que no se podría atribuir a ninguna fila.
+Los conteos se **suman** por objeto de destino, y sólo cuando todas las
+partes declaran la misma unidad; si no, la fila declara la mezcla en
+lugar de publicar un total que no estaría en ninguna unidad. Las partes
+**completas** también suman —una columna de 6 de 6 junto a una de 5 de 6
+da 11 de 12—, también cuando se agregaron por separado y se unieron con
+[`rbind()`](https://rdrr.io/r/base/cbind.html); y en un destino por fila
+(`instanciaEntidad`) cada fila cuenta sus propias celdas: se declaran
+sólo las incompletas, con su número de fila en el motivo.
+
+Una medida repetida —el mismo `id_medida` dos veces, como deja una
+medición unida consigo misma— se rechaza, como en
+[`evaluar()`](https://sebollin.github.io/lupa/reference/evaluar.md). El
+`id_medida` de cada fila agregada nombra lo que agrega —destino,
+función, métrica y objeto, como `M-agg-atributo-ratio-NoNulo@t.x`—, así
+que dos partes agregadas por separado se pueden unir y subir de nivel, y
+el mismo agregado repetido sigue repitiendo su identificador. Cada
+nombre lleva escapados los signos que lo separan del siguiente —el
+punto, la coma—, y desde la colección para arriba el identificador
+nombra también las partes que reúne: dos conjuntos distintos, o dos
+colecciones sin nombre, no comparten identificador. Un valor que no se
+puede agregar se rechaza nombrando la métrica y la causa: un tipo no
+acotado, una medida ausente o suprimida, o un valor fuera de `[0, 1]`.
+`umbral` sólo se acepta con `ratio_umbral`, y el borde se compara con
+tolerancia de redondeo: `1 - 0.9` alcanza el umbral `0.1`.
+
+Las coberturas de frontera (`cobertura_coleccion` y sus hermanas) **no**
+se arrastran: cada agregación calcula la de su propio destino con las
+partes que entraron a ese número, y hereda las de sus partes en
+`cobertura_de_partes`. Dos partes agregadas por separado y unidas con
+[`rbind()`](https://rdrr.io/r/base/cbind.html) conservan cada una la
+suya, en cualquier orden de la unión, y el tablero, el índice, el
+informe,
+[`evaluar()`](https://sebollin.github.io/lupa/reference/evaluar.md) e
+[`historico_calidad()`](https://sebollin.github.io/lupa/reference/historico_calidad.md)
+las publican todas. Unidas dos corridas distintas, cada cobertura lleva
+además su `id_medicion`, y el histórico registra la parte no medida en
+la corrida a la que le faltó. Una colección lleva en
+`cobertura_metricas` sólo la de sus propias tablas.
+
+## Los pesos se publican
+
+Cuando hay `pesos`, el objeto los publica en `pesos_declarados`, con el
+nombre de la parte que recibió cada uno, de modo que el número se pueda
+rehacer con lo que el objeto trae. Y si alguna parte entró con peso
+cero, se declara en `partes_con_peso_cero`: entró al número sin
+aportarle nada, queda contada en la identidad de la fila y leerlo sin
+saberlo es leer otra cosa. La declaración depende de que **haya** un
+peso cero, no del destino: va como atributo en todos, también en
+`conjuntoEntidades`, y en los cuatro destinos que tienen cobertura de
+frontera entra además en esa cobertura, que es la que se imprime.
+
+Cuando el destino es `conjuntoEntidades`, `promedio` combina las partes
+sin pesos porque las medidas de nivel `entidad` no llevan su cantidad de
+filas. El resultado lo declara en `advertencia_agregacion`: es un
+promedio sin pesos y `agregar()` no conoce el alcance de cada parte. En
+`coleccion`, la frontera se declara y por eso sólo se admite
+`promedio_ponderado`: sin pesos no se puede decidir cuanto debe aportar
+cada tabla de esa coleccion.
+
+No existe una transición hacia factor, dimensión o modelo: esos campos
+son taxonómicos y esta función no calcula un índice global.
+
+## Examples
+
+``` r
+nucleo <- metricas_nucleo()
+especifica <- especializar(nucleo$NoNulo)
+instancia <- instanciar(especifica, "personas", "edad")
+medidas <- medir(modelo(instancia), data.frame(edad = c(20, NA, 35)))
+agregar(medidas, "atributo", "ratio")
+#>                                                                      id_medida
+#> 1 medicion-20261024T234406.816163-7779-agg-atributo-ratio-NoNulo@personas.edad
+#>                            id_medicion               fecha metrica
+#> 1 medicion-20261024T234406.816163-7779 2026-10-24 23:44:06  NoNulo
+#>   metrica_especifica   metrica_instanciada   dimension   factor orientacion
+#> 1             NoNulo agregada:ratio:NoNulo Completitud Densidad conformidad
+#>   granularidad tipo_resultado  entidad atributo fila objeto_medible resultado
+#> 1     atributo           real personas     edad   NA  personas$edad 0.6666667
+#>   agregacion advertencia_agregacion
+#> 1      ratio                   <NA>
+```

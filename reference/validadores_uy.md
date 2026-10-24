@@ -1,0 +1,73 @@
+# Validadores estructurales de Uruguay
+
+`validar_ci_uy()` comprueba la cédula de identidad mediante su dígito
+verificador módulo 10. Acepta siete u ocho dígitos y separadores de
+puntos, espacios o guion; una cédula de siete dígitos se completa con
+cero inicial. Cualquier espacio separa, también el fino o el duro de
+Unicode.
+
+## Usage
+
+``` r
+validar_ci_uy(x)
+
+validar_rut_uy(x)
+```
+
+## Arguments
+
+- x:
+
+  Vector que se desea validar.
+
+## Value
+
+Vector lógico de la misma longitud que `x`.
+
+## Details
+
+`validar_rut_uy()` comprueba la estructura de doce dígitos del RUT y su
+dígito verificador módulo 11. Un RUT de once dígitos se completa con
+cero inicial, igual que la cédula de siete: es el que pierde su cero al
+guardarse como número
+([`read.csv()`](https://rdrr.io/r/utils/read.table.html) lee
+`073602060015` como `73602060015`). El algoritmo operativo no está
+publicado por DGI como especificación normativa abierta; esta
+implementación se contrastó con la implementación pública de
+`python-stdnum` y con ejemplos públicos. Por eso valida estructura y
+dígito, no vigencia ni existencia registral.
+
+**Los separadores son de la escritura, no del número.** Punto, espacio y
+guion se admiten porque una persona escribe `1.234.567-2`; en un valor
+numérico el punto es el separador decimal y el guion es el signo, así
+que un número fraccionario o negativo devuelve `FALSE` —no se le quita
+la fracción ni el signo para hacerlo pasar—. Un número entero no
+negativo sí se valida, como cualquier otra escritura del mismo
+documento, y por sus dígitos: el doble `12000000` es la cédula
+`"12000000"` aunque `scipen` lo imprima en notación científica. `NaN` es
+ausente y devuelve `NA`.
+
+## References
+
+Poder Ejecutivo de Uruguay (1978). Decreto 501/978, artículo 2.
+<https://www.impo.com.uy/bases/decretos/501-1978/2>
+
+Unidad de Acceso a la Información Pública (2024). Resolución 145/024.
+<https://www.gub.uy/unidad-acceso-informacion-publica/institucional/normativa/resolucion-n-145024-sobre-reserva-informacion>
+
+de Jong A. *python-stdnum: Uruguay RUT*.
+<https://github.com/arthurdejong/python-stdnum/blob/master/stdnum/uy/rut.py>
+
+## See also
+
+[`pack_validadores()`](https://sebollin.github.io/lupa/reference/pack_validadores.md),
+[`validar_iso3166()`](https://sebollin.github.io/lupa/reference/validadores_formato.md)
+
+## Examples
+
+``` r
+validar_ci_uy(c("1.234.567-2", "1.234.567-3"))
+#> [1]  TRUE FALSE
+validar_rut_uy(c("21 100 342 0017", "21 030 367 0014"))
+#> [1]  TRUE FALSE
+```

@@ -1,0 +1,2637 @@
+# Perfilar un conjunto de datos
+
+Examina un `data.frame`, `tibble` o `data.table` y devuelve estadísticas
+generales, métricas por columna, patrones, formatos de fecha y hallazgos
+accionables. Todas las proporciones se expresan en `[0, 1]`.
+
+## Usage
+
+``` r
+perfilar(
+  datos,
+  nombre = .nombre_de_los_datos(substitute(datos)),
+  fecha = Sys.time(),
+  muestra = 1e+05,
+  max_patrones = 20,
+  distinguir_mayusculas = TRUE,
+  expandir = FALSE,
+  umbral_alta_cardinalidad = 0.5,
+  umbral_faltantes_sospechoso = 0.1,
+  clave = NULL,
+  umbral_faltantes_error = 0.4,
+  umbral_patron_raro = 0.05,
+  umbral_patron_dominante = 0.5,
+  columnas_sin_ceros = character(),
+  columnas_no_negativas = character(),
+  columnas_opcionales = character(),
+  columnas_codigo = character(),
+  aplicabilidad = NULL,
+  ausencia_estructural = TRUE,
+  sentinelas_numericos = c(-9, -99, -999, -9999, 999),
+  cadenas_ausencia = NULL,
+  analizar_dependencias = TRUE,
+  umbral_dependencia = 0.995,
+  umbral_casi_clave_dependencia = 0.8,
+  max_columnas_dependencias = 100L,
+  datos_personales_permitidos = TRUE,
+  proteger_datos_personales = TRUE,
+  columnas_personales = character(),
+  validadores_personales = NULL,
+  umbral_documento_verificado = 0.9,
+  muestra_validadores = 1000L,
+  duplicados_aproximados = FALSE,
+  normalizar = TRUE,
+  max_filas_hallazgo = 1000L,
+  umbral_orden_columnas = 0.95,
+  max_columnas_orden = 20L,
+  umbral_solapamiento_orden = 0.1,
+  umbral_aritmetica = 0.9,
+  min_filas_aritmetica = 3L,
+  tolerancia_aritmetica = 1e-08,
+  max_columnas_aritmetica = 20L,
+  casi_duplicados_vocabulario = TRUE,
+  max_proporcion_grupo_vocabulario = 0.5,
+  umbral_variante_rara_vocabulario = 0.05,
+  min_asimetria_vocabulario_corto = 10,
+  min_asimetria_vocabulario = 2,
+  min_participacion_dominante_vocabulario_corto = 0.5,
+  variantes_equifrecuentes_vocabulario = FALSE,
+  max_asimetria_equifrecuente_vocabulario = 2,
+  max_comparaciones_dependencias = 200000L,
+  max_trabajo_vocabulario = 2e+10,
+  max_trabajo_dependencias = 1e+08,
+  max_largo_valor_vocabulario = .MAX_LARGO_VALOR_CASI_DUPLICADOS,
+  max_celdas_muestra = .MAX_CELDAS_MUESTRA,
+  max_bytes_muestra = .MAX_BYTES_MUESTRA,
+  avisar_costo_tabla_ancha = TRUE,
+  umbral_celdas_aviso_tabla_ancha = .UMBRAL_CELDAS_AVISO_TABLA_ANCHA
+)
+```
+
+## Arguments
+
+- datos:
+
+  Objeto que hereda de `data.frame` —`tibble` y `data.table` entran por
+  ahí— o una matriz de dos dimensiones, que se convierte con
+  [`as.data.frame()`](https://rdrr.io/r/base/as.data.frame.html). La
+  conversión queda declarada en `meta$entrada_convertida` para que el
+  perfil no aparente haber recibido lo que no recibió.
+
+- nombre:
+
+  Nombre descriptivo del objeto: una cadena no vacía.
+
+- fecha:
+
+  Fecha y hora de la corrida. Se puede fijar para construir series
+  reproducibles; se normaliza a UTC.
+
+- muestra:
+
+  Máximo de filas usadas para patrones, inferencia de tipos, formatos de
+  fecha y dependencias funcionales. Use `Inf` para analizar todas las
+  filas en esos análisis.
+
+- max_patrones:
+
+  Máximo de patrones mostrados por columna.
+
+- distinguir_mayusculas:
+
+  Si se distinguen mayúsculas y minúsculas.
+
+- expandir:
+
+  Si se emite un token por carácter en los patrones.
+
+- umbral_alta_cardinalidad:
+
+  Umbral sobre la tasa de valores distintos de una columna categórica.
+  No alcanza por sí solo: el hallazgo exige además al menos diez valores
+  distintos, porque con pocos la tasa está dominada por el tamaño de la
+  tabla —dos valores en tres filas dan 0,67 y superan cualquier umbral
+  razonable— y una columna de dos valores no puede tener cardinalidad
+  alta.
+
+- umbral_faltantes_sospechoso:
+
+  Umbral inferior de faltantes. El hallazgo se activa al superarlo en
+  sentido estricto.
+
+- clave:
+
+  Nombres de las columnas que identifican una fila. Cuando se declaran,
+  la trazabilidad de cada hallazgo trae además el valor de esas columnas
+  para las filas señaladas, de modo que el caso se pueda verificar en el
+  sistema de origen sin abrir la tabla. El índice de fila se conserva
+  siempre. La clave declarada se trata como sensible: si la protección
+  de datos personales está activa y alguna de esas columnas se clasifica
+  como personal, sus valores salen enmascarados igual que la evidencia.
+  La comprobación de una clave tiene dos ejes independientes:
+  `meta$clave$unicidad` comprueba si sus combinaciones son únicas con la
+  semántica de R, y `meta$clave$ausencia_nulos` comprueba que sus
+  componentes no tengan valores ausentes. Cada eje declara `verificada`,
+  `refutada` o `no_verificada`; una clave con ambos ejes verificados
+  conserva exactamente el objeto histórico y no agrega metadatos. Cuando
+  un eje falla o no se puede comprobar, `meta$clave$trazabilidad`
+  explica que la localización agrupa con la semántica de R, incluso si
+  el motor SQL trata dos `NULL` como distintos. `hallazgos` separa esos
+  ejes: `clave_con_ausentes` enumera las filas que impiden la garantía
+  `NOT NULL`, mientras `clave_no_unica` sólo informa repeticiones entre
+  filas con la clave completa, el mismo universo que
+  `meta$clave$unicidad`.
+
+- umbral_faltantes_error:
+
+  Umbral por encima del cual los faltantes son un error; la igualdad
+  conserva la severidad sospechosa.
+
+- umbral_patron_raro:
+
+  Máxima frecuencia de un patrón raro. La frontera es inclusiva: un
+  patrón no dominante con exactamente esa proporción es raro, y sólo los
+  que la superan quedan excluidos.
+
+- umbral_patron_dominante:
+
+  Frecuencia mínima del patrón dominante.
+
+- columnas_sin_ceros:
+
+  Nombres de columnas donde cero no es admisible.
+
+- columnas_no_negativas:
+
+  Nombres de columnas que deben ser no negativas.
+
+- columnas_opcionales:
+
+  Nombres de columnas donde la ausencia no es un defecto. Su universo de
+  completitud son las celdas presentes, y `cobertura_diagnosticos`
+  declara el recorte. Sirve para el vacío por diseño: un historial con
+  vigencia abierta, una columna que sólo corresponde a algunas filas. La
+  declaración queda en `meta$columnas_opcionales`
+  —[`comparar_perfiles()`](https://sebollin.github.io/lupa/reference/comparar_perfiles.md)
+  declara su cambio entre dos corridas con la fila
+  `configuracion_columnas_opcionales`, porque los faltantes de esas
+  columnas pasan a contarse sobre otro universo—, y la `NoNulo` que
+  [`proponer_modelo()`](https://sebollin.github.io/lupa/reference/proponer_modelo.md)
+  propone para la columna —cuando tiene faltantes disfrazados— se mide
+  sobre el mismo universo (`opcional = TRUE`).
+
+- columnas_codigo:
+
+  Nombres de columnas que son **códigos**, no magnitudes: un código de
+  catálogo, un departamento numerado, una clave foránea. El paquete no
+  los distingue por su forma de una magnitud entera que llenó su rango
+  —una edad de 18 a 90 repite valores igual que un código de 1 a 284—,
+  así que sin la declaración los mide como magnitudes. Una columna
+  declarada se perfila por sus valores y no recibe lo que sólo tiene
+  sentido sobre una magnitud: ni límites de Tukey (`n_outliers` en `NA`,
+  sin hallazgo `outliers` ni `posible_centinela_numerico`), ni la ley de
+  Benford, ni relaciones aritméticas con otras columnas
+  (`relacion_aritmetica_columnas`), ni `media`, `mediana` y `desvio`,
+  que quedan en `NA` con
+  `estado_resumen_cuantitativo = "omitidos_codigo"`. Lo que no se evaluó
+  se declara en `cobertura_diagnosticos` con el motivo. Conserva lo que
+  describe sus valores: `minimo` y `maximo` —el tramo de códigos
+  observado, donde aparece un código fuera de catálogo—, `moda`,
+  `n_distintos`, los conteos y los faltantes disfrazados. Vale igual por
+  todas las vías que aceptan las declaraciones de `perfilar()`:
+  [`perfilar_dbi()`](https://sebollin.github.io/lupa/reference/perfilar_dbi.md)
+  —también en su `resumen_tabla`—,
+  [`perfilar_por()`](https://sebollin.github.io/lupa/reference/perfilar_por.md),
+  [`perfilar_coleccion()`](https://sebollin.github.io/lupa/reference/perfilar_coleccion.md)
+  y
+  [`analizar()`](https://sebollin.github.io/lupa/reference/analizar.md)
+  por `argumentos_perfil`. Vale también para el código guardado como
+  texto o como factor, que el paquete lee como número —y ese código no
+  recibe los hallazgos que lo leen como una cantidad escrita como texto
+  y piden convertirlo: ni `tipo_declarado_distinto`, ni
+  `numero_como_texto` (un rubro `"1.1"`, un `"10,5"`), ni
+  `unidades_mixtas` o `monedas_mixtas`; tampoco
+  [`planificar_limpieza()`](https://sebollin.github.io/lupa/reference/planificar_limpieza.md)
+  le propone una acción que lo convierta en número—; el resumen de una
+  columna sin resumen numérico —texto que no se lee como número, fechas—
+  no cambia, porque no tiene esas cifras. Un nombre que la tabla no
+  tiene es un error. Dentro de
+  [`analizar()`](https://sebollin.github.io/lupa/reference/analizar.md)
+  la declaración llega también a `variables` —escala `nominal`, rol
+  `categoria`, confirmada— y a `asociaciones`, donde el código se asocia
+  como categoría (eta cuadrado o V de Cramér) y no con una correlación
+  que supone una magnitud. En
+  [`perfilar_dbi()`](https://sebollin.github.io/lupa/reference/perfilar_dbi.md),
+  la corroboración entre `resumen_tabla` y `perfil_muestra` no compara
+  la media, la mediana ni el desvío de una columna declarada: no se
+  calculan. En
+  [`perfilar_coleccion()`](https://sebollin.github.io/lupa/reference/perfilar_coleccion.md)
+  la declaración vale igual para todas las tablas: una tabla que no
+  tiene la columna declarada no se perfila (limitación conocida; ver la
+  ayuda de esa función).
+
+- aplicabilidad:
+
+  Lista con nombre por columna, donde cada elemento es una fórmula de un
+  solo lado evaluada sobre `datos` — por ejemplo
+  `list(marca_auto = ~ tiene_auto == "Si")`. Las filas donde el
+  predicado no se cumple salen del universo de esa columna: no cuentan
+  como ausencia. Las filas donde el predicado no se puede determinar se
+  declaran aparte, sin contarse ni como aplicables ni como no
+  aplicables. Un valor presente fuera del universo produce el hallazgo
+  `valor_fuera_de_aplicabilidad`, que es el error simétrico y no tiene
+  otra forma de aparecer. Las filas fuera del universo —y las
+  indeterminadas— salen también de la ley de Benford y de las relaciones
+  aritméticas, con la misma máscara que usa el resumen.
+
+  `lupa` no infiere el universo: si nadie lo declara, toda la columna
+  aplica y el resultado es el de siempre. Declararlo es lo que distingue
+  el vacío por diseño del vacío por error, y sin esa distinción una
+  tabla sana puede informar completitud baja siendo completa.
+
+  **Hasta dónde llega el universo.** Gobierna todo el perfilado: los
+  conteos, las proporciones, los hallazgos y las acciones que propone
+  [`planificar_limpieza()`](https://sebollin.github.io/lupa/reference/planificar_limpieza.md).
+  Medido sobre una columna condicionada de mil filas con universo de
+  trescientas, treinta de ellas vacías: declarándolo, la proporción de
+  faltantes es `0,100`, no hay hallazgo y el plan no propone nada; sin
+  declararlo son `0,730`, sale `faltantes` y el plan propone dos
+  acciones.
+
+  El universo tambien llega a la limpieza. El perfil guarda la regla, el
+  plan la lleva y
+  [`aplicar()`](https://sebollin.github.io/lupa/reference/planificar_limpieza.md)
+  no toca las celdas que quedan fuera: una `S/D` en una fila donde la
+  columna no corresponde no se convierte en ausencia, y las acciones que
+  marcan o eliminan filas solo consideran ese universo. Si la regla da
+  un valor indeterminado, la celda tampoco se toca. Las conversiones de
+  tipo son la excepción, porque una columna tiene un solo tipo y no se
+  puede convertir a medias: el plan declara en `n_afectadas` y en la
+  justificación que cambia la columna entera. Si el plan se aplica a
+  otros datos donde la regla no se puede evaluar, la acción falla y lo
+  dice, en vez de operar sobre toda la columna.
+
+  La medición contra un marco recibe la misma declaración:
+  [`medir()`](https://sebollin.github.io/lupa/reference/medir.md) acepta
+  `aplicabilidad` y recorta las filas antes de medir, así que el
+  histórico y la deriva —que consumen mediciones, no perfiles— heredan
+  el número correcto. El `aplicabilidad` de
+  [`marco_calidad()`](https://sebollin.github.io/lupa/reference/marco_calidad.md)
+  es otra cosa: dice si un factor aplica a datos temporales o
+  geométricos, no qué filas entran al universo.
+
+- ausencia_estructural:
+
+  Si se busca evidencia de que la ausencia de una columna es por diseño.
+  `lupa` no infiere el universo ni lo cambia por su cuenta, pero
+  declarar `aplicabilidad` exige saber que existe: quien perfila una
+  tabla con columnas condicionadas sin declarar nada recibe el mismo
+  informe engañoso que si el vacío fuera un defecto. Con `TRUE`, cuando
+  el valor de otra columna decide qué filas tienen ésta, o cuando dos
+  columnas se reparten las filas sin pisarse, se emite
+  `posible_ausencia_estructural` con severidad `ok`, la evidencia medida
+  y la línea exacta que habría que escribir para declararlo. Un umbral
+  se busca primero sobre un corte cada medio por ciento de la columna y
+  después se refina entre todos los valores observados de ese tramo, así
+  que el corte publicado es el primer valor observado del lado donde la
+  columna corresponde. La línea no depende de la sesión: un instante se
+  escribe con su zona (`tz`) —la de la columna, o UTC si no declara
+  ninguna— y un número, con punto decimal y las cifras que hacen falta
+  para volver al valor, cualquiera sea `OutDec`. `n_evaluados` cuenta
+  las ausencias de la columna y `n_afectados` las que la regla explica:
+  las que caen donde la columna no corresponde, sin contar las filas
+  donde el determinante falta. Sugiere; no decide. Las columnas ya
+  declaradas quedan fuera del examen. La regla tiene que cumplirse en al
+  menos el 99 % de las filas: una que un solo caso rompe por debajo de
+  ese corte no se publica, porque ofrecer la línea para declararla sería
+  afirmar de más.
+
+  Con el mismo argumento viaja `regla_silencia_ausencia`, también `ok`:
+  avisa cuando una columna declarada opcional o con universo propio
+  sigue casi vacía dentro de ese universo. La declaración funcionó y por
+  eso el perfil salió limpio; el aviso existe para que eso sea una
+  decisión y no un efecto.
+
+- sentinelas_numericos:
+
+  Vector completo de valores numéricos que se interpretan como ausencia.
+  Se normaliza como un conjunto numérico, por lo que el orden, el tipo
+  entero o doble y los duplicados no cambian el resultado.
+  [`numeric()`](https://rdrr.io/r/base/numeric.html) los desactiva; las
+  cadenas de ausencia se siguen evaluando por separado.
+
+  **La lista por omisión es una sospecha del paquete y se aplica con una
+  reserva**: un valor de esa lista que aparece **una sola vez** y cae
+  **dentro** del rango de los demás valores de la columna no se señala,
+  porque una aparición única es un número y no una convención de
+  ausencia. Un `999` suelto dentro de un catálogo de `1` a `3000` no se
+  acusa; el mismo `999` repetido, o un `-9` fuera del rango, sí.
+
+  La reserva **sólo** rige para la lista por omisión. Si usted declara
+  sus propios valores —o pide
+  [sentinelas_naniar](https://sebollin.github.io/lupa/reference/sentinelas_naniar.md),
+  que es optar por una heurística más ancha—, se cuentan todos, incluida
+  la aparición única. Ésa es también la forma de recuperar el caso que
+  la reserva calla: declarar el valor lo vuelve a contar y además lo
+  saca de los estadísticos del resumen, de la ley de Benford y de las
+  relaciones aritméticas.
+
+- cadenas_ausencia:
+
+  Cadenas que el usuario declara como ausencia, además de la lista
+  incorporada. Lo declarado atraviesa la guarda del vocabulario: `sd`,
+  `nc` y `nd` sólo cuentan solas en columnas de pocos valores distintos
+  —para no acusar a un código de dos letras—, y declararlas las hace
+  contar siempre. Es el equivalente textual de `sentinelas_numericos`.
+  Como la lista incorporada, se comparan sin los blancos de los bordes y
+  sin distinguir mayúsculas, con el pliegue de caja de
+  [`normalizacion()`](https://sebollin.github.io/lupa/reference/normalizacion.md):
+  `SIN INFORMACIÓN` es `sin información` en cualquier locale.
+
+- analizar_dependencias:
+
+  Si se buscan dependencias funcionales entre pares de columnas. Se
+  aplica una sola muestra común a toda la tabla.
+
+- umbral_dependencia:
+
+  Cumplimiento mínimo para informar una dependencia.
+
+- umbral_casi_clave_dependencia:
+
+  Tasa de valores distintos a partir de la cual un determinante se
+  descarta como casi-clave antes de agrupar.
+
+- max_columnas_dependencias:
+
+  Máximo de columnas que intervienen en la búsqueda, cuyo costo crece
+  cuadráticamente.
+
+- datos_personales_permitidos:
+
+  Si la entrega admite datos personales. El valor predeterminado no
+  juzga su presencia: la clasificación se informa con severidad `"ok"`.
+  Use `FALSE` sólo cuando el contrato de la entrega declare que no deben
+  existir.
+
+- proteger_datos_personales:
+
+  Si se reemplazan modas, ejemplos, evidencia y estadísticos de orden
+  concretos cuando `poder_discriminante` es medio, alto o verificado.
+  Las clasificaciones débiles se conservan como aviso pero no suprimen
+  estadísticos, ni la magnitud de Benford, ni la evidencia de sus
+  hallazgos: en ella se tapan sólo sus valores. Para conservar todo en
+  el objeto debe desactivarse explícitamente;
+  [`reportar()`](https://sebollin.github.io/lupa/reference/reportar.md)
+  aplica además su propia protección predeterminada. El enmascarado es
+  **por columna**: se reemplaza lo que describe a una columna protegida
+  —su moda, sus estadísticos, sus ejemplos y la evidencia de sus
+  hallazgos—, no todas las apariciones de ese texto en la salida. Un
+  valor puede ser vocabulario compartido: `"S/D"` es un centinela de una
+  cédula y a la vez el «sin dato» de `sexo`, y publicarlo en `sexo` no
+  revela nada de la cédula. Lo que **no** tiene columna a la que
+  atribuirse sí se enmascara en toda la salida: un hallazgo de filas
+  duplicadas muestra filas enteras, y los componentes que describen la
+  tabla —`general`, la cobertura, los formatos de fecha— no son de
+  ninguna columna en particular. Los **nombres de columna** nunca se
+  enmascaran, aunque un valor protegido aparezca dentro de uno: un
+  nombre es estructura, existía antes y aparte del dato, y el paquete lo
+  necesita para cruzar el perfil con los datos. Si se enmascararan,
+  `fecha_nacimiento` saldría publicada como `fecha_[valor protegido]`, y
+  [`planificar_limpieza()`](https://sebollin.github.io/lupa/reference/planificar_limpieza.md)
+  y
+  [`analizar()`](https://sebollin.github.io/lupa/reference/analizar.md)
+  abortarían porque los nombres del perfil no coincidirían con los de
+  los datos. Un campo se reconoce como de nombres por su **contenido**
+  —todos sus valores son nombres de la entrada, solos o unidos—, así que
+  la protección de los valores no se afloja: si un valor protegido es
+  igual a un nombre de columna —una planilla pivoteada con una columna
+  de notas por docente y la docente protegida—, su moda sigue tapada, y
+  también los ejemplos de sus patrones, sus niveles observados y la
+  configuración propuesta: un campo hecho de nombres que son valores
+  protegidos es un campo de **valores**. Salvo donde el campo refiere
+  columnas —`columna`, `columna_1` y `columna_2` de las columnas
+  duplicadas, `eliminar`, `determinante`, `dependiente`,
+  `nombres_propuestos` y los demás de su clase—: ahí el nombre es
+  estructura y el plan lo necesita para ejecutar, también cuando el
+  campo lo mezcla con la tabla —`objeto` dice `(tabla)` en las medidas
+  que no son de una columna— o lo escribe detrás de un prefijo del
+  paquete —el `origen` `dependencia_funcional:curso->turno` de la
+  propuesta de
+  [`analizar()`](https://sebollin.github.io/lupa/reference/analizar.md)—.
+  Un nombre suelto en un campo que también lleva valores —el mapa de una
+  imputación— se sigue tapando, aunque todos los valores del mapa sean
+  nombres de columna: sus `determinante` y `dependiente` son valores de
+  las dos columnas, y
+  [`aplicar()`](https://sebollin.github.io/lupa/reference/planificar_limpieza.md)
+  lo resuelve sobre los datos que recibe. El texto del usuario que llega
+  a un campo de vocabulario —la `unidad` de una columna, que es su
+  atributo `units`— no se ampara en el vocabulario: un valor protegido
+  entre límites de palabra se tapa, y una palabra del paquete
+  —`faltantes`, `segundos`— sigue siendo vocabulario aunque un valor
+  protegido coincida con ella. Y un texto que nombra una columna entre
+  comillas —la prosa del paquete, la SQL que guarda
+  [`perfilar_dbi()`](https://sebollin.github.io/lupa/reference/perfilar_dbi.md)—
+  la conserva entera: con «Segundo» protegido, `segundo_nombre` se
+  publica tal cual —y no como `[valor protegido]_nombre`— en los
+  hallazgos sin acción del plan y en la SQL. Lo mismo los **nombres que
+  el paquete deriva** de un nombre de columna: el que propone el plan en
+  `nombres_propuestos` —con
+  [`make.names()`](https://rdrr.io/r/base/make.names.html) y en
+  snake_case— y las marcas `.ausente_<nombre>` y `.outlier_<nombre>` que
+  crean sus acciones. Barridos como texto de los datos, con «Segundo»
+  protegido en `Primer Nombre` la evidencia diría
+  `"Segundo Nombre" -> "[valor protegido].Nombre"`, el plan propondría
+  ese nombre y
+  [`aplicar()`](https://sebollin.github.io/lupa/reference/planificar_limpieza.md)
+  se lo pondría a la columna en los datos del usuario. Un nombre que es
+  él mismo un valor protegido, con otra caja, otros separadores, tildes
+  o codificación, no se exceptúa —salvo citado en la SQL que guarda
+  [`perfilar_dbi()`](https://sebollin.github.io/lupa/reference/perfilar_dbi.md),
+  donde es un identificador y se publica igual en `columnas$columna`:
+  tapado, taparía las sentencias enteras del lote—. Y un valor protegido
+  que **contiene** un nombre de columna —el correo
+  `juan_perez@empresa.com.uy` con una columna `juan_perez`— se busca
+  entero, con cualquier caja, antes de apartar el nombre: se tapa el
+  correo y no su dominio ni el correo de otra persona, y los nombres que
+  siguen en el texto quedan cada uno en su lugar. Lo mismo vale para el
+  **vocabulario**: un tipo de hallazgo, una severidad, una estrategia,
+  el nombre de un diagnóstico o de una métrica, o el de un factor de un
+  marco que declaró el usuario, no se enmascaran aunque coincidan con un
+  valor protegido o lo contengan. El principio es el de los nombres de
+  columna: son estructura, no salen de las celdas, y publicarlos no dice
+  nada de ninguna fila —el tipo `constante` aparece porque otra columna
+  es constante, no porque alguien se apellide así—. Si el vocabulario se
+  enmascarara, un nombre de persona contenido en `faltantes_disfrazados`
+  dejaría los hallazgos con el tipo `[valor protegido]` y el plan sin
+  ninguna acción para ellos. La regla es por campo y por contenido: un
+  campo cuyos valores son todos vocabulario del propio objeto queda
+  afuera, uno que mezcla no. Ese alcance tiene un **piso**: un valor de
+  una columna protegida que identifique —seis caracteres o más, el mismo
+  corte con el que la batería de fugas decide qué cuenta como
+  filtración— no se publica en ninguna parte, tenga o no columna a la
+  que atribuirse, y también en los campos numéricos. Sin ese piso, una
+  columna que el clasificador no marcó publicaría los documentos de la
+  protegida con sólo repetirlos: una copia con nombre neutro, un texto
+  libre que los contuviera, o los estadísticos de orden de una columna
+  clasificada con poder discriminante `debil`. Una columna que **copia
+  los documentos protegidos sin su verificador** —la cédula
+  `4.685.467-9` de cada fila guardada como el entero `4685467`, o como
+  texto, en una columna de nombre neutro; también el texto con los
+  decimales que deja una planilla, `"4685467.0"` o `"4.685.467,00"`, con
+  signo o en notación científica (`"+4685467.0"`, `"4685467e0"`), que se
+  compara por el número que el paquete lee en él, con la misma lectura
+  que el resumen, o con espacios de miles y una parte decimal de ceros
+  (`"4 685 467.0"`); un texto con centavos que no son cero no es un
+  documento— se protege entera, como una columna personal: se clasifica
+  `documento_identidad` con poder `alto` cuando al menos tres de sus
+  valores distintos son el documento sin su verificador de un valor
+  protegido —con la regla de los textos, ver abajo; también la cédula de
+  seis cifras, `854321` de `"854.321-2"`: sin ella, una sola entre las
+  de siete dejaría publicar la columna—, son el 90 % de sus distintos
+  —el umbral de `verificado`, que tolera tipeos aislados— y tantos no
+  coinciden por azar con la densidad de esos documentos en el rango de
+  la columna —una probabilidad binomial menor que una en un millón—. Sin
+  protegerla, publicaría sus dos extremos, que son dos cédulas. La regla
+  es por **columna** y no por valor: una columna que coincide por azar
+  —uno de cada cinco importes de siete cifras coincide con un documento
+  sin verificador frente a un millón de cédulas, y hasta tres de cada
+  cuatro frente a cuatro millones— publica sus extremos aunque
+  coincidan. Medido en `data-raw/medir_tapado_de_mas.R` sobre 400
+  columnas por familia, con uno y con cuatro millones de cédulas
+  protegidas: no se protege ninguna columna de importes de siete cifras
+  —tampoco redondeados a miles, con 10, 50 o 500 valores distintos,
+  aunque por azar coincidan todos— ni de enteros de ocho cifras, y sí
+  todas las copias de 50 valores distintos o más; con el 10 % de tipeos,
+  todas frente a un millón y la mitad frente a cuatro. Una copia de
+  pocos valores distintos frente a muchos documentos —tres, o diez
+  frente a cuatro millones— no se distingue del azar y publica sus
+  extremos; tampoco una copia con más del 10 % de otros valores. Y la
+  regla compara contra los documentos protegidos: sin la columna de la
+  que copia —la tabla de pagos perfilada sin la de personas, fuera de
+  una colección con perfiles conservados— una columna de siete cifras no
+  se distingue de un importe y publica sus extremos. El vocabulario
+  corto no entra en el piso: `"S/D"` sigue publicándose donde describe a
+  una columna que no es personal. Tampoco los **rellenos** de una
+  columna protegida, que ocupan el lugar de un dato y no son el de
+  nadie: el que no tiene letras ni dígitos (`"------"`), y el dígito
+  repetido que se repite cinco veces o más en una columna que sin él es
+  casi una clave —cuarenta `"99999999"` entre cédulas que no se
+  repiten—. En el piso taparían la moda, el mínimo, la mediana y el
+  máximo de un `monto` con su propio `99999999`. Donde el documento se
+  repite —una tabla de movimientos— el dígito repetido sigue en el piso:
+  `2.222.222-2` es una cédula válida. Fuera del piso no quiere decir
+  publicados en la columna protegida: su moda, sus ejemplos y los
+  parámetros del plan sobre ella los siguen tapando, y un centinela que
+  el usuario declaró en `sentinelas_numericos` y aparece en una columna
+  protegida —también como su relleno— sigue en el piso. Sin los datos,
+  el declarado entra siempre, porque no se sabe de qué columna es; con
+  ellos, el que no aparece en ninguna protegida no entra: si entrara, se
+  taparía a sí mismo en `meta` y la acción que lo convierte en un
+  `monto` quedaría sin efecto sin proteger nada. El piso tiene **una
+  excepción declarada**, y es la única:
+  [`perfilar_por()`](https://sebollin.github.io/lupa/reference/perfilar_por.md)
+  agrupando *por* una columna personal publica sus valores como
+  etiquetas de grupo, porque la etiqueta es el eje del resultado y sin
+  ella los grupos no se distinguen. Lo mismo cuando la columna de
+  agrupación no es personal pero alguna etiqueta contiene un valor
+  protegido de otra columna. No ocurre en silencio —avisa al ejecutar y
+  lo declara en `etiquetas_personales`— y el remedio es agrupar por una
+  columna seudonimizada. El piso alcanza además la **forma sin
+  separadores**: `"771.771-01"` es el mismo documento que `"77177101"`,
+  y la celda entera se enmascara. En los dígitos se busca **el documento
+  en cada número del texto**, con cualquier agrupación: un número une
+  grupos de dígitos con espacios, guiones o puntos —también con un
+  espacio a cada lado—, y con barras, comas sin espacio, apóstrofos,
+  signos más, puntos medios o paréntesis pegados, y se tapa la celda si
+  grupos contiguos forman un documento protegido —`"2901 1234"`,
+  `"099 12 34 56"`, `"(2) 487 1234"`, `"4111 1111 1111 1111"`,
+  `"01.23.45.67.89"`—, también con ceros a la izquierda, con los
+  guiones, espacios e invisibles de Unicode —las marcas combinantes, los
+  ignorables y los caracteres de control también—, con los parecidos más
+  comunes del punto, la coma, la barra y el apóstrofo —el acento agudo
+  que el teclado en español pone por apóstrofo—, con la raya o el
+  apóstrofo de un CSV de Windows leído como `latin1`, o escrito con
+  dígitos arábigo-índicos, persas o devanagari. El **teléfono uruguayo
+  con su prefijo de país** —`"598"` o `"00598"` y ocho cifras que
+  empiezan con 2, 4 o 9: `"+598 2901 1234"`, `"00598 99 123 456"` o
+  pegado, `"+59899123456"`, como lo escriben los enlaces de WhatsApp y
+  las exportaciones de un CRM— se prueba por su parte nacional, como si
+  estuviera escrito solo, y entero; el prefijo no se une a otro grupo.
+  También cuando va pegado a otro número por una barra o un guion
+  —`"+59899123456/+59899765432"`, `"29011234/+59899123456"`—: cada
+  número con esa forma se prueba por su parte nacional. Y el celular
+  protegido guardado con el prefijo se reconoce escrito sin él, también
+  guardado como número de planilla —`"59899123456.0"`, `"59899123456,0"`
+  o `"5.9899123456E+10"`, la misma cifra, con cualquier cantidad de
+  ceros —`"59899123456.0000"`, como lo deja un `DECIMAL(15,4)`—, con
+  cualquier exponente —`"5.9899123456e+010"`, como lo escribe el
+  `printf` de Windows, también con un espacio antes,
+  `"5.9899123456 e+10"`— y con separador de miles, como lo muestra el
+  formato "Número" de una planilla —`"59.899.123.456"`,
+  `"59,899,123,456.00"`, `"59 899 123 456,00"`, `"59'899'123'456"`, con
+  el punto medio o sus parecidos —el operador viñeta, el punto medio
+  katakana: cualquier signo que une los grupos de un número— o con el
+  agrupado indio, `"59,89,91,23,456"`: todas las escrituras dan la misma
+  cifra entera—, y al revés: escrito así en un texto se lee por su parte
+  nacional, que sale de esa cifra y no de los grupos como vienen. La
+  cifra escrita así es el documento **entero**, no el parcial: el
+  importe redondo `"5460537.00"` no se lee como un documento sin su
+  verificador. No unen los parecidos raros: la prima de una coordenada
+  sexagesimal, el acento grave, la tilde. Los dos puntos y la barra
+  vertical **no** unen: una razón `"494:2714"` o una lista
+  `"12|345|6789"` no es un documento, y un documento escrito así no se
+  reconoce. Una fecha con hora protegida se reconoce escrita con `T`,
+  `Z`, uno a tres espacios, coma, punto y coma, guion o guion doble,
+  guion bajo, barra, barra vertical, arroba, paréntesis o corchete entre
+  la fecha y la hora, con día y mes en cualquier orden, con la hora
+  separada por puntos, guiones o `h` y `m` (`"21h24m25s"`), en la forma
+  compacta `"20240627T212425"` o con la hora compacta tras la fecha con
+  separadores (`"2024-06-27T212425"`); no en palabras, con a.m./p.m.,
+  con cuatro espacios o más ni con el año en dos cifras —también con las
+  formas chicas o de ancho completo de esos signos, o con la barra
+  partida por barra vertical—. El documento **parcial**, de siete cifras
+  o más, se busca con más cuidado porque es el que coincide por azar:
+  sin su verificador, fuera de la parte de un decimal, de un número con
+  forma de dirección IPv4 —con o sin máscara CIDR— y de un importe con
+  miles de cuatro grupos o más (`"3.919.024.166"`), que se prueban
+  enteros —el importe, también sin su primer grupo: es el prefijo de
+  país de un celular agrupado de a tres, `"598.099.123.456"`, que de
+  otro modo se publicaría— (`"4.123.456"` frente a `"4.123.456-7"`, el
+  verificador mal tipeado, el documento seguido de un año), y sin su
+  primer dígito sólo detrás de un asterisco o una equis
+  (`"*.123.456-7"`, `"X.012.345-8"`, `"X2345678"`) —también los
+  asteriscos de Unicode, todo signo que Unicode llama asterisco salvo el
+  combinante de abajo, que el pliegue borra como a una tilde, y el
+  asterisco pegado a una letra, `"CI*123.456-7"`—; la equis seguida de
+  un espacio no es comodín, porque `"92 x 6931234"` es una
+  multiplicación; un número redondo (`1.000.000`) no cuenta como
+  parcial. Es un **decimal** el número cuyo último signo es un punto o
+  una coma con otra cantidad de cifras que tres, y antes un entero o
+  miles separados con otro signo: `"4.123.456,7"` es un importe,
+  `"4.123.456.7"` no; su parte decimal no se pega al resto cuando es la
+  de un importe con miles o la de un decimal suelto —una coordenada, un
+  par lat lon—, pero sí cuando el número es otra cosa, como
+  `"(02) 901.1234"`. Una fecha con un año entre 1800 y 2100 —también con
+  espacios y el año al final, `"16 01 2002"`; con el año adelante no,
+  porque `"2012 11 05"` es también un teléfono escrito de a pares—, una
+  hora —con su fracción de segundo: hasta siete cifras o nueve tras un
+  punto, nunca ocho, y no seguida de un guion y una cifra, que sería un
+  verificador—, un ISBN y una lista separada por comas no son
+  documentos. El ISBN-10 —con guiones, espacios o puntos— sólo si su
+  dígito de control es válido o lo precede `ISBN`: un NIT
+  `"900-123-456-7"` tiene su forma, y uno de cada once documentos de
+  diez cifras escritos así valida por azar y no se reconoce. Una
+  fracción de nueve cifras tras un punto se lee como nanosegundos: un
+  documento con un cero adelante pegado así a una hora no se reconoce.
+  En la prosa del paquete los números son conteos suyos, y ahí la regla
+  mira sólo lo que la prosa cita entre comillas y el código que sugiere
+  entre comillas invertidas, y tapa la cita o el número, no la frase.
+  **El parcial tiene un costo, medido**: un número entero de siete
+  cifras que coincide con un documento protegido sin su verificador no
+  se distingue de él, y se tapa. Con un millón de cédulas, 300.000
+  teléfonos fijos y 300.000 celulares protegidos, eso le pasa a uno de
+  cada cinco números de siete cifras en ejemplos, modas y evidencia —en
+  cualquier escritura: con puntos o apóstrofos de miles, con un guion,
+  tras un numeral o tras una equis seguida de un espacio
+  (`"92 x 6931234"`); tras un asterisco, o tras una equis pegada
+  (`"serie X6276963"`, que es como se escribe el documento recortado sin
+  formato, `"X2345678"`), a uno de cada cuatro—, y a uno o dos de cada
+  cien enteros de ocho cifras, que coinciden con un documento entero
+  —también a los importes de ocho cifras con centavos, `"52317219.09"`,
+  1,8 % sobre 4.000 con las mismas cifras enteras: su parte entera es la
+  de un documento entero; y a los escritos con separador de miles o en
+  notación científica, con o sin un espacio antes del exponente
+  —`"52.317.219,00"`, `"5.2317219 e+07"`—, también 1,8 %: son la misma
+  cifra entera; y a tres de cada cien de los que empiezan con 9 —entre
+  90 y 99,9 millones: un importe, un código—, en cualquier escritura
+  (`"98276375"`, `"98.276.375,00"`: 3,3 % sobre 4.000), porque tienen
+  además la forma de un celular protegido sin su cero—; las coordenadas,
+  los p-valores, los importes de siete cifras con decimales —también los
+  redondos, `"5460537.00"`, `"5460537,00"` o dentro de una frase; con un
+  solo cero, `"5460537.0"`, dos de cada cien, que se leen también como
+  la cédula con su verificador tras un punto—, las horas, los ISBN
+  —también el ISBN-10 con espacios o puntos—, las fechas con espacios,
+  las listas separadas por comas con espacio o por barras verticales,
+  las razones no se tapan; los importes con miles de cuatro grupos o
+  más, uno o dos de cada mil —su cola sin el primer grupo coincide con
+  un documento cuando empieza con un cero—; una dirección IP —también
+  con su máscara CIDR, `"10.4.123.234/24"`, o su puerto, y en un rango
+  de redes `"10.4.1.0/24-10.4.9.0/24"`— sólo cuando coincide entera,
+  menos de una de cada cien; y una coordenada escrita con un cero
+  adelante (`"-056.092164"`), que tiene la forma de un celular con punto
+  (`"099.123456"`), casi una de cada cien. Lo mismo vale, por la misma
+  razón, para lo que se une como el documento: una lista separada por
+  espacios, ocho de cada cien; un rango de años `"2004-2017"` o con la
+  raya de un CSV de Windows, dos números en dos líneas, una lista con
+  tabuladores o con comas sin espacio —también la coma ideográfica—,
+  entre una y tres de cada cien; o una versión `"v4.16.4302"`. Un
+  teléfono fijo que no es de nadie, tres de cada cien —2,8 %, sobre
+  4.000 fijos—, escrito de cualquier forma: con espacios o guiones
+  (`"4656 4570"`), con su prefijo de país (`"+598 4499 0917"`) o pegado,
+  y como número de planilla con su prefijo (`"59.822.877.006"`): 3,2 %
+  sobre otros 4.000, lo mismo que pegados (`"+59822877006"`). Coincide
+  con un documento o con un teléfono protegido, y como se prueba su
+  parte nacional, las mismas cifras se tapan en todas las escrituras,
+  salvo la de planilla con los miles y los decimales en cero o con
+  espacios (`"59.822.877.006,00"`, `"59 822 877 006"`), 4,4 %: como en
+  el celular, sus primeras ocho cifras tienen además la forma de una
+  cédula entera. Las familias del reproductor que sortean 400 fijos por
+  escritura dan entre 1,5 y 5,5 %: es el sorteo, no la escritura. El
+  prefijo no se une al primer grupo: `"598"` y ese grupo formarían una
+  cédula de siete cifras sin su verificador. Y una lista de dos
+  teléfonos unidos por una barra —`"+59894364556/+59849290458"`—, entre
+  cinco y ocho de cada cien, como la misma lista con `" / "`: cada uno
+  se prueba por su parte nacional. Un celular que no es de nadie, entre
+  dos y tres de cada cien —2,0 a 2,5 % con 400 por escritura, pegado con
+  su prefijo, con espacios o sin el prefijo; 3,0 % sobre 4.000 con las
+  mismas cifras, pegado (`"+59895257283"`) o como número de planilla con
+  separador de miles (`"59.895.257.283"`)—: coincide con uno protegido.
+  Con los miles y los decimales en cero, o con espacios
+  (`"59 895 257 283"`), 4,4 %: sus primeras ocho cifras tienen además la
+  forma de una cédula entera. Con el punto medio como separador de
+  miles, 5,3 % sobre otros 4.000 que pegados dan 4,0 %, y 7,8 % con los
+  decimales en cero: como con espacios, sus grupos se prueban también
+  sueltos. Con el agrupado indio (`"59,89,52,57,283"`), uno de cada
+  cinco —20,3 %, y 32,0 % con `".00"`—: sus grupos de dos forman números
+  de siete cifras que coinciden con un documento sin su verificador. Y,
+  por el mismo parcial, una versión de cuatro partes
+  (`"v4.62.660.4361"`), trece de cada cien, la de cinco partes
+  (`"v2.76.527.6327.3"`), quince de cada cien, y un expediente
+  `"exp 2023-6-880041"`, uno de cada seis: su tramo `"660.4361"` o
+  `"6-880041"` es un número de siete cifras con un signo que une, y no
+  se distingue del documento escrito así. Y por la regla de la hora, una
+  fracción de ocho cifras (`"18:54:14.80786977"`) no es fracción —así no
+  se traga un documento pegado— y se tapan cuatro o cinco de cada cien;
+  lo mismo un número de diez cifras con la forma de un ISBN-10 y su
+  dígito de control inválido. La medición se rehace con
+  `data-raw/medir_tapado_de_mas.R`. Las tildes, la caja y la escritura
+  también son cosméticas: `juan.perez` se enmascara frente al nombre
+  protegido «Juan Pérez», y el nombre pegado a otras letras dentro de un
+  correo o un alias, también. La comparación usa un pliegue generado de
+  Unicode —caja de todo alfabeto, letras con y sin diacríticos,
+  ligaduras, ancho completo y medio ancho, letras matemáticas, y las
+  letras modificadoras que hacen de acento o de apóstrofo pegadas a una
+  letra, como el agudo U+02CA, el circunflejo bajo U+A788, la tilde
+  vertical U+2E2F, la prima U+02B9 o el apóstrofo U+02BC escritos en
+  lugar de la tilde—, compara el texto publicado también con los escapes
+  del paquete deshechos (un espacio duro sale `<U+00A0>`) —el valor
+  protegido nunca se desescapa: una barra literal es parte del valor—, y
+  lee lo que no es UTF-8 válido de las dos maneras, byte por byte como
+  CP1252 conservando las secuencias válidas y entero. El **correo
+  escrito con palabras** —`juan(at)gmail.com`, `[at]`, `{at}`, `_at_`,
+  `(arroba)`, `(a)`, `juan arroba gmail punto com`— se lee como correo:
+  la palabra es la arroba sólo si la sigue un dominio con su punto, y
+  `dot` o `punto` son el punto sólo en un texto que ya tiene arroba
+  —también la arroba escrita, `juan@gmail punto com`—. Se lee con los
+  espacios de Unicode como espacios —el duro, el ideográfico, el salto
+  de línea de C1 (U+0085)— y los signos de ancho completo como los de
+  ASCII —los paréntesis o la arroba anchos, también los paréntesis
+  blancos anchos (U+FF5F, U+FF60)—, y con todas las demás formas de
+  compatibilidad de un signo ASCII —cada carácter que la normalización
+  NFKC de Unicode lleva a un solo signo ASCII—: el punto ideográfico y
+  el de medio ancho (U+3002, U+FF61), las variantes chicas de la coma,
+  el punto, los paréntesis o la arroba (U+FE50 a U+FE6B), la barra
+  partida, los paréntesis superíndice y subíndice (U+207D, U+207E,
+  U+208D, U+208E), las formas de presentación vertical (U+FE10 a U+FE48)
+  y el punto de guía (U+2024). Se toma la normalización entera y no una
+  lista de las formas conocidas: con una lista, el correo escrito con
+  los paréntesis superíndice alrededor de `at` se publicaría. Las letras
+  de otro alfabeto que se parecen —una «a» cirílica (U+0430) en lugar de
+  la latina— no son el mismo signo y no se leen, ni una letra encerrada
+  en un círculo (U+24D0): es otra forma de la letra, no un signo. Y en
+  cualquier codificación: un texto `latin1` con una tilde se lee como el
+  mismo texto en UTF-8. Medido sobre 3.000 correos protegidos: los no
+  protegidos escritos así se tapan lo mismo que con la arroba común
+  —cuatro de cada mil, por los separadores cosméticos—, y ninguna de
+  3.015 frases con esas palabras, mil de ellas con una arroba y el punto
+  en palabras. **No** se leen otras ofuscaciones: el punto entre
+  corchetes o paréntesis (`[at]...[.]`, `(.)`), `<at>`, `"at"`, `-at-`,
+  `/at/`, el punto con espacios alrededor (`empresa . com`) ni un
+  dominio con guion bajo; un correo protegido escrito así se publica.
+  Las marcas del paquete se apartan del texto, y un valor protegido que
+  contiene una se busca entero antes de apartarla. **Una fecha de
+  calendario sola no entra en el piso**, tampoco escrita como `AAAAMMDD`
+  o con el año en dos cifras en una columna de esas fechas, ni como
+  fecha-hora ISO a medianoche: en una tabla de miles de personas casi
+  todo día es el cumpleaños de alguien, y con la fecha de nacimiento
+  protegida se taparían los estadísticos de todas las demás columnas de
+  fechas. La columna de fechas protegida se sigue protegiendo entera;
+  una fecha con hora sí cuenta. Se decide **por la columna**: en una
+  columna protegida que no es de fechas —un teléfono fijo `"2012-11-05"`
+  entre otros teléfonos— el valor con forma de fecha sí entra en el
+  piso, escrito como está guardado (la regla de dígitos borra las fechas
+  antes de buscar, así que `"2012/11/05"` no lo encuentra); una columna
+  es de fechas si es `Date` o `POSIXt`, o si la mitad o más de sus
+  valores distintos tienen forma de fecha —con el año en cuatro cifras o
+  en dos, o compacta `AAAAMMDD`—. Es una sola regla, en memoria y en
+  [`perfilar_dbi()`](https://sebollin.github.io/lupa/reference/perfilar_dbi.md):
+  una columna de nacimientos con el 60 % en `dd/mm/aa` es de fechas, y
+  sus valores no tapan la moda ni los ejemplos de las fechas de otra
+  columna. En la columna de fechas, lo que no tiene forma de fecha —un
+  relleno— sigue entrando al piso. En la **prosa del paquete**
+  —descripción, sugerencia, motivo, cómo resolverlo, justificación— se
+  exige además que la variante no tenga una letra pegada antes o
+  después: con los nombres de millones de personas como valores
+  protegidos, alguno aparecería cruzando palabras de esas frases y las
+  taparía enteras, también en columnas no personales. Lo que esa prosa
+  cita entre comillas dobles —el nivel de un determinante en la
+  sugerencia de `posible_ausencia_estructural`— no es prosa sino un
+  valor: se compara con la regla de los valores y se tapa sólo la cita,
+  para que la sugerencia se siga leyendo. Y si el determinante es una
+  columna protegida, la sugerencia no reproduce el criterio. **Las
+  palabras y las marcas del propio paquete no se tapan**: con columnas
+  de nombre y de apellido separadas, los valores protegidos son palabras
+  sueltas, y algunas lo son también del paquete —`Blanco` frente a la
+  marca `<blanco>`, `Máximo` frente a la clave `grupo_maximo`, `Patrón`
+  en «el patrón dominante»—. El léxico se calcula al instalar, desde las
+  cadenas del código del paquete: sus marcas no se comparan en ningún
+  campo, y sus palabras no se tapan en su prosa salvo dentro de una
+  cita. El nombre completo en el texto de otra columna se sigue tapando.
+  Lo que no es del paquete, también: con nombre y apellido protegidos en
+  columnas separadas, un lugar que comparte una palabra de seis letras o
+  más con uno de ellos se tapa —el departamento `"Maldonado"` entre los
+  ejemplos, la calle `"Av. Rivera 1343"`, el `"Instituto Rivera"`; seis
+  de los diecinueve departamentos de Uruguay son apellidos así, y
+  ciudades como Mercedes o Dolores son nombres de pila—. Medido sobre
+  5.000 personas con esos nombres y apellidos, se tapan trece campos de
+  cuatro columnas que no son personales. Es el costo del piso y no se
+  afloja: sin él, «llamó la Sra. Rivera» publicaría el apellido. Y lo
+  aplican también
+  [`analizar()`](https://sebollin.github.io/lupa/reference/analizar.md),
+  [`distribucion_valores()`](https://sebollin.github.io/lupa/reference/distribucion_valores.md),
+  [`clasificar_variables()`](https://sebollin.github.io/lupa/reference/clasificar_variables.md)
+  y
+  [`detectar_discordancias()`](https://sebollin.github.io/lupa/reference/detectar_discordancias.md),
+  así que no publican lo que `perfilar()` tapa sobre la misma tabla.
+
+- columnas_personales:
+
+  Columnas que traen datos personales, declaradas por quien conoce el
+  dato. `c("cod_benef", "apodo")` las nombra sin decir de qué tipo son;
+  `c(cod_benef = "documento_identidad")` además lo dice. Lo declarado
+  gana sobre lo inferido y no se vuelve a examinar.
+
+  Existe porque el léxico de nombres de columna **no puede ser
+  completo**: una columna con documentos se puede llamar de cualquier
+  manera, y ninguna lista de nombres frecuentes la va a reconocer. Es el
+  mismo patrón que `columnas_opcionales`, aplicado a la otra decisión
+  que el paquete no puede tomar solo.
+
+- validadores_personales:
+
+  Pack o lista nombrada de funciones que reciben un vector de texto y
+  devuelven un lógico de igual longitud. `NULL` usa
+  [`validadores_uruguay()`](https://sebollin.github.io/lupa/reference/pack_validadores.md)
+  por compatibilidad; `FALSE` o
+  [`numeric()`](https://rdrr.io/r/base/numeric.html) desactiva la
+  verificación de documentos. El nombre del mejor validador queda en el
+  fundamento de la clasificación.
+
+- umbral_documento_verificado:
+
+  Proporción mínima de valores que debe aceptar un validador para
+  clasificar una forma de documento como `verificado`. Por defecto es
+  `0.9`.
+
+- muestra_validadores:
+
+  Máximo de valores usados en el filtro preliminar de cada validador. Si
+  la proporción preliminar ya queda bajo el umbral no se valida la
+  columna completa; use `Inf` para revisar todos desde el inicio.
+
+- duplicados_aproximados:
+
+  `FALSE` por omisión. Use `TRUE` o una lista de argumentos para
+  ejecutar
+  [`detectar_duplicados_aproximados()`](https://sebollin.github.io/lupa/reference/detectar_duplicados_aproximados.md)
+  y añadir sus pares y hallazgos al perfil. Es un análisis acotado y
+  opcional porque no afirma identidad ni debe encarecer todas las
+  corridas.
+
+- normalizar:
+
+  Perfil de comparación que se conserva en `meta$normalizacion` y que
+  heredan los análisis de duplicados y claves cuando no reciben uno
+  explícito. Cambia sólo la representación usada para comparar.
+
+- max_filas_hallazgo:
+
+  Tope de índices de fila que conserva cada trazabilidad disponible. Por
+  defecto es `1000`; cuando se supera, el estado queda como `truncada` y
+  el total se conserva. Use `Inf` sólo si necesita desactivar
+  explícitamente el tope.
+
+- umbral_orden_columnas:
+
+  Cumplimiento mínimo de una relación de orden entre columnas
+  comparables. Se usa `0.95` por omisión; con menos de 20 filas
+  comparables se permite una sola inversión para no descartar tablas
+  pequeñas. El alcance efectivo queda en `meta$orden_columnas`.
+
+- max_columnas_orden:
+
+  Máximo de columnas numéricas o temporales que se comparan entre sí
+  para detectar relaciones de orden. Las columnas que exceden el límite
+  se conservan en `meta$orden_columnas$columnas_omitidas` y el
+  diagnóstico se declara `no_evaluado` en `cobertura_diagnosticos`.
+  [`comparar_perfiles()`](https://sebollin.github.io/lupa/reference/comparar_perfiles.md)
+  no presenta como `resuelto` un hallazgo anterior que quedó fuera de
+  ese alcance.
+
+- umbral_solapamiento_orden:
+
+  Solapamiento mínimo de los rangos intercuartiles para considerar que
+  dos columnas representan magnitudes comparables. Por defecto es `0.1`:
+  al menos una décima parte del rango intercuartílico más ancho debe ser
+  común a ambos. Esto evita interpretar como restricción fila a fila un
+  orden explicado sólo por escalas separadas. Si no hay ese
+  solapamiento, una brecha con IQR exactamente cero conserva el par
+  porque la mitad central sostiene el mismo desplazamiento fila a fila.
+  No se aplica una tolerancia oculta. Use `0` para desactivar el filtro
+  de magnitud. Ambos criterios se publican en la evidencia. Los pares
+  descartados se cuentan en
+  `meta$orden_columnas$pares_descartados_magnitud` y los recuperados en
+  `meta$orden_columnas$pares_rescatados_brecha_estable`. Los pares que
+  involucran una columna cuyo tipo o formato se descubrió sobre una
+  muestra y cuya conversión dejó valores afuera no se comparan; el
+  alcance los conserva en `columnas_conversion_parcial`,
+  `n_valores_excluidos_conversion` y
+  `pares_descartados_conversion_parcial`.
+
+- umbral_aritmetica:
+
+  Proporción mínima de filas comparables que deben satisfacer una
+  identidad dentro de `tolerancia_aritmetica` para reconocer una
+  regularidad aritmética entre columnas numéricas. El valor por omisión
+  es `0.9`. Una vez reconocida la relación se informan todas sus
+  discrepancias, sin un segundo filtro por su cantidad absoluta. La
+  proporción y el criterio efectivos se publican en cada evidencia.
+
+- min_filas_aritmetica:
+
+  Mínimo de filas comparables necesario para evaluar una candidata
+  aritmética. Por omisión es `3`.
+
+- tolerancia_aritmetica:
+
+  Tolerancia numérica relativa escalada usada al comparar un valor
+  observado y uno esperado. Por omisión es `1e-8`; el criterio completo
+  y el valor efectivo se declaran en cada evidencia. Como es relativa a
+  la escala del total, con montos de `1e9` vale entre 10 y 20 unidades,
+  y una columna que vive por debajo de eso completaría cualquier suma
+  entre dos columnas casi iguales. Por eso una identidad que se cumple
+  igual sin uno de sus sumandos no se publica, salvo que se cumpla
+  exacta —con la única diferencia del redondeo del tipo double,
+  `4 * .Machine$double.eps` relativo— en la proporción de
+  `umbral_aritmetica`; la evidencia lo dice, y las descartadas se
+  cuentan en `meta$aritmetica_columnas$identidades_descartadas_escala`,
+  junto a la resolución usada en `resolucion_exacta`. Es el mismo
+  criterio que el filtro de magnitud de las relaciones de orden.
+
+- max_columnas_aritmetica:
+
+  Máximo de columnas numéricas que intervienen en la búsqueda
+  aritmética, cuyo costo crece cúbicamente. Por omisión es `20`. Si se
+  omiten columnas, `cobertura_diagnosticos` declara el recorte y
+  `meta$aritmetica_columnas` conserva los conteos de combinaciones.
+
+- casi_duplicados_vocabulario:
+
+  Lógico que activa el diagnóstico de variantes casi duplicadas dentro
+  del vocabulario de cada columna de texto. Por defecto es `TRUE`;
+  `FALSE` lo omite sin afectar los demás hallazgos. La distancia es una
+  señal heurística, no una prueba de identidad: Jaro–Winkler puede
+  agrupar nombres de calles o códigos que sólo comparten un prefijo o un
+  sufijo. En vocabularios heterogéneos revise la evidencia como
+  sospechosa, declare una regla de dominio o use `FALSE` para desactivar
+  este diagnóstico.
+
+- max_proporcion_grupo_vocabulario:
+
+  Proporción máxima del vocabulario que puede abarcar el grupo mayor
+  para entregar grupos de variantes. Por defecto es `0.5`; si se supera,
+  el alcance declara que el diagnóstico no aplica en vez de entregar un
+  bloque que abarque casi toda la columna. El diagnóstico se ejecuta por
+  columna y no deduplica columnas con el mismo vocabulario: cada una
+  conserva su propia fila de cobertura y sus propios hallazgos. El costo
+  de comparar vocabularios idénticos puede repetirse.
+
+- umbral_variante_rara_vocabulario:
+
+  Proporcion maxima de la columna que puede ocupar una variante breve
+  para abrir la comparacion por una edicion.
+
+- min_asimetria_vocabulario_corto:
+
+  Razon minima entre la frecuencia de una forma dominante y una variante
+  breve para abrir la comparacion por una edicion.
+
+- min_asimetria_vocabulario:
+
+  Razón mínima entre la frecuencia de la forma dominante y la de la
+  variante para abrir un grupo por la vía general de distancia. Por
+  omisión `2`. Una asimetría de `1,5` significa que las dos formas son
+  casi igual de comunes, que es evidencia muy floja de una errata:
+  medido sobre tablas limpias y sobre erratas sembradas, los falsos
+  positivos están entre `1,0` y `1,5` y las erratas reales desde `9,0`.
+
+- min_participacion_dominante_vocabulario_corto:
+
+  Proporcion minima de la columna que debe ocupar la forma dominante en
+  la comparacion por una edicion.
+
+- variantes_equifrecuentes_vocabulario:
+
+  Si se informa el diagnóstico `variantes_equifrecuentes_vocabulario`,
+  que señala dos formas cercanas que se reparten la columna sin que
+  ninguna sea dominante —el error sistemático de dos operadores, una
+  plantilla rota o una migración parcial—.
+
+  **Está apagado por omisión y la razón está medida**: sobre la batería
+  de 31 tablas limpias produce un grupo sospechoso donde no hay defecto.
+  Lo que lo dispara no es el tamaño de la tabla sino el reparto: dos
+  formas parecidas con frecuencias del mismo orden lo activan igual con
+  cuatro filas que con quinientas, y en una tabla chica ese reparto sale
+  por casualidad más seguido. Es aditivo: encenderlo no cambia ni pierde
+  ninguna detección de `casi_duplicados_vocabulario`. El límite que deja
+  de cubrir se declara igual, encendido o apagado, en
+  `n_grupos_sin_variante_rara`.
+
+- max_asimetria_equifrecuente_vocabulario:
+
+  Razón máxima entre la frecuencia mayor y la menor para considerar que
+  dos formas se reparten la columna. Con `2`, `40` contra `5` no entra y
+  `5` contra `5` sí.
+
+- max_comparaciones_dependencias:
+
+  Tope de pares determinante-dependiente que se comparan. El costo de
+  las dependencias es del orden de `columnas^2 x filas` y empeora con
+  determinantes casi únicos; cuando el presupuesto se agota, lo
+  comparado se informa y lo que quedó sin comparar se declara en
+  `cobertura_diagnosticos`, nunca como cero.
+
+- max_trabajo_vocabulario:
+
+  Tope de comparaciones de carácter para las comparaciones de distancia
+  del vocabulario. Comparar dos valores cuesta del orden del producto de
+  sus largos, así que el trabajo es la suma de ese producto sobre todos
+  los pares. Contar pares por longitud media subestima las cadenas
+  largas: medido así, el mismo presupuesto rinde 5,3 millones de
+  unidades por segundo con valores de 900 caracteres y 44 millones con
+  valores de 40. Se combina con el límite interno de pares del detector
+  y manda el más restrictivo; ese límite interno no es un argumento de
+  `perfilar()`. El recorte declara valores, pares y trabajo sin
+  comparar. `Inf` lo desactiva.
+
+- max_trabajo_dependencias:
+
+  Tope predeterminado de unidades fila-par para las dependencias. Se
+  combina con `max_comparaciones_dependencias`; el límite efectivo baja
+  cuando hay muchas filas. `Inf` desactiva este tope, pero no el de
+  pares.
+
+- max_largo_valor_vocabulario:
+
+  Maximo de caracteres permitido en cada valor que entra en la
+  comparacion de casi duplicados del vocabulario. Por defecto es
+  `10000`, elegido porque la distancia normalizada deja de distinguir de
+  forma estable una diferencia local de muchas diferencias en textos
+  largos. Una columna que supera el tope se declara completa fuera de
+  alcance en `cobertura_diagnosticos`; no se recortan valores en
+  silencio. `Inf` quita el tope.
+
+- max_celdas_muestra:
+
+  Maximo de celdas que puede contener la muestra comun de los
+  diagnosticos que muestrean filas. Por defecto es `1000000`; se calcula
+  como filas efectivas por columnas de la tabla. Si reduce la muestra,
+  `cobertura_diagnosticos` informa las filas y celdas solicitadas, el
+  umbral y el nuevo alcance. `Inf` desactiva este tope.
+
+- max_bytes_muestra:
+
+  Maximo de bytes de la muestra materializada que alimenta los
+  diagnosticos que muestrean filas. Por defecto es `512 MiB`. El tamaño
+  se estima sobre una sonda de hasta cien filas y se comprueba sobre la
+  muestra efectiva; si la cota reduce el alcance,
+  `cobertura_diagnosticos` informa los bytes observados y el umbral.
+  `Inf` desactiva este tope. Se mide la tabla como llega, con sus
+  nombres de fila: son parte de lo que se materializa —y el paquete los
+  trata como datos, por ejemplo al proteger—, así que la misma tabla con
+  nombres de fila de texto ocupa más y, con el mismo tope, se muestrea
+  en menos filas.
+
+- avisar_costo_tabla_ancha:
+
+  Si es `TRUE`, avisa en sesiones interactivas cuando las celdas
+  proyectadas superan `umbral_celdas_aviso_tabla_ancha`. El aviso es una
+  estimacion y queda en silencio en scripts no interactivos.
+
+- umbral_celdas_aviso_tabla_ancha:
+
+  Cantidad de celdas a partir de la cual se emite el aviso de tabla
+  ancha. Por defecto, `100000`; `Inf` lo desactiva explicitamente.
+
+## Value
+
+Objeto S3 de clase `perfil`. Cada fila de hallazgos incluye n_evaluados,
+n_afectados y unidad_conteo: son conteos de las unidades declaradas (por
+ejemplo fila, columna, formato o par). En `mayusculas_inconsistentes`,
+`normalizacion_unicode` y `casi_duplicados_vocabulario`, la unidad es
+`valor_distinto`: `n_evaluados` cuenta los valores distintos evaluados y
+`n_afectados` los valores distintos que participan en la colisión. Su
+`trazabilidad` sigue siendo por fila y enumera todas las filas que
+contienen esos valores, no sólo las filas defectuosas; por eso su total
+puede ser mayor que `n_afectados`. En `casi_duplicados_vocabulario`, la
+traza incluye todas las filas cuyos valores pertenecen al grupo elegido,
+incluida la forma dominante. La distancia es una senal heuristica, no
+una prueba de que cada fila deba corregirse; la evidencia declara
+cuantas filas mostradas pertenecen a las formas variantes y cuantas a
+las formas dominantes. En `filas_duplicadas`, el conteo y la traza
+incluyen todas las filas participantes de los grupos; el numero de
+excedentes queda en la evidencia. Cuando el camino no puede conocer un
+conteo, informa NA, nunca cero. La columna de lista `trazabilidad`
+distingue `disponible`, `truncada`, `no_aplica` y `no_disponible`;
+cuando corresponde conserva índices de fila acotados por
+`max_filas_hallazgo`, el total conocido y el alcance. En
+`clave_con_ausentes`, cuenta las filas con al menos un componente
+ausente y su traza enumera esas filas. En `clave_no_unica`, cuenta las
+filas que participan en colisiones entre claves completas y su traza
+excluye las filas incompletas; ambas unidades son `fila`. Así, una
+colisión entre ausentes no aparece como una repetición que refute la
+unicidad. `casi_duplicados_vocabulario`, donde la traza mezcla filas de
+formas variantes con filas de la forma dominante, conserva además
+`n_filas_formas_variantes` y `n_filas_formas_dominantes` con el reparto
+completo, y `mostrados_formas_variantes` y `mostrados_formas_dominantes`
+con el reparto de lo que sobrevivió al truncado. En los tres
+diagnósticos de unidad `valor_distinto` las filas de las formas
+variantes se entregan primero —en `mayusculas_inconsistentes` y
+`normalizacion_unicode`, la forma dominante de cada grupo es la guardada
+más veces—, de modo que el truncado no se lleve lo accionable. Para
+`patron_raro`, el alcance puede ser `completo`, `muestra_patrones`,
+`patrones_parciales` o `muestra_patrones+patrones_parciales`. El resumen
+y el texto de evidencia de `patron_raro` muestran como maximo seis
+patrones, pero la trazabilidad conserva los nombres de todos los
+patrones raros hasta un limite de 5.000; `patrones_parciales` indica que
+se alcanzo ese limite, no que se haya alcanzado el tope de presentacion.
+Cuando se emite un hallazgo `patron_raro`, su evidencia incluye la
+proporcion del patron dominante y cuantas filas pertenecen a patrones no
+dominantes que superan `umbral_patron_raro` y por eso quedan excluidos.
+Su `n_evaluados` es el universo de esas proporciones: las filas
+analizadas que tienen valor —un ausente no tiene patrón—. Si el patron
+dominante no alcanza `umbral_patron_dominante`, no se emite el hallazgo:
+`cobertura_diagnosticos` declara la no medicion, su proporcion observada
+y el argumento que se puede ajustar. Si el conteo y la traza no
+coinciden, conserva el hallazgo y emite una advertencia de clase
+`lupa_trazabilidad_incoherente`. La guarda compara el total previo al
+truncado y respeta la unidad declarada. Una columna compuesta no
+analizada conserva en la traza todas sus filas. Si una columna de listas
+se reconoce como constante pero no se puede contar su frecuencia, el
+conteo afectado queda en NA y `cobertura_diagnosticos` explica la no
+evaluación. Los índices no contienen valores. Usarlos para extraer filas
+de los datos originales puede volver a exponer datos personales; el
+paquete no realiza esa extracción y la protección de salidas no
+sustituye el control de acceso a los datos de entrada. En la evidencia
+de `casi_duplicados_vocabulario`, `clase_diferencia` puede ser
+`normalizacion_exacta` (la coincidencia aparece después de normalizar),
+`dentro_de_palabra` (la diferencia está dentro de un token),
+`token_completo` (cambian tokens completos), `token_unico` (ambos
+valores son un solo token y esa distinción estructural no aplica),
+`mixta` (el grupo reúne aristas de más de una clase) o `indeterminada`
+(no hubo aristas clasificables). Son categorías de evidencia, no
+veredictos de identidad. `cobertura_diagnosticos` es una tabla hermana
+de `hallazgos`, con una fila por diagnóstico que no pudo evaluarse o
+cuya enumeración quedó parcial y las columnas `diagnostico`, `columna`,
+`motivo`, `como_resolverlo` y `dependencia`. Incluye la falta de
+`stringdist`, `stringi`, `bit64` o `sf`, incluida la medición de
+secuencias `integer64` cuando falta `bit64`, y las zonas horarias POSIXt
+sin declarar. Los patrones de frecuencia intermedia no se consideran
+desvios del patron dominante: `patron_raro` es completo respecto de su
+criterio de rareza cuando no hay recorte de trazabilidad. Si el conjunto
+de nombres raros supera 5.000, `cobertura_diagnosticos` declara el
+recorte y su limite. Si `muestra` deja filas fuera del descubrimiento de
+patrones y la muestra no trae ningún patrón raro,
+`cobertura_diagnosticos` también lo declara: la ausencia del hallazgo
+vale sólo para la muestra. Quien decida automáticamente sobre un perfil
+debe revisar `nrow(perfil$cobertura_diagnosticos)` además de las
+severidades: un perfil sin hallazgos y con diagnósticos no evaluados no
+es un perfil limpio. Cuando una clave declarada no queda plenamente
+verificada, `meta$clave` conserva los estados de unicidad y ausencia de
+nulos, sus conteos y la semántica usada por la trazabilidad. Los tres
+responden preguntas distintas y no comparten universo:
+
+- `unicidad` se evalúa **sólo entre las filas con la clave completa**
+  (`semantica = "claves_completas"`), porque una repetición entre filas
+  incompletas no viola la unicidad: en SQL dos `NULL` no son iguales.
+  `filas_evaluadas` cuenta esas filas y `filas_totales` la tabla entera.
+  Su estado es `"verificada"`, `"refutada"`, `"no_verificada"` cuando no
+  se pudo comparar, o `"sin_casos_evaluables"` cuando **ninguna** fila
+  tiene la clave completa: ahí la unicidad sería cierta sobre un
+  conjunto vacío, que es cierto y engañoso a la vez, y por eso tiene
+  estado propio.
+
+- `ausencia_nulos` responde si todos los componentes están presentes. Su
+  hallazgo asociado, `clave_con_ausentes`, cuenta las filas con al menos
+  un componente ausente y conserva sus índices.
+
+- `clave_no_unica` sólo se emite cuando hay valores repetidos entre las
+  filas completas y usa `filas_evaluadas` como `n_evaluados`; no
+  convierte una colisión entre ausentes en una violación de unicidad.
+
+- `trazabilidad` conserva la semántica de R, que es la que localiza las
+  filas, e informa en `colisiona_con_ausentes` si el localizador queda
+  ambiguo porque dos filas con ausentes comparten representación.
+
+## Details
+
+Los umbrales de faltantes se aplican a la suma de ausentes reales y
+faltantes disfrazados y son estrictos: la proporción debe superar el
+umbral para generar el nivel correspondiente. La lista de cadenas está
+congelada con referencia a
+[naniar](https://github.com/njtierney/naniar)::common_na_strings 1.1.0 y
+suma extensiones habituales en datos administrativos uruguayos. Las
+entradas que [naniar](https://github.com/njtierney/naniar) expresa como
+patrones escapados se adaptan a los signos literales de interrogación,
+asterisco y punto porque aquí se comparan por igualdad. La lista no
+depende de la versión instalada. Los sentinelas numéricos
+predeterminados son `-9`, `-99`, `-999`, `-9999` y `999`. La lista es
+deliberadamente más corta que
+[naniar](https://github.com/njtierney/naniar)::common_na_numbers 1.1.0:
+`66`, `77`, `88` y `9999` también pueden ser edades, códigos o años
+legítimos. `sentinelas_numericos` representa la política completa, no
+una lista que se agrega silenciosamente: use
+[`numeric()`](https://rdrr.io/r/base/numeric.html) para desactivar todos
+los sentinelas numéricos, o `sentinelas_naniar` para solicitar
+explícitamente la lista de naniar. La política se normaliza como un
+conjunto numérico: el orden, el tipo entero o doble, los duplicados y
+los `NA` no cambian su interpretación.
+
+`muestra` limita el descubrimiento de patrones, la inferencia de tipos,
+la detección de formatos de fecha y la búsqueda de dependencias
+funcionales. Las demás métricas y hallazgos se calculan sobre todas las
+filas. En los resúmenes que convierten texto con el tipo o formato
+descubierto en esa muestra, los valores presentes que no se pueden
+convertir no se ocultan: `n_fechas_excluidas_granularidad` los cuenta
+para fechas y `n_valores_excluidos_resumen` para números, y el estado
+deja de ser un cálculo completo. `n_valores_excluidos_resumen` cuenta
+también los valores **no finitos** que el resumen deja afuera, y lo hace
+en cualquier clase: una columna de fechas con un `Inf` publica
+`n_valores_excluidos_resumen = 1`, `n_fechas_resumidas` sin contarlo y
+el estado `"calculados_sobre_valores"`. Y para las longitudes de texto,
+`n_longitudes_resumidas` declara sobre cuántos valores se calcularon
+`longitud_minima`, `longitud_maxima` y `longitud_media`:
+[`nchar()`](https://rdrr.io/r/base/nchar.html) no puede medir un valor
+cuyos bytes no son UTF-8 válido, y ése queda fuera del promedio. La
+causa viaja aparte, en `n_codificacion_invalida`. Por eso
+`meta$filas_analizadas` describe el máximo usado por los análisis
+muestreados, no el alcance del perfil completo. En cada fila de
+`columnas`, `n_filas_analizadas_tipo` y `muestreado_tipo_inferido`
+declaran el alcance concreto de `proporcion_tipo_inferido`; no debe
+interpretarse esa proporción como si hubiera usado necesariamente toda
+la columna.
+
+El tipo se **infiere** de los valores sólo en las columnas de texto: en
+las demás es el tipo con que R las guarda —lógico, entero, doble,
+fecha—, que no depende de los valores. Por eso una columna no textual
+sin ningún valor conserva su tipo de almacenamiento, con
+`proporcion_tipo_inferido` en `NA` porque ningún valor lo midió, y una
+columna de texto sin valores queda `"desconocido"`, porque ahí no hay
+nada de qué inferirlo.
+
+Cuando el tipo inferido es `"fecha"` o `"fecha-hora"`,
+`estado_tipo_inferido` declara además cómo quedó establecida esa
+lectura: `"confirmado"` si todo formato con casamientos es inequívoco, y
+`"candidato"` si el veredicto se apoya en casamientos ambiguos — el caso
+de una columna donde `proporcion_tipo_inferido` llega a 1 sin un solo
+valor inequívoco. En los demás tipos la columna queda `NA`. El resumen
+impreso anota `(candidato)` junto al tipo cuando corresponde; la
+conversión, el rango temporal y la remediación sólo usan formatos
+confirmados.
+
+En una columna temporal, `minimo`, `maximo`, `media` y `mediana` quedan
+en `NA` y su valor viaja en `minimo_fecha`, `maximo_fecha`,
+`media_fecha` y `mediana_fecha`, que son texto legible. `desvio` es la
+excepción y conviene saberlo: no es un momento sino una duración, así
+que se informa como número, y ese número está **en segundos** tanto para
+`"fecha"` como para `"fecha-hora"`, porque las dos clases se unifican en
+esa unidad antes de resumirlas. Un desvío de `136610.4` sobre una
+columna de fechas son 1,6 días.
+
+Ese detalle importa al comparar las dos puertas.
+[`perfilar_dbi()`](https://sebollin.github.io/lupa/reference/perfilar_dbi.md)
+no clasifica tipos: informa el que declara el motor, y un motor que no
+preserva `DATE` ni `BOOLEAN` —SQLite guarda ambos como número— hace que
+esas columnas se midan como números. La misma columna de fechas da
+entonces `desvio` en días por la puerta DBI y en segundos por ésta, y su
+`moda` sale como el entero crudo del motor en vez de la fecha
+formateada. No es una discrepancia de cálculo: cada puerta describe lo
+que tiene delante, y lo que tiene delante es distinto.
+
+Una columna cuyo año se expresa con dos dígitos se informa con su
+`tipo_inferido` —`"fecha"` o `"fecha-hora"`— pero deja `minimo_fecha`,
+`maximo_fecha`, `media_fecha` y `mediana_fecha` en `NA`. No es una
+omisión: `23` puede ser 1923 o 2023, y elegir el siglo para calcular un
+rango sería inventarlo. El hallazgo `anio_de_dos_digitos` señala esas
+columnas, y el rango aparece una vez que el usuario resuelve la
+ambigüedad. Lo mismo vale para un valor que dos formatos confirmados de
+la misma columna leen distinto: en una columna que tiene `13/06/2020` y
+`06/30/2020`, el valor `01/12/2020` puede ser el 1 de diciembre o el 12
+de enero, y no se decide por la mayoría. Queda fuera del rango, y
+[`planificar_limpieza()`](https://sebollin.github.io/lupa/reference/planificar_limpieza.md)
+bloquea la conversión de la columna mientras queden valores así. El
+resumen de fechas usa la misma regla de validez que la detección: un
+`99991231` que el formato `%Y%m%d` no admite tampoco llega a
+`maximo_fecha`. Cuando no sobrevive ningún valor utilizable, el estado
+distingue **dos afirmaciones que no son la misma**: `"sin_valores"` dice
+que la columna no tenía ningún valor presente **en el universo que el
+resumen mide** —vacía, todo `NA`, o con la aplicabilidad declarada
+dejando ese universo sin valores— y `"sin_valores_utilizables"` dice que
+sí los tenía y ninguno servía para el resumen. La relación que se cumple
+con la fila es `n_aplicables - n_faltantes`, no `n - n_faltantes`: con
+aplicabilidad declarada los valores de afuera del universo se declaran
+en `n_presentes_fuera_de_aplicabilidad` y no cuentan para este estado.
+Una columna de treinta `Inf` es el segundo caso y no el primero: publica
+`n_faltantes = 0` y `n_distintos = 1`, así que decir «sin valores» de
+ella contradiría a su propia fila. La otra puerta del segundo caso son
+los centinelas que se llevan todos los valores. La presencia se define
+igual que en `n_faltantes`, que cuenta el `NaN` como ausente: una
+columna de treinta `NaN` es `"sin_valores"`.
+
+**La `media` se acumula por bloques y puede diferir de
+[`mean()`](https://rdrr.io/r/base/mean.html) en los últimos bits; la
+`mediana` es exacta.** El paquete no promete exactitud bit a bit para la
+media —sí para la mediana, que se calcula con
+[`median()`](https://rdrr.io/r/stats/median.html) sobre el vector entero
+y no como el cuantil 0,5—. Medido: sobre veinte mil valores de `1e12` y
+veinte mil de `1e-6` la diferencia es de `6,1e-05`, y sobre treinta mil
+valores con signo del orden de `1e9` es de `2,3e-10`; con valores de
+magnitud parecida no hay diferencia en ningún bit. Quien rehaga
+[`mean()`](https://rdrr.io/r/base/mean.html) sobre una columna grande y
+vea otro último dígito está viendo esto y no un error.
+
+## La unidad viaja al lado de la cifra
+
+El campo `unidad` dice **en qué unidad están las cifras que la fila
+publica** —`minimo`, `maximo`, `media`, `mediana`, `desvio`—, y queda en
+`NA` cuando la columna no declara ninguna. Es una sola pregunta, y por
+eso no se confunde con `numero_texto_unidad`, que es la unidad que un
+valor de texto traía pegada al número (`"12 kg"`), ni con la `unidad` de
+[`clasificar_variables()`](https://sebollin.github.io/lupa/reference/clasificar_variables.md),
+que es la unidad **declarada** del dato.
+
+Sin este campo, columnas medidas en unidades distintas publicarían filas
+idénticas: `units::set_units(c(1, 2, 3), "m")` y la misma en `"km"` dan
+las dos `media = 2` y `desvio = 1`, y un `Period` de dos días publicaría
+`172800` sin decir que son segundos. Por clase:
+
+- `units` y `difftime`: la unidad declarada, en forma canónica (`km/h`,
+  `m^2`, `kg*m/s^2`). `difftime` **publica sus estadísticos en esa
+  unidad**: una columna de minutos publica `media = 75` con
+  `unidad = "mins"`: sin la unidad al lado, un `75` no sería una medida.
+  Los valores van en la unidad declarada por la columna, sin convertir a
+  segundos: convertirlos publicaría un número que no está en la columna.
+
+- `Period`, `Duration`, `Date` y `POSIXt`: `"segundos"`, que es la
+  unidad en la que sale `desvio`.
+
+- cualquier otra columna que **declare** un atributo `units` —eso
+  circula como metadato en datos importados— publica lo declarado,
+  porque sus cifras están en esa unidad.
+
+- el resto: `NA`. El campo no inventa una unidad donde no hay ninguna.
+
+**Y se calla cuando la fila no publica ninguna cifra cuantitativa**, o
+sea cuando `estado_resumen_cuantitativo` vale `"no_aplica"`: el atributo
+`units` lo puede llevar cualquier clase, y un `factor` con
+`attr(x, "units") <- "kg"` publicaría `unidad = "kg"` al lado de
+`media = NA`. Una unidad de cifras que no existen no contesta la
+pregunta del campo. El discriminador es ese estado y no una lista de
+clases, así que una columna `units` de puros `NA` **sí** declara su
+unidad: su clase se resume, y la unidad dice en qué estarían sus cifras.
+
+Si una columna declara **más de una** unidad —un atributo `units` de
+largo mayor que uno, que ningún objeto `units` produce pero un dato
+importado sí—, el campo las publica todas separadas por coma. Ese valor
+no es una unidad: dice que la declaración está mal. Quedarse con la
+primera sería elegir una por el usuario, justo lo que este campo evita.
+
+Y
+[`comparar_perfiles()`](https://sebollin.github.io/lupa/reference/comparar_perfiles.md)
+compara este campo como un aspecto propio, con la severidad de un cambio
+de tipo: publicar la unidad sin compararla no alcanzaría, porque lo que
+importa es que **una entrega donde cambió la unidad muestre el cambio**.
+
+Una columna de períodos expresados sólo como mes y año informa la
+`granularidad` `"mes"` en `formatos_fecha` y deja los resúmenes de fecha
+en `NA` con `estado_resumen_cuantitativo = "granularidad_incompleta"`:
+asignar el día 1 para obtener un mínimo o una media también sería
+inventar un dato. Si esos períodos son minoritarios dentro de una
+columna que también contiene fechas con día, los resúmenes se calculan
+sólo sobre las fechas completas y declaran
+`estado_resumen_cuantitativo = "calculados_sobre_dias"`, junto con
+`n_fechas_resumidas` y `n_fechas_excluidas_granularidad`. El mínimo y el
+máximo son entonces condicionales al subconjunto con día; no representan
+un rango de toda la columna.
+
+Los dos conteos que acompañan a ese estado cuentan cosas distintas.
+`n_fechas_excluidas_granularidad` cuenta **sólo** las fechas que
+quedaron fuera por ser de granularidad mes, y queda en `NA` cuando los
+formatos se descubrieron sobre una muestra: ese número se deriva de los
+formatos detectados en la muestra mientras el resumen recorre la columna
+entera, así que atribuir la causa exigiría rehacer la detección sobre
+todo, que es el costo que el muestreo existe para evitar.
+`n_valores_excluidos_resumen` es el campo general —el mismo que usan las
+columnas numéricas— y cuenta **todo** valor presente que no sostiene el
+resumen, sea un período de mes o un texto que ningún formato pudo leer.
+Siempre que ese total sea mayor que cero, el perfil agrega una fila
+`resumen_cuantitativo` en `cobertura_diagnosticos`, haya muestreo o no.
+
+Para números ordinarios, los estadísticos cuantitativos se calculan sólo
+con valores finitos; `n_nan`, `n_infinito_positivo` y
+`n_infinito_negativo` declaran lo excluido. En columnas `integer64` que
+exceden el entero máximo representable exactamente por `double`,
+`minimo` y `maximo` quedan en `NA` y los extremos exactos se conservan
+en `minimo_exacto` y `maximo_exacto`. Cuando la conversión de texto deja
+valores presentes afuera —haya muestreo o no, porque la conversión
+descarta lo que no puede leer en los dos casos—,
+`n_valores_excluidos_resumen` y
+`estado_resumen_cuantitativo = "calculados_sobre_valores"` declaran ese
+alcance parcial.
+
+Los limites de Tukey se publican solo cuando hay al menos 20 valores
+finitos y el recorrido intercuartilico es positivo. Si falta alguna
+condicion, `n_outliers` queda en `NA` y `cobertura_diagnosticos` explica
+el motivo y como reunir evidencia suficiente; un IQR cero no convierte
+una categoria minoritaria en outlier.
+
+El paquete distingue lo que el usuario **declara** de lo que él mismo
+**sospecha**, y esa distinción gobierna los resúmenes. Cuando se
+reemplaza `sentinelas_numericos`, esos valores son una declaración de
+ausencia y salen de `media`, `mediana`, `minimo`, `maximo`, `desvio` y
+`n_outliers`, igual que salen los `NA` y las filas que `aplicabilidad`
+deja fuera del universo; `n_valores_excluidos_resumen` y
+`estado_resumen_cuantitativo` declaran ese alcance. Salen también de la
+ley de Benford y de las relaciones aritméticas, que leen la columna como
+magnitud: la misma celda no puede ser ausencia en el resumen y valor en
+un diagnóstico. La lista por omisión —`-9`, `-99`, `-999`, `-9999` y
+`999`— es en cambio una conjetura del paquete: se informa como
+`faltantes_disfrazados` pero **no** se retira de los resúmenes, porque
+`999` también puede ser un dato legítimo y actuar sobre una sospecha
+cambiaría números que nadie pidió cambiar.
+
+`moda`, `frecuencia_moda`, `n_distintos`, `tasa_distintos` y
+`longitud_*` describen la **representación almacenada** y siguen
+contando esos valores, del mismo modo que cuentan un `Inf` que los
+estadísticos excluyen o un `"N/A"` textual. Por eso `moda` puede quedar
+fuera del rango que informan `minimo` y `maximo`: no es una
+contradicción sino la diferencia entre describir lo guardado y resumir
+lo que vale como dato, y los conteos —`n_valores_excluidos_resumen`,
+`n_infinito_positivo`, `n_faltantes_disfrazados`— dicen cuánto separa a
+los dos. Una columna de listas intenta contar sus valores distintos; si
+la clase no admite comparación, informa `NA` en lugar de afirmar cero.
+Las columnas compuestas —matrices, arreglos de más de una dimensión o
+tablas anidadas (una columna `data.frame`, como la de un tibble
+empaquetado)— se conservan como una unidad por fila: `n` informa las
+filas de la tabla, pero los estadísticos por valor —`n_faltantes`
+incluido— quedan en `NA` y un hallazgo explica que deben separarse en
+columnas con semántica explícita. Entra por la misma puerta una columna
+cuyos valores no se pueden escribir como texto —una `vctrs_rcrd`, que
+guarda varios campos por fila, o un `vctrs_vctr` sin conversión
+declarada—: se pregunta por esa propiedad y no por la clase, y el
+hallazgo `tipo_compuesto_no_analizado` lo dice con su clase, en vez de
+abortar el perfil entero. Un vector de bytes (`raw`) se compara y se
+publica por su escritura hexadecimal —`moda`, `n_distintos`—, pero no
+pasa por las etapas que interpretan la escritura de una persona
+—patrones, números escritos como texto, unidades, espacios—: un byte no
+es un texto escrito. Un nivel `NA` de un factor —el que dejan
+[`addNA()`](https://rdrr.io/r/base/factor.html) o
+`factor(exclude = NULL)`— es un faltante: cuenta en `n_faltantes` y no
+en `n_distintos`, igual que en la medición, en
+[`distribucion_valores()`](https://sebollin.github.io/lupa/reference/distribucion_valores.md),
+en
+[`inferir_tipo()`](https://sebollin.github.io/lupa/reference/inferir_tipo.md),
+en las dependencias y en las claves
+—[`detectar_claves()`](https://sebollin.github.io/lupa/reference/detectar_claves.md)
+y
+[`sugerir_clave()`](https://sebollin.github.io/lupa/reference/sugerir_clave.md)
+no la proponen—. Un `POSIXlt` —lo que deja
+[`strptime()`](https://rdrr.io/r/base/strptime.html)— se perfila por su
+instante, como el `POSIXct` equivalente: la misma columna en las dos
+clases da la misma fila. Cuando todos los valores válidos aparecen una
+sola vez **no hay moda**, y `moda` queda en `NA`. Lo que se publicaría
+es el ganador de un desempate de tantas vías como valores haya, y ese
+desempate sigue el orden de ordenamiento, que depende de cómo esté
+guardada la columna: la misma columna `c(-5.5, -1, 0, 3.75)` daría
+`-5.5` como número y `-1` como texto. `frecuencia_moda` se conserva
+—vale 1, es cierto y es la evidencia de por qué la moda quedó callada—.
+Con un solo valor distinto sí hay moda, aunque su frecuencia sea 1: ahí
+no hay empate que resolver.
+
+Una columna numérica emite `valor_concentrado` como señal `sospechoso`
+cuando tiene al menos 20 valores válidos y 10 valores distintos, y su
+moda tiene una frecuencia al menos cinco veces mayor que la del segundo
+valor más frecuente y representa al menos 0,15 de los valores válidos.
+La elegibilidad es parte de la señal: una columna con menos categorías
+no recibe una fila de `cobertura_diagnosticos`, porque allí la moda es
+la distribución. La evidencia publica el valor modal, ambas frecuencias,
+el cociente y la fracción. La regla se calibró sobre 114 columnas
+limpias: no produjo ningún falso positivo, con un margen medido de 2,2
+veces. Es una sospecha, no una acusación: un valor legítimo puede
+dominar. Sus puntos ciegos medidos son las concentraciones por debajo de
+15 % y los empates naturales en columnas enteras pequeñas, donde el
+cociente puede quedar por debajo de cinco.
+
+La ley de Benford se evalúa sólo en columnas numéricas con al menos 50
+valores finitos; las columnas compuestas —matrices, arreglos de más de
+una dimensión o tablas anidadas— no son magnitudes por fila y quedan
+fuera del análisis. Antes de comparar exige variación, que la columna no
+parezca un identificador ni una secuencia correlativa, al menos 100
+observaciones positivas utilizables, una proporción de positivos igual a
+1 y tres órdenes de magnitud según `log10(max/min)`. Una secuencia
+correlativa es una columna de enteros que cubre al menos la mitad del
+tramo entre su mínimo y su máximo **sin repetirse** —al menos un 90 % de
+valores distintos—: una magnitud entera acotada también llena su tramo
+cuando se cargan filas suficientes, pero repitiendo valores, y la
+exclusión no puede depender de cuántas filas se cargaron. Es la regla de
+numeración de todo el perfil (ver `secuencia_entera_densa` más abajo), y
+una clave declarada excluye a Benford siempre, como una columna
+declarada en `columnas_codigo`. Si falla alguna precondición no emite un
+hallazgo: la enumera en `cobertura_diagnosticos`. Si aplica,
+`meta$benford$resultados` conserva la distribución observada y esperada
+por primer dígito, el chi-cuadrado de Pearson, ocho grados de libertad y
+el valor p; `meta$benford$umbrales` publica todos los cortes. Un valor p
+menor que `0.01` genera `desviacion_benford` como señal descriptiva para
+revisar, no como evidencia de fraude o manipulación. Topes
+administrativos, redondeos, precios psicológicos y subsidios de monto
+fijo son explicaciones posibles.
+
+Las relaciones aritméticas se buscan sólo entre columnas numéricas **sin
+clase declarada** y con variación: una columna que declara una clase
+propia —`Date`, `POSIXt`, `difftime`, `integer64`, `units`,
+`lubridate::Period` o cualquier otra— no participa, porque sumarla o
+dividirla no es la aritmética de un doble; el texto numérico y las
+columnas constantes tampoco. Las Las columnas que **publican cifras
+cuantitativas** y quedan fuera por su clase se declaran una por una en
+`cobertura_diagnosticos`: `integer64`, `units`, `lubridate::Period`,
+`haven_labelled` y `difftime`. El criterio **no** es
+[`is.numeric()`](https://rdrr.io/r/base/numeric.html) —que responde
+`FALSE` sobre un `difftime`— sino si la fila publica `minimo`, `maximo`
+y `media` como números: ahí la ausencia de hallazgo se lee como
+conformidad y por eso hay que declararla. `difftime` está en esa
+categoría porque publica su resumen cuantitativo: sin declararlo
+quedaría mudo en los dos diagnósticos mientras `units` los declara —la
+misma columna, con las mismas cifras, tratada de dos maneras—.
+
+Una **fecha** y una **hora** no entran en esa declaración, y eso es
+deliberado: no publican `media` como número pelado —su resumen sale en
+`media_fecha` y compañía—, así que su silencio se lee distinto, y no son
+magnitudes para estos diagnósticos. Quedan fuera del mismo modo que una
+columna de texto, sin fila propia. `meta$aritmetica_columnas` publica
+las clases medidas en esta tabla. La ley de Benford sigue el mismo
+criterio y la misma declaración. Cada relación requiere al menos tres
+filas con valores finitos en todas las columnas involucradas; los `NA`,
+`NaN` e infinitos quedan fuera del universo que publica la evidencia.
+Una columna `integer` se suma en doble: que dos enteros pasen
+`.Machine$integer.max` no apaga la relación. Para cada terna se prueban
+las tres orientaciones de una identidad aditiva; esto cubre sumas y sus
+restas equivalentes sin informar tres veces la misma igualdad. En pares
+proporcionales, `k` es la mediana de los cocientes finitos cuya base no
+es cero, pero el cumplimiento se evalúa después también en las filas con
+base cero. Si una identidad aditiva ya relaciona una terna, se omiten
+las proporcionalidades redundantes entre su total y sus sumandos; se
+conserva la proporcionalidad entre los dos sumandos. Una regularidad
+completa se informa con severidad `"ok"`; si alcanza el umbral pero
+tiene discrepancias, sigue el criterio de las relaciones de orden y es
+`"sospechoso"`. Todo esto describe evidencia observada: no declara una
+regla del dominio ni autoriza una corrección. Los valores de texto que
+no forman UTF-8 válido tampoco se convierten: se cuentan, se excluyen de
+los análisis textuales y generan un hallazgo con sus posiciones. Los
+diagnósticos de invisibles incluyen controles C0/C1, espacios Unicode,
+marcas direccionales, BOM y otros caracteres de transporte. La evidencia
+los muestra como puntos de código; los espacios Unicode se detectan
+aunque sólo se normalizan mediante una acción explícita, y ZWJ/ZWNJ se
+informan pero se conservan porque pueden ser semánticos. La comparación
+de duplicados con `normalizar = TRUE` aplica estas mismas clases sin
+borrar ZWJ/ZWNJ. El resto del texto se cita con sus caracteres, y no con
+los escapes de punto de código de
+[`encodeString()`](https://rdrr.io/r/base/encodeString.html), que
+dependen del locale: la evidencia es la misma bajo `C` y bajo un locale
+UTF-8, y el ejemplo que cita casa con el de la tabla de patrones.
+
+Un valor `double` **subnormal** —distinto de cero y menor que
+`.Machine$double.xmin` en valor absoluto, unos 2,2e-308— casi siempre
+sale de reinterpretar un patrón de bits o de un desbordamiento por
+defecto. El hallazgo `valores_subnormales` los cuenta y da sus filas,
+con severidad `sospechoso`. El caso que motiva el diagnóstico es leer
+una tabla donde una columna de enteros grandes se escribió como doble
+reinterpretando los bits: los números salen del orden de 1e-314 y, al
+venir así desde el origen, ninguna comprobación cruzada los contradice.
+
+**No es concluyente, y el hallazgo no lo afirma.** Un cálculo que
+desborda por defecto cae legítimamente en ese rango —`2^-1050` da
+8,3e-317—, y una columna de p-valores o de verosimilitudes muy pequeñas
+puede dispararlo sin que haya nada roto. Lo que se publica es el hecho
+medido —cuántos valores son subnormales y en qué filas—, no un veredicto
+sobre su origen.
+
+Los resúmenes de fecha-hora se expresan siempre en UTC y llevan el
+sufijo `UTC` en el texto para hacer visible la zona aplicada. El
+instante se conserva aunque la columna de entrada use otra zona horaria.
+Las columnas `POSIXt` declaran `zona_horaria_origen` y
+`n_filas_fecha_civil_distinta_utc`, que cuenta filas cuya fecha civil
+cambia al mostrar el instante en UTC. Cuando la fecha civil cambia se
+emite un hallazgo `zona_horaria_fecha_hora`; si la zona de origen no
+está declarada, el conteo queda en `NA` y `cobertura_diagnosticos`
+declara que no se evaluó. Una columna de texto cuyos valores llevan el
+desplazamiento horario escrito (`2020-01-31T23:30:00-03:00`) también
+publica su instante en UTC, y su fecha civil puede no ser la escrita: el
+conteo es de las columnas `POSIXt` y queda en `NA`, y
+`cobertura_diagnosticos` declara igual que no se evaluó. La zona se
+declara en la columna original, por ejemplo:
+`attr(x, "tzone") <- "America/Montevideo"`.
+
+El diagnóstico de formas Unicode compara sin modificar el texto y puede
+usar el paquete opcional `stringi` para enriquecer la evidencia cuando
+existen caracteres no ASCII. `columnas$unicode_evaluado` declara si esa
+comprobación pudo ejecutarse; en texto no ASCII sin `stringi` queda
+`FALSE`, `n_variantes_unicode` queda en `NA` y `cobertura_diagnosticos`
+informa la dependencia ausente. Las columnas ASCII se evalúan siempre y
+conservan cero. El perfil de comparación es completamente R base.
+
+Hay un segundo caso en que `unicode_evaluado` queda en `FALSE`, y no es
+una dependencia ausente: cuando **todos** los valores de la columna
+traen bytes que no forman UTF-8 válido, no queda texto que analizar. Ahí
+las pasadas que dependen de texto legible no llegan a correr, así que
+`n_codificacion_rota`, `n_codificacion_reparable`,
+`n_codificacion_reparable_parcialmente`, `n_codificacion_irreparable`,
+`n_codificacion_no_se_pudo` y `estado_codificacion_reparacion` quedan en
+`NA` en vez de en cero: un cero afirmaría no haber encontrado nada, y lo
+cierto es que no hubo nada que mirar. `n_codificacion_invalida` sigue
+contando esos valores y el hallazgo `codificacion_invalida`, de
+severidad `error`, sigue declarando que se excluyeron.
+
+Esas cifras **no son una partición**. `n_codificacion_rota` cuenta cada
+valor afectado una sola vez; `n_codificacion_reparable` y
+`n_codificacion_reparable_parcialmente`, los que el motor reparó del
+todo o en parte; `n_codificacion_irreparable`, los que traen el carácter
+de reemplazo `U+FFFD`, cuyo original ya no está; y
+`n_codificacion_no_se_pudo`, los que el motor reconoce como mal
+convertidos y no pudo reparar. Un valor con `U+FFFD` suele contar en las
+dos últimas, así que sumarlas no da `n_codificacion_rota`.
+
+Los **nombres de columna** que el perfil publica —en `columnas$columna`
+y en todo lo que nombre una columna: claves, relaciones, dependencias,
+hallazgos, patrones, el plan de remediación y el reporte— son los
+nombres de la tabla de entrada tal como llegaron, con sus bytes **y su
+marca de codificación**. Eso significa que sirven para indexar esa misma
+tabla —`datos[[nombre]]`— sea cual sea el `LC_CTYPE` de la sesión. El
+paquete deriva una representación de trabajo para comparar y desambiguar
+internamente, pero no la publica: dos nombres con bytes distintos siguen
+siendo dos columnas distintas. Al componer texto publicado —en
+particular las sugerencias de `posible_ausencia_estructural`— usa una
+copia marcada como UTF-8 del nombre, sin modificar el nombre conservado
+en la tabla. Por eso una sugerencia como
+`perfilar(datos, aplicabilidad = list(entero = ~ categoría == "categoría"))`
+conserva el nombre real también bajo `LC_CTYPE = "C"` y se puede copiar
+y pegar.
+
+La identidad de la columna no depende de esa exclusión: `n_distintos`,
+`moda` y `frecuencia_moda` comparan la representación almacenada, que se
+puede distinguir sin decodificarla. Un valor ilegible cuenta como valor,
+y la moda que se publica es el valor original tal como llegó, sin
+reinterpretarlo. Cuando ese valor es numérico, su representación textual
+se formatea con notación fija, con la precisión completa —las cifras que
+hacen falta para volver al valor: `0.1 + 0.2` se publica
+`0.30000000000000004`, no `0.3`— e independiente de `scipen` y de
+`digits`, igual en `perfilar()` y en los caminos de
+[`perfilar_dbi()`](https://sebollin.github.io/lupa/reference/perfilar_dbi.md);
+se conserva `OutDec`, porque esa marca decimal sí pertenece a la
+preferencia de locale de quien usa el paquete.
+
+Las columnas `sfc` declaran su CRS, los tipos concretos y la dimensión
+(`XY`, `XYZ`, `XYM` o `XYZM`), además de geometrías vacías, validez,
+dominio y caja envolvente. `POINT`/`MULTIPOINT`,
+`LINESTRING`/`MULTILINESTRING` y `POLYGON`/`MULTIPOLYGON` son una misma
+familia: el hallazgo de tipos mixtos aparece sólo al combinar familias o
+ante `GEOMETRYCOLLECTION`. La validez se calcula siempre con GEOS en el
+plano, sin CRS, para que el resultado no dependa de que `s2` esté
+instalado; `validez_criterio` publica `"planar"` y `n_validez_evaluados`
+publica su universo, que incluye las geometrías vacías porque GEOS sí
+devuelve su validez. Si hay una dimensión M, se aplica
+[`sf::st_zm()`](https://r-spatial.github.io/sf/reference/st_zm.html) y
+se valida la topología XY; `validez_preprocesamiento = "st_zm(x)"`
+declara esa transformación. Si el CRS es geográfico —con SRID mezclados,
+si todos lo son—, un fallo es `sospechoso` y no un `error`, porque no
+afirma invalidez esférica. Las dimensiones Z y M no se evalúan como
+medidas: `dimensiones_no_evaluadas` las enumera y
+`cobertura_diagnosticos` deja constancia explícita incluso cuando la
+validez XY sí pudo calcularse. En un CRS geográfico el dominio exige
+longitudes en `[-180, 180]` y latitudes en `[-90, 90]`. Además, las
+coordenadas se comparan en longitud/latitud con la `BBOX` del área de
+uso incluida en el WKT del CRS. Este control puede detectar valores en
+unidades incompatibles —por ejemplo, grados declarados como metros—,
+pero no una zona UTM equivocada cuando esa interpretación cae dentro del
+área de la zona declarada. Una `BBOX` mundial es un no-op válido; si el
+WKT no permite extraer la caja, el dominio queda en `NA` y
+`cobertura_diagnosticos` lo declara en lugar de suponer el mundo entero.
+Si el CRS geográfico mide desde otro meridiano de origen —París, Ferro—
+o en otra unidad —gradianes—, ese rango se exige en sus propias unidades
+y la comparación con la `BBOX` se hace después de llevar las coordenadas
+a longitud/latitud WGS 84. Un componente vacío de una geometría que no
+es vacía —un `POINT EMPTY` dentro de una colección o de un `MULTIPOINT`—
+no es una coordenada y no cuenta como fuera de dominio. Las geometrías
+vacías se cuentan aparte y no integran el universo del dominio ni de la
+bbox. `n_dominio_evaluados` y `n_bbox_evaluados` publican ambos
+universos; la bbox se calcula sobre coordenadas crudas de geometrías no
+vacías, incluidas las que el dominio marque fuera, y `bbox_alcance` lo
+declara. Si todas son vacías, sus conteos evaluados y fuera de dominio
+son cero. `geometria_vacia` y `tipos_geometria_mixtos` cuentan sobre las
+geometrías medidas: un valor ausente de una columna de texto o un valor
+que no se pudo convertir no es una geometría y no entra en su
+denominador. Sin CRS, `n_fuera_de_dominio` queda en `NA` y se emite
+`crs_no_declarado`: nunca se supone EPSG:4326. Si falta el paquete
+opcional `sf`, todos esos campos quedan en `NA`, no se emite un hallazgo
+geométrico y `cobertura_diagnosticos` registra la dependencia ausente.
+Si `sf` está instalado pero no se pudo cargar en la sesión —con
+`LC_NUMERIC` en coma no carga su dependencia `units`—, pasa lo mismo y
+el motivo lo dice: no pide instalar lo que ya está.
+
+Una columna cuyos valores son `data.frame` o matriz —lo que devuelve un
+driver al leer un `STRUCT`— declara `n` en **filas**, como cualquier
+otra: tiene tantos valores como la tabla, y lo que no se puede es
+analizarlos como texto, que se declara aparte en
+`cobertura_diagnosticos`.
+
+**Con un universo aplicable declarado**, los conteos y los índices de
+geometría se restringen a ese universo, igual que el resto del
+perfilado: una geometría que la regla dejó afuera no cuenta como vacía,
+ni como inválida, ni como fuera de dominio, y `n_geometrias`,
+`n_dominio_evaluados` y `n_validez_evaluados` describen el universo. Los
+dos evaluados cuentan sólo lo que de verdad se evaluó dentro de él: no
+entran las geometrías que el presupuesto no analizó, los valores
+ausentes de una columna de texto ni, para el dominio, las geometrías
+vacías. El presupuesto geométrico —los topes `lupa.max_geometrias` y
+`lupa.max_vertices`, que acotan la validez y el dominio— se gasta
+primero en el universo, con el mismo muestreo uniforme si el universo
+solo ya excede el tope, y lo que sobra va al resto de la columna. Si aun
+así quedaron geometrías del universo sin analizar,
+`cobertura_diagnosticos` dice cuántas, junto al recorte de la columna;
+si el recorte cayó entero fuera del universo, también lo dice. Tres
+campos son la excepción y conviene saber por qué: `n_bbox_evaluados`,
+`n_geometrias_analizadas` y `n_vertices_analizados` cuentan **el trabajo
+que se hizo** sobre la columna entera —el universo y lo que el
+presupuesto alcanzó del resto—, no filas de un universo: el análisis
+geométrico corre sobre la columna, porque necesita su CRS y sus tipos,
+así que se publican tal como se midieron. Recortarlos a ojo sería
+inventar un número: no hay conjunto de índices del que derivarlos.
+
+**Una columna de texto puede ser una geometría.** Se reconoce como WKT o
+WKB (crudo o hexadecimal) cuando la mayoría de una muestra de 20 valores
+tiene esa forma; si después hay valores que no se pueden convertir, la
+pérdida se declara con su cifra en `motivo_representacion` y en
+`cobertura_diagnosticos`, y las métricas cubren el resto: un valor que
+no convierte no borra la medición de la columna. A `sf` sólo llega lo
+que tiene la forma de su representación —un WKT de los tipos que el
+perfil mide, con su dimensión `Z` o `M` y colecciones anidadas como las
+que escribe PostGIS, o un WKB de encabezado plausible—; el texto
+corrupto y las curvas se declaran como no convertidos. Si los valores
+declaran su SRID —`SRID=n;` en EWKT, o EWKB—, la columna se mide por
+SRID y no se acusa `crs_no_declarado`, aunque ningún valor se haya
+podido convertir. Esa columna se sigue perfilando como texto en lo que
+toca a su escritura —espacios, codificación, invisibles—, pero no recibe
+los diagnósticos que leen los valores como palabras o como claves —la
+proximidad de vocabulario, `posible_identificador`, `patron_raro`—:
+`cobertura_diagnosticos` declara que no aplican. El argumento
+`normalizar` declara el perfil de comparación que se conserva en
+`meta$normalizacion`; cambia sólo la representación usada para comparar,
+no el texto guardado. `TRUE` usa el perfil predeterminado, `FALSE`
+desactiva sus pasos configurables, `"amplio"` activa los tres pliegues
+optativos y
+[`normalizacion()`](https://sebollin.github.io/lupa/reference/normalizacion.md)
+permite declararlos. También admite una lista nombrada por columna.
+`meta$normalizacion_fusiones` informa, para cada paso activo, la
+diferencia entre los valores distintos con el perfil completo y los
+valores distintos con ese paso apagado y todo lo demás igual. Esa
+comparación responde cuánto aporta cada paso por separado; sus números
+no son aditivos porque dos pasos pueden fundir el mismo par.
+`n_distintos` y `n_distintos_normalizados` declaran el total antes y
+después del perfil completo. La descomposición canónica es siempre
+activa y forma parte de la línea base, no una fila configurable. Un
+valor con marca `bytes` entra con su clave de bytes —cada byte alto
+escrito `\xHH`—, como en
+[`detectar_claves()`](https://sebollin.github.io/lupa/reference/detectar_claves.md)
+y
+[`detectar_duplicados_aproximados()`](https://sebollin.github.io/lupa/reference/detectar_duplicados_aproximados.md):
+`bytes` declara que eso no se interprete como texto, así que no se
+pliega con el mismo texto marcado UTF-8. Los tres cuentan igual
+`n_distintos_normalizados`. Con `normalizar = FALSE` no hay pasos
+configurables que medir y el informe de fusiones queda en `NULL`; en un
+perfil por columna sólo se incluyen las columnas con algún paso activo.
+Si
+[`detectar_duplicados_aproximados()`](https://sebollin.github.io/lupa/reference/detectar_duplicados_aproximados.md)
+recibe un perfil, puede reutilizar este informe ya calculado. El informe
+usa el vocabulario completo: `n_distintos` y `n_usados` son el número de
+valores distintos realmente comparados y el estado es `exacto`. Las
+fusiones son una propiedad de pares, por lo que muestrear valores
+aislados podría dejar fuera los dos miembros de cada par y convertir una
+fusión real en un cero falso. La normalización se vectoriza para que
+este alcance completo no dependa de la cardinalidad de la columna. Las
+columnas sin ausentes que tienen al menos 100 filas y 90 % de valores
+distintos producen un hallazgo `casi_clave` cuando el valor dominante
+concentra al menos la mitad de los duplicados excedentes. La
+concentración se calcula sobre las repeticiones posteriores a la primera
+de cada valor, no sólo sobre la tasa de distintos. La evidencia declara
+el mínimo de filas, ambos umbrales, los valores que colisionan y sus
+frecuencias. Las variables con rol propuesto `fecha`, incluidas
+fecha-hora, se excluyen. Así una colisión concentrada queda separada del
+texto libre de alta cardinalidad con repeticiones dispersas. Un vector
+`double` sólo participa si todos sus valores finitos son enteros; así se
+conservan identificadores importados con ese almacenamiento y se
+excluyen medidas con alguna parte fraccionaria, como importes o
+coordenadas. Los vectores `integer64` se tratan como enteros semánticos.
+La evidencia del hallazgo declara este criterio y el recuento observado.
+Además, si `casi_duplicados_vocabulario = TRUE`, el perfil busca
+variantes casi duplicadas en columnas de texto. Agrupa el vocabulario
+crudo mediante fusiones exactas de la normalización y estrellas de
+distancia centradas en un valor de frecuencia estrictamente mayor y
+único; los empates no se fuerzan. No cierra cadenas transitivamente ni
+elige una forma canónica. La unidad es el valor distinto, no la fila, y
+cada variante conserva su frecuencia. Cada grupo declara sus distancias
+mínima y máxima. El límite `max_proporcion_grupo_vocabulario` evita
+presentar un grupo que abarque casi toda la columna como un diagnóstico
+útil: en ese caso el alcance dice que el diagnóstico no aplica. Ese
+límite se activa desde 20 valores distintos o cuando el grupo mayor ya
+tiene 10 variantes; sólo suprime el grupo si además ocupa una fracción
+mayor que el umbral. Así un grupo de tres en cuatro valores se entrega,
+pero quince variantes que ocupan toda una columna no se presentan como
+una sola familia. Un grupo grande dentro de un vocabulario mucho mayor
+puede seguir pasando si su proporción es pequeña. El alcance expone
+ambos cortes. El argumento permite apagar el detector cuando no
+corresponde a la tabla. Si hay pares cercanos pero todas las frecuencias
+empatan, el alcance declara que no hubo asimetría para formar una
+estrella y sugiere
+[`detectar_duplicados_aproximados()`](https://sebollin.github.io/lupa/reference/detectar_duplicados_aproximados.md)
+para comparar filas. El alcance clasifica cada grupo como
+`normalizacion_exacta`, `dentro_de_palabra`, `token_completo`,
+`token_unico`, `mixta` o `indeterminada`. La primera indica una
+coincidencia tras normalizar; `dentro_de_palabra`, una diferencia dentro
+de un token; `token_completo`, diferencias en tokens completos;
+`token_unico`, que ambos valores son un único token y la clase
+estructural no aplica; `mixta`, aristas de más de una clase; e
+`indeterminada`, que no hubo aristas clasificables. Son evidencia
+descriptiva, no una decisión sobre identidad. El agrupamiento no cambia
+por esa etiqueta. El alcance también descarta aristas de distancia cuyos
+números no coinciden. Se comparan las secuencias numéricas, quitando
+ceros de relleno y separadores de miles; una diferencia numérica se
+trata como otra entidad. Esto puede dejar sin agrupar una errata dentro
+de un número, porque no hay evidencia para distinguirla de dos entidades
+reales. El alcance declara los valores y pares comparados, los recortes
+por cardinalidad y si `stringdist` no estuvo disponible; también informa
+cuántas aristas se descartaron por esa regla y el tamaño compatible
+después del filtro. El tamaño máximo usado para el límite conserva el
+componente potencial antes del filtro numérico, para que una familia de
+entidades numeradas no vuelva a presentarse como una sola variante; el
+tamaño compatible se muestra aparte. Para mantener acotado el perfil,
+por omisión se evalúan hasta 5.000 valores distintos y 2.000.000 de
+pares de unidades normalizadas; si se alcanza un límite, la evidencia lo
+declara y no presenta el resultado como universo completo. Las fusiones
+exactas se informan aun sin ese paquete opcional. Antes de formar esos
+grupos se retiran los valores que el mismo perfil ya informó como
+`faltantes_disfrazados`. El diagnóstico fuerte de ausencia tiene
+precedencia: un centinela no se presenta también como posible variante
+de un valor válido. El alcance declara cuántas observaciones retiró este
+filtro.
+
+La corazonada de centinelas numéricos se apaga sobre una **numeración
+limpia**, para no llamar ausencia a un código válido. `densa` responde a
+la cobertura del rango —`densidad_secuencia_entera` por encima de su
+umbral— y a que los valores **casi no se repitan**: al menos un 90 % de
+valores distintos, descontando el excedente de la moda. Cubrir el rango
+sola lo cumple también una magnitud entera acotada cuando se cargan
+filas suficientes, y con esa condición sola el veredicto dependería de
+cuántas filas se leyeron; una numeración que se repite —un código de
+catálogo, una clave foránea— no se distingue por su forma de esa
+magnitud y no se trata como numeración. Es la misma regla que deciden
+`posible_identificador`, la guarda de los límites de Tukey, la de los
+patrones raros y la de Benford. Por eso un código de catálogo que se
+repite —un `EstCod` de 1 a 284— recibe límites de Tukey y, con tres
+órdenes de magnitud, Benford, aunque se lo pase como texto o como
+factor: el paquete infiere número. Para eso está `columnas_codigo`.
+`moda_sobresale_secuencia_entera` es una señal independiente y no cambia
+los tres escudos de forma que dependen de la numeración. En una columna
+`integer64`, `bit64` se carga de manera diferida si está instalado para
+registrar sus métodos antes de medir. Si no está instalado, las cinco
+medidas públicas de la secuencia quedan en `NA` y
+`cobertura_diagnosticos` declara que `secuencia_entera` no se evaluó por
+falta de esa dependencia. Lo mismo pasa si la columna tiene valores por
+encima de 2^53: en un doble se redondean, la densidad no se mide sobre
+números redondeados, y la secuencia queda en `NA` y declarada, no como
+«no densa». La guarda vuelve a abrirse si un candidato presente queda
+fuera del rango de los valores restantes de la numeración, o si la
+frecuencia del candidato es la moda sobresaliente. Esta segunda señal se
+mide por el **salto entre frecuencias consecutivas**, ordenadas de mayor
+a menor y mirando sólo las primeras posiciones. Es el mismo idioma que
+`salto_de_escala_secuencia_entera` usa con los huecos: lo que delata a
+un centinela no es que su frecuencia sea grande, sino que haya un
+**acantilado** entre el grupo que sobresale y el resto de la
+distribución.
+
+Comparar contra un valor concreto no alcanza, y cada intento lo rompió
+un caso distinto: contra el **segundo** valor, un señuelo legítimo y
+frecuente infla el segundo puesto; contra la frecuencia **típica**
+exigiendo forma de numeración, un centinela masivo sobre una clave
+foránea nunca la tiene; y con las dos juntas, **varios centinelas
+empatados se cubren entre sí** —tres valores con la misma frecuencia
+dejan «máximo igual al segundo» y la comparación vacía—. El acantilado
+ve los tres porque no le importa quién es el segundo sino dónde se corta
+la distribución.
+
+Se miran sólo las primeras posiciones porque el grupo que sobresale está
+arriba: en la cola, una caída de dos apariciones a una da un salto que
+no dice nada de la columna. Medido sobre las diez columnas numéricas del
+banco real y dos formas de clave foránea, ninguna pasa de 1,71; los
+casos que hay que atrapar van de 4,75 a 249. Perder la condición de
+numeración no genera un hallazgo por sí solo: sólo devuelve la columna a
+la mirada de la lista de centinelas. En una numeración compacta, un
+candidato fuera de rango también abre la guarda aunque su frecuencia no
+forme un acantilado.
+
+El factor de frecuencia sólo califica la señal `moda_sobresale`: una
+caída menor no abre esa vía, pero tampoco bloquea la vía independiente
+del rango. Así, un candidato fuera de rango se informa aunque aparezca
+cuatro veces y no forme un acantilado. Lo que el usuario declara con
+`sentinelas_numericos` atraviesa la guarda y se informa con severidad
+`error`, que es la regla general del paquete: excluye lo que se declara
+e incluye lo que sospecha.
+
+La clasificación de posibles datos personales es más amplia que la
+protección. Cada clasificación declara `poder_discriminante` y
+`proteger`:
+
+- `debil`: una forma genérica, como siete a doce dígitos, coincide
+  también con importes, facturas y códigos; se informa y no se ocultan
+  su moda, sus ejemplos ni sus estadísticos. En la evidencia de sus
+  hallazgos se tapan sus valores de seis caracteres o más —la colisión
+  de una casi clave—, no la evidencia entera, así que la que no cita
+  ningún valor se publica (`"4939 valores distintos de 5000 (0.988)"`,
+  `"3 valores"`); sin la tabla —un perfil que se vuelve a proteger al
+  guardarlo— no hay valores con que barrer y se tapa entera;
+
+- `medio`: el nombre de la columna expresa una categoría personal (por
+  ejemplo `telefono`, `fecha_nacimiento` o `fecha_fallecimiento`); se
+  protege aunque sus valores no se puedan validar. El nombre tiene
+  prioridad sobre una forma numérica genérica y también determina la
+  etiqueta de tipo. Cada palabra vale también abreviada como se la
+  escribe en una base —`tel`, `telef`, `fono`, `cel`, `dir`, `domic`,
+  `nom`, `ape`, `doc`, `ced`, `e_mail`—, en plural —también la
+  abreviatura: `tels`, `cels`, `fonos`, `noms`, `dirs`—, con un número
+  pegado (`telefono2`, `apellido1`), en camelCase (`NombreCliente`,
+  `nroDoc`), en las formas pegadas de los sistemas heredados, enumeradas
+  (`nrotel`, `TELCEL`, `nomape`, `NOMBRECOMPLETO`, `nrodoc`, `dirpart`),
+  y en la nomenclatura GIK de GeneXus, con la fecha abreviada `Fch`
+  (`PerFchNac`, `CliFchNac`, `FchNac`, `PerFchDef`, `PerFchFall`;
+  también `FNac`); `mov` no, que es también un movimiento, ni `FchFalla`
+  o `FchDefinitiva`, que son otras fechas. La sigla del documento vale
+  también escrita con un punto o un guion bajo tras cada letra, entera
+  —`C.I.`, como se encabeza la cédula en una planilla, `C.I`, `C. I.`,
+  `Nro. C.I.`, `C.I. Titular`, `D.N.I.`, y `c_i` o `nro_c_i`, como los
+  deja `janitor::clean_names()`—: con `C.I.`, como con `CI`, las cédulas
+  sin dígito verificador se protegen. `C.I.I.U.`, la actividad
+  económica, no es un documento. Una palabra de nombre —`nombre`,
+  `apellido`— la expresa en cualquier lugar del nombre: `nombre_cliente`
+  es un nombre, y también `nombre_jefe_grupo` o `nombre_grupo`; una
+  columna de números o de fechas no lo es (`cantidad_nombres`), y con un
+  lugar —`nombre_departamento`, `nom_localidad`, la categoría de
+  cualquier base pública— decide la señal de los valores, como la
+  palabra de persona con un lugar. Un documento por el nombre tiene que
+  tener algún valor con seis cifras o más: `cedula_valida` con
+  `"S"`/`"N"` o `cod_documento` con `1`, `2`, `9` no lo son, si son al
+  menos veinte valores de dos distintos o más; sin valores —una columna
+  rala que la muestra de
+  [`perfilar_dbi()`](https://sebollin.github.io/lupa/reference/perfilar_dbi.md)
+  no alcanzó—, con pocos o con un solo valor repetido —el `0` o el
+  `"S/D"` del que no tiene— decide el nombre, porque el resumen de la
+  tabla entera publicaría sus documentos. Y la dirección de una red o de
+  un organismo no es un domicilio (`dir_ip`, `dir_web`,
+  `direccion_general` con `"Direccion de Salud"`). Una palabra de
+  **persona** —`cliente`, `socio`, `usuario`, `persona`, `paciente`,
+  `titular`— dice de quién habla la columna, no que guarde su nombre: la
+  clasifica como `nombre` sólo si ninguna otra palabra del nombre la
+  clasificó —`direccion_cliente` es un domicilio—, si el resto del
+  nombre no dice que es otra cosa —una clave (`cliente_id`,
+  `id_usuario`, `cod_socio`), un tipo, un estado o una categoría
+  (`tipo_cliente`, `estado_socio`), un medio o una forma
+  (`medio_pago_cliente`, `forma_pago_cliente`), un lugar
+  (`pais_cliente`, `nacionalidad_socio`), una fecha (`cliente_desde`,
+  `fecha_alta_socio`), una cantidad o un importe— y si sus valores
+  pueden ser nombres: una columna de números, fechas o lógicos no lo es.
+  No basta la palabra: si bastara, esas columnas se protegerían como
+  nombres, perderían su moda y sus extremos, y sus categorías
+  —`"mayorista"`, `"empresa"`— se taparían también en las demás
+  columnas. La misma regla vale para las demás palabras:
+  `tipo_documento` es una categoría y no un documento, `fecha_contacto`
+  y `medio_contacto` no son teléfonos, `estado_correo` no es un correo y
+  `tipo_domicilio` no es un domicilio; sí lo siguen siendo
+  `nro_documento`, `documento_id`, `numero_celular`,
+  `telefono_contacto`, `barrio_id`, `segundo_nombre` o una fecha de
+  nacimiento guardada como número. Y una palabra que el resto del nombre
+  califica se decide con sus **valores**, con el tipo que ellos muestran
+  y no el de la palabra, en el 80 % de sus valores distintos: un correo
+  —una `@`, también el de una intranet: `correo_alta` con
+  `"jperez@intranet"`—; un teléfono de siete a quince cifras escrito
+  como teléfono —con `+`, con el prefijo `00598` o `598` pegado, con un
+  cero inicial, con separadores (también puntos de a dos cifras,
+  `"099.12.34.56"`, o el espacio duro y la raya de una planilla), con el
+  `.0` de una planilla, con un interno o en una lista:
+  `responsable_canal` con `"+598 99 123 456"`—, en una columna que no es
+  de fechas; con la palabra del teléfono, también las cifras sueltas
+  (`celular_estado`), salvo que el resto del nombre diga que son un
+  importe (`importe_telefono`) o un plazo (`telefono_plazo_dias`); el
+  celular escrito de a tres sin su cero (`"99.123.456"`) con esa
+  palabra, y el `598` pegado aunque la columna sea de números. No son
+  teléfonos un importe —negativo, con centavos o con cuatro decimales
+  (`"-12345.10"`, `"1234.5000"`), con separadores de miles
+  (`"1.250.000"`, `"12 345.50"`, `"1.456.651,89"`)—, un número redondo,
+  un código con un año o con un grupo rellenado con ceros
+  (`"2024-00001"`, `"10-0012345"`) ni un documento escrito como
+  documento; un importe con miles no empieza con cero y separa los
+  decimales con otro signo que los miles, y el celular escrito de a tres
+  con su cero (`"099.123.456"`, `"099 123.456"`, `"098.765.000"`) o el
+  fijo `"4.732.1234"` son teléfonos. Un domicilio con una marca de calle
+  —`Av.`, `calle`, `Bvar.`, `Br.`, `Cno.`, `Rbla.`, `Pje.`, `Gral.`,
+  `ruta`, `esq.`, `apto`, `Dpto.`, `Mza.`, `km` seguido de un número— en
+  al menos el 30 % de sus distintos y sin empezar con una palabra de
+  categoría (`cliente_tipo` con `"Av. Italia 2345"`, también
+  `"Rivera entre Soca y Ellauri 1234"`; `"En ruta"`, `"Radio 5 km"` no
+  lo son). O un nombre con un nombre de pila conocido —también con
+  iniciales, `"Juan A. Perez"`, `"Juan M. A. Perez"`, `"Juan A Perez"`,
+  o un `O'`—, sin cifras, sin una palabra que no va en un nombre —`sin`,
+  `en`, `por`—, sin empezar como un lugar —`San`, `Villa`— y que no sea
+  una frase que empieza con un nombre de pila que es también una palabra
+  —`Dolores`, `Victoria`— seguido de minúsculas
+  (`"Dolores musculares agudos"`, `"Victoria local"`), aunque sean dos
+  personas (`responsable_grupo` con `"Perez Joaquin"`, `contacto_alta`
+  con `"Ramon Acosta"`); con otro nombre de pila la minúscula no cuenta,
+  y `"Juan perez"` o `"Juan carlos Perez"` —lo que deja el
+  autocapitalizado de un formulario— son nombres. Los acentos se leen
+  también en `latin1` sin marca, como lo deja un CSV de Windows bajo
+  `C`, también en el nombre de la columna: el encabezado `Dirección`,
+  `Teléfono` o `Cédula` de un CSV de Windows leído sin declarar la
+  codificación —`read.csv(check.names = FALSE)`,
+  [`data.table::fread()`](https://rdrr.io/pkg/data.table/man/fread.html)—
+  se reconoce en cualquier sesión. Y una fecha de nacimiento o de
+  defunción calificada como categoría (`nacimiento_estado`) es esa fecha
+  si sus valores son fechas; su lugar, su causa o una parte no
+  (`pais_nacimiento`, `causa_defuncion`, `edad_fallecimiento`,
+  `anio_nacimiento`). La forma sola no alcanza: `"Gran Empresa"`,
+  `"Cerro Largo"`, `"Arroz Premium"` u `"Oficina 101"` siguen siendo
+  categorías, y los nombres de pila que también son palabras de una
+  categoría —`Pilar`, `Marco`, `Norma`, `Franco`, `Domingo`, `Julio`,
+  `Blanca`, `Celeste`, `Rosa`, `Max`— no cuentan (`"Primer Pilar"`,
+  `"Convenio Marco"`). Y la palabra de quien actúa en el registro
+  —`usuario`, `funcionario`, `responsable`, `solicitante`— con una de
+  auditoría —`alta`, `baja`— dice quién dio el alta o la baja: ahí basta
+  un texto que no sea una fecha ni un estado —un login `"jperez"`,
+  también con la inicial pegada por un guion bajo, un guion o un punto,
+  delante o detrás (`"a_perez"`, `"o-silva"`, `"perez.a"`: la `a`, la
+  `o` o la `u` pegadas son una inicial, no la preposición ni la
+  conjunción), un apellido solo, `"A. Rodriguez"`; no `"Sin baja"`,
+  `"Baja definitiva"` ni un estado o un motivo de una lista cerrada
+  —`"Cancelada"`, `"Rechazada"`, `"Renuncia"`, `"Jubilacion"`,
+  `"Despido"`, `"Fallecimiento"`, `"Traslado"`, `"Cese"`,
+  `"Fin de contrato"`, también en mayúsculas y en plural—; un login o un
+  apellido que termina como un estado —`"lmachado"`, `"MACHADO, L."`,
+  `"j.machado"`, `"Machado"`—, un nombre autocapitalizado
+  —`"Juan perez"`— y un usuario del sistema —`"SISTEMA"`, `"MIGRACION"`—
+  cuentan como personas: junto a tres logins, uno solo que pasara por
+  estado dejaría la columna en el 75 % y publicaría los logins de
+  todos—; la de quien es objeto del registro pide la señal de los
+  valores, y `cliente_desde` con `"Sin fecha"` o `paciente_alta` con
+  `"Traslado"` se publican. El nombre no decide solo: si decidiera, esas
+  columnas publicarían nombres, celulares y domicilios. Limitación
+  conocida: la lista de nombres de pila no es completa, y un nombre que
+  falta —o que es también una palabra corriente, como `Max` o `Pilar`—
+  deja la columna sin esa señal: con tres personas, una basta para que
+  no llegue al 80 %; una localidad con nombre de persona
+  —`"Jose Ignacio"`, `"Juan Lacaze"`— se lee como un nombre; con una
+  palabra de categoría o de clave, un login de sólo letras o un apellido
+  solo (`responsable_grupo` con `"Rodriguez"`, `usuario_id` con
+  `"jperez_01"`) no se distinguen de una categoría o de un código y se
+  publican, como un domicilio sin marca de calle; en la regla de quien
+  actúa, un estado o un motivo que no está en la lista
+  —`"Ingresos superiores"`, `"Abandono de cargo"` sí está— se toma por
+  una persona y la columna se protege; una frase que empieza con otro
+  nombre de pila —`"Mercedes centro"`— se lee como un nombre, y
+  `"Victoria perez"` escrito así no; el fijo con punto cuyo último grupo
+  termina en cero (`"4732.1230"`) se lee como un importe con cuatro
+  decimales y el que tiene un grupo que empieza con `00` (`"2400-0010"`)
+  como un código rellenado, y no cuentan para el 80 % de la columna; con
+  `check.names = TRUE` bajo `C`, R cambia la letra con tilde de un
+  encabezado de Windows por un punto (`Direcci.n`) y ese nombre no se
+  reconoce; un nombre GIK todo en minúsculas —`perfchnac`, `pernom`,
+  como lo deja un motor que pliega a minúsculas los identificadores
+  creados sin comillas— no se separa en palabras y no se reconoce, ni la
+  sigla con el número delante pasada por `clean_names()` (`n_c_i`), ni
+  con la `N.` del número detrás (`C.I. N.`, que se lee como una sigla de
+  tres letras), ni `FchNac1`, `PerFchNacim` o `FCHNAC`; `FchFall` o
+  `FchDef` se leen como la fecha de defunción aunque sean la de una
+  falla o una fecha definitiva, y se protegen de más; los códigos con un
+  dígito tras un guion (`"170177-3"`, `"025-082916-3"`, `"10-0123456"`)
+  en una columna calificada se leen como teléfonos y se protegen; una
+  palabra de persona con otra que no es un calificador conocido
+  —`victoria_equipo_socio`— se protege por el nombre, y `dir` es una
+  dirección aunque la columna sea de puntos cardinales; y las escrituras
+  raras de un número —coma decimal con exponente, `"4.685.467,00e0"`— no
+  se leen. Una columna de personas con otro nombre se declara en
+  `columnas_personales`. También es `medio` una columna que trae correos
+  completos sin que sean la mayoría de sus valores: un correo es un
+  correo aunque esté solo, y la columna se protege;
+
+- `alto`: una forma muy específica, como un correo, o nombre y forma se
+  apoyan mutuamente; se protege;
+
+- `verificado`: al menos tres valores distintos y al menos el 90% cumple
+  uno de los validadores personales configurados; se protege incluso sin
+  un nombre orientador. La proporción medida —la que se compara contra
+  ese umbral— se publica en `proporcion_verificada`, para que una
+  columna con el 90% no se lea igual que una con el 100%. El pack
+  uruguayo es el predeterminado, pero puede reemplazarse por un
+  [`pack_validadores()`](https://sebollin.github.io/lupa/reference/pack_validadores.md)
+  de otro país o desactivarse con `FALSE`. La tolerancia del 10% permite
+  tipeos aislados sin convertir una columna real en una salida pública;
+  el umbral es configurable.
+
+La forma genérica de siete a doce dígitos tiene poder discriminante
+débil: también describe importes, teléfonos, facturas e identificadores.
+Las formas con separadores sólo se aceptan cuando tienen una estructura
+de documento reconocible (por ejemplo, una cédula con grupos y guion o
+un RUT con grupos de tres y cuatro dígitos); una fecha ISO, una fecha
+con puntos o guiones y separadores arbitrarios no se consideran
+documentos. Un validador de dígito que supera el umbral aporta evidencia
+verificable y eleva la clasificación; una forma sola nunca se trata como
+prueba de identidad.
+
+Este criterio mide capacidad de discriminación, no juzga si la presencia
+del dato es correcta. La protección sustituye modas, ejemplos, evidencia
+y extremos o medianas que corresponden a observaciones reales. También
+los momentos: las medias en sus dos formas (`media` y `media_fecha`),
+porque la media de una columna personal puede reconstruir demasiado, y
+el desvío, que es una magnitud de sus valores.
+`detalle_proteccion_personal` hace visible la supresión y dice qué se
+tapó: los estadísticos de orden, la media, el desvío o los dos momentos.
+En fechas de nacimiento y fallecimiento, un hallazgo separado conserva
+el diagnóstico de valores anteriores a 1900 o posteriores a la corrida
+sin publicar las fechas. Los números escritos como texto reconocen tanto
+coma como punto decimal y sus separadores de miles simétricos. El
+resumen cuantitativo, los outliers y la secuencia entera los leen con la
+convención que la misma fila publica en `numero_texto_convencion`, por
+la misma normalización que la acción `convertir_numero_regional`: con
+`"decimal_coma"`, `1.500` es mil quinientos. Un separador seguido de
+exactamente tres dígitos —`1.500`, `1,500`— sólo se lee si la columna
+aporta evidencia de una sola convención; si no la aporta (`"ambigua"`) o
+aporta de las dos (`"mixta"`), ese valor no se lee como número, con
+punto o con coma por igual: una columna entera de esos valores queda
+`texto` y sin resumen, y si son pocos quedan fuera del resumen y lo
+declaran `n_valores_excluidos_resumen` y `"calculados_sobre_valores"`.
+Los prefijos de tres letras separados del número, incluso como sufijo,
+`U$S` y los símbolos monetarios se conservan como evidencia;
+`monedas_mixtas` informa sus frecuencias sin convertir ni suponer tasas
+de cambio. Una única moneda o un símbolo `$` aislado no produce ese
+hallazgo. Un sufijo de unidad se reconoce sólo si es `%` o una
+abreviatura alfabética en minúsculas; por eso `12 kg` y `13500 g` son
+unidades, mientras que `12A` y `13B` se tratan como códigos. Si hay más
+de una unidad observada, `unidades_mixtas` informa sus frecuencias y no
+convierte ni compara sus magnitudes. Una única unidad no genera ese
+hallazgo. `formatos_fecha_mixtos` compara representaciones dentro de una
+columna cuyo dominio es la fecha o la fecha-hora. Una fecha agregada
+adentro de una columna de horas del día —`12/02/2011 6:55 a.m.` entre
+valores `7:10 a.m.`— no produce ese hallazgo, porque la columna no es de
+fechas: aparece como `patron_raro`, que es lo que de verdad cambió.
+Decidir que esa columna sólo debe contener horas es una regla de dominio
+y el paquete no la supone. Del mismo modo, un número sin sufijo no
+cuenta como una segunda unidad: una columna que mezcla `5` con `5 %`
+observa una sola unidad y se informa como `numero_como_texto`, no como
+`unidades_mixtas`. `celdas_multivaluadas` es deliberadamente
+conservador: usa los patrones de
+[`descubrir_patrones()`](https://sebollin.github.io/lupa/reference/descubrir_patrones.md)
+y exige partes numéricas, alfanuméricas o identificadoras puntuadas
+homogéneas, compatibles con el patrón del resto de la columna. No
+interpreta comas en nombres o direcciones como listas; el delimitador,
+la cantidad de celdas y la distribución de valores por celda quedan en
+la evidencia del hallazgo.
+
+## See also
+
+[`descubrir_patrones()`](https://sebollin.github.io/lupa/reference/descubrir_patrones.md),
+[`detectar_dependencias()`](https://sebollin.github.io/lupa/reference/detectar_dependencias.md),
+[`proponer_modelo()`](https://sebollin.github.io/lupa/reference/proponer_modelo.md),
+[`planificar_limpieza()`](https://sebollin.github.io/lupa/reference/planificar_limpieza.md)
+
+## Examples
+
+``` r
+perfil <- perfilar(datos_administrativos)
+perfil
+#> 
+#> ── Perfil de datos: datos_administrativos ──────────────────────────────────────
+#> ✖ 5 hallazgos con severidad error
+#> ! 9 hallazgos sospechosos
+#> ✔ 7 hallazgos informativos ok
+#> ℹ 8 diagnósticos no evaluados
+#> 
+#> ── Resumen general ──
+#> 
+#> Filas: 13
+#> Columnas: 10
+#> Celdas: 130
+#> Filas completas: 13
+#> Filas duplicadas: 1
+#> Memoria: 7.1 Kb
+#> 
+#> ── Resumen por columna ──
+#> 
+#>           columna tipo_inferido prop_faltantes_totales n_distintos n_outliers
+#>        id_persona         doble             0.00000000          11         NA
+#>            cedula         texto             0.07692308          11         NA
+#>  fecha_nacimiento         fecha             0.07692308          12         NA
+#>              sexo         texto             0.15384615           4         NA
+#>           ingreso         doble             0.07692308          12         NA
+#>      departamento         texto             0.00000000          11         NA
+#>              pais         texto             0.00000000           1         NA
+#>            correo         texto             0.00000000          12         NA
+#>          id_copia         doble             0.00000000          11         NA
+#>        id_tramite identificador             0.00000000          12         NA
+#> ℹ Se muestran 5 de 118 campos; los demás están en `columnas()`.
+summary(perfil)
+#>             columna tipo_declarado tipo_inferido estado_tipo_inferido
+#> 1        id_persona          doble         doble                 <NA>
+#> 2            cedula          texto         texto                 <NA>
+#> 3  fecha_nacimiento          texto         fecha           confirmado
+#> 4              sexo          texto         texto                 <NA>
+#> 5           ingreso          doble         doble                 <NA>
+#> 6      departamento          texto         texto                 <NA>
+#> 7              pais          texto         texto                 <NA>
+#> 8            correo          texto         texto                 <NA>
+#> 9          id_copia          doble         doble                 <NA>
+#> 10       id_tramite          texto identificador                 <NA>
+#>    proporcion_tipo_inferido n_filas_analizadas_tipo muestreado_tipo_inferido  n
+#> 1                 1.0000000                      13                    FALSE 13
+#> 2                 1.0000000                      13                    FALSE 13
+#> 3                 0.8461538                      13                    FALSE 13
+#> 4                 1.0000000                      12                    FALSE 13
+#> 5                 1.0000000                      13                    FALSE 13
+#> 6                 1.0000000                      13                    FALSE 13
+#> 7                 1.0000000                      13                    FALSE 13
+#> 8                 1.0000000                      13                    FALSE 13
+#> 9                 1.0000000                      13                    FALSE 13
+#> 10                1.0000000                      13                    FALSE 13
+#>    n_aplicables n_no_aplica n_aplicabilidad_indeterminada
+#> 1            13           0                             0
+#> 2            13           0                             0
+#> 3            13           0                             0
+#> 4            13           0                             0
+#> 5            13           0                             0
+#> 6            13           0                             0
+#> 7            13           0                             0
+#> 8            13           0                             0
+#> 9            13           0                             0
+#> 10           13           0                             0
+#>    n_presentes_en_aplicabilidad_indeterminada
+#> 1                                           0
+#> 2                                           0
+#> 3                                           0
+#> 4                                           0
+#> 5                                           0
+#> 6                                           0
+#> 7                                           0
+#> 8                                           0
+#> 9                                           0
+#> 10                                          0
+#>    n_presentes_fuera_de_aplicabilidad n_faltantes prop_faltantes
+#> 1                                   0           0              0
+#> 2                                   0           0              0
+#> 3                                   0           0              0
+#> 4                                   0           0              0
+#> 5                                   0           0              0
+#> 6                                   0           0              0
+#> 7                                   0           0              0
+#> 8                                   0           0              0
+#> 9                                   0           0              0
+#> 10                                  0           0              0
+#>    n_faltantes_disfrazados n_faltantes_disfrazados_textuales
+#> 1                        0                                 0
+#> 2                        1                                 1
+#> 3                        1                                 1
+#> 4                        2                                 2
+#> 5                        1                                 0
+#> 6                        0                                 0
+#> 7                        0                                 0
+#> 8                        0                                 0
+#> 9                        0                                 0
+#> 10                       0                                 0
+#>    n_faltantes_disfrazados_numericos prop_faltantes_disfrazados
+#> 1                                  0                 0.00000000
+#> 2                                  0                 0.07692308
+#> 3                                  0                 0.07692308
+#> 4                                  0                 0.15384615
+#> 5                                  1                 0.07692308
+#> 6                                  0                 0.00000000
+#> 7                                  0                 0.00000000
+#> 8                                  0                 0.00000000
+#> 9                                  0                 0.00000000
+#> 10                                 0                 0.00000000
+#>    n_faltantes_totales prop_faltantes_totales n_distintos tasa_distintos
+#> 1                    0             0.00000000          11     0.84615385
+#> 2                    1             0.07692308          11     0.84615385
+#> 3                    1             0.07692308          12     0.92307692
+#> 4                    2             0.15384615           4     0.30769231
+#> 5                    1             0.07692308          12     0.92307692
+#> 6                    0             0.00000000          11     0.84615385
+#> 7                    0             0.00000000           1     0.07692308
+#> 8                    0             0.00000000          12     0.92307692
+#> 9                    0             0.00000000          11     0.84615385
+#> 10                   0             0.00000000          12     0.92307692
+#>    secuencia_entera_densa densidad_secuencia_entera
+#> 1                   FALSE              1.000000e+00
+#> 2                   FALSE                        NA
+#> 3                   FALSE                        NA
+#> 4                   FALSE                        NA
+#> 5                   FALSE              1.199988e-06
+#> 6                   FALSE                        NA
+#> 7                   FALSE                        NA
+#> 8                   FALSE                        NA
+#> 9                   FALSE              1.000000e+00
+#> 10                  FALSE                        NA
+#>    n_posiciones_secuencia_entera n_huecos_secuencia_entera
+#> 1                             11                         0
+#> 2                             NA                        NA
+#> 3                             NA                        NA
+#> 4                             NA                        NA
+#> 5                       10000099                  10000087
+#> 6                             NA                        NA
+#> 7                             NA                        NA
+#> 8                             NA                        NA
+#> 9                             11                         0
+#> 10                            NA                        NA
+#>    hueco_maximo_secuencia_entera salto_de_escala_secuencia_entera
+#> 1                              1                            FALSE
+#> 2                             NA                            FALSE
+#> 3                             NA                            FALSE
+#> 4                             NA                            FALSE
+#> 5                        9965499                             TRUE
+#> 6                             NA                            FALSE
+#> 7                             NA                            FALSE
+#> 8                             NA                            FALSE
+#> 9                              1                            FALSE
+#> 10                            NA                            FALSE
+#>    moda_sobresale_secuencia_entera umbral_densidad_secuencia_entera
+#> 1                            FALSE                              0.8
+#> 2                            FALSE                              0.8
+#> 3                            FALSE                              0.8
+#> 4                            FALSE                              0.8
+#> 5                            FALSE                              0.8
+#> 6                            FALSE                              0.8
+#> 7                            FALSE                              0.8
+#> 8                            FALSE                              0.8
+#> 9                            FALSE                              0.8
+#> 10                           FALSE                              0.8
+#>    min_distintos_secuencia_entera              moda frecuencia_moda
+#> 1                              20                 1               2
+#> 2                              20 [valor protegido]               2
+#> 3                              20 [valor protegido]               2
+#> 4                              20                 F               6
+#> 5                              20             25000               2
+#> 6                              20           Florida               2
+#> 7                              20                UY              13
+#> 8                              20 [valor protegido]               2
+#> 9                              20                 1               2
+#> 10                             20             TR001               2
+#>    longitud_minima longitud_maxima longitud_media n_longitudes_resumidas minimo
+#> 1               NA              NA             NA                     NA      1
+#> 2                3              11       9.692308                     13     NA
+#> 3                4              10       9.384615                     13     NA
+#> 4                0               3       1.076923                     13     NA
+#> 5               NA              NA             NA                     NA    -99
+#> 6                5              10       7.461538                     13     NA
+#> 7                2               2       2.000000                     13     NA
+#> 8               10              26      23.923077                     13     NA
+#> 9               NA              NA             NA                     NA      1
+#> 10               5               5       5.000000                     13     NA
+#>     maximo        media mediana       desvio minimo_exacto maximo_exacto
+#> 1       11 5.923077e+00       6 3.546396e+00          <NA>          <NA>
+#> 2       NA           NA      NA           NA          <NA>          <NA>
+#> 3       NA           NA      NA           NA          <NA>          <NA>
+#> 4       NA           NA      NA           NA          <NA>          <NA>
+#> 5  9999999 7.900192e+05   29900 2.767287e+06          <NA>          <NA>
+#> 6       NA           NA      NA           NA          <NA>          <NA>
+#> 7       NA           NA      NA           NA          <NA>          <NA>
+#> 8       NA           NA      NA           NA          <NA>          <NA>
+#> 9       11 5.923077e+00       6 3.546396e+00          <NA>          <NA>
+#> 10      NA           NA      NA           NA          <NA>          <NA>
+#>         minimo_fecha      maximo_fecha       media_fecha     mediana_fecha
+#> 1               <NA>              <NA>              <NA>              <NA>
+#> 2               <NA>              <NA>              <NA>              <NA>
+#> 3  [valor protegido] [valor protegido] [valor protegido] [valor protegido]
+#> 4               <NA>              <NA>              <NA>              <NA>
+#> 5               <NA>              <NA>              <NA>              <NA>
+#> 6               <NA>              <NA>              <NA>              <NA>
+#> 7               <NA>              <NA>              <NA>              <NA>
+#> 8               <NA>              <NA>              <NA>              <NA>
+#> 9               <NA>              <NA>              <NA>              <NA>
+#> 10              <NA>              <NA>              <NA>              <NA>
+#>    n_fechas_resumidas n_fechas_excluidas_granularidad
+#> 1                  NA                              NA
+#> 2                  NA                              NA
+#> 3                  11                               0
+#> 4                  NA                              NA
+#> 5                  NA                              NA
+#> 6                  NA                              NA
+#> 7                  NA                              NA
+#> 8                  NA                              NA
+#> 9                  NA                              NA
+#> 10                 NA                              NA
+#>    n_valores_excluidos_resumen n_ceros n_negativos n_outliers centinela_valor
+#> 1                            0       0           0         NA              NA
+#> 2                            0      NA          NA         NA              NA
+#> 3                            2       0           0         NA              NA
+#> 4                            0      NA          NA         NA              NA
+#> 5                            0       1           2         NA              NA
+#> 6                            0      NA          NA         NA              NA
+#> 7                            0      NA          NA         NA              NA
+#> 8                            0      NA          NA         NA              NA
+#> 9                            0       0           0         NA              NA
+#> 10                           0      NA          NA         NA              NA
+#>    centinela_repeticiones densidad_sin_centinela n_nan n_infinito_positivo
+#> 1                      NA                     NA     0                   0
+#> 2                      NA                     NA     0                   0
+#> 3                      NA                     NA     0                   0
+#> 4                      NA                     NA     0                   0
+#> 5                      NA                     NA     0                   0
+#> 6                      NA                     NA     0                   0
+#> 7                      NA                     NA     0                   0
+#> 8                      NA                     NA     0                   0
+#> 9                      NA                     NA     0                   0
+#> 10                     NA                     NA     0                   0
+#>    n_infinito_negativo estado_resumen_cuantitativo unidad zona_horaria_origen
+#> 1                    0                  calculados   <NA>                <NA>
+#> 2                    0                   no_aplica   <NA>                <NA>
+#> 3                    0    calculados_sobre_valores   <NA>                <NA>
+#> 4                    0                   no_aplica   <NA>                <NA>
+#> 5                    0                  calculados   <NA>                <NA>
+#> 6                    0                   no_aplica   <NA>                <NA>
+#> 7                    0                   no_aplica   <NA>                <NA>
+#> 8                    0                   no_aplica   <NA>                <NA>
+#> 9                    0                  calculados   <NA>                <NA>
+#> 10                   0                   no_aplica   <NA>                <NA>
+#>    n_filas_fecha_civil_distinta_utc fecha_civil_distinta_utc
+#> 1                                NA                       NA
+#> 2                                NA                       NA
+#> 3                                NA                       NA
+#> 4                                NA                       NA
+#> 5                                NA                       NA
+#> 6                                NA                       NA
+#> 7                                NA                       NA
+#> 8                                NA                       NA
+#> 9                                NA                       NA
+#> 10                               NA                       NA
+#>    representacion_geometria motivo_representacion crs_declarado tipo_geometria
+#> 1                      <NA>                  <NA>          <NA>           <NA>
+#> 2                      <NA>                  <NA>          <NA>           <NA>
+#> 3                      <NA>                  <NA>          <NA>           <NA>
+#> 4                      <NA>                  <NA>          <NA>           <NA>
+#> 5                      <NA>                  <NA>          <NA>           <NA>
+#> 6                      <NA>                  <NA>          <NA>           <NA>
+#> 7                      <NA>                  <NA>          <NA>           <NA>
+#> 8                      <NA>                  <NA>          <NA>           <NA>
+#> 9                      <NA>                  <NA>          <NA>           <NA>
+#> 10                     <NA>                  <NA>          <NA>           <NA>
+#>    dimension_geometria dimensiones_no_evaluadas n_geometrias_vacias
+#> 1                 <NA>                     <NA>                  NA
+#> 2                 <NA>                     <NA>                  NA
+#> 3                 <NA>                     <NA>                  NA
+#> 4                 <NA>                     <NA>                  NA
+#> 5                 <NA>                     <NA>                  NA
+#> 6                 <NA>                     <NA>                  NA
+#> 7                 <NA>                     <NA>                  NA
+#> 8                 <NA>                     <NA>                  NA
+#> 9                 <NA>                     <NA>                  NA
+#> 10                <NA>                     <NA>                  NA
+#>    n_geometrias_invalidas n_validez_evaluados validez_criterio
+#> 1                      NA                  NA             <NA>
+#> 2                      NA                  NA             <NA>
+#> 3                      NA                  NA             <NA>
+#> 4                      NA                  NA             <NA>
+#> 5                      NA                  NA             <NA>
+#> 6                      NA                  NA             <NA>
+#> 7                      NA                  NA             <NA>
+#> 8                      NA                  NA             <NA>
+#> 9                      NA                  NA             <NA>
+#> 10                     NA                  NA             <NA>
+#>    validez_preprocesamiento n_fuera_de_dominio n_dominio_evaluados
+#> 1                      <NA>                 NA                  NA
+#> 2                      <NA>                 NA                  NA
+#> 3                      <NA>                 NA                  NA
+#> 4                      <NA>                 NA                  NA
+#> 5                      <NA>                 NA                  NA
+#> 6                      <NA>                 NA                  NA
+#> 7                      <NA>                 NA                  NA
+#> 8                      <NA>                 NA                  NA
+#> 9                      <NA>                 NA                  NA
+#> 10                     <NA>                 NA                  NA
+#>    n_bbox_evaluados n_geometrias_analizadas n_vertices_analizados bbox_alcance
+#> 1                NA                      NA                    NA         <NA>
+#> 2                NA                      NA                    NA         <NA>
+#> 3                NA                      NA                    NA         <NA>
+#> 4                NA                      NA                    NA         <NA>
+#> 5                NA                      NA                    NA         <NA>
+#> 6                NA                      NA                    NA         <NA>
+#> 7                NA                      NA                    NA         <NA>
+#> 8                NA                      NA                    NA         <NA>
+#> 9                NA                      NA                    NA         <NA>
+#> 10               NA                      NA                    NA         <NA>
+#>    bbox_xmin bbox_xmax bbox_ymin bbox_ymax
+#> 1         NA        NA        NA        NA
+#> 2         NA        NA        NA        NA
+#> 3         NA        NA        NA        NA
+#> 4         NA        NA        NA        NA
+#> 5         NA        NA        NA        NA
+#> 6         NA        NA        NA        NA
+#> 7         NA        NA        NA        NA
+#> 8         NA        NA        NA        NA
+#> 9         NA        NA        NA        NA
+#> 10        NA        NA        NA        NA
+#>                      detalle_proteccion_personal n_blancos n_espacios_borde
+#> 1                                           <NA>         0                0
+#> 2             [estadisticos de orden protegidos]         0                0
+#> 3  [estadisticos de orden y momentos protegidos]         0                0
+#> 4                                           <NA>         1                0
+#> 5                                           <NA>         0                0
+#> 6                                           <NA>         0                0
+#> 7                                           <NA>         0                0
+#> 8             [estadisticos de orden protegidos]         0                0
+#> 9                                           <NA>         0                0
+#> 10                                          <NA>         0                0
+#>    n_variantes_mayusculas n_variantes_unicode unicode_evaluado
+#> 1                       0                  NA               NA
+#> 2                       0                   0             TRUE
+#> 3                       0                   0             TRUE
+#> 4                       0                   0             TRUE
+#> 5                       0                  NA               NA
+#> 6                       0                   0             TRUE
+#> 7                       0                   0             TRUE
+#> 8                       0                   0             TRUE
+#> 9                       0                  NA               NA
+#> 10                      0                   0             TRUE
+#>    n_codificacion_rota n_codificacion_reparable
+#> 1                    0                        0
+#> 2                    0                        0
+#> 3                    0                        0
+#> 4                    0                        0
+#> 5                    0                        0
+#> 6                    0                        0
+#> 7                    0                        0
+#> 8                    0                        0
+#> 9                    0                        0
+#> 10                   0                        0
+#>    n_codificacion_reparable_parcialmente n_codificacion_irreparable
+#> 1                                      0                          0
+#> 2                                      0                          0
+#> 3                                      0                          0
+#> 4                                      0                          0
+#> 5                                      0                          0
+#> 6                                      0                          0
+#> 7                                      0                          0
+#> 8                                      0                          0
+#> 9                                      0                          0
+#> 10                                     0                          0
+#>    n_codificacion_no_se_pudo estado_codificacion_reparacion
+#> 1                          0                 no_parece_roto
+#> 2                          0                 no_parece_roto
+#> 3                          0                 no_parece_roto
+#> 4                          0                 no_parece_roto
+#> 5                          0                 no_parece_roto
+#> 6                          0                 no_parece_roto
+#> 7                          0                 no_parece_roto
+#> 8                          0                 no_parece_roto
+#> 9                          0                 no_parece_roto
+#> 10                         0                 no_parece_roto
+#>    n_codificacion_invalida n_controles_invisibles n_invisibles_eliminables
+#> 1                        0                      0                        0
+#> 2                        0                      0                        0
+#> 3                        0                      0                        0
+#> 4                        0                      0                        0
+#> 5                        0                      0                        0
+#> 6                        0                      0                        0
+#> 7                        0                      0                        0
+#> 8                        0                      0                        0
+#> 9                        0                      0                        0
+#> 10                       0                      0                        0
+#>    n_espacios_invisibles n_invisibles_significativos n_entidades_html
+#> 1                      0                           0                0
+#> 2                      0                           0                0
+#> 3                      0                           0                0
+#> 4                      0                           0                0
+#> 5                      0                           0                0
+#> 6                      0                           0                0
+#> 7                      0                           0                0
+#> 8                      0                           0                0
+#> 9                      0                           0                0
+#> 10                     0                           0                0
+#>    n_separadores_en_campo n_numeros_texto proporcion_numeros_texto
+#> 1                       0               0                       NA
+#> 2                       0               0                       NA
+#> 3                       0               0                       NA
+#> 4                       0               0                       NA
+#> 5                       0               0                       NA
+#> 6                       0               0                       NA
+#> 7                       0               0                       NA
+#> 8                       0               0                       NA
+#> 9                       0               0                       NA
+#> 10                      0               0                       NA
+#>    numero_texto_ambiguo numero_texto_seguro numero_texto_unidad
+#> 1                 FALSE               FALSE                    
+#> 2                 FALSE               FALSE                    
+#> 3                 FALSE               FALSE                    
+#> 4                 FALSE               FALSE                    
+#> 5                 FALSE               FALSE                    
+#> 6                 FALSE               FALSE                    
+#> 7                 FALSE               FALSE                    
+#> 8                 FALSE               FALSE                    
+#> 9                 FALSE               FALSE                    
+#> 10                FALSE               FALSE                    
+#>    numero_texto_moneda numero_texto_convencion dato_personal_posible
+#> 1                                                              FALSE
+#> 2                                                               TRUE
+#> 3                                                               TRUE
+#> 4                                                              FALSE
+#> 5                                                              FALSE
+#> 6                                                              FALSE
+#> 7                                                              FALSE
+#> 8                                                               TRUE
+#> 9                                                              FALSE
+#> 10                                                             FALSE
+#>     tipo_dato_personal proporcion_dato_personal
+#> 1                 <NA>                       NA
+#> 2  documento_identidad                0.8461538
+#> 3     fecha_nacimiento                1.0000000
+#> 4                 <NA>                       NA
+#> 5                 <NA>                       NA
+#> 6                 <NA>                       NA
+#> 7                 <NA>                       NA
+#> 8               correo                0.9230769
+#> 9                 <NA>                       NA
+#> 10                <NA>                       NA
+#>    poder_discriminante_dato_personal dato_personal_protegido
+#> 1                               <NA>                   FALSE
+#> 2                               alto                    TRUE
+#> 3                              medio                    TRUE
+#> 4                               <NA>                   FALSE
+#> 5                               <NA>                   FALSE
+#> 6                               <NA>                   FALSE
+#> 7                               <NA>                   FALSE
+#> 8                               alto                    TRUE
+#> 9                               <NA>                   FALSE
+#> 10                              <NA>                   FALSE
+```

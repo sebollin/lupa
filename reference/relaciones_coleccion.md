@@ -1,0 +1,279 @@
+# Buscar claves foráneas candidatas entre pares declarados
+
+Corre
+[`detectar_relaciones()`](https://sebollin.github.io/lupa/reference/detectar_relaciones.md)
+sobre los pares de tablas que se declaren, y devuelve las relaciones
+candidatas junto con la cobertura de los pares que no se pudieron
+comparar.
+
+## Usage
+
+``` r
+relaciones_coleccion(
+  coleccion,
+  pares,
+  muestra = 10000,
+  umbral_cobertura = 0.9,
+  orden = NULL,
+  tope_cache_mb = 512,
+  columnas_candidatas = NULL,
+  podar = FALSE,
+  tope_memoria_mb = 512
+)
+```
+
+## Arguments
+
+- coleccion:
+
+  Objeto creado por
+  [`coleccion()`](https://sebollin.github.io/lupa/reference/coleccion.md).
+
+- pares:
+
+  Data frame con columnas `tabla_1` y `tabla_2`. Cero filas es una
+  declaración válida de «ningún par».
+
+- muestra:
+
+  Filas traídas por tabla para comparar, y **el mismo tope con que se
+  calcula cada cobertura**: se reenvía a
+  [`detectar_relaciones()`](https://sebollin.github.io/lupa/reference/detectar_relaciones.md),
+  así que la evidencia publicada y la cobertura salen de las mismas
+  filas, también con `muestra > 1e5`. Sin reenviarlo regiría el tope por
+  omisión de esa función, y la fila se contradiría a sí misma:
+  `n_valores_comunes` contado sobre la lectura entera junto a una
+  cobertura calculada sobre un submuestreo que ningún campo declara.
+
+- umbral_cobertura:
+
+  Cobertura mínima para informar una relación.
+
+- orden:
+
+  Columnas para `ORDER BY`: un vector de texto que se aplica a todas las
+  tablas, o una lista nombrada por identificador de tabla. Sin él la
+  lectura no es repetible y el objeto lo declara. Ordena la lectura y no
+  la recorta: una tabla sin `columnas_candidatas` se lee con todas sus
+  columnas, y a una con candidatas se le suman las de orden sólo para
+  ordenar.
+
+- tope_cache_mb:
+
+  Presupuesto de memoria para la caché de lecturas, en megabytes. Al
+  agotarse se sigue leyendo sin cachear y `meta` lo declara.
+
+- columnas_candidatas:
+
+  Lista nombrada por identificador de tabla. Cada vector declara las
+  columnas que pueden participar; una tabla no nombrada conserva todas
+  sus columnas. Un nombre se busca con la grafía exacta y, si no está,
+  sin distinguir mayúsculas —como `orden` y como `orden_muestra` de
+  [`perfilar_dbi()`](https://sebollin.github.io/lupa/reference/perfilar_dbi.md)—;
+  uno que no existe da `lupa_error_argumento_dbi`, la clase de todo
+  argumento mal formado de esta función.
+
+- podar:
+
+  Si se aplican las podas que cambiarían lo informado —tipos
+  incompatibles y cardinalidades imposibles—, tal como en
+  [`detectar_relaciones()`](https://sebollin.github.io/lupa/reference/detectar_relaciones.md).
+  `FALSE` por omisión; la poda cierta por rangos disjuntos del universo
+  se aplica siempre porque no cambia ninguna fila.
+
+- tope_memoria_mb:
+
+  Presupuesto de memoria para resultados de relaciones, en megabytes. Al
+  agotarse, las combinaciones pendientes se declaran en
+  `cobertura_podas` y los pares pendientes en `cobertura_pares`.
+
+## Value
+
+Objeto `relaciones_coleccion` con `relaciones`, `cobertura_pares`,
+`cobertura_podas` y `meta`.
+
+## Details
+
+**Los pares se declaran, igual que la frontera.** Con mil tablas hay
+casi un millón de pares dirigidos, así que explorar todos no es una
+opción cara sino una opción imposible.
+[`estimar_costo_coleccion()`](https://sebollin.github.io/lupa/reference/estimar_costo_coleccion.md)
+permite verlo antes.
+
+**Cada tabla se lee una sola vez.** Los pares repetidos se descartan,
+los pares de una tabla consigo misma se rechazan, y las lecturas se
+guardan en una caché con presupuesto de memoria declarado: dos pares que
+comparten una tabla no la leen dos veces. `meta$lecturas` deja el SQL
+exacto, la vía usada, las filas leídas y el momento de cada lectura.
+
+**El orden no se supone.** Sin `orden`, una lectura acotada devuelve un
+subconjunto arbitrario y el resultado declara `meta$estable = FALSE`.
+Declarar columnas de orden hace la lectura repetible.
+
+**Una columna que la sesión no puede escribir no se lleva la tabla.**
+Con odbc bajo el locale `C` -un `Rscript` de cron- un nombre no ASCII no
+se puede mandar, y un nombre con bytes que no son UTF-8 válido y no
+declaran su codificación -un CSV latin1 leído sin `fileEncoding`- no se
+manda con ningún controlador. Una candidata así sale de la lectura y sus
+combinaciones quedan en `cobertura_podas` con motivo
+`columna_no_escribible` y el remedio en `detalle`; las demás se
+comparan. Una columna de `orden` así deja la lectura de esa tabla sin
+`ORDER BY` —no se puede ordenar como se declaró—, y `meta$lecturas` y
+`meta$estable` lo dicen. Los nombres publicados son los de
+[`DBI::dbListFields()`](https://dbi.r-dbi.org/reference/dbListFields.html),
+los mismos que publica
+[`perfilar_coleccion()`](https://sebollin.github.io/lupa/reference/perfilar_coleccion.md),
+aunque el controlador devuelva los de la lectura en otra codificación.
+
+**Una columna que la credencial no puede leer, o que llega enmascarada,
+no se compara y no se lleva la tabla.** Las columnas de cada tabla y lo
+que la credencial puede leer de ellas salen del catálogo del motor, de
+la misma función que usa
+[`perfilar_dbi()`](https://sebollin.github.io/lupa/reference/perfilar_dbi.md):
+en PostgreSQL `pg_attribute` con `has_column_privilege()`
+—`dbListFields()` de RPostgres no lista las columnas sin privilegio—, y
+en SQL Server `sys.columns` con `HAS_PERMS_BY_NAME()` y
+`sys.masked_columns` (enmascaramiento dinámico, salvo que la credencial
+tenga `UNMASK`). Sin candidatas declaradas la lectura nombra las demás
+columnas en vez de `SELECT *`, que con un permiso por columna se rechaza
+entero, y la columna no se nombra en ninguna consulta. Sus combinaciones
+quedan en `cobertura_podas` con motivo `columna_sin_permiso` o
+`columna_enmascarada`: una columna enmascarada lee la máscara —`xxxx`—,
+y dos así parecerían relacionadas sin compartir un solo valor. Una
+columna de `orden` así deja la lectura sin `ORDER BY`, como la que no se
+puede escribir.
+
+**Los valores se leen como los lee
+[`perfilar_dbi()`](https://sebollin.github.io/lupa/reference/perfilar_dbi.md).**
+RPostgres entrega `0` en toda celda `money`, y `MIN`/`MAX` de una
+columna `money` también: la lectura de cada tabla y la consulta de
+rangos de la poda la leen convertida en el motor —`CAST(x AS NUMERIC)`—,
+con la misma expresión que
+[`perfilar_dbi()`](https://sebollin.github.io/lupa/reference/perfilar_dbi.md)
+publica en `meta$lectura_convertida`. Saber el tipo cuesta una consulta
+de cero filas por tabla, sólo en las conexiones donde la lectura
+convierte algo. Y el texto que el controlador entrega en latin1 con la
+marca UTF-8 —odbc con FreeTDS bajo un locale que no es UTF-8, sobre una
+columna `varchar`— se lee como latin1, así que se compara con el de una
+`nvarchar`; la lectura lo declara en `meta$lecturas$motivo`, con el
+remedio, porque un carácter fuera de latin1 llega como `?` (ver «Fallo
+parcial» en
+[`perfilar_dbi()`](https://sebollin.github.io/lupa/reference/perfilar_dbi.md)).
+Con `muestra = Inf` no se escribe `LIMIT`: la tabla se lee entera por la
+vía sin tope. Dentro de una transacción del usuario, la lectura sigue la
+regla de
+[`perfilar_dbi()`](https://sebollin.github.io/lupa/reference/perfilar_dbi.md):
+en PostgreSQL cada sentencia va dentro de un punto de guardado y la
+transacción no queda abortada.
+
+Cada par se compara sobre una muestra de filas de cada tabla, y el
+resultado declara ese alcance: una relación candidata sobre una muestra
+**no es una clave foránea comprobada**, es un indicio que hay que
+confirmar contra el diccionario de datos.
+
+Las columnas de ancho fijo (`char(n)` y equivalentes del controlador) se
+leen sin el relleno final que forma parte de su representación en el
+motor. Así, una clave `char` y su contraparte `varchar` se comparan por
+el valor lógico que el motor iguala, no por los espacios que entrega
+DBI. En SQL Server la misma regla alcanza a los pares de texto `varchar`
+contra `varchar`, porque su cotejamiento ignora los espacios finales. En
+PostgreSQL no se recortan todas las columnas de texto: se normaliza el
+lado `bpchar` y la contraparte `varchar` que el motor compara con él,
+pero un `text` conserva su espacio final porque PostgreSQL lo distingue.
+Así la relación publicada sigue la igualdad del motor, no una igualdad
+de cadenas recortadas.
+
+Si una lectura conjunta falla en una fila, la colección aísla por
+descarte las columnas culpables y deja sus nombres en `cobertura_podas`
+con motivo `columna_lectura_fallida`; las columnas sanas conservan sus
+relaciones. Si se declaró `orden`, el aislamiento repite las sondas sin
+`ORDER BY` sólo cuando la propia columna de orden es la culpable, y
+`meta$estable` se calcula desde las lecturas que realmente llevaron ese
+orden.
+
+**Con la tabla de referencia truncada la cobertura es una cota
+inferior.** Un valor de `tabla_2` que no está entre las filas leídas de
+`tabla_1` puede estar en las demás, así que la cobertura sólo puede
+subir al leer más. Una combinación de columnas que con la referencia
+truncada no alcanza `umbral_cobertura` no se descarta en silencio,
+**aunque otra del mismo par lo alcance**: un indicador de dos valores
+llega a cobertura 1 trivialmente, y no puede borrar la clave foránea que
+quedó en 0,5 por la lectura. El par queda en `cobertura_pares` como «sin
+conclusión» —una fila por par, no una por combinación—, con cuántas
+combinaciones no alcanzaron el umbral, las cinco de mayor cobertura
+medida con su cota, cuántas lo alcanzaron —que están en `relaciones`— y
+cómo resolverlo. `meta$pares_sin_conclusion` los cuenta —también están
+en `pares_comparados`, porque se compararon—.
+
+Los motivos de `cobertura_pares` citan en claro lo que el usuario
+declaró y lo que el resto de la salida ya publica: los nombres de las
+tablas, de sus esquemas y de sus columnas, y las de `orden` y
+`columnas_candidatas`; el resto del mensaje del motor sigue la regla de
+[`perfilar_dbi()`](https://sebollin.github.io/lupa/reference/perfilar_dbi.md).
+
+**El alcance se declara por par y en la fila.** Cada relación publica
+`filas_leidas_1`/`filas_leidas_2` —cuántas se compararon—, y además
+`filas_totales_1`/`filas_totales_2` y `muestreado_1`/`muestreado_2`:
+cuando la lectura fue completa, el total de la tabla es exacto; cuando
+quedó truncada, el total va `NA` y `muestreado` vale `TRUE`, porque lo
+único que se sabe es que hay más filas que el tope. Publicar el tope
+como si fuera el total sería decir que se leyó todo. Para saberlo se
+pide **una fila más** que el tope, que cuesta mucho menos que un
+`COUNT(*)` por tabla y contesta exacto; esa fila de sobra no viaja al
+resultado.
+
+Los atributos de
+[`detectar_relaciones()`](https://sebollin.github.io/lupa/reference/detectar_relaciones.md)
+no viajan en `relaciones`: sobrevivirían sólo los del **primer** par
+publicado —[`rbind()`](https://rdrr.io/r/base/cbind.html) conserva los
+del primer argumento—, con etiquetas `tabla1`/`tabla2` que no nombran a
+ningún par, y con dos pares dirían `muestreado = FALSE` aunque el
+segundo hubiera leído 10.000 filas de 20.000. Lo que dirían vive en las
+columnas, una por par, y el conteo de pares en `meta`, que cuenta todos.
+
+Las columnas candidatas se podan antes de materializar cada comparación.
+Las podas quedan declaradas en `cobertura_podas`, con su motivo y
+conteo. La poda cierta por rangos usa `MIN` y `MAX` sobre el universo
+completo de cada tabla, no sobre las filas de la muestra. Si el motor no
+puede entregar ese rango, la comparación sigue sin aplicar esa poda.
+
+**Un entero ancho que llega como doble no se compara.** Por encima de
+2^53 un doble no distingue dos enteros consecutivos, y
+`dbConnect(duckdb::duckdb())` entrega BIGINT como doble por omisión: dos
+identificadores distintos se fundirían y el objeto afirmaría una
+relación que el motor no tiene. Una columna leída como doble con algún
+valor de al menos 2^53 en valor absoluto deja sus pares en
+`sin_comparar`, con motivo `entero_como_doble` en `cobertura_podas` y el
+remedio en el detalle: conectar pidiendo `integer64`
+—`duckdb(bigint = "integer64")`, o `bigint = "integer64"` en RSQLite—.
+
+El campo `detalle` de una poda por rangos disjuntos **no publica
+extremos que identifiquen**: si el mínimo o el máximo de un lado llega
+al piso de la protección —seis caracteres o más—, ese rango sale como
+`[valor protegido]`. El mínimo de una columna de documentos es el
+documento de una persona real, y el par mínimo–máximo acota además a
+todos los valores intermedios.
+
+## See also
+
+[`coleccion()`](https://sebollin.github.io/lupa/reference/coleccion.md),
+[`estimar_costo_coleccion()`](https://sebollin.github.io/lupa/reference/estimar_costo_coleccion.md),
+[`detectar_relaciones()`](https://sebollin.github.io/lupa/reference/detectar_relaciones.md)
+
+## Examples
+
+``` r
+if (requireNamespace("RSQLite", quietly = TRUE) &&
+    requireNamespace("DBI", quietly = TRUE)) {
+  con <- DBI::dbConnect(RSQLite::SQLite(), ":memory:")
+  DBI::dbWriteTable(con, "personas", data.frame(id = 1:20, nombre = letters[1:20]))
+  DBI::dbWriteTable(con, "visitas", data.frame(persona_id = c(1:15, 1:5)))
+  col <- coleccion(con, c("personas", "visitas"), nombre = "padron")
+  relaciones_coleccion(
+    col, pares = data.frame(tabla_1 = "personas", tabla_2 = "visitas"),
+    columnas_candidatas = list(personas = "id", visitas = "persona_id"),
+    orden = list(personas = "id", visitas = "persona_id")
+  )
+  DBI::dbDisconnect(con)
+}
+```
