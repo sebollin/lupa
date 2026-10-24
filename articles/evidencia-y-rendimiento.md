@@ -26,9 +26,9 @@ escala](https://sebollin.github.io/lupa/articles/motores-y-escala.html).
 | Comprobación | Unidad | Resultado | Clase | Se reproduce con |
 |----|----|----|----|----|
 | Controles limpios construidos | 31 tablas | 0 hallazgos de severidad `error`; 8 señales para revisar | fija, sin red; calculada en esta página | [`test-regresion-107.R`](https://github.com/sebollin/lupa/blob/main/tests/testthat/test-regresion-107.R) |
-| Pares dirty/clean de Raha | columnas con al menos una celda cambiada | 26 de 26 recibieron al menos un hallazgo; se señalaron 8 columnas más | recurso descargado; corrida del 2026-10-23 | [`verdad_raha.R`](https://github.com/sebollin/lupa/blob/main/benchmark/verdad_raha.R) y [`medir_lupa.R`](https://github.com/sebollin/lupa/blob/main/benchmark/medir_lupa.R) |
+| Pares dirty/clean de Raha | columnas con al menos una celda cambiada | 26 de 26 recibieron al menos un hallazgo; se señalaron 8 columnas más | recurso descargado; corrida del 2026-10-24 | [`verdad_raha.R`](https://github.com/sebollin/lupa/blob/main/benchmark/verdad_raha.R) y [`medir_lupa.R`](https://github.com/sebollin/lupa/blob/main/benchmark/medir_lupa.R) |
 | Registro público de sanciones a empresas | hallazgos de severidad `error` | 9 de 9 coinciden con la misma cuenta hecha en R base, sobre una copia de 2.583 filas | recurso descargado; corrida del 2026-10-24, con la huella del archivo | [`medir_sanciones.R`](https://github.com/sebollin/lupa/blob/main/benchmark/medir_sanciones.R) |
-| Ausencia estructural | señales `posible_ausencia_estructural` | ninguna en 20 conjuntos de `datasets` y 60 tablas al azar; dispara en los tres casos positivos; calla con 10 % de ruido | fija, sin red; corrida del 2026-10-23 | [`banco_ausencia_estructural.R`](https://github.com/sebollin/lupa/blob/main/benchmark/banco_ausencia_estructural.R) |
+| Ausencia estructural | señales `posible_ausencia_estructural` | ninguna en 20 conjuntos de `datasets` y 60 tablas al azar; dispara en los tres casos positivos; calla con 10 % de ruido | fija, sin red; corrida del 2026-10-24 | [`banco_ausencia_estructural.R`](https://github.com/sebollin/lupa/blob/main/benchmark/banco_ausencia_estructural.R) |
 | Reparación de codificación | casos del corpus de ftfy 6.3.1 | 159 de 161 reproducidos | fija, sin red; calculada en esta página | [`test-reparacion-texto.R`](https://github.com/sebollin/lupa/blob/main/tests/testthat/test-reparacion-texto.R) |
 
 ### Controles limpios construidos
@@ -88,8 +88,8 @@ Rscript benchmark/verdad_raha.R
 Rscript benchmark/medir_lupa.R
 ```
 
-Salida de `benchmark/medir_lupa.R` del 2026-10-23, sobre la revisión
-`5cc39f7` (extracto):
+Salida de `benchmark/medir_lupa.R` del 2026-10-24, sobre la revisión
+`0.1.0; R/ md5 08c0a1af7ccb` (extracto):
 
 ``` text
 Cobertura por columna
@@ -127,7 +127,7 @@ nombre una copia local:
 Rscript benchmark/medir_sanciones.R
 ```
 
-Corrida del 2026-10-24, sobre la revisión `0.1.0; R/ md5 69051ef07642`,
+Corrida del 2026-10-24, sobre la revisión `0.1.0; R/ md5 08c0a1af7ccb`,
 con un archivo de 2.583 filas (SHA-256 `1bb7689d8ffe6663...`); el
 paquete emitió 9 hallazgos de severidad `error`:
 
@@ -157,7 +157,7 @@ callar porque la relación existe pero no es una regla. No necesita red:
 LUPA_RUTA=. Rscript benchmark/banco_ausencia_estructural.R
 ```
 
-Salida del 2026-10-23, sobre la revisión `5cc39f7`:
+Salida del 2026-10-24, sobre la revisión `0.1.0; R/ md5 08c0a1af7ccb`:
 
 ``` text
 == veinte conjuntos reales (datasets de R) ==
@@ -205,13 +205,13 @@ base. Cada figura lleva al pie el commit, la fecha y la máquina, y las
 cifras de este apartado se leen de los mismos CSV al construir la
 página.
 
-Las cuatro describen la revisión `5645c15`, medida el 2026-09-02 en una
-máquina con Intel(R) Core(TM) i9-14900HX, 30 núcleos y 31 GiB de
-memoria, con R 4.6.1. Los conteos (candidatos, pares, exhaustividad,
-pérdida) son deterministas y se reproducen en cualquier equipo; los
-tiempos y la memoria son de esa máquina y sirven como orden de magnitud,
-no como promesa. La comparación es Jaro-Winkler con umbral 0,10 y 2
-hilos.
+Las cuatro describen la revisión `R/ md5 08c0a1af7ccb`, medida el
+2026-10-24 en una máquina con Intel(R) Core(TM) i9-14900HX, 30 núcleos y
+31 GiB de memoria, con R 4.6.1. Los conteos (candidatos, pares,
+exhaustividad, pérdida) son deterministas y se reproducen en cualquier
+equipo; los tiempos y la memoria son de esa máquina y sirven como orden
+de magnitud, no como promesa. La comparación es Jaro-Winkler con umbral
+0,10 y 2 hilos.
 
 ![Escala: candidatos, tiempo, memoria e hilos sobre un padrón sintético
 de 20.000 a 500.000
@@ -220,13 +220,13 @@ filas](evidencia-y-rendimiento_files/figure-html/banco-escala.png)
 El padrón sintético tiene homónimos y erratas sembradas sobre un
 vocabulario chico: es la forma que más llena las cubetas del LSH, o sea
 el caso caro. Los candidatos crecen con el cuadrado de las filas
-(6.201.626 a 20.000 filas, 3.197.456.226 a 500.000), y el tiempo y la
-memoria los siguen: 15,8 s y 499 MiB a 20.000 filas, 49 min y 2,8 GiB a
+(4.722.224 a 20.000 filas, 2.305.197.149 a 500.000), y el tiempo y la
+memoria los siguen: 16,2 s y 511 MiB a 20.000 filas, 41 min y 2,6 GiB a
 500.000. De los pares sembrados que la medida final acepta no se pierde
 ninguno en ningún tamaño (exhaustividad contra el techo: 100 %).
 
-El cuarto panel mide lo que cuestan los hilos a 100.000 filas: 153, 118,
-99, 85, 83 segundos con 2, 4, 8, 16, 29 hilos (1,8 veces entre dos y
+El cuarto panel mide lo que cuestan los hilos a 100.000 filas: 123, 102,
+88, 79, 84 segundos con 2, 4, 8, 16, 29 hilos (1,6 veces entre dos y
 dieciséis). Los candidatos y los pares no cambian con los hilos, sólo el
 reloj. El valor por omisión es de dos hilos, el máximo que la política
 de CRAN admite al comprobar un paquete, y se cambia con
@@ -240,12 +240,12 @@ clave](evidencia-y-rendimiento_files/figure-html/banco-estimacion.png)
 [`estimar_costo()`](https://sebollin.github.io/lupa/reference/estimar_costo.md)
 dice cuántos pares candidatos va a generar el recorrido antes de
 pagarlo, con una muestra determinista de firmas. En los 4 tamaños
-medidos el error va de -1,47 % a +1,28 %; el paquete no promete una
+medidos el error va de -1,26 % a +0,94 %; el paquete no promete una
 tolerancia, la medición es la que hay. Al bloquear por una clave de
 negocio sin relación con el nombre (`anio`), el bloqueo descarta el 83 %
 de los pares que la comparación exhaustiva informa (1.040.183 de
 1.247.654, sobre 4.000 filas), y la estimación previa lo anticipa con un
-error de +0,46 %. La clave no sirve para este dato, y se ve antes de
+error de +0,65 %. La clave no sirve para este dato, y se ve antes de
 usarla.
 
 ![Cardinalidad: candidatos a igual cantidad de filas, con tres riquezas
@@ -253,8 +253,8 @@ de
 vocabulario](evidencia-y-rendimiento_files/figure-html/banco-cardinalidad.png)
 
 Lo que manda no es la cantidad de filas: es cuánto se repiten los
-valores. Las mismas 20.000 filas dan 411.051 candidatos con un
-vocabulario amplio y 50.105.210 cuando la mitad comparte un valor, 121,9
+valores. Las mismas 20.000 filas dan 360.306 candidatos con un
+vocabulario amplio y 50.059.641 cuando la mitad comparte un valor, 138,9
 veces más. Es el número que
 [`estimar_costo()`](https://sebollin.github.io/lupa/reference/estimar_costo.md)
 anticipa y el motivo de que el paquete estime antes de recorrer.
@@ -266,12 +266,12 @@ El camino LSH es un tamiz, no un sustituto del exhaustivo, y esta figura
 dimensiona la advertencia que `alcance` ya declara. Medido contra la
 comparación exhaustiva sobre la misma entrada, con las otras causas de
 pérdida neutralizadas: con 12 bandas, el valor por omisión, el tamiz
-deja afuera entre el 62 % y el 72 % de los pares que Jaro-Winkler acepta
+deja afuera entre el 63 % y el 74 % de los pares que Jaro-Winkler acepta
 a umbral 0,10 sobre este corpus de 400 y 800 filas; con 20 bandas la
-pérdida baja a entre el 48 % y el 61 %, a cambio de más comparaciones.
+pérdida baja a entre el 46 % y el 57 %, a cambio de más comparaciones.
 La pérdida no es una propiedad del tamiz sino la distancia entre lo que
 propone y lo que el método final acepta: a umbral 0,02 pierde 1 de 2
-pares, y a 0,20 pierde 22.336 de 31.609 (el 71 %). Quien necesite
+pares, y a 0,20 pierde 22.912 de 31.609 (el 72 %). Quien necesite
 exhaustividad tiene el camino exhaustivo, con su costo. El diseño
 experimental y sus límites están en
 [`benchmark/perdida_lsh.md`](https://github.com/sebollin/lupa/blob/main/benchmark/perdida_lsh.md).
@@ -287,7 +287,7 @@ Rscript benchmark/graficar_figuras.R
 ```
 
 Las repeticiones cronometradas que guardan `escala.csv` y `hilos.csv`
-suman 3 h 32 min, así que la corrida completa tarda al menos eso en una
+suman 3 h 3 min, así que la corrida completa tarda al menos eso en una
 máquina como la medida. Con `LUPA_FIGURAS_SOLO_BARATAS=1` el medidor
 corre sólo los tamaños chicos, como prueba de humo.
 
@@ -306,11 +306,11 @@ que escanean u ordenan la tabla entera de las que no. El número depende
 de la composición tanto como de la cantidad de columnas: la mediana pide
 un orden por columna numérica.
 
-Corrida del 2026-10-23 sobre la revisión `5cc39f7`, con R 4.6.1: la
-tabla mixta de 158 columnas pide 336 consultas, de las que 327 escanean
-u ordenan la tabla entera; si se rechazaran todos los lotes, serían 881.
-Con las mismas 158 columnas, todas de texto, el plan baja a 253
-consultas.
+Corrida del 2026-10-24 sobre la revisión `0.1.0; R/ md5 08c0a1af7ccb`,
+con R 4.6.1: la tabla mixta de 158 columnas pide 336 consultas, de las
+que 327 escanean u ordenan la tabla entera; si se rechazaran todos los
+lotes, serían 881. Con las mismas 158 columnas, todas de texto, el plan
+baja a 253 consultas.
 
 ``` r
 
@@ -339,25 +339,25 @@ del código, no una medición.
 La medición más reciente es la de `benchmark/medir_referencias.R`, que
 perfila tablas de 500 filas con 50, 300 y 1.000 columnas (dos de cada
 tres numéricas, el resto texto) y descarta una primera corrida de
-calentamiento. Dos corridas del 2026-10-23 sobre la revisión `5cc39f7`,
-en la misma máquina que las figuras (Intel(R) Core(TM) i9-14900HX, R
-4.6.1); salida guardada:
+calentamiento. Dos corridas del 2026-10-24 sobre la revisión
+`0.1.0; R/ md5 08c0a1af7ccb`, en la misma máquina que las figuras
+(Intel(R) Core(TM) i9-14900HX, R 4.6.1); salida guardada:
 
 ``` r
 
 anchas <- data.frame(
   columnas = c(50, 300, 1000),
-  corrida_1_s = c(5.23, 21.77, 69.41),
-  corrida_2_s = c(4.59, 19.98, 72.42)
+  corrida_1_s = c(4.62, 18.54, 67.15),
+  corrida_2_s = c(4.44, 19.03, 64.36)
 )
 anchas$celdas_por_segundo <- round(
   500 * anchas$columnas / rowMeans(anchas[c("corrida_1_s", "corrida_2_s")])
 )
 anchas
 #>   columnas corrida_1_s corrida_2_s celdas_por_segundo
-#> 1       50        5.23        4.59               5092
-#> 2      300       21.77       19.98               7186
-#> 3     1000       69.41       72.42               7051
+#> 1       50        4.62        4.44               5519
+#> 2      300       18.54       19.03               7985
+#> 3     1000       67.15       64.36               7604
 ```
 
 Medido así, una tabla ancha se perfila más despacio que la referencia, y

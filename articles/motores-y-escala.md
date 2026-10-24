@@ -1309,9 +1309,9 @@ queda `no_medido` con su motivo.
 | SQLite | 3.53.3 | RSQLite 3.53.3 | `medido` | ok | ok | ok | ok | ok |
 | DuckDB | 1.5.5 | duckdb 1.5.5 | `medido` | ok | ok | ok | ok | ok |
 
-Corrida del 2026-10-23T23:06:43Z (UTC), sobre la revisión `5cc39f7` del
-paquete. Fixture declarado por el guion: «tramites: cinco columnas;
-padron: clave primaria id_persona».
+Corrida del 2026-10-24T13:12:59Z (UTC), sobre la revisión
+`0.1.0; R/ md5 08c0a1af7ccb` del paquete. Fixture declarado por el
+guion: «tramites: cinco columnas; padron: clave primaria id_persona».
 
 Qué hace `benchmark/verificar_motor.R`:
 
