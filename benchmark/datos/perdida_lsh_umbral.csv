@@ -1,0 +1,5 @@
+"filas","lsh_bandas","umbral","pares_exhaustivo","pares_lsh","perdidos","perdida","commit"
+800,12,0.02,2,1,1,0.5,"R/ md5 08c0a1af7ccb"
+800,12,0.05,337,147,190,0.56379821958457,"R/ md5 08c0a1af7ccb"
+800,12,0.1,12945,4094,8851,0.683738895326381,"R/ md5 08c0a1af7ccb"
+800,12,0.2,31609,8697,22912,0.724856844569585,"R/ md5 08c0a1af7ccb"

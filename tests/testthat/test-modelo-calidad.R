@@ -1,0 +1,664 @@
+# Pesada para CRAN (mas de 1 s en la medicion sin red del 2026-10-23): corre en la
+# suite completa, en el CI y en R-hub, que usan NOT_CRAN=true.
+testthat::skip_on_cran()
+
+test_that("la granularidad es un grafo y declara los diez niveles", {
+  niveles <- granularidades()
+  transiciones <- transiciones_granularidad()
+
+  expect_equal(nrow(niveles), 10L)
+  expect_equal(niveles$granularidad[[1L]], "instanciaAtributo")
+  # Las diez se miden. Las cuatro de arriba exigen que el usuario declare la
+  # frontera -que tablas, que bases, que colecciones, que organizaciones-,
+  # porque ninguna de las cuatro esta en los datos. `organizacion()` cerro las
+  # dos ultimas: el alcance institucional se declara, no se adivina.
+  expect_true(all(niveles$implementada))
+  expect_false(is.ordered(niveles$granularidad))
+  expect_true(any(
+    transiciones$origen == "instanciaAtributo" &
+      transiciones$destino == "atributo"
+  ))
+  expect_true(any(
+    transiciones$origen == "instanciaAtributo" &
+      transiciones$destino == "instanciaEntidad" &
+      transiciones$fuente == "extension_documentada"
+  ))
+  expect_false(any(
+    transiciones$origen == "atributo" &
+      transiciones$destino == "instanciaEntidad"
+  ))
+})
+
+test_that("EntidadContradictoria compara el vocabulario y declara su alcance", {
+  skip_if_not_installed("stringdist")
+  metrica <- especializar(metricas_nucleo()$EntidadContradictoria)
+  instancia <- instanciar(metrica, "personas", "nombre")
+  datos <- data.frame(
+    nombre = c(
+      "Organismo Nacional de Estadistica",
+      "Organismo Nacional de Estadstica",
+      "MONTEVIDEO", "Montevideo ", "Otra entidad", NA_character_
+    ),
+    stringsAsFactors = FALSE
+  )
+  medicion <- medir(modelo(instancia), datos)
+  expect_equal(medicion$resultado, c(1, 1, 0, 0, 0))
+  alcance <- attr(medicion, "alcance_metricas")[[1L]]
+  expect_equal(alcance$unidad_conteo, "valor_distinto")
+  expect_equal(alcance$n_valores_distintos_total, 4L)
+  expect_equal(alcance$n_valores_distintos_comparados, 4L)
+  expect_equal(alcance$n_pares_comparados, 6)
+  expect_equal(alcance$n_pares_bajo_umbral, 1L)
+  expect_equal(alcance$n_afectados, 2L)
+  expect_false(alcance$truncado)
+  expect_equal(agregar(medicion, "atributo", "ratio")$resultado, 2 / 5)
+
+  recortada <- especializar(
+    metricas_nucleo()$EntidadContradictoria, max_valores = 2L
+  )
+  medicion_recortada <- medir(
+    modelo(instanciar(recortada, "personas", "nombre")), datos
+  )
+  alcance_recortado <- attr(medicion_recortada, "alcance_metricas")[[1L]]
+  expect_true(alcance_recortado$truncado)
+  expect_equal(alcance_recortado$n_valores_distintos_total, 4L)
+  expect_equal(alcance_recortado$n_valores_distintos_comparados, 2L)
+  expect_equal(alcance_recortado$alcance, "prefijo_vocabulario")
+  expect_equal(nrow(medicion_recortada), 2L)
+})
+
+test_that("las métricas recorren los tres niveles mediante closures", {
+  generica <- metrica(
+    "MayorQue", "Indica si un valor supera el umbral.",
+    "instanciaAtributo", "booleano", propiedades = "umbral"
+  )
+  especifica <- especializar(generica, umbral = 10)
+  metodo <- function(tablas, instancia) {
+    x <- tablas[[instancia$entidad]][[instancia$atributos]]
+    filas <- seq_along(x)
+    data.frame(
+      resultado = x > instancia$configuracion$umbral,
+      entidad = instancia$entidad,
+      atributo = instancia$atributos,
+      fila = filas,
+      objeto = paste0("tabla$x[", filas, "]")
+    )
+  }
+  instancia <- instanciar(
+    especifica, "tabla", "x", metodo = metodo,
+    referencial = list(origen = "contrato")
+  )
+
+  expect_true(is.function(generica))
+  expect_s3_class(generica, "metrica_generica")
+  expect_true("umbral" %in% names(formals(generica)))
+  expect_true(is.function(especifica))
+  expect_s3_class(especifica, "metrica_especifica")
+  expect_equal(
+    names(formals(especifica)),
+    c("entidad", "atributos", "nombre_instancia", "metodo", "referencial")
+  )
+  expect_s3_class(instancia, "metrica_instanciada")
+  expect_equal(instancia$configuracion$umbral, 10)
+  expect_equal(instancia$referencial$origen, "contrato")
+
+  resultado <- medir(
+    modelo(instancia), data.frame(x = c(5, 15)),
+    id_medicion = "prueba", fecha = as.POSIXct("2026-01-01", tz = "UTC")
+  )
+  expect_equal(resultado$resultado, c(0, 1))
+  expect_true(all(resultado$id_medicion == "prueba"))
+  expect_equal(length(unique(resultado$id_medida)), 2L)
+
+  expect_error(especializar(generica), "Faltan propiedades")
+  expect_error(especializar(generica, otra = 1), "no declaradas")
+  expect_error(instanciar(generica, "tabla", "x"), "especializar")
+  expect_error(modelo(instancia, instancia), "deben ser .*nicos")
+})
+
+test_that("el núcleo declara sus veintidós métricas", {
+  nucleo <- metricas_nucleo()
+  expect_named(nucleo, c(
+    "NoNulo", "Formato", "ValoresPosiblesPorExtension",
+    "ReglaIntegridadIntraEntidad", "ReglaIntegridadInterEntidad",
+    "ErrorEstandar", "Escala", "ValoresPosiblesPorComprension", "AtributoDuplicado",
+    "ConjuntoAtributosDuplicado", "EntidadDuplicada", "EntidadContradictoria",
+    "DesactualizacionPorFormato", "DesactualizacionPorFecha",
+    "DesactualizacionPorCambios", "OportunidadAtributoPorFecha",
+    "OportunidadAtributoPorIntervalo", "GradoOportunidadAtributoPorFecha",
+    "GradoOportunidadAtributoPorIntervalo", "OportunidadEntPorFecha",
+    "OportunidadEntPorIntervalo", "DensidadPonderada"
+  ))
+  declaraciones <- lapply(nucleo, lupa:::.declaracion_metrica)
+  expect_true(all(
+    c("expresion_regular", "diccionario", "validador") %in%
+      names(formals(nucleo$Formato))
+  ))
+  expect_equal(
+    unname(vapply(declaraciones, `[[`, character(1L), "granularidad")),
+    c(
+      "instanciaAtributo", "instanciaAtributo", "instanciaAtributo",
+      "instanciaEntidad", "entidad", "atributo", "instanciaAtributo",
+      "instanciaAtributo", "instanciaAtributo", "instanciaEntidad",
+      "instanciaEntidad", "instanciaAtributo", "instanciaAtributo",
+      "instanciaAtributo", "instanciaAtributo", "instanciaAtributo",
+      "instanciaAtributo", "instanciaAtributo", "instanciaAtributo",
+      "instanciaEntidad", "instanciaEntidad", "instanciaEntidad"
+    )
+  )
+  expect_equal(
+    unname(vapply(declaraciones, `[[`, character(1L), "tipo_resultado")),
+    c(
+      rep("booleano", 4L), "real", "numero_real", "real",
+      rep("booleano", 6L), "duracion", "entero", "booleano", "booleano",
+      "real", "real", "booleano", "booleano", "real"
+    )
+  )
+
+  no_nulo <- instanciar(
+    especializar(nucleo$NoNulo, nombre_especifico = "NoNuloCodigo"),
+    "personas", "codigo"
+  )
+  formato <- instanciar(
+    especializar(
+      nucleo$Formato, nombre_especifico = "FormatoCodigo",
+      expresion_regular = "^AA[0-9]$"
+    ),
+    "personas", "codigo"
+  )
+  dominio <- instanciar(
+    especializar(
+      nucleo$ValoresPosiblesPorExtension,
+      nombre_especifico = "DominioTipo", valores = c("A", "B")
+    ),
+    "personas", "tipo"
+  )
+  intra <- instanciar(
+    especializar(
+      nucleo$ReglaIntegridadIntraEntidad,
+      nombre_especifico = "EdadAdulta",
+      regla = function(x) x$edad >= 18
+    ),
+    "personas", "edad"
+  )
+  inter <- instanciar(
+    especializar(
+      nucleo$ReglaIntegridadInterEntidad,
+      nombre_especifico = "TramiteTienePersona", muestra = Inf
+    ),
+    c("personas", "tramites"), c("id", "persona_id")
+  )
+  error_especifico <- especializar(
+    nucleo$ErrorEstandar, nombre_especifico = "ErrorMonto"
+  )
+  error <- instanciar(error_especifico, "personas", "monto")
+  error_2 <- instanciar(error_especifico, "personas", "monto_2")
+  personas <- data.frame(
+    id = 1:4, edad = c(20, 17, 40, 30), tipo = c("A", "B", "X", "A"),
+    codigo = c("AA1", "mal", "AA3", NA), monto = c(10, 12, 9, 11),
+    monto_2 = c(100, 110, 105, 115)
+  )
+  tramites <- data.frame(persona_id = c(1, 2, 9))
+  medicion <- medir(
+    modelo(no_nulo, formato, dominio, intra, inter, error, error_2),
+    list(personas = personas, tramites = tramites), id_medicion = "nucleo"
+  )
+
+  expect_s3_class(medicion, "medicion")
+  expect_equal(
+    medicion$resultado[medicion$metrica_especifica == "FormatoCodigo"],
+    c(1, 0, 1)
+  )
+  expect_equal(
+    medicion$resultado[medicion$metrica_especifica == "DominioTipo"],
+    c(1, 1, 0, 1)
+  )
+  expect_equal(
+    medicion$resultado[medicion$metrica_especifica == "EdadAdulta"],
+    c(1, 0, 1, 1)
+  )
+  expect_equal(
+    medicion$resultado[medicion$metrica_especifica == "TramiteTienePersona"],
+    2 / 3
+  )
+  error_medido <- medicion$resultado[
+    medicion$metrica_especifica == "ErrorMonto"
+  ]
+  expect_equal(
+    error_medido,
+    c(stats::sd(personas$monto), stats::sd(personas$monto_2))
+  )
+  expect_equal(length(error_medido), 2L)
+
+  errores <- medicion[
+    medicion$metrica_especifica == "ErrorMonto", , drop = FALSE
+  ]
+  expect_error(agregar(errores, "entidad", "ratio_umbral", umbral = 0),
+               ".*0, 1.*")
+  expect_error(agregar(errores, "entidad", "promedio"), ".*0, 1.*")
+
+  medidas_intra <- medicion[
+    medicion$metrica_especifica == "EdadAdulta", , drop = FALSE
+  ]
+  expect_equal(agregar(medidas_intra, "entidad", "ratio")$resultado, 0.75)
+})
+
+test_that("NoNulo admite un diccionario explícito de ausencias", {
+  no_nulo <- especializar(
+    metricas_nucleo()$NoNulo, valores_nulos = c("S/D", "-")
+  )
+  instancia <- instanciar(no_nulo, "personas", "dato")
+  resultado <- medir(
+    modelo(instancia), data.frame(dato = c("A", "S/D", "-", NA))
+  )
+
+  expect_equal(resultado$resultado, c(1, 0, 0, 0))
+  expect_error(especializar(metricas_nucleo()$NoNulo, otra = 1),
+               "s.*lo acepta")
+})
+
+test_that("Formato admite un validador arbitrario y una específica se reutiliza", {
+  nucleo <- metricas_nucleo()
+  ocho_digitos <- especializar(
+    nucleo$Formato, nombre_especifico = "OchoDigitos",
+    validador = function(x) !is.na(x) & grepl("^[0-9]{8}$", x)
+  )
+  a <- instanciar(ocho_digitos, "personas", "documento")
+  b <- instanciar(ocho_digitos, "personas", "tramite")
+  medicion <- medir(
+    modelo(a, b),
+    data.frame(documento = c("12345678", "123"),
+               tramite = c("87654321", "x"))
+  )
+
+  expect_equal(medicion$resultado, c(1, 0, 1, 0))
+  expect_equal(length(unique(medicion$metrica_especifica)), 1L)
+
+  diccionario <- instanciar(
+    especializar(nucleo$Formato, diccionario = c("A", "B")),
+    "personas", "categoria"
+  )
+  por_diccionario <- medir(
+    modelo(diccionario), data.frame(categoria = c("A", "X", NA))
+  )
+  expect_equal(por_diccionario$resultado, c(1, 0))
+  expect_error(
+    especializar(
+      nucleo$Formato, expresion_regular = "x", diccionario = "x"
+    ),
+    "exactamente una"
+  )
+})
+
+test_that("Formato y dominio no miden los valores ausentes", {
+  nucleo <- metricas_nucleo()
+  no_nulo <- instanciar(
+    especializar(nucleo$NoNulo, nombre_especifico = "NoNuloCodigo"),
+    "personas", "codigo"
+  )
+  formato <- instanciar(
+    especializar(
+      nucleo$Formato, nombre_especifico = "FormatoCodigo",
+      expresion_regular = "^[A-Z]$"
+    ),
+    "personas", "codigo"
+  )
+  dominio <- instanciar(
+    especializar(
+      nucleo$ValoresPosiblesPorExtension,
+      nombre_especifico = "DominioCodigo", valores = "A"
+    ),
+    "personas", "codigo"
+  )
+  medicion <- medir(
+    modelo(no_nulo, formato, dominio),
+    data.frame(codigo = c(NA_character_, "A"))
+  )
+
+  medidas_formato <- medicion[
+    medicion$metrica_especifica == "FormatoCodigo", , drop = FALSE
+  ]
+  medidas_dominio <- medicion[
+    medicion$metrica_especifica == "DominioCodigo", , drop = FALSE
+  ]
+  medidas_no_nulo <- medicion[
+    medicion$metrica_especifica == "NoNuloCodigo", , drop = FALSE
+  ]
+  expect_equal(medidas_formato$fila, 2L)
+  expect_equal(medidas_dominio$fila, 2L)
+  expect_equal(agregar(medidas_formato, "atributo", "ratio")$resultado, 1)
+  expect_equal(agregar(medidas_dominio, "atributo", "ratio")$resultado, 1)
+  expect_equal(agregar(medidas_no_nulo, "atributo", "ratio")$resultado, 0.5)
+
+  solo_ausentes <- medir(
+    modelo(formato), data.frame(codigo = c(NA_character_, NA_character_))
+  )
+  expect_equal(nrow(solo_ausentes), 0L)
+})
+
+test_that("las celdas se agregan por atributo o por instancia de entidad", {
+  nucleo <- metricas_nucleo()
+  no_nulo <- especializar(nucleo$NoNulo, nombre_especifico = "NoNuloCampos")
+  a <- instanciar(no_nulo, "personas", "a")
+  b <- instanciar(no_nulo, "personas", "b")
+  medidas <- medir(
+    modelo(a, b),
+    data.frame(a = c(1, 2, 3), b = c(1, NA, NA)),
+    id_medicion = "agregaciones"
+  )
+
+  atributos <- agregar(medidas, "atributo", "ratio")
+  filas <- agregar(medidas, "instanciaEntidad", "ratio")
+
+  expect_equal(atributos$resultado, c(1, 1 / 3))
+  expect_equal(filas$resultado, c(1, 0.5, 0.5))
+  expect_equal(atributos$granularidad, rep("atributo", 2))
+  expect_equal(filas$granularidad, rep("instanciaEntidad", 3))
+
+  entidad_desde_atributos <- agregar(atributos, "entidad", "promedio")
+  entidad_desde_filas <- agregar(
+    filas, "entidad", "ratio_umbral", umbral = 0.75
+  )
+  ponderado <- agregar(
+    atributos, "entidad", "promedio_ponderado", pesos = c(0.25, 0.75)
+  )
+  expect_equal(entidad_desde_atributos$resultado, 2 / 3)
+  expect_equal(entidad_desde_filas$resultado, 1 / 3)
+  expect_equal(ponderado$resultado, 0.5)
+
+  expect_error(agregar(atributos, "entidad", "ratio"), "booleano")
+  expect_error(agregar(medidas, "atributo", "ratio_umbral", umbral = 0.5),
+               "resultado real")
+  expect_error(agregar(atributos, "instanciaEntidad", "promedio"),
+               "No existe una transici.*n")
+  expect_error(
+    agregar(atributos, "entidad", "promedio_ponderado", pesos = c(0.2, 0.2)),
+    "sumar 1"
+  )
+  # Agregar a coleccion exige primero la frontera declarada: sin saber sobre
+  # que tablas se agrega, la funcion elegida es una discusion posterior. La
+  # restriccion a `promedio_ponderado` se prueba en test-coleccion.R, donde si
+  # hay una coleccion declarada.
+  expect_error(
+    agregar(entidad_desde_atributos, "coleccion", "promedio"),
+    "declarar la frontera"
+  )
+  expect_error(
+    agregar(entidad_desde_atributos, "coleccion", "promedio_ponderado",
+            pesos = c(0.5, 0.5)),
+    "declarar la frontera"
+  )
+  coleccion <- transform(entidad_desde_atributos, granularidad = "coleccion")
+  organizacion <- transform(coleccion, granularidad = "organizacion")
+  expect_error(
+    agregar(coleccion, "conjuntoColecciones", "promedio"),
+    "`colecciones` debe ser"
+  )
+  expect_error(
+    agregar(coleccion, "organizacion", "promedio"),
+    "requiere una organizaci.*n declarada"
+  )
+  expect_error(
+    agregar(organizacion, "conjuntoOrganizaciones", "promedio"),
+    "requiere un conjunto de organizaciones declarado"
+  )
+})
+
+test_that("la evaluación recorre medidas, reglas y perfil", {
+  nucleo <- metricas_nucleo()
+  no_nulo <- instanciar(
+    especializar(nucleo$NoNulo, nombre_especifico = "NoNuloEdad"),
+    "personas", "edad"
+  )
+  modelo_calidad <- modelo(no_nulo)
+  anterior <- medir(
+    modelo_calidad, data.frame(edad = c(1, NA, NA, 4)),
+    id_medicion = "anterior"
+  )
+  actual <- medir(
+    modelo_calidad, data.frame(edad = c(1, 2, 3, NA)),
+    id_medicion = "actual"
+  )
+  regla_1 <- regla_evaluacion(
+    "No nulo", function(x) x == 1, metricas = no_nulo$nombre
+  )
+  regla_2 <- regla_evaluacion(
+    "Resultado válido", function(x) x >= 0, metricas = no_nulo$nombre
+  )
+  perfil <- perfil_evaluacion("Operativo", regla_1, regla_2)
+  evaluacion_anterior <- evaluar(anterior, perfil)
+  evaluacion_actual <- evaluar(actual, perfil)
+
+  expect_equal(nrow(evaluacion_anterior$medidas), 8L)
+  expect_equal(
+    evaluacion_anterior$reglas$resultado[
+      evaluacion_anterior$reglas$regla == "No nulo"
+    ],
+    0.5
+  )
+  expect_equal(evaluacion_anterior$perfiles$resultado, 0.75)
+  expect_equal(evaluacion_actual$perfiles$resultado, 0.875)
+
+  comparacion <- comparar_evaluaciones(evaluacion_anterior, evaluacion_actual)
+  expect_equal(comparacion$delta, 0.125)
+  expect_equal(comparacion$id_medicion_anterior, "anterior")
+  expect_equal(comparacion$id_medicion_actual, "actual")
+})
+
+test_that("los perfiles de madurez usan los tres umbrales del marco", {
+  nucleo <- metricas_nucleo()
+  instancia <- instanciar(
+    especializar(nucleo$NoNulo, nombre_especifico = "NoNuloDato"),
+    "tabla", "dato"
+  )
+  medidas <- medir(
+    modelo(instancia), data.frame(dato = c(1, 2, 3, NA)),
+    id_medicion = "madurez"
+  )
+  medida_atributo <- agregar(medidas, "atributo", "ratio")
+  perfiles <- perfiles_madurez(medida_atributo$metrica_instanciada)
+  resultados <- vapply(
+    perfiles,
+    function(perfil) evaluar(medida_atributo, perfil)$perfiles$resultado,
+    numeric(1L)
+  )
+
+  expect_equal(names(perfiles), c("Basico", "Intermedio", "Avanzado"))
+  expect_equal(resultados, c(Basico = 1, Intermedio = 1, Avanzado = 0))
+  expect_error(regla_evaluacion("mala", 1), "funci.*n")
+  expect_error(perfil_evaluacion("vacío"), "una o m.*s reglas")
+  expect_error(
+    evaluar(
+      medida_atributo,
+      perfil_evaluacion(
+        "inválido", regla_evaluacion("mal", function(x) NA, "inexistente")
+      )
+    ),
+    "no coincide"
+  )
+})
+
+test_that("el perfil promedia reglas y conserva la distribución en sus niveles", {
+  nucleo <- metricas_nucleo()
+  metrica <- instanciar(especializar(nucleo$NoNulo), "tabla", "dato")
+  medicion <- medir(
+    modelo(metrica), data.frame(dato = c(rep(NA_character_, 99L), "OK")),
+    id_medicion = "distribucion"
+  )
+  evaluacion <- evaluar(
+    medicion,
+    perfil_evaluacion(
+      "P",
+      regla_evaluacion("presente", function(x) x == 1),
+      regla_evaluacion("ausente", function(x) x == 0)
+    )
+  )
+  expect_equal(
+    evaluacion$reglas$resultado[match(c("presente", "ausente"),
+                                      evaluacion$reglas$regla)],
+    c(0.01, 0.99)
+  )
+  expect_equal(evaluacion$perfiles$resultado, 0.5)
+})
+
+# `ratio` cuenta los unos, asi que un valor que no es 0 ni 1 se contaba como
+# falso en silencio: medido, un 0.5 en una medida booleana daba 0.6 -tres unos
+# sobre cinco- mientras `promedio` sobre los mismos valores daba 0.7, que es la
+# media real. Dos agregaciones hermanas, una validaba su entrada y la otra no.
+test_that("ratio rechaza una medida booleana con valores intermedios", {
+  datos <- data.frame(x = c(1, 2, NA, 4, 5), stringsAsFactors = FALSE)
+  medicion <- medir(
+    modelo(instanciar(especializar(metricas_nucleo()[[1L]]), "t", "x")), datos
+  )
+  expect_identical(unique(medicion$tipo_resultado), "booleano")
+
+  intermedia <- medicion
+  intermedia$resultado <- c(1, 1, 0, 0.5, 1)
+  expect_error(
+    agregar(intermedia, destino = "columna", funcion = "ratio"),
+    "solo puede valer 0 o 1"
+  )
+  # Y `promedio`, que si puede con un valor intermedio, lo sigue aceptando:
+  # la guarda es de `ratio`, no del tipo de medida.
+  expect_equal(
+    agregar(intermedia, destino = "columna", funcion = "promedio")$resultado,
+    0.7
+  )
+})
+
+# El control, y decide el alcance: lo legitimo tiene que seguir pasando. Se
+# midio antes de poner la guarda que ninguna metrica del nucleo la viola -doce
+# instancias booleanas, cero valores fuera de {0, 1}-, y esto lo fija.
+test_that("ratio sigue agregando lo que medir() produce", {
+  datos <- data.frame(x = c(1, 2, NA, 4, 5), stringsAsFactors = FALSE)
+  medicion <- medir(
+    modelo(instanciar(especializar(metricas_nucleo()[[1L]]), "t", "x")), datos
+  )
+  expect_equal(
+    agregar(medicion, destino = "columna", funcion = "ratio")$resultado, 0.8
+  )
+  for (valores in list(c(0, 0, 0, 0, 0), c(1, 1, 1, 1, 1), c(0, 1, 0, 1, 0))) {
+    variante <- medicion
+    variante$resultado <- valores
+    expect_equal(
+      agregar(variante, destino = "columna", funcion = "ratio")$resultado,
+      mean(valores)
+    )
+  }
+
+  # Ninguna metrica booleana del nucleo produce un valor fuera de {0, 1}.
+  tabla <- data.frame(
+    x = c(1, 2, NA, 4, 5, 100, -3, 0, 0, 7),
+    t = c("a", "b", "", "c", NA, "d", "e", "f", "g", "h"),
+    f = as.Date(c(
+      "2020-01-01", "2021-06-15", NA, "2020-01-01", "2022-03-03",
+      "2019-05-05", "2023-01-01", "2020-07-07", "2021-01-01", "2022-12-31"
+    )),
+    stringsAsFactors = FALSE
+  )
+  booleanas <- 0L
+  for (nombre in names(metricas_nucleo())) {
+    for (columna in names(tabla)) {
+      # Una metrica que no admite la columna ya no aborta: queda `no_medible` y
+      # `medir()` avisa. Para este recorrido es lo mismo que antes era el error.
+      medida <- tryCatch(
+        medir(
+          modelo(instanciar(
+            especializar(metricas_nucleo()[[nombre]]), "t", columna
+          )),
+          tabla
+        ),
+        error = function(e) NULL,
+        warning = function(w) {
+          if (grepl("no se midieron porque su m", conditionMessage(w),
+                    fixed = TRUE)) NULL else stop(w)
+        }
+      )
+      if (is.null(medida)) next
+      if (!identical(unique(medida$tipo_resultado), "booleano")) next
+      booleanas <- booleanas + 1L
+      expect_true(
+        all(medida$resultado %in% c(0, 1)),
+        info = paste(nombre, columna)
+      )
+    }
+  }
+  # El piso no fija el recuento exacto -eso lo cambia cualquier metrica nueva-,
+  # fija que el barrido efectivamente corrio sobre instancias booleanas.
+  expect_gt(booleanas, 5L)
+})
+
+# Los pesos de `agregar()` son posicionales, pero un vector con nombres es una
+# DECLARACION de a que parte va cada peso. Antes se aceptaba y se desoia:
+# medido, `c(a = 0.2, b = 0.8)` y `c(b = 0.8, a = 0.2)` -la misma declaracion
+# escrita en otro orden- daban 0,590476 y 0,647619, y nombres que no existian
+# en la medicion se aceptaban en silencio.
+#
+# `indice_calidad()` ya habia decidido esto en el mismo paquete: empareja por
+# nombre y falla nombrando lo que sobra y lo que falta.
+test_that("los pesos con nombre se emparejan y no se leen por posicion", {
+  skip_if_not_installed("duckdb")
+  conexion <- DBI::dbConnect(duckdb::duckdb(), ":memory:")
+  on.exit(DBI::dbDisconnect(conexion, shutdown = TRUE), add = TRUE)
+  primera <- data.frame(v = c(1, NA, 3))
+  segunda <- data.frame(v = c(1, 2, 3, 4, NA, NA, NA))
+  DBI::dbWriteTable(conexion, "a", primera)
+  DBI::dbWriteTable(conexion, "b", segunda)
+  frontera <- coleccion(conexion, tablas = c("a", "b"))
+
+  medicion <- medir(
+    modelo(
+      instanciar(especializar(metricas_nucleo()$NoNulo), "a", "v"),
+      instanciar(especializar(metricas_nucleo()$NoNulo), "b", "v")
+    ),
+    list(a = primera, b = segunda)
+  )
+  por_entidad <- agregar(
+    agregar(medicion, destino = "atributo", funcion = "promedio"),
+    destino = "entidad", funcion = "promedio"
+  )
+  expect_equal(nrow(por_entidad), 2L)
+
+  ponderar <- function(pesos) {
+    agregar(
+      por_entidad, destino = "coleccion", funcion = "promedio_ponderado",
+      pesos = pesos, coleccion = frontera
+    )$resultado
+  }
+  esperado <- 0.2 * por_entidad$resultado[[1L]] +
+    0.8 * por_entidad$resultado[[2L]]
+
+  # Sin nombres se lee por posicion, que es lo que la documentacion declara.
+  expect_equal(ponderar(c(0.2, 0.8)), esperado)
+  # Con nombres, el orden en que se escriben no puede cambiar el numero.
+  expect_equal(ponderar(c(a = 0.2, b = 0.8)), esperado)
+  expect_equal(ponderar(c(b = 0.8, a = 0.2)), esperado)
+
+  # Y una declaracion que no corresponde a ninguna parte se rechaza en vez de
+  # aplicarse por posicion, NOMBRANDO lo que falta y lo que sobra. El
+  # emparejamiento va antes de la comprobacion de largo: con nombres, un largo
+  # equivocado es que falta o sobra una parte, y decir cual es mas util que
+  # decir cuantas hay.
+  expect_error(ponderar(c(x = 0.2, y = 0.8)), "Faltan pesos para")
+  expect_error(ponderar(c(x = 0.2, y = 0.8)), "Sobran pesos para")
+  # Faltando una sola: antes daba el mensaje generico de largo.
+  primera <- as.character(por_entidad$objeto_medible)[[1L]]
+  expect_error(
+    ponderar(stats::setNames(1, primera)),
+    "Faltan pesos para"
+  )
+  # Sobrando una sola.
+  sobrante <- stats::setNames(
+    c(0.4, 0.4, 0.2), c(as.character(por_entidad$objeto_medible), "inventada")
+  )
+  # El mensaje entrecomilla cada parte -una parte de nivel alto se llama
+  # `t1, t3` y una lista separada por comas nombraria dos-, asi que se exige el
+  # nombre dentro del mensaje, no el formato exacto.
+  expect_error(ponderar(sobrante), "Sobran pesos para: .*inventada")
+  # Sin nombres, el mensaje de largo sigue siendo el que corresponde.
+  expect_error(ponderar(c(0.5)), "una entrada en \\[0, 1\\] por medida")
+  expect_error(
+    ponderar(stats::setNames(c(0.2, 0.8), c("a", ""))),
+    "mezcla entradas con nombre"
+  )
+})

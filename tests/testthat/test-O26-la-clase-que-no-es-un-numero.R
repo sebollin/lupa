@@ -1,0 +1,228 @@
+# O26: cuatro silencios de la misma familia. Tres son columnas que el paquete
+# trataba por el nombre de su clase -o por no tener nombre ninguno- y una es un
+# hallazgo medido que el plan dejaba caer sin decirlo.
+
+# La clase de este archivo reproduce el mecanismo de las dos que abortaban de
+# verdad, sin agregarle una dependencia al paquete para probarlo: declara una
+# clase, responde TRUE a `is.numeric()`, se conserva al subconjuntarse y su
+# division reconstruye el objeto, asi que una division no entera muere en la
+# validez. Es lo que hace `lubridate::Period` -"invalid class Period object:
+# periods must have integer values"- y, por otra via, `units` -"both operands of
+# the expression should be units objects"-.
+#
+# Va aca y no en un helper: los metodos S4 definidos en un helper no sobreviven
+# al despacho desde el espacio de nombres del paquete -"invalid object
+# (non-function) used as method"-. El fixture sin aritmetica, que alcanza para
+# las pruebas que solo miden la declaracion, esta en el helper.
+# Pesada para CRAN (mas de 1 s en la medicion sin red del 2026-10-23): corre en la
+# suite completa, en el CI y en R-hub, que usan NOT_CRAN=true.
+testthat::skip_on_cran()
+
+setClass("lupaCantidadEntera", contains = "numeric",
+         validity = function(object) {
+           if (any(object@.Data != round(object@.Data))) {
+             "lupaCantidadEntera debe tener valores enteros"
+           } else {
+             TRUE
+           }
+         })
+setMethod("[", "lupaCantidadEntera", function(x, i, ...) {
+  new("lupaCantidadEntera", x@.Data[i])
+})
+setMethod("/", signature("lupaCantidadEntera", "lupaCantidadEntera"),
+          function(e1, e2) new("lupaCantidadEntera", e1@.Data / e2@.Data))
+setMethod("/", signature("lupaCantidadEntera", "numeric"),
+          function(e1, e2) new("lupaCantidadEntera", e1@.Data / e2))
+
+test_that("una columna numerica con clase propia no mata a perfilar", {
+  valores <- as.numeric(1:60)
+  datos <- data.frame(neto = valores, total = valores * 1.22)
+  datos$cantidad <- new("lupaCantidadEntera", valores)
+
+  perfil <- perfilar(datos, analizar_dependencias = FALSE)
+
+  expect_equal(nrow(perfil$columnas), 3L)
+  expect_equal(sum(perfil$hallazgos$tipo_hallazgo ==
+                     "relacion_aritmetica_columnas"), 1L)
+  alcance <- perfil$meta$aritmetica_columnas
+  expect_false("cantidad" %in% alcance$columnas_numericas)
+  expect_true("lupaCantidadEntera" %in% alcance$clases_excluidas)
+  expect_equal(unname(alcance$columnas_excluidas_por_clase[["cantidad"]]),
+               "lupaCantidadEntera")
+
+  cobertura <- perfil$cobertura_diagnosticos
+  fila <- cobertura[
+    cobertura$diagnostico == "relacion_aritmetica_columnas" &
+      cobertura$columna == "cantidad", ,
+    drop = FALSE
+  ]
+  expect_equal(nrow(fila), 1L)
+  expect_match(fila$motivo[[1L]], "lupaCantidadEntera", fixed = TRUE)
+  expect_match(fila$como_resolverlo[[1L]], "as.numeric()", fixed = TRUE)
+})
+
+test_that("la columna que se excluye es la que haria abortar la busqueda", {
+  # La mitad que prueba que el fixture es una trampa de verdad: si el criterio
+  # dejara entrar la columna, la busqueda proporcional muere. Sin esto, el
+  # bloque anterior no se distingue de uno que mide una clase inofensiva.
+  valores <- as.numeric(1:60)
+  datos <- data.frame(base = valores * 3)
+  datos$cantidad <- new("lupaCantidadEntera", valores)
+
+  expect_false(lupa:::.es_columna_aritmetica(datos$cantidad))
+  expect_error(
+    lupa:::.hallazgo_proporcional(datos, c(1L, 2L), 0.9, 3L, 1e-8, names(datos)),
+    "lupaCantidadEntera"
+  )
+})
+
+test_that("Benford declara la columna con clase y no la analiza", {
+  valores <- as.numeric(c(1:120))
+  datos <- data.frame(id = seq_len(120L))
+  datos$cantidad <- new("lupaCantidadEntera", valores)
+
+  perfil <- perfilar(datos, analizar_dependencias = FALSE)
+  cobertura <- perfil$cobertura_diagnosticos
+  benford <- cobertura[
+    cobertura$diagnostico == "ley_benford" & cobertura$columna == "cantidad", ,
+    drop = FALSE
+  ]
+
+  expect_equal(nrow(benford), 1L)
+  expect_match(benford$motivo[[1L]], "lupaCantidadEntera", fixed = TRUE)
+  expect_false(any(
+    perfil$hallazgos$tipo_hallazgo == "desviacion_benford" &
+      perfil$hallazgos$columna == "cantidad"
+  ))
+})
+
+test_that("las columnas numericas peladas siguen entrando al analisis", {
+  # Control del caso anterior: el criterio nuevo no puede callar lo que ya
+  # medía. `I()` no es una declaracion sobre el dato y tampoco excluye.
+  set.seed(1266)
+  neto <- round(stats::runif(60, 10, 900), 2)
+  datos <- data.frame(neto = neto)
+  datos$total <- I(array(neto * 1.22, 60L))
+
+  perfil <- perfilar(datos, analizar_dependencias = FALSE)
+  relaciones <- perfil$hallazgos[
+    perfil$hallazgos$tipo_hallazgo == "relacion_aritmetica_columnas", ,
+    drop = FALSE
+  ]
+
+  expect_equal(nrow(relaciones), 1L)
+  expect_true(all(c("neto", "total") %in%
+                    perfil$meta$aritmetica_columnas$columnas_numericas))
+  expect_length(perfil$meta$aritmetica_columnas$columnas_excluidas_por_clase, 0L)
+  expect_false(any(
+    perfil$cobertura_diagnosticos$diagnostico == "relacion_aritmetica_columnas"
+  ))
+})
+
+test_that("una columna de listas junto a una matriz no rompe el conteo", {
+  datos <- data.frame(id = c(1, 2, 1))
+  datos$m <- matrix(c(10, 20, 10, 30, 40, 30), nrow = 3L)
+  datos$l <- list(c(1, 2), NULL, c(1, 2))
+
+  perfil <- perfilar(datos, analizar_dependencias = FALSE)
+
+  expect_equal(perfil$general$filas_duplicadas, 1)
+  expect_equal(perfil$general$filas_en_grupos_duplicados, 2)
+  expect_equal(perfil$columnas$columna, c("id", "m", "l"))
+})
+
+test_that("la misma tabla sin la columna de listas cuenta igual", {
+  # Control: el aplanado de la matriz no cambio para las tablas que ya andaban.
+  datos <- data.frame(id = c(1, 2, 1))
+  datos$m <- matrix(c(10, 20, 10, 30, 40, 30), nrow = 3L)
+
+  perfil <- perfilar(datos, analizar_dependencias = FALSE)
+
+  expect_equal(perfil$general$filas_duplicadas, 1)
+  expect_equal(perfil$general$filas_en_grupos_duplicados, 2)
+})
+
+test_that("sobre un factor ordenado la limpieza de texto no se activa sola", {
+  datos <- data.frame(n = 1:4)
+  datos$nivel <- factor(
+    c(" bajo", "medio ", "alto", "medio "),
+    levels = c(" bajo", "medio ", "alto", "critico"), ordered = TRUE
+  )
+
+  perfil <- perfilar(datos, analizar_dependencias = FALSE)
+  plan <- planificar_limpieza(perfil, datos = datos)
+  fila <- as.data.frame(plan)
+  fila <- fila[fila$estrategia == "recortar_espacios", , drop = FALSE]
+
+  expect_equal(nrow(fila), 1L)
+  expect_true(fila$recomendada[[1L]])
+  expect_false(fila$aplicar[[1L]])
+  expect_match(fila$justificacion[[1L]], "devuelve texto", fixed = TRUE)
+  expect_match(fila$justificacion[[1L]], "sin activar", fixed = TRUE)
+
+  aplicado <- aplicar(plan, datos)
+  expect_true(is.ordered(aplicado$datos$nivel))
+  expect_equal(levels(aplicado$datos$nivel),
+               c(" bajo", "medio ", "alto", "critico"))
+})
+
+test_that("sobre texto plano la limpieza sigue activada y sobre factor avisa", {
+  # Control: lo que cambia es lo que la columna declara, no la estrategia.
+  datos <- data.frame(n = 1:4,
+                      nivel = c(" bajo", "medio ", "alto", "medio "),
+                      stringsAsFactors = FALSE)
+  perfil <- perfilar(datos, analizar_dependencias = FALSE)
+  plan <- planificar_limpieza(perfil, datos = datos)
+  fila <- as.data.frame(plan)
+  fila <- fila[fila$estrategia == "recortar_espacios", , drop = FALSE]
+
+  expect_true(fila$aplicar[[1L]])
+  expect_false(grepl("devuelve texto", fila$justificacion[[1L]], fixed = TRUE))
+  aplicado <- aplicar(plan, datos)
+  expect_equal(aplicado$datos$nivel, c("bajo", "medio", "alto", "medio"))
+
+  sin_orden <- data.frame(n = 1:4)
+  sin_orden$nivel <- factor(c(" bajo", "medio ", "alto", "medio "))
+  perfil_sin_orden <- perfilar(sin_orden, analizar_dependencias = FALSE)
+  plan_sin_orden <- planificar_limpieza(perfil_sin_orden, datos = sin_orden)
+  fila_sin_orden <- as.data.frame(plan_sin_orden)
+  fila_sin_orden <- fila_sin_orden[
+    fila_sin_orden$estrategia == "recortar_espacios", ,
+    drop = FALSE
+  ]
+  expect_true(fila_sin_orden$aplicar[[1L]])
+  expect_match(fila_sin_orden$justificacion[[1L]], "devuelve texto",
+               fixed = TRUE)
+})
+
+test_that("un hallazgo sin accion por nombre repetido se declara", {
+  datos <- data.frame(a = c(" x ", "Y", "z"), b = c(" p ", "q", "r"),
+                      stringsAsFactors = FALSE)
+  names(datos) <- c("a", "a")
+
+  perfil <- perfilar(datos, analizar_dependencias = FALSE)
+  plan <- planificar_limpieza(perfil, datos = datos)
+  sin_accion <- attr(plan, "hallazgos_sin_accion_por_columna_ambigua")
+
+  expect_equal(sum(perfil$hallazgos$tipo_hallazgo == "espacios_sobrantes"), 2L)
+  expect_false("recortar_espacios" %in% as.data.frame(plan)$estrategia)
+  expect_equal(nrow(sin_accion), 2L)
+  expect_true(all(sin_accion$hallazgo == "espacios_sobrantes"))
+  expect_true(all(sin_accion$columna == "a"))
+  expect_match(sin_accion$como_resolverlo[[1L]], "normalizar_nombres",
+               fixed = TRUE)
+  expect_message(print(plan), "no tienen acci")
+})
+
+test_that("con nombres distintos el plan no declara nada nuevo", {
+  # Control: la declaracion aparece por la ambiguedad, no por la tabla.
+  datos <- data.frame(a = c(" x ", "Y", "z"), b = c(" p ", "q", "r"),
+                      stringsAsFactors = FALSE)
+
+  perfil <- perfilar(datos, analizar_dependencias = FALSE)
+  plan <- planificar_limpieza(perfil, datos = datos)
+  sin_accion <- attr(plan, "hallazgos_sin_accion_por_columna_ambigua")
+
+  expect_equal(nrow(sin_accion), 0L)
+  expect_equal(sum(as.data.frame(plan)$estrategia == "recortar_espacios"), 2L)
+})

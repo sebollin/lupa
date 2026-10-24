@@ -1,0 +1,327 @@
+# Una celda de `ejemplos` no lleva UN valor: lleva hasta tres unidos con este
+# separador. Lo lee tambien el piso de datos personales, que tiene que poder
+# deshacer la union para cosechar cada valor como aguja: si el separador estuviera
+# escrito en los dos lados, cambiarlo en uno dejaria al otro buscando lo que ya no
+# existe, sin que nada fallara.
+.SEPARADOR_EJEMPLOS <- " | "
+
+## Tope de valores que se miran para decidir si los ejemplos se publican.
+## Es `muestra_validadores`, el mismo que el paquete ya usa para clasificar.
+.MUESTRA_CLASIFICACION_PATRONES <- 1000L
+
+# El limite de trazabilidad conserva nombres, no la distribucion de frecuencias.
+.limite_patrones_raros_trazabilidad <- 5000L
+
+#' Descubrir patrones de formato
+#'
+#' Generaliza un vector de texto mediante la convención del *Pattern Finder*
+#' de DataCleaner: `9` representa un dígito, `a` una letra minúscula y `A` una
+#' letra mayúscula. Los símbolos y espacios se conservan literalmente. Las tres
+#' clases valen en cualquier escritura: un dígito arábigo-índico es `9` y una
+#' `é` es `a`, de modo que el patrón no publica letras del valor; una letra sin
+#' mayúscula ni minúscula —árabe, CJK— cuenta como `a`.
+#'
+#' El cálculo aplica reemplazos vectorizados sobre el vector completo. Si el
+#' vector supera `muestra`, usa una muestra sistemática reproducible y registra
+#' esa decisión en los atributos del resultado.
+#'
+#' @param x Vector que se convertirá a texto.
+#' @param proteger_datos_personales Si los ejemplos se enmascaran cuando la
+#'   forma de los valores alcanza para clasificarlos como dato personal. `TRUE`
+#'   por omisión. `perfilar()` lo pasa en `FALSE` porque protege el perfil
+#'   entero después, respetando ahí la declaración del usuario.
+#' @param distinguir_mayusculas Si es `TRUE`, distingue `a` de `A`.
+#' @param expandir Si es `FALSE`, colapsa tokens repetidos (`9999` a `9+`).
+#' @param max_patrones Número máximo de patrones que se muestran: un entero
+#'   positivo, o `Inf` para mostrarlos todos.
+#' @param na.rm Si es `TRUE`, excluye los valores ausentes.
+#' @param muestra Máximo de valores que se analizan.
+#' @param umbral_raro Frecuencia máxima de un patrón raro, usada para conservar
+#'   un resumen acotado de patrones raros para los hallazgos. La frontera es
+#'   inclusiva: un patrón no dominante con exactamente esa proporción es raro.
+#'
+#' @return Un data frame de clase `patrones` con patrón, frecuencia, proporción
+#'   y ejemplos. Los **ejemplos no se publican** cuando la forma de los valores
+#'   alcanza por sí sola para clasificarlos como dato personal —un correo, por
+#'   ejemplo, aunque los correos no sean la mayoría del vector—: salen como
+#'   `[valor protegido]`, los de todos los patrones. Acá llega un vector suelto, sin
+#'   nombre de columna, así que la vía por nombre no está disponible; un número
+#'   de ocho dígitos **sí** se publica, porque su forma sola no alcanza para
+#'   afirmar que es un documento. Los atributos `total`, `analizados`, `filas_analizadas` y
+#'   `muestreado` describen el posible muestreo; `filas_analizadas` es un alias
+#'   explícito de `analizados` para mantener el alcance visible junto a otros
+#'   diagnósticos. `n_evaluados` es el denominador de `proporcion`: los valores
+#'   analizados, sin los ausentes cuando `na.rm = TRUE`. `resumen_patrones`
+#'   conserva sólo el patrón dominante
+#'   y hasta seis patrones raros para presentacion; nunca guarda la distribucion
+#'   completa. `patrones_raros_trazabilidad` conserva solo los nombres de los
+#'   patrones raros, hasta 5.000, para que la trazabilidad pueda enumerar filas
+#'   sin retener frecuencias ni ejemplos. Las proporciones siempre estan en
+#'   `[0, 1]`. `n_patrones_distintos` registra el total antes de truncar la tabla
+#'   para informar omisiones sin retenerla. `n_patrones_raros` y
+#'   `n_patrones_raros_trazabilidad` registran cuantos patrones raros habia antes
+#'   de sus respectivos limites. `n_filas_patrones_no_dominantes_excluidos`
+#'   registra cuantas filas pertenecen a patrones no dominantes cuya proporcion
+#'   no es rara y que por eso quedan fuera del hallazgo.
+#' @export
+#' @seealso [perfilar()], [inferir_tipo()], [detectar_formatos_fecha()]
+#'
+#' @examples
+#' descubrir_patrones(
+#'   c("2020-01-31", "2021-12-01", "31/01/2020"),
+#'   expandir = TRUE
+#' )
+descubrir_patrones <- function(x,
+                               distinguir_mayusculas = TRUE,
+                               expandir = FALSE,
+                               max_patrones = 20,
+                               na.rm = TRUE,
+                               muestra = 1e5,
+                               umbral_raro = 0.05,
+                               proteger_datos_personales = TRUE) {
+  # `perfilar()` documenta `Inf` para los topes de lo que se muestra; un texto
+  # -"5"- pasaba la comparacion y abortaba en `floor()`.
+  max_patrones <- .validar_limite_duplicados(max_patrones, "max_patrones")
+  # `na.rm = NA` abortaba en `if`; `distinguir_mayusculas` y `expandir` con
+  # `NA`, `"si"` o dos valores se leian como FALSE en silencio -tambien desde
+  # `perfilar()`, que los pasa aca-.
+  .validar_bandera(na.rm, "na.rm")
+  .validar_bandera(distinguir_mayusculas, "distinguir_mayusculas")
+  .validar_bandera(expandir, "expandir")
+  if (!is.atomic(x) && !is.factor(x)) {
+    .detener("`x` debe ser un vector at\u00f3mico.", call. = FALSE)
+  }
+  .validar_bandera_proteccion(proteger_datos_personales)
+  if (length(umbral_raro) != 1L || is.na(umbral_raro) ||
+      umbral_raro < 0 || umbral_raro > 1) {
+    .detener("`umbral_raro` debe estar entre 0 y 1.", call. = FALSE)
+  }
+
+  muestra_x <- .muestrear_vector(x, muestra)
+  # Lo declarado `bytes` se rinde a su forma imprimible ANTES de analizar, y no
+  # despues. `.texto_analizable()` lo marcaria UTF-8 -a proposito, para que
+  # `tolower()` y las expresiones regulares trabajen- y entonces la marca ya no
+  # estaria al publicar: el perfil mostraba `a\u00f1o` en `patron` y en
+  # `ejemplos` mientras `print()` del mismo dato mostraba `a\xc3\xb1o`. Dos
+  # salidas del paquete sobre el mismo valor.
+  #
+  # Rendido antes, el patron, los ejemplos y la consola dicen lo mismo, que es
+  # lo que corresponde para algo que se PUBLICA. Para un valor que su duenio
+  # declaro que no es texto, su forma imprimible es la unica lectura honesta.
+  # Sobre todo lo demas no cambia nada.
+  valores <- .texto_analizable(.texto_publicable(muestra_x$valores))$valores
+  es_na <- is.na(valores)
+  if (na.rm) {
+    valores <- valores[!es_na]
+    es_na <- rep(FALSE, length(valores))
+  }
+
+  textos <- as.character(valores)
+  indices_validos <- which(!es_na)
+  patrones <- rep(NA_character_, length(textos))
+
+  if (length(indices_validos)) {
+    generalizados <- textos[indices_validos]
+    generalizados <- .generalizar_a_patron(
+      generalizados, distinguir_mayusculas, expandir
+    )
+    patrones[indices_validos] <- generalizados
+  }
+
+  marcador_na <- "\001valor_ausente\001"
+  para_tabla <- patrones
+  para_tabla[is.na(para_tabla)] <- marcador_na
+  # `sort(table(...))` desempata con el orden de los niveles, y `table()` los
+  # ordena con la intercalacion del locale: con `max_patrones = 2` y un empate
+  # por el segundo puesto, la MISMA tabla publicaba `A+ a+` en una maquina y
+  # `A+ Aa` en otra. No es orden de filas: son patrones distintos, y con ellos
+  # cambian los ejemplos publicados y el orden en que `patron_raro` lista los
+  # desvios.
+  #
+  # El paquete ya arreglo esta familia una vez -el recorte de pares de
+  # duplicados, que usa `.ordenar_por_bytes()`- y ya usa `method = "radix"` para
+  # el desempate de la moda en `R/columnas.R:30`. El arreglo no habia llegado
+  # aca. El desempate va por bytes: no depende de la maquina y es total.
+  conteo <- table(para_tabla, useNA = "no")
+  orden <- .orden_por_bytes(-as.integer(conteo),
+                 .clave_bytes(names(conteo)), method = "radix")
+  frecuencias <- conteo[orden]
+  denominador <- length(para_tabla)
+  proporciones <- if (denominador) {
+    as.numeric(frecuencias) / denominador
+  } else {
+    numeric()
+  }
+  limite <- min(length(frecuencias), floor(max_patrones))
+  indices_salida <- seq_len(limite)
+  # `umbral_raro` es la frecuencia MAXIMA de un patron raro, y la igualdad es
+  # rara: la ayuda lo llama "maxima frecuencia" y cuenta como excluidos a los
+  # que lo "superan", y en el vocabulario del paquete superar es estricto. La
+  # comparacion era `<`, y un patron en exactamente el umbral -cinco filas de
+  # cien con el 0,05 por omision- quedaba afuera contado como si lo superara.
+  # La misma frontera esta escrita en `.descubrir_patrones_bloques()` y en
+  # `.desvios_patron_raro_detectados()`; se cambian juntas.
+  indices_raros <- which(
+    seq_along(frecuencias) > 1L & proporciones <= umbral_raro
+  )
+  indices_no_dominantes_excluidos <- which(
+    seq_along(frecuencias) > 1L & proporciones > umbral_raro
+  )
+  n_filas_patrones_no_dominantes_excluidos <- if (
+    length(indices_no_dominantes_excluidos)
+  ) {
+    as.integer(sum(as.numeric(frecuencias[indices_no_dominantes_excluidos])))
+  } else {
+    0L
+  }
+  n_patrones_raros <- length(indices_raros)
+  nombres_raros <- names(frecuencias)[indices_raros]
+  nombres_raros_trazabilidad <- nombres_raros[
+    seq_len(min(length(nombres_raros), .limite_patrones_raros_trazabilidad))
+  ]
+  indices_raros_presentacion <- utils::head(indices_raros, 6L)
+  indices_resumen <- unique(c(
+    if (length(frecuencias)) 1L else integer(),
+    indices_raros_presentacion
+  ))
+  indices_objetivo <- .sort_por_bytes(unique(c(indices_salida, indices_resumen)))
+  nombres_objetivo <- names(frecuencias)[indices_objetivo]
+  ejemplos_objetivo <- rep("", length(indices_objetivo))
+
+  if (length(indices_objetivo)) {
+    grupos <- match(para_tabla, nombres_objetivo, nomatch = 0L)
+    posiciones <- which(grupos > 0L & !is.na(textos))
+    if (length(posiciones)) {
+      textos_por_patron <- split(textos[posiciones], grupos[posiciones])
+      indices_grupo <- as.integer(names(textos_por_patron))
+      ejemplos_objetivo[indices_grupo] <- vapply(
+        textos_por_patron,
+        function(valores_grupo) {
+          paste(utils::head(unique(valores_grupo), 3L),
+                collapse = .SEPARADOR_EJEMPLOS)
+        },
+        character(1L)
+      )
+    }
+  }
+
+  # Los ejemplos son valores del usuario, y por esta puerta salian crudos. La
+  # misma columna por dentro de `perfilar()` sale enmascarada -medido: 0 de 5
+  # correos en el perfil contra 3 de 5 aca-, asi que dos caminos hacian cosas
+  # opuestas con el mismo dato.
+  #
+  # Aca no hay nombre de columna: llega un vector suelto. Se clasifica **por
+  # forma**, que es lo unico disponible, y el paquete es deliberadamente
+  # conservador con eso: un numero de ocho digitos NO se protege por su forma
+  # -puede ser cualquier cosa, y conjeturar por debajo de lo declarado es lo que
+  # su regla prohibe-, pero un correo si, porque su forma no deja dudas. O sea
+  # que esto enmascara exactamente lo que el propio clasificador manda proteger
+  # sin ayuda del nombre, ni un valor mas.
+  #
+  # Sobre una MUESTRA, no sobre la columna entera: `descubrir_patrones()` tambien
+  # se llama dos veces por columna desde `perfilar()`. Medido sobre 20.000
+  # valores, clasificar entero cuesta 21,2 ms -59% de lo que cuesta la funcion- y
+  # con tope 1.000 cuesta 0,8 ms, con la misma respuesta. El tope no es un numero
+  # nuevo: es `muestra_validadores`, que el paquete ya usa para esto mismo.
+  if (isTRUE(proteger_datos_personales) &&
+      length(ejemplos_objetivo) && any(nzchar(ejemplos_objetivo))) {
+    presentes <- textos[!is.na(textos)]
+    if (length(presentes)) {
+      cata <- utils::head(presentes, .MUESTRA_CLASIFICACION_PATRONES)
+      clasificacion <- .clasificar_dato_personal(
+        cata, "", list(tipo = .tipo_declarado(cata))
+      )
+      if (isTRUE(clasificacion$proteger)) {
+        ejemplos_objetivo[nzchar(ejemplos_objetivo)] <- "[valor protegido]"
+      }
+    }
+  }
+
+  crear_tabla <- function(indices) {
+    nombres <- names(frecuencias)[indices]
+    nombres[nombres == marcador_na] <- NA_character_
+    data.frame(
+      # Los patrones y sus ejemplos se PUBLICAN, asi que un valor declarado
+      # `bytes` se rinde a la forma que muestra la consola en vez de
+      # interpretarse: el perfil publicaba el caracter mientras `print()` del
+      # mismo dato mostraba la forma escapada.
+      patron = .texto_publicable(nombres),
+      n = as.integer(frecuencias[indices]),
+      proporcion = proporciones[indices],
+      ejemplos = .texto_publicable(
+        ejemplos_objetivo[match(indices, indices_objetivo)]
+      ),
+      stringsAsFactors = FALSE
+    )
+  }
+
+  resultado <- crear_tabla(indices_salida)
+  resumen <- crear_tabla(indices_resumen)
+  rownames(resultado) <- NULL
+  rownames(resumen) <- NULL
+  class(resultado) <- c("patrones", "data.frame")
+  attr(resultado, "total") <- muestra_x$total
+  attr(resultado, "analizados") <- muestra_x$analizados
+  attr(resultado, "filas_analizadas") <- muestra_x$analizados
+  attr(resultado, "muestreado") <- muestra_x$muestreado
+  # El denominador de `proporcion`, publicado: con `na.rm = TRUE` son los
+  # valores analizados SIN los ausentes, que no tienen patron. `analizados`
+  # cuenta las filas de la muestra con sus `NA`, y `patron_raro` tomaba de ahi su
+  # `n_evaluados`: cien filas con dos `NA` publicaban `n_evaluados = 100` al lado
+  # de `proporcion_dominante = 0.918`, que es 90/98. Dos universos en el mismo
+  # hallazgo.
+  attr(resultado, "n_evaluados") <- as.integer(denominador)
+  attr(resultado, "n_patrones_distintos") <- length(frecuencias)
+  attr(resultado, "n_patrones_raros") <- n_patrones_raros
+  attr(resultado, "patrones_raros_trazabilidad") <-
+    nombres_raros_trazabilidad
+  attr(resultado, "n_patrones_raros_trazabilidad") <- n_patrones_raros
+  attr(resultado, "limite_patrones_raros_trazabilidad") <-
+    .limite_patrones_raros_trazabilidad
+  attr(resultado, "n_filas_patrones_no_dominantes_excluidos") <-
+    n_filas_patrones_no_dominantes_excluidos
+  attr(resultado, "resumen_patrones") <- resumen
+  resultado
+}
+
+# La misma generalizacion se escribia en tres lugares -aqui, en el detector de
+# patrones raros y en el resumen de columnas- y no era solo repeticion: las tres
+# TIENEN que coincidir o el paquete miente. `.indices_patron_raro()` cierra
+# comparando sus patrones contra los que produjo `descubrir_patrones()`, asi que
+# si una de las copias cambiaba, el `%in%` no encontraba nada, el hallazgo se
+# publicaba igual y su trazabilidad salia vacia **sin ningun error**.
+.generalizar_a_patron <- function(x, distinguir_mayusculas = TRUE,
+                                  expandir = FALSE) {
+  # Clases de Unicode y no POSIX: con `perl = TRUE`, `[[:digit:]]` y
+  # `[[:lower:]]` son solo ASCII, y un digito arabigo-indico, una `\u00e9` o una
+  # `\u00c9` quedaban literales en el patron -"Jos\u00e9" daba `Aa+\u00e9`, que es
+  # publicar el valor en vez de su forma-. Una letra sin caso -arabe, CJK- es una
+  # letra, y una titular (`\u01c5`) cuenta como mayuscula.
+  #
+  # Las clases de Unicode necesitan que PCRE lea el texto como UTF-8. Bajo un
+  # locale que no es UTF-8, un texto SIN MARCA entra en modo bytes y `\p{Lu}`
+  # leia el primer byte de una `\u00e9` como `\u00c3`: el patron salia distinto
+  # bajo `C` que bajo UTF-8, y roto. Se marca UTF-8 lo que sin marca ya lo es.
+  x <- as.character(x)
+  sin_marca <- !is.na(x) & Encoding(x) == "unknown" &
+    grepl("[^\\001-\\177]", x, useBytes = TRUE, perl = TRUE)
+  if (any(sin_marca)) {
+    validos <- sin_marca
+    validos[sin_marca] <- validUTF8(x[sin_marca])
+    Encoding(x)[validos] <- "UTF-8"
+  }
+  x <- gsub("\\p{Nd}", "9", x, perl = TRUE)
+  if (isTRUE(distinguir_mayusculas)) {
+    x <- gsub("\\p{Ll}", "a", x, perl = TRUE)
+    x <- gsub("[\\p{Lu}\\p{Lt}]", "A", x, perl = TRUE)
+    x <- gsub("[\\p{Lm}\\p{Lo}]", "a", x, perl = TRUE)
+  } else {
+    x <- gsub("\\p{L}", "a", x, perl = TRUE)
+  }
+  if (!isTRUE(expandir)) {
+    x <- gsub("9{2,}", "9+", x, perl = TRUE)
+    x <- gsub("a{2,}", "a+", x, perl = TRUE)
+    x <- gsub("A{2,}", "A+", x, perl = TRUE)
+  }
+  x
+}

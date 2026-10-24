@@ -1,0 +1,366 @@
+.codigo_utf8_locale <- function(hexadecimal) {
+  codigo <- strtoi(hexadecimal, base = 16L)
+  bytes <- if (codigo <= 0x7F) {
+    codigo
+  } else if (codigo <= 0x7FF) {
+    c(0xC0 + codigo %/% 0x40, 0x80 + codigo %% 0x40)
+  } else {
+    c(
+      0xE0 + codigo %/% 0x1000,
+      0x80 + (codigo %/% 0x40) %% 0x40,
+      0x80 + codigo %% 0x40
+    )
+  }
+  resultado <- rawToChar(as.raw(bytes))
+  Encoding(resultado) <- "UTF-8"
+  resultado
+}
+
+test_that("el plegado escalar de caja conserva y baja acentos en C", {
+  anterior <- Sys.getlocale("LC_CTYPE")
+  on.exit(try(Sys.setlocale("LC_CTYPE", anterior), silent = TRUE), add = TRUE)
+  puesto <- suppressWarnings(tryCatch(
+    Sys.setlocale("LC_CTYPE", "C"),
+    error = function(e) NA_character_
+  ))
+  if (is.na(puesto) || !identical(puesto, "C")) {
+    skip("no se pudo fijar LC_CTYPE=C")
+  }
+
+  superiores <- c("00C1", "00C9", "00D1", "00D3", "00DA", "00DC")
+  inferiores <- c("00E1", "00E9", "00F1", "00F3", "00FA", "00FC")
+  mayusculas <- vapply(superiores, .codigo_utf8_locale, character(1L))
+  minusculas <- vapply(
+    inferiores, .codigo_utf8_locale, character(1L)
+  )
+  entrada <- paste0("I", paste0(mayusculas, collapse = ""))
+  esperado <- paste0("i", paste0(minusculas, collapse = ""))
+
+  expect_identical(lupa:::.normalizacion_minusculas(entrada), esperado)
+})
+
+test_that("el camino vectorial pliega caracteres fuera de la tabla de descomposicion", {
+  anterior <- Sys.getlocale("LC_CTYPE")
+  on.exit(try(Sys.setlocale("LC_CTYPE", anterior), silent = TRUE), add = TRUE)
+  puesto <- suppressWarnings(tryCatch(
+    Sys.setlocale("LC_CTYPE", "C"),
+    error = function(e) NA_character_
+  ))
+  if (is.na(puesto) || !identical(puesto, "C")) {
+    skip("no se pudo fijar LC_CTYPE=C")
+  }
+
+  mayuscula <- .codigo_utf8_locale("1E9E")
+  minuscula <- .codigo_utf8_locale("00DF")
+  perfil <- normalizacion(
+    espacios = FALSE, acentos = FALSE, comillas = FALSE, minusculas = TRUE
+  )
+  entrada <- c(paste0("X", mayuscula), paste0("x", minuscula))
+  esperado <- c(paste0("x", minuscula), paste0("x", minuscula))
+
+  expect_identical(lupa:::.normalizacion_aplicar(entrada, perfil), esperado)
+})
+
+test_that("el mismo dato normalizado da lo mismo bajo dos LC_CTYPE", {
+  anterior <- Sys.getlocale("LC_CTYPE")
+  on.exit(try(Sys.setlocale("LC_CTYPE", anterior), silent = TRUE), add = TRUE)
+  aguda <- .codigo_utf8_locale("00C9")
+  aguda_baja <- .codigo_utf8_locale("00E9")
+  eszett <- .codigo_utf8_locale("1E9E")
+  eszett_baja <- .codigo_utf8_locale("00DF")
+  entrada <- c(
+    paste0("CAF", aguda), paste0("caf", aguda_baja), eszett, eszett_baja
+  )
+  perfil <- normalizacion(
+    espacios = FALSE, acentos = FALSE, comillas = FALSE, minusculas = TRUE
+  )
+  resultados <- lapply(c("C", "es_UY.UTF-8"), function(locale) {
+    puesto <- suppressWarnings(tryCatch(
+      Sys.setlocale("LC_CTYPE", locale),
+      error = function(e) NA_character_
+    ))
+    if (is.na(puesto) || !identical(puesto, locale)) {
+      skip(paste0("no se pudo fijar LC_CTYPE=", locale))
+    }
+    lupa:::.normalizacion_aplicar(entrada, perfil)
+  })
+
+  expect_identical(resultados[[1L]], resultados[[2L]])
+})
+
+test_that("las variantes de mayusculas acentuadas se detectan bajo C", {
+  anterior <- Sys.getlocale("LC_CTYPE")
+  on.exit(try(Sys.setlocale("LC_CTYPE", anterior), silent = TRUE), add = TRUE)
+  puesto <- suppressWarnings(tryCatch(
+    Sys.setlocale("LC_CTYPE", "C"),
+    error = function(e) NA_character_
+  ))
+  if (is.na(puesto) || !identical(puesto, "C")) {
+    skip("no se pudo fijar LC_CTYPE=C")
+  }
+
+  aguda_mayuscula <- .codigo_utf8_locale("00C9")
+  aguda_minuscula <- .codigo_utf8_locale("00E9")
+  diagnostico <- lupa:::.diagnosticar_texto(c(
+    paste0("CAF", aguda_mayuscula), paste0("caf", aguda_minuscula)
+  ))
+
+  expect_identical(diagnostico$n_variantes_mayusculas, 2L)
+})
+
+test_that("el rango de duplicados usa orden por bytes en cualquier LC_COLLATE", {
+  anterior <- Sys.getlocale("LC_COLLATE")
+  on.exit(try(Sys.setlocale("LC_COLLATE", anterior), silent = TRUE), add = TRUE)
+  valores <- c("A", "a", .codigo_utf8_locale("00C1"), "z", "N")
+  esperado <- c(1L, 3L, 5L, 4L, 2L)
+
+  for (locale in c("C", "es_UY.UTF-8")) {
+    puesto <- suppressWarnings(tryCatch(
+      Sys.setlocale("LC_COLLATE", locale),
+      error = function(e) NA_character_
+    ))
+    if (is.na(puesto) || !identical(puesto, locale)) {
+      skip(paste0("no se pudo fijar LC_COLLATE=", locale))
+    }
+    rango <- lupa:::.rango_canonico_duplicados(valores, seq_along(valores))
+    expect_identical(as.integer(rango), esperado, info = locale)
+  }
+})
+
+test_that("el desempate de patrones por bloques no usa LC_COLLATE", {
+  anterior <- Sys.getlocale("LC_COLLATE")
+  on.exit(try(Sys.setlocale("LC_COLLATE", anterior), silent = TRUE), add = TRUE)
+  entrada <- c("A1", "a1", "_A", "_a")
+
+  for (locale in c("C", "es_UY.UTF-8")) {
+    puesto <- suppressWarnings(tryCatch(
+      Sys.setlocale("LC_COLLATE", locale),
+      error = function(e) NA_character_
+    ))
+    if (is.na(puesto) || !identical(puesto, locale)) {
+      skip(paste0("no se pudo fijar LC_COLLATE=", locale))
+    }
+    resultado <- lupa:::.descubrir_patrones_bloques(
+      entrada, max_patrones = 1L, tamano = 1L
+    )
+    expect_identical(resultado$patron[[1L]], "A9", info = locale)
+  }
+})
+
+test_that("los identificadores Oracle no usan toupper dependiente del locale", {
+  anterior <- Sys.getlocale("LC_CTYPE")
+  on.exit(try(Sys.setlocale("LC_CTYPE", anterior), silent = TRUE), add = TRUE)
+  # Las dos grafias: hay maquinas que generan `tr_TR.utf8` y no `tr_TR.UTF-8`.
+  # Pedir una sola hace que la prueba se saltee donde el locale SI existe, que es
+  # el mismo defecto que ya aparecio dos veces con el locale uruguayo.
+  #
+  # Aca no hay locale de reserva: el punto de la prueba es la `i` turca, y sin
+  # turco no hay nada que medir. Por eso `skip()` es la respuesta correcta y no
+  # una carencia.
+  puesto <- NA_character_
+  for (candidato in c("tr_TR.UTF-8", "tr_TR.utf8")) {
+    intento <- suppressWarnings(tryCatch(
+      Sys.setlocale("LC_CTYPE", candidato),
+      error = function(e) NA_character_
+    ))
+    if (!is.na(intento) && identical(intento, candidato)) {
+      puesto <- candidato
+      break
+    }
+  }
+  if (is.na(puesto)) {
+    skip("no hay un locale turco UTF-8 en esta maquina")
+  }
+
+  consultas <- lupa:::.consultas_clave_primaria()
+  indice <- which(vapply(consultas, function(x) {
+    identical(x$nombre, "all_constraints")
+  }, logical(1L)))
+  sql <- consultas[[indice[[1L]]]]$sql("esquema", "mi_tabla")
+
+  expect_true(grepl("t.table_name = 'MI_TABLA'", sql, fixed = TRUE))
+  expect_true(grepl("t.owner = 'ESQUEMA'", sql, fixed = TRUE))
+})
+
+test_that("el texto de los cortes usa punto bajo LC_NUMERIC con coma", {
+  anterior <- Sys.getlocale("LC_NUMERIC")
+  on.exit(try(Sys.setlocale("LC_NUMERIC", anterior), silent = TRUE), add = TRUE)
+  puesto <- suppressWarnings(tryCatch(
+    Sys.setlocale("LC_NUMERIC", "de_DE.UTF-8"),
+    error = function(e) NA_character_
+  ))
+  if (is.na(puesto) || !identical(puesto, "de_DE.UTF-8")) {
+    skip("no se pudo fijar LC_NUMERIC=de_DE.UTF-8")
+  }
+
+  ajuste <- list(corte = 1.5, etiqueta_corte = NA_character_, clase_umbral = NULL)
+  expect_identical(lupa:::.texto_corte_umbral(ajuste), "1.5")
+})
+
+test_that("la I mayuscula con punto se pliega igual en cualquier locale", {
+  # U+0130 era la unica mayuscula latina sin entrada en el mapa, y es justo la
+  # que el locale trata distinto: bajo un locale UTF-8 `tolower()` la baja a
+  # `i`, y bajo `C` la deja intacta. Sin entrada propia, la clave normalizada de
+  # "ISTANBUL" con I turca dependia de la maquina.
+  anterior <- Sys.getlocale("LC_CTYPE")
+  on.exit(try(Sys.setlocale("LC_CTYPE", anterior), silent = TRUE), add = TRUE)
+  i_con_punto <- intToUtf8(0x0130)
+  esperado <- 0x0069L
+
+  expect_identical(
+    utf8ToInt(lupa:::.normalizacion_minusculas(i_con_punto)), esperado
+  )
+
+  if (is.na(Sys.setlocale("LC_CTYPE", "C"))) {
+    skip("no se pudo fijar LC_CTYPE=C en esta plataforma")
+  }
+  expect_identical(
+    utf8ToInt(lupa:::.normalizacion_minusculas(i_con_punto)), esperado
+  )
+})
+
+test_that("el pliegue de mayusculas de los hallazgos no depende del locale", {
+  anterior <- Sys.getlocale("LC_CTYPE")
+  on.exit(try(Sys.setlocale("LC_CTYPE", anterior), silent = TRUE), add = TRUE)
+  puesto <- suppressWarnings(tryCatch(
+    Sys.setlocale("LC_CTYPE", "C"), error = function(e) NA_character_
+  ))
+  if (is.na(puesto) || !identical(puesto, "C")) {
+    skip("no se pudo fijar LC_CTYPE=C")
+  }
+
+  # ASCII en el archivo, el acento se construye: un banco de fixtures homogeneo
+  # no puede ver el fallo que comparte con el codigo.
+  mayuscula <- rawToChar(as.raw(c(0x43, 0x41, 0x46, 0xc3, 0x89)))
+  minuscula <- rawToChar(as.raw(c(0x63, 0x61, 0x66, 0xc3, 0xa9)))
+  Encoding(mayuscula) <- "UTF-8"
+  Encoding(minuscula) <- "UTF-8"
+
+  # NO se afirma nada sobre `tolower()`: que baje o no el acento bajo `C` es una
+  # propiedad de la PLATAFORMA -glibc no lo baja, macOS y Windows si- y no del
+  # paquete. Una version anterior de esta prueba lo afirmaba y fallaba en
+  # `macos-latest` y `windows-latest` mientras pasaba en Linux: medía el sistema
+  # operativo, no `lupa`.
+  #
+  # Lo que si es del paquete, y vale en todos lados: su ayudante pliega el acento
+  # sea cual sea el locale, y el perfil no emite su aviso de defecto propio.
+  expect_identical(
+    lupa:::.normalizacion_minusculas_vector(mayuscula), minuscula
+  )
+
+  dicho <- character()
+  perfil <- withCallingHandlers(
+    perfilar(
+      data.frame(
+        x = c(rep(minuscula, 8L), rep(mayuscula, 2L)),
+        stringsAsFactors = FALSE
+      ),
+      analizar_dependencias = FALSE, proteger_datos_personales = FALSE
+    ),
+    warning = function(w) {
+      dicho <<- c(dicho, conditionMessage(w))
+      invokeRestart("muffleWarning")
+    }
+  )
+
+  # Ni un aviso de defecto propio, y el hallazgo se sigue detectando.
+  expect_equal(length(grep("trazabilidad", dicho)), 0L)
+  expect_true("mayusculas_inconsistentes" %in% perfil$hallazgos$tipo)
+})
+
+test_that("perfilar sobrevive a un CSV en espanol bajo LC_CTYPE=C", {
+  anterior <- Sys.getlocale("LC_CTYPE")
+  on.exit(try(Sys.setlocale("LC_CTYPE", anterior), silent = TRUE), add = TRUE)
+  puesto <- suppressWarnings(tryCatch(
+    Sys.setlocale("LC_CTYPE", "C"), error = function(e) NA_character_
+  ))
+  if (is.na(puesto) || !identical(puesto, "C")) {
+    skip("no se pudo fijar LC_CTYPE=C")
+  }
+
+  # `rawToChar()` deja la codificacion en `unknown`, que es EXACTAMENTE lo que
+  # devuelve `read.csv()` sobre un CSV en espanol: el caso mas comun que existe.
+  # Bajo `LC_CTYPE=C` esos bytes no son interpretables por el locale y `chartr()`
+  # abortaba con "invalid input multibyte string", matando `perfilar()` entero.
+  mayuscula <- rawToChar(as.raw(c(0x43, 0x41, 0x46, 0xc3, 0x89)))
+  minuscula <- rawToChar(as.raw(c(0x63, 0x61, 0x66, 0xc3, 0xa9)))
+  expect_identical(Encoding(mayuscula), "unknown")
+  expect_true(validUTF8(mayuscula))
+
+  datos <- data.frame(
+    x = c(rep(minuscula, 3L), rep(mayuscula, 2L)), stringsAsFactors = FALSE
+  )
+  # Bajo `C` el paquete AVISA -"unable to translate ... to UTF-8"- por caminos
+  # que todavia intentan traducir. Eso esta medido y no es
+  # lo que esta prueba vigila: lo que vigila es que **no aborte** y que **pliegue
+  # bien**. Se silencian para no mover el conteo de avisos de la suite, que es
+  # `WARN 0` y sirve como senal.
+  perfil <- suppressWarnings(perfilar(
+    datos, analizar_dependencias = FALSE, proteger_datos_personales = FALSE
+  ))
+
+  # No aborta, y ademas pliega bien: los dos valores son el mismo texto.
+  expect_equal(perfil$columnas$n_distintos[[1L]], 2L)
+  expect_true("mayusculas_inconsistentes" %in% perfil$hallazgos$tipo)
+
+  # Un FACTOR con el mismo texto tiene que comportarse igual: sus niveles son
+  # cadenas y sin marcarlos quedaba la mitad del problema afuera —la misma
+  # columna emitia 0 avisos como `character` y 21 como `factor`—.
+  como_factor <- suppressWarnings(perfilar(
+    data.frame(x = factor(c(rep(minuscula, 3L), rep(mayuscula, 2L)))),
+    analizar_dependencias = FALSE, proteger_datos_personales = FALSE
+  ))
+  expect_equal(como_factor$columnas$n_distintos[[1L]], 2L)
+
+  # Y un byte que NO es UTF-8 valido tampoco aborta: se repara, no se cae.
+  roto <- rawToChar(as.raw(c(0x41, 0xff, 0x42)))
+  expect_false(validUTF8(roto))
+  # Avisa —el byte roto es un dato malo y el paquete lo dice—, pero no aborta.
+  sin_abortar <- suppressWarnings(perfilar(
+    data.frame(y = c(minuscula, roto), stringsAsFactors = FALSE),
+    analizar_dependencias = FALSE, proteger_datos_personales = FALSE
+  ))
+  expect_s3_class(sin_abortar, "perfil")
+})
+
+test_that("los pliegues optativos cumplen bajo C y bajo un locale UTF-8", {
+  skip_if_not_installed("stringi")
+  categorias <- c("LC_CTYPE", "LC_COLLATE")
+  originales <- stats::setNames(
+    vapply(categorias, Sys.getlocale, character(1L)), categorias
+  )
+  on.exit(
+    for (categoria in categorias) {
+      suppressWarnings(Sys.setlocale(categoria, originales[[categoria]]))
+    },
+    add = TRUE
+  )
+  locale_utf8 <- .primer_locale_utf8_n61()
+  if (is.null(locale_utf8)) {
+    skip("no hay ningun locale UTF-8 disponible en esta maquina")
+  }
+  if (!.fijar_locale_n61("C")) {
+    skip("no se pudo fijar LC_CTYPE=LC_COLLATE=C")
+  }
+
+  # Se quita la marca sin cambiar los bytes: es lo que entrega `read.csv()`.
+  bytes <- function(codigos) rawToChar(charToRaw(intToUtf8(codigos)))
+  entrada <- c(
+    bytes(c(0x6f, 0xfb01, 0x63, 0x69, 0x6e, 0x61)),
+    bytes(0xff21:0xff23)
+  )
+  perfil <- normalizacion(
+    minusculas = FALSE, espacios = FALSE, acentos = FALSE,
+    comillas = FALSE, ligaduras = TRUE, ancho = TRUE
+  )
+  esperado <- stringi::stri_trans_nfkd(entrada)
+  direcciones <- list(c(locale_utf8, "C"), c("C", locale_utf8))
+  for (direccion in direcciones) {
+    expect_true(.fijar_locale_n61(direccion[[1L]]))
+    salida <- lupa:::.normalizacion_aplicar(entrada, perfil)
+    expect_identical(salida, esperado, info = direccion[[1L]])
+    expect_true(.fijar_locale_n61(direccion[[2L]]))
+    salida <- lupa:::.normalizacion_aplicar(entrada, perfil)
+    expect_identical(salida, esperado, info = direccion[[2L]])
+  }
+})

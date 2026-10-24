@@ -1,0 +1,352 @@
+# Sugerir la clave en vez de adivinarla.
+#
+# Adivinar si una columna es clave mirando solo sus valores no funciona -un
+# monto tambien es casi unico- y ese camino ya se probo y se retiro. Preguntar
+# si funciona, y preguntar bien es ofrecer las candidatas ordenadas en vez de
+# una casilla en blanco: quien conoce la tabla reconoce su clave de un vistazo,
+# pero no tiene por que acordarse de como se llama la columna.
+
+# Nombres que en un padron o un registro administrativo casi siempre nombran la
+# clave. Se comparan sobre el nombre normalizado -sin acentos, sin separadores y
+# en minusculas- para que `ID_Persona`, `idpersona` y `id.persona` pesen igual.
+.NOMBRES_CLAVE_PROBABLE <- c(
+  "id", "clave", "codigo", "cod", "documento", "doc", "cedula", "ci",
+  "nro", "numero", "num", "folio", "expediente", "matricula", "padron",
+  "ruc", "rut", "nif", "dni", "legajo", "registro"
+)
+
+.normalizar_nombre_columna <- function(x) {
+  # El orden importa y costo una regresion: bajar caja ANTES de transliterar
+  # deja el resultado a merced del locale. Bajo `LC_CTYPE=C`, `tolower()` no
+  # toca la `N` con virgulilla ni la `I` aguda; despues la transliteracion las
+  # pasa a `N` e `I` mayusculas y el `gsub` de `[^a-z0-9]` las borra: `Nandu`
+  # quedaba en `andu` y `VIA_1` en `va1`. Transliterando primero, lo que llega a
+  # la caja ya es ASCII, y ahi `chartr` es determinista.
+  x <- .transliterar_ascii(.nombres_para_operar(x))
+  x <- chartr("ABCDEFGHIJKLMNOPQRSTUVWXYZ", "abcdefghijklmnopqrstuvwxyz", x)
+  gsub("[^a-z0-9]+", "", x)
+}
+
+# Cuanto se parece el nombre a un nombre de clave. Tres niveles, no un continuo:
+# el nombre entero, el nombre que empieza o termina con la palabra, y el que la
+# contiene en el medio. Un `id_persona` pesa mas que un `partido_id` y los dos
+# mas que un `validador`.
+.puntaje_nombre_clave <- function(nombre) {
+  n <- .normalizar_nombre_columna(nombre)
+  # Una columna llamada `NA` no tiene un nombre que se parezca a una clave:
+  # `nzchar(NA)` es TRUE, y `startsWith(NA, ...)` hacia abortar
+  # `sugerir_clave()` y `elegir_clave()` en una tabla que `perfilar()`
+  # perfila.
+  if (is.na(n) || !nzchar(n)) return(0)
+  if (n %in% .NOMBRES_CLAVE_PROBABLE) return(3)
+  empieza <- any(vapply(
+    .NOMBRES_CLAVE_PROBABLE, function(p) startsWith(n, p), logical(1L)
+  ))
+  termina <- any(vapply(
+    .NOMBRES_CLAVE_PROBABLE, function(p) endsWith(n, p), logical(1L)
+  ))
+  if (empieza || termina) return(2)
+  contiene <- any(vapply(
+    .NOMBRES_CLAVE_PROBABLE, function(p) grepl(p, n, fixed = TRUE), logical(1L)
+  ))
+  if (contiene) return(1)
+  0
+}
+
+#' Sugerir qué columnas podrían ser la clave
+#'
+#' Ordena las columnas que **podrían** identificar una fila, para que quien
+#' conoce la tabla elija. No decide: una columna única puede ser una clave o
+#' puede ser una magnitud que no repite, y esa diferencia no está en los datos.
+#'
+#' El orden combina tres señales, y las tres se publican para que se pueda
+#' discutir el orden en vez de aceptarlo: si la columna **identifica** cada fila
+#' sin repetir, si **no tiene ausentes** —una clave con ausentes no identifica—,
+#' y cuánto se **parece su nombre** al de una clave (`id_persona`, `documento`,
+#' `expediente`). El nombre se compara sin acentos ni separadores, así que
+#' `ID_Persona` e `idpersona` pesan igual.
+#'
+#' Las columnas que repiten valores no se ofrecen como clave de una sola
+#' columna, pero sí se informan cuando estuvieron cerca: una columna que
+#' identifica al 99 % suele ser una clave con duplicados de carga, que es
+#' exactamente lo que conviene mirar.
+#'
+#' Una columna `double` con valores de parte fraccionaria —un importe, una
+#' coordenada— puede identificar cada fila y aun así no ser una clave. No se
+#' oculta que identifica, porque es un hecho medido: se dice en el motivo y la
+#' columna queda al final del orden. Es el mismo criterio que aplica
+#' [detectar_claves()], consultado a la misma función.
+#' Las columnas compuestas —matrices o arreglos de más de una dimensión— no se
+#' ofrecen como claves ni reciben una tasa de valores distintos.
+#'
+#' Una columna cuyo nombre se repite en la tabla no se mide: la clave se pasa a
+#' [perfilar()] por nombre, y ese nombre no dice cuál de las dos es. Aparece al
+#' final, fuera de `maximo`, con `identifica`, `sin_faltantes` y
+#' `tasa_distintos` en `NA` y el motivo; [elegir_clave()] no la ofrece.
+#'
+#' @param datos Tabla a examinar.
+#' @param maximo Cuántas sugerencias devolver como máximo: un entero positivo.
+#' @param umbral_casi Proporción de valores distintos a partir de la cual una
+#'   columna que repite se informa igual, como candidata con duplicados.
+#'
+#' @return Un `data.frame` con una fila por columna candidata, ordenado de más a
+#'   menos probable, con las tres señales por separado y el motivo en texto.
+#'   Cero filas si ninguna columna se acerca.
+#'
+#' @examples
+#' personas <- data.frame(
+#'   id_persona = 1:4,
+#'   documento = c(11111111, 22222222, 33333333, 33333333),
+#'   edad = c(30, 41, 25, 25)
+#' )
+#' sugerir_clave(personas)
+#'
+#' @seealso [detectar_claves()] para las combinaciones de varias columnas, y el
+#'   argumento `clave` de [perfilar()] para declarar la que se elija.
+#' @export
+sugerir_clave <- function(datos, maximo = 5L, umbral_casi = 0.95) {
+  .validar_datos_tabla(datos)
+  datos <- .tabla_base(datos)
+  # La ausencia se lee como en el perfil: el nivel `NA` de un factor es un
+  # faltante -"identifica cada fila sin repetir" se publicaba sobre la columna
+  # que `perfilar(clave = )` refuta por ausentes-. Ver
+  # `.normalizar_columnas_entrada()`.
+  datos <- .normalizar_columnas_entrada(datos)
+  # `Inf` pasaba la guarda y `as.integer(Inf)` es NA: aviso de R y error de
+  # `head()`. Como `max_sugerencias` de `proponer_modelo()`, un entero positivo.
+  maximo <- .validar_entero_positivo(maximo, "maximo")
+  if (!is.numeric(umbral_casi) || length(umbral_casi) != 1L ||
+        is.na(umbral_casi) || umbral_casi <= 0 || umbral_casi > 1) {
+    .detener("`umbral_casi` debe estar en (0, 1].", call. = FALSE)
+  }
+  vacio <- data.frame(
+    columna = character(), identifica = logical(), sin_faltantes = logical(),
+    tasa_distintos = numeric(), parecido_nombre = integer(),
+    motivo = character(), stringsAsFactors = FALSE
+  )
+  if (!ncol(datos) || !nrow(datos)) return(vacio)
+
+  # Una columna cuyo nombre se repite no se puede proponer: la clave se pasa a
+  # `perfilar()` por nombre, y ese nombre no dice cual de las dos es. Ademas
+  # `datos[[nombre]]` devolvia siempre la primera, y la fila de la segunda salia
+  # con las cifras de la primera: `identifica = TRUE` y `tasa_distintos = 1`
+  # sobre una columna con duplicados. Se mide por posicion y las repetidas se
+  # declaran en una fila propia, sin cifras.
+  repetidos <- .nombres_repetidos(names(datos))
+  filas <- lapply(which(!repetidos), function(indice) {
+    nombre <- names(datos)[[indice]]
+    x <- datos[[indice]]
+    if (.es_columna_compuesta(x) ||
+        (is.list(x) && !inherits(x, "POSIXlt"))) return(NULL)
+    n_validos <- sum(!is.na(x))
+    if (!n_validos) return(NULL)
+    distintos <- if (is.character(x) || is.factor(x)) {
+      length(unique(.nombres_para_operar(as.character(x[!is.na(x)]))))
+    } else length(unique(x[!is.na(x)]))
+    tasa <- distintos / n_validos
+    identifica <- distintos == nrow(datos) && n_validos == nrow(datos)
+    if (!identifica && tasa < umbral_casi) return(NULL)
+    data.frame(
+      columna = nombre, identifica = identifica,
+      sin_faltantes = n_validos == nrow(datos), tasa_distintos = tasa,
+      parecido_nombre = as.integer(.puntaje_nombre_clave(nombre)),
+      # La misma regla que aplica detectar_claves(), consultada a la misma
+      # funcion en vez de repetida: un `double` con parte fraccionaria es un
+      # importe o una coordenada, no un identificador. Sin esto las dos puertas
+      # respondian distinto a la misma pregunta sobre la misma tabla -medido:
+      # sugerir_clave() ofrecia un importe con decimales que detectar_claves()
+      # excluia-.
+      candidato_por_tipo = isTRUE(.resumen_tipo_candidato_clave(x)$es_candidato),
+      stringsAsFactors = FALSE
+    )
+  })
+  filas <- filas[!vapply(filas, is.null, logical(1L))]
+  nombres_repetidos <- names(datos)[repetidos]
+  nombres_repetidos <- nombres_repetidos[
+    !duplicated(.nombres_para_operar(nombres_repetidos))
+  ]
+  repetidas <- data.frame(
+    columna = nombres_repetidos,
+    identifica = rep(NA, length(nombres_repetidos)),
+    sin_faltantes = rep(NA, length(nombres_repetidos)),
+    tasa_distintos = rep(NA_real_, length(nombres_repetidos)),
+    parecido_nombre = as.integer(vapply(
+      nombres_repetidos, .puntaje_nombre_clave, numeric(1L)
+    )),
+    motivo = vapply(nombres_repetidos, function(nombre) {
+      paste0(
+        "no se midio: hay ", sum(.nombres_para_operar(names(datos)) ==
+                                   .nombres_para_operar(nombre)),
+        " columnas con este nombre y por nombre no se puede elegir ninguna; ",
+        "renombrarlas -por ejemplo con `names(datos) <- make.unique(names(datos))`- ",
+        "y volver a sugerir"
+      )
+    }, character(1L), USE.NAMES = FALSE),
+    stringsAsFactors = FALSE
+  )
+  if (!length(filas)) {
+    if (!nrow(repetidas)) return(vacio)
+    rownames(repetidas) <- NULL
+    return(repetidas)
+  }
+  salida <- do.call(rbind, filas)
+
+  # El orden: primero las que identifican, despues las que no tienen ausentes,
+  # despues el parecido del nombre, y a igualdad la que aparece antes en la
+  # tabla -la clave suele ser la primera columna-.
+  posicion <- .indice_nombre(salida$columna, names(datos))
+  salida <- salida[.orden_por_bytes(
+    -salida$identifica, -salida$candidato_por_tipo, -salida$sin_faltantes,
+    -salida$parecido_nombre, -salida$tasa_distintos, posicion
+  ), , drop = FALSE]
+
+  salida$motivo <- vapply(seq_len(nrow(salida)), function(i) {
+    partes <- character()
+    # Se separan las dos razones por las que una columna puede no identificar,
+    # porque piden arreglos distintos: si repite hay duplicados de carga o la
+    # clave es otra; si tiene ausentes, la columna esta incompleta. Decir "el
+    # resto repite" sobre una columna que no repite nada y solo tiene un vacio
+    # manda a buscar lo que no esta.
+    repite <- salida$tasa_distintos[[i]] < 1
+    partes <- c(partes, if (salida$identifica[[i]]) {
+      "identifica cada fila sin repetir"
+    } else if (repite) {
+      sprintf(
+        "no identifica: %.1f%% de valores distintos, el resto repite",
+        100 * salida$tasa_distintos[[i]]
+      )
+    } else {
+      "no identifica: sus valores no repiten, pero no estan en todas las filas"
+    })
+    if (!salida$candidato_por_tipo[[i]]) {
+      # No se niega que identifique -eso es un hecho medido-, se dice por que
+      # no conviene usarla de clave.
+      partes <- c(partes, paste(
+        "sus valores tienen parte fraccionaria: es una medida, no un",
+        "identificador"
+      ))
+    }
+    if (!salida$sin_faltantes[[i]]) {
+      partes <- c(partes, "una clave con ausentes no identifica")
+    }
+    if (salida$parecido_nombre[[i]] >= 2L) {
+      partes <- c(partes, "su nombre es el de una clave")
+    } else if (salida$parecido_nombre[[i]] == 1L) {
+      partes <- c(partes, "su nombre contiene una palabra de clave")
+    }
+    paste(partes, collapse = "; ")
+  }, character(1L))
+
+  salida <- utils::head(salida, as.integer(maximo))
+  salida <- salida[, c(
+    "columna", "identifica", "sin_faltantes", "tasa_distintos",
+    "parecido_nombre", "motivo"
+  )]
+  # Las repetidas van al final y fuera de `maximo`: no son candidatas, son lo que
+  # no se pudo medir, y un tope no puede callarlas.
+  salida <- rbind(salida, repetidas)
+  rownames(salida) <- NULL
+  salida
+}
+
+#' Elegir la clave entre las sugeridas
+#'
+#' Muestra las candidatas de [sugerir_clave()] numeradas, con el motivo de cada
+#' una, y devuelve la que se elija para pasarla al argumento `clave` de
+#' [perfilar()]. La última opción permite escribir un nombre que no esté en la
+#' lista, o varios separados por coma para una clave compuesta.
+#'
+#' **En una sesión no interactiva no pregunta**: devuelve `NULL` y avisa qué
+#' habría ofrecido. Un guion que corre solo no puede quedarse esperando una
+#' respuesta, y elegir por su cuenta sería exactamente lo que esta función
+#' existe para no hacer.
+#'
+#' @inheritParams sugerir_clave
+#'
+#' @return El nombre —o los nombres— de la clave elegida, o `NULL` si no se
+#'   eligió ninguna o la sesión no es interactiva.
+#'
+#' @examples
+#' personas <- data.frame(id_persona = 1:3, edad = c(30, 41, 25))
+#' # En una sesion interactiva pregunta; aqui devuelve NULL y dice que ofreceria.
+#' elegir_clave(personas)
+#'
+#' @seealso [sugerir_clave()], y el argumento `clave` de [perfilar()].
+#' @export
+elegir_clave <- function(datos, maximo = 5L, umbral_casi = 0.95) {
+  sugerencias <- sugerir_clave(datos, maximo = maximo, umbral_casi = umbral_casi)
+  sugerencias_texto <- .marcar_objeto_para_exhibir(sugerencias)
+  # Las filas sin medir -columnas cuyo nombre se repite- no se ofrecen: elegirlas
+  # devolveria un nombre que no dice cual columna es. Se nombran aparte.
+  medidas <- !is.na(sugerencias$identifica)
+  no_ofrecidas <- sugerencias_texto$columna[!medidas]
+  sugerencias <- sugerencias[medidas, , drop = FALSE]
+  sugerencias_texto <- sugerencias_texto[medidas, , drop = FALSE]
+  if (length(no_ofrecidas)) {
+    cli::cli_alert_warning(.cli_literal(paste0(
+      "No se ofrece",
+      if (length(no_ofrecidas) > 1L) "n " else " ",
+      paste0("`", no_ofrecidas, "`", collapse = ", "),
+      ": hay m\u00e1s de una columna con ese nombre. Renombrarlas antes de ",
+      "elegir la clave."
+    )))
+  }
+  if (!interactive()) {
+    if (nrow(sugerencias)) {
+      cli::cli_alert_info(.cli_literal(paste0(
+        "Sesi\u00f3n no interactiva: no se pregunta. Se habr\u00eda ofrecido ",
+        paste0("`", sugerencias_texto$columna, "`", collapse = ", "),
+        ". Usar `sugerir_clave()` y pasar la elegida a `perfilar(clave = ...)`."
+      )))
+    } else {
+      cli::cli_alert_info(
+        "Sesi\u00f3n no interactiva, y ninguna columna se acerca a ser clave."
+      )
+    }
+    return(NULL)
+  }
+  if (!nrow(sugerencias)) {
+    cli::cli_alert_warning(
+      "Ninguna columna identifica una fila ni se le acerca."
+    )
+    escrita <- readline("Nombre de la clave (vacio para ninguna): ")
+    return(.clave_escrita(escrita, datos))
+  }
+  cli::cli_h2("Cual es la clave de esta tabla?")
+  for (i in seq_len(nrow(sugerencias))) {
+    cli::cli_text(
+      "{i}. {.field {sugerencias_texto$columna[[i]]}} - {sugerencias_texto$motivo[[i]]}"
+    )
+  }
+  otra <- nrow(sugerencias) + 1L
+  cli::cli_text("{otra}. Otra (escribirla; separar con coma si son varias)")
+  cli::cli_text("0. Ninguna")
+  respuesta <- readline("Numero: ")
+  numero <- suppressWarnings(as.integer(trimws(respuesta)))
+  if (is.na(numero) || numero < 0L || numero > otra) {
+    cli::cli_alert_warning("Respuesta no reconocida; no se declara clave.")
+    return(NULL)
+  }
+  if (numero == 0L) return(NULL)
+  if (numero == otra) {
+    return(.clave_escrita(readline("Nombre o nombres: "), datos))
+  }
+  sugerencias$columna[[numero]]
+}
+
+.clave_escrita <- function(texto, datos) {
+  nombres <- trimws(strsplit(as.character(texto), ",", fixed = TRUE)[[1L]])
+  nombres <- nombres[nzchar(nombres)]
+  if (!length(nombres)) return(NULL)
+  indices <- .indice_nombre(nombres, names(datos))
+  faltan <- nombres[is.na(indices)]
+  if (length(faltan)) {
+    cli::cli_alert_danger(.cli_literal(paste0(
+      "No existe en la tabla: ",
+      .marcar_para_exhibir(paste0("`", faltan, "`", collapse = ", ")),
+      "."
+    )))
+    return(NULL)
+  }
+  names(datos)[indices]
+}

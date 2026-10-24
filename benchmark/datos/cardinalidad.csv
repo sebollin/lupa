@@ -1,0 +1,4 @@
+"nivel","descripcion","filas","candidatos","candidatos_por_fila","veces_respecto_alta","commit"
+"alta","vocabulario amplio + nro.",20000,360306,18.0153,1,"R/ md5 08c0a1af7ccb"
+"media","padron sintetico",20000,3513428,175.6714,9.75123367359966,"R/ md5 08c0a1af7ccb"
+"baja","mitad con el mismo valor",20000,50059641,2502.98205,138.936462340344,"R/ md5 08c0a1af7ccb"

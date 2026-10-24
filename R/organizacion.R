@@ -1,0 +1,214 @@
+# La frontera institucional, que es una declaracion y no un dato.
+#
+# Las granularidades 9 y 10 del marco -`organizacion` y `conjuntoOrganizaciones`-
+# estuvieron declaradas y sin medir durante todo el desarrollo, y el motivo
+# escrito era correcto: no falta codigo, falta el objeto. Que bases pertenecen a
+# un organismo no esta en las tablas, ni en el catalogo del motor, ni se deduce
+# de nada. Es un hecho institucional que vive en un documento de gobernanza o en
+# la cabeza de alguien.
+#
+# La salida es la misma que ya se uso un piso mas abajo con el conjunto de
+# colecciones: lo declara quien lo sabe. `organizacion()` toma un nombre y las
+# colecciones que le pertenecen, y con eso `agregar()` puede subir.
+#
+# **Y es opcional, en el sentido fuerte.** Un analisis de calidad no siempre
+# tiene una organizacion detras: puede ser una entrega suelta, un archivo que
+# alguien mando, una base sin duenno institucional declarado. Nada en el paquete
+# obliga a pasar por estos dos niveles; existen para quien los necesita y no
+# aparecen para quien no. Por eso la frontera no tiene valor por omision: sin
+# declaracion, `agregar()` a estos niveles se niega y dice como declararla, que
+# es distinto de inventar una organizacion que nadie nombro.
+#
+# `organizacion()` no pide una conexion. Una coleccion es una cosa viva -tablas
+# de un motor- pero una organizacion es un enunciado sobre colecciones, y puede
+# declarar colecciones de motores distintos. Exigir una conexion habria atado la
+# declaracion institucional a una sesion. Agregar, en cambio, pide una corrida:
+# la ayuda prometia reunir colecciones de momentos distintos y `agregar()` lo
+# rechazaba, y la unica salida era declarar una fecha falsa.
+
+.nombre_de_frontera <- function(x) {
+  if (inherits(x, "coleccion_lupa")) return(x$nombre)
+  if (inherits(x, "perfil_coleccion")) return(x$meta$nombre)
+  if (inherits(x, "organizacion_lupa")) return(x$nombre)
+  if (is.character(x) && length(x) == 1L) return(x)
+  NA_character_
+}
+
+.nombres_declarados_frontera <- function(elementos, argumento,
+                                        con_alias = FALSE) {
+  if (is.character(elementos)) elementos <- as.list(elementos)
+  if (!is.list(elementos) || !length(elementos)) {
+    .detener(
+      "`", argumento, "` debe ser un vector de nombres o una lista no vacia.",
+      call. = FALSE
+    )
+  }
+  desde_objeto <- vapply(elementos, .nombre_de_frontera, character(1L))
+  etiquetas <- names(elementos)
+  # El nombre de la lista renombra la parte para el informe; el nombre del
+  # objeto sigue siendo su identidad. Los dos tienen que servir para
+  # reconocerla, porque `agregar()` escribe la del objeto y el nivel de arriba
+  # compara contra la declarada: sin el alias, la composicion documentada no
+  # corria y el conjunto rechazaba una medida que si le pertenecia.
+  nombres <- if (is.null(etiquetas)) {
+    desde_objeto
+  } else {
+    ifelse(nzchar(etiquetas) & !is.na(etiquetas), etiquetas, desde_objeto)
+  }
+  if (anyNA(nombres) || any(!nzchar(nombres))) {
+    .detener(
+      "Cada elemento de `", argumento, "` tiene que quedar identificado: un ",
+      "nombre de texto, o un objeto de coleccion(), perfilar_coleccion() u ",
+      "organizacion() del que se pueda tomar el nombre.", call. = FALSE
+    )
+  }
+  if (anyDuplicated(.nombres_para_operar(nombres))) {
+    claves_nombres <- .nombres_para_operar(nombres)
+    repetidos <- .identificadores_unicos(nombres[duplicated(claves_nombres)])
+    .detener(
+      "`", argumento, "` repite nombres: ", paste(repetidos, collapse = ", "),
+      ". Los nombres son la identidad de cada parte dentro de la frontera.",
+      call. = FALSE
+    )
+  }
+  if (!con_alias) return(nombres)
+  alias <- desde_objeto
+  alias[is.na(alias) | !nzchar(alias)] <- nombres[is.na(alias) | !nzchar(alias)]
+  list(nombres = nombres, alias = alias)
+}
+
+# Traduce lo que trae una medida al nombre con el que la frontera la declara.
+# Una medida puede venir con el nombre propio del objeto y la frontera haberla
+# renombrado para el informe; las dos formas identifican a la misma parte.
+.resolver_partes_frontera <- function(entidades, frontera) {
+  alias <- frontera$alias
+  if (is.null(alias)) return(entidades)
+  posicion <- .indice_identificador(entidades, alias)
+  ifelse(is.na(posicion), entidades, frontera$declaradas[posicion])
+}
+
+#' Declarar una organización y las colecciones que le pertenecen
+#'
+#' Las granularidades novena y décima del marco —una organización y un conjunto
+#' de organizaciones— necesitan un dato que **no está en los datos**: qué bases
+#' pertenecen a qué organismo. `lupa` no lo adivina, así que lo declara quien lo
+#' sabe, con el mismo mecanismo que ya usa el conjunto de colecciones.
+#'
+#' **Es opcional.** Un análisis de calidad no siempre tiene una organización
+#' detrás, y nada obliga a pasar por estos niveles: existen para quien los
+#' necesita. Sin declaración, [agregar()] a `"organizacion"` se niega y explica
+#' cómo declararla, que es distinto de inventar una frontera que nadie nombró.
+#'
+#' No pide una conexión. Una colección es una cosa viva —tablas de un motor—,
+#' pero una organización es un enunciado *sobre* colecciones, y puede declarar
+#' colecciones que viven en motores distintos. Para **agregar**, en cambio, las
+#' medidas de sus colecciones tienen que venir de una misma corrida —un
+#' `id_medicion` y una fecha—, porque un número describe un momento: las tablas
+#' de motores distintos se miden juntas, y colecciones medidas en momentos
+#' distintos se siguen cada una con [historico_calidad()]. [agregar()] lo dice
+#' así cuando recibe partes de dos corridas.
+#'
+#' @param nombre Nombre de la organización. Es su identidad dentro de un
+#'   conjunto de organizaciones.
+#' @param colecciones Colecciones que le pertenecen: un vector de nombres, o una
+#'   lista de objetos de [coleccion()] o [perfilar_coleccion()]. Si la lista
+#'   tiene nombres, esos nombres mandan sobre el del objeto.
+#'
+#' @return Objeto S3 `organizacion_lupa` con `nombre`, `declaradas`,
+#'   `n_declaradas` y `alias`: el nombre del objeto de cada colección, con el
+#'   que [agregar()] la sigue reconociendo cuando la lista la renombró.
+#' @export
+#' @seealso [agregar()], [coleccion()], [granularidades()]
+#'
+#' @examples
+#' organismo <- organizacion("Organismo A", c("padron", "tramites"))
+#' organismo
+#' organismo$declaradas
+#'
+#' # Cuando los nombres siguen una convencion, la agrupacion se deriva de ella
+#' # y despues se declara. `lupa` no aplica la regla por su cuenta -deducir el
+#' # dueno de una base a partir de su nombre es una inferencia, y la frontera
+#' # se declara-, pero tampoco obliga a escribir la lista a mano: la regla la
+#' # pone quien conoce la convencion, y con la forma que quiera.
+#' esquemas <- c("org_a_padron", "org_a_tramites", "org_b_registro", "cruce")
+#' sigla <- ifelse(grepl("^org_", esquemas), sub("_[^_]+$", "", esquemas), NA)
+#' partes <- split(esquemas[!is.na(sigla)], sigla[!is.na(sigla)])
+#' organismos <- Map(organizacion, names(partes), partes)
+#'
+#' # Y lo que la convencion no alcanza -aca, una base de un integrador, que no
+#' # tiene dueno unico- se declara aparte, en vez de quedar afuera en silencio.
+#' organismos[["integrador"]] <- organizacion("integrador", esquemas[is.na(sigla)])
+#' vapply(organismos, function(o) o$n_declaradas, integer(1))
+organizacion <- function(nombre, colecciones) {
+  if (!is.character(nombre) || length(nombre) != 1L || is.na(nombre) ||
+      !nzchar(nombre)) {
+    .detener("`nombre` debe ser un texto no vacio.", call. = FALSE)
+  }
+  identidad <- .nombres_declarados_frontera(
+    colecciones, "colecciones", con_alias = TRUE
+  )
+  declaradas <- identidad$nombres
+  estructura <- list(
+    nombre = nombre,
+    declaradas = declaradas,
+    n_declaradas = length(declaradas),
+    alias = identidad$alias
+  )
+  class(estructura) <- "organizacion_lupa"
+  estructura
+}
+
+#' @export
+print.organizacion_lupa <- function(x, ...) {
+  original <- x
+  x <- .marcar_objeto_para_exhibir(x)
+  cli::cli_text("Organizaci\u00f3n declarada: {.strong {x$nombre}}")
+  cli::cli_text(
+    "{x$n_declaradas} colecci{?\u00f3n/ones}: {.val {x$declaradas}}"
+  )
+  cli::cli_text(
+    "La frontera es declarada: `lupa` no infiere a qu\u00e9 organismo pertenece ",
+    "una base."
+  )
+  invisible(original)
+}
+
+.validar_organizacion_destino <- function(organizacion) {
+  if (!inherits(organizacion, "organizacion_lupa")) {
+    .detener(
+      "`organizacion` debe provenir de organizacion(): la granularidad ",
+      "'organizacion' agrega sobre una frontera declarada, y sin ella el ",
+      "numero no describiria a ningun organismo.", call. = FALSE
+    )
+  }
+  # El alias -el nombre del objeto de cada coleccion- reconoce la medida que
+  # `agregar()` escribio con ese nombre cuando la lista la renombro. Una
+  # organizacion guardada sin ese campo se lee sin alias.
+  list(nombre = organizacion$nombre, declaradas = organizacion$declaradas,
+       alias = organizacion$alias)
+}
+
+.validar_conjunto_organizaciones <- function(organizaciones) {
+  if (!is.list(organizaciones) || !length(organizaciones)) {
+    .detener(
+      "`organizaciones` debe ser una lista no vacia de objetos creados por ",
+      "organizacion().", call. = FALSE
+    )
+  }
+  validas <- vapply(
+    organizaciones, inherits, logical(1L), what = "organizacion_lupa"
+  )
+  if (any(!validas)) {
+    .detener(
+      "Cada elemento de `organizaciones` debe provenir de organizacion().",
+      call. = FALSE
+    )
+  }
+  identidad <- .nombres_declarados_frontera(
+    organizaciones, "organizaciones", con_alias = TRUE
+  )
+  list(
+    nombre = "conjuntoOrganizaciones", declaradas = identidad$nombres,
+    alias = identidad$alias
+  )
+}

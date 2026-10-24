@@ -1,0 +1,280 @@
+# Comprueba el paquete en macOS sin pasar por pak.
+#
+# Existe porque la fila de macOS de la matriz de plataformas no se podia llenar:
+# el trabajo macos-latest de R-CMD-check.yaml nunca llego a correr las pruebas.
+# Moria antes, instalando dependencias, con
+#
+#   ! Cannot extract '.../knitr_1.52.tgz', unknown archive type.
+#
+# que es pak fallando al abrir un binario que el mismo acababa de bajar. El
+# paquete no participa de ese fallo: ocurre antes de que exista el tarball. Pero
+# el efecto practico era que macOS quedaba SIN MEDIR y la matriz no podia decir
+# otra cosa, porque una plataforma que no corrio no es una plataforma que paso.
+#
+# Este trabajo instala las dependencias con install.packages() -binarios de
+# CRAN, sin el paso de extraccion de pak- y corre el mismo R CMD check --as-cran
+# que el resto de la matriz. Si algun dia pak deja de fallar, este archivo sobra
+# y se borra; mientras tanto es la unica evidencia de macOS que tenemos.
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+  workflow_dispatch:
+
+name: macos.yaml
+
+permissions: read-all
+
+jobs:
+  macos:
+    runs-on: macos-latest
+    name: macos-latest (sin pak)
+
+    env:
+      GITHUB_PAT: ${{ secrets.GITHUB_TOKEN }}
+      R_KEEP_PKG_SOURCE: yes
+      _R_CHECK_FORCE_SUGGESTS_: false
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: r-lib/actions/setup-pandoc@v2
+
+      - uses: r-lib/actions/setup-r@v2
+        with:
+          r-version: 'release'
+          use-public-rspm: false
+
+      - name: Instalar dependencias sin pak
+        run: |
+          # Se lee el DESCRIPTION con read.dcf y se instala con
+          # install.packages(): binarios de CRAN, sin el paso de extraccion
+          # propio de pak que es el que rompe. No se usa remotes ni pak porque
+          # ninguno de los dos viene en un R recien instalado, y traerlos seria
+          # volver a depender de la infraestructura que falla.
+          d <- read.dcf("DESCRIPTION")
+          campos <- intersect(c("Depends", "Imports", "Suggests", "LinkingTo"), colnames(d))
+          # Los nombres se sacan recorriendo y contando parentesis, no con una
+          # expresion regular. Hubo dos intentos antes y los dos fallaron:
+          #
+          #   sub("[[:space:]]*\\(.*", "")  partia por comas primero, asi que
+          #       `foo (>= 1.0, < 2.0)` -DCF legal- daba las entradas "foo (>= 1.0"
+          #       y "< 2.0)", y el paso corria install.packages("< 2.0)").
+          #   gsub("\\([^)]*\\)", "")     borraba parentesis primero, pero `[^)]*`
+          #       NO cuenta anidamiento: paraba en el primer cierre. Arreglaba el
+          #       caso de arriba y ROMPIA dos que antes salian bien -dejaba un
+          #       ")" suelto como paquete, o el "(>= 1.0" entero-.
+          #
+          # Ninguna expresion regular hace esto: el anidamiento no es regular.
+          nombres_dependencias <- function(texto) {
+            caracteres <- strsplit(texto, "", fixed = TRUE)[[1L]]
+            profundidad <- 0L
+            entradas <- character()
+            actual <- character()
+            # `vio_algo` se lleva DENTRO del recorrido, y esa es la correccion.
+            # La version anterior comparaba la cuenta de entradas contra un
+            # corte ingenuo por comas, y una coma legal dentro de un parentesis
+            # desalinea las dos cuentas: la guarda se apagaba sola justo con la
+            # entrada complicada. Medido:
+            #   `foo (>= 1.0, < 2.0), (bar), baz` -> [foo] [] [baz], sin abortar
+            # y `bar` desaparecia de la lista de instalacion.
+            vio_algo <- FALSE
+            vistos <- logical()
+            for (ch in caracteres) {
+              if (ch == "(") {
+                profundidad <- profundidad + 1L
+                vio_algo <- TRUE
+              } else if (ch == ")") {
+                # Un cierre sin apertura tambien es malformado, y antes se
+                # tragaba en silencio -`max(0L, ...)` lo absorbia-.
+                if (profundidad == 0L) {
+                  stop(
+                    "DESCRIPTION mal formado: parentesis de cierre sin ",
+                    "apertura en: ", texto, call. = FALSE
+                  )
+                }
+                profundidad <- profundidad - 1L
+              } else if (ch == "," && profundidad == 0L) {
+                entradas <- c(entradas, paste(actual, collapse = ""))
+                vistos <- c(vistos, vio_algo)
+                actual <- character()
+                vio_algo <- FALSE
+                next
+              }
+              if (!(ch %in% c(" ", "\t", "\n"))) vio_algo <- TRUE
+              if (profundidad == 0L && ch != ")") actual <- c(actual, ch)
+            }
+            vistos <- c(vistos, vio_algo)
+            if (profundidad != 0L) {
+              # Un parentesis sin cerrar NO se arregla en silencio. Antes, el
+              # recorrido se tragaba lo que quedaba del campo; y como los campos
+              # se pegaban con comas antes de parsear, se llevaba tambien el
+              # `Suggests` entero: medido, cinco paquetes desaparecian y el paso
+              # seguia. Con `_R_CHECK_FORCE_SUGGESTS_: false` el check pasaba
+              # igual y la fila publicada decia que macOS estaba en verde,
+              # midiendo mucho menos de lo que afirmaba.
+              #
+              # Una corrida verde que no midio lo que dice es peor que una
+              # roja. Se aborta y se nombra el campo.
+              stop(
+                "DESCRIPTION mal formado: parentesis sin cerrar en: ", texto,
+                call. = FALSE
+              )
+            }
+            nombres <- trimws(c(entradas, paste(actual, collapse = "")))
+            # Una entrada que TENIA texto y se quedo sin nombre es un paquete
+            # que desaparece de la lista de instalacion: `(foo), bar` daba
+            # `bar` y `foo` se perdia sin error y sin aviso. La guarda anterior
+            # miraba solo el parentesis sin cerrar, y sus dos espejos -el nombre
+            # envuelto y el cierre suelto- se arreglaban en silencio. Una
+            # corrida verde que no midio lo que dice es peor que una roja, y eso
+            # no depende de CUAL sea la malformacion.
+            perdidas <- vistos & !nzchar(nombres)
+            if (any(perdidas)) {
+              stop(
+                "DESCRIPTION mal formado: entrada sin nombre de paquete en: ",
+                texto, call. = FALSE
+              )
+            }
+            nombres
+          }
+          # Campo por campo y no pegados: si uno esta mal formado, el error dice
+          # cual, y un problema en `Imports` no puede arrastrarse al `Suggests`.
+          nombres <- unlist(lapply(campos, function(campo) {
+            nombres_dependencias(d[1, campo])
+          }), use.names = FALSE)
+          nombres <- setdiff(nombres, c("R", "", NA))
+          base_r <- rownames(installed.packages(priority = "base"))
+          pedidos <- setdiff(unique(nombres), base_r)
+          cat("Dependencias declaradas:", paste(pedidos, collapse = " "), "\n")
+
+          # Se instalan de a uno y se informa cual falto, en vez de exigir que
+          # esten todos: algunos Suggests -duckdb, RPostgres, sf- pueden no
+          # tener binario para esta version de R, y el paquete declara que
+          # funciona sin ellos. Que falte uno no debe tumbar la comprobacion;
+          # que falte y no se diga, si seria un problema, porque la fila de la
+          # matriz estaria contando como completa una corrida parcial.
+          faltantes <- character()
+          for (pkg in c(pedidos, "rcmdcheck")) {
+            if (requireNamespace(pkg, quietly = TRUE)) next
+            try(install.packages(pkg), silent = TRUE)
+            if (!requireNamespace(pkg, quietly = TRUE)) faltantes <- c(faltantes, pkg)
+          }
+          if ("rcmdcheck" %in% faltantes) {
+            stop("Sin rcmdcheck no hay comprobacion que correr.")
+          }
+          if (length(faltantes)) {
+            cat("::warning::Sin instalar en macOS: ", paste(faltantes, collapse = ", "), "\n", sep = "")
+          }
+        shell: Rscript {0}
+
+      - name: Declarar que corrio
+        run: |
+          # La fila de la matriz necesita saber CON QUE se midio, no solo que
+          # dio verde: un check que salta la mitad de las pruebas por falta de
+          # Suggests no es el mismo hecho que uno que las corre todas.
+          #
+          # La lista de Suggests se vuelve a leer del DESCRIPTION en vez de
+          # escribirse aca: una copia a mano envejece en silencio y este paso
+          # informaria "ausentes: ninguno" sobre un paquete que agrego uno.
+          d <- read.dcf("DESCRIPTION")
+          sug <- if ("Suggests" %in% colnames(d)) d[1, "Suggests"] else ""
+          # Los nombres se sacan recorriendo y contando parentesis, no con una
+          # expresion regular. Hubo dos intentos antes y los dos fallaron:
+          #
+          #   sub("[[:space:]]*\\(.*", "")  partia por comas primero, asi que
+          #       `foo (>= 1.0, < 2.0)` -DCF legal- daba las entradas "foo (>= 1.0"
+          #       y "< 2.0)", y el paso corria install.packages("< 2.0)").
+          #   gsub("\\([^)]*\\)", "")     borraba parentesis primero, pero `[^)]*`
+          #       NO cuenta anidamiento: paraba en el primer cierre. Arreglaba el
+          #       caso de arriba y ROMPIA dos que antes salian bien -dejaba un
+          #       ")" suelto como paquete, o el "(>= 1.0" entero-.
+          #
+          # Ninguna expresion regular hace esto: el anidamiento no es regular.
+          nombres_dependencias <- function(texto) {
+            caracteres <- strsplit(texto, "", fixed = TRUE)[[1L]]
+            profundidad <- 0L
+            entradas <- character()
+            actual <- character()
+            # `vio_algo` se lleva DENTRO del recorrido, y esa es la correccion.
+            # La version anterior comparaba la cuenta de entradas contra un
+            # corte ingenuo por comas, y una coma legal dentro de un parentesis
+            # desalinea las dos cuentas: la guarda se apagaba sola justo con la
+            # entrada complicada. Medido:
+            #   `foo (>= 1.0, < 2.0), (bar), baz` -> [foo] [] [baz], sin abortar
+            # y `bar` desaparecia de la lista de instalacion.
+            vio_algo <- FALSE
+            vistos <- logical()
+            for (ch in caracteres) {
+              if (ch == "(") {
+                profundidad <- profundidad + 1L
+                vio_algo <- TRUE
+              } else if (ch == ")") {
+                # Un cierre sin apertura tambien es malformado, y antes se
+                # tragaba en silencio -`max(0L, ...)` lo absorbia-.
+                if (profundidad == 0L) {
+                  stop(
+                    "DESCRIPTION mal formado: parentesis de cierre sin ",
+                    "apertura en: ", texto, call. = FALSE
+                  )
+                }
+                profundidad <- profundidad - 1L
+              } else if (ch == "," && profundidad == 0L) {
+                entradas <- c(entradas, paste(actual, collapse = ""))
+                vistos <- c(vistos, vio_algo)
+                actual <- character()
+                vio_algo <- FALSE
+                next
+              }
+              if (!(ch %in% c(" ", "\t", "\n"))) vio_algo <- TRUE
+              if (profundidad == 0L && ch != ")") actual <- c(actual, ch)
+            }
+            vistos <- c(vistos, vio_algo)
+            if (profundidad != 0L) {
+              # Un parentesis sin cerrar NO se arregla en silencio. Antes, el
+              # recorrido se tragaba lo que quedaba del campo; y como los campos
+              # se pegaban con comas antes de parsear, se llevaba tambien el
+              # `Suggests` entero: medido, cinco paquetes desaparecian y el paso
+              # seguia. Con `_R_CHECK_FORCE_SUGGESTS_: false` el check pasaba
+              # igual y la fila publicada decia que macOS estaba en verde,
+              # midiendo mucho menos de lo que afirmaba.
+              #
+              # Una corrida verde que no midio lo que dice es peor que una
+              # roja. Se aborta y se nombra el campo.
+              stop(
+                "DESCRIPTION mal formado: parentesis sin cerrar en: ", texto,
+                call. = FALSE
+              )
+            }
+            nombres <- trimws(c(entradas, paste(actual, collapse = "")))
+            # Una entrada que TENIA texto y se quedo sin nombre es un paquete
+            # que desaparece de la lista de instalacion: `(foo), bar` daba
+            # `bar` y `foo` se perdia sin error y sin aviso. La guarda anterior
+            # miraba solo el parentesis sin cerrar, y sus dos espejos -el nombre
+            # envuelto y el cierre suelto- se arreglaban en silencio. Una
+            # corrida verde que no midio lo que dice es peor que una roja, y eso
+            # no depende de CUAL sea la malformacion.
+            perdidas <- vistos & !nzchar(nombres)
+            if (any(perdidas)) {
+              stop(
+                "DESCRIPTION mal formado: entrada sin nombre de paquete en: ",
+                texto, call. = FALSE
+              )
+            }
+            nombres
+          }
+          sug <- nombres_dependencias(sug)
+          sug <- setdiff(sug, c("", NA))
+          ip <- rownames(installed.packages())
+          cat("R:", R.version.string, "\n")
+          cat("plataforma:", R.version$platform, "\n")
+          cat("Suggests presentes:", paste(intersect(sug, ip), collapse = " "), "\n")
+          cat("Suggests ausentes:", paste(setdiff(sug, ip), collapse = " "), "\n")
+        shell: Rscript {0}
+
+      - uses: r-lib/actions/check-r-package@v2
+        with:
+          upload-snapshots: true
+          args: 'c("--no-manual", "--as-cran")'
+          build_args: 'c("--no-manual")'
+          error-on: '"warning"'

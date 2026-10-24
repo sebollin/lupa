@@ -1,0 +1,201 @@
+url: https://sebollin.github.io/lupa/
+
+template:
+  bootstrap: 5
+  includes:
+    # pkgdown no procesa plantillas dentro de este include. La URL absoluta
+    # permite que el logo funcione tanto en el sitio publicado como en una
+    # vista local file://.
+    before_title: |
+      <a class="navbar-brand p-0 me-2" href="https://sebollin.github.io/lupa/"><img src="https://sebollin.github.io/lupa/logo.png" height="32" alt="lupa" /></a>
+    # El enlace adicional con rel=icon cubre el icono PNG de 180px en la
+    # comprobación del sitio; el enlace apple-touch-icon que genera pkgdown se
+    # conserva para dispositivos Apple. Este include es HTML crudo, por eso
+    # usa la URL publicada en vez de una plantilla de ruta relativa.
+    head: |
+      <link rel="icon" type="image/png" sizes="180x180" href="https://sebollin.github.io/lupa/apple-touch-icon.png">
+
+lang: es
+
+home:
+  title: "lupa — perfilado y calidad de datos"
+  description: >
+    Examinar, medir, evaluar, remediar y monitorear calidad de datos con
+    resultados auditables.
+
+navbar:
+  structure:
+    left: [intro, reference, articles, news]
+    right: []
+
+articles:
+- title: Recorrido
+  navbar: ~
+  desc: >
+    Los tutoriales en orden: de la primera tabla al plan de limpieza, la
+    medición y el seguimiento entre entregas.
+  contents:
+  - lupa
+  - leer-un-perfil
+  - explorar-columnas
+  - estructura-no-declarada
+  - vacio-por-diseno
+  - limpiar-con-un-plan
+  - del-hallazgo-a-la-metrica
+  - marcos-y-modelos
+  - historico-y-deriva
+
+- title: Bases y escala
+  navbar: Bases y escala
+  desc: >
+    Perfilar en el motor, declarar una base de varias tablas y buscar
+    duplicados en tablas grandes.
+  contents:
+  - perfilar-una-base
+  - colecciones
+  - escala-y-duplicados
+
+- title: Referencia en línea
+  navbar: Referencia en línea
+  desc: >
+    Motores, alcance, evidencia y codificación, con el detalle que la ayuda de
+    cada función no alcanza a reunir.
+  contents:
+  - articles/motores-y-escala
+  - articles/alcance-y-cobertura
+  - articles/evidencia-y-rendimiento
+  - articles/codificacion-y-locales
+
+redirects:
+- ["articles/empezar-con-lupa.html", "articles/explorar-columnas.html"]
+- ["articles/flujo-guiado.html", "articles/del-hallazgo-a-la-metrica.html"]
+- ["articles/medir-y-evaluar.html", "articles/marcos-y-modelos.html"]
+- ["articles/definir-la-calidad.html", "articles/marcos-y-modelos.html"]
+
+reference:
+- title: Examinar
+  desc: Perfilar datos y descubrir su estructura.
+  contents:
+  - analizar
+  - perfilar
+  - perfilar_por
+  - organizacion
+  - perfilar_dbi
+  - plan_perfilado_dbi
+  - requisitos_motor
+  - hallazgos
+  - distribucion_valores
+  - detectar_asociaciones
+  - analizar_tiempo
+  - clasificar_variables
+  - senal_redundante
+  - detectar_discordancias
+  - descubrir_patrones
+  - normalizacion
+  - inferir_tipo
+  - detectar_formatos_fecha
+  - detectar_claves
+  - sugerir_clave
+  - elegir_clave
+  - detectar_dependencias
+  - detectar_relaciones
+  - detectar_duplicados_aproximados
+  - estimar_costo
+  - cobertura_analisis
+  - as_tibble.perfil
+  - datos_administrativos
+  - datos_operativos
+
+- title: Proponer
+  desc: Convertir diagnósticos en una propuesta editable de medición.
+  contents:
+  - proponer_modelo
+  - modelo_desde_propuesta
+
+- title: Medir
+  desc: Declarar métricas, referenciales, granularidad y agregaciones.
+  contents:
+  - marco_calidad
+  - marco_agesic
+  - marco_iso25012
+  - metrica
+  - propiedades_metrica
+  - especializar
+  - instanciar
+  - modelo
+  - metricas_nucleo
+  - referencial
+  - contratos_medicion
+  - vigencia
+  - escala
+  - metricas_referencial
+  - catalogo_agesic
+  - granularidades
+  - transiciones_granularidad
+  - medir
+  - agregar
+  - tablero_calidad
+  - indice_calidad
+  - estadisticos_estimacion
+  - medicion_desde_estimaciones
+
+- title: Colecciones
+  desc: Declarar una base de varias tablas y perfilarla como conjunto.
+  contents:
+  - coleccion
+  - perfilar_coleccion
+  - estimar_costo_coleccion
+  - relaciones_coleccion
+
+- title: Validar
+  desc: Validadores internacionales y packs territoriales extensibles.
+  contents:
+  - validadores_formato
+  - validadores_uy
+  - validadores_internacionales
+  - validadores_uruguay
+  - validar_iso3166
+  - validar_iso4217
+  - validar_correo
+  - validar_luhn
+  - validar_mod97
+  - validar_ci_uy
+  - validar_rut_uy
+  - pack_validadores
+
+- title: Evaluar
+  desc: Aplicar reglas y perfiles de madurez a las medidas.
+  contents:
+  - regla_evaluacion
+  - propiedades_regla
+  - perfil_evaluacion
+  - perfiles_madurez
+  - evaluar
+  - comparar_evaluaciones
+
+- title: Remediar
+  desc: Revisar y aplicar planes trazables sin mutación implícita.
+  contents:
+  - planificar_limpieza
+  - guiar_limpieza
+  - aplicar
+  - sentinelas_naniar
+
+- title: Monitorear
+  desc: Acumular corridas y detectar cambios entre entregas.
+  contents:
+  - historico_calidad
+  - acumular_historico
+  - guardar_historico
+  - leer_historico
+  - detectar_deriva_calidad
+  - comparar_perfiles
+  - comparar_equivalencia
+
+- title: Informar
+  desc: Persistir un análisis y crear un reporte HTML autocontenido.
+  contents:
+  - persistir_analisis
+  - guardar_analisis
+  - leer_analisis
+  - reportar

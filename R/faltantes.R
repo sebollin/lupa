@@ -1,0 +1,279 @@
+.cadenas_na_naniar_1_1_0 <- c(
+  "missing", "NA", "N A", "N/A", "#N/A", "NA ", " NA", "N /A",
+  "N / A", " N / A", "N / A ", "na", "n a", "n/a", "na ", " na",
+  "n /a", "n / a", " a / a", "n / a ", "NULL", "null", "", "?",
+  "*", "."
+)
+# [naniar](https://github.com/njtierney/naniar) publica los tres últimos valores
+# escapados para expresiones regulares.
+# Aquí se adaptan a literales porque la detección usa igualdad con %in%.
+
+# La familia "no disponible" faltaba entera: la lista tenia `s/d`, `s/i` y `n/c`
+# con sus formas, y `n/d` -de las abreviaturas mas comunes del espanol- no
+# estaba en ninguna.
+.cadenas_na_locales <- c(
+  "n.a", "n.a.", "nan", "none", "nil", "not available",
+  "s/d", "s.d", "s.d.", "s.i", "s.i.", "s/i",
+  "n/d", "n.d", "n.d.", "no disponible",
+  "sin dato", "sin datos", "sin informaci\u00f3n", "sin informacion",
+  "no corresponde", "n/c", "-", ".", "..", "...", "[]"
+)
+
+# Las formas de DOS LETRAS SIN SEPARADOR son ambiguas y su veredicto depende de
+# la COLUMNA, no del valor. Medido en el banco de datos reales: en una columna
+# de codigos de estado de EE.UU. -51 valores distintos- `perfilar()` publicaba
+# `faltantes_disfrazados` con severidad **error** y evidencia "NC (59); SD (7)",
+# acusando a Carolina del Norte y Dakota del Sur. Pero en una columna de dos
+# valores, `c("SI", "SD")`, ese mismo `SD` es "sin dato" y retirarlo del
+# vocabulario es correcto: hay un test que lo exige desde antes.
+#
+# Lo que separa los dos casos es el TAMANO DEL VOCABULARIO: un sistema de
+# codigos tiene muchos valores distintos; una columna con un centinela tiene
+# pocos. Se reusa el mismo piso que el paquete ya usa para decidir si una
+# cardinalidad es alta.
+.cadenas_na_ambiguas <- c("sd", "nc", "nd")
+
+.cadenas_na_locales_ambiguas_aplican <- function(normalizados) {
+  distintos <- length(unique(normalizados[!is.na(normalizados)]))
+  isTRUE(distintos < .min_distintos_alta_cardinalidad)
+}
+
+.numeros_na_locales <- c(-9, -99, -999, -9999, 999)
+
+#' Sentinelas numéricos publicados por [naniar](https://github.com/njtierney/naniar)
+#'
+#' Vector para solicitar explícitamente la lista numérica completa publicada
+#' por [naniar](https://github.com/njtierney/naniar). Sus autores incluyen a
+#' [Nicholas Tierney](https://github.com/njtierney), [Di Cook](https://github.com/dicook),
+#' [Miles McBain](https://github.com/milesmcbain) y [Colin Fay](https://github.com/ColinFay).
+#' Incluye `66`, `77`,
+#' `88` y `9999`, que pueden ser edades,
+#' códigos o años legítimos y por eso no se aplican de forma predeterminada.
+#' Se usa como `perfilar(datos, sentinelas_numericos = sentinelas_naniar)`.
+#' Tanto este vector como las cadenas de ausencia incorporadas en el paquete
+#' están congelados con referencia a [naniar](https://github.com/njtierney/naniar)
+#' 1.1.0; no cambian según la versión instalada.
+#'
+#' @format Vector numérico de ocho elementos.
+#' @source `naniar::common_na_numbers`, versión 1.1.0. Véase el
+#' [repositorio de naniar](https://github.com/njtierney/naniar).
+#' @docType data
+#' @export
+#' @seealso [perfilar()], [planificar_limpieza()]
+#'
+#' @examples
+#' sentinelas_naniar
+#' datos <- data.frame(codigo = c(1, 66, 9999))
+#' perfil <- perfilar(
+#'   datos, sentinelas_numericos = sentinelas_naniar,
+#'   analizar_dependencias = FALSE
+#' )
+#' perfil$columnas[, c("columna", "n_faltantes_disfrazados")]
+sentinelas_naniar <- c(-9, -99, -999, -9999, 9999, 66, 77, 88)
+
+.cadenas_na <- function() {
+  valores <- c(
+    .cadenas_na_naniar_1_1_0, .cadenas_na_locales, .cadenas_na_ambiguas
+  )
+  unique(.minusculas_para_comparar(valores))
+}
+
+.normalizar_sentinelas_numericos <- function(valores) {
+  if (is.null(valores) || !length(valores)) return(numeric())
+  numericos <- suppressWarnings(as.numeric(valores))
+  numericos <- numericos[!is.na(numericos)]
+  .sort_por_bytes(unique(numericos))
+}
+
+# El vocabulario de ausencia que vale para UNA columna, ya normalizada. Una sola
+# regla para el detector y para el plan: el plan leia los marcadores de los datos
+# contra el catalogo COMPLETO, sin la guarda de `sd`, `nc` y `nd` en columnas de
+# diez o mas valores distintos. Sobre doce codigos de dos letras con `sd` y `nd`
+# mas un `S/D`, el perfil detectaba solo `S/D`, y el plan publicaba
+# `valores = c("sd", "nd", "s/d")`, decia que "sd, nd" podian ser legitimos -no
+# se habian detectado- y por eso dejaba sin recomendar la conversion que el
+# hallazgo si sostenia. Medido.
+#
+# Lo declarado atraviesa la guarda del vocabulario, igual que un centinela
+# numerico declarado atraviesa la de la secuencia densa: el paquete no tiene con
+# que contradecir a quien conoce el dato.
+.cadenas_ausencia_columna <- function(normalizados, cadenas_ausencia = NULL) {
+  cadenas <- .cadenas_na()
+  if (!.cadenas_na_locales_ambiguas_aplican(normalizados)) {
+    cadenas <- setdiff(cadenas, .cadenas_na_ambiguas)
+  }
+  if (length(cadenas_ausencia)) {
+    cadenas <- unique(c(
+      cadenas, .minusculas_para_comparar(cadenas_ausencia)
+    ))
+  }
+  cadenas
+}
+
+# El numero de cada texto para compararlo con los centinelas: con la convencion
+# decimal de la columna, si el perfil publico una. La usan el detector y la
+# accion `convertir_sentinelas_numericos`, que tienen que marcar las mismas
+# celdas.
+.leer_numeros_texto_centinela <- function(texto, convencion = NULL) {
+  if (length(convencion) == 1L && !is.na(convencion) &&
+      nzchar(as.character(convencion))) {
+    return(.leer_numeros_texto(texto, as.character(convencion)))
+  }
+  suppressWarnings(as.numeric(texto))
+}
+
+.numeros_na <- function(valores = .numeros_na_locales) {
+  .normalizar_sentinelas_numericos(valores)
+}
+
+# `convencion` es la convencion decimal que el perfil publica para la columna en
+# `numero_texto_convencion`. Con ella, un centinela escrito en texto se lee como
+# lee el resto del perfil -`.leer_numeros_texto()`-: `"-999,00"` en una columna
+# `decimal_coma` es -999, como su `minimo`. Con `as.numeric()` era `NA`, y la
+# columna publicaba `minimo = -999` con cero disfrazados y sin `NoNulo`, al
+# lado de la misma cifra escrita `"-999.00"`, que si contaba.
+# Sin convencion -o vacia: la columna no se lee como numero- la lectura es la
+# de siempre.
+.detectar_faltantes_disfrazados <- function(
+    x, sentinelas_numericos = .numeros_na_locales,
+    detectar_sentinelas_numericos = TRUE,
+    cadenas_ausencia = NULL, convencion = NULL) {
+  n <- length(x)
+  if (!n) {
+    return(list(
+      n = 0L, proporcion = 0, mascara = logical(), evidencia = "",
+      n_textuales = 0L, n_numericos = 0L
+    ))
+  }
+
+  mascara <- rep(FALSE, n)
+  mascara_textual <- rep(FALSE, n)
+  mascara_numerica <- rep(FALSE, n)
+  numeros_na <- .numeros_na(sentinelas_numericos)
+  if (is.character(x) || is.factor(x)) {
+    textos <- .texto_analizable(x)$valores
+    normalizados <- .minusculas_para_comparar(textos)
+    cadenas <- .cadenas_ausencia_columna(normalizados, cadenas_ausencia)
+    mascara_textual <- !is.na(normalizados) & normalizados %in% cadenas
+    numericos <- .leer_numeros_texto_centinela(normalizados, convencion)
+    mascara_numerica <- detectar_sentinelas_numericos &
+      !is.na(normalizados) & !is.na(numericos) & numericos %in% numeros_na
+    mascara <- mascara_textual | mascara_numerica
+    etiquetas <- textos[mascara]
+    etiquetas[trimws(etiquetas) == ""] <- "<blanco>"
+  } else if (
+    (is.numeric(x) || inherits(x, c("difftime", "units"))) &&
+      !inherits(x, c("Date", "POSIXt"))
+  ) {
+    # `is.numeric()` da FALSE sobre un `difftime` y sobre un `units`, asi que las
+    # dos clases quedaban fuera de la deteccion sin que nada lo dijera. Medido con
+    # las MISMAS cifras en dos columnas: la `doble` publicaba
+    # `n_faltantes_disfrazados_numericos = 2` y la `difftime` publicaba 0, las dos
+    # con la misma `media = -1758` distorsionada por el `-9999`. Es la regresion
+    # que abrio el dia que `difftime` dejo de abstenerse del resumen: entro a la
+    # maquinaria cuantitativa por una puerta y no por esta.
+    #
+    # `Date` y `POSIXt` siguen afuera a proposito: un `-9999` en un calendario es
+    # una fecha de 1942, no un codigo de ausencia.
+    #
+    # `integer64` tampoco entra, y NO por olvido: `unclass()` de un `integer64` es
+    # un `double` cuyos bits son el entero, asi que comparar contra la lista de
+    # centinelas compararia basura. Esa clase necesita su propia comparacion y
+    # queda declarada como pendiente, no resuelta a medias.
+    #
+    # La comparacion se hace sobre el numero, que es donde viven los centinelas:
+    # `as.numeric()` de un `difftime` de minutos da los minutos.
+    numero <- suppressWarnings(as.numeric(x))
+    mascara_numerica <- detectar_sentinelas_numericos &
+      !is.na(numero) & numero %in% numeros_na
+    mascara <- mascara_numerica
+    # La etiqueta del valor, no su escritura en la sesion: con `scipen = -9` el
+    # centinela -99 salia `-9.9e+01` en la evidencia, que ademas se relee como
+    # lista de marcadores.
+    etiquetas <- .etiqueta_numero_reversible(numero[mascara])
+  } else {
+    etiquetas <- character()
+  }
+
+  # El mismo defecto que `R/patrones.R:87`, una funcion mas alla: `table()`
+  # ordena sus niveles con la intercalacion del locale y `sort()` conserva ese
+  # orden en los empates, asi que con ocho etiquetas de igual frecuencia y seis
+  # lugares en la evidencia el desempate lo decidia la maquina. Medido: una
+  # sesion publicaba `SIN DATO` y la otra no. Desempate por bytes.
+  conteo_etiquetas <- table(etiquetas)
+  tabla <- conteo_etiquetas[.orden_por_bytes(-as.integer(conteo_etiquetas),
+                                 .clave_bytes(names(conteo_etiquetas)),
+                                 method = "radix")]
+  evidencia <- if (length(tabla)) {
+    paste0(names(utils::head(tabla, 6L)), " (", as.integer(utils::head(tabla, 6L)), ")",
+           collapse = "; ")
+  } else {
+    ""
+  }
+  cantidad <- sum(mascara)
+  list(
+    n = cantidad,
+    proporcion = cantidad / n,
+    mascara = mascara,
+    evidencia = evidencia,
+    n_textuales = sum(mascara_textual),
+    n_numericos = sum(mascara_numerica & !mascara_textual),
+    # Las submascaras salen para que un universo aplicable declarado pueda
+    # recortar los conteos sin volver a detectar.
+    mascara_textual = mascara_textual,
+    mascara_numerica = mascara_numerica & !mascara_textual
+  )
+}
+
+# Los marcadores de ausencia que hay en una columna, y si la lista es completa.
+#
+# La primera version los leia de la EVIDENCIA del hallazgo, y la evidencia se
+# recorta a los seis marcadores mas frecuentes: un `NA` poco frecuente -el
+# codigo de Namibia- quedaba fuera de la vista y la conversion se autoaplicaba
+# igual, destruyendolo. Ahora se leen de los DATOS cuando estan, que es lo
+# habitual. La evidencia queda de respaldo para cuando `planificar_limpieza()`
+# recibe el perfil solo, y ahi se detecta si vino recortada: si los conteos
+# que muestra no suman el total de textuales, hay marcadores que no se ven, y
+# `completa = FALSE` obliga a quien llama a ser prudente.
+.marcadores_de_ausencia <- function(columna_datos, evidencia, n_textuales,
+                                    declarados = character()) {
+  if (!is.null(columna_datos) && (is.character(columna_datos) ||
+                                  is.factor(columna_datos))) {
+    textos <- .texto_analizable(columna_datos)$valores
+    todos <- .minusculas_para_comparar(textos)
+    catalogo <- .cadenas_ausencia_columna(todos, declarados)
+    normalizados <- unique(todos[!is.na(todos)])
+    return(list(marcadores = normalizados[normalizados %in% catalogo],
+                completa = TRUE))
+  }
+  if (is.null(evidencia) || !length(evidencia) || is.na(evidencia[[1L]]) ||
+      !nzchar(evidencia[[1L]])) {
+    return(list(marcadores = character(), completa = FALSE))
+  }
+  partes <- strsplit(
+    .declarar_utf8_valido(as.character(evidencia)[[1L]]), "; ", fixed = TRUE
+  )[[1L]]
+  marcadores <- .minusculas_para_comparar(sub("\\s*\\([0-9]+\\)$", "", partes))
+  conteos <- suppressWarnings(as.integer(sub("^.*\\(([0-9]+)\\)$", "\\1", partes)))
+  completa <- !anyNA(conteos) && !is.na(n_textuales) &&
+    sum(conteos) >= n_textuales
+  list(marcadores = marcadores, completa = completa)
+}
+
+# Si alguno de esos marcadores podria ser un valor legitimo de la columna.
+#
+# `NA` es el codigo ISO de Namibia, `NULL` puede ser un apellido. Nadie, en
+# cambio, escribe `S/D`, `sin dato`, `-` o `?` como dato: llevan puntuacion o
+# espacios y no se confunden. El criterio es alfanumerico y no solo alfabetico:
+# un codigo como `NA1` es tan plausible como `NA`.
+#
+# Lo que el usuario DECLARO en `cadenas_ausencia` no se discute. La deteccion
+# ya dice que lo declarado atraviesa la guarda del vocabulario porque el
+# paquete no tiene con que contradecir a quien conoce el dato, y el plan no
+# puede contradecirlo despues: pedirle que confirme lo que acaba de afirmar.
+.marcadores_ambiguos <- function(marcadores, declarados = character()) {
+  if (!length(marcadores)) return(character())
+  propios <- setdiff(marcadores, .minusculas_para_comparar(declarados))
+  propios[grepl("^[[:alnum:]]+$", propios)]
+}
+

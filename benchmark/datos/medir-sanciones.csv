@@ -1,0 +1,10 @@
+"fecha","revision_paquete","version_R","filas_registro","sha256_registro","errores_lupa","comprobacion","tipo_hallazgo","lupa","r_base","coincide"
+"2026-10-24T13:13:37Z","0.1.0; R/ md5 08c0a1af7ccb","R version 4.6.1 (2026-06-24)",2583,"1bb7689d8ffe666301ffcd35b3d3aa0289046f0f20029c6f1a9f4a454f3c6675",9,"Fecha: celdas en blanco","faltantes_disfrazados","1","1",TRUE
+"2026-10-24T13:13:37Z","0.1.0; R/ md5 08c0a1af7ccb","R version 4.6.1 (2026-06-24)",2583,"1bb7689d8ffe666301ffcd35b3d3aa0289046f0f20029c6f1a9f4a454f3c6675",9,"Fecha: formatos ISO y dd/mm/aaaa","formatos_fecha_mixtos","2579,2","2579,2",TRUE
+"2026-10-24T13:13:37Z","0.1.0; R/ md5 08c0a1af7ccb","R version 4.6.1 (2026-06-24)",2583,"1bb7689d8ffe666301ffcd35b3d3aa0289046f0f20029c6f1a9f4a454f3c6675",9,"Empresa: filas con un espacio invisible","controles_invisibles","1","1",TRUE
+"2026-10-24T13:13:37Z","0.1.0; R/ md5 08c0a1af7ccb","R version 4.6.1 (2026-06-24)",2583,"1bb7689d8ffe666301ffcd35b3d3aa0289046f0f20029c6f1a9f4a454f3c6675",9,"Sancion.aplicada: guiones","faltantes_disfrazados","2","2",TRUE
+"2026-10-24T13:13:37Z","0.1.0; R/ md5 08c0a1af7ccb","R version 4.6.1 (2026-06-24)",2583,"1bb7689d8ffe666301ffcd35b3d3aa0289046f0f20029c6f1a9f4a454f3c6675",9,"Importe: celdas en blanco","faltantes_disfrazados","1","1",TRUE
+"2026-10-24T13:13:37Z","0.1.0; R/ md5 08c0a1af7ccb","R version 4.6.1 (2026-06-24)",2583,"1bb7689d8ffe666301ffcd35b3d3aa0289046f0f20029c6f1a9f4a454f3c6675",9,"Moneda: guiones y blancos","faltantes_disfrazados","997","997",TRUE
+"2026-10-24T13:13:37Z","0.1.0; R/ md5 08c0a1af7ccb","R version 4.6.1 (2026-06-24)",2583,"1bb7689d8ffe666301ffcd35b3d3aa0289046f0f20029c6f1a9f4a454f3c6675",9,"Sector: celdas en blanco","faltantes_disfrazados","7","7",TRUE
+"2026-10-24T13:13:37Z","0.1.0; R/ md5 08c0a1af7ccb","R version 4.6.1 (2026-06-24)",2583,"1bb7689d8ffe666301ffcd35b3d3aa0289046f0f20029c6f1a9f4a454f3c6675",9,"Motivo: celdas en blanco","faltantes_disfrazados","6","6",TRUE
+"2026-10-24T13:13:37Z","0.1.0; R/ md5 08c0a1af7ccb","R version 4.6.1 (2026-06-24)",2583,"1bb7689d8ffe666301ffcd35b3d3aa0289046f0f20029c6f1a9f4a454f3c6675",9,"filas en grupos duplicados","filas_duplicadas","18","18",TRUE

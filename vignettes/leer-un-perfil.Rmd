@@ -1,0 +1,514 @@
+---
+title: "2. Leer un perfil"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{2. Leer un perfil}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(collapse = TRUE, comment = "#>")
+# El ancho se restaura al terminar la viñeta, como pide el CRAN Cookbook.
+.opciones_previas <- options(width = 90)
+```
+
+Ya tenemos un perfil. ¿Qué quiere decir cada fila de `hallazgos(perfil)`, cuándo
+un `ok` es una buena noticia, y qué hacemos con una clave que no se cumple?
+
+> **En esta guía:**
+>
+> - qué significan las tres severidades y por qué sólo `error` puede frenar un
+>   proceso;
+> - qué trae cada hallazgo: evidencia, sugerencia, conteos y trazabilidad;
+> - cómo leer cualquier perfil con los mismos accesores;
+> - cómo se declara y se comprueba una clave;
+> - cómo encontrar filas donde dos columnas que dicen lo mismo se contradicen.
+>
+> Al final hay un glosario con las palabras del paquete.
+
+## Un perfil para leer
+
+Seguimos con `datos_operativos` y la clave de la guía 1.
+
+```{r perfil}
+library(lupa)
+perfil <- perfilar(datos_operativos, clave = "id_evento")
+h <- hallazgos(perfil)
+```
+
+El aviso es el mismo de la guía 1: `EVT001` se repite. Lo retomamos al hablar de
+claves.
+
+## Tres severidades
+
+`severidad` es un factor ordenado, `ok < sospechoso < error`, así que se puede
+contar y comparar: `h$severidad >= "sospechoso"` deja los hallazgos que piden
+atención.
+
+```{r severidades}
+levels(h$severidad)
+table(h$severidad)
+nrow(h[h$severidad >= "sospechoso", ])
+```
+
+Cada nivel dice una cosa distinta:
+
+- **`ok`** registra una lectura informativa o una condición aceptable. No es un
+  defecto, y tampoco es una aprobación.
+- **`sospechoso`** es evidencia que merece revisión. Es heurística o necesita
+  conocer el dominio, y no alcanza por sí sola para rechazar, reparar ni
+  suprimir datos.
+- **`error`** afirma que un control cruzó su criterio declarado.
+
+Los `ok` de este perfil son lecturas de la estructura, no buenas noticias:
+
+```{r ok}
+h[h$severidad == "ok", c("columna", "tipo_hallazgo", "n_afectados")]
+```
+
+`posible_identificador` dice que una columna tiene forma de identificador o de
+código; `dato_personal_posible`, que parece contener datos personales;
+`casi_duplicados_vocabulario` con cero afectados, que se buscaron variantes de
+escritura y no se formó ningún grupo.
+
+El mismo tipo de hallazgo puede tener dos severidades. Los ausentes disfrazados
+de texto son `error`; el de `monto`, `sospechoso`:
+
+```{r disfrazados}
+h[h$tipo_hallazgo == "faltantes_disfrazados", c("columna", "severidad", "evidencia")]
+```
+
+`"S/D"`, `"NULL"` y la celda vacía son marcas de ausencia sin ambigüedad. El
+`-99` está en la lista de centinelas numéricos que `lupa` usa por omisión, pero
+en otra columna podría ser un dato real: es una conjetura del paquete. Si
+nosotros lo declaramos en `sentinelas_numericos`, la conjetura pasa a criterio y
+la severidad sube.
+
+```{r declarar}
+declarado <- perfilar(datos_operativos["monto"], sentinelas_numericos = -99)
+hd <- hallazgos(declarado)
+hd[hd$tipo_hallazgo == "faltantes_disfrazados", c("columna", "severidad", "evidencia")]
+```
+
+Declararlo tiene además consecuencias en los números: el `-99` sale del resumen.
+
+```{r declarar-resumen}
+resumen <- c("minimo", "mediana", "n_valores_excluidos_resumen")
+rbind(
+  por_omision = columnas(perfil)[columnas(perfil)$columna == "monto", resumen],
+  declarado = columnas(declarado)[, resumen]
+)
+```
+
+```{r comprobar-severidades, echo = FALSE}
+stopifnot(
+  is.ordered(h$severidad),
+  identical(levels(h$severidad), c("ok", "sospechoso", "error")),
+  identical(
+    as.character(h$severidad[h$tipo_hallazgo == "faltantes_disfrazados" &
+                               h$columna %in% "monto"]),
+    "sospechoso"
+  ),
+  identical(
+    as.character(hd$severidad[hd$tipo_hallazgo == "faltantes_disfrazados"]),
+    "error"
+  )
+)
+```
+
+### Por qué sólo `error` frena
+
+De los tres niveles, `error` es el único candidato para alimentar una barrera
+automática —un proceso que rechaza una entrega—, y sólo después de que
+aceptemos su criterio y verifiquemos su alcance. Un `sospechoso` pide una
+persona que mire.
+
+Pero buscar errores no alcanza. Lo que no se pudo evaluar queda fuera de la
+escala, en `cobertura()`, y un guion que decide solo tiene que mirar las dos
+cosas: cero errores con diagnósticos sin ejecutar no es un perfil limpio.
+
+```{r barrera}
+c(errores = sum(h$severidad == "error"), no_evaluados = nrow(cobertura(perfil)))
+```
+
+## Qué trae cada hallazgo
+
+Cada fila de `hallazgos()` tiene los mismos campos.
+
+| campo | qué dice |
+| --- | --- |
+| `columna` | la columna; `NA` si el hallazgo es de la tabla entera |
+| `tipo_hallazgo` | la clase de señal, de un vocabulario fijo |
+| `severidad` | `ok`, `sospechoso` o `error` |
+| `descripcion` | la señal, en una oración |
+| `evidencia` | lo que se midió para afirmarla |
+| `sugerencia` | qué se podría hacer; la decisión es nuestra |
+| `n_evaluados`, `n_afectados` | cuántas unidades se miraron y en cuántas está la señal |
+| `unidad_conteo` | en qué se cuentan las dos anteriores: filas, columnas, formatos, valores distintos |
+| `estado_reparacion` | en los hallazgos de codificación, si el texto se puede reparar; en los demás, `NA` |
+| `trazabilidad` | en qué filas está: sus índices y, si declaramos `clave`, sus valores |
+
+El vocabulario completo de `tipo_hallazgo`, con lo que mide cada uno, está en el
+artículo
+[Alcance y cobertura](https://sebollin.github.io/lupa/articles/alcance-y-cobertura.html).
+
+```{r comprobar-campos, echo = FALSE}
+stopifnot(identical(names(h), c(
+  "columna", "tipo_hallazgo", "severidad", "descripcion", "evidencia",
+  "sugerencia", "n_evaluados", "n_afectados", "unidad_conteo",
+  "estado_reparacion", "trazabilidad"
+)))
+```
+
+Veamos uno entero: las mayúsculas de `canal`. Los textos largos se leen mejor
+fuera de la tabla.
+
+```{r mayusculas}
+mayus <- h[h$tipo_hallazgo == "mayusculas_inconsistentes", ]
+for (campo in c("descripcion", "evidencia", "sugerencia")) {
+  writeLines(strwrap(paste0(campo, ": ", mayus[[campo]]), 88, exdent = 2))
+}
+mayus[, c("n_evaluados", "n_afectados", "unidad_conteo")]
+mayus$trazabilidad[[1]]$claves$id_evento
+```
+
+La unidad importa. `n_afectados` cuenta valores distintos: `"web"` y `"Web"`,
+dos de los `r mayus$n_evaluados` que tiene la columna. La trazabilidad, en
+cambio, enumera filas, y todas las que contienen esos valores: `lupa` no sabe
+cuál de las dos formas es la correcta. Por eso la traza tiene
+`r length(mayus$trazabilidad[[1]]$claves$id_evento)` filas, primero la variante
+y después la forma más frecuente.
+
+```{r comprobar-mayusculas, echo = FALSE}
+stopifnot(
+  identical(mayus$unidad_conteo, "valor_distinto"),
+  identical(as.numeric(mayus$n_afectados), 2),
+  length(mayus$trazabilidad[[1]]$claves$id_evento) > mayus$n_afectados
+)
+```
+
+### Alta cardinalidad
+
+`alta_cardinalidad` aparece tres veces en este perfil:
+
+```{r cardinalidad}
+h[h$tipo_hallazgo == "alta_cardinalidad", c("columna", "severidad", "evidencia")]
+```
+
+Una columna de texto con muchos valores distintos (por omisión, más de la mitad:
+`umbral_alta_cardinalidad`) admite tres lecturas: es texto libre, es un
+identificador o es una categoría mal normalizada. El hallazgo no afirma que sea
+un defecto; las ofrece para que decida quien conoce la columna. En este perfil,
+ninguna de las tres columnas tiene un problema de cardinalidad: `codigo_usuario` es un
+identificador, `fecha_evento` son fechas guardadas como texto y `contacto` son
+correos. Lo sabemos porque conocemos las columnas; los datos solos no lo dicen.
+Por eso se informa siempre: el largo de los valores no distingue un catálogo de
+un texto libre.
+
+La evidencia de `contacto` sale como `[evidencia protegida]`: la columna parece
+contener correos (`dato_personal_posible`), y la evidencia de una columna así se
+enmascara. Qué se enmascara y con qué alcance está en el artículo
+[Alcance y cobertura](https://sebollin.github.io/lupa/articles/alcance-y-cobertura.html).
+
+## Leer cualquier perfil
+
+`perfilar()` devuelve un perfil plano. `perfilar_dbi()` devuelve un contenedor
+con dos bloques, y `perfilar_coleccion()`, una fila por tabla. Las formas son
+distintas: `perfil$general$filas` existe en el primero y es `NULL` en el
+segundo, donde el conteo vive en otro lugar. Un `NULL` que no avisa es la peor
+forma de fallar en un guion: lo que sigue calcula sobre nada.
+
+Los accesores le ponen un solo nombre a lo mismo, y andan igual sobre los
+resultados de `perfilar()`, `analizar()`, `perfilar_dbi()` y
+`perfilar_coleccion()`:
+
+```{r accesores}
+n_filas(perfil)
+nrow(hallazgos(perfil))
+nrow(cobertura(perfil))
+campos <- c("columna", "tipo_inferido", "n_faltantes_totales", "n_distintos")
+columnas(perfil)[1:4, campos]
+```
+
+`columnas()` trae, además del nombre de cada columna, `r ncol(columnas(perfil)) - 1L`
+campos analíticos; su significado, por familias, está en `?perfilar`. Los accesores no inventan lo que no hay:
+`sql_perfil()` lista las consultas que se enviaron al motor, y sobre un perfil
+en memoria devuelve `NULL`, porque una tabla vacía sugeriría que se consultó y no
+se encontró nada.
+
+```{r sql}
+is.null(sql_perfil(perfil))
+```
+
+Del mismo modo, un perfil de una base sin filas leídas devuelve una tabla de
+hallazgos vacía con su aviso. Cómo se leen los dos bloques de `perfilar_dbi()`
+está en [10. Perfilar una base](perfilar-una-base.html).
+
+## Las claves
+
+### Declarar y comprobar
+
+`clave` dice qué columnas identifican una fila en el sistema de origen. Con ella,
+`lupa` hace dos cosas. La trazabilidad trae los valores de la clave, y
+`trazabilidad$localizador` dice con qué se localizó (`clave_declarada`, o
+`indice_fila` si no hay clave). Además comprueba dos garantías por separado y las
+deja en `perfil$meta$clave`: que la clave no se repita y que no tenga ausentes.
+
+```{r clave}
+perfil$meta$clave$unicidad$estado
+perfil$meta$clave$ausencia_nulos$estado
+repetida <- h[h$tipo_hallazgo == "clave_no_unica", ]
+repetida$trazabilidad[[1]]$localizador
+repetida$trazabilidad[[1]]$claves
+writeLines(strwrap(repetida$sugerencia, 88))
+```
+
+`clave_no_unica` es un `error` con las filas que repiten. Acá las dos filas con
+`EVT001` son la misma fila cargada dos veces; la sugerencia enumera las otras
+causas posibles.
+
+`id_registro` también parece una clave, y su repetición es de otra clase.
+Declarada como clave, `clave_no_unica` señala más filas que `filas_duplicadas`:
+
+```{r clave-registro}
+por_registro <- perfilar(datos_operativos, clave = "id_registro")
+hr <- hallazgos(por_registro)
+hr[hr$tipo_hallazgo %in% c("clave_no_unica", "filas_duplicadas"),
+   c("tipo_hallazgo", "n_afectados")]
+datos_operativos[datos_operativos$id_registro == 10,
+                 c("id_registro", "monto", "id_evento")]
+```
+
+Las filas 1 y 12 son copias exactas, y las dos señales las cuentan. Las dos filas
+con `id_registro` 10, en cambio, no son copias: dicen montos distintos para el
+mismo registro. Sólo la clave declarada las muestra.
+
+```{r comprobar-clave, echo = FALSE}
+traza_registro <- hr$trazabilidad[[which(hr$tipo_hallazgo == "clave_no_unica")]]
+traza_copias <- hr$trazabilidad[[which(hr$tipo_hallazgo == "filas_duplicadas")]]
+stopifnot(
+  identical(perfil$meta$clave$unicidad$estado, "refutada"),
+  identical(repetida$trazabilidad[[1]]$localizador, "clave_declarada"),
+  setequal(traza_registro$indices_fila, c(1L, 10L, 11L, 12L)),
+  setequal(traza_copias$indices_fila, c(1L, 12L))
+)
+```
+
+### Ausentes en la clave
+
+Que una clave no se repita y que no tenga ausentes son preguntas distintas. La
+unicidad se mira sólo entre las filas con la clave completa, porque en una base
+de datos dos ausentes (`NULL`) no son iguales entre sí; los ausentes van a otro
+hallazgo, `clave_con_ausentes`.
+
+```{r clave-ausentes, warning = FALSE}
+tramites <- data.frame(
+  id_tramite = c("T1", "T2", NA, NA, "T5"),
+  monto = c(10, 20, 30, 40, 50)
+)
+p_tramites <- perfilar(tramites, clave = "id_tramite")
+hallazgos(p_tramites)[, c("columna", "tipo_hallazgo", "severidad", "n_afectados")]
+p_tramites$meta$clave$unicidad$estado
+p_tramites$meta$clave$ausencia_nulos$estado
+```
+
+Entre las tres filas completas la clave no se repite (`verificada`), y aun así
+no cumple `NOT NULL` (`refutada`): dos filas no tienen clave. `perfilar()` lo
+avisa además con una advertencia, que acá no mostramos.
+
+Si ninguna fila tiene la clave completa, no hay nada que comparar. Decir que la
+clave es única sería cierto sobre un conjunto vacío, y engañoso: por eso ese caso
+tiene su propio estado.
+
+```{r sin-casos, warning = FALSE}
+vacia <- data.frame(id_tramite = rep(NA_character_, 3), monto = c(1, 2, 3))
+perfilar(vacia, clave = "id_tramite")$meta$clave$unicidad$estado
+```
+
+```{r comprobar-ausentes, echo = FALSE}
+stopifnot(
+  "clave_con_ausentes" %in% hallazgos(p_tramites)$tipo_hallazgo,
+  !"clave_no_unica" %in% hallazgos(p_tramites)$tipo_hallazgo,
+  identical(p_tramites$meta$clave$unicidad$estado, "verificada"),
+  identical(p_tramites$meta$clave$ausencia_nulos$estado, "refutada")
+)
+```
+
+### Sugerir y elegir una clave
+
+Si no sabemos cuál es la clave, `sugerir_clave()` ordena las columnas candidatas
+por tres señales que publica por separado: si la columna identifica cada fila,
+si no tiene ausentes y cuánto se parece su nombre al de una clave.
+
+```{r sugerir}
+nrow(sugerir_clave(datos_operativos))
+candidatas <- sugerir_clave(datos_operativos, umbral_casi = 0.9)
+candidatas[, c("columna", "identifica", "sin_faltantes", "tasa_distintos",
+               "parecido_nombre")]
+writeLines(candidatas$motivo[1])
+```
+
+Con la fila duplicada, ninguna columna identifica las
+`r nrow(datos_operativos)` filas, y ninguna llega al
+`r 100 * formals(sugerir_clave)$umbral_casi` % de valores distintos que pide
+`umbral_casi` por omisión: la primera llamada no devuelve nada. Con un umbral
+menor aparecen las que casi identifican, que suelen ser claves con duplicados
+de carga. `id_evento` va primera por su nombre. `monto` también aparece: un
+importe que casi no se repite. Ordenar no es decidir; esa diferencia no está en
+los datos.
+
+`elegir_clave()` muestra esas candidatas numeradas, con su motivo, y una opción
+para escribir otra (o varias separadas por coma, para una clave compuesta).
+Devuelve la elegida, lista para `perfilar()`:
+
+```{r elegir, eval = FALSE}
+clave <- elegir_clave(datos_operativos)
+perfil <- perfilar(datos_operativos, clave = clave)
+```
+
+En un guion que corre solo no pregunta: devuelve `NULL` y avisa qué habría
+ofrecido. En una base de datos, la clave primaria declarada en el catálogo del
+motor se lee en vez de sugerirse; qué garantiza cada motor está en el artículo
+[Motores y escala](https://sebollin.github.io/lupa/articles/motores-y-escala.html).
+
+## Contradicciones entre columnas
+
+A veces cada columna está bien y la fila se contradice. El año de la fecha de
+ingreso, el año fiscal y el año del archivo pueden ser plausibles cada uno por
+su cuenta y no coincidir entre sí. Ninguna columna sola lo muestra, así que el
+perfil no lo ve.
+
+El grupo lo declaramos nosotros con `senal_redundante()`; `lupa` no lo adivina,
+porque dos columnas de año pueden ser el de nacimiento y el de ingreso, y no
+tienen por qué coincidir. `transformacion` lleva la fecha a su año para
+compararla con las otras dos.
+
+```{r discordancias}
+expedientes <- data.frame(
+  expediente = sprintf("EXP-%02d", 1:6),
+  fecha_ingreso = as.Date(c(
+    "2023-03-10", "2023-11-02", "2024-01-15", "2023-12-30", "2024-02-01", NA
+  )),
+  anio_fiscal = c(2023L, 2023L, 2024L, 2024L, 2024L, 2024L),
+  anio_archivo = c(2023L, 2023L, 2024L, 2023L, 2024L, 2024L)
+)
+anio <- senal_redundante(
+  c("fecha_ingreso", "anio_fiscal", "anio_archivo"),
+  transformacion = list(fecha_ingreso = function(x) as.integer(format(x, "%Y"))),
+  nombre = "año del expediente"
+)
+discordancias <- detectar_discordancias(expedientes, anio)
+discordancias[, c("senal", "n_filas", "n_evaluadas", "n_discordantes")]
+writeLines(strwrap(discordancias$evidencia, 88))
+```
+
+La fila 4 entró el 30 de diciembre de 2023, figura en el año fiscal 2024 y se
+archivó en 2023. La fila 6 no tiene fecha: no se cuenta ni como discordante ni
+como concordante, y sale del universo evaluado (`n_evaluadas`). Ausencia no es
+desacuerdo. Para tolerar diferencias, `ventana` fija cuánto pueden separarse los
+valores numéricos (con años, `ventana = 1` acepta un año).
+
+```{r comprobar-discordancias, echo = FALSE}
+stopifnot(
+  identical(as.numeric(discordancias$n_evaluadas), 5),
+  identical(as.numeric(discordancias$n_discordantes), 1),
+  grepl("fila 4", discordancias$evidencia, fixed = TRUE)
+)
+```
+
+## Glosario
+
+Las palabras que usan el paquete y sus guías, en orden alfabético.
+
+- **alcance**: sobre qué filas y con qué método se calculó una cifra. En
+  memoria, `perfilar()` cuenta ausentes, distintos y duplicados sobre todas las
+  filas, e infiere patrones, tipos, formatos de fecha y dependencias sobre una
+  muestra de hasta
+  `r format(formals(perfilar)$muestra, big.mark = ".", decimal.mark = ",", scientific = FALSE)`
+  filas (`muestra`).
+- **`alta_cardinalidad`**: hallazgo `sospechoso` de una columna de texto con
+  muchos valores distintos. Puede ser texto libre, un identificador o una
+  categoría mal normalizada; lo decide quien conoce la columna.
+- **centinela**: un valor que se usa para decir "sin dato", como `-99`, `"S/D"`
+  o `"NULL"`. En la API se escriben `sentinelas_*` (`sentinelas_numericos`,
+  `sentinelas_naniar`). Los que trae el paquete por omisión se informan; los que
+  declaramos, además, salen del resumen numérico.
+- **cobertura**: tiene dos sentidos. La *cobertura de diagnósticos*
+  (`cobertura(perfil)`) lista los controles que no se pudieron ejecutar, con su
+  motivo. La *cobertura de un marco* (`cobertura_analisis()`) dice qué factores
+  del marco quedaron medidos, sin declarar o fuera de alcance.
+- **dimensión y factor**: los dos niveles de un marco. Por ejemplo, la dimensión
+  Exactitud agrupa el factor Correctitud sintáctica.
+- **entidad, atributo, instancia**: el vocabulario de los marcos de calidad.
+  Entidad es una tabla, atributo es una columna, instancia de entidad es una fila
+  (una tupla) e instancia de atributo es una celda. Así,
+  `instanciar(m, "personas", "documento")` se lee "aplicar la métrica `m` a la
+  columna `documento` de la tabla `personas`". La correspondencia completa está
+  en `granularidades()` (abajo).
+- **evidencia, sugerencia, trazabilidad**: en un hallazgo, lo que se vio, lo que
+  se podría hacer y en qué filas está.
+- **granularidad**: el nivel al que se mide una métrica: celda, columna, fila,
+  tabla, base de datos. `agregar()` sube de un nivel a otro.
+- **hallazgo**: una fila de `hallazgos(perfil)`: una señal sobre los datos, con
+  su tipo, su severidad, su evidencia y las filas afectadas.
+- **marco**: una taxonomía de dimensiones y factores contra la que se lee la
+  cobertura de un análisis (`marco_calidad()`, o los publicados: `marco_agesic()`,
+  `marco_cepal()`, `marco_iso25012()`). Clasifica; no calcula nada.
+- **métrica**: una regla que se aplica a una celda, una fila, una columna o una
+  tabla y devuelve un resultado. `NoNulo`, por ejemplo, da 1 si la celda tiene
+  valor y 0 si falta.
+- **modelo de calidad**: el conjunto de métricas instanciadas que se van a medir
+  (`modelo()`). No calcula un índice global. El argumento `modelo` de
+  `cobertura_analisis()` recibe un marco, no un modelo.
+- **perfil**: el resultado de `perfilar()`; con otra forma, el de
+  `perfilar_dbi()` y el de `perfilar_coleccion()`.
+- **perfil de evaluación**: otra cosa: un conjunto de reglas con umbral
+  (`perfil_evaluacion()`) que `evaluar()` aplica a una medición.
+- **plan de limpieza**: una tabla editable de acciones posibles
+  (`planificar_limpieza()`). `aplicar()` ejecuta sólo las que tienen
+  `aplicar = TRUE`, sobre una copia, y deja un registro.
+- **severidad**: `ok` (informativo), `sospechoso` (merece revisión) o `error`
+  (cruzó un criterio declarado), en ese orden.
+- **universo**: tiene dos sentidos. El *universo de una columna* son las filas
+  donde corresponde que tenga valor: por omisión todas, y se recorta con
+  `aplicabilidad`. En `perfilar_dbi()`, el argumento `universo` dice sobre qué
+  filas del motor se calculan los agregados SQL: `"tabla_completa"`, por
+  omisión, o `"muestra_motor"`.
+- **vacío por diseño**: una celda vacía que es correcta, porque la columna no
+  corresponde a esa fila: quien no tiene auto no tiene marca de auto. Se declara;
+  lo explica [5. El vacío por diseño](vacio-por-diseno.html).
+
+La tabla que traduce las granularidades al vocabulario de las bases de datos:
+
+```{r granularidades}
+granularidades()[, c("nivel", "granularidad", "relacional")]
+```
+
+Las métricas, los modelos y los marcos se usan en
+[7. Del hallazgo a la métrica](del-hallazgo-a-la-metrica.html) y
+[8. Marcos y modelos de calidad](marcos-y-modelos.html).
+
+## Resumen
+
+- La severidad se ordena `ok < sospechoso < error`: `ok` informa, `sospechoso`
+  pide revisión y sólo `error` puede alimentar una barrera automática, siempre
+  junto con `cobertura()`.
+- Cada hallazgo trae evidencia, sugerencia, conteos con su unidad y
+  trazabilidad.
+- `hallazgos()`, `columnas()`, `cobertura()` y `n_filas()` leen igual cualquier
+  perfil.
+- Una clave declarada se comprueba: `clave_no_unica`, `clave_con_ausentes` y el
+  estado `sin_casos_evaluables`. `sugerir_clave()` ordena candidatas; no decide.
+- `senal_redundante()` declara columnas que dicen lo mismo, y
+  `detectar_discordancias()` encuentra las filas donde se contradicen.
+
+## Paso siguiente
+
+[3. Explorar columnas con `analizar()`](explorar-columnas.html)
+(`vignette("explorar-columnas")`) recorre lo que el perfil no muestra en una
+tabla: patrones, tipos, distribuciones, asociaciones y tiempo.
+
+```{r cierre, include = FALSE}
+options(.opciones_previas)
+```

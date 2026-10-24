@@ -1,0 +1,248 @@
+# N89: la marca `bytes` en identidad, publicacion y alcance.
+#
+# Los valores se construyen con `as.raw()` y se comparan por BYTES o por
+# `Encoding()`, nunca por como se ven. Confiar en una impresion engania al
+# medir esto: el shell interpreta escapes, R parsea octales, y `cat()` colapsa
+# barras. Cuando lo que se mide es el manejo de la codificacion, el instrumento
+# no puede usar nada que dependa de ella.
+
+# Prueba de regresion: corre en la suite completa, en el CI y en R-hub, que usan
+# NOT_CRAN=true; en CRAN se saltea para que el check entre en sus tiempos.
+testthat::skip_on_cran()
+
+.n89_bytes <- function(codigos) {
+  x <- rawToChar(as.raw(codigos))
+  Encoding(x) <- "bytes"
+  x
+}
+
+.n89_utf8 <- function(codigos) {
+  x <- rawToChar(as.raw(codigos))
+  Encoding(x) <- "UTF-8"
+  x
+}
+
+# "ano" con enie: los cuatro bytes reales.
+.N89_SECUENCIA <- c(0x61, 0xc3, 0xb1, 0x6f)
+# El texto de diez ASCII que DESCRIBE esa secuencia: a \ 3 0 3 \ 2 6 1 o
+.N89_DESCRIPCION <- c(0x61, 0x5c, 0x33, 0x30, 0x33, 0x5c, 0x32, 0x36, 0x31, 0x6f)
+
+.n89_contiene_enie <- function(x) {
+  if (is.na(x)) return(FALSE)
+  aguja <- as.integer(charToRaw(.n89_utf8(c(0xc3, 0xb1))))
+  cuerpo <- as.integer(charToRaw(x))
+  n <- length(aguja)
+  length(cuerpo) >= n && any(vapply(
+    seq_len(length(cuerpo) - n + 1L),
+    function(k) identical(cuerpo[k:(k + n - 1L)], aguja), logical(1L)
+  ))
+}
+
+test_that("la clave es inyectiva: la secuencia y el texto que la describe difieren", {
+  secuencia <- .n89_bytes(.N89_SECUENCIA)
+  descripcion <- rawToChar(as.raw(.N89_DESCRIPCION))
+
+  # La clave tiene que distinguirlos, y eso se mide sin pedirle nada a R sobre
+  # cadenas marcadas: `charToRaw()` no traduce.
+  expect_false(identical(charToRaw(secuencia), charToRaw(descripcion)))
+  expect_false(identical(.clave_bytes(secuencia), .clave_bytes(descripcion)))
+
+  valores <- c(secuencia, descripcion, .n89_utf8(.N89_SECUENCIA), "z")
+  # Los cuatro son distintos entre si, y la clave tiene que contar cuatro.
+  expect_identical(length(unique(.clave_bytes(valores))), 4L)
+
+  # Y la clave tiene que decir lo mismo que R **cuando R puede decirlo**: en el
+  # minimo declarado -4.1- `unique()` y `==` sobre una cadena marcada `bytes`
+  # abortan con "translating strings with bytes encoding is not allowed", asi
+  # que la comparacion contra R no es medible ahi. Se comprueba midiendo, no por
+  # numero de version, y el salto declara por que.
+  puede_comparar <- !inherits(
+    try(c(unique(valores), secuencia == descripcion), silent = TRUE),
+    "try-error"
+  )
+  if (!puede_comparar) {
+    skip("esta version de R no admite `unique()` ni `==` sobre `bytes`")
+  }
+  expect_false(secuencia == descripcion)
+  expect_identical(
+    length(unique(.clave_bytes(valores))), length(unique(valores))
+  )
+})
+
+test_that("la clave de un valor no depende de que lo acompanie en el vector", {
+  # Con la via rapida de ASCII por delante, la misma cadena salia sin escapar
+  # cuando el vector era todo ASCII y escapada cuando no: una clave decidida por
+  # la tanda y no por el valor.
+  descripcion <- rawToChar(as.raw(.N89_DESCRIPCION))
+  acompanante <- .n89_utf8(.N89_SECUENCIA)
+  expect_identical(
+    .clave_bytes(descripcion),
+    .clave_bytes(c(descripcion, acompanante))[[1L]]
+  )
+  # Y al reves: un vector todo ASCII no cambia por juntarse con otro.
+  expect_identical(
+    .clave_bytes("hola"), .clave_bytes(c("hola", acompanante))[[1L]]
+  )
+})
+
+test_that("la clave no aborta ni cambia con bytes invalidos", {
+  # El escape de la barra lo hace `gsub(fixed = TRUE)`, que sin `useBytes`
+  # ABORTA sobre bytes invalidos -"input string 1 is invalid in this locale"- y
+  # ademas elige su estrategia segun QUE MAS haya en el vector, asi que la misma
+  # cadena podia salir de dos maneras segun sus vecinas.
+  invalido <- rawToChar(as.raw(c(0x41, 0xff, 0x42)))
+  expect_no_error(.clave_bytes(invalido))
+  acompanante <- .n89_utf8(.N89_SECUENCIA)
+  expect_identical(
+    .clave_bytes(invalido), .clave_bytes(c(invalido, acompanante))[[1L]]
+  )
+  # Y por la promesa publica: el perfil describe esa columna en vez de morir.
+  perfil <- suppressWarnings(perfilar(
+    data.frame(v = c(invalido, invalido, "ok"), stringsAsFactors = FALSE),
+    fecha = as.POSIXct("2026-09-17", tz = "UTC"),
+    analizar_dependencias = FALSE, proteger_datos_personales = FALSE
+  ))
+  expect_identical(perfil$columnas$n[[1L]], 3L)
+  expect_identical(perfil$columnas$n_codificacion_invalida[[1L]], 2L)
+})
+
+test_that("la cardinalidad publicada coincide con unique() de R", {
+  valores <- c(
+    .n89_bytes(.N89_SECUENCIA), rawToChar(as.raw(.N89_DESCRIPCION)),
+    .n89_utf8(.N89_SECUENCIA), "z"
+  )
+  perfil <- suppressWarnings(perfilar(
+    data.frame(v = valores, stringsAsFactors = FALSE),
+    fecha = as.POSIXct("2026-09-17", tz = "UTC"),
+    analizar_dependencias = FALSE, proteger_datos_personales = FALSE
+  ))
+  # Los cuatro valores son distintos entre si -dos secuencias de bytes, el texto
+  # que describe a una de ellas y una `z`-, asi que la cardinalidad publicada es
+  # cuatro. Eso se afirma siempre.
+  expect_identical(perfil$columnas$n_distintos[[1L]], 4L)
+
+  # Y se contrasta contra `unique()` de R cuando esta version lo permite: en 4.1
+  # aborta sobre una cadena marcada `bytes`.
+  if (inherits(try(unique(valores), silent = TRUE), "try-error")) {
+    skip("esta version de R no admite `unique()` sobre `bytes`")
+  }
+  expect_identical(perfil$columnas$n_distintos[[1L]], length(unique(valores)))
+})
+
+test_that("reportar() no aborta con un valor declarado `bytes`", {
+  # `nchar(type = "chars")` ABORTA sobre esa marca, y el reporte entero no se
+  # generaba. Basta con que el valor sea la moda de una columna.
+  crudo <- .n89_bytes(.N89_SECUENCIA)
+  roto <- .n89_bytes(c(0x41, 0xff, 0x62))
+  for (valores in list(c(crudo, crudo, "z", "z"), c(roto, roto, "z"))) {
+    perfil <- suppressWarnings(perfilar(
+      data.frame(v = valores, stringsAsFactors = FALSE),
+      fecha = as.POSIXct("2026-09-17", tz = "UTC"),
+      analizar_dependencias = FALSE, proteger_datos_personales = FALSE
+    ))
+    archivo <- tempfile(fileext = ".md")
+    expect_no_error(suppressWarnings(reportar(perfil, archivo = archivo)))
+    unlink(archivo)
+  }
+})
+
+test_that("el resultado de comparar_equivalencia() se puede imprimir", {
+  # La comparacion corria bien y `print()` abortaba con "width is not
+  # computable in bytes encoding". Bastaba con que UN lado llevara la marca,
+  # aunque los bytes fueran identicos.
+  anterior <- data.frame(
+    columna = "m", media = 10, minimo = 1,
+    moda = I(list(.n89_utf8(.N89_SECUENCIA))), stringsAsFactors = FALSE
+  )
+  actual <- data.frame(
+    columna = "m", media = 10, minimo = 1,
+    moda = I(list(.n89_bytes(.N89_SECUENCIA))), stringsAsFactors = FALSE
+  )
+  resultado <- suppressWarnings(
+    comparar_equivalencia(anterior, actual, tolerancia = 1e-9)
+  )
+  expect_no_error(invisible(utils::capture.output(print(resultado))))
+})
+
+test_that("los patrones publicados no interpretan lo declarado `bytes`", {
+  crudo <- .n89_bytes(.N89_SECUENCIA)
+  perfil <- suppressWarnings(perfilar(
+    data.frame(v = c(crudo, crudo, "zz", "zz", "qq"), stringsAsFactors = FALSE),
+    fecha = as.POSIXct("2026-09-17", tz = "UTC"),
+    analizar_dependencias = FALSE, proteger_datos_personales = FALSE
+  ))
+  tabla <- perfil$patrones$v
+  skip_if(is.null(tabla) || !nrow(tabla), "no se publicaron patrones")
+  for (celda in c(tabla$patron, tabla$ejemplos)) {
+    expect_false(
+      .n89_contiene_enie(celda),
+      info = paste("patron o ejemplo que interpreta lo declarado:", celda)
+    )
+  }
+  # Y el caso corriente no cambia: sin la marca, el caracter SI se publica.
+  normal <- suppressWarnings(perfilar(
+    data.frame(
+      v = c(.n89_utf8(.N89_SECUENCIA), .n89_utf8(.N89_SECUENCIA), "zz", "zz",
+            "qq"),
+      stringsAsFactors = FALSE
+    ),
+    fecha = as.POSIXct("2026-09-17", tz = "UTC"),
+    analizar_dependencias = FALSE, proteger_datos_personales = FALSE
+  ))
+  expect_true(any(vapply(
+    c(normal$patrones$v$patron, normal$patrones$v$ejemplos),
+    .n89_contiene_enie, logical(1L)
+  )))
+})
+
+test_that("una distribucion que descarto valores no se declara completa", {
+  # El caso parcial es el de bytes invalidos SIN declarar: eso es lo que
+  # `.valores_relacion()` no puede comparar y descarta. Tres de cuatro filas se
+  # pierden, y la tabla publicaba `z` con proporcion 1.00 -sobre los
+  # analizados- con el estado en `calculada`.
+  #
+  # Antes esta prueba usaba el valor DECLARADO `bytes`, y dejo de ser el caso
+  # parcial: desde que lo declarado se rinde a su forma imprimible, ya no se
+  # descarta sino que se publica -`A\xffB`-, con `n_analizados == n_total`. La
+  # regla que la prueba sostiene no cambio; cambio QUE se descarta, y el
+  # fixture tenia que seguirla.
+  roto <- rawToChar(as.raw(c(0x41, 0xff, 0x62)))
+  parcial <- suppressWarnings(distribucion_valores(
+    data.frame(r = c(roto, roto, "z", roto), stringsAsFactors = FALSE)
+  ))
+  alcance <- as.data.frame(parcial$alcance)
+  expect_identical(alcance$estado[[1L]], "calculada_parcial")
+  expect_true(alcance$n_analizados[[1L]] < alcance$n_total[[1L]])
+
+  # Una columna corriente sigue declarandose completa.
+  completa <- suppressWarnings(distribucion_valores(
+    data.frame(r = c("a", "a", "z", "b"), stringsAsFactors = FALSE)
+  ))
+  expect_identical(as.data.frame(completa$alcance)$estado[[1L]], "calculada")
+
+  # Y lo DECLARADO `bytes` con bytes invalidos tampoco es un descarte: se
+  # publica en la forma que muestra la consola, y la columna esta completa.
+  declarado <- .n89_bytes(c(0x41, 0xff, 0x62))
+  con_marca <- suppressWarnings(distribucion_valores(
+    data.frame(r = c(declarado, declarado, "z", declarado),
+               stringsAsFactors = FALSE)
+  ))
+  alcance_marca <- as.data.frame(con_marca$alcance)
+  expect_identical(alcance_marca$estado[[1L]], "calculada")
+  # `expect_equal` y no `identical`: `n_analizados` viaja como `numeric` y
+  # `n_total` como `integer`. Lo que se sostiene es que sean el MISMO numero, no
+  # que compartan tipo de almacenamiento.
+  expect_equal(
+    as.numeric(alcance_marca$n_analizados[[1L]]),
+    as.numeric(alcance_marca$n_total[[1L]])
+  )
+  expect_true(any(grepl("xff", con_marca$frecuencias$valor, fixed = TRUE)))
+
+  # Y un `NA` NO es un descarte: es una ausencia declarada, que el perfil ya
+  # informa por otro lado. Confundirlos seria declarar parcial lo que esta
+  # completo, que es el error simetrico.
+  con_na <- suppressWarnings(distribucion_valores(
+    data.frame(r = c("a", NA, "z", "a"), stringsAsFactors = FALSE)
+  ))
+  expect_identical(as.data.frame(con_na$alcance)$estado[[1L]], "calculada")
+})

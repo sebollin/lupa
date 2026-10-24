@@ -1,0 +1,505 @@
+---
+title: "Evidencia y rendimiento"
+description: >
+  Cada cifra de evidencia y de rendimiento que publica la documentación, con su
+  unidad, su clase y la forma de rehacerla.
+---
+
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(collapse = TRUE, comment = "#>")
+.opciones_previas <- options(width = 90)
+library(lupa)
+
+# Busca un archivo del paquete fuente: en el sitio, dos niveles arriba del
+# artículo; si el artículo se teje desde otra carpeta, en el paquete cargado.
+raiz_con <- function(...) {
+  candidatas <- unique(c(file.path("..", ".."), getNamespaceInfo("lupa", "path")))
+  hay <- file.exists(file.path(candidatas, ...))
+  if (!any(hay)) stop("No se encuentra ", file.path(...), " en el paquete fuente.")
+  candidatas[which(hay)[1L]]
+}
+raiz <- raiz_con("benchmark", "datos")
+datos_banco <- file.path(raiz, "benchmark", "datos")
+leer_banco <- function(nombre) {
+  utils::read.csv(file.path(datos_banco, nombre), stringsAsFactors = FALSE)
+}
+# El registro de sanciones: la ultima corrida de benchmark/medir_sanciones.R.
+sanciones <- leer_banco("medir-sanciones.csv")
+sanciones_fecha <- sub("T.*", "", sanciones$fecha[[1L]])
+codigo <- function(x) paste0("`", x, "`")
+numero <- function(x, dec = 0L) {
+  formatC(x, format = "f", digits = dec, big.mark = ".", decimal.mark = ",")
+}
+porcentaje <- function(x, dec = 0L, signo = FALSE) {
+  paste0(if (signo && x > 0) "+" else "", numero(100 * x, dec), " %")
+}
+tiempo <- function(s) {
+  if (s < 60) return(paste0(numero(s, 1), " s"))
+  if (s < 3600) return(paste0(numero(s / 60), " min"))
+  horas <- floor(s / 3600)
+  paste0(horas, " h ", round((s - 3600 * horas) / 60), " min")
+}
+memoria <- function(mib) {
+  if (mib < 1024) paste0(numero(mib), " MiB") else paste0(numero(mib / 1024, 1), " GiB")
+}
+interno <- function(nombre) get(nombre, envir = asNamespace("lupa"))
+repo <- function(ruta) paste0("https://github.com/sebollin/lupa/blob/main/", ruta)
+
+# Las figuras viven en man/figures. Se copian a la carpeta de figuras de este
+# documento para que el sitio las trate como cualquier gráfico generado.
+mostrar_figura <- function(archivo) {
+  destino <- paste0(knitr::opts_current$get("fig.path"), archivo)
+  dir.create(dirname(destino), recursive = TRUE, showWarnings = FALSE)
+  file.copy(file.path(raiz, "man", "figures", archivo), destino, overwrite = TRUE)
+  knitr::include_graphics(destino)
+}
+```
+
+```{r controles-limpios-generador, include = FALSE}
+# El generador de las tablas limpias es el mismo que usa la prueba que fija la
+# cifra: se toma de tests/testthat/test-regresion-107.R.
+prueba_107 <- file.path(raiz, "tests", "testthat", "test-regresion-107.R")
+for (expresion in parse(prueba_107, keep.source = FALSE)) {
+  if (is.call(expresion) && identical(expresion[[1L]], as.name("<-")) &&
+      identical(expresion[[2L]], as.name(".tablas_limpias_r107"))) {
+    eval(expresion)
+  }
+}
+tablas_limpias <- .tablas_limpias_r107()
+```
+
+```{r controles-limpios-calculo, include = FALSE}
+hallazgos_limpios <- do.call(rbind, Map(function(nombre, tabla) {
+  h <- hallazgos(perfilar(tabla, analizar_dependencias = FALSE))
+  h$tabla <- rep(nombre, nrow(h))
+  h
+}, names(tablas_limpias), tablas_limpias))
+n_errores <- sum(hallazgos_limpios$severidad == "error")
+senales <- hallazgos_limpios[hallazgos_limpios$severidad != "ok", , drop = FALSE]
+```
+
+```{r ftfy-calculo, include = FALSE}
+corpus <- jsonlite::fromJSON(
+  file.path(raiz, "tests", "testthat", "fixtures", "ftfy-corpus-6.3.1.json"),
+  simplifyVector = FALSE
+)
+reparar_uno <- interno(".ftfy_reparar_uno")
+ftfy_aciertos <- vapply(corpus, function(caso) {
+  identical(reparar_uno(caso$original)$texto, caso$expected)
+}, logical(1))
+```
+
+Cada comprobación de `lupa` usa una unidad y una referencia declaradas, y son
+distintas entre sí: ninguna estima una exactitud única para todo el paquete. Este
+artículo reúne las cifras de evidencia y de rendimiento que publica la
+documentación, cada una con su unidad, su clase y la forma de rehacerla.
+
+## Cuatro clases de cifra
+
+| Clase | Qué significa | Qué se publica junto a la cifra |
+| --- | --- | --- |
+| Fija, sin red | sale de un fixture versionado o del código; una prueba la fija o esta página la calcula al construirse | la prueba o el guion que la produce |
+| Requiere un motor | necesita un servidor de base de datos y su controlador | motor y versión, controlador, fixture, fecha y revisión |
+| Recurso descargado | el insumo se baja de la red y puede cambiar | la fuente, la fecha de la corrida y la huella del archivo |
+| Corrida única | se midió una vez sobre datos que el repositorio no tiene | la fecha y el alcance; no se rehace desde el repositorio |
+
+Las cifras que requieren un motor (la matriz de motores, los costos de consulta,
+la memoria de `perfilar_dbi()`) están en
+[Motores y escala](https://sebollin.github.io/lupa/articles/motores-y-escala.html).
+
+## La tabla de evidencia
+
+| Comprobación | Unidad | Resultado | Clase | Se reproduce con |
+| --- | --- | --- | --- | --- |
+| Controles limpios construidos | `r length(tablas_limpias)` tablas | `r n_errores` hallazgos de severidad `error`; `r nrow(senales)` señales para revisar | fija, sin red; calculada en esta página | [`test-regresion-107.R`](`r repo("tests/testthat/test-regresion-107.R")`) |
+| Pares dirty/clean de Raha | columnas con al menos una celda cambiada | 26 de 26 recibieron al menos un hallazgo; se señalaron 8 columnas más | recurso descargado; corrida del 2026-10-24 | [`verdad_raha.R`](`r repo("benchmark/verdad_raha.R")`) y [`medir_lupa.R`](`r repo("benchmark/medir_lupa.R")`) |
+| Registro público de sanciones a empresas | hallazgos de severidad `error` | `r sum(sanciones$coincide)` de `r nrow(sanciones)` coinciden con la misma cuenta hecha en R base, sobre una copia de `r numero(sanciones$filas_registro[[1L]])` filas | recurso descargado; corrida del `r sanciones_fecha`, con la huella del archivo | [`medir_sanciones.R`](`r repo("benchmark/medir_sanciones.R")`) |
+| Ausencia estructural | señales `posible_ausencia_estructural` | ninguna en 20 conjuntos de `datasets` y 60 tablas al azar; dispara en los tres casos positivos; calla con 10 % de ruido | fija, sin red; corrida del 2026-10-24 | [`banco_ausencia_estructural.R`](`r repo("benchmark/banco_ausencia_estructural.R")`) |
+| Reparación de codificación | casos del corpus de ftfy 6.3.1 | `r sum(ftfy_aciertos)` de `r length(corpus)` reproducidos | fija, sin red; calculada en esta página | [`test-reparacion-texto.R`](`r repo("tests/testthat/test-reparacion-texto.R")`) |
+
+### Controles limpios construidos
+
+Las `r length(tablas_limpias)` tablas limpias se construyen a propósito con las
+formas que más confunden a un perfilador: decimales con coma, fechas, booleanos y
+porcentajes guardados como texto, identificadores correlativos, códigos
+postales, teléfonos, correos, documentos, nombres de persona y una distribución
+lognormal, entre otras. No deberían producir ningún `error`. La cifra
+la fija `tests/testthat/test-regresion-107.R`, y esta página la vuelve a calcular
+con el mismo generador al construirse.
+
+```{r controles-limpios}
+length(tablas_limpias)
+table(severidad = hallazgos_limpios$severidad)
+print(senales[, c("tabla", "columna", "tipo_hallazgo")], row.names = FALSE)
+```
+
+Las señales son de severidad `sospechoso`: números y fechas guardados como texto,
+y los atípicos de la distribución lognormal. Piden una revisión y no afirman un
+defecto.
+
+### Pares dirty/clean de Raha
+
+Raha publica tablas en dos versiones, sucia y limpia, y la comparación celda a
+celda dice qué columnas tienen al menos una celda cambiada. La unidad es la
+columna: 26 de 26 es cobertura por columna, no evidencia de que se haya
+identificado cada celda cambiada, y por eso no se informa precisión ni
+exhaustividad a partir de Raha. La comparación etiqueta celdas cambiadas, no toda
+propiedad observable de una columna sin cambios: las 8 columnas adicionales
+tienen observaciones verdaderas (constantes, columnas duplicadas, mayúsculas
+inconsistentes, cadenas vacías y texto de cardinalidad alta).
+
+El guion baja los seis archivos, imprime la versión y el sello `Built` de la
+instalación de `lupa` que mide y se detiene si a esa instalación le falta una
+capacidad que la medición necesita. Desde la raíz del repositorio:
+
+```sh
+R CMD build . && R CMD INSTALL lupa_*.tar.gz
+Rscript benchmark/verdad_raha.R
+Rscript benchmark/medir_lupa.R
+```
+
+Salida de `benchmark/medir_lupa.R` del 2026-10-24, sobre la revisión `0.1.0; R/ md5 08c0a1af7ccb`
+(extracto):
+
+```text
+Cobertura por columna
+hospital  17 de 17 afectadas con hallazgo; 19 senaladas; 2 adicionales
+flights    4 de  4 afectadas con hallazgo;  6 senaladas; 2 adicionales
+beers      5 de  5 afectadas con hallazgo;  9 senaladas; 4 adicionales
+total     26 de 26 afectadas con hallazgo; 34 senaladas; 8 adicionales
+
+Version de los archivos obtenidos (bytes y Adler-32):
+hospital  dirty.csv 303306 bytes  f970da05
+hospital  clean.csv 303324 bytes  74435416
+flights   dirty.csv 154776 bytes  d3a57255
+flights   clean.csv 173159 bytes  ffe72679
+beers     dirty.csv 255295 bytes  b2bb7910
+beers     clean.csv 233019 bytes  71980a46
+```
+
+La huella Adler-32 no es criptográfica: permite ver que cambiaron los bytes
+obtenidos. Las huellas de la corrida publicada también están en
+[`benchmark/resultados.md`](`r repo("benchmark/resultados.md")`), junto con el
+detalle de qué cuenta cada número.
+
+### Registro público de sanciones a empresas
+
+Un registro público de sanciones a empresas, de un catálogo de datos abiertos, se
+perfila y cada hallazgo de severidad `error` se compara con la misma cuenta hecha
+aparte, en R base, sobre el mismo archivo. El registro cambia con las
+actualizaciones de quien lo publica, así que cada corrida guarda su fecha, sus
+filas y la suma SHA-256 del archivo que midió; la fuente exacta está en el guion,
+que no publica valores del registro, sólo cuentas. Necesita red, salvo que
+`LUPA_SANCIONES_CSV` nombre una copia local:
+
+```sh
+Rscript benchmark/medir_sanciones.R
+```
+
+Corrida del `r sanciones_fecha`, sobre la revisión `r codigo(sanciones$revision_paquete[[1L]])`, con
+un archivo de `r numero(sanciones$filas_registro[[1L]])` filas (SHA-256
+`r codigo(paste0(substr(sanciones$sha256_registro[[1L]], 1L, 16L), '...'))`); el paquete emitió
+`r sanciones$errores_lupa[[1L]]` hallazgos de severidad `error`:
+
+```{r sanciones-tabla, echo = FALSE}
+print(sanciones[, c("comprobacion", "lupa", "r_base", "coincide")], row.names = FALSE)
+```
+
+### Ausencia estructural
+
+`posible_ausencia_estructural` no debería disparar donde la ausencia es
+independiente, y sí donde una columna decide qué filas tienen otra. El guion
+perfila los veinte primeros conjuntos de `datasets` (por orden alfabético, con al
+menos 20 filas), sesenta tablas al azar con ausencia independiente, tres casos
+que sí deben disparar (un modelo entidad-atributo-valor, un salto de patrón de
+encuesta y columnas excluyentes) y uno con un 10 % de filas que rompen la regla,
+que debe callar porque la relación existe pero no es una regla. No necesita red:
+
+```sh
+LUPA_RUTA=. Rscript benchmark/banco_ausencia_estructural.R
+```
+
+Salida del 2026-10-24, sobre la revisión `0.1.0; R/ md5 08c0a1af7ccb`:
+
+```text
+== veinte conjuntos reales (datasets de R) ==
+  total: 0 senales en 20 conjuntos (esperado: 0)
+== sesenta tablas al azar: 0 senales (esperado: 0) ==
+== positivos (esperado: disparan) ==
+  entidad-atributo-valor : dispara
+  salto de encuesta      : dispara
+  columnas excluyentes   : dispara
+== 10% de ruido (esperado: calla): calla ==
+```
+
+### Reparación de codificación
+
+El corpus de ftfy 6.3.1 viaja con las pruebas del paquete, y esta página lo
+recorre con el mismo motor de reparación:
+
+```{r ftfy}
+suite <- vapply(corpus, `[[`, character(1), "suite")
+table(suite, reproducido = ftfy_aciertos)
+```
+
+El detalle, con los casos negativos y lo que la reparación no hace, está en
+[Codificación y locales](https://sebollin.github.io/lupa/articles/codificacion-y-locales.html).
+
+## Rendimiento: cuatro figuras que salen de un CSV
+
+```{r figuras-datos, include = FALSE}
+entorno <- leer_banco("entorno.csv")
+escala <- leer_banco("escala.csv")
+hilos <- leer_banco("hilos.csv")
+cardinalidad <- leer_banco("cardinalidad.csv")
+bloqueo <- leer_banco("bloqueo.csv")
+lsh_bandas <- leer_banco("perdida_lsh_bandas.csv")
+lsh_umbral <- leer_banco("perdida_lsh_umbral.csv")
+
+primero <- escala[which.min(escala$filas), ]
+ultimo <- escala[which.max(escala$filas), ]
+hilos <- hilos[order(hilos$nucleos), ]
+mediana_hilos <- function(n) hilos$tiempo_s_mediana[hilos$nucleos == n]
+bandas_omision <- eval(formals(detectar_duplicados_aproximados)$lsh_bandas)
+perdida_bandas <- function(b) {
+  range(lsh_bandas$perdida[lsh_bandas$lsh_bandas == b & lsh_bandas$umbral == entorno$umbral])
+}
+umbral_bajo <- lsh_umbral[which.min(lsh_umbral$umbral), ]
+umbral_alto <- lsh_umbral[which.max(lsh_umbral$umbral), ]
+columnas_tiempo <- grep("^tiempo_s_[0-9]+$", names(escala), value = TRUE)
+segundos_medidos <- sum(escala[columnas_tiempo]) +
+  sum(hilos[grep("^tiempo_s_[0-9]+$", names(hilos), value = TRUE)])
+```
+
+Las cuatro figuras no se pegan de una consola. `benchmark/medir_figuras.R` mide
+la instalación de `lupa` visible en `.libPaths()`: imprime su sello `Built`, se
+detiene si falta y también si esa instalación es anterior al último commit del
+código, y deja los datos crudos en `benchmark/datos/`, un CSV por tabla con el
+commit como última columna. `benchmark/graficar_figuras.R` dibuja sólo lo que hay
+en esos CSV, con R base. Cada figura lleva al pie el commit, la fecha y la
+máquina, y las cifras de este apartado se leen de los mismos CSV al construir la
+página.
+
+Las cuatro describen la revisión `` `r entorno$commit` ``, medida el
+`r substr(entorno$fecha, 1, 10)` en una máquina con `r entorno$cpu`,
+`r entorno$nucleos_disponibles` núcleos y `r numero(entorno$ram_gib)` GiB de
+memoria, con `r sub("R version ([0-9.]+).*", "R \\1", entorno$r_version)`. Los
+conteos (candidatos, pares, exhaustividad, pérdida) son deterministas y se
+reproducen en cualquier equipo; los tiempos y la memoria son de esa máquina y
+sirven como orden de magnitud, no como promesa. La comparación es Jaro-Winkler
+con umbral `r numero(entorno$umbral, 2)` y `r entorno$hilos_stringdist` hilos.
+
+```{r figura-escala, echo = FALSE, out.width = "100%", fig.alt = "Escala: candidatos, tiempo, memoria e hilos sobre un padrón sintético de 20.000 a 500.000 filas"}
+mostrar_figura("banco-escala.png")
+```
+
+El padrón sintético tiene homónimos y erratas sembradas sobre un vocabulario
+chico: es la forma que más llena las cubetas del LSH, o sea el caso caro. Los
+candidatos crecen con el cuadrado de las filas
+(`r numero(primero$candidatos)` a `r numero(primero$filas)` filas,
+`r numero(ultimo$candidatos)` a `r numero(ultimo$filas)`), y el tiempo y la
+memoria los siguen: `r tiempo(primero$tiempo_s_mediana)` y
+`r memoria(primero$rss_mib)` a `r numero(primero$filas)` filas,
+`r tiempo(ultimo$tiempo_s_mediana)` y `r memoria(ultimo$rss_mib)` a
+`r numero(ultimo$filas)`. De los pares sembrados que la medida final acepta no se
+pierde ninguno en ningún tamaño (exhaustividad contra el techo:
+`r porcentaje(min(escala$recall_techo))`).
+
+El cuarto panel mide lo que cuestan los hilos a `r numero(hilos$filas[[1]])`
+filas: `r paste(numero(hilos$tiempo_s_mediana), collapse = ", ")` segundos con
+`r paste(hilos$nucleos, collapse = ", ")` hilos
+(`r numero(mediana_hilos(2) / mediana_hilos(16), 1)` veces entre dos y dieciséis).
+Los candidatos y los pares no cambian con los hilos, sólo el reloj. El valor por
+omisión es de dos hilos, el máximo que la política de CRAN admite al comprobar un
+paquete, y se cambia con `options(lupa.nucleos = )`; la ganancia
+depende de qué fracción del trabajo cae en la comparación, y sobre otro padrón la
+curva puede ser más plana.
+
+```{r figura-estimacion, echo = FALSE, out.width = "100%", fig.alt = "Estimación previa: error en cuatro tamaños y pérdida del bloqueo por clave"}
+mostrar_figura("banco-estimacion.png")
+```
+
+`estimar_costo()` dice cuántos pares candidatos va a generar el recorrido antes de
+pagarlo, con una muestra determinista de firmas. En los
+`r nrow(escala)` tamaños medidos el error va de
+`r porcentaje(min(escala$error_estimacion), 2, signo = TRUE)` a
+`r porcentaje(max(escala$error_estimacion), 2, signo = TRUE)`; el paquete no
+promete una tolerancia, la medición es la que hay. Al bloquear por una clave de
+negocio sin relación con el nombre (`` `r bloqueo$clave` ``), el bloqueo descarta el
+`r porcentaje(bloqueo$perdidos_reales / bloqueo$pares_sin_bloqueo)` de los pares
+que la comparación exhaustiva informa (`r numero(bloqueo$perdidos_reales)` de
+`r numero(bloqueo$pares_sin_bloqueo)`, sobre `r numero(bloqueo$filas)` filas), y
+la estimación previa lo anticipa con un error de
+`r porcentaje(bloqueo$error_estimacion, 2, signo = TRUE)`. La clave no sirve para
+este dato, y se ve antes de usarla.
+
+```{r figura-cardinalidad, echo = FALSE, out.width = "100%", fig.alt = "Cardinalidad: candidatos a igual cantidad de filas, con tres riquezas de vocabulario"}
+mostrar_figura("banco-cardinalidad.png")
+```
+
+```{r cardinalidad-cifras, include = FALSE}
+alta <- cardinalidad[cardinalidad$nivel == "alta", ]
+baja <- cardinalidad[cardinalidad$nivel == "baja", ]
+```
+
+Lo que manda no es la cantidad de filas: es cuánto se repiten los valores. Las
+mismas `r numero(alta$filas)` filas dan `r numero(alta$candidatos)` candidatos con
+un vocabulario amplio y `r numero(baja$candidatos)` cuando la mitad comparte un
+valor, `r numero(baja$veces_respecto_alta, 1)` veces más. Es el número que
+`estimar_costo()` anticipa y el motivo de que el paquete estime antes de recorrer.
+
+```{r figura-tamiz, echo = FALSE, out.width = "100%", fig.alt = "Tamiz LSH: pérdida frente a la comparación exhaustiva, según el umbral y las bandas"}
+mostrar_figura("banco-tamiz.png")
+```
+
+El camino LSH es un tamiz, no un sustituto del exhaustivo, y esta figura
+dimensiona la advertencia que `alcance` ya declara. Medido contra la comparación
+exhaustiva sobre la misma entrada, con las otras causas de pérdida neutralizadas:
+con `r bandas_omision` bandas, el valor por omisión, el tamiz deja afuera entre el
+`r porcentaje(perdida_bandas(bandas_omision)[[1]])` y el
+`r porcentaje(perdida_bandas(bandas_omision)[[2]])` de los pares que Jaro-Winkler
+acepta a umbral `r numero(entorno$umbral, 2)` sobre este corpus de
+`r paste(sort(unique(lsh_bandas$filas)), collapse = " y ")` filas; con 20 bandas
+la pérdida baja a entre el `r porcentaje(perdida_bandas(20)[[1]])` y el
+`r porcentaje(perdida_bandas(20)[[2]])`, a cambio de más comparaciones. La pérdida
+no es una propiedad del tamiz sino la distancia entre lo que propone y lo que el
+método final acepta: a umbral `r numero(umbral_bajo$umbral, 2)` pierde
+`r numero(umbral_bajo$perdidos)` de `r numero(umbral_bajo$pares_exhaustivo)`
+pares, y a `r numero(umbral_alto$umbral, 2)` pierde
+`r numero(umbral_alto$perdidos)` de `r numero(umbral_alto$pares_exhaustivo)`
+(el `r porcentaje(umbral_alto$perdida)`). Quien necesite exhaustividad tiene el
+camino exhaustivo, con su costo. El diseño experimental y sus límites están en
+[`benchmark/perdida_lsh.md`](`r repo("benchmark/perdida_lsh.md")`).
+
+Para rehacer las cuatro figuras desde la raíz del repositorio, con la máquina
+quieta:
+
+```sh
+R CMD build . && R CMD INSTALL lupa_*.tar.gz
+Rscript benchmark/medir_figuras.R
+Rscript benchmark/perdida_lsh.R
+Rscript benchmark/graficar_figuras.R
+```
+
+Las repeticiones cronometradas que guardan `escala.csv` y `hilos.csv` suman
+`r tiempo(segundos_medidos)`, así que la corrida completa tarda al menos eso en
+una máquina como la medida. Con `LUPA_FIGURAS_SOLO_BARATAS=1` el medidor corre
+sólo los tamaños chicos, como prueba de humo.
+
+## Tablas anchas
+
+### El plan de consultas de una tabla ancha
+
+```{r plan-ancho-lectura, include = FALSE}
+archivos_plan <- sort(
+  list.files(datos_banco, pattern = "^medir-plan-ancho-.*[.]csv$", full.names = TRUE),
+  decreasing = TRUE
+)
+hay_plan <- length(archivos_plan) > 0L
+# La tabla del plan es lo que esta seccion publica: sin la corrida, la pagina no se construye.
+if (!hay_plan) stop("No encuentro benchmark/datos/medir-plan-ancho-*.csv.")
+if (hay_plan) {
+  plan_ancho <- utils::read.csv(archivos_plan[[1L]], stringsAsFactors = FALSE)
+  resumen_plan <- plan_ancho[plan_ancho$medida != "plan", c("escenario", "medida", "valor")]
+  valor_plan <- function(escenario, medida) {
+    as.numeric(resumen_plan$valor[resumen_plan$escenario == escenario &
+                                    resumen_plan$medida == medida])
+  }
+}
+```
+
+`plan_perfilado_dbi()` predice cuántas consultas va a emitir `perfilar_dbi()`
+sin ejecutar ninguna. `benchmark/medir_plan_ancho.R` arma una tabla de 158
+columnas con la mezcla de una tabla administrativa (más texto que números, algunos
+enteros de código y fechas guardadas como texto), la escribe en SQLite en memoria
+y publica el plan, separando las consultas que escanean u ordenan la tabla entera
+de las que no. El número depende de la composición tanto como de la cantidad de
+columnas: la mediana pide un orden por columna numérica.
+
+```{r plan-ancho-texto, echo = FALSE, results = "asis"}
+if (hay_plan) {
+  cat(
+    "Corrida del ", substr(plan_ancho$fecha[[1L]], 1L, 10L), " sobre la revisión `",
+    plan_ancho$revision_paquete[[1L]], "`, con ",
+    sub("R version ([0-9.]+).*", "R \\1", plan_ancho$version_R[[1L]]), ": la tabla mixta de ",
+    valor_plan("ancha_tabla_completa", "columnas"), " columnas pide ",
+    numero(valor_plan("ancha_tabla_completa", "consultas")), " consultas, de las que ",
+    numero(valor_plan("ancha_tabla_completa", "consultas_tabla_entera")),
+    " escanean u ordenan la tabla entera; si se rechazaran todos los lotes, serían ",
+    numero(valor_plan("ancha_tabla_completa", "consultas_maximas")),
+    ". Con las mismas ", valor_plan("ancha_solo_texto", "columnas"),
+    " columnas, todas de texto, el plan baja a ",
+    numero(valor_plan("ancha_solo_texto", "consultas")), " consultas.\n",
+    sep = ""
+  )
+} else {
+  cat(
+    "La salida fechada de `benchmark/medir_plan_ancho.R` todavía no está en ",
+    "`benchmark/datos/`. Hasta que esté, esta página no publica cifras del plan ",
+    "de una tabla ancha.\n",
+    sep = ""
+  )
+}
+```
+
+```{r plan-ancho-tabla, eval = hay_plan, include = hay_plan}
+resumen_plan
+```
+
+### La velocidad que supone el aviso de tabla ancha
+
+En una sesión interactiva, `perfilar()` avisa antes de perfilar una tabla de
+`r numero(eval(formals(perfilar)$umbral_celdas_aviso_tabla_ancha, asNamespace("lupa")))`
+celdas o más (`umbral_celdas_aviso_tabla_ancha`) y proyecta la duración con una
+referencia de `r numero(interno(".VELOCIDAD_REFERENCIA_TABLA_ANCHA"))` celdas por
+segundo. Esa referencia es un supuesto del código, no una medición.
+
+La medición más reciente es la de `benchmark/medir_referencias.R`, que perfila
+tablas de 500 filas con 50, 300 y 1.000 columnas (dos de cada tres numéricas, el
+resto texto) y descarta una primera corrida de calentamiento. Dos corridas del
+2026-10-24 sobre la revisión `0.1.0; R/ md5 08c0a1af7ccb`, en la misma máquina que las figuras
+(`r entorno$cpu`, R 4.6.1); salida guardada:
+
+```{r velocidad-ancha}
+anchas <- data.frame(
+  columnas = c(50, 300, 1000),
+  corrida_1_s = c(4.62, 18.54, 67.15),
+  corrida_2_s = c(4.44, 19.03, 64.36)
+)
+anchas$celdas_por_segundo <- round(
+  500 * anchas$columnas / rowMeans(anchas[c("corrida_1_s", "corrida_2_s")])
+)
+anchas
+```
+
+Medido así, una tabla ancha se perfila más despacio que la referencia, y la
+proyección del aviso puede quedarse corta. El guion imprime sus tiempos en la
+consola y no deja un CSV en `benchmark/datos/`, así que esta tabla es una salida
+guardada con su fecha.
+
+## Corridas sobre millones de filas
+
+`perfilar()` y `analizar()` trabajan en memoria, y sobre tablas de millones de
+filas no son una pasada rápida. Las cifras que siguen son de una corrida única,
+del 2026-09-29, sobre tres tablas de producción que el repositorio no tiene y
+con el código de esa fecha; son una referencia de magnitud, no una predicción ni
+una medición de esta versión:
+
+| Llamada | Tablas | Duración |
+| --- | --- | --- |
+| `perfilar()` | tres tablas de 3,7 a 4,3 millones de filas y de 7 a 19 columnas | entre 14 y 59 minutos |
+| `perfilar()`, la misma llamada repetida sobre la misma tabla | una de esas tablas | 53 y 29 minutos |
+| `analizar()` | la tabla de 7 columnas y una de 13 | 20 y 97 minutos |
+
+El costo depende de las columnas y de su contenido tanto como de las filas, y
+varía entre corridas, así que la cifra no se extrapola. A esa escala conviene
+perfilar una muestra de la tabla y llamar sueltas las piezas de `analizar()` que
+hagan falta (`distribucion_valores()`, `detectar_asociaciones()`), o usar
+`perfilar_dbi()`, que calcula los agregados en el motor; esa corrida no incluye
+`perfilar_dbi()`. Las cifras de memoria de `perfilar_dbi()` sobre un motor de
+producción están en
+[Motores y escala](https://sebollin.github.io/lupa/articles/motores-y-escala.html).
+
+```{r cierre, include = FALSE}
+options(.opciones_previas)
+```

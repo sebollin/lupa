@@ -1,0 +1,2944 @@
+.validar_limite_duplicados <- function(x, nombre) {
+  if (!is.numeric(x) || length(x) != 1L || is.na(x) || x < 1 ||
+      (!is.infinite(x) && x != floor(x))) {
+    .detener("`", nombre, "` debe ser un entero positivo o Inf.", call. = FALSE)
+  }
+  if (is.infinite(x)) Inf else as.integer(x)
+}
+
+# Jaro-Winkler y las distancias de edicion fueron concebidas para nombres,
+# direcciones e identificadores, no para documentos.
+#
+# El motivo NO es que la metrica pierda discriminacion: medido, el cociente
+# entre 500 ediciones y 1 edicion se mantiene en unos 480 con largos de 1.000,
+# 10.000 y 25.000 caracteres. Lo que cambia es la ESCALA ABSOLUTA. Con 25.000
+# caracteres, 500 ediciones -un parrafo reescrito- dan una distancia normalizada
+# de 0,019, por debajo de cualquier umbral usable, asi que dos documentos que un
+# lector considera distintos quedan del lado de los casi-duplicados. La metrica
+# es invariante ante diferencias PROPORCIONALES y deja de servir ante diferencias
+# de tamano FIJO, que son las que ocurren en textos largos.
+#
+# Y esta el costo, que es el motivo principal: con valores de 20 KB la matriz de
+# distancias se lleva el 69 % del perfilado, y 2.000 filas de 200 KB tardan
+# 41,8 s frente a 0,42 s con valores de 1.000 caracteres.
+.MAX_LARGO_VALOR_CASI_DUPLICADOS <- 10000L
+
+.validar_largo_valor_duplicados <- function(x, nombre) {
+  .validar_limite_duplicados(x, nombre)
+}
+
+# El largo se mide sobre el valor YA NORMALIZADO, que es el que se compara.
+#
+# Medirlo sobre el crudo dejaba un desvio real, no teorico: la normalizacion
+# `amplio` expande ligaduras -"ffl" es UN caracter que se convierte en TRES-, asi
+# que una columna de 5.101 caracteres crudos pasaba el tope de 10.000, se
+# comparaba con 15.303, y `largo_maximo` publicaba 5.101. El tope existe por lo
+# que cuesta y por como se degrada la distancia normalizada; las dos cosas
+# dependen de la cadena que entra a `stringdist`, no de la que estaba guardada.
+.largo_maximo_valor_duplicados <- function(x, normalizacion = NULL) {
+  valores <- suppressWarnings(as.character(.texto_analizable(
+    .valores_para_comparar_duplicados(x)
+  )$valores))
+  if (!is.null(normalizacion)) {
+    # Mismo tratamiento del ausente que `.texto_fila_aproximada`: se compara ""
+    # y no `NA`, y medir otra cosa que la que se compara es el defecto que esto
+    # viene a cerrar.
+    valores[is.na(valores)] <- ""
+    valores <- .normalizacion_aplicar(valores, normalizacion)
+  }
+  largos <- nchar(valores, type = "chars", allowNA = TRUE)
+  largos <- largos[is.finite(largos)]
+  if (!length(largos)) 0 else max(largos)
+}
+
+# Los largos de una columna, ya normalizados, fila por fila. `NA` cuenta como
+# "" porque asi entra a la comparacion, y un largo no finito cuenta 0 en vez de
+# envenenar la suma.
+.largos_columna_duplicados <- function(x, normalizacion = NULL) {
+  valores <- suppressWarnings(as.character(.texto_analizable(
+    .valores_para_comparar_duplicados(x)
+  )$valores))
+  valores[is.na(valores)] <- ""
+  if (!is.null(normalizacion)) {
+    valores <- .normalizacion_aplicar(valores, normalizacion)
+  }
+  largos <- nchar(valores, type = "chars", allowNA = TRUE)
+  largos[!is.finite(largos)] <- 0
+  largos
+}
+
+# El tope se compara contra la cadena COMBINADA, que es la que entra a
+# `stringdist`, y no contra cada columna por separado.
+#
+# La documentacion del parametro ya decia "cada valor de las columnas
+# combinadas"; la implementacion media columna por columna, asi que se
+# contradecian. Reproducido el 2026-08-29: dos columnas de 9.000 caracteres,
+# las dos por debajo del tope de 10.000, se comparaban concatenadas en 18.003 y
+# el alcance publicaba `largo_maximo = 9000`.
+#
+# Se suma por fila y no maximo contra maximo: los dos maximos pueden estar en
+# filas distintas y esa suma no existiria en ninguna comparacion real.
+.SEPARADOR_FILA_DUPLICADOS <- 3L   # " | " entre columnas
+
+.columnas_largas_duplicados <- function(datos, columnas, max_largo_valor,
+                                        normalizacion = NULL) {
+  if (!length(columnas) || is.infinite(max_largo_valor)) {
+    # Con el tope en `Inf` no se miden largos: seria pagar un recorrido para no
+    # decidir nada. Pero entonces `largo_maximo` no puede publicar 0, que es una
+    # medicion y ademas falsa -habia valores de 12.000 caracteres-. Se publica
+    # `NA`, que es lo que ocurrio: no se midio. `limite_largo_valor_aplica`
+    # queda en FALSE y dice por que.
+    return(list(
+      columnas = character(), largos = numeric(), combinado = NA_real_
+    ))
+  }
+  por_fila <- lapply(columnas, function(columna) {
+    .largos_columna_duplicados(
+      datos[[columna]],
+      if (is.null(normalizacion)) NULL
+      else .normalizacion_para_columna(normalizacion, columna)
+    )
+  })
+  names(por_fila) <- columnas
+  largos <- vapply(por_fila, function(v) if (!length(v)) 0 else max(v), numeric(1L))
+  combinado <- if (!length(por_fila[[1L]])) {
+    0
+  } else {
+    max(Reduce(`+`, por_fila)) +
+      .SEPARADOR_FILA_DUPLICADOS * (length(columnas) - 1L)
+  }
+  propias <- names(largos)[largos > max_largo_valor]
+  # Si ninguna columna sola excede pero la combinacion si, quedan fuera todas:
+  # se comparan juntas, asi que no hay manera de excluir "una parte" de la fila.
+  excluidas <- if (length(propias)) propias
+               else if (combinado > max_largo_valor) as.character(columnas)
+               else character()
+  list(columnas = excluidas, largos = largos, combinado = combinado)
+}
+
+.stringdist_disponible <- function() {
+  requireNamespace("stringdist", quietly = TRUE)
+}
+
+.distancias_pares_duplicados <- function(a, b, metodo, nucleos, p = 0.1) {
+  stringdist::stringdist(a, b, method = metodo, p = p, nthread = nucleos)
+}
+
+.matriz_distancias_duplicados <- function(a, b, metodo, nucleos, p = 0.1) {
+  stringdist::stringdistmatrix(a, b, method = metodo, p = p, nthread = nucleos)
+}
+
+.nucleos_disponibles_lupa <- function() {
+  disponibles <- tryCatch(
+    parallel::detectCores(logical = TRUE),
+    error = function(e) NA_integer_
+  )
+  if (!length(disponibles) || is.na(disponibles) || !is.finite(disponibles) ||
+      disponibles < 1) 1L else as.integer(disponibles)
+}
+
+.resolver_nucleos_lupa <- function(x = getOption("lupa.nucleos", 2L)) {
+  if (is.null(x)) x <- getOption("lupa.nucleos", 2L)
+  if (!is.numeric(x) || length(x) != 1L || is.na(x) || !is.finite(x) ||
+      x < 1 || x != floor(x)) {
+    .detener("`nucleos` debe ser un entero positivo o NULL.", call. = FALSE)
+  }
+  min(as.integer(x), .nucleos_disponibles_lupa())
+}
+
+.vacio_duplicados_aproximados <- function(
+    n_filas, columnas, metodo, umbral, muestra, max_pares, max_resultados,
+    disponible = TRUE, razon = "", bloque = 1000L, n_bloques = 0L,
+    modo_comparacion = "sin_comparacion", nucleos_usados = NA_integer_,
+    p = 0.1, max_largo_valor = Inf,
+    columnas_excluidas_largo = character(), largos_columnas = numeric(),
+    largo_combinado = NULL, conteos_medidos = FALSE) {
+  # Los conteos que salen de COMPARAR filas son `NA` si no se comparo ninguna:
+  # sin `stringdist`, con un valor sobre el tope de largo, con dos columnas del
+  # mismo nombre o sin columnas comparables. Publicaba `0`, y `0` es una medicion
+  # -"no hay pares"- que nadie hizo: medido, seis filas con un par
+  # identico daban `n_filas_validas = 0` y `n_pares_exactos = 0`. Es la doctrina
+  # que este mismo constructor aplica a `largo_maximo` mas abajo. Solo quien
+  # recorrio las filas y no encontro dos validas pasa `conteos_medidos = TRUE`:
+  # ahi cero pares es lo que hay.
+  medido <- if (isTRUE(conteos_medidos)) 0 else NA_real_
+  pares <- data.frame(
+    fila_1 = integer(), fila_2 = integer(), distancia = numeric(),
+    tipo_par = character(), igualo_normalizar = logical(), metodo = character(),
+    p = numeric(), umbral = numeric(),
+    evidencia_1 = character(),
+    evidencia_2 = character(), proteccion_evidencia = character(),
+    stringsAsFactors = FALSE
+  )
+  posibles <- as.numeric(n_filas) * (as.numeric(n_filas) - 1) / 2
+  alcance <- data.frame(
+    n_filas_total = as.numeric(n_filas),
+    n_filas_muestra = 0,
+    n_filas_validas = medido,
+    n_pares_posibles = posibles,
+    n_pares_comparados = 0,
+    n_pares_sin_comparar = posibles,
+    n_pares_hallados = medido,
+    n_pares_exactos = medido,
+    n_pares_exactos_normalizados = medido,
+    n_pares_aproximados = medido,
+    n_pares_mostrados = 0,
+    limite_pares = max_pares,
+    limite_pares_configurado = max_pares,
+    limite_pares_aplica = FALSE,
+    limite_resultados = max_resultados,
+    muestra = muestra,
+    muestra_efectiva = 0,
+    estrategia = if (disponible) "sin_pares_comparables" else "no_disponible",
+    modo_comparacion = modo_comparacion,
+    tamano_bloque = bloque,
+    n_bloques = n_bloques,
+    comparacion_exhaustiva = FALSE,
+    muestreado = FALSE,
+    truncado = FALSE,
+    distancia_corte = NA_real_,
+    n_en_distancia_corte = NA_integer_,
+    corte_en_empate = FALSE,
+    disponible = disponible,
+    nucleos_usados = nucleos_usados,
+    metodo = metodo,
+    p = p,
+    max_largo_valor = max_largo_valor,
+    limite_largo_valor_aplica = is.finite(max_largo_valor),
+    columnas_excluidas_largo = paste(columnas_excluidas_largo, collapse = ", "),
+    n_columnas_excluidas_largo = length(columnas_excluidas_largo),
+    # `NA` y no `0`: si no se midio ningun largo -porque no hay filas, porque no
+    # hay columnas comparables, o porque el tope es `Inf` y medirlos seria pagar
+    # un recorrido para no decidir nada- entonces no hay un maximo. Publicar `0`
+    # es publicar una medicion, y falsa. La doctrina estaba escrita a ciento
+    # veinte lineas de aca, en `.columnas_largas_duplicados()`, y este `else` la
+    # contradecia; el manual dice textualmente que con el tope en `Inf`
+    # `largo_maximo` vale `NA`, no cero.
+    largo_maximo = if (!is.null(largo_combinado)) largo_combinado
+                   else if (length(largos_columnas)) max(largos_columnas)
+                   else NA_real_,
+    razon = razon,
+    stringsAsFactors = FALSE
+  )
+  hallazgos <- data.frame(
+    columna = character(), tipo_hallazgo = character(), severidad = character(),
+    descripcion = character(), evidencia = character(), sugerencia = character(),
+    n_evaluados = numeric(), n_afectados = numeric(),
+    unidad_conteo = character(),
+    estado_reparacion = character(),
+    trazabilidad = I(list()),
+    stringsAsFactors = FALSE
+  )
+  estructura <- list(
+    pares = pares, hallazgos = hallazgos,
+    alcance = alcance, columnas = columnas, metodo = metodo, p = p,
+    umbral = umbral, disponible = disponible, razon = razon,
+    max_largo_valor = max_largo_valor,
+    columnas_excluidas_largo = columnas_excluidas_largo,
+    proteccion_aplicada = FALSE, estimacion = NULL
+  )
+  class(estructura) <- c("duplicados_aproximados", "list")
+  estructura
+}
+
+.validar_bloque_duplicados <- function(x) {
+  if (!is.numeric(x) || length(x) != 1L || is.na(x) ||
+      !is.finite(x) || x < 1 || x != floor(x)) {
+    .detener("`bloque` debe ser un entero positivo y finito.", call. = FALSE)
+  }
+  as.integer(x)
+}
+
+.validar_bloquear_por <- function(datos, x) {
+  if (is.null(x)) return(NULL)
+  if (!is.character(x) || length(x) != 1L || is.na(x) || !nzchar(x) ||
+      is.na(.indice_nombre(x, names(datos)))) {
+    .detener("`bloquear_por` debe nombrar una columna existente.", call. = FALSE)
+  }
+  x <- names(datos)[[.indice_nombre(x, names(datos))]]
+  if (.es_columna_compuesta(datos[[x]]) || is.list(datos[[x]])) {
+    .detener("`bloquear_por` debe nombrar una columna atomica.", call. = FALSE)
+  }
+  x
+}
+
+.validar_lotes <- function(x) {
+  if (!is.logical(x) || length(x) != 1L || is.na(x)) {
+    .detener("`lotes` debe ser TRUE o FALSE.", call. = FALSE)
+  }
+  isTRUE(x)
+}
+
+.validar_directorio_lotes <- function(x, crear = TRUE) {
+  if (is.null(x)) return(NULL)
+  if (!is.character(x) || length(x) != 1L || is.na(x) || !nzchar(x)) {
+    .detener("`directorio_lotes` debe ser una ruta de texto o NULL.", call. = FALSE)
+  }
+  if (isTRUE(crear) && !dir.exists(x) &&
+      !dir.create(x, recursive = TRUE, showWarnings = FALSE)) {
+    .detener("No se pudo crear `directorio_lotes`.", call. = FALSE)
+  }
+  x
+}
+
+.controlar_presupuesto_pares <- function(estimados, presupuesto) {
+  if (!is.finite(presupuesto) || !is.finite(estimados) ||
+      estimados <= presupuesto) return(invisible(TRUE))
+  continuar <- FALSE
+  if (isTRUE(interactive())) {
+    respuesta <- readline(paste0(
+      "La estimaci\u00f3n exacta es de ", .formato_pares_lsh(estimados),
+      " pares (presupuesto ", .formato_pares_lsh(presupuesto),
+      "). \u00bfContinuar? [s/N] "
+    ))
+    continuar <- .minusculas_para_comparar(respuesta) %in% c(
+      "s", "si", "s\u00ed", "y", "yes"
+    )
+  }
+  if (!continuar) {
+    .detener(
+      "La estimaci\u00f3n exacta (", .formato_pares_lsh(estimados),
+      " pares) supera `presupuesto_pares` (",
+      .formato_pares_lsh(presupuesto),
+      "). No se inici\u00f3 la comparaci\u00f3n; aumente el presupuesto, reduzca los datos, ",
+      "suba el umbral o divida el conjunto por una clave.",
+      call. = FALSE
+    )
+  }
+  invisible(TRUE)
+}
+
+.resumir_bloqueo <- function(datos, columna) {
+  if (is.null(columna)) return(NULL)
+  clave <- datos[[columna]]
+  textos <- suppressWarnings(as.character(.texto_analizable(clave)$valores))
+  ausentes <- is.na(textos)
+  # Los ausentes forman un bloque propio: no desaparecen del alcance, pero
+  # tampoco se mezclan con valores observados.
+  textos[ausentes] <- "<NA bloque propio>"
+  ids <- match(textos, unique(textos))
+  tamanos <- tabulate(ids, nbins = if (length(ids)) max(ids) else 0L)
+  posibles <- as.numeric(nrow(datos)) * (as.numeric(nrow(datos)) - 1) / 2
+  alcanzables <- sum(tamanos * pmax(tamanos - 1, 0) / 2)
+  cuantiles <- if (length(tamanos)) {
+    stats::quantile(
+      tamanos, probs = c(0, 0.25, 0.5, 0.75, 1), names = FALSE
+    )
+  } else rep(0, 5L)
+  list(
+    ids = ids,
+    alcance = data.frame(
+      bloqueo_por = columna,
+      bloqueo_tratamiento_na = "bloque_propio",
+      bloqueo_n_bloques = length(tamanos),
+      bloqueo_n_filas_na = sum(ausentes),
+      bloqueo_tamano_minimo = cuantiles[[1L]],
+      bloqueo_tamano_q1 = cuantiles[[2L]],
+      bloqueo_tamano_mediana = cuantiles[[3L]],
+      bloqueo_tamano_q3 = cuantiles[[4L]],
+      bloqueo_tamano_maximo = cuantiles[[5L]],
+      bloqueo_pares_alcanzables = alcanzables,
+      bloqueo_pares_fuera_alcance = max(0, posibles - alcanzables),
+      bloqueo_prop_pares_alcanzables = if (posibles) alcanzables / posibles else NA_real_,
+      bloqueo_perdida = alcanzables < posibles,
+      bloqueo_severidad = if (alcanzables < posibles) "sospechoso" else "ok",
+      stringsAsFactors = FALSE
+    )
+  )
+}
+
+.estimar_perdida_bloqueo <- function(
+    valores, bloqueos, metodo, umbral, tamano_muestra, nucleos = 2L,
+    p = 0.1) {
+  if (length(valores) < 2L || is.null(bloqueos)) {
+    return(data.frame(
+      bloqueo_muestra_pares = 0L,
+      bloqueo_muestra_candidatos = 0L,
+      bloqueo_muestra_candidatos_fuera_alcance = 0L,
+      bloqueo_prop_candidatos_fuera_alcance = NA_real_,
+      bloqueo_candidatos_sin_bloqueo_estimados = NA_real_,
+      bloqueo_candidatos_perdidos_estimados = NA_real_,
+      bloqueo_perdida_estimacion_estado = "sin_muestra",
+      stringsAsFactors = FALSE
+    ))
+  }
+  pares <- .muestra_pares_lsh(length(valores), tamano_muestra)
+  if (!nrow(pares)) {
+    return(data.frame(
+      bloqueo_muestra_pares = 0L,
+      bloqueo_muestra_candidatos = 0L,
+      bloqueo_muestra_candidatos_fuera_alcance = 0L,
+      bloqueo_prop_candidatos_fuera_alcance = NA_real_,
+      bloqueo_candidatos_sin_bloqueo_estimados = NA_real_,
+      bloqueo_candidatos_perdidos_estimados = NA_real_,
+      bloqueo_perdida_estimacion_estado = "sin_muestra",
+      stringsAsFactors = FALSE
+    ))
+  }
+  distancias <- stringdist::stringdist(
+    valores[pares$fila_1], valores[pares$fila_2], method = metodo,
+    p = p, nthread = nucleos
+  )
+  candidatos <- is.finite(distancias) & distancias <= umbral
+  fuera <- bloqueos[pares$fila_1] != bloqueos[pares$fila_2]
+  n_candidatos <- sum(candidatos)
+  n_fuera <- sum(candidatos & fuera)
+  total <- as.numeric(length(valores)) * (as.numeric(length(valores)) - 1) / 2
+  estimados_sin_bloqueo <- if (total && nrow(pares)) {
+    n_candidatos / nrow(pares) * total
+  } else NA_real_
+  proporcion <- if (n_candidatos) n_fuera / n_candidatos else NA_real_
+  perdidos <- if (is.finite(estimados_sin_bloqueo) && is.finite(proporcion)) {
+    estimados_sin_bloqueo * proporcion
+  } else NA_real_
+  data.frame(
+    bloqueo_muestra_pares = nrow(pares),
+    bloqueo_muestra_candidatos = n_candidatos,
+    bloqueo_muestra_candidatos_fuera_alcance = n_fuera,
+    bloqueo_prop_candidatos_fuera_alcance = proporcion,
+    bloqueo_candidatos_sin_bloqueo_estimados = estimados_sin_bloqueo,
+    bloqueo_candidatos_perdidos_estimados = perdidos,
+    bloqueo_perdida_estimacion_estado = if (n_candidatos) {
+      "estimada_por_muestra"
+    } else "sin_candidatos_en_muestra",
+    stringsAsFactors = FALSE
+  )
+}
+
+.validar_parametro_lsh <- function(x, nombre, minimo = 1L) {
+  if (!is.numeric(x) || length(x) != 1L || is.na(x) ||
+      !is.finite(x) || x < minimo || x != floor(x)) {
+    .detener("`", nombre, "` debe ser un entero finito de al menos ", minimo,
+         ".", call. = FALSE)
+  }
+  as.integer(x)
+}
+
+# Numera los valores comparados por su orden canonico de bytes y devuelve un
+# entero por fila global. Es la misma decision que ya gobierna el recorte del
+# vocabulario: cuando hay que elegir que se conserva, se elige por contenido y no
+# por orden de llegada, porque si no el veredicto depende de como venga ordenado
+# el archivo. Se calcula UNA vez, sobre el universo completo de la corrida: un
+# rango recalculado por tesela o por lote seria local y cambiaria la comparacion
+# entre lotes.
+.rango_canonico_duplicados <- function(valores, filas) {
+  if (!length(filas)) return(integer())
+  rango <- integer(max(as.integer(filas)))
+  ordenados <- .ordenar_por_bytes(unique(valores))
+  rango[as.integer(filas)] <- match(valores, ordenados)
+  rango
+}
+
+.nuevo_acumulador_duplicados <- function(max_resultados, rango = NULL) {
+  list(
+    rango = rango,
+    pares = data.frame(
+      fila_1 = integer(), fila_2 = integer(), distancia = numeric(),
+      stringsAsFactors = FALSE
+    ),
+    # La distancia mas cercana que el recorte llego a tirar. Con eso se sabe si
+    # el corte cayo dentro de un empate: si lo mas cercano descartado esta a la
+    # misma distancia que el borde, quedaron afuera pares igual de cercanos.
+    # Contar solo entre los conservados no alcanza -si sobrevive uno solo en el
+    # borde, el conteo da 1 y la senal caeria en FALSE con descartes empatados-.
+    distancia_minima_descartada = Inf,
+    n_hallados = 0, n_exactos = 0, n_exactos_normalizados = 0,
+    n_aproximados = 0,
+    max_resultados = max_resultados, lotes = list(),
+    iguales = logical(), lotes_iguales = list()
+  )
+}
+
+.ordenar_pares_con_igualdad <- function(pares, iguales, rango = NULL) {
+  if (!inherits(pares, "data.frame") ||
+      !all(c("distancia", "fila_1", "fila_2") %in% names(pares))) {
+    .detener("Los pares deben ser un data frame con filas y distancia.",
+         call. = FALSE)
+  }
+  if (length(iguales) != nrow(pares)) {
+    .detener("La igualdad debe contener una entrada por par.", call. = FALSE)
+  }
+  if (!nrow(pares)) {
+    rownames(pares) <- NULL
+    return(list(pares = pares, iguales = logical()))
+  }
+  # Entre pares empatados en distancia, desempatar por posicion de fila hace que
+  # cual sobrevive al recorte dependa del orden de llegada. La clave por rango de
+  # valor es simetrica -min y max- para que tampoco dependa de cual fila quedo
+  # primera dentro del par.
+  if (!is.null(rango) && length(rango)) {
+    r1 <- rango[pares$fila_1]
+    r2 <- rango[pares$fila_2]
+    orden <- .orden_por_bytes(pares$distancia, pmin(r1, r2), pmax(r1, r2),
+                   pares$fila_1, pares$fila_2)
+  } else {
+    orden <- .orden_por_bytes(pares$distancia, pares$fila_1, pares$fila_2)
+  }
+  salida <- pares[orden, , drop = FALSE]
+  rownames(salida) <- NULL
+  list(pares = salida, iguales = as.logical(iguales)[orden])
+}
+
+.pares_acumulador_con_igualdad <- function(acumulador) {
+  if (!is.infinite(acumulador$max_resultados) ||
+      !length(acumulador$lotes)) {
+    return(.ordenar_pares_con_igualdad(
+      acumulador$pares, as.logical(acumulador$iguales), acumulador$rango
+    ))
+  }
+  lotes_todos <- c(list(acumulador$pares), acumulador$lotes)
+  indices_lotes <- which(vapply(lotes_todos, nrow, integer(1L)) > 0L)
+  lotes <- lotes_todos[indices_lotes]
+  if (!length(lotes)) return(.ordenar_pares_con_igualdad(
+    acumulador$pares, logical(), acumulador$rango
+  ))
+  iguales_lotes <- lapply(indices_lotes, function(indice) {
+    iguales <- if (indice == 1L) acumulador$iguales else {
+      lote <- indice - 1L
+      if (length(acumulador$lotes_iguales) >= lote) {
+        acumulador$lotes_iguales[[lote]]
+      } else logical()
+    }
+    if (length(iguales) != nrow(lotes_todos[[indice]])) {
+      .detener("El acumulador no contiene la igualdad de los textos para cada par.",
+           call. = FALSE)
+    }
+    as.logical(iguales)
+  })
+  pares <- data.frame(
+    fila_1 = as.integer(unlist(lapply(lotes, `[[`, "fila_1"),
+                         use.names = FALSE)),
+    fila_2 = as.integer(unlist(lapply(lotes, `[[`, "fila_2"),
+                         use.names = FALSE)),
+    distancia = as.numeric(unlist(lapply(lotes, `[[`, "distancia"),
+                              use.names = FALSE)),
+    stringsAsFactors = FALSE
+  )
+  iguales <- unlist(iguales_lotes, use.names = FALSE)
+  .ordenar_pares_con_igualdad(pares, iguales, acumulador$rango)
+}
+
+#' Acumula un lote de pares candidatos ya filtrados
+#'
+#' El contrato del generador es entregar cada par una sola vez. El acumulador
+#' no guarda un índice de todos los pares vistos: conserva sólo los mejores
+#' `max_resultados` y sus contadores. Esto permite alimentar la función con
+#' lotes provenientes de teselas o de un generador futuro sin que el estado
+#' persistente crezca con el número de candidatos.
+#' @noRd
+.acumular_pares_duplicados <- function(
+    acumulador, fila_1, fila_2, distancia, iguales = NULL,
+    iguales_originales = NULL) {
+  if (!length(fila_1)) return(acumulador)
+  if (is.null(iguales)) {
+    .detener("El lote debe entregar la igualdad de los textos para cada par.",
+         call. = FALSE)
+  }
+  if (length(fila_1) != length(fila_2) ||
+      length(fila_1) != length(distancia) ||
+      length(fila_1) != length(iguales)) {
+    .detener("El lote de pares debe tener filas y distancias de igual longitud.",
+         call. = FALSE)
+  }
+  validos <- is.finite(distancia)
+  if (!any(validos)) return(acumulador)
+  lote <- data.frame(
+    fila_1 = as.integer(fila_1[validos]),
+    fila_2 = as.integer(fila_2[validos]),
+    distancia = as.numeric(distancia[validos]),
+    stringsAsFactors = FALSE
+  )
+  iguales <- as.logical(iguales[validos])
+  iguales[is.na(iguales)] <- FALSE
+  if (is.null(iguales_originales)) iguales_originales <- iguales
+  if (length(iguales_originales) != length(fila_1)) {
+    .detener("La igualdad del texto original debe contener una entrada por par.",
+         call. = FALSE)
+  }
+  iguales_originales <- as.logical(iguales_originales[validos])
+  iguales_originales[is.na(iguales_originales)] <- FALSE
+  acumulador$n_hallados <- acumulador$n_hallados + nrow(lote)
+  acumulador$n_exactos <- acumulador$n_exactos +
+    sum(iguales & iguales_originales)
+  acumulador$n_exactos_normalizados <- acumulador$n_exactos_normalizados +
+    sum(iguales & !iguales_originales)
+  acumulador$n_aproximados <- acumulador$n_aproximados +
+    sum(!iguales)
+  # Con `Inf` se conserva todo y ordenar cada lote vuelve cuadratica la
+  # acumulacion. El orden canonico se establece una sola vez al cerrar el
+  # generador; con un limite finito se mantiene el recorte incremental.
+  if (is.infinite(acumulador$max_resultados)) {
+    acumulador$lotes[[length(acumulador$lotes) + 1L]] <- lote
+    acumulador$lotes_iguales[[length(acumulador$lotes_iguales) + 1L]] <- iguales
+    return(acumulador)
+  }
+  acumulador$pares <- rbind(acumulador$pares, lote)
+  acumulador$iguales <- c(acumulador$iguales, iguales)
+  ordenados <- .ordenar_pares_con_igualdad(
+    acumulador$pares, acumulador$iguales, acumulador$rango
+  )
+  acumulador$pares <- ordenados$pares
+  acumulador$iguales <- ordenados$iguales
+  limite <- acumulador$max_resultados
+  if (!is.infinite(limite) && nrow(acumulador$pares) > limite) {
+    descartadas <- acumulador$pares$distancia[
+      seq.int(limite + 1L, nrow(acumulador$pares))
+    ]
+    if (length(descartadas)) {
+      acumulador$distancia_minima_descartada <- min(
+        acumulador$distancia_minima_descartada, min(descartadas)
+      )
+    }
+    acumulador$pares <- acumulador$pares[seq_len(limite), , drop = FALSE]
+    acumulador$iguales <- acumulador$iguales[seq_len(limite)]
+  }
+  rownames(acumulador$pares) <- NULL
+  acumulador
+}
+
+#' Compara por teselas y conserva sólo los mejores resultados
+#'
+#' La matriz de distancias de cada tesela se descarta antes de pasar a la
+#' siguiente. Así la memoria temporal depende de `bloque`, no de la cantidad
+#' total de filas, sin cambiar qué pares se comparan.
+#' @noRd
+.comparar_bloques_duplicados <- function(
+    valores, filas, metodo, umbral, bloque, max_resultados,
+    acumulador = NULL, on_pairs = NULL, bloqueos = NULL, nucleos = 2L,
+    p = 0.1, igualdad_original = NULL) {
+  n <- length(valores)
+  acumular_en_externo <- !is.null(acumulador)
+  if (is.null(acumulador)) {
+    acumulador <- .nuevo_acumulador_duplicados(
+      max_resultados, .rango_canonico_duplicados(valores, filas)
+    )
+  }
+  if (n < 2L) {
+    salida <- if (acumular_en_externo) {
+      list(pares = acumulador$pares, iguales = acumulador$iguales)
+    } else {
+      .pares_acumulador_con_igualdad(acumulador)
+    }
+    return(list(
+      pares = salida$pares, iguales = salida$iguales,
+      distancia_minima_descartada = acumulador$distancia_minima_descartada,
+    n_hallados = acumulador$n_hallados,
+      n_exactos = acumulador$n_exactos,
+      n_exactos_normalizados = acumulador$n_exactos_normalizados,
+      n_aproximados = acumulador$n_aproximados,
+      n_bloques = 0L, acumulador = acumulador
+    ))
+  }
+  inicios <- seq.int(1L, n, by = bloque)
+  n_bloques <- 0L
+  for (i in seq_along(inicios)) {
+    fin_i <- min(n, inicios[[i]] + bloque - 1L)
+    filas_i <- inicios[[i]]:fin_i
+    for (j in i:length(inicios)) {
+      fin_j <- min(n, inicios[[j]] + bloque - 1L)
+      filas_j <- inicios[[j]]:fin_j
+      matriz <- as.matrix(.matriz_distancias_duplicados(
+        valores[filas_i], valores[filas_j], metodo, nucleos, p
+      ))
+      n_bloques <- n_bloques + 1L
+      candidatas <- if (i == j) {
+        which(upper.tri(matriz) & matriz >= 0 & matriz <= umbral,
+              arr.ind = TRUE)
+      } else {
+        which(matriz >= 0 & matriz <= umbral, arr.ind = TRUE)
+      }
+      if (!nrow(candidatas)) next
+      distancias <- as.numeric(matriz[candidatas])
+      posiciones_1 <- filas_i[candidatas[, 1L]]
+      posiciones_2 <- filas_j[candidatas[, 2L]]
+      f1 <- filas[posiciones_1]
+      f2 <- filas[posiciones_2]
+      iguales <- valores[posiciones_1] == valores[posiciones_2]
+      if (!is.null(bloqueos)) {
+        dentro <- bloqueos[posiciones_1] == bloqueos[posiciones_2]
+        f1 <- f1[dentro]
+        f2 <- f2[dentro]
+        distancias <- distancias[dentro]
+        iguales <- iguales[dentro]
+      }
+      if (!length(f1)) next
+      iguales_originales <- if (is.null(igualdad_original)) NULL else {
+        igualdad_original(f1, f2)
+      }
+      if (!is.null(on_pairs)) on_pairs(f1, f2, distancias)
+      acumulador <- .acumular_pares_duplicados(
+        acumulador, f1, f2, distancias, iguales, iguales_originales
+      )
+    }
+  }
+  acumulados <- if (acumular_en_externo) {
+    list(pares = acumulador$pares, iguales = acumulador$iguales)
+  } else {
+    .pares_acumulador_con_igualdad(acumulador)
+  }
+  pares_acumulados <- acumulados$pares
+  iguales_acumulados <- acumulados$iguales
+  list(
+    pares = pares_acumulados, iguales = iguales_acumulados,
+    distancia_minima_descartada = acumulador$distancia_minima_descartada,
+    n_hallados = acumulador$n_hallados,
+    n_exactos = acumulador$n_exactos,
+    n_exactos_normalizados = acumulador$n_exactos_normalizados,
+    n_aproximados = acumulador$n_aproximados, n_bloques = n_bloques,
+    acumulador = acumulador
+  )
+}
+
+.preparar_directorio_lotes <- function(directorio_lotes) {
+  base <- if (is.null(directorio_lotes)) tempdir() else directorio_lotes
+  directorio <- tempfile("lupa-lotes-", tmpdir = base)
+  if (!dir.create(directorio, recursive = TRUE, showWarnings = FALSE)) {
+    .detener("No se pudo crear el directorio de parciales.", call. = FALSE)
+  }
+  directorio
+}
+
+.comparar_por_lotes_duplicados <- function(
+    valores, filas, metodo, umbral, bloque, tamano_lote, max_resultados,
+    bloqueos = NULL, directorio_lotes, nucleos = 2L, p = 0.1,
+    igualdad_original = NULL) {
+  n <- length(valores)
+  grupos <- split(seq_len(n), ceiling(seq_len(n) / tamano_lote))
+  # El rango sale del universo entero, no de cada lote: una numeracion local
+  # cambiaria la comparacion entre lotes.
+  acumulador <- .nuevo_acumulador_duplicados(
+    max_resultados, .rango_canonico_duplicados(valores, filas)
+  )
+  n_hallados <- 0
+  n_exactos <- 0
+  n_exactos_normalizados <- 0
+  n_aproximados <- 0
+  n_bloques_archivo <- 0L
+  archivos <- character()
+  bytes <- numeric()
+  parcial_id <- 0L
+  for (i in seq_along(grupos)) {
+    for (j in i:length(grupos)) {
+      parcial_id <- parcial_id + 1L
+      indices_i <- grupos[[i]]
+      indices_j <- grupos[[j]]
+      indices <- if (i == j) indices_i else c(indices_i, indices_j)
+      parcial <- .comparar_bloques_duplicados(
+        valores[indices], filas[indices], metodo, umbral, bloque, Inf,
+        bloqueos = if (is.null(bloqueos)) NULL else {
+          bloqueos[indices]
+        }, nucleos = nucleos, p = p,
+        igualdad_original = igualdad_original
+      )
+      # El comparador anterior compara también el rectángulo cruzado dentro
+      # de la concatenación. Para i != j eso incluiría pares internos de cada
+      # grupo; conservar sólo el rectángulo pedido evita duplicarlos.
+      if (i != j && nrow(parcial$pares)) {
+        en_i <- parcial$pares$fila_1 %in% filas[indices_i]
+        en_j <- parcial$pares$fila_2 %in% filas[indices_j]
+        al_reves <- parcial$pares$fila_1 %in% filas[indices_j] &
+          parcial$pares$fila_2 %in% filas[indices_i]
+        dentro <- (en_i & en_j) | al_reves
+        parcial$pares <- parcial$pares[dentro, , drop = FALSE]
+        parcial$iguales <- parcial$iguales[dentro]
+      }
+      parcial$n_hallados <- nrow(parcial$pares)
+      iguales_originales <- if (is.null(igualdad_original)) {
+        parcial$iguales
+      } else {
+        igualdad_original(parcial$pares$fila_1, parcial$pares$fila_2)
+      }
+      parcial$n_exactos <- sum(parcial$iguales & iguales_originales)
+      parcial$n_exactos_normalizados <- sum(
+        parcial$iguales & !iguales_originales
+      )
+      parcial$n_aproximados <- sum(!parcial$iguales)
+      ruta <- file.path(
+        directorio_lotes, sprintf("parcial-%06d.rds", parcial_id)
+      )
+      guardado <- list(
+        version_esquema = 1L, parcial = parcial_id,
+        grupo_1 = i, grupo_2 = j, pares = parcial$pares,
+        iguales = parcial$iguales,
+        n_hallados = parcial$n_hallados,
+        n_exactos = parcial$n_exactos,
+        n_exactos_normalizados = parcial$n_exactos_normalizados,
+        n_aproximados = parcial$n_aproximados,
+        n_bloques = parcial$n_bloques
+      )
+      # Version 2 y no 3, y no es una preferencia: es lo unico que conserva el texto.
+      #
+      # El formato 3 anota en la cabecera la codificacion NATIVA de quien escribe y
+      # al leer TRADUCE desde ella las cadenas sin marca. Escribiendo bajo
+      # `LC_CTYPE=C` la cabecera dice `ANSI_X3.4-1968`; al leer bajo UTF-8, glibc
+      # falla al traducir y R deja los bytes intactos -el dato se salva por el
+      # camino del error-, pero `win_iconv` NO falla: apaga el bit alto y devuelve
+      # algo. Medido en R-hub Windows, `B\u00e1sico` se leia como `BC!sico`, y
+      # `acumular_historico()` rechazaba su propia corrida guardada.
+      #
+      # Medido sobre los mismos bytes sin marca, escribiendo bajo `C` y leyendo bajo
+      # UTF-8:
+      #
+      #   version 3 -> cabecera con ANSI_X3.4-1968, 1 aviso de traduccion
+      #   version 2 -> sin campo de codificacion nativa, 0 avisos, bytes y marca
+      #                identicos
+      #
+      # La otra salida -declarar UTF-8 el texto al sellar el objeto- se probo y se
+      # DESCARTO: rompe la promesa de `test-N52`, que exige que un nombre publicado
+      # conserve bytes Y MARCA para poder indexar la tabla del usuario. Bajo `C`,
+      # una cadena marcada y la misma sin marcar no son iguales para `==` ni para
+      # `[[`. Conservar los bytes en el archivo cumple las dos; marcar cumple una y
+      # rompe la otra.
+      saveRDS(guardado, ruta, version = 2L)
+      parcial_disco <- readRDS(ruta)
+      archivos <- c(archivos, ruta)
+      bytes <- c(bytes, as.numeric(file.info(ruta)$size))
+      n_hallados <- n_hallados + parcial$n_hallados
+      n_exactos <- n_exactos + parcial$n_exactos
+      n_exactos_normalizados <- n_exactos_normalizados +
+        parcial$n_exactos_normalizados
+      n_aproximados <- n_aproximados + parcial$n_aproximados
+      n_bloques_archivo <- n_bloques_archivo + parcial$n_bloques
+      if (nrow(parcial_disco$pares)) {
+        iguales_originales_disco <- if (is.null(igualdad_original)) {
+          parcial_disco$iguales
+        } else {
+          igualdad_original(
+            parcial_disco$pares$fila_1, parcial_disco$pares$fila_2
+          )
+        }
+        acumulador <- .acumular_pares_duplicados(
+          acumulador, parcial_disco$pares$fila_1,
+          parcial_disco$pares$fila_2, parcial_disco$pares$distancia,
+          parcial_disco$iguales, iguales_originales_disco
+        )
+      }
+    }
+  }
+  # La cantidad publicada es la que habría producido el recorrido completo
+  # con la tesela configurada, no una cuenta dependiente de los cortes en disco.
+  # Con bloqueo, el recorrido entero reinicia las teselas dentro de cada clave;
+  # reproducimos esa misma cuenta para que `alcance` sea indistinguible.
+  tamanos_bloque <- if (is.null(bloqueos)) {
+    n
+  } else {
+    as.numeric(table(bloqueos))
+  }
+  n_bloques <- sum(vapply(tamanos_bloque, function(tamano) {
+    if (tamano < 2) return(0)
+    n_teselas <- ceiling(tamano / bloque)
+    n_teselas * (n_teselas + 1L) / 2L
+  }, numeric(1L)))
+  n_bloques <- as.integer(n_bloques)
+  acumulados <- .pares_acumulador_con_igualdad(acumulador)
+  pares_finales <- acumulados$pares
+  if (nrow(pares_finales)) {
+    rownames(pares_finales) <- NULL
+  }
+  list(
+    pares = pares_finales, iguales = acumulados$iguales,
+    distancia_minima_descartada = acumulador$distancia_minima_descartada,
+    n_hallados = n_hallados, n_exactos = n_exactos,
+    n_exactos_normalizados = n_exactos_normalizados,
+    n_aproximados = n_aproximados, n_bloques = n_bloques,
+    metadata = list(
+      activo = TRUE, directorio = directorio_lotes,
+      n_parciales = length(archivos), archivos = archivos,
+      tamanos_bytes = bytes, bytes_totales = sum(bytes),
+      tamano_lote = tamano_lote, reanudable = FALSE, completo = TRUE,
+      perdida = FALSE, pares_fuera_alcance = 0,
+      n_bloques_parciales = n_bloques_archivo,
+      estrategia = "exacta_cruzada_sin_perdida"
+    )
+  )
+}
+
+.qgramas_lsh <- function(x, q) {
+  lapply(seq_along(x), function(i) {
+    texto <- x[[i]]
+    if (!nzchar(texto)) return(character())
+    largo <- nchar(texto, type = "chars")
+    if (largo < q) return(texto)
+    unique(substring(texto, seq_len(largo - q + 1L),
+                     seq_len(largo - q + 1L) + q - 1L))
+  })
+}
+
+.matriz_ids_qgramas <- function(gramas, vocabulario) {
+  n <- length(gramas)
+  largos <- lengths(gramas)
+  maximo <- if (n) max(1L, largos) else 1L
+  ids <- matrix(0L, nrow = n, ncol = maximo)
+  if (n && sum(largos)) {
+    filas <- rep(seq_len(n), largos)
+    columnas <- sequence(largos)
+    ids[cbind(filas, columnas)] <- match(unlist(gramas, use.names = FALSE),
+                                         vocabulario)
+  }
+  ids
+}
+
+.ids_qgramas_por_bloques <- function(valores, q, bloque = 10000L) {
+  n <- length(valores)
+  largos_maximos <- pmax(nchar(valores, type = "chars") - q + 1L, 1L)
+  maximo <- if (n) max(largos_maximos) else 1L
+  ids <- matrix(0L, nrow = n, ncol = maximo)
+  vocabulario <- character()
+  if (!n) return(list(ids = ids, vocabulario = vocabulario))
+  inicios <- seq.int(1L, n, by = bloque)
+  for (inicio in inicios) {
+    fin <- min(n, inicio + bloque - 1L)
+    gramas <- .qgramas_lsh(valores[inicio:fin], q)
+    nuevos <- unique(unlist(gramas, use.names = FALSE))
+    if (length(nuevos)) {
+      nuevos <- nuevos[!nuevos %in% vocabulario]
+      if (length(nuevos)) vocabulario <- c(vocabulario, nuevos)
+    }
+    bloque_ids <- .matriz_ids_qgramas(gramas, vocabulario)
+    ids[inicio:fin, seq_len(ncol(bloque_ids))] <- bloque_ids
+  }
+  list(ids = ids, vocabulario = vocabulario)
+}
+
+# Las firmas MinHash y la muestra de pares de la estimacion necesitan valores
+# pseudoaleatorios fijos: dos corridas iguales tienen que dar lo mismo en
+# cualquier sesion. Salen de un hash entero de 32 bits, biyectivo y
+# determinista -`lowbias32`, de Chris Wellons-, aplicado a cada identificador
+# con una semilla distinta por funcion de hash. No usa el generador de numeros
+# aleatorios de R ni su estado: el resultado no depende de `set.seed()` ni de
+# `RNGkind()`, y la llamada no lee ni escribe `.Random.seed`. Por ser biyectivo,
+# es inyectivo como la permutacion explicita que reemplaza, y no es lineal: una
+# numeracion consecutiva de q-gramas no produce progresiones aritmeticas.
+#
+# Los valores viajan como dobles en [0, 2^32). Los productos se parten en
+# mitades de 16 bits para que ninguna cuenta pase de 2^53, y el XOR se hace por
+# mitades: un entero de 32 bits con signo puede caer en el que R reserva para
+# `NA`. Comprobado contra la implementacion en C, tambien en 2^31 - 1, 2^31 y
+# 2^31 + 1.
+.D16_LSH <- 65536
+.D32_LSH <- 4294967296
+
+.xor32_lsh <- function(x, y) {
+  xh <- floor(x / .D16_LSH)
+  yh <- floor(y / .D16_LSH)
+  bitwXor(as.integer(xh), as.integer(yh)) * .D16_LSH +
+    bitwXor(as.integer(x - xh * .D16_LSH), as.integer(y - yh * .D16_LSH))
+}
+
+.por_mod32_lsh <- function(x, alto, bajo) {
+  xh <- floor(x / .D16_LSH)
+  xl <- x - xh * .D16_LSH
+  medio <- xh * bajo + xl * alto
+  medio <- medio - floor(medio / .D16_LSH) * .D16_LSH
+  y <- medio * .D16_LSH + xl * bajo
+  y - floor(y / .D32_LSH) * .D32_LSH
+}
+
+.mezclar32_lsh <- function(x) {
+  x <- .xor32_lsh(x, floor(x / 65536))
+  x <- .por_mod32_lsh(x, 0x7feb, 0x352d)
+  x <- .xor32_lsh(x, floor(x / 32768))
+  x <- .por_mod32_lsh(x, 0x846c, 0xa68b)
+  .xor32_lsh(x, floor(x / 65536))
+}
+
+# El valor de `ids` -enteros en [0, 2^32)- bajo la funcion de hash numero `h`.
+# La semilla de cada `h` es `h * 0x9e3779b1` modulo 2^32, hecho por mitades como
+# el resto: el producto directo pasaba de 2^53 desde `h` = 3.400.001.
+.hash_lsh <- function(ids, h) {
+  h <- as.numeric(h)
+  h <- h - floor(h / .D32_LSH) * .D32_LSH
+  semilla <- .mezclar32_lsh(.por_mod32_lsh(h, 0x9e37, 0x79b1))
+  .mezclar32_lsh(.xor32_lsh(as.numeric(ids), semilla))
+}
+
+.muestra_pares_lsh <- function(n, tamano) {
+  total <- as.numeric(n) * (as.numeric(n) - 1) / 2
+  if (n < 2L || tamano < 1 || total < 1) {
+    return(data.frame(
+      fila_1 = integer(), fila_2 = integer(), stringsAsFactors = FALSE
+    ))
+  }
+  cantidad <- min(as.numeric(tamano), total, .Machine$integer.max)
+  if (cantidad >= total) {
+    fila_1 <- rep(seq_len(n - 1L), times = rev(seq_len(n - 1L)))
+    fila_2 <- unlist(lapply(seq_len(n - 1L), function(i) (i + 1L):n),
+                     use.names = FALSE)
+    return(data.frame(
+      fila_1 = fila_1, fila_2 = fila_2, stringsAsFactors = FALSE
+    ))
+  }
+  # Se sortea el rango triangular de pares, no dos filas independientes: así
+  # la muestra no repite pares y mantiene una cobertura uniforme incluso cuando
+  # las filas contienen muchos valores repetidos. El sorteo es el hash de
+  # `.hash_lsh()`: uniforme en [0, 1) y el mismo en cada corrida.
+  rangos <- floor(.hash_lsh(seq_len(as.integer(cantidad)), 173L) /
+                    .D32_LSH * total)
+  comienzos <- c(0, cumsum(as.numeric(seq.int(n - 1L, 1L, by = -1L))))
+  comienzos <- comienzos[seq_len(n - 1L)]
+  fila_1 <- findInterval(rangos, c(-1, comienzos)) - 1L
+  fila_2 <- fila_1 + 1L + as.integer(rangos - comienzos[fila_1])
+  pares <- data.frame(
+    fila_1 = pmin(fila_1, fila_2), fila_2 = pmax(fila_1, fila_2),
+    stringsAsFactors = FALSE
+  )
+  unique(pares)
+}
+
+.estimar_lsh <- function(
+    firmas, valores, metodo, bandas, filas_banda, tamano_muestra,
+    bloqueos = NULL, nucleos = 2L, p = 0.1) {
+  n <- nrow(firmas)
+  pares <- .muestra_pares_lsh(n, tamano_muestra)
+  total <- as.numeric(n) * (as.numeric(n) - 1) / 2
+  if (!nrow(pares)) {
+    return(list(
+      candidatos_previstos = 0, probabilidad = NA_real_,
+      muestra_usada = 0L, pares_benchmark = 0L,
+      tiempo_benchmark = NA_real_, velocidad = NA_real_, tiempo = NA_real_
+    ))
+  }
+  iguales <- firmas[pares$fila_1, , drop = FALSE] ==
+    firmas[pares$fila_2, , drop = FALSE]
+  colisiones <- do.call(cbind, lapply(seq_len(bandas), function(banda) {
+    columnas <- ((banda - 1L) * filas_banda + 1L):(banda * filas_banda)
+    rowSums(iguales[, columnas, drop = FALSE]) == filas_banda
+  }))
+  candidatos <- rowSums(colisiones) > 0L
+  if (!is.null(bloqueos)) {
+    candidatos <- candidatos & bloqueos[pares$fila_1] == bloqueos[pares$fila_2]
+  }
+  probabilidad <- mean(candidatos)
+  candidatos_previstos <- probabilidad * total
+  pares_benchmark <- if (is.null(bloqueos)) {
+    pares
+  } else {
+    pares[bloqueos[pares$fila_1] == bloqueos[pares$fila_2], , drop = FALSE]
+  }
+  n_benchmark <- min(5000L, nrow(pares_benchmark))
+  if (!n_benchmark) {
+    return(list(
+      candidatos_previstos = candidatos_previstos,
+      probabilidad = probabilidad, muestra_usada = nrow(pares),
+      pares_benchmark = 0L, tiempo_benchmark = NA_real_,
+      velocidad = NA_real_, tiempo = NA_real_
+    ))
+  }
+  # Calentar la resolución de la medida antes de cronometrar; de lo contrario
+  # el primer llamado puede incluir la carga perezosa de `stringdist` y
+  # describir la infraestructura en lugar de los pares por segundo.
+  invisible(stringdist::stringdist(
+    valores[pares_benchmark$fila_1[[1L]]],
+    valores[pares_benchmark$fila_2[[1L]]], method = metodo,
+    p = p, nthread = nucleos
+  ))
+  indices_benchmark <- seq_len(n_benchmark)
+  inicio <- proc.time()[["elapsed"]]
+  transcurrido <- 0
+  repeticiones <- 0L
+  pares_cronometrados <- 0L
+  # Un solo llamado puede durar menos que la resolucion del reloj. Repetir el
+  # mismo lote hasta 50 ms evita velocidades cuantizadas en 5000/k; el numero
+  # total de pares cronometrados queda declarado en el mensaje informativo.
+  while (transcurrido < 0.05 && repeticiones < 10000L) {
+    invisible(stringdist::stringdist(
+      valores[pares_benchmark$fila_1[indices_benchmark]],
+      valores[pares_benchmark$fila_2[indices_benchmark]], method = metodo,
+      p = p, nthread = nucleos
+    ))
+    repeticiones <- repeticiones + 1L
+    pares_cronometrados <- pares_cronometrados + n_benchmark
+    transcurrido <- proc.time()[["elapsed"]] - inicio
+  }
+  velocidad <- if (is.finite(transcurrido) && transcurrido > 0) {
+    pares_cronometrados / transcurrido
+  } else NA_real_
+  list(
+    candidatos_previstos = candidatos_previstos,
+    probabilidad = probabilidad, muestra_usada = nrow(pares),
+    pares_benchmark = pares_cronometrados, tiempo_benchmark = transcurrido,
+    velocidad = velocidad,
+    tiempo = if (is.finite(velocidad)) candidatos_previstos / velocidad else NA_real_
+  )
+}
+
+.formato_pares_lsh <- function(x) {
+  if (!length(x) || is.na(x)) return("NA")
+  if (is.infinite(x)) return("Inf")
+  format(round(x), big.mark = ".", decimal.mark = ",",
+         scientific = FALSE, trim = TRUE)
+}
+
+.texto_tiempo_lsh <- function(estimacion, nucleos = 2L) {
+  if (is.finite(estimacion$tiempo)) {
+    paste0(
+      "LSH: ", .formato_pares_lsh(estimacion$candidatos_previstos),
+      " candidatos previstos; referencia de ",
+      format(round(estimacion$tiempo, 3), nsmall = 3,
+        decimal.mark = ","),
+      " s (piso, no incluye firma ni cubetas; subir nucleos puede acortar ",
+      "esta etapa; hoy usa ", nucleos, " hilos), medida con ",
+      .formato_pares_lsh(estimacion$pares_benchmark), " pares en ",
+      format(round(estimacion$tiempo_benchmark, 3), nsmall = 3,
+        decimal.mark = ","), " s."
+    )
+  } else {
+    paste0(
+      "LSH: no se pudo medir una velocidad con ",
+      .formato_pares_lsh(estimacion$pares_benchmark),
+      " pares; el tiempo queda sin estimar (subir nucleos puede acortar ",
+      "esta etapa; hoy usa ", nucleos, " hilos)."
+    )
+  }
+}
+
+.emitir_tiempo_lsh <- function(texto) {
+  condicion <- structure(
+    list(message = texto, call = NULL),
+    class = c("lupa_tiempo_lsh", "message", "condition")
+  )
+  withRestarts(
+    signalCondition(condicion),
+    muffleMessage = function() NULL
+  )
+  invisible(NULL)
+}
+
+.firmas_minhash_lsh <- function(ids, n_hashes) {
+  n <- nrow(ids)
+  if (!n_hashes) return(matrix(numeric(), nrow = n, ncol = 0L))
+  # Cada hash es una funcion biyectiva del identificador del q-grama
+  # (`.hash_lsh()`). Por eso es inyectivo para cualquier tamano de vocabulario y
+  # conserva la propiedad MinHash sin depender de los nombres o del orden de los
+  # q-gramas, y no es lineal, asi que una numeracion consecutiva de q-gramas no
+  # produce progresiones aritmeticas con minimos artificialmente coincidentes.
+  # Dos corridas iguales son identicas y el generador de R no se toca.
+  local({
+    vocabulario <- if (length(ids)) suppressWarnings(max(ids, na.rm = TRUE)) else 0
+    if (!is.finite(vocabulario) || vocabulario < 1) vocabulario <- 0
+    vocabulario <- as.integer(vocabulario)
+    firmas <- matrix(Inf, nrow = n, ncol = n_hashes)
+    for (h in seq_len(n_hashes)) {
+      consulta <- if (vocabulario) {
+        c(NA_real_, .hash_lsh(seq_len(vocabulario), h))
+      } else {
+        NA_real_
+      }
+      minimo <- rep(Inf, n)
+      for (j in seq_len(ncol(ids))) {
+        ids_col <- as.integer(ids[, j])
+        valores <- rep(Inf, n)
+        validos <- ids_col > 0L & ids_col <= vocabulario
+        if (any(validos)) valores[validos] <- consulta[ids_col[validos] + 1L]
+        minimo <- pmin(minimo, valores)
+      }
+      firmas[, h] <- minimo
+    }
+    firmas
+  })
+}
+
+.jaccard_qgramas <- function(a, b) {
+  if (!length(a) && !length(b)) return(1)
+  union <- union(a, b)
+  length(intersect(a, b)) / length(union)
+}
+
+.garantia_lsh <- function(s, bandas, filas_banda, pares_descartados = 0) {
+  if (isTRUE(pares_descartados > 0)) return(NA_real_)
+  1 - (1 - s^filas_banda)^bandas
+}
+
+.estado_garantia_lsh <- function(pares_descartados) {
+  if (isTRUE(pares_descartados > 0)) {
+    "no_valida_hay_cubetas_descartadas"
+  } else {
+    "valida_generacion_lsh_sin_cubetas_descartadas"
+  }
+}
+
+#' Genera candidatos con MinHash y bandas LSH
+#'
+#' Cada candidato se emite en la primera banda donde colisiona. El generador
+#' entrega pares únicos al acumulador; así no se guarda un registro de todos
+#' los pares ya vistos. La garantía calculada es la de candidatos con Jaccard
+#' de q-gramas, no una garantía de la medida final.
+#' @noRd
+.comparar_lsh_duplicados <- function(
+    valores, filas, metodo, umbral, bandas, filas_banda, q,
+    max_cubeta, max_resultados, muestra_estimacion = 400000L,
+    presupuesto_pares = Inf, bloqueos = NULL, solo_estimacion = FALSE,
+    nucleos = 2L, p = 0.1, igualdad_original = NULL) {
+  n <- length(valores)
+  n_hashes <- bandas * filas_banda
+  indice <- .ids_qgramas_por_bloques(valores, q)
+  ids <- indice$ids
+  vocabulario <- indice$vocabulario
+  vocabulario_n <- length(vocabulario)
+  firmas <- .firmas_minhash_lsh(ids, n_hashes)
+  # El índice de q-gramas ya no participa en la estimación: liberarlo antes
+  # del benchmark evita que una recolección de basura se contabilice como
+  # velocidad de la medida final.
+  ids <- NULL
+  vocabulario <- NULL
+  indice <- NULL
+  estimacion <- .estimar_lsh(
+    firmas, valores, metodo, bandas, filas_banda, muestra_estimacion,
+    bloqueos = bloqueos, nucleos = nucleos, p = p
+  )
+  mensaje_tiempo <- .texto_tiempo_lsh(estimacion, nucleos)
+  if (isTRUE(interactive())) {
+    # nocov start: la salida visual sólo existe en una sesión interactiva.
+    cli::cli_alert_info(.cli_literal(mensaje_tiempo))
+    # nocov end
+  } else {
+    .emitir_tiempo_lsh(mensaje_tiempo)
+  }
+  .controlar_presupuesto_pares(
+    estimacion$candidatos_previstos, presupuesto_pares
+  )
+  if (isTRUE(solo_estimacion)) {
+    return(list(
+      estimacion = list(
+        candidatos_previstos = estimacion$candidatos_previstos,
+        probabilidad_candidato_estimada = estimacion$probabilidad,
+        muestra_estimacion = estimacion$muestra_usada,
+        vocabulario = vocabulario_n,
+        pares_benchmark = estimacion$pares_benchmark,
+        tiempo_benchmark = estimacion$tiempo_benchmark,
+        velocidad_comparacion = estimacion$velocidad,
+        tiempo_estimado_segundos = estimacion$tiempo,
+        tiempo_estimado_etapa = "comparacion_stringdist",
+        tiempo_estimado_es_piso = TRUE,
+        tiempo_determinista = FALSE
+      ),
+      alcance = data.frame(
+        lsh_vocabulario = vocabulario_n,
+        lsh_candidatos_previstos = estimacion$candidatos_previstos,
+        lsh_candidatos_previstos_es_estimacion = TRUE,
+        lsh_probabilidad_candidato_estimada = estimacion$probabilidad,
+        lsh_muestra_estimacion = estimacion$muestra_usada,
+        nucleos_usados = nucleos,
+        stringsAsFactors = FALSE
+      )
+    ))
+  }
+  # Las listas de q-gramas y la matriz de ids sólo son necesarias para
+  # construir la firma. Liberarlas antes del recorrido evita que la memoria
+  # del índice se sume a la de las cubetas; el Jaccard de los pocos pares que
+  # pasan el umbral se recalcula bajo demanda.
+  acumulador <- .nuevo_acumulador_duplicados(
+    max_resultados, .rango_canonico_duplicados(valores, filas)
+  )
+  candidatos_generados <- 0
+  candidatos_unicos <- 0
+  candidatos_descartados_bandas <- 0
+  candidatos_descartados_bloque <- 0
+  pares_comparados <- 0
+  cubetas_grandes <- 0L
+  pares_descartados_cubetas <- 0
+  pares_cubetas_troceadas <- 0
+  teselas_cubetas_grandes <- 0L
+  lotes_cubetas_grandes <- 0L
+  jaccard <- numeric()
+  n_jaccard <- 0
+  n_jaccard_pares <- 0
+  n_jaccard_bajo <- 0
+  muestra_jaccard <- 10000L
+  claves_previas <- list()
+  posiciones <- integer(max(filas))
+  posiciones[filas] <- seq_along(filas)
+  cache_gramas <- new.env(hash = TRUE, parent = emptyenv())
+  progreso <- isTRUE(interactive())
+  # nocov start: la barra sólo se dibuja en una sesión interactiva.
+  if (progreso) {
+    cli::cli_progress_bar("Generando candidatos LSH", total = bandas)
+    on.exit(cli::cli_progress_done(), add = TRUE)
+  }
+  # nocov end
+  # La cache se indexa por el INDICE del valor distinto y no por el texto:
+  # `exists()` y `assign()` limitan los nombres de variable a 10000 bytes, y con
+  # `max_largo_valor = Inf` -que la documentacion ofrece como "sin tope"- un
+  # valor mas largo hacia abortar la corrida entera con un error interno de R,
+  # en vez de compararla o de declararla fuera de alcance. Borde medido: 9998
+  # bytes pasaba, 9999 abortaba.
+  #
+  # El mapeo cuesta una pasada y es practicamente gratis -0,001 s sobre 50.000
+  # filas, porque R internaliza las cadenas y compara punteros-, asi que
+  # conserva la deduplicacion que el texto como clave daba.
+  indice_valor_distinto <- match(valores, unique(valores))
+  obtener_gramas <- function(indice) {
+    texto <- valores[[indice]]
+    clave <- as.character(indice_valor_distinto[[indice]])
+    if (exists(clave, envir = cache_gramas, inherits = FALSE)) {
+      return(get(clave, envir = cache_gramas, inherits = FALSE))
+    }
+    gramas <- .qgramas_lsh(texto, q)[[1L]]
+    # Las cubetas densas suelen repetir exactamente el mismo valor. Cachear
+    # hasta diez mil valores evita recalcular sus q-gramas sin retener toda la
+    # columna en memoria en un padrón de alta cardinalidad.
+    if (length(cache_gramas) < 10000L) {
+      assign(clave, gramas, envir = cache_gramas)
+    }
+    gramas
+  }
+  registrar_jaccard <- function(indices_1, indices_2) {
+    if (!length(indices_1)) return(invisible(NULL))
+    n_jaccard_pares <<- n_jaccard_pares + length(indices_1)
+    disponibles <- muestra_jaccard - n_jaccard
+    if (disponibles <= 0) return(invisible(NULL))
+    indices <- seq_len(min(length(indices_1), disponibles))
+    for (indice in indices) {
+      valor_j <- .jaccard_qgramas(
+        obtener_gramas(indices_1[[indice]]),
+        obtener_gramas(indices_2[[indice]])
+      )
+      n_jaccard <<- n_jaccard + 1L
+      n_jaccard_bajo <<- n_jaccard_bajo + (valor_j < 0.7)
+      if (length(jaccard) < muestra_jaccard) {
+        jaccard <<- c(jaccard, valor_j)
+      }
+    }
+    invisible(NULL)
+  }
+  registrar_jaccard_filas <- function(filas_1, filas_2, distancias) {
+    # El comparador por teselas entrega indices de fila originales; la tabla
+    # inversa evita un `match()` por par en una cubeta densa.
+    registrar_jaccard(posiciones[filas_1], posiciones[filas_2])
+  }
+  for (banda in seq_len(bandas)) {
+    columnas <- ((banda - 1L) * filas_banda + 1L):(banda * filas_banda)
+    claves <- do.call(paste, c(
+      lapply(columnas, function(j) firmas[, j]), sep = ":"
+    ))
+    orden <- .orden_por_bytes(claves)
+    corridas <- rle(claves[orden])
+    finales <- cumsum(corridas$lengths)
+    inicios <- c(1L, utils::head(finales, -1L) + 1L)
+    for (grupo in seq_along(corridas$lengths)) {
+      indices <- orden[inicios[[grupo]]:finales[[grupo]]]
+      tamano <- length(indices)
+      if (tamano < 2L) next
+      posibles_grupo <- as.numeric(tamano) * (tamano - 1) / 2
+      if (tamano > max_cubeta) {
+        cubetas_grandes <- cubetas_grandes + 1L
+      }
+      # En la primera banda no hay pares previos que deduplicar. Para una
+      # cubeta grande usamos el comparador por teselas del camino exhaustivo:
+      # compara todos sus pares, pero descarta cada matriz antes de continuar.
+      if (tamano > max_cubeta && banda == 1L) {
+        posibles_bloque <- if (is.null(bloqueos)) {
+          posibles_grupo
+        } else {
+          # `table()` sobre la misma cubeta, que en esta rama supera el
+          # maximo por omision de mil elementos, se calculaba dos veces.
+          { conteos <- table(bloqueos[indices])
+            sum(conteos * pmax(conteos - 1, 0) / 2) }
+        }
+        pares_cubetas_troceadas <- pares_cubetas_troceadas + posibles_bloque
+        por_teselas <- .comparar_bloques_duplicados(
+          valores[indices], filas[indices], metodo, umbral,
+          bloque = min(2000L, tamano), max_resultados = max_resultados,
+          acumulador = acumulador, on_pairs = registrar_jaccard_filas,
+          bloqueos = if (is.null(bloqueos)) NULL else bloqueos[indices],
+          nucleos = nucleos, p = p,
+          igualdad_original = igualdad_original
+        )
+        acumulador <- por_teselas$acumulador
+        teselas_cubetas_grandes <- teselas_cubetas_grandes +
+          por_teselas$n_bloques
+        candidatos_generados <- candidatos_generados + posibles_grupo
+        candidatos_unicos <- candidatos_unicos + posibles_bloque
+        pares_comparados <- pares_comparados + posibles_bloque
+        candidatos_descartados_bloque <- candidatos_descartados_bloque +
+          posibles_grupo - posibles_bloque
+        next
+      }
+      # Si toda la cubeta tambien colisiono dentro de una banda anterior,
+      # cada par ya fue considerado y se puede omitir el bloque completo sin
+      # construir sus combinaciones. La comprobacion es exacta: solo se omite
+      # cuando una clave previa es constante para todas sus filas.
+      if (banda > 1L && any(vapply(
+        claves_previas[seq_len(banda - 1L)],
+        function(clave) length(unique(clave[indices])) == 1L,
+        logical(1L)
+      ))) {
+        candidatos_generados <- candidatos_generados + posibles_grupo
+        candidatos_descartados_bandas <- candidatos_descartados_bandas +
+          posibles_grupo
+        next
+      }
+      if (tamano > max_cubeta) {
+        pares_cubetas_troceadas <- pares_cubetas_troceadas + posibles_grupo
+        lotes_cubetas_grandes <- lotes_cubetas_grandes +
+          ceiling((tamano - 1) / 100)
+      }
+      # Las cubetas grandes no se descartan: se procesan con el mismo recorrido
+      # por lotes de filas que una cubeta normal. Es equivalente a las teselas
+      # del camino exhaustivo, conserva la deduplicacion por primera banda y
+      # mantiene acotada la memoria temporal.
+      for (inicio_izquierda in seq.int(1L, tamano - 1L, by = 100L)) {
+        izquierda <- inicio_izquierda:min(inicio_izquierda + 99L, tamano - 1L)
+        derechas <- lapply(izquierda, function(i) (i + 1L):tamano)
+        p1 <- rep(indices[izquierda], times = lengths(derechas))
+        p2 <- unlist(lapply(derechas, function(i) indices[i]), use.names = FALSE)
+        candidatos_generados <- candidatos_generados + length(p1)
+        if (!is.null(bloqueos)) {
+          dentro <- bloqueos[p1] == bloqueos[p2]
+          candidatos_descartados_bloque <- candidatos_descartados_bloque +
+            sum(!dentro)
+          p1 <- p1[dentro]
+          p2 <- p2[dentro]
+        }
+        if (!length(p1)) next
+        ya <- rep(FALSE, length(p1))
+        if (banda > 1L) {
+          for (previa in seq_len(banda - 1L)) {
+            iguales <- claves_previas[[previa]][p1] ==
+              claves_previas[[previa]][p2]
+            ya <- ya | iguales
+          }
+        }
+        keep <- !ya
+        candidatos_unicos <- candidatos_unicos + sum(keep)
+        candidatos_descartados_bandas <- candidatos_descartados_bandas +
+          sum(ya)
+        if (!any(keep)) next
+        p1 <- p1[keep]
+        p2 <- p2[keep]
+        distancias <- .distancias_pares_duplicados(
+          valores[p1], valores[p2], metodo, nucleos, p
+        )
+        pares_comparados <- pares_comparados + length(p1)
+        pasan <- is.finite(distancias) & distancias <= umbral
+        if (any(pasan)) {
+          indices_pasan <- which(pasan)
+          registrar_jaccard(p1[indices_pasan], p2[indices_pasan])
+          filas_a <- filas[p1[indices_pasan]]
+          filas_b <- filas[p2[indices_pasan]]
+          iguales <- valores[p1[indices_pasan]] == valores[p2[indices_pasan]]
+          iguales_originales <- if (is.null(igualdad_original)) NULL else {
+            igualdad_original(filas_a, filas_b)
+          }
+          intercambiar <- filas_a > filas_b
+          if (any(intercambiar)) {
+            temporal <- filas_a[intercambiar]
+            filas_a[intercambiar] <- filas_b[intercambiar]
+            filas_b[intercambiar] <- temporal
+          }
+          acumulador <- .acumular_pares_duplicados(
+            acumulador, filas_a, filas_b, distancias[indices_pasan], iguales,
+            iguales_originales
+          )
+        }
+      }
+    }
+    claves_previas[[banda]] <- claves
+    # nocov start
+    if (progreso) cli::cli_progress_update()
+    # nocov end
+  }
+  garantia_07 <- .garantia_lsh(
+    0.7, bandas, filas_banda, pares_descartados_cubetas
+  )
+  resumen_jaccard <- if (length(jaccard)) {
+    quant <- stats::quantile(jaccard, probs = c(0, .25, .5, .75, 1),
+                             names = FALSE, na.rm = TRUE)
+    quant
+  } else rep(NA_real_, 5L)
+  acumulados <- .pares_acumulador_con_igualdad(acumulador)
+  acumulador$pares <- acumulados$pares
+  acumulador$iguales <- acumulados$iguales
+  acumulador$lotes <- list()
+  rownames(acumulador$pares) <- NULL
+  list(
+    pares = acumulador$pares,
+    iguales = acumulados$iguales,
+    distancia_minima_descartada = acumulador$distancia_minima_descartada,
+    n_hallados = acumulador$n_hallados,
+    n_exactos = acumulador$n_exactos,
+    n_exactos_normalizados = acumulador$n_exactos_normalizados,
+    n_aproximados = acumulador$n_aproximados,
+    n_bloques = 0L,
+    estimacion = list(
+      candidatos_previstos = estimacion$candidatos_previstos,
+      probabilidad_candidato_estimada = estimacion$probabilidad,
+      muestra_estimacion = estimacion$muestra_usada,
+      vocabulario = vocabulario_n,
+      pares_benchmark = estimacion$pares_benchmark,
+      tiempo_benchmark = estimacion$tiempo_benchmark,
+      velocidad_comparacion = estimacion$velocidad,
+      tiempo_estimado_segundos = estimacion$tiempo,
+      tiempo_estimado_etapa = "comparacion_stringdist",
+      tiempo_estimado_es_piso = TRUE,
+      tiempo_determinista = FALSE
+    ),
+    alcance = data.frame(
+      lsh_bandas = bandas, lsh_filas = filas_banda,
+      lsh_tamano_firma = n_hashes, lsh_q = q,
+      lsh_vocabulario = vocabulario_n,
+      lsh_semilla_hash = 1L,
+      lsh_hash_familia = "hash_entero_biyectivo_determinista",
+      # El vocabulario de q-gramas se numera por orden de primera aparicion y esa
+      # numeracion alimenta las firmas, asi que reordenar las filas cambia que
+      # pares se proponen como candidatos. **No es un defecto**: ocurre dentro de
+      # la garantia declarada arriba -medido sobre 1.200 filas, de los pares que
+      # cambian al barajar ninguno supera un Jaccard de q-gramas de 0,8, donde el
+      # recall declarado es 0,9998-. Pero es una propiedad del resultado y hasta
+      # ahora vivia solo en la documentacion: quien lee el `alcance` o el informe
+      # no se enteraba.
+      #
+      # El segundo campo no es decorativo: nombra el mecanismo, asi que si alguna
+      # vez la numeracion se canoniza, este valor cambia y la dependencia deja de
+      # declararse sola.
+      lsh_candidatos_dependen_orden_filas = TRUE,
+      lsh_orden_vocabulario = "primera_aparicion",
+      lsh_max_cubeta = max_cubeta,
+      lsh_garantia_jaccard_09 = .garantia_lsh(
+        0.9, bandas, filas_banda, pares_descartados_cubetas
+      ),
+      lsh_garantia_jaccard_08 = .garantia_lsh(
+        0.8, bandas, filas_banda, pares_descartados_cubetas
+      ),
+      lsh_garantia_jaccard_07 = garantia_07,
+      lsh_garantia_aplica_a = "Jaccard de q-gramas; no garantiza la medida final",
+      lsh_garantia_estado = .estado_garantia_lsh(pares_descartados_cubetas),
+      lsh_cubetas_grandes = cubetas_grandes,
+      lsh_pares_descartados_cubetas = pares_descartados_cubetas,
+      lsh_pares_cubetas_troceadas = pares_cubetas_troceadas,
+      lsh_teselas_cubetas_grandes = teselas_cubetas_grandes,
+      lsh_lotes_cubetas_grandes = lotes_cubetas_grandes,
+      lsh_candidatos_generados = candidatos_generados,
+      lsh_candidatos_unicos = candidatos_unicos,
+      lsh_candidatos_descartados_bloque = candidatos_descartados_bloque,
+      lsh_candidatos_previstos = estimacion$candidatos_previstos,
+      lsh_candidatos_previstos_es_estimacion = TRUE,
+      lsh_probabilidad_candidato_estimada = estimacion$probabilidad,
+      lsh_muestra_estimacion = estimacion$muestra_usada,
+      lsh_muestra_estimacion_configurada = muestra_estimacion,
+      nucleos_usados = nucleos,
+      lsh_presupuesto_pares = presupuesto_pares,
+      lsh_candidatos_descartados_bandas = candidatos_descartados_bandas,
+      lsh_pares_comparados = pares_comparados,
+      lsh_jaccard_evaluados = n_jaccard,
+      lsh_jaccard_pares_elegibles = n_jaccard_pares,
+      lsh_jaccard_alcance = if (n_jaccard_pares > n_jaccard) {
+        paste0("primeros_del_recorrido_de_", n_jaccard,
+               "_pares_de_", n_jaccard_pares,
+               "; incluye_teselas_y_lotes")
+      } else "todos_los_pares_que_pasaron_el_umbral",
+      lsh_jaccard_bajo_07 = n_jaccard_bajo,
+      lsh_prop_jaccard_bajo_07 = if (n_jaccard) n_jaccard_bajo / n_jaccard else NA_real_,
+      lsh_jaccard_minimo = resumen_jaccard[[1L]],
+      lsh_jaccard_q1 = resumen_jaccard[[2L]],
+      lsh_jaccard_mediana = resumen_jaccard[[3L]],
+      lsh_jaccard_q3 = resumen_jaccard[[4L]],
+      lsh_jaccard_maximo = resumen_jaccard[[5L]],
+      lsh_jaccard_muestra = length(jaccard),
+      stringsAsFactors = FALSE
+    )
+  )
+}
+
+.indices_duplicados_aproximados <- function(n, limite) {
+  if (!n) return(integer())
+  if (is.infinite(limite) || n <= limite) return(seq_len(n))
+  limite <- as.integer(limite)
+  if (limite <= 3L) return(seq_len(limite))
+  # Mantener ambos extremos evita que una tabla ordenada pierda un par
+  # duplicado que aparezca al principio o al final; el resto queda distribuido.
+  interiores <- limite - 4L
+  indices <- if (interiores) {
+    c(1L, 2L, n - 1L, n,
+      as.integer(round(seq.int(3L, n - 2L, length.out = interiores))))
+  } else c(1L, 2L, n - 1L, n)
+  .sort_por_bytes(unique(indices))
+}
+
+.columnas_duplicados_aproximados <- function(datos, columnas) {
+  if (is.null(columnas)) {
+    analizables <- vapply(datos, function(x) {
+      (is.character(x) || is.factor(x)) &&
+        !.es_columna_compuesta(x) && !is.list(x)
+    }, logical(1L))
+    candidatas <- names(datos)[analizables]
+    if (length(candidatas) > 2L) {
+      nombres <- .minusculas_ascii(gsub(
+        "[^[:alnum:]]+", "_", .nombres_para_operar(candidatas), perl = TRUE
+      ))
+      es_identificador <- grepl(
+        "(^|_)(id|identificador|codigo|code|uuid|clave|key|llave|nro|numero)(_|$)",
+        nombres, perl = TRUE
+      )
+      candidatas <- candidatas[!es_identificador]
+    }
+    if (length(candidatas) > 2L) {
+      candidatas <- structure(
+        character(),
+        motivo_sin_columnas = paste0(
+          "Hay ", length(candidatas), " columnas de texto; indique `columnas` ",
+          "para evitar combinar campos que pueden diluir la similitud."
+        )
+      )
+    }
+    return(candidatas)
+  }
+  indices <- if (is.character(columnas) && !anyNA(columnas)) {
+    .indice_nombre(columnas, names(datos))
+  } else integer()
+  if (!is.character(columnas) || !length(columnas) ||
+      anyNA(columnas) || any(!nzchar(columnas)) ||
+      length(indices) != length(columnas) || anyNA(indices) ||
+      anyDuplicated(indices)) {
+    .detener("`columnas` debe nombrar columnas atomicas existentes y sin repetir.",
+         call. = FALSE)
+  }
+  columnas <- names(datos)[indices]
+  datos_columnas <- .seleccionar_columnas(datos, columnas)
+  if (any(vapply(datos_columnas, function(x) {
+    .es_columna_compuesta(x) || is.list(x)
+  },
+                 logical(1L)))) {
+    .detener("Las columnas aproximadas no pueden ser matrices ni listas.",
+         call. = FALSE)
+  }
+  columnas
+}
+
+.texto_fila_aproximada <- function(
+    datos, columnas, normalizar = TRUE, fusiones_precomputadas = NULL) {
+  normalizacion_resuelta <- .resolver_normalizacion(normalizar)
+  datos_columnas <- .seleccionar_columnas(datos, columnas)
+  valores <- Map(function(x, columna) {
+    # Reutilizar el saneamiento del perfil: los bytes UTF-8 invalidos no
+    # deben abortar una comparacion ni entrar como evidencia.
+    # Se rinde lo declarado `bytes` ANTES de analizar. `.texto_analizable()` lo
+    # marca UTF-8 -a proposito, para las operaciones de texto- y entonces dos
+    # valores que R separa quedan iguales aqui: la funcion publicaba los pares
+    # como `exacto_normalizado` con `igualo_normalizar = TRUE` **incluso con
+    # `normalizar = FALSE`**, donde no hay ningun mecanismo declarado para
+    # igualar textos. Medido: con texto corriente `normalizar = FALSE` da cero
+    # pares y `TRUE` da uno -como documenta el Rd-, y con un valor declarado
+    # `bytes` daba tres en los dos casos.
+    #
+    # Decidir si dos filas son la misma es decidir identidad, y ahi no se
+    # interpreta lo que se declaro que no es texto.
+    # Se rinde con `.clave_bytes()` y NO con el rendido de publicacion. El rendido
+    # de publicacion convierte un valor `bytes` en su literal escapado
+    # -`a\xc3\xb1o`-, que es una cadena que un usuario puede TECLEAR: el valor no
+    # textual y ese literal de diez caracteres quedaban identicos y el par salia
+    # `exacto_normalizado` con `igualo_normalizar = TRUE` incluso con
+    # `normalizar = FALSE`, o sea la misma forma que el comentario de arriba
+    # describe como corregida. `.clave_bytes()` escapa la barra invertida ANTES que
+    # nada -por esto mismo- asi que el literal recibe `a\\xc3\\xb1o` y los dos se
+    # distinguen. Medido: mantiene iguales UTF-8 y `latin1` del mismo texto, que es
+    # la equivalencia que el manual promete.
+    # Dos preguntas distintas sobre el mismo valor, y por eso dos pasadas.
+    #
+    # LA VALIDEZ se mide sobre el valor tal como llego: una celda cuyos bytes no son
+    # UTF-8 valido y cuya codificacion nadie declaro no se puede leer, no entra en la
+    # comparacion y eso queda declarado en `n_filas_validas`. Medirla sobre la clave
+    # de bytes la haria entrar, porque la clave de un valor ilegible es una cadena
+    # ASCII perfectamente comparable: seria comparar el ESCAPE como si fuera el
+    # texto, que es justo lo que la nota de abajo dice no hacer. Lo atrapo la prueba
+    # que ya existia para esto.
+    #
+    # LA CLAVE se saca con `.clave_bytes()` y no con el rendido de publicacion. El
+    # rendido convierte un valor `bytes` en su literal escapado -`a\xc3\xb1o`-, que
+    # es una cadena que se puede teclear: el valor no textual y ese literal de diez
+    # caracteres quedaban identicos y el par salia `exacto_normalizado` con
+    # `igualo_normalizar = TRUE` incluso con `normalizar = FALSE`, o sea la misma
+    # forma que el comentario de arriba describe como corregida. `.clave_bytes()`
+    # escapa la barra invertida ANTES que nada -por esto mismo-, asi que el literal
+    # recibe `a\\xc3\\xb1o` y los dos se distinguen. Y mantiene iguales UTF-8 y
+    # `latin1` del mismo texto, que es la equivalencia que el manual promete.
+    x <- .valores_para_comparar_duplicados(x)
+    legible <- suppressWarnings(
+      as.character(.texto_analizable(.texto_publicable(x))$valores)
+    )
+    salida <- suppressWarnings(
+      as.character(.texto_analizable(.clave_bytes(x))$valores)
+    )
+    # Un valor hecho solo de blancos no tiene texto que medir, igual que la cadena
+    # vacia: la normalizacion por omision lo recorta despues y `"   "`, `" "` y
+    # `"\t"` se comparaban como `""` a distancia 0 -tres pares
+    # `exacto_normalizado` entre filas sin texto, medido-. Es el
+    # mismo criterio con que `perfilar()` los cuenta juntos en `n_blancos`.
+    presentes <- !is.na(legible) & nzchar(trimws(legible))
+    salida[is.na(legible) | is.na(salida)] <- ""
+    list(
+      valores = .normalizacion_aplicar(
+        salida, .normalizacion_para_columna(normalizacion_resuelta, columna)
+      ),
+      presentes = presentes
+    )
+  }, datos_columnas, columnas)
+  # `unname()`: `lapply` conserva los nombres de columna, que son datos del
+  # usuario. Una columna llamada `sep` chocaba con el formal de `paste`.
+  # El separador tiene que ser imposible de producir desde un valor. Con `" | "` a
+  # secas, `c1 = "x | y", c2 = "z"` y `c1 = "x", c2 = "y | z"` daban los dos
+  # `"x | y | z"`: dos filas que NO comparten ningun valor salian
+  # `exacto_normalizado` a distancia 0, mientras el propio informe de fusiones del
+  # objeto declaraba que ningun paso de normalizacion habia fundido nada -el objeto
+  # desmintiendo su propia clasificacion-. `.clave_bytes()` ya escapo la barra
+  # invertida, asi que escapar la barra vertical despues deja una sola forma de leer
+  # la cadena y el separador vuelve a separar.
+  # Y la clave de bytes se aplica UNA vez por valor: la del `Map()` de arriba,
+  # antes de normalizar. Aplicarla DOS veces -una en el `Map()` y otra aca, antes
+  # de pegar- hacia llegar cada `\` del dato cuadruplicado a `stringdist`, y la
+  # distancia publicada no salia de ninguna receta: medido, `x\y` contra `x\z`
+  # publicaba 0,067 y entraba al umbral por omision. La segunda aplicacion no
+  # hacia otra cosa: la primera ya marco UTF-8 lo valido y escapo lo que no lo
+  # es.
+  #
+  # La receta publicada queda entonces en una linea, y es la que documenta el Rd:
+  # cada valor con su `\` escrito `\\` y su `|` escrito `\|`, unidos con `" | "`.
+  escapar_separador <- function(v) gsub("|", "\\|", v, fixed = TRUE)
+  filas <- do.call(
+    paste,
+    c(
+      unname(lapply(valores, function(x) escapar_separador(x$valores))),
+      sep = " | "
+    )
+  )
+  presentes <- Reduce(`|`, lapply(valores, `[[`, "presentes"),
+                      init = rep(FALSE, nrow(datos)))
+  fusiones <- if (!is.null(fusiones_precomputadas)) {
+    indices_fusiones <- .indice_nombre(columnas, names(fusiones_precomputadas))
+    fusiones_precomputadas[indices_fusiones[!is.na(indices_fusiones)]]
+  } else if (.normalizacion_tiene_pasos_resuelta(
+    normalizacion_resuelta, columnas
+  )) {
+    stats::setNames(lapply(seq_along(columnas), function(i) {
+      perfil <- .normalizacion_para_columna(
+        normalizacion_resuelta, columnas[[i]]
+      )
+      if (!.normalizacion_tiene_pasos(perfil)) return(NULL)
+      crudos <- suppressWarnings(as.character(.texto_analizable(
+        datos[[columnas[[i]]]]
+      )$valores))
+      crudos <- unique(crudos[!is.na(crudos)])
+      .normalizacion_fusiones_vocabulario(crudos, perfil)
+    }), columnas)
+  } else NULL
+  if (is.list(fusiones)) {
+    fusiones <- fusiones[!vapply(fusiones, is.null, logical(1L))]
+    if (!length(fusiones)) fusiones <- NULL
+  }
+  list(valores = filas, presentes = presentes,
+       normalizacion = normalizacion_resuelta, fusiones = fusiones)
+}
+
+# Un par puede quedar clasificado como `exacto` porque los textos coinciden
+# despues de la normalizacion declarada, no porque los valores guardados sean
+# iguales. Esto distingue los dos casos para que el hallazgo no afirme una
+# igualdad que no existe en los datos.
+#
+# Se comparan los valores con la misma escritura con que entran a la cadena -un
+# doble con las cifras que lo devuelven a su valor, no con las 15 de
+# `as.character()`-, y la celda
+# ausente se compara como la cadena vacia, que es como entra. Las dos cosas
+# daban clasificaciones falsas, medidas: `0.1 + 0.2` contra `0.3`
+# y `1e15` contra `1e15 + 1` salian `exacto` -"los mismos valores"- con
+# evidencia `m=0.3`/`m=0.3`; y `NA` contra `""` con `normalizar = FALSE` salia
+# `exacto_normalizado` con `igualo_normalizar = TRUE`, atribuyendo a una
+# normalizacion que no existia una igualdad que puso el tratamiento del ausente.
+#
+# La escritura de cada columna se prepara una vez, en
+# `.textos_originales_comparables()`, y aca solo se indexa: el cierre que llama a
+# esta funcion corre por cada tanda de candidatos, y preparar la columna entera en
+# cada llamada hacia el costo proporcional a tandas por filas. Medido sobre el
+# padron sintetico de `benchmark/`, con LSH y dos hilos: 20.000 filas tardaban
+# 26 s contra 17 s sin esa preparacion repetida, y 200.000, 1426 s contra 583 s.
+.pares_con_texto_original_igual <- function(valores, filas_1, filas_2) {
+  n <- length(filas_1)
+  if (!n) return(logical())
+  iguales <- rep(TRUE, n)
+  for (columna in valores) {
+    iguales <- iguales & columna[filas_1] == columna[filas_2]
+  }
+  iguales
+}
+
+.textos_originales_comparables <- function(datos, columnas) {
+  lapply(columnas, function(columna) {
+    valores <- .nombres_para_operar(suppressWarnings(as.character(
+      .valores_para_comparar_duplicados(datos[[columna]])
+    )))
+    valores[is.na(valores)] <- ""
+    valores
+  })
+}
+
+# Lo que entra a la comparacion desde una columna de dobles. `as.character()`
+# escribe 15 cifras, asi que `0.1 + 0.2` y `0.3`, o `1e15` y `1e15 + 1`, entraban
+# como el mismo texto: distancia 0, `tipo_par = "exacto"` y evidencia identica,
+# sobre valores que R separa (`==` da FALSE). Se usa la etiqueta reversible -la
+# escritura mas corta que vuelve al valor-: 15 cifras cuando alcanzan, que es casi
+# siempre, asi que `0.1` sigue siendo "0.1" y `1e15`, "1e+15"; 16 o 17 cuando no.
+# No la de identidad, que escribe todo entero con todas sus cifras: medido, con
+# ella `1e15` ("1000000000000000") quedaba a 0,09 de `0.1 + 0.2` y entraba al
+# umbral por omision, un par que la escritura corriente nunca publico. Aca no hay
+# que emparejar clases distintas -cada columna se compara consigo misma-, que es
+# lo unico que la de identidad agrega. Las clases que guardan su valor en un doble
+# y no son un numero corriente conservan su propia escritura.
+.valores_para_comparar_duplicados <- function(x) {
+  if (is.double(x) &&
+      !inherits(x, c("Date", "POSIXt", "difftime", "integer64"))) {
+    return(.etiqueta_numero_reversible(x))
+  }
+  x
+}
+
+.evidencia_filas_aproximada <- function(datos, columnas, filas, protegidas) {
+  n <- length(filas)
+  if (!n) return(character())
+  partes <- lapply(columnas, function(columna) {
+    columna_texto <- .marcar_utf8_textos(columna)
+    valores <- if (.nombres_para_operar(columna) %in%
+                   .nombres_para_operar(protegidas)) {
+      rep("[valor protegido]", n)
+    } else {
+      # Un doble se cita con la misma escritura con que entra a la comparacion:
+      # con 15 cifras, el par `1e15` / `1e15 + 1` se citaba `1e+15` / `1e+15`.
+      valores <- suppressWarnings(as.character(.texto_analizable(
+        .valores_para_comparar_duplicados(datos[[columna]][filas])
+      )$valores))
+      # La evidencia se PUBLICA, y `.texto_analizable()` es el camino de
+      # ANALISIS: marca UTF-8 lo declarado `bytes` cuando sus bytes son validos,
+      # a proposito, para que `tolower()`, `trimws()` y las expresiones
+      # regulares puedan trabajar. Eso es correcto ahi y no aca: publicar un
+      # valor declarado `bytes` como texto es interpretarlo, que es lo que esa
+      # marca prohibe y lo que `test-N68` fija para la impresion.
+      #
+      # Medido: un par entre `a\u00f1o` declarado `bytes` y el mismo texto
+      # declarado `UTF-8` publicaba `v=a\u00f1o` en las dos evidencias, mientras
+      # `print()` del mismo dato mostraba `a\xc3\xb1o` en una. Se devuelve el
+      # original para esas posiciones: R ya lo rinde como la consola.
+      crudo <- as.character(datos[[columna]][filas])
+      declarado_bytes <- !is.na(crudo) & Encoding(crudo) == "bytes"
+      if (any(declarado_bytes)) {
+        valores[declarado_bytes] <- crudo[declarado_bytes]
+      }
+      valores[is.na(valores) | !length(valores)] <- "[ausente]"
+      valores
+    }
+    .pegar_texto0(columna_texto, "=", valores)
+  })
+  salida <- partes[[1L]]
+  if (length(partes) > 1L) {
+    for (i in 2:length(partes)) salida <- paste0(salida, "; ", partes[[i]])
+  }
+  salida
+}
+
+.detectar_duplicados_aproximados <- function(
+    datos, columnas = NULL, metodo = "jw", umbral = 0.10, p = 0.1,
+    muestra = Inf, max_pares = 50000000L, max_resultados = 100L,
+    normalizar = TRUE, clasificacion = NULL,
+    proteger_datos_personales = TRUE, bloque = 1000L,
+    estrategia = "auto", lsh_bandas = 12L, lsh_filas = 3L, lsh_q = 3L,
+    lsh_max_cubeta = 1000L, lsh_muestra_estimacion = 400000L,
+    presupuesto_pares = Inf, bloquear_por = NULL, solo_estimacion = FALSE,
+    lotes = FALSE, tamano_lote = 1000L, directorio_lotes = NULL,
+    nucleos = getOption("lupa.nucleos", 2L), fusiones_precomputadas = NULL,
+    max_largo_valor = .MAX_LARGO_VALOR_CASI_DUPLICADOS) {
+  .validar_datos_tabla(datos)
+  datos <- .tabla_base(datos)
+  columnas <- .columnas_duplicados_aproximados(datos, columnas)
+  normalizacion_resuelta <- .resolver_normalizacion(normalizar)
+  muestra <- .validar_limite_duplicados(muestra, "muestra")
+  max_pares <- .validar_limite_duplicados(max_pares, "max_pares")
+  max_resultados <- .validar_limite_duplicados(max_resultados, "max_resultados")
+  max_largo_valor <- .validar_largo_valor_duplicados(
+    max_largo_valor, "max_largo_valor"
+  )
+  nucleos <- .resolver_nucleos_lupa(nucleos)
+  bloque <- .validar_bloque_duplicados(bloque)
+  bloquear_por <- .validar_bloquear_por(datos, bloquear_por)
+  lotes <- .validar_lotes(lotes)
+  tamano_lote <- .validar_bloque_duplicados(tamano_lote)
+  directorio_lotes <- if (lotes) {
+    .validar_directorio_lotes(directorio_lotes)
+  } else {
+    .validar_directorio_lotes(directorio_lotes, crear = FALSE)
+  }
+  resumen_bloqueo <- .resumir_bloqueo(datos, bloquear_por)
+  estrategia <- .elegir_opcion(estrategia, c("auto", "teselas", "muestra", "lsh"))
+  lsh_bandas <- .validar_parametro_lsh(lsh_bandas, "lsh_bandas")
+  lsh_filas <- .validar_parametro_lsh(lsh_filas, "lsh_filas")
+  lsh_q <- .validar_parametro_lsh(lsh_q, "lsh_q")
+  lsh_max_cubeta <- .validar_parametro_lsh(
+    lsh_max_cubeta, "lsh_max_cubeta", minimo = 2L
+  )
+  lsh_muestra_estimacion <- .validar_parametro_lsh(
+    lsh_muestra_estimacion, "lsh_muestra_estimacion"
+  )
+  presupuesto_pares <- .validar_limite_duplicados(
+    presupuesto_pares, "presupuesto_pares"
+  )
+  if (!is.character(metodo) || length(metodo) != 1L || is.na(metodo) ||
+      !nzchar(metodo) || !metodo %in% c(
+        "osa", "lv", "dl", "hamming", "lcs", "qgram", "cosine",
+        "jaccard", "jw", "soundex"
+      )) {
+    .detener(
+      "`metodo` debe ser una medida admitida: osa, lv, dl, hamming, lcs, ",
+      "qgram, cosine, jaccard, jw o soundex.", call. = FALSE
+    )
+  }
+  if (!is.numeric(umbral) || length(umbral) != 1L || is.na(umbral) ||
+      !is.finite(umbral) || umbral < 0) {
+    .detener("`umbral` debe ser un numero finito no negativo.", call. = FALSE)
+  }
+  if (!is.numeric(p) || length(p) != 1L || is.na(p) || !is.finite(p) ||
+      p < 0 || p > 0.25) {
+    .detener("`p` debe ser un numero finito entre 0 y 0.25.", call. = FALSE)
+  }
+  .validar_bandera_proteccion(proteger_datos_personales)
+  largos <- .columnas_largas_duplicados(
+    datos, columnas, max_largo_valor, normalizacion_resuelta
+  )
+  if (length(largos$columnas)) {
+    motivo <- paste0(
+      "Se excluyeron las columnas ",
+      paste0("`", largos$columnas, "`", collapse = ", "),
+      " de la comparacion: al menos un valor supera `max_largo_valor = ",
+      max_largo_valor, "` caracteres. Como las columnas se comparan juntas,",
+      " no se compararon sus filas; no se recortaron valores en silencio."
+    )
+    resultado <- .vacio_duplicados_aproximados(
+      nrow(datos), columnas, metodo, umbral, muestra, max_pares,
+      max_resultados, disponible = .stringdist_disponible(), bloque = bloque,
+      p = p, razon = motivo, nucleos_usados = nucleos,
+      max_largo_valor = max_largo_valor,
+      columnas_excluidas_largo = largos$columnas,
+      largos_columnas = largos$largos,
+      largo_combinado = largos$combinado
+    )
+    if (!is.null(resumen_bloqueo)) {
+      resultado$alcance <- cbind(resultado$alcance, resumen_bloqueo$alcance)
+    }
+    resultado$normalizacion <- .normalizacion_salida(normalizacion_resuelta)
+    return(resultado)
+  }
+  if (!.stringdist_disponible()) {
+    resultado <- .vacio_duplicados_aproximados(
+      nrow(datos), columnas, metodo, umbral, muestra, max_pares,
+      max_resultados, disponible = FALSE, bloque = bloque, p = p,
+      razon = "No esta instalado el paquete opcional 'stringdist'.",
+      nucleos_usados = nucleos, max_largo_valor = max_largo_valor
+    )
+    if (!is.null(resumen_bloqueo)) {
+      resultado$alcance <- cbind(resultado$alcance, resumen_bloqueo$alcance)
+    }
+    resultado$normalizacion <- .normalizacion_salida(normalizacion_resuelta)
+    return(resultado)
+  }
+  # Dos columnas de texto con el MISMO nombre. El camino explicito las rechaza
+  # -"`columnas` debe nombrar columnas atomicas existentes y sin repetir"-, pero el
+  # automatico tomaba `names(datos)` sin deduplicar y `.seleccionar_columnas()`
+  # resuelve los nombres con `match()`: los dos `txt` se volvian el indice 1 dos
+  # veces, o sea la PRIMERA columna comparada contra si misma. Medido: publicaba
+  # `columnas = txt/txt`, evidencia `txt=ana; txt=ana` para las dos filas -el valor
+  # de la segunda columna no aparecia en ninguna parte- y `tipo_par = "exacto"` a
+  # distancia 0, cuando la distancia de los valores reales es 0,162 y el par no
+  # llega al umbral. Un falso positivo silencioso sobre una tabla que
+  # `read.csv(check.names = FALSE)` produce sola.
+  #
+  # No se compara un subconjunto: se declara y no se compara nada, que es lo que el
+  # paquete ya hace cuando una columna queda afuera por su largo -"como las columnas
+  # se comparan juntas, no se compararon sus filas"-. Sacar una columna cambia el
+  # significado de la comparacion, no la recorta.
+  nombres_repetidos <- unique(columnas[duplicated(columnas)])
+  if (length(nombres_repetidos)) {
+    motivo <- paste0(
+      "Hay columnas de texto con el mismo nombre (",
+      paste0("`", nombres_repetidos, "`", collapse = ", "),
+      "): la comparacion identifica las columnas por nombre, asi que no se puede ",
+      "decir cual de ellas se compara. No se compararon sus filas. Renombre las ",
+      "repetidas -por ejemplo con `names(datos) <- make.unique(names(datos))`- y ",
+      "vuelva a comparar."
+    )
+    resultado <- .vacio_duplicados_aproximados(
+      nrow(datos), columnas, metodo, umbral, muestra, max_pares,
+      max_resultados, disponible = .stringdist_disponible(), bloque = bloque,
+      p = p, razon = motivo, nucleos_usados = nucleos,
+      max_largo_valor = max_largo_valor
+    )
+    if (!is.null(resumen_bloqueo)) {
+      resultado$alcance <- cbind(resultado$alcance, resumen_bloqueo$alcance)
+    }
+    resultado$normalizacion <- .normalizacion_salida(normalizacion_resuelta)
+    return(resultado)
+  }
+  if (!length(columnas)) {
+    motivo <- attr(columnas, "motivo_sin_columnas", exact = TRUE)
+    if (is.null(motivo)) {
+      motivo <- "No hay columnas de texto comparables; indique `columnas` explicitamente."
+    }
+    resultado <- .vacio_duplicados_aproximados(
+      nrow(datos), columnas, metodo, umbral, muestra, max_pares,
+      max_resultados, disponible = TRUE, bloque = bloque, p = p,
+      razon = motivo, nucleos_usados = nucleos,
+      max_largo_valor = max_largo_valor
+    )
+    if (!is.null(resumen_bloqueo)) {
+      resultado$alcance <- cbind(resultado$alcance, resumen_bloqueo$alcance)
+    }
+    resultado$normalizacion <- .normalizacion_salida(normalizacion_resuelta)
+    return(resultado)
+  }
+  if (is.null(clasificacion)) {
+    perfil <- perfilar(
+      datos, analizar_dependencias = FALSE,
+      proteger_datos_personales = TRUE,
+      duplicados_aproximados = FALSE
+    )
+    clasificacion <- perfil$datos_personales
+  }
+  protegidas <- if (proteger_datos_personales) {
+    .columnas_personales_protegidas(clasificacion)
+  } else character()
+  textos <- .texto_fila_aproximada(
+    datos, columnas, normalizacion_resuelta, fusiones_precomputadas
+  )
+  # Se prepara en la primera llamada: el camino que nunca compara pares no paga
+  # el recorrido de las columnas.
+  originales <- NULL
+  igualdad_original <- function(filas_1, filas_2) {
+    if (is.null(originales)) {
+      originales <<- .textos_originales_comparables(datos, columnas)
+    }
+    .pares_con_texto_original_igual(originales, filas_1, filas_2)
+  }
+  # Sobre el tope exhaustivo, `auto` reemplaza el muestreo de filas por LSH.
+  # `max_pares` sigue gobernando el camino exacto; en LSH el alcance se expresa
+  # mediante candidatos, cubetas y garantía de colisión.
+  usar_lsh <- estrategia == "lsh" || (
+    estrategia == "auto" && nrow(datos) > 10000L &&
+      is.infinite(muestra) &&
+      (is.infinite(max_pares) || max_pares >= 50000000L)
+  )
+  if (usar_lsh) {
+    limite_filas <- if (is.infinite(muestra)) nrow(datos) else {
+      min(as.numeric(muestra), nrow(datos))
+    }
+    indices <- .indices_duplicados_aproximados(nrow(datos), limite_filas)
+    estrategia_salida <- "lsh_min_hash"
+  } else {
+    max_filas_por_pares <- if (is.infinite(max_pares)) Inf else {
+      floor((1 + sqrt(1 + 8 * max_pares)) / 2)
+    }
+    limite_filas <- min(muestra, max_filas_por_pares)
+    indices <- .indices_duplicados_aproximados(nrow(datos), limite_filas)
+    seleccion <- if (limite_filas <= 3L) "primeras_n_filas" else {
+      "muestra_sistematica"
+    }
+    estrategia_salida <- if (length(indices) >= nrow(datos)) {
+      "todas_las_filas_en_bloques"
+    } else if (nrow(datos) > muestra &&
+               !is.infinite(max_filas_por_pares) &&
+               max_filas_por_pares < muestra) {
+      paste0(seleccion, "_por_muestra_y_limite_de_pares")
+    } else if (nrow(datos) > muestra) {
+      paste0(seleccion, "_por_muestra")
+    } else {
+      paste0(seleccion, "_por_limite_de_pares")
+    }
+  }
+  validos <- indices[textos$presentes[indices]]
+  if (!is.null(resumen_bloqueo)) {
+    validos_bloqueo <- which(textos$presentes)
+    perdida_bloqueo <- .estimar_perdida_bloqueo(
+      textos$valores[validos_bloqueo],
+      resumen_bloqueo$ids[validos_bloqueo], metodo, umbral,
+      lsh_muestra_estimacion, nucleos = nucleos, p = p
+    )
+    resumen_bloqueo$alcance <- cbind(
+      resumen_bloqueo$alcance, perdida_bloqueo
+    )
+  }
+  n_pares_comparados <- if (usar_lsh) 0 else as.numeric(length(validos)) *
+    (as.numeric(length(validos)) - 1) / 2
+  if (!usar_lsh && !is.null(resumen_bloqueo)) {
+    tamanos_validos <- table(resumen_bloqueo$ids[validos])
+    n_pares_comparados <- sum(tamanos_validos *
+      pmax(tamanos_validos - 1, 0) / 2)
+  }
+  posibles <- as.numeric(nrow(datos)) * (as.numeric(nrow(datos)) - 1) / 2
+  if (length(validos) < 2L) {
+    resultado <- .vacio_duplicados_aproximados(
+      nrow(datos), columnas, metodo, umbral, muestra, max_pares,
+      max_resultados, disponible = TRUE, bloque = bloque, p = p,
+      razon = "No hay dos filas con valores comparables.",
+      nucleos_usados = nucleos, conteos_medidos = TRUE
+    )
+    resultado$alcance$n_filas_muestra <- length(indices)
+    resultado$alcance$n_filas_validas <- length(validos)
+    resultado$alcance$n_pares_comparados <- n_pares_comparados
+    resultado$alcance$n_pares_sin_comparar <- posibles
+    resultado$alcance$muestreado <- length(indices) < nrow(datos)
+    resultado$alcance$estrategia <- estrategia_salida
+    resultado$alcance$muestra_efectiva <- length(indices)
+    resultado$alcance$modo_comparacion <- "sin_pares_comparables"
+    resultado$alcance$tamano_bloque <- bloque
+    if (!is.null(resumen_bloqueo)) {
+      resultado$alcance <- cbind(resultado$alcance, resumen_bloqueo$alcance)
+    }
+    resultado$normalizacion <- .normalizacion_salida(normalizacion_resuelta)
+    return(resultado)
+  }
+  if (lotes && usar_lsh) {
+    .detener(
+      "`lotes = TRUE` s\u00f3lo est\u00e1 disponible para la comparaci\u00f3n exacta; ",
+      "el camino LSH ya procesa sus cubetas por bloques en memoria.",
+      call. = FALSE
+    )
+  }
+  if (!isTRUE(solo_estimacion) && !usar_lsh) {
+    .controlar_presupuesto_pares(n_pares_comparados, presupuesto_pares)
+  }
+  if (isTRUE(solo_estimacion) && !(
+      estrategia == "lsh" ||
+      (estrategia == "auto" && nrow(datos) > 10000L &&
+       is.infinite(muestra) &&
+       (is.infinite(max_pares) || max_pares >= 50000000L)))) {
+    dentro <- n_pares_comparados
+    # `modo_comparacion` decia "exhaustiva_por_bloques" siempre, y la corrida
+    # con los MISMOS argumentos podia ser muestreada. Medido sobre 5000 filas
+    # con `max_pares = 100000`: la estimacion prometia exhaustiva y la corrida
+    # comparo 447 filas de 5000, declarandose `muestreada_por_bloques`. Una
+    # estimacion es una promesa sobre la corrida; si no la cumple no sirve para
+    # decidir nada.
+    #
+    # No hay que recalcular nada: `indices` y `estrategia_salida` son los mismos
+    # que va a usar la corrida, y ya estan resueltos unas lineas mas arriba. Se
+    # publica ademas cuantas filas va a mirar, que es lo que cambia la respuesta.
+    alcance <- data.frame(
+      modo_comparacion = if (usar_lsh) {
+        "lsh_minhash"
+      } else if (length(indices) >= nrow(datos)) {
+        "exhaustiva_por_bloques"
+      } else {
+        "muestreada_por_bloques"
+      },
+      candidatos_previstos = dentro,
+      pares_alcanzables = dentro,
+      filas_previstas = length(indices),
+      filas_totales = nrow(datos),
+      estrategia_prevista = estrategia_salida,
+      nucleos_usados = nucleos,
+      stringsAsFactors = FALSE
+    )
+    if (!is.null(resumen_bloqueo)) {
+      alcance <- cbind(alcance, resumen_bloqueo$alcance)
+    }
+    return(list(
+      estimacion = list(
+        candidatos_previstos = dentro,
+        probabilidad_candidato_estimada = NA_real_,
+        muestra_estimacion = dentro,
+        vocabulario = NA_integer_,
+        pares_benchmark = NA_integer_,
+        tiempo_benchmark = NA_real_,
+        velocidad_comparacion = NA_real_,
+        tiempo_estimado_segundos = NA_real_,
+        tiempo_estimado_etapa = NA_character_,
+        tiempo_estimado_es_piso = FALSE,
+        tiempo_determinista = TRUE
+      ), alcance = alcance, disponible = TRUE, razon = "",
+      normalizacion = .normalizacion_resumen(normalizacion_resuelta)
+    ))
+  }
+  lsh_alcance <- NULL
+  lotes_metadata <- NULL
+  if (usar_lsh) {
+    lsh <- .comparar_lsh_duplicados(
+      textos$valores[validos], validos, metodo, umbral, lsh_bandas,
+      lsh_filas, lsh_q, lsh_max_cubeta, max_resultados,
+      lsh_muestra_estimacion, presupuesto_pares,
+      bloqueos = if (is.null(resumen_bloqueo)) NULL else {
+        resumen_bloqueo$ids[validos]
+      }, solo_estimacion = solo_estimacion, nucleos = nucleos, p = p,
+      igualdad_original = igualdad_original
+    )
+    if (isTRUE(solo_estimacion)) {
+      alcance <- lsh$alcance
+      if (!is.null(resumen_bloqueo)) {
+        alcance <- cbind(alcance, resumen_bloqueo$alcance)
+      }
+      return(list(
+        estimacion = lsh$estimacion, alcance = alcance,
+        disponible = TRUE, razon = "",
+        normalizacion = .normalizacion_resumen(normalizacion_resuelta)
+      ))
+    }
+    bloques <- lsh
+    lsh_alcance <- lsh$alcance
+    estimacion_resultado <- lsh$estimacion
+    n_pares_comparados <- lsh$alcance$lsh_pares_comparados[[1L]]
+  } else {
+    if (lotes) {
+      directorio_parciales <- .preparar_directorio_lotes(directorio_lotes)
+      bloques <- .comparar_por_lotes_duplicados(
+        textos$valores[validos], validos, metodo, umbral, bloque,
+        tamano_lote, max_resultados,
+        bloqueos = if (is.null(resumen_bloqueo)) NULL else {
+          resumen_bloqueo$ids[validos]
+        }, directorio_lotes = directorio_parciales, nucleos = nucleos, p = p,
+        igualdad_original = igualdad_original
+      )
+      lotes_metadata <- bloques$metadata
+    } else if (is.null(resumen_bloqueo)) {
+      bloques <- .comparar_bloques_duplicados(
+        textos$valores[validos], validos, metodo, umbral, bloque, max_resultados,
+        nucleos = nucleos, p = p, igualdad_original = igualdad_original
+      )
+    } else {
+      grupos <- split(seq_along(validos), resumen_bloqueo$ids[validos])
+      # Sobre todos los validos, no sobre cada grupo: el acumulador es unico
+      # para el bucle y el desempate tiene que ser comparable entre grupos.
+      acumulador <- .nuevo_acumulador_duplicados(
+        max_resultados,
+        .rango_canonico_duplicados(textos$valores[validos], validos)
+      )
+      n_bloques <- 0L
+      for (grupo in grupos) {
+        parcial <- .comparar_bloques_duplicados(
+          textos$valores[validos[grupo]], validos[grupo], metodo, umbral,
+          bloque, max_resultados, acumulador = acumulador,
+          nucleos = nucleos, p = p, igualdad_original = igualdad_original
+        )
+        acumulador <- parcial$acumulador
+        n_bloques <- n_bloques + parcial$n_bloques
+      }
+      acumulados_bloqueados <- .pares_acumulador_con_igualdad(acumulador)
+      bloques <- list(
+        pares = acumulados_bloqueados$pares,
+        iguales = acumulados_bloqueados$iguales,
+        distancia_minima_descartada = acumulador$distancia_minima_descartada,
+    n_hallados = acumulador$n_hallados,
+        n_exactos = acumulador$n_exactos,
+        n_exactos_normalizados = acumulador$n_exactos_normalizados,
+        n_aproximados = acumulador$n_aproximados,
+        n_bloques = n_bloques
+      )
+    }
+    estimacion_resultado <- NULL
+  }
+  n_hallados <- bloques$n_hallados
+  distancia_minima_descartada <- if (
+    is.null(bloques$distancia_minima_descartada)
+  ) Inf else bloques$distancia_minima_descartada
+  n_exactos <- bloques$n_exactos
+  n_exactos_normalizados <- bloques$n_exactos_normalizados
+  n_aproximados <- bloques$n_aproximados
+  mostrados <- nrow(bloques$pares)
+  pares <- if (mostrados) {
+    distancias <- bloques$pares$distancia
+    iguales <- as.logical(bloques$iguales)
+    originales_iguales <- igualdad_original(
+      bloques$pares$fila_1, bloques$pares$fila_2
+    )
+    igualo_normalizar <- iguales & !originales_iguales
+    data.frame(
+      fila_1 = bloques$pares$fila_1,
+      fila_2 = bloques$pares$fila_2,
+      distancia = distancias,
+      tipo_par = ifelse(
+        !iguales, "aproximado",
+        ifelse(originales_iguales, "exacto", "exacto_normalizado")
+      ),
+      igualo_normalizar = igualo_normalizar,
+      metodo = metodo, p = p, umbral = umbral,
+      evidencia_1 = .evidencia_filas_aproximada(
+        datos, columnas, bloques$pares$fila_1, protegidas
+      ),
+      evidencia_2 = .evidencia_filas_aproximada(
+        datos, columnas, bloques$pares$fila_2, protegidas
+      ),
+      proteccion_evidencia = if (length(protegidas)) {
+        rep("[valores personales protegidos]", mostrados)
+      } else rep("ninguna", mostrados),
+      stringsAsFactors = FALSE
+    )
+  } else {
+    .vacio_duplicados_aproximados(
+      nrow(datos), columnas, metodo, umbral, muestra, max_pares,
+      max_resultados, disponible = TRUE, bloque = bloque, p = p,
+      nucleos_usados = nucleos
+    )$pares
+  }
+  hallazgos <- if (nrow(pares)) {
+    n <- nrow(pares)
+    data.frame(
+      columna = rep(.pegar_nombres(columnas, sep = ", "), n),
+      tipo_hallazgo = ifelse(
+        pares$tipo_par == "exacto", "duplicados_exactos_columnas",
+        ifelse(
+          pares$tipo_par == "exacto_normalizado",
+          "duplicados_exactos_normalizados", "duplicados_aproximados"
+        )
+      ),
+      severidad = rep("sospechoso", n),
+      descripcion = ifelse(
+        pares$tipo_par == "exacto",
+        "Dos filas tienen los mismos valores en las columnas comparadas; esto no demuestra identidad.",
+        ifelse(
+          pares$tipo_par == "exacto_normalizado",
+          paste(
+            "Dos filas coinciden despu\u00e9s de la normalizaci\u00f3n declarada,",
+            "no en el texto original; esto no demuestra identidad."
+          ),
+          "Dos filas presentan similitud; esto no demuestra identidad."
+        )
+      ),
+      evidencia = paste0(
+        "Filas ", pares$fila_1, " y ", pares$fila_2,
+        "; distancia ",
+        vapply(pares$distancia, format, character(1L), digits = 6L,
+               scientific = FALSE),
+        " con ", pares$metodo, " (umbral ",
+        .formatear_numero_publicado(pares$umbral), "). ",
+        pares$evidencia_1, " / ", pares$evidencia_2
+      ),
+      sugerencia = rep(
+        "Revisar manualmente; no eliminar ni fusionar filas por esta senal.", n
+      ),
+      n_evaluados = rep(n_pares_comparados, n),
+      n_afectados = rep(1, n),
+      unidad_conteo = rep("par", n),
+      estado_reparacion = rep(NA_character_, n),
+      trazabilidad = I(rep(list(.trazabilidad_vacia()), n)),
+      stringsAsFactors = FALSE
+    )
+  } else {
+    data.frame(
+      columna = character(), tipo_hallazgo = character(), severidad = character(),
+      descripcion = character(), evidencia = character(), sugerencia = character(),
+      n_evaluados = numeric(), n_afectados = numeric(),
+      unidad_conteo = character(),
+      estado_reparacion = character(),
+      trazabilidad = I(list()),
+      stringsAsFactors = FALSE
+    )
+  }
+  if (!is.null(resumen_bloqueo) &&
+      resumen_bloqueo$alcance$bloqueo_pares_fuera_alcance[[1L]] > 0) {
+    hallazgo_bloqueo <- .nuevo_hallazgo(
+      bloquear_por, "bloqueo_por_con_perdida", "sospechoso",
+      "El bloqueo excluye pares cuya clave no coincide; no se evaluaron.",
+      paste0(
+        resumen_bloqueo$alcance$bloqueo_pares_fuera_alcance[[1L]],
+        " pares quedaron fuera del alcance de `bloquear_por`.",
+        " Las filas con NA forman un bloque propio."
+      ),
+      "Revisar la clave y no interpretar la ausencia de un par como evidencia de que no existe.",
+      resumen_bloqueo$alcance$bloqueo_pares_alcanzables[[1L]] +
+        resumen_bloqueo$alcance$bloqueo_pares_fuera_alcance[[1L]],
+      resumen_bloqueo$alcance$bloqueo_pares_fuera_alcance[[1L]], "par"
+    )
+    hallazgos <- rbind(hallazgos, hallazgo_bloqueo)
+  }
+  hallazgos$severidad <- factor(
+    hallazgos$severidad, levels = c("ok", "sospechoso", "error"), ordered = TRUE
+  )
+  # `truncado` solo se lee como "conserve los mas cercanos", y cuando el corte
+  # cae dentro de un empate esa lectura es falsa: quedaron afuera pares igual de
+  # cercanos que los conservados.
+  #
+  # Contar cuantos de los CONSERVADOS comparten la distancia del borde no
+  # alcanza para saberlo, y por eso no se usa para decidir: si en el borde
+  # sobrevive uno solo, el conteo da 1 y la senal caeria en FALSE aunque se
+  # hubieran descartado pares a esa misma distancia. Reproducido con cuatro
+  # filas y `max_resultados = 1`.
+  #
+  # Lo que si lo decide es la distancia mas cercana que el recorte llego a
+  # tirar: si coincide con la del borde, hubo empate partido. El acumulador la
+  # registra en cada recorte.
+  distancia_corte <- if (nrow(pares)) max(pares$distancia) else NA_real_
+  n_en_distancia_corte <- if (nrow(pares)) {
+    sum(pares$distancia == distancia_corte)
+  } else NA_integer_
+  hubo_truncado <- mostrados < n_hallados
+
+  alcance <- data.frame(
+    n_filas_total = as.numeric(nrow(datos)),
+    n_filas_muestra = length(indices), n_filas_validas = length(validos),
+    n_pares_posibles = posibles, n_pares_comparados = n_pares_comparados,
+    n_pares_sin_comparar = max(0, posibles - n_pares_comparados),
+    n_pares_hallados = n_hallados, n_pares_mostrados = mostrados,
+    n_pares_exactos = n_exactos,
+    n_pares_exactos_normalizados = n_exactos_normalizados,
+    n_pares_aproximados = n_aproximados,
+    limite_pares = if (usar_lsh) NA_real_ else max_pares,
+    limite_pares_configurado = max_pares,
+    limite_pares_aplica = !usar_lsh,
+    limite_resultados = max_resultados,
+    muestra = muestra,
+    muestra_efectiva = length(indices),
+    estrategia = estrategia_salida,
+    modo_comparacion = if (usar_lsh) "lsh_minhash" else if (length(indices) >= nrow(datos)) {
+      "exhaustiva_por_bloques"
+    } else "muestreada_por_bloques",
+    tamano_bloque = if (usar_lsh) NA_integer_ else bloque,
+    presupuesto_pares = presupuesto_pares,
+    presupuesto_pares_aplica = usar_lsh || is.finite(presupuesto_pares),
+    n_bloques = bloques$n_bloques,
+    nucleos_usados = nucleos,
+    metodo = metodo,
+    p = p,
+    comparacion_exhaustiva = !usar_lsh && length(indices) >= nrow(datos),
+    muestreado = length(indices) < nrow(datos), truncado = hubo_truncado,
+    distancia_corte = if (hubo_truncado) distancia_corte else NA_real_,
+    n_en_distancia_corte = if (hubo_truncado) {
+      as.integer(n_en_distancia_corte)
+    } else NA_integer_,
+    corte_en_empate = isTRUE(hubo_truncado) &&
+      isTRUE(distancia_minima_descartada == distancia_corte),
+    disponible = TRUE, razon = "",
+    max_largo_valor = max_largo_valor,
+    limite_largo_valor_aplica = is.finite(max_largo_valor),
+    columnas_excluidas_largo = "",
+    n_columnas_excluidas_largo = 0L,
+    # El combinado y normalizado, que es la cadena que entra a `stringdist`.
+    # Antes se recalculaba aca sobre el valor crudo y columna por columna, o sea
+    # que publicaba un largo distinto del que se habia comparado.
+    largo_maximo = largos$combinado,
+    stringsAsFactors = FALSE
+  )
+  if (usar_lsh) {
+    lsh_alcance_final <- lsh_alcance
+    lsh_alcance_final$nucleos_usados <- NULL
+    alcance <- cbind(alcance, lsh_alcance_final)
+  }
+  if (!is.null(resumen_bloqueo)) {
+    alcance <- cbind(alcance, resumen_bloqueo$alcance)
+  }
+  estructura <- list(
+    pares = pares, hallazgos = hallazgos, alcance = alcance,
+    columnas = columnas, metodo = metodo, p = p, umbral = umbral,
+    normalizacion = .normalizacion_salida(
+      normalizacion_resuelta, textos$fusiones
+    ),
+    disponible = TRUE, razon = "",
+    proteccion_aplicada = proteger_datos_personales,
+    estimacion = estimacion_resultado,
+    max_largo_valor = max_largo_valor,
+    columnas_excluidas_largo = character()
+  )
+  if (!is.null(lotes_metadata)) estructura$lotes <- lotes_metadata
+  # El mismo piso que aplican `perfilar()`, `analizar()` y
+  # `distribucion_valores()`. La proteccion de arriba es POR COLUMNA, asi que
+  # una copia que el clasificador no marca publicaba el documento en la misma
+  # cadena donde la columna protegida iba enmascarada, como en
+  # `documento=[valor protegido]; codigo=77177101`.
+  if (length(protegidas)) {
+    identificantes <- .valores_identificantes(
+      .valores_publicables_protegidos(datos, protegidas),
+      .fechas_que_identifican(datos, protegidas)
+    )
+    if (length(identificantes)) {
+      estructura <- .proteger_textos_salida(
+        estructura, identificantes, intocables = names(datos)
+      )
+      estructura <- .proteger_numeros_parametros(estructura, identificantes)
+    }
+  }
+  class(estructura) <- c("duplicados_aproximados", "list")
+  estructura
+}
+
+#' Detectar pares de filas con similitud aproximada
+#'
+#' Compara filas seleccionadas de una tabla con `stringdist` y devuelve pares cuya
+#' distancia esta bajo el umbral. El resultado describe similitud, distancia,
+#' medida y alcance; nunca afirma que dos filas representen la misma entidad.
+#' Por omision se combinan como maximo dos columnas de texto o factores, despues
+#' de excluir nombres que parecen identificadores (`id`, `codigo`, `uuid`, entre
+#' otros). Si quedan mas de dos columnas, la funcion pide indicar `columnas`
+#' explicitamente en vez de mezclar campos que pueden diluir la similitud. La
+#' medida predeterminada es Jaro--Winkler (`"jw"`), con `p = 0.1`: Winkler
+#' favorece coincidencias con el mismo prefijo y, por eso, premia una errata al
+#' final mas que una al comienzo. El umbral predeterminado es `0.10`, que apunta
+#' a una precisión prudente y no es una calibración fina. Ambos argumentos se
+#' pueden cambiar.
+#'
+#' `tipo_par = "exacto"` indica que los textos guardados son iguales en las
+#' columnas comparadas; una celda ausente (`NA`) y una cadena vacía cuentan como
+#' el mismo texto vacío, que es como entran a la comparación, así que esa
+#' diferencia no se atribuye a la normalización. Dos dobles son iguales si lo son
+#' sus valores, no su escritura con 15 cifras. `tipo_par = "exacto_normalizado"` indica que coinciden
+#' despues de la normalizacion declarada, aunque los textos guardados difieran.
+#' Los restantes son `"aproximado"`. La columna logica `igualo_normalizar` es
+#' `TRUE` unicamente para el segundo caso. La clasificacion no depende de que
+#' una medida de distancia devuelva cero: por ejemplo, `soundex` puede dar
+#' distancia cero para textos distintos. Ningun par demuestra identidad.
+#'
+#' Como la normalizacion por omision iguala mayusculas, espacios, acentos y
+#' comillas, el objeto conserva esta distincion tanto en `pares` como en los
+#' hallazgos. `duplicados_exactos_normalizados` es un tipo de hallazgo propio:
+#' no afirma que los valores guardados sean iguales y tampoco oculta la causa
+#' de la coincidencia bajo `duplicados_aproximados`.
+#'
+#' Una fila cuyos valores en las columnas comparadas son **todos** ausentes,
+#' cadena vacía o solo blancos —espacios, tabulaciones, saltos de línea; lo que
+#' [perfilar()] cuenta en `n_blancos`— no entra en la comparación, con o sin
+#' normalización: no hay texto que medir, y dos filas
+#' vacías no son un duplicado sino dos ausencias. `alcance$n_filas_validas`
+#' cuenta las que sí entraron —contra `n_filas_total`— y, si no quedan dos,
+#' `razon` lo dice. Una cadena vacía **sí** es una clave válida en
+#' `bloquear_por`: ahí no se compara su texto, se agrupa por él.
+#'
+#' En `alcance`, `n_pares_exactos` cuenta solo textos guardados iguales,
+#' `n_pares_exactos_normalizados` cuenta coincidencias producidas por la
+#' normalizacion y `n_pares_aproximados` cuenta los pares restantes. Son
+#' conteos disjuntos y explican `n_pares_hallados`.
+#'
+#' La comparacion usa teselas de `bloque` filas: cada matriz temporal se
+#' descarta antes de continuar, por lo que la memoria no crece con el tamaño
+#' de la tabla. El recorrido es exacto para las filas seleccionadas. `muestra`
+#' y `max_pares` recortan el camino exacto; en el camino LSH, `muestra = Inf`
+#' conserva todas las filas y `max_pares` no se aplica a las comparaciones.
+#' En ese camino `alcance$limite_pares` es `NA`, mientras
+#' `limite_pares_configurado` conserva el valor pedido como referencia y
+#' `limite_pares_aplica` permite distinguir ambos casos sin inferirlo.
+#' El objeto informa cuantos pares eran posibles, cuantos se compararon, el
+#' modo, el tamaño de las teselas o los parámetros LSH y los que quedaron fuera. Solo se muestran
+#' `max_resultados` coincidencias; el truncamiento tambien queda declarado.
+#'
+#' El recorte conserva los pares mas cercanos y, entre los empatados en
+#' distancia, desempata por el **rango canonico del valor** con una clave
+#' simetrica. Es la misma regla que gobierna el recorte del vocabulario, y existe
+#' por lo mismo: desempatar por posición de fila haría que los pares que
+#' sobreviven dependieran de cómo viene ordenado el archivo. Con la clave
+#' simétrica, el mismo archivo en cualquier orden de filas conserva los mismos
+#' pares.
+#'
+#' Lo que ningun orden evita es que un corte dentro de un empate deje afuera pares
+#' igual de cercanos, asi que se declara. `alcance` publica `distancia_corte` —la
+#' distancia donde cayo el corte—, `n_en_distancia_corte` —cuantos de los
+#' conservados la comparten— y `corte_en_empate`, que **no** es `truncado` con
+#' otro nombre: vale `FALSE` cuando el corte cae en una distancia unica. Si vale
+#' `TRUE`, subir `max_resultados` por encima del empate devuelve todos los pares
+#' de esa distancia.
+#'
+#' **Queda un limite que ningun orden puede sacar**: si varias filas tienen el
+#' mismo valor en la columna comparada, sus pares empatan tambien en el rango, y
+#' ahi el desempate cae en la posicion. Medido: con cuatro filas y solo dos
+#' valores distintos, el conjunto de **pares de valores** es identico en los cinco
+#' ordenes, pero **cuales instancias de fila** los representan cambia. Es
+#' irreducible: dos filas con el mismo valor son indistinguibles en esa columna, y
+#' su unica identidad es la posicion, que es justamente lo que varia al reordenar.
+#' Si importa que instancia se informa, hace falta una clave que las distinga.
+#'
+#' En el camino LSH el conjunto de **candidatos** depende del orden de las filas,
+#' porque el vocabulario de q-gramas se numera por orden de primera aparicion y esa
+#' numeracion alimenta las firmas. Eso ocurre dentro de la garantia declarada en
+#' `lsh_garantia_jaccard_*`: medido sobre 1.200 filas, de los pares que cambian al
+#' barajar ninguno supera un Jaccard de q-gramas de 0,8, donde el recall declarado
+#' es 0,9998. Conviene saberlo antes de comparar dos corridas sobre el mismo
+#' contenido exportado en distinto orden.
+#'
+#' `stringdist` es una dependencia opcional. Si no esta instalado, la funcion
+#' devuelve un objeto con `disponible = FALSE`, una tabla vacia y el motivo
+#' explicito; no falla ni presenta silencio como si se hubieran comparado todos
+#' los pares. En ese caso —y cuando la comparación no corre por un valor que
+#' supera `max_largo_valor`, por dos columnas con el mismo nombre o por no haber
+#' columnas comparables— los conteos de `alcance` que salen de comparar filas
+#' (`n_filas_validas`, `n_pares_hallados`, `n_pares_exactos`,
+#' `n_pares_exactos_normalizados` y `n_pares_aproximados`) son `NA`, no cero:
+#' nadie los midió. Si las filas se recorrieron y no quedaron dos válidas, cero
+#' pares sí es lo medido.
+#'
+#' Las comparaciones que delegan en `stringdist` usan `nucleos` hilos como
+#' máximo. El valor por omisión es `getOption("lupa.nucleos", 2L)`, se limita a
+#' los núcleos disponibles y se publica como `alcance$nucleos_usados`. Cambiar
+#' la cantidad de hilos no cambia los pares ni los hallazgos, aunque sí puede
+#' cambiar el tiempo de ejecución.
+#' `p` es el factor de prefijo de Jaro--Winkler y admite valores entre 0 y
+#' 0.25; sólo tiene efecto cuando `metodo = "jw"`. Para los demás métodos se
+#' valida pero `stringdist` no lo utiliza.
+#' El aviso interactivo señala esta perilla: subir `nucleos` puede acortar la
+#' etapa de comparación, pero la ganancia depende de la máquina y de los datos.
+#'
+#' Para tablas que superan el tope exhaustivo, `estrategia = "auto"` usa
+#' MinHash con bandas LSH sobre todas las filas cuando `muestra = Inf`. La
+#' salida declara las bandas, las filas por banda, las cubetas descartadas y la
+#' probabilidad teorica de colision. Esa probabilidad se refiere al Jaccard de
+#' los q-gramas, no a la medida final (`metodo`). `estrategia = "lsh"` fuerza
+#' este camino; `"teselas"` y `"muestra"` fuerzan el camino exacto por teselas
+#' o el muestreado. Las cubetas que superan
+#' `lsh_max_cubeta` se procesan igualmente por lotes; el parámetro identifica
+#' cubetas potencialmente costosas, pero no descarta sus pares. El alcance
+#' separa `lsh_teselas_cubetas_grandes` (matrices del primer tramo) de
+#' `lsh_lotes_cubetas_grandes` (lotes de filas de las bandas posteriores), pues
+#' no son la misma unidad. Los pares aceptados por ambos recorridos entran al
+#' resumen de Jaccard. Si alguna implementación futura descarta una cubeta,
+#' la garantía se devuelve como `NA` y `lsh_garantia_estado` lo deja explícito.
+#' La familia MinHash usa un hash entero biyectivo y determinista del
+#' vocabulario, con una semilla distinta por función de hash. No usa el
+#' generador de números aleatorios de R ni toca su estado: el resultado no
+#' depende de `set.seed()` ni de `RNGkind()`, y la muestra de la estimación
+#' sale del mismo hash. La
+#' tabla de consulta de cada hash evita repetir trabajo para cada celda de la
+#' matriz de q-gramas y hace que el resultado no dependa de cómo se numeraron
+#' esos q-gramas. Antes de recorrer las bandas se toma una muestra interna y se
+#' publica una estimación reproducible de candidatos. El cronómetro de la medida
+#' se ejecuta durante al menos 50 ms y queda en `resultado$estimacion`, separado
+#' de `alcance` y marcado como no determinista. Es un piso de la medida aislada
+#' y no estima la firma, las cubetas ni el troceo; sólo se muestra como aviso en
+#' una sesión interactiva.
+#' Fuera de una sesión interactiva se señala una condición silenciosa de clase
+#' `lupa_tiempo_lsh`, sólo en el camino LSH: no se imprime en `stdout` ni
+#' `stderr`. Se puede capturar con
+#' `withCallingHandlers(resultado <- detectar_duplicados_aproximados(...),
+#' lupa_tiempo_lsh = function(c) { ... })`. Como hereda de `message`, un
+#' `tryCatch(..., message = ...)` puede interrumpir la corrida y devolver el
+#' valor del manejador; para observar sin interrumpir use `withCallingHandlers`
+#' y, si corresponde, `invokeRestart("muffleMessage")`.
+#' `presupuesto_pares` permite rechazar el recorrido antes de iniciarlo; sólo se
+#' pregunta en una sesión interactiva. El diagnóstico de
+#' Jaccard puede quedar limitado a los primeros
+#' pares del recorrido determinista; `lsh_jaccard_alcance` lo dice literalmente
+#' y no presenta ese prefijo como una muestra representativa.
+#' Con `bloquear_por`, `alcance` separa los pares estructuralmente fuera del
+#' bloqueo de una estimación de los candidatos que se habrían informado y que
+#' quedaron fuera según una muestra determinista. La segunda cantidad es una
+#' estimación, no una cuenta exacta.
+#'
+#' @param datos Tabla con una fila por entidad observada.
+#' @param columnas Columnas atomicas a combinar. `NULL` aplica la seleccion
+#'   automatica descrita arriba; no se incluyen matrices ni listas. **El orden
+#'   forma parte de la comparación**: los valores de cada fila se miden
+#'   concatenados en el orden declarado, así que `c("nombre", "domicilio")` y
+#'   `c("domicilio", "nombre")` son dos comparaciones distintas y pueden
+#'   publicar pares distintos con el mismo umbral —medido: 6 pares contra 10
+#'   sobre las mismas cinco filas—. Con `NULL`, el orden es el que tienen las
+#'   columnas en `datos`. El objeto publica en `columnas` el vector que usó, en
+#'   ese orden, así que el resultado se puede rehacer; declararlo a mano lo
+#'   vuelve independiente de cómo estén ordenadas las columnas del archivo.
+#'
+#'   **Cómo se concatena, para poder rehacer la distancia.** Los valores se unen
+#'   con `" | "`; dentro de cada valor, cada barra invertida `\` se escribe `\\`
+#'   y cada `|` se escribe `\|`. Los escapes no son cosméticos: sin el de `|`,
+#'   `c1 = "x | y", c2 = "z"` y `c1 = "x", c2 = "y | z"` producirían la misma
+#'   cadena y dos filas que **no comparten ningún valor** saldrían
+#'   `exacto_normalizado` a distancia `0`; el de `\` es el que deja leer ese
+#'   `\|` de una sola manera, y
+#'   el que distingue un valor declarado `bytes` del literal de su escape. Con
+#'   los dos, la distancia publicada de una comparación de varias columnas se
+#'   rehace así —y la de una sola, con el mismo `escapar()` y sin pegar—:
+#'
+#'   ```r
+#'   escapar <- function(v) {
+#'     gsub("|", "\\|", gsub("\\", "\\\\", v, fixed = TRUE), fixed = TRUE)
+#'   }
+#'   fila <- function(i) paste(escapar(datos$c1[i]), escapar(datos$c2[i]), sep = " | ")
+#'   stringdist::stringdist(fila(1), fila(2), method = "jw", p = 0.1)
+#'   ```
+#'
+#'   Fuera de esos dos escapes, el texto corriente se compara tal cual. Un valor
+#'   con marca `bytes` entra con cada byte alto escrito `\xHH` —su clave de
+#'   bytes; esas barras son del escape y no se duplican—, y un mismo texto en
+#'   `latin1` y en UTF-8 entra igual. Un doble entra
+#'   con la escritura más corta que vuelve a su valor: la de `as.character()`
+#'   cuando sus 15 cifras alcanzan —`0.1` es `"0.1"` y `1e15`, `"1e+15"`— y 16 o
+#'   17 cuando no —`1e15 + 1` es `"1000000000000001"` y `0.1 + 0.2`,
+#'   `"0.30000000000000004"`—, así que dos números que R distingue no se comparan
+#'   como el mismo texto. La evidencia los cita con esa misma escritura.
+#'
+#'   Si dos columnas de texto **tienen el mismo nombre**, la comparación no corre:
+#'   identifica las columnas por nombre y no podría decir cuál compara. No se
+#'   compara un subconjunto —sacar una columna cambia el significado de la
+#'   comparación—: el objeto sale sin pares, con el motivo en `razon`.
+#' @param metodo Medida admitida por `stringdist::stringdistmatrix()`. Por
+#'   defecto, `"jw"`.
+#' @param p Factor de prefijo de Jaro--Winkler, entre 0 y 0.25. Por defecto
+#'   `0.1`; sólo tiene efecto con `metodo = "jw"`.
+#' @param umbral Distancia maxima para informar un par. Por defecto `0.10`.
+#' @param muestra Máximo de filas candidatas. En el camino exacto queda sujeto
+#'   a `max_pares`; con LSH, `Inf` usa todas las filas.
+#' @param max_pares Máximo de pares comparados en el camino exacto. Por defecto
+#'   `50000000`, que permite recorrer exhaustivamente hasta 10.000 filas con el
+#'   método y el bloque predeterminados; se puede reducir para limitar el tiempo.
+#'   En LSH el alcance se expresa con candidatos y cubetas, por lo que este
+#'   límite no se usa para recortar filas; el resultado lo marca explícitamente.
+#' @param max_resultados Maximo de pares devueltos. Por defecto `100`. Se
+#'   conservan los mas cercanos; entre pares empatados en distancia, el
+#'   desempate usa el orden canonico de los valores y no la posicion de las
+#'   filas, de modo que reordenar la tabla no cambia que pares sobreviven. Un
+#'   corte que cae dentro de un empate deja afuera pares igual de cercanos, y eso
+#'   se declara en `alcance$corte_en_empate`.
+#' @param max_largo_valor Maximo de caracteres permitido en cada valor de las
+#'   columnas combinadas, **medido sobre la cadena que de verdad se compara**:
+#'   las columnas ya unidas y ya normalizadas. Las dos mitades importan. Dos
+#'   columnas de 9.000 caracteres estan las dos por debajo de un tope de 10.000 y
+#'   llegan a 18.003 una vez unidas; y la normalizacion `amplio` expande
+#'   ligaduras tipograficas -la de f-f-l es un solo caracter que se convierte en
+#'   tres-, asi que un valor puede estar por debajo del tope guardado y por
+#'   encima del comparado. Por defecto es `10000`, umbral elegido porque la distancia
+#'   normalizada deja de distinguir de forma estable una diferencia local de
+#'   muchas diferencias en textos largos. Si una columna supera el tope, la
+#'   combinacion completa se declara fuera de alcance en
+#'   `alcance$columnas_excluidas_largo`, y `alcance$largo_maximo` publica el
+#'   largo comparado; no se recortan valores en silencio. Con el tope en `Inf` no
+#'   se mide ningun largo y `largo_maximo` vale `NA`, no cero.
+#'   `Inf` quita el tope.
+#' @param bloque Cantidad de filas por tesela de comparación. Por defecto
+#'   `1000`; controla la memoria temporal, no el número de pares comparados.
+#' @param nucleos Cantidad máxima de hilos que `stringdist` puede usar. Por
+#'   defecto es `getOption("lupa.nucleos", 2L)`; `NULL` usa esa misma opción y
+#'   un valor mayor que los núcleos disponibles se limita de forma segura. El
+#'   resultado no depende de esta cantidad, pero el tiempo sí. El valor efectivo
+#'   queda declarado en `alcance$nucleos_usados`.
+#' @param normalizar Perfil de comparación. `TRUE` conserva el perfil
+#'   predeterminado, `FALSE` desactiva sus pasos configurables, `"amplio"`
+#'   activa puntuación, ligaduras y ancho, y [normalizacion()] permite declarar
+#'   cada paso. Una lista nombrada puede resolver perfiles por columna. `NULL`
+#'   hereda el perfil guardado en `perfil`; si no se recibe uno, usa `TRUE`.
+#'   La normalización cambia sólo la representación usada para comparar, no los
+#'   datos guardados. El umbral se aplica sobre esa cadena normalizada. La
+#'   **descomposición canónica no es un paso configurable**: corre también con
+#'   `FALSE`, y es lo que hace que dos escrituras del mismo texto —`café`
+#'   precompuesto y `café` con acento combinante— sean el mismo texto.
+#'   Como la distancia se mide sobre esa forma, un acento cuenta como un
+#'   carácter aparte: con `normalizar = FALSE`, `café` y `cafe` distan `0.04`
+#'   —y entran en un umbral de `0.1`—, mientras la misma distancia sobre las
+#'   cadenas tal como se guardaron daría `0.117`. Para reproducir un número
+#'   publicado hay que descomponer primero.
+#'
+#'   **Hasta dónde llega esa descomposición.** La tabla que usa `lupa` cubre el
+#'   **subconjunto latino** —el mismo límite que declara [normalizacion()]—, así que
+#'   fuera de él dos escrituras canónicamente equivalentes **no** colapsan: medido,
+#'   el mismo nombre griego en NFC y en NFD sale `aproximado` a `0.124` donde `café`
+#'   precompuesto y descompuesto salen `exacto_normalizado` a `0`. No es un
+#'   descuido de la comparación: es el alcance de la tabla, y se dice acá porque
+#'   afecta la receta de reproducción. Para un texto fuera del subconjunto latino,
+#'   el número publicado se rehace **sin** descomponer, sobre los valores tal como
+#'   están guardados. Si necesita que colapsen, normalice la entrada a una sola
+#'   forma antes de comparar —por ejemplo con `stringi::stri_trans_nfc()`—. El
+#'   informe de fusiones sólo se calcula cuando algún paso configurable está
+#'   activo; con `FALSE` se omite. Si se entrega `perfil`, se reutiliza su
+#'   informe ya calculado.
+#' @param perfil Perfil de los mismos datos para reutilizar su clasificacion de
+#'   datos personales y no volver a inferirla.
+#' @param proteger_datos_personales Si la evidencia de columnas protegidas se
+#'   reemplaza por `[valor protegido]`. La supresion queda indicada en cada par.
+#' @param estrategia Estrategia de comparación: `"auto"` (por omisión),
+#'   `"teselas"`, `"muestra"` o `"lsh"`. MinHash/LSH sólo se activa
+#'   automáticamente por encima del tope exhaustivo; se puede forzar con
+#'   `"lsh"`.
+#' @param lsh_bandas Número de bandas del esquema LSH. Por defecto, 12.
+#' @param lsh_filas Número de filas de firma por banda. Por defecto, 3.
+#' @param lsh_q Longitud de los q-gramas usados para MinHash. Por defecto, 3.
+#' @param lsh_max_cubeta Umbral a partir del cual una cubeta se considera
+#'   grande y se procesa por el mismo troceo acotado del camino exhaustivo.
+#'   No se descartan pares por este umbral; el alcance informa cuántas cubetas
+#'   y cuántos pares se procesaron de esta forma. Por defecto, 1000.
+#' @param lsh_muestra_estimacion Cantidad máxima de pares de filas usados para
+#'   estimar la proporción de candidatos, el tiempo del camino LSH y, si hay
+#'   `bloquear_por`, la pérdida de candidatos del bloqueo. La muestra es
+#'   interna, reproducible y su tamaño efectivo queda en `alcance`. Por defecto
+#'   se intentan 400.000 pares.
+#' @param presupuesto_pares Presupuesto de pares candidatos. Por
+#'   defecto es `Inf`; si la estimación previa lo supera, una sesión no
+#'   interactiva aborta antes del recorrido y una interactiva pregunta si se
+#'   continúa. También limita la comparación exacta: allí el número de pares
+#'   se conoce antes de empezar.
+#' @param bloquear_por Nombre de una columna declarada por el usuario para
+#'   restringir la comparación a filas con la misma clave. La clave no tiene
+#'   significado incorporado en `lupa`; sus tamaños, ausentes y pares que
+#'   quedan fuera se registran en `alcance`. Los `NA` forman un bloque propio.
+#' @param lotes Si es `TRUE`, procesa la comparación exacta por pares de grupos
+#'   de filas y guarda cada resultado parcial en RDS. Por omisión es `FALSE`;
+#'   el camino LSH ya administra sus cubetas en memoria y no admite este modo.
+#' @param tamano_lote Cantidad de filas por grupo de trabajo cuando `lotes` es
+#'   `TRUE`. Por defecto, `1000`.
+#' @param directorio_lotes Directorio base elegido por el usuario para los
+#'   parciales. Si es `NULL`, se crea un subdirectorio dentro de `tempdir()`;
+#'   nunca se escribe en el directorio de trabajo por omisión. Los parciales no
+#'   son reanudables y se conservan al terminar para auditoría; si el directorio
+#'   base fue elegido por el usuario, éste debe eliminarlos cuando ya no los
+#'   necesite. Su ruta, cantidad y tamaño quedan en `resultado$lotes`.
+#'
+#' @return Lista de clase `duplicados_aproximados` con `pares`, `hallazgos`,
+#'   `alcance`, `columnas`, `metodo`, `umbral`, `disponible`, `razon` y
+#'   `estimacion`. `alcance` es reproducible; en el camino LSH,
+#'   `estimacion$tiempo_determinista` es `FALSE` y reúne la velocidad, duración
+#'   y tiempo de referencia medidos en esa corrida. El campo
+#'   `estimacion$tiempo_estimado_etapa` indica que ese piso cubre sólo la
+#'   comparación `stringdist`, no la firma, las cubetas ni el troceo. En el camino exacto o cuando
+#'   no se puede comparar, `estimacion` es `NULL`. Si `lotes = TRUE`, se agrega
+#'   `lotes` con el directorio, los archivos RDS, sus tamaños, el estado de
+#'   completitud y `reanudable = FALSE`. El loteo cruza todos los grupos, por lo
+#'   que no pierde pares; su resultado de `pares`, `hallazgos` y `alcance` es el
+#'   mismo que el recorrido exacto sin lotes. Cada fila de `hallazgos` declara
+#'   `n_evaluados`, `n_afectados` y `unidad_conteo`; los conteos desconocidos
+#'   son `NA`, nunca cero.
+#' @export
+#' @seealso [perfilar()], [reportar()], [planificar_limpieza()]
+#' @references Broder, A. Z. (1997) \doi{10.1109/SEQUEN.1997.666900}.
+#'   On the resemblance and containment of documents. En *Compression and
+#'   Complexity of Sequences*, 21--29.
+#'   Leskovec, J., Rajaraman, A. y Ullman, J. D. (2020) \doi{10.1017/9781108684163}.
+#'   *Mining of Massive Datasets* (3.ª ed.), capítulo 3.
+#'
+#' @examples
+#' datos <- data.frame(
+#'   nombre = c("Ana Perez", "Ana Peres", "Luis Diaz"),
+#'   domicilio = c("Calle 1", "Calle 1", "Calle 9")
+#' )
+#' pares <- detectar_duplicados_aproximados(datos)
+#' if (!pares$disponible) pares$razon
+detectar_duplicados_aproximados <- function(
+    datos, columnas = NULL, metodo = "jw", umbral = 0.10, p = 0.1,
+    muestra = Inf, max_pares = 50000000L, max_resultados = 100L,
+    normalizar = NULL, perfil = NULL, proteger_datos_personales = TRUE,
+    bloque = 1000L, estrategia = "auto", lsh_bandas = 12L,
+    lsh_filas = 3L, lsh_q = 3L, lsh_max_cubeta = 1000L,
+    lsh_muestra_estimacion = 400000L, presupuesto_pares = Inf,
+    bloquear_por = NULL, lotes = FALSE, tamano_lote = 1000L,
+    directorio_lotes = NULL, nucleos = getOption("lupa.nucleos", 2L),
+    max_largo_valor = .MAX_LARGO_VALOR_CASI_DUPLICADOS) {
+  .validar_datos_tabla(datos)
+  .validar_perfil_de(perfil, datos)
+  datos <- .tabla_base(datos)
+  normalizar_original <- normalizar
+  normalizar <- .resolver_normalizacion(normalizar, perfil)
+  fusiones_precomputadas <- if (!is.null(perfil) &&
+                                is.null(normalizar_original)) {
+    perfil$meta$normalizacion_fusiones
+  } else NULL
+  if (!is.null(perfil)) {
+    return(.detectar_duplicados_aproximados(
+      datos, columnas, metodo, umbral, p, muestra, max_pares, max_resultados,
+      normalizar, clasificacion = perfil$datos_personales,
+      proteger_datos_personales = proteger_datos_personales, bloque = bloque,
+      estrategia = estrategia, lsh_bandas = lsh_bandas, lsh_filas = lsh_filas,
+      lsh_q = lsh_q, lsh_max_cubeta = lsh_max_cubeta,
+      lsh_muestra_estimacion = lsh_muestra_estimacion,
+      presupuesto_pares = presupuesto_pares, bloquear_por = bloquear_por,
+      lotes = lotes, tamano_lote = tamano_lote,
+      directorio_lotes = directorio_lotes, nucleos = nucleos,
+      fusiones_precomputadas = fusiones_precomputadas,
+      max_largo_valor = max_largo_valor
+    ))
+  }
+  .detectar_duplicados_aproximados(
+    datos, columnas, metodo, umbral, p, muestra, max_pares, max_resultados,
+    normalizar, proteger_datos_personales = proteger_datos_personales,
+    bloque = bloque, estrategia = estrategia, lsh_bandas = lsh_bandas,
+    lsh_filas = lsh_filas, lsh_q = lsh_q, lsh_max_cubeta = lsh_max_cubeta,
+    lsh_muestra_estimacion = lsh_muestra_estimacion,
+    presupuesto_pares = presupuesto_pares, bloquear_por = bloquear_por,
+    lotes = lotes, tamano_lote = tamano_lote,
+    directorio_lotes = directorio_lotes, nucleos = nucleos,
+    max_largo_valor = max_largo_valor
+  )
+}
+
+#' Estimar el costo de una comparación de duplicados
+#'
+#' Construye las firmas y calcula el pronóstico de candidatos sin recorrer las
+#' cubetas ni comparar los pares. Es una operación deliberada: la medición del
+#' reloj queda en el resultado de esta función y no es necesaria para obtener
+#' `alcance` reproducible en `detectar_duplicados_aproximados()`.
+#'
+#' En el camino LSH, `candidatos_previstos` es una estimación reproducible a
+#' partir de una muestra de firmas. `tiempo_estimado_segundos` es un piso de la
+#' medida aislada y no incluye firmas, cubetas ni troceo; sus campos de reloj
+#' tienen `tiempo_determinista = FALSE`. Con `bloquear_por`, los pares entre
+#' bloques no entran en el pronóstico y la pérdida estructural y estimada queda
+#' en `alcance`. En el camino exacto, `candidatos_previstos` es la cantidad de
+#' pares que se compararán, sujeta a `muestra`, `max_pares` y `bloquear_por`.
+#'
+#' La función no escribe archivos ni modifica el estado del generador de R.
+#'
+#' @inheritParams detectar_duplicados_aproximados
+#' @param presupuesto_pares Se acepta por simetría de la firma y **no aborta
+#'   aquí**: estimar el costo es justamente lo que se hace antes de fijar un
+#'   presupuesto, así que interrumpir la estimación por superarlo dejaría sin
+#'   respuesta la pregunta que motivó la llamada. Quien aborta es
+#'   [detectar_duplicados_aproximados()], con el número que devuelve esta
+#'   función.
+#' @param lotes Se acepta por simetría de la firma, pero la estimación no
+#'   escribe parciales ni modifica el directorio indicado.
+#' @param tamano_lote Se acepta por simetría; no cambia el pronóstico.
+#' @param directorio_lotes Se acepta por simetría y no se crea ni se usa al
+#'   estimar.
+#' @return Lista de clase `estimacion_costo_lupa` con los campos de la
+#'   estimación, `alcance`, `disponible` y `razon`. En el camino exacto,
+#'   `alcance` declara además **la corrida que se está estimando**:
+#'   `modo_comparacion` es el mismo que publicará
+#'   [detectar_duplicados_aproximados()] con esos argumentos —`exhaustiva_por_bloques`
+#'   o `muestreada_por_bloques`—, y `filas_previstas`, `filas_totales` y
+#'   `estrategia_prevista` dicen sobre cuántas filas se va a comparar y con qué
+#'   selección. Una estimación que anunciara un recorrido exhaustivo sobre una
+#'   corrida que va a muestrear no serviría para decidir.
+#' @export
+#' @seealso [detectar_duplicados_aproximados()]
+#'
+#' @examples
+#' datos <- data.frame(
+#'   nombre = c("Ana Perez", "Ana Peres", "Luis Diaz"),
+#'   grupo = c("A", "A", "B")
+#' )
+#' if (requireNamespace("stringdist", quietly = TRUE)) {
+#'   costo <- estimar_costo(datos, columnas = "nombre", estrategia = "lsh")
+#'   costo$candidatos_previstos
+#' }
+estimar_costo <- function(
+    datos, columnas = NULL, metodo = "jw", umbral = 0.10, p = 0.1,
+    muestra = Inf, max_pares = 50000000L, max_resultados = 100L,
+    normalizar = NULL, perfil = NULL, proteger_datos_personales = TRUE,
+    bloque = 1000L, estrategia = "auto", lsh_bandas = 12L,
+    lsh_filas = 3L, lsh_q = 3L, lsh_max_cubeta = 1000L,
+    lsh_muestra_estimacion = 400000L, presupuesto_pares = Inf,
+    bloquear_por = NULL, lotes = FALSE, tamano_lote = 1000L,
+    directorio_lotes = NULL, nucleos = getOption("lupa.nucleos", 2L),
+    max_largo_valor = .MAX_LARGO_VALOR_CASI_DUPLICADOS) {
+  .validar_datos_tabla(datos)
+  .validar_perfil_de(perfil, datos)
+  datos <- .tabla_base(datos)
+  normalizar <- .resolver_normalizacion(normalizar, perfil)
+  clasificacion <- if (is.null(perfil)) NULL else perfil$datos_personales
+  interno <- suppressMessages(.detectar_duplicados_aproximados(
+    datos, columnas, metodo, umbral, p, muestra, max_pares, max_resultados,
+    normalizar, clasificacion = clasificacion,
+    proteger_datos_personales = proteger_datos_personales, bloque = bloque,
+    estrategia = estrategia, lsh_bandas = lsh_bandas, lsh_filas = lsh_filas,
+    lsh_q = lsh_q, lsh_max_cubeta = lsh_max_cubeta,
+    lsh_muestra_estimacion = lsh_muestra_estimacion,
+    presupuesto_pares = Inf, bloquear_por = bloquear_por,
+    solo_estimacion = TRUE, lotes = FALSE, tamano_lote = tamano_lote,
+    directorio_lotes = NULL, nucleos = nucleos,
+    max_largo_valor = max_largo_valor
+  ))
+  if (inherits(interno, "duplicados_aproximados")) {
+    candidatos <- if (nrow(interno$alcance)) {
+      interno$alcance$n_pares_comparados[[1L]]
+    } else NA_real_
+    salida <- list(
+      candidatos_previstos = candidatos,
+      probabilidad_candidato_estimada = NA_real_,
+      muestra_estimacion = 0L, vocabulario = NA_integer_,
+      pares_benchmark = NA_integer_, tiempo_benchmark = NA_real_,
+      velocidad_comparacion = NA_real_, tiempo_estimado_segundos = NA_real_,
+      tiempo_estimado_etapa = NA_character_,
+      tiempo_estimado_es_piso = FALSE, tiempo_determinista = TRUE,
+      alcance = interno$alcance, disponible = interno$disponible,
+      razon = interno$razon,
+      normalizacion = interno$normalizacion
+    )
+  } else {
+    salida <- c(
+      interno$estimacion,
+      list(alcance = interno$alcance, disponible = interno$disponible,
+           razon = interno$razon, normalizacion = interno$normalizacion)
+    )
+  }
+  class(salida) <- c("estimacion_costo_lupa", "list")
+  salida
+}
