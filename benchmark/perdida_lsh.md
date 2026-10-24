@@ -1,10 +1,11 @@
 # Cuánto pierde el tamiz LSH
 
-Medido con `benchmark/perdida_lsh.R`, reproducible. La primera corrida fue del
-2026-08-18; la del 2026-09-02 sobre `5645c15` dio exactamente los mismos
-conteos —son deterministas— y es la que queda en `datos/perdida_lsh_bandas.csv`
-y `datos/perdida_lsh_umbral.csv`, de donde `graficar_figuras.R` dibuja la
-figura del tamiz del README.
+Medido con `benchmark/perdida_lsh.R`, reproducible. La corrida publicada es la
+del 2026-10-24 sobre la revisión `R/ md5 08c0a1af7ccb`, y queda en
+`datos/perdida_lsh_bandas.csv` y `datos/perdida_lsh_umbral.csv`, de donde
+`graficar_figuras.R` dibuja la figura del tamiz del README. Los conteos son
+deterministas: la familia MinHash sale de un hash entero fijo, así que otra
+corrida sobre el mismo código da los mismos.
 
 ## Qué se mide, y por qué no está dentro del objeto
 
@@ -34,9 +35,9 @@ Corpus sintético de nombres con número, 400 y 800 filas, tres semillas, métod
 
 ```
 lsh_bandas   perdida media   perdida maxima
-         8           0,758            0,803
-        12           0,656            0,720
-        20           0,521            0,614
+         8           0,800            0,842
+        12           0,687            0,743
+        20           0,529            0,572
 ```
 
 Más bandas es un tamiz más permisivo: propone más candidatos y pierde menos, a
@@ -49,9 +50,9 @@ cambio de más comparaciones.
 ```
 umbral   pares exhaustivo   pares LSH   perdidos   perdida
   0,02                  2           1          1     0,500
-  0,05                337         166        171     0,507
-  0,10             12.945       4.823      8.122     0,627
-  0,20             31.609       9.273     22.336     0,707
+  0,05                337         147        190     0,564
+  0,10             12.945       4.094      8.851     0,684
+  0,20             31.609       8.697     22.912     0,725
 ```
 
 **La pérdida no es una propiedad del tamiz: es la distancia entre lo que el

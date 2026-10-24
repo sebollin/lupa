@@ -69,16 +69,13 @@ cosas:
 que se midió, con el hogar abreviado a `~`.
 
 **Procedencia de los CSV que hay hoy en `datos/`**, dicha sin redondear: salen
-de la corrida del 2026-09-02 sobre `5645c15` —la instalación que midió esa
-corrida se armó desde ese commit, comprobado comparando su `NAMESPACE` con el
-del árbol—, y son **anteriores a los cambios de esta vuelta en el medidor**: la
-guarda del `Built`, la firma del propio guion, la columna `instalacion` y la
-comprobación de la estimación previa entre las tres corridas. Ninguno de esos
-cambios mueve una cifra medida —el primero detiene o no detiene, los otros
-agregan una columna o una comprobación—, pero por eso los CSV llevan una firma
-limpia que el firmador de hoy no habría emitido: en aquel momento el guion que
-medía no estaba versionado y la lista de rutas firmadas no lo incluía. La
-próxima corrida completa los reemplaza y ya nace con la firma nueva.
+de la corrida del 2026-10-24 sobre la revisión `R/ md5 08c0a1af7ccb`. La
+instalación medida se armó desde el código versionado: su sello `Built` es
+posterior al último commit del código, y la huella de `R/` que firma los CSV es
+la del árbol. Los conteos —candidatos, pares, exhaustividad, pérdida— son
+deterministas, porque la familia MinHash sale de un hash entero fijo y no del
+generador de números aleatorios de R; los tiempos y la memoria son de esa
+máquina.
 
 `datos/` se versiona porque las figuras se construyen desde ahí y no desde una
 transcripción de consola.
@@ -100,25 +97,27 @@ presupuesto y loteo, y saltea los tamaños mayores y la tabla de hilos.
 
 ### Tiempos de referencia
 
-Medidos el 2026-09-02 sobre `5645c15`, con dos hilos de `stringdist`, en la
-máquina que describe `entorno.csv`. Son órdenes de magnitud para planificar,
-no tiempos universales.
+Medidos el 2026-10-24 sobre la revisión `R/ md5 08c0a1af7ccb`, con dos hilos
+de `stringdist`, en la máquina que describe `entorno.csv`. Son órdenes de
+magnitud para planificar, no tiempos universales.
 
 ```
-prueba de humo (LUPA_FIGURAS_SOLO_BARATAS=1)                130 s
-corrida completa de medir_figuras.R                    3 h 34 min
-  escala, 20.000 filas, mediana de tres procesos         15,8 s
-  escala, 100.000 filas                                 156,1 s
-  escala, 200.000 filas                                 582,9 s
-  escala, 500.000 filas                               2.937,4 s
-  hilos, cinco configuraciones por tres procesos         27 min
-perdida_lsh.R, las dos tablas                              22 s
+prueba de humo (LUPA_FIGURAS_SOLO_BARATAS=1)                136 s
+corrida completa de medir_figuras.R                     3 h 5 min
+  escala, 20.000 filas, mediana de tres procesos         16,2 s
+  escala, 100.000 filas                                 131,2 s
+  escala, 200.000 filas                                 536,9 s
+  escala, 500.000 filas                               2.489,4 s
+  hilos, cinco configuraciones por tres procesos         24 min
+perdida_lsh.R, las dos tablas                              24 s
 graficar_figuras.R                                        < 1 s
 ```
 
 Cada tamaño de escala corre tres procesos, así que la sección pesa el triple
-de la mediana que muestra la tabla; la corrida completa va de las 11:28:51 a
-las 15:02:31 del registro.
+de la mediana que muestra la tabla; la corrida completa va de las 13:25:36 a
+las 16:30:51 UTC del registro. Durante unos quince minutos de la segunda de las
+tres corridas de 500.000 filas la máquina tuvo otro proceso de un hilo: es la
+más lenta de las tres (2.543,7 s) y la mediana no la usa.
 
 ## Qué se mide
 

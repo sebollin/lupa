@@ -112,9 +112,9 @@ la memoria de `perfilar_dbi()`) están en
 | Comprobación | Unidad | Resultado | Clase | Se reproduce con |
 | --- | --- | --- | --- | --- |
 | Controles limpios construidos | `r length(tablas_limpias)` tablas | `r n_errores` hallazgos de severidad `error`; `r nrow(senales)` señales para revisar | fija, sin red; calculada en esta página | [`test-regresion-107.R`](`r repo("tests/testthat/test-regresion-107.R")`) |
-| Pares dirty/clean de Raha | columnas con al menos una celda cambiada | 26 de 26 recibieron al menos un hallazgo; se señalaron 8 columnas más | recurso descargado; corrida del 2026-10-23 | [`verdad_raha.R`](`r repo("benchmark/verdad_raha.R")`) y [`medir_lupa.R`](`r repo("benchmark/medir_lupa.R")`) |
+| Pares dirty/clean de Raha | columnas con al menos una celda cambiada | 26 de 26 recibieron al menos un hallazgo; se señalaron 8 columnas más | recurso descargado; corrida del 2026-10-24 | [`verdad_raha.R`](`r repo("benchmark/verdad_raha.R")`) y [`medir_lupa.R`](`r repo("benchmark/medir_lupa.R")`) |
 | Registro público de sanciones a empresas | hallazgos de severidad `error` | `r sum(sanciones$coincide)` de `r nrow(sanciones)` coinciden con la misma cuenta hecha en R base, sobre una copia de `r numero(sanciones$filas_registro[[1L]])` filas | recurso descargado; corrida del `r sanciones_fecha`, con la huella del archivo | [`medir_sanciones.R`](`r repo("benchmark/medir_sanciones.R")`) |
-| Ausencia estructural | señales `posible_ausencia_estructural` | ninguna en 20 conjuntos de `datasets` y 60 tablas al azar; dispara en los tres casos positivos; calla con 10 % de ruido | fija, sin red; corrida del 2026-10-23 | [`banco_ausencia_estructural.R`](`r repo("benchmark/banco_ausencia_estructural.R")`) |
+| Ausencia estructural | señales `posible_ausencia_estructural` | ninguna en 20 conjuntos de `datasets` y 60 tablas al azar; dispara en los tres casos positivos; calla con 10 % de ruido | fija, sin red; corrida del 2026-10-24 | [`banco_ausencia_estructural.R`](`r repo("benchmark/banco_ausencia_estructural.R")`) |
 | Reparación de codificación | casos del corpus de ftfy 6.3.1 | `r sum(ftfy_aciertos)` de `r length(corpus)` reproducidos | fija, sin red; calculada en esta página | [`test-reparacion-texto.R`](`r repo("tests/testthat/test-reparacion-texto.R")`) |
 
 ### Controles limpios construidos
@@ -158,7 +158,7 @@ Rscript benchmark/verdad_raha.R
 Rscript benchmark/medir_lupa.R
 ```
 
-Salida de `benchmark/medir_lupa.R` del 2026-10-23, sobre la revisión `5cc39f7`
+Salida de `benchmark/medir_lupa.R` del 2026-10-24, sobre la revisión `0.1.0; R/ md5 08c0a1af7ccb`
 (extracto):
 
 ```text
@@ -219,7 +219,7 @@ que debe callar porque la relación existe pero no es una regla. No necesita red
 LUPA_RUTA=. Rscript benchmark/banco_ausencia_estructural.R
 ```
 
-Salida del 2026-10-23, sobre la revisión `5cc39f7`:
+Salida del 2026-10-24, sobre la revisión `0.1.0; R/ md5 08c0a1af7ccb`:
 
 ```text
 == veinte conjuntos reales (datasets de R) ==
@@ -396,6 +396,8 @@ archivos_plan <- sort(
   decreasing = TRUE
 )
 hay_plan <- length(archivos_plan) > 0L
+# La tabla del plan es lo que esta seccion publica: sin la corrida, la pagina no se construye.
+if (!hay_plan) stop("No encuentro benchmark/datos/medir-plan-ancho-*.csv.")
 if (hay_plan) {
   plan_ancho <- utils::read.csv(archivos_plan[[1L]], stringsAsFactors = FALSE)
   resumen_plan <- plan_ancho[plan_ancho$medida != "plan", c("escenario", "medida", "valor")]
@@ -455,14 +457,14 @@ segundo. Esa referencia es un supuesto del código, no una medición.
 La medición más reciente es la de `benchmark/medir_referencias.R`, que perfila
 tablas de 500 filas con 50, 300 y 1.000 columnas (dos de cada tres numéricas, el
 resto texto) y descarta una primera corrida de calentamiento. Dos corridas del
-2026-10-23 sobre la revisión `5cc39f7`, en la misma máquina que las figuras
+2026-10-24 sobre la revisión `0.1.0; R/ md5 08c0a1af7ccb`, en la misma máquina que las figuras
 (`r entorno$cpu`, R 4.6.1); salida guardada:
 
 ```{r velocidad-ancha}
 anchas <- data.frame(
   columnas = c(50, 300, 1000),
-  corrida_1_s = c(5.23, 21.77, 69.41),
-  corrida_2_s = c(4.59, 19.98, 72.42)
+  corrida_1_s = c(4.62, 18.54, 67.15),
+  corrida_2_s = c(4.44, 19.03, 64.36)
 )
 anchas$celdas_por_segundo <- round(
   500 * anchas$columnas / rowMeans(anchas[c("corrida_1_s", "corrida_2_s")])

@@ -1,4 +1,4 @@
-# Tres defectos de la decima vuelta. Los tres comparten forma: una afirmacion
+# Tres defectos que comparten forma: una afirmacion
 # publicada que no corresponde a lo medido.
 
 # Pesada para CRAN (mas de 1 s en la medicion sin red del 2026-10-23): corre en la

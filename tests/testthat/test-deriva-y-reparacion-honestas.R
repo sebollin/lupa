@@ -1,4 +1,4 @@
-# Vuelta G: cuatro cosas que el paquete hacia y no decia.
+# Cuatro cosas que el paquete hacia y no decia.
 
 test_that("retirar la clave declarada no se lee como hallazgo resuelto", {
   # `man/comparar_perfiles.Rd` lo declara: un hallazgo que ya no aparece se
