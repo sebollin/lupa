@@ -7,7 +7,8 @@
 ##
 ## Que promete la firma, exactamente:
 ##
-##   - `commit` es el `HEAD` del arbol desde el que se corrio;
+##   - `commit` es la huella del codigo medido (la suma md5 de R/), que
+##     sobrevive a reescribir la historia;
 ##   - `+sucio` avisa que alguna de las rutas firmadas tiene cambios sin
 ##     commitear, o sea que ese commit no describe lo que se midio;
 ##   - la guarda del `Built` rechaza medir con una instalacion ARMADA ANTES del
@@ -40,29 +41,25 @@
 }
 
 .commit_actual <- function(directorio_repositorio, rutas_firma) {
+  # La firma es la huella del codigo medido, no un hash de commit: la version y la
+  # suma md5 de los archivos de R/, la misma que dejan verificar_motor.R y los
+  # demas guiones. Un hash de commit deja de existir si la historia se reescribe,
+  # y entonces el CSV quedaba firmado por algo que nadie puede volver a buscar;
+  # la huella se rehace desde cualquier copia del paquete, tambien sin git.
+  archivos <- sort(list.files(file.path(directorio_repositorio, "R"), "\\.R$",
+                              full.names = TRUE))
+  if (!length(archivos)) {
+    cat("AVISO: los CSV van a quedar SIN FIRMA: no hay archivos en R/\n")
+    return(NA_character_)
+  }
+  lista <- tempfile()
+  on.exit(unlink(lista), add = TRUE)
+  writeLines(paste(unname(tools::md5sum(archivos)), basename(archivos)), lista)
+  firma <- paste0("R/ md5 ", substr(unname(tools::md5sum(lista)), 1L, 12L))
+  # `+sucio` sigue diciendo que alguna ruta firmada -el codigo, el medidor, este
+  # archivo- tiene cambios sin commitear: lo medido no es lo que esta versionado.
   git <- Sys.which("git")
-  # Sin git no hay firma. El `NA` viaja igual en la columna `commit`, pero
-  # callarlo en la consola deja creer que la corrida quedo identificada.
-  sin_firma <- function(motivo) {
-    cat("AVISO: los CSV van a quedar SIN FIRMA (commit = NA): ", motivo, "\n",
-        sep = "")
-    NA_character_
-  }
-  if (!nzchar(git)) return(sin_firma("no hay git en el PATH"))
-  x <- tryCatch(
-    suppressWarnings(system2(
-      git,
-      c("-C", shQuote(directorio_repositorio), "rev-parse", "--short", "HEAD"),
-      stdout = TRUE,
-      stderr = FALSE
-    )),
-    error = function(e) character()
-  )
-  x <- trimws(x)
-  if (!length(x) || !nzchar(x[[1L]])) {
-    return(sin_firma(paste0("git no devolvio un commit en ",
-                            directorio_repositorio)))
-  }
+  if (!nzchar(git)) return(firma)
   sucio <- tryCatch(
     suppressWarnings(system2(
       git,
@@ -73,11 +70,7 @@
     )),
     error = function(e) character()
   )
-  if (length(sucio) && any(nzchar(trimws(sucio)))) {
-    paste0(x[[1L]], "+sucio")
-  } else {
-    x[[1L]]
-  }
+  if (length(sucio) && any(nzchar(trimws(sucio)))) paste0(firma, "+sucio") else firma
 }
 
 # Fecha del sello `Built` de una instalacion, en UTC. `Built` tiene la forma
