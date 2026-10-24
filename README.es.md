@@ -33,20 +33,26 @@ cuenta como cero. Y el perfilado no modifica la entrada.
 
 ## Instalación
 
-La versión de desarrollo se instala desde GitHub:
+La versión publicada se instala desde CRAN:
+
+``` r
+install.packages("lupa")
+```
+
+y la versión de desarrollo, desde GitHub:
 
 ``` r
 # install.packages("pak")
 pak::pak("sebollin/lupa")
 ```
 
-Depende sólo de [`cli`](https://cran.r-project.org/package=cli) y
-[`data.table`](https://cran.r-project.org/package=data.table). Los sugeridos habilitan capacidades acotadas: [`DBI`](https://cran.r-project.org/package=DBI)
-con un controlador ([`RSQLite`](https://cran.r-project.org/package=RSQLite),
-[`duckdb`](https://cran.r-project.org/package=duckdb), [`RPostgres`](https://cran.r-project.org/package=RPostgres)
-u [`odbc`](https://cran.r-project.org/package=odbc)) para perfilar dentro de una
-base, [`stringdist`](https://cran.r-project.org/package=stringdist) para comparar
-texto de forma aproximada y [`sf`](https://cran.r-project.org/package=sf) para
+Depende sólo de [`cli`](https://CRAN.R-project.org/package=cli) y
+[`data.table`](https://CRAN.R-project.org/package=data.table). Los sugeridos habilitan capacidades acotadas: [`DBI`](https://CRAN.R-project.org/package=DBI)
+con un controlador ([`RSQLite`](https://CRAN.R-project.org/package=RSQLite),
+[`duckdb`](https://CRAN.R-project.org/package=duckdb), [`RPostgres`](https://CRAN.R-project.org/package=RPostgres)
+u [`odbc`](https://CRAN.R-project.org/package=odbc)) para perfilar dentro de una
+base, [`stringdist`](https://CRAN.R-project.org/package=stringdist) para comparar
+texto de forma aproximada y [`sf`](https://CRAN.R-project.org/package=sf) para
 geometrías. La API, la ayuda y las guías están en castellano; los nombres
 públicos son parte del contrato.
 
@@ -165,13 +171,13 @@ columnas y el glosario.
 
 ## Qué lo distingue y dónde se ubica
 
-Para resumir y graficar columnas están [`skimr`](https://cran.r-project.org/package=skimr)
-y [`DataExplorer`](https://cran.r-project.org/package=DataExplorer); para
-diagnosticar una tabla y redactar su informe, [`dlookr`](https://cran.r-project.org/package=dlookr)
-y [`dataReporter`](https://cran.r-project.org/package=dataReporter); para evaluar
-reglas que alguien ya escribió, [`validate`](https://cran.r-project.org/package=validate),
-[`pointblank`](https://cran.r-project.org/package=pointblank), [`assertr`](https://cran.r-project.org/package=assertr)
-y [`dataquieR`](https://cran.r-project.org/package=dataquieR). `lupa` trabaja en el tramo
+Para resumir y graficar columnas están [`skimr`](https://CRAN.R-project.org/package=skimr)
+y [`DataExplorer`](https://CRAN.R-project.org/package=DataExplorer); para
+diagnosticar una tabla y redactar su informe, [`dlookr`](https://CRAN.R-project.org/package=dlookr)
+y [`dataReporter`](https://CRAN.R-project.org/package=dataReporter); para evaluar
+reglas que alguien ya escribió, [`validate`](https://CRAN.R-project.org/package=validate),
+[`pointblank`](https://CRAN.R-project.org/package=pointblank), [`assertr`](https://CRAN.R-project.org/package=assertr)
+y [`dataquieR`](https://CRAN.R-project.org/package=dataquieR). `lupa` trabaja en el tramo
 anterior a la regla y en el siguiente: encuentra lo que todavía ninguna regla
 nombra, propone qué medir sin umbrales de fábrica y, cuando la regla se
 confirma, la mide con su alcance, limpia una copia y compara entregas. Se usa
@@ -335,12 +341,12 @@ citation("lupa")
 ```
 
 Las referencias conceptuales son [Batini y Scannapieco (2016)](https://doi.org/10.1007/978-3-319-24106-7),
-el [Marco de trabajo para la Gestión de la Calidad de Datos en Gobierno Digital v1.6](https://www.gub.uy/agencia-gobierno-electronico-sociedad-informacion-conocimiento/)
+el [Marco de trabajo para la Gestión de la Calidad de Datos en Gobierno Digital v1.6](https://www.gub.uy/agencia-gobierno-electronico-sociedad-informacion-conocimiento/comunicacion/publicaciones/marco-trabajo-para-gestion-calidad-datos)
 de AGESIC, el [marco de aseguramiento de la calidad de CEA/CEPAL (2022)](https://repositorio.cepal.org/handle/11362/47464)
 e [ISO/IEC 25012:2008](https://www.iso.org/standard/35736.html).
 
-`lupa` todavía no está en CRAN y su API pública puede cambiar antes de la 1.0;
-los cambios incompatibles se anuncian en [NEWS](NEWS.md), con una advertencia
+La API pública de `lupa` puede cambiar antes de la 1.0; los cambios
+incompatibles se anuncian en [NEWS](https://github.com/sebollin/lupa/blob/main/NEWS.md), con una advertencia
 previa siempre que se pueda. Los contratos estables son las unidades declaradas,
 el alcance, la protección de datos personales y el registro de auditoría; los
 detalles de implementación y los tiempos pueden cambiar mientras esos contratos
@@ -348,7 +354,7 @@ sigan siendo ciertos.
 
 Los errores, las propuestas y las correcciones de documentación van al
 [registro de issues](https://github.com/sebollin/lupa/issues), y
-[CONTRIBUTING.md](CONTRIBUTING.md) explica cómo contribuir. `lupa` se distribuye
-bajo la [GPL-3](https://www.gnu.org/licenses/gpl-3.0.html); [`LICENSE.note`](LICENSE.note)
-detalla los datos Apache-2.0 derivados de [`ftfy`](https://github.com/rspeer/python-ftfy)
-y los datos MIT derivados de [`naniar`](https://github.com/njtierney/naniar).
+[CONTRIBUTING.md](https://github.com/sebollin/lupa/blob/main/CONTRIBUTING.md) explica cómo contribuir. `lupa` se distribuye
+bajo la [GPL-3](https://www.gnu.org/licenses/gpl-3.0.html); [`inst/COPYRIGHTS`](https://github.com/sebollin/lupa/blob/main/inst/COPYRIGHTS)
+detalla el material Apache-2.0 traducido de [`ftfy`](https://github.com/rspeer/python-ftfy)
+y los datos MIT tomados de [`naniar`](https://github.com/njtierney/naniar).

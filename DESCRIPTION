@@ -3,48 +3,42 @@ Title: Data Profiling and Quality Measurement
 Version: 0.1.0
 Authors@R:
     c(
-      person("Sebastián", "Lucas", , "sebalucas@gmail.com", role = c("aut", "cre"),
+      person("Sebastián", "Lucas", , "sebalucas@gmail.com", role = c("aut", "cre", "cph"),
              comment = c(ORCID = "0009-0009-9068-0276")),
-      person("Robyn", "Speer", role = "cph",
-             comment = "encoding-repair design and character tables, from ftfy 6.3.1"),
-      person("Nicholas", "Tierney", role = "cph",
-             comment = "missing-value sentinel vectors, from naniar 1.1.0"),
-      person("Di", "Cook", role = "cph",
-             comment = "missing-value sentinel vectors, from naniar 1.1.0"),
-      person("Miles", "McBain", role = "cph",
-             comment = "missing-value sentinel vectors, from naniar 1.1.0"),
-      person("Colin", "Fay", role = "cph",
-             comment = "missing-value sentinel vectors, from naniar 1.1.0")
+      person("Robyn", "Speer", role = c("ctb", "cph"),
+             comment = "byte tables, character categories, regular expressions and repair functions of the encoding-repair engine, translated from ftfy 6.3.1 (Apache-2.0)"),
+      person("Nicholas", "Tierney", role = c("ctb", "cph"),
+             comment = "missing-value sentinel values from naniar 1.1.0 (MIT)")
     )
-Description: Provides general-purpose data profiling and quality analysis for
-    tabular data. Discovers structural patterns, implicit types, mixed date
-    formats and reusable findings about potential data issues. Defines quality
-    frameworks with user-declared dimensions and factors, reusable metrics with
-    explicit granularity, typed aggregation, evaluation profiles, versioned
-    histories, structural drift detection, and self-contained HyperText Markup
-    Language reports without external rendering software.
-    Produces editable cleaning plans and applies only explicitly selected
-    actions while retaining an audit log. Includes bounded value distributions,
-    quantiles, mixed-type associations,
-    temporal regularity checks, and confirmable measurement-scale proposals.
-    The general model follows the data-quality lineage described by Batini and
-    Scannapieco (2016) <doi:10.1007/978-3-319-24106-7>. The package ships a
-    traceable implementation of the Data Quality Management Framework for
-    Digital Government, version 1.6, published by the Agency for Electronic
-    Government and the Information and Knowledge Society (AGESIC) (2020)
-    <https://www.gub.uy/agencia-gobierno-electronico-sociedad-informacion-conocimiento/>,
-    and an optional taxonomy of the fifteen characteristics in the
-    International Organization for Standardization and International
-    Electrotechnical Commission standard ISO/IEC 25012:2008
-    <https://www.iso.org/standard/35736.html>. It also includes the
-    four levels and nineteen principles of the United Nations national quality
-    assurance framework, adapted for Latin America and the Caribbean by the
-    Statistical Conference of the Americas (CEA) of the Economic Commission for
-    Latin America and the Caribbean (CEPAL), based on the United Nations manual
-    (2019)
-    <https://unstats.un.org/unsd/methodology/dataquality/> and the regional
-    guide (2022) <https://repositorio.cepal.org/handle/11362/47464>.
+Description: Profiles tabular data and measures its quality. Discovers
+    structural patterns, implicit types, mixed date formats and reusable
+    findings about potential data issues; defines quality frameworks with
+    user-declared dimensions, reusable metrics with explicit granularity and
+    typed aggregation; keeps versioned histories and detects structural drift;
+    writes self-contained HyperText Markup Language reports; and produces
+    editable cleaning plans that apply only the actions the user selects, with
+    an audit log. The general model follows Batini and Scannapieco (2016)
+    <doi:10.1007/978-3-319-24106-7>. The package implements version 1.6 of the
+    data quality management framework for digital government of the Uruguayan
+    Agency for Electronic Government and Information and Knowledge Society,
+    AGESIC (2020) <https://www.gub.uy/agencia-gobierno-electronico-sociedad-informacion-conocimiento/comunicacion/publicaciones/marco-trabajo-para-gestion-calidad-datos>;
+    an optional taxonomy of the fifteen characteristics of the standard 25012
+    of the International Organization for Standardization and the
+    International Electrotechnical Commission, ISO/IEC (2008)
+    <https://www.iso.org/standard/35736.html>; and the four levels and nineteen
+    principles of the national quality assurance framework of the United
+    Nations (2019) <https://unstats.un.org/unsd/methodology/dataquality/>, as
+    adapted for Latin America and the Caribbean by the Statistical Conference
+    of the Americas of the Economic Commission for Latin America and the
+    Caribbean, CEA-CEPAL (2022)
+    <https://repositorio.cepal.org/handle/11362/47464>. AGESIC, CEA and CEPAL
+    are the Spanish acronyms of these institutions.
 License: GPL-3
+Copyright: Parts of the encoding-repair engine are translated from ftfy
+    6.3.1, copyright 2023 Robyn Speer (Apache-2.0); the missing-value
+    sentinels come from naniar 1.1.0, copyright 2016-2018 Nicholas Tierney
+    (MIT). All other code is copyright 2026 Sebastián Lucas. See file
+    inst/COPYRIGHTS.
 URL: https://github.com/sebollin/lupa, https://sebollin.github.io/lupa/
 BugReports: https://github.com/sebollin/lupa/issues
 Encoding: UTF-8

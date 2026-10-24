@@ -23,7 +23,7 @@ Las tres métricas aceptan \code{normalizar}, \code{proximidad}, \code{metodo}, 
 \code{\link[=referencial]{referencial()}}. La normalización sólo cambia la representación usada para
 emparejar: no modifica los datos. La proximidad es evidencia para los
 valores ausentes y nunca cambia su veredicto; si el paquete opcional
-\href{https://cran.r-project.org/package=stringdist}{stringdist} no está
+\href{https://CRAN.R-project.org/package=stringdist}{stringdist} no está
 instalado, se declara que no se calculó. Se calcula una sola vez por valor
 fallido distinto y la evidencia se reparte a las filas repetidas. El alcance
 conserva por separado \code{n_fallos} (filas),

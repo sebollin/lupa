@@ -8,6 +8,7 @@ vignette: >
 ---
 
 ```{r setup, include = FALSE}
+library(lupa)
 knitr::opts_chunk$set(collapse = TRUE, comment = "#>")
 # El ancho se restaura al terminar la viñeta, como pide el CRAN Cookbook.
 .opciones_previas <- options(width = 90)

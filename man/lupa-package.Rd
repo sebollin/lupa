@@ -54,7 +54,7 @@ Batini C, Scannapieco M (2016) \doi{10.1007/978-3-319-24106-7}.
 \emph{Data and Information Quality: Dimensions, Principles and Techniques}.
 Springer.
 
-\href{https://www.gub.uy/agencia-gobierno-electronico-sociedad-informacion-conocimiento/}{AGESIC (2020)}.
+\href{https://www.gub.uy/agencia-gobierno-electronico-sociedad-informacion-conocimiento/comunicacion/publicaciones/marco-trabajo-para-gestion-calidad-datos}{AGESIC (2020)}.
 \emph{Marco de trabajo para la Gestión de la Calidad de Datos en Gobierno
 Digital}, versión 1.6.
 
@@ -70,20 +70,17 @@ Quality Requirements and Evaluation (SQuaRE) — Data quality model}.
 \link{datos_operativos}, \link{datos_administrativos}
 }
 \author{
-\strong{Maintainer}: Sebastián Lucas \email{sebalucas@gmail.com} (\href{https://orcid.org/0009-0009-9068-0276}{ORCID})
+\strong{Maintainer}: Sebastián Lucas \email{sebalucas@gmail.com} (\href{https://orcid.org/0009-0009-9068-0276}{ORCID}) [copyright holder]
 
 Authors:
 \itemize{
-  \item Sebastián Lucas \email{sebalucas@gmail.com} (\href{https://orcid.org/0009-0009-9068-0276}{ORCID})
+  \item Sebastián Lucas \email{sebalucas@gmail.com} (\href{https://orcid.org/0009-0009-9068-0276}{ORCID}) [copyright holder]
 }
 
 Other contributors:
 \itemize{
-  \item Robyn Speer (encoding-repair design and character tables, from ftfy 6.3.1) [copyright holder]
-  \item Nicholas Tierney (missing-value sentinel vectors, from naniar 1.1.0) [copyright holder]
-  \item Di Cook (missing-value sentinel vectors, from naniar 1.1.0) [copyright holder]
-  \item Miles McBain (missing-value sentinel vectors, from naniar 1.1.0) [copyright holder]
-  \item Colin Fay (missing-value sentinel vectors, from naniar 1.1.0) [copyright holder]
+  \item Robyn Speer (byte tables, character categories, regular expressions and repair functions of the encoding-repair engine, translated from ftfy 6.3.1 (Apache-2.0)) [contributor, copyright holder]
+  \item Nicholas Tierney (missing-value sentinel values from naniar 1.1.0 (MIT)) [contributor, copyright holder]
 }
 
 }

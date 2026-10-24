@@ -1435,7 +1435,18 @@ evaluar <- function(medicion, perfil) {
 #' @export
 #'
 #' @examples
-#' # Ver ejemplos de evaluar().
+#' nucleo <- metricas_nucleo()
+#' instancia <- instanciar(especializar(nucleo$NoNulo), "personas", "edad")
+#' perfil <- perfil_evaluacion(
+#'   "Completa", regla_evaluacion("Al menos 90%", function(x) x >= 0.9)
+#' )
+#' medir_en <- function(edades, id, fecha) {
+#'   medir(modelo(instancia), data.frame(edad = edades), id_medicion = id,
+#'         fecha = as.POSIXct(fecha, tz = "UTC"))
+#' }
+#' enero <- evaluar(medir_en(c(20, NA, 35), "enero", "2026-01-31"), perfil)
+#' febrero <- evaluar(medir_en(c(20, 41, 35), "febrero", "2026-02-28"), perfil)
+#' comparar_evaluaciones(enero, febrero)
 comparar_evaluaciones <- function(anterior, actual) {
   if (!inherits(anterior, "evaluacion_calidad") ||
       !inherits(actual, "evaluacion_calidad")) {

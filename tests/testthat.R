@@ -24,7 +24,7 @@ library(lupa)
 # win-builder. Desde entonces empiezan con `testthat::skip_on_cran()` las pruebas
 # de regresion (`O*`, `N*`, `regresion-*`), los archivos que tardaban mas de 1 s
 # en la medicion sin red y las de la proteccion de datos, que es un complemento
-# del paquete y no su cometido: 332 de 413. Siguen corriendo
+# del paquete y no su cometido: 338 de 415. Siguen corriendo
 # enteras en la suite local, en el CI y en R-hub, que usan NOT_CRAN=true. En CRAN
 # quedan las pruebas generales de un segundo o menos y cuatro que se conservan por
 # lo que cubren: el perfil, el plan y `aplicar()`, el informe HTML y los datos del
@@ -34,6 +34,8 @@ library(lupa)
 # Sin colores ni caracteres fuera de ASCII: esto se lee en un log de Windows.
 options(cli.unicode = FALSE, crayon.enabled = FALSE,
         testthat.use_colours = FALSE)
+# La granja de CRAN es compartida: no mas de dos hilos, tampoco en data.table.
+data.table::setDTthreads(2L)
 
 test_check("lupa", reporter = testthat::MultiReporter$new(reporters = list(
   testthat::CheckReporter$new(),

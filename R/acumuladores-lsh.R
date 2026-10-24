@@ -534,29 +534,30 @@
                                   vocabulario) {
   firmas <- matrix(Inf, nrow = length(ordinales), ncol = n_hashes)
   if (!length(runs_ids) || !length(ordinales) || !vocabulario) return(firmas)
-  .con_rng_interno_lsh(1L, function() {
-    # Una permutacion de `vocabulario` puede pesar cientos de MB. Se conserva
-    # una sola por vez para que el diccionario no reaparezca completo en RAM;
-    # el costo adicional es volver a leer los runs de ids por cada hash.
-    for (h in seq_len(n_hashes)) {
-      consulta <- c(NA_real_, as.numeric(sample.int(as.integer(vocabulario))))
-      for (archivo in runs_ids) {
-        datos <- .lsh_validar_run(archivo, c("ordinal", "id"))
-        if (!nrow(datos)) next
-        posiciones <- match(datos$ordinal, ordinales)
-        validas <- !is.na(posiciones)
-        if (!any(validas)) next
-        posiciones <- posiciones[validas]
-        ids <- as.integer(datos$id[validas]) + 1L
-        minimos <- tapply(consulta[ids], posiciones, min)
-        filas <- as.integer(names(minimos))
-        firmas[filas, h] <- pmin(firmas[filas, h],
-                                 as.numeric(minimos), na.rm = TRUE)
-      }
-      rm(consulta)
+  # Este camino existe para no tener el vocabulario entero en memoria, asi que
+  # no arma la tabla del hash sobre todo el vocabulario: hashea los ids de cada
+  # run, que es lo que cabe por vez. El costo adicional es volver a leer los runs
+  # por cada hash. Es la misma `.hash_lsh()` del camino en memoria, asi que las
+  # firmas coinciden; un id fuera de `1..vocabulario` no aporta, como antes.
+  for (h in seq_len(n_hashes)) {
+    for (archivo in runs_ids) {
+      datos <- .lsh_validar_run(archivo, c("ordinal", "id"))
+      if (!nrow(datos)) next
+      posiciones <- match(datos$ordinal, ordinales)
+      validas <- !is.na(posiciones)
+      if (!any(validas)) next
+      posiciones <- posiciones[validas]
+      ids <- as.numeric(datos$id[validas])
+      valores <- rep(NA_real_, length(ids))
+      dentro <- !is.na(ids) & ids >= 1 & ids <= vocabulario
+      if (any(dentro)) valores[dentro] <- .hash_lsh(ids[dentro], h)
+      minimos <- tapply(valores, posiciones, min)
+      filas <- as.integer(names(minimos))
+      firmas[filas, h] <- pmin(firmas[filas, h],
+                               as.numeric(minimos), na.rm = TRUE)
     }
-    firmas
-  })
+  }
+  firmas
 }
 
 .lsh_guardar_firmas <- function(firmas, ordinales, bandas, filas_banda,
@@ -1278,7 +1279,7 @@
         lsh_bandas = conf$bandas, lsh_filas = conf$filas_banda,
         lsh_tamano_firma = n_hashes, lsh_q = conf$q,
         lsh_vocabulario = estado$vocabulario, lsh_semilla_hash = 1L,
-        lsh_hash_familia = "permutacion_aleatoria_determinista_inyectiva",
+        lsh_hash_familia = "hash_entero_biyectivo_determinista",
         lsh_candidatos_dependen_orden_filas = TRUE,
         lsh_orden_vocabulario = "primera_aparicion",
         lsh_max_cubeta = conf$max_cubeta,

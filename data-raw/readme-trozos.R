@@ -22,6 +22,9 @@
 options(width = 90)
 
 ## ---- instalar
+install.packages("lupa")
+
+## ---- instalar-desarrollo
 # install.packages("pak")
 pak::pak("sebollin/lupa")
 

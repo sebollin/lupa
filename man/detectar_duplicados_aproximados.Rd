@@ -354,9 +354,11 @@ separa \code{lsh_teselas_cubetas_grandes} (matrices del primer tramo) de
 no son la misma unidad. Los pares aceptados por ambos recorridos entran al
 resumen de Jaccard. Si alguna implementación futura descarta una cubeta,
 la garantía se devuelve como \code{NA} y \code{lsh_garantia_estado} lo deja explícito.
-La familia MinHash usa una permutación aleatoria inyectiva del vocabulario,
-con una semilla interna fija, y restaura el estado global del generador de R;
-por eso es determinista sin depender de \code{set.seed()} ni de \code{RNGkind()}. La
+La familia MinHash usa un hash entero biyectivo y determinista del
+vocabulario, con una semilla distinta por función de hash. No usa el
+generador de números aleatorios de R ni toca su estado: el resultado no
+depende de \code{set.seed()} ni de \code{RNGkind()}, y la muestra de la estimación
+sale del mismo hash. La
 tabla de consulta de cada hash evita repetir trabajo para cada celda de la
 matriz de q-gramas y hace que el resultado no dependa de cómo se numeraron
 esos q-gramas. Antes de recorrer las bandas se toma una muestra interna y se

@@ -300,6 +300,6 @@ En una tabla grande, dos filas pueden describir lo mismo escrito de dos maneras:
 [Escala y duplicados aproximados](escala-y-duplicados.html) muestra cómo
 buscarlas y cuánto cuesta.
 
-```{r cierre, include=FALSE}
+```{r cierre, include=FALSE, eval=TRUE}
 options(.opciones_previas)
 ```

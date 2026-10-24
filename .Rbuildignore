@@ -21,3 +21,5 @@
 ^README\.Rmd$
 ^README\.es\.Rmd$
 ^vignettes/articles$
+^man/figures/banco-.*\.png$
+^man/figures/perfil-console\.png$

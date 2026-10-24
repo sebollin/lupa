@@ -127,18 +127,17 @@ if (length(fuentes) == 2L) {
 # (El guion ya esta parado en la raiz del paquete: ver `setwd(raiz)` arriba.)
 # El sitio esta en castellano (las guias, la referencia, la interfaz), asi que su
 # portada es el README castellano y no el ingles. pkgdown la toma de
-# `pkgdown/index.md`. Los enlaces relativos que en GitHub llevan a un archivo del
-# repositorio no existen en el sitio: van a su direccion en GitHub, y NEWS a la
-# pagina de novedades del sitio.
+# `pkgdown/index.md`. Los README enlazan los archivos del repositorio por su
+# direccion en GitHub -un enlace relativo a un archivo que no viaja en el tarball
+# es un URI invalido para CRAN-; en el sitio, NEWS va a su pagina de novedades.
 castellano <- "README.es.md"
 if (file.exists(castellano) && !length(problemas)) {
   portada <- readLines(castellano, warn = FALSE, encoding = "UTF-8")
   repositorio <- "https://github.com/sebollin/lupa/blob/main/"
-  portada <- gsub("](NEWS.md)", "](news/index.html)", portada, fixed = TRUE)
-  for (archivo in c("README.md", "CONTRIBUTING.md", "LICENSE.note")) {
-    portada <- gsub(paste0("](", archivo, ")"), paste0("](", repositorio, archivo, ")"),
-                    portada, fixed = TRUE)
-  }
+  portada <- gsub(paste0("](", repositorio, "NEWS.md)"), "](news/index.html)",
+                  portada, fixed = TRUE)
+  portada <- gsub("](README.md)", paste0("](", repositorio, "README.md)"),
+                  portada, fixed = TRUE)
   portada <- sub("README.es.md se genera desde README.es.Rmd",
                  "pkgdown/index.md se genera desde README.es.Rmd", portada, fixed = TRUE)
   dir.create("pkgdown", showWarnings = FALSE)

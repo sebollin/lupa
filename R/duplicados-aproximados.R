@@ -900,30 +900,56 @@
   list(ids = ids, vocabulario = vocabulario)
 }
 
-.con_rng_interno_lsh <- function(semilla, funcion) {
-  rng_anterior <- RNGkind()
-  habia_semilla <- exists(".Random.seed", envir = .GlobalEnv, inherits = FALSE)
-  if (habia_semilla) semilla_anterior <- get(".Random.seed", .GlobalEnv)
-  # El esquema de hashes no debe depender del RNGkind del llamador. Se usa una
-  # combinación estable y se restaura primero la clase de RNG (que puede crear
-  # un nuevo `.Random.seed`) y después el estado exacto del llamador.
-  suppressWarnings(RNGkind(
-    kind = "Mersenne-Twister", normal.kind = "Inversion",
-    sample.kind = "Rejection"
-  ))
-  set.seed(semilla)
-  on.exit({
-    suppressWarnings(do.call(RNGkind, list(
-      kind = rng_anterior[[1L]], normal.kind = rng_anterior[[2L]],
-      sample.kind = rng_anterior[[3L]]
-    )))
-    if (habia_semilla) {
-      assign(".Random.seed", semilla_anterior, envir = .GlobalEnv)
-    } else if (exists(".Random.seed", envir = .GlobalEnv, inherits = FALSE)) {
-      rm(".Random.seed", envir = .GlobalEnv)
-    }
-  }, add = TRUE)
-  funcion()
+# Las firmas MinHash y la muestra de pares de la estimacion necesitan valores
+# pseudoaleatorios fijos: dos corridas iguales tienen que dar lo mismo en
+# cualquier sesion. Salen de un hash entero de 32 bits, biyectivo y
+# determinista -`lowbias32`, de Chris Wellons-, aplicado a cada identificador
+# con una semilla distinta por funcion de hash. No usa el generador de numeros
+# aleatorios de R ni su estado: el resultado no depende de `set.seed()` ni de
+# `RNGkind()`, y la llamada no lee ni escribe `.Random.seed`. Por ser biyectivo,
+# es inyectivo como la permutacion explicita que reemplaza, y no es lineal: una
+# numeracion consecutiva de q-gramas no produce progresiones aritmeticas.
+#
+# Los valores viajan como dobles en [0, 2^32). Los productos se parten en
+# mitades de 16 bits para que ninguna cuenta pase de 2^53, y el XOR se hace por
+# mitades: un entero de 32 bits con signo puede caer en el que R reserva para
+# `NA`. Comprobado contra la implementacion en C, tambien en 2^31 - 1, 2^31 y
+# 2^31 + 1.
+.D16_LSH <- 65536
+.D32_LSH <- 4294967296
+
+.xor32_lsh <- function(x, y) {
+  xh <- floor(x / .D16_LSH)
+  yh <- floor(y / .D16_LSH)
+  bitwXor(as.integer(xh), as.integer(yh)) * .D16_LSH +
+    bitwXor(as.integer(x - xh * .D16_LSH), as.integer(y - yh * .D16_LSH))
+}
+
+.por_mod32_lsh <- function(x, alto, bajo) {
+  xh <- floor(x / .D16_LSH)
+  xl <- x - xh * .D16_LSH
+  medio <- xh * bajo + xl * alto
+  medio <- medio - floor(medio / .D16_LSH) * .D16_LSH
+  y <- medio * .D16_LSH + xl * bajo
+  y - floor(y / .D32_LSH) * .D32_LSH
+}
+
+.mezclar32_lsh <- function(x) {
+  x <- .xor32_lsh(x, floor(x / 65536))
+  x <- .por_mod32_lsh(x, 0x7feb, 0x352d)
+  x <- .xor32_lsh(x, floor(x / 32768))
+  x <- .por_mod32_lsh(x, 0x846c, 0xa68b)
+  .xor32_lsh(x, floor(x / 65536))
+}
+
+# El valor de `ids` -enteros en [0, 2^32)- bajo la funcion de hash numero `h`.
+# La semilla de cada `h` es `h * 0x9e3779b1` modulo 2^32, hecho por mitades como
+# el resto: el producto directo pasaba de 2^53 desde `h` = 3.400.001.
+.hash_lsh <- function(ids, h) {
+  h <- as.numeric(h)
+  h <- h - floor(h / .D32_LSH) * .D32_LSH
+  semilla <- .mezclar32_lsh(.por_mod32_lsh(h, 0x9e37, 0x79b1))
+  .mezclar32_lsh(.xor32_lsh(as.numeric(ids), semilla))
 }
 
 .muestra_pares_lsh <- function(n, tamano) {
@@ -942,20 +968,20 @@
       fila_1 = fila_1, fila_2 = fila_2, stringsAsFactors = FALSE
     ))
   }
-  pares <- .con_rng_interno_lsh(173L, function() {
-    # Se sortea el rango triangular de pares, no dos filas independientes:
-    # así la muestra no repite pares y mantiene una cobertura uniforme incluso
-    # cuando las filas contienen muchos valores repetidos.
-    rangos <- floor(stats::runif(as.integer(cantidad)) * total)
-    comienzos <- c(0, cumsum(as.numeric(seq.int(n - 1L, 1L, by = -1L))))
-    comienzos <- comienzos[seq_len(n - 1L)]
-    fila_1 <- findInterval(rangos, c(-1, comienzos)) - 1L
-    fila_2 <- fila_1 + 1L + as.integer(rangos - comienzos[fila_1])
-    data.frame(
-      fila_1 = pmin(fila_1, fila_2), fila_2 = pmax(fila_1, fila_2),
-      stringsAsFactors = FALSE
-    )
-  })
+  # Se sortea el rango triangular de pares, no dos filas independientes: así
+  # la muestra no repite pares y mantiene una cobertura uniforme incluso cuando
+  # las filas contienen muchos valores repetidos. El sorteo es el hash de
+  # `.hash_lsh()`: uniforme en [0, 1) y el mismo en cada corrida.
+  rangos <- floor(.hash_lsh(seq_len(as.integer(cantidad)), 173L) /
+                    .D32_LSH * total)
+  comienzos <- c(0, cumsum(as.numeric(seq.int(n - 1L, 1L, by = -1L))))
+  comienzos <- comienzos[seq_len(n - 1L)]
+  fila_1 <- findInterval(rangos, c(-1, comienzos)) - 1L
+  fila_2 <- fila_1 + 1L + as.integer(rangos - comienzos[fila_1])
+  pares <- data.frame(
+    fila_1 = pmin(fila_1, fila_2), fila_2 = pmax(fila_1, fila_2),
+    stringsAsFactors = FALSE
+  )
   unique(pares)
 }
 
@@ -1081,22 +1107,20 @@
 .firmas_minhash_lsh <- function(ids, n_hashes) {
   n <- nrow(ids)
   if (!n_hashes) return(matrix(numeric(), nrow = n, ncol = 0L))
-  # La semilla es interna y fija; se restaura el estado del llamador para que
-  # el resultado no dependa de `set.seed()` ni lo modifique.
-  # Cada hash es una permutacion aleatoria explicita del vocabulario. Por eso
-  # es inyectivo para cualquier tamano de vocabulario y conserva la propiedad
-  # MinHash sin depender de los nombres o del orden de los q-gramas. La
-  # permutacion completa evita que una numeracion consecutiva de q-gramas
-  # produzca progresiones aritmeticas con minimos artificialmente coincidentes.
-  # `semilla` es interna y fija; dos corridas iguales son identicas.
-  .con_rng_interno_lsh(1L, function() {
+  # Cada hash es una funcion biyectiva del identificador del q-grama
+  # (`.hash_lsh()`). Por eso es inyectivo para cualquier tamano de vocabulario y
+  # conserva la propiedad MinHash sin depender de los nombres o del orden de los
+  # q-gramas, y no es lineal, asi que una numeracion consecutiva de q-gramas no
+  # produce progresiones aritmeticas con minimos artificialmente coincidentes.
+  # Dos corridas iguales son identicas y el generador de R no se toca.
+  local({
     vocabulario <- if (length(ids)) suppressWarnings(max(ids, na.rm = TRUE)) else 0
     if (!is.finite(vocabulario) || vocabulario < 1) vocabulario <- 0
     vocabulario <- as.integer(vocabulario)
     firmas <- matrix(Inf, nrow = n, ncol = n_hashes)
     for (h in seq_len(n_hashes)) {
       consulta <- if (vocabulario) {
-        c(NA_real_, as.numeric(sample.int(vocabulario)))
+        c(NA_real_, .hash_lsh(seq_len(vocabulario), h))
       } else {
         NA_real_
       }
@@ -1454,7 +1478,7 @@
       lsh_tamano_firma = n_hashes, lsh_q = q,
       lsh_vocabulario = vocabulario_n,
       lsh_semilla_hash = 1L,
-      lsh_hash_familia = "permutacion_aleatoria_determinista_inyectiva",
+      lsh_hash_familia = "hash_entero_biyectivo_determinista",
       # El vocabulario de q-gramas se numera por orden de primera aparicion y esa
       # numeracion alimenta las firmas, asi que reordenar las filas cambia que
       # pares se proponen como candidatos. **No es un defecto**: ocurre dentro de
@@ -1719,18 +1743,31 @@
 # evidencia `m=0.3`/`m=0.3`; y `NA` contra `""` con `normalizar = FALSE` salia
 # `exacto_normalizado` con `igualo_normalizar = TRUE`, atribuyendo a una
 # normalizacion que no existia una igualdad que puso el tratamiento del ausente.
-.pares_con_texto_original_igual <- function(datos, columnas, filas_1, filas_2) {
+#
+# La escritura de cada columna se prepara una vez, en
+# `.textos_originales_comparables()`, y aca solo se indexa: el cierre que llama a
+# esta funcion corre por cada tanda de candidatos, y preparar la columna entera en
+# cada llamada hacia el costo proporcional a tandas por filas. Medido sobre el
+# padron sintetico de `benchmark/`, con LSH y dos hilos: 20.000 filas tardaban
+# 26 s contra 17 s sin esa preparacion repetida, y 200.000, 1426 s contra 583 s.
+.pares_con_texto_original_igual <- function(valores, filas_1, filas_2) {
   n <- length(filas_1)
   if (!n) return(logical())
   iguales <- rep(TRUE, n)
-  for (columna in columnas) {
+  for (columna in valores) {
+    iguales <- iguales & columna[filas_1] == columna[filas_2]
+  }
+  iguales
+}
+
+.textos_originales_comparables <- function(datos, columnas) {
+  lapply(columnas, function(columna) {
     valores <- .nombres_para_operar(suppressWarnings(as.character(
       .valores_para_comparar_duplicados(datos[[columna]])
     )))
     valores[is.na(valores)] <- ""
-    iguales <- iguales & valores[filas_1] == valores[filas_2]
-  }
-  iguales
+    valores
+  })
 }
 
 # Lo que entra a la comparacion desde una columna de dobles. `as.character()`
@@ -1966,8 +2003,14 @@
   textos <- .texto_fila_aproximada(
     datos, columnas, normalizacion_resuelta, fusiones_precomputadas
   )
+  # Se prepara en la primera llamada: el camino que nunca compara pares no paga
+  # el recorrido de las columnas.
+  originales <- NULL
   igualdad_original <- function(filas_1, filas_2) {
-    .pares_con_texto_original_igual(datos, columnas, filas_1, filas_2)
+    if (is.null(originales)) {
+      originales <<- .textos_originales_comparables(datos, columnas)
+    }
+    .pares_con_texto_original_igual(originales, filas_1, filas_2)
   }
   # Sobre el tope exhaustivo, `auto` reemplaza el muestreo de filas por LSH.
   # `max_pares` sigue gobernando el camino exacto; en LSH el alcance se expresa
@@ -2534,9 +2577,11 @@
 #' no son la misma unidad. Los pares aceptados por ambos recorridos entran al
 #' resumen de Jaccard. Si alguna implementación futura descarta una cubeta,
 #' la garantía se devuelve como `NA` y `lsh_garantia_estado` lo deja explícito.
-#' La familia MinHash usa una permutación aleatoria inyectiva del vocabulario,
-#' con una semilla interna fija, y restaura el estado global del generador de R;
-#' por eso es determinista sin depender de `set.seed()` ni de `RNGkind()`. La
+#' La familia MinHash usa un hash entero biyectivo y determinista del
+#' vocabulario, con una semilla distinta por función de hash. No usa el
+#' generador de números aleatorios de R ni toca su estado: el resultado no
+#' depende de `set.seed()` ni de `RNGkind()`, y la muestra de la estimación
+#' sale del mismo hash. La
 #' tabla de consulta de cada hash evita repetir trabajo para cada celda de la
 #' matriz de q-gramas y hace que el resultado no dependa de cómo se numeraron
 #' esos q-gramas. Antes de recorrer las bandas se toma una muestra interna y se

@@ -277,9 +277,9 @@ legítimos en silencio no es reparar. Las entidades HTML y las formas Unicode
 tienen sus propios hallazgos (`entidades_html`, `normalizacion_unicode`), y las
 entidades, su propia estrategia en el plan (`decodificar_entidades_html`).
 
-Los datos derivados de ftfy se distribuyen bajo Apache-2.0, y los centinelas
-derivados de naniar, bajo MIT; el detalle está en
-[`LICENSE.note`](https://github.com/sebollin/lupa/blob/main/LICENSE.note).
+Las partes traducidas de ftfy se distribuyen bajo Apache-2.0, y los centinelas
+tomados de naniar, bajo MIT; los avisos completos están en
+[`inst/COPYRIGHTS`](https://github.com/sebollin/lupa/blob/main/inst/COPYRIGHTS).
 
 ```{r cierre, include = FALSE}
 options(.opciones_previas)

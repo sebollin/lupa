@@ -39,7 +39,7 @@
 #'   *Data and Information Quality: Dimensions, Principles and Techniques*.
 #'   Springer.
 #'
-#'   [AGESIC (2020)](https://www.gub.uy/agencia-gobierno-electronico-sociedad-informacion-conocimiento/).
+#'   [AGESIC (2020)](https://www.gub.uy/agencia-gobierno-electronico-sociedad-informacion-conocimiento/comunicacion/publicaciones/marco-trabajo-para-gestion-calidad-datos).
 #'   *Marco de trabajo para la Gestión de la Calidad de Datos en Gobierno
 #'   Digital*, versión 1.6.
 #'

@@ -68,5 +68,20 @@ fecha se resuelven por los bytes de \code{id_medicion}, de modo que la misma
 secuencia persiste igual bajo cualquier locale.
 }
 \examples{
-# El ejemplo de historico_calidad() muestra cómo construir las corridas.
+nucleo <- metricas_nucleo()
+instancia <- instanciar(especializar(nucleo$NoNulo), "personas", "edad")
+perfil <- perfil_evaluacion(
+  "Completa", regla_evaluacion("Al menos 90\%", function(x) x >= 0.9)
+)
+corrida <- function(edades, id, fecha) {
+  medidas <- medir(modelo(instancia), data.frame(edad = edades),
+                   id_medicion = id, fecha = as.POSIXct(fecha, tz = "UTC"))
+  historico_calidad(medidas, evaluar(medidas, perfil))
+}
+historico <- rbind(
+  corrida(c(20, NA, 35, NA), "enero", "2026-01-31"),
+  corrida(c(20, 41, 35, 52), "febrero", "2026-02-28")
+)
+deriva <- detectar_deriva_calidad(historico)
+deriva[, c("perfil", "resultado_anterior", "resultado_actual", "direccion")]
 }

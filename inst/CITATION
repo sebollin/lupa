@@ -8,10 +8,10 @@ bibentry(
   title = "lupa: Data Profiling and Quality Measurement",
   author = person("Sebastián", "Lucas"),
   year = "2026",
-  note = "R package version 0.1.0",
-  textVersion = paste(
-    "Lucas S (2026). lupa: Data Profiling and Quality Measurement.",
-    "R package version 0.1.0."
+  note = paste("R package version", meta$Version),
+  textVersion = paste0(
+    "Lucas S (2026). lupa: Data Profiling and Quality Measurement. ",
+    "R package version ", meta$Version, "."
   )
 )
 
@@ -30,11 +30,13 @@ bibentry(
   address = "Montevideo, Uruguay",
   url = paste0(
     "https://www.gub.uy/agencia-gobierno-electronico-",
-    "sociedad-informacion-conocimiento/"
+    "sociedad-informacion-conocimiento/comunicacion/publicaciones/",
+    "marco-trabajo-para-gestion-calidad-datos"
   ),
   textVersion = paste(
     "AGESIC (2020). Marco de trabajo para la Gestión de la Calidad de Datos",
     "en Gobierno Digital, versión 1.6. Presidencia de la República y",
-    "Facultad de Ingeniería, Universidad de la República, Uruguay."
+    "Facultad de Ingeniería, Universidad de la República, Uruguay.",
+    "https://www.gub.uy/agencia-gobierno-electronico-sociedad-informacion-conocimiento/comunicacion/publicaciones/marco-trabajo-para-gestion-calidad-datos"
   )
 )

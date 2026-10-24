@@ -405,6 +405,6 @@ Las mediciones de escala, con su fecha, su entorno y el guion que las reproduce,
 están en el artículo
 [Evidencia y rendimiento](https://sebollin.github.io/lupa/articles/evidencia-y-rendimiento.html).
 
-```{r cierre, include=FALSE}
+```{r cierre, include=FALSE, eval=TRUE}
 options(.opciones_previas)
 ```

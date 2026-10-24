@@ -340,6 +340,6 @@ DBI::dbDisconnect(conexion)
 Una base no es una tabla: [Colecciones](colecciones.html) perfila varias tablas a
 la vez y busca las relaciones entre ellas.
 
-```{r cierre, include=FALSE}
+```{r cierre, include=FALSE, eval=TRUE}
 options(.opciones_previas)
 ```

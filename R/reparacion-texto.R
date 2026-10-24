@@ -1,8 +1,13 @@
 # Motor de reparacion de texto en R puro.
-# Las categorias y las primeras diez tablas siguen [ftfy 6.3.1]
-# (https://github.com/rspeer/python-ftfy), de [Robyn Speer]
-# (https://github.com/rspeer). Derivado del diseno de ftfy, bajo Apache-2.0:
-# https://github.com/rspeer/python-ftfy (badness.py, chardata.py, fixes.py).
+# Las tablas de bytes y los codecs "sloppy", las categorias de caracteres, las
+# expresiones regulares (badness, el detector de UTF-8, las secuencias con
+# perdida, el byte A0) y las funciones de reparacion con su bucle estan
+# traducidas de Python a R desde ftfy 6.3.1 (https://github.com/rspeer/python-ftfy;
+# __init__.py, badness.py, chardata.py, fixes.py, bad_codecs/sloppy.py,
+# bad_codecs/utf8_variants.py), copyright 2023 Robyn Speer, bajo la licencia
+# Apache-2.0. Este archivo esta
+# MODIFICADO respecto de esas fuentes: traducido a R y adaptado a lupa por
+# Sebastian Lucas. El aviso completo esta en inst/COPYRIGHTS.
 # Las tablas son literales congelados; no dependen de iconv en tiempo de carga.
 
 .ftfy_tablas_bytes <- list(

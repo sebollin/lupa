@@ -34,20 +34,26 @@ reason and never counts as zero. And profiling does not modify the input.
 
 ## Installation
 
-Install the development version from GitHub:
+Install the released version from CRAN:
+
+``` r
+install.packages("lupa")
+```
+
+or the development version from GitHub:
 
 ``` r
 # install.packages("pak")
 pak::pak("sebollin/lupa")
 ```
 
-It depends only on [`cli`](https://cran.r-project.org/package=cli) and
-[`data.table`](https://cran.r-project.org/package=data.table). Suggested packages enable specific capabilities: [`DBI`](https://cran.r-project.org/package=DBI)
-with a driver ([`RSQLite`](https://cran.r-project.org/package=RSQLite),
-[`duckdb`](https://cran.r-project.org/package=duckdb), [`RPostgres`](https://cran.r-project.org/package=RPostgres)
-or [`odbc`](https://cran.r-project.org/package=odbc)) to profile inside a
-database, [`stringdist`](https://cran.r-project.org/package=stringdist) for
-approximate text comparison and [`sf`](https://cran.r-project.org/package=sf) for
+It depends only on [`cli`](https://CRAN.R-project.org/package=cli) and
+[`data.table`](https://CRAN.R-project.org/package=data.table). Suggested packages enable specific capabilities: [`DBI`](https://CRAN.R-project.org/package=DBI)
+with a driver ([`RSQLite`](https://CRAN.R-project.org/package=RSQLite),
+[`duckdb`](https://CRAN.R-project.org/package=duckdb), [`RPostgres`](https://CRAN.R-project.org/package=RPostgres)
+or [`odbc`](https://CRAN.R-project.org/package=odbc)) to profile inside a
+database, [`stringdist`](https://CRAN.R-project.org/package=stringdist) for
+approximate text comparison and [`sf`](https://CRAN.R-project.org/package=sf) for
 geometries. The API, the help pages and the guides are in Spanish, and the
 public names are part of the contract. What the package prints is in Spanish
 too, so the outputs below appear exactly as `lupa` writes them.
@@ -167,13 +173,13 @@ the glossary.
 
 ## What sets it apart and where it fits
 
-To summarize and plot columns there are [`skimr`](https://cran.r-project.org/package=skimr)
-and [`DataExplorer`](https://cran.r-project.org/package=DataExplorer); to
-diagnose a table and write up its report, [`dlookr`](https://cran.r-project.org/package=dlookr)
-and [`dataReporter`](https://cran.r-project.org/package=dataReporter); to evaluate
-rules that someone has already written, [`validate`](https://cran.r-project.org/package=validate),
-[`pointblank`](https://cran.r-project.org/package=pointblank), [`assertr`](https://cran.r-project.org/package=assertr)
-and [`dataquieR`](https://cran.r-project.org/package=dataquieR). `lupa` works on the stretch before the
+To summarize and plot columns there are [`skimr`](https://CRAN.R-project.org/package=skimr)
+and [`DataExplorer`](https://CRAN.R-project.org/package=DataExplorer); to
+diagnose a table and write up its report, [`dlookr`](https://CRAN.R-project.org/package=dlookr)
+and [`dataReporter`](https://CRAN.R-project.org/package=dataReporter); to evaluate
+rules that someone has already written, [`validate`](https://CRAN.R-project.org/package=validate),
+[`pointblank`](https://CRAN.R-project.org/package=pointblank), [`assertr`](https://CRAN.R-project.org/package=assertr)
+and [`dataquieR`](https://CRAN.R-project.org/package=dataquieR). `lupa` works on the stretch before the
 rule and on the one after it: it finds what no rule names yet, proposes what to
 measure without built-in thresholds and, once a rule is confirmed, measures it
 with its scope, cleans a copy and compares deliveries. It is meant to be used
@@ -339,19 +345,19 @@ citation("lupa")
 ```
 
 The conceptual references are [Batini and Scannapieco (2016)](https://doi.org/10.1007/978-3-319-24106-7),
-the [Data Quality Management Framework for Digital Government v1.6](https://www.gub.uy/agencia-gobierno-electronico-sociedad-informacion-conocimiento/)
+the [Data Quality Management Framework for Digital Government v1.6](https://www.gub.uy/agencia-gobierno-electronico-sociedad-informacion-conocimiento/comunicacion/publicaciones/marco-trabajo-para-gestion-calidad-datos)
 by AGESIC, the [CEA/CEPAL quality assurance framework (2022)](https://repositorio.cepal.org/handle/11362/47464)
 and [ISO/IEC 25012:2008](https://www.iso.org/standard/35736.html).
 
-`lupa` is not on CRAN yet, and its public API may change before 1.0;
-breaking changes are announced in [NEWS](NEWS.md), with a deprecation warning
+The public API of `lupa` may change before 1.0; breaking changes are
+announced in [NEWS](https://github.com/sebollin/lupa/blob/main/NEWS.md), with a deprecation warning
 first whenever possible. The stable contracts are the declared units, the
 scope, the protection of personal data and the audit log; implementation
 details and timings may change as long as those contracts still hold.
 
 Bugs, proposals and documentation fixes go to the
 [issue tracker](https://github.com/sebollin/lupa/issues), and
-[CONTRIBUTING.md](CONTRIBUTING.md) explains how to contribute. `lupa` is released
-under the [GPL-3](https://www.gnu.org/licenses/gpl-3.0.html); [`LICENSE.note`](LICENSE.note)
-details the Apache-2.0 data derived from [`ftfy`](https://github.com/rspeer/python-ftfy)
-and the MIT data derived from [`naniar`](https://github.com/njtierney/naniar).
+[CONTRIBUTING.md](https://github.com/sebollin/lupa/blob/main/CONTRIBUTING.md) explains how to contribute. `lupa` is released
+under the [GPL-3](https://www.gnu.org/licenses/gpl-3.0.html); [`inst/COPYRIGHTS`](https://github.com/sebollin/lupa/blob/main/inst/COPYRIGHTS)
+details the Apache-2.0 material translated from [`ftfy`](https://github.com/rspeer/python-ftfy)
+and the MIT data taken from [`naniar`](https://github.com/njtierney/naniar).
