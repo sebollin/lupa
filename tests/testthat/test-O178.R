@@ -8,7 +8,8 @@ testthat::test_that("O178: la privacidad recorre atributos y colecciones", {
   con <- tryCatch(
     DBI::dbConnect(
       RPostgres::Postgres(), host = "127.0.0.1", port = 55432,
-      user = "postgres", password = "lupa", dbname = "lupa"
+      user = "postgres", password = Sys.getenv("LUPA_PG_PASSWORD", "lupa"),
+      dbname = Sys.getenv("LUPA_PG_DBNAME", "lupa")
     ),
     error = function(e) NULL
   )
@@ -96,7 +97,8 @@ testthat::test_that("O178: faltantes se comparan en dos perfiles DBI muestreados
   con <- tryCatch(
     DBI::dbConnect(
       RPostgres::Postgres(), host = "127.0.0.1", port = 55432,
-      user = "postgres", password = "lupa", dbname = "lupa"
+      user = "postgres", password = Sys.getenv("LUPA_PG_PASSWORD", "lupa"),
+      dbname = Sys.getenv("LUPA_PG_DBNAME", "lupa")
     ),
     error = function(e) NULL
   )
@@ -142,7 +144,8 @@ testthat::test_that("O178: decimal grande conserva identidad en muestra_motor", 
   con <- tryCatch(
     DBI::dbConnect(
       RPostgres::Postgres(), host = "127.0.0.1", port = 55432,
-      user = "postgres", password = "lupa", dbname = "lupa"
+      user = "postgres", password = Sys.getenv("LUPA_PG_PASSWORD", "lupa"),
+      dbname = Sys.getenv("LUPA_PG_DBNAME", "lupa")
     ),
     error = function(e) NULL
   )

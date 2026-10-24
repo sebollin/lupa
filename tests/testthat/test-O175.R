@@ -8,7 +8,8 @@ testthat::test_that("float8 de PostgreSQL conserva la aritmetica binaria", {
   con <- tryCatch(
     DBI::dbConnect(
       RPostgres::Postgres(), host = "127.0.0.1", port = 55432,
-      user = "postgres", password = "lupa", dbname = "lupa"
+      user = "postgres", password = Sys.getenv("LUPA_PG_PASSWORD", "lupa"),
+      dbname = Sys.getenv("LUPA_PG_DBNAME", "lupa")
     ),
     error = function(e) NULL
   )
@@ -46,7 +47,8 @@ testthat::test_that("la mediana exacta conserva vecinos de un ulp en PG93", {
   con <- tryCatch(
     DBI::dbConnect(
       RPostgres::Postgres(), host = "127.0.0.1", port = 55493,
-      user = "postgres", password = "lupa", dbname = "lupa"
+      user = "postgres", password = Sys.getenv("LUPA_PG_PASSWORD", "lupa"),
+      dbname = Sys.getenv("LUPA_PG_DBNAME", "lupa")
     ),
     error = function(e) NULL
   )
@@ -95,7 +97,8 @@ testthat::test_that("incluir_valores FALSE cierra todos los canales de valores",
   con <- tryCatch(
     DBI::dbConnect(
       RPostgres::Postgres(), host = "127.0.0.1", port = 55432,
-      user = "postgres", password = "lupa", dbname = "lupa"
+      user = "postgres", password = Sys.getenv("LUPA_PG_PASSWORD", "lupa"),
+      dbname = Sys.getenv("LUPA_PG_DBNAME", "lupa")
     ),
     error = function(e) NULL
   )
@@ -141,7 +144,8 @@ testthat::test_that("comparar_perfiles no convierte dos muestras DBI en deriva",
   con <- tryCatch(
     DBI::dbConnect(
       RPostgres::Postgres(), host = "127.0.0.1", port = 55432,
-      user = "postgres", password = "lupa", dbname = "lupa"
+      user = "postgres", password = Sys.getenv("LUPA_PG_PASSWORD", "lupa"),
+      dbname = Sys.getenv("LUPA_PG_DBNAME", "lupa")
     ),
     error = function(e) NULL
   )

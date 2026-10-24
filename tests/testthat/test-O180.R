@@ -290,7 +290,8 @@ test_that("H-08, H-17 y H-01 en PostgreSQL real: perfilar_dbi() protege las tres
   con <- tryCatch(
     DBI::dbConnect(
       RPostgres::Postgres(), host = "127.0.0.1", port = 55432,
-      user = "postgres", password = "lupa", dbname = "lupa"
+      user = "postgres", password = Sys.getenv("LUPA_PG_PASSWORD", "lupa"),
+      dbname = Sys.getenv("LUPA_PG_DBNAME", "lupa")
     ),
     error = function(e) NULL
   )

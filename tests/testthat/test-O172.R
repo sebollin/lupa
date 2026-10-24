@@ -31,7 +31,8 @@ test_that("float8 exacto en PostgreSQL 9.3 y 16", {
   conexiones <- lapply(configuraciones, function(cfg) tryCatch(
     DBI::dbConnect(
       RPostgres::Postgres(), host = "127.0.0.1", port = unname(cfg[["puerto"]]),
-      user = "postgres", password = "lupa", dbname = "lupa"
+      user = "postgres", password = Sys.getenv("LUPA_PG_PASSWORD", "lupa"),
+      dbname = Sys.getenv("LUPA_PG_DBNAME", "lupa")
     ), error = function(e) NULL
   ))
   names(conexiones) <- names(configuraciones)

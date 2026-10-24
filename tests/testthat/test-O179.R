@@ -9,7 +9,8 @@ testthat::skip_if_not_installed("DBI")
   conexion <- tryCatch(
     DBI::dbConnect(
       RPostgres::Postgres(), host = "127.0.0.1", port = puerto,
-      user = "postgres", password = "lupa", dbname = "lupa"
+      user = "postgres", password = Sys.getenv("LUPA_PG_PASSWORD", "lupa"),
+      dbname = Sys.getenv("LUPA_PG_DBNAME", "lupa")
     ),
     error = function(e) NULL
   )
