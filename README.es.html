@@ -54,14 +54,27 @@
 
 <div id="lupa-" class="section level1">
 
-<p>Perfilado y medición de calidad de datos con evidencia: cada resultado declara su alcance y lo que no pudo medir.</p>
+<p>Perfilado y medición de calidad de datos con evidencia. Cada resultado declara su alcance y lo que no pudo medir.</p>
 <!-- badges: start -->
-<p><a href="https://www.gnu.org/licenses/gpl-3.0.html" class="external-link"><img src="https://img.shields.io/badge/licencia-GPL--3-blue.svg" alt="Licencia: GPL-3"></a> <a href="https://github.com/sebollin/lupa/actions/workflows/R-CMD-check.yaml" class="external-link"><img src="https://github.com/sebollin/lupa/actions/workflows/R-CMD-check.yaml/badge.svg" alt="R-CMD-check"></a> <a href="https://www.repostatus.org/#active" class="external-link"><img src="https://www.repostatus.org/badges/latest/active.svg" alt="Estado del repositorio: activo"></a> <a href="README.html"><img src="https://img.shields.io/badge/README-English-1f6feb.svg" alt="README in English"></a> <!-- badges: end --></p>
+<p><a href="https://github.com/sebollin/lupa/actions/workflows/R-CMD-check.yaml" class="external-link"><img src="https://github.com/sebollin/lupa/actions/workflows/R-CMD-check.yaml/badge.svg" alt="R-CMD-check"></a> <a href="https://github.com/sebollin/lupa/actions/workflows/motores.yaml" class="external-link"><img src="https://img.shields.io/github/actions/workflow/status/sebollin/lupa/motores.yaml?branch=main&amp;label=CI%20de%20motores" alt="CI de motores"></a> <a href="https://sebollin.r-universe.dev/lupa" class="external-link"><img src="https://sebollin.r-universe.dev/lupa/badges/version" alt="r-universe"></a> <a href="https://cran.r-project.org/" class="external-link"><img src="https://img.shields.io/badge/R-%E2%89%A5%204.2.0-276DC3.svg" alt="R &gt;= 4.2.0"></a> <a href="https://lifecycle.r-lib.org/articles/stages.html#stable" class="external-link"><img src="https://img.shields.io/badge/ciclo%20de%20vida-estable-0D9786.svg" alt="Ciclo de vida: estable"></a> <a href="https://www.gnu.org/licenses/gpl-3.0.html" class="external-link"><img src="https://img.shields.io/badge/licencia-GPL--3-blue.svg" alt="Licencia: GPL-3"></a> <a href="https://www.repostatus.org/#active" class="external-link"><img src="https://www.repostatus.org/badges/latest/active.svg" alt="Estado del repositorio: activo"></a> <a href="README.html"><img src="https://img.shields.io/badge/README-English-1f6feb.svg" alt="README in English"></a> <!-- badges: end --></p>
 <div class="section level2">
-<h2 id="qué-hace-y-para-quién">Qué hace y para quién<a class="anchor" aria-label="anchor" href="#qu%C3%A9-hace-y-para-qui%C3%A9n"></a></h2>
-<p><code>lupa</code> examina una tabla o una base de datos antes de confiar en ella. Encuentra lo que un <code><a href="https://rdrr.io/r/base/summary.html" class="external-link">summary()</a></code> no ve: faltantes disfrazados de <code>"S/D"</code> o de <code>-99</code>, el mismo dato escrito de varias formas, fechas en formatos mezclados, filas y columnas repetidas, estructura que nadie declaró. Dice en qué filas está cada problema y qué controles no pudo hacer. Después ayuda a convertir lo confirmado en mediciones explícitas, a evaluarlas, a limpiar una copia con un plan editable y a comparar entregas. Está pensado para quien analiza, produce o publica datos tabulares y necesita saber qué tan confiables son antes de usarlos.</p>
-<p>Lo que lo distingue está por dentro. No resume la calidad en un puntaje: junta las contradicciones que encuentra, cada una con su tipo, su severidad y su evidencia. Cada cifra viaja con su alcance: sobre cuántas filas se calculó y si hubo muestra. Lo que no se pudo medir queda declarado con su motivo y nunca cuenta como cero. Y el perfilado no modifica la entrada.</p>
-</div>
+<h2 id="mag_right-qué-hace-y-para-quién">🔎 Qué hace y para quién<a class="anchor" aria-label="anchor" href="#mag_right-qu%C3%A9-hace-y-para-qui%C3%A9n"></a></h2>
+<p><code>lupa</code> examina una tabla o una base de datos antes de confiar en ella. Encuentra lo que un <code><a href="https://rdrr.io/r/base/summary.html" class="external-link">summary()</a></code> no ve:</p>
+<ul><li>faltantes disfrazados de <code>"S/D"</code> o de <code>-99</code>;</li>
+<li>el mismo dato escrito de varias formas;</li>
+<li>fechas en formatos mezclados;</li>
+<li>filas y columnas repetidas;</li>
+<li>estructura que nadie declaró.</li>
+</ul><p>Dice en qué filas está cada problema y qué controles no pudo hacer. Después ayuda a convertir lo confirmado en mediciones, a evaluarlas, a limpiar una copia con un plan editable y a comparar entregas. Es para quien analiza, produce o publica datos tabulares y necesita saber qué tan confiables son antes de usarlos.</p>
+<p>Lo que lo distingue:</p>
+<ul><li>
+<strong>No resume la calidad en un puntaje.</strong> Cada contradicción trae su tipo, su severidad y su evidencia.</li>
+<li>
+<strong>Cada cifra viaja con su alcance</strong>: las filas que usó y si hubo muestra.</li>
+<li>
+<strong>Lo que no se pudo medir queda declarado</strong>, con su motivo. Nunca cuenta como cero.</li>
+<li><strong>El perfilado no modifica la entrada.</strong></li>
+</ul></div>
 <div class="section level2">
 <h2 id="instalación">Instalación<a class="anchor" aria-label="anchor" href="#instalaci%C3%B3n"></a></h2>
 <p>La versión publicada se instala desde CRAN:</p>
@@ -71,10 +84,17 @@
 <div class="sourceCode" id="cb2"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="co"># install.packages("pak")</span></span>
 <span><span class="fu">pak</span><span class="fu">::</span><span class="fu"><a href="https://pak.r-lib.org/reference/pak.html" class="external-link">pak</a></span><span class="op">(</span><span class="st">"sebollin/lupa"</span><span class="op">)</span></span></code></pre></div>
-<p>Depende sólo de <a href="https://CRAN.R-project.org/package=cli" class="external-link"><code>cli</code></a> y <a href="https://CRAN.R-project.org/package=data.table" class="external-link"><code>data.table</code></a>. Los sugeridos habilitan capacidades acotadas: <a href="https://CRAN.R-project.org/package=DBI" class="external-link"><code>DBI</code></a> con un controlador (<a href="https://CRAN.R-project.org/package=RSQLite" class="external-link"><code>RSQLite</code></a>, <a href="https://CRAN.R-project.org/package=duckdb" class="external-link"><code>duckdb</code></a>, <a href="https://CRAN.R-project.org/package=RPostgres" class="external-link"><code>RPostgres</code></a> u <a href="https://CRAN.R-project.org/package=odbc" class="external-link"><code>odbc</code></a>) para perfilar dentro de una base, <a href="https://CRAN.R-project.org/package=stringdist" class="external-link"><code>stringdist</code></a> para comparar texto de forma aproximada y <a href="https://CRAN.R-project.org/package=sf" class="external-link"><code>sf</code></a> para geometrías. La API, la ayuda y las guías están en castellano; los nombres públicos son parte del contrato.</p>
+<p>Depende sólo de <a href="https://CRAN.R-project.org/package=cli" class="external-link"><code>cli</code></a> y <a href="https://CRAN.R-project.org/package=data.table" class="external-link"><code>data.table</code></a>. Los sugeridos habilitan capacidades acotadas:</p>
+<ul><li>
+<a href="https://CRAN.R-project.org/package=DBI" class="external-link"><code>DBI</code></a> con un controlador (<a href="https://CRAN.R-project.org/package=RSQLite" class="external-link"><code>RSQLite</code></a>, <a href="https://CRAN.R-project.org/package=duckdb" class="external-link"><code>duckdb</code></a>, <a href="https://CRAN.R-project.org/package=RPostgres" class="external-link"><code>RPostgres</code></a> u <a href="https://CRAN.R-project.org/package=odbc" class="external-link"><code>odbc</code></a>) para perfilar dentro de una base;</li>
+<li>
+<a href="https://CRAN.R-project.org/package=stringdist" class="external-link"><code>stringdist</code></a> para comparar texto de forma aproximada;</li>
+<li>
+<a href="https://CRAN.R-project.org/package=sf" class="external-link"><code>sf</code></a> para geometrías.</li>
+</ul><p>La API, la ayuda y las guías están en castellano; los nombres públicos son parte del contrato.</p>
 </div>
 <div class="section level2">
-<h2 id="treinta-segundos">Treinta segundos<a class="anchor" aria-label="anchor" href="#treinta-segundos"></a></h2>
+<h2 id="id_-en-30-s">⏱ En 30 s<a class="anchor" aria-label="anchor" href="#id_-en-30-s"></a></h2>
 <p><code>datos_operativos</code> viene con el paquete: 13 filas y 10 columnas con defectos sembrados. Se perfila con una llamada y se empieza por los hallazgos de severidad <code>error</code>:</p>
 <div class="sourceCode" id="cb3"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va"><a href="https://github.com/sebollin/lupa" class="external-link">lupa</a></span><span class="op">)</span></span>
@@ -93,7 +113,7 @@
 <span><span class="co">#&gt;    fecha_evento       alta_cardinalidad sospechoso</span></span>
 <span><span class="co">#&gt;    fecha_evento tipo_declarado_distinto sospechoso</span></span></code></pre></div>
 <p>Una <code>columna</code> en <code>&lt;NA&gt;</code> es un hallazgo de la tabla entera, como las filas duplicadas.</p>
-<p>Lo que no se pudo medir no desaparece. En esta tabla quedaron 9 diagnósticos sin evaluar, contando cada uno en cada columna donde no pudo correr (la búsqueda de valores atípicos, por ejemplo, necesita más valores de los que hay), y <code>cobertura(perfil)</code> dice cuáles, en qué columna, por qué y cómo resolverlo:</p>
+<p>Lo que no se pudo medir no desaparece. En esta tabla quedaron 9 diagnósticos sin evaluar, contando cada uno en cada columna donde no pudo correr: la búsqueda de valores atípicos, por ejemplo, necesita más valores de los que hay. <code>cobertura(perfil)</code> dice cuáles, en qué columna, por qué y cómo resolverlo:</p>
 <div class="sourceCode" id="cb4"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/base/as.data.frame.html" class="external-link">as.data.frame</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/table.html" class="external-link">table</a></span><span class="op">(</span>diagnostico <span class="op">=</span> <span class="fu"><a href="reference/accesores_perfil.html">cobertura</a></span><span class="op">(</span><span class="va">perfil</span><span class="op">)</span><span class="op">$</span><span class="va">diagnostico</span><span class="op">)</span>, responseName <span class="op">=</span> <span class="st">"columnas"</span><span class="op">)</span></span>
 <span><span class="co">#&gt;              diagnostico columnas</span></span>
@@ -103,7 +123,33 @@
 <span><span class="co">#&gt; 4   resumen_cuantitativo        1</span></span></code></pre></div>
 </div>
 <div class="section level2">
-<h2 id="qué-deja-visible-que-summary-no">Qué deja visible que <code>summary()</code> no<a class="anchor" aria-label="anchor" href="#qu%C3%A9-deja-visible-que-summary-no"></a></h2>
+<h2 id="file_cabinet-tablas-y-bases-de-datos">🗄️ Tablas y bases de datos<a class="anchor" aria-label="anchor" href="#file_cabinet-tablas-y-bases-de-datos"></a></h2>
+<p><code><a href="reference/perfilar.html">perfilar()</a></code> perfila un <code>data.frame</code> en memoria. <code><a href="reference/perfilar_dbi.html">perfilar_dbi()</a></code> perfila una tabla <strong>dentro de la base</strong>: los agregados corren como SQL en el motor, y a R llegan sólo las filas que entran en los topes. La misma superficie se mide contra 6 motores reales:</p>
+<table class="table"><thead><tr><th align="left">Motor</th>
+<th align="left">Versión probada</th>
+<th align="left">Controlador de R</th>
+</tr></thead><tbody><tr><td align="left">DuckDB</td>
+<td align="left">1.5</td>
+<td align="left"><code>duckdb</code></td>
+</tr><tr><td align="left">MariaDB</td>
+<td align="left">11</td>
+<td align="left"><code>RMariaDB</code></td>
+</tr><tr><td align="left">MySQL</td>
+<td align="left">8</td>
+<td align="left"><code>RMySQL</code></td>
+</tr><tr><td align="left">PostgreSQL</td>
+<td align="left">16</td>
+<td align="left"><code>RPostgres</code></td>
+</tr><tr><td align="left">SQL Server</td>
+<td align="left">2022</td>
+<td align="left"><code>odbc</code></td>
+</tr><tr><td align="left">SQLite</td>
+<td align="left">—</td>
+<td align="left"><code>RSQLite</code></td>
+</tr></tbody></table><p>PostgreSQL y MariaDB se miden en cada push (<a href="https://github.com/sebollin/lupa/actions/workflows/motores.yaml" class="external-link">CI de motores</a>), y SQLite y DuckDB en la suite de pruebas de cada plataforma de la CI; MySQL y SQL Server, contra contenedores locales antes de cada versión. Oracle debería funcionar pero no está medido, y BigQuery no está documentado. <code><a href="reference/requisitos_motor.html">requisitos_motor()</a></code> dice qué necesita cada motor. Las versiones, los controladores y la fecha de cada corrida están en <a href="https://sebollin.github.io/lupa/articles/motores-y-escala.html#motores-probados">Motores y escala</a>.</p>
+</div>
+<div class="section level2">
+<h2 id="lo-que-summary-no-muestra">Lo que <code>summary()</code> no muestra<a class="anchor" aria-label="anchor" href="#lo-que-summary-no-muestra"></a></h2>
 <p><code><a href="https://rdrr.io/r/base/summary.html" class="external-link">summary()</a></code> describe las columnas una por una. <code>lupa</code> compara representaciones, cruza columnas y filas, y devuelve los hallazgos como una tabla: tipo, severidad, evidencia, conteos, una sugerencia y la trazabilidad hasta las filas. Un tipo de hallazgo que no aparece es un diagnóstico que corrió y no encontró nada; lo que no corrió está en <code><a href="reference/accesores_perfil.html">cobertura()</a></code>.</p>
 <p>Entre las salidas de esa corrida aparecen:</p>
 <table class="table"><colgroup><col width="33%"><col width="20%"><col width="45%"></colgroup><thead><tr><th>Qué deja visible</th>
@@ -166,7 +212,7 @@
 <p>Los conteos (filas, faltantes, valores distintos, duplicados exactos y resúmenes) usan todas las filas; los patrones, los tipos y los formatos de fecha se infieren sobre una muestra sistemática de hasta 100.000 filas (<code>muestra</code>). La guía <a href="https://sebollin.github.io/lupa/articles/leer-un-perfil.html">Leer un perfil</a> explica cada columna de los hallazgos, las claves, las discordancias entre columnas y el glosario.</p>
 </div>
 <div class="section level2">
-<h2 id="qué-lo-distingue-y-dónde-se-ubica">Qué lo distingue y dónde se ubica<a class="anchor" aria-label="anchor" href="#qu%C3%A9-lo-distingue-y-d%C3%B3nde-se-ubica"></a></h2>
+<h2 id="dónde-se-ubica">Dónde se ubica<a class="anchor" aria-label="anchor" href="#d%C3%B3nde-se-ubica"></a></h2>
 <p>Para resumir y graficar columnas están <a href="https://CRAN.R-project.org/package=skimr" class="external-link"><code>skimr</code></a> y <a href="https://CRAN.R-project.org/package=DataExplorer" class="external-link"><code>DataExplorer</code></a>; para diagnosticar una tabla y redactar su informe, <a href="https://CRAN.R-project.org/package=dlookr" class="external-link"><code>dlookr</code></a> y <a href="https://CRAN.R-project.org/package=dataReporter" class="external-link"><code>dataReporter</code></a>; para evaluar reglas que alguien ya escribió, <a href="https://CRAN.R-project.org/package=validate" class="external-link"><code>validate</code></a>, <a href="https://CRAN.R-project.org/package=pointblank" class="external-link"><code>pointblank</code></a>, <a href="https://CRAN.R-project.org/package=assertr" class="external-link"><code>assertr</code></a> y <a href="https://CRAN.R-project.org/package=dataquieR" class="external-link"><code>dataquieR</code></a>. <code>lupa</code> trabaja en el tramo anterior a la regla y en el siguiente: encuentra lo que todavía ninguna regla nombra, propone qué medir sin umbrales de fábrica y, cuando la regla se confirma, la mide con su alcance, limpia una copia y compara entregas. Se usa junto a esos paquetes, no en su lugar.</p>
 </div>
 <div class="section level2">
@@ -252,23 +298,23 @@
 </td>
 <td>No: sólo agregados, sin hallazgos por fila</td>
 </tr></tbody></table><p>Sin <code>orden_muestra</code>, la lectura de <code>muestra = n</code> son las primeras filas que entrega el motor, en un orden que SQL no garantiza; con <code>orden_muestra</code> se puede rehacer. Lo leído a R se describe en <code>perfil_muestra$meta$origen_dbi$muestreo</code>; <code>resumen_tabla$meta$muestreo</code> existe sólo con <code>universo = "muestra_motor"</code>. No hay lectura instantánea: <code>resumen_tabla$meta$snapshot</code> es <code>FALSE</code>, porque cada agregado se mide en su propia consulta y la tabla puede cambiar entre una y otra.</p>
-<p>El paquete se prueba contra DuckDB, MariaDB, MySQL, PostgreSQL, SQL Server y SQLite; <code><a href="reference/requisitos_motor.html">requisitos_motor()</a></code> dice qué necesita cada motor. Las versiones, los controladores y la fecha de cada corrida están en el artículo <a href="https://sebollin.github.io/lupa/articles/motores-y-escala.html#motores-probados">Motores y escala</a>, y el recorrido paso a paso, en <a href="https://sebollin.github.io/lupa/articles/perfilar-una-base.html">Perfilar una base</a>.</p>
+<p>Los motores probados son DuckDB, MariaDB, MySQL, PostgreSQL, SQL Server y SQLite. El recorrido paso a paso está en <a href="https://sebollin.github.io/lupa/articles/perfilar-una-base.html">Perfilar una base</a>.</p>
 </div>
 <div class="section level2">
-<h2 id="límites-que-conviene-conocer-antes-de-una-corrida-grande">Límites que conviene conocer antes de una corrida grande<a class="anchor" aria-label="anchor" href="#l%C3%ADmites-que-conviene-conocer-antes-de-una-corrida-grande"></a></h2>
+<h2 id="warning-límites-que-conviene-conocer-antes-de-una-corrida-grande">⚠️ Límites que conviene conocer antes de una corrida grande<a class="anchor" aria-label="anchor" href="#warning-l%C3%ADmites-que-conviene-conocer-antes-de-una-corrida-grande"></a></h2>
 <ul><li>
 <strong>Topes de muestra.</strong> Lo que se trae o se muestrea en R se corta en 1.000.000 celdas (<code>max_celdas_muestra</code>) y 512 MiB (<code>max_bytes_muestra</code>), y el recorte queda en <code><a href="reference/accesores_perfil.html">cobertura()</a></code> con el tope que mandó (<a href="https://sebollin.github.io/lupa/articles/motores-y-escala.html#topes">Motores y escala</a>).</li>
 <li>
 <strong>Política de costo.</strong> En <code><a href="reference/perfilar_dbi.html">perfilar_dbi()</a></code>, <code>politica_costo = "todas"</code> (por omisión) mide moda y mediana en todas las columnas; <code>"por_cardinalidad"</code> omite la moda donde la proporción de distintos llega a <code>umbral_cardinalidad</code> (0,5), y <code><a href="reference/plan_perfilado_dbi.html">plan_perfilado_dbi()</a></code> muestra las consultas antes de correrlas (<a href="https://sebollin.github.io/lupa/articles/motores-y-escala.html#politica-de-costo">Motores y escala</a>).</li>
 <li>
-<strong>Duplicados aproximados.</strong> Están apagados por omisión. <code><a href="reference/detectar_duplicados_aproximados.html">detectar_duplicados_aproximados()</a></code> compara de forma exacta hasta 50.000.000 pares (<code>max_pares</code>). Con la estrategia por omisión (<code>"auto"</code>), sin muestra y con ese tope, más de diez mil filas la llevan a MinHash/LSH, que puede perder pares y lo declara (candidatos, bandas y garantía de colisión); con un <code>max_pares</code> menor o una muestra se queda en la comparación exacta o muestreada, y <code>estrategia = "lsh"</code> lo fuerza. <code><a href="reference/estimar_costo.html">estimar_costo()</a></code> lo anticipa (<a href="https://sebollin.github.io/lupa/articles/escala-y-duplicados.html">Escala y duplicados aproximados</a>).</li>
+<strong>Duplicados aproximados.</strong> Están apagados por omisión. <code><a href="reference/detectar_duplicados_aproximados.html">detectar_duplicados_aproximados()</a></code> compara de forma exacta hasta 50.000.000 pares (<code>max_pares</code>). Con la estrategia por omisión (<code>"auto"</code>), sin muestra y con ese tope, más de 10.000 filas la llevan a MinHash/LSH, que puede perder pares y lo declara (candidatos, bandas y garantía de colisión); con un <code>max_pares</code> menor o una muestra se queda en la comparación exacta o muestreada, y <code>estrategia = "lsh"</code> lo fuerza. <code><a href="reference/estimar_costo.html">estimar_costo()</a></code> lo anticipa (<a href="https://sebollin.github.io/lupa/articles/escala-y-duplicados.html">Escala y duplicados aproximados</a>).</li>
 <li>
 <strong>Tablas anchas.</strong> Desde 100.000 celdas, una sesión interactiva recibe un aviso de cuánto puede tardar <code><a href="reference/perfilar.html">perfilar()</a></code>; la estimación usa un supuesto del código (10.000 celdas por segundo), no una medición de la máquina; las mediciones fechadas están en <a href="https://sebollin.github.io/lupa/articles/evidencia-y-rendimiento.html">Evidencia y rendimiento</a>.</li>
 <li>
 <strong>Millones de filas en memoria.</strong> <code><a href="reference/perfilar.html">perfilar()</a></code> y <code><a href="reference/analizar.html">analizar()</a></code> tardan minutos, no segundos: conviene perfilar una muestra o usar <code><a href="reference/perfilar_dbi.html">perfilar_dbi()</a></code>. Las cifras medidas, con su fecha, están en <a href="https://sebollin.github.io/lupa/articles/evidencia-y-rendimiento.html">Evidencia y rendimiento</a>.</li>
 </ul></div>
 <div class="section level2">
-<h2 id="un-informe-en-un-archivo">Un informe en un archivo<a class="anchor" aria-label="anchor" href="#un-informe-en-un-archivo"></a></h2>
+<h2 id="page_facing_up-un-informe-en-un-archivo">📄 Un informe en un archivo<a class="anchor" aria-label="anchor" href="#page_facing_up-un-informe-en-un-archivo"></a></h2>
 <p><code><a href="reference/analizar.html">analizar()</a></code> reúne en un objeto el perfil, las distribuciones, las asociaciones, el análisis temporal, una propuesta de modelo de calidad con su tablero y un plan de limpieza; <code><a href="reference/reportar.html">reportar()</a></code> lo escribe en un HTML autocontenido para compartir.</p>
 <div class="sourceCode" id="cb7"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">analisis</span> <span class="op">&lt;-</span> <span class="fu"><a href="reference/analizar.html">analizar</a></span><span class="op">(</span><span class="va">datos_operativos</span><span class="op">)</span></span>
@@ -302,8 +348,8 @@
 <p>Tampoco certifica un conjunto de datos ni inventa un puntaje global: <code><a href="reference/indice_calidad.html">indice_calidad()</a></code> calcula un índice sólo con los pesos que declara el proyecto. Y no modifica la entrada: ninguna función de análisis altera la tabla que recibe (ni sus valores, ni sus tipos, ni sus nombres, ni sus atributos), tampoco un <code>data.table</code>. La limpieza devuelve una copia y deja el original intacto.</p>
 </div>
 <div class="section level2">
-<h2 id="el-camino-de-aprendizaje">El camino de aprendizaje<a class="anchor" aria-label="anchor" href="#el-camino-de-aprendizaje"></a></h2>
-<p>Las guías se leen en este orden. Están en el sitio y viajan con el paquete (<code><a href="articles/lupa.html">vignette("lupa")</a></code> abre la primera):</p>
+<h2 id="compass-el-camino-de-aprendizaje">🧭 El camino de aprendizaje<a class="anchor" aria-label="anchor" href="#compass-el-camino-de-aprendizaje"></a></h2>
+<p>Las guías se leen en este orden, y las 12 están en el sitio. Las guías 1 a 6 viajan además con el paquete (<code><a href="articles/lupa.html">vignette("lupa")</a></code> abre la primera); de la 7 a la 12 están sólo en el sitio.</p>
 <ol style="list-style-type: decimal"><li>
 <a href="https://sebollin.github.io/lupa/articles/lupa.html">Empezar en diez minutos</a>: perfilar una tabla, empezar por los errores, ir de un hallazgo a sus filas con <code>clave</code>, leer la cobertura, guardar un informe y limpiar una columna en una copia.</li>
 <li>

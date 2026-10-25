@@ -357,11 +357,11 @@ selección la hizo `lupa` y nadie la confirmó.
 Para quedarnos sólo con la descripción, `medir_propuesta = FALSE`. Para
 medir lo que decidimos nosotros, editamos la propuesta y la pasamos como
 `propuesta_confirmada`; ese camino sigue en [7. Del hallazgo a la
-métrica](https://sebollin.github.io/lupa/articles/del-hallazgo-a-la-metrica.md).
+métrica](https://sebollin.github.io/lupa/articles/del-hallazgo-a-la-metrica.html).
 `cobertura`, por su parte, dice qué factores del marco de calidad
 quedaron medidos (por omisión, el de AGESIC); los marcos se explican en
 [8. Marcos y modelos de
-calidad](https://sebollin.github.io/lupa/articles/marcos-y-modelos.md).
+calidad](https://sebollin.github.io/lupa/articles/marcos-y-modelos.html).
 
 ## ¿`perfilar()` o `analizar()`?
 
@@ -399,7 +399,7 @@ de la base con
 [`perfilar_dbi()`](https://sebollin.github.io/lupa/reference/perfilar_dbi.md),
 que calcula los agregados en el motor y deja elegir cuántas filas trae a
 R (ver [10. Perfilar una
-base](https://sebollin.github.io/lupa/articles/perfilar-una-base.md)).
+base](https://sebollin.github.io/lupa/articles/perfilar-una-base.html)).
 Los tiempos medidos sobre tablas de ese tamaño, con su fecha y su
 entorno, están en el artículo [Evidencia y
 rendimiento](https://sebollin.github.io/lupa/articles/evidencia-y-rendimiento.html).

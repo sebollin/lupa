@@ -83,6 +83,14 @@
 <code><a href="../reference/reportar.html">reportar()</a></code> escribe un informe HTML autocontenido, sin depender de software externo para generarlo.</li>
 </ul></div>
 <div class="section level3">
+<h3 id="documentación-0-1-0">Documentación<a class="anchor" aria-label="anchor" href="#documentaci%C3%B3n-0-1-0"></a></h3>
+<ul><li>El paquete trae las guías 1 a 6, el camino básico: de la primera tabla al plan de limpieza. Las guías 7 a 12 (métricas, marcos, histórico, bases de datos, colecciones y escala) y los 4 artículos de referencia están en el sitio, <a href="https://sebollin.github.io/lupa/" class="uri">https://sebollin.github.io/lupa/</a>.</li>
+</ul></div>
+<div class="section level3">
+<h3 id="rendimiento-0-1-0">Rendimiento<a class="anchor" aria-label="anchor" href="#rendimiento-0-1-0"></a></h3>
+<ul><li>La tabla de formatos de fecha se arma una vez, al instalar el paquete, y no en cada columna. Sobre la tabla de ejemplo de 13 filas, <code><a href="../reference/perfilar.html">perfilar()</a></code> bajó de 0,60 s a 0,25 s y <code><a href="../reference/analizar.html">analizar()</a></code> de 1,28 s a 0,73 s.</li>
+</ul></div>
+<div class="section level3">
 <h3 id="requisitos-0-1-0">Requisitos<a class="anchor" aria-label="anchor" href="#requisitos-0-1-0"></a></h3>
 <ul><li>R 4.2.0 o posterior. Las columnas <code>integer64</code> necesitan además bit64 4.6.0 o posterior: con versiones anteriores, <code><a href="https://rdrr.io/r/base/match.html" class="external-link">match()</a></code> de R iguala entre sí todos los valores negativos, y <code>lupa</code> se niega con la condición <code>lupa_error_integer64</code> en lugar de publicar distintos, modas y medianas equivocados.</li>
 </ul></div>

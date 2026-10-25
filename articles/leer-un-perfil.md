@@ -280,7 +280,7 @@ Del mismo modo, un perfil de una base sin filas leídas devuelve una
 tabla de hallazgos vacía con su aviso. Cómo se leen los dos bloques de
 [`perfilar_dbi()`](https://sebollin.github.io/lupa/reference/perfilar_dbi.md)
 está en [10. Perfilar una
-base](https://sebollin.github.io/lupa/articles/perfilar-una-base.md).
+base](https://sebollin.github.io/lupa/articles/perfilar-una-base.html).
 
 ## Las claves
 
@@ -588,9 +588,9 @@ granularidades()[, c("nivel", "granularidad", "relacional")]
 ```
 
 Las métricas, los modelos y los marcos se usan en [7. Del hallazgo a la
-métrica](https://sebollin.github.io/lupa/articles/del-hallazgo-a-la-metrica.md)
+métrica](https://sebollin.github.io/lupa/articles/del-hallazgo-a-la-metrica.html)
 y [8. Marcos y modelos de
-calidad](https://sebollin.github.io/lupa/articles/marcos-y-modelos.md).
+calidad](https://sebollin.github.io/lupa/articles/marcos-y-modelos.html).
 
 ## Resumen
 

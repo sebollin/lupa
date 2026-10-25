@@ -1,35 +1,50 @@
 # lupa
 
-Perfilado y medición de calidad de datos con evidencia: cada resultado
+Perfilado y medición de calidad de datos con evidencia. Cada resultado
 declara su alcance y lo que no pudo medir.
 
+[![R-CMD-check](https://github.com/sebollin/lupa/actions/workflows/R-CMD-check.yaml/badge.svg)](https://github.com/sebollin/lupa/actions/workflows/R-CMD-check.yaml)
+[![CI de
+motores](https://img.shields.io/github/actions/workflow/status/sebollin/lupa/motores.yaml?branch=main&label=CI%20de%20motores)](https://github.com/sebollin/lupa/actions/workflows/motores.yaml)
+[![r-universe](https://sebollin.r-universe.dev/lupa/badges/version)](https://sebollin.r-universe.dev/lupa)
+[![R \>=
+4.2.0](https://img.shields.io/badge/R-%E2%89%A5%204.2.0-276DC3.svg)](https://cran.r-project.org/)
+[![Ciclo de vida:
+estable](https://img.shields.io/badge/ciclo%20de%20vida-estable-0D9786.svg)](https://lifecycle.r-lib.org/articles/stages.html#stable)
 [![Licencia:
 GPL-3](https://img.shields.io/badge/licencia-GPL--3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0.html)
-[![R-CMD-check](https://github.com/sebollin/lupa/actions/workflows/R-CMD-check.yaml/badge.svg)](https://github.com/sebollin/lupa/actions/workflows/R-CMD-check.yaml)
 [![Estado del repositorio:
 activo](https://www.repostatus.org/badges/latest/active.svg)](https://www.repostatus.org/#active)
 [![README in
 English](https://img.shields.io/badge/README-English-1f6feb.svg)](https://sebollin.github.io/lupa/README.md)
 
-## Qué hace y para quién
+## 🔎 Qué hace y para quién
 
 `lupa` examina una tabla o una base de datos antes de confiar en ella.
 Encuentra lo que un [`summary()`](https://rdrr.io/r/base/summary.html)
-no ve: faltantes disfrazados de `"S/D"` o de `-99`, el mismo dato
-escrito de varias formas, fechas en formatos mezclados, filas y columnas
-repetidas, estructura que nadie declaró. Dice en qué filas está cada
-problema y qué controles no pudo hacer. Después ayuda a convertir lo
-confirmado en mediciones explícitas, a evaluarlas, a limpiar una copia
-con un plan editable y a comparar entregas. Está pensado para quien
-analiza, produce o publica datos tabulares y necesita saber qué tan
-confiables son antes de usarlos.
+no ve:
 
-Lo que lo distingue está por dentro. No resume la calidad en un puntaje:
-junta las contradicciones que encuentra, cada una con su tipo, su
-severidad y su evidencia. Cada cifra viaja con su alcance: sobre cuántas
-filas se calculó y si hubo muestra. Lo que no se pudo medir queda
-declarado con su motivo y nunca cuenta como cero. Y el perfilado no
-modifica la entrada.
+- faltantes disfrazados de `"S/D"` o de `-99`;
+- el mismo dato escrito de varias formas;
+- fechas en formatos mezclados;
+- filas y columnas repetidas;
+- estructura que nadie declaró.
+
+Dice en qué filas está cada problema y qué controles no pudo hacer.
+Después ayuda a convertir lo confirmado en mediciones, a evaluarlas, a
+limpiar una copia con un plan editable y a comparar entregas. Es para
+quien analiza, produce o publica datos tabulares y necesita saber qué
+tan confiables son antes de usarlos.
+
+Lo que lo distingue:
+
+- **No resume la calidad en un puntaje.** Cada contradicción trae su
+  tipo, su severidad y su evidencia.
+- **Cada cifra viaja con su alcance**: las filas que usó y si hubo
+  muestra.
+- **Lo que no se pudo medir queda declarado**, con su motivo. Nunca
+  cuenta como cero.
+- **El perfilado no modifica la entrada.**
 
 ## Instalación
 
@@ -51,19 +66,21 @@ pak::pak("sebollin/lupa")
 Depende sólo de [`cli`](https://CRAN.R-project.org/package=cli) y
 [`data.table`](https://CRAN.R-project.org/package=data.table). Los
 sugeridos habilitan capacidades acotadas:
-[`DBI`](https://CRAN.R-project.org/package=DBI) con un controlador
-([`RSQLite`](https://CRAN.R-project.org/package=RSQLite),
-[`duckdb`](https://CRAN.R-project.org/package=duckdb),
-[`RPostgres`](https://CRAN.R-project.org/package=RPostgres) u
-[`odbc`](https://CRAN.R-project.org/package=odbc)) para perfilar dentro
-de una base,
-[`stringdist`](https://CRAN.R-project.org/package=stringdist) para
-comparar texto de forma aproximada y
-[`sf`](https://CRAN.R-project.org/package=sf) para geometrías. La API,
-la ayuda y las guías están en castellano; los nombres públicos son parte
-del contrato.
 
-## Treinta segundos
+- [`DBI`](https://CRAN.R-project.org/package=DBI) con un controlador
+  ([`RSQLite`](https://CRAN.R-project.org/package=RSQLite),
+  [`duckdb`](https://CRAN.R-project.org/package=duckdb),
+  [`RPostgres`](https://CRAN.R-project.org/package=RPostgres) u
+  [`odbc`](https://CRAN.R-project.org/package=odbc)) para perfilar
+  dentro de una base;
+- [`stringdist`](https://CRAN.R-project.org/package=stringdist) para
+  comparar texto de forma aproximada;
+- [`sf`](https://CRAN.R-project.org/package=sf) para geometrías.
+
+La API, la ayuda y las guías están en castellano; los nombres públicos
+son parte del contrato.
+
+## ⏱ En 30 s
 
 `datos_operativos` viene con el paquete: 13 filas y 10 columnas con
 defectos sembrados. Se perfila con una llamada y se empieza por los
@@ -93,9 +110,9 @@ filas duplicadas.
 
 Lo que no se pudo medir no desaparece. En esta tabla quedaron 9
 diagnósticos sin evaluar, contando cada uno en cada columna donde no
-pudo correr (la búsqueda de valores atípicos, por ejemplo, necesita más
-valores de los que hay), y `cobertura(perfil)` dice cuáles, en qué
-columna, por qué y cómo resolverlo:
+pudo correr: la búsqueda de valores atípicos, por ejemplo, necesita más
+valores de los que hay. `cobertura(perfil)` dice cuáles, en qué columna,
+por qué y cómo resolverlo:
 
 ``` r
 
@@ -107,7 +124,36 @@ as.data.frame(table(diagnostico = cobertura(perfil)$diagnostico), responseName =
 #> 4   resumen_cuantitativo        1
 ```
 
-## Qué deja visible que `summary()` no
+## 🗄️ Tablas y bases de datos
+
+[`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md)
+perfila un `data.frame` en memoria.
+[`perfilar_dbi()`](https://sebollin.github.io/lupa/reference/perfilar_dbi.md)
+perfila una tabla **dentro de la base**: los agregados corren como SQL
+en el motor, y a R llegan sólo las filas que entran en los topes. La
+misma superficie se mide contra 6 motores reales:
+
+| Motor      | Versión probada | Controlador de R |
+|:-----------|:----------------|:-----------------|
+| DuckDB     | 1.5             | `duckdb`         |
+| MariaDB    | 11              | `RMariaDB`       |
+| MySQL      | 8               | `RMySQL`         |
+| PostgreSQL | 16              | `RPostgres`      |
+| SQL Server | 2022            | `odbc`           |
+| SQLite     | —               | `RSQLite`        |
+
+PostgreSQL y MariaDB se miden en cada push ([CI de
+motores](https://github.com/sebollin/lupa/actions/workflows/motores.yaml)),
+y SQLite y DuckDB en la suite de pruebas de cada plataforma de la CI;
+MySQL y SQL Server, contra contenedores locales antes de cada versión.
+Oracle debería funcionar pero no está medido, y BigQuery no está
+documentado.
+[`requisitos_motor()`](https://sebollin.github.io/lupa/reference/requisitos_motor.md)
+dice qué necesita cada motor. Las versiones, los controladores y la
+fecha de cada corrida están en [Motores y
+escala](https://sebollin.github.io/lupa/articles/motores-y-escala.html#motores-probados).
+
+## Lo que `summary()` no muestra
 
 [`summary()`](https://rdrr.io/r/base/summary.html) describe las columnas
 una por una. `lupa` compara representaciones, cruza columnas y filas, y
@@ -186,7 +232,7 @@ perfil](https://sebollin.github.io/lupa/articles/leer-un-perfil.html)
 explica cada columna de los hallazgos, las claves, las discordancias
 entre columnas y el glosario.
 
-## Qué lo distingue y dónde se ubica
+## Dónde se ubica
 
 Para resumir y graficar columnas están
 [`skimr`](https://CRAN.R-project.org/package=skimr) y
@@ -255,16 +301,11 @@ instantánea: `resumen_tabla$meta$snapshot` es `FALSE`, porque cada
 agregado se mide en su propia consulta y la tabla puede cambiar entre
 una y otra.
 
-El paquete se prueba contra DuckDB, MariaDB, MySQL, PostgreSQL, SQL
-Server y SQLite;
-[`requisitos_motor()`](https://sebollin.github.io/lupa/reference/requisitos_motor.md)
-dice qué necesita cada motor. Las versiones, los controladores y la
-fecha de cada corrida están en el artículo [Motores y
-escala](https://sebollin.github.io/lupa/articles/motores-y-escala.html#motores-probados),
-y el recorrido paso a paso, en [Perfilar una
+Los motores probados son DuckDB, MariaDB, MySQL, PostgreSQL, SQL Server
+y SQLite. El recorrido paso a paso está en [Perfilar una
 base](https://sebollin.github.io/lupa/articles/perfilar-una-base.html).
 
-## Límites que conviene conocer antes de una corrida grande
+## ⚠️ Límites que conviene conocer antes de una corrida grande
 
 - **Topes de muestra.** Lo que se trae o se muestrea en R se corta en
   1.000.000 celdas (`max_celdas_muestra`) y 512 MiB
@@ -284,7 +325,7 @@ base](https://sebollin.github.io/lupa/articles/perfilar-una-base.html).
   [`detectar_duplicados_aproximados()`](https://sebollin.github.io/lupa/reference/detectar_duplicados_aproximados.md)
   compara de forma exacta hasta 50.000.000 pares (`max_pares`). Con la
   estrategia por omisión (`"auto"`), sin muestra y con ese tope, más de
-  diez mil filas la llevan a MinHash/LSH, que puede perder pares y lo
+  10.000 filas la llevan a MinHash/LSH, que puede perder pares y lo
   declara (candidatos, bandas y garantía de colisión); con un
   `max_pares` menor o una muestra se queda en la comparación exacta o
   muestreada, y `estrategia = "lsh"` lo fuerza.
@@ -307,7 +348,7 @@ base](https://sebollin.github.io/lupa/articles/perfilar-una-base.html).
   Las cifras medidas, con su fecha, están en [Evidencia y
   rendimiento](https://sebollin.github.io/lupa/articles/evidencia-y-rendimiento.html).
 
-## Un informe en un archivo
+## 📄 Un informe en un archivo
 
 [`analizar()`](https://sebollin.github.io/lupa/reference/analizar.md)
 reúne en un objeto el perfil, las distribuciones, las asociaciones, el
@@ -360,12 +401,12 @@ recibe (ni sus valores, ni sus tipos, ni sus nombres, ni sus atributos),
 tampoco un `data.table`. La limpieza devuelve una copia y deja el
 original intacto.
 
-## El camino de aprendizaje
+## 🧭 El camino de aprendizaje
 
-Las guías se leen en este orden. Están en el sitio y viajan con el
-paquete
+Las guías se leen en este orden, y las 12 están en el sitio. Las guías 1
+a 6 viajan además con el paquete
 ([`vignette("lupa")`](https://sebollin.github.io/lupa/articles/lupa.md)
-abre la primera):
+abre la primera); de la 7 a la 12 están sólo en el sitio.
 
 1.  [Empezar en diez
     minutos](https://sebollin.github.io/lupa/articles/lupa.html):

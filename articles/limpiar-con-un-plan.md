@@ -320,7 +320,7 @@ la encuentra casi vacía y con un único valor. Y `filas_duplicadas` queda
 conjunto de columnas no se puede decidir si las filas repetidas se
 resolvieron. La comparación entre entregas se explica en [9. Comparar
 entregas y seguir la
-calidad](https://sebollin.github.io/lupa/articles/historico-y-deriva.md).
+calidad](https://sebollin.github.io/lupa/articles/historico-y-deriva.html).
 
 ## Imputar por una dependencia
 
@@ -414,12 +414,11 @@ Las descripciones que faltaban se completaron desde el mapa
 Si la limpieza es parte de entregas periódicas y la pregunta es qué
 cambió entre una y otra, se puede saltar directamente a [9. Comparar
 entregas y seguir la
-calidad](https://sebollin.github.io/lupa/articles/historico-y-deriva.md).
+calidad](https://sebollin.github.io/lupa/articles/historico-y-deriva.html).
 
 ## Paso siguiente
 
 [7. Del hallazgo a la
-métrica](https://sebollin.github.io/lupa/articles/del-hallazgo-a-la-metrica.md)
-([`vignette("del-hallazgo-a-la-metrica")`](https://sebollin.github.io/lupa/articles/del-hallazgo-a-la-metrica.md)):
-cómo pasar de lo que el perfil encontró a métricas que se miden y se
-evalúan contra un umbral.
+métrica](https://sebollin.github.io/lupa/articles/del-hallazgo-a-la-metrica.html),
+en el sitio del paquete: cómo pasar de lo que el perfil encontró a
+métricas que se miden y se evalúan contra un umbral.

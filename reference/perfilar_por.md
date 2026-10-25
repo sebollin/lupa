@@ -208,6 +208,7 @@ adivina claves ni jerarquías.
 ## Examples
 
 ``` r
+set.seed(1)
 largo <- data.frame(
   entidad = rep(1:40, each = 2),
   atributo = rep(c("pais", "edad"), 40),
