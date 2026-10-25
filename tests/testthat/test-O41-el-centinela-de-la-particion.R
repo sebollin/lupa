@@ -24,7 +24,7 @@ testthat::skip_on_cran()
 }
 
 test_that("el centinela que sale de la particion se declara, no se publica", {
-  skip_if_not_installed("bit64")
+  skip_if_not_installed("bit64", "4.6.0")
   datos <- .datos_con_centinelas_por_grupo()
 
   por_grupo <- perfilar_por(datos, "g", analizar_dependencias = FALSE,
@@ -44,7 +44,7 @@ test_that("el centinela que sale de la particion se declara, no se publica", {
 })
 
 test_that("el centinela que la columna entera si conjetura sigue publicandose", {
-  skip_if_not_installed("bit64")
+  skip_if_not_installed("bit64", "4.6.0")
   # Control: lo que se mueve es lo que sale de la particion, no todo centinela
   # de un grupo. Sin esta mitad, callar todos pasaria la prueba anterior.
   datos <- .datos_con_centinelas_por_grupo()

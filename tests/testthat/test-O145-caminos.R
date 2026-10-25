@@ -31,7 +31,7 @@ magnitudes_r29e <- c("minimo", "maximo", "media", "mediana", "desvio")
 test_that("H1: con bloque_filas un integer64 da las cifras del agregado y no cambia la clase de la tabla", {
   skip_if_not_installed("DBI")
   skip_if_not_installed("RSQLite")
-  skip_if_not_installed("bit64")
+  skip_if_not_installed("bit64", "4.6.0")
   con <- conexion_sqlite_r29e()
   on.exit(DBI::dbDisconnect(con), add = TRUE)
   # `marca` (milisegundos) y `neg` no entran en 32 bits: RSQLite las devuelve
@@ -72,7 +72,7 @@ test_that("H1: con bloque_filas un integer64 da las cifras del agregado y no cam
 test_that("H1: con bloque_filas un integer64 desde 2^53 retiene las siete magnitudes, como el agregado", {
   skip_if_not_installed("DBI")
   skip_if_not_installed("RSQLite")
-  skip_if_not_installed("bit64")
+  skip_if_not_installed("bit64", "4.6.0")
   con <- conexion_sqlite_r29e()
   on.exit(DBI::dbDisconnect(con), add = TRUE)
   DBI::dbExecute(con, "CREATE TABLE g (g INTEGER, d REAL)")

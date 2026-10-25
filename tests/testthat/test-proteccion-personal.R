@@ -578,7 +578,7 @@ test_that("el rango de fallecimiento posterior al perfil es un error", {
 })
 
 test_that("extremos exactos integer64 personales tambien se protegen", {
-  skip_if_not_installed("bit64")
+  skip_if_not_installed("bit64", "4.6.0")
   datos <- data.frame(documento = bit64::as.integer64(c(
     "9007199254740993", "9007199254740995", "9007199254740997"
   )))

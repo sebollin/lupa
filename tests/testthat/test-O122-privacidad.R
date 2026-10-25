@@ -208,6 +208,9 @@ test_that("perfilar_dbi tapa un valor que esta solo fuera de la muestra, en cual
 test_that("perfilar_dbi cierra y lo declara cuando no puede traer los valores", {
   skip_if_not_installed("DBI")
   skip_if_not_installed("RSQLite")
+  # Simula un valor, no una funcion: `local_mocked_bindings()` lo admite desde
+  # testthat 3.2.0, y `Suggests` pide 3.1.7.
+  skip_if_not_installed("testthat", "3.2.0")
   set.seed(18)
   n <- 2000L
   datos <- data.frame(id = seq_len(n))

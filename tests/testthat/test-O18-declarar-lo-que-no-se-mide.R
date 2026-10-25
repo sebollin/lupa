@@ -63,7 +63,7 @@ test_that("asociaciones conserva pares que no pudo medir", {
 })
 
 test_that("perfilar_por mueve centinelas de integer64 a cobertura", {
-  skip_if_not_installed("bit64")
+  skip_if_not_installed("bit64", "4.6.0")
   n <- 2400L
   datos <- data.frame(
     id = bit64::as.integer64(c(seq_len(n - 2L), 999L, 999L)),

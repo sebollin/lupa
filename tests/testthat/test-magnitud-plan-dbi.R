@@ -112,7 +112,7 @@ test_that("un conteo de filas que no es un conteo no produce una estimacion", {
 })
 
 test_that("un conteo `integer64` se estima igual, que es donde mas importa", {
-  skip_if_not_installed("bit64")
+  skip_if_not_installed("bit64", "4.6.0")
   # `n_total` llega como `integer64` justamente sobre las tablas grandes, y
   # `is.numeric()` da FALSE para esa clase: exigirlo habria dejado sin
   # estimacion el unico caso donde la estimacion hace falta.

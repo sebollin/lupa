@@ -335,7 +335,7 @@ test_that("M1: la corroboracion no publica como divergencia lo que una declaraci
 test_that("M1: el BIGINT desde 2^53 no publica divergencias que la guarda crea a proposito", {
   skip_if_not_installed("DBI")
   skip_if_not_installed("RSQLite")
-  skip_if_not_installed("bit64")
+  skip_if_not_installed("bit64", "4.6.0")
   con <- DBI::dbConnect(RSQLite::SQLite(), ":memory:")
   on.exit(DBI::dbDisconnect(con), add = TRUE)
   # Doce identificadores tipo snowflake, `15` y 17 cifras: todos > 1,5e18, asi

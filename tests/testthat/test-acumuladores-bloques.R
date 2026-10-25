@@ -111,7 +111,7 @@ test_that("la clave de filas reproduce duplicated.data.frame por bloques", {
     expect_true(isTRUE(actual$exacto))
   }
 
-  skip_if_not_installed("bit64")
+  skip_if_not_installed("bit64", "4.6.0")
   grande <- data.frame(
     x = bit64::as.integer64(c("9007199254740993", "9007199254740994",
                               "9007199254740993"))

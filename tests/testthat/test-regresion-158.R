@@ -28,7 +28,7 @@ testthat::skip_on_cran()
 }
 
 test_that("el contador repliega las columnas de lista a base", {
-  skip_if_not_installed("bit64")
+  skip_if_not_installed("bit64", "4.6.0")
   datos <- .tabla_r158(repetidas = TRUE)
   esperado <- .conteos_base_r158(datos)
 
@@ -158,7 +158,7 @@ test_that("una tabla con NaN se mide por la via de base", {
 })
 
 test_that("perfilar deja identico el data.frame y data.table de entrada", {
-  skip_if_not_installed("bit64")
+  skip_if_not_installed("bit64", "4.6.0")
   for (repetidas in c(FALSE, TRUE)) {
     datos_df <- .tabla_r158(repetidas)
     datos_dt <- data.table::as.data.table(datos_df)
@@ -177,7 +177,7 @@ test_that("perfilar deja identico el data.frame y data.table de entrada", {
 })
 
 test_that("los conteos rapidos coinciden con base sin filas repetidas", {
-  skip_if_not_installed("bit64")
+  skip_if_not_installed("bit64", "4.6.0")
   datos <- .tabla_r158(repetidas = FALSE)
   esperado <- .conteos_base_r158(datos)
   resultado <- lupa:::.conteos_filas_duplicadas(datos)
@@ -282,7 +282,7 @@ test_that("un metodo de duplicated que ignora fromLast no cambia el conteo", {
   # sin el. La via de base heredaba ese defecto y la rapida no, asi que la
   # respuesta cambiaba segun el umbral de filas. Ahora las dos dan vuelta las
   # filas en vez de confiar en el argumento.
-  skip_if_not_installed("bit64")
+  skip_if_not_installed("bit64", "4.6.0")
   valores <- rep(bit64::as.integer64(c(100, 200, 300)), 10L)
   datos <- data.frame(x = valores)
 
@@ -308,7 +308,7 @@ test_that("un metodo de duplicated que ignora fromLast no cambia el conteo", {
 })
 
 test_that("la traza de filas duplicadas incluye todos los participantes integer64", {
-  skip_if_not_installed("bit64")
+  skip_if_not_installed("bit64", "4.6.0")
   esperado <- 2:5
   datos_doble <- data.frame(id = c(1, 2, 2, 3, 3))
   datos_integer64 <- data.frame(

@@ -107,7 +107,7 @@ test_that("perfilar_por etiqueta bien cada clase y declara lo que no perfila", {
 })
 
 test_that("perfilar_por etiqueta un integer64 grande y una fecha-hora por su valor", {
-  skip_if_not_installed("bit64")
+  skip_if_not_installed("bit64", "4.6.0")
   g <- bit64::as.integer64(rep(c("9007199254740993", "9007199254740992"), each = 40))
   d <- data.frame(g = g, x = c(rep(NA, 5), stats::runif(75)))
   h <- suppressWarnings(perfilar_por(d, "g", min_filas = 10))

@@ -17,7 +17,7 @@ testthat::skip_on_cran()
 }
 
 test_that("A: conservar_primera_duplicada con integer64 quita solo la fila repetida", {
-  skip_if_not_installed("bit64")
+  skip_if_not_installed("bit64", "4.6.0")
   datos <- data.frame(
     id = bit64::as.integer64(c(-1, -2, 3, -1)), b = c(1, 1, 2, 1)
   )

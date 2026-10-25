@@ -46,12 +46,12 @@ Language: es
 LazyData: true
 Roxygen: list(markdown = TRUE)
 Depends:
-    R (>= 4.1.0)
+    R (>= 4.2.0)
 Imports:
     cli (>= 3.0.0),
     data.table
 Suggests:
-    bit64,
+    bit64 (>= 4.6.0),
     covr,
     DBI,
     duckdb,

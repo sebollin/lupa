@@ -574,7 +574,7 @@ test_that("el plan acota las consultas en los cinco modos", {
 })
 
 test_that("los conteos textuales conservan integer64 cuando bit64 esta disponible", {
-  skip_if_not_installed("bit64")
+  skip_if_not_installed("bit64", "4.6.0")
   valor <- lupa:::.conteo_dbi("9007199254740993")
   expect_s3_class(valor, "integer64")
   expect_identical(as.character(valor), "9007199254740993")

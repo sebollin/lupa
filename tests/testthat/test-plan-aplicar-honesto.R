@@ -300,7 +300,7 @@ test_that("n_cambiadas cuenta cambios y no valores presentes", {
 })
 
 test_that("los duplicados se agrupan igual en integer64 que en double", {
-  skip_if_not_installed("bit64")
+  skip_if_not_installed("bit64", "4.6.0")
   # `duplicated(x, fromLast = TRUE)` sobre `integer64` devuelve lo mismo que sin
   # `fromLast`: el metodo de bit64 ignora el argumento. Con eso, de un grupo de
   # dos filas identicas se marcaba una sola.

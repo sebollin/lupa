@@ -50,6 +50,13 @@ Primera versión publicada.
 - `reportar()` escribe un informe HTML autocontenido, sin depender de software
   externo para generarlo.
 
+## Requisitos
+
+- R 4.2.0 o posterior. Las columnas `integer64` necesitan además bit64 4.6.0 o
+  posterior: con versiones anteriores, `match()` de R iguala entre sí todos los
+  valores negativos, y `lupa` se niega con la condición `lupa_error_integer64`
+  en lugar de publicar distintos, modas y medianas equivocados.
+
 ## Datos personales
 
 - La clasificación de posibles datos personales (documentos, nombres, fechas de

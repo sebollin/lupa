@@ -31,7 +31,7 @@ test_that("un valor que la conversion pierde no se publica como calculado", {
 test_that("un entero por encima de 2^53 no se publica redondeado", {
   skip_if_not_installed("DBI")
   skip_if_not_installed("RSQLite")
-  skip_if_not_installed("bit64")
+  skip_if_not_installed("bit64", "4.6.0")
   con <- DBI::dbConnect(RSQLite::SQLite(), ":memory:")
   on.exit(DBI::dbDisconnect(con), add = TRUE)
   datos <- data.frame(id = 1:5)
@@ -87,7 +87,7 @@ test_that("el plan declara un rango sin consultar los datos", {
 })
 
 test_that("la puerta de exactitud cubre el entero que redondea hacia el limite", {
-  skip_if_not_installed("bit64")
+  skip_if_not_installed("bit64", "4.6.0")
   # 2^53+1 pasa a doble como 2^53, asi que comparar el doble ya convertido
   # contra el limite deja pasar el unico caso que hay que atajar.
   limite <- bit64::as.integer64("9007199254740993")

@@ -1438,7 +1438,7 @@ guardar_analisis <- function(x, archivo, incluir_datos = FALSE,
   # `saveRDS()` admite un logico o uno de los tres metodos por nombre. Se pide
   # eso y no su impresion.
   # La lista depende de la VERSION de R y no puede escribirse fija: `saveRDS()`
-  # documenta `"zstd"` desde R 4.5, y este paquete declara `R (>= 4.1.0)`. Con
+  # documenta `"zstd"` desde R 4.5, y este paquete declara `R (>= 4.2.0)`. Con
   # la lista fija pasaba una de dos cosas segun donde se corriera: o se rechaza
   # un metodo que R admite -cerrar de mas- o se admite uno que R no conoce y el
   # error crudo vuelve a llegar al usuario, que es el defecto que esta

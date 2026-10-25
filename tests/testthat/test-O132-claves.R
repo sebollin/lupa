@@ -133,7 +133,7 @@ test_that("H6: un BIGINT que llega como doble por encima de 2^53 no se compara",
 })
 
 test_that("H1: un integer64 con patron de bits NaN es un entero, no un ausente", {
-  skip_if_not_installed("bit64")
+  skip_if_not_installed("bit64", "4.6.0")
   # Todo entero de -1 a -4503599627370495 tiene el patron de bits de un NaN.
   id <- bit64::as.integer64(c(-1, -2, -3))
   expect_false(anyNA(id))
@@ -219,9 +219,11 @@ test_that("H2: instantes y fechas con fraccion se comparan por su valor", {
     data.frame(t = t0 + c(0, 1e-6)), data.frame(t = t0 + c(1e-6, 5))
   ))
   expect_identical(r3$n_valores_comunes, 1L)
-  # Fechas con fraccion de dia.
+  # Fechas con fraccion de dia. `origin` explicito: `as.Date()` de un numero lo
+  # exige hasta R 4.3, y el paquete declara R 4.2.
   fechas <- as.data.frame(detectar_relaciones(
-    data.frame(d = as.Date(c(18262.2, 18262.9))), data.frame(d = as.Date(18262.7))
+    data.frame(d = as.Date(c(18262.2, 18262.9), origin = "1970-01-01")),
+    data.frame(d = as.Date(18262.7, origin = "1970-01-01"))
   ))
   expect_identical(fechas$n_valores_comunes, 0L)
   # Control: al segundo exacto, un texto sigue coincidiendo con un instante.

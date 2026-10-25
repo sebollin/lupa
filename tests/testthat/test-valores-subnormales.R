@@ -53,7 +53,7 @@ test_that("el conteo es exacto y no depende de que el valor sea extremo", {
 # entero de cualquier tabla con una fecha. La guarda mira `oldClass()` y no una
 # lista de clases, porque una lista deja afuera la proxima.
 test_that("las clases que son doble por debajo no rompen ni disparan", {
-  skip_if_not_installed("bit64")
+  skip_if_not_installed("bit64", "4.6.0")
   casos <- list(
     fecha = as.Date(c("2020-01-01", "2021-06-15")),
     fecha_hora = as.POSIXct(

@@ -5,7 +5,7 @@
 testthat::skip_on_cran()
 
 test_that("una numeracion por encima de 2^53 no se declara no densa", {
-  skip_if_not_installed("bit64")
+  skip_if_not_installed("bit64", "4.6.0")
   grande <- bit64::as.integer64("9000000000000000000") + bit64::as.integer64(1:1000)
   p <- suppressWarnings(perfilar(data.frame(ids = grande)))
   # Antes: tres veredictos FALSE y ninguna fila en la cobertura.
@@ -20,7 +20,7 @@ test_that("una numeracion por encima de 2^53 no se declara no densa", {
 })
 
 test_that("la descripcion de enteros fuera de precision dice como se guardan", {
-  skip_if_not_installed("bit64")
+  skip_if_not_installed("bit64", "4.6.0")
   g <- bit64::as.integer64("9000000000000000000") + bit64::as.integer64(1:50)
   p <- suppressWarnings(perfilar(data.frame(
     i64 = g, txt = as.character(g), stringsAsFactors = FALSE

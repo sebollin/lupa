@@ -92,7 +92,7 @@ test_that("H4: los centinelas declarados no corren las trazas de los cuantitativ
 })
 
 test_that("H4: el centinela en integer64 tampoco corre la traza de outliers", {
-  skip_if_not_installed("bit64")
+  skip_if_not_installed("bit64", "4.6.0")
   x <- bit64::as.integer64(c(-1, -1, -1, 10:35, 1000))
   h <- hallazgos(perfilar(data.frame(x = x), sentinelas_numericos = -1))
   # A mano: el 1000 esta en la fila 30. Antes: 27.

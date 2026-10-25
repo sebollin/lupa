@@ -17740,6 +17740,10 @@ print.plan_perfilado_dbi <- function(x, ...) {
   }
   campos <- esquema$campos
   prototipo <- esquema$prototipo
+  # Las clases de R de las columnas se conocen aca, antes de leer un valor: es
+  # el unico punto de la via fuera de los manejadores que convierten un error
+  # de consulta en una metrica no calculada. Ver `.exigir_integer64_confiable()`.
+  .exigir_integer64_confiable(prototipo, via_dbi = TRUE)
   if (length(names(prototipo)) == length(campos) &&
       !identical(.nombres_para_operar(names(prototipo)),
                  .nombres_para_operar(campos))) {
@@ -18366,8 +18370,12 @@ print.plan_perfilado_dbi <- function(x, ...) {
 #' `lupa_error_dbi`— para que se puedan rescatar con `tryCatch()`:
 #' `lupa_error_conexion_dbi`, `lupa_error_tabla_dbi`, `lupa_error_campos_dbi`,
 #' `lupa_error_conteo_dbi`, `lupa_error_esquema_dbi`,
-#' `lupa_error_codificacion_dbi`, `lupa_error_argumento_dbi` y
-#' `lupa_error_transaccion_dbi`.
+#' `lupa_error_codificacion_dbi`, `lupa_error_argumento_dbi`,
+#' `lupa_error_transaccion_dbi` y `lupa_error_integer64`. La última sale cuando
+#' la lectura por bloques recibe una columna `integer64` con un `bit64`
+#' anterior a 4.6.0: sin el método `mtfrm.integer64`, `match()` de R iguala
+#' entre sí todos los valores negativos. Sin bloques, los agregados que calcula
+#' el motor se devuelven y la muestra no, con un aviso que dice por qué.
 #'
 #' @section Dentro de una transacción:
 #' La vía se puede correr dentro de una transacción abierta por el usuario —es

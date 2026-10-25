@@ -11,7 +11,7 @@ test_that("un conteo corriente sale numeric, no integer64", {
 })
 
 test_that("integer64 se conserva solo donde compra exactitud", {
-  skip_if_not_installed("bit64")
+  skip_if_not_installed("bit64", "4.6.0")
   # Justo en 2^53 el double todavia es exacto: no hace falta integer64.
   expect_false(inherits(.conteo_dbi("9007199254740992"), "integer64"))
   # Un digito mas y el double ya redondea: ahi si.
@@ -29,7 +29,7 @@ test_that("integer64 se conserva solo donde compra exactitud", {
 })
 
 test_that("un conteo exacto no se declara inexacto", {
-  skip_if_not_installed("bit64")
+  skip_if_not_installed("bit64", "4.6.0")
   # El error simetrico del que importa: el valor se guardaba exacto y
   # `conteo_exacto` decia FALSE. El paquete se declaraba menos preciso de lo
   # que era.

@@ -124,7 +124,7 @@ test_that("falta stringdist: la proximidad de vocabulario se declara", {
 })
 
 test_that("falta bit64: integer64 se declara sin soporte", {
-  skip_if_not_installed("bit64")
+  skip_if_not_installed("bit64", "4.6.0")
   datos <- data.frame(texto = letters[1:5], stringsAsFactors = FALSE)
   datos$grande <- bit64::as.integer64(seq_len(5L))
 
@@ -265,7 +265,7 @@ test_that("una columna numérica con clase declarada se declara dos veces", {
 })
 
 test_that("una columna integer64 declara la razón de Benford por su tipo", {
-  skip_if_not_installed("bit64")
+  skip_if_not_installed("bit64", "4.6.0")
   set.seed(215)
   datos <- data.frame(id = seq_len(120))
   datos$grande <- bit64::as.integer64(round(stats::runif(120, 1, 999999)))

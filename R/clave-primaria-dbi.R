@@ -394,7 +394,7 @@
 }
 
 # `%||%` no sirve aca: llego a base recien en R 4.4.0 y el paquete declara
-# `R (>= 4.1.0)`. Usarlo compilaria en esta maquina y fallaria en el piso que
+# `R (>= 4.2.0)`. Usarlo compilaria en esta maquina y fallaria en el piso que
 # DESCRIPTION promete, que es la clase de defecto que ningun check local ve.
 # Devuelve el motivo si las filas no se pueden atribuir a UNA sola relacion, y
 # `NULL` si no hay ambiguedad. Se mira lo que el catalogo mismo publica: el

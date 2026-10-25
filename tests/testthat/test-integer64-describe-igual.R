@@ -12,7 +12,7 @@
 # los bits del `double` subyacente y manda los negativos al final.
 
 test_that("la moda no depende de si la columna se guarda como integer64", {
-  skip_if_not_installed("bit64")
+  skip_if_not_installed("bit64", "4.6.0")
   # Cinco valores con la MISMA frecuencia: el resultado lo decide el desempate.
   crudos <- rep(c(1, 2, -999, 4, 5), 60L)
   en_doble <- perfilar(data.frame(v = as.numeric(crudos)),
@@ -31,7 +31,7 @@ test_that("la moda no depende de si la columna se guarda como integer64", {
 })
 
 test_that("el orden seguro no depende de que bit64 este adjunto", {
-  skip_if_not_installed("bit64")
+  skip_if_not_installed("bit64", "4.6.0")
   x <- bit64::as.integer64(c(1, 2, -999, 4, 5))
   # El `order()` de base sobre `integer64` da el orden equivocado; esta prueba
   # fija que el paquete NO lo usa. Si algun dia base aprendiera a ordenarlos,
@@ -44,7 +44,7 @@ test_that("el orden seguro no depende de que bit64 este adjunto", {
 })
 
 test_that("una numeracion densa se reconoce igual en integer64", {
-  skip_if_not_installed("bit64")
+  skip_if_not_installed("bit64", "4.6.0")
   # `1:1000` contiene el 999, que esta en la lista por omision de centinelas.
   # En las tres representaciones la columna se reconoce como numeracion y el
   # 999 queda protegido por eso; la conversion de `integer64` debe conservar
@@ -79,7 +79,7 @@ test_that("una numeracion densa se reconoce igual en integer64", {
 })
 
 test_that("memoria y motor dan la misma moda sobre una columna integer64", {
-  skip_if_not_installed("bit64")
+  skip_if_not_installed("bit64", "4.6.0")
   skip_if_not_installed("RSQLite")
   skip_if_not_installed("DBI")
   datos <- data.frame(v = bit64::as.integer64(rep(c(1, 2, -999, 4, 5), 60L)))
@@ -101,7 +101,7 @@ test_that("memoria y motor dan la misma moda sobre una columna integer64", {
 })
 
 test_that("la moda de una columna integer64 no depende de bit64 adjunto", {
-  skip_if_not_installed("bit64")
+  skip_if_not_installed("bit64", "4.6.0")
   # `bit64` NO registra sus metodos S3 cuando solo esta cargado, asi que dentro
   # del espacio de nombres del paquete cualquier operacion de base sobre un
   # `integer64` -incluso `x[1]`- lo degrada a `double` REINTERPRETANDO SUS BITS.

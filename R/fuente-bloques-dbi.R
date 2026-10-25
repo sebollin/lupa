@@ -1318,6 +1318,10 @@
     # muestra, donde hace falta para que R reconozca la ausencia; reescribirlo
     # aca cambiaba el minimo y la media publicados por el resumen completo.
     bloque <- .marcar_utf8_tabla(bloque)
+    # Un driver puede decidir la clase por los valores -RSQLite da `integer64`
+    # solo si alguno no entra en 32 bits-, y entonces el prototipo de cero filas
+    # que mira `.preparar_dbi()` no la ve: los acumuladores la ven aca.
+    .exigir_integer64_confiable(bloque, via_dbi = TRUE)
     n <- nrow(bloque)
     if (!n) break
     inicio <- ordinal + 1

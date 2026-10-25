@@ -140,7 +140,7 @@ testthat::test_that("O178: faltantes se comparan en dos perfiles DBI muestreados
 testthat::test_that("O178: decimal grande conserva identidad en muestra_motor", {
   testthat::skip_if_not_installed("DBI")
   testthat::skip_if_not_installed("RPostgres")
-  testthat::skip_if_not_installed("bit64")
+  testthat::skip_if_not_installed("bit64", "4.6.0")
   con <- tryCatch(
     DBI::dbConnect(
       RPostgres::Postgres(), host = "127.0.0.1", port = 55432,

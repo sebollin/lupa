@@ -1285,6 +1285,11 @@
 #' Lo mismo pasa si la columna tiene valores por encima de 2^53: en un doble se
 #' redondean, la densidad no se mide sobre números redondeados, y la secuencia
 #' queda en `NA` y declarada, no como «no densa».
+#' Con un `bit64` anterior a 4.6.0, en cambio, `perfilar()` no perfila una
+#' columna `integer64`: se niega con la condición `lupa_error_integer64`,
+#' porque sin el método `mtfrm.integer64` `match()` de R iguala entre sí todos
+#' los valores negativos, y los distintos, la moda y la mediana saldrían mal
+#' sin aviso.
 #' La guarda vuelve a abrirse si un candidato presente queda fuera del rango de
 #' los valores restantes de la numeración, o si la frecuencia del candidato es
 #' la moda sobresaliente. Esta segunda señal se mide por el **salto entre

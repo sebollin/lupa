@@ -59,7 +59,7 @@ test_that("microsegundos y offsets ISO 8601 se reconocen sin perder UTC", {
 })
 
 test_that("integer64 fuera de double se resume sin inventar extremos", {
-  skip_if_not_installed("bit64")
+  skip_if_not_installed("bit64", "4.6.0")
   originales <- c("9007199254740993", "9007199254740995", "9007199254740997")
   x <- bit64::as.integer64(originales)
   perfil <- perfilar(data.frame(x = x), analizar_dependencias = FALSE)
@@ -76,7 +76,7 @@ test_that("integer64 fuera de double se resume sin inventar extremos", {
 })
 
 test_that("integer64 seguro conserva estadísticas ordinarias y extremos exactos", {
-  skip_if_not_installed("bit64")
+  skip_if_not_installed("bit64", "4.6.0")
   x <- bit64::as.integer64(c("-2", "0", "5", NA))
   perfil <- perfilar(data.frame(x = x), analizar_dependencias = FALSE)
   fila <- perfil$columnas

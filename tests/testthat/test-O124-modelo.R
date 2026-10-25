@@ -142,7 +142,7 @@ test_that("la supresion declarada sobrevive a acumular la medicion despues", {
 })
 
 test_that("AtributoDuplicado marca todas las apariciones tambien en integer64", {
-  skip_if_not_installed("bit64")
+  skip_if_not_installed("bit64", "4.6.0")
   instancia <- instanciar(especializar(metricas_nucleo()$AtributoDuplicado), "t", "id")
   valores <- c(7, 3, 3, 1e5, 2e6, 99999)
   doble <- medir(modelo(list(instancia)), data.frame(id = valores))$resultado
@@ -154,7 +154,7 @@ test_that("AtributoDuplicado marca todas las apariciones tambien en integer64", 
 })
 
 test_that("los conjuntos declarados emparejan integer64 con un doble por su valor", {
-  skip_if_not_installed("bit64")
+  skip_if_not_installed("bit64", "4.6.0")
   datos <- data.frame(id = bit64::as.integer64(c(7, 3, 3, 1e5, 2e6, 99999)))
   medida <- function(metrica, ...) {
     instancia <- instanciar(especializar(metricas_nucleo()[[metrica]], ...), "t", "id")

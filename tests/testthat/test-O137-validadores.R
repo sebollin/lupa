@@ -219,7 +219,7 @@ test_that("H9: el RUT guardado como numero se valida como el texto", {
 })
 
 test_that("H9: integer64 de once digitos tambien", {
-  skip_if_not_installed("bit64")
+  skip_if_not_installed("bit64", "4.6.0")
   expect_true(validar_rut_uy(bit64::as.integer64("80121500010")))
 })
 

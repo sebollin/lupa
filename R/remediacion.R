@@ -2806,7 +2806,7 @@ rbind.plan_limpieza <- function(..., deparse.level = 1) {
 .celdas_cambiadas <- function(anterior, nuevo) {
   anterior <- as.character(anterior)
   nuevo <- as.character(nuevo)
-  # `!=` sobre una cadena marcada `bytes` ABORTA en el minimo declarado -R 4.1-
+  # `!=` sobre una cadena marcada `bytes` ABORTA en R 4.1
   # con "translating strings with bytes encoding is not allowed", y en 4.6 no.
   # Mientras esta funcion solo se llamaba desde los tres ejecutores de texto el
   # camino con marca no llegaba aca; desde que la perdida se mide en la puerta
@@ -2849,8 +2849,8 @@ rbind.plan_limpieza <- function(..., deparse.level = 1) {
   # cero irreversibles.
   cambiadas <- .celdas_cambiadas(anterior, nuevo)
   if (!any(cambiadas)) return(cambiadas)
-  # Se compara sobre la CLAVE por bytes, no sobre las cadenas. En el minimo
-  # declarado -R 4.1- `duplicated()` y `split()` sobre una cadena marcada
+  # Se compara sobre la CLAVE por bytes, no sobre las cadenas. En R 4.1
+  # `duplicated()` y `split()` sobre una cadena marcada
   # `bytes` abortan con "translating strings with bytes encoding is not
   # allowed", y esta regla corre sobre columnas de texto que pueden traer esa
   # marca. La clave ademas separa dos cadenas de los mismos bytes con marcas

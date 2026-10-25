@@ -809,6 +809,53 @@
   tryCatch(order(clave), error = function(e) seq_along(x))
 }
 
+# `match()` de base sobre un `integer64` necesita el metodo `mtfrm.integer64`,
+# que `bit64` registra desde la 4.6.0 y solo con R 4.2.0 o posterior: antes R no
+# tenia el generico. Sin el, `match()` compara los bits del `double` subyacente,
+# y todos los negativos de -2^52 a -1 son `NaN` leidos como `double`, asi que
+# base los iguala entre si. Medido el 2026-10-25 en R 4.1.0 con bit64 4.0.5:
+# `perfilar()` conto 4 distintos en una columna de 7, y por bloques la mediana
+# de -3000000001..-3000000005 salio -3000000001. Con R 4.1.0 y bit64 4.8.6
+# `match()` seguia igualandolos.
+#
+# El paquete usa `match()` -y `factor()`, `table()` y `%in%`, que lo usan por
+# dentro- en cientos de sitios, asi que no se arregla en cada uno: se exige el
+# entorno en la entrada y se dice por que, en lugar de contar mal en silencio.
+.integer64_con_match_confiable <- function() {
+  exists("mtfrm", envir = baseenv(), inherits = FALSE) &&
+    !is.null(utils::getS3method("mtfrm", "integer64", optional = TRUE))
+}
+
+# La guarda de entrada: `x` es una tabla o una columna. Con `via_dbi`, la
+# condicion hereda ademas de `lupa_error_dbi`, como todas las de esa via.
+.exigir_integer64_confiable <- function(x, via_dbi = FALSE) {
+  if (inherits(x, "integer64")) {
+    columnas <- character()
+  } else {
+    if (!is.list(x) || !length(x)) return(invisible(x))
+    es_integer64 <- vapply(x, inherits, logical(1L), "integer64")
+    if (!any(es_integer64)) return(invisible(x))
+    columnas <- names(x)[es_integer64]
+  }
+  if (.integer64_con_match_confiable()) return(invisible(x))
+  nombradas <- if (length(columnas)) {
+    paste0(" (", paste0("`", columnas, "`", collapse = ", "), ")")
+  } else ""
+  mensaje <- paste0(
+    "Las columnas `integer64`", nombradas, " necesitan R 4.2.0 y bit64 4.6.0",
+    " o posteriores. Con versiones anteriores, `match()` de R iguala entre sí",
+    " todos los valores negativos, y los distintos, la moda y la mediana",
+    " saldrían mal sin aviso. Actualice bit64 desde CRAN; o convierta la",
+    " columna con `as.numeric()` si sus valores no pasan de 2^53, o desde una",
+    " base conecte con `bigint = \"numeric\"`."
+  )
+  condicion <- list(message = mensaje, call = NULL)
+  class(condicion) <- c("lupa_error_integer64",
+                        if (isTRUE(via_dbi)) "lupa_error_dbi",
+                        "error", "condition")
+  .detener(condicion)
+}
+
 .ordenar_por_bytes <- function(x) {
   if (!length(x)) return(x)
   x[order(.clave_bytes(x), method = "radix")]
@@ -1087,8 +1134,12 @@
 }
 
 # Copia las subclases con semantica propia de `[` a un data.frame base antes
-# de ejecutar codigo que selecciona columnas o agrega columnas.
+# de ejecutar codigo que selecciona columnas o agrega columnas. Es tambien la
+# entrada comun de las funciones que reciben una tabla, y por eso lleva la guarda
+# de `integer64`: un recorrido de las exportadas encontro cinco que solo pasan
+# por aca.
 .tabla_base <- function(tabla) {
+  if (inherits(tabla, "data.frame")) .exigir_integer64_confiable(tabla)
   if (inherits(tabla, "data.table")) {
     return(as.data.frame(data.table::copy(tabla), stringsAsFactors = FALSE))
   }
@@ -1954,6 +2005,7 @@
 #     identidad de filas del plan ya iban por el instante.
 .normalizar_columnas_entrada <- function(tabla) {
   if (!inherits(tabla, "data.frame") || !ncol(tabla)) return(tabla)
+  .exigir_integer64_confiable(tabla)
   for (i in seq_along(tabla)) {
     columna <- tabla[[i]]
     if ((is.factor(columna) && anyNA(levels(columna))) ||
@@ -1968,6 +2020,7 @@
 # -la igualdad de contenido de `aplicar()`, `distribucion_valores()`- y no
 # recibe la tabla entera.
 .normalizar_columna_entrada <- function(x) {
+  .exigir_integer64_confiable(x)
   if (is.factor(x) && anyNA(levels(x))) return(.factor_sin_nivel_na(x))
   if (inherits(x, "POSIXlt")) return(as.POSIXct(x))
   x
@@ -1980,6 +2033,7 @@
 .normalizar_columnas_texto <- function(tabla) {
   if (!inherits(tabla, "data.frame")) return(tabla)
   tabla <- .tabla_base(tabla)
+  .exigir_integer64_confiable(tabla)
   # `medir()` tambien recibe tablas directamente, sin pasar por `perfilar()`.
   # La misma frontera debe declarar los bytes UTF-8 validos antes de que un
   # metodo de contrato los compare o los entregue a una funcion del usuario.
@@ -2582,7 +2636,7 @@
   if (!is.null(en_bytes) && any(por_bytes)) {
     transformados <- en_bytes(x[por_bytes])
     # La marca se vuelve a poner en vez de confiar en que la operacion la
-    # conserve. En el minimo declarado -R 4.1- no la conserva: medido, sobre
+    # conserve. En R 4.1 no la conserva: medido, sobre
     # una celda `bytes` cuyos bytes son UTF-8 valido, `trimws()` y
     # `gsub(fixed = TRUE, useBytes = TRUE)` devuelven la cadena recortada como
     # `unknown`, mientras en R 4.6 sale `bytes`. Una celda que el paquete

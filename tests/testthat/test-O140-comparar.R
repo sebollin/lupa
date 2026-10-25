@@ -180,7 +180,7 @@ test_that("H3: los extremos exactos de un entero que no entra en un doble se com
 })
 
 test_that("H3: un integer64 por encima de 2^53 compara su rango exacto", {
-  skip_if_not_installed("bit64")
+  skip_if_not_installed("bit64", "4.6.0")
   base <- bit64::as.integer64("1152921504606846976")
   anterior <- .perfil_o140(
     data.frame(id = base + bit64::as.integer64(c(0, 10, 20))), .f1_o140

@@ -96,7 +96,7 @@ test_that("una fecha no finita se cuenta como excluida en las dos clases", {
 })
 
 test_that("integer64 sin ningun valor que sobreviva lo dice igual que double", {
-  skip_if_not_installed("bit64")
+  skip_if_not_installed("bit64", "4.6.0")
   # El estado se escribia apenas habia excluidos, ANTES de saber si quedaba algo:
   # con seis centinelas de seis publicaba `calculados_sobre_valores` junto a cuatro
   # `NA`. La rama `double` sobre el mismo dato ya decia que no habia con que.

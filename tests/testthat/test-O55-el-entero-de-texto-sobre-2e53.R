@@ -73,7 +73,7 @@ test_that("una columna que entra en el doble no cambia de conducta", {
 })
 
 test_that("el texto y el integer64 dicen lo mismo del mismo dato", {
-  skip_if_not_installed("bit64")
+  skip_if_not_installed("bit64", "4.6.0")
   texto <- perfil_o55(valores_o55())
   entero <- perfilar(
     data.frame(codigo = bit64::as.integer64(valores_o55())),
