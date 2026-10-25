@@ -559,12 +559,16 @@
   # En el caso habitual (nombres ASCII) R ya considera iguales las marcas
   # `unknown` y `UTF-8`; evitar el resto de la preparacion mantiene barata la
   # ruta que se ejecuta en cada columna de una tabla grande.
-  no_ascii <- grepl("[^\\001-\\177]", nombres, useBytes = TRUE, perl = TRUE)
+  # Por bytes y sin PCRE: en Windows cada `grepl(perl = TRUE)` cuesta unos 47 us
+  # fijos, y esto corre por cada hoja de cada salida. Con TRE el resultado es el
+  # mismo -un byte de 0x80 a 0xFF, y una marca que solo lleva ASCII-, medido
+  # contra latin1, bytes sin marca, UTF-8 invalido, NA y vacio.
+  no_ascii <- grepl("[\x80-\xff]", nombres, useBytes = TRUE)
   reservado <- rep(FALSE, length(nombres))
   indices_ascii <- which(!is.na(nombres) & !no_ascii)
   if (length(indices_ascii)) {
     reservado[indices_ascii] <- grepl(
-      "^<lupa-byte:[0-9A-F]+>$", nombres[indices_ascii], perl = TRUE
+      "^<lupa-byte:[0-9A-F]+>$", nombres[indices_ascii]
     )
   }
   if (!any(no_ascii) && !any(reservado)) return(nombres)

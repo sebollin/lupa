@@ -10,7 +10,12 @@
   x <- .declarar_utf8_valido(as.character(x))
   legibles <- !is.na(x) & (Encoding(x) == "latin1" | validUTF8(x))
   coincide <- rep(FALSE, length(x))
-  coincide[legibles] <- grepl(expresion, x[legibles], perl = TRUE)
+  # Sin nada legible no se llama a `grepl()`: en Windows cada llamada con
+  # `perl = TRUE` cuesta unos 47 us aunque el vector este vacio, y `perfilar()`
+  # probaba asi 147 formatos por columna sobre vectores vacios.
+  if (any(legibles)) {
+    coincide[legibles] <- grepl(expresion, x[legibles], perl = TRUE)
+  }
   valido <- rep(FALSE, length(x))
   if (any(coincide)) {
     valores <- x[coincide]
