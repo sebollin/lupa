@@ -293,18 +293,20 @@ recorrido integral.
 ## Examples
 
 ``` r
+# Cuatro columnas de la tabla de ejemplo, para que corra en pocos segundos.
+columnas <- c("fecha_nacimiento", "sexo", "ingreso", "departamento")
 resultado <- analizar(
-  datos_administrativos, analizar_dependencias = FALSE,
+  datos_administrativos[, columnas], analizar_dependencias = FALSE,
   fecha = as.POSIXct("2026-01-15", tz = "UTC")
 )
 resultado
 #> 
-#> ── Analisis de datos: datos_administrativos ────────────────────────────────────
+#> ── Analisis de datos: datos_administrativos[, columnas] ────────────────────────
 #> Filas: 13
-#> Columnas: 10
-#> Hallazgos del perfil: 21
+#> Columnas: 4
+#> Hallazgos del perfil: 10
 #> Advertencias de alcance: 2
-#> Asociaciones informadas: 4
+#> Asociaciones informadas: 1
 #> Series temporales: 1
 #> Modelo medido: si
 #> Detalle fila a fila: no conservado
@@ -317,19 +319,16 @@ resultado
 #>  componente-0002 Completitud       Densidad           NoNulo
 #>  componente-0003 Completitud       Densidad           NoNulo
 #>  componente-0004 Completitud       Densidad           NoNulo
-#>  componente-0005 Completitud       Densidad           NoNulo
-#>      metrica_instanciada               entidad           objeto     valor
-#>         EntidadDuplicada datos_administrativos          (tabla) 0.1538462
-#>            NoNulo:cedula datos_administrativos           cedula 0.9230769
-#>  NoNulo:fecha_nacimiento datos_administrativos fecha_nacimiento 0.9230769
-#>           NoNulo:ingreso datos_administrativos          ingreso 0.9230769
-#>              NoNulo:sexo datos_administrativos             sexo 0.8461538
-#>  orientacion agregacion umbral universo
-#>      defecto      ratio     NA    filas
-#>  conformidad      ratio     NA   celdas
-#>  conformidad      ratio     NA   celdas
-#>  conformidad      ratio     NA   celdas
-#>  conformidad      ratio     NA   celdas
+#>      metrica_instanciada                           entidad           objeto
+#>         EntidadDuplicada datos_administrativos[, columnas]          (tabla)
+#>  NoNulo:fecha_nacimiento datos_administrativos[, columnas] fecha_nacimiento
+#>           NoNulo:ingreso datos_administrativos[, columnas]          ingreso
+#>              NoNulo:sexo datos_administrativos[, columnas]             sexo
+#>      valor orientacion agregacion umbral universo
+#>  0.1538462     defecto      ratio     NA    filas
+#>  0.9230769 conformidad      ratio     NA   celdas
+#>  0.9230769 conformidad      ratio     NA   celdas
+#>  0.8461538 conformidad      ratio     NA   celdas
 #> 
 #> ── Alcance del marco ──
 #> 

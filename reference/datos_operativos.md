@@ -74,8 +74,8 @@ Generación sintética incluida en `data-raw/datos_operativos.R`.
 
 ``` r
 data(datos_operativos)
-analisis <- analizar(datos_operativos, analizar_dependencias = FALSE)
-analisis$perfil$hallazgos[, c("columna", "tipo_hallazgo", "severidad")]
+perfil <- perfilar(datos_operativos, analizar_dependencias = FALSE)
+perfil$hallazgos[, c("columna", "tipo_hallazgo", "severidad")]
 #>           columna               tipo_hallazgo  severidad
 #> 1     id_registro       posible_identificador         ok
 #> 2  codigo_usuario           alta_cardinalidad sospechoso

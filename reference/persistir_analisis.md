@@ -104,9 +104,8 @@ prefiera la otra relación puede serializar el objeto por su cuenta.
 ## Examples
 
 ``` r
-a <- analizar(datos_administrativos, argumentos_perfil = list(
-  analizar_dependencias = FALSE
-))
+a <- analizar(datos_administrativos[, c("sexo", "ingreso")],
+              analizar_dependencias = FALSE)
 ruta <- tempfile(fileext = ".rds")
 guardar_analisis(a, ruta)
 b <- leer_analisis(ruta)

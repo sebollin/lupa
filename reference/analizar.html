@@ -322,18 +322,20 @@ queden ocultos dentro del recorrido integral.</p>
 
     <div class="section level2">
     <h2 id="ref-examples">Examples<a class="anchor" aria-label="anchor" href="#ref-examples"></a></h2>
-    <div class="sourceCode"><pre class="sourceCode r"><code><span class="r-in"><span><span class="va">resultado</span> <span class="op">&lt;-</span> <span class="fu">analizar</span><span class="op">(</span></span></span>
-<span class="r-in"><span>  <span class="va">datos_administrativos</span>, analizar_dependencias <span class="op">=</span> <span class="cn">FALSE</span>,</span></span>
+    <div class="sourceCode"><pre class="sourceCode r"><code><span class="r-in"><span><span class="co"># Cuatro columnas de la tabla de ejemplo, para que corra en pocos segundos.</span></span></span>
+<span class="r-in"><span><span class="va">columnas</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"fecha_nacimiento"</span>, <span class="st">"sexo"</span>, <span class="st">"ingreso"</span>, <span class="st">"departamento"</span><span class="op">)</span></span></span>
+<span class="r-in"><span><span class="va">resultado</span> <span class="op">&lt;-</span> <span class="fu">analizar</span><span class="op">(</span></span></span>
+<span class="r-in"><span>  <span class="va">datos_administrativos</span><span class="op">[</span>, <span class="va">columnas</span><span class="op">]</span>, analizar_dependencias <span class="op">=</span> <span class="cn">FALSE</span>,</span></span>
 <span class="r-in"><span>  fecha <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/as.POSIXlt.html" class="external-link">as.POSIXct</a></span><span class="op">(</span><span class="st">"2026-01-15"</span>, tz <span class="op">=</span> <span class="st">"UTC"</span><span class="op">)</span></span></span>
 <span class="r-in"><span><span class="op">)</span></span></span>
 <span class="r-in"><span><span class="va">resultado</span></span></span>
 <span class="r-msg co"><span class="r-pr">#&gt;</span> </span>
-<span class="r-msg co"><span class="r-pr">#&gt;</span> <span style="color: #00BBBB;">──</span> <span style="font-weight: bold;">Analisis de datos: datos_administrativos</span> <span style="color: #00BBBB;">────────────────────────────────────</span></span>
+<span class="r-msg co"><span class="r-pr">#&gt;</span> <span style="color: #00BBBB;">──</span> <span style="font-weight: bold;">Analisis de datos: datos_administrativos[, columnas]</span> <span style="color: #00BBBB;">────────────────────────</span></span>
 <span class="r-msg co"><span class="r-pr">#&gt;</span> Filas: 13</span>
-<span class="r-msg co"><span class="r-pr">#&gt;</span> Columnas: 10</span>
-<span class="r-msg co"><span class="r-pr">#&gt;</span> Hallazgos del perfil: 21</span>
+<span class="r-msg co"><span class="r-pr">#&gt;</span> Columnas: 4</span>
+<span class="r-msg co"><span class="r-pr">#&gt;</span> Hallazgos del perfil: 10</span>
 <span class="r-msg co"><span class="r-pr">#&gt;</span> Advertencias de alcance: 2</span>
-<span class="r-msg co"><span class="r-pr">#&gt;</span> Asociaciones informadas: 4</span>
+<span class="r-msg co"><span class="r-pr">#&gt;</span> Asociaciones informadas: 1</span>
 <span class="r-msg co"><span class="r-pr">#&gt;</span> Series temporales: 1</span>
 <span class="r-msg co"><span class="r-pr">#&gt;</span> Modelo medido: si</span>
 <span class="r-msg co"><span class="r-pr">#&gt;</span> Detalle fila a fila: no conservado</span>
@@ -346,19 +348,16 @@ queden ocultos dentro del recorrido integral.</p>
 <span class="r-out co"><span class="r-pr">#&gt;</span>  componente-0002 Completitud       Densidad           NoNulo</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>  componente-0003 Completitud       Densidad           NoNulo</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>  componente-0004 Completitud       Densidad           NoNulo</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>  componente-0005 Completitud       Densidad           NoNulo</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>      metrica_instanciada               entidad           objeto     valor</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>         EntidadDuplicada datos_administrativos          (tabla) 0.1538462</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>            NoNulo:cedula datos_administrativos           cedula 0.9230769</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>  NoNulo:fecha_nacimiento datos_administrativos fecha_nacimiento 0.9230769</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>           NoNulo:ingreso datos_administrativos          ingreso 0.9230769</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>              NoNulo:sexo datos_administrativos             sexo 0.8461538</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>  orientacion agregacion umbral universo</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>      defecto      ratio     NA    filas</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>  conformidad      ratio     NA   celdas</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>  conformidad      ratio     NA   celdas</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>  conformidad      ratio     NA   celdas</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>  conformidad      ratio     NA   celdas</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>      metrica_instanciada                           entidad           objeto</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>         EntidadDuplicada datos_administrativos[, columnas]          (tabla)</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>  NoNulo:fecha_nacimiento datos_administrativos[, columnas] fecha_nacimiento</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>           NoNulo:ingreso datos_administrativos[, columnas]          ingreso</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>              NoNulo:sexo datos_administrativos[, columnas]             sexo</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>      valor orientacion agregacion umbral universo</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>  0.1538462     defecto      ratio     NA    filas</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>  0.9230769 conformidad      ratio     NA   celdas</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>  0.9230769 conformidad      ratio     NA   celdas</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>  0.8461538 conformidad      ratio     NA   celdas</span>
 <span class="r-msg co"><span class="r-pr">#&gt;</span> </span>
 <span class="r-msg co"><span class="r-pr">#&gt;</span> ── <span style="font-weight: bold;">Alcance del marco</span> ──</span>
 <span class="r-msg co"><span class="r-pr">#&gt;</span> </span>
