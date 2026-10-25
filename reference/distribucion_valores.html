@@ -74,7 +74,7 @@ Los cuantiles se calculan sólo para números ordinarios finitos.</p>
 <span>  max_valores <span class="op">=</span> <span class="fl">20L</span>,</span>
 <span>  probabilidades <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">0</span>, <span class="fl">0.25</span>, <span class="fl">0.5</span>, <span class="fl">0.75</span>, <span class="fl">1</span><span class="op">)</span>,</span>
 <span>  muestra <span class="op">=</span> <span class="fl">1e+05</span>,</span>
-<span>  proteger_datos_personales <span class="op">=</span> <span class="cn">TRUE</span>,</span>
+<span>  proteger_datos_personales <span class="op">=</span> <span class="cn">FALSE</span>,</span>
 <span>  columnas_personales <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/character.html" class="external-link">character</a></span><span class="op">(</span><span class="op">)</span>,</span>
 <span>  .universo <span class="op">=</span> <span class="cn">NULL</span></span>
 <span><span class="op">)</span></span></code></pre></div>
@@ -110,7 +110,8 @@ con <code>estado = "codigo_declarado"</code>, como <code>mediana</code> en el pe
 
 <dt id="arg-proteger-datos-personales">proteger_datos_personales<a class="anchor" aria-label="anchor" href="#arg-proteger-datos-personales"></a></dt>
 <dd><p>Si se ocultan valores de columnas cuya
-clasificación activa protección automática. Véase <code><a href="perfilar.html">perfilar()</a></code>. Con
+clasificación activa protección automática. <code>FALSE</code> por omisión; véase
+<code><a href="perfilar.html">perfilar()</a></code>. Con
 <code>perfil</code>, se respeta la clasificación de ese perfil —incluido lo que su
 usuario declaró—; sin <code>perfil</code>, la clasificación se rehace aquí por léxico
 y por forma, y lo declarado entra por <code>columnas_personales</code>.</p></dd>

@@ -1282,8 +1282,9 @@ así que sumar la columna entera da más que la corrida.</p>
     <h2 id="datos-personales">Datos personales<a class="anchor" aria-label="anchor" href="#datos-personales"></a></h2>
 
 
-<p><code>proteger_datos_personales</code> viaja en <code>...</code> hacia <code><a href="perfilar.html">perfilar()</a></code> y vale <code>TRUE</code>
-por omisión. La protección alcanza a los dos bloques: en <code>resumen_tabla</code> se
+<p><code>proteger_datos_personales</code> viaja en <code>...</code> hacia <code><a href="perfilar.html">perfilar()</a></code> y vale <code>FALSE</code>
+por omisión: la protección es un complemento que se pide. Con <code>TRUE</code> alcanza
+a los dos bloques: en <code>resumen_tabla</code> se
 reemplaza la moda de las columnas clasificadas como personales, se ocultan
 sus estadísticos de orden y sus momentos, se sanean los datos de conexión y
 el SQL guardado no contiene ningún valor derivado de los datos. La

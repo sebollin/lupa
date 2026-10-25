@@ -513,20 +513,20 @@ muestra, no extrapolaciones al universo.
 <code><a href="../reference/accesores_perfil.html">cobertura()</a></code>, <code><a href="../reference/accesores_perfil.html">n_filas()</a></code> y
 <code><a href="../reference/accesores_perfil.html">sql_perfil()</a></code> funcionan sobre los dos tipos de objeto; su
 contrato está en <a href="leer-un-perfil.html">Leer un perfil</a>.</p>
-<p>Sin muestra, la protección de datos personales (activa por omisión)
-no puede clasificar las columnas y protege los valores de celda de
-todas: moda, extremos, media, mediana y desvío quedan
+<p>Sin muestra, la protección de datos personales, si se pide, no puede
+clasificar las columnas y protege los valores de celda de todas: moda,
+extremos, media, mediana y desvío quedan
 <code>omitido_por_privacidad</code>.</p>
 <div class="sourceCode" id="cb3"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/base/table.html" class="external-link">table</a></span><span class="op">(</span><span class="fu"><a href="../reference/accesores_perfil.html">sql_perfil</a></span><span class="op">(</span><span class="va">solo_agregados</span><span class="op">)</span><span class="op">$</span><span class="va">estado</span><span class="op">)</span></span>
+<code class="sourceCode R"><span><span class="va">con_proteccion</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/perfilar_dbi.html">perfilar_dbi</a></span><span class="op">(</span></span>
+<span>  <span class="va">con</span>, <span class="st">"tramites"</span>, bloque_muestra <span class="op">=</span> <span class="st">"solo_agregados"</span>,</span>
+<span>  proteger_datos_personales <span class="op">=</span> <span class="cn">TRUE</span></span>
+<span><span class="op">)</span></span>
+<span><span class="fu"><a href="https://rdrr.io/r/base/table.html" class="external-link">table</a></span><span class="op">(</span><span class="fu"><a href="../reference/accesores_perfil.html">sql_perfil</a></span><span class="op">(</span><span class="va">con_proteccion</span><span class="op">)</span><span class="op">$</span><span class="va">estado</span><span class="op">)</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt;              calculado              no_aplica omitido_por_privacidad </span></span>
 <span><span class="co">#&gt;                     34                      7                     19</span></span>
-<span><span class="va">sin_proteccion</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/perfilar_dbi.html">perfilar_dbi</a></span><span class="op">(</span></span>
-<span>  <span class="va">con</span>, <span class="st">"tramites"</span>, bloque_muestra <span class="op">=</span> <span class="st">"solo_agregados"</span>,</span>
-<span>  proteger_datos_personales <span class="op">=</span> <span class="cn">FALSE</span></span>
-<span><span class="op">)</span></span>
-<span><span class="fu"><a href="https://rdrr.io/r/base/table.html" class="external-link">table</a></span><span class="op">(</span><span class="fu"><a href="../reference/accesores_perfil.html">sql_perfil</a></span><span class="op">(</span><span class="va">sin_proteccion</span><span class="op">)</span><span class="op">$</span><span class="va">estado</span><span class="op">)</span></span>
+<span><span class="fu"><a href="https://rdrr.io/r/base/table.html" class="external-link">table</a></span><span class="op">(</span><span class="fu"><a href="../reference/accesores_perfil.html">sql_perfil</a></span><span class="op">(</span><span class="va">solo_agregados</span><span class="op">)</span><span class="op">$</span><span class="va">estado</span><span class="op">)</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; calculado no_aplica </span></span>
 <span><span class="co">#&gt;        53         7</span></span></code></pre></div>
@@ -1473,7 +1473,7 @@ las de nivel mayor están contenidas en alguna de ellas:</p>
 <span><span class="co">#&gt; 6                lectura_muestra     1        medido</span></span>
 <span><span class="co">#&gt; 7             perfilado_columnas     2        medido</span></span>
 <span><span class="co">#&gt; 8              perfilado_muestra     1        medido</span></span>
-<span><span class="co">#&gt; 9    proteccion_datos_personales     2        medido</span></span></code></pre></div>
+<span><span class="co">#&gt; 9    proteccion_datos_personales     2 no_solicitado</span></span></code></pre></div>
 <p>En una sesión interactiva, una barra avanza contra las consultas que
 el plan dice que se van a emitir;
 <code>options(lupa.progreso = FALSE)</code> la apaga y <code>TRUE</code>

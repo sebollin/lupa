@@ -22,7 +22,7 @@ analizar_tiempo(
   frecuencia_dias = NULL,
   max_huecos = 20L,
   max_columnas = 50L,
-  proteger_datos_personales = TRUE,
+  proteger_datos_personales = FALSE,
   columnas_personales = character()
 )
 ```
@@ -61,7 +61,7 @@ analizar_tiempo(
 - proteger_datos_personales:
 
   Si se ocultan los rangos y los huecos de las columnas temporales que
-  son dato personal. `TRUE` por omisión.
+  son dato personal. `FALSE` por omisión.
 
 - columnas_personales:
 

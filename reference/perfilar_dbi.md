@@ -1278,18 +1278,18 @@ más que la corrida.
 
 `proteger_datos_personales` viaja en `...` hacia
 [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md) y
-vale `TRUE` por omisión. La protección alcanza a los dos bloques: en
-`resumen_tabla` se reemplaza la moda de las columnas clasificadas como
-personales, se ocultan sus estadísticos de orden y sus momentos, se
-sanean los datos de conexión y el SQL guardado no contiene ningún valor
-derivado de los datos. La clasificación se toma del perfil de la
-muestra; si la muestra no se pudo leer, la protección se aplica a todas
-las columnas y `meta` lo declara. Lo que se oculta no queda `calculado`:
-su fila de `resumen_tabla$sql` dice `omitido_por_privacidad`, con un
-motivo que distingue la columna clasificada como personal de la que se
-cerró porque, sin muestra, no se pudo clasificar. Una columna que no se
-protege publica sus estadísticos aunque comparta el tipo personal con
-una protegida, como en
+vale `FALSE` por omisión: la protección es un complemento que se pide.
+Con `TRUE` alcanza a los dos bloques: en `resumen_tabla` se reemplaza la
+moda de las columnas clasificadas como personales, se ocultan sus
+estadísticos de orden y sus momentos, se sanean los datos de conexión y
+el SQL guardado no contiene ningún valor derivado de los datos. La
+clasificación se toma del perfil de la muestra; si la muestra no se pudo
+leer, la protección se aplica a todas las columnas y `meta` lo declara.
+Lo que se oculta no queda `calculado`: su fila de `resumen_tabla$sql`
+dice `omitido_por_privacidad`, con un motivo que distingue la columna
+clasificada como personal de la que se cerró porque, sin muestra, no se
+pudo clasificar. Una columna que no se protege publica sus estadísticos
+aunque comparta el tipo personal con una protegida, como en
 [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md):
 un importe entero de siete cifras o un número de factura clasificado
 `documento_identidad` débil. Una copia del documento la tapa el piso por

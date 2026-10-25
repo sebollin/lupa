@@ -20,7 +20,7 @@ estimar_costo(
   max_resultados = 100L,
   normalizar = NULL,
   perfil = NULL,
-  proteger_datos_personales = TRUE,
+  proteger_datos_personales = FALSE,
   bloque = 1000L,
   estrategia = "auto",
   lsh_bandas = 12L,
@@ -177,7 +177,8 @@ estimar_costo(
 - proteger_datos_personales:
 
   Si la evidencia de columnas protegidas se reemplaza por
-  `[valor protegido]`. La supresion queda indicada en cada par.
+  `[valor protegido]`. La supresion queda indicada en cada par. `FALSE`
+  por omision.
 
 - bloque:
 

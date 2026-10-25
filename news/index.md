@@ -95,11 +95,15 @@ Primera versión publicada.
 ### Rendimiento
 
 - La tabla de formatos de fecha se arma una vez, al instalar el paquete,
-  y no en cada columna. Sobre la tabla de ejemplo de 13 filas,
+  y no en cada columna; el enmascarado de datos personales pasa a
+  pedirse (ver abajo); y en los caminos que más se repiten se evitan las
+  llamadas a expresiones regulares PCRE, que en Windows cuestan unos 47
+  µs cada una aunque el vector sea corto. Sobre la tabla de ejemplo de
+  13 filas,
   [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md)
-  bajó de 0,60 s a 0,25 s y
+  bajó de 0,63 s a 0,16 s (0,26 s con la protección pedida) y
   [`analizar()`](https://sebollin.github.io/lupa/reference/analizar.md)
-  de 1,28 s a 0,73 s.
+  de 1,36 s a 0,33 s.
 
 ### Requisitos
 
@@ -113,5 +117,7 @@ Primera versión publicada.
 ### Datos personales
 
 - La clasificación de posibles datos personales (documentos, nombres,
-  fechas de nacimiento) y su reemplazo en lo que el paquete publica son
-  un complemento: se apagan con `proteger_datos_personales = FALSE`.
+  fechas de nacimiento) corre siempre, como diagnóstico. Su reemplazo en
+  lo que el paquete publica es un complemento que se pide con
+  `proteger_datos_personales = TRUE`: publicar o no los valores de una
+  base es decisión de quien la usa.

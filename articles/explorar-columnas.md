@@ -42,8 +42,8 @@ analisis <- analizar(
 names(analisis)
 #>  [1] "perfil"            "distribuciones"    "asociaciones"      "temporal"         
 #>  [5] "variables"         "propuesta_modelo"  "decision_medicion" "tablero"          
-#>  [9] "medicion"          "plan_limpieza"     "cobertura"         "advertencias"     
-#> [13] "meta"
+#>  [9] "medicion"          "detalle_medicion"  "evaluacion"        "plan_limpieza"    
+#> [13] "cobertura"         "advertencias"      "datos"             "meta"
 ```
 
 Cada componente es una tabla o una lista de tablas, y casi todos se
@@ -427,7 +427,7 @@ str(recuperado$meta$persistencia)
 #> List of 4
 #>  $ version_esquema      : int 1
 #>  $ datos_incluidos      : logi FALSE
-#>  $ evidencia_protegida  : logi TRUE
+#>  $ evidencia_protegida  : logi FALSE
 #>  $ funciones_sustituidas: int 0
 identical(hallazgos(recuperado), hallazgos(analisis))
 #> [1] TRUE
@@ -459,9 +459,10 @@ gsub("</?h2>", "", secciones)
 ```
 
 En una sesión propia, `browseURL(archivo_html)` lo abre en el navegador;
-acá borramos los dos archivos al terminar. Por omisión, el informe
-enmascara los valores de las columnas que parecen datos personales; el
-alcance de esa protección está en el artículo [Alcance y
+acá borramos los dos archivos al terminar. Con
+`proteger_datos_personales = TRUE`, el informe enmascara los valores de
+las columnas que parecen datos personales; el alcance de esa protección
+está en el artículo [Alcance y
 cobertura](https://sebollin.github.io/lupa/articles/alcance-y-cobertura.html).
 
 ``` r

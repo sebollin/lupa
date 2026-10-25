@@ -203,7 +203,7 @@ h[h$tipo_hallazgo == "alta_cardinalidad", c("columna", "severidad", "evidencia")
 #>           columna  severidad                        evidencia
 #> 2  codigo_usuario sospechoso Tasa de valores distintos: 0.846
 #> 4    fecha_evento sospechoso Tasa de valores distintos: 0.923
-#> 14       contacto sospechoso            [evidencia protegida]
+#> 14       contacto sospechoso Tasa de valores distintos: 0.923
 ```
 
 Una columna de texto con muchos valores distintos (por omisión, más de
@@ -217,9 +217,12 @@ Lo sabemos porque conocemos las columnas; los datos solos no lo dicen.
 Por eso se informa siempre: el largo de los valores no distingue un
 catálogo de un texto libre.
 
-La evidencia de `contacto` sale como `[evidencia protegida]`: la columna
-parece contener correos (`dato_personal_posible`), y la evidencia de una
-columna así se enmascara. Qué se enmascara y con qué alcance está en el
+La columna `contacto` parece contener correos, y el perfil lo dice
+(`dato_personal_posible`). Su evidencia sale entera: enmascarar los
+posibles datos personales es un complemento que se pide con
+`proteger_datos_personales = TRUE`, y con él esa evidencia saldría como
+`[evidencia protegida]`. Publicar o no los valores de una base es
+decisión de quien la usa. Qué se enmascara y con qué alcance está en el
 artículo [Alcance y
 cobertura](https://sebollin.github.io/lupa/articles/alcance-y-cobertura.html).
 

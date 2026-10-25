@@ -13,7 +13,7 @@ medir(
   id_medicion = NULL,
   fecha = Sys.time(),
   aplicabilidad = NULL,
-  proteger_datos_personales = TRUE,
+  proteger_datos_personales = FALSE,
   columnas_personales = character(),
   validadores_personales = NULL
 )
@@ -88,7 +88,7 @@ medir(
 - proteger_datos_personales:
 
   Si se enmascaran los candidatos de proximidad que corresponden a
-  columnas personales. Por omisión `TRUE`. También gobierna lo que
+  columnas personales. Por omisión `FALSE`. También gobierna lo que
   escribe un método propio: si alguna tabla recibida tiene columnas
   personales, su etiqueta `objeto` se reemplaza por la canónica del
   paquete (`tabla$columna[fila]`), y los valores de esas columnas se
@@ -166,13 +166,13 @@ especifica <- especializar(nucleo$NoNulo, nombre_especifico = "NoNuloEdad")
 instancia <- instanciar(especifica, "personas", "edad")
 medir(modelo(instancia), data.frame(edad = c(20, NA, 35)))
 #>                                                              id_medida
-#> 1 medicion-20261025T161651.232166-8050-NoNuloEdad@personas.edad-000001
-#> 2 medicion-20261025T161651.232166-8050-NoNuloEdad@personas.edad-000002
-#> 3 medicion-20261025T161651.232166-8050-NoNuloEdad@personas.edad-000003
+#> 1 medicion-20261025T191526.296095-7866-NoNuloEdad@personas.edad-000001
+#> 2 medicion-20261025T191526.296095-7866-NoNuloEdad@personas.edad-000002
+#> 3 medicion-20261025T191526.296095-7866-NoNuloEdad@personas.edad-000003
 #>                            id_medicion               fecha metrica
-#> 1 medicion-20261025T161651.232166-8050 2026-10-25 16:16:51  NoNulo
-#> 2 medicion-20261025T161651.232166-8050 2026-10-25 16:16:51  NoNulo
-#> 3 medicion-20261025T161651.232166-8050 2026-10-25 16:16:51  NoNulo
+#> 1 medicion-20261025T191526.296095-7866 2026-10-25 19:15:26  NoNulo
+#> 2 medicion-20261025T191526.296095-7866 2026-10-25 19:15:26  NoNulo
+#> 3 medicion-20261025T191526.296095-7866 2026-10-25 19:15:26  NoNulo
 #>   metrica_especifica      metrica_instanciada   dimension   factor orientacion
 #> 1         NoNuloEdad NoNuloEdad@personas.edad Completitud Densidad conformidad
 #> 2         NoNuloEdad NoNuloEdad@personas.edad Completitud Densidad conformidad

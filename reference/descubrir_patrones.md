@@ -19,7 +19,7 @@ descubrir_patrones(
   na.rm = TRUE,
   muestra = 1e+05,
   umbral_raro = 0.05,
-  proteger_datos_personales = TRUE
+  proteger_datos_personales = FALSE
 )
 ```
 
@@ -60,7 +60,7 @@ descubrir_patrones(
 - proteger_datos_personales:
 
   Si los ejemplos se enmascaran cuando la forma de los valores alcanza
-  para clasificarlos como dato personal. `TRUE` por omisión.
+  para clasificarlos como dato personal. `FALSE` por omisión.
   [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md)
   lo pasa en `FALSE` porque protege el perfil entero después, respetando
   ahí la declaración del usuario.

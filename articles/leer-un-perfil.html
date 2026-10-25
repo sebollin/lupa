@@ -311,7 +311,7 @@ después la forma más frecuente.</p>
 <span><span class="co">#&gt;           columna  severidad                        evidencia</span></span>
 <span><span class="co">#&gt; 2  codigo_usuario sospechoso Tasa de valores distintos: 0.846</span></span>
 <span><span class="co">#&gt; 4    fecha_evento sospechoso Tasa de valores distintos: 0.923</span></span>
-<span><span class="co">#&gt; 14       contacto sospechoso            [evidencia protegida]</span></span></code></pre></div>
+<span><span class="co">#&gt; 14       contacto sospechoso Tasa de valores distintos: 0.923</span></span></code></pre></div>
 <p>Una columna de texto con muchos valores distintos (por omisión, más
 de la mitad: <code>umbral_alta_cardinalidad</code>) admite tres
 lecturas: es texto libre, es un identificador o es una categoría mal
@@ -322,10 +322,13 @@ es un identificador, <code>fecha_evento</code> son fechas guardadas como
 texto y <code>contacto</code> son correos. Lo sabemos porque conocemos
 las columnas; los datos solos no lo dicen. Por eso se informa siempre:
 el largo de los valores no distingue un catálogo de un texto libre.</p>
-<p>La evidencia de <code>contacto</code> sale como
-<code>[evidencia protegida]</code>: la columna parece contener correos
-(<code>dato_personal_posible</code>), y la evidencia de una columna así
-se enmascara. Qué se enmascara y con qué alcance está en el artículo <a href="https://sebollin.github.io/lupa/articles/alcance-y-cobertura.html">Alcance
+<p>La columna <code>contacto</code> parece contener correos, y el perfil
+lo dice (<code>dato_personal_posible</code>). Su evidencia sale entera:
+enmascarar los posibles datos personales es un complemento que se pide
+con <code>proteger_datos_personales = TRUE</code>, y con él esa
+evidencia saldría como <code>[evidencia protegida]</code>. Publicar o no
+los valores de una base es decisión de quien la usa. Qué se enmascara y
+con qué alcance está en el artículo <a href="https://sebollin.github.io/lupa/articles/alcance-y-cobertura.html">Alcance
 y cobertura</a>.</p>
 </div>
 </div>

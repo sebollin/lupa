@@ -15,7 +15,7 @@ guardar_analisis(
   x,
   archivo,
   incluir_datos = FALSE,
-  proteger_datos_personales = TRUE,
+  proteger_datos_personales = FALSE,
   sobrescribir = FALSE,
   comprimir = "xz"
 )
@@ -42,7 +42,7 @@ leer_analisis(archivo)
 
 - proteger_datos_personales:
 
-  Si se protege toda evidencia derivada.
+  Si se protege toda evidencia derivada. `FALSE` por omisión.
 
 - sobrescribir:
 

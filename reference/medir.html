@@ -68,7 +68,7 @@ una medida reutilizable y conserva el identificador y la fecha de la corrida.</p
 <span>  id_medicion <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  fecha <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/Sys.time.html" class="external-link">Sys.time</a></span><span class="op">(</span><span class="op">)</span>,</span>
 <span>  aplicabilidad <span class="op">=</span> <span class="cn">NULL</span>,</span>
-<span>  proteger_datos_personales <span class="op">=</span> <span class="cn">TRUE</span>,</span>
+<span>  proteger_datos_personales <span class="op">=</span> <span class="cn">FALSE</span>,</span>
 <span>  columnas_personales <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/character.html" class="external-link">character</a></span><span class="op">(</span><span class="op">)</span>,</span>
 <span>  validadores_personales <span class="op">=</span> <span class="cn">NULL</span></span>
 <span><span class="op">)</span></span></code></pre></div>
@@ -131,7 +131,7 @@ consumen mediciones, así que heredan el número que salga de acá.</p>
 
 <dt id="arg-proteger-datos-personales">proteger_datos_personales<a class="anchor" aria-label="anchor" href="#arg-proteger-datos-personales"></a></dt>
 <dd><p>Si se enmascaran los candidatos de
-proximidad que corresponden a columnas personales. Por omisión <code>TRUE</code>.
+proximidad que corresponden a columnas personales. Por omisión <code>FALSE</code>.
 También gobierna lo que escribe un método propio: si alguna tabla recibida
 tiene columnas personales, su etiqueta <code>objeto</code> se reemplaza por la
 canónica del paquete (<code>tabla$columna[fila]</code>), y los valores de esas
@@ -205,13 +205,13 @@ se lee como un cambio del modelo del usuario.</p>
 <span class="r-in"><span><span class="va">instancia</span> <span class="op">&lt;-</span> <span class="fu"><a href="modelo_calidad.html">instanciar</a></span><span class="op">(</span><span class="va">especifica</span>, <span class="st">"personas"</span>, <span class="st">"edad"</span><span class="op">)</span></span></span>
 <span class="r-in"><span><span class="fu">medir</span><span class="op">(</span><span class="fu"><a href="modelo_calidad.html">modelo</a></span><span class="op">(</span><span class="va">instancia</span><span class="op">)</span>, <span class="fu"><a href="https://rdrr.io/r/base/data.frame.html" class="external-link">data.frame</a></span><span class="op">(</span>edad <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">20</span>, <span class="cn">NA</span>, <span class="fl">35</span><span class="op">)</span><span class="op">)</span><span class="op">)</span></span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>                                                              id_medida</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 1 medicion-20261025T161651.232166-8050-NoNuloEdad@personas.edad-000001</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 2 medicion-20261025T161651.232166-8050-NoNuloEdad@personas.edad-000002</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 3 medicion-20261025T161651.232166-8050-NoNuloEdad@personas.edad-000003</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 1 medicion-20261025T191526.296095-7866-NoNuloEdad@personas.edad-000001</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 2 medicion-20261025T191526.296095-7866-NoNuloEdad@personas.edad-000002</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 3 medicion-20261025T191526.296095-7866-NoNuloEdad@personas.edad-000003</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>                            id_medicion               fecha metrica</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 1 medicion-20261025T161651.232166-8050 2026-10-25 16:16:51  NoNulo</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 2 medicion-20261025T161651.232166-8050 2026-10-25 16:16:51  NoNulo</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 3 medicion-20261025T161651.232166-8050 2026-10-25 16:16:51  NoNulo</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 1 medicion-20261025T191526.296095-7866 2026-10-25 19:15:26  NoNulo</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 2 medicion-20261025T191526.296095-7866 2026-10-25 19:15:26  NoNulo</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 3 medicion-20261025T191526.296095-7866 2026-10-25 19:15:26  NoNulo</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>   metrica_especifica      metrica_instanciada   dimension   factor orientacion</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> 1         NoNuloEdad NoNuloEdad@personas.edad Completitud Densidad conformidad</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> 2         NoNuloEdad NoNuloEdad@personas.edad Completitud Densidad conformidad</span>

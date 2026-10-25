@@ -77,7 +77,7 @@ de incorporarlo al documento.</p>
 <span>  fecha <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/Sys.time.html" class="external-link">Sys.time</a></span><span class="op">(</span><span class="op">)</span>,</span>
 <span>  max_filas <span class="op">=</span> <span class="fl">100L</span>,</span>
 <span>  max_patrones <span class="op">=</span> <span class="fl">20L</span>,</span>
-<span>  proteger_datos_personales <span class="op">=</span> <span class="cn">TRUE</span></span>
+<span>  proteger_datos_personales <span class="op">=</span> <span class="cn">FALSE</span></span>
 <span><span class="op">)</span></span></code></pre></div>
     </div>
 
@@ -126,10 +126,11 @@ se informan dentro del reporte.</p></dd>
 <dt id="arg-proteger-datos-personales">proteger_datos_personales<a class="anchor" aria-label="anchor" href="#arg-proteger-datos-personales"></a></dt>
 <dd><p>Si se enmascaran modas, ejemplos, evidencia,
 estadisticos de orden, cuantiles y rangos temporales de columnas
-cuya clasificacion activa proteccion automatica. Es <code>TRUE</code> por defecto.
-Las coincidencias debiles se informan sin suprimir. Para ver valores
-concretos deben haberse conservado tambien con
-<code>perfilar(..., proteger_datos_personales = FALSE)</code>.</p>
+cuya clasificacion activa proteccion automatica. Es <code>FALSE</code> por omision:
+la proteccion es un complemento que se pide, y publicar o no los valores de
+una base es decision de quien la usa. Con <code>TRUE</code>, las coincidencias debiles
+se informan sin suprimir, y lo que el perfil ya trae enmascarado no se
+puede volver a mostrar.</p>
 <p>El enmascarado es el mismo que el de <code><a href="perfilar.html">perfilar()</a></code> -ver su
 <code>proteger_datos_personales</code>-: la forma exacta, la que solo difiere en
 separadores, tildes, caja o escritura, y en los digitos, el documento

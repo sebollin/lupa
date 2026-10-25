@@ -35,7 +35,7 @@ analizar(
   max_huecos = 20L,
   max_columnas_temporales = 50L,
   conservar_datos = FALSE,
-  proteger_datos_personales = TRUE,
+  proteger_datos_personales = FALSE,
   ...
 )
 ```
@@ -233,7 +233,7 @@ analizar(
 
   Si perfiles y resúmenes ocultan valores de columnas cuya clasificación
   activa protección automática, incluidos estadísticos de orden,
-  cuantiles y rangos temporales.
+  cuantiles y rangos temporales. `FALSE` por omisión.
 
 - ...:
 

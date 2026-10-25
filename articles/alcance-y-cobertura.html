@@ -389,12 +389,12 @@ muestra del motor:</p>
 <span><span class="op">)</span></span>
 <span><span class="va">sql</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/accesores_perfil.html">sql_perfil</a></span><span class="op">(</span><span class="va">muestreada</span><span class="op">)</span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/base/table.html" class="external-link">table</a></span><span class="op">(</span>estado <span class="op">=</span> <span class="va">sql</span><span class="op">$</span><span class="va">estado</span>, error_esperado <span class="op">=</span> <span class="va">sql</span><span class="op">$</span><span class="va">error_esperado</span><span class="op">)</span></span>
-<span><span class="co">#&gt;                         error_esperado</span></span>
-<span><span class="co">#&gt; estado                   no_aplica no_estimable no_estimado</span></span>
-<span><span class="co">#&gt;   calculado                     10            0           0</span></span>
-<span><span class="co">#&gt;   no_aplica                      0           49           0</span></span>
-<span><span class="co">#&gt;   observado_muestra             20           10          36</span></span>
-<span><span class="co">#&gt;   omitido_por_privacidad         0           13          12</span></span>
+<span><span class="co">#&gt;                    error_esperado</span></span>
+<span><span class="co">#&gt; estado              no_aplica no_estimable no_estimado</span></span>
+<span><span class="co">#&gt;   calculado                10            0           0</span></span>
+<span><span class="co">#&gt;   estimado                  0           13          12</span></span>
+<span><span class="co">#&gt;   no_aplica                 0           49           0</span></span>
+<span><span class="co">#&gt;   observado_muestra        20           10          36</span></span>
 <span></span>
 <span><span class="fu">DBI</span><span class="fu">::</span><span class="fu"><a href="https://dbi.r-dbi.org/reference/dbDisconnect.html" class="external-link">dbDisconnect</a></span><span class="op">(</span><span class="va">conexion</span><span class="op">)</span></span></code></pre></div>
 <p><code>observado_muestra</code> describe las filas que trajo la
@@ -666,11 +666,12 @@ decida quien conoce la columna.</p>
 <span><span class="co">#&gt;           columna                        evidencia</span></span>
 <span><span class="co">#&gt; 2  codigo_usuario Tasa de valores distintos: 0.846</span></span>
 <span><span class="co">#&gt; 4    fecha_evento Tasa de valores distintos: 0.923</span></span>
-<span><span class="co">#&gt; 14       contacto            [evidencia protegida]</span></span>
+<span><span class="co">#&gt; 14       contacto Tasa de valores distintos: 0.923</span></span>
 <span><span class="fu">envolver</span><span class="op">(</span><span class="va">alta</span><span class="op">$</span><span class="va">sugerencia</span><span class="op">[[</span><span class="fl">1</span><span class="op">]</span><span class="op">]</span><span class="op">)</span></span>
 <span><span class="co">#&gt; Revisar si es texto libre, un identificador o una categoría mal normalizada.</span></span></code></pre></div>
-<p>La evidencia de <code>contacto</code> sale protegida porque la
-columna parece un dato personal (ver el último apartado).</p>
+<p>La evidencia de <code>contacto</code> sale entera. Con
+<code>proteger_datos_personales = TRUE</code> saldría protegida, porque
+la columna parece un dato personal (ver el último apartado).</p>
 <p>Se informa siempre, también cuando los valores son largos: el largo
 no distingue un catálogo de la prosa. Un catálogo de etiquetas largas
 con cardinalidad alta es justo la señal de una normalización rota, y un
@@ -819,14 +820,16 @@ se construye.</p>
 <div class="section level2">
 <h2 id="qué-se-enmascara-y-con-qué-alcance">Qué se enmascara y con qué alcance<a class="anchor" aria-label="anchor" href="#qu%C3%A9-se-enmascara-y-con-qu%C3%A9-alcance"></a>
 </h2>
-<p>La protección de datos personales complementa el perfil: el objetivo
-es medir la calidad sin publicar los valores de una persona. Está activa
-por omisión (<code>proteger_datos_personales</code> vale
-<code>TRUE</code> en <code><a href="../reference/perfilar.html">perfilar()</a></code> y en
-<code><a href="../reference/detectar_duplicados_aproximados.html">detectar_duplicados_aproximados()</a></code>). Una columna se protege
-cuando el paquete la clasifica como posible dato personal o cuando se la
-declara en <code>columnas_personales</code>; lo declarado gana sobre lo
-inferido, porque ningún léxico de nombres de columna es completo.</p>
+<p>La protección de datos personales complementa el perfil: sirve para
+medir la calidad sin publicar los valores de una persona. Es un
+complemento que se pide (<code>proteger_datos_personales</code> vale
+<code>FALSE</code> por omisión en <code><a href="../reference/perfilar.html">perfilar()</a></code> y en
+<code><a href="../reference/detectar_duplicados_aproximados.html">detectar_duplicados_aproximados()</a></code>): publicar o no los
+valores de una base es decisión de quien la usa. Con la protección
+pedida, una columna se protege cuando el paquete la clasifica como
+posible dato personal o cuando se la declara en
+<code>columnas_personales</code>; lo declarado gana sobre lo inferido,
+porque ningún léxico de nombres de columna es completo.</p>
 <p>En una columna protegida:</p>
 <ul>
 <li>se suprimen los estadísticos que podrían ser valores de una persona

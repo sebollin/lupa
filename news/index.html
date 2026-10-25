@@ -88,7 +88,7 @@
 </ul></div>
 <div class="section level3">
 <h3 id="rendimiento-0-1-0">Rendimiento<a class="anchor" aria-label="anchor" href="#rendimiento-0-1-0"></a></h3>
-<ul><li>La tabla de formatos de fecha se arma una vez, al instalar el paquete, y no en cada columna. Sobre la tabla de ejemplo de 13 filas, <code><a href="../reference/perfilar.html">perfilar()</a></code> bajó de 0,60 s a 0,25 s y <code><a href="../reference/analizar.html">analizar()</a></code> de 1,28 s a 0,73 s.</li>
+<ul><li>La tabla de formatos de fecha se arma una vez, al instalar el paquete, y no en cada columna; el enmascarado de datos personales pasa a pedirse (ver abajo); y en los caminos que más se repiten se evitan las llamadas a expresiones regulares PCRE, que en Windows cuestan unos 47 µs cada una aunque el vector sea corto. Sobre la tabla de ejemplo de 13 filas, <code><a href="../reference/perfilar.html">perfilar()</a></code> bajó de 0,63 s a 0,16 s (0,26 s con la protección pedida) y <code><a href="../reference/analizar.html">analizar()</a></code> de 1,36 s a 0,33 s.</li>
 </ul></div>
 <div class="section level3">
 <h3 id="requisitos-0-1-0">Requisitos<a class="anchor" aria-label="anchor" href="#requisitos-0-1-0"></a></h3>
@@ -96,7 +96,7 @@
 </ul></div>
 <div class="section level3">
 <h3 id="datos-personales-0-1-0">Datos personales<a class="anchor" aria-label="anchor" href="#datos-personales-0-1-0"></a></h3>
-<ul><li>La clasificación de posibles datos personales (documentos, nombres, fechas de nacimiento) y su reemplazo en lo que el paquete publica son un complemento: se apagan con <code>proteger_datos_personales = FALSE</code>.</li>
+<ul><li>La clasificación de posibles datos personales (documentos, nombres, fechas de nacimiento) corre siempre, como diagnóstico. Su reemplazo en lo que el paquete publica es un complemento que se pide con <code>proteger_datos_personales = TRUE</code>: publicar o no los valores de una base es decisión de quien la usa.</li>
 </ul></div>
 </div>
   </main><aside class="col-md-3"><nav id="toc" aria-label="Table of contents"><h2>On this page</h2>

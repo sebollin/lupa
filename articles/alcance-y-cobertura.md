@@ -213,12 +213,12 @@ muestreada <- perfilar_dbi(
 )
 sql <- sql_perfil(muestreada)
 table(estado = sql$estado, error_esperado = sql$error_esperado)
-#>                         error_esperado
-#> estado                   no_aplica no_estimable no_estimado
-#>   calculado                     10            0           0
-#>   no_aplica                      0           49           0
-#>   observado_muestra             20           10          36
-#>   omitido_por_privacidad         0           13          12
+#>                    error_esperado
+#> estado              no_aplica no_estimable no_estimado
+#>   calculado                10            0           0
+#>   estimado                  0           13          12
+#>   no_aplica                 0           49           0
+#>   observado_muestra        20           10          36
 
 DBI::dbDisconnect(conexion)
 ```
@@ -497,13 +497,14 @@ alta[, c("columna", "evidencia")]
 #>           columna                        evidencia
 #> 2  codigo_usuario Tasa de valores distintos: 0.846
 #> 4    fecha_evento Tasa de valores distintos: 0.923
-#> 14       contacto            [evidencia protegida]
+#> 14       contacto Tasa de valores distintos: 0.923
 envolver(alta$sugerencia[[1]])
 #> Revisar si es texto libre, un identificador o una categoría mal normalizada.
 ```
 
-La evidencia de `contacto` sale protegida porque la columna parece un
-dato personal (ver el último apartado).
+La evidencia de `contacto` sale entera. Con
+`proteger_datos_personales = TRUE` saldría protegida, porque la columna
+parece un dato personal (ver el último apartado).
 
 Se informa siempre, también cuando los valores son largos: el largo no
 distingue un catálogo de la prosa. Un catálogo de etiquetas largas con
@@ -653,16 +654,18 @@ writeLines(paste0(formatC(izquierda, width = -40), derecha))
 
 ## Qué se enmascara y con qué alcance
 
-La protección de datos personales complementa el perfil: el objetivo es
-medir la calidad sin publicar los valores de una persona. Está activa
-por omisión (`proteger_datos_personales` vale `TRUE` en
+La protección de datos personales complementa el perfil: sirve para
+medir la calidad sin publicar los valores de una persona. Es un
+complemento que se pide (`proteger_datos_personales` vale `FALSE` por
+omisión en
 [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md) y
 en
-[`detectar_duplicados_aproximados()`](https://sebollin.github.io/lupa/reference/detectar_duplicados_aproximados.md)).
-Una columna se protege cuando el paquete la clasifica como posible dato
-personal o cuando se la declara en `columnas_personales`; lo declarado
-gana sobre lo inferido, porque ningún léxico de nombres de columna es
-completo.
+[`detectar_duplicados_aproximados()`](https://sebollin.github.io/lupa/reference/detectar_duplicados_aproximados.md)):
+publicar o no los valores de una base es decisión de quien la usa. Con
+la protección pedida, una columna se protege cuando el paquete la
+clasifica como posible dato personal o cuando se la declara en
+`columnas_personales`; lo declarado gana sobre lo inferido, porque
+ningún léxico de nombres de columna es completo.
 
 En una columna protegida:
 

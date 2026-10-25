@@ -394,7 +394,7 @@ columna:
 | qué textos significan “sin dato” | `cadenas_ausencia` | se suman a los que el paquete reconoce y se cuentan como faltantes disfrazados |
 | dónde un cero o un negativo no es admisible | `columnas_sin_ceros`, `columnas_no_negativas` | aparecen `ceros_no_permitidos` y `negativos_no_permitidos` |
 | qué columnas identifican una fila | `clave` | la trazabilidad trae el valor de la clave de cada fila señalada; una clave repetida o con ausentes es un `error` (`clave_no_unica`, `clave_con_ausentes`) |
-| qué columnas traen datos personales | `columnas_personales` | sus valores salen enmascarados aunque ni el nombre ni la forma los delaten |
+| qué columnas traen datos personales | `columnas_personales` | se clasifican como datos personales aunque ni el nombre ni la forma los delaten, y con `proteger_datos_personales = TRUE` sus valores salen enmascarados |
 | en qué unidad está una magnitud | atributo `units` de la columna | [`columnas()`](https://sebollin.github.io/lupa/reference/accesores_perfil.md) publica la unidad junto a las cifras, y [`clasificar_variables()`](https://sebollin.github.io/lupa/reference/clasificar_variables.md) la usa para proponer la escala |
 
 Dos de ellas cambian lo que el perfil calcula, y conviene verlas. Un

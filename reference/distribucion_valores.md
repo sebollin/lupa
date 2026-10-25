@@ -15,7 +15,7 @@ distribucion_valores(
   max_valores = 20L,
   probabilidades = c(0, 0.25, 0.5, 0.75, 1),
   muestra = 1e+05,
-  proteger_datos_personales = TRUE,
+  proteger_datos_personales = FALSE,
   columnas_personales = character(),
   .universo = NULL
 )
@@ -50,7 +50,7 @@ distribucion_valores(
 - proteger_datos_personales:
 
   Si se ocultan valores de columnas cuya clasificación activa protección
-  automática. Véase
+  automática. `FALSE` por omisión; véase
   [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md).
   Con `perfil`, se respeta la clasificación de ese perfil —incluido lo
   que su usuario declaró—; sin `perfil`, la clasificación se rehace aquí

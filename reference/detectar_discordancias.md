@@ -12,7 +12,7 @@ detectar_discordancias(
   datos,
   senales,
   max_ejemplos = 5L,
-  proteger_datos_personales = TRUE,
+  proteger_datos_personales = FALSE,
   columnas_personales = character()
 )
 ```
@@ -37,7 +37,7 @@ detectar_discordancias(
 - proteger_datos_personales:
 
   Si los valores de las columnas clasificadas como dato personal se
-  enmascaran en `evidencia`. `TRUE` por omisión; el número de fila y el
+  enmascaran en `evidencia`. `FALSE` por omisión; el número de fila y el
   nombre de la columna se conservan igual. La clasificación se hace aquí
   por léxico y por forma —esta función no recibe un perfil—, así que lo
   que sólo quien conoce los datos sabe personal entra por

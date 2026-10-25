@@ -122,8 +122,8 @@ resultado.</p>
 <span><span class="fu"><a href="https://rdrr.io/r/base/names.html" class="external-link">names</a></span><span class="op">(</span><span class="va">analisis</span><span class="op">)</span></span>
 <span><span class="co">#&gt;  [1] "perfil"            "distribuciones"    "asociaciones"      "temporal"         </span></span>
 <span><span class="co">#&gt;  [5] "variables"         "propuesta_modelo"  "decision_medicion" "tablero"          </span></span>
-<span><span class="co">#&gt;  [9] "medicion"          "plan_limpieza"     "cobertura"         "advertencias"     </span></span>
-<span><span class="co">#&gt; [13] "meta"</span></span></code></pre></div>
+<span><span class="co">#&gt;  [9] "medicion"          "detalle_medicion"  "evaluacion"        "plan_limpieza"    </span></span>
+<span><span class="co">#&gt; [13] "cobertura"         "advertencias"      "datos"             "meta"</span></span></code></pre></div>
 <p>Cada componente es una tabla o una lista de tablas, y casi todos se
 pueden obtener sueltos con su propia función:</p>
 <table class="table">
@@ -531,7 +531,7 @@ guardó y qué no:</p>
 <span><span class="co">#&gt; List of 4</span></span>
 <span><span class="co">#&gt;  $ version_esquema      : int 1</span></span>
 <span><span class="co">#&gt;  $ datos_incluidos      : logi FALSE</span></span>
-<span><span class="co">#&gt;  $ evidencia_protegida  : logi TRUE</span></span>
+<span><span class="co">#&gt;  $ evidencia_protegida  : logi FALSE</span></span>
 <span><span class="co">#&gt;  $ funciones_sustituidas: int 0</span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/base/identical.html" class="external-link">identical</a></span><span class="op">(</span><span class="fu"><a href="../reference/accesores_perfil.html">hallazgos</a></span><span class="op">(</span><span class="va">recuperado</span><span class="op">)</span>, <span class="fu"><a href="../reference/accesores_perfil.html">hallazgos</a></span><span class="op">(</span><span class="va">analisis</span><span class="op">)</span><span class="op">)</span></span>
 <span><span class="co">#&gt; [1] TRUE</span></span></code></pre></div>
@@ -556,9 +556,10 @@ análisis ya los trae. Estas son las secciones del informe:</p>
 <span><span class="co">#&gt;  [9] "Tablero de calidad"                  "Medidas de calidad"                 </span></span>
 <span><span class="co">#&gt; [11] "Plan de limpieza"</span></span></code></pre></div>
 <p>En una sesión propia, <code>browseURL(archivo_html)</code> lo abre en
-el navegador; acá borramos los dos archivos al terminar. Por omisión, el
-informe enmascara los valores de las columnas que parecen datos
-personales; el alcance de esa protección está en el artículo <a href="https://sebollin.github.io/lupa/articles/alcance-y-cobertura.html">Alcance
+el navegador; acá borramos los dos archivos al terminar. Con
+<code>proteger_datos_personales = TRUE</code>, el informe enmascara los
+valores de las columnas que parecen datos personales; el alcance de esa
+protección está en el artículo <a href="https://sebollin.github.io/lupa/articles/alcance-y-cobertura.html">Alcance
 y cobertura</a>.</p>
 <div class="sourceCode" id="cb15"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/base/unlink.html" class="external-link">unlink</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="va">archivo_html</span>, <span class="va">archivo_rds</span><span class="op">)</span><span class="op">)</span></span></code></pre></div>

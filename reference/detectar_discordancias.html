@@ -69,7 +69,7 @@ de la ventana declarada.</p>
 <span>  <span class="va">datos</span>,</span>
 <span>  <span class="va">senales</span>,</span>
 <span>  max_ejemplos <span class="op">=</span> <span class="fl">5L</span>,</span>
-<span>  proteger_datos_personales <span class="op">=</span> <span class="cn">TRUE</span>,</span>
+<span>  proteger_datos_personales <span class="op">=</span> <span class="cn">FALSE</span>,</span>
 <span>  columnas_personales <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/character.html" class="external-link">character</a></span><span class="op">(</span><span class="op">)</span></span>
 <span><span class="op">)</span></span></code></pre></div>
     </div>
@@ -94,7 +94,7 @@ un entero no negativo; <code>0</code> no cita ninguna.</p></dd>
 
 <dt id="arg-proteger-datos-personales">proteger_datos_personales<a class="anchor" aria-label="anchor" href="#arg-proteger-datos-personales"></a></dt>
 <dd><p>Si los valores de las columnas clasificadas
-como dato personal se enmascaran en <code>evidencia</code>. <code>TRUE</code> por omisión; el
+como dato personal se enmascaran en <code>evidencia</code>. <code>FALSE</code> por omisión; el
 número de fila y el nombre de la columna se conservan igual. La
 clasificación se hace aquí por léxico y por forma —esta función no recibe un
 perfil—, así que lo que sólo quien conoce los datos sabe personal entra por

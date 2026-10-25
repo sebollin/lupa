@@ -210,21 +210,21 @@ y
 funcionan sobre los dos tipos de objeto; su contrato está en [Leer un
 perfil](https://sebollin.github.io/lupa/articles/leer-un-perfil.md).
 
-Sin muestra, la protección de datos personales (activa por omisión) no
-puede clasificar las columnas y protege los valores de celda de todas:
-moda, extremos, media, mediana y desvío quedan `omitido_por_privacidad`.
+Sin muestra, la protección de datos personales, si se pide, no puede
+clasificar las columnas y protege los valores de celda de todas: moda,
+extremos, media, mediana y desvío quedan `omitido_por_privacidad`.
 
 ``` r
 
-table(sql_perfil(solo_agregados)$estado)
+con_proteccion <- perfilar_dbi(
+  con, "tramites", bloque_muestra = "solo_agregados",
+  proteger_datos_personales = TRUE
+)
+table(sql_perfil(con_proteccion)$estado)
 #> 
 #>              calculado              no_aplica omitido_por_privacidad 
 #>                     34                      7                     19
-sin_proteccion <- perfilar_dbi(
-  con, "tramites", bloque_muestra = "solo_agregados",
-  proteger_datos_personales = FALSE
-)
-table(sql_perfil(sin_proteccion)$estado)
+table(sql_perfil(solo_agregados)$estado)
 #> 
 #> calculado no_aplica 
 #>        53         7
@@ -968,7 +968,7 @@ por_omision$resumen_tabla$tiempos[, c("etapa", "nivel", "estado")]
 #> 6                lectura_muestra     1        medido
 #> 7             perfilado_columnas     2        medido
 #> 8              perfilado_muestra     1        medido
-#> 9    proteccion_datos_personales     2        medido
+#> 9    proteccion_datos_personales     2 no_solicitado
 ```
 
 En una sesión interactiva, una barra avanza contra las consultas que el

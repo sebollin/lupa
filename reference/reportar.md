@@ -17,7 +17,7 @@ reportar(
   fecha = Sys.time(),
   max_filas = 100L,
   max_patrones = 20L,
-  proteger_datos_personales = TRUE
+  proteger_datos_personales = FALSE
 )
 ```
 
@@ -66,10 +66,11 @@ reportar(
 
   Si se enmascaran modas, ejemplos, evidencia, estadisticos de orden,
   cuantiles y rangos temporales de columnas cuya clasificacion activa
-  proteccion automatica. Es `TRUE` por defecto. Las coincidencias
-  debiles se informan sin suprimir. Para ver valores concretos deben
-  haberse conservado tambien con
-  `perfilar(..., proteger_datos_personales = FALSE)`.
+  proteccion automatica. Es `FALSE` por omision: la proteccion es un
+  complemento que se pide, y publicar o no los valores de una base es
+  decision de quien la usa. Con `TRUE`, las coincidencias debiles se
+  informan sin suprimir, y lo que el perfil ya trae enmascarado no se
+  puede volver a mostrar.
 
   El enmascarado es el mismo que el de
   [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md)
