@@ -67,8 +67,7 @@ publisher's own page for the work it cites:
 * Random numbers: the functions in `R/` do not use R's random number
   generator and do not read or write `.Random.seed`. The MinHash family and
   the sample of the cost estimate come from a deterministic 32-bit integer
-  hash. Examples, vignettes and tests set a seed where they draw data, as the
-  Cookbook recommends.
+  hash.
 * Global state: every `options()` and `Sys.setlocale()` change is undone on
   exit (`.fijar_numerica_c()` registers its `on.exit()` in the caller's frame).
   The `par()` in `R/agregacion.R` is a local helper, not `graphics::par()`.
