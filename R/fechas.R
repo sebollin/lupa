@@ -67,7 +67,7 @@
   valido
 }
 
-.especificaciones_fecha <- function() {
+.construir_especificaciones_fecha <- function() {
   bases <- data.frame(
     formato = c(
       "%Y-%m", "%m/%Y", "%Y/%m",
@@ -156,6 +156,13 @@
   }
   do.call(rbind, resultado)
 }
+
+# La tabla no depende de nada: se arma una vez, al instalar el paquete. Armada
+# en cada llamada eran 147 `data.frame()` y un `rbind` por columna y por
+# contexto, y se llevaba el 40 % de `analizar()` sobre una tabla de 13 filas.
+.especificaciones_fecha_tabla <- .construir_especificaciones_fecha()
+
+.especificaciones_fecha <- function() .especificaciones_fecha_tabla
 
 .meses_fecha_lupa <- c(
   enero = 1L, ene = 1L, january = 1L, jan = 1L,

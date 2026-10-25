@@ -1,10 +1,5 @@
 ---
 title: "8. Marcos y modelos de calidad"
-output: rmarkdown::html_vignette
-vignette: >
-  %\VignetteIndexEntry{8. Marcos y modelos de calidad}
-  %\VignetteEngine{knitr::rmarkdown}
-  %\VignetteEncoding{UTF-8}
 ---
 
 ```{r, setup, include=FALSE}

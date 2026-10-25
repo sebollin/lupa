@@ -3836,7 +3836,27 @@
 .es_numero_de_estructura <- function(nombre, valor) {
   !is.null(nombre) && length(nombre) == 1L && !is.na(nombre) &&
     is.numeric(valor) && !is.list(valor) &&
-    grepl(.PATRON_NUMERICO_DE_ESTRUCTURA, nombre)
+    .nombre_de_estructura(nombre)
+}
+
+# Cada nombre se mira una vez por sesion. La alternancia de arriba se compila en
+# cada `grepl()` -82 us por llamada- y se pregunta por cada campo numerico de cada
+# hoja: era el 11 % de `perfilar()` sobre una tabla de 13 filas. Solo se recuerdan
+# los nombres ASCII, cuya respuesta no depende de la codificacion ni del locale;
+# los demas se miran como antes.
+.nombres_de_estructura <- new.env(parent = emptyenv())
+
+.nombre_de_estructura <- function(nombre) {
+  bytes <- charToRaw(nombre)
+  if (!length(bytes) || any(bytes > as.raw(127L))) {
+    return(grepl(.PATRON_NUMERICO_DE_ESTRUCTURA, nombre))
+  }
+  respuesta <- .nombres_de_estructura[[nombre]]
+  if (is.null(respuesta)) {
+    respuesta <- grepl(.PATRON_NUMERICO_DE_ESTRUCTURA, nombre)
+    assign(nombre, respuesta, envir = .nombres_de_estructura)
+  }
+  respuesta
 }
 
 .proteger_numeros_parametros <- function(x, valores, ampliados = FALSE) {

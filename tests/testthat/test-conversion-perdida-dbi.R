@@ -1,3 +1,8 @@
+# Fuera de CRAN: el check en Windows llego a 13 min (CRAN pide menos de 10) y
+# esta prueba tarda mas de 0,2 s en modo CRAN (medicion del 2026-10-25). Corre en
+# la suite completa, en el CI y en R-hub, que usan NOT_CRAN=true.
+testthat::skip_on_cran()
+
 # Tres defectos de la consolidacion, de la misma familia: el motor devolvio
 # algo, R no lo pudo leer como el numero que la metrica supone, y el resultado
 # se publicaba igual.

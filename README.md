@@ -3,34 +3,45 @@
 
 # lupa <a href="https://sebollin.github.io/lupa/"><img src="man/figures/logo.png" align="right" height="139" alt="lupa website" /></a>
 
-Data profiling and quality measurement with evidence: every result declares
-its scope and what it could not measure.
+Data profiling and quality measurement with evidence. Every result states its
+scope and what it could not measure.
 
 <!-- badges: start -->
 
-[![License: GPL-3](https://img.shields.io/badge/license-GPL--3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0.html)
 [![R-CMD-check](https://github.com/sebollin/lupa/actions/workflows/R-CMD-check.yaml/badge.svg)](https://github.com/sebollin/lupa/actions/workflows/R-CMD-check.yaml)
+[![Engines CI](https://img.shields.io/github/actions/workflow/status/sebollin/lupa/motores.yaml?branch=main&label=engines%20CI)](https://github.com/sebollin/lupa/actions/workflows/motores.yaml)
+[![r-universe](https://sebollin.r-universe.dev/lupa/badges/version)](https://sebollin.r-universe.dev/lupa)
+[![R \>= 4.2.0](https://img.shields.io/badge/R-%E2%89%A5%204.2.0-276DC3.svg)](https://cran.r-project.org/)
+[![Lifecycle: stable](https://img.shields.io/badge/lifecycle-stable-0D9786.svg)](https://lifecycle.r-lib.org/articles/stages.html#stable)
+[![License: GPL-3](https://img.shields.io/badge/license-GPL--3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0.html)
 [![Repo status: active](https://www.repostatus.org/badges/latest/active.svg)](https://www.repostatus.org/#active)
 [![README en español](https://img.shields.io/badge/README-espa%C3%B1ol-2e7d32.svg)](https://github.com/sebollin/lupa/blob/main/README.es.md)
 <!-- badges: end -->
 
-## What it does and who it is for
+## 🔎 What it does and who it is for
 
 `lupa` examines a table or a database before you trust it. It finds what
-`summary()` misses: missing values disguised as `"S/D"` (*sin dato*, “no data”)
-or `-99`, the same value written in several ways, dates in mixed formats,
-repeated rows and columns, structure nobody declared. It reports which rows each
-problem is in and which checks it could not run. It then helps turn what has
-been confirmed into explicit measurements, evaluate them, clean a copy with an
-editable plan and compare successive deliveries of the same data. It is meant
-for anyone who analyzes, produces or publishes tabular data and needs to know
-how far it can be trusted before using it.
+`summary()` misses:
 
-What sets it apart is under the hood. It does not reduce quality to a score: it
-collects the contradictions it finds, each with its type, its severity and its
-evidence. Every figure carries its scope: how many rows it was computed on and
-whether a sample was taken. Whatever could not be measured is declared with its
-reason and never counts as zero. And profiling does not modify the input.
+  - missing values disguised as `"S/D"` (*sin dato*, “no data”) or `-99`;
+  - the same value written in several ways;
+  - dates in mixed formats;
+  - repeated rows and columns;
+  - structure nobody declared.
+
+It says which rows each problem is in and which checks it could not run. Then it
+helps turn what was confirmed into measurements, evaluate them, clean a copy with
+an editable plan and compare deliveries. It is for anyone who analyzes, produces
+or publishes tabular data and needs to know how far it can be trusted.
+
+What sets it apart:
+
+  - **No single score.** Each contradiction comes with its type, severity and
+    evidence.
+  - **Every figure carries its scope**: the rows it used and whether it sampled.
+  - **What could not be measured is declared**, with its reason. It never counts
+    as zero.
+  - **The input is never modified.**
 
 ## Installation
 
@@ -48,21 +59,27 @@ pak::pak("sebollin/lupa")
 ```
 
 It depends only on [`cli`](https://CRAN.R-project.org/package=cli) and
-[`data.table`](https://CRAN.R-project.org/package=data.table). Suggested packages enable specific capabilities: [`DBI`](https://CRAN.R-project.org/package=DBI)
-with a driver ([`RSQLite`](https://CRAN.R-project.org/package=RSQLite),
-[`duckdb`](https://CRAN.R-project.org/package=duckdb), [`RPostgres`](https://CRAN.R-project.org/package=RPostgres)
-or [`odbc`](https://CRAN.R-project.org/package=odbc)) to profile inside a
-database, [`stringdist`](https://CRAN.R-project.org/package=stringdist) for
-approximate text comparison and [`sf`](https://CRAN.R-project.org/package=sf) for
-geometries. The API, the help pages and the guides are in Spanish, and the
-public names are part of the contract. What the package prints is in Spanish
-too, so the outputs below appear exactly as `lupa` writes them.
+[`data.table`](https://CRAN.R-project.org/package=data.table). Suggested packages
+enable specific capabilities:
 
-## In thirty seconds
+  - [`DBI`](https://CRAN.R-project.org/package=DBI) with a driver
+    ([`RSQLite`](https://CRAN.R-project.org/package=RSQLite),
+    [`duckdb`](https://CRAN.R-project.org/package=duckdb),
+    [`RPostgres`](https://CRAN.R-project.org/package=RPostgres) or
+    [`odbc`](https://CRAN.R-project.org/package=odbc)) to profile inside a database;
+  - [`stringdist`](https://CRAN.R-project.org/package=stringdist) for approximate
+    text comparison;
+  - [`sf`](https://CRAN.R-project.org/package=sf) for geometries.
 
-`datos_operativos` ships with the package: 13 rows and 10 columns
-with planted defects. One call profiles it; start with the findings of severity
-`error`:
+The API, the help pages, the guides and the printed output are in Spanish, and
+the public names are part of the contract: the outputs below appear exactly as
+`lupa` writes them.
+
+## ⏱ In 30 s
+
+`datos_operativos` ships with the package: 13 rows and
+10 columns with planted defects. Profile it in one call
+and start with the findings of severity `error`:
 
 ``` r
 library(lupa)
@@ -85,10 +102,11 @@ print(head(h[errores_primero, c("columna", "tipo_hallazgo", "severidad")], 8),
 A `columna` of `<NA>` marks a finding about the whole table, such as the
 duplicate rows.
 
-What could not be measured does not disappear. In this table 9 diagnostics
-were left unevaluated, counting each one in every column where it could not run
-(the outlier search, for instance, needs more values than the table has), and
-`cobertura(perfil)` says which ones, in which column, why and how to resolve them:
+What could not be measured does not disappear. In this table
+9 diagnostics were left unevaluated, each one counted in every
+column where it could not run: the outlier search, for instance, needs more
+values than the table has. `cobertura(perfil)` says which ones, in which column,
+why and how to resolve them:
 
 ``` r
 as.data.frame(table(diagnostico = cobertura(perfil)$diagnostico), responseName = "columnas")
@@ -99,7 +117,33 @@ as.data.frame(table(diagnostico = cobertura(perfil)$diagnostico), responseName =
 #> 4   resumen_cuantitativo        1
 ```
 
-## What it reveals that `summary()` does not
+## 🗄️ Tables and databases
+
+`perfilar()` profiles a data frame in memory. `perfilar_dbi()` profiles a table
+**inside the database**: the aggregates run as SQL on the engine, and only the
+rows that fit within the caps come into R. The same surface is measured against
+6 real engines:
+
+| Engine     | Version tested | R driver    |
+| :--------- | :------------- | :---------- |
+| DuckDB     | 1.5            | `duckdb`    |
+| MariaDB    | 11             | `RMariaDB`  |
+| MySQL      | 8              | `RMySQL`    |
+| PostgreSQL | 16             | `RPostgres` |
+| SQL Server | 2022           | `odbc`      |
+| SQLite     | —              | `RSQLite`   |
+
+PostgreSQL and MariaDB are measured on every push
+([engines CI](https://github.com/sebollin/lupa/actions/workflows/motores.yaml)),
+and SQLite and DuckDB by the test suite on every CI platform; MySQL and SQL
+Server, against local containers before each release. Oracle is expected to
+work but has not been measured, and BigQuery is not documented.
+`requisitos_motor()` says what each engine needs. The versions, the drivers and
+the date of each run are in
+[Motores y escala](https://sebollin.github.io/lupa/articles/motores-y-escala.html#motores-probados)
+(*Engines and scale*).
+
+## What `summary()` does not show
 
 `summary()` describes columns one at a time. `lupa` compares representations
 and cross-checks columns and rows. It returns its findings as a table: type,
@@ -171,7 +215,7 @@ sample of up to 100,000 rows (`muestra`). The guide
 explains each column of the findings, keys, disagreements between columns and
 the glossary.
 
-## What sets it apart and where it fits
+## Where it fits
 
 To summarize and plot columns there are [`skimr`](https://CRAN.R-project.org/package=skimr)
 and [`DataExplorer`](https://CRAN.R-project.org/package=DataExplorer); to
@@ -230,12 +274,11 @@ reproduced. What was read into R is described in `perfil_muestra$meta$origen_dbi
 is no snapshot: `resumen_tabla$meta$snapshot` is `FALSE`, because each aggregate
 is measured in its own query and the table can change from one query to the next.
 
-The package is tested against DuckDB, MariaDB, MySQL, PostgreSQL, SQL Server and SQLite;
-`requisitos_motor()` says what each engine needs. The versions, the drivers and
-the date of each run are in the article [Motores y escala](https://sebollin.github.io/lupa/articles/motores-y-escala.html#motores-probados) (*Engines and scale*),
-and the step-by-step walkthrough is in [Perfilar una base](https://sebollin.github.io/lupa/articles/perfilar-una-base.html).
+The tested engines are DuckDB, MariaDB, MySQL, PostgreSQL, SQL Server and SQLite. The step-by-step walkthrough is
+in [Perfilar una base](https://sebollin.github.io/lupa/articles/perfilar-una-base.html)
+(*Profiling a database*).
 
-## Limits to know before a large run
+## ⚠️ Limits to know before a large run
 
   - **Sample caps.** What is read into R, or sampled within R, stops at
     1,000,000 cells (`max_celdas_muestra`) and 512 MiB (`max_bytes_muestra`),
@@ -246,8 +289,8 @@ and the step-by-step walkthrough is in [Perfilar una base](https://sebollin.gith
     and `plan_perfilado_dbi()` shows the queries before running them ([Motores y escala](https://sebollin.github.io/lupa/articles/motores-y-escala.html#politica-de-costo)).
   - **Approximate duplicates.** They are off by default. `detectar_duplicados_aproximados()`
     runs an exact comparison of up to 50,000,000 pairs (`max_pares`). With the
-    default strategy (`"auto"`), no sample and that cap, more than ten thousand
-    rows take it to MinHash/LSH, which can miss pairs and says so (candidates,
+    default strategy (`"auto"`), no sample and that cap, more than 10,000 rows
+    take it to MinHash/LSH, which can miss pairs and says so (candidates,
     bands and the collision guarantee); with a lower `max_pares` or a sample it
     stays with the exact or sampled comparison, and `estrategia = "lsh"` forces it.
     `estimar_costo()` anticipates the switch ([Escala y duplicados aproximados](https://sebollin.github.io/lupa/articles/escala-y-duplicados.html)).
@@ -259,7 +302,7 @@ and the step-by-step walkthrough is in [Perfilar una base](https://sebollin.gith
     seconds: profile a sample or use `perfilar_dbi()` instead. The measured figures,
     with their dates, are in [Evidencia y rendimiento](https://sebollin.github.io/lupa/articles/evidencia-y-rendimiento.html) (*Evidence and performance*).
 
-## A report in a single file
+## 📄 A report in a single file
 
 `analizar()` gathers the profile, the distributions, the associations and the
 temporal analysis into one object, together with a proposed quality model, its
@@ -301,10 +344,11 @@ And it does not modify the input: no analysis function alters the table it
 receives (not its values, types, names or attributes), not even a
 `data.table`. Cleaning returns a copy and leaves the original intact.
 
-## The learning path
+## 🧭 The learning path
 
-The guides are meant to be read in this order. They are on the website and ship
-with the package (`vignette("lupa")` opens the first one):
+The guides are meant to be read in this order, and all 12 are on the website.
+Guides 1 to 6 also ship with the package (`vignette("lupa")` opens the first
+one); 7 to 12 are on the website only.
 
 1.  [Empezar en diez minutos](https://sebollin.github.io/lupa/articles/lupa.html) (*Getting started in ten minutes*): profile a table, start with the errors, go from a finding to its rows with `clave`, read the coverage, save a report and clean a column in a copy.
 2.  [Leer un perfil](https://sebollin.github.io/lupa/articles/leer-un-perfil.html) (*Reading a profile*): the severities, what each finding carries, the accessors, keys, contradictions between columns and the glossary.

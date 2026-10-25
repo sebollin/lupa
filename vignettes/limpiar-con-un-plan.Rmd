@@ -204,7 +204,7 @@ Los faltantes disfrazados de `cedula` y `sexo` quedaron `resuelto`. Los hallazgo
 en las filas duplicadas, así que el perfil la encuentra casi vacía y con un único valor.
 Y `filas_duplicadas` queda `no_comparable`: la tabla ganó las columnas de marca, y con
 otro conjunto de columnas no se puede decidir si las filas repetidas se resolvieron. La
-comparación entre entregas se explica en [9. Comparar entregas y seguir la calidad](historico-y-deriva.html).
+comparación entre entregas se explica en [9. Comparar entregas y seguir la calidad](https://sebollin.github.io/lupa/articles/historico-y-deriva.html).
 
 ## Imputar por una dependencia
 
@@ -265,12 +265,12 @@ y nada más cambió.
 
 Si la limpieza es parte de entregas periódicas y la pregunta es qué cambió entre una y
 otra, se puede saltar directamente a
-[9. Comparar entregas y seguir la calidad](historico-y-deriva.html).
+[9. Comparar entregas y seguir la calidad](https://sebollin.github.io/lupa/articles/historico-y-deriva.html).
 
 ## Paso siguiente
 
-[7. Del hallazgo a la métrica](del-hallazgo-a-la-metrica.html)
-(`vignette("del-hallazgo-a-la-metrica")`): cómo pasar de lo que el perfil encontró a
+[7. Del hallazgo a la métrica](https://sebollin.github.io/lupa/articles/del-hallazgo-a-la-metrica.html),
+en el sitio del paquete: cómo pasar de lo que el perfil encontró a
 métricas que se miden y se evalúan contra un umbral.
 
 ```{r, cierre, include=FALSE}

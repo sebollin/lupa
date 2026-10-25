@@ -176,6 +176,7 @@ test_that("el diagnostico no afirma el origen de los valores subnormales", {
   expect_true(2^-1050 > 0)
   expect_true(2^-1050 < .Machine$double.xmin)
 
+  set.seed(1050)
   probabilidades <- data.frame(
     pval = c(2^-(1040:1060), runif(50, 1e-5, 1))
   )

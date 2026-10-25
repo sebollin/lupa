@@ -41,9 +41,9 @@ articles:
   - estructura-no-declarada
   - vacio-por-diseno
   - limpiar-con-un-plan
-  - del-hallazgo-a-la-metrica
-  - marcos-y-modelos
-  - historico-y-deriva
+  - articles/del-hallazgo-a-la-metrica
+  - articles/marcos-y-modelos
+  - articles/historico-y-deriva
 
 - title: Bases y escala
   navbar: Bases y escala
@@ -51,9 +51,9 @@ articles:
     Perfilar en el motor, declarar una base de varias tablas y buscar
     duplicados en tablas grandes.
   contents:
-  - perfilar-una-base
-  - colecciones
-  - escala-y-duplicados
+  - articles/perfilar-una-base
+  - articles/colecciones
+  - articles/escala-y-duplicados
 
 - title: Referencia en línea
   navbar: Referencia en línea

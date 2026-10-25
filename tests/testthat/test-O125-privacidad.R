@@ -95,6 +95,7 @@ test_that("perfilar_dbi lee como texto un documento en una columna numerica de S
   on.exit(DBI::dbDisconnect(conexion), add = TRUE)
   DBI::dbExecute(conexion, "CREATE TABLE t (id INTEGER, cedula NUMERIC, ref TEXT)")
   n <- 2000L
+  set.seed(125)
   cedulas <- as.character(sample(10000000:20000000, n))
   cedulas[[n]] <- "5.765.432-1"
   referencias <- sample(c("5.765.432-1", "otro", "mas"), n, TRUE, prob = c(50, 25, 25))

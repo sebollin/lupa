@@ -164,6 +164,7 @@ La función no adivina cuál es la columna de agrupación: la declara quien
 conoce el dato, igual que \code{\link[=perfilar]{perfilar()}} no adivina claves ni jerarquías.
 }
 \examples{
+set.seed(1)
 largo <- data.frame(
   entidad = rep(1:40, each = 2),
   atributo = rep(c("pais", "edad"), 40),

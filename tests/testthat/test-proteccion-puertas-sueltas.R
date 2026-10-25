@@ -1,3 +1,8 @@
+# Fuera de CRAN: el check en Windows llego a 13 min (CRAN pide menos de 10) y
+# esta prueba tarda mas de 0,2 s en modo CRAN (medicion del 2026-10-25). Corre en
+# la suite completa, en el CI y en R-hub, que usan NOT_CRAN=true.
+testthat::skip_on_cran()
+
 # Dos puertas publicaban valores crudos porque nunca recibieron la capa de
 # proteccion, no porque la capa fallara. Las dos se prueban en las DOS
 # direcciones: que dejen de publicar lo que identifica, y que SIGAN publicando lo

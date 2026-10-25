@@ -1,3 +1,22 @@
+## Resubmission
+
+This is a resubmission. The incoming pre-tests archived the previous one with
+"Overall checktime 13 min > 10 min" on r-devel-windows-x86_64, and Uwe Ligges
+asked whether it could be reduced below 10 minutes. In this version:
+
+* The fixed cost of profiling is lower. A table of date formats that was rebuilt
+  for every column is now built once, at installation. On the 13-row example
+  table, `perfilar()` went from 0.60 s to 0.25 s and `analizar()` from 1.28 s to
+  0.73 s, and every example, test and vignette that profiles a table gains the
+  same.
+* The package ships vignettes 1 to 6, the basic path. Vignettes 7 to 12 are now
+  articles on the package website, as the 4 reference articles already were.
+* 38 more test files start with `testthat::skip_on_cran()`; they still run on
+  continuous integration and on R-hub (see "Tests on CRAN" below).
+
+<!-- RELOJ:INICIO -->
+<!-- RELOJ:FIN -->
+
 ## R CMD check results
 
 0 errors | 0 warnings | 1 note
@@ -22,7 +41,7 @@ win-builder runs, release and devel, report
 The package has no compiled code and its two example datasets are under 1 kB
 each: the R directory is the byte-compiled code (about 74,000 lines of code, 89
 exported functions and 34 S3 methods), and the rest is the help pages and the
-12 vignettes. The only figure in the tarball is the logo that `README.md`
+6 vignettes. The only figure in the tarball is the logo that `README.md`
 shows.
 
 ### URLs that the incoming check may flag
@@ -137,14 +156,14 @@ publisher's own page for the work it cites:
 ## Tests on CRAN
 
 The full test suite runs on continuous integration and on R-hub, where
-`NOT_CRAN` is `true`. To keep the check within CRAN's time, test files that take
-more than about a second, and the regression tests, start with
-`testthat::skip_on_cran()`. What runs on CRAN covers profiling, the cleaning plan
-and its application, the HTML report and the package data, plus the fast unit
-tests. Examples and vignettes run on CRAN. Three vignette chunks are shown but
-not evaluated: two call the interactive helpers `elegir_clave()` and
-`guiar_limpieza()`, which wait for an answer, and one lists the system
-requirements of the optional database drivers.
+`NOT_CRAN` is `true`. To keep the check within CRAN's time, the regression tests
+and every test file that takes more than 0.2 s in CRAN mode start with
+`testthat::skip_on_cran()`, except the five that cover profiling, the cleaning
+plan and its application, the HTML report, the package data and the `integer64`
+guard. What runs on CRAN is those five plus the fast unit tests, among them the
+locale and date tests. Examples and vignettes run on CRAN. Two vignette chunks
+are shown but not evaluated: they call the interactive helpers `elegir_clave()`
+and `guiar_limpieza()`, which wait for an answer.
 
 <!-- TIEMPOS:INICIO -->
 

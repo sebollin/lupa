@@ -261,9 +261,9 @@ hizo `lupa` y nadie la confirmó.
 
 Para quedarnos sólo con la descripción, `medir_propuesta = FALSE`. Para medir lo que
 decidimos nosotros, editamos la propuesta y la pasamos como `propuesta_confirmada`; ese
-camino sigue en [7. Del hallazgo a la métrica](del-hallazgo-a-la-metrica.html). `cobertura`,
+camino sigue en [7. Del hallazgo a la métrica](https://sebollin.github.io/lupa/articles/del-hallazgo-a-la-metrica.html). `cobertura`,
 por su parte, dice qué factores del marco de calidad quedaron medidos (por omisión, el de
-AGESIC); los marcos se explican en [8. Marcos y modelos de calidad](marcos-y-modelos.html).
+AGESIC); los marcos se explican en [8. Marcos y modelos de calidad](https://sebollin.github.io/lupa/articles/marcos-y-modelos.html).
 
 ## ¿`perfilar()` o `analizar()`?
 
@@ -287,7 +287,7 @@ Las dos funciones trabajan en memoria, y sobre tablas de millones de filas no so
 pasada rápida. A esa escala conviene perfilar una muestra y llamar sueltas las piezas que
 hagan falta, o perfilar dentro de la base con `perfilar_dbi()`, que calcula los agregados
 en el motor y deja elegir cuántas filas trae a R (ver
-[10. Perfilar una base](perfilar-una-base.html)). Los tiempos medidos sobre tablas de ese
+[10. Perfilar una base](https://sebollin.github.io/lupa/articles/perfilar-una-base.html)). Los tiempos medidos sobre tablas de ese
 tamaño, con su fecha y su entorno, están en el artículo
 [Evidencia y rendimiento](https://sebollin.github.io/lupa/articles/evidencia-y-rendimiento.html).
 La muestra que `perfilar()` toma por su cuenta es sistemática y sin azar: sobre los mismos

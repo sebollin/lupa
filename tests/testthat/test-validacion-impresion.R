@@ -1,3 +1,8 @@
+# Fuera de CRAN: el check en Windows llego a 13 min (CRAN pide menos de 10) y
+# esta prueba tarda mas de 0,2 s en modo CRAN (medicion del 2026-10-25). Corre en
+# la suite completa, en el CI y en R-hub, que usan NOT_CRAN=true.
+testthat::skip_on_cran()
+
 # Cada puerta comprobaba un subconjunto distinto de lo que un objeto necesita, y
 # ninguna estaba completa. Medido quitando un componente por vez:
 # `comparar_perfiles()` rechaza un perfil sin `columnas`, `meta` o `hallazgos` y

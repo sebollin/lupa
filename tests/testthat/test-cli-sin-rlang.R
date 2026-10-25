@@ -1,3 +1,8 @@
+# Fuera de CRAN: el check en Windows llego a 13 min (CRAN pide menos de 10) y
+# esta prueba tarda mas de 0,2 s en modo CRAN (medicion del 2026-10-25). Corre en
+# la suite completa, en el CI y en R-hub, que usan NOT_CRAN=true.
+testthat::skip_on_cran()
+
 # `cli::cli_warn()`, `cli_abort()` y `cli_inform()` llaman a rlang, que cli solo
 # sugiere y el paquete no declara. Instalado lupa con sus dependencias y nada
 # mas, una clave repetida en `perfilar()` abortaba con "no hay paquete llamado

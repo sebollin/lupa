@@ -1,3 +1,8 @@
+# Fuera de CRAN: el check en Windows llego a 13 min (CRAN pide menos de 10) y
+# esta prueba tarda mas de 0,2 s en modo CRAN (medicion del 2026-10-25). Corre en
+# la suite completa, en el CI y en R-hub, que usan NOT_CRAN=true.
+testthat::skip_on_cran()
+
 test_that("sin repeticiones no se publica una moda", {
   # Los cuatro valores son distintos: no hay moda. Lo que se publicaba era el
   # que ganaba un desempate de cuatro vias, y el desempate sigue el orden de

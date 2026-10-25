@@ -50,6 +50,19 @@ Primera versión publicada.
 - `reportar()` escribe un informe HTML autocontenido, sin depender de software
   externo para generarlo.
 
+## Documentación
+
+- El paquete trae las guías 1 a 6, el camino básico: de la primera tabla al plan
+  de limpieza. Las guías 7 a 12 (métricas, marcos, histórico, bases de datos,
+  colecciones y escala) y los 4 artículos de referencia están en el sitio,
+  <https://sebollin.github.io/lupa/>.
+
+## Rendimiento
+
+- La tabla de formatos de fecha se arma una vez, al instalar el paquete, y no en
+  cada columna. Sobre la tabla de ejemplo de 13 filas, `perfilar()` bajó de 0,60 s
+  a 0,25 s y `analizar()` de 1,28 s a 0,73 s.
+
 ## Requisitos
 
 - R 4.2.0 o posterior. Las columnas `integer64` necesitan además bit64 4.6.0 o

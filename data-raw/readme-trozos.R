@@ -73,6 +73,9 @@ requisitos <- requisitos_motor()
 motores_probados <- lista(sort(unique(
   requisitos$motor[requisitos$estado_prueba == "probado"]
 )))
+n_motores <- num(length(unique(
+  requisitos$motor[requisitos$estado_prueba == "probado"]
+)))
 # Evidencia real de un tipo de hallazgo de la corrida de los treinta segundos:
 # las dos primeras partes, en código, para la tabla «Qué deja visible».
 ev <- function(tipo, columna = NULL) {
@@ -94,6 +97,22 @@ cob <- t(vapply(marcos, function(m) {
     fuera = sum(d$disponibilidad == "fuera_de_alcance"),
     solo = sum(d$perfil_mide))
 }, numeric(4L)))
+
+## ---- motores
+# La tabla de motores sale de requisitos_motor(), la misma fuente que la frase
+# "se prueba contra ...": un motor que deje de estar probado sale de las dos.
+probados <- requisitos[requisitos$estado_prueba == "probado",
+                       c("motor", "version", "paquete_r")]
+probados <- probados[order(probados$motor), ]
+probados$version[is.na(probados$version)] <- "\u2014"
+probados$paquete_r <- paste0("`", probados$paquete_r, "`")
+names(probados) <- if (identical(params$idioma, "es")) {
+  c("Motor", "Versión probada", "Controlador de R")
+} else {
+  c("Engine", "Version tested", "R driver")
+}
+stopifnot(nrow(probados) >= 5L)
+knitr::kable(probados, format = "pipe", row.names = FALSE)
 
 ## ---- comprobar-perfil
 # Lo que la prosa de los treinta segundos y de «Cómo se lee» afirma.

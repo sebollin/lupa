@@ -1,3 +1,8 @@
+# Fuera de CRAN: el check en Windows llego a 13 min (CRAN pide menos de 10) y
+# esta prueba tarda mas de 0,2 s en modo CRAN (medicion del 2026-10-25). Corre en
+# la suite completa, en el CI y en R-hub, que usan NOT_CRAN=true.
+testthat::skip_on_cran()
+
 # Los tres defectos que una tabla de prueba comoda escondio: una columna `DATE`
 # medida como numero, un entero sin signo con maximo menor que el minimo, y la
 # extrapolacion del muestreo dividiendo por las filas pedidas en vez de las

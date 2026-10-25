@@ -87,6 +87,7 @@ test_that("detectar_claves no prueba columnas que su filtro excluyo", {
 })
 
 test_that("detectar_claves avisa y no publica un nombre repetido", {
+  set.seed(105)
   datos <- data.frame(id = 1:40, id = c(1, 1, 3:40), x = stats::runif(40),
                       check.names = FALSE)
   expect_warning(claves <- detectar_claves(datos), "repetido")

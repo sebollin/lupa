@@ -1,10 +1,5 @@
 ---
 title: "12. Escala y duplicados aproximados"
-output: rmarkdown::html_vignette
-vignette: >
-  %\VignetteIndexEntry{12. Escala y duplicados aproximados}
-  %\VignetteEngine{knitr::rmarkdown}
-  %\VignetteEncoding{UTF-8}
 ---
 
 ```{r setup, include=FALSE}
