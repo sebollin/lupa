@@ -343,7 +343,8 @@
 #' @param probabilidades Probabilidades de los cuantiles, en `[0, 1]`.
 #' @param muestra Máximo de filas por columna; `Inf` desactiva el muestreo.
 #' @param proteger_datos_personales Si se ocultan valores de columnas cuya
-#'   clasificación activa protección automática. Véase [perfilar()]. Con
+#'   clasificación activa protección automática. `FALSE` por omisión; véase
+#'   [perfilar()]. Con
 #'   `perfil`, se respeta la clasificación de ese perfil —incluido lo que su
 #'   usuario declaró—; sin `perfil`, la clasificación se rehace aquí por léxico
 #'   y por forma, y lo declarado entra por `columnas_personales`.
@@ -373,7 +374,7 @@
 distribucion_valores <- function(datos, perfil = NULL, max_valores = 20L,
                                  probabilidades = c(0, 0.25, 0.5, 0.75, 1),
                                  muestra = 1e5,
-                                 proteger_datos_personales = TRUE,
+                                 proteger_datos_personales = FALSE,
                                  columnas_personales = character(),
                                  .universo = NULL) {
   .validar_datos_tabla(datos)
@@ -921,7 +922,7 @@ detectar_asociaciones <- function(datos, dependencias = NULL, umbral = 0.3,
 #' @param max_huecos Máximo de grupos de huecos devueltos por columna.
 #' @param max_columnas Máximo de columnas temporales analizadas.
 #' @param proteger_datos_personales Si se ocultan los rangos y los huecos de
-#'   las columnas temporales que son dato personal. `TRUE` por omisión.
+#'   las columnas temporales que son dato personal. `FALSE` por omisión.
 #' @param columnas_personales Columnas que traen datos personales, declaradas
 #'   con la misma forma que acepta [perfilar()]. Se suman a las que protege el
 #'   `perfil` o, sin él, a las que se clasifican aquí. Sólo tiene efecto con
@@ -963,7 +964,7 @@ detectar_asociaciones <- function(datos, dependencias = NULL, umbral = 0.3,
 analizar_tiempo <- function(datos, perfil = NULL, columnas = NULL,
                             calendario = 1:7, frecuencia_dias = NULL,
                             max_huecos = 20L, max_columnas = 50L,
-                            proteger_datos_personales = TRUE,
+                            proteger_datos_personales = FALSE,
                             columnas_personales = character()) {
   .validar_datos_tabla(datos)
   .validar_perfil_de(perfil, datos)

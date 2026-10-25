@@ -304,7 +304,7 @@ print.senal_redundante <- function(x, ...) {
 #' @param max_ejemplos Máximo de filas concretas que se citan como evidencia:
 #'   un entero no negativo; `0` no cita ninguna.
 #' @param proteger_datos_personales Si los valores de las columnas clasificadas
-#'   como dato personal se enmascaran en `evidencia`. `TRUE` por omisión; el
+#'   como dato personal se enmascaran en `evidencia`. `FALSE` por omisión; el
 #'   número de fila y el nombre de la columna se conservan igual. La
 #'   clasificación se hace aquí por léxico y por forma —esta función no recibe un
 #'   perfil—, así que lo que sólo quien conoce los datos sabe personal entra por
@@ -338,7 +338,7 @@ print.senal_redundante <- function(x, ...) {
 #' )
 #' detectar_discordancias(d, senal_redundante(c("anio_fiscal", "anio_archivo")))
 detectar_discordancias <- function(datos, senales, max_ejemplos = 5L,
-                                   proteger_datos_personales = TRUE,
+                                   proteger_datos_personales = FALSE,
                                    columnas_personales = character()) {
   .validar_datos_tabla(datos)
   datos <- .tabla_base(datos)

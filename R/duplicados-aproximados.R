@@ -1836,7 +1836,7 @@
     datos, columnas = NULL, metodo = "jw", umbral = 0.10, p = 0.1,
     muestra = Inf, max_pares = 50000000L, max_resultados = 100L,
     normalizar = TRUE, clasificacion = NULL,
-    proteger_datos_personales = TRUE, bloque = 1000L,
+    proteger_datos_personales = FALSE, bloque = 1000L,
     estrategia = "auto", lsh_bandas = 12L, lsh_filas = 3L, lsh_q = 3L,
     lsh_max_cubeta = 1000L, lsh_muestra_estimacion = 400000L,
     presupuesto_pares = Inf, bloquear_por = NULL, solo_estimacion = FALSE,
@@ -1989,7 +1989,9 @@
     resultado$normalizacion <- .normalizacion_salida(normalizacion_resuelta)
     return(resultado)
   }
-  if (is.null(clasificacion)) {
+  # La clasificacion solo sirve para saber que proteger: sin proteccion no se
+  # perfila la tabla para buscarla.
+  if (is.null(clasificacion) && proteger_datos_personales) {
     perfil <- perfilar(
       datos, analizar_dependencias = FALSE,
       proteger_datos_personales = TRUE,
@@ -2726,6 +2728,7 @@
 #'   datos personales y no volver a inferirla.
 #' @param proteger_datos_personales Si la evidencia de columnas protegidas se
 #'   reemplaza por `[valor protegido]`. La supresion queda indicada en cada par.
+#'   `FALSE` por omision.
 #' @param estrategia Estrategia de comparación: `"auto"` (por omisión),
 #'   `"teselas"`, `"muestra"` o `"lsh"`. MinHash/LSH sólo se activa
 #'   automáticamente por encima del tope exhaustivo; se puede forzar con
@@ -2795,7 +2798,7 @@
 detectar_duplicados_aproximados <- function(
     datos, columnas = NULL, metodo = "jw", umbral = 0.10, p = 0.1,
     muestra = Inf, max_pares = 50000000L, max_resultados = 100L,
-    normalizar = NULL, perfil = NULL, proteger_datos_personales = TRUE,
+    normalizar = NULL, perfil = NULL, proteger_datos_personales = FALSE,
     bloque = 1000L, estrategia = "auto", lsh_bandas = 12L,
     lsh_filas = 3L, lsh_q = 3L, lsh_max_cubeta = 1000L,
     lsh_muestra_estimacion = 400000L, presupuesto_pares = Inf,
@@ -2892,7 +2895,7 @@ detectar_duplicados_aproximados <- function(
 estimar_costo <- function(
     datos, columnas = NULL, metodo = "jw", umbral = 0.10, p = 0.1,
     muestra = Inf, max_pares = 50000000L, max_resultados = 100L,
-    normalizar = NULL, perfil = NULL, proteger_datos_personales = TRUE,
+    normalizar = NULL, perfil = NULL, proteger_datos_personales = FALSE,
     bloque = 1000L, estrategia = "auto", lsh_bandas = 12L,
     lsh_filas = 3L, lsh_q = 3L, lsh_max_cubeta = 1000L,
     lsh_muestra_estimacion = 400000L, presupuesto_pares = Inf,

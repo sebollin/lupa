@@ -2317,7 +2317,7 @@ metricas_nucleo <- function() {
 #'   validación, con la misma forma que acepta [perfilar()]. Sin esto, la
 #'   medición usa el léxico por omisión.
 #' @param proteger_datos_personales Si se enmascaran los candidatos de
-#'   proximidad que corresponden a columnas personales. Por omisión `TRUE`.
+#'   proximidad que corresponden a columnas personales. Por omisión `FALSE`.
 #'   También gobierna lo que escribe un método propio: si alguna tabla recibida
 #'   tiene columnas personales, su etiqueta `objeto` se reemplaza por la
 #'   canónica del paquete (`tabla$columna[fila]`), y los valores de esas
@@ -2373,7 +2373,7 @@ metricas_nucleo <- function() {
 #' instancia <- instanciar(especifica, "personas", "edad")
 #' medir(modelo(instancia), data.frame(edad = c(20, NA, 35)))
 medir <- function(modelo, datos, id_medicion = NULL, fecha = Sys.time(),
-                  aplicabilidad = NULL, proteger_datos_personales = TRUE,
+                  aplicabilidad = NULL, proteger_datos_personales = FALSE,
                   columnas_personales = character(),
                   validadores_personales = NULL) {
   if (!inherits(modelo, "modelo_calidad")) {

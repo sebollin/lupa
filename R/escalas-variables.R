@@ -292,7 +292,7 @@
 clasificar_variables <- function(datos, perfil = NULL, metadatos = NULL,
                                   max_niveles = 100L,
                                   muestra = 1e5,
-                                  proteger_datos_personales = TRUE,
+                                  proteger_datos_personales = FALSE,
                                   columnas_personales = character()) {
   .validar_datos_tabla(datos)
   .validar_perfil_de(perfil, datos)
