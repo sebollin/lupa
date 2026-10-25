@@ -48,7 +48,7 @@ test_that("perfilar reconoce y protege una fecha de fallecimiento acentuada", {
 
   perfil <- perfilar(
     datos, fecha = as.POSIXct("2026-01-01", tz = "UTC"),
-    analizar_dependencias = FALSE
+    analizar_dependencias = FALSE, proteger_datos_personales = TRUE
   )
   encontrado <- perfil$datos_personales[
     match(nombre, perfil$datos_personales$columna), , drop = FALSE

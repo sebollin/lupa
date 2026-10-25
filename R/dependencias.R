@@ -220,7 +220,7 @@
 #'   dependencia.
 #' @param max_ejemplos Máximo de contradicciones concretas en `evidencia`.
 #' @param proteger_datos_personales Si los valores de las columnas clasificadas
-#'   como dato personal se ocultan en `evidencia`. `TRUE` por omisión; los
+#'   como dato personal se ocultan en `evidencia`. `FALSE` por omisión; los
 #'   nombres de columna y los conteos se conservan igual. La clasificación se
 #'   hace aquí por léxico y por forma —esta función no recibe un perfil—, así
 #'   que lo que sólo quien conoce los datos sabe personal entra por
@@ -270,7 +270,7 @@ detectar_dependencias <- function(datos, umbral = 0.995, muestra = 1e5,
                                   max_ejemplos = 5L,
                                    max_comparaciones = 200000L,
                                    max_trabajo = 100000000,
-                                   proteger_datos_personales = TRUE,
+                                   proteger_datos_personales = FALSE,
                                    columnas_personales = character()) {
   .validar_datos_tabla(datos)
   datos <- .tabla_base(datos)

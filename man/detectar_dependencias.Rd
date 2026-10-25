@@ -16,7 +16,7 @@ detectar_dependencias(
   max_ejemplos = 5L,
   max_comparaciones = 200000L,
   max_trabajo = 1e+08,
-  proteger_datos_personales = TRUE,
+  proteger_datos_personales = FALSE,
   columnas_personales = character()
 )
 }
@@ -52,7 +52,7 @@ presupuesto que escala con las filas; se combina con
 \code{max_comparaciones} y se aplica el límite más restrictivo.}
 
 \item{proteger_datos_personales}{Si los valores de las columnas clasificadas
-como dato personal se ocultan en \code{evidencia}. \code{TRUE} por omisión; los
+como dato personal se ocultan en \code{evidencia}. \code{FALSE} por omisión; los
 nombres de columna y los conteos se conservan igual. La clasificación se
 hace aquí por léxico y por forma —esta función no recibe un perfil—, así
 que lo que sólo quien conoce los datos sabe personal entra por

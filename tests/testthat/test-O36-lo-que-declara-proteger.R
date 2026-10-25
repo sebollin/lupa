@@ -29,7 +29,7 @@ test_that("ningun campo publica una magnitud de la columna protegida", {
   datos <- data.frame(id = seq_len(40L), documento = valores)
 
   perfil <- perfilar(datos, columnas_personales = "documento",
-                     analizar_dependencias = FALSE)
+                     analizar_dependencias = FALSE, proteger_datos_personales = TRUE)
   fila <- perfil$columnas[perfil$columnas$columna == "documento", ,
                           drop = FALSE]
 
@@ -73,7 +73,7 @@ test_that("la etiqueta nombra lo que efectivamente protege", {
   datos <- data.frame(id = seq_len(40L), documento = valores)
 
   perfil <- perfilar(datos, columnas_personales = "documento",
-                     analizar_dependencias = FALSE)
+                     analizar_dependencias = FALSE, proteger_datos_personales = TRUE)
   fila <- perfil$columnas[perfil$columnas$columna == "documento", ,
                           drop = FALSE]
 
@@ -88,7 +88,7 @@ test_that("la etiqueta nombra lo que efectivamente protege", {
   # Y lo que declara proteger no llega al informe.
   destino <- tempfile(fileext = ".html")
   on.exit(unlink(destino), add = TRUE)
-  suppressMessages(reportar(perfil, archivo = destino))
+  suppressMessages(reportar(perfil, archivo = destino, proteger_datos_personales = TRUE))
   html <- paste(readLines(destino, warn = FALSE), collapse = "\n")
   expect_false(grepl(format(mean(valores), scientific = FALSE), html,
                      fixed = TRUE))
@@ -119,7 +119,7 @@ test_that("una columna no personal de la misma tabla conserva su desvio", {
   )
 
   perfil <- perfilar(datos, columnas_personales = "documento",
-                     analizar_dependencias = FALSE)
+                     analizar_dependencias = FALSE, proteger_datos_personales = TRUE)
   monto <- perfil$columnas[perfil$columnas$columna == "monto", , drop = FALSE]
 
   expect_equal(monto$desvio[[1L]], stats::sd(datos$monto))

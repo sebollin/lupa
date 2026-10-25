@@ -85,7 +85,7 @@ test_that("con la proteccion activa, el mismo mensaje sigue sin el literal", {
   con <- .r33a2_conexion()
   on.exit(DBI::dbDisconnect(con, shutdown = TRUE), add = TRUE)
 
-  r <- .r33a2_con_avisos(perfilar_dbi(con, "codigos_v"))
+  r <- .r33a2_con_avisos(perfilar_dbi(con, "codigos_v", proteger_datos_personales = TRUE))
   sql <- r$valor$resumen_tabla$sql
   fallan <- !is.na(.r33a2_motor_dice(con, sql$sql))
   expect_gt(sum(fallan), 0L)
@@ -122,22 +122,23 @@ test_that("perfilar_coleccion() sigue la bandera en todas sus salidas", {
   expect_true(any(grepl("N/D", r$avisos, fixed = TRUE)))
 
   # Con la proteccion activa, en ninguna.
-  p <- .r33a2_con_avisos(perfilar_coleccion(vista))
+  p <- .r33a2_con_avisos(perfilar_coleccion(vista, proteger_datos_personales = TRUE))
   textos <- c(p$valor$meta$lecturas$motivo,
               p$valor$cobertura_metricas$motivo,
               p$valor$cobertura_coleccion$motivo, p$avisos)
   expect_true(any(grepl("[literal omitido]", textos, fixed = TRUE)))
   expect_false(any(grepl("N/D", textos, fixed = TRUE)))
 
-  # Una exportada sin la bandera, sola, despues de una llamada sin
-  # proteccion: protege.
+  # Una exportada sin la bandera, sola, despues de una llamada que protegio: no
+  # protege. Desde el 2026-10-25 la proteccion se pide, y la de una llamada no
+  # se queda pegada a la siguiente.
   pares <- coleccion(con, c("codigos", "codigos_v"))
   rel <- relaciones_coleccion(
     pares, pares = data.frame(tabla_1 = "codigos_v", tabla_2 = "codigos")
   )
   motivos <- rel$cobertura_pares$motivo
-  expect_true(any(grepl("[literal omitido]", motivos, fixed = TRUE)))
-  expect_false(any(grepl("N/D", motivos, fixed = TRUE)))
+  expect_true(any(grepl("N/D", motivos, fixed = TRUE)))
+  expect_false(any(grepl("[literal omitido]", motivos, fixed = TRUE)))
 })
 
 test_that("la decision llega a la lectura del mensaje por un solo camino", {
@@ -146,9 +147,15 @@ test_that("la decision llega a la lectura del mensaje por un solo camino", {
     .fijar_proteccion_motor(FALSE)
     .mensaje_motor(condicion)
   }
-  # Sin nadie que la fije, protege: el lado cerrado.
-  expect_true(.protege_mensaje_motor())
-  expect_false(grepl("N/D", .mensaje_motor(simpleError(texto)), fixed = TRUE))
+  con_proteccion <- function(condicion) {
+    .fijar_proteccion_motor(TRUE)
+    .mensaje_motor(condicion)
+  }
+  # Sin nadie que la fije, no protege: desde el 2026-10-25 la proteccion se
+  # pide. Pedida, tapa el literal.
+  expect_false(.protege_mensaje_motor())
+  expect_identical(.mensaje_motor(simpleError(texto)), texto)
+  expect_false(grepl("N/D", con_proteccion(simpleError(texto)), fixed = TRUE))
   expect_identical(sin_proteccion(simpleError(texto)), texto)
   # Una condicion propia de la via DBI ya trae el mensaje entero.
   propia <- .condicion_dbi("lupa_error_dbi_r33a2",
@@ -168,7 +175,7 @@ test_that("la decision llega a la lectura del mensaje por un solo camino", {
     "type int.\n",
     "<SQL> 'SELECT COUNT(\"codigo\") AS \"n\" FROM \"codigos_v\"'"
   ))
-  expect_false(grepl("N/D", .mensaje_motor(odbc), fixed = TRUE))
+  expect_false(grepl("N/D", con_proteccion(odbc), fixed = TRUE))
 
   # Legible en cualquier locale: lo que no es UTF-8 valido se lee como latin1.
   crudo <- rawToChar(as.raw(c(0x76, 0x61, 0x6c, 0x6f, 0x72, 0x20, 0x27, 0x4e,
@@ -179,12 +186,12 @@ test_that("la decision llega a la lectura del mensaje por un solo camino", {
 
   # Vuelve al salir, tambien en error, y una llamada anidada que protege
   # devuelve la de afuera.
-  expect_true(.protege_mensaje_motor())
+  expect_false(.protege_mensaje_motor())
   expect_error((function() {
-    .fijar_proteccion_motor(FALSE)
+    .fijar_proteccion_motor(TRUE)
     .detener("corte")
   })(), "corte")
-  expect_true(.protege_mensaje_motor())
+  expect_false(.protege_mensaje_motor())
   dentro <- function() {
     .fijar_proteccion_motor(TRUE)
     .mensaje_motor(simpleError(texto))
@@ -196,12 +203,14 @@ test_that("la decision llega a la lectura del mensaje por un solo camino", {
   ambos <- fuera()
   expect_false(grepl("N/D", ambos[[1L]], fixed = TRUE))
   expect_identical(ambos[[2L]], texto)
-  expect_true(.protege_mensaje_motor())
+  expect_false(.protege_mensaje_motor())
 
-  # La bandera por su nombre exacto, como la valida el paquete.
-  expect_true(.protege_argumentos(list()))
+  # La bandera por su nombre exacto, como la valida el paquete. Ausente -o con
+  # otro nombre- vale la omision, que desde el 2026-10-25 no protege.
+  expect_false(.protege_argumentos(list()))
+  expect_true(.protege_argumentos(list(proteger_datos_personales = TRUE)))
   expect_false(.protege_argumentos(list(proteger_datos_personales = FALSE)))
-  expect_true(.protege_argumentos(list(proteger_datos_personales_x = FALSE)))
+  expect_false(.protege_argumentos(list(proteger_datos_personales_x = TRUE)))
 })
 
 # N1, la misma propiedad en otro sitio: sin proteccion, `perfilar_coleccion()`
@@ -242,7 +251,7 @@ test_that("sin proteccion, una tabla sin perfilar no cierra los perfiles de las 
 
   # Con la proteccion activa, se cierra y lo dice, como antes.
   con_proteccion <- suppressWarnings(
-    perfilar_coleccion(col, conservar_perfiles = TRUE, metricas = "moda")
+    perfilar_coleccion(col, conservar_perfiles = TRUE, metricas = "moda", proteger_datos_personales = TRUE)
   )
   expect_false(identical(moda_de(con_proteccion), moda))
   expect_match(

@@ -373,7 +373,7 @@ and [ISO/IEC 25012:2008](https://www.iso.org/standard/35736.html).
 The public API of `lupa` may change before 1.0; breaking changes are
 announced in [NEWS](https://github.com/sebollin/lupa/blob/main/NEWS.md), with a deprecation warning
 first whenever possible. The stable contracts are the declared units, the
-scope, the protection of personal data and the audit log; implementation
+scope, the audit log and, when it is requested, the protection of personal data; implementation
 details and timings may change as long as those contracts still hold.
 
 Bugs, proposals and documentation fixes go to the

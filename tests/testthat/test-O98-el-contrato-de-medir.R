@@ -19,7 +19,7 @@ test_that("un atributo unido con + se reconoce aunque una columna traiga +", {
   )
   otra <- instanciar(especializar(metricas_nucleo()$NoNulo), "t", "num")
   # Antes: rechazado como "no es una columna" y `medir()` abortaba entero.
-  medicion <- medir(modelo(debil, otra), list(t = tabla))
+  medicion <- medir(modelo(debil, otra), list(t = tabla), proteger_datos_personales = TRUE)
   expect_equal(sum(medicion$metrica == "CorrectitudSemDebil"), 5L)
   expect_equal(sum(medicion$metrica == "NoNulo"), 5L)
   expect_null(attr(medicion, "cobertura_metricas", exact = TRUE))
@@ -76,7 +76,7 @@ test_that("fila tiene que ser una posicion entera", {
   datos <- data.frame(x = 1:3)
   medir_con <- function(fila) {
     medir(modelo(instanciar(especializar(propia), "t", "x",
-                            metodo = con_fila(fila))), datos)
+                            metodo = con_fila(fila))), datos, proteger_datos_personales = TRUE)
   }
   # Antes: el factor publicaba sus codigos y el texto salia NA.
   .expect_no_medible(medir_con(factor(c("10", "20", "30"))), "fila")
@@ -98,7 +98,7 @@ test_that("el motivo de no_medible no publica un valor personal", {
   falla <- instanciar(especializar(propia), "t", "dni", metodo = metodo)
   otra <- instanciar(especializar(metricas_nucleo()$NoNulo), "t", "ok")
   medicion <- suppressWarnings(medir(
-    modelo(falla, otra), list(t = datos), columnas_personales = "dni"
+    modelo(falla, otra), list(t = datos), columnas_personales = "dni", proteger_datos_personales = TRUE
   ))
   motivo <- attr(medicion, "cobertura_metricas", exact = TRUE)$motivo
   expect_false(grepl(valor, motivo, fixed = TRUE))
@@ -115,7 +115,7 @@ test_that("un universo vacio no se publica como una tabla vacia", {
   nn <- instanciar(especializar(metricas_nucleo()$NoNulo), "t", "edad")
   datos <- data.frame(edad = c(20, NA, 35), tiene_auto = c("Si", "No", "Si"))
   vacio <- medir(modelo(nn), datos,
-                 aplicabilidad = list(edad = ~ tiene_auto == "Nunca"))
+                 aplicabilidad = list(edad = ~ tiene_auto == "Nunca"), proteger_datos_personales = TRUE)
   motivo <- attr(vacio, "cobertura_metricas", exact = TRUE)$motivo
   expect_false(grepl("tiene cero filas", motivo, fixed = TRUE))
   expect_match(motivo, "universo aplicable", fixed = TRUE)
@@ -123,10 +123,10 @@ test_that("un universo vacio no se publica como una tabla vacia", {
   propio <- instanciar(especializar(metricas_nucleo()$NoNulo, "NA2",
                                     aplicable = ~ tiene_auto == "Nunca"),
                        "t", "edad")
-  motivo <- attr(medir(modelo(propio), datos), "cobertura_metricas")$motivo
+  motivo <- attr(medir(modelo(propio), datos, proteger_datos_personales = TRUE), "cobertura_metricas")$motivo
   expect_match(motivo, "`aplicable`", fixed = TRUE)
   # Control: la tabla realmente vacia sigue diciendo que esta vacia.
-  vacia <- medir(modelo(nn), datos[0, , drop = FALSE])
+  vacia <- medir(modelo(nn), datos[0, , drop = FALSE], proteger_datos_personales = TRUE)
   expect_match(attr(vacia, "cobertura_metricas")$motivo, "tiene cero filas",
                fixed = TRUE)
 })
@@ -148,7 +148,7 @@ test_that("con aplicabilidad, la fila de un metodo propio es la de la tabla orig
   }
   medicion <- medir(
     modelo(instanciar(especializar(propia), "t", "cod", metodo = metodo)),
-    datos, aplicabilidad = list(cod = ~ tiene == "Si")
+    datos, aplicabilidad = list(cod = ~ tiene == "Si"), proteger_datos_personales = TRUE
   )
   # El recorte deja las filas 1, 2, 3, 5, 7, 9; con valor: 1, 2, 3, 9.
   # Antes: 1, 2, 3, 6 -posiciones del recorte-.
@@ -159,6 +159,6 @@ test_that("con aplicabilidad, la fila de un metodo propio es la de la tabla orig
     "t", "cod"
   )
   del_paquete <- medir(modelo(formato), datos,
-                       aplicabilidad = list(cod = ~ tiene == "Si"))
+                       aplicabilidad = list(cod = ~ tiene == "Si"), proteger_datos_personales = TRUE)
   expect_equal(del_paquete$fila, c(1L, 2L, 3L, 9L))
 })

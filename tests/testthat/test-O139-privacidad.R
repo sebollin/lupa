@@ -91,7 +91,7 @@ test_that("T1 GUARDA: ningun parametro ejecutable ni nombre de aplicar() se tapa
     # `analizar()` solo con proteccion: es lo que la guarda mira, y es lo caro.
     an <- if (proteger) {
       suppressWarnings(suppressMessages(analizar(
-        d, argumentos_perfil = argumentos
+        d, argumentos_perfil = argumentos, proteger_datos_personales = TRUE
       )))
     }
     activar <- pl$recomendada |
@@ -150,7 +150,7 @@ test_that("T1: la marca de una columna protegida no se tapa ni llega tapada a lo
     stringsAsFactors = FALSE
   )
   names(d) <- c("id", "Primer Nombre", "Segundo Nombre")
-  p <- suppressWarnings(perfilar(d))
+  p <- suppressWarnings(perfilar(d, proteger_datos_personales = TRUE))
   expect_true("Segundo Nombre" %in% .columnas_personales_protegidas(p))
   pl <- suppressWarnings(planificar_limpieza(p, d))
   k <- which(pl$estrategia == "marcar_filas_ausentes" &
@@ -179,7 +179,7 @@ test_that("T1: el dependiente de la imputacion se conserva y la accion se ejecut
                   sn = unname(sn[k]), stringsAsFactors = FALSE)
   d$sn[sample(n, 20L)] <- NA
   names(d)[3:4] <- c("Primer Nombre", "Segundo Nombre")
-  p <- suppressWarnings(perfilar(d))
+  p <- suppressWarnings(perfilar(d, proteger_datos_personales = TRUE))
   pl <- suppressWarnings(planificar_limpieza(p, d))
   k <- which(startsWith(as.character(pl$estrategia),
                         "imputar_dependencia_funcional__"))
@@ -218,10 +218,10 @@ test_that("T2: el mapa tapado por contenido se reconstruye sobre los datos", {
     dependiente <- if (sentido == "valor") "sucursal" else "cod_suc"
     d[[dependiente]][c(which(d$cod_suc == "S01")[1:6],
                        which(d$cod_suc == "S02")[1:6])] <- NA
-    p <- suppressWarnings(perfilar(d, columnas_personales = "titular"))
+    p <- suppressWarnings(perfilar(d, columnas_personales = "titular", proteger_datos_personales = TRUE))
     pl <- suppressWarnings(planificar_limpieza(p, d))
     an <- suppressWarnings(suppressMessages(
-      analizar(d, columnas_personales = "titular")
+      analizar(d, columnas_personales = "titular", proteger_datos_personales = TRUE)
     ))
     for (plan in list(pl, an$plan_limpieza)) {
       k <- which(startsWith(as.character(plan$estrategia),
@@ -246,7 +246,7 @@ test_that("T2: el mapa tapado por contenido se reconstruye sobre los datos", {
   d <- base
   d$sucursal[d$sucursal == "Farmacia Rodriguez Perez"] <- "Farmacia Centro Sur"
   d$sucursal[1:12] <- NA
-  p <- suppressWarnings(perfilar(d, columnas_personales = "titular"))
+  p <- suppressWarnings(perfilar(d, columnas_personales = "titular", proteger_datos_personales = TRUE))
   pl <- suppressWarnings(planificar_limpieza(p, d))
   k <- which(startsWith(as.character(pl$estrategia),
                         "imputar_dependencia_funcional__") &
@@ -273,7 +273,7 @@ test_that("F1: una tabla de la coleccion que no se puede leer cierra a las demas
   DBI::dbWriteTable(con, "movs", data.frame(id = seq_along(obs), obs = obs,
                                             stringsAsFactors = FALSE))
   pc <- suppressWarnings(suppressMessages(perfilar_coleccion(
-    coleccion(con, c("clientes", "movs")), conservar_perfiles = TRUE
+    coleccion(con, c("clientes", "movs")), conservar_perfiles = TRUE, proteger_datos_personales = TRUE
   )))
   expect_identical(names(pc$perfiles), "movs")
   resumen <- pc$perfiles$movs$resumen_tabla
@@ -312,7 +312,7 @@ test_that("F2: con muestra_motor el relleno no se confirma sobre la muestra", {
   DBI::dbWriteTable(con, "mov", d)
   pd <- suppressWarnings(suppressMessages(perfilar_dbi(
     con, "mov", universo = "muestra_motor", muestra_motor = 400L,
-    columnas_personales = "cedula"
+    columnas_personales = "cedula", proteger_datos_personales = TRUE
   )))
   hojas <- c(.r27_hojas(pd$resumen_tabla), .r27_hojas(pd$perfil_muestra))
   expect_false(any(grepl(frecuente, hojas, fixed = TRUE)))
@@ -342,7 +342,7 @@ test_that("F5: el relleno de una columna no saca del piso el valor de otra", {
   on.exit(DBI::dbDisconnect(con), add = TRUE)
   DBI::dbWriteTable(con, "tc", d)
   pd <- suppressWarnings(suppressMessages(perfilar_dbi(
-    con, "tc", muestra = 600L, columnas_personales = c("cedula", "ci_conyuge")
+    con, "tc", muestra = 600L, columnas_personales = c("cedula", "ci_conyuge"), proteger_datos_personales = TRUE
   )))
   hojas <- c(.r27_hojas(pd$resumen_tabla), .r27_hojas(pd$perfil_muestra))
   expect_false(any(grepl(paste("CI", relleno), hojas, fixed = TRUE)))
@@ -362,16 +362,16 @@ test_that("F3: un valor protegido igual a un nombre de columna no se publica en 
   )
   # Planilla pivoteada: una columna de notas por docente.
   names(d)[4:5] <- docentes
-  p <- suppressWarnings(perfilar(d))
+  p <- suppressWarnings(perfilar(d, proteger_datos_personales = TRUE))
   expect_true("nombre_docente" %in% .columnas_personales_protegidas(p))
   publicados <- c(.r27_hojas(p$patrones$aprobo),
                   .r27_hojas(attr(p$patrones$aprobo, "resumen_patrones")))
   expect_false(any(grepl("Rodriguez|Gomez", publicados)))
   # Los nombres de columna siguen siendo estructura.
   expect_true(all(docentes %in% p$columnas$columna))
-  cv <- suppressWarnings(clasificar_variables(d))
+  cv <- suppressWarnings(clasificar_variables(d, proteger_datos_personales = TRUE))
   expect_false(any(grepl("Rodriguez|Gomez", .r27_hojas(cv$niveles_observados))))
-  an <- suppressWarnings(suppressMessages(analizar(d)))
+  an <- suppressWarnings(suppressMessages(analizar(d, proteger_datos_personales = TRUE)))
   expect_false(any(grepl("Rodriguez|Gomez",
                          .r27_hojas(an$variables$niveles_observados))))
   configuracion <- .r27_hojas(lapply(an$propuesta_modelo$configuracion,
@@ -397,7 +397,7 @@ test_that("F3: el valor igual a un nombre DERIVADO tampoco se publica", {
   )
   # Las columnas cuyo snake_case es el login protegido.
   names(d)[4:5] <- c("Florencia Rodriguez", "Martin Gomez")
-  p <- suppressWarnings(perfilar(d, columnas_personales = "usuario"))
+  p <- suppressWarnings(perfilar(d, columnas_personales = "usuario", proteger_datos_personales = TRUE))
   publicados <- c(.r27_hojas(p$patrones$cargado_por),
                   .r27_hojas(attr(p$patrones$cargado_por, "resumen_patrones")))
   expect_false(any(grepl("rodriguez|gomez", publicados)))
@@ -421,7 +421,7 @@ test_that("F4: el celular con prefijo de pais pegado (E.164) se tapa, en los dos
     nota = c(rep("llamar al +59899123456", 60L), rep(c("sin novedad", "ok"), 30L)),
     stringsAsFactors = FALSE
   )
-  p <- suppressWarnings(perfilar(d, columnas_personales = "celular"))
+  p <- suppressWarnings(perfilar(d, columnas_personales = "celular", proteger_datos_personales = TRUE))
   expect_false(any(grepl("59899123456", .r27_hojas(p$columnas), fixed = TRUE)))
 })
 
@@ -478,7 +478,7 @@ test_that("F7: la copia conservada por analizar() no deja el valor en otra colum
                   monto = round(stats::runif(160L, 10, 999), 2),
                   stringsAsFactors = FALSE)
   a <- suppressWarnings(suppressMessages(
-    analizar(d, columnas_personales = "cedula", conservar_datos = TRUE)
+    analizar(d, columnas_personales = "cedula", conservar_datos = TRUE, proteger_datos_personales = TRUE)
   ))
   expect_true(all(a$datos$cedula == "[valor protegido]"))
   expect_false(any(vapply(cedulas, function(v) {
@@ -512,7 +512,7 @@ test_that("A1: texto latin1 sin marca no hace avisar al barrido de nombres", {
   ), n, TRUE)
   avisos <- character()
   p <- withCallingHandlers(
-    perfilar(d, columnas_personales = "cedula"),
+    perfilar(d, columnas_personales = "cedula", proteger_datos_personales = TRUE),
     warning = function(w) {
       avisos <<- c(avisos, conditionMessage(w))
       invokeRestart("muffleWarning")
@@ -540,7 +540,7 @@ test_that("E1: un nombre de columna marcado bytes no hace abortar el plan", {
     pl <- suppressWarnings(planificar_limpieza(p, d))
     expect_s3_class(pl, "plan_limpieza")
     if (proteger) {
-      an <- suppressWarnings(suppressMessages(analizar(d)))
+      an <- suppressWarnings(suppressMessages(analizar(d, proteger_datos_personales = TRUE)))
       expect_s3_class(an, "analisis")
     }
     k <- which(startsWith(as.character(pl$estrategia),

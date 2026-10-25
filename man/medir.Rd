@@ -10,7 +10,7 @@ medir(
   id_medicion = NULL,
   fecha = Sys.time(),
   aplicabilidad = NULL,
-  proteger_datos_personales = TRUE,
+  proteger_datos_personales = FALSE,
   columnas_personales = character(),
   validadores_personales = NULL
 )
@@ -61,7 +61,7 @@ consumen mediciones, así que heredan el número que salga de acá.
 Sin declaración toda la tabla aplica y el resultado es el de siempre.}
 
 \item{proteger_datos_personales}{Si se enmascaran los candidatos de
-proximidad que corresponden a columnas personales. Por omisión \code{TRUE}.
+proximidad que corresponden a columnas personales. Por omisión \code{FALSE}.
 También gobierna lo que escribe un método propio: si alguna tabla recibida
 tiene columnas personales, su etiqueta \code{objeto} se reemplaza por la
 canónica del paquete (\code{tabla$columna[fila]}), y los valores de esas

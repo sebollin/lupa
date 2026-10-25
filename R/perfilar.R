@@ -1827,9 +1827,11 @@
 #'   y estadísticos de orden concretos cuando `poder_discriminante` es medio,
 #'   alto o verificado. Las clasificaciones débiles se conservan como aviso pero
 #'   no suprimen estadísticos, ni la magnitud de Benford, ni la evidencia de sus
-#'   hallazgos: en ella se tapan sólo sus valores. Para conservar todo en el objeto debe desactivarse
-#'   explícitamente; [reportar()] aplica además su propia protección
-#'   predeterminada.
+#'   hallazgos: en ella se tapan sólo sus valores. Es `FALSE` por omisión: la
+#'   protección es un complemento que se pide, y publicar o no los valores de
+#'   una base es decisión de quien la usa. La clasificación de posibles datos
+#'   personales corre igual —es un diagnóstico— y lo que se pide es el
+#'   enmascarado. [reportar()] tiene su propia protección, que también se pide.
 #'   El enmascarado es **por columna**: se reemplaza lo que describe a una
 #'   columna protegida —su moda, sus estadísticos, sus ejemplos y la evidencia
 #'   de sus hallazgos—, no todas las apariciones de ese texto en la salida. Un
@@ -2482,7 +2484,7 @@ perfilar <- function(datos,
                      umbral_casi_clave_dependencia = 0.8,
                      max_columnas_dependencias = 100L,
                      datos_personales_permitidos = TRUE,
-                     proteger_datos_personales = TRUE,
+                     proteger_datos_personales = FALSE,
                      columnas_personales = character(),
                      validadores_personales = NULL,
                      umbral_documento_verificado = 0.9,

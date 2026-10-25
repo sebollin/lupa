@@ -54,9 +54,15 @@ test_that("H1: el mensaje del motor se lee como lo dijo el motor, sin lo que agr
   # fijo de ocho cifras, la cedula, el celular, y con el fin de linea de
   # Windows. cli ponia una vineta despues de cada salto y salian dos o tres
   # numeros cortos, que la segunda pasada publicaba.
+  # La proteccion del mensaje se pide: desde el 2026-10-25 no hay nadie que la
+  # fije por omision.
+  protegido <- function(condicion) {
+    .fijar_proteccion_motor(TRUE)
+    .mensaje_motor(condicion)
+  }
   for (valor in c("2901\n1234", "4.685\n467-9", "099\n123\n456",
                   "2901\r\n1234", "2901\n\n1234")) {
-    salida <- .mensaje_motor(.r32_odbc(.r32_sueco(valor)))
+    salida <- protegido(.r32_odbc(.r32_sueco(valor)))
     for (tramo in strsplit(valor, "[\r\n]+")[[1L]]) {
       expect_false(grepl(tramo, salida, fixed = TRUE), info = valor)
     }
@@ -70,7 +76,7 @@ test_that("H1: el mensaje del motor se lee como lo dijo el motor, sin lo que agr
   con_fuga <- 0L
   for (ancho in 40:60) {
     viejas <- options(cli.width = ancho)
-    salida <- .mensaje_motor(.r32_odbc(.r32_sueco("2901 1234")))
+    salida <- protegido(.r32_odbc(.r32_sueco("2901 1234")))
     options(viejas)
     if (grepl("2901", salida, fixed = TRUE) ||
         grepl("1234", salida, fixed = TRUE)) {
@@ -87,7 +93,7 @@ test_that("H1: el mensaje del motor se lee como lo dijo el motor, sin lo que agr
     .fijar_identificadores_motor(previos_ids)
   }, add = TRUE)
   .sumar_valores_motor("099;123;\n456")
-  salida <- .mensaje_motor(.r32_odbc(.r32_sueco("099;123;\n456")))
+  salida <- protegido(.r32_odbc(.r32_sueco("099;123;\n456")))
   expect_false(grepl("123", salida, fixed = TRUE))
   expect_false(grepl("456", salida, fixed = TRUE))
   # Un error que no es de rlang da el mismo texto que antes.
@@ -171,7 +177,7 @@ test_that("H3: el celular E.164 de planilla con punto medio o agrupado indio se 
   )
   an <- suppressWarnings(suppressMessages(analizar(
     d, columnas_personales = c(nombre = "nombre_persona", celular = "telefono"),
-    conservar_datos = TRUE
+    conservar_datos = TRUE, proteger_datos_personales = TRUE
   )))
   en_claro <- vapply(seq_len(n), function(i) {
     grepl(nucleo[[i]], gsub("[^0-9]", "", an$datos$nota[[i]]), fixed = TRUE)
@@ -216,7 +222,7 @@ test_that("H4: los avisos de la coleccion pasan por el piso tambien si se corta"
       tryCatch(
         perfilar_coleccion(coleccion(con, c("clientes", "otra")),
                            conservar_perfiles = conservar,
-                           columnas_personales = "nombre"),
+                           columnas_personales = "nombre", proteger_datos_personales = TRUE),
         interrupt = function(i) "cortada"
       ),
       warning = function(w) {
@@ -264,7 +270,7 @@ test_that("H5: el entorno de la copia con atributos o con algo que no se lee", {
                   stringsAsFactors = FALSE)
   d$extra <- I(c(list(con_nombre), rep(list(NULL), 7)))
   an <- suppressWarnings(suppressMessages(analizar(
-    d, columnas_personales = c("cedula", "nombre"), conservar_datos = TRUE
+    d, columnas_personales = c("cedula", "nombre"), conservar_datos = TRUE, proteger_datos_personales = TRUE
   )))
   expect_false(isTRUE(grepRaw(cedula, serialize(an$datos, NULL), fixed = TRUE) > 0))
 })
@@ -333,7 +339,7 @@ test_that("D9: el desvio de una columna protegida no se publica, por ninguna via
                   monto = round(stats::runif(40L, 100, 900), 2))
   desvio <- stats::sd(d$cedula)
   p <- suppressWarnings(perfilar(d, columnas_personales = "cedula",
-                                 analizar_dependencias = FALSE))
+                                 analizar_dependencias = FALSE, proteger_datos_personales = TRUE))
   fila <- p$columnas[p$columnas$columna == "cedula", , drop = FALSE]
   expect_true(is.na(fila$desvio))
   expect_identical(as.character(fila$detalle_proteccion_personal),
@@ -347,7 +353,7 @@ test_that("D9: el desvio de una columna protegida no se publica, por ninguna via
   DBI::dbWriteTable(con, "t", d)
   for (bloque in list(NULL, 13L)) {
     pd <- suppressWarnings(suppressMessages(perfilar_dbi(
-      con, "t", columnas_personales = "cedula", bloque_filas = bloque
+      con, "t", columnas_personales = "cedula", bloque_filas = bloque, proteger_datos_personales = TRUE
     )))
     columnas <- pd$resumen_tabla$columnas
     expect_true(is.na(columnas$desvio[columnas$columna == "cedula"]))
@@ -379,7 +385,7 @@ test_that("N1: la via por bloques no publica los valores protegidos en meta$fami
   DBI::dbWriteTable(con, "t", d)
   pd <- suppressWarnings(suppressMessages(perfilar_dbi(
     con, "t", columnas_personales = c("cedula", "nombre", "nota"),
-    bloque_filas = 11L
+    bloque_filas = 11L, proteger_datos_personales = TRUE
   )))
   familias <- pd$resumen_tabla$meta$familias
   expect_true(length(familias) > 0L)

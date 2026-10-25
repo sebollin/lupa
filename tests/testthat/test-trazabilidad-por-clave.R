@@ -23,7 +23,7 @@ testthat::skip_on_cran()
 
 test_that("con clave declarada la trazabilidad trae sus valores", {
   datos <- .tabla_con_clave()
-  perfil <- perfilar(datos, clave = "id")
+  perfil <- perfilar(datos, clave = "id", proteger_datos_personales = TRUE)
 
   con_claves <- Filter(
     function(t) !is.null(t$claves), perfil$hallazgos$trazabilidad
@@ -43,7 +43,7 @@ test_that("con clave declarada la trazabilidad trae sus valores", {
 
 test_that("sin clave el índice de fila sigue siendo el localizador", {
   datos <- .tabla_con_clave()
-  perfil <- perfilar(datos)
+  perfil <- perfilar(datos, proteger_datos_personales = TRUE)
 
   localizadores <- vapply(
     perfil$hallazgos$trazabilidad, function(t) t$localizador, character(1L)
@@ -58,7 +58,7 @@ test_that("sin clave el índice de fila sigue siendo el localizador", {
 test_that("estado y localizador son ejes independientes", {
   datos <- .tabla_con_clave(300L)
   # Un tope chico fuerza el truncamiento sin quitar la clave.
-  perfil <- perfilar(datos, clave = "id", max_filas_hallazgo = 5L)
+  perfil <- perfilar(datos, clave = "id", max_filas_hallazgo = 5L, proteger_datos_personales = TRUE)
 
   truncadas <- Filter(
     function(t) isTRUE(t$truncado), perfil$hallazgos$trazabilidad
@@ -79,7 +79,7 @@ test_that("una clave compuesta preserva sus columnas y tipos", {
     constante = rep("a", 120L),
     stringsAsFactors = FALSE
   )
-  perfil <- perfilar(datos, clave = c("anio", "numero"))
+  perfil <- perfilar(datos, clave = c("anio", "numero"), proteger_datos_personales = TRUE)
   traza <- Filter(
     function(t) !is.null(t$claves), perfil$hallazgos$trazabilidad
   )[[1L]]
@@ -98,7 +98,7 @@ test_that("la clave declarada se protege como la evidencia", {
     stringsAsFactors = FALSE
   )
 
-  protegido <- perfilar(datos, clave = "cedula")
+  protegido <- perfilar(datos, clave = "cedula", proteger_datos_personales = TRUE)
   con_claves <- Filter(
     function(t) !is.null(t$claves), protegido$hallazgos$trazabilidad
   )
@@ -119,24 +119,24 @@ test_that("la clave declarada se protege como la evidencia", {
 
 test_that("una clave mal declarada se rechaza diciendo qué hay", {
   datos <- .tabla_con_clave()
-  expect_error(perfilar(datos, clave = "no_existe"), "no estan en los datos")
-  expect_error(perfilar(datos, clave = "no_existe"), "Disponibles")
-  expect_error(perfilar(datos, clave = c("id", "id")), "repite")
-  expect_error(perfilar(datos, clave = 1), "nombres de columna")
-  expect_error(perfilar(datos, clave = NA_character_), "sin NA")
+  expect_error(perfilar(datos, clave = "no_existe", proteger_datos_personales = TRUE), "no estan en los datos")
+  expect_error(perfilar(datos, clave = "no_existe", proteger_datos_personales = TRUE), "Disponibles")
+  expect_error(perfilar(datos, clave = c("id", "id"), proteger_datos_personales = TRUE), "repite")
+  expect_error(perfilar(datos, clave = 1, proteger_datos_personales = TRUE), "nombres de columna")
+  expect_error(perfilar(datos, clave = NA_character_, proteger_datos_personales = TRUE), "sin NA")
 })
 
 test_that("una clave que no es única avisa y no rompe", {
   datos <- data.frame(
     k = c("a", "a", "b"), x = 1:3, stringsAsFactors = FALSE
   )
-  expect_warning(perfilar(datos, clave = "k"), "no es \u00fanica")
+  expect_warning(perfilar(datos, clave = "k", proteger_datos_personales = TRUE), "no es \u00fanica")
 })
 
 test_that("analizar() traslada la clave por las dos vías", {
   datos <- .tabla_con_clave()
-  por_puntos <- analizar(datos, clave = "id")
-  por_lista <- analizar(datos, argumentos_perfil = list(clave = "id"))
+  por_puntos <- analizar(datos, clave = "id", proteger_datos_personales = TRUE)
+  por_lista <- analizar(datos, argumentos_perfil = list(clave = "id"), proteger_datos_personales = TRUE)
   expect_identical(por_puntos$perfil$hallazgos, por_lista$perfil$hallazgos)
 
   localizadores <- vapply(

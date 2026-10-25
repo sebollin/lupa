@@ -559,12 +559,16 @@
   # En el caso habitual (nombres ASCII) R ya considera iguales las marcas
   # `unknown` y `UTF-8`; evitar el resto de la preparacion mantiene barata la
   # ruta que se ejecuta en cada columna de una tabla grande.
+  # La marca reservada se busca con TRE: sus entradas son solo ASCII, y en
+  # Windows cada `grepl(perl = TRUE)` cuesta unos 47 us fijos. La deteccion de lo
+  # no ASCII sigue en PCRE: con TRE y el patron por bytes, R intenta traducirlo
+  # bajo un locale que no es UTF-8 y avisa (medido en test-escapes-en-mensajes).
   no_ascii <- grepl("[^\\001-\\177]", nombres, useBytes = TRUE, perl = TRUE)
   reservado <- rep(FALSE, length(nombres))
   indices_ascii <- which(!is.na(nombres) & !no_ascii)
   if (length(indices_ascii)) {
     reservado[indices_ascii] <- grepl(
-      "^<lupa-byte:[0-9A-F]+>$", nombres[indices_ascii], perl = TRUE
+      "^<lupa-byte:[0-9A-F]+>$", nombres[indices_ascii]
     )
   }
   if (!any(no_ascii) && !any(reservado)) return(nombres)
@@ -1052,7 +1056,7 @@
 }
 
 # La misma bandera cuando llega por `...`: solo si se paso. Ausente vale la
-# omision de cada funcion, que protege.
+# omision de cada funcion, que desde el 2026-10-25 no protege.
 .validar_bandera_proteccion_en <- function(argumentos) {
   if ("proteger_datos_personales" %in% names(argumentos)) {
     .validar_bandera_proteccion(argumentos[["proteger_datos_personales"]])
@@ -1061,15 +1065,15 @@
 }
 
 # Si la llamada protege, leido de los argumentos que viajan en `...`: ausente
-# vale la omision, que protege. Por el nombre exacto, como la validacion de
+# vale la omision, que desde el 2026-10-25 no protege -la proteccion es un
+# complemento que se pide-. Por el nombre exacto, como la validacion de
 # arriba: `$` casaba tambien un nombre que empieza con este. La regla estaba
 # escrita cuatro veces en la via DBI -`perfilar_dbi()`, las dos del spool y la
 # via por bloques-, y hace falta tambien en la entrada de
 # `perfilar_dbi()` y de `perfilar_coleccion()`, para el mensaje del motor
 # (`.fijar_proteccion_motor()`): una sola, para que no se separen.
 .protege_argumentos <- function(argumentos) {
-  bandera <- argumentos[["proteger_datos_personales"]]
-  is.null(bandera) || isTRUE(bandera)
+  isTRUE(argumentos[["proteger_datos_personales"]])
 }
 
 # Los argumentos que viajan por `...` hasta `perfilar()` se leen con el nombre

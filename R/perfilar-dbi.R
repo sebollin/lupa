@@ -1455,13 +1455,14 @@
 # del motor -unos treinta, en cuatro archivos- no la reciben y no la pueden
 # olvidar: la lee `.mensaje_motor()`. Las otras cuatro exportadas que leen por
 # DBI no tienen la bandera y no la fijan: heredan la de quien las llama
-# -`perfilar_dbi()` llama a `plan_perfilado_dbi()`- y, solas, protegen. Sin
-# nadie que la fije se protege: el lado cerrado.
-.protege_mensaje_motor <- function() !isFALSE(.CONTEXTO_MOTOR$proteger)
+# -`perfilar_dbi()` llama a `plan_perfilado_dbi()`- y, solas, no protegen: desde
+# el 2026-10-25 la proteccion es un complemento que se pide, y sin nadie que la
+# fije el mensaje del motor se publica como llega.
+.protege_mensaje_motor <- function() isTRUE(.CONTEXTO_MOTOR$proteger)
 
 .fijar_proteccion_motor <- function(proteger, marco = parent.frame()) {
   previa <- .CONTEXTO_MOTOR$proteger
-  .CONTEXTO_MOTOR$proteger <- !isFALSE(proteger)
+  .CONTEXTO_MOTOR$proteger <- isTRUE(proteger)
   volver <- substitute(.reponer_proteccion_motor(previa),
                        list(previa = previa))
   do.call(on.exit, list(volver, add = TRUE), envir = marco)
@@ -18947,8 +18948,9 @@ print.plan_perfilado_dbi <- function(x, ...) {
 #' así que sumar la columna entera da más que la corrida.
 #'
 #' @section Datos personales:
-#' `proteger_datos_personales` viaja en `...` hacia [perfilar()] y vale `TRUE`
-#' por omisión. La protección alcanza a los dos bloques: en `resumen_tabla` se
+#' `proteger_datos_personales` viaja en `...` hacia [perfilar()] y vale `FALSE`
+#' por omisión: la protección es un complemento que se pide. Con `TRUE` alcanza
+#' a los dos bloques: en `resumen_tabla` se
 #' reemplaza la moda de las columnas clasificadas como personales, se ocultan
 #' sus estadísticos de orden y sus momentos, se sanean los datos de conexión y
 #' el SQL guardado no contiene ningún valor derivado de los datos. La

@@ -94,7 +94,7 @@ test_that("H1: perfilar_dbi() no publica la cedula que cita el error del motor",
     "CREATE VIEW v_ci AS SELECT id, CAST(cedula_num AS BIGINT) AS ci, nombre",
     "FROM clientes"
   ))
-  pd <- suppressWarnings(suppressMessages(perfilar_dbi(con, "v_ci")))
+  pd <- suppressWarnings(suppressMessages(perfilar_dbi(con, "v_ci", proteger_datos_personales = TRUE)))
   # La muestra aisla `ci` -falla en la fila 25- sobre sus mismas filas y lee
   # las demas: `ci` no entra en la muestra (antes se perdia
   # la muestra entera y se tapaba todo) y ninguna metrica SQL suya se calcula,
@@ -143,7 +143,7 @@ test_that("H2: la copia de analizar() no deja el valor en ninguna parte del data
     d, conservar_datos = TRUE,
     columnas_personales = c(cedula = "documento_identidad",
                             docente = "nombre_persona",
-                            atencion = "otro")
+                            atencion = "otro"), proteger_datos_personales = TRUE
   )))
   copia <- an$datos
   hojas <- .r28_hojas(copia)
@@ -249,7 +249,7 @@ test_that("H3: el centinela declarado que es el valor de una protegida se declar
   d$cuota[23:30] <- 99999999
   p <- suppressWarnings(perfilar(
     d, columnas_personales = c(cedula = "documento_identidad"),
-    sentinelas_numericos = c(-999, 99999999)
+    sentinelas_numericos = c(-999, 99999999), proteger_datos_personales = TRUE
   ))
   pl <- suppressWarnings(planificar_limpieza(p, d))
   k <- which(pl$estrategia == "convertir_sentinelas_numericos")
@@ -297,7 +297,7 @@ test_that("H4: el celular E.164 pegado a otro numero se prueba por su parte naci
             rep("Reclamo por factura", 90L)),
     stringsAsFactors = FALSE
   )
-  p <- suppressWarnings(perfilar(d, columnas_personales = c(celular = "telefono")))
+  p <- suppressWarnings(perfilar(d, columnas_personales = c(celular = "telefono"), proteger_datos_personales = TRUE))
   hojas <- .r28_hojas(p)
   for (v in e164[1:30]) {
     expect_false(any(grepl(v, hojas, fixed = TRUE)), info = v)
@@ -325,7 +325,7 @@ test_that("H5: un miembro declarado 'vista' se registra y las demas cierran", {
                                    tipo = c("vista", "tabla"),
                                    stringsAsFactors = FALSE))
   pc <- suppressWarnings(suppressMessages(perfilar_coleccion(
-    col, conservar_perfiles = TRUE
+    col, conservar_perfiles = TRUE, proteger_datos_personales = TRUE
   )))
   expect_identical(names(pc$perfiles), "movs")
   resumen <- pc$perfiles$movs$resumen_tabla
@@ -405,7 +405,7 @@ test_that("H7: un campo que refiere columnas publica la columna aunque mezcle (t
   d$turno[sample(n, 10L)] <- NA
   d[["Lucia Pereira"]][sample(n, 8L)] <- NA
   an <- suppressWarnings(suppressMessages(analizar(
-    d, columnas_personales = c(docente = "nombre_persona")
+    d, columnas_personales = c(docente = "nombre_persona"), proteger_datos_personales = TRUE
   )))
   # La columna `Lucia Pereira` es el objeto de su medida de completitud; las dos
   # columnas proporcionales, el origen de la propuesta.

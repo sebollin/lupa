@@ -10,7 +10,7 @@ testthat::skip_on_cran()
   )
   medidas <- medir(
     modelo(instancia), data.frame(dato = valores),
-    id_medicion = id, fecha = as.POSIXct(fecha, tz = "UTC")
+    id_medicion = id, fecha = as.POSIXct(fecha, tz = "UTC"), proteger_datos_personales = TRUE
   )
   perfil <- perfil_evaluacion(
     "Operativo",
@@ -214,7 +214,7 @@ test_that("comparar_perfiles cubre esquema, tipos, métricas y patrones", {
       vieja = seq_len(n),
       stringsAsFactors = FALSE
     ),
-    fecha = as.POSIXct("2026-01-31 23:00:00", tz = "America/Montevideo")
+    fecha = as.POSIXct("2026-01-31 23:00:00", tz = "America/Montevideo"), proteger_datos_personales = TRUE
   )
   actual <- perfilar(
     data.frame(
@@ -227,7 +227,7 @@ test_that("comparar_perfiles cubre esquema, tipos, métricas y patrones", {
       nueva = seq_len(n),
       stringsAsFactors = FALSE
     ),
-    fecha = as.POSIXct("2026-02-28 23:00:00", tz = "America/Montevideo")
+    fecha = as.POSIXct("2026-02-28 23:00:00", tz = "America/Montevideo"), proteger_datos_personales = TRUE
   )
   deriva <- comparar_perfiles(anterior, actual)
 
@@ -275,11 +275,11 @@ test_that("comparar_perfiles cubre esquema, tipos, métricas y patrones", {
 test_that("los patrones desaparecidos y configuraciones distintas se informan", {
   anterior <- perfilar(
     data.frame(codigo = rep("AA1", 10L)),
-    fecha = as.POSIXct("2026-01-01", tz = "UTC")
+    fecha = as.POSIXct("2026-01-01", tz = "UTC"), proteger_datos_personales = TRUE
   )
   actual <- perfilar(
     data.frame(codigo = rep("B-3", 10L)),
-    fecha = as.POSIXct("2026-02-01", tz = "UTC")
+    fecha = as.POSIXct("2026-02-01", tz = "UTC"), proteger_datos_personales = TRUE
   )
   deriva <- comparar_perfiles(anterior, actual)
   expect_true(any(
@@ -289,7 +289,7 @@ test_that("los patrones desaparecidos y configuraciones distintas se informan", 
 
   otra_config <- perfilar(
     data.frame(codigo = rep("B-3", 10L)), expandir = TRUE,
-    fecha = as.POSIXct("2026-03-01", tz = "UTC")
+    fecha = as.POSIXct("2026-03-01", tz = "UTC"), proteger_datos_personales = TRUE
   )
   no_comparable <- comparar_perfiles(actual, otra_config)
   expect_true(any(
@@ -303,7 +303,7 @@ test_that("los patrones desaparecidos y configuraciones distintas se informan", 
 test_that("los cambios pequeños permanecen como observaciones ok", {
   anterior <- perfilar(
     data.frame(categoria = rep(c("A", "B"), 50L)),
-    fecha = as.POSIXct("2026-01-01", tz = "UTC")
+    fecha = as.POSIXct("2026-01-01", tz = "UTC"), proteger_datos_personales = TRUE
   )
   actual <- anterior
   actual$meta$fecha_hora <- as.POSIXct("2026-02-01", tz = "UTC")
@@ -326,7 +326,7 @@ test_that("la deriva tolera rangos de fecha no parseables", {
   perfil <- perfilar(
     datos_administrativos,
     fecha = as.POSIXct("2026-01-01", tz = "UTC"),
-    analizar_dependencias = FALSE
+    analizar_dependencias = FALSE, proteger_datos_personales = TRUE
   )
   expect_equal(nrow(comparar_perfiles(perfil, perfil)), 0L)
 
@@ -339,7 +339,7 @@ test_that("la deriva tolera rangos de fecha no parseables", {
 
 test_that("las entradas de deriva se validan", {
   perfil <- perfilar(
-    data.frame(x = 1:3), fecha = as.POSIXct("2026-01-01", tz = "UTC")
+    data.frame(x = 1:3), fecha = as.POSIXct("2026-01-01", tz = "UTC"), proteger_datos_personales = TRUE
   )
   expect_error(comparar_perfiles(data.frame(), perfil), "anterior")
   expect_error(comparar_perfiles(perfil, data.frame()), "actual")
@@ -348,9 +348,9 @@ test_that("las entradas de deriva se validan", {
     comparar_perfiles(perfil, perfil, umbral_cambio = 0.2, umbral_error = 0.1),
     "umbral_error"
   )
-  expect_error(perfilar(data.frame(x = 1), fecha = NA), "fecha")
+  expect_error(perfilar(data.frame(x = 1), fecha = NA, proteger_datos_personales = TRUE), "fecha")
 
-  fecha_date <- perfilar(data.frame(x = 1), fecha = as.Date("2026-01-01"))
+  fecha_date <- perfilar(data.frame(x = 1), fecha = as.Date("2026-01-01"), proteger_datos_personales = TRUE)
   expect_s3_class(fecha_date$meta$fecha_hora, "POSIXct")
   expect_equal(attr(fecha_date$meta$fecha_hora, "tzone"), "UTC")
 })
@@ -362,7 +362,7 @@ test_that("las ramas de comparabilidad estructural quedan explícitas", {
 
   base <- perfilar(
     data.frame(x = c(1, 2, 3)),
-    fecha = as.POSIXct("2026-01-01", tz = "UTC")
+    fecha = as.POSIXct("2026-01-01", tz = "UTC"), proteger_datos_personales = TRUE
   )
   sin_config <- base
   sin_config$meta$muestra <- NULL
@@ -371,26 +371,26 @@ test_that("las ramas de comparabilidad estructural quedan explícitas", {
 
   fechas_a <- perfilar(
     data.frame(f = as.Date(c("2026-01-01", "2026-01-10"))),
-    fecha = as.POSIXct("2026-01-31", tz = "UTC")
+    fecha = as.POSIXct("2026-01-31", tz = "UTC"), proteger_datos_personales = TRUE
   )
   fechas_b <- perfilar(
     data.frame(f = as.Date(c("2026-01-01", "2026-01-20"))),
-    fecha = as.POSIXct("2026-02-28", tz = "UTC")
+    fecha = as.POSIXct("2026-02-28", tz = "UTC"), proteger_datos_personales = TRUE
   )
   expect_true(any(comparar_perfiles(fechas_a, fechas_b)$aspecto == "rango"))
 
   constante_a <- perfilar(
-    data.frame(x = c(1, 1)), fecha = as.POSIXct("2026-01-01", tz = "UTC")
+    data.frame(x = c(1, 1)), fecha = as.POSIXct("2026-01-01", tz = "UTC"), proteger_datos_personales = TRUE
   )
   constante_b <- perfilar(
-    data.frame(x = c(2, 2)), fecha = as.POSIXct("2026-02-01", tz = "UTC")
+    data.frame(x = c(2, 2)), fecha = as.POSIXct("2026-02-01", tz = "UTC"), proteger_datos_personales = TRUE
   )
   rango <- comparar_perfiles(constante_a, constante_b)
   expect_true(any(is.finite(rango$cambio_relativo[rango$aspecto == "rango"])))
 
   base_texto <- perfilar(
     data.frame(x = c("AA1", "AA2", "AA3")),
-    fecha = as.POSIXct("2026-01-01", tz = "UTC")
+    fecha = as.POSIXct("2026-01-01", tz = "UTC"), proteger_datos_personales = TRUE
   )
   patron_invalido <- base_texto
   patron_invalido$patrones[[1L]] <- data.frame(otra = 1)
@@ -405,11 +405,11 @@ test_that("las ramas de comparabilidad estructural quedan explícitas", {
 
   con_retirada <- perfilar(
     data.frame(retirada = rep("x", 3L), comun = 1:3),
-    fecha = as.POSIXct("2026-01-01", tz = "UTC")
+    fecha = as.POSIXct("2026-01-01", tz = "UTC"), proteger_datos_personales = TRUE
   )
   sin_retirada <- perfilar(
     data.frame(comun = 1:3),
-    fecha = as.POSIXct("2026-02-01", tz = "UTC")
+    fecha = as.POSIXct("2026-02-01", tz = "UTC"), proteger_datos_personales = TRUE
   )
   cambios <- comparar_perfiles(con_retirada, sin_retirada)
   expect_false(any(
@@ -434,11 +434,11 @@ test_that("el cambio de centinelas se declara sin apagar la deriva", {
   datos <- data.frame(x = c(rep(1, 90), rep(2, 10), rep(9999, 10)))
   anterior <- perfilar(
     datos, sentinelas_numericos = numeric(), analizar_dependencias = FALSE,
-    fecha = as.POSIXct("2026-01-01", tz = "UTC")
+    fecha = as.POSIXct("2026-01-01", tz = "UTC"), proteger_datos_personales = TRUE
   )
   actual <- perfilar(
     datos, sentinelas_numericos = 9999, analizar_dependencias = FALSE,
-    fecha = as.POSIXct("2026-02-01", tz = "UTC")
+    fecha = as.POSIXct("2026-02-01", tz = "UTC"), proteger_datos_personales = TRUE
   )
 
   deriva <- comparar_perfiles(anterior, actual)
@@ -455,7 +455,7 @@ test_that("el cambio de centinelas se declara sin apagar la deriva", {
   posterior <- perfilar(
     data.frame(x = c(rep(1, 80), rep(3, 20), rep(9999, 10))),
     sentinelas_numericos = 9999, analizar_dependencias = FALSE,
-    fecha = as.POSIXct("2026-03-01", tz = "UTC")
+    fecha = as.POSIXct("2026-03-01", tz = "UTC"), proteger_datos_personales = TRUE
   )
   deriva_estable <- comparar_perfiles(actual, posterior)
   expect_false(any(
@@ -475,7 +475,7 @@ test_that("la deriva de calidad declara cambios del modelo y conserva la senal",
   anterior <- evaluar(
     agregar(
       medir(modelo(no_nulo), datos_corte, id_medicion = "corte-a",
-            fecha = as.POSIXct("2026-01-01", tz = "UTC")),
+            fecha = as.POSIXct("2026-01-01", tz = "UTC"), proteger_datos_personales = TRUE),
       "atributo", "ratio"
     ),
     perfil_evaluacion("P", regla_corte(0.5))
@@ -483,7 +483,7 @@ test_that("la deriva de calidad declara cambios del modelo y conserva la senal",
   actual <- evaluar(
     agregar(
       medir(modelo(no_nulo), datos_corte, id_medicion = "corte-b",
-            fecha = as.POSIXct("2026-02-01", tz = "UTC")),
+            fecha = as.POSIXct("2026-02-01", tz = "UTC"), proteger_datos_personales = TRUE),
       "atributo", "ratio"
     ),
     perfil_evaluacion("P", regla_corte(0.9))
@@ -505,12 +505,12 @@ test_that("la deriva de calidad declara cambios del modelo y conserva la senal",
   )
   anterior <- evaluar(
     medir(modelo(no_nulo), data.frame(dato = c("OK", "BAD")),
-          id_medicion = "metrica-a", fecha = as.POSIXct("2026-01-01", tz = "UTC")),
+          id_medicion = "metrica-a", fecha = as.POSIXct("2026-01-01", tz = "UTC"), proteger_datos_personales = TRUE),
     perfil_evaluacion("P", regla_evaluacion("pasa", function(x) x == 1))
   )
   actual <- evaluar(
     medir(modelo(formato), data.frame(dato = c("OK", "BAD")),
-          id_medicion = "metrica-b", fecha = as.POSIXct("2026-02-01", tz = "UTC")),
+          id_medicion = "metrica-b", fecha = as.POSIXct("2026-02-01", tz = "UTC"), proteger_datos_personales = TRUE),
     perfil_evaluacion("P", regla_evaluacion("pasa", function(x) x == 1))
   )
   deriva <- detectar_deriva_calidad(historico_calidad(anterior, actual))
@@ -523,13 +523,13 @@ test_that("la deriva de calidad declara cambios del modelo y conserva la senal",
   )
   anterior <- evaluar(
     medir(modelo(no_nulo), datos_aplicabilidad, id_medicion = "app-a",
-          fecha = as.POSIXct("2026-01-01", tz = "UTC")),
+          fecha = as.POSIXct("2026-01-01", tz = "UTC"), proteger_datos_personales = TRUE),
     perfil_evaluacion("P", regla_evaluacion("pasa", function(x) x == 1))
   )
   actual <- evaluar(
     medir(modelo(no_nulo), datos_aplicabilidad,
           aplicabilidad = list(dato = ~ tiene == "Si"), id_medicion = "app-b",
-          fecha = as.POSIXct("2026-02-01", tz = "UTC")),
+          fecha = as.POSIXct("2026-02-01", tz = "UTC"), proteger_datos_personales = TRUE),
     perfil_evaluacion("P", regla_evaluacion("pasa", function(x) x == 1))
   )
   deriva <- detectar_deriva_calidad(historico_calidad(anterior, actual))
@@ -547,7 +547,7 @@ test_that("el historico separa corridas de tablas distintas", {
     metrica <- instanciar(especializar(nucleo$NoNulo), entidad, "dato")
     evaluar(
       medir(modelo(metrica), data.frame(dato = valor), id_medicion = id,
-            fecha = as.POSIXct(fecha, tz = "UTC")), regla
+            fecha = as.POSIXct(fecha, tz = "UTC"), proteger_datos_personales = TRUE), regla
     )
   }
   historico <- historico_calidad(
@@ -589,7 +589,7 @@ test_that("un perfil sin un campo declara la no comparabilidad y no aborta", {
   # campo", no "cual de los dos se construyo primero". Sin declararlas, `viejo`
   # se arma dentro del bucle y queda fechado DESPUES que `actual`, que es lo que
   # la guarda de orden rechaza -con razon-.
-  actual <- perfilar(d2, fecha = as.POSIXct("2026-02-01", tz = "UTC"))
+  actual <- perfilar(d2, fecha = as.POSIXct("2026-02-01", tz = "UTC"), proteger_datos_personales = TRUE)
 
   esperado <- c(
     tasa_distintos = "cardinalidad", n_distintos = "cardinalidad",
@@ -598,7 +598,7 @@ test_that("un perfil sin un campo declara la no comparabilidad y no aborta", {
     maximo_fecha = "rango"
   )
   for (campo in names(esperado)) {
-    viejo <- perfilar(d1, fecha = as.POSIXct("2026-01-01", tz = "UTC"))
+    viejo <- perfilar(d1, fecha = as.POSIXct("2026-01-01", tz = "UTC"), proteger_datos_personales = TRUE)
     viejo$columnas <- viejo$columnas[
       , setdiff(names(viejo$columnas), campo), drop = FALSE
     ]
@@ -620,7 +620,7 @@ test_that("un perfil sin un campo declara la no comparabilidad y no aborta", {
 
   # La fila declarada dice de que lado falta, que es lo que permite entender
   # que el problema es la version del perfil y no los datos.
-  viejo <- perfilar(d1, fecha = as.POSIXct("2026-01-01", tz = "UTC"))
+  viejo <- perfilar(d1, fecha = as.POSIXct("2026-01-01", tz = "UTC"), proteger_datos_personales = TRUE)
   viejo$columnas <- viejo$columnas[
     , setdiff(names(viejo$columnas), "tasa_distintos"), drop = FALSE
   ]
@@ -643,7 +643,7 @@ test_that("dos perfiles de esta version no declaran campos ausentes", {
     x = c(1, 2, 3, 4, 9), t = c("a", "b", "z", "c", "b"),
     stringsAsFactors = FALSE
   )
-  comparacion <- comparar_perfiles(perfilar(d1), perfilar(d2))
+  comparacion <- comparar_perfiles(perfilar(d1, proteger_datos_personales = TRUE), perfilar(d2, proteger_datos_personales = TRUE))
 
   aspectos <- c(
     "tipo_declarado", "tipo_inferido", "faltantes", "cardinalidad", "rango"
@@ -669,8 +669,8 @@ test_that("un cambio de normalizacion se declara y no pasa por mejora", {
     ciudad = c(rep(jose, 10), rep("jose", 10), rep("JOSE ", 20)),
     stringsAsFactors = FALSE
   )
-  con <- perfilar(datos)
-  sin <- perfilar(datos, normalizar = FALSE)
+  con <- perfilar(datos, proteger_datos_personales = TRUE)
+  sin <- perfilar(datos, normalizar = FALSE, proteger_datos_personales = TRUE)
   # Primero: el mecanismo se activo. Sin un hallazgo que desaparezca, la
   # comparacion no tendria nada que atribuir mal.
   expect_true("casi_duplicados_vocabulario" %in% con$hallazgos$tipo_hallazgo)
@@ -710,11 +710,11 @@ test_that("la misma normalizacion no inventa una fila de configuracion", {
     ciudad = c(rep(jose, 10), rep("jose", 10), rep("JOSE ", 20)),
     stringsAsFactors = FALSE
   )
-  expect_equal(nrow(comparar_perfiles(perfilar(datos), perfilar(datos))), 0L)
+  expect_equal(nrow(comparar_perfiles(perfilar(datos, proteger_datos_personales = TRUE), perfilar(datos, proteger_datos_personales = TRUE))), 0L)
   expect_equal(
     nrow(comparar_perfiles(
-      perfilar(datos, normalizar = FALSE),
-      perfilar(datos, normalizar = FALSE)
+      perfilar(datos, normalizar = FALSE, proteger_datos_personales = TRUE),
+      perfilar(datos, normalizar = FALSE, proteger_datos_personales = TRUE)
     )),
     0L
   )
@@ -739,7 +739,7 @@ test_that("una politica oculta se declara no comparable, no cambiada", {
   sin_declarar <- perfilar(datos, sentinelas_numericos = politica,
                            proteger_datos_personales = FALSE)
   con_personal <- perfilar(datos, sentinelas_numericos = politica,
-                           columnas_personales = "documento")
+                           columnas_personales = "documento", proteger_datos_personales = TRUE)
   # El mecanismo se activo: una publica la politica y la otra la enmascara.
   expect_false(anyNA(sin_declarar$meta$sentinelas_numericos))
   expect_true(anyNA(con_personal$meta$sentinelas_numericos))
@@ -785,16 +785,16 @@ test_that("una politica escrita en otro orden no es un cambio de vara", {
 
   expect_equal(
     filas_de(
-      perfilar(datos, sentinelas_numericos = c(999, -9, -99, -999, -9999)),
-      perfilar(datos, sentinelas_numericos = c(-9, -99, -999, -9999, 999)),
+      perfilar(datos, sentinelas_numericos = c(999, -9, -99, -999, -9999), proteger_datos_personales = TRUE),
+      perfilar(datos, sentinelas_numericos = c(-9, -99, -999, -9999, 999), proteger_datos_personales = TRUE),
       "configuracion_sentinelas"
     ),
     0L
   )
   expect_equal(
     filas_de(
-      perfilar(datos, normalizar = normalizacion(proteger = c("n", "u"))),
-      perfilar(datos, normalizar = normalizacion(proteger = c("u", "n"))),
+      perfilar(datos, normalizar = normalizacion(proteger = c("n", "u")), proteger_datos_personales = TRUE),
+      perfilar(datos, normalizar = normalizacion(proteger = c("u", "n")), proteger_datos_personales = TRUE),
       "configuracion_normalizacion"
     ),
     0L
@@ -816,19 +816,19 @@ test_that("ordenar la politica no tapa ningun cambio real", {
     sum(grepl(patron, comparacion$aspecto))
   }
   expect_equal(
-    filas_de(perfilar(datos), perfilar(datos, sentinelas_numericos = c(-999)),
+    filas_de(perfilar(datos, proteger_datos_personales = TRUE), perfilar(datos, sentinelas_numericos = c(-999), proteger_datos_personales = TRUE),
              "configuracion_sentinelas"),
     1L
   )
   expect_equal(
-    filas_de(perfilar(datos), perfilar(datos, normalizar = FALSE),
+    filas_de(perfilar(datos, proteger_datos_personales = TRUE), perfilar(datos, normalizar = FALSE, proteger_datos_personales = TRUE),
              "configuracion_normalizacion"),
     1L
   )
   expect_equal(
     filas_de(
-      perfilar(datos, normalizar = normalizacion(proteger = c("n"))),
-      perfilar(datos, normalizar = normalizacion(proteger = c("n", "u"))),
+      perfilar(datos, normalizar = normalizacion(proteger = c("n")), proteger_datos_personales = TRUE),
+      perfilar(datos, normalizar = normalizacion(proteger = c("n", "u")), proteger_datos_personales = TRUE),
       "configuracion_normalizacion"
     ),
     1L
@@ -843,12 +843,12 @@ test_that("ordenar la politica no tapa ningun cambio real", {
       perfilar(con_documento, sentinelas_numericos = politica,
                proteger_datos_personales = FALSE),
       perfilar(con_documento, sentinelas_numericos = politica,
-               columnas_personales = "documento"),
+               columnas_personales = "documento", proteger_datos_personales = TRUE),
       "configuracion_sentinelas"
     ),
     1L
   )
-  expect_equal(nrow(comparar_perfiles(perfilar(datos), perfilar(datos))), 0L)
+  expect_equal(nrow(comparar_perfiles(perfilar(datos, proteger_datos_personales = TRUE), perfilar(datos, proteger_datos_personales = TRUE))), 0L)
 })
 
 # Un unico argumento que sea una lista se despliega como lista de objetos, y un
@@ -859,7 +859,7 @@ test_that("ordenar la politica no tapa ningun cambio real", {
 test_that("las entradas vacias se tratan todas igual", {
   datos <- data.frame(x = c(1, 2, NA, 4, 5))
   medicion <- medir(
-    modelo(instanciar(especializar(metricas_nucleo()[[1L]]), "t", "x")), datos
+    modelo(instanciar(especializar(metricas_nucleo()[[1L]]), "t", "x")), datos, proteger_datos_personales = TRUE
   )
 
   # Un historico vacio es un concepto valido: sin argumentos, o una lista de
@@ -896,8 +896,8 @@ test_that("un cambio de umbral se declara como cambio de vara", {
   set.seed(3)
   datos <- data.frame(x = c(rnorm(50), rep(NA, 50)))
   comparacion <- comparar_perfiles(
-    perfilar(datos, umbral_faltantes_error = 0.4),
-    perfilar(datos, umbral_faltantes_error = 0.9)
+    perfilar(datos, umbral_faltantes_error = 0.4, proteger_datos_personales = TRUE),
+    perfilar(datos, umbral_faltantes_error = 0.9, proteger_datos_personales = TRUE)
   )
   fila <- comparacion[comparacion$aspecto == "configuracion_umbrales", ]
   expect_equal(nrow(fila), 1L)
@@ -909,7 +909,7 @@ test_that("un cambio de umbral se declara como cambio de vara", {
   expect_true(any(comparacion$cambio == "atenuado"))
 
   # Y las seis varas viajan en `meta`.
-  meta <- perfilar(datos)$meta
+  meta <- perfilar(datos, proteger_datos_personales = TRUE)$meta
   for (vara in c("umbral_faltantes_sospechoso", "umbral_faltantes_error",
                  "umbral_alta_cardinalidad", "umbral_patron_dominante",
                  "columnas_sin_ceros", "columnas_no_negativas")) {
@@ -926,11 +926,11 @@ test_that("un cambio de datos no se declara como cambio de umbral", {
   filas_umbral <- function(a, b) {
     sum(comparar_perfiles(a, b)$aspecto == "configuracion_umbrales")
   }
-  expect_equal(filas_umbral(perfilar(base), perfilar(base)), 0L)
-  expect_equal(filas_umbral(perfilar(base), perfilar(otros)), 0L)
+  expect_equal(filas_umbral(perfilar(base, proteger_datos_personales = TRUE), perfilar(base, proteger_datos_personales = TRUE)), 0L)
+  expect_equal(filas_umbral(perfilar(base, proteger_datos_personales = TRUE), perfilar(otros, proteger_datos_personales = TRUE)), 0L)
   # Y una vara declarada por columna tambien se ve.
   expect_equal(
-    filas_umbral(perfilar(base), perfilar(base, columnas_sin_ceros = "x")), 1L
+    filas_umbral(perfilar(base, proteger_datos_personales = TRUE), perfilar(base, columnas_sin_ceros = "x", proteger_datos_personales = TRUE)), 1L
   )
 })
 

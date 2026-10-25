@@ -80,7 +80,7 @@ test_that("P-H1 y P-H3: la regla de quien actua protege logins, apellidos con fo
     d <- data.frame(nro_tramite = sprintf("T-%05d", seq_len(n)),
                     x = rep(valores, length.out = n), stringsAsFactors = FALSE)
     names(d)[[2L]] <- columna
-    p <- suppressWarnings(perfilar(d))
+    p <- suppressWarnings(perfilar(d, proteger_datos_personales = TRUE))
     expect_identical(.r38p_protegidas(p), columna, info = caso)
     expect_identical(.r38p_apariciones(p, valores), 0L, info = caso)
   }
@@ -103,7 +103,7 @@ test_that("P-H1, el recorrido: un login con cualquier apellido con forma de esta
       rep(c(paste0(substr(letters[i], 1L, 1L), tanda[[i]]), otros),
           length.out = n)
     }), columnas[seq_along(tanda)]), stringsAsFactors = FALSE)
-    p <- suppressWarnings(perfilar(d))
+    p <- suppressWarnings(perfilar(d, proteger_datos_personales = TRUE))
     expect_setequal(.r38p_protegidas(p), names(d))
     expect_identical(.r38p_apariciones(p, paste0(letters[seq_along(tanda)],
                                                  tanda)), 0L)
@@ -133,7 +133,7 @@ test_that("P-H1, la cara 2: los estados y los motivos de la lista se publican, e
                            length.out = n),
     stringsAsFactors = FALSE
   )
-  con <- suppressWarnings(perfilar(d))
+  con <- suppressWarnings(perfilar(d, proteger_datos_personales = TRUE))
   sin <- suppressWarnings(perfilar(d, proteger_datos_personales = FALSE))
   expect_identical(.r38p_protegidas(con), character())
   for (campo in c("moda", "minimo", "maximo")) {
@@ -152,7 +152,7 @@ test_that("P-H3: en una columna calificada, el nombre autocapitalizado es un nom
                         "Ana laura Silva", "Jose luis Gomez")),
     stringsAsFactors = FALSE
   )
-  p <- suppressWarnings(perfilar(d))
+  p <- suppressWarnings(perfilar(d, proteger_datos_personales = TRUE))
   expect_setequal(.r38p_protegidas(p), names(d))
   expect_identical(.r38p_apariciones(p, unique(unlist(d))), 0L)
   frases <- data.frame(
@@ -162,7 +162,7 @@ test_that("P-H3: en una columna calificada, el nombre autocapitalizado es un nom
     resultado_socio = r(c("Victoria local", "Victoria visitante")),
     stringsAsFactors = FALSE
   )
-  pf <- suppressWarnings(perfilar(frases))
+  pf <- suppressWarnings(perfilar(frases, proteger_datos_personales = TRUE))
   sf <- suppressWarnings(perfilar(frases, proteger_datos_personales = FALSE))
   expect_identical(.r38p_protegidas(pf), character())
   expect_identical(pf$columnas$moda, sf$columnas$moda)
@@ -184,7 +184,7 @@ test_that("P-H2: el celular escrito con puntos de a tres y su cero se protege en
   d <- as.data.frame(stats::setNames(lapply(seq_along(columnas), function(i) {
     sample(base, n, TRUE)
   }), columnas), stringsAsFactors = FALSE)
-  p <- suppressWarnings(perfilar(d))
+  p <- suppressWarnings(perfilar(d, proteger_datos_personales = TRUE))
   expect_setequal(.r38p_protegidas(p), columnas)
   expect_identical(.r38p_apariciones(p, base), 0L)
 })
@@ -214,8 +214,8 @@ test_that("P-H2, el recorrido: cuarenta escrituras de un telefono, con la palabr
                                   paste0(prefijo, seq_along(formas))),
                   stringsAsFactors = FALSE)
   }
-  con <- suppressWarnings(perfilar(armar("celular_estado_")))
-  sin <- suppressWarnings(perfilar(armar("cliente_medio_")))
+  con <- suppressWarnings(perfilar(armar("celular_estado_"), proteger_datos_personales = TRUE))
+  sin <- suppressWarnings(perfilar(armar("cliente_medio_"), proteger_datos_personales = TRUE))
   con_palabra <- paste0("celular_estado_", seq_along(formas)) %in%
     .r38p_protegidas(con)
   sin_palabra <- paste0("cliente_medio_", seq_along(formas)) %in%
@@ -237,7 +237,7 @@ test_that("P-H2, el recorrido: cuarenta escrituras de un telefono, con la palabr
     cliente_id_suc = r(c("10-0012345", "10-0012345", "10-0012346")),
     stringsAsFactors = FALSE
   )
-  pi <- suppressWarnings(perfilar(importes))
+  pi <- suppressWarnings(perfilar(importes, proteger_datos_personales = TRUE))
   si <- suppressWarnings(perfilar(importes, proteger_datos_personales = FALSE))
   expect_identical(.r38p_protegidas(pi), character())
   expect_identical(pi$columnas$moda, si$columnas$moda)
@@ -269,7 +269,7 @@ test_that("P-H4: los encabezados con tilde de un CSV de Windows leido sin declar
   d <- data.frame(id = seq_len(n), calles, fijos, celulares, cedulas, fechas,
                   stringsAsFactors = FALSE)
   names(d) <- c("id", unname(encabezados))
-  p <- suppressWarnings(perfilar(d))
+  p <- suppressWarnings(perfilar(d, proteger_datos_personales = TRUE))
   expect_identical(length(.columnas_personales_rapidas(d)), 5L)
   expect_identical(length(.r38p_protegidas(p)), 5L)
   expect_identical(.r38p_apariciones(p, c(calles, celulares, cedulas)), 0L)
@@ -287,7 +287,7 @@ test_that("P-H4: los encabezados con tilde de un CSV de Windows leido sin declar
   leido <- utils::read.csv(archivo, sep = ";", check.names = FALSE,
                            colClasses = "character")
   expect_identical(ncol(leido), 6L)
-  pl <- suppressWarnings(perfilar(leido))
+  pl <- suppressWarnings(perfilar(leido, proteger_datos_personales = TRUE))
   expect_identical(length(.r38p_protegidas(pl)), 5L)
   expect_identical(.r38p_apariciones(pl, c(calles, celulares, cedulas)), 0L)
 })
@@ -322,9 +322,9 @@ test_that("P-H5: por la via DBI con muestra, el documento por el nombre que la m
   ralas <- c("cedula_conyuge", "ci_tutor")
   for (via in c("muestra", "bloques", "orden")) {
     p <- suppressWarnings(switch(via,
-      muestra = perfilar_dbi(con, "padron", muestra = 200),
-      bloques = perfilar_dbi(con, "padron", bloque_filas = 500, muestra = 1000),
-      orden = perfilar_dbi(con, "padron", muestra = 200, orden_muestra = "id")
+      muestra = perfilar_dbi(con, "padron", muestra = 200, proteger_datos_personales = TRUE),
+      bloques = perfilar_dbi(con, "padron", bloque_filas = 500, muestra = 1000, proteger_datos_personales = TRUE),
+      orden = perfilar_dbi(con, "padron", muestra = 200, orden_muestra = "id", proteger_datos_personales = TRUE)
     ))
     expect_true(all(ralas %in% .r38p_protegidas(p$perfil_muestra)), info = via)
     columnas <- p$resumen_tabla$columnas
@@ -343,18 +343,18 @@ test_that("P-H5, la cara 2: un documento por el nombre sin cifras se publica si 
     cod_documento = r(c(1L, 1L, 2L, 9L)),
     stringsAsFactors = FALSE
   )
-  con <- suppressWarnings(perfilar(d))
+  con <- suppressWarnings(perfilar(d, proteger_datos_personales = TRUE))
   sin <- suppressWarnings(perfilar(d, proteger_datos_personales = FALSE))
   expect_identical(.r38p_protegidas(con), character())
   expect_identical(con$columnas$moda, sin$columnas$moda)
   # Lo que no desmiente: pocos valores, ceros, un solo valor repetido.
   pocos <- data.frame(cedula_valida = c("S", "N", "S"),
                       cedula_conyuge = c(0, 0, 0), stringsAsFactors = FALSE)
-  pp <- suppressWarnings(perfilar(pocos))
+  pp <- suppressWarnings(perfilar(pocos, proteger_datos_personales = TRUE))
   expect_setequal(.r38p_protegidas(pp), names(pocos))
   ceros <- data.frame(cedula_conyuge = r(0), ci_tutor = r("S/D"),
                       stringsAsFactors = FALSE)
-  pc <- suppressWarnings(perfilar(ceros))
+  pc <- suppressWarnings(perfilar(ceros, proteger_datos_personales = TRUE))
   expect_setequal(.r38p_protegidas(pc), names(ceros))
   # La cifra a mano: tres valores no llegan al umbral; cuarenta, si.
   expect_lt(nrow(pocos), .MIN_VALORES_DESMIENTEN_DOCUMENTO)
@@ -379,7 +379,7 @@ test_that("B1: los nombres pegados de los sistemas heredados y el plural de la a
                 nrodoc = "documento_identidad",
                 NRODOC_TXT = "documento_identidad", dirpart = "domicilio",
                 DIRPARTICULAR = "domicilio", dirs = "domicilio")
-  p <- suppressWarnings(perfilar(d))
+  p <- suppressWarnings(perfilar(d, proteger_datos_personales = TRUE))
   dp <- p$datos_personales
   protegidas <- dp[dp$proteger %in% TRUE, , drop = FALSE]
   expect_setequal(protegidas$columna, names(esperado))

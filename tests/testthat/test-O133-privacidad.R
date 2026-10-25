@@ -51,7 +51,7 @@ test_that("perfilar y perfilar_dbi no abortan con un nombre no ASCII y una cedul
                             length.out = n), stringsAsFactors = FALSE)
   names(d)[[1L]] <- .anio_O133
   # Antes: "no se permite traduccion de cadenas con bytes", por omision.
-  perfil <- suppressWarnings(perfilar(d))
+  perfil <- suppressWarnings(perfilar(d, proteger_datos_personales = TRUE))
   hojas <- c(perfil$columnas$moda, perfil$hallazgos$evidencia)
   expect_false(any(grepl(cedula[[1L]], hojas, fixed = TRUE)))
   # El nombre citado en la evidencia de los nombres no sintacticos sale entero.
@@ -62,7 +62,7 @@ test_that("perfilar y perfilar_dbi no abortan con un nombre no ASCII y una cedul
   conexion <- DBI::dbConnect(RSQLite::SQLite(), ":memory:")
   on.exit(DBI::dbDisconnect(conexion), add = TRUE)
   DBI::dbWriteTable(conexion, "t", d)
-  resultado <- suppressMessages(suppressWarnings(perfilar_dbi(conexion, "t")))
+  resultado <- suppressMessages(suppressWarnings(perfilar_dbi(conexion, "t", proteger_datos_personales = TRUE)))
   expect_false(any(grepl(cedula[[1L]], resultado$resumen_tabla$columnas$moda,
                          fixed = TRUE)))
 })
@@ -74,7 +74,7 @@ test_that("clasificar_variables y detectar_discordancias aplican el piso de perf
   d <- data.frame(cedula = cedula, stringsAsFactors = FALSE)
   d$obs <- rep(c(paste("reclamo CI", citada), "ok"), length.out = n)
   d$obs2 <- ifelse(seq_len(n) %% 4L == 1L, toupper(d$obs), d$obs)
-  clasificacion <- clasificar_variables(d)
+  clasificacion <- clasificar_variables(d, proteger_datos_personales = TRUE)
   niveles <- unlist(clasificacion$niveles_observados, use.names = FALSE)
   # Antes: `reclamo CI <cedula>` y `RECLAMO CI <cedula>` en los niveles de
   # `obs` y `obs2`, mientras perfilar() los tapaba sobre la misma tabla.
@@ -82,7 +82,7 @@ test_that("clasificar_variables y detectar_discordancias aplican el piso de perf
   expect_true("reclamo CI [valor protegido]" %in% niveles)
   expect_true("ok" %in% niveles)
   discordancias <- detectar_discordancias(
-    d, senal_redundante(c("obs", "obs2")), max_ejemplos = 50L
+    d, senal_redundante(c("obs", "obs2")), max_ejemplos = 50L, proteger_datos_personales = TRUE
   )
   expect_false(any(grepl(citada, discordancias$evidencia, fixed = TRUE)))
   expect_true(grepl("obs=reclamo CI [valor protegido]",
@@ -166,7 +166,7 @@ test_that("una sola regla de columna de fechas: ano en dos cifras y AAAAMMDD con
   alta[1:60] <- compacta[[1L]]
   d <- data.frame(id = seq_len(n), nac = dos_cifras, ingreso = ingreso,
                   nac2 = compacta, alta = alta, stringsAsFactors = FALSE)
-  perfil <- suppressWarnings(perfilar(d, columnas_personales = c("nac", "nac2")))
+  perfil <- suppressWarnings(perfilar(d, columnas_personales = c("nac", "nac2"), proteger_datos_personales = TRUE))
   moda <- function(columna) perfil$columnas$moda[perfil$columnas$columna == columna]
   # Antes: el 60 % en dd/mm/aa, o una sola celda mala en la AAAAMMDD, hacian que
   # la columna "no fuera de fechas" y sus fechas tapaban la moda de las otras.
@@ -194,7 +194,7 @@ test_that("el centinela o el relleno de una columna protegida no vacia el perfil
   obs <- ifelse(seq_len(n) %% 3L == 0L, "ok", "sin observaciones ------ revisar")
   d <- data.frame(cedula = cedula, telefono = telefono, monto = monto,
                   obs = obs, stringsAsFactors = FALSE)
-  perfil <- suppressWarnings(perfilar(d, columnas_personales = c("cedula", "telefono")))
+  perfil <- suppressWarnings(perfilar(d, columnas_personales = c("cedula", "telefono"), proteger_datos_personales = TRUE))
   columnas <- perfil$columnas
   fila <- function(columna, campo) columnas[[campo]][columnas$columna == columna]
   # Antes: moda `[valor protegido]` y minimo, mediana y maximo en NA, y la moda

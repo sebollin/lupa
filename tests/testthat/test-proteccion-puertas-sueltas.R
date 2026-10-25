@@ -14,7 +14,7 @@ test_that("detectar_discordancias no publica valores de una columna personal", {
   d$cedula_bis <- d$cedula
   d$cedula_bis[c(5L, 11L)] <- c("77310999", "77310888")
 
-  dis <- detectar_discordancias(d, senal_redundante(c("cedula", "cedula_bis")))
+  dis <- detectar_discordancias(d, senal_redundante(c("cedula", "cedula_bis")), proteger_datos_personales = TRUE)
 
   # Ni el valor de referencia ni el discordante, y en NINGUNA parte del objeto.
   texto <- paste(
@@ -40,7 +40,7 @@ test_that("detectar_discordancias sigue publicando lo que no es personal", {
   e$sucursal_bis[c(3L, 9L)] <- c("nortex", "surx")
 
   evidencia <- as.character(
-    detectar_discordancias(e, senal_redundante(c("sucursal", "sucursal_bis")))$evidencia
+    detectar_discordancias(e, senal_redundante(c("sucursal", "sucursal_bis")), proteger_datos_personales = TRUE)$evidencia
   )
   expect_false(grepl("valor protegido", evidencia, fixed = TRUE))
   expect_true(grepl("sucursal=este", evidencia, fixed = TRUE))
@@ -51,14 +51,14 @@ test_that("descubrir_patrones suelto enmascara lo que la forma alcanza a clasifi
   # Un correo se clasifica por su sola forma, sin nombre de columna que ayude.
   correos <- paste0("persona", sprintf("%02d", 1:25), "@ejemplo.org")
   expect_equal(
-    as.character(descubrir_patrones(correos)$ejemplos)[[1L]],
+    as.character(descubrir_patrones(correos, proteger_datos_personales = TRUE)$ejemplos)[[1L]],
     "[valor protegido]"
   )
 
   # Un codigo no es personal: se sigue publicando.
   codigos <- sprintf("SKU-%04d", 1:25)
   expect_true(
-    grepl("SKU-0001", as.character(descubrir_patrones(codigos)$ejemplos)[[1L]],
+    grepl("SKU-0001", as.character(descubrir_patrones(codigos, proteger_datos_personales = TRUE)$ejemplos)[[1L]],
           fixed = TRUE)
   )
 
@@ -67,7 +67,7 @@ test_that("descubrir_patrones suelto enmascara lo que la forma alcanza a clasifi
   # conjeturar por debajo de lo declarado es lo que su regla prohibe.
   numeros <- sprintf("%08d", 77310001:77310025)
   expect_true(
-    grepl("77310001", as.character(descubrir_patrones(numeros)$ejemplos)[[1L]],
+    grepl("77310001", as.character(descubrir_patrones(numeros, proteger_datos_personales = TRUE)$ejemplos)[[1L]],
           fixed = TRUE)
   )
 })
@@ -75,7 +75,7 @@ test_that("descubrir_patrones suelto enmascara lo que la forma alcanza a clasifi
 test_that("perfilar sigue sin publicar esos valores por su propia via", {
   correos <- paste0("persona", sprintf("%02d", 1:25), "@ejemplo.org")
   # Nombre de columna NEUTRO a proposito: la clasificacion sale de la forma.
-  perfil <- perfilar(data.frame(x = correos, stringsAsFactors = FALSE))
+  perfil <- perfilar(data.frame(x = correos, stringsAsFactors = FALSE), proteger_datos_personales = TRUE)
   expect_equal(as.character(perfil$columnas$tipo_dato_personal), "correo")
   texto <- paste(
     utils::capture.output(utils::str(perfil, max.level = 8, list.len = 400)),

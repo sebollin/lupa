@@ -190,7 +190,7 @@ test_that("una salida grande de duplicados se protege con pocas llamadas", {
     .package = "lupa"
   )
   resultado <- detectar_duplicados_aproximados(
-    datos, muestra = 60L, max_pares = 20000L, max_resultados = Inf
+    datos, muestra = 60L, max_pares = 20000L, max_resultados = Inf, proteger_datos_personales = TRUE
   )
   expect_gt(nrow(resultado$hallazgos), 100L)
   # Con el recorrido hoja por hoja esto eran miles de llamadas; ahora es una por

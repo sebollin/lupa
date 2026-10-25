@@ -325,24 +325,24 @@ test_that("cada porton de la via DBI senala con clase de condicion propia", {
   on.exit(DBI::dbDisconnect(bases$cruda), add = TRUE)
 
   expect_error(
-    perfilar_dbi(bases$juguete, "no_existe"),
+    perfilar_dbi(bases$juguete, "no_existe", proteger_datos_personales = TRUE),
     class = "lupa_error_tabla_dbi"
   )
   expect_error(
-    perfilar_dbi(bases$juguete, "juguete", orden_muestra = "inexistente"),
+    perfilar_dbi(bases$juguete, "juguete", orden_muestra = "inexistente", proteger_datos_personales = TRUE),
     class = "lupa_error_argumento_dbi"
   )
   expect_error(
-    perfilar_dbi(list(a = 1), "juguete"),
+    perfilar_dbi(list(a = 1), "juguete", proteger_datos_personales = TRUE),
     class = "lupa_error_conexion_dbi"
   )
   expect_error(
-    perfilar_dbi(bases$juguete, "juguete", metricas = "inventada"),
+    perfilar_dbi(bases$juguete, "juguete", metricas = "inventada", proteger_datos_personales = TRUE),
     class = "lupa_error_argumento_dbi"
   )
   # Todas se pueden rescatar por la clase madre.
   rescate <- tryCatch(
-    perfilar_dbi(bases$juguete, "no_existe"),
+    perfilar_dbi(bases$juguete, "no_existe", proteger_datos_personales = TRUE),
     lupa_error_dbi = function(e) "rescatado"
   )
   expect_identical(rescate, "rescatado")
@@ -973,7 +973,8 @@ test_that("el SQL guardado no incrusta ningun valor derivado de los datos", {
   on.exit(DBI::dbDisconnect(bases$cruda), add = TRUE)
 
   resultado <- .perfilar_juguete(
-    bases$juguete, tabla = "padron", muestra = 5L, orden_muestra = "ci"
+    bases$juguete, tabla = "padron", muestra = 5L, orden_muestra = "ci",
+    proteger_datos_personales = TRUE
   )
   registros <- resultado$resumen_tabla$sql
   media_observada <- mean(padron$ci)
@@ -1055,7 +1056,7 @@ test_that("una conexion que no es DBI recibe el mensaje del paquete", {
   # es otro mensaje y otra comprobacion.
   skip_if_not_installed("DBI")
   expect_error(
-    perfilar_dbi(list(a = 1), "tabla"),
+    perfilar_dbi(list(a = 1), "tabla", proteger_datos_personales = TRUE),
     "no hereda de `DBIConnection`", fixed = TRUE
   )
 })
@@ -1064,7 +1065,7 @@ test_that("dbExistsTable en FALSE no afirma que la tabla no existe", {
   bases <- .conexion_juguete()
   on.exit(DBI::dbDisconnect(bases$cruda), add = TRUE)
   error <- tryCatch(
-    perfilar_dbi(bases$juguete, "no_existe"), error = function(e) e
+    perfilar_dbi(bases$juguete, "no_existe", proteger_datos_personales = TRUE), error = function(e) e
   )
   expect_s3_class(error, "lupa_error_tabla_dbi")
   expect_match(conditionMessage(error), "permiso")
@@ -1142,7 +1143,7 @@ test_that("una metrica internamente imposible se declara en vez de publicarse", 
   on.exit(DBI::dbDisconnect(con), add = TRUE)
   DBI::dbWriteTable(con, "t", data.frame(v = c(1, 1, 2, 2, 3)))
 
-  normal <- perfilar_dbi(con, "t", muestra = 10)
+  normal <- perfilar_dbi(con, "t", muestra = 10, proteger_datos_personales = TRUE)
   fila <- normal$resumen_tabla$columnas
   expect_lte(fila$n_distintos, fila$n_validos)
   expect_lte(fila$tasa_distintos, 1)
@@ -1166,12 +1167,12 @@ test_that("un nombre calificado con punto se resuelve como en coleccion()", {
   DBI::dbExecute(con, sprintf("ATTACH DATABASE '%s' AS reportes", archivo))
 
   expect_false(DBI::dbExistsTable(con, "reportes.resumen"))
-  por_texto <- perfilar_dbi(con, "reportes.resumen", muestra = 10)
+  por_texto <- perfilar_dbi(con, "reportes.resumen", muestra = 10, proteger_datos_personales = TRUE)
   expect_s3_class(por_texto, "perfil_dbi")
   expect_equal(nrow(por_texto$resumen_tabla$columnas), 2L)
 
   por_id <- perfilar_dbi(
-    con, DBI::Id(schema = "reportes", table = "resumen"), muestra = 10
+    con, DBI::Id(schema = "reportes", table = "resumen"), muestra = 10, proteger_datos_personales = TRUE
   )
   expect_equal(
     por_texto$resumen_tabla$columnas$columna,
@@ -1181,7 +1182,7 @@ test_that("un nombre calificado con punto se resuelve como en coleccion()", {
   ## Una tabla que de verdad no existe sigue dando el error, y no afirma
   ## inexistencia: dice que puede ser permiso.
   expect_error(
-    perfilar_dbi(con, "nada.de.nada", muestra = 10),
+    perfilar_dbi(con, "nada.de.nada", muestra = 10, proteger_datos_personales = TRUE),
     class = "lupa_error_tabla_dbi"
   )
 })
@@ -1200,7 +1201,7 @@ test_that("el desvio usa la funcion nativa del motor antes que el calculo casero
   valores <- c(4, 8, 15, 16, 23, 42)
   DBI::dbWriteTable(con, "t", data.frame(v = valores))
 
-  perfil <- perfilar_dbi(con, "t", muestra = 10)
+  perfil <- perfilar_dbi(con, "t", muestra = 10, proteger_datos_personales = TRUE)
   fila <- perfil$resumen_tabla$columnas
   expect_equal(fila$desvio, stats::sd(valores), tolerance = 1e-8)
 

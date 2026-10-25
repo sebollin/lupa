@@ -100,7 +100,7 @@ test_that("H1: en una coleccion, la copia sin verificador escrita como texto de 
   expect_equal(as.numeric(tramites$ref_cient), as.numeric(nums[k]))
   # En una tabla sola, las cuatro se protegen.
   juntas <- cbind(personas[k, , drop = FALSE], tramites[, copias])
-  pj <- suppressWarnings(perfilar(juntas))
+  pj <- suppressWarnings(perfilar(juntas, proteger_datos_personales = TRUE))
   expect_true(all(copias %in% pj$datos_personales$columna[
     pj$datos_personales$proteger]))
 
@@ -109,7 +109,7 @@ test_that("H1: en una coleccion, la copia sin verificador escrita como texto de 
   DBI::dbWriteTable(con, "personas", personas)
   DBI::dbWriteTable(con, "tramites", tramites)
   pc <- suppressWarnings(perfilar_coleccion(
-    coleccion(con, c("personas", "tramites")), conservar_perfiles = TRUE
+    coleccion(con, c("personas", "tramites")), conservar_perfiles = TRUE, proteger_datos_personales = TRUE
   ))
   pt <- pc$perfiles$tramites
   expect_setequal(intersect(copias,
@@ -191,7 +191,7 @@ test_that("H3/H4: las formas comunes de nombres, telefonos, domicilios y fechas 
   # La cifra a mano: el nombre latin1 no es UTF-8 valido y no lleva marca.
   expect_false(validUTF8(jose))
   expect_identical(Encoding(jose), "unknown")
-  p <- suppressWarnings(perfilar(d))
+  p <- suppressWarnings(perfilar(d, proteger_datos_personales = TRUE))
   dp <- p$datos_personales
   protegidas <- dp[dp$proteger, , drop = FALSE]
   expect_setequal(protegidas$columna, names(esperado))
@@ -235,7 +235,7 @@ test_that("H5: no se tapan importes, codigos, medios, lugares, estados ni catego
     stringsAsFactors = FALSE
   )
   moda <- function(x) names(sort(table(x), decreasing = TRUE))[[1L]]
-  p <- suppressWarnings(perfilar(d))
+  p <- suppressWarnings(perfilar(d, proteger_datos_personales = TRUE))
   expect_identical(p$datos_personales$columna[p$datos_personales$proteger],
                    character())
   columnas <- p$columnas

@@ -108,7 +108,7 @@ test_that("Q5: el mapa tapa ambos lados en las cuatro clases", {
       datos, columnas_personales = caso$protegidas, muestra = nrow(datos),
       max_patrones = 3L, normalizar = FALSE,
       casi_duplicados_vocabulario = FALSE, max_filas_hallazgo = 20L,
-      analizar_dependencias = FALSE
+      analizar_dependencias = FALSE, proteger_datos_personales = TRUE
     ))
     perfil$dependencias <- .q5_dependencias(caso, lado)
     plan <- suppressWarnings(planificar_limpieza(perfil, datos))
@@ -194,7 +194,7 @@ test_that("Q5: analizar tambien publica el lado protegido tapado", {
   analisis <- suppressWarnings(suppressMessages(analizar(
     caso$datos, columnas_personales = caso$protegidas,
     muestra = nrow(caso$datos), conservar_datos = FALSE,
-    medir_propuesta = FALSE
+    medir_propuesta = FALSE, proteger_datos_personales = TRUE
   )))
   i <- .q5_accion(analisis$plan_limpieza, "Edad_entero")
   expect_true(length(i) == 1L)
@@ -217,7 +217,7 @@ test_that("Q5: el piso no vuelve a publicar titulares en el lado publico", {
     datos, columnas_personales = c("titular", "ci_titular"),
     muestra = nrow(datos), normalizar = FALSE,
     casi_duplicados_vocabulario = FALSE, max_filas_hallazgo = 20L,
-    analizar_dependencias = FALSE
+    analizar_dependencias = FALSE, proteger_datos_personales = TRUE
   ))
   perfil$dependencias <- data.frame(
     determinante = "titular", dependiente = "sucursal",

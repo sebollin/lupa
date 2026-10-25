@@ -1140,8 +1140,9 @@ así que sumar la columna entera da más que la corrida.
 
 \section{Datos personales}{
 
-\code{proteger_datos_personales} viaja en \code{...} hacia \code{\link[=perfilar]{perfilar()}} y vale \code{TRUE}
-por omisión. La protección alcanza a los dos bloques: en \code{resumen_tabla} se
+\code{proteger_datos_personales} viaja en \code{...} hacia \code{\link[=perfilar]{perfilar()}} y vale \code{FALSE}
+por omisión: la protección es un complemento que se pide. Con \code{TRUE} alcanza
+a los dos bloques: en \code{resumen_tabla} se
 reemplaza la moda de las columnas clasificadas como personales, se ocultan
 sus estadísticos de orden y sus momentos, se sanean los datos de conexión y
 el SQL guardado no contiene ningún valor derivado de los datos. La

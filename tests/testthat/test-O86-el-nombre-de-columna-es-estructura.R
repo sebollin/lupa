@@ -30,7 +30,7 @@ testthat::skip_on_cran()
 
 test_that("los nombres de columna se publican intactos", {
   datos <- .o86_datos()
-  perfil <- suppressWarnings(perfilar(datos))
+  perfil <- suppressWarnings(perfilar(datos, proteger_datos_personales = TRUE))
   # Antes: `tipo_[valor protegido] | [valor protegido] | distrito | zona`.
   expect_identical(as.character(perfil$columnas$columna), names(datos))
   # Y los campos de nombres de las otras tablas: la proteccion no los cambia. Se
@@ -53,12 +53,12 @@ test_that("los nombres de columna se publican intactos", {
 
 test_that("el perfil vuelve a servir para planificar y analizar", {
   datos <- .o86_datos()
-  perfil <- suppressWarnings(perfilar(datos))
+  perfil <- suppressWarnings(perfilar(datos, proteger_datos_personales = TRUE))
   # Con dependencias: es la condicion para que la guarda de `planificar_limpieza`
   # compare nombres.
   expect_gt(nrow(perfil$dependencias), 0L)
   expect_no_error(suppressWarnings(planificar_limpieza(perfil, datos)))
-  expect_no_error(suppressWarnings(analizar(datos)))
+  expect_no_error(suppressWarnings(analizar(datos, proteger_datos_personales = TRUE)))
 })
 
 test_that("el valor que coincide con un nombre SIGUE enmascarado", {
@@ -69,7 +69,7 @@ test_that("el valor que coincide con un nombre SIGUE enmascarado", {
   # documento por su nombre, asi que aca se la declara personal: lo que se mide
   # es que la excepcion del nombre de columna no destape un valor protegido.
   datos <- .o86_datos()
-  perfil <- suppressWarnings(perfilar(datos, columnas_personales = "documento"))
+  perfil <- suppressWarnings(perfilar(datos, columnas_personales = "documento", proteger_datos_personales = TRUE))
   fila <- perfil$columnas[perfil$columnas$columna == "documento", , drop = FALSE]
   expect_equal(nrow(fila), 1L)
   expect_false(identical(as.character(fila$moda), "documento"))
@@ -85,7 +85,7 @@ test_that("un nombre que contiene el valor se publica entero", {
     stringsAsFactors = FALSE
   )
   perfil <- suppressWarnings(perfilar(
-    datos, columnas_personales = "nacimiento"
+    datos, columnas_personales = "nacimiento", proteger_datos_personales = TRUE
   ))
   expect_true("fecha_nacimiento" %in% as.character(perfil$columnas$columna))
   expect_false(any(grepl(

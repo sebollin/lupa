@@ -15,7 +15,7 @@ estimar_costo(
   max_resultados = 100L,
   normalizar = NULL,
   perfil = NULL,
-  proteger_datos_personales = TRUE,
+  proteger_datos_personales = FALSE,
   bloque = 1000L,
   estrategia = "auto",
   lsh_bandas = 12L,
@@ -137,7 +137,8 @@ informe ya calculado.}
 datos personales y no volver a inferirla.}
 
 \item{proteger_datos_personales}{Si la evidencia de columnas protegidas se
-reemplaza por \verb{[valor protegido]}. La supresion queda indicada en cada par.}
+reemplaza por \verb{[valor protegido]}. La supresion queda indicada en cada par.
+\code{FALSE} por omision.}
 
 \item{bloque}{Cantidad de filas por tesela de comparación. Por defecto
 \code{1000}; controla la memoria temporal, no el número de pares comparados.}

@@ -141,12 +141,12 @@ test_that("perfilar_por declara que las etiquetas de grupo son datos personales"
 
   # Primera mitad obligatoria: el mecanismo se activa. Si `perfilar()` no
   # clasificara la columna como personal, todo lo de abajo pasaria sin medir.
-  perfil <- perfilar(datos, analizar_dependencias = FALSE)
+  perfil <- perfilar(datos, analizar_dependencias = FALSE, proteger_datos_personales = TRUE)
   expect_true(any(perfil$datos_personales$columna == "documento" &
                     perfil$datos_personales$proteger))
 
   agrupado <- suppressWarnings(
-    perfilar_por(datos, "documento", min_filas = 2L)
+    perfilar_por(datos, "documento", min_filas = 2L, proteger_datos_personales = TRUE)
   )
   declarado <- attr(agrupado, "etiquetas_personales")
   expect_equal(nrow(declarado), 1L)
@@ -156,7 +156,7 @@ test_that("perfilar_por declara que las etiquetas de grupo son datos personales"
 
   # Y avisa al ejecutar, no solo en un atributo que nadie mira.
   expect_message(
-    perfilar_por(datos, "documento", min_filas = 2L),
+    perfilar_por(datos, "documento", min_filas = 2L, proteger_datos_personales = TRUE),
     "documento",
     fixed = TRUE
   )
@@ -169,7 +169,7 @@ test_that("perfilar_por declara que las etiquetas de grupo son datos personales"
     valor = as.character(20:59),
     stringsAsFactors = FALSE
   )
-  sin_personales <- perfilar_por(neutros, "region", min_filas = 2L)
+  sin_personales <- perfilar_por(neutros, "region", min_filas = 2L, proteger_datos_personales = TRUE)
   expect_equal(nrow(attr(sin_personales, "etiquetas_personales")), 0L)
 
   # Control 2: con la proteccion desactivada el usuario ya declaro que quiere
@@ -195,12 +195,12 @@ test_that("perfilar_por acepta argumentos que nombran la columna de agrupacion",
 
   # Primera mitad: sin declarar, el lexico NO reconoce este nombre. Si lo
   # reconociera, lo de abajo pasaria sin probar el canal de declaracion.
-  sin_declarar <- perfilar_por(datos, "codigo_interno", min_filas = 2L)
+  sin_declarar <- perfilar_por(datos, "codigo_interno", min_filas = 2L, proteger_datos_personales = TRUE)
   expect_equal(nrow(attr(sin_declarar, "etiquetas_personales")), 0L)
 
   declarado <- suppressWarnings(perfilar_por(
     datos, "codigo_interno", min_filas = 2L,
-    columnas_personales = "codigo_interno"
+    columnas_personales = "codigo_interno", proteger_datos_personales = TRUE
   ))
   etiquetas <- attr(declarado, "etiquetas_personales")
   expect_equal(nrow(etiquetas), 1L)
@@ -224,7 +224,7 @@ test_that("perfilar_por acepta argumentos que nombran la columna de agrupacion",
   # Control: un argumento que nombra una columna que SI esta en la rebanada
   # sigue llegando a `perfilar()` y no se recorta por error.
   con_opcional <- suppressWarnings(perfilar_por(
-    datos, "codigo_interno", min_filas = 2L, columnas_opcionales = "valor"
+    datos, "codigo_interno", min_filas = 2L, columnas_opcionales = "valor", proteger_datos_personales = TRUE
   ))
   expect_equal(length(unique(con_opcional$grupo)), 5L)
 })
@@ -239,7 +239,7 @@ test_that("perfilar_por declara cuando el grupo (ausente) junta dos cosas", {
     v = as.character(1:60),
     stringsAsFactors = FALSE
   )
-  salida <- perfilar_por(datos, "g", min_filas = 5L)
+  salida <- perfilar_por(datos, "g", min_filas = 5L, proteger_datos_personales = TRUE)
   cobertura <- attr(salida, "cobertura_grupos")
 
   fila <- cobertura[cobertura$grupo == "(ausente)" &
@@ -261,7 +261,7 @@ test_that("perfilar_por declara cuando el grupo (ausente) junta dos cosas", {
     v = as.character(1:40),
     stringsAsFactors = FALSE
   )
-  cobertura_limpia <- attr(perfilar_por(sin_colision, "g", min_filas = 5L),
+  cobertura_limpia <- attr(perfilar_por(sin_colision, "g", min_filas = 5L, proteger_datos_personales = TRUE),
                            "cobertura_grupos")
   expect_equal(sum(grepl("valor real", cobertura_limpia$motivo, fixed = TRUE)), 0L)
 })
@@ -351,9 +351,9 @@ test_that("medir() protege lo que el usuario declara personal", {
   instancia <- instanciar(
     especializar(metrica, proximidad = TRUE), "t", "legajo", referencial = ref
   )
-  expect_true(filtra(medir(modelo(instancia), datos), "LEG-0001"))
+  expect_true(filtra(medir(modelo(instancia), datos, proteger_datos_personales = TRUE), "LEG-0001"))
   expect_false(filtra(
-    medir(modelo(instancia), datos, columnas_personales = "legajo"),
+    medir(modelo(instancia), datos, columnas_personales = "legajo", proteger_datos_personales = TRUE),
     "LEG-0001"
   ))
 
@@ -373,13 +373,13 @@ test_that("medir() protege lo que el usuario declara personal", {
   instancia2 <- instanciar(
     especializar(metrica, proximidad = TRUE), "t", "codigo", referencial = ref2
   )
-  expect_true(filtra(medir(modelo(instancia2), datos2), "9912345678"))
+  expect_true(filtra(medir(modelo(instancia2), datos2, proteger_datos_personales = TRUE), "9912345678"))
   expect_false(filtra(
     medir(
       modelo(instancia2), datos2,
       validadores_personales = list(
         interno = function(x) grepl("^99[0-9]{8}$", x)
-      )
+      ), proteger_datos_personales = TRUE
     ),
     "9912345678"
   ))
@@ -389,7 +389,7 @@ test_that("medir() protege lo que el usuario declara personal", {
   # Declarar OTRA columna -que existe- no protege esta. Sin este control, una
   # version que protegiera ante cualquier declaracion pasaria igual.
   expect_true(filtra(
-    medir(modelo(instancia), datos, columnas_personales = "oficina"),
+    medir(modelo(instancia), datos, columnas_personales = "oficina", proteger_datos_personales = TRUE),
     "LEG-0001"
   ))
   expect_true(filtra(
@@ -402,7 +402,7 @@ test_that("medir() protege lo que el usuario declara personal", {
   expect_true(filtra(
     medir(
       modelo(instancia2), datos2,
-      validadores_personales = list(nada = function(x) rep(FALSE, length(x)))
+      validadores_personales = list(nada = function(x) rep(FALSE, length(x))), proteger_datos_personales = TRUE
     ),
     "9912345678"
   ))
@@ -410,18 +410,18 @@ test_that("medir() protege lo que el usuario declara personal", {
   # La declaracion se valida con la misma funcion que perfilar(), asi que
   # falla igual: un tipo equivocado y un nombre mal escrito.
   expect_error(
-    medir(modelo(instancia), datos, columnas_personales = 1:3),
+    medir(modelo(instancia), datos, columnas_personales = 1:3, proteger_datos_personales = TRUE),
     "vector de texto"
   )
   expect_error(
-    medir(modelo(instancia), datos, columnas_personales = "legjo"),
+    medir(modelo(instancia), datos, columnas_personales = "legjo", proteger_datos_personales = TRUE),
     "inexistentes"
   )
   # Y la forma con tipo declarado vale igual que en perfilar().
   expect_false(filtra(
     medir(
       modelo(instancia), datos,
-      columnas_personales = c(legajo = "identificador_interno")
+      columnas_personales = c(legajo = "identificador_interno"), proteger_datos_personales = TRUE
     ),
     "LEG-0001"
   ))
@@ -436,7 +436,7 @@ test_that("la version del paquete no se enmascara", {
   # `id_persona` -una clave de enteros- no se protege por la palabra de persona
   # de su nombre; la prueba la declara para seguir midiendo lo mismo: una
   # columna protegida con valores de un digito.
-  perfil <- perfilar(datos_administrativos, columnas_personales = "id_persona")
+  perfil <- perfilar(datos_administrativos, columnas_personales = "id_persona", proteger_datos_personales = TRUE)
   # Primero: la proteccion se activo. Sin columnas protegidas no prueba nada.
   expect_true(any(perfil$datos_personales$proteger))
   expect_true("id_persona" %in%
@@ -460,7 +460,7 @@ test_that("la version del paquete no se enmascara", {
 })
 
 test_that("el patron es una forma y no se enmascara; los ejemplos si", {
-  perfil <- perfilar(datos_administrativos)
+  perfil <- perfilar(datos_administrativos, proteger_datos_personales = TRUE)
   abierto <- perfilar(datos_administrativos, proteger_datos_personales = FALSE)
   protegidas <- perfil$datos_personales$columna[perfil$datos_personales$proteger]
   expect_true(length(protegidas) > 0L)
@@ -518,7 +518,7 @@ test_that("ningun valor protegido se escapa al perfil", {
   }
   for (nombre in names(casos)) {
     datos <- casos[[nombre]]
-    perfil <- perfilar(datos)
+    perfil <- perfilar(datos, proteger_datos_personales = TRUE)
     protegidas <- perfil$datos_personales$columna[perfil$datos_personales$proteger]
     expect_true(length(protegidas) > 0L, info = nombre)
 

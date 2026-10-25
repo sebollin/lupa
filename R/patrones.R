@@ -27,7 +27,7 @@
 #'
 #' @param x Vector que se convertirá a texto.
 #' @param proteger_datos_personales Si los ejemplos se enmascaran cuando la
-#'   forma de los valores alcanza para clasificarlos como dato personal. `TRUE`
+#'   forma de los valores alcanza para clasificarlos como dato personal. `FALSE`
 #'   por omisión. `perfilar()` lo pasa en `FALSE` porque protege el perfil
 #'   entero después, respetando ahí la declaración del usuario.
 #' @param distinguir_mayusculas Si es `TRUE`, distingue `a` de `A`.
@@ -78,7 +78,7 @@ descubrir_patrones <- function(x,
                                na.rm = TRUE,
                                muestra = 1e5,
                                umbral_raro = 0.05,
-                               proteger_datos_personales = TRUE) {
+                               proteger_datos_personales = FALSE) {
   # `perfilar()` documenta `Inf` para los topes de lo que se muestra; un texto
   # -"5"- pasaba la comparacion y abortaba en `floor()`.
   max_patrones <- .validar_limite_duplicados(max_patrones, "max_patrones")

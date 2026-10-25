@@ -30,7 +30,7 @@ test_that("las variantes del nombre protegido no salen en otra columna", {
     ), length.out = 30),
     stringsAsFactors = FALSE
   )
-  perfil <- suppressWarnings(perfilar(datos, columnas_personales = "titular"))
+  perfil <- suppressWarnings(perfilar(datos, columnas_personales = "titular", proteger_datos_personales = TRUE))
   todo <- paste(.hojas_O114(perfil), collapse = " || ")
   # Antes: las cuatro en los ejemplos de los patrones de `observaciones`.
   expect_false(grepl("juanp\u00e9rezsrl", todo, fixed = TRUE))

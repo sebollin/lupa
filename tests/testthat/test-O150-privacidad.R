@@ -149,7 +149,7 @@ test_that("H2 y H5: el celular escrito como numero de planilla da la misma cifra
                   celular = nacional, nota = nota, stringsAsFactors = FALSE)
   cp <- c(nombre = "nombre_persona", celular = "telefono")
   an <- suppressWarnings(suppressMessages(analizar(
-    d, columnas_personales = cp, conservar_datos = TRUE
+    d, columnas_personales = cp, conservar_datos = TRUE, proteger_datos_personales = TRUE
   )))
   # Cuantas notas quedan en claro en la copia: a mano, ninguna de las 27.
   expect_identical(sum(an$datos$nota %in% d$nota), 0L)
@@ -187,7 +187,7 @@ test_that("H3: la copia lee una funcion, una llamada y una formula como las impr
   )
   d$extra <- I(c(lapply(casos, `[[`, 1L), rep(list(NULL), n - length(casos))))
   an <- suppressWarnings(suppressMessages(analizar(
-    d, columnas_personales = cp, conservar_datos = TRUE
+    d, columnas_personales = cp, conservar_datos = TRUE, proteger_datos_personales = TRUE
   )))
   for (k in seq_along(casos)) {
     valor <- casos[[k]][[2L]]
@@ -213,7 +213,7 @@ test_that("H3: la copia lee una funcion, una llamada y una formula como las impr
   # Y una columna lista de puros `NULL`, que abortaba la copia.
   d$extra <- I(rep(list(NULL), n))
   an <- suppressWarnings(suppressMessages(analizar(
-    d, columnas_personales = cp, conservar_datos = TRUE
+    d, columnas_personales = cp, conservar_datos = TRUE, proteger_datos_personales = TRUE
   )))
   expect_identical(unclass(an$datos$extra), rep(list(NULL), n))
   protegido <- .piso_valor_conservado(objetos, .valores_identificantes(c(ced, nom)))
@@ -254,7 +254,7 @@ test_that("H4: el aviso de consola de una coleccion pasa por el piso final", {
     avisos <- character()
     pc <- withCallingHandlers(
       perfilar_coleccion(coleccion(con, c("r31_vista", "r31_clientes")),
-                         conservar_perfiles = conservar),
+                         conservar_perfiles = conservar, proteger_datos_personales = TRUE),
       warning = function(w) {
         avisos <<- c(avisos, conditionMessage(w))
         invokeRestart("muffleWarning")

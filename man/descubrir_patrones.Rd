@@ -12,7 +12,7 @@ descubrir_patrones(
   na.rm = TRUE,
   muestra = 1e+05,
   umbral_raro = 0.05,
-  proteger_datos_personales = TRUE
+  proteger_datos_personales = FALSE
 )
 }
 \arguments{
@@ -34,7 +34,7 @@ un resumen acotado de patrones raros para los hallazgos. La frontera es
 inclusiva: un patrón no dominante con exactamente esa proporción es raro.}
 
 \item{proteger_datos_personales}{Si los ejemplos se enmascaran cuando la
-forma de los valores alcanza para clasificarlos como dato personal. \code{TRUE}
+forma de los valores alcanza para clasificarlos como dato personal. \code{FALSE}
 por omisión. \code{perfilar()} lo pasa en \code{FALSE} porque protege el perfil
 entero después, respetando ahí la declaración del usuario.}
 }

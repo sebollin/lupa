@@ -89,8 +89,8 @@ test_that("con orden y media tapados, motor y memoria dicen lo mismo", {
   con <- DBI::dbConnect(RSQLite::SQLite(), ":memory:")
   on.exit(DBI::dbDisconnect(con), add = TRUE)
   DBI::dbWriteTable(con, "personas", datos)
-  memoria <- as.data.frame(columnas(suppressWarnings(perfilar(datos))))
-  motor <- as.data.frame(columnas(suppressWarnings(perfilar_dbi(con, "personas"))))
+  memoria <- as.data.frame(columnas(suppressWarnings(perfilar(datos, proteger_datos_personales = TRUE))))
+  motor <- as.data.frame(columnas(suppressWarnings(perfilar_dbi(con, "personas", proteger_datos_personales = TRUE))))
   detalle <- function(x) {
     as.character(x$detalle_proteccion_personal[x$columna == "documento"])
   }

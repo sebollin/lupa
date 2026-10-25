@@ -13,7 +13,7 @@ reportar(
   fecha = Sys.time(),
   max_filas = 100L,
   max_patrones = 20L,
-  proteger_datos_personales = TRUE
+  proteger_datos_personales = FALSE
 )
 }
 \arguments{
@@ -41,10 +41,11 @@ se informan dentro del reporte.}
 
 \item{proteger_datos_personales}{Si se enmascaran modas, ejemplos, evidencia,
 estadisticos de orden, cuantiles y rangos temporales de columnas
-cuya clasificacion activa proteccion automatica. Es \code{TRUE} por defecto.
-Las coincidencias debiles se informan sin suprimir. Para ver valores
-concretos deben haberse conservado tambien con
-\code{perfilar(..., proteger_datos_personales = FALSE)}.
+cuya clasificacion activa proteccion automatica. Es \code{FALSE} por omision:
+la proteccion es un complemento que se pide, y publicar o no los valores de
+una base es decision de quien la usa. Con \code{TRUE}, las coincidencias debiles
+se informan sin suprimir, y lo que el perfil ya trae enmascarado no se
+puede volver a mostrar.
 
 El enmascarado es el mismo que el de \code{\link[=perfilar]{perfilar()}} -ver su
 \code{proteger_datos_personales}-: la forma exacta, la que solo difiere en

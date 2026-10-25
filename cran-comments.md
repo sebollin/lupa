@@ -5,10 +5,15 @@ This is a resubmission. The incoming pre-tests archived the previous one with
 asked whether it could be reduced below 10 minutes. In this version:
 
 * The fixed cost of profiling is lower. A table of date formats that was rebuilt
-  for every column is now built once, at installation. On the 13-row example
-  table, `perfilar()` went from 0.60 s to 0.25 s and `analizar()` from 1.28 s to
-  0.73 s, and every example, test and vignette that profiles a table gains the
-  same.
+  for every column is now built once, at installation; PCRE regular expressions
+  called thousands of times on short vectors are avoided where a fixed or TRE
+  match gives the same result (on Windows each PCRE call costs about 47 us,
+  against about 5 on Linux); and the masking of possible personal data, about
+  40% of the cost of `perfilar()`, is now requested with
+  `proteger_datos_personales = TRUE` instead of being on by default. On the
+  13-row example table, `perfilar()` went from 0.63 s to 0.16 s and `analizar()`
+  from 1.36 s to 0.33 s, and every example, test and vignette that profiles a
+  table gains the same.
 * The package ships vignettes 1 to 6, the basic path. Vignettes 7 to 12 are now
   articles on the package website, as the 4 reference articles already were.
 * 38 more test files start with `testthat::skip_on_cran()`; they still run on

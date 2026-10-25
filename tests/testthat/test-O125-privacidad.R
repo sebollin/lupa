@@ -81,7 +81,7 @@ test_that("el desvio no reconstruye el extremo que el piso tapo", {
     importe = c(rep(c(10, 20, 30), 99), 10, 20, 48889997),
     stringsAsFactors = FALSE
   )
-  perfil <- suppressWarnings(perfilar(datos, columnas_personales = "documento"))
+  perfil <- suppressWarnings(perfilar(datos, columnas_personales = "documento", proteger_datos_personales = TRUE))
   fila <- perfil$columnas[perfil$columnas$columna == "importe", ]
   expect_true(is.na(fila$maximo))
   # Antes: desvio y n daban 48.890.008, a once del documento.
@@ -103,7 +103,7 @@ test_that("perfilar_dbi lee como texto un documento en una columna numerica de S
                                               ref = referencias),
                     append = TRUE)
   resultado <- suppressMessages(suppressWarnings(perfilar_dbi(
-    conexion, "t", muestra = 200, columnas_personales = "cedula"
+    conexion, "t", muestra = 200, columnas_personales = "cedula", proteger_datos_personales = TRUE
   )))
   hojas <- character()
   recorrer <- function(y) {

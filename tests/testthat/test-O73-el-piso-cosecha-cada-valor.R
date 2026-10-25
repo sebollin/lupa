@@ -26,7 +26,7 @@ html_de <- function(objeto) {
   # check busca en el texto.
   archivo <- tempfile(fileext = ".html")
   on.exit(unlink(archivo), add = TRUE)
-  reportar(objeto, archivo = archivo)
+  reportar(objeto, archivo = archivo, proteger_datos_personales = TRUE)
   paste(readLines(archivo, warn = FALSE), collapse = "\n")
 }
 
@@ -53,7 +53,7 @@ test_that("el informe no publica el documento que viaja en un texto libre", {
   expect_identical(cuantas_cedulas(html_de(abierto)), 0L)
   # Y por el camino por omision tampoco, que ya funcionaba: es el control de que
   # la prueba no esta midiendo otra cosa.
-  expect_identical(cuantas_cedulas(html_de(perfilar(datos))), 0L)
+  expect_identical(cuantas_cedulas(html_de(perfilar(datos, proteger_datos_personales = TRUE))), 0L)
 })
 
 test_that("la cosecha de agujas separa los valores unidos de un ejemplo", {
@@ -76,7 +76,7 @@ test_that("una variante que solo cambia la caja queda enmascarada", {
     notas = c("hablo con maria nunez de castro", "x", "y", "z"),
     stringsAsFactors = FALSE
   )
-  html <- html_de(perfilar(datos))
+  html <- html_de(perfilar(datos, proteger_datos_personales = TRUE))
 
   expect_false(grepl("hablo con maria nunez de castro", html, fixed = TRUE))
   expect_false(grepl("Maria Nunez de Castro", html, fixed = TRUE))
@@ -91,7 +91,7 @@ test_that("un fragmento del documento queda enmascarado", {
     obs = c("caja 4.123.456", "caja 1.987.654", "caja 3.456.789", "sin datos"),
     stringsAsFactors = FALSE
   )
-  html <- html_de(perfilar(datos))
+  html <- html_de(perfilar(datos, proteger_datos_personales = TRUE))
 
   expect_false(grepl("caja 4.123.456", html, fixed = TRUE))
   expect_false(grepl("caja 1.987.654", html, fixed = TRUE))
@@ -106,7 +106,7 @@ test_that("el piso no tapa un numero ajeno de la misma longitud", {
     expediente = c("EXP-770011", "EXP-770012", "EXP-770013", "EXP-770014"),
     stringsAsFactors = FALSE
   )
-  html <- html_de(perfilar(datos))
+  html <- html_de(perfilar(datos, proteger_datos_personales = TRUE))
 
   expect_true(grepl("770011", html, fixed = TRUE))
   expect_identical(cuantas_cedulas(html), 0L)
@@ -122,7 +122,7 @@ test_that("el piso no tapa una palabra que comparte un tramo con un apellido", {
     lugar = c("castro urdiales", "montevideo", "castro urdiales", "salto"),
     stringsAsFactors = FALSE
   )
-  html <- html_de(perfilar(datos))
+  html <- html_de(perfilar(datos, proteger_datos_personales = TRUE))
 
   expect_true(grepl("castro urdiales", html, fixed = TRUE))
   expect_false(grepl("Maria Nunez de Castro", html, fixed = TRUE))
@@ -134,7 +134,7 @@ test_that("una tabla sin columnas personales no se enmascara en ninguna celda", 
     ciudad = c("salto", "rivera", "salto", "artigas"),
     stringsAsFactors = FALSE
   )
-  html <- html_de(perfilar(datos))
+  html <- html_de(perfilar(datos, proteger_datos_personales = TRUE))
 
   expect_false(grepl("[valor protegido]", html, fixed = TRUE))
   expect_true(grepl("salto", html, fixed = TRUE))

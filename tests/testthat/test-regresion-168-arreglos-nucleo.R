@@ -6,7 +6,7 @@ test_that("F-1 y F-6 protegen las dos formas de la media temporal", {
   datos <- data.frame(fecha_nacimiento = as.Date(c(
     "1990-05-12", "1985-11-03", "1990-05-12", "2001-07-25"
   )))
-  protegido <- perfilar(datos, analizar_dependencias = FALSE)$columnas
+  protegido <- perfilar(datos, analizar_dependencias = FALSE, proteger_datos_personales = TRUE)$columnas
   claro <- perfilar(
     datos, analizar_dependencias = FALSE,
     proteger_datos_personales = FALSE
@@ -31,7 +31,7 @@ test_that("F-2 omite del comparador los campos de un lado protegido", {
   datos <- data.frame(cedula = c(
     12345678, 87654321, 12345678, 13579246, 24681357
   ))
-  protegido <- perfilar(datos, analizar_dependencias = FALSE)$columnas
+  protegido <- perfilar(datos, analizar_dependencias = FALSE, proteger_datos_personales = TRUE)$columnas
   claro <- perfilar(
     datos, analizar_dependencias = FALSE,
     proteger_datos_personales = FALSE
@@ -57,10 +57,10 @@ test_that("F-3 no compara desvio cuando solo un lado es temporal", {
     "2026-01-01", "2026-01-02", "2026-01-01", "2026-01-02",
     "2026-01-01", "2026-01-02"
   ))
-  temporal <- perfilar(data.frame(x = fechas), analizar_dependencias = FALSE)$columnas
+  temporal <- perfilar(data.frame(x = fechas), analizar_dependencias = FALSE, proteger_datos_personales = TRUE)$columnas
   numerico <- perfilar(
     data.frame(x = c(0, temporal$desvio * sqrt(2))),
-    analizar_dependencias = FALSE
+    analizar_dependencias = FALSE, proteger_datos_personales = TRUE
   )$columnas
   comparacion <- comparar_equivalencia(temporal, numerico, tolerancia = 1e-9)
   detalle <- attr(comparacion, "detalle_campos_no_comparables")
@@ -72,7 +72,7 @@ test_that("F-3 no compara desvio cuando solo un lado es temporal", {
   expect_identical(desvio$motivo, "tipo_cambiado:temporal_vs_no_temporal")
 
   segundo_temporal <- perfilar(
-    data.frame(x = fechas + 1), analizar_dependencias = FALSE
+    data.frame(x = fechas + 1), analizar_dependencias = FALSE, proteger_datos_personales = TRUE
   )$columnas
   ambos_temporales <- comparar_equivalencia(
     temporal, segundo_temporal, tolerancia = 1e-9
@@ -84,7 +84,7 @@ test_that("F-4 el detalle declara una moda de texto protegida", {
   datos <- data.frame(documento = c(
     "V-12345678", "V-87654321", "V-12345678", "V-13579246", "V-24681357"
   ))
-  perfil <- perfilar(datos, analizar_dependencias = FALSE)$columnas
+  perfil <- perfilar(datos, analizar_dependencias = FALSE, proteger_datos_personales = TRUE)$columnas
 
   expect_equal(perfil$moda, "[valor protegido]")
   expect_false(is.na(perfil$detalle_proteccion_personal))
@@ -123,7 +123,7 @@ test_that("F-6 protege la media y el desvio numerico", {
   datos <- data.frame(cedula = c(
     12345678, 87654321, 12345678, 13579246, 24681357
   ))
-  perfil <- perfilar(datos, analizar_dependencias = FALSE)$columnas
+  perfil <- perfilar(datos, analizar_dependencias = FALSE, proteger_datos_personales = TRUE)$columnas
   claro <- perfilar(datos, analizar_dependencias = FALSE,
                     proteger_datos_personales = FALSE)$columnas
 

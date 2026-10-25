@@ -238,7 +238,7 @@ test_that("el valor centinela no se publica en una columna protegida", {
   documentos <- c(seq(10000001, 10000100), rep(9999, 5))
   perfil <- perfilar(
     data.frame(documento = documentos), analizar_dependencias = FALSE,
-    casi_duplicados_vocabulario = FALSE
+    casi_duplicados_vocabulario = FALSE, proteger_datos_personales = TRUE
   )
   expect_true(perfil$columnas$dato_personal_protegido)
   expect_true(is.na(perfil$columnas$centinela_valor))
@@ -265,7 +265,7 @@ test_that("sin proteccion el valor centinela se dice, que para eso esta", {
   set.seed(5)
   perfil <- perfilar(
     data.frame(edad = c(sample(18:80, 200L, TRUE), rep(9999L, 12L))),
-    analizar_dependencias = FALSE, casi_duplicados_vocabulario = FALSE
+    analizar_dependencias = FALSE, casi_duplicados_vocabulario = FALSE, proteger_datos_personales = TRUE
   )
   expect_false(isTRUE(perfil$columnas$dato_personal_protegido))
   expect_equal(perfil$columnas$centinela_valor, 9999)
@@ -350,7 +350,7 @@ test_that("perfilar con do.call no rompe el informe", {
   archivo <- tempfile(fileext = ".html")
   on.exit(unlink(archivo), add = TRUE)
   expect_no_error(
-    suppressMessages(reportar(perfil, archivo = archivo, sobrescribir = TRUE))
+    suppressMessages(reportar(perfil, archivo = archivo, sobrescribir = TRUE, proteger_datos_personales = TRUE))
   )
 
   # El nombre de siempre se conserva.
@@ -391,7 +391,7 @@ test_that("en una columna protegida se nombran las filas pero no el valor", {
   # poder ir a verificar. Lo que no puede salir es el valor.
   perfil <- perfilar(
     data.frame(documento = c(seq(10000001, 10000100), rep(9999, 5))),
-    analizar_dependencias = FALSE, casi_duplicados_vocabulario = FALSE
+    analizar_dependencias = FALSE, casi_duplicados_vocabulario = FALSE, proteger_datos_personales = TRUE
   )
   hallazgo <- perfil$hallazgos[
     as.character(perfil$hallazgos$tipo_hallazgo) ==

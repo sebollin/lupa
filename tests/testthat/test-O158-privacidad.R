@@ -64,9 +64,10 @@ test_that("H1: por bloques el piso por valor corre sobre todas las columnas, com
   on.exit(DBI::dbDisconnect(con), add = TRUE)
   DBI::dbWriteTable(con, "t", d)
   protegidas <- c("cedula", "nombre")
-  perfil <- function(...) {
+  perfil <- function(..., proteger_datos_personales = TRUE) {
     suppressWarnings(suppressMessages(perfilar_dbi(
-      con, "t", columnas_personales = protegidas, ...
+      con, "t", columnas_personales = protegidas,
+      proteger_datos_personales = proteger_datos_personales, ...
     )))
   }
   fila <- function(p, columna) {
@@ -197,7 +198,7 @@ test_that("H1: por bloques el piso por valor corre sobre todas las columnas, com
   pc <- withCallingHandlers(
     perfilar_coleccion(coleccion(con, c("vista", "clientes")),
                        conservar_perfiles = conservar,
-                       columnas_personales = "nombre"),
+                       columnas_personales = "nombre", proteger_datos_personales = TRUE),
     warning = function(w) {
       avisos <<- c(avisos, conditionMessage(w))
       invokeRestart("muffleWarning")

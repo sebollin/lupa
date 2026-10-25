@@ -35,7 +35,7 @@ test_that("la sugerencia no publica el criterio de un determinante protegido", {
     rut = ifelse(pila == "Ana", sprintf("21%07d0018", seq_len(n)), NA),
     stringsAsFactors = FALSE
   )
-  perfil <- suppressWarnings(perfilar(datos, columnas_personales = c(pila = "nombre")))
+  perfil <- suppressWarnings(perfilar(datos, columnas_personales = c(pila = "nombre"), proteger_datos_personales = TRUE))
   sugerencia <- .sugerencia_ausencia_O116(perfil)
   expect_length(sugerencia, 1L)
   # Antes: `aplicabilidad = list(rut = ~ pila == "Ana")`.
@@ -51,7 +51,7 @@ test_that("la sugerencia no publica el criterio de un determinante protegido", {
     stringsAsFactors = FALSE
   )
   perfil <- suppressWarnings(perfilar(
-    datos, columnas_personales = c(edad = "edad", nro_jubilacion = "documento_identidad")
+    datos, columnas_personales = c(edad = "edad", nro_jubilacion = "documento_identidad"), proteger_datos_personales = TRUE
   ))
   sugerencia <- .sugerencia_ausencia_O116(perfil)
   expect_length(sugerencia, 1L)
@@ -62,7 +62,7 @@ test_that("la sugerencia no publica el criterio de un determinante protegido", {
   datos <- data.frame(id = seq_len(n), stringsAsFactors = FALSE)
   datos[["nom`bre"]] <- pila
   datos$rut <- ifelse(pila == "Ana", sprintf("21%07d0018", seq_len(n)), NA)
-  perfil <- suppressWarnings(perfilar(datos, columnas_personales = "nom`bre"))
+  perfil <- suppressWarnings(perfilar(datos, columnas_personales = "nom`bre", proteger_datos_personales = TRUE))
   sugerencia <- .sugerencia_ausencia_O116(perfil)
   expect_length(sugerencia, 1L)
   expect_false(grepl("\"Ana\"", sugerencia, fixed = TRUE))
@@ -79,7 +79,7 @@ test_that("el nivel citado en la prosa no publica un nombre protegido", {
     rut = ifelse(proveedor != "particular", sprintf("21%07d0018", seq_len(n)), NA),
     stringsAsFactors = FALSE
   )
-  perfil <- suppressWarnings(perfilar(datos, columnas_personales = "titular"))
+  perfil <- suppressWarnings(perfilar(datos, columnas_personales = "titular", proteger_datos_personales = TRUE))
   sugerencia <- .sugerencia_ausencia_O116(perfil)
   expect_length(sugerencia, 1L)
   # Antes salia `proveedor %in% c("juanperezsrl", ...)`: el titular pegado a
@@ -111,7 +111,7 @@ test_that("perfilar_por avisa si una etiqueta de grupo lleva un valor protegido"
   )
   expect_message(
     agrupado <- perfilar_por(datos, por = "proveedor", min_filas = 10L,
-                             columnas_personales = "titular"),
+                             columnas_personales = "titular", proteger_datos_personales = TRUE),
     "valor de una columna protegida"
   )
   declaradas <- attr(agrupado, "etiquetas_personales")
@@ -123,7 +123,7 @@ test_that("perfilar_por avisa si una etiqueta de grupo lleva un valor protegido"
   ajenos <- datos
   ajenos$proveedor <- rep(c("distribuidora", "particular"), 60)
   agrupado <- suppressMessages(perfilar_por(
-    ajenos, por = "proveedor", min_filas = 10L, columnas_personales = "titular"
+    ajenos, por = "proveedor", min_filas = 10L, columnas_personales = "titular", proteger_datos_personales = TRUE
   ))
   expect_identical(nrow(attr(agrupado, "etiquetas_personales")), 0L)
   agrupado <- suppressMessages(perfilar_por(
@@ -142,7 +142,7 @@ test_that("el protegido en latin1 sin marca se reconoce en la celda en UTF-8", {
   datos <- data.frame(id = 1:12, stringsAsFactors = FALSE)
   datos$titular <- rep(c(latin1, "Ana Maria Ruiz"), 6)
   datos$nota <- rep(c(paste("pago", utf8), "otra cosa larga"), 6)
-  perfil <- suppressWarnings(perfilar(datos, columnas_personales = "titular"))
+  perfil <- suppressWarnings(perfilar(datos, columnas_personales = "titular", proteger_datos_personales = TRUE))
   hojas <- .hojas_O116(perfil)
   # Antes: "pago Jose Perez" en los ejemplos de los patrones de `nota`.
   expect_false(any(grepl("P\u00e9rez", hojas, fixed = TRUE, useBytes = TRUE)))
@@ -173,7 +173,7 @@ test_that("las variantes de un nombre fuera del latin occidental no salen", {
     nota = rep(c(variantes, "sin novedad"), length.out = n),
     stringsAsFactors = FALSE
   )
-  perfil <- suppressWarnings(perfilar(datos, columnas_personales = "titular"))
+  perfil <- suppressWarnings(perfilar(datos, columnas_personales = "titular", proteger_datos_personales = TRUE))
   hojas <- .hojas_O116(perfil)
   # Antes, las seis en los ejemplos de `nota`: la comparacion iba por bytes y el
   # pliegue de caja era solo ASCII.

@@ -105,7 +105,7 @@ test_that("H-08: la sigla del documento con puntos o guion bajo -C.I.- se recono
       d[[encabezados[[j]]]] <- v
       valores[[j]] <- as.character(v)
     }
-    p <- suppressMessages(perfilar(d))
+    p <- suppressMessages(perfilar(d, proteger_datos_personales = TRUE))
     for (j in seq_along(encabezados)) {
       h <- encabezados[[j]]
       expect_identical(.r39p_clasificacion(p$datos_personales, h),
@@ -129,7 +129,7 @@ test_that("H-08, la cara 2: una sigla que no es la del documento, o C.I. sin cif
     "S.A." = rep_len(c("SI", "NO"), n),
     check.names = FALSE, stringsAsFactors = FALSE
   )
-  p1 <- suppressMessages(perfilar(d))
+  p1 <- suppressMessages(perfilar(d, proteger_datos_personales = TRUE))
   p0 <- suppressMessages(perfilar(d, proteger_datos_personales = FALSE))
   for (columna in names(d)[-1L]) {
     expect_false(isTRUE(any(p1$datos_personales$proteger[
@@ -153,7 +153,7 @@ test_that("H-17: la fecha de nacimiento y de defuncion de la nomenclatura GIK de
     desde <- as.Date(sprintf("%d-01-01", 1930L + 8L * j))
     d[[names(esperado)[[j]]]] <- desde + (seq_len(n) * 19L) %% 2900L
   }
-  p <- suppressMessages(perfilar(d))
+  p <- suppressMessages(perfilar(d, proteger_datos_personales = TRUE))
   for (columna in names(esperado)) {
     expect_identical(.r39p_clasificacion(p$datos_personales, columna),
                      paste0(esperado[[columna]], ":TRUE"), info = columna)
@@ -173,7 +173,7 @@ test_that("H-17, la cara 2: las fechas y los codigos GIK que no son personales s
     TrmNro = sprintf("2024-%05d", seq_len(n)),
     stringsAsFactors = FALSE
   )
-  p1 <- suppressMessages(perfilar(d))
+  p1 <- suppressMessages(perfilar(d, proteger_datos_personales = TRUE))
   p0 <- suppressMessages(perfilar(d, proteger_datos_personales = FALSE))
   for (columna in names(d)[-1L]) {
     expect_false(isTRUE(any(p1$datos_personales$proteger[
@@ -217,7 +217,7 @@ test_that("H-01: el login con la inicial a, o, u pegada por guion bajo, guion o 
       logins[[j]] <- formas[[forma]](.r39p_iniciales, apellidos)
       d[[columnas[[j]]]] <- rep_len(logins[[j]], n)
     }
-    p <- suppressMessages(perfilar(d))
+    p <- suppressMessages(perfilar(d, proteger_datos_personales = TRUE))
     for (j in seq_along(columnas)) {
       expect_identical(.r39p_clasificacion(p$datos_personales, columnas[[j]]),
                        "nombre:TRUE", info = paste(forma, columnas[[j]]))
@@ -240,7 +240,7 @@ test_that("H-01, la cara 2: los estados y los motivos con guion bajo siguen sien
     tipo_cliente = rep_len(c("tipo_a", "tipo_b", "clase-a", "categoria_u"), n),
     stringsAsFactors = FALSE
   )
-  p1 <- suppressMessages(perfilar(d))
+  p1 <- suppressMessages(perfilar(d, proteger_datos_personales = TRUE))
   p0 <- suppressMessages(perfilar(d, proteger_datos_personales = FALSE))
   for (columna in names(d)[-1L]) {
     expect_false(isTRUE(any(p1$datos_personales$proteger[
@@ -280,7 +280,7 @@ test_that("H-08, H-17 y H-01 por la via DBI: perfilar_dbi() protege las tres col
   con <- DBI::dbConnect(RSQLite::SQLite(), ":memory:")
   on.exit(DBI::dbDisconnect(con), add = TRUE)
   DBI::dbWriteTable(con, "afiliados", d)
-  p <- suppressWarnings(suppressMessages(perfilar_dbi(con, "afiliados")))
+  p <- suppressWarnings(suppressMessages(perfilar_dbi(con, "afiliados", proteger_datos_personales = TRUE)))
   .r39p_comprobar_dbi(p, d, "sqlite")
 })
 
@@ -305,7 +305,7 @@ test_that("H-08, H-17 y H-01 en PostgreSQL real: perfilar_dbi() protege las tres
   d <- .r39p_tabla_dbi()
   d$PerFchNac <- as.Date(d$PerFchNac)
   DBI::dbWriteTable(con, tabla, d)
-  p <- suppressWarnings(suppressMessages(perfilar_dbi(con, tabla)))
+  p <- suppressWarnings(suppressMessages(perfilar_dbi(con, tabla, proteger_datos_personales = TRUE)))
   d$PerFchNac <- format(d$PerFchNac)
   .r39p_comprobar_dbi(p, d, "postgres")
 })

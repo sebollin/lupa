@@ -117,7 +117,7 @@ test_that("H3: el calificador del nombre no saca la proteccion cuando los valore
   }
   expect_length(intersect(unlist(d[personales]), unlist(d[controles])), 0L)
 
-  p <- suppressWarnings(perfilar(d))
+  p <- suppressWarnings(perfilar(d, proteger_datos_personales = TRUE))
   dp <- p$datos_personales
   expect_setequal(dp$columna[dp$proteger], personales)
   tipos <- stats::setNames(dp$tipo, dp$columna)
@@ -155,7 +155,7 @@ test_that("H3: el calificador del nombre no saca la proteccion cuando los valore
     cod_usuario = rep(c("USR001", "USR001", "USR002", "USR003"), length.out = n),
     stringsAsFactors = FALSE
   )
-  pp <- suppressWarnings(perfilar(pocos))
+  pp <- suppressWarnings(perfilar(pocos, proteger_datos_personales = TRUE))
   expect_identical(pp$datos_personales$columna[pp$datos_personales$proteger],
                    "usuario_alta")
   expect_identical(pp$columnas$moda[pp$columnas$columna == "cod_usuario"],
@@ -168,7 +168,7 @@ test_that("H3: el calificador del nombre no saca la proteccion cuando los valore
   con <- DBI::dbConnect(RSQLite::SQLite(), ":memory:")
   on.exit(DBI::dbDisconnect(con), add = TRUE)
   DBI::dbWriteTable(con, "auditoria", d)
-  pd <- suppressWarnings(perfilar_dbi(con, "auditoria"))
+  pd <- suppressWarnings(perfilar_dbi(con, "auditoria", proteger_datos_personales = TRUE))
   expect_setequal(pd$resumen_tabla$meta$proteccion_personal$columnas,
                   personales)
   resumen <- pd$resumen_tabla$columnas
@@ -212,7 +212,7 @@ test_that("H2: la copia sin verificador escrita como numero con decimales en un 
                    as.numeric(nums))
   expect_lt(sum(importes %in% nums), 3L)
 
-  p <- suppressWarnings(perfilar(d))
+  p <- suppressWarnings(perfilar(d, proteger_datos_personales = TRUE))
   dp <- p$datos_personales
   fila <- dp[dp$columna %in% copias, , drop = FALSE]
   expect_setequal(fila$columna, copias)
@@ -242,7 +242,7 @@ test_that("H2: la copia sin verificador escrita como numero con decimales en un 
   DBI::dbWriteTable(con, "cargas", d)
   for (bloque in list(NULL, 40L)) {
     info <- paste("perfilar_dbi() bloque_filas =", format(bloque))
-    pd <- suppressWarnings(perfilar_dbi(con, "cargas", bloque_filas = bloque))
+    pd <- suppressWarnings(perfilar_dbi(con, "cargas", bloque_filas = bloque, proteger_datos_personales = TRUE))
     expect_true(all(copias %in%
                       pd$resumen_tabla$meta$proteccion_personal$columnas),
                 info = info)
@@ -282,7 +282,7 @@ test_that("H1: en una coleccion, la copia sin verificador de los documentos de O
   for (orden in list(c("personas", "tramites"), c("tramites", "personas"))) {
     info <- paste(orden, collapse = " + ")
     pc <- suppressWarnings(perfilar_coleccion(coleccion(con, orden),
-                                              conservar_perfiles = TRUE))
+                                              conservar_perfiles = TRUE, proteger_datos_personales = TRUE))
     pt <- pc$perfiles$tramites
     dp <- pt$perfil_muestra$datos_personales
     fila <- dp[dp$columna == "ref", , drop = FALSE]
@@ -434,7 +434,7 @@ test_that("H3: la forma sola no confirma un nombre ni un domicilio; los valores 
                                         length.out = n)),
     stringsAsFactors = FALSE
   )
-  pc <- suppressWarnings(perfilar(categorias))
+  pc <- suppressWarnings(perfilar(categorias, proteger_datos_personales = TRUE))
   expect_identical(pc$datos_personales$columna[pc$datos_personales$proteger],
                    character())
   columnas <- pc$columnas
@@ -480,7 +480,7 @@ test_that("H3: la forma sola no confirma un nombre ni un domicilio; los valores 
                 contacto_alta = "nombre", cliente_tipo = "domicilio",
                 correo_alta = "correo", direccion_tipo = "domicilio",
                 celular_tipo = "telefono")
-  pp <- suppressWarnings(perfilar(personas))
+  pp <- suppressWarnings(perfilar(personas, proteger_datos_personales = TRUE))
   dp <- pp$datos_personales
   protegidas <- dp[dp$proteger, , drop = FALSE]
   expect_setequal(protegidas$columna, names(esperado))

@@ -53,20 +53,20 @@ test_that("una estimacion fuera de [0, 1] se evalua, y una celda invalida se dec
 
 test_that("la evidencia de una discordancia no se contradice ni se imprime igual", {
   d <- data.frame(a = c(1, 1, 2), b = c(1, 2, 1))
-  r <- detectar_discordancias(d, senal_redundante(c("a", "b")), max_ejemplos = 0)
+  r <- detectar_discordancias(d, senal_redundante(c("a", "b")), max_ejemplos = 0, proteger_datos_personales = TRUE)
   # Antes: "sin filas discordantes" al lado de `n_discordantes = 2`.
   expect_match(r$evidencia, "2 filas discordantes, ninguna citada", fixed = TRUE)
   iguales <- data.frame(a = c(1, 1), b = c(1, 1))
   r <- detectar_discordancias(iguales, senal_redundante(c("a", "b")),
-                              max_ejemplos = 0)
+                              max_ejemplos = 0, proteger_datos_personales = TRUE)
   expect_match(r$evidencia, "sin filas discordantes", fixed = TRUE)
 
   r <- detectar_discordancias(data.frame(a = c(0.1 + 0.2, 1), b = c(0.3, 1)),
-                              senal_redundante(c("a", "b")))
+                              senal_redundante(c("a", "b")), proteger_datos_personales = TRUE)
   # Antes: "a=0.3; b=0.3".
   expect_match(r$evidencia, "a=0.30000000000000004; b=0.3", fixed = TRUE)
   r <- detectar_discordancias(data.frame(a = c(20, 5), b = c(21, 5)),
-                              senal_redundante(c("a", "b")))
+                              senal_redundante(c("a", "b")), proteger_datos_personales = TRUE)
   expect_match(r$evidencia, "a=20; b=21", fixed = TRUE)
 })
 
@@ -74,7 +74,7 @@ test_that("clasificar_variables no llama entero a Inf ni cuenta niveles que no g
   r <- clasificar_variables(data.frame(
     a = c(Inf, Inf, Inf), b = c(-Inf, Inf, NaN), c = c(1, 2, Inf),
     d = c("x", "y", "x")
-  ))
+  ), proteger_datos_personales = TRUE)
   # Antes: `a` discreta ("Los valores son enteros") y `b` binaria.
   expect_identical(r$escala_propuesta[r$columna == "a"], "desconocida")
   expect_identical(r$escala_propuesta[r$columna == "b"], "desconocida")
@@ -85,10 +85,10 @@ test_that("clasificar_variables no llama entero a Inf ni cuenta niveles que no g
 })
 
 test_that("un patron no publica digitos ni letras no ASCII", {
-  p <- descubrir_patrones(c("123", "\u0661\u0662\u0663"), expandir = FALSE)
+  p <- descubrir_patrones(c("123", "\u0661\u0662\u0663"), expandir = FALSE, proteger_datos_personales = TRUE)
   # Antes: "\u0661\u0662\u0663" salia como su propio patron.
   expect_identical(p$patron, "9+")
-  p <- descubrir_patrones(c("Jos\u00e9", "\u00c9XITO"), expandir = FALSE)
+  p <- descubrir_patrones(c("Jos\u00e9", "\u00c9XITO"), expandir = FALSE, proteger_datos_personales = TRUE)
   expect_setequal(p$patron, c("Aa+", "A+"))
   # Y lo mismo bajo C, con el texto sin marca.
   sin_marca <- rawToChar(as.raw(c(0x4a, 0x6f, 0x73, 0xc3, 0xa9)))
@@ -103,15 +103,15 @@ test_that("una columna con correos se protege aunque no sean mayoria", {
     dato = c(paste0("persona", 1:70, "@correo.uy"), paste0("x", 1:30)),
     stringsAsFactors = FALSE
   )
-  p <- suppressWarnings(perfilar(d))
+  p <- suppressWarnings(perfilar(d, proteger_datos_personales = TRUE))
   salida <- unlist(lapply(p, function(x) utils::capture.output(print(x))))
   # Antes: seis direcciones enteras en los ejemplos de los patrones.
   expect_false(any(grepl("@correo.uy", salida, fixed = TRUE)))
   expect_true(p$datos_personales$proteger[p$datos_personales$columna == "dato"])
   ejemplos <- descubrir_patrones(c("juan@mail.com", "ana@mail.com", "pedro"),
-                                 expandir = FALSE)$ejemplos
+                                 expandir = FALSE, proteger_datos_personales = TRUE)$ejemplos
   expect_false(any(grepl("@", ejemplos, fixed = TRUE)))
   # Control: sin correos, los ejemplos se publican.
-  ejemplos <- descubrir_patrones(c("lunes", "martes"), expandir = FALSE)$ejemplos
+  ejemplos <- descubrir_patrones(c("lunes", "martes"), expandir = FALSE, proteger_datos_personales = TRUE)$ejemplos
   expect_match(ejemplos, "lunes", fixed = TRUE)
 })

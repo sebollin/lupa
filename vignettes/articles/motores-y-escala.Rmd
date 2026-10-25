@@ -213,17 +213,17 @@ del motor: son observaciones de esa muestra, no extrapolaciones al universo.
 funcionan sobre los dos tipos de objeto; su contrato está en
 [Leer un perfil](leer-un-perfil.html).
 
-Sin muestra, la protección de datos personales (activa por omisión) no puede
-clasificar las columnas y protege los valores de celda de todas: moda, extremos,
-media, mediana y desvío quedan `omitido_por_privacidad`.
+Sin muestra, la protección de datos personales, si se pide, no puede clasificar
+las columnas y protege los valores de celda de todas: moda, extremos, media,
+mediana y desvío quedan `omitido_por_privacidad`.
 
 ```{r sin-muestra-protegido}
-table(sql_perfil(solo_agregados)$estado)
-sin_proteccion <- perfilar_dbi(
+con_proteccion <- perfilar_dbi(
   con, "tramites", bloque_muestra = "solo_agregados",
-  proteger_datos_personales = FALSE
+  proteger_datos_personales = TRUE
 )
-table(sql_perfil(sin_proteccion)$estado)
+table(sql_perfil(con_proteccion)$estado)
+table(sql_perfil(solo_agregados)$estado)
 ```
 
 Con muestra, la clasificación se hace sobre `perfil_muestra` y alcanza también

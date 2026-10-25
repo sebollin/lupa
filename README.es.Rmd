@@ -368,7 +368,7 @@ e [ISO/IEC 25012:2008](https://www.iso.org/standard/35736.html).
 La API pública de `lupa` puede cambiar antes de la 1.0; los cambios
 incompatibles se anuncian en [NEWS](https://github.com/sebollin/lupa/blob/main/NEWS.md), con una advertencia
 previa siempre que se pueda. Los contratos estables son las unidades declaradas,
-el alcance, la protección de datos personales y el registro de auditoría; los
+el alcance, el registro de auditoría y, cuando se pide, la protección de datos personales; los
 detalles de implementación y los tiempos pueden cambiar mientras esos contratos
 sigan siendo ciertos.
 

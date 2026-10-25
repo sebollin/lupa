@@ -13,9 +13,9 @@ test_that("analizar_tiempo respeta la proteccion del perfil, y sin perfil clasif
   )
   perfil <- perfilar(
     datos, columnas_personales = "nacimiento",
-    analizar_dependencias = FALSE
+    analizar_dependencias = FALSE, proteger_datos_personales = TRUE
   )
-  temporal <- analizar_tiempo(datos, perfil = perfil, columnas = "nacimiento")
+  temporal <- analizar_tiempo(datos, perfil = perfil, columnas = "nacimiento", proteger_datos_personales = TRUE)
   fila <- temporal$resumen[temporal$resumen$columna == "nacimiento", , drop = FALSE]
 
   expect_true(isTRUE(perfil$columnas$dato_personal_protegido[
@@ -29,7 +29,7 @@ test_that("analizar_tiempo respeta la proteccion del perfil, y sin perfil clasif
   # `clasificar_variables()`, y se protege igual. Antes este control pedia lo
   # contrario: sin perfil "no habia declaracion que leer" y se publicaban el
   # minimo y el maximo de los nacimientos.
-  sin_perfil <- analizar_tiempo(datos, columnas = "nacimiento")
+  sin_perfil <- analizar_tiempo(datos, columnas = "nacimiento", proteger_datos_personales = TRUE)
   fila_sin_perfil <- sin_perfil$resumen[
     sin_perfil$resumen$columna == "nacimiento", , drop = FALSE
   ]
@@ -53,13 +53,13 @@ test_that("el guardado declara la proteccion que ya trae el analisis", {
   )
   protegido <- analizar(
     datos, nombre = "clientes", conservar_datos = TRUE,
-    analizar_dependencias = FALSE
+    analizar_dependencias = FALSE, proteger_datos_personales = TRUE
   )
   archivo <- tempfile(fileext = ".rds")
   on.exit(unlink(archivo), add = TRUE)
 
   expect_error(
-    guardar_analisis(protegido, archivo, incluir_datos = TRUE),
+    guardar_analisis(protegido, archivo, incluir_datos = TRUE, proteger_datos_personales = TRUE),
     "crear el analisis"
   )
   guardar_analisis(
@@ -105,7 +105,7 @@ test_that("DBI declara la duda de una muestra parcial y no la repite", {
 
   parcial <- suppressWarnings(perfilar_dbi(
     con, "clientes", max_celdas_muestra = 800L,
-    analizar_dependencias = FALSE
+    analizar_dependencias = FALSE, proteger_datos_personales = TRUE
   ))
   fila_parcial <- parcial$resumen_tabla$columnas[
     parcial$resumen_tabla$columnas$columna == "apodo", , drop = FALSE
@@ -128,7 +128,7 @@ test_that("DBI declara la duda de una muestra parcial y no la repite", {
   # conserva el comportamiento previo.
   completa <- suppressWarnings(perfilar_dbi(
     con, "clientes", max_celdas_muestra = Inf,
-    analizar_dependencias = FALSE
+    analizar_dependencias = FALSE, proteger_datos_personales = TRUE
   ))
   fila_completa <- completa$resumen_tabla$columnas[
     completa$resumen_tabla$columnas$columna == "apodo", , drop = FALSE

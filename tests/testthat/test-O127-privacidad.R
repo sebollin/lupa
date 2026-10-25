@@ -24,7 +24,7 @@ test_that("un telefono guardado con forma de fecha no sale del piso", {
     nota = rep(c("llamar al 2901-12-12", "sin novedad", "reclamo"), 20),
     stringsAsFactors = FALSE
   )
-  perfil <- suppressWarnings(perfilar(datos, columnas_personales = "telefono"))
+  perfil <- suppressWarnings(perfilar(datos, columnas_personales = "telefono", proteger_datos_personales = TRUE))
   hojas <- unlist(list(perfil$columnas$moda, perfil$patrones$nota$ejemplos))
   expect_false(any(grepl("2901-12-12", hojas, fixed = TRUE)))
 })
@@ -93,7 +93,7 @@ test_that("el motivo de perfilar_dbi tapa la cita con sus comillas de CSV", {
   datos$cedula[[n]] <- "\"5.765.432-1\""
   DBI::dbWriteTable(conexion, "t", datos, append = TRUE)
   resultado <- suppressMessages(suppressWarnings(perfilar_dbi(
-    conexion, "t", muestra = 5000, columnas_personales = "cedula"
+    conexion, "t", muestra = 5000, columnas_personales = "cedula", proteger_datos_personales = TRUE
   )))
   motivos <- resultado$resumen_tabla$sql$motivo
   # Antes: ("[valor protegido]"5.765.432-1"[valor protegido]").

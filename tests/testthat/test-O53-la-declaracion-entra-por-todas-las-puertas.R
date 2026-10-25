@@ -33,9 +33,9 @@ test_that("perfilar declara personal lo que se le declara", {
   # El control de que la declaracion significa algo: sin ella, el lexico no
   # reconoce ni `legajo` ni `edad`.
   datos <- tabla_o53()
-  sin <- perfilar(datos, analizar_dependencias = FALSE)
+  sin <- perfilar(datos, analizar_dependencias = FALSE, proteger_datos_personales = TRUE)
   con <- perfilar(datos, columnas_personales = c("legajo", "edad"),
-                  analizar_dependencias = FALSE)
+                  analizar_dependencias = FALSE, proteger_datos_personales = TRUE)
 
   expect_equal(nrow(sin$datos_personales), 0L)
   expect_setequal(
@@ -47,9 +47,9 @@ test_that("perfilar declara personal lo que se le declara", {
 test_that("distribucion_valores acepta la declaracion", {
   datos <- tabla_o53()
 
-  sin_declarar <- distribucion_valores(datos)
+  sin_declarar <- distribucion_valores(datos, proteger_datos_personales = TRUE)
   declarando <- distribucion_valores(
-    datos, columnas_personales = c("legajo", "edad")
+    datos, columnas_personales = c("legajo", "edad"), proteger_datos_personales = TRUE
   )
 
   expect_true(publica_o53(sin_declarar, "ZZUNICO1"))
@@ -65,9 +65,9 @@ test_that("distribucion_valores acepta la declaracion", {
 test_that("clasificar_variables acepta la declaracion", {
   datos <- tabla_o53()
 
-  expect_true(publica_o53(clasificar_variables(datos), "ZZUNICO1"))
+  expect_true(publica_o53(clasificar_variables(datos, proteger_datos_personales = TRUE), "ZZUNICO1"))
   expect_false(publica_o53(
-    clasificar_variables(datos, columnas_personales = "legajo"), "ZZUNICO1"
+    clasificar_variables(datos, columnas_personales = "legajo", proteger_datos_personales = TRUE), "ZZUNICO1"
   ))
 })
 
@@ -75,9 +75,9 @@ test_that("detectar_discordancias acepta la declaracion", {
   datos <- tabla_o53()
   senal <- senal_redundante(c("legajo", "zona"), nombre = "s1")
 
-  expect_true(publica_o53(detectar_discordancias(datos, senal), "ZZUNICO1"))
+  expect_true(publica_o53(detectar_discordancias(datos, senal, proteger_datos_personales = TRUE), "ZZUNICO1"))
   expect_false(publica_o53(
-    detectar_discordancias(datos, senal, columnas_personales = "legajo"),
+    detectar_discordancias(datos, senal, columnas_personales = "legajo", proteger_datos_personales = TRUE),
     "ZZUNICO1"
   ))
 })
@@ -87,11 +87,11 @@ test_that("pasar el perfil equivale a declarar en la puerta", {
   # estaria describiendo otra clasificacion.
   datos <- tabla_o53()
   perfil <- perfilar(datos, columnas_personales = c("legajo", "edad"),
-                     analizar_dependencias = FALSE)
+                     analizar_dependencias = FALSE, proteger_datos_personales = TRUE)
 
-  por_perfil <- distribucion_valores(datos, perfil = perfil)
+  por_perfil <- distribucion_valores(datos, perfil = perfil, proteger_datos_personales = TRUE)
   por_declaracion <- distribucion_valores(
-    datos, columnas_personales = c("legajo", "edad")
+    datos, columnas_personales = c("legajo", "edad"), proteger_datos_personales = TRUE
   )
 
   expect_equal(por_perfil$frecuencias$valor, por_declaracion$frecuencias$valor)

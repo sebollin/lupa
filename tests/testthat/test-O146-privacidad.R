@@ -165,7 +165,7 @@ test_that("H2: perfilar_dbi() no publica el valor que el motor cita sin comillas
     "CREATE VIEW v_cel AS SELECT nombre, CAST(celular AS INTEGER) AS celular,",
     "strptime(nacimiento, '%d/%m/%Y') AS nacimiento FROM clientes"
   ))
-  pd <- suppressWarnings(suppressMessages(perfilar_dbi(con, "v_cel")))
+  pd <- suppressWarnings(suppressMessages(perfilar_dbi(con, "v_cel", proteger_datos_personales = TRUE)))
   hojas <- .r29_hojas(pd)
   expect_identical(sum(grepl("59899123456", hojas, fixed = TRUE)), 0L)
   expect_identical(sum(grepl(cedulas[[11L]], hojas, fixed = TRUE)), 0L)
@@ -203,7 +203,7 @@ test_that("H2: el piso entre tablas de la coleccion cubre la cobertura y las lec
     "FROM clientes"
   ))
   pc <- suppressWarnings(suppressMessages(perfilar_coleccion(
-    coleccion(con, c("clientes", "v_cel")), conservar_perfiles = TRUE
+    coleccion(con, c("clientes", "v_cel")), conservar_perfiles = TRUE, proteger_datos_personales = TRUE
   )))
   for (parte in list(pc$cobertura_coleccion, pc$cobertura_metricas,
                      pc$meta$lecturas)) {
@@ -382,7 +382,7 @@ test_that("H5: el celular escrito como numero de planilla es la misma cifra", {
     stringsAsFactors = FALSE
   )
   p <- suppressWarnings(perfilar(
-    d, columnas_personales = c(nombre = "nombre_persona", celular = "telefono")
+    d, columnas_personales = c(nombre = "nombre_persona", celular = "telefono"), proteger_datos_personales = TRUE
   ))
   expect_false(any(grepl("llamar al 09", .r29_hojas(p$patrones$nota))))
 })
@@ -397,7 +397,7 @@ test_that("H6: una columna POSIXlt no hace abortar la copia protegida", {
   d$registro <- strptime(sprintf("2024-01-%02d 10:%02d:00", seq_len(n), seq_len(n)),
                          "%Y-%m-%d %H:%M:%S", tz = "UTC")
   an <- suppressWarnings(suppressMessages(analizar(
-    d, columnas_personales = c(cedula = "documento"), conservar_datos = TRUE
+    d, columnas_personales = c(cedula = "documento"), conservar_datos = TRUE, proteger_datos_personales = TRUE
   )))
   expect_s3_class(an$datos$registro, "POSIXlt")
   expect_identical(sum(is.na(an$datos$registro)), 0L)
@@ -453,7 +453,7 @@ test_that("H8: la unidad, los bytes, los entornos y los niveles pasan por el pis
   unidad <- function(columna, valor) {
     x <- d
     x[[columna]] <- structure(stats::runif(n), units = valor)
-    p <- suppressWarnings(perfilar(x, columnas_personales = cp))
+    p <- suppressWarnings(perfilar(x, columnas_personales = cp, proteger_datos_personales = TRUE))
     as.character(p$columnas$unidad[p$columnas$columna == columna])
   }
   expect_identical(unidad("ratio", titulares[[7L]]), "[valor protegido]")
@@ -468,7 +468,7 @@ test_that("H8: la unidad, los bytes, los entornos y los niveles pasan por el pis
   d2$entorno <- I(c(list(entorno), rep(list(NULL), n - 1L)))
   d2$codigo <- structure(seq_len(n), levels = cedulas[1:3])
   an <- suppressWarnings(suppressMessages(analizar(
-    d2, columnas_personales = cp, conservar_datos = TRUE
+    d2, columnas_personales = cp, conservar_datos = TRUE, proteger_datos_personales = TRUE
   )))
   bytes <- vapply(an$datos$blob, rawToChar, character(1L))
   expect_identical(sum(vapply(titulares, function(t) {

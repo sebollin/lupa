@@ -10,7 +10,7 @@ guardar_analisis(
   x,
   archivo,
   incluir_datos = FALSE,
-  proteger_datos_personales = TRUE,
+  proteger_datos_personales = FALSE,
   sobrescribir = FALSE,
   comprimir = "xz"
 )
@@ -26,7 +26,8 @@ rechaza: el archivo va dentro, con su nombre.}
 \item{incluir_datos}{Si se persiste la copia de los datos conservada por
 \code{analizar(conservar_datos = TRUE)}.}
 
-\item{proteger_datos_personales}{Si se protege toda evidencia derivada.}
+\item{proteger_datos_personales}{Si se protege toda evidencia derivada.
+\code{FALSE} por omisión.}
 
 \item{sobrescribir}{Si se permite reemplazar un archivo existente.}
 

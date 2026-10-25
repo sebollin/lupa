@@ -60,7 +60,7 @@ test_that("O171: una coleccion con float8 en PostgreSQL verifica la proteccion",
   ))
   expect_true(all(tipos$data_type[tipos$column_name != "id_tramite"] ==
                     "double precision"))
-  col <- perfilar_coleccion(coleccion(con, tablas), conservar_perfiles = TRUE)
+  col <- perfilar_coleccion(coleccion(con, tablas), conservar_perfiles = TRUE, proteger_datos_personales = TRUE)
   p <- col$perfiles$o171_tramites
   otras <- paste(unlist(p$resumen_tabla$meta$proteccion_personal$otras_tablas),
                  collapse = " ")

@@ -36,8 +36,8 @@ test_that("las distribuciones declaran muestreo, tipos no comparables y protecci
     x = 1:4, stringsAsFactors = FALSE
   )
   datos$lista <- I(list(1, 2, 3, 4))
-  perfil <- perfilar(datos, analizar_dependencias = FALSE)
-  resultado <- distribucion_valores(datos, perfil, max_valores = 1, muestra = 2)
+  perfil <- perfilar(datos, analizar_dependencias = FALSE, proteger_datos_personales = TRUE)
+  resultado <- distribucion_valores(datos, perfil, max_valores = 1, muestra = 2, proteger_datos_personales = TRUE)
 
   expect_true(all(resultado$alcance$muestreado[resultado$alcance$columna != "lista"]))
   expect_equal(
@@ -48,20 +48,20 @@ test_that("las distribuciones declaran muestreo, tipos no comparables y protecci
   expect_true(all(resultado$frecuencias$valor[
     resultado$frecuencias$columna == "nombre"
   ] == "[valor protegido]"))
-  expect_equal(nrow(distribucion_valores(data.frame())$alcance), 0L)
+  expect_equal(nrow(distribucion_valores(data.frame(), proteger_datos_personales = TRUE)$alcance), 0L)
 })
 
 test_that("distribucion_valores valida su contrato", {
   datos <- data.frame(x = 1:3)
-  expect_error(distribucion_valores(1:3), "data.frame")
-  expect_error(distribucion_valores(datos, data.frame()), "perfil")
-  expect_error(distribucion_valores(datos, max_valores = 0), "entero positivo")
-  expect_error(distribucion_valores(datos, probabilidades = c(-1, 1)), ".*0, 1.*")
-  expect_error(distribucion_valores(datos, muestra = 0), "positivo")
+  expect_error(distribucion_valores(1:3, proteger_datos_personales = TRUE), "data.frame")
+  expect_error(distribucion_valores(datos, data.frame(), proteger_datos_personales = TRUE), "perfil")
+  expect_error(distribucion_valores(datos, max_valores = 0, proteger_datos_personales = TRUE), "entero positivo")
+  expect_error(distribucion_valores(datos, probabilidades = c(-1, 1), proteger_datos_personales = TRUE), ".*0, 1.*")
+  expect_error(distribucion_valores(datos, muestra = 0, proteger_datos_personales = TRUE), "positivo")
   expect_error(
     distribucion_valores(datos, proteger_datos_personales = NA), "TRUE o FALSE"
   )
-  sin_valores <- distribucion_valores(data.frame(x = c(NA_real_, NA_real_)))
+  sin_valores <- distribucion_valores(data.frame(x = c(NA_real_, NA_real_)), proteger_datos_personales = TRUE)
   expect_equal(sin_valores$alcance$estado, "sin_valores")
 })
 
@@ -137,7 +137,7 @@ test_that("detectar_asociaciones valida entradas y casos degenerados", {
 test_that("el analisis temporal informa dias, huecos y regularidad", {
   fechas <- as.Date("2026-01-01") + c(0:9, 26:45)
   resultado <- analizar_tiempo(
-    data.frame(fecha = fechas), frecuencia_dias = 1, max_huecos = 5
+    data.frame(fecha = fechas), frecuencia_dias = 1, max_huecos = 5, proteger_datos_personales = TRUE
   )
 
   expect_s3_class(resultado, "analisis_temporal")
@@ -155,7 +155,7 @@ test_that("el calendario laboral no inventa huecos de fin de semana", {
   fechas <- fechas[as.integer(format(fechas, "%u")) %in% 1:5]
   resultado <- analizar_tiempo(
     data.frame(fecha = c(fechas, fechas[[1L]])), calendario = 1:5,
-    frecuencia_dias = 1
+    frecuencia_dias = 1, proteger_datos_personales = TRUE
   )
 
   expect_equal(resultado$resumen$n_fechas_esperadas_ausentes, 0L)
@@ -169,14 +169,14 @@ test_that("el calendario laboral no inventa huecos de fin de semana", {
 
   con_domingo <- analizar_tiempo(
     data.frame(fecha = c(fechas, as.Date("2026-01-11"))),
-    calendario = 1:5, frecuencia_dias = 1
+    calendario = 1:5, frecuencia_dias = 1, proteger_datos_personales = TRUE
   )
   expect_equal(con_domingo$resumen$n_fechas_fuera_calendario, 1L)
 })
 
 test_that("la confianza temporal no excede la cobertura observada", {
   fechas <- as.Date("2024-01-01") + c(0, 3, 17, 40, 95, 200)
-  resultado <- analizar_tiempo(data.frame(fecha = fechas))
+  resultado <- analizar_tiempo(data.frame(fecha = fechas), proteger_datos_personales = TRUE)
 
   expect_equal(resultado$propuestas$contiguidad, 1)
   expect_equal(
@@ -201,8 +201,8 @@ test_that("el analisis temporal maneja texto, ambiguedad y recortes", {
     otra = as.Date("2026-01-01") + 0:1,
     stringsAsFactors = FALSE
   )
-  perfil <- perfilar(datos, analizar_dependencias = FALSE)
-  resultado <- analizar_tiempo(datos, perfil, max_columnas = 1, max_huecos = 1)
+  perfil <- perfilar(datos, analizar_dependencias = FALSE, proteger_datos_personales = TRUE)
+  resultado <- analizar_tiempo(datos, perfil, max_columnas = 1, max_huecos = 1, proteger_datos_personales = TRUE)
 
   expect_equal(resultado$resumen$columna, "iso")
   expect_true(attr(resultado, "truncado"))
@@ -211,7 +211,7 @@ test_that("el analisis temporal maneja texto, ambiguedad y recortes", {
 
   muchos <- analizar_tiempo(
     data.frame(fecha = as.Date("2026-01-01") + c(0, 2, 4, 6)),
-    frecuencia_dias = 1, max_huecos = 1
+    frecuencia_dias = 1, max_huecos = 1, proteger_datos_personales = TRUE
   )
   expect_true(muchos$resumen$huecos_truncados)
   expect_equal(nrow(muchos$huecos), 1L)
@@ -219,14 +219,14 @@ test_that("el analisis temporal maneja texto, ambiguedad y recortes", {
 
 test_that("analizar_tiempo valida su contrato", {
   datos <- data.frame(f = as.Date("2026-01-01"))
-  expect_error(analizar_tiempo(1:3), "data.frame")
-  expect_error(analizar_tiempo(datos, data.frame()), "perfil")
-  expect_error(analizar_tiempo(datos, columnas = "x"), "inexistentes")
-  expect_error(analizar_tiempo(datos, calendario = 0), "dias ISO")
-  expect_error(analizar_tiempo(datos, frecuencia_dias = 0), "positivo")
-  expect_error(analizar_tiempo(datos, frecuencia_dias = 0.5), "entero positivo")
-  expect_error(analizar_tiempo(datos, max_huecos = 0), "entero positivo")
-  expect_equal(nrow(analizar_tiempo(data.frame(x = 1:3))$resumen), 0L)
+  expect_error(analizar_tiempo(1:3, proteger_datos_personales = TRUE), "data.frame")
+  expect_error(analizar_tiempo(datos, data.frame(), proteger_datos_personales = TRUE), "perfil")
+  expect_error(analizar_tiempo(datos, columnas = "x", proteger_datos_personales = TRUE), "inexistentes")
+  expect_error(analizar_tiempo(datos, calendario = 0, proteger_datos_personales = TRUE), "dias ISO")
+  expect_error(analizar_tiempo(datos, frecuencia_dias = 0, proteger_datos_personales = TRUE), "positivo")
+  expect_error(analizar_tiempo(datos, frecuencia_dias = 0.5, proteger_datos_personales = TRUE), "entero positivo")
+  expect_error(analizar_tiempo(datos, max_huecos = 0, proteger_datos_personales = TRUE), "entero positivo")
+  expect_equal(nrow(analizar_tiempo(data.frame(x = 1:3), proteger_datos_personales = TRUE)$resumen), 0L)
   expect_equal(length(lupa:::.grupos_huecos(integer())), 0L)
   posix <- lupa:::.fecha_columna_avanzada(
     as.POSIXct("2026-01-01 10:00:00", tz = "UTC")
@@ -234,9 +234,9 @@ test_that("analizar_tiempo valida su contrato", {
   expect_equal(posix, as.Date("2026-01-01"))
   expect_null(lupa:::.fecha_columna_avanzada(1:3))
   expect_null(lupa:::.fecha_columna_avanzada(c("03-04-2023", "05-06-2023")))
-  manual <- analizar_tiempo(datos, columnas = c("f"))
+  manual <- analizar_tiempo(datos, columnas = c("f"), proteger_datos_personales = TRUE)
   expect_equal(nrow(manual$resumen), 1L)
-  no_temporal <- analizar_tiempo(data.frame(x = 1:3), columnas = "x")
+  no_temporal <- analizar_tiempo(data.frame(x = 1:3), columnas = "x", proteger_datos_personales = TRUE)
   expect_equal(nrow(no_temporal$resumen), 0L)
 })
 
@@ -248,7 +248,7 @@ test_that("clasificar_variables conserva escalas y niveles declarados", {
     zona = factor(c("sur", "sur"), levels = c("sur", "norte")),
     activo = c(TRUE, FALSE), cantidad = c(1L, 2L)
   )
-  resultado <- clasificar_variables(datos)
+  resultado <- clasificar_variables(datos, proteger_datos_personales = TRUE)
 
   expect_s3_class(resultado, "clasificacion_variables")
   expect_equal(resultado$escala_propuesta[resultado$columna == "prioridad"],
@@ -274,7 +274,7 @@ test_that("los metadatos confirman sin inferir y protegen niveles sensibles", {
     stringsAsFactors = FALSE
   )
   metadatos$niveles <- I(list(c("1", "2", "3", "4")))
-  resultado <- clasificar_variables(datos, metadatos = metadatos)
+  resultado <- clasificar_variables(datos, metadatos = metadatos, proteger_datos_personales = TRUE)
 
   codigo <- resultado[resultado$columna == "codigo", , drop = FALSE]
   expect_equal(codigo$escala_propuesta, "ordinal")
@@ -293,36 +293,36 @@ test_that("clasificar_variables valida metadatos y declara muestreo", {
   )
   expect_true(resultado$niveles_muestreados)
   expect_true(resultado$niveles_truncados)
-  expect_error(clasificar_variables(1:3), "data.frame")
-  expect_error(clasificar_variables(datos, data.frame()), "perfil")
-  expect_error(clasificar_variables(datos, max_niveles = 0), "entero positivo")
+  expect_error(clasificar_variables(1:3, proteger_datos_personales = TRUE), "data.frame")
+  expect_error(clasificar_variables(datos, data.frame(), proteger_datos_personales = TRUE), "perfil")
+  expect_error(clasificar_variables(datos, max_niveles = 0, proteger_datos_personales = TRUE), "entero positivo")
   expect_error(
     clasificar_variables(datos, proteger_datos_personales = NA), "TRUE o FALSE"
   )
   expect_error(
-    clasificar_variables(datos, metadatos = data.frame(columna = "y")),
+    clasificar_variables(datos, metadatos = data.frame(columna = "y"), proteger_datos_personales = TRUE),
     "columna existente"
   )
   expect_error(clasificar_variables(
-    datos, metadatos = data.frame(columna = "x", extra = 1)
+    datos, metadatos = data.frame(columna = "x", extra = 1), proteger_datos_personales = TRUE
   ), "no reconocidos")
   expect_error(clasificar_variables(
-    datos, metadatos = data.frame(columna = "x", escala = "intervalo")
+    datos, metadatos = data.frame(columna = "x", escala = "intervalo"), proteger_datos_personales = TRUE
   ), "no reconocida")
   expect_error(clasificar_variables(
     datos, metadatos = data.frame(
       columna = c("x", "x"), escala = c("nominal", "nominal")
-    )
+    ), proteger_datos_personales = TRUE
   ), "fila unica")
   expect_error(clasificar_variables(
     datos, metadatos = data.frame(
       columna = "x", escala = "nominal", confianza = 2
-    )
+    ), proteger_datos_personales = TRUE
   ), ".*0, 1.*")
   expect_error(clasificar_variables(
-    datos, metadatos = data.frame(columna = "x", confirmada = NA)
+    datos, metadatos = data.frame(columna = "x", confirmada = NA), proteger_datos_personales = TRUE
   ), "logica")
-  expect_equal(nrow(clasificar_variables(data.frame())), 0L)
+  expect_equal(nrow(clasificar_variables(data.frame(), proteger_datos_personales = TRUE)), 0L)
 })
 
 test_that("las señales explícitas y los tipos restantes se distinguen", {
@@ -366,7 +366,7 @@ test_that("las señales explícitas y los tipos restantes se distinguen", {
     metadatos = data.frame(
       columna = "x", confirmada = TRUE, confianza = 0.9,
       stringsAsFactors = FALSE
-    )
+    ), proteger_datos_personales = TRUE
   )
   expect_true(confirmacion$confirmada)
   expect_equal(confirmacion$confianza, 0.9)
@@ -376,7 +376,7 @@ test_that("analizar mide por omision sin conservar el detalle", {
   fecha <- as.POSIXct("2026-02-01", tz = "UTC")
   resultado <- analizar(
     datos_administrativos, fecha = fecha, analizar_dependencias = FALSE,
-    max_valores = 3
+    max_valores = 3, proteger_datos_personales = TRUE
   )
 
   expect_s3_class(resultado, "analisis")
@@ -407,7 +407,7 @@ test_that("analizar puede desactivar solo la medicion automatica", {
   # necesitan un analisis puramente descriptivo.
   resultado <- analizar(
     datos_administrativos, medir_propuesta = FALSE,
-    analizar_dependencias = FALSE
+    analizar_dependencias = FALSE, proteger_datos_personales = TRUE
   )
 
   expect_null(resultado$medicion)
@@ -423,7 +423,7 @@ test_that("analizar acepta tablas comunes sin mutarlas", {
     codigo = rep(1:3, each = 2), valor = c(1, 2, 3, 4, 5, NA)
   )
   antes <- data.table::copy(datos)
-  resultado <- analizar(datos, analizar_dependencias = FALSE)
+  resultado <- analizar(datos, analizar_dependencias = FALSE, proteger_datos_personales = TRUE)
 
   expect_s3_class(resultado, "analisis")
   expect_identical(datos, antes)
@@ -431,7 +431,7 @@ test_that("analizar acepta tablas comunes sin mutarlas", {
   testthat::skip_if_not_installed("tibble")
   tabla <- tibble::tibble(codigo = 1:3, valor = c("a", "b", "c"))
   expect_s3_class(
-    analizar(tabla, analizar_dependencias = FALSE), "analisis"
+    analizar(tabla, analizar_dependencias = FALSE, proteger_datos_personales = TRUE), "analisis"
   )
 })
 
@@ -443,7 +443,7 @@ test_that("analizar mide solo decisiones confirmadas", {
   perfil_eval <- perfil_evaluacion("Basico", regla)
   resultado <- analizar(
     datos, modelo_confirmado = confirmado, perfil_evaluacion = perfil_eval,
-    analizar_dependencias = FALSE
+    analizar_dependencias = FALSE, proteger_datos_personales = TRUE
   )
 
   expect_s3_class(resultado$medicion, "medicion")
@@ -455,7 +455,7 @@ test_that("analizar mide solo decisiones confirmadas", {
   propuesta$incluir[] <- FALSE
   propuesta$incluir[propuesta$metrica == "NoNulo"] <- TRUE
   desde_propuesta <- analizar(
-    datos, propuesta_confirmada = propuesta, analizar_dependencias = FALSE
+    datos, propuesta_confirmada = propuesta, analizar_dependencias = FALSE, proteger_datos_personales = TRUE
   )
   expect_s3_class(desde_propuesta$medicion, "medicion")
 })
@@ -465,23 +465,23 @@ test_that("analizar valida decisiones y argumentos coordinados", {
   modelo_x <- modelo(instanciar(
     especializar(metricas_nucleo()$NoNulo), "tabla", "x"
   ))
-  propuesta <- proponer_modelo(perfilar(datos, analizar_dependencias = FALSE), datos)
-  expect_error(analizar(1:3), "data.frame")
-  expect_error(analizar(datos, argumentos_perfil = list(1)), "nombres")
-  expect_error(analizar(datos, argumentos_perfil = list(nombre = "x")),
+  propuesta <- proponer_modelo(perfilar(datos, analizar_dependencias = FALSE, proteger_datos_personales = TRUE), datos)
+  expect_error(analizar(1:3, proteger_datos_personales = TRUE), "data.frame")
+  expect_error(analizar(datos, argumentos_perfil = list(1), proteger_datos_personales = TRUE), "nombres")
+  expect_error(analizar(datos, argumentos_perfil = list(nombre = "x"), proteger_datos_personales = TRUE),
                "no puede reemplazar")
-  expect_error(analizar(datos, argumentos_perfil = list(a = 1), a = 2),
+  expect_error(analizar(datos, argumentos_perfil = list(a = 1), a = 2, proteger_datos_personales = TRUE),
                "repetirse")
-  expect_error(analizar(datos, conservar_datos = NA), "logicos")
-  expect_error(analizar(datos, modelo_confirmado = data.frame()), "modelo")
-  expect_error(analizar(datos, propuesta_confirmada = data.frame()), "propuesta")
+  expect_error(analizar(datos, conservar_datos = NA, proteger_datos_personales = TRUE), "logicos")
+  expect_error(analizar(datos, modelo_confirmado = data.frame(), proteger_datos_personales = TRUE), "modelo")
+  expect_error(analizar(datos, propuesta_confirmada = data.frame(), proteger_datos_personales = TRUE), "propuesta")
   expect_error(analizar(
-    datos, modelo_confirmado = modelo_x, propuesta_confirmada = propuesta
+    datos, modelo_confirmado = modelo_x, propuesta_confirmada = propuesta, proteger_datos_personales = TRUE
   ), "no ambos")
   # La evaluacion consume la medicion agregada; el diagnostico nombra ese
   # requisito aunque la propuesta automatica no tenga filas medibles.
   expect_error(
-    analizar(datos, perfil_evaluacion = list()), "requiere una medici"
+    analizar(datos, perfil_evaluacion = list(), proteger_datos_personales = TRUE), "requiere una medici"
   )
   sin_proteccion <- analizar(
     datos, proteger_datos_personales = FALSE, analizar_dependencias = FALSE
@@ -524,9 +524,9 @@ test_that("la persistencia excluye datos y funciones por omision", {
     descripcion = rep(c("A", "B", "C"), each = 4),
     stringsAsFactors = FALSE
   )
-  resultado <- analizar(datos, muestra = Inf)
+  resultado <- analizar(datos, muestra = Inf, proteger_datos_personales = TRUE)
   archivo <- tempfile(fileext = ".rds")
-  ruta <- withVisible(guardar_analisis(resultado, archivo))
+  ruta <- withVisible(guardar_analisis(resultado, archivo, proteger_datos_personales = TRUE))
   recuperado <- leer_analisis(archivo)
 
   expect_false(ruta$visible)
@@ -546,7 +546,7 @@ test_that("las dependencias se reconstruyen solo con datos incluidos", {
     descripcion = rep(c("A", "B", "C"), each = 4),
     stringsAsFactors = FALSE
   )
-  resultado <- analizar(datos, conservar_datos = TRUE, muestra = Inf)
+  resultado <- analizar(datos, conservar_datos = TRUE, muestra = Inf, proteger_datos_personales = TRUE)
   archivo <- tempfile(fileext = ".rds")
   guardar_analisis(
     resultado, archivo, incluir_datos = TRUE,
@@ -566,7 +566,7 @@ test_that("las dependencias se reconstruyen solo con datos incluidos", {
 test_that("una funcion arbitraria persiste como requisito explícito", {
   datos <- data.frame(x = c("A", "B", "A"), stringsAsFactors = FALSE)
   propuesta <- proponer_modelo(
-    perfilar(datos, analizar_dependencias = FALSE), datos
+    perfilar(datos, analizar_dependencias = FALSE, proteger_datos_personales = TRUE), datos
   )
   propuesta$configuracion[[1L]]$validador <- function(x) !is.na(x)
   propuesta$incluir[[1L]] <- TRUE
@@ -619,34 +619,34 @@ test_that("guardar y leer analisis aplican salvaguardas", {
     nombre = c("Maria Perez", "Juan Gomez"), stringsAsFactors = FALSE
   )
   resultado <- analizar(
-    datos, conservar_datos = TRUE, analizar_dependencias = FALSE
+    datos, conservar_datos = TRUE, analizar_dependencias = FALSE, proteger_datos_personales = TRUE
   )
   archivo <- tempfile(fileext = ".rds")
-  expect_error(guardar_analisis(data.frame(), archivo), "analizar")
-  expect_error(guardar_analisis(resultado, ""), "ruta")
-  expect_error(guardar_analisis(resultado, archivo, incluir_datos = NA), "logicos")
+  expect_error(guardar_analisis(data.frame(), archivo, proteger_datos_personales = TRUE), "analizar")
+  expect_error(guardar_analisis(resultado, "", proteger_datos_personales = TRUE), "ruta")
+  expect_error(guardar_analisis(resultado, archivo, incluir_datos = NA, proteger_datos_personales = TRUE), "logicos")
   # El ancla es `comprimir` y no la palabra del mensaje: lo que esta prueba
   # sostiene es que el rechazo lo hace EL PAQUETE. `saveRDS()` tambien
   # rechaza esto, pero con `invalid 'compress' argument`, un error crudo de
   # R; que llegara ese era el defecto que se cerro con las cadenas "TRUE" y
   # "FALSE", y un ancla sobre una palabra suelta del texto no lo distingue.
   expect_error(
-    guardar_analisis(resultado, archivo, comprimir = "zip"), "`comprimir`"
+    guardar_analisis(resultado, archivo, comprimir = "zip", proteger_datos_personales = TRUE), "`comprimir`"
   )
   expect_error(guardar_analisis(
-    resultado, file.path(tempfile(), "x.rds")
+    resultado, file.path(tempfile(), "x.rds"), proteger_datos_personales = TRUE
   ), "directorio")
-  expect_error(guardar_analisis(resultado, archivo, incluir_datos = TRUE),
+  expect_error(guardar_analisis(resultado, archivo, incluir_datos = TRUE, proteger_datos_personales = TRUE),
                "datos personales")
   sin_datos <- resultado
   sin_datos$datos <- NULL
   sin_datos$perfil$datos_personales <- sin_datos$perfil$datos_personales[0, ]
   expect_error(guardar_analisis(
-    sin_datos, tempfile(fileext = ".rds"), incluir_datos = TRUE
+    sin_datos, tempfile(fileext = ".rds"), incluir_datos = TRUE, proteger_datos_personales = TRUE
   ), "no conservo datos")
-  guardar_analisis(resultado, archivo)
-  expect_error(guardar_analisis(resultado, archivo), "ya existe")
-  expect_silent(guardar_analisis(resultado, archivo, sobrescribir = TRUE))
+  guardar_analisis(resultado, archivo, proteger_datos_personales = TRUE)
+  expect_error(guardar_analisis(resultado, archivo, proteger_datos_personales = TRUE), "ya existe")
+  expect_silent(guardar_analisis(resultado, archivo, sobrescribir = TRUE, proteger_datos_personales = TRUE))
   expect_error(leer_analisis(""), "RDS existente")
 
   invalido <- tempfile(fileext = ".rds")
@@ -662,7 +662,7 @@ test_that("guardar y leer analisis aplican salvaguardas", {
     proteger_datos_personales = FALSE
   )
   protegido <- tempfile(fileext = ".rds")
-  guardar_analisis(sin_proteger, protegido)
+  guardar_analisis(sin_proteger, protegido, proteger_datos_personales = TRUE)
   recuperado <- leer_analisis(protegido)
   textos <- c(
     recuperado$perfil$columnas$moda,
@@ -678,9 +678,9 @@ test_that("reportar acepta el analisis entero sin exponer valores personales", {
     nombre = c("Maria Fernandez", "Juan Perez", "Ana Silva"),
     valor = c(1, 2, 3), stringsAsFactors = FALSE
   )
-  resultado <- analizar(datos, analizar_dependencias = FALSE)
+  resultado <- analizar(datos, analizar_dependencias = FALSE, proteger_datos_personales = TRUE)
   archivo <- tempfile(fileext = ".html")
-  reportar(resultado, archivo = archivo)
+  reportar(resultado, archivo = archivo, proteger_datos_personales = TRUE)
   html <- paste(readLines(archivo, warn = FALSE, encoding = "UTF-8"),
                 collapse = "\n")
 
@@ -698,9 +698,9 @@ test_that("reportar acepta el analisis entero sin exponer valores personales", {
 })
 
 test_that("el reporte tolera perfiles heredados y declara dependencias recortadas", {
-  perfil <- perfilar(data.frame(x = 1:4), analizar_dependencias = FALSE)
+  perfil <- perfilar(data.frame(x = 1:4), analizar_dependencias = FALSE, proteger_datos_personales = TRUE)
   perfil$dependencias <- NULL
-  expect_match(lupa:::.seccion_perfil(perfil, Inf, Inf),
+  expect_match(lupa:::.seccion_perfil(perfil, Inf, Inf, proteger_datos_personales = TRUE),
                "Dependencias funcionales", fixed = TRUE)
 
   dependencias <- data.frame(
@@ -710,6 +710,6 @@ test_that("el reporte tolera perfiles heredados y declara dependencias recortada
   attr(dependencias, "columnas_analizadas") <- "x"
   attr(dependencias, "columnas_omitidas") <- "y"
   perfil$dependencias <- dependencias
-  expect_match(lupa:::.seccion_perfil(perfil, Inf, Inf),
+  expect_match(lupa:::.seccion_perfil(perfil, Inf, Inf, proteger_datos_personales = TRUE),
                "quedaron fuera 1", fixed = TRUE)
 })

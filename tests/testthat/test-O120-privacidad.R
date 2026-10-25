@@ -29,7 +29,7 @@ test_that("un valor protegido con una barra literal no se publica", {
                             length.out = n)
   datos$rut <- ifelse(datos$aprobado_por == "particular", NA,
                       sprintf("21%07d0018", seq_len(n)))
-  perfil <- suppressWarnings(perfilar(datos, columnas_personales = "usuario"))
+  perfil <- suppressWarnings(perfilar(datos, columnas_personales = "usuario", proteger_datos_personales = TRUE))
   hojas <- tolower(.hojas_O120(perfil))
   # Antes: en la cita de la sugerencia, y en otra caja en moda y ejemplos.
   expect_false(any(grepl("rodriguez", hojas, fixed = TRUE)))
@@ -43,7 +43,7 @@ test_that("un valor protegido que trae una marca del paquete no se publica", {
   datos <- data.frame(id = seq_len(n), stringsAsFactors = FALSE)
   datos$domicilio <- rep(domicilios, length.out = n)
   datos$referencia <- rep(c(domicilios, toupper(domicilios)), length.out = n)
-  perfil <- suppressWarnings(perfilar(datos, columnas_personales = "domicilio"))
+  perfil <- suppressWarnings(perfilar(datos, columnas_personales = "domicilio", proteger_datos_personales = TRUE))
   hojas <- tolower(.hojas_O120(perfil))
   # Antes: los dos con la marca salian exactos en los ejemplos.
   expect_false(any(grepl("italia 2345", hojas, fixed = TRUE)))
@@ -121,7 +121,7 @@ test_that("perfilar_dbi tapa el valor de una persona que esta fuera de la muestr
   on.exit(DBI::dbDisconnect(con), add = TRUE)
   DBI::dbWriteTable(con, "t", datos)
   resultado <- suppressWarnings(suppressMessages(perfilar_dbi(
-    con, "t", muestra = 300, columnas_personales = "titular"
+    con, "t", muestra = 300, columnas_personales = "titular", proteger_datos_personales = TRUE
   )))
   # Antes: la moda SQL de `referente` y el perfil de la muestra.
   expect_false(any(grepl("Juan Perez Rodriguez", .hojas_O120(resultado), fixed = TRUE)))
@@ -138,7 +138,7 @@ test_that("un latin1 con un par que parece UTF-8 se reconoce igual", {
   datos <- data.frame(id = seq_len(n), stringsAsFactors = FALSE)
   datos$titular <- rep(c(protegidos, "Ana Maria Ruiz"), length.out = n)
   datos$referente <- rep(c(latin1(protegidos), "otro"), length.out = n)
-  perfil <- suppressWarnings(perfilar(datos, columnas_personales = "titular"))
+  perfil <- suppressWarnings(perfilar(datos, columnas_personales = "titular", proteger_datos_personales = TRUE))
   hojas <- .hojas_O120(perfil)
   # Antes: la moda de `referente` publicaba los bytes latin1 del nombre.
   expect_false(any(hojas %in% latin1(protegidos)))
@@ -154,7 +154,7 @@ test_that("una fecha de nacimiento compacta no tapa las fechas de otras columnas
     fecha_nacimiento = as.integer(format(nacimiento, "%Y%m%d")),
     fecha_alta = rep(alta, 10)
   )
-  perfil <- suppressWarnings(perfilar(datos, columnas_personales = "fecha_nacimiento"))
+  perfil <- suppressWarnings(perfilar(datos, columnas_personales = "fecha_nacimiento", proteger_datos_personales = TRUE))
   fila <- perfil$columnas[perfil$columnas$columna == "fecha_alta", ]
   for (campo in intersect(c("minimo_fecha", "mediana_fecha", "maximo_fecha"),
                           names(fila))) {
@@ -170,7 +170,7 @@ test_that("un nombre protegido que es palabra del paquete no tapa la unidad", {
     primer_nombre = rep(c("Segundo", "Ana", "Luis", "Marta"), 5),
     alta = as.Date("2020-01-01") + 0:19, stringsAsFactors = FALSE
   )
-  perfil <- suppressWarnings(perfilar(datos, columnas_personales = "primer_nombre"))
+  perfil <- suppressWarnings(perfilar(datos, columnas_personales = "primer_nombre", proteger_datos_personales = TRUE))
   unidad <- perfil$columnas$unidad[perfil$columnas$columna == "alta"]
   skip_if(is.null(unidad) || is.na(unidad))
   # Antes: `[valor protegido]` en lugar de `segundos`.

@@ -21,7 +21,7 @@ test_that("al releer, la marca acompania al valor enmascarado", {
   destino <- tempfile(fileext = ".rds")
   on.exit(unlink(destino), add = TRUE)
 
-  suppressMessages(guardar_analisis(sin_proteger, destino))
+  suppressMessages(guardar_analisis(sin_proteger, destino, proteger_datos_personales = TRUE))
   releido <- leer_analisis(destino)
   fila <- releido$perfil$columnas[
     releido$perfil$columnas$columna == "cedula", ,
@@ -38,14 +38,14 @@ test_that("el releido dice lo mismo que la proteccion nativa", {
   sin_proteger <- .analisis_con_documentos()
   destino <- tempfile(fileext = ".rds")
   on.exit(unlink(destino), add = TRUE)
-  suppressMessages(guardar_analisis(sin_proteger, destino))
+  suppressMessages(guardar_analisis(sin_proteger, destino, proteger_datos_personales = TRUE))
   releido <- leer_analisis(destino)
 
   nativo <- analizar(
     data.frame(
       cedula = c(12345678, 87654321, 87654321, 13579246, 24681357, 11223344)
     ),
-    analizar_dependencias = FALSE
+    analizar_dependencias = FALSE, proteger_datos_personales = TRUE
   )
 
   campo <- function(x) {
@@ -66,7 +66,7 @@ test_that("un analisis sin columnas personales no se marca protegido", {
   destino <- tempfile(fileext = ".rds")
   on.exit(unlink(destino), add = TRUE)
 
-  suppressMessages(guardar_analisis(analisis, destino))
+  suppressMessages(guardar_analisis(analisis, destino, proteger_datos_personales = TRUE))
   releido <- leer_analisis(destino)
   fila <- releido$perfil$columnas[
     releido$perfil$columnas$columna == "monto", ,

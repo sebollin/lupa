@@ -12,7 +12,7 @@ analizar_tiempo(
   frecuencia_dias = NULL,
   max_huecos = 20L,
   max_columnas = 50L,
-  proteger_datos_personales = TRUE,
+  proteger_datos_personales = FALSE,
   columnas_personales = character()
 )
 }
@@ -33,7 +33,7 @@ propone la moda de los intervalos positivos.}
 \item{max_columnas}{Máximo de columnas temporales analizadas.}
 
 \item{proteger_datos_personales}{Si se ocultan los rangos y los huecos de
-las columnas temporales que son dato personal. \code{TRUE} por omisión.}
+las columnas temporales que son dato personal. \code{FALSE} por omisión.}
 
 \item{columnas_personales}{Columnas que traen datos personales, declaradas
 con la misma forma que acepta \code{\link[=perfilar]{perfilar()}}. Se suman a las que protege el

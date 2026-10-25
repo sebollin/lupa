@@ -21,7 +21,7 @@ tabla_o48 <- function() {
 
 test_that("un hallazgo medido sin accion se declara y dice su motivo", {
   datos <- tabla_o48()
-  perfil <- perfilar(datos)
+  perfil <- perfilar(datos, proteger_datos_personales = TRUE)
   plan <- planificar_limpieza(perfil, datos = datos)
 
   hallazgos <- as.data.frame(perfil$hallazgos)
@@ -54,7 +54,7 @@ test_that("todo hallazgo medido produce accion o queda declarado", {
   # accion y sin mencion. Se mide sobre las dos tablas del paquete, que no se
   # armaron para esta prueba.
   for (datos in list(datos_administrativos, datos_operativos, tabla_o48())) {
-    perfil <- perfilar(datos)
+    perfil <- perfilar(datos, proteger_datos_personales = TRUE)
     plan <- planificar_limpieza(perfil, datos = datos)
     hallazgos <- as.data.frame(perfil$hallazgos)
     medidos <- hallazgos[as.character(hallazgos$severidad) != "ok", ,
@@ -85,7 +85,7 @@ test_that("el hallazgo que si produce accion no se declara como hueco", {
   # El control tiene que poder fallar: si el atributo listara todo, esta
   # comprobacion no distinguiria nada.
   datos <- tabla_o48()
-  perfil <- perfilar(datos)
+  perfil <- perfilar(datos, proteger_datos_personales = TRUE)
   plan <- planificar_limpieza(perfil, datos = datos)
   declarados <- attr(plan, "hallazgos_sin_accion", exact = TRUE)
   con_accion <- unique(paste(as.data.frame(plan)$columna,
@@ -103,7 +103,7 @@ test_that("el hueco de la columna ambigua se declara una sola vez", {
     a = c(" x ", " y "), a = c(" z ", " w "),
     check.names = FALSE, stringsAsFactors = FALSE
   )
-  perfil <- perfilar(datos)
+  perfil <- perfilar(datos, proteger_datos_personales = TRUE)
   plan <- planificar_limpieza(perfil, datos = datos)
 
   expect_gt(
@@ -118,7 +118,7 @@ test_that("el hueco de la columna ambigua se declara una sola vez", {
 
 test_that("la impresion del plan menciona el hueco", {
   datos <- tabla_o48()
-  perfil <- perfilar(datos)
+  perfil <- perfilar(datos, proteger_datos_personales = TRUE)
   plan <- planificar_limpieza(perfil, datos = datos)
   salida <- NULL
   invisible(capture.output(salida <- cli::cli_fmt(print(plan))))
@@ -136,7 +136,7 @@ test_that("el hueco declarado no publica un valor protegido", {
     ciudad = c("MVD", "MVD ", "mvd", "SLGO"),
     stringsAsFactors = FALSE
   )
-  perfil <- perfilar(datos)
+  perfil <- perfilar(datos, proteger_datos_personales = TRUE)
   plan <- planificar_limpieza(perfil, datos = datos)
   declarados <- attr(plan, "hallazgos_sin_accion", exact = TRUE)
   protegidas <- attr(plan, "columnas_datos_personales_protegidas",
@@ -153,7 +153,7 @@ test_that("el hueco declarado no publica un valor protegido", {
 test_that("el analisis conserva el hueco declarado en su plan", {
   datos <- tabla_o48()
   analisis <- analizar(
-    datos, fecha = as.POSIXct("2026-09-24 10:00:00", tz = "UTC")
+    datos, fecha = as.POSIXct("2026-09-24 10:00:00", tz = "UTC"), proteger_datos_personales = TRUE
   )
   declarados <- attr(analisis$plan_limpieza, "hallazgos_sin_accion",
                      exact = TRUE)
@@ -167,14 +167,14 @@ test_that("el informe publica el hueco, no solo la consola", {
   # otra persona, y publicaba "Acciones propuestas: 5" sin decir que habia un
   # hallazgo medido sin accion.
   datos <- tabla_o48()
-  perfil <- perfilar(datos)
+  perfil <- perfilar(datos, proteger_datos_personales = TRUE)
   plan <- planificar_limpieza(perfil, datos = datos)
   declarados <- attr(plan, "hallazgos_sin_accion", exact = TRUE)
   expect_gt(nrow(declarados), 0L)
 
   archivo <- file.path(tempdir(), "plan-o48.html")
   on.exit(unlink(archivo), add = TRUE)
-  reportar(plan, archivo = archivo)
+  reportar(plan, archivo = archivo, proteger_datos_personales = TRUE)
   html <- paste(readLines(archivo, warn = FALSE), collapse = "\n")
 
   expect_true(grepl("Hallazgos medidos sin acci", html))

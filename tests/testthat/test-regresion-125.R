@@ -12,7 +12,7 @@ test_that("el rango de una columna protegida no se despeja desde el perfil", {
   # mientras `minimo` y `maximo` salian en NA como corresponde.
   set.seed(3)
   clave <- sort(sample.int(600000L, 10000L))
-  perfil <- perfilar(data.frame(cedula = clave))
+  perfil <- perfilar(data.frame(cedula = clave), proteger_datos_personales = TRUE)
   columnas <- perfil$columnas
   expect_equal(as.character(columnas$tipo_dato_personal), "documento_identidad")
   expect_true(is.na(columnas$minimo))
@@ -30,7 +30,7 @@ test_that("el motivo de la cobertura no publica la razon entre los extremos", {
   # datos, que con otra del mismo perfil se despeja.
   set.seed(9)
   cedulas <- c(sample(4000000:4009999, 400L), rep(NA_integer_, 5L))
-  perfil <- perfilar(data.frame(cedula = cedulas))
+  perfil <- perfilar(data.frame(cedula = cedulas), proteger_datos_personales = TRUE)
   cobertura <- perfil$cobertura_diagnosticos
   motivos <- as.character(cobertura$motivo)
   expect_gt(length(motivos), 0L)
@@ -44,7 +44,7 @@ test_that("sin datos personales los campos del rango siguen publicandose", {
   # numeracion.
   perfil <- perfilar(
     data.frame(codigo = 1:500), analizar_dependencias = FALSE,
-    casi_duplicados_vocabulario = FALSE
+    casi_duplicados_vocabulario = FALSE, proteger_datos_personales = TRUE
   )
   expect_true(is.na(perfil$columnas$tipo_dato_personal))
   expect_equal(perfil$columnas$n_posiciones_secuencia_entera, 500)

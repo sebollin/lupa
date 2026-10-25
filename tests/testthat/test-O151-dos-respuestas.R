@@ -115,7 +115,7 @@ test_that("H2: un factor con nivel NA no es clave en detectar_claves(), sugerir_
   # ausentes.
   expect_equal(sum(is.na(as.character(d$k))), 1L)
   expect_equal(length(unique(cod[!is.na(cod)])), 39L)
-  fila <- perfilar(d, fecha = .fecha_O151, analizar_dependencias = FALSE)$columnas
+  fila <- perfilar(d, fecha = .fecha_O151, analizar_dependencias = FALSE, proteger_datos_personales = TRUE)$columnas
   expect_equal(fila$n_faltantes[fila$columna == "k"], 1)
   expect_false("k" %in% detectar_claves(d)$columnas)
   s <- sugerir_clave(d)
@@ -145,7 +145,7 @@ test_that("H3: aplicar() elimina las columnas que el perfil y el plan llaman dup
     # A mano: el mismo contenido con la regla del paquete -el nivel NA es un
     # faltante, un POSIXlt vale por su instante-.
     expect_identical(as.character(d$a), as.character(d$b))
-    p <- perfilar(d, fecha = .fecha_O151, analizar_dependencias = FALSE)
+    p <- perfilar(d, fecha = .fecha_O151, analizar_dependencias = FALSE, proteger_datos_personales = TRUE)
     expect_true("columnas_duplicadas" %in% p$hallazgos$tipo_hallazgo)
     plan <- planificar_limpieza(p, datos = d)
     plan$aplicar <- plan$estrategia == "eliminar_columna_duplicada"
@@ -171,7 +171,7 @@ test_that("H5: analizar()$distribuciones recibe los centinelas y el universo dec
     sentinelas_numericos = c(-999, 999),
     aplicabilidad = list(marca = ~ tiene_auto == "Si", km = ~ tiene_auto == "Si"),
     analizar_dependencias = FALSE
-  )))
+  ), proteger_datos_personales = TRUE))
   q <- a$distribuciones$cuantiles
   # A mano: la edad sin los centinelas declarados; el km y la marca dentro del
   # universo.
@@ -201,7 +201,7 @@ test_that("H6: analizar() mide la NoNulo con disfrazados contandolos", {
     stringsAsFactors = FALSE
   )
   a <- suppressWarnings(analizar(d, fecha = .fecha_O151,
-    argumentos_perfil = list(analizar_dependencias = FALSE)))
+    argumentos_perfil = list(analizar_dependencias = FALSE), proteger_datos_personales = TRUE))
   fila <- a$perfil$columnas
   # A mano: 4 y 6 ausentes contando los disfrazados; 39/40 = 0.975 cuenta solo
   # el NA, que es la completitud que la propuesta llama sobrestimada.
@@ -235,7 +235,7 @@ test_that("H8: distribucion_valores() cuenta un POSIXlt como su POSIXct", {
   # A mano: 7 presentes y 4 instantes distintos.
   expect_equal(sum(!is.na(ct)), 7L)
   expect_equal(length(unique(ct[!is.na(ct)])), 4L)
-  dv <- distribucion_valores(d)
+  dv <- distribucion_valores(d, proteger_datos_personales = TRUE)
   alcance <- dv$alcance
   expect_equal(alcance$estado[alcance$columna == "lt"], "calculada")
   expect_equal(alcance$n_analizados[alcance$columna == "lt"], 7)
@@ -250,7 +250,7 @@ test_that("H9: desambiguar_fecha_en_origen cuenta en la unidad de su hallazgo", 
                 "%d/%m/%Y")
   amb[c(5, 6, 7)] <- NA
   d <- data.frame(amb = amb, stringsAsFactors = FALSE)
-  p <- perfilar(d, fecha = .fecha_O151, analizar_dependencias = FALSE)
+  p <- perfilar(d, fecha = .fecha_O151, analizar_dependencias = FALSE, proteger_datos_personales = TRUE)
   h <- p$hallazgos[p$hallazgos$tipo_hallazgo == "formato_fecha_ambiguo", ]
   # A mano: dos formatos candidatos, d/m y m/d.
   expect_equal(h$n_afectados, 2)
@@ -270,7 +270,7 @@ test_that("H10: sin moda la moda es NA tambien con la proteccion activa", {
   # A mano: el primero no repite ningun valor, el segundo repite uno.
   expect_equal(max(table(d$correo)), 1L)
   expect_equal(max(table(d$correo_rep)), 2L)
-  fila <- perfilar(d, fecha = .fecha_O151, analizar_dependencias = FALSE)$columnas
+  fila <- perfilar(d, fecha = .fecha_O151, analizar_dependencias = FALSE, proteger_datos_personales = TRUE)$columnas
   expect_true(all(fila$dato_personal_protegido))
   expect_true(is.na(fila$moda[fila$columna == "correo"]))
   expect_equal(fila$frecuencia_moda[fila$columna == "correo"], 1)
@@ -280,7 +280,7 @@ test_that("H10: sin moda la moda es NA tambien con la proteccion activa", {
   con <- DBI::dbConnect(RSQLite::SQLite(), ":memory:")
   on.exit(DBI::dbDisconnect(con), add = TRUE)
   DBI::dbWriteTable(con, "t", d)
-  p <- suppressWarnings(perfilar_dbi(con, "t"))
+  p <- suppressWarnings(perfilar_dbi(con, "t", proteger_datos_personales = TRUE))
   for (columnas in list(p$resumen_tabla$columnas, p$perfil_muestra$columnas)) {
     expect_true(is.na(columnas$moda[columnas$columna == "correo"]))
     expect_identical(columnas$moda[columnas$columna == "correo_rep"], "[valor protegido]")
@@ -291,7 +291,7 @@ test_that("A-1: una conversion regional que no se ejecuta con ninguna configurac
   txt <- c("1.234,56", "1,5", "100.000", "1e5", "2,5", "3,25", "0,1",
            "1.000.000,00", "12,00", "7", "8,5", "9,75")
   d <- data.frame(ID = seq_along(txt), txt = txt, stringsAsFactors = FALSE)
-  plan <- planificar_limpieza(perfilar(d, fecha = .fecha_O151), d)
+  plan <- planificar_limpieza(perfilar(d, fecha = .fecha_O151, proteger_datos_personales = TRUE), d)
   accion <- plan[plan$estrategia == "convertir_numero_regional", ]
   expect_equal(nrow(accion), 1L)
   # A mano: `1e5` no responde al formato regional con ninguna lectura del
@@ -309,7 +309,7 @@ test_that("A-1: una conversion regional que no se ejecuta con ninguna configurac
     txt = c("1.234", "2.500", "3.750", "10.000", "12.345", "7.001", "8.002", "9.003"),
     stringsAsFactors = FALSE
   )
-  plan <- planificar_limpieza(perfilar(ambigua, fecha = .fecha_O151), ambigua)
+  plan <- planificar_limpieza(perfilar(ambigua, fecha = .fecha_O151, proteger_datos_personales = TRUE), ambigua)
   accion <- plan[plan$estrategia == "convertir_numero_regional", ]
   expect_match(accion$parametros[[1L]]$motivo_no_reversible, "punto_sin_coma", fixed = TRUE)
   expect_identical(as.character(accion$estado), "lista")

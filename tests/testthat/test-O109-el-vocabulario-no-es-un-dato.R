@@ -37,7 +37,7 @@ testthat::skip_on_cran()
 
 test_that("un nombre protegido no borra el tipo del hallazgo ni la accion", {
   d <- .datos_O109()
-  p <- suppressWarnings(perfilar(d))
+  p <- suppressWarnings(perfilar(d, proteger_datos_personales = TRUE))
   h <- hallazgos(p)
   # Antes: tres hallazgos con `tipo_hallazgo = "[valor protegido]"`.
   expect_false(any(h$tipo_hallazgo == "[valor protegido]"))
@@ -57,9 +57,9 @@ test_that("un nombre protegido no borra el tipo del hallazgo ni la accion", {
 
 test_that("el nombre protegido sigue sin publicarse", {
   d <- .datos_O109()
-  p <- suppressWarnings(perfilar(d))
+  p <- suppressWarnings(perfilar(d, proteger_datos_personales = TRUE))
   plan <- suppressWarnings(planificar_limpieza(p, datos = d))
-  a <- suppressWarnings(suppressMessages(analizar(d)))
+  a <- suppressWarnings(suppressMessages(analizar(d, proteger_datos_personales = TRUE)))
   # El valor de la celda, tal como esta en los datos. El tipo `faltantes` -en
   # minusculas, del paquete- no es el dato de nadie.
   for (objeto in list(p, plan, a)) {

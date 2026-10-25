@@ -42,7 +42,7 @@ testthat::skip_on_cran()
 test_that("H1: un plan armado en C y aplicado con LC_NUMERIC en coma escribe la fraccion de segundo", {
   d <- data.frame(t = .textos_fraccion_o160, stringsAsFactors = FALSE)
   plan <- suppressMessages(suppressWarnings(
-    planificar_limpieza(perfilar(d), datos = d)
+    planificar_limpieza(perfilar(d, proteger_datos_personales = TRUE), datos = d)
   ))
   fila <- which(plan$columna == "t" & plan$estrategia == "convertir_tipo")
   expect_length(fila, 1L)
@@ -69,7 +69,7 @@ test_that("H1: con LC_NUMERIC en coma el plan declara la conversion reversible, 
   d <- data.frame(t = .textos_fraccion_o160, stringsAsFactors = FALSE)
   planear <- function() {
     plan <- suppressMessages(suppressWarnings(
-      planificar_limpieza(perfilar(d), datos = d)
+      planificar_limpieza(perfilar(d, proteger_datos_personales = TRUE), datos = d)
     ))
     fila <- which(plan$columna == "t" & plan$estrategia == "convertir_tipo")
     list(estado = as.character(plan$estado[fila]),
@@ -91,10 +91,10 @@ test_that("H1: una fecha de texto con fraccion se guarda con la fraccion con LC_
   d <- data.frame(x = c(1, NA))
   medido <- .con_numerica_o160(list(
     medir = as.numeric(unique(medir(mod, d, id_medicion = "m",
-                                    fecha = "2026-03-01 10:00:05.25")$fecha)) -
+                                    fecha = "2026-03-01 10:00:05.25", proteger_datos_personales = TRUE)$fecha)) -
       .diez_utc_o160(),
     perfilar = as.numeric(suppressMessages(
-      perfilar(d, fecha = "2026-03-01 10:00:05.25")
+      perfilar(d, fecha = "2026-03-01 10:00:05.25", proteger_datos_personales = TRUE)
     )$meta$fecha_hora) - .diez_utc_o160(),
     numerica = Sys.getlocale("LC_NUMERIC")
   ))
@@ -108,7 +108,7 @@ test_that("H1: el id_medicion por omision se escribe con punto con LC_NUMERIC en
   mod <- modelo(instanciar(especializar(metricas_nucleo()$NoNulo), "e", "x"))
   d <- data.frame(x = c(1, NA))
   fecha <- as.POSIXct(.diez_utc_o160() + 5.25, origin = "1970-01-01", tz = "UTC")
-  id <- .con_numerica_o160(unique(medir(mod, d, fecha = fecha)$id_medicion))
+  id <- .con_numerica_o160(unique(medir(mod, d, fecha = fecha, proteger_datos_personales = TRUE)$id_medicion))
   expect_true(startsWith(id, "medicion-20260301T100005.250000-"))
 })
 
@@ -170,7 +170,7 @@ test_that("H2: una configuracion escrita con 15 cifras declara el cambio de mode
   d <- data.frame(p = c(0.1, 0.2, 0.3, 0.25))
   pe <- perfil_evaluacion("Basico", regla_evaluacion("Presente", function(x) x > 0.5))
   corrida <- function(id, fecha) {
-    m <- medir(mod, d, id_medicion = id, fecha = fecha)
+    m <- medir(mod, d, id_medicion = id, fecha = fecha, proteger_datos_personales = TRUE)
     historico_calidad(m, evaluar(m, pe))
   }
   enero <- corrida("enero", "2026-01-31")
@@ -223,7 +223,7 @@ test_that("H3: evaluar() bajo C con un perfil y una regla no ASCII no avisa unab
   presente <- paste0("Presente", intToUtf8(0xe9L))
   mod <- modelo(instanciar(especializar(metricas_nucleo()$NoNulo), "personas", "edad"))
   m <- medir(mod, data.frame(edad = c(20, NA, 35, 41)), id_medicion = "m",
-             fecha = "2026-03-01")
+             fecha = "2026-03-01", proteger_datos_personales = TRUE)
   pe <- perfil_evaluacion(basico, regla_evaluacion(presente, function(x) x > 0.5))
   en_utf8 <- evaluar(m, pe)
   bajo_c <- .traducciones_bajo_c_o160(evaluar(m, pe))
@@ -241,7 +241,7 @@ test_that("H3: aplicar() bajo C con columnas no ASCII no avisa unable to transla
   d <- data.frame(x = c(20, 20, 35), y = c("a", "a", "b"), stringsAsFactors = FALSE)
   names(d) <- c(paste0("a", intToUtf8(0xf1L), "o"),
                 paste0("ciudad", intToUtf8(0xe9L)))
-  plan <- suppressWarnings(suppressMessages(planificar_limpieza(perfilar(d), datos = d)))
+  plan <- suppressWarnings(suppressMessages(planificar_limpieza(perfilar(d, proteger_datos_personales = TRUE), datos = d)))
   fila <- which(plan$estrategia == "conservar_primera_duplicada")
   expect_length(fila, 1L)
   plan$aplicar <- FALSE
@@ -262,7 +262,7 @@ test_that("H3: perfilar_dbi() por bloques y relaciones_coleccion() bajo C con no
   on.exit(DBI::dbDisconnect(con), add = TRUE)
   DBI::dbWriteTable(con, pais, d)
   DBI::dbWriteTable(con, paste0(pais, "2"), d[1:2, ])
-  bloques <- .traducciones_bajo_c_o160(perfilar_dbi(con, pais, bloque_filas = 2))
+  bloques <- .traducciones_bajo_c_o160(perfilar_dbi(con, pais, bloque_filas = 2, proteger_datos_personales = TRUE))
   expect_identical(bloques$traducciones, character())
   # media de c(1.5, 2.5, 1.5, 3) = 8.5 / 4 = 2.125
   columnas <- bloques$valor$resumen_tabla$columnas
@@ -382,15 +382,15 @@ test_that("H6: perfilar_por() valida la fecha y los nombres de ... aunque ningun
   d <- data.frame(a = 1:10, g = rep(c("x", "y"), 5))
   # 5 filas por grupo: con `min_filas = 100` `perfilar()` no corre, y antes la
   # llamada pasaba en silencio. Con `min_filas = 1` ya daba estos errores.
-  expect_error(perfilar_por(d, "g", min_filas = 100, fecha = "ayer"),
+  expect_error(perfilar_por(d, "g", min_filas = 100, fecha = "ayer", proteger_datos_personales = TRUE),
                "`fecha` debe contener una fecha y hora v", fixed = TRUE)
-  expect_error(perfilar_por(d, "g", min_filas = 100, fecha = c("2026-01-01", "2026-01-02")),
+  expect_error(perfilar_por(d, "g", min_filas = 100, fecha = c("2026-01-01", "2026-01-02"), proteger_datos_personales = TRUE),
                "`fecha` debe contener una fecha y hora v", fixed = TRUE)
-  expect_error(perfilar_por(d, "g", min_filas = 100, no_existe = 1),
+  expect_error(perfilar_por(d, "g", min_filas = 100, no_existe = 1, proteger_datos_personales = TRUE),
                "`no_existe` no es un argumento de `perfilar()`", fixed = TRUE)
   # Una fecha valida y un nombre abreviado de un formal siguen pasando.
   expect_no_error(suppressWarnings(suppressMessages(
-    perfilar_por(d, "g", min_filas = 100, fecha = "2026-03-01", max_pat = 5)
+    perfilar_por(d, "g", min_filas = 100, fecha = "2026-03-01", max_pat = 5, proteger_datos_personales = TRUE)
   )))
 })
 
@@ -402,23 +402,23 @@ test_that("H6: perfilar_dbi() y perfilar_coleccion() validan la fecha y los nomb
   DBI::dbWriteTable(con, "o160_t", data.frame(a = 1:10, b = letters[1:10]))
   DBI::dbWriteTable(con, "o160_u", data.frame(a = 1:5))
   error <- tryCatch(
-    perfilar_dbi(con, "o160_t", bloque_muestra = "solo_agregados", fecha = "ayer"),
+    perfilar_dbi(con, "o160_t", bloque_muestra = "solo_agregados", fecha = "ayer", proteger_datos_personales = TRUE),
     error = function(e) e
   )
   expect_s3_class(error, "lupa_error_argumento_dbi")
   error <- tryCatch(
-    perfilar_dbi(con, "o160_t", bloque_muestra = "solo_agregados", no_existe = 1),
+    perfilar_dbi(con, "o160_t", bloque_muestra = "solo_agregados", no_existe = 1, proteger_datos_personales = TRUE),
     error = function(e) e
   )
   expect_s3_class(error, "lupa_error_argumento_dbi")
   # La coleccion lo valida una vez, en la entrada: tabla por tabla, cada
   # `perfilar_dbi()` habria fallado entero y la coleccion perdia los resumenes.
   declarada <- suppressMessages(coleccion(con, c("o160_t", "o160_u")))
-  expect_error(perfilar_coleccion(declarada, fecha = "ayer"),
+  expect_error(perfilar_coleccion(declarada, fecha = "ayer", proteger_datos_personales = TRUE),
                "`fecha` debe contener una fecha y hora v", fixed = TRUE)
   # Un argumento de `perfilar_dbi()` por `...` no es de `perfilar()`, y pasa.
   expect_no_error(suppressWarnings(suppressMessages(
-    perfilar_coleccion(declarada, bloque_filas = 3)
+    perfilar_coleccion(declarada, bloque_filas = 3, proteger_datos_personales = TRUE)
   )))
 })
 
@@ -429,7 +429,7 @@ test_that("H7: con proteccion, el motivo de un error de argumento de la muestra 
   on.exit(DBI::dbDisconnect(con), add = TRUE)
   DBI::dbWriteTable(con, "o160_t", data.frame(a = 1:10, b = letters[1:10]))
   r <- suppressWarnings(suppressMessages(
-    perfilar_dbi(con, "o160_t", max_columnas_orden = Inf)
+    perfilar_dbi(con, "o160_t", max_columnas_orden = Inf, proteger_datos_personales = TRUE)
   ))
   expect_null(r$perfil_muestra)
   motivos <- r$resumen_tabla$cobertura$motivo
@@ -446,12 +446,17 @@ test_that("H7: un error que no se repite sin filas sigue pasando por el piso ent
   # sin filas no falla, asi que un error que cita una celda -aca, armado a mano-
   # no es de los argumentos y se tapa como el mensaje de un motor.
   d <- data.frame(a = 1:3, b = c("Gonzalez", "b", "c"), stringsAsFactors = FALSE)
-  motivo <- .motivo_perfilado_muestra_dbi(
-    simpleError("la celda Gonzalez no se pudo leer"), d, list()
-  )
+  # Con la proteccion pedida: desde el 2026-10-25 nadie la fija por omision.
+  protegido <- function() {
+    .fijar_proteccion_motor(TRUE)
+    .motivo_perfilado_muestra_dbi(
+      simpleError("la celda Gonzalez no se pudo leer"), d, list()
+    )
+  }
+  motivo <- protegido()
   expect_false(grepl("Gonzalez", motivo, fixed = TRUE))
   # Y el que se repite sin filas sale como lo escribio el paquete.
-  propio <- tryCatch(perfilar(d, max_columnas_orden = Inf), error = function(e) e)
+  propio <- tryCatch(perfilar(d, max_columnas_orden = Inf, proteger_datos_personales = TRUE), error = function(e) e)
   motivo <- .motivo_perfilado_muestra_dbi(propio, d, list(max_columnas_orden = Inf))
   expect_identical(motivo, conditionMessage(propio))
 })
@@ -566,7 +571,7 @@ test_that("Segfault: una columna que la sesion no puede escribir se declara, por
   }, add = TRUE)
   for (bloque_filas in list(NULL, 2L)) {
     r <- suppressWarnings(suppressMessages(
-      perfilar_dbi(con, "o160_s", bloque_filas = bloque_filas)
+      perfilar_dbi(con, "o160_s", bloque_filas = bloque_filas, proteger_datos_personales = TRUE)
     ))
     columnas <- r$resumen_tabla$columnas
     # La columna esta, sin medir; `id` se mide entero: media de 1:3 = 2.
@@ -586,7 +591,7 @@ test_that("Segfault: una columna que la sesion no puede escribir se declara, por
                          useBytes = TRUE)))
   # Y una tabla con un nombre asi da el error de la via, no un aborto.
   DBI::dbWriteTable(con, paste0("o160_", ano), d[, 1L, drop = FALSE])
-  error <- tryCatch(perfilar_dbi(con, paste0("o160_", ano)),
+  error <- tryCatch(perfilar_dbi(con, paste0("o160_", ano), proteger_datos_personales = TRUE),
                     error = function(e) e)
   expect_s3_class(error, "lupa_error_codificacion_dbi")
 })

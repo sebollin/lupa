@@ -57,7 +57,7 @@ test_that("un numero protegido se reconoce con cualquier agrupacion", {
     datos[[paste0("c", i)]] <- rep(c(escritos[[i]], "otro valor", "tercero"),
                                    length.out = n)
   }
-  perfil <- suppressWarnings(perfilar(datos, columnas_personales = "identificador"))
+  perfil <- suppressWarnings(perfilar(datos, columnas_personales = "identificador", proteger_datos_personales = TRUE))
   hojas <- .hojas_O122(perfil)
   for (escrito in escritos) {
     expect_false(any(grepl(escrito, hojas, fixed = TRUE)), info = escrito)
@@ -115,7 +115,7 @@ test_that("en la sugerencia se tapa el numero o la cita, no la frase", {
   datos$nro_tramite <- sample(c(48889990:48889999, 30000000:30000100), n, TRUE)
   datos$nro_tramite[1:30] <- 48889997
   datos$observado <- ifelse(datos$nro_tramite >= 48889997, NA, round(runif(n), 2))
-  perfil <- suppressWarnings(perfilar(datos, columnas_personales = "documento"))
+  perfil <- suppressWarnings(perfilar(datos, columnas_personales = "documento", proteger_datos_personales = TRUE))
   hojas <- .hojas_O122(perfil)
   expect_false(any(grepl("48889997", hojas, fixed = TRUE)))
   # Y el nivel citado detras de una comilla suelta en el nombre de la columna.
@@ -124,7 +124,7 @@ test_that("en la sugerencia se tapa el numero o la cita, no la frase", {
     datos$documento <- escribir(rep(documentos, length.out = n))
     datos[[nombre]] <- sample(c("48889997", "ALFA", "BETA"), n, TRUE)
     datos$observado <- ifelse(datos[[nombre]] == "BETA", NA, round(runif(n), 2))
-    perfil <- suppressWarnings(perfilar(datos, columnas_personales = "documento"))
+    perfil <- suppressWarnings(perfilar(datos, columnas_personales = "documento", proteger_datos_personales = TRUE))
     hallazgos <- perfil$hallazgos
     sugerencia <- hallazgos$sugerencia[
       hallazgos$tipo_hallazgo == "posible_ausencia_estructural"
@@ -144,7 +144,7 @@ test_that("un campo numerico que es un documento escrito se tapa, y su rango tam
     cajas = c(8, 12, 30, rep(15, 26), 54321986),
     stringsAsFactors = FALSE
   )
-  perfil <- suppressWarnings(perfilar(datos, columnas_personales = "documento"))
+  perfil <- suppressWarnings(perfilar(datos, columnas_personales = "documento", proteger_datos_personales = TRUE))
   fila <- perfil$columnas[perfil$columnas$columna == "cajas", ]
   # Antes: `maximo` = 54321986, el documento sin sus separadores.
   expect_false(54321986 %in% .numeros_O122(perfil))
@@ -157,7 +157,7 @@ test_that("una columna de p-valores no se clasifica como documento", {
   set.seed(24)
   datos <- data.frame(p_txt = sprintf("%.7f", runif(300, 0.1, 0.9)),
                       stringsAsFactors = FALSE)
-  perfil <- suppressWarnings(perfilar(datos))
+  perfil <- suppressWarnings(perfilar(datos, proteger_datos_personales = TRUE))
   clasificacion <- perfil$datos_personales
   tipo <- as.character(clasificacion$tipo[clasificacion$columna == "p_txt"])
   # Antes: documento_identidad por "forma de documento dominante".
@@ -168,7 +168,7 @@ test_that("una columna de p-valores no se clasifica como documento", {
                                      sample(0:999, 300, TRUE),
                                      sample(0:9, 300, TRUE)),
                         stringsAsFactors = FALSE)
-  clasificacion <- suppressWarnings(perfilar(cedulas))$datos_personales
+  clasificacion <- suppressWarnings(perfilar(cedulas, proteger_datos_personales = TRUE))$datos_personales
   expect_identical(as.character(clasificacion$tipo[clasificacion$columna == "ci"]),
                    "documento_identidad")
 })
@@ -196,7 +196,7 @@ test_that("perfilar_dbi tapa un valor que esta solo fuera de la muestra, en cual
   DBI::dbWriteTable(conexion, "t", datos)
   resultado <- suppressMessages(suppressWarnings(perfilar_dbi(
     conexion, "t", muestra = 300,
-    columnas_personales = c("titular", "cedula")
+    columnas_personales = c("titular", "cedula"), proteger_datos_personales = TRUE
   )))
   hojas <- tolower(.hojas_O122(resultado))
   # Antes: la caja distinta, la cedula entera y el maximo numerico se publicaban.
@@ -222,7 +222,7 @@ test_that("perfilar_dbi cierra y lo declara cuando no puede traer los valores", 
   DBI::dbWriteTable(conexion, "t", datos)
   testthat::local_mocked_bindings(.MAXIMO_VALORES_PROTEGIDOS_DBI = 10L)
   resultado <- suppressMessages(suppressWarnings(perfilar_dbi(
-    conexion, "t", muestra = 200, columnas_personales = "titular"
+    conexion, "t", muestra = 200, columnas_personales = "titular", proteger_datos_personales = TRUE
   )))
   hojas <- tolower(.hojas_O122(resultado))
   expect_false(any(grepl("perez rodriguez", hojas, fixed = TRUE)))

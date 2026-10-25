@@ -31,7 +31,7 @@ test_that("perfilar_dbi sin muestreo lee como texto la cedula guardada como text
     id = seq_len(n), cedula = cedula, obs = obs, stringsAsFactors = FALSE
   ), append = TRUE)
   resultado <- suppressMessages(suppressWarnings(perfilar_dbi(
-    conexion, "t", columnas_personales = "cedula"
+    conexion, "t", columnas_personales = "cedula", proteger_datos_personales = TRUE
   )))
   hojas <- c(
     resultado$resumen_tabla$columnas$moda,
@@ -96,7 +96,7 @@ test_that("un telefono con forma de fecha de una columna que no es de fechas sig
     obs = c(rep("llamar al 2012-11-05", 20), rep("sin novedad", 40)),
     stringsAsFactors = FALSE
   )
-  perfil <- suppressWarnings(perfilar(datos, columnas_personales = "telefono"))
+  perfil <- suppressWarnings(perfilar(datos, columnas_personales = "telefono", proteger_datos_personales = TRUE))
   hojas <- unlist(list(perfil$columnas$moda, perfil$patrones$obs$ejemplos))
   # Antes: el piso sacaba "2012-11-05" por su forma de fecha y salia en los
   # ejemplos de `obs`.

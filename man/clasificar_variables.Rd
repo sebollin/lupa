@@ -10,7 +10,7 @@ clasificar_variables(
   metadatos = NULL,
   max_niveles = 100L,
   muestra = 1e+05,
-  proteger_datos_personales = TRUE,
+  proteger_datos_personales = FALSE,
   columnas_personales = character()
 )
 }

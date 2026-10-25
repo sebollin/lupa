@@ -11,8 +11,11 @@ testthat::skip_on_cran()
 .f1_o140 <- as.POSIXct("2026-01-01", tz = "UTC")
 .f2_o140 <- as.POSIXct("2026-02-01", tz = "UTC")
 
-.perfil_o140 <- function(datos, fecha, ...) {
-  perfilar(datos, fecha = fecha, analizar_dependencias = FALSE, ...)
+# Protege salvo que se diga lo contrario: desde el 2026-10-25 `perfilar()` no
+# protege por omision.
+.perfil_o140 <- function(datos, fecha, ..., proteger_datos_personales = TRUE) {
+  perfilar(datos, fecha = fecha, analizar_dependencias = FALSE,
+           proteger_datos_personales = proteger_datos_personales, ...)
 }
 
 .con_opciones_o140 <- function(opciones, codigo) {
@@ -376,8 +379,8 @@ test_that("H7: fechas que el motor devuelve como fechas no publican un cambio de
   DBI::dbWriteTable(con, "t", datos)
   expect_s3_class(DBI::dbReadTable(con, "t")$fecha, "Date")
   comparacion <- comparar_equivalencia(
-    perfilar(datos, analizar_dependencias = FALSE),
-    suppressWarnings(perfilar_dbi(con, "t")), tolerancia = 1e-9
+    perfilar(datos, analizar_dependencias = FALSE, proteger_datos_personales = TRUE),
+    suppressWarnings(perfilar_dbi(con, "t", proteger_datos_personales = TRUE)), tolerancia = 1e-9
   )
   motivos <- attr(comparacion, "detalle_campos_no_comparables")$motivo
   expect_false(any(motivos == "tipo_cambiado:temporal_vs_no_temporal",

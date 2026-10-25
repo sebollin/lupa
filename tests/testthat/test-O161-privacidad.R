@@ -68,7 +68,7 @@ test_that("H1: perfilar_dbi() publica los estadisticos de una columna debil, com
     copia = as.numeric(gsub("[^0-9]", "", cedula)),
     stringsAsFactors = FALSE
   )
-  memoria <- suppressWarnings(perfilar(d))
+  memoria <- suppressWarnings(perfilar(d, proteger_datos_personales = TRUE))
   dp <- memoria$datos_personales
   debiles <- dp$columna[dp$tipo == "documento_identidad" &
                           dp$poder_discriminante == "debil" & !dp$proteger]
@@ -86,7 +86,7 @@ test_that("H1: perfilar_dbi() publica los estadisticos de una columna debil, com
   }
   for (bloque in list(NULL, 10L)) {
     info <- paste("bloque_filas =", format(bloque))
-    pd <- suppressWarnings(perfilar_dbi(con, "movimientos", bloque_filas = bloque))
+    pd <- suppressWarnings(perfilar_dbi(con, "movimientos", bloque_filas = bloque, proteger_datos_personales = TRUE))
     columnas <- pd$resumen_tabla$columnas
     for (columna in c("importe", "factura")) {
       expect_equal(fila(columnas, columna), a_mano(d[[columna]]),
@@ -159,7 +159,7 @@ test_that("H3: la columna que copia la cedula protegida sin su verificador se pr
     }, logical(1L))
     expect_identical(sum(escritos), 0L, info = info)
   }
-  memoria <- suppressWarnings(perfilar(d))
+  memoria <- suppressWarnings(perfilar(d, proteger_datos_personales = TRUE))
   revisar(memoria, "perfilar()")
   dp <- memoria$datos_personales
   fila <- dp[dp$columna %in% copias, , drop = FALSE]
@@ -176,13 +176,13 @@ test_that("H3: la columna que copia la cedula protegida sin su verificador se pr
   expect_equal(columnas$maximo[columnas$columna == "redondo"], max(d$redondo))
   expect_equal(columnas$maximo[columnas$columna == "cuotas"], max(d$cuotas))
   # Los cuantiles que `analizar()` publica salen de `distribucion_valores()`.
-  revisar(suppressWarnings(distribucion_valores(d)), "distribucion_valores()")
+  revisar(suppressWarnings(distribucion_valores(d, proteger_datos_personales = TRUE)), "distribucion_valores()")
   # El control publica sus extremos, aunque coincidan: el diagnostico de rango
   # de una columna que coincide por azar no se pierde.
   extremos <- function(columnas) {
     unlist(columnas[columnas$columna == "importe", c("minimo", "maximo")])
   }
-  sin_copia <- suppressWarnings(perfilar(azar))
+  sin_copia <- suppressWarnings(perfilar(azar, proteger_datos_personales = TRUE))
   expect_false(any(sin_copia$datos_personales$proteger[
     sin_copia$datos_personales$columna == "importe"
   ]))
@@ -194,12 +194,12 @@ test_that("H3: la columna que copia la cedula protegida sin su verificador se pr
   on.exit(DBI::dbDisconnect(con), add = TRUE)
   DBI::dbWriteTable(con, "personas", d)
   DBI::dbWriteTable(con, "importes", azar)
-  pd_azar <- suppressWarnings(perfilar_dbi(con, "importes"))
+  pd_azar <- suppressWarnings(perfilar_dbi(con, "importes", proteger_datos_personales = TRUE))
   expect_equal(unname(extremos(pd_azar$resumen_tabla$columnas)),
                range(azar$importe))
   for (bloque in list(NULL, 10L)) {
     info <- paste("perfilar_dbi() bloque_filas =", format(bloque))
-    pd <- suppressWarnings(perfilar_dbi(con, "personas", bloque_filas = bloque))
+    pd <- suppressWarnings(perfilar_dbi(con, "personas", bloque_filas = bloque, proteger_datos_personales = TRUE))
     revisar(pd, info)
     expect_true(all(copias %in%
                       pd$resumen_tabla$meta$proteccion_personal$columnas),
@@ -240,7 +240,7 @@ test_that("H4: una palabra de persona -o de documento, telefono, correo- no prot
     stringsAsFactors = FALSE
   )
   moda <- function(x) names(sort(table(x), decreasing = TRUE))[[1L]]
-  p <- suppressWarnings(perfilar(d))
+  p <- suppressWarnings(perfilar(d, proteger_datos_personales = TRUE))
   dp <- p$datos_personales
   expect_setequal(dp$columna[dp$proteger],
                   c("nombre_cliente", "socio", "numero_celular"))
@@ -268,7 +268,7 @@ test_that("H4: una palabra de persona -o de documento, telefono, correo- no prot
   con <- DBI::dbConnect(RSQLite::SQLite(), ":memory:")
   on.exit(DBI::dbDisconnect(con), add = TRUE)
   DBI::dbWriteTable(con, "ventas", d)
-  pd <- suppressWarnings(perfilar_dbi(con, "ventas"))
+  pd <- suppressWarnings(perfilar_dbi(con, "ventas", proteger_datos_personales = TRUE))
   expect_setequal(pd$resumen_tabla$meta$proteccion_personal$columnas,
                   c("nombre_cliente", "socio", "numero_celular"))
   resumen <- pd$resumen_tabla$columnas
@@ -307,7 +307,7 @@ test_that("H5: el cierre no borra el nombre de la tabla", {
   }
   # Sin muestra: se cierran todas las columnas, y la tabla sigue nombrada.
   solo <- suppressWarnings(perfilar_dbi(con, "pedidos",
-                                        bloque_muestra = "solo_agregados"))
+                                        bloque_muestra = "solo_agregados", proteger_datos_personales = TRUE))
   nombrada(solo, "solo_agregados")
 
   # Y con la lectura fuera de la muestra fallida: el cierre de las columnas no
@@ -322,7 +322,7 @@ test_that("H5: el cierre no borra el nombre de la tabla", {
     info <- paste("bloque_filas =", format(bloque))
     pd <- suppressWarnings(perfilar_dbi(con, "pedidos", muestra = 12,
                                         orden_muestra = "id",
-                                        bloque_filas = bloque))
+                                        bloque_filas = bloque, proteger_datos_personales = TRUE))
     expect_match(pd$resumen_tabla$meta$proteccion_personal$fuera_de_muestra,
                  "^No verificada: simulado", info = info)
     nombrada(pd, info)
@@ -362,7 +362,7 @@ test_that("H2: con la vista antes que su base, otras_tablas no publica el resto 
     avisos <- character()
     valor <- withCallingHandlers(
       perfilar_coleccion(coleccion(con, tablas), conservar_perfiles = TRUE,
-                         muestra = 12, metricas = "validos"),
+                         muestra = 12, metricas = "validos", proteger_datos_personales = TRUE),
       warning = function(w) {
         avisos <<- c(avisos, conditionMessage(w))
         invokeRestart("muffleWarning")

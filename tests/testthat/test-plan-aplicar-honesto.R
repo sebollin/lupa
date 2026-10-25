@@ -26,7 +26,7 @@ test_that("la unidad del hallazgo viaja al plan y al modo guiado", {
     stringsAsFactors = FALSE
   )
   plan <- planificar_limpieza(
-    perfilar(datos, muestra = Inf, analizar_dependencias = FALSE), datos
+    perfilar(datos, muestra = Inf, analizar_dependencias = FALSE, proteger_datos_personales = TRUE), datos
   )
   plan <- plan[plan$hallazgo == "mayusculas_inconsistentes", , drop = FALSE]
   indice <- which(plan$estrategia == "convertir_minusculas")
@@ -57,7 +57,7 @@ test_that("un efecto nulo no se registra como ejecutado", {
   # intacta. `N/A` lleva puntuacion, nadie lo escribe como dato, y se sigue
   # aplicando solo.
   datos <- data.frame(x = c(" N/A ", NA, "x"), stringsAsFactors = FALSE)
-  plan <- planificar_limpieza(perfilar(datos), datos)
+  plan <- planificar_limpieza(perfilar(datos, proteger_datos_personales = TRUE), datos)
   resultado <- aplicar(plan, datos)
   recorte <- resultado$registro$estrategia == "recortar_espacios"
 
@@ -74,7 +74,7 @@ test_that("un plan editado conserva el control de efecto sin estimacion", {
   )
   limpios <- data.frame(x = letters[1:6], stringsAsFactors = FALSE)
   plan_base <- planificar_limpieza(
-    perfilar(sucios, analizar_dependencias = FALSE), sucios
+    perfilar(sucios, analizar_dependencias = FALSE, proteger_datos_personales = TRUE), sucios
   )
   indice <- which(plan_base$estrategia == "recortar_espacios")
   expect_length(indice, 1L)
@@ -138,7 +138,7 @@ test_that("un plan editado conserva el control de efecto sin estimacion", {
   # sin dejar que la acción escriba una columna inventada.
   con_ausentes <- data.frame(x = c(1, NA_real_), y = 2:3)
   plan_ausentes <- planificar_limpieza(
-    perfilar(con_ausentes, analizar_dependencias = FALSE), con_ausentes
+    perfilar(con_ausentes, analizar_dependencias = FALSE, proteger_datos_personales = TRUE), con_ausentes
   )
   indice_marca <- which(plan_ausentes$estrategia == "marcar_filas_ausentes")
   expect_length(indice_marca, 1L)
@@ -154,7 +154,7 @@ test_that("un plan editado conserva el control de efecto sin estimacion", {
 test_that("la composicion de acciones de texto tiene un orden efectivo", {
   datos <- data.frame(x = c("\u200B A ", "B"), stringsAsFactors = FALSE)
   plan <- planificar_limpieza(
-    perfilar(datos, muestra = Inf, analizar_dependencias = FALSE), datos
+    perfilar(datos, muestra = Inf, analizar_dependencias = FALSE, proteger_datos_personales = TRUE), datos
   )
   expect_true(all(plan$aplicar[plan$columna == "x"]))
   expect_lt(
@@ -174,7 +174,7 @@ test_that("la imputacion usa los datos cuando el mapa fue protegido", {
     stringsAsFactors = FALSE
   )
   datos$provincia[[12L]] <- NA_character_
-  perfil <- perfilar(datos, muestra = Inf)
+  perfil <- perfilar(datos, muestra = Inf, proteger_datos_personales = TRUE)
   plan <- planificar_limpieza(perfil, datos)
   indice <- which(plan$estrategia ==
     "imputar_dependencia_funcional__documento")
@@ -197,7 +197,7 @@ test_that("la imputacion con determinante no protegido conserva el mapa", {
     stringsAsFactors = FALSE
   )
   datos$provincia[[12L]] <- NA_character_
-  perfil <- perfilar(datos, muestra = Inf)
+  perfil <- perfilar(datos, muestra = Inf, proteger_datos_personales = TRUE)
   plan <- planificar_limpieza(perfil, datos)
   indice <- which(plan$estrategia ==
     "imputar_dependencia_funcional__codigo")
@@ -219,7 +219,7 @@ test_that("la imputacion conserva el dependiente protegido sin publicar el mapa"
     stringsAsFactors = FALSE
   )
   datos$nombre[[12L]] <- NA_character_
-  perfil <- perfilar(datos, muestra = Inf)
+  perfil <- perfilar(datos, muestra = Inf, proteger_datos_personales = TRUE)
   plan <- planificar_limpieza(perfil, datos)
   indice <- which(plan$estrategia ==
     "imputar_dependencia_funcional__codigo")
@@ -235,7 +235,7 @@ test_that("la imputacion conserva el dependiente protegido sin publicar el mapa"
 
 test_that("winsorizar deja sin outliers el perfil con soporte suficiente", {
   datos <- data.frame(x = c(1:20, 100))
-  perfil <- perfilar(datos, muestra = Inf, analizar_dependencias = FALSE)
+  perfil <- perfilar(datos, muestra = Inf, analizar_dependencias = FALSE, proteger_datos_personales = TRUE)
   plan <- planificar_limpieza(perfil, datos)
   elegido <- activar_una_accion_honesta(plan, "winsorizar_outliers")
   resultado <- aplicar(elegido, datos)
@@ -244,7 +244,7 @@ test_that("winsorizar deja sin outliers el perfil con soporte suficiente", {
   expect_equal(resultado$registro$estado[indice], "ejecutada")
   expect_equal(resultado$registro$n_cambiadas[indice], 1)
   reprofilado <- perfilar(
-    resultado$datos, muestra = Inf, analizar_dependencias = FALSE
+    resultado$datos, muestra = Inf, analizar_dependencias = FALSE, proteger_datos_personales = TRUE
   )
   expect_false(any(reprofilado$hallazgos$tipo_hallazgo == "outliers"))
 })
@@ -253,7 +253,7 @@ test_that("al transformar una columna clave se descarta la clave data.table", {
   skip_if_not_installed("data.table")
   datos <- data.table::data.table(x = c("ZETA", "Zeta", "alfa"))
   data.table::setkey(datos, x)
-  plan <- planificar_limpieza(perfilar(datos, analizar_dependencias = FALSE))
+  plan <- planificar_limpieza(perfilar(datos, analizar_dependencias = FALSE, proteger_datos_personales = TRUE))
   plan <- activar_una_accion_honesta(plan, "convertir_minusculas")
   resultado <- aplicar(plan, datos)
 
@@ -272,7 +272,7 @@ test_that("n_cambiadas cuenta cambios y no valores presentes", {
   # `n_cambiadas = 4` sobre una columna que quedaba bit a bit igual.
   datos <- data.frame(x = c("1", "2", "3", "4"), stringsAsFactors = FALSE)
   plan <- planificar_limpieza(
-    perfilar(datos, analizar_dependencias = FALSE), datos
+    perfilar(datos, analizar_dependencias = FALSE, proteger_datos_personales = TRUE), datos
   )
   skip_if_not(any(plan$estrategia == "convertir_tipo"),
               "el plan no propuso `convertir_tipo` en este entorno")
@@ -310,7 +310,7 @@ test_that("los duplicados se agrupan igual en integer64 que en double", {
 
   aplicar_marca <- function(datos) {
     plan <- planificar_limpieza(
-      perfilar(datos, analizar_dependencias = FALSE), datos
+      perfilar(datos, analizar_dependencias = FALSE, proteger_datos_personales = TRUE), datos
     )
     aplicar(plan, datos)
   }
@@ -334,7 +334,7 @@ test_that("el numero del plan y su unidad de conteo hablan de lo mismo", {
   # `convertir_tipo` cuenta valores presentes y quedaba con `columna`, asi que
   # el plan decia "5 columna" sobre una tabla de UNA columna.
   datos <- data.frame(x = c("1", "1", "2", "2", "3"), stringsAsFactors = FALSE)
-  perfil <- perfilar(datos, analizar_dependencias = FALSE)
+  perfil <- perfilar(datos, analizar_dependencias = FALSE, proteger_datos_personales = TRUE)
   plan <- planificar_limpieza(perfil, datos)
   fila <- plan[plan$estrategia == "convertir_tipo", ]
   skip_if_not(nrow(fila) == 1L, "el plan no propuso `convertir_tipo`")
@@ -347,7 +347,7 @@ test_that("el numero del plan y su unidad de conteo hablan de lo mismo", {
   # "valor" en todas pasaria el test.
   con_duplicados <- data.frame(a = c(1, 1, 2, 2, 3), b = c(1, 1, 2, 2, 3))
   plan2 <- planificar_limpieza(
-    perfilar(con_duplicados, analizar_dependencias = FALSE), con_duplicados
+    perfilar(con_duplicados, analizar_dependencias = FALSE, proteger_datos_personales = TRUE), con_duplicados
   )
   columnas <- plan2[plan2$estrategia == "marcar_columnas_duplicadas", ]
   filas <- plan2[plan2$estrategia == "marcar_filas_duplicadas", ]
@@ -364,7 +364,7 @@ test_that("un nombre de columna invalido falla en los terminos del plan", {
     x = c(1, 2, NA, 4, 1000), t = c("a", " b ", "a", "", "b"),
     stringsAsFactors = FALSE
   )
-  base <- planificar_limpieza(perfilar(datos))
+  base <- planificar_limpieza(perfilar(datos, proteger_datos_personales = TRUE))
   fila <- which(base$estrategia == "marcar_filas_ausentes")[[1L]]
 
   invalidos <- list(
@@ -400,7 +400,7 @@ test_that("los parametros legitimamente vacios siguen aplicandose", {
     x = c(1, 2, NA, 4, 1000), t = c("a", " b ", "a", "", "b"),
     stringsAsFactors = FALSE
   )
-  base <- planificar_limpieza(perfilar(datos))
+  base <- planificar_limpieza(perfilar(datos, proteger_datos_personales = TRUE))
   fila <- which(base$estrategia == "marcar_filas_ausentes")[[1L]]
 
   plan <- base
@@ -421,7 +421,7 @@ test_that("los parametros legitimamente vacios siguen aplicandose", {
     id = c(1, 1, 2, 2, 3), v = c("a", "a", "b", "b", "c"),
     stringsAsFactors = FALSE
   )
-  plan_dup <- planificar_limpieza(perfilar(duplicados))
+  plan_dup <- planificar_limpieza(perfilar(duplicados, proteger_datos_personales = TRUE))
   plan_dup$aplicar <- plan_dup$recomendada
   claves <- vapply(
     plan_dup$parametros, function(p) length(p$clave %||% NULL) == 0L, logical(1)
@@ -451,7 +451,7 @@ test_that("la marca de ausentes cubre los que crea el propio plan", {
   )
   for (nombre in names(casos)) {
     datos <- casos[[nombre]]
-    plan <- planificar_limpieza(perfilar(datos))
+    plan <- planificar_limpieza(perfilar(datos, proteger_datos_personales = TRUE))
     plan$aplicar <- plan$recomendada
     resultado <- aplicar(plan, datos, permitir_eliminacion = TRUE)
 
@@ -482,7 +482,7 @@ test_that("las acciones sobre ausentes van despues de normalizarlos", {
   datos <- data.frame(
     t = c("a", "N/A", NA, "b", "sin dato", "c"), stringsAsFactors = FALSE
   )
-  plan <- planificar_limpieza(perfilar(datos))
+  plan <- planificar_limpieza(perfilar(datos, proteger_datos_personales = TRUE))
   orden_de <- function(estrategia) {
     plan$orden[plan$estrategia == estrategia][[1L]]
   }

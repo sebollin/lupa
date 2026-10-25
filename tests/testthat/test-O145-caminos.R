@@ -184,9 +184,9 @@ test_that("H2: perfilar_por() no calla como de la particion lo que la columna en
     id = c(seq_len(950L), rep(999L, 50L), 1000L + seq_len(1000L)),
     stringsAsFactors = FALSE
   )
-  entero <- perfilar(denso["id"])
+  entero <- perfilar(denso["id"], proteger_datos_personales = TRUE)
   expect_equal(entero$columnas$n_faltantes_disfrazados, sum(denso$id == 999L))
-  por <- perfilar_por(denso, por = "egreso", min_filas = 1)
+  por <- perfilar_por(denso, por = "egreso", min_filas = 1, proteger_datos_personales = TRUE)
   h <- hallazgos_columna_r29e(por, "id", "Si")
   disfrazados <- h[h$tipo_hallazgo == "faltantes_disfrazados", ]
   expect_equal(nrow(disfrazados), 1L)
@@ -472,7 +472,7 @@ test_that("H8: lo que la proteccion tapa en resumen_tabla se declara, y el desvi
   DBI::dbWriteTable(con, "t", data.frame(v = v))
   # El precedente: la misma columna protegida en memoria tapa moda, extremos,
   # media y mediana, y tambien el desvio.
-  memoria <- perfilar(data.frame(v = v), columnas_personales = "v")$columnas
+  memoria <- perfilar(data.frame(v = v), columnas_personales = "v", proteger_datos_personales = TRUE)$columnas
   expect_identical(memoria$moda, "[valor protegido]")
   expect_true(all(is.na(unlist(memoria[c("minimo", "maximo", "media", "mediana")]))))
   expect_true(is.na(memoria$desvio))
@@ -481,7 +481,7 @@ test_that("H8: lo que la proteccion tapa en resumen_tabla se declara, y el desvi
   # columna: lo que no se publica no puede decir `calculado`.
   for (bf in list(NULL, 2L)) {
     rt <- suppressWarnings(perfilar_dbi(con, "t", bloque_filas = bf,
-                                        bloque_muestra = "solo_agregados"))$resumen_tabla
+                                        bloque_muestra = "solo_agregados", proteger_datos_personales = TRUE))$resumen_tabla
     f <- fila_r29e(rt, "v")
     expect_identical(f$moda, "[valor protegido]")
     expect_true(all(is.na(unlist(f[c("minimo", "maximo", "media", "mediana")]))))

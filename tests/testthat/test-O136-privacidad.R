@@ -19,7 +19,7 @@ test_that("T1: el nombre que el plan propone no pasa por el barrido", {
   )
   names(d) <- c("id", "Primer Nombre", "Segundo Nombre", "Primer Apellido",
                 "monto")
-  p <- suppressWarnings(perfilar(d))
+  p <- suppressWarnings(perfilar(d, proteger_datos_personales = TRUE))
   expect_true("Primer Nombre" %in% .columnas_personales_protegidas(p))
   h <- as.data.frame(p$hallazgos)
   evidencia <- h$evidencia[h$tipo == "nombres_columnas_problematicos"]
@@ -49,7 +49,7 @@ test_that("T1: el nombre que contiene un valor protegido se propone entero", {
     stringsAsFactors = FALSE
   )
   names(d)[3L] <- "pago Rodriguez Perez"
-  p <- suppressWarnings(perfilar(d, columnas_personales = "titular"))
+  p <- suppressWarnings(perfilar(d, columnas_personales = "titular", proteger_datos_personales = TRUE))
   pl <- suppressWarnings(planificar_limpieza(p, d))
   renombres <- which(pl$hallazgo == "nombres_columnas_problematicos")
   propuestos <- lapply(pl$parametros[renombres], `[[`, "nombres_propuestos")
@@ -59,7 +59,7 @@ test_that("T1: el nombre que contiene un valor protegido se propone entero", {
   expect_identical(names(ap$datos), c("id", "titular", "pago.Rodriguez.Perez"))
   # Y el valor, escrito en una celda que no es un nombre, se sigue tapando.
   d$nota <- rep(c("pago de Rodriguez Perez", "sin nota"), 30L)
-  p2 <- suppressWarnings(perfilar(d, columnas_personales = "titular"))
+  p2 <- suppressWarnings(perfilar(d, columnas_personales = "titular", proteger_datos_personales = TRUE))
   expect_false(any(grepl("Rodriguez Perez", unlist(p2$columnas$moda),
                          fixed = TRUE)))
 })
@@ -75,7 +75,7 @@ test_that("T1: las marcas que crea el plan llevan el nombre de su columna", {
   d$monto[c(3L, 9L)] <- c(9000, 12000)
   d$monto[20:60] <- NA
   names(d) <- c("id", "Primer Nombre", "monto Segundo")
-  p <- suppressWarnings(perfilar(d))
+  p <- suppressWarnings(perfilar(d, proteger_datos_personales = TRUE))
   pl <- suppressWarnings(planificar_limpieza(p, d))
   marcas <- unlist(lapply(pl$parametros, `[[`, "columna_marca"))
   expect_true(all(c(".ausente_monto.Segundo", ".outlier_monto.Segundo") %in%
@@ -99,7 +99,7 @@ test_that("F1: detectar_dependencias() no publica valores personales", {
   )
   d$titular[7L] <- "Rosario Inchausti Larrabide"
   d$monto[9L] <- 99
-  dep <- detectar_dependencias(d, umbral = 0.9)
+  dep <- detectar_dependencias(d, umbral = 0.9, proteger_datos_personales = TRUE)
   texto <- c(dep$evidencia, utils::capture.output(print(dep)))
   expect_false(any(grepl("2.107.507-7", texto, fixed = TRUE)))
   expect_false(any(grepl("Rosario Inchausti", texto, fixed = TRUE)))
@@ -123,10 +123,10 @@ test_that("F1: detectar_dependencias() no publica valores personales", {
   e <- data.frame(legajo = sprintf("LG%05d", 37L * k), area = k %% 5,
                   stringsAsFactors = FALSE)
   e$area[7L] <- 9
-  sin_declarar <- detectar_dependencias(e, umbral = 0.9)
+  sin_declarar <- detectar_dependencias(e, umbral = 0.9, proteger_datos_personales = TRUE)
   expect_true(any(grepl("LG00259", sin_declarar$evidencia, fixed = TRUE)))
   declarada <- detectar_dependencias(e, umbral = 0.9,
-                                     columnas_personales = "legajo")
+                                     columnas_personales = "legajo", proteger_datos_personales = TRUE)
   expect_false(any(grepl("LG00259", declarada$evidencia, fixed = TRUE)))
 })
 
@@ -135,7 +135,7 @@ test_that("F1: analizar_tiempo() sin perfil protege las fechas personales", {
     alta = as.Date("2024-01-01") + rep(0:29, 2L),
     fecha_nacimiento = as.Date("1960-01-01") + seq(0, 590, by = 10)
   )
-  t0 <- analizar_tiempo(d)
+  t0 <- analizar_tiempo(d, proteger_datos_personales = TRUE)
   resumen <- t0$resumen
   fila <- resumen$columna == "fecha_nacimiento"
   expect_true(any(fila))
@@ -147,8 +147,8 @@ test_that("F1: analizar_tiempo() sin perfil protege las fechas personales", {
   expect_identical(resumen$fecha_minima[resumen$columna == "alta"],
                    as.Date("2024-01-01"))
   # Igual que con un perfil protegido.
-  p <- suppressWarnings(perfilar(d))
-  con_perfil <- analizar_tiempo(d, perfil = p)$resumen
+  p <- suppressWarnings(perfilar(d, proteger_datos_personales = TRUE))
+  con_perfil <- analizar_tiempo(d, perfil = p, proteger_datos_personales = TRUE)$resumen
   expect_identical(is.na(con_perfil$fecha_minima), is.na(resumen$fecha_minima))
   # Y con la proteccion apagada, se publican.
   abierto <- analizar_tiempo(d, proteger_datos_personales = FALSE)$resumen
@@ -189,7 +189,7 @@ test_that("F2: en perfilar_dbi() con muestra, el relleno lo confirma la tabla", 
   on.exit(DBI::dbDisconnect(con), add = TRUE)
   DBI::dbWriteTable(con, "t", d)
   pd <- suppressWarnings(perfilar_dbi(
-    con, "t", muestra = 40, columnas_personales = c("cedula", "documento")
+    con, "t", muestra = 40, columnas_personales = c("cedula", "documento"), proteger_datos_personales = TRUE
   ))
   for (columnas in list(pd$resumen_tabla$columnas, pd$perfil_muestra$columnas)) {
     expect_identical(columnas$moda[columnas$columna == "obs"],
@@ -237,7 +237,7 @@ test_that("F3, F4, F5: el correo escrito con palabras se lee en sus formas", {
     nota = c(rep(formas[[1L]], 60L), sprintf("nota %02d", 1:60)),
     stringsAsFactors = FALSE
   )
-  p <- suppressWarnings(perfilar(d))
+  p <- suppressWarnings(perfilar(d, proteger_datos_personales = TRUE))
   expect_identical(p$columnas$moda[p$columnas$columna == "nota"],
                    "[valor protegido]")
 })
@@ -300,7 +300,7 @@ test_that("F9: perfilar_coleccion() protege una tabla con los valores de otra", 
   DBI::dbWriteTable(con, "clientes", clientes)
   DBI::dbWriteTable(con, "movimientos", movimientos)
   pc <- suppressWarnings(perfilar_coleccion(
-    coleccion(con, c("clientes", "movimientos")), conservar_perfiles = TRUE
+    coleccion(con, c("clientes", "movimientos")), conservar_perfiles = TRUE, proteger_datos_personales = TRUE
   ))
   pm <- pc$perfiles$movimientos
   texto <- unlist(lapply(pm, function(x) unlist(x, use.names = FALSE)))
@@ -319,7 +319,7 @@ test_that("T2: la columna con clasificacion debil tapa sus valores, no su eviden
   d$codigo_producto <- 10000000L + 7919L * seq_len(n)
   d$codigo_producto[2L] <- d$codigo_producto[1L]
   d$cantidad <- 1000000L + 2003L * seq_len(n)
-  p <- suppressWarnings(perfilar(d))
+  p <- suppressWarnings(perfilar(d, proteger_datos_personales = TRUE))
   dp <- p$datos_personales
   expect_identical(
     dp$poder_discriminante[dp$columna == "codigo_producto"], "debil"
@@ -344,7 +344,7 @@ test_that("T2: la columna con clasificacion debil tapa sus valores, no su eviden
   expect_false(any(grepl("log10(max/min) [valor protegido]", motivos,
                          fixed = TRUE)))
   # La misma columna declarada personal se tapa entera.
-  q <- suppressWarnings(perfilar(d, columnas_personales = "codigo_producto"))
+  q <- suppressWarnings(perfilar(d, columnas_personales = "codigo_producto", proteger_datos_personales = TRUE))
   hq <- q$hallazgos
   expect_identical(hq$evidencia[hq$columna == "codigo_producto" &
                                   hq$tipo_hallazgo == "casi_clave"],

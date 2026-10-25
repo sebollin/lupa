@@ -57,7 +57,7 @@ test_that("winsorizar no convierte el texto en numero ni toca lo no finito", {
 test_that("la lista vacia de ausencias no convierte nada y lo dice", {
   datos <- data.frame(estado = c("activo", "S/D", "baja", "activo", "S/D", "baja"),
                       stringsAsFactors = FALSE)
-  perfil <- suppressWarnings(perfilar(datos))
+  perfil <- suppressWarnings(perfilar(datos, proteger_datos_personales = TRUE))
   plan <- .solo_O119(planificar_limpieza(perfil, datos),
                      "convertir_ausencias_textuales")
   i <- which(plan$estrategia == "convertir_ausencias_textuales")
@@ -74,7 +74,7 @@ test_that("guiar_limpieza no muestra valores de columnas protegidas", {
     nombre = c("Ana Perez Ruiz", "ANA PEREZ RUIZ", "Bruno Diaz Sosa", "bruno diaz sosa"),
     monto = c(10, 11, 12, 300), stringsAsFactors = FALSE
   )
-  perfil <- suppressWarnings(perfilar(datos, columnas_personales = "nombre"))
+  perfil <- suppressWarnings(perfilar(datos, columnas_personales = "nombre", proteger_datos_personales = TRUE))
   plan <- suppressWarnings(planificar_limpieza(perfil, datos))
   vistos <- character()
   salida <- capture.output(suppressMessages(suppressWarnings(guiar_limpieza(
@@ -93,7 +93,7 @@ test_that("las acciones de duplicados usan la misma igualdad que el perfil", {
   # Antes: la fila 4 (0.1 + 0.2) se marcaba duplicada de la 3 (0.3).
   expect_identical(r$datos$.fila_duplicada, c(FALSE, TRUE, FALSE, FALSE))
   clave <- data.frame(id = c(10, 10, 0.3, 0.1 + 0.2), x = c(1, NA, 2, 3))
-  perfil <- suppressWarnings(perfilar(clave))
+  perfil <- suppressWarnings(perfilar(clave, proteger_datos_personales = TRUE))
   plan <- suppressWarnings(planificar_limpieza(perfil, clave))
   i <- which(plan$estrategia == "conservar_mas_completa")
   if (length(i)) {
@@ -111,7 +111,7 @@ test_that("conservar_mas_completa no junta las claves ausentes", {
     tel = c(NA, "099", "098", NA, "097", "096", "095", "095"),
     stringsAsFactors = FALSE
   )
-  perfil <- suppressWarnings(perfilar(datos))
+  perfil <- suppressWarnings(perfilar(datos, proteger_datos_personales = TRUE))
   plan <- suppressWarnings(planificar_limpieza(perfil, datos))
   skip_if_not(any(plan$estrategia == "conservar_mas_completa"))
   plan <- .solo_O119(plan, "conservar_mas_completa")
@@ -125,7 +125,7 @@ test_that("conservar_mas_completa no junta las claves ausentes", {
 
 test_that("normalizar_nombres aplica los nombres editados y no toca las marcas", {
   datos <- data.frame(`Monto Total` = 1:3, `fecha alta` = 4:6, check.names = FALSE)
-  perfil <- suppressWarnings(perfilar(datos))
+  perfil <- suppressWarnings(perfilar(datos, proteger_datos_personales = TRUE))
   plan <- .solo_O119(suppressWarnings(planificar_limpieza(perfil, datos)),
                      "normalizar_nombres")
   i <- which(plan$estrategia == "normalizar_nombres")
@@ -167,7 +167,7 @@ test_that("el plan no tapa el catalogo de centinelas ni el vocabulario compartid
     monto = c(10, -999, 12, -999), estado = c("activo", "sin dato", "baja", "sin dato"),
     stringsAsFactors = FALSE
   )
-  perfil <- suppressWarnings(perfilar(datos, columnas_personales = "nombre"))
+  perfil <- suppressWarnings(perfilar(datos, columnas_personales = "nombre", proteger_datos_personales = TRUE))
   plan <- suppressWarnings(planificar_limpieza(perfil, datos))
   j <- which(plan$estrategia == "convertir_ausencias_textuales" & plan$columna == "estado")
   expect_identical(plan$parametros[[j]]$valores, "sin dato")
@@ -197,7 +197,7 @@ test_that("una referencia numerica 0x80-0x9F se lee como Windows-1252", {
 
 test_that("un orden de texto se rechaza", {
   datos <- data.frame(nombre = c("Ana", "Ana", " Ana"), stringsAsFactors = FALSE)
-  plan <- suppressWarnings(planificar_limpieza(suppressWarnings(perfilar(datos)), datos))
+  plan <- suppressWarnings(planificar_limpieza(suppressWarnings(perfilar(datos, proteger_datos_personales = TRUE)), datos))
   plan$orden <- as.character(plan$orden)
   expect_error(aplicar(plan, datos), "orden")
 })
@@ -222,7 +222,7 @@ test_that("activar la reparacion parcial aplica la parte parcial", {
 test_that("una accion ejecutada que es la recomendada no figura pendiente", {
   x <- c(10, 11, 12, 11, 12, 13, 11, 12, 10, 11, 12, 13, 12, 11, 12, 11, 12, 13, 12, 11, 100)
   datos <- data.frame(x = x)
-  perfil <- suppressWarnings(perfilar(datos))
+  perfil <- suppressWarnings(perfilar(datos, proteger_datos_personales = TRUE))
   plan <- suppressWarnings(planificar_limpieza(perfil, datos))
   plan$aplicar <- plan$recomendada
   r <- suppressWarnings(aplicar(plan, datos))

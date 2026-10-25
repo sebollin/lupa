@@ -13,7 +13,7 @@ test_that("el nombre personal tiene prioridad sobre una forma numerica", {
     correo = rep("ana@example.org", 5L),
     stringsAsFactors = FALSE
   )
-  perfil <- perfilar(datos, analizar_dependencias = FALSE)
+  perfil <- perfilar(datos, analizar_dependencias = FALSE, proteger_datos_personales = TRUE)
   filas <- perfil$datos_personales[
     match(names(datos), perfil$datos_personales$columna), , drop = FALSE
   ]
@@ -31,12 +31,12 @@ test_that("la verificacion admite una tasa explicita de tipeos", {
   ids[[1L]] <- paste0(
     substr(ids[[1L]], 1L, nchar(ids[[1L]]) - 1L), (ultimo + 1L) %% 10L
   )
-  perfil <- perfilar(data.frame(padron = ids), analizar_dependencias = FALSE)
+  perfil <- perfilar(data.frame(padron = ids), analizar_dependencias = FALSE, proteger_datos_personales = TRUE)
   expect_equal(perfil$datos_personales$poder_discriminante, "verificado")
   expect_true(perfil$datos_personales$proteger)
   expect_equal(perfil$meta$umbral_documento_verificado, 0.9)
   expect_error(
-    perfilar(data.frame(x = ids), umbral_documento_verificado = 1.1),
+    perfilar(data.frame(x = ids), umbral_documento_verificado = 1.1, proteger_datos_personales = TRUE),
     "entre 0 y 1"
   )
 })
@@ -63,7 +63,7 @@ test_that("un pack personal externo entra por la misma puerta", {
   # Se conserva la comprobación del contrato aun si el ejemplo contiene
   # documentos que el validador rechaza: el pack no toca el motor.
   resultado <- perfilar(
-    datos, validadores_personales = pack, analizar_dependencias = FALSE
+    datos, validadores_personales = pack, analizar_dependencias = FALSE, proteger_datos_personales = TRUE
   )
   expect_true("codigo" %in% resultado$datos_personales$columna)
   expect_false(anyNA(resultado$datos_personales$proteger))
@@ -98,7 +98,7 @@ test_that("el perfilado con formas documentales no valida celdas innecesarias", 
     stringsAsFactors = FALSE
   )
   tiempo <- system.time(
-    perfilar(datos, analizar_dependencias = FALSE)
+    perfilar(datos, analizar_dependencias = FALSE, proteger_datos_personales = TRUE)
   )["elapsed"]
   # Este guardián ya encontró una regresión real de 16 a 26 s.
   # El contador determinista protege ahora el trabajo por valor; este umbral
@@ -110,11 +110,11 @@ test_that("el perfilado con formas documentales no valida celdas innecesarias", 
 test_that("la configuracion de validadores se puede apagar y valida su contrato", {
   datos <- data.frame(codigo = c("1.234.567-2", "2.345.678-3", "3.456.789-4"))
   apagado <- perfilar(
-    datos, validadores_personales = numeric(), analizar_dependencias = FALSE
+    datos, validadores_personales = numeric(), analizar_dependencias = FALSE, proteger_datos_personales = TRUE
   )
   expect_equal(apagado$datos_personales$poder_discriminante, "debil")
   expect_error(
-    perfilar(datos, validadores_personales = list(x = 1)),
+    perfilar(datos, validadores_personales = list(x = 1), proteger_datos_personales = TRUE),
     "lista con nombres de funciones"
   )
   expect_true(is.na(.proporcion_compatible(NA_character_, "^[0-9]+$")))
@@ -126,14 +126,14 @@ test_that("la validacion preliminar y completa respetan el contrato vectorial", 
   siempre <- function(x) rep(TRUE, length(x))
   perfil <- perfilar(
     datos, validadores_personales = list(externo = siempre),
-    analizar_dependencias = FALSE
+    analizar_dependencias = FALSE, proteger_datos_personales = TRUE
   )
   expect_equal(perfil$datos_personales$poder_discriminante, "verificado")
   defectuoso <- function(x) if (length(x) > 1000L) TRUE else rep(TRUE, length(x))
   expect_error(
     perfilar(
       datos, validadores_personales = list(externo = defectuoso),
-      analizar_dependencias = FALSE
+      analizar_dependencias = FALSE, proteger_datos_personales = TRUE
     ),
     "igual longitud"
   )

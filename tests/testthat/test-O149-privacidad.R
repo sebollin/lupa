@@ -113,7 +113,7 @@ test_that("H1: la coleccion tapa el valor escrito con palabras permitidas que le
     "FROM clientes"
   ))
   pc <- suppressWarnings(suppressMessages(perfilar_coleccion(
-    coleccion(con, c("clientes", "v_cel"))
+    coleccion(con, c("clientes", "v_cel")), proteger_datos_personales = TRUE
   )))
   hojas <- .r30_hojas(list(pc$cobertura_coleccion, pc$cobertura_metricas,
                            pc$meta$lecturas))
@@ -168,7 +168,7 @@ test_that("H2 y H3: la cifra entera escrita como planilla es el documento entero
   )
   d$nota[16:30] <- sprintf("llamar al 5.98%se+010", nac[16:30])
   p <- suppressWarnings(perfilar(
-    d, columnas_personales = c(nombre = "nombre_persona", celular = "telefono")
+    d, columnas_personales = c(nombre = "nombre_persona", celular = "telefono"), proteger_datos_personales = TRUE
   ))
   hojas <- .r30_hojas(p)
   expect_identical(sum(grepl("llamar al 5", hojas, fixed = TRUE)), 0L)
@@ -204,7 +204,7 @@ test_that("H4: todo atributo y todo objeto de la copia pasa por el piso", {
   d$llamada <- I(c(list(call("buscar", cedulas[[9L]])), resto))
   d$funcion <- I(c(list(eval(call("function", NULL, cedulas[[10L]]))), resto))
   an <- suppressWarnings(suppressMessages(analizar(
-    d, columnas_personales = cp, conservar_datos = TRUE
+    d, columnas_personales = cp, conservar_datos = TRUE, proteger_datos_personales = TRUE
   )))
   hojas <- .r30_hojas(an$datos)
   for (valor in c(cedulas[2:10], titulares[3:4])) {
@@ -264,7 +264,7 @@ test_that("H5: el nombre de una columna que es un valor protegido conocido no se
   ))
   # La vista antes que la tabla de docentes: el piso del final de la coleccion.
   pc <- suppressWarnings(suppressMessages(perfilar_coleccion(
-    coleccion(con, c("v_plan", "docentes"))
+    coleccion(con, c("v_plan", "docentes")), proteger_datos_personales = TRUE
   )))
   motivos <- c(pc$cobertura_coleccion$motivo, pc$cobertura_metricas$motivo,
                pc$meta$lecturas$motivo)

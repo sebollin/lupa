@@ -3301,8 +3301,11 @@
   # -`(tabla)`, `(tabla: t1)`-, tambien es estructura: `objeto` mezcla las dos
   # cosas.
   tabla <- "^\\(tabla(: [^()]+)?\\)$"
+  # TRE y no PCRE: la expresion es la misma por bytes, y en Windows cada
+  # `grepl(perl = TRUE)` cuesta unos 47 us fijos en una funcion que corre por
+  # cada hoja de la salida.
   exactos <- .nombres_para_operar(valores) %in% claves |
-    grepl(tabla, valores, perl = TRUE, useBytes = TRUE)
+    grepl(tabla, valores, useBytes = TRUE)
   if (all(exactos)) return(TRUE)
   # Los que no son un nombre exacto se prueban como referencia a varios: se
   # parten por los separadores del paquete y cada pieza tiene que ser un nombre.
@@ -3315,14 +3318,21 @@
   # que cortar por bytes da las mismas piezas; se les devuelve la marca del texto,
   # que el corte por bytes no conserva.
   compuestos <- vapply(restantes, function(v) {
+    # Sin ningun separador queda una sola pieza y no es una referencia a varios:
+    # se contesta sin partir. Los separadores son ASCII y se buscan por bytes.
+    if (!grepl(",", v, fixed = TRUE, useBytes = TRUE) &&
+        !grepl("+", v, fixed = TRUE, useBytes = TRUE) &&
+        !grepl("|", v, fixed = TRUE, useBytes = TRUE) &&
+        !grepl("->", v, fixed = TRUE, useBytes = TRUE)) {
+      return(FALSE)
+    }
     piezas <- strsplit(v, "\\s*(,|\\+|\\||->)\\s*", perl = TRUE,
                        useBytes = TRUE)[[1L]]
     marca <- Encoding(v)
     if (marca %in% c("latin1", "UTF-8")) Encoding(piezas) <- marca
     piezas <- piezas[nzchar(piezas)]
     length(piezas) > 1L && all(.nombres_para_operar(piezas) %in% claves |
-                                 grepl(tabla, piezas, perl = TRUE,
-                                       useBytes = TRUE))
+                                 grepl(tabla, piezas, useBytes = TRUE))
   }, logical(1L), USE.NAMES = FALSE)
   all(compuestos)
 }

@@ -5,11 +5,14 @@
 # suite completa, en el CI y en R-hub, que usan NOT_CRAN=true.
 testthat::skip_on_cran()
 
-.html_O121 <- function(...) {
+# El informe protegido se pide: desde el 2026-10-25 `reportar()` no protege por
+# omision.
+.html_O121 <- function(..., proteger_datos_personales = TRUE) {
   archivo <- tempfile("O121-", fileext = ".html")
   on.exit(unlink(archivo))
   suppressWarnings(suppressMessages(reportar(
     ..., archivo = archivo, sobrescribir = TRUE,
+    proteger_datos_personales = proteger_datos_personales,
     fecha = as.POSIXct("2026-01-01", tz = "UTC")
   )))
   paste(readLines(archivo, encoding = "UTF-8", warn = FALSE), collapse = "\n")
@@ -116,7 +119,7 @@ test_that("la marca de objeto sin proteger sobrevive a subset, rbind y al histor
 test_that("una medida suprimida no se publica en la seccion Historico", {
   instancia <- instanciar(especializar(metricas_nucleo()$NoNulo), "personas", "edad")
   medicion <- medir(modelo(instancia), data.frame(edad = c(20, NA, 35)),
-                    id_medicion = "enero")
+                    id_medicion = "enero", proteger_datos_personales = TRUE)
   evaluacion <- evaluar(medicion, perfil_evaluacion("Basico", regla_evaluacion(
     "Presente", function(x) x > 0, desenlace = "suprimir"
   )))
@@ -142,7 +145,7 @@ test_that("un perfil sin proteccion vuelto a proteger sin la tabla lo declara", 
   )
   aviso <- "protecci\u00f3n de datos personales desactivada"
   abierto <- suppressWarnings(perfilar(datos, proteger_datos_personales = FALSE))
-  cerrado <- suppressWarnings(perfilar(datos))
+  cerrado <- suppressWarnings(perfilar(datos, proteger_datos_personales = TRUE))
   expect_identical(.veces_O121(.html_O121(abierto), aviso), 1L)
   expect_identical(.veces_O121(.html_O121(cerrado), aviso), 0L)
   # Pedido sin proteccion, no hay nada que declarar.
@@ -156,7 +159,7 @@ test_that("el informe no aborta con texto marcado UTF-8 que no es UTF-8", {
   Encoding(roto) <- "UTF-8"
   datos <- data.frame(ciudad = rep(c(roto, "otro", "mas"), 10), n = 1:30,
                       stringsAsFactors = FALSE)
-  perfil <- suppressWarnings(perfilar(datos))
+  perfil <- suppressWarnings(perfilar(datos, proteger_datos_personales = TRUE))
   # Antes: "invalid multibyte string" y ningun archivo.
   html <- .html_O121(perfil)
   expect_true(validUTF8(html))
@@ -165,7 +168,7 @@ test_that("el informe no aborta con texto marcado UTF-8 que no es UTF-8", {
 
 test_that("las cifras del informe son las del objeto, sin redondeo de consola", {
   datos <- data.frame(x = c(123456789.5, 123456789.5, 987654321.25, 1))
-  perfil <- suppressWarnings(perfilar(datos))
+  perfil <- suppressWarnings(perfilar(datos, proteger_datos_personales = TRUE))
   expect_identical(perfil$columnas$maximo[[1L]], 987654321.25)
   html <- .html_O121(perfil)
   # Antes: 987654321 -ocho cifras significativas-, que no esta en el objeto.
@@ -173,7 +176,7 @@ test_that("las cifras del informe son las del objeto, sin redondeo de consola", 
 })
 
 test_that("un perfil al que le falta un componente se declara y no aborta", {
-  perfil <- perfilar(datos_administrativos)
+  perfil <- perfilar(datos_administrativos, proteger_datos_personales = TRUE)
   for (componente in c("dependencias", "hallazgos", "columnas")) {
     incompleto <- perfil
     incompleto[componente] <- list(NULL)
@@ -185,7 +188,7 @@ test_that("un perfil al que le falta un componente se declara y no aborta", {
 })
 
 test_that("un salto de linea en el titulo no rompe el elemento title", {
-  html <- .html_O121(perfilar(datos_administrativos), titulo = "Uno\nDos")
+  html <- .html_O121(perfilar(datos_administrativos, proteger_datos_personales = TRUE), titulo = "Uno\nDos")
   titulo <- regmatches(html, regexpr("<title>[^<]*</title>", html))
   # Antes: <title>Uno<br>Dos</title>, que el navegador muestra literal.
   expect_identical(titulo, "<title>Uno Dos</title>")

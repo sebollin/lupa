@@ -10,7 +10,7 @@ distribucion_valores(
   max_valores = 20L,
   probabilidades = c(0, 0.25, 0.5, 0.75, 1),
   muestra = 1e+05,
-  proteger_datos_personales = TRUE,
+  proteger_datos_personales = FALSE,
   columnas_personales = character(),
   .universo = NULL
 )
@@ -31,7 +31,8 @@ con \code{estado = "codigo_declarado"}, como \code{mediana} en el perfil.}
 \item{muestra}{Máximo de filas por columna; \code{Inf} desactiva el muestreo.}
 
 \item{proteger_datos_personales}{Si se ocultan valores de columnas cuya
-clasificación activa protección automática. Véase \code{\link[=perfilar]{perfilar()}}. Con
+clasificación activa protección automática. \code{FALSE} por omisión; véase
+\code{\link[=perfilar]{perfilar()}}. Con
 \code{perfil}, se respeta la clasificación de ese perfil —incluido lo que su
 usuario declaró—; sin \code{perfil}, la clasificación se rehace aquí por léxico
 y por forma, y lo declarado entra por \code{columnas_personales}.}

@@ -325,8 +325,9 @@ gsub("</?h2>", "", secciones)
 ```
 
 En una sesión propia, `browseURL(archivo_html)` lo abre en el navegador; acá borramos los
-dos archivos al terminar. Por omisión, el informe enmascara los valores de las columnas
-que parecen datos personales; el alcance de esa protección está en el artículo
+dos archivos al terminar. Con `proteger_datos_personales = TRUE`, el informe enmascara
+los valores de las columnas que parecen datos personales; el alcance de esa protección
+está en el artículo
 [Alcance y cobertura](https://sebollin.github.io/lupa/articles/alcance-y-cobertura.html).
 
 ```{r}

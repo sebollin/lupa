@@ -412,8 +412,9 @@ alta[, c("columna", "evidencia")]
 envolver(alta$sugerencia[[1]])
 ```
 
-La evidencia de `contacto` sale protegida porque la columna parece un dato
-personal (ver el último apartado).
+La evidencia de `contacto` sale entera. Con `proteger_datos_personales = TRUE`
+saldría protegida, porque la columna parece un dato personal (ver el último
+apartado).
 
 Se informa siempre, también cuando los valores son largos: el largo no distingue
 un catálogo de la prosa. Un catálogo de etiquetas largas con cardinalidad alta es
@@ -586,11 +587,12 @@ writeLines(paste0(formatC(izquierda, width = -40), derecha))
 
 ## Qué se enmascara y con qué alcance
 
-La protección de datos personales complementa el perfil: el objetivo es medir la
-calidad sin publicar los valores de una persona. Está activa por omisión
+La protección de datos personales complementa el perfil: sirve para medir la
+calidad sin publicar los valores de una persona. Es un complemento que se pide
 (`proteger_datos_personales` vale
-`r defecto(perfilar, "proteger_datos_personales")` en `perfilar()` y en
-`detectar_duplicados_aproximados()`). Una columna se protege
+`r defecto(perfilar, "proteger_datos_personales")` por omisión en `perfilar()` y en
+`detectar_duplicados_aproximados()`): publicar o no los valores de una base es
+decisión de quien la usa. Con la protección pedida, una columna se protege
 cuando el paquete la clasifica como posible dato personal o cuando se la declara
 en `columnas_personales`; lo declarado gana sobre lo inferido, porque ningún
 léxico de nombres de columna es completo.

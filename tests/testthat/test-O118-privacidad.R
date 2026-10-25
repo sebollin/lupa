@@ -30,7 +30,7 @@ test_that("un valor protegido con un caracter que se escapa no sale escapado", {
     datos$titular <- rep(c(v, .titulares_O118), length.out = n)
     datos$referente <- rep(c(v, toupper(v), paste0(" ", v), "Ana Maria Ruiz",
                              "Carlos Sosa Diaz"), length.out = n)
-    perfil <- suppressWarnings(perfilar(datos, columnas_personales = "titular"))
+    perfil <- suppressWarnings(perfilar(datos, columnas_personales = "titular", proteger_datos_personales = TRUE))
     hojas <- .hojas_O118(perfil)
     # Antes: `Juan<U+00A0>P\u00e9rez` en cuatro evidencias de `referente`.
     expect_false(any(grepl("Juan<U+", hojas, fixed = TRUE)), label = separador)
@@ -52,7 +52,7 @@ test_that("perfilar_por no publica el titular protegido de otro grupo", {
           " Juan Perez Rodriguez", "Elena Vidal Mora"), length.out = 40)
   )
   agrupado <- suppressMessages(perfilar_por(
-    datos, por = "depto", min_filas = 10L, columnas_personales = "titular"
+    datos, por = "depto", min_filas = 10L, columnas_personales = "titular", proteger_datos_personales = TRUE
   ))
   hojas <- .hojas_O118(agrupado)
   # Antes: en la evidencia del grupo Sur, exacto.
@@ -75,7 +75,7 @@ test_that("perfilar_dbi tapa en el resumen el valor de una persona que es moda d
   on.exit(DBI::dbDisconnect(con), add = TRUE)
   DBI::dbWriteTable(con, "t", datos)
   resultado <- suppressWarnings(suppressMessages(
-    perfilar_dbi(con, "t", columnas_personales = "titular")
+    perfilar_dbi(con, "t", columnas_personales = "titular", proteger_datos_personales = TRUE)
   ))
   hojas <- .hojas_O118(resultado)
   # Antes: la moda SQL de `referente` y el motivo de la corroboracion.
@@ -108,7 +108,7 @@ test_that("las variantes por compatibilidad, caja y codificacion no salen", {
     # variante con "sin novedad" en la misma celda de ejemplos, y esa celda se
     # tapa entera, que es la regla.
     datos$estado <- rep("activo", n)
-    perfil <- suppressWarnings(perfilar(datos, columnas_personales = "titular"))
+    perfil <- suppressWarnings(perfilar(datos, columnas_personales = "titular", proteger_datos_personales = TRUE))
     hojas <- .hojas_O118(perfil)
     expect_false(any(grepl(par[[2L]], hojas, fixed = TRUE, useBytes = TRUE)),
                  label = par[[2L]])
@@ -128,7 +128,7 @@ test_that("un nivel que no es UTF-8 no se cita en bytes legibles", {
   datos$proveedor <- rep(c(latin1("juanp\u00e9rezsrl"), "particular"), length.out = n)
   datos$rut <- ifelse(datos$proveedor == "particular", NA,
                       sprintf("21%07d0018", seq_len(n)))
-  perfil <- suppressWarnings(perfilar(datos, columnas_personales = "titular"))
+  perfil <- suppressWarnings(perfilar(datos, columnas_personales = "titular", proteger_datos_personales = TRUE))
   sugerencias <- as.character(perfil$hallazgos$sugerencia)
   # Antes: `proveedor == "<lupa-byte:6A75616E70E972657A73726C>"`.
   expect_false(any(grepl("6A75616E70E9", sugerencias, fixed = TRUE)))
@@ -144,7 +144,7 @@ test_that("nombres y apellidos que son palabras del paquete no tapan su texto", 
   datos$sin_dato <- rep(NA_character_, n)
   datos$contacto <- rep(c("maximo blanco", "pago", "pago", "pago"), length.out = n)
   perfil <- suppressWarnings(perfilar(
-    datos, columnas_personales = c("primer_nombre", "primer_apellido")
+    datos, columnas_personales = c("primer_nombre", "primer_apellido"), proteger_datos_personales = TRUE
   ))
   h <- perfil$hallazgos
   evidencias <- as.character(h$evidencia[h$columna %in% c("observacion", "codigo")])
@@ -187,7 +187,7 @@ test_that("una fecha de nacimiento protegida no tapa las fechas de otras columna
                            length.out = 110),
     fecha_alta = rep(alta, 10)
   )
-  perfil <- suppressWarnings(perfilar(datos, columnas_personales = "fecha_nacimiento"))
+  perfil <- suppressWarnings(perfilar(datos, columnas_personales = "fecha_nacimiento", proteger_datos_personales = TRUE))
   columnas <- perfil$columnas
   fila_alta <- columnas[columnas$columna == "fecha_alta", ]
   campos <- intersect(c("minimo_fecha", "mediana_fecha", "maximo_fecha"),

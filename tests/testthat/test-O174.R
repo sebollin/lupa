@@ -87,14 +87,14 @@ test_that("P-A1, el recorrido: las abreviaturas comunes de cada tipo personal en
   cel <- valores$telefono
   d <- data.frame(tel = cel, tel_particular = cel, nro_tel = cel, telef = cel,
                   cel = cel, stringsAsFactors = FALSE)
-  p <- suppressWarnings(perfilar(d))
+  p <- suppressWarnings(perfilar(d, proteger_datos_personales = TRUE))
   expect_setequal(p$datos_personales$columna[p$datos_personales$proteger],
                   names(d))
   expect_false(any(unique(cel) %in% .r37p_numeros(p)$textos))
   # `mov` no es una palabra del telefono: es un movimiento.
   control <- data.frame(tipo_mov = r(c("debito", "credito")),
                         mov = r(c(1L, 2L, 3L)), stringsAsFactors = FALSE)
-  pc <- suppressWarnings(perfilar(control))
+  pc <- suppressWarnings(perfilar(control, proteger_datos_personales = TRUE))
   expect_identical(pc$datos_personales$columna[pc$datos_personales$proteger],
                    character())
 })
@@ -122,7 +122,7 @@ test_that("P-A2: en una coleccion, la copia de las cedulas de otra tabla se prot
                                             ref = casos[[caso]]))
   }
   pc <- suppressWarnings(perfilar_coleccion(
-    coleccion(con, c("personas", names(casos))), conservar_perfiles = TRUE
+    coleccion(con, c("personas", names(casos))), conservar_perfiles = TRUE, proteger_datos_personales = TRUE
   ))
   for (caso in names(casos)) {
     perfil <- pc$perfiles[[caso]]
@@ -139,7 +139,7 @@ test_that("P-A2: en una coleccion, la copia de las cedulas de otra tabla se prot
   juntas <- data.frame(cedula = personas$cedula[c(1L, 1L, 2L, 3L, 4L, 5L)],
                        ref = ced[c(1L, 1L, 2L, 3L, 4L, 5L)],
                        stringsAsFactors = FALSE)
-  pj <- suppressWarnings(perfilar(juntas))
+  pj <- suppressWarnings(perfilar(juntas, proteger_datos_personales = TRUE))
   expect_true("ref" %in% pj$datos_personales$columna[pj$datos_personales$proteger])
 })
 
@@ -177,7 +177,7 @@ test_that("P-G2: no se tapan importes, codigos, lugares, causas, edades, estados
     telefono_plazo_dias = r(c(30, 30, 60, 90)),
     stringsAsFactors = FALSE
   )
-  con <- suppressWarnings(perfilar(d))
+  con <- suppressWarnings(perfilar(d, proteger_datos_personales = TRUE))
   sin <- suppressWarnings(perfilar(d, proteger_datos_personales = FALSE))
   expect_identical(con$datos_personales$columna[con$datos_personales$proteger],
                    character())
@@ -211,7 +211,7 @@ test_that("Nombres con dos iniciales o con O' y las formas bajas de la misma con
                 funcionario_tipo = "nombre", telefono_estado = "telefono",
                 tipo_telefono = "telefono", domicilio_tipo = "domicilio",
                 usuario_canal = "telefono")
-  p <- suppressWarnings(perfilar(d))
+  p <- suppressWarnings(perfilar(d, proteger_datos_personales = TRUE))
   dp <- p$datos_personales
   protegidas <- dp[dp$proteger, , drop = FALSE]
   expect_setequal(protegidas$columna, names(esperado))
@@ -254,7 +254,7 @@ test_that("La regla de quien actua no toma por estados los nombres completos con
                                     "Garrido", "Mercado", "Prado", "Hurtado",
                                     "Fuentes", "Ventura", "Segura",
                                     "Estrada")) > 0.5)
-  p <- suppressWarnings(perfilar(d))
+  p <- suppressWarnings(perfilar(d, proteger_datos_personales = TRUE))
   expect_setequal(p$datos_personales$columna[p$datos_personales$proteger],
                   names(d))
   textos <- .r37p_numeros(p)$textos
@@ -265,7 +265,7 @@ test_that("La regla de quien actua no toma por estados los nombres completos con
     funcionario_baja = r(c("Renuncia", "Renuncia", "Jubilacion", "Despido")),
     stringsAsFactors = FALSE
   )
-  pe <- suppressWarnings(perfilar(estados))
+  pe <- suppressWarnings(perfilar(estados, proteger_datos_personales = TRUE))
   expect_identical(pe$datos_personales$columna[pe$datos_personales$proteger],
                    character())
   expect_identical(pe$columnas$moda, c("Cancelada", "Renuncia"))
@@ -292,7 +292,7 @@ test_that("Un nombre de lugar, un documento sin cifras y la direccion de una red
                       "Direccion de Cultura")),
     stringsAsFactors = FALSE
   )
-  con <- suppressWarnings(perfilar(d))
+  con <- suppressWarnings(perfilar(d, proteger_datos_personales = TRUE))
   sin <- suppressWarnings(perfilar(d, proteger_datos_personales = FALSE))
   expect_identical(con$datos_personales$columna[con$datos_personales$proteger],
                    character())
@@ -306,7 +306,7 @@ test_that("Un nombre de lugar, un documento sin cifras y la direccion de una red
     nom_localidad = r(c("Ana Rodriguez", "Diego Sosa", "Lucia Acosta")),
     stringsAsFactors = FALSE
   )
-  pp <- suppressWarnings(perfilar(personas))
+  pp <- suppressWarnings(perfilar(personas, proteger_datos_personales = TRUE))
   expect_setequal(pp$datos_personales$columna[pp$datos_personales$proteger],
                   names(personas))
 })

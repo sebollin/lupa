@@ -62,7 +62,7 @@ test_that("analizar protege valores crudos de los cuatro tipos personales", {
   crudos <- .valores_crudos_prueba(datos)
   analisis <- analizar(
     datos, muestra = Inf, analizar_dependencias = FALSE,
-    conservar_datos = TRUE
+    conservar_datos = TRUE, proteger_datos_personales = TRUE
   )
 
   expect_setequal(
@@ -149,7 +149,7 @@ test_that("reconoce fechas de fallecimiento y rechaza nombres cercanos", {
   names(datos)[[2L]] <- nombre_fecha_defuncion
   perfil <- perfilar(
     datos, fecha = as.POSIXct("2026-01-01", tz = "UTC"),
-    analizar_dependencias = FALSE
+    analizar_dependencias = FALSE, proteger_datos_personales = TRUE
   )
   clasificacion <- perfil$datos_personales
   positivos <- names(datos)[1:7]
@@ -178,7 +178,7 @@ test_that("protege momentos de nacimiento y fallecimiento, tambien el desvio", {
   )
   perfil <- perfilar(
     datos, fecha = as.POSIXct("2026-01-01", tz = "UTC"),
-    analizar_dependencias = FALSE
+    analizar_dependencias = FALSE, proteger_datos_personales = TRUE
   )
   columnas <- perfil$columnas
   fechas <- columnas$columna %in% names(datos)
@@ -222,7 +222,7 @@ test_that("el HTML protege incluso un analisis originalmente abierto", {
     proteger_datos_personales = FALSE
   )
   archivo <- tempfile(fileext = ".html")
-  reportar(abierto, archivo = archivo)
+  reportar(abierto, archivo = archivo, proteger_datos_personales = TRUE)
   html <- paste(readLines(archivo, warn = FALSE, encoding = "UTF-8"),
                 collapse = "\n")
 
@@ -245,7 +245,7 @@ test_that("la ausencia estructural no publica valores de un determinante protegi
     x = c(round(rnorm(60, 50, 8)), rep(NA_real_, 40))
   )
   crudos <- unique(as.character(documento))
-  perfil <- perfilar(datos, analizar_dependencias = FALSE)
+  perfil <- perfilar(datos, analizar_dependencias = FALSE, proteger_datos_personales = TRUE)
   senal <- perfil$hallazgos[
     perfil$hallazgos$tipo_hallazgo == "posible_ausencia_estructural", ,
     drop = FALSE
@@ -268,7 +268,7 @@ test_that("la ausencia estructural no publica valores de un determinante protegi
   )))
 
   archivo <- tempfile(fileext = ".html")
-  reportar(perfil, archivo = archivo)
+  reportar(perfil, archivo = archivo, proteger_datos_personales = TRUE)
   html <- paste(readLines(archivo, warn = FALSE, encoding = "UTF-8"),
                 collapse = "\n")
   expect_false(any(vapply(
@@ -280,7 +280,7 @@ test_that("la ausencia estructural no publica valores de un determinante protegi
     proteger_datos_personales = FALSE
   )
   archivo_abierto <- tempfile(fileext = ".html")
-  reportar(abierto, archivo = archivo_abierto)
+  reportar(abierto, archivo = archivo_abierto, proteger_datos_personales = TRUE)
   html_abierto <- paste(
     readLines(archivo_abierto, warn = FALSE, encoding = "UTF-8"),
     collapse = "\n"
@@ -383,7 +383,7 @@ test_that("el barrido de tipos de hallazgo no publica valores protegidos", {
   for (nombre_caso in names(casos)) {
     caso <- casos[[nombre_caso]]
     perfil <- do.call(
-      perfilar, c(list(caso$datos), caso$opciones)
+      perfilar, c(list(caso$datos, proteger_datos_personales = TRUE), caso$opciones)
     )
     tipos <- as.character(perfil$hallazgos$tipo_hallazgo)
     # Primero se demuestra que la puerta está activa. Si no se emitió el tipo,
@@ -415,7 +415,7 @@ test_that("el barrido de tipos de hallazgo no publica valores protegidos", {
     )
 
     archivo <- tempfile(fileext = ".html")
-    reportar(perfil, plan, archivo = archivo)
+    reportar(perfil, plan, archivo = archivo, proteger_datos_personales = TRUE)
     html <- paste(readLines(archivo, warn = FALSE, encoding = "UTF-8"),
                   collapse = "\n")
     fugas_html <- crudos[vapply(
@@ -457,7 +457,7 @@ test_that("un analisis abierto protege tambien los parametros del plan", {
   )))
 
   archivo <- tempfile(fileext = ".html")
-  reportar(abierto, archivo = archivo)
+  reportar(abierto, archivo = archivo, proteger_datos_personales = TRUE)
   html <- paste(readLines(archivo, warn = FALSE, encoding = "UTF-8"),
                 collapse = "\n")
   expect_false(any(vapply(
@@ -511,7 +511,7 @@ test_that("el rango de nacimiento se diagnostica sin publicar sus extremos", {
   )))
   perfil <- perfilar(
     datos, fecha = as.POSIXct("2026-01-01", tz = "UTC"),
-    analizar_dependencias = FALSE
+    analizar_dependencias = FALSE, proteger_datos_personales = TRUE
   )
   hallazgo <- perfil$hallazgos[
     perfil$hallazgos$tipo_hallazgo == "fecha_nacimiento_fuera_rango", ,
@@ -527,7 +527,7 @@ test_that("el rango de nacimiento se diagnostica sin publicar sus extremos", {
   expect_equal(perfil$columnas$maximo_fecha, "[valor protegido]")
 
   archivo <- tempfile(fileext = ".html")
-  reportar(perfil, archivo = archivo)
+  reportar(perfil, archivo = archivo, proteger_datos_personales = TRUE)
   html <- paste(readLines(archivo, warn = FALSE, encoding = "UTF-8"),
                 collapse = "\n")
   expect_match(html, "anterior a 1900", fixed = TRUE)
@@ -541,7 +541,7 @@ test_that("el rango de fallecimiento anterior a 1900 es sospechoso", {
   )))
   perfil <- perfilar(
     datos, fecha = as.POSIXct("2026-01-01", tz = "UTC"),
-    analizar_dependencias = FALSE
+    analizar_dependencias = FALSE, proteger_datos_personales = TRUE
   )
   hallazgo <- perfil$hallazgos[
     perfil$hallazgos$tipo_hallazgo == "fecha_fallecimiento_fuera_rango", ,
@@ -562,7 +562,7 @@ test_that("el rango de fallecimiento posterior al perfil es un error", {
   )))
   perfil <- perfilar(
     datos, fecha = as.POSIXct("2026-01-01", tz = "UTC"),
-    analizar_dependencias = FALSE
+    analizar_dependencias = FALSE, proteger_datos_personales = TRUE
   )
   hallazgo <- perfil$hallazgos[
     perfil$hallazgos$tipo_hallazgo == "fecha_fallecimiento_fuera_rango", ,
@@ -582,7 +582,7 @@ test_that("extremos exactos integer64 personales tambien se protegen", {
   datos <- data.frame(documento = bit64::as.integer64(c(
     "9007199254740993", "9007199254740995", "9007199254740997"
   )))
-  perfil <- perfilar(datos, analizar_dependencias = FALSE)
+  perfil <- perfilar(datos, analizar_dependencias = FALSE, proteger_datos_personales = TRUE)
   expect_equal(perfil$columnas$minimo_exacto, "[valor protegido]")
   expect_equal(perfil$columnas$maximo_exacto, "[valor protegido]")
   expect_equal(
@@ -593,7 +593,7 @@ test_that("extremos exactos integer64 personales tambien se protegen", {
 
 test_that("planes deriva e historico no reintroducen los valores protegidos", {
   datos <- .datos_personales_cinco()
-  perfil <- perfilar(datos, analizar_dependencias = FALSE)
+  perfil <- perfilar(datos, analizar_dependencias = FALSE, proteger_datos_personales = TRUE)
   plan <- planificar_limpieza(perfil, datos)
   actualizados <- datos
   actualizados$ci <- actualizados$ci + 10
@@ -604,13 +604,13 @@ test_that("planes deriva e historico no reintroducen los valores protegidos", {
   crudos <- union(
     .valores_crudos_prueba(datos), .valores_crudos_prueba(actualizados)
   )
-  perfil_actual <- perfilar(actualizados, analizar_dependencias = FALSE)
+  perfil_actual <- perfilar(actualizados, analizar_dependencias = FALSE, proteger_datos_personales = TRUE)
   deriva <- comparar_perfiles(perfil, perfil_actual)
 
   nucleo <- metricas_nucleo()
   medida <- medir(
     modelo(nucleo$NoNulo()("datos", "ci")), datos,
-    id_medicion = "personal"
+    id_medicion = "personal", proteger_datos_personales = TRUE
   )
   historico <- historico_calidad(medida)
 
@@ -619,7 +619,7 @@ test_that("planes deriva e historico no reintroducen los valores protegidos", {
   expect_length(.coincidencias_crudas(historico, crudos), 0L)
 
   archivo <- tempfile(fileext = ".html")
-  reportar(plan, deriva, historico, archivo = archivo)
+  reportar(plan, deriva, historico, archivo = archivo, proteger_datos_personales = TRUE)
   html <- paste(readLines(archivo, warn = FALSE, encoding = "UTF-8"),
                 collapse = "\n")
   expect_false(any(vapply(
@@ -674,7 +674,7 @@ test_that("la proteccion conserva el nombre completo de una columna con coma", {
   analisis <- analizar(datos, proteger_datos_personales = TRUE)
   archivo <- tempfile(fileext = ".html")
   on.exit(unlink(archivo), add = TRUE)
-  invisible(reportar(analisis, archivo = archivo))
+  invisible(reportar(analisis, archivo = archivo, proteger_datos_personales = TRUE))
   html <- paste(readLines(archivo, warn = FALSE, encoding = "UTF-8"),
                 collapse = "\n")
   expect_false(any(vapply(

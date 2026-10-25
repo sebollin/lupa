@@ -130,7 +130,7 @@ test_that("A1: con una columna sin permiso en SQL Server se perfilan las demas y
     ),
     negadas = "cedula", rechaza_tabla = "persona"
   )
-  r <- suppressWarnings(suppressMessages(perfilar_dbi(con, "persona")))
+  r <- suppressWarnings(suppressMessages(perfilar_dbi(con, "persona", proteger_datos_personales = TRUE)))
   columnas <- r$resumen_tabla$columnas
   # Las cuatro columnas estan; `cedula` sin medir y declarada.
   expect_setequal(columnas$columna, c("id", "cedula", "nombre", "depto"))
@@ -149,7 +149,7 @@ test_that("A1: con una columna sin permiso en SQL Server se perfilan las demas y
     plan_perfilado_dbi(con, "persona")
   )), "plan_perfilado_dbi")
   col <- suppressMessages(coleccion(con, c("persona", "tramite")))
-  pc <- suppressWarnings(suppressMessages(perfilar_coleccion(col)))
+  pc <- suppressWarnings(suppressMessages(perfilar_coleccion(col, proteger_datos_personales = TRUE)))
   expect_equal(pc$resumen_coleccion$n_columnas[pc$resumen_coleccion$tabla == "persona"], 4)
   rc <- suppressWarnings(suppressMessages(relaciones_coleccion(
     col, pares = data.frame(tabla_1 = "persona", tabla_2 = "tramite")
@@ -166,7 +166,7 @@ test_that("A1: con una columna sin permiso en SQL Server se perfilan las demas y
   # columna negada desaparecia del perfil y de la coleccion sin una sola fila
   # de cobertura. Se declara igual que sobre la tabla completa.
   rm <- suppressWarnings(suppressMessages(perfilar_dbi(
-    con, "persona", universo = "muestra_motor", muestra_motor = 20
+    con, "persona", universo = "muestra_motor", muestra_motor = 20, proteger_datos_personales = TRUE
   )))
   columnas_m <- rm$resumen_tabla$columnas
   expect_setequal(columnas_m$columna, c("id", "cedula", "nombre", "depto"))
@@ -178,7 +178,7 @@ test_that("A1: con una columna sin permiso en SQL Server se perfilan las demas y
   expect_true(all(sql_m$estado[sql_m$columna == "cedula" & sql_m$metrica != "n"] ==
                     "no_disponible"))
   pcm <- suppressWarnings(suppressMessages(
-    perfilar_coleccion(col, universo = "muestra_motor", muestra_motor = 20)
+    perfilar_coleccion(col, universo = "muestra_motor", muestra_motor = 20, proteger_datos_personales = TRUE)
   ))
   expect_equal(pcm$resumen_coleccion$n_columnas[
     pcm$resumen_coleccion$tabla == "persona"], 4)
@@ -205,7 +205,7 @@ test_that("M4 y B2: con GRANT por columnas en PostgreSQL la tabla tiene cuatro c
     # `dbListFields()` de RPostgres no lista la columna sin privilegio.
     listados = list(persona = c("id", "nombre", "depto"))
   )
-  r <- suppressWarnings(suppressMessages(perfilar_dbi(con, "persona")))
+  r <- suppressWarnings(suppressMessages(perfilar_dbi(con, "persona", proteger_datos_personales = TRUE)))
   columnas <- r$resumen_tabla$columnas
   expect_setequal(columnas$columna, c("id", "cedula", "nombre", "depto"))
   fila <- .cobertura_columna_r35x1(r, "cedula")
@@ -213,7 +213,7 @@ test_that("M4 y B2: con GRANT por columnas en PostgreSQL la tabla tiene cuatro c
   expect_true(grepl("permiso SELECT", fila$motivo, fixed = TRUE))
   expect_equal(columnas$n_faltantes[columnas$columna == "depto"], 10)
   col <- suppressMessages(coleccion(con, c("persona", "tramite")))
-  pc <- suppressWarnings(suppressMessages(perfilar_coleccion(col)))
+  pc <- suppressWarnings(suppressMessages(perfilar_coleccion(col, proteger_datos_personales = TRUE)))
   expect_equal(pc$resumen_coleccion$n_columnas[pc$resumen_coleccion$tabla == "persona"], 4)
   # B2: el par se compara (antes `SELECT *` se rechazaba y se perdia entero).
   rc <- suppressWarnings(suppressMessages(relaciones_coleccion(
@@ -246,7 +246,7 @@ test_that("M2: la completitud y el desvio se miden aunque el motor rechace COUNT
                   x = x)
   DBI::dbWriteTable(con, "tipos", d)
   .emular_motor_r35x1(rechaza_count = TRUE)
-  r <- suppressWarnings(suppressMessages(perfilar_dbi(con, "tipos")))
+  r <- suppressWarnings(suppressMessages(perfilar_dbi(con, "tipos", proteger_datos_personales = TRUE)))
   columnas <- r$resumen_tabla$columnas
   expect_equal(columnas$n_faltantes[columnas$columna == "tx"], 5)
   expect_equal(columnas$n_faltantes[columnas$columna == "x"], 7)
@@ -297,7 +297,7 @@ test_that("A3: una columna enmascarada publica su completitud y nada de lo que d
   )
   for (bloque in c("con_muestra", "solo_agregados")) {
     r <- suppressWarnings(suppressMessages(
-      perfilar_dbi(con, "cliente", bloque_muestra = bloque)
+      perfilar_dbi(con, "cliente", bloque_muestra = bloque, proteger_datos_personales = TRUE)
     ))
     columnas <- r$resumen_tabla$columnas
     fila <- function(columna) columnas[columnas$columna == columna, , drop = FALSE]
@@ -332,7 +332,7 @@ test_that("A3: una columna enmascarada publica su completitud y nada de lo que d
   # y la completitud de la enmascarada sale de lo leido: `cedula` no tiene
   # ningun nulo en la tabla, asi que tampoco en la muestra.
   r <- suppressWarnings(suppressMessages(perfilar_dbi(
-    con, "cliente", universo = "muestra_motor", muestra_motor = 20
+    con, "cliente", universo = "muestra_motor", muestra_motor = 20, proteger_datos_personales = TRUE
   )))
   columnas <- r$resumen_tabla$columnas
   expect_identical(columnas$columna, c("id", "cedula", "ingreso", "abierta", "depto"))
@@ -346,7 +346,7 @@ test_that("A3: una columna enmascarada publica su completitud y nada de lo que d
   # La coleccion: completitud del dato, no de la mascara.
   col <- suppressMessages(coleccion(con, c("cliente", "contacto")))
   pc <- suppressWarnings(suppressMessages(
-    perfilar_coleccion(col, bloque_muestra = "solo_agregados")
+    perfilar_coleccion(col, bloque_muestra = "solo_agregados", proteger_datos_personales = TRUE)
   ))
   fila_pc <- pc$resumen_coleccion[pc$resumen_coleccion$tabla == "cliente", ]
   expect_equal(fila_pc$prop_faltantes_maxima, 0.1)
@@ -381,7 +381,7 @@ test_that("M5: la columna que falla en una fila que no es la primera se aisla so
     "CREATE VIEW v_codigo AS SELECT id, CAST(codigo AS INTEGER) AS codigo_num,",
     "monto, depto FROM legado"
   ))
-  r <- suppressWarnings(suppressMessages(perfilar_dbi(con, "v_codigo")))
+  r <- suppressWarnings(suppressMessages(perfilar_dbi(con, "v_codigo", proteger_datos_personales = TRUE)))
   expect_false(is.null(r$perfil_muestra))
   expect_setequal(r$perfil_muestra$columnas$columna, c("id", "monto", "depto"))
   pm <- r$perfil_muestra$columnas
@@ -419,7 +419,7 @@ test_that("M5: el motivo de la columna aislada sigue la bandera de proteccion", 
   expect_identical(sin$perfil_muestra$columnas$columna, "id")
   expect_identical(fila_muestra(sin)$estado, "alcance_distinto")
   expect_true(grepl("N/D", fila_muestra(sin)$motivo, fixed = TRUE))
-  con_proteccion <- suppressWarnings(perfilar_dbi(con, "codigos_v"))
+  con_proteccion <- suppressWarnings(perfilar_dbi(con, "codigos_v", proteger_datos_personales = TRUE))
   expect_identical(fila_muestra(con_proteccion)$estado, "alcance_distinto")
   expect_false(grepl("N/D", fila_muestra(con_proteccion)$motivo, fixed = TRUE))
   expect_true(grepl("[literal omitido]", fila_muestra(con_proteccion)$motivo,

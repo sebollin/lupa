@@ -24,7 +24,7 @@ test_that("el resultado siempre declara el alcance", {
   expect_equal(resultado$alcance$n_pares_sin_comparar, 4950)
   archivo <- tempfile(fileext = ".html")
   on.exit(unlink(archivo), add = TRUE)
-  reportar(resultado, archivo = archivo)
+  reportar(resultado, archivo = archivo, proteger_datos_personales = TRUE)
   html <- paste(readLines(archivo, encoding = "UTF-8"), collapse = "\n")
   expect_match(html, "No se ejecutó la comparación aproximada", fixed = TRUE)
   expect_match(html, "paquete ausente", fixed = TRUE)
@@ -35,7 +35,7 @@ test_that("sin stringdist la degradacion es explicita", {
     .stringdist_disponible = function() FALSE,
     .package = "lupa"
   )
-  resultado <- detectar_duplicados_aproximados(datos_pares_aproximados())
+  resultado <- detectar_duplicados_aproximados(datos_pares_aproximados(), proteger_datos_personales = TRUE)
   expect_false(resultado$disponible)
   expect_match(resultado$razon, "stringdist", ignore.case = TRUE)
   expect_equal(nrow(resultado$pares), 0L)
@@ -46,7 +46,7 @@ test_that("los pares aproximados declaran distancia y no identidad", {
   datos <- datos_pares_aproximados()
   resultado <- detectar_duplicados_aproximados(
     datos, columnas = c("nombre", "domicilio"),
-    max_resultados = 10L
+    max_resultados = 10L, proteger_datos_personales = TRUE
   )
   expect_true(resultado$disponible)
   expect_equal(resultado$alcance$n_pares_posibles, 6)
@@ -64,7 +64,7 @@ test_that("los pares aproximados declaran distancia y no identidad", {
                         fixed = TRUE)))
   archivo <- tempfile(fileext = ".html")
   on.exit(unlink(archivo), add = TRUE)
-  reportar(resultado, archivo = archivo)
+  reportar(resultado, archivo = archivo, proteger_datos_personales = TRUE)
   html <- paste(readLines(archivo, encoding = "UTF-8"), collapse = "\n")
   expect_false(grepl("Juan|Ana|Calle|Rambla", html, perl = TRUE))
   expect_match(html, "Duplicados aproximados", fixed = TRUE)
@@ -76,18 +76,18 @@ test_that("la cantidad de hilos se declara y no cambia la salida", {
   datos <- datos_pares_aproximados()
   uno <- detectar_duplicados_aproximados(
     datos, columnas = c("nombre", "domicilio"), nucleos = 1L,
-    max_resultados = Inf
+    max_resultados = Inf, proteger_datos_personales = TRUE
   )
   dos <- detectar_duplicados_aproximados(
     datos, columnas = c("nombre", "domicilio"), nucleos = 2L,
-    max_resultados = Inf
+    max_resultados = Inf, proteger_datos_personales = TRUE
   )
   expect_identical(uno$pares, dos$pares)
   expect_identical(uno$hallazgos, dos$hallazgos)
   expect_equal(uno$alcance$nucleos_usados, 1L)
   expect_equal(dos$alcance$nucleos_usados, 2L)
   expect_error(
-    detectar_duplicados_aproximados(datos, nucleos = 0L),
+    detectar_duplicados_aproximados(datos, nucleos = 0L, proteger_datos_personales = TRUE),
     "nucleos"
   )
 })
@@ -101,7 +101,7 @@ test_that("MinHash y LSH generan pares unicos y declaran su garantia", {
   resultado <- detectar_duplicados_aproximados(
     datos, columnas = c("nombre", "domicilio"), estrategia = "lsh",
     lsh_bandas = 3L, lsh_filas = 2L, lsh_q = 2L, lsh_max_cubeta = 100L,
-    max_resultados = Inf
+    max_resultados = Inf, proteger_datos_personales = TRUE
   )
   expect_equal(resultado$alcance$modo_comparacion, "lsh_minhash")
   expect_equal(resultado$alcance$lsh_tamano_firma, 6L)
@@ -121,7 +121,7 @@ test_that("MinHash y LSH generan pares unicos y declaran su garantia", {
   ), 0L)
   parcial <- detectar_duplicados_aproximados(
     datos, columnas = c("nombre", "domicilio"), estrategia = "lsh",
-    muestra = 2L, lsh_bandas = 2L, lsh_filas = 2L, lsh_q = 2L
+    muestra = 2L, lsh_bandas = 2L, lsh_filas = 2L, lsh_q = 2L, proteger_datos_personales = TRUE
   )
   expect_equal(parcial$alcance$n_filas_muestra, 2L)
 })
@@ -132,7 +132,7 @@ test_that("LSH publica la estimacion previa y el vocabulario", {
   mensajes <- utils::capture.output(
     resultado <- detectar_duplicados_aproximados(
       datos, columnas = "v", estrategia = "lsh", max_resultados = Inf,
-      lsh_muestra_estimacion = 100L
+      lsh_muestra_estimacion = 100L, proteger_datos_personales = TRUE
     ),
     type = "message"
   )
@@ -153,7 +153,7 @@ test_that("LSH publica la estimacion previa y el vocabulario", {
   ) %in% names(alcance)))
   archivo <- tempfile(fileext = ".html")
   on.exit(unlink(archivo), add = TRUE)
-  reportar(resultado, archivo = archivo)
+  reportar(resultado, archivo = archivo, proteger_datos_personales = TRUE)
   html <- paste(readLines(archivo, encoding = "UTF-8"), collapse = "\n")
   expect_match(html, "Referencia temporal", fixed = TRUE)
   expect_match(html, "tiempo_determinista", fixed = TRUE)
@@ -165,7 +165,7 @@ test_that("el presupuesto LSH corta antes del recorrido", {
   error <- tryCatch(
     detectar_duplicados_aproximados(
       datos, columnas = "v", estrategia = "lsh", max_resultados = Inf,
-      lsh_muestra_estimacion = 100L, presupuesto_pares = 1L
+      lsh_muestra_estimacion = 100L, presupuesto_pares = 1L, proteger_datos_personales = TRUE
     ),
     error = identity
   )
@@ -201,7 +201,7 @@ test_that("estimar_costo separa el pronostico del recorrido", {
   )
   costo <- estimar_costo(
     datos, columnas = "nombre", estrategia = "lsh",
-    lsh_muestra_estimacion = 100L, bloquear_por = "grupo"
+    lsh_muestra_estimacion = 100L, bloquear_por = "grupo", proteger_datos_personales = TRUE
   )
   expect_s3_class(costo, "estimacion_costo_lupa")
   expect_true(is.finite(costo$candidatos_previstos))
@@ -211,7 +211,7 @@ test_that("estimar_costo separa el pronostico del recorrido", {
                   names(costo$alcance)))
   costo_2 <- suppressMessages(estimar_costo(
     datos, columnas = "nombre", estrategia = "lsh",
-    lsh_muestra_estimacion = 100L, bloquear_por = "grupo"
+    lsh_muestra_estimacion = 100L, bloquear_por = "grupo", proteger_datos_personales = TRUE
   ))
   expect_identical(costo$alcance, costo_2$alcance)
 })
@@ -253,13 +253,13 @@ test_that("bloquear_por valida columnas atomicas y filtra candidatos", {
   datos <- data.frame(nombre = c("Ana", "Ana"), grupo = c("A", "B"))
   expect_error(
     detectar_duplicados_aproximados(datos, columnas = "nombre",
-                                     bloquear_por = "inexistente"),
+                                     bloquear_por = "inexistente", proteger_datos_personales = TRUE),
     "columna existente"
   )
   datos$matriz <- matrix(1:4, nrow = 2L)
   expect_error(
     detectar_duplicados_aproximados(datos, columnas = "nombre",
-                                     bloquear_por = "matriz"),
+                                     bloquear_por = "matriz", proteger_datos_personales = TRUE),
     "columna atomica"
   )
   comparado <- lupa:::.comparar_bloques_duplicados(
@@ -285,7 +285,7 @@ test_that("LSH mide y compara bloques declarados", {
   expect_true(resultado$alcance$bloqueo_pares_fuera_alcance[[1L]] > 0)
   costo <- estimar_costo(
     datos, columnas = "nombre", estrategia = "teselas",
-    max_pares = Inf, bloquear_por = "grupo"
+    max_pares = Inf, bloquear_por = "grupo", proteger_datos_personales = TRUE
   )
   expect_true(costo$tiempo_determinista)
   expect_equal(costo$alcance$pares_alcanzables, 6)
@@ -302,12 +302,12 @@ test_that("las ramas de estimación y alcance sin comparables quedan declaradas"
   datos <- data.frame(nombre = c("", ""), grupo = c("A", NA_character_))
   resultado <- detectar_duplicados_aproximados(
     datos, columnas = "nombre", estrategia = "teselas", muestra = Inf,
-    max_pares = Inf, bloquear_por = "grupo"
+    max_pares = Inf, bloquear_por = "grupo", proteger_datos_personales = TRUE
   )
   expect_equal(resultado$alcance$n_filas_validas, 0L)
   simple <- data.frame(nombre = c("Ana", "Ana"))
   costo <- estimar_costo(
-    simple, columnas = "nombre", estrategia = "teselas", max_pares = Inf
+    simple, columnas = "nombre", estrategia = "teselas", max_pares = Inf, proteger_datos_personales = TRUE
   )
   expect_true(costo$tiempo_determinista)
 })
@@ -316,13 +316,13 @@ test_that("la estimación exacta usa pares y el presupuesto corta antes", {
   skip_if_not_installed("stringdist")
   datos <- data.frame(nombre = paste0("Ana ", seq_len(10L)))
   costo <- estimar_costo(
-    datos, columnas = "nombre", estrategia = "teselas", max_pares = Inf
+    datos, columnas = "nombre", estrategia = "teselas", max_pares = Inf, proteger_datos_personales = TRUE
   )
   expect_equal(costo$candidatos_previstos, 45)
   error <- tryCatch(
     detectar_duplicados_aproximados(
       datos, columnas = "nombre", estrategia = "teselas", max_pares = Inf,
-      presupuesto_pares = 10L
+      presupuesto_pares = 10L, proteger_datos_personales = TRUE
     ), error = identity
   )
   expect_s3_class(error, "error")
@@ -384,26 +384,26 @@ test_that("las salidas tempranas conservan el resumen de bloqueo", {
   )
   datos <- data.frame(nombre = c("Ana", "Ana"), grupo = c("A", "B"))
   no_disponible <- detectar_duplicados_aproximados(
-    datos, bloquear_por = "grupo"
+    datos, bloquear_por = "grupo", proteger_datos_personales = TRUE
   )
   expect_equal(no_disponible$alcance$bloqueo_por, "grupo")
   solo_numericas <- data.frame(valor = 1:2, grupo = c("A", "B"))
   sin_columnas <- detectar_duplicados_aproximados(
-    solo_numericas, bloquear_por = "grupo"
+    solo_numericas, bloquear_por = "grupo", proteger_datos_personales = TRUE
   )
   expect_equal(sin_columnas$alcance$bloqueo_por, "grupo")
-  costo <- estimar_costo(datos, bloquear_por = "grupo")
+  costo <- estimar_costo(datos, bloquear_por = "grupo", proteger_datos_personales = TRUE)
   expect_true(costo$tiempo_determinista)
 })
 
 test_that("lotes y directorios validan contratos explícitos", {
   expect_error(
-    detectar_duplicados_aproximados(data.frame(x = "a"), lotes = NA),
+    detectar_duplicados_aproximados(data.frame(x = "a"), lotes = NA, proteger_datos_personales = TRUE),
     "lotes"
   )
   expect_error(
     detectar_duplicados_aproximados(data.frame(x = "a"),
-                                     directorio_lotes = 1),
+                                     directorio_lotes = 1, proteger_datos_personales = TRUE),
     "ruta de texto"
   )
   if (requireNamespace("stringdist", quietly = TRUE)) {
@@ -411,7 +411,7 @@ test_that("lotes y directorios validan contratos explícitos", {
     datos <- data.frame(x = c("Ana", "Ana"))
     resultado <- detectar_duplicados_aproximados(
       datos, columnas = "x", estrategia = "teselas", max_pares = Inf,
-      lotes = TRUE, tamano_lote = 2L, directorio_lotes = base
+      lotes = TRUE, tamano_lote = 2L, directorio_lotes = base, proteger_datos_personales = TRUE
     )
     expect_true(dir.exists(base))
     unlink(resultado$lotes$directorio, recursive = TRUE)
@@ -434,21 +434,21 @@ test_that("los caminos incompatibles o inválidos tienen mensajes claros", {
   expect_error(
     detectar_duplicados_aproximados(
       datos, columnas = "x", estrategia = "lsh", lotes = TRUE,
-      lsh_muestra_estimacion = 10L
+      lsh_muestra_estimacion = 10L, proteger_datos_personales = TRUE
     ),
     "s.*lo est.* disponible"
   )
   expect_error(
-    estimar_costo(data.frame(x = "a"), perfil = perfilar(data.frame(y = "a"))),
+    estimar_costo(data.frame(x = "a"), perfil = perfilar(data.frame(y = "a"), proteger_datos_personales = TRUE), proteger_datos_personales = TRUE),
     "corresponder"
   )
   numeric_only <- detectar_duplicados_aproximados(
-    data.frame(x = 1:2, grupo = c("A", "B")), bloquear_por = "grupo"
+    data.frame(x = 1:2, grupo = c("A", "B")), bloquear_por = "grupo", proteger_datos_personales = TRUE
   )
   expect_equal(nrow(numeric_only$pares), 0L)
   expect_equal(numeric_only$alcance$bloqueo_por, "grupo")
   numeric_key <- detectar_duplicados_aproximados(
-    data.frame(x = 1:2, grupo = 1:2), bloquear_por = "grupo"
+    data.frame(x = 1:2, grupo = 1:2), bloquear_por = "grupo", proteger_datos_personales = TRUE
   )
   expect_match(numeric_key$razon, "No hay columnas de texto", fixed = TRUE)
   expect_equal(numeric_key$alcance$bloqueo_por, "grupo")
@@ -521,7 +521,7 @@ test_that("las cubetas LSH grandes se declaran y procesan por troceo", {
   datos <- data.frame(nombre = rep("mismo valor", 30L))
   resultado <- detectar_duplicados_aproximados(
     datos, estrategia = "lsh", lsh_max_cubeta = 2L,
-    lsh_bandas = 2L, lsh_filas = 2L, max_resultados = 5L
+    lsh_bandas = 2L, lsh_filas = 2L, max_resultados = 5L, proteger_datos_personales = TRUE
   )
   expect_gt(resultado$alcance$lsh_cubetas_grandes, 0)
   expect_equal(resultado$alcance$lsh_pares_descartados_cubetas, 0)
@@ -563,7 +563,7 @@ test_that("las colisiones de bandas posteriores se deduplican sin recorte", {
   datos <- data.frame(nombre = rep("mismo valor", 30L))
   resultado <- detectar_duplicados_aproximados(
     datos, estrategia = "lsh", lsh_max_cubeta = 100L,
-    lsh_bandas = 2L, lsh_filas = 2L, max_resultados = 10L
+    lsh_bandas = 2L, lsh_filas = 2L, max_resultados = 10L, proteger_datos_personales = TRUE
   )
   expect_equal(resultado$alcance$lsh_candidatos_generados,
                resultado$alcance$lsh_candidatos_unicos +
@@ -599,7 +599,7 @@ test_that("una cubeta posterior puede trocearse sin perder su alcance", {
   resultado <- detectar_duplicados_aproximados(
     data.frame(v = c("Ana", "Anb", "Anc", "And")), columnas = "v",
     estrategia = "lsh", lsh_bandas = 2L, lsh_filas = 1L,
-    lsh_q = 1L, lsh_max_cubeta = 2L, max_resultados = 10L
+    lsh_q = 1L, lsh_max_cubeta = 2L, max_resultados = 10L, proteger_datos_personales = TRUE
   )
   expect_gt(resultado$alcance$lsh_pares_cubetas_troceadas, 0)
   expect_gt(resultado$alcance$lsh_lotes_cubetas_grandes, 0)
@@ -611,7 +611,7 @@ test_that("las cubetas troceadas tambien entran al diagnostico de Jaccard", {
   resultado <- detectar_duplicados_aproximados(
     data.frame(nombre = rep("mismo valor", 30L)), estrategia = "lsh",
     lsh_max_cubeta = 2L, lsh_bandas = 2L, lsh_filas = 2L,
-    max_resultados = 5L
+    max_resultados = 5L, proteger_datos_personales = TRUE
   )
   expect_gt(resultado$alcance$lsh_teselas_cubetas_grandes, 0)
   expect_gt(resultado$alcance$lsh_jaccard_evaluados, 0)
@@ -620,7 +620,7 @@ test_that("las cubetas troceadas tambien entran al diagnostico de Jaccard", {
   masivo <- detectar_duplicados_aproximados(
     data.frame(nombre = rep("mismo valor", 150L)), estrategia = "lsh",
     lsh_max_cubeta = 2L, lsh_bandas = 2L, lsh_filas = 2L,
-    max_resultados = 5L
+    max_resultados = 5L, proteger_datos_personales = TRUE
   )
   expect_gt(masivo$alcance$lsh_jaccard_pares_elegibles,
             masivo$alcance$lsh_jaccard_evaluados)
@@ -632,13 +632,13 @@ test_that("el limite de pares declara si aplica al camino usado", {
   skip_if_not_installed("stringdist")
   datos <- data.frame(nombre = c("Ana", "Ana", "Luis"))
   lsh <- detectar_duplicados_aproximados(
-    datos, estrategia = "lsh", max_pares = 2L, max_resultados = Inf
+    datos, estrategia = "lsh", max_pares = 2L, max_resultados = Inf, proteger_datos_personales = TRUE
   )
   expect_true(is.na(lsh$alcance$limite_pares))
   expect_equal(lsh$alcance$limite_pares_configurado, 2L)
   expect_false(lsh$alcance$limite_pares_aplica)
   exacto <- detectar_duplicados_aproximados(
-    datos, estrategia = "teselas", max_pares = 2L
+    datos, estrategia = "teselas", max_pares = 2L, proteger_datos_personales = TRUE
   )
   expect_equal(exacto$alcance$limite_pares, 2L)
   expect_true(exacto$alcance$limite_pares_aplica)
@@ -684,7 +684,7 @@ test_that("auto usa LSH por encima del tope sin recortar filas", {
   )
   datos$nombre[5000:5001] <- c("Juan Perez", "Juan Peres")
   datos$domicilio[5000:5001] <- "Calle Centro"
-  resultado <- detectar_duplicados_aproximados(datos, max_resultados = 1L)
+  resultado <- detectar_duplicados_aproximados(datos, max_resultados = 1L, proteger_datos_personales = TRUE)
   expect_equal(resultado$alcance$estrategia, "lsh_min_hash")
   expect_equal(resultado$alcance$n_filas_muestra, n)
   expect_true(any(resultado$pares$fila_1 == 5000L &
@@ -700,7 +700,7 @@ test_that("el perfil integra pares aproximados sin proponer eliminacion", {
     datos, analizar_dependencias = FALSE,
     duplicados_aproximados = list(
       columnas = c("nombre", "domicilio"), max_resultados = 10L
-    )
+    ), proteger_datos_personales = TRUE
   )
   expect_true(inherits(perfil$duplicados_aproximados,
                        "duplicados_aproximados"))
@@ -713,7 +713,7 @@ test_that("el alcance declara el recorte de pares", {
   skip_if_not_installed("stringdist")
   datos <- data.frame(nombre = sprintf("persona %03d", 1:100))
   resultado <- detectar_duplicados_aproximados(
-    datos, max_pares = 100L, muestra = Inf, max_resultados = 10L
+    datos, max_pares = 100L, muestra = Inf, max_resultados = 10L, proteger_datos_personales = TRUE
   )
   expect_true(resultado$alcance$n_pares_comparados <= 100)
   expect_true(resultado$alcance$n_pares_sin_comparar > 0)
@@ -731,7 +731,7 @@ test_that("el recorte sistematico conserva los extremos de la tabla", {
   datos$nombre[999:1000] <- c("Juan Perez", "Juan Peres")
   datos$domicilio[999:1000] <- "Calle Centro"
   resultado <- detectar_duplicados_aproximados(
-    datos, muestra = 1000L, max_pares = 10000L, max_resultados = Inf
+    datos, muestra = 1000L, max_pares = 10000L, max_resultados = Inf, proteger_datos_personales = TRUE
   )
   expect_equal(resultado$alcance$n_filas_muestra, 141)
   expect_match(resultado$alcance$estrategia, "limite_de_pares", fixed = TRUE)
@@ -739,17 +739,17 @@ test_that("el recorte sistematico conserva los extremos de la tabla", {
     resultado$pares$fila_1 == 999L & resultado$pares$fila_2 == 1000L
   ))
   solo_muestra <- detectar_duplicados_aproximados(
-    datos, muestra = 100L, max_pares = Inf, max_resultados = 1L
+    datos, muestra = 100L, max_pares = Inf, max_resultados = 1L, proteger_datos_personales = TRUE
   )
   expect_equal(solo_muestra$alcance$estrategia,
                "muestra_sistematica_por_muestra")
   ambos_limites <- detectar_duplicados_aproximados(
-    datos, muestra = 500L, max_pares = 100L, max_resultados = 1L
+    datos, muestra = 500L, max_pares = 100L, max_resultados = 1L, proteger_datos_personales = TRUE
   )
   expect_equal(ambos_limites$alcance$estrategia,
                "muestra_sistematica_por_muestra_y_limite_de_pares")
   primeras <- detectar_duplicados_aproximados(
-    datos, muestra = Inf, max_pares = 1L, max_resultados = 1L
+    datos, muestra = Inf, max_pares = 1L, max_resultados = 1L, proteger_datos_personales = TRUE
   )
   expect_match(primeras$alcance$estrategia, "primeras_n_filas", fixed = TRUE)
 })
@@ -762,7 +762,7 @@ test_that("el valor predeterminado recorre la tabla completa por bloques", {
   )
   datos$nombre[500:501] <- c("Juan Perez", "Juan Peres")
   datos$domicilio[500:501] <- "Calle Centro"
-  resultado <- detectar_duplicados_aproximados(datos)
+  resultado <- detectar_duplicados_aproximados(datos, proteger_datos_personales = TRUE)
   expect_true(resultado$alcance$comparacion_exhaustiva)
   expect_equal(resultado$alcance$n_filas_muestra, 1000)
   expect_equal(resultado$alcance$n_pares_comparados, 499500)
@@ -778,7 +778,7 @@ test_that("el recorrido por bloques conserva exactitud y acota su tesela", {
     domicilio = c("Calle 1", "Calle 1", "Calle 2", "Calle 3")
   )
   resultado <- detectar_duplicados_aproximados(
-    datos, muestra = Inf, max_pares = Inf, max_resultados = Inf, bloque = 2L
+    datos, muestra = Inf, max_pares = Inf, max_resultados = Inf, bloque = 2L, proteger_datos_personales = TRUE
   )
   expect_equal(resultado$alcance$n_pares_comparados, 6)
   expect_equal(resultado$alcance$n_pares_exactos, 1)
@@ -941,7 +941,7 @@ test_that("el tope predeterminado alcanza diez mil filas", {
   )
   datos$nombre[5000:5001] <- c("Juan Perez", "Juan Peres")
   datos$domicilio[5000:5001] <- "Calle Centro"
-  resultado <- detectar_duplicados_aproximados(datos)
+  resultado <- detectar_duplicados_aproximados(datos, proteger_datos_personales = TRUE)
   expect_true(resultado$alcance$comparacion_exhaustiva)
   expect_equal(resultado$alcance$n_filas_muestra, n)
   expect_equal(resultado$alcance$n_pares_comparados, 49995000)
@@ -954,7 +954,7 @@ test_that("el truncamiento conserva los pares de menor distancia", {
   datos <- data.frame(nombre = paste0("Ana Perez ", seq_len(30L)))
   resultado <- detectar_duplicados_aproximados(
     datos, muestra = Inf, max_pares = Inf, max_resultados = 10L,
-    umbral = 0.2
+    umbral = 0.2, proteger_datos_personales = TRUE
   )
   expect_true(resultado$alcance$truncado)
   expect_equal(nrow(resultado$pares), 10L)
@@ -968,7 +968,7 @@ test_that("los pares exactos en las columnas elegidas quedan visibles", {
     domicilio = c("Calle 1", "Calle 1")
   )
   resultado <- detectar_duplicados_aproximados(
-    datos, muestra = Inf, max_pares = Inf
+    datos, muestra = Inf, max_pares = Inf, proteger_datos_personales = TRUE
   )
   expect_equal(resultado$columnas, c("nombre", "domicilio"))
   expect_equal(resultado$pares$tipo_par, "exacto")
@@ -993,7 +993,7 @@ test_that("el reenmascarado protege hallazgos compuestos nuevos y exactos", {
   )
   archivo <- tempfile(fileext = ".html")
   on.exit(unlink(archivo), add = TRUE)
-  invisible(reportar(analisis, archivo = archivo))
+  invisible(reportar(analisis, archivo = archivo, proteger_datos_personales = TRUE))
   html <- paste(readLines(archivo, encoding = "UTF-8"), collapse = "\n")
   expect_false(grepl("Ana Perez|Calle Uruguay 123", html, perl = TRUE))
   expect_match(html, "evidencia protegida", fixed = TRUE)
@@ -1007,7 +1007,7 @@ test_that("el reenmascarado protege hallazgos compuestos nuevos y exactos", {
   )
   compuesto$descripcion <- "prueba"
   compuesto$sugerencia <- "revisar"
-  base <- perfilar(datos, analizar_dependencias = FALSE)
+  base <- perfilar(datos, analizar_dependencias = FALSE, proteger_datos_personales = TRUE)
   protegido <- lupa:::.proteger_componentes_perfil(
     base$columnas, base$patrones, base$dependencias, compuesto,
     base$datos_personales
@@ -1018,7 +1018,7 @@ test_that("el reenmascarado protege hallazgos compuestos nuevos y exactos", {
 test_that("la seleccion automatica evita mezclar demasiadas columnas", {
   skip_if_not_installed("stringdist")
   datos <- data.frame(a = "x", b = "y", c = "z")
-  resultado <- detectar_duplicados_aproximados(datos)
+  resultado <- detectar_duplicados_aproximados(datos, proteger_datos_personales = TRUE)
   expect_length(resultado$columnas, 0L)
   expect_match(resultado$razon, "indique `columnas`", fixed = TRUE)
 })
@@ -1033,22 +1033,22 @@ test_that("valida entradas y tipos no comparables", {
   expect_identical(
     lupa:::.proteger_duplicados_aproximados(vacio, character()), vacio
   )
-  expect_error(detectar_duplicados_aproximados(1:3), "data.frame")
+  expect_error(detectar_duplicados_aproximados(1:3, proteger_datos_personales = TRUE), "data.frame")
   datos <- data.frame(a = c("x", "y"), b = 1:2)
-  expect_error(detectar_duplicados_aproximados(datos, columnas = "no"),
+  expect_error(detectar_duplicados_aproximados(datos, columnas = "no", proteger_datos_personales = TRUE),
                "columnas")
-  expect_error(detectar_duplicados_aproximados(datos, columnas = c("a", "a")),
+  expect_error(detectar_duplicados_aproximados(datos, columnas = c("a", "a"), proteger_datos_personales = TRUE),
                "columnas")
   matriz <- data.frame(a = I(matrix(1:4, nrow = 2)))
-  expect_error(detectar_duplicados_aproximados(matriz, columnas = "a"),
+  expect_error(detectar_duplicados_aproximados(matriz, columnas = "a", proteger_datos_personales = TRUE),
                "matrices")
-  expect_error(detectar_duplicados_aproximados(datos, metodo = "inventado"),
+  expect_error(detectar_duplicados_aproximados(datos, metodo = "inventado", proteger_datos_personales = TRUE),
                "medida")
-  expect_error(detectar_duplicados_aproximados(datos, umbral = -1), "finito")
-  expect_error(detectar_duplicados_aproximados(datos, muestra = 1.5), "muestra")
-  expect_error(detectar_duplicados_aproximados(datos, normalizar = NA), "l.*gicos")
-  expect_error(detectar_duplicados_aproximados(datos, bloque = Inf), "bloque")
-  expect_error(detectar_duplicados_aproximados(datos, bloque = 1.5), "bloque")
+  expect_error(detectar_duplicados_aproximados(datos, umbral = -1, proteger_datos_personales = TRUE), "finito")
+  expect_error(detectar_duplicados_aproximados(datos, muestra = 1.5, proteger_datos_personales = TRUE), "muestra")
+  expect_error(detectar_duplicados_aproximados(datos, normalizar = NA, proteger_datos_personales = TRUE), "l.*gicos")
+  expect_error(detectar_duplicados_aproximados(datos, bloque = Inf, proteger_datos_personales = TRUE), "bloque")
+  expect_error(detectar_duplicados_aproximados(datos, bloque = 1.5, proteger_datos_personales = TRUE), "bloque")
   tesela_vacia <- lupa:::.comparar_bloques_duplicados(
     "solo", 1L, "jw", 0.12, 1000L, 1L
   )
@@ -1056,7 +1056,7 @@ test_that("valida entradas y tipos no comparables", {
   expect_length(lupa:::.indices_duplicados_aproximados(3, 10L), 3L)
   expect_error(
     detectar_duplicados_aproximados(
-      datos, perfil = perfilar(data.frame(z = 1:2), analizar_dependencias = FALSE)
+      datos, perfil = perfilar(data.frame(z = 1:2), analizar_dependencias = FALSE, proteger_datos_personales = TRUE), proteger_datos_personales = TRUE
     ),
     "corresponder"
   )
@@ -1064,21 +1064,21 @@ test_that("valida entradas y tipos no comparables", {
 
 test_that("declara ausencia de columnas, filas o pares comparables", {
   skip_if_not_installed("stringdist")
-  sin_texto <- detectar_duplicados_aproximados(data.frame(a = 1:3))
+  sin_texto <- detectar_duplicados_aproximados(data.frame(a = 1:3), proteger_datos_personales = TRUE)
   expect_true(sin_texto$disponible)
   expect_match(sin_texto$razon, "texto comparables", fixed = TRUE)
   sin_filas <- detectar_duplicados_aproximados(
-    data.frame(nombre = c(NA_character_, ""))
+    data.frame(nombre = c(NA_character_, "")), proteger_datos_personales = TRUE
   )
   expect_match(sin_filas$razon, "dos filas", fixed = TRUE)
   sin_pares <- detectar_duplicados_aproximados(
-    data.frame(nombre = c("Ana", "Luis")), umbral = 0
+    data.frame(nombre = c("Ana", "Luis")), umbral = 0, proteger_datos_personales = TRUE
   )
   expect_equal(nrow(sin_pares$pares), 0L)
   expect_equal(sin_pares$alcance$n_pares_hallados, 0)
   sin_normalizar <- detectar_duplicados_aproximados(
     data.frame(nombre = c("Ana", "ana")), normalizar = FALSE, umbral = 0.01,
-    muestra = Inf, max_pares = Inf
+    muestra = Inf, max_pares = Inf, proteger_datos_personales = TRUE
   )
   expect_true(sin_normalizar$disponible)
 })
@@ -1087,7 +1087,7 @@ test_that("los bytes UTF-8 inválidos se excluyen sin abortar", {
   skip_if_not_installed("stringdist")
   invalido <- rawToChar(as.raw(c(0x61, 0xff, 0x62)))
   resultado <- detectar_duplicados_aproximados(
-    data.frame(nombre = c(invalido, "Ana")), muestra = Inf
+    data.frame(nombre = c(invalido, "Ana")), muestra = Inf, proteger_datos_personales = TRUE
   )
   expect_true(resultado$disponible)
   expect_equal(resultado$alcance$n_filas_validas, 1)
@@ -1130,13 +1130,13 @@ test_that("limita resultados, protege o expone evidencia según la opción", {
   skip_if_not_installed("stringdist")
   datos <- data.frame(nombre = paste0("Ana Perez ", seq_len(6L)))
   truncado <- detectar_duplicados_aproximados(
-    datos, max_resultados = 2L, umbral = 0.2
+    datos, max_resultados = 2L, umbral = 0.2, proteger_datos_personales = TRUE
   )
   expect_true(truncado$alcance$truncado)
   expect_equal(nrow(truncado$pares), 2L)
   archivo_truncado <- tempfile(fileext = ".html")
   on.exit(unlink(archivo_truncado), add = TRUE)
-  reportar(truncado, archivo = archivo_truncado)
+  reportar(truncado, archivo = archivo_truncado, proteger_datos_personales = TRUE)
   expect_match(
     paste(readLines(archivo_truncado, encoding = "UTF-8"), collapse = "\n"),
     "tabla de pares mostrados está truncada", fixed = TRUE
@@ -1148,16 +1148,16 @@ test_that("limita resultados, protege o expone evidencia según la opción", {
   expect_true(any(grepl("Ana", visible$pares$evidencia_1, fixed = TRUE)))
   archivo_protegido <- tempfile(fileext = ".html")
   on.exit(unlink(archivo_protegido), add = TRUE)
-  reportar(visible, archivo = archivo_protegido)
+  reportar(visible, archivo = archivo_protegido, proteger_datos_personales = TRUE)
   html_protegido <- paste(
     readLines(archivo_protegido, encoding = "UTF-8"), collapse = "\n"
   )
   expect_false(grepl("Ana", html_protegido, fixed = TRUE))
   con_perfil <- perfilar(
-    datos_pares_aproximados(), analizar_dependencias = FALSE
+    datos_pares_aproximados(), analizar_dependencias = FALSE, proteger_datos_personales = TRUE
   )
   reutilizado <- detectar_duplicados_aproximados(
-    datos_pares_aproximados(), perfil = con_perfil
+    datos_pares_aproximados(), perfil = con_perfil, proteger_datos_personales = TRUE
   )
   expect_true(reutilizado$disponible)
 })
@@ -1177,7 +1177,7 @@ test_that("la protección del reporte también cubre análisis con evidencia cru
                      fixed = TRUE)))
   archivo <- tempfile(fileext = ".html")
   on.exit(unlink(archivo), add = TRUE)
-  reportar(analisis, archivo = archivo)
+  reportar(analisis, archivo = archivo, proteger_datos_personales = TRUE)
   html <- paste(readLines(archivo, encoding = "UTF-8"), collapse = "\n")
   expect_false(grepl("Juan|Calle", html, perl = TRUE))
   expect_match(html, "valores personales protegidos", fixed = TRUE)
@@ -1185,25 +1185,25 @@ test_that("la protección del reporte también cubre análisis con evidencia cru
 
 test_that("perfilar valida la configuración aproximada", {
   datos <- data.frame(nombre = c("Ana", "Ana"))
-  expect_error(perfilar(datos, analizar_dependencias = NA), "analizar_dependencias")
-  expect_error(perfilar(datos, datos_personales_permitidos = NA), "TRUE o FALSE")
-  expect_error(perfilar(datos, muestra_validadores = 0.5), "muestra_validadores")
-  expect_error(perfilar(datos, duplicados_aproximados = 1),
+  expect_error(perfilar(datos, analizar_dependencias = NA, proteger_datos_personales = TRUE), "analizar_dependencias")
+  expect_error(perfilar(datos, datos_personales_permitidos = NA, proteger_datos_personales = TRUE), "TRUE o FALSE")
+  expect_error(perfilar(datos, muestra_validadores = 0.5, proteger_datos_personales = TRUE), "muestra_validadores")
+  expect_error(perfilar(datos, duplicados_aproximados = 1, proteger_datos_personales = TRUE),
                "FALSE, TRUE o una lista")
   expect_error(
-    perfilar(datos, duplicados_aproximados = list(proteger_datos_personales = FALSE)),
+    perfilar(datos, duplicados_aproximados = list(proteger_datos_personales = FALSE), proteger_datos_personales = TRUE),
     "argumentos coordinados"
   )
   if (requireNamespace("stringdist", quietly = TRUE)) {
     perfil <- perfilar(
       datos, analizar_dependencias = FALSE,
-      duplicados_aproximados = TRUE
+      duplicados_aproximados = TRUE, proteger_datos_personales = TRUE
     )
     expect_true(inherits(perfil$duplicados_aproximados,
                          "duplicados_aproximados"))
     archivo <- tempfile(fileext = ".html")
     on.exit(unlink(archivo), add = TRUE)
-    reportar(perfil, archivo = archivo)
+    reportar(perfil, archivo = archivo, proteger_datos_personales = TRUE)
   }
 })
 
@@ -1217,7 +1217,7 @@ test_that("el hallazgo no afirma igualdad cuando la produjo la normalización", 
     nombre = c("Jose Perez", "JOSÉ PÉREZ", "Ana  Lopez", "Ana Lopez"),
     stringsAsFactors = FALSE
   )
-  resultado <- detectar_duplicados_aproximados(datos, columnas = "nombre")
+  resultado <- detectar_duplicados_aproximados(datos, columnas = "nombre", proteger_datos_personales = TRUE)
 
   expect_true(all(resultado$pares$tipo_par == "exacto_normalizado"))
   expect_true(all(resultado$pares$igualo_normalizar))
@@ -1231,7 +1231,7 @@ test_that("el hallazgo no afirma igualdad cuando la produjo la normalización", 
                          resultado$hallazgos$descripcion, fixed = TRUE)))
   archivo <- tempfile(fileext = ".html")
   on.exit(unlink(archivo), add = TRUE)
-  reportar(resultado, archivo = archivo)
+  reportar(resultado, archivo = archivo, proteger_datos_personales = TRUE)
   html <- paste(readLines(archivo, encoding = "UTF-8"), collapse = "\n")
   expect_match(html, "exacto_normalizado", fixed = TRUE)
   expect_false(grepl("tienen los mismos valores", html, fixed = TRUE))
@@ -1243,7 +1243,7 @@ test_that("el hallazgo no afirma igualdad cuando la produjo la normalización", 
     stringsAsFactors = FALSE
   )
   identicos_resultado <- detectar_duplicados_aproximados(
-    identicos, columnas = "nombre"
+    identicos, columnas = "nombre", proteger_datos_personales = TRUE
   )
   expect_equal(identicos_resultado$pares$tipo_par, "exacto")
   expect_false(identicos_resultado$pares$igualo_normalizar)
@@ -1272,7 +1272,7 @@ test_that("la trazabilidad separa los pares exactos normalizados", {
     datos, analizar_dependencias = FALSE,
     duplicados_aproximados = list(
       columnas = "nombre", max_resultados = Inf
-    )
+    ), proteger_datos_personales = TRUE
   )
   hallazgos <- perfil$hallazgos[
     perfil$hallazgos$tipo_hallazgo == "duplicados_exactos_normalizados", ,
@@ -1306,7 +1306,7 @@ test_that("un valor de mas de 10000 bytes no aborta el camino LSH", {
   )
   resultado <- expect_no_error(
     detectar_duplicados_aproximados(
-      datos, estrategia = "lsh", max_largo_valor = Inf
+      datos, estrategia = "lsh", max_largo_valor = Inf, proteger_datos_personales = TRUE
     )
   )
   # Y el mecanismo se activo: encontro el par, no se salvo no comparando.
@@ -1323,7 +1323,7 @@ test_that("un valor de mas de 10000 bytes no aborta el camino LSH", {
     )
     salida <- expect_no_error(
       detectar_duplicados_aproximados(
-        datos, estrategia = "lsh", max_largo_valor = Inf
+        datos, estrategia = "lsh", max_largo_valor = Inf, proteger_datos_personales = TRUE
       )
     )
     expect_equal(nrow(salida$pares), 1L, info = paste("largo", largo))
@@ -1340,7 +1340,7 @@ test_that("la cache de q-gramas sigue reutilizando el valor repetido", {
           "exactamente el mismo texto para la cubet4"),
     stringsAsFactors = FALSE
   )
-  resultado <- detectar_duplicados_aproximados(repetido, estrategia = "lsh")
+  resultado <- detectar_duplicados_aproximados(repetido, estrategia = "lsh", proteger_datos_personales = TRUE)
   expect_true(nrow(resultado$pares) > 0L)
   # 201 filas y 2 valores distintos: la cache no puede tener mas de 2 entradas.
   gramas <- lupa:::.qgramas_lsh(unique(repetido$v), 3L)

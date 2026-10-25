@@ -275,7 +275,7 @@
 #'   analisis ya enmascaro.
 #' @param proteger_datos_personales Si perfiles y resúmenes ocultan valores de
 #'   columnas cuya clasificación activa protección automática, incluidos
-#'   estadísticos de orden, cuantiles y rangos temporales.
+#'   estadísticos de orden, cuantiles y rangos temporales. `FALSE` por omisión.
 #' @param ... Argumentos con nombre enviados a [perfilar()]. Es una alternativa
 #'   concisa a `argumentos_perfil`.
 #'
@@ -326,7 +326,7 @@ analizar <- function(datos, nombre = .nombre_de_los_datos(substitute(datos)),
                      calendario = 1:7, frecuencia_dias = NULL,
                      max_huecos = 20L, max_columnas_temporales = 50L,
                      conservar_datos = FALSE,
-                     proteger_datos_personales = TRUE, ...) {
+                     proteger_datos_personales = FALSE, ...) {
   # `perfilar()` documenta y acepta una matriz de dos dimensiones: la convierte
   # con `as.data.frame()` y **lo declara** en `meta$entrada_convertida`. La
   # puerta de entrada la rechazaba antes de delegar, asi que `analizar()` no
@@ -1367,6 +1367,7 @@ print.analisis <- function(x, ...) {
 #' @param incluir_datos Si se persiste la copia de los datos conservada por
 #'   `analizar(conservar_datos = TRUE)`.
 #' @param proteger_datos_personales Si se protege toda evidencia derivada.
+#'   `FALSE` por omisión.
 #' @param sobrescribir Si se permite reemplazar un archivo existente.
 #' @details
 #' El archivo se escribe con el **formato RDS 2**, no con el 3 que `saveRDS()`
@@ -1415,7 +1416,7 @@ NULL
 #' @rdname persistir_analisis
 #' @export
 guardar_analisis <- function(x, archivo, incluir_datos = FALSE,
-                             proteger_datos_personales = TRUE,
+                             proteger_datos_personales = FALSE,
                              sobrescribir = FALSE,
                              comprimir = "xz") {
   if (!inherits(x, "analisis")) {

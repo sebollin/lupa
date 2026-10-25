@@ -21,12 +21,12 @@ test_that("una fila que no existe deja la metrica no medible", {
   datos <- data.frame(valor = c(1, 2, 3, 4))
   # Antes: `fila = 99` sobre cuatro filas se publicaba como medida, y `3e9`
   # salia NA despues de la validacion.
-  .expect_no_medible(medir(modelo(.o100_propia(con_fila(99))), datos),
+  .expect_no_medible(medir(modelo(.o100_propia(con_fila(99))), datos, proteger_datos_personales = TRUE),
                      "no existe")
-  .expect_no_medible(medir(modelo(.o100_propia(con_fila(3e9))), datos),
+  .expect_no_medible(medir(modelo(.o100_propia(con_fila(3e9))), datos, proteger_datos_personales = TRUE),
                      "no existe")
   # Control: la ultima fila existe y se mide.
-  expect_equal(medir(modelo(.o100_propia(con_fila(4))), datos)$fila, 4L)
+  expect_equal(medir(modelo(.o100_propia(con_fila(4))), datos, proteger_datos_personales = TRUE)$fila, 4L)
 })
 
 test_that("la etiqueta de un metodo propio no publica un valor personal", {
@@ -39,7 +39,7 @@ test_that("la etiqueta de un metodo propio no publica un valor personal", {
                objeto = paste("fila con documento", doc[1], "revisada"))
   }
   medicion <- medir(modelo(.o100_propia(cita)), list(t = datos),
-                    columnas_personales = "documento")
+                    columnas_personales = "documento", proteger_datos_personales = TRUE)
   # Antes: el documento salia en `objeto_medible`.
   expect_false(any(grepl(documentos[[1L]], medicion$objeto_medible, fixed = TRUE)))
   expect_identical(medicion$objeto_medible, "t$valor[1]")
@@ -55,6 +55,6 @@ test_that("la etiqueta de un metodo propio no publica un valor personal", {
                objeto = paste("fila con codigo", tablas$t$codigo[1], "revisada"))
   }
   sin_personales <- data.frame(codigo = c("a", "b", "c"), valor = 1:3)
-  propia_sin <- medir(modelo(.o100_propia(cita_codigo)), list(t = sin_personales))
+  propia_sin <- medir(modelo(.o100_propia(cita_codigo)), list(t = sin_personales), proteger_datos_personales = TRUE)
   expect_match(propia_sin$objeto_medible, "revisada", fixed = TRUE)
 })

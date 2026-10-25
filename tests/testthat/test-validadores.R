@@ -83,7 +83,7 @@ test_that("los packs se conectan a Formato y son extensibles", {
   )
   medida <- medir(
     modelo(formato("datos", "correo")),
-    data.frame(correo = c("a@example.org", "incorrecto", NA))
+    data.frame(correo = c("a@example.org", "incorrecto", NA)), proteger_datos_personales = TRUE
   )
   expect_equal(medida$resultado, c(1, 0))
 
@@ -129,7 +129,7 @@ test_that("la sospecha numerica debil no suprime estadisticos", {
     salario_mensual = seq(25081L, length.out = 200L),
     superficie_m2 = rep(56:255, length.out = 200L)
   )
-  perfil <- perfilar(datos, analizar_dependencias = FALSE)
+  perfil <- perfilar(datos, analizar_dependencias = FALSE, proteger_datos_personales = TRUE)
   debiles <- c(
     "importe_pesos", "n_factura", "codigo_producto", "id_transaccion",
     "valor_inmueble"
@@ -158,7 +158,7 @@ test_that("nombre correo y documentos con evidencia fuerte siguen protegidos", {
     contacto = c("ana@example.org", "beto@example.org", "cora@example.org"),
     stringsAsFactors = FALSE
   )
-  perfil <- perfilar(datos, analizar_dependencias = FALSE)
+  perfil <- perfilar(datos, analizar_dependencias = FALSE, proteger_datos_personales = TRUE)
   expect_true(all(perfil$datos_personales$proteger))
   expect_setequal(
     perfil$datos_personales$poder_discriminante,
@@ -171,7 +171,7 @@ test_that("nombre correo y documentos con evidencia fuerte siguen protegidos", {
 
   sin_nombre <- perfilar(
     data.frame(codigo = c("1.234.567-2", "2.345.678-3", "3.456.789-4")),
-    analizar_dependencias = FALSE
+    analizar_dependencias = FALSE, proteger_datos_personales = TRUE
   )
   expect_equal(sin_nombre$datos_personales$poder_discriminante, "verificado")
   expect_true(sin_nombre$datos_personales$proteger)
@@ -185,7 +185,7 @@ test_that("nombre correo y documentos con evidencia fuerte siguen protegidos", {
   ## lado de mostrar el documento.
   repetido <- perfilar(
     data.frame(codigo = rep("1.234.567-2", 3L)),
-    analizar_dependencias = FALSE
+    analizar_dependencias = FALSE, proteger_datos_personales = TRUE
   )
   expect_equal(repetido$datos_personales$poder_discriminante, "debil")
   expect_true(repetido$datos_personales$proteger)
@@ -209,7 +209,7 @@ test_that("nombre correo y documentos con evidencia fuerte siguen protegidos", {
       importe_pesos = base + seq_len(200L),
       n_factura = base + 2000L + seq_len(200L)
     ),
-    analizar_dependencias = FALSE
+    analizar_dependencias = FALSE, proteger_datos_personales = TRUE
   )
   expect_false(any(importes$datos_personales$proteger))
   expect_true(all(is.finite(importes$columnas$minimo)))

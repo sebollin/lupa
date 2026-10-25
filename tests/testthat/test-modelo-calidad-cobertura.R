@@ -21,7 +21,7 @@ test_that("la proximidad protege candidatos personales por omision", {
     modelo(metrica),
     data.frame(dni = "55555555", nombre = "ALFA BETX",
                stringsAsFactors = FALSE),
-    id_medicion = "proteccion"
+    id_medicion = "proteccion", proteger_datos_personales = TRUE
   )
 
   objeto <- medicion$objeto_medible[[1L]]
@@ -53,7 +53,7 @@ test_that("la evidencia referencial no personal conserva su candidato", {
   )
   medicion <- medir(
     modelo(metrica), data.frame(departamento = "Montevido"),
-    id_medicion = "evidencia-util"
+    id_medicion = "evidencia-util", proteger_datos_personales = TRUE
   )
   expect_match(medicion$objeto_medible[[1L]], "Montevideo", fixed = TRUE)
   expect_match(medicion$objeto_medible[[1L]], "distancia=")
@@ -73,7 +73,7 @@ test_that("una metrica sin valores queda en cobertura y no produce un uno", {
   )
   medicion <- medir(
     modelo(m1, m2), datos, id_medicion = "cobertura",
-    fecha = as.POSIXct("2026-01-01", tz = "UTC")
+    fecha = as.POSIXct("2026-01-01", tz = "UTC"), proteger_datos_personales = TRUE
   )
 
   expect_equal(nrow(medicion), 4L)
@@ -129,7 +129,7 @@ test_that("una clave foranea sin filas dependientes queda en cobertura explicita
   medicion <- medir(
     modelo(metrica),
     list(clientes = data.frame(id = 1), ventas = data.frame(cliente_id = character())),
-    id_medicion = "fk-vacio"
+    id_medicion = "fk-vacio", proteger_datos_personales = TRUE
   )
   expect_equal(nrow(medicion), 0L)
   cobertura <- attr(medicion, "cobertura_metricas", exact = TRUE)
@@ -151,7 +151,7 @@ test_that("los perfiles de madurez respetan la orientacion de la medida", {
 
   evaluar_perfil <- function(datos, metrica, ...) {
     instancia <- instanciar(especializar(metrica), "t", ...)
-    medida <- medir(modelo(instancia), datos, id_medicion = "x")
+    medida <- medir(modelo(instancia), datos, id_medicion = "x", proteger_datos_personales = TRUE)
     list(
       medida = medida,
       resultado = evaluar(
@@ -203,7 +203,7 @@ test_that("un perfil de madurez no juzga una metrica no acotada", {
   )
   medida <- medir(
     modelo(instanciar(especializar(atraso), "t", "dias")),
-    data.frame(dias = c(30, 60, 90)), id_medicion = "dur"
+    data.frame(dias = c(30, 60, 90)), id_medicion = "dur", proteger_datos_personales = TRUE
   )
 
   # Primera mitad: la medida existe, es no acotada y esta declarada como tal.
@@ -237,7 +237,7 @@ test_that("la cobertura de la coleccion llega hasta el tablero y el indice", {
     modelo(instanciar(especializar(nucleo$NoNulo), "a", "x"),
            instanciar(especializar(nucleo$NoNulo), "b", "x")),
     list(a = DBI::dbReadTable(conexion, "a"),
-         b = DBI::dbReadTable(conexion, "b"))
+         b = DBI::dbReadTable(conexion, "b")), proteger_datos_personales = TRUE
   )
   por_coleccion <- agregar(
     agregar(agregar(medidas, "atributo", "ratio"), "entidad", "promedio"),
@@ -285,7 +285,7 @@ test_that("la cobertura de metricas sobrevive a la agregacion", {
   medidas <- medir(
     modelo(instanciar(especializar(nucleo$NoNulo), "a", "x"),
            instanciar(especializar(nucleo$NoNulo), "b", "x")),
-    list(a = data.frame(x = c(1, NA, 3)), b = data.frame(x = numeric()))
+    list(a = data.frame(x = c(1, NA, 3)), b = data.frame(x = numeric())), proteger_datos_personales = TRUE
   )
 
   # Primera mitad: hay una metrica no medida y esta declarada con su motivo.
@@ -304,7 +304,7 @@ test_that("la cobertura de metricas sobrevive a la agregacion", {
   # Control: una corrida donde todo se pudo medir no inventa la cobertura.
   completa <- medir(
     modelo(instanciar(especializar(nucleo$NoNulo), "a", "x")),
-    list(a = data.frame(x = c(1, NA, 3)))
+    list(a = data.frame(x = c(1, NA, 3))), proteger_datos_personales = TRUE
   )
   expect_null(attr(agregar(completa, "atributo", "ratio"),
                    "cobertura_metricas", exact = TRUE))
@@ -319,7 +319,7 @@ test_that("el informe publica las coberturas que el objeto trae", {
   medidas <- medir(
     modelo(instanciar(especializar(nucleo$NoNulo), "a", "x"),
            instanciar(especializar(nucleo$NoNulo), "b", "x")),
-    list(a = data.frame(x = c(1, NA, 3)), b = data.frame(x = numeric()))
+    list(a = data.frame(x = c(1, NA, 3)), b = data.frame(x = numeric())), proteger_datos_personales = TRUE
   )
 
   # Primera mitad: la cobertura existe y dice por que no se pudo medir.
@@ -329,7 +329,7 @@ test_that("el informe publica las coberturas que el objeto trae", {
   leer <- function(objeto) {
     archivo <- tempfile(fileext = ".html")
     on.exit(unlink(archivo), add = TRUE)
-    invisible(reportar(objeto, archivo = archivo))
+    invisible(reportar(objeto, archivo = archivo, proteger_datos_personales = TRUE))
     paste(readLines(archivo, warn = FALSE, encoding = "UTF-8"), collapse = " ")
   }
 
@@ -343,7 +343,7 @@ test_that("el informe publica las coberturas que el objeto trae", {
   # mitad, imprimir siempre el encabezado pasaria el test.
   completa <- medir(
     modelo(instanciar(especializar(nucleo$NoNulo), "a", "x")),
-    list(a = data.frame(x = c(1, NA, 3)))
+    list(a = data.frame(x = c(1, NA, 3))), proteger_datos_personales = TRUE
   )
   expect_false(grepl("Cobertura de m", leer(completa), fixed = TRUE))
 })

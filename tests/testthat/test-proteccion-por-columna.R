@@ -13,7 +13,7 @@ test_that("un centinela compartido se publica en la columna que no es personal",
     monto = c(100, 200, 100, 300, 100),
     stringsAsFactors = FALSE
   )
-  perfil <- perfilar(datos)
+  perfil <- perfilar(datos, proteger_datos_personales = TRUE)
 
   expect_true("S/D" %in% perfil$patrones$sexo$ejemplos)
   expect_identical(
@@ -34,7 +34,7 @@ test_that("la evidencia de un hallazgo sobre una columna no personal se publica"
     sexo = c("F", "M", "S/D", "F", "M"),
     stringsAsFactors = FALSE
   )
-  perfil <- perfilar(datos)
+  perfil <- perfilar(datos, proteger_datos_personales = TRUE)
   sobre_sexo <- perfil$hallazgos[
     !is.na(perfil$hallazgos$columna) & perfil$hallazgos$columna == "sexo",
   ]
@@ -55,7 +55,7 @@ test_that("un hallazgo sin columna atribuible sigue enmascarado", {
     monto = c(100, 100, 200),
     stringsAsFactors = FALSE
   )
-  perfil <- perfilar(datos, analizar_dependencias = FALSE)
+  perfil <- perfilar(datos, analizar_dependencias = FALSE, proteger_datos_personales = TRUE)
   sin_columna <- perfil$hallazgos[is.na(perfil$hallazgos$columna), ]
 
   skip_if(nrow(sin_columna) == 0L, "esta tabla no produjo hallazgos de fila")
@@ -75,7 +75,7 @@ test_that("ningun valor identificante se publica en otra columna", {
     nota = c("sin novedad", "sin novedad", "revisar", "revisar"),
     stringsAsFactors = FALSE
   )
-  perfil <- perfilar(datos)
+  perfil <- perfilar(datos, proteger_datos_personales = TRUE)
   protegidas <- perfil$datos_personales$columna[perfil$datos_personales$proteger]
   skip_if(length(protegidas) == 0L, "el correo no se clasifico como protegido")
 
@@ -111,7 +111,7 @@ test_that("un valor identificante no se publica aunque viva en otra columna", {
     datos <- data.frame(documento = documentos, stringsAsFactors = FALSE)
     datos[[nombre]] <- copias[[nombre]]
     datos$monto <- c(100, 200, 100, 300, 100)
-    perfil <- perfilar(datos)
+    perfil <- perfilar(datos, proteger_datos_personales = TRUE)
 
     publicado <- textos_de(perfil)
     publicado <- publicado[!is.na(publicado)]
@@ -133,7 +133,7 @@ test_that("el piso no tapa el vocabulario corto que se comparte", {
     sexo = c("F", "M", "S/D", "F", "M"),
     stringsAsFactors = FALSE
   )
-  perfil <- perfilar(datos)
+  perfil <- perfilar(datos, proteger_datos_personales = TRUE)
 
   expect_true("S/D" %in% perfil$patrones$sexo$ejemplos)
   expect_true(all(perfil$patrones$cedula$ejemplos == "[valor protegido]"))
@@ -149,7 +149,7 @@ test_that("el piso alcanza a los campos numericos, no solo al texto", {
     documento = sprintf("707771%02d", 1:12), stringsAsFactors = FALSE
   )
   datos$copia <- datos$documento
-  perfil <- perfilar(datos, analizar_dependencias = FALSE)
+  perfil <- perfilar(datos, analizar_dependencias = FALSE, proteger_datos_personales = TRUE)
 
   i <- match("copia", perfil$columnas$columna)
   expect_true(is.na(perfil$columnas$minimo[[i]]))
@@ -167,7 +167,7 @@ test_that("el piso numerico no toca un numero que no es un valor protegido", {
     monto = c(1500, 2300, 1500, 4800, 2300, 990, 1500, 7200, 3100, 990, 4800, 2300),
     stringsAsFactors = FALSE
   )
-  perfil <- perfilar(datos, analizar_dependencias = FALSE)
+  perfil <- perfilar(datos, analizar_dependencias = FALSE, proteger_datos_personales = TRUE)
 
   i <- match("monto", perfil$columnas$columna)
   expect_equal(perfil$columnas$minimo[[i]], 990)
@@ -213,7 +213,7 @@ test_that("el mismo documento con separadores no escapa al piso", {
   datos <- data.frame(
     documento = documentos, sep = con_puntos, stringsAsFactors = FALSE
   )
-  perfil <- perfilar(datos, analizar_dependencias = FALSE)
+  perfil <- perfilar(datos, analizar_dependencias = FALSE, proteger_datos_personales = TRUE)
 
   expect_true(all(perfil$patrones$sep$ejemplos == "[valor protegido]"))
 })
@@ -227,7 +227,7 @@ test_that("la pasada de separadores no toca lo que no es un documento", {
     monto = rep(c(1500, 2300, 990), 10),
     stringsAsFactors = FALSE
   )
-  perfil <- perfilar(datos, analizar_dependencias = FALSE)
+  perfil <- perfilar(datos, analizar_dependencias = FALSE, proteger_datos_personales = TRUE)
 
   i <- match("codigo", perfil$columnas$columna)
   expect_false(is.na(perfil$columnas$moda[[i]]))
@@ -249,7 +249,7 @@ test_that("analizar() aplica el piso sobre sus resumenes derivados", {
     notas = paste("cliente", documentos),
     stringsAsFactors = FALSE
   )
-  analisis <- analizar(datos)
+  analisis <- analizar(datos, proteger_datos_personales = TRUE)
 
   textos <- unlist(lapply(analisis, function(x) {
     if (is.list(x)) unlist(lapply(x, as.character)) else as.character(x)
@@ -279,7 +279,7 @@ test_that("comparar_perfiles declara que un lado esta protegido y el otro no", {
   datos <- data.frame(
     documento = sprintf("707771%02d", 1:40), stringsAsFactors = FALSE
   )
-  protegido <- perfilar(datos, analizar_dependencias = FALSE)
+  protegido <- perfilar(datos, analizar_dependencias = FALSE, proteger_datos_personales = TRUE)
   abierto <- perfilar(
     datos, analizar_dependencias = FALSE, proteger_datos_personales = FALSE
   )
@@ -297,7 +297,7 @@ test_that("comparar_perfiles declara que un lado esta protegido y el otro no", {
 
   # Control: dos corridas con la misma politica no declaran nada.
   expect_equal(
-    nrow(fila(protegido, perfilar(datos, analizar_dependencias = FALSE))), 0L
+    nrow(fila(protegido, perfilar(datos, analizar_dependencias = FALSE, proteger_datos_personales = TRUE))), 0L
   )
 })
 
@@ -310,7 +310,7 @@ test_that("detectar_duplicados_aproximados aplica el piso", {
     codigo = c("77177101", "77177101", "77177102"),
     stringsAsFactors = FALSE
   )
-  resultado <- detectar_duplicados_aproximados(datos)
+  resultado <- detectar_duplicados_aproximados(datos, proteger_datos_personales = TRUE)
   skip_if(is.null(resultado$pares) || !nrow(resultado$pares), "sin pares")
 
   evidencia <- c(
@@ -325,7 +325,7 @@ test_that("detectar_duplicados_aproximados aplica el piso", {
     sep = c("771.771-01", "771.771-01", "771.771-02"),
     stringsAsFactors = FALSE
   )
-  r2 <- detectar_duplicados_aproximados(con_puntos)
+  r2 <- detectar_duplicados_aproximados(con_puntos, proteger_datos_personales = TRUE)
   skip_if(is.null(r2$pares) || !nrow(r2$pares), "sin pares")
   expect_false(any(grepl(
     "771.771-01", as.character(r2$pares$evidencia_1), fixed = TRUE
@@ -353,8 +353,8 @@ test_that("perfilar_dbi tapa lo mismo que perfilar sobre la misma tabla", {
   on.exit(DBI::dbDisconnect(conexion), add = TRUE)
   DBI::dbWriteTable(conexion, "t", datos)
 
-  memoria <- perfilar(datos, analizar_dependencias = FALSE)$columnas
-  motor <- perfilar_dbi(conexion, "t")$resumen_tabla$columnas
+  memoria <- perfilar(datos, analizar_dependencias = FALSE, proteger_datos_personales = TRUE)$columnas
+  motor <- perfilar_dbi(conexion, "t", proteger_datos_personales = TRUE)$resumen_tabla$columnas
 
   for (campo in c("minimo", "maximo", "media")) {
     i <- match("copia_num", motor$columna)

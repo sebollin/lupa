@@ -72,7 +72,7 @@ test_that("N: un factor con codigo NA y nivel NA se agrupa como en el perfil", {
   # faltante en el perfil, asi que las filas 2 (nivel NA), 3 y 4 (codigo NA)
   # son la misma fila: `b = 1` y `f` ausente. Antes el perfil comparaba codigos
   # y la fila 2 era otra.
-  perfil <- suppressWarnings(perfilar(datos, analizar_dependencias = FALSE))
+  perfil <- suppressWarnings(perfilar(datos, analizar_dependencias = FALSE, proteger_datos_personales = TRUE))
   expect_equal(perfil$general$filas_duplicadas, 2)
   expect_equal(perfil$columnas$n_faltantes[perfil$columnas$columna == "f"], 3)
   plan <- suppressWarnings(planificar_limpieza(perfil, datos))
@@ -133,7 +133,7 @@ test_that("D: la imputacion por dependencia respeta la aplicabilidad", {
   datos$flag[c(2L, 9L)] <- "no"
   datos$descripcion[c(2L, 9L, 14L)] <- NA
   aplic <- list(descripcion = ~ flag == "si")
-  perfil <- suppressWarnings(perfilar(datos, muestra = Inf, aplicabilidad = aplic))
+  perfil <- suppressWarnings(perfilar(datos, muestra = Inf, aplicabilidad = aplic, proteger_datos_personales = TRUE))
   plan <- suppressWarnings(planificar_limpieza(perfil, datos))
   i <- which(startsWith(as.character(plan$estrategia), "imputar_dependencia") &
                plan$columna == "descripcion")[1L]
@@ -170,7 +170,7 @@ test_that("E: -2147483648 no se convierte a entero ni se recomienda", {
 test_that("F: los centinelas de una columna protegida se convierten sin publicarse", {
   cedulas <- 10000003 + 1234567 * seq_len(21L)
   datos <- data.frame(cedula = c(cedulas, 99999999, 99999999, -999))
-  perfil <- suppressWarnings(perfilar(datos, muestra = Inf, analizar_dependencias = FALSE))
+  perfil <- suppressWarnings(perfilar(datos, muestra = Inf, analizar_dependencias = FALSE, proteger_datos_personales = TRUE))
   skip_if_not("cedula" %in% lupa:::.columnas_personales_protegidas(perfil))
   plan <- suppressWarnings(planificar_limpieza(perfil, datos))
   i <- which(plan$estrategia == "convertir_sentinelas_numericos")
@@ -189,7 +189,7 @@ test_that("F: los centinelas de una columna protegida se convierten sin publicar
   declarado <- data.frame(cedula = c(cedulas[1:20], rep(99999999, 6L)))
   perfil <- suppressWarnings(perfilar(
     declarado, muestra = Inf, analizar_dependencias = FALSE,
-    sentinelas_numericos = 99999999
+    sentinelas_numericos = 99999999, proteger_datos_personales = TRUE
   ))
   skip_if_not("cedula" %in% lupa:::.columnas_personales_protegidas(perfil))
   plan <- suppressWarnings(planificar_limpieza(perfil, declarado))
@@ -213,7 +213,7 @@ test_that("F: los centinelas de una columna protegida se convierten sin publicar
   otro <- data.frame(cedula = c(cedulas[1:20], rep(12345678, 3L)))
   perfil <- suppressWarnings(perfilar(
     otro, muestra = Inf, analizar_dependencias = FALSE,
-    sentinelas_numericos = 12345678
+    sentinelas_numericos = 12345678, proteger_datos_personales = TRUE
   ))
   skip_if_not("cedula" %in% lupa:::.columnas_personales_protegidas(perfil))
   plan <- suppressWarnings(planificar_limpieza(perfil, otro))
