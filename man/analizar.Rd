@@ -197,8 +197,10 @@ columna, valores en colisión, frecuencias y criterio observado, para que no
 queden ocultos dentro del recorrido integral.
 }
 \examples{
+# Cuatro columnas de la tabla de ejemplo, para que corra en pocos segundos.
+columnas <- c("fecha_nacimiento", "sexo", "ingreso", "departamento")
 resultado <- analizar(
-  datos_administrativos, analizar_dependencias = FALSE,
+  datos_administrativos[, columnas], analizar_dependencias = FALSE,
   fecha = as.POSIXct("2026-01-15", tz = "UTC")
 )
 resultado

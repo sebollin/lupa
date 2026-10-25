@@ -300,8 +300,10 @@
 #' @seealso [guardar_analisis()], [reportar()], [cobertura_analisis()]
 #'
 #' @examples
+#' # Cuatro columnas de la tabla de ejemplo, para que corra en pocos segundos.
+#' columnas <- c("fecha_nacimiento", "sexo", "ingreso", "departamento")
 #' resultado <- analizar(
-#'   datos_administrativos, analizar_dependencias = FALSE,
+#'   datos_administrativos[, columnas], analizar_dependencias = FALSE,
 #'   fecha = as.POSIXct("2026-01-15", tz = "UTC")
 #' )
 #' resultado
@@ -1401,9 +1403,8 @@ print.analisis <- function(x, ...) {
 #' @seealso [analizar()], [reportar()], [guardar_historico()]
 #'
 #' @examples
-#' a <- analizar(datos_administrativos, argumentos_perfil = list(
-#'   analizar_dependencias = FALSE
-#' ))
+#' a <- analizar(datos_administrativos[, c("sexo", "ingreso")],
+#'               analizar_dependencias = FALSE)
 #' ruta <- tempfile(fileext = ".rds")
 #' guardar_analisis(a, ruta)
 #' b <- leer_analisis(ruta)

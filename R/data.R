@@ -56,6 +56,6 @@
 #'
 #' @examples
 #' data(datos_operativos)
-#' analisis <- analizar(datos_operativos, analizar_dependencias = FALSE)
-#' analisis$perfil$hallazgos[, c("columna", "tipo_hallazgo", "severidad")]
+#' perfil <- perfilar(datos_operativos, analizar_dependencias = FALSE)
+#' perfil$hallazgos[, c("columna", "tipo_hallazgo", "severidad")]
 "datos_operativos"
