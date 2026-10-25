@@ -409,9 +409,9 @@ alto o verificado. Las clasificaciones débiles se conservan como aviso pero
 no suprimen estadísticos, ni la magnitud de Benford, ni la evidencia de sus
 hallazgos: en ella se tapan sólo sus valores. Es <code>FALSE</code> por omisión: la
 protección es un complemento que se pide, y publicar o no los valores de
-una base es decisión de quien la usa. Con <code>FALSE</code> tampoco se clasifican las
-columnas como posibles datos personales. <code><a href="reportar.html">reportar()</a></code> tiene su propia
-protección, que también se pide.
+una base es decisión de quien la usa. La clasificación de posibles datos
+personales corre igual —es un diagnóstico— y lo que se pide es el
+enmascarado. <code><a href="reportar.html">reportar()</a></code> tiene su propia protección, que también se pide.
 El enmascarado es <strong>por columna</strong>: se reemplaza lo que describe a una
 columna protegida —su moda, sus estadísticos, sus ejemplos y la evidencia
 de sus hallazgos—, no todas las apariciones de ese texto en la salida. Un

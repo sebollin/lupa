@@ -382,8 +382,9 @@ perfilar(
   estadísticos, ni la magnitud de Benford, ni la evidencia de sus
   hallazgos: en ella se tapan sólo sus valores. Es `FALSE` por omisión:
   la protección es un complemento que se pide, y publicar o no los
-  valores de una base es decisión de quien la usa. Con `FALSE` tampoco
-  se clasifican las columnas como posibles datos personales.
+  valores de una base es decisión de quien la usa. La clasificación de
+  posibles datos personales corre igual —es un diagnóstico— y lo que se
+  pide es el enmascarado.
   [`reportar()`](https://sebollin.github.io/lupa/reference/reportar.md)
   tiene su propia protección, que también se pide. El enmascarado es
   **por columna**: se reemplaza lo que describe a una columna protegida
