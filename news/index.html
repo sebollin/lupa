@@ -83,6 +83,10 @@
 <code><a href="../reference/reportar.html">reportar()</a></code> escribe un informe HTML autocontenido, sin depender de software externo para generarlo.</li>
 </ul></div>
 <div class="section level3">
+<h3 id="requisitos-0-1-0">Requisitos<a class="anchor" aria-label="anchor" href="#requisitos-0-1-0"></a></h3>
+<ul><li>R 4.2.0 o posterior. Las columnas <code>integer64</code> necesitan además bit64 4.6.0 o posterior: con versiones anteriores, <code><a href="https://rdrr.io/r/base/match.html" class="external-link">match()</a></code> de R iguala entre sí todos los valores negativos, y <code>lupa</code> se niega con la condición <code>lupa_error_integer64</code> en lugar de publicar distintos, modas y medianas equivocados.</li>
+</ul></div>
+<div class="section level3">
 <h3 id="datos-personales-0-1-0">Datos personales<a class="anchor" aria-label="anchor" href="#datos-personales-0-1-0"></a></h3>
 <ul><li>La clasificación de posibles datos personales (documentos, nombres, fechas de nacimiento) y su reemplazo en lo que el paquete publica son un complemento: se apagan con <code>proteger_datos_personales = FALSE</code>.</li>
 </ul></div>

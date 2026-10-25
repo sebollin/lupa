@@ -694,8 +694,12 @@ Los <code><a href="https://rdrr.io/r/base/stop.html" class="external-link">stop(
 <code>lupa_error_dbi</code>— para que se puedan rescatar con <code><a href="https://rdrr.io/r/base/conditions.html" class="external-link">tryCatch()</a></code>:
 <code>lupa_error_conexion_dbi</code>, <code>lupa_error_tabla_dbi</code>, <code>lupa_error_campos_dbi</code>,
 <code>lupa_error_conteo_dbi</code>, <code>lupa_error_esquema_dbi</code>,
-<code>lupa_error_codificacion_dbi</code>, <code>lupa_error_argumento_dbi</code> y
-<code>lupa_error_transaccion_dbi</code>.</p>
+<code>lupa_error_codificacion_dbi</code>, <code>lupa_error_argumento_dbi</code>,
+<code>lupa_error_transaccion_dbi</code> y <code>lupa_error_integer64</code>. La última sale cuando
+la lectura por bloques recibe una columna <code>integer64</code> con un <code>bit64</code>
+anterior a 4.6.0: sin el método <code>mtfrm.integer64</code>, <code><a href="https://rdrr.io/r/base/match.html" class="external-link">match()</a></code> de R iguala
+entre sí todos los valores negativos. Sin bloques, los agregados que calcula
+el motor se devuelven y la muestra no, con un aviso que dice por qué.</p>
     </div>
     <div class="section level2">
     <h2 id="dentro-de-una-transacci-n">Dentro de una transacción<a class="anchor" aria-label="anchor" href="#dentro-de-una-transacci-n"></a></h2>

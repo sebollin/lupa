@@ -73,13 +73,13 @@ evaluar(medidas, perfil_evaluacion("Avanzado", regla))
 #> ── Evaluaciones de medidas ──
 #> 
 #>                                                         id_medida
-#>  medicion-20261024T234426.471687-7779-NoNulo@personas.edad-000001
-#>  medicion-20261024T234426.471687-7779-NoNulo@personas.edad-000002
-#>  medicion-20261024T234426.471687-7779-NoNulo@personas.edad-000003
+#>  medicion-20261025T022041.933205-7601-NoNulo@personas.edad-000001
+#>  medicion-20261025T022041.933205-7601-NoNulo@personas.edad-000002
+#>  medicion-20261025T022041.933205-7601-NoNulo@personas.edad-000003
 #>                           id_medicion               fecha   perfil        regla
-#>  medicion-20261024T234426.471687-7779 2026-10-24 23:44:26 Avanzado Al menos 90%
-#>  medicion-20261024T234426.471687-7779 2026-10-24 23:44:26 Avanzado Al menos 90%
-#>  medicion-20261024T234426.471687-7779 2026-10-24 23:44:26 Avanzado Al menos 90%
+#>  medicion-20261025T022041.933205-7601 2026-10-25 02:20:41 Avanzado Al menos 90%
+#>  medicion-20261025T022041.933205-7601 2026-10-25 02:20:41 Avanzado Al menos 90%
+#>  medicion-20261025T022041.933205-7601 2026-10-25 02:20:41 Avanzado Al menos 90%
 #>   metrica_instanciada orientacion resultado
 #>  NoNulo@personas.edad conformidad      TRUE
 #>  NoNulo@personas.edad conformidad     FALSE
@@ -87,13 +87,13 @@ evaluar(medidas, perfil_evaluacion("Avanzado", regla))
 #> ── Evaluaciones de reglas ──
 #> 
 #>                           id_medicion               fecha   perfil        regla
-#>  medicion-20261024T234426.471687-7779 2026-10-24 23:44:26 Avanzado Al menos 90%
+#>  medicion-20261025T022041.933205-7601 2026-10-25 02:20:41 Avanzado Al menos 90%
 #>  n_medidas resultado
 #>          3 0.6666667
 #> ── Perfiles de madurez ──
 #> 
 #>                           id_medicion               fecha   perfil n_reglas
-#>  medicion-20261024T234426.471687-7779 2026-10-24 23:44:26 Avanzado        1
+#>  medicion-20261025T022041.933205-7601 2026-10-25 02:20:41 Avanzado        1
 #>  resultado
 #>  0.6666667
 ```

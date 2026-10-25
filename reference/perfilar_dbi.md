@@ -652,7 +652,13 @@ rescatar con [`tryCatch()`](https://rdrr.io/r/base/conditions.html):
 `lupa_error_conexion_dbi`, `lupa_error_tabla_dbi`,
 `lupa_error_campos_dbi`, `lupa_error_conteo_dbi`,
 `lupa_error_esquema_dbi`, `lupa_error_codificacion_dbi`,
-`lupa_error_argumento_dbi` y `lupa_error_transaccion_dbi`.
+`lupa_error_argumento_dbi`, `lupa_error_transaccion_dbi` y
+`lupa_error_integer64`. La última sale cuando la lectura por bloques
+recibe una columna `integer64` con un `bit64` anterior a 4.6.0: sin el
+método `mtfrm.integer64`, [`match()`](https://rdrr.io/r/base/match.html)
+de R iguala entre sí todos los valores negativos. Sin bloques, los
+agregados que calcula el motor se devuelven y la muestra no, con un
+aviso que dice por qué.
 
 ## Dentro de una transacción
 
