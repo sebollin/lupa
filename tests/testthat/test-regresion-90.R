@@ -66,36 +66,37 @@ test_that("una no-medicion no oculta un hallazgo real", {
   expect_equal(nrow(perfil$cobertura_diagnosticos), 1L)
 })
 
-test_that("unicode, integer64 y zona sin declarar se consolidan en la cobertura", {
+test_that("unicode y zona sin declarar se consolidan en la cobertura; integer64 sin bit64 se niega", {
   local_mocked_bindings(
     .stringi_disponible = function() FALSE,
     .bit64_disponible = function() FALSE,
     .package = "lupa"
   )
-  # La columna se marca DESPUES de armar el data.frame, no antes. Armarlo con
-  # una columna ya de clase `integer64` obliga a `as.data.frame()` a buscar el
-  # metodo de bit64, asi que la prueba de "no esta bit64" exigia que bit64
-  # estuviera instalado. Y este camino es ademas el realista: la columna llega
-  # marcada dentro de una tabla que ya existe -de un RDS, de un driver- en una
-  # maquina donde bit64 no esta.
   datos <- data.frame(
-    texto = c("Jose", "Jos\u0301e"), codigo = c(1, 2),
+    texto = c("Jose", "Jos\u0301e"),
     fecha = as.POSIXct(c("2026-01-01 12:00:00", "2026-01-01 13:00:00"))
   )
-  class(datos$codigo) <- "integer64"
   perfil <- perfilar(
     datos, analizar_dependencias = FALSE,
     casi_duplicados_vocabulario = FALSE, proteger_datos_personales = FALSE
   )
   tipos <- perfil$cobertura_diagnosticos$diagnostico
-  expect_true(all(c(
-    "normalizacion_unicode", "integer64_sin_soporte",
-    "zona_horaria_fecha_hora"
-  ) %in% tipos))
+  expect_true(all(c("normalizacion_unicode", "zona_horaria_fecha_hora") %in% tipos))
   expect_false(any(perfil$hallazgos$tipo_hallazgo %in% c(
-    "normalizacion_unicode", "integer64_sin_soporte",
-    "zona_horaria_fecha_hora"
+    "normalizacion_unicode", "zona_horaria_fecha_hora"
   )))
+  # Hasta el 2026-10-25 una columna `integer64` sin bit64 entraba aca como
+  # `integer64_sin_soporte`, pero `match()` de R iguala los negativos sin
+  # `mtfrm.integer64` y el `n_distintos` salia equivocado: ahora se niega. La
+  # columna se marca DESPUES de armar el data.frame: asi llega de un RDS o de un
+  # driver a una maquina donde bit64 no esta.
+  datos$codigo <- c(1, 2)
+  class(datos$codigo) <- "integer64"
+  expect_error(
+    perfilar(datos, analizar_dependencias = FALSE,
+             casi_duplicados_vocabulario = FALSE, proteger_datos_personales = FALSE),
+    class = "lupa_error_integer64"
+  )
 })
 
 test_that("una zona declarada se mide y no entra en la cobertura", {

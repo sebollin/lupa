@@ -77,6 +77,46 @@ test_that("sin el metodo, la lectura por bloques se niega con la clase de la via
   )
 })
 
+# El metodo se registra al cargar bit64, y un `integer64` puede llegar sin bit64
+# cargado -de `readRDS()`-: la primera version de la guarda se negaba ahi con
+# bit64 4.8 instalado. Hace falta otro proceso, porque en este bit64 ya esta
+# cargado. El hijo carga `lupa` del mismo lugar que este: con `load_all()` desde
+# el arbol, si no instalado; un `library()` a secas podria medir otra version.
+test_that("un integer64 que llega sin bit64 cargado no dispara la guarda: se carga antes de mirar", {
+  skip_on_cran()
+  skip_if_not_installed("bit64", "4.6.0")
+  ruta <- find.package("lupa")
+  desde_fuente <- file.exists(file.path(ruta, "R", "utils.R"))
+  if (desde_fuente) skip_if_not_installed("pkgload")
+  carga <- if (desde_fuente) {
+    sprintf('suppressMessages(pkgload::load_all("%s", quiet = TRUE))', ruta)
+  } else {
+    sprintf('suppressMessages(library(lupa, lib.loc = "%s"))', dirname(ruta))
+  }
+  guion <- tempfile(fileext = ".R")
+  on.exit(unlink(guion), add = TRUE)
+  writeLines(c(
+    carga,
+    "i64 <- function(v) vapply(v, function(k) {",
+    "  b <- if (k >= 0) c(as.raw(k), as.raw(rep(0, 7))) else",
+    "    c(as.raw(256 + k), as.raw(rep(255, 7)))",
+    "  readBin(b, 'double', size = 8, endian = 'little')",
+    "}, 0)",
+    "d <- data.frame(a = 1:6)",
+    "d$codigo <- i64(c(-1, -1, -2, -3, 5, 7))",
+    "class(d$codigo) <- 'integer64'",
+    "cat('cargado_antes', isNamespaceLoaded('bit64'), '\\n')",
+    "p <- perfilar(d, analizar_dependencias = FALSE, proteger_datos_personales = FALSE)",
+    "cat('distintos', p$columnas$n_distintos[p$columnas$columna == 'codigo'], '\\n')"
+  ), guion)
+  salida <- system2(file.path(R.home("bin"), "Rscript"), shQuote(guion),
+                    stdout = TRUE, stderr = TRUE)
+  # La premisa: el hijo arranca sin bit64 cargado. Si no, no mide nada.
+  expect_true(any(grepl("cargado_antes FALSE", salida, fixed = TRUE)), info = paste(salida, collapse = "\n"))
+  # Cinco distintos a mano: -1, -2, -3, 5 y 7.
+  expect_true(any(grepl("distintos 5", salida, fixed = TRUE)), info = paste(salida, collapse = "\n"))
+})
+
 # Recorre todas las exportadas con la tabla como primer argumento: ninguna puede
 # correr sin pasar por la guarda. Asi se encontraron las cinco que solo entraban
 # por `.tabla_base()`. Una funcion que falla por otro motivo -le falta un

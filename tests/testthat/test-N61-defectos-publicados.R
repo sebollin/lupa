@@ -323,36 +323,24 @@ test_that("la evidencia decimal usa una sola marca con OutDec", {
   expect_false(grepl("asimetria=6,7", con_punto$evidencia, fixed = TRUE))
 })
 
-test_that("la secuencia integer64 sin bit64 se declara como no evaluada", {
+test_that("sin bit64, perfilar() se niega con una columna integer64", {
   # No se desinstala `bit64` dentro de la suite: eso no es portable ni
-  # reversible. Se inyecta la condicion en el predicado interno para probar
-  # esta rama real; la reproduccion en procesos separados de instalado/no
-  # cargado queda documentada en el informe de desarrollo.
+  # reversible. Se inyecta la condicion en el predicado interno.
   local_mocked_bindings(
     .bit64_disponible = function() FALSE,
     .package = "lupa"
   )
+  # Sin bit64 no hay `mtfrm.integer64` y `match()` de R iguala los negativos: el camino
+  # que declaraba `integer64_sin_soporte` publicaba igual un `n_distintos`
+  # equivocado (2 donde habia 5). Desde el 2026-10-25 se niega; ver
+  # `test-integer64-entorno.R`.
   datos <- data.frame(codigo = c(1, 2))
   class(datos$codigo) <- "integer64"
-  perfil <- perfilar(
-    datos, analizar_dependencias = FALSE,
-    proteger_datos_personales = FALSE
+  expect_error(
+    perfilar(datos, analizar_dependencias = FALSE,
+             proteger_datos_personales = FALSE),
+    class = "lupa_error_integer64"
   )
-  fila <- perfil$columnas[1L, , drop = FALSE]
-  campos <- c(
-    "secuencia_entera_densa", "densidad_secuencia_entera",
-    "n_posiciones_secuencia_entera", "n_huecos_secuencia_entera",
-    "hueco_maximo_secuencia_entera"
-  )
-  expect_true(all(vapply(campos, function(campo) is.na(fila[[campo]]), logical(1L))))
-  cobertura <- perfil$cobertura_diagnosticos[
-    perfil$cobertura_diagnosticos$diagnostico == "secuencia_entera", ,
-    drop = FALSE
-  ]
-  expect_equal(nrow(cobertura), 1L)
-  expect_equal(as.character(cobertura$dependencia), "bit64")
-  expect_match(cobertura$motivo, "no se pudo evaluar.*bit64", ignore.case = TRUE)
-  expect_false("secuencia_entera" %in% as.character(perfil$hallazgos$tipo_hallazgo))
 })
 
 # El arreglo de la notacion cientifica reemplazo `as.character()` por

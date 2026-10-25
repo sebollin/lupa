@@ -60,7 +60,7 @@ test_that("las dependencias opcionales ausentes no inundan los sospechosos", {
   expect_true(any(grepl("40 diagn\u00f3sticos no evaluados", salida, fixed = TRUE)))
 })
 
-test_that("integer64 sin bit64 es una declaracion informativa", {
+test_that("integer64 sin bit64: perfilar() se niega", {
   local_mocked_bindings(
     .bit64_disponible = function() FALSE,
     .package = "lupa"
@@ -71,19 +71,17 @@ test_that("integer64 sin bit64 es una declaracion informativa", {
   # estuviera instalado. Y este camino es ademas el realista: la columna llega
   # marcada dentro de una tabla que ya existe -de un RDS, de un driver- en una
   # maquina donde bit64 no esta.
+  # Sin bit64 no hay `mtfrm.integer64` y `match()` de R iguala los negativos: el camino
+  # que declaraba `integer64_sin_soporte` publicaba igual un `n_distintos`
+  # equivocado (2 donde habia 5). Desde el 2026-10-25 se niega; ver
+  # `test-integer64-entorno.R`.
   datos <- data.frame(codigo = c(1, 2))
   class(datos$codigo) <- "integer64"
-  perfil <- perfilar(
-    datos, analizar_dependencias = FALSE,
-    proteger_datos_personales = FALSE
+  expect_error(
+    perfilar(datos, analizar_dependencias = FALSE,
+             proteger_datos_personales = FALSE),
+    class = "lupa_error_integer64"
   )
-  cobertura <- perfil$cobertura_diagnosticos[
-    perfil$cobertura_diagnosticos$diagnostico == "integer64_sin_soporte", ,
-    drop = FALSE
-  ]
-  expect_equal(nrow(cobertura), 1L)
-  expect_equal(cobertura$dependencia, "bit64")
-  expect_false("integer64_sin_soporte" %in% perfil$hallazgos$tipo_hallazgo)
 })
 
 test_that("una zona sin declarar no depende de la maquina", {

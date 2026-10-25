@@ -821,8 +821,15 @@
 # El paquete usa `match()` -y `factor()`, `table()` y `%in%`, que lo usan por
 # dentro- en cientos de sitios, asi que no se arregla en cada uno: se exige el
 # entorno en la entrada y se dice por que, en lugar de contar mal en silencio.
+#
+# El metodo se registra al CARGAR `bit64`, y un `integer64` puede llegar sin
+# `bit64` cargado -lo trae `readRDS()`, por ejemplo-: se carga antes de mirar,
+# como hace el perfil con sus otros metodos (`.bit64_disponible()`). Sin la
+# carga, la guarda se negaba con bit64 4.6 instalado. Y sin `bit64` instalado
+# no hay metodo, asi que tambien se niega.
 .integer64_con_match_confiable <- function() {
-  exists("mtfrm", envir = baseenv(), inherits = FALSE) &&
+  .bit64_disponible() &&
+    exists("mtfrm", envir = baseenv(), inherits = FALSE) &&
     !is.null(utils::getS3method("mtfrm", "integer64", optional = TRUE))
 }
 
@@ -843,11 +850,11 @@
   } else ""
   mensaje <- paste0(
     "Las columnas `integer64`", nombradas, " necesitan R 4.2.0 y bit64 4.6.0",
-    " o posteriores. Con versiones anteriores, `match()` de R iguala entre sí",
+    " o posteriores. Con versiones anteriores, `match()` de R iguala entre s\u00ed",
     " todos los valores negativos, y los distintos, la moda y la mediana",
-    " saldrían mal sin aviso. Actualice bit64 desde CRAN; o convierta la",
-    " columna con `as.numeric()` si sus valores no pasan de 2^53, o desde una",
-    " base conecte con `bigint = \"numeric\"`."
+    " saldr\u00edan mal sin aviso. Instale o actualice bit64 desde CRAN; o",
+    " convierta la columna con `as.numeric()` si sus valores no pasan de 2^53, o",
+    " desde una base conecte con `bigint = \"numeric\"`."
   )
   condicion <- list(message = mensaje, call = NULL)
   class(condicion) <- c("lupa_error_integer64",

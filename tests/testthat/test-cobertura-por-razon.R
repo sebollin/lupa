@@ -123,7 +123,7 @@ test_that("falta stringdist: la proximidad de vocabulario se declara", {
   .espera_declarado(ausente, "proximidad_vocabulario", "stringdist")
 })
 
-test_that("falta bit64: integer64 se declara sin soporte", {
+test_that("falta bit64: perfilar() se niega con integer64 en lugar de declararlo", {
   skip_if_not_installed("bit64", "4.6.0")
   datos <- data.frame(texto = letters[1:5], stringsAsFactors = FALSE)
   datos$grande <- bit64::as.integer64(seq_len(5L))
@@ -131,9 +131,11 @@ test_that("falta bit64: integer64 se declara sin soporte", {
   testthat::local_mocked_bindings(
     .bit64_disponible = function() FALSE, .package = "lupa"
   )
-  ausente <- perfilar(datos)
-
-  .espera_declarado(ausente, "integer64_sin_soporte", "bit64")
+  # Sin bit64 no hay `mtfrm.integer64` y `match()` de R iguala los negativos: el camino
+  # que declaraba `integer64_sin_soporte` publicaba igual un `n_distintos`
+  # equivocado (2 donde habia 5). Desde el 2026-10-25 se niega; ver
+  # `test-integer64-entorno.R`.
+  expect_error(perfilar(datos), class = "lupa_error_integer64")
 })
 
 test_that("falta sf: el perfil geométrico se declara", {

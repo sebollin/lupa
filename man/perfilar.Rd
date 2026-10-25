@@ -1641,19 +1641,16 @@ con tres órdenes de magnitud, Benford, aunque se lo pase como texto o como
 factor: el paquete infiere número. Para eso está \code{columnas_codigo}.
 \code{moda_sobresale_secuencia_entera} es una señal independiente y no
 cambia los tres escudos de forma que dependen de la numeración.
-En una columna \code{integer64}, \code{bit64} se carga de manera diferida si está
-instalado para registrar sus métodos antes de medir. Si no está instalado,
-las cinco medidas públicas de la secuencia quedan en \code{NA} y
-\code{cobertura_diagnosticos} declara que \code{secuencia_entera} no se evaluó por
-falta de esa dependencia.
-Lo mismo pasa si la columna tiene valores por encima de 2^53: en un doble se
-redondean, la densidad no se mide sobre números redondeados, y la secuencia
-queda en \code{NA} y declarada, no como «no densa».
-Con un \code{bit64} anterior a 4.6.0, en cambio, \code{perfilar()} no perfila una
-columna \code{integer64}: se niega con la condición \code{lupa_error_integer64},
-porque sin el método \code{mtfrm.integer64} \code{match()} de R iguala entre sí todos
-los valores negativos, y los distintos, la moda y la mediana saldrían mal
-sin aviso.
+En una columna \code{integer64}, \code{bit64} se carga de manera diferida para
+registrar sus métodos antes de medir. Si no está instalado, o es anterior a
+4.6.0, \code{perfilar()} no perfila la columna: se niega con la condición
+\code{lupa_error_integer64}, porque sin el método \code{mtfrm.integer64} \code{match()} de
+R iguala entre sí todos los valores negativos, y los distintos, la moda y la
+mediana saldrían mal sin aviso.
+Si la columna tiene valores por encima de 2^53, en un doble se redondean y
+la densidad no se mide sobre números redondeados: las cinco medidas públicas
+de la secuencia quedan en \code{NA} y \code{cobertura_diagnosticos} declara que
+\code{secuencia_entera} no se evaluó, en lugar de darla como «no densa».
 La guarda vuelve a abrirse si un candidato presente queda fuera del rango de
 los valores restantes de la numeración, o si la frecuencia del candidato es
 la moda sobresaliente. Esta segunda señal se mide por el \strong{salto entre
