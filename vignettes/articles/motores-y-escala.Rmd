@@ -912,6 +912,39 @@ según lo que se necesite:
 | hallazgos por fila | `muestra = n`, con `orden_muestra` si se necesita reproducir, y los topes de celdas y bytes |
 | resumen de la tabla completa sin retenerla | `bloque_filas = n` |
 
+## Una corrida sobre bases de producción {#corrida-produccion}
+
+Entre el 26 y el 30 de octubre de 2026, un equipo externo corrió `perfilar_dbi()`
+sobre ocho bases de producción: cinco PostgreSQL, de la 9.3 a la 13, y tres SQL
+Server, 2008 R2 y 2016, desde una máquina con 121 GB de memoria y R 4.5.2. Son
+cifras de una corrida única, con la versión de esas fechas y sobre datos que el
+repositorio no tiene: no se rehacen desde acá y no se extrapolan a otra máquina.
+
+| | Tablas chicas, vía única | Agregados (`tabla_completa`) | Muestra del motor |
+| --- | ---: | ---: | ---: |
+| Mediana | 0,6 s | 12 s | 26 s |
+| Percentil 99 | 47 s | 1.822 s | 323 s |
+
+Fueron 3.709 llamadas sobre 3.316 tablas: 3.693 terminaron bien, 11 se cortaron
+por el tiempo máximo que fijó el equipo y 2 por un error del proceso. La memoria
+mediana de una llamada estuvo entre 230 y 530 MB según la vía. Sobre esos
+perfiles, `reportar()` tardó 0,06 s de mediana y `planificar_limpieza()` 0,008 s.
+
+La protección de datos personales, medida en tres tablas de hasta 100.000 filas
+con la misma llamada con y sin `proteger_datos_personales = TRUE`, costó entre 11 y
+18 % más de tiempo, con una memoria entre 5 % menor y 11 % mayor. Cada llamada sacó
+su propia muestra del motor, así que las filas no fueron exactamente las mismas, y
+el motor y el controlador también cobran su parte: es un costo de dos dígitos
+bajos, no un costo nulo.
+
+Lo más lento de esa corrida es lo que esta versión corrige: el desvío, que en SQL
+Server iba en una consulta por columna y cada una recorría la tabla entera
+([Consultas por lote](#lotes)); las columnas de fecha en R anterior a 4.6; los
+textos muy largos; y la muestra del motor, que podía traer a R más que su
+presupuesto ([Topes de la lectura a R](#topes)). La coincidencia de las cifras con
+un conteo SQL escrito aparte está en
+[Evidencia y rendimiento](https://sebollin.github.io/lupa/articles/evidencia-y-rendimiento.html#contraste-contra-el-servidor).
+
 ## Consistencia entre consultas {#consistencia}
 
 Los agregados son sentencias separadas, y la tabla puede cambiar entre ellas.
