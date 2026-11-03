@@ -161,3 +161,13 @@ Primera versión publicada.
   100 métricas, bajó de 133 s a 56 s y su pico de memoria de 4,9 GB a
   3,5 GB, que es del orden de la tabla de medidas que devuelve (8
   millones de filas).
+- En
+  [`perfilar_dbi()`](https://sebollin.github.io/lupa/reference/perfilar_dbi.md)
+  con `universo = "tabla_completa"`, el desvío de las columnas de SQL
+  Server y de `double precision` de PostgreSQL se calcula en lotes,
+  centrado en la media que ya trajeron los básicos, y no en una consulta
+  por columna. Sobre una tabla de un millón de filas y 27 columnas
+  numéricas, el desvío pasó de 27 consultas a 2 y de 1,42 millones de
+  lecturas lógicas a 105 mil en SQL Server, con las mismas cifras. En un
+  motor que lee del disco, cada consulta de desvío recorría la tabla
+  entera.

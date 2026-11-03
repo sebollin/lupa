@@ -213,8 +213,10 @@ perfilar_dbi(
 
 - tamano_lote_planos:
 
-  Cantidad máxima de columnas por consulta de agregados planos. El valor
-  por omisión es 20.
+  Cantidad máxima de columnas por consulta de agregados planos. En SQL
+  Server y en columnas `float8` de PostgreSQL, el desvío conserva su
+  cálculo centrado en una segunda pasada del mismo tamaño. El valor por
+  omisión es 20.
 
 - tamano_lote_distintos:
 

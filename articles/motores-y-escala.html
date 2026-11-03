@@ -1013,8 +1013,11 @@ muestreo. Por eso las consultas se agrupan:</p>
 <strong>Agregados planos</strong> —<code>COUNT(col)</code>, mínimo,
 máximo, media, ceros, negativos y desvío— viajan en una sola consulta
 por lote de hasta <code>tamano_lote_planos</code> columnas (20 por
-omisión). Cada una trae <code>COUNT(*) AS n_total_consulta</code>: la
-completitud usa ese denominador local y no el total de otro lote.</li>
+omisión). En SQL Server y para <code>float8</code> de PostgreSQL, el
+desvío usa además una segunda consulta por lote para conservar el
+cálculo centrado. Cada consulta trae
+<code>COUNT(*) AS n_total_consulta</code>: la completitud usa ese
+denominador local y no el total de otro lote.</li>
 <li>
 <strong>Cardinalidades exactas</strong> van en su propia clase, por
 lotes de <code>tamano_lote_distintos</code> (2 por omisión). Cada
