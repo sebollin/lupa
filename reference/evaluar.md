@@ -43,10 +43,10 @@ valor medido, el motivo y la regla que lo produjo. Cuando una métrica no
 pudo medirse, conserva `cobertura_metricas` y deja en `NA` el resumen
 afectado, en lugar de tratar la ausencia como éxito; también sobre un
 agregado, donde la regla nombra la métrica agregada
-—`agregada:ratio:NoNulo`— y la parte sin medir es una de sus instancias.
-La evaluación de un agregado conserva además la cobertura de su frontera
-—las tablas o colecciones declaradas que no entraron al número—, la
-imprime y la lleva a su informe y a
+—`agregada:ratio:NoNulo`— o su nombre con instancia, y la parte sin
+medir es una de sus instancias. La evaluación de un agregado conserva
+además la cobertura de su frontera —las tablas o colecciones declaradas
+que no entraron al número—, la imprime y la lleva a su informe y a
 [`historico_calidad()`](https://sebollin.github.io/lupa/reference/historico_calidad.md).
 Y cuando una regla **declara** una métrica que la medición no trae
 —ninguna medida de ella—, el veredicto cubre menos de lo que la regla
@@ -73,13 +73,13 @@ evaluar(medidas, perfil_evaluacion("Avanzado", regla))
 #> ── Evaluaciones de medidas ──
 #> 
 #>                                                         id_medida
-#>  medicion-20261025T211819.517024-7853-NoNulo@personas.edad-000001
-#>  medicion-20261025T211819.517024-7853-NoNulo@personas.edad-000002
-#>  medicion-20261025T211819.517024-7853-NoNulo@personas.edad-000003
+#>  medicion-20261103T170136.787129-7658-NoNulo@personas.edad-000001
+#>  medicion-20261103T170136.787129-7658-NoNulo@personas.edad-000002
+#>  medicion-20261103T170136.787129-7658-NoNulo@personas.edad-000003
 #>                           id_medicion               fecha   perfil        regla
-#>  medicion-20261025T211819.517024-7853 2026-10-25 21:18:19 Avanzado Al menos 90%
-#>  medicion-20261025T211819.517024-7853 2026-10-25 21:18:19 Avanzado Al menos 90%
-#>  medicion-20261025T211819.517024-7853 2026-10-25 21:18:19 Avanzado Al menos 90%
+#>  medicion-20261103T170136.787129-7658 2026-11-03 17:01:36 Avanzado Al menos 90%
+#>  medicion-20261103T170136.787129-7658 2026-11-03 17:01:36 Avanzado Al menos 90%
+#>  medicion-20261103T170136.787129-7658 2026-11-03 17:01:36 Avanzado Al menos 90%
 #>   metrica_instanciada orientacion resultado
 #>  NoNulo@personas.edad conformidad      TRUE
 #>  NoNulo@personas.edad conformidad     FALSE
@@ -87,13 +87,13 @@ evaluar(medidas, perfil_evaluacion("Avanzado", regla))
 #> ── Evaluaciones de reglas ──
 #> 
 #>                           id_medicion               fecha   perfil        regla
-#>  medicion-20261025T211819.517024-7853 2026-10-25 21:18:19 Avanzado Al menos 90%
+#>  medicion-20261103T170136.787129-7658 2026-11-03 17:01:36 Avanzado Al menos 90%
 #>  n_medidas resultado
 #>          3 0.6666667
 #> ── Perfiles de madurez ──
 #> 
 #>                           id_medicion               fecha   perfil n_reglas
-#>  medicion-20261025T211819.517024-7853 2026-10-25 21:18:19 Avanzado        1
+#>  medicion-20261103T170136.787129-7658 2026-11-03 17:01:36 Avanzado        1
 #>  resultado
 #>  0.6666667
 ```

@@ -200,6 +200,10 @@ el identificador nombra también las partes que reúne: dos conjuntos
 distintos, o dos colecciones sin nombre, no comparten identificador. Un valor que no se
 puede agregar se rechaza nombrando la métrica y la causa: un tipo no
 acotado, una medida ausente o suprimida, o un valor fuera de <code>[0, 1]</code>.
+Cuando el origen es una instancia de entidad y el destino es una entidad,
+el nombre de la métrica agregada conserva también la instancia completa,
+incluida la entidad y sus atributos: <code>agregada:ratio:ClaveDuplicada@t.a.b</code>.
+Eso mantiene separadas dos claves distintas de la misma tabla.
 <code>umbral</code> sólo se acepta con <code>ratio_umbral</code>, y el borde se compara con
 tolerancia de redondeo: <code>1 - 0.9</code> alcanza el umbral <code>0.1</code>.</p>
 <p>Las coberturas de frontera (<code>cobertura_coleccion</code> y sus hermanas) <strong>no</strong> se
@@ -243,10 +247,10 @@ taxonómicos y esta función no calcula un índice global.</p>
 <span class="r-in"><span><span class="va">instancia</span> <span class="op">&lt;-</span> <span class="fu"><a href="modelo_calidad.html">instanciar</a></span><span class="op">(</span><span class="va">especifica</span>, <span class="st">"personas"</span>, <span class="st">"edad"</span><span class="op">)</span></span></span>
 <span class="r-in"><span><span class="va">medidas</span> <span class="op">&lt;-</span> <span class="fu"><a href="medir.html">medir</a></span><span class="op">(</span><span class="fu"><a href="modelo_calidad.html">modelo</a></span><span class="op">(</span><span class="va">instancia</span><span class="op">)</span>, <span class="fu"><a href="https://rdrr.io/r/base/data.frame.html" class="external-link">data.frame</a></span><span class="op">(</span>edad <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">20</span>, <span class="cn">NA</span>, <span class="fl">35</span><span class="op">)</span><span class="op">)</span><span class="op">)</span></span></span>
 <span class="r-in"><span><span class="fu">agregar</span><span class="op">(</span><span class="va">medidas</span>, <span class="st">"atributo"</span>, <span class="st">"ratio"</span><span class="op">)</span></span></span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>                                                                      id_medida</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 1 medicion-20261025T211809.665929-7853-agg-atributo-ratio-NoNulo@personas.edad</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>                                                                                     id_medida</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 1 medicion-20261103T170128.967940-7658-agg-atributo-ratio-agregada:ratio:NoNulo@personas.edad</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>                            id_medicion               fecha metrica</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 1 medicion-20261025T211809.665929-7853 2026-10-25 21:18:09  NoNulo</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 1 medicion-20261103T170128.967940-7658 2026-11-03 17:01:28  NoNulo</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>   metrica_especifica   metrica_instanciada   dimension   factor orientacion</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> 1             NoNulo agregada:ratio:NoNulo Completitud Densidad conformidad</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>   granularidad tipo_resultado  entidad atributo fila objeto_medible resultado</span>

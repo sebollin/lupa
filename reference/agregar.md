@@ -158,8 +158,13 @@ nombra también las partes que reúne: dos conjuntos distintos, o dos
 colecciones sin nombre, no comparten identificador. Un valor que no se
 puede agregar se rechaza nombrando la métrica y la causa: un tipo no
 acotado, una medida ausente o suprimida, o un valor fuera de `[0, 1]`.
-`umbral` sólo se acepta con `ratio_umbral`, y el borde se compara con
-tolerancia de redondeo: `1 - 0.9` alcanza el umbral `0.1`.
+Cuando el origen es una instancia de entidad y el destino es una
+entidad, el nombre de la métrica agregada conserva también la instancia
+completa, incluida la entidad y sus atributos:
+`agregada:ratio:ClaveDuplicada@t.a.b`. Eso mantiene separadas dos claves
+distintas de la misma tabla. `umbral` sólo se acepta con `ratio_umbral`,
+y el borde se compara con tolerancia de redondeo: `1 - 0.9` alcanza el
+umbral `0.1`.
 
 Las coberturas de frontera (`cobertura_coleccion` y sus hermanas) **no**
 se arrastran: cada agregación calcula la de su propio destino con las
@@ -206,10 +211,10 @@ especifica <- especializar(nucleo$NoNulo)
 instancia <- instanciar(especifica, "personas", "edad")
 medidas <- medir(modelo(instancia), data.frame(edad = c(20, NA, 35)))
 agregar(medidas, "atributo", "ratio")
-#>                                                                      id_medida
-#> 1 medicion-20261025T211809.665929-7853-agg-atributo-ratio-NoNulo@personas.edad
+#>                                                                                     id_medida
+#> 1 medicion-20261103T170128.967940-7658-agg-atributo-ratio-agregada:ratio:NoNulo@personas.edad
 #>                            id_medicion               fecha metrica
-#> 1 medicion-20261025T211809.665929-7853 2026-10-25 21:18:09  NoNulo
+#> 1 medicion-20261103T170128.967940-7658 2026-11-03 17:01:28  NoNulo
 #>   metrica_especifica   metrica_instanciada   dimension   factor orientacion
 #> 1             NoNulo agregada:ratio:NoNulo Completitud Densidad conformidad
 #>   granularidad tipo_resultado  entidad atributo fila objeto_medible resultado

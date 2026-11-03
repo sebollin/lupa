@@ -98,6 +98,18 @@
 <h3 id="datos-personales-0-1-0">Datos personales<a class="anchor" aria-label="anchor" href="#datos-personales-0-1-0"></a></h3>
 <ul><li>La clasificación de posibles datos personales (documentos, nombres, fechas de nacimiento) corre siempre, como diagnóstico. Su reemplazo en lo que el paquete publica es un complemento que se pide con <code>proteger_datos_personales = TRUE</code>: publicar o no los valores de una base es decisión de quien la usa.</li>
 </ul></div>
+<div class="section level3">
+<h3 id="correcciones-0-1-0">Correcciones<a class="anchor" aria-label="anchor" href="#correcciones-0-1-0"></a></h3>
+<ul><li>La identidad de filas ya no desborda en R anterior a 4.6. Con dos o más columnas de decenas de miles de valores distintos, <code><a href="../reference/planificar_limpieza.html">aplicar()</a></code> con <code>conservar_primera_duplicada</code> podía borrar filas legítimas (23.673 de 60.100 en una tabla con 200 repetidas), y <code>EntidadDuplicada</code>, <code><a href="../reference/referencial.html">referencial()</a></code> y las acciones de duplicados contaban grupos equivocados. Una matriz o una tabla anidada como columna se aplana para esa identidad, como en el perfil.</li>
+<li>
+<code><a href="../reference/medir.html">medir()</a></code> ya no se cae con una columna lista —lo que un motor devuelve para una columna binaria— cuando una métrica no puede producir medidas: la métrica queda <code>no_medible</code>. Una tabla anidada, una matriz de listas o un entorno en una celda tampoco la hacen caer, y <code><a href="../reference/perfilar.html">perfilar()</a></code> ya no publica más filas completas que filas con una matriz de listas.</li>
+<li>
+<code>NoNulo</code> compara <code>valores_nulos</code> con la misma normalización que <code><a href="../reference/perfilar.html">perfilar()</a></code>: sin los blancos de los bordes y sin distinguir mayúsculas. Una celda de solo blancos o un tabulador cuentan como nulos para los dos.</li>
+<li>
+<code><a href="../reference/agregar.html">agregar()</a></code> de <code>instanciaEntidad</code> a <code>entidad</code> conserva la instancia en el nombre (<code>agregada:ratio:ClaveDuplicada@t.a.b</code>): dos claves compuestas de la misma tabla ya no se funden en una sola fila con un resultado mezclado. De <code>instanciaAtributo</code> a <code>atributo</code>, dos instancias de una métrica sobre la misma columna llevan la instancia en el nombre solo en ese caso. Más arriba, el nombre conserva la instancia que traen todas las partes, y <code><a href="../reference/agregar.html">agregar()</a></code> se niega a promediar dos instancias de una misma tabla o columna, que la harían pesar doble, y dice cómo seguir.</li>
+<li>
+<code><a href="../reference/medir.html">medir()</a></code> arma su tabla de medidas de una sola vez, sin una tabla intermedia por métrica: sobre una tabla de 80.764 filas y 153 columnas de texto con 100 métricas, bajó de 133 s a 56 s y su pico de memoria de 4,9 GB a 3,5 GB, que es del orden de la tabla de medidas que devuelve (8 millones de filas).</li>
+</ul></div>
 </div>
   </main><aside class="col-md-3"><nav id="toc" aria-label="Table of contents"><h2>On this page</h2>
     </nav></aside></div>

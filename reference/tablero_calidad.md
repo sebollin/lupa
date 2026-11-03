@@ -74,11 +74,13 @@ nombre, o dos especializaciones de la misma genérica sobre la misma
 columna, publicarían dos filas con la **misma** identidad y valores
 distintos, y rehacer la celda con las claves publicadas mezclaría las
 medidas de las dos sin reproducir ninguna. `metrica_instanciada` sola
-tampoco alcanza: sobre un agregado vale `agregada:<funcion>:<metrica>`
-para todas las filas, y ahí la entidad es lo único que separa. Cuando
-hay varias entidades, `objeto` además nombra la tabla
-—`cod (tabla: t1)`—, en el mismo idioma con el que la granularidad de
-tabla publica `(tabla: t1)`.
+tampoco alcanza: sobre un agregado usual vale
+`agregada:<funcion>:<metrica>` para todas las filas, y ahí la entidad es
+lo único que separa. En una agregación de instancias de entidad a
+entidad, conserva además la instancia completa para que dos claves de
+una tabla no se fundan. Cuando hay varias entidades, `objeto` además
+nombra la tabla —`cod (tabla: t1)`—, en el mismo idioma con el que la
+granularidad de tabla publica `(tabla: t1)`.
 
 Ese trío es la clave con la que se **agrupan** las medidas, y no sólo la
 que se publica: agrupar por menos de lo que se declara como identidad
