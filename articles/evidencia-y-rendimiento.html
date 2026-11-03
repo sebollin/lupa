@@ -199,6 +199,17 @@ azar; dispara en los tres casos positivos; calla con 10 % de ruido</td>
 <td>fija, sin red; calculada en esta página</td>
 <td><a href="https://github.com/sebollin/lupa/blob/main/tests/testthat/test-reparacion-texto.R" class="external-link"><code>test-reparacion-texto.R</code></a></td>
 </tr>
+<tr class="even">
+<td>Contraste contra el servidor</td>
+<td>comparaciones exactas</td>
+<td>15.039 de 15.039 coinciden con un conteo SQL escrito aparte, en
+2.371 tablas de ocho bases de producción</td>
+<td>corrida única, del 26 al 30 de octubre de 2026, sobre datos que el
+repositorio no tiene</td>
+<td>no se rehace desde el repositorio; ver <a href="#contraste-contra-el-servidor">Contraste contra el
+servidor</a>
+</td>
+</tr>
 </tbody>
 </table>
 <div class="section level3">
@@ -340,6 +351,80 @@ página lo recorre con el mismo motor de reparación:</p>
 <p>El detalle, con los casos negativos y lo que la reparación no hace,
 está en <a href="https://sebollin.github.io/lupa/articles/codificacion-y-locales.html">Codificación
 y locales</a>.</p>
+</div>
+<div class="section level3">
+<h3 id="contraste-contra-el-servidor">Contraste contra el servidor<a class="anchor" aria-label="anchor" href="#contraste-contra-el-servidor"></a>
+</h3>
+<p>Entre el 26 y el 30 de octubre de 2026, un equipo externo corrió
+<code>lupa</code> sobre ocho bases de producción —cinco PostgreSQL, de
+la 9.3 a la 13, y tres SQL Server, 2008 R2 y 2016—, unas 3.300 tablas.
+Los datos no salen de ese entorno y el repositorio no los tiene: las
+cifras son de una corrida única, con la versión de esas fechas.</p>
+<p>En 2.371 tablas, leídas enteras, se comparó lo que da
+<code><a href="../reference/medir.html">medir()</a></code> con un conteo SQL escrito aparte sobre las mismas
+filas. Coinciden las 15.039 comparaciones que miden lo mismo:</p>
+<table class="table">
+<colgroup>
+<col width="33%">
+<col width="33%">
+<col width="33%">
+</colgroup>
+<thead><tr class="header">
+<th>Métrica</th>
+<th>Comparaciones</th>
+<th>Coinciden</th>
+</tr></thead>
+<tbody>
+<tr class="odd">
+<td>
+<code>NoNulo</code>, con <code>valores_nulos = ""</code>
+</td>
+<td>14.132</td>
+<td>14.132</td>
+</tr>
+<tr class="even">
+<td>
+<code>Formato</code>, con <code><a href="../reference/validadores_uy.html">validar_ci_uy()</a></code> como
+validador</td>
+<td>304</td>
+<td>304</td>
+</tr>
+<tr class="odd">
+<td>
+<code>ValoresPosiblesPorComprension</code> (fecha no futura,
+nacimiento en rango, edad, no negativo)</td>
+<td>552</td>
+<td>552</td>
+</tr>
+<tr class="even">
+<td>Dos fechas en orden, una métrica propia medida con
+<code><a href="../reference/medir.html">medir()</a></code>
+</td>
+<td>51</td>
+<td>51</td>
+</tr>
+</tbody>
+</table>
+<p>Dos cosas quedan dichas, no escondidas. En 178 de las columnas de
+<code>NoNulo</code> había celdas de solo blancos, que el servidor
+contaba como faltantes y <code>NoNulo</code>, en esa versión, no: para
+comparar lo mismo se vaciaron antes de medir. Desde entonces
+<code>NoNulo</code> compara <code>valores_nulos</code> con la
+normalización de <code><a href="../reference/perfilar.html">perfilar()</a></code>, y una celda de solo blancos
+cuenta como nula sin preparar nada. Y las 2.789 instancias de
+<code>NoNulo</code> con <code>opcional = TRUE</code> no se comparan,
+porque <code>lupa</code> mide sobre las celdas presentes, como dice su
+ayuda, y el conteo del servidor sobre todas las filas.</p>
+<p>Aparte, <code><a href="../reference/validadores_uy.html">validar_ci_uy()</a></code> revisó las cédulas de 8 columnas
+en tablas enteras de cuatro de esas bases, de un millón a decenas de
+millones de filas: casi 88 millones de valores, leídos en bloques de
+100.000. En las 8 columnas da la misma cantidad de cédulas válidas que
+la misma regla escrita en SQL.</p>
+<p>La coincidencia es exacta y no depende de la máquina; no se repite en
+otro entorno sin esos datos, y no dice que no haya defectos de
+completitud: dice que, donde los dos cuentan lo mismo, cuentan igual.
+Los tiempos y la memoria de esa corrida están en <a href="https://sebollin.github.io/lupa/articles/motores-y-escala.html">Motores
+y escala</a>.</p>
 </div>
 </div>
 <div class="section level2">

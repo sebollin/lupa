@@ -30,6 +30,7 @@ escala](https://sebollin.github.io/lupa/articles/motores-y-escala.html).
 | Registro público de sanciones a empresas | hallazgos de severidad `error` | 9 de 9 coinciden con la misma cuenta hecha en R base, sobre una copia de 2.583 filas | recurso descargado; corrida del 2026-10-24, con la huella del archivo | [`medir_sanciones.R`](https://github.com/sebollin/lupa/blob/main/benchmark/medir_sanciones.R) |
 | Ausencia estructural | señales `posible_ausencia_estructural` | ninguna en 20 conjuntos de `datasets` y 60 tablas al azar; dispara en los tres casos positivos; calla con 10 % de ruido | fija, sin red; corrida del 2026-10-24 | [`banco_ausencia_estructural.R`](https://github.com/sebollin/lupa/blob/main/benchmark/banco_ausencia_estructural.R) |
 | Reparación de codificación | casos del corpus de ftfy 6.3.1 | 159 de 161 reproducidos | fija, sin red; calculada en esta página | [`test-reparacion-texto.R`](https://github.com/sebollin/lupa/blob/main/tests/testthat/test-reparacion-texto.R) |
+| Contraste contra el servidor | comparaciones exactas | 15.039 de 15.039 coinciden con un conteo SQL escrito aparte, en 2.371 tablas de ocho bases de producción | corrida única, del 26 al 30 de octubre de 2026, sobre datos que el repositorio no tiene | no se rehace desde el repositorio; ver [Contraste contra el servidor](#contraste-contra-el-servidor) |
 
 ### Controles limpios construidos
 
@@ -191,6 +192,50 @@ table(suite, reproducido = ftfy_aciertos)
 El detalle, con los casos negativos y lo que la reparación no hace, está
 en [Codificación y
 locales](https://sebollin.github.io/lupa/articles/codificacion-y-locales.html).
+
+### Contraste contra el servidor
+
+Entre el 26 y el 30 de octubre de 2026, un equipo externo corrió `lupa`
+sobre ocho bases de producción —cinco PostgreSQL, de la 9.3 a la 13, y
+tres SQL Server, 2008 R2 y 2016—, unas 3.300 tablas. Los datos no salen
+de ese entorno y el repositorio no los tiene: las cifras son de una
+corrida única, con la versión de esas fechas.
+
+En 2.371 tablas, leídas enteras, se comparó lo que da
+[`medir()`](https://sebollin.github.io/lupa/reference/medir.md) con un
+conteo SQL escrito aparte sobre las mismas filas. Coinciden las 15.039
+comparaciones que miden lo mismo:
+
+| Métrica | Comparaciones | Coinciden |
+|----|----|----|
+| `NoNulo`, con `valores_nulos = ""` | 14.132 | 14.132 |
+| `Formato`, con [`validar_ci_uy()`](https://sebollin.github.io/lupa/reference/validadores_uy.md) como validador | 304 | 304 |
+| `ValoresPosiblesPorComprension` (fecha no futura, nacimiento en rango, edad, no negativo) | 552 | 552 |
+| Dos fechas en orden, una métrica propia medida con [`medir()`](https://sebollin.github.io/lupa/reference/medir.md) | 51 | 51 |
+
+Dos cosas quedan dichas, no escondidas. En 178 de las columnas de
+`NoNulo` había celdas de solo blancos, que el servidor contaba como
+faltantes y `NoNulo`, en esa versión, no: para comparar lo mismo se
+vaciaron antes de medir. Desde entonces `NoNulo` compara `valores_nulos`
+con la normalización de
+[`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md), y
+una celda de solo blancos cuenta como nula sin preparar nada. Y las
+2.789 instancias de `NoNulo` con `opcional = TRUE` no se comparan,
+porque `lupa` mide sobre las celdas presentes, como dice su ayuda, y el
+conteo del servidor sobre todas las filas.
+
+Aparte,
+[`validar_ci_uy()`](https://sebollin.github.io/lupa/reference/validadores_uy.md)
+revisó las cédulas de 8 columnas en tablas enteras de cuatro de esas
+bases, de un millón a decenas de millones de filas: casi 88 millones de
+valores, leídos en bloques de 100.000. En las 8 columnas da la misma
+cantidad de cédulas válidas que la misma regla escrita en SQL.
+
+La coincidencia es exacta y no depende de la máquina; no se repite en
+otro entorno sin esos datos, y no dice que no haya defectos de
+completitud: dice que, donde los dos cuentan lo mismo, cuentan igual.
+Los tiempos y la memoria de esa corrida están en [Motores y
+escala](https://sebollin.github.io/lupa/articles/motores-y-escala.html).
 
 ## Rendimiento: cuatro figuras que salen de un CSV
 
