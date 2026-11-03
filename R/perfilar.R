@@ -46,6 +46,82 @@
   invisible(NULL)
 }
 
+.cobertura_texto_largo_perfil <- function(
+    resultados, nombres, max_largo, normalizacion = NULL,
+    duplicados_aproximados = FALSE) {
+  diagnosticos_afectados <- c(
+    "patron_raro", "espacios_sobrantes", "controles_invisibles",
+    "entidades_html", "separadores_en_campo",
+    "mayusculas_inconsistentes",
+    "codificacion_rota", "dato_personal_posible",
+    if (is.null(normalizacion) ||
+        .normalizacion_tiene_pasos_resuelta(normalizacion, nombres)) {
+      "normalizacion_unicode"
+    },
+    if (isTRUE(duplicados_aproximados)) {
+      c("duplicados_aproximados", "duplicados_exactos_normalizados")
+    } else if (is.list(duplicados_aproximados)) {
+      c("duplicados_aproximados", "duplicados_exactos_normalizados")
+    } else character()
+  )
+  filas <- lapply(seq_along(resultados), function(i) {
+    largo <- resultados[[i]]$texto_largo
+    if (is.null(largo) || !isTRUE(largo$n_valores > 0L)) return(NULL)
+    base <- .nuevo_diagnostico_no_evaluado(
+      "texto_largo_no_evaluado", nombres[[i]],
+      paste0(
+        "No se evaluaron ", largo$n_valores,
+        " valor(es) de texto que superan `max_largo_valor_vocabulario = ",
+        max_largo, "`: hasta ", largo$max_bytes,
+        " bytes y ", largo$max_caracteres, " caracteres. Los conteos y",
+        " longitudes de la columna completa se conservaron."
+      ),
+      paste0(
+        "Subir `max_largo_valor_vocabulario` si esos valores deben entrar",
+        " en los diagnosticos textuales, o usar `Inf` explicitamente."
+      ), columnas = nombres[[i]]
+    )
+    dependientes <- lapply(diagnosticos_afectados, function(diagnostico) {
+      .nuevo_diagnostico_no_evaluado(
+        diagnostico, nombres[[i]],
+        paste0(
+          "No se evaluo `", diagnostico,
+          "` sobre los valores que superan el tope de texto largo."
+        ),
+        paste0(
+          "Subir `max_largo_valor_vocabulario` si `", diagnostico,
+          "` debe incluir esos valores, o usar `Inf` explicitamente."
+        ),
+        dependencia = "texto_largo_no_evaluado", columnas = nombres[[i]]
+      )
+    })
+    c(list(base), dependientes)
+  })
+  filas <- unlist(filas[!vapply(filas, is.null, logical(1L))], recursive = FALSE)
+  if (!length(filas)) return(.cobertura_diagnosticos_vacia())
+  do.call(rbind, filas)
+}
+
+.datos_sin_textos_largos <- function(datos, resultados) {
+  mascaras <- lapply(resultados, function(resultado) {
+    resultado$texto_largo$mascara %||% rep(FALSE, 0L)
+  })
+  if (!length(mascaras) || !any(vapply(mascaras, any, logical(1L)))) {
+    return(datos)
+  }
+  salida <- datos
+  for (i in seq_along(salida)) {
+    mascara <- mascaras[[i]]
+    if (!length(mascara) ||
+        !(is.character(salida[[i]]) || is.factor(salida[[i]])) ||
+        !any(mascara)) next
+    columna <- as.character(salida[[i]])
+    columna[mascara] <- NA_character_
+    salida[[i]] <- columna
+  }
+  salida
+}
+
 .muestra_tabla_datos <- function(datos, filas) {
   indices <- if (!length(filas) || !is.finite(filas) || filas >= nrow(datos)) {
     seq_len(nrow(datos))
@@ -267,7 +343,8 @@
       "Aumente `max_celdas_muestra` o `max_bytes_muestra`, o use `Inf` ",
       "si acepta analizar la muestra solicitada completa."
     ),
-    dependencia = NA_character_, stringsAsFactors = FALSE
+    dependencia = NA_character_, columnas = I(list(character())),
+    stringsAsFactors = FALSE
   )
 }
 
@@ -1755,13 +1832,18 @@
 #'   las dependencias. Se combina con `max_comparaciones_dependencias`; el
 #'   límite efectivo baja cuando hay muchas filas. `Inf` desactiva este tope,
 #'   pero no el de pares.
-#' @param max_largo_valor_vocabulario Maximo de caracteres permitido en cada
-#'   valor que entra en la comparacion de casi duplicados del vocabulario. Por
-#'   defecto es `10000`, elegido porque la distancia normalizada deja de
-#'   distinguir de forma estable una diferencia local de muchas diferencias en
-#'   textos largos. Una columna que supera el tope se declara completa fuera
-#'   de alcance en `cobertura_diagnosticos`; no se recortan valores en silencio.
-#'   `Inf` quita el tope.
+#' @param max_largo_valor_vocabulario Maximo de bytes o caracteres permitido en
+#'   cada valor que entra en los diagnosticos textuales costosos. Por defecto es
+#'   `10000`, elegido porque las expresiones regulares, la normalizacion y la
+#'   comparacion de textos largos dejan de ser una medida razonable. Los valores
+#'   que superan el tope quedan fuera de esos diagnosticos, se cuentan completos
+#'   para las medidas de la columna y se declaran en `cobertura_diagnosticos`.
+#'   `Inf` quita el tope. El limite especifico de casi duplicados conserva este
+#'   mismo valor para no ejecutar una distancia sobre cadenas sin presupuesto.
+#'   La inferencia de tipo, los conteos baratos, las dependencias y los
+#'   estadisticos se calculan sobre el universo completo que resulte aplicable.
+#'   Cada diagnostico que omita los valores largos agrega su propia fila de
+#'   cobertura, con `dependencia = "texto_largo_no_evaluado"`.
 #' @param max_celdas_muestra Maximo de celdas que puede contener la muestra
 #'   comun de los diagnosticos que muestrean filas. Por defecto es `1000000`;
 #'   se calcula como filas efectivas por columnas de la tabla. Si reduce la
@@ -2864,10 +2946,23 @@ perfilar <- function(datos,
         sentinelas_numericos,
         aplicable = aplicabilidad_resuelta$mascaras[[i]],
         cadenas_ausencia = cadenas_ausencia,
-        codigo = es_codigo[[i]]
+        codigo = es_codigo[[i]],
+        max_largo_valor_vocabulario = max_largo_valor_vocabulario
       )
     })
   )
+  cobertura_texto_largo <- .cobertura_texto_largo_perfil(
+    resultados, nombres, max_largo_valor_vocabulario,
+    normalizacion = normalizacion_resuelta,
+    duplicados_aproximados = duplicados_aproximados
+  )
+  # Como el tope de casi duplicados, este se declara en la cobertura y no con
+  # un aviso: una columna de documentos largos es un dato legitimo, y avisar en
+  # cada perfil seria ruido. La fila dice cuantos valores quedaron fuera.
+  # Las dependencias y las lecturas baratas necesitan los valores enteros.
+  # Solo las operaciones textuales costosas reciben la copia con largos fuera.
+  datos_diagnostico <- datos
+  datos_texto_caro <- .datos_sin_textos_largos(datos, resultados)
 
   columnas <- if (length(resultados)) {
     do.call(rbind, lapply(resultados, `[[`, "fila"))
@@ -2875,7 +2970,8 @@ perfilar <- function(datos,
       .perfilar_columna(
       character(), "", muestra_diagnosticos, max_patrones,
       distinguir_mayusculas, expandir, umbral_patron_raro,
-      sentinelas_numericos
+        sentinelas_numericos,
+        max_largo_valor_vocabulario = max_largo_valor_vocabulario
     )$fila[0, , drop = FALSE]
   }
   rownames(columnas) <- NULL
@@ -2890,7 +2986,8 @@ perfilar <- function(datos,
     trazador_tiempos, "dependencias",
     if (analizar_dependencias) {
       detectar_dependencias(
-        datos, umbral = umbral_dependencia, muestra = muestra_diagnosticos,
+        datos_diagnostico, umbral = umbral_dependencia,
+        muestra = muestra_diagnosticos,
         max_columnas = max_columnas_dependencias,
         umbral_casi_clave = umbral_casi_clave_dependencia,
         max_comparaciones = max_comparaciones_dependencias,
@@ -2951,7 +3048,7 @@ perfilar <- function(datos,
     columnas_codigo = columnas_codigo
   )
   normalizacion_fusiones <- .normalizacion_fusiones_tabla(
-    datos, normalizacion_resuelta
+    datos_texto_caro, normalizacion_resuelta
   )
   tipos <- table(.factor_por_bytes(vapply(seq_along(datos), function(i) {
     .tipo_declarado(datos[[i]])
@@ -3005,6 +3102,11 @@ perfilar <- function(datos,
   if (is.null(cobertura_diagnosticos)) {
     cobertura_diagnosticos <- .cobertura_diagnosticos_vacia()
   }
+  if (nrow(cobertura_texto_largo)) {
+    cobertura_diagnosticos <- rbind(
+      cobertura_diagnosticos, cobertura_texto_largo
+    )
+  }
   retiro_geometria <- .retirar_hallazgos_texto_de_geometria(
     hallazgos, columnas, cobertura_diagnosticos
   )
@@ -3030,7 +3132,8 @@ perfilar <- function(datos,
         paste0(
           "Aumentar `max_columnas_orden` si las columnas omitidas deben",
           " intervenir en el diagnostico."
-        )
+        ),
+        columnas = omitidas
       )
     )
   }
@@ -3111,7 +3214,7 @@ perfilar <- function(datos,
   datos_personales <- .medir_etapa_dbi(
     trazador_tiempos, "clasificacion_datos_personales",
     .detectar_datos_personales(
-      datos, nombres, resultados,
+      datos_texto_caro, nombres, resultados,
       validadores = validadores_personales,
       umbral_verificado = umbral_documento_verificado,
       muestra_validadores = muestra_validadores,
@@ -3171,7 +3274,7 @@ perfilar <- function(datos,
         .detectar_duplicados_aproximados,
         c(
           list(
-            datos = datos, clasificacion = datos_personales,
+            datos = datos_texto_caro, clasificacion = datos_personales,
             normalizar = normalizacion_resuelta,
             proteger_datos_personales = proteger_datos_personales,
             fusiones_precomputadas = normalizacion_fusiones
@@ -3350,6 +3453,9 @@ perfilar <- function(datos,
       isTRUE(relaciones_aritmeticas$alcance$truncado)) {
     meta$aritmetica_columnas <- relaciones_aritmeticas$alcance
   }
+  cobertura_diagnosticos <- .anotar_columnas_cobertura(
+    cobertura_diagnosticos, names(datos)
+  )
   columnas <- .callar_moda_sin_empate(columnas)
   estructura <- list(
     general = general,

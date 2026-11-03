@@ -184,7 +184,8 @@
         "Perfilar una tabla con al menos ",
         alcance$minimo_filas_comparables,
         " filas, o bajar `min_filas_aritmetica`."
-      )
+      ),
+      columnas = alcance$columnas_numericas
     )
     if (!isTRUE(alcance$truncado)) filas <- c(filas, list(faltante))
   }
@@ -208,7 +209,8 @@
     paste0(
       "Aumentar `max_columnas_aritmetica` o perfilar por bloques si las ",
       "columnas omitidas deben intervenir en el diagn\u00f3stico."
-    )
+    ),
+    columnas = omitidas
   )))
   do.call(rbind, filas)
 }
@@ -355,6 +357,7 @@
     indices_incumplen, "filas_finitas_en_las_columnas_involucradas",
     limite = Inf
   )
+  hallazgo$trazabilidad[[1L]]$columnas <- nombres[c(sumandos, total)]
   attr(hallazgo, "columnas_aritmetica") <- list(
     sumandos = sumandos, total = total
   )
@@ -457,6 +460,8 @@
     indices_incumplen, "filas_finitas_en_las_columnas_involucradas",
     limite = Inf
   )
+  hallazgo$trazabilidad[[1L]]$columnas <-
+    nombres[c(indice_base, indice_respuesta)]
   hallazgo
 }
 

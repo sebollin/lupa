@@ -359,7 +359,7 @@
     return(character())
   }
   texto <- as.character(texto)
-  largo <- nchar(texto, type = "chars")
+  largo <- .nchar_texto_seguro(texto)[[1L]]
   total <- if (largo < q) 1L else largo - q + 1L
   inicios <- seq.int(1L, total, by = tamano)
   vapply(inicios, function(inicio) {

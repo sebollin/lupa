@@ -842,7 +842,9 @@ perfilar_por <- function(datos, por, clave = NULL, min_filas = 30L, ...) {
               "Si esa columna es una magnitud y no una numeraci\u00f3n, perfilar",
               "el grupo por separado con `perfilar()`."
             ),
-            dependencia = NA_character_, stringsAsFactors = FALSE
+            dependencia = NA_character_,
+            columnas = I(list(as.character(columna_afectada))),
+            stringsAsFactors = FALSE
           )
       }
       perfil$hallazgos <<- perfil$hallazgos[!marcados, , drop = FALSE]

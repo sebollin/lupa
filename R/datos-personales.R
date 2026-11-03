@@ -1100,7 +1100,7 @@
     ))
   } else NA_real_
   textos_presentes <- textos[presentes]
-  longitudes_crudas <- nchar(textos_presentes, type = "chars")
+  longitudes_crudas <- .nchar_texto_seguro(textos_presentes)
   composicion_documental <- if (length(textos_presentes)) {
     mean(grepl("^[0-9 .-]+$", textos_presentes, perl = TRUE)) >= 0.8
   } else FALSE
@@ -1108,7 +1108,9 @@
     mean(longitudes_crudas >= 7L & longitudes_crudas <= 20L) >= 0.8 &&
     composicion_documental
   longitudes <- if (cerca_de_forma_documento) {
-    nchar(gsub("[^0-9]", "", textos_presentes, perl = TRUE), type = "chars")
+    .nchar_texto_seguro(gsub(
+      "[^0-9]", "", textos_presentes, perl = TRUE
+    ))
   } else integer()
   parece_fecha <- inferencia$tipo %in% c("fecha", "fecha-hora")
   forma_documento_posible <- length(longitudes) &&
@@ -2462,7 +2464,7 @@
   ))
   # El piso se cuenta en CARACTERES, como en `.valores_identificantes()`: en bytes,
   # un nombre cirilico de cuatro letras pasaba el piso de seis.
-  largos <- nchar(agujas, type = "chars", allowNA = TRUE)
+  largos <- .nchar_texto_seguro(agujas)
   agujas <- agujas[
     !is.na(agujas) & (is.na(largos) | largos >= .MIN_LARGO_VALOR_IDENTIFICANTE)
   ]
@@ -3318,6 +3320,11 @@
   # que cortar por bytes da las mismas piezas; se les devuelve la marca del texto,
   # que el corte por bytes no conserva.
   compuestos <- vapply(restantes, function(v) {
+    piezas_coma <- .separar_nombres_columnas(v, nombres, sep = ",")
+    if (length(piezas_coma) > 1L &&
+        all(.nombres_para_operar(piezas_coma) %in% claves)) {
+      return(TRUE)
+    }
     # Sin ningun separador queda una sola pieza y no es una referencia a varios:
     # se contesta sin partir. Los separadores son ASCII y se buscan por bytes.
     if (!grepl(",", v, fixed = TRUE, useBytes = TRUE) &&
@@ -4896,7 +4903,7 @@
   # sobre un vector con marcas mezcladas avisaba "unable to translate" o
   # abortaba: el filtro del catalogo de ausencias de abajo caia en su `tryCatch`
   # y no se aplicaba. La proteccion decidia distinto segun el locale.
-  largos <- nchar(.declarar_utf8_valido(valores), type = "chars", allowNA = TRUE)
+  largos <- .nchar_texto_seguro(valores)
   valores <- valores[is.na(largos) | largos >= .MIN_LARGO_VALOR_IDENTIFICANTE]
   # Un relleno sin una letra ni un digito -"------", "......"- no es el dato de
   # nadie y no puede identificar a nadie. Medido: el "------" de

@@ -46,7 +46,7 @@
     valores[is.na(valores)] <- ""
     valores <- .normalizacion_aplicar(valores, normalizacion)
   }
-  largos <- nchar(valores, type = "chars", allowNA = TRUE)
+  largos <- .nchar_texto_seguro(valores)
   largos <- largos[is.finite(largos)]
   if (!length(largos)) 0 else max(largos)
 }
@@ -62,7 +62,7 @@
   if (!is.null(normalizacion)) {
     valores <- .normalizacion_aplicar(valores, normalizacion)
   }
-  largos <- nchar(valores, type = "chars", allowNA = TRUE)
+  largos <- .nchar_texto_seguro(valores)
   largos[!is.finite(largos)] <- 0
   largos
 }
@@ -857,7 +857,7 @@
   lapply(seq_along(x), function(i) {
     texto <- x[[i]]
     if (!nzchar(texto)) return(character())
-    largo <- nchar(texto, type = "chars")
+    largo <- .nchar_texto_seguro(texto)[[1L]]
     if (largo < q) return(texto)
     unique(substring(texto, seq_len(largo - q + 1L),
                      seq_len(largo - q + 1L) + q - 1L))
@@ -880,7 +880,7 @@
 
 .ids_qgramas_por_bloques <- function(valores, q, bloque = 10000L) {
   n <- length(valores)
-  largos_maximos <- pmax(nchar(valores, type = "chars") - q + 1L, 1L)
+  largos_maximos <- pmax(.nchar_texto_seguro(valores) - q + 1L, 1L)
   maximo <- if (n) max(largos_maximos) else 1L
   ids <- matrix(0L, nrow = n, ncol = maximo)
   vocabulario <- character()
@@ -1992,11 +1992,11 @@
   # La clasificacion solo sirve para saber que proteger: sin proteccion no se
   # perfila la tabla para buscarla.
   if (is.null(clasificacion) && proteger_datos_personales) {
-    perfil <- perfilar(
+    perfil <- suppressWarnings(perfilar(
       datos, analizar_dependencias = FALSE,
       proteger_datos_personales = TRUE,
       duplicados_aproximados = FALSE
-    )
+    ))
     clasificacion <- perfil$datos_personales
   }
   protegidas <- if (proteger_datos_personales) {

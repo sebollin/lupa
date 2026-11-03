@@ -29,6 +29,9 @@ sql_perfil(x, ...)
 \code{hallazgos()} devuelve un \code{data.frame} con una fila por hallazgo
 —sobre una colección, los de cada perfil conservado con la identidad de su
 tabla adelante (\code{tabla}, \code{esquema}, \code{identificador}), como \code{sql_perfil()};
+la columna-lista \code{trazabilidad} conserva, en hallazgos que involucran varias
+columnas, el vector original \code{columnas}; \code{columna} sigue siendo el texto
+legible que se muestra y se puede guardar.
 si la colección no conservó los perfiles, una tabla vacía con su aviso—;
 \code{columnas()}, un \code{data.frame} con una fila por columna de la tabla
 perfilada y sus métricas y diagnósticos; \code{cobertura()} devuelve la tabla de

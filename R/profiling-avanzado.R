@@ -819,7 +819,11 @@ detectar_asociaciones <- function(datos, dependencias = NULL, umbral = 0.3,
         "Completar al menos 3 filas para el par y revisar que la medida sea",
         "finita antes de interpretar que no hay asociacion."
       ),
-      dependencia = NA_character_, stringsAsFactors = FALSE
+      dependencia = NA_character_,
+      columnas = I(lapply(seq_len(nrow(omitidos)), function(i) {
+        as.character(omitidos[i, c("columna_1", "columna_2")])
+      })),
+      stringsAsFactors = FALSE
     )
   } else {
     .cobertura_diagnosticos_vacia()

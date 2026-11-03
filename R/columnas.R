@@ -2239,6 +2239,10 @@
 .evidencia_texto_visible <- function(textos, mascara) {
   ejemplos <- utils::head(unique(textos[which(mascara)]), 6L)
   if (!length(ejemplos)) return("")
+  # La tabla de patrones rinde los valores declarados `bytes` antes de
+  # generalizarlos. La evidencia debe pasar por la misma vista; si se la
+  # interpreta como UTF-8 aqui, las dos superficies publican cadenas distintas.
+  ejemplos <- .texto_publicable(ejemplos)
   paste0(
     paste(vapply(ejemplos, .escapar_texto_visible, character(1L)), collapse = "; "),
     .nota_escapes(ejemplos)
@@ -2251,6 +2255,52 @@
 
 .bit64_disponible <- function() {
   requireNamespace("bit64", quietly = TRUE)
+}
+
+.texto_largo <- function(x, max_largo) {
+  vacio <- list(
+    mascara = NULL,
+    n_valores = 0L,
+    max_bytes = 0,
+    max_caracteres = 0
+  )
+  if (!(is.character(x) || is.factor(x)) || !length(x) ||
+      is.infinite(max_largo)) {
+    return(vacio)
+  }
+  textos <- suppressWarnings(as.character(x))
+  bytes <- suppressWarnings(nchar(textos, type = "bytes", allowNA = TRUE))
+  observados_bytes <- bytes[!is.na(bytes)]
+  maximo_bytes <- if (length(observados_bytes)) {
+    max(observados_bytes)
+  } else 0
+  hay_largo <- is.finite(maximo_bytes) && maximo_bytes > max_largo
+  if (!hay_largo) return(vacio)
+  caracteres <- .nchar_texto_seguro(textos)
+  mascara <- !is.na(textos) & bytes > max_largo
+  if (!is.null(caracteres)) {
+    mascara <- mascara | (!is.na(caracteres) & caracteres > max_largo)
+  }
+  vacio$mascara <- mascara
+  vacio$n_valores <- as.integer(sum(mascara))
+  observados_caracteres <- if (is.null(caracteres)) {
+    observados_bytes
+  } else caracteres[!is.na(caracteres)]
+  vacio$max_bytes <- if (length(observados_bytes)) {
+    max(observados_bytes)
+  } else 0
+  vacio$max_caracteres <- if (length(observados_caracteres)) {
+    max(observados_caracteres)
+  } else 0
+  vacio
+}
+
+.marca_texto_largo <- function(x, mascara) {
+  if (!(is.character(x) || is.factor(x))) return(x)
+  if (!any(mascara)) return(x)
+  salida <- if (is.factor(x)) as.character(x) else x
+  salida[mascara] <- "texto_largo_no_evaluado"
+  salida
 }
 
 .diagnosticar_texto <- function(x, vocabulario = NULL) {
@@ -2601,11 +2651,14 @@
                               sentinelas_numericos,
                               aplicable = NULL,
                               cadenas_ausencia = NULL,
-                              codigo = FALSE) {
+                              codigo = FALSE,
+                              max_largo_valor_vocabulario =
+                                .MAX_LARGO_VALOR_CASI_DUPLICADOS) {
   if (.es_columna_compuesta(x)) {
     return(.perfilar_columna_matriz(
       x, nombre, muestra, max_patrones, distinguir_mayusculas, expandir,
-      umbral_patron_raro, sentinelas_numericos
+      umbral_patron_raro, sentinelas_numericos,
+      max_largo_valor_vocabulario
     ))
   }
   # El universo aplicable se resuelve primero porque gobierna todos los conteos
@@ -2646,6 +2699,10 @@
   }
   preparacion_texto <- .texto_analizable(x)
   x_analisis <- preparacion_texto$valores
+  # Esta vista conserva los valores para los conteos y las lecturas baratas.
+  # El tope se calcula despues de aplicar el universo y solo modifica la vista
+  # de las operaciones textuales costosas.
+  x_analisis_diagnostico <- x_analisis
   # La columna tal cual, para lo que compara por igualdad en vez de leer texto.
   # Sobre una columna no analizable como texto, `valores` son ausentes
   # declarados: inferir el tipo ahi diria "desconocido" sobre una columna cuyo
@@ -2682,14 +2739,38 @@
       x_identidad[!aplicable] <- NA
     }
   }
+  texto_largo <- .texto_largo(
+    x_analisis, max_largo_valor_vocabulario
+  )
+  # La vista completa conserva los valores largos para identidad, conteos,
+  # inferencia y longitudes. Las operaciones textuales costosas reciben una
+  # vista aparte con esas filas enmascaradas mas abajo.
+  x_analisis_diagnostico <- x_analisis
+  x_texto_diagnostico <- if (is.character(x) || is.factor(x)) {
+    salida <- x
+    if (!all(aplicable)) salida[!aplicable] <- NA_character_
+    if (any(texto_largo$mascara)) {
+      salida[texto_largo$mascara] <- NA_character_
+    }
+    salida
+  } else {
+    .marca_texto_largo(x_analisis, texto_largo$mascara)
+  }
   # El perfilado conserva el resultado intermedio sólo durante esta llamada;
   # la función exportada `inferir_tipo()` nunca devuelve ese caché.
   inferencia <- .inferir_tipo_interno(
-    x_identidad, muestra = muestra, conservar_cache = TRUE
+    if (is.character(x_analisis_diagnostico) ||
+        is.factor(x_analisis_diagnostico)) {
+      x_analisis_diagnostico
+    } else {
+      x_identidad
+    }, muestra = muestra, conservar_cache = TRUE
   )
   formatos <- inferencia$formatos_fecha
   if (is.null(formatos)) {
-    formatos <- detectar_formatos_fecha(x_analisis, muestra = muestra)
+    formatos <- detectar_formatos_fecha(
+      x_analisis_diagnostico, muestra = muestra
+    )
   }
   # El tipo y su estado deben salir de la misma tabla de formatos. En texto,
   # esta es la tabla que ya uso `.inferir_tipo_interno` para calcular
@@ -2727,7 +2808,7 @@
     # pasar el original hace que `descubrir_patrones()` lo rechace: "`x` debe
     # ser un vector atomico". Lo atrapo la suite.
     descubrir_patrones(
-      if (is.character(x) || is.factor(x)) .texto_publicable(x) else x_analisis,
+      x_texto_diagnostico,
       distinguir_mayusculas = distinguir_mayusculas,
       expandir = expandir,
       max_patrones = max_patrones,
@@ -2789,22 +2870,35 @@
   n_distintos <- .n_distintos_columna(x_identidad, claves = claves_identidad)
   valor_concentrado <- .estadisticos_valor_concentrado(x_identidad)
   vocabulario_texto <- if (
-    (is.character(x_analisis) || is.factor(x_analisis)) &&
+    (is.character(x_analisis_diagnostico) ||
+       is.factor(x_analisis_diagnostico)) &&
       n > 1L && is.finite(n_distintos) &&
       n_distintos / n <= .umbral_vocabulario_codificacion
   ) {
-    unique(x_analisis[!is.na(x_analisis)])
+    unique(x_analisis_diagnostico[!is.na(x_analisis_diagnostico)])
   } else {
     NULL
   }
+  vocabulario_texto_caro <- if (
+    is.null(vocabulario_texto) || !any(texto_largo$mascara)
+  ) {
+    vocabulario_texto
+  } else {
+    unique(x_analisis_diagnostico[
+      !is.na(x_analisis_diagnostico) & !texto_largo$mascara
+    ])
+  }
   vocabulario_numeros <- if (
     is.null(vocabulario_texto) &&
-      (is.character(x_analisis) || is.factor(x_analisis))
-  ) x_analisis else vocabulario_texto
+      (is.character(x_analisis_diagnostico) ||
+         is.factor(x_analisis_diagnostico))
+  ) x_analisis_diagnostico else vocabulario_texto
   numeros_texto <- .analizar_numeros_texto(
-    x_analisis, vocabulario = vocabulario_numeros, n_distintos = n_distintos,
+    x_analisis_diagnostico, vocabulario = vocabulario_numeros,
+    n_distintos = n_distintos,
     directo = is.null(vocabulario_texto) &&
-      (is.character(x_analisis) || is.factor(x_analisis))
+      (is.character(x_analisis_diagnostico) ||
+         is.factor(x_analisis_diagnostico))
   )
   # La convencion decimal que la fila publica viaja con la inferencia a TODO lo
   # que lee la columna como numero -la secuencia entera, los faltantes
@@ -2813,7 +2907,7 @@
   # Ver `.leer_numeros_texto()`.
   inferencia$convencion_numero_texto <- numeros_texto$convencion
   secuencia_entera <- .resumen_secuencia_entera(
-    x_analisis, inferencia, formatos
+    x_analisis_diagnostico, inferencia, formatos
   )
   attr(patrones, "desvios_patron_raro") <-
     .desvios_patron_raro_detectados(
@@ -2821,22 +2915,24 @@
     )
   # La mascara se calcula en UNA funcion, que tambien usa `detectar_claves()`.
   faltantes_disfrazados <- .faltantes_disfrazados_columna(
-    x_analisis, inferencia, formatos, secuencia_entera, sentinelas_numericos,
+    x_analisis_diagnostico, inferencia, formatos, secuencia_entera,
+    sentinelas_numericos,
     sentinelas_declarados, cadenas_ausencia, aplicable
   )
   rol_propuesto <- .propuesta_escala(x, inferencia$tipo)$rol
   casi_clave <- .resumen_casi_clave(
-    x_analisis, rol = rol_propuesto, tipo_implicito = inferencia$tipo,
+    x_analisis_diagnostico, rol = rol_propuesto, tipo_implicito = inferencia$tipo,
     disfrazados = faltantes_disfrazados$mascara
   )
   vocabulario_fecha <- if (
-    (is.character(x_analisis) || is.factor(x_analisis)) &&
+    (is.character(x_analisis_diagnostico) ||
+       is.factor(x_analisis_diagnostico)) &&
       inferencia$tipo %in% c("fecha", "fecha-hora")
   ) {
-    textos_fecha <- trimws(x_analisis)
+    textos_fecha <- trimws(x_analisis_diagnostico)
     presentes_fecha <- !is.na(textos_fecha) & nzchar(textos_fecha)
-    valores_fecha <- if (is.null(vocabulario_texto)) NULL else {
-      unicos <- trimws(vocabulario_texto)
+    valores_fecha <- if (is.null(vocabulario_texto_caro)) NULL else {
+      unicos <- trimws(vocabulario_texto_caro)
       unique(unicos[!is.na(unicos) & nzchar(unicos)])
     }
     .vocabulario_texto(
@@ -2847,10 +2943,10 @@
   moda <- .moda_columna(x_identidad, claves = claves_identidad)
   longitudes <- .resumen_longitud(x_analisis)
   cuantitativo <- .resumen_cuantitativo(
-    x_analisis, inferencia, formatos, meses_texto = meses_texto,
+    x_analisis_diagnostico, inferencia, formatos, meses_texto = meses_texto,
     sentinelas_numericos = sentinelas_numericos,
     vocabulario = vocabulario_fecha,
-    valores_preparados = x_analisis
+    valores_preparados = x_analisis_diagnostico
   )
   # Declarada en `columnas_codigo`: ver `.resumen_codigo_declarado()`.
   if (isTRUE(codigo)) cuantitativo <- .resumen_codigo_declarado(cuantitativo)
@@ -2862,7 +2958,9 @@
   # y el paquete disparaba su propia alarma -"cuenta 6 y traza 4"-. Se marca
   # como ausente en vez de recortar, por el mismo motivo que arriba: para que
   # los indices de fila sigan alineados con la tabla.
-  x_texto <- if (escrito) x else rep(NA_character_, length(x))
+  x_texto <- if (escrito) x_texto_diagnostico else {
+    rep(NA_character_, length(x))
+  }
   if (!all(aplicable)) {
     # Una geometria no admite `NA` -ver arriba, `x_identidad`- y los
     # diagnosticos de texto la tratan igual que a una columna de ausentes
@@ -2873,12 +2971,34 @@
       x_texto[!aplicable] <- NA
     }
   }
-  diagnostico_texto <- .diagnosticar_texto(x_texto, vocabulario = vocabulario_texto)
-  multivaluados <- if (is.character(x_analisis) || is.factor(x_analisis)) {
-    .detectar_multivaluados(x_analisis)
+  diagnostico_texto <- .diagnosticar_texto(
+    x_texto, vocabulario = vocabulario_texto_caro
+  )
+  if (is.character(x_analisis_diagnostico) ||
+      is.factor(x_analisis_diagnostico)) {
+    espacios_completos <- !is.na(x_analisis_diagnostico) &
+      x_analisis_diagnostico != trimws(x_analisis_diagnostico)
+    diagnostico_texto$n_espacios_borde <- as.integer(sum(espacios_completos))
+    if (any(espacios_completos)) {
+      publicables_completos <- .vista_publicable(
+        preparacion_texto$valores_identidad, x_analisis_diagnostico
+      )
+      diagnostico_texto$evidencia_espacios <- paste(
+        .citar_publicable(utils::head(
+          .identificadores_unicos(publicables_completos[espacios_completos]),
+          6L
+        )), collapse = "; "
+      )
+    }
+  }
+  multivaluados <- if (is.character(x_analisis_diagnostico) ||
+                       is.factor(x_analisis_diagnostico)) {
+    .detectar_multivaluados(x_analisis_diagnostico)
   } else list()
-  n_blancos <- if (is.character(x_analisis) || is.factor(x_analisis)) {
-    sum(!is.na(x_analisis) & !nzchar(trimws(as.character(x_analisis))))
+  n_blancos <- if (is.character(x_analisis_diagnostico) ||
+                   is.factor(x_analisis_diagnostico)) {
+    sum(!is.na(x_analisis_diagnostico) &
+          !nzchar(trimws(as.character(x_analisis_diagnostico))))
   } else {
     0L
   }
@@ -3080,18 +3200,22 @@
     aplicable = aplicable,
     # La declaracion `columnas_codigo`, para los hallazgos: la marca del resumen
     # numerico no existe en un codigo guardado como texto que no se lee numero.
-    codigo = isTRUE(codigo)
+    codigo = isTRUE(codigo),
+    texto_largo = texto_largo
   )
 }
 
 .perfilar_columna_matriz <- function(x, nombre, muestra, max_patrones,
                                      distinguir_mayusculas, expandir,
                                      umbral_patron_raro,
-                                     sentinelas_numericos) {
+                                     sentinelas_numericos,
+                                     max_largo_valor_vocabulario =
+                                       .MAX_LARGO_VALOR_CASI_DUPLICADOS) {
   resultado <- .perfilar_columna(
     rep(NA_character_, NROW(x)), nombre, muestra, max_patrones,
     distinguir_mayusculas, expandir, umbral_patron_raro,
-    sentinelas_numericos
+    sentinelas_numericos,
+    max_largo_valor_vocabulario = max_largo_valor_vocabulario
   )
   fila <- resultado$fila
   # `.tipo_declarado()` y no `"matriz"` fijo: una tabla anidada es compuesta y

@@ -149,8 +149,8 @@
 .unir_cifras_reporte <- function(textos, max_caracteres) {
   textos[is.na(textos)] <- "NA"
   unido <- paste(textos, collapse = ", ")
-  if (nchar(unido, type = "chars") <= max_caracteres) return(unido)
-  largos <- cumsum(nchar(textos, type = "chars") + 2L)
+  if (.nchar_texto_seguro(unido)[[1L]] <= max_caracteres) return(unido)
+  largos <- cumsum(.nchar_texto_seguro(textos) + 2L)
   caben <- max(1L, sum(largos + 1L <= max_caracteres))
   paste0(paste(textos[seq_len(caben)], collapse = ", "), ", \u2026")
 }
@@ -219,7 +219,7 @@
   # valor latin1, y la celda del reporte decia otra cosa que en una sesion
   # UTF-8.
   texto <- .pegar_texto(texto, collapse = ", ")
-  if (nchar(texto, type = "chars") > max_caracteres) {
+  if (.nchar_texto_seguro(texto)[[1L]] > max_caracteres) {
     texto <- paste0(substr(texto, 1L, max_caracteres - 1L), "\u2026")
   }
   texto

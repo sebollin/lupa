@@ -826,9 +826,14 @@ rbind.deriva_perfil <- function(..., deparse.level = 1) {
 # `duplicados_exactos_columnas` y una `relacion_aritmetica_columnas`
 # desaparecian sin rastro. Ahora se descarta
 # solo si el texto nombra una columna retirada, entera o como una de sus partes.
-.hallazgo_nombra_columna_retirada <- function(columna, retiradas) {
+.hallazgo_nombra_columna_retirada <- function(columna, retiradas,
+                                             columnas = NULL) {
   retiradas_originales <- as.character(retiradas)
   columna_original <- as.character(columna)
+  if (length(columnas)) {
+    return(any(.nombres_para_operar(columnas) %in%
+               .nombres_para_operar(retiradas_originales)))
+  }
   # Una coma puede ser parte del nombre real de una columna. La coincidencia
   # exacta se resuelve antes de interpretar el texto como una lista de columnas.
   if (length(columna_original) == 1L && !is.na(columna_original) &&
@@ -845,10 +850,14 @@ rbind.deriva_perfil <- function(..., deparse.level = 1) {
   if (any(vapply(retiradas_originales, function(nombre) {
     nombre <- .nombres_para_operar(nombre)
     startsWith(texto, paste0(nombre, ",")) ||
-      endsWith(texto, paste0(",", nombre))
+      endsWith(texto, paste0(",", nombre)) ||
+      grepl(paste0(",", nombre, ","), texto, fixed = TRUE)
   }, logical(1L)))) return(TRUE)
-  partes <- trimws(strsplit(texto, ",", fixed = TRUE)[[1L]])
-  any(partes %in% retiradas)
+  partes_historicas <- .separar_nombres_columnas_historico(
+    columna_original, sep = ","
+  )
+  any(.nombres_para_operar(partes_historicas) %in%
+        .nombres_para_operar(retiradas_originales))
 }
 
 
@@ -952,6 +961,9 @@ rbind.deriva_perfil <- function(..., deparse.level = 1) {
 # cobertura escribe y exige que cada uno caiga en alguno de los tres casos,
 # para que un diagnostico nuevo no se desencuentre en silencio.
 .hallazgos_por_diagnostico <- list(
+  # Este diagnostico solo declara alcance: sus filas dependientes nombran los
+  # chequeos que se omitieron, no un hallazgo propio.
+  texto_largo_no_evaluado = character(),
   relacion_orden_columnas = "relacion_orden_columnas",
   proximidad_vocabulario = c(
     "casi_duplicados_vocabulario", "variantes_equifrecuentes_vocabulario"
@@ -977,6 +989,7 @@ rbind.deriva_perfil <- function(..., deparse.level = 1) {
   }
   diagnosticos <- as.character(cobertura$diagnostico)
   columnas <- as.character(cobertura$columna)
+  nombres_columnas <- as.character(perfil$columnas$columna)
   unlist(lapply(seq_along(diagnosticos), function(i) {
     if (identical(diagnosticos[[i]], "muestra_perfilado") &&
         identical(as.character(columnas[[i]]), "")) {
@@ -994,9 +1007,10 @@ rbind.deriva_perfil <- function(..., deparse.level = 1) {
     # Una fila que declina un diagnostico sobre varias columnas las nombra como
     # una lista -`a,b,c`-: declina tambien cada una, para que un hallazgo de
     # varias columnas que nombra alguna no se publique resuelto.
-    nombres <- columnas[[i]]
-    if (!is.na(nombres) && grepl(",", nombres, fixed = TRUE, useBytes = TRUE)) {
-      nombres <- unique(c(nombres, trimws(strsplit(nombres, ",", fixed = TRUE)[[1L]])))
+    nombres <- .columnas_cobertura(cobertura, i, nombres_columnas)
+    if (!length(nombres)) nombres <- columnas[[i]]
+    if (length(nombres) > 1L) {
+      nombres <- unique(c(columnas[[i]], nombres))
     }
     as.vector(outer(nombres, tipos, .clave_declinacion_deriva))
   }), use.names = FALSE)
@@ -2215,14 +2229,18 @@ comparar_perfiles <- function(anterior, actual, umbral_cambio = 0.05,
     } else {
       x$columna
     }
+    columnas_hallazgo <- if (is.list(x$trazabilidad[[1L]]) &&
+                             length(x$trazabilidad[[1L]]$columnas)) {
+      x$trazabilidad[[1L]]$columnas
+    } else NULL
     if (x$columna != "<tabla>" &&
         !.nombres_para_operar(x$columna) %in% nombres_actuales &&
         .hallazgo_nombra_columna_retirada(
-          columna_hallazgo, columnas_retiradas
+          columna_hallazgo, columnas_retiradas, columnas_hallazgo
         )) next
     if (identical(as.character(x$tipo_hallazgo), "columnas_duplicadas") &&
         .hallazgo_nombra_columna_retirada(
-          columna_hallazgo, columnas_retiradas
+          columna_hallazgo, columnas_retiradas, columnas_hallazgo
         )) next
     if (.hallazgo_cuenta_filas_tabla(x) &&
         nzchar(motivo_columnas_cambiadas)) {
@@ -2248,9 +2266,13 @@ comparar_perfiles <- function(anterior, actual, umbral_cambio = 0.05,
     # cobertura del perfil nuevo declina su diagnostico sobre alguna de ellas:
     # las relaciones entre columnas declaran las que omitieron como una lista
     # (`a,b,c`), y la guarda las parte en `.diagnosticos_declinados_deriva()`.
-    componentes <- if (!identical(x$columna, "<tabla>") &&
-                       grepl(",", x$columna, fixed = TRUE, useBytes = TRUE)) {
-      trimws(strsplit(x$columna, ",", fixed = TRUE)[[1L]])
+    componentes <- if (!identical(x$columna, "<tabla>")) {
+      if (is.list(x$trazabilidad[[1L]]) &&
+          length(x$trazabilidad[[1L]]$columnas)) {
+        as.character(x$trazabilidad[[1L]]$columnas)
+      } else {
+        .separar_nombres_columnas_historico(x$columna, sep = ",")
+      }
     } else character()
     declinado <- clave_declinacion %in% declinados_ahora ||
       any(.clave_declinacion_deriva(

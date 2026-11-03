@@ -354,6 +354,75 @@
   isTRUE(resultado)
 }
 
+.tipo_match_R <- function(x) {
+  if (inherits(x, "integer64")) return("integer64")
+  if (is.factor(x)) return("factor")
+  if (inherits(x, "Date")) return("Date")
+  if (inherits(x, "POSIXct")) return("POSIXct")
+  if (inherits(x, "difftime")) return("difftime")
+  if (is.null(oldClass(x))) return("")
+  NULL
+}
+
+.puede_vectorizar_match_R <- function(valores, representantes) {
+  tipo_valores <- .tipo_match_R(valores)
+  tipo_representantes <- .tipo_match_R(representantes)
+  if (is.null(tipo_valores) || is.null(tipo_representantes) ||
+      !identical(tipo_valores, tipo_representantes)) {
+    return(FALSE)
+  }
+  if (identical(tipo_valores, "integer64")) {
+    return(.integer64_con_match_confiable())
+  }
+  if (identical(tipo_valores, "factor")) {
+    niveles_validos <- function(x) {
+      niveles <- tryCatch(levels(x), error = function(e) NULL)
+      !is.null(niveles) && !anyDuplicated(niveles)
+    }
+    if (!niveles_validos(valores) || !niveles_validos(representantes)) {
+      return(FALSE)
+    }
+  }
+  if (identical(tipo_valores, "difftime")) {
+    unidades_validas <- function(x) {
+      unidades <- attr(x, "units", exact = TRUE)
+      length(unidades) == 1L && is.character(unidades) &&
+        !is.na(unidades) && nzchar(unidades)
+    }
+    if (!unidades_validas(valores) || !unidades_validas(representantes)) {
+      return(FALSE)
+    }
+  }
+  tipo_valores %in% c("", "factor", "Date", "POSIXct", "difftime")
+}
+
+.claves_match_R <- function(valores, representantes, tipo) {
+  if (identical(tipo, "factor")) {
+    niveles <- unique(c(levels(valores), levels(representantes)))
+    return(list(
+      valores = match(as.character(valores), niveles, nomatch = 0L),
+      representantes = match(as.character(representantes), niveles,
+                             nomatch = 0L)
+    ))
+  }
+  if (identical(tipo, "difftime")) {
+    return(list(
+      # `match()` historicamente compara la representacion numerica de
+      # `difftime`, no convierte las unidades. Mantenerla evita que el camino
+      # rapido cambie la identidad de un perfil.
+      valores = unclass(valores),
+      representantes = unclass(representantes)
+    ))
+  }
+  if (tipo %in% c("Date", "POSIXct")) {
+    return(list(
+      valores = unclass(valores),
+      representantes = unclass(representantes)
+    ))
+  }
+  list(valores = valores, representantes = representantes)
+}
+
 .match_R <- function(valores, representantes) {
   if (!length(valores)) return(integer())
   if (!length(representantes)) return(integer(length(valores)))
@@ -365,6 +434,17 @@
       if (any(nans)) x[nans] <- NaN
     }
     x
+  }
+  tipo <- .tipo_match_R(valores)
+  if (.puede_vectorizar_match_R(valores, representantes)) {
+    claves <- tryCatch(
+      .claves_match_R(valores, representantes, tipo),
+      error = function(e) NULL
+    )
+    if (!is.null(claves)) {
+      valores <- claves$valores
+      representantes <- claves$representantes
+    }
   }
   valores <- normalizar_dobles(valores)
   representantes <- normalizar_dobles(representantes)
@@ -554,7 +634,7 @@
     return(.marcar_fallo_acumulador(acumulador, "longitudes_no_textuales"))
   }
   aplica <- !is.na(bloque$aplicable) & bloque$aplicable
-  longitudes <- nchar(as.character(x)[aplica], type = "chars", allowNA = TRUE)
+  longitudes <- .nchar_texto_seguro(as.character(x)[aplica])
   # Lo que se CUENTA aca es sobre cuantos valores se calculo la longitud, y eso es
   # lo que declara el universo: `nchar()` devuelve `NA` cuando no puede medir el
   # valor -bytes que no son UTF-8 valido-, y esos se descartaban sin que ningun
@@ -971,27 +1051,44 @@
   # llamada de dispatch por celda. El camino lento de abajo queda para clases
   # con semántica propia; el caso atomico sin clase es el que domina las
   # columnas grandes de texto y numeros.
-  if (is.atomic(x) && is.null(dim(x)) && is.null(attr(x, "class"))) {
+  puede_vectorizar <- is.atomic(x) && is.null(dim(x)) && (
+    !length(estado$representantes) ||
+      .puede_vectorizar_match_R(x, estado$representantes)
+  )
+  if (puede_vectorizar) {
     n_representantes <- length(estado$representantes)
     posiciones <- if (n_representantes) {
-      # Para atomicos sin clase, `match` es exactamente la igualdad que usa
-      # `.match_R`; se evita el tryCatch y la normalizacion por celda del
-      # adaptador general.
-      match(x, estado$representantes, nomatch = 0L)
+      .match_R(x, estado$representantes)
     } else integer(length(x))
-    if (n_representantes) {
+    if (length(posiciones) == length(x) && !anyNA(posiciones) &&
+        n_representantes) {
       estado$frecuencias <- estado$frecuencias + tabulate(
         posiciones[posiciones > 0L], nbins = n_representantes
       )
     }
-    nuevos <- x[posiciones == 0L]
-    if (!length(nuevos)) {
-      acumulador$estado_familia <- estado
-      return(acumulador)
+    if (length(posiciones) == length(x) && !anyNA(posiciones)) {
+      nuevos <- x[posiciones == 0L]
+      if (!length(nuevos)) {
+        acumulador$estado_familia <- estado
+        return(acumulador)
+      }
+      claves_nuevos <- tryCatch(
+        .claves_match_R(nuevos, nuevos, .tipo_match_R(nuevos))$valores,
+        error = function(e) NULL
+      )
+      if (is.null(claves_nuevos)) {
+        correspondencias <- NULL
+      } else {
+        # `unique.factor()` distingue codigos, mientras `.match_R()` compara
+        # etiquetas. Usar la misma clave evita representantes fantasma cuando
+        # un factor trae niveles repetidos.
+        nuevos <- nuevos[!duplicated(claves_nuevos)]
+        correspondencias <- .match_R(x, nuevos)
+      }
+    } else {
+      correspondencias <- NULL
     }
-    nuevos <- unique(nuevos)
-    correspondencias <- match(x, nuevos, nomatch = 0L)
-    if (length(correspondencias) == length(x)) {
+    if (length(correspondencias) == length(x) && !anyNA(correspondencias)) {
       frecuencias_nuevas <- tabulate(
         correspondencias, nbins = length(nuevos)
       )

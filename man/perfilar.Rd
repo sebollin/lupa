@@ -872,13 +872,18 @@ las dependencias. Se combina con \code{max_comparaciones_dependencias}; el
 límite efectivo baja cuando hay muchas filas. \code{Inf} desactiva este tope,
 pero no el de pares.}
 
-\item{max_largo_valor_vocabulario}{Maximo de caracteres permitido en cada
-valor que entra en la comparacion de casi duplicados del vocabulario. Por
-defecto es \code{10000}, elegido porque la distancia normalizada deja de
-distinguir de forma estable una diferencia local de muchas diferencias en
-textos largos. Una columna que supera el tope se declara completa fuera
-de alcance en \code{cobertura_diagnosticos}; no se recortan valores en silencio.
-\code{Inf} quita el tope.}
+\item{max_largo_valor_vocabulario}{Maximo de bytes o caracteres permitido en
+cada valor que entra en los diagnosticos textuales costosos. Por defecto es
+\code{10000}, elegido porque las expresiones regulares, la normalizacion y la
+comparacion de textos largos dejan de ser una medida razonable. Los valores
+que superan el tope quedan fuera de esos diagnosticos, se cuentan completos
+para las medidas de la columna y se declaran en \code{cobertura_diagnosticos}.
+\code{Inf} quita el tope. El limite especifico de casi duplicados conserva este
+mismo valor para no ejecutar una distancia sobre cadenas sin presupuesto.
+La inferencia de tipo, los conteos baratos, las dependencias y los
+estadisticos se calculan sobre el universo completo que resulte aplicable.
+Cada diagnostico que omita los valores largos agrega su propia fila de
+cobertura, con \code{dependencia = "texto_largo_no_evaluado"}.}
 
 \item{max_celdas_muestra}{Maximo de celdas que puede contener la muestra
 comun de los diagnosticos que muestrean filas. Por defecto es \code{1000000};

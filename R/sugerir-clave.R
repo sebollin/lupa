@@ -254,7 +254,9 @@ sugerir_clave <- function(datos, maximo = 5L, umbral_casi = 0.95) {
 #' Muestra las candidatas de [sugerir_clave()] numeradas, con el motivo de cada
 #' una, y devuelve la que se elija para pasarla al argumento `clave` de
 #' [perfilar()]. La última opción permite escribir un nombre que no esté en la
-#' lista, o varios separados por coma para una clave compuesta.
+#' lista, o varios separados por coma para una clave compuesta. Si un nombre real
+#' contiene una coma, el texto no se puede desambiguar: en ese caso hay que
+#' pasar un vector de nombres, por ejemplo `c("a,b")`, al argumento `clave`.
 #'
 #' **En una sesión no interactiva no pregunta**: devuelve `NULL` y avisa qué
 #' habría ofrecido. Un guion que corre solo no puede quedarse esperando una
@@ -335,7 +337,18 @@ elegir_clave <- function(datos, maximo = 5L, umbral_casi = 0.95) {
 }
 
 .clave_escrita <- function(texto, datos) {
-  nombres <- trimws(strsplit(as.character(texto), ",", fixed = TRUE)[[1L]])
+  texto <- as.character(texto)
+  if (length(texto) > 1L) {
+    nombres <- texto
+  } else {
+    nombres <- .separar_nombres_columnas(texto, names(datos))
+    if (isTRUE(attr(nombres, "ambigua", exact = TRUE))) {
+      cli::cli_alert_warning(.cli_literal(
+        "El texto separa nombres de forma ambigua; pasar un vector de columnas."
+      ))
+      return(NULL)
+    }
+  }
   nombres <- nombres[nzchar(nombres)]
   if (!length(nombres)) return(NULL)
   indices <- .indice_nombre(nombres, names(datos))

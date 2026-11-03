@@ -102,6 +102,32 @@
   textos
 }
 
+# Mide caracteres sin pedirle a R que interprete una cadena que se declaro como
+# bytes o que trae una secuencia invalida. En esos casos no hay una cantidad de
+# caracteres que el paquete pueda afirmar: se devuelve NA, mientras el largo en
+# bytes sigue disponible para los topes y las claves.
+.nchar_texto_seguro <- function(textos) {
+  textos <- as.character(textos)
+  if (!length(textos)) return(integer())
+  latin1 <- !is.na(textos) & Encoding(textos) == "latin1"
+  if (any(latin1)) textos[latin1] <- enc2utf8(textos[latin1])
+  validos <- !is.na(textos)
+  if (any(validos)) {
+    trabajo <- textos[validos]
+    interpretables <- !is.na(trabajo) &
+      Encoding(trabajo) %in% c("unknown", "bytes") & validUTF8(trabajo)
+    if (any(interpretables)) {
+      marcados <- trabajo[interpretables]
+      Encoding(marcados) <- "UTF-8"
+      trabajo[interpretables] <- marcados
+    }
+    invalidos <- !is.na(trabajo) & !validUTF8(trabajo)
+    if (any(invalidos)) trabajo[invalidos] <- NA_character_
+    textos[validos] <- trabajo
+  }
+  nchar(textos, type = "chars", allowNA = TRUE)
+}
+
 # Deja el vector en un estado que las operaciones Unicode puedan leer sin
 # depender del locale.
 # Los que ya son UTF-8 valido se MARCAN -conserva los acentos, que es lo que el

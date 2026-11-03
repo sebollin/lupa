@@ -355,6 +355,7 @@
   data.frame(
     diagnostico = character(), columna = character(), motivo = character(),
     como_resolverlo = character(), dependencia = character(),
+    columnas = I(list()),
     stringsAsFactors = FALSE
   )
 }
@@ -463,13 +464,16 @@
 
 .nuevo_diagnostico_no_evaluado <- function(diagnostico, columna, motivo,
                                            como_resolverlo,
-                                           dependencia = NA_character_) {
+                                           dependencia = NA_character_,
+                                           columnas = NULL) {
+  columnas <- if (is.null(columnas)) NULL else as.character(columnas)
   data.frame(
     diagnostico = as.character(diagnostico),
     columna = as.character(columna),
     motivo = as.character(motivo),
     como_resolverlo = as.character(como_resolverlo),
     dependencia = as.character(dependencia),
+    columnas = I(list(columnas)),
     stringsAsFactors = FALSE
   )
 }
@@ -877,6 +881,8 @@
     ultimo <- length(hallazgos)
     hallazgos[[ultimo]]$trazabilidad[[1L]]$posicion_columna <-
       c(primero, segundo)
+    hallazgos[[ultimo]]$trazabilidad[[1L]]$columnas <-
+      c(nombre_primero, nombre_segundo)
   }
   list(hallazgos = hallazgos, alcance = alcance)
 }
@@ -1087,16 +1093,14 @@
     max_asimetria_equifrecuente, max_trabajo, n_excluidos_faltantes,
     max_largo_valor) {
   valores <- unique(textos[presentes])
-  largos_valores <- nchar(valores, type = "chars", allowNA = TRUE)
+  largos_valores <- .nchar_texto_seguro(valores)
   largos_valores <- largos_valores[is.finite(largos_valores)]
-  largos_filas <- nchar(textos[presentes], type = "chars", allowNA = TRUE)
+  largos_filas <- .nchar_texto_seguro(textos[presentes])
   largos_filas <- largos_filas[is.finite(largos_filas)]
   # La regla de proximidad trabaja sobre el VOCABULARIO -los valores distintos-,
   # asi que esa es la unidad en la que promete, y hay que medirla aparte: un
   # unico valor largo repetido en cien filas no son cien valores largos.
-  largos_valores <- nchar(
-    unique(textos[presentes]), type = "chars", allowNA = TRUE
-  )
+  largos_valores <- .nchar_texto_seguro(unique(textos[presentes]))
   largos_valores <- largos_valores[is.finite(largos_valores)]
   suma_largos <- sum(largos_valores)
   trabajo <- if (length(largos_valores)) {
@@ -1246,9 +1250,7 @@
   textos_comparados[presentes] <- .normalizacion_aplicar(
     textos[presentes], perfil_columna
   )
-  largos_comparados <- nchar(
-    textos_comparados[presentes], type = "chars", allowNA = TRUE
-  )
+  largos_comparados <- .nchar_texto_seguro(textos_comparados[presentes])
   largos_comparados <- largos_comparados[is.finite(largos_comparados)]
   # Un solo numero para las dos ramas. Antes, la que excluia publicaba el largo
   # comparado y la que no excluia publicaba el crudo: el mismo campo significaba
@@ -1330,7 +1332,7 @@
   n_unidades <- max(clases, 0L)
   valores_norm <- unique(normalizados)
   longitudes <- if (n_unidades) {
-    as.numeric(nchar(valores_norm, type = "chars", allowNA = TRUE))
+    as.numeric(.nchar_texto_seguro(valores_norm))
   } else numeric()
   longitudes[is.na(longitudes)] <- 0
   # La unidad es la comparacion de un caracter contra otro, que es el bucle
@@ -1596,7 +1598,7 @@
     max_largo_edicion_corta <- 6L
     indices_cortos <- which(
       seq_len(n_unidades) <= max_unidades &
-        nchar(valores_norm, type = "chars", allowNA = TRUE) <=
+        .nchar_texto_seguro(valores_norm) <=
           max_largo_edicion_corta
     )
     if (length(indices_cortos) > 1L) {
@@ -1990,7 +1992,9 @@
           "Subir `max_largo_valor_vocabulario` si la columna contiene valores",
           " que deben compararse, o usar `Inf` explicitamente para recuperar",
           " el comportamiento anterior sin tope."
-        )
+        ),
+        dependencia = "texto_largo_no_evaluado",
+        columnas = columnas[[i]]
       )
       next
     }
@@ -3019,6 +3023,7 @@
   n <- length(x)
   if (!n) return(integer())
   texto <- tryCatch(.texto_analizable(x)$valores, error = function(e) NULL)
+  texto_completo <- texto
   # El universo aplicable entra ACA, antes de formar los grupos, y no despues
   # recortando el resultado. Recortar deja la traza nombrando filas que el conteo
   # no cuenta: medido, con `A`, `a` y `c` aplicables y `c`, `C` fuera del universo,
@@ -3034,6 +3039,13 @@
   if (!is.null(texto) && !is.null(aplicable) &&
       length(aplicable) == length(texto) && !all(aplicable)) {
     texto[!aplicable] <- NA
+    texto_completo[!aplicable] <- NA
+  }
+  mascara_largos <- tryCatch(resultado$texto_largo$mascara,
+                              error = function(e) NULL)
+  if (is.character(texto) && is.logical(mascara_largos) &&
+      length(mascara_largos) == length(texto) && any(mascara_largos)) {
+    texto[mascara_largos] <- NA
   }
   cuantitativos <- NULL
   cuantitativos_evaluados <- FALSE
@@ -3096,8 +3108,8 @@
                           error = function(e) NULL)
       if (is.null(mascara) || length(mascara) != n) NULL else which(mascara)
     },
-    espacios_sobrantes = if (is.null(texto)) NULL else
-      which(!is.na(texto) & texto != trimws(texto)),
+    espacios_sobrantes = if (is.null(texto_completo)) NULL else
+      which(!is.na(texto_completo) & texto_completo != trimws(texto_completo)),
     controles_invisibles = {
       invisibles <- obtener_invisibles()
       if (is.null(invisibles)) NULL else which(invisibles$control)
@@ -3137,26 +3149,27 @@
       if (is.null(cod) || is.null(cod$afectados)) NULL else
         which(cod$afectados)
     },
-    numero_como_texto = if (is.null(texto)) NULL else {
-      partes <- tryCatch(.componentes_numero_texto_optimizado(texto),
+    numero_como_texto = if (is.null(texto_completo)) NULL else {
+      partes <- tryCatch(.componentes_numero_texto_optimizado(texto_completo),
                          error = function(e) NULL)
       if (is.null(partes)) NULL else which(
-        !is.na(texto) & nzchar(texto) & partes$compatible & partes$especial
+        !is.na(texto_completo) & nzchar(texto_completo) & partes$compatible &
+          partes$especial
       )
     },
-    unidades_mixtas = if (is.null(texto)) NULL else {
-      partes <- tryCatch(.componentes_numero_texto_optimizado(texto),
+    unidades_mixtas = if (is.null(texto_completo)) NULL else {
+      partes <- tryCatch(.componentes_numero_texto_optimizado(texto_completo),
                          error = function(e) NULL)
       if (is.null(partes)) NULL else which(
-        !is.na(texto) & nzchar(texto) & partes$compatible &
+        !is.na(texto_completo) & nzchar(texto_completo) & partes$compatible &
           nzchar(partes$unidad)
       )
     },
-    monedas_mixtas = if (is.null(texto)) NULL else {
-      partes <- tryCatch(.componentes_numero_texto_optimizado(texto),
+    monedas_mixtas = if (is.null(texto_completo)) NULL else {
+      partes <- tryCatch(.componentes_numero_texto_optimizado(texto_completo),
                          error = function(e) NULL)
       if (is.null(partes)) NULL else which(
-        !is.na(texto) & nzchar(texto) & partes$compatible &
+        !is.na(texto_completo) & nzchar(texto_completo) & partes$compatible &
           nzchar(partes$moneda)
       )
     },
@@ -3231,7 +3244,14 @@
       }
     },
     patron_raro = .indices_patron_raro(
-      x, resultado, expandir, distinguir_mayusculas
+      if (is.character(x) || is.factor(x)) {
+        x_texto <- x
+        if (is.logical(mascara_largos) && length(mascara_largos) == length(x)) {
+          x_texto[mascara_largos] <- NA_character_
+        }
+        x_texto
+      } else x,
+      resultado, expandir, distinguir_mayusculas
     ),
     NULL
   )
@@ -3282,11 +3302,19 @@
     pares <- aproximados$pares[indices_pares[[ocurrencia]], , drop = FALSE]
     parcial <- aproximados$alcance$n_pares_comparados[[1L]] <
       aproximados$alcance$n_pares_posibles[[1L]]
-    return(.trazabilidad_indices(
+    traza <- .trazabilidad_indices(
       c(pares$fila_1[[1L]], pares$fila_2[[1L]]),
       if (parcial) "comparacion_parcial" else "comparacion_completa", limite,
       clave = clave, datos = datos
-    ))
+    )
+    columnas_traza <- aproximados$columnas
+    if (is.null(columnas_traza) || !length(columnas_traza)) {
+      columnas_traza <- .separar_nombres_columnas_historico(
+        as.character(hallazgo$columna[[1L]]), sep = ", "
+      )
+    }
+    traza$columnas <- as.character(columnas_traza)
+    return(traza)
   }
   if (tipo == "filas_duplicadas") {
     duplicadas <- .filas_duplicadas_base(datos)
@@ -3295,9 +3323,10 @@
     } else {
       which(duplicadas$adelante | duplicadas$atras)
     }
-    return(.trazabilidad_indices(
+    traza <- .trazabilidad_indices(
       indices, "completo", limite, clave = clave, datos = datos
-    ))
+    )
+    return(traza)
   }
   # La unicidad de la clave se evalua entre filas completas. Las filas con
   # ausentes tienen su hallazgo propio y no se mezclan con esta traza.
@@ -3330,9 +3359,15 @@
     ))
   }
   if (tipo == "relacion_orden_columnas") {
-    nombres_par <- strsplit(
-      as.character(hallazgo$columna[[1L]]), ",", fixed = TRUE
-    )[[1L]]
+    traza_original <- hallazgo$trazabilidad[[1L]]
+    nombres_par <- if (is.list(traza_original) &&
+                       length(traza_original$columnas) == 2L) {
+      as.character(traza_original$columnas)
+    } else {
+      .separar_nombres_columnas_historico(
+        as.character(hallazgo$columna[[1L]]), sep = ","
+      )
+    }
     if (length(nombres_par) != 2L) {
       return(.trazabilidad_vacia(limite = limite))
     }
@@ -3375,19 +3410,32 @@
     }
     comparables <- is.finite(izquierda) & is.finite(derecha)
     indices <- which(comparables & izquierda > derecha)
-    return(.trazabilidad_indices(
+    traza <- .trazabilidad_indices(
       indices, "completo", limite, clave = clave, datos = datos
-    ))
+    )
+    traza$columnas <- nombres_par
+    return(traza)
   }
   if (tipo == "relacion_aritmetica_columnas") {
     trazabilidad <- hallazgo$trazabilidad[[1L]]
-    if (is.list(trazabilidad) &&
-        !identical(trazabilidad$estado, "no_disponible")) {
-      return(.limitar_trazabilidad(
-        trazabilidad, limite = limite, clave = clave, datos = datos
-      ))
+    if (!is.list(trazabilidad)) {
+      return(.trazabilidad_vacia(limite = limite))
     }
-    return(.trazabilidad_vacia(limite = limite))
+    traza <- if (identical(trazabilidad$estado, "no_disponible")) {
+      trazabilidad
+    } else {
+      .limitar_trazabilidad(
+        trazabilidad, limite = limite, clave = clave, datos = datos
+      )
+    }
+    columnas_traza <- trazabilidad$columnas
+    if (!length(columnas_traza)) {
+      columnas_traza <- .separar_nombres_columnas_historico(
+        as.character(hallazgo$columna[[1L]]), sep = ","
+      )
+    }
+    if (length(columnas_traza)) traza$columnas <- as.character(columnas_traza)
+    return(traza)
   }
   if (tipo == "bloqueo_por_con_perdida") {
     return(.trazabilidad_vacia(

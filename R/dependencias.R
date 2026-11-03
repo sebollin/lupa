@@ -708,6 +708,10 @@ detectar_dependencias <- function(datos, umbral = 0.995, muestra = 1e5,
     "dependencias_funcionales",
     diagnostico_columna,
     paste(motivos, collapse = " "),
-    paste(soluciones, collapse = " ")
+    paste(soluciones, collapse = " "),
+    columnas = unique(c(
+      omitidas, no_analizables, repetidas,
+      if (nrow(por_muestra)) por_muestra$columna else character()
+    ))
   )
 }

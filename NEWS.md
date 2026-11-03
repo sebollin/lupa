@@ -115,3 +115,22 @@ Primera versión publicada.
   el desvío pasó de 27 consultas a 2 y de 1,42 millones de lecturas lógicas a
   105 mil en SQL Server, con las mismas cifras. En un motor que lee del disco,
   cada consulta de desvío recorría la tabla entera.
+- En R anterior a 4.6, `match()` sobre fechas era cientos de veces más lento, y
+  una columna `Date` hacía tardar minutos el perfil: 100.000 fechas pasaron de
+  171 s a 1,3 s en R 4.5.2. `Date`, `POSIXct`, `difftime`, los factores e
+  `integer64` se comparan por una clave sin clase, con el mismo resultado.
+- Los valores de texto de más de `max_largo_valor_vocabulario` (10.000
+  caracteres o bytes) quedan fuera solo de las operaciones textuales caras
+  —normalización, patrones, reconocedores de datos personales, casi
+  duplicados—, y la cobertura lo declara con `texto_largo_no_evaluado` y una
+  fila por diagnóstico afectado, para que `comparar_perfiles()` diga
+  `no_evaluado` y no `resuelto`. Los conteos, la inferencia de tipo, los
+  blancos, los centinelas y las dependencias siguen leyendo el valor entero.
+  Sobre 700 filas de cuatro columnas de 14 KB, el perfil pasó de 23 s a 5 s.
+- Un nombre de columna con coma ya no rompe la traza: los hallazgos de pares de
+  columnas llevan las columnas como vector en `trazabilidad$columnas`, y la
+  cobertura en una columna `columnas`. Una clave con un nombre así se pide con un
+  vector.
+- `cobertura_analisis()` acepta el resultado de `perfilar_dbi()`: analiza la
+  muestra y dice que la cobertura es de la muestra; con `bloque_muestra =
+  "solo_agregados"`, usa el resumen de la tabla.

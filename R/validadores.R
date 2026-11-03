@@ -483,7 +483,7 @@ validar_correo <- function(x) {
   validos <- grepl("^[0-9]+$", valor, perl = TRUE)
   if (!any(validos)) return(resultado)
   indices <- which(validos)
-  longitudes <- nchar(valor[indices], type = "chars")
+  longitudes <- .nchar_texto_seguro(valor[indices])
   for (longitud in unique(longitudes)) {
     posiciones <- indices[longitudes == longitud]
     texto <- valor[posiciones]

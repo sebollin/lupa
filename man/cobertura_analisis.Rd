@@ -7,8 +7,11 @@
 cobertura_analisis(perfil, medicion = NULL, modelo = marco_agesic())
 }
 \arguments{
-\item{perfil}{\strong{Primer argumento.} Objeto creado por \code{\link[=perfilar]{perfilar()}}; es el
-perfil descriptivo sobre cuyos factores se informa cobertura.}
+\item{perfil}{\strong{Primer argumento.} Objeto creado por \code{\link[=perfilar]{perfilar()}} o
+\code{\link[=perfilar_dbi]{perfilar_dbi()}}. En el segundo caso se analiza \code{perfil_muestra} cuando
+existe; un perfil por agregados usa el resumen de la tabla y cubre la
+tabla completa. Cuando corresponde, cada motivo indica que la cobertura
+es la de la muestra y no la de la tabla completa.}
 
 \item{medicion}{\strong{Segundo argumento, opcional.} Objeto creado por
 \code{\link[=medir]{medir()}}, con métricas ejecutadas que pueden completar esa cobertura.

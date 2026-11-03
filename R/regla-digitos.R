@@ -807,7 +807,7 @@
     }
     leidos[otros][caracteres[otros] %in% barreras] <- "|"
   }
-  dueno <- rep(seq_along(leidos), nchar(leidos, type = "chars"))
+  dueno <- rep(seq_along(leidos), .nchar_texto_seguro(leidos))
   plano <- paste0(leidos, collapse = "")
   m <- tryCatch(
     gregexpr(.REGLA_DIGITOS$numero, plano, perl = TRUE)[[1L]],
@@ -817,7 +817,9 @@
   fin <- m + attr(m, "match.length") - 1L
   data.frame(
     inicio = dueno[m], fin = dueno[fin],
-    cifras = nchar(gsub("[^0-9]", "", substring(plano, m, fin)), type = "chars")
+    cifras = .nchar_texto_seguro(
+      gsub("[^0-9]", "", substring(plano, m, fin))
+    )
   )
 }
 

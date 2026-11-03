@@ -22,7 +22,9 @@ eligió ninguna o la sesión no es interactiva.
 Muestra las candidatas de \code{\link[=sugerir_clave]{sugerir_clave()}} numeradas, con el motivo de cada
 una, y devuelve la que se elija para pasarla al argumento \code{clave} de
 \code{\link[=perfilar]{perfilar()}}. La última opción permite escribir un nombre que no esté en la
-lista, o varios separados por coma para una clave compuesta.
+lista, o varios separados por coma para una clave compuesta. Si un nombre real
+contiene una coma, el texto no se puede desambiguar: en ese caso hay que
+pasar un vector de nombres, por ejemplo \code{c("a,b")}, al argumento \code{clave}.
 }
 \details{
 \strong{En una sesión no interactiva no pregunta}: devuelve \code{NULL} y avisa qué

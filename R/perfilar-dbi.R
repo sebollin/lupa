@@ -1740,7 +1740,7 @@
 # en su clave y una suma por clave (`rowsum()`). `NA` para una clave vacia.
 .huellas_claves_motor <- function(claves) {
   salida <- rep(NA_real_, length(claves))
-  largos <- nchar(claves, type = "chars", allowNA = TRUE)
+  largos <- .nchar_texto_seguro(claves)
   cuales <- which(!is.na(claves) & !is.na(largos) & largos > 0L)
   if (!length(cuales)) return(salida)
   potencias <- .potencias_huella_motor(max(largos[cuales]))
@@ -1750,8 +1750,11 @@
     if (anyNA(puntos) || length(puntos) != sum(largos[tramo])) {
       puntos <- unlist(lapply(claves[tramo], function(clave) {
         p <- utf8ToInt(clave)
-        if (anyNA(p) || length(p) != nchar(clave, type = "chars")) {
-          as.integer(charToRaw(clave))[seq_len(nchar(clave, type = "chars"))]
+        largo_clave <- .nchar_texto_seguro(clave)[[1L]]
+        if (is.na(largo_clave)) {
+          as.integer(charToRaw(clave))
+        } else if (anyNA(p) || length(p) != largo_clave) {
+          as.integer(charToRaw(clave))[seq_len(largo_clave)]
         } else p
       }), use.names = FALSE)
     }
@@ -1772,7 +1775,7 @@
   huellas <- .huellas_claves_motor(claves)
   validas <- !is.na(huellas)
   list(huellas = unique(huellas[validas]),
-       largos = .sort_por_bytes(unique(nchar(claves[validas], type = "chars"))))
+       largos = .sort_por_bytes(unique(.nchar_texto_seguro(claves[validas]))))
 }
 
 # Los valores conocidos que estan en `textos`, como estan escritos ahi: cada
@@ -1790,7 +1793,7 @@
   if (!length(textos)) return(character())
   claves <- tryCatch(.claves_motor(textos), error = function(e) NULL)
   if (is.null(claves)) return(textos)
-  largos <- nchar(claves, type = "chars", allowNA = TRUE)
+  largos <- .nchar_texto_seguro(claves)
   maximo <- suppressWarnings(max(largos, na.rm = TRUE))
   if (!is.finite(maximo) || maximo < 1L) return(character())
   potencias <- .potencias_huella_motor(maximo)
@@ -1852,7 +1855,7 @@
           if (!identical(paste0(piezas, collapse = ""), claves[[i]])) {
             .detener("pliegue")
           }
-          dueno <- rep.int(seq_along(caracteres), nchar(piezas, type = "chars"))
+          dueno <- rep.int(seq_along(caracteres), .nchar_texto_seguro(piezas))
           vapply(seq_len(nrow(tramos)), function(k) {
             paste0(caracteres[dueno[[tramos[k, 1L]]]:dueno[[tramos[k, 2L]]]],
                    collapse = "")
@@ -3580,6 +3583,14 @@
     )
   })
   lotes_df <- do.call(rbind, lotes)
+  columnas_internas <- lapply(
+    lotes_indices, function(indices) as.character(columnas[indices])
+  )
+  if (any(vapply(columnas_internas, function(x) {
+    length(x) > 1L && any(grepl(",", x, fixed = TRUE, useBytes = TRUE))
+  }, logical(1L)))) {
+    attr(lotes_df, "columnas_internas") <- columnas_internas
+  }
   sobre <- which(!is.na(lotes_df$supera_memoria) & lotes_df$supera_memoria)
   n_estimadas <- nrow(columnas_df)
   if (!n_estimadas) {
@@ -4120,6 +4131,16 @@
       stringsAsFactors = FALSE
     )
   })) else .estimacion_derrame_familia_vacia_dbi(familia)$lotes
+  if (is.data.frame(lotes) && nrow(lotes) && length(grupos)) {
+    columnas_internas <- lapply(
+      grupos, function(indices) as.character(columnas_df$columna[indices])
+    )
+    if (any(vapply(columnas_internas, function(x) {
+      length(x) > 1L && any(grepl(",", x, fixed = TRUE, useBytes = TRUE))
+    }, logical(1L)))) {
+      attr(lotes, "columnas_internas") <- columnas_internas
+    }
+  }
   if (identical(familia, "mediana") && identical(forma, "consolidada") &&
       nrow(lotes)) {
     for (i in seq_along(grupos)) {
@@ -4250,8 +4271,19 @@
     )
   }
   if (is.data.frame(estimacion$lotes) && nrow(estimacion$lotes)) {
+    columnas_internas <- attr(
+      estimacion$lotes, "columnas_internas", exact = TRUE
+    )
     for (i in seq_len(nrow(estimacion$lotes))) {
-      columnas <- trimws(strsplit(estimacion$lotes$columnas[[i]], ",", fixed = TRUE)[[1L]])
+      columnas <- if (is.list(columnas_internas) &&
+                      length(columnas_internas) >= i) {
+        as.character(columnas_internas[[i]])
+      } else {
+        .separar_nombres_columnas(
+          estimacion$lotes$columnas[[i]],
+          estimacion$columnas$columna, sep = ", "
+        )
+      }
       filas <- estimacion$columnas[
         .nombres_para_operar(estimacion$columnas$columna) %in%
           .nombres_para_operar(columnas), , drop = FALSE
@@ -6067,7 +6099,7 @@
       # saber que no sigue: "1234e" cortado en la `e` casaria "1234" y en el
       # texto entero "1234e+12".
       if (!length(captura) || hasta == limite ||
-          nchar(captura, type = "chars") <= hasta - i + 1L - 4L) {
+          .nchar_texto_seguro(captura)[[1L]] <= hasta - i + 1L - 4L) {
         return(captura)
       }
       ancho <- ancho * 4L
@@ -6116,7 +6148,7 @@
     if (puede_empezar[[i]] && (i == 1L || es_borde(primero_anterior))) {
       captura <- numero_en(i)
       if (length(captura) == 1L && nzchar(captura)) {
-        siguiente <- i + nchar(captura, type = "chars")
+        siguiente <- i + .nchar_texto_seguro(captura)[[1L]]
         if (siguiente > limite || borde[[siguiente]]) {
           literal <- literal + 1L
           n_salida <- n_salida + 1L

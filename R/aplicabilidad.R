@@ -265,6 +265,7 @@
       "declaraci\u00f3n, la columna se mide sobre todas las filas."
     ),
     dependencia = NA_character_,
+    columnas = I(lapply(as.character(reglas$columna), function(x) x)),
     stringsAsFactors = FALSE
   )
 }

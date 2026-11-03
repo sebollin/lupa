@@ -613,6 +613,126 @@
   salida
 }
 
+# Los nombres compuestos se muestran con comas por compatibilidad, pero una
+# coma tambien puede ser parte de un nombre real. Las salidas nuevas guardan la
+# lista; este parser queda para entradas que aun no la traen.
+.separar_nombres_columnas_historico <- function(texto, sep = ",") {
+  texto <- as.character(texto)
+  if (length(texto) != 1L || is.na(texto) || !nzchar(texto)) {
+    return(character())
+  }
+  partes <- strsplit(texto, sep, fixed = TRUE, useBytes = TRUE)[[1L]]
+  ilegibles <- vapply(partes, .bytes_sin_declarar, logical(1L))
+  if (any(ilegibles) || any(Encoding(partes) == "bytes")) {
+    partes <- gsub("^[ \\t]+", "", partes, perl = TRUE, useBytes = TRUE)
+    partes <- gsub("[ \\t]+$", "", partes, perl = TRUE, useBytes = TRUE)
+    return(partes)
+  }
+  trimws(partes)
+}
+
+.separar_nombres_columnas <- function(texto, nombres, sep = ",") {
+  texto <- as.character(texto)
+  nombres <- as.character(nombres)
+  if (length(texto) != 1L || is.na(texto) || !nzchar(texto)) {
+    return(character())
+  }
+  nombres <- nombres[!is.na(nombres) & nzchar(nombres)]
+  if (!length(nombres)) {
+    return(.separar_nombres_columnas_historico(texto, sep = sep))
+  }
+
+  nombres_originales <- nombres
+  nombres_operativos <- .nombres_para_operar(nombres_originales)
+  texto_operativo <- .nombres_para_operar(texto)
+  longitud_texto <- .nchar_texto_seguro(texto_operativo)[[1L]]
+  if (is.na(longitud_texto)) {
+    return(.separar_nombres_columnas_historico(texto, sep = sep))
+  }
+
+  buscar <- function(separador) {
+    n <- longitud_texto
+    resultados <- list()
+    recorrer <- function(pos, partes) {
+      if (length(resultados) > 20L) return(invisible(NULL))
+      if (pos > n) {
+        resultados[[length(resultados) + 1L]] <<- partes
+        return(invisible(NULL))
+      }
+      restante <- substr(texto_operativo, pos, n)
+      candidatas <- which(startsWith(restante, nombres_operativos))
+      if (!length(candidatas)) return(invisible(NULL))
+      for (indice in candidatas) {
+        siguiente <- pos + .nchar_texto_seguro(
+          nombres_operativos[[indice]]
+        )[[1L]]
+        al_final <- siguiente > n
+        tiene_sep <- !al_final && startsWith(
+          substr(texto_operativo, siguiente, n), separador
+        )
+        if (!al_final && !tiene_sep) next
+        recorrer(
+          if (al_final) n + 1L else siguiente + nchar(separador),
+          c(partes, nombres_originales[[indice]])
+        )
+      }
+      invisible(NULL)
+    }
+    recorrer(1L, character())
+    resultados
+  }
+  candidatas <- unlist(lapply(unique(c(sep, ",", ", ")), buscar),
+                       recursive = FALSE)
+  if (length(candidatas)) {
+    claves <- vapply(candidatas, paste, character(1L), collapse = "\001")
+    candidatas <- candidatas[!duplicated(claves)]
+  }
+  if (length(candidatas) == 1L) return(candidatas[[1L]])
+  if (length(candidatas) > 1L) {
+    return(structure(character(), ambigua = TRUE))
+  }
+  partes <- .separar_nombres_columnas_historico(texto, sep = sep)
+  partes[nzchar(partes)]
+}
+
+.anotar_columnas_cobertura <- function(cobertura, nombres) {
+  if (!is.data.frame(cobertura) || !"columna" %in% names(cobertura)) {
+    return(cobertura)
+  }
+  existentes <- if ("columnas" %in% names(cobertura)) {
+    cobertura$columnas
+  } else {
+    vector("list", nrow(cobertura))
+  }
+  internas <- lapply(seq_len(nrow(cobertura)), function(i) {
+    partes <- if (length(existentes) >= i) existentes[[i]] else NULL
+    if (length(partes)) as.character(partes) else {
+      .separar_nombres_columnas(
+        as.character(cobertura$columna[[i]]), nombres, sep = ","
+      )
+    }
+  })
+  cobertura$columnas <- I(internas)
+  attr(cobertura, "columnas_internas") <- NULL
+  cobertura
+}
+
+.columnas_cobertura <- function(cobertura, indice, nombres) {
+  if ("columnas" %in% names(cobertura)) {
+    internas <- cobertura$columnas
+    if (is.list(internas) && length(internas) >= indice) {
+      return(as.character(internas[[indice]]))
+    }
+  }
+  historico <- .separar_nombres_columnas_historico(
+    as.character(cobertura$columna[[indice]]), sep = ","
+  )
+  if (length(historico)) return(historico)
+  .separar_nombres_columnas(
+    as.character(cobertura$columna[[indice]]), nombres, sep = ","
+  )
+}
+
 # Estos ayudantes extienden la misma política a identificadores que no son
 # nombres de columna: dimensiones, métricas, reglas y fronteras declaradas.
 # Devuelven los originales para que el texto que el usuario escribió siga

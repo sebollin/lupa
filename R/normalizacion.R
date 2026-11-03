@@ -493,7 +493,7 @@ print.normalizacion_lupa <- function(x, ...) {
       .normalizacion_descomponer(utf8ToInt(x))
     ))
   }, character(1L))
-  orden <- .orden_por_bytes(nchar(grafemas, type = "chars"), decreasing = TRUE,
+  orden <- .orden_por_bytes(.nchar_texto_seguro(grafemas), decreasing = TRUE,
                  method = "radix")
   grafemas <- grafemas[orden]
   marcadores <- intToUtf8(0xF0000L + seq_along(grafemas), multiple = TRUE)

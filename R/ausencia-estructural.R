@@ -564,7 +564,8 @@
   data.frame(
     diagnostico = "posible_ausencia_estructural",
     columna = columna, motivo = motivo, como_resolverlo = como,
-    dependencia = NA_character_, stringsAsFactors = FALSE
+    dependencia = NA_character_, columnas = I(list(as.character(columna))),
+    stringsAsFactors = FALSE
   )
 }
 

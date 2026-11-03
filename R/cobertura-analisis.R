@@ -81,8 +81,11 @@
 #' una métrica del factor; descubrir un patrón o una dependencia no los
 #' convierte por sí solo en un requisito confirmado.
 #'
-#' @param perfil **Primer argumento.** Objeto creado por [perfilar()]; es el
-#'   perfil descriptivo sobre cuyos factores se informa cobertura.
+#' @param perfil **Primer argumento.** Objeto creado por [perfilar()] o
+#'   [perfilar_dbi()]. En el segundo caso se analiza `perfil_muestra` cuando
+#'   existe; un perfil por agregados usa el resumen de la tabla y cubre la
+#'   tabla completa. Cuando corresponde, cada motivo indica que la cobertura
+#'   es la de la muestra y no la de la tabla completa.
 #' @param medicion **Segundo argumento, opcional.** Objeto creado por
 #'   [medir()], con métricas ejecutadas que pueden completar esa cobertura.
 #'   No es un perfil creado por [perfilar()].
@@ -123,10 +126,43 @@
 #' cobertura_analisis(perfil)
 cobertura_analisis <- function(perfil, medicion = NULL,
                                modelo = marco_agesic()) {
+  es_perfil_dbi <- inherits(perfil, "perfil_dbi")
+  muestra_completa <- FALSE
+  if (es_perfil_dbi) {
+    muestra <- perfil$perfil_muestra
+    if (inherits(muestra, "perfil")) {
+      perfil <- muestra
+      muestreo <- perfil$meta$origen_dbi$muestreo
+      muestra_completa <- is.list(muestreo) &&
+        isTRUE(muestreo$tabla_completa)
+    } else {
+      resumen <- perfil$resumen_tabla
+      if (!is.list(resumen) || !is.data.frame(resumen$columnas)) {
+        .detener(
+          "El objeto `perfil_dbi` no trae un `perfil_muestra` ni un resumen",
+          " de tabla disponible para analizar la cobertura.", call. = FALSE
+        )
+      }
+      columnas <- resumen$columnas
+      if (!"tipo_declarado" %in% names(columnas)) {
+        columnas$tipo_declarado <- NA_character_
+      }
+      if (!"tipo_inferido" %in% names(columnas)) {
+        columnas$tipo_inferido <- NA_character_
+      }
+      filas_totales <- suppressWarnings(as.numeric(resumen$meta$filas))
+      perfil <- list(
+        columnas = columnas,
+        meta = list(filas_totales = filas_totales)
+      )
+      class(perfil) <- "perfil"
+      muestra_completa <- TRUE
+    }
+  }
   if (!inherits(perfil, "perfil")) {
     .detener(
-      "El primer argumento `perfil` debe ser un objeto creado por perfilar(); ",
-      "no es un perfil de evaluacion.", call. = FALSE
+      "El primer argumento `perfil` debe ser un objeto creado por perfilar() o",
+      " perfilar_dbi(); no es un perfil de evaluacion.", call. = FALSE
     )
   }
   if (!is.null(medicion) && !inherits(medicion, "medicion")) {
@@ -224,7 +260,11 @@ cobertura_analisis <- function(perfil, medicion = NULL,
     sin_observaciones <- factores$estado == "medida"
     factores$estado[sin_observaciones] <- "no_aplica"
     factores$motivo[sin_observaciones] <- if (sin_filas) {
-      "La tabla no tiene filas: no hubo nada que examinar para este factor."
+      if (es_perfil_dbi) {
+        "La muestra no tiene filas: no hubo nada que examinar para este factor."
+      } else {
+        "La tabla no tiene filas: no hubo nada que examinar para este factor."
+      }
     } else {
       paste0(
         "Ninguna columna pudo resumirse: el perfil no obtuvo evidencia para ",
@@ -249,6 +289,12 @@ cobertura_analisis <- function(perfil, medicion = NULL,
     factores$estado[indices] <- "medida"
     factores$motivo[indices] <-
       "La corrida contiene al menos una m\u00e9trica instanciada para este factor."
+  }
+  if (es_perfil_dbi && !muestra_completa) {
+    factores$motivo <- paste0(
+      factores$motivo,
+      " La cobertura se calculo sobre `perfil_muestra`; no representa la tabla completa."
+    )
   }
   factores$estado <- factor(
     factores$estado,
