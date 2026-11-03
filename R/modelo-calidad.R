@@ -1558,6 +1558,55 @@ metricas_nucleo <- function() {
     identical(topenv(environment(metodo)), asNamespace("lupa"))
 }
 
+# Une las salidas crudas de las metricas sin materializar una tabla completa por
+# instancia. Las cinco columnas crudas se conservan hasta conocer el total de
+# filas; las columnas repetidas de la medicion se crean una sola vez y las
+# columnas crudas se concatenan directamente en su destino final. Asi la salida
+# intermedia no duplica metadatos ni queda viva mientras `rbind()` copia todo.
+.unir_salidas_medicion <- function(salidas, instancias, id_medicion, fecha) {
+  cantidades <- vapply(salidas, nrow, integer(1L))
+  total <- sum(cantidades)
+  concatenar <- function(nombre, convertir) {
+    piezas <- lapply(salidas, function(salida) convertir(salida[[nombre]]))
+    unido <- if (length(piezas)) {
+      do.call(c, unname(piezas))
+    } else {
+      convertir(character())
+    }
+    piezas <- NULL
+    # Cada columna ya quedo en la salida final. Soltarla de las salidas crudas
+    # evita que la misma columna siga viva durante la construccion de las otras.
+    for (i in seq_along(salidas)) salidas[[i]][[nombre]] <- NULL
+    unido
+  }
+  repetir_instancia <- function(obtener) {
+    unlist(lapply(seq_along(instancias), function(i) {
+      rep(obtener(instancias[[i]]), cantidades[[i]])
+    }), use.names = FALSE)
+  }
+  resultado <- data.frame(
+    id_medicion = rep(id_medicion, total),
+    fecha = rep(fecha, total),
+    metrica = repetir_instancia(function(x) x$declaracion$nombre),
+    metrica_especifica = repetir_instancia(function(x) x$nombre_especifico),
+    metrica_instanciada = repetir_instancia(function(x) x$nombre),
+    dimension = repetir_instancia(function(x) x$declaracion$dimension),
+    factor = repetir_instancia(function(x) x$declaracion$factor),
+    orientacion = repetir_instancia(function(x) x$declaracion$orientacion),
+    granularidad = repetir_instancia(function(x) x$declaracion$granularidad),
+    tipo_resultado = repetir_instancia(function(x) x$declaracion$tipo_resultado),
+    entidad = concatenar("entidad", as.character),
+    atributo = concatenar("atributo", as.character),
+    fila = concatenar("fila", as.integer),
+    objeto_medible = concatenar("objeto", as.character),
+    resultado = concatenar("resultado", as.numeric),
+    agregacion = rep(NA_character_, total),
+    stringsAsFactors = FALSE
+  )
+  rownames(resultado) <- NULL
+  resultado
+}
+
 # Con `aplicabilidad`, `medir()` le pasa al metodo la tabla RECORTADA, y un metodo
 # del usuario que escribe `fila` con `which()` publicaba posiciones del recorte:
 # la medicion decia fila 6 cuando habia medido la 9. Se traducen a la tabla del
@@ -2527,39 +2576,15 @@ medir <- function(modelo, datos, id_medicion = NULL, fecha = Sys.time(),
       }
     }
     list(
-      salida = data.frame(
-      id_medicion = rep(id_medicion, n),
-      fecha = rep(fecha, n),
-      metrica = rep(instancia$declaracion$nombre, n),
-      metrica_especifica = rep(instancia$nombre_especifico, n),
-      metrica_instanciada = rep(instancia$nombre, n),
-      dimension = rep(instancia$declaracion$dimension, n),
-      factor = rep(instancia$declaracion$factor, n),
-      orientacion = rep(instancia$declaracion$orientacion, n),
-      granularidad = rep(instancia$declaracion$granularidad, n),
-      tipo_resultado = rep(instancia$declaracion$tipo_resultado, n),
-      entidad = as.character(salida$entidad),
-      atributo = as.character(salida$atributo),
-      fila = as.integer(salida$fila),
-      objeto_medible = as.character(salida$objeto),
-      resultado = as.numeric(salida$resultado),
-      agregacion = rep(NA_character_, n),
-      stringsAsFactors = FALSE
-      ),
+      salida = salida,
       alcance = attr(salida, "alcance", exact = TRUE)
     )
   })
   alcances <- lapply(partes, `[[`, "alcance")
   partes <- lapply(partes, `[[`, "salida")
-  # Sin nombres: `partes` viene nombrada por las instancias, y con esos nombres
-  # `do.call()` arma los de los argumentos y `rbind()` los de las filas -que se
-  # tiran en la linea siguiente-. Dos defectos: R no admite un
-  # nombre de argumento de mas de 10.000 bytes, y una columna con un nombre asi
-  # abortaba `medir()`; y `rbind()` traduce los nombres al nativo, asi que bajo
-  # `C` un id con acento (`NoNulo:a\u00f1o`) avisaba "unable
-  # to translate" en cada medicion y abortaba con `warn = 2`.
-  resultado <- do.call(rbind, unname(partes))
-  rownames(resultado) <- NULL
+  resultado <- .unir_salidas_medicion(
+    partes, modelo$metricas, id_medicion, fecha
+  )
   resultado$id_medida <- .ids_medida(id_medicion, resultado$metrica_instanciada)
   resultado <- resultado[c(
     "id_medida", "id_medicion", "fecha", "metrica", "metrica_especifica",

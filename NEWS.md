@@ -104,3 +104,7 @@ Primera versión publicada.
   nombre conserva la instancia que traen todas las partes, y `agregar()` se
   niega a promediar dos instancias de una misma tabla o columna, que la harían
   pesar doble, y dice cómo seguir.
+- `medir()` arma su tabla de medidas de una sola vez, sin una tabla intermedia
+  por métrica: sobre una tabla de 80.764 filas y 153 columnas de texto con 100
+  métricas, bajó de 133 s a 56 s y su pico de memoria de 4,9 GB a 3,5 GB, que es
+  del orden de la tabla de medidas que devuelve (8 millones de filas).
