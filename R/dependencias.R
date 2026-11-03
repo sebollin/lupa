@@ -15,9 +15,9 @@
   # Con el separador por omision -"."- el par (`a.b`, `c`) y el par (`a`,
   # `b.c`) eran el mismo, y una dependencia que no se cumple parecia cumplirse.
   # Es el mismo arreglo que el de las evaluaciones.
-  as.integer(interaction(
-    .factor_por_bytes(grupo), .factor_por_bytes(.nombres_para_operar(y), exclude = NULL),
-    drop = TRUE, lex.order = TRUE, sep = "\034"
+  .codigos_filas(data.frame(
+    grupo = grupo, dependiente = .nombres_para_operar(y),
+    stringsAsFactors = FALSE
   ))
 }
 

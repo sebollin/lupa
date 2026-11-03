@@ -380,16 +380,14 @@
   granularidad <- unique(medidas$granularidad)[[1L]]
   switch(
     granularidad,
-    instanciaAtributo = interaction(
-      addNA(.factor_por_bytes(.nombres_para_operar(medidas$entidad))),
-      addNA(.factor_por_bytes(.nombres_para_operar(medidas$atributo))),
-      drop = TRUE, lex.order = TRUE, sep = "\034"
-    ),
-    atributo = interaction(
-      addNA(.factor_por_bytes(.nombres_para_operar(medidas$entidad))),
-      addNA(.factor_por_bytes(.nombres_para_operar(medidas$atributo))),
-      drop = TRUE, lex.order = TRUE, sep = "\034"
-    ),
+    instanciaAtributo = .codigos_filas_combinados(list(
+      as.integer(addNA(.factor_por_bytes(.nombres_para_operar(medidas$entidad)))),
+      as.integer(addNA(.factor_por_bytes(.nombres_para_operar(medidas$atributo))))
+    )),
+    atributo = .codigos_filas_combinados(list(
+      as.integer(addNA(.factor_por_bytes(.nombres_para_operar(medidas$entidad)))),
+      as.integer(addNA(.factor_por_bytes(.nombres_para_operar(medidas$atributo))))
+    )),
     instanciaEntidad = addNA(.factor_por_bytes(.nombres_para_operar(medidas$entidad))),
     entidad = addNA(.factor_por_bytes(.nombres_para_operar(medidas$entidad))),
     # El resto de las granularidades agrupaba SOLO por `objeto_medible`, y la
@@ -402,11 +400,11 @@
     # La entidad entra a la clave porque la promesa dice que es parte de la
     # identidad de la celda: agrupar por menos de lo que se publica como
     # identidad es fundir dos cosas que el objeto declara distintas.
-    interaction(
-      addNA(.factor_por_bytes(.nombres_para_operar(medidas$entidad))),
-      .factor_por_bytes(.nombres_para_operar(medidas$objeto_medible), exclude = NULL),
-      drop = TRUE, lex.order = TRUE, sep = "\034"
-    )
+    .codigos_filas_combinados(list(
+      as.integer(addNA(.factor_por_bytes(.nombres_para_operar(medidas$entidad)))),
+      as.integer(.factor_por_bytes(.nombres_para_operar(medidas$objeto_medible),
+                                   exclude = NULL))
+    ))
   )
 }
 
@@ -772,9 +770,11 @@
 #' dos filas con la **misma** identidad y valores distintos, y rehacer la celda
 #' con las claves publicadas mezclaría las medidas de las dos sin reproducir
 #' ninguna.
-#' `metrica_instanciada` sola tampoco alcanza: sobre un agregado vale
+#' `metrica_instanciada` sola tampoco alcanza: sobre un agregado usual vale
 #' `agregada:<funcion>:<metrica>` para todas las filas, y ahí la entidad es lo
-#' único que separa. Cuando hay varias entidades, `objeto` además nombra la
+#' único que separa. En una agregación de instancias de entidad a entidad,
+#' conserva además la instancia completa para que dos claves de una tabla no se
+#' fundan. Cuando hay varias entidades, `objeto` además nombra la
 #' tabla —`cod (tabla: t1)`—, en el mismo idioma con el que la granularidad de
 #' tabla publica `(tabla: t1)`.
 #'

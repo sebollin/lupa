@@ -608,16 +608,11 @@ perfiles_madurez <- function(metricas = NULL, umbrales = NULL) {
       resultado = numeric(), stringsAsFactors = FALSE
     ))
   }
-  clave <- interaction(
-    .factor_por_bytes(.nombres_para_operar(evaluaciones$id_medicion)),
-    .factor_por_bytes(.nombres_para_operar(evaluaciones$perfil)),
-    .factor_por_bytes(.nombres_para_operar(evaluaciones$regla)),
-    # Con el separador por omision -"."- las etiquetas pegadas decidian el
-    # grupo: la corrida "x" con la regla "P.y" y la corrida "x.P" con la regla
-    # "y" se fundian. Medido. Un caracter de control no aparece
-    # en un nombre.
-    drop = TRUE, lex.order = TRUE, sep = "\034"
-  )
+  clave <- .codigos_filas_combinados(list(
+    as.integer(.factor_por_bytes(.nombres_para_operar(evaluaciones$id_medicion))),
+    as.integer(.factor_por_bytes(.nombres_para_operar(evaluaciones$perfil))),
+    as.integer(.factor_por_bytes(.nombres_para_operar(evaluaciones$regla)))
+  ))
   grupos <- split(seq_len(nrow(evaluaciones)), clave, drop = TRUE)
   partes <- lapply(grupos, function(indices) {
     primera <- indices[[1L]]
@@ -757,15 +752,10 @@ perfiles_madurez <- function(metricas = NULL, umbrales = NULL) {
 }
 
 .resumir_evaluaciones_perfil <- function(evaluaciones) {
-  clave <- interaction(
-    .factor_por_bytes(.nombres_para_operar(evaluaciones$id_medicion)),
-    .factor_por_bytes(.nombres_para_operar(evaluaciones$perfil)),
-    # Con el separador por omision -"."- las etiquetas pegadas decidian el
-    # grupo: la corrida "x" con la regla "P.y" y la corrida "x.P" con la regla
-    # "y" se fundian. Medido. Un caracter de control no aparece
-    # en un nombre.
-    drop = TRUE, lex.order = TRUE, sep = "\034"
-  )
+  clave <- .codigos_filas_combinados(list(
+    as.integer(.factor_por_bytes(.nombres_para_operar(evaluaciones$id_medicion))),
+    as.integer(.factor_por_bytes(.nombres_para_operar(evaluaciones$perfil)))
+  ))
   grupos <- split(seq_len(nrow(evaluaciones)), clave, drop = TRUE)
   partes <- lapply(grupos, function(indices) {
     primera <- indices[[1L]]
@@ -1309,7 +1299,8 @@ print.evaluacion_calidad <- function(x, ...) {
 #'   Cuando una métrica no pudo medirse, conserva `cobertura_metricas` y deja
 #'   en `NA` el resumen afectado, en lugar de tratar la ausencia como éxito;
 #'   también sobre un agregado, donde la regla nombra la métrica agregada
-#'   —`agregada:ratio:NoNulo`— y la parte sin medir es una de sus instancias.
+#'   —`agregada:ratio:NoNulo`— o su nombre con instancia, y la parte sin
+#'   medir es una de sus instancias.
 #'   La evaluación de un agregado conserva además la cobertura de su frontera
 #'   —las tablas o colecciones declaradas que no entraron al número—, la
 #'   imprime y la lleva a su informe y a [historico_calidad()].

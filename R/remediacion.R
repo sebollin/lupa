@@ -3559,9 +3559,7 @@ rbind.plan_limpieza <- function(..., deparse.level = 1) {
   # Sin los nombres de las columnas: `do.call()` los vuelve nombres de argumento
   # y bajo `C` una columna con acento avisaba "unable to translate" en
   # `aplicar()`. Es la construccion de `medir()`.
-  as.integer(do.call(interaction, c(
-    unname(lapply(codigos, factor)), list(drop = TRUE, lex.order = TRUE)
-  )))
+  .codigos_filas_combinados(codigos)
 }
 
 # La tabla que comparan las acciones de duplicados, con la MISMA forma que la

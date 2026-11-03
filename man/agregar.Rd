@@ -121,6 +121,10 @@ el identificador nombra también las partes que reúne: dos conjuntos
 distintos, o dos colecciones sin nombre, no comparten identificador. Un valor que no se
 puede agregar se rechaza nombrando la métrica y la causa: un tipo no
 acotado, una medida ausente o suprimida, o un valor fuera de \verb{[0, 1]}.
+Cuando el origen es una instancia de entidad y el destino es una entidad,
+el nombre de la métrica agregada conserva también la instancia completa,
+incluida la entidad y sus atributos: \code{agregada:ratio:ClaveDuplicada@t.a.b}.
+Eso mantiene separadas dos claves distintas de la misma tabla.
 \code{umbral} sólo se acepta con \code{ratio_umbral}, y el borde se compara con
 tolerancia de redondeo: \code{1 - 0.9} alcanza el umbral \code{0.1}.
 

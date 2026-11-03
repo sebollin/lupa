@@ -27,7 +27,8 @@ incumplidas, el valor medido, el motivo y la regla que lo produjo.
 Cuando una métrica no pudo medirse, conserva \code{cobertura_metricas} y deja
 en \code{NA} el resumen afectado, en lugar de tratar la ausencia como éxito;
 también sobre un agregado, donde la regla nombra la métrica agregada
-—\code{agregada:ratio:NoNulo}— y la parte sin medir es una de sus instancias.
+—\code{agregada:ratio:NoNulo}— o su nombre con instancia, y la parte sin
+medir es una de sus instancias.
 La evaluación de un agregado conserva además la cobertura de su frontera
 —las tablas o colecciones declaradas que no entraron al número—, la
 imprime y la lleva a su informe y a \code{\link[=historico_calidad]{historico_calidad()}}.

@@ -58,9 +58,11 @@ especializaciones de la misma genérica sobre la misma columna, publicarían
 dos filas con la \strong{misma} identidad y valores distintos, y rehacer la celda
 con las claves publicadas mezclaría las medidas de las dos sin reproducir
 ninguna.
-\code{metrica_instanciada} sola tampoco alcanza: sobre un agregado vale
+\code{metrica_instanciada} sola tampoco alcanza: sobre un agregado usual vale
 \verb{agregada:<funcion>:<metrica>} para todas las filas, y ahí la entidad es lo
-único que separa. Cuando hay varias entidades, \code{objeto} además nombra la
+único que separa. En una agregación de instancias de entidad a entidad,
+conserva además la instancia completa para que dos claves de una tabla no se
+fundan. Cuando hay varias entidades, \code{objeto} además nombra la
 tabla —\code{cod (tabla: t1)}—, en el mismo idioma con el que la granularidad de
 tabla publica \code{(tabla: t1)}.
 

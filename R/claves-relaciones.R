@@ -26,8 +26,48 @@
 # `complete.cases()` sobre el factor crudo el nivel contaba presente, y
 # `referencial()` aceptaba como clave sin ausentes la columna que `perfilar()`
 # cuenta con un faltante. Medido.
+.celda_lista_completa <- function(valor) {
+  if (is.null(valor)) return(FALSE)
+  # Un entorno, una funcion o un objeto S4 son un valor: `anyNA()` no los acepta.
+  if (!is.atomic(valor) && !is.list(valor)) return(TRUE)
+  if (!length(valor)) return(TRUE)
+  !anyNA(valor)
+}
+
+# Una celda de una columna lista: `NULL` es ausencia, un elemento vacio
+# -`raw(0)`, `character(0)`- es un valor, y un elemento con `NA` adentro cuenta
+# ausente. `complete.cases()` no acepta listas ("invalid 'type' (list)"), y con
+# una columna binaria -lo que un motor devuelve para `bytea`- `medir()` abortaba
+# entero. Una tabla anidada como columna se resuelve fila por fila con la misma
+# regla; `complete.cases()` tampoco la acepta.
 .filas_completas <- function(datos) {
-  stats::complete.cases(.integer64_como_texto(.normalizar_columnas_entrada(datos)))
+  datos <- .integer64_como_texto(.normalizar_columnas_entrada(datos))
+  if (!inherits(datos, "data.frame")) return(stats::complete.cases(datos))
+  if (!ncol(datos)) return(rep(TRUE, nrow(datos)))
+  anidadas <- vapply(datos, is.data.frame, logical(1L))
+  listas <- vapply(datos, is.list, logical(1L)) & !anidadas
+  atomicas <- !listas & !anidadas
+  completas <- if (any(atomicas)) {
+    stats::complete.cases(.seleccionar_columnas(datos, which(atomicas)))
+  } else {
+    rep(TRUE, nrow(datos))
+  }
+  for (indice in which(listas)) {
+    columna <- datos[[indice]]
+    celdas <- vapply(columna, .celda_lista_completa, logical(1L),
+                     USE.NAMES = FALSE)
+    # Una matriz de listas trae una celda por fila y columna: la fila esta
+    # completa si lo estan todas sus celdas. Recorrerla como lista daba un
+    # valor por celda, y el perfil publicaba mas filas completas que filas.
+    if (is.matrix(columna)) {
+      celdas <- rowSums(!matrix(celdas, nrow = nrow(columna))) == 0L
+    }
+    completas <- completas & celdas
+  }
+  for (indice in which(anidadas)) {
+    completas <- completas & .filas_completas(datos[[indice]])
+  }
+  completas
 }
 
 .es_clave <- function(datos, indices) {

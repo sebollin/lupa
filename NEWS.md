@@ -79,3 +79,28 @@ Primera versión publicada.
   nacimiento) corre siempre, como diagnóstico. Su reemplazo en lo que el paquete
   publica es un complemento que se pide con `proteger_datos_personales = TRUE`:
   publicar o no los valores de una base es decisión de quien la usa.
+
+## Correcciones
+
+- La identidad de filas ya no desborda en R anterior a 4.6. Con dos o más
+  columnas de decenas de miles de valores distintos, `aplicar()` con
+  `conservar_primera_duplicada` podía borrar filas legítimas (23.673 de 60.100
+  en una tabla con 200 repetidas), y `EntidadDuplicada`, `referencial()` y las
+  acciones de duplicados contaban grupos equivocados. Una matriz o una tabla
+  anidada como columna se aplana para esa identidad, como en el perfil.
+- `medir()` ya no se cae con una columna lista —lo que un motor devuelve para
+  una columna binaria— cuando una métrica no puede producir medidas: la métrica
+  queda `no_medible`. Una tabla anidada, una matriz de listas o un entorno en una
+  celda tampoco la hacen caer, y `perfilar()` ya no publica más filas completas
+  que filas con una matriz de listas.
+- `NoNulo` compara `valores_nulos` con la misma normalización que `perfilar()`:
+  sin los blancos de los bordes y sin distinguir mayúsculas. Una celda de solo
+  blancos o un tabulador cuentan como nulos para los dos.
+- `agregar()` de `instanciaEntidad` a `entidad` conserva la instancia en el
+  nombre (`agregada:ratio:ClaveDuplicada@t.a.b`): dos claves compuestas de la
+  misma tabla ya no se funden en una sola fila con un resultado mezclado. De
+  `instanciaAtributo` a `atributo`, dos instancias de una métrica sobre la misma
+  columna llevan la instancia en el nombre solo en ese caso. Más arriba, el
+  nombre conserva la instancia que traen todas las partes, y `agregar()` se
+  niega a promediar dos instancias de una misma tabla o columna, que la harían
+  pesar doble, y dice cómo seguir.

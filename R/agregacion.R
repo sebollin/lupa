@@ -287,22 +287,27 @@ transiciones_granularidad <- function() {
     .detener("La granularidad de destino todav\u00eda no admite agregaci\u00f3n.",
          call. = FALSE)
   )
+  # Desde una granularidad de instancia, la instancia es parte del objeto: dos
+  # claves compuestas de una tabla, o dos instancias de la misma metrica sobre
+  # una columna, son dos medidas distintas aunque compartan tabla y columna.
+  if (.agregacion_desde_instancia(medidas, destino)) {
+    claves <- c(
+      list(metrica_instanciada = as.character(medidas$metrica_instanciada)),
+      claves
+    )
+  }
   # La clave se arma con el CODIGO de cada nivel, no con su nombre:
   # `interaction()` pega los nombres con un punto, y la tabla `ventas.total` con
   # la columna `mes` y la tabla `ventas` con la columna `total.mes` caian en el
-  # mismo grupo -un solo atributo con 0,625 donde habia dos, 1 y 0,25-. Los
-  # codigos van rellenados para que el orden lexicografico siga siendo el de los
-  # niveles. Medido.
-  clave <- do.call(
-    interaction,
-    c(lapply(claves, function(x) {
-      valores <- if (is.character(x) || is.factor(x)) {
-        .nombres_para_operar(as.character(x))
-      } else x
-      sprintf("%09d", as.integer(addNA(.factor_por_bytes(valores))))
-    }),
-      list(drop = TRUE, lex.order = TRUE))
-  )
+  # mismo grupo -un solo atributo con 0,625 donde habia dos, 1 y 0,25-. Medido.
+  # `.codigos_filas()` combina columna por columna, sin pegar nombres y sin el
+  # producto de niveles de `interaction()`, y conserva su orden lexicografico.
+  clave <- .codigos_filas_combinados(lapply(claves, function(x) {
+    valores <- if (is.character(x) || is.factor(x)) {
+      .nombres_para_operar(as.character(x))
+    } else x
+    as.integer(addNA(.factor_por_bytes(valores)))
+  }))
   split(seq_len(nrow(medidas)), clave, drop = TRUE)
 }
 
@@ -316,6 +321,105 @@ transiciones_granularidad <- function() {
     promedio = mean(valores),
     promedio_ponderado = sum(valores * pesos)
   )
+}
+
+# Dos instancias de la misma metrica sobre una tabla -dos claves compuestas- se
+# separan al subir a `entidad`, cada una con su nombre. Arriba de la entidad se
+# promedian tablas: si una tabla aporta dos instancias, el numero mezclaba dos
+# definiciones distintas y esa tabla pesaba doble. Medido: dos claves de una
+# tabla, 0,8 y 0,4, subian a `conjuntoEntidades` como un solo 0,6. Se niega y
+# dice como seguir, en vez de publicar un promedio que no responde a nada.
+.exigir_una_instancia_por_entidad <- function(medidas, destino) {
+  if (destino %in% c("atributo", "instanciaEntidad")) {
+    return(invisible(NULL))
+  }
+  origen <- unique(as.character(medidas$granularidad))
+  if (!(identical(origen, "entidad") || identical(origen, "atributo")) ||
+      !all(c("entidad", "metrica_instanciada") %in% names(medidas))) {
+    return(invisible(NULL))
+  }
+  partes <- list(.nombres_para_operar(as.character(medidas$entidad)))
+  if (identical(origen, "atributo") && "atributo" %in% names(medidas)) {
+    partes[[length(partes) + 1L]] <-
+      .nombres_para_operar(as.character(medidas$atributo))
+  }
+  for (campo in c("id_medicion", "coleccion")) {
+    if (campo %in% names(medidas)) {
+      partes[[length(partes) + 1L]] <-
+        .nombres_para_operar(as.character(medidas[[campo]]))
+    }
+  }
+  entidad <- .codigos_filas_combinados(lapply(partes, function(x) {
+    as.integer(addNA(.factor_por_bytes(x)))
+  }))
+  instancia <- as.character(medidas$metrica_instanciada)
+  pares <- !duplicated(.codigos_filas_combinados(list(
+    entidad, as.integer(addNA(.factor_por_bytes(.nombres_para_operar(instancia))))
+  )))
+  repetida <- entidad[pares][duplicated(entidad[pares])]
+  if (!length(repetida)) return(invisible(NULL))
+  filas <- which(entidad == repetida[[1L]])
+  .detener(
+    if (identical(origen, "atributo")) "La columna '" else "La tabla '",
+    as.character(medidas$entidad[[filas[[1L]]]]),
+    if (identical(origen, "atributo")) {
+      paste0(".", as.character(medidas$atributo[[filas[[1L]]]]))
+    },
+    "' aporta m\u00e1s de una instancia de la m\u00e9trica: '",
+    paste(.identificadores_unicos(instancia[filas]), collapse = "', '"),
+    "'. Agregar a '", destino, "' las mezclar\u00eda en un solo n\u00famero ",
+    "y pesar\u00eda doble. Agregue cada instancia por separado ",
+    "(filtrando por `metrica_instanciada`) o elija una.",
+    call. = FALSE
+  )
+}
+
+.agregacion_desde_instancia <- function(medidas, destino) {
+  origen <- unique(as.character(medidas$granularidad))
+  length(origen) == 1L && (
+    (identical(origen, "instanciaEntidad") && identical(destino, "entidad")) ||
+      (identical(origen, "instanciaAtributo") && identical(destino, "atributo"))
+  )
+}
+
+# El nombre de una medida agregada: `agregada:<funcion>:<metrica>`, con la
+# instancia cuando hace falta para que dos instancias no compartan nombre ni
+# `id_medida`:
+# - de `instanciaEntidad` a `entidad`, siempre: la entidad no dice que columnas
+#   forman la clave (`agregada:ratio:ClaveDuplicada@t.a.b`);
+# - de `instanciaAtributo` a `atributo`, solo si la columna tiene mas de una
+#   instancia de la metrica: en el caso comun el atributo ya la identifica, y el
+#   nombre sigue siendo el de siempre;
+# - mas arriba, se conserva la instancia que traen TODAS las partes: separadas
+#   por instancia y subidas a coleccion, dos claves de una tabla compartian
+#   nombre e `id_medida` y la union a organizacion se rechazaba.
+.metrica_instanciada_agregada <- function(medidas, indices, destino, funcion) {
+  especifica <- medidas$metrica_especifica[indices[[1L]]]
+  instancias <- .identificadores_ordenados(
+    .identificadores_unicos(as.character(medidas$metrica_instanciada[indices]))
+  )
+  base <- especifica
+  if (.agregacion_desde_instancia(medidas, destino)) {
+    origen <- as.character(medidas$granularidad[[1L]])
+    if (identical(origen, "instanciaEntidad")) {
+      base <- paste(instancias, collapse = ", ")
+    } else {
+      mismo_objeto <- .nombres_para_operar(as.character(medidas$entidad)) ==
+        .nombres_para_operar(as.character(medidas$entidad[indices[[1L]]])) &
+        .nombres_para_operar(as.character(medidas$atributo)) ==
+        .nombres_para_operar(as.character(medidas$atributo[indices[[1L]]]))
+      mismo_objeto[is.na(mismo_objeto)] <- FALSE
+      otras <- .identificadores_unicos(
+        as.character(medidas$metrica_instanciada[mismo_objeto])
+      )
+      if (length(otras) > 1L) base <- paste(instancias, collapse = ", ")
+    }
+  } else if (length(instancias) == 1L &&
+             startsWith(instancias, "agregada:")) {
+    heredada <- sub("^agregada:[^:]*:", "", instancias)
+    if (!identical(heredada, as.character(especifica))) base <- heredada
+  }
+  paste0("agregada:", funcion, ":", base)
 }
 
 # Las partes de un objeto de varias, unidas con coma. Un nombre que ya trae una
@@ -1059,6 +1163,10 @@ transiciones_granularidad <- function() {
 #' distintos, o dos colecciones sin nombre, no comparten identificador. Un valor que no se
 #' puede agregar se rechaza nombrando la métrica y la causa: un tipo no
 #' acotado, una medida ausente o suprimida, o un valor fuera de `[0, 1]`.
+#' Cuando el origen es una instancia de entidad y el destino es una entidad,
+#' el nombre de la métrica agregada conserva también la instancia completa,
+#' incluida la entidad y sus atributos: `agregada:ratio:ClaveDuplicada@t.a.b`.
+#' Eso mantiene separadas dos claves distintas de la misma tabla.
 #' `umbral` sólo se acepta con `ratio_umbral`, y el borde se compara con
 #' tolerancia de redondeo: `1 - 0.9` alcanza el umbral `0.1`.
 #'
@@ -1462,6 +1570,7 @@ agregar <- function(medidas, destino,
       "objeto_medible" %in% names(medidas)) {
     etiquetas_pesos <- as.character(medidas$objeto_medible)
   }
+  .exigir_una_instancia_por_entidad(medidas, destino)
   grupos <- .indices_grupos_agregacion(medidas, destino)
   nombre_frontera <- if (identical(destino, "coleccion")) {
     coleccion$nombre
@@ -1509,8 +1618,8 @@ agregar <- function(medidas, destino,
       fecha = medidas$fecha[[primera]],
       metrica = medidas$metrica[[primera]],
       metrica_especifica = medidas$metrica_especifica[[primera]],
-      metrica_instanciada = paste0(
-        "agregada:", funcion, ":", medidas$metrica_especifica[[primera]]
+      metrica_instanciada = .metrica_instanciada_agregada(
+        medidas, indices, destino, funcion
       ),
       dimension = medidas$dimension[[primera]],
       factor = medidas$factor[[primera]],
@@ -1539,9 +1648,16 @@ agregar <- function(medidas, destino,
   objeto_id <- vapply(grupos, function(indices) {
     .id_objeto_agregado(medidas, indices, destino, nombre_frontera)
   }, character(1L), USE.NAMES = FALSE)
+  nombres_metrica <- vapply(
+    grupos,
+    function(indices) .escapar_parte_id(
+      .metrica_instanciada_agregada(medidas, indices, destino, funcion)
+    ),
+    character(1L)
+  )
   resultado$id_medida <- paste0(
     resultado$id_medicion, "-agg-", destino, "-", funcion, "-",
-    resultado$metrica_especifica, "@", objeto_id
+    nombres_metrica, "@", objeto_id
   )
   repetidos <- duplicated(resultado$id_medida) |
     duplicated(resultado$id_medida, fromLast = TRUE)

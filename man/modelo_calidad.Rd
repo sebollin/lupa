@@ -157,6 +157,13 @@ presentes: la ausencia no es defecto y sólo cuentan como faltantes los
 columna declarada en \code{columnas_opcionales} de \code{\link[=perfilar]{perfilar()}}, para medir sobre
 el mismo universo que el perfil: con un \code{NA} y tres \code{-999} en cuarenta
 celdas, 36/39 = 0,923 y no 36/40.
+Cuando \code{valores_nulos} contiene texto, su comparación usa la misma
+normalización textual que \code{\link[=perfilar]{perfilar()}}: ignora los blancos de los bordes y
+no distingue mayúsculas. Así, \code{""}, \code{"   "} y un tabulador describen la
+misma ausencia cuando se declara \code{valores_nulos = ""}. Los marcadores que
+\code{\link[=perfilar]{perfilar()}} reconoce por su cuenta como faltantes disfrazados (\code{"NA"},
+\code{"null"}, \code{-999}) sólo cuentan para \code{NoNulo} si se declaran en
+\code{valores_nulos}: la métrica mide lo que el modelo declara.
 \code{ValoresPosiblesPorComprension} sigue la misma convención y acepta un
 \code{predicado} o un rango definido por \code{minimo}, \code{maximo} e \code{inclusivo}.
 

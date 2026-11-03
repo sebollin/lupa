@@ -515,6 +515,13 @@
 #' columna declarada en `columnas_opcionales` de [perfilar()], para medir sobre
 #' el mismo universo que el perfil: con un `NA` y tres `-999` en cuarenta
 #' celdas, 36/39 = 0,923 y no 36/40.
+#' Cuando `valores_nulos` contiene texto, su comparación usa la misma
+#' normalización textual que [perfilar()]: ignora los blancos de los bordes y
+#' no distingue mayúsculas. Así, `""`, `"   "` y un tabulador describen la
+#' misma ausencia cuando se declara `valores_nulos = ""`. Los marcadores que
+#' [perfilar()] reconoce por su cuenta como faltantes disfrazados (`"NA"`,
+#' `"null"`, `-999`) sólo cuentan para `NoNulo` si se declaran en
+#' `valores_nulos`: la métrica mide lo que el modelo declara.
 #' `ValoresPosiblesPorComprension` sigue la misma convención y acepta un
 #' `predicado` o un rango definido por `minimo`, `maximo` e `inclusivo`.
 #'
@@ -1211,7 +1218,8 @@ modelo <- function(..., marco = NULL) {
     coincide <- if (es_texto) {
       x_texto <- .texto_analizable(x)$valores
       nulos_texto <- .texto_analizable(valores_nulos)$valores
-      .clave_bytes(x_texto) %in% .clave_bytes(nulos_texto)
+      .minusculas_para_comparar(x_texto) %in%
+        .minusculas_para_comparar(nulos_texto)
     } else {
       .en_conjunto_por_valor(x, valores_nulos)
     }

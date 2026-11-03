@@ -25,18 +25,73 @@
   names(datos)[indices]
 }
 
+# La identidad de filas de varias columnas: un codigo por fila, el mismo para
+# filas iguales en todas las columnas. Se armaba con `interaction()`, que en R
+# anterior a 4.6 calcula el producto de los niveles en entero: pasado 2^31
+# desborda, los codigos quedan `NA` y los `NA` se agrupan entre si. Con dos
+# columnas de 60.000 y 58.000 valores distintos, `aplicar()` con
+# `conservar_primera_duplicada` borraba 23.673 filas legitimas de 60.100.
+#
+# Aca se combina de a una columna: el par (grupo hasta aca, codigo de la
+# columna) se ordena y se renumera, asi que el grupo nunca pasa del numero de
+# filas y no hay producto que desborde. El orden de los codigos es el de
+# `interaction(..., lex.order = TRUE)` -la primera columna manda, y dentro de
+# cada una el orden de sus codigos-: quien parte con `split()` recibe los grupos
+# en el mismo orden que antes. Un codigo `NA` deja la fila sin codigo, como en
+# `interaction()`: quien quiere el `NA` como un valor mas lo pasa como nivel
+# (`.factor_por_bytes(x, exclude = NULL)`, que es lo que hace `.codigos_filas()`).
+.codigos_filas_combinados <- function(codigos) {
+  if (!length(codigos)) return(integer())
+  n <- length(codigos[[1L]])
+  if (!n) return(integer())
+  grupos <- rep.int(1L, n)
+  sin_codigo <- rep(FALSE, n)
+  for (columna in codigos) {
+    if (length(columna) != n) {
+      .detener(
+        "Las columnas de la identidad de filas deben tener el mismo largo.",
+        call. = FALSE
+      )
+    }
+    codigo <- if (is.factor(columna)) {
+      as.integer(columna)
+    } else if (is.integer(columna)) {
+      columna
+    } else if (is.character(columna)) {
+      as.integer(.factor_por_bytes(columna, exclude = NULL))
+    } else {
+      match(columna, .sort_por_bytes(unique(columna), na.last = TRUE))
+    }
+    if (anyNA(codigo)) {
+      sin_codigo <- sin_codigo | is.na(codigo)
+      codigo[is.na(codigo)] <- 0L
+    }
+    orden <- .orden_por_bytes(grupos, codigo)
+    nuevo <- c(TRUE, grupos[orden][-1L] != grupos[orden][-n] |
+                       codigo[orden][-1L] != codigo[orden][-n])
+    grupos[orden] <- cumsum(nuevo)
+  }
+  if (any(sin_codigo)) {
+    grupos[sin_codigo] <- NA_integer_
+    presentes <- grupos[!sin_codigo]
+    grupos[!sin_codigo] <- match(presentes, .sort_por_bytes(unique(presentes)))
+  }
+  grupos
+}
+
 .codigos_filas <- function(datos) {
   if (!nrow(datos)) return(integer())
   if (!ncol(datos)) return(rep.int(1L, nrow(datos)))
+  # Una matriz o una tabla anidada como columna aporta varias columnas, no un
+  # vector del largo de la tabla: se aplana por la regla del perfil y del plan.
+  datos <- .expandir_datos_identidad(datos)
   factores <- lapply(datos, function(x) {
     # Los niveles de `factor()` salen de `as.character()`, que funde dos dobles
     # distintos -`0.1 + 0.2` y `0.3`- y separa el mismo numero escrito como
     # entero y como doble -`100000L` y `1e5`-. Ver `.texto_identidad()`.
     .factor_por_bytes(.texto_identidad(.valores_relacion(x)), exclude = NULL)
   })
-  as.integer(do.call(
-    interaction, c(factores, list(drop = TRUE, lex.order = TRUE))
-  ))
+  .codigos_filas_combinados(factores)
 }
 
 .filas_en_referencial <- function(objetivo, referencia) {
