@@ -1033,13 +1033,18 @@ pero no el de pares.</p></dd>
 
 
 <dt id="arg-max-largo-valor-vocabulario">max_largo_valor_vocabulario<a class="anchor" aria-label="anchor" href="#arg-max-largo-valor-vocabulario"></a></dt>
-<dd><p>Maximo de caracteres permitido en cada
-valor que entra en la comparacion de casi duplicados del vocabulario. Por
-defecto es <code>10000</code>, elegido porque la distancia normalizada deja de
-distinguir de forma estable una diferencia local de muchas diferencias en
-textos largos. Una columna que supera el tope se declara completa fuera
-de alcance en <code>cobertura_diagnosticos</code>; no se recortan valores en silencio.
-<code>Inf</code> quita el tope.</p></dd>
+<dd><p>Maximo de bytes o caracteres permitido en
+cada valor que entra en los diagnosticos textuales costosos. Por defecto es
+<code>10000</code>, elegido porque las expresiones regulares, la normalizacion y la
+comparacion de textos largos dejan de ser una medida razonable. Los valores
+que superan el tope quedan fuera de esos diagnosticos, se cuentan completos
+para las medidas de la columna y se declaran en <code>cobertura_diagnosticos</code>.
+<code>Inf</code> quita el tope. El limite especifico de casi duplicados conserva este
+mismo valor para no ejecutar una distancia sobre cadenas sin presupuesto.
+La inferencia de tipo, los conteos baratos, las dependencias y los
+estadisticos se calculan sobre el universo completo que resulte aplicable.
+Cada diagnostico que omita los valores largos agrega su propia fila de
+cobertura, con <code>dependencia = "texto_largo_no_evaluado"</code>.</p></dd>
 
 
 <dt id="arg-max-celdas-muestra">max_celdas_muestra<a class="anchor" aria-label="anchor" href="#arg-max-celdas-muestra"></a></dt>

@@ -1544,6 +1544,63 @@ necesita reproducir, y los topes de celdas y bytes</td>
 </table>
 </div>
 <div class="section level2">
+<h2 id="corrida-produccion">Una corrida sobre bases de producción<a class="anchor" aria-label="anchor" href="#corrida-produccion"></a>
+</h2>
+<p>Entre el 26 y el 30 de octubre de 2026, un equipo externo corrió
+<code><a href="../reference/perfilar_dbi.html">perfilar_dbi()</a></code> sobre ocho bases de producción: cinco
+PostgreSQL, de la 9.3 a la 13, y tres SQL Server, 2008 R2 y 2016, desde
+una máquina con 121 GB de memoria y R 4.5.2. Son cifras de una corrida
+única, con la versión de esas fechas y sobre datos que el repositorio no
+tiene: no se rehacen desde acá y no se extrapolan a otra máquina.</p>
+<table class="table">
+<colgroup>
+<col width="20%">
+<col width="26%">
+<col width="26%">
+<col width="26%">
+</colgroup>
+<thead><tr class="header">
+<th></th>
+<th align="right">Tablas chicas, vía única</th>
+<th align="right">Agregados (<code>tabla_completa</code>)</th>
+<th align="right">Muestra del motor</th>
+</tr></thead>
+<tbody>
+<tr class="odd">
+<td>Mediana</td>
+<td align="right">0,6 s</td>
+<td align="right">12 s</td>
+<td align="right">26 s</td>
+</tr>
+<tr class="even">
+<td>Percentil 99</td>
+<td align="right">47 s</td>
+<td align="right">1.822 s</td>
+<td align="right">323 s</td>
+</tr>
+</tbody>
+</table>
+<p>Fueron 3.709 llamadas sobre 3.316 tablas: 3.693 terminaron bien, 11
+se cortaron por el tiempo máximo que fijó el equipo y 2 por un error del
+proceso. La memoria mediana de una llamada estuvo entre 230 y 530 MB
+según la vía. Sobre esos perfiles, <code><a href="../reference/reportar.html">reportar()</a></code> tardó 0,06 s
+de mediana y <code><a href="../reference/planificar_limpieza.html">planificar_limpieza()</a></code> 0,008 s.</p>
+<p>La protección de datos personales, medida en tres tablas de hasta
+100.000 filas con la misma llamada con y sin
+<code>proteger_datos_personales = TRUE</code>, costó entre 11 y 18 % más
+de tiempo, con una memoria entre 5 % menor y 11 % mayor. Cada llamada
+sacó su propia muestra del motor, así que las filas no fueron
+exactamente las mismas, y el motor y el controlador también cobran su
+parte: es un costo de dos dígitos bajos, no un costo nulo.</p>
+<p>Lo más lento de esa corrida es lo que esta versión corrige: el
+desvío, que en SQL Server iba en una consulta por columna y cada una
+recorría la tabla entera (<a href="#lotes">Consultas por lote</a>); las
+columnas de fecha en R anterior a 4.6; los textos muy largos; y la
+muestra del motor, que podía traer a R más que su presupuesto (<a href="#topes">Topes de la lectura a R</a>). La coincidencia de las
+cifras con un conteo SQL escrito aparte está en <a href="https://sebollin.github.io/lupa/articles/evidencia-y-rendimiento.html#contraste-contra-el-servidor">Evidencia
+y rendimiento</a>.</p>
+</div>
+<div class="section level2">
 <h2 id="consistencia">Consistencia entre consultas<a class="anchor" aria-label="anchor" href="#consistencia"></a>
 </h2>
 <p>Los agregados son sentencias separadas, y la tabla puede cambiar

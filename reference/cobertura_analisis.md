@@ -20,8 +20,13 @@ cobertura_analisis(perfil, medicion = NULL, modelo = marco_agesic())
 - perfil:
 
   **Primer argumento.** Objeto creado por
-  [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md);
-  es el perfil descriptivo sobre cuyos factores se informa cobertura.
+  [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md)
+  o
+  [`perfilar_dbi()`](https://sebollin.github.io/lupa/reference/perfilar_dbi.md).
+  En el segundo caso se analiza `perfil_muestra` cuando existe; un
+  perfil por agregados usa el resumen de la tabla y cubre la tabla
+  completa. Cuando corresponde, cada motivo indica que la cobertura es
+  la de la muestra y no la de la tabla completa.
 
 - medicion:
 

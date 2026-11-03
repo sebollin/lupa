@@ -423,7 +423,9 @@ no está en los datos.
 [`elegir_clave()`](https://sebollin.github.io/lupa/reference/elegir_clave.md)
 muestra esas candidatas numeradas, con su motivo, y una opción para
 escribir otra (o varias separadas por coma, para una clave compuesta).
-Devuelve la elegida, lista para
+Si un nombre real contiene una coma, esa escritura es ambigua: pasar un
+vector de nombres directamente a `clave`, por ejemplo
+`clave = c("a,b")`. Devuelve la elegida, lista para
 [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md):
 
 ``` r

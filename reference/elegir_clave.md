@@ -6,7 +6,10 @@ numeradas, con el motivo de cada una, y devuelve la que se elija para
 pasarla al argumento `clave` de
 [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md).
 La última opción permite escribir un nombre que no esté en la lista, o
-varios separados por coma para una clave compuesta.
+varios separados por coma para una clave compuesta. Si un nombre real
+contiene una coma, el texto no se puede desambiguar: en ese caso hay que
+pasar un vector de nombres, por ejemplo `c("a,b")`, al argumento
+`clave`.
 
 ## Usage
 

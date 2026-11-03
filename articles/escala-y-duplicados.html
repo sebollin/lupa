@@ -391,7 +391,10 @@ hay tope y no se mide ningún largo: ese campo vale <code>NA</code>, no
 cero. El diagnóstico de vocabulario de <code><a href="../reference/perfilar.html">perfilar()</a></code> tiene su
 propio tope, <code>max_largo_valor_vocabulario</code>, que no se hereda:
 al detector se le pasa con
-<code>perfilar(duplicados_aproximados = list(max_largo_valor = ...))</code>.</p>
+<code>perfilar(duplicados_aproximados = list(max_largo_valor = ...))</code>.
+En <code><a href="../reference/perfilar.html">perfilar()</a></code> el mismo tope también declara la cobertura de
+las operaciones textuales costosas que no se ejecutan sobre esos
+valores.</p>
 </div>
 <div class="section level3">
 <h3 id="el-trabajo-del-vocabulario-en-perfilar">El trabajo del vocabulario en <code>perfilar()</code><a class="anchor" aria-label="anchor" href="#el-trabajo-del-vocabulario-en-perfilar"></a>

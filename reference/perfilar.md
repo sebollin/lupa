@@ -1037,13 +1037,19 @@ perfilar(
 
 - max_largo_valor_vocabulario:
 
-  Maximo de caracteres permitido en cada valor que entra en la
-  comparacion de casi duplicados del vocabulario. Por defecto es
-  `10000`, elegido porque la distancia normalizada deja de distinguir de
-  forma estable una diferencia local de muchas diferencias en textos
-  largos. Una columna que supera el tope se declara completa fuera de
-  alcance en `cobertura_diagnosticos`; no se recortan valores en
-  silencio. `Inf` quita el tope.
+  Maximo de bytes o caracteres permitido en cada valor que entra en los
+  diagnosticos textuales costosos. Por defecto es `10000`, elegido
+  porque las expresiones regulares, la normalizacion y la comparacion de
+  textos largos dejan de ser una medida razonable. Los valores que
+  superan el tope quedan fuera de esos diagnosticos, se cuentan
+  completos para las medidas de la columna y se declaran en
+  `cobertura_diagnosticos`. `Inf` quita el tope. El limite especifico de
+  casi duplicados conserva este mismo valor para no ejecutar una
+  distancia sobre cadenas sin presupuesto. La inferencia de tipo, los
+  conteos baratos, las dependencias y los estadisticos se calculan sobre
+  el universo completo que resulte aplicable. Cada diagnostico que omita
+  los valores largos agrega su propia fila de cobertura, con
+  `dependencia = "texto_largo_no_evaluado"`.
 
 - max_celdas_muestra:
 

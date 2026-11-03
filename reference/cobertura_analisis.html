@@ -82,8 +82,11 @@ la ausencia de un hallazgo se interprete como evidencia de calidad.</p>
 
 
 <dl><dt id="arg-perfil">perfil<a class="anchor" aria-label="anchor" href="#arg-perfil"></a></dt>
-<dd><p><strong>Primer argumento.</strong> Objeto creado por <code><a href="perfilar.html">perfilar()</a></code>; es el
-perfil descriptivo sobre cuyos factores se informa cobertura.</p></dd>
+<dd><p><strong>Primer argumento.</strong> Objeto creado por <code><a href="perfilar.html">perfilar()</a></code> o
+<code><a href="perfilar_dbi.html">perfilar_dbi()</a></code>. En el segundo caso se analiza <code>perfil_muestra</code> cuando
+existe; un perfil por agregados usa el resumen de la tabla y cubre la
+tabla completa. Cuando corresponde, cada motivo indica que la cobertura
+es la de la muestra y no la de la tabla completa.</p></dd>
 
 
 <dt id="arg-medicion">medicion<a class="anchor" aria-label="anchor" href="#arg-medicion"></a></dt>

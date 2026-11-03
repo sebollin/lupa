@@ -322,7 +322,10 @@ campo vale `NA`, no cero. El diagnóstico de vocabulario de
 [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md)
 tiene su propio tope, `max_largo_valor_vocabulario`, que no se hereda:
 al detector se le pasa con
-`perfilar(duplicados_aproximados = list(max_largo_valor = ...))`.
+`perfilar(duplicados_aproximados = list(max_largo_valor = ...))`. En
+[`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md) el
+mismo tope también declara la cobertura de las operaciones textuales
+costosas que no se ejecutan sobre esos valores.
 
 ### El trabajo del vocabulario en `perfilar()`
 

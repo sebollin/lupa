@@ -103,6 +103,9 @@ avisa, y lo que sigue calcula sobre nada.</p>
     <p><code>hallazgos()</code> devuelve un <code>data.frame</code> con una fila por hallazgo
 —sobre una colección, los de cada perfil conservado con la identidad de su
 tabla adelante (<code>tabla</code>, <code>esquema</code>, <code>identificador</code>), como <code>sql_perfil()</code>;
+la columna-lista <code>trazabilidad</code> conserva, en hallazgos que involucran varias
+columnas, el vector original <code>columnas</code>; <code>columna</code> sigue siendo el texto
+legible que se muestra y se puede guardar.
 si la colección no conservó los perfiles, una tabla vacía con su aviso—;
 <code>columnas()</code>, un <code>data.frame</code> con una fila por columna de la tabla
 perfilada y sus métricas y diagnósticos; <code>cobertura()</code> devuelve la tabla de
