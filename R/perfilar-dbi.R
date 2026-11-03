@@ -2987,8 +2987,8 @@
 .MIN_FRACCION_NEWID_DBI <- 0.20
 .MAX_PROYECCION_NEWID_MS_DBI <- 1000
 .UMBRAL_BYTES_AVISO_DERRAME_ESTIMADO_DBI <- 0
-# Nombre interno histórico, expresado en milisegundos como lo estaba antes de
-# que el umbral público pasara a declarar su unidad en segundos.
+# Nombre interno historico, expresado en milisegundos como lo estaba antes de
+# que el umbral publico pasara a declarar su unidad en segundos.
 .UMBRAL_AVISO_DISTINTOS_DBI <- .UMBRAL_SEGUNDOS_AVISO_DISTINTOS_DBI * 1000
 
 .evaluar_guardia_newid_dbi <- function(n_total, tamano_muestra,
@@ -4461,7 +4461,7 @@
   estado$etapas <- list()
   # Las etapas se anidan -`perfilado_muestra` envuelve al perfilado por columna,
   # a las dependencias y a los casi-duplicados-, asi que sus duraciones NO se
-  # pueden sumar. Eso estaba dicho en la viñeta y en el `Rd`, y no en el objeto:
+  # pueden sumar. Eso estaba dicho en la vineta y en el `Rd`, y no en el objeto:
   # quien lo mira en la consola ve siete filas sin nada que lo advierta. El
   # trazador lleva la profundidad para que el objeto lo diga solo, en vez de
   # depender de una tabla de jerarquia escrita a mano que se desactualiza en
@@ -4543,7 +4543,7 @@
       } else {
         "medido"
       },
-      # Sólo las de nivel 1 se pueden sumar entre sí; las demás están
+      # Solo las de nivel 1 se pueden sumar entre si; las demas estan
       # contenidas en alguna de ellas.
       nivel = min(filas$nivel),
       n_ejecuciones = nrow(filas), stringsAsFactors = FALSE
@@ -4982,8 +4982,8 @@
     ))
   }
   forma <- tryCatch(
-    # `porcentaje = "1"` sólo permite construir la sentencia. No se ejecuta:
-    # el plan usa esta comprobación para detectar, entre otros casos, que
+  # `porcentaje = "1"` solo permite construir la sentencia. No se ejecuta:
+    # el plan usa esta comprobacion para detectar, entre otros casos, que
     # `muestra = Inf` no tiene una forma de subconjunto que escribir.
     .forma_muestreo_dbi(
       candidato, tabla_sql, campos_sql, porcentaje = "1", muestra, dialecto
@@ -6314,8 +6314,8 @@
     delta_llamadas <- llamadas_despues - llamadas_antes
     delta_leidos <- .numero_dbi(despues$temp_blks_read[[i]]) - leidos_antes
     delta_escritos <- .numero_dbi(despues$temp_blks_written[[i]]) - escritos_antes
-    # El contador puede incluir otra sesión o llamada concurrente. Se publica
-    # el agregado de la ventana y ese límite de atribución queda explícito.
+  # El contador puede incluir otra sesion o llamada concurrente. Se publica
+  # el agregado de la ventana y ese limite de atribucion queda explicito.
     if (!isTRUE(delta_llamadas >= 1) || !is.finite(delta_leidos) ||
         !is.finite(delta_escritos) || delta_leidos < 0 || delta_escritos < 0) {
       next
@@ -8705,7 +8705,7 @@
       ))
     }
     # La mediana muestreada no puede degradarse a `dos_consultas`, aunque el
-    # dialecto conserve esa vía para `tabla_completa`.
+  # dialecto conserve esa via para `tabla_completa`.
     if (is.list(cte)) {
       return(list(
         estrategia_solicitada = solicitada,
@@ -10213,10 +10213,10 @@
   centro <- if (length(centro) == 1L && !is.na(centro) && nzchar(centro)) {
     as.character(centro)
   } else NULL
-  # SQL Server no admite una subconsulta agregada dentro de `STDEV`. Su forma
-  # nativa sobre FLOAT ya acumula en doble y evita tanto la escala de
-  # `decimal(38, s)` como la cancelacion de una sola pasada; no se le anida un
-  # `AVG` aunque la llamada traiga un centro.
+  # SQL Server no admite una subconsulta agregada dentro de `STDEV`. Cuando se
+  # recibe un centro, la expresion ya viene centrada y `STDEV` acumula en doble;
+  # no se anida un `AVG` ni se cambia el tipo declarado de la columna antes de
+  # restar, para conservar las reglas de `decimal(38, s)` y `money`.
   centro_efectivo <- if (sqlserver) centro else centro_sql %||% centro
   if (length(centro_efectivo) == 1L) {
     operando <- if (numeric_exact) {
@@ -10690,7 +10690,7 @@
     incluir_valores, presupuesto, tamano_lote, numero, alias, forma,
     etapa = "agregados", incluir_total = FALSE,
     tabla_total_sql = tabla_sql, columnas_float8_numeric = character(),
-    infinitos_como_numeric = FALSE) {
+    infinitos_como_numeric = FALSE, centros_desvio = NULL) {
   # Ver `.media_sql_dbi()`: la media se pide como doble en T-SQL.
   senas <- .senas_conexion_dbi(conexion)
   metricas_basicos <- if ("basicos" %in% metricas) {
@@ -10761,6 +10761,9 @@
         formas <- .formas_desvio_dbi(
           tabla_sql, nombres_sql[[campo]],
           function(nombre) aliases$desvio, senas,
+          centro = if (is.null(centros_desvio)) NULL else {
+            centros_desvio[[campo]]
+          },
           numeric_exact = exacta,
           infinitos_como_numeric = exacta
         )
@@ -10915,6 +10918,9 @@
       individual$desvio <- .desvio_columna_dbi(
         conexion, tabla_sql, nombres_sql[[campo]], alias, forma,
         presupuesto, metadatos,
+          centro = if (is.null(centros_desvio)) NULL else {
+            centros_desvio[[campo]]
+          },
           numeric_exact = isTRUE(infinitos_como_numeric) &&
             campo %in% columnas_float8_numeric ||
             .es_lectura_double_exacta_dbi(nombres_sql[[campo]]),
@@ -11252,23 +11258,24 @@
     invisible(NULL)
   }
 
+  senas <- .senas_conexion_dbi(conexion)
+  sqlserver <- grepl(
+    "sql server|microsoft sql|sqlserver|mssql", senas,
+    perl = TRUE, useBytes = TRUE
+  )
+  postgres_float8 <- grepl("postgres|pqconnection", senas, useBytes = TRUE) &&
+    length(columnas_float8_numeric)
+  separar_desvio <- identical(tabla_total_sql, tabla_sql) &&
+    "desvio" %in% metricas && (sqlserver || postgres_float8)
   metricas_planas <- intersect(c("validos", "basicos", "desvio"), metricas)
-  if (grepl("sql server|microsoft sql|sqlserver|mssql", 
-            .senas_conexion_dbi(conexion), perl = TRUE, useBytes = TRUE)) {
-    # `STDEV` sobre una columna entera se cancela en una sola pasada. La
-    # consulta compartida no puede anidar el `AVG` que necesita el centro en
-    # otro agregado; el desvio de SQL Server va por la via por columna, que
-    # primero obtiene el centro y luego lo resta como literal FLOAT.
+  if (separar_desvio) {
+    # La forma nativa de una pasada puede perder cifras cuando la media es
+    # mucho mayor que el desvio. Se conserva la exactitud calculando el centro
+    # en el lote de basicos y el desvio centrado en un segundo lote.
     metricas_planas <- setdiff(metricas_planas, "desvio")
   }
-  if (grepl("postgres|pqconnection", .senas_conexion_dbi(conexion),
-            useBytes = TRUE) && length(columnas_float8_numeric)) {
-    # La lectura convertida de float8 queda como NUMERIC en la relacion
-    # derivada para que R reciba todos los digitos. La forma por columna la
-    # vuelve a FLOAT8 antes de restar el centro, como lo hace R; una consulta
-    # consolidada sin el tipo no puede elegir esa conversion.
-    metricas_planas <- setdiff(metricas_planas, "desvio")
-  }
+  metricas_consulta <- metricas_planas
+  if (separar_desvio) metricas_consulta <- unique(c(metricas_consulta, "basicos"))
   incluir_total_muestra <- !identical(tabla_total_sql, tabla_sql)
   numericas <- columnas[es_numerico]
   columnas_planas <- if ("validos" %in% metricas_planas) {
@@ -11276,15 +11283,15 @@
   } else {
     numericas
   }
-  if (length(metricas_planas) && length(columnas_planas)) {
-    if ("desvio" %in% metricas_planas) .sondar_forma_desvio(
+  if (length(metricas_consulta) && length(columnas_planas)) {
+    if ("desvio" %in% metricas || separar_desvio) .sondar_forma_desvio(
       conexion, presupuesto, alias
     )
     forma <- presupuesto$forma_desvio
     lotes <- .lotes_columnas_dbi(columnas_planas, tamano_lote_planos)
-    etapa <- if ("basicos" %in% metricas_planas) {
+    etapa <- if ("basicos" %in% metricas_consulta) {
       "basicos"
-    } else if ("desvio" %in% metricas_planas) {
+    } else if ("desvio" %in% metricas_consulta) {
       "desvio"
     } else {
       "conteos"
@@ -11295,9 +11302,9 @@
       es_numerico_lote <- es_numerico[indices]
       resultado_lote <- .agregados_lote_con_biseccion_dbi(
         conexion, tabla_sql, lote, nombres_sql, es_numerico_lote,
-        metricas_planas, incluir_valores, presupuesto, tamano_lote_planos, numero,
+        metricas_consulta, incluir_valores, presupuesto, tamano_lote_planos, numero,
         alias, forma, etapa,
-        incluir_total = "validos" %in% metricas_planas || incluir_total_muestra,
+        incluir_total = "validos" %in% metricas_consulta || incluir_total_muestra,
         tabla_total_sql = tabla_total_sql,
         columnas_float8_numeric = columnas_float8_numeric,
         infinitos_como_numeric = infinitos_como_numeric
@@ -11309,7 +11316,7 @@
         # Un resultado con filas pero sin uno de sus alias no es un rechazo de
         # columna. Mantener el reintento anterior por metrica evita cambiar la
         # disponibilidad si un controlador pliega o renombra los alias.
-        if ("validos" %in% metricas_planas &&
+        if ("validos" %in% metricas_consulta &&
             !is.null(resultado$validos) && !isTRUE(resultado$validos$ok) &&
             isTRUE(resultado$consolidada)) {
           resultado$validos <- .conteos_columna_dbi(
@@ -11317,7 +11324,7 @@
             TRUE, FALSE, presupuesto, incluir_total = TRUE
           )$validos
         }
-        if ("basicos" %in% metricas_planas &&
+        if ("basicos" %in% metricas_consulta &&
             !is.null(resultado$basicos) && !isTRUE(resultado$basicos$ok) &&
             isTRUE(resultado$consolidada)) {
           resultado$basicos <- .basicos_columna_dbi(
@@ -11329,7 +11336,7 @@
               .es_lectura_double_exacta_dbi(nombres_sql[[campo]])
           )
         }
-        if ("desvio" %in% metricas_planas &&
+        if ("desvio" %in% metricas_consulta &&
             !is.null(resultado$desvio) && !isTRUE(resultado$desvio$ok) &&
             isTRUE(resultado$consolidada)) {
           resultado$desvio <- .desvio_columna_dbi(
@@ -11343,18 +11350,71 @@
               .es_lectura_double_exacta_dbi(nombres_sql[[campo]])
           )
         }
-        if ("validos" %in% metricas_planas) {
+        if ("validos" %in% metricas) {
           base_conteos <- agregados$conteos[[campo]]
           if (is.null(base_conteos)) base_conteos <- list(consolidada = TRUE)
           agregados$conteos[[campo]] <- utils::modifyList(
             base_conteos, list(validos = resultado$validos)
           )
         }
-        if ("basicos" %in% metricas_planas && !is.null(resultado$basicos)) {
+        if ("basicos" %in% metricas && !is.null(resultado$basicos)) {
           agregados$basicos[[campo]] <- resultado$basicos
         }
         if ("desvio" %in% metricas_planas && !is.null(resultado$desvio)) {
           agregados$desvio[[campo]] <- resultado$desvio
+        }
+      }
+      if (separar_desvio && "desvio" %in% metricas) {
+        centro_de <- function(campo) {
+          resultado <- resultado_lote[[campo]]
+          basicos <- if (is.null(resultado)) NULL else resultado$basicos
+          if (is.null(basicos) || !isTRUE(basicos$ok)) return(NA_real_)
+          media <- .valor_campo_dbi(basicos$datos, "media")
+          if (!isTRUE(media$ok)) return(NA_real_)
+          valor <- suppressWarnings(as.numeric(media$valor))
+          if (length(valor) != 1L || !is.finite(valor)) NA_real_ else valor
+        }
+        centros <- stats::setNames(
+          lapply(lote, centro_de), lote
+        )
+        columnas_desvio <- lote[es_numerico_lote & vapply(
+          centros, function(x) length(x) == 1L && is.finite(x), logical(1L)
+        )]
+        if (length(columnas_desvio)) {
+          indices_desvio <- .indice_nombre(columnas_desvio, columnas)
+          resultado_desvio <- .agregados_lote_con_biseccion_dbi(
+            conexion, tabla_sql, columnas_desvio, nombres_sql,
+            es_numerico[indices_desvio], "desvio", incluir_valores,
+            presupuesto, tamano_lote_planos, numero, alias, forma,
+            etapa = "desvio", incluir_total = FALSE,
+            tabla_total_sql = tabla_total_sql,
+            columnas_float8_numeric = columnas_float8_numeric,
+            infinitos_como_numeric = infinitos_como_numeric,
+            centros_desvio = centros[columnas_desvio]
+          )$resultados
+          for (campo in columnas_desvio) {
+            resultado <- resultado_desvio[[campo]]
+            desvio <- if (is.null(resultado)) NULL else resultado$desvio
+            if (!is.null(desvio) && isTRUE(desvio$ok)) {
+              agregados$desvio[[campo]] <- desvio
+            }
+          }
+        }
+        for (campo in lote[es_numerico_lote]) {
+          if (!is.null(agregados$desvio[[campo]]) &&
+              isTRUE(agregados$desvio[[campo]]$ok)) next
+          resultado <- .desvio_columna_dbi(
+            conexion, tabla_sql, nombres_sql[[campo]], alias, forma,
+            presupuesto, .metadatos_lote_dbi(numero, campo),
+            centro = centros[[campo]],
+            numeric_exact = isTRUE(infinitos_como_numeric) &&
+              campo %in% columnas_float8_numeric ||
+              .es_lectura_double_exacta_dbi(nombres_sql[[campo]]),
+            infinitos_como_numeric = isTRUE(infinitos_como_numeric) &&
+              campo %in% columnas_float8_numeric ||
+              .es_lectura_double_exacta_dbi(nombres_sql[[campo]])
+          )
+          agregados$desvio[[campo]] <- resultado
         }
       }
     }
@@ -13234,7 +13294,7 @@
         "cotejamiento insensible, y no es un error de ninguno de los dos"
       ),
       # En `muestra_motor` la relacion muestreada tiene una sola identidad: la
-      # del spool externo que se abre antes de las pasadas. Este campo histórico
+      # del spool externo que se abre antes de las pasadas. Este campo historico
       # ya no se publica; el contrato legible vive en `meta$materializacion` y
       # en `meta$muestreo`, donde `muestra_id` no se confunde con un id de
       # consulta SQL.
@@ -13858,7 +13918,8 @@
                                   columnas_moda_max = NULL,
                                   columnas_mediana = NULL,
                                   columnas_mediana_max = NULL,
-                                  consultas_muestra = 1L) {
+                                  consultas_muestra = 1L,
+                                  desvio_en_lotes = FALSE) {
   n_columnas <- length(campos)
   n_numericas <- sum(es_numerico)
   con_valores <- isTRUE(incluir_valores)
@@ -13907,6 +13968,9 @@
     n_planos <- n_lotes(columnas_planas, tamano_lote_planos)
     if ("desvio" %in% metricas && n_numericas > 0) {
       n_planos <- n_planos + .PEAJE_FORMA_DESVIO
+      if (isTRUE(desvio_en_lotes)) {
+        n_planos <- n_planos + n_lotes(n_numericas, tamano_lote_planos)
+      }
     }
     clases[[length(clases) + 1L]] <- c(
       "agregados planos por lotes (COUNT + MIN/MAX/AVG/SUM CASE + desvio)",
@@ -14843,7 +14907,13 @@ plan_perfilado_dbi <- function(conexion, tabla,
     columnas_mediana = columnas_mediana_plan,
     columnas_mediana_max = columnas_mediana_max,
     consultas_muestra = if (.solicita_muestra_dbi(preparacion$bloque_muestra) &&
-                            isTRUE(tope_muestra$requiere_sonda_bytes)) 2L else 1L
+                            isTRUE(tope_muestra$requiere_sonda_bytes)) 2L else 1L,
+    desvio_en_lotes = identical(preparacion$universo, "tabla_completa") &&
+      "desvio" %in% preparacion$metricas_ejecucion && (
+        grepl("sql server|microsoft sql|sqlserver|mssql",
+              .senas_conexion_dbi(conexion), perl = TRUE, useBytes = TRUE) ||
+        length(preparacion$columnas_float8_numeric) > 0L
+      )
   )
   attr(plan, "total") <- sum(plan$n_consultas)
   extra <- attr(plan, "extra_si_se_rechazan_lotes", exact = TRUE)
@@ -16633,8 +16703,8 @@ print.plan_perfilado_dbi <- function(x, ...) {
     }
   }
   n_obtener <- alcance$filas_efectivas
-  # La consulta final siempre se arma con el límite resuelto. La sonda es sólo
-  # una medida previa para decidir ese límite; nunca se recorta en R lo que ya
+  # La consulta final siempre se arma con el limite resuelto. La sonda es solo
+  # una medida previa para decidir ese limite; nunca se recorta en R lo que ya
   # vino del motor.
   armado <- armar_muestra_dbi(seq_along(campos_sql), alcance$filas_efectivas)
   fuente <- armado$fuente
@@ -17009,9 +17079,9 @@ print.plan_perfilado_dbi <- function(x, ...) {
     argumentos$nombre <- paste0("muestra DBI de ", .texto_tabla_dbi(tabla))
   }
   argumentos$muestra <- Inf
-  # Los topes ya se resolvieron sobre la relación remota. Pasar `Inf` acá
-  # evita una segunda decisión local que podría volver a recortar en R lo que
-  # el bloque acaba de traer y, además, deja la cobertura con una sola fuente
+  # Los topes ya se resolvieron sobre la relacion remota. Pasar `Inf` aca
+  # evita una segunda decision local que podria volver a recortar en R lo que
+  # el bloque acaba de traer y, ademas, deja la cobertura con una sola fuente
   # de verdad: el alcance calculado antes de la lectura.
   argumentos$max_celdas_muestra <- Inf
   argumentos$max_bytes_muestra <- Inf
@@ -17878,9 +17948,9 @@ print.plan_perfilado_dbi <- function(x, ...) {
     )
     muestreo$forma_construible <- estado_forma$forma_construible
     if (!isTRUE(estado_forma$forma_construible)) {
-      # La corrida y el plan comparten esta decisión estructural: no hay una
-      # consulta de datos que pueda producir métricas sobre una muestra que no
-      # se puede escribir. La lista de métricas solicitadas se conserva para
+  # La corrida y el plan comparten esta decision estructural: no hay una
+      # consulta de datos que pueda producir metricas sobre una muestra que no
+      # se puede escribir. La lista de metricas solicitadas se conserva para
       # publicar cada ausencia, pero no se intenta emitirlas.
       if (!is.null(muestreo$candidato)) {
         muestreo$disponible <- FALSE
@@ -19256,7 +19326,9 @@ print.plan_perfilado_dbi <- function(x, ...) {
 #'   familias. Para control separado, usar `tamano_lote_planos` y
 #'   `tamano_lote_distintos`.
 #' @param tamano_lote_planos Cantidad máxima de columnas por consulta de
-#'   agregados planos. El valor por omisión es 20.
+#'   agregados planos. En SQL Server y en columnas `float8` de PostgreSQL, el
+#'   desvío conserva su cálculo centrado en una segunda pasada del mismo tamaño.
+#'   El valor por omisión es 20.
 #' @param tamano_lote_distintos Cantidad máxima de columnas por consulta de
 #'   cardinalidades exactas. El valor por omisión es 2, un supuesto del código
 #'   medido sobre un PostgreSQL de referencia: el motor hace una sola pasada por
@@ -19692,7 +19764,13 @@ perfilar_dbi <- function(conexion, tabla,
     incluir_muestra = .solicita_muestra_dbi(preparacion$bloque_muestra),
     mediana_consolidada = !is.null(preparacion$mediana_consolidada),
     consultas_muestra = if (.solicita_muestra_dbi(preparacion$bloque_muestra) &&
-                            isTRUE(tope_muestra$requiere_sonda_bytes)) 2L else 1L
+                            isTRUE(tope_muestra$requiere_sonda_bytes)) 2L else 1L,
+    desvio_en_lotes = identical(preparacion$universo, "tabla_completa") &&
+      "desvio" %in% preparacion$metricas_ejecucion && (
+        grepl("sql server|microsoft sql|sqlserver|mssql",
+              .senas_conexion_dbi(conexion), perl = TRUE, useBytes = TRUE) ||
+        length(preparacion$columnas_float8_numeric) > 0L
+      )
   )
   # Las consultas obligatorias que faltan -verificacion de orden y, cuando se
   # pidio, muestra- se reservan para que el presupuesto no se las coma.
@@ -19993,7 +20071,13 @@ perfilar_dbi <- function(conexion, tabla,
       columnas_mediana = columnas_mediana,
       columnas_mediana_max = columnas_mediana,
       consultas_muestra = if (.solicita_muestra_dbi(preparacion$bloque_muestra) &&
-                              isTRUE(tope_muestra$requiere_sonda_bytes)) 2L else 1L
+                              isTRUE(tope_muestra$requiere_sonda_bytes)) 2L else 1L,
+      desvio_en_lotes = identical(preparacion$universo, "tabla_completa") &&
+        "desvio" %in% preparacion$metricas_ejecucion && (
+          grepl("sql server|microsoft sql|sqlserver|mssql",
+                .senas_conexion_dbi(conexion), perl = TRUE, useBytes = TRUE) ||
+          length(preparacion$columnas_float8_numeric) > 0L
+        )
     )
   }
   attr(plan, "moda_guardian") <- .publicar_moda_guardian_dbi(
@@ -20095,9 +20179,9 @@ perfilar_dbi <- function(conexion, tabla,
   if (identical(preparacion$universo, "muestra_motor") &&
       !.solicita_muestra_dbi(preparacion$bloque_muestra)) {
     # La muestra del motor sigue gobernando los agregados SQL, pero el bloque
-    # de filas no se pidió: no hay selección para materializar ni filas vistas
-    # por el cliente. El estado explícito evita confundir "no solicitado" con
-    # un spool que se abrió y luego se descartó.
+  # de filas no se pidio: no hay seleccion para materializar ni filas vistas
+    # por el cliente. El estado explicito evita confundir "no solicitado" con
+    # un spool que se abrio y luego se descarto.
     resumen$meta$materializacion <- list(
       pagado = FALSE, estado = "no_solicitado", externo = FALSE,
       n_filas = 0, bytes = 0, checksum = NA_character_,

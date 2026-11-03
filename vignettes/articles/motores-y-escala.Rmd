@@ -527,7 +527,9 @@ eso las consultas se agrupan:
 
 - **Agregados planos** —`COUNT(col)`, mínimo, máximo, media, ceros, negativos y
   desvío— viajan en una sola consulta por lote de hasta `tamano_lote_planos`
-  columnas (`r lupa:::.TAMANO_LOTE_PLANOS_DBI` por omisión). Cada una trae
+  columnas (`r lupa:::.TAMANO_LOTE_PLANOS_DBI` por omisión). En SQL Server y
+  para `float8` de PostgreSQL, el desvío usa además una segunda consulta por
+  lote para conservar el cálculo centrado. Cada consulta trae
   `COUNT(*) AS n_total_consulta`: la completitud usa ese denominador local y no
   el total de otro lote.
 - **Cardinalidades exactas** van en su propia clase, por lotes de
