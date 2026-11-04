@@ -7,12 +7,20 @@ testthat::skip_on_cran()
 .o101_perfil_aviso_opcional <- function(argumentos, espera_aviso = FALSE) {
   ejecutar <- function() suppressMessages(do.call(perfilar_dbi, argumentos))
   if (isTRUE(espera_aviso)) {
-    resultado_env <- new.env(parent = emptyenv())
-    expect_warning(
-      resultado_env$perfil <- ejecutar(),
-      class = "lupa_aviso_muestra_motor"
-    )
-    perfil <- resultado_env$perfil
+    # Que haya aviso depende del controlador, no de lupa: con duckdb 1.x,
+    # STDDEV_SAMP sobre un NaN es un error del motor ("out of range") y la
+    # consulta queda como no disponible; desde duckdb 2.0 devuelve NaN y no
+    # falla ninguna. Lo que se fija es la relacion: hay aviso si y solo si hay
+    # fallas registradas, y el aviso es el de la muestra del motor.
+    avisos <- list()
+    perfil <- withCallingHandlers(ejecutar(), warning = function(w) {
+      avisos[[length(avisos) + 1L]] <<- w
+      invokeRestart("muffleWarning")
+    })
+    for (w in avisos) expect_s3_class(w, "lupa_aviso_muestra_motor")
+    fallas <- perfil$resumen_tabla$meta$consultas$fallas
+    n_fallas <- if (is.data.frame(fallas)) nrow(fallas) else 0L
+    expect_identical(length(avisos) > 0L, n_fallas > 0L)
   } else {
     perfil <- expect_no_warning(ejecutar())
   }

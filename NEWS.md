@@ -233,9 +233,11 @@ Primera versión publicada.
   en PostgreSQL o una fracción mayor por bloques, sin ordenar la tabla entera;
   el aviso sale solo si la muestra final sigue corta o la recortó un tope.
 - Las consultas pedidas que el motor rechaza o cancela quedan en
-  `meta$consultas$fallas` y en la cobertura como `degradado`, con un aviso de
-  clase `lupa_aviso_muestra_motor`; las consultas internas del paquete
-  (capacidades, catálogo, configuración) no avisan. La muestra del motor publica
+  `resumen_tabla$meta$consultas$fallas` y en la cobertura como `degradado`, con
+  un aviso de clase `lupa_aviso_muestra_motor` que nombra ese camino completo
+  (antes decía `meta$consultas$fallas`, que sobre el resultado da `NULL`); las
+  consultas internas del paquete (capacidades, catálogo, configuración) no
+  avisan. La muestra del motor publica
   también sus tiempos, sus bytes y el tope que mandó.
 - Por JDBC, SQL Server se reconoce como motor por los metadatos de la conexión.
 - `perfilar_dbi()` avisa (`lupa_aviso_costo_dbi`) antes de recorrer con

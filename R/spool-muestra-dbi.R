@@ -2134,7 +2134,8 @@
       "resumen_tabla", .texto_tabla_dbi(tabla), "degradado",
       paste0(
         "Fallaron ", nrow(fallas_consultas),
-        " consultas solicitadas; revisar `meta$consultas$fallas`."
+        " consultas solicitadas; revisar",
+        " `resumen_tabla$meta$consultas$fallas`."
       ),
       "Revisar el motivo del motor, reducir el alcance o repetir con otra muestra.",
       NA_character_
@@ -2148,7 +2149,8 @@
     .avisar_muestra_motor_dbi(
       paste0(
         "Una o mas consultas solicitadas no estuvieron disponibles (",
-        nrow(fallas_consultas), "). El detalle queda en `meta$consultas$fallas`."
+        nrow(fallas_consultas), "). El detalle queda en",
+        " `resumen_tabla$meta$consultas$fallas`."
       ),
       datos = list(fallas = fallas_consultas)
     )
