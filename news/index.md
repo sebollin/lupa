@@ -171,11 +171,63 @@ Primera versión publicada.
   lecturas lógicas a 105 mil en SQL Server, con las mismas cifras. En un
   motor que lee del disco, cada consulta de desvío recorría la tabla
   entera.
-- En SQL Server, el desvío de una columna con valores cercanos al máximo
-  del doble (±1,8e308) quedaba en `NA`; ahora, si el motor desborda, esa
-  columna se recalcula sobre sus valores divididos por una potencia de
-  dos. Las demás columnas y las tablas comunes conservan la consulta de
-  siempre.
+- El desvío de una columna cuyo mayor valor absoluto queda fuera de
+  `[1e-150, 1e150]` se calcula sobre sus valores divididos por una
+  potencia de dos y centrados en su propia media, en los cinco motores y
+  en
+  [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md).
+  Cerca del máximo del doble (±1,8e308), SQL Server, MySQL y MariaDB
+  dejaban el desvío en `NA` sin avisar y
+  [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md)
+  publicaba `Inf`; con valores del orden de `1e-160` todos perdían
+  cifras (error de hasta 7e-4), con `1e-200`
+  [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md)
+  publicaba `0`, y en PostgreSQL 16, por encima de `1e150`, el desvío
+  pasaba por un `numeric` de 15 cifras (error de 4e-5). Ahora queda a
+  menos de 1e-14 de la cifra exacta, o `no_disponible` con su falla y el
+  aviso. Las columnas de magnitud común conservan la consulta y la
+  cifra.
+- En MySQL y MariaDB, el desvío de una columna con media entre `1e65` y
+  `1e150` perdía cifras (error de hasta 9e-5): el centro se escribía
+  como un decimal de más de 65 cifras. Y cuando la suma desbordaba,
+  MySQL publicaba la media en `0` y MariaDB en `NA`, sin avisar; ahora
+  la media también se calcula escalada.
+- Con `RMySQL`, un perfil ya no suelta decenas de avisos del controlador
+  (`Decimal MySQL column imported as numeric`): lupa pide en el SQL el
+  tipo que lee, con las mismas cifras. Un `error while fetching rows`
+  del controlador cuenta como falla de la consulta y no como un
+  resultado vacío.
+- En MySQL y MariaDB, un `DECIMAL` con valores de 2^53 o más ya no
+  publica mínimo, máximo, media, mediana ni desvío con cifras falsas
+  (`12345678901234567168` por `12345678901234567890`): quedan
+  `no_disponible` con su motivo, como en PostgreSQL y SQL Server. Con
+  `metricas` explícitas, ese motivo decía «no se pidió».
+- La moda de una columna binaria se publica como su largo y su MD5
+  (`400:63f9…`), la misma representación que usa la muestra, en
+  minúsculas en todos los motores; la corroboración ya no la marca
+  `no_corroborada`, y en el perfil de la muestra la columna figura como
+  `blob`. Con `universo = "muestra_motor"`, una columna `char(n)` de SQL
+  Server ya no publica la moda con los espacios de relleno.
+- Una muestra que el tope de bytes deja en cero filas publica
+  `filas_obtenidas = 0` y el aviso dice cero filas, no `NA`. Con
+  `TABLESAMPLE` o `RANDOM()`, `meta$orden_muestra` declara que
+  `orden_muestra` no gobierna la selección.
+- Una moda de frecuencia 1 sobre dos o más valores ya no se publica
+  cuando `n_distintos` no se midió —no se pidió, o su consulta se cortó
+  por tiempo—: ningún valor se repite.
+- Con `universo = "muestra_motor"`, un `max_consultas` chico ya no hace
+  abortar el perfil. Con valores de 1 a 12, según el motor, la corrida
+  terminaba en error: el presupuesto se agotaba al leer el esquema, o al
+  contar la tabla que `TABLESAMPLE` necesita para escribir su
+  porcentaje. Ahora degrada y lo declara en `meta$consultas$agotado`,
+  con las métricas que no entraron como no calculadas, la cobertura y el
+  aviso.
+- Con un tope de bytes bajo, la muestra ya no queda vacía por una cota
+  que no es la real: para `text` o `bytea` sin largo declarado se
+  estimaban unos 125 KB por fila, y con `max_bytes_muestra = 100000`
+  sobre filas de 3,7 KB llegaba una. Ahora se lee una fila, se mide lo
+  que ocupa y se sigue en bloques sin pasar el tope —en ese caso, unas
+  25 filas—, y `meta$muestreo$filas_por_bytes_fuente` lo declara.
 - En R anterior a 4.6, [`match()`](https://rdrr.io/r/base/match.html)
   sobre fechas era cientos de veces más lento, y una columna `Date`
   hacía tardar minutos el perfil: 100.000 fechas pasaron de 171 s a 1,3

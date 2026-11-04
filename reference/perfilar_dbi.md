@@ -341,12 +341,16 @@ perfilar_dbi(
 
   Máximo de bytes de la muestra materializada que alimenta
   `perfil_muestra`. Por defecto es `512 MiB`. En `muestra_motor`, el
-  límite se cruza con el presupuesto de materialización y se resuelve
-  antes de `dbFetch(n)` usando el catálogo o un bloque inicial pequeño.
+  límite se cruza con el presupuesto de materialización y se respeta
+  antes de cada `dbFetch(n)`: cuando la cota de tipos es demasiado
+  conservadora se lee una fila inicial, se mide lo que ocupa en la
+  materialización y los bloques siguientes se piden con el doble de
+  margen sobre la fila más grande medida; el spool nunca pasa el tope.
   Si reduce la muestra, `meta$muestreo`, `meta$materializacion` y
   `cobertura_diagnosticos` informan las filas solicitadas, efectivas y
-  cuál tope mandó. `Inf` desactiva este tope. No modifica los agregados
-  SQL.
+  cuál tope mandó. `meta$muestreo$filas_por_bytes` publica la cantidad
+  obtenida de la medicion y `meta$muestreo$filas_por_bytes_fuente` lo
+  declara. `Inf` desactiva este tope. No modifica los agregados SQL.
 
 - bloque_filas:
 
@@ -1038,8 +1042,9 @@ eso no es lo mismo que la tabla en R:
 
 - **Extremos y equivalencia entre motores.** SQL Server puede desbordar
   al agregar un `float` que contiene `-DBL_MAX` o `+DBL_MAX`; en ese
-  caso sus métricas de magnitud quedan `no_disponible` con el mensaje
-  del motor, aunque la muestra conserve el valor. El mismo `real` puede
+  caso las métricas que desbordan quedan `no_disponible` con el mensaje
+  del motor, aunque la muestra conserve el valor, y el desvío se
+  recalcula escalado (ver «Magnitudes extremas»). El mismo `real` puede
   mostrar una última cifra distinta entre PostgreSQL y SQL Server porque
   RPostgres lee la forma decimal corta y FreeTDS/odbc entrega el
   `float32`; cada resumen es coherente con los valores que su
@@ -1057,8 +1062,24 @@ eso no es lo mismo que la tabla en R:
   combinación hace desbordar el motor y el mínimo, el máximo, la media y
   el desvío quedan `no_disponible`, con el error del motor como motivo:
   se declara, no se calcula. Si una columna que conserva ambos extremos
-  finitos hace desbordar la suma de cuadrados, el desvío puede quedar
-  `Inf`: es una limitación aritmética declarada.
+  finitos hace desbordar la suma de cuadrados, el desvío se recalcula
+  escalado.
+
+- **Magnitudes extremas.** Cuando el mínimo y el máximo ya medidos dejan
+  el mayor valor absoluto fuera de `[1e-150, 1e150]` —donde los
+  cuadrados desbordan o caen en subnormales y pierden cifras—, el desvío
+  se le pide al motor sobre `x / 2^k`, centrado en la media de esos
+  mismos valores, y se multiplica por `2^k`: escalar por una potencia de
+  dos es exacto, y no cuesta una consulta para decidirlo. En MySQL y
+  MariaDB la media de esas columnas sale igual, `AVG(x / 2^k) * 2^k`,
+  porque la suma de `AVG()` desborda; y por encima de `1e65` el centro
+  va como doble, porque un `DECIMAL` tiene 65 cifras. Una columna
+  constante da `0`. Si el motor no puede, la métrica queda
+  `no_disponible` con su falla en `meta$consultas$fallas` y el aviso: no
+  se publica `Inf` ni un `0` sobre valores distintos.
+  [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md)
+  escala igual al acumular por bloques. Las columnas de magnitud común
+  no cambian de consulta ni de cifra.
 
 - **La media en coma flotante.** Cada lado suma a su modo; sobre una
   columna que mezcla magnitudes muy distintas —`1e20` junto a `1`— las

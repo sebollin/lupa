@@ -272,12 +272,16 @@ plan_perfilado_dbi(
 
   Máximo de bytes de la muestra materializada que alimenta
   `perfil_muestra`. Por defecto es `512 MiB`. En `muestra_motor`, el
-  límite se cruza con el presupuesto de materialización y se resuelve
-  antes de `dbFetch(n)` usando el catálogo o un bloque inicial pequeño.
+  límite se cruza con el presupuesto de materialización y se respeta
+  antes de cada `dbFetch(n)`: cuando la cota de tipos es demasiado
+  conservadora se lee una fila inicial, se mide lo que ocupa en la
+  materialización y los bloques siguientes se piden con el doble de
+  margen sobre la fila más grande medida; el spool nunca pasa el tope.
   Si reduce la muestra, `meta$muestreo`, `meta$materializacion` y
   `cobertura_diagnosticos` informan las filas solicitadas, efectivas y
-  cuál tope mandó. `Inf` desactiva este tope. No modifica los agregados
-  SQL.
+  cuál tope mandó. `meta$muestreo$filas_por_bytes` publica la cantidad
+  obtenida de la medicion y `meta$muestreo$filas_por_bytes_fuente` lo
+  declara. `Inf` desactiva este tope. No modifica los agregados SQL.
 
 - bloque_filas:
 
