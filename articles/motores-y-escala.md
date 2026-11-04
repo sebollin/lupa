@@ -96,10 +96,12 @@ Tres consecuencias para una corrida en producción:
   agregados. Para acotar el trabajo del motor está
   `universo = "muestra_motor"`; para no traer filas,
   `bloque_muestra = "solo_agregados"`.
+
 - `instrumentar` vale `TRUE` en
   [`perfilar_dbi()`](https://sebollin.github.io/lupa/reference/perfilar_dbi.md)
   y `FALSE` en el plan: la corrida cronometra cada consulta y el plan
   no.
+
 - `perfil_muestra` se calcula con
   [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md)
   sobre las filas traídas, con `muestra = Inf` y sin topes propios,
@@ -110,6 +112,14 @@ Tres consecuencias para una corrida en producción:
   demás argumentos de
   [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md)
   llegan por `...`.
+
+  En `universo = "muestra_motor"`, la materialización se acota antes de
+  `dbFetch(n)` con una cota conservadora del tamaño máximo de fila. Los
+  textos extensos se piden como largo y resumen, de modo que su
+  contenido no puede hacer que el fetch supere esa cota; un tipo sin
+  cota segura se sondea de a una fila. La parte que entra se conserva si
+  el presupuesto se agota. Un recorte, una muestra final corta o una
+  falla de consulta deja metadata y emite `lupa_aviso_muestra_motor`.
 
 ## Qué se calcula en el motor y qué se trae a R
 
@@ -140,7 +150,7 @@ Las combinaciones habituales:
 |----|----|----|
 | por omisión | toda la tabla | todas las que permiten `max_celdas_muestra` y `max_bytes_muestra` |
 | `muestra = n` | toda la tabla | hasta `n`: las primeras que devuelve el motor, o las primeras según `orden_muestra` |
-| `universo = "muestra_motor"`, `muestra_motor = n` | las `n` filas que selecciona el motor | esas mismas filas, leídas de una copia local, recortadas por `muestra` y los topes |
+| `universo = "muestra_motor"`, `muestra_motor = n` | hasta `n` filas que selecciona el motor | las filas efectivamente materializadas, recortadas por `muestra` y los topes |
 | `bloque_muestra = "solo_agregados"` | lo que diga `universo` | ninguna: `perfil_muestra` es `NULL` y la cobertura dice `no_solicitado` |
 
 `bloque_muestra = "solo_agregados"` es independiente de `universo`: con
@@ -283,13 +293,13 @@ str(seleccion[c("metodo_muestreo", "sesgo_muestreo", "tamano_muestra",
 ```
 
 En `resumen_tabla$meta$muestreo`, `tamano_muestra` es el tamaño efectivo
-pedido a la consulta; `filas_solicitadas` y `filas_pedidas`, el pedido
-original; y `filas_obtenidas`, las filas que devolvió la copia local. Si
-`muestra` es menor que `muestra_motor`, `meta$materializacion$n_filas`
-puede superar a `n_filas(perfil_muestra)`. La cardinalidad de una
-muestra se publica con estado `observado_muestra`: es lo visto en la
-muestra, con el universo al lado, y no estima la del universo sin un
-estimador declarado.
+pedido a la consulta; `filas_solicitadas` conserva el pedido original,
+`filas_pedidas` el pedido después de los topes y `filas_obtenidas`, las
+filas que devolvió la copia local. Si `muestra` es menor que
+`muestra_motor`, `meta$materializacion$n_filas` puede superar a
+`n_filas(perfil_muestra)`. La cardinalidad de una muestra se publica con
+estado `observado_muestra`: es lo visto en la muestra, con el universo
+al lado, y no estima la del universo sin un estimador declarado.
 
 Sin `orden_muestra`, las filas traídas son las primeras que devuelve el
 motor, en un orden que SQL no garantiza; `reproducible` lo dice. Con
@@ -348,10 +358,13 @@ el de fila por fila entre 960 y 1.025, y el de cantidad fija siempre
 Lo que cada forma implica queda publicado:
 
 - `TABLESAMPLE SYSTEM` publica `sesgo_muestreo = "por_bloques"` con el
-  motivo `sesgo_muestreo:tablesample_system_por_bloques`. Si una
-  consulta recibe menos de la mitad de las filas pedidas, sus métricas
-  quedan `no_disponible` con
-  `muestra_inestable:tablesample_system_tamano_insuficiente`.
+  motivo `sesgo_muestreo:tablesample_system_por_bloques`. Si recibe cero
+  o menos de la mitad de las filas pedidas, se intenta una vez una forma
+  más amplia. Los métodos, el reintento y las filas obtenidas quedan en
+  `resumen_tabla$meta$muestreo`; si el reintento alcanza el pedido no se
+  emite un aviso. Sólo la muestra final corta queda `no_disponible` con
+  `muestra_inestable:tablesample_system_tamano_insuficiente` y emite el
+  aviso de degradación.
 - El orden pseudoaleatorio publica `sesgo_muestreo = "por_fila"`. En SQL
   Server, donde la función es `NEWID()`, la mediana bajo `muestra_motor`
   sólo acepta esa forma si la tabla tiene hasta 100.000 filas, la
@@ -374,9 +387,10 @@ agregados:
 
 - `max_celdas_muestra` (1.000.000 celdas por omisión) se resuelve
   **antes de leer**, con el conteo de filas y el ancho del esquema.
-- `max_bytes_muestra` (512 MiB por omisión) se resuelve con una sonda de
-  hasta 100 filas; el límite resultante va al SQL final o a
-  `dbFetch(n)`. La muestra no se trae entera para recortarla en R.
+- `max_bytes_muestra` (512 MiB por omisión) se cruza con el presupuesto
+  del spool. En los motores que lo permiten usa el catálogo; en los
+  demás comienza con un bloque pequeño y adapta `dbFetch(n)`. La muestra
+  no se trae entera para recortarla en R.
 
 Si `muestra = n` y un tope es más estricto, manda el menor. La cobertura
 de diagnósticos de `perfil_muestra` declara las celdas o bytes
@@ -409,8 +423,8 @@ Otros cuatro límites gobiernan el trabajo:
 | argumento | qué acota | al agotarse |
 |----|----|----|
 | `max_consultas` | cantidad de consultas de la corrida | las métricas restantes quedan `no_disponible` y la cobertura dice `presupuesto_agotado` |
-| `max_bytes_materializacion` | bytes de la copia local de `muestra_motor`, comprobados por tramo antes de cada escritura | `spool_presupuesto_excedido` y `muestra_inestable:presupuesto_materializacion`, sin resultado híbrido |
-| `max_bytes_procesamiento` | estado retenido por la lectura por bloques y por la relectura de la copia local | se comprueba antes de publicar un bloque o una pasada |
+| `max_bytes_materializacion` | bytes de la copia local de `muestra_motor`, acotados antes de cada `dbFetch(n)` y comprobados antes de cada escritura | `spool_presupuesto_excedido` y `muestra_inestable:presupuesto_materializacion`; se conserva la parte que entró |
+| `max_bytes_procesamiento` | estado retenido por la lectura por bloques y por la relectura de la copia local | si el objeto supera el límite, la muestra se descarta con `lupa_aviso_muestra_motor` y se publica `tope_que_mando = "procesamiento"` |
 | `bloque_filas` | activa el recorrido de la tabla completa por bloques de ese tamaño | — |
 
 `bloque_filas = n` calcula el resumen de la tabla completa en R, leyendo

@@ -171,6 +171,11 @@ Primera versión publicada.
   lecturas lógicas a 105 mil en SQL Server, con las mismas cifras. En un
   motor que lee del disco, cada consulta de desvío recorría la tabla
   entera.
+- En SQL Server, el desvío de una columna con valores cercanos al máximo
+  del doble (±1,8e308) quedaba en `NA`; ahora, si el motor desborda, esa
+  columna se recalcula sobre sus valores divididos por una potencia de
+  dos. Las demás columnas y las tablas comunes conservan la consulta de
+  siempre.
 - En R anterior a 4.6, [`match()`](https://rdrr.io/r/base/match.html)
   sobre fechas era cientos de veces más lento, y una columna `Date`
   hacía tardar minutos el perfil: 100.000 fechas pasaron de 171 s a 1,3
@@ -197,3 +202,28 @@ Primera versión publicada.
   [`perfilar_dbi()`](https://sebollin.github.io/lupa/reference/perfilar_dbi.md):
   analiza la muestra y dice que la cobertura es de la muestra; con
   `bloque_muestra = "solo_agregados"`, usa el resumen de la tabla.
+- Con `universo = "muestra_motor"`, los topes de bytes y de celdas
+  (`max_bytes_materializacion`, `max_bytes_muestra`,
+  `max_celdas_muestra`) mandan antes de leer. Cada `dbFetch()` se pide
+  con un tamaño máximo de fila conocido de antemano: los textos de más
+  de `max_largo_valor_vocabulario` y las columnas binarias (`bytea`,
+  `varbinary`, `image`, `blob`) se piden como largo y resumen MD5, con
+  los distintos, los duplicados, los faltantes y los largos exactos. Si
+  el presupuesto se agota, se conserva lo que entró. Antes, una columna
+  binaria o de textos largos podía traer varios GB a R antes de mirar el
+  tope.
+- Una muestra del motor que vuelve corta se reintenta una vez, con
+  `BERNOULLI` en PostgreSQL o una fracción mayor por bloques, sin
+  ordenar la tabla entera; el aviso sale solo si la muestra final sigue
+  corta o la recortó un tope.
+- Las consultas pedidas que el motor rechaza o cancela quedan en
+  `meta$consultas$fallas` y en la cobertura como `degradado`, con un
+  aviso de clase `lupa_aviso_muestra_motor`; las consultas internas del
+  paquete (capacidades, catálogo, configuración) no avisan. La muestra
+  del motor publica también sus tiempos, sus bytes y el tope que mandó.
+- Por JDBC, SQL Server se reconoce como motor por los metadatos de la
+  conexión.
+- [`perfilar_dbi()`](https://sebollin.github.io/lupa/reference/perfilar_dbi.md)
+  avisa (`lupa_aviso_costo_dbi`) antes de recorrer con agregados una
+  tabla que el catálogo estima en 100 millones de filas o más, y sugiere
+  `universo = "muestra_motor"`.

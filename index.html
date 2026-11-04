@@ -397,9 +397,9 @@
 <span><span class="co">#&gt; [1] "resumen_tabla"  "perfil_muestra"</span></span></code></pre></div>
 <table class="table">
 <colgroup>
-<col width="40%">
-<col width="19%">
-<col width="39%">
+<col width="37%">
+<col width="25%">
+<col width="36%">
 </colgroup>
 <thead><tr>
 <th>Opción</th>
@@ -422,8 +422,8 @@
 <td>
 <code>universo = "muestra_motor"</code>, <code>muestra_motor = n</code>
 </td>
-<td>una muestra que toma el motor</td>
-<td>Sí, las de esa muestra</td>
+<td>hasta <code>n</code> filas muestreadas por el motor</td>
+<td>Sí, las que se materializan después de los topes</td>
 </tr>
 <tr>
 <td><code>bloque_muestra = "solo_agregados"</code></td>
@@ -441,7 +441,7 @@
 </h2>
 <ul>
 <li>
-<strong>Topes de muestra.</strong> Lo que se trae o se muestrea en R se corta en 1.000.000 celdas (<code>max_celdas_muestra</code>) y 512 MiB (<code>max_bytes_muestra</code>), y el recorte queda en <code><a href="reference/accesores_perfil.html">cobertura()</a></code> con el tope que mandó (<a href="https://sebollin.github.io/lupa/articles/motores-y-escala.html#topes">Motores y escala</a>).</li>
+<strong>Topes de muestra.</strong> Lo que se trae o se muestrea en R se corta en 1.000.000 celdas (<code>max_celdas_muestra</code>) y 512 MiB (<code>max_bytes_muestra</code>), y el recorte queda en <code><a href="reference/accesores_perfil.html">cobertura()</a></code> con el tope que mandó (<a href="https://sebollin.github.io/lupa/articles/motores-y-escala.html#topes">Motores y escala</a>). En <code>muestra_motor</code>, el spool usa un tamaño máximo de fila conservador antes de cada <code>dbFetch(n)</code>. El texto largo se pide como largo y resumen MD5, así que su contenido no puede hacer que una lectura pase esa cota; los tipos sin cota conocida se sondean de a una fila. Registra las filas pedidas y efectivas, el tamaño medido y la fracción real antes de devolver el perfil.</li>
 <li>
 <strong>Política de costo.</strong> En <code><a href="reference/perfilar_dbi.html">perfilar_dbi()</a></code>, <code>politica_costo = "todas"</code> (por omisión) mide moda y mediana en todas las columnas; <code>"por_cardinalidad"</code> omite la moda donde la proporción de distintos llega a <code>umbral_cardinalidad</code> (0,5), y <code><a href="reference/plan_perfilado_dbi.html">plan_perfilado_dbi()</a></code> muestra las consultas antes de correrlas (<a href="https://sebollin.github.io/lupa/articles/motores-y-escala.html#politica-de-costo">Motores y escala</a>).</li>
 <li>
@@ -582,7 +582,7 @@
 <div class="sourceCode" id="cb8"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/utils/citation.html" class="external-link">citation</a></span><span class="op">(</span><span class="st">"lupa"</span><span class="op">)</span></span></code></pre></div>
 <p>Las referencias conceptuales son <a href="https://doi.org/10.1007/978-3-319-24106-7" class="external-link">Batini y Scannapieco (2016)</a>, el <a href="https://www.gub.uy/agencia-gobierno-electronico-sociedad-informacion-conocimiento/comunicacion/publicaciones/marco-trabajo-para-gestion-calidad-datos" class="external-link">Marco de trabajo para la Gestión de la Calidad de Datos en Gobierno Digital v1.6</a> de AGESIC, el <a href="https://repositorio.cepal.org/handle/11362/47464" class="external-link">marco de aseguramiento de la calidad de CEA/CEPAL (2022)</a> e <a href="https://www.iso.org/standard/35736.html" class="external-link">ISO/IEC 25012:2008</a>.</p>
-<p>La API pública de <code>lupa</code> puede cambiar antes de la 1.0; los cambios incompatibles se anuncian en <a href="news/index.html">NEWS</a>, con una advertencia previa siempre que se pueda. Los contratos estables son las unidades declaradas, el alcance, la protección de datos personales y el registro de auditoría; los detalles de implementación y los tiempos pueden cambiar mientras esos contratos sigan siendo ciertos.</p>
+<p>La API pública de <code>lupa</code> puede cambiar antes de la 1.0; los cambios incompatibles se anuncian en <a href="news/index.html">NEWS</a>, con una advertencia previa siempre que se pueda. Los contratos estables son las unidades declaradas, el alcance, el registro de auditoría y, cuando se pide, la protección de datos personales; los detalles de implementación y los tiempos pueden cambiar mientras esos contratos sigan siendo ciertos.</p>
 <p>Los errores, las propuestas y las correcciones de documentación van al <a href="https://github.com/sebollin/lupa/issues" class="external-link">registro de issues</a>, y <a href="https://github.com/sebollin/lupa/blob/main/CONTRIBUTING.md" class="external-link">CONTRIBUTING.md</a> explica cómo contribuir. <code>lupa</code> se distribuye bajo la <a href="https://www.gnu.org/licenses/gpl-3.0.html" class="external-link">GPL-3</a>; <a href="https://github.com/sebollin/lupa/blob/main/inst/COPYRIGHTS" class="external-link"><code>inst/COPYRIGHTS</code></a> detalla el material Apache-2.0 traducido de <a href="https://github.com/rspeer/python-ftfy" class="external-link"><code>ftfy</code></a> y los datos MIT tomados de <a href="https://github.com/njtierney/naniar" class="external-link"><code>naniar</code></a>.</p>
 </div>
 </div>

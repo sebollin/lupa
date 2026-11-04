@@ -338,7 +338,7 @@ y, entre paréntesis, las demás.</p>
 </table>
 <p>Tres consecuencias para una corrida en producción:</p>
 <ul>
-<li>Con <code>universo = "tabla_completa"</code> y
+<li><p>Con <code>universo = "tabla_completa"</code> y
 <code>muestra = Inf</code>, los agregados SQL recorren la tabla entera y
 el bloque <code>perfil_muestra</code> intenta traer a R
 <strong>todas</strong> las filas que permiten
@@ -346,19 +346,27 @@ el bloque <code>perfil_muestra</code> intenta traer a R
 <code>muestra</code> acota sólo esa lectura, nunca los agregados. Para
 acotar el trabajo del motor está
 <code>universo = "muestra_motor"</code>; para no traer filas,
-<code>bloque_muestra = "solo_agregados"</code>.</li>
-<li>
-<code>instrumentar</code> vale <code>TRUE</code> en
+<code>bloque_muestra = "solo_agregados"</code>.</p></li>
+<li><p><code>instrumentar</code> vale <code>TRUE</code> en
 <code><a href="../reference/perfilar_dbi.html">perfilar_dbi()</a></code> y <code>FALSE</code> en el plan: la corrida
-cronometra cada consulta y el plan no.</li>
+cronometra cada consulta y el plan no.</p></li>
 <li>
-<code>perfil_muestra</code> se calcula con <code><a href="../reference/perfilar.html">perfilar()</a></code>
-sobre las filas traídas, con <code>muestra = Inf</code> y sin topes
-propios, porque los topes ya se aplicaron al leer. El descubrimiento de
-patrones, tipos y fechas recorre entonces todas esas filas, mientras
-<code><a href="../reference/perfilar.html">perfilar()</a></code> en memoria lo hace por omisión sobre una muestra
-de 100.000 filas. Los demás argumentos de <code><a href="../reference/perfilar.html">perfilar()</a></code> llegan
-por <code>...</code>.</li>
+<p><code>perfil_muestra</code> se calcula con
+<code><a href="../reference/perfilar.html">perfilar()</a></code> sobre las filas traídas, con
+<code>muestra = Inf</code> y sin topes propios, porque los topes ya se
+aplicaron al leer. El descubrimiento de patrones, tipos y fechas recorre
+entonces todas esas filas, mientras <code><a href="../reference/perfilar.html">perfilar()</a></code> en memoria
+lo hace por omisión sobre una muestra de 100.000 filas. Los demás
+argumentos de <code><a href="../reference/perfilar.html">perfilar()</a></code> llegan por <code>...</code>.</p>
+<p>En <code>universo = "muestra_motor"</code>, la materialización se
+acota antes de <code>dbFetch(n)</code> con una cota conservadora del
+tamaño máximo de fila. Los textos extensos se piden como largo y
+resumen, de modo que su contenido no puede hacer que el fetch supere esa
+cota; un tipo sin cota segura se sondea de a una fila. La parte que
+entra se conserva si el presupuesto se agota. Un recorte, una muestra
+final corta o una falla de consulta deja metadata y emite
+<code>lupa_aviso_muestra_motor</code>.</p>
+</li>
 </ul>
 </div>
 <div class="section level2">
@@ -444,8 +452,8 @@ primeras según <code>orden_muestra</code>
 <code>universo = "muestra_motor"</code>,
 <code>muestra_motor = n</code>
 </td>
-<td>las <code>n</code> filas que selecciona el motor</td>
-<td>esas mismas filas, leídas de una copia local, recortadas por
+<td>hasta <code>n</code> filas que selecciona el motor</td>
+<td>las filas efectivamente materializadas, recortadas por
 <code>muestra</code> y los topes</td>
 </tr>
 <tr class="even">
@@ -609,14 +617,15 @@ cuántas pidió la consulta del motor.</p>
 <span><span class="co">#&gt;  $ filas_obtenidas: num 300</span></span></code></pre></div>
 <p>En <code>resumen_tabla$meta$muestreo</code>,
 <code>tamano_muestra</code> es el tamaño efectivo pedido a la consulta;
-<code>filas_solicitadas</code> y <code>filas_pedidas</code>, el pedido
-original; y <code>filas_obtenidas</code>, las filas que devolvió la
-copia local. Si <code>muestra</code> es menor que
-<code>muestra_motor</code>, <code>meta$materializacion$n_filas</code>
-puede superar a <code>n_filas(perfil_muestra)</code>. La cardinalidad de
-una muestra se publica con estado <code>observado_muestra</code>: es lo
-visto en la muestra, con el universo al lado, y no estima la del
-universo sin un estimador declarado.</p>
+<code>filas_solicitadas</code> conserva el pedido original,
+<code>filas_pedidas</code> el pedido después de los topes y
+<code>filas_obtenidas</code>, las filas que devolvió la copia local. Si
+<code>muestra</code> es menor que <code>muestra_motor</code>,
+<code>meta$materializacion$n_filas</code> puede superar a
+<code>n_filas(perfil_muestra)</code>. La cardinalidad de una muestra se
+publica con estado <code>observado_muestra</code>: es lo visto en la
+muestra, con el universo al lado, y no estima la del universo sin un
+estimador declarado.</p>
 <p>Sin <code>orden_muestra</code>, las filas traídas son las primeras
 que devuelve el motor, en un orden que SQL no garantiza;
 <code>reproducible</code> lo dice. Con <code>orden_muestra</code>, la
@@ -717,10 +726,14 @@ siempre 1.000.</p>
 <li>
 <code>TABLESAMPLE SYSTEM</code> publica
 <code>sesgo_muestreo = "por_bloques"</code> con el motivo
-<code>sesgo_muestreo:tablesample_system_por_bloques</code>. Si una
-consulta recibe menos de la mitad de las filas pedidas, sus métricas
-quedan <code>no_disponible</code> con
-<code>muestra_inestable:tablesample_system_tamano_insuficiente</code>.</li>
+<code>sesgo_muestreo:tablesample_system_por_bloques</code>. Si recibe
+cero o menos de la mitad de las filas pedidas, se intenta una vez una
+forma más amplia. Los métodos, el reintento y las filas obtenidas quedan
+en <code>resumen_tabla$meta$muestreo</code>; si el reintento alcanza el
+pedido no se emite un aviso. Sólo la muestra final corta queda
+<code>no_disponible</code> con
+<code>muestra_inestable:tablesample_system_tamano_insuficiente</code> y
+emite el aviso de degradación.</li>
 <li>El orden pseudoaleatorio publica
 <code>sesgo_muestreo = "por_fila"</code>. En SQL Server, donde la
 función es <code>NEWID()</code>, la mediana bajo
@@ -750,8 +763,9 @@ consulta de agregados:</p>
 resuelve <strong>antes de leer</strong>, con el conteo de filas y el
 ancho del esquema.</li>
 <li>
-<code>max_bytes_muestra</code> (512 MiB por omisión) se resuelve con
-una sonda de hasta 100 filas; el límite resultante va al SQL final o a
+<code>max_bytes_muestra</code> (512 MiB por omisión) se cruza con el
+presupuesto del spool. En los motores que lo permiten usa el catálogo;
+en los demás comienza con un bloque pequeño y adapta
 <code>dbFetch(n)</code>. La muestra no se trae entera para recortarla en
 R.</li>
 </ul>
@@ -799,18 +813,22 @@ cobertura dice <code>presupuesto_agotado</code>
 </tr>
 <tr class="even">
 <td><code>max_bytes_materializacion</code></td>
-<td>bytes de la copia local de <code>muestra_motor</code>, comprobados
-por tramo antes de cada escritura</td>
+<td>bytes de la copia local de <code>muestra_motor</code>, acotados
+antes de cada <code>dbFetch(n)</code> y comprobados antes de cada
+escritura</td>
 <td>
 <code>spool_presupuesto_excedido</code> y
-<code>muestra_inestable:presupuesto_materializacion</code>, sin
-resultado híbrido</td>
+<code>muestra_inestable:presupuesto_materializacion</code>; se conserva
+la parte que entró</td>
 </tr>
 <tr class="odd">
 <td><code>max_bytes_procesamiento</code></td>
 <td>estado retenido por la lectura por bloques y por la relectura de la
 copia local</td>
-<td>se comprueba antes de publicar un bloque o una pasada</td>
+<td>si el objeto supera el límite, la muestra se descarta con
+<code>lupa_aviso_muestra_motor</code> y se publica
+<code>tope_que_mando = "procesamiento"</code>
+</td>
 </tr>
 <tr class="even">
 <td><code>bloque_filas</code></td>

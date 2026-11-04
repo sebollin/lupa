@@ -402,11 +402,12 @@ filas por columnas del esquema. Si reduce la muestra,
 
 <dt id="arg-max-bytes-muestra">max_bytes_muestra<a class="anchor" aria-label="anchor" href="#arg-max-bytes-muestra"></a></dt>
 <dd><p>Máximo de bytes de la muestra materializada que
-alimenta <code>perfil_muestra</code>. Por defecto es <code>512 MiB</code>. Como el tamaño no se
-conoce desde el esquema, primero se lee una sonda de hasta cien filas y con
-ella se fija el límite final en SQL o en <code>dbFetch(n)</code>, antes de leer el
-resto. Si reduce la muestra, <code>cobertura_diagnosticos</code> informa los bytes
-observados, el umbral y cuál tope mandó. <code>Inf</code> desactiva este tope. No
+alimenta <code>perfil_muestra</code>. Por defecto es <code>512 MiB</code>. En
+<code>muestra_motor</code>, el límite se cruza con el presupuesto de materialización
+y se resuelve antes de <code>dbFetch(n)</code> usando el catálogo o un bloque inicial
+pequeño. Si reduce la muestra, <code>meta$muestreo</code>,
+<code>meta$materializacion</code> y <code>cobertura_diagnosticos</code> informan las filas
+solicitadas, efectivas y cuál tope mandó. <code>Inf</code> desactiva este tope. No
 modifica los agregados SQL.</p></dd>
 
 
@@ -434,16 +435,21 @@ privacidad ni como <code>no_solicitado</code>.</p></dd>
 <dt id="arg-max-bytes-procesamiento">max_bytes_procesamiento<a class="anchor" aria-label="anchor" href="#arg-max-bytes-procesamiento"></a></dt>
 <dd><p>Límite de bytes del estado retenido por el
 procesamiento por bloques y por la lectura del spool en R. Se comprueba
-antes de publicar un bloque o una pasada; <code>Inf</code> desactiva este límite.</p></dd>
+antes de publicar un bloque o una pasada; si la materialización cabe pero
+el objeto que R necesita para perfilarla supera el límite, el perfil se
+descarta y se emite el mismo aviso de alcance degradado, con
+<code>tope_que_mando = "procesamiento"</code>. <code>Inf</code> desactiva este límite.</p></dd>
 
 
 <dt id="arg-max-bytes-materializacion">max_bytes_materializacion<a class="anchor" aria-label="anchor" href="#arg-max-bytes-materializacion"></a></dt>
 <dd><p>Presupuesto de bytes del spool externo de
 <code>muestra_motor</code>. Se mide por chunk antes de cada escritura, dejando espacio
 para el trailer; si no alcanza, se publica
-<code>spool_presupuesto_excedido</code> y
-<code>muestra_inestable:presupuesto_materializacion</code> sin mezclar una muestra
-parcial con resultados completos. <code>Inf</code> desactiva este límite.</p></dd>
+<code>spool_presupuesto_excedido</code> y se conserva la parte que entró como muestra
+recortada, con <code>muestra_inestable:presupuesto_materializacion</code>. En
+<code>muestra_motor</code>, el primer bloque se acota antes de pedirlo y los siguientes
+se adaptan a los bytes medidos; el resultado conserva
+<code>meta$bytes_muestra</code> y <code>meta$tiempos</code>. <code>Inf</code> desactiva este límite.</p></dd>
 
 
 <dt id="arg-columnas-opcionales">columnas_opcionales<a class="anchor" aria-label="anchor" href="#arg-columnas-opcionales"></a></dt>
@@ -511,7 +517,14 @@ clave primaria: <code>columnas</code>, <code>fuente</code>, <code>motivo</code>,
 <code>desconocida</code> o <code>no_declarada</code>; <code>estado</code> conserva, cuando el motor los
 expone, <code>visible</code>, <code>restriccion_diferible</code>,
 <code>universo_incluye_descendientes</code> e <code>indice_no_unico</code>. Una consulta fallida
-queda diferenciada de una clave no declarada.</p>
+queda diferenciada de una clave no declarada.
+En <code>muestra_motor</code>, <code>resumen_tabla$tiempos</code> incluye materialización,
+lectura del spool y perfilado local; <code>perfil_muestra$meta$bytes_muestra</code>
+conserva los bytes del spool. <code>meta$muestreo$reintentos</code> y
+<code>meta$muestreo$metodo_inicial</code> describen la recuperación de una muestra
+corta. Las columnas binarias de motores compatibles se representan como
+<code>largo:md5</code> durante la lectura y el perfil publica sus largos originales;
+el contenido no se conserva.</p>
     </div>
     <div class="section level2">
     <h2 id="details">Details<a class="anchor" aria-label="anchor" href="#details"></a></h2>
@@ -522,6 +535,51 @@ dependencia opcional. Cada agregado no disponible queda en <code>NA</code> y su
 consulta, estado y motivo se conservan en <code>resumen_tabla$sql</code>.
 Las expresiones se ejecutan como capacidades a comprobar, no como un
 dialecto SQL universal.</p>
+<p>En <code>muestra_motor</code>, <code>max_celdas_muestra</code> y <code>max_bytes_muestra</code> se aplican
+antes de armar la selección y se publican como filas pedidas y filas
+efectivas. El spool estima bytes por fila desde el catálogo cuando el motor
+lo permite; si la estimación no existe, comienza con un bloque pequeño y lo
+adapta. La materialización publica la fuente, la estimación, el recorte y el
+presupuesto efectivo en <code>meta$materializacion</code>. Un recorte, un muestreo corto
+de <code>TABLESAMPLE</code> o una falla de una consulta emiten la clase
+<code>lupa_aviso_muestra_motor</code>, que se puede capturar o silenciar por clase.
+Las columnas binarias compatibles se leen como largo y resumen MD5, por lo
+que se conservan faltantes, duplicados y largos sin traer el contenido a R.
+En SQL Server anterior a 13, o si la versión no se pudo determinar, el MD5
+usa un prefijo de 8000 bytes y conserva el largo completo; esta decisión
+queda en la metadata de <code>perfil_muestra</code> y también convierte <code>image</code> a
+<code>varbinary(max)</code> antes de resumirla.
+Si <code>TABLESAMPLE</code> entrega menos de la mitad de las filas efectivas, se hace
+un solo reintento con una fracción mayor. PostgreSQL prefiere
+<code>TABLESAMPLE BERNOULLI</code>; en los demás motores se conserva el método por
+bloques y, solo si no existe, se considera el orden pseudoaleatorio sujeto a
+la misma guarda de costo. La metadata publica ambos métodos, la cantidad de
+reintentos, la guarda y cuál spool quedó elegido: una falla o una muestra más
+corta en el segundo intento conserva la primera muestra válida.</p>
+<p>Las fallas de consultas solicitadas se conservan en
+<code>resumen_tabla$meta$consultas$fallas</code>, con <code>etapa</code>, <code>consulta_id</code>,
+<code>sqlstate</code>, <code>tipo</code> y <code>motivo</code>. Un <code>SQLSTATE</code> <code>57014</code> se publica como
+<code>cancelada</code>; los rechazos tienen <code>tipo = "rechazada"</code>. Las etapas internas
+<code>clave_primaria</code>, <code>proteccion_coleccion</code>, <code>sonda_collation_dbi</code>,
+<code>sonda_fuente_bloques</code>, <code>sonda_desvio</code>, <code>estimacion_derrame</code>, <code>explain_moda</code>,
+<code>sonda_muestreo</code>, <code>sonda_mediana_escalar</code>, <code>sonda_mediana_cte_ventana</code>,
+<code>sonda_mediana_cte_ventana_control_negativo</code>, <code>sonda_moda_guardian</code>,
+<code>sonda_mediana_consolidada</code>, <code>sonda_aproximacion</code>, <code>sonda_dialecto</code>,
+<code>consulta</code>, <code>cardinalidad_catalogo</code>, <code>tipos_guardados</code>, <code>sonda_infinitos</code>,
+<code>sonda_magnitud</code>, <code>esquema</code>, <code>sonda_lectura_muestra</code>, <code>sonda_bytes_muestra</code>,
+<code>proteccion_fuera_de_muestra</code>, <code>porton_tabla</code> y
+<code>catalogo_bytes_muestra</code> se conservan aparte en
+<code>resumen_tabla$meta$consultas$sondas_fallidas</code> y no disparan el aviso de
+degradacion. El aviso que informa que la muestra no esta disponible conserva
+ademas la clase historica <code>lupa_muestra_dbi_no_disponible</code>.</p>
+<p>Cuando el catálogo estima al menos <code>1e8</code> filas y se pidió
+<code>universo = "tabla_completa"</code>, la función avisa antes de los agregados con
+la clase <code>lupa_aviso_costo_dbi</code> y sugiere usar
+<code>universo = "muestra_motor"</code>. El umbral se llama
+<code>.UMBRAL_FILAS_AVISO_AGREGADOS_DBI</code> y no afecta tablas menores ni la vía de
+muestra. La consulta de ese aviso es interna y no consume el presupuesto de
+<code>max_consultas</code>, para que el aviso no cambie qué métricas entran en la
+corrida.</p>
     </div>
     <div class="section level2">
     <h2 id="dos-tablas-se-llaman-cobertura">Dos tablas se llaman cobertura<a class="anchor" aria-label="anchor" href="#dos-tablas-se-llaman-cobertura"></a></h2>
@@ -748,6 +806,10 @@ convierte un texto sucio— la deja abortada, y hay que cerrarla con
 usa <code>TABLESAMPLE</code> cuando el motor lo acepta, o una función pseudoaleatoria con
 el límite del dialecto. Si ninguna forma es compatible, las métricas SQL
 quedan en <code>no_disponible</code>: no se sustituyen por resultados de la tabla completa.
+La estimación de bytes de SQL Server usa <code>sys.partitions</code> y
+<code>sys.allocation_units</code>, que no requieren <code>VIEW DATABASE STATE</code> para una
+tabla accesible al usuario. Si el catálogo no se puede leer, esa consulta interna
+queda en la metadata sin convertirse en una falla de consulta solicitada.
 Cada registro publica <code>alcance</code>, <code>universo</code>, <code>tamano_muestra</code>, <code>fraccion</code>,
 <code>metodo</code> y <code>error_esperado</code>. En <code>resumen_tabla$meta$muestreo</code>,
 <code>tamano_muestra</code> conserva el nombre historico y declara el tamano efectivo
@@ -755,7 +817,12 @@ solicitado a la consulta; <code>filas_solicitadas</code> y <code>filas_pedidas</
 pedido original y <code>filas_obtenidas</code> las filas que devolvio el spool. La
 materializacion publica <code>muestra_id</code>, <code>snapshot_id</code>, <code>orden_id</code>, <code>n_filas</code>,
 <code>bytes</code>, <code>checksum</code>, backend, version y presupuesto en
-<code>meta$materializacion</code>; las pasadas publican el mismo <code>muestra_id</code>.
+<code>meta$materializacion</code>; las pasadas publican el mismo <code>muestra_id</code>. También
+publica la estimación de bytes por fila del catálogo, los bytes medidos,
+la fracción real materializada y <code>tope_que_mando</code> cuando un tope recortó la
+copia. La estimación sólo fija el primer bloque: el tamaño medido gobierna
+los siguientes y la parte que entra se conserva cuando el presupuesto se
+agota.
 El contrato de <code>perfil_muestra</code> es campo por campo: <code>meta$filas_analizadas</code>
 es la cantidad efectivamente entregada a los diagnósticos; <code>hallazgos</code> solo
 contiene familias disponibles; y <code>cobertura_diagnosticos</code> tiene una fila por
@@ -791,15 +858,17 @@ si la politica de costo conserva <code>n_total</code>, la proyeccion, la tasa y 
 tres umbrales; si no, la mediana queda <code>no_disponible</code> con
 <code>capacidad_no_aceptada:newid_costo_excede_presupuesto</code> aunque se silencien
 los avisos.
-Si la consulta de la muestra devuelve cero filas, no hay base para medir las
-metricas de alcance <code>muestra</code>: se publican con valor <code>NA</code>, estado
-<code>no_disponible</code> y el motivo estable
-<code>muestra_vacia:random_limit_sin_filas</code> (o el metodo efectivo equivalente).
-Esto no permite concluir que
-la columna este vacia, por lo que no se publica cero ni se dispara la
-cascada <code>sin_valores</code>. Una muestra no vacia sin valores validos usa
-<code>muestra_inestable:sin_valores_validos</code>; una capacidad no aceptada usa
-<code>capacidad_no_aceptada:...</code>. <code>n</code> conserva el conteo de la tabla completa.</p>
+Si <code>TABLESAMPLE</code> devuelve cero o menos de la mitad de las filas pedidas, se
+intenta una vez con una forma de muestreo más amplia. Si el reintento logra
+una muestra suficiente, se conservan en <code>meta$muestreo</code> ambos métodos y no
+se emite un aviso por la escasez transitoria. Si la muestra final sigue
+corta, se publica el aviso y las métricas de alcance quedan con el estado
+correspondiente. Un <code>random_limit</code> que devuelve cero conserva el motivo
+<code>muestra_vacia:random_limit_sin_filas</code> (o el método efectivo equivalente).
+Esto no permite concluir que la columna esté vacía, por lo que no se publica
+cero ni se dispara la cascada <code>sin_valores</code>. Una muestra no vacía sin valores
+válidos usa <code>muestra_inestable:sin_valores_validos</code>; una capacidad no aceptada
+usa <code>capacidad_no_aceptada:...</code>. <code>n</code> conserva el conteo de la tabla completa.</p>
 <p>En una muestra, <code>error_esperado</code> vale <code>no_estimado</code> para metricas cuyo error
 podria calcularse bajo un plan probabilistico pero no se calculo,
 <code>no_estimable</code> para la moda, la mediana y la cardinalidad observada, que no
@@ -1452,6 +1521,19 @@ mediana y no informa mínimo ni máximo, útil cuando la tabla es un padrón y
 la moda de un identificador único es un documento real. Si se pidió <code>desvio</code>,
 la sonda de magnitud que ese cálculo necesita puede emitirse, pero su motivo
 nunca publica el valor devuelto por el motor.</p>
+    </div>
+    <div class="section level2">
+    <h2 id="valores-de-texto-extensos">Valores de texto extensos<a class="anchor" aria-label="anchor" href="#valores-de-texto-extensos"></a></h2>
+
+
+<p>En <code>muestra_motor</code>, las columnas de texto de PostgreSQL, SQL Server,
+MySQL y MariaDB que superan <code>max_largo_valor_vocabulario</code> se solicitan
+como largo en caracteres, largo en bytes y resumen MD5. El contenido
+completo se conserva solo para los valores que no superan ese umbral, por
+lo que el tamaño máximo de una fila se conoce antes de <code>dbFetch(n)</code>. La
+cobertura agrega <code>texto_largo_no_evaluado</code> para declarar los diagnósticos
+textuales que no se pudieron calcular sobre esos valores; sus faltantes,
+duplicados y longitudes siguen entrando en las métricas disponibles.</p>
     </div>
     <div class="section level2">
     <h2 id="progreso">Progreso<a class="anchor" aria-label="anchor" href="#progreso"></a></h2>

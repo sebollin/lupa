@@ -340,12 +340,13 @@ perfilar_dbi(
 - max_bytes_muestra:
 
   Máximo de bytes de la muestra materializada que alimenta
-  `perfil_muestra`. Por defecto es `512 MiB`. Como el tamaño no se
-  conoce desde el esquema, primero se lee una sonda de hasta cien filas
-  y con ella se fija el límite final en SQL o en `dbFetch(n)`, antes de
-  leer el resto. Si reduce la muestra, `cobertura_diagnosticos` informa
-  los bytes observados, el umbral y cuál tope mandó. `Inf` desactiva
-  este tope. No modifica los agregados SQL.
+  `perfil_muestra`. Por defecto es `512 MiB`. En `muestra_motor`, el
+  límite se cruza con el presupuesto de materialización y se resuelve
+  antes de `dbFetch(n)` usando el catálogo o un bloque inicial pequeño.
+  Si reduce la muestra, `meta$muestreo`, `meta$materializacion` y
+  `cobertura_diagnosticos` informan las filas solicitadas, efectivas y
+  cuál tope mandó. `Inf` desactiva este tope. No modifica los agregados
+  SQL.
 
 - bloque_filas:
 
@@ -373,15 +374,21 @@ perfilar_dbi(
 
   Límite de bytes del estado retenido por el procesamiento por bloques y
   por la lectura del spool en R. Se comprueba antes de publicar un
-  bloque o una pasada; `Inf` desactiva este límite.
+  bloque o una pasada; si la materialización cabe pero el objeto que R
+  necesita para perfilarla supera el límite, el perfil se descarta y se
+  emite el mismo aviso de alcance degradado, con
+  `tope_que_mando = "procesamiento"`. `Inf` desactiva este límite.
 
 - max_bytes_materializacion:
 
   Presupuesto de bytes del spool externo de `muestra_motor`. Se mide por
   chunk antes de cada escritura, dejando espacio para el trailer; si no
-  alcanza, se publica `spool_presupuesto_excedido` y
-  `muestra_inestable:presupuesto_materializacion` sin mezclar una
-  muestra parcial con resultados completos. `Inf` desactiva este límite.
+  alcanza, se publica `spool_presupuesto_excedido` y se conserva la
+  parte que entró como muestra recortada, con
+  `muestra_inestable:presupuesto_materializacion`. En `muestra_motor`,
+  el primer bloque se acota antes de pedirlo y los siguientes se adaptan
+  a los bytes medidos; el resultado conserva `meta$bytes_muestra` y
+  `meta$tiempos`. `Inf` desactiva este límite.
 
 - columnas_opcionales:
 
@@ -459,7 +466,13 @@ del catálogo de la clave primaria: `columnas`, `fuente`, `motivo`,
 conserva, cuando el motor los expone, `visible`,
 `restriccion_diferible`, `universo_incluye_descendientes` e
 `indice_no_unico`. Una consulta fallida queda diferenciada de una clave
-no declarada.
+no declarada. En `muestra_motor`, `resumen_tabla$tiempos` incluye
+materialización, lectura del spool y perfilado local;
+`perfil_muestra$meta$bytes_muestra` conserva los bytes del spool.
+`meta$muestreo$reintentos` y `meta$muestreo$metodo_inicial` describen la
+recuperación de una muestra corta. Las columnas binarias de motores
+compatibles se representan como `largo:md5` durante la lectura y el
+perfil publica sus largos originales; el contenido no se conserva.
 
 ## Details
 
@@ -470,6 +483,56 @@ opcional. Cada agregado no disponible queda en `NA` y su consulta,
 estado y motivo se conservan en `resumen_tabla$sql`. Las expresiones se
 ejecutan como capacidades a comprobar, no como un dialecto SQL
 universal.
+
+En `muestra_motor`, `max_celdas_muestra` y `max_bytes_muestra` se
+aplican antes de armar la selección y se publican como filas pedidas y
+filas efectivas. El spool estima bytes por fila desde el catálogo cuando
+el motor lo permite; si la estimación no existe, comienza con un bloque
+pequeño y lo adapta. La materialización publica la fuente, la
+estimación, el recorte y el presupuesto efectivo en
+`meta$materializacion`. Un recorte, un muestreo corto de `TABLESAMPLE` o
+una falla de una consulta emiten la clase `lupa_aviso_muestra_motor`,
+que se puede capturar o silenciar por clase. Las columnas binarias
+compatibles se leen como largo y resumen MD5, por lo que se conservan
+faltantes, duplicados y largos sin traer el contenido a R. En SQL Server
+anterior a 13, o si la versión no se pudo determinar, el MD5 usa un
+prefijo de 8000 bytes y conserva el largo completo; esta decisión queda
+en la metadata de `perfil_muestra` y también convierte `image` a
+`varbinary(max)` antes de resumirla. Si `TABLESAMPLE` entrega menos de
+la mitad de las filas efectivas, se hace un solo reintento con una
+fracción mayor. PostgreSQL prefiere `TABLESAMPLE BERNOULLI`; en los
+demás motores se conserva el método por bloques y, solo si no existe, se
+considera el orden pseudoaleatorio sujeto a la misma guarda de costo. La
+metadata publica ambos métodos, la cantidad de reintentos, la guarda y
+cuál spool quedó elegido: una falla o una muestra más corta en el
+segundo intento conserva la primera muestra válida.
+
+Las fallas de consultas solicitadas se conservan en
+`resumen_tabla$meta$consultas$fallas`, con `etapa`, `consulta_id`,
+`sqlstate`, `tipo` y `motivo`. Un `SQLSTATE` `57014` se publica como
+`cancelada`; los rechazos tienen `tipo = "rechazada"`. Las etapas
+internas `clave_primaria`, `proteccion_coleccion`,
+`sonda_collation_dbi`, `sonda_fuente_bloques`, `sonda_desvio`,
+`estimacion_derrame`, `explain_moda`, `sonda_muestreo`,
+`sonda_mediana_escalar`, `sonda_mediana_cte_ventana`,
+`sonda_mediana_cte_ventana_control_negativo`, `sonda_moda_guardian`,
+`sonda_mediana_consolidada`, `sonda_aproximacion`, `sonda_dialecto`,
+`consulta`, `cardinalidad_catalogo`, `tipos_guardados`,
+`sonda_infinitos`, `sonda_magnitud`, `esquema`, `sonda_lectura_muestra`,
+`sonda_bytes_muestra`, `proteccion_fuera_de_muestra`, `porton_tabla` y
+`catalogo_bytes_muestra` se conservan aparte en
+`resumen_tabla$meta$consultas$sondas_fallidas` y no disparan el aviso de
+degradacion. El aviso que informa que la muestra no esta disponible
+conserva ademas la clase historica `lupa_muestra_dbi_no_disponible`.
+
+Cuando el catálogo estima al menos `1e8` filas y se pidió
+`universo = "tabla_completa"`, la función avisa antes de los agregados
+con la clase `lupa_aviso_costo_dbi` y sugiere usar
+`universo = "muestra_motor"`. El umbral se llama
+`.UMBRAL_FILAS_AVISO_AGREGADOS_DBI` y no afecta tablas menores ni la vía
+de muestra. La consulta de ese aviso es interna y no consume el
+presupuesto de `max_consultas`, para que el aviso no cambie qué métricas
+entran en la corrida.
 
 ## Dos tablas se llaman cobertura
 
@@ -707,24 +770,33 @@ que cerrarla con `ROLLBACK`.
 adaptador y usa `TABLESAMPLE` cuando el motor lo acepta, o una función
 pseudoaleatoria con el límite del dialecto. Si ninguna forma es
 compatible, las métricas SQL quedan en `no_disponible`: no se sustituyen
-por resultados de la tabla completa. Cada registro publica `alcance`,
-`universo`, `tamano_muestra`, `fraccion`, `metodo` y `error_esperado`.
-En `resumen_tabla$meta$muestreo`, `tamano_muestra` conserva el nombre
-historico y declara el tamano efectivo solicitado a la consulta;
-`filas_solicitadas` y `filas_pedidas` declaran el pedido original y
-`filas_obtenidas` las filas que devolvio el spool. La materializacion
-publica `muestra_id`, `snapshot_id`, `orden_id`, `n_filas`, `bytes`,
-`checksum`, backend, version y presupuesto en `meta$materializacion`;
-las pasadas publican el mismo `muestra_id`. El contrato de
-`perfil_muestra` es campo por campo: `meta$filas_analizadas` es la
-cantidad efectivamente entregada a los diagnósticos; `hallazgos` solo
-contiene familias disponibles; y `cobertura_diagnosticos` tiene una fila
-por familia no evaluada. `meta$origen_dbi$muestreo` conserva filas
-solicitadas, entregadas, reproducibilidad, `muestra_id`, `snapshot_id` y
-checksum. El método de impresión remite a esa cobertura cuando el campo
-no está disponible; no reemplaza la ausencia con `NULL` silencioso.
-Cuando el orden de la muestra del motor no se demostró estable, cada
-traza de `hallazgos` se publica `no_disponible` con
+por resultados de la tabla completa. La estimación de bytes de SQL
+Server usa `sys.partitions` y `sys.allocation_units`, que no requieren
+`VIEW DATABASE STATE` para una tabla accesible al usuario. Si el
+catálogo no se puede leer, esa consulta interna queda en la metadata sin
+convertirse en una falla de consulta solicitada. Cada registro publica
+`alcance`, `universo`, `tamano_muestra`, `fraccion`, `metodo` y
+`error_esperado`. En `resumen_tabla$meta$muestreo`, `tamano_muestra`
+conserva el nombre historico y declara el tamano efectivo solicitado a
+la consulta; `filas_solicitadas` y `filas_pedidas` declaran el pedido
+original y `filas_obtenidas` las filas que devolvio el spool. La
+materializacion publica `muestra_id`, `snapshot_id`, `orden_id`,
+`n_filas`, `bytes`, `checksum`, backend, version y presupuesto en
+`meta$materializacion`; las pasadas publican el mismo `muestra_id`.
+También publica la estimación de bytes por fila del catálogo, los bytes
+medidos, la fracción real materializada y `tope_que_mando` cuando un
+tope recortó la copia. La estimación sólo fija el primer bloque: el
+tamaño medido gobierna los siguientes y la parte que entra se conserva
+cuando el presupuesto se agota. El contrato de `perfil_muestra` es campo
+por campo: `meta$filas_analizadas` es la cantidad efectivamente
+entregada a los diagnósticos; `hallazgos` solo contiene familias
+disponibles; y `cobertura_diagnosticos` tiene una fila por familia no
+evaluada. `meta$origen_dbi$muestreo` conserva filas solicitadas,
+entregadas, reproducibilidad, `muestra_id`, `snapshot_id` y checksum. El
+método de impresión remite a esa cobertura cuando el campo no está
+disponible; no reemplaza la ausencia con `NULL` silencioso. Cuando el
+orden de la muestra del motor no se demostró estable, cada traza de
+`hallazgos` se publica `no_disponible` con
 `alcance = "orden_muestra_no_estable"`, sin índices ni claves y con su
 total; los patrones raros conservan su cantidad y retiran sus nombres.
 Bajo `bloque_filas`, `perfil_muestra` sigue siendo la muestra
@@ -751,13 +823,17 @@ acepta; publica `metodo_muestreo = "tablesample_system"`,
 solo si la politica de costo conserva `n_total`, la proyeccion, la tasa
 y sus tres umbrales; si no, la mediana queda `no_disponible` con
 `capacidad_no_aceptada:newid_costo_excede_presupuesto` aunque se
-silencien los avisos. Si la consulta de la muestra devuelve cero filas,
-no hay base para medir las metricas de alcance `muestra`: se publican
-con valor `NA`, estado `no_disponible` y el motivo estable
-`muestra_vacia:random_limit_sin_filas` (o el metodo efectivo
-equivalente). Esto no permite concluir que la columna este vacia, por lo
+silencien los avisos. Si `TABLESAMPLE` devuelve cero o menos de la mitad
+de las filas pedidas, se intenta una vez con una forma de muestreo más
+amplia. Si el reintento logra una muestra suficiente, se conservan en
+`meta$muestreo` ambos métodos y no se emite un aviso por la escasez
+transitoria. Si la muestra final sigue corta, se publica el aviso y las
+métricas de alcance quedan con el estado correspondiente. Un
+`random_limit` que devuelve cero conserva el motivo
+`muestra_vacia:random_limit_sin_filas` (o el método efectivo
+equivalente). Esto no permite concluir que la columna esté vacía, por lo
 que no se publica cero ni se dispara la cascada `sin_valores`. Una
-muestra no vacia sin valores validos usa
+muestra no vacía sin valores válidos usa
 `muestra_inestable:sin_valores_validos`; una capacidad no aceptada usa
 `capacidad_no_aceptada:...`. `n` conserva el conteo de la tabla
 completa.
@@ -1472,6 +1548,18 @@ cuando la tabla es un padrón y la moda de un identificador único es un
 documento real. Si se pidió `desvio`, la sonda de magnitud que ese
 cálculo necesita puede emitirse, pero su motivo nunca publica el valor
 devuelto por el motor.
+
+## Valores de texto extensos
+
+En `muestra_motor`, las columnas de texto de PostgreSQL, SQL Server,
+MySQL y MariaDB que superan `max_largo_valor_vocabulario` se solicitan
+como largo en caracteres, largo en bytes y resumen MD5. El contenido
+completo se conserva solo para los valores que no superan ese umbral,
+por lo que el tamaño máximo de una fila se conoce antes de `dbFetch(n)`.
+La cobertura agrega `texto_largo_no_evaluado` para declarar los
+diagnósticos textuales que no se pudieron calcular sobre esos valores;
+sus faltantes, duplicados y longitudes siguen entrando en las métricas
+disponibles.
 
 ## Progreso
 

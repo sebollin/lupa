@@ -289,7 +289,7 @@ names(en_la_base)
 |----|----|----|
 | Por omisión: `universo = "tabla_completa"`, `muestra = Inf` | toda la tabla | Sí: todas las que entran en los topes de celdas y de bytes |
 | `muestra = n` | toda la tabla | Sí, hasta `n`: acota la lectura, no los agregados |
-| `universo = "muestra_motor"`, `muestra_motor = n` | una muestra que toma el motor | Sí, las de esa muestra |
+| `universo = "muestra_motor"`, `muestra_motor = n` | hasta `n` filas muestreadas por el motor | Sí, las que se materializan después de los topes |
 | `bloque_muestra = "solo_agregados"` | lo que diga `universo` | No: sólo agregados, sin hallazgos por fila |
 
 Sin `orden_muestra`, la lectura de `muestra = n` son las primeras filas
@@ -313,6 +313,12 @@ base](https://sebollin.github.io/lupa/articles/perfilar-una-base.html).
   [`cobertura()`](https://sebollin.github.io/lupa/reference/accesores_perfil.md)
   con el tope que mandó ([Motores y
   escala](https://sebollin.github.io/lupa/articles/motores-y-escala.html#topes)).
+  En `muestra_motor`, el spool usa un tamaño máximo de fila conservador
+  antes de cada `dbFetch(n)`. El texto largo se pide como largo y
+  resumen MD5, así que su contenido no puede hacer que una lectura pase
+  esa cota; los tipos sin cota conocida se sondean de a una fila.
+  Registra las filas pedidas y efectivas, el tamaño medido y la fracción
+  real antes de devolver el perfil.
 - **Política de costo.** En
   [`perfilar_dbi()`](https://sebollin.github.io/lupa/reference/perfilar_dbi.md),
   `politica_costo = "todas"` (por omisión) mide moda y mediana en todas
@@ -503,9 +509,10 @@ La API pública de `lupa` puede cambiar antes de la 1.0; los cambios
 incompatibles se anuncian en
 [NEWS](https://github.com/sebollin/lupa/blob/main/NEWS.md), con una
 advertencia previa siempre que se pueda. Los contratos estables son las
-unidades declaradas, el alcance, la protección de datos personales y el
-registro de auditoría; los detalles de implementación y los tiempos
-pueden cambiar mientras esos contratos sigan siendo ciertos.
+unidades declaradas, el alcance, el registro de auditoría y, cuando se
+pide, la protección de datos personales; los detalles de implementación
+y los tiempos pueden cambiar mientras esos contratos sigan siendo
+ciertos.
 
 Los errores, las propuestas y las correcciones de documentación van al
 [registro de issues](https://github.com/sebollin/lupa/issues), y
