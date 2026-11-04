@@ -784,7 +784,7 @@
     escritor <- .escribir_chunk_spool_muestra_dbi(escritor, datos)
     n_filas <- escritor$n_filas
     if (!is.null(escritor$motivo)) break
-    bytes_chunk <- tail(escritor$bytes_bloques, 1L)
+    bytes_chunk <- utils::tail(escritor$bytes_bloques, 1L)
     if (length(bytes_chunk) && nrow(datos) > 0L) {
       bytes_por_fila_medido <- max(
         bytes_por_fila_medido,

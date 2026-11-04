@@ -58,6 +58,7 @@ Suggests:
     jsonlite,
     knitr,
     odbc,
+    rJava,
     rmarkdown,
     RPostgres,
     RSQLite,
