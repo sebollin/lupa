@@ -450,3 +450,32 @@ test_that("la participacion del dominante decide, y la frontera esta donde dice"
   # 321 filas: 160/321 = 0,4984, deja de serlo y el grupo no se entrega.
   expect_equal(grupos(156L), 0L)
 })
+
+test_that("sin stringdist la cobertura dice solo que falta, no que se agoto el presupuesto", {
+  # Medido sin `stringdist` (instalacion sin Suggests): cada columna llevaba
+  # dos filas, la de la dependencia y otra que decia "se comparo entre si a
+  # las 0 primeras" y recomendaba subir `max_trabajo_vocabulario`.
+  set.seed(5)
+  valores <- vapply(seq_len(400), function(i) {
+    paste(sample(letters, 12, TRUE), collapse = "")
+  }, character(1L))
+  datos <- data.frame(x = valores, stringsAsFactors = FALSE)
+  filas_de <- function(resultado) {
+    cob <- resultado$cobertura_diagnosticos
+    cob[cob$diagnostico == "proximidad_vocabulario" & cob$columna == "x", ,
+        drop = FALSE]
+  }
+  local({
+    local_mocked_bindings(.stringdist_disponible = function() FALSE,
+                          .package = "lupa")
+    filas <- filas_de(perfilar(datos, max_trabajo_vocabulario = 1e4))
+    expect_identical(nrow(filas), 1L)
+    expect_identical(as.character(filas$dependencia), "stringdist")
+  })
+  # Control: con la distancia disponible, el mismo presupuesto chico SI recorta
+  # y lo declara.
+  skip_if_not_installed("stringdist")
+  filas <- filas_de(perfilar(datos, max_trabajo_vocabulario = 1e4))
+  expect_identical(nrow(filas), 1L)
+  expect_match(as.character(filas$motivo), "excede el alcance", fixed = TRUE)
+})

@@ -1998,7 +1998,11 @@
       )
       next
     }
-    if (isTRUE(alcance$truncado)) {
+    # Sin `stringdist` no se compara ningun par, y el recorte por presupuesto es
+    # un efecto de eso: la fila decia "se comparo entre si a las 0 primeras" y
+    # recomendaba subir `max_trabajo_vocabulario`, que no arregla nada. La fila
+    # de la dependencia que falta, de arriba, ya dice lo que hay que hacer.
+    if (isTRUE(alcance$truncado) && isTRUE(alcance$distancia_disponible)) {
       cobertura[[length(cobertura) + 1L]] <- .nuevo_diagnostico_no_evaluado(
         "proximidad_vocabulario", columnas[[i]],
         # "Unidades" nombraba dos cosas distintas en la misma frase -formas

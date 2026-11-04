@@ -328,6 +328,8 @@ test_that("an unconsultable catalogue keeps state unknown", {
 )
 
 test_that("SQLite usa la subconsulta escalar y la division entera", {
+  skip_if_not_installed("DBI")
+  skip_if_not_installed("RSQLite")
   conexion <- DBI::dbConnect(RSQLite::SQLite(), ":memory:")
   on.exit(DBI::dbDisconnect(conexion), add = TRUE)
 
@@ -349,6 +351,8 @@ test_that("SQLite usa la subconsulta escalar y la division entera", {
 })
 
 test_that("la mediana coincide en los nueve bordes del repliegue", {
+  skip_if_not_installed("DBI")
+  skip_if_not_installed("RSQLite")
   conexion <- DBI::dbConnect(RSQLite::SQLite(), ":memory:")
   on.exit(DBI::dbDisconnect(conexion), add = TRUE)
 

@@ -310,6 +310,8 @@ test_that("cobertura_analisis acepta el perfil de muestra DBI", {
                                  class = "perfil_dbi")),
     "perfil_muestra"
   )
+  skip_if_not_installed("DBI")
+  skip_if_not_installed("RSQLite")
   conexion <- DBI::dbConnect(RSQLite::SQLite(), ":memory:")
   on.exit(DBI::dbDisconnect(conexion), add = TRUE)
   DBI::dbWriteTable(conexion, "tabla_prueba", datos)

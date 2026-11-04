@@ -389,11 +389,35 @@ test_that("la cardinalidad publicada es la del agregado de la muestra", {
   skip_on_cran()
   con <- .acn_con_pg(55432L)
   on.exit(DBI::dbDisconnect(con), add = TRUE)
+  # La tabla es propia de la prueba. Antes leia `aud_cmp_t`, que no la crea el
+  # paquete: con la tabla borrada la prueba daba error en vez de medir.
+  tabla <- paste0("acn_cardinalidad_", Sys.getpid())
+  set.seed(20261103)
+  n <- 5000L
+  base <- data.frame(
+    id = seq_len(n),
+    n_int = sample(-500:500, n, TRUE),
+    f_dec = round(rnorm(n, 50, 10), 3),
+    f_grande = 1e9 + runif(n),
+    f_neg = -abs(rnorm(n, 1e6, 3))
+  )
+  base$f_dec[sample(n, 200L)] <- NA
+  base$n_int[sample(n, 50L)] <- NA
+  try(DBI::dbExecute(con, paste0("DROP TABLE IF EXISTS ", tabla)), silent = TRUE)
+  DBI::dbWriteTable(con, tabla, base)
+  DBI::dbExecute(con, paste0(
+    "ALTER TABLE ", tabla, " ADD COLUMN d_dec NUMERIC(12,3)"
+  ))
+  DBI::dbExecute(con, paste0(
+    "UPDATE ", tabla, " SET d_dec = CAST(f_dec AS NUMERIC(12,3))"
+  ))
+  on.exit(try(DBI::dbExecute(con, paste0("DROP TABLE IF EXISTS ", tabla)),
+              silent = TRUE), add = TRUE, after = FALSE)
   for (i in seq_len(15L)) {
     aviso_muestra <- FALSE
     resultado <- withCallingHandlers(
       suppressMessages(perfilar_dbi(
-        con, "aud_cmp_t", universo = "muestra_motor",
+        con, tabla, universo = "muestra_motor",
         muestra_motor = 300L, muestra = 300L,
         bloque_muestra = "solo_agregados",
         proteger_datos_personales = FALSE

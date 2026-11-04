@@ -185,6 +185,11 @@ Primera versión publicada.
   cuando llega un bloque que la escala vigente no cubre. La moda de una columna
   binaria también sale en esa vía, como largo y MD5, y una columna `image` de
   SQL Server publica su moda.
+- Sin el paquete opcional `stringdist`, el diagnóstico de proximidad del
+  vocabulario deja una sola fila de cobertura por columna, la que dice que falta
+  el paquete. Antes agregaba otra que hablaba de un presupuesto agotado («se
+  comparó entre sí a las 0 primeras») y recomendaba subir
+  `max_trabajo_vocabulario`, que no arreglaba nada.
 - Con `bloque_filas`, las columnas binarias se leen como largo y MD5, igual
   que en la muestra: con RMySQL el controlador ya no las trunca (un aviso por
   fila, y largos y distintos falsos), y en PostgreSQL, SQL Server y MariaDB los
