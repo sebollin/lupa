@@ -258,13 +258,20 @@ testthat::test_that("SQL Server declara no disponibles los agregados de tipos no
 
   sql <- as.data.frame(resultado$resumen_tabla$sql)
   lob <- c("tx", "nx", "im", "xm", "ge")
+  # `image` conserva sus conteos no comparables, pero su moda se publica como
+  # largo y MD5 porque el arreglo de binarios hace que la tabla completa y la
+  # muestra agrupen la misma representacion segura del valor.
   incompatibles <- sql[
-    sql$columna %in% lob & sql$metrica %in% c("n_distintos", "moda"),
+    sql$columna %in% setdiff(lob, "im") &
+      sql$metrica %in% c("n_distintos", "moda"),
     , drop = FALSE
   ]
-  expect_equal(nrow(incompatibles), 10L)
+  expect_equal(nrow(incompatibles), 8L)
   expect_true(all(incompatibles$estado == "no_disponible"))
   expect_true(all(is.na(incompatibles$sql)))
+  moda_image <- sql[sql$columna == "im" & sql$metrica == "moda", , drop = FALSE]
+  expect_equal(moda_image$estado, "calculado")
+  expect_match(moda_image$sql, "HASHBYTES", ignore.case = TRUE)
   filas_lob <- resultado$resumen_tabla$columnas[
     resultado$resumen_tabla$columnas$columna %in% lob, , drop = FALSE
   ]

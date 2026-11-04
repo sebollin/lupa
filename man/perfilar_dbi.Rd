@@ -993,11 +993,13 @@ convierte a doble antes de restar; en SQL Server el centro de una
 columna de coma flotante va como literal \code{float}, que no tiene el tope de 38
 cifras de un decimal. Una columna decimal o entera resta en su tipo, que es
 exacto. Con \code{bloque_filas} los
-momentos se acumulan centrados. Bajo \code{muestra_motor}, cada corrida elige una
-semilla y todas sus consultas piden la misma muestra —\verb{TABLESAMPLE ... REPEATABLE} en PostgreSQL y SQL Server, \code{RAND(semilla)} en MySQL y MariaDB,
-un orden por \code{MD5()} de la fila en PostgreSQL 9.3—, así que el desvío se
-pide centrado en la media de esas mismas filas; la semilla no sale del
-generador de números aleatorios de R ni lo modifica. Como red en todas las
+momentos se acumulan centrados. Bajo \code{muestra_motor}, la media y el desvío
+se piden en la misma consulta, sobre las mismas filas de una sola
+evaluación de la muestra: una relación derivada calcula la media de esas
+filas con una ventana (\verb{AVG(x) OVER ()}) y el desvío se pide centrado en
+ella; esa misma evaluación da las filas obtenidas y decide el reintento. No
+se fija una semilla ni se toca el generador de números aleatorios de R.
+Como red en todas las
 vías, un desvío \code{0} sobre una columna con dos valores distintos —un mínimo
 menor que el máximo— es imposible y queda \code{no_disponible} con su motivo.
 \item \strong{El cotejamiento.} El resumen SQL agrupa y ordena con el cotejamiento

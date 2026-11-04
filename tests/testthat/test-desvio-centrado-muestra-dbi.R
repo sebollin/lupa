@@ -144,3 +144,284 @@ test_that("n y filas obtenidas declaran el presupuesto agotado", {
     DBI::dbDisconnect(con)
   }
 })
+
+test_that("una vista de PostgreSQL centra el desvio sin ctid", {
+  skip_on_cran()
+  for (puerto in c(55432L, 55493L)) {
+    con <- .acn_con_pg(puerto)
+    tabla <- paste0("avn_vista_base_", puerto)
+    vista <- paste0("avn_vista_muestra_", puerto)
+    try(DBI::dbExecute(con, paste0("DROP VIEW IF EXISTS ", vista)),
+        silent = TRUE)
+    try(DBI::dbExecute(con, paste0("DROP TABLE IF EXISTS ", tabla)),
+        silent = TRUE)
+    DBI::dbExecute(con, paste0(
+      "CREATE TABLE ", tabla,
+      " AS SELECT g AS id, (g % 97) * 1.5::double precision AS x",
+      " FROM generate_series(1, 5000) g"
+    ))
+    DBI::dbExecute(con, paste0(
+      "CREATE VIEW ", vista, " AS SELECT id, x FROM ", tabla
+    ))
+    resultado <- suppressWarnings(suppressMessages(perfilar_dbi(
+      con, vista, universo = "muestra_motor", muestra_motor = 500L,
+      bloque_muestra = "solo_agregados",
+      metricas = c("validos", "basicos", "desvio"),
+      proteger_datos_personales = FALSE
+    )))
+    fila <- resultado$resumen_tabla$columnas[
+      resultado$resumen_tabla$columnas$columna == "x", , drop = FALSE
+    ]
+    expect_true(is.finite(as.numeric(fila$media)))
+    expect_true(is.finite(as.numeric(fila$desvio)))
+    expect_true(is.finite(as.numeric(fila$n_validos)))
+    sql <- resultado$resumen_tabla$sql$sql
+    expect_false(any(grepl("ctid|MD5\\(|REPEATABLE", sql,
+                           perl = TRUE), na.rm = TRUE))
+    try(DBI::dbExecute(con, paste0("DROP VIEW IF EXISTS ", vista)),
+        silent = TRUE)
+    try(DBI::dbExecute(con, paste0("DROP TABLE IF EXISTS ", tabla)),
+        silent = TRUE)
+    DBI::dbDisconnect(con)
+  }
+})
+
+test_that("una vista de SQL Server conserva NEWID y centra el desvio", {
+  skip_on_cran()
+  con <- .acn_con_mssql()
+  tabla <- "avn_vista_mssql_base"
+  vista <- "avn_vista_mssql_muestra"
+  on.exit({
+    try(DBI::dbExecute(con, paste0("DROP VIEW IF EXISTS ", vista)),
+        silent = TRUE)
+    try(DBI::dbExecute(con, paste0("DROP TABLE IF EXISTS ", tabla)),
+        silent = TRUE)
+    DBI::dbDisconnect(con)
+  }, add = TRUE)
+  try(DBI::dbExecute(con, paste0("DROP VIEW IF EXISTS ", vista)),
+      silent = TRUE)
+  try(DBI::dbExecute(con, paste0("DROP TABLE IF EXISTS ", tabla)),
+      silent = TRUE)
+  DBI::dbExecute(con, paste0(
+    "CREATE TABLE ", tabla, " (id int, x float)"
+  ))
+  DBI::dbExecute(con, paste0(
+    "INSERT INTO ", tabla, " SELECT TOP 500 ROW_NUMBER() OVER (ORDER BY (SELECT 1)),",
+    " ROW_NUMBER() OVER (ORDER BY (SELECT 1)) FROM sys.all_objects a CROSS JOIN sys.all_objects b"
+  ))
+  DBI::dbExecute(con, paste0(
+    "CREATE VIEW ", vista, " AS SELECT id, x FROM ", tabla
+  ))
+  resultado <- suppressWarnings(suppressMessages(perfilar_dbi(
+    con, vista, universo = "muestra_motor", muestra_motor = 100L,
+    bloque_muestra = "solo_agregados",
+    metricas = c("validos", "basicos", "desvio"),
+    proteger_datos_personales = FALSE
+  )))
+  fila <- resultado$resumen_tabla$columnas[
+    resultado$resumen_tabla$columnas$columna == "x", , drop = FALSE
+  ]
+  expect_true(is.finite(as.numeric(fila$media)))
+  expect_true(is.finite(as.numeric(fila$desvio)))
+  expect_true(is.finite(as.numeric(fila$n_validos)))
+  expect_identical(
+    as.character(resultado$resumen_tabla$meta$muestreo$metodo),
+    "random_limit"
+  )
+  expect_true(grepl(
+    "NEWID", resultado$resumen_tabla$meta$muestreo$sql, fixed = TRUE
+  ))
+  expect_false(any(grepl(
+    "TABLESAMPLE", resultado$resumen_tabla$sql$sql,
+    ignore.case = TRUE
+  ), na.rm = TRUE))
+})
+
+test_that("una vista materializada de PostgreSQL usa la muestra comun", {
+  skip_on_cran()
+  for (puerto in c(55432L, 55493L)) {
+    con <- .acn_con_pg(puerto)
+    vista <- paste0("avn_vista_mat_muestra_", puerto)
+    try(DBI::dbExecute(con, paste0(
+      "DROP MATERIALIZED VIEW IF EXISTS ", vista
+    )), silent = TRUE)
+    DBI::dbExecute(con, paste0(
+      "CREATE MATERIALIZED VIEW ", vista,
+      " AS SELECT g AS id, (g % 97) * 1.5::double precision AS x",
+      " FROM generate_series(1, 5000) g WITH DATA"
+    ))
+    resultado <- suppressWarnings(suppressMessages(perfilar_dbi(
+      con, vista, universo = "muestra_motor", muestra_motor = 500L,
+      bloque_muestra = "solo_agregados",
+      metricas = c("validos", "basicos", "desvio"),
+      proteger_datos_personales = FALSE
+    )))
+    fila <- resultado$resumen_tabla$columnas[
+      resultado$resumen_tabla$columnas$columna == "x", , drop = FALSE
+    ]
+    expect_true(is.finite(as.numeric(fila$media)))
+    expect_true(is.finite(as.numeric(fila$desvio)))
+    expect_true(is.finite(as.numeric(fila$n_validos)))
+    expect_false(any(grepl(
+      "ctid|MD5\\(|REPEATABLE", resultado$resumen_tabla$sql$sql,
+      perl = TRUE
+    ), na.rm = TRUE))
+    try(DBI::dbExecute(con, paste0(
+      "DROP MATERIALIZED VIEW IF EXISTS ", vista
+    )), silent = TRUE)
+    DBI::dbDisconnect(con)
+  }
+})
+
+test_that("una tabla particionada o heredada no repite ctid entre partes", {
+  skip_on_cran()
+  for (puerto in c(55432L, 55493L)) {
+    con <- .acn_con_pg(puerto)
+    tabla <- paste0("avn_partes_", puerto)
+    izquierda <- paste0(tabla, "_a")
+    derecha <- paste0(tabla, "_b")
+    try(DBI::dbExecute(con, paste0("DROP TABLE IF EXISTS ", tabla,
+                                   " CASCADE")), silent = TRUE)
+    if (puerto == 55432L) {
+      DBI::dbExecute(con, paste0(
+        "CREATE TABLE ", tabla,
+        " (id integer, x double precision) PARTITION BY RANGE (id)"
+      ))
+      DBI::dbExecute(con, paste0(
+        "CREATE TABLE ", izquierda, " PARTITION OF ", tabla,
+        " FOR VALUES FROM (1) TO (1001)"
+      ))
+      DBI::dbExecute(con, paste0(
+        "CREATE TABLE ", derecha, " PARTITION OF ", tabla,
+        " FOR VALUES FROM (1001) TO (2001)"
+      ))
+    } else {
+      DBI::dbExecute(con, paste0(
+        "CREATE TABLE ", tabla, " (id integer, x double precision)"
+      ))
+      DBI::dbExecute(con, paste0(
+        "CREATE TABLE ", izquierda, " (CHECK (id < 1001)) INHERITS (",
+        tabla, ")"
+      ))
+      DBI::dbExecute(con, paste0(
+        "CREATE TABLE ", derecha, " (CHECK (id >= 1001)) INHERITS (",
+        tabla, ")"
+      ))
+    }
+    DBI::dbExecute(con, paste0(
+      "INSERT INTO ", izquierda,
+      " SELECT g, g::double precision FROM generate_series(1, 1000) g"
+    ))
+    DBI::dbExecute(con, paste0(
+      "INSERT INTO ", derecha,
+      " SELECT g, g::double precision FROM generate_series(1001, 2000) g"
+    ))
+    resultado <- suppressWarnings(suppressMessages(perfilar_dbi(
+      con, tabla, universo = "muestra_motor", muestra_motor = 1000L,
+      bloque_muestra = "solo_agregados",
+      metricas = c("validos", "basicos", "desvio"),
+      proteger_datos_personales = FALSE
+    )))
+    fila <- resultado$resumen_tabla$columnas[
+      resultado$resumen_tabla$columnas$columna == "x", , drop = FALSE
+    ]
+    expect_true(is.finite(as.numeric(fila$media)))
+    expect_true(is.finite(as.numeric(fila$desvio)))
+    expect_gte(as.numeric(fila$n_validos), 1)
+    sql <- resultado$resumen_tabla$sql$sql
+    expect_false(any(grepl("ctid|MD5\\(|REPEATABLE", sql,
+                           perl = TRUE), na.rm = TRUE))
+    try(DBI::dbExecute(con, paste0("DROP TABLE IF EXISTS ", tabla,
+                                   " CASCADE")), silent = TRUE)
+    DBI::dbDisconnect(con)
+  }
+})
+
+test_that("el reintento reemplaza la fuente de los agregados", {
+  skip_on_cran()
+  con <- .acn_con_pg(55432L)
+  tabla <- "avn_reintento_fuente"
+  on.exit({
+    try(DBI::dbExecute(con, paste0("DROP TABLE IF EXISTS ", tabla)),
+        silent = TRUE)
+    DBI::dbDisconnect(con)
+  }, add = TRUE)
+  try(DBI::dbExecute(con, paste0("DROP TABLE IF EXISTS ", tabla)),
+      silent = TRUE)
+  DBI::dbExecute(con, paste0(
+    "CREATE TABLE ", tabla,
+    " AS SELECT g AS id, g::double precision AS x",
+    " FROM generate_series(1, 3000) g"
+  ))
+  resultados <- vector("list", 8L)
+  for (i in seq_along(resultados)) {
+    resultados[[i]] <- suppressWarnings(suppressMessages(perfilar_dbi(
+      con, tabla, universo = "muestra_motor", muestra_motor = 60L,
+      bloque_muestra = "solo_agregados",
+      metricas = c("basicos", "desvio"), proteger_datos_personales = FALSE
+    )))
+    if (isTRUE(resultados[[i]]$resumen_tabla$meta$muestreo$reintentos > 0)) {
+      break
+    }
+  }
+  hay_reintento <- vapply(
+    resultados[!vapply(resultados, is.null, logical(1L))],
+    function(x) isTRUE(x$resumen_tabla$meta$muestreo$reintentos > 0),
+    logical(1L)
+  )
+  expect_true(any(hay_reintento))
+  resultado <- resultados[[which(hay_reintento)[[1L]]]]
+  fila <- resultado$resumen_tabla$columnas[
+    resultado$resumen_tabla$columnas$columna == "x", , drop = FALSE
+  ]
+  expect_true(is.finite(as.numeric(fila$media)))
+  expect_true(is.finite(as.numeric(fila$desvio)))
+  expect_identical(
+    as.character(resultado$resumen_tabla$meta$muestreo$metodo),
+    "tablesample_bernoulli"
+  )
+  sql <- resultado$resumen_tabla$sql$sql
+  expect_true(any(grepl("TABLESAMPLE BERNOULLI", sql, fixed = TRUE),
+                  na.rm = TRUE))
+})
+
+test_that("la cardinalidad publicada es la del agregado de la muestra", {
+  skip_on_cran()
+  con <- .acn_con_pg(55432L)
+  on.exit(DBI::dbDisconnect(con), add = TRUE)
+  for (i in seq_len(15L)) {
+    aviso_muestra <- FALSE
+    resultado <- withCallingHandlers(
+      suppressMessages(perfilar_dbi(
+        con, "aud_cmp_t", universo = "muestra_motor",
+        muestra_motor = 300L, muestra = 300L,
+        bloque_muestra = "solo_agregados",
+        proteger_datos_personales = FALSE
+      )),
+      warning = function(condicion) {
+        if (inherits(condicion, "lupa_aviso_muestra_motor")) {
+          aviso_muestra <<- TRUE
+        }
+        invokeRestart("muffleWarning")
+      }
+    )
+    filas <- suppressWarnings(as.numeric(
+      resultado$resumen_tabla$meta$muestreo$filas_obtenidas
+    ))
+    filas_agregadas <- suppressWarnings(as.numeric(
+      resultado$resumen_tabla$meta$filas_obtenidas_muestra
+    ))
+    if (length(filas) == 1L && length(filas_agregadas) == 1L &&
+        is.finite(filas) && is.finite(filas_agregadas)) {
+      expect_identical(filas, filas_agregadas, info = paste0("corrida ", i))
+    }
+    sql_media <- resultado$resumen_tabla$sql[
+      resultado$resumen_tabla$sql$metrica == "media", , drop = FALSE
+    ]
+    no_disponibles <- is.finite(filas) && filas > 0 && any(
+      as.character(sql_media$estado) == "no_disponible", na.rm = TRUE
+    )
+    expect_false(isTRUE(no_disponibles) && !isTRUE(aviso_muestra),
+                 info = paste0("corrida ", i))
+  }
+})

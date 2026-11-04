@@ -164,14 +164,14 @@ Primera versión publicada.
   pasar el tope —en ese caso, unas 25 filas—, y `meta$muestreo$filas_por_bytes_fuente`
   lo declara.
 - Con `universo = "muestra_motor"`, el desvío se pide centrado en la media de
-  las mismas filas: cada corrida fija una semilla y todas sus consultas ven la
-  misma muestra (`TABLESAMPLE ... REPEATABLE`, `RAND(semilla)`), sin usar el
-  generador de números aleatorios de R. Un motor o un objeto sin forma
-  repetible —`RANDOM()` de SQLite, `NEWID()` sobre una vista de SQL Server—
-  conserva la consulta consolidada, sobre las mismas filas. Sin centrar, en SQL Server unos montos
-  de un millón daban el desvío con un error de 2,3e-3, y en PostgreSQL 16
-  valores casi constantes, de 5e-3; en MySQL y MariaDB pasaba también con
-  `metricas = "desvio"` en `tabla_completa`.
+  las mismas filas y en la misma consulta: una relación derivada sobre la
+  muestra calcula esa media con una ventana (`AVG(x) OVER ()`). Sin centrar, en
+  SQL Server unos montos de un millón daban el desvío con un error de 2,3e-3, y
+  en PostgreSQL 16 valores casi constantes, de 5e-3; en MySQL y MariaDB pasaba
+  también con `metricas = "desvio"` en `tabla_completa`. Esa misma evaluación de
+  la muestra da las filas obtenidas, decide el reintento y entra en los
+  agregados: con `TABLESAMPLE SYSTEM`, algunas corridas dejaban la media y el
+  desvío no disponibles mientras declaraban 300 filas obtenidas.
 - El desvío extremo se escala aunque no se pidan los básicos ni se publiquen
   los valores (`incluir_valores = FALSE`), y también cuando el rango es tan
   chico que sus cuadrados caerían en subnormales. Antes MariaDB llegaba a
@@ -181,10 +181,17 @@ Primera versión publicada.
   motores la mediana de dos centrales enormes, se calculan escaladas en lugar
   de quedar no disponibles; MySQL publicaba esa mediana en 0.
 - Con `bloque_filas`, el desvío y la media de valores extremos ya no salen
-  `Inf` ni `NA` como calculados: el estado se reescala por una potencia de dos
+  `Inf`, `0` ni `NA` como calculados: el estado se reescala por una potencia de dos
   cuando llega un bloque que la escala vigente no cubre. La moda de una columna
   binaria también sale en esa vía, como largo y MD5, y una columna `image` de
   SQL Server publica su moda.
+- Con `bloque_filas`, una columna de un solo valor o vacía ya no publica `NA`
+  como calculado: el desvío queda `no_aplica` y las métricas de una columna
+  vacía, `sin_valores`. Y con RMariaDB un `bigint unsigned` mayor que 2^63, que
+  el controlador entrega dado vuelta a negativo, ya no se publica como
+  calculado: queda no disponible con su motivo.
+- En MariaDB, la mediana de valores extremos ya no sale `100000000` o `0` como
+  calculada.
 - La moda de un decimal de 2^53 o más ya no sale con cifras falsas
   (`12345678901234567168` por `12345678901234567890`): se le pide al motor como
   texto exacto en PostgreSQL, SQL Server, MySQL y MariaDB. Con

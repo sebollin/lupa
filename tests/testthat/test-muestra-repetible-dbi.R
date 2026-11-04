@@ -1,4 +1,4 @@
-test_that("un motor sin semilla conserva su muestra y no separa el desvio", {
+test_that("el muestreo no fija semilla ni separa el desvio", {
   skip_if_not_installed("DBI")
   skip_if_not_installed("RSQLite")
   con <- DBI::dbConnect(RSQLite::SQLite(), ":memory:")
@@ -9,33 +9,61 @@ test_that("un motor sin semilla conserva su muestra y no separa el desvio", {
   avisos <- character()
   r <- withCallingHandlers(suppressMessages(perfilar_dbi(
     con, "ventas", universo = "muestra_motor", muestra_motor = 150,
+    metricas = c("basicos", "desvio"),
+    bloque_muestra = "solo_agregados",
     proteger_datos_personales = FALSE
   )), warning = function(w) {
     avisos <<- c(avisos, conditionMessage(w))
     invokeRestart("muffleWarning")
   })
-  # SQLite no tiene una forma de fijar `RANDOM()`: la muestra se pide como
-  # siempre, sin `ctid` ni `MD5()`, que no existen ahi.
+  # La muestra se pide como siempre, sin semilla SQL, `ctid` ni `MD5()`.
   expect_equal(r$resumen_tabla$meta$muestreo$filas_obtenidas, 150)
   expect_length(avisos, 0L)
+  fila <- r$resumen_tabla$columnas[
+    r$resumen_tabla$columnas$columna == "monto", , drop = FALSE
+  ]
+  expect_true(is.finite(as.numeric(fila$media)))
+  expect_true(is.finite(as.numeric(fila$desvio)))
   sql <- r$resumen_tabla$sql$sql
-  expect_false(any(grepl("ctid|MD5\\(", sql, perl = TRUE), na.rm = TRUE))
-  expect_false(isTRUE(r$resumen_tabla$meta$muestreo$repetible))
+  expect_true(any(grepl("OVER \\(\\)", sql, perl = TRUE), na.rm = TRUE))
+  expect_true(any(grepl("lupa_desvio_ventana", sql, fixed = TRUE), na.rm = TRUE))
+  expect_false(any(grepl("ctid|MD5\\(|REPEATABLE|RAND\\(", sql,
+                         perl = TRUE), na.rm = TRUE))
+  expect_false(any(grepl("semilla|repetible", names(
+    r$resumen_tabla$meta$muestreo
+  ), fixed = TRUE)))
 })
 
-test_that("la forma repetible se reconoce por motor y por objeto", {
+test_that("las formas de muestreo no reciben una semilla", {
   candidato_random <- list(tipo = "aleatorio", funciones = list(list(nombre = "random")))
   candidato_rand <- list(tipo = "aleatorio", funciones = list(list(nombre = "rand")))
-  candidato_newid <- list(tipo = "aleatorio", funciones = list(list(nombre = "newid")))
-  candidato_ts <- list(tipo = "tablesample", nombre = "tablesample_system")
+  candidato_ts <- list(
+    tipo = "tablesample", nombre = "tablesample_system",
+    constructor = function(tabla, porcentaje) {
+      paste0(tabla, " TABLESAMPLE SYSTEM (", porcentaje, ")")
+    }
+  )
+  dialecto <- list(limitar = function(sql, n, salto = 0) {
+    paste0(sql, " LIMIT ", n)
+  })
+  for (candidato in list(candidato_random, candidato_rand, candidato_ts)) {
+    forma <- .forma_muestreo_dbi(
+      candidato, "`avn_t`", "`x`", "10", 10L, dialecto
+    )
+    expect_false(grepl(
+      "REPEATABLE|RAND\\([0-9]|MD5\\(|ctid", forma$sql,
+      perl = TRUE
+    ))
+  }
+})
+
+test_that("la forma de desvio por ventana se declara por motor", {
   con <- structure(list(), class = "lupa_conexion_falsa")
   local_mocked_bindings(.senas_conexion_dbi = function(conexion) "sqlite")
-  expect_false(.muestreo_repetible_dbi(candidato_random, con))
-  expect_false(.muestreo_repetible_dbi(candidato_newid, con))
-  expect_true(.muestreo_repetible_dbi(candidato_ts, con))
-  local_mocked_bindings(.senas_conexion_dbi = function(conexion) "postgresql pqconnection")
-  expect_true(.muestreo_repetible_dbi(candidato_random, con, "r"))
-  expect_false(.muestreo_repetible_dbi(candidato_random, con, "view"))
-  local_mocked_bindings(.senas_conexion_dbi = function(conexion) "mysql")
-  expect_true(.muestreo_repetible_dbi(candidato_rand, con))
+  expect_true(.soporta_ventana_desvio_dbi(con))
+  expect_identical(.forma_desvio_ventana_dbi(con), 3L)
+  local_mocked_bindings(.senas_conexion_dbi = function(conexion) "sql server")
+  expect_identical(.forma_desvio_ventana_dbi(con), 2L)
+  local_mocked_bindings(.senas_conexion_dbi = function(conexion) "oracle")
+  expect_false(.soporta_ventana_desvio_dbi(con))
 })

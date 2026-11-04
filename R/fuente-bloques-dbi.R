@@ -759,6 +759,22 @@
     return(list(valor = valor, estado = "calculado", motivo = NA_character_))
   }
   if (identical(familia, "cuantitativos")) {
+    n <- .numero_dbi(resultado$n_evaluados)
+    if (length(n) != 1L || is.na(n) || !is.finite(n) || n < 1) {
+      return(list(
+        valor = NA_real_, estado = if (identical(n, 0)) "sin_valores" else
+          "no_disponible",
+        motivo = if (identical(n, 0)) {
+          "La columna no contiene valores no nulos."
+        } else "No se pudo conocer la cantidad de valores cuantitativos."
+      ))
+    }
+    if (identical(metrica, "desvio") && n < 2) {
+      return(list(
+        valor = NA_real_, estado = "no_aplica",
+        motivo = "El desvio muestral requiere al menos dos valores no nulos."
+      ))
+    }
     valor <- switch(
       metrica,
       minimo = if (isTRUE(incluir_valores)) resultado$minimo else NA_real_,
@@ -769,6 +785,23 @@
       n_negativos = resultado$n_negativos,
       NA_real_
     )
+    if (identical(metrica, "desvio") &&
+        (length(valor) != 1L || !is.finite(valor))) {
+      return(list(
+        valor = NA_real_, estado = "no_disponible",
+        motivo = "estadisticos_cuantitativos_no_finitos:desvio"
+      ))
+    }
+    if (metrica %in% c("minimo", "maximo", "media", "n_ceros",
+                      "n_negativos") && isTRUE(incluir_valores) &&
+        (length(valor) != 1L || !is.finite(valor))) {
+      return(list(
+        valor = NA_real_, estado = "no_disponible",
+        motivo = paste0(
+          "estadisticos_cuantitativos_no_finitos:", metrica
+        )
+      ))
+    }
     return(list(valor = valor, estado = "calculado", motivo = NA_character_))
   }
   if (identical(familia, "distintos")) {
@@ -866,7 +899,9 @@
                                           incluir_valores, fuente,
                                           metricas_publicas = metricas,
                                           decisiones_costo = NULL,
-                                          moda_precalculada = NULL) {
+                                          moda_precalculada = NULL,
+                                          tipos_motor = NULL,
+                                          prototipo_desconocido = FALSE) {
   fila <- .fila_vacia_bloques_dbi(campo, n_total)
   registros <- list()
   registros[[1L]] <- .registro_sql_dbi(
@@ -975,6 +1010,25 @@
     fila$n_infinito_negativo <- sobre_cuantitativos$resultado$n_infinito_negativo %||%
       fila$n_infinito_negativo
   }
+  posicion_campo <- match(campo, fuente$campos)
+  # El prototipo sale de un `dbFetch(n = 0)`: tiene largo cero por diseno, y lo
+  # que dice es su clase. Exigir largo mayor que cero lo descartaba siempre y
+  # dejaba solo el tipo declarado, que en SQL Server es un codigo ODBC: la
+  # mediana de un `int` salia «La columna no es numerica». Cuando el
+  # presupuesto se agoto antes de leer los tipos, el esquema minimo lo declara
+  # (`prototipo_desconocido`): sus `logical()` no son una columna logica.
+  prototipo_conocido <- !isTRUE(prototipo_desconocido) &&
+    !is.na(posicion_campo) && !is.null(prototipo) &&
+    posicion_campo <= length(prototipo) &&
+    !is.null(prototipo[[posicion_campo]])
+  tipo_conocido <- !is.na(posicion_campo) && !is.null(tipos) &&
+    posicion_campo <= length(tipos) && !is.na(tipos[[posicion_campo]])
+  columna_numerica <- if (prototipo_conocido || tipo_conocido) {
+    .es_numerico_dbi(
+      if (prototipo_conocido) prototipo[[posicion_campo]] else NULL,
+      if (tipo_conocido) tipos[[posicion_campo]] else NA_character_
+    )
+  } else NA
   for (grupo in c("basicos", "desvio")) {
     pedidos <- if (identical(grupo, "basicos")) {
       c("minimo", "maximo", "media", "n_ceros", "n_negativos")
@@ -1003,9 +1057,18 @@
       }
     } else {
       for (nombre in pedidos) {
+        disponible <- grupo %in% metricas &&
+          (isTRUE(columna_numerica) || is.na(columna_numerica))
         registros[[length(registros) + 1L]] <- .registro_sql_dbi(
-          campo, nombre, if (grupo %in% metricas) "no_aplica" else "no_solicitado",
-          if (grupo %in% metricas) "La columna no es numerica." else
+          campo, nombre, if (disponible) "no_disponible" else if (
+            grupo %in% metricas
+          ) "no_aplica" else "no_solicitado",
+          if (disponible) {
+            paste(
+              "No se pudo iniciar el acumulador cuantitativo; la metrica",
+              "queda no disponible por el presupuesto de la via por bloques."
+            )
+          } else if (grupo %in% metricas) "La columna no es numerica." else
             "La metrica no fue solicitada.", NA_character_,
           metadatos = .metadatos_sql_dbi()
         )
@@ -1140,19 +1203,16 @@
   # `no_disponible` con `mapa_distintos_no_reconstruible`, y la corroboracion
   # declaraba `divergencia` contra la mediana que el perfil de muestra calcula
   # sobre un texto que lee como numero ("3,75").
-  posicion_campo <- match(campo, fuente$campos)
-  columna_numerica <- is.na(posicion_campo) || .es_numerico_dbi(
-    if (!is.null(prototipo) && posicion_campo <= length(prototipo)) {
-      prototipo[[posicion_campo]]
-    } else NULL,
-    if (!is.null(tipos) && posicion_campo <= length(tipos)) {
-      tipos[[posicion_campo]]
-    } else NA_character_
-  )
-  if ("mediana" %in% metricas && !columna_numerica) {
+  if ("mediana" %in% metricas && isFALSE(columna_numerica)) {
     registros[[length(registros) + 1L]] <- .registro_sql_dbi(
       campo, "mediana", "no_aplica", "La columna no es numerica.",
       NA_character_, metadatos = .metadatos_sql_dbi()
+    )
+  } else if ("mediana" %in% metricas && is.na(columna_numerica)) {
+    registros[[length(registros) + 1L]] <- .registro_sql_dbi(
+      campo, "mediana", "no_disponible",
+      "No se pudo conocer el tipo de la columna.", NA_character_,
+      metadatos = .metadatos_sql_dbi()
     )
   } else if ("mediana" %in% metricas && isTRUE(incluir_valores)) {
     fila$mediana <- .mediana_mapa_bloques_dbi(mapa)
@@ -1188,8 +1248,12 @@
   # motor sobre el valor exacto, y aca se contarian sobre los dobles. Lo mismo
   # vale para un entero ancho que el controlador entrego como doble -un
   # `integer64` no pasa por aca: lo retiene su propia regla-.
-  tipo_campo <- if (!is.null(tipos) && !is.na(posicion_campo) &&
-                    posicion_campo <= length(tipos)) {
+  tipo_campo <- if (!is.null(tipos_motor) && !is.na(posicion_campo) &&
+                    posicion_campo <= length(tipos_motor) &&
+                    !is.na(tipos_motor[[posicion_campo]])) {
+    tipos_motor[[posicion_campo]]
+  } else if (!is.null(tipos) && !is.na(posicion_campo) &&
+             posicion_campo <= length(tipos)) {
     tipos[[posicion_campo]]
   } else NA_character_
   extremos <- if (!is.null(sobre_cuantitativos) &&
@@ -1197,9 +1261,17 @@
     c(sobre_cuantitativos$resultado$minimo, sobre_cuantitativos$resultado$maximo)
   } else NULL
   entero_ancho <- .tipo_declarado_entero_ancho_dbi(tipo_campo)
-  if ((entero_ancho || .tipo_declarado_decimal_dbi(tipo_campo)) &&
+  tipo_campo_texto <- if (length(tipo_campo) == 1L && !is.na(tipo_campo)) {
+    .minusculas_ascii(as.character(tipo_campo))
+  } else ""
+  entero_sin_signo <- grepl("unsigned", tipo_campo_texto, fixed = TRUE, useBytes = TRUE)
+  unsigned_inconsistente <- entero_sin_signo && length(extremos) &&
+    any(is.finite(extremos) & extremos < 0)
+  if ((entero_ancho || .tipo_declarado_decimal_dbi(tipo_campo) ||
+       unsigned_inconsistente) &&
       is.double(extremos) &&
-      any(is.finite(extremos) & abs(extremos) >= .MAX_ENTERO_EXACTO_DBI)) {
+      (unsigned_inconsistente ||
+       any(is.finite(extremos) & abs(extremos) >= .MAX_ENTERO_EXACTO_DBI))) {
     retenidas <- c(
       "minimo", "maximo", "media", "n_ceros", "n_negativos", "mediana",
       "desvio", "n_distintos", "tasa_distintos"
@@ -1215,7 +1287,13 @@
     afectadas <- as.character(sql$metrica) %in% retenidas &
       as.character(sql$estado) == "calculado"
     sql$estado[afectadas] <- "no_disponible"
-    sql$motivo[afectadas] <- if (entero_ancho) {
+    sql$motivo[afectadas] <- if (unsigned_inconsistente) {
+      paste(
+        "El controlador entrego un `UNSIGNED` fuera del rango del doble con",
+        "signo: los valores aparecen negativos. Las metricas de magnitud no",
+        "se publican como calculadas."
+      )
+    } else if (entero_ancho) {
       paste(
         .motivo_entero_doble_dbi(prefijo = "La columna ", tipo = tipo_campo),
         "Con `bloque_filas` tampoco `n_distintos` ni la moda: se contarian en",
@@ -1786,7 +1864,18 @@
         tipo, .senas_conexion_dbi(conexion)
       )
       decimal <- .tipo_declarado_decimal_dbi(tipo)
-      if (!binaria && !decimal) next
+      decimal_ancho <- decimal && .tipo_declarado_entero_ancho_dbi(tipo)
+      # Los decimales ya tienen todos sus valores en el mapa que se construye
+      # durante el recorrido. Resolverlos aca con una consulta SQL separada
+      # hacia que `bloque_filas` perdiera la moda antes que la via enviada
+      # cuando el presupuesto era chico. La representacion de `.texto_moda()`
+      # es la misma que la del perfil enviado para los decimales comunes; los
+      # anchos quedan sujetos a la guarda de precision de la fila.
+      # Un decimal ancho no puede reconstruir su modo desde el doble que
+      # entrega el controlador; se pide la misma expresion exacta del motor
+      # que usa la via SQL. Los decimales comunes siguen resolviendose con el
+      # mapa de la lectura, sin una consulta adicional.
+      if (!binaria && !decimal_ancho || decimal && !decimal_ancho) next
       posicion <- match(campo, preparacion$campos)
       columna_moda_sql <- .expresion_binaria_moda_dbi(
         conexion, preparacion$campos_sql_proyeccion[[posicion]], tipo
@@ -1794,17 +1883,17 @@
       valor_moda_sql <- .expresion_decimal_moda_dbi(
         conexion, columna_moda_sql, tipo
       )
+      orden_moda_sql <- .orden_moda_dbi(
+        conexion, valor_moda_sql, tipo
+      )
       # Un decimal solo se resuelve en el motor si este lo devuelve como texto
       # exacto. Si el dialecto no tiene esa forma, la expresion es la misma
       # columna, el controlador la entregaria como doble y la guarda del decimal
       # tiene que seguir mandando sobre la moda.
-      if (decimal && !binaria && identical(valor_moda_sql, columna_moda_sql)) {
-        next
-      }
       modas_bloques[[campo]] <- .moda_columna_dbi(
         conexion, fuente$tabla_sql, columna_moda_sql,
         preparacion$dialecto, presupuesto = presupuesto,
-        valor_sql = valor_moda_sql
+        valor_sql = valor_moda_sql, orden_sql = orden_moda_sql
       )
     }
   }
@@ -1837,7 +1926,11 @@
         preparacion$prototipo, preparacion$tipos, incluir_valores, fuente,
         metricas_publicas = metricas_publicas,
         decisiones_costo = decisiones_costo,
-        moda_precalculada = modas_bloques[[campo]]
+        moda_precalculada = modas_bloques[[campo]],
+        tipos_motor = preparacion$esquema$tipos_motor,
+        prototipo_desconocido = isTRUE(
+          preparacion$esquema$prototipo_desconocido
+        )
       )
     } else {
       fila <- .fila_resumen_dbi(campo, NA_real_)

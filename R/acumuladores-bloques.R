@@ -609,14 +609,28 @@
     extremos_previos <- c(estado$minimo, estado$maximo)
     extremos_previos <- extremos_previos[is.finite(extremos_previos)]
     max_abs <- max(c(abs(extremos_previos), abs(finitos)), na.rm = TRUE)
-    escala_nueva <- .escala_extrema_bloques(max_abs)
+    extremos_nuevos <- c(extremos_previos, finitos)
+    minimo_nuevo <- min(extremos_nuevos)
+    maximo_nuevo <- max(extremos_nuevos)
+    rango_nuevo <- suppressWarnings(maximo_nuevo - minimo_nuevo)
+    escala_nueva <- .escala_extrema_bloques(
+      max_abs, rango = rango_nuevo
+    )
+    desplazamiento_nuevo <- if (.rango_requiere_escala(rango_nuevo)) {
+      minimo_nuevo
+    } else 0
     escala_actual <- if (length(estado$escala) == 1L &&
                          is.finite(estado$escala) && estado$escala > 0) {
       estado$escala
     } else 1
-    if (!identical(escala_nueva, escala_actual)) {
+    desplazamiento_actual <- if (length(estado$desplazamiento) == 1L &&
+                                 is.finite(estado$desplazamiento)) {
+      estado$desplazamiento
+    } else 0
+    if (!identical(escala_nueva, escala_actual) ||
+        !identical(desplazamiento_nuevo, desplazamiento_actual)) {
       estado <- .reescalar_estado_cuantitativo_bloques(
-        estado, escala_nueva
+        estado, escala_nueva, desplazamiento_nuevo
       )
     }
   }
@@ -1460,21 +1474,42 @@
 # magnitud extrema despues de haber absorbido bloques anteriores, sin volver a
 # leerlos. `media_abs` conserva la media en la unidad normalizada para que la
 # salida no tenga que reconstruirla con una resta grande.
-.reescalar_estado_cuantitativo_bloques <- function(estado, escala_nueva) {
+.reescalar_estado_cuantitativo_bloques <- function(
+    estado, escala_nueva, desplazamiento_nuevo = NULL) {
   escala_vieja <- if (length(estado$escala) == 1L &&
                       is.finite(estado$escala) && estado$escala > 0) {
     estado$escala
   } else 1
+  desplazamiento_viejo <- if (length(estado$desplazamiento) == 1L &&
+                              is.finite(estado$desplazamiento)) {
+    estado$desplazamiento
+  } else 0
+  if (length(desplazamiento_nuevo) != 1L ||
+      !is.finite(desplazamiento_nuevo)) {
+    desplazamiento_nuevo <- desplazamiento_viejo
+  }
   if (length(escala_nueva) != 1L || !is.finite(escala_nueva) ||
-      escala_nueva <= 0 || identical(escala_vieja, escala_nueva) ||
-      !isTRUE(estado$n > 0)) {
+      escala_nueva <= 0) {
     estado$escala <- if (length(escala_nueva) == 1L &&
                          is.finite(escala_nueva) && escala_nueva > 0) {
       escala_nueva
     } else escala_vieja
+    estado$desplazamiento <- desplazamiento_nuevo
+    return(estado)
+  }
+  if (identical(escala_vieja, escala_nueva) &&
+      identical(desplazamiento_viejo, desplazamiento_nuevo)) {
+    estado$escala <- escala_nueva
+    estado$desplazamiento <- desplazamiento_nuevo
+    return(estado)
+  }
+  if (!isTRUE(estado$n > 0)) {
+    estado$escala <- escala_nueva
+    estado$desplazamiento <- desplazamiento_nuevo
     return(estado)
   }
   factor <- escala_vieja / escala_nueva
+  corrimiento <- (desplazamiento_viejo - desplazamiento_nuevo) / escala_nueva
   centro <- .centro_estado_bloques(estado)
   media <- estado$media
   media_abs <- if (!identical(escala_vieja, 1) &&
@@ -1482,13 +1517,14 @@
                    is.finite(estado$media_abs)) {
     estado$media_abs
   } else centro + media
-  estado$centro <- centro * factor
+  estado$centro <- centro * factor + corrimiento
   estado$media <- media * factor
   estado$media_abs <- media_abs * factor
-  estado$suma <- estado$suma * factor
+  estado$suma <- estado$suma * factor + corrimiento * estado$n
   estado$suma_compensacion <- estado$suma_compensacion * factor
   estado$m2 <- estado$m2 * factor * factor
   estado$escala <- escala_nueva
+  estado$desplazamiento <- desplazamiento_nuevo
   estado
 }
 
@@ -2176,26 +2212,6 @@
     acumulador$resultado <- sobre
     acumulador$estado <- "finalizado"
     return(sobre)
-  }
-  if (identical(acumulador$familia, "cuantitativos") &&
-      !identical(acumulador$estado, "no_disponible") &&
-      isTRUE(acumulador$estado_familia$n > 0)) {
-    resultado <- .resultado_acumulador(acumulador)
-    desvio_invalido <- isTRUE(acumulador$estado_familia$n > 1) &&
-      (length(resultado$desvio) != 1L || !is.finite(resultado$desvio))
-    media_invalida <- length(resultado$media) != 1L ||
-      !is.finite(resultado$media)
-    if (media_invalida || desvio_invalido) {
-      campos <- c(if (media_invalida) "media" else character(),
-                  if (desvio_invalido) "desvio" else character())
-      acumulador <- .marcar_fallo_acumulador(
-        acumulador,
-        paste0(
-          "estadisticos_cuantitativos_no_finitos:",
-          paste(campos, collapse = ",")
-        )
-      )
-    }
   }
   if (identical(acumulador$estado, "iniciado") ||
       identical(acumulador$estado, "truncado") ||

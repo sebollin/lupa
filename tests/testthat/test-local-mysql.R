@@ -743,3 +743,177 @@ test_that("MySQL y MariaDB no repliegan un desvio con un solo valido", {
   probar(FALSE)
   probar(TRUE)
 })
+
+test_that("MySQL y MariaDB conservan el desvio muestral dentro del presupuesto", {
+  skip_on_cran()
+  probar <- function(maria = FALSE) {
+    con <- .arrm_con_mysql(maria)
+    motor <- if (maria) "maria" else "mysql"
+    tabla <- paste0("avn_presupuesto_muestra_", motor)
+    on.exit({
+      try(DBI::dbExecute(con, paste0("DROP TABLE IF EXISTS ", tabla)),
+          silent = TRUE)
+      DBI::dbDisconnect(con)
+    }, add = TRUE)
+    try(DBI::dbExecute(con, paste0("DROP TABLE IF EXISTS ", tabla)),
+        silent = TRUE)
+    DBI::dbExecute(con, paste0(
+      "CREATE TABLE ", tabla, " (id INT, x DOUBLE, d DECIMAL(10,2))"
+    ))
+    indices <- 1:20000
+    valores <- paste0(
+      "(", indices, ",",
+      sprintf("%.17g", ((indices * 7919) %% 100003) / 7 + 1e6), ",",
+      sprintf("%.2f", (indices %% 500) / 4), ")"
+    )
+    for (bloque in split(valores, ceiling(seq_along(valores) / 4000L))) {
+      DBI::dbExecute(con, paste0(
+        "INSERT INTO ", tabla, " VALUES ", paste(bloque, collapse = ",")
+      ))
+    }
+    resultado <- suppressWarnings(suppressMessages(perfilar_dbi(
+      con, tabla, universo = "muestra_motor", muestra_motor = 3000L,
+      bloque_muestra = "solo_agregados", max_consultas = 20L,
+      proteger_datos_personales = FALSE
+    )))
+    fila <- resultado$resumen_tabla$columnas[
+      resultado$resumen_tabla$columnas$columna == "x", , drop = FALSE
+    ]
+    expect_true(is.finite(as.numeric(fila$n_validos)), info = motor)
+    expect_true(is.finite(as.numeric(fila$media)), info = motor)
+    expect_true(is.finite(as.numeric(fila$desvio)), info = motor)
+    expect_lte(as.numeric(resultado$resumen_tabla$meta$consultas$emitidas),
+               20, label = motor)
+    registro <- resultado$resumen_tabla$sql[
+      resultado$resumen_tabla$sql$columna == "x" &
+        resultado$resumen_tabla$sql$metrica %in% c("n_validos", "media", "desvio"),
+      , drop = FALSE
+    ]
+    expect_false(any(
+      registro$estado == "no_disponible" &
+        grepl("lote de agregados fue rechazado", registro$motivo,
+              fixed = TRUE), na.rm = TRUE
+    ), info = motor)
+  }
+  probar(FALSE)
+  probar(TRUE)
+})
+test_that("R2 conserva la cadena de moda decimal en MySQL y MariaDB", {
+  skip_on_cran()
+  probar <- function(maria = FALSE) {
+    con <- .arrm_con_mysql(maria)
+    motor <- if (maria) "maria" else "mysql"
+    tabla <- paste0("av3_r2_", motor)
+    on.exit({
+      try(DBI::dbExecute(con, paste0("DROP TABLE IF EXISTS ", tabla)),
+          silent = TRUE)
+      DBI::dbDisconnect(con)
+    }, add = TRUE)
+    DBI::dbExecute(con, paste0("CREATE TABLE ", tabla,
+                               " (d DECIMAL(12,2))"))
+    DBI::dbExecute(con, paste0(
+      "INSERT INTO ", tabla, " VALUES (2.50),(0.00),(100.00),(2.50)"
+    ))
+    perfil <- suppressWarnings(suppressMessages(perfilar_dbi(
+      con, tabla, metricas = "moda", proteger_datos_personales = FALSE
+    )))
+    expect_identical(as.character(perfil$resumen_tabla$columnas$moda), "2.5")
+  }
+  probar(FALSE)
+  probar(TRUE)
+})
+
+test_that("R11 desempata la moda binaria en MariaDB", {
+  skip_on_cran()
+  con <- .arrm_con_mysql(TRUE)
+  tabla <- "av3_r11_maria"
+  on.exit({
+    try(DBI::dbExecute(con, paste0("DROP TABLE IF EXISTS ", tabla)),
+        silent = TRUE)
+    DBI::dbDisconnect(con)
+  }, add = TRUE)
+  DBI::dbExecute(con, paste0("CREATE TABLE ", tabla, " (bin VARBINARY(16))"))
+  DBI::dbExecute(con, paste0(
+    "INSERT INTO ", tabla,
+    " VALUES (UNHEX('01')),(UNHEX('01')),",
+    "(UNHEX('0102')),(UNHEX('0102'))"
+  ))
+  perfil <- suppressWarnings(suppressMessages(perfilar_dbi(
+    con, tabla, metricas = "moda", proteger_datos_personales = FALSE
+  )))
+  expect_identical(
+    as.character(perfil$resumen_tabla$columnas$moda),
+    "1:55a54008ad1ba589aa210d2629c1df41"
+  )
+  expect_false(any(as.character(perfil$resumen_tabla$sql$estado) ==
+                   "divergencia"))
+})
+
+test_that("R14 no publica bigint unsigned invertido en MariaDB", {
+  skip_on_cran()
+  con <- .arrm_con_mysql(TRUE)
+  tabla <- "av3_r14_maria"
+  on.exit({
+    try(DBI::dbExecute(con, paste0("DROP TABLE IF EXISTS ", tabla)),
+        silent = TRUE)
+    DBI::dbDisconnect(con)
+  }, add = TRUE)
+  DBI::dbExecute(con, paste0("CREATE TABLE ", tabla,
+                             " (u BIGINT UNSIGNED)"))
+  DBI::dbExecute(con, paste0(
+    "INSERT INTO ", tabla,
+    " VALUES (0),(18446744073709551615),(18446744073709551614)"
+  ))
+  perfil <- suppressWarnings(suppressMessages(perfilar_dbi(
+    con, tabla, bloque_filas = 2L, proteger_datos_personales = FALSE
+  )))
+  fila <- perfil$resumen_tabla$columnas
+  expect_true(all(is.na(fila[, c("minimo", "maximo", "media", "mediana", "desvio")])) )
+  afectados <- perfil$resumen_tabla$sql[
+    perfil$resumen_tabla$sql$columna == "u" &
+      perfil$resumen_tabla$sql$metrica %in%
+        c("minimo", "maximo", "media", "mediana", "desvio"), ,
+    drop = FALSE
+  ]
+  expect_true(all(as.character(afectados$estado) == "no_disponible"))
+})
+
+test_that("R15 calcula medianas extremas en MariaDB", {
+  skip_on_cran()
+  con <- .arrm_con_mysql(TRUE)
+  tabla <- "av3_r15_maria"
+  on.exit({
+    try(DBI::dbExecute(con, paste0("DROP TABLE IF EXISTS ", tabla)),
+        silent = TRUE)
+    DBI::dbDisconnect(con)
+  }, add = TRUE)
+  e4b <- 1e200 * (1 + 2^-52)
+  e4c <- 1e200 * (1 + 2^-51)
+  literal <- function(x) if (is.na(x)) "NULL" else sprintf("%.17g", x)
+  filas <- c(
+    paste0("(", literal(1e160), ",", literal(1.5e308), ",",
+           literal(1e200), ",", literal(1e-300), ")"),
+    paste0("(", literal(3e160), ",", literal(1.6e308), ",",
+           literal(e4b), ",", literal(2e-300), ")"),
+    paste0("(", literal(-2e160), ",", literal(1.7e308), ",",
+           literal(e4c), ",", literal(3e-300), ")"),
+    paste0("(", literal(5), ",NULL,NULL,", literal(5e-300), ")")
+  )
+  DBI::dbExecute(con, paste0(
+    "CREATE TABLE ", tabla, " (e6 DOUBLE, e2 DOUBLE, e4 DOUBLE, e3 DOUBLE)"
+  ))
+  DBI::dbExecute(con, paste0("INSERT INTO ", tabla, " VALUES ",
+                             paste(filas, collapse = ",")))
+  perfil <- suppressWarnings(suppressMessages(perfilar_dbi(
+    con, tabla, metricas = "mediana", proteger_datos_personales = FALSE
+  )))
+  columnas <- perfil$resumen_tabla$columnas
+  expect_equal(columnas$mediana[columnas$columna == "e6"], 5e159,
+               tolerance = 1e-12)
+  expect_equal(columnas$mediana[columnas$columna == "e2"], 1.6e308,
+               tolerance = 1e-12)
+  expect_equal(columnas$mediana[columnas$columna == "e4"], 1e200,
+               tolerance = 1e-12)
+  expect_equal(columnas$mediana[columnas$columna == "e3"], 2.5e-300,
+               tolerance = 1e-12)
+})
