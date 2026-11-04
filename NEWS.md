@@ -190,6 +190,10 @@ Primera versión publicada.
   el paquete. Antes agregaba otra que hablaba de un presupuesto agotado («se
   comparó entre sí a las 0 primeras») y recomendaba subir
   `max_trabajo_vocabulario`, que no arreglaba nada.
+- Con `bloque_filas` y un controlador sin lectura incremental demostrada
+  —DuckDB, o uno que no está en la matriz—, el perfil sigue sin caer en
+  `dbGetQuery()`, pero ahora lo avisa (`lupa_aviso_muestra_motor`): antes todas
+  las métricas quedaban `no_disponible` y el motivo solo estaba en la cobertura.
 - Con `bloque_filas`, las columnas binarias se leen como largo y MD5, igual
   que en la muestra: con RMySQL el controlador ya no las trunca (un aviso por
   fila, y largos y distintos falsos), y en PostgreSQL, SQL Server y MariaDB los

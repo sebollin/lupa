@@ -281,8 +281,8 @@ tope. No modifica los agregados SQL.}
 de liberar la entrada; \code{NULL} conserva la via existente. El resultado
 publica \code{meta$alcance$orden}, \code{meta$bloques}, \code{meta$bytes} y los eventos del
 vigilante. Los drivers sin retencion incremental demostrada (incluido
-DuckDB en esta matriz) quedan \code{no_disponible} con su motivo, sin caer en
-\code{dbGetQuery()}. Si se pide \code{moda} o \code{mediana}, la lectura por bloques inicia tambien el mapa
+DuckDB en esta matriz) quedan \code{no_disponible} con su motivo y un aviso
+\code{lupa_aviso_muestra_motor}, sin caer en \code{dbGetQuery()}. Si se pide \code{moda} o \code{mediana}, la lectura por bloques inicia tambien el mapa
 central de distintos aunque \code{n_distintos} no se haya pedido: la mediana
 depende de ese mapa y la fila \code{n_distintos} conserva \code{no_solicitado}.
 Las columnas binarias compatibles se solicitan en la misma forma que la

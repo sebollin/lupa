@@ -3,7 +3,7 @@ test_that("DuckDB publica enteros anchos entregados como doble", {
   skip_if_not_installed("duckdb")
   skip_if_not_installed("DBI")
   conexion <- DBI::dbConnect(
-    duckdb::duckdb(shared_home = TRUE), dbdir = ":memory:"
+    duckdb::duckdb(), dbdir = ":memory:"
   )
   on.exit(try(duckdb::duckdb_shutdown(conexion), silent = TRUE), add = TRUE)
   DBI::dbExecute(conexion, paste0(
@@ -74,7 +74,7 @@ test_that("DuckDB no desborda HUGEINT extremo antes de su guarda", {
   skip_if_not_installed("duckdb")
   skip_if_not_installed("DBI")
   conexion <- DBI::dbConnect(
-    duckdb::duckdb(shared_home = TRUE), dbdir = ":memory:"
+    duckdb::duckdb(), dbdir = ":memory:"
   )
   on.exit(try(duckdb::duckdb_shutdown(conexion), silent = TRUE), add = TRUE)
   DBI::dbExecute(conexion, paste0(

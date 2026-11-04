@@ -21769,8 +21769,8 @@ print.plan_perfilado_dbi <- function(x, ...) {
 #'   de liberar la entrada; `NULL` conserva la via existente. El resultado
 #'   publica `meta$alcance$orden`, `meta$bloques`, `meta$bytes` y los eventos del
 #'   vigilante. Los drivers sin retencion incremental demostrada (incluido
-#'   DuckDB en esta matriz) quedan `no_disponible` con su motivo, sin caer en
-#'   `dbGetQuery()`. Si se pide `moda` o `mediana`, la lectura por bloques inicia tambien el mapa
+#'   DuckDB en esta matriz) quedan `no_disponible` con su motivo y un aviso
+#'   `lupa_aviso_muestra_motor`, sin caer en `dbGetQuery()`. Si se pide `moda` o `mediana`, la lectura por bloques inicia tambien el mapa
 #'   central de distintos aunque `n_distintos` no se haya pedido: la mediana
 #'   depende de ese mapa y la fila `n_distintos` conserva `no_solicitado`.
 #'   Las columnas binarias compatibles se solicitan en la misma forma que la
@@ -22272,6 +22272,21 @@ perfilar_dbi <- function(conexion, tabla,
       max_bytes_procesamiento = max_bytes_procesamiento,
       metricas_publicas = preparacion$metricas
     )
+    # Un controlador sin lectura incremental demostrada -DuckDB, o uno que no
+    # esta en la matriz- deja todas las metricas `no_disponible`, a proposito:
+    # no se cae en `dbGetQuery()`. Pero el motivo quedaba solo en la cobertura y
+    # en `meta$fuente_bloques`, y el perfil vacio llegaba sin una condicion.
+    fuente_bloques <- resultado$resumen_tabla$meta$fuente_bloques
+    if (is.list(fuente_bloques) && isFALSE(fuente_bloques$disponible)) {
+      .avisar_muestra_motor_dbi(
+        paste0(
+          "La lectura por bloques no esta disponible con este controlador (",
+          fuente_bloques$motivo, "): las metricas quedan `no_disponible`. ",
+          "Sin `bloque_filas`, el resumen se calcula en el motor con agregados."
+        ),
+        datos = list(motivo = fuente_bloques$motivo)
+      )
+    }
     resultado <- .aplicar_guardas_salida_muestra_dbi(
       resultado, incluir_valores = incluir_valores
     )
