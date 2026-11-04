@@ -83,6 +83,10 @@ test_that("la mediana extrema usa dos mitades en PostgreSQL y SQL Server", {
   par <- sort(runif(200L, 1e307, 1.7e308))
   impar <- sort(c(runif(200L, 1e307, 1.7e308), 1.1e307))
   probar <- function(con, tablas, tipo, valores) {
+    # La conexion llega como promesa: forzarla antes de registrar `on.exit`
+    # hace que un `skip()` por motor ausente ocurra aca y no dentro del
+    # `try()` de la limpieza, donde R avisa "restarting interrupted promise".
+    force(con)
     on.exit({
       for (tabla in tablas) {
         try(DBI::dbExecute(con, paste0("DROP TABLE IF EXISTS ", tabla)),
