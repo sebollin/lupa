@@ -364,7 +364,11 @@ perfilar_dbi(
   en `dbGetQuery()`. Si se pide `moda` o `mediana`, la lectura por
   bloques inicia tambien el mapa central de distintos aunque
   `n_distintos` no se haya pedido: la mediana depende de ese mapa y la
-  fila `n_distintos` conserva `no_solicitado`. Bajo `bloque_filas`,
+  fila `n_distintos` conserva `no_solicitado`. Las columnas binarias
+  compatibles se solicitan en la misma forma que la muestra,
+  `largo:md5`, para que R no materialice los bytes crudos; los largos
+  que se publican se reconstruyen desde el prefijo y son los largos
+  originales, no el largo de esa cadena. Bajo `bloque_filas`,
   `perfil_muestra` sigue siendo la muestra diagnóstica acotada por
   `muestra`, `max_celdas_muestra` y `max_bytes_muestra`; su
   `general$filas` no es la cobertura, que se publica en
@@ -474,9 +478,10 @@ no declarada. En `muestra_motor`, `resumen_tabla$tiempos` incluye
 materialización, lectura del spool y perfilado local;
 `perfil_muestra$meta$bytes_muestra` conserva los bytes del spool.
 `meta$muestreo$reintentos` y `meta$muestreo$metodo_inicial` describen la
-recuperación de una muestra corta. Las columnas binarias de motores
-compatibles se representan como `largo:md5` durante la lectura y el
-perfil publica sus largos originales; el contenido no se conserva.
+recuperación de una muestra corta. En `muestra_motor` o bajo
+`bloque_filas`, las columnas binarias de motores compatibles se
+representan como `largo:md5` durante la lectura y el perfil publica sus
+largos originales; el contenido no se conserva.
 
 ## Details
 
@@ -562,16 +567,19 @@ doble y contiene un valor con valor absoluto de al menos 2^53,
 siete**: `minimo`, `maximo`, `media`, `n_ceros`, `n_negativos`,
 `mediana` y `desvio`. La condicion es de la columna y no de la metrica,
 aunque las dos ultimas se calculen en otras consultas; lo que el motor
-cuenta con exactitud -`n_distintos`, la moda- se sigue publicando. Lo
-decide el valor: un decimal desde 2^53 ya no cabe en un doble
--90071992547409001 y 90071992547409002 son el mismo-, y el tipo solo
-dice que viene de un decimal: RPostgres lo publica como `numeric` sin
-precision y odbc con su codigo ODBC (2 y 3), asi que una regla que
-esperara `numeric(20,0)` no se ejerceria. Para la muestra, la seleccion
-SQL trae esas columnas como texto y, si `bit64` esta instalado, las
-convierte a `integer64` antes de perfilar: `n_distintos`, la moda y los
-diagnosticos por identidad conservan los valores exactos. Los
-estadisticos de magnitud por encima de 2^53 siguen usando
+cuenta con exactitud -`n_distintos`, la moda- se sigue publicando. La
+moda de un entero ancho que llego como `numeric` se pide al motor como
+texto exacto cuando la magnitud cruza 2^53; un `BIGINT` con valores
+chicos conserva la moda numerica de siempre. Lo decide el valor: un
+decimal desde 2^53 ya no cabe en un doble -90071992547409001 y
+90071992547409002 son el mismo-, y el tipo solo dice que viene de un
+decimal: RPostgres lo publica como `numeric` sin precision y odbc con su
+codigo ODBC (2 y 3), asi que una regla que esperara `numeric(20,0)` no
+se ejerceria. Para la muestra, la seleccion SQL trae esas columnas como
+texto y, si `bit64` esta instalado, las convierte a `integer64` antes de
+perfilar: `n_distintos`, la moda y los diagnosticos por identidad
+conservan los valores exactos. Los estadisticos de magnitud por encima
+de 2^53 siguen usando
 `estado_resumen_cuantitativo = "omitidos_precision"`, como en memoria.
 Si falta `bit64`, la columna queda como texto y `cobertura_diagnosticos`
 explica la limitacion y recomienda instalarlo o pedir `integer64` al
@@ -583,16 +591,17 @@ bits—: por debajo de 2^53 se opera con el valor exacto, y desde 2^53 las
 siete métricas quedan `no_disponible` con su motivo. Un decimal o un
 entero ancho que llega como doble desde 2^53 deja ademas `n_distintos` y
 `tasa_distintos` en `no_disponible`: con bloques se contarian en R sobre
-esos dobles, que no distinguen los valores. La moda de un decimal se le
-pide al motor como texto exacto en las tres vias, en PostgreSQL, SQL
-Server, MySQL y MariaDB; en otros motores sigue la regla de
-`n_distintos`. Las cifras de `perfil_muestra` de esa columna salen de
-los mismos dobles; sin bloques, la corroboracion avisa la diferencia en
-`n_distintos` y la moda contra las del motor. Un decimal por debajo de
-2^53 con mas cifras de las que guarda un doble -`numeric(30,20)`- no
-entra en esta guarda. Ninguna columna cambia la clase de un campo de la
-tabla: `minimo`, `maximo`, `media`, `mediana` y `desvio` de
-`resumen_tabla$columnas` son siempre dobles. Cuando
+esos dobles, que no distinguen los valores. La moda de un decimal, y la
+de un entero ancho entregado como `numeric`, se le pide al motor como
+texto exacto en las tres vias, en PostgreSQL, SQL Server, MySQL, MariaDB
+y DuckDB; si la via o el adaptador no puede construir esa forma, queda
+`no_disponible` con su motivo. Las cifras de `perfil_muestra` de esa
+columna salen de los mismos dobles; sin bloques, la corroboracion avisa
+la diferencia en `n_distintos` y la moda contra las del motor. Un
+decimal por debajo de 2^53 con mas cifras de las que guarda un doble
+-`numeric(30,20)`- no entra en esta guarda. Ninguna columna cambia la
+clase de un campo de la tabla: `minimo`, `maximo`, `media`, `mediana` y
+`desvio` de `resumen_tabla$columnas` son siempre dobles. Cuando
 `incluir_valores = FALSE`, la promesa de privacidad alcanza las tres
 vias de salida: resumen SQL, `perfil_muestra` y `bloque_filas`. Se
 omiten los valores de celda -incluidos moda, extremos, medianas,
@@ -1190,7 +1199,7 @@ eso no es lo mismo que la tabla en R:
   sobre su universo —y todas las métricas de la columna con
   `aplicabilidad` si la muestra dejó afuera valores presentes—; las
   métricas de magnitud de una columna de la que la muestra excluyó los
-  `sentinelas_numericos` declarados; y las de un entero de 64 bits desde
+  `sentinelas_numericos` declarados; y las de un entero ancho desde
   2^53, que el resumen no publica. Tampoco lo que un bloque no calculó:
   una métrica que `resumen_tabla$sql` declara `no_disponible` —el motor
   rechazó la consulta sobre el tipo (`json`, `xml` o `point` de

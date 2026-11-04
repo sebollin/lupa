@@ -1918,10 +1918,11 @@ SQL Server)</td>
 </tr>
 <tr class="odd">
 <td>cualquiera</td>
-<td>enteros de 64 bits o decimales que llegan como doble desde 2^53</td>
+<td>enteros de 64 bits (o <code>HUGEINT</code> y <code>UHUGEINT</code>
+en DuckDB) o decimales que llegan como doble desde 2^53</td>
 <td>las siete métricas de magnitud quedan <code>no_disponible</code>; la
-muestra lee esas columnas como texto y, con <code>bit64</code>, como
-<code>integer64</code>
+moda se le pide al motor como texto exacto; la muestra lee esas columnas
+como texto y, con <code>bit64</code>, como <code>integer64</code>
 </td>
 </tr>
 <tr class="even">
