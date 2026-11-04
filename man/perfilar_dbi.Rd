@@ -265,11 +265,15 @@ filas por columnas del esquema. Si reduce la muestra,
 \item{max_bytes_muestra}{Máximo de bytes de la muestra materializada que
 alimenta \code{perfil_muestra}. Por defecto es \verb{512 MiB}. En
 \code{muestra_motor}, el límite se cruza con el presupuesto de materialización
-y se resuelve antes de \code{dbFetch(n)} usando el catálogo o un bloque inicial
-pequeño. Si reduce la muestra, \code{meta$muestreo},
+y se respeta antes de cada \code{dbFetch(n)}: cuando la cota de tipos es
+demasiado conservadora se lee una fila inicial, se mide lo que ocupa en la
+materialización y los bloques siguientes se piden con el doble de margen
+sobre la fila más grande medida; el spool nunca pasa el tope. Si reduce la muestra, \code{meta$muestreo},
 \code{meta$materializacion} y \code{cobertura_diagnosticos} informan las filas
-solicitadas, efectivas y cuál tope mandó. \code{Inf} desactiva este tope. No
-modifica los agregados SQL.}
+solicitadas, efectivas y cuál tope mandó. \code{meta$muestreo$filas_por_bytes}
+publica la cantidad obtenida de la medicion y
+\code{meta$muestreo$filas_por_bytes_fuente} lo declara. \code{Inf} desactiva este
+tope. No modifica los agregados SQL.}
 
 \item{bloque_filas}{Entero positivo que activa el recorrido de
 \code{tabla_completa} por bloques. Se abre un unico result set con
@@ -913,9 +917,10 @@ el valor recibido: la corroboración lo deja como divergencia de una fecha,
 no como diferencia de cotejamiento. Para conservar el desplazamiento hay
 que leer la columna como texto o normalizarla en la consulta de origen.
 \item \strong{Extremos y equivalencia entre motores.} SQL Server puede desbordar al
-agregar un \code{float} que contiene \code{-DBL_MAX} o \code{+DBL_MAX}; en ese caso sus
-métricas de magnitud quedan \code{no_disponible} con el mensaje del motor,
-aunque la muestra conserve el valor. El mismo \code{real} puede mostrar una
+agregar un \code{float} que contiene \code{-DBL_MAX} o \code{+DBL_MAX}; en ese caso las
+métricas que desbordan quedan \code{no_disponible} con el mensaje del motor,
+aunque la muestra conserve el valor, y el desvío se recalcula escalado
+(ver «Magnitudes extremas»). El mismo \code{real} puede mostrar una
 última cifra distinta entre PostgreSQL y SQL Server porque RPostgres lee
 la forma decimal corta y FreeTDS/odbc entrega el \code{float32}; cada resumen
 es coherente con los valores que su controlador devolvió, pero la
@@ -933,7 +938,20 @@ sesión por omisión, esa misma combinación hace desbordar el motor y el
 mínimo, el máximo, la media y el desvío quedan \code{no_disponible}, con el
 error del motor como motivo: se declara, no se calcula. Si una columna que
 conserva ambos extremos finitos hace desbordar la suma de cuadrados, el
-desvío puede quedar \code{Inf}: es una limitación aritmética declarada.
+desvío se recalcula escalado.
+\item \strong{Magnitudes extremas.} Cuando el mínimo y el máximo ya medidos dejan el
+mayor valor absoluto fuera de \verb{[1e-150, 1e150]} —donde los cuadrados
+desbordan o caen en subnormales y pierden cifras—, el desvío se le pide al
+motor sobre \code{x / 2^k}, centrado en la media de esos mismos valores, y se
+multiplica por \code{2^k}: escalar por una potencia de dos es exacto, y no
+cuesta una consulta para decidirlo. En MySQL y MariaDB la media de esas
+columnas sale igual, \code{AVG(x / 2^k) * 2^k}, porque la suma de \code{AVG()}
+desborda; y por encima de \code{1e65} el centro va como doble, porque un
+\code{DECIMAL} tiene 65 cifras. Una columna constante da \code{0}. Si el motor no
+puede, la métrica queda \code{no_disponible} con su falla en
+\code{meta$consultas$fallas} y el aviso: no se publica \code{Inf} ni un \code{0} sobre
+valores distintos. \code{perfilar()} escala igual al acumular por bloques. Las
+columnas de magnitud común no cambian de consulta ni de cifra.
 \item \strong{La media en coma flotante.} Cada lado suma a su modo; sobre una columna
 que mezcla magnitudes muy distintas —\code{1e20} junto a \code{1}— las medias pueden
 diferir entre motores y con la de R, y ninguna es la exacta. La

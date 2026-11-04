@@ -1491,8 +1491,15 @@
   }
   frecuencia <- suppressWarnings(as.numeric(columnas[["frecuencia_moda"]]))
   distintos <- suppressWarnings(as.numeric(columnas[["n_distintos"]]))
-  sin_moda <- !is.na(frecuencia) & !is.na(distintos) &
-    frecuencia == 1 & distintos > 1
+  validos <- if ("n_validos" %in% names(columnas)) {
+    suppressWarnings(as.numeric(columnas[["n_validos"]]))
+  } else rep(NA_real_, nrow(columnas))
+  # Sin `n_distintos` -no se pidio, o su consulta se corto por tiempo- la
+  # frecuencia 1 sobre dos o mas valores validos dice lo mismo: ninguno se
+  # repite. Antes esa columna publicaba como moda el primero del orden.
+  varios <- (!is.na(distintos) & distintos > 1) |
+    (is.na(distintos) & !is.na(validos) & validos > 1)
+  sin_moda <- !is.na(frecuencia) & frecuencia == 1 & varios
   # Tambien en una columna protegida. La proteccion tapa un valor; no cambia
   # el hecho de que no lo hay. Antes la protegida quedaba con el marcador
   # `[valor protegido]` -la misma escritura que una columna que SI tiene moda-

@@ -190,11 +190,15 @@ filas por columnas del esquema. Si reduce la muestra,
 \item{max_bytes_muestra}{Máximo de bytes de la muestra materializada que
 alimenta \code{perfil_muestra}. Por defecto es \verb{512 MiB}. En
 \code{muestra_motor}, el límite se cruza con el presupuesto de materialización
-y se resuelve antes de \code{dbFetch(n)} usando el catálogo o un bloque inicial
-pequeño. Si reduce la muestra, \code{meta$muestreo},
+y se respeta antes de cada \code{dbFetch(n)}: cuando la cota de tipos es
+demasiado conservadora se lee una fila inicial, se mide lo que ocupa en la
+materialización y los bloques siguientes se piden con el doble de margen
+sobre la fila más grande medida; el spool nunca pasa el tope. Si reduce la muestra, \code{meta$muestreo},
 \code{meta$materializacion} y \code{cobertura_diagnosticos} informan las filas
-solicitadas, efectivas y cuál tope mandó. \code{Inf} desactiva este tope. No
-modifica los agregados SQL.}
+solicitadas, efectivas y cuál tope mandó. \code{meta$muestreo$filas_por_bytes}
+publica la cantidad obtenida de la medicion y
+\code{meta$muestreo$filas_por_bytes_fuente} lo declara. \code{Inf} desactiva este
+tope. No modifica los agregados SQL.}
 
 \item{bloque_filas}{Entero positivo que activa la fuente por
 bloques de \code{tabla_completa}. Cada bloque se obtiene con un unico result

@@ -83,6 +83,11 @@
       nombre = "information_schema",
       motores = "MySQL, SQL Server",
       sql = function(esquema, tabla, motor = "desconocido") {
+        posicion <- if (identical(motor, "mysql")) {
+          "CAST(k.ordinal_position AS SIGNED)"
+        } else {
+          "k.ordinal_position"
+        }
         estado <- if (identical(motor, "mysql")) {
           ", t.enforced AS constraint_enforced"
         } else {
@@ -130,7 +135,7 @@
           ""
         }
         paste0(
-          "SELECT k.column_name, k.ordinal_position", estado, ", ",
+          "SELECT k.column_name, ", posicion, " AS ordinal_position", estado, ", ",
           "t.table_schema AS constraint_esquema, ",
           "t.constraint_name AS constraint_nombre ",
           "FROM information_schema.table_constraints t ",

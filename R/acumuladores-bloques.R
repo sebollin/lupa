@@ -125,8 +125,13 @@
       n_ceros = 0, n_negativos = 0
     ),
     cuantitativos = list(
-      n = 0, media = 0, m2 = 0, centro = NA_real_, minimo = Inf,
+      n = 0, media = 0, media_abs = 0, m2 = 0, centro = NA_real_, minimo = Inf,
       maximo = -Inf,
+      escala = if (length(configuracion$configuracion$escala) == 1L &&
+                   is.finite(configuracion$configuracion$escala) &&
+                   configuracion$configuracion$escala > 0) {
+        as.numeric(configuracion$configuracion$escala)
+      } else 1,
       n_nan = 0, n_infinito_positivo = 0, n_infinito_negativo = 0,
       n_ceros = 0, n_negativos = 0, contar_signos = TRUE
     ),
@@ -599,15 +604,29 @@
   # lejos del de R, porque la diferencia entre dos medias de 1,76e12 conserva
   # pocas cifras. Centrado, esa diferencia es la de dos medias
   # chicas. Ver `.formas_desvio_dbi()`, la misma propiedad en el motor.
-  centro <- .centro_cuantitativo_bloques(estado, finitos)
+  escala <- if (length(estado$escala) == 1L && is.finite(estado$escala) &&
+                estado$escala > 0) estado$escala else 1
+  escalado <- !identical(escala, 1)
+  valores_operacion <- if (escalado) finitos / escala else finitos
+  centro <- if (escalado && !isTRUE(estado$n > 0)) {
+    sum(valores_operacion) / length(valores_operacion)
+  } else {
+    .centro_cuantitativo_bloques(estado, valores_operacion)
+  }
   estado$centro <- centro
-  centrados <- finitos - centro
+  centrados <- valores_operacion - centro
   n_bloque <- length(centrados)
-  media_bloque <- mean(centrados)
+  media_bloque <- if (escalado) sum(centrados) / n_bloque else {
+    mean(centrados)
+  }
+  media_bloque_abs <- if (escalado) {
+    sum(valores_operacion) / n_bloque
+  } else NULL
   diferencias <- centrados - media_bloque
   m2_bloque <- sum(diferencias * diferencias)
   if (estado$n == 0L) {
     estado$media <- media_bloque
+    if (escalado) estado$media_abs <- media_bloque_abs
     estado$m2 <- m2_bloque
     estado$n <- n_bloque
   } else {
@@ -616,6 +635,10 @@
     estado$m2 <- estado$m2 + m2_bloque +
       diferencia * diferencia * estado$n * n_bloque / total
     estado$media <- estado$media + diferencia * n_bloque / total
+    if (escalado) {
+      estado$media_abs <- estado$media_abs +
+        (media_bloque_abs - estado$media_abs) * n_bloque / total
+    }
     estado$n <- total
   }
   estado$minimo <- min(estado$minimo, min(finitos))
@@ -1407,6 +1430,17 @@
   diferencia <- media_b - a$media
   a$m2 <- a$m2 + b$m2 + diferencia * diferencia * a$n * b$n / total
   a$media <- a$media + diferencia * b$n / total
+  escala_a <- if (length(a$escala) == 1L && is.finite(a$escala) &&
+                  a$escala > 0) a$escala else 1
+  if (!identical(escala_a, 1)) {
+    media_a_abs <- if (length(a$media_abs) == 1L) a$media_abs else {
+      .centro_estado_bloques(a) + a$media
+    }
+    media_b_abs <- if (length(b$media_abs) == 1L) b$media_abs else {
+      .centro_estado_bloques(b) + b$media
+    }
+    a$media_abs <- media_a_abs + (media_b_abs - media_a_abs) * b$n / total
+  }
   a$n <- total
   a$minimo <- min(a$minimo, b$minimo)
   a$maximo <- max(a$maximo, b$maximo)
@@ -1788,10 +1822,23 @@
              n_infinito_negativo = estado$n_infinito_negativo,
              n_ceros = estado$n_ceros, n_negativos = estado$n_negativos)
       } else {
+        escala <- if (length(estado$escala) == 1L &&
+                      is.finite(estado$escala) && estado$escala > 0) {
+          estado$escala
+        } else 1
+        media <- .centro_estado_bloques(estado) + estado$media
+        desvio <- if (estado$n > 1L) {
+          sqrt(estado$m2 / (estado$n - 1))
+        } else NA_real_
+        if (!identical(escala, 1)) {
+          media <- (if (length(estado$media_abs) == 1L) {
+            estado$media_abs
+          } else media) * escala
+          desvio <- desvio * escala
+        }
         list(
           minimo = estado$minimo, maximo = estado$maximo,
-          media = .centro_estado_bloques(estado) + estado$media,
-          desvio = if (estado$n > 1L) sqrt(estado$m2 / (estado$n - 1)) else NA_real_,
+          media = media, desvio = desvio,
           n_evaluados = estado$n, n_nan = estado$n_nan,
           n_infinito_positivo = estado$n_infinito_positivo,
           n_infinito_negativo = estado$n_infinito_negativo,
@@ -2115,6 +2162,12 @@
     .detener("`aplicable` debe ser logico y tener el largo del vector.",
          call. = FALSE)
   }
+  if (identical(familia, "cuantitativos") &&
+      (is.null(configuracion$escala) || !length(configuracion$escala))) {
+    finitos <- suppressWarnings(x[is.finite(x)])
+    max_abs <- if (length(finitos)) max(abs(finitos)) else 0
+    configuracion$escala <- .escala_extrema_bloques(max_abs)
+  }
   acumulador <- .iniciar_acumulador(
     "vector", typeof(x), familia = familia,
     configuracion = configuracion,
@@ -2169,6 +2222,16 @@
   }
   list(acumulador = acumulador, resultado = resultado,
        vigilante = vigilante)
+}
+
+.escala_extrema_bloques <- function(max_abs) {
+  max_abs <- suppressWarnings(as.numeric(max_abs))
+  if (length(max_abs) != 1L || !is.finite(max_abs) || max_abs == 0 ||
+      (max_abs >= 1e-150 && max_abs <= 1e150)) {
+    return(1)
+  }
+  escala <- 2^(floor(log2(max_abs)) - 1)
+  if (!is.finite(escala) || escala == 0) 1 else escala
 }
 
 .mapa_distintos_bloques <- function(x, k = NULL, tamano = 10000L,
@@ -2248,9 +2311,18 @@
   } else {
     NULL
   }
+  valores_escala <- if (length(excluir)) {
+    coincide <- tryCatch(x %in% excluir, error = function(e) NULL)
+    if (is.null(coincide) || length(coincide) != length(x)) x else x[!coincide]
+  } else x
+  finitos_escala <- suppressWarnings(valores_escala[is.finite(valores_escala)])
+  max_abs <- if (length(finitos_escala)) max(abs(finitos_escala)) else 0
   ejecucion <- .ejecutar_vector_bloques(
     x, "cuantitativos", k = k, tamano = tamano, max_bytes = max_bytes,
-    configuracion = list(contar_signos = isTRUE(contar_signos)),
+    configuracion = list(
+      contar_signos = isTRUE(contar_signos),
+      escala = .escala_extrema_bloques(max_abs)
+    ),
     aplicable = aplicable
   )
   salida <- ejecucion$resultado$resultado

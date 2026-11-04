@@ -165,7 +165,15 @@
       raw <- .serializar_spool_dbi(registro)
       escritor$truncada <- TRUE
     } else {
-      escritor$motivo <- motivo
+      # Un chunk posterior puede no entrar aunque el prefijo ya sea un spool
+      # valido. En ese caso se cierra como materializacion recortada y se
+      # conserva lo que entro; solo la primera fila que no cabe deja la
+      # materializacion sin resultado util y conserva el fallo historico.
+      if (escritor$n_filas > 0L) {
+        escritor$truncada <- TRUE
+      } else {
+        escritor$motivo <- motivo
+      }
     }
     escritor$eventos <- rbind(
       escritor$eventos,
@@ -175,7 +183,10 @@
         bytes_retenidos = bytes_antes, bytes_resultado = length(raw)
       )
     )
-    if (!is.null(escritor$motivo)) return(escritor)
+    if (!is.null(escritor$motivo) ||
+        (isTRUE(escritor$truncada) && aceptadas == 0L)) {
+      return(escritor)
+    }
   }
   escrito <- tryCatch({
     writeBin(raw, escritor$conexion)
@@ -607,7 +618,8 @@
                                            bloque_filas = 10000,
                                            max_bytes = Inf, backend = NULL,
                                            max_filas = Inf,
-                                           bytes_por_fila_max = NA_real_) {
+                                           bytes_por_fila_max = NA_real_,
+                                           medir_bytes = FALSE) {
   max_bytes <- .validar_presupuesto_bytes_dbi(
     max_bytes, "max_bytes_materializacion"
   )
@@ -666,6 +678,7 @@
   error_lectura <- NULL
   fetches <- 0L
   bytes_traidos_r <- 0
+  bytes_por_fila_medido <- NA_real_
   resultado <- tryCatch(
     .enviar_consulta_dbi(conexion, sql),
     error = function(e) {
@@ -691,10 +704,13 @@
     }
     if (is.finite(max_bytes)) {
       saldo <- max_bytes - escritor$estado$bytes - escritor$trailer_reserva
-      capacidad <- if (is.finite(bytes_por_fila_max) && bytes_por_fila_max > 0) {
-        floor(saldo / bytes_por_fila_max)
-      } else NA_real_
-      if (is.finite(capacidad) && capacidad < 1) {
+      # La cota de tipos solo decide que se puede pedir al menos una fila en la
+      # via adaptativa. Una vez que llega, la capacidad se mide con la fila
+      # real; pedir un bloque calculado con la cota conservadora era lo que
+      # convertia una tabla de filas chicas en una muestra vacia. Una fila por
+      # fetch mantiene tambien el tope de memoria si la fila siguiente es mas
+      # grande que la primera.
+      if (saldo < 1) {
         escritor$truncada <- TRUE
         escritor$eventos <- rbind(
           escritor$eventos,
@@ -708,8 +724,40 @@
         )
         break
       }
-      n_pedir <- if (is.finite(capacidad)) min(n_pedir, capacidad) else {
-        min(n_pedir, 100L)
+      if (isTRUE(medir_bytes)) {
+        # La primera fila se pide sola y se mide; las siguientes, en bloques
+        # con el doble de margen sobre la fila mas grande medida hasta ahi. Fila
+        # por fila costaba unos 12 ms cada una: 3.196 filas de 3 KB bajo un
+        # tope de 10 MB tardaban 39 s. El escritor sigue sin pasar el tope
+        # aunque una fila posterior sea mas grande que las medidas.
+        n_pedir <- if (is.finite(bytes_por_fila_medido) &&
+                       bytes_por_fila_medido > 0) {
+          max(1L, min(n_pedir, as.integer(floor(
+            saldo / (2 * bytes_por_fila_medido)
+          ))))
+        } else 1L
+      } else {
+        capacidad <- if (is.finite(bytes_por_fila_max) &&
+                         bytes_por_fila_max > 0) {
+          floor(saldo / bytes_por_fila_max)
+        } else NA_real_
+        if (is.finite(capacidad) && capacidad < 1) {
+          escritor$truncada <- TRUE
+          escritor$eventos <- rbind(
+            escritor$eventos,
+            .evento_spool_dbi(
+              "spool_presupuesto_excedido",
+              "muestra_inestable:presupuesto_materializacion",
+              bloque_id = escritor$bloque_id + 1L,
+              bytes_retenidos = escritor$estado$bytes,
+              bytes_resultado = NA_real_
+            )
+          )
+          break
+        }
+        n_pedir <- if (is.finite(capacidad)) min(n_pedir, capacidad) else {
+          min(n_pedir, 100L)
+        }
       }
     } else if (!is.finite(bytes_por_fila_max)) {
       # Sin una cota del motor se sondea un bloque pequeno y la escritura
@@ -731,19 +779,20 @@
     fetches <- fetches + 1L
     if (!is.null(error_lectura)) break
     if (is.null(datos) || !nrow(datos)) break
-    bytes_traidos_r <- bytes_traidos_r + as.numeric(utils::object.size(datos))
+    bytes_bloque_r <- as.numeric(utils::object.size(datos))
+    bytes_traidos_r <- bytes_traidos_r + bytes_bloque_r
     escritor <- .escribir_chunk_spool_muestra_dbi(escritor, datos)
     n_filas <- escritor$n_filas
     if (!is.null(escritor$motivo)) break
-    if (isTRUE(escritor$truncada)) break
-    if (is.finite(max_bytes) && nrow(datos) > 0L) {
-      if (!is.finite(bytes_por_fila_max)) {
-        bytes_fila <- tail(escritor$bytes_bloques, 1L) / nrow(datos)
-        if (is.finite(bytes_fila) && bytes_fila > 0) {
-          bytes_por_fila_max <- bytes_fila * 2
-        }
-      }
+    bytes_chunk <- tail(escritor$bytes_bloques, 1L)
+    if (length(bytes_chunk) && nrow(datos) > 0L) {
+      bytes_por_fila_medido <- max(
+        bytes_por_fila_medido,
+        bytes_bloque_r / nrow(datos),
+        as.numeric(bytes_chunk) / nrow(datos), na.rm = TRUE
+      )
     }
+    if (isTRUE(escritor$truncada)) break
     completado <- tryCatch(DBI::dbHasCompleted(resultado), error = function(e) NA)
     if (isTRUE(completado)) break
   }
@@ -796,7 +845,8 @@
     eventos = cerrado$eventos, header = verificada$header,
     trailer = verificada$trailer, max_filas = max_filas,
     truncada = isTRUE(cerrado$truncada),
-    bytes_por_fila_max = bytes_por_fila_max
+    bytes_por_fila_max = bytes_por_fila_max,
+    bytes_por_fila_medido = bytes_por_fila_medido
   )
 }
 
@@ -1045,24 +1095,30 @@
     preparacion$muestra_motor, n_total, length(campos),
     max_celdas_muestra, max_bytes_muestra
   )
+  # La cota de tipos no se convierte en una cantidad final de filas: con
+  # `text`, `bytea` y otros tipos sin largo declarado puede ser varios ordenes
+  # mayor que la fila real. La lectura se inicia con una fila y el materializador
+  # mide cada fila que conserva.
   filas_por_catalogo <- Inf
+  filas_por_bytes_cota <- Inf
   if (is.finite(max_bytes_materializacion) || is.finite(max_bytes_muestra)) {
     presupuesto_filas_bytes <- min(
       if (is.finite(max_bytes_materializacion)) max_bytes_materializacion else Inf,
       if (is.finite(max_bytes_muestra)) max_bytes_muestra else Inf
     )
     fila_maxima <- estimacion_bytes$bytes_por_fila_max
-    filas_por_catalogo <- if (is.finite(fila_maxima) && fila_maxima > 0) {
+    filas_por_bytes_cota <- if (is.finite(fila_maxima) && fila_maxima > 0) {
       floor(presupuesto_filas_bytes / fila_maxima)
     } else Inf
-    if (filas_por_catalogo < 1 && alcance$filas_solicitadas > 0) {
-      filas_por_catalogo <- 1
-    }
   }
   filas_efectivas <- min(alcance$filas_efectivas, filas_por_catalogo)
-  alcance$filas_por_bytes <- filas_por_catalogo
+  alcance$filas_por_bytes <- NA_real_
   alcance$filas_efectivas <- filas_efectivas
   alcance$celdas_efectivas <- filas_efectivas * length(campos)
+  medir_bytes <- is.finite(max_bytes_lectura) &&
+    max_bytes_lectura < .MAX_BYTES_MUESTRA && (
+    !is.finite(filas_por_bytes_cota) || filas_por_bytes_cota <= 100
+  )
   filas_pedidas_motor <- filas_efectivas
   id_consulta_n <- if (!is.null(consulta_n)) {
     suppressWarnings(as.integer(consulta_n$consulta_id))
@@ -1111,8 +1167,11 @@
   sql_muestra <- if (is.null(fuente)) NA_character_ else fuente$sql
   bloque_filas <- bloque_filas %||% max(1, min(10000, filas_pedidas_motor))
   if (is.finite(max_bytes_lectura)) {
-    if (is.finite(estimacion_bytes$bytes_por_fila_max) &&
-        estimacion_bytes$bytes_por_fila_max > 0) {
+    # Con `medir_bytes`, el tamano de cada lectura lo decide la medicion dentro
+    # del bucle del materializador: la primera fila va sola.
+    if (!isTRUE(medir_bytes) &&
+        is.finite(estimacion_bytes$bytes_por_fila_max) &&
+               estimacion_bytes$bytes_por_fila_max > 0) {
       propuesta <- floor(
         max_bytes_lectura / estimacion_bytes$bytes_por_fila_max
       )
@@ -1138,7 +1197,8 @@
       presupuesto, bloque_filas = bloque_filas,
       max_bytes = max_bytes_lectura, backend = backend,
       max_filas = filas_efectivas,
-      bytes_por_fila_max = estimacion_bytes$bytes_por_fila_max
+      bytes_por_fila_max = estimacion_bytes$bytes_por_fila_max,
+      medir_bytes = medir_bytes
     )
     .registrar_etapa_dbi(
       trazador, "materializacion_muestra", inicio_materializacion,
@@ -1266,7 +1326,8 @@
           presupuesto, bloque_filas = bloque_filas,
           max_bytes = max_bytes_lectura, backend = backend,
           max_filas = filas_efectivas,
-          bytes_por_fila_max = estimacion_bytes$bytes_por_fila_max
+          bytes_por_fila_max = estimacion_bytes$bytes_por_fila_max,
+          medir_bytes = medir_bytes
         )
         .registrar_etapa_dbi(
           trazador, "materializacion_muestra", inicio_materializacion,
@@ -1346,6 +1407,16 @@
   publico$filas_por_bytes <- alcance$filas_por_bytes
   publico$bytes_por_fila_estimados <- estimacion_bytes$bytes_por_fila
   publico$estimacion_bytes <- estimacion_bytes
+  # Una materializacion truncada y verificada puede contener cero filas. Se
+  # conserva ese cero aunque la lectura de chunks se marque inutil para el
+  # perfil: `NA` significaria que no se pudo saber cuantas filas llegaron.
+  # Solo el cero: si la lectura falla con filas materializadas, al perfil no
+  # llego ninguna y publicar su numero seria afirmar una muestra que no hay.
+  spool_n_filas_verificado <- if (!is.null(spool) && isTRUE(spool$ok) &&
+                                  length(spool$n_filas) == 1L &&
+                                  identical(as.numeric(spool$n_filas), 0)) {
+    0
+  } else NA_real_
   if (!is.null(spool) && isTRUE(spool$ok)) {
     inicio_lectura_spool <- if (!is.null(trazador) &&
                                 isTRUE(trazador$activo)) .ahora_dbi() else NULL
@@ -1374,15 +1445,32 @@
     leido <- list(ok = FALSE, motivo = motivo)
   }
   spool_valido <- isTRUE(leido$ok)
-  n_filas_spool <- if (spool_valido) as.numeric(leido$n_filas) else NA_real_
+  n_filas_spool <- if (spool_valido) as.numeric(leido$n_filas) else
+    spool_n_filas_verificado
   n_chunks_spool <- if (spool_valido) as.integer(leido$n_chunks) else 0L
   fetches_spool <- if (!is.null(spool)) as.integer(spool$fetches %||% 0L) else 0L
+  filas_por_bytes_medidas <- if (is.finite(max_bytes_lectura) &&
+                                 spool_valido) n_filas_spool else NA_real_
+  fuente_filas_por_bytes <- if (!is.finite(max_bytes_lectura)) {
+    "no_aplica"
+  } else if (spool_valido) {
+    "medicion_materializacion"
+  } else {
+    "no_disponible"
+  }
+  bytes_por_fila_medido <- if (!is.null(spool) && spool_valido &&
+                               n_filas_spool > 0) {
+    as.numeric(spool$bytes_por_fila_medido %||% NA_real_)
+  } else NA_real_
+  alcance$filas_por_bytes <- filas_por_bytes_medidas
   publico$reintentos <- reintentos_muestreo
   publico$metodo_inicial <- metodo_inicial
   publico$metodo_reintento <- metodo_reintento
   publico$motivo_reintento <- motivo_reintento
   publico$politica_aleatoria_reintento <- guardia_reintento
-  publico$filas_obtenidas <- if (spool_valido) n_filas_spool else NA_real_
+  publico$filas_obtenidas <- if (is.finite(n_filas_spool)) {
+    n_filas_spool
+  } else NA_real_
   if (spool_valido) {
     publico$fraccion_solicitada <- publico$fraccion
     publico$fraccion <- .fraccion_muestreo_dbi(n_filas_spool, n_total)
@@ -1398,9 +1486,8 @@
   )
   recorte_celdas <- is.finite(alcance$filas_por_celdas) &&
     alcance$filas_por_celdas < filas_base
-  recorte_bytes_prelectura <- is.finite(filas_por_catalogo) &&
-    filas_por_catalogo < filas_base
-  recorte_bytes <- recorte_bytes_prelectura || isTRUE(spool$truncada)
+  recorte_bytes_prelectura <- FALSE
+  recorte_bytes <- isTRUE(spool$truncada)
   recorte_procesamiento <- FALSE
   recorte_topes <- recorte_celdas || recorte_bytes
   materializacion$fraccion_materializada <- if (
@@ -1410,6 +1497,10 @@
     recorte_celdas
   ) "celdas" else NA_character_
   materializacion$bytes_por_fila_max <- estimacion_bytes$bytes_por_fila_max
+  materializacion$filas_por_bytes_cota <- filas_por_bytes_cota
+  materializacion$filas_por_bytes_fuente <- fuente_filas_por_bytes
+  materializacion$filas_por_bytes <- filas_por_bytes_medidas
+  materializacion$bytes_por_fila_medido <- bytes_por_fila_medido
   materializacion$recortada <- recorte_bytes
   if (recorte_bytes && (is.null(materializacion$motivo) ||
                         is.na(materializacion$motivo))) {
@@ -1448,6 +1539,10 @@
       publico$fraccion <- .fraccion_muestreo_dbi(leido$n_filas, n_total)
     }
   }
+  publico$filas_por_bytes <- filas_por_bytes_medidas
+  publico$filas_por_bytes_fuente <- fuente_filas_por_bytes
+  publico$filas_por_bytes_cota <- filas_por_bytes_cota
+  publico$bytes_por_fila_medido <- bytes_por_fila_medido
   datos_materializados <- if (isTRUE(leido$ok)) {
     if (length(leido$chunks)) do.call(rbind, leido$chunks) else {
       as.data.frame(stats::setNames(replicate(length(campos), logical(), simplify = FALSE),
@@ -1826,6 +1921,14 @@
     columnas$n <- .conteo_dbi(n_total)
   }
   metricas <- preparacion$metricas_ejecucion
+  # Si no hubo muestra, `metricas_ejecucion` puede quedar vacio porque la
+  # capacidad de muestreo se rechazo durante la preparacion. Igual hay que
+  # publicar cada metrica solicitada como no calculada: quitar las filas haria
+  # parecer que nunca se pidieron. Cuando hay perfil, se conserva la lista de
+  # ejecucion para no publicar estrategias que el plan retiro.
+  metricas_registro <- if (is.null(perfil)) {
+    preparacion$metricas
+  } else metricas
   registros <- list(.registro_sql_dbi(
     campos, rep("n", length(campos)), "calculado", NA_character_,
     preparacion$sql_conteo,
@@ -1839,7 +1942,9 @@
     etapa = "conteo_filas"
   ))
   for (i in seq_along(campos)) {
-    campos_metrica <- unlist(.CAMPOS_METRICA_DBI[metricas], use.names = FALSE)
+    campos_metrica <- unlist(
+      .CAMPOS_METRICA_DBI[metricas_registro], use.names = FALSE
+    )
     if (!length(campos_metrica)) next
     registros[[length(registros) + 1L]] <- .registro_sql_dbi(
       campos[[i]], campos_metrica,

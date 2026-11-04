@@ -11,16 +11,6 @@
       bloque_muestra = bloque, proteger_datos_personales = FALSE
     ),
     warning = function(w) {
-      # RMySQL avisa por su propia conversion de INTEGER y DECIMAL a numeric;
-      # no es una condicion de lupa y no debe tapar sus avisos de degradacion.
-      ruido_rmysql <- grepl(
-        "MySQL column|Unsigned INTEGER|unrecognized MySQL field type",
-        conditionMessage(w),
-        fixed = FALSE, useBytes = TRUE
-      )
-      if (ruido_rmysql) {
-        invokeRestart("muffleWarning")
-      }
       avisos[[length(avisos) + 1L]] <<- w
       invokeRestart("muffleWarning")
     }
