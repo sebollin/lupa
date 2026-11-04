@@ -185,6 +185,17 @@ Primera versión publicada.
   cuando llega un bloque que la escala vigente no cubre. La moda de una columna
   binaria también sale en esa vía, como largo y MD5, y una columna `image` de
   SQL Server publica su moda.
+- Con `bloque_filas`, las columnas binarias se leen como largo y MD5, igual
+  que en la muestra: con RMySQL el controlador ya no las trunca (un aviso por
+  fila, y largos y distintos falsos), y en PostgreSQL, SQL Server y MariaDB los
+  distintos y los largos dejan de quedar no disponibles.
+- La moda de un entero de 2^53 o más que el controlador entrega como doble —en
+  DuckDB `BIGINT`, `UBIGINT`, `HUGEINT` y `UHUGEINT`, y con RMySQL— ya no sale
+  con cifras falsas (`1234567890123456768` por `1234567890123456789`): se pide
+  como texto exacto, también con `bloque_filas`. En DuckDB, un `UHUGEINT` de esa
+  magnitud ya no publica mínimo, máximo, media ni mediana falsos, y la mediana
+  de un `HUGEINT` cerca de su tope, cuya consulta de básicos desborda en el
+  motor, queda no disponible en vez de publicarse como un doble.
 - Con `bloque_filas`, una columna de un solo valor o vacía ya no publica `NA`
   como calculado: el desvío queda `no_aplica` y las métricas de una columna
   vacía, `sin_valores`. Y con RMariaDB un `bigint unsigned` mayor que 2^63, que
@@ -194,7 +205,7 @@ Primera versión publicada.
   calculada.
 - La moda de un decimal de 2^53 o más ya no sale con cifras falsas
   (`12345678901234567168` por `12345678901234567890`): se le pide al motor como
-  texto exacto en PostgreSQL, SQL Server, MySQL y MariaDB. Con
+  texto exacto en PostgreSQL, SQL Server, MySQL, MariaDB y DuckDB. Con
   `incluir_valores = FALSE`, el motivo de precisión de esas columnas ya no se
   reemplaza por uno de privacidad.
 - En PostgreSQL, un `NaN` en la columna ya no deja el mínimo, el máximo, la

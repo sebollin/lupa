@@ -1092,7 +1092,7 @@ detalle completo está en la sección «Lo que el motor guarda distinto que R» 
 | SQL Server | `STDEV` acumula en una pasada y pierde cifras con medias grandes | el desvío se pide sobre los valores centrados en la media |
 | SQL Server | no admite `COUNT(DISTINCT)`, `GROUP BY`, `ORDER BY` ni `MIN`/`MAX` sobre `text`, `ntext`, `image`, `xml` y `geography` | esas métricas quedan `no_disponible` sin enviar la sentencia |
 | cualquiera | el cotejamiento de la columna agrupa valores que R distingue (`COLLATE NOCASE`, ICU no determinista, espacios finales en SQL Server) | `meta$criterio_comparacion` y `meta$criterio_moda` lo declaran; la corroboración lo deja `no_corroborada`, no `divergencia` |
-| cualquiera | enteros de 64 bits o decimales que llegan como doble desde 2^53 | las siete métricas de magnitud quedan `no_disponible`; la muestra lee esas columnas como texto y, con `bit64`, como `integer64` |
+| cualquiera | enteros de 64 bits (o `HUGEINT` y `UHUGEINT` en DuckDB) o decimales que llegan como doble desde 2^53 | las siete métricas de magnitud quedan `no_disponible`; la moda se le pide al motor como texto exacto; la muestra lee esas columnas como texto y, con `bit64`, como `integer64` |
 | cualquiera | cada motor suma a su modo, y con valores que se cancelan las medias difieren entre motores y con la de R | la media se pide como doble donde la aritmética decimal la recortaría; la corroboración declara la diferencia |
 
 La media de `{1e16, 1, -1e16}` es 1/3. Cada vía la calcula a su modo, y ninguna

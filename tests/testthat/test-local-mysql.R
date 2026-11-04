@@ -917,3 +917,127 @@ test_that("R15 calcula medianas extremas en MariaDB", {
   expect_equal(columnas$mediana[columnas$columna == "e3"], 2.5e-300,
                tolerance = 1e-12)
 })
+
+test_that("MySQL y MariaDB leen binarias por bloques sin avisos", {
+  skip_on_cran()
+  hex <- function() {
+    i <- seq_len(300L)
+    ifelse(i <= 40L, "0a0b0c", sprintf(
+      "%02x%02x%02x%02x", i %% 256L, (i * 7L) %% 256L, i %/% 256L, 1L
+    ))
+  }
+  sin_avisos <- function(expr) {
+    avisos <- character()
+    valor <- withCallingHandlers(expr, warning = function(aviso) {
+      avisos <<- c(avisos, conditionMessage(aviso))
+      invokeRestart("muffleWarning")
+    })
+    list(valor = valor, avisos = avisos)
+  }
+  probar <- function(maria = FALSE) {
+    con <- .arrm_con_mysql(maria)
+    motor <- if (maria) "maria" else "mysql"
+    tabla <- paste0("a2561_bin_bloques_", motor)
+    on.exit({
+      try(DBI::dbExecute(con, paste0("DROP TABLE IF EXISTS ", tabla)),
+          silent = TRUE)
+      DBI::dbDisconnect(con)
+    }, add = TRUE)
+    DBI::dbExecute(con, paste0(
+      "CREATE TABLE ", tabla, " (id INT, bin VARBINARY(100))"
+    ))
+    filas <- paste0("(", seq_len(300L), ",UNHEX('", hex(), "'))")
+    for (lote in split(filas, ceiling(seq_along(filas) / 100L))) {
+      DBI::dbExecute(con, paste0(
+        "INSERT INTO ", tabla, " VALUES ", paste(lote, collapse = ",")
+      ))
+    }
+    bloques <- sin_avisos(perfilar_dbi(
+      con, tabla, universo = "tabla_completa",
+      bloque_muestra = "con_muestra", muestra = 1000L,
+      bloque_filas = 400L, proteger_datos_personales = FALSE
+    ))
+    muestra <- sin_avisos(perfilar_dbi(
+      con, tabla, universo = "tabla_completa",
+      bloque_muestra = "con_muestra", muestra = 1000L,
+      proteger_datos_personales = FALSE
+    ))
+    expect_length(bloques$avisos, 0L)
+    expect_length(muestra$avisos, 0L)
+    fila_bloques <- bloques$valor$resumen_tabla$columnas
+    fila_bloques <- fila_bloques[
+      fila_bloques$columna == "bin", , drop = FALSE
+    ]
+    fila_muestra <- muestra$valor$perfil_muestra$columnas
+    fila_muestra <- fila_muestra[
+      fila_muestra$columna == "bin", , drop = FALSE
+    ]
+    for (campo in c(
+      "longitud_minima", "longitud_maxima", "longitud_media",
+      "n_distintos"
+    )) {
+      expect_equal(as.numeric(fila_bloques[[campo]]),
+                   as.numeric(fila_muestra[[campo]]), info = paste(motor, campo))
+    }
+    expect_identical(
+      as.character(fila_bloques$moda), as.character(fila_muestra$moda)
+    )
+    expect_match(as.character(fila_bloques$moda), "^3:[0-9a-f]{32}$")
+    expect_equal(as.numeric(fila_bloques$frecuencia_moda), 40,
+                 info = motor)
+    expect_equal(as.numeric(fila_bloques$longitud_minima), 3)
+    expect_equal(as.numeric(fila_bloques$longitud_maxima), 4)
+    expect_equal(as.numeric(fila_bloques$longitud_media), 3.866666666666667)
+  }
+  probar(FALSE)
+  probar(TRUE)
+})
+
+test_that("RMySQL pide como texto la moda de un BIGINT ancho", {
+  skip_on_cran()
+  con <- .arrm_con_mysql(FALSE)
+  tabla <- "a2561_big_mysql"
+  on.exit({
+    try(DBI::dbExecute(con, paste0("DROP TABLE IF EXISTS ", tabla)),
+        silent = TRUE)
+    DBI::dbDisconnect(con)
+  }, add = TRUE)
+  DBI::dbExecute(con, paste0(
+    "CREATE TABLE ", tabla, " (big BIGINT, chico BIGINT)"
+  ))
+  valores <- c(
+    paste0("(1234567890123456789,2)"),
+    paste0("(1234567890123456789,2)"),
+    paste0("(1234567890123456789,2)"),
+    paste0("(1234567890123456789,2)"),
+    paste0("(1234567890123456789,3)"),
+    paste0("(1234567890123400006,3)"),
+    paste0("(1234567890123400007,3)"),
+    paste0("(1234567890123400008,3)")
+  )
+  DBI::dbExecute(con, paste0(
+    "INSERT INTO ", tabla, " VALUES ", paste(valores, collapse = ",")
+  ))
+  for (modo in c("solo_agregados", "con_muestra")) {
+    perfil <- suppressWarnings(suppressMessages(perfilar_dbi(
+      con, tabla, bloque_muestra = modo,
+      proteger_datos_personales = FALSE
+    )))
+    fila <- perfil$resumen_tabla$columnas
+    fila <- fila[fila$columna == "big", , drop = FALSE]
+    expect_identical(as.character(fila$moda), "1234567890123456789",
+                     info = modo)
+    expect_equal(as.numeric(fila$frecuencia_moda), 5, info = modo)
+    fila_chico <- perfil$resumen_tabla$columnas
+    fila_chico <- fila_chico[fila_chico$columna == "chico", , drop = FALSE]
+    expect_identical(as.character(fila_chico$moda), "2")
+  }
+  perfil_bloques <- suppressWarnings(suppressMessages(perfilar_dbi(
+    con, tabla, bloque_muestra = "solo_agregados", bloque_filas = 3L,
+    proteger_datos_personales = FALSE
+  )))
+  fila <- perfil_bloques$resumen_tabla$columnas
+  fila <- fila[fila$columna == "big", , drop = FALSE]
+  expect_identical(as.character(fila$moda), "1234567890123456789")
+  expect_equal(as.numeric(fila$frecuencia_moda), 5)
+})

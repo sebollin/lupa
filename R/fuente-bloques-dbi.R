@@ -637,7 +637,8 @@
 .familias_fuente_bloques_dbi <- function(metricas, campos, prototipo, tipos,
                                          incluir_valores = TRUE,
                                          max_bytes_procesamiento =
-                                           .MAX_BYTES_ESTADO_BLOQUES) {
+                                           .MAX_BYTES_ESTADO_BLOQUES,
+                                         columnas_binarias = character()) {
   salida <- list()
   # `Inf` significa sin presupuesto de estado retenido. El acumulador de
   # bloques conserva un tope finito por seguridad cuando se lo invoca solo;
@@ -647,6 +648,7 @@
     max_bytes_procesamiento
   for (i in seq_along(campos)) {
     campo <- campos[[i]]
+    binaria <- campo %in% as.character(columnas_binarias)
     tipo <- if (!is.null(prototipo) && i <= length(prototipo)) {
       typeof(prototipo[[i]])
     } else "character"
@@ -659,13 +661,17 @@
           incluir_ausentes = TRUE, max_bytes = max_bytes_estado
         )
     }
-    if (.tipos_textuales_fuente_dbi(
+    textual <- .tipos_textuales_fuente_dbi(
       campo, if (is.null(prototipo)) NULL else prototipo[i],
       if (is.null(tipos)) NULL else tipos[i]
-    )) {
+    )
+    if (textual || binaria) {
       salida[[.clave_par_identificador(campo, "longitudes", sep = "\u001f")]] <-
         .iniciar_acumulador(
           campo, "character", familia = "longitudes",
+          configuracion = if (binaria) {
+            list(representacion_binaria = TRUE)
+          } else list(),
           fuente_id = NA_character_, snapshot_id = NA_character_,
           universo_id = "tabla_completa", orden_id = NA_character_,
           max_bytes = max_bytes_estado
@@ -1364,6 +1370,7 @@
                                          max_bytes_procesamiento =
                                            .MAX_BYTES_ESTADO_BLOQUES,
                                          tipos_motor = NULL,
+                                         columnas_binarias = character(),
                                          sentinelas = NULL) {
   metricas_acumuladores <- unique(c(
     metricas,
@@ -1373,7 +1380,8 @@
   acumuladores <- .familias_fuente_bloques_dbi(
     metricas_acumuladores, fuente$campos, prototipo, tipos,
     incluir_valores = incluir_valores,
-    max_bytes_procesamiento = max_bytes_procesamiento
+    max_bytes_procesamiento = max_bytes_procesamiento,
+    columnas_binarias = columnas_binarias
   )
   for (nombre in names(acumuladores)) {
     acumuladores[[nombre]]$configuracion$fuente_id <- fuente$fuente_id
@@ -1619,7 +1627,8 @@
       estable = FALSE, snapshot_id = NA_character_,
       fuente_id = paste0("dbi:", .texto_tabla_dbi(tabla)), tabla = tabla,
       tabla_sql = preparacion$tabla_sql, campos = preparacion$campos,
-      campos_sql = preparacion$campos_sql_proyeccion, localizador = NULL,
+      campos_sql = preparacion$campos_sql_bloques %||%
+        preparacion$campos_sql_proyeccion, localizador = NULL,
       clave = preparacion$catalogo_cardinalidad, bloque_filas = bloque_filas
     ), class = "fuente_bloques_dbi")
     recorrido <- list(
@@ -1666,7 +1675,8 @@
   fuente <- .fuente_bloques_dbi(
     conexion, tabla, tabla_sql = preparacion$tabla_sql,
     campos = preparacion$campos,
-    campos_sql = preparacion$campos_sql_proyeccion,
+    campos_sql = preparacion$campos_sql_bloques %||%
+      preparacion$campos_sql_proyeccion,
     prototipo = preparacion$prototipo, tipos = preparacion$tipos,
     orden_muestra = preparacion$orden_muestra, orden_sql = preparacion$orden_sql,
     clave = preparacion$catalogo_cardinalidad,
@@ -1687,6 +1697,7 @@
     incluir_valores = incluir_valores,
     max_bytes_procesamiento = max_bytes_procesamiento,
     tipos_motor = preparacion$esquema$tipos_motor,
+    columnas_binarias = preparacion$columnas_binarias_bloques,
     sentinelas = argumentos[["sentinelas_numericos"]]
   )
   if (isTRUE(fuente$disponible) && !is.null(recorrido$error)) {
@@ -1865,6 +1876,17 @@
       )
       decimal <- .tipo_declarado_decimal_dbi(tipo)
       decimal_ancho <- decimal && .tipo_declarado_entero_ancho_dbi(tipo)
+      posicion <- match(campo, preparacion$campos)
+      cuantitativos <- recorrido$sobres[[
+        .clave_par_identificador(campo, "cuantitativos", sep = "\u001f")
+      ]]
+      extremos <- if (!is.null(cuantitativos) &&
+                      identical(cuantitativos$estado, "calculado")) {
+        c(cuantitativos$resultado$minimo, cuantitativos$resultado$maximo)
+      } else NULL
+      entero_doble <- .entero_doble_ancho_moda_dbi(
+        preparacion$prototipo[[posicion]], tipo, extremos
+      )
       # Los decimales ya tienen todos sus valores en el mapa que se construye
       # durante el recorrido. Resolverlos aca con una consulta SQL separada
       # hacia que `bloque_filas` perdiera la moda antes que la via enviada
@@ -1875,26 +1897,38 @@
       # entrega el controlador; se pide la misma expresion exacta del motor
       # que usa la via SQL. Los decimales comunes siguen resolviendose con el
       # mapa de la lectura, sin una consulta adicional.
-      if (!binaria && !decimal_ancho || decimal && !decimal_ancho) next
-      posicion <- match(campo, preparacion$campos)
+      if (!binaria && !decimal_ancho && !entero_doble) next
       columna_moda_sql <- .expresion_binaria_moda_dbi(
         conexion, preparacion$campos_sql_proyeccion[[posicion]], tipo
       )
       valor_moda_sql <- .expresion_decimal_moda_dbi(
-        conexion, columna_moda_sql, tipo
+        conexion, columna_moda_sql, tipo, entero_doble = entero_doble
       )
       orden_moda_sql <- .orden_moda_dbi(
-        conexion, valor_moda_sql, tipo
+        conexion, valor_moda_sql, tipo,
+        orden_numerico_sql = if (isTRUE(entero_doble)) {
+          columna_moda_sql
+        } else NULL
       )
       # Un decimal solo se resuelve en el motor si este lo devuelve como texto
       # exacto. Si el dialecto no tiene esa forma, la expresion es la misma
       # columna, el controlador la entregaria como doble y la guarda del decimal
       # tiene que seguir mandando sobre la moda.
-      modas_bloques[[campo]] <- .moda_columna_dbi(
-        conexion, fuente$tabla_sql, columna_moda_sql,
-        preparacion$dialecto, presupuesto = presupuesto,
-        valor_sql = valor_moda_sql, orden_sql = orden_moda_sql
-      )
+      modas_bloques[[campo]] <- if (isTRUE(is.na(valor_moda_sql))) {
+        list(
+          ok = FALSE, datos = NULL,
+          motivo = paste(
+            "No se pudo pedir la moda exacta como texto en este motor;",
+            "no se publica la moda del doble redondeado."
+          ), sql = NA_character_
+        )
+      } else {
+        .moda_columna_dbi(
+          conexion, fuente$tabla_sql, columna_moda_sql,
+          preparacion$dialecto, presupuesto = presupuesto,
+          valor_sql = valor_moda_sql, orden_sql = orden_moda_sql
+        )
+      }
     }
   }
   consultas_segunda <- as.integer(segunda_pasada$consultas_sql %||% 0L)

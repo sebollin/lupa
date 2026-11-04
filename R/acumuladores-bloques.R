@@ -719,7 +719,19 @@
     return(.marcar_fallo_acumulador(acumulador, "longitudes_no_textuales"))
   }
   aplica <- !is.na(bloque$aplicable) & bloque$aplicable
-  longitudes <- .nchar_texto_seguro(as.character(x)[aplica])
+  valores <- as.character(x)[aplica]
+  if (isTRUE(
+    acumulador$configuracion$configuracion$representacion_binaria
+  )) {
+    capturas <- regmatches(
+      valores, regexec("^([0-9]+):[0-9A-Fa-f]{32}$", valores, perl = TRUE)
+    )
+    longitudes <- suppressWarnings(as.numeric(vapply(capturas, function(x) {
+      if (length(x) > 1L) x[[2L]] else NA_character_
+    }, character(1L))))
+  } else {
+    longitudes <- .nchar_texto_seguro(valores)
+  }
   # Lo que se CUENTA aca es sobre cuantos valores se calculo la longitud, y eso es
   # lo que declara el universo: `nchar()` devuelve `NA` cuando no puede medir el
   # valor -bytes que no son UTF-8 valido-, y esos se descartaban sin que ningun

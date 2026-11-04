@@ -7751,7 +7751,7 @@
 #   numerica se calculan sin los centinelas, si la muestra excluyo alguno. Un
 #   no finito tambien se excluye y NO entra aca: esa divergencia es la que
 #   `perfilar_dbi()` declara a proposito (`NaN` e infinitos).
-# * El entero de 64 bits desde 2^53: el resumen no publica sus metricas de
+# * El entero ancho desde 2^53: el resumen no publica sus metricas de
 #   magnitud a proposito, y la muestra cuenta `n_ceros` y `n_negativos` exactos.
 # * Lo que un lado no calculo, por construccion y no por lista de causas: una
 #   metrica que `resumen_tabla$sql` declara `no_disponible` -el motor rechazo la
@@ -9465,9 +9465,11 @@
   limpio <- gsub("[[:space:]_-]+", "", limpio)
   base <- sub("\\(.*", "", limpio)
   if (base %in% c(
-    "integer", "int", "int2", "int4", "int8", "int64", "smallint",
-    "bigint", "bigserial", "hugeint", "ubigint", "bigintunsigned",
-    "integer64"
+    "tinyint", "utinyint", "smallint", "usmallint", "integer", "uinteger",
+    "int", "uint", "int1", "int2", "int4", "int8", "int16", "int32",
+    "int64", "int128", "uint8", "uint16", "uint32", "uint64", "uint128",
+    "bigint", "ubigint", "hugeint", "uhugeint", "bigserial",
+    "bigintunsigned", "integer64"
   )) {
     return(TRUE)
   }
@@ -9485,6 +9487,34 @@
   }
   isTRUE(is.finite(precision) && precision > 15 &&
     is.finite(escala) && escala == 0)
+}
+
+# Un controlador que entrega como `numeric` un entero ancho puede haber perdido
+# cifras, pero solo cuando la magnitud cruza 2^53. Si no hay extremos utilizables
+# -por ejemplo, se pidio solo la moda o la consulta de basicos fallo-, se pide la
+# forma textual: es exacta si hace falta y conserva la salida visible para los
+# valores chicos.
+.entero_doble_ancho_moda_dbi <- function(prototipo, tipo, extremos = NULL) {
+  if (!is.double(prototipo) ||
+      !.tipo_declarado_entero_ancho_dbi(tipo)) return(FALSE)
+  if (is.null(extremos)) return(TRUE)
+  extremos <- suppressWarnings(as.numeric(extremos))
+  extremos <- extremos[is.finite(extremos)]
+  if (!length(extremos)) return(TRUE)
+  any(abs(extremos) >= .MAX_ENTERO_EXACTO_DBI)
+}
+
+.extremos_basicos_moda_dbi <- function(agregados, columna) {
+  if (!is.list(agregados) || !is.list(agregados$basicos)) return(NULL)
+  basicos <- agregados$basicos[[columna]]
+  if (!is.list(basicos) || !isTRUE(basicos$ok) ||
+      !is.data.frame(basicos$datos) || !nrow(basicos$datos)) return(NULL)
+  extremos <- vapply(c("minimo", "maximo"), function(nombre) {
+    celda <- .valor_campo_dbi(basicos$datos, nombre)
+    if (!isTRUE(celda$ok)) return(NA_real_)
+    .escalar_finito_dbi(celda$valor)
+  }, numeric(1L))
+  if (any(!is.finite(extremos))) NULL else extremos
 }
 
 # Un tipo decimal exacto -`numeric`, `decimal`, `number`, con o sin precision y
@@ -9864,10 +9894,25 @@
 # publica esta metrica a proposito": una sola regla para quien la escribe y
 # quien la lee, como `.FRAGMENTO_NO_NUMERO_DBI`.
 .FRAGMENTO_ENTERO_64_DBI <- "entero de 64 bits"
+.FRAGMENTO_ENTERO_ANCHO_DBI <- "entero ancho"
 
 .es_motivo_entero_64_dbi <- function(motivo) {
-  !is.na(motivo) & grepl(.FRAGMENTO_ENTERO_64_DBI, motivo, fixed = TRUE,
-                         useBytes = TRUE)
+  !is.na(motivo) & (
+    grepl(.FRAGMENTO_ENTERO_64_DBI, motivo, fixed = TRUE, useBytes = TRUE) |
+      grepl(.FRAGMENTO_ENTERO_ANCHO_DBI, motivo, fixed = TRUE, useBytes = TRUE)
+  )
+}
+
+.fragmento_entero_doble_dbi <- function(tipo) {
+  limpio <- if (is.null(tipo) || !length(tipo) || is.na(tipo[[1L]])) {
+    ""
+  } else {
+    base <- .minusculas_ascii(trimws(as.character(tipo[[1L]])))
+    sub("\\(.*", "", gsub("[[:space:]_-]+", "", base))
+  }
+  if (limpio %in% c(
+    "hugeint", "uhugeint", "int128", "uint128"
+  )) .FRAGMENTO_ENTERO_ANCHO_DBI else .FRAGMENTO_ENTERO_64_DBI
 }
 
 # `valor` es lo que entrego el controlador. Un `integer64` llego EXACTO -el
@@ -9902,10 +9947,11 @@
       "valor exacto."
     ))
   }
+  fragmento <- .fragmento_entero_doble_dbi(tipo)
   paste(
     paste0(
       inicio,
-      "es un ", .FRAGMENTO_ENTERO_64_DBI, " que el driver entrego como doble;"
+      "es un ", fragmento, " que el driver entrego como doble;"
     ),
     "un valor con valor absoluto de al menos 2^53 puede haber perdido",
     "exactitud. No se publica como calculada.",
@@ -10643,7 +10689,8 @@
 
 .media_sql_dbi <- function(expr, senas = "", tabla_sql = NULL,
                             float8_seguro = FALSE,
-                            infinitos_como_numeric = FALSE) {
+                            infinitos_como_numeric = FALSE,
+                            tipo = NA_character_) {
   if (isTRUE(float8_seguro) &&
       grepl("postgres|pqconnection", senas, useBytes = TRUE) &&
       length(tabla_sql) == 1L && !is.na(tabla_sql) && nzchar(tabla_sql)) {
@@ -10769,7 +10816,7 @@
     paste0(.media_sql_dbi(
       columna_sql, senas, tabla_sql = tabla_sql,
       float8_seguro = float8_seguro,
-      infinitos_como_numeric = infinitos_como_numeric
+      infinitos_como_numeric = infinitos_como_numeric, tipo = tipo
     ), " AS ", alias("media")),
     paste0(
       .conteo_sql_dbi(
@@ -10928,7 +10975,8 @@
 
 # La media de la ventana conserva las mismas promociones que `.media_sql_dbi()`.
 .media_ventana_sql_dbi <- function(expr, senas = "", float8_seguro = FALSE,
-                                   infinitos_como_numeric = FALSE) {
+                                   infinitos_como_numeric = FALSE,
+                                   tipo = NA_character_) {
   if (isTRUE(float8_seguro) &&
       grepl("postgres|pqconnection", senas, useBytes = TRUE)) {
     lectura_numeric <- isTRUE(infinitos_como_numeric) ||
@@ -11037,7 +11085,7 @@
     paste0("AVG(CAST(", columna_desvio, " AS DOUBLE PRECISION))")
   } else .media_sql_dbi(
     columna_desvio, senas, infinitos_como_numeric = infinitos_como_numeric ||
-      numeric_exact
+      numeric_exact, tipo = tipo
   )
   media_sql <- if (isTRUE(centro_en_ventana)) NULL else {
     paste0("(SELECT ", media_expr, " FROM ", tabla_sql, ")")
@@ -11127,7 +11175,8 @@
     sql_centro <- paste0(
       "SELECT ", .media_sql_dbi(
         columna_sql, senas,
-        infinitos_como_numeric = infinitos_como_numeric || numeric_exact
+        infinitos_como_numeric = infinitos_como_numeric || numeric_exact,
+        tipo = tipo
       ), " AS ", alias("centro"),
       " FROM ", tabla_sql
     )
@@ -11143,7 +11192,8 @@
     paste0(
       "(SELECT ", .media_sql_dbi(
         columna_sql, senas,
-        infinitos_como_numeric = infinitos_como_numeric || numeric_exact
+        infinitos_como_numeric = infinitos_como_numeric || numeric_exact,
+        tipo = tipo
       ),
       " FROM ", tabla_sql, ")"
     )
@@ -11758,7 +11808,9 @@
         .media_ventana_sql_dbi(
           nombres_sql[[campo]], senas,
           float8_seguro = campo %in% columnas_float8_numeric,
-          infinitos_como_numeric = exacta
+          infinitos_como_numeric = exacta,
+          tipo = if (is.null(tipos_declarados)) NA_character_ else
+            tipos_declarados[[campo]] %||% NA_character_
         ), " AS ", nombre
       )
     }, character(1L), USE.NAMES = FALSE)
@@ -11809,7 +11861,9 @@
           .media_sql_dbi(
             nombres_sql[[campo]], senas, tabla_sql = tabla_agregados_sql,
             float8_seguro = campo %in% columnas_float8_numeric,
-            infinitos_como_numeric = exacta
+            infinitos_como_numeric = exacta,
+            tipo = if (is.null(tipos_declarados)) NA_character_ else
+              tipos_declarados[[campo]] %||% NA_character_
           ), " AS ",
           aliases$basicos$media
         ),
@@ -12814,6 +12868,7 @@
                                  mediana_cte_ventana_motivo = NA_character_,
                                  moda_guardian = NULL,
                                  moda_precalculada = NULL,
+                                 moda_entero_doble = NULL,
                                  decisiones_costo = NULL,
                                  publica_distintos = TRUE,
                                  estrategia_distintos = NULL,
@@ -12835,6 +12890,12 @@
   tipo_operacion <- if (length(tipo_motor) == 1L && !is.na(tipo_motor)) {
     as.character(tipo_motor)
   } else tipo_declarado
+  if (is.null(moda_entero_doble)) {
+    moda_entero_doble <- .entero_doble_ancho_moda_dbi(
+      prototipo, tipo_operacion,
+      .extremos_basicos_moda_dbi(agregados, columna)
+    )
+  }
   motor_sqlserver <- grepl(
     "sql server|microsoft sql|sqlserver|mssql",
     .senas_conexion_dbi(conexion), perl = TRUE, useBytes = TRUE
@@ -13385,13 +13446,25 @@
       conexion, columna_sql, tipo_operacion
     )
     valor_moda_sql <- .expresion_decimal_moda_dbi(
-      conexion, columna_moda_sql, tipo_operacion
+      conexion, columna_moda_sql, tipo_operacion,
+      entero_doble = moda_entero_doble
     )
     orden_moda_sql <- .orden_moda_dbi(
-      conexion, valor_moda_sql, tipo_operacion
+      conexion, valor_moda_sql, tipo_operacion,
+      orden_numerico_sql = if (isTRUE(moda_entero_doble)) {
+        columna_moda_sql
+      } else NULL
     )
     guardian_moda <- moda_guardian
-    moda <- if (is.null(moda_precalculada)) {
+    moda <- if (isTRUE(is.na(valor_moda_sql))) {
+      list(
+        ok = FALSE, datos = NULL,
+        motivo = paste(
+          "No se pudo pedir la moda exacta como texto en este motor;",
+          "no se publica la moda del doble redondeado."
+        ), sql = NA_character_
+      )
+    } else if (is.null(moda_precalculada)) {
       .moda_columna_dbi(
         conexion, tabla_sql, columna_moda_sql, dialecto, presupuesto,
         moda_guardian = guardian_moda, valor_sql = valor_moda_sql,
@@ -14316,6 +14389,34 @@
     }
   }
 
+  # La guarda del entero ancho lee el minimo y el maximo de la consulta de
+  # basicos. Si esa consulta no llego -en DuckDB, `HUGEINT * 1.0` desborda
+  # cerca del tope del tipo-, la mediana sale de otra consulta y se publicaba
+  # `calculado` con un doble que no distingue los valores. La mediana misma es
+  # la evidencia de la magnitud. No se cambio la media a `CAST(x AS DOUBLE)`
+  # para esquivar el desborde: sumar en doble erraba en 1.723 unidades la media
+  # de un BIGINT de 200.000 valores cerca de 2^52, que `* 1.0` da exacta.
+  mediana_publicada <- suppressWarnings(as.numeric(fila$mediana))
+  if (is.double(prototipo) && length(mediana_publicada) == 1L &&
+      is.finite(mediana_publicada) &&
+      abs(mediana_publicada) >= .MAX_ENTERO_EXACTO_DBI &&
+      .tipo_declarado_entero_ancho_dbi(tipo_declarado)) {
+    motivo_mediana_ancha <- .motivo_entero_doble_dbi(
+      "mediana", valor = fila$mediana, conexion = conexion,
+      tipo = tipo_declarado
+    )
+    for (i in seq_along(registros)) {
+      r <- registros[[i]]
+      tapar <- r$metrica == "mediana" & r$estado %in% c("calculado", "estimado")
+      if (any(tapar)) {
+        r$estado[tapar] <- "no_disponible"
+        r$motivo[tapar] <- motivo_mediana_ancha
+        registros[[i]] <- r
+      }
+    }
+    fila$mediana <- NA_real_
+  }
+
   sobrantes <- setdiff(
     metricas_numericas,
     unlist(lapply(registros, function(x) x$metrica), use.names = FALSE)
@@ -14433,10 +14534,19 @@
   }
   tipo_motor_de <- function(campo) {
     indice <- .indice_nombre(campo, campos_consolidados)
-    if (is.na(indice) || is.null(tipos_motor) || indice > length(tipos_motor)) {
+    if (is.na(indice)) {
       return(NA_character_)
     }
-    tipos_motor[[indice]]
+    tipo <- if (!is.null(tipos_motor) && indice <= length(tipos_motor)) {
+      tipos_motor[[indice]]
+    } else NA_character_
+    if (length(tipo) != 1L || is.na(tipo) || !nzchar(as.character(tipo))) {
+      tipo <- if (!is.null(tipos_declarados) &&
+                  indice <= length(tipos_declarados)) {
+        tipos_declarados[[indice]]
+      } else NA_character_
+    }
+    as.character(tipo)
   }
   tipo_sin_agregados_de <- function(campo) {
     tipo <- tipo_motor_de(campo)
@@ -14612,21 +14722,43 @@
         if (isTRUE(avisado)) presupuesto$aviso_moda_emitido <- TRUE
       }
     }
+    indice_prototipo <- .indice_nombre(campo, names(prototipo))
+    prototipo_campo <- if (is.na(indice_prototipo)) NULL else {
+      prototipo[[indice_prototipo]]
+    }
+    entero_doble <- .entero_doble_ancho_moda_dbi(
+      prototipo_campo, tipo_motor_de(campo),
+      .extremos_basicos_moda_dbi(agregados, campo)
+    )
     columna_moda_sql <- .expresion_binaria_moda_dbi(
       conexion, sql_de(campo), tipo_motor_de(campo)
     )
     valor_moda_sql <- .expresion_decimal_moda_dbi(
-      conexion, columna_moda_sql, tipo_motor_de(campo)
+      conexion, columna_moda_sql, tipo_motor_de(campo),
+      entero_doble = entero_doble
     )
     orden_moda_sql <- .orden_moda_dbi(
-      conexion, valor_moda_sql, tipo_motor_de(campo)
+      conexion, valor_moda_sql, tipo_motor_de(campo),
+      orden_numerico_sql = if (isTRUE(entero_doble)) {
+        columna_moda_sql
+      } else NULL
     )
     guardian_moda <- moda_guardian
-    modas[[campo]] <- .moda_columna_dbi(
-      conexion, tabla_metricas_sql, columna_moda_sql,
-      dialecto, presupuesto, moda_guardian = guardian_moda,
-      valor_sql = valor_moda_sql, orden_sql = orden_moda_sql
-    )
+    modas[[campo]] <- if (isTRUE(is.na(valor_moda_sql))) {
+      list(
+        ok = FALSE, datos = NULL,
+        motivo = paste(
+          "No se pudo pedir la moda exacta como texto en este motor;",
+          "no se publica la moda del doble redondeado."
+        ), sql = NA_character_
+      )
+    } else {
+      .moda_columna_dbi(
+        conexion, tabla_metricas_sql, columna_moda_sql,
+        dialecto, presupuesto, moda_guardian = guardian_moda,
+        valor_sql = valor_moda_sql, orden_sql = orden_moda_sql
+      )
+    }
     if (!is.null(presupuesto)) {
       cardinalidad <- .cardinalidad_aviso_moda_dbi(
         campo, agregados, fuentes_cardinalidad_costo, n_total
@@ -16683,7 +16815,8 @@ plan_perfilado_dbi <- function(conexion, tabla,
     fuente <- .fuente_bloques_dbi(
       conexion, tabla, tabla_sql = preparacion$tabla_sql,
       campos = preparacion$campos,
-      campos_sql = preparacion$campos_sql_proyeccion,
+      campos_sql = preparacion$campos_sql_bloques %||%
+        preparacion$campos_sql_proyeccion,
       prototipo = preparacion$prototipo, tipos = preparacion$tipos,
       orden_sql = preparacion$orden_sql,
       clave = preparacion$catalogo_cardinalidad,
@@ -17926,6 +18059,82 @@ print.plan_perfilado_dbi <- function(x, ...) {
   Inf
 }
 
+.expresion_binaria_muestra_dbi <- function(
+    conexion, expr, alias, senas, prefijo = FALSE) {
+  if (grepl("postgres|pqconnection", senas, perl = TRUE)) {
+    return(paste0(
+      "CASE WHEN ", expr, " IS NULL THEN NULL ELSE CAST(octet_length(",
+      expr, ") AS text) || ':' || md5(", expr, ") END AS ", alias
+    ))
+  }
+  if (grepl(
+    "sql server|microsoft sql|sqlserver|mssql", senas, perl = TRUE
+  )) {
+    expr_binario <- paste0("CONVERT(varbinary(max), ", expr, ")")
+    resumen <- if (isTRUE(prefijo)) {
+      paste0(
+        "HASHBYTES('MD5', CONVERT(varbinary(8000), SUBSTRING(",
+        expr_binario, ", 1, 8000)))"
+      )
+    } else {
+      paste0("HASHBYTES('MD5', ", expr_binario, ")")
+    }
+    return(paste0(
+      "CASE WHEN ", expr, " IS NULL THEN NULL ELSE CONVERT(varchar(30),",
+      " DATALENGTH(", expr, ")) + ':' + LOWER(CONVERT(varchar(64),",
+      " ", resumen, ", 2)) END AS ", alias
+    ))
+  }
+  paste0(
+    "CASE WHEN ", expr, " IS NULL THEN NULL ELSE CONCAT(OCTET_LENGTH(",
+    expr, "), ':', MD5(", expr, ")) END AS ", alias
+  )
+}
+
+.proyeccion_binaria_muestra_dbi <- function(
+    conexion, campos, campos_sql, tipos_declarados = NULL,
+    tipos_motor = NULL, version_sqlserver = NA_real_) {
+  senas <- .senas_conexion_dbi(conexion)
+  motor_binario <- grepl(
+    "postgres|pqconnection|sql server|microsoft sql|sqlserver|mssql|mysql|mariadb",
+    senas, perl = TRUE
+  )
+  tipos <- if (!is.null(tipos_motor) && length(tipos_motor) == length(campos)) {
+    as.character(tipos_motor)
+  } else if (is.null(tipos_declarados)) {
+    rep(NA_character_, length(campos))
+  } else vapply(tipos_declarados, function(x) {
+    if (length(x) && !is.na(x[[1L]])) as.character(x[[1L]]) else NA_character_
+  }, character(1L))
+  binarios <- vapply(seq_along(campos), function(i) {
+    tipo <- if (i <= length(tipos)) tipos[[i]] else NA_character_
+    motor_binario && .es_tipo_binario_muestra_dbi(tipo, senas)
+  }, logical(1L))
+  version_sqlserver <- suppressWarnings(as.numeric(version_sqlserver))
+  version_sqlserver <- if (length(version_sqlserver)) {
+    version_sqlserver[[1L]]
+  } else NA_real_
+  binarios_prefijo <- binarios & grepl(
+    "sql server|microsoft sql|sqlserver|mssql", senas, perl = TRUE
+  ) & (is.na(version_sqlserver) || version_sqlserver < 13)
+  expresiones <- campos_sql
+  if (any(binarios)) {
+    expresiones[binarios] <- vapply(which(binarios), function(i) {
+      expr <- .citar_identificador_dbi(conexion, campos[[i]])
+      alias <- .citar_identificador_dbi(conexion, campos[[i]])
+      .expresion_binaria_muestra_dbi(
+        conexion, expr, alias, senas, prefijo = binarios_prefijo[[i]]
+      )
+    }, character(1L))
+  }
+  list(
+    campos_sql = expresiones, tipos = tipos, motor_binario = motor_binario,
+    binarios = binarios,
+    columnas_binarias = as.character(campos[binarios]),
+    columnas_binarias_prefijo = as.character(campos[binarios_prefijo])
+  )
+}
+
 .campos_sql_muestra_dbi <- function(
     conexion, campos, campos_sql, prototipo, tipos_declarados, dialecto,
     tipos_motor = NULL, version_sqlserver = NA_real_,
@@ -17966,67 +18175,19 @@ print.plan_perfilado_dbi <- function(x, ...) {
     }, character(1L))
   }
   senas <- .senas_conexion_dbi(conexion)
-  motor_binario <- grepl(
-    "postgres|pqconnection|sql server|microsoft sql|sqlserver|mssql|mysql|mariadb",
-    senas, perl = TRUE
+  binaria <- .proyeccion_binaria_muestra_dbi(
+    conexion, campos, expresiones, tipos_declarados, tipos_motor,
+    version_sqlserver = version_sqlserver
   )
+  expresiones <- binaria$campos_sql
+  motor_binario <- binaria$motor_binario
   motor_texto <- motor_binario && (
     !grepl("sql server|microsoft sql|sqlserver|mssql", senas, perl = TRUE) ||
       identical(as.character(dialecto$nombre), "top")
   )
-  tipos <- if (!is.null(tipos_motor) && length(tipos_motor) == length(campos)) {
-    as.character(tipos_motor)
-  } else if (is.null(tipos_declarados)) {
-    rep(NA_character_, length(campos))
-  } else vapply(tipos_declarados, function(x) {
-    if (length(x) && !is.na(x[[1L]])) as.character(x[[1L]]) else NA_character_
-  }, character(1L))
-  binarios <- vapply(seq_along(campos), function(i) {
-    tipo <- if (i <= length(tipos)) tipos[[i]] else NA_character_
-    motor_binario && .es_tipo_binario_muestra_dbi(tipo, senas)
-  }, logical(1L))
-  binarios_prefijo <- rep(FALSE, length(campos))
-  if (any(binarios)) {
-    version_sqlserver <- suppressWarnings(as.numeric(version_sqlserver))
-    version_sqlserver <- if (length(version_sqlserver)) {
-      version_sqlserver[[1L]]
-    } else NA_real_
-    binarios_prefijo <- binarios & grepl(
-      "sql server|microsoft sql|sqlserver|mssql", senas, perl = TRUE
-    ) & (is.na(version_sqlserver) || version_sqlserver < 13)
-    expresiones[binarios] <- vapply(which(binarios), function(i) {
-      expr <- .citar_identificador_dbi(conexion, campos[[i]])
-      alias <- .citar_identificador_dbi(conexion, campos[[i]])
-      if (grepl("postgres|pqconnection", senas, perl = TRUE)) {
-        paste0(
-          "CASE WHEN ", expr, " IS NULL THEN NULL ELSE CAST(octet_length(",
-          expr, ") AS text) || ':' || md5(", expr, ") END AS ", alias
-        )
-      } else if (grepl(
-        "sql server|microsoft sql|sqlserver|mssql", senas, perl = TRUE
-      )) {
-        expr_binario <- paste0("CONVERT(varbinary(max), ", expr, ")")
-        resumen <- if (isTRUE(binarios_prefijo[[i]])) {
-          paste0(
-            "HASHBYTES('MD5', CONVERT(varbinary(8000), SUBSTRING(",
-            expr_binario, ", 1, 8000)))"
-          )
-        } else {
-          paste0("HASHBYTES('MD5', ", expr_binario, ")")
-        }
-        paste0(
-          "CASE WHEN ", expr, " IS NULL THEN NULL ELSE CONVERT(varchar(30),",
-          " DATALENGTH(", expr, ")) + ':' + LOWER(CONVERT(varchar(64),",
-          " ", resumen, ", 2)) END AS ", alias
-        )
-      } else {
-        paste0(
-          "CASE WHEN ", expr, " IS NULL THEN NULL ELSE CONCAT(OCTET_LENGTH(",
-          expr, "), ':', MD5(", expr, ")) END AS ", alias
-        )
-      }
-    }, character(1L))
-  }
+  tipos <- binaria$tipos
+  binarios <- binaria$binarios
+  binarios_prefijo <- binaria$binarios_prefijo
   max_largo <- suppressWarnings(as.numeric(max_largo_valor_vocabulario))
   textos_largos <- vapply(seq_along(campos), function(i) {
     motor_texto && !binarios[[i]] &&
@@ -18110,8 +18271,8 @@ print.plan_perfilado_dbi <- function(x, ...) {
   list(
     campos_sql = expresiones,
     columnas_castadas = as.character(campos[castadas]),
-    columnas_binarias = as.character(campos[binarios]),
-    columnas_binarias_prefijo = as.character(campos[binarios_prefijo]),
+    columnas_binarias = binaria$columnas_binarias,
+    columnas_binarias_prefijo = binaria$columnas_binarias_prefijo,
     columnas_texto_largo = as.character(campos[textos_largos]),
     bytes_por_fila_max = bytes_fila,
     max_largo_valor_vocabulario = max_largo_valor_vocabulario,
@@ -18168,9 +18329,35 @@ print.plan_perfilado_dbi <- function(x, ...) {
 # expresiones: `columna_sql` sigue gobernando `GROUP BY` y el desempate, y esta
 # devuelve el grupo como texto exacto. Para la moda no hace falta una consulta
 # adicional y el texto conserva tambien la escala declarada por el motor.
-.expresion_decimal_moda_dbi <- function(conexion, columna_sql, tipo) {
-  if (!.tipo_declarado_decimal_dbi(tipo)) return(columna_sql)
+.expresion_decimal_moda_dbi <- function(conexion, columna_sql, tipo,
+                                        entero_doble = FALSE) {
+  decimal <- .tipo_declarado_decimal_dbi(tipo)
+  if (!decimal && !isTRUE(entero_doble)) return(columna_sql)
   senas <- .senas_conexion_dbi(conexion)
+  if (isTRUE(entero_doble)) {
+    if (grepl("postgres|pqconnection", senas, perl = TRUE)) {
+      return(paste0("CAST(", columna_sql, " AS text)"))
+    }
+    if (grepl(
+      "sql server|microsoft sql|sqlserver|mssql", senas,
+      perl = TRUE
+    )) {
+      return(paste0("CONVERT(varchar(100), ", columna_sql, ")"))
+    }
+    if (grepl("mysql|mariadb", senas, perl = TRUE)) {
+      return(paste0("CAST(", columna_sql, " AS CHAR)"))
+    }
+    if (grepl("duckdb", senas, fixed = TRUE, useBytes = TRUE)) {
+      return(paste0("CAST(", columna_sql, " AS VARCHAR)"))
+    }
+    # SQLite y los adaptadores que siguen la sintaxis de CAST aceptan TEXT;
+    # si el motor no la acepta, la llamada la degrada a no_disponible y no
+    # publica el doble redondeado.
+    if (grepl("sqlite", senas, fixed = TRUE, useBytes = TRUE)) {
+      return(paste0("CAST(", columna_sql, " AS TEXT)"))
+    }
+    return(NA_character_)
+  }
   if (grepl("postgres|pqconnection", senas, perl = TRUE)) {
     texto <- paste0("CAST(", columna_sql, " AS text)")
     return(paste0(
@@ -18207,11 +18394,25 @@ print.plan_perfilado_dbi <- function(x, ...) {
       ")) ELSE ", texto, " END"
     ))
   }
+  if (grepl("duckdb", senas, perl = TRUE)) {
+    texto <- paste0("CAST(", columna_sql, " AS VARCHAR)")
+    return(paste0(
+      "CASE WHEN POSITION('.' IN ", texto, ") > 0 THEN ",
+      "TRIM(TRAILING '.' FROM TRIM(TRAILING '0' FROM ", texto,
+      ")) ELSE ", texto, " END"
+    ))
+  }
   columna_sql
 }
 
-.orden_moda_dbi <- function(conexion, valor_sql, tipo) {
+.orden_moda_dbi <- function(conexion, valor_sql, tipo,
+                            orden_numerico_sql = NULL) {
   senas <- .senas_conexion_dbi(conexion)
+  if (isTRUE(.tipo_declarado_entero_ancho_dbi(tipo)) &&
+      length(orden_numerico_sql) == 1L && !is.na(orden_numerico_sql) &&
+      nzchar(orden_numerico_sql)) {
+    return(as.character(orden_numerico_sql))
+  }
   if (!.es_tipo_binario_muestra_dbi(tipo, senas)) return(valor_sql)
   if (grepl("postgres|pqconnection", senas, perl = TRUE)) {
     return(paste0("convert_to(", valor_sql, ", 'UTF8')"))
@@ -20381,6 +20582,15 @@ print.plan_perfilado_dbi <- function(x, ...) {
     conexion, campos, esquema$campos_sql, esquema$tipos_motor,
     tipos = esquema$tipos
   )
+  tipos_declarados <- .tipos_declarados_con_motor_dbi(
+    esquema$tipos, esquema$tipos_motor
+  )
+  proyeccion_binaria <- .proyeccion_binaria_muestra_dbi(
+    conexion, campos, lectura$proyeccion_sql,
+    tipos_declarados = tipos_declarados,
+    tipos_motor = esquema$tipos_motor,
+    version_sqlserver = .version_servidor_sqlserver_dbi(conexion)
+  )
   list(
     universo = universo, muestra_motor = muestra_motor,
     estrategia_mediana = estrategia_mediana,
@@ -20396,6 +20606,10 @@ print.plan_perfilado_dbi <- function(x, ...) {
     enmascaradas = enmascaradas, mascaras = mascaras,
     campos = campos, campos_sql = lectura$campos_sql,
     campos_sql_proyeccion = lectura$proyeccion_sql,
+    campos_sql_bloques = proyeccion_binaria$campos_sql,
+    columnas_binarias_bloques = proyeccion_binaria$columnas_binarias,
+    columnas_binarias_bloques_prefijo =
+      proyeccion_binaria$columnas_binarias_prefijo,
     lectura_convertida = lectura$convertidas,
     columnas_float8_numeric = if (inherits(conexion, "PqConnection") &&
         !is.null(esquema$tipos_motor) &&
@@ -20411,7 +20625,7 @@ print.plan_perfilado_dbi <- function(x, ...) {
           c("float8", "double precision")
       ),
     prototipo = prototipo,
-    tipos = .tipos_declarados_con_motor_dbi(esquema$tipos, esquema$tipos_motor),
+    tipos = tipos_declarados,
     esquema = esquema,
     es_numerico = es_numerico, muestreo = muestreo,
     aproximaciones = aproximaciones,
@@ -20537,7 +20751,10 @@ print.plan_perfilado_dbi <- function(x, ...) {
 #' `maximo`, `media`, `n_ceros`, `n_negativos`, `mediana` y `desvio`. La condicion
 #' es de la columna y no de la metrica, aunque las dos ultimas se calculen en otras
 #' consultas; lo que el motor cuenta con exactitud -`n_distintos`, la moda- se sigue
-#' publicando. Lo decide el valor: un decimal desde 2^53 ya no cabe en un doble
+#' publicando. La moda de un entero ancho que llego como `numeric` se pide al
+#' motor como texto exacto cuando la magnitud cruza 2^53; un `BIGINT` con
+#' valores chicos conserva la moda numerica de siempre. Lo decide el valor: un
+#' decimal desde 2^53 ya no cabe en un doble
 #' -90071992547409001 y 90071992547409002 son el mismo-, y el tipo solo dice
 #' que viene de un decimal: RPostgres lo publica como `numeric` sin precision y
 #' odbc con su codigo ODBC (2 y 3), asi que una regla que esperara
@@ -20557,9 +20774,11 @@ print.plan_perfilado_dbi <- function(x, ...) {
 #' `no_disponible` con su motivo. Un decimal o un entero ancho que llega como
 #' doble desde 2^53 deja ademas `n_distintos` y `tasa_distintos` en
 #' `no_disponible`: con bloques se contarian en R sobre esos dobles, que no
-#' distinguen los valores. La moda de un decimal se le pide al motor como texto
-#' exacto en las tres vias, en PostgreSQL, SQL Server, MySQL y MariaDB; en otros
-#' motores sigue la regla de `n_distintos`. Las cifras de `perfil_muestra` de esa
+#' distinguen los valores. La moda de un decimal, y la de un entero ancho
+#' entregado como `numeric`, se le pide al motor como texto exacto en las tres
+#' vias, en PostgreSQL, SQL Server, MySQL, MariaDB y DuckDB; si la via o el
+#' adaptador no puede construir esa forma, queda `no_disponible` con su motivo.
+#' Las cifras de `perfil_muestra` de esa
 #' columna salen de los mismos dobles; sin bloques, la corroboracion avisa la
 #' diferencia en `n_distintos` y la moda contra las del motor. Un decimal por
 #' debajo de 2^53 con mas cifras de las que guarda un doble -`numeric(30,20)`-
@@ -21111,7 +21330,7 @@ print.plan_perfilado_dbi <- function(x, ...) {
 #'   cuenta sobre su universo —y todas las métricas de la columna con
 #'   `aplicabilidad` si la muestra dejó afuera valores presentes—; las métricas
 #'   de magnitud de una columna de la que la muestra excluyó los
-#'   `sentinelas_numericos` declarados; y las de un entero de 64 bits desde
+#'   `sentinelas_numericos` declarados; y las de un entero ancho desde
 #'   2^53, que el resumen no publica. Tampoco lo que un bloque no calculó: una
 #'   métrica que `resumen_tabla$sql` declara `no_disponible` —el motor rechazó
 #'   la consulta sobre el tipo (`json`, `xml` o `point` de PostgreSQL; `text`,
@@ -21554,6 +21773,10 @@ print.plan_perfilado_dbi <- function(x, ...) {
 #'   `dbGetQuery()`. Si se pide `moda` o `mediana`, la lectura por bloques inicia tambien el mapa
 #'   central de distintos aunque `n_distintos` no se haya pedido: la mediana
 #'   depende de ese mapa y la fila `n_distintos` conserva `no_solicitado`.
+#'   Las columnas binarias compatibles se solicitan en la misma forma que la
+#'   muestra, `largo:md5`, para que R no materialice los bytes crudos; los
+#'   largos que se publican se reconstruyen desde el prefijo y son los largos
+#'   originales, no el largo de esa cadena.
 #'   Bajo `bloque_filas`, `perfil_muestra` sigue siendo la muestra diagnóstica
 #'   acotada por `muestra`, `max_celdas_muestra` y `max_bytes_muestra`; su
 #'   `general$filas` no es la cobertura, que se publica en
@@ -21788,7 +22011,8 @@ print.plan_perfilado_dbi <- function(x, ...) {
 #'   lectura del spool y perfilado local; `perfil_muestra$meta$bytes_muestra`
 #'   conserva los bytes del spool. `meta$muestreo$reintentos` y
 #'   `meta$muestreo$metodo_inicial` describen la recuperación de una muestra
-#'   corta. Las columnas binarias de motores compatibles se representan como
+#'   corta. En `muestra_motor` o bajo `bloque_filas`, las columnas binarias de
+#'   motores compatibles se representan como
 #'   `largo:md5` durante la lectura y el perfil publica sus largos originales;
 #'   el contenido no se conserva.
 #' @export

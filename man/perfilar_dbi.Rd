@@ -285,6 +285,10 @@ DuckDB en esta matriz) quedan \code{no_disponible} con su motivo, sin caer en
 \code{dbGetQuery()}. Si se pide \code{moda} o \code{mediana}, la lectura por bloques inicia tambien el mapa
 central de distintos aunque \code{n_distintos} no se haya pedido: la mediana
 depende de ese mapa y la fila \code{n_distintos} conserva \code{no_solicitado}.
+Las columnas binarias compatibles se solicitan en la misma forma que la
+muestra, \code{largo:md5}, para que R no materialice los bytes crudos; los
+largos que se publican se reconstruyen desde el prefijo y son los largos
+originales, no el largo de esa cadena.
 Bajo \code{bloque_filas}, \code{perfil_muestra} sigue siendo la muestra diagnóstica
 acotada por \code{muestra}, \code{max_celdas_muestra} y \code{max_bytes_muestra}; su
 \code{general$filas} no es la cobertura, que se publica en
@@ -372,7 +376,8 @@ En \code{muestra_motor}, \code{resumen_tabla$tiempos} incluye materialización,
 lectura del spool y perfilado local; \code{perfil_muestra$meta$bytes_muestra}
 conserva los bytes del spool. \code{meta$muestreo$reintentos} y
 \code{meta$muestreo$metodo_inicial} describen la recuperación de una muestra
-corta. Las columnas binarias de motores compatibles se representan como
+corta. En \code{muestra_motor} o bajo \code{bloque_filas}, las columnas binarias de
+motores compatibles se representan como
 \code{largo:md5} durante la lectura y el perfil publica sus largos originales;
 el contenido no se conserva.
 }
@@ -466,7 +471,10 @@ deja sus metricas de magnitud en \code{no_disponible}. \strong{Las siete}: \code
 \code{maximo}, \code{media}, \code{n_ceros}, \code{n_negativos}, \code{mediana} y \code{desvio}. La condicion
 es de la columna y no de la metrica, aunque las dos ultimas se calculen en otras
 consultas; lo que el motor cuenta con exactitud -\code{n_distintos}, la moda- se sigue
-publicando. Lo decide el valor: un decimal desde 2^53 ya no cabe en un doble
+publicando. La moda de un entero ancho que llego como \code{numeric} se pide al
+motor como texto exacto cuando la magnitud cruza 2^53; un \code{BIGINT} con
+valores chicos conserva la moda numerica de siempre. Lo decide el valor: un
+decimal desde 2^53 ya no cabe en un doble
 -90071992547409001 y 90071992547409002 son el mismo-, y el tipo solo dice
 que viene de un decimal: RPostgres lo publica como \code{numeric} sin precision y
 odbc con su codigo ODBC (2 y 3), asi que una regla que esperara
@@ -486,9 +494,11 @@ PostgreSQL, un \code{INTEGER} de SQLite que no entra en 32 bits—: por debajo d
 \code{no_disponible} con su motivo. Un decimal o un entero ancho que llega como
 doble desde 2^53 deja ademas \code{n_distintos} y \code{tasa_distintos} en
 \code{no_disponible}: con bloques se contarian en R sobre esos dobles, que no
-distinguen los valores. La moda de un decimal se le pide al motor como texto
-exacto en las tres vias, en PostgreSQL, SQL Server, MySQL y MariaDB; en otros
-motores sigue la regla de \code{n_distintos}. Las cifras de \code{perfil_muestra} de esa
+distinguen los valores. La moda de un decimal, y la de un entero ancho
+entregado como \code{numeric}, se le pide al motor como texto exacto en las tres
+vias, en PostgreSQL, SQL Server, MySQL, MariaDB y DuckDB; si la via o el
+adaptador no puede construir esa forma, queda \code{no_disponible} con su motivo.
+Las cifras de \code{perfil_muestra} de esa
 columna salen de los mismos dobles; sin bloques, la corroboracion avisa la
 diferencia en \code{n_distintos} y la moda contra las del motor. Un decimal por
 debajo de 2^53 con mas cifras de las que guarda un doble -\code{numeric(30,20)}-
@@ -1051,7 +1061,7 @@ una columna de \code{columnas_opcionales} o de \code{aplicabilidad}, que la mues
 cuenta sobre su universo —y todas las métricas de la columna con
 \code{aplicabilidad} si la muestra dejó afuera valores presentes—; las métricas
 de magnitud de una columna de la que la muestra excluyó los
-\code{sentinelas_numericos} declarados; y las de un entero de 64 bits desde
+\code{sentinelas_numericos} declarados; y las de un entero ancho desde
 2^53, que el resumen no publica. Tampoco lo que un bloque no calculó: una
 métrica que \code{resumen_tabla$sql} declara \code{no_disponible} —el motor rechazó
 la consulta sobre el tipo (\code{json}, \code{xml} o \code{point} de PostgreSQL; \code{text},
